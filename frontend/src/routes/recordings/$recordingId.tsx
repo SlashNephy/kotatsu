@@ -76,8 +76,11 @@ import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
 import { failureKey } from '../../recordings/failureReason';
 import { SaveOfflineButton } from '../../offline/SaveOfflineButton';
+import { readableParams } from '../../futon/readableId';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
+  // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
+  params: readableParams('recordingId', 'Recording'),
   component: RecordingPage,
 });
 
