@@ -1044,6 +1044,14 @@ type Library struct {
 	Kind LibraryKind `json:"kind"`
 }
 
+// ライブラリのファイルの音声から自動生成した字幕の 1 つ。時刻は、再生の 0 秒 (最初の I フレーム) からの秒。
+type LibraryAutoCaption struct {
+	StartSeconds float64 `json:"startSeconds"`
+	EndSeconds   float64 `json:"endSeconds"`
+	// 字幕の本文。複数の行は改行でつなぐ。
+	Text string `json:"text"`
+}
+
 // ライブラリのファイルの、TS の中から読んだ放送の情報 (設計書 5.8)。録画の取り込み (設計書 6.5) と同じく読む。
 type LibraryBroadcast struct {
 	// SDT[actual] の original_network_id。読めなければ null。
@@ -1130,6 +1138,11 @@ type LibraryFile struct {
 	// CM とみなした区間 (設計書 5.8)。索引を作り終えた後に、nekonote のジョブで、録画と同じ見分け方で見分ける。
 	// まだ見分けていなければ null で、開くとジョブを入れる。見つからなければ空のリスト。
 	CMSections []*LibraryCMSection `json:"cmSections,omitempty"`
+	// 音声から自動生成した字幕 (設計書 5.8)。録画と同じく、頼まれたときだけ生成する。生成していなければ空。
+	// 今のファイルから生成したものだけを返す。
+	AutoCaptions []*LibraryAutoCaption `json:"autoCaptions"`
+	// 字幕の自動生成の状態。録画と同じ形で返す。
+	AutoCaptionsStatus *RecordingAutoCaptions `json:"autoCaptionsStatus"`
 	// ファイルを kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
 	// 後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
 	HlsURL string `json:"hlsUrl"`

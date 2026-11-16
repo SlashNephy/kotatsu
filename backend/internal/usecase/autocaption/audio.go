@@ -44,26 +44,40 @@ func FFmpegExtractor(lowerer *procprio.Lowerer) (Extractor, error) {
 	}
 
 	return func(ctx context.Context, path string, serviceID uint16, wav string) (time.Duration, error) {
-		return extractAudio(ctx, lowerer, path, serviceID, wav)
+		file, err := sharedfile.Open(path)
+		if err != nil {
+			return 0, fmt.Errorf("failed to open the recording file: %w", err)
+		}
+		defer func() { _ = file.Close() }()
+
+		return extractAudio(ctx, lowerer, file, serviceID, wav)
 	}, nil
 }
 
-// extractAudio は、録画のファイル path の最初の音声を、FFmpeg で wav に書く。FFmpeg に流すのと同じ TS を ts.CueScanner にも読ませ、
+// ReaderExtractor は、TS を読み出す r から、Extractor と同じく音声を取り出す。ローカルのパスのないファイル (ライブラリのファイル。#1734) で使う。
+type ReaderExtractor func(ctx context.Context, r io.Reader, serviceID uint16, wav string) (offset time.Duration, err error)
+
+// FFmpegReaderExtractor は、FFmpeg で音声を取り出す ReaderExtractor を返す。FFmpeg がなければ ErrFFmpegNotFound を返す。
+func FFmpegReaderExtractor(lowerer *procprio.Lowerer) (ReaderExtractor, error) {
+	if _, err := exec.LookPath(ffmpegCommand); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrFFmpegNotFound, err)
+	}
+
+	return func(ctx context.Context, r io.Reader, serviceID uint16, wav string) (time.Duration, error) {
+		return extractAudio(ctx, lowerer, r, serviceID, wav)
+	}, nil
+}
+
+// extractAudio は、TS を読み出す r の最初の音声を、FFmpeg で wav に書く。FFmpeg に流すのと同じ TS を ts.CueScanner にも読ませ、
 // 最初の音声と最初の I フレームの PTS の差から、WAV の始まりの再生の時間での位置を求める (CM の区間と同じ基準、#1811)。
 // 録画は録画したサービスだけの TS なので (CM の区間の見分けと同じく)、最初の音声 (0:a:0) を読む。デュアルモノは、2 つの音声を混ぜて 1 つにする。
-func extractAudio(ctx context.Context, lowerer *procprio.Lowerer, path string, serviceID uint16, wav string) (time.Duration, error) {
-	file, err := sharedfile.Open(path)
-	if err != nil {
-		return 0, fmt.Errorf("failed to open the recording file: %w", err)
-	}
-	defer func() { _ = file.Close() }()
-
+func extractAudio(ctx context.Context, lowerer *procprio.Lowerer, r io.Reader, serviceID uint16, wav string) (time.Duration, error) {
 	scanner := ts.NewCueScanner(serviceID)
 	// 時刻を PTS のまま扱わせ (-copyts)、TS の不連続を詰めずに、欠けた所を aresample に無音で埋めさせる。
 	cmd := exec.CommandContext(ctx, ffmpegCommand, "-nostdin", "-hide_banner", "-nostats", "-loglevel", "error",
 		"-threads", "1", "-copyts", "-f", "mpegts", "-i", "pipe:0",
 		"-map", "0:a:0", "-vn", "-sn", "-dn", "-af", audioFilter, "-ac", "1", "-c:a", "pcm_s16le", "-f", "wav", "-y", wav)
-	cmd.Stdin = io.TeeReader(file, scanner)
+	cmd.Stdin = io.TeeReader(r, scanner)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return 0, fmt.Errorf("failed to open the FFmpeg stderr: %w", err)

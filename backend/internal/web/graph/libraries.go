@@ -14,6 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/fileimport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
@@ -169,13 +170,17 @@ func (r *Resolver) openLibraryFile(ctx context.Context, ref filelib.Ref) (*model
 	}
 	thumbnailURL, previewURL := r.libraryImageURLs(ctx, file)
 	cmSections := r.libraryCMSections(ctx, file)
+	captions, captionsStatus, err := r.libraryAutoCaptions(ctx, file)
+	if err != nil {
+		return nil, err
+	}
 	var quality *model.LibraryFileQuality
 	if q := file.Index.Quality; q != nil {
 		quality = &model.LibraryFileQuality{Drops: q.Drops, Errors: q.Errors, Scrambled: q.Scrambled}
 	}
 
 	return &model.LibraryFile{
-		Broadcast: broadcast, Audios: audios, Quality: quality, ThumbnailURL: thumbnailURL, PreviewURL: previewURL, CMSections: cmSections, JikkyoCommentsURL: libraryMediaPrefix + encoded + "/" + jikkyoapi.CommentsFileName,
+		Broadcast: broadcast, Audios: audios, Quality: quality, ThumbnailURL: thumbnailURL, PreviewURL: previewURL, CMSections: cmSections, AutoCaptions: captions, AutoCaptionsStatus: captionsStatus, JikkyoCommentsURL: libraryMediaPrefix + encoded + "/" + jikkyoapi.CommentsFileName,
 		ID: GlobalID(libraryFileType, file.ID()+libraryFileIDSeparator+encoded), Library: toLibrary(file.Library), Path: ref.Path, Name: file.Entry.Name,
 		Size: file.Entry.Size, ModifiedAt: file.Entry.ModifiedAt, VideoFormat: libraryVideoFormat(video), Index: index,
 		WatchPositionMs: watched, StreamURL: libraryStreamPrefix + encoded, HlsURL: libraryStreamPrefix + encoded,
@@ -227,6 +232,65 @@ func (r *Resolver) libraryCMSections(ctx context.Context, file *filelib.File) []
 	}
 
 	return sections
+}
+
+// libraryAutoCaptions は、今のファイルの音声から自動生成した字幕と、自動生成の状態を返す。
+func (r *Resolver) libraryAutoCaptions(ctx context.Context, file *filelib.File) ([]*model.LibraryAutoCaption, *model.RecordingAutoCaptions, error) {
+	captions := []*model.LibraryAutoCaption{}
+	var generated *autocaption.Generated
+	if result, ok := r.librarySource.Indexer().Captions(file.Ref, file.ID()); ok {
+		generated = &autocaption.Generated{At: result.GeneratedAt, Model: result.Model, Cues: len(result.Cues)}
+		for _, c := range result.Cues {
+			captions = append(captions, &model.LibraryAutoCaption{StartSeconds: c.Start.Seconds(), EndSeconds: c.End.Seconds(), Text: c.Text})
+		}
+	}
+	match := map[string]string{"library": file.Ref.Library, "path": file.Ref.Path, "fileId": file.ID()}
+	status, err := autocaption.JobStatus(ctx, r.db, new(filelib.CaptionsArgs).Kind(), match, generated)
+	if err != nil {
+		return nil, nil, err
+	}
+	out := &model.RecordingAutoCaptions{State: status.State, GeneratedAt: status.GeneratedAt, Model: nil, Count: status.Cues, Progress: nil}
+	if status.Model != "" {
+		out.Model = &status.Model
+	}
+
+	return captions, out, nil
+}
+
+// generateLibraryCaptions は、ライブラリのファイルの音声から字幕を自動生成するジョブを入れる (設計書 5.8)。
+func (r *Resolver) generateLibraryCaptions(ctx context.Context, globalID string) (*model.LibraryFile, error) {
+	if _, err := librarian(ctx); err != nil {
+		return nil, err
+	}
+	if r.libraryJobs == nil {
+		return nil, errors.New("the job client is not configured")
+	}
+	typeName, raw, err := ParseGlobalID(globalID)
+	if err != nil || typeName != libraryFileType {
+		return nil, NewError(CodeBadUserInput, "invalid library file ID")
+	}
+	fileID, encoded, _ := strings.Cut(raw, libraryFileIDSeparator)
+	ref, ok := filelib.DecodeRef(encoded)
+	if !ok {
+		return nil, NewError(CodeBadUserInput, "invalid library file ID")
+	}
+	file, err := r.librarySource.Open(ctx, ref)
+	if err != nil {
+		return nil, libraryReadError(err)
+	}
+	switch {
+	case file.ID() != fileID:
+		return nil, NewError(CodeConflict, "the library file was changed")
+	case file.Writing:
+		return nil, NewError(CodeConflict, "the library file is still being written")
+	case file.Index.Broadcast == nil:
+		return nil, NewError(CodeConflict, "the service of the library file is unknown")
+	}
+	if _, err := filelib.EnqueueCaptions(ctx, r.libraryJobs, file); err != nil {
+		return nil, err
+	}
+
+	return r.openLibraryFile(ctx, ref)
 }
 
 // libraryBroadcast は、TS から読んだ放送の情報を、GraphQL の形にする。同じネットワークとサービス ID の Kotatsu のサービスがあれば添える。

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<743997593213bdd01429711465aa24a4>>
+ * @generated SignedSource<<d560fe95f27b82c4e1580c0bdc0e30f6>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,8 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type RecordingAutoCaptionsState = "FAILED" | "GENERATED" | "NOT_CONFIGURED" | "NOT_GENERATED" | "QUEUED" | "RUNNING" | "%future added value";
+export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type VideoCodec = "H264" | "HEVC" | "%future added value";
 export type VideoFormat = "HD" | "SHV" | "UHD" | "%future added value";
 export type playLibraryFileQuery$variables = {
@@ -21,6 +23,21 @@ export type playLibraryFileQuery$data = {
       readonly languages: ReadonlyArray<string>;
       readonly samplingRate: number;
     }>;
+    readonly autoCaptions: ReadonlyArray<{
+      readonly endSeconds: number;
+      readonly startSeconds: number;
+      readonly text: string;
+    }>;
+    readonly autoCaptionsStatus: {
+      readonly count: number;
+      readonly generatedAt: string | null | undefined;
+      readonly model: string | null | undefined;
+      readonly progress: {
+        readonly ratio: number;
+        readonly remainingSeconds: number | null | undefined;
+      } | null | undefined;
+      readonly state: RecordingAutoCaptionsState;
+    };
     readonly broadcast: {
       readonly jikkyoChannelId: string | null | undefined;
       readonly program: {
@@ -77,6 +94,9 @@ export type playLibraryFileQuery$data = {
       readonly name: string;
       readonly passthrough: boolean;
     }>;
+  };
+  readonly viewer: {
+    readonly role: Role;
   };
 };
 export type playLibraryFileQuery = {
@@ -201,57 +221,144 @@ v13 = {
 v14 = {
   "alias": null,
   "args": null,
-  "concreteType": "LibraryCMSection",
-  "kind": "LinkedField",
-  "name": "cmSections",
-  "plural": true,
-  "selections": [
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "startSeconds",
-      "storageKey": null
-    },
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "endSeconds",
-      "storageKey": null
-    }
-  ],
+  "kind": "ScalarField",
+  "name": "startSeconds",
   "storageKey": null
 },
 v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "serviceName",
+  "name": "endSeconds",
   "storageKey": null
 },
 v16 = {
   "alias": null,
   "args": null,
-  "kind": "ScalarField",
-  "name": "jikkyoChannelId",
+  "concreteType": "LibraryCMSection",
+  "kind": "LinkedField",
+  "name": "cmSections",
+  "plural": true,
+  "selections": [
+    (v14/*:: as any*/),
+    (v15/*:: as any*/)
+  ],
   "storageKey": null
 },
 v17 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "text",
   "storageKey": null
 },
 v18 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "LibraryAutoCaption",
+  "kind": "LinkedField",
+  "name": "autoCaptions",
+  "plural": true,
+  "selections": [
+    (v14/*:: as any*/),
+    (v15/*:: as any*/),
+    (v17/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v19 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "RecordingAutoCaptions",
+  "kind": "LinkedField",
+  "name": "autoCaptionsStatus",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "state",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "generatedAt",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "model",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "count",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "JobProgress",
+      "kind": "LinkedField",
+      "name": "progress",
+      "plural": false,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "ratio",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "remainingSeconds",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v20 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "serviceName",
+  "storageKey": null
+},
+v21 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "jikkyoChannelId",
+  "storageKey": null
+},
+v22 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedFrom",
+  "storageKey": null
+},
+v23 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v19 = {
+v24 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryProgram",
@@ -282,13 +389,7 @@ v19 = {
           "name": "heading",
           "storageKey": null
         },
-        {
-          "alias": null,
-          "args": null,
-          "kind": "ScalarField",
-          "name": "text",
-          "storageKey": null
-        }
+        (v17/*:: as any*/)
       ],
       "storageKey": null
     },
@@ -309,7 +410,7 @@ v19 = {
   ],
   "storageKey": null
 },
-v20 = {
+v25 = {
   "alias": null,
   "args": null,
   "concreteType": "ProgramAudio",
@@ -341,7 +442,7 @@ v20 = {
   ],
   "storageKey": null
 },
-v21 = {
+v26 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryFileQuality",
@@ -373,7 +474,7 @@ v21 = {
   ],
   "storageKey": null
 },
-v22 = {
+v27 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryFileIndex",
@@ -412,7 +513,14 @@ v22 = {
   ],
   "storageKey": null
 },
-v23 = {
+v28 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "role",
+  "storageKey": null
+},
+v29 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -483,7 +591,9 @@ return {
           (v11/*:: as any*/),
           (v12/*:: as any*/),
           (v13/*:: as any*/),
-          (v14/*:: as any*/),
+          (v16/*:: as any*/),
+          (v18/*:: as any*/),
+          (v19/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -492,9 +602,9 @@ return {
             "name": "broadcast",
             "plural": false,
             "selections": [
-              (v15/*:: as any*/),
-              (v16/*:: as any*/),
-              (v17/*:: as any*/),
+              (v20/*:: as any*/),
+              (v21/*:: as any*/),
+              (v22/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -504,21 +614,33 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v18/*:: as any*/)
+                  (v23/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v19/*:: as any*/)
+              (v24/*:: as any*/)
             ],
             "storageKey": null
           },
-          (v20/*:: as any*/),
-          (v21/*:: as any*/),
-          (v22/*:: as any*/)
+          (v25/*:: as any*/),
+          (v26/*:: as any*/),
+          (v27/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v23/*:: as any*/)
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v28/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      (v29/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -549,7 +671,9 @@ return {
           (v11/*:: as any*/),
           (v12/*:: as any*/),
           (v13/*:: as any*/),
-          (v14/*:: as any*/),
+          (v16/*:: as any*/),
+          (v18/*:: as any*/),
+          (v19/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -558,9 +682,9 @@ return {
             "name": "broadcast",
             "plural": false,
             "selections": [
-              (v15/*:: as any*/),
-              (v16/*:: as any*/),
-              (v17/*:: as any*/),
+              (v20/*:: as any*/),
+              (v21/*:: as any*/),
+              (v22/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -570,35 +694,48 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v18/*:: as any*/),
+                  (v23/*:: as any*/),
                   (v2/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v19/*:: as any*/)
+              (v24/*:: as any*/)
             ],
             "storageKey": null
           },
-          (v20/*:: as any*/),
-          (v21/*:: as any*/),
-          (v22/*:: as any*/)
+          (v25/*:: as any*/),
+          (v26/*:: as any*/),
+          (v27/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v23/*:: as any*/)
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v28/*:: as any*/),
+          (v2/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      (v29/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "99374e38ea4caf452e11cde2a7e7ddc6",
+    "cacheID": "1473b34ef63c27096fb4387439f1dcf2",
     "id": null,
     "metadata": {},
     "name": "playLibraryFileQuery",
     "operationKind": "query",
-    "text": "query playLibraryFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n    }\n    jikkyoCommentsUrl\n    thumbnailUrl\n    previewUrl\n    cmSections {\n      startSeconds\n      endSeconds\n    }\n    broadcast {\n      serviceName\n      jikkyoChannelId\n      recordedFrom\n      service {\n        name\n        logoUrl\n        id\n      }\n      program {\n        name\n        description\n        extended {\n          heading\n          text\n        }\n        startAt\n        endAt\n      }\n    }\n    audios {\n      componentType\n      languages\n      samplingRate\n    }\n    quality {\n      drops\n      errors\n      scrambled\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query playLibraryFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n    }\n    jikkyoCommentsUrl\n    thumbnailUrl\n    previewUrl\n    cmSections {\n      startSeconds\n      endSeconds\n    }\n    autoCaptions {\n      startSeconds\n      endSeconds\n      text\n    }\n    autoCaptionsStatus {\n      state\n      generatedAt\n      model\n      count\n      progress {\n        ratio\n        remainingSeconds\n      }\n    }\n    broadcast {\n      serviceName\n      jikkyoChannelId\n      recordedFrom\n      service {\n        name\n        logoUrl\n        id\n      }\n      program {\n        name\n        description\n        extended {\n          heading\n          text\n        }\n        startAt\n        endAt\n      }\n    }\n    audios {\n      componentType\n      languages\n      samplingRate\n    }\n    quality {\n      drops\n      errors\n      scrambled\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  viewer {\n    role\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "5c437b96a359b1381ee38754fda8cd34";
+(node as any).hash = "c72a35f53d217ce34417525748222736";
 
 export default node;

@@ -641,6 +641,12 @@ type ComplexityRoot struct {
 		Name func(childComplexity int) int
 	}
 
+	LibraryAutoCaption struct {
+		EndSeconds   func(childComplexity int) int
+		StartSeconds func(childComplexity int) int
+		Text         func(childComplexity int) int
+	}
+
 	LibraryBroadcast struct {
 		JikkyoChannelID func(childComplexity int) int
 		NetworkID       func(childComplexity int) int
@@ -673,24 +679,26 @@ type ComplexityRoot struct {
 	}
 
 	LibraryFile struct {
-		Audios            func(childComplexity int) int
-		Broadcast         func(childComplexity int) int
-		CMSections        func(childComplexity int) int
-		HlsURL            func(childComplexity int) int
-		ID                func(childComplexity int) int
-		Index             func(childComplexity int) int
-		JikkyoCommentsURL func(childComplexity int) int
-		Library           func(childComplexity int) int
-		ModifiedAt        func(childComplexity int) int
-		Name              func(childComplexity int) int
-		Path              func(childComplexity int) int
-		PreviewURL        func(childComplexity int) int
-		Quality           func(childComplexity int) int
-		Size              func(childComplexity int) int
-		StreamURL         func(childComplexity int) int
-		ThumbnailURL      func(childComplexity int) int
-		VideoFormat       func(childComplexity int) int
-		WatchPositionMs   func(childComplexity int) int
+		Audios             func(childComplexity int) int
+		AutoCaptions       func(childComplexity int) int
+		AutoCaptionsStatus func(childComplexity int) int
+		Broadcast          func(childComplexity int) int
+		CMSections         func(childComplexity int) int
+		HlsURL             func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		Index              func(childComplexity int) int
+		JikkyoCommentsURL  func(childComplexity int) int
+		Library            func(childComplexity int) int
+		ModifiedAt         func(childComplexity int) int
+		Name               func(childComplexity int) int
+		Path               func(childComplexity int) int
+		PreviewURL         func(childComplexity int) int
+		Quality            func(childComplexity int) int
+		Size               func(childComplexity int) int
+		StreamURL          func(childComplexity int) int
+		ThumbnailURL       func(childComplexity int) int
+		VideoFormat        func(childComplexity int) int
+		WatchPositionMs    func(childComplexity int) int
 	}
 
 	LibraryFileIndex struct {
@@ -821,6 +829,7 @@ type ComplexityRoot struct {
 		DisconnectAnimeRecord         func(childComplexity int, destination model.AnimeRecordDestination) int
 		DownloadCaptionModel          func(childComplexity int, id string) int
 		EnableUser                    func(childComplexity int, id string) int
+		GenerateLibraryCaptions       func(childComplexity int, id string) int
 		GenerateRecordingCaptions     func(childComplexity int, id string) int
 		InspectChannel                func(childComplexity int, channelType string, channel string) int
 		MarkAllNotificationsRead      func(childComplexity int) int
@@ -1785,6 +1794,7 @@ type MutationResolver interface {
 	RetryJob(ctx context.Context, id string) (*model.Job, error)
 	CancelJob(ctx context.Context, id string) (*model.Job, error)
 	SaveLibraryWatchPosition(ctx context.Context, id string, positionMs int64) (*model.LibraryFile, error)
+	GenerateLibraryCaptions(ctx context.Context, id string) (*model.LibraryFile, error)
 	CleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error)
 	MarkNotificationsRead(ctx context.Context, ids []string) (int, error)
 	MarkAllNotificationsRead(ctx context.Context) (int, error)
@@ -4177,6 +4187,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Library.Name(childComplexity), true
 
+	case "LibraryAutoCaption.endSeconds":
+		if e.ComplexityRoot.LibraryAutoCaption.EndSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryAutoCaption.EndSeconds(childComplexity), true
+	case "LibraryAutoCaption.startSeconds":
+		if e.ComplexityRoot.LibraryAutoCaption.StartSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryAutoCaption.StartSeconds(childComplexity), true
+	case "LibraryAutoCaption.text":
+		if e.ComplexityRoot.LibraryAutoCaption.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryAutoCaption.Text(childComplexity), true
+
 	case "LibraryBroadcast.jikkyoChannelId":
 		if e.ComplexityRoot.LibraryBroadcast.JikkyoChannelID == nil {
 			break
@@ -4301,6 +4330,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LibraryFile.Audios(childComplexity), true
+	case "LibraryFile.autoCaptions":
+		if e.ComplexityRoot.LibraryFile.AutoCaptions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.AutoCaptions(childComplexity), true
+	case "LibraryFile.autoCaptionsStatus":
+		if e.ComplexityRoot.LibraryFile.AutoCaptionsStatus == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.AutoCaptionsStatus(childComplexity), true
 	case "LibraryFile.broadcast":
 		if e.ComplexityRoot.LibraryFile.Broadcast == nil {
 			break
@@ -5206,6 +5247,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.EnableUser(childComplexity, args["id"].(string)), true
+	case "Mutation.generateLibraryCaptions":
+		if e.ComplexityRoot.Mutation.GenerateLibraryCaptions == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_generateLibraryCaptions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.GenerateLibraryCaptions(childComplexity, args["id"].(string)), true
 	case "Mutation.generateRecordingCaptions":
 		if e.ComplexityRoot.Mutation.GenerateRecordingCaptions == nil {
 			break
@@ -11716,6 +11768,13 @@ type LibraryFile {
   """
   cmSections: [LibraryCMSection!]
   """
+  音声から自動生成した字幕 (設計書 5.8)。録画と同じく、頼まれたときだけ生成する。生成していなければ空。
+  今のファイルから生成したものだけを返す。
+  """
+  autoCaptions: [LibraryAutoCaption!]!
+  "字幕の自動生成の状態。録画と同じ形で返す。"
+  autoCaptionsStatus: RecordingAutoCaptions!
+  """
   ファイルを kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
   後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
   """
@@ -11787,12 +11846,26 @@ extend type Mutation {
   id を引いた後にファイルを書き換えていたら、前のファイルの位置なので保存せず、今のファイルを返す。
   """
   saveLibraryWatchPosition(id: ID!, positionMs: Int64!): LibraryFile!
+  """
+  ライブラリのファイル id (LibraryFile.id) の音声から字幕を自動生成するジョブを入れる (設計書 5.8)。視聴者は使えない。
+  録画と同じく、前に生成した字幕は、生成し終えたら置き換える。同じファイルのジョブを待っていれば、重ねて入れない。
+  id を引いた後にファイルを書き換えていたら CONFLICT にする。書いている途中か、音声を引くサービスが分からないファイルも CONFLICT にする。
+  """
+  generateLibraryCaptions(id: ID!): LibraryFile!
 }
 
 "ライブラリのファイルの、CM とみなした区間。時刻は、再生の 0 秒 (索引の最初の I フレーム) からの秒。"
 type LibraryCMSection {
   startSeconds: Float!
   endSeconds: Float!
+}
+
+"ライブラリのファイルの音声から自動生成した字幕の 1 つ。時刻は、再生の 0 秒 (最初の I フレーム) からの秒。"
+type LibraryAutoCaption {
+  startSeconds: Float!
+  endSeconds: Float!
+  "字幕の本文。複数の行は改行でつなぐ。"
+  text: String!
 }
 `, BuiltIn: false},
 	{Name: "../schema/licenses.graphqls", Input: `"""
@@ -15818,6 +15891,18 @@ func (ec *executionContext) childFields_Library(ctx context.Context, field graph
 	return nil, fmt.Errorf("no field named %q was found under type Library", field.Name)
 }
 
+func (ec *executionContext) childFields_LibraryAutoCaption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "startSeconds":
+		return ec.fieldContext_LibraryAutoCaption_startSeconds(ctx, field)
+	case "endSeconds":
+		return ec.fieldContext_LibraryAutoCaption_endSeconds(ctx, field)
+	case "text":
+		return ec.fieldContext_LibraryAutoCaption_text(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LibraryAutoCaption", field.Name)
+}
+
 func (ec *executionContext) childFields_LibraryBroadcast(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "networkId":
@@ -15916,6 +16001,10 @@ func (ec *executionContext) childFields_LibraryFile(ctx context.Context, field g
 		return ec.fieldContext_LibraryFile_previewUrl(ctx, field)
 	case "cmSections":
 		return ec.fieldContext_LibraryFile_cmSections(ctx, field)
+	case "autoCaptions":
+		return ec.fieldContext_LibraryFile_autoCaptions(ctx, field)
+	case "autoCaptionsStatus":
+		return ec.fieldContext_LibraryFile_autoCaptionsStatus(ctx, field)
 	case "hlsUrl":
 		return ec.fieldContext_LibraryFile_hlsUrl(ctx, field)
 	}
@@ -18313,6 +18402,20 @@ func (ec *executionContext) field_Mutation_downloadCaptionModel_args(ctx context
 }
 
 func (ec *executionContext) field_Mutation_enableUser_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_generateLibraryCaptions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -28351,6 +28454,75 @@ func (ec *executionContext) fieldContext_Library_kind(_ context.Context, field g
 	return graphql.NewScalarFieldContext("Library", field, false, false, "LibraryKind")
 }
 
+func (ec *executionContext) _LibraryAutoCaption_startSeconds(ctx context.Context, field graphql.CollectedField, obj *model.LibraryAutoCaption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryAutoCaption_startSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryAutoCaption_startSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryAutoCaption", field, false, false, "Float")
+}
+
+func (ec *executionContext) _LibraryAutoCaption_endSeconds(ctx context.Context, field graphql.CollectedField, obj *model.LibraryAutoCaption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryAutoCaption_endSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryAutoCaption_endSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryAutoCaption", field, false, false, "Float")
+}
+
+func (ec *executionContext) _LibraryAutoCaption_text(ctx context.Context, field graphql.CollectedField, obj *model.LibraryAutoCaption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryAutoCaption_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryAutoCaption_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryAutoCaption", field, false, false, "String")
+}
+
 func (ec *executionContext) _LibraryBroadcast_networkId(ctx context.Context, field graphql.CollectedField, obj *model.LibraryBroadcast) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -29264,6 +29436,70 @@ func (ec *executionContext) fieldContext_LibraryFile_cmSections(_ context.Contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_LibraryCMSection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LibraryFile_autoCaptions(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_autoCaptions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AutoCaptions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LibraryAutoCaption) graphql.Marshaler {
+			return ec.marshalNLibraryAutoCaption2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryAutoCaptionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_autoCaptions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LibraryFile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryAutoCaption(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LibraryFile_autoCaptionsStatus(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_autoCaptionsStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AutoCaptionsStatus, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RecordingAutoCaptions) graphql.Marshaler {
+			return ec.marshalNRecordingAutoCaptions2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingAutoCaptions(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_autoCaptionsStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LibraryFile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingAutoCaptions(ctx, field)
 		},
 	}
 	return fc, nil
@@ -31689,6 +31925,50 @@ func (ec *executionContext) fieldContext_Mutation_saveLibraryWatchPosition(ctx c
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_saveLibraryWatchPosition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_generateLibraryCaptions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_generateLibraryCaptions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().GenerateLibraryCaptions(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LibraryFile) graphql.Marshaler {
+			return ec.marshalNLibraryFile2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryFile(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_generateLibraryCaptions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryFile(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_generateLibraryCaptions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -59011,6 +59291,49 @@ func (ec *executionContext) _Library(ctx context.Context, sel ast.SelectionSet, 
 	return out
 }
 
+var libraryAutoCaptionImplementors = []string{"LibraryAutoCaption"}
+
+func (ec *executionContext) _LibraryAutoCaption(ctx context.Context, sel ast.SelectionSet, obj *model.LibraryAutoCaption) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, libraryAutoCaptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LibraryAutoCaption")
+		case "startSeconds":
+			out.Values[i] = ec._LibraryAutoCaption_startSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endSeconds":
+			out.Values[i] = ec._LibraryAutoCaption_endSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._LibraryAutoCaption_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var libraryBroadcastImplementors = []string{"LibraryBroadcast"}
 
 func (ec *executionContext) _LibraryBroadcast(ctx context.Context, sel ast.SelectionSet, obj *model.LibraryBroadcast) graphql.Marshaler {
@@ -59312,6 +59635,16 @@ func (ec *executionContext) _LibraryFile(ctx context.Context, sel ast.SelectionS
 		case "cmSections":
 			out.Values[i] = ec._LibraryFile_cmSections(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "autoCaptions":
+			out.Values[i] = ec._LibraryFile_autoCaptions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "autoCaptionsStatus":
+			out.Values[i] = ec._LibraryFile_autoCaptionsStatus(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "hlsUrl":
@@ -60083,6 +60416,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "saveLibraryWatchPosition":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_saveLibraryWatchPosition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "generateLibraryCaptions":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_generateLibraryCaptions(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -68265,6 +68605,30 @@ func (ec *executionContext) marshalNLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 		return graphql.Null
 	}
 	return ec._Library(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLibraryAutoCaption2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryAutoCaptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LibraryAutoCaption) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLibraryAutoCaption2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryAutoCaption(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLibraryAutoCaption2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryAutoCaption(ctx context.Context, sel ast.SelectionSet, v *model.LibraryAutoCaption) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LibraryAutoCaption!")
+		return graphql.Null
+	}
+	return ec._LibraryAutoCaption(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNLibraryCMSection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryCMSection(ctx context.Context, sel ast.SelectionSet, v *model.LibraryCMSection) graphql.Marshaler {

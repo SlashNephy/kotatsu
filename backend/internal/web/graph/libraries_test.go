@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
@@ -24,7 +25,8 @@ import (
 const (
 	librariesQuery         = `{ libraries { name kind } }`
 	libraryDirectoryQuery  = `query($library: String!, $path: String!) { libraryDirectory(library: $library, path: $path) { path library { name } entries { name path directory size playable } } }`
-	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl thumbnailUrl previewUrl cmSections { startSeconds endSeconds } broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
+	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl thumbnailUrl previewUrl cmSections { startSeconds endSeconds } autoCaptions { startSeconds endSeconds text } autoCaptionsStatus { state model count } broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
+	generateLibraryCaps    = `mutation($id: ID!) { generateLibraryCaptions(id: $id) { id autoCaptionsStatus { state } } }`
 	saveLibraryPosition    = `mutation($id: ID!, $positionMs: Int64!) { saveLibraryWatchPosition(id: $id, positionMs: $positionMs) { id watchPositionMs } }`
 	libraryTestFileContent = "../../../testdata/ts/test.ts"
 	// animeLibrary は、テストのフォルダのライブラリの名前。discM2TS と episodePath は、その中のファイルのパス。
@@ -49,7 +51,17 @@ type libraryFileResult struct {
 		JikkyoCommentsURL string  `json:"jikkyoCommentsUrl"`
 		ThumbnailURL      *string `json:"thumbnailUrl"`
 		PreviewURL        *string `json:"previewUrl"`
-		CMSections        []struct {
+		AutoCaptions      []struct {
+			StartSeconds float64 `json:"startSeconds"`
+			EndSeconds   float64 `json:"endSeconds"`
+			Text         string  `json:"text"`
+		} `json:"autoCaptions"`
+		AutoCaptionsStatus struct {
+			State string  `json:"state"`
+			Model *string `json:"model"`
+			Count int     `json:"count"`
+		} `json:"autoCaptionsStatus"`
+		CMSections []struct {
 			StartSeconds float64 `json:"startSeconds"`
 			EndSeconds   float64 `json:"endSeconds"`
 		} `json:"cmSections"`
@@ -128,7 +140,11 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 
 	images := new(fakeImages)
 
-	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer), LibraryJobs: images}), &libraryParts{dir: libraryDir, images: images, indexer: indexer}
+	f := newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer), LibraryJobs: images})
+	// 字幕の自動生成の状態は、River のジョブの表から読む。
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+
+	return f, &libraryParts{dir: libraryDir, images: images, indexer: indexer}
 }
 
 // TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの中身は、ディレクトリと再生できるファイルだけを返すことを確かめる (#1734)。
@@ -258,6 +274,25 @@ func TestLibraryFile(t *testing.T) {
 	require.Len(t, made.LibraryFile.CMSections, 1)
 	assert.InDelta(t, 1.5, made.LibraryFile.CMSections[0].StartSeconds, 1e-9)
 	assert.InDelta(t, 16.5, made.LibraryFile.CMSections[0].EndSeconds, 1e-9)
+
+	// 字幕の自動生成は、頼まれたときだけ。視聴者は頼めない。
+	assert.Empty(t, made.LibraryFile.AutoCaptions)
+	assert.Equal(t, "NOT_GENERATED", made.LibraryFile.AutoCaptionsStatus.State)
+	assert.Equal(t, []string{codeForbidden},
+		f.as(t, "captions-viewer", domain.RoleViewer).query(t, generateLibraryCaps, map[string]any{"id": made.LibraryFile.ID}, nil))
+	require.Empty(t, f.query(t, generateLibraryCaps, map[string]any{"id": made.LibraryFile.ID}, nil))
+	assert.Contains(t, images.kinds(), "library_auto_captions")
+	require.NoError(t, indexer.WriteCaptions(ref, &filelib.CaptionsResult{
+		FileID: fileID, Model: "ggml-model.bin", GeneratedAt: time.Now(),
+		Cues: []*filelib.CaptionCue{{Start: 2 * time.Second, End: 3500 * time.Millisecond, Text: "こんにちは"}},
+	}))
+	require.Empty(t, f.query(t, libraryFileQuery, variables, &made))
+	require.Len(t, made.LibraryFile.AutoCaptions, 1)
+	assert.InDelta(t, 2, made.LibraryFile.AutoCaptions[0].StartSeconds, 1e-9)
+	assert.InDelta(t, 3.5, made.LibraryFile.AutoCaptions[0].EndSeconds, 1e-9)
+	assert.Equal(t, "こんにちは", made.LibraryFile.AutoCaptions[0].Text)
+	assert.Equal(t, "GENERATED", made.LibraryFile.AutoCaptionsStatus.State)
+	assert.Equal(t, 1, made.LibraryFile.AutoCaptionsStatus.Count)
 	require.NotNil(t, file.LibraryFile.Broadcast)
 	assert.Equal(t, new(0x7FE0), file.LibraryFile.Broadcast.NetworkID)
 	assert.Equal(t, 0x0400, file.LibraryFile.Broadcast.ServiceID)

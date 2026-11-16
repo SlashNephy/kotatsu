@@ -104,6 +104,13 @@ type LibraryFile {
   """
   cmSections: [LibraryCMSection!]
   """
+  音声から自動生成した字幕 (設計書 5.8)。録画と同じく、頼まれたときだけ生成する。生成していなければ空。
+  今のファイルから生成したものだけを返す。
+  """
+  autoCaptions: [LibraryAutoCaption!]!
+  "字幕の自動生成の状態。録画と同じ形で返す。"
+  autoCaptionsStatus: RecordingAutoCaptions!
+  """
   ファイルを kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
   後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
   """
@@ -175,10 +182,24 @@ extend type Mutation {
   id を引いた後にファイルを書き換えていたら、前のファイルの位置なので保存せず、今のファイルを返す。
   """
   saveLibraryWatchPosition(id: ID!, positionMs: Int64!): LibraryFile!
+  """
+  ライブラリのファイル id (LibraryFile.id) の音声から字幕を自動生成するジョブを入れる (設計書 5.8)。視聴者は使えない。
+  録画と同じく、前に生成した字幕は、生成し終えたら置き換える。同じファイルのジョブを待っていれば、重ねて入れない。
+  id を引いた後にファイルを書き換えていたら CONFLICT にする。書いている途中か、音声を引くサービスが分からないファイルも CONFLICT にする。
+  """
+  generateLibraryCaptions(id: ID!): LibraryFile!
 }
 
 "ライブラリのファイルの、CM とみなした区間。時刻は、再生の 0 秒 (索引の最初の I フレーム) からの秒。"
 type LibraryCMSection {
   startSeconds: Float!
   endSeconds: Float!
+}
+
+"ライブラリのファイルの音声から自動生成した字幕の 1 つ。時刻は、再生の 0 秒 (最初の I フレーム) からの秒。"
+type LibraryAutoCaption {
+  startSeconds: Float!
+  endSeconds: Float!
+  "字幕の本文。複数の行は改行でつなぐ。"
+  text: String!
 }

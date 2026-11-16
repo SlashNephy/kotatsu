@@ -6,7 +6,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
-import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
+import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { rememberReturnTo } from '../../auth/returnTo';
@@ -104,6 +104,13 @@ import { CmAutoSkipper } from '../../yunomi/cmAutoSkipper';
 import { cmButtonSectionAt, cmMergeGap, cmSectionAt, mergeCmSections } from '../../yunomi/cmSkip';
 import type { PlayerCover } from '../../yunomi/playerCover';
 import { useVideoFrames } from '../../yunomi/useVideoFrames';
+import {
+  CaptionTrackSelect,
+  PositionedAutoCaptionOverlay,
+  type CaptionTrack,
+} from '../../yunomi/AutoCaptionOverlay';
+import { AutoCaptionsStatus, autoCaptionsActive } from '../../recordings/AutoCaptions';
+import type { playGenerateLibraryCaptionsMutation } from './__generated__/playGenerateLibraryCaptionsMutation.graphql';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useDoubleTap } from '../../yunomi/useDoubleTap';
 import { stepBrightness } from '../../yunomi/brightness';
@@ -258,6 +265,21 @@ const playQuery = graphql`
         startSeconds
         endSeconds
       }
+      autoCaptions {
+        startSeconds
+        endSeconds
+        text
+      }
+      autoCaptionsStatus {
+        state
+        generatedAt
+        model
+        count
+        progress {
+          ratio
+          remainingSeconds
+        }
+      }
       broadcast {
         serviceName
         jikkyoChannelId
@@ -294,6 +316,9 @@ const playQuery = graphql`
         durationSeconds
       }
     }
+    viewer {
+      role
+    }
     transcoding {
       available
       presets {
@@ -323,10 +348,11 @@ function Player({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const variables = { library, path };
-  const { libraryFile: file, transcoding } = useLazyLoadQuery<playLibraryFileQuery>(
-    playQuery,
-    variables,
-  );
+  const {
+    libraryFile: file,
+    transcoding,
+    viewer,
+  } = useLazyLoadQuery<playLibraryFileQuery>(playQuery, variables);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // 別のウィンドウに移したり戻したりすると、プレイヤーを作り直すので、今の位置から読み直す。
   const pip = useDocumentPictureInPicture(() => restartAt(positionRef.current));
@@ -355,15 +381,46 @@ function Player({
     muteUser,
     captions: captionSettings,
   } = usePlayerSettings();
+  // captionTrack は、出す字幕の種類 (#1682)。自動生成した字幕があるときだけ選べ、既定は放送の字幕にする。
+  const [captionTrack, setCaptionTrack] = useState<CaptionTrack>('broadcast');
+  const autoCaptions = file.autoCaptions.map((caption) => ({
+    from: caption.startSeconds,
+    to: caption.endSeconds,
+    text: caption.text,
+  }));
+  const hasAutoCaptions = autoCaptions.length > 0;
+  const autoCaptionsShown = captions && hasAutoCaptions && captionTrack === 'auto';
+  const [generateCaptions, generatingCaptions] = useMutation<playGenerateLibraryCaptionsMutation>(
+    graphql`
+      mutation playGenerateLibraryCaptionsMutation($id: ID!) {
+        generateLibraryCaptions(id: $id) {
+          id
+          autoCaptionsStatus {
+            state
+            generatedAt
+            model
+            count
+            progress {
+              ratio
+              remainingSeconds
+            }
+          }
+        }
+      }
+    `,
+  );
+  const [captionsError, setCaptionsError] = useState(false);
   // シークの索引を作り終えるまで、読み直して、シークできる所と長さを伸ばす (設計書 5.8)。
   const environment = useRelayEnvironment();
   // 書いている途中のファイルは、索引を作らないので、読み直さない (設計書 5.8)。
   const indexing = !file.index.complete && !file.index.writing;
   // 索引を作り終えた後も、シークバーの画像と CM の区間が届くまで、間を空けて読み直す。
   // CM の区間は、映像と音声を引くサービスが TS から分かったファイルだけで見分ける。
+  // 頼まれた字幕の自動生成も、待っているか生成している間は読み直す。
   const waitingJobs =
-    file.index.complete &&
-    (file.thumbnailUrl == null || (file.broadcast != null && file.cmSections == null));
+    (file.index.complete &&
+      (file.thumbnailUrl == null || (file.broadcast != null && file.cmSections == null))) ||
+    autoCaptionsActive(file.autoCaptionsStatus.state);
   const interval = indexing ? refreshMs : waitingJobs ? imagesRefreshMs : null;
   useEffect(() => {
     if (interval === null) {
@@ -962,6 +1019,11 @@ function Player({
           <SettingsButton>
             <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
             {audio.menu}
+            <CaptionTrackSelect
+              available={hasAutoCaptions}
+              value={captionTrack}
+              onChange={setCaptionTrack}
+            />
             <RateSelect value={rate} onChange={setRate} />
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
@@ -993,6 +1055,9 @@ function Player({
   );
   const overlay = (
     <>
+      {autoCaptionsShown && (
+        <PositionedAutoCaptionOverlay captions={autoCaptions} clock={currentPosition} />
+      )}
       {jikkyo.overlay}
       {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
       {scrub !== null && (
@@ -1035,7 +1100,7 @@ function Player({
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
-          captions={captions}
+          captions={captions && !autoCaptionsShown}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
           crop={shownCrop}
@@ -1068,7 +1133,7 @@ function Player({
           onVideo={setVideo}
           onSegment={streamMeter.onSegment}
           controls={controlBar}
-          captions={captions}
+          captions={captions && !autoCaptionsShown}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
           crop={shownCrop}
@@ -1124,6 +1189,40 @@ function Player({
           <Text size="sm" c="dimmed">
             {path} · {formatBytes(Number(file.size))}
           </Text>
+          {/* 字幕の自動生成 (設計書 5.8)。録画と同じく、頼まれたときに生成する。音声を引くサービスが分からないファイルには作れない。 */}
+          {broadcast !== null && (
+            <Stack gap={4}>
+              <Group gap="xs">
+                <Text size="sm" fw={600}>
+                  {t('recordings.autoCaptions.title')}
+                </Text>
+                {viewer.role !== 'VIEWER' && (
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    leftSection={<Captions size={14} aria-hidden />}
+                    loading={generatingCaptions}
+                    onClick={() =>
+                      generateCaptions({
+                        variables: { id: file.id },
+                        onCompleted: (_response, errors) =>
+                          setCaptionsError((errors ?? []).length > 0),
+                        onError: () => setCaptionsError(true),
+                      })
+                    }
+                  >
+                    {t('recordings.generateCaptions')}
+                  </Button>
+                )}
+              </Group>
+              <AutoCaptionsStatus status={file.autoCaptionsStatus} />
+              {captionsError && (
+                <Text size="sm" c="red" role="alert">
+                  {t('recordings.actionError')}
+                </Text>
+              )}
+            </Stack>
+          )}
           {indexing && (
             <Text size="sm" c="dimmed" role="status">
               {t('library.indexingStatus', { seconds: formatDuration(limit) })}

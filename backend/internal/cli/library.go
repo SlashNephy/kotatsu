@@ -4,6 +4,8 @@ import (
 	"log/slog"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
+	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 )
 
@@ -24,7 +26,7 @@ func newLibraryParts(deps *Deps, logger *slog.Logger, build bool) *libraryParts 
 	return &libraryParts{libraries: libraries, indexer: indexer, source: filelib.NewSource(libraries, indexer)}
 }
 
-// libraryJobsOf は、ライブラリのファイルの画像を作るジョブと CM の区間を見分けるジョブを入れる River のクライアントを返す。なければ nil を返す。
+// libraryJobsOf は、ライブラリのファイルの画像、CM の区間、字幕の自動生成のジョブを入れる River のクライアントを返す。なければ nil を返す。
 // 型付きの nil を interface に入れると nil と比べられなくなるので、nil なら interface の nil を返す。
 func libraryJobsOf(deps *Deps) filelib.JobInserter {
 	if deps.Jobs == nil {
@@ -32,4 +34,15 @@ func libraryJobsOf(deps *Deps) filelib.JobInserter {
 	}
 
 	return deps.Jobs
+}
+
+// newLibraryCaptionsWorker は、ライブラリのファイルの音声から字幕を自動生成する Worker を作る (設計書 5.8)。録画と同じく、whisper-cli とモデルは
+// ジョブごとに探し、取り出した音声は kyusu と同じ一時領域に置く。
+func newLibraryCaptionsWorker(deps *Deps, parts *libraryParts, lowerer *procprio.Lowerer) *filelib.CaptionsWorker {
+	return filelib.NewCaptionsWorker(parts.libraries, parts.indexer, deps.Clock,
+		func() (autocaption.Transcriber, error) {
+			return autocaption.NewWhisper(&deps.Config.Captions, deps.Config.Storage.DataDir, lowerer)
+		},
+		func() (autocaption.ReaderExtractor, error) { return autocaption.FFmpegReaderExtractor(lowerer) },
+		deps.Config.Kyusu.WorkDir)
 }

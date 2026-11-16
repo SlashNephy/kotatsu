@@ -201,7 +201,10 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	libraryParts := newLibraryParts(deps, logger, false)
 	river.AddWorker(workers, filelib.NewImagesWorker(libraryParts.libraries, libraryParts.indexer, !deps.Config.Thumbnail.DisablePreview))
 	// CM の区間も、録画と同じ見分け方で見分ける。FFmpeg は、録画の見分けと同じく、最低の優先度で動かす。
-	river.AddWorker(workers, filelib.NewCMWorker(libraryParts.libraries, libraryParts.indexer, poolOf(deps), newLowerer(logger)))
+	libraryLowerer := newLowerer(logger)
+	river.AddWorker(workers, filelib.NewCMWorker(libraryParts.libraries, libraryParts.indexer, poolOf(deps), libraryLowerer))
+	// 字幕の自動生成も、録画と同じ部品で、頼まれたときに生成する。
+	river.AddWorker(workers, newLibraryCaptionsWorker(deps, libraryParts, libraryLowerer))
 	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。
 	// 番組を、しょぼいカレンダーで作品と話に結びつけ、上映会のコメント (NICOLOG) とも結びつける。見たアニメは、ユーザーが連携した
 	// Annict と AniList に記録する (#927)。
