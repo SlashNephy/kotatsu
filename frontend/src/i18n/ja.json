@@ -329,6 +329,20 @@
     "title": "設定",
     "back": "設定に戻る",
     "notificationsSummary": "画面内の通知とWeb Pushで、何を受け取るかを選びます",
+    "appIcon": {
+      "title": "アイコン",
+      "help": "ヘッダーのロゴに出す猫を選びます。選んだらすぐ替わります。",
+      "installedNote": "ブラウザのタブのアイコン (favicon) と、ホーム画面やアプリの一覧に入れた (インストールした) アプリのアイコンは替わりません。",
+      "choices": {
+        "default": "三毛猫とみかん (既定)",
+        "chatora": "茶トラ",
+        "kijitora": "キジトラ",
+        "sabatora": "サバトラ",
+        "kuro": "黒猫",
+        "shiro": "白猫",
+        "hachiware": "ハチワレ"
+      }
+    },
     "pages": {
       "player": {
         "title": "プレイヤー",
@@ -337,6 +351,10 @@
       "guide": {
         "title": "番組表",
         "summary": "番組表の密度や、ジャンルの色を変えます"
+      },
+      "icon": {
+        "title": "アイコン",
+        "summary": "ブラウザのタブとヘッダーに出すアイコンを、この端末で選びます"
       },
       "security": {
         "title": "セキュリティ",

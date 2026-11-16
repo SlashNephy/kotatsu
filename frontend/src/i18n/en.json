@@ -331,6 +331,20 @@
     "title": "Settings",
     "back": "Back to settings",
     "notificationsSummary": "Choose what to receive as in-app notifications and Web Push",
+    "appIcon": {
+      "title": "Icon",
+      "help": "Choose the cat shown in the header logo. It changes right away.",
+      "installedNote": "The browser tab icon (favicon) and the icon of the app added to the home screen or app list (installed) do not change.",
+      "choices": {
+        "default": "Calico and mandarin (default)",
+        "chatora": "Ginger tabby",
+        "kijitora": "Brown tabby",
+        "sabatora": "Silver tabby",
+        "kuro": "Black cat",
+        "shiro": "White cat",
+        "hachiware": "Tuxedo"
+      }
+    },
     "pages": {
       "player": {
         "title": "Player",
@@ -339,6 +353,10 @@
       "guide": {
         "title": "Guide",
         "summary": "Change the guide's density and genre colors"
+      },
+      "icon": {
+        "title": "Icon",
+        "summary": "Choose the icon shown in the browser tab and the header on this device"
       },
       "security": {
         "title": "Security",
