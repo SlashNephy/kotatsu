@@ -57,6 +57,11 @@ func (r *mutationResolver) DetectRecordingCM(ctx context.Context, id string) (bo
 	return r.detectRecordingCM(ctx, id)
 }
 
+// GenerateRecordingCaptions is the resolver for the generateRecordingCaptions field.
+func (r *mutationResolver) GenerateRecordingCaptions(ctx context.Context, id string) (bool, error) {
+	return r.generateRecordingCaptions(ctx, id)
+}
+
 // Recordings is the resolver for the recordings field.
 func (r *queryResolver) Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error) {
 	return r.listRecordings(ctx, first, after, filter, order)
@@ -115,6 +120,16 @@ func (r *recordingResolver) CMDetectionNote(ctx context.Context, obj *model.Reco
 // CMVideoMissingSeconds is the resolver for the cmVideoMissingSeconds field.
 func (r *recordingResolver) CMVideoMissingSeconds(ctx context.Context, obj *model.Recording) (float64, error) {
 	return r.recordingCMVideoMissingSeconds(ctx, obj)
+}
+
+// AutoCaptions is the resolver for the autoCaptions field.
+func (r *recordingResolver) AutoCaptions(ctx context.Context, obj *model.Recording) ([]*model.RecordingAutoCaption, error) {
+	return r.recordingAutoCaptions(ctx, obj)
+}
+
+// AutoCaptionsStatus is the resolver for the autoCaptionsStatus field.
+func (r *recordingResolver) AutoCaptionsStatus(ctx context.Context, obj *model.Recording) (*model.RecordingAutoCaptions, error) {
+	return r.recordingAutoCaptionsStatus(ctx, obj)
 }
 
 // VideoFormat is the resolver for the videoFormat field.

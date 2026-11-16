@@ -120,6 +120,8 @@ type Querier interface {
 	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
 	DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error)
 	DeleteCalendarFeed(ctx context.Context, arg DeleteCalendarFeedParams) (int64, error)
+	// 種類 kind のモデルの記録を消す。
+	DeleteCaptionModel(ctx context.Context, kind string) (int64, error)
 	// user_id のユーザーのキャプチャ id を消し、消した行を返す。ほかのユーザーのものは消さない。
 	DeleteCapture(ctx context.Context, arg DeleteCaptureParams) (Capture, error)
 	DeleteDramaTitleOverride(ctx context.Context, titleKey string) (int64, error)
@@ -363,6 +365,10 @@ type Querier interface {
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
+	// 録画の自動生成した字幕を返す。生成していなければ行を返さない。
+	GetRecordingAutoCaptions(ctx context.Context, recordingID uuid.UUID) (GetRecordingAutoCaptionsRow, error)
+	// 録画の自動生成した字幕の、生成した日時とモデルと字幕の数を返す。録画の詳細の状態に使い、字幕そのものは読まない。
+	GetRecordingAutoCaptionsSummary(ctx context.Context, recordingID uuid.UUID) (GetRecordingAutoCaptionsSummaryRow, error)
 	// 録画の CM の区間を見分けた材料を返す (#1507)。なければ行を返さない。
 	GetRecordingCMMaterial(ctx context.Context, arg GetRecordingCMMaterialParams) (GetRecordingCMMaterialRow, error)
 	GetRecordingDramaMatch(ctx context.Context, recordingID uuid.UUID) (RecordingDramaMatch, error)
@@ -643,6 +649,8 @@ type Querier interface {
 	// 照合で、同じ放送が別のイベント ID で送り直されても、予約し直さないために使う。
 	// 録り始めに同じ回と分かって Kotatsu が無効にした予約 (#1500) も、同じ放送をもう一度予約しないよう、人が取り消したものと同じに扱う。
 	ListCancelledBroadcasts(ctx context.Context, now time.Time) ([]ListCancelledBroadcastsRow, error)
+	// 画面からダウンロードして置いたモデルの記録を返す。
+	ListCaptionModels(ctx context.Context) ([]CaptionModel, error)
 	// ユーザーのキャプチャの ID。ユーザーを消すときに、画像の場所を知るのに使う (#1382)。
 	ListCaptureIDsOfUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	// すべてのキャプチャの持ち主と ID。データディレクトリの、DB にないファイルを探すときに、画像を使っているものとみなすのに使う。
@@ -1301,6 +1309,8 @@ type Querier interface {
 	UpsertBroadcastLineup(ctx context.Context, arg UpsertBroadcastLineupParams) error
 	// ユーザーの、種類 kind の URL を発行する。すでにあれば、秘密の値を差し替え、前の URL を使えなくする。
 	UpsertCalendarFeed(ctx context.Context, arg UpsertCalendarFeedParams) error
+	// 画面からダウンロードしたモデルを、置き換えた後に記録する (設計書 6.1、#1682)。同じ種類の前の記録と置き換える。
+	UpsertCaptionModel(ctx context.Context, arg UpsertCaptionModelParams) error
 	UpsertDramaTitleOverride(ctx context.Context, arg UpsertDramaTitleOverrideParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	// 動いているジョブの進み具合を書く (#1511)。試し直したら、前の試行の値を置き換える。
@@ -1318,6 +1328,8 @@ type Querier interface {
 	UpsertProgramDramaMatch(ctx context.Context, arg UpsertProgramDramaMatchParams) error
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
 	UpsertRecordingAnimeMatch(ctx context.Context, arg UpsertRecordingAnimeMatchParams) error
+	// 録画の音声から自動生成した字幕を書く (設計書 6.1、#1682)。生成し直したときは、前の字幕と置き換える。
+	UpsertRecordingAutoCaptions(ctx context.Context, arg UpsertRecordingAutoCaptionsParams) error
 	// 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、版と日時を置き換える。
 	UpsertRecordingCMDetection(ctx context.Context, arg UpsertRecordingCMDetectionParams) error
 	// 録画の CM の区間を見分けた材料を書く (#1507)。同じ録画と見分け方の材料は置き換える。

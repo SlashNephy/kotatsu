@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
@@ -611,6 +612,41 @@ func (r *Resolver) detectRecordingCM(ctx context.Context, globalID string) (bool
 	return cmdetect.Enqueue(ctx, r.db, r.jobs, r.clock, recordingID)
 }
 
+// generateRecordingCaptions は、録画の音声から字幕を自動生成するジョブを入れる (設計書 6.1、#1682)。同じ録画のジョブを待っていれば、入れずに false を返す。
+// 全体や予約の設定にかかわらず生成する。CM の区間の見分けと同じく、視聴者には許さない (設計書 9.7)。
+// whisper-cli とモデルがあるかは、ジョブを動かす nekonote でしか分からないので、ここでは確かめない。
+func (r *Resolver) generateRecordingCaptions(ctx context.Context, globalID string) (bool, error) {
+	if _, err := librarian(ctx); err != nil {
+		return false, err
+	}
+	recordingID, err := parseRecordingID(globalID)
+	if err != nil {
+		return false, err
+	}
+	if r.jobs == nil {
+		return false, errors.New("the job client is not configured")
+	}
+	recording, err := r.queries.GetRecording(ctx, recordingID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, NewError(CodeNotFound, "recording not found")
+	} else if err != nil {
+		return false, fmt.Errorf("failed to get the recording: %w", err)
+	}
+	if recording.State == dbStateRecording {
+		return false, NewError(CodeConflict, "the recording is still being recorded")
+	}
+	// 音声を取り出すのは TS のセグメントだけ。EPGStation から取り込んだ MP4 のような、TS のない録画には作れない。
+	files, err := r.queries.ListRecordingFilesByRecordings(ctx, []uuid.UUID{recordingID})
+	if err != nil {
+		return false, fmt.Errorf("failed to list the recording files: %w", err)
+	}
+	if !slices.ContainsFunc(files, func(f domain.RecordingFile) bool { return f.Kind == fileKindSegment && f.Size > 0 }) {
+		return false, NewError(CodeConflict, "the recording has no TS segment to generate captions from")
+	}
+
+	return autocaption.Enqueue(ctx, r.db, r.jobs, r.clock, recordingID)
+}
+
 func (r *Resolver) setRecordingTags(ctx context.Context, globalID string, tags []string) (*model.Recording, error) {
 	actor, err := librarian(ctx)
 	if err != nil {
@@ -777,6 +813,49 @@ func (r *Resolver) recordingCMDetection(ctx context.Context, obj *model.Recordin
 	}
 
 	return detection, nil
+}
+
+// recordingAutoCaptions は、録画の自動生成した字幕を、録画の時間軸の日時にして返す (#1682)。
+func (r *Resolver) recordingAutoCaptions(ctx context.Context, obj *model.Recording) ([]*model.RecordingAutoCaption, error) {
+	recordingID, err := parseRecordingID(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	cues, err := autocaption.RecordingCues(ctx, r.db, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.RecordingAutoCaption, 0, len(cues))
+	for _, c := range cues {
+		out = append(out, &model.RecordingAutoCaption{From: obj.RecordedFrom.Add(c.Start), To: obj.RecordedFrom.Add(c.End), Text: c.Text})
+	}
+
+	return out, nil
+}
+
+// recordingAutoCaptionsStatus は、録画の字幕の自動生成の状態を返す (#1682)。失敗の理由は、管理者がジョブの画面で確かめるので返さない。
+// whisper-cli とモデルがなくて取りやめたことだけは、置き方を示せるよう、状態で返す。
+func (r *Resolver) recordingAutoCaptionsStatus(ctx context.Context, obj *model.Recording) (*model.RecordingAutoCaptions, error) {
+	recordingID, err := parseRecordingID(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	status, err := autocaption.RecordingStatus(ctx, r.db, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	out := &model.RecordingAutoCaptions{State: status.State, GeneratedAt: status.GeneratedAt, Model: nil, Count: status.Cues, Progress: nil}
+	if status.Model != "" {
+		out.Model = &status.Model
+	}
+	if p := status.Progress; p != nil {
+		out.Progress = &model.JobProgress{Ratio: p.Ratio, RemainingSeconds: nil, UpdatedAt: p.UpdatedAt}
+		if p.Remaining != nil {
+			out.Progress.RemainingSeconds = new(int(p.Remaining.Round(time.Second).Seconds()))
+		}
+	}
+
+	return out, nil
 }
 
 // recordingCMReport は、録画の、最後に見分け終えた CM の見分けの添え書きを、一覧の録画とまとめて引く (#1508)。

@@ -203,6 +203,15 @@ export function imagePrograms(note: string): SoftwareEntry[] {
       note,
     },
     {
+      // 字幕の自動生成 (#1682) に使う whisper-cli と whisper-vad-speech-segments。モデルは同梱しない。
+      name: 'whisper.cpp',
+      version: null,
+      license: 'MIT',
+      url: 'https://github.com/ggml-org/whisper.cpp',
+      licenses: [],
+      note,
+    },
+    {
       name: 'Intel Media Driver（amd64のみ）',
       version: null,
       license: 'MIT',

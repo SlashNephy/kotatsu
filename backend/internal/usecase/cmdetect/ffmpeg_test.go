@@ -90,7 +90,7 @@ func TestNewSignals(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := cmdetect.NewSignals(&ts.Cues{FirstVideoPTS: &tt.first, LastVideoPTS: &tt.last, FirstKeyframePTS: tt.keyframe, AudioChanges: tt.audio}, tt.scenes, tt.silences)
+			got, err := cmdetect.NewSignals(&ts.Cues{FirstVideoPTS: &tt.first, LastVideoPTS: &tt.last, FirstKeyframePTS: tt.keyframe, FirstAudioPTS: nil, AudioChanges: tt.audio}, tt.scenes, tt.silences)
 			require.NoError(t, err)
 			assert.InDelta(t, tt.want.Duration, got.Duration, 0.001)
 			assert.InDeltaSlice(t, tt.want.Scenes, got.Scenes, 0.001)
@@ -107,6 +107,6 @@ func TestNewSignals(t *testing.T) {
 func TestNewSignalsWithoutVideo(t *testing.T) {
 	t.Parallel()
 
-	_, err := cmdetect.NewSignals(&ts.Cues{FirstVideoPTS: nil, LastVideoPTS: nil, FirstKeyframePTS: nil, AudioChanges: []int64{}}, []float64{}, [][2]float64{})
+	_, err := cmdetect.NewSignals(&ts.Cues{FirstVideoPTS: nil, LastVideoPTS: nil, FirstKeyframePTS: nil, FirstAudioPTS: nil, AudioChanges: []int64{}}, []float64{}, [][2]float64{})
 	assert.ErrorIs(t, err, cmdetect.ErrNoVideo)
 }

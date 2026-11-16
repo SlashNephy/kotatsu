@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<1b5ac48029dbabeb1ac15599f31e9c27>>
+ * @generated SignedSource<<b5565210a5f824031f39064457fc1531>>
  * @lightSyntaxTransform
  */
 
@@ -9,7 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type NetworkActivityInitiator = "SCHEDULED" | "USER" | "%future added value";
-export type NetworkActivityPurpose = "ANIME_ARTWORKS" | "ANIME_IMAGE" | "ANIME_LINK" | "ANIME_MAPPINGS" | "ANIME_PROGRAM_SYNC" | "ANIME_RECORD" | "ANIME_WORK_IDS" | "DATA_BROADCAST" | "DRAMA_LINKING" | "HIBP" | "JIKKYO_CHANNELS" | "JIKKYO_COMMENTS" | "JIKKYO_KAKOLOG" | "MCP_CLIENT_METADATA" | "NICOLOG_COMMENTS" | "OIDC" | "TELEMETRY_METRICS" | "TELEMETRY_TRACES" | "UPDATE_CHECK" | "USER_AVATAR" | "WEBHOOK" | "WEB_PUSH" | "%future added value";
+export type NetworkActivityPurpose = "ANIME_ARTWORKS" | "ANIME_IMAGE" | "ANIME_LINK" | "ANIME_MAPPINGS" | "ANIME_PROGRAM_SYNC" | "ANIME_RECORD" | "ANIME_WORK_IDS" | "CAPTION_MODEL_DOWNLOAD" | "DATA_BROADCAST" | "DRAMA_LINKING" | "HIBP" | "JIKKYO_CHANNELS" | "JIKKYO_COMMENTS" | "JIKKYO_KAKOLOG" | "MCP_CLIENT_METADATA" | "NICOLOG_COMMENTS" | "OIDC" | "TELEMETRY_METRICS" | "TELEMETRY_TRACES" | "UPDATE_CHECK" | "USER_AVATAR" | "WEBHOOK" | "WEB_PUSH" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type networkActivityQuery$variables = Record<PropertyKey, never>;
 export type networkActivityQuery$data = {

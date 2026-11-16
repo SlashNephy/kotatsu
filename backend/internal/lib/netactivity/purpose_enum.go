@@ -94,28 +94,29 @@ func (x Initiator) Value() (driver.Value, error) {
 }
 
 const (
-	PurposeJikkyoChannels    Purpose = "JIKKYO_CHANNELS"
-	PurposeJikkyoComments    Purpose = "JIKKYO_COMMENTS"
-	PurposeJikkyoKakolog     Purpose = "JIKKYO_KAKOLOG"
-	PurposeNicologComments   Purpose = "NICOLOG_COMMENTS"
-	PurposeAnimeProgramSync  Purpose = "ANIME_PROGRAM_SYNC"
-	PurposeAnimeMappings     Purpose = "ANIME_MAPPINGS"
-	PurposeAnimeWorkIDs      Purpose = "ANIME_WORK_IDS"
-	PurposeAnimeArtworks     Purpose = "ANIME_ARTWORKS"
-	PurposeAnimeRecord       Purpose = "ANIME_RECORD"
-	PurposeAnimeLink         Purpose = "ANIME_LINK"
-	PurposeAnimeImage        Purpose = "ANIME_IMAGE"
-	PurposeDramaLinking      Purpose = "DRAMA_LINKING"
-	PurposeUserAvatar        Purpose = "USER_AVATAR"
-	PurposeOIDC              Purpose = "OIDC"
-	PurposeHIBP              Purpose = "HIBP"
-	PurposeMCPClientMetadata Purpose = "MCP_CLIENT_METADATA"
-	PurposeUpdateCheck       Purpose = "UPDATE_CHECK"
-	PurposeTelemetryTraces   Purpose = "TELEMETRY_TRACES"
-	PurposeTelemetryMetrics  Purpose = "TELEMETRY_METRICS"
-	PurposeWebPush           Purpose = "WEB_PUSH"
-	PurposeWebhook           Purpose = "WEBHOOK"
-	PurposeDataBroadcast     Purpose = "DATA_BROADCAST"
+	PurposeJikkyoChannels       Purpose = "JIKKYO_CHANNELS"
+	PurposeJikkyoComments       Purpose = "JIKKYO_COMMENTS"
+	PurposeJikkyoKakolog        Purpose = "JIKKYO_KAKOLOG"
+	PurposeNicologComments      Purpose = "NICOLOG_COMMENTS"
+	PurposeAnimeProgramSync     Purpose = "ANIME_PROGRAM_SYNC"
+	PurposeAnimeMappings        Purpose = "ANIME_MAPPINGS"
+	PurposeAnimeWorkIDs         Purpose = "ANIME_WORK_IDS"
+	PurposeAnimeArtworks        Purpose = "ANIME_ARTWORKS"
+	PurposeAnimeRecord          Purpose = "ANIME_RECORD"
+	PurposeAnimeLink            Purpose = "ANIME_LINK"
+	PurposeAnimeImage           Purpose = "ANIME_IMAGE"
+	PurposeDramaLinking         Purpose = "DRAMA_LINKING"
+	PurposeUserAvatar           Purpose = "USER_AVATAR"
+	PurposeOIDC                 Purpose = "OIDC"
+	PurposeHIBP                 Purpose = "HIBP"
+	PurposeMCPClientMetadata    Purpose = "MCP_CLIENT_METADATA"
+	PurposeUpdateCheck          Purpose = "UPDATE_CHECK"
+	PurposeTelemetryTraces      Purpose = "TELEMETRY_TRACES"
+	PurposeTelemetryMetrics     Purpose = "TELEMETRY_METRICS"
+	PurposeWebPush              Purpose = "WEB_PUSH"
+	PurposeWebhook              Purpose = "WEBHOOK"
+	PurposeDataBroadcast        Purpose = "DATA_BROADCAST"
+	PurposeCaptionModelDownload Purpose = "CAPTION_MODEL_DOWNLOAD"
 )
 
 var ErrInvalidPurpose = errors.New("not a valid Purpose")
@@ -145,6 +146,7 @@ func PurposeValues() []Purpose {
 		PurposeWebPush,
 		PurposeWebhook,
 		PurposeDataBroadcast,
+		PurposeCaptionModelDownload,
 	}
 }
 
@@ -161,28 +163,29 @@ func (x Purpose) IsValid() bool {
 }
 
 var _PurposeValue = map[string]Purpose{
-	"JIKKYO_CHANNELS":     PurposeJikkyoChannels,
-	"JIKKYO_COMMENTS":     PurposeJikkyoComments,
-	"JIKKYO_KAKOLOG":      PurposeJikkyoKakolog,
-	"NICOLOG_COMMENTS":    PurposeNicologComments,
-	"ANIME_PROGRAM_SYNC":  PurposeAnimeProgramSync,
-	"ANIME_MAPPINGS":      PurposeAnimeMappings,
-	"ANIME_WORK_IDS":      PurposeAnimeWorkIDs,
-	"ANIME_ARTWORKS":      PurposeAnimeArtworks,
-	"ANIME_RECORD":        PurposeAnimeRecord,
-	"ANIME_LINK":          PurposeAnimeLink,
-	"ANIME_IMAGE":         PurposeAnimeImage,
-	"DRAMA_LINKING":       PurposeDramaLinking,
-	"USER_AVATAR":         PurposeUserAvatar,
-	"OIDC":                PurposeOIDC,
-	"HIBP":                PurposeHIBP,
-	"MCP_CLIENT_METADATA": PurposeMCPClientMetadata,
-	"UPDATE_CHECK":        PurposeUpdateCheck,
-	"TELEMETRY_TRACES":    PurposeTelemetryTraces,
-	"TELEMETRY_METRICS":   PurposeTelemetryMetrics,
-	"WEB_PUSH":            PurposeWebPush,
-	"WEBHOOK":             PurposeWebhook,
-	"DATA_BROADCAST":      PurposeDataBroadcast,
+	"JIKKYO_CHANNELS":        PurposeJikkyoChannels,
+	"JIKKYO_COMMENTS":        PurposeJikkyoComments,
+	"JIKKYO_KAKOLOG":         PurposeJikkyoKakolog,
+	"NICOLOG_COMMENTS":       PurposeNicologComments,
+	"ANIME_PROGRAM_SYNC":     PurposeAnimeProgramSync,
+	"ANIME_MAPPINGS":         PurposeAnimeMappings,
+	"ANIME_WORK_IDS":         PurposeAnimeWorkIDs,
+	"ANIME_ARTWORKS":         PurposeAnimeArtworks,
+	"ANIME_RECORD":           PurposeAnimeRecord,
+	"ANIME_LINK":             PurposeAnimeLink,
+	"ANIME_IMAGE":            PurposeAnimeImage,
+	"DRAMA_LINKING":          PurposeDramaLinking,
+	"USER_AVATAR":            PurposeUserAvatar,
+	"OIDC":                   PurposeOIDC,
+	"HIBP":                   PurposeHIBP,
+	"MCP_CLIENT_METADATA":    PurposeMCPClientMetadata,
+	"UPDATE_CHECK":           PurposeUpdateCheck,
+	"TELEMETRY_TRACES":       PurposeTelemetryTraces,
+	"TELEMETRY_METRICS":      PurposeTelemetryMetrics,
+	"WEB_PUSH":               PurposeWebPush,
+	"WEBHOOK":                PurposeWebhook,
+	"DATA_BROADCAST":         PurposeDataBroadcast,
+	"CAPTION_MODEL_DOWNLOAD": PurposeCaptionModelDownload,
 }
 
 // ParsePurpose attempts to convert a string to a Purpose.

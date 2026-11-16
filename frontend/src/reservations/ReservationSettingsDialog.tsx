@@ -82,6 +82,7 @@ function Form({ id, onClose, onReserved }: Props) {
             priority
             joinSegments
             detectCm
+            generateCaptions
             transcodePreset
             transcodeFrameRate
           }
@@ -114,6 +115,7 @@ function Form({ id, onClose, onReserved }: Props) {
                 priority
                 joinSegments
                 detectCm
+                generateCaptions
                 transcodePreset
                 transcodeFrameRate
                 cmDetector
@@ -127,6 +129,7 @@ function Form({ id, onClose, onReserved }: Props) {
               priority
               joinSegments
               detectCm
+              generateCaptions
               transcodePreset
               transcodeFrameRate
               cmDetector
@@ -158,6 +161,7 @@ function Form({ id, onClose, onReserved }: Props) {
           priority
           joinSegments
           detectCm
+          generateCaptions
           transcodePreset
           transcodeFrameRate
           cmDetector
@@ -210,6 +214,9 @@ function Form({ id, onClose, onReserved }: Props) {
     reservation?.settings.joinSegments ?? null,
   );
   const [detectCm, setDetectCm] = useState<boolean | null>(reservation?.settings.detectCm ?? null);
+  const [generateCaptions, setGenerateCaptions] = useState<boolean | null>(
+    reservation?.settings.generateCaptions ?? null,
+  );
   const [transcodePreset, setTranscodePreset] = useState<string | null>(
     reservation?.settings.transcodePreset ?? null,
   );
@@ -237,6 +244,7 @@ function Form({ id, onClose, onReserved }: Props) {
   const rulePriority = rule?.settings.priority ?? null;
   const ruleJoin = rule?.settings.joinSegments ?? null;
   const ruleDetect = rule?.settings.detectCm ?? null;
+  const ruleCaptions = rule?.settings.generateCaptions ?? null;
   const ruleTranscode = rule?.settings.transcodePreset ?? null;
   const ruleFrameRate = rule?.settings.transcodeFrameRate ?? null;
   const ruleDetector = cmDetectorOf(rule?.settings.cmDetector);
@@ -247,6 +255,8 @@ function Form({ id, onClose, onReserved }: Props) {
       : t('reservations.settings.inheritedDefault', { value });
   const joinLabel = (join: boolean) => t(join ? 'rules.joinSegmentsOn' : 'rules.joinSegmentsOff');
   const detectLabel = (detect: boolean) => t(detect ? 'rules.detectCmOn' : 'rules.detectCmOff');
+  const captionsLabel = (generate: boolean) =>
+    t(generate ? 'rules.generateCaptionsOn' : 'rules.generateCaptionsOff');
   const detectorLabel = (detector: CMDetector) =>
     t(detector === 'LOGO' ? 'admin.settings.cmDetectorLogo' : 'admin.settings.cmDetectorFfmpeg');
   const save = () => {
@@ -259,6 +269,7 @@ function Form({ id, onClose, onReserved }: Props) {
       priority,
       joinSegments,
       detectCm,
+      generateCaptions,
       transcodePreset,
       transcodeFrameRate,
       cmDetector,
@@ -423,6 +434,32 @@ function Form({ id, onClose, onReserved }: Props) {
           value={detectCm === null ? joinDefault : String(detectCm)}
           onChange={(value) =>
             setDetectCm(value === null || value === joinDefault ? null : value === 'true')
+          }
+          allowDeselect={false}
+          disabled={inFlight}
+        />
+        {/* 全体に従うなら、録画を終えるときの全体の設定 (ルール予約ならルールの設定) で決める (#1682)。 */}
+        <Select
+          label={t('rules.generateCaptions')}
+          data={[
+            {
+              value: joinDefault,
+              label:
+                ruleCaptions !== null && rule !== undefined
+                  ? t('reservations.settings.joinInheritedRule', {
+                      name: rule.name,
+                      value: captionsLabel(ruleCaptions),
+                    })
+                  : t('reservations.settings.joinInheritedDefault', {
+                      value: captionsLabel(defaults.generateCaptions),
+                    }),
+            },
+            { value: 'true', label: t('rules.generateCaptionsOn') },
+            { value: 'false', label: t('rules.generateCaptionsOff') },
+          ]}
+          value={generateCaptions === null ? joinDefault : String(generateCaptions)}
+          onChange={(value) =>
+            setGenerateCaptions(value === null || value === joinDefault ? null : value === 'true')
           }
           allowDeselect={false}
           disabled={inFlight}
