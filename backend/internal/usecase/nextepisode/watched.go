@@ -99,20 +99,22 @@ func FindForUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.T
 	}
 
 	suggestions := []*Suggestion{}
-	// 同じ番組が、TID で探すシリーズとシリーズ名で探すシリーズの両方に出たら、1 つにする。
+	// 同じ番組が、TID で探すシリーズとシリーズ名で探すシリーズの両方に出たら、同じ作品なので、TID で探した方の 1 行にする。
+	// 後の方を、その次の放送に繰り下げて出すと、同じ作品の行が 2 つ並ぶ。
 	seen := map[ProgramKey]bool{}
 	for _, s := range series {
 		id := s.key.id()
-		for _, b := range Pick(candidates[id], reserved, recorded[id]) {
-			key := ProgramKey{ServiceID: b.ServiceID, EventID: b.EventID}
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			suggestions = append(suggestions, &Suggestion{RecordingID: s.recordingID, Broadcast: b})
-
-			break
+		broadcasts := Pick(candidates[id], reserved, recorded[id])
+		if len(broadcasts) == 0 {
+			continue
 		}
+		b := broadcasts[0]
+		key := ProgramKey{ServiceID: b.ServiceID, EventID: b.EventID}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		suggestions = append(suggestions, &Suggestion{RecordingID: s.recordingID, Broadcast: b})
 	}
 	slices.SortStableFunc(suggestions, func(a, b *Suggestion) int {
 		return cmp.Or(
@@ -129,7 +131,7 @@ func FindForUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.T
 }
 
 // groupWatched は、見た回をシリーズでまとめ、シリーズごとに話数の最も大きい回を残す。シリーズも話数も読めない回は外す。
-// 返す順は、シリーズの回を最初に読んだ順 (最後に見た新しい順) である。
+// 返す順は、TID で探すシリーズを先に、それぞれシリーズの回を最初に読んだ順 (最後に見た新しい順) である。
 func groupWatched(rows []sqlc.ListWatchedNextEpisodeSourcesRow) []*watchedSeries {
 	series := []*watchedSeries{}
 	index := map[string]int{}
@@ -154,8 +156,21 @@ func groupWatched(rows []sqlc.ListWatchedNextEpisodeSourcesRow) []*watchedSeries
 			series[j] = &watchedSeries{key: key, recordingID: rows[i].ID}
 		}
 	}
+	// TID で探すシリーズを先に置き、同じ番組に当たったシリーズ名で探すシリーズより優先する。
+	slices.SortStableFunc(series, func(a, b *watchedSeries) int {
+		return cmp.Compare(boolRank(a.key.TID == 0), boolRank(b.key.TID == 0))
+	})
 
 	return series
+}
+
+// boolRank は、並べ替えのために、偽を 0、真を 1 にする。
+func boolRank(v bool) int {
+	if v {
+		return 1
+	}
+
+	return 0
 }
 
 // listCandidatesOf は、シリーズごとの続きの放送の候補と、録画履歴にある録った回の話数を、シリーズの id ごとに返す。

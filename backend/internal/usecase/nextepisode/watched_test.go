@@ -57,7 +57,7 @@ func suggestionsOf(got []*nextepisode.Suggestion) []suggestion {
 }
 
 // TestFindForUser は、ユーザーが見たシリーズごとに、見た回の最大の話数より後の最も早い放送を 1 件ずつ、放送の早い順に返し、
-// 見た割合の足りない回、期間より前に見た回、話数を読めない回、ほかのユーザーが見た回を、見た回に数えないことを確かめる (#1564)。
+// 見た割合の足りない回、期間より前に見た回、話数を読めない回、録画中の回、ほかのユーザーが見た回を、見た回に数えないことを確かめる (#1564)。
 func TestFindForUser(t *testing.T) {
 	t.Parallel()
 
@@ -74,6 +74,7 @@ func TestFindForUser(t *testing.T) {
 		fakeProgram(fakeBSNetwork, fakeBSService, 540, 6*time.Hour, "風の丘 #2"),
 		fakeProgram(fakeGRNetwork, fakeGRService, 542, 7*time.Hour, "風の丘 #3"),
 		fakeProgram(fakeGRNetwork, fakeGRService, 550, 8*time.Hour, "ニュース7"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 560, 9*time.Hour, "雪の町 #2"),
 	})
 	f.reserve(t, fakeGRNetwork, fakeGRService, 541, true)
 
@@ -85,6 +86,9 @@ func TestFindForUser(t *testing.T) {
 	f.addWatched(t, user, "星の駅 #7", 1, nextepisode.WatchedWindow+time.Hour)
 	hill1 := f.addWatched(t, user, "風の丘 #1", 1, 3*time.Hour)
 	f.addWatched(t, user, "ニュース7", 1, time.Hour)
+	// 録画中の録画は、長さが決まらず、見た割合を出せないので数えない。
+	recording := f.addWatched(t, user, "雪の町 #1", 1, time.Hour)
+	f.exec(t, `UPDATE recordings SET state = 'recording', recorded_until = NULL WHERE id = $1`, recording)
 	other := f.addUser(t, "other")
 	bell1 := f.addWatched(t, other, "銀の鈴 #1", 1, time.Hour)
 	nobody := f.addUser(t, "nobody")
@@ -122,9 +126,11 @@ func TestFindForUserByAnime(t *testing.T) {
 		fakeProgram(fakeGRNetwork, fakeGRService, 600, 2*time.Hour, "灯台の地図 #2"),
 		// 録った話数は外す。
 		fakeProgram(fakeGRNetwork, fakeGRService, 601, time.Hour, "灯台の地図 #3"),
+		// 同じ作品の後の回は、シリーズ名で探したシリーズからも出さない。
+		fakeProgram(fakeGRNetwork, fakeGRService, 602, 3*time.Hour, "灯台の地図 #4"),
 	})
 	serviceID := faketuner.ServiceItemID(fakeGRNetwork, fakeGRService)
-	for eventID, count := range map[int]float64{600: 2, 601: 3} {
+	for eventID, count := range map[int]float64{600: 2, 601: 3, 602: 4} {
 		f.exec(t, `INSERT INTO program_anime_matches (service_id, start_at, event_id, matched_at)
 			SELECT service_id, start_at, event_id, $3 FROM programs WHERE service_id = $1 AND event_id = $2`, serviceID, eventID, findNow())
 		f.exec(t, `INSERT INTO program_anime_episodes (service_id, start_at, position, source, syobocal_tid, count_start, count_end, is_first, is_last)
@@ -144,6 +150,5 @@ func TestFindForUserByAnime(t *testing.T) {
 	got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
 	require.NoError(t, err)
 
-	require.Len(t, got, 1)
-	assert.Equal(t, int64(600), got[0].Broadcast.EventID)
+	assert.Equal(t, []suggestion{{recording: anime, eventID: 600}}, suggestionsOf(got))
 }
