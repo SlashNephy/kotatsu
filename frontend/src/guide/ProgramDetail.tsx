@@ -36,6 +36,7 @@ import type { ChangeChannel } from '../changes/dataChanges';
 import { conditionsFromProgram } from '../conditions/form';
 import { ErrorBoundary, LinkifiedText, ProgramTitle, toHalfWidth } from '../futon';
 import { FilmarksLink } from './FilmarksLink';
+import { StreamingLink } from './StreamingLink';
 import { programGenreLabels } from './genreOptions';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
@@ -124,6 +125,9 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             service {
               id
               name
+              channelType {
+                type
+              }
               logoUrl
               # 放送が終わった番組を、タイムシフトのバッファから再生できるか (#1121)。
               timeshiftPrograms {
@@ -342,6 +346,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           workTitle={program.workTitle}
           anime={program.animeEpisodes.length > 0}
         />
+        <StreamingLink service={program.service} workTitle={program.workTitle} />
       </Stack>
       {/* 操作は 1 段にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
       {ended && (

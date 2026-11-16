@@ -8,6 +8,7 @@ import { useDataChanges } from '../changes/DataChanges';
 import type { ChangeChannel } from '../changes/dataChanges';
 import { RecordingCard } from '../recordings/RecordingCard';
 import { ContinueWatchingCard } from './ContinueWatchingCard';
+import { NextEpisodesPanel } from './NextEpisodesPanel';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import classes from './Dashboard.module.css';
 import { broadcastDay, dateOf } from '../guide/layout';
@@ -50,7 +51,8 @@ const homeChannels: readonly ChangeChannel[] = [
 // maxWaitMs は、時刻で読み直すまでに待つ最大の時間。放送中の番組がないサービスで、番組が始まるのに気づくのに使う。
 const maxWaitMs = 10 * 60_000;
 
-// Dashboard は、ホームの中身。縮退と予約の競合の警告、これからの予約、最近の録画、放送中の番組を出す (設計書 10.3)。
+// Dashboard は、ホームの中身。縮退と予約の競合の警告、これからの予約、続きから見る、続きの放送、最近の録画、
+// 放送中の番組を出す (設計書 10.3)。
 // range は、待たない親で決めた時刻。待つ間に決め直すと、読み込みが終わらなくなる。
 // onExpire は、放送中の番組が終わったり、予約が始まったりして、range を決め直す時刻になったら呼ぶ。
 export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire: () => void }) {
@@ -100,6 +102,26 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
             endAt
             sharedFrom {
               id
+            }
+          }
+        }
+        viewer {
+          role
+        }
+        # ログイン中のユーザーが見たシリーズの続きの放送 (設計書 4.4、#1564)。
+        nextEpisodes {
+          watched {
+            id
+          }
+          program {
+            id
+            name
+            startAt
+            ruleKeyword
+            service {
+              id
+              name
+              logoUrl
             }
           }
         }
@@ -387,6 +409,9 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
           </SimpleGrid>
         </Stack>
       )}
+
+      {/* 見たシリーズの続きの放送があるときだけ出す (#1564)。 */}
+      <NextEpisodesPanel suggestions={data.nextEpisodes} canEdit={data.viewer.role !== 'VIEWER'} />
 
       <Stack gap="xs">
         <Group justify="space-between">

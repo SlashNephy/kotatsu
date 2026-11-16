@@ -1972,6 +1972,8 @@ func (r *Recorder) complete(
 		payload["detectCm"] = settings.DetectCM
 		payload["transcodePreset"] = settings.TranscodePreset
 		payload["transcodeFrameRate"] = settings.TranscodeFrameRate
+		// 空なら、見分けるときの全体の設定に従う (#1505)。
+		payload["cmDetector"] = settings.CMDetector
 		addNotBroadcast(ctx, q, &recording, payload)
 
 		return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingCompleted, payload, target.Audience)
@@ -2083,7 +2085,12 @@ func streamFailure(err error) domain.RecordingFailureReason {
 	if errors.Is(err, tunerserver.ErrStreamOpenTimeout) {
 		return domain.RecordingFailureReasonTunerUnavailable
 	}
-	// チューナーサーバーが応答したが、ストリームを渡さなかった。チューナーが足りないほか、上流のチューナーにつなげないこともある。
+	// チューナーサーバーが選局を断った (サービスかチャンネルがないか、選局に失敗した)。チューナーの空きがないときと分けて、
+	// 続けて選局できないチャンネルの判定に数える (#1519)。
+	if errors.Is(err, tunerserver.ErrNotFound) || errors.Is(err, tunerserver.ErrTuningFailed) {
+		return domain.RecordingFailureReasonTuningRefused
+	}
+	// チューナーサーバーが応答したが、ストリームを渡さなかった。チューナーが足りない (503) ほか、リバースプロキシが返した 502 などもある。
 	// まだ一度も開いていないので、中断とはせず、チューナーを確保できなかったとみなす。
 	if errors.Is(err, tunerserver.ErrRefused) {
 		return domain.RecordingFailureReasonTunerUnavailable

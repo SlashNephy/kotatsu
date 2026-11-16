@@ -24,6 +24,7 @@ import { ProgramDetail } from '../../guide/ProgramDetail';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { isUnauthenticated } from '../../relay/environment';
 import type { channelServiceIdGuideQuery } from './__generated__/channelServiceIdGuideQuery.graphql';
+import { readableParams } from '../../futon/readableId';
 
 type ChannelSearch = {
   // program は、詳細を開いている番組の ID。
@@ -31,6 +32,8 @@ type ChannelSearch = {
 };
 
 export const Route = createFileRoute('/guide/channel/$serviceId')({
+  // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
+  params: readableParams('serviceId', 'Service'),
   validateSearch: (search: Record<string, unknown>): ChannelSearch =>
     typeof search['program'] === 'string' && search['program'] !== ''
       ? { program: search['program'] }

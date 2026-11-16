@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8e884b60373cfb6091ecaee7bce5a0b4>>
+ * @generated SignedSource<<87ad7d8f4dca58fc92daa7be94365028>>
  * @lightSyntaxTransform
  */
 
@@ -83,6 +83,9 @@ export type ProgramDetailQuery$data = {
     } | null | undefined;
     readonly ruleKeyword: string;
     readonly service: {
+      readonly channelType: {
+        readonly type: string;
+      };
       readonly id: string;
       readonly logoUrl: string | null | undefined;
       readonly name: string;
@@ -224,6 +227,24 @@ v15 = {
   "selections": [
     (v4/*:: as any*/),
     (v5/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "ChannelType",
+      "kind": "LinkedField",
+      "name": "channelType",
+      "plural": false,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "type",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    },
     {
       "alias": null,
       "args": null,
@@ -745,16 +766,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "f4843dfde803ae0935c00087528c06b8",
+    "cacheID": "2e6b5ec38d4a1850c97ce98a08625c44",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      workTitle\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      dramaEpisode {\n        series {\n          tmdbId\n          name\n          originalName\n          url\n        }\n        seriesSource\n        seasonNumber\n        episodeNumber\n        episodeName\n        url\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      workTitle\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        channelType {\n          type\n        }\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      dramaEpisode {\n        series {\n          tmdbId\n          name\n          originalName\n          url\n        }\n        seriesSource\n        seasonNumber\n        episodeNumber\n        episodeName\n        url\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "9422ba6f7ad19989efce0cce254e2d17";
+(node as any).hash = "8b569a39ed54f0ef3e2aa16f68f7bf63";
 
 export default node;

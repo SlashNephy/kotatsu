@@ -67,6 +67,11 @@ func (r *queryResolver) ContinueWatching(ctx context.Context, first int) ([]*mod
 	return r.continueWatching(ctx, first)
 }
 
+// NextEpisodes is the resolver for the nextEpisodes field.
+func (r *queryResolver) NextEpisodes(ctx context.Context) ([]*model.SeriesNextEpisode, error) {
+	return r.viewerNextEpisodes(ctx)
+}
+
 // Tags is the resolver for the tags field.
 func (r *queryResolver) Tags(ctx context.Context) ([]*model.Tag, error) {
 	return r.listTags(ctx)
@@ -130,6 +135,11 @@ func (r *recordingResolver) LiveStats(ctx context.Context, obj *model.Recording)
 // WatchFrame is the resolver for the watchFrame field.
 func (r *recordingResolver) WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error) {
 	return r.watchFrame(ctx, obj), nil
+}
+
+// NextEpisodes is the resolver for the nextEpisodes field.
+func (r *recordingResolver) NextEpisodes(ctx context.Context, obj *model.Recording) ([]*model.Program, error) {
+	return r.nextEpisodes(ctx, obj)
 }
 
 // Recording returns generated.RecordingResolver implementation.

@@ -122,14 +122,17 @@ export interface DeinterlacerOptions {
     debug?: boolean;
     /** What to make the pictures between pictures with. See PictureInterpolator. */
     interpolator?: PictureInterpolator | null;
+    /** What to put pictures onto the canvas with, at a size of its own. See PictureScaler. */
+    scaler?: PictureScaler | null;
 }
 /** How often pictures come out: one per frame, one per field, or film at 24p. */
 export type Cadence = "frame" | "field" | "film";
 /**
  * Something that makes the pictures between two filtered pictures, such as
  * motion-compensated frame interpolation. It is handed this filter's own
- * context and textures, so nothing leaves the GPU: it draws onto the canvas
- * (the default framebuffer) itself, and puts back any state it changes.
+ * context and textures, so nothing leaves the GPU: it draws onto the
+ * framebuffer it is given (null for the canvas) itself, and puts back any
+ * state it changes.
  *
  * Making a picture between two needs the second one already filtered, so the
  * pictures of a cadence it wants are put up one picture late.
@@ -144,11 +147,40 @@ export interface PictureInterpolator {
      */
     pair(gl: WebGL2RenderingContext, previous: WebGLTexture, next: WebGLTexture, width: number, height: number): void;
     /**
-     * Draw the picture `t` (0 to 1) of the way from the first to the second,
-     * and say whether it did: one that keeps to a rate of its own can leave the
-     * picture on the canvas as it is for a refresh.
+     * Draw the picture `t` (0 to 1) of the way from the first to the second
+     * onto `target`, `width` by `height`, and say whether it did: one that keeps
+     * to a rate of its own can leave the picture on the canvas as it is for a
+     * refresh. The target is a texture of the picture's size rather than the
+     * canvas while a PictureScaler puts the pictures up.
      */
-    draw(gl: WebGL2RenderingContext, t: number, width: number, height: number): boolean;
+    draw(gl: WebGL2RenderingContext, t: number, width: number, height: number, target: WebGLFramebuffer | null): boolean;
+}
+/**
+ * Something that puts a filtered picture onto the canvas at a size of its
+ * own, such as an upscaler drawing at the size the canvas is shown at rather
+ * than the size the picture is coded at. Like a PictureInterpolator, it is
+ * handed this filter's own context and textures and puts back any state it
+ * changes.
+ */
+export interface PictureScaler {
+    /**
+     * The size to give the canvas's buffer for a picture `width` by `height`
+     * shown across `boxWidth` by `boxHeight` device pixels, or null to keep the
+     * picture's own size and copy it texel for texel. The context is there to
+     * read its limits from.
+     */
+    size(gl: WebGL2RenderingContext, width: number, height: number, boxWidth: number, boxHeight: number): {
+        width: number;
+        height: number;
+    } | null;
+    /**
+     * Draw `texture`, `width` by `height`, across the whole of the canvas,
+     * `outputWidth` by `outputHeight`, and say whether it did. The texture
+     * holds rows from the bottom the way a framebuffer does, or from the top
+     * when `flipped`. One that did not is let go of, and the canvas goes back to
+     * the picture's own size.
+     */
+    draw(gl: WebGL2RenderingContext, texture: WebGLTexture, flipped: boolean, width: number, height: number, outputWidth: number, outputHeight: number): boolean;
 }
 /** Field information supplied by a player or another video source. */
 export interface Scan {
@@ -208,6 +240,12 @@ export declare class Deinterlacer {
     set debug(debug: boolean);
     get interpolator(): PictureInterpolator | null;
     set interpolator(interpolator: PictureInterpolator | null);
+    get scaler(): PictureScaler | null;
+    /**
+     * Setting the same scaler again asks it for the size afresh, for a page
+     * that changed something the size depends on that this cannot see.
+     */
+    set scaler(scaler: PictureScaler | null);
     start(): void;
     /** Take the deinterlaced picture away, leaving the element's own showing. */
     stop(): void;

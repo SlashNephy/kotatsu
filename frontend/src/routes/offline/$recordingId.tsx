@@ -37,8 +37,11 @@ import { useVideoState } from '../../yunomi/useVideoState';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { WatchHeading, WatchLayout } from '../../yunomi/WatchLayout';
 import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
+import { readableParams } from '../../futon/readableId';
 
 export const Route = createFileRoute('/offline/$recordingId')({
+  // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
+  params: readableParams('recordingId', 'Recording'),
   staticData: { fluid: true },
   component: OfflinePlayPage,
 });

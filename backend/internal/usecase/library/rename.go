@@ -152,7 +152,8 @@ func (l *Library) plan(
 	taken := map[string]bool{}
 	n := 0
 	for i := range files {
-		if files[i].Kind != segmentKind {
+		// プールにあった TS を取り込んだファイルは、Kotatsu が名前を付けたものではないので、付け直さない (#1734)。
+		if files[i].Kind != segmentKind || files[i].External {
 			continue
 		}
 		n++

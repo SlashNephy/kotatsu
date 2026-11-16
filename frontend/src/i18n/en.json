@@ -331,6 +331,20 @@
     "title": "Settings",
     "back": "Back to settings",
     "notificationsSummary": "Choose what to receive as in-app notifications and Web Push",
+    "appIcon": {
+      "title": "Icon",
+      "help": "Choose the cat shown in the header logo. It changes right away.",
+      "installedNote": "The browser tab icon (favicon) and the icon of the app added to the home screen or app list (installed) do not change.",
+      "choices": {
+        "default": "Calico and mandarin (default)",
+        "chatora": "Ginger tabby",
+        "kijitora": "Brown tabby",
+        "sabatora": "Silver tabby",
+        "kuro": "Black cat",
+        "shiro": "White cat",
+        "hachiware": "Tuxedo"
+      }
+    },
     "pages": {
       "player": {
         "title": "Player",
@@ -339,6 +353,10 @@
       "guide": {
         "title": "Guide",
         "summary": "Change the guide's density and genre colors"
+      },
+      "icon": {
+        "title": "Icon",
+        "summary": "Choose the icon shown in the browser tab and the header on this device"
       },
       "security": {
         "title": "Security",
@@ -383,6 +401,16 @@
       "cmAutoSkipHelp": "When playback of a recording enters a section detected as commercials, jump to its end. Detection can be wrong. Sections you pick yourself, such as with the seek bar, are not skipped.",
       "fieldRate": "Show 1080i field by field",
       "fieldRateHelp": "Shows interlaced broadcasts at 59.94p, one picture per field, for smoother motion. Applies when the browser converts the stream itself. On devices that cannot keep up, playback falls back to one picture per frame (29.97p).",
+      "superResolution": "Upscale the picture for sharper display",
+      "superResolutionHelp": "Upscales the broadcast picture to the size it is shown at with an edge-aware filter, then sharpens it (the FSR 1 method). Looks less blurry on large or high-resolution displays. Applies when the browser converts the stream itself. Uses more GPU, and makes compression noise a little more visible.",
+      "superResolutionStrength": "Sharpening strength",
+      "superResolutionStrengthHelp": "How much to sharpen edges after upscaling. Stronger makes details crisper, but also makes compression noise and edge halos more visible.",
+      "superResolutionStrengths": {
+        "1": "1 (weak)",
+        "2": "2",
+        "3": "3 (standard)",
+        "4": "4 (strong)"
+      },
       "interpolation": "Interpolate frames for smoother motion",
       "interpolationHelp": "Inserts frames estimated from motion between the frames of 30 or 24 fps video, timed to your display's refresh. When the browser converts the stream, applies to 24p film rebuilt from pulldown and to 29.97p when 1080i is not shown field by field. The picture is delayed by one frame (about 0.03 to 0.04 seconds); if speech looks out of sync, delay the audio with the audio sync setting. Fast motion and scene changes may show artifacts.",
       "interpolationRate": "Maximum rate of interpolated frames",
@@ -610,6 +638,8 @@
       "openRecording": "Open recording",
       "playTimeshift": "Play from time shift",
       "searchFilmarks": "Search on Filmarks",
+      "searchTver": "Search on TVer",
+      "searchNhkOne": "Search on NHK ONE",
       "searchSameName": "Search by the same title"
     },
     "view": {
@@ -1023,6 +1053,62 @@
     "outOfValidity": "Out of period",
     "select": "Select",
     "selectDone": "Stop selecting",
+    "selectShown": "Select {{count}} shown",
+    "deselectShown": "Deselect shown",
+    "filter": {
+      "search": "Search names, memos and keywords",
+      "state": "Filter by state",
+      "stateAll": "Any state",
+      "states": {
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "outOfValidity": "Out of period"
+      },
+      "reservations": "Filter by reservations",
+      "reservationsAll": "Any reservations",
+      "reservationStates": {
+        "some": "With upcoming reservations",
+        "none": "No upcoming reservations"
+      },
+      "count": "{{shown}} of {{total}}",
+      "empty": "No rules match the filters",
+      "clear": "Clear filters"
+    },
+    "sort": {
+      "label": "Sort by",
+      "keys": {
+        "created": "Created",
+        "name": "Name",
+        "updated": "Updated",
+        "reservations": "Upcoming reservations"
+      },
+      "ascending": "Ascending",
+      "descending": "Descending"
+    },
+    "groups": {
+      "label": "Group",
+      "none": "Others (no group)",
+      "others": "Others",
+      "new": "New group…",
+      "newName": "Name of the new group",
+      "name": "Group name",
+      "create": "Create group",
+      "createButton": "Create group",
+      "createTitle": "Create a group",
+      "nameInvalid": "The name must not be empty or the same as another group",
+      "error": "Could not change the group",
+      "menu": "Actions for {{name}}",
+      "rename": "Rename",
+      "renameTitle": "Rename the group",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "delete": "Delete group",
+      "deleteTitle": "Delete the group",
+      "deleteConfirm": "Delete \"{{name}}\". The rules in it are kept and moved to Others.",
+      "moveSelected": "Move {{count}} selected to a group",
+      "moveTitle": "Move rules to a group",
+      "moveTo": "Move to"
+    },
     "cancel": "Cancel",
     "enableSelected": "Enable {{count}} selected rules",
     "disableSelected": "Disable {{count}} selected rules",
@@ -1041,7 +1127,10 @@
       "deleted_one": "Deleted {{count}} rule",
       "deleted_other": "Deleted {{count}} rules",
       "skipped_one": "({{count}} was skipped because it could not be found)",
-      "skipped_other": "({{count}} were skipped because they could not be found)"
+      "skipped_other": "({{count}} were skipped because they could not be found)",
+      "moved": "Moved {{count}} rules",
+      "moved_one": "Moved {{count}} rule",
+      "moved_other": "Moved {{count}} rules"
     },
     "upcomingReservations": "{{count}} upcoming reservations",
     "recordings": "Recordings",
@@ -1128,6 +1217,7 @@
     "detectCmDefault": "Use the global default",
     "detectCmOn": "Detect",
     "detectCmOff": "Don't detect",
+    "cmDetector": "How to detect commercial breaks",
     "transcode": "Transcode after recording",
     "transcodeHelp": "After recording, transcode the recording to MP4 and add it as an other file. The original TS is kept.",
     "transcodeDefault": "Follow the recording defaults",
@@ -1243,6 +1333,7 @@
       "CANCELLED": "The recording was cancelled",
       "RECORDER_UNAVAILABLE": "No mikan was available to record when the recording was due to start",
       "TUNER_PREEMPTED": "A reservation in EDCB took the tuner during the recording, and Kotatsu could not reconnect",
+      "TUNING_REFUSED": "The tuner server refused to tune (the channel does not exist, or tuning failed)",
       "unknown": "Recording failed"
     },
     "quality": "Recording quality",
@@ -1284,6 +1375,15 @@
     "ruleFilter": "Recorded by rule \"{{name}}\"",
     "ruleFilterClear": "Clear rule filter",
     "deletedRule": "Deleted rule",
+    "nextEpisodes": {
+      "title": "Next episodes",
+      "createRule": "Create a rule for this series",
+      "createSeriesRule": "Create a rule for the series of {{name}}",
+      "reserve": "Reserve",
+      "reserveProgram": "Reserve {{name}}",
+      "reserved": "Reserved",
+      "reserveError": "Could not reserve the program"
+    },
     "recordedByRule": "Recorded by rule \"{{name}}\"",
     "failureDetail": "Error details (shown only to administrators)",
     "recordedByDeletedRule": "Recorded by deleted rule \"{{name}}\"",
@@ -1405,6 +1505,8 @@
       "unfiltered": "{{picture}} (not deinterlaced: WebGL2 is unavailable)",
       "fieldRateDropped": "{{picture}} (shown per frame: the display could not keep up)",
       "interpolated": "{{label}} (frames interpolated)",
+      "upscaled": "{{label}} (upscaled to {{width}}×{{height}})",
+      "notUpscaled": "{{label}} (not upscaled: shown at {{width}}×{{height}}, no larger than the source)",
       "playing": "Playing video",
       "frameRate": "Frame rate",
       "audio": "Broadcast audio",
@@ -1849,7 +1951,7 @@
       "annictChannel": "Annict channel",
       "lineup": {
         "title": "Channel lineup changes",
-        "description": "The satellite stations on the air no longer match the channels of the tuner server. Rescan the channels on the tuner server. Stations you left out of the tuner server on purpose keep showing up here.",
+        "description": "The stations on the air no longer match the channels of the tuner server, or some channels keep failing to tune. Rescan the channels on the tuner server. Stations you left out of the tuner server on purpose keep showing up here.",
         "occurredAt": "Time",
         "message": "Details"
       }

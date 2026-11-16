@@ -181,6 +181,15 @@ func cmDetectorOf(name string) model.CMDetector {
 	return model.CMDetectorFfmpeg
 }
 
+// cmDetectorModel は、予約とルールの上書きの見分け方の名前を、GraphQL の値にする。nil なら nil を返す (上書きしない)。
+func cmDetectorModel(name *string) *model.CMDetector {
+	if name == nil {
+		return nil
+	}
+
+	return new(cmDetectorOf(*name))
+}
+
 // cmDetectorName は、GraphQL の見分け方を、設定の名前にする。nil なら nil を返す (変えない)。
 func cmDetectorName(detector *model.CMDetector) *string {
 	switch {

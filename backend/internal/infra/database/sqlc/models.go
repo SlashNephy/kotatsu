@@ -504,6 +504,8 @@ type Program struct {
 	VideoResolution       *string
 	SeriesEpisode         *int32
 	SeriesRepeat          pgtype.Bool
+	Series                *string
+	EpisodeNumber         *int32
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
@@ -568,6 +570,16 @@ type ProgramDramaMatch struct {
 	EpisodeSource *string
 	MatchedAt     time.Time
 	FinalizedAt   *time.Time
+}
+
+type ProgramRewrite struct {
+	ServiceID  int64
+	EventID    int64
+	StartAt    time.Time
+	Field      string
+	Before     string
+	After      string
+	ObservedAt time.Time
 }
 
 type Recording struct {
@@ -697,6 +709,7 @@ type RecordingFile struct {
 	TunerIndex         *int64
 	TunerName          *string
 	TranscodeFrameRate *int32
+	External           bool
 	CreatedAt          time.Time
 }
 
@@ -786,10 +799,21 @@ type Rule struct {
 	FollowEventRelay    bool
 	BundleSameEpisodes  bool
 	SkipEarlierEpisodes bool
+	GroupID             *uuid.UUID
 	CreatedAt           time.Time
 	CreatedBy           *uuid.UUID
 	UpdatedAt           time.Time
 	UpdatedBy           *uuid.UUID
+}
+
+type RuleGroup struct {
+	ID        uuid.UUID
+	Name      string
+	Position  int32
+	CreatedAt time.Time
+	CreatedBy *uuid.UUID
+	UpdatedAt time.Time
+	UpdatedBy *uuid.UUID
 }
 
 type SchemaCompatibility struct {

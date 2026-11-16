@@ -160,6 +160,8 @@ type Rule struct {
 	UpdatedBy           *User                       `json:"updatedBy,omitempty"`
 	// Key は、ルールの ID。スキーマには出さない。
 	Key uuid.UUID `json:"-"`
+	// GroupKey は、ルールが入るグループの ID。グループはリゾルバが dataloader で引く。スキーマには出さない。
+	GroupKey *uuid.UUID `json:"-"`
 }
 
 func (Rule) IsNode() {}

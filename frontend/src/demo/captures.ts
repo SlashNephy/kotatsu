@@ -1,3 +1,5 @@
+import { containsAllWords, normalizeForSearch, searchWords } from '../futon/searchText';
+
 // デモのキャプチャ (#908)。tenban の代わりに、撮ったキャプチャをメモリ上に残す。画面を読み直すと消える。
 
 type Metadata = {
@@ -18,10 +20,6 @@ export type DemoCaptures = {
   list: (args: { keyword?: string | null }) => object;
   remove: (id: string) => string;
 };
-
-function normalize(text: string): string {
-  return text.normalize('NFKC').toLowerCase();
-}
 
 export function createDemoCaptures(): DemoCaptures {
   const captures: DemoCapture[] = [];
@@ -46,14 +44,13 @@ export function createDemoCaptures(): DemoCaptures {
       return id;
     },
     list: ({ keyword }) => {
-      const words = normalize(keyword ?? '')
-        .split(/\s+/)
-        .filter((word) => word !== '');
-      const matched = captures.filter((capture) => {
-        const haystack = normalize(`${capture.programName ?? ''} ${capture.serviceName}`);
-
-        return words.every((word) => haystack.includes(word));
-      });
+      const words = searchWords(keyword ?? '');
+      const matched = captures.filter((capture) =>
+        containsAllWords(
+          normalizeForSearch(`${capture.programName ?? ''} ${capture.serviceName}`),
+          words,
+        ),
+      );
 
       return {
         edges: matched.map((node) => ({ cursor: node.id, node })),

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
@@ -1588,6 +1589,8 @@ type RecordingSettingsOverrides struct {
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// 録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
+	// CM の区間の見分け方 (#1505)。null なら従う値 (ルール予約ならルールの設定、なければ見分けるときの全体の設定) にする。
+	CMDetector *CMDetector `json:"cmDetector,omitempty"`
 }
 
 // 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -1603,6 +1606,8 @@ type RecordingSettingsOverridesInput struct {
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// 変換で出すコマ数 (auto、30、60 のどれか)。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
+	// CM の区間の見分け方。
+	CMDetector *CMDetector `json:"cmDetector,omitempty"`
 }
 
 // リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
@@ -1674,6 +1679,20 @@ type RuleDefaultsInput struct {
 	BundleSameEpisodes       *bool `json:"bundleSameEpisodes,omitempty"`
 }
 
+// ルールのグループ (設計書 4.2、#1493)。ルールの一覧を分けて並べるための名前だけのもので、照合には関わらない。
+// ルールと同じく家族で共有する。1 つのルールは、多くとも 1 つのグループに入る。
+type RuleGroup struct {
+	ID string `json:"id"`
+	// 1〜100 文字。ほかのグループと同じ名前にはできない。
+	Name string `json:"name"`
+	// 一覧で並べる順 (0 から)
+	Position  int       `json:"position"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (RuleGroup) IsNode() {}
+
 // ルールの内容。
 type RuleInput struct {
 	// 1〜200 文字
@@ -1691,6 +1710,9 @@ type RuleInput struct {
 	FollowEventRelay    bool `json:"followEventRelay"`
 	BundleSameEpisodes  bool `json:"bundleSameEpisodes"`
 	SkipEarlierEpisodes bool `json:"skipEarlierEpisodes"`
+	// ルールを入れるグループ (#1493)。null ならどのグループにも入れない。
+	// updateRule で省くと、今のグループを変えない。createRule で省くと、どのグループにも入れない。
+	GroupID graphql.Omittable[*string] `json:"groupId,omitempty"`
 }
 
 // ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。
@@ -1719,6 +1741,14 @@ type SegmentVideoFormat struct {
 	Interlaced bool   `json:"interlaced"`
 	// フレームレート。読めなければ null (HEVC は読まない)。
 	FrameRate *float64 `json:"frameRate,omitempty"`
+}
+
+// ホームの「続きの放送」の 1 行 (#1564)。ログイン中のユーザーが見たシリーズの、次の放送。
+type SeriesNextEpisode struct {
+	// シリーズの見た回のうち、話数の最も大きい録画。
+	Watched *Recording `json:"watched"`
+	// シリーズの続きの放送のうち、最も早い放送。
+	Program *Program `json:"program"`
 }
 
 // サービスの表示の変える項目。省いた項目は変えない。
