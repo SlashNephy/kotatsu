@@ -1154,6 +1154,33 @@ CREATE TABLE recording_cm_materials (
   PRIMARY KEY (recording_id, detector)
 );
 
+-- 録画の音声から自動生成した字幕 (設計書 6.1、#1682)。録画ごとに最後に生成した 1 つだけを持つ。
+-- cues は、{startMs, endMs, text} の配列。時刻は、CM の区間と同じく、録画を始めた日時からの時間 (セグメントの最初の I フレームを 0 にしたもの)。
+-- 字幕は録画ごとに数千件になり、いつもまとめて読み書きするので、行に分けずに JSONB にする。
+CREATE TABLE recording_auto_captions (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  -- model は、生成に使ったモデルのファイルの名前。
+  model text NOT NULL,
+  -- generator_version は、生成の仕方の版。生成の仕方を変えたら上げる。
+  generator_version integer NOT NULL,
+  generated_at timestamptz NOT NULL,
+  cues jsonb NOT NULL
+);
+
+-- 字幕の自動生成に使うモデルのうち、管理者が画面からダウンロードして、データディレクトリの既定の場所に置いたもの (#1682、設計書 6.1)。
+-- 種類ごとに 1 つ。ダウンロードするジョブ (nekonote) が、ファイルを置き換えた後に書き、画面から消すと消す。
+-- 手で置いたファイルには行がないので、画面は、ファイルの大きさが行と違えば、手で置いたものとして出す。
+CREATE TABLE caption_models (
+  -- kind は、モデルの種類。WHISPER (書き起こし) か VAD (声のある区間)。
+  kind text PRIMARY KEY,
+  -- model_id は、コードに固定したモデルの一覧の ID。
+  model_id text NOT NULL,
+  -- size と sha256 は、置いたファイルの大きさ (バイト) と SHA-256 (16 進)。
+  size bigint NOT NULL,
+  sha256 text NOT NULL,
+  installed_at timestamptz NOT NULL
+);
+
 -- 録画を一覧で新しい順に並べ、ページを送るのに使う。
 CREATE INDEX recordings_recorded_from_id_idx ON recordings (recorded_from DESC, id DESC);
 

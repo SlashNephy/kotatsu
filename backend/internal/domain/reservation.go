@@ -125,6 +125,8 @@ type RecordingSettings struct {
 	JoinSegments bool
 	// DetectCM は、録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1)。既定では見分けない。
 	DetectCM bool
+	// GenerateCaptions は、録画が終わったら、音声から字幕を自動生成するかどうか (設計書 6.1、#1682)。既定では生成しない。
+	GenerateCaptions bool
 	// TranscodePreset は、録画が終わったら、録画を変換して MP4 を足すときの画質 (TranscodePresets のどれか、#1253)。
 	// 空なら変換しない。既定では変換しない。
 	TranscodePreset string
@@ -186,6 +188,7 @@ func DefaultRecordingSettings() *RecordingSettings {
 		Priority:           DefaultPriority,
 		JoinSegments:       true,
 		DetectCM:           false,
+		GenerateCaptions:   false,
 		TranscodePreset:    "",
 		TranscodeFrameRate: DefaultTranscodeFrameRate,
 		CMDetector:         "",
@@ -201,6 +204,7 @@ type RecordingOverrides struct {
 	Priority           *int    `json:"priority,omitempty"`
 	JoinSegments       *bool   `json:"joinSegments,omitempty"`
 	DetectCM           *bool   `json:"detectCm,omitempty"`
+	GenerateCaptions   *bool   `json:"generateCaptions,omitempty"`
 	// TranscodePreset は、空の文字列なら「変換しない」で上書きする。nil なら上書きしない。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// TranscodeFrameRate は、出すコマ数 (TranscodeFrameRates のどれか)。nil なら上書きしない。
@@ -235,6 +239,9 @@ func (s *RecordingSettings) Resolve(o *RecordingOverrides) *RecordingSettings {
 	}
 	if o.DetectCM != nil {
 		resolved.DetectCM = *o.DetectCM
+	}
+	if o.GenerateCaptions != nil {
+		resolved.GenerateCaptions = *o.GenerateCaptions
 	}
 	if o.TranscodePreset != nil {
 		resolved.TranscodePreset = *o.TranscodePreset

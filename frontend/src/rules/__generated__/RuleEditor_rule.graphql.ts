@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f459fc6ac7ab6bb93c9e837aae1456f5>>
+ * @generated SignedSource<<e91a080223d047c404491201beff30b4>>
  * @lightSyntaxTransform
  */
 
@@ -73,6 +73,7 @@ export type RuleEditor_rule$data = {
     readonly detectCm: boolean | null | undefined;
     readonly endMarginSeconds: number | null | undefined;
     readonly fileNameTemplate: string | null | undefined;
+    readonly generateCaptions: boolean | null | undefined;
     readonly joinSegments: boolean | null | undefined;
     readonly poolId: string | null | undefined;
     readonly priority: number | null | undefined;
@@ -435,6 +436,13 @@ return {
           "alias": null,
           "args": null,
           "kind": "ScalarField",
+          "name": "generateCaptions",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
           "name": "transcodePreset",
           "storageKey": null
         },
@@ -520,6 +528,6 @@ return {
 };
 })();
 
-(node as any).hash = "3eb8cc0ad782ae3fd4f57e5fc9fa83a6";
+(node as any).hash = "36c2a0002133c4d545b0f55d389cd65e";
 
 export default node;

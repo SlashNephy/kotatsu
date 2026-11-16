@@ -23,6 +23,7 @@ export type SettingsInput = {
   priority?: number | null;
   joinSegments?: boolean | null;
   detectCm?: boolean | null;
+  generateCaptions?: boolean | null;
   transcodePreset?: string | null;
   transcodeFrameRate?: string | null;
 };
@@ -195,6 +196,7 @@ export function createScheduler(options: {
     priority: settings?.priority ?? null,
     joinSegments: settings?.joinSegments ?? null,
     detectCm: settings?.detectCm ?? null,
+    generateCaptions: settings?.generateCaptions ?? null,
     transcodePreset: settings?.transcodePreset ?? null,
     transcodeFrameRate: settings?.transcodeFrameRate ?? null,
   });

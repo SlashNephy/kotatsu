@@ -26,6 +26,7 @@ sql:
           iptv_feeds_enabled: IPTVFeedsEnabled
           cm_detector: CMDetector
           epgstation_api_enabled: EPGStationAPIEnabled
+          sha256: SHA256
         overrides:
           - column: reservations.kind
             go_type:

@@ -343,6 +343,24 @@ nekonoteが、録画の代表画像と、シークバー用のプレビュー画
 
 性能の低いマシンでは、`true`にすると、代表画像だけを作って負荷を減らせます。
 
+### captions
+
+nekonoteが、録画の音声から字幕を自動生成するときの設定です（#1682）。
+生成には[whisper.cpp](https://github.com/ggml-org/whisper.cpp)の`whisper-cli`とモデルを使います。`whisper-cli`は`-ffmpeg`のイメージに入っています。モデルは、録画の既定値の画面（`/admin/recording`）からダウンロードします（[セットアップ](setup.md#字幕の自動生成)）。
+画面からダウンロードしたモデルは、下の表の既定の場所に置きます。`whisper_model`や`vad_model`で場所を書くと、そちらを読み、画面から置いたモデルは使いません。画面にもその旨を出します。画面はtenbanの設定で判断するので、tenbanとnekonoteには同じ設定を渡してください。
+生成するかどうかは、録画の既定値の画面（`/admin/recording`）と、ルールと予約で選びます。
+
+| YAML | 環境変数 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| `captions.whisper_command` | `KOTATSU_CAPTIONS_WHISPER_COMMAND` | PATHの`whisper-cli`（`-ffmpeg`のイメージに入っている） | `whisper-cli`のパス |
+| `captions.whisper_model` | `KOTATSU_CAPTIONS_WHISPER_MODEL` | データディレクトリの`whisper/ggml-model.bin` | モデル（ggmlの形式）のパス |
+| `captions.threads` | `KOTATSU_CAPTIONS_THREADS` | `0`（CPUの数の半分。1〜8） | `whisper-cli`に使わせるスレッドの数 |
+| `captions.vad_command` | `KOTATSU_CAPTIONS_VAD_COMMAND` | PATHの`whisper-vad-speech-segments`（`-ffmpeg`のイメージに入っている） | 字幕の時刻を声に合わせるVADのコマンドのパス（任意） |
+| `captions.vad_model` | `KOTATSU_CAPTIONS_VAD_MODEL` | データディレクトリの`whisper/ggml-silero-vad.bin` | Silero VADのモデル（ggmlの形式）のパス（任意） |
+
+`whisper-cli`とモデルは、ジョブごとに探します。置き直したら、nekonoteを再起動しなくても、次のジョブから使えます。
+音声を取り出した一時ファイル（1時間の録画で約115 MB）は、`kyusu.work_dir`（空ならOSの一時ディレクトリ）に置き、ジョブを終えたら消します。
+
 ### kyusu
 
 kyusuが、ライブ視聴と録画の再生のために、サーバー側でトランスコードするときの設定です。

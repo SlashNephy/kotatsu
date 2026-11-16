@@ -1,4 +1,4 @@
-h1:dYZTppWI0GFTT2s6KccR/wi0WIJBelEC2ucoeTnLKHs=
+h1:lP1p4m24Y2gYHnk6Z8XMIxrq+PLRMaXHCNnFPLhR71c=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -133,3 +133,5 @@ h1:dYZTppWI0GFTT2s6KccR/wi0WIJBelEC2ucoeTnLKHs=
 20261116034238_add_tuner_occupancies.sql h1:KOEi2dpJeEHkBLJuZJ8ottUArTs2ZAOeeJ+2tWCm9xE=
 20261116084054_add_drama_linking.sql h1:ypxAk4USMeIoctVU/R5nDdnPYWLwQhT90rwcHfMh1ZE=
 20261116085349_add_tmdb_token.sql h1:HQ4qYH9jG1AWkt5MWi5Tx5vird8rqHijsP3xaXDPoCI=
+20261116090425_add_recording_auto_captions.sql h1:Wvju06ZAUwIVNsYTOZB4A9ZmygEMdLzjHp3EsLhFMIU=
+20261116090426_add_caption_models.sql h1:qQ0bexuJkkEt6Grye1Eyfvs+ee6chJzjBZ2gt/bYcn4=

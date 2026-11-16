@@ -39,6 +39,11 @@ import { CommentOffsetSetting } from '../../jikkyo/CommentOffsetSetting';
 import { findPartMarkers } from '../../jikkyo/partMarkers';
 import { formatCommentOffset, useCommentOffsetCommands } from '../../jikkyo/commentOffset';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
+import {
+  AutoCaptionOverlay,
+  CaptionTrackSelect,
+  type CaptionTrack,
+} from '../../yunomi/AutoCaptionOverlay';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
@@ -247,6 +252,11 @@ const playQuery = graphql`
           from
           to
         }
+        autoCaptions {
+          from
+          to
+          text
+        }
         jikkyoCommentsUrl
         jikkyoOtherCommentsUrl
         jikkyoNicologCommentsUrl
@@ -395,6 +405,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           })),
     [recording],
   );
+  // captionTrack は、出す字幕の種類 (#1682)。自動生成した字幕があるときだけ選べ、既定は放送の字幕にする。
+  const [captionTrack, setCaptionTrack] = useState<CaptionTrack>('broadcast');
+  const hasAutoCaptions = recording !== null && recording.autoCaptions.length > 0;
+  const autoCaptionsShown = captions && hasAutoCaptions && captionTrack === 'auto';
   // cmSpans は、自動で飛ばすときに使う、続いた区間をまとめた CM の区間 (#1512)。
   const cmSpans = useMemo(() => mergeCmSections(cmPositions, cmMergeGap), [cmPositions]);
   // resumeAt は、再生を始める位置 (秒)。URL で位置を渡されたらそこから、なければ前回の続きから、続きもなければ 0 (設計書 7.5)。
@@ -1267,6 +1281,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           <SettingsButton>
             <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
             {audio.menu}
+            <CaptionTrackSelect
+              available={hasAutoCaptions}
+              value={captionTrack}
+              onChange={setCaptionTrack}
+            />
             <RateSelect value={rate} onChange={setRate} />
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
@@ -1331,7 +1350,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
-          captions={captions}
+          // 自動生成した字幕を出している間は、放送の字幕を重ねない。
+          captions={captions && !autoCaptionsShown}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
           crop={shownCrop}
@@ -1364,6 +1384,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           onState={onConvertState}
           overlay={
             <>
+              {autoCaptionsShown && (
+                <AutoCaptionOverlay
+                  recordedFrom={recording.recordedFrom}
+                  gaps={recording.gaps}
+                  captions={recording.autoCaptions}
+                  clock={currentPosition}
+                />
+              )}
               {jikkyo.overlay}
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
               {scrub !== null && (
@@ -1393,7 +1421,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           onVideo={setVideo}
           onSegment={streamMeter.onSegment}
           controls={controlBar}
-          captions={captions}
+          // 自動生成した字幕を出している間は、放送の字幕を重ねない。
+          captions={captions && !autoCaptionsShown}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
           crop={shownCrop}
@@ -1403,6 +1432,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           startPosition={offset}
           overlay={
             <>
+              {autoCaptionsShown && (
+                <AutoCaptionOverlay
+                  recordedFrom={recording.recordedFrom}
+                  gaps={recording.gaps}
+                  captions={recording.autoCaptions}
+                  clock={currentPosition}
+                />
+              )}
               {jikkyo.overlay}
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
               {scrub !== null && (

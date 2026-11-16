@@ -75,6 +75,39 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.StateDetected
       FAILED:
         value: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.StateFailed
+  RecordingAutoCaptionsState:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.State
+    enum_values:
+      NOT_GENERATED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateNotGenerated
+      QUEUED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateQueued
+      RUNNING:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateRunning
+      GENERATED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateGenerated
+      FAILED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateFailed
+      NOT_CONFIGURED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateNotConfigured
+  CaptionModelKind:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.Kind
+    enum_values:
+      WHISPER:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.KindWhisper
+      VAD:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.KindVAD
+  CaptionModelState:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.State
+    enum_values:
+      NOT_PLACED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.StateNotPlaced
+      DOWNLOADING:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.StateDownloading
+      PLACED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.StatePlaced
+      FAILED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.StateFailed
   SkipReason:
     model: github.com/SlashNephy/kotatsu/internal/usecase/rule.SkipReason
     enum_values:
@@ -205,6 +238,8 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeWebhook
       DATA_BROADCAST:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeDataBroadcast
+      CAPTION_MODEL_DOWNLOAD:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeCaptionModelDownload
   NetworkActivityInitiator:
     model: github.com/SlashNephy/kotatsu/internal/lib/netactivity.Initiator
     enum_values:
@@ -365,6 +400,10 @@ models:
       cmDetectionNote:
         resolver: true
       cmVideoMissingSeconds:
+        resolver: true
+      autoCaptions:
+        resolver: true
+      autoCaptionsStatus:
         resolver: true
       failureDetail:
         resolver: true

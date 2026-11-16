@@ -40,8 +40,10 @@ type Config struct {
 	Auth      Auth      `yaml:"auth"`
 	WebPush   WebPush   `yaml:"web_push"`
 	Thumbnail Thumbnail `yaml:"thumbnail"`
-	Kyusu     Kyusu     `yaml:"kyusu"`
-	Jikkyo    Jikkyo    `yaml:"jikkyo"`
+	// Captions は、録画の音声から字幕を自動生成する設定 (設計書 6.1、#1682)。
+	Captions Captions `yaml:"captions"`
+	Kyusu    Kyusu    `yaml:"kyusu"`
+	Jikkyo   Jikkyo   `yaml:"jikkyo"`
 	// AnimeLinking は、アニメの番組と作品を結びつける連携の設定 (設計書 3.8)。
 	AnimeLinking AnimeLinking `yaml:"anime_linking"`
 	// AnimeRecords は、見たアニメを Annict と AniList に記録する設定 (#927)。
@@ -315,6 +317,23 @@ type Thumbnail struct {
 	DisablePreview bool `yaml:"disable_preview"`
 }
 
+// Captions は、録画の音声から字幕を自動生成する設定 (設計書 6.1、#1682)。nekonote が使う。
+// 生成には whisper.cpp の whisper-cli とモデル (ggml の形式) を使う。whisper-cli は -ffmpeg のイメージに入れる。モデルはイメージに入れず、
+// 管理者が画面からデータディレクトリの既定の場所にダウンロードするか、手で置いて、ここに場所を書く。
+type Captions struct {
+	// WhisperCommand は、whisper.cpp の whisper-cli のパス。空なら、PATH から whisper-cli を探す。
+	WhisperCommand string `yaml:"whisper_command"`
+	// WhisperModel は、whisper.cpp のモデル (ggml の形式) のパス。空なら、データディレクトリの whisper/ggml-model.bin にする。
+	WhisperModel string `yaml:"whisper_model"`
+	// Threads は、whisper-cli に使わせるスレッドの数。0 なら、CPU の数の半分 (1〜8) にする。
+	Threads int `yaml:"threads"`
+	// VADCommand は、whisper.cpp の whisper-vad-speech-segments のパス。空なら、PATH から探す。
+	// VAD は任意で、置いていれば、字幕の時刻を声のある区間に合わせる。
+	VADCommand string `yaml:"vad_command"`
+	// VADModel は、Silero VAD のモデル (ggml の形式) のパス。空なら、データディレクトリの whisper/ggml-silero-vad.bin にする。
+	VADModel string `yaml:"vad_model"`
+}
+
 // kyusu が映像のエンコードに使うエンコーダー (設計書 7.3)。
 const (
 	// EncoderX264 は、ソフトウェアの x264 (HEVC では x265)。GPU がなくても動く。
@@ -526,6 +545,7 @@ func Default() *Config {
 		},
 		WebPush:      WebPush{Subject: ""},
 		Thumbnail:    Thumbnail{DisablePreview: false},
+		Captions:     Captions{WhisperCommand: "", WhisperModel: "", Threads: 0, VADCommand: "", VADModel: ""},
 		Kyusu:        Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
 		Jikkyo:       Jikkyo{Channels: map[string]string{}},
 		AnimeLinking: AnimeLinking{ArmURL: ""},
@@ -634,6 +654,9 @@ func (c *Config) validate() error {
 	}
 	if !slices.Contains([]string{EncoderX264, EncoderVAAPI, EncoderQSV, EncoderNVENC}, c.Kyusu.Encoder) {
 		errs = append(errs, fieldError("kyusu.encoder", errors.New("must be one of x264, vaapi, qsv, nvenc")))
+	}
+	if c.Captions.Threads < 0 {
+		errs = append(errs, fieldError("captions.threads", errors.New("must be 0 (auto) or more")))
 	}
 	errs = append(errs, c.Audit.validate()...)
 	for _, id := range slices.Sorted(maps.Keys(c.Storage.Pools)) {

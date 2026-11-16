@@ -37,6 +37,9 @@ const (
 	QueueAnimeFollowing = "anime_following"
 	// QueueTranscode は、録画を終えた後に録画を変換するジョブのキュー (#1253)。録画を読み通して FFmpeg でエンコードするので、1 つずつ実行する。
 	QueueTranscode = "transcode"
+	// QueueCaptions は、録画の音声から字幕を自動生成するジョブのキュー (#1682)。音声の認識は録画の尺の数割の時間がかかるので、1 つずつ実行し、
+	// CM の区間の見分け (QueueCM) や変換 (QueueTranscode) を待たせないよう、別のキューにする。
+	QueueCaptions = "captions"
 	// PriorityImported は、取り込んだ録画のためのジョブの優先度 (River の 1〜4 のうち、最も低い 4)。
 	// 大量に取り込んでも、新しく録った録画の解析やサムネイルが、取り込んだ分の後ろで待たないようにする (#551)。
 	PriorityImported = 4
@@ -73,6 +76,7 @@ func NewClient(pool *pgxpool.Pool, logger *slog.Logger, opts *Options) (*Client,
 			QueueMedia:          {MaxWorkers: 1},
 			QueueCM:             {MaxWorkers: 1},
 			QueueTranscode:      {MaxWorkers: 1},
+			QueueCaptions:       {MaxWorkers: 1},
 			QueueAnimeFollowing: {MaxWorkers: 1},
 		}
 		config.PeriodicJobs = opts.PeriodicJobs

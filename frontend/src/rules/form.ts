@@ -18,6 +18,8 @@ type Settings = {
   joinSegments: boolean | null;
   // detectCm は、録画が終わったら CM の区間を見分けるかどうか (#1209)。null なら全体の設定に従う。
   detectCm: boolean | null;
+  // generateCaptions は、録画が終わったら音声から字幕を自動生成するかどうか (#1682)。null なら全体の設定に従う。
+  generateCaptions: boolean | null;
   // transcodePreset は、録画を終えた後に変換するときの画質 (#1253)。空なら変換しない。null なら全体の設定に従う。
   transcodePreset: string | null;
   // transcodeFrameRate は、変換で出すコマ数 (#1509。auto、30、60)。null なら全体の設定に従う。
@@ -62,6 +64,7 @@ export type RuleData = {
     readonly priority?: number | null;
     readonly joinSegments?: boolean | null;
     readonly detectCm?: boolean | null;
+    readonly generateCaptions?: boolean | null;
     readonly transcodePreset?: string | null;
     readonly transcodeFrameRate?: string | null;
     readonly cmDetector?: string | null;
@@ -97,6 +100,7 @@ export function emptyRuleForm(conditions: ConditionsForm = emptyConditions()): R
       priority: null,
       joinSegments: null,
       detectCm: null,
+      generateCaptions: null,
       transcodePreset: null,
       transcodeFrameRate: null,
       cmDetector: null,
@@ -127,6 +131,7 @@ export function fromRule(rule: RuleData): RuleForm {
       priority: rule.settings.priority ?? null,
       joinSegments: rule.settings.joinSegments ?? null,
       detectCm: rule.settings.detectCm ?? null,
+      generateCaptions: rule.settings.generateCaptions ?? null,
       transcodePreset: rule.settings.transcodePreset ?? null,
       transcodeFrameRate: rule.settings.transcodeFrameRate ?? null,
       cmDetector: cmDetectorOf(rule.settings.cmDetector),

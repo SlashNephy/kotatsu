@@ -10,6 +10,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
+	"github.com/SlashNephy/kotatsu/internal/usecase/captionmodel"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
@@ -17,7 +19,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
 )
 
-// mediaJobParts は、録画の後処理のジョブの Worker (#1607)。代表画像、解析、セグメントのつなぎ、CM の区間の見分け、変換、チャプター。
+// mediaJobParts は、録画の後処理のジョブの Worker (#1607)。代表画像、解析、セグメントのつなぎ、CM の区間の見分け、字幕の自動生成とそのモデルのダウンロード、
+// 変換、チャプター。
 type mediaJobParts struct {
 	thumbnails     *thumbnail.GenerateWorker
 	liveThumbnails *thumbnail.LiveWorker
@@ -25,6 +28,8 @@ type mediaJobParts struct {
 	join           *segjoin.JoinWorker
 	finalize       *segjoin.FinalizeWorker
 	cmDetect       *cmdetect.DetectWorker
+	captions       *autocaption.Worker
+	captionModels  *captionmodel.Worker
 	transcode      *transcode.Worker
 	tvtplay        *tvtplay.WriteWorker
 	chapters       *transcode.ChaptersWorker
@@ -78,6 +83,26 @@ func newCMDetectWorker(
 	return cmdetect.NewDetectWorker(pool, store, clk, lowerer,
 		cmdetect.DetectedHooks{transcode.NewChaptersEnqueuer(inserter), tvtplay.NewEnqueuer(inserter), thumbnail.NewCMEnqueuer(inserter)},
 		logger.With(slog.String("component", "cmdetect")))
+}
+
+// newCaptionsWorker は、録画を終えたら、音声から字幕を自動生成する Worker を作る (設計書 6.1、#1682)。
+// whisper-cli とモデルは、ジョブごとに探すので、管理者が置き直したら、nekonote を再起動しなくても次のジョブから使える。
+// どちらかがなければ、ジョブが理由を残して取りやめる。取り出した音声は、kyusu と同じ一時領域に置く。
+func newCaptionsWorker(
+	deps *Deps, pool *pgxpool.Pool, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer, logger *slog.Logger,
+) *autocaption.Worker {
+	return autocaption.NewWorker(pool, store, clk, logger.With(slog.String("component", "autocaption")),
+		func() (autocaption.Transcriber, error) {
+			return autocaption.NewWhisper(&deps.Config.Captions, deps.Config.Storage.DataDir, lowerer)
+		},
+		func() (autocaption.Extractor, error) { return autocaption.FFmpegExtractor(lowerer) },
+		deps.Config.Kyusu.WorkDir)
+}
+
+// newCaptionModelWorker は、管理者が画面から頼んだ、字幕の自動生成のモデルをダウンロードして置く Worker を作る (#1682)。
+// モデルは、whisper-cli を動かす nekonote のデータディレクトリの既定の場所に置く。
+func newCaptionModelWorker(deps *Deps, pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *captionmodel.Worker {
+	return captionmodel.NewWorker(pool, clk, logger.With(slog.String("component", "captionmodel")), deps.Network, deps.Config.Storage.DataDir)
 }
 
 // newTranscodeWorker は、録画を終えた後に変換する Worker を作る (#1253)。映像のエンコーダーは、kyusu と同じ設定を使う。

@@ -39,6 +39,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		Priority:           system.Recording.Priority,
 		JoinSegments:       system.Recording.JoinSegments,
 		DetectCM:           system.Recording.DetectCM,
+		GenerateCaptions:   system.Recording.GenerateCaptions,
 		TranscodePreset:    nil,
 		TranscodeFrameRate: system.Recording.TranscodeFrameRate,
 	}

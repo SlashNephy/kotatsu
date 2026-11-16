@@ -14,9 +14,9 @@ CIでは、PostgreSQL 17で動作を確認しています。
 | タグ | 内容 |
 | --- | --- |
 | `edge` | mainの最新版。FFmpegを含まない |
-| `edge-ffmpeg` | mainの最新版。FFmpegとtsreadexを含む |
+| `edge-ffmpeg` | mainの最新版。FFmpegとtsreadexとwhisper.cppを含む |
 | `<バージョン>` | リリースした版。FFmpegを含まない |
-| `<バージョン>-ffmpeg` | リリースした版。FFmpegとtsreadexを含む |
+| `<バージョン>-ffmpeg` | リリースした版。FFmpegとtsreadexとwhisper.cppを含む |
 
 サムネイルを作るnekonoteと、サーバー側でトランスコードするkyusuは、FFmpegを使います。
 1つのプロセスで全ロールを動かすときは、`-ffmpeg`のイメージを使ってください。
@@ -244,6 +244,61 @@ WindowsとmacOSで`kotatsu all`を動かすと、録画、ライブ視聴、エ�
 - macOSで止めるのは、操作が無いことで眠るのだけです。蓋を閉じたときと、メニューからスリープしたときは眠ります。
 - 休止状態とシャットダウンからは起こせません。外から視聴することも、スリープを解きません。外からいつも観るなら、OSをスリープしない設定にしてください。
 - タイムシフトを有効にしたサービスがあると、ずっとスリープしません。
+
+## 字幕の自動生成
+
+録画を終えた後に、録画の音声から字幕を書き起こし、再生画面で「自動生成」の字幕として出せます（#1682）。
+放送の字幕のない番組を見るときに使えます。誤りが混ざるので、放送の字幕とは見分けて出します。
+書き起こしには[whisper.cpp](https://github.com/ggml-org/whisper.cpp)の`whisper-cli`と、日本語を読めるモデルを使います。
+`whisper-cli`は`-ffmpeg`のイメージに入っています。モデルは大きいのでイメージに含まず、管理画面からダウンロードします。
+書き起こしはサーバーの中で行い、音声も字幕も外部へは送りません。
+
+1. 録画の既定値の画面（`/admin/recording`）の「字幕の自動生成のモデル」で、書き起こしのモデルを選び、「ダウンロードする」を押します。
+   日本語には、最初に選ばれている[kotoba-whisper v2.0](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-ggml)（約540 MB、Apache-2.0）を勧めます。
+   nekonoteがHugging Faceからダウンロードし、大きさとSHA-256を確かめてから、データディレクトリの`whisper/ggml-model.bin`に置きます。
+   ダウンロードしている間は、進み具合が出て、取りやめることもできます。
+2. （任意）同じ欄で、声のある区間のモデル（Silero VAD、約0.9 MB、MIT）もダウンロードします。
+   置かなくても動きますが、台詞の前後の無音や音楽の分だけ、字幕が早く出ることがあります。
+3. 同じ画面の「録画が終わったら字幕を自動生成する」を入れます。ルールと予約ごとにも選べます。
+   録画の詳細の「字幕を生成する」で、録り終えた録画の字幕を作ることもできます。
+
+CPUだけで動かすと、録画の長さの3割ほど（8スレッド）の時間がかかります。
+モデルが見つからないと、ジョブは取りやめ、録画の詳細に「置かれていない」と出します。管理者には、モデルを置く画面へのリンクを出します。
+
+イメージの`whisper-cli`は、amd64ではAVX2とFMAを使います（x86-64-v3）。AVX2のないCPUでは、下の手順で自分でビルドした`whisper-cli`を置き、設定で渡してください。
+
+### 手で置くとき
+
+画面に出ないモデルを使うときや、イメージを使わずに動かすときは、`whisper-cli`とモデルを手で置けます。
+手で置いたファイルも、画面には「手で置いたファイル」として出し、消せます。
+
+1. `whisper-cli`をビルドして置きます。静的にリンクすると、Debianのイメージの中でもそのまま動きます。
+
+   ```bash
+   git clone --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp
+   cmake -S whisper.cpp -B whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DCMAKE_EXE_LINKER_FLAGS=-static
+   cmake --build whisper.cpp/build -j --target whisper-cli whisper-vad-speech-segments
+   mkdir -p data/whisper
+   cp whisper.cpp/build/bin/whisper-cli whisper.cpp/build/bin/whisper-vad-speech-segments data/whisper/
+   ```
+
+   置き場所は、設定で渡します。Docker Composeなら、`environment`に足します（ほかの項目は[設定](configuration.md#captions)）。
+
+   ```yaml
+   KOTATSU_CAPTIONS_WHISPER_COMMAND: /data/whisper/whisper-cli
+   KOTATSU_CAPTIONS_VAD_COMMAND: /data/whisper/whisper-vad-speech-segments
+   ```
+
+2. モデル（ggmlの形式）を、データディレクトリの`whisper/ggml-model.bin`と`whisper/ggml-silero-vad.bin`に置きます。
+
+   ```bash
+   curl -fL -o data/whisper/ggml-model.bin https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-ggml/resolve/main/ggml-kotoba-whisper-v2.0-q5_0.bin
+   curl -fL -o data/whisper/ggml-silero-vad.bin https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin
+   sudo chown -R 65532:65532 data/whisper
+   ```
+
+   ほかの場所に置いたモデルは、設定の`captions.whisper_model`と`captions.vad_model`で渡します。
+   設定で渡したモデルは、画面から置いたモデルより優先します。
 
 ## 最初の管理者を作る
 

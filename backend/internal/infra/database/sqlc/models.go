@@ -248,6 +248,14 @@ type CalendarFeed struct {
 	LastUsedAt *time.Time
 }
 
+type CaptionModel struct {
+	Kind        string
+	ModelID     string
+	Size        int64
+	SHA256      string
+	InstalledAt time.Time
+}
+
 type Capture struct {
 	ID                    uuid.UUID
 	UserID                uuid.UUID
@@ -652,6 +660,14 @@ type RecordingAssignment struct {
 	StreamGeneration int64
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+}
+
+type RecordingAutoCaption struct {
+	RecordingID      uuid.UUID
+	Model            string
+	GeneratorVersion int32
+	GeneratedAt      time.Time
+	Cues             []byte
 }
 
 type RecordingCmDetection struct {

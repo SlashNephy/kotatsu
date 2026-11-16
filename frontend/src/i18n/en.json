@@ -1218,6 +1218,10 @@
     "detectCmOn": "Detect",
     "detectCmOff": "Don't detect",
     "cmDetector": "How to detect commercial breaks",
+    "generateCaptions": "Generate captions after recording",
+    "generateCaptionsDefault": "Use the global default",
+    "generateCaptionsOn": "Generate",
+    "generateCaptionsOff": "Don't generate",
     "transcode": "Transcode after recording",
     "transcodeHelp": "After recording, transcode the recording to MP4 and add it as an other file. The original TS is kept.",
     "transcodeDefault": "Follow the recording defaults",
@@ -1413,6 +1417,25 @@
       "videoMissing": "The video could not be decoded for {{count}} seconds in total",
       "videoMissing_one": "The video could not be decoded for {{count}} second in total",
       "videoMissing_other": "The video could not be decoded for {{count}} seconds in total"
+    },
+    "generateCaptions": "Generate captions",
+    "autoCaptions": {
+      "title": "Auto-generated captions",
+      "notGenerated": "Not generated yet",
+      "queued": "Waiting to generate",
+      "running": "Generating captions from the audio",
+      "generated": "Generated {{count}} captions",
+      "generated_one": "Generated {{count}} caption",
+      "generated_other": "Generated {{count}} captions",
+      "none": "No speech was found, so there are no captions",
+      "failed": "Could not generate captions. Administrators can see the reason on the jobs page.",
+      "notConfigured": "The model for generating captions is not placed on the server. An administrator can place it to enable this.",
+      "notConfiguredLink": "Place the model on the recording defaults page",
+      "generatedAt": "Generated at {{at}} with {{model}}",
+      "previous": "Currently using the captions generated at {{at}} ({{count}} captions)",
+      "previous_one": "Currently using the captions generated at {{at}} ({{count}} caption)",
+      "previous_other": "Currently using the captions generated at {{at}} ({{count}} captions)",
+      "hint": "These captions are transcribed automatically from the audio and may contain mistakes. Choose \"Auto-generated\" in the player settings to show them."
     },
     "download": "Download",
     "downloadTvtplayChapter": "CM chapters (TvtPlay)",
@@ -1615,6 +1638,12 @@
     "exitFullscreen": "Exit full screen",
     "quality": "Quality",
     "captions": "Captions",
+    "autoCaptions": {
+      "track": "Captions",
+      "broadcast": "Broadcast",
+      "auto": "Auto-generated",
+      "badge": "Auto-generated"
+    },
     "dataBroadcast": "Data broadcasting",
     "dataBroadcastReceiving": "Receiving data",
     "dataBroadcastEnded": "Data broadcasting is no longer being received",
@@ -2078,6 +2107,7 @@
         "oauth_prune": "Prune MCP tokens",
         "recording_analyze": "Analyze recording",
         "recording_chapters": "Commercial chapters in the transcoded recording",
+        "recording_auto_captions": "Auto-generated captions",
         "recording_cm_detect": "Commercial sections",
         "recording_join": "Join segments",
         "recording_join_finalize": "Clean up after joining",
@@ -2091,7 +2121,49 @@
         "timeshift_prune": "Discard timeshift",
         "watch_notify": "Watch reservation notification",
         "web_push_deliver": "Deliver Web Push",
-        "webhook_deliver": "Deliver webhook"
+        "webhook_deliver": "Deliver webhook",
+        "caption_model_download": "Download caption model"
+      }
+    },
+    "captionModels": {
+      "title": "Models for auto-generated captions",
+      "description": "Downloads the models read by caption generation (whisper.cpp) from Hugging Face and places them in whisper/ in the data directory. nekonote downloads them and replaces the current file only after checking the size and SHA-256. A placed model is used from the next captions generated.",
+      "kinds": {
+        "WHISPER": "Transcription model",
+        "VAD": "Voice activity model (optional)"
+      },
+      "kindHelp": {
+        "WHISPER": "Transcribes the recording's audio. Required to generate captions.",
+        "VAD": "Finds the parts with voices using Silero VAD and aligns the caption timings to them. Captions can be generated without it."
+      },
+      "states": {
+        "NOT_PLACED": "Not placed",
+        "DOWNLOADING": "Downloading",
+        "PLACED": "Placed",
+        "FAILED": "Failed"
+      },
+      "placed": "{{name}} ({{size}}) is placed {{at}}",
+      "placedByHand": "A file placed by hand ({{size}}) is placed",
+      "overridden": {
+        "WHISPER": "The configuration (captions.whisper_model) uses another file. The model placed here is not used.",
+        "VAD": "The configuration (captions.vad_model) uses another file. The model placed here is not used."
+      },
+      "queued": "Waiting to download {{name}}",
+      "downloading": "Downloading {{name}}",
+      "progress": "Download progress",
+      "failed": "Could not download {{name}}. See the jobs page for the reason.",
+      "model": "Model",
+      "option": "{{name}} ({{size}}, {{license}}) {{recommended}}",
+      "recommended": "Recommended",
+      "download": "Download",
+      "replace": "Download and replace",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "keep": "Keep",
+      "deleteTitle": "Delete the model",
+      "deleteConfirm": {
+        "WHISPER": "Deletes the transcription model. Captions cannot be generated until a model is placed again.",
+        "VAD": "Deletes the voice activity model. Captions can still be generated, but their timings are not aligned to voices."
       }
     },
     "logs": {
@@ -2162,6 +2234,8 @@
       "detectCm": "Detect commercial breaks after recording",
       "tvtplayChapters": "Write TvtPlay chapter files after detecting commercial breaks",
       "tvtplayChaptersHelp": "Puts a chapter file (.chapter) that skips commercials in the chapters folder next to the recording file. TvtPlay for TVTest skips commercials when it opens the recording. Existing files with the same name are not overwritten.",
+      "generateCaptions": "Generate captions after recording",
+      "generateCaptionsHelp": "Transcribes the recording's audio with whisper.cpp and shows it as \"Auto-generated\" captions in the player. Download the model in \"Models for auto-generated captions\" below on this page. On a CPU alone it takes about 30% of the recording's length. Recordings whose reservation or rule chooses Generate or Don't generate follow that setting.",
       "cmDetector": "How to detect commercial breaks",
       "cmDetectorHelp": "The station logo method is experimental. It treats the parts where the station logo in the corner is missing as commercials. Recordings whose logo cannot be learned (such as shopping slots without a station logo) are detected by silence and scene changes. If a station hides its logo during an opening, that part is also treated as a commercial. Changing this keeps the previous result until a recording is detected again.",
       "cmDetectorFfmpeg": "Silence and scene changes",
@@ -2726,6 +2800,10 @@
         "title": "Data broadcast",
         "body": "Relayed a request from a data broadcast document",
         "hostLabel": "Data broadcast"
+      },
+      "CAPTION_MODEL_DOWNLOAD": {
+        "title": "Caption model download",
+        "body": "Downloaded the model for auto-generated captions chosen by an administrator from Hugging Face"
       }
     },
     "hostHidden": "Undisclosed destination"

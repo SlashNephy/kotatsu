@@ -56,6 +56,7 @@ const purposeCategories = {
   WEB_PUSH: 'notification',
   WEBHOOK: 'notification',
   DATA_BROADCAST: 'other',
+  CAPTION_MODEL_DOWNLOAD: 'operation',
 } as const;
 
 const dayFormat = zonedFormat({ year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
