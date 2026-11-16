@@ -144,6 +144,55 @@ test('スマートフォンで、ユーザーのメニューを何度でも開�
   }
 });
 
+test('スマートフォンの幅で、ヘッダーと画面が横にはみ出さない (#1879)', async ({
+  browser,
+}, testInfo) => {
+  for (const width of [360, 390, 412]) {
+    // スマートフォンのブラウザは、ページが横にはみ出すとレイアウトの幅を広げる。この振る舞いは isMobile で真似る。
+    const context = await browser.newContext({
+      ...devices['Pixel 7'],
+      viewport: { width, height: 800 },
+      baseURL: testInfo.project.use.baseURL,
+      locale: 'ja-JP',
+      storageState: await page.context().storageState(),
+    });
+    try {
+      const mobile = await context.newPage();
+      // 測る前に、画面の本文を読み終えるまで待つ。読み込み中のスピナーだけを測っても、はみ出しは分からない。
+      const loaded = {
+        '/': mobile.getByRole('heading', { name: '放送中の番組' }),
+        '/live': mobile.getByRole('link', { name: /こたつテスト1/ }).first(),
+        '/search': mobile.getByText('検索結果', { exact: true }),
+        '/reservations': mobile.getByRole('heading', { name: '予約', exact: true }),
+      };
+      for (const [path, content] of Object.entries(loaded)) {
+        await mobile.goto(path);
+        await expect(mobile.getByRole('button', { name: admin.displayName })).toBeVisible();
+        await expect(content).toBeVisible();
+        await expect(mobile.locator('main [role="status"]')).toHaveCount(0);
+        const layout = await mobile.evaluate(() => ({
+          innerWidth: window.innerWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+          // ヘッダーは固定して描くので、はみ出してもページの幅は広がらない。ヘッダーの部品は、1 つずつ画面に収まっているかを見る。
+          outside: [...document.querySelectorAll('header button, header a')]
+            .filter((element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.width > 0 && (rect.left < 0 || rect.right > window.innerWidth);
+            })
+            .map((element) => element.getAttribute('aria-label') ?? element.textContent),
+        }));
+        expect(layout, `${width}px ${path}`).toEqual({
+          innerWidth: width,
+          scrollWidth: width,
+          outside: [],
+        });
+      }
+    } finally {
+      await context.close();
+    }
+  }
+});
+
 // ipv4 は、IPv4 アドレスの形。
 const ipv4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/;
 

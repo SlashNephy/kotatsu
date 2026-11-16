@@ -1,5 +1,7 @@
+/* 狭い画面の 1 列も、中身の最小の幅まで広がらないよう、列の幅を画面に収める (#1879)。 */
 .layout {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--mantine-spacing-md);
 }
 
