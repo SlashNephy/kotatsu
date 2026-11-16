@@ -1,6 +1,6 @@
 // 偽のチューナーサーバーと Kotatsu を立てて、主な流れを順に確かめる (#508、設計書 11.6)。scripts/e2e-stack.sh から流す。
 // 初回セットアップで作った管理者でログインしたまま、1 つのページで順に進める。
-import { expect, test, type Page } from '@playwright/test';
+import { devices, expect, test, type Page } from '@playwright/test';
 
 import { totp } from './totp';
 
@@ -89,6 +89,59 @@ test('ライブ視聴を始めると、偽のチューナーサーバーの映�
       timeout: 30_000,
     })
     .toBeGreaterThan(1);
+});
+
+test('スマートフォンで、ユーザーのメニューを何度でも開ける (#1663)', async ({
+  browser,
+}, testInfo) => {
+  // スマートフォンのブラウザは、ページが横にはみ出すとレイアウトの幅を広げる。この振る舞いは isMobile で真似る。
+  // 幅は、ヘッダーのユーザーのボタンが画面に収まるよう広げる。Pixel 7 の幅では、この表示名のボタンが右にはみ出す。
+  const context = await browser.newContext({
+    ...devices['Pixel 7'],
+    viewport: { width: 540, height: 900 },
+    baseURL: testInfo.project.use.baseURL,
+    locale: 'ja-JP',
+    storageState: await page.context().storageState(),
+  });
+  try {
+    const mobile = await context.newPage();
+    await mobile.goto('/reservations');
+    const target = mobile.getByRole('button', { name: admin.displayName });
+    const menu = mobile.getByRole('menu');
+    // ボタンが右にはみ出していると、直す前でも開けてしまい、このテストで不具合を見分けられない。先に、収まっていることを確かめる。
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(mobile.viewportSize()!.width);
+
+    for (let i = 0; i < 3; i++) {
+      await target.tap();
+      await expect(menu).toBeVisible();
+      // 壊れていたときは、隠す・出すをフレームごとに繰り返したので、続くフレームのすべてで、画面に収まって見えていることを確かめる。
+      const frames = await mobile.evaluate(async () => {
+        const results: boolean[] = [];
+        for (let frame = 0; frame < 30; frame++) {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          const element = document.querySelector<HTMLElement>('[role="menu"]');
+          const rect = element?.getBoundingClientRect();
+          results.push(
+            element !== null &&
+              rect !== undefined &&
+              getComputedStyle(element).display !== 'none' &&
+              rect.width > 0 &&
+              rect.left >= 0 &&
+              rect.right <= window.visualViewport!.width,
+          );
+        }
+        return results;
+      });
+      expect(frames.every(Boolean), `open #${i + 1}: ${frames.join(',')}`).toBe(true);
+
+      await target.tap();
+      await expect(menu).toBeHidden();
+    }
+  } finally {
+    await context.close();
+  }
 });
 
 // ipv4 は、IPv4 アドレスの形。
