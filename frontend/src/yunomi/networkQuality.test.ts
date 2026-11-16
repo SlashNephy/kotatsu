@@ -28,6 +28,7 @@ const ladder: Step[] = [
 // healthy は、無事なときの測った値。
 const healthy: NetworkInput = {
   active: true,
+  started: true,
   waiting: false,
   lowReadyState: false,
   frameAgeMs: 33,
@@ -276,15 +277,22 @@ describe('足りない兆し', () => {
     expect(sim.moves().length > 0).toBe(want);
   });
 
-  test('バッファの減少: 塊が届いて窓の初めより増えたら、減り続けたとみなさない', () => {
-    const sim = new Sim('720p').run(start, { ahead: 3.9 });
+  // saw は、2 秒ごとに塊が届き、届くたびに 1 秒増え、次の塊まで 1 秒/秒で減るバッファ (kyusu のセグメント)。
+  // perSecond は、底の下がり方。
+  test.each([
+    { name: '塊が届くたびの上下 (のこぎりの歯) だけなら数えない', perSecond: 0, want: false },
+    {
+      name: 'のこぎりの歯でも、底が閾値以上の速さで下がり続けたら数える',
+      perSecond: 0.3,
+      want: true,
+    },
+  ])('バッファの減少: $name', ({ perSecond, want }) => {
+    const saw = (elapsed: number) =>
+      3.5 - (elapsed / 1_000) * perSecond + (1 - (elapsed % 2_000) / 1_000);
+    const sim = new Sim('720p').run(start, { ahead: 3.5 });
     const begin = sim.now;
-    sim.run(params.drainDurationMs + 1_000, (now) => {
-      const elapsed = now - begin;
-
-      return { ahead: elapsed === 2_000 ? 3.95 : 3.9 - (elapsed / 1_000) * 0.25 };
-    });
-    expect(sim.moves()).toEqual([]);
+    sim.run(params.drainDurationMs + 2_000, (now) => ({ ahead: saw(now - begin) }));
+    expect(sim.moves().length > 0).toBe(want);
   });
 
   test.each([
@@ -564,6 +572,29 @@ describe('試しのデータで上げる (ライブ)', () => {
       direction: 'down',
       reason: 'upFailed',
     });
+  });
+
+  test('上げた段の再生が始まらないままでも、上げてから映るまでの上限がたてば元の段へ戻す', () => {
+    const sim = new Sim('540p').run(start).run(params.probeAfterOkMs);
+    sim.controller.probed(sim.now, { kind: 'measured', bps: 10_000_000 });
+    sim.run(500);
+    const upAt = sim.now;
+    sim.run(params.upToDisplayMs, { started: false, waiting: true });
+    expect(sim.moves().at(-1)).toEqual({
+      at: upAt + params.upToDisplayMs,
+      to: '540p',
+      direction: 'down',
+      reason: 'upFailed',
+    });
+  });
+
+  test('再生が始まるまでの詰まりは数えない', () => {
+    const sim = new Sim('720p').run(start + 20_000, {
+      started: false,
+      waiting: true,
+      lowReadyState: true,
+    });
+    expect(sim.moves()).toEqual([]);
   });
 
   test('一時停止している間は、無事の時間に数えない', () => {

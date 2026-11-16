@@ -1340,6 +1340,7 @@
       "networkValue": "受け取り {{rate}}（足りない兆し: {{signals}}）",
       "networkProbe": "試しのデータ {{rate}}（{{ago}} 秒前）",
       "networkNextProbe": "次の試しまで {{seconds}} 秒",
+      "networkLastStep": "最後に {{name}} へ動かした（兆し: {{signals}}、{{ago}} 秒前）",
       "networkNone": "なし",
       "networkUnknownRate": "不明",
       "networkSignals": {

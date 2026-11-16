@@ -111,6 +111,15 @@ export function useNetworkQuality(
     // awaiting は、段が変わって、最初のコマ (音声だけなら再生の始まり) を待っている段の名前。
     let awaiting: string | null = null;
     let seenCurrent = read().current;
+    // started は、この video で (段が変わったら、その段で) 再生が始まったか。始まるまでは判定しない。
+    // 読み込みに時間がかかっても、始まるまでの詰まりを「足りない」と取り違えないよう、切り替え直後の無視時間は始まってから数える。
+    let started = false;
+    const start = (now: number) => {
+      if (!started) {
+        started = true;
+        controller.restart(now);
+      }
+    };
     let stopped = false;
     let manualNoticeAt = -Infinity;
 
@@ -121,6 +130,7 @@ export function useNetworkQuality(
     };
     const onPlaying = () => {
       waiting = false;
+      start(performance.now());
       if (awaiting === audioStep) {
         awaiting = null;
         controller.shown(performance.now());
@@ -142,6 +152,7 @@ export function useNetworkQuality(
       }
       const now = performance.now();
       lastFrameAt = now;
+      start(now);
       if (awaiting !== null && awaiting !== audioStep) {
         awaiting = null;
         controller.shown(now);
@@ -177,6 +188,7 @@ export function useNetworkQuality(
         seenCurrent = state.current;
         awaiting = state.current;
         lastFrameAt = now;
+        started = false;
       }
       const ahead = aheadOf(video);
       const active =
@@ -203,6 +215,7 @@ export function useNetworkQuality(
         now,
         {
           active,
+          started,
           waiting: waiting && !excused(),
           lowReadyState: video.readyState < haveFutureData,
           // 音声だけの段と、コマごとのコールバックが無い端末では、コマの途絶を測らない。

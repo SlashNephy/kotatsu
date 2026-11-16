@@ -437,6 +437,21 @@ export function StreamInfo({
                     })}
                   </>
                 )}
+                {net.lastStep !== null && (
+                  <>
+                    <br />
+                    {t('player.streamInfo.networkLastStep', {
+                      name: net.lastStep.to,
+                      signals:
+                        net.lastStep.signals.length === 0
+                          ? t('player.streamInfo.networkNone')
+                          : net.lastStep.signals
+                              .map((signal) => t(`player.streamInfo.networkSignals.${signal}`))
+                              .join('、'),
+                      ago: Math.round(net.lastStep.ageMs / 1_000),
+                    })}
+                  </>
+                )}
                 {net.nextProbeIn !== null && (
                   <>
                     <br />

@@ -12,9 +12,10 @@ export type NetworkParams = {
   // frameGapMs は、次のコマが来ないのを、映像だけ止まったとみなすまでの時間 (コマの途絶とみなす時間)。
   frameGapMs: number;
   // drainBelow、drainDurationMs、drainRate は、バッファの減少を「足りない」とみなす、見るバッファの量 (秒)、減少の継続時間、
-  // 減少の速さの閾値 (1 秒あたりの秒)。
+  // 減少の速さの閾値 (1 秒あたりの秒)。drainEdgeMs は、減少の継続時間の窓の最初と最後の区間の長さ。区間の最小値どうしを比べる。
   drainBelow: number;
   drainDurationMs: number;
+  drainEdgeMs: number;
   drainRate: number;
   // lagWindowMs、lagEdgeMs、lagGrowth、lagResetGrowth は、放送に対する遅れの伸びを見る窓、窓の端の区間、伸びの閾値 (秒)、
   // 端が戻ったとみなす伸び (秒)。
@@ -75,7 +76,10 @@ export const defaultNetworkParams: NetworkParams = {
   stallMs: 1_000,
   frameGapMs: 1_500,
   drainBelow: 4,
-  drainDurationMs: 4_000,
+  // 塊が届くたびにバッファは増え、次の塊までは減る (kyusu のセグメントでは 2 秒ごと)。区間を塊の間隔より長くし、
+  // 区間の最小値 (塊が届く直前の底) どうしを比べて、のこぎりの歯の形の上下を「減り続け」と読まないようにする。
+  drainDurationMs: 8_000,
+  drainEdgeMs: 2_500,
   // 低遅延モードで速めているときの減り方 (1.1 − 1 = 0.1) より大きくする。
   drainRate: 0.2,
   // kyusu のセグメント (2 秒) の数倍にし、端の区間をセグメントより長く、窓の半分より短くする。
@@ -142,6 +146,8 @@ export type ServerReport = {
 export type NetworkInput = {
   // active は、判定してよいか。再生していて (一時停止、seek、終わりでなく)、タブが見えているとき。
   active: boolean;
+  // started は、今の段で再生が始まったか。始まるまで (読み込みの最中) は、詰まりを数えない。
+  started: boolean;
   // waiting は、waiting から playing までの間か。自分で起こした詰まり (飛び直し、低遅延モードの飛び) は除いて渡す。
   waiting: boolean;
   // lowReadyState は、readyState が HAVE_FUTURE_DATA 未満か。
@@ -202,6 +208,8 @@ export type NetworkStatus = {
   encoderLagging: boolean;
   // steps は、回線のために段を動かした回数。
   steps: number;
+  // lastStep は、最後に段を動かした先と、そのときに立っていた兆し、動かしてからの時間 (ミリ秒)。
+  lastStep: { to: string; signals: Signal[]; ageMs: number } | null;
 };
 
 // NetworkController は、回線の側の判定と、段の上げ下げを持つ。時刻 now は、どれもミリ秒。
@@ -321,6 +329,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
   let lastMode: NetworkMode | null = null;
   let encoderLagging = false;
   let steps = 0;
+  let lastStep: { to: string; signals: Signal[]; at: number } | null = null;
 
   const forgetHistory = () => {
     lowSince = null;
@@ -338,23 +347,29 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     step.bitrate ??
     params.defaultTopBitrate;
 
-  // draining は、バッファが見る量より少なく、減少の継続時間より長く減り続け、その間の平均の減り方が閾値以上か。
-  // 塊が届くたびに少し増えるので、窓の初めの量を一度も超えずに減ったことを「減り続け」とみなす。
+  // draining は、バッファが見る量より少なく、減少の継続時間のあいだ減り続け、その間の平均の減り方が閾値以上か。
+  // 塊が届くたびに増えるので、窓の最初と最後の区間の、最小値 (底) どうしと最大値 (山) どうしを比べ、どちらも下がったことを
+  // 「減り続け」とみなす。減り方は、底どうしの差を、区間の始まりの差で割る。
   const draining = (now: number, ahead: number): boolean => {
     aheads.push({ at: now, value: ahead });
     while (aheads.length > 1 && now - aheads[1]!.at >= params.drainDurationMs) {
       aheads.shift();
     }
-    const first = aheads[0]!;
-    const span = now - first.at;
-    if (ahead >= params.drainBelow || span < params.drainDurationMs) {
+    const start = aheads[0]!.at;
+    const span = now - start;
+    if (ahead >= params.drainBelow || span < params.drainDurationMs - params.tickMs) {
       return false;
     }
-    if (aheads.slice(1).some((sample) => sample.value > first.value)) {
+    const firstSection = aheads
+      .filter((s) => s.at <= start + params.drainEdgeMs)
+      .map((s) => s.value);
+    const lastSection = aheads.filter((s) => s.at >= now - params.drainEdgeMs).map((s) => s.value);
+    if (Math.max(...lastSection) >= Math.max(...firstSection)) {
       return false;
     }
+    const fall = Math.min(...firstSection) - Math.min(...lastSection);
 
-    return (first.value - ahead) / (span / 1_000) >= params.drainRate;
+    return fall / ((span - params.drainEdgeMs) / 1_000) >= params.drainRate;
   };
 
   // lagGrowing は、伸びを見る窓の、最初の区間の最小値と最後の区間の最小値を比べ、伸びの閾値以上伸びたか。
@@ -472,6 +487,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     reason: StepReason,
   ): NetworkDecision => {
     steps += 1;
+    lastStep = { to, signals: lastSignals, at: now };
     pending = direction === 'up' ? { from, to, requestedAt: now, shownAt: null } : null;
     current = to;
     arrivedAt = now;
@@ -515,7 +531,18 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         pending = null;
       }
       lastRate = input.receiveRate;
-      if (!input.active || now < ignoreUntil) {
+      // 上げた段が、上げてから映るまでの上限がたっても映り出さなければ、元の段へ戻す。足りない段では、最初のキーフレームが届かず、
+      // 再生が始まらないことがあるので、始まる前から見る。一時停止している間は見ない。
+      if (
+        input.active &&
+        context.automatic &&
+        pending !== null &&
+        pending.shownAt === null &&
+        now - pending.requestedAt >= params.upToDisplayMs
+      ) {
+        return failUp(now, pending);
+      }
+      if (!input.active || !input.started || now < ignoreUntil) {
         lastSignals = [];
         okSince = null;
         lowSince = null;
@@ -544,12 +571,9 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         return { kind: 'none' };
       }
 
-      // 上げた段が映り出さないか、見張り時間のうちに足りなくなったら、元の段へ戻す。
+      // 上げた段で、見張り時間のうちに足りなくなったら、元の段へ戻す。
       if (pending !== null) {
         const up = pending;
-        if (up.shownAt === null && now - up.requestedAt >= params.upToDisplayMs) {
-          return failUp(now, up);
-        }
         if (up.shownAt !== null && now - up.shownAt >= params.postUpWatchMs) {
           backoff = 1;
           pending = null;
@@ -681,6 +705,10 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         nextProbeIn: nextProbeIn === null ? null : Math.max(nextProbeIn, 0),
         encoderLagging,
         steps,
+        lastStep:
+          lastStep === null
+            ? null
+            : { to: lastStep.to, signals: lastStep.signals, ageMs: now - lastStep.at },
       };
     },
   };
