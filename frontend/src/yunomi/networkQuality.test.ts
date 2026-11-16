@@ -684,6 +684,18 @@ describe('下げた段が映り出さないとき', () => {
       want: ['540p', '360p'],
     },
     {
+      name: '受け取りの速さが分からなければ、最も低い段へ下げる',
+      from: '1080p',
+      input: { started: false },
+      want: ['720p', '360p'],
+    },
+    {
+      name: '受け取りの速さが分かれば、それに収まる段へ下げる',
+      from: '1080p',
+      input: { started: false, receiveRate: 3_000_000 },
+      want: ['720p', '540p'],
+    },
+    {
       name: '上限の前に映り出せば、それ以上は下げない',
       from: '720p',
       input: (now: number) => ({ started: now >= start + 500 + params.downToDisplayMs - 1_000 }),

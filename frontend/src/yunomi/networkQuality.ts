@@ -560,11 +560,17 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         downAt !== null &&
         now - downAt >= params.downToDisplayMs
       ) {
+        // 受け取りの速さが分からなければ (新しい段のセグメントが 1 つも届いていない)、1 段ずつではなく最も低い段へ下げる。
+        // 1 段ずつ待つと、オリジナルから最も低い段まで 1 分ほど映らないため。
+        const lowest = videoSteps(context.ladder).at(-1)?.name;
         const lower =
-          chooseDown(context.ladder, context.current, input.receiveRate, need, params) ??
-          (context.ladder.at(-1)?.name === audioStep && context.current !== audioStep
-            ? audioStep
-            : null);
+          lowest !== undefined && context.current !== lowest && context.current !== audioStep
+            ? input.receiveRate === null
+              ? lowest
+              : chooseDown(context.ladder, context.current, input.receiveRate, need, params)
+            : context.ladder.at(-1)?.name === audioStep && context.current === lowest
+              ? audioStep
+              : null;
         if (lower !== null) {
           return step(now, context.current, lower, 'down', 'bandwidth');
         }
