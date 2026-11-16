@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path"
@@ -37,6 +38,17 @@ var (
 	// ErrNoSegment は、録画に流せるセグメントがないことを表す。
 	ErrNoSegment = errors.New("the recording has no segment to play")
 )
+
+// File は、流すセグメントのファイル。*os.File と、ライブラリのファイル (medialib.File) が満たす。
+type File interface {
+	io.Reader
+	io.ReaderAt
+	io.Seeker
+	io.Closer
+	Stat() (fs.FileInfo, error)
+}
+
+var _ File = new(os.File)
 
 // timeline は、連結して流すセグメントの並び。録画のセグメントか、タイムシフトのチャンクを、DB から引く。
 type timeline interface {
@@ -217,7 +229,7 @@ func (t *recordingTimeline) load(ctx context.Context) ([]*segment, error) {
 		}
 		seg := &segment{
 			id: file.ID, poolID: file.PoolID, path: file.Path, startedAt: file.StartedAt, endedAt: file.EndedAt, open: file.EndedAt == nil,
-			continues: false, continued: false, index: []ts.IndexEntry{},
+			continues: false, continued: false, index: []ts.IndexEntry{}, opener: nil,
 		}
 		if seg.index, err = t.source.streamer.readIndex(kago.IndexLocation(file.ID)); err != nil {
 			return nil, err
@@ -392,9 +404,18 @@ func segmentClosedOrUnknown(ctx context.Context, tl timeline, segmentID uuid.UUI
 	return closed, err
 }
 
+// open は、セグメントのファイルを開く。ライブラリのファイルは、その opener で開く。
+func (s *streamer) open(ctx context.Context, seg *segment) (File, error) {
+	if seg.opener != nil {
+		return seg.opener(ctx)
+	}
+
+	return s.store.Open(seg.poolID, seg.path)
+}
+
 // servePiece は、セグメントの範囲を流す。書いている途中のセグメントは、書き終えるまで、伸びるのを待ちながら流す。
 func (s *streamer) servePiece(ctx context.Context, w io.Writer, tl timeline, p *piece, joined bool) error {
-	file, err := s.store.Open(p.segment.poolID, p.segment.path)
+	file, err := s.open(ctx, p.segment)
 	if err != nil {
 		return fmt.Errorf("failed to open the segment: %w", err)
 	}
@@ -422,7 +443,7 @@ func (s *streamer) servePiece(ctx context.Context, w io.Writer, tl timeline, p *
 }
 
 // serveGrowing は、書いている途中のセグメントを、書き終えるまで、伸びるのを待ちながら流す。
-func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p *piece, joined bool, file *os.File) error {
+func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p *piece, joined bool, file File) error {
 	// 録画は TS をまとめて書くので、索引が指す位置を、まだファイルに書いていないことがある。書くまで待つ。
 	// 書き込みのエラーなどで、その位置まで書かないままセグメントを閉じたら、流すものがないので終える。
 	offset := p.from
@@ -477,7 +498,7 @@ func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p
 
 // servedEnd は、書き終えたセグメントの範囲 p を、どこまで流すかを返す。続きのないセグメントは、終わりで途中で切れた PES を流さない
 // (completeTail)。mikan が区切っただけで、次のセグメントが続き (continues) のものは、次のセグメントが PES の残りを運ぶので切らない。
-func servedEnd(file *os.File, p *piece) (int64, error) {
+func servedEnd(file File, p *piece) (int64, error) {
 	info, err := file.Stat()
 	if err != nil {
 		return 0, fmt.Errorf("failed to inspect the segment: %w", err)
@@ -494,7 +515,7 @@ func servedEnd(file *os.File, p *piece) (int64, error) {
 }
 
 // waitSize は、書いている途中のセグメントが want まで書かれるか、書き終えるまで待ち、そのときのファイルの大きさを返す。
-func (s *streamer) waitSize(ctx context.Context, tl timeline, p *piece, file *os.File, want int64) (int64, error) {
+func (s *streamer) waitSize(ctx context.Context, tl timeline, p *piece, file File, want int64) (int64, error) {
 	for {
 		// 閉じたかを確かめてからファイルの大きさを見るので、確かめた後に書かれた分も見落とさない。
 		closed, err := segmentClosedOrUnknown(ctx, tl, p.segment.id)

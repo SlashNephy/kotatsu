@@ -355,6 +355,13 @@ type Lease struct {
 	ExpiresAt  time.Time
 }
 
+type LibraryWatchProgress struct {
+	UserID     uuid.UUID
+	FileID     string
+	PositionMs int64
+	UpdatedAt  time.Time
+}
+
 type LiveScrambleVerdict struct {
 	ServiceID int64
 	DecidedAt time.Time

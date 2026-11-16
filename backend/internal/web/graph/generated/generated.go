@@ -636,6 +636,46 @@ type ComplexityRoot struct {
 		Valid            func(childComplexity int) int
 	}
 
+	Library struct {
+		Kind func(childComplexity int) int
+		Name func(childComplexity int) int
+	}
+
+	LibraryDirectory struct {
+		Entries func(childComplexity int) int
+		Library func(childComplexity int) int
+		Path    func(childComplexity int) int
+	}
+
+	LibraryEntry struct {
+		Directory  func(childComplexity int) int
+		ModifiedAt func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Path       func(childComplexity int) int
+		Playable   func(childComplexity int) int
+		Size       func(childComplexity int) int
+	}
+
+	LibraryFile struct {
+		HlsURL          func(childComplexity int) int
+		ID              func(childComplexity int) int
+		Index           func(childComplexity int) int
+		Library         func(childComplexity int) int
+		ModifiedAt      func(childComplexity int) int
+		Name            func(childComplexity int) int
+		Path            func(childComplexity int) int
+		Size            func(childComplexity int) int
+		StreamURL       func(childComplexity int) int
+		VideoFormat     func(childComplexity int) int
+		WatchPositionMs func(childComplexity int) int
+	}
+
+	LibraryFileIndex struct {
+		Complete        func(childComplexity int) int
+		DurationSeconds func(childComplexity int) int
+		SeekableSeconds func(childComplexity int) int
+	}
+
 	LicenseFile struct {
 		Name func(childComplexity int) int
 		Text func(childComplexity int) int
@@ -766,6 +806,7 @@ type ComplexityRoot struct {
 		RevokeOtherSessions           func(childComplexity int) int
 		RevokeSession                 func(childComplexity int, id string) int
 		RevokeStreamURL               func(childComplexity int, id string) int
+		SaveLibraryWatchPosition      func(childComplexity int, id string, positionMs int64) int
 		SaveWatchPosition             func(childComplexity int, id string, positionMs int64) int
 		SendPlayerCommand             func(childComplexity int, id string, command model.PlayerCommandInput) int
 		SetRecordingProtected         func(childComplexity int, id string, protected bool) int
@@ -1050,6 +1091,9 @@ type ComplexityRoot struct {
 		IssuedStreamUrls        func(childComplexity int) int
 		JobCounts               func(childComplexity int) int
 		Jobs                    func(childComplexity int, state model.JobState, first int, after *string) int
+		Libraries               func(childComplexity int) int
+		LibraryDirectory        func(childComplexity int, library string, path string) int
+		LibraryFile             func(childComplexity int, library string, path string) int
 		LogReport               func(childComplexity int) int
 		MissingRecordings       func(childComplexity int) int
 		NetworkActivity         func(childComplexity int) int
@@ -1701,6 +1745,7 @@ type MutationResolver interface {
 	UpdateDramaTitleOverride(ctx context.Context, input model.DramaTitleOverrideInput) ([]*model.DramaTitleOverride, error)
 	RetryJob(ctx context.Context, id string) (*model.Job, error)
 	CancelJob(ctx context.Context, id string) (*model.Job, error)
+	SaveLibraryWatchPosition(ctx context.Context, id string, positionMs int64) (*model.LibraryFile, error)
 	CleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error)
 	MarkNotificationsRead(ctx context.Context, ids []string) (int, error)
 	MarkAllNotificationsRead(ctx context.Context) (int, error)
@@ -1832,6 +1877,9 @@ type QueryResolver interface {
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
 	Jobs(ctx context.Context, state model.JobState, first int, after *string) (*model.JobPage, error)
 	JobCounts(ctx context.Context) ([]*model.JobStateCount, error)
+	Libraries(ctx context.Context) ([]*model.Library, error)
+	LibraryDirectory(ctx context.Context, library string, path string) (*model.LibraryDirectory, error)
+	LibraryFile(ctx context.Context, library string, path string) (*model.LibraryFile, error)
 	GoModuleLicenses(ctx context.Context) ([]*licenses.Module, error)
 	LogReport(ctx context.Context) (*model.LogReport, error)
 	MissingRecordings(ctx context.Context) ([]*model.MissingRecording, error)
@@ -4077,6 +4125,161 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Lease.Valid(childComplexity), true
 
+	case "Library.kind":
+		if e.ComplexityRoot.Library.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Library.Kind(childComplexity), true
+	case "Library.name":
+		if e.ComplexityRoot.Library.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Library.Name(childComplexity), true
+
+	case "LibraryDirectory.entries":
+		if e.ComplexityRoot.LibraryDirectory.Entries == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryDirectory.Entries(childComplexity), true
+	case "LibraryDirectory.library":
+		if e.ComplexityRoot.LibraryDirectory.Library == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryDirectory.Library(childComplexity), true
+	case "LibraryDirectory.path":
+		if e.ComplexityRoot.LibraryDirectory.Path == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryDirectory.Path(childComplexity), true
+
+	case "LibraryEntry.directory":
+		if e.ComplexityRoot.LibraryEntry.Directory == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryEntry.Directory(childComplexity), true
+	case "LibraryEntry.modifiedAt":
+		if e.ComplexityRoot.LibraryEntry.ModifiedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryEntry.ModifiedAt(childComplexity), true
+	case "LibraryEntry.name":
+		if e.ComplexityRoot.LibraryEntry.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryEntry.Name(childComplexity), true
+	case "LibraryEntry.path":
+		if e.ComplexityRoot.LibraryEntry.Path == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryEntry.Path(childComplexity), true
+	case "LibraryEntry.playable":
+		if e.ComplexityRoot.LibraryEntry.Playable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryEntry.Playable(childComplexity), true
+	case "LibraryEntry.size":
+		if e.ComplexityRoot.LibraryEntry.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryEntry.Size(childComplexity), true
+
+	case "LibraryFile.hlsUrl":
+		if e.ComplexityRoot.LibraryFile.HlsURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.HlsURL(childComplexity), true
+	case "LibraryFile.id":
+		if e.ComplexityRoot.LibraryFile.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.ID(childComplexity), true
+	case "LibraryFile.index":
+		if e.ComplexityRoot.LibraryFile.Index == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.Index(childComplexity), true
+	case "LibraryFile.library":
+		if e.ComplexityRoot.LibraryFile.Library == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.Library(childComplexity), true
+	case "LibraryFile.modifiedAt":
+		if e.ComplexityRoot.LibraryFile.ModifiedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.ModifiedAt(childComplexity), true
+	case "LibraryFile.name":
+		if e.ComplexityRoot.LibraryFile.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.Name(childComplexity), true
+	case "LibraryFile.path":
+		if e.ComplexityRoot.LibraryFile.Path == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.Path(childComplexity), true
+	case "LibraryFile.size":
+		if e.ComplexityRoot.LibraryFile.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.Size(childComplexity), true
+	case "LibraryFile.streamUrl":
+		if e.ComplexityRoot.LibraryFile.StreamURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.StreamURL(childComplexity), true
+	case "LibraryFile.videoFormat":
+		if e.ComplexityRoot.LibraryFile.VideoFormat == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.VideoFormat(childComplexity), true
+	case "LibraryFile.watchPositionMs":
+		if e.ComplexityRoot.LibraryFile.WatchPositionMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.WatchPositionMs(childComplexity), true
+
+	case "LibraryFileIndex.complete":
+		if e.ComplexityRoot.LibraryFileIndex.Complete == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFileIndex.Complete(childComplexity), true
+	case "LibraryFileIndex.durationSeconds":
+		if e.ComplexityRoot.LibraryFileIndex.DurationSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFileIndex.DurationSeconds(childComplexity), true
+	case "LibraryFileIndex.seekableSeconds":
+		if e.ComplexityRoot.LibraryFileIndex.SeekableSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFileIndex.SeekableSeconds(childComplexity), true
+
 	case "LicenseFile.name":
 		if e.ComplexityRoot.LicenseFile.Name == nil {
 			break
@@ -5042,6 +5245,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeStreamURL(childComplexity, args["id"].(string)), true
+	case "Mutation.saveLibraryWatchPosition":
+		if e.ComplexityRoot.Mutation.SaveLibraryWatchPosition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_saveLibraryWatchPosition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SaveLibraryWatchPosition(childComplexity, args["id"].(string), args["positionMs"].(int64)), true
 	case "Mutation.saveWatchPosition":
 		if e.ComplexityRoot.Mutation.SaveWatchPosition == nil {
 			break
@@ -6527,6 +6741,34 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Jobs(childComplexity, args["state"].(model.JobState), args["first"].(int), args["after"].(*string)), true
+	case "Query.libraries":
+		if e.ComplexityRoot.Query.Libraries == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Libraries(childComplexity), true
+	case "Query.libraryDirectory":
+		if e.ComplexityRoot.Query.LibraryDirectory == nil {
+			break
+		}
+
+		args, err := ec.field_Query_libraryDirectory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LibraryDirectory(childComplexity, args["library"].(string), args["path"].(string)), true
+	case "Query.libraryFile":
+		if e.ComplexityRoot.Query.LibraryFile == nil {
+			break
+		}
+
+		args, err := ec.field_Query_libraryFile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LibraryFile(childComplexity, args["library"].(string), args["path"].(string)), true
 	case "Query.logReport":
 		if e.ComplexityRoot.Query.LogReport == nil {
 			break
@@ -11163,6 +11405,108 @@ extend type Mutation {
   cancelJob(id: ID!): Job!
 }
 `, BuiltIn: false},
+	{Name: "../schema/libraries.graphqls", Input: `"ライブラリの種類 (設計書 5.8)。"
+enum LibraryKind {
+  "保存先プール。設定に書かなくても、ライブラリとして見せる。"
+  POOL
+  "設定 (storage.libraries) で足したフォルダ。"
+  FOLDER
+}
+
+"""
+録画として登録していない TS を、ファイラーで選んで再生してよいフォルダ (設計書 5.8、#1734)。
+録画と同じく、ログインした家族全員が使える。
+"""
+type Library {
+  "ライブラリの名前。"
+  name: String!
+  kind: LibraryKind!
+}
+
+"ライブラリのディレクトリの中のファイルかディレクトリ。"
+type LibraryEntry {
+  name: String!
+  "ライブラリの中の / 区切りの相対パス。"
+  path: String!
+  "ディレクトリかどうか。"
+  directory: Boolean!
+  "ファイルの大きさ (バイト)。ディレクトリでは 0。"
+  size: Int64!
+  "最後に書いた日時。"
+  modifiedAt: Time!
+  "TS として再生できるファイル (拡張子が .ts、.m2ts、.mts のもの) かどうか。"
+  playable: Boolean!
+}
+
+"ライブラリのディレクトリの中身。"
+type LibraryDirectory {
+  library: Library!
+  "ライブラリの中の / 区切りの相対パス。根元は空。"
+  path: String!
+  """
+  中のディレクトリと、再生できるファイルを、ディレクトリ、ファイルの順に、それぞれ名前の順に返す。
+  隠しファイル、再生できないファイル、ライブラリの外を指すシンボリックリンクは返さない。
+  """
+  entries: [LibraryEntry!]!
+}
+
+"ライブラリのファイルのシークの索引の進み具合 (設計書 5.8)。"
+type LibraryFileIndex {
+  "索引を作り終えたかどうか。作り終えるまでは、読み直して進み具合を確かめる。"
+  complete: Boolean!
+  "シークできる所 (索引のできた最後の I フレームの位置。ファイルの始まりからの秒)。索引がまだなければ 0。"
+  seekableSeconds: Float!
+  """
+  再生の時間 (秒)。作り終えていれば索引から求め、作っている途中なら、できた所までのバイト数と時間の比から見込む。
+  索引がまだなければ null。
+  """
+  durationSeconds: Float
+}
+
+"ライブラリの、再生できるファイル。"
+type LibraryFile {
+  "ライブラリの名前とパスから作った ID。配信の URL にも使う。"
+  id: ID!
+  library: Library!
+  "ライブラリの中の / 区切りの相対パス。"
+  path: String!
+  name: String!
+  size: Int64!
+  modifiedAt: Time!
+  "ファイルの頭から読んだ映像の種類。読めなければ HD とみなす。"
+  videoFormat: VideoFormat!
+  index: LibraryFileIndex!
+  "ログイン中のユーザーが保存した再生位置 (ミリ秒)。ファイルを書き換えたら、前の位置は使わない。"
+  watchPositionMs: Int64
+  "ファイルの TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
+  streamUrl: String!
+  """
+  ファイルを kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
+  後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
+  """
+  hlsUrl: String!
+}
+
+extend type Query {
+  "このインスタンスから読めるライブラリを、保存先プール (設定の順)、フォルダ (名前の順) の順に返す。"
+  libraries: [Library!]!
+  """
+  ライブラリ library の、ディレクトリ path (根元は空) の中身を返す。
+  ライブラリかディレクトリがなければ NOT_FOUND を、パスがライブラリの外を指すなら BAD_USER_INPUT を返す。
+  """
+  libraryDirectory(library: String!, path: String!): LibraryDirectory!
+  """
+  ライブラリ library の、再生できるファイル path を返す。シークの索引を作り終えていなければ、裏で作り始める。
+  ファイルがないか再生できるファイルでなければ NOT_FOUND を、Blu-ray の 192 バイトのパケットの .m2ts のように TS でなければ BAD_USER_INPUT を返す。
+  """
+  libraryFile(library: String!, path: String!): LibraryFile!
+}
+
+extend type Mutation {
+  "ログイン中のユーザーの、ライブラリのファイル id (LibraryFile.id) の再生位置 (ミリ秒) を保存する。誰でも使える。"
+  saveLibraryWatchPosition(id: ID!, positionMs: Int64!): LibraryFile!
+}
+`, BuiltIn: false},
 	{Name: "../schema/licenses.graphqls", Input: `"""
 本体に組み込んだ Go のモジュールと、そのライセンスの文書 (設計書 10.3、付録 B、#1604)。
 """
@@ -15176,6 +15520,86 @@ func (ec *executionContext) childFields_Lease(ctx context.Context, field graphql
 	return nil, fmt.Errorf("no field named %q was found under type Lease", field.Name)
 }
 
+func (ec *executionContext) childFields_Library(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "name":
+		return ec.fieldContext_Library_name(ctx, field)
+	case "kind":
+		return ec.fieldContext_Library_kind(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Library", field.Name)
+}
+
+func (ec *executionContext) childFields_LibraryDirectory(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "library":
+		return ec.fieldContext_LibraryDirectory_library(ctx, field)
+	case "path":
+		return ec.fieldContext_LibraryDirectory_path(ctx, field)
+	case "entries":
+		return ec.fieldContext_LibraryDirectory_entries(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LibraryDirectory", field.Name)
+}
+
+func (ec *executionContext) childFields_LibraryEntry(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "name":
+		return ec.fieldContext_LibraryEntry_name(ctx, field)
+	case "path":
+		return ec.fieldContext_LibraryEntry_path(ctx, field)
+	case "directory":
+		return ec.fieldContext_LibraryEntry_directory(ctx, field)
+	case "size":
+		return ec.fieldContext_LibraryEntry_size(ctx, field)
+	case "modifiedAt":
+		return ec.fieldContext_LibraryEntry_modifiedAt(ctx, field)
+	case "playable":
+		return ec.fieldContext_LibraryEntry_playable(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LibraryEntry", field.Name)
+}
+
+func (ec *executionContext) childFields_LibraryFile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_LibraryFile_id(ctx, field)
+	case "library":
+		return ec.fieldContext_LibraryFile_library(ctx, field)
+	case "path":
+		return ec.fieldContext_LibraryFile_path(ctx, field)
+	case "name":
+		return ec.fieldContext_LibraryFile_name(ctx, field)
+	case "size":
+		return ec.fieldContext_LibraryFile_size(ctx, field)
+	case "modifiedAt":
+		return ec.fieldContext_LibraryFile_modifiedAt(ctx, field)
+	case "videoFormat":
+		return ec.fieldContext_LibraryFile_videoFormat(ctx, field)
+	case "index":
+		return ec.fieldContext_LibraryFile_index(ctx, field)
+	case "watchPositionMs":
+		return ec.fieldContext_LibraryFile_watchPositionMs(ctx, field)
+	case "streamUrl":
+		return ec.fieldContext_LibraryFile_streamUrl(ctx, field)
+	case "hlsUrl":
+		return ec.fieldContext_LibraryFile_hlsUrl(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LibraryFile", field.Name)
+}
+
+func (ec *executionContext) childFields_LibraryFileIndex(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "complete":
+		return ec.fieldContext_LibraryFileIndex_complete(ctx, field)
+	case "seekableSeconds":
+		return ec.fieldContext_LibraryFileIndex_seekableSeconds(ctx, field)
+	case "durationSeconds":
+		return ec.fieldContext_LibraryFileIndex_durationSeconds(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LibraryFileIndex", field.Name)
+}
+
 func (ec *executionContext) childFields_LicenseFile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "name":
@@ -17872,6 +18296,28 @@ func (ec *executionContext) field_Mutation_revokeStreamUrl_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_saveLibraryWatchPosition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "positionMs",
+		func(ctx context.Context, v any) (int64, error) {
+			return ec.unmarshalNInt642int64(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["positionMs"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_saveWatchPosition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -18729,6 +19175,50 @@ func (ec *executionContext) field_Query_jobs_args(ctx context.Context, rawArgs m
 		return nil, err
 	}
 	args["after"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_libraryDirectory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "library",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["library"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "path",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["path"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_libraryFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "library",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["library"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "path",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["path"] = arg1
 	return args, nil
 }
 
@@ -27449,6 +27939,617 @@ func (ec *executionContext) fieldContext_Lease_valid(_ context.Context, field gr
 	return graphql.NewScalarFieldContext("Lease", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _Library_name(ctx context.Context, field graphql.CollectedField, obj *model.Library) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Library_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Library_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Library", field, false, false, "String")
+}
+
+func (ec *executionContext) _Library_kind(ctx context.Context, field graphql.CollectedField, obj *model.Library) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Library_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.LibraryKind) graphql.Marshaler {
+			return ec.marshalNLibraryKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Library_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Library", field, false, false, "LibraryKind")
+}
+
+func (ec *executionContext) _LibraryDirectory_library(ctx context.Context, field graphql.CollectedField, obj *model.LibraryDirectory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryDirectory_library(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Library, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Library) graphql.Marshaler {
+			return ec.marshalNLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrary(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryDirectory_library(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LibraryDirectory",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Library(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LibraryDirectory_path(ctx context.Context, field graphql.CollectedField, obj *model.LibraryDirectory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryDirectory_path(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryDirectory_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryDirectory", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryDirectory_entries(ctx context.Context, field graphql.CollectedField, obj *model.LibraryDirectory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryDirectory_entries(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Entries, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LibraryEntry) graphql.Marshaler {
+			return ec.marshalNLibraryEntry2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryEntryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryDirectory_entries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LibraryDirectory",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryEntry(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LibraryEntry_name(ctx context.Context, field graphql.CollectedField, obj *model.LibraryEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryEntry_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryEntry_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryEntry", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryEntry_path(ctx context.Context, field graphql.CollectedField, obj *model.LibraryEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryEntry_path(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryEntry_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryEntry", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryEntry_directory(ctx context.Context, field graphql.CollectedField, obj *model.LibraryEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryEntry_directory(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Directory, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryEntry_directory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryEntry", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _LibraryEntry_size(ctx context.Context, field graphql.CollectedField, obj *model.LibraryEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryEntry_size(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryEntry_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryEntry", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _LibraryEntry_modifiedAt(ctx context.Context, field graphql.CollectedField, obj *model.LibraryEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryEntry_modifiedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ModifiedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryEntry_modifiedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryEntry", field, false, false, "Time")
+}
+
+func (ec *executionContext) _LibraryEntry_playable(ctx context.Context, field graphql.CollectedField, obj *model.LibraryEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryEntry_playable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Playable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryEntry_playable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryEntry", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _LibraryFile_id(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "ID")
+}
+
+func (ec *executionContext) _LibraryFile_library(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_library(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Library, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Library) graphql.Marshaler {
+			return ec.marshalNLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrary(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_library(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LibraryFile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Library(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LibraryFile_path(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_path(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryFile_name(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryFile_size(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_size(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _LibraryFile_modifiedAt(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_modifiedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ModifiedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_modifiedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "Time")
+}
+
+func (ec *executionContext) _LibraryFile_videoFormat(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_videoFormat(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.VideoFormat, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.VideoFormat) graphql.Marshaler {
+			return ec.marshalNVideoFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐVideoFormat(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_videoFormat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "VideoFormat")
+}
+
+func (ec *executionContext) _LibraryFile_index(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_index(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Index, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LibraryFileIndex) graphql.Marshaler {
+			return ec.marshalNLibraryFileIndex2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryFileIndex(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_index(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LibraryFile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryFileIndex(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LibraryFile_watchPositionMs(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_watchPositionMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WatchPositionMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_watchPositionMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _LibraryFile_streamUrl(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_streamUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StreamURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_streamUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryFile_hlsUrl(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_hlsUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HlsURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_hlsUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryFileIndex_complete(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFileIndex) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFileIndex_complete(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Complete, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFileIndex_complete(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFileIndex", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _LibraryFileIndex_seekableSeconds(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFileIndex) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFileIndex_seekableSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeekableSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFileIndex_seekableSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFileIndex", field, false, false, "Float")
+}
+
+func (ec *executionContext) _LibraryFileIndex_durationSeconds(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFileIndex) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFileIndex_durationSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DurationSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFileIndex_durationSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFileIndex", field, false, false, "Float")
+}
+
 func (ec *executionContext) _LicenseFile_name(ctx context.Context, field graphql.CollectedField, obj *licenses.File) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -29494,6 +30595,50 @@ func (ec *executionContext) fieldContext_Mutation_cancelJob(ctx context.Context,
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_cancelJob_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_saveLibraryWatchPosition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_saveLibraryWatchPosition(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SaveLibraryWatchPosition(ctx, fc.Args["id"].(string), fc.Args["positionMs"].(int64))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LibraryFile) graphql.Marshaler {
+			return ec.marshalNLibraryFile2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryFile(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_saveLibraryWatchPosition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryFile(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_saveLibraryWatchPosition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -37601,6 +38746,126 @@ func (ec *executionContext) fieldContext_Query_jobCounts(_ context.Context, fiel
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_JobStateCount(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_libraries(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_libraries(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().Libraries(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Library) graphql.Marshaler {
+			return ec.marshalNLibrary2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_libraries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Library(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_libraryDirectory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_libraryDirectory(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LibraryDirectory(ctx, fc.Args["library"].(string), fc.Args["path"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LibraryDirectory) graphql.Marshaler {
+			return ec.marshalNLibraryDirectory2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryDirectory(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_libraryDirectory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryDirectory(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_libraryDirectory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_libraryFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_libraryFile(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LibraryFile(ctx, fc.Args["library"].(string), fc.Args["path"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LibraryFile) graphql.Marshaler {
+			return ec.marshalNLibraryFile2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryFile(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_libraryFile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryFile(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_libraryFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -56658,6 +57923,271 @@ func (ec *executionContext) _Lease(ctx context.Context, sel ast.SelectionSet, ob
 	return out
 }
 
+var libraryImplementors = []string{"Library"}
+
+func (ec *executionContext) _Library(ctx context.Context, sel ast.SelectionSet, obj *model.Library) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, libraryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Library")
+		case "name":
+			out.Values[i] = ec._Library_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._Library_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var libraryDirectoryImplementors = []string{"LibraryDirectory"}
+
+func (ec *executionContext) _LibraryDirectory(ctx context.Context, sel ast.SelectionSet, obj *model.LibraryDirectory) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, libraryDirectoryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LibraryDirectory")
+		case "library":
+			out.Values[i] = ec._LibraryDirectory_library(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "path":
+			out.Values[i] = ec._LibraryDirectory_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "entries":
+			out.Values[i] = ec._LibraryDirectory_entries(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var libraryEntryImplementors = []string{"LibraryEntry"}
+
+func (ec *executionContext) _LibraryEntry(ctx context.Context, sel ast.SelectionSet, obj *model.LibraryEntry) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, libraryEntryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LibraryEntry")
+		case "name":
+			out.Values[i] = ec._LibraryEntry_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "path":
+			out.Values[i] = ec._LibraryEntry_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "directory":
+			out.Values[i] = ec._LibraryEntry_directory(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "size":
+			out.Values[i] = ec._LibraryEntry_size(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "modifiedAt":
+			out.Values[i] = ec._LibraryEntry_modifiedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "playable":
+			out.Values[i] = ec._LibraryEntry_playable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var libraryFileImplementors = []string{"LibraryFile"}
+
+func (ec *executionContext) _LibraryFile(ctx context.Context, sel ast.SelectionSet, obj *model.LibraryFile) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, libraryFileImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LibraryFile")
+		case "id":
+			out.Values[i] = ec._LibraryFile_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "library":
+			out.Values[i] = ec._LibraryFile_library(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "path":
+			out.Values[i] = ec._LibraryFile_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._LibraryFile_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "size":
+			out.Values[i] = ec._LibraryFile_size(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "modifiedAt":
+			out.Values[i] = ec._LibraryFile_modifiedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "videoFormat":
+			out.Values[i] = ec._LibraryFile_videoFormat(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "index":
+			out.Values[i] = ec._LibraryFile_index(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "watchPositionMs":
+			out.Values[i] = ec._LibraryFile_watchPositionMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "streamUrl":
+			out.Values[i] = ec._LibraryFile_streamUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hlsUrl":
+			out.Values[i] = ec._LibraryFile_hlsUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var libraryFileIndexImplementors = []string{"LibraryFileIndex"}
+
+func (ec *executionContext) _LibraryFileIndex(ctx context.Context, sel ast.SelectionSet, obj *model.LibraryFileIndex) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, libraryFileIndexImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LibraryFileIndex")
+		case "complete":
+			out.Values[i] = ec._LibraryFileIndex_complete(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "seekableSeconds":
+			out.Values[i] = ec._LibraryFileIndex_seekableSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "durationSeconds":
+			out.Values[i] = ec._LibraryFileIndex_durationSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var licenseFileImplementors = []string{"LicenseFile"}
 
 func (ec *executionContext) _LicenseFile(ctx context.Context, sel ast.SelectionSet, obj *licenses.File) graphql.Marshaler {
@@ -57249,6 +58779,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "cancelJob":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_cancelJob(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "saveLibraryWatchPosition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_saveLibraryWatchPosition(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -59456,6 +60993,24 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_jobCounts(ctx, field)
+				})
+		case "libraries":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_libraries(ctx, field)
+				})
+		case "libraryDirectory":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_libraryDirectory(ctx, field)
+				})
+		case "libraryFile":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_libraryFile(ctx, field)
 				})
 		case "goModuleLicenses":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -65389,6 +66944,88 @@ func (ec *executionContext) marshalNLease2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu
 		return graphql.Null
 	}
 	return ec._Lease(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLibrary2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Library) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrary(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrary(ctx context.Context, sel ast.SelectionSet, v *model.Library) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "Library!")
+		return graphql.Null
+	}
+	return ec._Library(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLibraryDirectory2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryDirectory(ctx context.Context, sel ast.SelectionSet, v *model.LibraryDirectory) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LibraryDirectory!")
+		return graphql.Null
+	}
+	return ec._LibraryDirectory(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLibraryEntry2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LibraryEntry) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLibraryEntry2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryEntry(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLibraryEntry2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryEntry(ctx context.Context, sel ast.SelectionSet, v *model.LibraryEntry) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LibraryEntry!")
+		return graphql.Null
+	}
+	return ec._LibraryEntry(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLibraryFile2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryFile(ctx context.Context, sel ast.SelectionSet, v *model.LibraryFile) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LibraryFile!")
+		return graphql.Null
+	}
+	return ec._LibraryFile(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLibraryFileIndex2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryFileIndex(ctx context.Context, sel ast.SelectionSet, v *model.LibraryFileIndex) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LibraryFileIndex!")
+		return graphql.Null
+	}
+	return ec._LibraryFileIndex(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNLibraryKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryKind(ctx context.Context, v any) (model.LibraryKind, error) {
+	var res model.LibraryKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLibraryKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryKind(ctx context.Context, sel ast.SelectionSet, v model.LibraryKind) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNLicenseFile2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋlicensesᚐFileᚄ(ctx context.Context, sel ast.SelectionSet, v []*licenses.File) graphql.Marshaler {

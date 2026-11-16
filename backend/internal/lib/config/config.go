@@ -198,6 +198,11 @@ type Storage struct {
 	// TimeshiftDir は、タイムシフトのバッファ (放送を一定時間だけ残すチャンクのファイル) を置くディレクトリ。
 	// 絶対パスで書く。設定するなら DataDir も要る。空なら、タイムシフトのどの処理も動かない。
 	TimeshiftDir string `yaml:"timeshift_dir"`
+	// Libraries は、録画として登録していない TS を、ファイラーで選んで再生してよいフォルダ (ライブラリ) の、名前からディレクトリへの対応 (#1734)。
+	// 保存先プールは、ここに書かなくてもライブラリとして見せる。名前はプール ID と同じ規則で、プール ID と重ねられない。
+	// 環境変数では、KOTATSU_STORAGE_LIBRARIES=anime=/mnt/anime,backup=/mnt/backup のように「名前=パス」をカンマで区切って渡す。
+	// シークの索引をデータディレクトリに置くので、設定するなら DataDir も要る。
+	Libraries map[string]string `yaml:"libraries"`
 }
 
 // チューナーサーバーの種類 (Tuner.Kind、設計書 3.1)。
@@ -526,6 +531,7 @@ func Default() *Config {
 			PoolOrder:    []string{},
 			DataDir:      "",
 			TimeshiftDir: "",
+			Libraries:    map[string]string{},
 		},
 		Tuner: Tuner{
 			Kind: TunerKindMirakurun,
@@ -659,19 +665,32 @@ func (c *Config) validate() error {
 		errs = append(errs, fieldError("captions.threads", errors.New("must be 0 (auto) or more")))
 	}
 	errs = append(errs, c.Audit.validate()...)
-	for _, id := range slices.Sorted(maps.Keys(c.Storage.Pools)) {
-		if err := validatePool(id, c.Storage.Pools[id]); err != nil {
+	errs = append(errs, c.Storage.validate()...)
+
+	return errors.Join(errs...)
+}
+
+// validate は、保存先プール、データディレクトリ、タイムシフトのディレクトリ、ライブラリを検査する。
+func (s *Storage) validate() []error {
+	errs := []error{}
+	for _, id := range slices.Sorted(maps.Keys(s.Pools)) {
+		if err := validatePool(id, s.Pools[id]); err != nil {
 			errs = append(errs, fieldError("storage.pools", err))
 		}
 	}
-	if err := c.Storage.validateDataDir(); err != nil {
+	if err := s.validateDataDir(); err != nil {
 		errs = append(errs, fieldError("storage.data_dir", err))
 	}
-	if err := c.Storage.validateTimeshiftDir(); err != nil {
+	if err := s.validateTimeshiftDir(); err != nil {
 		errs = append(errs, fieldError("storage.timeshift_dir", err))
 	}
+	for _, name := range slices.Sorted(maps.Keys(s.Libraries)) {
+		if err := s.validateLibrary(name); err != nil {
+			errs = append(errs, fieldError("storage.libraries", err))
+		}
+	}
 
-	return errors.Join(errs...)
+	return errs
 }
 
 // validateDataDir は、データディレクトリを検査する。プールを設定するロールでは、生成物を置くので必ず要る。
@@ -706,6 +725,31 @@ func (s *Storage) validateTimeshiftDir() error {
 	}
 
 	return nil
+}
+
+// validateLibrary は、ライブラリ name を検査する (#1734)。名前はプール ID と同じ規則にし、プール ID と同じ名前は拒む。
+// プールは、そのままライブラリとして見せるので、同じ名前だとどちらを指すか分からないからである。
+// 索引をデータディレクトリに置くので、データディレクトリが要る。データディレクトリとタイムシフトのディレクトリと重なるものは拒む。
+// 索引やチャンクのファイルを、ファイラーから見せないためである。
+func (s *Storage) validateLibrary(name string) error {
+	dir := s.Libraries[name]
+	_, pool := s.Pools[name]
+	switch {
+	case !IsValidPoolID(name):
+		return fmt.Errorf("library name %q must consist of lowercase letters, digits, - and _ (up to 63 characters)", name)
+	case pool:
+		return fmt.Errorf("library name %q is already used by a storage pool; pools are shown as libraries without listing them here", name)
+	case !filepath.IsAbs(dir):
+		return fmt.Errorf("directory of library %q must be an absolute path", name)
+	case s.DataDir == "":
+		return fmt.Errorf("library %q requires storage.data_dir to keep the seek index", name)
+	case overlaps(dir, s.DataDir):
+		return fmt.Errorf("directory of library %q must not be the same as, inside, or a parent of storage.data_dir", name)
+	case s.TimeshiftDir != "" && overlaps(dir, s.TimeshiftDir):
+		return fmt.Errorf("directory of library %q must not be the same as, inside, or a parent of storage.timeshift_dir", name)
+	default:
+		return nil
+	}
 }
 
 // overlaps は、絶対パスの a と b が、同じディレクトリか、一方が他方の中にあるかを返す。相対パスなら、重ならないとみなす。

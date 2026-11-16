@@ -256,6 +256,10 @@ func (u *usedFiles) orphan(checker *kago.Checker, poolID string, entry *kago.Ent
 	if now.Sub(entry.ChangedAt) < orphanGrace {
 		return false
 	}
+	// ライブラリのファイルの索引 (#1734) は、DB に行がないので、使っているとみなす。ファイルを書き換えたら、同じ場所に作り直す。
+	if poolID == kago.DataPoolID && strings.HasPrefix(entry.Path, kago.LibraryIndexDir+"/") {
+		return false
+	}
 	if entry.SegmentDir {
 		owner, err := kago.SegmentDirOwner(poolID, entry.Path)
 		if err != nil {

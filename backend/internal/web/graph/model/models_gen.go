@@ -1036,6 +1036,72 @@ type Lease struct {
 	Valid bool `json:"valid"`
 }
 
+// 録画として登録していない TS を、ファイラーで選んで再生してよいフォルダ (設計書 5.8、#1734)。
+// 録画と同じく、ログインした家族全員が使える。
+type Library struct {
+	// ライブラリの名前。
+	Name string      `json:"name"`
+	Kind LibraryKind `json:"kind"`
+}
+
+// ライブラリのディレクトリの中身。
+type LibraryDirectory struct {
+	Library *Library `json:"library"`
+	// ライブラリの中の / 区切りの相対パス。根元は空。
+	Path string `json:"path"`
+	// 中のディレクトリと、再生できるファイルを、ディレクトリ、ファイルの順に、それぞれ名前の順に返す。
+	// 隠しファイル、再生できないファイル、ライブラリの外を指すシンボリックリンクは返さない。
+	Entries []*LibraryEntry `json:"entries"`
+}
+
+// ライブラリのディレクトリの中のファイルかディレクトリ。
+type LibraryEntry struct {
+	Name string `json:"name"`
+	// ライブラリの中の / 区切りの相対パス。
+	Path string `json:"path"`
+	// ディレクトリかどうか。
+	Directory bool `json:"directory"`
+	// ファイルの大きさ (バイト)。ディレクトリでは 0。
+	Size int64 `json:"size"`
+	// 最後に書いた日時。
+	ModifiedAt time.Time `json:"modifiedAt"`
+	// TS として再生できるファイル (拡張子が .ts、.m2ts、.mts のもの) かどうか。
+	Playable bool `json:"playable"`
+}
+
+// ライブラリの、再生できるファイル。
+type LibraryFile struct {
+	// ライブラリの名前とパスから作った ID。配信の URL にも使う。
+	ID      string   `json:"id"`
+	Library *Library `json:"library"`
+	// ライブラリの中の / 区切りの相対パス。
+	Path       string    `json:"path"`
+	Name       string    `json:"name"`
+	Size       int64     `json:"size"`
+	ModifiedAt time.Time `json:"modifiedAt"`
+	// ファイルの頭から読んだ映像の種類。読めなければ HD とみなす。
+	VideoFormat VideoFormat       `json:"videoFormat"`
+	Index       *LibraryFileIndex `json:"index"`
+	// ログイン中のユーザーが保存した再生位置 (ミリ秒)。ファイルを書き換えたら、前の位置は使わない。
+	WatchPositionMs *int64 `json:"watchPositionMs,omitempty"`
+	// ファイルの TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。
+	StreamURL string `json:"streamUrl"`
+	// ファイルを kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
+	// 後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
+	HlsURL string `json:"hlsUrl"`
+}
+
+// ライブラリのファイルのシークの索引の進み具合 (設計書 5.8)。
+type LibraryFileIndex struct {
+	// 索引を作り終えたかどうか。作り終えるまでは、読み直して進み具合を確かめる。
+	Complete bool `json:"complete"`
+	// シークできる所 (索引のできた最後の I フレームの位置。ファイルの始まりからの秒)。索引がまだなければ 0。
+	SeekableSeconds float64 `json:"seekableSeconds"`
+	// 再生の時間 (秒)。作り終えていれば索引から求め、作っている途中なら、できた所までのバイト数と時間の比から見込む。
+	// 索引がまだなければ null。
+	DurationSeconds *float64 `json:"durationSeconds,omitempty"`
+}
+
 // ライブのサービスの、PID の種類ごとのビットレートと、TS のパケットの異常の数 (#812)。
 type LiveStreamRates struct {
 	// 映像のビットレート (bps)。
@@ -3118,6 +3184,64 @@ func (e *KeywordMuteMatch) UnmarshalJSON(b []byte) error {
 }
 
 func (e KeywordMuteMatch) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// ライブラリの種類 (設計書 5.8)。
+type LibraryKind string
+
+const (
+	// 保存先プール。設定に書かなくても、ライブラリとして見せる。
+	LibraryKindPool LibraryKind = "POOL"
+	// 設定 (storage.libraries) で足したフォルダ。
+	LibraryKindFolder LibraryKind = "FOLDER"
+)
+
+var AllLibraryKind = []LibraryKind{
+	LibraryKindPool,
+	LibraryKindFolder,
+}
+
+func (e LibraryKind) IsValid() bool {
+	switch e {
+	case LibraryKindPool, LibraryKindFolder:
+		return true
+	}
+	return false
+}
+
+func (e LibraryKind) String() string {
+	return string(e)
+}
+
+func (e *LibraryKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LibraryKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LibraryKind", str)
+	}
+	return nil
+}
+
+func (e LibraryKind) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LibraryKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LibraryKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
