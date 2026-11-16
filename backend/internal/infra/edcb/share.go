@@ -66,6 +66,7 @@ func (s *sharedStreams) open(ctx context.Context, service ServiceKey) (io.ReadCl
 	sub := &subscriber{
 		shared: s, b: nil, limit: s.bufferSize,
 		mu: sync.Mutex{}, signal: make(chan struct{}, 1), queue: [][]byte{}, head: nil, queued: 0, err: nil, closed: false,
+		closeErr: nil, stopWatch: func() bool { return false },
 	}
 	s.mu.Lock()
 	for {
@@ -110,6 +111,11 @@ func (s *sharedStreams) open(ctx context.Context, service ServiceKey) (io.ReadCl
 	if err := sub.b.openErr; err != nil {
 		return nil, err
 	}
+	// ほかのストリームと同じく、ctx が終わったら閉じる。TS は流れ続けるので、閉じないと、受け手は読み続ける。
+	stop := context.AfterFunc(ctx, func() { _ = sub.closeWith(context.Cause(ctx)) })
+	sub.mu.Lock()
+	sub.stopWatch = stop
+	sub.mu.Unlock()
 
 	return sub, nil
 }
@@ -125,7 +131,9 @@ func (s *sharedStreams) start(base context.Context, b *broadcast) {
 	if err != nil {
 		cancel()
 		b.openErr, b.closing = err, true
-		delete(s.streams, b.key)
+		if s.streams[b.key] == b {
+			delete(s.streams, b.key)
+		}
 		close(b.ready)
 		s.mu.Unlock()
 		close(b.done)
@@ -137,7 +145,6 @@ func (s *sharedStreams) start(base context.Context, b *broadcast) {
 	if len(b.subs) == 0 {
 		// 開いている間に、受け手が全員去った。
 		b.closing = true
-		delete(s.streams, b.key)
 		s.mu.Unlock()
 		_ = s.shutdown(b)
 
@@ -175,7 +182,6 @@ func (s *sharedStreams) pump(b *broadcast) {
 			return
 		}
 		b.closing = true
-		delete(s.streams, b.key)
 		subs := make([]*subscriber, 0, len(b.subs))
 		for sub := range b.subs {
 			subs = append(subs, sub)
@@ -203,7 +209,6 @@ func (s *sharedStreams) publish(b *broadcast, chunk []byte) {
 	}
 	if len(b.subs) == 0 && !b.closing {
 		b.closing = true
-		delete(s.streams, b.key)
 		go func() { _ = s.shutdown(b) }()
 	}
 }
@@ -216,7 +221,6 @@ func (s *sharedStreams) leave(b *broadcast, sub *subscriber) error {
 	last := len(b.subs) == 0 && opened && !b.closing
 	if last {
 		b.closing = true
-		delete(s.streams, b.key)
 	}
 	s.mu.Unlock()
 	if !last {
@@ -226,10 +230,16 @@ func (s *sharedStreams) leave(b *broadcast, sub *subscriber) error {
 	return s.shutdown(b)
 }
 
-// shutdown は、NetworkTV を閉じて ID を返し、閉じ終えたことを知らせる。
+// shutdown は、NetworkTV を閉じて ID を返し、閉じ終えたことを知らせる。閉じている間は b を一覧に残し、
+// その間に来た受け手には、閉じ終えるのを待たせる。待たせずに開くと、同じサービスに 2 つの NetworkTV を開いてしまう。
 func (s *sharedStreams) shutdown(b *broadcast) error {
 	err := b.upstream.Close()
 	b.cancel()
+	s.mu.Lock()
+	if s.streams[b.key] == b {
+		delete(s.streams, b.key)
+	}
+	s.mu.Unlock()
 	close(b.done)
 
 	return err
@@ -251,6 +261,10 @@ type subscriber struct {
 	// err は、溜めた分を読み終えた後に返すエラー。
 	err    error
 	closed bool
+	// closeErr は、閉じた後の Read が返すエラー。
+	closeErr error
+	// stopWatch は、ctx が終わったら閉じるのをやめる。
+	stopWatch func() bool
 }
 
 var _ io.ReadCloser = new(subscriber)
@@ -260,12 +274,15 @@ func (r *subscriber) Read(p []byte) (int, error) {
 	for {
 		r.mu.Lock()
 		if r.closed {
+			err := r.closeErr
 			r.mu.Unlock()
 
-			return 0, errSubscriberClosed
+			return 0, err
 		}
 		if len(r.head) == 0 && len(r.queue) > 0 {
-			r.head, r.queue = r.queue[0], r.queue[1:]
+			r.head = r.queue[0]
+			r.queue[0] = nil
+			r.queue = r.queue[1:]
 		}
 		if len(r.head) > 0 {
 			n := copy(p, r.head)
@@ -289,12 +306,22 @@ func (r *subscriber) Read(p []byte) (int, error) {
 // Close は、受け手から外れる。最後の受け手なら、NetworkTV を閉じて ID を返し、閉じられなかったらそのエラーを返す。何度呼んでもよい。
 func (r *subscriber) Close() error {
 	r.mu.Lock()
+	stop := r.stopWatch
+	r.mu.Unlock()
+	stop()
+
+	return r.closeWith(errSubscriberClosed)
+}
+
+// closeWith は、受け手から外れ、その後の Read に err を返させる。
+func (r *subscriber) closeWith(err error) error {
+	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()
 
 		return nil
 	}
-	r.closed = true
+	r.closed, r.closeErr = true, err
 	r.queue, r.head, r.queued = nil, nil, 0
 	r.notify()
 	r.mu.Unlock()

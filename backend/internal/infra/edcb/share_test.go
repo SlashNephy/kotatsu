@@ -237,3 +237,71 @@ func TestTunerServerSharedStreamWaiterLeaves(t *testing.T) {
 	_, released := ids.state()
 	assert.Equal(t, []int32{1000}, released)
 }
+
+func TestTunerServerSharedStreamClosesWhenContextEnds(t *testing.T) {
+	t.Parallel()
+
+	// ほかのストリームと同じく、開いたときの ctx が終わったら閉じる。最後の受け手なら、NetworkTV も閉じる。
+	s, server, ids, feed := feedServer(t, 0, 0)
+	ctx, cancel := context.WithCancel(t.Context())
+	stream, err := server.OpenServiceStream(ctx, nhkSougou, nil)
+	require.NoError(t, err)
+	feed <- patPacket(32736, 1024)
+	assert.Equal(t, patPacket(32736, 1024), readPackets(t, stream, 1))
+
+	cancel()
+	_, err = stream.Read(make([]byte, 188))
+	require.ErrorIs(t, err, context.Canceled)
+	require.Eventually(t, func() bool {
+		_, released := ids.state()
+
+		return slices.Equal(released, []int32{1000})
+	}, testWait, testTick)
+	assert.Equal(t, 1, countCommand(s, 1074))
+}
+
+// slowIDs は、ID を返すのを、release が閉じられるまで待たせる。
+type slowIDs struct {
+	*fakeIDs
+
+	release chan struct{}
+}
+
+func (s *slowIDs) Release(ctx context.Context, id int32) error {
+	<-s.release
+
+	return s.fakeIDs.Release(ctx, id)
+}
+
+func TestTunerServerSharedStreamWaitsForClose(t *testing.T) {
+	t.Parallel()
+
+	// 閉じている途中に来た受け手は、NetworkTV を閉じて ID を返し終えるのを待ってから開き直す。
+	feed := make(chan []byte)
+	t.Cleanup(sync.OnceFunc(func() { close(feed) }))
+	s := streamServer(t, nil, 0)
+	s.replies[301] = reply{status: 1, feed: feed}
+	ids := &slowIDs{fakeIDs: &fakeIDs{mu: sync.Mutex{}, acquired: []edcb.ServiceKey{}, released: []int32{}}, release: make(chan struct{})}
+	server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{NetworkTVIDs: ids, PreemptionCheckInterval: time.Hour})
+	first, err := server.OpenServiceStream(t.Context(), nhkSougou, nil)
+	require.NoError(t, err)
+	closed := make(chan error, 1)
+	go func() { closed <- first.Close() }()
+	require.Eventually(t, func() bool { return countCommand(s, 1074) == 1 }, testWait, testTick)
+
+	reopened := make(chan error, 1)
+	go func() {
+		stream, err := server.OpenServiceStream(t.Context(), nhkSougou, nil)
+		if err == nil {
+			t.Cleanup(func() { _ = stream.Close() })
+		}
+		reopened <- err
+	}()
+	// ID を返し終えるまでは、開き直さない。fakeIDs は ID を 1 つしか配らないので、待たずに開くと、ID が足りずに失敗する。
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(t, 1, countCommand(s, 1073))
+	close(ids.release)
+	require.NoError(t, <-closed)
+	require.NoError(t, <-reopened)
+	assert.Equal(t, 2, countCommand(s, 1073))
+}
