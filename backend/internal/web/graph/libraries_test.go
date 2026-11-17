@@ -236,15 +236,18 @@ func TestLibrarySearch(t *testing.T) {
 	f, _ := newLibraryFixture(t)
 	viewer := f.as(t, "viewer", domain.RoleViewer)
 	const search = `query($library: String!, $path: String!, $query: String!) {
-		librarySearch(library: $library, path: $path, query: $query) { truncated entries { name path playable } } }`
+		librarySearch(library: $library, path: $path, query: $query) { truncated hits { folderNames entry { name path playable } } } }`
 	type result struct {
 		LibrarySearch struct {
 			Truncated bool `json:"truncated"`
-			Entries   []struct {
-				Name     string `json:"name"`
-				Path     string `json:"path"`
-				Playable bool   `json:"playable"`
-			} `json:"entries"`
+			Hits      []struct {
+				FolderNames []string `json:"folderNames"`
+				Entry       struct {
+					Name     string `json:"name"`
+					Path     string `json:"path"`
+					Playable bool   `json:"playable"`
+				} `json:"entry"`
+			} `json:"hits"`
 		} `json:"librarySearch"`
 	}
 	tests := []struct {
@@ -272,9 +275,11 @@ func TestLibrarySearch(t *testing.T) {
 				return
 			}
 			paths := []string{}
-			for _, entry := range got.LibrarySearch.Entries {
-				paths = append(paths, entry.Path)
-				assert.True(t, entry.Playable)
+			for _, hit := range got.LibrarySearch.Hits {
+				paths = append(paths, hit.Entry.Path)
+				assert.True(t, hit.Entry.Playable)
+				// フォルダの名前は、パスの段そのもの。
+				assert.Equal(t, []string{showDir}, hit.FolderNames)
 			}
 			assert.Equal(t, tt.wantPaths, paths)
 			assert.False(t, got.LibrarySearch.Truncated)

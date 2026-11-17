@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8908c17ed151468661b3b9650ea00cf7>>
+ * @generated SignedSource<<50eb8a27dd5ecb065d0847f553d4df73>>
  * @lightSyntaxTransform
  */
 
@@ -15,11 +15,14 @@ export type librarySearchQuery$variables = {
 };
 export type librarySearchQuery$data = {
   readonly librarySearch: {
-    readonly entries: ReadonlyArray<{
-      readonly modifiedAt: string;
-      readonly name: string;
-      readonly path: string;
-      readonly size: number;
+    readonly hits: ReadonlyArray<{
+      readonly entry: {
+        readonly modifiedAt: string;
+        readonly name: string;
+        readonly path: string;
+        readonly size: number;
+      };
+      readonly folderNames: ReadonlyArray<string>;
     }>;
     readonly truncated: boolean;
   };
@@ -82,37 +85,55 @@ v1 = [
       {
         "alias": null,
         "args": null,
-        "concreteType": "LibraryEntry",
+        "concreteType": "LibrarySearchHit",
         "kind": "LinkedField",
-        "name": "entries",
+        "name": "hits",
         "plural": true,
         "selections": [
           {
             "alias": null,
             "args": null,
             "kind": "ScalarField",
-            "name": "name",
+            "name": "folderNames",
             "storageKey": null
           },
           {
             "alias": null,
             "args": null,
-            "kind": "ScalarField",
-            "name": "path",
-            "storageKey": null
-          },
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "size",
-            "storageKey": null
-          },
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "modifiedAt",
+            "concreteType": "LibraryEntry",
+            "kind": "LinkedField",
+            "name": "entry",
+            "plural": false,
+            "selections": [
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
+                "name": "name",
+                "storageKey": null
+              },
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
+                "name": "path",
+                "storageKey": null
+              },
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
+                "name": "size",
+                "storageKey": null
+              },
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
+                "name": "modifiedAt",
+                "storageKey": null
+              }
+            ],
             "storageKey": null
           }
         ],
@@ -140,16 +161,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "58bea762e4a65ed30948c0f192732e63",
+    "cacheID": "6fad55cd8d82f9b0e6fed66b65b9907f",
     "id": null,
     "metadata": {},
     "name": "librarySearchQuery",
     "operationKind": "query",
-    "text": "query librarySearchQuery(\n  $library: String!\n  $path: String!\n  $query: String!\n) {\n  librarySearch(library: $library, path: $path, query: $query) {\n    truncated\n    entries {\n      name\n      path\n      size\n      modifiedAt\n    }\n  }\n}\n"
+    "text": "query librarySearchQuery(\n  $library: String!\n  $path: String!\n  $query: String!\n) {\n  librarySearch(library: $library, path: $path, query: $query) {\n    truncated\n    hits {\n      folderNames\n      entry {\n        name\n        path\n        size\n        modifiedAt\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "9a6e3920080d0d20fe28eb888fbdffbc";
+(node as any).hash = "fd5a1659d4c8da9e7c4b950712850e9c";
 
 export default node;

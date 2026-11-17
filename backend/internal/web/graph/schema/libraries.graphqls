@@ -200,9 +200,19 @@ extend type Query {
 "ライブラリの名前の検索の結果 (#1902)。"
 type LibrarySearchResult {
   "見つけたファイル。"
-  entries: [LibraryEntry!]!
+  hits: [LibrarySearchHit!]!
   "件数の上限や、たどる数の上限で、探すのを打ち切ったかどうか。打ち切ったら、語を足して絞るよう出す。"
   truncated: Boolean!
+}
+
+"ライブラリの名前の検索で見つけたファイル (#1902)。"
+type LibrarySearchHit {
+  entry: LibraryEntry!
+  """
+  ファイルのあるフォルダの、根元からの段ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
+  Google Drive では、フォルダの名前 (パスの段は ID)。
+  """
+  folderNames: [String!]!
 }
 
 extend type Mutation {

@@ -372,11 +372,14 @@ function SearchResults({ library, path, q }: { library: string; path: string; q:
       query librarySearchQuery($library: String!, $path: String!, $query: String!) {
         librarySearch(library: $library, path: $path, query: $query) {
           truncated
-          entries {
-            name
-            path
-            size
-            modifiedAt
+          hits {
+            folderNames
+            entry {
+              name
+              path
+              size
+              modifiedAt
+            }
           }
         }
       }
@@ -384,7 +387,7 @@ function SearchResults({ library, path, q }: { library: string; path: string; q:
     { library, path, query: q },
     { fetchPolicy: 'store-and-network' },
   );
-  if (result.entries.length === 0) {
+  if (result.hits.length === 0) {
     return (
       <EmptyState
         icon={Search}
@@ -397,7 +400,7 @@ function SearchResults({ library, path, q }: { library: string; path: string; q:
   return (
     <Stack gap="xs">
       <Text size="sm" c="dimmed">
-        {t('library.search.count', { query: q, count: result.entries.length })}
+        {t('library.search.count', { query: q, count: result.hits.length })}
       </Text>
       {result.truncated && (
         <Alert color="amber" variant="light">
@@ -416,7 +419,7 @@ function SearchResults({ library, path, q }: { library: string; path: string; q:
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {result.entries.map((entry) => (
+            {result.hits.map(({ entry, folderNames }) => (
               <Table.Tr key={entry.path}>
                 <Table.Td>
                   <Group gap={6} wrap="nowrap">
@@ -435,6 +438,10 @@ function SearchResults({ library, path, q }: { library: string; path: string; q:
                       {entry.name}
                     </Anchor>
                   </Group>
+                  {/* 同じ名前のファイルを見分けられるよう、あるフォルダを添える。 */}
+                  <Text size="xs" c="dimmed" style={{ wordBreak: 'break-all' }}>
+                    {[library, ...folderNames].join(' / ')}
+                  </Text>
                 </Table.Td>
                 <Table.Td ta="right" visibleFrom="xs" style={{ whiteSpace: 'nowrap' }}>
                   {formatBytes(Number(entry.size))}

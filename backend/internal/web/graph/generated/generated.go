@@ -814,8 +814,13 @@ type ComplexityRoot struct {
 		StartAt     func(childComplexity int) int
 	}
 
+	LibrarySearchHit struct {
+		Entry       func(childComplexity int) int
+		FolderNames func(childComplexity int) int
+	}
+
 	LibrarySearchResult struct {
-		Entries   func(childComplexity int) int
+		Hits      func(childComplexity int) int
 		Truncated func(childComplexity int) int
 	}
 
@@ -4989,12 +4994,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.LibraryProgram.StartAt(childComplexity), true
 
-	case "LibrarySearchResult.entries":
-		if e.ComplexityRoot.LibrarySearchResult.Entries == nil {
+	case "LibrarySearchHit.entry":
+		if e.ComplexityRoot.LibrarySearchHit.Entry == nil {
 			break
 		}
 
-		return e.ComplexityRoot.LibrarySearchResult.Entries(childComplexity), true
+		return e.ComplexityRoot.LibrarySearchHit.Entry(childComplexity), true
+	case "LibrarySearchHit.folderNames":
+		if e.ComplexityRoot.LibrarySearchHit.FolderNames == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibrarySearchHit.FolderNames(childComplexity), true
+
+	case "LibrarySearchResult.hits":
+		if e.ComplexityRoot.LibrarySearchResult.Hits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibrarySearchResult.Hits(childComplexity), true
 	case "LibrarySearchResult.truncated":
 		if e.ComplexityRoot.LibrarySearchResult.Truncated == nil {
 			break
@@ -12739,9 +12757,19 @@ extend type Query {
 "ライブラリの名前の検索の結果 (#1902)。"
 type LibrarySearchResult {
   "見つけたファイル。"
-  entries: [LibraryEntry!]!
+  hits: [LibrarySearchHit!]!
   "件数の上限や、たどる数の上限で、探すのを打ち切ったかどうか。打ち切ったら、語を足して絞るよう出す。"
   truncated: Boolean!
+}
+
+"ライブラリの名前の検索で見つけたファイル (#1902)。"
+type LibrarySearchHit {
+  entry: LibraryEntry!
+  """
+  ファイルのあるフォルダの、根元からの段ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
+  Google Drive では、フォルダの名前 (パスの段は ID)。
+  """
+  folderNames: [String!]!
 }
 
 extend type Mutation {
@@ -17216,10 +17244,20 @@ func (ec *executionContext) childFields_LibraryProgram(ctx context.Context, fiel
 	return nil, fmt.Errorf("no field named %q was found under type LibraryProgram", field.Name)
 }
 
+func (ec *executionContext) childFields_LibrarySearchHit(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "entry":
+		return ec.fieldContext_LibrarySearchHit_entry(ctx, field)
+	case "folderNames":
+		return ec.fieldContext_LibrarySearchHit_folderNames(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LibrarySearchHit", field.Name)
+}
+
 func (ec *executionContext) childFields_LibrarySearchResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
-	case "entries":
-		return ec.fieldContext_LibrarySearchResult_entries(ctx, field)
+	case "hits":
+		return ec.fieldContext_LibrarySearchResult_hits(ctx, field)
 	case "truncated":
 		return ec.fieldContext_LibrarySearchResult_truncated(ctx, field)
 	}
@@ -32473,33 +32511,88 @@ func (ec *executionContext) fieldContext_LibraryProgram_endAt(_ context.Context,
 	return graphql.NewScalarFieldContext("LibraryProgram", field, false, false, "Time")
 }
 
-func (ec *executionContext) _LibrarySearchResult_entries(ctx context.Context, field graphql.CollectedField, obj *model.LibrarySearchResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _LibrarySearchHit_entry(ctx context.Context, field graphql.CollectedField, obj *model.LibrarySearchHit) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_LibrarySearchResult_entries(ctx, field)
+			return ec.fieldContext_LibrarySearchHit_entry(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Entries, nil
+			return obj.Entry, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.LibraryEntry) graphql.Marshaler {
-			return ec.marshalNLibraryEntry2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryEntryᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LibraryEntry) graphql.Marshaler {
+			return ec.marshalNLibraryEntry2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryEntry(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_LibrarySearchResult_entries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_LibrarySearchHit_entry(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LibrarySearchHit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryEntry(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LibrarySearchHit_folderNames(ctx context.Context, field graphql.CollectedField, obj *model.LibrarySearchHit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibrarySearchHit_folderNames(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FolderNames, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibrarySearchHit_folderNames(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibrarySearchHit", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibrarySearchResult_hits(ctx context.Context, field graphql.CollectedField, obj *model.LibrarySearchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibrarySearchResult_hits(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Hits, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LibrarySearchHit) graphql.Marshaler {
+			return ec.marshalNLibrarySearchHit2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrarySearchHitᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibrarySearchResult_hits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "LibrarySearchResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_LibraryEntry(ctx, field)
+			return ec.childFields_LibrarySearchHit(ctx, field)
 		},
 	}
 	return fc, nil
@@ -63953,6 +64046,44 @@ func (ec *executionContext) _LibraryProgram(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var librarySearchHitImplementors = []string{"LibrarySearchHit"}
+
+func (ec *executionContext) _LibrarySearchHit(ctx context.Context, sel ast.SelectionSet, obj *model.LibrarySearchHit) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, librarySearchHitImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LibrarySearchHit")
+		case "entry":
+			out.Values[i] = ec._LibrarySearchHit_entry(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "folderNames":
+			out.Values[i] = ec._LibrarySearchHit_folderNames(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var librarySearchResultImplementors = []string{"LibrarySearchResult"}
 
 func (ec *executionContext) _LibrarySearchResult(ctx context.Context, sel ast.SelectionSet, obj *model.LibrarySearchResult) graphql.Marshaler {
@@ -63964,8 +64095,8 @@ func (ec *executionContext) _LibrarySearchResult(ctx context.Context, sel ast.Se
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("LibrarySearchResult")
-		case "entries":
-			out.Values[i] = ec._LibrarySearchResult_entries(ctx, field, obj)
+		case "hits":
+			out.Values[i] = ec._LibrarySearchResult_hits(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -73183,6 +73314,30 @@ func (ec *executionContext) unmarshalNLibraryKind2githubᚗcomᚋSlashNephyᚋko
 
 func (ec *executionContext) marshalNLibraryKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryKind(ctx context.Context, sel ast.SelectionSet, v model.LibraryKind) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNLibrarySearchHit2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrarySearchHitᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LibrarySearchHit) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLibrarySearchHit2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrarySearchHit(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLibrarySearchHit2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrarySearchHit(ctx context.Context, sel ast.SelectionSet, v *model.LibrarySearchHit) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LibrarySearchHit!")
+		return graphql.Null
+	}
+	return ec._LibrarySearchHit(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNLibrarySearchResult2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrarySearchResult(ctx context.Context, sel ast.SelectionSet, v *model.LibrarySearchResult) graphql.Marshaler {

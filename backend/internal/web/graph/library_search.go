@@ -37,10 +37,21 @@ func (r *Resolver) librarySearch(ctx context.Context, name, dir, query string) (
 	if err != nil {
 		return nil, libraryReadError(err)
 	}
-	result := &model.LibrarySearchResult{Entries: make([]*model.LibraryEntry, 0, len(entries)), Truncated: truncated}
+	result := &model.LibrarySearchResult{Hits: make([]*model.LibrarySearchHit, 0, len(entries)), Truncated: truncated}
 	for _, entry := range entries {
-		result.Entries = append(result.Entries, &model.LibraryEntry{
-			Name: entry.Name, Path: entry.Path, Directory: false, Size: entry.Size, ModifiedAt: entry.ModifiedAt, Playable: true,
+		folder := ""
+		if at := strings.LastIndex(entry.Path, "/"); at >= 0 {
+			folder = entry.Path[:at]
+		}
+		names, err := medialib.NamesOf(ctx, l, folder)
+		if err != nil {
+			return nil, libraryReadError(err)
+		}
+		result.Hits = append(result.Hits, &model.LibrarySearchHit{
+			Entry: &model.LibraryEntry{
+				Name: entry.Name, Path: entry.Path, Directory: false, Size: entry.Size, ModifiedAt: entry.ModifiedAt, Playable: true,
+			},
+			FolderNames: names,
 		})
 	}
 

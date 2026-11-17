@@ -1345,10 +1345,18 @@ type LibraryProgram struct {
 	EndAt *time.Time `json:"endAt,omitempty"`
 }
 
+// ライブラリの名前の検索で見つけたファイル (#1902)。
+type LibrarySearchHit struct {
+	Entry *LibraryEntry `json:"entry"`
+	// ファイルのあるフォルダの、根元からの段ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
+	// Google Drive では、フォルダの名前 (パスの段は ID)。
+	FolderNames []string `json:"folderNames"`
+}
+
 // ライブラリの名前の検索の結果 (#1902)。
 type LibrarySearchResult struct {
 	// 見つけたファイル。
-	Entries []*LibraryEntry `json:"entries"`
+	Hits []*LibrarySearchHit `json:"hits"`
 	// 件数の上限や、たどる数の上限で、探すのを打ち切ったかどうか。打ち切ったら、語を足して絞るよう出す。
 	Truncated bool `json:"truncated"`
 }
