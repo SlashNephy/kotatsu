@@ -167,6 +167,17 @@ ingress:
 たとえば、コントローラーのServiceが`externalTrafficPolicy: Cluster`だと、こうなります。
 `externalTrafficPolicy: Local`にするなどして、送信元を保ってください。
 
+コンテナには、既定でCPUとメモリのrequestsと、メモリのlimitsを付けています（値は[設計書の11.1](spec.v1.md#111-配布物)）。
+同時に多くの変換を動かすkyusuや、大きなモデルで字幕を生成するnekonoteでメモリが足りなければ、`all.resources`か`roles.<ロール>.resources`で上げてください。
+
+```yaml
+roles:
+  kyusu:
+    resources:
+      limits:
+        memory: 8Gi
+```
+
 `all`と`split`の例は、[deploy/kubernetes](../deploy/kubernetes)にも置いています。
 同じディレクトリにある`all.yaml`と`split.yaml`は、その例から作ったマニフェストです。
 Helmを使わずに、マニフェストを手で直して使うこともできます。

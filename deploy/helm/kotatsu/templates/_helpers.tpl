@@ -325,8 +325,19 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .pod.affinity }}
+      {{- /* affinity が空で 2 台以上なら、同じロールの Pod をなるべく別のノードに置く。preferred なので、置ける先が 1 つでも Pending にしない。 */}}
+      {{- if .pod.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml .pod.affinity | nindent 8 }}
+      {{- else if gt (int .replicas) 1 }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "kotatsu.selectorLabels" (dict "root" $root "component" .component) | nindent 20 }}
       {{- end }}
 {{- end -}}
