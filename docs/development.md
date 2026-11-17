@@ -217,3 +217,4 @@ GitHubのSocial previewに使う`docs/screenshots/social-preview.png`も、番�
 | `mise run //frontend:test` | 画面のテストを実行する |
 | `mise run //frontend:screenshots` | READMEのスクリーンショットをデモから撮り直し、`docs/screenshots`に書き出す |
 | `mise run //backend:db:diff -- <名前>` | `backend/db/schema.sql`の変更からマイグレーションを作る |
+<!-- CI のジョブの選び方を確かめる (#1939)。 -->
