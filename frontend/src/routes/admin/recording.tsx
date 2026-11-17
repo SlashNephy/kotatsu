@@ -70,6 +70,9 @@ const query = graphql`
       ruleUnmatchedGraceMinutes
       tvtplayChaptersEnabled
       cmDetector
+      thumbnailPreviewsEnabled
+      captionThreads
+      sleepControlEnabled
       updatedAt
     }
     systemStatus {
@@ -114,6 +117,12 @@ type Form = {
   ruleBundleSameEpisodes: boolean;
   // ruleUnmatchedGraceMinutes は、ルールから外れた予約を、消さずに残す放送前の時間 (分。#1501)。
   ruleUnmatchedGraceMinutes: number | string;
+  // thumbnailPreviews は、シークバーのプレビュー画像を作るかどうか。既定は入れる。設定ファイルから画面に移した (#1869)。
+  thumbnailPreviews: boolean;
+  // captionThreads は、字幕の自動生成で whisper-cli に使わせるスレッドの数。0 なら CPU の数から決める (#1869)。
+  captionThreads: number | string;
+  // sleepControl は、Windows と macOS の all の構成で、OS のスリープを扱うかどうか (#1522)。既定は入れる (#1869)。
+  sleepControl: boolean;
 };
 
 // Autosaved は、変えたらすぐ保存する項目 (切り替えと、選ぶ項目。#1740)。
@@ -130,6 +139,8 @@ type Autosaved = Pick<
   | 'ruleAvoidDuplicates'
   | 'ruleFollowEventRelay'
   | 'ruleBundleSameEpisodes'
+  | 'thumbnailPreviews'
+  | 'sleepControl'
 >;
 
 // autosaveInput は、変えた項目 patch だけを送る入力にする。省いた項目は、サーバーが変えない。
@@ -158,6 +169,10 @@ function autosaveInput(patch: Partial<Autosaved>): recordingMutation['variables'
     },
     ...(patch.cmDetector !== undefined && { cmDetector: patch.cmDetector }),
     ...(patch.tvtplayChapters !== undefined && { tvtplayChaptersEnabled: patch.tvtplayChapters }),
+    ...(patch.thumbnailPreviews !== undefined && {
+      thumbnailPreviewsEnabled: patch.thumbnailPreviews,
+    }),
+    ...(patch.sleepControl !== undefined && { sleepControlEnabled: patch.sleepControl }),
   };
 }
 
@@ -202,6 +217,9 @@ function RecordingSettings() {
     ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
     ruleBundleSameEpisodes: settings.ruleDefaults.bundleSameEpisodes,
     ruleUnmatchedGraceMinutes: settings.ruleUnmatchedGraceMinutes,
+    thumbnailPreviews: settings.thumbnailPreviewsEnabled,
+    captionThreads: settings.captionThreads,
+    sleepControl: settings.sleepControlEnabled,
   };
   const { form, set } = useSyncedForm(initial, sameForm);
   const numbers = [
@@ -209,6 +227,7 @@ function RecordingSettings() {
     form.endMarginSeconds,
     form.priority,
     form.ruleUnmatchedGraceMinutes,
+    form.captionThreads,
   ];
   const valid = form.fileNameTemplate.trim() !== '' && numbers.every((n) => typeof n === 'number');
 
@@ -273,6 +292,9 @@ function RecordingSettings() {
             ruleUnmatchedGraceMinutes: Number(form.ruleUnmatchedGraceMinutes),
             cmDetector: form.cmDetector,
             tvtplayChaptersEnabled: form.tvtplayChapters,
+            thumbnailPreviewsEnabled: form.thumbnailPreviews,
+            captionThreads: Number(form.captionThreads),
+            sleepControlEnabled: form.sleepControl,
           },
         });
         setMessage({ ok: true, text: t('admin.saved') });
@@ -498,6 +520,51 @@ function RecordingSettings() {
               allowNegative={false}
               value={form.ruleUnmatchedGraceMinutes}
               onChange={(value) => set({ ruleUnmatchedGraceMinutes: value })}
+            />
+          </Stack>
+        </Card>
+
+        {/* 録画の後処理の負荷 (#1869)。ルールや予約では変えない、nekonote の全体の設定。 */}
+        <Card withBorder>
+          <Stack gap="xs">
+            <Title order={3} size="h5">
+              {t('admin.settings.postProcessing')}
+            </Title>
+            <Switch
+              disabled={action.busy}
+              size="sm"
+              label={t('admin.settings.thumbnailPreviews')}
+              description={t('admin.settings.thumbnailPreviewsHelp')}
+              checked={form.thumbnailPreviews}
+              onChange={(event) => autosave({ thumbnailPreviews: event.currentTarget.checked })}
+            />
+            <NumberInput
+              size="xs"
+              maw={480}
+              label={t('admin.settings.captionThreads')}
+              description={t('admin.settings.captionThreadsHelp')}
+              min={0}
+              max={256}
+              allowDecimal={false}
+              allowNegative={false}
+              value={form.captionThreads}
+              onChange={(value) => set({ captionThreads: value })}
+            />
+          </Stack>
+        </Card>
+
+        <Card withBorder>
+          <Stack gap="xs">
+            <Title order={3} size="h5">
+              {t('admin.settings.power')}
+            </Title>
+            <Switch
+              disabled={action.busy}
+              size="sm"
+              label={t('admin.settings.sleepControl')}
+              description={t('admin.settings.sleepControlHelp')}
+              checked={form.sleepControl}
+              onChange={(event) => autosave({ sleepControl: event.currentTarget.checked })}
             />
           </Stack>
         </Card>

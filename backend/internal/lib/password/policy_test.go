@@ -79,6 +79,47 @@ func TestPolicy(t *testing.T) {
 	}
 }
 
+// TestPolicyHIBPEnabled は、Have I Been Pwned に照会するかを、確かめるたびに読み、切っているときと読めないときは照会しないことを確かめる (#1869)。
+func TestPolicyHIBPEnabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		enabled      bool
+		enabledErr   error
+		wantReason   password.Reason
+		wantRequests int
+	}{
+		{name: "enabled", enabled: true, enabledErr: nil, wantReason: password.ReasonBreached, wantRequests: 1},
+		{name: "disabled", enabled: false, enabledErr: nil, wantReason: "", wantRequests: 0},
+		{name: "unreadable setting does not block", enabled: true, enabledErr: errors.New("db is down"), wantReason: "", wantRequests: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server, requests := hibpServer(t, http.StatusOK, sha1Suffix(strongPhrase))
+			policy, err := password.NewPolicy(&password.PolicyOptions{
+				HIBP:            password.NewHIBP(server.URL, nil),
+				HIBPEnabled:     func(context.Context) (bool, error) { return tt.enabled, tt.enabledErr },
+				StrengthTimeout: testStrengthTimeout, Estimator: nil, Logger: slog.New(slog.DiscardHandler),
+			})
+			require.NoError(t, err)
+
+			err = policy.Check(t.Context(), strongPhrase, nil)
+			assert.Len(t, *requests, tt.wantRequests)
+			if tt.wantReason == "" {
+				require.NoError(t, err)
+
+				return
+			}
+			rejected, ok := errors.AsType[*password.RejectedError](err)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantReason, rejected.Reason)
+		})
+	}
+}
+
 func TestHIBPSendsOnlyThePrefix(t *testing.T) {
 	t.Parallel()
 

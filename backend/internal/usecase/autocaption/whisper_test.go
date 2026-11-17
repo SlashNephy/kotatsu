@@ -101,17 +101,17 @@ func TestNewWhisperNotConfigured(t *testing.T) {
 		cfg     config.Captions
 		dataDir string
 	}{
-		{name: "whisper-cli が見つからない", cfg: config.Captions{WhisperCommand: command, WhisperModel: model, Threads: 0}, dataDir: ""},
-		{name: "モデルが見つからない", cfg: config.Captions{WhisperCommand: executable, WhisperModel: filepath.Join(dir, "none.bin"), Threads: 0}, dataDir: ""},
-		{name: "モデルのパスがディレクトリ", cfg: config.Captions{WhisperCommand: executable, WhisperModel: dir, Threads: 0}, dataDir: ""},
-		{name: "モデルを省き、データディレクトリにもない", cfg: config.Captions{WhisperCommand: executable, WhisperModel: "", Threads: 0}, dataDir: dir},
-		{name: "モデルを省き、データディレクトリもない", cfg: config.Captions{WhisperCommand: executable, WhisperModel: "", Threads: 0}, dataDir: ""},
+		{name: "whisper-cli が見つからない", cfg: config.Captions{WhisperCommand: command, WhisperModel: model}, dataDir: ""},
+		{name: "モデルが見つからない", cfg: config.Captions{WhisperCommand: executable, WhisperModel: filepath.Join(dir, "none.bin")}, dataDir: ""},
+		{name: "モデルのパスがディレクトリ", cfg: config.Captions{WhisperCommand: executable, WhisperModel: dir}, dataDir: ""},
+		{name: "モデルを省き、データディレクトリにもない", cfg: config.Captions{WhisperCommand: executable, WhisperModel: ""}, dataDir: dir},
+		{name: "モデルを省き、データディレクトリもない", cfg: config.Captions{WhisperCommand: executable, WhisperModel: ""}, dataDir: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := autocaption.NewWhisper(&tt.cfg, tt.dataDir, nil)
+			_, err := autocaption.NewWhisper(&tt.cfg, 0, tt.dataDir, nil)
 			require.ErrorIs(t, err, autocaption.ErrNotConfigured)
 		})
 	}
@@ -145,7 +145,7 @@ func TestWhisperTranscribe(t *testing.T) {
 			if tt.model != "" {
 				model = wantModel
 			}
-			whisper, err := autocaption.NewWhisper(&config.Captions{WhisperCommand: command, WhisperModel: model, Threads: tt.threads}, data, nil)
+			whisper, err := autocaption.NewWhisper(&config.Captions{WhisperCommand: command, WhisperModel: model}, tt.threads, data, nil)
 			require.NoError(t, err)
 			assert.Equal(t, filepath.Base(wantModel), whisper.Model())
 
@@ -178,8 +178,8 @@ func TestWhisperTranscribeWithVAD(t *testing.T) {
 	model := writeModel(t, data, autocaption.DefaultModelPath)
 	writeModel(t, data, autocaption.DefaultVADModelPath)
 	whisper, err := autocaption.NewWhisper(&config.Captions{
-		WhisperCommand: selfCommand(t), WhisperModel: model, Threads: 1, VADCommand: selfCommand(t), VADModel: "",
-	}, data, nil)
+		WhisperCommand: selfCommand(t), WhisperModel: model, VADCommand: selfCommand(t), VADModel: "",
+	}, 1, data, nil)
 	require.NoError(t, err)
 	wav := filepath.Join(t.TempDir(), "0.wav")
 	require.NoError(t, os.WriteFile(wav, []byte("RIFF"), 0o600))
@@ -227,7 +227,7 @@ func TestWhisperTranscribeFails(t *testing.T) {
 	t.Parallel()
 
 	model := writeModel(t, t.TempDir(), brokenModel)
-	whisper, err := autocaption.NewWhisper(&config.Captions{WhisperCommand: selfCommand(t), WhisperModel: model, Threads: 1}, "", nil)
+	whisper, err := autocaption.NewWhisper(&config.Captions{WhisperCommand: selfCommand(t), WhisperModel: model}, 1, "", nil)
 	require.NoError(t, err)
 	wav := filepath.Join(t.TempDir(), "0.wav")
 	_, err = whisper.Transcribe(t.Context(), wav, nil)

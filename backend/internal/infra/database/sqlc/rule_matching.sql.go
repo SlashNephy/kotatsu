@@ -122,8 +122,9 @@ func (q *Queries) ListConflictingReservedPrograms(ctx context.Context, now time.
 }
 
 const listFutureProgramReservations = `-- name: ListFutureProgramReservations :many
-SELECT r.id, r.kind, r.service_id, r.event_id, r.start_at, r.enabled, r.follow_event_relay,
+SELECT r.id, r.kind, r.service_id, r.event_id, r.start_at, r.end_at, r.enabled, r.follow_event_relay,
   EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id AND rec.state = 'recording') AS recording,
+  EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id) AS listed,
   EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id AND NOT p.end_undecided) AS decided,
   EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id AND p.name = '') AS unnamed
 FROM reservations r
@@ -137,9 +138,11 @@ type ListFutureProgramReservationsRow struct {
 	ServiceID        int64
 	EventID          *int64
 	StartAt          time.Time
+	EndAt            time.Time
 	Enabled          bool
 	FollowEventRelay bool
 	Recording        bool
+	Listed           bool
 	Decided          bool
 	Unnamed          bool
 }
@@ -149,6 +152,7 @@ type ListFutureProgramReservationsRow struct {
 // 番組が EPG にあり、終了時刻が決まっているか (decided) も返す。番組が消えたか、未定になったのは一時的なことがあるので、
 // ルールに一致しなくなったとはみなさない (#518)。
 // 番組名が空か (unnamed) も返す。条件から外れたのか、まだ読めていないだけなのかを区別できないので、消さない (#1501)。
+// 番組が EPG にあるか (listed) も返す。EPG から消えた番組の予約は、同じ枠にルールに一致する別の番組が出ていれば、差し替えられたとみなして消す (#1875)。
 func (q *Queries) ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error) {
 	rows, err := q.db.Query(ctx, listFutureProgramReservations, now)
 	if err != nil {
@@ -164,9 +168,11 @@ func (q *Queries) ListFutureProgramReservations(ctx context.Context, now time.Ti
 			&i.ServiceID,
 			&i.EventID,
 			&i.StartAt,
+			&i.EndAt,
 			&i.Enabled,
 			&i.FollowEventRelay,
 			&i.Recording,
+			&i.Listed,
 			&i.Decided,
 			&i.Unnamed,
 		); err != nil {

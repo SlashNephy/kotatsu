@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/captionmodel"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/usecase/transcode"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
@@ -47,9 +49,16 @@ func newLowerer(logger *slog.Logger) *procprio.Lowerer {
 }
 
 // newThumbnailWorker は、録画を終えたら、代表画像とプレビュー画像を作る Worker を作る (設計書 6.1)。
-// FFmpeg がなければ、ジョブが理由を残して取りやめる。
-func newThumbnailWorker(deps *Deps, pool *pgxpool.Pool, store *kago.Store, clk clock.Clock) *thumbnail.GenerateWorker {
-	return thumbnail.NewGenerateWorker(pool, store, clk, !deps.Config.Thumbnail.DisablePreview)
+// FFmpeg がなければ、ジョブが理由を残して取りやめる。プレビュー画像を作るかは、管理者が画面で切り替える (#1869) ので、ジョブごとに読む。
+func newThumbnailWorker(pool *pgxpool.Pool, store *kago.Store, clk clock.Clock) *thumbnail.GenerateWorker {
+	return thumbnail.NewGenerateWorker(pool, store, clk, func(ctx context.Context) (bool, error) {
+		system, err := settings.Load(ctx, pool)
+		if err != nil {
+			return false, err
+		}
+
+		return system.ThumbnailPreviewsEnabled, nil
+	})
 }
 
 // newLiveThumbnailWorker は、録画中の録画の代表画像を、一定の間隔で作り直す Worker を作る (#1236)。
@@ -87,13 +96,19 @@ func newCMDetectWorker(
 
 // newCaptionsWorker は、録画を終えたら、音声から字幕を自動生成する Worker を作る (設計書 6.1、#1682)。
 // whisper-cli とモデルは、ジョブごとに探すので、管理者が置き直したら、nekonote を再起動しなくても次のジョブから使える。
+// スレッドの数も、管理者が画面で変える (#1869) ので、ジョブごとに読む。
 // どちらかがなければ、ジョブが理由を残して取りやめる。取り出した音声は、kyusu と同じ一時領域に置く。
 func newCaptionsWorker(
 	deps *Deps, pool *pgxpool.Pool, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer, logger *slog.Logger,
 ) *autocaption.Worker {
 	return autocaption.NewWorker(pool, store, clk, logger.With(slog.String("component", "autocaption")),
-		func() (autocaption.Transcriber, error) {
-			return autocaption.NewWhisper(&deps.Config.Captions, deps.Config.Storage.DataDir, lowerer)
+		func(ctx context.Context) (autocaption.Transcriber, error) {
+			system, err := settings.Load(ctx, pool)
+			if err != nil {
+				return nil, err
+			}
+
+			return autocaption.NewWhisper(&deps.Config.Captions, system.CaptionThreads, deps.Config.Storage.DataDir, lowerer)
 		},
 		func() (autocaption.Extractor, error) { return autocaption.FFmpegExtractor(lowerer) },
 		deps.Config.Kyusu.WorkDir)

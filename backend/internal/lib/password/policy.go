@@ -62,14 +62,19 @@ type Policy struct {
 	blocklist map[string]struct{}
 	estimator StrengthEstimator
 	// hibp は、Have I Been Pwned への照会。nil なら照会しない。
-	hibp   *HIBP
-	logger *slog.Logger
+	hibp *HIBP
+	// hibpEnabled は、照会するかどうかを、確かめるたびに返す。nil なら、hibp があれば照会する。
+	hibpEnabled func(ctx context.Context) (bool, error)
+	logger      *slog.Logger
 }
 
 // PolicyOptions は Policy の設定。
 type PolicyOptions struct {
 	// HIBP は、Have I Been Pwned への照会。nil なら照会しない。
 	HIBP *HIBP
+	// HIBPEnabled は、Have I Been Pwned に照会するかどうかを返す。管理者が画面で切り替える (#1869) ので、確かめるたびに呼ぶ。
+	// nil なら、HIBP があれば照会する。
+	HIBPEnabled func(ctx context.Context) (bool, error)
 	// StrengthTimeout は、zxcvbn-ts の 1 回の判定の時間の上限。0 なら DefaultStrengthTimeout にする。
 	StrengthTimeout time.Duration
 	// Estimator は、強度を判定するもの。nil なら zxcvbn-ts で判定する。
@@ -94,7 +99,7 @@ func NewPolicy(opts *PolicyOptions) (*Policy, error) {
 		logger = slog.New(slog.DiscardHandler)
 	}
 
-	return &Policy{blocklist: blocklist, estimator: estimator, hibp: opts.HIBP, logger: logger}, nil
+	return &Policy{blocklist: blocklist, estimator: estimator, hibp: opts.HIBP, hibpEnabled: opts.HIBPEnabled, logger: logger}, nil
 }
 
 // Check は、パスワードが規定を満たすかを確かめる。満たさなければ *RejectedError を返す。
@@ -122,7 +127,7 @@ func (p *Policy) Check(ctx context.Context, password string, userInputs []string
 	if strength.Score < MinScore {
 		return &RejectedError{Reason: ReasonTooWeak, Strength: strength}
 	}
-	if p.hibp == nil {
+	if !p.checksBreached(ctx) {
 		return nil
 	}
 	breached, err := p.hibp.Breached(ctx, password)
@@ -136,4 +141,22 @@ func (p *Policy) Check(ctx context.Context, password string, userInputs []string
 	}
 
 	return nil
+}
+
+// checksBreached は、Have I Been Pwned に照会するかどうかを返す。照会するかを読めなければ、照会と同じく、警告を残して照会しない。
+func (p *Policy) checksBreached(ctx context.Context) bool {
+	if p.hibp == nil {
+		return false
+	}
+	if p.hibpEnabled == nil {
+		return true
+	}
+	enabled, err := p.hibpEnabled(ctx)
+	if err != nil {
+		p.logger.WarnContext(ctx, "skipped the breached password check; failed to read whether it is enabled", slog.Any("error", err))
+
+		return false
+	}
+
+	return enabled
 }

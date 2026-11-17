@@ -27,6 +27,7 @@ sql:
           cm_detector: CMDetector
           epgstation_api_enabled: EPGStationAPIEnabled
           sha256: SHA256
+          network_tv_id: NetworkTVID
         overrides:
           - column: reservations.kind
             go_type:

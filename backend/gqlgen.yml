@@ -317,6 +317,11 @@ models:
       # アイコンは、要るときにだけ引く (#778)。
       avatarUrl:
         resolver: true
+  SystemSettings:
+    fields:
+      # 管理者の連絡先を含みうるので、リゾルバで管理者かを確かめる (#1869)。
+      webPushSubject:
+        resolver: true
   Service:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Service
     fields:

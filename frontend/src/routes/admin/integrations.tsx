@@ -104,6 +104,8 @@ const query = graphql`
       animeLinkingEnabled
       dramaLinkingEnabled
       commentSources
+      hibpEnabled
+      webPushSubject
     }
     # 発行された外部プレイヤー用の URL (#1757)。
     issuedStreamUrls {
@@ -260,6 +262,25 @@ function Integrations() {
           enabled={data.systemSettings.networkActivityEnabled}
           busy={gate.busy}
           onSave={(networkActivityEnabled) => saveSettings({ networkActivityEnabled })}
+        />
+
+        {/* Have I Been Pwned への照会 (設計書 9.3)。外部へ問い合わせ始めるので、ここで再認証を求める。設定ファイルから移した (#1869)。 */}
+        <SwitchSetting
+          key={`hibp/${String(data.systemSettings.hibpEnabled)}`}
+          title={t('admin.settings.hibp')}
+          label={t('admin.settings.hibpEnabled')}
+          help={t('admin.settings.hibpHelp')}
+          enabled={data.systemSettings.hibpEnabled}
+          busy={gate.busy}
+          onSave={(hibpEnabled) => saveSettings({ hibpEnabled })}
+        />
+
+        {/* Web Push で、プッシュサービスに示す送り手の連絡先 (設計書 6.2)。設定ファイルから移した (#1869)。 */}
+        <WebPushSubjectSetting
+          key={`web-push-subject/${data.systemSettings.webPushSubject ?? ''}`}
+          subject={data.systemSettings.webPushSubject ?? ''}
+          busy={gate.busy}
+          onSave={(webPushSubject) => saveSettings({ webPushSubject })}
         />
 
         {/* データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。受信機の情報が外部へ届くので、ここで再認証を求める。 */}
@@ -626,6 +647,51 @@ function SwitchSetting({
           size="compact-sm"
           disabled={checked === enabled || busy}
           onClick={() => onSave(checked)}
+        >
+          {t('admin.save')}
+        </Button>
+      </Group>
+    </Section>
+  );
+}
+
+// webPushSubjectPattern は、Web Push の送り手の連絡先に書ける形。空白を含まない mailto: か https:// の URI (RFC 8292)。サーバーと同じ。
+const webPushSubjectPattern = /^(mailto:|https:\/\/)\S+$/;
+
+// WebPushSubjectSetting は、Web Push で、プッシュサービスに示す送り手の連絡先を変える (#1869)。
+// 文字の欄なので、打っている途中の値を保存しないよう、保存のボタンで保存する (#1740)。
+function WebPushSubjectSetting({
+  subject,
+  busy,
+  onSave,
+}: {
+  subject: string;
+  busy: boolean;
+  onSave: (subject: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [value, setValue] = useState(subject);
+  const trimmed = value.trim();
+  const invalid = trimmed !== '' && !webPushSubjectPattern.test(trimmed);
+
+  return (
+    <Section title={t('admin.settings.webPush')}>
+      <Group justify="space-between" align="flex-end">
+        <TextInput
+          size="xs"
+          w="100%"
+          maw={560}
+          label={t('admin.settings.webPushSubject')}
+          description={t('admin.settings.webPushSubjectHelp')}
+          placeholder="mailto:admin@example.com"
+          value={value}
+          error={invalid ? t('admin.settings.webPushSubjectInvalid') : undefined}
+          onChange={(event) => setValue(event.currentTarget.value)}
+        />
+        <Button
+          size="compact-sm"
+          disabled={trimmed === subject || invalid || busy}
+          onClick={() => onSave(trimmed)}
         >
           {t('admin.save')}
         </Button>

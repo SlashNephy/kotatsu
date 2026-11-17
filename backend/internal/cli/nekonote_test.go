@@ -114,7 +114,6 @@ func TestNekonotePrunesAuditEvents(t *testing.T) {
 	dbConfig := databasetest.New(t)
 	env := testEnv()
 	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
-	env["KOTATSU_AUDIT_RETENTION_DAYS"] = "30"
 
 	opts := cli.DefaultOptions(slog.New(slog.DiscardHandler))
 	opts.LookupEnv = func(key string) (string, bool) {
@@ -131,6 +130,10 @@ func TestNekonotePrunesAuditEvents(t *testing.T) {
 	pool, err := database.Open(t.Context(), dbConfig)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
+	// 保持期間は、管理者が画面で変える (#1869)。画面で変えると監査ログが 1 件増えるので、数を変えないよう DB に直接書く。
+	_, err = pool.Exec(t.Context(), `INSERT INTO system_settings (id, recording_defaults, archive_retention_days, audit_retention_days, updated_at)
+		VALUES (1, '{}', 90, 30, now())`)
+	require.NoError(t, err)
 	for _, at := range []time.Time{time.Now().AddDate(0, 0, -31), time.Now().AddDate(0, 0, -29)} {
 		require.NoError(t, audit.NewRecorder(clocktest.NewFake(at)).Record(t.Context(), pool, &audit.Event{
 			Actor:      audit.System("neko"),

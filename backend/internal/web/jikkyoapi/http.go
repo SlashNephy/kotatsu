@@ -101,7 +101,7 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := h.table.Lookup(source.NetworkID, source.Sid); !ok {
+	if _, ok := h.table.Lookup(r.Context(), source.NetworkID, source.Sid); !ok {
 		h.serve(w, r, &span{networkID: source.NetworkID, sid: source.Sid, from: source.RecordedFrom, until: source.RecordedUntil, final: source.RecordedUntil != nil}, slog.String("recording_id", recordingID.String()))
 
 		return
@@ -128,7 +128,7 @@ type span struct {
 // 録画と、ライブラリのファイル (#1734) で共有する。logAttr は、ログに添える、何の過去ログかの属性。
 func (h *CommentsHandler) serve(w http.ResponseWriter, r *http.Request, s *span, logAttr slog.Attr) {
 	resp := &commentsResponse{Channel: nil, Origin: nil, Comments: []*commentJSON{}}
-	id, ok := h.table.Lookup(s.networkID, s.sid)
+	id, ok := h.table.Lookup(r.Context(), s.networkID, s.sid)
 	if !ok {
 		h.write(w, r, resp, s.final)
 
