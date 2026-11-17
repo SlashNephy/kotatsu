@@ -14,6 +14,7 @@ import { formatBytes } from '../../futon';
 import classes from './storage.module.css';
 import { mutate } from '../../settings/mutate';
 import { MissingRecordings } from '../../admin/MissingRecordings';
+import { LibraryArtifacts } from '../../admin/LibraryArtifacts';
 import { OrphanFiles } from '../../admin/OrphanFiles';
 import { RecordingRenames } from '../../admin/RecordingRenames';
 import type {
@@ -112,6 +113,7 @@ function StorageSettings() {
 
       <MissingRecordings />
       <OrphanFiles />
+      <LibraryArtifacts />
       <RecordingRenames />
     </Stack>
   );

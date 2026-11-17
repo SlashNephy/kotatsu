@@ -1059,6 +1059,14 @@ type Library struct {
 	Kind LibraryKind `json:"kind"`
 }
 
+// データディレクトリの、ライブラリのファイルの生成物 (索引、画像、CM の区間、自動生成した字幕) の量 (設計書 5.8)。
+type LibraryArtifacts struct {
+	// ファイルの大きさの合計 (バイト)。
+	Size int64 `json:"size"`
+	// ファイルの数。
+	Files int `json:"files"`
+}
+
 // ライブラリのファイルの音声から自動生成した字幕の 1 つ。時刻は、再生の 0 秒 (最初の I フレーム) からの秒。
 type LibraryAutoCaption struct {
 	StartSeconds float64 `json:"startSeconds"`

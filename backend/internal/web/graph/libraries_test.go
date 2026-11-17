@@ -106,6 +106,8 @@ type libraryParts struct {
 	images *fakeImages
 	// indexer は、索引と画像の置き場を読み書きする。
 	indexer *filelib.Indexer
+	// dataDir は、データディレクトリ。
+	dataDir string
 }
 
 // newLibraryFixture は、保存先プール main と、フォルダのライブラリ anime を持つ GraphQL のサーバーを立てる。
@@ -145,7 +147,7 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 	// 字幕の自動生成の状態は、River のジョブの表から読む。
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 
-	return f, &libraryParts{dir: libraryDir, images: images, indexer: indexer}
+	return f, &libraryParts{dir: libraryDir, images: images, indexer: indexer, dataDir: dataDir}
 }
 
 // TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの中身は、ディレクトリと再生できるファイルだけを返すことを確かめる (#1734)。

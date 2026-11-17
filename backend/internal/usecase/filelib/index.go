@@ -152,8 +152,11 @@ type Indexer struct {
 	build bool
 	slots chan struct{}
 
-	mu       sync.Mutex
-	building map[string]bool
+	mu sync.Mutex
+	// building は、作っている途中の索引。片付ける (ClearArtifacts) ときに取りやめて、止まるのを待つ。
+	building map[string]*indexBuild
+	// clearing は、片付けている途中かどうか。その間は、索引を作り始めない。
+	clearing bool
 	// stopped は、Run が終わるときに閉じる。索引を作る処理は、リクエストより長く、Run の間だけ動かす。
 	stopped  chan struct{}
 	stopOnce sync.Once
@@ -164,7 +167,7 @@ type Indexer struct {
 func NewIndexer(dataDir string, libraries *medialib.Set, clk clock.Clock, logger *slog.Logger, build bool) *Indexer {
 	return &Indexer{
 		dataDir: dataDir, libraries: libraries, clock: clk, logger: logger, build: build, slots: make(chan struct{}, maxBuilds),
-		mu: sync.Mutex{}, building: map[string]bool{}, stopped: make(chan struct{}), stopOnce: sync.Once{}, wg: sync.WaitGroup{},
+		mu: sync.Mutex{}, building: map[string]*indexBuild{}, clearing: false, stopped: make(chan struct{}), stopOnce: sync.Once{}, wg: sync.WaitGroup{},
 	}
 }
 
@@ -237,7 +240,7 @@ func (x *Indexer) Ensure(ctx context.Context, ref Ref, entry *medialib.Entry) {
 	key := indexKey(ref)
 	x.mu.Lock()
 	defer x.mu.Unlock()
-	if x.building[key] || x.isStopped() {
+	if x.building[key] != nil || x.clearing || x.isStopped() {
 		return
 	}
 	if src, err := x.readSource(ref); err == nil && src.matches(ref, entry) {
@@ -248,15 +251,17 @@ func (x *Indexer) Ensure(ctx context.Context, ref Ref, entry *medialib.Entry) {
 			return
 		}
 	}
-	x.building[key] = true
+	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	b := &indexBuild{cancel: cancel, done: make(chan struct{})}
+	x.building[key] = b
 	x.wg.Go(func() {
 		defer func() {
+			cancel()
 			x.mu.Lock()
 			delete(x.building, key)
 			x.mu.Unlock()
+			close(b.done)
 		}()
-		ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-		defer cancel()
 		go func() {
 			select {
 			case <-x.stopped:
@@ -275,6 +280,14 @@ func (x *Indexer) Ensure(ctx context.Context, ref Ref, entry *medialib.Entry) {
 				slog.String("library", ref.Library), slog.String("path", ref.Path), slog.Any("error", err))
 		}
 	})
+}
+
+// indexBuild は、作っている途中の索引。
+type indexBuild struct {
+	// cancel は、作るのを取りやめる。
+	cancel context.CancelFunc
+	// done は、作るのをやめたら閉じる。
+	done chan struct{}
 }
 
 // Writing は、ファイル (大きさと更新日時は entry) を、書いている途中とみなすかを返す。最後に書いてから settleTime たっていなければ、
