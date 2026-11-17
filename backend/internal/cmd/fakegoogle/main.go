@@ -65,7 +65,7 @@ func run() int {
 
 // place は、TS を次のように置く。見せるフォルダで絞ることと、名前で探すことを確かめられるようにする。
 //
-//	マイドライブ: Kotatsu/ (<名前>, Season 2/ (s2-<名前>)), Private/ (private-<名前>)
+//	マイドライブ: Kotatsu/ (<名前> ×2, 2026/11 <名前>, Season 2/ (s2-<名前>)), Private/ (private-<名前>)
 //	共有ドライブ Backup: <名前>
 func place(server *googletest.Server, paths string) error {
 	// 書いている途中とみなされないよう、更新日時は少し前にする。
@@ -91,6 +91,9 @@ func place(server *googletest.Server, paths string) error {
 		suffix := string(rune('a' + i))
 		for _, f := range []struct{ id, name, parent string }{
 			{id: "file-" + suffix, name: name, parent: "kotatsu-folder"},
+			// 同じフォルダに同じ名前が並ぶものと、名前に / を含むもの。
+			{id: "dupfile-" + suffix, name: name, parent: "kotatsu-folder"},
+			{id: "slash-" + suffix, name: "2026/11 " + name, parent: "kotatsu-folder"},
 			{id: "season2-" + suffix, name: "s2-" + name, parent: "season2-folder"},
 			{id: "private-" + suffix, name: "private-" + name, parent: "private-folder"},
 			{id: "backup-" + suffix, name: name, parent: "backup-drive"},
