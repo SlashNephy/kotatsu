@@ -54,10 +54,18 @@ func TestTenbanServesAuth(t *testing.T) {
 		// メソッドが違えば、mux のときと同じく 405 にし、受け付けるメソッドを Allow で示す。
 		{name: "GET to login", method: http.MethodGet, path: "/internal/auth/login", session: "", origin: "", wantStatus: http.StatusMethodNotAllowed, wantAllow: "POST"},
 		{name: "DELETE to setup", method: http.MethodDelete, path: authSetupPath, session: "", origin: "", wantStatus: http.StatusMethodNotAllowed, wantAllow: "GET, HEAD, POST"},
+		// Annict と AniList から戻ってくる認可は、記録先ごとの /internal/auth/<記録先>/callback で受ける (#1906)。
+		// 知らない state なので連携せず、設定の画面へ戻す。
+		{name: "Annict callback", method: http.MethodGet, path: "/internal/auth/annict/callback?state=forged&code=abc", session: session, origin: "", wantStatus: http.StatusSeeOther, wantAllow: ""},
+		{name: "AniList callback", method: http.MethodGet, path: "/internal/auth/anilist/callback?state=forged&code=abc", session: session, origin: "", wantStatus: http.StatusSeeOther, wantAllow: ""},
+		// リリースしていない v2026.11.5 の途中の形 (/internal/auth/anime-records/<記録先>/callback) は、受け付けない。
+		{name: "callback under anime-records", method: http.MethodGet, path: "/internal/auth/anime-records/annict/callback?state=forged&code=abc", session: session, origin: "", wantStatus: http.StatusNotFound, wantAllow: ""},
 		// 知らないパスは、mux に渡り、画面を返さずに 404 になる。
 		{name: "unknown path", method: http.MethodGet, path: "/internal/auth/nope", session: session, origin: "", wantStatus: http.StatusNotFound, wantAllow: ""},
 	}
 	client := httpclienttest.New(t)
+	// 記録先から戻ってきた認可の 303 を、たどらずに確かめる。
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

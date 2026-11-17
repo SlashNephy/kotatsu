@@ -47,7 +47,7 @@ func TestAnimeRecordApps(t *testing.T) {
 	require.Empty(t, admin.query(t, updateAnimeRecordApp, input, &updated))
 	assert.Equal(t, animeRecordApp{
 		Destination: destinationAnnict, ClientID: new("client"), Configured: true,
-		RedirectURI: f.server.URL + "/internal/auth/anime-records/annict/callback",
+		RedirectURI: f.server.URL + "/internal/auth/annict/callback",
 	}, updated.UpdateAnimeRecordApp)
 	var listed struct {
 		AnimeRecordApps []animeRecordApp `json:"animeRecordApps"`
@@ -55,6 +55,7 @@ func TestAnimeRecordApps(t *testing.T) {
 	require.Empty(t, admin.query(t, animeRecordApps, nil, &listed))
 	require.Len(t, listed.AnimeRecordApps, 2)
 	assert.False(t, listed.AnimeRecordApps[1].Configured, "AniList is not registered yet")
+	assert.Equal(t, f.server.URL+"/internal/auth/anilist/callback", listed.AnimeRecordApps[1].RedirectURI)
 
 	var summary string
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT summary::text FROM audit_events WHERE action = 'anime_record_app.update'`).Scan(&summary))

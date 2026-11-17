@@ -271,7 +271,7 @@ func newAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter, p
 func addAnimeRecordCallbacks(routes sessionRoutes, deps *Deps, service *animerecord.Service, logger *slog.Logger) {
 	logger = logger.With(slog.String("component", "anime_record"))
 	for _, name := range service.Destinations() {
-		routes.add(http.MethodGet, animerecord.CallbackPathPrefix+name+"/callback", animerecordapi.CallbackHandler(service, deps.DB, clientInfo, name, logger))
+		routes.add(http.MethodGet, animerecord.CallbackPath(name), animerecordapi.CallbackHandler(service, deps.DB, clientInfo, name, logger))
 	}
 }
 
