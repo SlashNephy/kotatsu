@@ -74,6 +74,7 @@ import { documentTitle, usePlayerEvents, type PlayerSnapshot } from '../../yunom
 import { SeekBar } from '../../yunomi/SeekBar';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
+import { useAdaptiveQuality } from '../../yunomi/useAdaptiveQuality';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
 import { usePlaybackReporter } from '../../animeRecords/usePlaybackReporter';
@@ -300,6 +301,7 @@ const playQuery = graphql`
         name
         codec
         passthrough
+        videoBitrate
       }
     }
   }
@@ -346,10 +348,13 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // 再生している間は、画面を消さない。
   useWakeLock(!videoState.paused);
   // BS4K と 8K の録画では、経路の選び方が変わる (#806)。
-  const { route, choices, quality, setQuality } = usePlaybackRoute(
+  // デコードが追いつかずにほかの画面で下げた段の上限は、段を下げる追っかけ再生でだけ引き継ぐ (#1513)。
+  const playback = usePlaybackRoute(
     data.transcoding,
     data.node?.__typename === 'Recording' ? toVideoFormat(data.node.videoFormat) : 'HD',
+    { inheritCap: data.node?.__typename === 'Recording' && data.node.recordedUntil == null },
   );
+  const { route, choices, quality, setQuality } = playback;
   const {
     captionsEnabled: captions,
     setCaptionsEnabled: setCaptions,
@@ -667,7 +672,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         });
 
   // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
-  const streamMeter = useStreamMeter(quality);
+  const streamMeter = useStreamMeter(playback.current);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(video);
   useAudioDelayer(video);
@@ -763,6 +768,39 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     startAt(positionRef.current);
     setQuality(next);
   };
+  // 映像だけの遅れを飛び直しで直す (#1513)。デコードが追いつかなければ、画質が「自動」の間は段を下げ、それまでの位置から続ける。
+  // 段を下げるのは、録画中の追っかけ再生でだけ。
+  const adaptive = useAdaptiveQuality(
+    video,
+    {
+      automatic: playback.automatic,
+      lowerAvailable: playback.lowerAvailable,
+      stepDownForDecode: () => {
+        const next = playback.stepDownForDecode();
+        if (next !== null) {
+          startAt(positionRef.current);
+        }
+
+        return next;
+      },
+      current: playback.current,
+      networkLadder: playback.networkLadder,
+      setNetworkStep: (name) => {
+        startAt(positionRef.current);
+        playback.setNetworkStep(name);
+      },
+    },
+    {
+      stepDown: stillRecording,
+      pictureInPicture: pip.container !== null,
+      // 録画は先に読むので、受け取りの速さで余裕を確かめて上げる。オリジナルのビットレートは、録画の平均で比べる。
+      network: {
+        mode: 'rate',
+        convert: route.kind === 'convert',
+        topBitrate: recording === null ? null : averageBitrate(recording, Date.now()),
+      },
+    },
+  );
 
   // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の音声を変えるときも、それまでの位置から続ける。
   // kyusu の経路では、録画を始めたときの番組の音声の構成から選ぶ。
@@ -1279,7 +1317,13 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             active={jikkyoEnabled}
           />
           <SettingsButton>
-            <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
+            <QualitySelect
+              choices={choices}
+              quality={quality}
+              current={playback.current}
+              currentCodec={playback.currentCodec}
+              onChange={changeQuality}
+            />
             {audio.menu}
             <CaptionTrackSelect
               available={hasAutoCaptions}
@@ -1394,6 +1438,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
               )}
               {jikkyo.overlay}
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
+              {adaptive.notice}
               {scrub !== null && (
                 <ScrubBubble
                   seconds={scrub}
@@ -1408,7 +1453,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             </>
           }
           onAudio={audio.onAudio}
-          onReading={streamMeter.onReading}
+          onReading={(reading) => {
+            streamMeter.onReading(reading);
+            adaptive.network.onReading(reading);
+          }}
           audio={audio.convertAudio}
           coverRef={coverRef}
         />
@@ -1419,7 +1467,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           url={`${hlsURL(recording.streamUrl, route.preset, audio.kyusuAudio)}#${loads}`}
           videoRef={videoRef}
           onVideo={setVideo}
-          onSegment={streamMeter.onSegment}
+          onSegment={(segment) => {
+            streamMeter.onSegment(segment);
+            adaptive.network.onSegment(segment);
+          }}
           controls={controlBar}
           // 自動生成した字幕を出している間は、放送の字幕を重ねない。
           captions={captions && !autoCaptionsShown}
@@ -1442,6 +1493,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
               )}
               {jikkyo.overlay}
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
+              {adaptive.notice}
               {scrub !== null && (
                 <ScrubBubble
                   seconds={scrub}
@@ -1551,9 +1603,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                 label: t('player.streamInfo.tab'),
                 content: (
                   <StreamInfo
+                    videoLag={adaptive.videoLag}
+                    network={adaptive.network}
                     meter={streamMeter.meter}
                     video={video}
-                    quality={quality}
+                    quality={playback.current}
                     kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                     audios={recording?.audios ?? null}
                     recordedKinds={

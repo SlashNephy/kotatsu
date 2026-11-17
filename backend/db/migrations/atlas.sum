@@ -1,4 +1,4 @@
-h1:Olr7o+0DvKkKKbnrko9p9v4h3cHwUMvymXb2PbyCZrY=
+h1:F2lTTUdbfOg8twQ4x26g0KSKH0GnHRNJfFD+UadxX6I=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -137,5 +137,6 @@ h1:Olr7o+0DvKkKKbnrko9p9v4h3cHwUMvymXb2PbyCZrY=
 20261116090426_add_caption_models.sql h1:qQ0bexuJkkEt6Grye1Eyfvs+ee6chJzjBZ2gt/bYcn4=
 20261116110105_add_recording_history_tmdb.sql h1:zYV9P9pEu9gDP4UL1hLajifIDgsIhkZJ5XV2r5BOu9I=
 20261116113046_add_library_watch_progress.sql h1:R63Fya+4SFA4YcyoTuyryxp70MYeaN1mOIgCFM/oYwI=
-20261116144039_move_settings_to_db.sql h1:hMh0YzI/p1BwweKldg92Aj5UHqMZTnxhFlo87IKQZh8=
-20261116151953_move_jikkyo_channels_to_db.sql h1:lqGR7B+fZIpNimHV7c22C+syv1keFU7T082wOBiwUdQ=
+20261116150800_share_edcb_network_tvs.sql h1:jI+1wVOHCFPEBkjb41gaQnX9r6kaHvgH/88y4+FxMFw=
+20261117020000_move_settings_to_db.sql h1:3ZfKfUpT2HIWs7lspZUoh0eMNKDM21YlhpZo4S7L46s=
+20261117020100_move_jikkyo_channels_to_db.sql h1:+PBn6i3wuzDaK6NBtL+cZPr1FgsZCrVMjHSYwtEdDgg=

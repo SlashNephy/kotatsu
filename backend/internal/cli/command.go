@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"uuid"
 
@@ -405,7 +406,7 @@ func NewCommand(opts *Options) *cobra.Command {
 			Roles:          roleNames(targets),
 			LookupEnv:      opts.LookupEnv,
 			Logs:           opts.Logs,
-			edcb:           new(sharedEDCB),
+			edcb:           &sharedEDCB{once: sync.Once{}, server: nil, err: nil, stopped: ctx.Done()},
 		}
 		// 録画、チューナー、ジョブのキューの状態は、DB から読む (設計書 11.3)。どのインスタンスでも同じ値なので、クラスターのレジストリに登録する。
 		// neko のリースを持っているかは、インスタンスごとに違うので、インスタンスのレジストリに登録する。
@@ -679,7 +680,10 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		return nil
 	})
 
-	return eg.Wait()
+	err = eg.Wait()
+	waitEDCBStreams(ctx, logger, deps)
+
+	return err
 }
 
 // registeredRoles は、インスタンスの登録簿に載せるロールの名前を返す。
@@ -1079,6 +1083,8 @@ func newStreamRoutes(
 	// タイムシフトのバッファは、このインスタンスにタイムシフトのディレクトリを設定したときだけ流せる (設計書 7.2)。
 	routes.add(http.MethodGet, "/internal/streams/timeshift/:id", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamKindTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
+	// 画質を上げる前に回線の余裕を確かめる、試しのデータ (設計書 7.3、#1513)。配信ではないので、streams に数えない。
+	routes.add(http.MethodGet, streamapi.ProbePath, authorizer.Session(streamapi.NewProbeHandler(deps.Clock)))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	routes.add(http.MethodGet, "/internal/streams/recordings/:id/files/:file", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamKindRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))

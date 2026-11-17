@@ -1,5 +1,5 @@
-import { ScrollArea, Stack, Text } from '@mantine/core';
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { Button, Group, ScrollArea, Stack, Text } from '@mantine/core';
+import { useEffect, useEffectEvent, useRef, useState, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useSubscription } from 'react-relay';
 import type { TFunction } from 'i18next';
@@ -29,6 +29,13 @@ import {
   type TsPlayerReading,
 } from './streamMeter';
 import { broadcastDelaySeconds, type BroadcastClockSample } from './broadcastDelay';
+import type { LiveCatchUp } from './liveCatchUp';
+import type { LiveBufferStatus } from './liveBuffer';
+import type { VideoLag } from './useVideoLag';
+import type { VideoLagStatus } from './videoLag';
+import { audioStep, type NetworkStatus } from './networkQuality';
+import { original } from './route';
+import type { NetworkQuality } from './useNetworkQuality';
 import classes from './StreamInfo.module.css';
 
 // useStreamMeter は、再生している経路から届く様子を溜める StreamMeter を作る (#828)。
@@ -64,6 +71,12 @@ type Snapshot = {
   fps: number | null;
   // delay は、映しているコマが放送から遅れている秒数 (#1515)。出せなければ null。
   delay: number | null;
+  // liveBuffer は、ライブの低遅延モードの制御の様子 (#1514)。制御していなければ null。
+  liveBuffer: LiveBufferStatus | null;
+  // videoLag は、映像だけの遅れと飛び直しの様子 (#1513)。測っていなければ null。
+  videoLag: VideoLagStatus | null;
+  // network は、回線の側の判定の様子 (#1513)。判定していなければ null。
+  network: NetworkStatus | null;
 };
 
 // maxDelaySeconds は、放送からの遅れとして出す上限。これを超える値は、組と画面の時刻の取り違えとみなして出さない。
@@ -115,6 +128,12 @@ type Props = {
   serviceId?: string;
   // recordedKinds は、録画の、PID の種類ごとの平均のビットレート (#1156)。分からなければ null。
   recordedKinds?: KindBitrates | null;
+  // liveCatchUp は、ライブの低遅延モードの制御 (#1514)。渡せば、目標量と覚えた下限などを出し、下限を捨てるボタンを出す。
+  liveCatchUp?: LiveCatchUp;
+  // videoLag は、映像だけの遅れの制御 (#1513)。渡せば、測った遅れと飛び直した回数を出す。
+  videoLag?: VideoLag;
+  // network は、回線の側の判定 (#1513)。渡せば、受け取りの速さと足りない兆し、試しのデータの速さを出す。
+  network?: Pick<NetworkQuality, 'status'>;
   // height は、枠の高さ。CSS の長さで渡す。
   height?: string | number;
 };
@@ -132,12 +151,19 @@ export function StreamInfo({
   transport: recordedTransport,
   serviceId,
   recordedKinds,
+  liveCatchUp,
+  videoLag,
+  network,
   height = 240,
 }: Props) {
   const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   // clock は、tenban から届いた最新の放送の時計 (#1515)。届いた端末の時刻も添える。
   const clock = useRef<BroadcastClockSample | null>(null);
+  // readLiveBuffer は、低遅延モードの制御の様子を読む。画面を描き直すたびに読み直しの間隔を作り直さないよう、effect の外から読む。
+  const readLiveBuffer = useEffectEvent(() => liveCatchUp?.status() ?? null);
+  const readVideoLag = useEffectEvent(() => videoLag?.status() ?? null);
+  const readNetwork = useEffectEvent(() => network?.status() ?? null);
   useEffect(() => {
     const frames: FrameCount[] = [];
     const update = () => {
@@ -169,6 +195,9 @@ export function StreamInfo({
         video: video === null ? null : readVideoStats(video),
         fps: first === undefined || last === undefined ? null : frameRate(first, last),
         delay: delayOf(video, meter.mediaOrigin, clock.current, now),
+        liveBuffer: readLiveBuffer(),
+        videoLag: readVideoLag(),
+        network: readNetwork(),
       });
     };
     update();
@@ -190,6 +219,9 @@ export function StreamInfo({
         }
       : (recordedKinds ?? null);
   const stats = snapshot?.video ?? null;
+  const liveBuffer = snapshot?.liveBuffer ?? null;
+  const lag = snapshot?.videoLag ?? null;
+  const net = snapshot?.network ?? null;
   const encoded = snapshot?.encoded ?? null;
   const source = snapshot?.source ?? null;
   // TS の異常の数は、録画では録画しながら数えた数を、ブラウザ内での変換ではプレイヤーが数えた数を、
@@ -385,6 +417,114 @@ export function StreamInfo({
           </dd>
           <dt>{t('player.stats.rate')}</dt>
           <dd>{stats === null ? '-' : `${stats.rate}×`}</dd>
+          {lag !== null && (
+            <>
+              <dt>{t('player.streamInfo.videoLag')}</dt>
+              <dd>
+                {lag.measurable
+                  ? t('player.streamInfo.videoLagValue', {
+                      lag: lag.lag === null ? '-' : lag.lag.toFixed(3),
+                      max: lag.maxLag.toFixed(3),
+                      jumps: lag.jumps,
+                    })
+                  : t('player.streamInfo.videoLagUnmeasurable', { jumps: lag.jumps })}
+              </dd>
+            </>
+          )}
+          {net !== null && (
+            <>
+              <dt>{t('player.streamInfo.network')}</dt>
+              <dd>
+                {t('player.streamInfo.networkValue', {
+                  rate:
+                    net.receiveRate === null
+                      ? t('player.streamInfo.networkUnknownRate')
+                      : formatBitrate(net.receiveRate),
+                  signals:
+                    net.signals.length === 0
+                      ? t('player.streamInfo.networkNone')
+                      : net.signals
+                          .map((signal) => t(`player.streamInfo.networkSignals.${signal}`))
+                          .join(t('player.streamInfo.networkSignalSeparator')),
+                })}
+                {net.probe !== null && (
+                  <>
+                    <br />
+                    {t('player.streamInfo.networkProbe', {
+                      rate: formatBitrate(net.probe.bps),
+                      ago: Math.round(net.probe.ageMs / 1_000),
+                    })}
+                  </>
+                )}
+                {net.lastStep !== null && (
+                  <>
+                    <br />
+                    {t('player.streamInfo.networkLastStep', {
+                      name:
+                        net.lastStep.to === original
+                          ? t('player.originalShort')
+                          : net.lastStep.to === audioStep
+                            ? t('player.audioOnly')
+                            : net.lastStep.to,
+                      signals:
+                        net.lastStep.signals.length === 0
+                          ? t('player.streamInfo.networkNone')
+                          : net.lastStep.signals
+                              .map((signal) => t(`player.streamInfo.networkSignals.${signal}`))
+                              .join(t('player.streamInfo.networkSignalSeparator')),
+                      ago: Math.round(net.lastStep.ageMs / 1_000),
+                    })}
+                  </>
+                )}
+                {net.nextProbeIn !== null && (
+                  <>
+                    <br />
+                    {t('player.streamInfo.networkNextProbe', {
+                      seconds: Math.ceil(net.nextProbeIn / 1_000),
+                    })}
+                  </>
+                )}
+              </dd>
+            </>
+          )}
+          {liveBuffer !== null && (
+            <>
+              <dt>{t('player.streamInfo.liveBufferTarget')}</dt>
+              <dd>{t('player.stats.seconds', { seconds: liveBuffer.target.toFixed(1) })}</dd>
+              <dt>{t('player.streamInfo.liveBufferFloor')}</dt>
+              <dd>
+                <Group gap="xs" wrap="nowrap">
+                  {t('player.stats.seconds', { seconds: liveBuffer.floor.toFixed(1) })}
+                  {/* 回線を繋ぎ替えた直後に、前の経路の値のまま遅れるのを解くため、覚えた下限を捨てられるようにする。 */}
+                  {liveBuffer.learned && (
+                    <Button
+                      size="compact-xs"
+                      variant="light"
+                      onClick={() => {
+                        liveCatchUp?.forgetFloor();
+                        setSnapshot((prev) =>
+                          prev === null
+                            ? prev
+                            : { ...prev, liveBuffer: liveCatchUp?.status() ?? null },
+                        );
+                      }}
+                    >
+                      {t('player.streamInfo.liveBufferForget')}
+                    </Button>
+                  )}
+                </Group>
+              </dd>
+              <dt>{t('player.streamInfo.liveBufferGap')}</dt>
+              <dd>{t('player.stats.seconds', { seconds: liveBuffer.maxGap.toFixed(1) })}</dd>
+              <dt>{t('player.streamInfo.liveBufferRateChanges')}</dt>
+              <dd>
+                {t('player.streamInfo.liveBufferCounts', {
+                  changes: liveBuffer.rateChanges,
+                  stalls: liveBuffer.stalls,
+                })}
+              </dd>
+            </>
+          )}
         </dl>
       </Stack>
     </ScrollArea>

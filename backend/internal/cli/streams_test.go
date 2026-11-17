@@ -62,6 +62,8 @@ func TestTenbanServesStreams(t *testing.T) {
 		{name: "timeshift with invalid ID", method: http.MethodGet, path: "/internal/streams/timeshift/3273601024-x", session: session, wantStatus: http.StatusBadRequest, wantAllow: ""},
 		{name: "timeshift HLS", method: http.MethodGet, path: timeshift + "/hls/720p/0/index.m3u8", session: session, wantStatus: http.StatusServiceUnavailable, wantAllow: ""},
 		{name: "POST to live", method: http.MethodPost, path: live, session: session, wantStatus: http.StatusMethodNotAllowed, wantAllow: "GET, HEAD"},
+		{name: "probe without session", method: http.MethodGet, path: "/internal/streams/probe?bytes=65536", session: "", wantStatus: http.StatusUnauthorized, wantAllow: ""},
+		{name: "probe", method: http.MethodGet, path: "/internal/streams/probe?bytes=65536", session: session, wantStatus: http.StatusOK, wantAllow: ""},
 		{name: "unknown stream path", method: http.MethodGet, path: "/internal/streams/nope", session: session, wantStatus: http.StatusNotFound, wantAllow: ""},
 	}
 	client := httpclienttest.New(t)

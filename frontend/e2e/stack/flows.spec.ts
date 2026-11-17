@@ -1,6 +1,6 @@
 // 偽のチューナーサーバーと Kotatsu を立てて、主な流れを順に確かめる (#508、設計書 11.6)。scripts/e2e-stack.sh から流す。
 // 初回セットアップで作った管理者でログインしたまま、1 つのページで順に進める。
-import { expect, test, type Page } from '@playwright/test';
+import { devices, expect, test, type Page } from '@playwright/test';
 
 import { totp } from './totp';
 
@@ -89,6 +89,108 @@ test('ライブ視聴を始めると、偽のチューナーサーバーの映�
       timeout: 30_000,
     })
     .toBeGreaterThan(1);
+});
+
+test('スマートフォンで、ユーザーのメニューを何度でも開ける (#1663)', async ({
+  browser,
+}, testInfo) => {
+  // スマートフォンのブラウザは、ページが横にはみ出すとレイアウトの幅を広げる。この振る舞いは isMobile で真似る。
+  // 幅は、ヘッダーのユーザーのボタンが画面に収まるよう広げる。Pixel 7 の幅では、この表示名のボタンが右にはみ出す。
+  const context = await browser.newContext({
+    ...devices['Pixel 7'],
+    viewport: { width: 540, height: 900 },
+    baseURL: testInfo.project.use.baseURL,
+    locale: 'ja-JP',
+    storageState: await page.context().storageState(),
+  });
+  try {
+    const mobile = await context.newPage();
+    await mobile.goto('/reservations');
+    const target = mobile.getByRole('button', { name: admin.displayName });
+    const menu = mobile.getByRole('menu');
+    // ボタンが右にはみ出していると、直す前でも開けてしまい、このテストで不具合を見分けられない。先に、収まっていることを確かめる。
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(mobile.viewportSize()!.width);
+
+    for (let i = 0; i < 3; i++) {
+      await target.tap();
+      await expect(menu).toBeVisible();
+      // 壊れていたときは、隠す・出すをフレームごとに繰り返したので、続くフレームのすべてで、画面に収まって見えていることを確かめる。
+      const frames = await mobile.evaluate(async () => {
+        const results: boolean[] = [];
+        for (let frame = 0; frame < 30; frame++) {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          const element = document.querySelector<HTMLElement>('[role="menu"]');
+          const rect = element?.getBoundingClientRect();
+          results.push(
+            element !== null &&
+              rect !== undefined &&
+              getComputedStyle(element).display !== 'none' &&
+              rect.width > 0 &&
+              rect.left >= 0 &&
+              rect.right <= window.visualViewport!.width,
+          );
+        }
+        return results;
+      });
+      expect(frames.every(Boolean), `open #${i + 1}: ${frames.join(',')}`).toBe(true);
+
+      await target.tap();
+      await expect(menu).toBeHidden();
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+test('スマートフォンの幅で、ヘッダーと画面が横にはみ出さない (#1879)', async ({
+  browser,
+}, testInfo) => {
+  for (const width of [360, 390, 412]) {
+    // スマートフォンのブラウザは、ページが横にはみ出すとレイアウトの幅を広げる。この振る舞いは isMobile で真似る。
+    const context = await browser.newContext({
+      ...devices['Pixel 7'],
+      viewport: { width, height: 800 },
+      baseURL: testInfo.project.use.baseURL,
+      locale: 'ja-JP',
+      storageState: await page.context().storageState(),
+    });
+    try {
+      const mobile = await context.newPage();
+      // 測る前に、画面の本文を読み終えるまで待つ。読み込み中のスピナーだけを測っても、はみ出しは分からない。
+      const loaded = {
+        '/': mobile.getByRole('heading', { name: '放送中の番組' }),
+        '/live': mobile.getByRole('link', { name: /こたつテスト1/ }).first(),
+        '/search': mobile.getByText('検索結果', { exact: true }),
+        '/reservations': mobile.getByRole('heading', { name: '予約', exact: true }),
+      };
+      for (const [path, content] of Object.entries(loaded)) {
+        await mobile.goto(path);
+        await expect(mobile.getByRole('button', { name: admin.displayName })).toBeVisible();
+        await expect(content).toBeVisible();
+        await expect(mobile.locator('main [role="status"]')).toHaveCount(0);
+        const layout = await mobile.evaluate(() => ({
+          innerWidth: window.innerWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+          // ヘッダーは固定して描くので、はみ出してもページの幅は広がらない。ヘッダーの部品は、1 つずつ画面に収まっているかを見る。
+          outside: [...document.querySelectorAll('header button, header a')]
+            .filter((element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.width > 0 && (rect.left < 0 || rect.right > window.innerWidth);
+            })
+            .map((element) => element.getAttribute('aria-label') ?? element.textContent),
+        }));
+        expect(layout, `${width}px ${path}`).toEqual({
+          innerWidth: width,
+          scrollWidth: width,
+          outside: [],
+        });
+      }
+    } finally {
+      await context.close();
+    }
+  }
 });
 
 // ipv4 は、IPv4 アドレスの形。
