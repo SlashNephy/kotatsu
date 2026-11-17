@@ -172,6 +172,11 @@ func TestMessage(t *testing.T) {
 			want:    "「アニメ #12」の#1をAnnictに記録しました",
 		},
 		{
+			name: "作品名が読めない番組名は、番組名のまま書く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "🈑", keyDestination: annict, keyEpisodes: "#3"},
+			want:    "「🈑」の#3をAnnictに記録しました",
+		},
+		{
 			name: "番組名がなければ、見たアニメとする", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
 			payload: map[string]any{keyDestination: annict, keyEpisodes: "#3"},
 			want:    "見たアニメの#3をAnnictに記録しました",

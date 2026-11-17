@@ -166,6 +166,10 @@ func animeRecordMessage(kind domain.NotificationKind, payload map[string]any, es
 	subject := "見たアニメ"
 	if name := payloadText(payload, "name"); name != "" {
 		title := domain.WorkTitle(name)
+		if title == "" {
+			// 印だけの番組名のように、作品名が読めないときは、番組名のまま書く。
+			title = name
+		}
 		subject = fmt.Sprintf("「%s」", escape(title))
 		if containsEpisodes(title, episodes) {
 			episodes = ""
