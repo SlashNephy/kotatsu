@@ -2,6 +2,8 @@
 // TS を解くのは重いので、画面のスレッドから外す。
 import { decodeTS } from 'web-bml/ts';
 
+import { dataBroadcastEndpoint } from './route';
+
 // DataBroadcastRequest は、画面のスレッドから受け取る、読み始めの指示。
 export type DataBroadcastRequest = {
   // url は、tenban のデータ放送用のエンドポイント。
@@ -15,19 +17,30 @@ export type DataBroadcastRequest = {
 export type DataBroadcastEnd = { type: 'kotatsu:end'; error: boolean; status?: number };
 
 self.addEventListener('message', (event: MessageEvent<DataBroadcastRequest>) => {
+  // 専用の Worker に送れるのは、作った画面のスレッドだけで、そのメッセージの origin は空になる (Chromium と Firefox)。
+  // 空にしないブラウザでも通るよう、同じ origin も受け、ほかの origin のものは読まない。
+  if (event.origin !== '' && event.origin !== self.location.origin) {
+    return;
+  }
   void read(event.data);
 });
 
 async function read({ url, serviceId }: DataBroadcastRequest): Promise<void> {
+  const end = (error: boolean, status?: number) =>
+    self.postMessage({ type: 'kotatsu:end', error, status } satisfies DataBroadcastEnd);
+  const endpoint = dataBroadcastEndpoint(url);
+  if (endpoint === null) {
+    end(true);
+
+    return;
+  }
   const decoder = decodeTS({
     sendCallback: (message) => self.postMessage(message),
     serviceId,
     parsePES: false,
   });
-  const end = (error: boolean, status?: number) =>
-    self.postMessage({ type: 'kotatsu:end', error, status } satisfies DataBroadcastEnd);
   try {
-    const response = await fetch(url, { credentials: 'same-origin' });
+    const response = await fetch(endpoint, { credentials: 'same-origin' });
     if (!response.ok || response.body === null) {
       end(true, response.status);
 

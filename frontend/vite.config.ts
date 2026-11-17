@@ -52,7 +52,11 @@ const licenseFile = /^(licen[cs]e|copying|notice)([.\-_].*)?$/i;
 
 // packagesWithoutLicenseFile は、ライセンスの文書を持たずに公開されているパッケージ。どれも package.json で MIT を宣言しているので、
 // MIT の文に author を著作権者として入れて示す。ここにないパッケージで文書が見つからなければ、ビルドを止める。
-const packagesWithoutLicenseFile = new Set(['react-remove-scroll-bar', 'tr46']);
+const packagesWithoutLicenseFile = new Set([
+  '@nodable/entities',
+  'react-remove-scroll-bar',
+  'tr46',
+]);
 
 const mitLicenseText = (holder: string) => `MIT License
 
@@ -101,7 +105,9 @@ function readPackage(dir: string): BundledPackage {
     ) {
       throw new Error(`no license file found for ${manifest.name}@${manifest.version}`);
     }
-    files.push({ name: 'LICENSE', text: mitLicenseText(author.replace(/\s*<[^>]*>/, '')) });
+    // author は「名前 <メールアドレス>」の形なので、メールアドレスの前の名前だけを著作権者にする。
+    const holder = author.split('<', 1)[0]?.trim() ?? '';
+    files.push({ name: 'LICENSE', text: mitLicenseText(holder) });
     generated = true;
   }
 

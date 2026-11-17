@@ -343,6 +343,10 @@ const playQuery = graphql`
 // refreshMs は、シークの索引を作っている間に、ファイルを読み直す間隔。
 const refreshMs = 5_000;
 
+// probeRefreshMs は、索引を作り始めてから、放送の情報 (実況のチャンネルと時間帯) が分かるまで、ファイルを読み直す間隔。
+// 放送の情報は、ファイルの頭と終わりだけを読んで、索引を作り終えるよりずっと早く分かるので、過去ログを早く読み始めるために縮める (#1910)。
+const probeRefreshMs = 1_000;
+
 // imagesRefreshMs は、索引を作り終えた後、シークバーの画像 (nekonote のジョブで作る) が届くまで、ファイルを読み直す間隔。
 const imagesRefreshMs = 30_000;
 
@@ -431,7 +435,13 @@ function Player({
     (file.index.complete &&
       (file.thumbnailUrl == null || (file.broadcast != null && file.cmSections == null))) ||
     autoCaptionsActive(file.autoCaptionsStatus.state);
-  const interval = indexing ? refreshMs : waitingJobs ? imagesRefreshMs : null;
+  const interval = indexing
+    ? file.broadcast == null
+      ? probeRefreshMs
+      : refreshMs
+    : waitingJobs
+      ? imagesRefreshMs
+      : null;
   useEffect(() => {
     if (interval === null) {
       return;
@@ -512,13 +522,26 @@ function Player({
   const visible = useVisible(frameRef) || pip.container !== null;
   // channelId は、実況のチャンネルの ID。Kotatsu にない局でも、ネットワークとサービス ID で引く (設計書 7.4)。
   const channelId = broadcast?.jikkyoChannelId ?? null;
+  // spanKnown は、索引を作り終える前に、放送の情報から過去ログの時間帯が分かるかどうか (#1910)。
+  // 終わりの TOT が始まりの TOT より後なら分かる。短いファイルでは TOT を 1 度しか読めないので、索引から長さが分かるまで待つ。
+  const recordedUntil = broadcast?.recordedUntil ?? null;
+  const spanKnown =
+    recordedFrom != null &&
+    recordedUntil != null &&
+    new Date(recordedUntil).getTime() > new Date(recordedFrom).getTime();
   const jikkyo = useRecordedJikkyo(
-    // 過去ログは、時間帯が決まる索引を作り終えてから読む。作っている途中は、終わりが伸びるからである。
-    channelId !== null && jikkyoEnabled && file.index.complete ? file.jikkyoCommentsUrl : null,
+    // 過去ログは、時間帯が分かったら、索引を作り終える前でも読む。作っている途中は、終わりが索引の長さまで伸びうるので、
+    // 作り終えたら取り直して、足りなかったコメントを足す (設計書 5.8)。
+    channelId !== null && jikkyoEnabled && (file.index.complete || spanKnown)
+      ? file.jikkyoCommentsUrl
+      : null,
     currentPosition,
     visible,
     null,
     commentSettings,
+    null,
+    null,
+    !file.index.complete,
   );
   // listedCount は、再生位置までに流れたコメントの数。一覧は、この数が変わったときだけ作り直す (JikkyoRows)。
   const listedCount =

@@ -32,6 +32,7 @@ mise run dev
 | サービス | 内容 | 手元からの接続先 |
 | --- | --- | --- |
 | `postgres` | PostgreSQL 18 | `127.0.0.1:55432`（ユーザーとパスワードはどちらも`postgres`） |
+| `postgres-test` | DBを使うGoのテスト専用のPostgreSQL 18。`mise run dev`では起動しません（後述の「テストを流す」） | `127.0.0.1:55433`（ユーザーとパスワードはどちらも`postgres`） |
 | `faketuner` | 偽のチューナーサーバー（`backend/internal/cmd/faketuner`） | `127.0.0.1:40772` |
 | `dex` | 開発用のOIDCのIdP（[Dex](https://dexidp.io/)） | `http://dex.localhost:5556/dex` |
 | `kotatsu` | 全ロールを1つのコンテナで動かします | なし（`web`が中継します） |
@@ -155,14 +156,38 @@ Composeを使わずに、手元でKotatsuを`127.0.0.1:8080`に起動してい�
 ## テストを流す
 
 DBを使うGoのテストは、`KOTATSU_TEST_DATABASE_URL`にPostgreSQLの接続先を渡したときだけ実行されます。
-Composeの`postgres`サービスに向けられます。
+渡さなければ、DBを使うテストを飛ばします。
+
+DBを使うテストも流すときは、次のコマンドを実行します。
 
 ```bash
-KOTATSU_TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable' mise run //backend:test
+mise run //backend:test:db
 ```
 
-テストは、テストごとに一時的なDBを作って使います。
-Composeで動かしているKotatsuのDB（`kotatsu`）には触れません。
+`mise run //backend:test:db`は、Composeの`postgres-test`サービスだけを起動し、そこに向けてテストを流します。
+開発用のスタックは起動しなくても構いません。
+
+`postgres-test`は、テスト専用のPostgreSQLです。
+開発用のスタックの`postgres`とは別に動くので、テストを並べて流しても、スタックの接続が断られません。
+`postgres-test`は、Composeのprofileの`test`に入れてあるので、`mise run dev`では起動しません。
+
+テストは、テストごとに一時的なDB（`kotatsu_test_*`）を作り、終わると消します。
+`postgres-test`は、データをメモリ（tmpfs）に置き、ディスクに書き出すのを待ちません。
+テストが途中で止まって`kotatsu_test_*`が残ったときは、次のコマンドで再起動すると消えます。
+
+```bash
+docker compose restart postgres-test
+```
+
+`postgres-test`を止めるときは、`docker compose stop postgres-test`を実行します。
+`docker compose down`は、開発用のスタックも止めます。
+
+`postgres-test`だけを起動し、テストのコマンドを自分で組み立てることもできます。
+
+```bash
+docker compose up -d --wait postgres-test
+KOTATSU_TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55433/postgres?sslmode=disable' go -C backend test -race -p 4 ./internal/usecase/reserve/...
+```
 
 ## READMEのスクリーンショットを撮る
 
@@ -186,6 +211,7 @@ GitHubのSocial previewに使う`docs/screenshots/social-preview.png`も、番�
 | `mise run dev` | 開発用のComposeを動かす。ソースを保存すると、その場で反映される |
 | `mise run //backend:generate` | sqlc、gqlgen、GraphQLのスキーマなどの生成物を作り直し、マイグレーションを検証する |
 | `mise run //backend:test` | Goのテストを`-race`付きで実行する |
+| `mise run //backend:test:db` | `postgres-test`を起動し、DBを使うテストも含めてGoのテストを実行する |
 | `mise run //backend:lint` | golangci-lintを実行する |
 | `mise run //frontend:check` | 画面のlintと型を確認する |
 | `mise run //frontend:test` | 画面のテストを実行する |

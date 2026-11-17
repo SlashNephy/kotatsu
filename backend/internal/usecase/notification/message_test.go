@@ -30,6 +30,14 @@ const (
 	keyRemoved    = "removed"
 )
 
+// keyDestination と keyEpisodes は、見たアニメの記録の通知の項目 (#927)。
+const (
+	keyDestination = "destination"
+	keyEpisodes    = "episodes"
+	annict         = "annict"
+	anilist        = "anilist"
+)
+
 func TestMessage(t *testing.T) {
 	t.Parallel()
 
@@ -126,13 +134,62 @@ func TestMessage(t *testing.T) {
 		},
 		{name: "材料のない視聴予約", kind: domain.NotificationKindWatchReminder, payload: map[string]any{}, location: tokyo, want: "視聴予約した番組が始まります"},
 		{
-			name: "見たアニメの記録は、番組名と話数と記録先を書く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
-			payload: map[string]any{keyName: "アニメ　＃３", "destination": "annict", "episodes": "#3、#4"},
+			name: "見たアニメの記録は、作品名と話数と記録先を書く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "作品名　＃６", keyDestination: anilist, keyEpisodes: "#6"},
+			want:    "「作品名」の#6をAniListに記録しました",
+		},
+		// 番組名の話数と、記録した話数を重ねない (#1925)。
+		{
+			name: "番組名の話数は、作品名にして除く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{
+				keyName: "凶乱令嬢ニア・リストン 病弱令嬢に転生した神殺しの武人の華麗なる無双録 #6", keyDestination: anilist, keyEpisodes: "#6",
+			},
+			want: "「凶乱令嬢ニア・リストン 病弱令嬢に転生した神殺しの武人の華麗なる無双録」の#6をAniListに記録しました",
+		},
+		{
+			name: "かぎ括弧の作品名と、サブタイトルと印を除く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "🈑TVアニメ「作品名」第3話「サブタイトル」", keyDestination: annict, keyEpisodes: "#3、#4"},
+			want:    "「作品名」の#3、#4をAnnictに記録しました",
+		},
+		// 空白で区切った数の話数とサブタイトルも、作品名にして除く (#1929)。
+		{
+			name: "空白で区切った数の話数とサブタイトルを除く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "アニメ　天は赤い河のほとり　２０　亀裂", keyDestination: annict, keyEpisodes: "#20"},
+			want:    "「天は赤い河のほとり」の#20をAnnictに記録しました",
+		},
+		{
+			name: "話数のない番組名には、話数を足す", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "作品名", keyDestination: annict, keyEpisodes: "#12"},
+			want:    "「作品名」の#12をAnnictに記録しました",
+		},
+		{
+			name: "作品名に話数が残ったら、話数を重ねない", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "アニメ　＃０３", keyDestination: annict, keyEpisodes: "#3"},
+			want:    "「アニメ #03」をAnnictに記録しました",
+		},
+		{
+			name: "作品名に残った話数が、記録した話の一部なら、話数を書く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "アニメ　＃３", keyDestination: annict, keyEpisodes: "#3、#4"},
 			want:    "「アニメ #3」の#3、#4をAnnictに記録しました",
 		},
 		{
+			name: "作品名に残った数が、違う話数なら、話数を書く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "アニメ　＃１２", keyDestination: annict, keyEpisodes: "#1"},
+			want:    "「アニメ #12」の#1をAnnictに記録しました",
+		},
+		{
+			name: "作品名が読めない番組名は、番組名のまま書く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "🈑", keyDestination: annict, keyEpisodes: "#3"},
+			want:    "「🈑」の#3をAnnictに記録しました",
+		},
+		{
+			name: "番組名がなければ、見たアニメとする", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyDestination: annict, keyEpisodes: "#3"},
+			want:    "見たアニメの#3をAnnictに記録しました",
+		},
+		{
 			name: "記録できなかったときは、理由を添える", kind: domain.NotificationKindAnimeRecordFailed, location: tokyo,
-			payload: map[string]any{keyName: programName, "destination": "anilist", "episodes": "#3", "reason": "連携していません"},
+			payload: map[string]any{keyName: programName, keyDestination: anilist, keyEpisodes: "#3", "reason": "連携していません"},
 			want:    "「こたつ特集」の#3をAniListに記録できませんでした（連携していません）",
 		},
 	}
@@ -171,6 +228,11 @@ func TestMessageEscaped(t *testing.T) {
 			name: "視聴予約のサービス名と番組名", kind: domain.NotificationKindWatchReminder,
 			payload: map[string]any{keyName: programName, keyServiceName: serviceName},
 			want:    "<NHK総合>で「<こたつ特集>」が始まります",
+		},
+		{
+			name: "見たアニメの記録は、作品名にしてから書き換える", kind: domain.NotificationKindAnimeRecorded,
+			payload: map[string]any{keyName: "作品名 #6", keyDestination: annict, keyEpisodes: "#6"},
+			want:    "「<作品名>」の#6をAnnictに記録しました",
 		},
 		{name: "名前がなければ書き換えない", kind: domain.NotificationKindRecordingFailed, payload: map[string]any{}, want: "録画に失敗しました"},
 	}

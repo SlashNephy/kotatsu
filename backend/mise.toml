@@ -1,7 +1,7 @@
 [tools]
 golangci-lint = "2.15.0" # go より先に置かないと、go/bin/ のバイナリが優先されてしまう
 # ルートと同じ版。golangci-lint より後に置くため、ここでも書く。
-go = "1.27.3"
+go = "1.27.4"
 atlas-community = "1.3.0"
 sqlc = "1.31.1"
 
@@ -9,6 +9,13 @@ sqlc = "1.31.1"
 # DB を使うテストは、パッケージをまたいで並行に動くと PostgreSQL の接続数の上限 (既定は 100) に達する。
 # CPU の多いマシンでも CI (4 コア) と同じ並行度になるよう、同時に動かすパッケージの数を絞る。
 run = "go test -race -p 4 ./..."
+
+# 開発用の Compose の postgres-test を起動し、DB を使うテストも含めて流す (docs/development.md)。
+# 開発用のスタックの postgres には向けない。接続の上限を使い切ると、スタックの接続まで断られるためである。
+# CI は、ジョブごとに立てた PostgreSQL に向けて test を流すので、これは使わない。
+[tasks."test:db"]
+env = { KOTATSU_TEST_DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:55433/postgres?sslmode=disable" }
+run = ["docker compose -f ../compose.yaml up -d --wait postgres-test", "go test -race -p 4 ./..."]
 
 [tasks.lint]
 run = "golangci-lint run"

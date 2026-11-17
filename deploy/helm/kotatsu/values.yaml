@@ -202,11 +202,27 @@ metrics:
 # migration は、install と upgrade の前に kotatsu migrate を実行する Job (設計書 11.4)。
 migration:
   enabled: true
-  resources: {}
+  # resources は、マイグレーションの Job のコンテナのリソース。SQL を順に流すだけなので、小さくする。
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 256Mi
+  # ttlSecondsAfterFinished は、終わった Job を消すまでの秒。成功した Job はフックの設定ですぐ消えるので、
+  # 主に失敗した Job に効く。失敗のログを読めるよう、1 日残す。0 ならすぐ消し、null なら消さない。
+  ttlSecondsAfterFinished: 86400
 
 # all は、mode が all のときの Pod の設定。FFmpeg が要るので、-ffmpeg のイメージを使う。
 all:
-  resources: {}
+  # resources は、全ロールを動かすコンテナのリソース。録画の変換、字幕の自動生成、ライブ視聴の変換の FFmpeg と whisper-cli も
+  # この中で動くので、limits を広めに取る。値の決め方は roles の前の説明を参照。
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 8Gi
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -224,13 +240,24 @@ all:
   workSizeLimit: ""
 
 # roles は、mode が split のときの、ロールごとの Pod の設定。
+# resources は、ロールごとのコンテナのリソース。requests は、本番の split の構成で使っている値 (待機しているときの
+# プロセスのメモリは、全ロールを合わせて 100 MB 未満) に寄せる。limits の memory は、漏れたときに OOMKill で止まるよう、余裕を持たせて付ける。
+# FFmpeg と whisper-cli を動かす nekonote と kyusu は、実測がないので広めに取る。CPU の limits は、処理を詰まらせないよう付けない。
+# Helm は values の map を深くマージするので、resources: {} と書いても既定値は消えない。項目を外すときは、memory: null のように null を書く。
+# affinity が空で、replicas が 2 以上のロールには、同じロールの Pod をなるべく別のノードに置く podAntiAffinity (preferred) を付ける。
+# 置ける先が 1 つなら、同じノードに置く。affinity を書いたときは付けないので、要るなら一緒に書く。
 # ffmpeg が true のロールは、-ffmpeg のイメージを使う。pools が true のロールには、録画の保存先プールをマウントする。
 roles:
   tenban:
     replicas: 2
     ffmpeg: false
     pools: true
-    resources: {}
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        memory: 1Gi
     nodeSelector: {}
     tolerations: []
     affinity: {}
@@ -247,7 +274,12 @@ roles:
     replicas: 1
     ffmpeg: false
     pools: false
-    resources: {}
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        memory: 512Mi
     nodeSelector: {}
     tolerations: []
     affinity: {}
@@ -259,7 +291,12 @@ roles:
     replicas: 2
     ffmpeg: false
     pools: true
-    resources: {}
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 1Gi
     nodeSelector: {}
     tolerations: []
     affinity: {}
@@ -269,11 +306,20 @@ roles:
     terminationGracePeriodSeconds: 300
     podDisruptionBudget:
       maxUnavailable: 1
+      # unhealthyPodEvictionPolicy は、ready でない mikan を退避させてよいか。IfHealthyBudget では、ready の mikan が
+      # 足りないとき (止まっている数が maxUnavailable に達しているとき) は、ready でない mikan も退避させない。
+      # mikan は DB に 5 分届かないと ready でなくなるが、その間も録画を続けるので、AlwaysAllow にはしない (設計書 11.3)。
+      unhealthyPodEvictionPolicy: IfHealthyBudget
   nekonote:
     replicas: 1
     ffmpeg: true
     pools: true
-    resources: {}
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 4Gi
     nodeSelector: {}
     tolerations: []
     affinity: {}
@@ -289,7 +335,12 @@ roles:
     workSizeLimit: ""
     ffmpeg: true
     pools: true
-    resources: {}
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 4Gi
     nodeSelector: {}
     tolerations: []
     affinity: {}
@@ -301,13 +352,18 @@ roles:
     # EDCB を使う (config.TUNER_KIND が edcb の) ときだけ意味があり、Mirakurun 互換のチューナーサーバーでは何もしない。
     # 使うときは 2 にする (#1850)。2 台の nabe は、同じサービスに同じ NetworkTV の ID を使い、チューナーを増やさない。
     # 1 台が止まっても、受け手はもう 1 台につなぎ直し、同じチューナーの TS を受け取り続ける。1 でも動くが、止まると受け手が自分で開き直す。
-    # 2 台を別のノードに置くときは、affinity で分ける。3 台以上にしても、1 つの NetworkTV を受け取れるのは 2 台までなので、冗長にはならない。
+    # 2 台は、なるべく別のノードに置く (roles の前の説明を参照)。必ず別のノードに置くときは、affinity で分ける。3 台以上にしても、1 つの NetworkTV を受け取れるのは 2 台までなので、冗長にはならない。
     # ほかのロールは、インスタンスの登録簿で nabe の Pod の IP を引いてつなぐので、Service は要らない。
     # nabe と、受け取るロールには、同じアプリの秘密キー (secrets.secretKey) が要る。Chart は全ロールに同じものを渡す。
     replicas: 0
     ffmpeg: false
     pools: false
-    resources: {}
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        memory: 1Gi
     nodeSelector: {}
     tolerations: []
     affinity: {}

@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/lib/secretbox"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -474,7 +475,7 @@ func (s *Service) Disconnect(ctx context.Context, db Database, actor *audit.Acto
 		err = destination.Revoke(ctx, app, token)
 	}
 	if err != nil {
-		s.logger.WarnContext(ctx, "failed to revoke the token", slog.String("destination", name), slog.Any("error", err))
+		s.logger.WarnContext(ctx, "failed to revoke the token", logattr.String("destination", name), slog.Any("error", err))
 	}
 
 	return nil
@@ -492,20 +493,20 @@ func (s *Service) PrepareUserErasure(ctx context.Context, tx pgx.Tx, userID uuid
 		name := rows[i].Destination
 		destination, err := s.destination(name)
 		if err != nil {
-			s.logger.WarnContext(ctx, "failed to revoke the token", slog.String("destination", name), slog.Any("error", err))
+			s.logger.WarnContext(ctx, "failed to revoke the token", logattr.String("destination", name), slog.Any("error", err))
 
 			continue
 		}
 		plain, err := s.tokenBox.Open(rows[i].AccessTokenEncrypted)
 		if err != nil {
-			s.logger.WarnContext(ctx, "failed to revoke the token", slog.String("destination", name), slog.Any("error", err))
+			s.logger.WarnContext(ctx, "failed to revoke the token", logattr.String("destination", name), slog.Any("error", err))
 
 			continue
 		}
 		// 連携を無効にしているか、アプリを消した後は、取り消せない。
 		app, err := s.app(ctx, tx, name)
 		if err != nil {
-			s.logger.WarnContext(ctx, "failed to revoke the token", slog.String("destination", name), slog.Any("error", err))
+			s.logger.WarnContext(ctx, "failed to revoke the token", logattr.String("destination", name), slog.Any("error", err))
 
 			continue
 		}

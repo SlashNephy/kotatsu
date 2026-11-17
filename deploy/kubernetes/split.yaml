@@ -13,6 +13,7 @@ metadata:
     helm.sh/chart: kotatsu-0.0.0
 spec:
   maxUnavailable: 1
+  unhealthyPodEvictionPolicy: IfHealthyBudget
   selector:
     matchLabels:
       app.kubernetes.io/name: kotatsu
@@ -143,6 +144,10 @@ spec:
           resources:
             limits:
               gpu.intel.com/i915: 1
+              memory: 4Gi
+            requests:
+              cpu: 50m
+              memory: 128Mi
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -265,7 +270,11 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
           resources:
-            {}
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 50m
+              memory: 64Mi
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -286,6 +295,17 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: kotatsu-data
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: kotatsu
+                    app.kubernetes.io/instance: kotatsu
+                    app.kubernetes.io/component: mikan
 
 ---
 # Source: kotatsu/templates/deployment.yaml
@@ -385,7 +405,11 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
           resources:
-            {}
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 25m
+              memory: 64Mi
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -496,7 +520,11 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
           resources:
-            {}
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 25m
+              memory: 64Mi
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -606,7 +634,11 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
           resources:
-            {}
+            limits:
+              memory: 4Gi
+            requests:
+              cpu: 50m
+              memory: 128Mi
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -730,7 +762,11 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
           resources:
-            {}
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 25m
+              memory: 64Mi
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -751,6 +787,17 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: kotatsu-data
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: kotatsu
+                    app.kubernetes.io/instance: kotatsu
+                    app.kubernetes.io/component: tenban
 ---
 # Source: kotatsu/templates/migration.yaml
 apiVersion: batch/v1
@@ -771,6 +818,7 @@ metadata:
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
   template:
     metadata:
       labels:
@@ -813,5 +861,9 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
           resources:
-            {}
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 10m
+              memory: 32Mi
 

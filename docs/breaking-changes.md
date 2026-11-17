@@ -128,6 +128,14 @@ EPGStation互換のAPI（`/api/epgstation/api/*`）は、APIトークンを持�
 - 録画の失敗のWebhookの`reason`と、`/metrics`の`kotatsu_recording_failures_total`の`reason`に、`tuning_refused`が出るようになります。`tuner_unavailable`で絞って見張っていたなら、`tuning_refused`も足してください。
 - 更新する前に失敗した録画の理由は、変えません。
 
+### Helm Chartのコンテナに、既定でrequestsとメモリのlimitsを付ける
+
+Helm Chartで、`resources`を書いていないロールとマイグレーションのJobに、CPUとメモリのrequestsと、メモリのlimitsを付けるようにしました。値は[設計書の11.1](spec.v1.md#111-配布物)の表のとおりです。
+
+- 今までは上限がなかったので、limitsを超えるメモリを使っていたロールは、更新するとOOMKillで再起動を繰り返します。とくに、同時に多くの変換を動かすkyusuと、大きなモデルで字幕を生成するnekonoteは、使っている量を確かめ、足りなければ`roles.<ロール>.resources.limits.memory`（`all`の構成では`all.resources.limits.memory`）を上げてください。
+- ノードの空きがrequestsに足りないと、Podが置かれずPendingになります。
+- valuesの`resources`を書いていても、書かなかった項目には既定値が入ります（Helmはvaluesを深くマージします）。既定値を外すときは、`memory: null`のようにnullを書きます。
+
 ## v2026.11.4
 
 v2026.11.3からの変更です。

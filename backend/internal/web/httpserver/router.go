@@ -90,6 +90,11 @@ func cleanPath(p string) string {
 	if p[0] != '/' {
 		p = "/" + p
 	}
+	// ブラウザは、先頭の「/\」を「//」と読み、ほかのホストへのリダイレクトにする。EscapedPath は \ を %5C にするので来ないが、
+	// 生の \ が来ても、リダイレクト先のホストにならないよう、%5C にする。
+	if strings.HasPrefix(p, `/\`) {
+		p = "/%5C" + p[2:]
+	}
 	np := path.Clean(p)
 	if p[len(p)-1] == '/' && np != "/" {
 		np += "/"

@@ -33,9 +33,21 @@ mise run dev
 | --- | --- |
 | `mise run //backend:generate` | 生成物 (sqlc、gqlgen、go-enum、wire、mockgen、GraphQLのスキーマなど) を作り直す。生成物の差分も一緒にコミットする |
 | `mise run //backend:lint` | golangci-lintを実行する |
-| `mise run //backend:test` | Goのテストを実行する。DBを使うテストには`KOTATSU_TEST_DATABASE_URL`が要る |
+| `mise run //backend:test:db` | Goのテストを実行する。DBを使うテストのために、開発用のComposeの`postgres-test`（`127.0.0.1:55433`）を起動して使う |
 | `mise run //frontend:check` | 画面のlintと型を確かめる |
 | `mise run //frontend:test` | 画面のテストを実行する |
+
+プルリクエストでは、脆弱性と設定の誤りも調べます。次の道具が見つけると、そのジョブが失敗します。結果はCode scanningにも載ります。
+
+| 道具 | 失敗する条件 |
+| --- | --- |
+| govulncheck | Goのコードが、脆弱性のある関数を呼び出している |
+| Trivy | プルリクエストで作ったイメージに、修正版のある、重さがHIGH以上の脆弱性がある |
+| pnpm audit | 画面の依存に、重さがhigh以上の勧告がある |
+| kube-linter | `deploy/kubernetes/`のマニフェストに指摘がある |
+| CodeQL | コードにアラートがある |
+
+規則を外したり、コメントで抑えたりして通さず、コードや依存を直してください。誤検知と思うときは、プルリクエストでそう書いてください。CodeQLの誤検知は、メンテナーがCode scanningでdismissすれば数えなくなります。
 
 ## 設計書
 
