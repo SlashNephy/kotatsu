@@ -8,8 +8,6 @@ sql:
         package: sqlc
         out: internal/infra/database/sqlc
         sql_package: pgx/v5
-        # 将来 SQLite のクエリを足すときの差し替え口にする (設計書 2.1)。
-        emit_interface: true
         emit_empty_slices: true
         rename:
           api_id: APIID
