@@ -29,6 +29,10 @@ const clearMutation = graphql`
 
 type Usage = { size: number; files: number };
 
+// formatSize は、生成物の大きさを表す。索引や字幕は小さく、MB では 0.0 MB と出てしまうので、1 MB より小さければ KB で表す。
+const formatSize = (bytes: number) =>
+  bytes < 1e6 ? `${(bytes / 1e3).toFixed(1)} KB` : formatBytes(bytes);
+
 // LibraryArtifacts は、ライブラリのファイルの生成物 (索引、画像、CM の区間、自動生成した字幕) を、データディレクトリから丸ごと片付ける
 // (設計書 5.8、#1896)。生成物を選んで消すのではない。消す前に、消える量を数えて見せ、確かめてから消す。
 // ファイルが多いと数えるのに時間がかかるので、画面を開いただけでは数えず、ボタンを押したときに数える。
@@ -81,7 +85,7 @@ export function LibraryArtifacts() {
             ? t('admin.libraryArtifacts.nothing')
             : t('admin.libraryArtifacts.cleared', {
                 count: cleared.files,
-                size: formatBytes(cleared.size),
+                size: formatSize(cleared.size),
               }),
       });
     } catch (error) {
@@ -136,7 +140,7 @@ export function LibraryArtifacts() {
                 <Text size="sm">
                   {t('admin.libraryArtifacts.confirm', {
                     count: measured.files,
-                    size: formatBytes(measured.size),
+                    size: formatSize(measured.size),
                   })}
                 </Text>
                 <Text size="sm" c="dimmed">

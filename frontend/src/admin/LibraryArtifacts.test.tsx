@@ -55,6 +55,13 @@ describe('LibraryArtifacts (#1896)', () => {
     );
   });
 
+  test('1 MB より小さければ KB で出す', async () => {
+    await renderArtifacts({ data: { libraryArtifacts: { size: 12_345, files: 4 } } });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '片付ける' })));
+
+    expect(await screen.findByText(/4 個のファイル \(12\.3 KB\) を消します/)).toBeDefined();
+  });
+
   test('キャンセルすれば消さない', async () => {
     const sent = await renderArtifacts(measured);
     await act(async () => fireEvent.click(screen.getByRole('button', { name: '片付ける' })));
