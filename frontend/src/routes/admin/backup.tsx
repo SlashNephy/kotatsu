@@ -91,11 +91,16 @@ function BackupSettings() {
   const { save } = useAutoSave();
   const { settings, latestRun } = data.backup;
   const [key, setKey] = useState('');
-  // pendingRecipients は、保存を頼んだ公開鍵の一覧。読み直した一覧がこれと同じになるまで、足すのと消すのを止める。
+  // savedFrom は、公開鍵の一覧の保存を頼んだときの一覧。読み直した一覧が変わるまで、足すのと消すのを止める。
   // 一覧を丸ごと送るので、読み直す前に続けて押すと、前の操作を古い一覧で打ち消してしまうため。
-  const [pendingRecipients, setPendingRecipients] = useState<string | null>(null);
-  const editingKeys =
-    pendingRecipients !== null && pendingRecipients !== settings.recipients.join('\n');
+  // 変わった後は、ほかの管理者が変えたときも含めて、読み直した一覧から続けられる。
+  const currentRecipients = settings.recipients.join('\n');
+  const [savedFrom, setSavedFrom] = useState<string | null>(null);
+  // 読み直した一覧が変わったら、覚えた一覧を捨てる。後でまた同じ一覧に戻っても、止めないようにする。
+  if (savedFrom !== null && savedFrom !== currentRecipients) {
+    setSavedFrom(null);
+  }
+  const editingKeys = savedFrom !== null && savedFrom === currentRecipients;
   // requestedAfter は、今すぐ書き出すよう頼んだときの、最後の結果の時刻。結果が変わるまで、頼んだことを出す。
   // 頼んでいなければ undefined。まだ書き出したことがなければ null。
   const [requestedAfter, setRequestedAfter] = useState<string | null | undefined>(undefined);
@@ -125,11 +130,11 @@ function BackupSettings() {
 
   // saveRecipients は、公開鍵の一覧を保存する。保存できなければ、止めていた操作を戻す。
   const saveRecipients = (recipients: string[]) => {
-    setPendingRecipients(recipients.join('\n'));
+    setSavedFrom(currentRecipients);
 
     return saveSettings({ recipients }).then((ok) => {
       if (!ok) {
-        setPendingRecipients(null);
+        setSavedFrom(null);
       }
 
       return ok;

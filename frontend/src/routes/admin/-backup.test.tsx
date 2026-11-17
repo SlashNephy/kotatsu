@@ -26,6 +26,10 @@ type Run = {
 // frozen なら、保存しても、読み直した設定を変えない (読み直しが保存より遅れて届く場面)。
 function serve(recipients: string[], latestRun: Run | null, frozen = false) {
   let settings = { recipients, intervalHours: 24, generations: 7 };
+  // replace は、次に読み直したときの公開鍵の一覧を、ほかの管理者が変えたものにする。
+  const replace = (next: string[]) => {
+    settings = { ...settings, recipients: next };
+  };
   const sent: { name: string; variables: Variables }[] = [];
   const environment = createTestEnvironment((request, variables) => {
     if (request.name === 'backupMutation' || request.name === 'backupRunMutation') {
@@ -45,7 +49,7 @@ function serve(recipients: string[], latestRun: Run | null, frozen = false) {
     };
   });
 
-  return { environment, sent };
+  return { environment, sent, replace };
 }
 
 describe('バックアップの設定 (#1926)', () => {
@@ -112,5 +116,25 @@ describe('バックアップの設定 (#1926)', () => {
     // 古い一覧のまま keyB を消すと、keyA を戻してしまうので、押せない。
     const removes = screen.getAllByRole('button', { name: '消す' });
     expect(removes.every((button) => button.hasAttribute('disabled'))).toBe(true);
+  });
+
+  test('読み直した一覧が、送ったものと違っても、変わったら続けて操作できる', async () => {
+    const { environment, sent, replace } = serve([keyA, keyB], null, true);
+    await renderRoute(Route, '/admin/backup', '/admin/backup', environment);
+    await screen.findByText(keyA);
+
+    await act(async () => fireEvent.click(screen.getAllByRole('button', { name: '消す' })[0]!));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(
+      screen.getAllByRole('button', { name: '消す' }).every((b) => b.hasAttribute('disabled')),
+    ).toBe(true);
+
+    // ほかの管理者が、keyB だけの一覧にした。読み直したら、また消せる。
+    replace([keyB]);
+    const interval = screen.getByRole('textbox', { name: '書き出す間隔（時間）' });
+    fireEvent.change(interval, { target: { value: '12' } });
+    await act(async () => fireEvent.blur(interval));
+    await waitFor(() => expect(screen.queryByText(keyA)).toBeNull());
+    expect(screen.getByRole('button', { name: '消す' }).hasAttribute('disabled')).toBe(false);
   });
 });
