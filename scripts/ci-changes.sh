@@ -18,7 +18,7 @@ while IFS= read -r file || [[ -n "$file" ]]; do
       continue
       ;;
     # 文書と、開発の道具の設定は、どのジョブにも関わらない。
-    # 公開したイメージの脆弱性のスキャン (.github/workflows/scan.yml) だけが使うツールも、CI のジョブには関わらない。
+    # 脆弱性のスキャン (.github/workflows/scan.yml と image.yml の trivy) だけが使うツールも、CI のジョブには関わらない。
     docs/* | *.md | LICENSE | renovate.json5 | .claude/* | .specstory/* | mise.scan.toml | mise.scan.lock)
       continue
       ;;
