@@ -24,6 +24,10 @@ const (
 	NotificationKindAnimeRecorded NotificationKind = "anime_recorded"
 	// 見たアニメを記録できなかったことを知らせる (#927)。見たユーザーだけに届け、Webhook では送らない。
 	NotificationKindAnimeRecordFailed NotificationKind = "anime_record_failed"
+	// 見たドラマを Simkl に記録したことを知らせる (#1649)。見たユーザーだけに届け、Webhook では送らない。
+	NotificationKindDramaRecorded NotificationKind = "drama_recorded"
+	// 見たドラマを記録できなかったことを知らせる (#1649)。見たユーザーだけに届け、Webhook では送らない。
+	NotificationKindDramaRecordFailed NotificationKind = "drama_record_failed"
 	// スクランブルされたまま録れた録画が続いたことを知らせる (#1517)。B-CAS カードを確かめられるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
 	NotificationKindScrambledRecordings NotificationKind = "scrambled_recordings"
 	// 放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる (#1519)。チューナーサーバーをスキャンし直せるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
@@ -44,6 +48,8 @@ func NotificationKindValues() []NotificationKind {
 		NotificationKindWatchReminder,
 		NotificationKindAnimeRecorded,
 		NotificationKindAnimeRecordFailed,
+		NotificationKindDramaRecorded,
+		NotificationKindDramaRecordFailed,
 		NotificationKindScrambledRecordings,
 		NotificationKindLineupChanged,
 	}
@@ -71,6 +77,8 @@ var _NotificationKindValue = map[string]NotificationKind{
 	"watch_reminder":           NotificationKindWatchReminder,
 	"anime_recorded":           NotificationKindAnimeRecorded,
 	"anime_record_failed":      NotificationKindAnimeRecordFailed,
+	"drama_recorded":           NotificationKindDramaRecorded,
+	"drama_record_failed":      NotificationKindDramaRecordFailed,
 	"scrambled_recordings":     NotificationKindScrambledRecordings,
 	"lineup_changed":           NotificationKindLineupChanged,
 }

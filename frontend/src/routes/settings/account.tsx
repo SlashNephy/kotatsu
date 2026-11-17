@@ -22,6 +22,7 @@ import {
 } from '../../animeRecords/destinations';
 import { useRecordOnDevice } from '../../animeRecords/recordOnDevice';
 import { useDataChanges } from '../../changes/DataChanges';
+import { DramaRecords } from '../../drama/DramaRecords';
 import { ErrorBoundary, PageLoader, useDocumentTitle, zonedFormat } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -38,8 +39,8 @@ import type {
 } from './__generated__/accountSettingsMutation.graphql';
 
 type AccountSearch = {
-  // connected は、記録先と連携して戻ってきたときの記録先 (#927)。
-  connected?: AnimeRecordDestinationName;
+  // connected は、記録先と連携して戻ってきたときの記録先 (#927)。simkl は、見たドラマの記録先 (#1649)。
+  connected?: AnimeRecordDestinationName | 'simkl';
   // error は、記録先との連携に失敗して戻ってきたときの理由。
   error?: string;
 };
@@ -47,7 +48,11 @@ type AccountSearch = {
 export const Route = createFileRoute('/settings/account')({
   validateSearch: (search: Record<string, unknown>): AccountSearch => {
     const result: AccountSearch = {};
-    if (search['connected'] === 'annict' || search['connected'] === 'anilist') {
+    if (
+      search['connected'] === 'annict' ||
+      search['connected'] === 'anilist' ||
+      search['connected'] === 'simkl'
+    ) {
       result.connected = search['connected'];
     }
     if (typeof search['error'] === 'string') {
@@ -68,8 +73,8 @@ const connectedAtFormat = zonedFormat({
   hourCycle: 'h23',
 });
 
-// AccountPage は、外部のサービスのアカウントとの連携の画面 (#927、設計書 10.3)。見たアニメを、Annict と AniList に記録する。
-// 管理者がしょぼいカレンダー、Annict、AniList との連携を無効にしているときは、設定を出さない。
+// AccountPage は、外部のサービスのアカウントとの連携の画面 (#927、設計書 10.3)。見たアニメを、Annict と AniList に記録し、
+// 見たドラマを Simkl に記録する (#1649)。管理者がそれぞれの連携を無効にしているときは、設定を出さない。
 function AccountPage() {
   const { t } = useTranslation();
   useDocumentTitle([t('settings.pages.account.title')]);
@@ -97,7 +102,27 @@ function AccountPage() {
           <AnimeRecords />
         </Suspense>
       </ErrorBoundary>
+      {/* ドラマの記録 (#1649) を読めなくても、アニメの記録の設定は出し続ける。 */}
+      <ErrorBoundary fallback={() => <Alert color="amber">{t('viewer.error')}</Alert>}>
+        <Suspense fallback={<PageLoader />}>
+          <DramaRecordsSection />
+        </Suspense>
+      </ErrorBoundary>
     </Stack>
+  );
+}
+
+// DramaRecordsSection は、Simkl との連携を出す (#1649)。Simkl から戻ってきたときの結果は、こちらで出す。
+function DramaRecordsSection() {
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  return (
+    <DramaRecords
+      connected={search.connected === 'simkl'}
+      error={search.error}
+      onDismiss={() => void navigate({ search: {}, replace: true })}
+    />
   );
 }
 
@@ -207,7 +232,11 @@ function AnimeRecords() {
       );
       refresh();
     });
-  const callbackError = search.error === undefined ? null : animeRecordCallbackError(search.error);
+  // Simkl から戻ってきたときの結果 (drama_record_) は、ドラマの記録の欄で出す。
+  const callbackError =
+    search.error === undefined || search.error.startsWith('drama_record_')
+      ? null
+      : animeRecordCallbackError(search.error);
 
   return (
     <Stack gap="md">
@@ -229,7 +258,7 @@ function AnimeRecords() {
           {t(`animeRecords.callbackErrors.${callbackError}`)}
         </Alert>
       )}
-      {search.connected !== undefined && (
+      {search.connected !== undefined && search.connected !== 'simkl' && (
         <Alert color="green" role="status" withCloseButton onClose={clearSearch}>
           {t('animeRecords.connected', { name: destinationNames[search.connected] })}
         </Alert>
@@ -304,11 +333,11 @@ function AnimeRecords() {
   );
 }
 
-// RecordOnDeviceSwitch は、この端末で見たアニメを記録するかを切り替える (#1283)。
+// RecordOnDeviceSwitch は、この端末で見たアニメを記録するかを切り替える (#1283)。見たドラマは、ドラマの欄で別に切り替える (#1649)。
 // 端末ごとに覚え、ほかの端末と同期しない。変えたら、ほかの設定と同じ通知で知らせる (#1740)。
 function RecordOnDeviceSwitch() {
   const { t } = useTranslation();
-  const [enabled, setEnabled] = useRecordOnDevice();
+  const [enabled, setEnabled] = useRecordOnDevice('anime');
   const deviceSave = useDeviceSave();
 
   return (

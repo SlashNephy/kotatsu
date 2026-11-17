@@ -46,6 +46,8 @@ type Config struct {
 	AnimeRecords AnimeRecords `yaml:"anime_records"`
 	// TMDb は、ドラマの番組を TMDb の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
 	TMDb TMDb `yaml:"tmdb"`
+	// Simkl は、見たドラマを Simkl に記録する連携の設定 (#1649、設計書 3.9)。
+	Simkl Simkl `yaml:"simkl"`
 	// Google は、Google Drive をライブラリとして接続する連携の設定 (#1902、設計書 5.8)。
 	Google Google `yaml:"google"`
 	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
@@ -329,6 +331,14 @@ type TMDb struct {
 	URL string `yaml:"url"`
 }
 
+// Simkl は、見たドラマを Simkl に記録し、Simkl のウォッチリストを取り込む連携の設定 (#1649、設計書 3.9)。
+// アプリのクライアント ID とシークレットは、管理者が連携の画面で登録する。
+type Simkl struct {
+	// URL は、Simkl の画面と API を向ける先のオリジン。空なら https://simkl.com と https://api.simkl.com にする。
+	// 本物の Simkl の代わりに、検証用のサーバーへ向けるときだけ使う。
+	URL string `yaml:"url"`
+}
+
 // Google は、Google の連携の設定 (#1902)。OAuth クライアントと、Google Drive の接続は、管理者が連携の画面で決める。
 type Google struct {
 	// URL は、Google の認可の画面、トークンの API、Drive API を向ける先のオリジン。空なら https://accounts.google.com、
@@ -502,6 +512,7 @@ func Default() *Config {
 		AnimeLinking: AnimeLinking{ArmURL: ""},
 		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: "", JikanURL: ""},
 		TMDb:         TMDb{URL: ""},
+		Simkl:        Simkl{URL: ""},
 		Google:       Google{URL: ""},
 	}
 }
@@ -600,6 +611,9 @@ func (c *Config) validate() error {
 	errs = append(errs, c.AnimeRecords.validate()...)
 	if err := validateHTTPURL(c.TMDb.URL); err != nil {
 		errs = append(errs, fieldError("tmdb.url", err))
+	}
+	if err := validateHTTPURL(c.Simkl.URL); err != nil {
+		errs = append(errs, fieldError("simkl.url", err))
 	}
 	if err := validateHTTPURL(c.Google.URL); err != nil {
 		errs = append(errs, fieldError("google.url", err))

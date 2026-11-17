@@ -8,6 +8,8 @@ import GuideViewEditorDeleteMutation from '../guide/__generated__/GuideViewEdito
 import GuideViewEditorUpdateMutation from '../guide/__generated__/GuideViewEditorUpdateMutation.graphql';
 import PinButtonMutation from '../guide/__generated__/PinButtonMutation.graphql';
 import AnimeLibraryQuery from '../anime/__generated__/AnimeLibraryQuery.graphql';
+import DramaLibraryImportMutation from '../drama/__generated__/DramaLibraryImportMutation.graphql';
+import DramaRecordsQuery from '../drama/__generated__/DramaRecordsQuery.graphql';
 import ProgramDetailQuery from '../guide/__generated__/ProgramDetailQuery.graphql';
 import DashboardQuery from '../home/__generated__/DashboardQuery.graphql';
 import RootViewerQuery from '../routes/__generated__/RootViewerQuery.graphql';
@@ -115,6 +117,9 @@ describe('demo executor answers the queries of the screens', () => {
     },
     { name: 'program detail', request: ProgramDetailQuery, variables: { id: past } },
     { name: 'anime library', request: AnimeLibraryQuery, variables: {} },
+    // デモでは Simkl と連携しない (#1649)。アカウントの連携の画面は、無効の状態で開ける。
+    { name: 'drama records', request: DramaRecordsQuery, variables: {} },
+    { name: 'drama watchlist import', request: DramaLibraryImportMutation, variables: {} },
     { name: 'pin', request: PinButtonMutation, variables: { id: 'Service:1040', pinned: true } },
     {
       name: 'watch reservation',

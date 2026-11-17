@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<55d0413ab7dbfca754814d8a756aad78>>
+ * @generated SignedSource<<f4f18a36e98e05a39a9bd3a83af6ac45>>
  * @lightSyntaxTransform
  */
 
@@ -11,7 +11,8 @@ import { ConcreteRequest } from 'relay-runtime';
 export type AnimeImportSource = "ANNICT_WORKS" | "ARM" | "SAYA_DEFINITIONS" | "SYOBOCAL_TITLES" | "%future added value";
 export type AnimeRecordDestination = "ANILIST" | "ANNICT" | "%future added value";
 export type CommentSource = "NICOLOG" | "NX_JIKKYO" | "%future added value";
-export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "LINEUP_CHANGED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "SCRAMBLED_RECORDINGS" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
+export type DramaRecordDestination = "SIMKL" | "%future added value";
+export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "DRAMA_RECORDED" | "DRAMA_RECORD_FAILED" | "LINEUP_CHANGED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "SCRAMBLED_RECORDINGS" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type WebhookFormat = "DISCORD" | "JSON" | "SLACK" | "%future added value";
 export type integrationsQuery$variables = Record<PropertyKey, never>;
 export type integrationsQuery$data = {
@@ -35,6 +36,12 @@ export type integrationsQuery$data = {
     readonly tokenConfigured: boolean;
     readonly tokenHint: string | null | undefined;
   };
+  readonly dramaRecordApps: ReadonlyArray<{
+    readonly clientId: string | null | undefined;
+    readonly configured: boolean;
+    readonly destination: DramaRecordDestination;
+    readonly redirectUri: string;
+  }>;
   readonly dramaTitleOverrides: ReadonlyArray<{
     readonly titleKey: string;
     readonly tmdbSeriesId: number | null | undefined;
@@ -128,14 +135,26 @@ v3 = {
   "name": "redirectUri",
   "storageKey": null
 },
-v4 = {
+v4 = [
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "destination",
+    "storageKey": null
+  },
+  (v1/*:: as any*/),
+  (v2/*:: as any*/),
+  (v3/*:: as any*/)
+],
+v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v5 = [
+v6 = [
   {
     "alias": null,
     "args": null,
@@ -292,18 +311,7 @@ v5 = [
     "kind": "LinkedField",
     "name": "animeRecordApps",
     "plural": true,
-    "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "destination",
-        "storageKey": null
-      },
-      (v1/*:: as any*/),
-      (v2/*:: as any*/),
-      (v3/*:: as any*/)
-    ],
+    "selections": (v4/*:: as any*/),
     "storageKey": null
   },
   {
@@ -316,6 +324,16 @@ v5 = [
     "selections": [
       (v2/*:: as any*/)
     ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "DramaRecordApp",
+    "kind": "LinkedField",
+    "name": "dramaRecordApps",
+    "plural": true,
+    "selections": (v4/*:: as any*/),
     "storageKey": null
   },
   {
@@ -370,7 +388,7 @@ v5 = [
         "plural": true,
         "selections": [
           (v0/*:: as any*/),
-          (v4/*:: as any*/),
+          (v5/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -496,7 +514,7 @@ v5 = [
     "plural": true,
     "selections": [
       (v0/*:: as any*/),
-      (v4/*:: as any*/),
+      (v5/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -572,7 +590,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "integrationsQuery",
-    "selections": (v5/*:: as any*/),
+    "selections": (v6/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -581,19 +599,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "integrationsQuery",
-    "selections": (v5/*:: as any*/)
+    "selections": (v6/*:: as any*/)
   },
   "params": {
-    "cacheID": "6754ae241cdc5a5981d9f2d09a0a1352",
+    "cacheID": "589e5a4fbbec75417e137b5f5852e425",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    recordingDownloadsEnabled\n    epgstationApiEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    dramaLinkingEnabled\n    commentSources\n    hibpEnabled\n    webPushSubject\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  googleIntegration {\n    clientId\n    configured\n    redirectUri\n    drive {\n      accountName\n      connectedAt\n      revokedAt\n    }\n    folders {\n      id\n      name\n      libraryName\n    }\n  }\n  dramaLinking {\n    tokenConfigured\n    tokenHint\n  }\n  dramaTitleOverrides {\n    titleKey\n    tmdbSeriesId\n    updatedAt\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    recordingDownloadsEnabled\n    epgstationApiEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    dramaLinkingEnabled\n    commentSources\n    hibpEnabled\n    webPushSubject\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  dramaRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  googleIntegration {\n    clientId\n    configured\n    redirectUri\n    drive {\n      accountName\n      connectedAt\n      revokedAt\n    }\n    folders {\n      id\n      name\n      libraryName\n    }\n  }\n  dramaLinking {\n    tokenConfigured\n    tokenHint\n  }\n  dramaTitleOverrides {\n    titleKey\n    tmdbSeriesId\n    updatedAt\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "6a711b1bbf599d7127a399d45e984078";
+(node as any).hash = "0e2e8c8c935a05c5c795ddea6e3e4cf9";
 
 export default node;

@@ -6,6 +6,11 @@ import { Route } from './account';
 
 afterEach(cleanup);
 
+// dramaRecordsDisabled は、TMDb との連携が無効なときの、ドラマの記録の問い合わせの応答 (#1649)。
+const dramaRecordsDisabled = {
+  data: { dramaRecordSettings: { enabled: false, destinations: [] } },
+};
+
 // settings は、サーバーが持つ記録の設定。保存すると、送った値にする。
 type Settings = {
   thresholdPercent: number;
@@ -27,6 +32,9 @@ function serve(fails = { value: false }) {
   };
   const sent: Settings[] = [];
   const environment = createTestEnvironment((request, variables) => {
+    if (request.name === 'DramaRecordsQuery') {
+      return dramaRecordsDisabled;
+    }
     if (request.name === 'accountSettingsMutation') {
       if (fails.value) {
         sent.push(variables.input as Settings);
@@ -123,6 +131,9 @@ describe('記録の設定を、変えたらすぐ保存する (#1740)', () => {
       notifyWishlist: false,
     };
     const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'DramaRecordsQuery') {
+        return dramaRecordsDisabled;
+      }
       if (request.name === 'accountSettingsMutation') {
         sent.push(variables.input as Settings);
         const response = { data: { updateAnimeRecordSettings: { thresholdPercent: 80 } } };
@@ -163,10 +174,122 @@ describe('記録の設定を、変えたらすぐ保存する (#1740)', () => {
 
     await act(async () =>
       fireEvent.click(
-        await screen.findByRole('switch', { name: /^この端末で見たアニメとドラマを記録する/ }),
+        await screen.findByRole('switch', { name: /^この端末で見たアニメを記録する/ }),
       ),
     );
 
     expect((await screen.findByRole('status')).textContent).toContain('保存しました');
+  });
+});
+
+// serveDrama は、Simkl と連携したユーザーの、ドラマの記録の問い合わせに応え、取り込み直しの依頼を覚える Relay の環境を作る (#1649)。
+function serveDrama() {
+  const imports: unknown[] = [];
+  const saved: unknown[] = [];
+  const environment = createTestEnvironment((request, variables) => {
+    if (request.name === 'DramaRecordsQuery') {
+      return {
+        data: {
+          dramaRecordSettings: {
+            enabled: true,
+            thresholdPercent: 20,
+            destinations: [
+              {
+                destination: 'SIMKL',
+                available: true,
+                connection: {
+                  accountName: 'simkl-user',
+                  connectedAt: '2026-10-10T03:00:00Z',
+                  reauthorizationRequired: false,
+                  watchlistImportedAt: null,
+                  watchlistError: '/sync/activities returned 503',
+                },
+              },
+            ],
+          },
+        },
+      };
+    }
+    if (request.name === 'DramaRecordsSettingsMutation') {
+      saved.push(variables);
+
+      return { data: { updateDramaRecordSettings: { thresholdPercent: 20 } } };
+    }
+    if (request.name === 'DramaRecordsImportMutation') {
+      imports.push(variables);
+
+      return { data: { importDramaWatchlist: true } };
+    }
+
+    return {
+      data: {
+        animeRecordSettings: {
+          enabled: true,
+          thresholdPercent: 20,
+          watchingOnFirst: false,
+          watchingOnEpisode: false,
+          watchedOnLast: false,
+          notifyWishlist: false,
+          destinations: [],
+        },
+      },
+    };
+  });
+
+  return { environment, imports, saved };
+}
+
+describe('見たドラマを記録する Simkl との連携 (#1649)', () => {
+  test('連携したアカウントと取り込みの様子を出し、取り込み直しを頼める', async () => {
+    const { environment, imports } = serveDrama();
+    await renderRoute(Route, '/settings/account', '/settings/account', environment);
+
+    expect(await screen.findByText(/simkl-user として連携しています/)).toBeTruthy();
+    expect(screen.getByText('ウォッチリストはまだ取り込んでいません')).toBeTruthy();
+    expect(screen.getByText('取り込めませんでした（/sync/activities returned 503）')).toBeTruthy();
+
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '取り込み直す' })));
+
+    expect(imports).toHaveLength(1);
+    expect(
+      await screen.findByText('取り込みを始めました。終わったら、ドラマの視聴管理の画面に出ます'),
+    ).toBeTruthy();
+  });
+
+  test('Simkl から戻ってきたときの失敗は、ドラマの記録の欄にだけ出す', async () => {
+    const { environment } = serveDrama();
+    await renderRoute(
+      Route,
+      '/settings/account',
+      '/settings/account?error=drama_record_mismatch',
+      environment,
+    );
+
+    const alerts = await screen.findAllByRole('alert');
+    expect(alerts.map((alert) => alert.textContent)).toEqual([
+      expect.stringContaining('この端末で始めた連携ではないので'),
+    ]);
+  });
+
+  test('Simkl と連携して戻ってきたら、連携したことを出す', async () => {
+    const { environment } = serveDrama();
+    await renderRoute(Route, '/settings/account', '/settings/account?connected=simkl', environment);
+
+    expect(await screen.findByText('Simklと連携しました')).toBeTruthy();
+  });
+
+  test('見たドラマの割合は、アニメの割合と別の欄で、欄を離れたら保存する', async () => {
+    const { environment, saved } = serveDrama();
+    await renderRoute(Route, '/settings/account', '/settings/account', environment);
+    const thresholds = await screen.findAllByRole('textbox', { name: '見たとみなす割合' });
+    // アニメの欄とドラマの欄に、1 つずつある。後ろがドラマの欄。
+    expect(thresholds).toHaveLength(2);
+
+    fireEvent.change(thresholds[1]!, { target: { value: '40' } });
+    await act(async () => fireEvent.blur(thresholds[1]!));
+
+    expect(saved).toEqual([{ input: { thresholdPercent: 40 } }]);
+    expect(screen.getByRole('switch', { name: /^この端末で見たドラマを記録する/ })).toBeTruthy();
+    expect(screen.getByRole('switch', { name: /^この端末で見たアニメを記録する/ })).toBeTruthy();
   });
 });
