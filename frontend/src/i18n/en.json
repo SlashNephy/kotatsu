@@ -90,6 +90,8 @@
       "WATCH_REMINDER": "Watch reminder program starting",
       "ANIME_RECORDED": "An anime you watched was recorded",
       "ANIME_RECORD_FAILED": "An anime you watched could not be recorded",
+      "DRAMA_RECORDED": "A drama you watched was recorded",
+      "DRAMA_RECORD_FAILED": "A drama you watched could not be recorded",
       "SCRAMBLED_RECORDINGS": "Recordings kept coming out scrambled",
       "LINEUP_CHANGED": "Channel lineup changed"
     },
@@ -2499,6 +2501,10 @@
       "clientId": "Client ID",
       "clientSecret": "Client secret",
       "secretKept": "Registered (enter only to change)"
+    },
+    "dramaRecords": {
+      "title": "Simkl records",
+      "help": "Register a Kotatsu app so users can record watched dramas to Simkl and import their Simkl watchlist. Create a \"Server apps & services\" app (AUTH V2) in the Simkl developer settings, enter the redirect URI below, then save the client ID and secret. Available only while TMDB linking is enabled."
     }
   },
   "authorship": {
@@ -3004,5 +3010,25 @@
     "indexing": "Preparing to seek",
     "indexingStatus": "Preparing to seek. You can seek up to {{seconds}}.",
     "writing": "This file is still being written, so it is not prepared for seeking. It can be played from the beginning."
+  },
+  "dramaRecords": {
+    "title": "Watched drama records (Simkl)",
+    "description": "Episodes of dramas you actually played for a set share of the program length, live or from a recording, are recorded to the linked Simkl account. The share is the same setting as anime records. The same episode of the same program is recorded only once. Episodes you mark as watched by hand stay in Kotatsu and are not sent to Simkl.",
+    "watchlistHint": "Works you set to Watching or Plan to Watch on Simkl are added to the drama watch list when they are linked to a program or recording. A work you remove in Kotatsu is not added again until its status changes on Simkl.",
+    "watchlistLink": "Open the drama watch list",
+    "disabled": "An administrator has not enabled TMDB linking, so watched dramas cannot be recorded",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "connected": "Connected to {{name}}",
+    "connectedAs": "Connected as {{account}} ({{date}})",
+    "notConnected": "Not connected",
+    "notRegistered": "An administrator has not registered an app, so you cannot connect",
+    "reauthorize": "Simkl refused to refresh the token, so recording and importing are paused. Connect again",
+    "importedAt": "Watchlist imported: {{date}}",
+    "notImported": "The watchlist has not been imported yet",
+    "importError": "Could not import ({{reason}})",
+    "reimport": "Import again",
+    "reimportQueued": "Started importing. The works will appear on the drama watch list when it finishes",
+    "reimportSkipped": "An import started a moment ago, or Kotatsu is waiting before asking again"
   }
 }

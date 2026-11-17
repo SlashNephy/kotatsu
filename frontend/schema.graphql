@@ -1300,6 +1300,10 @@ enum DataChannel {
   """
   ANIME_FOLLOWING
   """
+  ドラマの記録先のウォッチリストを取り込み、見ている作品が変わった (#1649)
+  """
+  DRAMA_WATCHLIST
+  """
   管理のデータ。監査ログに残る操作で変わる。管理者にだけ届く (#869)
   """
   ADMIN
@@ -1517,6 +1521,97 @@ type DramaLinkingStatus {
   トークンを最後に変えた日時。入れていなければ null。
   """
   tokenUpdatedAt: Time
+}
+"""
+管理者がドラマの記録先に登録したアプリ (#1649)。クライアントシークレットは返さない。
+"""
+type DramaRecordApp {
+  destination: DramaRecordDestination!
+  """
+  登録したアプリのクライアント ID。登録していなければ null。
+  """
+  clientId: String
+  """
+  クライアント ID とシークレットを登録したかどうか。
+  """
+  configured: Boolean!
+  """
+  管理者が記録先のアプリに登録するリダイレクト URI。いま接続しているオリジンから決める。
+  """
+  redirectUri: String!
+  """
+  最後に変えた日時。登録していなければ null。
+  """
+  updatedAt: Time
+}
+"""
+ドラマの記録先に登録したアプリの変更。
+"""
+input DramaRecordAppInput {
+  """
+  クライアント ID。空にすると、登録を消す。
+  """
+  clientId: String!
+  """
+  クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。
+  """
+  clientSecret: String
+}
+"""
+ログイン中のユーザーとドラマの記録先の連携 (#1649)。トークンは返さない。
+"""
+type DramaRecordConnection {
+  """
+  記録先のアカウントの名前。
+  """
+  accountName: String!
+  connectedAt: Time!
+  """
+  記録先がトークンの更新を断ったので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。
+  """
+  reauthorizationRequired: Boolean!
+  """
+  ウォッチリストを最後に問い合わせた日時。問い合わせていなければ null。
+  """
+  watchlistCheckedAt: Time
+  """
+  ウォッチリストを最後に取り込めた日時。取り込めていなければ null。
+  """
+  watchlistImportedAt: Time
+  """
+  最後の取り込みが失敗した理由。取り込めていれば null。
+  """
+  watchlistError: String
+}
+"""
+見たドラマを記録する先 (#1649)。
+"""
+enum DramaRecordDestination {
+  SIMKL
+}
+"""
+ログイン中のユーザーから見た、ドラマの記録先の様子。
+"""
+type DramaRecordDestinationStatus {
+  destination: DramaRecordDestination!
+  """
+  管理者がアプリを登録していて、連携を始められるかどうか。
+  """
+  available: Boolean!
+  """
+  連携していなければ null。
+  """
+  connection: DramaRecordConnection
+}
+"""
+ログイン中のユーザーの、見たドラマの記録の様子 (#1649)。
+"""
+type DramaRecordSettings {
+  """
+  管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。
+  """
+  enabled: Boolean!
+  destinations: [DramaRecordDestinationStatus!]!
 }
 """
 TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
@@ -2712,6 +2807,28 @@ type Mutation {
   """
   setDramaEpisodeWatched(seriesId: Int!, seasonNumber: Int!, episodeNumber: Int!, watched: Boolean!): Boolean!
   """
+  ドラマの記録先 destination に登録したアプリを変える (#1649)。管理者だけが使える。
+  利用者を記録先へ送り出すアプリを決める操作なので、直近の再認証を求める (設計書 9.5)。
+  """
+  updateDramaRecordApp(destination: DramaRecordDestination!, input: DramaRecordAppInput!): DramaRecordApp!
+  """
+  ログイン中のユーザーとドラマの記録先 destination の連携を始め、ブラウザーを送り出す記録先の認可のエンドポイントの URL を返す (#1649)。
+  記録先から GET /internal/auth/{destination}/callback に戻ってきたら、連携する。ブラウザーのセッションでだけ使える。
+  管理者が TMDb との連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
+  """
+  beginDramaRecordConnection(destination: DramaRecordDestination!): String!
+  """
+  ログイン中のユーザーとドラマの記録先 destination の連携を外し、記録先でトークンを取り消す (#1649)。見ている作品に写した作品は残す。
+  """
+  disconnectDramaRecord(destination: DramaRecordDestination!): DramaRecordSettings!
+  """
+  ログイン中のユーザーの、ドラマの記録先のウォッチリストを取り込むジョブを入れる (#1649)。ドラマの視聴管理の画面を開いたときと、
+  取り込み直しを押したとき (force) に呼ぶ。force でなければ、前に問い合わせてから 30 分たった連携だけを取り込む。
+  取り込めなかった連携は、問い合わせ直す日時まで取り込まない。ジョブを入れたら true を返す。
+  取り込み終えて見ている作品が変わったら、dataChanged の DRAMA_WATCHLIST で知らせる。
+  """
+  importDramaWatchlist(force: Boolean! = false): Boolean!
+  """
   ジョブを、すぐに試し直す (#1279)。管理者だけが使える。動いているジョブは試し直せない。監査ログに残す。
   """
   retryJob(id: ID!): Job!
@@ -3185,6 +3302,14 @@ enum NetworkActivityPurpose {
   ANIME_LINK
   ANIME_IMAGE
   DRAMA_LINKING
+  """
+  見たドラマの記録とウォッチリストの取り込み (#1649)
+  """
+  DRAMA_RECORD
+  """
+  ドラマの記録先との連携の手続き (#1649)
+  """
+  DRAMA_LINK
   USER_AVATAR
   OIDC
   HIBP
@@ -3285,6 +3410,14 @@ enum NotificationKind {
   見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。
   """
   ANIME_RECORD_FAILED
+  """
+  見たドラマを Simkl に記録した (#1649)。見たユーザーだけに届き、Webhook では送らない。
+  """
+  DRAMA_RECORDED
+  """
+  見たドラマを Simkl に記録できなかった (#1649)。見たユーザーだけに届き、Webhook では送らない。
+  """
+  DRAMA_RECORD_FAILED
   """
   スクランブルされたまま録れた録画が続いた (#1517)。管理者にだけ届く。
   """
@@ -3949,6 +4082,14 @@ type Query {
   視聴者も使える。TMDb には問い合わせない。
   """
   dramaLibrary: DramaLibrary!
+  """
+  ドラマの記録先ごとに、管理者が登録したアプリを返す (#1649)。管理者だけが使える。
+  """
+  dramaRecordApps: [DramaRecordApp!]!
+  """
+  ログイン中のユーザーの、見たドラマの記録先との連携を返す (#1649)。視聴者も使える。
+  """
+  dramaRecordSettings: DramaRecordSettings!
   """
   ID で引く (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。
   """

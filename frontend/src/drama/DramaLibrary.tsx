@@ -12,7 +12,7 @@ import {
 } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { ListChecks, Play } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useMutation } from 'react-relay';
 
@@ -25,6 +25,7 @@ import type {
   DramaLibraryQuery,
   DramaLibraryQuery$data,
 } from './__generated__/DramaLibraryQuery.graphql';
+import type { DramaLibraryImportMutation } from './__generated__/DramaLibraryImportMutation.graphql';
 import type { DramaLibraryReserveMutation } from './__generated__/DramaLibraryReserveMutation.graphql';
 import { episodeLabel, TMDbAttribution } from './DramaEpisode';
 import { DramaWatchedButton, DramaWatchStatusMenu, watchStatusOf } from './DramaWatchControls';
@@ -48,8 +49,8 @@ const periodColors: Partial<Record<Period, string>> = {
 // まだ見ていない録画と並べる (ドラマの視聴管理の画面。設計書 3.9、10.3、#1652)。予約はアニメの画面と同じく、視聴者には出さない。
 export function DramaLibrary({ filters }: { filters: DramaFilters }) {
   const { t } = useTranslation();
-  // 予約や録画、番組表が変わったら、読み直す。
-  const changes = useDataChanges(['RESERVATIONS', 'RECORDINGS', 'EPG']);
+  // 予約や録画、番組表が変わったときと、Simkl のウォッチリストを取り込んで作品が変わったとき (#1649) に、読み直す。
+  const changes = useDataChanges(['RESERVATIONS', 'RECORDINGS', 'EPG', 'DRAMA_WATCHLIST']);
   const [fetchKey, setFetchKey] = useState(0);
   const data = useLazyLoadQuery<DramaLibraryQuery>(
     graphql`
@@ -129,6 +130,22 @@ export function DramaLibrary({ filters }: { filters: DramaFilters }) {
       }
     }
   `);
+  const [requestImport] = useMutation<DramaLibraryImportMutation>(graphql`
+    mutation DramaLibraryImportMutation {
+      importDramaWatchlist
+    }
+  `);
+  // 画面を開いたら、Simkl と連携していれば、ウォッチリストの取り込みを 1 度だけ頼む (#1649)。サーバーは、前に問い合わせてから
+  // 30 分たっていなければ取り込まない (Simkl は、タイマーで問い合わせ続けず、利用者の操作で取り込むよう求めている)。
+  // 取り込めなくても、画面の操作は妨げない。
+  const importRequested = useRef(false);
+  const enabled = data.dramaLibrary.enabled;
+  useEffect(() => {
+    if (enabled && !importRequested.current) {
+      importRequested.current = true;
+      requestImport({ variables: {}, onError: () => {} });
+    }
+  }, [enabled, requestImport]);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const now = useNow(60_000);
