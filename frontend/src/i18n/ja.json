@@ -2075,7 +2075,8 @@
         "webhook_deliver": "Webhookの配信",
         "caption_model_download": "字幕のモデルのダウンロード",
         "library_images_generate": "ライブラリのファイルのサムネイル",
-        "library_cm_detect": "ライブラリのファイルのCMの区間"
+        "library_cm_detect": "ライブラリのファイルのCMの区間",
+        "library_auto_captions": "ライブラリのファイルの字幕の自動生成"
       }
     },
     "captionModels": {
