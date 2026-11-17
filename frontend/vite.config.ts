@@ -52,7 +52,11 @@ const licenseFile = /^(licen[cs]e|copying|notice)([.\-_].*)?$/i;
 
 // packagesWithoutLicenseFile は、ライセンスの文書を持たずに公開されているパッケージ。どれも package.json で MIT を宣言しているので、
 // MIT の文に author を著作権者として入れて示す。ここにないパッケージで文書が見つからなければ、ビルドを止める。
-const packagesWithoutLicenseFile = new Set(['react-remove-scroll-bar', 'tr46']);
+const packagesWithoutLicenseFile = new Set([
+  '@nodable/entities',
+  'react-remove-scroll-bar',
+  'tr46',
+]);
 
 const mitLicenseText = (holder: string) => `MIT License
 
