@@ -109,6 +109,28 @@ func TestCaptionsWorker(t *testing.T) {
 	assert.ErrorIs(t, err, errFileChanged)
 }
 
+// TestCaptionsWorkerWriting は、書いている途中のファイルは、音声を取り出さずに取りやめることを確かめる。
+func TestCaptionsWorkerWriting(t *testing.T) {
+	t.Parallel()
+
+	f := newImagesFixture(t)
+	// 索引の時計 (今の 1 時間後) から見て、書いたばかりのファイルにする。
+	now := time.Now().Add(time.Hour)
+	require.NoError(t, os.Chtimes(filepath.Join(f.dir, internalShowTS), now, now))
+	file := f.open(t)
+	require.True(t, file.Writing)
+	audio := &fakeAudio{offset: 0, err: nil, read: 0, serviceID: 0}
+	worker := NewCaptionsWorker(f.worker.libraries, f.reader.Indexer(), clocktest.NewFake(now),
+		func() (autocaption.Transcriber, error) { return &fakeTranscriber{cues: nil}, nil },
+		func() (autocaption.ReaderExtractor, error) { return audio.extract, nil }, t.TempDir())
+	args := CaptionsArgs{Library: internalLibrary, Path: internalShowTS, FileID: file.ID()}
+	err := worker.Work(t.Context(), &river.Job[CaptionsArgs]{JobRow: nil, Args: args})
+	var cancel *rivertype.JobCancelError
+	require.ErrorAs(t, err, &cancel)
+	require.ErrorIs(t, err, errFileWriting)
+	assert.Zero(t, audio.read, "音声を取り出さない")
+}
+
 // TestCaptionsWorkerNotConfigured は、whisper-cli かモデルがなければ、やり直さずに取りやめ、理由を残すことを確かめる。
 func TestCaptionsWorkerNotConfigured(t *testing.T) {
 	t.Parallel()

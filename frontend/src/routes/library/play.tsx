@@ -109,7 +109,11 @@ import {
   PositionedAutoCaptionOverlay,
   type CaptionTrack,
 } from '../../yunomi/AutoCaptionOverlay';
-import { AutoCaptionsStatus, autoCaptionsActive } from '../../recordings/AutoCaptions';
+import {
+  AutoCaptionsStatus,
+  autoCaptionsActive,
+  captionModelsAnchor,
+} from '../../recordings/AutoCaptions';
 import type { playGenerateLibraryCaptionsMutation } from './__generated__/playGenerateLibraryCaptionsMutation.graphql';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useDoubleTap } from '../../yunomi/useDoubleTap';
@@ -1215,7 +1219,22 @@ function Player({
                   </Button>
                 )}
               </Group>
-              <AutoCaptionsStatus status={file.autoCaptionsStatus} />
+              <AutoCaptionsStatus
+                status={file.autoCaptionsStatus}
+                settingsLink={
+                  // モデルを置けるのは管理者だけなので、録画の詳細と同じく、管理者にだけ、置く画面へのリンクを出す。
+                  viewer.role === 'ADMIN' && (
+                    <Anchor
+                      component={Link}
+                      to="/admin/recording"
+                      hash={captionModelsAnchor}
+                      size="sm"
+                    >
+                      {t('recordings.autoCaptions.notConfiguredLink')}
+                    </Anchor>
+                  )
+                }
+              />
               {captionsError && (
                 <Text size="sm" c="red" role="alert">
                   {t('recordings.actionError')}

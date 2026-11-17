@@ -324,6 +324,8 @@ func TestLibraryFile(t *testing.T) {
 	require.Empty(t, f.query(t, saveLibraryPosition, map[string]any{"id": file.LibraryFile.ID, varPositionMs: 9000}, &stale))
 	assert.NotEqual(t, file.LibraryFile.ID, stale.SaveLibraryWatchPosition.ID)
 	assert.Nil(t, stale.SaveLibraryWatchPosition.WatchPositionMs)
+	// 書き換えた後のファイルに、前のファイルの ID で字幕の生成は頼めない。
+	assert.Equal(t, []string{codeConflict}, f.query(t, generateLibraryCaps, map[string]any{"id": file.LibraryFile.ID}, nil))
 	// ほかのユーザーには、その再生位置を返さない。
 	var other libraryFileResult
 	require.Empty(t, f.as(t, "other", domain.RoleMember).query(t, libraryFileQuery, variables, &other))
