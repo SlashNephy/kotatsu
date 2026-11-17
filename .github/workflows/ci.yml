@@ -1,5 +1,9 @@
 name: CI
 
+# PR と main への push で走るものを、この workflow にまとめる (#1939、設計書 11.6)。
+# テスト、lint、生成物の確かめ、E2E、イメージ (image.yml)、CodeQL、依存の脆弱性、マニフェストの設定、スクリーンショットを確かめる。
+# 走らせるかどうかは changes のジョブで決め、workflow の paths では絞らない。必須のチェックは、結果をまとめる ci のジョブだけにする。
+# 定期の検査 (公開済みのイメージ、毎日の依存とマニフェスト、毎週の CodeQL) は scan.yml、リリースは release.yml が動かす。
 on:
   pull_request:
   push:
@@ -15,7 +19,7 @@ concurrency:
 permissions: {}
 
 jobs:
-  # PR で変わったファイルから、走らせるジョブを決める (#700)。関係のないジョブを飛ばし、ランナーの空きを待つ時間を短くする。
+  # PR で変わったファイルから、走らせるジョブを決める (#700、scripts/ci-changes.sh)。関係のないジョブを飛ばし、ランナーの空きを待つ時間を短くする。
   # 飛ばしたジョブは「スキップ」になる (matrix のジョブは、展開せずに 1 つのスキップになる)。必須のチェックには、結果をまとめる ci のジョブだけを
   # 設定するので、飛ばしたジョブでマージは止まらない。
   # main への push と手で動かしたときは、すべて走らせる。
@@ -29,6 +33,10 @@ jobs:
       web: ${{ steps.changes.outputs.web }}
       deploy: ${{ steps.changes.outputs.deploy }}
       mpeg2toh264: ${{ steps.changes.outputs.mpeg2toh264 }}
+      image: ${{ steps.changes.outputs.image }}
+      pnpm-audit: ${{ steps.changes.outputs.pnpm-audit }}
+      kube-linter: ${{ steps.changes.outputs.kube-linter }}
+      codeql: ${{ steps.changes.outputs.codeql }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -42,7 +50,7 @@ jobs:
           if [ "$EVENT_NAME" = pull_request ]; then
             git diff --name-only HEAD^1 HEAD | scripts/ci-changes.sh | tee -a "$GITHUB_OUTPUT"
           else
-            printf 'go=true\ngenerate=true\nweb=true\ndeploy=true\nmpeg2toh264=true\n' | tee -a "$GITHUB_OUTPUT"
+            scripts/ci-changes.sh --all | tee -a "$GITHUB_OUTPUT"
           fi
 
   test:
@@ -112,17 +120,9 @@ jobs:
       - uses: jdx/mise-action@v5.2.7
         with:
           working_directory: backend
-      # Go のモジュールとビルドのキャッシュ。変わっていないパッケージは、ビルドもテストも、前の結果を使う。
-      # backend/go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
-      - uses: actions/cache@v6.1.0
+      - uses: $/.github/actions/go-cache
         with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
-          restore-keys: |
-            go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-
+          name: ${{ github.job }}-${{ matrix.db }}
       - run: mise run build
       - run: mise run //backend:test
 
@@ -157,17 +157,12 @@ jobs:
         with:
           working_directory: backend
           install_args: go
-      - uses: actions/cache@v6.1.0
+      - uses: $/.github/actions/go-cache
         with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
+          name: ${{ github.job }}
+          extra-paths: |
             ~/Library/Caches/go-build
             ~/AppData/Local/go-build
-          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
-          restore-keys: |
-            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            go-${{ github.job }}-${{ runner.os }}-
       - run: go test ./...
 
   lint:
@@ -181,18 +176,11 @@ jobs:
       - uses: jdx/mise-action@v5.2.7
         with:
           working_directory: backend
-      # Go のモジュールとビルドのキャッシュ。変わっていないパッケージは、ビルドもテストも、前の結果を使う。
-      # backend/go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
-      - uses: actions/cache@v6.1.0
+      - uses: $/.github/actions/go-cache
         with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
+          name: ${{ github.job }}
+          extra-paths: |
             ~/.cache/golangci-lint
-          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
-          restore-keys: |
-            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            go-${{ github.job }}-${{ runner.os }}-
       - run: mise run //backend:lint
       - run: golangci-lint fmt --diff
         working-directory: backend
@@ -214,6 +202,8 @@ jobs:
       - run: mise run deploy:manifests
       - run: mise run deploy:test
       - run: git diff --exit-code deploy/
+      # リリースで Chart を作るのと同じく、パッケージにできることを確かめる。
+      - run: helm package deploy/helm/kotatsu --destination "$RUNNER_TEMP"
 
   # ブラウザ内での変換に使う mpeg2toh264 のプレイヤーを、固定した commit とツールチェーンでビルドし直し、
   # リポジトリに置いたものと差分がないことを確かめる (設計書 7.2)。
@@ -246,24 +236,10 @@ jobs:
       - uses: jdx/mise-action@v5.2.7
         with:
           working_directory: backend
-      # Go のモジュールとビルドのキャッシュ。変わっていないパッケージは、ビルドもテストも、前の結果を使う。
-      # backend/go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
-      - uses: actions/cache@v6.1.0
+      - uses: $/.github/actions/go-cache
         with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
-          restore-keys: |
-            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            go-${{ github.job }}-${{ runner.os }}-
-      # pnpm のストア。frontend/pnpm-lock.yaml が変わったら作り直す。
-      - uses: actions/cache@v6.1.0
-        with:
-          path: ~/.local/share/pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-${{ runner.os }}-
+          name: ${{ github.job }}
+      - uses: $/.github/actions/pnpm-cache
       - run: mise run //backend:generate
       # 生成物や未生成のマイグレーションがあれば、新しいファイルも含めて差分として検出する。
       - run: git add -N . && git diff --exit-code
@@ -279,13 +255,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: jdx/mise-action@v5.2.7
-      # pnpm のストア。frontend/pnpm-lock.yaml が変わったら作り直す。
-      - uses: actions/cache@v6.1.0
-        with:
-          path: ~/.local/share/pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-${{ runner.os }}-
+      - uses: $/.github/actions/pnpm-cache
       - run: mise run //frontend:check
       - run: mise run //frontend:test
       - run: mise run //frontend:storybook
@@ -324,21 +294,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: jdx/mise-action@v5.2.7
-      - uses: actions/cache@v6.1.0
+      - uses: $/.github/actions/pnpm-cache
+      - uses: $/.github/actions/go-cache
         with:
-          path: ~/.local/share/pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-${{ runner.os }}-
-      - uses: actions/cache@v6.1.0
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
-          restore-keys: |
-            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            go-${{ github.job }}-${{ runner.os }}-
+          name: ${{ github.job }}
       - run: mise run //frontend:install
       # Playwright のブラウザは、frontend/package.json で固定した @playwright/test の版に合わせて入れる。
       - run: pnpm exec playwright install --with-deps chromium
@@ -351,8 +310,6 @@ jobs:
           path: frontend/test-results/
           retention-days: 7
 
-  # workflow が使う actions が、.github/workflows/actions.lock に固定した commit と合っているかを確かめる (#790)。
-  # actions は、uses: にタグで書き、commit はロックファイルで固定する。Renovate が actions を上げるときに、ロックファイルも作り直す。
   # 配るアーカイブを、リリースと同じ組み方 (GoReleaser のスナップショット) で作る (#1523)。smoke-os が、Windows と macOS で開いて確かめる。
   archives:
     needs: changes
@@ -385,7 +342,8 @@ jobs:
           if-no-files-found: error
 
   # 配るアーカイブを Windows と macOS のランナーで開き、バイナリが起動して、画面と埋め込んだファイルを返すことを確かめる (#1523、設計書 11.6)。
-  # macOS のランナーは混むと長く待たされ、PR を止めてしまうので、必須のチェック (ci) には入れない。赤くなったら、その OS で壊れたということなので、見て直す。
+  # macOS のランナーは混むと長く待たされ、空きがないと取り消されるので、まとめの ci の needs に入れず、PR を止めない。
+  # 赤くなったら、その OS で壊れたということなので、見て直す。
   # macOS では、Go を変えたときに、DB を使わないテスト (test-os と同じもの) もこのジョブで流す (#1691)。
   smoke-os:
     needs: [changes, archives]
@@ -486,16 +444,12 @@ jobs:
             exit 1
           fi
       # macOS のテストは、起動を確かめた後に流す。起動を確かめるのに使った PostgreSQL は使わず、test-os と同じく DB を使うテストは飛ばす。
-      - uses: actions/cache@v6.1.0
+      - uses: $/.github/actions/go-cache
         if: ${{ !cancelled() && runner.os == 'macOS' && needs.changes.outputs.go == 'true' }}
         with:
-          path: |
-            ~/go/pkg/mod
+          name: test-os
+          extra-paths: |
             ~/Library/Caches/go-build
-          key: go-test-os-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
-          restore-keys: |
-            go-test-os-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            go-test-os-${{ runner.os }}-
       - name: Test (macOS)
         if: ${{ !cancelled() && runner.os == 'macOS' && needs.changes.outputs.go == 'true' }}
         timeout-minutes: 15
@@ -504,6 +458,168 @@ jobs:
           KOTATSU_TEST_SKIP_DATABASE: "1"
         run: go test ./...
 
+  # Docker のイメージを作り、起動と脆弱性 (Trivy) を確かめる。main への push では ghcr.io に edge として公開する (image.yml)。
+  image:
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: ./.github/workflows/image.yml
+
+  # CodeQL でコードを解析し、結果を Code scanning に送る。開いているアラートがあれば失敗にする (設計書 11.1、#1918)。
+  # 解析する言語は、変わったファイルから決める (changes)。
+  codeql:
+    needs: changes
+    if: needs.changes.outputs.codeql != '[]'
+    name: codeql (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.changes.outputs.codeql) }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/codeql
+        with:
+          language: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          matrix: ${{ toJSON(matrix) }}
+
+  # Go の依存と標準ライブラリの脆弱性を govulncheck で確かめ、呼び出している脆弱性があれば失敗にする (設計書 11.1、#1918)。
+  # Code scanning には、定期の検査 (scan.yml) が main の結果を送る。
+  govulncheck:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.7
+        with:
+          working_directory: backend
+          install_args: go
+      - uses: $/.github/actions/go-cache
+        with:
+          name: ${{ github.job }}
+      - run: go tool govulncheck ./...
+
+  # 画面 (frontend/) の依存に、重さが high 以上の勧告があれば失敗にする (設計書 11.1、#1918)。開発用の依存も含めて見る。
+  pnpm-audit:
+    needs: changes
+    if: needs.changes.outputs.pnpm-audit == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.7
+        with:
+          install_args: node pnpm
+      - run: pnpm audit --audit-level high
+        working-directory: frontend
+
+  # Helm Chart から生成したマニフェスト (all と split) の設定を kube-linter で確かめ、指摘があれば失敗にする (設計書 11.1、#1918)。
+  kube-linter:
+    needs: changes
+    if: needs.changes.outputs.kube-linter == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      MISE_ENV: scan
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.7
+        with:
+          install_args: aqua:stackrox/kube-linter
+      - run: kube-linter lint deploy/kubernetes/all.yaml deploy/kubernetes/split.yaml
+
+  # README のスクリーンショット (docs/screenshots) を、静的なデモから撮り直す (#621、設計書 11.6)。
+  # PR では、撮れることだけを確かめ、撮った画像を artifact に置く。
+  # 撮影は docs/screenshots と比べ、許容差を超えて変わった画像だけを書き換える (frontend/playwright.screenshots.config.ts)。
+  # main への push では、docs/screenshots と差があれば、bot が画像を差し替える PR を作り (あれば更新し)、auto-merge を有効にする。
+  # GITHUB_TOKEN で作った PR では、ほかの workflow が動かず、必須のチェックが付かない。そのため、PR は GitHub App のトークンで作る。
+  screenshots:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.7
+      - uses: $/.github/actions/pnpm-cache
+      # 日本語のフォント。撮るたびに同じ PNG になるよう、ランナーに入れたものに揃える。
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - run: mise run //frontend:install
+      # Playwright のブラウザは、frontend/package.json で固定した @playwright/test の版に合わせて入れる。
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - run: mise run //frontend:screenshots
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: screenshots
+          path: docs/screenshots/
+          retention-days: 7
+      - if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: screenshots-traces
+          path: frontend/test-results/
+          retention-days: 7
+      - if: github.event_name == 'push'
+        id: app-token
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          client-id: ${{ vars.KOTATSU_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.KOTATSU_BOT_PRIVATE_KEY }}
+          # 画像のブランチへの push と、PR の作成と auto-merge に要る権限だけにする。
+          permission-contents: write
+          permission-pull-requests: write
+      # 差がなければ PR を作らない。開いている PR があれば閉じ、ブランチも消す。
+      - if: github.event_name == 'push'
+        id: pr
+        uses: peter-evans/create-pull-request@v8.1.3
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: bot/screenshots
+          delete-branch: true
+          add-paths: docs/screenshots
+          sign-commits: true
+          commit-message: 'docs: README のスクリーンショットを撮り直す'
+          title: 'docs: README のスクリーンショットを撮り直す'
+          body: |
+            画面の変更に合わせて、README のスクリーンショット (`docs/screenshots`) を撮り直しました。
+            `.github/workflows/ci.yml` の `screenshots` のジョブが、main への push のたびに作ります。必須のチェックが通ると、自動でマージします。
+      - if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --merge
+
+  # workflow が使う actions が、.github/workflows/actions.lock に固定した commit と合っているかを確かめる (#790)。
+  # actions は、uses: にタグで書き、commit はロックファイルで固定する。Renovate が actions を上げるときに、ロックファイルも作り直す。
   actions-lock:
     runs-on: ubuntu-latest
     permissions:
@@ -520,7 +636,8 @@ jobs:
           gh extension install github/gh-actions-lock --pin "$GH_ACTIONS_LOCK_VERSION"
           gh actions-lock --verify
 
-  # ルールセットで必須のチェックにする、CI の結果のまとめ。Auto-merge は、このジョブが通るのを待つ。
+  # ルールセットで必須のチェックにする、CI の結果のまとめ。必須のチェックは、このジョブだけにする (#1939)。Auto-merge は、このジョブが通るのを待つ。
+  # smoke-os のほかのすべてのジョブを needs に入れる。ジョブを足したら、ここにも足す。
   # 飛ばしたジョブはスキップになるので、通ったとみなす。失敗か取り消しのジョブがあれば落とす。
   ci:
     if: always()
@@ -534,6 +651,13 @@ jobs:
       - generate
       - web
       - e2e-stack
+      - archives
+      - image
+      - codeql
+      - govulncheck
+      - pnpm-audit
+      - kube-linter
+      - screenshots
       - actions-lock
     runs-on: ubuntu-latest
     permissions: {}
@@ -541,7 +665,8 @@ jobs:
       - name: Check the results of the jobs
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         env:
-          RESULTS: ${{ toJSON(needs.*.result) }}
+          RESULTS: ${{ toJSON(needs) }}
         run: |
-          echo "::error::Some jobs failed or were cancelled: ${RESULTS}"
+          echo "::error::Some jobs failed or were cancelled"
+          echo "$RESULTS" | jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | "\(.key): \(.value.result)"'
           exit 1

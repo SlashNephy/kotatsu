@@ -20,7 +20,7 @@ jobs:
     permissions:
       # タグを打つ。
       contents: write
-      # GITHUB_TOKEN で打ったタグでは、ほかの workflow が動かないので、リリースとイメージの workflow を、そのタグで手で動かす。
+      # GITHUB_TOKEN で打ったタグでは、ほかの workflow が動かないので、リリースの workflow を、そのタグで手で動かす。
       actions: write
     steps:
       - uses: actions/checkout@v7.0.1
@@ -45,11 +45,11 @@ jobs:
         run: |
           git tag "v${VERSION}" "$GITHUB_SHA"
           git push "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git" "refs/tags/v${VERSION}"
-      - name: Start the release and the images
+      # イメージも、リリースの workflow が作る (image.yml)。
+      - name: Start the release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           gh workflow run release.yml --ref "v${VERSION}"
-          gh workflow run image.yml --ref "v${VERSION}"
           echo "### Released v${VERSION}" >> "$GITHUB_STEP_SUMMARY"

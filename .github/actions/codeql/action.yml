@@ -1,0 +1,101 @@
+name: CodeQL
+description: 1 つの言語を CodeQL で解析して Code scanning に送り、開いているアラートがあれば失敗にする (設計書 11.1、#1918)。
+
+# CI (ci.yml) と定期の検査 (scan.yml) から呼ぶ。言語、クエリ (security-extended)、category (/language:<言語>)、
+# matrix の形 (language と build-mode) は、default setup で動かしていたときと揃える。
+inputs:
+  language:
+    description: 解析する言語。
+    required: true
+  build-mode:
+    description: CodeQL の build-mode。
+    required: true
+  matrix:
+    description: 呼び出したジョブの matrix (toJSON(matrix))。Code scanning の構成の environment になる。
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Code scanning の構成は、analysis_key (workflow のパスとジョブの id)、category、environment で分かれる。
+    # CI と定期の検査は別の workflow から送るので、そのままでは main に同じ category の構成が 2 つでき、直したアラートが
+    # 両方で解析し直されるまで閉じない。そこで、analysis_key を、CodeQL を codeql.yml で動かしていたときの値に固定する (#1939)。
+    # CODEQL_ACTION_ANALYSIS_KEY は、CodeQL の action が analysis_key を置く環境変数で、手で決めてもよいとされている
+    # (codeql-action の src/environment.ts)。
+    - shell: bash
+      run: echo "CODEQL_ACTION_ANALYSIS_KEY=.github/workflows/codeql.yml:analyze" >> "$GITHUB_ENV"
+    # Go は、ビルドを見て解析する。go.mod より古い Go で autobuild が版を落としに行かないよう、mise で同じ版を入れる。
+    - if: inputs.language == 'go'
+      uses: jdx/mise-action@v5.2.7
+      with:
+        working_directory: backend
+        install_args: go
+    - uses: github/codeql-action/init@v4.39.3
+      with:
+        languages: ${{ inputs.language }}
+        build-mode: ${{ inputs.build-mode }}
+        queries: security-extended
+        matrix: ${{ inputs.matrix }}
+    - if: inputs.language == 'go'
+      shell: bash
+      working-directory: backend
+      run: go build ./...
+    # フォークからの PR では、トークンが読み取り専用で送れない。
+    - id: analyze
+      uses: github/codeql-action/analyze@v4.39.3
+      with:
+        category: /language:${{ inputs.language }}
+        matrix: ${{ inputs.matrix }}
+        output: sarif
+        # 次の段で Code scanning のアラートを数えるので、送った SARIF の処理が終わるまで待つ (既定の値)。
+        wait-for-processing: true
+        upload: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'always' || 'never' }}
+    # アップロードできたときは、Code scanning で開いているアラートを数える。dismiss したものは数えない。
+    # アップロードしないとき (フォークからの PR) と、アップロードに失敗したときは、SARIF の結果を数える。
+    # SARIF には dismiss が載らないので、抑制 (suppressions) されたものと、もう無いもの (baselineState が absent) だけを除く。
+    # PR では、action が送るときに変わった行の結果だけに絞る (diff-informed analysis)。output の SARIF は絞る前のものなので、
+    # SARIF で数えるときは、main にあるアラートも数える。
+    - name: Fail on alerts
+      if: ${{ !cancelled() && (steps.analyze.outcome == 'success' || steps.analyze.outcome == 'failure') }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPOSITORY: ${{ github.repository }}
+        REF: ${{ github.ref }}
+        CATEGORY: /language:${{ inputs.language }}
+        SARIF_ID: ${{ steps.analyze.outputs.sarif-id }}
+        ANALYZE_OUTCOME: ${{ steps.analyze.outcome }}
+      run: |
+        set -euo pipefail
+        if [ "$ANALYZE_OUTCOME" = success ] && [ -n "$SARIF_ID" ]; then
+          # 送った解析の analysis_key を Code scanning から読み戻し、上で決めた値と違えば落とす。
+          # action の更新で決め方が変わったときに、別の構成のアラートを数えて、黙って 0 件になるのを防ぐ。
+          analyses_url=$(gh api "repos/$REPOSITORY/code-scanning/sarifs/$SARIF_ID" --jq .analyses_url)
+          analysis_key=$(gh api "$analyses_url" --jq '[.[] | select(.category == env.CATEGORY) | .analysis_key] | unique | .[]')
+          if [ "$analysis_key" != "$CODEQL_ACTION_ANALYSIS_KEY" ]; then
+            echo "::error::The uploaded analysis has analysis_key '$analysis_key', not '$CODEQL_ACTION_ANALYSIS_KEY'"
+            exit 1
+          fi
+          # 種類 (category) ごとに数える。ほかの言語のジョブのアラートは、そのジョブが数える。
+          # default setup で動かしていたときのアラートは、analysis_key (dynamic/github-code-scanning/codeql:analyze) が違い、
+          # もう解析し直されないので、開いたまま残ることがある。この構成の解析のアラートだけを数える。
+          gh api --paginate "repos/$REPOSITORY/code-scanning/alerts?tool_name=CodeQL&state=open&per_page=100&ref=$REF" \
+            --jq '.[]' | jq -s --arg category "$CATEGORY" --arg key "$analysis_key" \
+            '[.[] | select(.most_recent_instance.category == $category and .most_recent_instance.analysis_key == $key)]' > alerts.json
+          jq -r '.[] | "\(.html_url) \(.rule.id) \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)"' alerts.json
+          count=$(jq length alerts.json)
+          echo "$count open alerts on $REF ($CATEGORY, $analysis_key)"
+        else
+          if ! ls sarif/*.sarif > /dev/null 2>&1; then
+            echo "::error::No SARIF file was written"
+            exit 1
+          fi
+          filter='[.runs[].results[]? | select((.suppressions // []) | length == 0) | select(.baselineState != "absent")]'
+          jq -r "$filter | .[] | \"\(.ruleId) \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine)\"" sarif/*.sarif
+          count=$(jq -s "[.[] | $filter | length] | add" sarif/*.sarif)
+          echo "$count results in SARIF ($CATEGORY)"
+        fi
+        if [ "$count" -gt 0 ]; then
+          echo "::error::CodeQL found $count alerts ($CATEGORY)"
+          exit 1
+        fi

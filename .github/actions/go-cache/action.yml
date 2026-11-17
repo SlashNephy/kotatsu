@@ -1,0 +1,27 @@
+name: Go cache
+description: Go のモジュールとビルドのキャッシュを、backend/go.sum ごとに復元し、ジョブの終わりに保存する。
+
+# 変わっていないパッケージは、ビルドもテストも、前の結果を使う。
+# backend/go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
+inputs:
+  name:
+    description: キャッシュのキーの名前。ジョブ (と matrix) ごとに分ける。
+    required: true
+  extra-paths:
+    description: モジュールとビルドのほかに保存するパス (改行で区切る)。
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v6.1.0
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+          ${{ inputs.extra-paths }}
+        key: go-${{ inputs.name }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+        restore-keys: |
+          go-${{ inputs.name }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
+          go-${{ inputs.name }}-${{ runner.os }}-
