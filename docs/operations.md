@@ -5,18 +5,122 @@ Kotatsuを動かし続けるときの、バックアップ、更新、監視の�
 
 ## バックアップ
 
-Kotatsuは、独自のバックアップ機能を持ちません。
-次の3つを、それぞれの標準的な手段でバックアップしてください。
+Kotatsuは、DBとキャプチャの画像を、1つの暗号化したファイルに書き出せます（`kotatsu admin backup`）。
+戻すときは、空のDBに`kotatsu admin restore`で流し込みます。
+録画のファイルは扱わないので、別の手段でコピーしてください。
 
-| 対象 | 内容 | 手段の例 |
+| 対象 | 内容 | 手段 |
 | --- | --- | --- |
-| DB | ユーザー、ルール、予約、録画の一覧、設定 | `pg_dump`、CloudNativePGのバックアップ |
-| プールとデータディレクトリのファイル | 録画のファイルと、データディレクトリの生成物 | ファイルのコピー、スナップショット |
-| アプリの秘密キー | `auth.secret_key`の値 | パスワードマネージャーなどに保管 |
+| DB | ユーザー、ルール、予約、録画の一覧と履歴、過去の番組、視聴の記録、設定 | `kotatsu admin backup` |
+| キャプチャの画像 | データディレクトリの`captures/` | `kotatsu admin backup` |
+| アプリの秘密キー | `auth.secret_key`の値 | `kotatsu admin backup` |
+| 録画のファイル | プールの録画 | ファイルのコピー、NASの機能、スナップショット |
+
+`kotatsu admin backup`は、次のものを書き出しません。
+
+- 番組表：戻した後に、チューナーサーバーから取り直します。
+- ログインしたセッション：戻した後は、全員がログインし直します。
+- 後処理などのジョブ：戻した後に、要るものはまた入ります。
+- データディレクトリの生成物（シーク用の索引、サムネイル、シークバー用のプレビュー画像）：`kotatsu admin reanalyze`で作り直せます（次の節）。
+
+### 鍵を作る
+
+バックアップは、[age](https://age-encryption.org/)の公開鍵で暗号化します。
+読むには、組になる秘密鍵が要ります。
+秘密鍵は、Kotatsuを動かすマシンとは別の場所（手元のPCやパスワードマネージャー）に置いてください。
+サーバーには公開鍵だけを置くので、サーバーが漏れても、バックアップは読めません。
+
+ageは、多くのパッケージマネージャーで入れられます（`brew install age`、`apt install age`など）。
+`age-keygen`で鍵を作ると、秘密鍵をファイルに書き、公開鍵（`age1`で始まる文字列）を表示します。
+
+```bash
+age-keygen -o kotatsu-backup-key.txt
+# Public key: age1...
+```
+
+秘密鍵をなくすと、バックアップを戻せません。
+秘密鍵のファイルは、なくさないよう2か所以上に残してください。
+
+### 書き出す
+
+データディレクトリをマウントしたロールで、公開鍵を渡して実行します。
+`--recipient`は、何回でも渡せます。どれか1つの秘密鍵があれば読めます。
+
+```bash
+kotatsu admin backup --output /backups/kotatsu-20261117.age --recipient age1...
+```
+
+Docker Composeの例では、`kotatsu`のコンテナで実行します。
+書き出す先は、コンテナにマウントしたディレクトリ（例では`/data`）にしてください。
+
+```bash
+docker compose exec kotatsu kotatsu admin backup --output /data/kotatsu-20261117.age --recipient age1...
+```
+
+Kubernetesでは、データディレクトリをマウントしたPod（`deploy/kotatsu-all`、ロールを分けているときは`deploy/kotatsu-nekonote`）で実行します。
+
+```bash
+kubectl exec deploy/kotatsu-all -- kotatsu admin backup --output /data/kotatsu-20261117.age --recipient age1...
+```
+
+書き出すファイルは、持ち主だけが読める許可（0600）で作ります。
+同じ名前のファイルがあれば、上書きせずに止まります。
+書き出す間も、録画や視聴は止めずに続けられます。
+DBは1つのトランザクションの中で読むので、書き出す間に変わっても、表どうしは同じ時点のものになります。
+
+### 戻す
+
+戻す先は、空のDBにします。表のあるDBには戻しません。
+手順は次のとおりです。
+
+1. 全ロールを止めます。
+2. 空のDBを作ります。今のDBに戻すなら、DBを消して作り直します。
+3. データディレクトリをマウントした環境で、秘密鍵のファイルを渡して`kotatsu admin restore`を実行します。
+4. 各ロールを起動します。nekoが番組表を取り直します。全員がログインし直してください。
+
+```bash
+kotatsu admin restore --input kotatsu-20261117.age --identity kotatsu-backup-key.txt
+```
+
+Docker Composeの例では、次のように戻します。
+バックアップと秘密鍵のファイルを、コンテナにマウントした`./data`に置いてから実行し、戻し終えたら秘密鍵のファイルを消します。
+`--no-deps`を付けないと、先に`migrate`のサービスがスキーマを作り、DBが空でなくなります。
+
+```bash
+docker compose stop kotatsu
+docker compose exec postgres dropdb -U kotatsu kotatsu
+docker compose exec postgres createdb -U kotatsu kotatsu
+docker compose run --rm --no-deps kotatsu admin restore --input /data/kotatsu-20261117.age --identity /data/kotatsu-backup-key.txt
+rm data/kotatsu-backup-key.txt
+docker compose up -d
+```
+
+バックアップのアプリの秘密キーが、設定の`auth.secret_key`と違えば、何も変えずに止まります。
+別のマシンに戻すときなど、秘密キーを設定し直すなら、`--secret-key-out`で秘密キーをファイルに書き出させ、その値を`auth.secret_key`に設定してから起動します。
+
+```bash
+kotatsu admin restore --input kotatsu-20261117.age --identity kotatsu-backup-key.txt --secret-key-out secret_key.txt
+```
+
+`kotatsu admin restore`は、バックアップを書き出したときのスキーマの版までマイグレーションを当ててから流し込み、最後に最新の版まで当てます。
+古い版のKotatsuで書き出したバックアップも、新しい版のKotatsuで戻せます。
+新しい版で書き出したバックアップは、古い版のKotatsuでは戻せません。
+
+DBを古い時点に戻すと、プールのファイルと食い違います。
+戻した後に録ったファイルは「DBにないファイル」として、戻した後に消した録画は「ファイルが見つからない録画」として、保存先の画面で探せます。
+DBにないファイルは、`kotatsu import files`で取り込み直せます。
+
+### ほかの手段
+
+CloudNativePGのバックアップや`pg_dump`でDBを残すこともできます。
+その場合は、アプリの秘密キーとキャプチャの画像を、別に残してください。
+アプリの秘密キーをなくすと、DBを戻しても、暗号化して保存した値を読めません。
+その場合は、全員のTOTPとWeb Pushの設定し直しと、Webhookの作り直しが必要です。
+
+### 生成物を作り直す
 
 生成物は、データディレクトリ（`storage.data_dir`）の、録画のセグメントのIDの名前のディレクトリに置きます。
 シーク用の索引、サムネイル、シークバー用のプレビュー画像が入っています。
-DBの記録と組になるので、録画のファイルとDBと同じ時点のものをコピーしてください。
 なくしても、録画の詳細の解析し直しと、サムネイルの作り直しで作り直せます。
 多くの録画の生成物をなくしたときは、プールとデータディレクトリをマウントしたロールで、`kotatsu admin reanalyze`を実行します。
 索引か代表画像のない録画を探し、解析のジョブをまとめて入れます。解析が終われば、画像も作り直します。
@@ -28,11 +132,6 @@ kubectl exec deploy/kotatsu-all -- kotatsu admin reanalyze
 ```
 
 ロールを分けているときは、`deploy/kotatsu-nekonote`のように、プールをマウントしたロールで実行してください。
-
-アプリの秘密キーをなくすと、DBを戻しても、暗号化して保存した値を読めません。
-その場合は、全員のTOTPとWeb Pushの設定し直しと、Webhookの作り直しが必要です。
-
-DBを戻すときは、プールとデータディレクトリのファイルも同じ時点のものに戻すと、録画の一覧とファイルが食い違いません。
 
 ## 更新
 
