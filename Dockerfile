@@ -119,12 +119,14 @@ ARG TARGETARCH
 # VAAPI と QSV のドライバのうち、Intel のものは amd64 にしかない。Intel の VAAPI のドライバだけは、non-free の
 # intel-media-va-driver-non-free を入れる (#509)。main の intel-media-va-driver は、Gen11 以前の GPU で、縮小 (VPP) と
 # HEVC のエンコードができないため。ライセンスは Expat で再配布できるが、GPU のバイナリにソースがないので non-free にある (付録 B)。
+# ベースイメージは、Debian のセキュリティの更新 (trixie-security) をすぐには取り込まないので、入っているパッケージも上げる。
 RUN drivers="mesa-va-drivers" \
     && if [ "$TARGETARCH" = "amd64" ]; then \
         sed -i 's/^Components: main$/Components: main non-free/' /etc/apt/sources.list.d/debian.sources; \
         drivers="$drivers intel-media-va-driver-non-free libvpl2 libmfx-gen1.2"; \
     fi \
     && apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends ca-certificates ffmpeg $drivers \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=tools /out/tsreadex /usr/local/bin/
