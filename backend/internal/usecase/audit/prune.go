@@ -58,29 +58,39 @@ var _ river.JobArgs = new(PruneArgs)
 
 func (PruneArgs) Kind() string { return "audit_prune" }
 
+// Retentions は、監査ログの記録と、その送信元の情報 (IP アドレスと User-Agent) の保持期間。
+type Retentions struct {
+	Events     time.Duration
+	ClientInfo time.Duration
+}
+
 // PruneWorker は、保持期間を過ぎた記録を消すジョブを実行する。
 type PruneWorker struct {
 	river.WorkerDefaults[PruneArgs]
 
-	db                  sqlc.DBTX
-	clock               clock.Clock
-	retention           time.Duration
-	clientInfoRetention time.Duration
+	db    sqlc.DBTX
+	clock clock.Clock
+	// retentions は、保持期間を返す。画面から変えられる (#1869) ので、ジョブごとに読む。
+	retentions func(ctx context.Context) (*Retentions, error)
 }
 
 var _ river.Worker[PruneArgs] = new(PruneWorker)
 
-// NewPruneWorker は PruneWorker を作る。
-func NewPruneWorker(db sqlc.DBTX, clk clock.Clock, retention, clientInfoRetention time.Duration) *PruneWorker {
-	return &PruneWorker{WorkerDefaults: river.WorkerDefaults[PruneArgs]{}, db: db, clock: clk, retention: retention, clientInfoRetention: clientInfoRetention}
+// NewPruneWorker は PruneWorker を作る。retentions は、ジョブごとに保持期間を返す。
+func NewPruneWorker(db sqlc.DBTX, clk clock.Clock, retentions func(ctx context.Context) (*Retentions, error)) *PruneWorker {
+	return &PruneWorker{WorkerDefaults: river.WorkerDefaults[PruneArgs]{}, db: db, clock: clk, retentions: retentions}
 }
 
 func (w *PruneWorker) Work(ctx context.Context, _ *river.Job[PruneArgs]) error {
-	deleted, err := Prune(ctx, w.db, w.clock, w.retention)
+	retentions, err := w.retentions(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to read the retention of audit events: %w", err)
+	}
+	deleted, err := Prune(ctx, w.db, w.clock, retentions.Events)
 	if err != nil {
 		return err
 	}
-	cleared, err := PruneClientInfo(ctx, w.db, w.clock, w.clientInfoRetention)
+	cleared, err := PruneClientInfo(ctx, w.db, w.clock, retentions.ClientInfo)
 	if err != nil {
 		return err
 	}

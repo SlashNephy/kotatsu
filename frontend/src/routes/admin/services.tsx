@@ -19,6 +19,7 @@ import type {
   ChannelTypeInput,
   servicesChannelTypeMutation,
 } from './__generated__/servicesChannelTypeMutation.graphql';
+import type { servicesJikkyoChannelMutation } from './__generated__/servicesJikkyoChannelMutation.graphql';
 import type { servicesQuery } from './__generated__/servicesQuery.graphql';
 import type {
   ServiceInput,
@@ -36,7 +37,7 @@ export const Route = createFileRoute('/admin/services')({
 
 // ServicesPage は、放送波 (チャンネル種別) の表示名と並び順、番組表とライブに出すサービスと並び順を変える、
 // 管理者向けの画面 (設計書 10.3)。タイムシフトで録るサービスは、タイムシフトの画面 (/admin/timeshift) で決める。
-// しょぼいカレンダーと Annict のチャンネルの対応の上書き (設計書 3.8) も、ここで変える。
+// しょぼいカレンダーと Annict のチャンネルの対応の上書き (設計書 3.8) と、ニコニコ実況のチャンネルの対応 (設計書 7.4、#1869) も、ここで変える。
 // どの項目も、変えたらその項目だけを保存する (#1740)。
 function ServicesPage() {
   const { t } = useTranslation();
@@ -57,6 +58,8 @@ const query = graphql`
     }
     services(includeHidden: true) {
       id
+      networkId
+      serviceId
       name
       logoUrl
       hidden
@@ -67,6 +70,11 @@ const query = graphql`
     }
     systemSettings {
       animeLinkingEnabled
+      jikkyoChannels {
+        networkId
+        serviceId
+        channelId
+      }
     }
     animeChannels {
       serviceId
@@ -142,6 +150,36 @@ function ServiceSettings() {
           }
         `,
         { serviceId, input },
+      );
+      refresh();
+    });
+
+  // saveJikkyoChannel は、サービスとニコニコ実況のチャンネルの対応を保存する (#1869)。null なら、対応を消して同梱の対応表に戻す。
+  const saveJikkyoChannel = (
+    service: { networkId: number; serviceId: number },
+    channelId: string | null,
+  ) =>
+    save(async () => {
+      await mutate<servicesJikkyoChannelMutation>(
+        environment,
+        graphql`
+          mutation servicesJikkyoChannelMutation($input: SystemSettingsInput!) {
+            updateSystemSettings(input: $input) {
+              jikkyoChannels {
+                networkId
+                serviceId
+                channelId
+              }
+            }
+          }
+        `,
+        {
+          input: {
+            jikkyoChannels: [
+              { networkId: service.networkId, serviceId: service.serviceId, channelId },
+            ],
+          },
+        },
       );
       refresh();
     });
@@ -293,9 +331,55 @@ function ServiceSettings() {
           </Stack>
         </ScrollArea.Autosize>
       </Section>
+
+      {/* ニコニコ実況のチャンネルの対応 (#1869)。前は設定ファイルの jikkyo.channels で渡していた。
+          欄を空にすると、対応を消して、同梱した対応表に戻す。 */}
+      <Section title={t('admin.system.jikkyoChannels')}>
+        <Text size="sm" c="dimmed">
+          {t('admin.system.jikkyoChannelsDescription')}
+        </Text>
+        <ScrollArea.Autosize mah={480}>
+          <Stack gap="xs" data-testid="jikkyo-channels">
+            {data.services.map((service) => {
+              const override = data.systemSettings.jikkyoChannels.find(
+                (item) =>
+                  item.networkId === service.networkId && item.serviceId === service.serviceId,
+              );
+
+              return (
+                <Group key={service.id} gap="xs" align="flex-end">
+                  <ServiceName
+                    name={service.name}
+                    logoUrl={service.logoUrl}
+                    sub={service.channelType.displayName}
+                  />
+                  <AutoSaveTextInput
+                    size="xs"
+                    w={180}
+                    label={t('admin.system.jikkyoChannel')}
+                    placeholder={t('admin.system.jikkyoChannelBundled')}
+                    validate={(value) =>
+                      value === '' || jikkyoChannelPattern.test(value)
+                        ? null
+                        : t('admin.system.jikkyoChannelInvalid')
+                    }
+                    value={override?.channelId ?? ''}
+                    onSave={(channelId) =>
+                      saveJikkyoChannel(service, channelId === '' ? null : channelId)
+                    }
+                  />
+                </Group>
+              );
+            })}
+          </Stack>
+        </ScrollArea.Autosize>
+      </Section>
     </Stack>
   );
 }
+
+// jikkyoChannelPattern は、実況のチャンネルの ID の形 (jk1 など)。サーバーと同じ。
+const jikkyoChannelPattern = /^jk\d{1,6}$/;
 
 // ServiceName は、行の左に出す、サービスの名前とロゴ、その下の小さな説明 sub。
 function ServiceName({

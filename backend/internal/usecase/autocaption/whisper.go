@@ -60,8 +60,9 @@ type Whisper struct {
 var _ Transcriber = new(Whisper)
 
 // NewWhisper は、設定 cfg の whisper-cli とモデルを使う Whisper を返す。dataDir は、モデルのパスを省いたときに探すデータディレクトリ。
+// threads は、whisper-cli に使わせるスレッドの数で、0 なら CPU の数から決める。管理者が画面で決める (#1869)。
 // whisper-cli かモデルが見つからなければ、ErrNotConfigured を返す。lowerer は、whisper-cli を最低の優先度で動かす。nil なら優先度を変えない。
-func NewWhisper(cfg *config.Captions, dataDir string, lowerer *procprio.Lowerer) (*Whisper, error) {
+func NewWhisper(cfg *config.Captions, threads int, dataDir string, lowerer *procprio.Lowerer) (*Whisper, error) {
 	command := cfg.WhisperCommand
 	if command == "" {
 		command = whisperCommand
@@ -88,7 +89,7 @@ func NewWhisper(cfg *config.Captions, dataDir string, lowerer *procprio.Lowerer)
 		return nil, err
 	}
 
-	return &Whisper{command: resolved, model: model, threads: threadsOf(cfg.Threads, runtime.NumCPU()), lowerer: lowerer, vad: vad}, nil
+	return &Whisper{command: resolved, model: model, threads: threadsOf(threads, runtime.NumCPU()), lowerer: lowerer, vad: vad}, nil
 }
 
 // threadsOf は、whisper-cli に使わせるスレッドの数を返す。configured が 0 なら、CPU の数の半分 (1 から maxThreads) にする。

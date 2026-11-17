@@ -15,7 +15,7 @@ func (r *Resolver) serviceJikkyo(ctx context.Context, service *model.Service) *m
 	if r.jikkyoTable == nil || r.jikkyoClient == nil || !r.jikkyoAccess(ctx).Allowed() {
 		return nil
 	}
-	id, ok := r.jikkyoTable.Lookup(int64(service.NetworkID), int64(service.ServiceID))
+	id, ok := r.jikkyoTable.Lookup(ctx, int64(service.NetworkID), int64(service.ServiceID))
 	if !ok {
 		return nil
 	}
@@ -43,7 +43,7 @@ func (r *Resolver) serviceJikkyoChannelID(ctx context.Context, service *model.Se
 	if r.jikkyoTable == nil || !r.jikkyoAccess(ctx).SystemEnabled {
 		return nil
 	}
-	id, ok := r.jikkyoTable.Lookup(int64(service.NetworkID), int64(service.ServiceID))
+	id, ok := r.jikkyoTable.Lookup(ctx, int64(service.NetworkID), int64(service.ServiceID))
 	if !ok {
 		return nil
 	}

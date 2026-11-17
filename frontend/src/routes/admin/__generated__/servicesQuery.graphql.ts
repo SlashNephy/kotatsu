@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6445cd1787a1212c40f2103b23e0f592>>
+ * @generated SignedSource<<b0769bba96a273c38f13ff4e03246332>>
  * @lightSyntaxTransform
  */
 
@@ -31,10 +31,17 @@ export type servicesQuery$data = {
     readonly id: string;
     readonly logoUrl: string | null | undefined;
     readonly name: string;
+    readonly networkId: number;
+    readonly serviceId: number;
     readonly sortOrder: number | null | undefined;
   }>;
   readonly systemSettings: {
     readonly animeLinkingEnabled: boolean;
+    readonly jikkyoChannels: ReadonlyArray<{
+      readonly channelId: string;
+      readonly networkId: number;
+      readonly serviceId: number;
+    }>;
   };
 };
 export type servicesQuery = {
@@ -57,7 +64,21 @@ v1 = {
   "name": "sortOrder",
   "storageKey": null
 },
-v2 = [
+v2 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "networkId",
+  "storageKey": null
+},
+v3 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "serviceId",
+  "storageKey": null
+},
+v4 = [
   {
     "alias": null,
     "args": null,
@@ -99,6 +120,8 @@ v2 = [
         "name": "id",
         "storageKey": null
       },
+      (v2/*:: as any*/),
+      (v3/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -150,6 +173,26 @@ v2 = [
         "kind": "ScalarField",
         "name": "animeLinkingEnabled",
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "JikkyoChannelOverride",
+        "kind": "LinkedField",
+        "name": "jikkyoChannels",
+        "plural": true,
+        "selections": [
+          (v2/*:: as any*/),
+          (v3/*:: as any*/),
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "channelId",
+            "storageKey": null
+          }
+        ],
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -162,13 +205,7 @@ v2 = [
     "name": "animeChannels",
     "plural": true,
     "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "serviceId",
-        "storageKey": null
-      },
+      (v3/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -214,7 +251,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "servicesQuery",
-    "selections": (v2/*:: as any*/),
+    "selections": (v4/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -223,19 +260,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "servicesQuery",
-    "selections": (v2/*:: as any*/)
+    "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "9e61484e85d8701692092215cc1ef6bd",
+    "cacheID": "46ed13bd6d00b88bdb863b60692f3e6f",
     "id": null,
     "metadata": {},
     "name": "servicesQuery",
     "operationKind": "query",
-    "text": "query servicesQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    name\n    logoUrl\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  systemSettings {\n    animeLinkingEnabled\n  }\n  animeChannels {\n    serviceId\n    definitionName\n    importedSyobocalChannelId\n    importedAnnictChannelId\n    syobocalChannelIdOverride\n    annictChannelIdOverride\n  }\n}\n"
+    "text": "query servicesQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    networkId\n    serviceId\n    name\n    logoUrl\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  systemSettings {\n    animeLinkingEnabled\n    jikkyoChannels {\n      networkId\n      serviceId\n      channelId\n    }\n  }\n  animeChannels {\n    serviceId\n    definitionName\n    importedSyobocalChannelId\n    importedAnnictChannelId\n    syobocalChannelIdOverride\n    annictChannelIdOverride\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "628efdd82cf5918a2218cbc189c474d1";
+(node as any).hash = "b902c089210bace3a8d56cd5d0b62f99";
 
 export default node;

@@ -74,6 +74,9 @@ const query = graphql`
       ruleUnmatchedGraceMinutes
       tvtplayChaptersEnabled
       cmDetector
+      thumbnailPreviewsEnabled
+      captionThreads
+      sleepControlEnabled
       updatedAt
     }
     systemStatus {
@@ -331,6 +334,51 @@ function RecordingSettings() {
             allowNegative={false}
             value={settings.ruleUnmatchedGraceMinutes}
             onSave={(ruleUnmatchedGraceMinutes) => saveSettings({ ruleUnmatchedGraceMinutes })}
+          />
+        </Stack>
+      </Card>
+
+      {/* 録画の後処理の負荷 (#1869)。ルールや予約では変えない、nekonote の全体の設定。 */}
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.postProcessing')}
+          </Title>
+          <AutoSaveSwitch
+            size="sm"
+            label={t('admin.settings.thumbnailPreviews')}
+            description={t('admin.settings.thumbnailPreviewsHelp')}
+            checked={settings.thumbnailPreviewsEnabled}
+            onSave={(thumbnailPreviewsEnabled) => saveSettings({ thumbnailPreviewsEnabled })}
+          />
+          {/* 0 なら、CPU の数から決める。 */}
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.captionThreads')}
+            description={t('admin.settings.captionThreadsHelp')}
+            min={0}
+            max={256}
+            allowDecimal={false}
+            allowNegative={false}
+            value={settings.captionThreads}
+            onSave={(captionThreads) => saveSettings({ captionThreads })}
+          />
+        </Stack>
+      </Card>
+
+      {/* Windows と macOS の all の構成で、OS のスリープを扱うかどうか (#1522、#1869)。 */}
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.power')}
+          </Title>
+          <AutoSaveSwitch
+            size="sm"
+            label={t('admin.settings.sleepControl')}
+            description={t('admin.settings.sleepControlHelp')}
+            checked={settings.sleepControlEnabled}
+            onSave={(sleepControlEnabled) => saveSettings({ sleepControlEnabled })}
           />
         </Stack>
       </Card>

@@ -18,7 +18,7 @@ export const Route = createFileRoute('/admin/retention')({
   component: RetentionPage,
 });
 
-// RetentionPage は、過去の番組と画面内の通知と録画の再生位置を残す日数を変える、管理者向けの画面 (設計書 10.3、11.2)。
+// RetentionPage は、過去の番組と画面内の通知と録画の再生位置と監査ログを残す日数を変える、管理者向けの画面 (設計書 10.3、11.2)。
 function RetentionPage() {
   const { t } = useTranslation();
 
@@ -36,6 +36,8 @@ const query = graphql`
       notificationRetentionDays
       watchProgressRetentionDays
       networkActivityRetentionDays
+      auditRetentionDays
+      auditClientInfoRetentionDays
       updatedAt
     }
   }
@@ -144,6 +146,41 @@ function RetentionSettings() {
             value={settings.networkActivityRetentionDays}
             onSave={(networkActivityRetentionDays) =>
               saveSettings({ networkActivityRetentionDays })
+            }
+          />
+        </Stack>
+      </Card>
+
+      {/* 監査ログと、その送信元の IP アドレスと User-Agent (#1869)。ほかの記録と違い、無期限にはできない (設計書 8.5)。 */}
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.audit')}
+          </Title>
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.auditRetentionDays')}
+            description={t('admin.settings.auditRetentionHelp')}
+            min={1}
+            max={3650}
+            allowDecimal={false}
+            allowNegative={false}
+            value={settings.auditRetentionDays}
+            onSave={(auditRetentionDays) => saveSettings({ auditRetentionDays })}
+          />
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.auditClientInfoRetentionDays')}
+            description={t('admin.settings.auditClientInfoRetentionHelp')}
+            min={1}
+            max={3650}
+            allowDecimal={false}
+            allowNegative={false}
+            value={settings.auditClientInfoRetentionDays}
+            onSave={(auditClientInfoRetentionDays) =>
+              saveSettings({ auditClientInfoRetentionDays })
             }
           />
         </Stack>

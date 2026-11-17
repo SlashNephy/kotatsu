@@ -8,13 +8,20 @@ import { Route } from './services';
 afterEach(cleanup);
 
 // servicesResponse は、サービスが 1 つの画面の応答を作る。hidden は、そのサービスの番組表に出さない印、sortOrder は並び順の上書き。
-function servicesResponse(hidden: boolean, sortOrder: number | null = null) {
+// jikkyoChannels は、画面で足した実況のチャンネルの対応 (#1869)。
+function servicesResponse(
+  hidden: boolean,
+  sortOrder: number | null = null,
+  jikkyoChannels: { networkId: number; serviceId: number; channelId: string }[] = [],
+) {
   return {
     data: {
       channelTypes: [],
       services: [
         {
           id: 'U2VydmljZTox',
+          networkId: 32736,
+          serviceId: 1024,
           name: 'こたつテスト1',
           logoUrl: null,
           hidden,
@@ -22,7 +29,7 @@ function servicesResponse(hidden: boolean, sortOrder: number | null = null) {
           channelType: { displayName: '地上波' },
         },
       ],
-      systemSettings: { animeLinkingEnabled: false },
+      systemSettings: { animeLinkingEnabled: false, jikkyoChannels },
       animeChannels: [],
     },
   };
@@ -122,5 +129,57 @@ describe('並び順は、欄を離れたときか Enter で保存する (#1740)'
     await screen.findByRole('status');
 
     expect(sent).toEqual([want]);
+  });
+});
+
+describe('ニコニコ実況のチャンネル (#1869)', () => {
+  test.each([
+    { name: '入れたチャンネルを、サービスの組で送る', saved: [], value: 'jk8', want: 'jk8' },
+    {
+      name: '空にすると、対応を消す (null を送る)',
+      saved: [{ networkId: 32736, serviceId: 1024, channelId: 'jk8' }],
+      value: '',
+      want: null,
+    },
+  ])('$name', async ({ saved, value, want }) => {
+    const sent: unknown[] = [];
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'servicesJikkyoChannelMutation') {
+        sent.push(variables.input);
+
+        return { data: { updateSystemSettings: { jikkyoChannels: [] } } };
+      }
+
+      return servicesResponse(false, null, saved);
+    });
+    await renderRoute(Route, '/admin/services', '/admin/services', environment);
+    const channel = await screen.findByRole('textbox', { name: '実況のチャンネル（jk1など）' });
+    fireEvent.change(channel, { target: { value } });
+
+    await act(async () => fireEvent.blur(channel));
+    await screen.findByRole('status');
+
+    expect(sent).toEqual([
+      { jikkyoChannels: [{ networkId: 32736, serviceId: 1024, channelId: want }] },
+    ]);
+  });
+
+  test('jk と数字でなければ、理由を出して保存しない', async () => {
+    const sent: unknown[] = [];
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'servicesJikkyoChannelMutation') {
+        sent.push(variables.input);
+      }
+
+      return servicesResponse(false);
+    });
+    await renderRoute(Route, '/admin/services', '/admin/services', environment);
+    const channel = await screen.findByRole('textbox', { name: '実況のチャンネル（jk1など）' });
+    fireEvent.change(channel, { target: { value: '101' } });
+
+    await act(async () => fireEvent.blur(channel));
+
+    expect(sent).toEqual([]);
+    expect(channel.getAttribute('aria-invalid')).toBe('true');
   });
 });

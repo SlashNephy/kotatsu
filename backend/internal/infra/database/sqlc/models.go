@@ -980,6 +980,14 @@ type SystemSetting struct {
 	TimeshiftWhileWatching                 bool
 	TimeshiftWhileWatchingRetentionSeconds int32
 	RuleUnmatchedGraceMinutes              int32
+	AuditRetentionDays                     int32
+	AuditClientInfoRetentionDays           int32
+	HibpEnabled                            bool
+	WebPushSubject                         string
+	ThumbnailPreviewsEnabled               bool
+	SleepControlEnabled                    bool
+	CaptionThreads                         int32
+	JikkyoChannels                         []byte
 	UpdatedAt                              time.Time
 }
 

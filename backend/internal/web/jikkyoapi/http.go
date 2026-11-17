@@ -102,7 +102,7 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &commentsResponse{Channel: nil, Origin: nil, Comments: []*commentJSON{}}
-	id, ok := h.table.Lookup(source.NetworkID, source.Sid)
+	id, ok := h.table.Lookup(r.Context(), source.NetworkID, source.Sid)
 	if !ok {
 		h.write(w, r, resp, source.RecordedUntil != nil)
 

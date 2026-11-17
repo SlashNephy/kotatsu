@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -73,7 +74,7 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 	require.NoError(t, err)
 
 	fake, server := newFakeJikkyo(t, channelsJSON, kakolog)
-	table, err := jikkyo.NewTable(nil)
+	table, err := jikkyo.NewTable(nil, clock.Real{}, nil)
 	require.NoError(t, err)
 	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: nil})
 	// 今は、録画を始めて 40 分後。録画中の録画は、今までの過去ログを引く。

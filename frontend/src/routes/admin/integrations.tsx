@@ -114,6 +114,8 @@ const query = graphql`
       animeLinkingEnabled
       dramaLinkingEnabled
       commentSources
+      hibpEnabled
+      webPushSubject
     }
     # 発行された外部プレイヤー用の URL (#1757)。
     issuedStreamUrls {
@@ -289,6 +291,22 @@ function Integrations() {
           help={t('networkActivity.adminHelp')}
           enabled={data.systemSettings.networkActivityEnabled}
           onSave={(networkActivityEnabled) => saveSettings({ networkActivityEnabled })}
+        />
+
+        {/* Have I Been Pwned への照会 (設計書 9.3)。外部へ問い合わせ始めるので、ここで再認証を求める。設定ファイルから移した (#1869)。 */}
+        <SwitchSetting
+          key="hibp"
+          title={t('admin.settings.hibp')}
+          label={t('admin.settings.hibpEnabled')}
+          help={t('admin.settings.hibpHelp')}
+          enabled={data.systemSettings.hibpEnabled}
+          onSave={(hibpEnabled) => saveSettings({ hibpEnabled })}
+        />
+
+        {/* Web Push で、プッシュサービスに示す送り手の連絡先 (設計書 6.2)。設定ファイルから移した (#1869)。 */}
+        <WebPushSubjectSetting
+          subject={data.systemSettings.webPushSubject ?? ''}
+          onSave={(webPushSubject) => saveSettings({ webPushSubject })}
         />
 
         {/* データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。受信機の情報が外部へ届くので、ここで再認証を求める。 */}
@@ -632,6 +650,41 @@ function SwitchSetting({
         checked={enabled}
         onSave={onSave}
         maw={560}
+      />
+    </Section>
+  );
+}
+
+// webPushSubjectPattern は、Web Push の送り手の連絡先に書ける形。空白を含まない mailto: か https:// の URI (RFC 8292)。サーバーと同じ。
+const webPushSubjectPattern = /^(mailto:|https:\/\/)\S+$/;
+
+// WebPushSubjectSetting は、Web Push で、プッシュサービスに示す送り手の連絡先を変える (#1869)。
+// 欄を離れたときか Enter で保存する (#1740)。空にすると、Kotatsu のリポジトリの URL に戻す。
+function WebPushSubjectSetting({
+  subject,
+  onSave,
+}: {
+  subject: string;
+  onSave: (subject: string) => Promise<boolean>;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Section title={t('admin.settings.webPush')}>
+      <AutoSaveTextInput
+        size="xs"
+        w="100%"
+        maw={560}
+        label={t('admin.settings.webPushSubject')}
+        description={t('admin.settings.webPushSubjectHelp')}
+        placeholder="mailto:admin@example.com"
+        validate={(value) =>
+          value === '' || webPushSubjectPattern.test(value)
+            ? null
+            : t('admin.settings.webPushSubjectInvalid')
+        }
+        value={subject}
+        onSave={onSave}
       />
     </Section>
   );

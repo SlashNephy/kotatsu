@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<869add0c1190866d5ebf982227d8a81e>>
+ * @generated SignedSource<<4879c27cdfb312078ab0bec36dcf9e76>>
  * @lightSyntaxTransform
  */
 
@@ -12,6 +12,7 @@ export type CMDetector = "FFMPEG" | "LOGO" | "%future added value";
 export type recordingQuery$variables = Record<PropertyKey, never>;
 export type recordingQuery$data = {
   readonly systemSettings: {
+    readonly captionThreads: number;
     readonly cmDetector: CMDetector;
     readonly recordingDefaults: {
       readonly detectCm: boolean;
@@ -32,6 +33,8 @@ export type recordingQuery$data = {
       readonly followEventRelay: boolean;
     };
     readonly ruleUnmatchedGraceMinutes: number;
+    readonly sleepControlEnabled: boolean;
+    readonly thumbnailPreviewsEnabled: boolean;
     readonly tvtplayChaptersEnabled: boolean;
     readonly updatedAt: string | null | undefined;
   };
@@ -201,6 +204,27 @@ var v0 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
+        "name": "thumbnailPreviewsEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "captionThreads",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "sleepControlEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
         "name": "updatedAt",
         "storageKey": null
       }
@@ -255,16 +279,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "a5d39eb66acbf1143df472ebd3cad1b0",
+    "cacheID": "32da381fc586570a73d4d3592aa54887",
     "id": null,
     "metadata": {},
     "name": "recordingQuery",
     "operationKind": "query",
-    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      generateCaptions\n      transcodePreset\n      transcodeFrameRate\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    ruleUnmatchedGraceMinutes\n    tvtplayChaptersEnabled\n    cmDetector\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
+    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      generateCaptions\n      transcodePreset\n      transcodeFrameRate\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    ruleUnmatchedGraceMinutes\n    tvtplayChaptersEnabled\n    cmDetector\n    thumbnailPreviewsEnabled\n    captionThreads\n    sleepControlEnabled\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "95c2a56eebcf938e257ed02f94e447c7";
+(node as any).hash = "bedf0d15f68e6880ad8a222d0c3c64ae";
 
 export default node;
