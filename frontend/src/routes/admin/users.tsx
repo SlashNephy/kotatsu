@@ -1,5 +1,4 @@
 import {
-  Alert,
   Badge,
   Button,
   Card,
@@ -21,7 +20,9 @@ import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { PasswordStrength } from '../../futon';
-import { settingsErrorMessage } from '../../settings/errors';
+import { AutoSaveSelect, AutoSaveTextInput } from '../../settings/AutoSaveFields';
+import { notifySaved, useSaveNotice } from '../../settings/saveNotice';
+import { useAutoSave } from '../../settings/useAutoSave';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { SudoGate } from '../../settings/SudoGate';
@@ -31,7 +32,10 @@ import type { usersDisableMutation } from './__generated__/usersDisableMutation.
 import type { usersEnableMutation } from './__generated__/usersEnableMutation.graphql';
 import type { usersQuery } from './__generated__/usersQuery.graphql';
 import type { usersResetPasswordMutation } from './__generated__/usersResetPasswordMutation.graphql';
-import type { usersUpdateMutation } from './__generated__/usersUpdateMutation.graphql';
+import type {
+  UpdateUserInput,
+  usersUpdateMutation,
+} from './__generated__/usersUpdateMutation.graphql';
 import { zonedFormat } from '../../futon';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
@@ -85,8 +89,6 @@ const query = graphql`
   }
 `;
 
-type Message = { ok: boolean; text: string };
-
 function Users() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
@@ -103,11 +105,12 @@ function Users() {
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
   const gate = useReauthGate(methods, path);
-  const [message, setMessage] = useState<Message | null>(null);
-  const fail = (caught: unknown) =>
-    setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
+  const notice = useSaveNotice();
+  const { save } = useAutoSave();
+  // fail と succeed は、ユーザーを作る、消すなどの操作の結果を、設定の保存と同じ通知で知らせる (#1740)。
+  const fail = (caught: unknown) => notice.failed(caught);
   const succeed = (text: string) => {
-    setMessage({ ok: true, text });
+    notifySaved(text);
     refresh();
   };
 
@@ -115,42 +118,32 @@ function Users() {
     <Stack gap="md">
       {gate.modal}
       <SudoGate methods={methods} returnTo={path}>
-        {message !== null && (
-          <Alert
-            color={message.ok ? 'teal' : 'red'}
-            role={message.ok ? 'status' : 'alert'}
-            withCloseButton
-            onClose={() => setMessage(null)}
-          >
-            {message.text}
-          </Alert>
-        )}
-
         <Card withBorder>
           <Stack gap="xs">
             {data.users.map((user) => (
               <UserRow
-                key={`${user.id}/${user.displayName}/${user.role}/${String(user.disabled)}`}
+                key={user.id}
                 user={user}
                 self={user.id === data.viewer.id}
-                onUpdate={(input, onDone) =>
-                  gate.run(async () => {
-                    await mutate<usersUpdateMutation>(
-                      environment,
-                      graphql`
-                        mutation usersUpdateMutation($id: ID!, $input: UpdateUserInput!) {
-                          updateUser(id: $id, input: $input) {
-                            id
-                            displayName
-                            role
+                onUpdate={(input) =>
+                  save(() =>
+                    gate.save(async () => {
+                      await mutate<usersUpdateMutation>(
+                        environment,
+                        graphql`
+                          mutation usersUpdateMutation($id: ID!, $input: UpdateUserInput!) {
+                            updateUser(id: $id, input: $input) {
+                              id
+                              displayName
+                              role
+                            }
                           }
-                        }
-                      `,
-                      { id: user.id, input },
-                    );
-                    onDone();
-                    succeed(t('admin.saved'));
-                  }, fail)
+                        `,
+                        { id: user.id, input },
+                      );
+                      refresh();
+                    }),
+                  )
                 }
                 onToggle={() =>
                   gate.run(async () => {
@@ -273,7 +266,7 @@ function UserRow({
 }: {
   user: UserItem;
   self: boolean;
-  onUpdate: (input: { displayName: string; role: Role }, onDone: () => void) => void;
+  onUpdate: (input: UpdateUserInput) => Promise<boolean>;
   onToggle: () => void;
   onDelete: (onDone: () => void) => void;
   onResetPassword: (password: string, onDone: () => void) => void;
@@ -281,14 +274,10 @@ function UserRow({
   const { t } = useTranslation();
   const roleOptions = useRoleOptions();
   const [mode, setMode] = useState<'view' | 'edit' | 'password' | 'delete'>('view');
-  const [displayName, setDisplayName] = useState(user.displayName);
-  const [role, setRole] = useState<Role>(user.role);
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   // close は、入力を捨てて、行を閉じる。やめたときと、保存したときに使う。
   const close = () => {
-    setDisplayName(user.displayName);
-    setRole(user.role);
     setPassword('');
     setConfirmation('');
     setMode('view');
@@ -356,32 +345,30 @@ function UserRow({
           </Group>
         )}
       </Group>
+      {/* 表示名は欄を離れたときか Enter で、ロールは選んだらすぐ保存する (#1740)。 */}
       {mode === 'edit' && (
-        <Group gap="xs" align="flex-end">
-          <TextInput
+        <Group gap="xs" align="flex-start">
+          <AutoSaveTextInput
             size="xs"
             label={t('admin.users.displayName')}
-            value={displayName}
-            onChange={(event) => setDisplayName(event.currentTarget.value)}
+            required
+            value={user.displayName}
+            onSave={(displayName) => onUpdate({ displayName })}
           />
-          <Select
+          <AutoSaveSelect
             size="xs"
             w={140}
             label={t('admin.users.role')}
             data={roleOptions}
-            value={role}
-            allowDeselect={false}
-            onChange={(value) => value !== null && setRole(value as Role)}
+            value={user.role}
+            onSave={(value) => {
+              const role = roles.find((known) => known === value);
+
+              return role === undefined ? Promise.resolve(false) : onUpdate({ role });
+            }}
           />
-          <Button
-            size="compact-sm"
-            disabled={displayName.trim() === ''}
-            onClick={() => onUpdate({ displayName: displayName.trim(), role }, close)}
-          >
-            {t('admin.save')}
-          </Button>
-          <Button size="compact-sm" variant="subtle" onClick={close}>
-            {t('admin.users.cancel')}
+          <Button size="compact-sm" variant="default" mt={22} onClick={close}>
+            {t('admin.users.close')}
           </Button>
         </Group>
       )}

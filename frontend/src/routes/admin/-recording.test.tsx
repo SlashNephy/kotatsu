@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
-import { commitLocalUpdate, type Environment } from 'relay-runtime';
+import { commitLocalUpdate, type Environment, type GraphQLResponse } from 'relay-runtime';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { createTestEnvironment, renderRoute } from '../../test/route';
@@ -33,6 +33,8 @@ function settingsResponse() {
           bundleSameEpisodes: true,
         },
         ruleUnmatchedGraceMinutes: 180,
+        tvtplayChaptersEnabled: false,
+        cmDetector: 'FFMPEG',
         updatedAt: '2026-11-11T00:00:00Z',
       },
       systemStatus: { pools: [] },
@@ -41,6 +43,22 @@ function settingsResponse() {
       captionModels: [],
     },
   };
+}
+
+const saved = { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+
+// respondWith は、録画の既定値を保存する mutation を onSave に渡し、ほかの問い合わせには、既定値か、ファイル名のプレビューを返す。
+function respondWith(onSave: (input: unknown) => GraphQLResponse | Error = () => saved) {
+  return createTestEnvironment((request, variables) => {
+    if (request.name === 'recordingMutation') {
+      return onSave(variables.input);
+    }
+    if (request.name === 'FileNameTemplateFieldPreviewQuery') {
+      return { data: { previewFileName: { fileName: 'x.m2ts', error: null } } };
+    }
+
+    return settingsResponse();
+  });
 }
 
 // readAgain は、ほかの管理者が保存した値を読み直したことにして、ストアの録画の既定値の優先度を priority にする。
@@ -57,8 +75,8 @@ function readAgain(environment: Environment, priority: number) {
 }
 
 describe('録画の既定値 (#1420)', () => {
-  test('触っていないフォームは、読み直した値に合わせる', async () => {
-    const environment = createTestEnvironment(() => settingsResponse());
+  test('触っていない欄は、読み直した値に合わせる', async () => {
+    const environment = respondWith();
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
     const priority = await screen.findByRole('textbox', { name: '優先度' });
     expect(priority).toHaveProperty('value', '0');
@@ -68,8 +86,8 @@ describe('録画の既定値 (#1420)', () => {
     expect(screen.getByRole('textbox', { name: '優先度' })).toHaveProperty('value', '5');
   });
 
-  test('触ったフォームの入力は、読み直しても捨てない', async () => {
-    const environment = createTestEnvironment(() => settingsResponse());
+  test('書きかけの欄は、ほかの欄を読み直しても捨てない', async () => {
+    const environment = respondWith();
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
     const template = await screen.findByRole('textbox', { name: 'ファイル名のテンプレート' });
     fireEvent.change(template, { target: { value: '{{.Name}}_{{.Service}}' } });
@@ -80,49 +98,17 @@ describe('録画の既定値 (#1420)', () => {
       'value',
       '{{.Name}}_{{.Service}}',
     );
-    expect(screen.getByRole('textbox', { name: '優先度' })).toHaveProperty('value', '0');
-  });
-
-  test('前後に空白のあるテンプレートを保存しても、保存の後は読み直しに追従する', async () => {
-    // template は、サーバーが持つファイル名のテンプレート。保存すると、送った値にする。
-    let template = '{{.Name}}';
-    const environment = createTestEnvironment((request, variables) => {
-      if (request.name === 'recordingMutation') {
-        template = (variables.input as { recordingDefaults: { fileNameTemplate: string } })
-          .recordingDefaults.fileNameTemplate;
-
-        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
-      }
-      const response = settingsResponse();
-      response.data.systemSettings.recordingDefaults.fileNameTemplate = template;
-
-      return response;
-    });
-    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
-    fireEvent.change(await screen.findByRole('textbox', { name: 'ファイル名のテンプレート' }), {
-      target: { value: '{{.Name}}_{{.Service}} ' },
-    });
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
-    await screen.findByRole('status');
-
-    readAgain(environment, 5);
-
     expect(screen.getByRole('textbox', { name: '優先度' })).toHaveProperty('value', '5');
   });
 });
 
-describe('ルールから外れた予約を残す時間 (#1501)', () => {
-  test('入れた分を保存し、0 も送る', async () => {
-    let sent: unknown = null;
-    const environment = createTestEnvironment((request, variables) => {
-      if (request.name === 'recordingMutation') {
-        sent = (variables.input as { ruleUnmatchedGraceMinutes?: number })
-          .ruleUnmatchedGraceMinutes;
+describe('数と文字の欄は、欄を離れたときか Enter で保存する (#1740)', () => {
+  test('打っている途中は保存せず、欄を離れたら、その欄だけを送って知らせる', async () => {
+    const sent: unknown[] = [];
+    const environment = respondWith((input) => {
+      sent.push(input);
 
-        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
-      }
-
-      return settingsResponse();
+      return saved;
     });
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
     const grace = await screen.findByRole('textbox', {
@@ -131,25 +117,102 @@ describe('ルールから外れた予約を残す時間 (#1501)', () => {
     expect(grace).toHaveProperty('value', '180');
 
     fireEvent.change(grace, { target: { value: '0' } });
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
+    expect(sent).toEqual([]);
+
+    await act(async () => fireEvent.blur(grace));
+
+    expect((await screen.findByRole('status')).textContent).toContain('保存しました');
+    expect(sent).toEqual([{ ruleUnmatchedGraceMinutes: 0 }]);
+  });
+
+  test('前後の空白を除いたテンプレートを、Enter で保存する', async () => {
+    const sent: unknown[] = [];
+    const environment = respondWith((input) => {
+      sent.push(input);
+
+      return saved;
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const template = await screen.findByRole('textbox', { name: 'ファイル名のテンプレート' });
+    fireEvent.change(template, { target: { value: '{{.Name}}_{{.Service}} ' } });
+
+    await act(async () => fireEvent.keyDown(template, { key: 'Enter' }));
     await screen.findByRole('status');
 
-    expect(sent).toBe(0);
+    expect(sent).toEqual([{ recordingDefaults: { fileNameTemplate: '{{.Name}}_{{.Service}}' } }]);
+    expect(template).toHaveProperty('value', '{{.Name}}_{{.Service}}');
+  });
+
+  test('範囲を外れた値は、欄の下に理由を出して保存しない', async () => {
+    const sent: unknown[] = [];
+    const environment = respondWith((input) => {
+      sent.push(input);
+
+      return saved;
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const priority = await screen.findByRole('textbox', { name: '優先度' });
+    fireEvent.change(priority, { target: { value: '11' } });
+
+    await act(async () => fireEvent.blur(priority));
+
+    expect(screen.getByText('-10〜10 の整数で入れてください')).toBeDefined();
+    expect(priority).toHaveProperty('value', '11');
+    expect(sent).toEqual([]);
+  });
+
+  test('空のテンプレートは、理由を出して保存しない', async () => {
+    const sent: unknown[] = [];
+    const environment = respondWith((input) => {
+      sent.push(input);
+
+      return saved;
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const template = await screen.findByRole('textbox', { name: 'ファイル名のテンプレート' });
+    fireEvent.change(template, { target: { value: '  ' } });
+
+    await act(async () => fireEvent.blur(template));
+
+    expect(screen.getByText('入れてください')).toBeDefined();
+    expect(sent).toEqual([]);
+  });
+
+  test('保存に失敗したら、打った値を残して理由を知らせ、もう一度欄を離れれば保存し直す', async () => {
+    let fail = true;
+    const sent: unknown[] = [];
+    const environment = respondWith((input) => {
+      sent.push(input);
+
+      return fail ? new Error('unavailable') : saved;
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const priority = await screen.findByRole('textbox', { name: '優先度' });
+    fireEvent.change(priority, { target: { value: '3' } });
+
+    await act(async () => fireEvent.blur(priority));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('保存できませんでした');
+    expect(priority).toHaveProperty('value', '3');
+
+    fail = false;
+    await act(async () => fireEvent.blur(priority));
+
+    expect((await screen.findByRole('status')).textContent).toContain('保存しました');
+    expect(sent).toEqual([
+      { recordingDefaults: { priority: 3 } },
+      { recordingDefaults: { priority: 3 } },
+    ]);
   });
 });
 
-describe('ルールを作るときの既定値の同じ回の束ね (#1498)', () => {
-  test('読み込んだ値から始め、切ったらすぐ切ったことを保存する', async () => {
-    let sent: unknown = null;
-    const environment = createTestEnvironment((request, variables) => {
-      if (request.name === 'recordingMutation') {
-        sent = (variables.input as { ruleDefaults: { bundleSameEpisodes?: boolean } }).ruleDefaults
-          .bundleSameEpisodes;
+describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740)', () => {
+  test('同じ回の束ねを切ったら、その項目だけをすぐ保存する (#1498)', async () => {
+    const sent: unknown[] = [];
+    const environment = respondWith((input) => {
+      sent.push(input);
 
-        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
-      }
-
-      return settingsResponse();
+      return saved;
     });
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
     const bundle = await screen.findByRole('switch', {
@@ -157,26 +220,18 @@ describe('ルールを作るときの既定値の同じ回の束ね (#1498)', ()
     });
     expect(bundle).toHaveProperty('checked', true);
 
-    // 切り替えは、保存のボタンを押さなくても、その項目だけをすぐ保存する (#1740)。
     await act(async () => fireEvent.click(bundle));
     await screen.findByRole('status');
 
-    expect(sent).toBe(false);
+    expect(sent).toEqual([{ ruleDefaults: { bundleSameEpisodes: false } }]);
   });
-});
 
-describe('変換のコマ数 (#1509)', () => {
-  test('読んだ全体の既定値を出し、選んだコマ数をすぐ保存する', async () => {
-    let sent: unknown = null;
-    const environment = createTestEnvironment((request, variables) => {
-      if (request.name === 'recordingMutation') {
-        sent = (variables.input as { recordingDefaults: { transcodeFrameRate?: string } })
-          .recordingDefaults.transcodeFrameRate;
+  test('選んだコマ数をすぐ保存する (#1509)', async () => {
+    const sent: unknown[] = [];
+    const environment = respondWith((input) => {
+      sent.push(input);
 
-        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
-      }
-
-      return settingsResponse();
+      return saved;
     });
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
     const frameRate = await screen.findByRole('combobox', { name: '変換のコマ数' });
@@ -188,72 +243,75 @@ describe('変換のコマ数 (#1509)', () => {
     );
     await screen.findByRole('status');
 
-    expect(sent).toBe('60');
+    expect(sent).toEqual([{ recordingDefaults: { transcodeFrameRate: '60' } }]);
   });
-});
 
-describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740)', () => {
-  test('変えた項目だけを送り、ほかの欄の書きかけは送らない', async () => {
+  test('書きかけの欄があっても、切り替えた項目だけを送り、書きかけは残す', async () => {
     const sent: unknown[] = [];
-    const environment = createTestEnvironment((request, variables) => {
-      if (request.name === 'recordingMutation') {
-        sent.push(variables.input);
+    const environment = respondWith((input) => {
+      sent.push(input);
 
-        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
-      }
-
-      return settingsResponse();
+      return saved;
     });
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    // 欄を離れずに、切り替えを押したことにする (fireEvent は、押したときに欄を離れさせない)。
     fireEvent.change(await screen.findByRole('textbox', { name: '優先度' }), {
       target: { value: '3' },
     });
 
     await act(async () =>
-      fireEvent.click(screen.getByRole('switch', { name: /^録画が終わったらCMの区間を解析する/ })),
+      fireEvent.click(screen.getByRole('switch', { name: /^録画が終わったら字幕を自動生成する/ })),
     );
     await screen.findByRole('status');
 
-    expect(sent).toEqual([{ recordingDefaults: { detectCm: true }, ruleDefaults: {} }]);
-    // 書きかけの優先度は、保存せずに残す。
+    expect(sent).toEqual([{ recordingDefaults: { generateCaptions: true } }]);
     expect(screen.getByRole('textbox', { name: '優先度' })).toHaveProperty('value', '3');
   });
 
-  test('字幕の自動生成を入れたら、その項目だけを送る (#1682)', async () => {
+  test('続けて変えたら、前の保存を待って順に送り、知らせは 1 つに差し替える', async () => {
     const sent: unknown[] = [];
-    const environment = createTestEnvironment((request, variables) => {
-      if (request.name === 'recordingMutation') {
-        sent.push(variables.input);
-
-        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+    let release: () => void = () => {};
+    const environment = respondWith((input) => {
+      sent.push(input);
+      if (sent.length === 1) {
+        return new Promise<GraphQLResponse>((resolve) => {
+          release = () => resolve(saved);
+        }) as never;
       }
 
-      return settingsResponse();
+      return saved;
     });
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
-    const generate = await screen.findByRole('switch', {
-      name: /^録画が終わったら字幕を自動生成する/,
+    const detectCm = await screen.findByRole('switch', {
+      name: /^録画が終わったらCMの区間を解析する/,
     });
-    expect(generate).toHaveProperty('checked', false);
+    const joinSegments = screen.getByRole('switch', { name: /^分かれた録画のファイルを/ });
 
-    await act(async () => fireEvent.click(generate));
+    await act(async () => fireEvent.click(detectCm));
+    await act(async () => fireEvent.click(joinSegments));
+    // 1 つ目の保存が終わるまで、2 つ目は送らない。
+    expect(sent).toEqual([{ recordingDefaults: { detectCm: true } }]);
+
+    await act(async () => release());
     await screen.findByRole('status');
 
-    expect(sent).toEqual([{ recordingDefaults: { generateCaptions: true }, ruleDefaults: {} }]);
+    expect(sent).toEqual([
+      { recordingDefaults: { detectCm: true } },
+      { recordingDefaults: { joinSegments: false } },
+    ]);
+    expect(screen.getAllByRole('status')).toHaveLength(1);
   });
 
-  test('保存に失敗したら、変える前に戻す', async () => {
-    const environment = createTestEnvironment((request) =>
-      request.name === 'recordingMutation' ? new Error('unavailable') : settingsResponse(),
-    );
+  test('保存に失敗したら、理由を知らせ、変える前に戻す', async () => {
+    const environment = respondWith(() => new Error('unavailable'));
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
     const detectCm = await screen.findByRole('switch', {
       name: /^録画が終わったらCMの区間を解析する/,
     });
 
     await act(async () => fireEvent.click(detectCm));
-    await screen.findByRole('alert');
 
+    expect((await screen.findByRole('alert')).textContent).toContain('保存できませんでした');
     expect(detectCm).toHaveProperty('checked', false);
   });
 });

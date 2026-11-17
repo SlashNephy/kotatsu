@@ -1,16 +1,15 @@
-import { Alert, Card, NumberInput, Stack, Title } from '@mantine/core';
+import { Card, Stack, Title } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
-import { startTransition, useState, type FormEvent } from 'react';
+import { startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
-import { useSyncedForm } from '../../rules/useSyncedForm';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
-import { useAction } from '../../admin/useAction';
-import { SaveRow } from '../../admin/SaveRow';
-import { settingsErrorMessage } from '../../settings/errors';
+import { UpdatedAt } from '../../admin/UpdatedAt';
+import { AutoSaveNumberInput } from '../../settings/AutoSaveFields';
+import { useAutoSave } from '../../settings/useAutoSave';
 import { mutate } from '../../settings/mutate';
 import type { retentionMutation } from './__generated__/retentionMutation.graphql';
 import type { retentionQuery } from './__generated__/retentionQuery.graphql';
@@ -42,19 +41,6 @@ const query = graphql`
   }
 `;
 
-// Form は、保持期間のフォームの値。空の入力は '' になる。
-type Form = {
-  archiveDays: number | string;
-  notificationDays: number | string;
-  watchProgressDays: number | string;
-  networkActivityDays: number | string;
-};
-
-// sameForm は、2 つのフォームの値が同じかどうかを返す。
-function sameForm(a: Form, b: Form): boolean {
-  return (Object.keys(a) as (keyof Form)[]).every((key) => a[key] === b[key]);
-}
-
 function RetentionSettings() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
@@ -67,143 +53,103 @@ function RetentionSettings() {
     {},
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
-  const action = useAction();
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const { save } = useAutoSave();
   const settings = data.systemSettings;
-  // 触っていないフォームは、読み直した値 (ほかの管理者が保存したものなど) に合わせる。触ったフォームの入力は捨てない (#1452)。
-  const initial: Form = {
-    archiveDays: settings.archiveRetentionDays,
-    notificationDays: settings.notificationRetentionDays,
-    watchProgressDays: settings.watchProgressRetentionDays,
-    networkActivityDays: settings.networkActivityRetentionDays,
-  };
-  const { form, set } = useSyncedForm(initial, sameForm);
-  const { archiveDays, notificationDays, watchProgressDays, networkActivityDays } = form;
-  const valid =
-    typeof networkActivityDays === 'number' &&
-    typeof archiveDays === 'number' &&
-    typeof notificationDays === 'number' &&
-    typeof watchProgressDays === 'number';
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    setMessage(null);
-    action.run(
-      async () => {
-        // この画面の項目だけを送る。省いた項目は、サーバーが変えない。
-        await mutate<retentionMutation>(
-          environment,
-          graphql`
-            mutation retentionMutation($input: SystemSettingsInput!) {
-              updateSystemSettings(input: $input) {
-                updatedAt
-              }
+  // saveSettings は、変えた項目だけを保存する (#1740)。省いた項目は、サーバーが変えない。
+  const saveSettings = (input: retentionMutation['variables']['input']) =>
+    save(async () => {
+      await mutate<retentionMutation>(
+        environment,
+        graphql`
+          mutation retentionMutation($input: SystemSettingsInput!) {
+            updateSystemSettings(input: $input) {
+              updatedAt
             }
-          `,
-          {
-            input: {
-              archiveRetentionDays: Number(archiveDays),
-              notificationRetentionDays: Number(notificationDays),
-              watchProgressRetentionDays: Number(watchProgressDays),
-              networkActivityRetentionDays: Number(networkActivityDays),
-            },
-          },
-        );
-        setMessage({ ok: true, text: t('admin.saved') });
-        startTransition(() => setFetchKey((key) => key + 1));
-      },
-      (caught) => setMessage({ ok: false, text: settingsErrorMessage(t, caught) }),
-    );
-  };
+          }
+        `,
+        { input },
+      );
+      startTransition(() => setFetchKey((key) => key + 1));
+    });
 
+  // 日数の欄は、欄を離れたときか Enter で、その欄だけを保存する (#1740)。
   return (
-    <form onSubmit={submit}>
-      <Stack gap="md">
-        {message !== null && (
-          <Alert
-            color={message.ok ? 'teal' : 'red'}
-            role={message.ok ? 'status' : 'alert'}
-            withCloseButton
-            onClose={() => setMessage(null)}
-          >
-            {message.text}
-          </Alert>
-        )}
+    <Stack gap="md">
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.archive')}
+          </Title>
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.archiveRetentionDays')}
+            description={t('admin.settings.archiveRetentionHelp')}
+            min={0}
+            allowDecimal={false}
+            value={settings.archiveRetentionDays}
+            onSave={(archiveRetentionDays) => saveSettings({ archiveRetentionDays })}
+          />
+        </Stack>
+      </Card>
 
-        <Card withBorder>
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('admin.settings.archive')}
-            </Title>
-            <NumberInput
-              size="xs"
-              maw={480}
-              label={t('admin.settings.archiveRetentionDays')}
-              description={t('admin.settings.archiveRetentionHelp')}
-              min={0}
-              allowDecimal={false}
-              value={archiveDays}
-              onChange={(value) => set({ archiveDays: value })}
-            />
-          </Stack>
-        </Card>
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.notifications')}
+          </Title>
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.notificationRetentionDays')}
+            description={t('admin.settings.notificationRetentionHelp')}
+            min={0}
+            allowDecimal={false}
+            value={settings.notificationRetentionDays}
+            onSave={(notificationRetentionDays) => saveSettings({ notificationRetentionDays })}
+          />
+        </Stack>
+      </Card>
 
-        <Card withBorder>
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('admin.settings.notifications')}
-            </Title>
-            <NumberInput
-              size="xs"
-              maw={480}
-              label={t('admin.settings.notificationRetentionDays')}
-              description={t('admin.settings.notificationRetentionHelp')}
-              min={0}
-              allowDecimal={false}
-              value={notificationDays}
-              onChange={(value) => set({ notificationDays: value })}
-            />
-          </Stack>
-        </Card>
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.watchProgress')}
+          </Title>
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.watchProgressRetentionDays')}
+            description={t('admin.settings.watchProgressRetentionHelp')}
+            min={0}
+            allowDecimal={false}
+            value={settings.watchProgressRetentionDays}
+            onSave={(watchProgressRetentionDays) => saveSettings({ watchProgressRetentionDays })}
+          />
+        </Stack>
+      </Card>
 
-        <Card withBorder>
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('admin.settings.watchProgress')}
-            </Title>
-            <NumberInput
-              size="xs"
-              maw={480}
-              label={t('admin.settings.watchProgressRetentionDays')}
-              description={t('admin.settings.watchProgressRetentionHelp')}
-              min={0}
-              allowDecimal={false}
-              value={watchProgressDays}
-              onChange={(value) => set({ watchProgressDays: value })}
-            />
-          </Stack>
-        </Card>
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.networkActivity')}
+          </Title>
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.networkActivityRetentionDays')}
+            description={t('admin.settings.networkActivityRetentionHelp')}
+            min={1}
+            allowDecimal={false}
+            value={settings.networkActivityRetentionDays}
+            onSave={(networkActivityRetentionDays) =>
+              saveSettings({ networkActivityRetentionDays })
+            }
+          />
+        </Stack>
+      </Card>
 
-        <Card withBorder>
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('admin.settings.networkActivity')}
-            </Title>
-            <NumberInput
-              size="xs"
-              maw={480}
-              label={t('admin.settings.networkActivityRetentionDays')}
-              description={t('admin.settings.networkActivityRetentionHelp')}
-              min={1}
-              allowDecimal={false}
-              value={networkActivityDays}
-              onChange={(value) => set({ networkActivityDays: value })}
-            />
-          </Stack>
-        </Card>
-
-        <SaveRow updatedAt={settings.updatedAt} disabled={!valid || action.busy} />
-      </Stack>
-    </form>
+      <UpdatedAt updatedAt={settings.updatedAt} />
+    </Stack>
   );
 }

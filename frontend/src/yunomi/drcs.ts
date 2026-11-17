@@ -44,37 +44,13 @@ const notify = () => {
 
 // maxDRCSText は、外字を置き換える文字の長さ (文字数) の上限。サーバーと同じ値にする。
 // aribb24.js は、置き換えた文字を外字の 1 文字の枠に縮めて描くので、長いと読めない。
-const maxDRCSText = 4;
+export const maxDRCSText = 4;
 
 // validDRCSText は、外字を置き換える文字として使えるかを返す。サーバーと同じく、コードポイントで数える。
 export function validDRCSText(text: string): boolean {
   const length = Array.from(text).length;
 
   return length > 0 && length <= maxDRCSText;
-}
-
-type Row = { readonly md5: string; readonly text: string };
-
-// diffDRCS は、base から rows への、外字の表の変更を返す。消した外字は、text を null にする。
-export function diffDRCS(
-  base: readonly Row[],
-  rows: readonly Row[],
-): { md5: string; text: string | null }[] {
-  const before = new Map(base.map((row) => [row.md5, row.text]));
-  const after = new Map(rows.map((row) => [row.md5, row.text]));
-  const changes: { md5: string; text: string | null }[] = [];
-  for (const [md5, text] of after) {
-    if (before.get(md5) !== text) {
-      changes.push({ md5, text });
-    }
-  }
-  for (const md5 of before.keys()) {
-    if (!after.has(md5)) {
-      changes.push({ md5, text: null });
-    }
-  }
-
-  return changes;
 }
 
 // restoreDefaults は、表を既定の表だけに戻す。

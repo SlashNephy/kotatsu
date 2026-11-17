@@ -3,10 +3,12 @@ import '@fontsource/m-plus-rounded-1c/400.css';
 import '@fontsource/m-plus-rounded-1c/500.css';
 import '@fontsource/m-plus-rounded-1c/700.css';
 import '@mantine/core/styles.css';
+import '@mantine/notifications/styles.css';
 import './futon/global.css';
 import './i18n';
 
 import { MantineProvider } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { setNonce } from 'get-nonce';
 import { StrictMode } from 'react';
@@ -70,6 +72,8 @@ createRoot(root).render(
       defaultColorScheme="auto"
       getStyleNonce={cspNonce}
     >
+      {/* 設定を保存した知らせなどの通知 (#1740)。 */}
+      <Notifications position="bottom-center" />
       <RelayEnvironmentProvider environment={environment}>
         {/* サーバーの入れ替わりなどで読み込みに失敗した画面を、サーバーが戻ったら自動で描き直す。 */}
         <ErrorRecoveryContext value={errorRecovery}>

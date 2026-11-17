@@ -23,6 +23,7 @@ import {
   type GenreColor,
 } from './appearance';
 import { genreKey } from './genres';
+import { useDeviceSave } from '../settings/useAutoSave';
 
 const swatch = (color: string) => `var(--mantine-color-${color}-light)`;
 
@@ -30,6 +31,8 @@ const swatch = (color: string) => `var(--mantine-color-${color}-light)`;
 export function GuideAppearanceSettings() {
   const { t } = useTranslation();
   const [appearance, setAppearance] = useGuideAppearance();
+  // 変えたら、ほかの設定と同じ通知で知らせる (#1740)。
+  const save = useDeviceSave()(setAppearance);
   const colorOptions = genreColorChoices.map((color) => ({
     value: color,
     label: t(`settings.guide.colors.${color}`),
@@ -54,7 +57,7 @@ export function GuideAppearanceSettings() {
           <SegmentedControl
             aria-label={t('settings.guide.density')}
             value={appearance.density}
-            onChange={(value) => setAppearance({ ...appearance, density: value as Density })}
+            onChange={(value) => save({ ...appearance, density: value as Density })}
             data={[
               { value: 'compact', label: t('settings.guide.densities.compact') },
               { value: 'normal', label: t('settings.guide.densities.normal') },
@@ -66,9 +69,7 @@ export function GuideAppearanceSettings() {
           label={t('settings.guide.grayShopping')}
           description={t('settings.guide.grayShoppingHelp')}
           checked={appearance.grayShopping}
-          onChange={(event) =>
-            setAppearance({ ...appearance, grayShopping: event.currentTarget.checked })
-          }
+          onChange={(event) => save({ ...appearance, grayShopping: event.currentTarget.checked })}
         />
         <Stack gap={4}>
           <Text size="sm" fw={500}>
@@ -95,7 +96,7 @@ export function GuideAppearanceSettings() {
                   )}
                   onChange={(value) => {
                     if (value !== null) {
-                      setAppearance({
+                      save({
                         ...appearance,
                         genreColors: { ...appearance.genreColors, [genre]: value as GenreColor },
                       });
@@ -107,7 +108,7 @@ export function GuideAppearanceSettings() {
           </SimpleGrid>
         </Stack>
         <Group justify="flex-end">
-          <Button size="xs" variant="default" onClick={() => setAppearance(defaultGuideAppearance)}>
+          <Button size="xs" variant="default" onClick={() => save(defaultGuideAppearance)}>
             {t('settings.guide.reset')}
           </Button>
         </Group>

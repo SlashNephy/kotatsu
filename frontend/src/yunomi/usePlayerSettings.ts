@@ -7,6 +7,28 @@ import { useDataChanges } from '../changes/DataChanges';
 import type { usePlayerSettingsMutation } from './__generated__/usePlayerSettingsMutation.graphql';
 import type { usePlayerSettingsQuery } from './__generated__/usePlayerSettingsQuery.graphql';
 import type { CommentSettings, KeywordMuteMatch } from '../jikkyo/comments';
+import type { SaveCallbacks } from '../settings/useAutoSave';
+
+// settled は、mutation の結果を callbacks に渡す、commit の onCompleted と onError を返す。
+// Relay は、GraphQL のエラーも onCompleted に渡すので、エラーがあれば失敗として渡す。
+function settled(callbacks: SaveCallbacks | undefined) {
+  return {
+    onCompleted: (
+      _response: unknown,
+      errors: readonly { message: string }[] | null | undefined,
+    ) => {
+      if (errors != null && errors.length > 0) {
+        callbacks?.onFailed?.(
+          Object.assign(new Error(errors[0]?.message ?? 'GraphQL error'), { source: { errors } }),
+        );
+
+        return;
+      }
+      callbacks?.onSaved?.();
+    },
+    onError: (error: Error) => callbacks?.onFailed?.(error),
+  };
+}
 
 const settingsQuery = graphql`
   query usePlayerSettingsQuery {
@@ -78,18 +100,19 @@ export function usePlayerSettings(): Settings & {
   jikkyoAvailable: boolean;
   // availableCommentSources は、管理者がオプトインした実況のコメントのソース (#1405)。
   availableCommentSources: readonly CommentSource[];
-  setJikkyoEnabled: (enabled: boolean) => void;
+  // 設定を変える関数は、保存の結果を callbacks で知らせる。設定の画面で、保存の通知を出すのに使う (#1740)。
+  setJikkyoEnabled: (enabled: boolean, callbacks?: SaveCallbacks) => void;
   // setCommentSources は、ユーザーがオプトインするソースを置き換える。
-  setCommentSources: (sources: readonly CommentSource[]) => void;
-  setCaptionsEnabled: (enabled: boolean) => void;
+  setCommentSources: (sources: readonly CommentSource[], callbacks?: SaveCallbacks) => void;
+  setCaptionsEnabled: (enabled: boolean, callbacks?: SaveCallbacks) => void;
   comments: CommentSettings;
-  // setComments は、実況のコメントの設定を置き換える。失敗したら onError を呼ぶ。
-  setComments: (comments: CommentSettingsInput, onError?: () => void) => void;
+  // setComments は、実況のコメントの設定を置き換える。
+  setComments: (comments: CommentSettingsInput, callbacks?: SaveCallbacks) => void;
   // muteUser は、ユーザー ID をミュートの一覧に足す (#767)。足してあれば何もしない。
   muteUser: (userId: string) => void;
   captions: CaptionSettings;
-  // setCaptions は、字幕の設定を置き換える。失敗したら onError を呼ぶ。
-  setCaptions: (captions: CaptionSettings, onError?: () => void) => void;
+  // setCaptions は、字幕の設定を置き換える。
+  setCaptions: (captions: CaptionSettings, callbacks?: SaveCallbacks) => void;
 } {
   const environment = useRelayEnvironment();
   const data = useLazyLoadQuery<usePlayerSettingsQuery>(
@@ -145,7 +168,7 @@ export function usePlayerSettings(): Settings & {
   }, [environment, changes]);
 
   const settings = data.playerSettings;
-  const update = (input: Partial<Settings>) => {
+  const update = (input: Partial<Settings>, callbacks?: SaveCallbacks) => {
     const next = {
       ...settings,
       ...input,
@@ -154,6 +177,7 @@ export function usePlayerSettings(): Settings & {
     };
     commit({
       variables: { input },
+      ...settled(callbacks),
       // 切り替えはすぐに画面に出し、失敗したら元に戻す。
       optimisticResponse: { updatePlayerSettings: next },
       // 続けて切り替えたときに、前の切り替えを上書きしないよう、変えた項目だけを書く。
@@ -179,12 +203,12 @@ export function usePlayerSettings(): Settings & {
     });
   };
 
-  const setComments = (comments: CommentSettingsInput, onError?: () => void) => {
+  const setComments = (comments: CommentSettingsInput, callbacks?: SaveCallbacks) => {
     commit({
       variables: { input: { comments } },
       // 変えた設定はすぐに画面に出し、失敗したら元に戻す。
       optimisticResponse: { updatePlayerSettings: { ...settings, comments } },
-      onError: () => onError?.(),
+      ...settled(callbacks),
       updater: (store) => {
         const updated = store.getRootField('updatePlayerSettings');
         if (updated !== null) {
@@ -194,12 +218,12 @@ export function usePlayerSettings(): Settings & {
     });
   };
 
-  const setCaptions = (captions: CaptionSettings, onError?: () => void) => {
+  const setCaptions = (captions: CaptionSettings, callbacks?: SaveCallbacks) => {
     commit({
       variables: { input: { captions } },
       // 変えた設定はすぐに画面に出し、失敗したら元に戻す。
       optimisticResponse: { updatePlayerSettings: { ...settings, captions } },
-      onError: () => onError?.(),
+      ...settled(callbacks),
       updater: (store) => {
         const updated = store.getRootField('updatePlayerSettings');
         if (updated !== null) {
@@ -232,11 +256,11 @@ export function usePlayerSettings(): Settings & {
     jikkyoAvailable: data.systemSettings.jikkyoEnabled,
     availableCommentSources: data.systemSettings.commentSources as readonly CommentSource[],
     commentSources: settings.commentSources as readonly CommentSource[],
-    setCommentSources: (sources) => update({ commentSources: sources }),
+    setCommentSources: (sources, callbacks) => update({ commentSources: sources }, callbacks),
     jikkyoEnabled: settings.jikkyoEnabled,
     captionsEnabled: settings.captionsEnabled,
-    setJikkyoEnabled: (enabled) => update({ jikkyoEnabled: enabled }),
-    setCaptionsEnabled: (enabled) => update({ captionsEnabled: enabled }),
+    setJikkyoEnabled: (enabled, callbacks) => update({ jikkyoEnabled: enabled }, callbacks),
+    setCaptionsEnabled: (enabled, callbacks) => update({ captionsEnabled: enabled }, callbacks),
     comments: settings.comments,
     setComments,
     muteUser,

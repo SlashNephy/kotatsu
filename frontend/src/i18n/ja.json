@@ -67,7 +67,6 @@
     "watchReminderMinutes": "放送の何分前に知らせるか",
     "watchReminderHint": "0から60分まで。0にすると、放送の始まりに知らせます",
     "watchReminderUnit": "分前",
-    "watchReminderError": "視聴予約の通知の設定を変えられませんでした。0から60分の間で入れてください",
     "webPush": "Web Push",
     "inApp": "画面内",
     "kindColumn": "通知の種類",
@@ -251,7 +250,6 @@
   "settings": {
     "comments": {
       "title": "実況のコメント",
-      "saveError": "保存できませんでした。時間をおいてやり直してください",
       "opacity": "不透明度",
       "speed": "流れる速さ",
       "scale": "文字の大きさ",
@@ -559,6 +557,19 @@
       "recording": "録画",
       "people": "ユーザーと連携",
       "status": "状態の確認"
+    },
+    "autosave": {
+      "saved": "保存しました",
+      "failed": "保存できませんでした",
+      "required": "入れてください",
+      "integer": "整数で入れてください",
+      "integerRange": "{{min}}〜{{max}} の整数で入れてください",
+      "integerMin": "{{min}} 以上の整数で入れてください",
+      "integerMax": "{{max}} 以下の整数で入れてください",
+      "number": "数で入れてください",
+      "numberRange": "{{min}}〜{{max}} の数で入れてください",
+      "numberMin": "{{min}} 以上の数で入れてください",
+      "numberMax": "{{max}} 以下の数で入れてください"
     }
   },
   "connection": {
@@ -1934,7 +1945,10 @@
         "description": "放送の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったか、選局が続けて失敗しているチャンネルがあるという知らせです。チューナーサーバーでチャンネルをスキャンし直してください。チューナーサーバーにわざと入れていない局があれば、知らせは出続けます。",
         "occurredAt": "日時",
         "message": "内容"
-      }
+      },
+      "poolMinFreeConfirm": "閾値を {{free}} にすると、空き容量が閾値を下回るので、次の確認（5 分ごと）で古い録画から消し始めます。消した録画は戻せません。保存しますか",
+      "poolMinFreeConfirmSave": "保存する",
+      "poolMinFreeConfirmCancel": "やめる"
     },
     "users": {
       "title": "ユーザー",
@@ -1965,7 +1979,8 @@
       "delete": "削除",
       "deleteHelp": "{{username}}のアカウントと個人のデータを消します。録画、予約、ルールと監査ログは残ります。元に戻せません",
       "deleteConfirm": "確認のため、ユーザー名（{{username}}）を入力",
-      "deleted": "{{username}}を削除しました"
+      "deleted": "{{username}}を削除しました",
+      "close": "閉じる"
     },
     "webhooks": {
       "title": "Webhook",
@@ -1991,7 +2006,8 @@
       "cancel": "キャンセル",
       "delete": "削除",
       "deleted": "{{name}}を削除しました",
-      "confirmDelete": "{{name}}を削除しますか。送り直しを待っている配信も取りやめます"
+      "confirmDelete": "{{name}}を削除しますか。送り直しを待っている配信も取りやめます",
+      "close": "閉じる"
     },
     "audit": {
       "title": "監査ログ",
@@ -2317,7 +2333,8 @@
       "md5": "MD5",
       "text": "置き換える文字",
       "add": "足す",
-      "remove": "消す"
+      "remove": "消す",
+      "textInvalid": "1〜{{max}} 文字で入れてください"
     },
     "retention": {
       "title": "保持期間",
@@ -2325,7 +2342,8 @@
     },
     "integrations": {
       "title": "連携",
-      "summary": "MCPのクライアントとの連携と、DiscordやSlackなどに通知を送るWebhookを設定します"
+      "summary": "MCPのクライアントとの連携と、DiscordやSlackなどに通知を送るWebhookを設定します",
+      "register": "登録"
     },
     "issuedStreamUrls": {
       "title": "発行された外部プレイヤーのURL",
@@ -2587,7 +2605,6 @@
     "settingsTitle": "記録の設定",
     "threshold": "見たとみなす割合",
     "thresholdHelp": "番組の長さのうち、実際に再生した長さがこの割合に届いたら記録します",
-    "thresholdInvalid": "1〜100 の整数で入れてください",
     "statusTitle": "作品の状態を変える",
     "watchingOnFirst": "第1話（[新]）を見たら「見てる」にする",
     "watchingOnEpisode": "最終話（[終]）以外を見たら「見てる」にする",

@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { simpleCommandIds, type SimpleCommandId } from '../yunomi/commands';
+import { useSaveNotice } from './saveNotice';
 import {
   assignButton,
   buttonLabel,
@@ -33,8 +34,10 @@ import { keyLabels, splitKey } from '../yunomi/ShortcutsHelp';
 
 // ShortcutKeysCard は、プレイヤーのキーの割り当てを、この端末で変える設定 (#810、設計書 7.5)。
 // 「キーを足す」を押してから押したキーを、その操作に足す。ほかの操作に割り当てていたキーは、そちらから外す。
+// 割り当てを変えたら、ほかの設定と同じ通知で知らせる (#1740)。
 export function ShortcutKeysCard() {
   const { t } = useTranslation();
+  const { saved } = useSaveNotice();
   const [keymap, setKeymap] = useKeymap();
   // capturing は、キーを待っている操作。Escape か、ほかの所へフォーカスを移すとやめる。
   const [capturing, setCapturing] = useState<SimpleCommandId | null>(null);
@@ -50,6 +53,7 @@ export function ShortcutKeysCard() {
     if (id !== null) {
       capturingButtonRef.current = null;
       setGamepadMap(assignButton(gamepadMap, id, button));
+      saved();
       setCapturingButton(null);
     }
   });
@@ -104,6 +108,7 @@ export function ShortcutKeysCard() {
       const key = eventKey(event);
       if (key !== null) {
         setKeymap(assignKey(keymap, capturing, key));
+        saved();
         setCapturing(null);
       }
     };
@@ -119,7 +124,7 @@ export function ShortcutKeysCard() {
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('pointerdown', onPointerDown, true);
     };
-  }, [capturing, keymap, setKeymap]);
+  }, [capturing, keymap, setKeymap, saved]);
 
   return (
     <Card withBorder>
@@ -154,7 +159,10 @@ export function ShortcutKeysCard() {
                             aria-label={t('settings.shortcutKeys.remove', {
                               key: keyLabels[key] ?? key,
                             })}
-                            onClick={() => setKeymap(removeKey(keymap, id, key))}
+                            onClick={() => {
+                              setKeymap(removeKey(keymap, id, key));
+                              saved();
+                            }}
                           />
                         </Group>
                       ))}
@@ -178,7 +186,10 @@ export function ShortcutKeysCard() {
                             aria-label={t('settings.shortcutKeys.remove', {
                               key: buttonLabel(button),
                             })}
-                            onClick={() => setGamepadMap(removeButton(gamepadMap, id, button))}
+                            onClick={() => {
+                              setGamepadMap(removeButton(gamepadMap, id, button));
+                              saved();
+                            }}
                           />
                         </Group>
                       ))}
@@ -214,6 +225,7 @@ export function ShortcutKeysCard() {
               const wheel = wheelActions.find((action) => action === value);
               if (wheel !== undefined) {
                 setMouseActions({ ...mouseActions, wheel });
+                saved();
               }
             }}
             maw={240}
@@ -234,6 +246,7 @@ export function ShortcutKeysCard() {
               const middleClick = middleClickActions.find((action) => action === value);
               if (middleClick !== undefined) {
                 setMouseActions({ ...mouseActions, middleClick });
+                saved();
               }
             }}
             maw={240}
@@ -247,6 +260,7 @@ export function ShortcutKeysCard() {
               setKeymap(null);
               setGamepadMap(null);
               setMouseActions(defaultMouseActions);
+              saved();
             }}
           >
             {t('settings.shortcutKeys.reset')}

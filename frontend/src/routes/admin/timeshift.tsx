@@ -1,14 +1,4 @@
-import {
-  Alert,
-  Badge,
-  Button,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Switch,
-  Text,
-} from '@mantine/core';
+import { Alert, Badge, Button, Group, NumberInput, Select, Stack, Text } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,10 +7,10 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
-import { useAction } from '../../admin/useAction';
 import { Section } from '../../admin/Section';
-import { settingsErrorMessage } from '../../settings/errors';
+import { AutoSaveNumberInput, AutoSaveSwitch } from '../../settings/AutoSaveFields';
 import { mutate } from '../../settings/mutate';
+import { useAutoSave } from '../../settings/useAutoSave';
 import type { timeshiftQuery } from './__generated__/timeshiftQuery.graphql';
 import type { timeshiftRemoveMutation } from './__generated__/timeshiftRemoveMutation.graphql';
 import type { timeshiftSetMutation } from './__generated__/timeshiftSetMutation.graphql';
@@ -93,6 +83,8 @@ const query = graphql`
   }
 `;
 
+// TimeshiftSettings は、タイムシフトで録るサービスと保持時間を変える。保持時間と切り替えは、変えたらその項目だけを保存する (#1740)。
+// サービスを足すのと外すのは、設定の値ではなく、録るサービスを増やしたり減らしたりする操作なので、ボタンで行う。
 function TimeshiftSettings() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
@@ -106,26 +98,38 @@ function TimeshiftSettings() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const action = useAction();
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const fail = (caught: unknown) =>
-    setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
-  const done = () => {
-    setMessage({ ok: true, text: t('admin.saved') });
-    refresh();
-  };
+  const { save } = useAutoSave();
   const setTimeshift = (serviceId: string, retentionSeconds: number) =>
-    mutate<timeshiftSetMutation>(
-      environment,
-      graphql`
-        mutation timeshiftSetMutation($serviceId: ID!, $retentionSeconds: Int!) {
-          setTimeshiftChannel(serviceId: $serviceId, retentionSeconds: $retentionSeconds) {
-            retentionSeconds
+    save(async () => {
+      await mutate<timeshiftSetMutation>(
+        environment,
+        graphql`
+          mutation timeshiftSetMutation($serviceId: ID!, $retentionSeconds: Int!) {
+            setTimeshiftChannel(serviceId: $serviceId, retentionSeconds: $retentionSeconds) {
+              retentionSeconds
+            }
           }
-        }
-      `,
-      { serviceId, retentionSeconds },
-    );
+        `,
+        { serviceId, retentionSeconds },
+      );
+      refresh();
+    });
+  const saveWhileWatching = (input: timeshiftWhileWatchingMutation['variables']['input']) =>
+    save(async () => {
+      await mutate<timeshiftWhileWatchingMutation>(
+        environment,
+        graphql`
+          mutation timeshiftWhileWatchingMutation($input: SystemSettingsInput!) {
+            updateSystemSettings(input: $input) {
+              timeshiftWhileWatching
+              timeshiftWhileWatchingRetentionSeconds
+            }
+          }
+        `,
+        { input },
+      );
+      refresh();
+    });
 
   if (!data.timeshiftAvailable) {
     return (
@@ -137,17 +141,6 @@ function TimeshiftSettings() {
 
   return (
     <Stack gap="md">
-      {message !== null && (
-        <Alert
-          color={message.ok ? 'teal' : 'red'}
-          role={message.ok ? 'status' : 'alert'}
-          withCloseButton
-          onClose={() => setMessage(null)}
-        >
-          {message.text}
-        </Alert>
-      )}
-
       <Section title={t('admin.timeshift.services')}>
         <Text size="sm" c="dimmed">
           {t('admin.timeshift.description')}
@@ -155,16 +148,11 @@ function TimeshiftSettings() {
         {data.timeshiftChannels.length === 0 && <Text size="sm">{t('admin.timeshift.empty')}</Text>}
         {data.timeshiftChannels.map((channel) => (
           <TimeshiftServiceEditor
-            key={`${channel.service.id}/${channel.retentionSeconds}`}
+            key={channel.service.id}
             channel={channel}
-            onSave={(retentionSeconds) =>
-              action.run(async () => {
-                await setTimeshift(channel.service.id, retentionSeconds);
-                done();
-              }, fail)
-            }
+            onSave={(retentionSeconds) => setTimeshift(channel.service.id, retentionSeconds)}
             onRemove={() =>
-              action.run(async () => {
+              void save(async () => {
                 await mutate<timeshiftRemoveMutation>(
                   environment,
                   graphql`
@@ -174,8 +162,8 @@ function TimeshiftSettings() {
                   `,
                   { serviceId: channel.service.id },
                 );
-                done();
-              }, fail)
+                refresh();
+              })
             }
           />
         ))}
@@ -184,118 +172,34 @@ function TimeshiftSettings() {
             (service) =>
               !data.timeshiftChannels.some((channel) => channel.service.id === service.id),
           )}
-          onAdd={(serviceId, retentionSeconds, onAdded) =>
-            action.run(async () => {
-              await setTimeshift(serviceId, retentionSeconds);
-              onAdded();
-              done();
-            }, fail)
-          }
+          onAdd={setTimeshift}
         />
       </Section>
 
-      <TimeshiftWhileWatching
-        key={data.systemSettings.timeshiftWhileWatchingRetentionSeconds}
-        enabled={data.systemSettings.timeshiftWhileWatching}
-        retentionSeconds={data.systemSettings.timeshiftWhileWatchingRetentionSeconds}
-        busy={action.busy}
-        onSave={(input, revert) =>
-          action.run(
-            async () => {
-              await mutate<timeshiftWhileWatchingMutation>(
-                environment,
-                graphql`
-                  mutation timeshiftWhileWatchingMutation($input: SystemSettingsInput!) {
-                    updateSystemSettings(input: $input) {
-                      timeshiftWhileWatching
-                      timeshiftWhileWatchingRetentionSeconds
-                    }
-                  }
-                `,
-                { input },
-              );
-              done();
-            },
-            (caught) => {
-              revert();
-              fail(caught);
-            },
-          )
-        }
-      />
-    </Stack>
-  );
-}
-
-// TimeshiftWhileWatching は、ライブ視聴しているサービスを、視聴している間だけ録るかどうかと、その保持時間を変える (設計書 5.7、#1408)。
-// 録るかどうかは、変えたらすぐ、それだけを保存する (#1740)。保持時間は、打っている途中の値を保存しないよう、保存のボタンで保存する。
-function TimeshiftWhileWatching({
-  enabled,
-  retentionSeconds,
-  busy,
-  onSave,
-}: {
-  enabled: boolean;
-  retentionSeconds: number;
-  busy: boolean;
-  onSave: (
-    input: { timeshiftWhileWatching?: boolean; timeshiftWhileWatchingRetentionSeconds?: number },
-    revert: () => void,
-  ) => void;
-}) {
-  const { t } = useTranslation();
-  // 切り替えた値は、読み直した値 (enabled) が変わるまで出す。
-  const [toggled, setToggled] = useState({ value: enabled, base: enabled });
-  // 読み直した値が変わったら (保存した、ほかの管理者が変えた)、切り替えた値を捨てて、読み直した値から始め直す。
-  if (toggled.base !== enabled) {
-    setToggled({ value: enabled, base: enabled });
-  }
-  const checked = toggled.base === enabled ? toggled.value : enabled;
-  const [hours, setHours] = useState<number | string>(retentionHours(retentionSeconds));
-
-  return (
-    <Section title={t('admin.timeshift.whileWatching')}>
-      <Switch
-        size="sm"
-        label={t('admin.timeshift.whileWatchingLabel')}
-        description={t('admin.timeshift.whileWatchingHelp')}
-        checked={checked}
-        disabled={busy}
-        onChange={(event) => {
-          const value = event.currentTarget.checked;
-          setToggled({ value, base: enabled });
-          onSave({ timeshiftWhileWatching: value }, () =>
-            setToggled({ value: enabled, base: enabled }),
-          );
-        }}
-        maw={560}
-      />
-      <Group gap="xs" align="flex-end">
-        <NumberInput
+      {/* ライブ視聴しているサービスを、視聴している間だけ録るかどうかと、その保持時間 (設計書 5.7、#1408)。 */}
+      <Section title={t('admin.timeshift.whileWatching')}>
+        <AutoSaveSwitch
+          size="sm"
+          label={t('admin.timeshift.whileWatchingLabel')}
+          description={t('admin.timeshift.whileWatchingHelp')}
+          checked={data.systemSettings.timeshiftWhileWatching}
+          onSave={(timeshiftWhileWatching) => saveWhileWatching({ timeshiftWhileWatching })}
+          maw={560}
+        />
+        <AutoSaveNumberInput
           size="xs"
           w={140}
           label={t('admin.timeshift.retention')}
           min={1}
           max={maxRetentionHours}
           allowDecimal={false}
-          value={hours}
-          onChange={setHours}
-        />
-        <Button
-          size="compact-sm"
-          mb={2}
-          disabled={typeof hours !== 'number' || hours < 1 || hours > maxRetentionHours || busy}
-          onClick={() =>
-            onSave(
-              { timeshiftWhileWatchingRetentionSeconds: Number(hours) * secondsPerHour },
-              () => {},
-            )
+          value={retentionHours(data.systemSettings.timeshiftWhileWatchingRetentionSeconds)}
+          onSave={(hours) =>
+            saveWhileWatching({ timeshiftWhileWatchingRetentionSeconds: hours * secondsPerHour })
           }
-        >
-          {t('admin.save')}
-        </Button>
-      </Group>
-    </Section>
+        />
+      </Section>
+    </Stack>
   );
 }
 
@@ -305,6 +209,7 @@ function retentionHours(seconds: number): number {
 }
 
 // TimeshiftServiceEditor は、タイムシフトで録るサービスの、録っているかとバッファの範囲を出し、保持時間を変えるか、外す行。
+// 保持時間は、欄を離れたときか Enter で保存する (#1740)。外すのは、録ったバッファを捨てるので、確かめてから行う。
 function TimeshiftServiceEditor({
   channel,
   onSave,
@@ -322,11 +227,10 @@ function TimeshiftServiceEditor({
     bufferedUntil: string | null | undefined;
     recording: boolean;
   };
-  onSave: (retentionSeconds: number) => void;
+  onSave: (retentionSeconds: number) => Promise<boolean>;
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
-  const [hours, setHours] = useState<number | string>(retentionHours(channel.retentionSeconds));
   const [confirming, setConfirming] = useState(false);
   const { service } = channel;
 
@@ -354,24 +258,16 @@ function TimeshiftServiceEditor({
               : t('admin.timeshift.noBuffer')}
           </Text>
         </Stack>
-        <NumberInput
+        <AutoSaveNumberInput
           size="xs"
           w={140}
           label={t('admin.timeshift.retention')}
           min={1}
           max={maxRetentionHours}
           allowDecimal={false}
-          value={hours}
-          onChange={setHours}
+          value={retentionHours(channel.retentionSeconds)}
+          onSave={(hours) => onSave(hours * secondsPerHour)}
         />
-        <Button
-          size="compact-sm"
-          mb={2}
-          disabled={typeof hours !== 'number'}
-          onClick={() => onSave(Number(hours) * secondsPerHour)}
-        >
-          {t('admin.save')}
-        </Button>
         <Button
           size="compact-sm"
           mb={2}
@@ -421,7 +317,7 @@ function TimeshiftServiceAdder({
     serviceId: number;
     channelType: { displayName: string };
   }[];
-  onAdd: (serviceId: string, retentionSeconds: number, onAdded: () => void) => void;
+  onAdd: (serviceId: string, retentionSeconds: number) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
   const [serviceId, setServiceId] = useState<string | null>(null);
@@ -461,7 +357,11 @@ function TimeshiftServiceAdder({
         onClick={() => {
           if (serviceId !== null) {
             // 選んだサービスは、足し終えてから消す。失敗したときは、選び直さずにやり直せる。
-            onAdd(serviceId, Number(hours) * secondsPerHour, () => setServiceId(null));
+            void onAdd(serviceId, Number(hours) * secondsPerHour).then((ok) => {
+              if (ok) {
+                setServiceId(null);
+              }
+            });
           }
         }}
       >

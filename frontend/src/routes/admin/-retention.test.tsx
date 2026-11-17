@@ -44,7 +44,7 @@ function field(index: number): HTMLElement {
 }
 
 describe('保持期間 (#1452)', () => {
-  test('触っていないフォームは、読み直した値に合わせる', async () => {
+  test('触っていない欄は、読み直した値に合わせる', async () => {
     const environment = createTestEnvironment(() => settingsResponse());
     await renderRoute(Route, '/admin/retention', '/admin/retention', environment);
     await screen.findAllByRole('textbox', { name: '保持期間（日）' });
@@ -55,7 +55,7 @@ describe('保持期間 (#1452)', () => {
     expect(field(0)).toHaveProperty('value', '60');
   });
 
-  test('触ったフォームの入力は、読み直しても捨てない', async () => {
+  test('書きかけの欄は、読み直しても捨てない', async () => {
     const environment = createTestEnvironment(() => settingsResponse());
     await renderRoute(Route, '/admin/retention', '/admin/retention', environment);
     await screen.findAllByRole('textbox', { name: '保持期間（日）' });
@@ -64,38 +64,10 @@ describe('保持期間 (#1452)', () => {
     readAgain(environment, 60);
 
     expect(field(1)).toHaveProperty('value', '120');
-    expect(field(0)).toHaveProperty('value', '30');
+    expect(field(0)).toHaveProperty('value', '60');
   });
 
-  test('触っていないフォームを読み直した後に保存すると、読み直した値を送る', async () => {
-    const sent: unknown[] = [];
-    const environment = createTestEnvironment((request, variables) => {
-      if (request.name === 'retentionMutation') {
-        sent.push(variables.input);
-
-        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
-      }
-
-      return settingsResponse();
-    });
-    await renderRoute(Route, '/admin/retention', '/admin/retention', environment);
-    await screen.findAllByRole('textbox', { name: '保持期間（日）' });
-
-    readAgain(environment, 60);
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
-    await screen.findByRole('status');
-
-    expect(sent).toEqual([
-      {
-        archiveRetentionDays: 60,
-        notificationRetentionDays: 90,
-        watchProgressRetentionDays: 365,
-        networkActivityRetentionDays: 7,
-      },
-    ]);
-  });
-
-  test('触ったフォームで保存すると、入力した値を送る', async () => {
+  test('欄を離れたら、その欄だけを保存し、知らせる (#1740)', async () => {
     const sent: unknown[] = [];
     const environment = createTestEnvironment((request, variables) => {
       if (request.name === 'retentionMutation') {
@@ -109,17 +81,48 @@ describe('保持期間 (#1452)', () => {
     await renderRoute(Route, '/admin/retention', '/admin/retention', environment);
     await screen.findAllByRole('textbox', { name: '保持期間（日）' });
     fireEvent.change(field(1), { target: { value: '120' } });
+    expect(sent).toEqual([]);
 
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
-    await screen.findByRole('status');
+    await act(async () => fireEvent.blur(field(1)));
 
-    expect(sent).toEqual([
-      {
-        archiveRetentionDays: 30,
-        notificationRetentionDays: 120,
-        watchProgressRetentionDays: 365,
-        networkActivityRetentionDays: 7,
-      },
-    ]);
+    expect((await screen.findByRole('status')).textContent).toContain('保存しました');
+    expect(sent).toEqual([{ notificationRetentionDays: 120 }]);
+  });
+
+  test('値を変えずに欄を離れても、保存も知らせもしない (#1740)', async () => {
+    const sent: unknown[] = [];
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'retentionMutation') {
+        sent.push(variables.input);
+      }
+
+      return settingsResponse();
+    });
+    await renderRoute(Route, '/admin/retention', '/admin/retention', environment);
+    await screen.findAllByRole('textbox', { name: '保持期間（日）' });
+
+    await act(async () => fireEvent.blur(field(0)));
+
+    expect(sent).toEqual([]);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  test('空にした欄は、理由を出して保存しない (#1740)', async () => {
+    const sent: unknown[] = [];
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'retentionMutation') {
+        sent.push(variables.input);
+      }
+
+      return settingsResponse();
+    });
+    await renderRoute(Route, '/admin/retention', '/admin/retention', environment);
+    await screen.findAllByRole('textbox', { name: '保持期間（日）' });
+    fireEvent.change(field(3), { target: { value: '' } });
+
+    await act(async () => fireEvent.keyDown(field(3), { key: 'Enter' }));
+
+    expect(screen.getByText('入れてください')).toBeDefined();
+    expect(sent).toEqual([]);
   });
 });

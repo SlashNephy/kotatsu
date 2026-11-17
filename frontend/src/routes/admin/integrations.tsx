@@ -34,7 +34,14 @@ import {
   personalKinds,
   type NotificationKindName,
 } from '../../notifications/kinds';
-import { settingsErrorMessage } from '../../settings/errors';
+import {
+  AutoSaveSelect,
+  AutoSaveSwitch,
+  AutoSaveTextInput,
+  useAutoSavedValue,
+} from '../../settings/AutoSaveFields';
+import { notifySaved, useSaveNotice } from '../../settings/saveNotice';
+import { useAutoSave } from '../../settings/useAutoSave';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { parseTMDbSeriesId, TMDbAttribution } from '../../drama/DramaEpisode';
@@ -62,7 +69,10 @@ import type {
 import type { AnimeImportSource } from './__generated__/integrationsQuery.graphql';
 import type { integrationsQuery } from './__generated__/integrationsQuery.graphql';
 import type { integrationsRevokeStreamUrlMutation } from './__generated__/integrationsRevokeStreamUrlMutation.graphql';
-import type { integrationsWebhookUpdateMutation } from './__generated__/integrationsWebhookUpdateMutation.graphql';
+import type {
+  UpdateWebhookInput,
+  integrationsWebhookUpdateMutation,
+} from './__generated__/integrationsWebhookUpdateMutation.graphql';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/admin/integrations';
@@ -167,8 +177,6 @@ type WebhookInput = {
   enabled: boolean;
 };
 
-type Message = { ok: boolean; text: string };
-
 function Integrations() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
@@ -185,48 +193,43 @@ function Integrations() {
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
   const gate = useReauthGate(methods, path);
-  const [message, setMessage] = useState<Message | null>(null);
+  const notice = useSaveNotice();
+  const { save } = useAutoSave();
   // secret は、作った Webhook の署名用の秘密キー。作ったときにしか返らないので、ここで出す。
   const [secret, setSecret] = useState<{ name: string; secret: string } | null>(null);
   // revoking は、外部プレイヤーの URL を取り消している途中かどうか (#1757)。続けて押して、同じ URL を二度取り消さないようにする。
   const [revoking, setRevoking] = useState(false);
-  const fail = (caught: unknown) =>
-    setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
+  // fail と succeed は、設定ではない操作 (トークンの登録、Webhook を作る、URL を取り消すなど) の結果を、
+  // 設定の保存と同じ通知で知らせる (#1740)。
+  const fail = (caught: unknown) => notice.failed(caught);
   const succeed = (text: string) => {
-    setMessage({ ok: true, text });
+    notifySaved(text);
     refresh();
   };
-  // saveSettings は、全体の設定のうち、この画面で変える項目を保存する。どれも再認証を求める (設計書 9.5)。
+  // saveSettings は、全体の設定のうち、変えた項目だけを、変えたらすぐ保存する (#1740)。どれも再認証を求める (設計書 9.5)。
+  // 再認証をやめたら、保存できなかった知らせは出さず、切り替えを元に戻す。
   const saveSettings = (input: SystemSettingsInput) =>
-    gate.run(async () => {
-      await mutate<integrationsSystemSettingsMutation>(
-        environment,
-        graphql`
-          mutation integrationsSystemSettingsMutation($input: SystemSettingsInput!) {
-            updateSystemSettings(input: $input) {
-              updatedAt
+    save(() =>
+      gate.save(async () => {
+        await mutate<integrationsSystemSettingsMutation>(
+          environment,
+          graphql`
+            mutation integrationsSystemSettingsMutation($input: SystemSettingsInput!) {
+              updateSystemSettings(input: $input) {
+                updatedAt
+              }
             }
-          }
-        `,
-        { input },
-      );
-      succeed(t('admin.saved'));
-    }, fail);
+          `,
+          { input },
+        );
+        refresh();
+      }),
+    );
 
   return (
     <Stack gap="md">
       {gate.modal}
       <SudoGate methods={methods} returnTo={path}>
-        {message !== null && (
-          <Alert
-            color={message.ok ? 'teal' : 'red'}
-            role={message.ok ? 'status' : 'alert'}
-            withCloseButton
-            onClose={() => setMessage(null)}
-          >
-            {message.text}
-          </Alert>
-        )}
         {secret !== null && (
           <Alert
             color="amber"
@@ -242,45 +245,41 @@ function Integrations() {
         )}
 
         <SwitchSetting
-          key={`mcp/${String(data.systemSettings.mcpEnabled)}`}
+          key="mcp"
           title={t('admin.settings.mcp')}
           label={t('admin.settings.mcpEnabled')}
           help={t('admin.settings.mcpHelp')}
           enabled={data.systemSettings.mcpEnabled}
-          busy={gate.busy}
           onSave={(mcpEnabled) => saveSettings({ mcpEnabled })}
         />
 
         {/* 外部との通信を記録するか (#1369、設計書 11.8)。 */}
         <SwitchSetting
-          key={`network-activity/${String(data.systemSettings.networkActivityEnabled)}`}
+          key="network-activity"
           title={t('networkActivity.title')}
           label={t('networkActivity.adminLabel')}
           help={t('networkActivity.adminHelp')}
           enabled={data.systemSettings.networkActivityEnabled}
-          busy={gate.busy}
           onSave={(networkActivityEnabled) => saveSettings({ networkActivityEnabled })}
         />
 
         {/* データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。受信機の情報が外部へ届くので、ここで再認証を求める。 */}
         <SwitchSetting
-          key={`data-broadcast/${String(data.systemSettings.dataBroadcastIpEnabled)}`}
+          key="data-broadcast"
           title={t('admin.settings.dataBroadcastIp')}
           label={t('admin.settings.dataBroadcastIpEnabled')}
           help={t('admin.settings.dataBroadcastIpHelp')}
           enabled={data.systemSettings.dataBroadcastIpEnabled}
-          busy={gate.busy}
           onSave={(dataBroadcastIpEnabled) => saveSettings({ dataBroadcastIpEnabled })}
         />
 
         {/* 外の道具に渡す URL を発行させるか (#1755)。URL を持つ人が映像を見られるようになるので、ここで再認証を求める。 */}
         <SwitchSetting
-          key={`external-player-urls/${String(data.systemSettings.externalPlayerUrlsEnabled)}`}
+          key="external-player-urls"
           title={t('admin.settings.externalPlayerUrls')}
           label={t('admin.settings.externalPlayerUrlsEnabled')}
           help={t('admin.settings.externalPlayerUrlsHelp')}
           enabled={data.systemSettings.externalPlayerUrlsEnabled}
-          busy={gate.busy}
           onSave={(externalPlayerUrlsEnabled) => saveSettings({ externalPlayerUrlsEnabled })}
         />
         {/* 発行された外部プレイヤー用の URL を、1 本ずつ取り消せる (#1757)。権限を広げない操作なので、再認証は求めない。
@@ -307,31 +306,28 @@ function Integrations() {
         )}
         {/* 録画を 1 本のファイルとして保存させるか (#1762)。録画を Kotatsu の外へ持ち出せるので、ここで再認証を求める。 */}
         <SwitchSetting
-          key={`recording-downloads/${String(data.systemSettings.recordingDownloadsEnabled)}`}
+          key="recording-downloads"
           title={t('admin.settings.recordingDownloads')}
           label={t('admin.settings.recordingDownloadsEnabled')}
           help={t('admin.settings.recordingDownloadsHelp')}
           enabled={data.systemSettings.recordingDownloadsEnabled}
-          busy={gate.busy}
           onSave={(recordingDownloadsEnabled) => saveSettings({ recordingDownloadsEnabled })}
         />
         {/* EPGStation 互換の API を提供するか (#1769)。トークンを持つ人が映像を見られるので、ここで再認証を求める。 */}
         <SwitchSetting
-          key={`epgstation-api/${String(data.systemSettings.epgstationApiEnabled)}`}
+          key="epgstation-api"
           title={t('admin.settings.epgstationApi')}
           label={t('admin.settings.epgstationApiEnabled')}
           help={t('admin.settings.epgstationApiHelp')}
           enabled={data.systemSettings.epgstationApiEnabled}
-          busy={gate.busy}
           onSave={(epgstationApiEnabled) => saveSettings({ epgstationApiEnabled })}
         />
         <SwitchSetting
-          key={`iptv-feeds/${String(data.systemSettings.iptvFeedsEnabled)}`}
+          key="iptv-feeds"
           title={t('admin.settings.iptvFeeds')}
           label={t('admin.settings.iptvFeedsEnabled')}
           help={t('admin.settings.iptvFeedsHelp')}
           enabled={data.systemSettings.iptvFeedsEnabled}
-          busy={gate.busy}
           onSave={(iptvFeedsEnabled) => saveSettings({ iptvFeedsEnabled })}
         />
 
@@ -341,12 +337,11 @@ function Integrations() {
 
           return (
             <SwitchSetting
-              key={`commentSource/${source}/${String(enabled)}`}
+              key={source}
               title={t(`admin.settings.commentSource.${source}.title`)}
               label={t(`admin.settings.commentSource.${source}.label`)}
               help={t(`admin.settings.commentSource.${source}.help`)}
               enabled={enabled}
-              busy={gate.busy}
               onSave={(next) =>
                 saveSettings({
                   commentSources: next
@@ -359,10 +354,9 @@ function Integrations() {
         })}
 
         <AnimeLinkingSettings
-          key={`anime/${String(data.systemSettings.animeLinkingEnabled)}`}
+          key="anime"
           enabled={data.systemSettings.animeLinkingEnabled}
           imports={data.animeImports}
-          busy={gate.busy}
           onSave={(animeLinkingEnabled) => saveSettings({ animeLinkingEnabled })}
         >
           {/* 作品 ID の対応を作るための Annict のトークン (#1223)。サーバーが外部へ問い合わせるときの秘密情報なので、ここで再認証を求める。 */}
@@ -392,7 +386,7 @@ function Integrations() {
 
         {/* TMDb との連携 (#1651)。外部へ問い合わせ始めるかどうかを決めるので、ここで再認証を求める。 */}
         <DramaLinkingSettings
-          key={`drama/${String(data.systemSettings.dramaLinkingEnabled)}`}
+          key="drama"
           enabled={data.systemSettings.dramaLinkingEnabled}
           tokenConfigured={data.dramaLinking.tokenConfigured}
           tokenForm={
@@ -423,7 +417,6 @@ function Integrations() {
             />
           }
           overrides={data.dramaTitleOverrides}
-          busy={gate.busy}
           onSave={(dramaLinkingEnabled) => saveSettings({ dramaLinkingEnabled })}
           onOverride={async (input) => {
             try {
@@ -501,30 +494,31 @@ function Integrations() {
                 <WebhookRow
                   key={`${webhook.id}/${webhook.name}/${webhook.url}/${webhook.format}/${webhook.kinds.join()}/${String(webhook.enabled)}`}
                   webhook={webhook}
-                  onUpdate={(input, onDone) =>
-                    gate.run(async () => {
-                      await mutate<integrationsWebhookUpdateMutation>(
-                        environment,
-                        graphql`
-                          mutation integrationsWebhookUpdateMutation(
-                            $id: ID!
-                            $input: UpdateWebhookInput!
-                          ) {
-                            updateWebhook(id: $id, input: $input) {
-                              id
-                              name
-                              url
-                              format
-                              kinds
-                              enabled
+                  onUpdate={(input) =>
+                    save(() =>
+                      gate.save(async () => {
+                        await mutate<integrationsWebhookUpdateMutation>(
+                          environment,
+                          graphql`
+                            mutation integrationsWebhookUpdateMutation(
+                              $id: ID!
+                              $input: UpdateWebhookInput!
+                            ) {
+                              updateWebhook(id: $id, input: $input) {
+                                id
+                                name
+                                url
+                                format
+                                kinds
+                                enabled
+                              }
                             }
-                          }
-                        `,
-                        { id: webhook.id, input },
-                      );
-                      onDone();
-                      succeed(t('admin.saved'));
-                    }, fail)
+                          `,
+                          { id: webhook.id, input },
+                        );
+                        refresh();
+                      }),
+                    )
                   }
                   onDelete={() =>
                     gate.run(async () => {
@@ -598,38 +592,25 @@ function SwitchSetting({
   label,
   help,
   enabled,
-  busy,
   onSave,
 }: {
   title: string;
   label: string;
   help: string;
   enabled: boolean;
-  busy: boolean;
-  onSave: (enabled: boolean) => void;
+  onSave: (enabled: boolean) => Promise<boolean>;
 }) {
-  const { t } = useTranslation();
-  const [checked, setChecked] = useState(enabled);
-
+  // 切り替えたらすぐ保存する (#1740)。
   return (
     <Section title={title}>
-      <Group justify="space-between" align="flex-end">
-        <Switch
-          size="sm"
-          label={label}
-          description={help}
-          checked={checked}
-          onChange={(event) => setChecked(event.currentTarget.checked)}
-          maw={560}
-        />
-        <Button
-          size="compact-sm"
-          disabled={checked === enabled || busy}
-          onClick={() => onSave(checked)}
-        >
-          {t('admin.save')}
-        </Button>
-      </Group>
+      <AutoSaveSwitch
+        size="sm"
+        label={label}
+        description={help}
+        checked={enabled}
+        onSave={onSave}
+        maw={560}
+      />
     </Section>
   );
 }
@@ -664,39 +645,27 @@ type AnimeImportItem = {
 function AnimeLinkingSettings({
   enabled,
   imports,
-  busy,
   onSave,
   children,
 }: {
   enabled: boolean;
   imports: readonly AnimeImportItem[];
-  busy: boolean;
-  onSave: (enabled: boolean) => void;
+  onSave: (enabled: boolean) => Promise<boolean>;
   children?: ReactNode;
 }) {
   const { t } = useTranslation();
-  const [checked, setChecked] = useState(enabled);
 
   return (
     <Section title={t('admin.settings.anime')}>
       <Stack gap="sm">
-        <Group justify="space-between" align="flex-end">
-          <Switch
-            size="sm"
-            label={t('admin.settings.animeEnabled')}
-            description={t('admin.settings.animeHelp')}
-            checked={checked}
-            onChange={(event) => setChecked(event.currentTarget.checked)}
-            maw={560}
-          />
-          <Button
-            size="compact-sm"
-            disabled={checked === enabled || busy}
-            onClick={() => onSave(checked)}
-          >
-            {t('admin.save')}
-          </Button>
-        </Group>
+        <AutoSaveSwitch
+          size="sm"
+          label={t('admin.settings.animeEnabled')}
+          description={t('admin.settings.animeHelp')}
+          checked={enabled}
+          onSave={onSave}
+          maw={560}
+        />
         {imports.length === 0 ? (
           <Text size="sm" c="dimmed">
             {t('admin.settings.animeNotImported')}
@@ -751,7 +720,6 @@ function DramaLinkingSettings({
   tokenConfigured,
   tokenForm,
   overrides,
-  busy,
   onSave,
   onOverride,
 }: {
@@ -759,12 +727,10 @@ function DramaLinkingSettings({
   tokenConfigured: boolean;
   tokenForm: ReactNode;
   overrides: readonly DramaTitleOverrideItem[];
-  busy: boolean;
-  onSave: (enabled: boolean) => void;
+  onSave: (enabled: boolean) => Promise<boolean>;
   onOverride: (input: DramaTitleOverrideInput) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
-  const [checked, setChecked] = useState(enabled);
   const [programName, setProgramName] = useState('');
   const [series, setSeries] = useState('');
   const [saving, setSaving] = useState(false);
@@ -791,23 +757,14 @@ function DramaLinkingSettings({
   return (
     <Section title={t('admin.settings.drama')}>
       <Stack gap="sm">
-        <Group justify="space-between" align="flex-end">
-          <Switch
-            size="sm"
-            label={t('admin.settings.dramaEnabled')}
-            description={t('admin.settings.dramaHelp')}
-            checked={checked}
-            onChange={(event) => setChecked(event.currentTarget.checked)}
-            maw={560}
-          />
-          <Button
-            size="compact-sm"
-            disabled={checked === enabled || busy}
-            onClick={() => onSave(checked)}
-          >
-            {t('admin.save')}
-          </Button>
-        </Group>
+        <AutoSaveSwitch
+          size="sm"
+          label={t('admin.settings.dramaEnabled')}
+          description={t('admin.settings.dramaHelp')}
+          checked={enabled}
+          onSave={onSave}
+          maw={560}
+        />
         {enabled && !tokenConfigured && (
           <Alert color="amber" data-testid="drama-token-missing">
             {t('admin.settings.dramaTokenMissing')}
@@ -950,7 +907,7 @@ function DramaTokenForm({
             w={320}
           />
           <Button type="submit" size="compact-sm" disabled={token.trim() === '' || busy}>
-            {t('admin.save')}
+            {t('admin.integrations.register')}
           </Button>
           {configured && (
             <Button
@@ -1015,7 +972,7 @@ function AnimeImportTokenForm({
             w={320}
           />
           <Button type="submit" size="compact-sm" disabled={token.trim() === '' || busy}>
-            {t('admin.save')}
+            {t('admin.integrations.register')}
           </Button>
           {configured && (
             <Button
@@ -1115,7 +1072,7 @@ function AnimeRecordAppForm({
             w={260}
           />
           <Button type="submit" size="compact-sm" disabled={!changed || busy}>
-            {t('admin.save')}
+            {t('admin.integrations.register')}
           </Button>
         </Group>
       </Stack>
@@ -1144,7 +1101,7 @@ function WebhookRow({
   onDelete,
 }: {
   webhook: WebhookItem;
-  onUpdate: (input: WebhookInput, onDone: () => void) => void;
+  onUpdate: (input: UpdateWebhookInput) => Promise<boolean>;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
@@ -1155,23 +1112,12 @@ function WebhookRow({
   if (editing) {
     return (
       <Stack gap={4} data-webhook={webhook.name}>
-        <WebhookForm
-          initial={{
-            name: webhook.name,
-            url: webhook.url,
-            format: webhook.format,
-            kinds: knownKinds(webhook.kinds),
-            enabled: webhook.enabled,
-          }}
-          submitLabel={t('admin.save')}
-          onSubmit={(input, onDone) =>
-            onUpdate(input, () => {
-              onDone();
-              setEditing(false);
-            })
-          }
-          onCancel={() => setEditing(false)}
-        />
+        <WebhookEditor webhook={webhook} onUpdate={onUpdate} />
+        <Group>
+          <Button size="compact-sm" variant="default" onClick={() => setEditing(false)}>
+            {t('admin.webhooks.close')}
+          </Button>
+        </Group>
       </Stack>
     );
   }
@@ -1238,6 +1184,87 @@ function WebhookRow({
           </Stack>
         </Alert>
       )}
+    </Stack>
+  );
+}
+
+// WebhookEditor は、作った Webhook を変える欄。変えた項目だけを保存する (#1740)。名前と URL は、欄を離れたときか Enter で、
+// 形式、種類、送るかどうかは、変えたらすぐ保存する。種類は 1 つ以上選ぶ。
+function WebhookEditor({
+  webhook,
+  onUpdate,
+}: {
+  webhook: WebhookItem;
+  onUpdate: (input: UpdateWebhookInput) => Promise<boolean>;
+}) {
+  const { t } = useTranslation();
+  const [selectedKinds, changeKinds] = useAutoSavedValue<readonly NotificationKindName[]>(
+    knownKinds(webhook.kinds),
+    (next) => onUpdate({ kinds: [...next] }),
+    (a, b) => a.length === b.length && a.every((kind) => b.includes(kind)),
+  );
+
+  return (
+    <Stack gap="xs">
+      <Group gap="xs" align="flex-start">
+        <AutoSaveTextInput
+          size="xs"
+          label={t('admin.webhooks.name')}
+          required
+          maxLength={100}
+          value={webhook.name}
+          onSave={(name) => onUpdate({ name })}
+        />
+        <AutoSaveSelect
+          size="xs"
+          w={160}
+          label={t('admin.webhooks.format')}
+          data={formats.map((format) => ({
+            value: format,
+            label: t(`admin.webhooks.formats.${format}`),
+          }))}
+          value={webhook.format}
+          onSave={(value) => {
+            const format = formats.find((known) => known === value);
+
+            return format === undefined ? Promise.resolve(false) : onUpdate({ format });
+          }}
+        />
+      </Group>
+      <AutoSaveTextInput
+        size="xs"
+        type="url"
+        label={t('admin.webhooks.url')}
+        description={t('admin.webhooks.urlHelp')}
+        required
+        autoComplete="off"
+        value={webhook.url}
+        onSave={(url) => onUpdate({ url })}
+      />
+      <Checkbox.Group
+        size="xs"
+        label={t('admin.webhooks.kinds')}
+        value={[...selectedKinds]}
+        onChange={(values) => {
+          const next = knownKinds(values);
+          // 種類をすべて外すと送る先がなくなるので、保存しない。
+          if (next.length > 0) {
+            changeKinds(next);
+          }
+        }}
+      >
+        <Group gap="sm" mt={4}>
+          {kinds.map((kind) => (
+            <Checkbox key={kind} value={kind} label={t(notificationKinds[kind])} />
+          ))}
+        </Group>
+      </Checkbox.Group>
+      <AutoSaveSwitch
+        size="xs"
+        label={t('admin.webhooks.enabled')}
+        checked={webhook.enabled}
+        onSave={(enabled) => onUpdate({ enabled })}
+      />
     </Stack>
   );
 }

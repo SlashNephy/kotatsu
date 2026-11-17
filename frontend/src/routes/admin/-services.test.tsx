@@ -7,8 +7,8 @@ import { Route } from './services';
 
 afterEach(cleanup);
 
-// servicesResponse は、サービスが 1 つの画面の応答を作る。hidden は、そのサービスの番組表に出さない印。
-function servicesResponse(hidden: boolean) {
+// servicesResponse は、サービスが 1 つの画面の応答を作る。hidden は、そのサービスの番組表に出さない印、sortOrder は並び順の上書き。
+function servicesResponse(hidden: boolean, sortOrder: number | null = null) {
   return {
     data: {
       channelTypes: [],
@@ -18,7 +18,7 @@ function servicesResponse(hidden: boolean) {
           name: 'こたつテスト1',
           logoUrl: null,
           hidden,
-          sortOrder: null,
+          sortOrder,
           channelType: { displayName: '地上波' },
         },
       ],
@@ -52,7 +52,7 @@ describe('番組表に出さない印は、変えたらすぐ保存する (#1740
     await act(async () => fireEvent.click(screen.getByRole('switch', { name: '出さない' })));
     await screen.findByRole('status');
 
-    expect(sent).toEqual([{ hidden: true, resetSortOrder: false }]);
+    expect(sent).toEqual([{ hidden: true }]);
     expect(screen.getByRole('switch', { name: '出さない' })).toHaveProperty('checked', true);
     expect(screen.getByRole('textbox', { name: '並び順' })).toHaveProperty('value', '5');
   });
@@ -96,5 +96,31 @@ describe('番組表に出さない印は、変えたらすぐ保存する (#1740
     );
 
     expect(screen.getByRole('switch', { name: '出さない' })).toHaveProperty('checked', false);
+  });
+});
+
+describe('並び順は、欄を離れたときか Enter で保存する (#1740)', () => {
+  test.each([
+    { name: '数を入れたら、その並び順を送る', value: '5', want: { sortOrder: 5 } },
+    { name: '空にしたら、上書きを消す', value: '', want: { resetSortOrder: true } },
+  ])('$name', async ({ value, want }) => {
+    const sent: unknown[] = [];
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'servicesServiceMutation') {
+        sent.push(variables.input);
+
+        return { data: { updateService: { id: 'U2VydmljZTox', hidden: false, sortOrder: 3 } } };
+      }
+      return servicesResponse(false, 3);
+    });
+    await renderRoute(Route, '/admin/services', '/admin/services', environment);
+    const order = await screen.findByRole('textbox', { name: '並び順' });
+    fireEvent.change(order, { target: { value } });
+    expect(sent).toEqual([]);
+
+    await act(async () => fireEvent.blur(order));
+    await screen.findByRole('status');
+
+    expect(sent).toEqual([want]);
   });
 });
