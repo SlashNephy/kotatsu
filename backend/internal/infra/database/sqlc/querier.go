@@ -27,6 +27,8 @@ type Querier interface {
 	// 引き継ぎ待ちの割り振りは、リースが切れていなくても、ほかの mikan が取る (設計書 5.4)。
 	// 取る前の状態と、リースの期限も返す。引き継ぎか、落ちた mikan の代わりかで、途切れた区間の扱いが変わる。
 	AcquireTimeshiftAssignment(ctx context.Context, arg AcquireTimeshiftAssignmentParams) (AcquireTimeshiftAssignmentRow, error)
+	// @instance_id を ID の持ち主に加え、最後の持ち主が外れた印を消す。
+	AddEDCBNetworkTVHolder(ctx context.Context, arg AddEDCBNetworkTVHolderParams) error
 	// 集計を足し込む。書くまでの間に記録を無効にしていたら、書かない。
 	AddNetworkActivity(ctx context.Context, arg AddNetworkActivityParams) error
 	// 書き終えたセグメントのドロップ、エラー、スクランブルを、録画の集計に足す。
@@ -67,6 +69,8 @@ type Querier interface {
 	// 番組 (service_id, start_at) の結びつきを、録画 recording_id に写す。番組をまだ照合していなければ、何もしない。
 	CopyProgramDramaMatchToRecording(ctx context.Context, arg CopyProgramDramaMatchToRecordingParams) (int64, error)
 	CountAPIRecordings(ctx context.Context, keyword string) (int64, error)
+	// ID の、生きている持ち主の数を返す。生きているかは FindJoinableEDCBNetworkTV と同じ。
+	CountAliveEDCBNetworkTVHolders(ctx context.Context, arg CountAliveEDCBNetworkTVHoldersParams) (int64, error)
 	CountEDCBNetworkTVs(ctx context.Context, arg CountEDCBNetworkTVsParams) (int64, error)
 	// /metrics に出す、状態ごとの録画の割り振りの数。
 	CountRecordingAssignmentsByState(ctx context.Context) ([]CountRecordingAssignmentsByStateRow, error)
@@ -121,8 +125,11 @@ type Querier interface {
 	DeleteCaptionModel(ctx context.Context, kind string) (int64, error)
 	// user_id のユーザーのキャプチャ id を消し、消した行を返す。ほかのユーザーのものは消さない。
 	DeleteCapture(ctx context.Context, arg DeleteCaptureParams) (Capture, error)
+	// 止まったインスタンスの持ち主の行を消す。ID は、ほかの持ち主が使い続けるので残す。持ち主がいなくなった ID は、ListOrphanedEDCBNetworkTVs で閉じる。
+	DeleteDeadEDCBNetworkTVHolders(ctx context.Context, aliveSince time.Time) (int64, error)
 	DeleteDramaTitleOverride(ctx context.Context, titleKey string) (int64, error)
-	DeleteEDCBNetworkTV(ctx context.Context, arg DeleteEDCBNetworkTVParams) error
+	DeleteEDCBNetworkTV(ctx context.Context, id int32) error
+	DeleteEDCBNetworkTVHolder(ctx context.Context, arg DeleteEDCBNetworkTVHolderParams) error
 	DeleteExpiredAnimeRecordAuthorizations(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredOAuthAuthorizationCodes(ctx context.Context, arg DeleteExpiredOAuthAuthorizationCodesParams) (int64, error)
@@ -263,6 +270,10 @@ type Querier interface {
 	// 録画していた mikan がいなくなったか、予約を消して割り振りが消えたもので、ほかに録画を終える人がいない (#516)。
 	// 録画した時間の終わりは、書いたセグメントの終わりにする。失敗にした録画は、同じ文で失敗の累計に足す (#960)。
 	FailStuckRecordings(ctx context.Context, arg FailStuckRecordingsParams) ([]FailStuckRecordingsRow, error)
+	// 範囲 [@start, @start + @count) のうち、同じサービスを開いていて、閉じ始めておらず、生きている持ち主が @max_holders に満たない ID を返す (#1850)。
+	// 生きている持ち主は、インスタンスが AliveTTL のうちにハートビートを書いたか、取った直後のもの。止まった持ち主の中継は切れているので、数えない。
+	// 行を FOR UPDATE で押さえ、加わるまでに、ほかのインスタンスが閉じ始めないようにする。
+	FindJoinableEDCBNetworkTV(ctx context.Context, arg FindJoinableEDCBNetworkTVParams) (int32, error)
 	FinishAnimeRecord(ctx context.Context, arg FinishAnimeRecordParams) error
 	// 見たいリストを問い合わせた結果を残す。取り込めたら (error が NULL)、取り込めた日時を進め、理由を消す。
 	// 取り込めなければ、問い合わせ直す日時 (retry_at) を残す。
@@ -706,6 +717,7 @@ type Querier interface {
 	// 番組が EPG にあり、終了時刻が決まっているか (decided) も返す。番組が消えたか、未定になったのは一時的なことがあるので、
 	// ルールに一致しなくなったとはみなさない (#518)。
 	// 番組名が空か (unnamed) も返す。条件から外れたのか、まだ読めていないだけなのかを区別できないので、消さない (#1501)。
+	// 番組が EPG にあるか (listed) も返す。EPG から消えた番組の予約は、同じ枠にルールに一致する別の番組が出ていれば、差し替えられたとみなして消す (#1875)。
 	ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error)
 	ListFutureReservationRules(ctx context.Context, now time.Time) ([]ReservationRule, error)
 	// 番組 (サービス, eventId) をまとめて引く。GetGuideProgram と同じ列を返す。ない番組は返さない。
@@ -752,7 +764,9 @@ type Querier interface {
 	// 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前か、外したチャンネルのものを破棄する前に、
 	// ファイルの大きさと最後に書いた時刻で閉じる。
 	ListOpenTimeshiftChunks(ctx context.Context, serviceID int64) ([]ListOpenTimeshiftChunksRow, error)
-	// 持ち主のインスタンスが、どのロールでも生きていない ID を返す。取った直後の ID は、登録の前の持ち主のものかもしれないので含めない。
+	// 生きている持ち主のいない ID を返す。閉じ始めた ID は、閉じ始めてから @closing_before を過ぎたものだけ返す
+	// (閉じる途中で止まったインスタンスの ID)。取った直後と、最後の持ち主が外れた直後の ID は、
+	// 登録の前の持ち主のものか、ほかのインスタンスが引き継ぐかもしれないので含めない。
 	ListOrphanedEDCBNetworkTVs(ctx context.Context, arg ListOrphanedEDCBNetworkTVsParams) ([]EdcbNetworkTv, error)
 	// 同じ話の、放送が終わった放送を、実況のチャンネルがあるものだけ、古い順に返す (#1361)。
 	ListOtherAnimeBroadcasts(ctx context.Context, arg ListOtherAnimeBroadcastsParams) ([]ListOtherAnimeBroadcastsRow, error)
@@ -979,6 +993,11 @@ type Querier interface {
 	LockChannelType(ctx context.Context, type_ string) (ChannelType, error)
 	// 消す直前に、録画をロックして、まだ消せることを確かめる。
 	LockDeletableRecording(ctx context.Context, id uuid.UUID) (LockDeletableRecordingRow, error)
+	// ID の行を押さえる。加わるのと、外れて閉じ始めるのを、1 つずつにする。行がなければ返さない。
+	LockEDCBNetworkTV(ctx context.Context, id int32) (EdcbNetworkTv, error)
+	// 同じサービスの ID を取るのと加わるのを、インスタンスをまたいで 1 つずつにする (#1850)。トランザクションの終わりまで持つ。
+	// 2 つのインスタンスが同時に同じサービスを開いても、別々の ID を取って、チューナーを 2 本使わないようにする。
+	LockEDCBNetworkTVService(ctx context.Context, arg LockEDCBNetworkTVServiceParams) error
 	// 期限の切れたリースを取る前に、行を FOR UPDATE でロックする。リーダーの書き込みのトランザクション (FOR KEY SHARE) が終わるまで待つ。
 	// AcquireLease の ON CONFLICT DO UPDATE は、キーを変えないので FOR KEY SHARE とぶつからず、これがないと書き込みの最中に取れてしまう。
 	// 期限内のリースは取れないので、ロックせず、書き込みを待たない。
@@ -1017,6 +1036,8 @@ type Querier interface {
 	// 変える前の値を監査ログに残すため、行をロックして読む。
 	LockWebhook(ctx context.Context, id uuid.UUID) (Webhook, error)
 	MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error)
+	MarkEDCBNetworkTVClosing(ctx context.Context, arg MarkEDCBNetworkTVClosingParams) error
+	MarkEDCBNetworkTVReleased(ctx context.Context, arg MarkEDCBNetworkTVReleasedParams) error
 	MarkNotificationEventDispatched(ctx context.Context, arg MarkNotificationEventDispatchedParams) error
 	MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) (int64, error)
 	MarkOAuthRefreshTokenUsed(ctx context.Context, arg MarkOAuthRefreshTokenUsedParams) error
@@ -1085,7 +1106,6 @@ type Querier interface {
 	RecordingAssignmentExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// プールのパスのファイルが、もう録画のファイルとして記録されているか (#1734)。Kotatsu が録った録画と、取り込んだ録画を、取り込み直さない。
 	RecordingFileExistsAt(ctx context.Context, arg RecordingFileExistsAtParams) (bool, error)
-	ReleaseEDCBNetworkTV(ctx context.Context, arg ReleaseEDCBNetworkTVParams) error
 	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。
 	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
 	// 止まる mikan が、引き継ぐ mikan がいないときに、割り振りを手放す。再起動した mikan が、リースが切れるのを待たずに取れる。

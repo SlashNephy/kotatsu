@@ -31,7 +31,7 @@ const (
 // captionsConfig は、字幕の自動生成の設定を返す。渡されていなければ、場所を書いていない設定とみなす。
 func (r *Resolver) captionsConfig() *config.Captions {
 	if r.captions == nil {
-		return &config.Captions{WhisperCommand: "", WhisperModel: "", Threads: 0, VADCommand: "", VADModel: ""}
+		return &config.Captions{WhisperCommand: "", WhisperModel: "", VADCommand: "", VADModel: ""}
 	}
 
 	return r.captions

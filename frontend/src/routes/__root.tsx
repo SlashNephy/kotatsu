@@ -124,7 +124,7 @@ function RootLayout() {
                 className={classes.header}
                 data-fluid={fluid || undefined}
               >
-                <Group gap="lg" wrap="nowrap">
+                <Group gap="lg" wrap="nowrap" className={classes.headerStart}>
                   <Burger
                     opened={opened}
                     onClick={toggle}
@@ -137,7 +137,7 @@ function RootLayout() {
                     <NavLinks size="sm" />
                   </Group>
                 </Group>
-                <Group gap="md" wrap="nowrap">
+                <Group gap="md" wrap="nowrap" className={classes.headerEnd}>
                   <DataChangesSubscriber />
                   <ConnectionStatus />
                   <HeaderSearch />

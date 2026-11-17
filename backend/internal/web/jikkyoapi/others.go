@@ -120,7 +120,7 @@ func (h *OtherCommentsHandler) otherBroadcasts(ctx context.Context, recordingID 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the other broadcasts: %w", err)
 	}
-	own, hasOwn := h.table.Lookup(source.NetworkID, source.Sid)
+	own, hasOwn := h.table.Lookup(ctx, source.NetworkID, source.Sid)
 	until := *source.RecordedUntil
 	seen := map[int32]bool{}
 	broadcasts := make([]*domain.OtherAnimeBroadcast, 0, maxOtherBroadcasts)

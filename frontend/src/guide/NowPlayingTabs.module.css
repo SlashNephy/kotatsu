@@ -1,0 +1,8 @@
+/* タブは折り返せないので、画面より広いときは、タブの行だけを横にスクロールさせる (#1879)。 */
+/* 外の幅を超えないよう、親の幅に収める。グリッドやフレックスの中でも、中身の幅まで広がらないよう min-width を 0 にする。 */
+.scroller {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}

@@ -10,15 +10,19 @@
 package nabe
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"hash/fnv"
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
@@ -66,12 +70,14 @@ var (
 	_ StreamOpener = new(Streams)
 )
 
-// Streams は、ストリームを nabe から受け取る。動いている nabe がいないか、届かなければ、local で開く。
-//   - nabe が何台いても、同じサービスは同じ nabe から受け取るよう、サービスから nabe を決める。nabe ごとに NetworkTV を開くので、
-//     ばらばらに受け取ると、同じサービスにチューナーを何本も使う。
+// Streams は、ストリームを nabe から受け取る。動いている nabe がいないか、どの nabe にも届かなければ、local で開く。
+//   - nabe が何台いても、同じサービスは同じ nabe から受け取るよう、サービスから nabe の順番を決め、先頭の nabe から受け取る。
+//     ばらばらに受け取ると、nabe ごとに NetworkTV の中継を使う。
+//   - 先頭の nabe に届かないか、ほかの理由で断られたとき (秘密キーが違うなど) は、次の nabe から受け取る (#1850)。
+//     次の nabe は、先頭の nabe と同じ NetworkTV の ID に加わるので、チューナーを増やさない。届かなかった nabe は、
+//     登録簿から外れるまで (registry.AliveTTL) 後回しにし、つなぎ直すたびに待たされないようにする。
 //   - nabe が、チューナーが足りないか、サービスがないと断ったときは、そのまま返す。自分で開いても、同じ理由で開けないためである。
-//   - 登録簿を引けないとき、nabe に届かないとき、ほかの理由で断られたとき (秘密キーが違うなど) は、
-//     local で開く。録画を止めないことを、チューナーを余分に使わないことより先にする。
+//   - 登録簿を引けないとき、どの nabe にも届かないときは、local で開く。録画を止めないことを、チューナーを余分に使わないことより先にする。
 type Streams struct {
 	instances Instances
 	token     *innertoken.Token
@@ -82,13 +88,15 @@ type Streams struct {
 	mu sync.Mutex
 	// clients は、nabe のアドレスごとのクライアント。
 	clients map[string]*mirakurun.Client
+	// failed は、届かなかった nabe と、その時刻。
+	failed map[uuid.UUID]time.Time
 }
 
 // NewStreams は Streams を返す。token は nabe へのリクエストに付ける。
 func NewStreams(instances Instances, token *innertoken.Token, local StreamOpener, clk clock.Clock, logger *slog.Logger) *Streams {
 	return &Streams{
 		instances: instances, token: token, local: local, clock: clk, logger: logger,
-		mu: sync.Mutex{}, clients: map[string]*mirakurun.Client{},
+		mu: sync.Mutex{}, clients: map[string]*mirakurun.Client{}, failed: map[uuid.UUID]time.Time{},
 	}
 }
 
@@ -116,25 +124,68 @@ func (s *Streams) open(ctx context.Context, key string, open func(StreamOpener) 
 
 		return open(s.local)
 	}
-	if len(instances) == 0 {
-		return open(s.local)
-	}
-	instance := pick(instances, key)
-	client, err := s.client(instance.Address)
-	if err != nil {
-		s.logger.WarnContext(ctx, "the nabe address is invalid; opening the NetworkTV by itself",
-			slog.String("instance", instance.Address), slog.Any("error", err))
+	for _, instance := range s.order(instances, key) {
+		client, err := s.client(instance.Address)
+		if err != nil {
+			s.logger.WarnContext(ctx, "the nabe address is invalid; trying the next one",
+				slog.String("instance", instance.Address), slog.Any("error", err))
+			s.fail(instance)
 
-		return open(s.local)
+			continue
+		}
+		stream, err := open(client)
+		if err == nil || errors.Is(err, tunerserver.ErrTunerUnavailable) || errors.Is(err, tunerserver.ErrNotFound) || ctx.Err() != nil {
+			if err == nil {
+				s.succeed(instance)
+			}
+
+			return stream, err
+		}
+		s.logger.WarnContext(ctx, "failed to open the stream from nabe; trying the next one",
+			slog.String("instance", instance.Address), slog.Any("error", err))
+		s.fail(instance)
 	}
-	stream, err := open(client)
-	if err == nil || errors.Is(err, tunerserver.ErrTunerUnavailable) || errors.Is(err, tunerserver.ErrNotFound) || ctx.Err() != nil {
-		return stream, err
+	if len(instances) > 0 {
+		s.logger.WarnContext(ctx, "no nabe could open the stream; opening the NetworkTV by itself")
 	}
-	s.logger.WarnContext(ctx, "failed to open the stream from nabe; opening the NetworkTV by itself",
-		slog.String("instance", instance.Address), slog.Any("error", err))
 
 	return open(s.local)
+}
+
+// order は、key から決まった順に nabe を並べる (rendezvous hashing)。nabe が増えたり減ったりしても、ほかの nabe が受け持つサービスの
+// 先頭は動かない。届かなかった nabe は、AliveTTL の間、後ろに回す。
+func (s *Streams) order(instances []*registry.Instance, key string) []*registry.Instance {
+	ranked := rank(instances, key)
+	now := s.clock.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	healthy := make([]*registry.Instance, 0, len(ranked))
+	var failed []*registry.Instance
+	for _, instance := range ranked {
+		if at, ok := s.failed[instance.ID]; ok && now.Sub(at) < registry.AliveTTL {
+			failed = append(failed, instance)
+
+			continue
+		}
+		delete(s.failed, instance.ID)
+		healthy = append(healthy, instance)
+	}
+
+	return append(healthy, failed...)
+}
+
+// fail は、instance に届かなかったことを覚える。
+func (s *Streams) fail(instance *registry.Instance) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failed[instance.ID] = s.clock.Now()
+}
+
+// succeed は、instance に届いたので、届かなかったことを忘れる。
+func (s *Streams) succeed(instance *registry.Instance) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.failed, instance.ID)
 }
 
 // client は、address の nabe のクライアントを返す。
@@ -156,17 +207,22 @@ func (s *Streams) client(address string) (*mirakurun.Client, error) {
 	return client, nil
 }
 
-// pick は、key から決まった nabe を返す (rendezvous hashing)。nabe が増えたり減ったりしても、ほかの nabe が受け持つサービスは動かない。
-func pick(instances []*registry.Instance, key string) *registry.Instance {
-	var best *registry.Instance
-	var bestScore uint64
+// rank は、key から決まった順に nabe を並べる (rendezvous hashing)。スコアの高い順で、同じスコアなら ID の順にする。
+func rank(instances []*registry.Instance, key string) []*registry.Instance {
+	scores := make(map[uuid.UUID]uint64, len(instances))
 	for _, instance := range instances {
 		hash := fnv.New64a()
 		_, _ = hash.Write([]byte(key + "\n" + instance.ID.String()))
-		if score := hash.Sum64(); best == nil || score > bestScore || (score == bestScore && instance.ID.String() < best.ID.String()) {
-			best, bestScore = instance, score
-		}
+		scores[instance.ID] = hash.Sum64()
 	}
+	ranked := slices.Clone(instances)
+	slices.SortStableFunc(ranked, func(a, b *registry.Instance) int {
+		if c := cmp.Compare(scores[b.ID], scores[a.ID]); c != 0 {
+			return c
+		}
 
-	return best
+		return strings.Compare(a.ID.String(), b.ID.String())
+	})
+
+	return ranked
 }

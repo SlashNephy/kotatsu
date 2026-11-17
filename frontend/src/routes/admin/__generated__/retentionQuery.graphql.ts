@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2c7b3448f2414c7abbad13a80cb60db6>>
+ * @generated SignedSource<<401a9a09a10409a87bb8efe7bd5ba7c7>>
  * @lightSyntaxTransform
  */
 
@@ -12,6 +12,8 @@ export type retentionQuery$variables = Record<PropertyKey, never>;
 export type retentionQuery$data = {
   readonly systemSettings: {
     readonly archiveRetentionDays: number;
+    readonly auditClientInfoRetentionDays: number;
+    readonly auditRetentionDays: number;
     readonly networkActivityRetentionDays: number;
     readonly notificationRetentionDays: number;
     readonly updatedAt: string | null | undefined;
@@ -65,6 +67,20 @@ var v0 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
+        "name": "auditRetentionDays",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "auditClientInfoRetentionDays",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
         "name": "updatedAt",
         "storageKey": null
       }
@@ -90,16 +106,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "1910bdbec0574d2215fe27b71b1a70de",
+    "cacheID": "896722de6e13caaa5a81cdab48fbd56e",
     "id": null,
     "metadata": {},
     "name": "retentionQuery",
     "operationKind": "query",
-    "text": "query retentionQuery {\n  systemSettings {\n    archiveRetentionDays\n    notificationRetentionDays\n    watchProgressRetentionDays\n    networkActivityRetentionDays\n    updatedAt\n  }\n}\n"
+    "text": "query retentionQuery {\n  systemSettings {\n    archiveRetentionDays\n    notificationRetentionDays\n    watchProgressRetentionDays\n    networkActivityRetentionDays\n    auditRetentionDays\n    auditClientInfoRetentionDays\n    updatedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "73653ff84b65eb55285026abd75b1794";
+(node as any).hash = "2a9c9d701f809197076f60343fc998ae";
 
 export default node;

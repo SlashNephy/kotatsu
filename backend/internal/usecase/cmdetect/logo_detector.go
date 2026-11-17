@@ -26,12 +26,16 @@ import (
 
 const (
 	// LogoDetectorName と logoDetectorVersion は、LogoDetector の名前と版。規則や値を変えたら版を上げる。
+	// 版 3 で、縦が 1080 ラインより大きい映像 (BS4K、8K) も、縮めてロゴで見分けるようにした (#1505)。
+	// 版 4 で、隅を横切る帯 (番組の話題の帯) の端のアイコンを、局ロゴとして覚えないようにした (#1883)。
 	LogoDetectorName    = "logo"
-	logoDetectorVersion = 2
+	logoDetectorVersion = 4
 	// ffprobeCommand は、PATH から探す ffprobe のコマンドの名前。FFmpeg に付いてくる。
 	ffprobeCommand = "ffprobe"
 	// rawReadBuffer は、FFmpeg が出す生のコマを読むバッファの大きさ。
 	rawReadBuffer = 1 << 20
+	// skipFrameOption は、デコードするコマを選ぶ FFmpeg の入力の引数。
+	skipFrameOption = "-skip_frame"
 	// maxCMRatio は、CM の割合の上限 (#1508)。これ以上を CM とした結果は使わない。ロゴでない縁を覚えたときや、
 	// 型が番組のロゴと合わないときは、「先頭の数秒だけ本編」のような結果が出る。CM の自動スキップがそれを信じると本編を飛ばすので、
 	// CM が残るほうを選ぶ。普通の番組の CM は 2〜3 割ほどなので、それより上に置く (仮の値)。
@@ -97,9 +101,17 @@ func (d *LogoDetector) DetectWithReport(ctx context.Context, input *Input) ([]Se
 	return sections, report, err
 }
 
-// maxLogoHeight は、局ロゴを学習する映像の縦の上限 (ライン)。これより大きい映像では、ロゴを試さない (#1505)。
-// 2026 年 11 月に BS4K の録画で試したとき、4K のままではロゴを学習できず、読むのに録画の長さの 0.36〜0.44 倍かかった。
+// maxLogoHeight は、局ロゴを縮めずに学習する映像の縦の上限 (ライン)。これより大きい映像は、縮めてから学習し測る (#1505)。
+// パラメーター (膨らませる半径、括る距離、ずらす量など) を画素で持ち、地上波の 1440×1080 に合わせてあるためである。
+// 2026 年 11 月に BS4K の録画で試したとき、4K のままでは、常に出ている局ロゴも学習できなかった。
 const maxLogoHeight = 1080
+
+// logoScale は、局ロゴを学習し測るときに、映像を縮める倍率を返す (#1505)。縦が maxLogoHeight 以下なら 1 (縮めない) で、
+// 4K (2160 ライン) なら 2、8K (4320 ライン) なら 4。整数にするのは、縮めたコマの枠を、元のコマの枠に倍率を掛けるだけで移せるようにして、
+// 学習 (縮めてから帯を切り出す) と全コマの読み出し (枠を切り出してから縮める) で、同じ画素になるようにするためである。
+func logoScale(height int) int {
+	return max(1, (height+maxLogoHeight-1)/maxLogoHeight)
+}
 
 // DetectWithMaterial は、DetectWithReport と同じ結果と、読み直さずに判定し直すための材料を返す (#1507)。
 // ロゴを学習できなかったか、コマと時刻の数が合わなかった回は、材料を返さない (nil)。読み直したほうがよいからである。
@@ -108,14 +120,7 @@ func (d *LogoDetector) DetectWithMaterial(ctx context.Context, input *Input) ([]
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	// 縦が maxLogoHeight より大きい映像 (BS4K、8K) では、ロゴを学習できず、読むのに録画の長さの 4 割ほどかかるので、
-	// 試さずに今の見分け方で見分ける (#1505)。
-	var material *Material
-	if video.height > maxLogoHeight {
-		err = fmt.Errorf("%w: the video is %d lines tall; the logo is learned only up to %d lines", errLogoUnusable, video.height, maxLogoHeight)
-	} else {
-		material, err = d.measure(ctx, input, video)
-	}
+	material, err := d.measure(ctx, input, video)
 	if err != nil && !errors.Is(err, errLogoUnusable) {
 		return nil, nil, nil, err
 	}
@@ -402,45 +407,58 @@ type Material struct {
 }
 
 // measure は、ロゴを学習し、全コマを測って、材料を返す。ロゴを学習できなければ、errLogoUnusable を包んで返す。
+// 縦が maxLogoHeight より大きい映像は、logoScale の倍率で縮めて学習し測る (#1505)。枠や型は、縮めたコマの座標で持つ。
 func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoInfo) (*Material, error) {
 	p := d.params
-	bandHeight := logo.Band(video.height, p)
-	top, bottom := logo.NewAccumulator(video.width, bandHeight), logo.NewAccumulator(video.width, bandHeight)
-	interval := max(p.LearnMinInterval.Seconds(), video.duration.Seconds()/float64(p.LearnFrames))
-	learnFilter := fmt.Sprintf("fps=1/%f,split[a][b];[a]crop=%d:%d:0:0:exact=1[t];[b]crop=%d:%d:0:%d:exact=1[u];[t][u]vstack,format=gray",
-		interval, video.width, bandHeight, video.width, bandHeight, video.height-bandHeight)
-	half := video.width * bandHeight
-	_, err := d.frames(ctx, input.Path, []string{"-skip_frame", "nokey"}, learnFilter, 2*half, nil, func(buf []byte) {
-		top.Add(&logo.Gray{Width: video.width, Height: bandHeight, Pix: buf[:half]}, p.EdgeStrength)
-		bottom.Add(&logo.Gray{Width: video.width, Height: bandHeight, Pix: buf[half:]}, p.EdgeStrength)
-	})
+	scale := logoScale(video.height)
+	width, height := video.width/scale, video.height/scale
+	top, bottom, err := d.learnBands(ctx, input.Path, video, scale)
 	if err != nil {
 		return nil, err
 	}
-	learned, err := logo.Learn(top, bottom, video.width, video.height, p)
+	learned, err := logo.Learn(top, bottom, width, height, p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errLogoUnusable, err)
 	}
+	bandHeight := logo.Band(height, p)
 	model, box := top, learned.Box
 	if learned.Corner == logo.BottomRight || learned.Corner == logo.BottomLeft {
 		model = bottom
-		box.Y -= video.height - bandHeight
+		box.Y -= height - bandHeight
 	}
-	template, err := logo.NewTemplate(model.Crop(box), learned.Box, video.width, video.height, p)
+	template, err := logo.NewTemplate(model.Crop(box), learned.Box, width, height, p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errLogoUnusable, err)
 	}
 
-	// 切り出しは exact=1 にする。付けないと、yuv420p で奇数の位置が丸められ、細い縁の一致が崩れる。
+	// 今の見分け方の材料は、全コマを読む間に、別の FFmpeg で並べて読む (#1505)。材料を読む FFmpeg は 1 スレッドなので、
+	// 続けて読むと、4K では、その分 (録画の長さの 0.2 倍ほど) がまるごと足される。
+	// 読めなければ (音声のない録画など)、ロゴの区間の外を CM にする。ファイルの始まりが分からなければ、時刻をそろえられないので読まない。
+	// 進み具合は、全コマを読む間だけ出すので、材料を読む FFmpeg からは出さない。
+	signalsCtx, cancelSignals := context.WithCancel(ctx)
+	defer cancelSignals()
+	var wg sync.WaitGroup
+	var sig *signals
+	var sigErr error
+	if d.signalsOf != nil && video.firstFrame >= 0 {
+		wg.Go(func() {
+			sig, sigErr = d.signalsOf(signalsCtx, &Input{Path: input.Path, ServiceID: input.ServiceID, Progress: nil, Program: input.Program})
+		})
+	}
+	// 全コマのロゴの枠を切り出して測る。切り出しは exact=1 にする。付けないと、yuv420p で奇数の位置が丸められ、細い縁の一致が崩れる。
+	pre, filter := cropFilter(template.Crop, scale)
 	c := template.Crop
 	measures := []logo.Measure{}
-	times, err := d.frames(ctx, input.Path, nil, fmt.Sprintf("crop=%d:%d:%d:%d:exact=1,format=gray", c.W, c.H, c.X, c.Y), c.W*c.H, input.Progress,
-		func(buf []byte) {
-			measures = append(measures, template.Measure(&logo.Gray{Width: c.W, Height: c.H, Pix: buf}))
-		})
+	times, err := d.frames(ctx, input.Path, pre, filter, c.W*c.H, input.Progress, func(buf []byte) {
+		measures = append(measures, template.Measure(&logo.Gray{Width: c.W, Height: c.H, Pix: buf}))
+	})
 	if err != nil {
+		cancelSignals()
+		wg.Wait()
+
 		return nil, err
 	}
+	wg.Wait()
 	// コマと時刻は順番で突き合わせるので、数が合わなければ、対応がずれている (#1505 の H)。
 	if len(times) != len(measures) {
 		return nil, fmt.Errorf("%w: %d frames but %d timestamps", errLogoUnusable, len(measures), len(times))
@@ -448,27 +466,102 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 	if len(times) == 0 {
 		return nil, ErrNoVideo
 	}
+	// 縮める映像では、参照されないコマをデコードしないので、測ったコマの速さは映像の速さと違う。区間を出すときの窓やならしは、
+	// コマの数で数えるので、測ったコマの速さを使う。
+	fps := video.fps
+	if scale > 1 {
+		fps = measuredRate(times, video.fps)
+	}
 
 	material := &Material{
-		Fps: video.fps, Duration: video.duration, Corner: learned.Corner, Box: learned.Box, Times: times, Measures: measures,
+		Fps: fps, Duration: video.duration, Corner: learned.Corner, Box: learned.Box, Times: times, Measures: measures,
 		bounds: nil, boundsDuration: 0, offset: 0,
 	}
-	// 今の見分け方の材料を読み、無音の境目で CM を選べるようにする (#1506)。読めなければ (音声のない録画など)、
-	// ロゴの区間の外を CM にする。止められたときだけは、止める。ファイルの始まりが分からなければ、時刻をそろえられないので読まない。
-	// 進み具合は、全コマを読む間だけ出すので、材料を読む間は出さない。
-	if d.signalsOf != nil && video.firstFrame >= 0 {
-		sig, err := d.signalsOf(ctx, &Input{Path: input.Path, ServiceID: input.ServiceID, Progress: nil, Program: input.Program})
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		if err == nil {
-			material.bounds, material.boundsDuration = boundaries(sig), sig.duration
-			// 今の見分け方の基準 (sig.origin) と、最初のコマの PTS の差でそろえる。
-			material.offset = signalOffset(video.firstFrame, sig.origin, times[0])
-		}
+	// 止められたときだけは、止める。
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if sig != nil && sigErr == nil {
+		material.bounds, material.boundsDuration = boundaries(sig), sig.duration
+		// 今の見分け方の基準 (sig.origin) と、最初のコマの PTS の差でそろえる。
+		material.offset = signalOffset(video.firstFrame, sig.origin, times[0])
 	}
 
 	return material, nil
+}
+
+// learnBands は、学習のキーフレームの上下の帯を読み、縁の向きを積算して返す。scale が 1 より大きければ、コマを scale 分の 1 に縮めてから帯を切り出す。
+// キーフレームは、録画の長さを LearnFrames で割った間隔 (LearnMinInterval より詰めない) で取り出す。
+func (d *LogoDetector) learnBands(ctx context.Context, path string, video *videoInfo, scale int) (*logo.Accumulator, *logo.Accumulator, error) {
+	p := d.params
+	width, height := video.width/scale, video.height/scale
+	bandHeight := logo.Band(height, p)
+	interval := max(p.LearnMinInterval.Seconds(), video.duration.Seconds()/float64(p.LearnFrames))
+	bands := fmt.Sprintf("split[a][b];[a]crop=%d:%d:0:0:exact=1[t];[b]crop=%d:%d:0:%d:exact=1[u];[t][u]vstack",
+		width, bandHeight, width, bandHeight, height-bandHeight)
+	read := func(pre []string, filter string) (*logo.Accumulator, *logo.Accumulator, error) {
+		top, bottom := logo.NewAccumulator(width, bandHeight), logo.NewAccumulator(width, bandHeight)
+		half := width * bandHeight
+		_, err := d.frames(ctx, path, pre, filter, 2*half, nil, func(buf []byte) {
+			top.Add(&logo.Gray{Width: width, Height: bandHeight, Pix: buf[:half]}, p.EdgeStrength)
+			bottom.Add(&logo.Gray{Width: width, Height: bandHeight, Pix: buf[half:]}, p.EdgeStrength)
+		})
+
+		return top, bottom, err
+	}
+	keyframes := []string{skipFrameOption, "nokey"}
+	if scale == 1 {
+		return read(keyframes, fmt.Sprintf("fps=1/%f,%s,format=gray", interval, bands))
+	}
+	// 縮める映像 (4K の HEVC) では、キーフレームを全部デコードすると、それだけで録画の長さの 0.2 倍ほどかかる。
+	// デコードの前に、使う間隔のキーフレームだけを残す (keyframeThinning)。
+	shrink := fmt.Sprintf("format=gray,scale=%d:%d:flags=area", width, height)
+	top, bottom, err := read(slices.Concat(keyframes, []string{"-bsf:v", keyframeThinning(interval)}), shrink+","+bands)
+	if err == nil || ctx.Err() != nil {
+		return top, bottom, err
+	}
+	// 入力にビットストリームフィルターを掛けられない FFmpeg では、キーフレームを全部デコードして fps で間引く。
+	return read(keyframes, fmt.Sprintf("fps=1/%f,%s,%s", interval, shrink, bands))
+}
+
+// keyframeThinning は、キーフレームを、前に残したものから interval 秒以上空いたものだけ残し、ほかのパケットを捨てる
+// FFmpeg のビットストリームフィルター (noise の drop) を返す (#1505)。捨てたパケットはデコードしない。
+// PTS が戻ったら (33 ビットの一周など)、そこから数え直す。PTS のないパケット (式では NaN) は、覚えた PTS を壊さないよう捨てる。
+// 式の中の「,」は、フィルターの並びの区切りと見分けるため「\,」と書く。
+func keyframeThinning(interval float64) string {
+	return fmt.Sprintf(`noise=drop=if(key*not(isnan(pts))*(eq(ld(1)\,0)+gte((pts-ld(0))*tb\,%f)+lt(pts\,ld(0)))\,0*st(1\,1)*st(0\,pts)\,1)`, interval)
+}
+
+// cropFilter は、全コマから、ロゴの枠 c (縮めたコマの座標) を切り出す FFmpeg の入力の前の引数とフィルターを返す。
+// scale が 1 より大きければ、元のコマから枠に倍率を掛けた範囲を切り出してから、枠の大きさに縮める。倍率が整数で、
+// 縮め方 (area) は画素を平均するだけなので、学習で縮めてから切り出したコマと、同じ画素になる。
+// 縮める映像では、参照されないコマ (4K の HEVC では半分) をデコードしない (-skip_frame noref)。測るコマは 30 コマ/秒ほどになり、
+// 地上波の 1080i とそろう。
+func cropFilter(c logo.Box, scale int) ([]string, string) {
+	if scale == 1 {
+		return []string{}, fmt.Sprintf("crop=%d:%d:%d:%d:exact=1,format=gray", c.W, c.H, c.X, c.Y)
+	}
+
+	return []string{skipFrameOption, "noref"}, fmt.Sprintf("crop=%d:%d:%d:%d:exact=1,format=gray,scale=%d:%d:flags=area",
+		c.W*scale, c.H*scale, c.X*scale, c.Y*scale, c.W, c.H)
+}
+
+// measuredRate は、コマごとの時刻 times (秒) から、測ったコマの速さ (コマ/秒) を返す。映像の欠け (missingGap 以上の空き) は数えない。
+// 求められなければ fallback を返す。
+func measuredRate(times []float64, fallback float64) float64 {
+	var span float64
+	n := 0
+	for i := 1; i < len(times); i++ {
+		if gap := times[i] - times[i-1]; gap > 0 && gap < missingGap.Seconds() {
+			span += gap
+			n++
+		}
+	}
+	if n == 0 {
+		return fallback
+	}
+
+	return float64(n) / span
 }
 
 // evaluate は、材料から、ロゴの出ていた区間を出し、その外を CM にする。ロゴの出ていた区間が 1 つもなければ、errLogoUnusable を包んで返す。

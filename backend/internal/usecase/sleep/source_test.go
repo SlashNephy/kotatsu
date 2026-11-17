@@ -90,4 +90,11 @@ func TestDBSource(t *testing.T) {
 	later, err := source.Activity(t.Context(), now.Add(5*time.Hour))
 	require.NoError(t, err)
 	assert.True(t, later.NextStart.IsZero())
+
+	// 管理者が画面で切ったら (#1869)、再起動しなくても、次の判定から Disabled を返す。
+	exec(`INSERT INTO system_settings (id, recording_defaults, archive_retention_days, sleep_control_enabled, updated_at)
+		VALUES (1, '{}', 90, false, $1)`, now)
+	disabled, err := source.Activity(t.Context(), now)
+	require.NoError(t, err)
+	assert.Equal(t, &sleep.Activity{Disabled: true, Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: time.Time{}}, disabled)
 }

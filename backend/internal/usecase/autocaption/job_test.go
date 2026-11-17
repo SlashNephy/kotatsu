@@ -152,7 +152,7 @@ func (f *fakeTranscriber) Transcribe(_ context.Context, wav string, progress fun
 
 func (f *fixture) worker(transcriber autocaption.Transcriber, extractor func() (autocaption.Extractor, error)) *autocaption.Worker {
 	return autocaption.NewWorker(f.pool, f.store, f.clock, slog.New(slog.DiscardHandler),
-		func() (autocaption.Transcriber, error) { return transcriber, nil }, extractor, "")
+		func(context.Context) (autocaption.Transcriber, error) { return transcriber, nil }, extractor, "")
 }
 
 func work(t *testing.T, worker *autocaption.Worker, recordingID uuid.UUID) error {
@@ -245,7 +245,7 @@ func TestWorkerCancels(t *testing.T) {
 			recordingID := f.recording(t, tt.state, tt.segments...)
 			transcriber := &fakeTranscriber{cues: map[string][]autocaption.Cue{}, before: nil}
 			worker := autocaption.NewWorker(f.pool, f.store, f.clock, slog.New(slog.DiscardHandler),
-				func() (autocaption.Transcriber, error) {
+				func(context.Context) (autocaption.Transcriber, error) {
 					if tt.transcriberErr != nil {
 						return nil, tt.transcriberErr
 					}

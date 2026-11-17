@@ -26,12 +26,17 @@ type pruneJobParts struct {
 	networkActivity *networkactivity.PruneWorker
 }
 
-// newAuditPruneWorker は、監査ログを、設定の保持期間を過ぎたら消す Worker を作る。接続元の情報は、別の短い保持期間で消す。
-func newAuditPruneWorker(deps *Deps, pool *pgxpool.Pool, clk clock.Clock) *audit.PruneWorker {
-	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
-	clientInfoRetention := time.Duration(deps.Config.Audit.ClientInfoRetentionDays) * 24 * time.Hour
+// newAuditPruneWorker は、監査ログを、画面から変えられる保持期間を過ぎたら消す Worker を作る (#1869)。
+// 接続元の情報は、別の短い保持期間で消す。
+func newAuditPruneWorker(pool *pgxpool.Pool, clk clock.Clock) *audit.PruneWorker {
+	return audit.NewPruneWorker(pool, clk, func(ctx context.Context) (*audit.Retentions, error) {
+		system, err := settings.Load(ctx, pool)
+		if err != nil {
+			return nil, err
+		}
 
-	return audit.NewPruneWorker(pool, clk, retention, clientInfoRetention)
+		return &audit.Retentions{Events: system.AuditRetention(), ClientInfo: system.AuditClientInfoRetention()}, nil
+	})
 }
 
 // newNotificationPruneWorker は、配り終えた通知を、画面から変えられる保持期間を過ぎたら消す Worker を作る (#551)。

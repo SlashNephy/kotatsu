@@ -33,6 +33,9 @@ function settingsResponse() {
           bundleSameEpisodes: true,
         },
         ruleUnmatchedGraceMinutes: 180,
+        thumbnailPreviewsEnabled: true,
+        captionThreads: 0,
+        sleepControlEnabled: true,
         updatedAt: '2026-11-11T00:00:00Z',
       },
       systemStatus: { pools: [] },
@@ -138,6 +141,32 @@ describe('ルールから外れた予約を残す時間 (#1501)', () => {
   });
 });
 
+describe('字幕の自動生成のスレッドの数 (#1869)', () => {
+  test('入れた数を保存のボタンで送る', async () => {
+    let sent: unknown = null;
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'recordingMutation') {
+        sent = (variables.input as { captionThreads?: number }).captionThreads;
+
+        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+      }
+
+      return settingsResponse();
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const threads = await screen.findByRole('textbox', {
+      name: '字幕の自動生成に使うスレッドの数',
+    });
+    expect(threads).toHaveProperty('value', '0');
+
+    fireEvent.change(threads, { target: { value: '4' } });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
+    await screen.findByRole('status');
+
+    expect(sent).toBe(4);
+  });
+});
+
 describe('ルールを作るときの既定値の同じ回の束ね (#1498)', () => {
   test('読み込んだ値から始め、切ったらすぐ切ったことを保存する', async () => {
     let sent: unknown = null;
@@ -240,6 +269,39 @@ describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740
     await screen.findByRole('status');
 
     expect(sent).toEqual([{ recordingDefaults: { generateCaptions: true }, ruleDefaults: {} }]);
+  });
+
+  // 設定ファイルから画面に移した切り替え (#1869) も、変えたらすぐ、その項目だけを送る。
+  test.each([
+    {
+      name: 'プレビュー画像',
+      label: /^シークバーのプレビュー画像を作る/,
+      want: { recordingDefaults: {}, ruleDefaults: {}, thumbnailPreviewsEnabled: false },
+    },
+    {
+      name: 'OS のスリープ',
+      label: /^録画の間はスリープさせず/,
+      want: { recordingDefaults: {}, ruleDefaults: {}, sleepControlEnabled: false },
+    },
+  ])('$name を切ったら、その項目だけを送る (#1869)', async ({ label, want }) => {
+    const sent: unknown[] = [];
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'recordingMutation') {
+        sent.push(variables.input);
+
+        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+      }
+
+      return settingsResponse();
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const toggle = await screen.findByRole('switch', { name: label });
+    expect(toggle).toHaveProperty('checked', true);
+
+    await act(async () => fireEvent.click(toggle));
+    await screen.findByRole('status');
+
+    expect(sent).toEqual([want]);
   });
 
   test('保存に失敗したら、変える前に戻す', async () => {

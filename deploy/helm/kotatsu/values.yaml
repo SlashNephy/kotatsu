@@ -299,7 +299,9 @@ roles:
   nabe:
     # nabe は、EDCB の NetworkTV の TS をサービスごとに 1 本開いて、tenban、mikan、kyusu に配る (設計書 3.1、#1535)。
     # EDCB を使う (config.TUNER_KIND が edcb の) ときだけ意味があり、Mirakurun 互換のチューナーサーバーでは何もしない。
-    # 使うときは 1 にする。1 台だけ動かすので、2 以上にはできない。
+    # 使うときは 2 にする (#1850)。2 台の nabe は、同じサービスに同じ NetworkTV の ID を使い、チューナーを増やさない。
+    # 1 台が止まっても、受け手はもう 1 台につなぎ直し、同じチューナーの TS を受け取り続ける。1 でも動くが、止まると受け手が自分で開き直す。
+    # 2 台を別のノードに置くときは、affinity で分ける。3 台以上にしても、1 つの NetworkTV を受け取れるのは 2 台までなので、冗長にはならない。
     # ほかのロールは、インスタンスの登録簿で nabe の Pod の IP を引いてつなぐので、Service は要らない。
     # nabe と、受け取るロールには、同じアプリの秘密キー (secrets.secretKey) が要る。Chart は全ロールに同じものを渡す。
     replicas: 0
@@ -311,5 +313,5 @@ roles:
     affinity: {}
     runtimeClassName: ""
     probes: {}
-    # 止めるときは、流しているストリームを打ち切ってから止まる。受け手は、つなぎ直すか自分で NetworkTV を開く。
+    # 止めるときは、流しているストリームを打ち切り、受け手がもう 1 台の nabe に移るのを数秒待ってから NetworkTV を閉じて止まる。
     terminationGracePeriodSeconds: 30

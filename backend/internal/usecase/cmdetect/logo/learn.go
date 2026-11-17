@@ -53,6 +53,8 @@ var (
 	ErrNoCore = errors.New("no blob is large enough for a logo")
 	// ErrSharedCorner は、ロゴと張り合う動かない縁が多いことを表す。
 	ErrSharedCorner = errors.New("other still edges compete with the logo")
+	// ErrBandCorner は、ロゴとした塊が、隅を横切る帯 (番組の話題の帯など) の端にあることを表す (#1883)。
+	ErrBandCorner = errors.New("the logo is a part of a band across the corner")
 	// ErrNoLogo は、どの隅にもロゴを言い切れなかったことを表す。
 	ErrNoLogo = errors.New("no corner has a logo")
 )
@@ -173,12 +175,51 @@ func findInCorner(band *Accumulator, region Box, frameWidth, frameHeight int, p 
 	}
 
 	logo = trim(strong, region.W, logo, p.TrimRatio)
+	if bandLine(coherence, band.Width, region, logo, p.MinCornerCoherence) >= p.BandLineRatio {
+		r.Err = ErrBandCorner
+
+		return r
+	}
 	logo = withMargin(logo, region.W, region.H, p)
 	logo.X += region.X
 	logo.Y += region.Y
 	r.Box = logo
 
 	return r
+}
+
+// bandLine は、締めた枠 logo (region の中の座標) の行のうち、枠から画面の中央の側へ region の端までを、揃い方 threshold 以上の
+// 画素が埋める割合の、最も大きいものを返す (#1883)。上下に 1 画素ずれた線も拾うよう、画素ごとに上下の行との最大を見る。
+// 枠が region の中央の側の端に接していて、見る画素がなければ 0 を返す。見る幅が狭くても 0 にはしない。
+// 隅の幅のほとんどを占める横長の枠は、それ自体が帯であることが多いからである (2026 年 11 月の録画で、隅の帯を採りかけた)。
+//
+// 局ロゴは、本編の上に単独で載る。番組の話題の帯は、帯の縁の線が、端のアイコンから画面の中央の側へ隅を横切って伸びる。
+// 帯の中の文字は変わるので、強い縁はアイコンに集まり、アイコンが局ロゴの形に見える。
+func bandLine(coherence []float64, width int, region, logo Box, threshold float64) float64 {
+	x0, x1 := 0, logo.X
+	if region.X == 0 {
+		// 左の隅。画面の中央の側は右。
+		x0, x1 = logo.right(), region.W
+	}
+	if x1 <= x0 {
+		return 0
+	}
+	best := 0
+	for y := logo.Y; y < logo.bottom(); y++ {
+		n := 0
+		for x := x0; x < x1; x++ {
+			v := 0.0
+			for yy := max(y-1, 0); yy <= min(y+1, region.H-1); yy++ {
+				v = max(v, coherence[(region.Y+yy)*width+region.X+x])
+			}
+			if v >= threshold {
+				n++
+			}
+		}
+		best = max(best, n)
+	}
+
+	return float64(best) / float64(x1-x0)
 }
 
 // blobLimits は、塊の大きさの条件 (画素)。

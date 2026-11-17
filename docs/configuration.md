@@ -3,8 +3,26 @@
 Kotatsuの設定は、YAMLのファイルか、`KOTATSU_`で始まる環境変数で渡します。
 どちらで渡しても、使える項目は同じです。
 
-家族が日常的に変える設定は、ここには含みません。
-録画設定の既定値、EPGの保持期間、Webhook、通知などは、DBに保存し、KotatsuのAPIから変えます。
+ここに書くのは、起動とインフラに要る設定だけです（設計書11.2）。
+機能と外部の連携に関わる設定は、DBに保存し、管理者の画面（`/admin`以下）から変えます。
+録画設定の既定値、EPGと監査ログの保持期間、Webhook、通知、外部のサービスとの連携などが当たります。
+
+### 画面に移した項目
+
+次の項目は、前の版では設定ファイルと環境変数で渡していましたが、管理者の画面で変えるようにしました（#1869）。
+設定ファイルや環境変数に残っていても、Kotatsuは起動します。値は読まずに無視し、起動するときに項目の名前と変える画面をログで警告します。
+今の値を引き継がないので、画面で設定し直してから、設定ファイルと環境変数から消してください。
+
+| 前の項目 | 前の環境変数 | 変える画面 |
+| --- | --- | --- |
+| `audit.retention_days` | `KOTATSU_AUDIT_RETENTION_DAYS` | 保持期間（`/admin/retention`）の「監査ログ」 |
+| `audit.client_info_retention_days` | `KOTATSU_AUDIT_CLIENT_INFO_RETENTION_DAYS` | 保持期間（`/admin/retention`）の「監査ログ」 |
+| `auth.hibp.enabled` | `KOTATSU_AUTH_HIBP_ENABLED` | 連携（`/admin/integrations`）の「漏れたパスワードの確認」 |
+| `web_push.subject` | `KOTATSU_WEB_PUSH_SUBJECT` | 連携（`/admin/integrations`）の「Web Pushの送り手」 |
+| `thumbnail.disable_preview` | `KOTATSU_THUMBNAIL_DISABLE_PREVIEW` | 録画の既定値（`/admin/recording`）の「後処理」。入れるか切るかが逆になり、「シークバーのプレビュー画像を作る」を切ります |
+| `power.manage_sleep` | `KOTATSU_POWER_MANAGE_SLEEP` | 録画の既定値（`/admin/recording`）の「OSのスリープ」 |
+| `captions.threads` | `KOTATSU_CAPTIONS_THREADS` | 録画の既定値（`/admin/recording`）の「後処理」 |
+| `jikkyo.channels` | `KOTATSU_JIKKYO_CHANNELS` | サービス（`/admin/services`）の「ニコニコ実況のチャンネル」。サービスごとに`jk1`のようなチャンネルを入れます |
 
 ## 設定の読み込み
 
@@ -179,16 +197,6 @@ Helm Chartは、この値に自動でPodのIPを入れます。
 視聴者のIPアドレスとUser-Agentは送りません。
 パスは先頭の2つのセグメントだけを残し、後ろのセグメントと数字を含むセグメントは`:id`にまとめます。
 
-### audit
-
-| YAML | 環境変数 | 既定値 | 内容 |
-| --- | --- | --- | --- |
-| `audit.retention_days` | `KOTATSU_AUDIT_RETENTION_DAYS` | `365` | 監査ログの保持期間（日） |
-| `audit.client_info_retention_days` | `KOTATSU_AUDIT_CLIENT_INFO_RETENTION_DAYS` | `90` | 監査ログのIPアドレスとUser-Agentの保持期間（日） |
-
-保持期間を過ぎた監査ログは、定期的に消します。
-`audit.client_info_retention_days`を過ぎた記録は、IPアドレスとUser-Agentだけを空にし、操作の記録は残します。
-
 ### storage
 
 | YAML | 環境変数 | 既定値 | 内容 |
@@ -289,8 +297,7 @@ EDCBを選ぶと、録画、タイムシフト、ライブ視聴も、EDCBのNet
 | YAML | 環境変数 | 既定値 | 内容 |
 | --- | --- | --- | --- |
 | `auth.secret_key` | `KOTATSU_AUTH_SECRET_KEY` | なし（秘密） | アプリの秘密キー |
-| `auth.hibp.enabled` | `KOTATSU_AUTH_HIBP_ENABLED` | `false` | パスワードがHave I Been Pwnedで漏洩済みかを照会するかどうか |
-| `auth.hibp.url` | `KOTATSU_AUTH_HIBP_URL` | `https://api.pwnedpasswords.com` | Pwned PasswordsのAPI |
+| `auth.hibp.url` | `KOTATSU_AUTH_HIBP_URL` | `https://api.pwnedpasswords.com` | Pwned PasswordsのAPI。検証用のサーバーへ向け直すときだけ使います |
 
 `auth.secret_key`には、32バイト以上のランダムな文字列を渡します。
 `openssl rand -base64 48`の出力を使ってください。
@@ -301,7 +308,7 @@ Kotatsuは、TOTPの秘密キーやWebhookの署名用の秘密キーを、こ�
 秘密キーを変えたりなくしたりすると、暗号化した値を読めなくなります。
 その場合は、TOTPとWeb Pushの設定し直しと、Webhookの作り直しが必要です。
 
-`auth.hibp.enabled`を`true`にすると、パスワードを設定するときに外部のAPIに照会します。
+Have I Been Pwnedに照会するかどうかは、連携の画面（`/admin/integrations`）で決めます。
 照会には、パスワードのハッシュの先頭5文字だけを送ります。
 
 ### auth.oidc
@@ -346,37 +353,18 @@ OIDCで初めてログインしたユーザーを、自動で作るための設�
 ロールは、属するグループの中で最も強いものにします。
 ロールを決めるのはユーザーを作るときだけで、後のログインでは変えません。
 
-### web_push
-
-| YAML | 環境変数 | 既定値 | 内容 |
-| --- | --- | --- | --- |
-| `web_push.subject` | `KOTATSU_WEB_PUSH_SUBJECT` | KotatsuのリポジトリのURL | プッシュサービスに示す送り手の連絡先 |
-
-`mailto:`か`https:`のURIを書きます。
-プッシュサービスは、送り手に問題があるときに、ここに連絡します。
-
-### thumbnail
-
-nekonoteが、録画の代表画像と、シークバー用のプレビュー画像を作るときの設定です。
-
-| YAML | 環境変数 | 既定値 | 内容 |
-| --- | --- | --- | --- |
-| `thumbnail.disable_preview` | `KOTATSU_THUMBNAIL_DISABLE_PREVIEW` | `false` | プレビュー画像を作らないかどうか |
-
-性能の低いマシンでは、`true`にすると、代表画像だけを作って負荷を減らせます。
-
 ### captions
 
 nekonoteが、録画の音声から字幕を自動生成するときの設定です（#1682）。
 生成には[whisper.cpp](https://github.com/ggml-org/whisper.cpp)の`whisper-cli`とモデルを使います。`whisper-cli`は`-ffmpeg`のイメージに入っています。モデルは、録画の既定値の画面（`/admin/recording`）からダウンロードします（[セットアップ](setup.md#字幕の自動生成)）。
 画面からダウンロードしたモデルは、下の表の既定の場所に置きます。`whisper_model`や`vad_model`で場所を書くと、そちらを読み、画面から置いたモデルは使いません。画面にもその旨を出します。画面はtenbanの設定で判断するので、tenbanとnekonoteには同じ設定を渡してください。
-生成するかどうかは、録画の既定値の画面（`/admin/recording`）と、ルールと予約で選びます。
+生成するかどうかは、録画の既定値の画面（`/admin/recording`）と、ルールと予約で選びます。`whisper-cli`に使わせるスレッドの数も、同じ画面で決めます。
+ここに残したのは、nekonoteのファイルシステムのパスだけです。ロールごとに違いうるので、画面ではなく設定で渡します。
 
 | YAML | 環境変数 | 既定値 | 内容 |
 | --- | --- | --- | --- |
 | `captions.whisper_command` | `KOTATSU_CAPTIONS_WHISPER_COMMAND` | PATHの`whisper-cli`（`-ffmpeg`のイメージに入っている） | `whisper-cli`のパス |
 | `captions.whisper_model` | `KOTATSU_CAPTIONS_WHISPER_MODEL` | データディレクトリの`whisper/ggml-model.bin` | モデル（ggmlの形式）のパス |
-| `captions.threads` | `KOTATSU_CAPTIONS_THREADS` | `0`（CPUの数の半分。1〜8） | `whisper-cli`に使わせるスレッドの数 |
 | `captions.vad_command` | `KOTATSU_CAPTIONS_VAD_COMMAND` | PATHの`whisper-vad-speech-segments`（`-ffmpeg`のイメージに入っている） | 字幕の時刻を声に合わせるVADのコマンドのパス（任意） |
 | `captions.vad_model` | `KOTATSU_CAPTIONS_VAD_MODEL` | データディレクトリの`whisper/ggml-silero-vad.bin` | Silero VADのモデル（ggmlの形式）のパス（任意） |
 
@@ -403,45 +391,6 @@ kyusuが、ライブ視聴と録画の再生のために、サーバー側でト
 | `nvenc` | NVIDIA NVENC |
 
 KubernetesでPodを動かすときは、`kyusu.work_dir`にemptyDirのパスを渡してください。
-
-### jikkyo
-
-ニコニコ実況のコメントを、ライブ視聴と録画の再生で表示するための設定です。
-実況は既定では使いません。管理者が管理画面の「連携」で有効にし、ユーザーも設定で有効にしたときだけ、外部のサービスと通信します。
-サービスと実況のチャンネルの対応表は、KonomiTVのものを同梱しています。
-
-| YAML | 環境変数 | 既定値 | 内容 |
-| --- | --- | --- | --- |
-| `jikkyo.channels` | `KOTATSU_JIKKYO_CHANNELS` | なし | 同梱した対応表に重ねる、サービスと実況のチャンネルの対応 |
-
-キーには「ネットワークID:サービスID」を、値には`jk1`のような実況のチャンネルのIDを書きます。
-同梱した対応表と同じサービスを書くと、こちらを優先します。
-
-```yaml
-jikkyo:
-  channels:
-    "4:101": jk101
-    "32736:1024": jk1
-```
-
-環境変数では、カンマで区切って渡します。
-
-```sh
-KOTATSU_JIKKYO_CHANNELS=4:101=jk101,32736:1024=jk1
-```
-
-### power
-
-WindowsとmacOSで、OSのスリープを扱う設定です。`all`の構成のときだけ効きます。Linuxとコンテナでは、入れていても何もしません。
-
-| YAML | 環境変数 | 既定値 | 内容 |
-| --- | --- | --- | --- |
-| `power.manage_sleep` | `KOTATSU_POWER_MANAGE_SLEEP` | `true` | 録画、ライブ視聴、エンコードの間と次の録画の直前はOSをスリープさせず、次の録画の前にスリープから起こす予約を置くかどうか |
-
-録画の再生（ライブでないもの）の間は、スリープを止めません。
-タイムシフトを有効にしたサービスがあると、ずっと録るので、ずっとスリープさせないことになります。
-起こす予約には、Windowsでは管理者の権限が、macOSではrootが要ります。電源の設定は[セットアップ](setup.md#windowsとmacosの電源の設定)に書きました。
-OSのスリープを自分で管理するときは、`false`にしてください。
 
 ### anime_linking
 

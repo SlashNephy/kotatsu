@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,6 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/transcode"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
@@ -37,11 +39,20 @@ func newWebhookDeliverWorker(deps *Deps, pool *pgxpool.Pool, store *webhook.Stor
 	return webhook.NewDeliverWorker(pool, store, clk, location, deps.Network)
 }
 
-// newWebPushDeliverWorker は、Web Push を配信する Worker を作る。
+// newWebPushDeliverWorker は、Web Push を配信する Worker を作る。送り手の連絡先は、管理者が画面で変える (#1869) ので、送るたびに読む。
 func newWebPushDeliverWorker(
 	deps *Deps, pool *pgxpool.Pool, service *webpush.Service, clk clock.Clock, location *time.Location,
 ) *webpush.DeliverWorker {
-	return webpush.NewDeliverWorker(pool, service, clk, webPushSubject(deps.Config), location, webpush.NewHTTPClient(deps.Network))
+	subject := func(ctx context.Context) (string, error) {
+		system, err := settings.Load(ctx, pool)
+		if err != nil {
+			return "", err
+		}
+
+		return system.WebPushSubjectOrDefault(), nil
+	}
+
+	return webpush.NewDeliverWorker(pool, service, clk, subject, location, webpush.NewHTTPClient(deps.Network))
 }
 
 // newWatchNotifyWorker は、視聴予約を、放送の少し前に、予約したユーザーに通知する Worker を作る (設計書 4.8)。

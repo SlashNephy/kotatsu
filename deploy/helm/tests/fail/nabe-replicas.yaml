@@ -1,5 +1,0 @@
-# nabe は 1 台だけ動かす。
-mode: split
-roles:
-  nabe:
-    replicas: 2

@@ -30,6 +30,7 @@ type LookupEnv func(key string) (string, bool)
 //  4. 名前が _FILE で終わる環境変数で指定したファイル (Secret 型の項目だけ)
 //
 // 同じ項目に 3 と 4 の両方が与えられたときは、どちらを使うべきか判断できないのでエラーにする。
+// 画面で設定するようになった項目 (#1869) は、2 と 3 に書いてあっても読まず、Config.Ignored に挙げる。
 // 返すエラーには項目名を含め、秘密情報の値は含めない。
 func Load(path string, lookupEnv LookupEnv) (*Config, error) {
 	cfg := Default()
@@ -48,6 +49,7 @@ func Load(path string, lookupEnv LookupEnv) (*Config, error) {
 	if err := applyEnv(reflect.ValueOf(cfg).Elem(), []string{}, lookupEnv); err != nil {
 		return nil, err
 	}
+	cfg.Ignored = append(cfg.Ignored, ignoredEnv(lookupEnv)...)
 	if raw, ok := lookupEnv(envName([]string{"storage", "pools"})); ok {
 		// 環境変数は、設定ファイルの対応を丸ごと置き換えるので、順も環境変数から求める。
 		cfg.Storage.PoolOrder = mapKeys(raw)
@@ -71,7 +73,12 @@ func loadYAML(path string, cfg *Config) error {
 	} else if renamed {
 		return errRenamedAllowedNetworks
 	}
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	stripped, ignored, err := stripMovedSettings(data)
+	if err != nil {
+		return fmt.Errorf("failed to parse the config file %s: %w", path, err)
+	}
+	cfg.Ignored = append(cfg.Ignored, ignored...)
+	decoder := yaml.NewDecoder(bytes.NewReader(stripped))
 	// 綴りを間違えたキーが黙って無視されないよう、未知のキーを拒否する。
 	decoder.KnownFields(true)
 	if err := decoder.Decode(cfg); err != nil && !errors.Is(err, io.EOF) {
