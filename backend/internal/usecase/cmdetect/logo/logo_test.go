@@ -2,6 +2,7 @@ package logo_test
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -210,19 +211,19 @@ func TestLearnGivesUp(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		draw     func(c *canvas)
+		draw     func(c *canvas, frame int)
 		wantErr  error
 		wantWhy  error
 		wantSeen int
 	}{
 		{
 			name:    "ロゴがなければ、どの隅も諦める",
-			draw:    func(*canvas) {},
+			draw:    func(*canvas, int) {},
 			wantErr: logo.ErrNoLogo, wantWhy: logo.ErrWeakCorner, wantSeen: 4,
 		},
 		{
 			name: "ロゴの隣に、同じくらい強い動かない縁 (出し続けるテロップ) があれば、その隅を諦める",
-			draw: func(c *canvas) {
+			draw: func(c *canvas, _ int) {
 				c.drawLogo()
 				// ロゴと同じ形で同じ強さのものを、括らない距離だけ左に。
 				for i := range 3 {
@@ -233,6 +234,20 @@ func TestLearnGivesUp(t *testing.T) {
 			},
 			wantErr: logo.ErrNoLogo, wantWhy: logo.ErrSharedCorner, wantSeen: 4,
 		},
+		{
+			name: "ロゴの形のものが、隅を横切る帯 (番組の話題の帯) の端にあれば、その隅を諦める",
+			draw: func(c *canvas, frame int) {
+				// 帯の端のアイコン。帯の中の文字は変わるので、動かない縁はアイコンに集まる。
+				c.drawLogo()
+				// 帯の上と下の縁の線。アイコンの行を通って、画面の中央の側へ隅の外まで伸びる。
+				// 帯の出ないコマもあるので、アイコンより揃い方が弱く、強い縁にはならない。
+				if frame%2 == 0 {
+					c.fill(logo.Box{X: 400, Y: logoBox().Y + 2, W: logoBox().X - 400, H: 2})
+					c.fill(logo.Box{X: 400, Y: logoBox().Y + logoBox().H - 4, W: logoBox().X - 400, H: 2})
+				}
+			},
+			wantErr: logo.ErrNoLogo, wantWhy: logo.ErrBandCorner, wantSeen: 4,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -241,9 +256,9 @@ func TestLearnGivesUp(t *testing.T) {
 			p := logo.DefaultParams()
 			rng := newRNG(56)
 			frames := make([]*logo.Gray, 0, 120)
-			for range 120 {
+			for i := range 120 {
 				c := newCanvas(randomBlocks, rng)
-				tt.draw(c)
+				tt.draw(c, i)
 				frames = append(frames, c.img)
 			}
 			result, _, err := learn(t, frames, p)
@@ -252,6 +267,111 @@ func TestLearnGivesUp(t *testing.T) {
 			assert.ErrorIs(t, result.Corners[0].Err, tt.wantWhy)
 		})
 	}
+}
+
+// mirror は、img を左右に反転する。右上のロゴを左上に移すのに使う。
+func mirror(img *logo.Gray) {
+	for y := range img.Height {
+		row := img.Pix[y*img.Width : (y+1)*img.Width]
+		for i, j := 0, len(row)-1; i < j; i, j = i+1, j-1 {
+			row[i], row[j] = row[j], row[i]
+		}
+	}
+}
+
+// TestLearnBandCorner は、ロゴの形のものの行を、隅を横切る帯の線が通るときだけ、その隅を諦めることを確かめる (#1883)。
+// 帯の線は、帯の出ないコマもあるので、半分のコマで出す。
+func TestLearnBandCorner(t *testing.T) {
+	t.Parallel()
+
+	b := logoBox()
+	tests := []struct {
+		name string
+		// line は、帯の線 (コマの右上にロゴがあるときの座標)。
+		line   logo.Box
+		mirror bool
+		// wantErr が nil なら、ロゴの隅 wantCorner を採る。nil でなければ、ロゴの隅を wantWhy で諦める。
+		wantErr    error
+		wantCorner logo.Corner
+		wantWhy    error
+	}{
+		{
+			name: "左上でも、画面の中央の側 (右) へ伸びる帯の端なら諦める",
+			line: logo.Box{X: 400, Y: b.Y + 2, W: b.X - 400, H: 2}, mirror: true,
+			wantErr: logo.ErrNoLogo, wantCorner: logo.TopLeft, wantWhy: logo.ErrBandCorner,
+		},
+		{
+			name:    "線が隅の端まで届かなければ、帯の端とみなさない",
+			line:    logo.Box{X: b.X - 80, Y: b.Y + 2, W: 80, H: 2},
+			wantErr: nil, wantCorner: logo.TopRight, wantWhy: nil,
+		},
+		{
+			name:    "帯の線がロゴの行を通らず、すぐ下を通るなら諦めない",
+			line:    logo.Box{X: 400, Y: b.Y + b.H + 6, W: frameW - 400, H: 2},
+			wantErr: nil, wantCorner: logo.TopRight, wantWhy: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := logo.DefaultParams()
+			rng := newRNG(1883)
+			frames := make([]*logo.Gray, 0, 120)
+			for i := range 120 {
+				c := newCanvas(randomBlocks, rng)
+				c.drawLogo()
+				if i%2 == 0 {
+					c.fill(tt.line)
+				}
+				if tt.mirror {
+					mirror(c.img)
+				}
+				frames = append(frames, c.img)
+			}
+			result, _, err := learn(t, frames, p)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				i := slices.IndexFunc(result.Corners, func(c logo.CornerResult) bool { return c.Corner == tt.wantCorner })
+				require.GreaterOrEqual(t, i, 0, "%+v", result)
+				assert.ErrorIs(t, result.Corners[i].Err, tt.wantWhy, "%+v", result)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCorner, result.Corner, "%+v", result)
+		})
+	}
+}
+
+// TestLearnWideBand は、隅の幅のほとんどを占める横長のものは、帯の線を見る幅が枠より狭くても、線が埋めれば諦めることを確かめる (#1883)。
+// 横長の枠は、それ自体が帯であることが多い (2026 年 11 月の録画で、見る幅が狭いときに諦めないようにすると、隅の帯を採った)。
+// 揃い方を直に置いた積算で、枠と線を決まった形にする。
+func TestLearnWideBand(t *testing.T) {
+	t.Parallel()
+
+	p := logo.DefaultParams()
+	h := logo.Band(frameH, p)
+	top, bottom := logo.NewAccumulator(frameW, h), logo.NewAccumulator(frameW, h)
+	const frames = 10
+	top.N, bottom.N = frames, frames
+	set := func(x, y int, coherence float64) { top.Sx[y*frameW+x] = float32(coherence * frames) }
+	// 右上の隅 (672〜960) の内側の端の 20 画素先から、幅 230 の横長の枠の縁 (太さ 3 画素)。揃い方は 1 (いつも出ている)。
+	plate := logo.Box{X: 692, Y: 30, W: 230, H: 16}
+	for y := plate.Y; y < plate.Y+plate.H; y++ {
+		for x := plate.X; x < plate.X+plate.W; x++ {
+			if x < plate.X+3 || x >= plate.X+plate.W-3 || y < plate.Y+3 || y >= plate.Y+plate.H-3 {
+				set(x, y, 1)
+			}
+		}
+	}
+	// 枠の行を通って、画面の中央の側へ隅の外まで伸びる帯の線。揃い方は 0.5 (半分のコマで出る)。
+	for x := 400; x < plate.X; x++ {
+		set(x, plate.Y+8, 0.5)
+	}
+	result, err := logo.Learn(top, bottom, frameW, frameH, p)
+	require.ErrorIs(t, err, logo.ErrNoLogo)
+	assert.ErrorIs(t, result.Corners[0].Err, logo.ErrBandCorner, "%+v", result)
 }
 
 // TestLearnSkipsLargeBlobs は、テロップの帯のような大きすぎる塊を比較から外し、隣のロゴを採ることを確かめる。
