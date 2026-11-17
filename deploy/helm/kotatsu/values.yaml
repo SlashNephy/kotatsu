@@ -371,3 +371,4 @@ roles:
     probes: {}
     # 止めるときは、流しているストリームを打ち切り、受け手がもう 1 台の nabe に移るのを数秒待ってから NetworkTV を閉じて止まる。
     terminationGracePeriodSeconds: 30
+# CI のジョブの選び方を確かめる (#1939)。
