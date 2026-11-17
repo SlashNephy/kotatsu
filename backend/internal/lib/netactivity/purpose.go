@@ -41,6 +41,7 @@ import (
 // Webhook = WEBHOOK
 // DataBroadcast = DATA_BROADCAST
 // CaptionModelDownload = CAPTION_MODEL_DOWNLOAD
+// GoogleDrive = GOOGLE_DRIVE
 // )
 type Purpose string
 
@@ -59,7 +60,8 @@ func initiatorOf(p Purpose) Initiator {
 		PurposeDramaRecord, PurposeUpdateCheck, PurposeTelemetryTraces, PurposeTelemetryMetrics, PurposeWebPush, PurposeWebhook:
 		return InitiatorScheduled
 	case PurposeJikkyoChannels, PurposeJikkyoComments, PurposeJikkyoKakolog, PurposeNicologComments, PurposeAnimeLink, PurposeAnimeImage,
-		PurposeDramaLink, PurposeUserAvatar, PurposeOIDC, PurposeHIBP, PurposeMCPClientMetadata, PurposeDataBroadcast, PurposeCaptionModelDownload:
+		PurposeDramaLink, PurposeUserAvatar, PurposeOIDC, PurposeHIBP, PurposeMCPClientMetadata, PurposeDataBroadcast,
+		PurposeCaptionModelDownload, PurposeGoogleDrive:
 		return InitiatorUser
 	default:
 		return InitiatorUser
@@ -114,6 +116,9 @@ func knownHosts(p Purpose) ([]string, bool) {
 		return []string{"api.pwnedpasswords.com"}, false
 	case PurposeUpdateCheck:
 		return []string{"api.github.com"}, false
+	case PurposeGoogleDrive:
+		// ファイルの中身が転送される先 (googleusercontent.com など) は、決まった名前の一覧に入れず、残さない。
+		return []string{"www.googleapis.com", "oauth2.googleapis.com"}, false
 	case PurposeWebPush:
 		// 送り先は、購読したブラウザのベンダーのプッシュサービスで、視聴の内容は分からない。
 		return nil, true

@@ -56,6 +56,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
+	"github.com/SlashNephy/kotatsu/internal/usecase/google"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
@@ -80,6 +81,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/databroadcastapi"
 	"github.com/SlashNephy/kotatsu/internal/web/dramarecordapi"
 	"github.com/SlashNephy/kotatsu/internal/web/epgstationapi"
+	"github.com/SlashNephy/kotatsu/internal/web/googleapi"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/iptvapi"
@@ -885,6 +887,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		AnimeRecords:      animeRecords,
 		DramaTokens:       sealed.dramaTokens,
 		DramaRecords:      sealed.dramaRecords,
+		Google:            libraries.google,
 		TotalSpace:        nil,
 		Clock:             deps.Clock,
 		Location:          location,
@@ -923,6 +926,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	addAnimeRecordCallbacks(authRoutes, deps, animeRecords, logger)
 	// Simkl から戻ってくる認可 (#1649)。アニメの記録先と同じく、Origin を確かめずに受け付ける。
 	addDramaRecordCallbacks(authRoutes, deps, sealed.dramaRecords, logger)
+	// Google から戻ってくる認可 (#1902)。Google の連携で 1 つのリダイレクト URI を共有し、目的は認可の途中の状態から決める。
+	if libraries.google != nil {
+		authRoutes.add(http.MethodGet, google.CallbackPath,
+			googleapi.CallbackHandler(libraries.google, deps.DB, clientInfo, logger.With(slog.String("component", "google"))))
+	}
 	for path, handler := range map[string]http.Handler{
 		"/internal/auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
 		"/internal/auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),

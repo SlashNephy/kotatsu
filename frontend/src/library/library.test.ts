@@ -6,7 +6,9 @@ import {
   libraryResumePosition,
   parentPath,
   parseLibrarySearch,
+  libraryNameProblem,
   seekLimit,
+  suggestLibraryName,
   type FileIndex,
 } from './library';
 
@@ -23,6 +25,17 @@ describe('parseLibrarySearch', () => {
     },
     { name: '空は省く', search: { library: '', path: '' }, want: {} },
     { name: '文字列でないものは捨てる', search: { library: 1, path: ['a'] }, want: {} },
+    {
+      name: '検索の語',
+      search: { library: 'anime', path: 'a', q: '第1話' },
+      want: { library: 'anime', path: 'a', q: '第1話' },
+    },
+    {
+      name: '空白だけの語は捨てる',
+      search: { library: 'anime', q: '  ' },
+      want: { library: 'anime' },
+    },
+    { name: 'ライブラリのない語は捨てる', search: { q: 'a' }, want: {} },
   ])('$name', ({ search, want }) => {
     expect(parseLibrarySearch(search)).toEqual(want);
   });
@@ -41,6 +54,42 @@ describe('breadcrumbs', () => {
     },
   ])('$path', ({ path, want }) => {
     expect(breadcrumbs('anime', path)).toEqual(want);
+  });
+
+  // Google Drive では、段が ID なので、サーバーが返した名前で出す (#1902)。
+  test('段ごとの名前', () => {
+    expect(breadcrumbs('Google Drive', 'root/f1', ['My Drive', 'アニメ'])).toEqual([
+      { name: 'Google Drive', path: '' },
+      { name: 'My Drive', path: 'root' },
+      { name: 'アニメ', path: 'root/f1' },
+    ]);
+  });
+});
+
+describe('libraryNameProblem', () => {
+  test.each([
+    { name: 'atmos', want: null },
+    { name: 'a_b-1', want: null },
+    { name: 'Atmos', want: 'format' },
+    { name: '-atmos', want: 'format' },
+    { name: '', want: 'format' },
+    { name: 'a'.repeat(64), want: 'format' },
+    { name: 'backup', want: 'taken' },
+  ])('$name', ({ name, want }) => {
+    expect(libraryNameProblem(name, ['backup'])).toBe(want);
+  });
+});
+
+describe('suggestLibraryName', () => {
+  test.each([
+    { name: 'atmos', want: 'atmos' },
+    { name: 'Anime Backup 2026', want: 'anime-backup-2026' },
+    { name: '_Old_TV', want: 'old_tv' },
+    { name: '録画のバックアップ', want: 'drive' },
+    { name: 'BS 録画', want: 'bs' },
+    { name: 'a'.repeat(70), want: 'a'.repeat(63) },
+  ])('$name', ({ name, want }) => {
+    expect(suggestLibraryName(name)).toBe(want);
   });
 });
 

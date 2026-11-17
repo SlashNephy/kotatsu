@@ -461,6 +461,15 @@ export function createRootValue(
     issuedStreamUrls: () => [],
     animeRecordSettings: () => demoAnimeRecordSettings(),
     animeRecordApps: () => demoAnimeRecordApps(window.location.origin),
+    // デモは外部へ問い合わせないので、Google Drive (#1902) は登録も接続もしていないものとして出す。
+    googleIntegration: () => ({
+      clientId: null,
+      configured: false,
+      redirectUri: `${window.location.origin}/internal/auth/google/callback`,
+      updatedAt: null,
+      drive: null,
+      folders: [],
+    }),
     animeWishlist: () => demoAnimeWishlist(),
     animeLibrary: () => demoAnimeLibrary(),
     // デモは TMDb との連携を使わないので、ドラマの視聴管理の画面も無効にする (#1652)。

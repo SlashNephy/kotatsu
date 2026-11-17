@@ -152,6 +152,12 @@ func TestMessage(t *testing.T) {
 			payload: map[string]any{keyName: "🈑TVアニメ「作品名」第3話「サブタイトル」", keyDestination: annict, keyEpisodes: "#3、#4"},
 			want:    "「作品名」の#3、#4をAnnictに記録しました",
 		},
+		// 空白で区切った数の話数とサブタイトルも、作品名にして除く (#1929)。
+		{
+			name: "空白で区切った数の話数とサブタイトルを除く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "アニメ　天は赤い河のほとり　２０　亀裂", keyDestination: annict, keyEpisodes: "#20"},
+			want:    "「天は赤い河のほとり」の#20をAnnictに記録しました",
+		},
 		{
 			name: "話数のない番組名には、話数を足す", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
 			payload: map[string]any{keyName: "作品名", keyDestination: annict, keyEpisodes: "#12"},

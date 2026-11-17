@@ -400,6 +400,41 @@ type EpgChange struct {
 	CreatedAt time.Time
 }
 
+type GoogleApp struct {
+	ID                    int16
+	ClientID              string
+	ClientSecretEncrypted []byte
+	UpdatedAt             time.Time
+}
+
+type GoogleAuthorization struct {
+	ID           uuid.UUID
+	StateHash    []byte
+	SessionID    uuid.UUID
+	UserID       uuid.UUID
+	Purpose      string
+	CodeVerifier string
+	RedirectUri  string
+	CreatedAt    time.Time
+	ExpiresAt    time.Time
+}
+
+type GoogleDriveConnection struct {
+	ID                    int16
+	RefreshTokenEncrypted []byte
+	AccountName           string
+	ConnectedAt           time.Time
+	RevokedAt             *time.Time
+}
+
+type GoogleDriveFolder struct {
+	FolderID    string
+	LibraryName string
+	DriveID     string
+	Name        string
+	AddedAt     time.Time
+}
+
 type GuideView struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID

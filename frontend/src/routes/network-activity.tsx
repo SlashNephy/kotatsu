@@ -59,6 +59,7 @@ const purposeCategories = {
   WEBHOOK: 'notification',
   DATA_BROADCAST: 'other',
   CAPTION_MODEL_DOWNLOAD: 'operation',
+  GOOGLE_DRIVE: 'library',
 } as const;
 
 const dayFormat = zonedFormat({ year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });

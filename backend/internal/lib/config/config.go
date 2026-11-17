@@ -48,6 +48,8 @@ type Config struct {
 	TMDb TMDb `yaml:"tmdb"`
 	// Simkl は、見たドラマを Simkl に記録する連携の設定 (#1649、設計書 3.9)。
 	Simkl Simkl `yaml:"simkl"`
+	// Google は、Google Drive をライブラリとして接続する連携の設定 (#1902、設計書 5.8)。
+	Google Google `yaml:"google"`
 	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
 	UpdateCheck UpdateCheck `yaml:"update_check"`
 	// Ignored は、画面で設定するようになったので、読まずに無視した項目 (#1869)。起動するときに、ログで警告する。
@@ -337,6 +339,13 @@ type Simkl struct {
 	URL string `yaml:"url"`
 }
 
+// Google は、Google の連携の設定 (#1902)。OAuth クライアントと、Google Drive の接続は、管理者が連携の画面で決める。
+type Google struct {
+	// URL は、Google の認可の画面、トークンの API、Drive API を向ける先のオリジン。空なら https://accounts.google.com、
+	// https://oauth2.googleapis.com、https://www.googleapis.com にする。本物の Google の代わりに、検証用のサーバーへ向けるときだけ使う。
+	URL string `yaml:"url"`
+}
+
 // AnimeRecords は、見たアニメを記録する先の設定 (#927)。どの記録先と連携するかは、管理者が画面で決める。
 type AnimeRecords struct {
 	// AnnictURL は、Annict の画面と API を向ける先のオリジン。空なら https://annict.com と https://api.annict.com にする。
@@ -504,6 +513,7 @@ func Default() *Config {
 		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: "", JikanURL: ""},
 		TMDb:         TMDb{URL: ""},
 		Simkl:        Simkl{URL: ""},
+		Google:       Google{URL: ""},
 	}
 }
 
@@ -604,6 +614,9 @@ func (c *Config) validate() error {
 	}
 	if err := validateHTTPURL(c.Simkl.URL); err != nil {
 		errs = append(errs, fieldError("simkl.url", err))
+	}
+	if err := validateHTTPURL(c.Google.URL); err != nil {
+		errs = append(errs, fieldError("google.url", err))
 	}
 	if !slices.Contains([]string{EncoderX264, EncoderVAAPI, EncoderQSV, EncoderNVENC}, c.Kyusu.Encoder) {
 		errs = append(errs, fieldError("kyusu.encoder", errors.New("must be one of x264, vaapi, qsv, nvenc")))

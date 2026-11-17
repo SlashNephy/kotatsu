@@ -119,6 +119,7 @@ const (
 	PurposeWebhook              Purpose = "WEBHOOK"
 	PurposeDataBroadcast        Purpose = "DATA_BROADCAST"
 	PurposeCaptionModelDownload Purpose = "CAPTION_MODEL_DOWNLOAD"
+	PurposeGoogleDrive          Purpose = "GOOGLE_DRIVE"
 )
 
 var ErrInvalidPurpose = errors.New("not a valid Purpose")
@@ -151,6 +152,7 @@ func PurposeValues() []Purpose {
 		PurposeWebhook,
 		PurposeDataBroadcast,
 		PurposeCaptionModelDownload,
+		PurposeGoogleDrive,
 	}
 }
 
@@ -192,6 +194,7 @@ var _PurposeValue = map[string]Purpose{
 	"WEBHOOK":                PurposeWebhook,
 	"DATA_BROADCAST":         PurposeDataBroadcast,
 	"CAPTION_MODEL_DOWNLOAD": PurposeCaptionModelDownload,
+	"GOOGLE_DRIVE":           PurposeGoogleDrive,
 }
 
 // ParsePurpose attempts to convert a string to a Purpose.

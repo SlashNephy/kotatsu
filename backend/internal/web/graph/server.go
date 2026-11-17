@@ -30,6 +30,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
+	"github.com/SlashNephy/kotatsu/internal/usecase/google"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
@@ -125,6 +126,8 @@ type Options struct {
 	FreeSpace kago.FreeSpaceFunc
 	// AnimeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録の操作は内部のエラーにし、プレイヤーの報告は捨てる。
 	AnimeRecords *animerecord.Service
+	// Google は、Google の OAuth クライアントと Google Drive の接続を扱う (#1902)。nil なら、連携の操作は内部のエラーにする。
+	Google *google.Service
 	// DramaTokens は、管理者が連携の画面で入れる TMDb のトークン (#1651)。tenban は保存するだけで、TMDb に問い合わせない。
 	// nil なら、トークンの操作は内部のエラーにする。
 	DramaTokens *drama.Tokens
@@ -233,6 +236,7 @@ func NewHandler(opts *Options) http.Handler {
 		dramaOverrides:   drama.NewOverrides(o.Clock, o.Recorder, o.Jobs),
 		dramaTokens:      o.DramaTokens,
 		dramaRecords:     o.DramaRecords,
+		google:           o.Google,
 		inbox:            notification.NewInbox(o.Clock),
 		webhooks:         o.Webhooks,
 		webPush:          o.WebPush,

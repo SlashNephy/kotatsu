@@ -2502,6 +2502,60 @@
       "clientSecret": "Client secret",
       "secretKept": "Registered (enter only to change)"
     },
+    "googleDrive": {
+      "title": "Google Drive",
+      "help": "Connect the administrator's Google Drive as a library. Create an OAuth client (web application) on Google Cloud with the redirect URI below as an authorized redirect URI, register its client ID and secret, then connect. Kotatsu asks only for read access to Google Drive (drive.readonly).",
+      "familyNote": "TS files (.ts, .m2ts, .mts) and folders under the folders chosen below can be seen from the library by every signed-in family member, including viewers. Nothing outside the chosen folders is shown.",
+      "testingNote": "If the OAuth consent screen is external and left in Testing, Google disconnects after 7 days. Reconnect here when that happens.",
+      "redirectUri": "Redirect URI",
+      "clientId": "Client ID",
+      "clientSecret": "Client secret",
+      "secretKept": "Registered (enter only to change)",
+      "configured": "Registered",
+      "notConfigured": "Not registered",
+      "connect": "Connect",
+      "reconnect": "Reconnect",
+      "disconnect": "Disconnect",
+      "connectedAs": "Connected as {{account}} ({{date}})",
+      "notConnected": "Not connected",
+      "needsClient": "Register the client ID and secret before connecting",
+      "revoked": "Google ended the connection ({{date}}): access was revoked or expired. Google Drive is hidden from the library until you reconnect",
+      "connected": "Connected Google Drive. Choose the folders to show as the library",
+      "disconnected": "Disconnected Google Drive",
+      "callbackErrors": {
+        "google_expired": "The connection expired. Connect again",
+        "google_mismatch": "The connection was not started on this device, so it was rejected. Connect again",
+        "google_denied": "The connection was declined on Google, or read access to Google Drive was not allowed",
+        "google_no_refresh_token": "Google did not return a refresh token. Connect again",
+        "google_unavailable": "The client registration was removed, so the connection failed",
+        "google_failed": "Could not connect. Check the client ID and secret and try again"
+      },
+      "folders": {
+        "title": "Folders shown as the library",
+        "help": "Each chosen folder becomes a library, and only what is under it appears in the library. Folders in shared drives can be chosen too. Google Drive is hidden from the library until at least one folder is chosen.",
+        "empty": "No folders chosen yet",
+        "add": "Add a folder",
+        "remove": "Remove",
+        "top": "Drives",
+        "noSubfolders": "No folders in here",
+        "error": "Could not read the folders",
+        "cancel": "Cancel",
+        "chooseHint": "Open a folder to choose it",
+        "choose": "Make \"{{name}}\" a library",
+        "added": "Added the folder",
+        "removed": "Removed the folder",
+        "libraryName": "Library name",
+        "libraryNameHelp": "Shown in URLs and the library list. It must not match a storage pool or another library",
+        "from": "Folder: {{name}}",
+        "rename": "Rename",
+        "save": "Save",
+        "renamed": "Renamed the library",
+        "problem": {
+          "format": "Use up to 63 lowercase letters, digits, - and _, starting with a letter or a digit",
+          "taken": "Another library has this name"
+        }
+      }
+    },
     "dramaRecords": {
       "title": "Simkl records",
       "help": "Register a Kotatsu app so users can record watched dramas to Simkl and import their Simkl watchlist. Create a \"Server apps & services\" app (AUTH V2) in the Simkl developer settings, enter the redirect URI below, then save the client ID and secret. Available only while TMDB linking is enabled."
@@ -2840,6 +2894,7 @@
       "auth": "Authentication",
       "operation": "Operations",
       "notification": "Notifications",
+      "library": "Library",
       "other": "Other"
     },
     "purposes": {
@@ -2950,6 +3005,10 @@
       "CAPTION_MODEL_DOWNLOAD": {
         "title": "Caption model download",
         "body": "Downloaded the model for auto-generated captions chosen by an administrator from Hugging Face"
+      },
+      "GOOGLE_DRIVE": {
+        "title": "Google Drive",
+        "body": "Read folder listings and file contents from the Google Drive connected as a library"
       }
     },
     "hostHidden": "Undisclosed destination"
@@ -2998,7 +3057,8 @@
     "error": "Failed to read the library",
     "kind": {
       "pool": "Storage",
-      "folder": "Folder"
+      "folder": "Folder",
+      "googleDrive": "Google Drive"
     },
     "name": "Name",
     "size": "Size",
@@ -3009,7 +3069,20 @@
     "unsupported": "This file cannot be played. Only TS with 188-byte packets is supported (Blu-ray .m2ts is not).",
     "indexing": "Preparing to seek",
     "indexingStatus": "Preparing to seek. You can seek up to {{seconds}}.",
-    "writing": "This file is still being written, so it is not prepared for seeking. It can be played from the beginning."
+    "writing": "This file is still being written, so it is not prepared for seeking. It can be played from the beginning.",
+    "myDrive": "My Drive",
+    "busy": "Google Drive is busy, or the download limit of the file was reached. Try again later",
+    "search": {
+      "label": "Search by name",
+      "placeholder": "Search this folder by name",
+      "submit": "Search",
+      "clear": "Clear search",
+      "count_one": "Found {{count}} file containing \"{{query}}\"",
+      "count_other": "Found {{count}} files containing \"{{query}}\"",
+      "truncated": "Too many results; only some are shown. Add words to narrow down",
+      "empty": "No files contain \"{{query}}\"",
+      "emptyHint": "Try another word, or search from a parent folder"
+    }
   },
   "dramaRecords": {
     "title": "Watched drama records (Simkl)",
