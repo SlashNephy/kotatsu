@@ -599,7 +599,8 @@
     "remote": "Remote",
     "offline": "Saved recordings",
     "anime": "Anime",
-    "library": "Library"
+    "library": "Library",
+    "drama": "Drama"
   },
   "guide": {
     "watchLive": "Watch {{name}} live",
@@ -2772,6 +2773,35 @@
       "exclude": "Do not link",
       "reset": "Back to search",
       "saved": "Saved. It takes effect at the next matching run"
+    },
+    "library": {
+      "title": "Drama",
+      "description": "Series you marked as watching or want to watch from program and recording details, with the next episode, the next broadcast, and unwatched recordings.",
+      "status": {
+        "WATCHING": "Watching",
+        "WANNA_WATCH": "Want to watch",
+        "all": "All"
+      },
+      "loadError": "Could not load the series",
+      "disabled": "An administrator has not enabled TMDb linking",
+      "empty": "No series",
+      "emptyHint": "Add series with \"Track\" on a program or recording detail",
+      "noWatched": "No episodes watched yet",
+      "lastWatched": "Watched up to {{episode}}",
+      "next": "Next: {{episode}}{{title}}",
+      "finished": "Watched through the last episode",
+      "markNext": "Mark {{episode}} as watched"
+    },
+    "watch": {
+      "add": "Track",
+      "status": {
+        "WATCHING": "Watching",
+        "WANNA_WATCH": "Want to watch"
+      },
+      "remove": "Stop tracking",
+      "markWatched": "Mark as watched",
+      "watched": "Watched",
+      "unmarkHint": "Click to unmark as watched"
     }
   },
   "networkActivity": {

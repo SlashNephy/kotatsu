@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e3785d977d53fa9024a8c7e5a0f50152>>
+ * @generated SignedSource<<70ccf441d1ce69ee3d9ff7086e6efe53>>
  * @lightSyntaxTransform
  */
 
@@ -12,6 +12,9 @@ export type RootNavQuery$variables = Record<PropertyKey, never>;
 export type RootNavQuery$data = {
   readonly animeRecordSettings: {
     readonly enabled: boolean;
+  };
+  readonly systemSettings: {
+    readonly dramaLinkingEnabled: boolean;
   };
 };
 export type RootNavQuery = {
@@ -38,6 +41,24 @@ var v0 = [
       }
     ],
     "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "SystemSettings",
+    "kind": "LinkedField",
+    "name": "systemSettings",
+    "plural": false,
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "dramaLinkingEnabled",
+        "storageKey": null
+      }
+    ],
+    "storageKey": null
   }
 ];
 return {
@@ -58,16 +79,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "3da6b204ccce91c391fc88aaf2dda886",
+    "cacheID": "fe08767b456e6bf929ab075be67b7d7b",
     "id": null,
     "metadata": {},
     "name": "RootNavQuery",
     "operationKind": "query",
-    "text": "query RootNavQuery {\n  animeRecordSettings {\n    enabled\n  }\n}\n"
+    "text": "query RootNavQuery {\n  animeRecordSettings {\n    enabled\n  }\n  systemSettings {\n    dramaLinkingEnabled\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "83139a113b4c003cf5ef0114fd116977";
+(node as any).hash = "50d6238aad4ffe0d915f20852804e0e6";
 
 export default node;

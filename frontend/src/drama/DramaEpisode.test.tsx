@@ -1,5 +1,6 @@
 import { MantineProvider } from '@mantine/core';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { RelayEnvironmentProvider } from 'react-relay';
 import { afterEach, describe, expect, test } from 'vitest';
 
@@ -126,5 +127,61 @@ describe('DramaEpisode', () => {
     const { container } = renderEpisode(null, true);
 
     expect(container.querySelector('[data-testid="drama-episode"]')).toBeNull();
+  });
+});
+
+describe('DramaEpisode の視聴管理 (#1652)', () => {
+  // renderTracked は、ログイン中のユーザーの状態を引いた詳細を出し、送った mutation の変数を requests に足す。
+  function renderTracked(item: DramaEpisodeItem, requests: Record<string, unknown>[]) {
+    return render(
+      <RelayEnvironmentProvider
+        environment={createTestEnvironment((request, variables) => {
+          requests.push({ name: request.name, ...variables });
+
+          return request.name === 'DramaWatchControlsStatusMutation'
+            ? {
+                data: {
+                  setDramaWatchStatus: { tmdbId: 331304, watchStatus: variables['status'] ?? null },
+                },
+              }
+            : { data: { setDramaEpisodeWatched: variables['watched'] } };
+        })}
+      >
+        <MantineProvider>
+          <DramaEpisode episode={item} programName="もうパパ！　＃７" canOverride={false} />
+        </MantineProvider>
+      </RelayEnvironmentProvider>,
+    );
+  }
+
+  test('状態を引かなければ、視聴管理の操作を出さない', () => {
+    renderEpisode(episode(), false);
+
+    expect(screen.queryByRole('button', { name: '視聴管理に足す' })).toBeNull();
+  });
+
+  test('作品を見ている作品に足し、話を見たことにして、取り消せる', async () => {
+    const user = userEvent.setup();
+    const requests: Record<string, unknown>[] = [];
+    renderTracked(
+      episode({ watched: false, series: { ...episode().series, watchStatus: null } }),
+      requests,
+    );
+
+    await user.click(screen.getByRole('button', { name: '視聴管理に足す' }));
+    await user.click(await screen.findByRole('menuitem', { name: '見ている' }));
+    expect(await screen.findByRole('button', { name: '見ている' })).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: '見たことにする' }));
+    expect(await screen.findByRole('button', { name: '見た' })).toBeDefined();
+    await user.click(screen.getByRole('button', { name: '見た' }));
+    expect(await screen.findByRole('button', { name: '見たことにする' })).toBeDefined();
+
+    const episodeKey = { seriesId: 331304, seasonNumber: 1, episodeNumber: 7 };
+    expect(requests).toEqual([
+      { name: 'DramaWatchControlsStatusMutation', seriesId: 331304, status: 'WATCHING' },
+      { name: 'DramaWatchControlsWatchedMutation', ...episodeKey, watched: true },
+      { name: 'DramaWatchControlsWatchedMutation', ...episodeKey, watched: false },
+    ]);
   });
 });

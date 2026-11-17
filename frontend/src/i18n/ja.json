@@ -589,7 +589,8 @@
     "remote": "リモコン",
     "offline": "端末の録画",
     "anime": "アニメ",
-    "library": "ライブラリ"
+    "library": "ライブラリ",
+    "drama": "ドラマ"
   },
   "guide": {
     "watchLive": "{{name}}をライブ視聴する",
@@ -2682,6 +2683,35 @@
       "exclude": "結びつけない",
       "reset": "検索に戻す",
       "saved": "保存しました。次の照合で反映します"
+    },
+    "library": {
+      "title": "ドラマ",
+      "description": "番組や録画の詳細で「見ている」「見たい」にした作品を、次に見る話、次の放送、まだ見ていない録画と並べます。",
+      "status": {
+        "WATCHING": "見ている",
+        "WANNA_WATCH": "見たい",
+        "all": "すべて"
+      },
+      "loadError": "作品を読み込めませんでした",
+      "disabled": "管理者がTMDbとの連携を有効にしていません",
+      "empty": "作品はありません",
+      "emptyHint": "番組の詳細か録画の詳細の「視聴管理に足す」から足せます",
+      "noWatched": "見た話はまだありません",
+      "lastWatched": "{{episode}}まで見た",
+      "next": "次は {{episode}}{{title}}",
+      "finished": "最後の話まで見ました",
+      "markNext": "{{episode}}を見たことにする"
+    },
+    "watch": {
+      "add": "視聴管理に足す",
+      "status": {
+        "WATCHING": "見ている",
+        "WANNA_WATCH": "見たい"
+      },
+      "remove": "視聴管理から外す",
+      "markWatched": "見たことにする",
+      "watched": "見た",
+      "unmarkHint": "押すと、見たことを取り消します"
     }
   },
   "networkActivity": {

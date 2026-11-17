@@ -546,7 +546,23 @@ function WorkCard({
   );
 }
 
-function Broadcast({
+// BroadcastProgram は、視聴管理の画面に出す放送の番組。アニメとドラマ (#1652) の画面で同じ形を使う。
+export type BroadcastProgram = {
+  readonly id: string;
+  readonly name: string;
+  readonly startAt: string;
+  readonly reservation: { readonly enabled: boolean } | null | undefined;
+  readonly service: {
+    readonly name: string;
+    readonly logoUrl: string | null | undefined;
+    readonly channelType: {
+      readonly type: WorkBroadcast['program']['service']['channelType']['type'];
+    };
+  };
+};
+
+// Broadcast は、作品の次の放送を、局、日時、始まるまでの時間、予約の状態と並べる。予約のない放送では、予約できるユーザーに「予約する」を置く。
+export function Broadcast({
   broadcast,
   now,
   canEdit,
@@ -554,7 +570,7 @@ function Broadcast({
   busy,
   onReserve,
 }: {
-  broadcast: WorkBroadcast;
+  broadcast: { readonly program: BroadcastProgram };
   now: number;
   canEdit: boolean;
   pending: boolean;

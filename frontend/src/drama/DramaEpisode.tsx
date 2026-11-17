@@ -17,6 +17,7 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 import { settingsErrorMessage } from '../settings/errors';
 import { mutate } from '../settings/mutate';
 import type { DramaEpisodeOverrideMutation } from './__generated__/DramaEpisodeOverrideMutation.graphql';
+import { DramaWatchedButton, DramaWatchStatusMenu, watchStatusOf } from './DramaWatchControls';
 import tmdbLogo from './tmdb-logo.svg';
 
 // TMDB_NOTICE は、TMDb の API の利用規約が求める帰属の表示。英語の原文のまま出す。
@@ -30,12 +31,16 @@ export type DramaEpisodeItem = {
     readonly name: string | null | undefined;
     readonly originalName: string | null | undefined;
     readonly url: string;
+    // watchStatus は、ログイン中のユーザーが作品を見ている作品に入れた状態 (#1652)。引かなければ undefined。
+    readonly watchStatus?: string | null | undefined;
   };
   readonly seriesSource: 'SEARCH' | 'OVERRIDE' | '%future added value';
   readonly seasonNumber: number | null | undefined;
   readonly episodeNumber: number | null | undefined;
   readonly episodeName: string | null | undefined;
   readonly url: string;
+  // watched は、ログイン中のユーザーがこの話を見たかどうか (#1652)。引かなければ undefined。
+  readonly watched?: boolean | undefined;
 };
 
 // dramaEpisodeLabel は、シーズンと話を「シーズン7 第7話」や「特別編 第1話」の形にする。話がなければ null を返す。
@@ -43,6 +48,18 @@ export function dramaEpisodeLabel(t: TFunction, episode: DramaEpisodeItem): stri
   if (episode.seasonNumber == null || episode.episodeNumber == null) {
     return null;
   }
+
+  return episodeLabel(t, {
+    seasonNumber: episode.seasonNumber,
+    episodeNumber: episode.episodeNumber,
+  });
+}
+
+// episodeLabel は、シーズンと話を「シーズン7 第7話」や「特別編 第1話」の形にする。
+export function episodeLabel(
+  t: TFunction,
+  episode: { readonly seasonNumber: number; readonly episodeNumber: number },
+): string {
   const season =
     episode.seasonNumber === 0
       ? t('drama.special')
@@ -81,6 +98,7 @@ export function TMDbAttribution() {
 
 // DramaEpisode は、番組と録画の詳細に、結びついた TMDb の作品とシーズン、話と、TMDb のページへのリンクを出す (#1651、設計書 3.9)。
 // 結びついていなければ、何も出さない。canOverride なら、管理者が作品を直す操作を置く (programName の作品名の上書き)。
+// ログイン中のユーザーの状態を引いていれば (#1652)、作品を見ている作品に足す操作と、話を見たことにする操作も置く。
 export function DramaEpisode({
   episode,
   programName,
@@ -115,8 +133,29 @@ export function DramaEpisode({
         </Anchor>
         {canOverride && <DramaOverrideButton programName={programName} episode={episode} />}
       </Group>
+      {episode.watched !== undefined && <DramaWatch episode={episode} />}
       <TMDbAttribution />
     </Stack>
+  );
+}
+
+// DramaWatch は、作品を見ている作品に足す操作と、話を見たことにする操作を並べる (#1652)。
+function DramaWatch({ episode }: { episode: DramaEpisodeItem }) {
+  const [status, setStatus] = useState(() => watchStatusOf(episode.series.watchStatus));
+  const [watched, setWatched] = useState(episode.watched === true);
+  const { seasonNumber, episodeNumber } = episode;
+
+  return (
+    <Group gap="xs" wrap="wrap">
+      <DramaWatchStatusMenu seriesId={episode.series.tmdbId} status={status} onChange={setStatus} />
+      {seasonNumber != null && episodeNumber != null && (
+        <DramaWatchedButton
+          episode={{ seriesId: episode.series.tmdbId, seasonNumber, episodeNumber }}
+          watched={watched}
+          onChange={setWatched}
+        />
+      )}
+    </Group>
   );
 }
 
