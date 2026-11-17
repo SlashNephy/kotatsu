@@ -120,6 +120,9 @@ func includedTables() []string {
 		"drama_title_overrides",
 		"drama_watchlist_entries",
 		"drama_watched_episodes",
+		"google_apps",
+		"google_drive_connections",
+		"google_drive_folders",
 		"backup_settings",
 		"backup_runs",
 	}
@@ -145,6 +148,7 @@ func excludedTables() map[string]string {
 		"player_commands":             "refers to players",
 		"oidc_logins":                 refersToSessions,
 		"anime_record_authorizations": refersToSessions,
+		"google_authorizations":       refersToSessions,
 		// River のジョブの ID を持つので、River の表と組で外す。残すと、戻した後のジョブが同じ ID の古い進み具合を読む。
 		"job_progress":     "holds IDs of River jobs, which are not backed up",
 		"goose_db_version": "the schema version is applied by kotatsu migrate",

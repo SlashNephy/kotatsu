@@ -240,6 +240,8 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeDataBroadcast
       CAPTION_MODEL_DOWNLOAD:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeCaptionModelDownload
+      GOOGLE_DRIVE:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeGoogleDrive
   NetworkActivityInitiator:
     model: github.com/SlashNephy/kotatsu/internal/lib/netactivity.Initiator
     enum_values:

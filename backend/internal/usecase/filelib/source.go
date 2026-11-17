@@ -51,14 +51,15 @@ func (s *Source) Open(ctx context.Context, ref Ref) (*File, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w: library %s", medialib.ErrNotFound, ref.Library)
 	}
-	if !medialib.Playable(ref.Path) {
+	// Google Drive では、パスはファイルの ID なので、拡張子は情報の名前で見る。
+	if _, ok := library.(medialib.Identifier); !ok && !medialib.Playable(ref.Path) {
 		return nil, ErrNotAFile
 	}
 	entry, err := library.Stat(ctx, ref.Path)
 	if err != nil {
 		return nil, err
 	}
-	if entry.Dir {
+	if entry.Dir || !medialib.Playable(entry.Name) {
 		return nil, ErrNotAFile
 	}
 	s.indexer.Ensure(ctx, ref, entry)
@@ -115,7 +116,10 @@ func (f *File) Timeline() (time.Duration, time.Duration, bool) {
 	return seekable, max(seekable, time.Duration(float64(seekable)*float64(f.Entry.Size)/float64(last))), true
 }
 
-// ID は、再生位置を保存するときのファイルの ID。
+// ID は、再生位置を保存するときのファイルの ID。Google Drive では、ライブラリの名前とパスでなく、ファイルの ID から作る
+// (medialib.IdentityOf)。ライブラリの名前やパスの形を変えても、再生位置を引き継ぐ。
 func (f *File) ID() string {
-	return FileID(f.Ref, f.Entry.Size, f.Entry.ModifiedAt)
+	namespace, identity := medialib.IdentityOf(f.Library, f.Ref.Path)
+
+	return FileID(Ref{Library: namespace, Path: identity}, f.Entry.Size, f.Entry.ModifiedAt)
 }

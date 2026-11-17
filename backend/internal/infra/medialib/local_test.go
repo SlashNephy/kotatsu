@@ -91,6 +91,48 @@ func TestLocalList(t *testing.T) {
 	}
 }
 
+// TestLocalSearch は、名前の部分一致で、フォルダの下の再生できるファイルを探し、隠しファイル、再生できないファイル、
+// シンボリックリンク (ライブラリの外を指すものを含む) を返さないことを確かめる (#1902)。
+func TestLocalSearch(t *testing.T) {
+	t.Parallel()
+	library := newLibrary(t)
+
+	tests := []struct {
+		name          string
+		dir           string
+		query         string
+		limit         int
+		wantPaths     []string
+		wantTruncated bool
+		wantErr       error
+	}{
+		{name: "everything with ts", dir: "", query: "TS", limit: 10, wantPaths: []string{aTS, bM2TS, episodeTS}},
+		{name: "in a folder", dir: showDir, query: "ep", limit: 10, wantPaths: []string{episodeTS}},
+		{name: "no match", dir: "", query: "secret", limit: 10, wantPaths: []string{}},
+		{name: "limit", dir: "", query: ".ts", limit: 1, wantPaths: []string{aTS}, wantTruncated: true},
+		{name: "above the root", dir: "..", query: "ts", limit: 10, wantErr: medialib.ErrInvalidPath},
+		{name: "not a directory", dir: aTS, query: "ts", limit: 10, wantErr: medialib.ErrNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			entries, truncated, err := library.Search(t.Context(), tt.dir, tt.query, tt.limit)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
+			paths := []string{}
+			for _, entry := range entries {
+				paths = append(paths, entry.Path)
+			}
+			assert.Equal(t, tt.wantPaths, paths)
+			assert.Equal(t, tt.wantTruncated, truncated)
+		})
+	}
+}
+
 func TestLocalStatAndOpen(t *testing.T) {
 	t.Parallel()
 	library := newLibrary(t)

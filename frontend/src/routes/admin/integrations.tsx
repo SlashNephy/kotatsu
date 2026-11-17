@@ -26,6 +26,11 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
+import {
+  GoogleDriveSettings,
+  googleCallbackErrors,
+  type GoogleCallbackError,
+} from '../../admin/GoogleDriveSettings';
 import { IssuedStreamUrls } from '../../admin/IssuedStreamUrls';
 import { Section } from '../../admin/Section';
 import { authApi, type OIDCStatus } from '../../auth/api';
@@ -60,6 +65,12 @@ import type {
   AnimeRecordDestination,
   integrationsAnimeRecordAppMutation,
 } from './__generated__/integrationsAnimeRecordAppMutation.graphql';
+import type { integrationsGoogleAppMutation } from './__generated__/integrationsGoogleAppMutation.graphql';
+import type { integrationsGoogleDriveBeginMutation } from './__generated__/integrationsGoogleDriveBeginMutation.graphql';
+import type { integrationsGoogleDriveAddFolderMutation } from './__generated__/integrationsGoogleDriveAddFolderMutation.graphql';
+import type { integrationsGoogleDriveRenameFolderMutation } from './__generated__/integrationsGoogleDriveRenameFolderMutation.graphql';
+import type { integrationsGoogleDriveRemoveFolderMutation } from './__generated__/integrationsGoogleDriveRemoveFolderMutation.graphql';
+import type { integrationsGoogleDriveDisconnectMutation } from './__generated__/integrationsGoogleDriveDisconnectMutation.graphql';
 import type { integrationsAnimeImportTokenMutation } from './__generated__/integrationsAnimeImportTokenMutation.graphql';
 import type { integrationsDramaTokenMutation } from './__generated__/integrationsDramaTokenMutation.graphql';
 import type {
@@ -77,7 +88,26 @@ import type {
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/admin/integrations';
 
+type IntegrationsSearch = {
+  // connected は、Google Drive を接続して戻ってきたときに付く (#1902)。
+  connected?: 'google-drive';
+  // error は、Google Drive の接続に失敗して戻ってきたときの理由。
+  error?: GoogleCallbackError;
+};
+
 export const Route = createFileRoute('/admin/integrations')({
+  validateSearch: (search: Record<string, unknown>): IntegrationsSearch => {
+    const result: IntegrationsSearch = {};
+    if (search['connected'] === 'google-drive') {
+      result.connected = 'google-drive';
+    }
+    const error = googleCallbackErrors.find((reason) => reason === search['error']);
+    if (error !== undefined) {
+      result.error = error;
+    }
+
+    return result;
+  },
   // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: IntegrationsPage,
@@ -136,6 +166,22 @@ const query = graphql`
     animeImportToken {
       configured
     }
+    # Google Drive をライブラリとして接続する (#1902)。
+    googleIntegration {
+      clientId
+      configured
+      redirectUri
+      drive {
+        accountName
+        connectedAt
+        revokedAt
+      }
+      folders {
+        id
+        name
+        libraryName
+      }
+    }
     # TMDb との連携 (#1651、設計書 3.9)。
     dramaLinking {
       tokenConfigured
@@ -183,6 +229,9 @@ function Integrations() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const oidc = Route.useLoaderData();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const clearSearch = () => void navigate({ search: {}, replace: true });
   // fetchKey を変えると、読み直す。読み直す間も画面を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
   // ほかの管理者が変えたら、読み直す (#869)。
@@ -519,6 +568,121 @@ function Integrations() {
             ))}
           </Stack>
         </Section>
+
+        {/* Google Drive をライブラリとして接続する (#1902)。サーバーが Google と通信し始めるかどうかと、Drive のファイルを家族に
+            見せ始めるかどうかを決めるので、クライアントの登録と接続で再認証を求める。外すのは見せるものを減らすので、求めない。 */}
+        <GoogleDriveSettings
+          integration={data.googleIntegration}
+          busy={gate.busy}
+          connected={search.connected === 'google-drive'}
+          callbackError={search.error ?? null}
+          onDismiss={clearSearch}
+          onSaveApp={(input, onDone) =>
+            gate.run(async () => {
+              await mutate<integrationsGoogleAppMutation>(
+                environment,
+                graphql`
+                  mutation integrationsGoogleAppMutation($input: GoogleAppInput!) {
+                    updateGoogleApp(input: $input) {
+                      configured
+                    }
+                  }
+                `,
+                { input },
+              );
+              onDone();
+              succeed(t('admin.saved'));
+            }, fail)
+          }
+          onConnect={() =>
+            gate.run(async () => {
+              const response = await mutate<integrationsGoogleDriveBeginMutation>(
+                environment,
+                graphql`
+                  mutation integrationsGoogleDriveBeginMutation {
+                    beginGoogleDriveConnection
+                  }
+                `,
+                {},
+              );
+              window.location.assign(response.beginGoogleDriveConnection);
+            }, fail)
+          }
+          onAddFolder={(id, libraryName, onDone) =>
+            gate.run(async () => {
+              await mutate<integrationsGoogleDriveAddFolderMutation>(
+                environment,
+                graphql`
+                  mutation integrationsGoogleDriveAddFolderMutation(
+                    $id: String!
+                    $libraryName: String!
+                  ) {
+                    addGoogleDriveFolder(id: $id, libraryName: $libraryName) {
+                      folders {
+                        id
+                      }
+                    }
+                  }
+                `,
+                { id, libraryName },
+              );
+              onDone();
+              succeed(t('admin.googleDrive.folders.added'));
+            }, fail)
+          }
+          onRenameFolder={(id, libraryName, onDone) => {
+            mutate<integrationsGoogleDriveRenameFolderMutation>(
+              environment,
+              graphql`
+                mutation integrationsGoogleDriveRenameFolderMutation(
+                  $id: String!
+                  $libraryName: String!
+                ) {
+                  renameGoogleDriveFolder(id: $id, libraryName: $libraryName) {
+                    folders {
+                      id
+                    }
+                  }
+                }
+              `,
+              { id, libraryName },
+            ).then(() => {
+              onDone();
+              succeed(t('admin.googleDrive.folders.renamed'));
+            }, fail);
+          }}
+          onRemoveFolder={(id) => {
+            mutate<integrationsGoogleDriveRemoveFolderMutation>(
+              environment,
+              graphql`
+                mutation integrationsGoogleDriveRemoveFolderMutation($id: String!) {
+                  removeGoogleDriveFolder(id: $id) {
+                    folders {
+                      id
+                    }
+                  }
+                }
+              `,
+              { id },
+            ).then(() => succeed(t('admin.googleDrive.folders.removed')), fail);
+          }}
+          onDisconnect={() => {
+            mutate<integrationsGoogleDriveDisconnectMutation>(
+              environment,
+              graphql`
+                mutation integrationsGoogleDriveDisconnectMutation {
+                  disconnectGoogleDrive {
+                    configured
+                  }
+                }
+              `,
+              {},
+            ).then(() => {
+              clearSearch();
+              succeed(t('admin.googleDrive.disconnected'));
+            }, fail);
+          }}
+        />
 
         {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
         {data.webhooks.length === 0 ? (
