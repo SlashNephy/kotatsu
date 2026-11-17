@@ -3,6 +3,8 @@ description: 1 つの言語を CodeQL で解析して Code scanning に送り、
 
 # CI (ci.yml) と定期の検査 (scan.yml) から呼ぶ。言語、クエリ (security-extended)、category (/language:<言語>)、
 # matrix の形 (language と build-mode) は、default setup で動かしていたときと揃える。
+# Go を解析するときは、呼び出す前に、mise で backend/ の Go を入れておく。ここで jdx/mise-action をタグで使うと、
+# CodeQL が、commit で固定していない action として数える (actions/unpinned-tag)。workflow の中のものは数えない。
 inputs:
   language:
     description: 解析する言語。
@@ -24,18 +26,13 @@ runs:
     # (codeql-action の src/environment.ts)。
     - shell: bash
       run: echo "CODEQL_ACTION_ANALYSIS_KEY=.github/workflows/codeql.yml:analyze" >> "$GITHUB_ENV"
-    # Go は、ビルドを見て解析する。go.mod より古い Go で autobuild が版を落としに行かないよう、mise で同じ版を入れる。
-    - if: inputs.language == 'go'
-      uses: jdx/mise-action@v5.2.7
-      with:
-        working_directory: backend
-        install_args: go
     - uses: github/codeql-action/init@v4.39.3
       with:
         languages: ${{ inputs.language }}
         build-mode: ${{ inputs.build-mode }}
         queries: security-extended
         matrix: ${{ inputs.matrix }}
+    # Go は、ビルドを見て解析する。Go は、呼び出す側が mise で go.mod と同じ版を入れておく。
     - if: inputs.language == 'go'
       shell: bash
       working-directory: backend
