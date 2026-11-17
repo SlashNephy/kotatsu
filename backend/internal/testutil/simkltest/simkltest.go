@@ -84,12 +84,14 @@ type Server struct {
 	// Refreshes は、更新した回数。
 	Refreshes int
 
-	now      func() time.Time
-	server   *httptest.Server
-	codes    map[string]*grant
-	access   map[string]*token
-	refresh  map[string]string
-	sequence int
+	// redirectURIs は、アプリに登録したリダイレクト URI。本物と同じく、登録したものにだけ戻す。
+	redirectURIs []string
+	now          func() time.Time
+	server       *httptest.Server
+	codes        map[string]*grant
+	access       map[string]*token
+	refresh      map[string]string
+	sequence     int
 }
 
 type grant struct {
@@ -103,17 +105,17 @@ type token struct {
 	expiresAt time.Time
 }
 
-// New は、偽の Simkl を空いているポートで起動して返す。Close で止める。
-func New(clientID, clientSecret string) *Server {
-	s := newServer(clientID, clientSecret)
+// New は、偽の Simkl を空いているポートで起動して返す。Close で止める。redirectURIs は、アプリに登録したリダイレクト URI。
+func New(clientID, clientSecret string, redirectURIs ...string) *Server {
+	s := newServer(clientID, clientSecret, redirectURIs)
 	s.server = httptest.NewServer(s.Handler())
 
 	return s
 }
 
 // NewOn は、偽の Simkl を listener で起動して返す。別のプロセスとして立てる偽の Simkl (internal/cmd/fakesimkl) が使う。
-func NewOn(listener net.Listener, clientID, clientSecret string) *Server {
-	s := newServer(clientID, clientSecret)
+func NewOn(listener net.Listener, clientID, clientSecret string, redirectURIs ...string) *Server {
+	s := newServer(clientID, clientSecret, redirectURIs)
 	s.server = httptest.NewUnstartedServer(s.Handler())
 	_ = s.server.Listener.Close()
 	s.server.Listener = listener
@@ -122,12 +124,12 @@ func NewOn(listener net.Listener, clientID, clientSecret string) *Server {
 	return s
 }
 
-func newServer(clientID, clientSecret string) *Server {
+func newServer(clientID, clientSecret string, redirectURIs []string) *Server {
 	return &Server{
 		ClientID: clientID, ClientSecret: clientSecret, Account: "simkl-user", mu: sync.Mutex{}, Scope: "", Items: []*Item{},
 		Activity: "2026-01-01T00:00:00Z", RemovedActivity: "2026-01-01T00:00:00Z", UnknownSeries: []string{}, UnknownEpisodes: []string{},
 		FailNext: 0, RejectRefresh: false, History: []*Watched{}, Requests: []string{}, Revoked: []string{}, Refreshes: 0,
-		now: time.Now, server: nil, codes: map[string]*grant{}, access: map[string]*token{}, refresh: map[string]string{}, sequence: 0,
+		redirectURIs: redirectURIs, now: time.Now, server: nil, codes: map[string]*grant{}, access: map[string]*token{}, refresh: map[string]string{}, sequence: 0,
 	}
 }
 
@@ -178,16 +180,24 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	redirectURI, err := url.Parse(q.Get("redirect_uri"))
-	if err != nil || q.Get("client_id") != s.ClientID || q.Get("response_type") != keyCode ||
-		q.Get("code_challenge_method") != "S256" || q.Get("code_challenge") == "" || redirectURI.Scheme == "" {
+	// 本物と同じく、アプリに登録したリダイレクト URI と 1 文字ずつ同じものにだけ戻す。戻す先は、登録した値から作る。
+	index := slices.Index(s.redirectURIs, q.Get("redirect_uri"))
+	if index < 0 || q.Get("client_id") != s.ClientID || q.Get("response_type") != keyCode ||
+		q.Get("code_challenge_method") != "S256" || q.Get("code_challenge") == "" {
+		http.Error(w, "invalid_request", http.StatusBadRequest)
+
+		return
+	}
+	registered := s.redirectURIs[index]
+	redirectURI, err := url.Parse(registered)
+	if err != nil {
 		http.Error(w, "invalid_request", http.StatusBadRequest)
 
 		return
 	}
 	code := random()
 	s.mu.Lock()
-	s.codes[code] = &grant{challenge: q.Get("code_challenge"), redirectURI: q.Get("redirect_uri"), scope: q.Get("scope")}
+	s.codes[code] = &grant{challenge: q.Get("code_challenge"), redirectURI: registered, scope: q.Get("scope")}
 	s.mu.Unlock()
 	values := redirectURI.Query()
 	values.Set(keyCode, code)

@@ -122,7 +122,7 @@ func newFixture(t *testing.T) *fixture {
 	_, err = epg.NewReconciler(pool, client, clk, func(context.Context, pgx.Tx) error { return nil }).SyncAll(t.Context())
 	require.NoError(t, err)
 
-	fake := simkltest.New(clientID, clientSecret)
+	fake := simkltest.New(clientID, clientSecret, origin+"/internal/auth/simkl/callback")
 	t.Cleanup(fake.Close)
 	fake.SetNow(clk.Now)
 	f := &fixture{

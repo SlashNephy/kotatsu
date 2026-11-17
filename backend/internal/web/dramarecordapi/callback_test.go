@@ -36,7 +36,7 @@ func TestCallbackHandler(t *testing.T) {
 	t.Cleanup(pool.Close)
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 	clk := clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))
-	fake := simkltest.New("client", "secret")
+	fake := simkltest.New("client", "secret", "http://kotatsu.test/internal/auth/simkl/callback")
 	t.Cleanup(fake.Close)
 	fake.SetNow(clk.Now)
 	service, err := dramarecord.NewService(&dramarecord.Options{

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -33,12 +34,13 @@ func run() int {
 	control := flag.String("control", "127.0.0.1:5568", "address of the control endpoint that changes the watchlist")
 	clientID := flag.String("client-id", "kotatsu", "client ID")
 	clientSecret := flag.String("client-secret", "secret", "client secret")
+	redirectURIs := flag.String("redirect-uri", "", "comma-separated redirect URIs registered for the app")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if err := serve(ctx, logger, *listen, *control, *clientID, *clientSecret); err != nil {
+	if err := serve(ctx, logger, *listen, *control, *clientID, *clientSecret, strings.Split(*redirectURIs, ",")); err != nil {
 		logger.ErrorContext(ctx, "fakesimkl exited with an error", slog.Any("error", err))
 
 		return 1
@@ -47,12 +49,12 @@ func run() int {
 	return 0
 }
 
-func serve(ctx context.Context, logger *slog.Logger, listen, control, clientID, clientSecret string) error {
+func serve(ctx context.Context, logger *slog.Logger, listen, control, clientID, clientSecret string, redirectURIs []string) error {
 	listener, err := httpserver.Listen(ctx, listen)
 	if err != nil {
 		return err
 	}
-	fake := simkltest.NewOn(listener, clientID, clientSecret)
+	fake := simkltest.NewOn(listener, clientID, clientSecret, redirectURIs...)
 	defer fake.Close()
 	logger.InfoContext(ctx, "fakesimkl started", slog.String("url", fake.URL()), slog.String("control", control))
 	controlListener, err := httpserver.Listen(ctx, control)
