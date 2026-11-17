@@ -242,7 +242,7 @@ describe('useRecordedJikkyo', () => {
         useRecordedJikkyo(url, () => 0, true, null, undefined, null, null, growing),
       { initialProps: { growing: true } },
     );
-    render(<>{result.current.overlay}</>);
+    const first = render(<>{result.current.overlay}</>);
     await waitFor(() => expect(result.current.state).toEqual({ kind: 'loaded', count: 2 }));
     expect(added).toEqual([[...comments, beyond]]);
 
@@ -258,6 +258,11 @@ describe('useRecordedJikkyo', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     // canvas は作り直さず、まだ渡していないコメントだけを足す。
     expect(added).toEqual([[...comments, beyond, tail]]);
+
+    // 画質を変えて canvas を作り直したら、取り直した過去ログを渡す。
+    first.unmount();
+    render(<>{result.current.overlay}</>);
+    expect(added.at(-1)).toEqual([...comments, tail]);
   });
 
   test('伸び終えた後の取り直しに失敗しても、取ってある過去ログを出し続け、実況を入れ直したら取り直す (#1910)', async () => {
