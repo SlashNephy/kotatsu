@@ -345,7 +345,7 @@ FFmpeg（VAAPIやQSVのドライバを含む）とtsreadexは共有ライブラ�
 サムネイルの生成にFFmpegが要るので、全ロールを1プロセスで動かす`all`も`-ffmpeg`イメージを使います。
 whisper.cpp（字幕の自動生成、[6.1](#61-後処理のジョブ)、#1682）は、C++のビルドがQEMUでは遅いので、ビルドするマシンのアーキテクチャで対象のアーキテクチャへクロスコンパイルし、共有ライブラリを持ち込まないよう静的にリンクします。命令セットはビルドするマシンに合わせず（`GGML_NATIVE=OFF`）、amd64はAVX2とFMA（x86-64-v3）、arm64はARMv8.0を前提にします。AVX2のないCPUでは、自分でビルドした`whisper-cli`を設定（`captions.whisper_command`）で渡します。モデルは大きく、使う人も選ぶので、イメージに入れず、管理者が画面からダウンロードします。
 `-ffmpeg`イメージの実行ユーザーは、distrolessの`nonroot`と同じUID 65532にそろえます。
-VAAPIとQSVのドライバには、Debianのパッケージ（`mesa-va-drivers`、amd64では加えて`intel-media-va-driver-non-free`、`libvpl2`、`libmfx-gen1.2`）を使います。IntelのVAAPIのドライバだけは、non-freeコンポーネントの`intel-media-va-driver-non-free`を入れます。mainの`intel-media-va-driver`は、Gen11以前のGPUで、縮小（VPP）とHEVCのエンコードができないからです（#509）。ライセンスの扱いは[付録B](#付録-b-ライセンスの境界)で定めます。NVENCのライブラリは、NVIDIA Container Toolkitがホストから渡します。
+VAAPIとQSVのドライバには、Debianのパッケージ（`mesa-va-drivers`、amd64では加えて`intel-media-va-driver-non-free`、`libvpl2`、`libmfx-gen1.2`）を使います。IntelのVAAPIのドライバだけは、non-freeコンポーネントの`intel-media-va-driver-non-free`を入れます。mainの`intel-media-va-driver`は、Gen11以前のGPUで、縮小（VPP）とHEVCのエンコードができないからです（#509）。ライセンスの扱いは[付録B](#付録-b-ライセンスの境界)で定めます。DebianのslimのイメージはDebianのセキュリティの更新をすぐには取り込まないので、ビルドのときに、ベースイメージに入っているパッケージも上げます。NVENCのライブラリは、NVIDIA Container Toolkitがホストから渡します。
 どちらもamd64とarm64に対応します。
 
 ## 3. チューナーサーバーと EPG の連携

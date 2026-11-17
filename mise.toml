@@ -9,7 +9,7 @@ config_roots = ["backend", "frontend"]
 # ルートのツールは、backend/ と frontend/ も引き継ぐ。
 [tools]
 # go.work の持ち主はルート。ルートのタスク (build、e2e:stack、release:snapshot) がバイナリを作るのに使う。
-go = "1.27.3"
+go = "1.27.4"
 # バイナリを GitHub Releases に公開する (設計書 11.1)。
 goreleaser = "2.20.0"
 # Helm Chart から Kubernetes のマニフェストを生成する (設計書 11.1)。
