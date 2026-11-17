@@ -83,3 +83,4 @@ createRoot(root).render(
     </MantineProvider>
   </StrictMode>,
 );
+// CI のジョブの選び方を確かめる (#1939)。
