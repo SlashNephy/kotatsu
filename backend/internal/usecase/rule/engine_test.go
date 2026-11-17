@@ -1073,3 +1073,131 @@ func TestEngineDeletesReservationsOfReplacedPrograms(t *testing.T) {
 		})
 	}
 }
+
+// TestEngineSkipsSlotsOfReplacedManualReservations は、局が番組を別のイベント ID で出し直して差し替えたとき、EPG から消えた古い番組の
+// 手動の予約と同じ枠には、ルール予約を作らず、同じ放送を 2 本録らないことを確かめる (#1903)。手動の予約は、手動を優先して消さない。
+func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// replacement は、古い番組 (eventId 300) を EPG から消した後に入る番組。
+		replacement *faketuner.Program
+		// moveTo は、0 でなければ、差し替え先を一度照合した後に、testNow から moveTo 後に始まるよう動かす。
+		moveTo time.Duration
+		// keepOld は、古い番組を EPG に残すかどうか。
+		keepOld bool
+		// disableManual は、手動の予約を無効にしておくかどうか。
+		disableManual bool
+		// deleteManual は、照合の後に手動の予約を消し、もう一度照合するかどうか。
+		deleteManual bool
+		graceHours   int
+		want         map[int64]bool
+	}{
+		{
+			name:        "同じ枠に差し替えられた",
+			replacement: slotProgram(301, replacedName+" 総集編", 0),
+			want:        map[int64]bool{300: true},
+		},
+		{
+			name:        "開始が少しずれて差し替えられた",
+			replacement: slotProgram(301, replacedName+" 総集編", 5*time.Minute),
+			want:        map[int64]bool{300: true},
+		},
+		{
+			name:        "猶予の内に差し替えられた",
+			replacement: slotProgram(301, replacedName+" 総集編", 0),
+			graceHours:  24,
+			want:        map[int64]bool{300: true},
+		},
+		{
+			name:        "すぐ後に次の回がある",
+			replacement: slotProgram(301, replacedName+" 次の回", time.Hour),
+			want:        map[int64]bool{300: true, 301: true},
+		},
+		{
+			name:        "次の回が少しだけ重なる",
+			replacement: slotProgram(301, replacedName+" 次の回", 50*time.Minute),
+			want:        map[int64]bool{300: true, 301: true},
+		},
+		{
+			// 古い番組が EPG にあれば、差し替えではない。
+			name:        "古い番組が EPG に残っている",
+			replacement: slotProgram(301, replacedName+" 総集編", 0),
+			keepOld:     true,
+			want:        map[int64]bool{300: true, 301: true},
+		},
+		{
+			// 無効の手動の予約は録らないので、その枠はルール予約で録る。
+			name:          "手動の予約を無効にしていた",
+			replacement:   slotProgram(301, replacedName+" 総集編", 0),
+			disableManual: true,
+			want:          map[int64]bool{300: false, 301: true},
+		},
+		{
+			// 手動の予約を消せば、その枠はルール予約で録る。
+			name:         "手動の予約を消した",
+			replacement:  slotProgram(301, replacedName+" 総集編", 0),
+			deleteManual: true,
+			want:         map[int64]bool{301: true},
+		},
+		{
+			// 重なりが半分以下のうちに作ったルール予約も、同じ枠に動いたら、猶予の内でも消す。
+			name:        "差し替え先が後から同じ枠に動いた",
+			replacement: slotProgram(301, replacedName+" 総集編", 31*time.Minute),
+			moveTo:      5 * time.Hour,
+			graceHours:  24,
+			want:        map[int64]bool{300: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newEngineFixture(t, slotProgram(300, replacedName+" 第1話", 0))
+			f.setGrace(t, tt.graceHours*60)
+			manual, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, &reserve.ProgramInput{
+				ServiceID: serviceID(), EventID: 300, FollowEventRelay: false, Overrides: &domain.RecordingOverrides{},
+			})
+			require.NoError(t, err)
+			f.createRule(t, replacedName, nil)
+			f.run(t)
+			require.Equal(t, map[int64]bool{300: true}, f.reserved(t))
+			if tt.disableManual {
+				_, err := f.reservations.Update(t.Context(), f.pool, f.user, manual.ID, &reserve.Update{Enabled: new(false)})
+				require.NoError(t, err)
+			}
+
+			if !tt.keepOld {
+				require.NoError(t, f.fake.ForgetProgram(faketuner.ProgramID(grNetworkID, grServiceID, 300)))
+			}
+			f.fake.AddProgram(tt.replacement)
+			_, err = f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+			f.run(t)
+
+			if tt.moveTo != 0 {
+				require.Equal(t, map[int64]bool{300: true, 301: true}, f.reserved(t))
+				require.NoError(t, f.fake.RescheduleProgram(tt.replacement.ID, testNow().Add(tt.moveTo), time.Hour))
+				_, err = f.reconciler.SyncAll(t.Context())
+				require.NoError(t, err)
+				f.run(t)
+			}
+			if tt.deleteManual {
+				require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, manual.ID))
+				f.run(t)
+			}
+
+			assert.Equal(t, tt.want, f.reserved(t))
+			// 手動の予約は、手動のまま残る。
+			if _, ok := tt.want[300]; ok {
+				assert.Equal(t, domain.ReservationKindProgram, f.reservationOf(t, 300).Kind)
+			}
+			// 何度照合しても変わらない。
+			result := f.run(t)
+			assert.Zero(t, result.Created)
+			assert.Zero(t, result.Deleted)
+			assert.Equal(t, tt.want, f.reserved(t))
+		})
+	}
+}

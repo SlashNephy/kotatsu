@@ -51,6 +51,7 @@ type Guard func(ctx context.Context, tx pgx.Tx) error
 //     ただし、放送の直前 (猶予の内) の予約と、番組名が空の番組の予約は、結び付いたルールが有効な間は残す (#1501)。
 //     番組が EPG から消えた予約は残すが、同じ枠にルールに一致する別のイベントの番組が出ていれば、差し替えられたとみなして消す (#518、#1875)。
 //   - 手動の番組予約がある番組は、手動の設定を優先する。一致したルールの関係だけを残す。
+//     番組が EPG から消えた有効な手動の予約と同じ枠の番組には、ルール予約を作らない。手動の予約がその枠を録るからである (#1903)。
 //
 // あわせて、ユーザーごとの視聴ルールも同じ番組に照合し、一致した番組に視聴予約を付ける (設計書 4.8)。
 type Engine struct {
@@ -209,6 +210,11 @@ func (e *Engine) narrow(
 		return nil, err
 	}
 	pickSharedEvents(matched, func(d *desiredProgram) []byte { return d.row.RelatedItems })
+	// イベント共有で残した側の放送を見る。先に外すと、落とした側の放送が残って、同じ放送を別のサービスで録る。
+	// 束ねる前に外すのは、手動で予約した同じ回を、束ねる相手に入れないのと揃えるためである (設計書 4.4)。
+	if err := excludeManuallyReservedSlots(ctx, tx, now, matched, keep); err != nil {
+		return nil, err
+	}
 	// イベント共有で落とした側の放送を除いてから束ねる。
 	// 束ねた後に前の回を外す。両方に当たる放送は、束ねた理由 (別の放送で録る、録画済み) を優先して出す (#1499)。
 	bundled := map[programKey]*skippedProgram{}
@@ -585,6 +591,9 @@ type keepPolicy struct {
 	// slots は、サービスごとの、有効なルールのどれかに一致した、EPG にある番組の放送の枠 (#1875)。
 	// 絞り込む前の一致で作るので、apply と、前の回を比べる相手を選ぶ removedRuleReservations で同じものを見る。
 	slots map[int64][]broadcastSlot
+	// manuallyReserved は、EPG から消えた番組の有効な手動の予約と同じ枠にあるので、予約すべき集合から外した番組 (#1903)。
+	// 絞り込みの中で excludeManuallyReservedSlots が入れる。
+	manuallyReserved map[programKey]bool
 }
 
 // broadcastSlot は、番組の放送の枠 [startAt, endAt)。
@@ -593,17 +602,21 @@ type broadcastSlot struct {
 	endAt   time.Time
 }
 
+// overlaps は、2 つの放送が同じ枠かどうかを返す。重なりが短い方の長さの半分を超えるときだけ、同じ枠とみなす。
+// 前後の回が少し重なっただけで、同じ枠とみなさないためである (#1875)。
+func (s broadcastSlot) overlaps(other broadcastSlot) bool {
+	start := latest(s.startAt, other.startAt)
+	end := earliest(s.endAt, other.endAt)
+	shorter := min(s.endAt.Sub(s.startAt), other.endAt.Sub(other.startAt))
+
+	return end.Sub(start)*2 > shorter
+}
+
 // replaced は、EPG から消えた番組の予約 row の枠に、ルールに一致した別の番組が出ているかを返す (#1875)。
 // 局が番組を別のイベント ID で出し直して差し替えると、古いイベントは EPG から消え、同じ枠に新しいイベントが入る。
-// 重なりが短い方の長さの半分を超えるときだけ、同じ枠とみなす。前後の回が少し重なっただけで、一時的に消えた回の予約を消さないためである。
+// 一時的に消えた回の予約を、前後の回が少し重なっただけで消さないよう、同じ枠かは overlaps で見る。
 func (k *keepPolicy) replaced(row *sqlc.ListFutureProgramReservationsRow) bool {
-	return slices.ContainsFunc(k.slots[row.ServiceID], func(s broadcastSlot) bool {
-		start := latest(row.StartAt, s.startAt)
-		end := earliest(row.EndAt, s.endAt)
-		shorter := min(row.EndAt.Sub(row.StartAt), s.endAt.Sub(s.startAt))
-
-		return end.Sub(start)*2 > shorter
-	})
+	return slices.ContainsFunc(k.slots[row.ServiceID], broadcastSlot{startAt: row.StartAt, endAt: row.EndAt}.overlaps)
 }
 
 func latest(a, b time.Time) time.Time {
@@ -642,7 +655,41 @@ func newKeepPolicy(
 		slots[key.serviceID] = append(slots[key.serviceID], broadcastSlot{startAt: d.row.StartAt, endAt: d.row.EndAt})
 	}
 
-	return &keepPolicy{graceUntil: now.Add(grace), enabled: enabled, duplicates: duplicates, slots: slots}
+	return &keepPolicy{
+		graceUntil: now.Add(grace), enabled: enabled, duplicates: duplicates, slots: slots, manuallyReserved: map[programKey]bool{},
+	}
+}
+
+// excludeManuallyReservedSlots は、番組が EPG から消えた有効な手動の予約と、同じサービスの同じ枠 (broadcastSlot.overlaps) にある番組を、
+// 予約すべき集合 matched から外し、keep に覚える (#1903)。
+// 局が番組を別のイベント ID で出し直して差し替えると、古いイベントは EPG から消え、同じ枠に新しいイベントが入る。手動の予約は、
+// 手動を優先して消さず (#1875)、番組を見失っても予定の終わりまで録る (設計書 5.1) ので、新しいイベントをルールで予約すると 2 本録る。
+// 無効の手動の予約は録らないので見ない。
+func excludeManuallyReservedSlots(
+	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, keep *keepPolicy,
+) error {
+	rows, err := sqlc.New(tx).ListFutureProgramReservations(ctx, now)
+	if err != nil {
+		return fmt.Errorf("failed to list reservations: %w", err)
+	}
+	manual := map[int64][]broadcastSlot{}
+	for _, row := range rows {
+		if row.Kind == domain.ReservationKindProgram && row.Enabled && !row.Listed {
+			manual[row.ServiceID] = append(manual[row.ServiceID], broadcastSlot{startAt: row.StartAt, endAt: row.EndAt})
+		}
+	}
+	if len(manual) == 0 {
+		return nil
+	}
+
+	for key, d := range matched {
+		if slices.ContainsFunc(manual[key.serviceID], broadcastSlot{startAt: d.row.StartAt, endAt: d.row.EndAt}.overlaps) {
+			delete(matched, key)
+			keep.manuallyReserved[key] = true
+		}
+	}
+
+	return nil
 }
 
 // apply は、予約すべき集合と既存の予約を突き合わせる。
@@ -829,6 +876,9 @@ func keepsUnmatched(row *sqlc.ListFutureProgramReservationsRow, have map[uuid.UU
 	case row.Enabled && !row.Listed && keep.replaced(row):
 		// 番組が EPG から消え、同じ枠に、ルールに一致する別のイベントの番組が出た。局が番組を出し直して差し替えたので、
 		// 残すと同じ放送を 2 本録る。猶予の内でも消す (#1875)。無効の予約は録らず、取り消しの記録 (#1504) にもなるので残す。
+		return false
+	case row.Enabled && keep.manuallyReserved[programKey{serviceID: row.ServiceID, eventID: *row.EventID}]:
+		// 同じ枠を、EPG から消えた番組の手動の予約が録る。残すと同じ放送を 2 本録るので、猶予の内でも消す (#1903)。
 		return false
 	case !row.Decided && len(have) > 0:
 		// 番組が EPG から消えたか、終了時刻が未定になった。どちらも一時的なことがあり、消すと録り逃す (#518)。
