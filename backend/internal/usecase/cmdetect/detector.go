@@ -40,6 +40,28 @@ type Input struct {
 	Duration time.Duration
 }
 
+// streams は、FFmpeg に読ませる映像と音声のストリームの指定 (入力の番号を除いたもの)。録画は、録画したサービスだけの TS なので
+// (代表画像と同じく)、最初の映像と音声を読む。Open で渡すファイル (ライブラリのファイル) は、ほかのソフトで丸ごと録った、
+// 複数のサービスを含む TS のこともあるので、ServiceID の番組 (MPEG-TS の program_number) の最初の映像と音声を読む。
+func (in *Input) streams() (string, string) {
+	if in.Open != nil && in.ServiceID != 0 {
+		program := fmt.Sprintf("p:%d:", in.ServiceID)
+
+		return program + "v:0", program + "a:0"
+	}
+
+	return "v:0", "a:0"
+}
+
+// filterGraph は、映像を縮めてシーンの切り替わりを、音声から無音の区間を探す FFmpeg のフィルター。
+func filterGraph(input *Input) string {
+	video, audio := input.streams()
+
+	return "[0:" + video + "]scale=160:90,scdet=threshold=" + sceneThreshold +
+		",metadata=select:key=lavfi.scd.time,metadata=print:file=pipe\\\\:1[v];" +
+		"[0:" + audio + "]silencedetect=noise=" + silenceNoise + ":d=" + silenceDuration + "[a]"
+}
+
 // open は、TS のファイルを開く。
 func (in *Input) open() (io.ReadCloser, error) {
 	if in.Open != nil {

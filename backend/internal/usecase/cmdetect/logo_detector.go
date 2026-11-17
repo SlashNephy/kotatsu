@@ -642,7 +642,8 @@ func (d *LogoDetector) frames(
 	defer func() { _ = file.Close() }()
 
 	args := append([]string{"-nostdin", "-hide_banner", "-nostats", "-progress", "pipe:2", "-loglevel", "info"}, pre...)
-	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-vf", filter+",showinfo",
+	video, _ := input.streams()
+	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:"+video, "-vf", filter+",showinfo",
 		"-fps_mode", "passthrough", "-f", "rawvideo", "pipe:1")
 	cmd := exec.CommandContext(ctx, ffmpegCommand, args...)
 	src := &countingReader{r: file, n: atomic.Int64{}}
@@ -758,7 +759,8 @@ type videoInfo struct {
 // probeVideo は、ffprobe で、input の最初の映像の大きさと速さと、録画の長さと、最初のコマの PTS を読む。
 func probeVideo(ctx context.Context, input *Input) (*videoInfo, error) {
 	source := probeSource(input)
-	out, err := runProbe(exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", "v:0",
+	video, _ := input.streams()
+	out, err := runProbe(exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", video,
 		"-show_entries", "stream=width,height,avg_frame_rate:format=duration", "-of", "json", "-f", "mpegts", "-i", source), input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to probe the recording with ffprobe: %w", err)
@@ -832,7 +834,8 @@ func runProbe(cmd *exec.Cmd, input *Input) ([]byte, error) {
 // 頭の 2 秒だけを読む。最初の I フレームより前の PES はデコードできないので、最初のコマは、局ロゴの見分け方の最初のコマと同じになる。
 func probeFirstFrame(ctx context.Context, input *Input) int64 {
 	source := probeSource(input)
-	out, err := runProbe(exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", "v:0", "-read_intervals", "%+2",
+	video, _ := input.streams()
+	out, err := runProbe(exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", video, "-read_intervals", "%+2",
 		"-show_entries", "frame=pts", "-of", "csv=p=0", "-f", "mpegts", "-i", source), input)
 	if err != nil {
 		return -1

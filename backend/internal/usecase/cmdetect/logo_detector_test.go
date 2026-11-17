@@ -114,7 +114,7 @@ func TestLogoDetectorFallsBack(t *testing.T) {
 
 // TestLogoDetector は、局ロゴを、出ている所、消えた所 (CM)、また出た所の順に描いた合成の TS で、
 // ロゴの消えた所を CM の区間にすることを確かめる。FFmpeg か ffprobe がなければ飛ばす。
-// ローカルのパスのないファイル (ライブラリのファイル。#1734) は、Open で開いてパイプで読み、長さは Duration で渡す。
+// ローカルのパスのないファイル (ライブラリのファイル。#1734) は、Open で開いてパイプで読み、長さは Duration で渡し、ServiceID の番組を読む。
 func TestLogoDetector(t *testing.T) {
 	t.Parallel()
 
@@ -127,7 +127,8 @@ func TestLogoDetector(t *testing.T) {
 		}},
 		{name: "open", input: func(path string) *cmdetect.Input {
 			return &cmdetect.Input{
-				Path: "library/logo.ts", ServiceID: 0, Progress: nil, Program: nil, Duration: 40 * time.Second,
+				// FFmpeg の mpegts の既定の番組 (program_number) は 1。Open で渡すファイルは、この番組の映像と音声を読む。
+				Path: "library/logo.ts", ServiceID: 1, Progress: nil, Program: nil, Duration: 40 * time.Second,
 				Open: func() (io.ReadSeekCloser, error) { return os.Open(path) },
 			}
 		}},
