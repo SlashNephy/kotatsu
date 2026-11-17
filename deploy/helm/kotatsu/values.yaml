@@ -210,7 +210,7 @@ migration:
     limits:
       memory: 256Mi
   # ttlSecondsAfterFinished は、終わった Job を消すまでの秒。成功した Job はフックの設定ですぐ消えるので、
-  # 主に失敗した Job に効く。失敗のログを読めるよう、1 日残す。
+  # 主に失敗した Job に効く。失敗のログを読めるよう、1 日残す。0 ならすぐ消し、null なら消さない。
   ttlSecondsAfterFinished: 86400
 
 # all は、mode が all のときの Pod の設定。FFmpeg が要るので、-ffmpeg のイメージを使う。
