@@ -222,6 +222,74 @@ describe('useRecordedJikkyo', () => {
       '先に届いた',
     ]);
   });
+
+  test('時間帯が伸びる途中に取った過去ログは、伸び終えたら取り直して置き換え、まだ渡していないコメントだけを同じ canvas に足す (#1910)', async () => {
+    const tail: JikkyoComment = { time: 1_580, content: '終わり', mail: '' };
+    // 伸びる途中の終わりは見込みなので、再生の終わりより後のコメントが混じることがある。
+    const beyond: JikkyoComment = { time: 1_900, content: '次の番組', mail: '' };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ channel: { id: 'jk1' }, comments: [...comments, beyond] })),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ channel: { id: 'jk1' }, comments: [...comments, tail] })),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const url = '/internal/media/library/f/jikkyo.json';
+    const { result, rerender } = renderHook(
+      ({ growing }: { growing: boolean }) =>
+        useRecordedJikkyo(url, () => 0, true, null, undefined, null, null, growing),
+      { initialProps: { growing: true } },
+    );
+    render(<>{result.current.overlay}</>);
+    await waitFor(() => expect(result.current.state).toEqual({ kind: 'loaded', count: 2 }));
+    expect(added).toEqual([[...comments, beyond]]);
+
+    // 伸びている間に描き直しても、取り直さない。
+    rerender({ growing: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    rerender({ growing: false });
+    // 取り直している間も、取ってあるコメントを出し続ける。
+    expect(result.current.comments).toEqual([...comments, beyond]);
+    await waitFor(() => expect(result.current.comments).toEqual([...comments, tail]));
+    expect(result.current.state).toEqual({ kind: 'loaded', count: 2 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // canvas は作り直さず、まだ渡していないコメントだけを足す。
+    expect(added).toEqual([[...comments, beyond, tail]]);
+  });
+
+  test('伸び終えた後の取り直しに失敗しても、取ってある過去ログを出し続け、実況を入れ直したら取り直す (#1910)', async () => {
+    const tail: JikkyoComment = { time: 1_580, content: '終わり', mail: '' };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ channel: { id: 'jk1' }, comments })))
+      .mockResolvedValueOnce(new Response('bad gateway', { status: 502 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ channel: { id: 'jk1' }, comments: [...comments, tail] })),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const url = '/internal/media/library/f/jikkyo.json';
+    const { result, rerender } = renderHook(
+      ({ src, growing }: { src: string | null; growing: boolean }) =>
+        useRecordedJikkyo(src, () => 0, true, null, undefined, null, null, growing),
+      { initialProps: { src: url as string | null, growing: true } },
+    );
+    await waitFor(() => expect(result.current.state).toEqual({ kind: 'loaded', count: 1 }));
+
+    rerender({ src: url, growing: false });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(result.current.state).toEqual({ kind: 'loaded', count: 1 });
+    expect(result.current.comments).toEqual(comments);
+
+    // 実況を切って入れ直すと、まだ伸びた分を取れていないので、取り直す。
+    rerender({ src: null, growing: false });
+    rerender({ src: url, growing: false });
+    await waitFor(() => expect(result.current.state).toEqual({ kind: 'loaded', count: 2 }));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(result.current.comments).toEqual([...comments, tail]);
+  });
 });
 
 describe('insertByTime', () => {
