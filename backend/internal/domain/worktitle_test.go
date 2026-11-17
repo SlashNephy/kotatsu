@@ -74,6 +74,9 @@ func TestWorkTitle(t *testing.T) {
 		{name: "sequel number glued to the title before a subtitle", in: "さすらい署長 風間昭平15 塩屋岬いわき殺人事件", want: "さすらい署長 風間昭平15 塩屋岬いわき殺人事件"},
 		// アニメの前置きがなければ、空白で区切った数は続編の番号とみなす。
 		{name: "spaced sequel number without an anime prefix", in: "山村美紗サスペンス 名探偵キャサリン 12 坂本龍馬殺人事件", want: "山村美紗サスペンス 名探偵キャサリン 12 坂本龍馬殺人事件"},
+		// アニメの前置きがあっても、英字の後の空白で区切った数は作品名の一部とみなす。
+		{name: "number after an English word with an anime prefix", in: "アニメ　ULTRAMAN 2　サブタイトル", want: "ULTRAMAN 2 サブタイトル"},
+		{name: "season after an English word with an anime prefix", in: "アニメ　作品名 Season 3　サブタイトル", want: "作品名 Season 3 サブタイトル"},
 		{name: "spaced number at the end", in: "アニメ　タイトル　4", want: "タイトル 4"},
 		{name: "total episodes", in: "作品名 全13話一挙放送", want: "作品名 全13話一挙放送"},
 		{name: "episode followed by a particle", in: "作品名 1話からおさらい", want: "作品名 1話からおさらい"},
