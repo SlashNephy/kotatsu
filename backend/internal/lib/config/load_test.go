@@ -1056,6 +1056,24 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			wantErrs: []string{errTimeshiftOverlapsMain},
 		},
 		{
+			name:     "relative backup directory",
+			yaml:     "backup:\n  dir: backups\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{"backup.dir (KOTATSU_BACKUP_DIR): must be an absolute path"},
+		},
+		{
+			name:     "backup directory inside the data directory",
+			yaml:     "storage:\n  data_dir: /var/lib/kotatsu\nbackup:\n  dir: /var/lib/kotatsu/backups\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{"backup.dir (KOTATSU_BACKUP_DIR): must not be the same as, inside, or a parent of storage.data_dir"},
+		},
+		{
+			name:     "backup directory containing a pool",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n  data_dir: /var/lib/kotatsu\nbackup:\n  dir: /mnt\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{`backup.dir (KOTATSU_BACKUP_DIR): must not be the same as, inside, or a parent of the mount point of pool "main"`},
+		},
+		{
 			name: "malformed pools in env",
 			env: map[string]string{
 				envKeyURL:   envURL,

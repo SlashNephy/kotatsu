@@ -48,8 +48,18 @@ type Config struct {
 	TMDb TMDb `yaml:"tmdb"`
 	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
 	UpdateCheck UpdateCheck `yaml:"update_check"`
+	// Backup は、定期のバックアップを書き出す先 (#1926、設計書 11.4)。
+	Backup Backup `yaml:"backup"`
 	// Ignored は、画面で設定するようになったので、読まずに無視した項目 (#1869)。起動するときに、ログで警告する。
 	Ignored []IgnoredSetting `yaml:"-"`
+}
+
+// Backup は、nekonote が定期のバックアップを書き出す先の設定 (#1926、設計書 11.4)。
+// 暗号化する公開鍵、間隔、残す世代の数は、管理者の画面で決める (設計書 11.2)。
+type Backup struct {
+	// Dir は、定期のバックアップを書き出すディレクトリ。絶対パスで書く。nekonote でマウントする。
+	// 空なら、画面で公開鍵を登録しても、定期のバックアップは書き出せず、失敗として画面に出す。
+	Dir string `yaml:"dir"`
 }
 
 // UpdateCheck は、新しいリリースを確かめる設定 (設計書 11.1)。
@@ -464,6 +474,7 @@ func Default() *Config {
 		UpdateCheck: UpdateCheck{
 			Enabled: false,
 		},
+		Backup:  Backup{Dir: ""},
 		Ignored: []IgnoredSetting{},
 		Storage: Storage{
 			Pools:        map[string]string{},
@@ -595,6 +606,9 @@ func (c *Config) validate() error {
 		errs = append(errs, fieldError("kyusu.encoder", errors.New("must be one of x264, vaapi, qsv, nvenc")))
 	}
 	errs = append(errs, c.Storage.validate()...)
+	if err := c.validateBackupDir(); err != nil {
+		errs = append(errs, fieldError("backup.dir", err))
+	}
 
 	return errors.Join(errs...)
 }
@@ -620,6 +634,29 @@ func (s *Storage) validate() []error {
 	}
 
 	return errs
+}
+
+// validateBackupDir は、定期のバックアップを書き出すディレクトリを検査する。空なら、定期のバックアップを書き出さないので何も求めない。
+// データディレクトリ、タイムシフトのディレクトリ、プールと重なると、DB にないファイルを探す機能や容量の管理がバックアップを触るので、重なりを拒む。
+func (c *Config) validateBackupDir() error {
+	dir := c.Backup.Dir
+	switch {
+	case dir == "":
+		return nil
+	case !filepath.IsAbs(dir):
+		return errors.New("must be an absolute path")
+	case c.Storage.DataDir != "" && overlaps(dir, c.Storage.DataDir):
+		return errors.New("must not be the same as, inside, or a parent of storage.data_dir")
+	case c.Storage.TimeshiftDir != "" && overlaps(dir, c.Storage.TimeshiftDir):
+		return errors.New("must not be the same as, inside, or a parent of storage.timeshift_dir")
+	}
+	for _, id := range slices.Sorted(maps.Keys(c.Storage.Pools)) {
+		if overlaps(dir, c.Storage.Pools[id]) {
+			return fmt.Errorf("must not be the same as, inside, or a parent of the mount point of pool %q", id)
+		}
+	}
+
+	return nil
 }
 
 // validateDataDir は、データディレクトリを検査する。プールを設定するロールでは、生成物を置くので必ず要る。

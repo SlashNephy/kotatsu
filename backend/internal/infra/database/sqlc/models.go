@@ -233,6 +233,24 @@ type AuditEvent struct {
 	ActorClient *string
 }
 
+type BackupRun struct {
+	ID         uuid.UUID
+	Trigger    string
+	StartedAt  time.Time
+	FinishedAt time.Time
+	FileName   *string
+	SizeBytes  *int64
+	Error      *string
+}
+
+type BackupSetting struct {
+	ID            int16
+	Recipients    []string
+	IntervalHours int32
+	Generations   int32
+	UpdatedAt     time.Time
+}
+
 type BroadcastLineup struct {
 	NetworkID  int32
 	Version    int16

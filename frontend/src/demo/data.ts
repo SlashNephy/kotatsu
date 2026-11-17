@@ -467,6 +467,11 @@ export function createRootValue(
     storagePoolNames: () => ['default'],
     // デモは外部へ問い合わせないので、字幕の自動生成のモデル (#1682) は置かず、選べるモデルだけを見せる。ダウンロードはしない。
     captionModels: () => demoCaptionModels(),
+    // デモは DB を書き出さないので、公開鍵のない既定の設定だけを見せる (#1926)。
+    backup: () => ({
+      settings: { recipients: [], intervalHours: 24, generations: 7, updatedAt: null },
+      latestRun: null,
+    }),
     fileNameTemplateHelp: () => ({
       items: fileNameTemplateItems.map((item) => ({
         ...item,
@@ -497,6 +502,13 @@ export function createRootValue(
     },
 
     // Mutation
+    // デモは DB を書き出さないので、バックアップの設定を変えさせない (#1926)。
+    updateBackupSettings: () => {
+      throw new Error('backups are not available in the demo');
+    },
+    runBackup: () => {
+      throw new Error('backups are not available in the demo');
+    },
     // デモは作品の指定を覚えない (#1651)。
     updateDramaTitleOverride: () => [],
     // デモは Annict と AniList に問い合わせないので、見たいリストを取り込めず、候補もない (#928)。

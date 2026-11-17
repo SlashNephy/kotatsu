@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -46,11 +44,9 @@ func newBackupCommand(opts *Options, connect func(ctx context.Context) (*config.
 			}
 			defer closePool(pool)
 
-			result, err := writeBackupFile(cmd.Context(), output, func(w io.Writer) (*backup.WriteResult, error) {
-				return backup.Write(cmd.Context(), &backup.WriteOptions{
-					DB: pool, Store: storeOf(cfg), SecretKey: cfg.Auth.SecretKey.Value(), Clock: opts.Clock, Logger: opts.Logger,
-				}, w, recipients)
-			})
+			result, err := backup.WriteFile(cmd.Context(), &backup.WriteOptions{
+				DB: pool, Store: storeOf(cfg), SecretKey: cfg.Auth.SecretKey.Value(), Clock: opts.Clock, Logger: opts.Logger,
+			}, output, recipients)
 			if err != nil {
 				return err
 			}
@@ -179,47 +175,6 @@ func parseIdentities(file string) ([]age.Identity, error) {
 	}
 
 	return identities, nil
-}
-
-// writeBackupFile は、path と同じディレクトリの一時ファイルに write で書き、書き終えたら path に名前を変える。
-// 途中で失敗したら、一時ファイルを消す。バックアップには秘密情報が入るので、持ち主だけが読める許可で作る。
-func writeBackupFile(ctx context.Context, path string, write func(w io.Writer) (*backup.WriteResult, error)) (*backup.WriteResult, error) {
-	if _, err := os.Lstat(path); err == nil {
-		return nil, fmt.Errorf("the backup file %s already exists", path)
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create the backup file: %w", err)
-	}
-	ok := false
-	defer func() {
-		if !ok {
-			_ = tmp.Close()
-			_ = os.Remove(tmp.Name())
-		}
-	}()
-	if err := tmp.Chmod(0o600); err != nil {
-		return nil, fmt.Errorf("failed to restrict the permission of the backup file: %w", err)
-	}
-	result, err := write(tmp)
-	if err != nil {
-		return nil, err
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if err := tmp.Sync(); err != nil {
-		return nil, fmt.Errorf("failed to flush the backup file: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close the backup file: %w", err)
-	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
-		return nil, fmt.Errorf("failed to rename the backup file: %w", err)
-	}
-	ok = true
-
-	return result, nil
 }
 
 // writeSecretKeyFile は、アプリの秘密キーを、持ち主だけが読める新しいファイルに書く。既にあれば上書きしない。

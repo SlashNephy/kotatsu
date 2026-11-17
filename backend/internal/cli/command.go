@@ -52,6 +52,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/backup"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
@@ -236,12 +237,17 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		return nil, nil, err
 	}
 	river.AddWorker(workers, drama.NewMatchWorker(dramaMatcher))
+	// 管理者が画面で公開鍵を登録していれば、DB とキャプチャを backup.dir に定期に書き出す (#1926、設計書 11.4)。
+	river.AddWorker(workers, backup.NewWorker(&backup.WorkerOptions{
+		DB: poolOf(deps), Store: storeOf(deps.Config), SecretKey: deps.Config.Auth.SecretKey.Value(), Dir: deps.Config.Backup.Dir,
+		Clock: deps.Clock, Logger: logger.With(slog.String("component", "backup")),
+	}))
 
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), library.PruneProgressPeriodicJob(), networkactivity.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), anime.NicologPeriodicJob(), animerecord.PrunePeriodicJob(),
-		animerecord.WishlistPeriodicJob(), thumbnail.LivePeriodicJob(),
+		animerecord.WishlistPeriodicJob(), thumbnail.LivePeriodicJob(), backup.PeriodicJob(),
 	}, slices.Concat(anime.MatchPeriodicJobs(), drama.MatchPeriodicJobs())...), nil
 }
 

@@ -120,6 +120,8 @@ func includedTables() []string {
 		"drama_title_overrides",
 		"drama_watchlist_entries",
 		"drama_watched_episodes",
+		"backup_settings",
+		"backup_runs",
 	}
 }
 

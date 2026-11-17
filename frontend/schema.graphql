@@ -813,6 +813,77 @@ input AuditEventFilter {
   until: Time
 }
 """
+バックアップの書き出しの結果 (#1926)。
+"""
+type BackupRun {
+  """
+  管理者が画面から頼んだものかどうか。false なら、定期のもの。
+  """
+  manual: Boolean!
+  startedAt: Time!
+  finishedAt: Time!
+  """
+  書き出したファイルの名前 (書き出す先のディレクトリの中)。失敗したら null。
+  """
+  fileName: String
+  """
+  書き出したファイルの大きさ (バイト)。失敗したら null。
+  """
+  size: Int64
+  """
+  失敗したときの理由。成功したら null。
+  """
+  error: String
+}
+"""
+定期のバックアップの設定 (設計書 11.4、#1926)。書き出す先のディレクトリは、nekonote の設定ファイル (backup.dir) で決める。
+"""
+type BackupSettings {
+  """
+  暗号化する age の公開鍵 (age1...)。どれか 1 つの秘密鍵で読める。空なら、定期のバックアップをしない。
+  """
+  recipients: [String!]!
+  """
+  書き出す間隔 (時間)。
+  """
+  intervalHours: Int!
+  """
+  残す世代の数。書き出し終えたら、これより古いファイルを消す。
+  """
+  generations: Int!
+  """
+  最後に変えた日時。一度も変えていなければ null。
+  """
+  updatedAt: Time
+}
+"""
+定期のバックアップの設定を変える (#1926)。省いた項目は変えない。
+"""
+input BackupSettingsInput {
+  """
+  暗号化する age の公開鍵。渡すと、登録してある鍵をすべて置き換える。
+  """
+  recipients: [String!]
+  """
+  書き出す間隔 (1〜720 時間)。
+  """
+  intervalHours: Int
+  """
+  残す世代の数 (1〜365)。
+  """
+  generations: Int
+}
+"""
+バックアップの設定と、最後の書き出しの結果 (設計書 11.4、#1926)。
+"""
+type BackupStatus {
+  settings: BackupSettings!
+  """
+  最後の書き出しの結果。まだ書き出していなければ null。
+  """
+  latestRun: BackupRun
+}
+"""
 放送の時計 (#1515)。PCR と、それを含む TS を tenban が受け取った時刻の組。受け取った時刻から PCR を引いた量が最も小さい組を送る。
 映しているコマの放送の時刻は、receivedAt + (コマの PTS − pcr) で出せる。
 """
@@ -2644,6 +2715,15 @@ type Mutation {
   """
   deleteApiToken(id: ID!): ID!
   """
+  定期のバックアップの設定を変える (#1926)。管理者だけが使える。公開鍵が age の公開鍵として読めなければ BAD_USER_INPUT にする。
+  """
+  updateBackupSettings(input: BackupSettingsInput!): BackupStatus!
+  """
+  今すぐバックアップを書き出すジョブを入れる (#1926)。管理者だけが使える。書き出しは nekonote が行う。
+  公開鍵を登録していなければ BAD_USER_INPUT に、頼んだ書き出しを待っているか動かしていれば CONFLICT にする。
+  """
+  runBackup: BackupStatus!
+  """
   予約を iCalendar で購読する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
   URL を持つ人は、そのユーザーとして予約を読めるようになる。
   """
@@ -3915,6 +3995,10 @@ type Query {
   ログイン中のユーザーの API トークン。新しい順に並べる。
   """
   apiTokens: [ApiToken!]!
+  """
+  定期のバックアップの設定と、最後の書き出しの結果を返す (設計書 11.4、#1926)。管理者だけが使える。
+  """
+  backup: BackupStatus!
   """
   ログイン中のユーザーの購読用の URL。発行していなければ null。
   """
