@@ -143,6 +143,11 @@ func (s *Server) AddDrive(d *Drive) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.drives = append(s.drives, d)
+	// 共有ドライブの根元は、本物と同じく、共有ドライブの ID で引けるフォルダにする。
+	s.files[d.ID] = &File{
+		ID: d.ID, Name: d.Name, MIMEType: FolderMIMEType, Parent: "", Content: nil,
+		ModifiedTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Trashed: false,
+	}
 }
 
 // Inject は、次の Drive API の呼び出しに、失敗 faults を順に差し込む。
@@ -412,8 +417,63 @@ func (s *Server) getDrive(w http.ResponseWriter, r *http.Request) {
 // parentsQuery は、files.list の q のうち、親を指定する部分。
 var parentsQuery = regexp.MustCompile(`^'([^']+)' in parents and trashed = false$`)
 
+// driveOf は、ファイル f のある共有ドライブの ID を返す。マイドライブなら空。s.mu を持って呼ぶ。
+func (s *Server) driveOf(f *File) string {
+	for range 64 {
+		for _, d := range s.drives {
+			if f.ID == d.ID {
+				return d.ID
+			}
+		}
+		parent, ok := s.files[f.Parent]
+		if !ok {
+			return ""
+		}
+		f = parent
+	}
+
+	return ""
+}
+
+// searchQuery は、files.list の q のうち、名前で探す部分。
+var searchQuery = regexp.MustCompile(`^name contains '((?:[^'\\]|\\.)*)' and mimeType != '` + regexp.QuoteMeta(FolderMIMEType) + `' and trashed = false$`)
+
+// searchFiles は、名前に語を含むファイルを、大文字と小文字を区別せずに探す。共有ドライブを指定されたら、その中だけを探す。
+// 1 件ずつのページに分ける。
+func (s *Server) searchFiles(w http.ResponseWriter, q url.Values, match []string) {
+	word := strings.ToLower(strings.NewReplacer(`\'`, `'`, `\\`, `\`).Replace(match[1]))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	found := []*File{}
+	for _, f := range s.files {
+		if f.Trashed || f.MIMEType == FolderMIMEType || !strings.Contains(strings.ToLower(f.Name), word) {
+			continue
+		}
+		drive := s.driveOf(f)
+		if (q.Get("corpora") == "drive" && drive != q.Get("driveId")) || (q.Get("corpora") == "user" && drive != "") {
+			continue
+		}
+		found = append(found, f)
+	}
+	slices.SortFunc(found, func(a, b *File) int { return strings.Compare(a.ID, b.ID) })
+	start, _ := strconv.Atoi(q.Get("pageToken"))
+	page := map[string]any{"files": []any{}}
+	if start < len(found) {
+		page["files"] = []any{s.fileJSON(found[start])}
+		if start+1 < len(found) {
+			page["nextPageToken"] = strconv.Itoa(start + 1)
+		}
+	}
+	writeJSON(w, page)
+}
+
 func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	if search := searchQuery.FindStringSubmatch(q.Get("q")); search != nil {
+		s.searchFiles(w, q, search)
+
+		return
+	}
 	match := parentsQuery.FindStringSubmatch(q.Get("q"))
 	if match == nil || q.Get("supportsAllDrives") != "true" || q.Get("includeItemsFromAllDrives") != "true" {
 		apiError(w, http.StatusBadRequest, "invalidQuery")
@@ -433,7 +493,7 @@ func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 	start, _ := strconv.Atoi(q.Get("pageToken"))
 	page := map[string]any{"files": []any{}}
 	if start < len(children) {
-		page["files"] = []any{fileJSON(children[start])}
+		page["files"] = []any{s.fileJSON(children[start])}
 		if start+1 < len(children) {
 			page["nextPageToken"] = strconv.Itoa(start + 1)
 		}
@@ -444,6 +504,10 @@ func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getFile(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	f, ok := s.files[r.PathValue("id")]
+	var body map[string]any
+	if ok {
+		body = s.fileJSON(f)
+	}
 	s.mu.Unlock()
 	if !ok {
 		apiError(w, http.StatusNotFound, "notFound")
@@ -451,7 +515,7 @@ func (s *Server) getFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Query().Get("alt") != "media" {
-		writeJSON(w, fileJSON(f))
+		writeJSON(w, body)
 
 		return
 	}
@@ -502,8 +566,15 @@ func parseRange(header string, size int64) (int64, int64, bool) {
 	return start, end, true
 }
 
-func fileJSON(f *File) map[string]any {
-	body := map[string]any{"id": f.ID, keyName: f.Name, "mimeType": f.MIMEType, "modifiedTime": f.ModifiedTime, "trashed": f.Trashed}
+// fileJSON は、ファイルの情報を返す。親と、ファイルのある共有ドライブも付ける。s.mu を持って呼ぶ。
+func (s *Server) fileJSON(f *File) map[string]any {
+	body := map[string]any{
+		"id": f.ID, keyName: f.Name, "mimeType": f.MIMEType, "modifiedTime": f.ModifiedTime, "trashed": f.Trashed,
+		"parents": []string{}, "driveId": s.driveOf(f),
+	}
+	if f.Parent != "" {
+		body["parents"] = []string{f.Parent}
+	}
 	if f.MIMEType != FolderMIMEType {
 		body["size"] = strconv.Itoa(len(f.Content))
 	}

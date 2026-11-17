@@ -111,6 +111,13 @@ func NamesOf(ctx context.Context, l Library, p string) ([]string, error) {
 	return strings.Split(p, "/"), nil
 }
 
+// Searcher は、名前でファイルを探せるライブラリ。
+type Searcher interface {
+	// Search は、ディレクトリ dir (空なら根元) の下から、名前に query を含む再生できるファイルを、limit 件まで返す。
+	// 2 つ目の戻り値は、上限などで探すのを打ち切ったかどうか。
+	Search(ctx context.Context, dir, query string, limit int) ([]*Entry, bool, error)
+}
+
 // Connector は、使えるかどうかが実行中に変わるライブラリ。管理者が接続したときだけ、ライブラリの一覧に出す。
 type Connector interface {
 	// Connected は、今使えるかどうかを返す。

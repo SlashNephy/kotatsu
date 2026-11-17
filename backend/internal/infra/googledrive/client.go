@@ -47,7 +47,7 @@ const (
 	// maxErrorBody は、エラーの応答の本文を読む大きさの上限。
 	maxErrorBody = 1 << 16
 	// fileFields は、ファイルの情報として引く項目。
-	fileFields = "id,name,mimeType,size,modifiedTime,trashed"
+	fileFields = "id,name,mimeType,size,modifiedTime,trashed,parents,driveId"
 	// paramFields と paramAllDrives は、クエリの引数の名前。
 	paramFields    = "fields"
 	paramAllDrives = "supportsAllDrives"
@@ -106,6 +106,10 @@ type File struct {
 	// Size は、大きさ (バイト)。フォルダと、Google ドキュメントなどでは 0。
 	Size         int64
 	ModifiedTime time.Time
+	// Parents は、親のフォルダの ID。マイドライブと共有ドライブの根元では空。
+	Parents []string
+	// DriveID は、ファイルのある共有ドライブの ID。マイドライブなら空。
+	DriveID string
 }
 
 // Folder は、フォルダかどうかを返す。
@@ -132,12 +136,19 @@ type fileJSON struct {
 	Size         string    `json:"size"`
 	ModifiedTime time.Time `json:"modifiedTime"`
 	Trashed      bool      `json:"trashed"`
+	Parents      []string  `json:"parents"`
+	DriveID      string    `json:"driveId"`
 }
 
 func (f *fileJSON) file() *File {
 	size, _ := strconv.ParseInt(f.Size, 10, 64)
 
-	return &File{ID: f.ID, Name: f.Name, MIMEType: f.MIMEType, Size: size, ModifiedTime: f.ModifiedTime}
+	parents := f.Parents
+	if parents == nil {
+		parents = []string{}
+	}
+
+	return &File{ID: f.ID, Name: f.Name, MIMEType: f.MIMEType, Size: size, ModifiedTime: f.ModifiedTime, Parents: parents, DriveID: f.DriveID}
 }
 
 // About は、接続したアカウントのメールアドレス (なければ表示名) を返す。
@@ -242,6 +253,48 @@ func (c *Client) Children(ctx context.Context, parentID, driveID string) ([]*Fil
 		}
 		token = body.NextPageToken
 	}
+}
+
+// SearchFiles は、名前に name を含む、ゴミ箱にないファイル (フォルダを除く) を、最大 maxPages ページ読んで返す。
+// driveID は、探す共有ドライブ。マイドライブなら空にする。Drive の q では、あるフォルダの子孫だけには絞れないので、
+// 呼ぶ側で、親をたどって絞る。2 つ目の戻り値は、ページが残っていて、読み切っていないかどうか。
+func (c *Client) SearchFiles(ctx context.Context, name, driveID string, maxPages int) ([]*File, bool, error) {
+	files := []*File{}
+	token := ""
+	for range maxPages {
+		query := url.Values{
+			"q": {fmt.Sprintf("name contains '%s' and mimeType != '%s' and trashed = false", escapeQuery(name), FolderMIMEType)},
+			paramFields: {"nextPageToken,files(" + fileFields + ")"},
+			"pageSize":  {strconv.Itoa(pageSize)}, paramAllDrives: {valueTrue}, "includeItemsFromAllDrives": {valueTrue},
+		}
+		if driveID == "" {
+			query.Set("corpora", "user")
+		} else {
+			query.Set("corpora", "drive")
+			query.Set("driveId", driveID)
+		}
+		if token != "" {
+			query.Set("pageToken", token)
+		}
+		var body struct {
+			NextPageToken string     `json:"nextPageToken"`
+			Files         []fileJSON `json:"files"`
+		}
+		if err := c.getJSON(ctx, "/drive/v3/files", query, &body); err != nil {
+			return nil, false, err
+		}
+		for i := range body.Files {
+			if !body.Files[i].Trashed {
+				files = append(files, body.Files[i].file())
+			}
+		}
+		if body.NextPageToken == "" {
+			return files, false, nil
+		}
+		token = body.NextPageToken
+	}
+
+	return files, true, nil
 }
 
 // Get は、ファイルかフォルダ id の情報を返す。ゴミ箱にあれば ErrNotFound を返す。

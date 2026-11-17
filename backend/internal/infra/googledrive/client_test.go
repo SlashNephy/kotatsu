@@ -141,7 +141,7 @@ func TestClientMetadata(t *testing.T) {
 
 	file, err := client.Get(t.Context(), fileID)
 	require.NoError(t, err)
-	assert.Equal(t, &googledrive.File{ID: fileID, Name: fileName, MIMEType: tsMime, Size: 10, ModifiedTime: modified()}, file)
+	assert.Equal(t, &googledrive.File{ID: fileID, Name: fileName, MIMEType: tsMime, Size: 10, ModifiedTime: modified(), Parents: []string{folderID}, DriveID: ""}, file)
 	assert.False(t, file.Folder())
 	assert.True(t, file.Blob())
 
