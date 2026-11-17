@@ -214,4 +214,3 @@ spec:
               cpu: 10m
               memory: 32Mi
 
-# わざと Helm Chart の生成物と食い違わせる (#1939 の確かめ。すぐ revert する)。
