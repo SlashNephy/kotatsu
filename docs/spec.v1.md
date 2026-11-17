@@ -1533,7 +1533,7 @@ nekonoteは、1分（付録A）ごとと起動したときに、保持時間を�
 - **通信量。** 索引を作るときは、ファイルの頭（32 MiBまで）と終わり（16 MiB）を読んでから、頭から読み通します。CMの区間のジョブは、映像と音声をFFmpegに渡すので、もう1本分を読みます。画像のジョブは、使うIフレームの所だけを、Iフレームごとに範囲を指定して読みます。そのため、初めて開いたファイルは、おおよそ2本分と画像の分をダウンロードします（コードから見込んだもので、本物のDriveで測ってはいません）。字幕の自動生成を頼めば、もう1本分を読みます。再生は、見た所だけを読みます。索引を同時に作る数は、マウントしたフォルダと同じく上限を設けます（付録A）。
 - **Drive APIの上限。** 429と、403の`rateLimitExceeded`と`userRateLimitExceeded`、5xx、接続の失敗は、Googleの案内どおり、倍々に伸ばした間（32秒まで）に1秒までの乱数を足して待ち、6回まで試します。`Retry-After`があれば（30秒まで）それに従います。1回の呼び出しで待つ長さの合計は45秒までにします。索引を作っている途中に長く待つと、書きかけの索引が1分伸びず、ほかのtenbanに落ちたとみなされて作り直されるためです（[索引](#索引)）。試し終えても当たったままなら、画面に、時間をおいてやり直すよう出します。ファイルのダウンロードの上限（403の`downloadQuotaExceeded`）は、待っても解けないので、やり直しません。401は、アクセストークンを作り直して1度だけやり直します（試す回数には数えません）。
 - Driveへの通信は、外部との通信の記録（[11.8](#118-外部との通信の記録)）に「Google Drive」として残します。接続先のホスト名は、`www.googleapis.com`と`oauth2.googleapis.com`だけを残します。
-- 設定の`google.url`（`KOTATSU_GOOGLE_URL`）で、Googleの認可の画面、トークンのAPI、Drive APIを1つのオリジンに向け直せます。本物のGoogleの代わりに、検証用のサーバー（`cmd/fakegoogle`）へ向けるときだけ使います。
+- 設定の`google.url`（`KOTATSU_GOOGLE_URL`）で、Googleの認可の画面、トークンのAPI、Drive APIを1つのオリジンに向け直せます。本物のGoogleの代わりに、検証用のサーバー（`internal/cmd/fakegoogle`）へ向けるときだけ使います。
 
 #### ファイラー
 
@@ -2960,7 +2960,7 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 - `infra`は`domain`と`lib`のほかに、上の層をimportしません。
 - トランザクションを張るのは`usecase`です。`web`はDB（`infra/database`）に直接触れず、`query`は受け取ったプールだけで読みます。
 - sqlcの生成物を使えるのは、`usecase`、`query`、DBの基盤の部品（`infra/database`、`infra/lease`、`infra/notify`、`infra/registry`）と、組み立ての`cli`だけです。`query`が使える`infra`は`infra/database`だけです。
-- GraphQLのモデル（`web/graph/model`）は、`web/graph`の外で使いません。テスト用の部品（`testutil`）は、テストと、E2Eの一式に立てる偽のサーバー（`cmd/faketuner`と`cmd/fakeidp`）と、Google Driveのライブラリを確かめる偽のGoogle（`cmd/fakegoogle`）のほかで使いません。
+- GraphQLのモデル（`web/graph/model`）は、`web/graph`の外で使いません。テスト用の部品（`testutil`）は、テストと、E2Eの一式に立てる偽のサーバー（`cmd/faketuner`と`cmd/fakeidp`）と、Google Driveのライブラリを確かめる偽のGoogle（`internal/cmd/fakegoogle`。配らない開発用の入口なので、`cmd`でなく`internal/cmd`に置きます）のほかで使いません。
 
 importで判定できる規則は、`backend/.golangci.yaml`のdepguardで強制します。テストのコードは、DBの準備などで層をまたぐので、対象にしません。
 

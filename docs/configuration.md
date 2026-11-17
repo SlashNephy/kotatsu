@@ -429,5 +429,5 @@ Google CloudでOAuthクライアント（ウェブアプリケーション）を
 | --- | --- | --- | --- |
 | `google.url` | `KOTATSU_GOOGLE_URL` | なし（`https://accounts.google.com`、`https://oauth2.googleapis.com`、`https://www.googleapis.com`） | Googleの認可の画面、トークンのAPI、Drive APIを向ける先のオリジン |
 
-`google.url`は、本物のGoogleの代わりに検証用のサーバー（`backend/cmd/fakegoogle`）へ向けるときだけ設定してください。
+`google.url`は、本物のGoogleの代わりに検証用のサーバー（`backend/internal/cmd/fakegoogle`）へ向けるときだけ設定してください。
 Driveを読むtenban、kyusu、nekonoteは、Googleへ通信できる必要があります。
