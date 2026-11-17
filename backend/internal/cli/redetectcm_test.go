@@ -86,9 +86,9 @@ func TestAdminRedetectCM(t *testing.T) {
 			require.NoError(t, err)
 		}
 		if recording.material {
-			// 今の形式の版 (4) の材料。
+			// 今の形式の版 (5) の材料。
 			_, err := pool.Exec(t.Context(), `INSERT INTO recording_cm_materials (recording_id, detector, format_version, data, created_at)
-				VALUES ($1, 'ffmpeg', 4, '\x00', $2)`, recordingID, startAt)
+				VALUES ($1, 'ffmpeg', 5, '\x00', $2)`, recordingID, startAt)
 			require.NoError(t, err)
 		}
 	}
@@ -168,9 +168,9 @@ func TestAdminRedetectCMWithLogo(t *testing.T) {
 		version        int
 		materialFormat int
 	}{
-		{name: "今の形式の材料", version: 2, materialFormat: 4},
-		{name: "古い形式の材料", version: 2, materialFormat: 3},
-		{name: "今の版", version: 3, materialFormat: 4},
+		{name: "今の形式の材料", version: 3, materialFormat: 5},
+		{name: "古い形式の材料", version: 3, materialFormat: 4},
+		{name: "今の版", version: 4, materialFormat: 5},
 	}
 	ids := make([]string, len(recordings))
 	for i, recording := range recordings {
@@ -196,8 +196,8 @@ func TestAdminRedetectCMWithLogo(t *testing.T) {
 	cmd.SetOut(&out)
 	require.NoError(t, cmd.ExecuteContext(t.Context()))
 	assert.Equal(t,
-		"2 recordings would be redetected by logo version 3 (1 from the materials, 1 by reading the recordings)\n"+
-			fmt.Sprintf("%s\t%s\tlogo v2\tmaterials\t今の形式の材料\n", base.Format(time.RFC3339), ids[0])+
-			fmt.Sprintf("%s\t%s\tlogo v2\tread\t古い形式の材料\n", base.Add(time.Hour).Format(time.RFC3339), ids[1]),
+		"2 recordings would be redetected by logo version 4 (1 from the materials, 1 by reading the recordings)\n"+
+			fmt.Sprintf("%s\t%s\tlogo v3\tmaterials\t今の形式の材料\n", base.Format(time.RFC3339), ids[0])+
+			fmt.Sprintf("%s\t%s\tlogo v3\tread\t古い形式の材料\n", base.Add(time.Hour).Format(time.RFC3339), ids[1]),
 		out.String())
 }

@@ -210,19 +210,19 @@ func TestLearnGivesUp(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		draw     func(c *canvas)
+		draw     func(c *canvas, frame int)
 		wantErr  error
 		wantWhy  error
 		wantSeen int
 	}{
 		{
 			name:    "ロゴがなければ、どの隅も諦める",
-			draw:    func(*canvas) {},
+			draw:    func(*canvas, int) {},
 			wantErr: logo.ErrNoLogo, wantWhy: logo.ErrWeakCorner, wantSeen: 4,
 		},
 		{
 			name: "ロゴの隣に、同じくらい強い動かない縁 (出し続けるテロップ) があれば、その隅を諦める",
-			draw: func(c *canvas) {
+			draw: func(c *canvas, _ int) {
 				c.drawLogo()
 				// ロゴと同じ形で同じ強さのものを、括らない距離だけ左に。
 				for i := range 3 {
@@ -233,6 +233,20 @@ func TestLearnGivesUp(t *testing.T) {
 			},
 			wantErr: logo.ErrNoLogo, wantWhy: logo.ErrSharedCorner, wantSeen: 4,
 		},
+		{
+			name: "ロゴの形のものが、隅を横切る帯 (番組の話題の帯) の端にあれば、その隅を諦める",
+			draw: func(c *canvas, frame int) {
+				// 帯の端のアイコン。帯の中の文字は変わるので、動かない縁はアイコンに集まる。
+				c.drawLogo()
+				// 帯の上と下の縁の線。アイコンの行を通って、画面の中央の側へ隅の外まで伸びる。
+				// 帯の出ないコマもあるので、アイコンより揃い方が弱く、強い縁にはならない。
+				if frame%2 == 0 {
+					c.fill(logo.Box{X: 400, Y: logoBox().Y + 2, W: logoBox().X - 400, H: 2})
+					c.fill(logo.Box{X: 400, Y: logoBox().Y + logoBox().H - 4, W: logoBox().X - 400, H: 2})
+				}
+			},
+			wantErr: logo.ErrNoLogo, wantWhy: logo.ErrBandCorner, wantSeen: 4,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -241,9 +255,9 @@ func TestLearnGivesUp(t *testing.T) {
 			p := logo.DefaultParams()
 			rng := newRNG(56)
 			frames := make([]*logo.Gray, 0, 120)
-			for range 120 {
+			for i := range 120 {
 				c := newCanvas(randomBlocks, rng)
-				tt.draw(c)
+				tt.draw(c, i)
 				frames = append(frames, c.img)
 			}
 			result, _, err := learn(t, frames, p)
