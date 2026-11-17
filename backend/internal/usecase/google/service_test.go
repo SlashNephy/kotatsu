@@ -179,12 +179,15 @@ func TestConnectDrive(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, connected)
 
-	// 接続し直せば、印は消える。
+	// 接続し直せば、印は消える。同じ部品の DriveTokens は、覚えた接続を待たずに読み直す。
 	_, err = f.complete(t, f.admin, f.authorize(t))
 	require.NoError(t, err)
 	drive, err = f.service.Drive(t.Context(), f.pool)
 	require.NoError(t, err)
 	assert.Nil(t, drive.RevokedAt)
+	connected, err = tokens.Connected(t.Context())
+	require.NoError(t, err)
+	assert.True(t, connected)
 
 	// 接続し直したら、前のリフレッシュトークンを取り消す。外すと、今のリフレッシュトークンを Google で取り消す。
 	assert.Len(t, f.fake.Revoked(), 1)

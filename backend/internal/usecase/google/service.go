@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 	"uuid"
@@ -99,6 +100,9 @@ type Service struct {
 	logger   *slog.Logger
 	// accountsURL、oauthURL、apiURL は、Google の認可の画面、トークンの API、Drive API のオリジン。
 	accountsURL, oauthURL, apiURL string
+	// tokensMu と tokens は、この部品が作った DriveTokens。接続を変えたら、手元で覚えた接続を捨てさせ、すぐに反映する。
+	tokensMu sync.Mutex
+	tokens   []*DriveTokens
 }
 
 // Options は NewService の設定。
@@ -132,7 +136,7 @@ func NewService(opts *Options) (*Service, error) {
 
 	return &Service{
 		clock: opts.Clock, recorder: opts.Recorder, appBox: appBox, driveBox: driveBox, http: opts.HTTPClient, logger: opts.Logger,
-		accountsURL: accountsURL, oauthURL: oauthURL, apiURL: apiURL,
+		accountsURL: accountsURL, oauthURL: oauthURL, apiURL: apiURL, tokensMu: sync.Mutex{}, tokens: []*DriveTokens{},
 	}, nil
 }
 
@@ -342,6 +346,7 @@ func (s *Service) DisconnectDrive(ctx context.Context, db Database, actor *audit
 	if err != nil {
 		return err
 	}
+	s.forgetConnections()
 	s.revoke(ctx, token)
 
 	return nil
@@ -398,6 +403,7 @@ func (s *Service) completeDrive(
 	if err != nil {
 		return err
 	}
+	s.forgetConnections()
 	// 接続し直したら、前のリフレッシュトークンは使わないので取り消す。
 	if previous != "" && previous != token.RefreshToken {
 		s.revoke(ctx, previous)
@@ -437,9 +443,19 @@ func (s *Service) deleteApp(ctx context.Context, db Database, actor *audit.Actor
 	if err != nil {
 		return err
 	}
+	s.forgetConnections()
 	s.revoke(ctx, token)
 
 	return nil
+}
+
+// forgetConnections は、この部品が作った DriveTokens に、覚えた接続を捨てさせる。ほかのプロセスは、connectionTTL のうちに気づく。
+func (s *Service) forgetConnections() {
+	s.tokensMu.Lock()
+	defer s.tokensMu.Unlock()
+	for _, tokens := range s.tokens {
+		tokens.forget()
+	}
 }
 
 // revoke は、トークンを Google で取り消す。失敗しても、ログに残すだけにする。

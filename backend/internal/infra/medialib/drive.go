@@ -214,8 +214,13 @@ func (d *Drive) roots(ctx context.Context) ([]*Entry, error) {
 		shared = append(shared, &Entry{Name: drive.Name, Path: drive.ID, Dir: true, Size: 0, ModifiedAt: drive.CreatedTime})
 	}
 	slices.SortStableFunc(shared, func(a, b *Entry) int { return strings.Compare(a.Name, b.Name) })
+	// マイドライブの根元の更新日時は、根元のフォルダの情報から引く。
+	root, err := d.api.Get(ctx, googledrive.MyDriveID)
+	if err != nil {
+		return nil, driveError(err)
+	}
 	entries := make([]*Entry, 0, 1+len(shared))
-	entries = append(entries, &Entry{Name: MyDriveName, Path: googledrive.MyDriveID, Dir: true, Size: 0, ModifiedAt: time.Time{}})
+	entries = append(entries, &Entry{Name: MyDriveName, Path: googledrive.MyDriveID, Dir: true, Size: 0, ModifiedAt: root.ModifiedTime})
 
 	return append(entries, shared...), nil
 }

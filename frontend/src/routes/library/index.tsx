@@ -41,13 +41,6 @@ export const Route = createFileRoute('/library/')({
   component: LibraryPage,
 });
 
-// formatModified は、更新日時を出す。日時のないもの (Google Drive のマイドライブの根元) は空にする。
-function formatModified(modifiedAt: string): string {
-  const date = new Date(modifiedAt);
-
-  return date.getTime() > 0 ? modifiedFormat.format(date) : '';
-}
-
 const modifiedFormat = zonedFormat({
   year: 'numeric',
   month: 'numeric',
@@ -293,7 +286,7 @@ function Directory({ library, path }: { library: string; path: string }) {
                     {entry.directory ? '' : formatBytes(Number(entry.size))}
                   </Table.Td>
                   <Table.Td visibleFrom="sm" style={{ whiteSpace: 'nowrap' }}>
-                    {formatModified(entry.modifiedAt)}
+                    {modifiedFormat.format(new Date(entry.modifiedAt))}
                   </Table.Td>
                 </Table.Tr>
               ))}

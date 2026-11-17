@@ -43,7 +43,12 @@ var _ googledrive.TokenSource = new(DriveTokens)
 
 // DriveTokens は、DB db の接続から、Google Drive のアクセストークンを作る DriveTokens を返す。
 func (s *Service) DriveTokens(db sqlc.DBTX) *DriveTokens {
-	return &DriveTokens{service: s, db: db, mu: sync.Mutex{}, row: nil, checkedAt: time.Time{}, token: nil, tokenFor: nil, expiry: time.Time{}}
+	tokens := &DriveTokens{service: s, db: db, mu: sync.Mutex{}, row: nil, checkedAt: time.Time{}, token: nil, tokenFor: nil, expiry: time.Time{}}
+	s.tokensMu.Lock()
+	defer s.tokensMu.Unlock()
+	s.tokens = append(s.tokens, tokens)
+
+	return tokens
 }
 
 // DriveClient は、接続した Google Drive を読む Drive API のクライアントを返す。
@@ -115,6 +120,13 @@ func (t *DriveTokens) Invalidate() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.token, t.tokenFor = nil, nil
+}
+
+// forget は、覚えた接続を捨て、次に DB から読み直させる。
+func (t *DriveTokens) forget() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.checkedAt = time.Time{}
 }
 
 // connection は、接続を返す。少し前に読んだものがあれば、DB を読まずに返す。接続していなければ nil を返す。t.mu を持って呼ぶ。

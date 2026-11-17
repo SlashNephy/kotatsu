@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/fileimport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
+	"github.com/SlashNephy/kotatsu/internal/usecase/google"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
@@ -84,7 +85,7 @@ func libraryReadError(err error) error {
 	switch {
 	case errors.Is(err, medialib.ErrInvalidPath):
 		return NewError(CodeBadUserInput, "the path is outside the library")
-	case errors.Is(err, medialib.ErrNotFound), errors.Is(err, filelib.ErrNotAFile):
+	case errors.Is(err, medialib.ErrNotFound), errors.Is(err, filelib.ErrNotAFile), errors.Is(err, google.ErrNotConnected):
 		return NewError(CodeNotFound, "file not found")
 	case errors.Is(err, fileimport.ErrBDAV):
 		return NewError(CodeBadUserInput, "Blu-ray .m2ts files with 192-byte packets are not supported")

@@ -106,7 +106,14 @@ func New(clientID, clientSecret string) *Server {
 		ClientID: clientID, ClientSecret: clientSecret, RedirectURIs: []string{}, Account: "admin@example.com",
 		AccessTokenTTL: time.Hour, OmitRefreshToken: false, CutAfter: 1024,
 		mu: sync.Mutex{}, codes: map[string]*grant{}, refresh: map[string]bool{}, access: map[string]time.Time{},
-		files: map[string]*File{}, drives: []*Drive{}, faults: []Fault{}, requests: []string{}, ranges: []string{},
+		files: map[string]*File{
+			// マイドライブの根元は、本物と同じく、別名 root で引けるフォルダにする。
+			MyDriveID: {
+				ID: MyDriveID, Name: "My Drive", MimeType: FolderMimeType, Parent: "", Content: nil,
+				ModifiedTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Trashed: false,
+			},
+		},
+		drives: []*Drive{}, faults: []Fault{}, requests: []string{}, ranges: []string{},
 		refreshN: 0, revoked: []string{}, now: time.Now,
 	}
 }

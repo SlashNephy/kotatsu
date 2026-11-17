@@ -263,6 +263,7 @@ const playQuery = graphql`
       hlsUrl
       library {
         name
+        kind
       }
       jikkyoCommentsUrl
       thumbnailUrl
@@ -1194,7 +1195,9 @@ function Player({
             <WatchDescription text={program.description} extended={program.extended} />
           )}
           <Text size="sm" c="dimmed">
-            {path} · {formatBytes(Number(file.size))}
+            {/* Google Drive のパスは ID をつないだものなので、名前を出す (#1902)。 */}
+            {file.library.kind === 'GOOGLE_DRIVE' ? file.name : path} ·{' '}
+            {formatBytes(Number(file.size))}
           </Text>
           {/* 端末に保存 (設計書 7.8)。録画と同じく、配信の TS をそのまま書く。端末での再生は、録り始めと録り終わりの放送時刻で
               時計と長さを出すので、TOT から読めたファイルだけで出す。書いている途中か、索引を作り終えていないファイルは、長さが決まらないので出さない。 */}
