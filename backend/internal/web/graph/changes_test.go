@@ -108,8 +108,8 @@ func TestDataChanged(t *testing.T) {
 
 	f := newFixtureWithChanges(t)
 	events := f.as(t, "viewer", domain.RoleViewer).subscribe(t, `subscription { dataChanged { channel version } }`)
-	initial := make([]string, 0, 7)
-	for range 8 {
+	initial := make([]string, 0, 9)
+	for range 9 {
 		initial = append(initial, string(next(t, events)))
 	}
 	assert.Equal(t, []string{
@@ -121,6 +121,7 @@ func TestDataChanged(t *testing.T) {
 		`{"dataChanged":{"channel":"TUNERS","version":0}}`,
 		`{"dataChanged":{"channel":"RECORDINGS","version":0}}`,
 		`{"dataChanged":{"channel":"ANIME_FOLLOWING","version":0}}`,
+		`{"dataChanged":{"channel":"DRAMA_WATCHLIST","version":0}}`,
 	}, initial)
 
 	// 別の tenban の変更は、DB の変更の通知だけで届く。ここでは、この tenban を通さずに DB で通知する。
@@ -210,7 +211,7 @@ func TestDataChangedAdmin(t *testing.T) {
 
 // dataChannelNames は、購読を始めたときに届くデータの種類の名前を、届く順に返す。admin なら ADMIN も含む。
 func dataChannelNames(admin bool) []string {
-	names := []string{"EPG", "RULES", "RESERVATIONS", "ASSIGNMENTS", "RESERVATION_CONFLICTS", "TUNERS", "RECORDINGS", "ANIME_FOLLOWING"}
+	names := []string{"EPG", "RULES", "RESERVATIONS", "ASSIGNMENTS", "RESERVATION_CONFLICTS", "TUNERS", "RECORDINGS", "ANIME_FOLLOWING", "DRAMA_WATCHLIST"}
 	if admin {
 		names = append(names, "ADMIN")
 	}
@@ -306,16 +307,16 @@ func TestViewerEvents(t *testing.T) {
 	f := newFixtureWithChanges(t)
 	events := f.subscribe(t, `subscription { viewerEvents { dataChange { channel version } viewerSettingsVersion unreadNotificationCount } }`)
 	// 始めに、すべての今の値が届く。3 つの購読から届くので、順は決まらない。
-	initial := make([]string, 0, 9)
-	for range 10 {
+	initial := make([]string, 0, 11)
+	for range 11 {
 		initial = append(initial, string(next(t, events)))
 	}
 	event := func(dataChange, settings, unread string) string {
 		return `{"viewerEvents":{"dataChange":` + dataChange + `,"viewerSettingsVersion":` + settings + `,"unreadNotificationCount":` + unread + `}}`
 	}
-	want := make([]string, 0, 9)
+	want := make([]string, 0, 11)
 	want = append(want, event("null", "0", "null"), event("null", "null", "0"))
-	for _, channel := range []string{"EPG", "RULES", "RESERVATIONS", "ASSIGNMENTS", "RESERVATION_CONFLICTS", "TUNERS", "RECORDINGS", "ANIME_FOLLOWING"} {
+	for _, channel := range []string{"EPG", "RULES", "RESERVATIONS", "ASSIGNMENTS", "RESERVATION_CONFLICTS", "TUNERS", "RECORDINGS", "ANIME_FOLLOWING", "DRAMA_WATCHLIST"} {
 		want = append(want, event(`{"channel":"`+channel+`","version":0}`, "null", "null"))
 	}
 	assert.ElementsMatch(t, want, initial)
@@ -351,7 +352,7 @@ func TestViewerEventsStreamsDraining(t *testing.T) {
 	f := newFixtureWith(t, &graph.Options{Drain: drain}, true)
 	events := f.subscribe(t, `subscription { viewerEvents { viewerSettingsVersion unreadNotificationCount streamsDraining } }`)
 	// 始めに、すべての今の値が届く。
-	for range 10 {
+	for range 11 {
 		next(t, events)
 	}
 

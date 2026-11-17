@@ -13,7 +13,8 @@ describe('animeRecordCallbackError', () => {
     ['drama_record_expired', 'expired'],
     ['drama_record_mismatch', 'mismatch'],
     ['drama_record_denied', 'denied'],
-    ['drama_record_record_failed', 'failed'],
+    ['drama_record_unavailable', 'unavailable'],
+    ['drama_record_failed', 'failed'],
     ['something_else', 'failed'],
     ['<script>', 'failed'],
   ])('maps %s to %s', (reason, want) => {

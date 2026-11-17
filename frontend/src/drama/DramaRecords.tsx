@@ -175,21 +175,25 @@ export function DramaRecords({
                 <Title order={4} size="h5">
                   {destinationName}
                 </Title>
-                {connection != null && !connection.reauthorizationRequired ? (
-                  <Button
-                    variant="default"
-                    size="xs"
-                    color="red"
-                    disabled={running}
-                    onClick={disconnect}
-                  >
-                    {t('dramaRecords.disconnect')}
-                  </Button>
-                ) : (
-                  <Button size="xs" disabled={running || !status.available} onClick={connect}>
-                    {t('dramaRecords.connect')}
-                  </Button>
-                )}
+                <Group gap="xs">
+                  {/* 連携し直す必要があるときは、連携し直すことも、外すこともできる。 */}
+                  {(connection == null || connection.reauthorizationRequired) && (
+                    <Button size="xs" disabled={running || !status.available} onClick={connect}>
+                      {t('dramaRecords.connect')}
+                    </Button>
+                  )}
+                  {connection != null && (
+                    <Button
+                      variant="default"
+                      size="xs"
+                      color="red"
+                      disabled={running}
+                      onClick={disconnect}
+                    >
+                      {t('dramaRecords.disconnect')}
+                    </Button>
+                  )}
+                </Group>
               </Group>
               {connection == null ? (
                 <Text size="sm" c="dimmed">

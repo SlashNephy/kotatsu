@@ -80,6 +80,14 @@ const genreCondition = (genre: GenreInput) => ({ lv1: genre.lv1, lv2: genre.lv2 
 const servicesOf = (ids: readonly string[]) =>
   ids.flatMap((id) => services.filter((item) => item.id === id));
 
+// demoDramaRecordSettings は、デモの、見たドラマの記録の設定 (#1649)。デモは TMDb との連携を使わないので、無効にする。
+function demoDramaRecordSettings() {
+  return {
+    enabled: false,
+    destinations: [{ destination: 'SIMKL', available: false, connection: null }],
+  };
+}
+
 // createRootValue は、デモの GraphQL の rootValue を作る。Query、Mutation、Subscription のフィールドを 1 つにまとめて持つ。
 // 状態はメモリ上だけに持ち、画面を読み直すと元に戻る。
 export function createRootValue(
@@ -457,6 +465,17 @@ export function createRootValue(
     animeLibrary: () => demoAnimeLibrary(),
     // デモは TMDb との連携を使わないので、ドラマの視聴管理の画面も無効にする (#1652)。
     dramaLibrary: () => ({ enabled: false, works: [] }),
+    // デモは Simkl に問い合わせないので、見たドラマの記録も無効にする (#1649)。
+    dramaRecordApps: () => [
+      {
+        destination: 'SIMKL',
+        clientId: null,
+        configured: false,
+        redirectUri: `${window.location.origin}/internal/auth/simkl/callback`,
+        updatedAt: null,
+      },
+    ],
+    dramaRecordSettings: () => demoDramaRecordSettings(),
     // デモは外部へ問い合わせないので、連携していないものとして出さない。
     animeFollowingViewings: () => ({
       enabled: false,
@@ -533,6 +552,9 @@ export function createRootValue(
     // デモでは、見たアニメを記録しない (#927)。プレイヤーの報告は受け取って捨て、記録の対象でないと答える。
     reportAnimePlayback: () => false,
     updateAnimeRecordSettings: () => demoAnimeRecordSettings(),
+    // デモでは Simkl と連携しない (#1649)。ウォッチリストの取り込みも頼まれても入れない。
+    importDramaWatchlist: () => false,
+    disconnectDramaRecord: () => demoDramaRecordSettings(),
     setRecordingTags: ({ id, tags }: { id: string; tags: string[] }) =>
       recordings.setTags(id, tags),
     setRecordingProtected: ({ id, protected: value }: { id: string; protected: boolean }) =>

@@ -2,6 +2,7 @@ package dramarecord_test
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -152,4 +153,18 @@ func TestDisconnect(t *testing.T) {
 
 	err = f.service.Disconnect(t.Context(), f.pool, audit.User(f.alice.UserID), f.alice.UserID, dramarecord.DestinationSimkl)
 	require.ErrorIs(t, err, dramarecord.ErrNotConnected)
+}
+
+// TestLogSecrets は、ログの報告から伏せる値として、アプリのシークレットと、連携のアクセストークンと更新のトークンを返すことを確かめる (#1521)。
+func TestLogSecrets(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	f.connect(t, f.alice)
+	secrets, err := f.service.LogSecrets(t.Context(), f.pool)
+	require.NoError(t, err)
+	require.Len(t, secrets, 3)
+	assert.Equal(t, clientSecret, secrets[0])
+	assert.True(t, strings.HasPrefix(secrets[1], "simkl_at_"), "the access token")
+	assert.True(t, strings.HasPrefix(secrets[2], "simkl_rt_"), "the refresh token")
 }
