@@ -200,7 +200,15 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	// ライブラリのファイルの代表画像とプレビュー画像 (設計書 5.8)。ライブラリとデータディレクトリをマウントした nekonote で作る。
 	// 索引は tenban が作るので、ここでは読むだけにする。
 	libraryParts := newLibraryParts(deps, logger, false)
-	river.AddWorker(workers, filelib.NewImagesWorker(libraryParts.libraries, libraryParts.indexer, !deps.Config.Thumbnail.DisablePreview))
+	river.AddWorker(workers, filelib.NewImagesWorker(libraryParts.libraries, libraryParts.indexer, func(ctx context.Context) (bool, error) {
+		// 録画の画像と同じく、管理者が画面で選んだプレビュー画像の設定に従う。
+		system, err := settings.Load(ctx, poolOf(deps))
+		if err != nil {
+			return false, err
+		}
+
+		return system.ThumbnailPreviewsEnabled, nil
+	}))
 	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。
 	// 番組を、しょぼいカレンダーで作品と話に結びつけ、上映会のコメント (NICOLOG) とも結びつける。見たアニメは、ユーザーが連携した
 	// Annict と AniList に記録する (#927)。

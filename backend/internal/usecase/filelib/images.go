@@ -68,21 +68,24 @@ func (ImagesArgs) InsertOpts() river.InsertOpts {
 type ImagesWorker struct {
 	river.WorkerDefaults[ImagesArgs]
 
-	libraries    *medialib.Set
-	indexer      *Indexer
-	source       *Source
-	preview      bool
+	libraries *medialib.Set
+	indexer   *Indexer
+	source    *Source
+	// preview は、シークバー用のプレビュー画像も作るかを、ジョブごとに読む。管理者が画面で変えたら、次のジョブから従う。
+	preview      func(ctx context.Context) (bool, error)
 	newExtractor func() (thumbnail.Extractor, error)
 }
 
 var _ river.Worker[ImagesArgs] = new(ImagesWorker)
 
-// NewImagesWorker は ImagesWorker を返す。indexer は、索引を作らない (読むだけの) もの。preview が false なら、代表画像だけを作る。
-func NewImagesWorker(libraries *medialib.Set, indexer *Indexer, preview bool) *ImagesWorker {
+// NewImagesWorker は ImagesWorker を返す。indexer は、索引を作らない (読むだけの) もの。preview が false を返せば、代表画像だけを作る。
+func NewImagesWorker(libraries *medialib.Set, indexer *Indexer, preview func(ctx context.Context) (bool, error)) *ImagesWorker {
 	return newImagesWorker(libraries, indexer, preview, func() (thumbnail.Extractor, error) { return thumbnail.NewFFmpeg() })
 }
 
-func newImagesWorker(libraries *medialib.Set, indexer *Indexer, preview bool, newExtractor func() (thumbnail.Extractor, error)) *ImagesWorker {
+func newImagesWorker(
+	libraries *medialib.Set, indexer *Indexer, preview func(ctx context.Context) (bool, error), newExtractor func() (thumbnail.Extractor, error),
+) *ImagesWorker {
 	return &ImagesWorker{
 		WorkerDefaults: river.WorkerDefaults[ImagesArgs]{}, libraries: libraries, indexer: indexer,
 		source: NewSource(libraries, indexer), preview: preview, newExtractor: newExtractor,
@@ -127,7 +130,11 @@ func (w *ImagesWorker) Work(ctx context.Context, job *river.Job[ImagesArgs]) err
 		Path: ref.Library + "/" + ref.Path, Start: 0, Index: file.Index.Entries,
 		Open: func() (io.ReadSeekCloser, error) { return library.Open(ctx, ref.Path) },
 	}}
-	opts := &thumbnail.Options{Preview: w.preview, Interval: 0, Latest: false, Avoid: nil}
+	preview, err := w.preview(ctx)
+	if err != nil {
+		return err
+	}
+	opts := &thumbnail.Options{Preview: preview, Interval: 0, Latest: false, Avoid: nil}
 	result, err := thumbnail.NewGenerator(extractor, opts).Generate(ctx, segments)
 	if errors.Is(err, thumbnail.ErrNoKeyframe) {
 		return river.JobCancel(err)
