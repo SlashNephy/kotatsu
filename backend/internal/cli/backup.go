@@ -93,37 +93,24 @@ func newRestoreCommand(opts *Options, connect func(ctx context.Context) (*config
 			}
 			defer closePool(pool)
 
-			// 秘密キーのファイルは、戻し終えてから書く。途中で失敗したときに、ファイルだけが残ってやり直しを妨げないようにする。
-			// 書けないことが戻した後に分からないよう、先に、まだないことを確かめる。
-			if secretKeyOut != "" {
-				if _, err := os.Lstat(secretKeyOut); err == nil {
-					return fmt.Errorf("the secret key file %s already exists", secretKeyOut)
-				}
+			keyOut, err := createSecretKeyFile(secretKeyOut)
+			if err != nil {
+				return err
 			}
+			defer keyOut.discard()
 			f, err := os.Open(input)
 			if err != nil {
 				return fmt.Errorf("failed to open the backup: %w", err)
 			}
 			defer f.Close()
-			var restoredKey string
 			manifest, err := backup.Restore(cmd.Context(), &backup.RestoreOptions{
-				DB: pool, Store: storeOf(cfg), Logger: opts.Logger,
-				CheckSecretKey: func(secretKey string) error {
-					if secretKeyOut == "" && cfg.Auth.SecretKey.Value() != secretKey {
-						return errSecretKeyMismatch
-					}
-					restoredKey = secretKey
-
-					return nil
-				},
+				DB: pool, Store: storeOf(cfg), Logger: opts.Logger, CheckSecretKey: keyOut.check(cfg.Auth.SecretKey.Value()),
 			}, f, identities)
 			if err != nil {
 				return err
 			}
-			if secretKeyOut != "" {
-				if err := writeSecretKeyFile(secretKeyOut, restoredKey); err != nil {
-					return err
-				}
+			if err := keyOut.commit(); err != nil {
+				return err
 			}
 			opts.Logger.InfoContext(cmd.Context(), "backup restored",
 				slog.String("path", input), slog.Time("created_at", manifest.CreatedAt), slog.String("kotatsu_version", manifest.KotatsuVersion),
@@ -222,20 +209,64 @@ func writeBackupFile(ctx context.Context, path string, write func(w io.Writer) (
 	return result, nil
 }
 
-// writeSecretKeyFile は、アプリの秘密キーを、持ち主だけが読める新しいファイルに書く。既にあれば上書きしない。
-func writeSecretKeyFile(path, secretKey string) error {
+// secretKeyFile は、kotatsu admin restore --secret-key-out で、バックアップのアプリの秘密キーを書くファイル。
+// 書けないことが戻した後に分からないよう、戻す前に空で作っておき、戻し終えてから書く。
+// 戻せなかったら消し、ファイルだけが残って同じコマンドでやり直せなくなるのを防ぐ。
+type secretKeyFile struct {
+	path string
+	f    *os.File
+	key  string
+	done bool
+}
+
+// createSecretKeyFile は、path に、持ち主だけが読めるファイルを作る。既にあれば作らない。path が空なら、ファイルを作らない。
+func createSecretKeyFile(path string) (*secretKeyFile, error) {
+	out := &secretKeyFile{path: path, f: nil, key: "", done: false}
+	if path == "" {
+		return out, nil
+	}
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
-		return fmt.Errorf("failed to create the secret key file: %w", err)
+		return nil, fmt.Errorf("failed to create the secret key file: %w", err)
 	}
-	if _, err := f.WriteString(secretKey); err != nil {
-		_ = f.Close()
+	out.f = f
 
+	return out, nil
+}
+
+// check は、バックアップの秘密キーを確かめる関数を返す。ファイルに書き出さないなら、設定の秘密キー configured と同じでなければ戻さない。
+func (s *secretKeyFile) check(configured string) func(string) error {
+	return func(key string) error {
+		if s.f == nil && key != configured {
+			return errSecretKeyMismatch
+		}
+		s.key = key
+
+		return nil
+	}
+}
+
+// commit は、戻し終えた後に、秘密キーをファイルに書く。
+func (s *secretKeyFile) commit() error {
+	s.done = true
+	if s.f == nil {
+		return nil
+	}
+	if _, err := s.f.WriteString(s.key); err != nil {
 		return fmt.Errorf("failed to write the secret key file: %w", err)
 	}
-	if err := f.Close(); err != nil {
+	if err := s.f.Close(); err != nil {
 		return fmt.Errorf("failed to write the secret key file: %w", err)
 	}
 
 	return nil
+}
+
+// discard は、戻せなかったときに、作っておいたファイルを消す。
+func (s *secretKeyFile) discard() {
+	if s.f == nil || s.done {
+		return
+	}
+	_ = s.f.Close()
+	_ = os.Remove(s.path)
 }
