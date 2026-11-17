@@ -68,6 +68,8 @@ jobs:
         with:
           category: /language:${{ matrix.language }}
           output: sarif
+          # 次の段で Code scanning のアラートを数えるので、送った SARIF の処理が終わるまで待つ (既定の値)。
+          wait-for-processing: true
           upload: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'always' || 'never' }}
       # アップロードできたときは、Code scanning で開いているアラートを数える。dismiss したものは数えない。
       # アップロードしないとき (フォークからの PR) と、アップロードに失敗したときは、SARIF の結果を数える。

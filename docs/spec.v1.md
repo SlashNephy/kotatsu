@@ -2752,7 +2752,7 @@ Content Security Policyは厳しく設定します。
 - 画面（`frontend/`）の依存は、pnpm auditで見ます（#1590）。開発用の依存も、ビルドと開発で動くので含めます。Dependabot alertsとほとんど重なりますが、Code scanningでほかのスキャンとまとめて見られるようにします。pnpm auditはSARIFを出さないので、JSONから直して送ります（`.github/scan/pnpm-audit-sarif.jq`）。勧告ごとに規則を作り、当たった版ごとに、`pnpm-lock.yaml`でその版を書いた行を位置にします。
 - Helm Chartから生成したマニフェスト（`deploy/kubernetes/`の`all.yaml`と`split.yaml`）の設定の誤り（securityContext、リソースの指定、プローブなど）は、kube-linterで見ます（#1590）。kube-linterも、Trivyと同じく`mise.scan.toml`で版とチェックサムまで固定します。
 - スキャンの設定や、依存とマニフェストを変えたPRでも動かし、その時点の結果を見ます。
-- 見つかったら、その道具を動かすジョブを失敗にします（#1918）。結果はそれまでどおりCode scanningに送り、失敗にする段はアップロードの後に置きます。どのジョブも、その道具が走るPRでだけ動き、必須のチェック（`ci`と`image (...)`）にも入れないので、関係のないPRやRenovateの自動マージ（GitHubのauto-merge）は止めません。規則を外したり、コメントで抑えたりして通すことはしません。CodeQLの誤検知は、Code scanningでdismissすれば数えません。ほかの道具は終了コードで落とすので、dismissしても落ちます。誤検知はコードで直します。
+- 見つかったら、その道具を動かすジョブを失敗にします（#1918）。結果はそれまでどおりCode scanningに送り、失敗にする段はアップロードの後に置きます。どのジョブも必須のチェック（`ci`と`image (...)`）に入れないので、関係のないPRやRenovateの自動マージ（GitHubのauto-merge）は止めません。規則を外したり、コメントで抑えたりして通すことはしません。CodeQLの誤検知は、Code scanningでdismissすれば数えません。ほかの道具は終了コードで落とすので、dismissしても落ちます。誤検知はコードで直します。
 
 | 道具 | 失敗にする条件 |
 |---|---|
