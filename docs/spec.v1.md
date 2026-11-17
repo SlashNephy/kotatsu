@@ -2989,7 +2989,7 @@ Kotatsuは、DBとキャプチャの画像を1つのファイルに書き出し�
 | `programs`、`epg_changes`、`change_versions` | 番組表は、チューナーサーバーから取り直せます。DB全体の3割近くを占めます（開発用のDBで516 MBのうち139 MB）。番組表の変更の記録と、変更の通知の版数は、番組表と組で外し、戻した後は1から数え直します。 |
 | `anime_match_cursor`、`drama_match_cursor` | 照合が読み終えた`epg_changes`の版数を持つので、`epg_changes`と組で外します。残すと、版数が1から数え直すので、照合が変更を読み飛ばします。行がなければ、照合は今の版数から読み始め、それまでの番組は定期的な照合し直しが受け持ちます（[3.8](#38-アニメの番組と作品の結びつき)、[3.9](#39-ドラマの番組と作品の結びつき)）。 |
 | `sessions` | 戻すと、古いログインが生き返るからです。戻したら、全員がログインし直します。 |
-| `players`、`player_commands`、`oidc_logins`、`anime_record_authorizations` | `sessions`を外部キーで指す途中の状態（再生中の端末、ログインの手続き、連携の認可）なので、`sessions`と組で外します。`web_push_subscriptions`は残し、`session_id`だけを空にして書き出します。 |
+| `players`、`player_commands`、`oidc_logins`、`anime_record_authorizations`、`google_authorizations` | `sessions`を外部キーで指す途中の状態（再生中の端末、ログインの手続き、連携の認可）なので、`sessions`と組で外します。`web_push_subscriptions`は残し、`session_id`だけを空にして書き出します。 |
 | Riverの表（`river_`で始まる表）、`job_progress` | ジョブは戻しません。`job_progress`はRiverのジョブのIDを持つので、Riverの表と組で外します。 |
 | `goose_db_version`、`goose_lock` | スキーマの版は、戻すときに`kotatsu migrate`が当てます。 |
 
