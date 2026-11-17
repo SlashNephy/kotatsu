@@ -163,7 +163,7 @@ describe('記録の設定を、変えたらすぐ保存する (#1740)', () => {
 
     await act(async () =>
       fireEvent.click(
-        await screen.findByRole('switch', { name: /^この端末で見たアニメを記録する/ }),
+        await screen.findByRole('switch', { name: /^この端末で見たアニメとドラマを記録する/ }),
       ),
     );
 
