@@ -88,7 +88,9 @@ v2026.11.4からの変更です。
 | 画像、実況のコメント、キャプチャ | `/media/*` | `/internal/media/*` |
 
 - OIDCでログインしているときは、IdPに登録したリダイレクトURIを、`/auth/oidc/callback`から`/internal/auth/oidc/callback`に直してください。直すまでは、OIDCでログインできません。設定の`auth.oidc.redirect_url`（`KOTATSU_AUTH_OIDC_REDIRECT_URL`）を書いているときは、その値も直してください。
-- AnnictとAniListとの連携を使っているときは、それぞれのアプリに登録したリダイレクトURIを、`/auth/anime-records/<記録先>/callback`から`/internal/auth/anime-records/<記録先>/callback`に直してください。直すまでは、連携をつなぎ直せません。つないである連携は、そのまま使えます。
+- AnnictとAniListとの連携を使っているときは、それぞれのアプリに登録したリダイレクトURIを、次のとおりに直してください（#1906）。どちらも、管理者の画面の「設定」→「連携」の「Annict、AniListへの記録」に出ます。直すまでは、連携をつなぎ直せません。つないである連携は、そのまま使えます。
+  - Annict：`/auth/anime-records/annict/callback`から`/internal/auth/annict/callback`へ。Annictのアプリの一覧（`https://annict.com/oauth/applications`）で、登録したアプリのリダイレクトURIを書き換えます。
+  - AniList：`/auth/anime-records/anilist/callback`から`/internal/auth/anilist/callback`へ。AniListの開発者の設定（`https://anilist.co/settings/developer`）で、登録したクライアントのRedirect URLを書き換えます。
 - リバースプロキシで、パスごとに転送先や設定を分けているときは（実況のWebSocketを通す設定など）、`/internal`の下に合わせてください。
 - 更新した直後は、ブラウザに残った前の版の画面が、古いパスを呼んで失敗することがあります。画面を読み直してください。
 
