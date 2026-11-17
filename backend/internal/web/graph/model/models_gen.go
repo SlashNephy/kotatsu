@@ -1107,7 +1107,10 @@ type LibraryEntry struct {
 // ライブラリの、再生できるファイル。
 type LibraryFile struct {
 	// ライブラリの名前、パス、大きさ、更新日時から作った ID。ファイルを書き換えると変わる。
-	ID      string   `json:"id"`
+	ID string `json:"id"`
+	// ファイルの ID (ライブラリの名前、パス、大きさ、更新日時から作った 32 桁の 16 進数)。id と違って短く、パスを含まないので、
+	// 端末に保存するときの名前に使う (設計書 7.8)。ファイルを書き換えると変わる。
+	FileID  string   `json:"fileId"`
 	Library *Library `json:"library"`
 	// ライブラリの中の / 区切りの相対パス。
 	Path       string    `json:"path"`

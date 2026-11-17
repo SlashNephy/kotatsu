@@ -25,7 +25,7 @@ import (
 const (
 	librariesQuery         = `{ libraries { name kind } }`
 	libraryDirectoryQuery  = `query($library: String!, $path: String!) { libraryDirectory(library: $library, path: $path) { path library { name } entries { name path directory size playable } } }`
-	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl thumbnailUrl previewUrl cmSections { startSeconds endSeconds } autoCaptions { startSeconds endSeconds text } autoCaptionsStatus { state model count } broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
+	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id fileId name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl thumbnailUrl previewUrl cmSections { startSeconds endSeconds } autoCaptions { startSeconds endSeconds text } autoCaptionsStatus { state model count } broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
 	generateLibraryCaps    = `mutation($id: ID!) { generateLibraryCaptions(id: $id) { id autoCaptionsStatus { state } } }`
 	saveLibraryPosition    = `mutation($id: ID!, $positionMs: Int64!) { saveLibraryWatchPosition(id: $id, positionMs: $positionMs) { id watchPositionMs } }`
 	libraryTestFileContent = "../../../testdata/ts/test.ts"
@@ -42,6 +42,7 @@ const (
 type libraryFileResult struct {
 	LibraryFile struct {
 		ID                string  `json:"id"`
+		FileID            string  `json:"fileId"`
 		Name              string  `json:"name"`
 		Size              int64   `json:"size"`
 		VideoFormat       string  `json:"videoFormat"`
@@ -236,6 +237,7 @@ func TestLibraryFile(t *testing.T) {
 	require.NoError(t, err)
 	fileID := filelib.FileID(filelib.Ref{Library: animeLibrary, Path: episodePath}, info.Size(), info.ModTime())
 	assert.Equal(t, graph.GlobalID("LibraryFile", fileID+"."+encoded), file.LibraryFile.ID)
+	assert.Equal(t, fileID, file.LibraryFile.FileID, "端末に保存するときの名前に使う、パスを含まない ID")
 	assert.Equal(t, "ep1.ts", file.LibraryFile.Name)
 	assert.Equal(t, "HD", file.LibraryFile.VideoFormat)
 	assert.Equal(t, "/internal/streams/library/"+encoded, file.LibraryFile.StreamURL)

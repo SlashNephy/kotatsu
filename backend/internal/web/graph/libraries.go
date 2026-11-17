@@ -181,7 +181,7 @@ func (r *Resolver) openLibraryFile(ctx context.Context, ref filelib.Ref) (*model
 
 	return &model.LibraryFile{
 		Broadcast: broadcast, Audios: audios, Quality: quality, ThumbnailURL: thumbnailURL, PreviewURL: previewURL, CMSections: cmSections, AutoCaptions: captions, AutoCaptionsStatus: captionsStatus, JikkyoCommentsURL: libraryMediaPrefix + encoded + "/" + jikkyoapi.CommentsFileName,
-		ID: GlobalID(libraryFileType, file.ID()+libraryFileIDSeparator+encoded), Library: toLibrary(file.Library), Path: ref.Path, Name: file.Entry.Name,
+		ID: GlobalID(libraryFileType, file.ID()+libraryFileIDSeparator+encoded), FileID: file.ID(), Library: toLibrary(file.Library), Path: ref.Path, Name: file.Entry.Name,
 		Size: file.Entry.Size, ModifiedAt: file.Entry.ModifiedAt, VideoFormat: libraryVideoFormat(video), Index: index,
 		WatchPositionMs: watched, StreamURL: libraryStreamPrefix + encoded, HlsURL: libraryStreamPrefix + encoded,
 	}, nil

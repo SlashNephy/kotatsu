@@ -684,6 +684,7 @@ type ComplexityRoot struct {
 		AutoCaptionsStatus func(childComplexity int) int
 		Broadcast          func(childComplexity int) int
 		CMSections         func(childComplexity int) int
+		FileID             func(childComplexity int) int
 		HlsURL             func(childComplexity int) int
 		ID                 func(childComplexity int) int
 		Index              func(childComplexity int) int
@@ -4354,6 +4355,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LibraryFile.CMSections(childComplexity), true
+	case "LibraryFile.fileId":
+		if e.ComplexityRoot.LibraryFile.FileID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.FileID(childComplexity), true
 	case "LibraryFile.hlsUrl":
 		if e.ComplexityRoot.LibraryFile.HlsURL == nil {
 			break
@@ -11729,6 +11736,11 @@ type LibraryFileIndex {
 type LibraryFile {
   "ライブラリの名前、パス、大きさ、更新日時から作った ID。ファイルを書き換えると変わる。"
   id: ID!
+  """
+  ファイルの ID (ライブラリの名前、パス、大きさ、更新日時から作った 32 桁の 16 進数)。id と違って短く、パスを含まないので、
+  端末に保存するときの名前に使う (設計書 7.8)。ファイルを書き換えると変わる。
+  """
+  fileId: String!
   library: Library!
   "ライブラリの中の / 区切りの相対パス。"
   path: String!
@@ -15969,6 +15981,8 @@ func (ec *executionContext) childFields_LibraryFile(ctx context.Context, field g
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_LibraryFile_id(ctx, field)
+	case "fileId":
+		return ec.fieldContext_LibraryFile_fileId(ctx, field)
 	case "library":
 		return ec.fieldContext_LibraryFile_library(ctx, field)
 	case "path":
@@ -29017,6 +29031,29 @@ func (ec *executionContext) _LibraryFile_id(ctx context.Context, field graphql.C
 }
 func (ec *executionContext) fieldContext_LibraryFile_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "ID")
+}
+
+func (ec *executionContext) _LibraryFile_fileId(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_fileId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FileID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_fileId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "String")
 }
 
 func (ec *executionContext) _LibraryFile_library(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
@@ -59554,6 +59591,11 @@ func (ec *executionContext) _LibraryFile(ctx context.Context, sel ast.SelectionS
 			out.Values[i] = graphql.MarshalString("LibraryFile")
 		case "id":
 			out.Values[i] = ec._LibraryFile_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fileId":
+			out.Values[i] = ec._LibraryFile_fileId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

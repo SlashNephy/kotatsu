@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d560fe95f27b82c4e1580c0bdc0e30f6>>
+ * @generated SignedSource<<36cebedbfede510563deb9f86ffcd120>>
  * @lightSyntaxTransform
  */
 
@@ -51,6 +51,7 @@ export type playLibraryFileQuery$data = {
         readonly startAt: string | null | undefined;
       } | null | undefined;
       readonly recordedFrom: string | null | undefined;
+      readonly recordedUntil: string | null | undefined;
       readonly service: {
         readonly logoUrl: string | null | undefined;
         readonly name: string;
@@ -61,6 +62,7 @@ export type playLibraryFileQuery$data = {
       readonly endSeconds: number;
       readonly startSeconds: number;
     }> | null | undefined;
+    readonly fileId: string;
     readonly hlsUrl: string;
     readonly id: string;
     readonly index: {
@@ -140,52 +142,59 @@ v3 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "name",
+  "name": "fileId",
   "storageKey": null
 },
 v4 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "size",
+  "name": "name",
   "storageKey": null
 },
 v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "modifiedAt",
+  "name": "size",
   "storageKey": null
 },
 v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "videoFormat",
+  "name": "modifiedAt",
   "storageKey": null
 },
 v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "watchPositionMs",
+  "name": "videoFormat",
   "storageKey": null
 },
 v8 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "streamUrl",
+  "name": "watchPositionMs",
   "storageKey": null
 },
 v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "hlsUrl",
+  "name": "streamUrl",
   "storageKey": null
 },
 v10 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "hlsUrl",
+  "storageKey": null
+},
+v11 = {
   "alias": null,
   "args": null,
   "concreteType": "Library",
@@ -193,46 +202,46 @@ v10 = {
   "name": "library",
   "plural": false,
   "selections": [
-    (v3/*:: as any*/)
+    (v4/*:: as any*/)
   ],
-  "storageKey": null
-},
-v11 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "jikkyoCommentsUrl",
   "storageKey": null
 },
 v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "thumbnailUrl",
+  "name": "jikkyoCommentsUrl",
   "storageKey": null
 },
 v13 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "previewUrl",
+  "name": "thumbnailUrl",
   "storageKey": null
 },
 v14 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "startSeconds",
+  "name": "previewUrl",
   "storageKey": null
 },
 v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "endSeconds",
+  "name": "startSeconds",
   "storageKey": null
 },
 v16 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "endSeconds",
+  "storageKey": null
+},
+v17 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryCMSection",
@@ -240,19 +249,19 @@ v16 = {
   "name": "cmSections",
   "plural": true,
   "selections": [
-    (v14/*:: as any*/),
-    (v15/*:: as any*/)
+    (v15/*:: as any*/),
+    (v16/*:: as any*/)
   ],
   "storageKey": null
 },
-v17 = {
+v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "text",
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryAutoCaption",
@@ -260,13 +269,13 @@ v18 = {
   "name": "autoCaptions",
   "plural": true,
   "selections": [
-    (v14/*:: as any*/),
     (v15/*:: as any*/),
-    (v17/*:: as any*/)
+    (v16/*:: as any*/),
+    (v18/*:: as any*/)
   ],
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingAutoCaptions",
@@ -330,35 +339,42 @@ v19 = {
   ],
   "storageKey": null
 },
-v20 = {
+v21 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "serviceName",
   "storageKey": null
 },
-v21 = {
+v22 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "jikkyoChannelId",
   "storageKey": null
 },
-v22 = {
+v23 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedFrom",
   "storageKey": null
 },
-v23 = {
+v24 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedUntil",
+  "storageKey": null
+},
+v25 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v24 = {
+v26 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryProgram",
@@ -366,7 +382,7 @@ v24 = {
   "name": "program",
   "plural": false,
   "selections": [
-    (v3/*:: as any*/),
+    (v4/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -389,7 +405,7 @@ v24 = {
           "name": "heading",
           "storageKey": null
         },
-        (v17/*:: as any*/)
+        (v18/*:: as any*/)
       ],
       "storageKey": null
     },
@@ -410,7 +426,7 @@ v24 = {
   ],
   "storageKey": null
 },
-v25 = {
+v27 = {
   "alias": null,
   "args": null,
   "concreteType": "ProgramAudio",
@@ -442,7 +458,7 @@ v25 = {
   ],
   "storageKey": null
 },
-v26 = {
+v28 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryFileQuality",
@@ -474,7 +490,7 @@ v26 = {
   ],
   "storageKey": null
 },
-v27 = {
+v29 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryFileIndex",
@@ -513,14 +529,14 @@ v27 = {
   ],
   "storageKey": null
 },
-v28 = {
+v30 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "role",
   "storageKey": null
 },
-v29 = {
+v31 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -543,7 +559,7 @@ v29 = {
       "name": "presets",
       "plural": true,
       "selections": [
-        (v3/*:: as any*/),
+        (v4/*:: as any*/),
         {
           "alias": null,
           "args": null,
@@ -591,9 +607,10 @@ return {
           (v11/*:: as any*/),
           (v12/*:: as any*/),
           (v13/*:: as any*/),
-          (v16/*:: as any*/),
-          (v18/*:: as any*/),
+          (v14/*:: as any*/),
+          (v17/*:: as any*/),
           (v19/*:: as any*/),
+          (v20/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -602,9 +619,10 @@ return {
             "name": "broadcast",
             "plural": false,
             "selections": [
-              (v20/*:: as any*/),
               (v21/*:: as any*/),
               (v22/*:: as any*/),
+              (v23/*:: as any*/),
+              (v24/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -613,18 +631,18 @@ return {
                 "name": "service",
                 "plural": false,
                 "selections": [
-                  (v3/*:: as any*/),
-                  (v23/*:: as any*/)
+                  (v4/*:: as any*/),
+                  (v25/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v24/*:: as any*/)
+              (v26/*:: as any*/)
             ],
             "storageKey": null
           },
-          (v25/*:: as any*/),
-          (v26/*:: as any*/),
-          (v27/*:: as any*/)
+          (v27/*:: as any*/),
+          (v28/*:: as any*/),
+          (v29/*:: as any*/)
         ],
         "storageKey": null
       },
@@ -636,11 +654,11 @@ return {
         "name": "viewer",
         "plural": false,
         "selections": [
-          (v28/*:: as any*/)
+          (v30/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v29/*:: as any*/)
+      (v31/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -671,9 +689,10 @@ return {
           (v11/*:: as any*/),
           (v12/*:: as any*/),
           (v13/*:: as any*/),
-          (v16/*:: as any*/),
-          (v18/*:: as any*/),
+          (v14/*:: as any*/),
+          (v17/*:: as any*/),
           (v19/*:: as any*/),
+          (v20/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -682,9 +701,10 @@ return {
             "name": "broadcast",
             "plural": false,
             "selections": [
-              (v20/*:: as any*/),
               (v21/*:: as any*/),
               (v22/*:: as any*/),
+              (v23/*:: as any*/),
+              (v24/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -693,19 +713,19 @@ return {
                 "name": "service",
                 "plural": false,
                 "selections": [
-                  (v3/*:: as any*/),
-                  (v23/*:: as any*/),
+                  (v4/*:: as any*/),
+                  (v25/*:: as any*/),
                   (v2/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v24/*:: as any*/)
+              (v26/*:: as any*/)
             ],
             "storageKey": null
           },
-          (v25/*:: as any*/),
-          (v26/*:: as any*/),
-          (v27/*:: as any*/)
+          (v27/*:: as any*/),
+          (v28/*:: as any*/),
+          (v29/*:: as any*/)
         ],
         "storageKey": null
       },
@@ -717,25 +737,25 @@ return {
         "name": "viewer",
         "plural": false,
         "selections": [
-          (v28/*:: as any*/),
+          (v30/*:: as any*/),
           (v2/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v29/*:: as any*/)
+      (v31/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "1473b34ef63c27096fb4387439f1dcf2",
+    "cacheID": "e943ee8bfa9e2cb779f9b929c9ec7b69",
     "id": null,
     "metadata": {},
     "name": "playLibraryFileQuery",
     "operationKind": "query",
-    "text": "query playLibraryFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n    }\n    jikkyoCommentsUrl\n    thumbnailUrl\n    previewUrl\n    cmSections {\n      startSeconds\n      endSeconds\n    }\n    autoCaptions {\n      startSeconds\n      endSeconds\n      text\n    }\n    autoCaptionsStatus {\n      state\n      generatedAt\n      model\n      count\n      progress {\n        ratio\n        remainingSeconds\n      }\n    }\n    broadcast {\n      serviceName\n      jikkyoChannelId\n      recordedFrom\n      service {\n        name\n        logoUrl\n        id\n      }\n      program {\n        name\n        description\n        extended {\n          heading\n          text\n        }\n        startAt\n        endAt\n      }\n    }\n    audios {\n      componentType\n      languages\n      samplingRate\n    }\n    quality {\n      drops\n      errors\n      scrambled\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  viewer {\n    role\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query playLibraryFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    fileId\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n    }\n    jikkyoCommentsUrl\n    thumbnailUrl\n    previewUrl\n    cmSections {\n      startSeconds\n      endSeconds\n    }\n    autoCaptions {\n      startSeconds\n      endSeconds\n      text\n    }\n    autoCaptionsStatus {\n      state\n      generatedAt\n      model\n      count\n      progress {\n        ratio\n        remainingSeconds\n      }\n    }\n    broadcast {\n      serviceName\n      jikkyoChannelId\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      program {\n        name\n        description\n        extended {\n          heading\n          text\n        }\n        startAt\n        endAt\n      }\n    }\n    audios {\n      componentType\n      languages\n      samplingRate\n    }\n    quality {\n      drops\n      errors\n      scrambled\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  viewer {\n    role\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "c72a35f53d217ce34417525748222736";
+(node as any).hash = "e5acd871c2e3368548038f9d6d47e892";
 
 export default node;

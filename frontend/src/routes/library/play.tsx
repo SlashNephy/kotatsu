@@ -104,6 +104,7 @@ import { CmAutoSkipper } from '../../yunomi/cmAutoSkipper';
 import { cmButtonSectionAt, cmMergeGap, cmSectionAt, mergeCmSections } from '../../yunomi/cmSkip';
 import type { PlayerCover } from '../../yunomi/playerCover';
 import { useVideoFrames } from '../../yunomi/useVideoFrames';
+import { SaveOfflineButton } from '../../offline/SaveOfflineButton';
 import {
   CaptionTrackSelect,
   PositionedAutoCaptionOverlay,
@@ -252,6 +253,7 @@ const playQuery = graphql`
   query playLibraryFileQuery($library: String!, $path: String!) {
     libraryFile(library: $library, path: $path) {
       id
+      fileId
       name
       size
       modifiedAt
@@ -288,6 +290,7 @@ const playQuery = graphql`
         serviceName
         jikkyoChannelId
         recordedFrom
+        recordedUntil
         service {
           name
           logoUrl
@@ -1193,6 +1196,32 @@ function Player({
           <Text size="sm" c="dimmed">
             {path} · {formatBytes(Number(file.size))}
           </Text>
+          {/* 端末に保存 (設計書 7.8)。録画と同じく、配信の TS をそのまま書く。端末での再生は、録り始めと録り終わりの放送時刻で
+              時計と長さを出すので、TOT から読めたファイルだけで出す。書いている途中か、索引を作り終えていないファイルは、長さが決まらないので出さない。 */}
+          {file.index.complete &&
+            !file.index.writing &&
+            broadcast?.recordedFrom != null &&
+            broadcast.recordedUntil != null && (
+              <SaveOfflineButton
+                videoFormat={file.videoFormat}
+                source={{
+                  // 端末に保存するときの名前。GraphQL の ID はパスを含んで長いので、パスを含まないファイルの ID を使う。
+                  id: `library-${file.fileId}`,
+                  name: program?.name ?? file.name,
+                  serviceName,
+                  startAt: program?.startAt ?? broadcast.recordedFrom,
+                  endAt: program?.endAt ?? broadcast.recordedUntil,
+                  recordedFrom: broadcast.recordedFrom,
+                  recordedUntil: broadcast.recordedUntil,
+                  gaps: noGaps,
+                  streamUrl: file.streamUrl,
+                  // 実況のチャンネルのない局では、過去ログを読まない (設計書 7.4)。
+                  jikkyoCommentsUrl: channelId === null ? null : file.jikkyoCommentsUrl,
+                  // 配信は Content-Length を返さないので、ファイルの大きさで空きを見積もる。
+                  files: [{ kind: 'SEGMENT', size: file.size }],
+                }}
+              />
+            )}
           {/* 字幕の自動生成 (設計書 5.8)。録画と同じく、頼まれたときに生成する。音声を引くサービスが分からないファイルには作れない。 */}
           {broadcast !== null && (
             <Stack gap={4}>
