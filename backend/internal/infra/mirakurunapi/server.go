@@ -19,6 +19,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 )
 
 // streamBufferSize は、ストリームを 1 回に読んで書く大きさ。
@@ -181,7 +182,7 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, stream io.R
 
 			return
 		default:
-			s.logger.WarnContext(r.Context(), "the stream was cut off", slog.String("path", r.URL.Path), slog.Any("error", readErr))
+			s.logger.WarnContext(r.Context(), "the stream was cut off", logattr.String("path", r.URL.Path), slog.Any("error", readErr))
 			panic(http.ErrAbortHandler)
 		}
 	}
@@ -237,7 +238,7 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, tunerserver.ErrNotFound) {
 		status = http.StatusNotFound
 	}
-	s.logger.DebugContext(r.Context(), "the tuner server request failed", slog.String("path", r.URL.Path), slog.Any("error", err))
+	s.logger.DebugContext(r.Context(), "the tuner server request failed", logattr.String("path", r.URL.Path), slog.Any("error", err))
 	writeReason(w, status, err.Error())
 }
 

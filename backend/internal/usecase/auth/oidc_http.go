@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 )
 
 type oidcStatusResponse struct {
@@ -198,9 +200,9 @@ func (o *OIDC) CallbackHandler(db Database, client func(*http.Request) *ClientIn
 		if err != nil {
 			reason := oidcErrorReason(err)
 			if reason == "oidc_failed" {
-				o.logger.ErrorContext(r.Context(), "failed to complete the OIDC login", "error", err)
+				o.logger.ErrorContext(r.Context(), "failed to complete the OIDC login", logattr.Error(err))
 			} else {
-				o.logger.InfoContext(r.Context(), "rejected an OIDC login", "error", err)
+				o.logger.InfoContext(r.Context(), "rejected an OIDC login", logattr.Error(err))
 			}
 			if outcome != nil && outcome.returnTo != "" {
 				redirectWithError(w, r, outcome.returnTo, reason)

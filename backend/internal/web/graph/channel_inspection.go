@@ -3,9 +3,9 @@ package graph
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"strings"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -29,7 +29,7 @@ func (r *Resolver) inspectChannel(ctx context.Context, channelType, channel stri
 	case errors.Is(err, stream.ErrInspectionInterrupted):
 		return nil, NewError(CodeConflict, "the channel stream ended before the inspection finished; the tuner may have been taken")
 	case err != nil:
-		r.logger.WarnContext(ctx, "failed to inspect the channel", slog.String("channel_type", channelType), slog.String("channel", channel), slog.Any("error", err))
+		r.logger.WarnContext(ctx, "failed to inspect the channel", logattr.String("channel_type", channelType), logattr.String("channel", channel), logattr.Error(err))
 
 		return nil, NewError(CodeConflict, "failed to inspect the channel; no tuner may be available")
 	}

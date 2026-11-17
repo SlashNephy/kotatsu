@@ -9,6 +9,9 @@ metadata:
     {{- include "kotatsu.labels" . | nindent 4 }}
 spec:
   maxUnavailable: {{ .Values.roles.mikan.podDisruptionBudget.maxUnavailable }}
+  {{- with .Values.roles.mikan.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "kotatsu.selectorLabels" (dict "root" $ "component" "mikan") | nindent 6 }}

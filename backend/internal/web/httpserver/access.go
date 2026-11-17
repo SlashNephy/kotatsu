@@ -12,6 +12,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 )
 
 // defaultPort は、scheme の既定のポートを返す。Origin では省かれるので、比べる前に取り除く。
@@ -115,7 +116,7 @@ func (p *AccessPolicy) Middleware(next http.Handler) http.Handler {
 			if p.hostAllowed(host) {
 				continue
 			}
-			p.logger.WarnContext(r.Context(), "rejected a request for a disallowed host", slog.String("host", host))
+			p.logger.WarnContext(r.Context(), "rejected a request for a disallowed host", logattr.String("host", host))
 			http.Error(w, fmt.Sprintf(
 				"the host %s is not allowed. To allow it, add it to server.allowed_hosts (KOTATSU_SERVER_ALLOWED_HOSTS).",
 				host), http.StatusForbidden)

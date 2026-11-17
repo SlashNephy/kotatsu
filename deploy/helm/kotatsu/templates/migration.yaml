@@ -17,6 +17,10 @@ metadata:
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 3
+  {{- /* 0 (すぐ消す) も書き出すよう、with ではなく null かどうかで分ける。 */}}
+  {{- if not (kindIs "invalid" .Values.migration.ttlSecondsAfterFinished) }}
+  ttlSecondsAfterFinished: {{ .Values.migration.ttlSecondsAfterFinished }}
+  {{- end }}
   template:
     metadata:
       labels:

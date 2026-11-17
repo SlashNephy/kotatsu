@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
@@ -327,7 +327,7 @@ func (r *Resolver) watchFrame(ctx context.Context, recording *model.Recording) *
 	}
 	manifest, err := r.readManifest(recording.ImageSegmentID)
 	if err != nil {
-		r.logger.WarnContext(ctx, "failed to read the preview manifest", slog.String("recording", recording.ID), slog.Any("error", err))
+		r.logger.WarnContext(ctx, "failed to read the preview manifest", logattr.String("recording", recording.ID), logattr.Error(err))
 
 		return nil
 	}
