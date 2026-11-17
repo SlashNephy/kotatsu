@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4f9011596f139b91f9a5b6ffa014fa71>>
+ * @generated SignedSource<<0a6858bebd3703eda82bf5089776c349>>
  * @lightSyntaxTransform
  */
 
@@ -8,7 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type LibraryKind = "FOLDER" | "POOL" | "%future added value";
+export type LibraryKind = "FOLDER" | "GOOGLE_DRIVE" | "POOL" | "%future added value";
 export type libraryListQuery$variables = Record<PropertyKey, never>;
 export type libraryListQuery$data = {
   readonly libraries: ReadonlyArray<{

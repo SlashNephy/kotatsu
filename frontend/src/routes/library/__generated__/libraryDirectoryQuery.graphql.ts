@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8cf70e1e4dd835d74c8360171f194a65>>
+ * @generated SignedSource<<26cabcef3ff51f338f5820c26e6a1324>>
  * @lightSyntaxTransform
  */
 
@@ -21,6 +21,7 @@ export type libraryDirectoryQuery$data = {
       readonly path: string;
       readonly size: number;
     }>;
+    readonly names: ReadonlyArray<string>;
     readonly path: string;
   };
 };
@@ -70,6 +71,13 @@ v2 = [
     "plural": false,
     "selections": [
       (v1/*:: as any*/),
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "names",
+        "storageKey": null
+      },
       {
         "alias": null,
         "args": null,
@@ -132,16 +140,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "7e723948bd06112bfaa1331a393451c8",
+    "cacheID": "fdd277772ea68959a20213ea3c8e802a",
     "id": null,
     "metadata": {},
     "name": "libraryDirectoryQuery",
     "operationKind": "query",
-    "text": "query libraryDirectoryQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryDirectory(library: $library, path: $path) {\n    path\n    entries {\n      name\n      path\n      directory\n      size\n      modifiedAt\n    }\n  }\n}\n"
+    "text": "query libraryDirectoryQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryDirectory(library: $library, path: $path) {\n    path\n    names\n    entries {\n      name\n      path\n      directory\n      size\n      modifiedAt\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "fa876ee68f31a4829f5ec044eac348c0";
+(node as any).hash = "36a3ecc7526cb3634f1b1d24f20a0747";
 
 export default node;

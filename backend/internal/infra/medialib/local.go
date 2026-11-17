@@ -21,7 +21,14 @@ type Local struct {
 	kind Kind
 }
 
-var _ Library = new(Local)
+var (
+	_ Library  = new(Local)
+	_ Searcher = new(Local)
+)
+
+// maxSearchVisits は、ローカルのライブラリで名前で探すときに、たどるファイルとディレクトリの数の上限。
+// 大きなフォルダを根元から探しても、ディスクを長く奪わないようにする。
+const maxSearchVisits = 50000
 
 // NewLocal は、ディレクトリ dir を、名前 name のライブラリとして返す。
 func NewLocal(name, dir string, kind Kind) *Local {
@@ -123,6 +130,65 @@ func (l *Local) Open(_ context.Context, p string) (File, error) {
 	}
 
 	return f, nil
+}
+
+// Search は、ディレクトリ dir の下を深さ優先でたどり、名前に query を (大文字と小文字を区別せずに) 含む再生できるファイルを、
+// 名前の順に limit 件まで返す。隠しファイルとシンボリックリンクはたどらない。maxSearchVisits 個たどったら打ち切る。
+func (l *Local) Search(ctx context.Context, dir, query string, limit int) ([]*Entry, bool, error) {
+	dir, err := CleanPath(dir)
+	if err != nil {
+		return nil, false, err
+	}
+	root, err := l.openRoot()
+	if err != nil {
+		return nil, false, err
+	}
+	defer root.Close()
+	if info, err := root.Stat(relName(dir)); err != nil || !info.IsDir() {
+		return nil, false, fmt.Errorf("%w: %q is not a directory", ErrNotFound, dir)
+	}
+	needle := strings.ToLower(query)
+	entries := []*Entry{}
+	truncated := false
+	visits := 0
+	err = fs.WalkDir(root.FS(), relName(dir), func(p string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			// 読めないディレクトリは飛ばす。
+			return fs.SkipDir
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		visits++
+		if visits > maxSearchVisits || len(entries) >= limit {
+			truncated = true
+
+			return fs.SkipAll
+		}
+		name := entry.Name()
+		if p != relName(dir) && (strings.HasPrefix(name, ".") || (path.Dir(p) == "." && name == lostAndFound)) {
+			if entry.IsDir() {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+		if !entry.Type().IsRegular() || !Playable(name) || !strings.Contains(strings.ToLower(name), needle) {
+			return nil
+		}
+		// 探している間に消えたファイルは飛ばす。
+		if info, infoErr := entry.Info(); infoErr == nil {
+			entries = append(entries, newEntry(p, info))
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to search %q in library %s: %w", dir, l.name, err)
+	}
+	slices.SortStableFunc(entries, func(a, b *Entry) int { return strings.Compare(a.Name, b.Name) })
+
+	return entries, truncated, nil
 }
 
 // openRoot は、ライブラリのディレクトリを開く。マウントされていないなどでなければ、ErrNotFound を包んで返す。
