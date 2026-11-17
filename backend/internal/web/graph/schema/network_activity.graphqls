@@ -12,6 +12,10 @@ enum NetworkActivityPurpose {
   ANIME_LINK
   ANIME_IMAGE
   DRAMA_LINKING
+  "見たドラマの記録とウォッチリストの取り込み (#1649)"
+  DRAMA_RECORD
+  "ドラマの記録先との連携の手続き (#1649)"
+  DRAMA_LINK
   USER_AVATAR
   OIDC
   HIBP

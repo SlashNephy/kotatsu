@@ -116,7 +116,7 @@ func (r *mutationResolver) ReportAnimePlayback(ctx context.Context, serviceID *s
 		return false, err
 	}
 	// 同じ区間から、見たドラマの話も決める (#1652、設計書 3.9)。アニメとドラマのどちらかが対象なら、プレイヤーは送り続ける。
-	dramaTracked, err := dramalibrary.Report(ctx, r.db, principal.UserID, target, converted, r.clock.Now())
+	dramaTracked, err := dramalibrary.Report(ctx, r.db, r.jobs, principal.UserID, target, converted, r.clock.Now())
 	if err != nil {
 		return false, animeRecordError(err)
 	}

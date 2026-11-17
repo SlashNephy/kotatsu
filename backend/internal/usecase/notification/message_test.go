@@ -17,6 +17,8 @@ const (
 	keyNotBroadcast = "notBroadcast"
 	keyStartAt      = "startAt"
 	keyAiredName    = "airedName"
+	keyDestination  = "destination"
+	keyEpisodes     = "episodes"
 	serviceName     = "NHK総合"
 	programName     = "こたつ特集"
 	evening         = "2026-10-10T12:00:00Z"
@@ -127,13 +129,27 @@ func TestMessage(t *testing.T) {
 		{name: "材料のない視聴予約", kind: domain.NotificationKindWatchReminder, payload: map[string]any{}, location: tokyo, want: "視聴予約した番組が始まります"},
 		{
 			name: "見たアニメの記録は、番組名と話数と記録先を書く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
-			payload: map[string]any{keyName: "アニメ　＃３", "destination": "annict", "episodes": "#3、#4"},
+			payload: map[string]any{keyName: "アニメ　＃３", keyDestination: "annict", keyEpisodes: "#3、#4"},
 			want:    "「アニメ #3」の#3、#4をAnnictに記録しました",
 		},
 		{
 			name: "記録できなかったときは、理由を添える", kind: domain.NotificationKindAnimeRecordFailed, location: tokyo,
-			payload: map[string]any{keyName: programName, "destination": "anilist", "episodes": "#3", "reason": "連携していません"},
+			payload: map[string]any{keyName: programName, keyDestination: "anilist", keyEpisodes: "#3", "reason": "連携していません"},
 			want:    "「こたつ特集」の#3をAniListに記録できませんでした（連携していません）",
+		},
+		{
+			name: "見たドラマの記録は、番組名から読んだ作品名とシーズンと話を書く", kind: domain.NotificationKindDramaRecorded, location: tokyo,
+			payload: map[string]any{keyName: "土曜ドラマ「こたつの家」　＃３「冬支度」", keyDestination: "simkl", keyEpisodes: "シーズン1 第3話"},
+			want:    "「こたつの家」のシーズン1 第3話をSimklに記録しました",
+		},
+		{
+			name: "見たドラマを記録できなかったときは、理由を添える", kind: domain.NotificationKindDramaRecordFailed, location: tokyo,
+			payload: map[string]any{keyName: "こたつの家 #3", keyDestination: "simkl", keyEpisodes: "特別編 第1話", "reason": "Simkl に話が見つかりません"},
+			want:    "「こたつの家」の特別編 第1話をSimklに記録できませんでした（Simkl に話が見つかりません）",
+		},
+		{
+			name: "材料のないドラマの記録", kind: domain.NotificationKindDramaRecorded, location: tokyo,
+			payload: map[string]any{}, want: "見たドラマを記録先に記録しました",
 		},
 	}
 	for _, tt := range tests {

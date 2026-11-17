@@ -18,6 +18,8 @@ enum DataChannel {
   RECORDINGS
   "フォロー中のユーザーの視聴状況を問い合わせ終えた (#1372)"
   ANIME_FOLLOWING
+  "ドラマの記録先のウォッチリストを取り込み、見ている作品が変わった (#1649)"
+  DRAMA_WATCHLIST
   "管理のデータ。監査ログに残る操作で変わる。管理者にだけ届く (#869)"
   ADMIN
 }

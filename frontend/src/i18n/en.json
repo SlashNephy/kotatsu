@@ -2886,6 +2886,14 @@
         "title": "Drama series and episodes",
         "body": "Looked up TMDB series and episodes from drama program titles"
       },
+      "DRAMA_RECORD": {
+        "title": "Watched drama sync",
+        "body": "Exchanged watched dramas and the watchlist with Simkl"
+      },
+      "DRAMA_LINK": {
+        "title": "Drama account linking",
+        "body": "Linked or unlinked a drama record service"
+      },
       "USER_AVATAR": {
         "title": "User avatars",
         "body": "Fetched avatars shown on the screen",

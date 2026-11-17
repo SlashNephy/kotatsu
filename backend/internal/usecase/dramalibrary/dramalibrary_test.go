@@ -322,7 +322,7 @@ func TestReport(t *testing.T) {
 				{{From: tt.from, To: middle}},
 				{{From: tt.from, To: middle}, {From: middle, To: tt.to}},
 			} {
-				ok, err := dramalibrary.Report(t.Context(), f.pool, f.alice, target, intervals, testNow())
+				ok, err := dramalibrary.Report(t.Context(), f.pool, nil, f.alice, target, intervals, testNow())
 				require.NoError(t, err)
 				assert.Equal(t, tt.wantOK, ok)
 			}

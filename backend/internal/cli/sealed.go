@@ -9,6 +9,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 )
@@ -19,6 +20,7 @@ type sealedStores struct {
 	webPush      *webpush.Service
 	animeRecords *animerecord.Service
 	dramaTokens  *drama.Tokens
+	dramaRecords *dramarecord.Service
 }
 
 // appSecret は、アプリの秘密キー (auth.secret_key)。wire は型で依存を見分けるので、ほかの文字列と分ける。
@@ -60,4 +62,24 @@ func jobInserterOf(deps *Deps) anime.Inserter {
 // 連携した後の見たいリストの取り込み (#928) は、ジョブを入れられるときだけ始める。
 func newLinkedAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter) (*animerecord.Service, error) {
 	return newAnimeRecords(deps, logger, inserter, netactivity.PurposeAnimeLink)
+}
+
+// newLinkedDramaRecords は、Simkl との連携を扱う部品を作る (#1649)。tenban は、連携と連携を外すときだけ Simkl に問い合わせる。
+// 連携した後のウォッチリストの取り込みは、ジョブを入れられるときだけ始める。
+func newLinkedDramaRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter) (*dramarecord.Service, error) {
+	return newDramaRecords(deps, logger, inserter, netactivity.PurposeDramaLink)
+}
+
+// newDramaRecords は、見たドラマを Simkl に記録する部品を作る (#1649)。
+// 問い合わせ先は決まったホストだけにし、設定で向け直したときだけ、そのオリジンへ向ける (検証用)。
+func newDramaRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter, purpose netactivity.Purpose) (*dramarecord.Service, error) {
+	client := dramarecord.NewHTTPClient(deps.Network, purpose)
+
+	return dramarecord.NewService(&dramarecord.Options{
+		Clock: deps.Clock, Recorder: audit.NewRecorder(deps.Clock), AppSecret: deps.Config.Auth.SecretKey.Value(),
+		Destinations:    []dramarecord.Destination{dramarecord.NewSimkl(client, deps.Config.Simkl.URL)},
+		Logger:          logger.With(slog.String("component", "drama_record")),
+		Inserter:        inserter,
+		RequestInterval: dramarecord.DefaultRequestInterval,
+	})
 }

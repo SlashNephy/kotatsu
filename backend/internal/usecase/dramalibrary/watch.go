@@ -12,8 +12,10 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
@@ -202,15 +204,18 @@ type watchedProgram struct {
 	serviceID int64
 	startAt   time.Time
 	endAt     time.Time
+	name      string
 	episode   *Episode
 }
 
 // Report は、ユーザー userID のプレイヤーが、target を実際に再生した区間 intervals を、話に結びついたドラマの番組ごとに足す。
 // 番組の長さのうち、ユーザーが決めた割合 (アニメの記録の設定。既定は 20%。アニメの連携が無効の間は既定の割合) を見たら、番組に結びついた話を、見た話にする (設計書 3.9)。
 // 見た区間は、アニメの記録と同じ行に持ち、同じ判定 (設計書 3.8) で決める。見ている作品に入れていない作品の話も、見た話にする。
-// 管理者が連携を無効にしていれば、何もせずに false を返す。
+// 見た話にした番組は、ユーザーが連携した Simkl などの記録先に、番組と話と記録先の組で 1 回だけ記録する (#1649)。記録は inserter で入れる
+// ジョブで送る。管理者が連携を無効にしていれば、何もせずに false を返す。
 func Report(
-	ctx context.Context, db Database, userID uuid.UUID, target *animerecord.Target, intervals []*animerecord.Interval, now time.Time,
+	ctx context.Context, db Database, inserter anime.Inserter, userID uuid.UUID, target *animerecord.Target, intervals []*animerecord.Interval,
+	now time.Time,
 ) (bool, error) {
 	spans, err := animerecord.NewPlayedSpans(intervals, now)
 	if err != nil {
@@ -251,7 +256,10 @@ func Report(
 				return fmt.Errorf("failed to insert the watched drama episode: %w", err)
 			}
 
-			return nil
+			return dramarecord.InsertRecords(ctx, tx, inserter, userID, &dramarecord.WatchedProgram{
+				ServiceID: p.serviceID, StartAt: p.startAt, Name: p.name,
+				SeriesID: p.episode.SeriesID, Season: p.episode.Season, Number: p.episode.Number,
+			}, now)
 		}); err != nil {
 			return false, err
 		}
@@ -278,7 +286,7 @@ func watchedPrograms(ctx context.Context, db sqlc.DBTX, target *animerecord.Targ
 				return nil, err
 			}
 			if episode := episodeOf(linked, found); episode != nil {
-				programs = append(programs, &watchedProgram{serviceID: row.ServiceID, startAt: row.StartAt, endAt: row.EndAt, episode: episode})
+				programs = append(programs, &watchedProgram{serviceID: row.ServiceID, startAt: row.StartAt, endAt: row.EndAt, name: row.Name, episode: episode})
 			}
 		}
 	case target.RecordingID != nil:
@@ -294,7 +302,7 @@ func watchedPrograms(ctx context.Context, db sqlc.DBTX, target *animerecord.Targ
 			return nil, err
 		}
 		if episode := episodeOf(linked, found); episode != nil {
-			programs = append(programs, &watchedProgram{serviceID: row.ServiceID, startAt: row.StartAt, endAt: row.EndAt, episode: episode})
+			programs = append(programs, &watchedProgram{serviceID: row.ServiceID, startAt: row.StartAt, endAt: row.EndAt, name: row.Name, episode: episode})
 		}
 	default:
 		return nil, fmt.Errorf("%w: no target", animerecord.ErrInvalidReport)

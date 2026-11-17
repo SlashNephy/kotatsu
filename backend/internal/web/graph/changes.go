@@ -9,6 +9,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
@@ -49,6 +50,7 @@ func dataChannels() []dataChannel {
 		{channel: model.DataChannelTuners, notify: tunerstate.NotifyChannel, adminOnly: false},
 		{channel: model.DataChannelRecordings, notify: notify.RecordingsChannel, adminOnly: false},
 		{channel: model.DataChannelAnimeFollowing, notify: animerecord.FollowingNotifyChannel, adminOnly: false},
+		{channel: model.DataChannelDramaWatchlist, notify: dramarecord.WatchlistNotifyChannel, adminOnly: false},
 		{channel: model.DataChannelAdmin, notify: notify.AuditChannel, adminOnly: true},
 	}
 }

@@ -426,7 +426,8 @@ CREATE TABLE notification_events (
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
     'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
-    'watch_reminder', 'anime_recorded', 'anime_record_failed', 'scrambled_recordings', 'lineup_changed'
+    'watch_reminder', 'anime_recorded', 'anime_record_failed', 'drama_recorded', 'drama_record_failed', 'scrambled_recordings',
+    'lineup_changed'
   )),
   occurred_at timestamptz NOT NULL,
   -- 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。
@@ -466,7 +467,8 @@ CREATE TABLE notification_preferences (
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
     'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
-    'watch_reminder', 'anime_recorded', 'anime_record_failed', 'scrambled_recordings', 'lineup_changed'
+    'watch_reminder', 'anime_recorded', 'anime_record_failed', 'drama_recorded', 'drama_record_failed', 'scrambled_recordings',
+    'lineup_changed'
   )),
   -- 画面内の通知で受け取るかどうか。
   in_app boolean NOT NULL,
@@ -2081,3 +2083,97 @@ CREATE TABLE drama_watched_episodes (
   PRIMARY KEY (user_id, tmdb_series_id, season_number, episode_number)
 );
 CREATE INDEX drama_watched_episodes_tmdb_series_id_idx ON drama_watched_episodes (tmdb_series_id, season_number);
+
+-- 管理者が Simkl に登録したアプリ (#1649、設計書 3.9)。利用者は、このアプリで認可して、見たドラマを記録させる。
+-- クライアントシークレットは、アプリの秘密キーで暗号化する (設計書 8.4)。行がなければ、その記録先には繋げない。
+CREATE TABLE drama_record_apps (
+  destination text PRIMARY KEY CHECK (destination IN ('simkl')),
+  client_id text NOT NULL,
+  client_secret_encrypted bytea NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- ドラマの記録先への認可の途中の状態 (#1649)。アニメの記録 (anime_record_authorizations) と同じく、セッションを持ち、
+-- state は SHA-256 だけを持つ。戻ってきたら、引くと同時に消す。
+CREATE TABLE drama_record_authorizations (
+  id uuid PRIMARY KEY,
+  state_hash bytea NOT NULL UNIQUE,
+  session_id uuid NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  destination text NOT NULL CHECK (destination IN ('simkl')),
+  code_verifier text NOT NULL,
+  -- 記録先に渡したリダイレクト URI。トークンと引き換えるときに、同じ値を渡す。
+  redirect_uri text NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL
+);
+CREATE INDEX drama_record_authorizations_expires_at_idx ON drama_record_authorizations (expires_at);
+
+-- ユーザーごとの、ドラマの記録先との連携 (#1649)。トークンは、アプリの秘密キーで暗号化する (設計書 8.4)。
+-- Simkl のアクセストークンは 7 日で切れるので、更新のトークンと、アクセストークンの期限も持つ。
+CREATE TABLE drama_record_connections (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  destination text NOT NULL CHECK (destination IN ('simkl')),
+  access_token_encrypted bytea NOT NULL,
+  refresh_token_encrypted bytea NOT NULL,
+  access_token_expires_at timestamptz NOT NULL,
+  -- 記録先のアカウントの名前。設定の画面に、どのアカウントと連携したかを出す。
+  account_name text NOT NULL,
+  connected_at timestamptz NOT NULL,
+  -- 更新のトークンが断られたかどうか。断られたら、記録も取り込みもせず、連携し直すよう画面で案内する。
+  reauthorization_required boolean NOT NULL DEFAULT false,
+  -- ウォッチリストを取り込んだ様子。最後に取り込めたときの /sync/activities の all と tv_shows.removed_from_list を、
+  -- Simkl が返した文字列のまま持つ。次の取り込みで、変わったかを比べ、date_from に渡す。一度も取り込めていなければ NULL。
+  watchlist_activity text,
+  watchlist_removed_activity text,
+  -- 最後に問い合わせた日時、最後に取り込めた日時、最後の問い合わせが失敗した理由、問い合わせ直す日時。
+  watchlist_checked_at timestamptz,
+  watchlist_imported_at timestamptz,
+  watchlist_error text,
+  watchlist_retry_at timestamptz,
+  PRIMARY KEY (user_id, destination)
+);
+
+-- ドラマの記録先に送る、1 話ごとの記録 (#1649)。アニメの記録 (anime_records) と同じく、同じユーザー、番組、話、記録先の組は 1 回だけ記録する。
+CREATE TABLE drama_records (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- 見た番組。program_drama_matches と同じく、サービスと開始時刻で指す。
+  service_id bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  destination text NOT NULL CHECK (destination IN ('simkl')),
+  tmdb_series_id integer NOT NULL CHECK (tmdb_series_id > 0),
+  season_number integer NOT NULL CHECK (season_number >= 0),
+  episode_number integer NOT NULL CHECK (episode_number > 0),
+  -- 通知に出す番組名。
+  program_name text NOT NULL,
+  -- 見たと判定した日時。記録先に、見た日時として送る。送り直しても変わらない。
+  watched_at timestamptz NOT NULL,
+  state text NOT NULL CHECK (state IN ('pending', 'recorded', 'failed')),
+  -- 記録した作品の、記録先のページ。
+  url text,
+  -- 記録できなかった理由。
+  error text,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  UNIQUE (user_id, service_id, start_at, destination, tmdb_series_id, season_number, episode_number)
+);
+
+-- Simkl のウォッチリストの作品の、最後に読んだ状態 (#1649)。見ている作品 (drama_watchlist_entries) に足すかどうかを決めるのに使う。
+-- Simkl で状態が変わったときだけ、見ている作品に写す。Kotatsu で外した作品を、Simkl で状態が変わるまで足し直さないため。
+-- 番組か録画に結びついていない作品は、結びつくまで写さない (applied が false のまま残す)。
+CREATE TABLE drama_watchlist_imports (
+  user_id uuid NOT NULL,
+  destination text NOT NULL CHECK (destination IN ('simkl')),
+  tmdb_series_id integer NOT NULL CHECK (tmdb_series_id > 0),
+  -- Simkl の作品 ID。消えた作品を見分けるのに使う。Kotatsu から記録して先に作った行では NULL。
+  simkl_id bigint,
+  -- Simkl のウォッチリストの状態。
+  status text NOT NULL CHECK (status IN ('watching', 'plantowatch', 'hold', 'completed', 'dropped')),
+  -- 見ている作品に写したかどうか。
+  applied boolean NOT NULL,
+  updated_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, destination, tmdb_series_id),
+  FOREIGN KEY (user_id, destination) REFERENCES drama_record_connections (user_id, destination) ON DELETE CASCADE
+);
+CREATE INDEX drama_watchlist_imports_pending_idx ON drama_watchlist_imports (user_id, destination) WHERE NOT applied;

@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 )
 
 // animeJobParts は、nekonote で、アニメの番組と作品を結びつけ、見たアニメを記録するジョブの部品 (設計書 3.8、#927)。
@@ -24,6 +25,8 @@ type animeJobParts struct {
 	matcher  *anime.Matcher
 	nicolog  *anime.NicologMatcher
 	records  *animerecord.Service
+	// dramaRecords は、見たドラマを Simkl に記録し、Simkl のウォッチリストを取り込む (#1649)。
+	dramaRecords *dramarecord.Service
 }
 
 // animeLogger は、アニメの番組と作品を結びつける部品のロガー。wire は型で依存を見分けるので、ほかのロガーと分ける。
@@ -60,6 +63,11 @@ func newDramaMatcher(deps *Deps, logger *slog.Logger) (*drama.Matcher, error) {
 // newRecordingAnimeRecords は、見たアニメを、ユーザーが連携した Annict と AniList に記録する部品を作る (#927)。
 func newRecordingAnimeRecords(deps *Deps, logger *slog.Logger, inserter *jobs.Client) (*animerecord.Service, error) {
 	return newAnimeRecords(deps, logger, inserter, netactivity.PurposeAnimeRecord)
+}
+
+// newRecordingDramaRecords は、見たドラマを、ユーザーが連携した Simkl に記録する部品を作る (#1649)。
+func newRecordingDramaRecords(deps *Deps, logger *slog.Logger, inserter *jobs.Client) (*dramarecord.Service, error) {
+	return newDramaRecords(deps, logger, inserter, netactivity.PurposeDramaRecord)
 }
 
 // newAnimeImporter は、連携先の情報を取り込む部品を作る (設計書 3.8)。管理者が Annict のトークンを設定していれば、

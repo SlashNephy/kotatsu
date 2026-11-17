@@ -78,8 +78,9 @@ func MessageEscaped(kind domain.NotificationKind, payload map[string]any, locati
 		return "チューナーサーバーに接続できません"
 	case domain.NotificationKindWatchReminder:
 		return watchReminderMessage(name, field("serviceName"), payload, location)
-	case domain.NotificationKindAnimeRecorded, domain.NotificationKindAnimeRecordFailed:
-		return animeRecordMessage(kind, name, payload)
+	case domain.NotificationKindAnimeRecorded, domain.NotificationKindAnimeRecordFailed,
+		domain.NotificationKindDramaRecorded, domain.NotificationKindDramaRecordFailed:
+		return recordMessage(kind, name, escape, payload)
 	case domain.NotificationKindScrambledRecordings:
 		return "スクランブルされたまま録れた録画が続いています。チューナーサーバーの B-CAS カードが読めていない可能性があります"
 	case domain.NotificationKindLineupChanged:
@@ -167,6 +168,47 @@ func animeRecordMessage(kind domain.NotificationKind, name string, payload map[s
 		subject += "の" + episodes
 	}
 	if kind == domain.NotificationKindAnimeRecorded {
+		return fmt.Sprintf("%sを%sに記録しました", subject, destination)
+	}
+	text := fmt.Sprintf("%sを%sに記録できませんでした", subject, destination)
+	if reason := payloadText(payload, "reason"); reason != "" {
+		text += "（" + reason + "）"
+	}
+
+	return text
+}
+
+// recordMessage は、見たアニメとドラマの記録の文を作る (#927、#1649)。
+func recordMessage(kind domain.NotificationKind, name string, escape func(string) string, payload map[string]any) string {
+	if kind == domain.NotificationKindDramaRecorded || kind == domain.NotificationKindDramaRecordFailed {
+		return dramaRecordMessage(kind, escape, payload)
+	}
+
+	return animeRecordMessage(kind, name, payload)
+}
+
+// dramaRecordMessage は、見たドラマの記録を「「作品名」のシーズン1 第3話を Simkl に記録しました」の形にする (#1649)。
+// payload の name は番組名なので、話数やサブタイトルを除いた作品名にしてから書く (#1925 と同じ)。話は、シーズンと話の番号で書く。
+// 記録できなかったときは、理由を添える。
+func dramaRecordMessage(kind domain.NotificationKind, escape func(string) string, payload map[string]any) string {
+	destination := "Simkl"
+	if payloadText(payload, "destination") != "simkl" {
+		destination = "記録先"
+	}
+	subject := "見たドラマ"
+	name := payloadText(payload, "name")
+	// 印だけの番組名など、作品名を読めなければ、番組名のまま書く (#1925 と同じ)。
+	title := domain.WorkTitle(name)
+	if title == "" {
+		title = name
+	}
+	if title != "" {
+		subject = fmt.Sprintf("「%s」", escape(title))
+	}
+	if episodes := payloadText(payload, "episodes"); episodes != "" {
+		subject += "の" + episodes
+	}
+	if kind == domain.NotificationKindDramaRecorded {
 		return fmt.Sprintf("%sを%sに記録しました", subject, destination)
 	}
 	text := fmt.Sprintf("%sを%sに記録できませんでした", subject, destination)

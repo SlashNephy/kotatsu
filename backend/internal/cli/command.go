@@ -54,6 +54,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
@@ -77,6 +78,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/animerecordapi"
 	"github.com/SlashNephy/kotatsu/internal/web/calendarapi"
 	"github.com/SlashNephy/kotatsu/internal/web/databroadcastapi"
+	"github.com/SlashNephy/kotatsu/internal/web/dramarecordapi"
 	"github.com/SlashNephy/kotatsu/internal/web/epgstationapi"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
@@ -236,12 +238,17 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		return nil, nil, err
 	}
 	river.AddWorker(workers, drama.NewMatchWorker(dramaMatcher))
+	// 見たドラマを、ユーザーが連携した Simkl に記録し、Simkl のウォッチリストを取り込む (#1649)。取り込みは、画面を開いたときと
+	// 連携したときにだけ入れ、定期のジョブでは問い合わせない (Simkl の求め)。
+	river.AddWorker(workers, dramarecord.NewRecordWorker(animeJobs.dramaRecords, deps.DB))
+	river.AddWorker(workers, dramarecord.NewWatchlistWorker(animeJobs.dramaRecords, deps.DB))
+	river.AddWorker(workers, dramarecord.NewPruneWorker(animeJobs.dramaRecords, deps.DB))
 
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), library.PruneProgressPeriodicJob(), networkactivity.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), anime.NicologPeriodicJob(), animerecord.PrunePeriodicJob(),
-		animerecord.WishlistPeriodicJob(), thumbnail.LivePeriodicJob(),
+		animerecord.WishlistPeriodicJob(), dramarecord.PrunePeriodicJob(), thumbnail.LivePeriodicJob(),
 	}, slices.Concat(anime.MatchPeriodicJobs(), drama.MatchPeriodicJobs())...), nil
 }
 
@@ -272,6 +279,14 @@ func addAnimeRecordCallbacks(routes sessionRoutes, deps *Deps, service *animerec
 	logger = logger.With(slog.String("component", "anime_record"))
 	for _, name := range service.Destinations() {
 		routes.add(http.MethodGet, animerecord.CallbackPath(name), animerecordapi.CallbackHandler(service, deps.DB, clientInfo, name, logger))
+	}
+}
+
+// addDramaRecordCallbacks は、Simkl から戻ってくる認可のハンドラーを、記録先ごとに routes に足す (#1649)。
+func addDramaRecordCallbacks(routes sessionRoutes, deps *Deps, service *dramarecord.Service, logger *slog.Logger) {
+	logger = logger.With(slog.String("component", "drama_record"))
+	for _, name := range service.Destinations() {
+		routes.add(http.MethodGet, dramarecord.CallbackPath(name), dramarecordapi.CallbackHandler(service, deps.DB, clientInfo, name, logger))
 	}
 }
 
@@ -869,6 +884,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		JobAdmin:          jobAdminOf(deps),
 		AnimeRecords:      animeRecords,
 		DramaTokens:       sealed.dramaTokens,
+		DramaRecords:      sealed.dramaRecords,
 		TotalSpace:        nil,
 		Clock:             deps.Clock,
 		Location:          location,
@@ -905,6 +921,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	authRoutes.add(http.MethodGet, auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
 	// Annict と AniList から戻ってくる認可 (#927)。記録先からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
 	addAnimeRecordCallbacks(authRoutes, deps, animeRecords, logger)
+	// Simkl から戻ってくる認可 (#1649)。アニメの記録先と同じく、Origin を確かめずに受け付ける。
+	addDramaRecordCallbacks(authRoutes, deps, sealed.dramaRecords, logger)
 	for path, handler := range map[string]http.Handler{
 		"/internal/auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
 		"/internal/auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),

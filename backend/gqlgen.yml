@@ -218,6 +218,10 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeImage
       DRAMA_LINKING:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeDramaLinking
+      DRAMA_RECORD:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeDramaRecord
+      DRAMA_LINK:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeDramaLink
       USER_AVATAR:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeUserAvatar
       OIDC:
@@ -284,6 +288,10 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindAnimeRecorded
       ANIME_RECORD_FAILED:
         value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindAnimeRecordFailed
+      DRAMA_RECORDED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindDramaRecorded
+      DRAMA_RECORD_FAILED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindDramaRecordFailed
       SCRAMBLED_RECORDINGS:
         value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindScrambledRecordings
       LINEUP_CHANGED:
