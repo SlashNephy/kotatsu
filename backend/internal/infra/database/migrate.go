@@ -91,6 +91,49 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 	return nil
 }
 
+// ErrUnknownVersion は、指定したスキーマのバージョンが、このバイナリに埋め込んだマイグレーションにないことを表す。
+var ErrUnknownVersion = errors.New("the schema version is not one of the migrations embedded in this binary")
+
+// MigrateTo は、埋め込んだマイグレーションのうち、version までの未適用のものを適用する (#1926)。
+// バックアップを戻すときに、書き出したときのスキーマに合わせてから行を流し込むのに使う。
+// Migrate と違い、正規化した列を埋める処理と、動かしてよいバイナリの下限の記録はしない。どちらも最新のスキーマの列を読み書きするからである。
+// 戻し終えたら Migrate で最新まで上げ、その中で埋める。
+func MigrateTo(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, version int64) error {
+	if !slices.Contains(MigrationVersions(), version) {
+		return fmt.Errorf("%w: %d", ErrUnknownVersion, version)
+	}
+	migrationPool, err := withoutStatementTimeout(ctx, pool)
+	if err != nil {
+		return err
+	}
+	if migrationPool != pool {
+		defer migrationPool.Close()
+	}
+	provider, err := newProvider(migrationPool)
+	if err != nil {
+		return err
+	}
+	defer provider.Close()
+
+	current, err := provider.GetDBVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get the schema version: %w", err)
+	}
+	if current > version {
+		return fmt.Errorf("the database schema (version %d) is already newer than version %d; migrations cannot be undone", current, version)
+	}
+	results, err := provider.UpTo(ctx, version)
+	if err != nil {
+		return fmt.Errorf("failed to apply migrations up to version %d: %w", version, err)
+	}
+	for _, result := range results {
+		logger.InfoContext(ctx, "migration applied", slog.Int64("version", result.Source.Version), slog.Duration("duration", result.Duration))
+	}
+	logger.InfoContext(ctx, "database schema migrated to the requested version", slog.Int64("version", version), slog.Int("applied", len(results)))
+
+	return nil
+}
+
 // fillBatchSize は、正規化した列を埋めるときに、1 回に読み書きする録画の数。
 const fillBatchSize = 500
 
