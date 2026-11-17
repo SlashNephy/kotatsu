@@ -60,7 +60,7 @@ type CaptionsWorker struct {
 	indexer        *Indexer
 	source         *Source
 	clock          clock.Clock
-	newTranscriber func() (autocaption.Transcriber, error)
+	newTranscriber func(ctx context.Context) (autocaption.Transcriber, error)
 	newExtractor   func() (autocaption.ReaderExtractor, error)
 	// workDir は、取り出した WAV を置く一時ディレクトリを作る親。空なら OS の一時ディレクトリ。
 	workDir string
@@ -71,7 +71,7 @@ var _ river.Worker[CaptionsArgs] = new(CaptionsWorker)
 // NewCaptionsWorker は CaptionsWorker を返す。indexer は、索引を作らない (読むだけの) もの。newTranscriber と newExtractor は、ジョブごとに呼ぶ。
 func NewCaptionsWorker(
 	libraries *medialib.Set, indexer *Indexer, clk clock.Clock,
-	newTranscriber func() (autocaption.Transcriber, error), newExtractor func() (autocaption.ReaderExtractor, error), workDir string,
+	newTranscriber func(ctx context.Context) (autocaption.Transcriber, error), newExtractor func() (autocaption.ReaderExtractor, error), workDir string,
 ) *CaptionsWorker {
 	return &CaptionsWorker{
 		WorkerDefaults: river.WorkerDefaults[CaptionsArgs]{}, libraries: libraries, indexer: indexer, source: NewSource(libraries, indexer),
@@ -84,7 +84,7 @@ func (w *CaptionsWorker) Timeout(*river.Job[CaptionsArgs]) time.Duration {
 }
 
 func (w *CaptionsWorker) Work(ctx context.Context, job *river.Job[CaptionsArgs]) error {
-	transcriber, err := w.newTranscriber()
+	transcriber, err := w.newTranscriber(ctx)
 	if errors.Is(err, autocaption.ErrNotConfigured) {
 		// 設定を直すまでやり直しても同じなので、取りやめる。画面は、この理由を見分けて、置き方を示す。
 		return river.JobCancel(err)

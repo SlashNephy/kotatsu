@@ -79,7 +79,7 @@ func TestCaptionsWorker(t *testing.T) {
 	}}
 	now := time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC)
 	worker := NewCaptionsWorker(f.worker.libraries, f.reader.Indexer(), clocktest.NewFake(now),
-		func() (autocaption.Transcriber, error) { return transcriber, nil },
+		func(context.Context) (autocaption.Transcriber, error) { return transcriber, nil },
 		func() (autocaption.ReaderExtractor, error) { return audio.extract, nil }, t.TempDir())
 	require.NoError(t, worker.Work(t.Context(), &river.Job[CaptionsArgs]{JobRow: nil, Args: args}))
 	assert.Equal(t, file.Entry.Size, audio.read, "ライブラリの口でファイルを読み通す")
@@ -121,7 +121,7 @@ func TestCaptionsWorkerWriting(t *testing.T) {
 	require.True(t, file.Writing)
 	audio := &fakeAudio{offset: 0, err: nil, read: 0, serviceID: 0}
 	worker := NewCaptionsWorker(f.worker.libraries, f.reader.Indexer(), clocktest.NewFake(now),
-		func() (autocaption.Transcriber, error) { return &fakeTranscriber{cues: nil}, nil },
+		func(context.Context) (autocaption.Transcriber, error) { return &fakeTranscriber{cues: nil}, nil },
 		func() (autocaption.ReaderExtractor, error) { return audio.extract, nil }, t.TempDir())
 	args := CaptionsArgs{Library: internalLibrary, Path: internalShowTS, FileID: file.ID()}
 	err := worker.Work(t.Context(), &river.Job[CaptionsArgs]{JobRow: nil, Args: args})
@@ -137,7 +137,7 @@ func TestCaptionsWorkerNotConfigured(t *testing.T) {
 
 	f := newImagesFixture(t)
 	worker := NewCaptionsWorker(f.worker.libraries, f.reader.Indexer(), clocktest.NewFake(time.Now()),
-		func() (autocaption.Transcriber, error) { return nil, autocaption.ErrNotConfigured },
+		func(context.Context) (autocaption.Transcriber, error) { return nil, autocaption.ErrNotConfigured },
 		func() (autocaption.ReaderExtractor, error) { return nil, errors.New("unused") }, t.TempDir())
 	args := CaptionsArgs{Library: internalLibrary, Path: internalShowTS, FileID: f.open(t).ID()}
 	err := worker.Work(t.Context(), &river.Job[CaptionsArgs]{JobRow: nil, Args: args})
