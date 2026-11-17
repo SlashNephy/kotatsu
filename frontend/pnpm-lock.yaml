@@ -330,9 +330,6 @@ importers:
       jsdom:
         specifier: 31.0.1
         version: 31.0.1
-      lodash:
-        specifier: 4.17.15
-        version: 4.17.15
       react-grab:
         specifier: 0.2.0
         version: 0.2.0(react@19.3.1)
@@ -3569,9 +3566,6 @@ packages:
 
   lodash.debounce@4.0.8:
     resolution: {integrity: sha512-FT1yDzDYEoYWhnSGnpE/4Kj1fLZkDFyqRb7fNt6FdYOSxlUWAtp42Eh6Wb0rGIv/m9Bgo7x4GhQbm5Ys4SG5ow==}
-
-  lodash@4.17.15:
-    resolution: {integrity: sha512-8xOcRHvCjnocdS5cpwXQXVzmmh5e5+saE2QGoeQmbKmRS6J3VQppPOIt0MnmE+4xlZoumy0GPG0D0MVIQbNA1A==}
 
   log-symbols@7.0.1:
     resolution: {integrity: sha512-ja1E3yCr9i/0hmBVaM0bfwDjnGy8I/s6PP4DFp+yP+a+mrHO4Rm7DtmnqROTUkHIkqffC84YY7AeqX6oFk0WFg==}
@@ -7546,8 +7540,6 @@ snapshots:
   lines-and-columns@1.2.4: {}
 
   lodash.debounce@4.0.8: {}
-
-  lodash@4.17.15: {}
 
   log-symbols@7.0.1:
     dependencies:
