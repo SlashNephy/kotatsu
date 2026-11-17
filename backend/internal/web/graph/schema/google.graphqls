@@ -1,0 +1,63 @@
+"""
+管理者が登録した Google の OAuth クライアントと、それで接続した Google Drive (#1902、設計書 5.8)。クライアントシークレットとトークンは返さない。
+"""
+type GoogleIntegration {
+  "登録したクライアント ID。登録していなければ null。"
+  clientId: String
+  "クライアント ID とシークレットを登録したかどうか。"
+  configured: Boolean!
+  """
+  管理者が Google Cloud の OAuth クライアント (ウェブアプリケーション) に登録するリダイレクト URI。いま接続しているオリジンから決める。
+  Google の連携で共有する (/internal/auth/google/callback)。
+  """
+  redirectUri: String!
+  "最後に変えた日時。登録していなければ null。"
+  updatedAt: Time
+  "Google Drive の接続。接続していなければ null。"
+  drive: GoogleDriveConnection
+}
+
+"""
+ライブラリとして読む Google Drive の接続 (#1902)。サーバーに 1 つ (管理者のアカウント) だけ持つ。
+"""
+type GoogleDriveConnection {
+  "接続した Google のアカウント (メールアドレス)。"
+  accountName: String!
+  connectedAt: Time!
+  """
+  リフレッシュトークンが使えなくなった (取り消された、同意の画面が「テスト中」で期限が切れたなど) と分かった日時。
+  使えていれば null。接続し直すまで、Drive を読まない。
+  """
+  revokedAt: Time
+}
+
+"""
+Google の OAuth クライアントの変更。
+"""
+input GoogleAppInput {
+  "クライアント ID。空にすると、登録を消し、Google Drive の接続も外す。"
+  clientId: String!
+  "クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。"
+  clientSecret: String
+}
+
+extend type Query {
+  "Google の OAuth クライアントと、Google Drive の接続を返す (#1902)。管理者だけが使える。"
+  googleIntegration: GoogleIntegration!
+}
+
+extend type Mutation {
+  """
+  Google の OAuth クライアントを変える (#1902)。管理者だけが使える。サーバーが Google と通信し始めるかどうかの元になる値なので、
+  直近の再認証を求める (設計書 9.5)。クライアント ID を空にすると、Google Drive の接続も外す。
+  """
+  updateGoogleApp(input: GoogleAppInput!): GoogleIntegration!
+  """
+  管理者のアカウントで Google Drive を接続する認可を始め、ブラウザーを送り出す Google の認可の画面の URL を返す (#1902)。
+  Google から GET /internal/auth/google/callback に戻ってきたら、接続する。管理者だけが、ブラウザーのセッションでだけ使える。
+  Drive のファイルを家族全員に見せ始める操作なので、直近の再認証を求める。クライアントを登録していなければ CONFLICT を返す。
+  """
+  beginGoogleDriveConnection: String!
+  "Google Drive の接続を外し、リフレッシュトークンを Google で取り消す (#1902)。管理者だけが使える。"
+  disconnectGoogleDrive: GoogleIntegration!
+}

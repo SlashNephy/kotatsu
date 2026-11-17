@@ -2053,3 +2053,39 @@ CREATE TABLE drama_title_overrides (
   tmdb_series_id integer CHECK (tmdb_series_id > 0),
   updated_at timestamptz NOT NULL
 );
+
+-- 管理者が連携の画面で登録した、Google の OAuth クライアント (#1902)。1 行だけ持つ。リダイレクト URI (/internal/auth/google/callback) は、
+-- Google の連携で共有する。クライアントシークレットは、アプリの秘密キーで暗号化する (設計書 8.4)。
+CREATE TABLE google_apps (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  client_id text NOT NULL,
+  client_secret_encrypted bytea NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- Google の認可の途中の状態 (#1902)。state の SHA-256 で引き、戻ってきたら引くと同時に消す。purpose は、何のための連携か。
+CREATE TABLE google_authorizations (
+  id uuid PRIMARY KEY,
+  state_hash bytea NOT NULL UNIQUE,
+  session_id uuid NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  purpose text NOT NULL CHECK (purpose IN ('drive')),
+  code_verifier text NOT NULL,
+  -- Google に渡したリダイレクト URI。トークンと引き換えるときに、同じ値を渡す。
+  redirect_uri text NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL
+);
+CREATE INDEX google_authorizations_expires_at_idx ON google_authorizations (expires_at);
+
+-- ライブラリとして読む Google Drive の接続 (#1902、設計書 5.8)。サーバーに 1 つ (管理者のアカウント) だけ持つ。
+-- リフレッシュトークンは、アプリの秘密キーで暗号化する (設計書 8.4)。アクセストークンは、各ロールが手元で作り直し、保存しない。
+CREATE TABLE google_drive_connections (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  refresh_token_encrypted bytea NOT NULL,
+  -- 接続した Google のアカウント (メールアドレス)。連携の画面に、どのアカウントと接続したかを出す。
+  account_name text NOT NULL,
+  connected_at timestamptz NOT NULL,
+  -- リフレッシュトークンが使えなくなった (取り消された、期限が切れたなど) 日時。接続し直すまで、Drive を読まない。
+  revoked_at timestamptz
+);

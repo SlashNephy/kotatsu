@@ -192,7 +192,7 @@ func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !src.matches(ref, entry) {
+	if !x.matches(src, ref, entry) {
 		return empty, nil
 	}
 	name := partialIndexName
@@ -237,13 +237,13 @@ func (x *Indexer) Ensure(ctx context.Context, ref Ref, entry *medialib.Entry) {
 	if x.Writing(entry) {
 		return
 	}
-	key := indexKey(ref)
+	key := indexKey(x.identify(ref))
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	if x.building[key] != nil || x.clearing || x.isStopped() {
 		return
 	}
-	if src, err := x.readSource(ref); err == nil && src.matches(ref, entry) {
+	if src, err := x.readSource(ref); err == nil && x.matches(src, ref, entry) {
 		if src.Complete && src.Version == sourceVersion {
 			return
 		}
@@ -308,7 +308,23 @@ func (x *Indexer) isStopped() bool {
 
 // dir は、ref の索引のディレクトリのパスを返す。
 func (x *Indexer) dir(ref Ref) string {
-	return filepath.Join(x.dataDir, kago.LibraryIndexDir, indexKey(ref))
+	return filepath.Join(x.dataDir, kago.LibraryIndexDir, indexKey(x.identify(ref)))
+}
+
+// identify は、ref のパスを、ライブラリがファイルを見分ける値 (medialib.IdentityOf) に置き換える。Google Drive では、
+// フォルダをたどった道筋が違っても、同じファイルの索引を使い回す。
+func (x *Indexer) identify(ref Ref) Ref {
+	library, ok := x.libraries.Get(ref.Library)
+	if !ok {
+		return ref
+	}
+
+	return Ref{Library: ref.Library, Path: medialib.IdentityOf(library, ref.Path)}
+}
+
+// matches は、記録 src が、ファイル ref (大きさと更新日時は entry) のものかどうかを返す。
+func (x *Indexer) matches(src *source, ref Ref, entry *medialib.Entry) bool {
+	return src.matches(x.identify(Ref{Library: src.Library, Path: src.Path}), x.identify(ref), entry)
 }
 
 // buildIndex は、ファイルを読み通して、索引を作る。I フレームを見つけるたびに、書きかけの索引に追記する。
@@ -497,8 +513,8 @@ func (s *source) index(entries []ts.IndexEntry, complete bool) *Index {
 }
 
 // matches は、記録が、大きさと更新日時が entry のファイル ref のものかどうかを返す。
-func (s *source) matches(ref Ref, entry *medialib.Entry) bool {
-	return s.Library == ref.Library && s.Path == ref.Path && s.Size == entry.Size && s.ModifiedAt == entry.ModifiedAt.UnixNano()
+func (s *source) matches(stored, ref Ref, entry *medialib.Entry) bool {
+	return stored == ref && s.Size == entry.Size && s.ModifiedAt == entry.ModifiedAt.UnixNano()
 }
 
 // ErrNoVideo は、ファイルの頭から、映像の形式を読めなかったことを表す。

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/infra/googledrive"
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -51,8 +52,12 @@ func requireWatch(ctx context.Context) error {
 
 func toLibrary(l medialib.Library) *model.Library {
 	kind := model.LibraryKindFolder
-	if l.Kind() == medialib.KindPool {
+	switch l.Kind() {
+	case medialib.KindPool:
 		kind = model.LibraryKindPool
+	case medialib.KindGoogleDrive:
+		kind = model.LibraryKindGoogleDrive
+	case medialib.KindFolder:
 	}
 
 	return &model.Library{Name: l.Name(), Kind: kind}
@@ -62,8 +67,12 @@ func (r *Resolver) librariesList(ctx context.Context) ([]*model.Library, error) 
 	if err := requireWatch(ctx); err != nil {
 		return nil, err
 	}
+	available, err := r.libraries.Available(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the libraries: %w", err)
+	}
 	libraries := []*model.Library{}
-	for _, l := range r.libraries.All() {
+	for _, l := range available {
 		libraries = append(libraries, toLibrary(l))
 	}
 
@@ -81,6 +90,10 @@ func libraryReadError(err error) error {
 		return NewError(CodeBadUserInput, "Blu-ray .m2ts files with 192-byte packets are not supported")
 	case errors.Is(err, fileimport.ErrNotTS):
 		return NewError(CodeBadUserInput, "the file is not an MPEG-2 TS")
+	case errors.Is(err, googledrive.ErrRateLimited):
+		return NewError(CodeConflict, "Google Drive is busy; try again later")
+	case errors.Is(err, googledrive.ErrDownloadQuota):
+		return NewError(CodeConflict, "the download quota of the file in Google Drive was exceeded; try again later")
 	default:
 		return fmt.Errorf("failed to read the library: %w", err)
 	}
@@ -112,8 +125,12 @@ func (r *Resolver) libraryDirectory(ctx context.Context, name, dir string) (*mod
 		}
 	}
 	cleaned, _ := medialib.CleanPath(dir)
+	names, err := medialib.NamesOf(ctx, l, cleaned)
+	if err != nil {
+		return nil, libraryReadError(err)
+	}
 
-	return &model.LibraryDirectory{Library: toLibrary(l), Path: cleaned, Entries: slices.Concat(dirs, files)}, nil
+	return &model.LibraryDirectory{Library: toLibrary(l), Path: cleaned, Names: names, Entries: slices.Concat(dirs, files)}, nil
 }
 
 func (r *Resolver) libraryFile(ctx context.Context, name, path string) (*model.LibraryFile, error) {

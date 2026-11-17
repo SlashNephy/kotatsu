@@ -1,7 +1,8 @@
 // Package medialib は、録画として登録していない TS を再生するために、ファイルを読んでよいフォルダ (ライブラリ) を扱う (設計書 5.8、#1734)。
 //
-// ライブラリの中身は、一覧 (List)、情報 (Stat)、開く (Open) の 3 つの口だけで読む。今はローカルのディレクトリ (Local) だけを実装し、
-// クラウドストレージは、後でこの口に当てはめる。パスは、ライブラリの中の / 区切りの相対パスで表し、ライブラリの外へは出られない。
+// ライブラリの中身は、一覧 (List)、情報 (Stat)、開く (Open) の 3 つの口だけで読む。ローカルのディレクトリ (Local) と、
+// 管理者が接続した Google Drive (Drive、#1902) を、この口に当てはめる。パスは、ライブラリの中の / 区切りの相対パスで表し、
+// ライブラリの外へは出られない。
 package medialib
 
 import (
@@ -72,6 +73,50 @@ type Library interface {
 	Open(ctx context.Context, p string) (File, error)
 }
 
+// Identifier は、ファイルを見分ける値を、パスと別に持つライブラリ。Google Drive では、フォルダをたどった道筋が違っても、
+// 同じファイルを同じものとして扱う。持たなければ、パスで見分ける。
+type Identifier interface {
+	// Identity は、ファイル p を見分ける値を返す。
+	Identity(p string) string
+}
+
+// IdentityOf は、ライブラリ l のファイル p を見分ける値を返す。索引の置き場と、再生位置を保存するファイルの ID に使う。
+func IdentityOf(l Library, p string) string {
+	if identifier, ok := l.(Identifier); ok {
+		return identifier.Identity(p)
+	}
+
+	return p
+}
+
+// Namer は、パスの段と、画面に出す名前が違うライブラリ。持たなければ、段をそのまま名前にする。
+type Namer interface {
+	// Names は、パス p の段ごとの名前を返す。根元なら空を返す。
+	Names(ctx context.Context, p string) ([]string, error)
+}
+
+// NamesOf は、ライブラリ l のパス p の段ごとの、画面に出す名前を返す。
+func NamesOf(ctx context.Context, l Library, p string) ([]string, error) {
+	if namer, ok := l.(Namer); ok {
+		return namer.Names(ctx, p)
+	}
+	p, err := CleanPath(p)
+	if err != nil {
+		return nil, err
+	}
+	if p == "" {
+		return []string{}, nil
+	}
+
+	return strings.Split(p, "/"), nil
+}
+
+// Connector は、使えるかどうかが実行中に変わるライブラリ。管理者が接続したときだけ、ライブラリの一覧に出す。
+type Connector interface {
+	// Connected は、今使えるかどうかを返す。
+	Connected(ctx context.Context) (bool, error)
+}
+
 // Set は、このインスタンスから読めるライブラリの一覧。
 type Set struct {
 	libraries []Library
@@ -99,6 +144,34 @@ func NewSet(pools map[string]string, poolOrder []string, folders map[string]stri
 	}
 
 	return &Set{libraries: libraries}
+}
+
+// With は、ライブラリ l を後ろに足した一覧を返す。同じ名前のライブラリがあれば、足さない。
+func (s *Set) With(l Library) *Set {
+	if _, ok := s.Get(l.Name()); ok {
+		return s
+	}
+
+	return &Set{libraries: append(slices.Clone(s.libraries), l)}
+}
+
+// Available は、今使えるライブラリを、All と同じ順に返す。接続していない Google Drive などは除く。
+func (s *Set) Available(ctx context.Context) ([]Library, error) {
+	libraries := make([]Library, 0, len(s.libraries))
+	for _, l := range s.libraries {
+		if connector, ok := l.(Connector); ok {
+			connected, err := connector.Connected(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if !connected {
+				continue
+			}
+		}
+		libraries = append(libraries, l)
+	}
+
+	return libraries, nil
 }
 
 // All は、ライブラリを、プール、フォルダの順に返す。

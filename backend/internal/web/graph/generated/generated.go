@@ -511,6 +511,20 @@ type ComplexityRoot struct {
 		Version func(childComplexity int) int
 	}
 
+	GoogleDriveConnection struct {
+		AccountName func(childComplexity int) int
+		ConnectedAt func(childComplexity int) int
+		RevokedAt   func(childComplexity int) int
+	}
+
+	GoogleIntegration struct {
+		ClientID    func(childComplexity int) int
+		Configured  func(childComplexity int) int
+		Drive       func(childComplexity int) int
+		RedirectURI func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+	}
+
 	GuideRow struct {
 		Programs func(childComplexity int) int
 		Service  func(childComplexity int) int
@@ -678,6 +692,7 @@ type ComplexityRoot struct {
 	LibraryDirectory struct {
 		Entries func(childComplexity int) int
 		Library func(childComplexity int) int
+		Names   func(childComplexity int) int
 		Path    func(childComplexity int) int
 	}
 
@@ -794,6 +809,7 @@ type ComplexityRoot struct {
 	Mutation struct {
 		ApproveOAuthAuthorization     func(childComplexity int, query string, scopes []string) int
 		BeginAnimeRecordConnection    func(childComplexity int, destination model.AnimeRecordDestination) int
+		BeginGoogleDriveConnection    func(childComplexity int) int
 		BeginTotpEnrollment           func(childComplexity int) int
 		CancelCaptionModelDownload    func(childComplexity int, kind captionmodel.Kind) int
 		CancelJob                     func(childComplexity int, id string) int
@@ -841,6 +857,7 @@ type ComplexityRoot struct {
 		DetectRecordingCM             func(childComplexity int, id string) int
 		DisableUser                   func(childComplexity int, id string) int
 		DisconnectAnimeRecord         func(childComplexity int, destination model.AnimeRecordDestination) int
+		DisconnectGoogleDrive         func(childComplexity int) int
 		DownloadCaptionModel          func(childComplexity int, id string) int
 		EnableUser                    func(childComplexity int, id string) int
 		GenerateLibraryCaptions       func(childComplexity int, id string) int
@@ -891,6 +908,7 @@ type ComplexityRoot struct {
 		UpdateChannelType             func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
 		UpdateDramaLinkingToken       func(childComplexity int, token string) int
 		UpdateDramaTitleOverride      func(childComplexity int, input model.DramaTitleOverrideInput) int
+		UpdateGoogleApp               func(childComplexity int, input model.GoogleAppInput) int
 		UpdateGuideView               func(childComplexity int, id string, input model.GuideViewInput) int
 		UpdateNotificationPreference  func(childComplexity int, input model.NotificationPreferenceInput) int
 		UpdatePlayer                  func(childComplexity int, id string, state model.PlayerStateInput, announce bool) int
@@ -1147,6 +1165,7 @@ type ComplexityRoot struct {
 		DrcsReplacements        func(childComplexity int) int
 		FileNameTemplateHelp    func(childComplexity int) int
 		GoModuleLicenses        func(childComplexity int) int
+		GoogleIntegration       func(childComplexity int) int
 		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
 		GuideViews              func(childComplexity int) int
 		IptvFeed                func(childComplexity int) int
@@ -1814,6 +1833,9 @@ type MutationResolver interface {
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
 	UpdateDramaLinkingToken(ctx context.Context, token string) (*model.DramaLinkingStatus, error)
 	UpdateDramaTitleOverride(ctx context.Context, input model.DramaTitleOverrideInput) ([]*model.DramaTitleOverride, error)
+	UpdateGoogleApp(ctx context.Context, input model.GoogleAppInput) (*model.GoogleIntegration, error)
+	BeginGoogleDriveConnection(ctx context.Context) (string, error)
+	DisconnectGoogleDrive(ctx context.Context) (*model.GoogleIntegration, error)
 	RetryJob(ctx context.Context, id string) (*model.Job, error)
 	CancelJob(ctx context.Context, id string) (*model.Job, error)
 	SaveLibraryWatchPosition(ctx context.Context, id string, positionMs int64) (*model.LibraryFile, error)
@@ -1947,6 +1969,7 @@ type QueryResolver interface {
 	OldestArchivedProgramAt(ctx context.Context) (*time.Time, error)
 	FileNameTemplateHelp(ctx context.Context) (*model.FileNameTemplateHelp, error)
 	PreviewFileName(ctx context.Context, template string, program *string) (*model.FileNamePreview, error)
+	GoogleIntegration(ctx context.Context) (*model.GoogleIntegration, error)
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
 	Jobs(ctx context.Context, state model.JobState, first int, after *string) (*model.JobPage, error)
 	JobCounts(ctx context.Context) ([]*model.JobStateCount, error)
@@ -3718,6 +3741,56 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.GoModuleLicense.Version(childComplexity), true
 
+	case "GoogleDriveConnection.accountName":
+		if e.ComplexityRoot.GoogleDriveConnection.AccountName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleDriveConnection.AccountName(childComplexity), true
+	case "GoogleDriveConnection.connectedAt":
+		if e.ComplexityRoot.GoogleDriveConnection.ConnectedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleDriveConnection.ConnectedAt(childComplexity), true
+	case "GoogleDriveConnection.revokedAt":
+		if e.ComplexityRoot.GoogleDriveConnection.RevokedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleDriveConnection.RevokedAt(childComplexity), true
+
+	case "GoogleIntegration.clientId":
+		if e.ComplexityRoot.GoogleIntegration.ClientID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleIntegration.ClientID(childComplexity), true
+	case "GoogleIntegration.configured":
+		if e.ComplexityRoot.GoogleIntegration.Configured == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleIntegration.Configured(childComplexity), true
+	case "GoogleIntegration.drive":
+		if e.ComplexityRoot.GoogleIntegration.Drive == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleIntegration.Drive(childComplexity), true
+	case "GoogleIntegration.redirectUri":
+		if e.ComplexityRoot.GoogleIntegration.RedirectURI == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleIntegration.RedirectURI(childComplexity), true
+	case "GoogleIntegration.updatedAt":
+		if e.ComplexityRoot.GoogleIntegration.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleIntegration.UpdatedAt(childComplexity), true
+
 	case "GuideRow.programs":
 		if e.ComplexityRoot.GuideRow.Programs == nil {
 			break
@@ -4340,6 +4413,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LibraryDirectory.Library(childComplexity), true
+	case "LibraryDirectory.names":
+		if e.ComplexityRoot.LibraryDirectory.Names == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryDirectory.Names(childComplexity), true
 	case "LibraryDirectory.path":
 		if e.ComplexityRoot.LibraryDirectory.Path == nil {
 			break
@@ -4825,6 +4904,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.BeginAnimeRecordConnection(childComplexity, args["destination"].(model.AnimeRecordDestination)), true
+	case "Mutation.beginGoogleDriveConnection":
+		if e.ComplexityRoot.Mutation.BeginGoogleDriveConnection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.BeginGoogleDriveConnection(childComplexity), true
 	case "Mutation.beginTotpEnrollment":
 		if e.ComplexityRoot.Mutation.BeginTotpEnrollment == nil {
 			break
@@ -5297,6 +5382,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DisconnectAnimeRecord(childComplexity, args["destination"].(model.AnimeRecordDestination)), true
+	case "Mutation.disconnectGoogleDrive":
+		if e.ComplexityRoot.Mutation.DisconnectGoogleDrive == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.DisconnectGoogleDrive(childComplexity), true
 	case "Mutation.downloadCaptionModel":
 		if e.ComplexityRoot.Mutation.DownloadCaptionModel == nil {
 			break
@@ -5827,6 +5918,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateDramaTitleOverride(childComplexity, args["input"].(model.DramaTitleOverrideInput)), true
+	case "Mutation.updateGoogleApp":
+		if e.ComplexityRoot.Mutation.UpdateGoogleApp == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateGoogleApp_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateGoogleApp(childComplexity, args["input"].(model.GoogleAppInput)), true
 	case "Mutation.updateGuideView":
 		if e.ComplexityRoot.Mutation.UpdateGuideView == nil {
 			break
@@ -7023,6 +7125,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.GoModuleLicenses(childComplexity), true
+	case "Query.googleIntegration":
+		if e.ComplexityRoot.Query.GoogleIntegration == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.GoogleIntegration(childComplexity), true
 	case "Query.guide":
 		if e.ComplexityRoot.Query.Guide == nil {
 			break
@@ -9880,6 +9988,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("DramaTitleOverrideInput", ec.unmarshalInputDramaTitleOverrideInput),
 			graphql.NewInputUnmarshaler("DrcsReplacementInput", ec.unmarshalInputDrcsReplacementInput),
 			graphql.NewInputUnmarshaler("GenreInput", ec.unmarshalInputGenreInput),
+			graphql.NewInputUnmarshaler("GoogleAppInput", ec.unmarshalInputGoogleAppInput),
 			graphql.NewInputUnmarshaler("GuideViewInput", ec.unmarshalInputGuideViewInput),
 			graphql.NewInputUnmarshaler("JikkyoChannelOverrideInput", ec.unmarshalInputJikkyoChannelOverrideInput),
 			graphql.NewInputUnmarshaler("KeywordInput", ec.unmarshalInputKeywordInput),
@@ -11654,6 +11763,70 @@ extend type Query {
   previewFileName(template: String!, program: ID): FileNamePreview!
 }
 `, BuiltIn: false},
+	{Name: "../schema/google.graphqls", Input: `"""
+管理者が登録した Google の OAuth クライアントと、それで接続した Google Drive (#1902、設計書 5.8)。クライアントシークレットとトークンは返さない。
+"""
+type GoogleIntegration {
+  "登録したクライアント ID。登録していなければ null。"
+  clientId: String
+  "クライアント ID とシークレットを登録したかどうか。"
+  configured: Boolean!
+  """
+  管理者が Google Cloud の OAuth クライアント (ウェブアプリケーション) に登録するリダイレクト URI。いま接続しているオリジンから決める。
+  Google の連携で共有する (/internal/auth/google/callback)。
+  """
+  redirectUri: String!
+  "最後に変えた日時。登録していなければ null。"
+  updatedAt: Time
+  "Google Drive の接続。接続していなければ null。"
+  drive: GoogleDriveConnection
+}
+
+"""
+ライブラリとして読む Google Drive の接続 (#1902)。サーバーに 1 つ (管理者のアカウント) だけ持つ。
+"""
+type GoogleDriveConnection {
+  "接続した Google のアカウント (メールアドレス)。"
+  accountName: String!
+  connectedAt: Time!
+  """
+  リフレッシュトークンが使えなくなった (取り消された、同意の画面が「テスト中」で期限が切れたなど) と分かった日時。
+  使えていれば null。接続し直すまで、Drive を読まない。
+  """
+  revokedAt: Time
+}
+
+"""
+Google の OAuth クライアントの変更。
+"""
+input GoogleAppInput {
+  "クライアント ID。空にすると、登録を消し、Google Drive の接続も外す。"
+  clientId: String!
+  "クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。"
+  clientSecret: String
+}
+
+extend type Query {
+  "Google の OAuth クライアントと、Google Drive の接続を返す (#1902)。管理者だけが使える。"
+  googleIntegration: GoogleIntegration!
+}
+
+extend type Mutation {
+  """
+  Google の OAuth クライアントを変える (#1902)。管理者だけが使える。サーバーが Google と通信し始めるかどうかの元になる値なので、
+  直近の再認証を求める (設計書 9.5)。クライアント ID を空にすると、Google Drive の接続も外す。
+  """
+  updateGoogleApp(input: GoogleAppInput!): GoogleIntegration!
+  """
+  管理者のアカウントで Google Drive を接続する認可を始め、ブラウザーを送り出す Google の認可の画面の URL を返す (#1902)。
+  Google から GET /internal/auth/google/callback に戻ってきたら、接続する。管理者だけが、ブラウザーのセッションでだけ使える。
+  Drive のファイルを家族全員に見せ始める操作なので、直近の再認証を求める。クライアントを登録していなければ CONFLICT を返す。
+  """
+  beginGoogleDriveConnection: String!
+  "Google Drive の接続を外し、リフレッシュトークンを Google で取り消す (#1902)。管理者だけが使える。"
+  disconnectGoogleDrive: GoogleIntegration!
+}
+`, BuiltIn: false},
 	{Name: "../schema/guide_views.graphqls", Input: `"""
 番組表ビュー (設計書 10.3)。番組表に適用する条件を、ユーザーごとに名前を付けて保存したもの。
 """
@@ -11795,6 +11968,11 @@ enum LibraryKind {
   POOL
   "設定 (storage.libraries) で足したフォルダ。"
   FOLDER
+  """
+  管理者が接続した Google Drive (#1902)。接続しているときだけ出す。パスは、名前でなく、マイドライブ (root) か共有ドライブの ID と、
+  フォルダとファイルの ID を / でつないだもの。
+  """
+  GOOGLE_DRIVE
 }
 
 """
@@ -11827,6 +12005,11 @@ type LibraryDirectory {
   library: Library!
   "ライブラリの中の / 区切りの相対パス。根元は空。"
   path: String!
+  """
+  パスの段ごとの、画面に出す名前。パンくずに使う。フォルダのライブラリでは段そのもの、Google Drive ではフォルダの名前
+  (マイドライブの根元は "My Drive")。根元なら空。
+  """
+  names: [String!]!
   """
   中のディレクトリと、再生できるファイルを、ディレクトリ、ファイルの順に、それぞれ名前の順に返す。
   隠しファイル、再生できないファイル、ライブラリの外を指すシンボリックリンクは返さない。
@@ -15840,6 +16023,34 @@ func (ec *executionContext) childFields_GoModuleLicense(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type GoModuleLicense", field.Name)
 }
 
+func (ec *executionContext) childFields_GoogleDriveConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "accountName":
+		return ec.fieldContext_GoogleDriveConnection_accountName(ctx, field)
+	case "connectedAt":
+		return ec.fieldContext_GoogleDriveConnection_connectedAt(ctx, field)
+	case "revokedAt":
+		return ec.fieldContext_GoogleDriveConnection_revokedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GoogleDriveConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_GoogleIntegration(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "clientId":
+		return ec.fieldContext_GoogleIntegration_clientId(ctx, field)
+	case "configured":
+		return ec.fieldContext_GoogleIntegration_configured(ctx, field)
+	case "redirectUri":
+		return ec.fieldContext_GoogleIntegration_redirectUri(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_GoogleIntegration_updatedAt(ctx, field)
+	case "drive":
+		return ec.fieldContext_GoogleIntegration_drive(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GoogleIntegration", field.Name)
+}
+
 func (ec *executionContext) childFields_GuideRow(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "service":
@@ -16174,6 +16385,8 @@ func (ec *executionContext) childFields_LibraryDirectory(ctx context.Context, fi
 		return ec.fieldContext_LibraryDirectory_library(ctx, field)
 	case "path":
 		return ec.fieldContext_LibraryDirectory_path(ctx, field)
+	case "names":
+		return ec.fieldContext_LibraryDirectory_names(ctx, field)
 	case "entries":
 		return ec.fieldContext_LibraryDirectory_entries(ctx, field)
 	}
@@ -19458,6 +19671,20 @@ func (ec *executionContext) field_Mutation_updateDramaTitleOverride_args(ctx con
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.DramaTitleOverrideInput, error) {
 			return ec.unmarshalNDramaTitleOverrideInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateGoogleApp_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.GoogleAppInput, error) {
+			return ec.unmarshalNGoogleAppInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleAppInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -26766,6 +26993,199 @@ func (ec *executionContext) fieldContext_GoModuleLicense_files(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _GoogleDriveConnection_accountName(ctx context.Context, field graphql.CollectedField, obj *model.GoogleDriveConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleDriveConnection_accountName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AccountName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleDriveConnection_accountName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleDriveConnection", field, false, false, "String")
+}
+
+func (ec *executionContext) _GoogleDriveConnection_connectedAt(ctx context.Context, field graphql.CollectedField, obj *model.GoogleDriveConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleDriveConnection_connectedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConnectedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleDriveConnection_connectedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleDriveConnection", field, false, false, "Time")
+}
+
+func (ec *executionContext) _GoogleDriveConnection_revokedAt(ctx context.Context, field graphql.CollectedField, obj *model.GoogleDriveConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleDriveConnection_revokedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RevokedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleDriveConnection_revokedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleDriveConnection", field, false, false, "Time")
+}
+
+func (ec *executionContext) _GoogleIntegration_clientId(ctx context.Context, field graphql.CollectedField, obj *model.GoogleIntegration) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleIntegration_clientId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleIntegration_clientId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleIntegration", field, false, false, "String")
+}
+
+func (ec *executionContext) _GoogleIntegration_configured(ctx context.Context, field graphql.CollectedField, obj *model.GoogleIntegration) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleIntegration_configured(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Configured, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleIntegration_configured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleIntegration", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _GoogleIntegration_redirectUri(ctx context.Context, field graphql.CollectedField, obj *model.GoogleIntegration) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleIntegration_redirectUri(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RedirectURI, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleIntegration_redirectUri(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleIntegration", field, false, false, "String")
+}
+
+func (ec *executionContext) _GoogleIntegration_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.GoogleIntegration) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleIntegration_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleIntegration_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleIntegration", field, false, false, "Time")
+}
+
+func (ec *executionContext) _GoogleIntegration_drive(ctx context.Context, field graphql.CollectedField, obj *model.GoogleIntegration) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleIntegration_drive(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Drive, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GoogleDriveConnection) graphql.Marshaler {
+			return ec.marshalOGoogleDriveConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleDriveConnection(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleIntegration_drive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GoogleIntegration",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GoogleDriveConnection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _GuideRow_service(ctx context.Context, field graphql.CollectedField, obj *model.GuideRow) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -29189,6 +29609,29 @@ func (ec *executionContext) _LibraryDirectory_path(ctx context.Context, field gr
 	)
 }
 func (ec *executionContext) fieldContext_LibraryDirectory_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryDirectory", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryDirectory_names(ctx context.Context, field graphql.CollectedField, obj *model.LibraryDirectory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryDirectory_names(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Names, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryDirectory_names(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("LibraryDirectory", field, false, false, "String")
 }
 
@@ -32184,6 +32627,105 @@ func (ec *executionContext) fieldContext_Mutation_updateDramaTitleOverride(ctx c
 	if fc.Args, err = ec.field_Mutation_updateDramaTitleOverride_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateGoogleApp(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateGoogleApp(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateGoogleApp(ctx, fc.Args["input"].(model.GoogleAppInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GoogleIntegration) graphql.Marshaler {
+			return ec.marshalNGoogleIntegration2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleIntegration(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateGoogleApp(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GoogleIntegration(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateGoogleApp_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_beginGoogleDriveConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_beginGoogleDriveConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().BeginGoogleDriveConnection(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_beginGoogleDriveConnection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, "String")
+}
+
+func (ec *executionContext) _Mutation_disconnectGoogleDrive(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_disconnectGoogleDrive(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().DisconnectGoogleDrive(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GoogleIntegration) graphql.Marshaler {
+			return ec.marshalNGoogleIntegration2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleIntegration(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_disconnectGoogleDrive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GoogleIntegration(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -40389,6 +40931,38 @@ func (ec *executionContext) fieldContext_Query_previewFileName(ctx context.Conte
 	if fc.Args, err = ec.field_Query_previewFileName_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_googleIntegration(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_googleIntegration(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().GoogleIntegration(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GoogleIntegration) graphql.Marshaler {
+			return ec.marshalNGoogleIntegration2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleIntegration(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_googleIntegration(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GoogleIntegration(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -53771,6 +54345,55 @@ func UnmarshalGenreInput(ctx context.Context, raw any) (model.GenreInput, error)
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputGoogleAppInput(ctx context.Context, obj any) (model.GoogleAppInput, error) {
+	var it model.GoogleAppInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"clientId", "clientSecret"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "clientId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientID = data
+		case "clientSecret":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientSecret"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientSecret = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalGoogleAppInput unmarshals raw into the GoogleAppInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalGoogleAppInput(ctx context.Context, raw any) (model.GoogleAppInput, error) {
+	var out model.GoogleAppInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "GoogleAppInput", raw, &out)
+	return out, err
+}
+
 func (ec *executionContext) unmarshalInputGuideViewInput(ctx context.Context, obj any) (model.GuideViewInput, error) {
 	var it model.GuideViewInput
 	if obj == nil {
@@ -59172,6 +59795,102 @@ func (ec *executionContext) _GoModuleLicense(ctx context.Context, sel ast.Select
 	return out
 }
 
+var googleDriveConnectionImplementors = []string{"GoogleDriveConnection"}
+
+func (ec *executionContext) _GoogleDriveConnection(ctx context.Context, sel ast.SelectionSet, obj *model.GoogleDriveConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, googleDriveConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GoogleDriveConnection")
+		case "accountName":
+			out.Values[i] = ec._GoogleDriveConnection_accountName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "connectedAt":
+			out.Values[i] = ec._GoogleDriveConnection_connectedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revokedAt":
+			out.Values[i] = ec._GoogleDriveConnection_revokedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var googleIntegrationImplementors = []string{"GoogleIntegration"}
+
+func (ec *executionContext) _GoogleIntegration(ctx context.Context, sel ast.SelectionSet, obj *model.GoogleIntegration) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, googleIntegrationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GoogleIntegration")
+		case "clientId":
+			out.Values[i] = ec._GoogleIntegration_clientId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "configured":
+			out.Values[i] = ec._GoogleIntegration_configured(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "redirectUri":
+			out.Values[i] = ec._GoogleIntegration_redirectUri(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._GoogleIntegration_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "drive":
+			out.Values[i] = ec._GoogleIntegration_drive(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var guideRowImplementors = []string{"GuideRow"}
 
 func (ec *executionContext) _GuideRow(ctx context.Context, sel ast.SelectionSet, obj *model.GuideRow) graphql.Marshaler {
@@ -60300,6 +61019,11 @@ func (ec *executionContext) _LibraryDirectory(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "names":
+			out.Values[i] = ec._LibraryDirectory_names(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "entries":
 			out.Values[i] = ec._LibraryDirectory_entries(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -61239,6 +61963,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateDramaTitleOverride":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateDramaTitleOverride(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateGoogleApp":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateGoogleApp(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "beginGoogleDriveConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_beginGoogleDriveConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "disconnectGoogleDrive":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_disconnectGoogleDrive(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -63463,6 +64208,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_previewFileName(ctx, field)
+				})
+		case "googleIntegration":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_googleIntegration(ctx, field)
 				})
 		case "guideViews":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -68987,6 +69738,19 @@ func (ec *executionContext) marshalNGoModuleLicense2ᚖgithubᚗcomᚋSlashNephy
 	return ec._GoModuleLicense(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNGoogleAppInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleAppInput(ctx context.Context, v any) (model.GoogleAppInput, error) {
+	res, err := ec.unmarshalInputGoogleAppInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNGoogleIntegration2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleIntegration(ctx context.Context, sel ast.SelectionSet, v *model.GoogleIntegration) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "GoogleIntegration!")
+		return graphql.Null
+	}
+	return ec._GoogleIntegration(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNGuideRow2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGuideRowᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GuideRow) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -72325,6 +73089,13 @@ func (ec *executionContext) marshalOGoModuleLicense2ᚕᚖgithubᚗcomᚋSlashNe
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalOGoogleDriveConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleDriveConnection(ctx context.Context, sel ast.SelectionSet, v *model.GoogleDriveConnection) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._GoogleDriveConnection(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOID2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

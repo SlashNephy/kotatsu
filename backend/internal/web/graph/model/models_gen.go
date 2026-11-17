@@ -854,6 +854,39 @@ type GenreInput struct {
 	Lv2 *int `json:"lv2,omitempty"`
 }
 
+// Google の OAuth クライアントの変更。
+type GoogleAppInput struct {
+	// クライアント ID。空にすると、登録を消し、Google Drive の接続も外す。
+	ClientID string `json:"clientId"`
+	// クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。
+	ClientSecret *string `json:"clientSecret,omitempty"`
+}
+
+// ライブラリとして読む Google Drive の接続 (#1902)。サーバーに 1 つ (管理者のアカウント) だけ持つ。
+type GoogleDriveConnection struct {
+	// 接続した Google のアカウント (メールアドレス)。
+	AccountName string    `json:"accountName"`
+	ConnectedAt time.Time `json:"connectedAt"`
+	// リフレッシュトークンが使えなくなった (取り消された、同意の画面が「テスト中」で期限が切れたなど) と分かった日時。
+	// 使えていれば null。接続し直すまで、Drive を読まない。
+	RevokedAt *time.Time `json:"revokedAt,omitempty"`
+}
+
+// 管理者が登録した Google の OAuth クライアントと、それで接続した Google Drive (#1902、設計書 5.8)。クライアントシークレットとトークンは返さない。
+type GoogleIntegration struct {
+	// 登録したクライアント ID。登録していなければ null。
+	ClientID *string `json:"clientId,omitempty"`
+	// クライアント ID とシークレットを登録したかどうか。
+	Configured bool `json:"configured"`
+	// 管理者が Google Cloud の OAuth クライアント (ウェブアプリケーション) に登録するリダイレクト URI。いま接続しているオリジンから決める。
+	// Google の連携で共有する (/internal/auth/google/callback)。
+	RedirectURI string `json:"redirectUri"`
+	// 最後に変えた日時。登録していなければ null。
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+	// Google Drive の接続。接続していなければ null。
+	Drive *GoogleDriveConnection `json:"drive,omitempty"`
+}
+
 // 番組表ビューの内容。ジャンルで lv2 を省くと、大分類のすべてを表す。
 type GuideViewInput struct {
 	Name               string        `json:"name"`
@@ -1107,6 +1140,9 @@ type LibraryDirectory struct {
 	Library *Library `json:"library"`
 	// ライブラリの中の / 区切りの相対パス。根元は空。
 	Path string `json:"path"`
+	// パスの段ごとの、画面に出す名前。パンくずに使う。フォルダのライブラリでは段そのもの、Google Drive ではフォルダの名前
+	// (マイドライブの根元は "My Drive")。根元なら空。
+	Names []string `json:"names"`
 	// 中のディレクトリと、再生できるファイルを、ディレクトリ、ファイルの順に、それぞれ名前の順に返す。
 	// 隠しファイル、再生できないファイル、ライブラリの外を指すシンボリックリンクは返さない。
 	Entries []*LibraryEntry `json:"entries"`
@@ -3333,16 +3369,20 @@ const (
 	LibraryKindPool LibraryKind = "POOL"
 	// 設定 (storage.libraries) で足したフォルダ。
 	LibraryKindFolder LibraryKind = "FOLDER"
+	// 管理者が接続した Google Drive (#1902)。接続しているときだけ出す。パスは、名前でなく、マイドライブ (root) か共有ドライブの ID と、
+	// フォルダとファイルの ID を / でつないだもの。
+	LibraryKindGoogleDrive LibraryKind = "GOOGLE_DRIVE"
 )
 
 var AllLibraryKind = []LibraryKind{
 	LibraryKindPool,
 	LibraryKindFolder,
+	LibraryKindGoogleDrive,
 }
 
 func (e LibraryKind) IsValid() bool {
 	switch e {
-	case LibraryKindPool, LibraryKindFolder:
+	case LibraryKindPool, LibraryKindFolder, LibraryKindGoogleDrive:
 		return true
 	}
 	return false
