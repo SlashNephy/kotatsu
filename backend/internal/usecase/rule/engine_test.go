@@ -1082,7 +1082,7 @@ func resized(p *faketuner.Program, duration time.Duration) *faketuner.Program {
 }
 
 // TestEngineSkipsSlotsOfReplacedManualReservations は、局が番組を別のイベント ID で出し直して差し替えたとき、EPG から消えた古い番組の
-// 手動の予約が録る範囲 (マージンを含む) に収まる番組には、ルール予約を作らず、同じ放送を 2 本録らないことを確かめる (#1903)。
+// 手動の予約の時刻 (マージンを含めない) に収まる番組には、ルール予約を作らず、同じ放送を 2 本録らないことを確かめる (#1903)。
 // はみ出す番組は、手動の予約では録り逃すので、ルール予約を作る。手動の予約は、手動を優先して消さない。
 func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 	t.Parallel()
@@ -1123,16 +1123,17 @@ func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 			want:        map[int64]bool{300: true},
 		},
 		{
-			// 手動の予約は、既定の終わりのマージン (15 秒) まで録る。
+			// マージンは割り当てで削られることがあるので、既定の終わりのマージン (15 秒) の内でも、はみ出したとみなす。
 			name:        "終わりのマージンの内で延びる",
 			replacement: resized(slotProgram(301, replacedName+" 総集編", 0), time.Hour+10*time.Second),
-			want:        map[int64]bool{300: true},
+			want:        map[int64]bool{300: true, 301: true},
 		},
 		{
+			// 手動の予約のマージンを延ばしていても、予約の時刻で見る。
 			name:            "手動の予約の終わりのマージンの内で遅れる",
 			replacement:     slotProgram(301, replacedName+" 総集編", 5*time.Minute),
 			manualEndMargin: 10 * 60,
-			want:            map[int64]bool{300: true},
+			want:            map[int64]bool{300: true, 301: true},
 		},
 		{
 			// 手動の予約では最後の 5 分を録り逃すので、2 本録るほうを選ぶ。
@@ -1148,11 +1149,6 @@ func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 		{
 			name:        "延びて枠からはみ出す",
 			replacement: resized(slotProgram(301, replacedName+" 総集編", 0), 70*time.Minute),
-			want:        map[int64]bool{300: true, 301: true},
-		},
-		{
-			name:        "終わりのマージンを超えて延びる",
-			replacement: resized(slotProgram(301, replacedName+" 総集編", 0), time.Hour+20*time.Second),
 			want:        map[int64]bool{300: true, 301: true},
 		},
 		{

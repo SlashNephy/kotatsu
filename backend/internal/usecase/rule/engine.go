@@ -51,7 +51,7 @@ type Guard func(ctx context.Context, tx pgx.Tx) error
 //     ただし、放送の直前 (猶予の内) の予約と、番組名が空の番組の予約は、結び付いたルールが有効な間は残す (#1501)。
 //     番組が EPG から消えた予約は残すが、同じ枠にルールに一致する別のイベントの番組が出ていれば、差し替えられたとみなして消す (#518、#1875)。
 //   - 手動の番組予約がある番組は、手動の設定を優先する。一致したルールの関係だけを残す。
-//     番組が EPG から消えた有効な手動の予約が録る範囲 (マージンを含む) に収まる番組には、ルール予約を作らない。
+//     番組が EPG から消えた有効な手動の予約の時刻 (マージンを含めない) に収まる番組には、ルール予約を作らない。
 //     手動の予約がその番組を録るからである。はみ出す番組は、録り逃さないよう予約する (#1903)。
 //
 // あわせて、ユーザーごとの視聴ルールも同じ番組に照合し、一致した番組に視聴予約を付ける (設計書 4.8)。
@@ -143,7 +143,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		// 重複の回避と同じ回の束ねで外した番組は、絞り込みの中で duplicates に入る。前の回を比べる相手を選ぶのにも、
 		// apply と同じ残し方を使うので、絞り込む前に作る。
 		keep := newKeepPolicy(now, system.RuleUnmatchedGrace(), rules, duplicates, matched)
-		desired, err := e.narrow(ctx, tx, now, system.Recording, matched, duplicates, keep, result)
+		desired, err := e.narrow(ctx, tx, now, matched, duplicates, keep, result)
 		if err != nil {
 			return err
 		}
@@ -193,17 +193,16 @@ func (e *Engine) desired(
 
 	keep := newKeepPolicy(now, system.RuleUnmatchedGrace(), rules, skipped, matched)
 
-	return e.narrow(ctx, tx, now, system.Recording, matched, skipped, keep, result)
+	return e.narrow(ctx, tx, now, matched, skipped, keep, result)
 }
 
 // narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避、イベント共有、同じ回の束ね、前の回を録らない設定で絞り込み、
 // 予約すべき番組にする。skipped を渡せば、重複の回避、同じ回の束ね、前の回を録らない設定で予約すべき集合から外した番組を、そこに入れる。
 // keep と result は、apply と同じく、どのルールにも一致しなくなったルール予約を残すかを決める。前の回を比べる相手から、
 // この照合で消える予約を除くのに使う。skipped は nil にしない (keep が同じものを見る)。
-// defaults は録画設定の全体の既定値で、手動の予約が録る範囲をマージンを含めて求めるのに使う。
 func (e *Engine) narrow(
-	ctx context.Context, tx pgx.Tx, now time.Time, defaults *domain.RecordingSettings,
-	matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram, keep *keepPolicy, result *Result,
+	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
+	keep *keepPolicy, result *Result,
 ) (map[programKey]*desiredProgram, error) {
 	if err := excludeCancelledBroadcasts(ctx, tx, now, matched); err != nil {
 		return nil, err
@@ -214,7 +213,7 @@ func (e *Engine) narrow(
 	pickSharedEvents(matched, func(d *desiredProgram) []byte { return d.row.RelatedItems })
 	// イベント共有で残した側の放送を見る。先に外すと、落とした側の放送が残って、同じ放送を別のサービスで録る。
 	// 束ねる前に外すのは、手動で予約した同じ回を、束ねる相手に入れないのと揃えるためである (設計書 4.4)。
-	if err := excludeManuallyReservedSlots(ctx, tx, now, defaults, matched, keep); err != nil {
+	if err := excludeManuallyReservedSlots(ctx, tx, now, matched, keep); err != nil {
 		return nil, err
 	}
 	// イベント共有で落とした側の放送を除いてから束ねる。
@@ -593,7 +592,7 @@ type keepPolicy struct {
 	// slots は、サービスごとの、有効なルールのどれかに一致した、EPG にある番組の放送の枠 (#1875)。
 	// 絞り込む前の一致で作るので、apply と、前の回を比べる相手を選ぶ removedRuleReservations で同じものを見る。
 	slots map[int64][]broadcastSlot
-	// manuallyReserved は、EPG から消えた番組の有効な手動の予約が録る範囲に収まるので、予約すべき集合から外した番組 (#1903)。
+	// manuallyReserved は、EPG から消えた番組の有効な手動の予約の時刻に収まるので、予約すべき集合から外した番組 (#1903)。
 	// 絞り込みの中で excludeManuallyReservedSlots が入れる。
 	manuallyReserved map[programKey]bool
 }
@@ -667,14 +666,14 @@ func (s broadcastSlot) contains(other broadcastSlot) bool {
 	return !other.startAt.Before(s.startAt) && !other.endAt.After(s.endAt)
 }
 
-// excludeManuallyReservedSlots は、番組が EPG から消えた有効な手動の予約が録る範囲 (前後のマージンを含む) に収まる、
+// excludeManuallyReservedSlots は、番組が EPG から消えた有効な手動の予約の時刻 (開始から終了) に収まる、
 // 同じサービスの番組を、予約すべき集合 matched から外し、keep に覚える (#1903)。
 // 局が番組を別のイベント ID で出し直して差し替えると、古いイベントは EPG から消え、同じ枠に新しいイベントが入る。手動の予約は、
 // 手動を優先して消さず (#1875)、番組を見失っても予定の終わりまで録る (設計書 5.1) ので、新しいイベントをルールで予約すると 2 本録る。
-// 新しいイベントが録る範囲からはみ出すとき (遅れる、延びるなど) は、手動の予約では録り逃すので外さない。2 本録るほうを選ぶ。
-// 無効の手動の予約は録らないので見ない。defaults は録画設定の全体の既定値。
+// 新しいイベントが予約の時刻からはみ出すとき (遅れる、延びるなど) は、手動の予約では録り逃すので外さない。2 本録るほうを選ぶ。
+// マージンは、割り当てで隣の録画と重なると削られることがあるので、含めない。無効の手動の予約は録らないので見ない。
 func excludeManuallyReservedSlots(
-	ctx context.Context, tx pgx.Tx, now time.Time, defaults *domain.RecordingSettings, matched map[programKey]*desiredProgram, keep *keepPolicy,
+	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, keep *keepPolicy,
 ) error {
 	rows, err := sqlc.New(tx).ListFutureProgramReservations(ctx, now)
 	if err != nil {
@@ -682,19 +681,9 @@ func excludeManuallyReservedSlots(
 	}
 	manual := map[int64][]broadcastSlot{}
 	for _, row := range rows {
-		if row.Kind != domain.ReservationKindProgram || !row.Enabled || row.Listed {
-			continue
+		if row.Kind == domain.ReservationKindProgram && row.Enabled && !row.Listed {
+			manual[row.ServiceID] = append(manual[row.ServiceID], broadcastSlot{startAt: row.StartAt, endAt: row.EndAt})
 		}
-		// 手動の予約には、ルールの設定を重ねない (割り当てと同じ)。
-		overrides, err := domain.DecodeOverrides(row.Settings)
-		if err != nil {
-			return fmt.Errorf("failed to decode settings of reservation %s: %w", row.ID, err)
-		}
-		settings := defaults.Resolve(overrides)
-		manual[row.ServiceID] = append(manual[row.ServiceID], broadcastSlot{
-			startAt: row.StartAt.Add(-time.Duration(settings.StartMarginSeconds) * time.Second),
-			endAt:   row.EndAt.Add(time.Duration(settings.EndMarginSeconds) * time.Second),
-		})
 	}
 	if len(manual) == 0 {
 		return nil
