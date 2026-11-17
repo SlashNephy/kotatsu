@@ -36,6 +36,22 @@ export function breadcrumbs(library: string, path: string, names: readonly strin
   return crumbs;
 }
 
+// libraryNamePattern は、ライブラリの名前の規則。保存先プールの ID と同じ (英小文字、数字、-、_ で、英小文字か数字で始まる、63 文字まで)。
+const libraryNamePattern = /^[a-z0-9][a-z0-9_-]{0,62}$/;
+
+// libraryNameProblem は、ライブラリの名前 name の問題を返す。規則に合わなければ 'format' を、taken (ほかのライブラリの名前) と
+// 重なれば 'taken' を、問題がなければ null を返す。保存先プールと重なるかは、サーバーが確かめる。
+export function libraryNameProblem(
+  name: string,
+  taken: readonly string[],
+): 'format' | 'taken' | null {
+  if (!libraryNamePattern.test(name)) {
+    return 'format';
+  }
+
+  return taken.includes(name) ? 'taken' : null;
+}
+
 // suggestLibraryName は、Google Drive のフォルダの名前から、ライブラリの名前の案を作る (#1902)。ライブラリの名前は、保存先プールの ID と
 // 同じ規則 (英小文字、数字、-、_ で、英小文字か数字で始まる、63 文字まで) にする。使えない文字は - にし、何も残らなければ drive にする。
 export function suggestLibraryName(name: string): string {

@@ -20,6 +20,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
+// kotatsuFolder は、マイドライブの Kotatsu フォルダの ID。
+const kotatsuFolder = "kotatsu-folder"
+
 func main() {
 	os.Exit(run())
 }
@@ -75,8 +78,8 @@ func place(server *googletest.Server, paths string) error {
 			ID: id, Name: name, MIMEType: googletest.FolderMIMEType, Parent: parent, Content: nil, ModifiedTime: modified, Trashed: false,
 		})
 	}
-	folder("kotatsu-folder", "Kotatsu", googletest.MyDriveID)
-	folder("season2-folder", "Season 2", "kotatsu-folder")
+	folder(kotatsuFolder, "Kotatsu", googletest.MyDriveID)
+	folder("season2-folder", "Season 2", kotatsuFolder)
 	folder("private-folder", "Private", googletest.MyDriveID)
 	server.AddDrive(&googletest.Drive{ID: "backup-drive", Name: "Backup"})
 	for i, path := range strings.Split(paths, ",") {
@@ -90,10 +93,10 @@ func place(server *googletest.Server, paths string) error {
 		name := filepath.Base(path)
 		suffix := string(rune('a' + i))
 		for _, f := range []struct{ id, name, parent string }{
-			{id: "file-" + suffix, name: name, parent: "kotatsu-folder"},
+			{id: "file-" + suffix, name: name, parent: kotatsuFolder},
 			// 同じフォルダに同じ名前が並ぶものと、名前に / を含むもの。
-			{id: "dupfile-" + suffix, name: name, parent: "kotatsu-folder"},
-			{id: "slash-" + suffix, name: "2026/11 " + name, parent: "kotatsu-folder"},
+			{id: "dupfile-" + suffix, name: name, parent: kotatsuFolder},
+			{id: "slash-" + suffix, name: "2026/11 " + name, parent: kotatsuFolder},
 			{id: "season2-" + suffix, name: "s2-" + name, parent: "season2-folder"},
 			{id: "private-" + suffix, name: "private-" + name, parent: "private-folder"},
 			{id: "backup-" + suffix, name: name, parent: "backup-drive"},

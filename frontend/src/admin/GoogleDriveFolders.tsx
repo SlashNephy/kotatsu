@@ -14,7 +14,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
-import { suggestLibraryName } from '../library/library';
+import { libraryNameProblem, suggestLibraryName } from '../library/library';
 import type { GoogleDriveFoldersChoicesQuery } from './__generated__/GoogleDriveFoldersChoicesQuery.graphql';
 
 const choicesQuery = graphql`
@@ -72,6 +72,9 @@ export function GoogleDriveFolders({
               key={`${folder.id}/${folder.libraryName}`}
               folder={folder}
               busy={busy}
+              taken={folders
+                .filter((other) => other.id !== folder.id)
+                .map((other) => other.libraryName)}
               onRename={(name, onDone) => onRename(folder.id, name, onDone)}
               onRemove={() => onRemove(folder.id)}
             />
@@ -82,6 +85,7 @@ export function GoogleDriveFolders({
         <FolderPicker
           busy={busy}
           label={label}
+          taken={folders.map((folder) => folder.libraryName)}
           onCancel={() => setChoosing(false)}
           onChoose={(id, name) => onAdd(id, name, () => setChoosing(false))}
         />
@@ -100,17 +104,20 @@ export function GoogleDriveFolders({
 function FolderRow({
   folder,
   busy,
+  taken,
   onRename,
   onRemove,
 }: {
   folder: SelectedFolder;
   busy: boolean;
+  taken: readonly string[];
   onRename: (name: string, onDone: () => void) => void;
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(folder.libraryName);
+  const problem = libraryNameProblem(name.trim(), taken);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     onRename(name.trim(), () => setEditing(false));
@@ -128,9 +135,12 @@ function FolderRow({
                 aria-label={t('admin.googleDrive.folders.libraryName')}
                 value={name}
                 maxLength={63}
+                error={
+                  problem === null ? undefined : t(`admin.googleDrive.folders.problem.${problem}`)
+                }
                 onChange={(event) => setName(event.currentTarget.value)}
               />
-              <Button type="submit" size="compact-xs" disabled={busy || name.trim() === ''}>
+              <Button type="submit" size="compact-xs" disabled={busy || problem !== null}>
                 {t('admin.googleDrive.folders.save')}
               </Button>
               <Button
@@ -185,11 +195,13 @@ function FolderRow({
 function FolderPicker({
   busy,
   label,
+  taken,
   onCancel,
   onChoose,
 }: {
   busy: boolean;
   label: (folder: Choice) => string;
+  taken: readonly string[];
   onCancel: () => void;
   onChoose: (id: string, libraryName: string) => void;
 }) {
@@ -292,6 +304,7 @@ function FolderPicker({
             key={current.id}
             folder={current}
             label={label(current)}
+            taken={taken}
             busy={busy}
             onCancel={onCancel}
             onChoose={(name) => onChoose(current.id, name)}
@@ -306,18 +319,21 @@ function FolderPicker({
 function ChooseForm({
   folder,
   label,
+  taken,
   busy,
   onCancel,
   onChoose,
 }: {
   folder: Choice;
   label: string;
+  taken: readonly string[];
   busy: boolean;
   onCancel: () => void;
   onChoose: (libraryName: string) => void;
 }) {
   const { t } = useTranslation();
   const [name, setName] = useState(suggestLibraryName(folder.name));
+  const problem = libraryNameProblem(name.trim(), taken);
 
   return (
     <form
@@ -333,13 +349,14 @@ function ChooseForm({
           description={t('admin.googleDrive.folders.libraryNameHelp')}
           value={name}
           maxLength={63}
+          error={problem === null ? undefined : t(`admin.googleDrive.folders.problem.${problem}`)}
           onChange={(event) => setName(event.currentTarget.value)}
           style={{ flex: 1, minWidth: 200 }}
         />
         <Button size="xs" variant="default" onClick={onCancel}>
           {t('admin.googleDrive.folders.cancel')}
         </Button>
-        <Button type="submit" size="xs" disabled={busy || name.trim() === ''}>
+        <Button type="submit" size="xs" disabled={busy || problem !== null}>
           {t('admin.googleDrive.folders.choose', { name: label })}
         </Button>
       </Group>

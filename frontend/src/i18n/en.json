@@ -2543,11 +2543,15 @@
         "added": "Added the folder",
         "removed": "Removed the folder",
         "libraryName": "Library name",
-        "libraryNameHelp": "Use lowercase letters, digits, - and _, starting with a letter or a digit. It must not match another library",
+        "libraryNameHelp": "Shown in URLs and the library list. It must not match a storage pool or another library",
         "from": "Folder: {{name}}",
         "rename": "Rename",
         "save": "Save",
-        "renamed": "Renamed the library"
+        "renamed": "Renamed the library",
+        "problem": {
+          "format": "Use up to 63 lowercase letters, digits, - and _, starting with a letter or a digit",
+          "taken": "Another library has this name"
+        }
       }
     }
   },

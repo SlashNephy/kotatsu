@@ -6,6 +6,7 @@ import {
   libraryResumePosition,
   parentPath,
   parseLibrarySearch,
+  libraryNameProblem,
   seekLimit,
   suggestLibraryName,
   type FileIndex,
@@ -62,6 +63,20 @@ describe('breadcrumbs', () => {
       { name: 'My Drive', path: 'root' },
       { name: 'アニメ', path: 'root/f1' },
     ]);
+  });
+});
+
+describe('libraryNameProblem', () => {
+  test.each([
+    { name: 'atmos', want: null },
+    { name: 'a_b-1', want: null },
+    { name: 'Atmos', want: 'format' },
+    { name: '-atmos', want: 'format' },
+    { name: '', want: 'format' },
+    { name: 'a'.repeat(64), want: 'format' },
+    { name: 'backup', want: 'taken' },
+  ])('$name', ({ name, want }) => {
+    expect(libraryNameProblem(name, ['backup'])).toBe(want);
   });
 });
 
