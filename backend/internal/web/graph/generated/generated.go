@@ -648,6 +648,11 @@ type ComplexityRoot struct {
 		Name func(childComplexity int) int
 	}
 
+	LibraryArtifacts struct {
+		Files func(childComplexity int) int
+		Size  func(childComplexity int) int
+	}
+
 	LibraryAutoCaption struct {
 		EndSeconds   func(childComplexity int) int
 		StartSeconds func(childComplexity int) int
@@ -795,6 +800,7 @@ type ComplexityRoot struct {
 		ChangePassword                func(childComplexity int, password string) int
 		CleanUpMissingRecordings      func(childComplexity int, ids []string) int
 		ClearAllWatchPositions        func(childComplexity int) int
+		ClearLibraryArtifacts         func(childComplexity int) int
 		ClearWatchPosition            func(childComplexity int, id string) int
 		ConfirmTotpEnrollment         func(childComplexity int, code string) int
 		CreateAPIToken                func(childComplexity int, name string) int
@@ -1148,6 +1154,7 @@ type ComplexityRoot struct {
 		JobCounts               func(childComplexity int) int
 		Jobs                    func(childComplexity int, state model.JobState, first int, after *string) int
 		Libraries               func(childComplexity int) int
+		LibraryArtifacts        func(childComplexity int) int
 		LibraryDirectory        func(childComplexity int, library string, path string) int
 		LibraryFile             func(childComplexity int, library string, path string) int
 		LogReport               func(childComplexity int) int
@@ -1811,6 +1818,7 @@ type MutationResolver interface {
 	CancelJob(ctx context.Context, id string) (*model.Job, error)
 	SaveLibraryWatchPosition(ctx context.Context, id string, positionMs int64) (*model.LibraryFile, error)
 	GenerateLibraryCaptions(ctx context.Context, id string) (*model.LibraryFile, error)
+	ClearLibraryArtifacts(ctx context.Context) (*model.LibraryArtifacts, error)
 	CleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error)
 	MarkNotificationsRead(ctx context.Context, ids []string) (int, error)
 	MarkAllNotificationsRead(ctx context.Context) (int, error)
@@ -1945,6 +1953,7 @@ type QueryResolver interface {
 	Libraries(ctx context.Context) ([]*model.Library, error)
 	LibraryDirectory(ctx context.Context, library string, path string) (*model.LibraryDirectory, error)
 	LibraryFile(ctx context.Context, library string, path string) (*model.LibraryFile, error)
+	LibraryArtifacts(ctx context.Context) (*model.LibraryArtifacts, error)
 	GoModuleLicenses(ctx context.Context) ([]*licenses.Module, error)
 	LogReport(ctx context.Context) (*model.LogReport, error)
 	MissingRecordings(ctx context.Context) ([]*model.MissingRecording, error)
@@ -4225,6 +4234,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Library.Name(childComplexity), true
 
+	case "LibraryArtifacts.files":
+		if e.ComplexityRoot.LibraryArtifacts.Files == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryArtifacts.Files(childComplexity), true
+	case "LibraryArtifacts.size":
+		if e.ComplexityRoot.LibraryArtifacts.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryArtifacts.Size(childComplexity), true
+
 	case "LibraryAutoCaption.endSeconds":
 		if e.ComplexityRoot.LibraryAutoCaption.EndSeconds == nil {
 			break
@@ -4859,6 +4881,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ClearAllWatchPositions(childComplexity), true
+	case "Mutation.clearLibraryArtifacts":
+		if e.ComplexityRoot.Mutation.ClearLibraryArtifacts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.ClearLibraryArtifacts(childComplexity), true
 	case "Mutation.clearWatchPosition":
 		if e.ComplexityRoot.Mutation.ClearWatchPosition == nil {
 			break
@@ -7048,6 +7076,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Libraries(childComplexity), true
+	case "Query.libraryArtifacts":
+		if e.ComplexityRoot.Query.LibraryArtifacts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.LibraryArtifacts(childComplexity), true
 	case "Query.libraryDirectory":
 		if e.ComplexityRoot.Query.LibraryDirectory == nil {
 			break
@@ -11966,6 +12000,33 @@ type LibraryAutoCaption {
   text: String!
 }
 `, BuiltIn: false},
+	{Name: "../schema/library_artifacts.graphqls", Input: `"""
+データディレクトリの、ライブラリのファイルの生成物 (索引、画像、CM の区間、自動生成した字幕) の量 (設計書 5.8)。
+"""
+type LibraryArtifacts {
+  "ファイルの大きさの合計 (バイト)。"
+  size: Int64!
+  "ファイルの数。"
+  files: Int!
+}
+
+extend type Query {
+  """
+  データディレクトリの、ライブラリのファイルの生成物の量を返す。管理者だけが使える。
+  前に片付けたときに消しきれずに残ったものも含める。データディレクトリを設定していなければ CONFLICT を返す。
+  """
+  libraryArtifacts: LibraryArtifacts!
+}
+
+extend type Mutation {
+  """
+  データディレクトリの、ライブラリのファイルの生成物を丸ごと消し、消した量を返す。管理者だけが使える。監査ログに残す。
+  まだ動いていない、ライブラリのファイルの画像、CM の区間、字幕の自動生成のジョブも消す。ユーザーごとの再生位置は消さない。
+  消した後にファイルを開けば、索引と画像を作り直す。データディレクトリを設定していないか、ほかの片付けの途中なら CONFLICT を返す。
+  """
+  clearLibraryArtifacts: LibraryArtifacts!
+}
+`, BuiltIn: false},
 	{Name: "../schema/licenses.graphqls", Input: `"""
 本体に組み込んだ Go のモジュールと、そのライセンスの文書 (設計書 10.3、付録 B、#1604)。
 """
@@ -16051,6 +16112,16 @@ func (ec *executionContext) childFields_Library(ctx context.Context, field graph
 		return ec.fieldContext_Library_kind(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Library", field.Name)
+}
+
+func (ec *executionContext) childFields_LibraryArtifacts(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "size":
+		return ec.fieldContext_LibraryArtifacts_size(ctx, field)
+	case "files":
+		return ec.fieldContext_LibraryArtifacts_files(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LibraryArtifacts", field.Name)
 }
 
 func (ec *executionContext) childFields_LibraryAutoCaption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -28703,6 +28774,52 @@ func (ec *executionContext) fieldContext_Library_kind(_ context.Context, field g
 	return graphql.NewScalarFieldContext("Library", field, false, false, "LibraryKind")
 }
 
+func (ec *executionContext) _LibraryArtifacts_size(ctx context.Context, field graphql.CollectedField, obj *model.LibraryArtifacts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryArtifacts_size(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryArtifacts_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryArtifacts", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _LibraryArtifacts_files(ctx context.Context, field graphql.CollectedField, obj *model.LibraryArtifacts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryArtifacts_files(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Files, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryArtifacts_files(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryArtifacts", field, false, false, "Int")
+}
+
 func (ec *executionContext) _LibraryAutoCaption_startSeconds(ctx context.Context, field graphql.CollectedField, obj *model.LibraryAutoCaption) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -32243,6 +32360,38 @@ func (ec *executionContext) fieldContext_Mutation_generateLibraryCaptions(ctx co
 	if fc.Args, err = ec.field_Mutation_generateLibraryCaptions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_clearLibraryArtifacts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_clearLibraryArtifacts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().ClearLibraryArtifacts(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LibraryArtifacts) graphql.Marshaler {
+			return ec.marshalNLibraryArtifacts2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryArtifacts(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_clearLibraryArtifacts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryArtifacts(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -40468,6 +40617,38 @@ func (ec *executionContext) fieldContext_Query_libraryFile(ctx context.Context, 
 	if fc.Args, err = ec.field_Query_libraryFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_libraryArtifacts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_libraryArtifacts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().LibraryArtifacts(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LibraryArtifacts) graphql.Marshaler {
+			return ec.marshalNLibraryArtifacts2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryArtifacts(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_libraryArtifacts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryArtifacts(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -59911,6 +60092,44 @@ func (ec *executionContext) _Library(ctx context.Context, sel ast.SelectionSet, 
 	return out
 }
 
+var libraryArtifactsImplementors = []string{"LibraryArtifacts"}
+
+func (ec *executionContext) _LibraryArtifacts(ctx context.Context, sel ast.SelectionSet, obj *model.LibraryArtifacts) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, libraryArtifactsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LibraryArtifacts")
+		case "size":
+			out.Values[i] = ec._LibraryArtifacts_size(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "files":
+			out.Values[i] = ec._LibraryArtifacts_files(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var libraryAutoCaptionImplementors = []string{"LibraryAutoCaption"}
 
 func (ec *executionContext) _LibraryAutoCaption(ctx context.Context, sel ast.SelectionSet, obj *model.LibraryAutoCaption) graphql.Marshaler {
@@ -61048,6 +61267,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "generateLibraryCaptions":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_generateLibraryCaptions(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clearLibraryArtifacts":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_clearLibraryArtifacts(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -63273,6 +63499,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_libraryFile(ctx, field)
+				})
+		case "libraryArtifacts":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_libraryArtifacts(ctx, field)
 				})
 		case "goModuleLicenses":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -69300,6 +69532,14 @@ func (ec *executionContext) marshalNLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 		return graphql.Null
 	}
 	return ec._Library(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLibraryArtifacts2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryArtifacts(ctx context.Context, sel ast.SelectionSet, v *model.LibraryArtifacts) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LibraryArtifacts!")
+		return graphql.Null
+	}
+	return ec._LibraryArtifacts(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNLibraryAutoCaption2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryAutoCaptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LibraryAutoCaption) graphql.Marshaler {

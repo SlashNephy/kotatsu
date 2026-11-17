@@ -1878,6 +1878,26 @@
       "confirm_one": "This re-checks the files of the {{count}} selected recording and removes the record from the DB if they are missing. This is recorded in the audit log.",
       "confirm_other": "This re-checks the files of the {{count}} selected recordings and removes the records of missing ones from the DB. This is recorded in the audit log."
     },
+    "libraryArtifacts": {
+      "title": "Library generated files",
+      "description": "Indexes, images, CM sections, and auto-generated captions for library files are stored under libraries/ in the data directory. When the original files are deleted, moved, or rewritten, the old generated files are left unused. This clears everything under libraries/. Indexes and images are regenerated when a file is opened again. Watch positions are kept.",
+      "clear": "Clear",
+      "measureError": "Could not measure the generated files. Please try again later.",
+      "noDataDir": "The data directory is not configured, so there is nothing to clear.",
+      "nothing": "There are no generated files to clear.",
+      "confirmTitle": "Clear library generated files",
+      "confirm": "This deletes {{count}} files ({{size}}) under libraries/ in the data directory. This cannot be undone. This is recorded in the audit log.",
+      "confirm_one": "This deletes {{count}} file ({{size}}) under libraries/ in the data directory. This cannot be undone. This is recorded in the audit log.",
+      "confirm_other": "This deletes {{count}} files ({{size}}) under libraries/ in the data directory. This cannot be undone. This is recorded in the audit log.",
+      "confirmPlaying": "Indexes, images, and CM sections are regenerated when a file is opened again. Auto-generated captions are not regenerated until requested. Files being played may not be seekable until their index is rebuilt.",
+      "confirmButton": "Delete",
+      "cancel": "Cancel",
+      "cleared": "Deleted {{count}} files ({{size}}).",
+      "cleared_one": "Deleted {{count}} file ({{size}}).",
+      "cleared_other": "Deleted {{count}} files ({{size}}).",
+      "busy": "Another clean-up is still running. Please try again later.",
+      "clearError": "Could not delete. Please try again later."
+    },
     "orphan": {
       "title": "Files not in the DB",
       "description": "When deleting a recording fails or an import is redone, files with no record in the DB, or generated-file directories whose recording no longer exists, can be left behind. This scans the pools and data directory mounted on this instance to find them, and deletes the ones you select. Files being recorded, files being joined, and files written or renamed within the last hour are not listed.",

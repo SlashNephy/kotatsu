@@ -106,7 +106,7 @@ func TestEnsureLeavesOtherBuilds(t *testing.T) {
 			}
 			f.indexer.Ensure(t.Context(), f.ref, f.entry)
 			f.indexer.mu.Lock()
-			building := f.indexer.building[indexKey(f.ref)]
+			building := f.indexer.building[indexKey(f.ref)] != nil
 			f.indexer.mu.Unlock()
 			assert.Equal(t, tt.wantBuild, building)
 			for range maxBuilds {
