@@ -221,12 +221,13 @@ func (c *Client) GetDrive(ctx context.Context, id string) (*Drive, error) {
 // driveID は、フォルダのある共有ドライブ。マイドライブなら空にする。
 func (c *Client) Children(ctx context.Context, parentID, driveID string) ([]*File, error) {
 	files := []*File{}
+	seen := map[string]bool{}
 	token := ""
 	for {
 		query := url.Values{
 			"q":           {fmt.Sprintf("'%s' in parents and trashed = false", escapeQuery(parentID))},
 			paramFields:   {"nextPageToken,files(" + fileFields + ")"},
-			paramPageSize: {strconv.Itoa(pageSize)}, "orderBy": {"folder,name_natural"},
+			paramPageSize: {strconv.Itoa(pageSize)}, "orderBy": {"folder,name_natural,createdTime"},
 			paramAllDrives: {valueTrue}, "includeItemsFromAllDrives": {valueTrue},
 		}
 		if driveID == "" {
@@ -246,7 +247,9 @@ func (c *Client) Children(ctx context.Context, parentID, driveID string) ([]*Fil
 			return nil, err
 		}
 		for i := range body.Files {
-			if !body.Files[i].Trashed {
+			// 同じ名前が並ぶと、ページをまたいで同じものが返ることがあるので、ID で重ねない。
+			if !body.Files[i].Trashed && !seen[body.Files[i].ID] {
+				seen[body.Files[i].ID] = true
 				files = append(files, body.Files[i].file())
 			}
 		}

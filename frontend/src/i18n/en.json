@@ -2530,7 +2530,7 @@
       },
       "folders": {
         "title": "Folders shown as the library",
-        "help": "Only what is under the chosen folders appears in the library. Folders in shared drives can be chosen too. Google Drive is hidden from the library until at least one folder is chosen.",
+        "help": "Each chosen folder becomes a library, and only what is under it appears in the library. Folders in shared drives can be chosen too. Google Drive is hidden from the library until at least one folder is chosen.",
         "empty": "No folders chosen yet",
         "add": "Add a folder",
         "remove": "Remove",
@@ -2539,9 +2539,15 @@
         "error": "Could not read the folders",
         "cancel": "Cancel",
         "chooseHint": "Open a folder to choose it",
-        "choose": "Choose \"{{name}}\"",
+        "choose": "Make \"{{name}}\" a library",
         "added": "Added the folder",
-        "removed": "Removed the folder"
+        "removed": "Removed the folder",
+        "libraryName": "Library name",
+        "libraryNameHelp": "Use lowercase letters, digits, - and _, starting with a letter or a digit. It must not match another library",
+        "from": "Folder: {{name}}",
+        "rename": "Rename",
+        "save": "Save",
+        "renamed": "Renamed the library"
       }
     }
   },

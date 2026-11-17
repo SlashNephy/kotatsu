@@ -35,6 +35,7 @@ function renderSettings(
     onConnect: vi.fn(),
     onDisconnect: vi.fn(),
     onAddFolder: vi.fn(),
+    onRenameFolder: vi.fn(),
     onRemoveFolder: vi.fn(),
   };
   render(
@@ -84,9 +85,10 @@ describe('GoogleDriveSettings (#1902)', () => {
   test('接続したら、見せるフォルダを出し、外せる', () => {
     const handlers = renderSettings({
       ...connected,
-      folders: [{ id: 'f1', name: '録画のバックアップ' }],
+      folders: [{ id: 'f1', name: '録画のバックアップ', libraryName: 'backup' }],
     });
-    expect(screen.getByText('録画のバックアップ')).toBeDefined();
+    expect(screen.getByText('backup')).toBeDefined();
+    expect(screen.getByText('フォルダ: 録画のバックアップ')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: '外す' }));
     expect(handlers.onRemoveFolder).toHaveBeenCalledWith('f1');
     expect(screen.getByRole('button', { name: 'フォルダを追加' })).toBeDefined();

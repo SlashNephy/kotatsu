@@ -19,6 +19,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -105,6 +106,8 @@ type Service struct {
 	tokens   []*DriveTokens
 	// admin は、管理者の操作 (見せるフォルダを選ぶ) で Drive を読むときのトークン。初めて使うときに作る。
 	admin *DriveTokens
+	// reservedNames は、設定のライブラリの名前。
+	reservedNames []string
 }
 
 // Options は NewService の設定。
@@ -116,6 +119,8 @@ type Options struct {
 	// HTTPClient は、Google のトークンの API と Drive API を呼ぶクライアント。全体のタイムアウトを付けない。
 	HTTPClient *http.Client
 	Logger     *slog.Logger
+	// ReservedLibraryNames は、設定のライブラリ (保存先プールとフォルダ) の名前。Google Drive のライブラリの名前と重ねない。
+	ReservedLibraryNames []string
 	// URL は、Google の認可の画面と API を向ける先のオリジン。空なら本物の Google にする。検証用のサーバーへ向けるときだけ使う。
 	URL string
 }
@@ -139,6 +144,7 @@ func NewService(opts *Options) (*Service, error) {
 	return &Service{
 		clock: opts.Clock, recorder: opts.Recorder, appBox: appBox, driveBox: driveBox, http: opts.HTTPClient, logger: opts.Logger,
 		accountsURL: accountsURL, oauthURL: oauthURL, apiURL: apiURL, tokensMu: sync.Mutex{}, tokens: []*DriveTokens{}, admin: nil,
+		reservedNames: slices.Clone(opts.ReservedLibraryNames),
 	}, nil
 }
 

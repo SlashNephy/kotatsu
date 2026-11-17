@@ -2090,10 +2090,12 @@ CREATE TABLE google_drive_connections (
   revoked_at timestamptz
 );
 
--- 管理者が、Google Drive のうちライブラリとして見せると選んだフォルダ (#1902)。選んだフォルダの下だけを見せる。
+-- 管理者が、Google Drive のうちライブラリとして見せると選んだフォルダ (#1902)。選んだフォルダごとに、ライブラリが 1 つある。
 -- 1 つも選んでいなければ、ライブラリに Google Drive を出さない。接続を外すか、別のアカウントで接続し直すと消す。
 CREATE TABLE google_drive_folders (
   folder_id text PRIMARY KEY CHECK (folder_id <> ''),
+  -- ライブラリの名前。保存先プールの ID と同じ規則 (英小文字、数字、-、_) にする。管理者が選ぶときに決め、後で変えられる。
+  library_name text NOT NULL UNIQUE CHECK (library_name ~ '^[a-z0-9][a-z0-9_-]{0,62}$'),
   -- フォルダのある共有ドライブの ID。マイドライブなら空。探す範囲を共有ドライブに絞るのに使う。
   drive_id text NOT NULL,
   -- 選んだときのフォルダの名前。連携の画面に出す。

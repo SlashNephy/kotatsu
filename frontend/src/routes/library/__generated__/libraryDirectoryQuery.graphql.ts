@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<659b94154e574f5dfda2e41715c30a93>>
+ * @generated SignedSource<<26cabcef3ff51f338f5820c26e6a1324>>
  * @lightSyntaxTransform
  */
 
@@ -8,7 +8,6 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type LibraryKind = "FOLDER" | "GOOGLE_DRIVE" | "POOL" | "%future added value";
 export type libraryDirectoryQuery$variables = {
   library: string;
   path: string;
@@ -22,9 +21,6 @@ export type libraryDirectoryQuery$data = {
       readonly path: string;
       readonly size: number;
     }>;
-    readonly library: {
-      readonly kind: LibraryKind;
-    };
     readonly names: ReadonlyArray<string>;
     readonly path: string;
   };
@@ -74,24 +70,6 @@ v2 = [
     "name": "libraryDirectory",
     "plural": false,
     "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "concreteType": "Library",
-        "kind": "LinkedField",
-        "name": "library",
-        "plural": false,
-        "selections": [
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "kind",
-            "storageKey": null
-          }
-        ],
-        "storageKey": null
-      },
       (v1/*:: as any*/),
       {
         "alias": null,
@@ -162,16 +140,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "b910173e13665fa05dde01b2771dbbaa",
+    "cacheID": "fdd277772ea68959a20213ea3c8e802a",
     "id": null,
     "metadata": {},
     "name": "libraryDirectoryQuery",
     "operationKind": "query",
-    "text": "query libraryDirectoryQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryDirectory(library: $library, path: $path) {\n    library {\n      kind\n    }\n    path\n    names\n    entries {\n      name\n      path\n      directory\n      size\n      modifiedAt\n    }\n  }\n}\n"
+    "text": "query libraryDirectoryQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryDirectory(library: $library, path: $path) {\n    path\n    names\n    entries {\n      name\n      path\n      directory\n      size\n      modifiedAt\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "8aebaffb5ccc2a1977c189484d151991";
+(node as any).hash = "36a3ecc7526cb3634f1b1d24f20a0747";
 
 export default node;

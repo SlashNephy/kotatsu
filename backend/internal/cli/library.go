@@ -28,7 +28,7 @@ type libraryParts struct {
 func newLibraryParts(deps *Deps, logger *slog.Logger, build bool) *libraryParts {
 	storage := &deps.Config.Storage
 	libraries := medialib.NewSet(storage.Pools, storage.PoolOrder, storage.Libraries)
-	googleService, err := newGoogleService(deps, logger)
+	googleService, err := newGoogleService(deps, logger, libraries.Names())
 	if err != nil {
 		logger.Warn("Google Drive is unavailable without the secret key", slog.Any("error", err))
 		googleService = nil
@@ -36,7 +36,7 @@ func newLibraryParts(deps *Deps, logger *slog.Logger, build bool) *libraryParts 
 	if googleService != nil {
 		// Google Drive は、接続していなくても一覧に入れておき、接続しているかどうかは、読むたびに DB で確かめる。
 		tokens := googleService.DriveTokens(deps.DB)
-		libraries = libraries.With(medialib.NewDrive(googleService.DriveClient(tokens), tokens, deps.Clock.Now))
+		libraries = libraries.WithProvider(medialib.NewDrive(googleService.DriveClient(tokens), tokens, deps.Clock.Now))
 	}
 	indexer := filelib.NewIndexer(storage.DataDir, libraries, deps.Clock, logger.With(slog.String("component", "library_index")), build)
 
@@ -44,14 +44,14 @@ func newLibraryParts(deps *Deps, logger *slog.Logger, build bool) *libraryParts 
 }
 
 // newGoogleService は、Google の OAuth クライアントと Google Drive の接続を扱う部品を作る (#1902)。
-func newGoogleService(deps *Deps, logger *slog.Logger) (*google.Service, error) {
+func newGoogleService(deps *Deps, logger *slog.Logger, reserved []string) (*google.Service, error) {
 	return google.NewService(&google.Options{
 		Clock: deps.Clock, Recorder: audit.NewRecorder(deps.Clock), AppSecret: string(appSecretOf(deps)),
 		// 何 GB もあるファイルを読み通すので、全体のタイムアウトを付けない。
 		HTTPClient: netactivity.NewClient(deps.Network, netactivity.PurposeGoogleDrive, netactivity.ClientOptions{
 			Transport: nil, Timeout: 0, CheckRedirect: nil,
 		}),
-		Logger: logger.With(slog.String("component", "google")), URL: deps.Config.Google.URL,
+		Logger: logger.With(slog.String("component", "google")), URL: deps.Config.Google.URL, ReservedLibraryNames: reserved,
 	})
 }
 

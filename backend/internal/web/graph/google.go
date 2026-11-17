@@ -40,7 +40,7 @@ func (r *Resolver) googleIntegration(ctx context.Context) (*model.GoogleIntegrat
 		return nil, err
 	}
 	for _, folder := range folders {
-		result.Folders = append(result.Folders, &model.GoogleDriveFolder{ID: folder.ID, Name: folder.Name, AddedAt: folder.AddedAt})
+		result.Folders = append(result.Folders, &model.GoogleDriveFolder{ID: folder.ID, LibraryName: folder.Library, Name: folder.Name, AddedAt: folder.AddedAt})
 	}
 	drive, err := service.Drive(ctx, r.db)
 	switch {
@@ -57,7 +57,7 @@ func (r *Resolver) googleIntegration(ctx context.Context) (*model.GoogleIntegrat
 // googleError は、Google の連携のエラーを、GraphQL のエラーにする。
 func googleError(err error) error {
 	switch {
-	case errors.Is(err, google.ErrInvalidApp), errors.Is(err, google.ErrNotAFolder):
+	case errors.Is(err, google.ErrInvalidApp), errors.Is(err, google.ErrNotAFolder), errors.Is(err, google.ErrInvalidLibraryName):
 		return NewError(CodeBadUserInput, err.Error())
 	case errors.Is(err, google.ErrUnavailable):
 		return NewError(CodeConflict, "register the Google OAuth client first")

@@ -116,7 +116,10 @@ func (f *File) Timeline() (time.Duration, time.Duration, bool) {
 	return seekable, max(seekable, time.Duration(float64(seekable)*float64(f.Entry.Size)/float64(last))), true
 }
 
-// ID は、再生位置を保存するときのファイルの ID。Google Drive では、パスでなくファイルの ID から作る (medialib.IdentityOf)。
+// ID は、再生位置を保存するときのファイルの ID。Google Drive では、ライブラリの名前とパスでなく、ファイルの ID から作る
+// (medialib.IdentityOf)。ライブラリの名前やパスの形を変えても、再生位置を引き継ぐ。
 func (f *File) ID() string {
-	return FileID(Ref{Library: f.Ref.Library, Path: medialib.IdentityOf(f.Library, f.Ref.Path)}, f.Entry.Size, f.Entry.ModifiedAt)
+	namespace, identity := medialib.IdentityOf(f.Library, f.Ref.Path)
+
+	return FileID(Ref{Library: namespace, Path: identity}, f.Entry.Size, f.Entry.ModifiedAt)
 }

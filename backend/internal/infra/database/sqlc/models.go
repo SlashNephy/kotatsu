@@ -364,10 +364,11 @@ type GoogleDriveConnection struct {
 }
 
 type GoogleDriveFolder struct {
-	FolderID string
-	DriveID  string
-	Name     string
-	AddedAt  time.Time
+	FolderID    string
+	LibraryName string
+	DriveID     string
+	Name        string
+	AddedAt     time.Time
 }
 
 type GuideView struct {

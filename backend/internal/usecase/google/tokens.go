@@ -171,7 +171,7 @@ func (t *DriveTokens) connection(ctx context.Context) (*sqlc.GoogleDriveConnecti
 	}
 	t.folders = make([]*medialib.DriveFolder, 0, len(rows))
 	for _, folder := range rows {
-		t.folders = append(t.folders, &medialib.DriveFolder{ID: folder.FolderID, DriveID: folder.DriveID})
+		t.folders = append(t.folders, &medialib.DriveFolder{ID: folder.FolderID, DriveID: folder.DriveID, Library: folder.LibraryName})
 	}
 	t.checkedAt = now
 

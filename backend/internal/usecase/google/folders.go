@@ -13,6 +13,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/googledrive"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 )
 
@@ -22,6 +23,8 @@ const MyDriveName = "My Drive"
 var (
 	// ErrNotAFolder は、選ぼうとしたものがフォルダでないか、見えないことを表す。
 	ErrNotAFolder = errors.New("not a folder in the Google Drive")
+	// ErrInvalidLibraryName は、ライブラリの名前が規則に合わないか、ほかのライブラリと重なることを表す。
+	ErrInvalidLibraryName = errors.New("invalid library name")
 	// ErrFolderNotSelected は、外そうとしたフォルダを選んでいないことを表す。
 	ErrFolderNotSelected = errors.New("the folder is not selected")
 )
@@ -32,7 +35,9 @@ type DriveFolder struct {
 	// DriveID は、フォルダのある共有ドライブの ID。マイドライブなら空。
 	DriveID string
 	// Name は、選んだときのフォルダの名前。
-	Name    string
+	Name string
+	// Library は、ライブラリの名前。
+	Library string
 	AddedAt time.Time
 }
 
@@ -44,7 +49,7 @@ func (s *Service) DriveFolders(ctx context.Context, db sqlc.DBTX) ([]*DriveFolde
 	}
 	folders := make([]*DriveFolder, 0, len(rows))
 	for _, row := range rows {
-		folders = append(folders, &DriveFolder{ID: row.FolderID, DriveID: row.DriveID, Name: row.Name, AddedAt: row.AddedAt})
+		folders = append(folders, &DriveFolder{ID: row.FolderID, DriveID: row.DriveID, Name: row.Name, Library: row.LibraryName, AddedAt: row.AddedAt})
 	}
 
 	return folders, nil
@@ -98,9 +103,11 @@ func (s *Service) BrowseDriveFolders(ctx context.Context, db sqlc.DBTX, parentID
 	return choices, nil
 }
 
-// AddDriveFolder は、フォルダ folderID を、ライブラリとして見せるフォルダに足す。マイドライブの根元 (root) や共有ドライブの根元も選べる。
-// Drive のファイルを家族に見せ始める操作なので、呼ぶ側で、直近の再認証を確かめる (設計書 9.5)。
-func (s *Service) AddDriveFolder(ctx context.Context, db Database, actor *audit.Actor, folderID string) error {
+// AddDriveFolder は、フォルダ folderID を、名前 libraryName のライブラリとして見せるフォルダに足す。マイドライブの根元 (root) や
+// 共有ドライブの根元も選べる。Drive のファイルを家族に見せ始める操作なので、呼ぶ側で、直近の再認証を確かめる (設計書 9.5)。
+// 名前が規則に合わないか、ほかのライブラリと重なれば、ErrInvalidLibraryName を返す。
+func (s *Service) AddDriveFolder(ctx context.Context, db Database, actor *audit.Actor, folderID, libraryName string) error {
+	libraryName = strings.TrimSpace(libraryName)
 	client, err := s.adminClient(ctx, db)
 	if err != nil {
 		return err
@@ -112,20 +119,33 @@ func (s *Service) AddDriveFolder(ctx context.Context, db Database, actor *audit.
 	if err != nil {
 		return err
 	}
+	name := folder.Name
+	// 共有ドライブの根元は、files.get では決まった名前 (「ドライブ」など) が返るので、共有ドライブの名前を引く。
+	if folder.DriveID != "" && folder.ID == folder.DriveID {
+		drive, err := client.GetDrive(ctx, folder.DriveID)
+		if err != nil {
+			return err
+		}
+		name = drive.Name
+	}
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		added, err := sqlc.New(tx).InsertGoogleDriveFolder(ctx, sqlc.InsertGoogleDriveFolderParams{
-			FolderID: folder.ID, DriveID: folder.DriveID, Name: folder.Name, Now: s.clock.Now(),
+		q := sqlc.New(tx)
+		if err := s.checkLibraryName(ctx, q, folder.ID, libraryName); err != nil {
+			return err
+		}
+		added, err := q.InsertGoogleDriveFolder(ctx, sqlc.InsertGoogleDriveFolderParams{
+			FolderID: folder.ID, LibraryName: libraryName, DriveID: folder.DriveID, Name: name, Now: s.clock.Now(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to add the Google Drive folder: %w", err)
 		}
 		if added == 0 {
-			return nil
+			return fmt.Errorf("%w: the folder is already chosen", ErrInvalidLibraryName)
 		}
 
 		return s.recorder.Record(ctx, tx, &audit.Event{
 			Actor: actor, Action: "google_drive.folder.add", TargetType: auditTargetDrive, TargetID: folder.ID,
-			Summary: map[string]any{"name": folder.Name}, SourceIP: actor.SourceIP, UserAgent: actor.UserAgent,
+			Summary: map[string]any{"name": name, "library": libraryName}, SourceIP: actor.SourceIP, UserAgent: actor.UserAgent,
 		})
 	})
 	if err != nil {
@@ -134,6 +154,62 @@ func (s *Service) AddDriveFolder(ctx context.Context, db Database, actor *audit.
 	s.forgetConnections()
 
 	return nil
+}
+
+// RenameDriveFolder は、フォルダ folderID のライブラリの名前を libraryName に変える。見せるものは変わらないので、再認証は求めない。
+// 再生位置と索引は、Drive のファイルの ID で引くので、名前を変えても引き継ぐ。
+func (s *Service) RenameDriveFolder(ctx context.Context, db Database, actor *audit.Actor, folderID, libraryName string) error {
+	libraryName = strings.TrimSpace(libraryName)
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		q := sqlc.New(tx)
+		if err := s.checkLibraryName(ctx, q, folderID, libraryName); err != nil {
+			return err
+		}
+		previous, err := q.RenameGoogleDriveFolder(ctx, sqlc.RenameGoogleDriveFolderParams{LibraryName: libraryName, FolderID: folderID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrFolderNotSelected
+		}
+		if err != nil {
+			return fmt.Errorf("failed to rename the Google Drive library: %w", err)
+		}
+		if previous == libraryName {
+			return nil
+		}
+
+		return s.recorder.Record(ctx, tx, &audit.Event{
+			Actor: actor, Action: "google_drive.folder.rename", TargetType: auditTargetDrive, TargetID: folderID,
+			Summary:  map[string]any{"library": map[string]any{"from": previous, "to": libraryName}},
+			SourceIP: actor.SourceIP, UserAgent: actor.UserAgent,
+		})
+	})
+	if err != nil {
+		return err
+	}
+	s.forgetConnections()
+
+	return nil
+}
+
+// checkLibraryName は、名前 name を、フォルダ folderID のライブラリの名前にできるかを確かめる。保存先プールの ID と同じ規則
+// (英小文字、数字、-、_) に合い、設定のライブラリ (プールとフォルダ) と、ほかのフォルダのライブラリと重ならないこと。
+func (s *Service) checkLibraryName(ctx context.Context, q *sqlc.Queries, folderID, name string) error {
+	if !config.IsValidPoolID(name) {
+		return fmt.Errorf("%w: use 1 to 63 lowercase letters, digits, - and _, starting with a letter or a digit", ErrInvalidLibraryName)
+	}
+	if slices.Contains(s.reservedNames, name) {
+		return fmt.Errorf("%w: %q is used by a storage pool or a library folder", ErrInvalidLibraryName, name)
+	}
+	other, err := q.GetGoogleDriveFolderByLibrary(ctx, name)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failed to get the Google Drive library: %w", err)
+	case other.FolderID != folderID:
+		return fmt.Errorf("%w: %q is used by another Google Drive folder", ErrInvalidLibraryName, name)
+	default:
+		return nil
+	}
 }
 
 // RemoveDriveFolder は、フォルダ folderID を、見せるフォルダから外す。見せるものを減らす操作なので、再認証は求めない。

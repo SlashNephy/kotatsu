@@ -15,18 +15,18 @@ import (
 )
 
 const (
-	// GoogleDriveName は、Google Drive のライブラリの名前。同じ名前のプールかフォルダがあれば、そちらを出し、Google Drive は出さない。
+	// GoogleDriveName は、Google Drive のファイルを見分ける値の名前空間。索引の置き場と再生位置の file_id は、ライブラリの名前でなく、
+	// この名前と Drive のファイルの ID から作るので、ライブラリの名前を変えても、パスの形を変えても引き継がれる。
 	GoogleDriveName = "google-drive"
-	// KindGoogleDrive は、Google Drive のライブラリ (#1902)。管理者が接続し、見せるフォルダを選んだときだけ見せる。
+	// KindGoogleDrive は、Google Drive のライブラリ (#1902)。管理者が選んだフォルダごとに 1 つある。
 	KindGoogleDrive Kind = "google_drive"
-	// driveStatTTL は、ファイルの情報を覚えておく長さ。再生の画面は、索引を作り終えるまで数秒ごとに読み直すので、そのたびに問い合わせない。
+	// driveStatTTL は、ファイルの情報とフォルダの中身を覚えておく長さ。再生の画面は、索引を作り終えるまで数秒ごとに読み直すので、
+	// そのたびに問い合わせない。
 	driveStatTTL = 30 * time.Second
-	// maxDriveStatCache は、覚えておくファイルの情報の数の上限。
-	maxDriveStatCache = 1024
-	// driveChainTTL は、ファイルが選んだフォルダの下にあるかを確かめた結果を覚えておく長さ。
-	driveChainTTL = 5 * time.Minute
-	// maxDriveChainCache は、覚えておく確かめた結果の数の上限。
-	maxDriveChainCache = 4096
+	// drivePathTTL は、パスからファイルの ID を引いた結果を覚えておく長さ。
+	drivePathTTL = 5 * time.Minute
+	// maxDriveCache は、覚えておくものの数の上限。超えたら、まとめて捨てる。
+	maxDriveCache = 4096
 	// maxDriveDepth は、親をたどる深さの上限。
 	maxDriveDepth = 64
 	// driveSearchPages は、名前で探すときに読むページの数の上限 (1 ページ 1000 件)。
@@ -35,13 +35,19 @@ const (
 	driveSkipLimit = 4 << 20
 	// driveReopenLimit は、読み出しが途中で切れたときに、読めた所から開き直す回数の上限。
 	driveReopenLimit = 5
+	// driveLookupTimeout は、ctx のない呼び出し (Set.Get) で、選んだフォルダを読み直すときの時間の上限。
+	driveLookupTimeout = 10 * time.Second
+	// driveIDSeparator は、同じフォルダに同じ名前が並ぶときに、名前の後ろに付ける、ID の頭の前の印。
+	driveIDSeparator = "~"
+	// minDriveIDPrefix は、名前の後ろに付ける ID の頭の、短い方の長さ。
+	minDriveIDPrefix = 6
 )
 
 var (
-	// ErrNotConnected は、Google Drive を接続していないか、見せるフォルダを選んでいないことを表す。ErrNotFound でもある。
+	// ErrNotConnected は、Google Drive を接続していないことを表す。ErrNotFound でもある。
 	ErrNotConnected = fmt.Errorf("%w: the Google Drive is not connected", ErrNotFound)
-	// errOutsideFolders は、選んだフォルダの外のファイルであることを表す。ErrNotFound でもある。外にあるか、ないかは区別して見せない。
-	errOutsideFolders = fmt.Errorf("%w: outside the selected folders", ErrNotFound)
+	// errOutsideFolder は、選んだフォルダの外のファイルであることを表す。ErrNotFound でもある。外にあるか、ないかは区別して見せない。
+	errOutsideFolder = fmt.Errorf("%w: outside the selected folder", ErrNotFound)
 )
 
 // DriveAPI は、Google Drive のライブラリが使う Drive API。*googledrive.Client が満たす。
@@ -54,12 +60,14 @@ type DriveAPI interface {
 
 var _ DriveAPI = new(googledrive.Client)
 
-// DriveFolder は、管理者が、ライブラリとして見せると選んだ Drive のフォルダ。
+// DriveFolder は、管理者が、ライブラリとして見せると選んだ Drive のフォルダ。選んだフォルダごとに、ライブラリが 1 つある。
 type DriveFolder struct {
 	// ID は、フォルダの ID。
 	ID string
 	// DriveID は、フォルダのある共有ドライブの ID。マイドライブなら空。
 	DriveID string
+	// Library は、ライブラリの名前。
+	Library string
 }
 
 // DriveScope は、Google Drive の接続と、見せるフォルダ。
@@ -70,20 +78,20 @@ type DriveScope interface {
 	Folders(ctx context.Context) ([]*DriveFolder, error)
 }
 
-// Drive は、管理者が接続した Google Drive のライブラリ (設計書 5.8、#1902)。
+// Drive は、管理者が接続した Google Drive の、選んだフォルダごとのライブラリを作る (設計書 5.8、#1902)。
 //
-// 見せるのは、管理者が選んだフォルダ (共有ドライブの中のフォルダも可) の下だけにする。根元に選んだフォルダを並べる。
-// Drive のファイルの名前は重なることがあり、/ を含むこともあるので、パスは名前でなく ID を / でつないで表す。最初の段は選んだフォルダの ID で、
-// 続く段はフォルダの ID、最後の段はファイルの ID にする。パスは、選んだフォルダから親をたどった道筋と一致するものだけを受け付ける。
-// ファイルの ID を直接渡されても、選んだフォルダの外のものは、一覧にも開く口にも出さない。
+// ライブラリの中のパスは、ふだんはフォルダとファイルの名前を / でつなぐ。Drive では同じフォルダに同じ名前が並ぶことがあるので、
+// そのときだけ、名前の後ろに ~ と ID の頭を付けて見分ける。名前の / と \ は、形の似た文字に置き換える。パスは、選んだフォルダから
+// 名前をたどって引くので、選んだフォルダの外のファイルには届かない。ファイルの ID を見分ける値にし、索引と再生位置は ID で引き継ぐ。
 type Drive struct {
 	api   DriveAPI
 	scope DriveScope
 	now   func() time.Time
 
-	mu     sync.Mutex
-	stats  map[string]*driveStat
-	chains map[string]*driveChain
+	mu    sync.Mutex
+	stats map[string]*driveStat
+	dirs  map[string]*driveDir
+	paths map[string]*drivePath
 }
 
 type driveStat struct {
@@ -91,90 +99,135 @@ type driveStat struct {
 	fetchedAt time.Time
 }
 
-// driveChain は、あるファイルが、あるフォルダの下にあるかを確かめた結果。
-type driveChain struct {
-	// ids は、フォルダの直下からファイルまでの ID。下になければ nil。
-	ids       []string
-	checkedAt time.Time
+// driveDir は、フォルダの中身。段の名前から子への対応も持つ。
+type driveDir struct {
+	children  []*googledrive.File
+	segments  map[string]*googledrive.File
+	fetchedAt time.Time
 }
 
-var (
-	_ Library    = new(Drive)
-	_ Identifier = new(Drive)
-	_ Namer      = new(Drive)
-	_ Connector  = new(Drive)
-	_ Searcher   = new(Drive)
-)
+// drivePath は、ライブラリの中のパスから引いたファイルの ID。
+type drivePath struct {
+	id        string
+	fetchedAt time.Time
+}
 
-// NewDrive は、Google Drive のライブラリを返す。scope は、接続と、管理者が選んだフォルダを返す。
+var _ LibraryProvider = new(Drive)
+
+// NewDrive は、Google Drive のライブラリを作る部品を返す。scope は、接続と、管理者が選んだフォルダを返す。
 func NewDrive(api DriveAPI, scope DriveScope, now func() time.Time) *Drive {
-	return &Drive{api: api, scope: scope, now: now, mu: sync.Mutex{}, stats: map[string]*driveStat{}, chains: map[string]*driveChain{}}
+	return &Drive{
+		api: api, scope: scope, now: now, mu: sync.Mutex{},
+		stats: map[string]*driveStat{}, dirs: map[string]*driveDir{}, paths: map[string]*drivePath{},
+	}
 }
 
-func (d *Drive) Name() string { return GoogleDriveName }
-
-func (d *Drive) Kind() Kind { return KindGoogleDrive }
-
-// Connected は、管理者が Google Drive を接続し、見せるフォルダを選んだかどうかを返す。そうでなければ、ライブラリの一覧に出さない。
-func (d *Drive) Connected(ctx context.Context) (bool, error) {
+// Libraries は、選んだフォルダごとのライブラリを、選んだ順に返す。接続していなければ、何も返さない。
+func (d *Drive) Libraries(ctx context.Context) ([]Library, error) {
 	connected, err := d.scope.Connected(ctx)
 	if err != nil || !connected {
-		return false, err
+		return []Library{}, err
 	}
 	folders, err := d.scope.Folders(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
+	}
+	libraries := make([]Library, 0, len(folders))
+	for _, folder := range folders {
+		libraries = append(libraries, &DriveLibrary{drive: d, folder: folder})
 	}
 
-	return len(folders) > 0, nil
+	return libraries, nil
 }
 
-// Identity は、ファイル p を見分ける値として、最後の段 (ファイルの ID) を返す。ファイルを別のフォルダへ移しても、
-// 索引の置き場と再生位置を分けない。
-func (d *Drive) Identity(p string) string {
-	return p[strings.LastIndex(p, "/")+1:]
+// Lookup は、名前が name のライブラリを返す。ctx を受け取らない呼び出し (Set.Get) から使うので、選んだフォルダは、
+// scope が覚えたものを、時間を区切って読む。接続していなくても返し、読むときに ErrNotConnected を返す。
+func (d *Drive) Lookup(name string) (Library, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), driveLookupTimeout)
+	defer cancel()
+	folders, err := d.scope.Folders(ctx)
+	if err != nil {
+		return nil, false
+	}
+	for _, folder := range folders {
+		if folder.Library == name {
+			return &DriveLibrary{drive: d, folder: folder}, true
+		}
+	}
+
+	return nil, false
 }
 
-func (d *Drive) List(ctx context.Context, dir string) ([]*Entry, error) {
+// DriveLibrary は、管理者が選んだ Drive のフォルダ 1 つのライブラリ。
+type DriveLibrary struct {
+	drive  *Drive
+	folder *DriveFolder
+}
+
+var (
+	_ Library    = new(DriveLibrary)
+	_ Identifier = new(DriveLibrary)
+	_ Namer      = new(DriveLibrary)
+	_ Connector  = new(DriveLibrary)
+	_ Searcher   = new(DriveLibrary)
+)
+
+func (l *DriveLibrary) Name() string { return l.folder.Library }
+
+func (l *DriveLibrary) Kind() Kind { return KindGoogleDrive }
+
+// Connected は、管理者が Google Drive を接続していて、使えるかどうかを返す。接続が切れていれば、ライブラリの一覧に出さない。
+func (l *DriveLibrary) Connected(ctx context.Context) (bool, error) {
+	return l.drive.scope.Connected(ctx)
+}
+
+// Identity は、ファイル p を見分ける値として、Drive のファイルの ID を返す。パスから引いた結果を覚えていなければ、
+// 時間を区切って引く。引けなければ、パスをそのまま返す (索引も再生位置も、引けるようになるまで使えない)。
+func (l *DriveLibrary) Identity(p string) (string, string) {
+	if id, ok := l.drive.cachedPath(l.folder, p); ok {
+		return GoogleDriveName, id
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), driveLookupTimeout)
+	defer cancel()
+	file, err := l.resolve(ctx, p)
+	if err != nil {
+		return l.folder.Library, p
+	}
+
+	return GoogleDriveName, file.ID
+}
+
+func (l *DriveLibrary) List(ctx context.Context, dir string) ([]*Entry, error) {
 	dir, err := CleanPath(dir)
 	if err != nil {
 		return nil, err
 	}
-	folders, err := d.folders(ctx)
+	folder, err := l.resolve(ctx, dir)
 	if err != nil {
 		return nil, err
 	}
-	if dir == "" {
-		return d.roots(ctx, folders)
+	if !folder.Folder() {
+		return nil, fmt.Errorf("%w: %q is not a directory", ErrNotFound, dir)
 	}
-	folder, parts, err := d.resolve(ctx, folders, dir)
+	listing, err := l.drive.dir(ctx, folder.ID, l.folder.DriveID)
 	if err != nil {
 		return nil, err
 	}
-	children, err := d.api.Children(ctx, parts[len(parts)-1], folder.DriveID)
-	if err != nil {
-		return nil, driveError(err)
-	}
-	entries := make([]*Entry, 0, len(children))
-	for _, child := range children {
-		// Google ドキュメントなどと、名前が . で始まるもの (ローカルのライブラリの隠しファイルにそろえる) は出さない。
-		if (!child.Folder() && !child.Blob()) || strings.HasPrefix(child.Name, ".") {
-			continue
-		}
-		d.remember(child)
-		// 一覧に出したものは、選んだフォルダの下にあると分かっているので、確かめた結果として覚える。
-		d.rememberChain(folder.ID, child.ID, append(slices.Clone(parts[1:]), child.ID))
+	entries := make([]*Entry, 0, len(listing.children))
+	for segment, child := range listing.segments {
 		entries = append(entries, &Entry{
-			Name: child.Name, Path: dir + "/" + child.ID, Dir: child.Folder(), Size: child.Size, ModifiedAt: child.ModifiedTime,
+			Name: child.Name, Path: joinPath(dir, segment), Dir: child.Folder(), Size: child.Size, ModifiedAt: child.ModifiedTime,
 		})
 	}
-	slices.SortStableFunc(entries, func(a, b *Entry) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortStableFunc(entries, func(a, b *Entry) int {
+		return cmpFirst(strings.Compare(a.Name, b.Name), strings.Compare(a.Path, b.Path))
+	})
 
 	return entries, nil
 }
 
-// Names は、パス p の段ごとの表示名を返す。パンくずに使う。
-func (d *Drive) Names(ctx context.Context, p string) ([]string, error) {
+// Names は、パス p の段ごとの名前 (名前を置き換える前の、Drive の名前) を返す。パンくずに使う。
+func (l *DriveLibrary) Names(ctx context.Context, p string) ([]string, error) {
 	p, err := CleanPath(p)
 	if err != nil {
 		return nil, err
@@ -182,17 +235,10 @@ func (d *Drive) Names(ctx context.Context, p string) ([]string, error) {
 	if p == "" {
 		return []string{}, nil
 	}
-	folders, err := d.folders(ctx)
-	if err != nil {
-		return nil, err
-	}
-	_, parts, err := d.resolve(ctx, folders, p)
-	if err != nil {
-		return nil, err
-	}
+	parts := strings.Split(p, "/")
 	names := make([]string, 0, len(parts))
-	for _, part := range parts {
-		file, err := d.get(ctx, part)
+	for i := range parts {
+		file, err := l.resolve(ctx, strings.Join(parts[:i+1], "/"))
 		if err != nil {
 			return nil, err
 		}
@@ -202,233 +248,270 @@ func (d *Drive) Names(ctx context.Context, p string) ([]string, error) {
 	return names, nil
 }
 
-func (d *Drive) Stat(ctx context.Context, p string) (*Entry, error) {
+func (l *DriveLibrary) Stat(ctx context.Context, p string) (*Entry, error) {
 	p, err := CleanPath(p)
 	if err != nil {
 		return nil, err
 	}
-	folders, err := d.folders(ctx)
+	file, err := l.resolve(ctx, p)
 	if err != nil {
 		return nil, err
 	}
 	if p == "" {
-		return &Entry{Name: "", Path: "", Dir: true, Size: 0, ModifiedAt: time.Time{}}, nil
-	}
-	if _, _, err := d.resolve(ctx, folders, p); err != nil {
-		return nil, err
-	}
-	file, err := d.get(ctx, d.Identity(p))
-	if err != nil {
-		return nil, err
+		return &Entry{Name: "", Path: "", Dir: true, Size: 0, ModifiedAt: file.ModifiedTime}, nil
 	}
 
 	return &Entry{Name: file.Name, Path: p, Dir: file.Folder(), Size: file.Size, ModifiedAt: file.ModifiedTime}, nil
 }
 
-func (d *Drive) Open(ctx context.Context, p string) (File, error) {
-	entry, err := d.Stat(ctx, p)
+func (l *DriveLibrary) Open(ctx context.Context, p string) (File, error) {
+	p, err := CleanPath(p)
 	if err != nil {
 		return nil, err
 	}
-	if entry.Dir {
+	file, err := l.resolve(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	if p == "" || file.Folder() {
 		return nil, fmt.Errorf("%w: %q is not a file", ErrNotFound, p)
 	}
-
-	id := d.Identity(p)
+	entry := &Entry{Name: file.Name, Path: p, Dir: false, Size: file.Size, ModifiedAt: file.ModifiedTime}
+	id := file.ID
+	api := l.drive.api
 
 	return &driveFile{
 		// Open に渡された ctx で、閉じるまでの読み出しを取りやめられるようにする。
-		download: func(off int64) (io.ReadCloser, error) { return d.api.Download(ctx, id, off) },
+		download: func(off int64) (io.ReadCloser, error) { return api.Download(ctx, id, off) },
 		canceled: func() bool { return ctx.Err() != nil },
 		id:       id, entry: entry, mu: sync.Mutex{}, pos: 0, body: nil, bodyPos: 0, closed: false,
 	}, nil
 }
 
-// Search は、ディレクトリ dir (空なら選んだフォルダのすべて) の下から、名前に query を含む再生できるファイルを、limit 件まで返す。
-// Drive の q では、あるフォルダの子孫だけには絞れないので、探す範囲を、選んだフォルダのある共有ドライブ (またはマイドライブ) に絞って
-// 名前で探し、見つけたファイルの親をたどって、dir の下にあるものだけを残す。2 つ目の戻り値は、上限で打ち切ったかどうか。
-func (d *Drive) Search(ctx context.Context, dir, query string, limit int) ([]*Entry, bool, error) {
+// Search は、ディレクトリ dir の下から、名前に query を含む再生できるファイルを、limit 件まで返す。Drive の q では、
+// あるフォルダの子孫だけには絞れないので、探す範囲を、選んだフォルダのある共有ドライブ (またはマイドライブ) に絞って名前で探し、
+// 見つけたファイルの親をたどって、dir の下にあるものだけを残す。2 つ目の戻り値は、上限で打ち切ったかどうか。
+func (l *DriveLibrary) Search(ctx context.Context, dir, query string, limit int) ([]*Entry, bool, error) {
 	dir, err := CleanPath(dir)
 	if err != nil {
 		return nil, false, err
 	}
-	folders, err := d.folders(ctx)
+	anchor, err := l.resolve(ctx, dir)
 	if err != nil {
 		return nil, false, err
 	}
-	// anchors は、探す範囲の根元のフォルダの ID から、そのパスへの対応。
-	anchors := map[string]string{}
-	drives := []string{}
-	if dir == "" {
-		for _, folder := range folders {
-			anchors[folder.ID] = folder.ID
-			drives = append(drives, folder.DriveID)
+	files, truncated, err := l.drive.api.SearchFiles(ctx, query, l.folder.DriveID, driveSearchPages)
+	if err != nil {
+		return nil, false, driveError(err)
+	}
+	entries := []*Entry{}
+	for _, file := range files {
+		if !visible(file) || !Playable(file.Name) {
+			continue
 		}
-	} else {
-		folder, parts, err := d.resolve(ctx, folders, dir)
+		l.drive.remember(file)
+		rest, err := l.pathUnder(ctx, anchor.ID, file)
+		if errors.Is(err, errOutsideFolder) {
+			continue
+		}
 		if err != nil {
 			return nil, false, err
 		}
-		anchors[parts[len(parts)-1]] = dir
-		drives = append(drives, folder.DriveID)
-	}
-	slices.Sort(drives)
-	entries := []*Entry{}
-	truncated := false
-	for _, driveID := range slices.Compact(drives) {
-		files, more, err := d.api.SearchFiles(ctx, query, driveID, driveSearchPages)
-		if err != nil {
-			return nil, false, driveError(err)
+		if len(entries) >= limit {
+			return entries, true, nil
 		}
-		truncated = truncated || more
-		for _, file := range files {
-			if !file.Blob() || strings.HasPrefix(file.Name, ".") || !Playable(file.Name) {
-				continue
-			}
-			d.remember(file)
-			p, ok, err := d.locate(ctx, anchors, file.ID)
-			if err != nil {
-				return nil, false, err
-			}
-			if !ok {
-				continue
-			}
-			if len(entries) >= limit {
-				return entries, true, nil
-			}
-			entries = append(entries, &Entry{Name: file.Name, Path: p, Dir: false, Size: file.Size, ModifiedAt: file.ModifiedTime})
-		}
+		entries = append(entries, &Entry{Name: file.Name, Path: joinPath(dir, rest), Dir: false, Size: file.Size, ModifiedAt: file.ModifiedTime})
 	}
-	slices.SortStableFunc(entries, func(a, b *Entry) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortStableFunc(entries, func(a, b *Entry) int {
+		return cmpFirst(strings.Compare(a.Name, b.Name), strings.Compare(a.Path, b.Path))
+	})
 
 	return entries, truncated, nil
 }
 
-// locate は、ファイル id が、anchors のどれかのフォルダの下にあれば、そのフォルダのパスからのパスを返す。
-func (d *Drive) locate(ctx context.Context, anchors map[string]string, id string) (string, bool, error) {
-	for anchor, base := range anchors {
-		ids, err := d.chain(ctx, anchor, id)
-		if errors.Is(err, errOutsideFolders) {
-			continue
+// pathUnder は、ファイル file がフォルダ anchor の下にあれば、anchor からのパスを返す。親をたどり、段ごとに、親のフォルダの中身から
+// 段の名前を決める。下になければ errOutsideFolder を返す。親が複数あるファイル (古い Drive のもの) は、最初の親だけをたどる。
+func (l *DriveLibrary) pathUnder(ctx context.Context, anchor string, file *googledrive.File) (string, error) {
+	segments := []string{}
+	current := file
+	for range maxDriveDepth {
+		if current.ID == anchor {
+			slices.Reverse(segments)
+
+			return strings.Join(segments, "/"), nil
 		}
+		if len(current.Parents) == 0 {
+			break
+		}
+		listing, err := l.drive.dir(ctx, current.Parents[0], l.folder.DriveID)
 		if err != nil {
-			return "", false, err
+			return "", err
 		}
-
-		return base + "/" + strings.Join(ids, "/"), true, nil
-	}
-
-	return "", false, nil
-}
-
-// roots は、根元に、選んだフォルダを、選んだ順に並べる。消されたか見えなくなったフォルダは出さない。
-func (d *Drive) roots(ctx context.Context, folders []*DriveFolder) ([]*Entry, error) {
-	entries := make([]*Entry, 0, len(folders))
-	for _, folder := range folders {
-		file, err := d.get(ctx, folder.ID)
+		segment, ok := listing.segmentOf(current.ID)
+		if !ok {
+			// 隠しファイルの下などで、ライブラリに出していないもの。
+			break
+		}
+		segments = append(segments, segment)
+		parent, err := l.drive.get(ctx, current.Parents[0])
 		if errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNotConnected) {
-			continue
+			break
 		}
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		entries = append(entries, &Entry{Name: file.Name, Path: folder.ID, Dir: true, Size: 0, ModifiedAt: file.ModifiedTime})
+		current = parent
 	}
 
-	return entries, nil
+	return "", errOutsideFolder
 }
 
-// folders は、選んだフォルダを返す。接続していないか、フォルダを選んでいなければ ErrNotConnected を返す。
-func (d *Drive) folders(ctx context.Context) ([]*DriveFolder, error) {
-	connected, err := d.scope.Connected(ctx)
+// resolve は、ライブラリの中のパス p (空なら選んだフォルダ) のファイルかフォルダを返す。選んだフォルダから、段の名前で子をたどる。
+func (l *DriveLibrary) resolve(ctx context.Context, p string) (*googledrive.File, error) {
+	connected, err := l.drive.scope.Connected(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if !connected {
 		return nil, ErrNotConnected
 	}
-	folders, err := d.scope.Folders(ctx)
+	if id, ok := l.drive.cachedPath(l.folder, p); ok {
+		return l.drive.get(ctx, id)
+	}
+	current, err := l.drive.get(ctx, l.folder.ID)
 	if err != nil {
 		return nil, err
 	}
-	if len(folders) == 0 {
-		return nil, ErrNotConnected
-	}
-
-	return folders, nil
-}
-
-// resolve は、パス p の最初の段の選んだフォルダと、段を返す。最初の段が選んだフォルダでないか、続く段が、選んだフォルダから
-// 親をたどった道筋と一致しなければ (選んだフォルダの外のファイルや、道筋を作り変えたパス)、ErrNotFound を返す。
-func (d *Drive) resolve(ctx context.Context, folders []*DriveFolder, p string) (*DriveFolder, []string, error) {
-	parts := strings.Split(p, "/")
-	index := slices.IndexFunc(folders, func(f *DriveFolder) bool { return f.ID == parts[0] })
-	if index < 0 {
-		return nil, nil, errOutsideFolders
-	}
-	if len(parts) > 1 {
-		ids, err := d.chain(ctx, parts[0], parts[len(parts)-1])
-		if err != nil {
-			return nil, nil, err
-		}
-		if !slices.Equal(ids, parts[1:]) {
-			return nil, nil, errOutsideFolders
+	if p != "" {
+		for segment := range strings.SplitSeq(p, "/") {
+			if !current.Folder() {
+				return nil, errOutsideFolder
+			}
+			listing, err := l.drive.dir(ctx, current.ID, l.folder.DriveID)
+			if err != nil {
+				return nil, err
+			}
+			child, ok := listing.segments[segment]
+			if !ok {
+				return nil, fmt.Errorf("%w: %q", ErrNotFound, p)
+			}
+			current = child
 		}
 	}
+	l.drive.rememberPath(l.folder, p, current.ID)
 
-	return folders[index], parts, nil
+	return current, nil
 }
 
-// chain は、ファイル id がフォルダ anchor の下にあれば、anchor の直下から id までの ID を返す。下になければ errOutsideFolders を返す。
-// 親をたどって確かめ、結果を driveChainTTL の間覚える。親が複数あるファイル (古い Drive のもの) は、最初の親だけをたどる。
-func (d *Drive) chain(ctx context.Context, anchor, id string) ([]string, error) {
-	key := anchor + "/" + id
+// segmentOf は、フォルダの中身のうち、ID が id の子の段の名前を返す。
+func (d *driveDir) segmentOf(id string) (string, bool) {
+	for segment, child := range d.segments {
+		if child.ID == id {
+			return segment, true
+		}
+	}
+
+	return "", false
+}
+
+// driveSegments は、フォルダの中身から、段の名前と子の対応を作る。ふだんは名前 (/ と \ を置き換えたもの) にし、同じ名前が並ぶときだけ、
+// 名前の後ろに ~ と、並んだもの同士で重ならない長さの ID の頭を付ける。
+func driveSegments(children []*googledrive.File) map[string]*googledrive.File {
+	groups := map[string][]*googledrive.File{}
+	for _, child := range children {
+		name := segmentName(child.Name)
+		groups[name] = append(groups[name], child)
+	}
+	segments := make(map[string]*googledrive.File, len(children))
+	for name, group := range groups {
+		if len(group) == 1 {
+			segments[name] = group[0]
+
+			continue
+		}
+		size := minDriveIDPrefix
+		for ; ; size++ {
+			seen := map[string]bool{}
+			unique := true
+			for _, child := range group {
+				prefix := child.ID[:min(size, len(child.ID))]
+				unique = unique && !seen[prefix]
+				seen[prefix] = true
+			}
+			if unique || slices.ContainsFunc(group, func(c *googledrive.File) bool { return size >= len(c.ID) }) {
+				break
+			}
+		}
+		for _, child := range group {
+			segments[name+driveIDSeparator+child.ID[:min(size, len(child.ID))]] = child
+		}
+	}
+
+	return segments
+}
+
+// segmentName は、Drive の名前を、パスの段に置ける形にする。/ と \ はパスの区切りとして読まれるので、
+// 形の似た文字 (∕ U+2215 と ⧵ U+29F5) に置き換える。
+func segmentName(name string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(name, "/", "\u2215"), `\`, "\u29f5")
+}
+
+// visible は、ライブラリに出すものかどうかを返す。Google ドキュメントなどと、名前が . で始まるもの
+// (ローカルのライブラリの隠しファイルにそろえる) は出さない。
+func visible(file *googledrive.File) bool {
+	return (file.Folder() || file.Blob()) && !strings.HasPrefix(file.Name, ".")
+}
+
+// dir は、フォルダ id の中身を返す。少し前に引いたものがあれば、問い合わせずに返す。
+func (d *Drive) dir(ctx context.Context, id, driveID string) (*driveDir, error) {
 	d.mu.Lock()
-	cached, ok := d.chains[key]
+	cached, ok := d.dirs[id]
 	d.mu.Unlock()
-	if ok && d.now().Sub(cached.checkedAt) < driveChainTTL {
-		if cached.ids == nil {
-			return nil, errOutsideFolders
-		}
-
-		return slices.Clone(cached.ids), nil
+	if ok && d.now().Sub(cached.fetchedAt) < driveStatTTL {
+		return cached, nil
 	}
-	reversed := []string{}
-	current := id
-	for range maxDriveDepth {
-		if current == anchor {
-			slices.Reverse(reversed)
-			d.rememberChain(anchor, id, reversed)
-
-			return slices.Clone(reversed), nil
-		}
-		reversed = append(reversed, current)
-		file, err := d.get(ctx, current)
-		if errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNotConnected) && current != id {
-			// 途中の親が見えなければ、選んだフォルダの下にない。
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		if len(file.Parents) == 0 {
-			break
-		}
-		current = file.Parents[0]
+	children, err := d.api.Children(ctx, id, driveID)
+	if err != nil {
+		return nil, driveError(err)
 	}
-	d.rememberChain(anchor, id, nil)
-
-	return nil, errOutsideFolders
-}
-
-// rememberChain は、ファイル id がフォルダ anchor の下にあるかを確かめた結果を覚える。上限を超えたら、まとめて捨てる。
-func (d *Drive) rememberChain(anchor, id string, ids []string) {
+	shown := make([]*googledrive.File, 0, len(children))
+	for _, child := range children {
+		if visible(child) {
+			shown = append(shown, child)
+			d.remember(child)
+		}
+	}
+	listing := &driveDir{children: shown, segments: driveSegments(shown), fetchedAt: d.now()}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if len(d.chains) >= maxDriveChainCache {
-		clear(d.chains)
+	if len(d.dirs) >= maxDriveCache {
+		clear(d.dirs)
 	}
-	d.chains[anchor+"/"+id] = &driveChain{ids: ids, checkedAt: d.now()}
+	d.dirs[id] = listing
+
+	return listing, nil
+}
+
+// cachedPath は、ライブラリ folder のパス p から引いたファイルの ID を、覚えていれば返す。
+func (d *Drive) cachedPath(folder *DriveFolder, p string) (string, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	cached, ok := d.paths[folder.ID+"\x00"+p]
+	if !ok || d.now().Sub(cached.fetchedAt) >= drivePathTTL {
+		return "", false
+	}
+
+	return cached.id, true
+}
+
+// rememberPath は、ライブラリ folder のパス p から引いたファイルの ID を覚える。
+func (d *Drive) rememberPath(folder *DriveFolder, p, id string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.paths) >= maxDriveCache {
+		clear(d.paths)
+	}
+	d.paths[folder.ID+"\x00"+p] = &drivePath{id: id, fetchedAt: d.now()}
 }
 
 // get は、ファイル id の情報を返す。少し前に引いたものがあれば、問い合わせずに返す。
@@ -448,22 +531,37 @@ func (d *Drive) get(ctx context.Context, id string) (*googledrive.File, error) {
 	return file, nil
 }
 
-// remember は、引いたファイルの情報を覚える。上限を超えたら、古いものから捨てる。
+// remember は、引いたファイルの情報を覚える。上限を超えたら、まとめて捨てる。
 func (d *Drive) remember(file *googledrive.File) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	now := d.now()
-	if len(d.stats) >= maxDriveStatCache {
-		for id, stat := range d.stats {
-			if now.Sub(stat.fetchedAt) >= driveStatTTL {
-				delete(d.stats, id)
-			}
-		}
-		if len(d.stats) >= maxDriveStatCache {
-			clear(d.stats)
+	if len(d.stats) >= maxDriveCache {
+		clear(d.stats)
+	}
+	d.stats[file.ID] = &driveStat{file: file, fetchedAt: d.now()}
+}
+
+// joinPath は、ディレクトリ dir と、その下のパス rest をつなぐ。
+func joinPath(dir, rest string) string {
+	switch {
+	case dir == "":
+		return rest
+	case rest == "":
+		return dir
+	default:
+		return dir + "/" + rest
+	}
+}
+
+// cmpFirst は、最初の 0 でない比べた結果を返す。
+func cmpFirst(results ...int) int {
+	for _, r := range results {
+		if r != 0 {
+			return r
 		}
 	}
-	d.stats[file.ID] = &driveStat{file: file, fetchedAt: now}
+
+	return 0
 }
 
 // driveError は、見えないファイルを ErrNotFound で、接続が切れていてトークンを作れないことを ErrNotConnected で包む。

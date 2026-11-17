@@ -33,26 +33,31 @@ func (t *driveTokens) Token(context.Context) (string, error) {
 func (t *driveTokens) Invalidate() { t.token = "" }
 
 const (
-	// folderID と folderPath は、見せると選んだマイドライブの中のフォルダの ID と、そのパス (根元に並ぶ)。
-	folderID   = "folder-1"
-	folderPath = folderID
-	// seasonID は、選んだフォルダの中のフォルダの ID。
-	seasonID = "folder-2"
-	// seasonName は、選んだフォルダの中のフォルダの名前。
+	// folderID は、見せると選んだマイドライブの中のフォルダの ID。videosLibrary は、そのライブラリの名前。
+	folderID      = "folder-1"
+	videosLibrary = "videos"
+	// seasonID と seasonName は、選んだフォルダの中のフォルダ。
+	seasonID   = "folder-2"
 	seasonName = "season2"
 	// secretID は、選んでいないマイドライブの中のフォルダの ID。
 	secretID = "folder-3"
-	// sharedID と sharedName は、テストの共有ドライブ。subID は、その中の、見せると選んだフォルダの ID。
-	sharedID   = "drive-1"
-	sharedName = "Archive"
-	subID      = "folder-4"
-	// folderName は、テストの Drive のフォルダの名前。tsMime は、TS の MIME タイプ。
-	folderName = "videos"
-	tsMime     = "video/mp2t"
+	// sharedID は、テストの共有ドライブの ID。subID は、その中の、見せると選んだフォルダの ID。archiveLibrary は、そのライブラリの名前。
+	sharedID       = "drive-1"
+	subID          = "folder-4"
+	archiveLibrary = "archive"
+	// tsMime は、TS の MIME タイプ。
+	tsMime = "video/mp2t"
 	// fromHead は、頭から読む Range。
 	fromHead = "bytes=0-"
-	// episodeName は、選んだフォルダの直下のファイルの名前。
+	// dupName は、選んだフォルダに 2 つ並ぶファイルの名前。slashName は、/ を含む名前。episode2Name は、season2 の中のファイルの名前。
+	// archiveFile は、共有ドライブの、選んだフォルダの中のファイルの名前。
+	dupName      = "dup.ts"
+	slashName    = "a/b.ts"
+	episode2Name = "episode2.ts"
+	archiveFile  = "episode-archive.ts"
+	// episodeName と bigName は、選んだフォルダの直下のファイルの名前。
 	episodeName = "episode.ts"
+	bigName     = "big.ts"
 )
 
 // bigContent は、読み出しを確かめる大きめのファイルの中身。
@@ -60,29 +65,33 @@ func bigContent() []byte {
 	return []byte(strings.Repeat("0123456789", 1000))
 }
 
-// newDriveWith は、次の中身の偽の Drive の、scope で絞ったライブラリを返す。
+// newDriveWith は、次の中身の偽の Drive の、scope で選んだフォルダのライブラリを作る部品を返す。
 //
-//	マイドライブ: videos/ (episode.ts, big.ts, memo (Google ドキュメント), .dot.ts, season2/ (episode2.ts)), a.ts, secret/ (episode-secret.ts)
+//	マイドライブ: videos/ (episode.ts, big.ts, memo (Google ドキュメント), .dot.ts, dup.ts ×2, a/b.ts, season2/ (episode2.ts)),
+//	             a.ts, secret/ (episode-secret.ts)
 //	共有ドライブ Archive: episode-b.ts, sub/ (episode-archive.ts)
 func newDriveWith(t *testing.T, scope medialib.DriveScope) (*medialib.Drive, *googletest.Server) {
 	t.Helper()
 	modified := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 	server := googletest.New("client", "secret")
-	server.AddDrive(&googletest.Drive{ID: sharedID, Name: sharedName})
+	server.AddDrive(&googletest.Drive{ID: sharedID, Name: "Archive"})
 	for _, f := range []*googletest.File{
-		{ID: folderID, Name: folderName, MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID},
+		{ID: folderID, Name: "videos", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID},
 		{ID: "ep1", Name: episodeName, MIMEType: tsMime, Parent: folderID, Content: []byte("episode1")},
-		{ID: "big", Name: "big.ts", MIMEType: tsMime, Parent: folderID, Content: bigContent()},
+		{ID: "big", Name: bigName, MIMEType: tsMime, Parent: folderID, Content: bigContent()},
 		{ID: "doc", Name: "memo", MIMEType: "application/vnd.google-apps.document", Parent: folderID},
 		{ID: "dot", Name: ".dot.ts", MIMEType: tsMime, Parent: folderID, Content: []byte("h")},
+		{ID: "dupaaaa111", Name: dupName, MIMEType: tsMime, Parent: folderID, Content: []byte("d1")},
+		{ID: "dupaaaa222", Name: dupName, MIMEType: tsMime, Parent: folderID, Content: []byte("d2")},
+		{ID: "slash", Name: slashName, MIMEType: tsMime, Parent: folderID, Content: []byte("s")},
 		{ID: seasonID, Name: seasonName, MIMEType: googletest.FolderMIMEType, Parent: folderID},
-		{ID: "ep2", Name: "episode2.ts", MIMEType: tsMime, Parent: seasonID, Content: []byte("episode2")},
+		{ID: "ep2", Name: episode2Name, MIMEType: tsMime, Parent: seasonID, Content: []byte("episode2")},
 		{ID: "a", Name: "a.ts", MIMEType: tsMime, Parent: googletest.MyDriveID, Content: []byte("a")},
-		{ID: secretID, Name: "secret", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID},
+		{ID: secretID, Name: "private", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID},
 		{ID: "hidden-ep", Name: "episode-secret.ts", MIMEType: tsMime, Parent: secretID, Content: []byte("s")},
 		{ID: "b", Name: "episode-b.ts", MIMEType: tsMime, Parent: sharedID, Content: []byte("b")},
 		{ID: subID, Name: "sub", MIMEType: googletest.FolderMIMEType, Parent: sharedID},
-		{ID: "c", Name: "episode-archive.ts", MIMEType: tsMime, Parent: subID, Content: []byte("c")},
+		{ID: "c", Name: archiveFile, MIMEType: tsMime, Parent: subID, Content: []byte("c")},
 	} {
 		f.ModifiedTime = modified
 		server.AddFile(f)
@@ -94,11 +103,72 @@ func newDriveWith(t *testing.T, scope medialib.DriveScope) (*medialib.Drive, *go
 	return medialib.NewDrive(client, scope, time.Now), server
 }
 
-// newDrive は、videos と、共有ドライブの sub を見せる、newDriveWith のライブラリを返す。
-func newDrive(t *testing.T) (*medialib.Drive, *googletest.Server) {
-	t.Helper()
+// defaultScope は、videos と、共有ドライブの sub (archive) を見せる scope を返す。
+func defaultScope() *googletest.Scope {
+	return googletest.NewScope(
+		&medialib.DriveFolder{ID: folderID, DriveID: "", Library: videosLibrary},
+		&medialib.DriveFolder{ID: subID, DriveID: sharedID, Library: archiveLibrary},
+	)
+}
 
-	return newDriveWith(t, googletest.NewScope(&medialib.DriveFolder{ID: folderID, DriveID: ""}, &medialib.DriveFolder{ID: subID, DriveID: sharedID}))
+// newDriveLibrary は、newDriveWith の、名前が name のライブラリを返す。
+func newDriveLibrary(t *testing.T, name string) (medialib.Library, *googletest.Server) {
+	t.Helper()
+	drive, server := newDriveWith(t, defaultScope())
+	library, ok := drive.Lookup(name)
+	require.True(t, ok)
+
+	return library, server
+}
+
+// TestDriveLibraries は、選んだフォルダごとにライブラリを作り、接続していなければ一覧に出さないことを確かめる。
+func TestDriveLibraries(t *testing.T) {
+	t.Parallel()
+	drive, _ := newDriveWith(t, defaultScope())
+	set := medialib.NewSet(map[string]string{mainPool: "/mnt/main"}, []string{mainPool}, map[string]string{}).WithProvider(drive)
+	available, err := set.Available(t.Context())
+	require.NoError(t, err)
+	names, kinds := make([]string, 0, len(available)), make([]medialib.Kind, 0, len(available))
+	for _, l := range available {
+		names = append(names, l.Name())
+		kinds = append(kinds, l.Kind())
+	}
+	assert.Equal(t, []string{mainPool, videosLibrary, archiveLibrary}, names)
+	assert.Equal(t, []medialib.Kind{medialib.KindPool, medialib.KindGoogleDrive, medialib.KindGoogleDrive}, kinds)
+	_, ok := set.Get(archiveLibrary)
+	assert.True(t, ok)
+	_, ok = set.Get("missing")
+	assert.False(t, ok)
+
+	// 接続していなければ、一覧に出さず、読もうとしたら ErrNotConnected を返す。
+	scope := defaultScope()
+	scope.Disconnected = true
+	drive, server := newDriveWith(t, scope)
+	set = medialib.NewSet(map[string]string{}, []string{}, map[string]string{}).WithProvider(drive)
+	available, err = set.Available(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, available)
+	library, ok := set.Get(videosLibrary)
+	require.True(t, ok)
+	_, err = library.List(t.Context(), "")
+	require.ErrorIs(t, err, medialib.ErrNotConnected)
+	assert.Empty(t, server.Requests())
+
+	// フォルダを選んでいなければ、ライブラリはない。
+	drive, _ = newDriveWith(t, googletest.NewScope())
+	libraries, err := drive.Libraries(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, libraries)
+
+	// 設定のライブラリと同じ名前のものは出さない。
+	drive, _ = newDriveWith(t, defaultScope())
+	set = medialib.NewSet(map[string]string{}, []string{}, map[string]string{videosLibrary: "/mnt/videos"}).WithProvider(drive)
+	l, ok := set.Get(videosLibrary)
+	require.True(t, ok)
+	assert.Equal(t, medialib.KindFolder, l.Kind())
+	available, err = set.Available(t.Context())
+	require.NoError(t, err)
+	assert.Len(t, available, 2)
 }
 
 func TestDriveList(t *testing.T) {
@@ -106,34 +176,31 @@ func TestDriveList(t *testing.T) {
 
 	tests := []struct {
 		name      string
+		library   string
 		dir       string
 		wantPaths []string
 		wantNames []string
 		wantErr   error
 	}{
-		// 根元には、選んだフォルダを、選んだ順に並べる。
-		{name: "selected folders", dir: "", wantPaths: []string{folderID, subID}, wantNames: []string{folderName, "sub"}},
-		// パスは ID をつなぐ。Google ドキュメントと、. で始まる名前は出さない。
 		{
-			name: "folder", dir: folderPath,
-			wantPaths: []string{folderPath + "/big", folderPath + "/ep1", folderPath + "/" + seasonID},
-			wantNames: []string{"big.ts", episodeName, seasonName},
+			// パスは名前でつなぐ。同じ名前が並ぶときだけ、~ と ID の頭を付ける。/ は形の似た文字にする。
+			// Google ドキュメントと、. で始まる名前は出さない。
+			name: "selected folder", library: videosLibrary, dir: "",
+			wantPaths: []string{"a∕b.ts", bigName, dupName + "~dupaaaa1", dupName + "~dupaaaa2", episodeName, seasonName},
+			wantNames: []string{slashName, bigName, dupName, dupName, episodeName, seasonName},
 		},
-		{name: "subfolder", dir: folderPath + "/" + seasonID, wantPaths: []string{folderPath + "/" + seasonID + "/ep2"}, wantNames: []string{"episode2.ts"}},
-		{name: "folder in a shared drive", dir: subID, wantPaths: []string{subID + "/c"}, wantNames: []string{"episode-archive.ts"}},
-		// 選んでいないフォルダと、ドライブの根元は見せない。
-		{name: "unselected folder", dir: secretID, wantErr: medialib.ErrNotFound},
-		{name: "my drive", dir: googletest.MyDriveID, wantErr: medialib.ErrNotFound},
-		{name: "shared drive", dir: sharedID, wantErr: medialib.ErrNotFound},
-		// 選んだフォルダから始めても、外のフォルダの ID をつないだパスは受け付けない。
-		{name: "forged path", dir: folderPath + "/" + secretID, wantErr: medialib.ErrNotFound},
-		{name: "parent", dir: folderPath + "/..", wantErr: medialib.ErrInvalidPath},
+		{name: "subfolder", library: videosLibrary, dir: seasonName, wantPaths: []string{seasonName + "/" + episode2Name}, wantNames: []string{episode2Name}},
+		{name: "folder in a shared drive", library: archiveLibrary, dir: "", wantPaths: []string{archiveFile}, wantNames: []string{archiveFile}},
+		// 選んだフォルダの外へは、名前ではたどれない。
+		{name: "unknown folder", library: videosLibrary, dir: "private", wantErr: medialib.ErrNotFound},
+		{name: "not a directory", library: videosLibrary, dir: episodeName, wantErr: medialib.ErrNotFound},
+		{name: "parent", library: videosLibrary, dir: "..", wantErr: medialib.ErrInvalidPath},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			drive, _ := newDrive(t)
-			entries, err := drive.List(t.Context(), tt.dir)
+			library, _ := newDriveLibrary(t, tt.library)
+			entries, err := library.List(t.Context(), tt.dir)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 
@@ -151,110 +218,72 @@ func TestDriveList(t *testing.T) {
 	}
 }
 
-func TestDriveNotConnected(t *testing.T) {
+// TestDriveSharedDriveRoot は、共有ドライブの根元を選んでも、中身をたどれることを確かめる。
+func TestDriveSharedDriveRoot(t *testing.T) {
 	t.Parallel()
-
-	tests := []struct {
-		name  string
-		scope *googletest.Scope
-	}{
-		{name: "not connected", scope: &googletest.Scope{Disconnected: true, Selected: []*medialib.DriveFolder{{ID: folderID, DriveID: ""}}}},
-		// 接続していても、見せるフォルダを選ぶまでは出さない。
-		{name: "no folders", scope: googletest.NewScope()},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			drive, server := newDriveWith(t, tt.scope)
-			_, err := drive.List(t.Context(), "")
-			require.ErrorIs(t, err, medialib.ErrNotConnected)
-			_, err = drive.Stat(t.Context(), folderPath+"/ep1")
-			require.ErrorIs(t, err, medialib.ErrNotFound)
-			_, err = drive.Open(t.Context(), folderPath+"/ep1")
-			require.ErrorIs(t, err, medialib.ErrNotConnected)
-			_, _, err = drive.Search(t.Context(), "", "episode", 10)
-			require.ErrorIs(t, err, medialib.ErrNotConnected)
-			assert.Empty(t, server.Requests())
-
-			// ライブラリの一覧に出さない。
-			set := medialib.NewSet(map[string]string{}, []string{}, map[string]string{}).With(drive)
-			available, err := set.Available(t.Context())
-			require.NoError(t, err)
-			assert.Empty(t, available)
-			_, ok := set.Get(medialib.GoogleDriveName)
-			assert.True(t, ok)
-		})
-	}
-}
-
-func TestDriveSetName(t *testing.T) {
-	t.Parallel()
-	drive, _ := newDrive(t)
-	// 同じ名前のフォルダがあれば、フォルダを出し、Google Drive は足さない。
-	set := medialib.NewSet(map[string]string{}, []string{}, map[string]string{medialib.GoogleDriveName: "/mnt/drive"}).With(drive)
-	l, ok := set.Get(medialib.GoogleDriveName)
+	drive, _ := newDriveWith(t, googletest.NewScope(&medialib.DriveFolder{ID: sharedID, DriveID: sharedID, Library: "atmos"}))
+	library, ok := drive.Lookup("atmos")
 	require.True(t, ok)
-	assert.Equal(t, medialib.KindFolder, l.Kind())
-
-	set = medialib.NewSet(map[string]string{}, []string{}, map[string]string{}).With(drive)
-	available, err := set.Available(t.Context())
+	entries, err := library.List(t.Context(), "")
 	require.NoError(t, err)
-	require.Len(t, available, 1)
-	assert.Equal(t, medialib.KindGoogleDrive, available[0].Kind())
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, entry.Path)
+	}
+	assert.Equal(t, []string{"episode-b.ts", "sub"}, paths)
 }
 
-func TestDriveStatAndNames(t *testing.T) {
+func TestDriveStatAndIdentity(t *testing.T) {
 	t.Parallel()
-	drive, server := newDrive(t)
+	library, server := newDriveLibrary(t, videosLibrary)
 
-	entry, err := drive.Stat(t.Context(), folderPath+"/ep1")
+	entry, err := library.Stat(t.Context(), episodeName)
 	require.NoError(t, err)
-	assert.Equal(t, episodeName, entry.Name)
-	assert.Equal(t, folderPath+"/ep1", entry.Path)
-	assert.Equal(t, int64(8), entry.Size)
-	assert.False(t, entry.Dir)
-	// 少し前に引いた情報と、選んだフォルダの下にあると確かめた結果は、問い合わせずに使う。
+	assert.Equal(t, &medialib.Entry{Name: episodeName, Path: episodeName, Dir: false, Size: 8, ModifiedAt: entry.ModifiedAt}, entry)
+	// 少し前に引いた結果は、問い合わせずに使う。
 	requests := len(server.Requests())
-	_, err = drive.Stat(t.Context(), folderPath+"/ep1")
+	_, err = library.Stat(t.Context(), episodeName)
 	require.NoError(t, err)
 	assert.Len(t, server.Requests(), requests)
 
 	tests := []struct {
-		name    string
-		path    string
-		wantErr error
+		name     string
+		path     string
+		wantID   string
+		wantSize int64
+		wantErr  error
 	}{
-		{name: "absent", path: folderPath + "/absent", wantErr: medialib.ErrNotFound},
-		// ファイルの ID を直接渡されても、選んだフォルダの外のものは見せない。
-		{name: "outside file", path: folderPath + "/a", wantErr: medialib.ErrNotFound},
-		{name: "file in an unselected folder", path: folderPath + "/hidden-ep", wantErr: medialib.ErrNotFound},
-		{name: "unselected root", path: secretID + "/hidden-ep", wantErr: medialib.ErrNotFound},
-		// 選んだフォルダの下でも、親をたどった道筋と違うパスは受け付けない。
-		{name: "wrong chain", path: folderPath + "/ep2", wantErr: medialib.ErrNotFound},
-		{name: "nested", path: folderPath + "/" + seasonID + "/ep2"},
-		{name: "shared drive", path: subID + "/c"},
+		{name: "nested", path: seasonName + "/" + episode2Name, wantID: "ep2", wantSize: 8},
+		{name: "duplicated name", path: dupName + "~dupaaaa2", wantID: "dupaaaa222", wantSize: 2},
+		{name: "duplicated name without the mark", path: dupName, wantErr: medialib.ErrNotFound},
+		{name: "slash in the name", path: "a∕b.ts", wantID: "slash", wantSize: 1},
+		{name: "absent", path: "absent.ts", wantErr: medialib.ErrNotFound},
+		{name: "google document", path: "memo", wantErr: medialib.ErrNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := drive.Stat(t.Context(), tt.path)
+			entry, err := library.Stat(t.Context(), tt.path)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 
 				return
 			}
 			require.NoError(t, err)
+			assert.Equal(t, tt.wantSize, entry.Size)
+			// ファイルを見分ける値は、ライブラリの名前とパスによらず、Drive のファイルの ID にする。
+			namespace, id := medialib.IdentityOf(library, tt.path)
+			assert.Equal(t, medialib.GoogleDriveName, namespace)
+			assert.Equal(t, tt.wantID, id)
 		})
 	}
 
-	// ファイルを見分ける値は、ファイルの ID にする。
-	assert.Equal(t, "ep1", medialib.IdentityOf(drive, folderPath+"/ep1"))
-
-	names, err := medialib.NamesOf(t.Context(), drive, folderPath+"/"+seasonID)
+	names, err := medialib.NamesOf(t.Context(), library, seasonName+"/episode2.ts")
 	require.NoError(t, err)
-	assert.Equal(t, []string{folderName, seasonName}, names)
-	_, err = medialib.NamesOf(t.Context(), drive, folderPath+"/"+secretID)
-	require.ErrorIs(t, err, medialib.ErrNotFound, "the names outside the folders are not shown")
+	assert.Equal(t, []string{seasonName, episode2Name}, names)
+	names, err = medialib.NamesOf(t.Context(), library, "a∕b.ts")
+	require.NoError(t, err)
+	assert.Equal(t, []string{slashName}, names, "the names keep the slash")
 }
 
 // TestDriveSearch は、名前で探し、選んだフォルダ (と、探すフォルダ) の下にあるものだけを返すことを確かめる。
@@ -263,24 +292,29 @@ func TestDriveSearch(t *testing.T) {
 
 	tests := []struct {
 		name          string
+		library       string
 		dir           string
 		limit         int
 		wantPaths     []string
 		wantTruncated bool
 	}{
 		{
-			// 選んでいないフォルダのものと、共有ドライブの、選んだフォルダの外のものは返さない。
-			name: "all folders", dir: "", limit: 10,
-			wantPaths: []string{subID + "/c", folderPath + "/ep1", folderPath + "/" + seasonID + "/ep2"},
+			// 選んでいないフォルダのものと、共有ドライブのものは返さない。
+			name: "selected folder", library: videosLibrary, dir: "", limit: 10,
+			wantPaths: []string{episodeName, seasonName + "/" + episode2Name},
 		},
-		{name: "subfolder", dir: folderPath + "/" + seasonID, limit: 10, wantPaths: []string{folderPath + "/" + seasonID + "/ep2"}},
-		{name: "limit", dir: folderPath, limit: 1, wantPaths: []string{folderPath + "/ep1"}, wantTruncated: true},
+		{name: "subfolder", library: videosLibrary, dir: seasonName, limit: 10, wantPaths: []string{seasonName + "/" + episode2Name}},
+		// 共有ドライブの、選んだフォルダの外のもの (episode-b.ts) は返さない。
+		{name: "shared drive", library: archiveLibrary, dir: "", limit: 10, wantPaths: []string{archiveFile}},
+		{name: "limit", library: videosLibrary, dir: "", limit: 1, wantPaths: []string{episodeName}, wantTruncated: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			drive, _ := newDrive(t)
-			entries, truncated, err := drive.Search(t.Context(), tt.dir, "EPISODE", tt.limit)
+			library, _ := newDriveLibrary(t, tt.library)
+			searcher, ok := library.(medialib.Searcher)
+			require.True(t, ok)
+			entries, truncated, err := searcher.Search(t.Context(), tt.dir, "EPISODE", tt.limit)
 			require.NoError(t, err)
 			paths := []string{}
 			for _, entry := range entries {
@@ -290,10 +324,6 @@ func TestDriveSearch(t *testing.T) {
 			assert.Equal(t, tt.wantTruncated, truncated)
 		})
 	}
-
-	drive, _ := newDrive(t)
-	_, _, err := drive.Search(t.Context(), secretID, "episode", 10)
-	require.ErrorIs(t, err, medialib.ErrNotFound)
 }
 
 // TestDriveRead は、ファイルを途中から読めることと、続きを読むなら開いた本文を使い回すことを確かめる。
@@ -335,8 +365,8 @@ func TestDriveRead(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			drive, server := newDrive(t)
-			f, err := drive.Open(t.Context(), folderPath+"/big")
+			drive, server := newDriveLibrary(t, videosLibrary)
+			f, err := drive.Open(t.Context(), bigName)
 			content := bigContent()
 			require.NoError(t, err)
 			defer f.Close()
@@ -370,8 +400,8 @@ func TestDriveRead(t *testing.T) {
 
 func TestDriveReadEnd(t *testing.T) {
 	t.Parallel()
-	drive, server := newDrive(t)
-	f, err := drive.Open(t.Context(), folderPath+"/ep1")
+	drive, server := newDriveLibrary(t, videosLibrary)
+	f, err := drive.Open(t.Context(), episodeName)
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -388,15 +418,15 @@ func TestDriveReadEnd(t *testing.T) {
 	assert.Equal(t, "episode1", string(all))
 	assert.Equal(t, []string{"bytes=5-", fromHead}, server.Ranges())
 
-	_, err = drive.Open(t.Context(), folderPath)
+	_, err = drive.Open(t.Context(), seasonName)
 	require.ErrorIs(t, err, medialib.ErrNotFound)
 }
 
 // TestDriveReadGivesUp は、途中で切れ続けたら、開き直す回数の上限で諦めることを確かめる。
 func TestDriveReadGivesUp(t *testing.T) {
 	t.Parallel()
-	drive, server := newDrive(t)
-	f, err := drive.Open(t.Context(), folderPath+"/big")
+	drive, server := newDriveLibrary(t, videosLibrary)
+	f, err := drive.Open(t.Context(), bigName)
 	require.NoError(t, err)
 	defer f.Close()
 	faults := make([]googletest.Fault, 0, 6)
@@ -422,10 +452,12 @@ func (revokedTokens) Invalidate() {}
 func TestDriveRevoked(t *testing.T) {
 	t.Parallel()
 	client := googledrive.NewClient(nil, "http://127.0.0.1:9", revokedTokens{})
-	drive := medialib.NewDrive(client, googletest.NewScope(&medialib.DriveFolder{ID: folderID, DriveID: ""}), time.Now)
-	_, err := drive.Stat(t.Context(), folderPath+"/big")
+	drive := medialib.NewDrive(client, defaultScope(), time.Now)
+	library, ok := drive.Lookup(videosLibrary)
+	require.True(t, ok)
+	_, err := library.Stat(t.Context(), bigName)
 	require.ErrorIs(t, err, medialib.ErrNotConnected)
 	require.ErrorIs(t, err, medialib.ErrNotFound)
-	_, err = drive.List(t.Context(), "")
+	_, err = library.List(t.Context(), "")
 	require.ErrorIs(t, err, medialib.ErrNotFound)
 }

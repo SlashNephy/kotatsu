@@ -60,7 +60,7 @@ func (r *mutationResolver) DisconnectGoogleDrive(ctx context.Context) (*model.Go
 }
 
 // AddGoogleDriveFolder is the resolver for the addGoogleDriveFolder field.
-func (r *mutationResolver) AddGoogleDriveFolder(ctx context.Context, id string) (*model.GoogleIntegration, error) {
+func (r *mutationResolver) AddGoogleDriveFolder(ctx context.Context, id string, libraryName string) (*model.GoogleIntegration, error) {
 	_, actor, err := r.recentAdministrator(ctx, "only administrators can choose the Google Drive folders")
 	if err != nil {
 		return nil, err
@@ -69,7 +69,24 @@ func (r *mutationResolver) AddGoogleDriveFolder(ctx context.Context, id string) 
 	if err != nil {
 		return nil, err
 	}
-	if err := service.AddDriveFolder(ctx, r.db, actor, id); err != nil {
+	if err := service.AddDriveFolder(ctx, r.db, actor, id, libraryName); err != nil {
+		return nil, googleError(err)
+	}
+
+	return r.googleIntegration(ctx)
+}
+
+// RenameGoogleDriveFolder is the resolver for the renameGoogleDriveFolder field.
+func (r *mutationResolver) RenameGoogleDriveFolder(ctx context.Context, id string, libraryName string) (*model.GoogleIntegration, error) {
+	_, actor, err := r.administratorActor(ctx, "only administrators can rename the Google Drive libraries")
+	if err != nil {
+		return nil, err
+	}
+	service, err := r.googleService()
+	if err != nil {
+		return nil, err
+	}
+	if err := service.RenameDriveFolder(ctx, r.db, actor, id, libraryName); err != nil {
 		return nil, googleError(err)
 	}
 

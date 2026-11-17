@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f17ae18ab63b7071ff19322ac074cb37>>
+ * @generated SignedSource<<f658932b8b4dc92b712f43cfce5ea927>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type integrationsGoogleDriveAddFolderMutation$variables = {
   id: string;
+  libraryName: string;
 };
 export type integrationsGoogleDriveAddFolderMutation$data = {
   readonly addGoogleDriveFolder: {
@@ -29,6 +30,11 @@ var v0 = [
     "defaultValue": null,
     "kind": "LocalArgument",
     "name": "id"
+  },
+  {
+    "defaultValue": null,
+    "kind": "LocalArgument",
+    "name": "libraryName"
   }
 ],
 v1 = [
@@ -39,6 +45,11 @@ v1 = [
         "kind": "Variable",
         "name": "id",
         "variableName": "id"
+      },
+      {
+        "kind": "Variable",
+        "name": "libraryName",
+        "variableName": "libraryName"
       }
     ],
     "concreteType": "GoogleIntegration",
@@ -86,16 +97,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "b4a87ddff75b0be4d318d8fa4df38161",
+    "cacheID": "75f856a6e8988f6a5458110fe82d54c6",
     "id": null,
     "metadata": {},
     "name": "integrationsGoogleDriveAddFolderMutation",
     "operationKind": "mutation",
-    "text": "mutation integrationsGoogleDriveAddFolderMutation(\n  $id: String!\n) {\n  addGoogleDriveFolder(id: $id) {\n    folders {\n      id\n    }\n  }\n}\n"
+    "text": "mutation integrationsGoogleDriveAddFolderMutation(\n  $id: String!\n  $libraryName: String!\n) {\n  addGoogleDriveFolder(id: $id, libraryName: $libraryName) {\n    folders {\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "29934b132b323b801f1845414f14b979";
+(node as any).hash = "95446f82052e05930d06042f1c297d6c";
 
 export default node;

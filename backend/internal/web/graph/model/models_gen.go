@@ -954,10 +954,12 @@ type GoogleDriveConnection struct {
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
 }
 
-// ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。
+// ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。選んだフォルダごとに、ライブラリが 1 つある。
 type GoogleDriveFolder struct {
 	// Drive のフォルダの ID。
 	ID string `json:"id"`
+	// ライブラリの名前。保存先プールの ID と同じ規則 (英小文字、数字、-、_)。
+	LibraryName string `json:"libraryName"`
 	// 選んだときのフォルダの名前。
 	Name    string    `json:"name"`
 	AddedAt time.Time `json:"addedAt"`

@@ -28,6 +28,8 @@ const (
 	FolderMIMEType = "application/vnd.google-apps.folder"
 	// MyDriveID は、マイドライブの根元の別名。
 	MyDriveID = "root"
+	// SharedDriveRootName は、files.get が共有ドライブの根元に返す名前。共有ドライブの名前ではない。
+	SharedDriveRootName = "Drive"
 	// keyCode と keyName は、JSON の項目の名前。
 	keyCode = "code"
 	keyName = "name"
@@ -143,9 +145,10 @@ func (s *Server) AddDrive(d *Drive) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.drives = append(s.drives, d)
-	// 共有ドライブの根元は、本物と同じく、共有ドライブの ID で引けるフォルダにする。
+	// 共有ドライブの根元は、本物と同じく、共有ドライブの ID で引けるフォルダにする。本物の files.get は、共有ドライブの名前でなく、
+	// 決まった名前 (日本語では「ドライブ」) を返すので、それをまねる (#1902)。
 	s.files[d.ID] = &File{
-		ID: d.ID, Name: d.Name, MIMEType: FolderMIMEType, Parent: "", Content: nil,
+		ID: d.ID, Name: SharedDriveRootName, MIMEType: FolderMIMEType, Parent: "", Content: nil,
 		ModifiedTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Trashed: false,
 	}
 }
@@ -488,7 +491,14 @@ func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 			children = append(children, f)
 		}
 	}
-	slices.SortFunc(children, func(a, b *File) int { return strings.Compare(a.Name, b.Name) })
+	// 同じ名前が並んでも、ページをまたいで順が変わらないよう、ID でも並べる。
+	slices.SortFunc(children, func(a, b *File) int {
+		if c := strings.Compare(a.Name, b.Name); c != 0 {
+			return c
+		}
+
+		return strings.Compare(a.ID, b.ID)
+	})
 	// 1 件ずつのページに分けて、ページをたどることを確かめられるようにする。
 	start, _ := strconv.Atoi(q.Get("pageToken"))
 	page := map[string]any{"files": []any{}}

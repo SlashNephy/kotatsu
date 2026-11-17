@@ -3,11 +3,11 @@ import { describe, expect, test } from 'vitest';
 import {
   breadcrumbs,
   clampSeek,
-  isMyDrive,
   libraryResumePosition,
   parentPath,
   parseLibrarySearch,
   seekLimit,
+  suggestLibraryName,
   type FileIndex,
 } from './library';
 
@@ -65,13 +65,16 @@ describe('breadcrumbs', () => {
   });
 });
 
-describe('isMyDrive', () => {
+describe('suggestLibraryName', () => {
   test.each([
-    { kind: 'GOOGLE_DRIVE', path: 'root', want: true },
-    { kind: 'GOOGLE_DRIVE', path: 'root/f1', want: false },
-    { kind: 'FOLDER', path: 'root', want: false },
-  ])('$kind $path', ({ kind, path, want }) => {
-    expect(isMyDrive(kind, path)).toBe(want);
+    { name: 'atmos', want: 'atmos' },
+    { name: 'Anime Backup 2026', want: 'anime-backup-2026' },
+    { name: '_Old_TV', want: 'old_tv' },
+    { name: '録画のバックアップ', want: 'drive' },
+    { name: 'BS 録画', want: 'bs' },
+    { name: 'a'.repeat(70), want: 'a'.repeat(63) },
+  ])('$name', ({ name, want }) => {
+    expect(suggestLibraryName(name)).toBe(want);
   });
 });
 

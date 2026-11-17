@@ -1750,13 +1750,17 @@ type GoogleDriveConnection {
   revokedAt: Time
 }
 """
-ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。
+ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。選んだフォルダごとに、ライブラリが 1 つある。
 """
 type GoogleDriveFolder {
   """
   Drive のフォルダの ID。
   """
   id: String!
+  """
+  ライブラリの名前。保存先プールの ID と同じ規則 (英小文字、数字、-、_)。
+  """
+  libraryName: String!
   """
   選んだときのフォルダの名前。
   """
@@ -2847,10 +2851,16 @@ type Mutation {
   """
   disconnectGoogleDrive: GoogleIntegration!
   """
-  Drive のフォルダ id を、ライブラリとして見せるフォルダに足す (#1902)。管理者だけが使える。Drive のファイルを家族に見せ始める操作なので、
-  直近の再認証を求める。フォルダでなければ BAD_USER_INPUT を返す。
+  Drive のフォルダ id を、名前 libraryName のライブラリとして見せるフォルダに足す (#1902)。管理者だけが使える。
+  Drive のファイルを家族に見せ始める操作なので、直近の再認証を求める。フォルダでないか、名前が保存先プールの ID と同じ規則
+  (英小文字、数字、-、_) に合わないか、ほかのライブラリやプールと重なれば BAD_USER_INPUT を返す。
   """
-  addGoogleDriveFolder(id: String!): GoogleIntegration!
+  addGoogleDriveFolder(id: String!, libraryName: String!): GoogleIntegration!
+  """
+  Drive のフォルダ id のライブラリの名前を変える (#1902)。管理者だけが使える。見せるものは変わらないので、再認証は求めない。
+  再生位置と索引は、Drive のファイルの ID で引くので、名前を変えても引き継ぐ。名前が規則に合わないか重なれば BAD_USER_INPUT を返す。
+  """
+  renameGoogleDriveFolder(id: String!, libraryName: String!): GoogleIntegration!
   """
   Drive のフォルダ id を、見せるフォルダから外す (#1902)。管理者だけが使える。
   """

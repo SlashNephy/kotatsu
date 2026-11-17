@@ -30,7 +30,6 @@ import { graphQLErrorDetails } from '../../relay/environment';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import {
   breadcrumbs,
-  isMyDrive,
   parentPath,
   parseLibrarySearch,
   type LibrarySearch,
@@ -184,9 +183,6 @@ function Directory({ library, path, q }: { library: string; path: string; q: str
     graphql`
       query libraryDirectoryQuery($library: String!, $path: String!) {
         libraryDirectory(library: $library, path: $path) {
-          library {
-            kind
-          }
           path
           names
           entries {
@@ -202,11 +198,7 @@ function Directory({ library, path, q }: { library: string; path: string; q: str
     { library, path },
     { fetchPolicy: 'store-and-network' },
   );
-  const kind = directory.library.kind;
-  // Google Drive のマイドライブの根元は、サーバーが英語の名前で返すので、訳して出す (#1902)。
-  const crumbs = breadcrumbs(library, directory.path, directory.names).map((crumb) =>
-    isMyDrive(kind, crumb.path) ? { ...crumb, name: t('library.myDrive') } : crumb,
-  );
+  const crumbs = breadcrumbs(library, directory.path, directory.names);
 
   return (
     <Stack gap="sm">
@@ -275,7 +267,7 @@ function Directory({ library, path, q }: { library: string; path: string; q: str
                       )}
                       {entry.directory ? (
                         <FolderLink library={library} path={entry.path}>
-                          {isMyDrive(kind, entry.path) ? t('library.myDrive') : entry.name}
+                          {entry.name}
                         </FolderLink>
                       ) : (
                         <Anchor

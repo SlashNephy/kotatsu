@@ -40,6 +40,8 @@ const (
 	// varLibrary と varPath は、ライブラリとパスを渡す変数の名前。
 	varLibrary = "library"
 	varPath    = "path"
+	// disconnectedDrive は、接続が切れた Google Drive のライブラリの名前。
+	disconnectedDrive = "drive"
 	// varQuery は、検索の語を渡す変数の名前。
 	varQuery = "query"
 )
@@ -133,9 +135,9 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, discM2TS), bdav, 0o600))
 	// 接続していない Google Drive は、一覧に出さず、開けない (#1902)。
 	disconnected := medialib.NewDrive(googledrive.NewClient(nil, "http://127.0.0.1:9", nil),
-		&googletest.Scope{Disconnected: true, Selected: []*medialib.DriveFolder{}}, time.Now)
+		&googletest.Scope{Disconnected: true, Selected: []*medialib.DriveFolder{{ID: "folder", DriveID: "", Library: disconnectedDrive}}}, time.Now)
 	libraries := medialib.NewSet(map[string]string{poolMain: poolDir}, []string{poolMain}, map[string]string{animeLibrary: libraryDir}).
-		With(disconnected)
+		WithProvider(disconnected)
 	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
 	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), true)
 	// テストを終えるときに、索引を作る処理を止めてから一時ディレクトリを消させる。
@@ -201,7 +203,7 @@ func TestLibraries(t *testing.T) {
 		{name: "outside", library: animeLibrary, path: "..", wantCodes: []string{codeBadUserInput}},
 		{name: "missing directory", library: animeLibrary, path: "missing", wantCodes: []string{codeNotFound}},
 		{name: "missing library", library: "missing", path: "", wantCodes: []string{codeNotFound}},
-		{name: "disconnected Google Drive", library: medialib.GoogleDriveName, path: "", wantCodes: []string{codeNotFound}},
+		{name: "disconnected Google Drive", library: disconnectedDrive, path: "", wantCodes: []string{codeNotFound}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -263,7 +265,7 @@ func TestLibrarySearch(t *testing.T) {
 		{name: "no match", library: animeLibrary, path: "", query: "notes", wantPaths: []string{}},
 		{name: "empty query", library: animeLibrary, path: "", query: "  ", wantCodes: []string{codeBadUserInput}},
 		{name: "parent", library: animeLibrary, path: "..", query: "ts", wantCodes: []string{codeBadUserInput}},
-		{name: "disconnected Google Drive", library: medialib.GoogleDriveName, path: "", query: "ts", wantCodes: []string{codeNotFound}},
+		{name: "disconnected Google Drive", library: disconnectedDrive, path: "", query: "ts", wantCodes: []string{codeNotFound}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

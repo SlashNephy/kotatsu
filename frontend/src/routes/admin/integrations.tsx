@@ -68,6 +68,7 @@ import type {
 import type { integrationsGoogleAppMutation } from './__generated__/integrationsGoogleAppMutation.graphql';
 import type { integrationsGoogleDriveBeginMutation } from './__generated__/integrationsGoogleDriveBeginMutation.graphql';
 import type { integrationsGoogleDriveAddFolderMutation } from './__generated__/integrationsGoogleDriveAddFolderMutation.graphql';
+import type { integrationsGoogleDriveRenameFolderMutation } from './__generated__/integrationsGoogleDriveRenameFolderMutation.graphql';
 import type { integrationsGoogleDriveRemoveFolderMutation } from './__generated__/integrationsGoogleDriveRemoveFolderMutation.graphql';
 import type { integrationsGoogleDriveDisconnectMutation } from './__generated__/integrationsGoogleDriveDisconnectMutation.graphql';
 import type { integrationsAnimeImportTokenMutation } from './__generated__/integrationsAnimeImportTokenMutation.graphql';
@@ -178,6 +179,7 @@ const query = graphql`
       folders {
         id
         name
+        libraryName
       }
     }
     # TMDb との連携 (#1651、設計書 3.9)。
@@ -606,25 +608,49 @@ function Integrations() {
               window.location.assign(response.beginGoogleDriveConnection);
             }, fail)
           }
-          onAddFolder={(id, onDone) =>
+          onAddFolder={(id, libraryName, onDone) =>
             gate.run(async () => {
               await mutate<integrationsGoogleDriveAddFolderMutation>(
                 environment,
                 graphql`
-                  mutation integrationsGoogleDriveAddFolderMutation($id: String!) {
-                    addGoogleDriveFolder(id: $id) {
+                  mutation integrationsGoogleDriveAddFolderMutation(
+                    $id: String!
+                    $libraryName: String!
+                  ) {
+                    addGoogleDriveFolder(id: $id, libraryName: $libraryName) {
                       folders {
                         id
                       }
                     }
                   }
                 `,
-                { id },
+                { id, libraryName },
               );
               onDone();
               succeed(t('admin.googleDrive.folders.added'));
             }, fail)
           }
+          onRenameFolder={(id, libraryName, onDone) => {
+            mutate<integrationsGoogleDriveRenameFolderMutation>(
+              environment,
+              graphql`
+                mutation integrationsGoogleDriveRenameFolderMutation(
+                  $id: String!
+                  $libraryName: String!
+                ) {
+                  renameGoogleDriveFolder(id: $id, libraryName: $libraryName) {
+                    folders {
+                      id
+                    }
+                  }
+                }
+              `,
+              { id, libraryName },
+            ).then(() => {
+              onDone();
+              succeed(t('admin.googleDrive.folders.renamed'));
+            }, fail);
+          }}
           onRemoveFolder={(id) => {
             mutate<integrationsGoogleDriveRemoveFolderMutation>(
               environment,

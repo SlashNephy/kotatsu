@@ -36,9 +36,17 @@ export function breadcrumbs(library: string, path: string, names: readonly strin
   return crumbs;
 }
 
-// isMyDrive は、Google Drive のライブラリの、マイドライブの根元 (パス root) かどうかを返す。画面は、名前を訳して出す。
-export function isMyDrive(kind: string, path: string): boolean {
-  return kind === 'GOOGLE_DRIVE' && path === 'root';
+// suggestLibraryName は、Google Drive のフォルダの名前から、ライブラリの名前の案を作る (#1902)。ライブラリの名前は、保存先プールの ID と
+// 同じ規則 (英小文字、数字、-、_ で、英小文字か数字で始まる、63 文字まで) にする。使えない文字は - にし、何も残らなければ drive にする。
+export function suggestLibraryName(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[-_]+/, '')
+    .slice(0, 63)
+    .replace(/-+$/, '');
+
+  return slug === '' ? 'drive' : slug;
 }
 
 // parentPath は、パス path の親のディレクトリのパスを返す。根元の中なら空。

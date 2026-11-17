@@ -32,6 +32,8 @@ const (
 	// clientID と clientSecret は、偽の Google に登録したクライアント。
 	clientID     = "client"
 	clientSecret = "secret"
+	// reservedPool は、設定の保存先プールの ID。Google Drive のライブラリの名前と重ねない。
+	reservedPool = "main"
 )
 
 type fixture struct {
@@ -59,7 +61,7 @@ func newFixture(t *testing.T) *fixture {
 	t.Cleanup(server.Close)
 	service, err := google.NewService(&google.Options{
 		Clock: clk, Recorder: audit.NewRecorder(clk), AppSecret: strings.Repeat("k", 32), HTTPClient: server.Client(),
-		Logger: slog.New(slog.DiscardHandler), URL: server.URL,
+		Logger: slog.New(slog.DiscardHandler), URL: server.URL, ReservedLibraryNames: []string{reservedPool},
 	})
 	require.NoError(t, err)
 	f := &fixture{

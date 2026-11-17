@@ -45,9 +45,19 @@ RETURNING *;
 SELECT * FROM google_drive_folders ORDER BY added_at, folder_id;
 
 -- name: InsertGoogleDriveFolder :execrows
-INSERT INTO google_drive_folders (folder_id, drive_id, name, added_at)
-VALUES (@folder_id, @drive_id, @name, @now)
+INSERT INTO google_drive_folders (folder_id, library_name, drive_id, name, added_at)
+VALUES (@folder_id, @library_name, @drive_id, @name, @now)
 ON CONFLICT (folder_id) DO NOTHING;
+
+-- name: RenameGoogleDriveFolder :one
+-- ライブラリの名前を変える。変える前の名前を返す。
+UPDATE google_drive_folders AS f SET library_name = @library_name
+FROM google_drive_folders AS old
+WHERE f.folder_id = @folder_id AND old.folder_id = f.folder_id
+RETURNING old.library_name;
+
+-- name: GetGoogleDriveFolderByLibrary :one
+SELECT * FROM google_drive_folders WHERE library_name = @library_name;
 
 -- name: DeleteGoogleDriveFolder :one
 DELETE FROM google_drive_folders WHERE folder_id = @folder_id

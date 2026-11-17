@@ -569,9 +569,10 @@ type ComplexityRoot struct {
 	}
 
 	GoogleDriveFolder struct {
-		AddedAt func(childComplexity int) int
-		ID      func(childComplexity int) int
-		Name    func(childComplexity int) int
+		AddedAt     func(childComplexity int) int
+		ID          func(childComplexity int) int
+		LibraryName func(childComplexity int) int
+		Name        func(childComplexity int) int
 	}
 
 	GoogleDriveFolderChoice struct {
@@ -880,7 +881,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AddGoogleDriveFolder          func(childComplexity int, id string) int
+		AddGoogleDriveFolder          func(childComplexity int, id string, libraryName string) int
 		ApproveOAuthAuthorization     func(childComplexity int, query string, scopes []string) int
 		BeginAnimeRecordConnection    func(childComplexity int, destination model.AnimeRecordDestination) int
 		BeginGoogleDriveConnection    func(childComplexity int) int
@@ -949,6 +950,7 @@ type ComplexityRoot struct {
 		RegisterPlayer                func(childComplexity int, state model.PlayerStateInput) int
 		RemoveGoogleDriveFolder       func(childComplexity int, id string) int
 		RemoveTimeshiftChannel        func(childComplexity int, serviceID string) int
+		RenameGoogleDriveFolder       func(childComplexity int, id string, libraryName string) int
 		RenamePasskey                 func(childComplexity int, id string, name string) int
 		RenameRecordingFiles          func(childComplexity int, ids []string) int
 		RenameRuleGroup               func(childComplexity int, id string, name string) int
@@ -1924,7 +1926,8 @@ type MutationResolver interface {
 	UpdateGoogleApp(ctx context.Context, input model.GoogleAppInput) (*model.GoogleIntegration, error)
 	BeginGoogleDriveConnection(ctx context.Context) (string, error)
 	DisconnectGoogleDrive(ctx context.Context) (*model.GoogleIntegration, error)
-	AddGoogleDriveFolder(ctx context.Context, id string) (*model.GoogleIntegration, error)
+	AddGoogleDriveFolder(ctx context.Context, id string, libraryName string) (*model.GoogleIntegration, error)
+	RenameGoogleDriveFolder(ctx context.Context, id string, libraryName string) (*model.GoogleIntegration, error)
 	RemoveGoogleDriveFolder(ctx context.Context, id string) (*model.GoogleIntegration, error)
 	RetryJob(ctx context.Context, id string) (*model.Job, error)
 	CancelJob(ctx context.Context, id string) (*model.Job, error)
@@ -4057,6 +4060,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.GoogleDriveFolder.ID(childComplexity), true
+	case "GoogleDriveFolder.libraryName":
+		if e.ComplexityRoot.GoogleDriveFolder.LibraryName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleDriveFolder.LibraryName(childComplexity), true
 	case "GoogleDriveFolder.name":
 		if e.ComplexityRoot.GoogleDriveFolder.Name == nil {
 			break
@@ -5241,7 +5250,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.AddGoogleDriveFolder(childComplexity, args["id"].(string)), true
+		return e.ComplexityRoot.Mutation.AddGoogleDriveFolder(childComplexity, args["id"].(string), args["libraryName"].(string)), true
 	case "Mutation.approveOAuthAuthorization":
 		if e.ComplexityRoot.Mutation.ApproveOAuthAuthorization == nil {
 			break
@@ -5920,6 +5929,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RemoveTimeshiftChannel(childComplexity, args["serviceId"].(string)), true
+	case "Mutation.renameGoogleDriveFolder":
+		if e.ComplexityRoot.Mutation.RenameGoogleDriveFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_renameGoogleDriveFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RenameGoogleDriveFolder(childComplexity, args["id"].(string), args["libraryName"].(string)), true
 	case "Mutation.renamePasskey":
 		if e.ComplexityRoot.Mutation.RenamePasskey == nil {
 			break
@@ -12346,10 +12366,12 @@ type GoogleIntegration {
   folders: [GoogleDriveFolder!]!
 }
 
-"ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。"
+"ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。選んだフォルダごとに、ライブラリが 1 つある。"
 type GoogleDriveFolder {
   "Drive のフォルダの ID。"
   id: String!
+  "ライブラリの名前。保存先プールの ID と同じ規則 (英小文字、数字、-、_)。"
+  libraryName: String!
   "選んだときのフォルダの名前。"
   name: String!
   addedAt: Time!
@@ -12412,10 +12434,16 @@ extend type Mutation {
   "Google Drive の接続を外し、リフレッシュトークンを Google で取り消す (#1902)。管理者だけが使える。"
   disconnectGoogleDrive: GoogleIntegration!
   """
-  Drive のフォルダ id を、ライブラリとして見せるフォルダに足す (#1902)。管理者だけが使える。Drive のファイルを家族に見せ始める操作なので、
-  直近の再認証を求める。フォルダでなければ BAD_USER_INPUT を返す。
+  Drive のフォルダ id を、名前 libraryName のライブラリとして見せるフォルダに足す (#1902)。管理者だけが使える。
+  Drive のファイルを家族に見せ始める操作なので、直近の再認証を求める。フォルダでないか、名前が保存先プールの ID と同じ規則
+  (英小文字、数字、-、_) に合わないか、ほかのライブラリやプールと重なれば BAD_USER_INPUT を返す。
   """
-  addGoogleDriveFolder(id: String!): GoogleIntegration!
+  addGoogleDriveFolder(id: String!, libraryName: String!): GoogleIntegration!
+  """
+  Drive のフォルダ id のライブラリの名前を変える (#1902)。管理者だけが使える。見せるものは変わらないので、再認証は求めない。
+  再生位置と索引は、Drive のファイルの ID で引くので、名前を変えても引き継ぐ。名前が規則に合わないか重なれば BAD_USER_INPUT を返す。
+  """
+  renameGoogleDriveFolder(id: String!, libraryName: String!): GoogleIntegration!
   "Drive のフォルダ id を、見せるフォルダから外す (#1902)。管理者だけが使える。"
   removeGoogleDriveFolder(id: String!): GoogleIntegration!
 }
@@ -16756,6 +16784,8 @@ func (ec *executionContext) childFields_GoogleDriveFolder(ctx context.Context, f
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_GoogleDriveFolder_id(ctx, field)
+	case "libraryName":
+		return ec.fieldContext_GoogleDriveFolder_libraryName(ctx, field)
 	case "name":
 		return ec.fieldContext_GoogleDriveFolder_name(ctx, field)
 	case "addedAt":
@@ -19055,6 +19085,14 @@ func (ec *executionContext) field_Mutation_addGoogleDriveFolder_args(ctx context
 		return nil, err
 	}
 	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "libraryName",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["libraryName"] = arg1
 	return args, nil
 }
 
@@ -19835,6 +19873,28 @@ func (ec *executionContext) field_Mutation_removeTimeshiftChannel_args(ctx conte
 		return nil, err
 	}
 	args["serviceId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_renameGoogleDriveFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "libraryName",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["libraryName"] = arg1
 	return args, nil
 }
 
@@ -28781,6 +28841,29 @@ func (ec *executionContext) fieldContext_GoogleDriveFolder_id(_ context.Context,
 	return graphql.NewScalarFieldContext("GoogleDriveFolder", field, false, false, "String")
 }
 
+func (ec *executionContext) _GoogleDriveFolder_libraryName(ctx context.Context, field graphql.CollectedField, obj *model.GoogleDriveFolder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleDriveFolder_libraryName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LibraryName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleDriveFolder_libraryName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleDriveFolder", field, false, false, "String")
+}
+
 func (ec *executionContext) _GoogleDriveFolder_name(ctx context.Context, field graphql.CollectedField, obj *model.GoogleDriveFolder) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34781,7 +34864,7 @@ func (ec *executionContext) _Mutation_addGoogleDriveFolder(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().AddGoogleDriveFolder(ctx, fc.Args["id"].(string))
+			return ec.Resolvers.Mutation().AddGoogleDriveFolder(ctx, fc.Args["id"].(string), fc.Args["libraryName"].(string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.GoogleIntegration) graphql.Marshaler {
@@ -34809,6 +34892,50 @@ func (ec *executionContext) fieldContext_Mutation_addGoogleDriveFolder(ctx conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_addGoogleDriveFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_renameGoogleDriveFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_renameGoogleDriveFolder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RenameGoogleDriveFolder(ctx, fc.Args["id"].(string), fc.Args["libraryName"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GoogleIntegration) graphql.Marshaler {
+			return ec.marshalNGoogleIntegration2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleIntegration(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_renameGoogleDriveFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GoogleIntegration(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_renameGoogleDriveFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -62428,6 +62555,11 @@ func (ec *executionContext) _GoogleDriveFolder(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "libraryName":
+			out.Values[i] = ec._GoogleDriveFolder_libraryName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "name":
 			out.Values[i] = ec._GoogleDriveFolder_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -64741,6 +64873,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "addGoogleDriveFolder":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addGoogleDriveFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "renameGoogleDriveFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_renameGoogleDriveFolder(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

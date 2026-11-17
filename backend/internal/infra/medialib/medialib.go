@@ -73,20 +73,29 @@ type Library interface {
 	Open(ctx context.Context, p string) (File, error)
 }
 
-// Identifier は、ファイルを見分ける値を、パスと別に持つライブラリ。Google Drive では、フォルダをたどった道筋が違っても、
-// 同じファイルを同じものとして扱う。持たなければ、パスで見分ける。
+// Identifier は、ファイルを見分ける値を、ライブラリの名前とパスと別に持つライブラリ。Google Drive では、ライブラリの名前や
+// パスの形が変わっても、同じファイルを同じものとして扱う。持たなければ、ライブラリの名前とパスで見分ける。
 type Identifier interface {
-	// Identity は、ファイル p を見分ける値を返す。
-	Identity(p string) string
+	// Identity は、ファイル p を見分ける値を、名前空間と、その中の値の組で返す。
+	Identity(p string) (string, string)
 }
 
-// IdentityOf は、ライブラリ l のファイル p を見分ける値を返す。索引の置き場と、再生位置を保存するファイルの ID に使う。
-func IdentityOf(l Library, p string) string {
+// IdentityOf は、ライブラリ l のファイル p を見分ける値を、名前空間と、その中の値の組で返す。索引の置き場と、
+// 再生位置を保存するファイルの ID に使う。
+func IdentityOf(l Library, p string) (string, string) {
 	if identifier, ok := l.(Identifier); ok {
 		return identifier.Identity(p)
 	}
 
-	return p
+	return l.Name(), p
+}
+
+// LibraryProvider は、実行中に増えたり減ったりするライブラリ (管理者が選んだ Google Drive のフォルダ) を作る。
+type LibraryProvider interface {
+	// Libraries は、今あるライブラリを返す。
+	Libraries(ctx context.Context) ([]Library, error)
+	// Lookup は、名前が name のライブラリを返す。ctx を受け取らないので、覚えたものから引く。
+	Lookup(name string) (Library, bool)
 }
 
 // Namer は、パスの段と、画面に出す名前が違うライブラリ。持たなければ、段をそのまま名前にする。
@@ -127,6 +136,7 @@ type Connector interface {
 // Set は、このインスタンスから読めるライブラリの一覧。
 type Set struct {
 	libraries []Library
+	providers []LibraryProvider
 }
 
 // NewSet は、保存先プール (pools、設定に書いた順 poolOrder) と、設定で足したフォルダ (folders) のライブラリの一覧を返す。
@@ -150,22 +160,40 @@ func NewSet(pools map[string]string, poolOrder []string, folders map[string]stri
 		libraries = append(libraries, NewLocal(name, folders[name], KindFolder))
 	}
 
-	return &Set{libraries: libraries}
+	return &Set{libraries: libraries, providers: []LibraryProvider{}}
 }
 
-// With は、ライブラリ l を後ろに足した一覧を返す。同じ名前のライブラリがあれば、足さない。
-func (s *Set) With(l Library) *Set {
-	if _, ok := s.Get(l.Name()); ok {
-		return s
+// WithProvider は、実行中に増えたり減ったりするライブラリを作る provider を足した一覧を返す。設定のライブラリと同じ名前のものは出さない。
+func (s *Set) WithProvider(provider LibraryProvider) *Set {
+	return &Set{libraries: s.libraries, providers: append(slices.Clone(s.providers), provider)}
+}
+
+// Names は、設定のライブラリ (保存先プールとフォルダ) の名前を返す。実行中に足すライブラリの名前と重ならないように確かめるのに使う。
+func (s *Set) Names() []string {
+	names := make([]string, 0, len(s.libraries))
+	for _, l := range s.libraries {
+		names = append(names, l.Name())
 	}
 
-	return &Set{libraries: append(slices.Clone(s.libraries), l)}
+	return names
 }
 
-// Available は、今使えるライブラリを、All と同じ順に返す。接続していない Google Drive などは除く。
+// Available は、今使えるライブラリを、設定のライブラリ、実行中に足したライブラリの順に返す。接続していない Google Drive などは除く。
 func (s *Set) Available(ctx context.Context) ([]Library, error) {
-	libraries := make([]Library, 0, len(s.libraries))
-	for _, l := range s.libraries {
+	candidates := slices.Clone(s.libraries)
+	for _, provider := range s.providers {
+		dynamic, err := provider.Libraries(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, l := range dynamic {
+			if !slices.Contains(s.Names(), l.Name()) {
+				candidates = append(candidates, l)
+			}
+		}
+	}
+	libraries := make([]Library, 0, len(candidates))
+	for _, l := range candidates {
 		if connector, ok := l.(Connector); ok {
 			connected, err := connector.Connected(ctx)
 			if err != nil {
@@ -181,7 +209,7 @@ func (s *Set) Available(ctx context.Context) ([]Library, error) {
 	return libraries, nil
 }
 
-// All は、ライブラリを、プール、フォルダの順に返す。
+// All は、設定のライブラリを、プール、フォルダの順に返す。実行中に足したライブラリは含めない。
 func (s *Set) All() []Library {
 	return slices.Clone(s.libraries)
 }
@@ -190,6 +218,11 @@ func (s *Set) All() []Library {
 func (s *Set) Get(name string) (Library, bool) {
 	for _, library := range s.libraries {
 		if library.Name() == name {
+			return library, true
+		}
+	}
+	for _, provider := range s.providers {
+		if library, ok := provider.Lookup(name); ok {
 			return library, true
 		}
 	}

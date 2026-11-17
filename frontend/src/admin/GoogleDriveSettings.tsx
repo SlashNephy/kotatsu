@@ -71,6 +71,7 @@ export function GoogleDriveSettings({
   onConnect,
   onDisconnect,
   onAddFolder,
+  onRenameFolder,
   onRemoveFolder,
 }: {
   integration: GoogleIntegrationItem;
@@ -82,7 +83,8 @@ export function GoogleDriveSettings({
   onSaveApp: (input: GoogleAppInput, onDone: () => void) => void;
   onConnect: () => void;
   onDisconnect: () => void;
-  onAddFolder: (id: string, onDone: () => void) => void;
+  onAddFolder: (id: string, libraryName: string, onDone: () => void) => void;
+  onRenameFolder: (id: string, libraryName: string, onDone: () => void) => void;
   onRemoveFolder: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -163,6 +165,7 @@ export function GoogleDriveSettings({
             folders={integration.folders}
             busy={busy}
             onAdd={onAddFolder}
+            onRename={onRenameFolder}
             onRemove={onRemoveFolder}
           />
         )}

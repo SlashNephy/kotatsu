@@ -24,9 +24,12 @@ const (
 	updateGoogleApp         = `mutation($input: GoogleAppInput!) { updateGoogleApp(input: $input) { clientId configured redirectUri } }`
 	beginGoogleDrive        = `mutation { beginGoogleDriveConnection }`
 	disconnectGoogleDrive   = `mutation { disconnectGoogleDrive { configured } }`
-	addGoogleDriveFolder    = `mutation($id: String!) { addGoogleDriveFolder(id: $id) { folders { id } } }`
+	addGoogleDriveFolder    = `mutation($id: String!, $name: String!) { addGoogleDriveFolder(id: $id, libraryName: $name) { folders { id } } }`
+	renameGoogleFolder      = `mutation($id: String!, $name: String!) { renameGoogleDriveFolder(id: $id, libraryName: $name) { folders { id } } }`
 	removeGoogleDriveFolder = `mutation($id: String!) { removeGoogleDriveFolder(id: $id) { folders { id } } }`
 	googleFolderChoices     = `{ googleDriveFolderChoices { id name } }`
+	// driveFolderID は、テストで選ぶ Drive のフォルダの ID。
+	driveFolderID = "videos"
 	// googleClientID は、偽の Google に登録したクライアント ID。
 	googleClientID = "google-client"
 	// fieldClientID は、クライアント ID を渡す入力の項目の名前。
@@ -50,7 +53,8 @@ func TestGoogleIntegration(t *testing.T) {
 	require.NoError(t, err)
 	f := newFixture(t, &graph.Options{Google: service})
 	input := map[string]any{varInput: map[string]any{fieldClientID: googleClientID, fieldClientSecret: "top-secret-value"}}
-	folder := map[string]any{"id": "videos"}
+	folder := map[string]any{"id": driveFolderID, "name": driveFolderID}
+	folderID := map[string]any{"id": driveFolderID}
 
 	member := f.as(t, "member", domain.RoleMember)
 	viewer := f.as(t, "viewer", domain.RoleViewer)
@@ -60,7 +64,8 @@ func TestGoogleIntegration(t *testing.T) {
 		assert.Equal(t, []string{codeForbidden}, other.query(t, beginGoogleDrive, nil, nil))
 		assert.Equal(t, []string{codeForbidden}, other.query(t, disconnectGoogleDrive, nil, nil))
 		assert.Equal(t, []string{codeForbidden}, other.query(t, addGoogleDriveFolder, folder, nil))
-		assert.Equal(t, []string{codeForbidden}, other.query(t, removeGoogleDriveFolder, folder, nil))
+		assert.Equal(t, []string{codeForbidden}, other.query(t, removeGoogleDriveFolder, folderID, nil))
+		assert.Equal(t, []string{codeForbidden}, other.query(t, renameGoogleFolder, folder, nil))
 		assert.Equal(t, []string{codeForbidden}, other.query(t, googleFolderChoices, nil, nil))
 	}
 
@@ -101,12 +106,13 @@ func TestGoogleIntegration(t *testing.T) {
 	// 接続する前は、見せるフォルダを選べない。
 	assert.Equal(t, []string{codeNotFound}, admin.query(t, googleFolderChoices, nil, nil))
 	assert.Equal(t, []string{codeNotFound}, admin.query(t, addGoogleDriveFolder, folder, nil))
-	assert.Equal(t, []string{codeNotFound}, admin.query(t, removeGoogleDriveFolder, folder, nil), "nothing to remove")
+	assert.Equal(t, []string{codeNotFound}, admin.query(t, removeGoogleDriveFolder, folderID, nil), "nothing to remove")
+	assert.Equal(t, []string{codeNotFound}, admin.query(t, renameGoogleFolder, folder, nil), "nothing to rename")
 
 	f.clock.Advance(auth.RecentAuthenticationWindow * 2)
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateGoogleApp, input, nil))
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, beginGoogleDrive, nil, nil))
 	// 見せるフォルダを足すのは、Drive のファイルを家族に見せ始める操作なので、再認証を求める。外すのは求めない。
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, addGoogleDriveFolder, folder, nil))
-	assert.Equal(t, []string{codeNotFound}, admin.query(t, removeGoogleDriveFolder, folder, nil))
+	assert.Equal(t, []string{codeNotFound}, admin.query(t, removeGoogleDriveFolder, folderID, nil))
 }

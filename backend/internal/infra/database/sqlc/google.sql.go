@@ -56,7 +56,7 @@ func (q *Queries) DeleteGoogleDriveConnection(ctx context.Context) (GoogleDriveC
 
 const deleteGoogleDriveFolder = `-- name: DeleteGoogleDriveFolder :one
 DELETE FROM google_drive_folders WHERE folder_id = $1
-RETURNING folder_id, drive_id, name, added_at
+RETURNING folder_id, library_name, drive_id, name, added_at
 `
 
 func (q *Queries) DeleteGoogleDriveFolder(ctx context.Context, folderID string) (GoogleDriveFolder, error) {
@@ -64,6 +64,7 @@ func (q *Queries) DeleteGoogleDriveFolder(ctx context.Context, folderID string) 
 	var i GoogleDriveFolder
 	err := row.Scan(
 		&i.FolderID,
+		&i.LibraryName,
 		&i.DriveID,
 		&i.Name,
 		&i.AddedAt,
@@ -116,6 +117,23 @@ func (q *Queries) GetGoogleDriveConnection(ctx context.Context) (GoogleDriveConn
 	return i, err
 }
 
+const getGoogleDriveFolderByLibrary = `-- name: GetGoogleDriveFolderByLibrary :one
+SELECT folder_id, library_name, drive_id, name, added_at FROM google_drive_folders WHERE library_name = $1
+`
+
+func (q *Queries) GetGoogleDriveFolderByLibrary(ctx context.Context, libraryName string) (GoogleDriveFolder, error) {
+	row := q.db.QueryRow(ctx, getGoogleDriveFolderByLibrary, libraryName)
+	var i GoogleDriveFolder
+	err := row.Scan(
+		&i.FolderID,
+		&i.LibraryName,
+		&i.DriveID,
+		&i.Name,
+		&i.AddedAt,
+	)
+	return i, err
+}
+
 const insertGoogleAuthorization = `-- name: InsertGoogleAuthorization :exec
 INSERT INTO google_authorizations (id, state_hash, session_id, user_id, purpose, code_verifier, redirect_uri, created_at, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -149,21 +167,23 @@ func (q *Queries) InsertGoogleAuthorization(ctx context.Context, arg InsertGoogl
 }
 
 const insertGoogleDriveFolder = `-- name: InsertGoogleDriveFolder :execrows
-INSERT INTO google_drive_folders (folder_id, drive_id, name, added_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO google_drive_folders (folder_id, library_name, drive_id, name, added_at)
+VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (folder_id) DO NOTHING
 `
 
 type InsertGoogleDriveFolderParams struct {
-	FolderID string
-	DriveID  string
-	Name     string
-	Now      time.Time
+	FolderID    string
+	LibraryName string
+	DriveID     string
+	Name        string
+	Now         time.Time
 }
 
 func (q *Queries) InsertGoogleDriveFolder(ctx context.Context, arg InsertGoogleDriveFolderParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertGoogleDriveFolder,
 		arg.FolderID,
+		arg.LibraryName,
 		arg.DriveID,
 		arg.Name,
 		arg.Now,
@@ -175,7 +195,7 @@ func (q *Queries) InsertGoogleDriveFolder(ctx context.Context, arg InsertGoogleD
 }
 
 const listGoogleDriveFolders = `-- name: ListGoogleDriveFolders :many
-SELECT folder_id, drive_id, name, added_at FROM google_drive_folders ORDER BY added_at, folder_id
+SELECT folder_id, library_name, drive_id, name, added_at FROM google_drive_folders ORDER BY added_at, folder_id
 `
 
 func (q *Queries) ListGoogleDriveFolders(ctx context.Context) ([]GoogleDriveFolder, error) {
@@ -189,6 +209,7 @@ func (q *Queries) ListGoogleDriveFolders(ctx context.Context) ([]GoogleDriveFold
 		var i GoogleDriveFolder
 		if err := rows.Scan(
 			&i.FolderID,
+			&i.LibraryName,
 			&i.DriveID,
 			&i.Name,
 			&i.AddedAt,
@@ -220,6 +241,26 @@ func (q *Queries) MarkGoogleDriveConnectionRevoked(ctx context.Context, arg Mark
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const renameGoogleDriveFolder = `-- name: RenameGoogleDriveFolder :one
+UPDATE google_drive_folders AS f SET library_name = $1
+FROM google_drive_folders AS old
+WHERE f.folder_id = $2 AND old.folder_id = f.folder_id
+RETURNING old.library_name
+`
+
+type RenameGoogleDriveFolderParams struct {
+	LibraryName string
+	FolderID    string
+}
+
+// ライブラリの名前を変える。変える前の名前を返す。
+func (q *Queries) RenameGoogleDriveFolder(ctx context.Context, arg RenameGoogleDriveFolderParams) (string, error) {
+	row := q.db.QueryRow(ctx, renameGoogleDriveFolder, arg.LibraryName, arg.FolderID)
+	var library_name string
+	err := row.Scan(&library_name)
+	return library_name, err
 }
 
 const takeGoogleAuthorization = `-- name: TakeGoogleAuthorization :one
