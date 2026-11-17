@@ -34,6 +34,7 @@ func TestCallbackHandler(t *testing.T) {
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 	clk := clocktest.NewFake(time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC))
 	fake := googletest.New("client", "secret")
+	fake.RedirectURIs = []string{"http://kotatsu.test" + google.CallbackPath}
 	server := httptest.NewServer(fake.Handler())
 	t.Cleanup(server.Close)
 	service, err := google.NewService(&google.Options{
