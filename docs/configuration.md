@@ -417,3 +417,17 @@ KubernetesでPodを動かすときは、`kyusu.work_dir`にemptyDirのパスを�
 | `tmdb.url` | `KOTATSU_TMDB_URL` | `https://api.themoviedb.org` | TMDbのAPIを向ける先のオリジン |
 
 `tmdb.url`は、本物のAPIの代わりに検証用のサーバーへ向けるときだけ設定してください。
+
+### simkl
+
+見たドラマをSimklに記録し、Simklのウォッチリストを取り込む連携の設定です（[設計書 3.9](spec.v1.md#39-ドラマの番組と作品の結びつき)、#1649）。
+TMDbとの連携を有効にしている間だけ使えます。
+Simklのアプリのクライアント IDとシークレットは、管理者が連携の画面（`/admin/integrations`）で登録します。
+設定ファイルと環境変数では渡しません。
+
+| YAML | 環境変数 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| `simkl.url` | `KOTATSU_SIMKL_URL` | `https://simkl.com`と`https://api.simkl.com` | Simklの画面とAPIを向ける先のオリジン |
+
+`simkl.url`を設定すると、認可の画面もAPIも、そのオリジンへ向けます。
+本物のSimklの代わりに、検証用のサーバー（`backend/internal/cmd/fakesimkl`）へ向けるときだけ設定してください。
