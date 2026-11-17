@@ -54,7 +54,7 @@
     "@vitejs/plugin-react": "6.3.0",
     "babel-plugin-react-compiler": "1.0.0",
     "babel-plugin-relay": "21.0.1",
-    "fontverter": "2.0.0",
+    "fontverter": "2.1.0",
     "harfbuzzjs": "1.6.4",
     "jsdom": "31.0.1",
     "react-grab": "0.2.0",
