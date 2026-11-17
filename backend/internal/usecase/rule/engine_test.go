@@ -1085,6 +1085,8 @@ func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 		replacement *faketuner.Program
 		// moveTo は、0 でなければ、差し替え先を一度照合した後に、testNow から moveTo 後に始まるよう動かす。
 		moveTo time.Duration
+		// disableReplacement は、動かす前に、差し替え先のルール予約を人が取り消しておくかどうか。
+		disableReplacement bool
 		// keepOld は、古い番組を EPG に残すかどうか。
 		keepOld bool
 		// disableManual は、手動の予約を無効にしておくかどうか。
@@ -1149,6 +1151,14 @@ func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 			graceHours:  24,
 			want:        map[int64]bool{300: true},
 		},
+		{
+			// 取り消したルール予約は録らず、取り消しの記録 (#1504) にもなるので、残す。
+			name:               "差し替え先のルール予約を人が取り消していた",
+			replacement:        slotProgram(301, replacedName+" 総集編", 31*time.Minute),
+			moveTo:             5 * time.Hour,
+			disableReplacement: true,
+			want:               map[int64]bool{300: true, 301: false},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1178,6 +1188,9 @@ func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 
 			if tt.moveTo != 0 {
 				require.Equal(t, map[int64]bool{300: true, 301: true}, f.reserved(t))
+				if tt.disableReplacement {
+					require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, f.reservationOf(t, 301).ID))
+				}
 				require.NoError(t, f.fake.RescheduleProgram(tt.replacement.ID, testNow().Add(tt.moveTo), time.Hour))
 				_, err = f.reconciler.SyncAll(t.Context())
 				require.NoError(t, err)
