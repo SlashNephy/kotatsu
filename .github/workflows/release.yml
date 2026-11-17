@@ -6,6 +6,7 @@ on:
     paths:
       - .goreleaser.yaml
       - .github/workflows/release.yml
+      - scripts/ci-vulnerability-gate.sh
       - deploy/helm/**
       - mise.toml
       - mise.lock
@@ -13,6 +14,12 @@ on:
     tags:
       - v*
   workflow_dispatch:
+    inputs:
+      # 急ぎのリリースで、見つけたものを承知のうえで公開するときに使う (設計書 11.1、#1922)。
+      allow-vulnerabilities:
+        description: Publish even if govulncheck or pnpm audit finds vulnerabilities
+        type: boolean
+        default: false
 
 concurrency:
   # pull_request では github.ref が refs/pull/N/merge になるため head_ref でまとめる
@@ -39,9 +46,35 @@ jobs:
       - run: mise run release:snapshot
       - run: helm package deploy/helm/kotatsu --destination "$RUNNER_TEMP"
 
+  # 公開する前に、Go と画面の依存の脆弱性を確かめ、見つけたら公開せずに止める (#1922、設計書 11.1)。
+  # 画面はバイナリに埋め込むので、pnpm audit も流す。配布の設定を変えた PR でも動かし、その時点の結果を見る。
+  vulnerabilities:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.7
+        with:
+          install_args: go node pnpm
+          cache: false
+      - name: Run govulncheck
+        env:
+          ALLOW_VULNERABILITIES: ${{ inputs.allow-vulnerabilities }}
+        run: scripts/ci-vulnerability-gate.sh govulncheck
+      # govulncheck が見つけても、pnpm audit の結果も要約に出す。
+      - name: Run pnpm audit
+        if: ${{ !cancelled() }}
+        env:
+          ALLOW_VULNERABILITIES: ${{ inputs.allow-vulnerabilities }}
+        run: scripts/ci-vulnerability-gate.sh pnpm-audit
+
   # SPA を埋め込んだ Linux、macOS、Windows の amd64 と arm64 のバイナリを、GitHub Releases に公開する (設計書 11.1)。
   release:
     if: startsWith(github.ref, 'refs/tags/v')
+    needs: vulnerabilities
     runs-on: ubuntu-latest
     # id-token と attestations は、配るアーカイブと Chart に出所の証明を付けるのに使う (#1524)。
     permissions:
