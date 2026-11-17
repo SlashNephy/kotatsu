@@ -291,7 +291,6 @@ function AnimeRecords() {
       })}
       <RecordOnDeviceSwitch />
       <RecordSettings
-        key={`${settings.thresholdPercent}/${String(settings.watchingOnFirst)}/${String(settings.watchingOnEpisode)}/${String(settings.watchedOnLast)}/${String(settings.notifyWishlist)}`}
         initial={{
           thresholdPercent: settings.thresholdPercent,
           watchingOnFirst: settings.watchingOnFirst,
@@ -324,6 +323,11 @@ function RecordOnDeviceSwitch() {
   );
 }
 
+// sameSettings は、2 つの記録の設定が同じかどうかを返す。
+function sameSettings(a: AnimeRecordSettingsInput, b: AnimeRecordSettingsInput): boolean {
+  return (Object.keys(a) as (keyof AnimeRecordSettingsInput)[]).every((key) => a[key] === b[key]);
+}
+
 // RecordSettings は、見たと判定する割合と、作品の状態を変える条件 (既定ではどれも変えない) を変える。
 // 保存のボタンは置かず、変えたらすぐ保存する (#1740)。割合は、打っている途中の値 (100 を打つ途中の 1 や 10) を
 // 保存しないよう、欄を離れたときか Enter で、1〜100 に収まっていれば保存する。
@@ -337,16 +341,38 @@ function RecordSettings({
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState(initial);
+  const [base, setBase] = useState(initial);
+  // pending は、送り終えていない保存の数。保存の途中は、読み直した値で入力を上書きしない。
+  const [pending, setPending] = useState(0);
+  // 読み直した値が変わり (保存した、ほかの端末で変えた)、保存の途中でなければ、入力をそれに合わせる。
+  if (!sameSettings(base, initial)) {
+    setBase(initial);
+    if (pending === 0) {
+      setInput(initial);
+    }
+  }
+  // latest は、送るときに使う最新の入力。保存の途中でなければ、画面の入力から始める。
   const latest = useRef(initial);
-  // 保存できなかったら、チェックを保存してある値 (initial) に戻す。割合の欄は、打った値を残す。
+  // change は、patch を当てて保存する。保存できなかったら、patch の項目のうち、後から変えていないものだけを、変える前に戻す。
+  // 割合の欄は、打った値を欄に残す (AutoSaveNumberInput)。
   const change = (patch: Partial<AnimeRecordSettingsInput>) => {
-    const next = { ...latest.current, ...patch };
+    const before = pending === 0 ? input : latest.current;
+    const next = { ...before, ...patch };
     latest.current = next;
     setInput(next);
+    setPending((count) => count + 1);
+
     return onSave(() => latest.current).then((ok) => {
+      setPending((count) => count - 1);
       if (!ok) {
-        latest.current = initial;
-        setInput(initial);
+        const reverted = { ...latest.current };
+        for (const key of Object.keys(patch) as (keyof AnimeRecordSettingsInput)[]) {
+          if (latest.current[key] === next[key]) {
+            Object.assign(reverted, { [key]: before[key] });
+          }
+        }
+        latest.current = reverted;
+        setInput(reverted);
       }
 
       return ok;

@@ -76,6 +76,8 @@ function DRCSReplacements() {
   const rows = settings.drcsReplacements;
   const [md5, setMD5] = useState('');
   const [text, setText] = useState('');
+  // adding は、足している途中かどうか。続けて押して、同じ外字を重ねて送らないようにする。
+  const [adding, setAdding] = useState(false);
   const newValid =
     md5Pattern.test(md5) &&
     validDRCSText(text) &&
@@ -101,7 +103,9 @@ function DRCSReplacements() {
     });
 
   const add = () => {
+    setAdding(true);
     void saveChange({ md5: md5.toLowerCase(), text }).then((ok) => {
+      setAdding(false);
       // 足せなかったら、入れた値を残し、やり直せるようにする。
       if (ok) {
         setMD5('');
@@ -180,7 +184,7 @@ function DRCSReplacements() {
               value={text}
               onChange={(event) => setText(event.currentTarget.value)}
             />
-            <Button size="xs" variant="default" disabled={!newValid} onClick={add}>
+            <Button size="xs" variant="default" disabled={!newValid || adding} onClick={add}>
               {t('admin.captions.add')}
             </Button>
           </Group>

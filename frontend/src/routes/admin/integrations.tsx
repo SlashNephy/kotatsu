@@ -18,7 +18,7 @@ import {
 } from '@mantine/core';
 import { Webhook } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
-import { startTransition, useState, type FormEvent, type ReactNode } from 'react';
+import { startTransition, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useDataChanges } from '../../changes/DataChanges';
 import { EmptyState, zonedFormat } from '../../futon';
 import { useTranslation } from 'react-i18next';
@@ -66,7 +66,7 @@ import type {
   DramaTitleOverrideInput,
   integrationsDramaOverrideMutation,
 } from './__generated__/integrationsDramaOverrideMutation.graphql';
-import type { AnimeImportSource } from './__generated__/integrationsQuery.graphql';
+import type { AnimeImportSource, CommentSource } from './__generated__/integrationsQuery.graphql';
 import type { integrationsQuery } from './__generated__/integrationsQuery.graphql';
 import type { integrationsRevokeStreamUrlMutation } from './__generated__/integrationsRevokeStreamUrlMutation.graphql';
 import type {
@@ -208,7 +208,8 @@ function Integrations() {
   };
   // saveSettings は、全体の設定のうち、変えた項目だけを、変えたらすぐ保存する (#1740)。どれも再認証を求める (設計書 9.5)。
   // 再認証をやめたら、保存できなかった知らせは出さず、切り替えを元に戻す。
-  const saveSettings = (input: SystemSettingsInput) =>
+  // input に関数を渡すと、送る直前に入力を作る。前の保存を待っている間に変えた分も含めて送るため。
+  const saveSettings = (input: SystemSettingsInput | (() => SystemSettingsInput)) =>
     save(() =>
       gate.save(async () => {
         await mutate<integrationsSystemSettingsMutation>(
@@ -220,11 +221,38 @@ function Integrations() {
               }
             }
           `,
-          { input },
+          { input: typeof input === 'function' ? input() : input },
         );
         refresh();
       }),
     );
+  // enabledSources は、実況のコメントのソースの、送っている途中の一覧。ソースの一覧はまるごと置き換えるので、
+  // 続けて切り替えたときに、前の切り替えを読み直す前の一覧で上書きしないよう、送る一覧をここに積む。
+  const enabledSources = useRef<{ sources: readonly CommentSource[]; pending: number } | null>(
+    null,
+  );
+  const toggleSource = (source: CommentSource, enabled: boolean) => {
+    const queued = enabledSources.current ?? {
+      sources: data.systemSettings.commentSources,
+      pending: 0,
+    };
+    const others = queued.sources.filter((value) => value !== source);
+    const sources = enabled ? [...others, source] : others;
+    enabledSources.current = { sources, pending: queued.pending + 1 };
+
+    return saveSettings(() => ({
+      commentSources: [...(enabledSources.current?.sources ?? sources)],
+    })).then((ok) => {
+      // すべて送り終えたら、読み直した一覧から数え直す。
+      const current = enabledSources.current;
+      enabledSources.current =
+        current === null || current.pending <= 1
+          ? null
+          : { sources: current.sources, pending: current.pending - 1 };
+
+      return ok;
+    });
+  };
 
   return (
     <Stack gap="md">
@@ -342,13 +370,7 @@ function Integrations() {
               label={t(`admin.settings.commentSource.${source}.label`)}
               help={t(`admin.settings.commentSource.${source}.help`)}
               enabled={enabled}
-              onSave={(next) =>
-                saveSettings({
-                  commentSources: next
-                    ? [...data.systemSettings.commentSources, source]
-                    : data.systemSettings.commentSources.filter((value) => value !== source),
-                })
-              }
+              onSave={(next) => toggleSource(source, next)}
             />
           );
         })}
@@ -492,7 +514,7 @@ function Integrations() {
             <Stack gap="sm">
               {data.webhooks.map((webhook) => (
                 <WebhookRow
-                  key={`${webhook.id}/${webhook.name}/${webhook.url}/${webhook.format}/${webhook.kinds.join()}/${String(webhook.enabled)}`}
+                  key={webhook.id}
                   webhook={webhook}
                   onUpdate={(input) =>
                     save(() =>

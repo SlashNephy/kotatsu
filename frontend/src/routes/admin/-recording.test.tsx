@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { commitLocalUpdate, type Environment, type GraphQLResponse } from 'relay-runtime';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { createTestEnvironment, renderRoute } from '../../test/route';
+import { createTestEnvironment, renderRoute, type Respond } from '../../test/route';
 import { Route } from './recording';
 
 afterEach(() => {
@@ -48,7 +48,7 @@ function settingsResponse() {
 const saved = { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
 
 // respondWith は、録画の既定値を保存する mutation を onSave に渡し、ほかの問い合わせには、既定値か、ファイル名のプレビューを返す。
-function respondWith(onSave: (input: unknown) => GraphQLResponse | Error = () => saved) {
+function respondWith(onSave: (input: unknown) => ReturnType<Respond> = () => saved) {
   return createTestEnvironment((request, variables) => {
     if (request.name === 'recordingMutation') {
       return onSave(variables.input);
@@ -178,6 +178,24 @@ describe('数と文字の欄は、欄を離れたときか Enter で保存する
     expect(sent).toEqual([]);
   });
 
+  test('Enter で保存した後に欄を離れても、同じ値を重ねて送らない', async () => {
+    const sent: unknown[] = [];
+    // 保存には応えず、保存の途中のままにする。
+    const environment = respondWith((input) => {
+      sent.push(input);
+
+      return undefined;
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const priority = await screen.findByRole('textbox', { name: '優先度' });
+    fireEvent.change(priority, { target: { value: '3' } });
+
+    await act(async () => fireEvent.keyDown(priority, { key: 'Enter' }));
+    await act(async () => fireEvent.blur(priority));
+
+    expect(sent).toEqual([{ recordingDefaults: { priority: 3 } }]);
+  });
+
   test('保存に失敗したら、打った値を残して理由を知らせ、もう一度欄を離れれば保存し直す', async () => {
     let fail = true;
     const sent: unknown[] = [];
@@ -276,7 +294,7 @@ describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740
       if (sent.length === 1) {
         return new Promise<GraphQLResponse>((resolve) => {
           release = () => resolve(saved);
-        }) as never;
+        });
       }
 
       return saved;

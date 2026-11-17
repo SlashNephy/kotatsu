@@ -35,11 +35,15 @@ export function useAutoSaveField<V, D>({
   const [base, setBase] = useState(value);
   // showError は、保存しようとして読めなかったかどうか。打っている途中に理由を出さないよう、保存しようとするまでは出さない。
   const [showError, setShowError] = useState(false);
+  // committed は、保存に渡し、まだ保存してある値に届いていない値。Enter の後に欄を離れたとき (再認証の画面に
+  // フォーカスを取られたときを含む) に、同じ値を重ねて送らないために持つ。保存できなかったら消し、送り直せるようにする。
+  const [committed, setCommitted] = useState<{ value: V } | null>(null);
   // 描画の中で、前に受け取った値と比べて入れ直す。effect で入れ直すと、古い入力で一度描いてしまう。
   if (!equals(value, base)) {
     setBase(value);
     setDraft(toDraft(value));
     setShowError(false);
+    setCommitted(null);
   }
   const parsed = parse(draft);
 
@@ -60,10 +64,19 @@ export function useAutoSaveField<V, D>({
     if (normalized !== next) {
       setDraft(normalized);
     }
-    if (equals(result.value, value)) {
+    if (
+      equals(result.value, value) ||
+      (committed !== null && equals(result.value, committed.value))
+    ) {
       return;
     }
-    void onSave(result.value);
+    const sent = { value: result.value };
+    setCommitted(sent);
+    void onSave(result.value).then((ok) => {
+      if (!ok) {
+        setCommitted((current) => (current === sent ? null : current));
+      }
+    });
   };
 
   return {
@@ -203,6 +216,8 @@ type AutoSaveTextInputProps = Omit<
   validate?: (value: string) => string | null;
   // trim は、前後の空白を除いて保存するかどうか。
   trim?: boolean;
+  // normalize は、確かめた値を、保存する形 (郵便番号の数字だけなど) にする。保存してある値とは、この形で比べる。
+  normalize?: (value: string) => string;
 };
 
 // AutoSaveTextInput は、欄を離れたときか Enter で保存する文字の欄 (#1740)。
@@ -212,6 +227,7 @@ export function AutoSaveTextInput({
   required = false,
   validate,
   trim = true,
+  normalize = (text) => text,
   ...props
 }: AutoSaveTextInputProps) {
   const { t } = useTranslation();
@@ -225,7 +241,7 @@ export function AutoSaveTextInput({
       }
       const invalid = validate?.(text) ?? null;
 
-      return invalid === null ? { value: text } : { error: invalid };
+      return invalid === null ? { value: normalize(text) } : { error: invalid };
     },
     onSave,
   });

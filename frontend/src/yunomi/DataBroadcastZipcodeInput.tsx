@@ -30,8 +30,9 @@ export function DataBroadcastZipcodeInput() {
       validate={(value) =>
         normalizeZipcode(value) === null ? t('settings.account.dataBroadcastZipcodeInvalid') : null
       }
+      normalize={(value) => normalizeZipcode(value) ?? value}
       onSave={(value) => {
-        deviceSave(setZipcode)(normalizeZipcode(value) ?? '');
+        deviceSave(setZipcode)(value);
 
         return Promise.resolve(true);
       }}
