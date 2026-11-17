@@ -33,7 +33,7 @@ mise run dev
 | --- | --- |
 | `mise run //backend:generate` | 生成物 (sqlc、gqlgen、go-enum、wire、mockgen、GraphQLのスキーマなど) を作り直す。生成物の差分も一緒にコミットする |
 | `mise run //backend:lint` | golangci-lintを実行する |
-| `mise run //backend:test` | Goのテストを実行する。DBを使うテストには`KOTATSU_TEST_DATABASE_URL`が要る |
+| `mise run //backend:test:db` | Goのテストを実行する。DBを使うテストのために、開発用のComposeの`postgres-test`（`127.0.0.1:55433`）を起動して使う |
 | `mise run //frontend:check` | 画面のlintと型を確かめる |
 | `mise run //frontend:test` | 画面のテストを実行する |
 

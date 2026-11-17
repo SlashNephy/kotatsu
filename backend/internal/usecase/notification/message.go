@@ -2,6 +2,7 @@ package notification
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -80,7 +81,7 @@ func MessageEscaped(kind domain.NotificationKind, payload map[string]any, locati
 		return watchReminderMessage(name, field("serviceName"), payload, location)
 	case domain.NotificationKindAnimeRecorded, domain.NotificationKindAnimeRecordFailed,
 		domain.NotificationKindDramaRecorded, domain.NotificationKindDramaRecordFailed:
-		return recordMessage(kind, name, escape, payload)
+		return recordMessage(kind, payload, escape)
 	case domain.NotificationKindScrambledRecordings:
 		return "スクランブルされたまま録れた録画が続いています。チューナーサーバーの B-CAS カードが読めていない可能性があります"
 	case domain.NotificationKindLineupChanged:
@@ -156,15 +157,26 @@ func destinationName(destination string) string {
 	}
 }
 
-// animeRecordMessage は、見たアニメの記録を「「番組名」の #3 を Annict に記録しました」の形にする (#927)。
+// animeRecordMessage は、見たアニメの記録を「「作品名」の#3をAnnictに記録しました」の形にする (#927)。
 // 記録できなかったときは、理由を添える。
-func animeRecordMessage(kind domain.NotificationKind, name string, payload map[string]any) string {
+// payload の name は EPG の番組名で、話数やサブタイトルを含むことが多い。そのまま書くと話数が重なるので、
+// WorkTitle で作品名にしてから escape で書き換える (#1925)。作品名に話数が残ったときは、話数を重ねて書かない。
+func animeRecordMessage(kind domain.NotificationKind, payload map[string]any, escape func(string) string) string {
 	destination := destinationName(payloadText(payload, "destination"))
+	episodes := payloadText(payload, "episodes")
 	subject := "見たアニメ"
-	if name != "" {
-		subject = fmt.Sprintf("「%s」", name)
+	if name := payloadText(payload, "name"); name != "" {
+		title := domain.WorkTitle(name)
+		if title == "" {
+			// 印だけの番組名のように、作品名が読めないときは、番組名のまま書く。
+			title = name
+		}
+		subject = fmt.Sprintf("「%s」", escape(title))
+		if containsEpisodes(title, episodes) {
+			episodes = ""
+		}
 	}
-	if episodes := payloadText(payload, "episodes"); episodes != "" {
+	if episodes != "" {
 		subject += "の" + episodes
 	}
 	if kind == domain.NotificationKindAnimeRecorded {
@@ -178,13 +190,34 @@ func animeRecordMessage(kind domain.NotificationKind, name string, payload map[s
 	return text
 }
 
+// containsEpisodes は、作品名 title に、話数 episodes (「#1、#2」の形) のすべてが、#3、第3話、(3) のどれかの形で書かれているかを返す。
+// WorkTitle が話数を除けない番組名 (「アニメ #3」など) で、話数を重ねて書かないために使う。数で比べるので、#03 は #3 と同じとし、#12 は #1 と見なさない。
+func containsEpisodes(title, episodes string) bool {
+	if episodes == "" {
+		return false
+	}
+	for episode := range strings.SplitSeq(episodes, "、") {
+		number := strings.TrimPrefix(episode, "#")
+		if number == "" {
+			return false
+		}
+		quoted := regexp.QuoteMeta(number)
+		pattern := regexp.MustCompile(`#\s*0*` + quoted + `(?:[^0-9.]|$)|第0*` + quoted + `[話回]|\(0*` + quoted + `\)`)
+		if !pattern.MatchString(title) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // recordMessage は、見たアニメとドラマの記録の文を作る (#927、#1649)。
-func recordMessage(kind domain.NotificationKind, name string, escape func(string) string, payload map[string]any) string {
+func recordMessage(kind domain.NotificationKind, payload map[string]any, escape func(string) string) string {
 	if kind == domain.NotificationKindDramaRecorded || kind == domain.NotificationKindDramaRecordFailed {
 		return dramaRecordMessage(kind, escape, payload)
 	}
 
-	return animeRecordMessage(kind, name, payload)
+	return animeRecordMessage(kind, payload, escape)
 }
 
 // dramaRecordMessage は、見たドラマの記録を「「作品名」のシーズン1 第3話を Simkl に記録しました」の形にする (#1649)。
