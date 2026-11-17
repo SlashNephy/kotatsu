@@ -48,8 +48,10 @@ const navItems = [
 
 // animeNavItem は、管理者がアニメの連携を有効にしているときだけ出す、視聴管理の画面へのリンク (#1231)。
 const animeNavItem = { to: '/anime', key: 'nav.anime' } as const;
+// dramaNavItem は、管理者が TMDb との連携を有効にしているときだけ出す、ドラマの視聴管理の画面へのリンク (#1652)。
+const dramaNavItem = { to: '/drama', key: 'nav.drama' } as const;
 
-type NavItem = (typeof navItems)[number] | typeof animeNavItem;
+type NavItem = (typeof navItems)[number] | typeof animeNavItem | typeof dramaNavItem;
 
 // RootLayout は、すべての画面の枠。広い画面では、ヘッダーにリンクを並べる。
 // 狭い画面では、リンクが収まらず重なるので、ヘッダーのボタンで開く引き出しに移す。
@@ -226,10 +228,14 @@ const rootNavQuery = graphql`
     animeRecordSettings {
       enabled
     }
+    systemSettings {
+      dramaLinkingEnabled
+    }
   }
 `;
 
 // NavLinks は、ヘッダーと引き出しに並べるリンク。視聴管理の画面へのリンクは、管理者がアニメの連携を有効にしているときだけ出す (#1231)。
+// ドラマの視聴管理の画面へのリンクは、TMDb との連携を有効にしているときだけ出す (#1652)。
 // 連携の設定を読めない間と、読めなかったときは、ほかのリンクだけを出す (ヘッダーまで出なくならないようにする)。
 function NavLinks({ size, onClick }: { size?: 'sm'; onClick?: () => void }) {
   const fallback = <NavAnchors items={navItems} size={size} onClick={onClick} />;
@@ -249,7 +255,11 @@ function AnimeAwareNavLinks({ size, onClick }: { size?: 'sm'; onClick?: () => vo
     {},
     { fetchPolicy: 'store-or-network' },
   );
-  const items = data.animeRecordSettings.enabled ? [...navItems, animeNavItem] : navItems;
+  const items: NavItem[] = [
+    ...navItems,
+    ...(data.animeRecordSettings.enabled ? [animeNavItem] : []),
+    ...(data.systemSettings.dramaLinkingEnabled ? [dramaNavItem] : []),
+  ];
 
   return <NavAnchors items={items} size={size} onClick={onClick} />;
 }

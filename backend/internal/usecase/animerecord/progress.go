@@ -199,11 +199,16 @@ func (s *Service) Report(ctx context.Context, db Database, inserter Inserter, us
 
 // validSpans は、報告された区間を確かめ、DB に置く形にする。
 func (s *Service) validSpans(intervals []*Interval) ([]span, error) {
+	return validSpansAt(intervals, s.clock.Now())
+}
+
+// validSpansAt は、今が now のときに報告された区間を確かめ、DB に置く形にする。
+func validSpansAt(intervals []*Interval, now time.Time) ([]span, error) {
 	if len(intervals) > MaxReportedIntervals {
 		return nil, fmt.Errorf("%w: too many intervals", ErrInvalidReport)
 	}
 	// 端末の時計が進んでいると、ライブ視聴の区間が先の時刻になる。断ると端末が送り直し続けるので、今より先の分は切り捨てる。
-	limit := s.clock.Now().Add(maxFutureSkew).UnixMilli()
+	limit := now.Add(maxFutureSkew).UnixMilli()
 	spans := make([]span, 0, len(intervals))
 	for _, interval := range intervals {
 		if !interval.From.Before(interval.To) || interval.To.Sub(interval.From) > maxIntervalLength {
@@ -265,41 +270,93 @@ func (s *Service) programs(ctx context.Context, db sqlc.DBTX, target *Target, sp
 func (s *Service) add(
 	ctx context.Context, db Database, inserter Inserter, userID uuid.UUID, p *program, spans []span, connections []*Connection, percent int,
 ) error {
-	clipped := clipSpans(spans, p.startAt.UnixMilli(), p.endAt.UnixMilli())
-	if len(clipped) == 0 {
+	if len(clipSpans(spans, p.startAt.UnixMilli(), p.endAt.UnixMilli())) == 0 {
 		return nil
 	}
 
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		q := sqlc.New(tx)
-		now := s.clock.Now()
-		raw, err := q.LockAnimeWatchProgress(ctx, sqlc.LockAnimeWatchProgressParams{UserID: userID, ServiceID: p.serviceID, StartAt: p.startAt, Now: now})
-		if err != nil {
-			return fmt.Errorf("failed to lock the watch progress: %w", err)
-		}
-		var played []span
-		if err := json.Unmarshal(raw, &played); err != nil {
-			return fmt.Errorf("failed to decode the watch progress: %w", err)
-		}
-		played = capSpans(mergeSpans(append(played, clipped...)), maxStoredSpans)
-		encoded, err := json.Marshal(played)
-		if err != nil {
-			return fmt.Errorf("failed to encode the watch progress: %w", err)
-		}
-		total := totalMillis(played)
-		if err := q.UpdateAnimeWatchProgress(ctx, sqlc.UpdateAnimeWatchProgressParams{
-			Played: encoded, PlayedMs: total, Now: now, UserID: userID, ServiceID: p.serviceID, StartAt: p.startAt,
-		}); err != nil {
-			return fmt.Errorf("failed to save the watch progress: %w", err)
-		}
-		if !reachedThreshold(total, p.endAt.Sub(p.startAt), percent) {
-			return nil
+		reached, err := addPlayed(ctx, tx, userID, p.serviceID, p.startAt, p.endAt, spans, percent, s.clock.Now())
+		if err != nil || !reached {
+			return err
 		}
 
 		_, err = s.insertRecords(ctx, tx, inserter, userID, p, connections)
 
 		return err
 	})
+}
+
+// addPlayed は、ユーザー userID の番組 (serviceID, startAt) の見た区間に、番組の放送時間 [startAt, endAt) に切り詰めた spans を足し、
+// 番組の長さの percent % に届いたかどうかを返す。同じ番組への報告が重ならないよう、トランザクション tx の中で行をロックする。
+func addPlayed(
+	ctx context.Context, tx pgx.Tx, userID uuid.UUID, serviceID int64, startAt, endAt time.Time, spans []span, percent int, now time.Time,
+) (bool, error) {
+	clipped := clipSpans(spans, startAt.UnixMilli(), endAt.UnixMilli())
+	if len(clipped) == 0 {
+		return false, nil
+	}
+	q := sqlc.New(tx)
+	raw, err := q.LockAnimeWatchProgress(ctx, sqlc.LockAnimeWatchProgressParams{UserID: userID, ServiceID: serviceID, StartAt: startAt, Now: now})
+	if err != nil {
+		return false, fmt.Errorf("failed to lock the watch progress: %w", err)
+	}
+	var played []span
+	if err := json.Unmarshal(raw, &played); err != nil {
+		return false, fmt.Errorf("failed to decode the watch progress: %w", err)
+	}
+	played = capSpans(mergeSpans(append(played, clipped...)), maxStoredSpans)
+	encoded, err := json.Marshal(played)
+	if err != nil {
+		return false, fmt.Errorf("failed to encode the watch progress: %w", err)
+	}
+	total := totalMillis(played)
+	if err := q.UpdateAnimeWatchProgress(ctx, sqlc.UpdateAnimeWatchProgressParams{
+		Played: encoded, PlayedMs: total, Now: now, UserID: userID, ServiceID: serviceID, StartAt: startAt,
+	}); err != nil {
+		return false, fmt.Errorf("failed to save the watch progress: %w", err)
+	}
+
+	return reachedThreshold(total, endAt.Sub(startAt), percent), nil
+}
+
+// PlayedSpans は、プレイヤーが報告した、確かめてまとめた見た区間。ドラマの見た話 (#1652、設計書 3.9) を、アニメの記録と同じ判定で
+// 決めるのに使う。
+type PlayedSpans struct {
+	spans []span
+}
+
+// NewPlayedSpans は、今が now のときにプレイヤーが報告した区間 intervals を、Report と同じく確かめてまとめる。
+// 正しくなければ ErrInvalidReport を返す。
+func NewPlayedSpans(intervals []*Interval, now time.Time) (*PlayedSpans, error) {
+	spans, err := validSpansAt(intervals, now)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PlayedSpans{spans: spans}, nil
+}
+
+// Empty は、数える区間がないかどうかを返す。
+func (p *PlayedSpans) Empty() bool {
+	return len(p.spans) == 0
+}
+
+// Range は、区間の最初の始まりと、最後の終わりを返す。区間がなければ、ゼロの時刻を返す。
+func (p *PlayedSpans) Range() (time.Time, time.Time) {
+	if len(p.spans) == 0 {
+		return time.Time{}, time.Time{}
+	}
+
+	return time.UnixMilli(p.spans[0][0]), time.UnixMilli(p.spans[len(p.spans)-1][1])
+}
+
+// AddPlayed は、ユーザー userID の番組 (serviceID, startAt) の見た区間に、番組の放送時間 [startAt, endAt) の中の spans を足し、
+// 番組の長さの percent % に届いたかどうかを返す。見た区間は、アニメの記録と同じ行 (anime_watch_progress) に持つので、
+// アニメとドラマの両方から同じ区間を足しても、多く数えない。tx の中で呼ぶ。
+func AddPlayed(
+	ctx context.Context, tx pgx.Tx, userID uuid.UUID, serviceID int64, startAt, endAt time.Time, spans *PlayedSpans, percent int, now time.Time,
+) (bool, error) {
+	return addPlayed(ctx, tx, userID, serviceID, startAt, endAt, spans.spans, percent, now)
 }
 
 // insertRecords は、番組 p の話を、連携した記録先ごとに記録する行を作り、新しく作った記録先のジョブを入れる。

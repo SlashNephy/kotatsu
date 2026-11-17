@@ -1,0 +1,136 @@
+"""
+ユーザーが見ているドラマの作品の状態 (#1652、設計書 3.9)。
+"""
+enum DramaWatchStatus {
+  "見ている"
+  WATCHING
+  "見たい"
+  WANNA_WATCH
+}
+
+"""
+ドラマの視聴管理の画面の、作品の 1 話 (#1652)。
+"""
+type DramaLibraryEpisode {
+  "TMDb のシーズンの番号。0 は特別編。"
+  seasonNumber: Int!
+  "シーズンの中の話の番号。"
+  episodeNumber: Int!
+  "話の名前。TMDb のキャッシュになければ null。"
+  name: String
+  "TMDb の話のページ。"
+  url: String!
+}
+
+"""
+ドラマの作品の放送 (#1652)。
+"""
+type DramaLibraryBroadcast {
+  program: Program!
+  "放送する話のシーズン。話を決められなかった放送では null。"
+  seasonNumber: Int
+  "放送する話の番号。話を決められなかった放送では null。"
+  episodeNumber: Int
+  "再放送かどうか。"
+  rerun: Boolean!
+  "TMDb のシーズンの最後の話かどうか。最後の話が分からなければ false。"
+  last: Boolean!
+}
+
+"""
+ドラマの作品の始まった放送 (#1652)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+"""
+type DramaLibraryPastBroadcast {
+  startAt: Time!
+  "TMDb のシーズンの最後の話かどうか。"
+  last: Boolean!
+}
+
+"""
+ドラマの作品の、録画のある話 (#1652)。
+"""
+type DramaLibraryRecordedEpisode {
+  seasonNumber: Int!
+  episodeNumber: Int!
+  "話の名前。TMDb のキャッシュになければ null。"
+  name: String
+  "その話の録画のうち、最も新しく録ったもの。"
+  recording: Recording!
+  "その話の録画の数。2 局で録ったときなどは 2 以上になる。"
+  recordingCount: Int!
+  "見た話かどうか。見た話か、最後に見た話より前の話なら true。見た話がひとつもない作品では null。"
+  watched: Boolean
+}
+
+"""
+ドラマの視聴管理の画面の 1 作品 (#1652)。
+"""
+type DramaLibraryWork {
+  "作品を見分ける ID。"
+  id: ID!
+  series: DramaSeries!
+  status: DramaWatchStatus!
+  "見ている作品に足した日時。"
+  addedAt: Time!
+  "見た話のうち、最も後の話 (特別編を除く)。見た話がなければ null。"
+  lastWatched: DramaLibraryEpisode
+  """
+  次に見る話。最後に見た話の次の話で、シーズンの最後の話なら、次のシーズンの最初の話。
+  見た話がないか、最後のシーズンの最後の話まで見ていれば null。
+  """
+  nextEpisode: DramaLibraryEpisode
+  """
+  次の放送 (放送中を含む)。これから 1 週間の放送のうち、最後に見た話より後の話の放送で最も早いもの。なければ、最も早い放送。
+  放送がなければ null。
+  """
+  nextBroadcast: DramaLibraryBroadcast
+  "これから 1 週間の放送 (放送中を含む)。放送の早い順に並べる。"
+  broadcasts: [DramaLibraryBroadcast!]!
+  "この 1 週間に始まった最も新しい放送。なければ null。"
+  recentBroadcast: DramaLibraryPastBroadcast
+  "録画のある話。シーズンと話の順に並べる。"
+  recordedEpisodes: [DramaLibraryRecordedEpisode!]!
+}
+
+"""
+ログイン中のユーザーが見ているドラマの作品を、作品ごとに並べたもの (ドラマの視聴管理の画面。#1652)。
+"""
+type DramaLibrary {
+  "管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。"
+  enabled: Boolean!
+  "見ている作品と見たい作品。次の放送の早い順に並べ、放送の予定のない作品は、作品名の順に後ろに回す。"
+  works: [DramaLibraryWork!]!
+}
+
+extend type DramaSeries {
+  "ログイン中のユーザーが、この作品を見ている作品に入れた状態 (#1652)。入れていなければ null。"
+  watchStatus: DramaWatchStatus
+}
+
+extend type DramaEpisode {
+  "ログイン中のユーザーが、この話を見たかどうか (#1652)。話を決められなければ false。"
+  watched: Boolean!
+}
+
+extend type Query {
+  """
+  ログイン中のユーザーが見ているドラマの作品を、次の話と次の放送と録画と並べて返す (#1652)。ほかのユーザーの作品は見えない。
+  視聴者も使える。TMDb には問い合わせない。
+  """
+  dramaLibrary: DramaLibrary!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーの見ている作品に、TMDb の作品 seriesId を状態 status で足すか、状態を変える。status が null なら外す (#1652)。
+  視聴者も使える。足せるのは、番組か録画に結びついた作品だけで、結びつきがなければ NOT_FOUND を返す。
+  管理者が TMDb との連携を無効にしていれば CONFLICT を返す。変えた後の作品を返す。
+  """
+  setDramaWatchStatus(seriesId: Int!, status: DramaWatchStatus): DramaSeries!
+  """
+  ログイン中のユーザーが、TMDb の作品 seriesId のシーズン seasonNumber の話 episodeNumber を見たことを、手で付けるか外す (#1652)。
+  視聴者も使える。番号が正しくなければ BAD_USER_INPUT を、管理者が TMDb との連携を無効にしていれば CONFLICT を返す。
+  変えた後に、見たかどうかを返す。
+  """
+  setDramaEpisodeWatched(seriesId: Int!, seasonNumber: Int!, episodeNumber: Int!, watched: Boolean!): Boolean!
+}

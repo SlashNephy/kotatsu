@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramalibrary"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -114,15 +115,20 @@ func (r *mutationResolver) ReportAnimePlayback(ctx context.Context, serviceID *s
 	if err != nil {
 		return false, err
 	}
+	// 同じ区間から、見たドラマの話も決める (#1652、設計書 3.9)。アニメとドラマのどちらかが対象なら、プレイヤーは送り続ける。
+	dramaTracked, err := dramalibrary.Report(ctx, r.db, principal.UserID, target, converted, r.clock.Now())
+	if err != nil {
+		return false, animeRecordError(err)
+	}
 	if r.animeRecords == nil {
-		return false, nil
+		return dramaTracked, nil
 	}
 	tracked, err := r.animeRecords.Report(ctx, r.db, r.jobs, principal.UserID, target, converted)
 	if err != nil {
 		return false, animeRecordError(err)
 	}
 
-	return tracked, nil
+	return tracked || dramaTracked, nil
 }
 
 // RecordAnimeEpisodes is the resolver for the recordAnimeEpisodes field.

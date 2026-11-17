@@ -265,12 +265,14 @@ function Recording({ recordingId }: { recordingId: string }) {
                 name
                 originalName
                 url
+                watchStatus
               }
               seriesSource
               seasonNumber
               episodeNumber
               episodeName
               url
+              watched
             }
             # 録画を始めたときに写した、しょぼいカレンダーで結びつけた話 (設計書 3.8)。
             animeEpisodes {

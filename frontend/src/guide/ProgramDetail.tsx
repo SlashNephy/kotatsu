@@ -150,12 +150,14 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
                 name
                 originalName
                 url
+                watchStatus
               }
               seriesSource
               seasonNumber
               episodeNumber
               episodeName
               url
+              watched
             }
             # しょぼいカレンダーで結びつけた話 (設計書 3.8)。詳細でだけ引く。
             animeEpisodes {

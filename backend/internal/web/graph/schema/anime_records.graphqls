@@ -116,7 +116,8 @@ extend type Mutation {
   """
   プレイヤーが実際に再生した区間を送る (#927)。ライブ視聴では serviceId を、録画の再生では recordingId を渡す。
   区間は、番組ごとに重ねずにまとめるので、同じ区間を送り直しても、複数のタブから送っても、多く数えない。
-  番組の長さのうち、決めた割合を見たら、結びついた話を記録する。記録の対象でなければ (連携が無効か、連携していない) false を返す。
+  番組の長さのうち、決めた割合を見たら、結びついた話を記録する。TMDb の話に結びついたドラマの番組なら、見たドラマの話にする (#1652)。
+  記録の対象でなければ (アニメの連携が無効か連携しておらず、TMDb との連携も無効) false を返す。
   """
   reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
 }
