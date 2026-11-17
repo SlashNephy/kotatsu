@@ -129,7 +129,7 @@ func TestAdminRedetectCM(t *testing.T) {
 }
 
 // TestAdminRedetectCMWithLogo は、管理者がロゴの見分け方を選んでいれば、その版で古さを決めることと、
-// 材料が今の形式の版でなければ、読み直す録画として数えることを確かめる (#1814)。ロゴの見分け方の今の版は 1。
+// 材料が今の形式の版でなければ、読み直す録画として数えることを確かめる (#1814)。ロゴの見分け方の今の版は 4、材料の形式の今の版は 5。
 func TestAdminRedetectCMWithLogo(t *testing.T) {
 	t.Parallel()
 

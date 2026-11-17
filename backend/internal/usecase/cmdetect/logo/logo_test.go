@@ -2,6 +2,7 @@ package logo_test
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -264,6 +265,81 @@ func TestLearnGivesUp(t *testing.T) {
 			require.ErrorIs(t, err, tt.wantErr)
 			require.Len(t, result.Corners, tt.wantSeen)
 			assert.ErrorIs(t, result.Corners[0].Err, tt.wantWhy)
+		})
+	}
+}
+
+// mirror は、img を左右に反転する。右上のロゴを左上に移すのに使う。
+func mirror(img *logo.Gray) {
+	for y := range img.Height {
+		row := img.Pix[y*img.Width : (y+1)*img.Width]
+		for i, j := 0, len(row)-1; i < j; i, j = i+1, j-1 {
+			row[i], row[j] = row[j], row[i]
+		}
+	}
+}
+
+// TestLearnBandCorner は、ロゴの形のものの行を、隅を横切る帯の線が通るときだけ、その隅を諦めることを確かめる (#1883)。
+// 帯の線は、帯の出ないコマもあるので、半分のコマで出す。
+func TestLearnBandCorner(t *testing.T) {
+	t.Parallel()
+
+	b := logoBox()
+	tests := []struct {
+		name string
+		// line は、帯の線 (コマの右上にロゴがあるときの座標)。
+		line   logo.Box
+		mirror bool
+		// wantErr が nil なら、ロゴの隅 wantCorner を採る。nil でなければ、ロゴの隅を wantWhy で諦める。
+		wantErr    error
+		wantCorner logo.Corner
+		wantWhy    error
+	}{
+		{
+			name: "左上でも、画面の中央の側 (右) へ伸びる帯の端なら諦める",
+			line: logo.Box{X: 400, Y: b.Y + 2, W: b.X - 400, H: 2}, mirror: true,
+			wantErr: logo.ErrNoLogo, wantCorner: logo.TopLeft, wantWhy: logo.ErrBandCorner,
+		},
+		{
+			name:    "線が隅の端まで届かなければ、帯の端とみなさない",
+			line:    logo.Box{X: b.X - 80, Y: b.Y + 2, W: 80, H: 2},
+			wantErr: nil, wantCorner: logo.TopRight, wantWhy: nil,
+		},
+		{
+			name:    "帯の線がロゴの行を通らず、すぐ下を通るなら諦めない",
+			line:    logo.Box{X: 400, Y: b.Y + b.H + 6, W: frameW - 400, H: 2},
+			wantErr: nil, wantCorner: logo.TopRight, wantWhy: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := logo.DefaultParams()
+			rng := newRNG(1883)
+			frames := make([]*logo.Gray, 0, 120)
+			for i := range 120 {
+				c := newCanvas(randomBlocks, rng)
+				c.drawLogo()
+				if i%2 == 0 {
+					c.fill(tt.line)
+				}
+				if tt.mirror {
+					mirror(c.img)
+				}
+				frames = append(frames, c.img)
+			}
+			result, _, err := learn(t, frames, p)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				i := slices.IndexFunc(result.Corners, func(c logo.CornerResult) bool { return c.Corner == tt.wantCorner })
+				require.GreaterOrEqual(t, i, 0, "%+v", result)
+				assert.ErrorIs(t, result.Corners[i].Err, tt.wantWhy)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCorner, result.Corner, "%+v", result)
 		})
 	}
 }
