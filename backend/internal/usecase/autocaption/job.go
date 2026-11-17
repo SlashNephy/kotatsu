@@ -207,7 +207,7 @@ type Worker struct {
 	clock  clock.Clock
 	logger *slog.Logger
 	// newTranscriber は、字幕を作る Transcriber を作る。whisper-cli かモデルがなければ ErrNotConfigured を返す。
-	newTranscriber func() (Transcriber, error)
+	newTranscriber func(ctx context.Context) (Transcriber, error)
 	// newExtractor は、音声を取り出す Extractor を作る。FFmpeg がなければ ErrFFmpegNotFound を返す。
 	newExtractor func() (Extractor, error)
 	// workDir は、取り出した WAV を置く一時ディレクトリを作る親。空なら OS の一時ディレクトリ。
@@ -220,7 +220,7 @@ var _ river.Worker[Args] = new(Worker)
 // 設定やファイルを置き直したら、nekonote を再起動しなくても、次のジョブから使える。workDir は、取り出した WAV を置く一時ディレクトリを作る親。
 func NewWorker(
 	db Database, store *kago.Store, clk clock.Clock, logger *slog.Logger,
-	newTranscriber func() (Transcriber, error), newExtractor func() (Extractor, error), workDir string,
+	newTranscriber func(ctx context.Context) (Transcriber, error), newExtractor func() (Extractor, error), workDir string,
 ) *Worker {
 	return &Worker{
 		WorkerDefaults: river.WorkerDefaults[Args]{}, db: db, store: store, clock: clk, logger: logger,
@@ -254,7 +254,7 @@ type extracted struct {
 // 字幕を作るのは録画の尺の数割の時間がかかるので、その間、セグメントをつなぐジョブや名前の付け直しを待たせない。
 // 書く前に、セグメントが変わっていないかを確かめ、変わっていればやり直す。
 func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
-	transcriber, err := w.newTranscriber()
+	transcriber, err := w.newTranscriber(ctx)
 	if errors.Is(err, ErrNotConfigured) {
 		// 設定を直すまでやり直しても同じなので、取りやめる。録画の詳細は、この理由を見分けて、置き方を示す。
 		return river.JobCancel(err)

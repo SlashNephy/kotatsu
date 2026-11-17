@@ -400,6 +400,22 @@ CREATE TABLE system_settings (
   -- どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。
   -- 番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。0 なら残さない。
   rule_unmatched_grace_minutes integer NOT NULL DEFAULT 180 CHECK (rule_unmatched_grace_minutes BETWEEN 0 AND 1440),
+  -- 監査ログの保持期間 (日。設計書 8.5)。これを過ぎた記録は、nekonote が 1 日ごとに消す (#1869 で設定ファイルから移した)。
+  audit_retention_days integer NOT NULL DEFAULT 365 CHECK (audit_retention_days BETWEEN 1 AND 3650),
+  -- 監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。過ぎた記録は、この 2 つだけを空にする。
+  audit_client_info_retention_days integer NOT NULL DEFAULT 90 CHECK (audit_client_info_retention_days BETWEEN 1 AND 3650),
+  -- パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会するかどうか (設計書 9.3)。外部へ問い合わせるので、既定では照会しない。
+  hibp_enabled boolean NOT NULL DEFAULT false,
+  -- Web Push で、プッシュサービスに示す送り手の連絡先 (mailto: か https: の URI。RFC 8292、設計書 6.2)。空なら Kotatsu のリポジトリの URL にする。
+  web_push_subject text NOT NULL DEFAULT '' CHECK (web_push_subject = '' OR web_push_subject LIKE 'mailto:%' OR web_push_subject LIKE 'https://%'),
+  -- 録画のシークバー用のプレビュー画像を作るかどうか (設計書 6.1)。低スペック機では切って、代表画像だけにして負荷を減らせる。
+  thumbnail_previews_enabled boolean NOT NULL DEFAULT true,
+  -- all の構成を Windows か macOS で動かすときに、OS のスリープを扱うかどうか (#1522、設計書 11.7)。Linux とコンテナでは何もしない。
+  sleep_control_enabled boolean NOT NULL DEFAULT true,
+  -- 字幕の自動生成で whisper-cli に使わせるスレッドの数 (#1682)。0 なら、nekonote の CPU の数の半分 (1〜8) にする。
+  caption_threads integer NOT NULL DEFAULT 0 CHECK (caption_threads BETWEEN 0 AND 256),
+  -- 同梱した対応表に重ねる、サービスとニコニコ実況のチャンネルの対応 (設計書 7.4、#1869)。{"ネットワーク ID:サービス ID": "jk1"} の形。
+  jikkyo_channels jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL
 );
 

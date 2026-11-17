@@ -51,6 +51,7 @@ type ResolverRoot interface {
 	Rule() RuleResolver
 	Service() ServiceResolver
 	Subscription() SubscriptionResolver
+	SystemSettings() SystemSettingsResolver
 	TimeshiftChannel() TimeshiftChannelResolver
 	TimeshiftProgram() TimeshiftProgramResolver
 	User() UserResolver
@@ -578,6 +579,12 @@ type ComplexityRoot struct {
 		ID      func(childComplexity int) int
 		Name    func(childComplexity int) int
 		Viewers func(childComplexity int) int
+	}
+
+	JikkyoChannelOverride struct {
+		ChannelID func(childComplexity int) int
+		NetworkID func(childComplexity int) int
+		ServiceID func(childComplexity int) int
 	}
 
 	Job struct {
@@ -1529,14 +1536,19 @@ type ComplexityRoot struct {
 	SystemSettings struct {
 		AnimeLinkingEnabled                    func(childComplexity int) int
 		ArchiveRetentionDays                   func(childComplexity int) int
+		AuditClientInfoRetentionDays           func(childComplexity int) int
+		AuditRetentionDays                     func(childComplexity int) int
 		CMDetector                             func(childComplexity int) int
+		CaptionThreads                         func(childComplexity int) int
 		CommentSources                         func(childComplexity int) int
 		DataBroadcastIPEnabled                 func(childComplexity int) int
 		DramaLinkingEnabled                    func(childComplexity int) int
 		DrcsReplacements                       func(childComplexity int) int
 		EpgstationAPIEnabled                   func(childComplexity int) int
 		ExternalPlayerUrlsEnabled              func(childComplexity int) int
+		HibpEnabled                            func(childComplexity int) int
 		IptvFeedsEnabled                       func(childComplexity int) int
+		JikkyoChannels                         func(childComplexity int) int
 		JikkyoEnabled                          func(childComplexity int) int
 		McpEnabled                             func(childComplexity int) int
 		NetworkActivityEnabled                 func(childComplexity int) int
@@ -1546,11 +1558,14 @@ type ComplexityRoot struct {
 		RecordingDownloadsEnabled              func(childComplexity int) int
 		RuleDefaults                           func(childComplexity int) int
 		RuleUnmatchedGraceMinutes              func(childComplexity int) int
+		SleepControlEnabled                    func(childComplexity int) int
+		ThumbnailPreviewsEnabled               func(childComplexity int) int
 		TimeshiftWhileWatching                 func(childComplexity int) int
 		TimeshiftWhileWatchingRetentionSeconds func(childComplexity int) int
 		TvtplayChaptersEnabled                 func(childComplexity int) int
 		UpdatedAt                              func(childComplexity int) int
 		WatchProgressRetentionDays             func(childComplexity int) int
+		WebPushSubject                         func(childComplexity int) int
 	}
 
 	SystemStatus struct {
@@ -1984,6 +1999,9 @@ type SubscriptionResolver interface {
 	PlayersChanged(ctx context.Context) (<-chan int, error)
 	PlayerCommands(ctx context.Context, id string, after *string) (<-chan *model.PlayerCommand, error)
 	LiveStreamRates(ctx context.Context, service string) (<-chan *model.LiveStreamRates, error)
+}
+type SystemSettingsResolver interface {
+	WebPushSubject(ctx context.Context, obj *model.SystemSettings) (*string, error)
 }
 type TimeshiftChannelResolver interface {
 	Service(ctx context.Context, obj *model.TimeshiftChannel) (*model.Service, error)
@@ -3908,6 +3926,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.JikkyoChannel.Viewers(childComplexity), true
+
+	case "JikkyoChannelOverride.channelId":
+		if e.ComplexityRoot.JikkyoChannelOverride.ChannelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JikkyoChannelOverride.ChannelID(childComplexity), true
+	case "JikkyoChannelOverride.networkId":
+		if e.ComplexityRoot.JikkyoChannelOverride.NetworkID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JikkyoChannelOverride.NetworkID(childComplexity), true
+	case "JikkyoChannelOverride.serviceId":
+		if e.ComplexityRoot.JikkyoChannelOverride.ServiceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JikkyoChannelOverride.ServiceID(childComplexity), true
 
 	case "Job.attempt":
 		if e.ComplexityRoot.Job.Attempt == nil {
@@ -8748,12 +8785,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.ArchiveRetentionDays(childComplexity), true
+	case "SystemSettings.auditClientInfoRetentionDays":
+		if e.ComplexityRoot.SystemSettings.AuditClientInfoRetentionDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.AuditClientInfoRetentionDays(childComplexity), true
+	case "SystemSettings.auditRetentionDays":
+		if e.ComplexityRoot.SystemSettings.AuditRetentionDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.AuditRetentionDays(childComplexity), true
 	case "SystemSettings.cmDetector":
 		if e.ComplexityRoot.SystemSettings.CMDetector == nil {
 			break
 		}
 
 		return e.ComplexityRoot.SystemSettings.CMDetector(childComplexity), true
+	case "SystemSettings.captionThreads":
+		if e.ComplexityRoot.SystemSettings.CaptionThreads == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.CaptionThreads(childComplexity), true
 	case "SystemSettings.commentSources":
 		if e.ComplexityRoot.SystemSettings.CommentSources == nil {
 			break
@@ -8790,12 +8845,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.ExternalPlayerUrlsEnabled(childComplexity), true
+	case "SystemSettings.hibpEnabled":
+		if e.ComplexityRoot.SystemSettings.HibpEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.HibpEnabled(childComplexity), true
 	case "SystemSettings.iptvFeedsEnabled":
 		if e.ComplexityRoot.SystemSettings.IptvFeedsEnabled == nil {
 			break
 		}
 
 		return e.ComplexityRoot.SystemSettings.IptvFeedsEnabled(childComplexity), true
+	case "SystemSettings.jikkyoChannels":
+		if e.ComplexityRoot.SystemSettings.JikkyoChannels == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.JikkyoChannels(childComplexity), true
 	case "SystemSettings.jikkyoEnabled":
 		if e.ComplexityRoot.SystemSettings.JikkyoEnabled == nil {
 			break
@@ -8850,6 +8917,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.RuleUnmatchedGraceMinutes(childComplexity), true
+	case "SystemSettings.sleepControlEnabled":
+		if e.ComplexityRoot.SystemSettings.SleepControlEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.SleepControlEnabled(childComplexity), true
+	case "SystemSettings.thumbnailPreviewsEnabled":
+		if e.ComplexityRoot.SystemSettings.ThumbnailPreviewsEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.ThumbnailPreviewsEnabled(childComplexity), true
 	case "SystemSettings.timeshiftWhileWatching":
 		if e.ComplexityRoot.SystemSettings.TimeshiftWhileWatching == nil {
 			break
@@ -8880,6 +8959,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.WatchProgressRetentionDays(childComplexity), true
+	case "SystemSettings.webPushSubject":
+		if e.ComplexityRoot.SystemSettings.WebPushSubject == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.WebPushSubject(childComplexity), true
 
 	case "SystemStatus.instances":
 		if e.ComplexityRoot.SystemStatus.Instances == nil {
@@ -9505,6 +9590,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("DrcsReplacementInput", ec.unmarshalInputDrcsReplacementInput),
 			graphql.NewInputUnmarshaler("GenreInput", ec.unmarshalInputGenreInput),
 			graphql.NewInputUnmarshaler("GuideViewInput", ec.unmarshalInputGuideViewInput),
+			graphql.NewInputUnmarshaler("JikkyoChannelOverrideInput", ec.unmarshalInputJikkyoChannelOverrideInput),
 			graphql.NewInputUnmarshaler("KeywordInput", ec.unmarshalInputKeywordInput),
 			graphql.NewInputUnmarshaler("MutedKeywordInput", ec.unmarshalInputMutedKeywordInput),
 			graphql.NewInputUnmarshaler("NotificationPreferenceInput", ec.unmarshalInputNotificationPreferenceInput),
@@ -13551,8 +13637,44 @@ type SystemSettings {
   番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
   """
   ruleUnmatchedGraceMinutes: Int!
+  "監査ログの保持期間 (日。設計書 8.5)。1〜3650。既定は 365。"
+  auditRetentionDays: Int!
+  "監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。1〜3650。既定は 90。過ぎた記録は、この 2 つだけを空にする。"
+  auditClientInfoRetentionDays: Int!
+  "パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会するかどうか (設計書 9.3)。既定は false。"
+  hibpEnabled: Boolean!
+  """
+  Web Push で、プッシュサービスに示す送り手の連絡先 (mailto: か https:// の URI。RFC 8292、設計書 6.2)。空なら Kotatsu のリポジトリの URL を示す。
+  管理者の連絡先を含みうるので、管理者だけが読め、ほかのユーザーには FORBIDDEN を返す。
+  """
+  webPushSubject: String
+  "録画のシークバー用のプレビュー画像を作るかどうか (設計書 6.1)。既定は true。切ると、代表画像だけを作る。"
+  thumbnailPreviewsEnabled: Boolean!
+  "all の構成を Windows か macOS で動かすときに、OS のスリープを扱うかどうか (#1522、設計書 11.7)。既定は true。Linux とコンテナでは何もしない。"
+  sleepControlEnabled: Boolean!
+  "字幕の自動生成で whisper-cli に使わせるスレッドの数 (#1682)。0〜256。0 なら、nekonote の CPU の数の半分 (1〜8) にする。既定は 0。"
+  captionThreads: Int!
+  "同梱した対応表に重ねる、サービスとニコニコ実況のチャンネルの対応 (設計書 7.4、#1869)。ネットワーク ID とサービス ID の順に並べる。"
+  jikkyoChannels: [JikkyoChannelOverride!]!
   "最後に変えた日時。一度も変えていなければ null。"
   updatedAt: Time
+}
+
+"""
+管理者が画面で足した、サービスとニコニコ実況のチャンネルの対応の 1 行 (設計書 7.4、#1869)。同梱した対応表より優先する。
+"""
+type JikkyoChannelOverride {
+  networkId: Int!
+  serviceId: Int!
+  "実況のチャンネルの ID (jk1 など)。"
+  channelId: String!
+}
+
+input JikkyoChannelOverrideInput {
+  networkId: Int!
+  serviceId: Int!
+  "実況のチャンネルの ID (jk1 など)。null なら、このサービスの対応を消し、同梱した対応表に戻す。"
+  channelId: String
 }
 
 """
@@ -13598,6 +13720,22 @@ input SystemSettingsInput {
   timeshiftWhileWatchingRetentionSeconds: Int
   "0〜1440 分。"
   ruleUnmatchedGraceMinutes: Int
+  "1〜3650 日。"
+  auditRetentionDays: Int
+  "1〜3650 日。"
+  auditClientInfoRetentionDays: Int
+  "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
+  hibpEnabled: Boolean
+  "空にすると、Kotatsu のリポジトリの URL に戻す。空でなければ、空白を含まない mailto: か https:// の URI。"
+  webPushSubject: String
+  thumbnailPreviewsEnabled: Boolean
+  sleepControlEnabled: Boolean
+  "0〜256。0 なら、nekonote の CPU の数から決める。"
+  captionThreads: Int
+  """
+  実況のチャンネルの対応の変更。書いたサービスだけを変え (channelId が null なら消し)、ほかは変えない。対応は 1000 件まで。
+  """
+  jikkyoChannels: [JikkyoChannelOverrideInput!]
 }
 
 """
@@ -15423,6 +15561,18 @@ func (ec *executionContext) childFields_JikkyoChannel(ctx context.Context, field
 	return nil, fmt.Errorf("no field named %q was found under type JikkyoChannel", field.Name)
 }
 
+func (ec *executionContext) childFields_JikkyoChannelOverride(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "networkId":
+		return ec.fieldContext_JikkyoChannelOverride_networkId(ctx, field)
+	case "serviceId":
+		return ec.fieldContext_JikkyoChannelOverride_serviceId(ctx, field)
+	case "channelId":
+		return ec.fieldContext_JikkyoChannelOverride_channelId(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type JikkyoChannelOverride", field.Name)
+}
+
 func (ec *executionContext) childFields_Job(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -16951,6 +17101,22 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx, field)
 	case "ruleUnmatchedGraceMinutes":
 		return ec.fieldContext_SystemSettings_ruleUnmatchedGraceMinutes(ctx, field)
+	case "auditRetentionDays":
+		return ec.fieldContext_SystemSettings_auditRetentionDays(ctx, field)
+	case "auditClientInfoRetentionDays":
+		return ec.fieldContext_SystemSettings_auditClientInfoRetentionDays(ctx, field)
+	case "hibpEnabled":
+		return ec.fieldContext_SystemSettings_hibpEnabled(ctx, field)
+	case "webPushSubject":
+		return ec.fieldContext_SystemSettings_webPushSubject(ctx, field)
+	case "thumbnailPreviewsEnabled":
+		return ec.fieldContext_SystemSettings_thumbnailPreviewsEnabled(ctx, field)
+	case "sleepControlEnabled":
+		return ec.fieldContext_SystemSettings_sleepControlEnabled(ctx, field)
+	case "captionThreads":
+		return ec.fieldContext_SystemSettings_captionThreads(ctx, field)
+	case "jikkyoChannels":
+		return ec.fieldContext_SystemSettings_jikkyoChannels(ctx, field)
 	case "updatedAt":
 		return ec.fieldContext_SystemSettings_updatedAt(ctx, field)
 	}
@@ -27113,6 +27279,75 @@ func (ec *executionContext) _JikkyoChannel_viewers(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_JikkyoChannel_viewers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("JikkyoChannel", field, false, false, "Int")
+}
+
+func (ec *executionContext) _JikkyoChannelOverride_networkId(ctx context.Context, field graphql.CollectedField, obj *model.JikkyoChannelOverride) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JikkyoChannelOverride_networkId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NetworkID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JikkyoChannelOverride_networkId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JikkyoChannelOverride", field, false, false, "Int")
+}
+
+func (ec *executionContext) _JikkyoChannelOverride_serviceId(ctx context.Context, field graphql.CollectedField, obj *model.JikkyoChannelOverride) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JikkyoChannelOverride_serviceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ServiceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JikkyoChannelOverride_serviceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JikkyoChannelOverride", field, false, false, "Int")
+}
+
+func (ec *executionContext) _JikkyoChannelOverride_channelId(ctx context.Context, field graphql.CollectedField, obj *model.JikkyoChannelOverride) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JikkyoChannelOverride_channelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JikkyoChannelOverride_channelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JikkyoChannelOverride", field, false, false, "String")
 }
 
 func (ec *executionContext) _Job_id(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
@@ -47525,6 +47760,199 @@ func (ec *executionContext) fieldContext_SystemSettings_ruleUnmatchedGraceMinute
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
 }
 
+func (ec *executionContext) _SystemSettings_auditRetentionDays(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_auditRetentionDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AuditRetentionDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_auditRetentionDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SystemSettings_auditClientInfoRetentionDays(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_auditClientInfoRetentionDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AuditClientInfoRetentionDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_auditClientInfoRetentionDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SystemSettings_hibpEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_hibpEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HibpEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_hibpEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_webPushSubject(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_webPushSubject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.SystemSettings().WebPushSubject(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_webPushSubject(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, true, true, "String")
+}
+
+func (ec *executionContext) _SystemSettings_thumbnailPreviewsEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_thumbnailPreviewsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ThumbnailPreviewsEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_thumbnailPreviewsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_sleepControlEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_sleepControlEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SleepControlEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_sleepControlEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_captionThreads(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_captionThreads(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CaptionThreads, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_captionThreads(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SystemSettings_jikkyoChannels(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_jikkyoChannels(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.JikkyoChannels, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.JikkyoChannelOverride) graphql.Marshaler {
+			return ec.marshalNJikkyoChannelOverride2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJikkyoChannelOverrideᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_jikkyoChannels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SystemSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_JikkyoChannelOverride(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SystemSettings_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -51926,6 +52354,62 @@ func UnmarshalGuideViewInput(ctx context.Context, raw any) (model.GuideViewInput
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputJikkyoChannelOverrideInput(ctx context.Context, obj any) (model.JikkyoChannelOverrideInput, error) {
+	var it model.JikkyoChannelOverrideInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"networkId", "serviceId", "channelId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "networkId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("networkId"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NetworkID = data
+		case "serviceId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("serviceId"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ServiceID = data
+		case "channelId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ChannelID = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalJikkyoChannelOverrideInput unmarshals raw into the JikkyoChannelOverrideInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalJikkyoChannelOverrideInput(ctx context.Context, raw any) (model.JikkyoChannelOverrideInput, error) {
+	var out model.JikkyoChannelOverrideInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "JikkyoChannelOverrideInput", raw, &out)
+	return out, err
+}
+
 func (ec *executionContext) unmarshalInputKeywordInput(ctx context.Context, obj any) (model.KeywordInput, error) {
 	var it model.KeywordInput
 	if obj == nil {
@@ -53428,7 +53912,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "dramaLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "dramaLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes", "auditRetentionDays", "auditClientInfoRetentionDays", "hibpEnabled", "webPushSubject", "thumbnailPreviewsEnabled", "sleepControlEnabled", "captionThreads", "jikkyoChannels"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -53589,6 +54073,62 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.RuleUnmatchedGraceMinutes = data
+		case "auditRetentionDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("auditRetentionDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AuditRetentionDays = data
+		case "auditClientInfoRetentionDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("auditClientInfoRetentionDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AuditClientInfoRetentionDays = data
+		case "hibpEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hibpEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HibpEnabled = data
+		case "webPushSubject":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("webPushSubject"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WebPushSubject = data
+		case "thumbnailPreviewsEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("thumbnailPreviewsEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ThumbnailPreviewsEnabled = data
+		case "sleepControlEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sleepControlEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SleepControlEnabled = data
+		case "captionThreads":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("captionThreads"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CaptionThreads = data
+		case "jikkyoChannels":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("jikkyoChannels"))
+			data, err := ec.unmarshalOJikkyoChannelOverrideInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJikkyoChannelOverrideInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.JikkyoChannels = data
 		}
 	}
 	return it, nil
@@ -57573,6 +58113,49 @@ func (ec *executionContext) _JikkyoChannel(ctx context.Context, sel ast.Selectio
 		case "viewers":
 			out.Values[i] = ec._JikkyoChannel_viewers(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var jikkyoChannelOverrideImplementors = []string{"JikkyoChannelOverride"}
+
+func (ec *executionContext) _JikkyoChannelOverride(ctx context.Context, sel ast.SelectionSet, obj *model.JikkyoChannelOverride) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, jikkyoChannelOverrideImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("JikkyoChannelOverride")
+		case "networkId":
+			out.Values[i] = ec._JikkyoChannelOverride_networkId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "serviceId":
+			out.Values[i] = ec._JikkyoChannelOverride_serviceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "channelId":
+			out.Values[i] = ec._JikkyoChannelOverride_channelId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -63774,122 +64357,163 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 		case "recordingDefaults":
 			out.Values[i] = ec._SystemSettings_recordingDefaults(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "archiveRetentionDays":
 			out.Values[i] = ec._SystemSettings_archiveRetentionDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "notificationRetentionDays":
 			out.Values[i] = ec._SystemSettings_notificationRetentionDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "watchProgressRetentionDays":
 			out.Values[i] = ec._SystemSettings_watchProgressRetentionDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "networkActivityEnabled":
 			out.Values[i] = ec._SystemSettings_networkActivityEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "networkActivityRetentionDays":
 			out.Values[i] = ec._SystemSettings_networkActivityRetentionDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "ruleDefaults":
 			out.Values[i] = ec._SystemSettings_ruleDefaults(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "mcpEnabled":
 			out.Values[i] = ec._SystemSettings_mcpEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "dataBroadcastIpEnabled":
 			out.Values[i] = ec._SystemSettings_dataBroadcastIpEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "externalPlayerUrlsEnabled":
 			out.Values[i] = ec._SystemSettings_externalPlayerUrlsEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "iptvFeedsEnabled":
 			out.Values[i] = ec._SystemSettings_iptvFeedsEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "recordingDownloadsEnabled":
 			out.Values[i] = ec._SystemSettings_recordingDownloadsEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "tvtplayChaptersEnabled":
 			out.Values[i] = ec._SystemSettings_tvtplayChaptersEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "cmDetector":
 			out.Values[i] = ec._SystemSettings_cmDetector(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "epgstationApiEnabled":
 			out.Values[i] = ec._SystemSettings_epgstationApiEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "animeLinkingEnabled":
 			out.Values[i] = ec._SystemSettings_animeLinkingEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "dramaLinkingEnabled":
 			out.Values[i] = ec._SystemSettings_dramaLinkingEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "jikkyoEnabled":
 			out.Values[i] = ec._SystemSettings_jikkyoEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "commentSources":
 			out.Values[i] = ec._SystemSettings_commentSources(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "drcsReplacements":
 			out.Values[i] = ec._SystemSettings_drcsReplacements(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "timeshiftWhileWatching":
 			out.Values[i] = ec._SystemSettings_timeshiftWhileWatching(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "timeshiftWhileWatchingRetentionSeconds":
 			out.Values[i] = ec._SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "ruleUnmatchedGraceMinutes":
 			out.Values[i] = ec._SystemSettings_ruleUnmatchedGraceMinutes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "auditRetentionDays":
+			out.Values[i] = ec._SystemSettings_auditRetentionDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "auditClientInfoRetentionDays":
+			out.Values[i] = ec._SystemSettings_auditClientInfoRetentionDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "hibpEnabled":
+			out.Values[i] = ec._SystemSettings_hibpEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "webPushSubject":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._SystemSettings_webPushSubject(ctx, field, obj)
+				})
+		case "thumbnailPreviewsEnabled":
+			out.Values[i] = ec._SystemSettings_thumbnailPreviewsEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "sleepControlEnabled":
+			out.Values[i] = ec._SystemSettings_sleepControlEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "captionThreads":
+			out.Values[i] = ec._SystemSettings_captionThreads(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "jikkyoChannels":
+			out.Values[i] = ec._SystemSettings_jikkyoChannels(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._SystemSettings_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -66752,6 +67376,35 @@ func (ec *executionContext) marshalNIssuedStreamUrl2ᚖgithubᚗcomᚋSlashNephy
 		return graphql.Null
 	}
 	return ec._IssuedStreamUrl(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNJikkyoChannelOverride2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJikkyoChannelOverrideᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.JikkyoChannelOverride) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNJikkyoChannelOverride2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJikkyoChannelOverride(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNJikkyoChannelOverride2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJikkyoChannelOverride(ctx context.Context, sel ast.SelectionSet, v *model.JikkyoChannelOverride) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "JikkyoChannelOverride!")
+		return graphql.Null
+	}
+	return ec._JikkyoChannelOverride(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNJikkyoChannelOverrideInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJikkyoChannelOverrideInput(ctx context.Context, v any) (*model.JikkyoChannelOverrideInput, error) {
+	res, err := ec.unmarshalInputJikkyoChannelOverrideInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNJob2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Job) graphql.Marshaler {
@@ -69911,6 +70564,23 @@ func (ec *executionContext) marshalOJikkyoChannel2ᚖgithubᚗcomᚋSlashNephy�
 		return graphql.Null
 	}
 	return ec._JikkyoChannel(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOJikkyoChannelOverrideInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJikkyoChannelOverrideInputᚄ(ctx context.Context, v any) ([]*model.JikkyoChannelOverrideInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.JikkyoChannelOverrideInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNJikkyoChannelOverrideInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJikkyoChannelOverrideInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalOJobProgress2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobProgress(ctx context.Context, sel ast.SelectionSet, v *model.JobProgress) graphql.Marshaler {

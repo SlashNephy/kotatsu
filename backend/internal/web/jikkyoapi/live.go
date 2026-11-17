@@ -130,7 +130,7 @@ func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	channelID, known := h.opts.Table.Channel(r.PathValue("channel"))
+	channelID, known := h.opts.Table.Channel(r.Context(), r.PathValue("channel"))
 	if !access.Allowed() || !known {
 		http.NotFound(w, r)
 

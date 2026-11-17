@@ -258,16 +258,16 @@ func addAnimeRecordCallbacks(routes sessionRoutes, deps *Deps, service *animerec
 	}
 }
 
-// defaultWebPushSubject は、Web Push の送り手の連絡先を設定していないときに、プッシュサービスに示す URI。
-const defaultWebPushSubject = "https://github.com/SlashNephy/kotatsu"
-
-// webPushSubject は、プッシュサービスに示す送り手の連絡先を返す。
-func webPushSubject(cfg *config.Config) string {
-	if cfg.WebPush.Subject == "" {
-		return defaultWebPushSubject
+// warnIgnoredSettings は、画面に移した項目 (#1869) が設定ファイルか環境変数に書いてあれば、効かないことを警告する。
+// 値は読んでいないので、ログにも出さない。
+func warnIgnoredSettings(ctx context.Context, logger *slog.Logger, ignored []config.IgnoredSetting) {
+	for _, setting := range ignored {
+		attrs := []any{slog.String("setting", setting.Key), slog.String("screen", setting.Screen)}
+		if setting.Env != "" {
+			attrs = append(attrs, slog.String("env", setting.Env))
+		}
+		logger.WarnContext(ctx, "ignoring a setting that is now changed on the admin screen; set it there and remove it from the config file or the environment", attrs...)
 	}
-
-	return cfg.WebPush.Subject
 }
 
 // migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用する。
@@ -355,6 +355,7 @@ func NewCommand(opts *Options) *cobra.Command {
 		opts.Logger.InfoContext(ctx, "kotatsu version",
 			slog.String("version", build.Version), slog.String("revision", build.Revision), slog.Bool("modified", build.Modified))
 		opts.Logger.InfoContext(ctx, "config loaded", slog.String("path", path), slog.Any("config", cfg))
+		warnIgnoredSettings(ctx, opts.Logger, cfg.Ignored)
 
 		return cfg, nil
 	}
@@ -798,7 +799,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		return nil, err
 	}
 	// 実況のチャンネルの対応表と、NX-Jikkyo と過去ログ API への問い合わせ (設計書 7.4)。
-	jikkyoParts, err := newJikkyoParts(deps)
+	jikkyoParts, err := newJikkyoParts(deps, logger)
 	if err != nil {
 		return nil, err
 	}

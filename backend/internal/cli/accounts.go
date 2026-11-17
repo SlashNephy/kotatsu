@@ -61,5 +61,8 @@ func newPasskeys(clk clock.Clock, recorder audit.Recorder, logger *slog.Logger, 
 
 // newAccountPasswordPolicy は、画面から設定するパスワードの規定を作る。強さの見積もりの時間は、既定のままにする。
 func newAccountPasswordPolicy(deps *Deps, logger *slog.Logger) (*password.Policy, error) {
-	return password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(deps.Config, deps.Network), StrengthTimeout: 0, Estimator: nil, Logger: logger})
+	return password.NewPolicy(&password.PolicyOptions{
+		HIBP: password.NewHIBP(deps.Config.Auth.HIBP.URL, deps.Network), HIBPEnabled: hibpEnabledOf(deps.DB),
+		StrengthTimeout: 0, Estimator: nil, Logger: logger,
+	})
 }

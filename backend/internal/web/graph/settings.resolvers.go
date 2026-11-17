@@ -7,6 +7,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
+	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -24,6 +25,13 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 	var replacements map[string]*string
 	if input.DrcsReplacements != nil {
 		if replacements, err = toDRCSReplacements(input.DrcsReplacements); err != nil {
+			return nil, err
+		}
+	}
+	// nil のままなら、実況のチャンネルの対応は変えない (#1869)。
+	var jikkyoChannels map[string]*string
+	if input.JikkyoChannels != nil {
+		if jikkyoChannels, err = toJikkyoChannels(input.JikkyoChannels); err != nil {
 			return nil, err
 		}
 	}
@@ -48,9 +56,20 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		DRCSReplacements:          replacements,
 		TimeshiftWhileWatching:    input.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: input.TimeshiftWhileWatchingRetentionSeconds,
 		RuleUnmatchedGraceMinutes: input.RuleUnmatchedGraceMinutes,
+		AuditRetentionDays:        input.AuditRetentionDays, AuditClientInfoRetentionDays: input.AuditClientInfoRetentionDays,
+		HIBPEnabled:              input.HibpEnabled,
+		WebPushSubject:           input.WebPushSubject,
+		ThumbnailPreviewsEnabled: input.ThumbnailPreviewsEnabled,
+		SleepControlEnabled:      input.SleepControlEnabled,
+		CaptionThreads:           input.CaptionThreads,
+		JikkyoChannels:           jikkyoChannels,
 	})
 	if err != nil {
 		return nil, settingsError(err)
+	}
+	// 実況のチャンネルの対応を変えたら、このインスタンスでは、覚えた対応を待たずに使う。ほかのインスタンスは、少しの間で読み直す。
+	if jikkyoChannels != nil && r.jikkyoTable != nil {
+		r.jikkyoTable.Invalidate()
 	}
 	// 連携を有効にしたら、1 時間ごとの確かめを待たずに、連携先の情報を取り込み始める (設計書 3.8)。
 	if updated.AnimeLinkingEnabled && input.AnimeLinkingEnabled != nil {
@@ -159,3 +178,20 @@ func (r *queryResolver) SystemSettings(ctx context.Context) (*model.SystemSettin
 
 	return systemSettingsOf(system), nil
 }
+
+// WebPushSubject is the resolver for the webPushSubject field.
+func (r *systemSettingsResolver) WebPushSubject(ctx context.Context, obj *model.SystemSettings) (*string, error) {
+	// 管理者の連絡先を含みうるので、管理者のほかには FORBIDDEN を返す (#1869)。値は systemSettingsOf が入れておく。
+	if _, _, err := r.administratorActor(ctx, "only administrators can read the web push subject"); err != nil {
+		return nil, err
+	}
+
+	return obj.WebPushSubject, nil
+}
+
+// SystemSettings returns generated.SystemSettingsResolver implementation.
+func (r *Resolver) SystemSettings() generated.SystemSettingsResolver {
+	return &systemSettingsResolver{r}
+}
+
+type systemSettingsResolver struct{ *Resolver }
