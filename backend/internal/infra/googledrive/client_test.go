@@ -64,13 +64,13 @@ func (t *tokens) Invalidate() {
 func newClient(t *testing.T) *fixture {
 	t.Helper()
 	server := googletest.New("client", "secret")
-	server.AddFile(&googletest.File{ID: folderID, Name: "anime", MimeType: googletest.FolderMimeType, Parent: googletest.MyDriveID, ModifiedTime: modified()})
-	server.AddFile(&googletest.File{ID: fileID, Name: fileName, MimeType: tsMime, Parent: folderID, Content: []byte("0123456789"), ModifiedTime: modified()})
-	server.AddFile(&googletest.File{ID: "ep2", Name: "ep2.ts", MimeType: tsMime, Parent: folderID, Content: []byte("ab"), ModifiedTime: modified()})
-	server.AddFile(&googletest.File{ID: "doc", Name: "notes", MimeType: "application/vnd.google-apps.document", Parent: googletest.MyDriveID, ModifiedTime: modified()})
-	server.AddFile(&googletest.File{ID: "gone", Name: "trashed.ts", MimeType: tsMime, Parent: googletest.MyDriveID, Content: []byte("x"), ModifiedTime: modified(), Trashed: true})
+	server.AddFile(&googletest.File{ID: folderID, Name: "anime", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID, ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: fileID, Name: fileName, MIMEType: tsMime, Parent: folderID, Content: []byte("0123456789"), ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: "ep2", Name: "ep2.ts", MIMEType: tsMime, Parent: folderID, Content: []byte("ab"), ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: "doc", Name: "notes", MIMEType: "application/vnd.google-apps.document", Parent: googletest.MyDriveID, ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: "gone", Name: "trashed.ts", MIMEType: tsMime, Parent: googletest.MyDriveID, Content: []byte("x"), ModifiedTime: modified(), Trashed: true})
 	server.AddDrive(&googletest.Drive{ID: driveID, Name: "Backup"})
-	server.AddFile(&googletest.File{ID: "backup", Name: "backup.ts", MimeType: tsMime, Parent: driveID, Content: []byte("backup"), ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: "backup", Name: "backup.ts", MIMEType: tsMime, Parent: driveID, Content: []byte("backup"), ModifiedTime: modified()})
 	httpServer := httptest.NewServer(server.Handler())
 	t.Cleanup(httpServer.Close)
 	source := &tokens{server: server, mu: sync.Mutex{}, token: "", invalidated: 0}
@@ -141,7 +141,7 @@ func TestClientMetadata(t *testing.T) {
 
 	file, err := client.Get(t.Context(), fileID)
 	require.NoError(t, err)
-	assert.Equal(t, &googledrive.File{ID: fileID, Name: fileName, MimeType: tsMime, Size: 10, ModifiedTime: modified()}, file)
+	assert.Equal(t, &googledrive.File{ID: fileID, Name: fileName, MIMEType: tsMime, Size: 10, ModifiedTime: modified()}, file)
 	assert.False(t, file.Folder())
 	assert.True(t, file.Blob())
 
@@ -209,6 +209,24 @@ func TestClientRetry(t *testing.T) {
 		},
 		{name: "download quota", faults: []googletest.Fault{googletest.FaultDownloadQuota}, wantErr: googledrive.ErrDownloadQuota, wantCalls: 1},
 		{name: "expired token", expire: true, wantCalls: 2, wantWaits: 0, wantInvalidated: 1},
+		{
+			// 最後の 1 回で期限が切れても、作り直したトークンで 1 度はやり直す。
+			name: "token expired on the last attempt",
+			faults: []googletest.Fault{
+				googletest.FaultRateLimit, googletest.FaultRateLimit, googletest.FaultRateLimit,
+				googletest.FaultRateLimit, googletest.FaultRateLimit, googletest.FaultUnauthorized,
+			},
+			wantCalls: 7, wantWaits: 5, wantInvalidated: 1,
+		},
+		{
+			name: "unauthorized twice", faults: []googletest.Fault{googletest.FaultUnauthorized, googletest.FaultUnauthorized},
+			wantErr: googledrive.ErrUnauthorized, wantCalls: 2, wantInvalidated: 1,
+		},
+		{
+			// 待つ長さの合計は、索引が作り直される時間より短く収める。Retry-After が長ければ、早めに諦める。
+			name: "long Retry-After", faults: []googletest.Fault{googletest.FaultLongRateLimit, googletest.FaultLongRateLimit},
+			wantErr: googledrive.ErrRateLimited, wantCalls: 2, wantWaits: 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -235,6 +253,35 @@ func TestClientRetry(t *testing.T) {
 			assert.Len(t, server.Requests(), tt.wantCalls)
 			assert.Len(t, *waits, tt.wantWaits)
 			assert.Equal(t, tt.wantInvalidated, source.invalidated)
+		})
+	}
+}
+
+// TestClientRangeIgnored は、範囲を無視して頭から返されたら、頭から読むときだけ使うことを確かめる。
+func TestClientRangeIgnored(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		offset  int64
+		wantErr error
+	}{
+		{name: "from the head", offset: 0},
+		{name: "from the middle", offset: 4, wantErr: googledrive.ErrRangeIgnored},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newClient(t)
+			f.server.Inject(googletest.FaultIgnoreRange)
+			body, err := f.client.Download(t.Context(), fileID, tt.offset)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
+			require.NoError(t, body.Close())
 		})
 	}
 }

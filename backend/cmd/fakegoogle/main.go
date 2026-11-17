@@ -68,7 +68,7 @@ func place(server *googletest.Server, paths string) error {
 	// 書いている途中とみなされないよう、更新日時は少し前にする。
 	modified := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
 	server.AddFile(&googletest.File{
-		ID: "kotatsu-folder", Name: "Kotatsu", MimeType: googletest.FolderMimeType, Parent: googletest.MyDriveID,
+		ID: "kotatsu-folder", Name: "Kotatsu", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID,
 		Content: nil, ModifiedTime: modified, Trashed: false,
 	})
 	server.AddDrive(&googletest.Drive{ID: "backup-drive", Name: "Backup"})
@@ -82,11 +82,11 @@ func place(server *googletest.Server, paths string) error {
 		}
 		name := filepath.Base(path)
 		server.AddFile(&googletest.File{
-			ID: "file-" + string(rune('a'+i)), Name: name, MimeType: "video/mp2t", Parent: "kotatsu-folder",
+			ID: "file-" + string(rune('a'+i)), Name: name, MIMEType: "video/mp2t", Parent: "kotatsu-folder",
 			Content: content, ModifiedTime: modified, Trashed: false,
 		})
 		server.AddFile(&googletest.File{
-			ID: "backup-" + string(rune('a'+i)), Name: name, MimeType: "video/mp2t", Parent: "backup-drive",
+			ID: "backup-" + string(rune('a'+i)), Name: name, MIMEType: "video/mp2t", Parent: "backup-drive",
 			Content: content, ModifiedTime: modified, Trashed: false,
 		})
 	}

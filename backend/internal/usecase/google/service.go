@@ -81,7 +81,7 @@ var (
 	// ErrNoRefreshToken は、Google がリフレッシュトークンを返さなかったことを表す。
 	ErrNoRefreshToken = errors.New("no refresh token was returned")
 	// ErrNotConnected は、Google Drive を接続していないか、接続が切れていることを表す。
-	ErrNotConnected = errors.New("the Google Drive is not connected")
+	ErrNotConnected = googledrive.ErrNotConnected
 )
 
 // Database は、トランザクションを張れる DB。*pgxpool.Pool が満たす。

@@ -12368,6 +12368,8 @@ enum NetworkActivityPurpose {
   DATA_BROADCAST
   "字幕の自動生成のモデルのダウンロード (#1682)"
   CAPTION_MODEL_DOWNLOAD
+  "ライブラリとして接続した Google Drive (#1902)"
+  GOOGLE_DRIVE
 }
 
 "外部との通信のきっかけ。"
@@ -70685,6 +70687,7 @@ var (
 		"WEBHOOK":                netactivity.PurposeWebhook,
 		"DATA_BROADCAST":         netactivity.PurposeDataBroadcast,
 		"CAPTION_MODEL_DOWNLOAD": netactivity.PurposeCaptionModelDownload,
+		"GOOGLE_DRIVE":           netactivity.PurposeGoogleDrive,
 	}
 	marshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐPurpose = map[netactivity.Purpose]string{
 		netactivity.PurposeJikkyoChannels:       "JIKKYO_CHANNELS",
@@ -70710,6 +70713,7 @@ var (
 		netactivity.PurposeWebhook:              "WEBHOOK",
 		netactivity.PurposeDataBroadcast:        "DATA_BROADCAST",
 		netactivity.PurposeCaptionModelDownload: "CAPTION_MODEL_DOWNLOAD",
+		netactivity.PurposeGoogleDrive:          "GOOGLE_DRIVE",
 	}
 )
 

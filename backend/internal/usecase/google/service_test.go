@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +54,7 @@ func newFixture(t *testing.T) *fixture {
 	fake := googletest.New(clientID, clientSecret)
 	fake.RedirectURIs = []string{origin + google.CallbackPath}
 	fake.SetNow(clk.Now)
-	fake.AddFile(&googletest.File{ID: "a", Name: "a.ts", MimeType: "video/mp2t", Parent: googletest.MyDriveID, Content: []byte("a")})
+	fake.AddFile(&googletest.File{ID: "a", Name: "a.ts", MIMEType: "video/mp2t", Parent: googletest.MyDriveID, Content: []byte("a")})
 	server := httptest.NewServer(fake.Handler())
 	t.Cleanup(server.Close)
 	service, err := google.NewService(&google.Options{
@@ -264,6 +265,18 @@ func TestCompleteRejects(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.complete(t, f.admin, query)
 	require.ErrorIs(t, err, google.ErrAuthorizationExpired)
+
+	// 10 分を過ぎて戻ってきたら、接続しない。
+	query = f.authorize(t)
+	f.clock.Advance(11 * time.Minute)
+	_, err = f.complete(t, f.admin, query)
+	require.ErrorIs(t, err, google.ErrAuthorizationExpired)
+
+	// API トークンや MCP のクライアント (セッションのない操作) では、始められない。
+	token := *f.admin
+	token.SessionID = uuid.Nil()
+	_, err = f.service.BeginDrive(t.Context(), f.pool, &token, origin)
+	require.ErrorIs(t, err, google.ErrSessionRequired)
 }
 
 // TestUpdateApp は、クライアントの登録と、消したときに Drive の接続も外すことを確かめる。

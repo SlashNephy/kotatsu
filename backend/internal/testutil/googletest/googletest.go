@@ -24,8 +24,8 @@ import (
 const (
 	// DriveScope は、Kotatsu が求めるスコープ。
 	DriveScope = "https://www.googleapis.com/auth/drive.readonly"
-	// FolderMimeType は、フォルダの MIME タイプ。
-	FolderMimeType = "application/vnd.google-apps.folder"
+	// FolderMIMEType は、フォルダの MIME タイプ。
+	FolderMIMEType = "application/vnd.google-apps.folder"
 	// MyDriveID は、マイドライブの根元の別名。
 	MyDriveID = "root"
 	// keyCode と keyName は、JSON の項目の名前。
@@ -37,7 +37,7 @@ const (
 type File struct {
 	ID       string
 	Name     string
-	MimeType string
+	MIMEType string
 	// Parent は、親のフォルダの ID。マイドライブの直下なら root、共有ドライブの直下なら共有ドライブの ID。
 	Parent       string
 	Content      []byte
@@ -61,6 +61,12 @@ const (
 	FaultUserRateLimit Fault = "user_rate_limit"
 	// FaultDownloadQuota は、403 の downloadQuotaExceeded を返す。
 	FaultDownloadQuota Fault = "download_quota"
+	// FaultLongRateLimit は、429 を、Retry-After を 30 秒にして返す。
+	FaultLongRateLimit Fault = "long_rate_limit"
+	// FaultIgnoreRange は、alt=media の Range を無視して、頭から 200 で返す。
+	FaultIgnoreRange Fault = "ignore_range"
+	// FaultUnauthorized は、アクセストークンの期限が切れたとして 401 を返す。
+	FaultUnauthorized Fault = "unauthorized"
 	// FaultCut は、alt=media の本文を、決まった大きさで切る (つながりが切れたのをまねる)。
 	FaultCut Fault = "cut"
 )
@@ -109,7 +115,7 @@ func New(clientID, clientSecret string) *Server {
 		files: map[string]*File{
 			// マイドライブの根元は、本物と同じく、別名 root で引けるフォルダにする。
 			MyDriveID: {
-				ID: MyDriveID, Name: "My Drive", MimeType: FolderMimeType, Parent: "", Content: nil,
+				ID: MyDriveID, Name: "My Drive", MIMEType: FolderMIMEType, Parent: "", Content: nil,
 				ModifiedTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Trashed: false,
 			},
 		},
@@ -333,6 +339,14 @@ func (s *Server) drive(next func(w http.ResponseWriter, r *http.Request)) http.H
 		case fault == FaultRateLimit:
 			w.Header().Set("Retry-After", "1")
 			apiError(w, http.StatusTooManyRequests, "rateLimitExceeded")
+		case fault == FaultLongRateLimit:
+			w.Header().Set("Retry-After", "30")
+			apiError(w, http.StatusTooManyRequests, "rateLimitExceeded")
+		case fault == FaultUnauthorized:
+			apiError(w, http.StatusUnauthorized, "authError")
+		case fault == FaultIgnoreRange:
+			r.Header.Del("Range")
+			next(w, r)
 		case fault == FaultUserRateLimit:
 			apiError(w, http.StatusForbidden, "userRateLimitExceeded")
 		case fault == FaultDownloadQuota:
@@ -489,8 +503,8 @@ func parseRange(header string, size int64) (int64, int64, bool) {
 }
 
 func fileJSON(f *File) map[string]any {
-	body := map[string]any{"id": f.ID, keyName: f.Name, "mimeType": f.MimeType, "modifiedTime": f.ModifiedTime, "trashed": f.Trashed}
-	if f.MimeType != FolderMimeType {
+	body := map[string]any{"id": f.ID, keyName: f.Name, "mimeType": f.MIMEType, "modifiedTime": f.ModifiedTime, "trashed": f.Trashed}
+	if f.MIMEType != FolderMIMEType {
 		body["size"] = strconv.Itoa(len(f.Content))
 	}
 

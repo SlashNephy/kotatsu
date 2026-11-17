@@ -235,7 +235,9 @@ function PlayWatch({
                 ? t('library.fileNotFound')
                 : graphQLErrorDetails(error).code === 'BAD_USER_INPUT'
                   ? t('library.unsupported')
-                  : t('viewer.error')}
+                  : graphQLErrorDetails(error).code === 'CONFLICT'
+                    ? t('library.busy')
+                    : t('viewer.error')}
             </Alert>
           )
         }

@@ -69,7 +69,9 @@ function LibraryPage() {
           <Alert color="amber">
             {graphQLErrorDetails(error).code === 'NOT_FOUND'
               ? t('library.notFound')
-              : t('library.error')}
+              : graphQLErrorDetails(error).code === 'CONFLICT'
+                ? t('library.busy')
+                : t('library.error')}
           </Alert>
         )}
       >

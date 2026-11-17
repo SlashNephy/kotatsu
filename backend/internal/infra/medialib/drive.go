@@ -272,8 +272,12 @@ func (d *Drive) remember(file *googledrive.File) {
 	d.stats[file.ID] = &driveStat{file: file, fetchedAt: now}
 }
 
-// driveError は、見えないファイルを ErrNotFound で包む。
+// driveError は、見えないファイルを ErrNotFound で、接続が切れていてトークンを作れないことを ErrNotConnected で包む。
+// 配信や画像の HTTP の口と、ジョブが、マウントしていないフォルダと同じく扱えるようにする。
 func driveError(err error) error {
+	if errors.Is(err, googledrive.ErrNotConnected) {
+		return fmt.Errorf("%w: %w", ErrNotConnected, err)
+	}
 	if errors.Is(err, googledrive.ErrNotFound) {
 		return fmt.Errorf("%w: %w", ErrNotFound, err)
 	}

@@ -2833,6 +2833,7 @@
       "auth": "Authentication",
       "operation": "Operations",
       "notification": "Notifications",
+      "library": "Library",
       "other": "Other"
     },
     "purposes": {
@@ -3000,6 +3001,7 @@
     "indexing": "Preparing to seek",
     "indexingStatus": "Preparing to seek. You can seek up to {{seconds}}.",
     "writing": "This file is still being written, so it is not prepared for seeking. It can be played from the beginning.",
-    "myDrive": "My Drive"
+    "myDrive": "My Drive",
+    "busy": "Google Drive is busy, or the download limit of the file was reached. Try again later"
   }
 }

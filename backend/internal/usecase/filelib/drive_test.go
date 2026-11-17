@@ -43,9 +43,9 @@ func TestSourceGoogleDrive(t *testing.T) {
 
 	server := googletest.New("client", "secret")
 	modified := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-	server.AddFile(&googletest.File{ID: driveFolder, Name: "anime", MimeType: googletest.FolderMimeType, Parent: googletest.MyDriveID, ModifiedTime: modified})
-	server.AddFile(&googletest.File{ID: "show", Name: showTS, MimeType: "video/mp2t", Parent: driveFolder, Content: loadTestTS(t), ModifiedTime: modified})
-	server.AddFile(&googletest.File{ID: "notes", Name: "notes.txt", MimeType: "text/plain", Parent: driveFolder, Content: []byte("x"), ModifiedTime: modified})
+	server.AddFile(&googletest.File{ID: driveFolder, Name: "anime", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID, ModifiedTime: modified})
+	server.AddFile(&googletest.File{ID: "show", Name: showTS, MIMEType: "video/mp2t", Parent: driveFolder, Content: loadTestTS(t), ModifiedTime: modified})
+	server.AddFile(&googletest.File{ID: "notes", Name: "notes.txt", MIMEType: "text/plain", Parent: driveFolder, Content: []byte("x"), ModifiedTime: modified})
 	httpServer := httptest.NewServer(server.Handler())
 	t.Cleanup(httpServer.Close)
 	client := googledrive.NewClient(httpServer.Client(), httpServer.URL, &driveTokens{server: server, token: ""})

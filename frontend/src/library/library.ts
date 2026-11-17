@@ -34,10 +34,6 @@ export function breadcrumbs(library: string, path: string, names: readonly strin
   return crumbs;
 }
 
-// googleDriveLibrary は、Google Drive のライブラリの名前 (#1902)。myDriveName は、サーバーが返すマイドライブの根元の名前。
-export const googleDriveLibrary = 'google-drive';
-export const myDriveName = 'My Drive';
-
 // isMyDrive は、Google Drive のライブラリの、マイドライブの根元 (パス root) かどうかを返す。画面は、名前を訳して出す。
 export function isMyDrive(kind: string, path: string): boolean {
   return kind === 'GOOGLE_DRIVE' && path === 'root';

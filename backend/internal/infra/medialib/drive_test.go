@@ -60,13 +60,13 @@ func newDrive(t *testing.T, connected bool) (*medialib.Drive, *googletest.Server
 	modified := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 	server := googletest.New("client", "secret")
 	for _, f := range []*googletest.File{
-		{ID: folderID, Name: folderName, MimeType: googletest.FolderMimeType, Parent: googletest.MyDriveID},
-		{ID: "ep1", Name: "episode.ts", MimeType: tsMime, Parent: folderID, Content: []byte("episode1")},
-		{ID: "big", Name: "big.ts", MimeType: tsMime, Parent: folderID, Content: bigContent()},
-		{ID: "doc", Name: "memo", MimeType: "application/vnd.google-apps.document", Parent: folderID},
-		{ID: "dot", Name: ".dot.ts", MimeType: tsMime, Parent: folderID, Content: []byte("h")},
-		{ID: "a", Name: "a.ts", MimeType: tsMime, Parent: googletest.MyDriveID, Content: []byte("a")},
-		{ID: "b", Name: "b.ts", MimeType: tsMime, Parent: sharedID, Content: []byte("b")},
+		{ID: folderID, Name: folderName, MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID},
+		{ID: "ep1", Name: "episode.ts", MIMEType: tsMime, Parent: folderID, Content: []byte("episode1")},
+		{ID: "big", Name: "big.ts", MIMEType: tsMime, Parent: folderID, Content: bigContent()},
+		{ID: "doc", Name: "memo", MIMEType: "application/vnd.google-apps.document", Parent: folderID},
+		{ID: "dot", Name: ".dot.ts", MIMEType: tsMime, Parent: folderID, Content: []byte("h")},
+		{ID: "a", Name: "a.ts", MIMEType: tsMime, Parent: googletest.MyDriveID, Content: []byte("a")},
+		{ID: "b", Name: "b.ts", MIMEType: tsMime, Parent: sharedID, Content: []byte("b")},
 	} {
 		f.ModifiedTime = modified
 		server.AddFile(f)
@@ -290,5 +290,43 @@ func TestDriveReadEnd(t *testing.T) {
 	assert.Equal(t, []string{"bytes=5-", fromHead}, server.Ranges())
 
 	_, err = drive.Open(t.Context(), folderPath)
+	require.ErrorIs(t, err, medialib.ErrNotFound)
+}
+
+// TestDriveReadGivesUp は、途中で切れ続けたら、開き直す回数の上限で諦めることを確かめる。
+func TestDriveReadGivesUp(t *testing.T) {
+	t.Parallel()
+	drive, server := newDrive(t, true)
+	f, err := drive.Open(t.Context(), folderPath+"/big")
+	require.NoError(t, err)
+	defer f.Close()
+	faults := make([]googletest.Fault, 0, 6)
+	for range 6 {
+		faults = append(faults, googletest.FaultCut)
+	}
+	server.Inject(faults...)
+	_, err = f.ReadAt(make([]byte, 9000), 0)
+	require.Error(t, err)
+	// 初めの 1 回と、開き直した 5 回。
+	assert.Len(t, server.Ranges(), 6)
+}
+
+// revokedTokens は、接続が切れていて、アクセストークンを作れない TokenSource。
+type revokedTokens struct{}
+
+func (revokedTokens) Token(context.Context) (string, error) { return "", googledrive.ErrNotConnected }
+
+func (revokedTokens) Invalidate() {}
+
+// TestDriveRevoked は、接続していると覚えていても、トークンを作れなければ、接続していないものとして返すことを確かめる。
+// 配信や画像の口とジョブは、ErrNotFound で見分ける。
+func TestDriveRevoked(t *testing.T) {
+	t.Parallel()
+	client := googledrive.NewClient(nil, "http://127.0.0.1:9", revokedTokens{})
+	drive := medialib.NewDrive(client, func(context.Context) (bool, error) { return true, nil }, time.Now)
+	_, err := drive.Stat(t.Context(), folderPath+"/big")
+	require.ErrorIs(t, err, medialib.ErrNotConnected)
+	require.ErrorIs(t, err, medialib.ErrNotFound)
+	_, err = drive.List(t.Context(), "")
 	require.ErrorIs(t, err, medialib.ErrNotFound)
 }

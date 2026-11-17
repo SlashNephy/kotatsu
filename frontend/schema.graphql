@@ -3114,6 +3114,10 @@ enum NetworkActivityPurpose {
   字幕の自動生成のモデルのダウンロード (#1682)
   """
   CAPTION_MODEL_DOWNLOAD
+  """
+  ライブラリとして接続した Google Drive (#1902)
+  """
+  GOOGLE_DRIVE
 }
 """
 ID で引けるもの (Relay の Global Object Identification)。

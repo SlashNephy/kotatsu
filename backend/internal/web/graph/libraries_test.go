@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/infra/googledrive"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -24,7 +26,7 @@ import (
 
 const (
 	librariesQuery         = `{ libraries { name kind } }`
-	libraryDirectoryQuery  = `query($library: String!, $path: String!) { libraryDirectory(library: $library, path: $path) { path library { name } entries { name path directory size playable } } }`
+	libraryDirectoryQuery  = `query($library: String!, $path: String!) { libraryDirectory(library: $library, path: $path) { path names library { name } entries { name path directory size playable } } }`
 	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id fileId name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl thumbnailUrl previewUrl cmSections { startSeconds endSeconds } autoCaptions { startSeconds endSeconds text } autoCaptionsStatus { state model count } broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
 	generateLibraryCaps    = `mutation($id: ID!) { generateLibraryCaptions(id: $id) { id autoCaptionsStatus { state } } }`
 	saveLibraryPosition    = `mutation($id: ID!, $positionMs: Int64!) { saveLibraryWatchPosition(id: $id, positionMs: $positionMs) { id watchPositionMs } }`
@@ -126,7 +128,11 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 		bdav[k*192+4] = 0x47
 	}
 	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, discM2TS), bdav, 0o600))
-	libraries := medialib.NewSet(map[string]string{poolMain: poolDir}, []string{poolMain}, map[string]string{animeLibrary: libraryDir})
+	// 接続していない Google Drive は、一覧に出さず、開けない (#1902)。
+	disconnected := medialib.NewDrive(googledrive.NewClient(nil, "http://127.0.0.1:9", nil),
+		func(context.Context) (bool, error) { return false, nil }, time.Now)
+	libraries := medialib.NewSet(map[string]string{poolMain: poolDir}, []string{poolMain}, map[string]string{animeLibrary: libraryDir}).
+		With(disconnected)
 	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
 	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), true)
 	// テストを終えるときに、索引を作る処理を止めてから一時ディレクトリを消させる。
@@ -192,14 +198,16 @@ func TestLibraries(t *testing.T) {
 		{name: "outside", library: animeLibrary, path: "..", wantCodes: []string{codeBadUserInput}},
 		{name: "missing directory", library: animeLibrary, path: "missing", wantCodes: []string{codeNotFound}},
 		{name: "missing library", library: "missing", path: "", wantCodes: []string{codeNotFound}},
+		{name: "disconnected Google Drive", library: medialib.GoogleDriveName, path: "", wantCodes: []string{codeNotFound}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var got struct {
 				LibraryDirectory struct {
-					Path    string  `json:"path"`
-					Entries []entry `json:"entries"`
+					Path    string   `json:"path"`
+					Names   []string `json:"names"`
+					Entries []entry  `json:"entries"`
 				} `json:"libraryDirectory"`
 			}
 			codes := f.query(t, libraryDirectoryQuery, map[string]any{varLibrary: tt.library, varPath: tt.path}, &got)
@@ -207,6 +215,12 @@ func TestLibraries(t *testing.T) {
 			if len(tt.wantCodes) == 0 {
 				assert.Equal(t, tt.path, got.LibraryDirectory.Path)
 				assert.Equal(t, tt.want, got.LibraryDirectory.Entries)
+				// フォルダのライブラリでは、パンくずの名前は、パスの段そのもの。
+				wantNames := []string{}
+				if tt.path != "" {
+					wantNames = strings.Split(tt.path, "/")
+				}
+				assert.Equal(t, wantNames, got.LibraryDirectory.Names)
 			}
 		})
 	}

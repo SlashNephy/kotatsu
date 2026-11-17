@@ -25,8 +25,8 @@ import (
 const (
 	// DefaultURL は、Drive API のオリジン。
 	DefaultURL = "https://www.googleapis.com"
-	// FolderMimeType は、フォルダの MIME タイプ。
-	FolderMimeType = "application/vnd.google-apps.folder"
+	// FolderMIMEType は、フォルダの MIME タイプ。
+	FolderMIMEType = "application/vnd.google-apps.folder"
 	// MyDriveID は、マイドライブの根元を指す別名。
 	MyDriveID = "root"
 	// googleAppsPrefix は、Google ドキュメントなどの、中身をそのまま読めないファイルの MIME タイプの前置き。
@@ -40,7 +40,10 @@ const (
 	// maxBackoff は、やり直すまでに待つ長さの上限。Google の案内 (32 秒か 64 秒) に合わせる。
 	maxBackoff = 32 * time.Second
 	// maxRetryAfter は、Retry-After に従って待つ長さの上限。
-	maxRetryAfter = time.Minute
+	maxRetryAfter = 30 * time.Second
+	// maxTotalWait は、1 回の呼び出しで、やり直すために待つ長さの合計の上限。索引を作っている tenban が、書きかけの索引を
+	// 伸ばさないまま、ほかの tenban に落ちたとみなされる時間 (1 分、設計書 付録 A) より短くする。
+	maxTotalWait = 45 * time.Second
 	// maxErrorBody は、エラーの応答の本文を読む大きさの上限。
 	maxErrorBody = 1 << 16
 	// fileFields は、ファイルの情報として引く項目。
@@ -61,6 +64,9 @@ var (
 	ErrDownloadQuota = errors.New("the download quota of the file was exceeded")
 	// ErrUnauthorized は、トークンを作り直しても、認可されなかったことを表す。
 	ErrUnauthorized = errors.New("unauthorized by Google Drive")
+	// ErrNotConnected は、Google Drive を接続していないか、接続が切れていて、アクセストークンを作れないことを表す。
+	// TokenSource が返す。
+	ErrNotConnected = errors.New("the Google Drive is not connected")
 	// ErrRangeIgnored は、範囲を指定した読み出しに、指定と違う範囲が返ったことを表す。
 	ErrRangeIgnored = errors.New("the Drive API returned a different range")
 )
@@ -96,7 +102,7 @@ func NewClient(httpClient *http.Client, baseURL string, tokens TokenSource) *Cli
 type File struct {
 	ID       string
 	Name     string
-	MimeType string
+	MIMEType string
 	// Size は、大きさ (バイト)。フォルダと、Google ドキュメントなどでは 0。
 	Size         int64
 	ModifiedTime time.Time
@@ -104,12 +110,12 @@ type File struct {
 
 // Folder は、フォルダかどうかを返す。
 func (f *File) Folder() bool {
-	return f.MimeType == FolderMimeType
+	return f.MIMEType == FolderMIMEType
 }
 
 // Blob は、中身をそのまま読めるファイル (フォルダでも Google ドキュメントなどでもないもの) かどうかを返す。
 func (f *File) Blob() bool {
-	return !strings.HasPrefix(f.MimeType, googleAppsPrefix)
+	return !strings.HasPrefix(f.MIMEType, googleAppsPrefix)
 }
 
 // Drive は、共有ドライブ。
@@ -122,7 +128,7 @@ type Drive struct {
 type fileJSON struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
-	MimeType     string    `json:"mimeType"`
+	MIMEType     string    `json:"mimeType"`
 	Size         string    `json:"size"`
 	ModifiedTime time.Time `json:"modifiedTime"`
 	Trashed      bool      `json:"trashed"`
@@ -131,7 +137,7 @@ type fileJSON struct {
 func (f *fileJSON) file() *File {
 	size, _ := strconv.ParseInt(f.Size, 10, 64)
 
-	return &File{ID: f.ID, Name: f.Name, MimeType: f.MimeType, Size: size, ModifiedTime: f.ModifiedTime}
+	return &File{ID: f.ID, Name: f.Name, MIMEType: f.MIMEType, Size: size, ModifiedTime: f.ModifiedTime}
 }
 
 // About は、接続したアカウントのメールアドレス (なければ表示名) を返す。
@@ -322,10 +328,18 @@ func (c *Client) getJSON(ctx context.Context, path string, query url.Values, out
 func (c *Client) do(ctx context.Context, path string, query url.Values, prepare func(*http.Request)) (*http.Response, error) {
 	refreshed, skipWait := false, false
 	var lastErr error
-	for attempt := range maxAttempts {
+	var waited time.Duration
+	// トークンを作り直した後の 1 回は、試す回数に数えない。
+	limit := maxAttempts
+	for attempt := 0; attempt < limit; attempt++ {
 		// トークンを作り直した直後は、待たずにやり直す。
 		if attempt > 0 && !skipWait {
-			if err := c.sleep(ctx, backoff(attempt, lastErr)); err != nil {
+			wait := backoff(attempt, lastErr)
+			if waited+wait > maxTotalWait {
+				break
+			}
+			waited += wait
+			if err := c.sleep(ctx, wait); err != nil {
 				return nil, err
 			}
 		}
@@ -353,6 +367,7 @@ func (c *Client) do(ctx context.Context, path string, query url.Values, prepare 
 		case res.StatusCode == http.StatusUnauthorized && !refreshed:
 			c.tokens.Invalidate()
 			refreshed, skipWait = true, true
+			limit++
 			lastErr = apiErr
 
 			continue
@@ -375,7 +390,7 @@ func (c *Client) do(ctx context.Context, path string, query url.Values, prepare 
 		return nil, fmt.Errorf("%w: %w", ErrRateLimited, lastErr)
 	}
 
-	return nil, fmt.Errorf("failed to call the Drive API after %d attempts: %w", maxAttempts, lastErr)
+	return nil, fmt.Errorf("failed to call the Drive API after retrying: %w", lastErr)
 }
 
 func (c *Client) send(ctx context.Context, token, path string, query url.Values, prepare func(*http.Request)) (*http.Response, error) {
