@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   chooseRoute,
+  dataBroadcastEndpoint,
   dataBroadcastSource,
   hlsURL,
   qualities,
@@ -216,6 +217,43 @@ describe('dataBroadcastSource', () => {
     { name: 'サービス ID でない', streamUrl: '/internal/streams/services/nhk', want: null },
   ])('$name', ({ streamUrl, want }) => {
     expect(dataBroadcastSource(streamUrl)).toEqual(want);
+  });
+});
+
+describe('dataBroadcastEndpoint', () => {
+  test.each([
+    {
+      name: 'データ放送のエンドポイントは、そのまま読む',
+      url: '/internal/streams/services/3273601024/data-broadcast',
+      want: '/internal/streams/services/3273601024/data-broadcast',
+    },
+    {
+      name: 'クエリも付けたまま読む',
+      url: '/internal/streams/services/400101/data-broadcast?token=abc',
+      want: '/internal/streams/services/400101/data-broadcast?token=abc',
+    },
+    {
+      name: 'ほかのホストは読まない',
+      url: 'https://evil.example/internal/streams/services/1/data-broadcast',
+      want: null,
+    },
+    {
+      name: 'ホストを省いた URL も読まない',
+      url: '//evil.example/internal/streams/services/1/data-broadcast',
+      want: null,
+    },
+    {
+      name: 'ほかのパスは読まない',
+      url: '/internal/streams/services/1/data-broadcast/../../../api',
+      want: null,
+    },
+    {
+      name: 'サービス ID でない',
+      url: '/internal/streams/services/nhk/data-broadcast',
+      want: null,
+    },
+  ])('$name', ({ url, want }) => {
+    expect(dataBroadcastEndpoint(url)).toBe(want);
   });
 });
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
@@ -32,10 +33,10 @@ func CallbackHandler(
 			reason := callbackErrorReason(err)
 			if reason == "anime_record_failed" {
 				logger.ErrorContext(r.Context(), "failed to connect the anime record destination",
-					slog.String("destination", name), slog.Any("error", err))
+					slog.String("destination", name), logattr.Error(err))
 			} else {
 				logger.InfoContext(r.Context(), "rejected an anime record connection",
-					slog.String("destination", name), slog.Any("error", err))
+					slog.String("destination", name), logattr.Error(err))
 			}
 			redirect(w, r, "error", reason)
 

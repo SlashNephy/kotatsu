@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -197,7 +198,7 @@ func (h *Relay) serveRequest(w http.ResponseWriter, r *http.Request) {
 	// 監査ログには残さず、宛先のホストだけをログに残す。文書が送るたびに残すと監査ログが埋まり、パスとクエリには、
 	// 文書が入れた受信機の情報 (郵便番号など) が入ることがあるからである。
 	logger := h.logger.With(
-		slog.String("user_id", principal.UserID.String()), slog.String("method", req.Method), slog.String("host", target.Host),
+		slog.String("user_id", principal.UserID.String()), logattr.String("method", req.Method), logattr.String("host", target.Host),
 	)
 	resp, err := h.forward(r.Context(), req.Method, target, req.Body)
 	if err != nil {
@@ -229,7 +230,7 @@ func (h *Relay) serveConnectivity(w http.ResponseWriter, r *http.Request) {
 	}
 	timeout = min(timeout, maxConfirmTimeout)
 
-	logger := h.logger.With(slog.String("user_id", principal.UserID.String()), slog.String("host", req.Destination))
+	logger := h.logger.With(slog.String("user_id", principal.UserID.String()), logattr.String("host", req.Destination))
 	result := h.confirm(r.Context(), req.Destination, timeout)
 	logger.InfoContext(r.Context(), "confirmed the connectivity for a data broadcast", slog.Bool("success", result.Success))
 	writeJSON(w, r, logger, result)
