@@ -55,27 +55,12 @@ type canvas struct {
 	img *logo.Gray
 }
 
+// newCanvas は、bg のコマを作る。波の背景は上下の帯の行にだけ描く (paintWaves)。ほかの背景は軽いので、すべての行に描く。
 func newCanvas(bg background, rng *rng) *canvas {
 	img := &logo.Gray{Width: frameW, Height: frameH, Pix: make([]byte, frameW*frameH)}
 	switch bg {
 	case randomBlocks:
-		// 向きと細かさと位相がコマごとにでたらめな、3 つの波を重ねる。縁の向きは、コマをまたぐと打ち消し合う。
-		type wave struct{ kx, ky, phase float64 }
-		waves := [3]wave{}
-		for i := range waves {
-			angle := rng.Float64() * 2 * math.Pi
-			freq := 0.08 + rng.Float64()*0.2
-			waves[i] = wave{kx: freq * math.Cos(angle), ky: freq * math.Sin(angle), phase: rng.Float64() * 2 * math.Pi}
-		}
-		for y := range frameH {
-			for x := range frameW {
-				v := 100.0
-				for _, w := range waves {
-					v += 30 * math.Sin(w.kx*float64(x)+w.ky*float64(y)+w.phase)
-				}
-				img.Pix[y*frameW+x] = byte(min(max(v, 0), 255))
-			}
-		}
+		paintWaves(img, rng)
 	case bright:
 		// 白いロゴ (240) とほとんど同じ明るさ。半透明のロゴが白っぽい背景で見えなくなるのに当たる。
 		noise := []byte{238, 239, 240, 241, 242}
@@ -92,6 +77,48 @@ func newCanvas(bg background, rng *rng) *canvas {
 	}
 
 	return &canvas{img: img}
+}
+
+// paintWaves は、img に波の背景 (randomBlocks) を描く。
+// テストが読む上下の帯の行にだけ描き、帯の外の行は黒のまま残す。テストは帯しか読まないので、結果は全体に描いたコマと変わらない (#1941)。
+func paintWaves(img *logo.Gray, rng *rng) {
+	h := logo.Band(frameH, logo.DefaultParams())
+	// 向きと細かさと位相がコマごとにでたらめな、3 つの波を重ねる。縁の向きは、コマをまたぐと打ち消し合う。
+	// 画素ごとに sin を求めると、テストの時間のほとんどを占める (#1941)。
+	// sin(kx·x + ky·y + φ) = sin(kx·x)·cos(ky·y + φ) + cos(kx·x)·sin(ky·y + φ) と x と y に分け、
+	// x の側は列ごとの表を前もって作り、y の側は行ごとに求める。
+	type wave struct{ kx, ky, phase float64 }
+	waves := [3]wave{}
+	for i := range waves {
+		angle := rng.Float64() * 2 * math.Pi
+		freq := 0.08 + rng.Float64()*0.2
+		waves[i] = wave{kx: freq * math.Cos(angle), ky: freq * math.Sin(angle), phase: rng.Float64() * 2 * math.Pi}
+	}
+	// sinCos は、波ごとの sin と cos。
+	type sinCos [3]struct{ sin, cos float64 }
+	columns := make([]sinCos, frameW)
+	for x := range columns {
+		for i, w := range waves {
+			columns[x][i].sin, columns[x][i].cos = math.Sincos(w.kx * float64(x))
+		}
+	}
+	for y := range frameH {
+		if h <= y && y < frameH-h {
+			continue
+		}
+		var r sinCos
+		for i, w := range waves {
+			r[i].sin, r[i].cos = math.Sincos(w.ky*float64(y) + w.phase)
+		}
+		row := img.Pix[y*frameW : (y+1)*frameW]
+		for x, c := range columns {
+			v := 100.0
+			for i := range waves {
+				v += 30 * (c[i].sin*r[i].cos + c[i].cos*r[i].sin)
+			}
+			row[x] = byte(min(max(v, 0), 255))
+		}
+	}
 }
 
 // fill は、box を白 (ロゴの明るさ) で塗る。
@@ -140,13 +167,20 @@ func crop(img *logo.Gray, b logo.Box) *logo.Gray {
 	return out
 }
 
-// learn は、コマ frames から上下の帯を積算して学習する。
-func learn(t *testing.T, frames []*logo.Gray, p *logo.Params) (*logo.LearnResult, *logo.Accumulator, error) {
+// learnFrames は、学習のテストで積算するコマの数。
+const learnFrames = 120
+
+// learn は、frame で作る learnFrames 枚のコマから上下の帯を積算して学習する。
+// コマは作るたびに積算し、溜めない。溜めると、並列に走るテストがそれぞれ何十 MB も持ち続ける (#1941)。
+func learn(t *testing.T, p *logo.Params, frame func(i int) *logo.Gray) (*logo.LearnResult, *logo.Accumulator, error) {
 	t.Helper()
 
 	h := logo.Band(frameH, p)
+	// paintWaves は、既定値の帯の行にしか波の背景を描かない。帯の高さを変えると、描いていない黒い行を読んでしまう。
+	require.Equal(t, logo.Band(frameH, logo.DefaultParams()), h, "the band height must match the one paintWaves paints")
 	top, bottom := logo.NewAccumulator(frameW, h), logo.NewAccumulator(frameW, h)
-	for _, f := range frames {
+	for i := range learnFrames {
+		f := frame(i)
 		top.Add(band(f, h, true), p.EdgeStrength)
 		bottom.Add(band(f, h, false), p.EdgeStrength)
 	}
@@ -162,7 +196,9 @@ func TestCoherence(t *testing.T) {
 
 	p := logo.DefaultParams()
 	rng := newRNG(12)
-	acc := logo.NewAccumulator(frameW, frameH)
+	// ロゴの乗る上の帯だけを積算する。
+	h := logo.Band(frameH, p)
+	acc := logo.NewAccumulator(frameW, h)
 	for i := range 100 {
 		bg := randomBlocks
 		if i%4 == 0 {
@@ -170,14 +206,14 @@ func TestCoherence(t *testing.T) {
 		}
 		c := newCanvas(bg, rng)
 		c.drawLogo()
-		acc.Add(c.img, p.EdgeStrength)
+		acc.Add(band(c.img, h, true), p.EdgeStrength)
 	}
 	coherence := acc.Coherence()
 	// ロゴの左の縦棒の左の縁。
 	edge := (logoBox().Y+4)*frameW + logoBox().X
 	assert.Greater(t, coherence[edge], 0.7)
 	// 背景。
-	assert.Less(t, coherence[300*frameW+400], 0.3)
+	assert.Less(t, coherence[60*frameW+400], 0.3)
 }
 
 // TestLearn は、右上のロゴの枠を割り出し、枠がロゴを囲むことを確かめる。
@@ -186,13 +222,12 @@ func TestLearn(t *testing.T) {
 
 	p := logo.DefaultParams()
 	rng := newRNG(34)
-	frames := make([]*logo.Gray, 0, 120)
-	for range 120 {
+	result, _, err := learn(t, p, func(int) *logo.Gray {
 		c := newCanvas(randomBlocks, rng)
 		c.drawLogo()
-		frames = append(frames, c.img)
-	}
-	result, _, err := learn(t, frames, p)
+
+		return c.img
+	})
 	require.NoError(t, err)
 	assert.Equal(t, logo.TopRight, result.Corner)
 	b := result.Box
@@ -255,13 +290,12 @@ func TestLearnGivesUp(t *testing.T) {
 
 			p := logo.DefaultParams()
 			rng := newRNG(56)
-			frames := make([]*logo.Gray, 0, 120)
-			for i := range 120 {
+			result, _, err := learn(t, p, func(i int) *logo.Gray {
 				c := newCanvas(randomBlocks, rng)
 				tt.draw(c, i)
-				frames = append(frames, c.img)
-			}
-			result, _, err := learn(t, frames, p)
+
+				return c.img
+			})
 			require.ErrorIs(t, err, tt.wantErr)
 			require.Len(t, result.Corners, tt.wantSeen)
 			assert.ErrorIs(t, result.Corners[0].Err, tt.wantWhy)
@@ -317,8 +351,7 @@ func TestLearnBandCorner(t *testing.T) {
 
 			p := logo.DefaultParams()
 			rng := newRNG(1883)
-			frames := make([]*logo.Gray, 0, 120)
-			for i := range 120 {
+			result, _, err := learn(t, p, func(i int) *logo.Gray {
 				c := newCanvas(randomBlocks, rng)
 				c.drawLogo()
 				if i%2 == 0 {
@@ -327,9 +360,9 @@ func TestLearnBandCorner(t *testing.T) {
 				if tt.mirror {
 					mirror(c.img)
 				}
-				frames = append(frames, c.img)
-			}
-			result, _, err := learn(t, frames, p)
+
+				return c.img
+			})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				i := slices.IndexFunc(result.Corners, func(c logo.CornerResult) bool { return c.Corner == tt.wantCorner })
@@ -380,17 +413,16 @@ func TestLearnSkipsLargeBlobs(t *testing.T) {
 
 	p := logo.DefaultParams()
 	rng := newRNG(78)
-	frames := make([]*logo.Gray, 0, 120)
-	for i := range 120 {
+	result, _, err := learn(t, p, func(i int) *logo.Gray {
 		c := newCanvas(randomBlocks, rng)
 		c.drawLogo()
 		// 隅を横切る、テロップの帯の下の線。9 割のコマで出す。
 		if i%10 != 0 {
 			c.fill(logo.Box{X: 0, Y: 80, W: frameW, H: 2})
 		}
-		frames = append(frames, c.img)
-	}
-	result, _, err := learn(t, frames, p)
+
+		return c.img
+	})
 	require.NoError(t, err)
 	assert.Equal(t, logo.TopRight, result.Corner, "%+v", result)
 	assert.Less(t, result.Box.Y+result.Box.H, 80, "%+v", result)
@@ -402,13 +434,12 @@ func TestMeasure(t *testing.T) {
 
 	p := logo.DefaultParams()
 	rng := newRNG(910)
-	frames := make([]*logo.Gray, 0, 120)
-	for range 120 {
+	result, top, err := learn(t, p, func(int) *logo.Gray {
 		c := newCanvas(randomBlocks, rng)
 		c.drawLogo()
-		frames = append(frames, c.img)
-	}
-	result, top, err := learn(t, frames, p)
+
+		return c.img
+	})
 	require.NoError(t, err)
 	template, err := logo.NewTemplate(top.Crop(result.Box), result.Box, frameW, frameH, p)
 	require.NoError(t, err)
@@ -463,18 +494,17 @@ func TestLearnBottomRight(t *testing.T) {
 
 	p := logo.DefaultParams()
 	rng := newRNG(1314)
-	frames := make([]*logo.Gray, 0, 120)
 	below := logo.Box{X: 860, Y: frameH - 50, W: 56, H: 20}
-	for range 120 {
+	result, _, err := learn(t, p, func(int) *logo.Gray {
 		c := newCanvas(randomBlocks, rng)
 		for i := range 3 {
 			x := below.X + i*20
 			c.fill(logo.Box{X: x, Y: below.Y, W: 4, H: below.H})
 			c.fill(logo.Box{X: x, Y: below.Y + 8, W: 14, H: 4})
 		}
-		frames = append(frames, c.img)
-	}
-	result, _, err := learn(t, frames, p)
+
+		return c.img
+	})
 	require.NoError(t, err)
 	assert.Equal(t, logo.BottomRight, result.Corner)
 	b := result.Box
@@ -490,13 +520,12 @@ func TestNewTemplateTooFewPoints(t *testing.T) {
 	p := logo.DefaultParams()
 	p.MinTemplatePoints = 100000
 	rng := newRNG(1516)
-	frames := make([]*logo.Gray, 0, 120)
-	for range 120 {
+	result, top, err := learn(t, p, func(int) *logo.Gray {
 		c := newCanvas(randomBlocks, rng)
 		c.drawLogo()
-		frames = append(frames, c.img)
-	}
-	result, top, err := learn(t, frames, p)
+
+		return c.img
+	})
 	require.NoError(t, err)
 	_, err = logo.NewTemplate(top.Crop(result.Box), result.Box, frameW, frameH, p)
 	assert.ErrorIs(t, err, logo.ErrFewPoints)
