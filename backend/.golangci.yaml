@@ -123,10 +123,9 @@ linters:
             - "$all"
             - "!$test"
             - "!**/internal/testutil/**"
-            - "!**/cmd/faketuner/**"
-            - "!**/cmd/fakeidp/**"
+            - "!**/internal/cmd/**"
           deny:
-            - {pkg: "github.com/SlashNephy/kotatsu/internal/testutil", desc: "testutil はテスト用の部品なので、テストと cmd/faketuner、cmd/fakeidp のほかから使わない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/testutil", desc: "testutil はテスト用の部品なので、テストと、配らない開発用の入口 (internal/cmd) のほかから使わない"}
     cyclop:
       max-complexity: 20
     exhaustruct_v5:

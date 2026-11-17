@@ -45,7 +45,7 @@ services:
   # 偽のチューナーサーバー。backend/testdata/ts/test.ts を、すべてのサービスのストリームとして流す。
   faketuner:
     <<: *dev
-    command: ["exec", "--", "go", "run", "./backend/cmd/faketuner", "-listen", "0.0.0.0:40772", "-ts", "backend/testdata/ts/test.ts"]
+    command: ["exec", "--", "go", "run", "./backend/internal/cmd/faketuner", "-listen", "0.0.0.0:40772", "-ts", "backend/testdata/ts/test.ts"]
     ports:
       - "127.0.0.1:40772:40772"
 

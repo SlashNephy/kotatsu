@@ -51,7 +51,7 @@ type Provider struct {
 	// WrongAudience なら、ほかのクライアントに向けた ID トークンを発行する。
 	WrongAudience bool
 	// AuthTimeNow なら、ID トークンに、発行した時刻を IdP で認証した時刻 (auth_time) として載せる。
-	// その場で資格情報を入れてログインした IdP をまねる。偽の IdP のプロセス (cmd/fakeidp) が使う。
+	// その場で資格情報を入れてログインした IdP をまねる。偽の IdP のプロセス (internal/cmd/fakeidp) が使う。
 	AuthTimeNow bool
 	// Now は、ID トークンの発行と期限の時刻。nil なら time.Now。
 	Now func() time.Time
@@ -77,7 +77,7 @@ func New(clientID, clientSecret string, redirectURIs ...string) (*Provider, erro
 }
 
 // NewOn は、IdP を listener で起動して返す。listener が nil なら、空いているポートで起動する。
-// 別のプロセスとして立てる偽の IdP (cmd/fakeidp) が、決まったアドレスで待ち受けるのに使う。
+// 別のプロセスとして立てる偽の IdP (internal/cmd/fakeidp) が、決まったアドレスで待ち受けるのに使う。
 func NewOn(listener net.Listener, clientID, clientSecret string, redirectURIs ...string) (*Provider, error) {
 	key, err := rsa.GenerateKey(rand.Reader, rsaBits)
 	if err != nil {
