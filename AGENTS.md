@@ -12,6 +12,10 @@
 
 - スクランブルを解除する機能と、カードリーダーを扱う機能は足しません（設計書 3.1、[CONTRIBUTING.md](.github/CONTRIBUTING.md)）。
 
+## 入口（main パッケージ）
+
+- `backend/cmd/` には、配るもの（`kotatsu`）だけを置きます。開発や検証にだけ使う入口（偽のサーバーなど）は、`backend/internal/cmd/<名前>` に置きます（設計書 11.5）。
+
 ## 破壊的変更
 
 - 更新した利用者に対処が要る変更（既定値を変えて今の動きが変わる、データを消し始める、リバースプロキシなどの構成を変える必要があるなど）では、同じ PR で [docs/breaking-changes.md](docs/breaking-changes.md) に書きます。
