@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -95,3 +96,14 @@ func (r *recordingResolver) DramaEpisode(ctx context.Context, obj *model.Recordi
 
 	return dramaEpisodeOf(episode), nil
 }
+
+// DramaEpisode returns generated.DramaEpisodeResolver implementation.
+func (r *Resolver) DramaEpisode() generated.DramaEpisodeResolver { return &dramaEpisodeResolver{r} }
+
+// DramaSeries returns generated.DramaSeriesResolver implementation.
+func (r *Resolver) DramaSeries() generated.DramaSeriesResolver { return &dramaSeriesResolver{r} }
+
+type (
+	dramaEpisodeResolver struct{ *Resolver }
+	dramaSeriesResolver  struct{ *Resolver }
+)

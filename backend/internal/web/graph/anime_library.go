@@ -154,23 +154,8 @@ func (r *Resolver) libraryRecordings(ctx context.Context, works []*animerecord.L
 			ids = append(ids, episode.RecordingIDs...)
 		}
 	}
-	result := map[uuid.UUID]*model.Recording{}
-	if len(ids) == 0 {
-		return result, nil
-	}
-	rows, err := r.queries.ListRecordingsByIDs(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list the recordings of the library: %w", err)
-	}
-	recordings, err := r.recordingModels(ctx, rows)
-	if err != nil {
-		return nil, err
-	}
-	for i := range rows {
-		result[rows[i].ID] = recordings[i]
-	}
 
-	return result, nil
+	return r.recordingsByIDs(ctx, ids)
 }
 
 // programsByKeys は、番組 (サービス, eventId) を、番組表と同じ形で引く。

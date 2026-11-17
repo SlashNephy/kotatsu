@@ -20,6 +20,7 @@ func dramaEpisodeOf(episode *drama.LinkedEpisode) *model.DramaEpisode {
 	result := &model.DramaEpisode{
 		Series: &model.DramaSeries{
 			TmdbID: int(episode.SeriesID), Name: episode.SeriesName, OriginalName: episode.SeriesOriginalName, URL: seriesURL,
+			WatchStatus: nil,
 		},
 		SeriesSource:  model.DramaSeriesSourceSearch,
 		SeasonNumber:  intOf(episode.SeasonNumber),
@@ -27,6 +28,7 @@ func dramaEpisodeOf(episode *drama.LinkedEpisode) *model.DramaEpisode {
 		EpisodeName:   episode.EpisodeName,
 		EpisodeSource: nil,
 		URL:           seriesURL,
+		Watched:       false,
 	}
 	if episode.SeriesSource == drama.SeriesSourceOverride {
 		result.SeriesSource = model.DramaSeriesSourceOverride

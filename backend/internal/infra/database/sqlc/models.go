@@ -296,6 +296,23 @@ type DramaTitleOverride struct {
 	UpdatedAt    time.Time
 }
 
+type DramaWatchedEpisode struct {
+	UserID        uuid.UUID
+	TmdbSeriesID  int32
+	SeasonNumber  int32
+	EpisodeNumber int32
+	Source        string
+	WatchedAt     time.Time
+}
+
+type DramaWatchlistEntry struct {
+	UserID       uuid.UUID
+	TmdbSeriesID int32
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type EdcbNetworkTv struct {
 	ID         int32
 	NetworkID  int32

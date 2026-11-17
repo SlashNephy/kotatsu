@@ -40,6 +40,8 @@ func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
 type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
+	DramaEpisode() DramaEpisodeResolver
+	DramaSeries() DramaSeriesResolver
 	GuideView() GuideViewResolver
 	Mutation() MutationResolver
 	Program() ProgramResolver
@@ -442,6 +444,54 @@ type ComplexityRoot struct {
 		Series        func(childComplexity int) int
 		SeriesSource  func(childComplexity int) int
 		URL           func(childComplexity int) int
+		Watched       func(childComplexity int) int
+	}
+
+	DramaLibrary struct {
+		Enabled func(childComplexity int) int
+		Works   func(childComplexity int) int
+	}
+
+	DramaLibraryBroadcast struct {
+		EpisodeNumber func(childComplexity int) int
+		Last          func(childComplexity int) int
+		Program       func(childComplexity int) int
+		Rerun         func(childComplexity int) int
+		SeasonNumber  func(childComplexity int) int
+	}
+
+	DramaLibraryEpisode struct {
+		EpisodeNumber func(childComplexity int) int
+		Name          func(childComplexity int) int
+		SeasonNumber  func(childComplexity int) int
+		URL           func(childComplexity int) int
+	}
+
+	DramaLibraryPastBroadcast struct {
+		Last    func(childComplexity int) int
+		StartAt func(childComplexity int) int
+	}
+
+	DramaLibraryRecordedEpisode struct {
+		EpisodeNumber  func(childComplexity int) int
+		Name           func(childComplexity int) int
+		Recording      func(childComplexity int) int
+		RecordingCount func(childComplexity int) int
+		SeasonNumber   func(childComplexity int) int
+		Watched        func(childComplexity int) int
+	}
+
+	DramaLibraryWork struct {
+		AddedAt          func(childComplexity int) int
+		Broadcasts       func(childComplexity int) int
+		ID               func(childComplexity int) int
+		LastWatched      func(childComplexity int) int
+		NextBroadcast    func(childComplexity int) int
+		NextEpisode      func(childComplexity int) int
+		RecentBroadcast  func(childComplexity int) int
+		RecordedEpisodes func(childComplexity int) int
+		Series           func(childComplexity int) int
+		Status           func(childComplexity int) int
 	}
 
 	DramaLinkingStatus struct {
@@ -455,6 +505,7 @@ type ComplexityRoot struct {
 		OriginalName func(childComplexity int) int
 		TmdbID       func(childComplexity int) int
 		URL          func(childComplexity int) int
+		WatchStatus  func(childComplexity int) int
 	}
 
 	DramaTitleOverride struct {
@@ -871,6 +922,8 @@ type ComplexityRoot struct {
 		SaveLibraryWatchPosition      func(childComplexity int, id string, positionMs int64) int
 		SaveWatchPosition             func(childComplexity int, id string, positionMs int64) int
 		SendPlayerCommand             func(childComplexity int, id string, command model.PlayerCommandInput) int
+		SetDramaEpisodeWatched        func(childComplexity int, seriesID int, seasonNumber int, episodeNumber int, watched bool) int
+		SetDramaWatchStatus           func(childComplexity int, seriesID int, status *model.DramaWatchStatus) int
 		SetRecordingProtected         func(childComplexity int, id string, protected bool) int
 		SetRecordingTags              func(childComplexity int, id string, tags []string) int
 		SetReservationsEnabled        func(childComplexity int, ids []string, enabled bool) int
@@ -1142,6 +1195,7 @@ type ComplexityRoot struct {
 		CapturesAvailable       func(childComplexity int) int
 		ChannelTypes            func(childComplexity int) int
 		ContinueWatching        func(childComplexity int, first int) int
+		DramaLibrary            func(childComplexity int) int
 		DramaLinking            func(childComplexity int) int
 		DramaTitleOverrides     func(childComplexity int) int
 		DrcsReplacements        func(childComplexity int) int
@@ -1782,6 +1836,12 @@ type ComplexityRoot struct {
 
 // region    ************************** generated!.gotpl **************************
 
+type DramaEpisodeResolver interface {
+	Watched(ctx context.Context, obj *model.DramaEpisode) (bool, error)
+}
+type DramaSeriesResolver interface {
+	WatchStatus(ctx context.Context, obj *model.DramaSeries) (*model.DramaWatchStatus, error)
+}
 type GuideViewResolver interface {
 	Services(ctx context.Context, obj *model.GuideView) ([]*model.Service, error)
 }
@@ -1814,6 +1874,8 @@ type MutationResolver interface {
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
 	UpdateDramaLinkingToken(ctx context.Context, token string) (*model.DramaLinkingStatus, error)
 	UpdateDramaTitleOverride(ctx context.Context, input model.DramaTitleOverrideInput) ([]*model.DramaTitleOverride, error)
+	SetDramaWatchStatus(ctx context.Context, seriesID int, status *model.DramaWatchStatus) (*model.DramaSeries, error)
+	SetDramaEpisodeWatched(ctx context.Context, seriesID int, seasonNumber int, episodeNumber int, watched bool) (bool, error)
 	RetryJob(ctx context.Context, id string) (*model.Job, error)
 	CancelJob(ctx context.Context, id string) (*model.Job, error)
 	SaveLibraryWatchPosition(ctx context.Context, id string, positionMs int64) (*model.LibraryFile, error)
@@ -1940,6 +2002,7 @@ type QueryResolver interface {
 	CapturesAvailable(ctx context.Context) (bool, error)
 	DramaLinking(ctx context.Context) (*model.DramaLinkingStatus, error)
 	DramaTitleOverrides(ctx context.Context) ([]*model.DramaTitleOverride, error)
+	DramaLibrary(ctx context.Context) (*model.DramaLibrary, error)
 	Node(ctx context.Context, id string) (model.Node, error)
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
@@ -3519,6 +3582,192 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DramaEpisode.URL(childComplexity), true
+	case "DramaEpisode.watched":
+		if e.ComplexityRoot.DramaEpisode.Watched == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.Watched(childComplexity), true
+
+	case "DramaLibrary.enabled":
+		if e.ComplexityRoot.DramaLibrary.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibrary.Enabled(childComplexity), true
+	case "DramaLibrary.works":
+		if e.ComplexityRoot.DramaLibrary.Works == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibrary.Works(childComplexity), true
+
+	case "DramaLibraryBroadcast.episodeNumber":
+		if e.ComplexityRoot.DramaLibraryBroadcast.EpisodeNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryBroadcast.EpisodeNumber(childComplexity), true
+	case "DramaLibraryBroadcast.last":
+		if e.ComplexityRoot.DramaLibraryBroadcast.Last == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryBroadcast.Last(childComplexity), true
+	case "DramaLibraryBroadcast.program":
+		if e.ComplexityRoot.DramaLibraryBroadcast.Program == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryBroadcast.Program(childComplexity), true
+	case "DramaLibraryBroadcast.rerun":
+		if e.ComplexityRoot.DramaLibraryBroadcast.Rerun == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryBroadcast.Rerun(childComplexity), true
+	case "DramaLibraryBroadcast.seasonNumber":
+		if e.ComplexityRoot.DramaLibraryBroadcast.SeasonNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryBroadcast.SeasonNumber(childComplexity), true
+
+	case "DramaLibraryEpisode.episodeNumber":
+		if e.ComplexityRoot.DramaLibraryEpisode.EpisodeNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryEpisode.EpisodeNumber(childComplexity), true
+	case "DramaLibraryEpisode.name":
+		if e.ComplexityRoot.DramaLibraryEpisode.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryEpisode.Name(childComplexity), true
+	case "DramaLibraryEpisode.seasonNumber":
+		if e.ComplexityRoot.DramaLibraryEpisode.SeasonNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryEpisode.SeasonNumber(childComplexity), true
+	case "DramaLibraryEpisode.url":
+		if e.ComplexityRoot.DramaLibraryEpisode.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryEpisode.URL(childComplexity), true
+
+	case "DramaLibraryPastBroadcast.last":
+		if e.ComplexityRoot.DramaLibraryPastBroadcast.Last == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryPastBroadcast.Last(childComplexity), true
+	case "DramaLibraryPastBroadcast.startAt":
+		if e.ComplexityRoot.DramaLibraryPastBroadcast.StartAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryPastBroadcast.StartAt(childComplexity), true
+
+	case "DramaLibraryRecordedEpisode.episodeNumber":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.EpisodeNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.EpisodeNumber(childComplexity), true
+	case "DramaLibraryRecordedEpisode.name":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.Name(childComplexity), true
+	case "DramaLibraryRecordedEpisode.recording":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.Recording == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.Recording(childComplexity), true
+	case "DramaLibraryRecordedEpisode.recordingCount":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.RecordingCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.RecordingCount(childComplexity), true
+	case "DramaLibraryRecordedEpisode.seasonNumber":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.SeasonNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.SeasonNumber(childComplexity), true
+	case "DramaLibraryRecordedEpisode.watched":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.Watched == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.Watched(childComplexity), true
+
+	case "DramaLibraryWork.addedAt":
+		if e.ComplexityRoot.DramaLibraryWork.AddedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.AddedAt(childComplexity), true
+	case "DramaLibraryWork.broadcasts":
+		if e.ComplexityRoot.DramaLibraryWork.Broadcasts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.Broadcasts(childComplexity), true
+	case "DramaLibraryWork.id":
+		if e.ComplexityRoot.DramaLibraryWork.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.ID(childComplexity), true
+	case "DramaLibraryWork.lastWatched":
+		if e.ComplexityRoot.DramaLibraryWork.LastWatched == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.LastWatched(childComplexity), true
+	case "DramaLibraryWork.nextBroadcast":
+		if e.ComplexityRoot.DramaLibraryWork.NextBroadcast == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.NextBroadcast(childComplexity), true
+	case "DramaLibraryWork.nextEpisode":
+		if e.ComplexityRoot.DramaLibraryWork.NextEpisode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.NextEpisode(childComplexity), true
+	case "DramaLibraryWork.recentBroadcast":
+		if e.ComplexityRoot.DramaLibraryWork.RecentBroadcast == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.RecentBroadcast(childComplexity), true
+	case "DramaLibraryWork.recordedEpisodes":
+		if e.ComplexityRoot.DramaLibraryWork.RecordedEpisodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.RecordedEpisodes(childComplexity), true
+	case "DramaLibraryWork.series":
+		if e.ComplexityRoot.DramaLibraryWork.Series == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.Series(childComplexity), true
+	case "DramaLibraryWork.status":
+		if e.ComplexityRoot.DramaLibraryWork.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.Status(childComplexity), true
 
 	case "DramaLinkingStatus.tokenConfigured":
 		if e.ComplexityRoot.DramaLinkingStatus.TokenConfigured == nil {
@@ -3563,6 +3812,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DramaSeries.URL(childComplexity), true
+	case "DramaSeries.watchStatus":
+		if e.ComplexityRoot.DramaSeries.WatchStatus == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaSeries.WatchStatus(childComplexity), true
 
 	case "DramaTitleOverride.titleKey":
 		if e.ComplexityRoot.DramaTitleOverride.TitleKey == nil {
@@ -5607,6 +5862,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SendPlayerCommand(childComplexity, args["id"].(string), args["command"].(model.PlayerCommandInput)), true
+	case "Mutation.setDramaEpisodeWatched":
+		if e.ComplexityRoot.Mutation.SetDramaEpisodeWatched == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setDramaEpisodeWatched_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetDramaEpisodeWatched(childComplexity, args["seriesId"].(int), args["seasonNumber"].(int), args["episodeNumber"].(int), args["watched"].(bool)), true
+	case "Mutation.setDramaWatchStatus":
+		if e.ComplexityRoot.Mutation.SetDramaWatchStatus == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setDramaWatchStatus_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetDramaWatchStatus(childComplexity, args["seriesId"].(int), args["status"].(*model.DramaWatchStatus)), true
 	case "Mutation.setRecordingProtected":
 		if e.ComplexityRoot.Mutation.SetRecordingProtected == nil {
 			break
@@ -6993,6 +7270,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ContinueWatching(childComplexity, args["first"].(int)), true
+	case "Query.dramaLibrary":
+		if e.ComplexityRoot.Query.DramaLibrary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DramaLibrary(childComplexity), true
 	case "Query.dramaLinking":
 		if e.ComplexityRoot.Query.DramaLinking == nil {
 			break
@@ -10703,7 +10986,8 @@ extend type Mutation {
   """
   プレイヤーが実際に再生した区間を送る (#927)。ライブ視聴では serviceId を、録画の再生では recordingId を渡す。
   区間は、番組ごとに重ねずにまとめるので、同じ区間を送り直しても、複数のタブから送っても、多く数えない。
-  番組の長さのうち、決めた割合を見たら、結びついた話を記録する。記録の対象でなければ (連携が無効か、連携していない) false を返す。
+  番組の長さのうち、決めた割合を見たら、結びついた話を記録する。TMDb の話に結びついたドラマの番組なら、見たドラマの話にする (#1652)。
+  記録の対象でなければ (アニメの連携が無効か連携しておらず、TMDb との連携も無効) false を返す。
   """
   reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
 }
@@ -11441,6 +11725,143 @@ extend type Mutation {
   正しくない値なら BAD_USER_INPUT を返す。変えた後の、すべての上書きを返す。
   """
   updateDramaTitleOverride(input: DramaTitleOverrideInput!): [DramaTitleOverride!]!
+}
+`, BuiltIn: false},
+	{Name: "../schema/drama_library.graphqls", Input: `"""
+ユーザーが見ているドラマの作品の状態 (#1652、設計書 3.9)。
+"""
+enum DramaWatchStatus {
+  "見ている"
+  WATCHING
+  "見たい"
+  WANNA_WATCH
+}
+
+"""
+ドラマの視聴管理の画面の、作品の 1 話 (#1652)。
+"""
+type DramaLibraryEpisode {
+  "TMDb のシーズンの番号。0 は特別編。"
+  seasonNumber: Int!
+  "シーズンの中の話の番号。"
+  episodeNumber: Int!
+  "話の名前。TMDb のキャッシュになければ null。"
+  name: String
+  "TMDb の話のページ。"
+  url: String!
+}
+
+"""
+ドラマの作品の放送 (#1652)。
+"""
+type DramaLibraryBroadcast {
+  program: Program!
+  "放送する話のシーズン。話を決められなかった放送では null。"
+  seasonNumber: Int
+  "放送する話の番号。話を決められなかった放送では null。"
+  episodeNumber: Int
+  "再放送かどうか。"
+  rerun: Boolean!
+  "TMDb のシーズンの最後の話かどうか。最後の話が分からなければ false。"
+  last: Boolean!
+}
+
+"""
+ドラマの作品の始まった放送 (#1652)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+"""
+type DramaLibraryPastBroadcast {
+  startAt: Time!
+  "TMDb のシーズンの最後の話かどうか。"
+  last: Boolean!
+}
+
+"""
+ドラマの作品の、録画のある話 (#1652)。
+"""
+type DramaLibraryRecordedEpisode {
+  seasonNumber: Int!
+  episodeNumber: Int!
+  "話の名前。TMDb のキャッシュになければ null。"
+  name: String
+  "その話の録画のうち、最も新しく録ったもの。"
+  recording: Recording!
+  "その話の録画の数。2 局で録ったときなどは 2 以上になる。"
+  recordingCount: Int!
+  "見た話かどうか。見た話か、最後に見た話より前の話なら true。見た話がひとつもない作品では null。"
+  watched: Boolean
+}
+
+"""
+ドラマの視聴管理の画面の 1 作品 (#1652)。
+"""
+type DramaLibraryWork {
+  "作品を見分ける ID。"
+  id: ID!
+  series: DramaSeries!
+  status: DramaWatchStatus!
+  "見ている作品に足した日時。"
+  addedAt: Time!
+  "見た話のうち、最も後の話 (特別編を除く)。見た話がなければ null。"
+  lastWatched: DramaLibraryEpisode
+  """
+  次に見る話。最後に見た話の次の話で、シーズンの最後の話なら、次のシーズンの最初の話。
+  見た話がないか、最後のシーズンの最後の話まで見ていれば null。
+  """
+  nextEpisode: DramaLibraryEpisode
+  """
+  次の放送 (放送中を含む)。これから 1 週間の放送のうち、最後に見た話より後の話の放送で最も早いもの。なければ、最も早い放送。
+  放送がなければ null。
+  """
+  nextBroadcast: DramaLibraryBroadcast
+  "これから 1 週間の放送 (放送中を含む)。放送の早い順に並べる。"
+  broadcasts: [DramaLibraryBroadcast!]!
+  "この 1 週間に始まった最も新しい放送。なければ null。"
+  recentBroadcast: DramaLibraryPastBroadcast
+  "録画のある話。シーズンと話の順に並べる。"
+  recordedEpisodes: [DramaLibraryRecordedEpisode!]!
+}
+
+"""
+ログイン中のユーザーが見ているドラマの作品を、作品ごとに並べたもの (ドラマの視聴管理の画面。#1652)。
+"""
+type DramaLibrary {
+  "管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。"
+  enabled: Boolean!
+  "見ている作品と見たい作品。次の放送の早い順に並べ、放送の予定のない作品は、作品名の順に後ろに回す。"
+  works: [DramaLibraryWork!]!
+}
+
+extend type DramaSeries {
+  "ログイン中のユーザーが、この作品を見ている作品に入れた状態 (#1652)。入れていなければ null。"
+  watchStatus: DramaWatchStatus
+}
+
+extend type DramaEpisode {
+  "ログイン中のユーザーが、この話を見たかどうか (#1652)。話を決められなければ false。"
+  watched: Boolean!
+}
+
+extend type Query {
+  """
+  ログイン中のユーザーが見ているドラマの作品を、次の話と次の放送と録画と並べて返す (#1652)。ほかのユーザーの作品は見えない。
+  視聴者も使える。TMDb には問い合わせない。
+  """
+  dramaLibrary: DramaLibrary!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーの見ている作品に、TMDb の作品 seriesId を状態 status で足すか、状態を変える。status が null なら外す (#1652)。
+  視聴者も使える。足せるのは、番組か録画に結びついた作品だけで、結びつきがなければ NOT_FOUND を返す。
+  管理者が TMDb との連携を無効にしていれば CONFLICT を返す。変えた後の作品を返す。
+  """
+  setDramaWatchStatus(seriesId: Int!, status: DramaWatchStatus): DramaSeries!
+  """
+  ログイン中のユーザーが、TMDb の作品 seriesId のシーズン seasonNumber の話 episodeNumber を見たことを、手で付けるか外す (#1652)。
+  視聴者も使える。番号が正しくなければ BAD_USER_INPUT を、管理者が TMDb との連携を無効にしていれば CONFLICT を返す。
+  変えた後に、見たかどうかを返す。
+  """
+  setDramaEpisodeWatched(seriesId: Int!, seasonNumber: Int!, episodeNumber: Int!, watched: Boolean!): Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema/epg.graphqls", Input: `"""
@@ -15702,8 +16123,104 @@ func (ec *executionContext) childFields_DramaEpisode(ctx context.Context, field 
 		return ec.fieldContext_DramaEpisode_episodeSource(ctx, field)
 	case "url":
 		return ec.fieldContext_DramaEpisode_url(ctx, field)
+	case "watched":
+		return ec.fieldContext_DramaEpisode_watched(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DramaEpisode", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibrary(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "enabled":
+		return ec.fieldContext_DramaLibrary_enabled(ctx, field)
+	case "works":
+		return ec.fieldContext_DramaLibrary_works(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibrary", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibraryBroadcast(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "program":
+		return ec.fieldContext_DramaLibraryBroadcast_program(ctx, field)
+	case "seasonNumber":
+		return ec.fieldContext_DramaLibraryBroadcast_seasonNumber(ctx, field)
+	case "episodeNumber":
+		return ec.fieldContext_DramaLibraryBroadcast_episodeNumber(ctx, field)
+	case "rerun":
+		return ec.fieldContext_DramaLibraryBroadcast_rerun(ctx, field)
+	case "last":
+		return ec.fieldContext_DramaLibraryBroadcast_last(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibraryBroadcast", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibraryEpisode(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "seasonNumber":
+		return ec.fieldContext_DramaLibraryEpisode_seasonNumber(ctx, field)
+	case "episodeNumber":
+		return ec.fieldContext_DramaLibraryEpisode_episodeNumber(ctx, field)
+	case "name":
+		return ec.fieldContext_DramaLibraryEpisode_name(ctx, field)
+	case "url":
+		return ec.fieldContext_DramaLibraryEpisode_url(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibraryEpisode", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibraryPastBroadcast(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "startAt":
+		return ec.fieldContext_DramaLibraryPastBroadcast_startAt(ctx, field)
+	case "last":
+		return ec.fieldContext_DramaLibraryPastBroadcast_last(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibraryPastBroadcast", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibraryRecordedEpisode(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "seasonNumber":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_seasonNumber(ctx, field)
+	case "episodeNumber":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_episodeNumber(ctx, field)
+	case "name":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_name(ctx, field)
+	case "recording":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_recording(ctx, field)
+	case "recordingCount":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_recordingCount(ctx, field)
+	case "watched":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_watched(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibraryRecordedEpisode", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibraryWork(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_DramaLibraryWork_id(ctx, field)
+	case "series":
+		return ec.fieldContext_DramaLibraryWork_series(ctx, field)
+	case "status":
+		return ec.fieldContext_DramaLibraryWork_status(ctx, field)
+	case "addedAt":
+		return ec.fieldContext_DramaLibraryWork_addedAt(ctx, field)
+	case "lastWatched":
+		return ec.fieldContext_DramaLibraryWork_lastWatched(ctx, field)
+	case "nextEpisode":
+		return ec.fieldContext_DramaLibraryWork_nextEpisode(ctx, field)
+	case "nextBroadcast":
+		return ec.fieldContext_DramaLibraryWork_nextBroadcast(ctx, field)
+	case "broadcasts":
+		return ec.fieldContext_DramaLibraryWork_broadcasts(ctx, field)
+	case "recentBroadcast":
+		return ec.fieldContext_DramaLibraryWork_recentBroadcast(ctx, field)
+	case "recordedEpisodes":
+		return ec.fieldContext_DramaLibraryWork_recordedEpisodes(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibraryWork", field.Name)
 }
 
 func (ec *executionContext) childFields_DramaLinkingStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -15728,6 +16245,8 @@ func (ec *executionContext) childFields_DramaSeries(ctx context.Context, field g
 		return ec.fieldContext_DramaSeries_originalName(ctx, field)
 	case "url":
 		return ec.fieldContext_DramaSeries_url(ctx, field)
+	case "watchStatus":
+		return ec.fieldContext_DramaSeries_watchStatus(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DramaSeries", field.Name)
 }
@@ -19079,6 +19598,66 @@ func (ec *executionContext) field_Mutation_sendPlayerCommand_args(ctx context.Co
 		return nil, err
 	}
 	args["command"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setDramaEpisodeWatched_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "seriesId",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["seriesId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "seasonNumber",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["seasonNumber"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "episodeNumber",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["episodeNumber"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "watched",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["watched"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setDramaWatchStatus_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "seriesId",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["seriesId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "status",
+		func(ctx context.Context, v any) (*model.DramaWatchStatus, error) {
+			return ec.unmarshalODramaWatchStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["status"] = arg1
 	return args, nil
 }
 
@@ -26026,6 +26605,786 @@ func (ec *executionContext) fieldContext_DramaEpisode_url(_ context.Context, fie
 	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "String")
 }
 
+func (ec *executionContext) _DramaEpisode_watched(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_watched(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.DramaEpisode().Watched(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_watched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, true, true, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibrary_enabled(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibrary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibrary_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibrary_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibrary", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibrary_works(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibrary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibrary_works(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Works, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaLibraryWork) graphql.Marshaler {
+			return ec.marshalNDramaLibraryWork2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryWorkᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibrary_works(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibrary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryWork(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryBroadcast_program(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryBroadcast_program(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Program, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryBroadcast_program(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryBroadcast",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryBroadcast_seasonNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryBroadcast_seasonNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeasonNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryBroadcast_seasonNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryBroadcast", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryBroadcast_episodeNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryBroadcast_episodeNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryBroadcast_episodeNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryBroadcast", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryBroadcast_rerun(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryBroadcast_rerun(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rerun, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryBroadcast_rerun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryBroadcast", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibraryBroadcast_last(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryBroadcast_last(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Last, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryBroadcast_last(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryBroadcast", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibraryEpisode_seasonNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryEpisode_seasonNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeasonNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryEpisode_seasonNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryEpisode_episodeNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryEpisode_episodeNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryEpisode_episodeNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryEpisode_name(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryEpisode_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryEpisode_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLibraryEpisode_url(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryEpisode_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryEpisode_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLibraryPastBroadcast_startAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryPastBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryPastBroadcast_startAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryPastBroadcast_startAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryPastBroadcast", field, false, false, "Time")
+}
+
+func (ec *executionContext) _DramaLibraryPastBroadcast_last(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryPastBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryPastBroadcast_last(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Last, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryPastBroadcast_last(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryPastBroadcast", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_seasonNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_seasonNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeasonNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_seasonNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryRecordedEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_episodeNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_episodeNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_episodeNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryRecordedEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_name(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryRecordedEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_recording(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_recording(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recording, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Recording) graphql.Marshaler {
+			return ec.marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecording(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_recording(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryRecordedEpisode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_recordingCount(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_recordingCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecordingCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_recordingCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryRecordedEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_watched(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_watched(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Watched, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_watched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryRecordedEpisode", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibraryWork_id(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryWork", field, false, false, "ID")
+}
+
+func (ec *executionContext) _DramaLibraryWork_series(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_series(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Series, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaSeries) graphql.Marshaler {
+			return ec.marshalNDramaSeries2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeries(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_series(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaSeries(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_status(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.DramaWatchStatus) graphql.Marshaler {
+			return ec.marshalNDramaWatchStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryWork", field, false, false, "DramaWatchStatus")
+}
+
+func (ec *executionContext) _DramaLibraryWork_addedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_addedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AddedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_addedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryWork", field, false, false, "Time")
+}
+
+func (ec *executionContext) _DramaLibraryWork_lastWatched(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_lastWatched(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastWatched, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLibraryEpisode) graphql.Marshaler {
+			return ec.marshalODramaLibraryEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryEpisode(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_lastWatched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_nextEpisode(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_nextEpisode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextEpisode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLibraryEpisode) graphql.Marshaler {
+			return ec.marshalODramaLibraryEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryEpisode(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_nextEpisode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_nextBroadcast(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_nextBroadcast(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextBroadcast, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLibraryBroadcast) graphql.Marshaler {
+			return ec.marshalODramaLibraryBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcast(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_nextBroadcast(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryBroadcast(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_broadcasts(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_broadcasts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Broadcasts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaLibraryBroadcast) graphql.Marshaler {
+			return ec.marshalNDramaLibraryBroadcast2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcastᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_broadcasts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryBroadcast(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_recentBroadcast(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_recentBroadcast(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecentBroadcast, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLibraryPastBroadcast) graphql.Marshaler {
+			return ec.marshalODramaLibraryPastBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryPastBroadcast(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_recentBroadcast(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryPastBroadcast(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_recordedEpisodes(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_recordedEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecordedEpisodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaLibraryRecordedEpisode) graphql.Marshaler {
+			return ec.marshalNDramaLibraryRecordedEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryRecordedEpisodeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_recordedEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryRecordedEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _DramaLinkingStatus_tokenConfigured(ctx context.Context, field graphql.CollectedField, obj *model.DramaLinkingStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26185,6 +27544,29 @@ func (ec *executionContext) _DramaSeries_url(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_DramaSeries_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("DramaSeries", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaSeries_watchStatus(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaSeries_watchStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.DramaSeries().WatchStatus(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaWatchStatus) graphql.Marshaler {
+			return ec.marshalODramaWatchStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaSeries_watchStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaSeries", field, true, true, "DramaWatchStatus")
 }
 
 func (ec *executionContext) _DramaTitleOverride_titleKey(ctx context.Context, field graphql.CollectedField, obj *model.DramaTitleOverride) (ret graphql.Marshaler) {
@@ -32182,6 +33564,94 @@ func (ec *executionContext) fieldContext_Mutation_updateDramaTitleOverride(ctx c
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateDramaTitleOverride_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setDramaWatchStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setDramaWatchStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetDramaWatchStatus(ctx, fc.Args["seriesId"].(int), fc.Args["status"].(*model.DramaWatchStatus))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaSeries) graphql.Marshaler {
+			return ec.marshalNDramaSeries2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeries(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setDramaWatchStatus(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaSeries(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setDramaWatchStatus_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setDramaEpisodeWatched(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setDramaEpisodeWatched(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetDramaEpisodeWatched(ctx, fc.Args["seriesId"].(int), fc.Args["seasonNumber"].(int), fc.Args["episodeNumber"].(int), fc.Args["watched"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setDramaEpisodeWatched(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setDramaEpisodeWatched_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -40125,6 +41595,38 @@ func (ec *executionContext) fieldContext_Query_dramaTitleOverrides(_ context.Con
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_DramaTitleOverride(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_dramaLibrary(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_dramaLibrary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DramaLibrary(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLibrary) graphql.Marshaler {
+			return ec.marshalNDramaLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibrary(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_dramaLibrary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibrary(ctx, field)
 		},
 	}
 	return fc, nil
@@ -58632,35 +60134,354 @@ func (ec *executionContext) _DramaEpisode(ctx context.Context, sel ast.Selection
 		case "series":
 			out.Values[i] = ec._DramaEpisode_series(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "seriesSource":
 			out.Values[i] = ec._DramaEpisode_seriesSource(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "seasonNumber":
 			out.Values[i] = ec._DramaEpisode_seasonNumber(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "episodeNumber":
 			out.Values[i] = ec._DramaEpisode_episodeNumber(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "episodeName":
 			out.Values[i] = ec._DramaEpisode_episodeName(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "episodeSource":
 			out.Values[i] = ec._DramaEpisode_episodeSource(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "url":
 			out.Values[i] = ec._DramaEpisode_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "watched":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._DramaEpisode_watched(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryImplementors = []string{"DramaLibrary"}
+
+func (ec *executionContext) _DramaLibrary(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibrary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibrary")
+		case "enabled":
+			out.Values[i] = ec._DramaLibrary_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "works":
+			out.Values[i] = ec._DramaLibrary_works(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryBroadcastImplementors = []string{"DramaLibraryBroadcast"}
+
+func (ec *executionContext) _DramaLibraryBroadcast(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibraryBroadcast) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryBroadcastImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibraryBroadcast")
+		case "program":
+			out.Values[i] = ec._DramaLibraryBroadcast_program(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "seasonNumber":
+			out.Values[i] = ec._DramaLibraryBroadcast_seasonNumber(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "episodeNumber":
+			out.Values[i] = ec._DramaLibraryBroadcast_episodeNumber(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "rerun":
+			out.Values[i] = ec._DramaLibraryBroadcast_rerun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "last":
+			out.Values[i] = ec._DramaLibraryBroadcast_last(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryEpisodeImplementors = []string{"DramaLibraryEpisode"}
+
+func (ec *executionContext) _DramaLibraryEpisode(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibraryEpisode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryEpisodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibraryEpisode")
+		case "seasonNumber":
+			out.Values[i] = ec._DramaLibraryEpisode_seasonNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "episodeNumber":
+			out.Values[i] = ec._DramaLibraryEpisode_episodeNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._DramaLibraryEpisode_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._DramaLibraryEpisode_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryPastBroadcastImplementors = []string{"DramaLibraryPastBroadcast"}
+
+func (ec *executionContext) _DramaLibraryPastBroadcast(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibraryPastBroadcast) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryPastBroadcastImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibraryPastBroadcast")
+		case "startAt":
+			out.Values[i] = ec._DramaLibraryPastBroadcast_startAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "last":
+			out.Values[i] = ec._DramaLibraryPastBroadcast_last(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryRecordedEpisodeImplementors = []string{"DramaLibraryRecordedEpisode"}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibraryRecordedEpisode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryRecordedEpisodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibraryRecordedEpisode")
+		case "seasonNumber":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_seasonNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "episodeNumber":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_episodeNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "recording":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_recording(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recordingCount":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_recordingCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "watched":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_watched(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryWorkImplementors = []string{"DramaLibraryWork"}
+
+func (ec *executionContext) _DramaLibraryWork(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibraryWork) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryWorkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibraryWork")
+		case "id":
+			out.Values[i] = ec._DramaLibraryWork_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "series":
+			out.Values[i] = ec._DramaLibraryWork_series(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._DramaLibraryWork_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addedAt":
+			out.Values[i] = ec._DramaLibraryWork_addedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastWatched":
+			out.Values[i] = ec._DramaLibraryWork_lastWatched(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "nextEpisode":
+			out.Values[i] = ec._DramaLibraryWork_nextEpisode(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "nextBroadcast":
+			out.Values[i] = ec._DramaLibraryWork_nextBroadcast(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "broadcasts":
+			out.Values[i] = ec._DramaLibraryWork_broadcasts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recentBroadcast":
+			out.Values[i] = ec._DramaLibraryWork_recentBroadcast(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "recordedEpisodes":
+			out.Values[i] = ec._DramaLibraryWork_recordedEpisodes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -58738,23 +60559,29 @@ func (ec *executionContext) _DramaSeries(ctx context.Context, sel ast.SelectionS
 		case "tmdbId":
 			out.Values[i] = ec._DramaSeries_tmdbId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._DramaSeries_name(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "originalName":
 			out.Values[i] = ec._DramaSeries_originalName(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "url":
 			out.Values[i] = ec._DramaSeries_url(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "watchStatus":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._DramaSeries_watchStatus(ctx, field, obj)
+				})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -61243,6 +63070,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setDramaWatchStatus":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setDramaWatchStatus(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setDramaEpisodeWatched":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setDramaEpisodeWatched(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "retryJob":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_retryJob(ctx, field)
@@ -63421,6 +65262,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_dramaTitleOverrides(ctx, field)
+				})
+		case "dramaLibrary":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_dramaLibrary(ctx, field)
 				})
 		case "node":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -68740,6 +70587,86 @@ func (ec *executionContext) marshalNDeleteReservationPayload2ᚖgithubᚗcomᚋS
 	return ec._DeleteReservationPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNDramaLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibrary(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibrary) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaLibrary!")
+		return graphql.Null
+	}
+	return ec._DramaLibrary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDramaLibraryBroadcast2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcastᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DramaLibraryBroadcast) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDramaLibraryBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcast(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDramaLibraryBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcast(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryBroadcast) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaLibraryBroadcast!")
+		return graphql.Null
+	}
+	return ec._DramaLibraryBroadcast(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDramaLibraryRecordedEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryRecordedEpisodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DramaLibraryRecordedEpisode) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDramaLibraryRecordedEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryRecordedEpisode(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDramaLibraryRecordedEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryRecordedEpisode(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryRecordedEpisode) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaLibraryRecordedEpisode!")
+		return graphql.Null
+	}
+	return ec._DramaLibraryRecordedEpisode(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDramaLibraryWork2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryWorkᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DramaLibraryWork) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDramaLibraryWork2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryWork(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDramaLibraryWork2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryWork(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryWork) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaLibraryWork!")
+		return graphql.Null
+	}
+	return ec._DramaLibraryWork(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNDramaLinkingStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLinkingStatus(ctx context.Context, sel ast.SelectionSet, v *model.DramaLinkingStatus) graphql.Marshaler {
 	if v == nil {
 		graphql.AddInvalidNullError(ctx, "DramaLinkingStatus!")
@@ -68793,6 +70720,16 @@ func (ec *executionContext) marshalNDramaTitleOverride2ᚖgithubᚗcomᚋSlashNe
 func (ec *executionContext) unmarshalNDramaTitleOverrideInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideInput(ctx context.Context, v any) (model.DramaTitleOverrideInput, error) {
 	res, err := ec.unmarshalInputDramaTitleOverrideInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNDramaWatchStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx context.Context, v any) (model.DramaWatchStatus, error) {
+	var res model.DramaWatchStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDramaWatchStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx context.Context, sel ast.SelectionSet, v model.DramaWatchStatus) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNDrcsReplacement2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DrcsReplacement) graphql.Marshaler {
@@ -72251,6 +74188,43 @@ func (ec *executionContext) unmarshalODramaEpisodeSource2ᚖgithubᚗcomᚋSlash
 }
 
 func (ec *executionContext) marshalODramaEpisodeSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisodeSource(ctx context.Context, sel ast.SelectionSet, v *model.DramaEpisodeSource) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) marshalODramaLibraryBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcast(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryBroadcast) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DramaLibraryBroadcast(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODramaLibraryEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryEpisode(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryEpisode) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DramaLibraryEpisode(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODramaLibraryPastBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryPastBroadcast(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryPastBroadcast) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DramaLibraryPastBroadcast(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalODramaWatchStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx context.Context, v any) (*model.DramaWatchStatus, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.DramaWatchStatus)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODramaWatchStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx context.Context, sel ast.SelectionSet, v *model.DramaWatchStatus) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
