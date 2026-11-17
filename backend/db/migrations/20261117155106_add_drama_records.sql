@@ -11,6 +11,8 @@ CREATE TABLE "drama_record_authorizations" ("id" uuid NOT NULL, "state_hash" byt
 CREATE INDEX "drama_record_authorizations_expires_at_idx" ON "drama_record_authorizations" ("expires_at");
 -- create "drama_record_connections" table
 CREATE TABLE "drama_record_connections" ("user_id" uuid NOT NULL, "destination" text NOT NULL, "access_token_encrypted" bytea NOT NULL, "refresh_token_encrypted" bytea NOT NULL, "access_token_expires_at" timestamptz NOT NULL, "account_name" text NOT NULL, "connected_at" timestamptz NOT NULL, "reauthorization_required" boolean NOT NULL DEFAULT false, "watchlist_activity" text NULL, "watchlist_removed_activity" text NULL, "watchlist_checked_at" timestamptz NULL, "watchlist_imported_at" timestamptz NULL, "watchlist_error" text NULL, "watchlist_retry_at" timestamptz NULL, PRIMARY KEY ("user_id", "destination"), CONSTRAINT "drama_record_connections_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, CONSTRAINT "drama_record_connections_destination_check" CHECK (destination = 'simkl'::text));
+-- create "drama_record_settings" table
+CREATE TABLE "drama_record_settings" ("user_id" uuid NOT NULL, "threshold_percent" smallint NOT NULL DEFAULT 20, "updated_at" timestamptz NOT NULL, PRIMARY KEY ("user_id"), CONSTRAINT "drama_record_settings_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, CONSTRAINT "drama_record_settings_threshold_percent_check" CHECK ((threshold_percent >= 1) AND (threshold_percent <= 100)));
 -- create "drama_records" table
 CREATE TABLE "drama_records" ("id" uuid NOT NULL, "user_id" uuid NOT NULL, "service_id" bigint NOT NULL, "start_at" timestamptz NOT NULL, "destination" text NOT NULL, "tmdb_series_id" integer NOT NULL, "season_number" integer NOT NULL, "episode_number" integer NOT NULL, "program_name" text NOT NULL, "watched_at" timestamptz NOT NULL, "state" text NOT NULL, "url" text NULL, "error" text NULL, "created_at" timestamptz NOT NULL, "updated_at" timestamptz NOT NULL, PRIMARY KEY ("id"), CONSTRAINT "drama_records_user_id_service_id_start_at_destination_tmdb__key" UNIQUE ("user_id", "service_id", "start_at", "destination", "tmdb_series_id", "season_number", "episode_number"), CONSTRAINT "drama_records_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, CONSTRAINT "drama_records_destination_check" CHECK (destination = 'simkl'::text), CONSTRAINT "drama_records_episode_number_check" CHECK (episode_number > 0), CONSTRAINT "drama_records_season_number_check" CHECK (season_number >= 0), CONSTRAINT "drama_records_state_check" CHECK (state = ANY (ARRAY['pending'::text, 'recorded'::text, 'failed'::text])), CONSTRAINT "drama_records_tmdb_series_id_check" CHECK (tmdb_series_id > 0));
 -- create "drama_watchlist_imports" table
@@ -25,6 +27,8 @@ DROP INDEX "drama_watchlist_imports_pending_idx";
 DROP TABLE "drama_watchlist_imports";
 -- reverse: create "drama_records" table
 DROP TABLE "drama_records";
+-- reverse: create "drama_record_settings" table
+DROP TABLE "drama_record_settings";
 -- reverse: create "drama_record_connections" table
 DROP TABLE "drama_record_connections";
 -- reverse: create index "drama_record_authorizations_expires_at_idx" to table: "drama_record_authorizations"
