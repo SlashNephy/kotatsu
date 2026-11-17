@@ -91,13 +91,17 @@ function BackupSettings() {
   const { save } = useAutoSave();
   const { settings, latestRun } = data.backup;
   const [key, setKey] = useState('');
-  const [adding, setAdding] = useState(false);
+  // pendingRecipients は、保存を頼んだ公開鍵の一覧。読み直した一覧がこれと同じになるまで、足すのと消すのを止める。
+  // 一覧を丸ごと送るので、読み直す前に続けて押すと、前の操作を古い一覧で打ち消してしまうため。
+  const [pendingRecipients, setPendingRecipients] = useState<string | null>(null);
+  const editingKeys =
+    pendingRecipients !== null && pendingRecipients !== settings.recipients.join('\n');
   // requestedAfter は、今すぐ書き出すよう頼んだときの、最後の結果の時刻。結果が変わるまで、頼んだことを出す。
   // 頼んでいなければ undefined。まだ書き出したことがなければ null。
   const [requestedAfter, setRequestedAfter] = useState<string | null | undefined>(undefined);
   const lastFinishedAt = latestRun?.finishedAt ?? null;
   const requested = requestedAfter !== undefined && requestedAfter === lastFinishedAt;
-  const keyValid = agePublicKey.test(key) && !settings.recipients.includes(key);
+  const keyValid = agePublicKey.test(key) && !settings.recipients.includes(key) && !editingKeys;
   const reload = () => startTransition(() => setFetchKey((value) => value + 1));
 
   // saveSettings は、変えた項目だけを保存する (#1740)。省いた項目は、サーバーが変えない。
@@ -119,10 +123,24 @@ function BackupSettings() {
       reload();
     });
 
+  // saveRecipients は、公開鍵の一覧を保存する。保存できなければ、止めていた操作を戻す。
+  const saveRecipients = (recipients: string[]) => {
+    setPendingRecipients(recipients.join('\n'));
+
+    return saveSettings({ recipients }).then((ok) => {
+      if (!ok) {
+        setPendingRecipients(null);
+      }
+
+      return ok;
+    });
+  };
+
   const add = () => {
-    setAdding(true);
-    void saveSettings({ recipients: [...settings.recipients, key] }).then((ok) => {
-      setAdding(false);
+    if (!keyValid) {
+      return;
+    }
+    void saveRecipients([...settings.recipients, key]).then((ok) => {
       // 足せなかったら、入れた値を残し、やり直せるようにする。
       if (ok) {
         setKey('');
@@ -224,10 +242,9 @@ function BackupSettings() {
                   variant="subtle"
                   color="red"
                   aria-label={t('admin.backup.remove')}
+                  disabled={editingKeys}
                   onClick={() =>
-                    void saveSettings({
-                      recipients: settings.recipients.filter((r) => r !== recipient),
-                    })
+                    void saveRecipients(settings.recipients.filter((r) => r !== recipient))
                   }
                 >
                   <Trash2 size={16} />
@@ -247,8 +264,13 @@ function BackupSettings() {
                 key !== '' && !agePublicKey.test(key) ? t('admin.backup.recipientInvalid') : null
               }
               onChange={(event) => setKey(event.currentTarget.value.trim())}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  add();
+                }
+              }}
             />
-            <Button size="xs" variant="default" disabled={!keyValid || adding} onClick={add}>
+            <Button size="xs" variant="default" disabled={!keyValid} onClick={add}>
               {t('admin.backup.add')}
             </Button>
           </Group>

@@ -23,13 +23,16 @@ type Run = {
 };
 
 // serve は、サーバーのバックアップの設定を持ち、保存されたら送った項目を当てる環境を作る。sent は、送った mutation の変数。
-function serve(recipients: string[], latestRun: Run | null) {
+// frozen なら、保存しても、読み直した設定を変えない (読み直しが保存より遅れて届く場面)。
+function serve(recipients: string[], latestRun: Run | null, frozen = false) {
   let settings = { recipients, intervalHours: 24, generations: 7 };
   const sent: { name: string; variables: Variables }[] = [];
   const environment = createTestEnvironment((request, variables) => {
     if (request.name === 'backupMutation' || request.name === 'backupRunMutation') {
       sent.push({ name: request.name, variables });
-      settings = { ...settings, ...(variables.input as Partial<typeof settings>) };
+      if (!frozen) {
+        settings = { ...settings, ...(variables.input as Partial<typeof settings>) };
+      }
       const field = request.name === 'backupMutation' ? 'updateBackupSettings' : 'runBackup';
 
       return { data: { [field]: { settings: { updatedAt: '2026-11-17T00:00:01Z' } } } };
@@ -97,5 +100,17 @@ describe('バックアップの設定 (#1926)', () => {
     );
     await waitFor(() => expect(sent.map((s) => s.name)).toEqual(['backupRunMutation']));
     expect(await screen.findByText(/書き出しを頼みました/)).toBeDefined();
+  });
+
+  test('保存した公開鍵の一覧を読み直すまで、続けて消せない', async () => {
+    const { environment, sent } = serve([keyA, keyB], null, true);
+    await renderRoute(Route, '/admin/backup', '/admin/backup', environment);
+    await screen.findByText(keyA);
+
+    await act(async () => fireEvent.click(screen.getAllByRole('button', { name: '消す' })[0]!));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    // 古い一覧のまま keyB を消すと、keyA を戻してしまうので、押せない。
+    const removes = screen.getAllByRole('button', { name: '消す' });
+    expect(removes.every((button) => button.hasAttribute('disabled'))).toBe(true);
   });
 });

@@ -44,6 +44,8 @@ const (
 	retryAfter = time.Hour
 	// jobTimeout は、書き出しのジョブの時間の上限。DB が大きくても、数分で終わる見込み (開発用の DB で 3 秒)。
 	jobTimeout = time.Hour
+	// recordTimeout は、時間の上限を過ぎて取りやめた書き出しの結果を残すのに使う時間。
+	recordTimeout = 30 * time.Second
 	// FileNamePrefix と FileNameSuffix は、定期のバックアップのファイル名の前と後ろ。この形のファイルだけを、古い世代として消す。
 	FileNamePrefix = "kotatsu-backup-"
 	FileNameSuffix = ".age"
@@ -262,7 +264,10 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[RunArgs]) error {
 
 	started := w.opts.Clock.Now()
 	fileName, size, runErr := w.write(ctx, settings, started)
-	if err := w.record(ctx, job.Args.Manual, started, fileName, size, runErr); err != nil {
+	// 時間の上限を過ぎて ctx が終わっていても、失敗したことを画面に出せるよう、取りやめを引き継がずに結果を残す。
+	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordTimeout)
+	defer cancel()
+	if err := w.record(recordCtx, job.Args.Manual, started, fileName, size, runErr); err != nil {
 		return errors.Join(runErr, err)
 	}
 	if runErr != nil {
@@ -357,7 +362,12 @@ func Prune(dir string, generations int) error {
 	names := []string{}
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.Type().IsRegular() && strings.HasPrefix(name, FileNamePrefix) && strings.HasSuffix(name, FileNameSuffix) {
+		if !strings.HasPrefix(name, FileNamePrefix) || !strings.HasSuffix(name, FileNameSuffix) {
+			continue
+		}
+		// ファイルシステムによっては、一覧で種類が分からないので (DT_UNKNOWN)、ファイルの情報で確かめる。
+		info, err := entry.Info()
+		if err == nil && info.Mode().IsRegular() {
 			names = append(names, name)
 		}
 	}
