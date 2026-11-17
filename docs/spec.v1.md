@@ -2763,7 +2763,7 @@ Content Security Policyは厳しく設定します。
 | CodeQL | 開いているアラートが1件以上ある |
 
 - PRで作ったイメージは公開しないので、`image.yml`の別のジョブで、同じ版とキャッシュからamd64のイメージを作り直して見ます。必須のチェックの`image (...)`に入れないのは、新しく公開された脆弱性で、すべてのPRのマージを止めないためです。
-- CodeQLは、advanced setup（`.github/workflows/codeql.yml`）で動かします。default setupでは、解析の結果をworkflowで受け取れないからです。言語（actions、c-cpp、go、javascript-typescript、python）、クエリ（security-extended）、category（`/language:<言語>`）は、default setupのときと揃えます。解析の後、Code scanningでその言語の開いているアラートを数え、1件以上なら失敗にします。dismissしたアラートは数えません。フォークからのPRのように送れないときは、SARIFの結果から、抑制されたもの（`suppressions`）と無くなったもの（`baselineState`が`absent`）を除いて数えます。このときは、dismissしたものも数えます。PRでは、CodeQLのactionが、変わった行の結果だけをCode scanningに送ります（diff-informed analysis）。そのため、Code scanningで数えるときは、mainに既にあるアラートを数えません。SARIFで数えるときは、送る前の全件を数えるので、mainのアラートも数えます。
+- CodeQLは、advanced setup（`.github/workflows/codeql.yml`）で動かします。default setupでは、解析の結果をworkflowで受け取れないからです。言語（actions、c-cpp、go、javascript-typescript、python）、クエリ（security-extended）、category（`/language:<言語>`）は、default setupのときと揃えます。解析の後、Code scanningでその言語の開いているアラートを数え、1件以上なら失敗にします。dismissしたアラートは数えません。default setupで動かしていたときのアラートは、もう解析し直されず開いたまま残ることがあるので、このworkflowの解析（`analysis_key`）のものだけを数えます。フォークからのPRのように送れないときは、SARIFの結果から、抑制されたもの（`suppressions`）と無くなったもの（`baselineState`が`absent`）を除いて数えます。このときは、dismissしたものも数えます。PRでは、CodeQLのactionが、変わった行の結果だけをCode scanningに送ります（diff-informed analysis）。そのため、Code scanningで数えるときは、mainに既にあるアラートを数えません。SARIFで数えるときは、送る前の全件を数えるので、mainのアラートも数えます。
 
 GitHub Pagesは、GitHub Actionsから配信します（`.github/workflows/pages.yml`）。
 GitHub Pagesには、HelmリポジトリのChartの一覧（`index.yaml`）だけを置きます。

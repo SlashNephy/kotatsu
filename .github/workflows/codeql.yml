@@ -89,11 +89,16 @@ jobs:
           set -euo pipefail
           if [ "$ANALYZE_OUTCOME" = success ] && [ -n "$SARIF_ID" ]; then
             # 種類 (category) ごとに数える。ほかの言語のジョブのアラートは、そのジョブが数える。
+            # この workflow の解析のアラートだけを数える。default setup で動かしていたときのアラートは、
+            # analysis_key (dynamic/github-code-scanning/codeql:analyze) が違い、もう解析し直されないので、開いたまま残ることがある。
+            analysis_key="${GITHUB_WORKFLOW_REF#"$REPOSITORY/"}"
+            analysis_key="${analysis_key%@*}:$GITHUB_JOB"
             gh api --paginate "repos/$REPOSITORY/code-scanning/alerts?tool_name=CodeQL&state=open&per_page=100&ref=$REF" \
-              --jq '.[]' | jq -s --arg category "$CATEGORY" '[.[] | select(.most_recent_instance.category == $category)]' > alerts.json
+              --jq '.[]' | jq -s --arg category "$CATEGORY" --arg key "$analysis_key" \
+              '[.[] | select(.most_recent_instance.category == $category and .most_recent_instance.analysis_key == $key)]' > alerts.json
             jq -r '.[] | "\(.html_url) \(.rule.id) \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)"' alerts.json
             count=$(jq length alerts.json)
-            echo "$count open alerts on $REF ($CATEGORY)"
+            echo "$count open alerts on $REF ($CATEGORY, $analysis_key)"
           else
             if ! ls sarif/*.sarif > /dev/null 2>&1; then
               echo "::error::No SARIF file was written"
