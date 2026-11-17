@@ -152,7 +152,7 @@ type ListFutureProgramReservationsRow struct {
 // 番組が EPG にあり、終了時刻が決まっているか (decided) も返す。番組が消えたか、未定になったのは一時的なことがあるので、
 // ルールに一致しなくなったとはみなさない (#518)。
 // 番組名が空か (unnamed) も返す。条件から外れたのか、まだ読めていないだけなのかを区別できないので、消さない (#1501)。
-// 番組が EPG にあるか (listed) も返す。EPG から消えた番組の予約は、同じ枠に別の番組が出ていれば、差し替えられたとみなして消す (#1875)。
+// 番組が EPG にあるか (listed) も返す。EPG から消えた番組の予約は、同じ枠にルールに一致する別の番組が出ていれば、差し替えられたとみなして消す (#1875)。
 func (q *Queries) ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error) {
 	rows, err := q.db.Query(ctx, listFutureProgramReservations, now)
 	if err != nil {
