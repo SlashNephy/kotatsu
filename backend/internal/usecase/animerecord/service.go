@@ -35,8 +35,9 @@ const (
 	appSealPurpose = "kotatsu/anime-record-app/v1"
 	// connectionSealPurpose は、ユーザーのアクセストークンを暗号化する用途 (設計書 8.4)。
 	connectionSealPurpose = "kotatsu/anime-record-token/v1"
-	// CallbackPathPrefix は、記録先から戻ってくるリダイレクト URI のパスの前半。後ろに記録先の名前と /callback を付ける。
-	CallbackPathPrefix = "/internal/auth/anime-records/"
+	// callbackPathPrefix は、記録先から戻ってくるリダイレクト URI のパスの前半。後ろに記録先の名前と /callback を付ける。
+	// Google Drive の /internal/auth/google/callback と同じく、外部のサービスごとに 1 つの URI にする (#1906)。
+	callbackPathPrefix = "/internal/auth/"
 	// authorizationTTL は、認可を始めてから戻ってくるまでの時間の上限。
 	authorizationTTL = 10 * time.Minute
 	// stateBytes は、state の乱数の長さ。
@@ -275,9 +276,14 @@ func (s *Service) Available(ctx context.Context, db sqlc.DBTX) (*Availability, e
 	return &Availability{LinkingEnabled: system.AnimeLinkingEnabled, Configured: configured}, nil
 }
 
+// CallbackPath は、記録先 name から戻ってくるリダイレクト URI のパス (/internal/auth/<記録先>/callback) を返す。
+func CallbackPath(name string) string {
+	return callbackPathPrefix + name + "/callback"
+}
+
 // RedirectURI は、記録先 name のリダイレクト URI を、接続したオリジン origin から返す。管理者は、これを記録先に登録する。
 func RedirectURI(origin, name string) string {
-	return origin + CallbackPathPrefix + name + "/callback"
+	return origin + CallbackPath(name)
 }
 
 // Connection は、ユーザーと記録先の連携。トークンは返さない。

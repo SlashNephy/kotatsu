@@ -9,7 +9,7 @@
 #   KOTATSU_SMOKE_START_TIMEOUT は、起動してからヘルスチェックが ok を返すまで待つ秒 (既定は 120)。
 #   KOTATSU_SMOKE_SLEEP に windows か macos を渡すと、スリープの抑止と起こす予約が OS に届き、外せることも確かめる (#1522、設計書 11.7)。
 #     KOTATSU_SMOKE_PSQL に psql のパスを渡す。Windows は管理者で、macOS は sudo で Kotatsu を動かす (起こす予約に要る)。
-# 偽のチューナーサーバー (backend/cmd/faketuner) を、同じマシンで Go から立てる。
+# 偽のチューナーサーバー (backend/internal/cmd/faketuner) を、同じマシンで Go から立てる。
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -79,7 +79,7 @@ fi
 echo "::endgroup::"
 
 step "Start the fake tuner server"
-go build -o "$work/faketuner" ./backend/cmd/faketuner
+go build -o "$work/faketuner" ./backend/internal/cmd/faketuner
 "$work/faketuner" -listen "127.0.0.1:$tuner_port" -ts backend/testdata/ts/test.ts >"$work/faketuner.log" 2>&1 &
 pids+=("$!")
 echo "::endgroup::"

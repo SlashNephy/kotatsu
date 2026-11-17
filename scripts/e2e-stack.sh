@@ -27,13 +27,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-go build -o "$work/faketuner" ./backend/cmd/faketuner
+go build -o "$work/faketuner" ./backend/internal/cmd/faketuner
 "$work/faketuner" -listen "127.0.0.1:$tuner_port" -ts backend/testdata/ts/test.ts >"$work/faketuner.log" 2>&1 &
 pids+=("$!")
 
 # 偽の IdP。グループは、自動で作るユーザーのロールを決めるのに使う。制御用のエンドポイントは、テストが次のユーザーを変えるのに使う。
 oidc_secret="kotatsu-e2e-only-oidc-secret"
-go build -o "$work/fakeidp" ./backend/cmd/fakeidp
+go build -o "$work/fakeidp" ./backend/internal/cmd/fakeidp
 "$work/fakeidp" -listen "127.0.0.1:$idp_port" -control "127.0.0.1:$idp_control_port" \
   -client-id kotatsu -client-secret "$oidc_secret" \
   -redirect-uri "http://127.0.0.1:$port/internal/auth/oidc/callback" -groups kotatsu-members >"$work/fakeidp.log" 2>&1 &

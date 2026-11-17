@@ -1,4 +1,4 @@
-// 偽の OIDC の IdP (backend/cmd/fakeidp) で、OIDC のログインを通しで確かめる (#1525、設計書 9.4、9.5、11.6)。
+// 偽の OIDC の IdP (backend/internal/cmd/fakeidp) で、OIDC のログインを通しで確かめる (#1525、設計書 9.4、9.5、11.6)。
 // scripts/e2e-stack.sh から流す。初回セットアップの管理者 (flows.spec.ts) がいる前提なので、stack の後に流す。
 //
 // ログインのボタンからの流れはブラウザで、断る場面は、素の HTTP のクライアントで確かめる。ログインの流れでは、
