@@ -57,11 +57,11 @@ func Restore(ctx context.Context, opts *RestoreOptions, r io.Reader, identities 
 	if err != nil {
 		return nil, err
 	}
-	if err := opts.CheckSecretKey(string(secretKey)); err != nil {
-		return nil, err
-	}
 	if manifest.Captures > 0 && !opts.Store.HasDataDir() {
 		return nil, ErrNoDataDir
+	}
+	if err := opts.CheckSecretKey(string(secretKey)); err != nil {
+		return nil, err
 	}
 
 	err = database.WithMigrationLock(ctx, opts.Logger, opts.DB, func(ctx context.Context) error {

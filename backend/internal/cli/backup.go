@@ -93,26 +93,37 @@ func newRestoreCommand(opts *Options, connect func(ctx context.Context) (*config
 			}
 			defer closePool(pool)
 
+			// 秘密キーのファイルは、戻し終えてから書く。途中で失敗したときに、ファイルだけが残ってやり直しを妨げないようにする。
+			// 書けないことが戻した後に分からないよう、先に、まだないことを確かめる。
+			if secretKeyOut != "" {
+				if _, err := os.Lstat(secretKeyOut); err == nil {
+					return fmt.Errorf("the secret key file %s already exists", secretKeyOut)
+				}
+			}
 			f, err := os.Open(input)
 			if err != nil {
 				return fmt.Errorf("failed to open the backup: %w", err)
 			}
 			defer f.Close()
+			var restoredKey string
 			manifest, err := backup.Restore(cmd.Context(), &backup.RestoreOptions{
 				DB: pool, Store: storeOf(cfg), Logger: opts.Logger,
 				CheckSecretKey: func(secretKey string) error {
-					if secretKeyOut != "" {
-						return writeSecretKeyFile(secretKeyOut, secretKey)
-					}
-					if cfg.Auth.SecretKey.Value() != secretKey {
+					if secretKeyOut == "" && cfg.Auth.SecretKey.Value() != secretKey {
 						return errSecretKeyMismatch
 					}
+					restoredKey = secretKey
 
 					return nil
 				},
 			}, f, identities)
 			if err != nil {
 				return err
+			}
+			if secretKeyOut != "" {
+				if err := writeSecretKeyFile(secretKeyOut, restoredKey); err != nil {
+					return err
+				}
 			}
 			opts.Logger.InfoContext(cmd.Context(), "backup restored",
 				slog.String("path", input), slog.Time("created_at", manifest.CreatedAt), slog.String("kotatsu_version", manifest.KotatsuVersion),
