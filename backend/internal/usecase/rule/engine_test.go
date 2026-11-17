@@ -1074,8 +1074,16 @@ func TestEngineDeletesReservationsOfReplacedPrograms(t *testing.T) {
 	}
 }
 
+// resized は、番組 p の長さを duration にして返す。
+func resized(p *faketuner.Program, duration time.Duration) *faketuner.Program {
+	p.Duration = duration.Milliseconds()
+
+	return p
+}
+
 // TestEngineSkipsSlotsOfReplacedManualReservations は、局が番組を別のイベント ID で出し直して差し替えたとき、EPG から消えた古い番組の
-// 手動の予約と同じ枠には、ルール予約を作らず、同じ放送を 2 本録らないことを確かめる (#1903)。手動の予約は、手動を優先して消さない。
+// 手動の予約が録る範囲 (マージンを含む) に収まる番組には、ルール予約を作らず、同じ放送を 2 本録らないことを確かめる (#1903)。
+// はみ出す番組は、手動の予約では録り逃すので、ルール予約を作る。手動の予約は、手動を優先して消さない。
 func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 	t.Parallel()
 
@@ -1093,8 +1101,10 @@ func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 		disableManual bool
 		// deleteManual は、照合の後に手動の予約を消し、もう一度照合するかどうか。
 		deleteManual bool
-		graceHours   int
-		want         map[int64]bool
+		// manualEndMargin は、0 でなければ、手動の予約の終わりのマージンをこの秒数で上書きする。
+		manualEndMargin int
+		graceHours      int
+		want            map[int64]bool
 	}{
 		{
 			name:        "同じ枠に差し替えられた",
@@ -1102,15 +1112,48 @@ func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 			want:        map[int64]bool{300: true},
 		},
 		{
-			name:        "開始が少しずれて差し替えられた",
-			replacement: slotProgram(301, replacedName+" 総集編", 5*time.Minute),
-			want:        map[int64]bool{300: true},
-		},
-		{
 			name:        "猶予の内に差し替えられた",
 			replacement: slotProgram(301, replacedName+" 総集編", 0),
 			graceHours:  24,
 			want:        map[int64]bool{300: true},
+		},
+		{
+			name:        "短くなって枠に収まる",
+			replacement: resized(slotProgram(301, replacedName+" 総集編", 5*time.Minute), 50*time.Minute),
+			want:        map[int64]bool{300: true},
+		},
+		{
+			// 手動の予約は、既定の終わりのマージン (15 秒) まで録る。
+			name:        "終わりのマージンの内で延びる",
+			replacement: resized(slotProgram(301, replacedName+" 総集編", 0), time.Hour+10*time.Second),
+			want:        map[int64]bool{300: true},
+		},
+		{
+			name:            "手動の予約の終わりのマージンの内で遅れる",
+			replacement:     slotProgram(301, replacedName+" 総集編", 5*time.Minute),
+			manualEndMargin: 10 * 60,
+			want:            map[int64]bool{300: true},
+		},
+		{
+			// 手動の予約では最後の 5 分を録り逃すので、2 本録るほうを選ぶ。
+			name:        "遅れて枠からはみ出す",
+			replacement: slotProgram(301, replacedName+" 総集編", 5*time.Minute),
+			want:        map[int64]bool{300: true, 301: true},
+		},
+		{
+			name:        "早まって枠からはみ出す",
+			replacement: slotProgram(301, replacedName+" 総集編", -5*time.Minute),
+			want:        map[int64]bool{300: true, 301: true},
+		},
+		{
+			name:        "延びて枠からはみ出す",
+			replacement: resized(slotProgram(301, replacedName+" 総集編", 0), 70*time.Minute),
+			want:        map[int64]bool{300: true, 301: true},
+		},
+		{
+			name:        "終わりのマージンを超えて延びる",
+			replacement: resized(slotProgram(301, replacedName+" 総集編", 0), time.Hour+20*time.Second),
+			want:        map[int64]bool{300: true, 301: true},
 		},
 		{
 			name:        "すぐ後に次の回がある",
@@ -1166,8 +1209,12 @@ func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 
 			f := newEngineFixture(t, slotProgram(300, replacedName+" 第1話", 0))
 			f.setGrace(t, tt.graceHours*60)
+			overrides := &domain.RecordingOverrides{}
+			if tt.manualEndMargin != 0 {
+				overrides.EndMarginSeconds = new(tt.manualEndMargin)
+			}
 			manual, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, &reserve.ProgramInput{
-				ServiceID: serviceID(), EventID: 300, FollowEventRelay: false, Overrides: &domain.RecordingOverrides{},
+				ServiceID: serviceID(), EventID: 300, FollowEventRelay: false, Overrides: overrides,
 			})
 			require.NoError(t, err)
 			f.createRule(t, replacedName, nil)

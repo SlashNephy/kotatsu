@@ -122,7 +122,7 @@ func (q *Queries) ListConflictingReservedPrograms(ctx context.Context, now time.
 }
 
 const listFutureProgramReservations = `-- name: ListFutureProgramReservations :many
-SELECT r.id, r.kind, r.service_id, r.event_id, r.start_at, r.end_at, r.enabled, r.follow_event_relay,
+SELECT r.id, r.kind, r.service_id, r.event_id, r.start_at, r.end_at, r.enabled, r.follow_event_relay, r.settings,
   EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id AND rec.state = 'recording') AS recording,
   EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id) AS listed,
   EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id AND NOT p.end_undecided) AS decided,
@@ -141,6 +141,7 @@ type ListFutureProgramReservationsRow struct {
 	EndAt            time.Time
 	Enabled          bool
 	FollowEventRelay bool
+	Settings         []byte
 	Recording        bool
 	Listed           bool
 	Decided          bool
@@ -153,6 +154,7 @@ type ListFutureProgramReservationsRow struct {
 // ルールに一致しなくなったとはみなさない (#518)。
 // 番組名が空か (unnamed) も返す。条件から外れたのか、まだ読めていないだけなのかを区別できないので、消さない (#1501)。
 // 番組が EPG にあるか (listed) も返す。EPG から消えた番組の予約は、同じ枠にルールに一致する別の番組が出ていれば、差し替えられたとみなして消す (#1875)。
+// 録画設定の上書き (settings) も返す。EPG から消えた番組の手動の予約が録る範囲を、マージンを含めて求める (#1903)。
 func (q *Queries) ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error) {
 	rows, err := q.db.Query(ctx, listFutureProgramReservations, now)
 	if err != nil {
@@ -171,6 +173,7 @@ func (q *Queries) ListFutureProgramReservations(ctx context.Context, now time.Ti
 			&i.EndAt,
 			&i.Enabled,
 			&i.FollowEventRelay,
+			&i.Settings,
 			&i.Recording,
 			&i.Listed,
 			&i.Decided,
