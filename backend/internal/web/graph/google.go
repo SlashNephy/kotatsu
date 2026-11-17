@@ -33,7 +33,14 @@ func (r *Resolver) googleIntegration(ctx context.Context) (*model.GoogleIntegrat
 	}
 	result := &model.GoogleIntegration{
 		ClientID: nonEmpty(app.ClientID), Configured: app.Configured, RedirectURI: google.RedirectURI(requestOrigin(ctx)),
-		UpdatedAt: app.UpdatedAt, Drive: nil,
+		UpdatedAt: app.UpdatedAt, Drive: nil, Folders: []*model.GoogleDriveFolder{},
+	}
+	folders, err := service.DriveFolders(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	for _, folder := range folders {
+		result.Folders = append(result.Folders, &model.GoogleDriveFolder{ID: folder.ID, Name: folder.Name, AddedAt: folder.AddedAt})
 	}
 	drive, err := service.Drive(ctx, r.db)
 	switch {
@@ -50,7 +57,7 @@ func (r *Resolver) googleIntegration(ctx context.Context) (*model.GoogleIntegrat
 // googleError は、Google の連携のエラーを、GraphQL のエラーにする。
 func googleError(err error) error {
 	switch {
-	case errors.Is(err, google.ErrInvalidApp):
+	case errors.Is(err, google.ErrInvalidApp), errors.Is(err, google.ErrNotAFolder):
 		return NewError(CodeBadUserInput, err.Error())
 	case errors.Is(err, google.ErrUnavailable):
 		return NewError(CodeConflict, "register the Google OAuth client first")
@@ -58,6 +65,8 @@ func googleError(err error) error {
 		return NewError(CodeForbidden, "a browser session is required to connect")
 	case errors.Is(err, google.ErrNotConnected):
 		return NewError(CodeNotFound, "Google Drive is not connected")
+	case errors.Is(err, google.ErrFolderNotSelected):
+		return NewError(CodeNotFound, "the folder is not selected")
 	case errors.Is(err, secretbox.ErrDecrypt):
 		// アプリの秘密キーを変えると、保存したシークレットやトークンを読めなくなる。中身は返さない。
 		return NewError(CodeConflict, "the saved secret cannot be decrypted; register it again")

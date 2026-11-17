@@ -599,7 +599,8 @@
     "remote": "Remote",
     "offline": "Saved recordings",
     "anime": "Anime",
-    "library": "Library"
+    "library": "Library",
+    "drama": "Drama"
   },
   "guide": {
     "watchLive": "Watch {{name}} live",
@@ -2502,7 +2503,7 @@
     "googleDrive": {
       "title": "Google Drive",
       "help": "Connect the administrator's Google Drive as a library. Create an OAuth client (web application) on Google Cloud with the redirect URI below as an authorized redirect URI, register its client ID and secret, then connect. Kotatsu asks only for read access to Google Drive (drive.readonly).",
-      "familyNote": "TS files (.ts, .m2ts, .mts) and folders in the connected account's Google Drive can be seen from the library by every signed-in family member, including viewers.",
+      "familyNote": "TS files (.ts, .m2ts, .mts) and folders under the folders chosen below can be seen from the library by every signed-in family member, including viewers. Nothing outside the chosen folders is shown.",
       "testingNote": "If the OAuth consent screen is external and left in Testing, Google disconnects after 7 days. Reconnect here when that happens.",
       "redirectUri": "Redirect URI",
       "clientId": "Client ID",
@@ -2517,7 +2518,7 @@
       "notConnected": "Not connected",
       "needsClient": "Register the client ID and secret before connecting",
       "revoked": "Google ended the connection ({{date}}): access was revoked or expired. Google Drive is hidden from the library until you reconnect",
-      "connected": "Connected Google Drive. You can open it from the library",
+      "connected": "Connected Google Drive. Choose the folders to show as the library",
       "disconnected": "Disconnected Google Drive",
       "callbackErrors": {
         "google_expired": "The connection expired. Connect again",
@@ -2526,6 +2527,21 @@
         "google_no_refresh_token": "Google did not return a refresh token. Connect again",
         "google_unavailable": "The client registration was removed, so the connection failed",
         "google_failed": "Could not connect. Check the client ID and secret and try again"
+      },
+      "folders": {
+        "title": "Folders shown as the library",
+        "help": "Only what is under the chosen folders appears in the library. Folders in shared drives can be chosen too. Google Drive is hidden from the library until at least one folder is chosen.",
+        "empty": "No folders chosen yet",
+        "add": "Add a folder",
+        "remove": "Remove",
+        "top": "Drives",
+        "noSubfolders": "No folders in here",
+        "error": "Could not read the folders",
+        "cancel": "Cancel",
+        "chooseHint": "Open a folder to choose it",
+        "choose": "Choose \"{{name}}\"",
+        "added": "Added the folder",
+        "removed": "Removed the folder"
       }
     }
   },
@@ -2763,8 +2779,8 @@
     "notConnected": "Not connected",
     "notRegistered": "The administrator has not registered an app, so you cannot connect",
     "aniListRevokeHint": "Kotatsu cannot revoke AniList tokens. After disconnecting, also remove the app in your AniList settings",
-    "recordOnDevice": "Record anime watched on this device",
-    "recordOnDeviceHelp": "When off, live viewing and recording playback on this device do not record watched anime. This setting is kept per device and is not synced to other devices.",
+    "recordOnDevice": "Record anime and dramas watched on this device",
+    "recordOnDeviceHelp": "When off, live viewing and recording playback on this device do not record watched anime or drama episodes. This setting is kept per device and is not synced to other devices.",
     "settingsTitle": "Recording settings",
     "threshold": "Share to count as watched",
     "thresholdHelp": "Record once the time you actually played reaches this share of the program length",
@@ -2801,6 +2817,35 @@
       "exclude": "Do not link",
       "reset": "Back to search",
       "saved": "Saved. It takes effect at the next matching run"
+    },
+    "library": {
+      "title": "Drama",
+      "description": "Series you marked as watching or want to watch from program and recording details, with the next episode, the next broadcast, and unwatched recordings.",
+      "status": {
+        "WATCHING": "Watching",
+        "WANNA_WATCH": "Want to watch",
+        "all": "All"
+      },
+      "loadError": "Could not load the series",
+      "disabled": "An administrator has not enabled TMDb linking",
+      "empty": "No series",
+      "emptyHint": "Add series with \"Track\" on a program or recording detail",
+      "noWatched": "No episodes watched yet",
+      "lastWatched": "Watched up to {{episode}}",
+      "next": "Next: {{episode}}{{title}}",
+      "finished": "Watched through the last episode",
+      "markNext": "Mark {{episode}} as watched"
+    },
+    "watch": {
+      "add": "Track",
+      "status": {
+        "WATCHING": "Watching",
+        "WANNA_WATCH": "Want to watch"
+      },
+      "remove": "Stop tracking",
+      "markWatched": "Mark as watched",
+      "watched": "Watched",
+      "unmarkHint": "Click to unmark as watched"
     }
   },
   "networkActivity": {
@@ -3002,6 +3047,17 @@
     "indexingStatus": "Preparing to seek. You can seek up to {{seconds}}.",
     "writing": "This file is still being written, so it is not prepared for seeking. It can be played from the beginning.",
     "myDrive": "My Drive",
-    "busy": "Google Drive is busy, or the download limit of the file was reached. Try again later"
+    "busy": "Google Drive is busy, or the download limit of the file was reached. Try again later",
+    "search": {
+      "label": "Search by name",
+      "placeholder": "Search this folder by name",
+      "submit": "Search",
+      "clear": "Clear search",
+      "count_one": "Found {{count}} file containing \"{{query}}\"",
+      "count_other": "Found {{count}} files containing \"{{query}}\"",
+      "truncated": "Too many results; only some are shown. Add words to narrow down",
+      "empty": "No files contain \"{{query}}\"",
+      "emptyHint": "Try another word, or search from a parent folder"
+    }
   }
 }

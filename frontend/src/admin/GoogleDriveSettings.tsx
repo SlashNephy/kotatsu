@@ -14,6 +14,7 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { zonedFormat } from '../futon';
+import { GoogleDriveFolders, type SelectedFolder } from './GoogleDriveFolders';
 import { Section } from './Section';
 
 const dateFormat = zonedFormat({
@@ -50,6 +51,8 @@ export type GoogleIntegrationItem = {
       }
     | null
     | undefined;
+  // folders は、ライブラリとして見せると選んだフォルダ。
+  folders: readonly SelectedFolder[];
 };
 
 // GoogleAppInput は、クライアントの登録の変更。clientSecret を省けば、登録したものを変えない。
@@ -67,6 +70,8 @@ export function GoogleDriveSettings({
   onSaveApp,
   onConnect,
   onDisconnect,
+  onAddFolder,
+  onRemoveFolder,
 }: {
   integration: GoogleIntegrationItem;
   busy: boolean;
@@ -77,6 +82,8 @@ export function GoogleDriveSettings({
   onSaveApp: (input: GoogleAppInput, onDone: () => void) => void;
   onConnect: () => void;
   onDisconnect: () => void;
+  onAddFolder: (id: string, onDone: () => void) => void;
+  onRemoveFolder: (id: string) => void;
 }) {
   const { t } = useTranslation();
   const drive = integration.drive ?? null;
@@ -150,6 +157,15 @@ export function GoogleDriveSettings({
             </Group>
           </Group>
         </Stack>
+        {/* 見せるフォルダは、接続していて、接続が切れていないときだけ選べる (#1902)。 */}
+        {drive !== null && revokedAt === null && (
+          <GoogleDriveFolders
+            folders={integration.folders}
+            busy={busy}
+            onAdd={onAddFolder}
+            onRemove={onRemoveFolder}
+          />
+        )}
       </Stack>
     </Section>
   );

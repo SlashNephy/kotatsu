@@ -67,6 +67,8 @@ import type {
 } from './__generated__/integrationsAnimeRecordAppMutation.graphql';
 import type { integrationsGoogleAppMutation } from './__generated__/integrationsGoogleAppMutation.graphql';
 import type { integrationsGoogleDriveBeginMutation } from './__generated__/integrationsGoogleDriveBeginMutation.graphql';
+import type { integrationsGoogleDriveAddFolderMutation } from './__generated__/integrationsGoogleDriveAddFolderMutation.graphql';
+import type { integrationsGoogleDriveRemoveFolderMutation } from './__generated__/integrationsGoogleDriveRemoveFolderMutation.graphql';
 import type { integrationsGoogleDriveDisconnectMutation } from './__generated__/integrationsGoogleDriveDisconnectMutation.graphql';
 import type { integrationsAnimeImportTokenMutation } from './__generated__/integrationsAnimeImportTokenMutation.graphql';
 import type { integrationsDramaTokenMutation } from './__generated__/integrationsDramaTokenMutation.graphql';
@@ -172,6 +174,10 @@ const query = graphql`
         accountName
         connectedAt
         revokedAt
+      }
+      folders {
+        id
+        name
       }
     }
     # TMDb との連携 (#1651、設計書 3.9)。
@@ -600,6 +606,40 @@ function Integrations() {
               window.location.assign(response.beginGoogleDriveConnection);
             }, fail)
           }
+          onAddFolder={(id, onDone) =>
+            gate.run(async () => {
+              await mutate<integrationsGoogleDriveAddFolderMutation>(
+                environment,
+                graphql`
+                  mutation integrationsGoogleDriveAddFolderMutation($id: String!) {
+                    addGoogleDriveFolder(id: $id) {
+                      folders {
+                        id
+                      }
+                    }
+                  }
+                `,
+                { id },
+              );
+              onDone();
+              succeed(t('admin.googleDrive.folders.added'));
+            }, fail)
+          }
+          onRemoveFolder={(id) => {
+            mutate<integrationsGoogleDriveRemoveFolderMutation>(
+              environment,
+              graphql`
+                mutation integrationsGoogleDriveRemoveFolderMutation($id: String!) {
+                  removeGoogleDriveFolder(id: $id) {
+                    folders {
+                      id
+                    }
+                  }
+                }
+              `,
+              { id },
+            ).then(() => succeed(t('admin.googleDrive.folders.removed')), fail);
+          }}
           onDisconnect={() => {
             mutate<integrationsGoogleDriveDisconnectMutation>(
               environment,

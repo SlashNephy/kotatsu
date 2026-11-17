@@ -40,6 +40,8 @@ func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
 type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
+	DramaEpisode() DramaEpisodeResolver
+	DramaSeries() DramaSeriesResolver
 	GuideView() GuideViewResolver
 	Mutation() MutationResolver
 	Program() ProgramResolver
@@ -442,6 +444,54 @@ type ComplexityRoot struct {
 		Series        func(childComplexity int) int
 		SeriesSource  func(childComplexity int) int
 		URL           func(childComplexity int) int
+		Watched       func(childComplexity int) int
+	}
+
+	DramaLibrary struct {
+		Enabled func(childComplexity int) int
+		Works   func(childComplexity int) int
+	}
+
+	DramaLibraryBroadcast struct {
+		EpisodeNumber func(childComplexity int) int
+		Last          func(childComplexity int) int
+		Program       func(childComplexity int) int
+		Rerun         func(childComplexity int) int
+		SeasonNumber  func(childComplexity int) int
+	}
+
+	DramaLibraryEpisode struct {
+		EpisodeNumber func(childComplexity int) int
+		Name          func(childComplexity int) int
+		SeasonNumber  func(childComplexity int) int
+		URL           func(childComplexity int) int
+	}
+
+	DramaLibraryPastBroadcast struct {
+		Last    func(childComplexity int) int
+		StartAt func(childComplexity int) int
+	}
+
+	DramaLibraryRecordedEpisode struct {
+		EpisodeNumber  func(childComplexity int) int
+		Name           func(childComplexity int) int
+		Recording      func(childComplexity int) int
+		RecordingCount func(childComplexity int) int
+		SeasonNumber   func(childComplexity int) int
+		Watched        func(childComplexity int) int
+	}
+
+	DramaLibraryWork struct {
+		AddedAt          func(childComplexity int) int
+		Broadcasts       func(childComplexity int) int
+		ID               func(childComplexity int) int
+		LastWatched      func(childComplexity int) int
+		NextBroadcast    func(childComplexity int) int
+		NextEpisode      func(childComplexity int) int
+		RecentBroadcast  func(childComplexity int) int
+		RecordedEpisodes func(childComplexity int) int
+		Series           func(childComplexity int) int
+		Status           func(childComplexity int) int
 	}
 
 	DramaLinkingStatus struct {
@@ -455,6 +505,7 @@ type ComplexityRoot struct {
 		OriginalName func(childComplexity int) int
 		TmdbID       func(childComplexity int) int
 		URL          func(childComplexity int) int
+		WatchStatus  func(childComplexity int) int
 	}
 
 	DramaTitleOverride struct {
@@ -517,10 +568,22 @@ type ComplexityRoot struct {
 		RevokedAt   func(childComplexity int) int
 	}
 
+	GoogleDriveFolder struct {
+		AddedAt func(childComplexity int) int
+		ID      func(childComplexity int) int
+		Name    func(childComplexity int) int
+	}
+
+	GoogleDriveFolderChoice struct {
+		ID   func(childComplexity int) int
+		Name func(childComplexity int) int
+	}
+
 	GoogleIntegration struct {
 		ClientID    func(childComplexity int) int
 		Configured  func(childComplexity int) int
 		Drive       func(childComplexity int) int
+		Folders     func(childComplexity int) int
 		RedirectURI func(childComplexity int) int
 		UpdatedAt   func(childComplexity int) int
 	}
@@ -751,6 +814,11 @@ type ComplexityRoot struct {
 		StartAt     func(childComplexity int) int
 	}
 
+	LibrarySearchResult struct {
+		Entries   func(childComplexity int) int
+		Truncated func(childComplexity int) int
+	}
+
 	LicenseFile struct {
 		Name func(childComplexity int) int
 		Text func(childComplexity int) int
@@ -807,6 +875,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		AddGoogleDriveFolder          func(childComplexity int, id string) int
 		ApproveOAuthAuthorization     func(childComplexity int, query string, scopes []string) int
 		BeginAnimeRecordConnection    func(childComplexity int, destination model.AnimeRecordDestination) int
 		BeginGoogleDriveConnection    func(childComplexity int) int
@@ -873,6 +942,7 @@ type ComplexityRoot struct {
 		RegenerateRecordingImages     func(childComplexity int, id string) int
 		RegenerateRecoveryCodes       func(childComplexity int) int
 		RegisterPlayer                func(childComplexity int, state model.PlayerStateInput) int
+		RemoveGoogleDriveFolder       func(childComplexity int, id string) int
 		RemoveTimeshiftChannel        func(childComplexity int, serviceID string) int
 		RenamePasskey                 func(childComplexity int, id string, name string) int
 		RenameRecordingFiles          func(childComplexity int, ids []string) int
@@ -888,6 +958,8 @@ type ComplexityRoot struct {
 		SaveLibraryWatchPosition      func(childComplexity int, id string, positionMs int64) int
 		SaveWatchPosition             func(childComplexity int, id string, positionMs int64) int
 		SendPlayerCommand             func(childComplexity int, id string, command model.PlayerCommandInput) int
+		SetDramaEpisodeWatched        func(childComplexity int, seriesID int, seasonNumber int, episodeNumber int, watched bool) int
+		SetDramaWatchStatus           func(childComplexity int, seriesID int, status *model.DramaWatchStatus) int
 		SetRecordingProtected         func(childComplexity int, id string, protected bool) int
 		SetRecordingTags              func(childComplexity int, id string, tags []string) int
 		SetReservationsEnabled        func(childComplexity int, ids []string, enabled bool) int
@@ -1144,87 +1216,90 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		APITokens               func(childComplexity int) int
-		AnimeChannels           func(childComplexity int) int
-		AnimeFollowingViewings  func(childComplexity int, tid int) int
-		AnimeImportToken        func(childComplexity int) int
-		AnimeImports            func(childComplexity int) int
-		AnimeLibrary            func(childComplexity int) int
-		AnimeRecordApps         func(childComplexity int) int
-		AnimeRecordSettings     func(childComplexity int) int
-		AnimeWishlist           func(childComplexity int) int
-		AuditEvents             func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
-		CalendarFeed            func(childComplexity int) int
-		CaptionModels           func(childComplexity int) int
-		Captures                func(childComplexity int, first int, after *string, keyword *string) int
-		CapturesAvailable       func(childComplexity int) int
-		ChannelTypes            func(childComplexity int) int
-		ContinueWatching        func(childComplexity int, first int) int
-		DramaLinking            func(childComplexity int) int
-		DramaTitleOverrides     func(childComplexity int) int
-		DrcsReplacements        func(childComplexity int) int
-		FileNameTemplateHelp    func(childComplexity int) int
-		GoModuleLicenses        func(childComplexity int) int
-		GoogleIntegration       func(childComplexity int) int
-		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
-		GuideViews              func(childComplexity int) int
-		IptvFeed                func(childComplexity int) int
-		IssuedStreamUrls        func(childComplexity int) int
-		JobCounts               func(childComplexity int) int
-		Jobs                    func(childComplexity int, state model.JobState, first int, after *string) int
-		Libraries               func(childComplexity int) int
-		LibraryArtifacts        func(childComplexity int) int
-		LibraryDirectory        func(childComplexity int, library string, path string) int
-		LibraryFile             func(childComplexity int, library string, path string) int
-		LogReport               func(childComplexity int) int
-		MissingRecordings       func(childComplexity int) int
-		NetworkActivity         func(childComplexity int) int
-		NextEpisodes            func(childComplexity int) int
-		Node                    func(childComplexity int, id string) int
-		NotificationPreferences func(childComplexity int) int
-		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool, kinds []domain.NotificationKind) int
-		OauthAuthorization      func(childComplexity int, query string) int
-		OauthGrants             func(childComplexity int) int
-		OldestArchivedProgramAt func(childComplexity int) int
-		OrphanFiles             func(childComplexity int) int
-		Passkeys                func(childComplexity int) int
-		PinnedServices          func(childComplexity int) int
-		PlayerSettings          func(childComplexity int) int
-		Players                 func(childComplexity int) int
-		PreviewFileName         func(childComplexity int, template string, program *string) int
-		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
-		RecordingRenames        func(childComplexity int) int
-		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) int
-		Reservations            func(childComplexity int, from time.Time, to time.Time, states []domain.AssignmentState, enabled *bool, rule *string, first int, after *string) int
-		RuleGroups              func(childComplexity int) int
-		RuleWarnings            func(childComplexity int, input model.RuleInput) int
-		Rules                   func(childComplexity int) int
-		SearchPrograms          func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
-		SecondFactors           func(childComplexity int) int
-		Services                func(childComplexity int, includeHidden bool) int
-		Sessions                func(childComplexity int) int
-		SkippedDuplicates       func(childComplexity int) int
-		StoragePoolNames        func(childComplexity int) int
-		SystemSettings          func(childComplexity int) int
-		SystemStatus            func(childComplexity int) int
-		Tags                    func(childComplexity int) int
-		TimeZone                func(childComplexity int) int
-		TimeshiftAvailable      func(childComplexity int) int
-		TimeshiftChannels       func(childComplexity int) int
-		TimeshiftProgram        func(childComplexity int, serviceID string, startAt time.Time) int
-		TranscodePresets        func(childComplexity int) int
-		Transcoding             func(childComplexity int) int
-		TunerServerHealth       func(childComplexity int) int
-		UnreadNotificationCount func(childComplexity int) int
-		Users                   func(childComplexity int) int
-		Version                 func(childComplexity int) int
-		Viewer                  func(childComplexity int) int
-		WatchReminderSettings   func(childComplexity int) int
-		WatchReservations       func(childComplexity int) int
-		WatchRules              func(childComplexity int) int
-		WebPushPublicKey        func(childComplexity int) int
-		WebPushSubscriptions    func(childComplexity int) int
-		Webhooks                func(childComplexity int) int
+		APITokens                func(childComplexity int) int
+		AnimeChannels            func(childComplexity int) int
+		AnimeFollowingViewings   func(childComplexity int, tid int) int
+		AnimeImportToken         func(childComplexity int) int
+		AnimeImports             func(childComplexity int) int
+		AnimeLibrary             func(childComplexity int) int
+		AnimeRecordApps          func(childComplexity int) int
+		AnimeRecordSettings      func(childComplexity int) int
+		AnimeWishlist            func(childComplexity int) int
+		AuditEvents              func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
+		CalendarFeed             func(childComplexity int) int
+		CaptionModels            func(childComplexity int) int
+		Captures                 func(childComplexity int, first int, after *string, keyword *string) int
+		CapturesAvailable        func(childComplexity int) int
+		ChannelTypes             func(childComplexity int) int
+		ContinueWatching         func(childComplexity int, first int) int
+		DramaLibrary             func(childComplexity int) int
+		DramaLinking             func(childComplexity int) int
+		DramaTitleOverrides      func(childComplexity int) int
+		DrcsReplacements         func(childComplexity int) int
+		FileNameTemplateHelp     func(childComplexity int) int
+		GoModuleLicenses         func(childComplexity int) int
+		GoogleDriveFolderChoices func(childComplexity int, parentID *string) int
+		GoogleIntegration        func(childComplexity int) int
+		Guide                    func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
+		GuideViews               func(childComplexity int) int
+		IptvFeed                 func(childComplexity int) int
+		IssuedStreamUrls         func(childComplexity int) int
+		JobCounts                func(childComplexity int) int
+		Jobs                     func(childComplexity int, state model.JobState, first int, after *string) int
+		Libraries                func(childComplexity int) int
+		LibraryArtifacts         func(childComplexity int) int
+		LibraryDirectory         func(childComplexity int, library string, path string) int
+		LibraryFile              func(childComplexity int, library string, path string) int
+		LibrarySearch            func(childComplexity int, library string, path string, query string) int
+		LogReport                func(childComplexity int) int
+		MissingRecordings        func(childComplexity int) int
+		NetworkActivity          func(childComplexity int) int
+		NextEpisodes             func(childComplexity int) int
+		Node                     func(childComplexity int, id string) int
+		NotificationPreferences  func(childComplexity int) int
+		Notifications            func(childComplexity int, first int, after *string, unreadOnly bool, kinds []domain.NotificationKind) int
+		OauthAuthorization       func(childComplexity int, query string) int
+		OauthGrants              func(childComplexity int) int
+		OldestArchivedProgramAt  func(childComplexity int) int
+		OrphanFiles              func(childComplexity int) int
+		Passkeys                 func(childComplexity int) int
+		PinnedServices           func(childComplexity int) int
+		PlayerSettings           func(childComplexity int) int
+		Players                  func(childComplexity int) int
+		PreviewFileName          func(childComplexity int, template string, program *string) int
+		PreviewRule              func(childComplexity int, input model.RuleInput, first int, after *string) int
+		RecordingRenames         func(childComplexity int) int
+		Recordings               func(childComplexity int, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) int
+		Reservations             func(childComplexity int, from time.Time, to time.Time, states []domain.AssignmentState, enabled *bool, rule *string, first int, after *string) int
+		RuleGroups               func(childComplexity int) int
+		RuleWarnings             func(childComplexity int, input model.RuleInput) int
+		Rules                    func(childComplexity int) int
+		SearchPrograms           func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
+		SecondFactors            func(childComplexity int) int
+		Services                 func(childComplexity int, includeHidden bool) int
+		Sessions                 func(childComplexity int) int
+		SkippedDuplicates        func(childComplexity int) int
+		StoragePoolNames         func(childComplexity int) int
+		SystemSettings           func(childComplexity int) int
+		SystemStatus             func(childComplexity int) int
+		Tags                     func(childComplexity int) int
+		TimeZone                 func(childComplexity int) int
+		TimeshiftAvailable       func(childComplexity int) int
+		TimeshiftChannels        func(childComplexity int) int
+		TimeshiftProgram         func(childComplexity int, serviceID string, startAt time.Time) int
+		TranscodePresets         func(childComplexity int) int
+		Transcoding              func(childComplexity int) int
+		TunerServerHealth        func(childComplexity int) int
+		UnreadNotificationCount  func(childComplexity int) int
+		Users                    func(childComplexity int) int
+		Version                  func(childComplexity int) int
+		Viewer                   func(childComplexity int) int
+		WatchReminderSettings    func(childComplexity int) int
+		WatchReservations        func(childComplexity int) int
+		WatchRules               func(childComplexity int) int
+		WebPushPublicKey         func(childComplexity int) int
+		WebPushSubscriptions     func(childComplexity int) int
+		Webhooks                 func(childComplexity int) int
 	}
 
 	Recording struct {
@@ -1801,6 +1876,12 @@ type ComplexityRoot struct {
 
 // region    ************************** generated!.gotpl **************************
 
+type DramaEpisodeResolver interface {
+	Watched(ctx context.Context, obj *model.DramaEpisode) (bool, error)
+}
+type DramaSeriesResolver interface {
+	WatchStatus(ctx context.Context, obj *model.DramaSeries) (*model.DramaWatchStatus, error)
+}
 type GuideViewResolver interface {
 	Services(ctx context.Context, obj *model.GuideView) ([]*model.Service, error)
 }
@@ -1833,9 +1914,13 @@ type MutationResolver interface {
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
 	UpdateDramaLinkingToken(ctx context.Context, token string) (*model.DramaLinkingStatus, error)
 	UpdateDramaTitleOverride(ctx context.Context, input model.DramaTitleOverrideInput) ([]*model.DramaTitleOverride, error)
+	SetDramaWatchStatus(ctx context.Context, seriesID int, status *model.DramaWatchStatus) (*model.DramaSeries, error)
+	SetDramaEpisodeWatched(ctx context.Context, seriesID int, seasonNumber int, episodeNumber int, watched bool) (bool, error)
 	UpdateGoogleApp(ctx context.Context, input model.GoogleAppInput) (*model.GoogleIntegration, error)
 	BeginGoogleDriveConnection(ctx context.Context) (string, error)
 	DisconnectGoogleDrive(ctx context.Context) (*model.GoogleIntegration, error)
+	AddGoogleDriveFolder(ctx context.Context, id string) (*model.GoogleIntegration, error)
+	RemoveGoogleDriveFolder(ctx context.Context, id string) (*model.GoogleIntegration, error)
 	RetryJob(ctx context.Context, id string) (*model.Job, error)
 	CancelJob(ctx context.Context, id string) (*model.Job, error)
 	SaveLibraryWatchPosition(ctx context.Context, id string, positionMs int64) (*model.LibraryFile, error)
@@ -1962,6 +2047,7 @@ type QueryResolver interface {
 	CapturesAvailable(ctx context.Context) (bool, error)
 	DramaLinking(ctx context.Context) (*model.DramaLinkingStatus, error)
 	DramaTitleOverrides(ctx context.Context) ([]*model.DramaTitleOverride, error)
+	DramaLibrary(ctx context.Context) (*model.DramaLibrary, error)
 	Node(ctx context.Context, id string) (model.Node, error)
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
@@ -1970,12 +2056,14 @@ type QueryResolver interface {
 	FileNameTemplateHelp(ctx context.Context) (*model.FileNameTemplateHelp, error)
 	PreviewFileName(ctx context.Context, template string, program *string) (*model.FileNamePreview, error)
 	GoogleIntegration(ctx context.Context) (*model.GoogleIntegration, error)
+	GoogleDriveFolderChoices(ctx context.Context, parentID *string) ([]*model.GoogleDriveFolderChoice, error)
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
 	Jobs(ctx context.Context, state model.JobState, first int, after *string) (*model.JobPage, error)
 	JobCounts(ctx context.Context) ([]*model.JobStateCount, error)
 	Libraries(ctx context.Context) ([]*model.Library, error)
 	LibraryDirectory(ctx context.Context, library string, path string) (*model.LibraryDirectory, error)
 	LibraryFile(ctx context.Context, library string, path string) (*model.LibraryFile, error)
+	LibrarySearch(ctx context.Context, library string, path string, query string) (*model.LibrarySearchResult, error)
 	LibraryArtifacts(ctx context.Context) (*model.LibraryArtifacts, error)
 	GoModuleLicenses(ctx context.Context) ([]*licenses.Module, error)
 	LogReport(ctx context.Context) (*model.LogReport, error)
@@ -3542,6 +3630,192 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DramaEpisode.URL(childComplexity), true
+	case "DramaEpisode.watched":
+		if e.ComplexityRoot.DramaEpisode.Watched == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.Watched(childComplexity), true
+
+	case "DramaLibrary.enabled":
+		if e.ComplexityRoot.DramaLibrary.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibrary.Enabled(childComplexity), true
+	case "DramaLibrary.works":
+		if e.ComplexityRoot.DramaLibrary.Works == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibrary.Works(childComplexity), true
+
+	case "DramaLibraryBroadcast.episodeNumber":
+		if e.ComplexityRoot.DramaLibraryBroadcast.EpisodeNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryBroadcast.EpisodeNumber(childComplexity), true
+	case "DramaLibraryBroadcast.last":
+		if e.ComplexityRoot.DramaLibraryBroadcast.Last == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryBroadcast.Last(childComplexity), true
+	case "DramaLibraryBroadcast.program":
+		if e.ComplexityRoot.DramaLibraryBroadcast.Program == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryBroadcast.Program(childComplexity), true
+	case "DramaLibraryBroadcast.rerun":
+		if e.ComplexityRoot.DramaLibraryBroadcast.Rerun == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryBroadcast.Rerun(childComplexity), true
+	case "DramaLibraryBroadcast.seasonNumber":
+		if e.ComplexityRoot.DramaLibraryBroadcast.SeasonNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryBroadcast.SeasonNumber(childComplexity), true
+
+	case "DramaLibraryEpisode.episodeNumber":
+		if e.ComplexityRoot.DramaLibraryEpisode.EpisodeNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryEpisode.EpisodeNumber(childComplexity), true
+	case "DramaLibraryEpisode.name":
+		if e.ComplexityRoot.DramaLibraryEpisode.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryEpisode.Name(childComplexity), true
+	case "DramaLibraryEpisode.seasonNumber":
+		if e.ComplexityRoot.DramaLibraryEpisode.SeasonNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryEpisode.SeasonNumber(childComplexity), true
+	case "DramaLibraryEpisode.url":
+		if e.ComplexityRoot.DramaLibraryEpisode.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryEpisode.URL(childComplexity), true
+
+	case "DramaLibraryPastBroadcast.last":
+		if e.ComplexityRoot.DramaLibraryPastBroadcast.Last == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryPastBroadcast.Last(childComplexity), true
+	case "DramaLibraryPastBroadcast.startAt":
+		if e.ComplexityRoot.DramaLibraryPastBroadcast.StartAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryPastBroadcast.StartAt(childComplexity), true
+
+	case "DramaLibraryRecordedEpisode.episodeNumber":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.EpisodeNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.EpisodeNumber(childComplexity), true
+	case "DramaLibraryRecordedEpisode.name":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.Name(childComplexity), true
+	case "DramaLibraryRecordedEpisode.recording":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.Recording == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.Recording(childComplexity), true
+	case "DramaLibraryRecordedEpisode.recordingCount":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.RecordingCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.RecordingCount(childComplexity), true
+	case "DramaLibraryRecordedEpisode.seasonNumber":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.SeasonNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.SeasonNumber(childComplexity), true
+	case "DramaLibraryRecordedEpisode.watched":
+		if e.ComplexityRoot.DramaLibraryRecordedEpisode.Watched == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryRecordedEpisode.Watched(childComplexity), true
+
+	case "DramaLibraryWork.addedAt":
+		if e.ComplexityRoot.DramaLibraryWork.AddedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.AddedAt(childComplexity), true
+	case "DramaLibraryWork.broadcasts":
+		if e.ComplexityRoot.DramaLibraryWork.Broadcasts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.Broadcasts(childComplexity), true
+	case "DramaLibraryWork.id":
+		if e.ComplexityRoot.DramaLibraryWork.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.ID(childComplexity), true
+	case "DramaLibraryWork.lastWatched":
+		if e.ComplexityRoot.DramaLibraryWork.LastWatched == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.LastWatched(childComplexity), true
+	case "DramaLibraryWork.nextBroadcast":
+		if e.ComplexityRoot.DramaLibraryWork.NextBroadcast == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.NextBroadcast(childComplexity), true
+	case "DramaLibraryWork.nextEpisode":
+		if e.ComplexityRoot.DramaLibraryWork.NextEpisode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.NextEpisode(childComplexity), true
+	case "DramaLibraryWork.recentBroadcast":
+		if e.ComplexityRoot.DramaLibraryWork.RecentBroadcast == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.RecentBroadcast(childComplexity), true
+	case "DramaLibraryWork.recordedEpisodes":
+		if e.ComplexityRoot.DramaLibraryWork.RecordedEpisodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.RecordedEpisodes(childComplexity), true
+	case "DramaLibraryWork.series":
+		if e.ComplexityRoot.DramaLibraryWork.Series == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.Series(childComplexity), true
+	case "DramaLibraryWork.status":
+		if e.ComplexityRoot.DramaLibraryWork.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLibraryWork.Status(childComplexity), true
 
 	case "DramaLinkingStatus.tokenConfigured":
 		if e.ComplexityRoot.DramaLinkingStatus.TokenConfigured == nil {
@@ -3586,6 +3860,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DramaSeries.URL(childComplexity), true
+	case "DramaSeries.watchStatus":
+		if e.ComplexityRoot.DramaSeries.WatchStatus == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaSeries.WatchStatus(childComplexity), true
 
 	case "DramaTitleOverride.titleKey":
 		if e.ComplexityRoot.DramaTitleOverride.TitleKey == nil {
@@ -3760,6 +4040,38 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.GoogleDriveConnection.RevokedAt(childComplexity), true
 
+	case "GoogleDriveFolder.addedAt":
+		if e.ComplexityRoot.GoogleDriveFolder.AddedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleDriveFolder.AddedAt(childComplexity), true
+	case "GoogleDriveFolder.id":
+		if e.ComplexityRoot.GoogleDriveFolder.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleDriveFolder.ID(childComplexity), true
+	case "GoogleDriveFolder.name":
+		if e.ComplexityRoot.GoogleDriveFolder.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleDriveFolder.Name(childComplexity), true
+
+	case "GoogleDriveFolderChoice.id":
+		if e.ComplexityRoot.GoogleDriveFolderChoice.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleDriveFolderChoice.ID(childComplexity), true
+	case "GoogleDriveFolderChoice.name":
+		if e.ComplexityRoot.GoogleDriveFolderChoice.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleDriveFolderChoice.Name(childComplexity), true
+
 	case "GoogleIntegration.clientId":
 		if e.ComplexityRoot.GoogleIntegration.ClientID == nil {
 			break
@@ -3778,6 +4090,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.GoogleIntegration.Drive(childComplexity), true
+	case "GoogleIntegration.folders":
+		if e.ComplexityRoot.GoogleIntegration.Folders == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoogleIntegration.Folders(childComplexity), true
 	case "GoogleIntegration.redirectUri":
 		if e.ComplexityRoot.GoogleIntegration.RedirectURI == nil {
 			break
@@ -4671,6 +4989,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.LibraryProgram.StartAt(childComplexity), true
 
+	case "LibrarySearchResult.entries":
+		if e.ComplexityRoot.LibrarySearchResult.Entries == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibrarySearchResult.Entries(childComplexity), true
+	case "LibrarySearchResult.truncated":
+		if e.ComplexityRoot.LibrarySearchResult.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibrarySearchResult.Truncated(childComplexity), true
+
 	case "LicenseFile.name":
 		if e.ComplexityRoot.LicenseFile.Name == nil {
 			break
@@ -4882,6 +5213,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MissingRecording.Segments(childComplexity), true
 
+	case "Mutation.addGoogleDriveFolder":
+		if e.ComplexityRoot.Mutation.AddGoogleDriveFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addGoogleDriveFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AddGoogleDriveFolder(childComplexity, args["id"].(string)), true
 	case "Mutation.approveOAuthAuthorization":
 		if e.ComplexityRoot.Mutation.ApproveOAuthAuthorization == nil {
 			break
@@ -5538,6 +5880,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RegisterPlayer(childComplexity, args["state"].(model.PlayerStateInput)), true
+	case "Mutation.removeGoogleDriveFolder":
+		if e.ComplexityRoot.Mutation.RemoveGoogleDriveFolder == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeGoogleDriveFolder_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RemoveGoogleDriveFolder(childComplexity, args["id"].(string)), true
 	case "Mutation.removeTimeshiftChannel":
 		if e.ComplexityRoot.Mutation.RemoveTimeshiftChannel == nil {
 			break
@@ -5698,6 +6051,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SendPlayerCommand(childComplexity, args["id"].(string), args["command"].(model.PlayerCommandInput)), true
+	case "Mutation.setDramaEpisodeWatched":
+		if e.ComplexityRoot.Mutation.SetDramaEpisodeWatched == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setDramaEpisodeWatched_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetDramaEpisodeWatched(childComplexity, args["seriesId"].(int), args["seasonNumber"].(int), args["episodeNumber"].(int), args["watched"].(bool)), true
+	case "Mutation.setDramaWatchStatus":
+		if e.ComplexityRoot.Mutation.SetDramaWatchStatus == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setDramaWatchStatus_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetDramaWatchStatus(childComplexity, args["seriesId"].(int), args["status"].(*model.DramaWatchStatus)), true
 	case "Mutation.setRecordingProtected":
 		if e.ComplexityRoot.Mutation.SetRecordingProtected == nil {
 			break
@@ -7095,6 +7470,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ContinueWatching(childComplexity, args["first"].(int)), true
+	case "Query.dramaLibrary":
+		if e.ComplexityRoot.Query.DramaLibrary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DramaLibrary(childComplexity), true
 	case "Query.dramaLinking":
 		if e.ComplexityRoot.Query.DramaLinking == nil {
 			break
@@ -7125,6 +7506,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.GoModuleLicenses(childComplexity), true
+	case "Query.googleDriveFolderChoices":
+		if e.ComplexityRoot.Query.GoogleDriveFolderChoices == nil {
+			break
+		}
+
+		args, err := ec.field_Query_googleDriveFolderChoices_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.GoogleDriveFolderChoices(childComplexity, args["parentId"].(*string)), true
 	case "Query.googleIntegration":
 		if e.ComplexityRoot.Query.GoogleIntegration == nil {
 			break
@@ -7212,6 +7604,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.LibraryFile(childComplexity, args["library"].(string), args["path"].(string)), true
+	case "Query.librarySearch":
+		if e.ComplexityRoot.Query.LibrarySearch == nil {
+			break
+		}
+
+		args, err := ec.field_Query_librarySearch_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LibrarySearch(childComplexity, args["library"].(string), args["path"].(string), args["query"].(string)), true
 	case "Query.logReport":
 		if e.ComplexityRoot.Query.LogReport == nil {
 			break
@@ -10812,7 +11215,8 @@ extend type Mutation {
   """
   プレイヤーが実際に再生した区間を送る (#927)。ライブ視聴では serviceId を、録画の再生では recordingId を渡す。
   区間は、番組ごとに重ねずにまとめるので、同じ区間を送り直しても、複数のタブから送っても、多く数えない。
-  番組の長さのうち、決めた割合を見たら、結びついた話を記録する。記録の対象でなければ (連携が無効か、連携していない) false を返す。
+  番組の長さのうち、決めた割合を見たら、結びついた話を記録する。TMDb の話に結びついたドラマの番組なら、見たドラマの話にする (#1652)。
+  記録の対象でなければ (アニメの連携が無効か連携しておらず、TMDb との連携も無効) false を返す。
   """
   reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
 }
@@ -11552,6 +11956,143 @@ extend type Mutation {
   updateDramaTitleOverride(input: DramaTitleOverrideInput!): [DramaTitleOverride!]!
 }
 `, BuiltIn: false},
+	{Name: "../schema/drama_library.graphqls", Input: `"""
+ユーザーが見ているドラマの作品の状態 (#1652、設計書 3.9)。
+"""
+enum DramaWatchStatus {
+  "見ている"
+  WATCHING
+  "見たい"
+  WANNA_WATCH
+}
+
+"""
+ドラマの視聴管理の画面の、作品の 1 話 (#1652)。
+"""
+type DramaLibraryEpisode {
+  "TMDb のシーズンの番号。0 は特別編。"
+  seasonNumber: Int!
+  "シーズンの中の話の番号。"
+  episodeNumber: Int!
+  "話の名前。TMDb のキャッシュになければ null。"
+  name: String
+  "TMDb の話のページ。"
+  url: String!
+}
+
+"""
+ドラマの作品の放送 (#1652)。
+"""
+type DramaLibraryBroadcast {
+  program: Program!
+  "放送する話のシーズン。話を決められなかった放送では null。"
+  seasonNumber: Int
+  "放送する話の番号。話を決められなかった放送では null。"
+  episodeNumber: Int
+  "再放送かどうか。"
+  rerun: Boolean!
+  "TMDb のシーズンの最後の話かどうか。最後の話が分からなければ false。"
+  last: Boolean!
+}
+
+"""
+ドラマの作品の始まった放送 (#1652)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+"""
+type DramaLibraryPastBroadcast {
+  startAt: Time!
+  "TMDb のシーズンの最後の話かどうか。"
+  last: Boolean!
+}
+
+"""
+ドラマの作品の、録画のある話 (#1652)。
+"""
+type DramaLibraryRecordedEpisode {
+  seasonNumber: Int!
+  episodeNumber: Int!
+  "話の名前。TMDb のキャッシュになければ null。"
+  name: String
+  "その話の録画のうち、最も新しく録ったもの。"
+  recording: Recording!
+  "その話の録画の数。2 局で録ったときなどは 2 以上になる。"
+  recordingCount: Int!
+  "見た話かどうか。見た話か、最後に見た話より前の話なら true。見た話がひとつもない作品では null。"
+  watched: Boolean
+}
+
+"""
+ドラマの視聴管理の画面の 1 作品 (#1652)。
+"""
+type DramaLibraryWork {
+  "作品を見分ける ID。"
+  id: ID!
+  series: DramaSeries!
+  status: DramaWatchStatus!
+  "見ている作品に足した日時。"
+  addedAt: Time!
+  "見た話のうち、最も後の話 (特別編を除く)。見た話がなければ null。"
+  lastWatched: DramaLibraryEpisode
+  """
+  次に見る話。最後に見た話の次の話で、シーズンの最後の話なら、次のシーズンの最初の話。
+  見た話がないか、最後のシーズンの最後の話まで見ていれば null。
+  """
+  nextEpisode: DramaLibraryEpisode
+  """
+  次の放送 (放送中を含む)。これから 1 週間の放送のうち、最後に見た話より後の話の放送で最も早いもの。なければ、最も早い放送。
+  放送がなければ null。
+  """
+  nextBroadcast: DramaLibraryBroadcast
+  "これから 1 週間の放送 (放送中を含む)。放送の早い順に並べる。"
+  broadcasts: [DramaLibraryBroadcast!]!
+  "この 1 週間に始まった最も新しい放送。なければ null。"
+  recentBroadcast: DramaLibraryPastBroadcast
+  "録画のある話。シーズンと話の順に並べる。"
+  recordedEpisodes: [DramaLibraryRecordedEpisode!]!
+}
+
+"""
+ログイン中のユーザーが見ているドラマの作品を、作品ごとに並べたもの (ドラマの視聴管理の画面。#1652)。
+"""
+type DramaLibrary {
+  "管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。"
+  enabled: Boolean!
+  "見ている作品と見たい作品。次の放送の早い順に並べ、放送の予定のない作品は、作品名の順に後ろに回す。"
+  works: [DramaLibraryWork!]!
+}
+
+extend type DramaSeries {
+  "ログイン中のユーザーが、この作品を見ている作品に入れた状態 (#1652)。入れていなければ null。"
+  watchStatus: DramaWatchStatus
+}
+
+extend type DramaEpisode {
+  "ログイン中のユーザーが、この話を見たかどうか (#1652)。話を決められなければ false。"
+  watched: Boolean!
+}
+
+extend type Query {
+  """
+  ログイン中のユーザーが見ているドラマの作品を、次の話と次の放送と録画と並べて返す (#1652)。ほかのユーザーの作品は見えない。
+  視聴者も使える。TMDb には問い合わせない。
+  """
+  dramaLibrary: DramaLibrary!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーの見ている作品に、TMDb の作品 seriesId を状態 status で足すか、状態を変える。status が null なら外す (#1652)。
+  視聴者も使える。足せるのは、番組か録画に結びついた作品だけで、結びつきがなければ NOT_FOUND を返す。
+  管理者が TMDb との連携を無効にしていれば CONFLICT を返す。変えた後の作品を返す。
+  """
+  setDramaWatchStatus(seriesId: Int!, status: DramaWatchStatus): DramaSeries!
+  """
+  ログイン中のユーザーが、TMDb の作品 seriesId のシーズン seasonNumber の話 episodeNumber を見たことを、手で付けるか外す (#1652)。
+  視聴者も使える。番号が正しくなければ BAD_USER_INPUT を、管理者が TMDb との連携を無効にしていれば CONFLICT を返す。
+  変えた後に、見たかどうかを返す。
+  """
+  setDramaEpisodeWatched(seriesId: Int!, seasonNumber: Int!, episodeNumber: Int!, watched: Boolean!): Boolean!
+}
+`, BuiltIn: false},
 	{Name: "../schema/epg.graphqls", Input: `"""
 チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 """
@@ -11780,6 +12321,28 @@ type GoogleIntegration {
   updatedAt: Time
   "Google Drive の接続。接続していなければ null。"
   drive: GoogleDriveConnection
+  """
+  ライブラリとして見せると選んだフォルダを、選んだ順に返す (#1902)。選んだフォルダの下だけを見せ、1 つも選んでいなければ、
+  ライブラリに Google Drive を出さない。
+  """
+  folders: [GoogleDriveFolder!]!
+}
+
+"ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。"
+type GoogleDriveFolder {
+  "Drive のフォルダの ID。"
+  id: String!
+  "選んだときのフォルダの名前。"
+  name: String!
+  addedAt: Time!
+}
+
+"見せるフォルダを選ぶときに出す、Drive のフォルダ (#1902)。"
+type GoogleDriveFolderChoice {
+  "Drive のフォルダの ID。マイドライブの根元は root。"
+  id: String!
+  "フォルダの名前。マイドライブの根元は \"My Drive\"。"
+  name: String!
 }
 
 """
@@ -11809,6 +12372,11 @@ input GoogleAppInput {
 extend type Query {
   "Google の OAuth クライアントと、Google Drive の接続を返す (#1902)。管理者だけが使える。"
   googleIntegration: GoogleIntegration!
+  """
+  見せるフォルダを選ぶために、Drive のフォルダ parentId の中のフォルダを、名前の順に返す (#1902)。parentId を省けば、
+  マイドライブと、見える共有ドライブを返す。管理者だけが使える。接続していなければ NOT_FOUND を、フォルダでなければ BAD_USER_INPUT を返す。
+  """
+  googleDriveFolderChoices(parentId: String): [GoogleDriveFolderChoice!]!
 }
 
 extend type Mutation {
@@ -11825,6 +12393,13 @@ extend type Mutation {
   beginGoogleDriveConnection: String!
   "Google Drive の接続を外し、リフレッシュトークンを Google で取り消す (#1902)。管理者だけが使える。"
   disconnectGoogleDrive: GoogleIntegration!
+  """
+  Drive のフォルダ id を、ライブラリとして見せるフォルダに足す (#1902)。管理者だけが使える。Drive のファイルを家族に見せ始める操作なので、
+  直近の再認証を求める。フォルダでなければ BAD_USER_INPUT を返す。
+  """
+  addGoogleDriveFolder(id: String!): GoogleIntegration!
+  "Drive のフォルダ id を、見せるフォルダから外す (#1902)。管理者だけが使える。"
+  removeGoogleDriveFolder(id: String!): GoogleIntegration!
 }
 `, BuiltIn: false},
 	{Name: "../schema/guide_views.graphqls", Input: `"""
@@ -12153,6 +12728,20 @@ extend type Query {
   ファイルがないか再生できるファイルでなければ NOT_FOUND を、Blu-ray の 192 バイトのパケットの .m2ts のように TS でなければ BAD_USER_INPUT を返す。
   """
   libraryFile(library: String!, path: String!): LibraryFile!
+  """
+  ライブラリ library の、ディレクトリ path (根元は空) の下から、名前に query を含む再生できるファイルを、名前の順に 100 件まで返す (#1902)。
+  query は前後の空白を除いて 1〜100 文字。フォルダのライブラリは、名前の部分一致 (大文字と小文字を区別しない) で下をたどる。
+  Google Drive は、Drive の名前の検索 (name contains) で探し、path の下にあるものだけを返す。
+  """
+  librarySearch(library: String!, path: String!, query: String!): LibrarySearchResult!
+}
+
+"ライブラリの名前の検索の結果 (#1902)。"
+type LibrarySearchResult {
+  "見つけたファイル。"
+  entries: [LibraryEntry!]!
+  "件数の上限や、たどる数の上限で、探すのを打ち切ったかどうか。打ち切ったら、語を足して絞るよう出す。"
+  truncated: Boolean!
 }
 
 extend type Mutation {
@@ -15887,8 +16476,104 @@ func (ec *executionContext) childFields_DramaEpisode(ctx context.Context, field 
 		return ec.fieldContext_DramaEpisode_episodeSource(ctx, field)
 	case "url":
 		return ec.fieldContext_DramaEpisode_url(ctx, field)
+	case "watched":
+		return ec.fieldContext_DramaEpisode_watched(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DramaEpisode", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibrary(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "enabled":
+		return ec.fieldContext_DramaLibrary_enabled(ctx, field)
+	case "works":
+		return ec.fieldContext_DramaLibrary_works(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibrary", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibraryBroadcast(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "program":
+		return ec.fieldContext_DramaLibraryBroadcast_program(ctx, field)
+	case "seasonNumber":
+		return ec.fieldContext_DramaLibraryBroadcast_seasonNumber(ctx, field)
+	case "episodeNumber":
+		return ec.fieldContext_DramaLibraryBroadcast_episodeNumber(ctx, field)
+	case "rerun":
+		return ec.fieldContext_DramaLibraryBroadcast_rerun(ctx, field)
+	case "last":
+		return ec.fieldContext_DramaLibraryBroadcast_last(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibraryBroadcast", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibraryEpisode(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "seasonNumber":
+		return ec.fieldContext_DramaLibraryEpisode_seasonNumber(ctx, field)
+	case "episodeNumber":
+		return ec.fieldContext_DramaLibraryEpisode_episodeNumber(ctx, field)
+	case "name":
+		return ec.fieldContext_DramaLibraryEpisode_name(ctx, field)
+	case "url":
+		return ec.fieldContext_DramaLibraryEpisode_url(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibraryEpisode", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibraryPastBroadcast(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "startAt":
+		return ec.fieldContext_DramaLibraryPastBroadcast_startAt(ctx, field)
+	case "last":
+		return ec.fieldContext_DramaLibraryPastBroadcast_last(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibraryPastBroadcast", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibraryRecordedEpisode(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "seasonNumber":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_seasonNumber(ctx, field)
+	case "episodeNumber":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_episodeNumber(ctx, field)
+	case "name":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_name(ctx, field)
+	case "recording":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_recording(ctx, field)
+	case "recordingCount":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_recordingCount(ctx, field)
+	case "watched":
+		return ec.fieldContext_DramaLibraryRecordedEpisode_watched(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibraryRecordedEpisode", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLibraryWork(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_DramaLibraryWork_id(ctx, field)
+	case "series":
+		return ec.fieldContext_DramaLibraryWork_series(ctx, field)
+	case "status":
+		return ec.fieldContext_DramaLibraryWork_status(ctx, field)
+	case "addedAt":
+		return ec.fieldContext_DramaLibraryWork_addedAt(ctx, field)
+	case "lastWatched":
+		return ec.fieldContext_DramaLibraryWork_lastWatched(ctx, field)
+	case "nextEpisode":
+		return ec.fieldContext_DramaLibraryWork_nextEpisode(ctx, field)
+	case "nextBroadcast":
+		return ec.fieldContext_DramaLibraryWork_nextBroadcast(ctx, field)
+	case "broadcasts":
+		return ec.fieldContext_DramaLibraryWork_broadcasts(ctx, field)
+	case "recentBroadcast":
+		return ec.fieldContext_DramaLibraryWork_recentBroadcast(ctx, field)
+	case "recordedEpisodes":
+		return ec.fieldContext_DramaLibraryWork_recordedEpisodes(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLibraryWork", field.Name)
 }
 
 func (ec *executionContext) childFields_DramaLinkingStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -15913,6 +16598,8 @@ func (ec *executionContext) childFields_DramaSeries(ctx context.Context, field g
 		return ec.fieldContext_DramaSeries_originalName(ctx, field)
 	case "url":
 		return ec.fieldContext_DramaSeries_url(ctx, field)
+	case "watchStatus":
+		return ec.fieldContext_DramaSeries_watchStatus(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DramaSeries", field.Name)
 }
@@ -16037,6 +16724,28 @@ func (ec *executionContext) childFields_GoogleDriveConnection(ctx context.Contex
 	return nil, fmt.Errorf("no field named %q was found under type GoogleDriveConnection", field.Name)
 }
 
+func (ec *executionContext) childFields_GoogleDriveFolder(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_GoogleDriveFolder_id(ctx, field)
+	case "name":
+		return ec.fieldContext_GoogleDriveFolder_name(ctx, field)
+	case "addedAt":
+		return ec.fieldContext_GoogleDriveFolder_addedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GoogleDriveFolder", field.Name)
+}
+
+func (ec *executionContext) childFields_GoogleDriveFolderChoice(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_GoogleDriveFolderChoice_id(ctx, field)
+	case "name":
+		return ec.fieldContext_GoogleDriveFolderChoice_name(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GoogleDriveFolderChoice", field.Name)
+}
+
 func (ec *executionContext) childFields_GoogleIntegration(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "clientId":
@@ -16049,6 +16758,8 @@ func (ec *executionContext) childFields_GoogleIntegration(ctx context.Context, f
 		return ec.fieldContext_GoogleIntegration_updatedAt(ctx, field)
 	case "drive":
 		return ec.fieldContext_GoogleIntegration_drive(ctx, field)
+	case "folders":
+		return ec.fieldContext_GoogleIntegration_folders(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type GoogleIntegration", field.Name)
 }
@@ -16503,6 +17214,16 @@ func (ec *executionContext) childFields_LibraryProgram(ctx context.Context, fiel
 		return ec.fieldContext_LibraryProgram_endAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type LibraryProgram", field.Name)
+}
+
+func (ec *executionContext) childFields_LibrarySearchResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "entries":
+		return ec.fieldContext_LibrarySearchResult_entries(ctx, field)
+	case "truncated":
+		return ec.fieldContext_LibrarySearchResult_truncated(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LibrarySearchResult", field.Name)
 }
 
 func (ec *executionContext) childFields_LicenseFile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -18285,6 +19006,20 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Mutation_addGoogleDriveFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_approveOAuthAuthorization_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -19037,6 +19772,20 @@ func (ec *executionContext) field_Mutation_registerPlayer_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_removeGoogleDriveFolder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_removeTimeshiftChannel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -19294,6 +20043,66 @@ func (ec *executionContext) field_Mutation_sendPlayerCommand_args(ctx context.Co
 		return nil, err
 	}
 	args["command"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setDramaEpisodeWatched_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "seriesId",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["seriesId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "seasonNumber",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["seasonNumber"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "episodeNumber",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["episodeNumber"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "watched",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["watched"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setDramaWatchStatus_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "seriesId",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["seriesId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "status",
+		func(ctx context.Context, v any) (*model.DramaWatchStatus, error) {
+			return ec.unmarshalODramaWatchStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["status"] = arg1
 	return args, nil
 }
 
@@ -20059,6 +20868,20 @@ func (ec *executionContext) field_Query_continueWatching_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_googleDriveFolderChoices_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "parentId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["parentId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_guide_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -20168,6 +20991,36 @@ func (ec *executionContext) field_Query_libraryFile_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["path"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_librarySearch_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "library",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["library"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "path",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["path"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "query",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["query"] = arg2
 	return args, nil
 }
 
@@ -26255,6 +27108,786 @@ func (ec *executionContext) fieldContext_DramaEpisode_url(_ context.Context, fie
 	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "String")
 }
 
+func (ec *executionContext) _DramaEpisode_watched(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_watched(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.DramaEpisode().Watched(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_watched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, true, true, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibrary_enabled(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibrary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibrary_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibrary_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibrary", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibrary_works(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibrary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibrary_works(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Works, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaLibraryWork) graphql.Marshaler {
+			return ec.marshalNDramaLibraryWork2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryWorkᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibrary_works(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibrary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryWork(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryBroadcast_program(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryBroadcast_program(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Program, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryBroadcast_program(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryBroadcast",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryBroadcast_seasonNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryBroadcast_seasonNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeasonNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryBroadcast_seasonNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryBroadcast", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryBroadcast_episodeNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryBroadcast_episodeNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryBroadcast_episodeNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryBroadcast", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryBroadcast_rerun(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryBroadcast_rerun(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rerun, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryBroadcast_rerun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryBroadcast", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibraryBroadcast_last(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryBroadcast_last(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Last, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryBroadcast_last(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryBroadcast", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibraryEpisode_seasonNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryEpisode_seasonNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeasonNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryEpisode_seasonNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryEpisode_episodeNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryEpisode_episodeNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryEpisode_episodeNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryEpisode_name(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryEpisode_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryEpisode_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLibraryEpisode_url(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryEpisode_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryEpisode_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLibraryPastBroadcast_startAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryPastBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryPastBroadcast_startAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryPastBroadcast_startAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryPastBroadcast", field, false, false, "Time")
+}
+
+func (ec *executionContext) _DramaLibraryPastBroadcast_last(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryPastBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryPastBroadcast_last(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Last, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryPastBroadcast_last(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryPastBroadcast", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_seasonNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_seasonNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeasonNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_seasonNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryRecordedEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_episodeNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_episodeNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_episodeNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryRecordedEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_name(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryRecordedEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_recording(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_recording(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recording, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Recording) graphql.Marshaler {
+			return ec.marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecording(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_recording(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryRecordedEpisode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_recordingCount(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_recordingCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecordingCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_recordingCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryRecordedEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode_watched(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryRecordedEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryRecordedEpisode_watched(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Watched, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryRecordedEpisode_watched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryRecordedEpisode", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLibraryWork_id(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryWork", field, false, false, "ID")
+}
+
+func (ec *executionContext) _DramaLibraryWork_series(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_series(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Series, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaSeries) graphql.Marshaler {
+			return ec.marshalNDramaSeries2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeries(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_series(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaSeries(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_status(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.DramaWatchStatus) graphql.Marshaler {
+			return ec.marshalNDramaWatchStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryWork", field, false, false, "DramaWatchStatus")
+}
+
+func (ec *executionContext) _DramaLibraryWork_addedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_addedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AddedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_addedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLibraryWork", field, false, false, "Time")
+}
+
+func (ec *executionContext) _DramaLibraryWork_lastWatched(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_lastWatched(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastWatched, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLibraryEpisode) graphql.Marshaler {
+			return ec.marshalODramaLibraryEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryEpisode(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_lastWatched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_nextEpisode(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_nextEpisode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextEpisode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLibraryEpisode) graphql.Marshaler {
+			return ec.marshalODramaLibraryEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryEpisode(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_nextEpisode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_nextBroadcast(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_nextBroadcast(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextBroadcast, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLibraryBroadcast) graphql.Marshaler {
+			return ec.marshalODramaLibraryBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcast(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_nextBroadcast(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryBroadcast(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_broadcasts(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_broadcasts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Broadcasts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaLibraryBroadcast) graphql.Marshaler {
+			return ec.marshalNDramaLibraryBroadcast2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcastᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_broadcasts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryBroadcast(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_recentBroadcast(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_recentBroadcast(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecentBroadcast, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLibraryPastBroadcast) graphql.Marshaler {
+			return ec.marshalODramaLibraryPastBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryPastBroadcast(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_recentBroadcast(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryPastBroadcast(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaLibraryWork_recordedEpisodes(ctx context.Context, field graphql.CollectedField, obj *model.DramaLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLibraryWork_recordedEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecordedEpisodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaLibraryRecordedEpisode) graphql.Marshaler {
+			return ec.marshalNDramaLibraryRecordedEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryRecordedEpisodeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLibraryWork_recordedEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibraryRecordedEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _DramaLinkingStatus_tokenConfigured(ctx context.Context, field graphql.CollectedField, obj *model.DramaLinkingStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26414,6 +28047,29 @@ func (ec *executionContext) _DramaSeries_url(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_DramaSeries_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("DramaSeries", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaSeries_watchStatus(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaSeries_watchStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.DramaSeries().WatchStatus(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaWatchStatus) graphql.Marshaler {
+			return ec.marshalODramaWatchStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaSeries_watchStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaSeries", field, true, true, "DramaWatchStatus")
 }
 
 func (ec *executionContext) _DramaTitleOverride_titleKey(ctx context.Context, field graphql.CollectedField, obj *model.DramaTitleOverride) (ret graphql.Marshaler) {
@@ -27064,6 +28720,121 @@ func (ec *executionContext) fieldContext_GoogleDriveConnection_revokedAt(_ conte
 	return graphql.NewScalarFieldContext("GoogleDriveConnection", field, false, false, "Time")
 }
 
+func (ec *executionContext) _GoogleDriveFolder_id(ctx context.Context, field graphql.CollectedField, obj *model.GoogleDriveFolder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleDriveFolder_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleDriveFolder_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleDriveFolder", field, false, false, "String")
+}
+
+func (ec *executionContext) _GoogleDriveFolder_name(ctx context.Context, field graphql.CollectedField, obj *model.GoogleDriveFolder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleDriveFolder_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleDriveFolder_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleDriveFolder", field, false, false, "String")
+}
+
+func (ec *executionContext) _GoogleDriveFolder_addedAt(ctx context.Context, field graphql.CollectedField, obj *model.GoogleDriveFolder) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleDriveFolder_addedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AddedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleDriveFolder_addedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleDriveFolder", field, false, false, "Time")
+}
+
+func (ec *executionContext) _GoogleDriveFolderChoice_id(ctx context.Context, field graphql.CollectedField, obj *model.GoogleDriveFolderChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleDriveFolderChoice_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleDriveFolderChoice_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleDriveFolderChoice", field, false, false, "String")
+}
+
+func (ec *executionContext) _GoogleDriveFolderChoice_name(ctx context.Context, field graphql.CollectedField, obj *model.GoogleDriveFolderChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleDriveFolderChoice_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleDriveFolderChoice_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoogleDriveFolderChoice", field, false, false, "String")
+}
+
 func (ec *executionContext) _GoogleIntegration_clientId(ctx context.Context, field graphql.CollectedField, obj *model.GoogleIntegration) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27183,6 +28954,38 @@ func (ec *executionContext) fieldContext_GoogleIntegration_drive(_ context.Conte
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_GoogleDriveConnection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GoogleIntegration_folders(ctx context.Context, field graphql.CollectedField, obj *model.GoogleIntegration) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoogleIntegration_folders(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Folders, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.GoogleDriveFolder) graphql.Marshaler {
+			return ec.marshalNGoogleDriveFolder2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleDriveFolderᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoogleIntegration_folders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GoogleIntegration",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GoogleDriveFolder(ctx, field)
 		},
 	}
 	return fc, nil
@@ -30670,6 +32473,61 @@ func (ec *executionContext) fieldContext_LibraryProgram_endAt(_ context.Context,
 	return graphql.NewScalarFieldContext("LibraryProgram", field, false, false, "Time")
 }
 
+func (ec *executionContext) _LibrarySearchResult_entries(ctx context.Context, field graphql.CollectedField, obj *model.LibrarySearchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibrarySearchResult_entries(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Entries, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LibraryEntry) graphql.Marshaler {
+			return ec.marshalNLibraryEntry2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryEntryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibrarySearchResult_entries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LibrarySearchResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryEntry(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LibrarySearchResult_truncated(ctx context.Context, field graphql.CollectedField, obj *model.LibrarySearchResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibrarySearchResult_truncated(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibrarySearchResult_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibrarySearchResult", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _LicenseFile_name(ctx context.Context, field graphql.CollectedField, obj *licenses.File) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -32633,6 +34491,94 @@ func (ec *executionContext) fieldContext_Mutation_updateDramaTitleOverride(ctx c
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setDramaWatchStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setDramaWatchStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetDramaWatchStatus(ctx, fc.Args["seriesId"].(int), fc.Args["status"].(*model.DramaWatchStatus))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaSeries) graphql.Marshaler {
+			return ec.marshalNDramaSeries2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeries(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setDramaWatchStatus(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaSeries(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setDramaWatchStatus_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setDramaEpisodeWatched(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setDramaEpisodeWatched(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetDramaEpisodeWatched(ctx, fc.Args["seriesId"].(int), fc.Args["seasonNumber"].(int), fc.Args["episodeNumber"].(int), fc.Args["watched"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setDramaEpisodeWatched(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setDramaEpisodeWatched_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_updateGoogleApp(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -32728,6 +34674,94 @@ func (ec *executionContext) fieldContext_Mutation_disconnectGoogleDrive(_ contex
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_GoogleIntegration(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_addGoogleDriveFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_addGoogleDriveFolder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AddGoogleDriveFolder(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GoogleIntegration) graphql.Marshaler {
+			return ec.marshalNGoogleIntegration2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleIntegration(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_addGoogleDriveFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GoogleIntegration(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addGoogleDriveFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeGoogleDriveFolder(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_removeGoogleDriveFolder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RemoveGoogleDriveFolder(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GoogleIntegration) graphql.Marshaler {
+			return ec.marshalNGoogleIntegration2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleIntegration(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_removeGoogleDriveFolder(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GoogleIntegration(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeGoogleDriveFolder_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -40674,6 +42708,38 @@ func (ec *executionContext) fieldContext_Query_dramaTitleOverrides(_ context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_dramaLibrary(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_dramaLibrary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DramaLibrary(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLibrary) graphql.Marshaler {
+			return ec.marshalNDramaLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibrary(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_dramaLibrary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLibrary(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_node(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -40969,6 +43035,50 @@ func (ec *executionContext) fieldContext_Query_googleIntegration(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_googleDriveFolderChoices(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_googleDriveFolderChoices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().GoogleDriveFolderChoices(ctx, fc.Args["parentId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.GoogleDriveFolderChoice) graphql.Marshaler {
+			return ec.marshalNGoogleDriveFolderChoice2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleDriveFolderChoiceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_googleDriveFolderChoices(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GoogleDriveFolderChoice(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_googleDriveFolderChoices_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_guideViews(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -41191,6 +43301,50 @@ func (ec *executionContext) fieldContext_Query_libraryFile(ctx context.Context, 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_libraryFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_librarySearch(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_librarySearch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LibrarySearch(ctx, fc.Args["library"].(string), fc.Args["path"].(string), fc.Args["query"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LibrarySearchResult) graphql.Marshaler {
+			return ec.marshalNLibrarySearchResult2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrarySearchResult(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_librarySearch(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibrarySearchResult(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_librarySearch_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -59257,35 +61411,354 @@ func (ec *executionContext) _DramaEpisode(ctx context.Context, sel ast.Selection
 		case "series":
 			out.Values[i] = ec._DramaEpisode_series(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "seriesSource":
 			out.Values[i] = ec._DramaEpisode_seriesSource(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "seasonNumber":
 			out.Values[i] = ec._DramaEpisode_seasonNumber(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "episodeNumber":
 			out.Values[i] = ec._DramaEpisode_episodeNumber(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "episodeName":
 			out.Values[i] = ec._DramaEpisode_episodeName(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "episodeSource":
 			out.Values[i] = ec._DramaEpisode_episodeSource(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "url":
 			out.Values[i] = ec._DramaEpisode_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "watched":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._DramaEpisode_watched(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryImplementors = []string{"DramaLibrary"}
+
+func (ec *executionContext) _DramaLibrary(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibrary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibrary")
+		case "enabled":
+			out.Values[i] = ec._DramaLibrary_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "works":
+			out.Values[i] = ec._DramaLibrary_works(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryBroadcastImplementors = []string{"DramaLibraryBroadcast"}
+
+func (ec *executionContext) _DramaLibraryBroadcast(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibraryBroadcast) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryBroadcastImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibraryBroadcast")
+		case "program":
+			out.Values[i] = ec._DramaLibraryBroadcast_program(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "seasonNumber":
+			out.Values[i] = ec._DramaLibraryBroadcast_seasonNumber(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "episodeNumber":
+			out.Values[i] = ec._DramaLibraryBroadcast_episodeNumber(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "rerun":
+			out.Values[i] = ec._DramaLibraryBroadcast_rerun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "last":
+			out.Values[i] = ec._DramaLibraryBroadcast_last(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryEpisodeImplementors = []string{"DramaLibraryEpisode"}
+
+func (ec *executionContext) _DramaLibraryEpisode(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibraryEpisode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryEpisodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibraryEpisode")
+		case "seasonNumber":
+			out.Values[i] = ec._DramaLibraryEpisode_seasonNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "episodeNumber":
+			out.Values[i] = ec._DramaLibraryEpisode_episodeNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._DramaLibraryEpisode_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._DramaLibraryEpisode_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryPastBroadcastImplementors = []string{"DramaLibraryPastBroadcast"}
+
+func (ec *executionContext) _DramaLibraryPastBroadcast(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibraryPastBroadcast) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryPastBroadcastImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibraryPastBroadcast")
+		case "startAt":
+			out.Values[i] = ec._DramaLibraryPastBroadcast_startAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "last":
+			out.Values[i] = ec._DramaLibraryPastBroadcast_last(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryRecordedEpisodeImplementors = []string{"DramaLibraryRecordedEpisode"}
+
+func (ec *executionContext) _DramaLibraryRecordedEpisode(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibraryRecordedEpisode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryRecordedEpisodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibraryRecordedEpisode")
+		case "seasonNumber":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_seasonNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "episodeNumber":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_episodeNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "recording":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_recording(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recordingCount":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_recordingCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "watched":
+			out.Values[i] = ec._DramaLibraryRecordedEpisode_watched(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLibraryWorkImplementors = []string{"DramaLibraryWork"}
+
+func (ec *executionContext) _DramaLibraryWork(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLibraryWork) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLibraryWorkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLibraryWork")
+		case "id":
+			out.Values[i] = ec._DramaLibraryWork_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "series":
+			out.Values[i] = ec._DramaLibraryWork_series(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._DramaLibraryWork_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addedAt":
+			out.Values[i] = ec._DramaLibraryWork_addedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastWatched":
+			out.Values[i] = ec._DramaLibraryWork_lastWatched(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "nextEpisode":
+			out.Values[i] = ec._DramaLibraryWork_nextEpisode(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "nextBroadcast":
+			out.Values[i] = ec._DramaLibraryWork_nextBroadcast(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "broadcasts":
+			out.Values[i] = ec._DramaLibraryWork_broadcasts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recentBroadcast":
+			out.Values[i] = ec._DramaLibraryWork_recentBroadcast(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "recordedEpisodes":
+			out.Values[i] = ec._DramaLibraryWork_recordedEpisodes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -59363,23 +61836,29 @@ func (ec *executionContext) _DramaSeries(ctx context.Context, sel ast.SelectionS
 		case "tmdbId":
 			out.Values[i] = ec._DramaSeries_tmdbId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._DramaSeries_name(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "originalName":
 			out.Values[i] = ec._DramaSeries_originalName(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "url":
 			out.Values[i] = ec._DramaSeries_url(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "watchStatus":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._DramaSeries_watchStatus(ctx, field, obj)
+				})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -59840,6 +62319,87 @@ func (ec *executionContext) _GoogleDriveConnection(ctx context.Context, sel ast.
 	return out
 }
 
+var googleDriveFolderImplementors = []string{"GoogleDriveFolder"}
+
+func (ec *executionContext) _GoogleDriveFolder(ctx context.Context, sel ast.SelectionSet, obj *model.GoogleDriveFolder) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, googleDriveFolderImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GoogleDriveFolder")
+		case "id":
+			out.Values[i] = ec._GoogleDriveFolder_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._GoogleDriveFolder_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addedAt":
+			out.Values[i] = ec._GoogleDriveFolder_addedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var googleDriveFolderChoiceImplementors = []string{"GoogleDriveFolderChoice"}
+
+func (ec *executionContext) _GoogleDriveFolderChoice(ctx context.Context, sel ast.SelectionSet, obj *model.GoogleDriveFolderChoice) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, googleDriveFolderChoiceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GoogleDriveFolderChoice")
+		case "id":
+			out.Values[i] = ec._GoogleDriveFolderChoice_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._GoogleDriveFolderChoice_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var googleIntegrationImplementors = []string{"GoogleIntegration"}
 
 func (ec *executionContext) _GoogleIntegration(ctx context.Context, sel ast.SelectionSet, obj *model.GoogleIntegration) graphql.Marshaler {
@@ -59874,6 +62434,11 @@ func (ec *executionContext) _GoogleIntegration(ctx context.Context, sel ast.Sele
 		case "drive":
 			out.Values[i] = ec._GoogleIntegration_drive(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "folders":
+			out.Values[i] = ec._GoogleIntegration_folders(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -61388,6 +63953,44 @@ func (ec *executionContext) _LibraryProgram(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var librarySearchResultImplementors = []string{"LibrarySearchResult"}
+
+func (ec *executionContext) _LibrarySearchResult(ctx context.Context, sel ast.SelectionSet, obj *model.LibrarySearchResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, librarySearchResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LibrarySearchResult")
+		case "entries":
+			out.Values[i] = ec._LibrarySearchResult_entries(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._LibrarySearchResult_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var licenseFileImplementors = []string{"LicenseFile"}
 
 func (ec *executionContext) _LicenseFile(ctx context.Context, sel ast.SelectionSet, obj *licenses.File) graphql.Marshaler {
@@ -61969,6 +64572,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setDramaWatchStatus":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setDramaWatchStatus(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setDramaEpisodeWatched":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setDramaEpisodeWatched(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updateGoogleApp":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateGoogleApp(ctx, field)
@@ -61986,6 +64603,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "disconnectGoogleDrive":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_disconnectGoogleDrive(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addGoogleDriveFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addGoogleDriveFolder(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeGoogleDriveFolder":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeGoogleDriveFolder(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -64169,6 +66800,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_dramaTitleOverrides(ctx, field)
 				})
+		case "dramaLibrary":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_dramaLibrary(ctx, field)
+				})
 		case "node":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
 				true, false,
@@ -64217,6 +66854,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_googleIntegration(ctx, field)
 				})
+		case "googleDriveFolderChoices":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_googleDriveFolderChoices(ctx, field)
+				})
 		case "guideViews":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
 				true, true,
@@ -64252,6 +66895,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_libraryFile(ctx, field)
+				})
+		case "librarySearch":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_librarySearch(ctx, field)
 				})
 		case "libraryArtifacts":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -69493,6 +72142,86 @@ func (ec *executionContext) marshalNDeleteReservationPayload2ᚖgithubᚗcomᚋS
 	return ec._DeleteReservationPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNDramaLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibrary(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibrary) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaLibrary!")
+		return graphql.Null
+	}
+	return ec._DramaLibrary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDramaLibraryBroadcast2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcastᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DramaLibraryBroadcast) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDramaLibraryBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcast(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDramaLibraryBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcast(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryBroadcast) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaLibraryBroadcast!")
+		return graphql.Null
+	}
+	return ec._DramaLibraryBroadcast(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDramaLibraryRecordedEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryRecordedEpisodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DramaLibraryRecordedEpisode) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDramaLibraryRecordedEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryRecordedEpisode(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDramaLibraryRecordedEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryRecordedEpisode(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryRecordedEpisode) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaLibraryRecordedEpisode!")
+		return graphql.Null
+	}
+	return ec._DramaLibraryRecordedEpisode(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDramaLibraryWork2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryWorkᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DramaLibraryWork) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDramaLibraryWork2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryWork(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDramaLibraryWork2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryWork(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryWork) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaLibraryWork!")
+		return graphql.Null
+	}
+	return ec._DramaLibraryWork(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNDramaLinkingStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLinkingStatus(ctx context.Context, sel ast.SelectionSet, v *model.DramaLinkingStatus) graphql.Marshaler {
 	if v == nil {
 		graphql.AddInvalidNullError(ctx, "DramaLinkingStatus!")
@@ -69546,6 +72275,16 @@ func (ec *executionContext) marshalNDramaTitleOverride2ᚖgithubᚗcomᚋSlashNe
 func (ec *executionContext) unmarshalNDramaTitleOverrideInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideInput(ctx context.Context, v any) (model.DramaTitleOverrideInput, error) {
 	res, err := ec.unmarshalInputDramaTitleOverrideInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNDramaWatchStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx context.Context, v any) (model.DramaWatchStatus, error) {
+	var res model.DramaWatchStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDramaWatchStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx context.Context, sel ast.SelectionSet, v model.DramaWatchStatus) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNDrcsReplacement2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DrcsReplacement) graphql.Marshaler {
@@ -69743,6 +72482,54 @@ func (ec *executionContext) marshalNGoModuleLicense2ᚖgithubᚗcomᚋSlashNephy
 func (ec *executionContext) unmarshalNGoogleAppInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleAppInput(ctx context.Context, v any) (model.GoogleAppInput, error) {
 	res, err := ec.unmarshalInputGoogleAppInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNGoogleDriveFolder2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleDriveFolderᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GoogleDriveFolder) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNGoogleDriveFolder2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleDriveFolder(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNGoogleDriveFolder2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleDriveFolder(ctx context.Context, sel ast.SelectionSet, v *model.GoogleDriveFolder) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "GoogleDriveFolder!")
+		return graphql.Null
+	}
+	return ec._GoogleDriveFolder(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNGoogleDriveFolderChoice2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleDriveFolderChoiceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GoogleDriveFolderChoice) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNGoogleDriveFolderChoice2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleDriveFolderChoice(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNGoogleDriveFolderChoice2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleDriveFolderChoice(ctx context.Context, sel ast.SelectionSet, v *model.GoogleDriveFolderChoice) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "GoogleDriveFolderChoice!")
+		return graphql.Null
+	}
+	return ec._GoogleDriveFolderChoice(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNGoogleIntegration2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGoogleIntegration(ctx context.Context, sel ast.SelectionSet, v *model.GoogleIntegration) graphql.Marshaler {
@@ -70396,6 +73183,14 @@ func (ec *executionContext) unmarshalNLibraryKind2githubᚗcomᚋSlashNephyᚋko
 
 func (ec *executionContext) marshalNLibraryKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryKind(ctx context.Context, sel ast.SelectionSet, v model.LibraryKind) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNLibrarySearchResult2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibrarySearchResult(ctx context.Context, sel ast.SelectionSet, v *model.LibrarySearchResult) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LibrarySearchResult!")
+		return graphql.Null
+	}
+	return ec._LibrarySearchResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNLicenseFile2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋlicensesᚐFileᚄ(ctx context.Context, sel ast.SelectionSet, v []*licenses.File) graphql.Marshaler {
@@ -73019,6 +75814,43 @@ func (ec *executionContext) unmarshalODramaEpisodeSource2ᚖgithubᚗcomᚋSlash
 }
 
 func (ec *executionContext) marshalODramaEpisodeSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisodeSource(ctx context.Context, sel ast.SelectionSet, v *model.DramaEpisodeSource) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) marshalODramaLibraryBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryBroadcast(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryBroadcast) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DramaLibraryBroadcast(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODramaLibraryEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryEpisode(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryEpisode) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DramaLibraryEpisode(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODramaLibraryPastBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLibraryPastBroadcast(ctx context.Context, sel ast.SelectionSet, v *model.DramaLibraryPastBroadcast) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DramaLibraryPastBroadcast(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalODramaWatchStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx context.Context, v any) (*model.DramaWatchStatus, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.DramaWatchStatus)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODramaWatchStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx context.Context, sel ast.SelectionSet, v *model.DramaWatchStatus) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

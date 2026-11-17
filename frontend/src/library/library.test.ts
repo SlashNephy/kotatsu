@@ -24,6 +24,17 @@ describe('parseLibrarySearch', () => {
     },
     { name: '空は省く', search: { library: '', path: '' }, want: {} },
     { name: '文字列でないものは捨てる', search: { library: 1, path: ['a'] }, want: {} },
+    {
+      name: '検索の語',
+      search: { library: 'anime', path: 'a', q: '第1話' },
+      want: { library: 'anime', path: 'a', q: '第1話' },
+    },
+    {
+      name: '空白だけの語は捨てる',
+      search: { library: 'anime', q: '  ' },
+      want: { library: 'anime' },
+    },
+    { name: 'ライブラリのない語は捨てる', search: { q: 'a' }, want: {} },
   ])('$name', ({ search, want }) => {
     expect(parseLibrarySearch(search)).toEqual(want);
   });

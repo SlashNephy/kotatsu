@@ -49,7 +49,9 @@ func TestSourceGoogleDrive(t *testing.T) {
 	httpServer := httptest.NewServer(server.Handler())
 	t.Cleanup(httpServer.Close)
 	client := googledrive.NewClient(httpServer.Client(), httpServer.URL, &driveTokens{server: server, token: ""})
-	drive := medialib.NewDrive(client, func(context.Context) (bool, error) { return true, nil }, time.Now)
+	// マイドライブの根元と、その中のフォルダの両方を、見せるフォルダに選ぶ。同じファイルを 2 つの道筋で開ける。
+	scope := googletest.NewScope(&medialib.DriveFolder{ID: googletest.MyDriveID, DriveID: ""}, &medialib.DriveFolder{ID: driveFolder, DriveID: ""})
+	drive := medialib.NewDrive(client, scope, time.Now)
 	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{}).With(drive)
 	indexer := filelib.NewIndexer(t.TempDir(), libraries, clocktest.NewFake(time.Now()), slog.New(slog.DiscardHandler), true)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -71,8 +73,8 @@ func TestSourceGoogleDrive(t *testing.T) {
 	assert.Equal(t, "mpeg2", file.Index.Video.Codec)
 	assert.Equal(t, showTS, file.Entry.Name)
 
-	// ほかの道筋で開いても、索引を使い回し、同じ ID にする。
-	other, err := source.Open(t.Context(), filelib.Ref{Library: medialib.GoogleDriveName, Path: "root/show"})
+	// 別の選んだフォルダからの道筋で開いても、索引を使い回し、同じ ID にする。
+	other, err := source.Open(t.Context(), filelib.Ref{Library: medialib.GoogleDriveName, Path: driveFolder + "/show"})
 	require.NoError(t, err)
 	assert.True(t, other.Index.Complete)
 	assert.Equal(t, file.ID(), other.ID())

@@ -15,6 +15,28 @@ type GoogleIntegration {
   updatedAt: Time
   "Google Drive の接続。接続していなければ null。"
   drive: GoogleDriveConnection
+  """
+  ライブラリとして見せると選んだフォルダを、選んだ順に返す (#1902)。選んだフォルダの下だけを見せ、1 つも選んでいなければ、
+  ライブラリに Google Drive を出さない。
+  """
+  folders: [GoogleDriveFolder!]!
+}
+
+"ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。"
+type GoogleDriveFolder {
+  "Drive のフォルダの ID。"
+  id: String!
+  "選んだときのフォルダの名前。"
+  name: String!
+  addedAt: Time!
+}
+
+"見せるフォルダを選ぶときに出す、Drive のフォルダ (#1902)。"
+type GoogleDriveFolderChoice {
+  "Drive のフォルダの ID。マイドライブの根元は root。"
+  id: String!
+  "フォルダの名前。マイドライブの根元は \"My Drive\"。"
+  name: String!
 }
 
 """
@@ -44,6 +66,11 @@ input GoogleAppInput {
 extend type Query {
   "Google の OAuth クライアントと、Google Drive の接続を返す (#1902)。管理者だけが使える。"
   googleIntegration: GoogleIntegration!
+  """
+  見せるフォルダを選ぶために、Drive のフォルダ parentId の中のフォルダを、名前の順に返す (#1902)。parentId を省けば、
+  マイドライブと、見える共有ドライブを返す。管理者だけが使える。接続していなければ NOT_FOUND を、フォルダでなければ BAD_USER_INPUT を返す。
+  """
+  googleDriveFolderChoices(parentId: String): [GoogleDriveFolderChoice!]!
 }
 
 extend type Mutation {
@@ -60,4 +87,11 @@ extend type Mutation {
   beginGoogleDriveConnection: String!
   "Google Drive の接続を外し、リフレッシュトークンを Google で取り消す (#1902)。管理者だけが使える。"
   disconnectGoogleDrive: GoogleIntegration!
+  """
+  Drive のフォルダ id を、ライブラリとして見せるフォルダに足す (#1902)。管理者だけが使える。Drive のファイルを家族に見せ始める操作なので、
+  直近の再認証を求める。フォルダでなければ BAD_USER_INPUT を返す。
+  """
+  addGoogleDriveFolder(id: String!): GoogleIntegration!
+  "Drive のフォルダ id を、見せるフォルダから外す (#1902)。管理者だけが使える。"
+  removeGoogleDriveFolder(id: String!): GoogleIntegration!
 }

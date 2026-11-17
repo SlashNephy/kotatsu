@@ -36,7 +36,7 @@ func newLibraryParts(deps *Deps, logger *slog.Logger, build bool) *libraryParts 
 	if googleService != nil {
 		// Google Drive は、接続していなくても一覧に入れておき、接続しているかどうかは、読むたびに DB で確かめる。
 		tokens := googleService.DriveTokens(deps.DB)
-		libraries = libraries.With(medialib.NewDrive(googleService.DriveClient(tokens), tokens.Connected, deps.Clock.Now))
+		libraries = libraries.With(medialib.NewDrive(googleService.DriveClient(tokens), tokens, deps.Clock.Now))
 	}
 	indexer := filelib.NewIndexer(storage.DataDir, libraries, deps.Clock, logger.With(slog.String("component", "library_index")), build)
 

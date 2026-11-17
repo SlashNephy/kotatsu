@@ -40,3 +40,18 @@ WHERE id = 1 AND refresh_token_encrypted = @refresh_token_encrypted AND revoked_
 -- name: DeleteGoogleDriveConnection :one
 DELETE FROM google_drive_connections WHERE id = 1
 RETURNING *;
+
+-- name: ListGoogleDriveFolders :many
+SELECT * FROM google_drive_folders ORDER BY added_at, folder_id;
+
+-- name: InsertGoogleDriveFolder :execrows
+INSERT INTO google_drive_folders (folder_id, drive_id, name, added_at)
+VALUES (@folder_id, @drive_id, @name, @now)
+ON CONFLICT (folder_id) DO NOTHING;
+
+-- name: DeleteGoogleDriveFolder :one
+DELETE FROM google_drive_folders WHERE folder_id = @folder_id
+RETURNING *;
+
+-- name: DeleteGoogleDriveFolders :execrows
+DELETE FROM google_drive_folders;

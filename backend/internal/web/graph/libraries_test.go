@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/googletest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -39,6 +40,8 @@ const (
 	// varLibrary と varPath は、ライブラリとパスを渡す変数の名前。
 	varLibrary = "library"
 	varPath    = "path"
+	// varQuery は、検索の語を渡す変数の名前。
+	varQuery = "query"
 )
 
 type libraryFileResult struct {
@@ -130,7 +133,7 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, discM2TS), bdav, 0o600))
 	// 接続していない Google Drive は、一覧に出さず、開けない (#1902)。
 	disconnected := medialib.NewDrive(googledrive.NewClient(nil, "http://127.0.0.1:9", nil),
-		func(context.Context) (bool, error) { return false, nil }, time.Now)
+		&googletest.Scope{Disconnected: true, Selected: []*medialib.DriveFolder{}}, time.Now)
 	libraries := medialib.NewSet(map[string]string{poolMain: poolDir}, []string{poolMain}, map[string]string{animeLibrary: libraryDir}).
 		With(disconnected)
 	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
@@ -222,6 +225,59 @@ func TestLibraries(t *testing.T) {
 				}
 				assert.Equal(t, wantNames, got.LibraryDirectory.Names)
 			}
+		})
+	}
+}
+
+// TestLibrarySearch は、フォルダのライブラリで、名前の部分一致でディレクトリの下を探せることを確かめる (#1902)。
+func TestLibrarySearch(t *testing.T) {
+	t.Parallel()
+
+	f, _ := newLibraryFixture(t)
+	viewer := f.as(t, "viewer", domain.RoleViewer)
+	const search = `query($library: String!, $path: String!, $query: String!) {
+		librarySearch(library: $library, path: $path, query: $query) { truncated entries { name path playable } } }`
+	type result struct {
+		LibrarySearch struct {
+			Truncated bool `json:"truncated"`
+			Entries   []struct {
+				Name     string `json:"name"`
+				Path     string `json:"path"`
+				Playable bool   `json:"playable"`
+			} `json:"entries"`
+		} `json:"librarySearch"`
+	}
+	tests := []struct {
+		name      string
+		library   string
+		path      string
+		query     string
+		wantPaths []string
+		wantCodes []string
+	}{
+		{name: "root", library: animeLibrary, path: "", query: "EP1", wantPaths: []string{episodePath}},
+		{name: "folder", library: animeLibrary, path: showDir, query: "ts", wantPaths: []string{episodePath}},
+		{name: "no match", library: animeLibrary, path: "", query: "notes", wantPaths: []string{}},
+		{name: "empty query", library: animeLibrary, path: "", query: "  ", wantCodes: []string{codeBadUserInput}},
+		{name: "parent", library: animeLibrary, path: "..", query: "ts", wantCodes: []string{codeBadUserInput}},
+		{name: "disconnected Google Drive", library: medialib.GoogleDriveName, path: "", query: "ts", wantCodes: []string{codeNotFound}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var got result
+			codes := viewer.query(t, search, map[string]any{varLibrary: tt.library, varPath: tt.path, varQuery: tt.query}, &got)
+			assert.Equal(t, tt.wantCodes, nonNil(codes))
+			if len(tt.wantCodes) > 0 {
+				return
+			}
+			paths := []string{}
+			for _, entry := range got.LibrarySearch.Entries {
+				paths = append(paths, entry.Path)
+				assert.True(t, entry.Playable)
+			}
+			assert.Equal(t, tt.wantPaths, paths)
+			assert.False(t, got.LibrarySearch.Truncated)
 		})
 	}
 }

@@ -54,6 +54,35 @@ func (q *Queries) DeleteGoogleDriveConnection(ctx context.Context) (GoogleDriveC
 	return i, err
 }
 
+const deleteGoogleDriveFolder = `-- name: DeleteGoogleDriveFolder :one
+DELETE FROM google_drive_folders WHERE folder_id = $1
+RETURNING folder_id, drive_id, name, added_at
+`
+
+func (q *Queries) DeleteGoogleDriveFolder(ctx context.Context, folderID string) (GoogleDriveFolder, error) {
+	row := q.db.QueryRow(ctx, deleteGoogleDriveFolder, folderID)
+	var i GoogleDriveFolder
+	err := row.Scan(
+		&i.FolderID,
+		&i.DriveID,
+		&i.Name,
+		&i.AddedAt,
+	)
+	return i, err
+}
+
+const deleteGoogleDriveFolders = `-- name: DeleteGoogleDriveFolders :execrows
+DELETE FROM google_drive_folders
+`
+
+func (q *Queries) DeleteGoogleDriveFolders(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteGoogleDriveFolders)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getGoogleApp = `-- name: GetGoogleApp :one
 SELECT id, client_id, client_secret_encrypted, updated_at FROM google_apps WHERE id = 1
 `
@@ -117,6 +146,61 @@ func (q *Queries) InsertGoogleAuthorization(ctx context.Context, arg InsertGoogl
 		arg.ExpiresAt,
 	)
 	return err
+}
+
+const insertGoogleDriveFolder = `-- name: InsertGoogleDriveFolder :execrows
+INSERT INTO google_drive_folders (folder_id, drive_id, name, added_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (folder_id) DO NOTHING
+`
+
+type InsertGoogleDriveFolderParams struct {
+	FolderID string
+	DriveID  string
+	Name     string
+	Now      time.Time
+}
+
+func (q *Queries) InsertGoogleDriveFolder(ctx context.Context, arg InsertGoogleDriveFolderParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertGoogleDriveFolder,
+		arg.FolderID,
+		arg.DriveID,
+		arg.Name,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const listGoogleDriveFolders = `-- name: ListGoogleDriveFolders :many
+SELECT folder_id, drive_id, name, added_at FROM google_drive_folders ORDER BY added_at, folder_id
+`
+
+func (q *Queries) ListGoogleDriveFolders(ctx context.Context) ([]GoogleDriveFolder, error) {
+	rows, err := q.db.Query(ctx, listGoogleDriveFolders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GoogleDriveFolder{}
+	for rows.Next() {
+		var i GoogleDriveFolder
+		if err := rows.Scan(
+			&i.FolderID,
+			&i.DriveID,
+			&i.Name,
+			&i.AddedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markGoogleDriveConnectionRevoked = `-- name: MarkGoogleDriveConnectionRevoked :execrows

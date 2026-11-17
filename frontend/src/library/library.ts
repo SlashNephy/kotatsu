@@ -3,18 +3,20 @@
 import { resumePosition } from '../yunomi/resume';
 
 // LibrarySearch は、ファイラーと再生の画面の URL のクエリ。library はライブラリの名前、path はライブラリの中の / 区切りのパス。
-// ファイラーでは、library を省くとライブラリの一覧を、path を省くとライブラリの根元を出す。
-export type LibrarySearch = { library?: string; path?: string };
+// ファイラーでは、library を省くとライブラリの一覧を、path を省くとライブラリの根元を出す。q は、path の下を名前で探す語 (#1902)。
+export type LibrarySearch = { library?: string; path?: string; q?: string };
 
 // parseLibrarySearch は、URL のクエリを読む。文字列でない値は捨てる。
 export function parseLibrarySearch(search: Record<string, unknown>): LibrarySearch {
   const library =
     typeof search.library === 'string' && search.library !== '' ? search.library : undefined;
   const path = typeof search.path === 'string' && search.path !== '' ? search.path : undefined;
+  const q = typeof search.q === 'string' && search.q.trim() !== '' ? search.q : undefined;
 
   return {
     ...(library === undefined ? {} : { library }),
     ...(path === undefined ? {} : { path }),
+    ...(q === undefined || library === undefined ? {} : { q }),
   };
 }
 

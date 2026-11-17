@@ -2089,3 +2089,42 @@ CREATE TABLE google_drive_connections (
   -- リフレッシュトークンが使えなくなった (取り消された、期限が切れたなど) 日時。接続し直すまで、Drive を読まない。
   revoked_at timestamptz
 );
+
+-- 管理者が、Google Drive のうちライブラリとして見せると選んだフォルダ (#1902)。選んだフォルダの下だけを見せる。
+-- 1 つも選んでいなければ、ライブラリに Google Drive を出さない。接続を外すか、別のアカウントで接続し直すと消す。
+CREATE TABLE google_drive_folders (
+  folder_id text PRIMARY KEY CHECK (folder_id <> ''),
+  -- フォルダのある共有ドライブの ID。マイドライブなら空。探す範囲を共有ドライブに絞るのに使う。
+  drive_id text NOT NULL,
+  -- 選んだときのフォルダの名前。連携の画面に出す。
+  name text NOT NULL,
+  added_at timestamptz NOT NULL
+);
+
+-- ユーザーが「見ている」「見たい」にした TMDb の作品 (#1652、設計書 3.9)。ドラマの視聴管理の画面 (/drama) に並べる。
+-- アニメの見たいリストは Annict と AniList から取り込むが、ドラマには同じ出どころがないので、Kotatsu の中に持つ。
+-- TMDb の利用規約に合わせ、作品の ID だけを持ち、名前は TMDb のキャッシュ (tmdb_series) から引く。
+CREATE TABLE drama_watchlist_entries (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  tmdb_series_id integer NOT NULL CHECK (tmdb_series_id > 0),
+  -- 見ている (watching) か、見たい (wanna_watch) か。
+  status text NOT NULL CHECK (status IN ('watching', 'wanna_watch')),
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, tmdb_series_id)
+);
+CREATE INDEX drama_watchlist_entries_tmdb_series_id_idx ON drama_watchlist_entries (tmdb_series_id);
+
+-- ユーザーが見た TMDb の話 (#1652、設計書 3.9)。同じユーザーと話は 1 行だけ持つ。
+-- プレイヤーで見た割合 (アニメの記録と同じ判定) から作るか (playback)、番組や録画の詳細、視聴管理の画面から手で付ける (manual)。
+-- 見た区間 (anime_watch_progress) は 90 日で消すが、見た話は、ユーザーが取り消すまで残す。
+CREATE TABLE drama_watched_episodes (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  tmdb_series_id integer NOT NULL CHECK (tmdb_series_id > 0),
+  season_number integer NOT NULL CHECK (season_number >= 0),
+  episode_number integer NOT NULL CHECK (episode_number > 0),
+  source text NOT NULL CHECK (source IN ('playback', 'manual')),
+  watched_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, tmdb_series_id, season_number, episode_number)
+);
+CREATE INDEX drama_watched_episodes_tmdb_series_id_idx ON drama_watched_episodes (tmdb_series_id, season_number);

@@ -2,7 +2,7 @@
 //
 // internal/testutil/googletest の偽の Google を、決まったアドレスで待ち受けさせる。認可のエンドポイントは、人の操作をまねずに、
 // その場でコードを作って redirect_uri に戻す。Kotatsu は、設定の google.url (KOTATSU_GOOGLE_URL) をこのアドレスに向ける。
-// -ts で渡した TS を、マイドライブの「Kotatsu」フォルダと、共有ドライブ「Backup」に置く。
+// -ts で渡した TS を、マイドライブの「Kotatsu」(と、その中の「Season 2」)、「Private」と、共有ドライブ「Backup」に置く。
 package main
 
 import (
@@ -63,14 +63,21 @@ func run() int {
 	return 0
 }
 
-// place は、TS を、マイドライブの Kotatsu フォルダと、共有ドライブ Backup に置く。
+// place は、TS を次のように置く。見せるフォルダで絞ることと、名前で探すことを確かめられるようにする。
+//
+//	マイドライブ: Kotatsu/ (<名前>, Season 2/ (s2-<名前>)), Private/ (private-<名前>)
+//	共有ドライブ Backup: <名前>
 func place(server *googletest.Server, paths string) error {
 	// 書いている途中とみなされないよう、更新日時は少し前にする。
 	modified := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
-	server.AddFile(&googletest.File{
-		ID: "kotatsu-folder", Name: "Kotatsu", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID,
-		Content: nil, ModifiedTime: modified, Trashed: false,
-	})
+	folder := func(id, name, parent string) {
+		server.AddFile(&googletest.File{
+			ID: id, Name: name, MIMEType: googletest.FolderMIMEType, Parent: parent, Content: nil, ModifiedTime: modified, Trashed: false,
+		})
+	}
+	folder("kotatsu-folder", "Kotatsu", googletest.MyDriveID)
+	folder("season2-folder", "Season 2", "kotatsu-folder")
+	folder("private-folder", "Private", googletest.MyDriveID)
 	server.AddDrive(&googletest.Drive{ID: "backup-drive", Name: "Backup"})
 	for i, path := range strings.Split(paths, ",") {
 		if path = strings.TrimSpace(path); path == "" {
@@ -81,14 +88,17 @@ func place(server *googletest.Server, paths string) error {
 			return err
 		}
 		name := filepath.Base(path)
-		server.AddFile(&googletest.File{
-			ID: "file-" + string(rune('a'+i)), Name: name, MIMEType: "video/mp2t", Parent: "kotatsu-folder",
-			Content: content, ModifiedTime: modified, Trashed: false,
-		})
-		server.AddFile(&googletest.File{
-			ID: "backup-" + string(rune('a'+i)), Name: name, MIMEType: "video/mp2t", Parent: "backup-drive",
-			Content: content, ModifiedTime: modified, Trashed: false,
-		})
+		suffix := string(rune('a' + i))
+		for _, f := range []struct{ id, name, parent string }{
+			{id: "file-" + suffix, name: name, parent: "kotatsu-folder"},
+			{id: "season2-" + suffix, name: "s2-" + name, parent: "season2-folder"},
+			{id: "private-" + suffix, name: "private-" + name, parent: "private-folder"},
+			{id: "backup-" + suffix, name: name, parent: "backup-drive"},
+		} {
+			server.AddFile(&googletest.File{
+				ID: f.id, Name: f.name, MIMEType: "video/mp2t", Parent: f.parent, Content: content, ModifiedTime: modified, Trashed: false,
+			})
+		}
 	}
 
 	return nil

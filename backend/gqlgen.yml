@@ -349,6 +349,14 @@ models:
     fields:
       service:
         resolver: true
+  DramaSeries:
+    fields:
+      watchStatus:
+        resolver: true
+  DramaEpisode:
+    fields:
+      watched:
+        resolver: true
   Program:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Program
     fields:

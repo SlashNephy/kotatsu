@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<87ad7d8f4dca58fc92daa7be94365028>>
+ * @generated SignedSource<<a41d2659651f97c3b0951a93ec4716a6>>
  * @lightSyntaxTransform
  */
 
@@ -11,6 +11,7 @@ import { ConcreteRequest } from 'relay-runtime';
 import { FragmentRefs } from "relay-runtime";
 export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
 export type DramaSeriesSource = "OVERRIDE" | "SEARCH" | "%future added value";
+export type DramaWatchStatus = "WANNA_WATCH" | "WATCHING" | "%future added value";
 export type ReservationKind = "PROGRAM" | "RULE" | "TIME" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type ProgramDetailQuery$variables = {
@@ -45,9 +46,11 @@ export type ProgramDetailQuery$data = {
         readonly originalName: string | null | undefined;
         readonly tmdbId: number;
         readonly url: string;
+        readonly watchStatus: DramaWatchStatus | null | undefined;
       };
       readonly seriesSource: DramaSeriesSource;
       readonly url: string;
+      readonly watched: boolean;
     } | null | undefined;
     readonly endAt: string;
     readonly endUndecided: boolean;
@@ -343,7 +346,14 @@ v19 = {
           "name": "originalName",
           "storageKey": null
         },
-        (v18/*:: as any*/)
+        (v18/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "watchStatus",
+          "storageKey": null
+        }
       ],
       "storageKey": null
     },
@@ -375,7 +385,14 @@ v19 = {
       "name": "episodeName",
       "storageKey": null
     },
-    (v18/*:: as any*/)
+    (v18/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "watched",
+      "storageKey": null
+    }
   ],
   "storageKey": null
 },
@@ -766,16 +783,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "2e6b5ec38d4a1850c97ce98a08625c44",
+    "cacheID": "7dae70fd6c61688cc9b999ce18a6bbcc",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      workTitle\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        channelType {\n          type\n        }\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      dramaEpisode {\n        series {\n          tmdbId\n          name\n          originalName\n          url\n        }\n        seriesSource\n        seasonNumber\n        episodeNumber\n        episodeName\n        url\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      workTitle\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        channelType {\n          type\n        }\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      dramaEpisode {\n        series {\n          tmdbId\n          name\n          originalName\n          url\n          watchStatus\n        }\n        seriesSource\n        seasonNumber\n        episodeNumber\n        episodeName\n        url\n        watched\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "8b569a39ed54f0ef3e2aa16f68f7bf63";
+(node as any).hash = "e4131303b016be0f89000b025a0a1019";
 
 export default node;

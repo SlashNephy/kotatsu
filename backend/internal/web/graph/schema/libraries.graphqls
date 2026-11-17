@@ -189,6 +189,20 @@ extend type Query {
   ファイルがないか再生できるファイルでなければ NOT_FOUND を、Blu-ray の 192 バイトのパケットの .m2ts のように TS でなければ BAD_USER_INPUT を返す。
   """
   libraryFile(library: String!, path: String!): LibraryFile!
+  """
+  ライブラリ library の、ディレクトリ path (根元は空) の下から、名前に query を含む再生できるファイルを、名前の順に 100 件まで返す (#1902)。
+  query は前後の空白を除いて 1〜100 文字。フォルダのライブラリは、名前の部分一致 (大文字と小文字を区別しない) で下をたどる。
+  Google Drive は、Drive の名前の検索 (name contains) で探し、path の下にあるものだけを返す。
+  """
+  librarySearch(library: String!, path: String!, query: String!): LibrarySearchResult!
+}
+
+"ライブラリの名前の検索の結果 (#1902)。"
+type LibrarySearchResult {
+  "見つけたファイル。"
+  entries: [LibraryEntry!]!
+  "件数の上限や、たどる数の上限で、探すのを打ち切ったかどうか。打ち切ったら、語を足して絞るよう出す。"
+  truncated: Boolean!
 }
 
 extend type Mutation {

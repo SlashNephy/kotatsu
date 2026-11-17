@@ -737,6 +737,86 @@ type DramaEpisode struct {
 	EpisodeSource *DramaEpisodeSource `json:"episodeSource,omitempty"`
 	// TMDb の話のページ。話を決められなければ、作品のページ。
 	URL string `json:"url"`
+	// ログイン中のユーザーが、この話を見たかどうか (#1652)。話を決められなければ false。
+	Watched bool `json:"watched"`
+}
+
+// ログイン中のユーザーが見ているドラマの作品を、作品ごとに並べたもの (ドラマの視聴管理の画面。#1652)。
+type DramaLibrary struct {
+	// 管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。
+	Enabled bool `json:"enabled"`
+	// 見ている作品と見たい作品。次の放送の早い順に並べ、放送の予定のない作品は、作品名の順に後ろに回す。
+	Works []*DramaLibraryWork `json:"works"`
+}
+
+// ドラマの作品の放送 (#1652)。
+type DramaLibraryBroadcast struct {
+	Program *Program `json:"program"`
+	// 放送する話のシーズン。話を決められなかった放送では null。
+	SeasonNumber *int `json:"seasonNumber,omitempty"`
+	// 放送する話の番号。話を決められなかった放送では null。
+	EpisodeNumber *int `json:"episodeNumber,omitempty"`
+	// 再放送かどうか。
+	Rerun bool `json:"rerun"`
+	// TMDb のシーズンの最後の話かどうか。最後の話が分からなければ false。
+	Last bool `json:"last"`
+}
+
+// ドラマの視聴管理の画面の、作品の 1 話 (#1652)。
+type DramaLibraryEpisode struct {
+	// TMDb のシーズンの番号。0 は特別編。
+	SeasonNumber int `json:"seasonNumber"`
+	// シーズンの中の話の番号。
+	EpisodeNumber int `json:"episodeNumber"`
+	// 話の名前。TMDb のキャッシュになければ null。
+	Name *string `json:"name,omitempty"`
+	// TMDb の話のページ。
+	URL string `json:"url"`
+}
+
+// ドラマの作品の始まった放送 (#1652)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+type DramaLibraryPastBroadcast struct {
+	StartAt time.Time `json:"startAt"`
+	// TMDb のシーズンの最後の話かどうか。
+	Last bool `json:"last"`
+}
+
+// ドラマの作品の、録画のある話 (#1652)。
+type DramaLibraryRecordedEpisode struct {
+	SeasonNumber  int `json:"seasonNumber"`
+	EpisodeNumber int `json:"episodeNumber"`
+	// 話の名前。TMDb のキャッシュになければ null。
+	Name *string `json:"name,omitempty"`
+	// その話の録画のうち、最も新しく録ったもの。
+	Recording *Recording `json:"recording"`
+	// その話の録画の数。2 局で録ったときなどは 2 以上になる。
+	RecordingCount int `json:"recordingCount"`
+	// 見た話かどうか。見た話か、最後に見た話より前の話なら true。見た話がひとつもない作品では null。
+	Watched *bool `json:"watched,omitempty"`
+}
+
+// ドラマの視聴管理の画面の 1 作品 (#1652)。
+type DramaLibraryWork struct {
+	// 作品を見分ける ID。
+	ID     string           `json:"id"`
+	Series *DramaSeries     `json:"series"`
+	Status DramaWatchStatus `json:"status"`
+	// 見ている作品に足した日時。
+	AddedAt time.Time `json:"addedAt"`
+	// 見た話のうち、最も後の話 (特別編を除く)。見た話がなければ null。
+	LastWatched *DramaLibraryEpisode `json:"lastWatched,omitempty"`
+	// 次に見る話。最後に見た話の次の話で、シーズンの最後の話なら、次のシーズンの最初の話。
+	// 見た話がないか、最後のシーズンの最後の話まで見ていれば null。
+	NextEpisode *DramaLibraryEpisode `json:"nextEpisode,omitempty"`
+	// 次の放送 (放送中を含む)。これから 1 週間の放送のうち、最後に見た話より後の話の放送で最も早いもの。なければ、最も早い放送。
+	// 放送がなければ null。
+	NextBroadcast *DramaLibraryBroadcast `json:"nextBroadcast,omitempty"`
+	// これから 1 週間の放送 (放送中を含む)。放送の早い順に並べる。
+	Broadcasts []*DramaLibraryBroadcast `json:"broadcasts"`
+	// この 1 週間に始まった最も新しい放送。なければ null。
+	RecentBroadcast *DramaLibraryPastBroadcast `json:"recentBroadcast,omitempty"`
+	// 録画のある話。シーズンと話の順に並べる。
+	RecordedEpisodes []*DramaLibraryRecordedEpisode `json:"recordedEpisodes"`
 }
 
 // TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
@@ -759,6 +839,8 @@ type DramaSeries struct {
 	OriginalName *string `json:"originalName,omitempty"`
 	// TMDb の作品のページ。
 	URL string `json:"url"`
+	// ログイン中のユーザーが、この作品を見ている作品に入れた状態 (#1652)。入れていなければ null。
+	WatchStatus *DramaWatchStatus `json:"watchStatus,omitempty"`
 }
 
 // 管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。
@@ -872,6 +954,23 @@ type GoogleDriveConnection struct {
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
 }
 
+// ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。
+type GoogleDriveFolder struct {
+	// Drive のフォルダの ID。
+	ID string `json:"id"`
+	// 選んだときのフォルダの名前。
+	Name    string    `json:"name"`
+	AddedAt time.Time `json:"addedAt"`
+}
+
+// 見せるフォルダを選ぶときに出す、Drive のフォルダ (#1902)。
+type GoogleDriveFolderChoice struct {
+	// Drive のフォルダの ID。マイドライブの根元は root。
+	ID string `json:"id"`
+	// フォルダの名前。マイドライブの根元は "My Drive"。
+	Name string `json:"name"`
+}
+
 // 管理者が登録した Google の OAuth クライアントと、それで接続した Google Drive (#1902、設計書 5.8)。クライアントシークレットとトークンは返さない。
 type GoogleIntegration struct {
 	// 登録したクライアント ID。登録していなければ null。
@@ -885,6 +984,9 @@ type GoogleIntegration struct {
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 	// Google Drive の接続。接続していなければ null。
 	Drive *GoogleDriveConnection `json:"drive,omitempty"`
+	// ライブラリとして見せると選んだフォルダを、選んだ順に返す (#1902)。選んだフォルダの下だけを見せ、1 つも選んでいなければ、
+	// ライブラリに Google Drive を出さない。
+	Folders []*GoogleDriveFolder `json:"folders"`
 }
 
 // 番組表ビューの内容。ジャンルで lv2 を省くと、大分類のすべてを表す。
@@ -1241,6 +1343,14 @@ type LibraryProgram struct {
 	StartAt *time.Time `json:"startAt,omitempty"`
 	// 番組の終わり。未定なら null。
 	EndAt *time.Time `json:"endAt,omitempty"`
+}
+
+// ライブラリの名前の検索の結果 (#1902)。
+type LibrarySearchResult struct {
+	// 見つけたファイル。
+	Entries []*LibraryEntry `json:"entries"`
+	// 件数の上限や、たどる数の上限で、探すのを打ち切ったかどうか。打ち切ったら、語を足して絞るよう出す。
+	Truncated bool `json:"truncated"`
 }
 
 // ライブのサービスの、PID の種類ごとのビットレートと、TS のパケットの異常の数 (#812)。
@@ -3221,6 +3331,64 @@ func (e *DramaSeriesSource) UnmarshalJSON(b []byte) error {
 }
 
 func (e DramaSeriesSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// ユーザーが見ているドラマの作品の状態 (#1652、設計書 3.9)。
+type DramaWatchStatus string
+
+const (
+	// 見ている
+	DramaWatchStatusWatching DramaWatchStatus = "WATCHING"
+	// 見たい
+	DramaWatchStatusWannaWatch DramaWatchStatus = "WANNA_WATCH"
+)
+
+var AllDramaWatchStatus = []DramaWatchStatus{
+	DramaWatchStatusWatching,
+	DramaWatchStatusWannaWatch,
+}
+
+func (e DramaWatchStatus) IsValid() bool {
+	switch e {
+	case DramaWatchStatusWatching, DramaWatchStatusWannaWatch:
+		return true
+	}
+	return false
+}
+
+func (e DramaWatchStatus) String() string {
+	return string(e)
+}
+
+func (e *DramaWatchStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DramaWatchStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DramaWatchStatus", str)
+	}
+	return nil
+}
+
+func (e DramaWatchStatus) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DramaWatchStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DramaWatchStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

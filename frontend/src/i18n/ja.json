@@ -589,7 +589,8 @@
     "remote": "リモコン",
     "offline": "端末の録画",
     "anime": "アニメ",
-    "library": "ライブラリ"
+    "library": "ライブラリ",
+    "drama": "ドラマ"
   },
   "guide": {
     "watchLive": "{{name}}をライブ視聴する",
@@ -2412,7 +2413,7 @@
     "googleDrive": {
       "title": "Google Drive",
       "help": "管理者のGoogle Driveを、ライブラリとして接続します。Google CloudでOAuthクライアント（ウェブアプリケーション）を作り、承認済みのリダイレクトURIに下のURIを入れてから、クライアントIDとシークレットを登録して、接続してください。スコープは、Google Driveの読み取り（drive.readonly）だけを求めます。",
-      "familyNote": "接続したアカウントのGoogle Driveにある、TS（.ts、.m2ts、.mts）とフォルダは、視聴者を含むログインした家族全員がライブラリから見られます。",
+      "familyNote": "接続したアカウントのGoogle Driveのうち、下で選んだフォルダの下にあるTS（.ts、.m2ts、.mts）とフォルダは、視聴者を含むログインした家族全員がライブラリから見られます。選んだフォルダの外は見せません。",
       "testingNote": "OAuthの同意画面を「テスト中」のまま外部向けにすると、Googleは7日で接続を切ります。切れたら、ここで接続し直してください。",
       "redirectUri": "リダイレクトURI",
       "clientId": "クライアントID",
@@ -2427,7 +2428,7 @@
       "notConnected": "接続していません",
       "needsClient": "接続するには、先にクライアントIDとシークレットを登録してください",
       "revoked": "Googleで接続が切れました（{{date}}）。アクセスを取り消したか、期限が切れました。接続し直すまで、ライブラリにGoogle Driveを出しません",
-      "connected": "Google Driveを接続しました。ライブラリから開けます",
+      "connected": "Google Driveを接続しました。ライブラリとして見せるフォルダを選んでください",
       "disconnected": "Google Driveの接続を外しました",
       "callbackErrors": {
         "google_expired": "接続の期限が切れました。もう一度接続してください",
@@ -2436,6 +2437,21 @@
         "google_no_refresh_token": "Googleがリフレッシュトークンを返さなかったので、接続しませんでした。もう一度接続してください",
         "google_unavailable": "クライアントの登録が消えたので、接続できませんでした",
         "google_failed": "接続できませんでした。クライアントIDとシークレットを確かめて、やり直してください"
+      },
+      "folders": {
+        "title": "ライブラリとして見せるフォルダ",
+        "help": "選んだフォルダの下だけを、ライブラリに出します。共有ドライブの中のフォルダも選べます。1つも選んでいなければ、ライブラリにGoogle Driveを出しません。",
+        "empty": "まだ選んでいません",
+        "add": "フォルダを追加",
+        "remove": "外す",
+        "top": "ドライブ",
+        "noSubfolders": "この中にフォルダはありません",
+        "error": "フォルダを読めませんでした",
+        "cancel": "やめる",
+        "chooseHint": "フォルダを開いてから選んでください",
+        "choose": "「{{name}}」を選ぶ",
+        "added": "フォルダを追加しました",
+        "removed": "フォルダを外しました"
       }
     }
   },
@@ -2673,8 +2689,8 @@
     "notConnected": "連携していません",
     "notRegistered": "管理者がアプリを登録していないので、連携できません",
     "aniListRevokeHint": "AniListは、Kotatsuからトークンを取り消せません。連携を外したら、AniListの設定の画面からもアプリを外してください",
-    "recordOnDevice": "この端末で見たアニメを記録する",
-    "recordOnDeviceHelp": "切ると、この端末のライブ視聴と録画の再生では、見たアニメを記録しません。この設定は端末ごとに覚え、ほかの端末とは同期しません。",
+    "recordOnDevice": "この端末で見たアニメとドラマを記録する",
+    "recordOnDeviceHelp": "切ると、この端末のライブ視聴と録画の再生では、見たアニメも、見たドラマの話も記録しません。この設定は端末ごとに覚え、ほかの端末とは同期しません。",
     "settingsTitle": "記録の設定",
     "threshold": "見たとみなす割合",
     "thresholdHelp": "番組の長さのうち、実際に再生した長さがこの割合に届いたら記録します",
@@ -2711,6 +2727,35 @@
       "exclude": "結びつけない",
       "reset": "検索に戻す",
       "saved": "保存しました。次の照合で反映します"
+    },
+    "library": {
+      "title": "ドラマ",
+      "description": "番組や録画の詳細で「見ている」「見たい」にした作品を、次に見る話、次の放送、まだ見ていない録画と並べます。",
+      "status": {
+        "WATCHING": "見ている",
+        "WANNA_WATCH": "見たい",
+        "all": "すべて"
+      },
+      "loadError": "作品を読み込めませんでした",
+      "disabled": "管理者がTMDbとの連携を有効にしていません",
+      "empty": "作品はありません",
+      "emptyHint": "番組の詳細か録画の詳細の「視聴管理に足す」から足せます",
+      "noWatched": "見た話はまだありません",
+      "lastWatched": "{{episode}}まで見た",
+      "next": "次は {{episode}}{{title}}",
+      "finished": "最後の話まで見ました",
+      "markNext": "{{episode}}を見たことにする"
+    },
+    "watch": {
+      "add": "視聴管理に足す",
+      "status": {
+        "WATCHING": "見ている",
+        "WANNA_WATCH": "見たい"
+      },
+      "remove": "視聴管理から外す",
+      "markWatched": "見たことにする",
+      "watched": "見た",
+      "unmarkHint": "押すと、見たことを取り消します"
     }
   },
   "networkActivity": {
@@ -2912,6 +2957,16 @@
     "indexingStatus": "シークの準備をしています。{{seconds}} までシークできます",
     "writing": "このファイルは書いている途中なので、シークの準備をしていません。頭から再生できます",
     "myDrive": "マイドライブ",
-    "busy": "Google Driveが混み合っているか、ファイルのダウンロードの上限に当たりました。時間をおいてやり直してください"
+    "busy": "Google Driveが混み合っているか、ファイルのダウンロードの上限に当たりました。時間をおいてやり直してください",
+    "search": {
+      "label": "名前で探す",
+      "placeholder": "このフォルダの下を名前で探す",
+      "submit": "探す",
+      "clear": "探すのをやめる",
+      "count_other": "「{{query}}」を含むファイルが{{count}}件見つかりました",
+      "truncated": "多すぎるので、途中までを出しています。語を足して絞ってください",
+      "empty": "「{{query}}」を含むファイルは見つかりませんでした",
+      "emptyHint": "別の語で探すか、上のフォルダから探してください"
+    }
   }
 }

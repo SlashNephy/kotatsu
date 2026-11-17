@@ -326,7 +326,7 @@ func (d *Drive) roots(ctx context.Context, folders []*DriveFolder) ([]*Entry, er
 	entries := make([]*Entry, 0, len(folders))
 	for _, folder := range folders {
 		file, err := d.get(ctx, folder.ID)
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNotConnected) {
 			continue
 		}
 		if err != nil {
@@ -404,7 +404,7 @@ func (d *Drive) chain(ctx context.Context, anchor, id string) ([]string, error) 
 		}
 		reversed = append(reversed, current)
 		file, err := d.get(ctx, current)
-		if errors.Is(err, ErrNotFound) && current != id {
+		if errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNotConnected) && current != id {
 			// 途中の親が見えなければ、選んだフォルダの下にない。
 			break
 		}

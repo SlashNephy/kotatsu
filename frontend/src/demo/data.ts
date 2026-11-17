@@ -460,9 +460,12 @@ export function createRootValue(
       redirectUri: `${window.location.origin}/internal/auth/google/callback`,
       updatedAt: null,
       drive: null,
+      folders: [],
     }),
     animeWishlist: () => demoAnimeWishlist(),
     animeLibrary: () => demoAnimeLibrary(),
+    // デモは TMDb との連携を使わないので、ドラマの視聴管理の画面も無効にする (#1652)。
+    dramaLibrary: () => ({ enabled: false, works: [] }),
     // デモは外部へ問い合わせないので、連携していないものとして出さない。
     animeFollowingViewings: () => ({
       enabled: false,

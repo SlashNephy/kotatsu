@@ -51,6 +51,8 @@ const (
 	// paramFields と paramAllDrives は、クエリの引数の名前。
 	paramFields    = "fields"
 	paramAllDrives = "supportsAllDrives"
+	// paramPageSize は、1 ページの件数を渡す引数の名前。
+	paramPageSize = "pageSize"
 	// valueTrue は、真を表す引数の値。
 	valueTrue = "true"
 )
@@ -175,7 +177,7 @@ func (c *Client) Drives(ctx context.Context) ([]*Drive, error) {
 	token := ""
 	for {
 		query := url.Values{
-			"pageSize": {strconv.Itoa(drivesPageSize)}, paramFields: {"nextPageToken,drives(id,name,createdTime)"},
+			paramPageSize: {strconv.Itoa(drivesPageSize)}, paramFields: {"nextPageToken,drives(id,name,createdTime)"},
 		}
 		if token != "" {
 			query.Set("pageToken", token)
@@ -222,9 +224,9 @@ func (c *Client) Children(ctx context.Context, parentID, driveID string) ([]*Fil
 	token := ""
 	for {
 		query := url.Values{
-			"q":         {fmt.Sprintf("'%s' in parents and trashed = false", escapeQuery(parentID))},
-			paramFields: {"nextPageToken,files(" + fileFields + ")"},
-			"pageSize":  {strconv.Itoa(pageSize)}, "orderBy": {"folder,name_natural"},
+			"q":           {fmt.Sprintf("'%s' in parents and trashed = false", escapeQuery(parentID))},
+			paramFields:   {"nextPageToken,files(" + fileFields + ")"},
+			paramPageSize: {strconv.Itoa(pageSize)}, "orderBy": {"folder,name_natural"},
 			paramAllDrives: {valueTrue}, "includeItemsFromAllDrives": {valueTrue},
 		}
 		if driveID == "" {
@@ -263,9 +265,9 @@ func (c *Client) SearchFiles(ctx context.Context, name, driveID string, maxPages
 	token := ""
 	for range maxPages {
 		query := url.Values{
-			"q": {fmt.Sprintf("name contains '%s' and mimeType != '%s' and trashed = false", escapeQuery(name), FolderMIMEType)},
-			paramFields: {"nextPageToken,files(" + fileFields + ")"},
-			"pageSize":  {strconv.Itoa(pageSize)}, paramAllDrives: {valueTrue}, "includeItemsFromAllDrives": {valueTrue},
+			"q":           {fmt.Sprintf("name contains '%s' and mimeType != '%s' and trashed = false", escapeQuery(name), FolderMIMEType)},
+			paramFields:   {"nextPageToken,files(" + fileFields + ")"},
+			paramPageSize: {strconv.Itoa(pageSize)}, paramAllDrives: {valueTrue}, "includeItemsFromAllDrives": {valueTrue},
 		}
 		if driveID == "" {
 			query.Set("corpora", "user")

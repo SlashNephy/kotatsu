@@ -14,6 +14,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/googledrive"
+	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 )
 
 const (
@@ -30,8 +31,10 @@ type DriveTokens struct {
 	db      sqlc.DBTX
 
 	mu sync.Mutex
-	// row は、最後に DB から読んだ接続。接続していなければ nil。checkedAt は、読んだ日時。
+	// row は、最後に DB から読んだ接続。接続していなければ nil。folders は、同じときに読んだ、見せるフォルダ。
+	// checkedAt は、読んだ日時。
 	row       *sqlc.GoogleDriveConnection
+	folders   []*medialib.DriveFolder
 	checkedAt time.Time
 	// token は、手元のアクセストークン。tokenFor は、それを作ったリフレッシュトークン (暗号化したもの)。expiry は、その期限。
 	token    *oauth2.Token
@@ -39,11 +42,17 @@ type DriveTokens struct {
 	expiry   time.Time
 }
 
-var _ googledrive.TokenSource = new(DriveTokens)
+var (
+	_ googledrive.TokenSource = new(DriveTokens)
+	_ medialib.DriveScope     = new(DriveTokens)
+)
 
 // DriveTokens は、DB db の接続から、Google Drive のアクセストークンを作る DriveTokens を返す。
 func (s *Service) DriveTokens(db sqlc.DBTX) *DriveTokens {
-	tokens := &DriveTokens{service: s, db: db, mu: sync.Mutex{}, row: nil, checkedAt: time.Time{}, token: nil, tokenFor: nil, expiry: time.Time{}}
+	tokens := &DriveTokens{
+		service: s, db: db, mu: sync.Mutex{}, row: nil, folders: []*medialib.DriveFolder{}, checkedAt: time.Time{},
+		token: nil, tokenFor: nil, expiry: time.Time{},
+	}
 	s.tokensMu.Lock()
 	defer s.tokensMu.Unlock()
 	s.tokens = append(s.tokens, tokens)
@@ -66,6 +75,17 @@ func (t *DriveTokens) Connected(ctx context.Context) (bool, error) {
 	}
 
 	return row != nil && row.RevokedAt == nil, nil
+}
+
+// Folders は、管理者がライブラリとして見せると選んだフォルダを、選んだ順に返す。
+func (t *DriveTokens) Folders(ctx context.Context) ([]*medialib.DriveFolder, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if _, err := t.connection(ctx); err != nil {
+		return nil, err
+	}
+
+	return slices.Clone(t.folders), nil
 }
 
 // Token は、アクセストークンを返す。期限が近ければ、リフレッシュトークンで作り直す。リフレッシュトークンが使えなくなっていれば
@@ -135,7 +155,8 @@ func (t *DriveTokens) connection(ctx context.Context) (*sqlc.GoogleDriveConnecti
 	if !t.checkedAt.IsZero() && now.Sub(t.checkedAt) < connectionTTL {
 		return t.row, nil
 	}
-	row, err := sqlc.New(t.db).GetGoogleDriveConnection(ctx)
+	q := sqlc.New(t.db)
+	row, err := q.GetGoogleDriveConnection(ctx)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		t.row = nil
@@ -143,6 +164,14 @@ func (t *DriveTokens) connection(ctx context.Context) (*sqlc.GoogleDriveConnecti
 		return nil, fmt.Errorf("failed to get the Google Drive connection: %w", err)
 	default:
 		t.row = &row
+	}
+	rows, err := q.ListGoogleDriveFolders(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the Google Drive folders: %w", err)
+	}
+	t.folders = make([]*medialib.DriveFolder, 0, len(rows))
+	for _, folder := range rows {
+		t.folders = append(t.folders, &medialib.DriveFolder{ID: folder.FolderID, DriveID: folder.DriveID})
 	}
 	t.checkedAt = now
 

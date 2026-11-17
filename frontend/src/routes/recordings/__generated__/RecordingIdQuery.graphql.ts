@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<515e8d1b58ae0fae22ba31138f029ea4>>
+ * @generated SignedSource<<2dd833fdbb71d8fd91bde0556ee200a0>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type DramaSeriesSource = "OVERRIDE" | "SEARCH" | "%future added value";
+export type DramaWatchStatus = "WANNA_WATCH" | "WATCHING" | "%future added value";
 export type RecordingAutoCaptionsState = "FAILED" | "GENERATED" | "NOT_CONFIGURED" | "NOT_GENERATED" | "QUEUED" | "RUNNING" | "%future added value";
 export type RecordingCMDetectionState = "DETECTED" | "FAILED" | "NOT_DETECTED" | "QUEUED" | "RUNNING" | "%future added value";
 export type RecordingFailureReason = "CANCELLED" | "PROGRAM_NOT_FOUND" | "RECORDER_UNAVAILABLE" | "STORAGE_FULL" | "STORAGE_UNAVAILABLE" | "STREAM_INTERRUPTED" | "TUNER_PREEMPTED" | "TUNER_SERVER_UNREACHABLE" | "TUNER_UNAVAILABLE" | "TUNING_REFUSED" | "%future added value";
@@ -73,9 +74,11 @@ export type RecordingIdQuery$data = {
         readonly originalName: string | null | undefined;
         readonly tmdbId: number;
         readonly url: string;
+        readonly watchStatus: DramaWatchStatus | null | undefined;
       };
       readonly seriesSource: DramaSeriesSource;
       readonly url: string;
+      readonly watched: boolean;
     } | null | undefined;
     readonly drops: number;
     readonly endAt: string;
@@ -618,7 +621,14 @@ v34 = {
           "name": "originalName",
           "storageKey": null
         },
-        (v33/*:: as any*/)
+        (v33/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "watchStatus",
+          "storageKey": null
+        }
       ],
       "storageKey": null
     },
@@ -650,7 +660,14 @@ v34 = {
       "name": "episodeName",
       "storageKey": null
     },
-    (v33/*:: as any*/)
+    (v33/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "watched",
+      "storageKey": null
+    }
   ],
   "storageKey": null
 },
@@ -1208,16 +1225,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "29db2ade0fa19614a0ebc973fe03e88c",
+    "cacheID": "49fc605853e009c81385019e60aa58a6",
     "id": null,
     "metadata": {},
     "name": "RecordingIdQuery",
     "operationKind": "query",
-    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  systemSettings {\n    externalPlayerUrlsEnabled\n    recordingDownloadsEnabled\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      workTitle\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      failureDetail\n      protected\n      drops\n      errors\n      scrambled\n      scrambleWarning\n      scrambledRatio\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n      }\n      cmDetection {\n        state\n        detectedAt\n        note\n        videoMissingSeconds\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      autoCaptionsStatus {\n        state\n        generatedAt\n        model\n        count\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      dramaEpisode {\n        series {\n          tmdbId\n          name\n          originalName\n          url\n        }\n        seriesSource\n        seasonNumber\n        episodeNumber\n        episodeName\n        url\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      videoFormat\n      jikkyoCommentsUrl\n      tvtplayChapterUrl\n      recordedFrom\n      recordedUntil\n      service {\n        id\n        name\n        channelType {\n          type\n        }\n        logoUrl\n        jikkyo {\n          id\n        }\n      }\n      nextEpisodes {\n        id\n        name\n        startAt\n        ruleKeyword\n        service {\n          id\n          name\n          logoUrl\n        }\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n        video {\n          codec\n          width\n          height\n          interlaced\n          frameRate\n        }\n        tuner {\n          index\n          name\n        }\n        transcodeFrameRate\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  systemSettings {\n    externalPlayerUrlsEnabled\n    recordingDownloadsEnabled\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      workTitle\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      failureDetail\n      protected\n      drops\n      errors\n      scrambled\n      scrambleWarning\n      scrambledRatio\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n      }\n      cmDetection {\n        state\n        detectedAt\n        note\n        videoMissingSeconds\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      autoCaptionsStatus {\n        state\n        generatedAt\n        model\n        count\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      dramaEpisode {\n        series {\n          tmdbId\n          name\n          originalName\n          url\n          watchStatus\n        }\n        seriesSource\n        seasonNumber\n        episodeNumber\n        episodeName\n        url\n        watched\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      videoFormat\n      jikkyoCommentsUrl\n      tvtplayChapterUrl\n      recordedFrom\n      recordedUntil\n      service {\n        id\n        name\n        channelType {\n          type\n        }\n        logoUrl\n        jikkyo {\n          id\n        }\n      }\n      nextEpisodes {\n        id\n        name\n        startAt\n        ruleKeyword\n        service {\n          id\n          name\n          logoUrl\n        }\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n        video {\n          codec\n          width\n          height\n          interlaced\n          frameRate\n        }\n        tuner {\n          index\n          name\n        }\n        transcodeFrameRate\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3bb46b6e003f4ddf670ee64ad99d0bc7";
+(node as any).hash = "418ee022b3f730de4c393490be0f4d32";
 
 export default node;

@@ -103,6 +103,8 @@ type Service struct {
 	// tokensMu と tokens は、この部品が作った DriveTokens。接続を変えたら、手元で覚えた接続を捨てさせ、すぐに反映する。
 	tokensMu sync.Mutex
 	tokens   []*DriveTokens
+	// admin は、管理者の操作 (見せるフォルダを選ぶ) で Drive を読むときのトークン。初めて使うときに作る。
+	admin *DriveTokens
 }
 
 // Options は NewService の設定。
@@ -136,7 +138,7 @@ func NewService(opts *Options) (*Service, error) {
 
 	return &Service{
 		clock: opts.Clock, recorder: opts.Recorder, appBox: appBox, driveBox: driveBox, http: opts.HTTPClient, logger: opts.Logger,
-		accountsURL: accountsURL, oauthURL: oauthURL, apiURL: apiURL, tokensMu: sync.Mutex{}, tokens: []*DriveTokens{},
+		accountsURL: accountsURL, oauthURL: oauthURL, apiURL: apiURL, tokensMu: sync.Mutex{}, tokens: []*DriveTokens{}, admin: nil,
 	}, nil
 }
 
@@ -327,12 +329,17 @@ func (s *Service) Complete(ctx context.Context, db Database, principal *auth.Pri
 func (s *Service) DisconnectDrive(ctx context.Context, db Database, actor *audit.Actor) error {
 	var token string
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		row, err := sqlc.New(tx).DeleteGoogleDriveConnection(ctx)
+		q := sqlc.New(tx)
+		row, err := q.DeleteGoogleDriveConnection(ctx)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotConnected
 		}
 		if err != nil {
 			return fmt.Errorf("failed to delete the Google Drive connection: %w", err)
+		}
+		// 見せるフォルダも外す。接続し直したアカウントで、前のフォルダを見せないため。
+		if _, err := q.DeleteGoogleDriveFolders(ctx); err != nil {
+			return fmt.Errorf("failed to delete the Google Drive folders: %w", err)
 		}
 		if plain, err := s.driveBox.Open(row.RefreshTokenEncrypted); err == nil {
 			token = string(plain)
@@ -388,6 +395,12 @@ func (s *Service) completeDrive(
 			if plain, err := s.driveBox.Open(current.RefreshTokenEncrypted); err == nil {
 				previous = string(plain)
 			}
+			// 別のアカウントで接続し直したら、前のアカウントで選んだフォルダは外す。
+			if current.AccountName != account {
+				if _, err := q.DeleteGoogleDriveFolders(ctx); err != nil {
+					return fmt.Errorf("failed to delete the Google Drive folders: %w", err)
+				}
+			}
 		}
 		if err := q.UpsertGoogleDriveConnection(ctx, sqlc.UpsertGoogleDriveConnectionParams{
 			RefreshTokenEncrypted: encrypted, AccountName: account, Now: s.clock.Now(),
@@ -423,6 +436,9 @@ func (s *Service) deleteApp(ctx context.Context, db Database, actor *audit.Actor
 		}
 		if deleted == 0 {
 			return nil
+		}
+		if _, err := q.DeleteGoogleDriveFolders(ctx); err != nil {
+			return fmt.Errorf("failed to delete the Google Drive folders: %w", err)
 		}
 		connection, err := q.DeleteGoogleDriveConnection(ctx)
 		switch {

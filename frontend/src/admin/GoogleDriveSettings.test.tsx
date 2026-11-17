@@ -13,6 +13,7 @@ const notConfigured: GoogleIntegrationItem = {
   configured: false,
   redirectUri,
   drive: null,
+  folders: [],
 };
 const configured: GoogleIntegrationItem = {
   ...notConfigured,
@@ -33,6 +34,8 @@ function renderSettings(
     onSaveApp: vi.fn(),
     onConnect: vi.fn(),
     onDisconnect: vi.fn(),
+    onAddFolder: vi.fn(),
+    onRemoveFolder: vi.fn(),
   };
   render(
     <MantineProvider env="test">
@@ -76,6 +79,28 @@ describe('GoogleDriveSettings (#1902)', () => {
     expect(handlers.onDisconnect).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: '接続し直す' }));
     expect(handlers.onConnect).toHaveBeenCalledOnce();
+  });
+
+  test('接続したら、見せるフォルダを出し、外せる', () => {
+    const handlers = renderSettings({
+      ...connected,
+      folders: [{ id: 'f1', name: '録画のバックアップ' }],
+    });
+    expect(screen.getByText('録画のバックアップ')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: '外す' }));
+    expect(handlers.onRemoveFolder).toHaveBeenCalledWith('f1');
+    expect(screen.getByRole('button', { name: 'フォルダを追加' })).toBeDefined();
+  });
+
+  test('接続していないか切れていれば、見せるフォルダを選ばせない', () => {
+    renderSettings(configured);
+    expect(screen.queryByRole('button', { name: 'フォルダを追加' })).toBeNull();
+    cleanup();
+    renderSettings({
+      ...connected,
+      drive: { ...connected.drive!, revokedAt: '2026-11-18T03:00:00Z' },
+    });
+    expect(screen.queryByRole('button', { name: 'フォルダを追加' })).toBeNull();
   });
 
   test('Google で接続が切れたら、接続し直すよう知らせる', () => {

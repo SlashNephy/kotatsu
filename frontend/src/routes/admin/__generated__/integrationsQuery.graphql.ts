@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e2b89844dad99400d81962868e9e824f>>
+ * @generated SignedSource<<3e62d6a7f4e0999d400412b554f44cc8>>
  * @lightSyntaxTransform
  */
 
@@ -48,6 +48,10 @@ export type integrationsQuery$data = {
       readonly connectedAt: string;
       readonly revokedAt: string | null | undefined;
     } | null | undefined;
+    readonly folders: ReadonlyArray<{
+      readonly id: string;
+      readonly name: string;
+    }>;
     readonly redirectUri: string;
   };
   readonly issuedStreamUrls: ReadonlyArray<{
@@ -123,7 +127,14 @@ v3 = {
   "name": "redirectUri",
   "storageKey": null
 },
-v4 = [
+v4 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "name",
+  "storageKey": null
+},
+v5 = [
   {
     "alias": null,
     "args": null,
@@ -348,6 +359,19 @@ v4 = [
           }
         ],
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "GoogleDriveFolder",
+        "kind": "LinkedField",
+        "name": "folders",
+        "plural": true,
+        "selections": [
+          (v0/*:: as any*/),
+          (v4/*:: as any*/)
+        ],
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -464,13 +488,7 @@ v4 = [
     "plural": true,
     "selections": [
       (v0/*:: as any*/),
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "name",
-        "storageKey": null
-      },
+      (v4/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -546,7 +564,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "integrationsQuery",
-    "selections": (v4/*:: as any*/),
+    "selections": (v5/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -555,19 +573,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "integrationsQuery",
-    "selections": (v4/*:: as any*/)
+    "selections": (v5/*:: as any*/)
   },
   "params": {
-    "cacheID": "b5ac58fd1cd7c9cde6cfdd3472076e9f",
+    "cacheID": "e3daa9b228963314ed3f0aa500a6cb6a",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    recordingDownloadsEnabled\n    epgstationApiEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    dramaLinkingEnabled\n    commentSources\n    hibpEnabled\n    webPushSubject\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  googleIntegration {\n    clientId\n    configured\n    redirectUri\n    drive {\n      accountName\n      connectedAt\n      revokedAt\n    }\n  }\n  dramaLinking {\n    tokenConfigured\n    tokenHint\n  }\n  dramaTitleOverrides {\n    titleKey\n    tmdbSeriesId\n    updatedAt\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    recordingDownloadsEnabled\n    epgstationApiEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    dramaLinkingEnabled\n    commentSources\n    hibpEnabled\n    webPushSubject\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  googleIntegration {\n    clientId\n    configured\n    redirectUri\n    drive {\n      accountName\n      connectedAt\n      revokedAt\n    }\n    folders {\n      id\n      name\n    }\n  }\n  dramaLinking {\n    tokenConfigured\n    tokenHint\n  }\n  dramaTitleOverrides {\n    titleKey\n    tmdbSeriesId\n    updatedAt\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "be849f8442687726abffbc078c93f9af";
+(node as any).hash = "2f38915cfb4ff2f76802f4c8fc709655";
 
 export default node;

@@ -14,6 +14,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as AnimeRouteImport } from './routes/anime'
 import { Route as AuthorizeRouteImport } from './routes/authorize'
 import { Route as CapturesRouteImport } from './routes/captures'
+import { Route as DramaRouteImport } from './routes/drama'
 import { Route as NetworkActivityRouteImport } from './routes/network-activity'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as RemoteRouteImport } from './routes/remote'
@@ -84,6 +85,11 @@ const AuthorizeRoute = AuthorizeRouteImport.update({
 const CapturesRoute = CapturesRouteImport.update({
   id: '/captures',
   path: '/captures',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DramaRoute = DramaRouteImport.update({
+  id: '/drama',
+  path: '/drama',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NetworkActivityRoute = NetworkActivityRouteImport.update({
@@ -324,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
+  '/drama': typeof DramaRoute
   '/network-activity': typeof NetworkActivityRoute
   '/notifications': typeof NotificationsRoute
   '/remote': typeof RemoteRoute
@@ -377,6 +384,7 @@ export interface FileRoutesByTo {
   '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
+  '/drama': typeof DramaRoute
   '/network-activity': typeof NetworkActivityRoute
   '/notifications': typeof NotificationsRoute
   '/remote': typeof RemoteRoute
@@ -431,6 +439,7 @@ export interface FileRoutesById {
   '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
+  '/drama': typeof DramaRoute
   '/network-activity': typeof NetworkActivityRoute
   '/notifications': typeof NotificationsRoute
   '/remote': typeof RemoteRoute
@@ -486,6 +495,7 @@ export interface FileRouteTypes {
     | '/anime'
     | '/authorize'
     | '/captures'
+    | '/drama'
     | '/network-activity'
     | '/notifications'
     | '/remote'
@@ -539,6 +549,7 @@ export interface FileRouteTypes {
     | '/anime'
     | '/authorize'
     | '/captures'
+    | '/drama'
     | '/network-activity'
     | '/notifications'
     | '/remote'
@@ -592,6 +603,7 @@ export interface FileRouteTypes {
     | '/anime'
     | '/authorize'
     | '/captures'
+    | '/drama'
     | '/network-activity'
     | '/notifications'
     | '/remote'
@@ -646,6 +658,7 @@ export interface RootRouteChildren {
   AnimeRoute: typeof AnimeRoute
   AuthorizeRoute: typeof AuthorizeRoute
   CapturesRoute: typeof CapturesRoute
+  DramaRoute: typeof DramaRoute
   NetworkActivityRoute: typeof NetworkActivityRoute
   NotificationsRoute: typeof NotificationsRoute
   RemoteRoute: typeof RemoteRoute
@@ -729,6 +742,13 @@ declare module '@tanstack/react-router' {
       path: '/captures'
       fullPath: '/captures'
       preLoaderRoute: typeof CapturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/drama': {
+      id: '/drama'
+      path: '/drama'
+      fullPath: '/drama'
+      preLoaderRoute: typeof DramaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/network-activity': {
@@ -1062,6 +1082,7 @@ const rootRouteChildren: RootRouteChildren = {
   AnimeRoute: AnimeRoute,
   AuthorizeRoute: AuthorizeRoute,
   CapturesRoute: CapturesRoute,
+  DramaRoute: DramaRoute,
   NetworkActivityRoute: NetworkActivityRoute,
   NotificationsRoute: NotificationsRoute,
   RemoteRoute: RemoteRoute,
