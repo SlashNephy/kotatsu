@@ -129,6 +129,7 @@ DELETE FROM tmdb_seasons WHERE fetched_at < @before;
 -- name: ListStaleLinkedTMDbSeries :many
 -- 番組か録画に結びついた作品と、ユーザーが見ている作品と見た話の作品 (#1652) のうち、キャッシュが before より前に引いたものか、
 -- ないものを、古い順に limit 件まで返す。6 か月で消す前に引き直し、結びついた作品の名前を出し続ける。
+-- 見ている作品と見た話には、番組か録画に結びついた作品だけを足せる (dramalibrary) ので、TMDb にない ID は入らない。
 SELECT l.id::integer AS id FROM (
   SELECT tmdb_series_id AS id FROM program_drama_matches WHERE tmdb_series_id IS NOT NULL
   UNION
@@ -144,14 +145,12 @@ ORDER BY s.fetched_at NULLS FIRST, l.id
 LIMIT @max_count;
 
 -- name: ListStaleLinkedTMDbSeasons :many
--- 番組か録画に結びついた話と、ユーザーが見た話 (#1652) のシーズンのうち、キャッシュが before より前に引いたものか、ないものを、
--- 古い順に limit 件まで返す。
+-- 番組か録画に結びついた話のシーズンのうち、キャッシュが before より前に引いたものか、ないものを、古い順に limit 件まで返す。
+-- ユーザーが手で見たことにした話 (#1652) のシーズンは、番号を利用者が決めるので (TMDb にないシーズンもありうる)、引き直さない。
 SELECT l.series_id::integer AS series_id, l.season_number::integer AS season_number FROM (
   SELECT tmdb_series_id AS series_id, season_number FROM program_drama_matches WHERE episode_number IS NOT NULL
   UNION
   SELECT tmdb_series_id AS series_id, season_number FROM recording_drama_matches WHERE episode_number IS NOT NULL
-  UNION
-  SELECT tmdb_series_id AS series_id, season_number FROM drama_watched_episodes
 ) l
 LEFT JOIN tmdb_seasons s ON s.series_id = l.series_id AND s.season_number = l.season_number
 WHERE s.series_id IS NULL OR s.fetched_at < @before

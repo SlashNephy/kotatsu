@@ -237,11 +237,20 @@ func TestSetWatched(t *testing.T) {
 		{name: "unmarks the episode", episode: &dramalibrary.Episode{SeriesID: series, Season: 1, Number: 3}, watched: []bool{true, false}, want: []string{}, wantErr: nil},
 		{name: "marks a special", episode: &dramalibrary.Episode{SeriesID: series, Season: 0, Number: 1}, watched: []bool{true}, want: []string{"0:1:manual"}, wantErr: nil},
 		{name: "rejects episode 0", episode: &dramalibrary.Episode{SeriesID: series, Season: 1, Number: 0}, watched: []bool{true}, want: []string{}, wantErr: dramalibrary.ErrInvalidEpisode},
+		{
+			name: "rejects a series without links", episode: &dramalibrary.Episode{SeriesID: unlinked, Season: 1, Number: 1},
+			watched: []bool{true}, want: []string{}, wantErr: dramalibrary.ErrNotLinked,
+		},
+		{
+			name: "unmarks a series without links", episode: &dramalibrary.Episode{SeriesID: unlinked, Season: 1, Number: 1},
+			watched: []bool{false}, want: []string{}, wantErr: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t, true)
+			f.link(t, 12, 30, 3)
 			var err error
 			for _, watched := range tt.watched {
 				err = dramalibrary.SetWatched(t.Context(), f.pool, f.alice, tt.episode, watched, testNow())

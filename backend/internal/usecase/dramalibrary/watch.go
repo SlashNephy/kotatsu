@@ -134,8 +134,9 @@ func (e *Episode) valid() bool {
 }
 
 // SetWatched は、ユーザー userID が、話 episode を見たことを手で付けるか (watched が true)、外す (false)。
-// 見たことにした話は、後からプレイヤーで見ても、付け直さない。
-// 管理者が連携を無効にしていれば ErrUnavailable を、番号が正しくなければ ErrInvalidEpisode を返す。
+// 見たことにした話は、後からプレイヤーで見ても、付け直さない。付けられるのは、番組か録画に結びついた作品の話だけにする
+// (配信で見た話も付けられるよう、話そのものの結びつきは求めない)。外すのは、結びつきがなくてもできる。
+// 管理者が連携を無効にしていれば ErrUnavailable を、番号が正しくなければ ErrInvalidEpisode を、結びつきのない作品なら ErrNotLinked を返す。
 func SetWatched(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, episode *Episode, watched bool, now time.Time) error {
 	if !episode.valid() {
 		return ErrInvalidEpisode
@@ -152,6 +153,13 @@ func SetWatched(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, episode *Ep
 		}
 
 		return nil
+	}
+	linked, err := q.DramaSeriesLinked(ctx, episode.SeriesID)
+	if err != nil {
+		return fmt.Errorf("failed to check the drama links: %w", err)
+	}
+	if !linked {
+		return ErrNotLinked
 	}
 	if _, err := q.InsertDramaWatchedEpisode(ctx, sqlc.InsertDramaWatchedEpisodeParams{
 		UserID: userID, TmdbSeriesID: episode.SeriesID, SeasonNumber: episode.Season, EpisodeNumber: episode.Number,
