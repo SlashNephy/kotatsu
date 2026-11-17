@@ -80,6 +80,22 @@ jobs:
           # キャッシュは読むだけにする。amd64 だけのこのビルドが書くと、同じ scope の arm64 の層が消え、
           # 後の amd64 と arm64 のビルドで、QEMU で動く arm64 の層を毎回作り直すことになる。
           cache-from: type=gha,scope=${{ matrix.target }}
+      # 作った直後、公開する前に、この amd64 のイメージを Trivy で確かめ、修正版のある、重さが HIGH 以上の脆弱性があれば、公開せずに失敗にする (#1922、設計書 11.1)。
+      # main (edge) でもタグ (リリース) でも、push の前に止まる。PR では公開しないので、ここでは止めない。
+      - if: github.event_name != 'pull_request'
+        uses: jdx/mise-action@v5.2.7
+        env:
+          MISE_ENV: scan
+        with:
+          install_args: trivy
+          # 公開する workflow なので、キャッシュから復元したツールを使わない。
+          cache: false
+      - name: Scan the image before publishing
+        if: github.event_name != 'pull_request'
+        env:
+          MISE_ENV: scan
+          ALLOW_VULNERABILITIES: ${{ inputs.allow-vulnerabilities }}
+        run: scripts/ci-vulnerability-gate.sh trivy kotatsu:smoke
       - name: Smoke test
         env:
           TARGET: ${{ matrix.target }}
@@ -102,22 +118,6 @@ jobs:
               docker run --rm --entrypoint test kotatsu:smoke -s "/usr/share/doc/kotatsu/third-party/$doc"
             done
           fi
-      # 公開する前に、作った amd64 のイメージを Trivy で確かめ、修正版のある、重さが HIGH 以上の脆弱性があれば、公開せずに失敗にする (#1922、設計書 11.1)。
-      # main (edge) でもタグ (リリース) でも、push の前に止まる。PR では公開しないので、ここでは止めない。
-      - if: github.event_name != 'pull_request'
-        uses: jdx/mise-action@v5.2.7
-        env:
-          MISE_ENV: scan
-        with:
-          install_args: trivy
-          # 公開する workflow なので、キャッシュから復元したツールを使わない。
-          cache: false
-      - name: Scan the image before publishing
-        if: github.event_name != 'pull_request'
-        env:
-          MISE_ENV: scan
-          ALLOW_VULNERABILITIES: ${{ inputs.allow-vulnerabilities }}
-        run: scripts/ci-vulnerability-gate.sh trivy kotatsu:smoke
       - if: github.event_name != 'pull_request'
         uses: docker/login-action@v4.8.0
         with:
