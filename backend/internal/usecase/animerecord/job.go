@@ -323,6 +323,7 @@ func (s *Service) notify(ctx context.Context, db Database, args *RecordArgs, out
 }
 
 // recordPayload は、通知の材料を作る。番組名、記録先、話数 (「#1、#2」の形) を載せる。
+// 番組名は EPG のまま載せ、通知の文を作るときに作品名にする (#1925)。
 func recordPayload(args *RecordArgs, rows []*sqlc.AnimeRecord) map[string]any {
 	episodes := []string{}
 	for _, row := range rows {
