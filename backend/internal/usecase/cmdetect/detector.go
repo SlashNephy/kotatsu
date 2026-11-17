@@ -7,9 +7,12 @@ package cmdetect
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
+	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 )
 
 // Section は、CM とみなした区間。Start と End は、ファイルの最初の映像からの時間。
@@ -30,6 +33,51 @@ type Input struct {
 	Progress func(b *ffprogress.Block, read int64)
 	// Program は、録画した番組の、番組表の時刻 (#1506)。分からないか、使わないときは nil。
 	Program *Program
+	// Open は、TS のファイルを開く。nil なら Path を開く。ローカルのパスのないファイル (ライブラリのファイル。#1734) で使う。
+	// Path は、ログに出す名前にだけ使う。
+	Open func() (io.ReadSeekCloser, error)
+	// Duration は、TS の長さ。Open で渡すファイルは、ffprobe が終わりまで読めないので、索引から求めて渡す。Open が nil なら使わない。
+	Duration time.Duration
+}
+
+// streams は、FFmpeg に読ませる映像と音声のストリームの指定 (入力の番号を除いたもの)。録画は、録画したサービスだけの TS なので
+// (代表画像と同じく)、最初の映像と音声を読む。Open で渡すファイル (ライブラリのファイル) は、ほかのソフトで丸ごと録った、
+// 複数のサービスを含む TS のこともあるので、ServiceID の番組 (MPEG-TS の program_number) の最初の映像と音声を読む。
+func (in *Input) streams() (string, string) {
+	if in.Open != nil && in.ServiceID != 0 {
+		program := fmt.Sprintf("p:%d:", in.ServiceID)
+
+		return program + "v:0", program + "a:0"
+	}
+
+	return "v:0", "a:0"
+}
+
+// filterGraph は、映像を縮めてシーンの切り替わりを、音声から無音の区間を探す FFmpeg のフィルター。
+func filterGraph(input *Input) string {
+	video, audio := input.streams()
+
+	return "[0:" + video + "]scale=160:90,scdet=threshold=" + sceneThreshold +
+		",metadata=select:key=lavfi.scd.time,metadata=print:file=pipe\\\\:1[v];" +
+		"[0:" + audio + "]silencedetect=noise=" + silenceNoise + ":d=" + silenceDuration + "[a]"
+}
+
+// open は、TS のファイルを開く。
+func (in *Input) open() (io.ReadCloser, error) {
+	if in.Open != nil {
+		file, err := in.Open()
+		if err != nil {
+			return nil, fmt.Errorf("failed to open the file: %w", err)
+		}
+
+		return file, nil
+	}
+	file, err := sharedfile.Open(in.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open the recording file: %w", err)
+	}
+
+	return file, nil
 }
 
 //go:generate go tool mockgen -typed -destination=mock_detector_test.go -package=cmdetect_test . Detector

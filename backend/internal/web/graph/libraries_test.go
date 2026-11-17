@@ -5,13 +5,17 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
@@ -21,7 +25,8 @@ import (
 const (
 	librariesQuery         = `{ libraries { name kind } }`
 	libraryDirectoryQuery  = `query($library: String!, $path: String!) { libraryDirectory(library: $library, path: $path) { path library { name } entries { name path directory size playable } } }`
-	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id name size videoFormat watchPositionMs streamUrl hlsUrl index { complete seekableSeconds durationSeconds } } }`
+	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id fileId name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl thumbnailUrl previewUrl cmSections { startSeconds endSeconds } autoCaptions { startSeconds endSeconds text } autoCaptionsStatus { state model count } broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
+	generateLibraryCaps    = `mutation($id: ID!) { generateLibraryCaptions(id: $id) { id autoCaptionsStatus { state } } }`
 	saveLibraryPosition    = `mutation($id: ID!, $positionMs: Int64!) { saveLibraryWatchPosition(id: $id, positionMs: $positionMs) { id watchPositionMs } }`
 	libraryTestFileContent = "../../../testdata/ts/test.ts"
 	// animeLibrary は、テストのフォルダのライブラリの名前。discM2TS と episodePath は、その中のファイルのパス。
@@ -36,14 +41,46 @@ const (
 
 type libraryFileResult struct {
 	LibraryFile struct {
-		ID              string `json:"id"`
-		Name            string `json:"name"`
-		Size            int64  `json:"size"`
-		VideoFormat     string `json:"videoFormat"`
-		WatchPositionMs *int64 `json:"watchPositionMs"`
-		StreamURL       string `json:"streamUrl"`
-		HlsURL          string `json:"hlsUrl"`
-		Index           struct {
+		ID                string  `json:"id"`
+		FileID            string  `json:"fileId"`
+		Name              string  `json:"name"`
+		Size              int64   `json:"size"`
+		VideoFormat       string  `json:"videoFormat"`
+		WatchPositionMs   *int64  `json:"watchPositionMs"`
+		StreamURL         string  `json:"streamUrl"`
+		HlsURL            string  `json:"hlsUrl"`
+		JikkyoCommentsURL string  `json:"jikkyoCommentsUrl"`
+		ThumbnailURL      *string `json:"thumbnailUrl"`
+		PreviewURL        *string `json:"previewUrl"`
+		AutoCaptions      []struct {
+			StartSeconds float64 `json:"startSeconds"`
+			EndSeconds   float64 `json:"endSeconds"`
+			Text         string  `json:"text"`
+		} `json:"autoCaptions"`
+		AutoCaptionsStatus struct {
+			State string  `json:"state"`
+			Model *string `json:"model"`
+			Count int     `json:"count"`
+		} `json:"autoCaptionsStatus"`
+		CMSections []struct {
+			StartSeconds float64 `json:"startSeconds"`
+			EndSeconds   float64 `json:"endSeconds"`
+		} `json:"cmSections"`
+		Broadcast *struct {
+			NetworkID   *int                   `json:"networkId"`
+			ServiceID   int                    `json:"serviceId"`
+			ServiceName string                 `json:"serviceName"`
+			Service     *struct{ Name string } `json:"service"`
+			Program     *struct {
+				EventID int        `json:"eventId"`
+				Name    string     `json:"name"`
+				EndAt   *time.Time `json:"endAt"`
+			} `json:"program"`
+		} `json:"broadcast"`
+		Quality *struct {
+			Drops int64 `json:"drops"`
+		} `json:"quality"`
+		Index struct {
 			Complete        bool     `json:"complete"`
 			SeekableSeconds float64  `json:"seekableSeconds"`
 			DurationSeconds *float64 `json:"durationSeconds"`
@@ -61,9 +98,19 @@ func loadLibraryTS(t *testing.T) []byte {
 	return data
 }
 
+// libraryParts は、ライブラリのテストで、サーバーの外から触る部品。
+type libraryParts struct {
+	// dir は、ライブラリ anime のディレクトリ。
+	dir string
+	// images は、画像を作るジョブを入れる代わりに、入れたジョブを覚える。
+	images *fakeImages
+	// indexer は、索引と画像の置き場を読み書きする。
+	indexer *filelib.Indexer
+}
+
 // newLibraryFixture は、保存先プール main と、フォルダのライブラリ anime を持つ GraphQL のサーバーを立てる。
 // anime には、番組の TS (show/ep1.ts)、再生できないファイル、隠しファイル、Blu-ray の .m2ts (disc.m2ts) を置く。
-func newLibraryFixture(t *testing.T) (*fixture, string) {
+func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 	t.Helper()
 
 	poolDir, libraryDir, dataDir := t.TempDir(), t.TempDir(), t.TempDir()
@@ -92,7 +139,13 @@ func newLibraryFixture(t *testing.T) (*fixture, string) {
 		<-done
 	})
 
-	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer)}), libraryDir
+	images := new(fakeImages)
+
+	f := newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer), LibraryJobs: images})
+	// 字幕の自動生成の状態は、River のジョブの表から読む。
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+
+	return f, &libraryParts{dir: libraryDir, images: images, indexer: indexer}
 }
 
 // TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの中身は、ディレクトリと再生できるファイルだけを返すことを確かめる (#1734)。
@@ -170,7 +223,8 @@ func nonNil(codes []string) []string {
 func TestLibraryFile(t *testing.T) {
 	t.Parallel()
 
-	f, libraryDir := newLibraryFixture(t)
+	f, parts := newLibraryFixture(t)
+	libraryDir, images, indexer := parts.dir, parts.images, parts.indexer
 	variables := map[string]any{varLibrary: animeLibrary, varPath: episodePath}
 	var file libraryFileResult
 	require.Eventually(t, func() bool {
@@ -183,6 +237,7 @@ func TestLibraryFile(t *testing.T) {
 	require.NoError(t, err)
 	fileID := filelib.FileID(filelib.Ref{Library: animeLibrary, Path: episodePath}, info.Size(), info.ModTime())
 	assert.Equal(t, graph.GlobalID("LibraryFile", fileID+"."+encoded), file.LibraryFile.ID)
+	assert.Equal(t, fileID, file.LibraryFile.FileID, "端末に保存するときの名前に使う、パスを含まない ID")
 	assert.Equal(t, "ep1.ts", file.LibraryFile.Name)
 	assert.Equal(t, "HD", file.LibraryFile.VideoFormat)
 	assert.Equal(t, "/internal/streams/library/"+encoded, file.LibraryFile.StreamURL)
@@ -190,6 +245,66 @@ func TestLibraryFile(t *testing.T) {
 	require.NotNil(t, file.LibraryFile.Index.DurationSeconds)
 	assert.GreaterOrEqual(t, *file.LibraryFile.Index.DurationSeconds, file.LibraryFile.Index.SeekableSeconds)
 	assert.Nil(t, file.LibraryFile.WatchPositionMs)
+	// 放送の情報と実況の過去ログの URL (#1734 の 2 段目)。局は Kotatsu にないので、service は null で、SDT の名前を返す。
+	assert.Equal(t, "/internal/media/library/"+encoded+"/jikkyo.json", file.LibraryFile.JikkyoCommentsURL)
+	// 画像はまだないので null で、索引を作り終えたファイルを引くと、作るジョブを入れる。
+	assert.Nil(t, file.LibraryFile.ThumbnailURL)
+	assert.Nil(t, file.LibraryFile.PreviewURL)
+	assert.Contains(t, images.kinds(), "library_images_generate")
+	// CM の区間も、まだ見分けていないので null で、見分けるジョブを入れる。
+	assert.Nil(t, file.LibraryFile.CMSections)
+	assert.Contains(t, images.kinds(), "library_cm_detect")
+	// 画像を作り終えたら、ファイルの ID を付けた URL を返す。プレビュー画像を作っていなければ、代表画像だけを返す。
+	ref := filelib.Ref{Library: animeLibrary, Path: episodePath}
+	dir, err := indexer.ImageDir(ref)
+	require.NoError(t, err)
+	require.NoError(t, filelib.WriteFile(dir, filelib.ThumbnailFileName, []byte("jpeg")))
+	require.NoError(t, indexer.MarkImages(ref, fileID))
+	var made libraryFileResult
+	require.Empty(t, f.query(t, libraryFileQuery, variables, &made))
+	assert.Equal(t, new("/internal/media/library/"+encoded+"/thumbnail.jpg?v="+fileID), made.LibraryFile.ThumbnailURL)
+	assert.Nil(t, made.LibraryFile.PreviewURL)
+	require.NoError(t, filelib.WriteFile(dir, filelib.PreviewFileName, []byte("jpeg")))
+	require.Empty(t, f.query(t, libraryFileQuery, variables, &made))
+	assert.Equal(t, new("/internal/media/library/"+encoded+"/preview.jpg?v="+fileID), made.LibraryFile.PreviewURL)
+	// 見分けたら、区間を再生の 0 秒からの秒で返す。
+	require.NoError(t, indexer.WriteCM(ref, &filelib.CMResult{
+		FileID: fileID, Detector: "ffmpeg", Version: 1, Note: "",
+		Sections: []*filelib.CMSection{{Start: 1500 * time.Millisecond, End: 16500 * time.Millisecond}},
+	}))
+	require.Empty(t, f.query(t, libraryFileQuery, variables, &made))
+	require.Len(t, made.LibraryFile.CMSections, 1)
+	assert.InDelta(t, 1.5, made.LibraryFile.CMSections[0].StartSeconds, 1e-9)
+	assert.InDelta(t, 16.5, made.LibraryFile.CMSections[0].EndSeconds, 1e-9)
+
+	// 字幕の自動生成は、頼まれたときだけ。視聴者は頼めない。
+	assert.Empty(t, made.LibraryFile.AutoCaptions)
+	assert.Equal(t, "NOT_GENERATED", made.LibraryFile.AutoCaptionsStatus.State)
+	assert.Equal(t, []string{codeForbidden},
+		f.as(t, "captions-viewer", domain.RoleViewer).query(t, generateLibraryCaps, map[string]any{"id": made.LibraryFile.ID}, nil))
+	require.Empty(t, f.query(t, generateLibraryCaps, map[string]any{"id": made.LibraryFile.ID}, nil))
+	assert.Contains(t, images.kinds(), "library_auto_captions")
+	require.NoError(t, indexer.WriteCaptions(ref, &filelib.CaptionsResult{
+		FileID: fileID, Model: "ggml-model.bin", GeneratedAt: time.Now(),
+		Cues: []*filelib.CaptionCue{{Start: 2 * time.Second, End: 3500 * time.Millisecond, Text: "こんにちは"}},
+	}))
+	require.Empty(t, f.query(t, libraryFileQuery, variables, &made))
+	require.Len(t, made.LibraryFile.AutoCaptions, 1)
+	assert.InDelta(t, 2, made.LibraryFile.AutoCaptions[0].StartSeconds, 1e-9)
+	assert.InDelta(t, 3.5, made.LibraryFile.AutoCaptions[0].EndSeconds, 1e-9)
+	assert.Equal(t, "こんにちは", made.LibraryFile.AutoCaptions[0].Text)
+	assert.Equal(t, "GENERATED", made.LibraryFile.AutoCaptionsStatus.State)
+	assert.Equal(t, 1, made.LibraryFile.AutoCaptionsStatus.Count)
+	require.NotNil(t, file.LibraryFile.Broadcast)
+	assert.Equal(t, new(0x7FE0), file.LibraryFile.Broadcast.NetworkID)
+	assert.Equal(t, 0x0400, file.LibraryFile.Broadcast.ServiceID)
+	assert.Equal(t, "こたつテスト１", file.LibraryFile.Broadcast.ServiceName)
+	assert.Nil(t, file.LibraryFile.Broadcast.Service)
+	require.NotNil(t, file.LibraryFile.Broadcast.Program)
+	assert.Equal(t, "テスト番組", file.LibraryFile.Broadcast.Program.Name)
+	require.NotNil(t, file.LibraryFile.Broadcast.Program.EndAt)
+	require.NotNil(t, file.LibraryFile.Quality)
+	assert.Equal(t, int64(0), file.LibraryFile.Quality.Drops)
 
 	var saved struct {
 		SaveLibraryWatchPosition struct {
@@ -211,6 +326,8 @@ func TestLibraryFile(t *testing.T) {
 	require.Empty(t, f.query(t, saveLibraryPosition, map[string]any{"id": file.LibraryFile.ID, varPositionMs: 9000}, &stale))
 	assert.NotEqual(t, file.LibraryFile.ID, stale.SaveLibraryWatchPosition.ID)
 	assert.Nil(t, stale.SaveLibraryWatchPosition.WatchPositionMs)
+	// 書き換えた後のファイルに、前のファイルの ID で字幕の生成は頼めない。
+	assert.Equal(t, []string{codeConflict}, f.query(t, generateLibraryCaps, map[string]any{"id": file.LibraryFile.ID}, nil))
 	// ほかのユーザーには、その再生位置を返さない。
 	var other libraryFileResult
 	require.Empty(t, f.as(t, "other", domain.RoleMember).query(t, libraryFileQuery, variables, &other))
@@ -235,4 +352,29 @@ func TestLibraryFile(t *testing.T) {
 			assert.Equal(t, tt.wantCodes, f.query(t, tt.query, tt.variables, nil))
 		})
 	}
+}
+
+// fakeImages は、ライブラリのファイルの画像や CM の区間のジョブを入れる代わりに、入れたジョブの種類を覚える。
+type fakeImages struct {
+	mu   sync.Mutex
+	args []river.JobArgs
+}
+
+func (f *fakeImages) Insert(_ context.Context, args river.JobArgs, _ *river.InsertOpts) (*rivertype.JobInsertResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.args = append(f.args, args)
+
+	return &rivertype.JobInsertResult{Job: nil, UniqueSkippedAsDuplicate: false}, nil
+}
+
+func (f *fakeImages) kinds() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	kinds := make([]string, 0, len(f.args))
+	for _, args := range f.args {
+		kinds = append(kinds, args.Kind())
+	}
+
+	return kinds
 }

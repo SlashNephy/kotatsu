@@ -85,6 +85,53 @@ func TestFFmpegExtractor(t *testing.T) {
 	assert.Equal(t, uint16(16), binary.LittleEndian.Uint16(data[34:36]), "16 bits")
 }
 
+// TestFFmpegReaderExtractor は、ローカルのパスのないファイル (ライブラリのファイル。#1734) から、serviceID の番組の音声を取り出し、
+// パスで読んだときと同じ位置を返すことを確かめる。ほかのサービスの番組を指せば、そのサービスの音声はないので、ほかのサービスの音声を
+// 取り出さずに失敗する。
+// FFmpeg か ffprobe がなければ飛ばす。
+func TestFFmpegReaderExtractor(t *testing.T) {
+	t.Parallel()
+
+	extract, err := autocaption.FFmpegReaderExtractor(nil)
+	if errors.Is(err, autocaption.ErrFFmpegNotFound) {
+		t.Skip("FFmpeg is not installed")
+	}
+	require.NoError(t, err)
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("FFmpeg is not installed")
+	}
+	const path = "../../../testdata/ts/test.ts"
+	byPath, err := autocaption.FFmpegExtractor(nil)
+	require.NoError(t, err)
+	want, err := byPath(t.Context(), path, 0x0400, filepath.Join(t.TempDir(), "path.wav"))
+	require.NoError(t, err)
+	tests := []struct {
+		name      string
+		serviceID uint16
+		wantErr   bool
+	}{
+		{name: "the service of the file", serviceID: 0x0400, wantErr: false},
+		{name: "another service", serviceID: 0x0401, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			file, err := os.Open(path)
+			require.NoError(t, err)
+			defer file.Close()
+			offset, err := extract(t.Context(), file, tt.serviceID, filepath.Join(t.TempDir(), "0.wav"))
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, want, offset, "パスで読んだときと同じ位置")
+		})
+	}
+}
+
 // TestFFmpegExtractorWithoutAudio は、音声のない録画では ErrNoAudio を返すことを確かめる。FFmpeg がなければ飛ばす。
 func TestFFmpegExtractorWithoutAudio(t *testing.T) {
 	t.Parallel()

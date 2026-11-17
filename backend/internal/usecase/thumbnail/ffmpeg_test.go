@@ -49,7 +49,7 @@ func TestFFmpeg(t *testing.T) {
 	require.Len(t, index, 12)
 
 	result, err := thumbnail.NewGenerator(ffmpeg, &thumbnail.Options{Preview: true, Interval: time.Second}).
-		Generate(t.Context(), []thumbnail.Segment{{Path: testTS, Start: 0, Index: index}})
+		Generate(t.Context(), []thumbnail.Segment{{Path: testTS, Start: 0, Index: index, Open: nil}})
 	require.NoError(t, err)
 	assert.Equal(t, image.Pt(thumbnail.ThumbnailWidth, thumbnail.ThumbnailHeight), decode(t, result.Thumbnail).Bounds().Size())
 	// 0.5 秒ごとの I フレームから、1 秒ごとのコマを作る。
@@ -87,7 +87,7 @@ func TestFFmpegCodecs(t *testing.T) {
 			require.Len(t, index, 4)
 
 			result, err := thumbnail.NewGenerator(ffmpeg, &thumbnail.Options{Preview: true, Interval: time.Second}).
-				Generate(t.Context(), []thumbnail.Segment{{Path: tt.path, Start: 0, Index: index}})
+				Generate(t.Context(), []thumbnail.Segment{{Path: tt.path, Start: 0, Index: index, Open: nil}})
 			require.NoError(t, err)
 			assert.Equal(t, image.Pt(thumbnail.ThumbnailWidth, thumbnail.ThumbnailHeight), decode(t, result.Thumbnail).Bounds().Size())
 			assert.Equal(t, []float64{0, 1.001, 2.002, 3.003}, result.Manifest.Times)

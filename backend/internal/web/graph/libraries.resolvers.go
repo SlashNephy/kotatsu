@@ -11,6 +11,11 @@ func (r *mutationResolver) SaveLibraryWatchPosition(ctx context.Context, id stri
 	return r.saveLibraryWatchPosition(ctx, id, positionMs)
 }
 
+// GenerateLibraryCaptions is the resolver for the generateLibraryCaptions field.
+func (r *mutationResolver) GenerateLibraryCaptions(ctx context.Context, id string) (*model.LibraryFile, error) {
+	return r.generateLibraryCaptions(ctx, id)
+}
+
 // Libraries is the resolver for the libraries field.
 func (r *queryResolver) Libraries(ctx context.Context) ([]*model.Library, error) {
 	return r.librariesList(ctx)

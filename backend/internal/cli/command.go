@@ -197,6 +197,23 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, media.transcode)
 	river.AddWorker(workers, media.tvtplay)
 	river.AddWorker(workers, media.chapters)
+	// ライブラリのファイルの代表画像とプレビュー画像と CM の区間 (設計書 5.8)。ライブラリとデータディレクトリをマウントした nekonote で作る。
+	// 索引は tenban が作るので、ここでは読むだけにする。
+	libraryParts := newLibraryParts(deps, logger, false)
+	river.AddWorker(workers, filelib.NewImagesWorker(libraryParts.libraries, libraryParts.indexer, func(ctx context.Context) (bool, error) {
+		// 録画の画像と同じく、管理者が画面で選んだプレビュー画像の設定に従う。
+		system, err := settings.Load(ctx, poolOf(deps))
+		if err != nil {
+			return false, err
+		}
+
+		return system.ThumbnailPreviewsEnabled, nil
+	}))
+	// CM の区間も、録画と同じ見分け方で見分ける。FFmpeg は、録画の見分けと同じく、最低の優先度で動かす。
+	libraryLowerer := newLowerer(logger)
+	river.AddWorker(workers, filelib.NewCMWorker(libraryParts.libraries, libraryParts.indexer, poolOf(deps), libraryLowerer))
+	// 字幕の自動生成も、録画と同じ部品で、頼まれたときに生成する。
+	river.AddWorker(workers, newLibraryCaptionsWorker(deps, libraryParts, libraryLowerer))
 	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。
 	// 番組を、しょぼいカレンダーで作品と話に結びつけ、上映会のコメント (NICOLOG) とも結びつける。見たアニメは、ユーザーが連携した
 	// Annict と AniList に記録する (#927)。
@@ -844,6 +861,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		DataDir:           deps.Config.Storage.DataDir,
 		Libraries:         libraries.libraries,
 		LibrarySource:     libraries.source,
+		LibraryJobs:       libraryJobsOf(deps),
 		TimeshiftDir:      deps.Config.Storage.TimeshiftDir,
 		Captions:          &deps.Config.Captions,
 		FreeSpace:         nil,
@@ -921,7 +939,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		"session": sessions.FallbackUsed, "signed_url": urlUsers.FallbackUsed, "url_gate": urlGate.FallbackUsed,
 		"kyusu_instances": instances.FallbackUsed,
 	})
-	mediaRoutes := newMediaRoutes(deps, logger, authorizer, logos, jikkyoTable, jikkyoClient, sessions, urlGate)
+	mediaRoutes := newMediaRoutes(deps, logger, authorizer, logos, jikkyoTable, jikkyoClient, sessions, urlGate, libraries)
 
 	app, err := spa.NewHandler(webui.App(), logger.With(slog.String("component", "spa")))
 	if err != nil {
@@ -1126,7 +1144,7 @@ func registerFallbacks(deps *Deps, used map[string]func() int64) {
 // 画像と過去ログは、セッションで認可する。状態を変える POST と、WebSocket の接続は、ほかのオリジンからは受け付けない。
 func newMediaRoutes(
 	deps *Deps, logger *slog.Logger, authorizer *streamapi.Authorizer, logos streamapi.LogoFetcher,
-	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client, sessions *auth.Sessions, urlGate *settings.URLGate,
+	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client, sessions *auth.Sessions, urlGate *settings.URLGate, libraries *libraryParts,
 ) sessionRoutes {
 	routes := sessionRoutes{}
 	streamLogger := logger.With(slog.String("component", "stream"))
@@ -1151,6 +1169,12 @@ func newMediaRoutes(
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	jikkyoComments := jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+jikkyoapi.CommentsFileName, authorizer.Session(jikkyoComments))
+	// ライブラリのファイルの過去ログも、TS から読んだ局と時間帯で、同じく中継する (設計書 5.8)。
+	routes.add(http.MethodGet, "/internal/media/library/:id/"+jikkyoapi.CommentsFileName,
+		authorizer.Session(jikkyoapi.NewLibraryCommentsHandler(jikkyoComments, libraries.source)))
+	// ライブラリのファイルの代表画像とプレビュー画像も、データディレクトリから配信する (設計書 5.8)。
+	routes.add(http.MethodGet, "/internal/media/library/:id/:file",
+		authorizer.Session(filelib.NewImageHandler(libraries.source, libraries.indexer, streamLogger)))
 	// 同じ話の別の放送の過去ログも、過去ログ API から取って中継する (#1361)。
 	// 上映会のコメント (NICOLOG) も、tenban が取得して中継する (#1363)。
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+jikkyoapi.NicologCommentsFileName, authorizer.Session(jikkyoapi.NewNicologCommentsHandler(jikkyoComments,

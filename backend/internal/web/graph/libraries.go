@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -11,10 +13,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/fileimport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
 )
 
 const (
@@ -23,6 +28,10 @@ const (
 	// libraryFileIDSeparator は、ライブラリのファイルのグローバル ID で、ファイルの ID (filelib.FileID) と、ライブラリの名前とパスを
 	// 符号化したもの (filelib.Ref.Encode) を区切る文字。どちらにも現れない。
 	libraryFileIDSeparator = "."
+	// libraryMediaPrefix は、ライブラリのファイルの実況の過去ログなどのパスの前置き。後ろに filelib.Ref.Encode と、ファイルの名前を付ける。
+	libraryMediaPrefix = "/internal/media/library/"
+	// serviceIDBase は、Mirakurun のサービス ID を組み立てる基数 (networkId × 100000 + serviceId)。
+	serviceIDBase = 100_000
 	// libraryStreamPrefix は、ライブラリのファイルの配信のパスの前置き。後ろに filelib.Ref.Encode を付ける。
 	libraryStreamPrefix = "/internal/streams/library/"
 )
@@ -147,12 +156,177 @@ func (r *Resolver) openLibraryFile(ctx context.Context, ref filelib.Ref) (*model
 		watched = new(position.Milliseconds())
 	}
 	encoded := ref.Encode()
+	var broadcast *model.LibraryBroadcast
+	if b := file.Index.Broadcast; b != nil {
+		if broadcast, err = r.libraryBroadcast(ctx, b); err != nil {
+			return nil, err
+		}
+	}
+	audios := []*model.ProgramAudio{}
+	if len(file.Index.Audios) > 0 {
+		if audios, err = toProgramAudios(file.Index.Audios); err != nil {
+			return nil, fmt.Errorf("failed to decode the audio components of the library file: %w", err)
+		}
+	}
+	thumbnailURL, previewURL := r.libraryImageURLs(ctx, file)
+	cmSections := r.libraryCMSections(ctx, file)
+	captions, captionsStatus, err := r.libraryAutoCaptions(ctx, file)
+	if err != nil {
+		return nil, err
+	}
+	var quality *model.LibraryFileQuality
+	if q := file.Index.Quality; q != nil {
+		quality = &model.LibraryFileQuality{Drops: q.Drops, Errors: q.Errors, Scrambled: q.Scrambled}
+	}
 
 	return &model.LibraryFile{
-		ID: GlobalID(libraryFileType, file.ID()+libraryFileIDSeparator+encoded), Library: toLibrary(file.Library), Path: ref.Path, Name: file.Entry.Name,
+		Broadcast: broadcast, Audios: audios, Quality: quality, ThumbnailURL: thumbnailURL, PreviewURL: previewURL, CMSections: cmSections, AutoCaptions: captions, AutoCaptionsStatus: captionsStatus, JikkyoCommentsURL: libraryMediaPrefix + encoded + "/" + jikkyoapi.CommentsFileName,
+		ID: GlobalID(libraryFileType, file.ID()+libraryFileIDSeparator+encoded), FileID: file.ID(), Library: toLibrary(file.Library), Path: ref.Path, Name: file.Entry.Name,
 		Size: file.Entry.Size, ModifiedAt: file.Entry.ModifiedAt, VideoFormat: libraryVideoFormat(video), Index: index,
 		WatchPositionMs: watched, StreamURL: libraryStreamPrefix + encoded, HlsURL: libraryStreamPrefix + encoded,
 	}, nil
+}
+
+// libraryImageURLs は、ファイルの代表画像とプレビュー画像の URL を返す。今のファイルから作った画像がなければ、作るジョブを入れて nil を返す。
+// URL には、ファイルの ID を付け、ファイルを書き換えたら別の URL にする。ブラウザが前のファイルの画像を使い回さないためである。
+func (r *Resolver) libraryImageURLs(ctx context.Context, file *filelib.File) (*string, *string) {
+	indexer := r.librarySource.Indexer()
+	if !indexer.HasImages(file.Ref, file.ID()) {
+		if r.libraryJobs != nil {
+			// 入れられなくても、ファイルは開ける。次に開いたときに入れ直す。
+			if err := filelib.EnqueueImages(ctx, r.libraryJobs, indexer, file); err != nil {
+				r.logger.WarnContext(ctx, "failed to enqueue the library images job", slog.Any("error", err))
+			}
+		}
+
+		return nil, nil
+	}
+	base := libraryMediaPrefix + file.Ref.Encode() + "/"
+	version := "?v=" + file.ID()
+	thumbnailURL := base + filelib.ThumbnailFileName + version
+	if _, err := os.Stat(indexer.ImagePath(file.Ref, filelib.PreviewFileName)); err != nil {
+		return &thumbnailURL, nil
+	}
+	previewURL := base + filelib.PreviewFileName + version
+
+	return &thumbnailURL, &previewURL
+}
+
+// libraryCMSections は、ファイルの CM とみなした区間を返す。今のファイルを見分けていなければ、見分けるジョブを入れて nil を返す。
+func (r *Resolver) libraryCMSections(ctx context.Context, file *filelib.File) []*model.LibraryCMSection {
+	indexer := r.librarySource.Indexer()
+	result, ok := indexer.CM(file.Ref, file.ID())
+	if !ok {
+		if r.libraryJobs != nil {
+			// 入れられなくても、ファイルは開ける。次に開いたときに入れ直す。
+			if err := filelib.EnqueueCM(ctx, r.libraryJobs, indexer, file); err != nil {
+				r.logger.WarnContext(ctx, "failed to enqueue the library CM job", slog.Any("error", err))
+			}
+		}
+
+		return nil
+	}
+	sections := make([]*model.LibraryCMSection, 0, len(result.Sections))
+	for _, s := range result.Sections {
+		sections = append(sections, &model.LibraryCMSection{StartSeconds: s.Start.Seconds(), EndSeconds: s.End.Seconds()})
+	}
+
+	return sections
+}
+
+// libraryAutoCaptions は、今のファイルの音声から自動生成した字幕と、自動生成の状態を返す。
+func (r *Resolver) libraryAutoCaptions(ctx context.Context, file *filelib.File) ([]*model.LibraryAutoCaption, *model.RecordingAutoCaptions, error) {
+	captions := []*model.LibraryAutoCaption{}
+	var generated *autocaption.Generated
+	if result, ok := r.librarySource.Indexer().Captions(file.Ref, file.ID()); ok {
+		generated = &autocaption.Generated{At: result.GeneratedAt, Model: result.Model, Cues: len(result.Cues)}
+		for _, c := range result.Cues {
+			captions = append(captions, &model.LibraryAutoCaption{StartSeconds: c.Start.Seconds(), EndSeconds: c.End.Seconds(), Text: c.Text})
+		}
+	}
+	match := map[string]string{"library": file.Ref.Library, "path": file.Ref.Path, "fileId": file.ID()}
+	status, err := autocaption.JobStatus(ctx, r.db, new(filelib.CaptionsArgs).Kind(), match, generated)
+	if err != nil {
+		return nil, nil, err
+	}
+	out := &model.RecordingAutoCaptions{State: status.State, GeneratedAt: status.GeneratedAt, Model: nil, Count: status.Cues, Progress: nil}
+	if status.Model != "" {
+		out.Model = &status.Model
+	}
+
+	return captions, out, nil
+}
+
+// generateLibraryCaptions は、ライブラリのファイルの音声から字幕を自動生成するジョブを入れる (設計書 5.8)。
+func (r *Resolver) generateLibraryCaptions(ctx context.Context, globalID string) (*model.LibraryFile, error) {
+	if _, err := librarian(ctx); err != nil {
+		return nil, err
+	}
+	if r.libraryJobs == nil {
+		return nil, errors.New("the job client is not configured")
+	}
+	typeName, raw, err := ParseGlobalID(globalID)
+	if err != nil || typeName != libraryFileType {
+		return nil, NewError(CodeBadUserInput, "invalid library file ID")
+	}
+	fileID, encoded, _ := strings.Cut(raw, libraryFileIDSeparator)
+	ref, ok := filelib.DecodeRef(encoded)
+	if !ok {
+		return nil, NewError(CodeBadUserInput, "invalid library file ID")
+	}
+	file, err := r.librarySource.Open(ctx, ref)
+	if err != nil {
+		return nil, libraryReadError(err)
+	}
+	switch {
+	case file.ID() != fileID:
+		return nil, NewError(CodeConflict, "the library file was changed")
+	case file.Writing:
+		return nil, NewError(CodeConflict, "the library file is still being written")
+	case file.Index.Broadcast == nil:
+		return nil, NewError(CodeConflict, "the service of the library file is unknown")
+	}
+	if _, err := filelib.EnqueueCaptions(ctx, r.libraryJobs, file); err != nil {
+		return nil, err
+	}
+
+	return r.openLibraryFile(ctx, ref)
+}
+
+// libraryBroadcast は、TS から読んだ放送の情報を、GraphQL の形にする。同じネットワークとサービス ID の Kotatsu のサービスがあれば添える。
+func (r *Resolver) libraryBroadcast(ctx context.Context, b *filelib.Broadcast) (*model.LibraryBroadcast, error) {
+	out := &model.LibraryBroadcast{
+		NetworkID: nil, ServiceID: int(b.ServiceID), ServiceName: b.ServiceName, Service: nil, JikkyoChannelID: nil,
+		RecordedFrom: b.RecordedFrom, RecordedUntil: b.RecordedUntil, Program: nil,
+	}
+	if b.NetworkID != nil {
+		out.NetworkID = new(int(*b.NetworkID))
+		rows, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{
+			IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: []int64{int64(*b.NetworkID)*serviceIDBase + int64(b.ServiceID)},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to look up the service of the library file: %w", err)
+		}
+		if len(rows) > 0 {
+			out.Service = toService(&rows[0])
+		}
+		// 実況のチャンネルは、Kotatsu のサービスがなくても、ネットワークとサービス ID で引く。
+		out.JikkyoChannelID = r.jikkyoChannelID(ctx, int64(*b.NetworkID), int64(b.ServiceID))
+	}
+	if p := b.Program; p != nil {
+		extended := make([]*model.ExtendedItem, 0, len(p.Extended))
+		for _, item := range p.Extended {
+			extended = append(extended, &model.ExtendedItem{Heading: item.Heading, Text: item.Text})
+		}
+		out.Program = &model.LibraryProgram{
+			EventID: int(p.EventID), Name: p.Name, Description: p.Description, Extended: extended, StartAt: p.Start, EndAt: nil,
+		}
+		if p.Start != nil && p.Duration != nil {
+			out.Program.EndAt = new(p.Start.Add(*p.Duration))
+		}
+	}
+
+	return out, nil
 }
 
 // probeLibraryVideo は、索引の記録にまだ映像の形式がなければ、ファイルの頭から読む。読めなければ filelib.ErrNoVideo を返す。

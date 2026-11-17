@@ -309,6 +309,27 @@ func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock, lowerer *p
 	})
 }
 
+// NewSelectedDetector は、管理者が全体で選んだ見分け方 (#1505) の Detector を返す。録画でないファイル (ライブラリのファイル。#1734) を
+// 見分けるのに使う。FFmpeg がなければ ErrFFmpegNotFound を包んで返す。
+func NewSelectedDetector(ctx context.Context, db sqlc.DBTX, lowerer *procprio.Lowerer) (Detector, error) {
+	name, err := selectedDetector(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	if name == LogoDetectorName {
+		return NewLogoDetector(lowerer)
+	}
+
+	return NewFFmpegDetector(lowerer)
+}
+
+// Detect は、detector で input の CM の区間を見分け、添え書きと一緒に返す。
+func Detect(ctx context.Context, detector Detector, input *Input) ([]Section, *Report, error) {
+	sections, report, _, err := detectWithMaterial(ctx, detector, input)
+
+	return sections, report, err
+}
+
 // resolveDetector は、ジョブに載せた見分け方 requested を返す。空か知らない名前なら、全体の設定 (global) に従う。
 // 知らない名前は、新しいバイナリが足した見分け方を、古いバイナリが受け取ったときに起きる。
 func resolveDetector(requested string, global func() (string, error)) (string, error) {
@@ -425,7 +446,7 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 	materials := make([]SegmentMaterial, 0, len(segments))
 	for i, segment := range segments {
 		sections, segmentReport, material, err := detectWithMaterial(ctx, detector,
-			&Input{Path: segment.path, ServiceID: serviceID(sid), Progress: progress.observer(ctx, segments, i), Program: programOf(&recording, segments, i)})
+			&Input{Path: segment.path, ServiceID: serviceID(sid), Progress: progress.observer(ctx, segments, i), Program: programOf(&recording, segments, i), Open: nil, Duration: 0})
 		if errors.Is(err, ErrNoVideo) {
 			// 映像のないセグメント (チューナーが絵を出す前に閉じたものなど) は、見分けるものがないので飛ばす。
 			continue

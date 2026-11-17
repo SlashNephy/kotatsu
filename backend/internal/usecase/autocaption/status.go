@@ -74,7 +74,34 @@ func RecordingStatus(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (
 		status.Model = summary.Model
 		status.Cues = int(summary.CueCount)
 	}
-	job, found, err := lastJob(ctx, db, recordingID)
+
+	return withJob(ctx, db, new(Args).Kind(), map[string]string{"recordingId": recordingID.String()}, status)
+}
+
+// Generated は、生成し終えた字幕の要約。
+type Generated struct {
+	At    time.Time
+	Model string
+	Cues  int
+}
+
+// JobStatus は、生成した字幕 generated (なければ nil) と、kind のジョブのうち、引数が match を含む最後のジョブから、字幕の自動生成の状態を返す。
+// 録画でないファイル (ライブラリのファイル。#1734) のように、生成した字幕を DB の外に置くものに使う。
+func JobStatus(ctx context.Context, db sqlc.DBTX, kind string, match map[string]string, generated *Generated) (*Status, error) {
+	status := &Status{State: StateNotGenerated, GeneratedAt: nil, Model: "", Cues: 0, Progress: nil}
+	if generated != nil {
+		status.State = StateGenerated
+		status.GeneratedAt = &generated.At
+		status.Model = generated.Model
+		status.Cues = generated.Cues
+	}
+
+	return withJob(ctx, db, kind, match, status)
+}
+
+// withJob は、生成した字幕から決めた status に、最後に入れた生成のジョブの状態を重ねて返す。
+func withJob(ctx context.Context, db sqlc.DBTX, kind string, match map[string]string, status *Status) (*Status, error) {
+	job, found, err := lastJob(ctx, db, kind, match)
 	if err != nil {
 		return nil, err
 	}
@@ -102,9 +129,13 @@ func RecordingStatus(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (
 	return status, nil
 }
 
-// lastJob は、録画 recordingID の、最後に入れた生成のジョブと、今の試行の進み具合を返す。ジョブがなければ false を返す。
+// lastJob は、kind のジョブのうち、引数が match を含む最後に入れたジョブと、今の試行の進み具合を返す。ジョブがなければ false を返す。
 // River の表は sqlc のスキーマにないので、直接読む。
-func lastJob(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*latestJob, bool, error) {
+func lastJob(ctx context.Context, db sqlc.DBTX, kind string, match map[string]string) (*latestJob, bool, error) {
+	args, err := json.Marshal(match)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to encode the job arguments: %w", err)
+	}
 	var (
 		job         latestJob
 		ratio       *float64
@@ -112,17 +143,17 @@ func lastJob(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*latestJ
 		updatedAt   *time.Time
 		lastError   *string
 	)
-	err := db.QueryRow(ctx, `SELECT j.state::text, j.attempted_at, j.errors[array_length(j.errors, 1)]->>'error', p.ratio, p.remaining_ms, p.updated_at
+	err = db.QueryRow(ctx, `SELECT j.state::text, j.attempted_at, j.errors[array_length(j.errors, 1)]->>'error', p.ratio, p.remaining_ms, p.updated_at
 		FROM river_job j
 		LEFT JOIN job_progress p ON p.job_id = j.id AND p.attempt = j.attempt
-		WHERE j.kind = $1 AND j.args @> jsonb_build_object('recordingId', $2::text)
+		WHERE j.kind = $1 AND j.args @> $2::jsonb
 		ORDER BY j.id DESC
-		LIMIT 1`, new(Args).Kind(), recordingID.String()).Scan(&job.state, &job.attemptedAt, &lastError, &ratio, &remainingMs, &updatedAt)
+		LIMIT 1`, kind, string(args)).Scan(&job.state, &job.attemptedAt, &lastError, &ratio, &remainingMs, &updatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to get the caption generation job of the recording: %w", err)
+		return nil, false, fmt.Errorf("failed to get the caption generation job: %w", err)
 	}
 	if lastError != nil {
 		job.lastError = *lastError

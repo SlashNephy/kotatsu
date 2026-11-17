@@ -17,6 +17,9 @@ export type SeekableStream = {
   currentPosition: () => number;
   // positionOf は、video の時刻 t に当たる再生位置。読み込んだ範囲の終わりを位置に直すのに使う。
   positionOf: (t: number) => number;
+  // framePosition は、映ったコマの時刻 t に当たる再生位置。読み直していて、まだ位置を信じられないときは null。
+  // CM を自動で飛ばす判定 (#1512) に、コマごとの位置を渡すのに使う。
+  framePosition: (t: number) => number | null;
   // onLoaded は、最初のフレームが出たときに呼ぶ。そのときの video の時刻を、位置の基準にする。
   // 裏で読み込んで切り替えたときは、TsPlayer が渡す時刻を基準にする。
   onLoaded: (handover?: HandoverLoaded) => void;
@@ -121,6 +124,10 @@ export function useSeekableStream(
         ? positionRef.current
         : converted(video.currentTime),
     positionOf: (t) => playbackPosition(startedAt, base.current, t),
+    framePosition: (t) =>
+      phase.current === 'playing'
+        ? playbackPosition(handoverFrom.current ?? startedAt, base.current, t)
+        : null,
     onLoaded: (handover) => {
       const switched = handover !== undefined && handoverFrom.current !== null;
       handoverFrom.current = null;

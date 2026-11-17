@@ -16,6 +16,8 @@ export type HlsStream = {
   seekTo: (seconds: number) => void;
   // currentPosition は、video の時刻から求め直した今の再生位置。
   currentPosition: () => number;
+  // framePosition は、映ったコマの時刻 t に当たる再生位置。再生を始めるまでは、位置を信じられないので null。
+  framePosition: (t: number) => number | null;
 };
 
 // useHlsStream は、仮想 HLS の再生位置を追う。initial は、最初に読み始める位置。enabled が false の間は、位置を動かさない。
@@ -71,5 +73,6 @@ export function useHlsStream(
     },
     currentPosition: () =>
       video === null || !playing.current ? positionRef.current : video.currentTime,
+    framePosition: (t) => (playing.current ? t : null),
   };
 }

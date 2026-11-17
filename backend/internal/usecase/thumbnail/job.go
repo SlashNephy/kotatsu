@@ -325,7 +325,7 @@ func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, time.T
 		if startedAt == nil {
 			startedAt = &file.StartedAt
 		}
-		segments = append(segments, Segment{Path: segmentPath, Start: file.StartedAt.Sub(*startedAt), Index: entries})
+		segments = append(segments, Segment{Path: segmentPath, Start: file.StartedAt.Sub(*startedAt), Index: entries, Open: nil})
 	}
 	if len(segments) == 0 {
 		return nil, time.Time{}, river.JobCancel(errNoSegment)

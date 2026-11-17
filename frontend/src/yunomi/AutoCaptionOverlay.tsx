@@ -61,9 +61,8 @@ export function autoCaptionAt(
 // maxCaptionSeconds は、autoCaptionAt が遡る、字幕の長さの上限 (秒)。whisper.cpp は 30 秒ごとに区切って読むので、それより長い字幕は出ない。
 const maxCaptionSeconds = 60;
 
-// AutoCaptionOverlay は、自動生成した字幕を、映像の下に重ねて出す (#1682)。放送の字幕と見分けられるよう、「自動生成」の印を付ける。
+// AutoCaptionOverlay は、録画の自動生成した字幕を、映像の下に重ねて出す (#1682)。
 // 字幕は録画の時間軸の日時で受け取り、途切れた分 (gaps) を詰めた再生の位置にする。
-// 位置は clock (今の再生の位置を返す関数) から、画面の更新ごとに読み、出す字幕が変わったときだけ描き直す。
 export function AutoCaptionOverlay({
   recordedFrom,
   gaps,
@@ -75,8 +74,25 @@ export function AutoCaptionOverlay({
   captions: readonly { readonly from: string; readonly to: string; readonly text: string }[];
   clock: () => number;
 }) {
+  return (
+    <PositionedAutoCaptionOverlay
+      captions={autoCaptionPositions(recordedFrom, gaps, received)}
+      clock={clock}
+    />
+  );
+}
+
+// PositionedAutoCaptionOverlay は、再生の位置 (秒) で受け取った自動生成の字幕を、映像の下に重ねて出す (#1682)。
+// 放送の字幕と見分けられるよう、「自動生成」の印を付ける。ライブラリのファイル (#1734) は、再生の位置で受け取るので、これを直に使う。
+// 位置は clock (今の再生の位置を返す関数) から、画面の更新ごとに読み、出す字幕が変わったときだけ描き直す。
+export function PositionedAutoCaptionOverlay({
+  captions,
+  clock,
+}: {
+  captions: readonly AutoCaption[];
+  clock: () => number;
+}) {
   const { t } = useTranslation();
-  const captions = autoCaptionPositions(recordedFrom, gaps, received);
   const [current, setCurrent] = useState<AutoCaption | null>(null);
   const readClock = useEffectEvent(() => clock());
   useEffect(() => {

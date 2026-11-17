@@ -16,7 +16,6 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
-	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
@@ -36,11 +35,6 @@ const (
 	sceneThreshold = "10"
 	// silenceDuration は、無音とみなす長さの下限 (秒)。規則の minSilence と同じ値にする。
 	silenceDuration = "0.3"
-	// filterGraph は、映像を縮めてシーンの切り替わりを、音声から無音の区間を探す FFmpeg のフィルター。
-	// 録画は、録画したサービスだけの TS なので (代表画像と同じく)、最初の映像と音声を読む。
-	filterGraph = "[0:v:0]scale=160:90,scdet=threshold=" + sceneThreshold +
-		",metadata=select:key=lavfi.scd.time,metadata=print:file=pipe\\\\:1[v];" +
-		"[0:a:0]silencedetect=noise=" + silenceNoise + ":d=" + silenceDuration + "[a]"
 	// maxStderrLines は、失敗したときに、エラーに含める FFmpeg の標準エラー出力の行の数。
 	maxStderrLines = 5
 )
@@ -95,9 +89,9 @@ func (d *FFmpegDetector) Detect(ctx context.Context, input *Input) ([]Section, e
 // signals は、録画のファイルを FFmpeg で読み、無音の区間、シーンの切り替わり、音声の構成の変化を返す。
 // 局ロゴの見分け方も、境目の候補を作るのに使う (#1506)。
 func (d *FFmpegDetector) signals(ctx context.Context, input *Input) (*signals, error) {
-	file, err := sharedfile.Open(input.Path)
+	file, err := input.open()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open the recording file: %w", err)
+		return nil, err
 	}
 	defer func() { _ = file.Close() }()
 
@@ -106,9 +100,10 @@ func (d *FFmpegDetector) signals(ctx context.Context, input *Input) (*signals, e
 	// CM の境目の判断には、0.5 秒ごとの絵で足りる。シーンの切り替わりは標準出力に、無音の区間はログ (標準エラー出力) に出る。
 	// 進み具合 (#1511) の -progress のまとまりは、標準出力をシーンの切り替わりに使っているので、標準エラー出力に混ぜて出させ、
 	// 行の形で見分ける。fd 3 に出させる (ExtraFiles) 方法は、Windows で使えない。
+	graph := filterGraph(input)
 	cmd := exec.CommandContext(ctx, ffmpegCommand, "-nostdin", "-hide_banner", "-nostats", "-progress", "pipe:2", "-loglevel", "info",
 		"-threads", "1", "-filter_complex_threads", "1", "-skip_frame", "nokey", "-copyts", "-f", "mpegts", "-i", "pipe:0",
-		"-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-f", "null", "-")
+		"-filter_complex", graph, "-map", "[v]", "-map", "[a]", "-f", "null", "-")
 	src := &countingReader{r: file, n: atomic.Int64{}}
 	cmd.Stdin = io.TeeReader(src, scanner)
 	stdout, err := cmd.StdoutPipe()

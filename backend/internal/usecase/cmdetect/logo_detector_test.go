@@ -3,6 +3,8 @@ package cmdetect_test
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -112,6 +114,7 @@ func TestLogoDetectorFallsBack(t *testing.T) {
 
 // TestLogoDetector は、局ロゴを、出ている所、消えた所 (CM)、また出た所の順に描いた合成の TS で、
 // ロゴの消えた所を CM の区間にすることを確かめる。縦が 1080 ラインより大きい映像では、縮めて学習し測る (#1505)。
+// ローカルのパスのないファイル (ライブラリのファイル。#1734) は、Open で開いてパイプで読み、長さは Duration で渡し、ServiceID の番組を読む。
 // FFmpeg か ffprobe がなければ飛ばす。
 func TestLogoDetector(t *testing.T) {
 	t.Parallel()
@@ -120,10 +123,13 @@ func TestLogoDetector(t *testing.T) {
 		name string
 		// zoom は、合成の映像 (640×360) を拡大する倍率。
 		zoom int
+		// open は、ローカルのパスでなく、Open で渡すかどうか。
+		open bool
 	}{
-		{name: "縮めない映像", zoom: 1},
+		{name: "縮めない映像", zoom: 1, open: false},
 		// 2560×1440 は、縦が 1080 ラインより大きいので、半分に縮めて測る。
-		{name: "縮める映像", zoom: 4},
+		{name: "縮める映像", zoom: 4, open: false},
+		{name: "Open で渡すファイル", zoom: 1, open: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -138,7 +144,15 @@ func TestLogoDetector(t *testing.T) {
 			require.NoError(t, err)
 
 			path := writeZoomedLogoTS(t, 15, 30, tt.zoom)
-			got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil, Program: nil})
+			input := &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil, Program: nil, Open: nil, Duration: 0}
+			if tt.open {
+				// FFmpeg の mpegts の既定の番組 (program_number) は 1。Open で渡すファイルは、この番組の映像と音声を読む。
+				input = &cmdetect.Input{
+					Path: "library/logo.ts", ServiceID: 1, Progress: nil, Program: nil, Duration: 40 * time.Second,
+					Open: func() (io.ReadSeekCloser, error) { return os.Open(path) },
+				}
+			}
+			got, report, err := detector.DetectWithReport(t.Context(), input)
 			require.NoError(t, err)
 			// ロゴで決められたので、理由は空で、合成の TS には映像の欠けもない (#1508)。
 			assert.Equal(t, &cmdetect.Report{Note: "", Missing: 0}, report)
