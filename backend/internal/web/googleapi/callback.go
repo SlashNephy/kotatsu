@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/google"
 )
@@ -29,9 +30,9 @@ func CallbackHandler(service *google.Service, db google.Database, client func(*h
 		if err != nil {
 			reason := callbackErrorReason(err)
 			if reason == "google_failed" {
-				logger.ErrorContext(r.Context(), "failed to complete the Google authorization", slog.String("purpose", purpose), slog.Any("error", err))
+				logger.ErrorContext(r.Context(), "failed to complete the Google authorization", logattr.String("purpose", purpose), logattr.Error(err))
 			} else {
-				logger.InfoContext(r.Context(), "rejected a Google authorization", slog.String("purpose", purpose), slog.Any("error", err))
+				logger.InfoContext(r.Context(), "rejected a Google authorization", logattr.String("purpose", purpose), logattr.Error(err))
 			}
 			redirect(w, r, "error", reason)
 
