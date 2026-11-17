@@ -334,7 +334,7 @@ func TestLearnBandCorner(t *testing.T) {
 				require.ErrorIs(t, err, tt.wantErr)
 				i := slices.IndexFunc(result.Corners, func(c logo.CornerResult) bool { return c.Corner == tt.wantCorner })
 				require.GreaterOrEqual(t, i, 0, "%+v", result)
-				assert.ErrorIs(t, result.Corners[i].Err, tt.wantWhy)
+				assert.ErrorIs(t, result.Corners[i].Err, tt.wantWhy, "%+v", result)
 
 				return
 			}
@@ -342,6 +342,36 @@ func TestLearnBandCorner(t *testing.T) {
 			assert.Equal(t, tt.wantCorner, result.Corner, "%+v", result)
 		})
 	}
+}
+
+// TestLearnWideBand は、隅の幅のほとんどを占める横長のものは、帯の線を見る幅が枠より狭くても、線が埋めれば諦めることを確かめる (#1883)。
+// 横長の枠は、それ自体が帯であることが多い (2026 年 11 月の録画で、見る幅が狭いときに諦めないようにすると、隅の帯を採った)。
+// 揃い方を直に置いた積算で、枠と線を決まった形にする。
+func TestLearnWideBand(t *testing.T) {
+	t.Parallel()
+
+	p := logo.DefaultParams()
+	h := logo.Band(frameH, p)
+	top, bottom := logo.NewAccumulator(frameW, h), logo.NewAccumulator(frameW, h)
+	const frames = 10
+	top.N, bottom.N = frames, frames
+	set := func(x, y int, coherence float64) { top.Sx[y*frameW+x] = float32(coherence * frames) }
+	// 右上の隅 (672〜960) の内側の端の 20 画素先から、幅 230 の横長の枠の縁 (太さ 3 画素)。揃い方は 1 (いつも出ている)。
+	plate := logo.Box{X: 692, Y: 30, W: 230, H: 16}
+	for y := plate.Y; y < plate.Y+plate.H; y++ {
+		for x := plate.X; x < plate.X+plate.W; x++ {
+			if x < plate.X+3 || x >= plate.X+plate.W-3 || y < plate.Y+3 || y >= plate.Y+plate.H-3 {
+				set(x, y, 1)
+			}
+		}
+	}
+	// 枠の行を通って、画面の中央の側へ隅の外まで伸びる帯の線。揃い方は 0.5 (半分のコマで出る)。
+	for x := 400; x < plate.X; x++ {
+		set(x, plate.Y+8, 0.5)
+	}
+	result, err := logo.Learn(top, bottom, frameW, frameH, p)
+	require.ErrorIs(t, err, logo.ErrNoLogo)
+	assert.ErrorIs(t, result.Corners[0].Err, logo.ErrBandCorner, "%+v", result)
 }
 
 // TestLearnSkipsLargeBlobs は、テロップの帯のような大きすぎる塊を比較から外し、隣のロゴを採ることを確かめる。
