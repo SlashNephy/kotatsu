@@ -307,10 +307,10 @@ func arrange(in *arrangeInput) []*Work {
 		works = append(works, work)
 		byID[work.SeriesID] = work
 	}
-	watched := addWatched(byID, in.cache, in.watched)
+	watched, watchedSeries := addWatched(byID, in.cache, in.watched)
 	addBroadcasts(byID, in)
 	for i := range in.recordings {
-		addRecording(byID, in.cache, watched, &in.recordings[i])
+		addRecording(byID, in.cache, watched, watchedSeries, &in.recordings[i])
 	}
 	for _, work := range works {
 		work.NextBroadcast = nextBroadcast(work)
@@ -331,11 +331,12 @@ func arrange(in *arrangeInput) []*Work {
 	return works
 }
 
-// addWatched は、見た話から、作品ごとの最後に見た話と次に見る話を決め、見た話の集まりを返す。
-func addWatched(byID map[int32]*Work, c *cache, rows []sqlc.ListDramaWatchedEpisodesRow) map[episodeKey]bool {
-	watched := map[episodeKey]bool{}
+// addWatched は、見た話から、作品ごとの最後に見た話と次に見る話を決め、見た話の集まりと、見た話のある作品を返す。
+func addWatched(byID map[int32]*Work, c *cache, rows []sqlc.ListDramaWatchedEpisodesRow) (map[episodeKey]bool, map[int32]bool) {
+	watched, watchedSeries := map[episodeKey]bool{}, map[int32]bool{}
 	for _, row := range rows {
 		watched[episodeKey{series: row.TmdbSeriesID, season: row.SeasonNumber, number: row.EpisodeNumber}] = true
+		watchedSeries[row.TmdbSeriesID] = true
 		work, ok := byID[row.TmdbSeriesID]
 		// 特別編 (シーズン 0) は、本編のどこに入るか分からないので、最後に見た話にしない。
 		if !ok || row.SeasonNumber == 0 || (work.LastWatched != nil && !after(row.SeasonNumber, row.EpisodeNumber, work.LastWatched)) {
@@ -351,7 +352,7 @@ func addWatched(byID map[int32]*Work, c *cache, rows []sqlc.ListDramaWatchedEpis
 		}
 	}
 
-	return watched
+	return watched, watchedSeries
 }
 
 // addBroadcasts は、作品に、これからの放送と、この 1 週間に始まった最も新しい放送を足す。
@@ -378,7 +379,10 @@ func addBroadcasts(byID map[int32]*Work, in *arrangeInput) {
 
 // addRecording は、録画 row を、作品の録画のある話に足す。同じ話の録画は続けて返ってくるので、前の話と同じなら、その話に足す。
 // 見た話か、最後に見た話より前の話は、見た話とする。見た話がひとつもない作品では、見たかどうかを決めない。
-func addRecording(byID map[int32]*Work, c *cache, watched map[episodeKey]bool, row *sqlc.ListDramaLibraryRecordingsRow) {
+// 特別編だけを見た作品は、最後に見た話がないが、見た特別編は見た話とする。
+func addRecording(
+	byID map[int32]*Work, c *cache, watched map[episodeKey]bool, watchedSeries map[int32]bool, row *sqlc.ListDramaLibraryRecordingsRow,
+) {
 	work, ok := byID[row.TmdbSeriesID]
 	if !ok {
 		return
@@ -391,9 +395,9 @@ func addRecording(byID map[int32]*Work, c *cache, watched map[episodeKey]bool, r
 		return
 	}
 	var seen *bool
-	if work.LastWatched != nil {
+	if watchedSeries[row.TmdbSeriesID] {
 		seen = new(watched[episodeKey{series: row.TmdbSeriesID, season: row.SeasonNumber, number: row.EpisodeNumber}] ||
-			(row.SeasonNumber != 0 && !after(row.SeasonNumber, row.EpisodeNumber, work.LastWatched)))
+			(work.LastWatched != nil && row.SeasonNumber != 0 && !after(row.SeasonNumber, row.EpisodeNumber, work.LastWatched)))
 	}
 	work.RecordedEpisodes = append(work.RecordedEpisodes, &RecordedEpisode{
 		Season: row.SeasonNumber, Number: row.EpisodeNumber, Name: c.episodeName(row.TmdbSeriesID, row.SeasonNumber, row.EpisodeNumber),

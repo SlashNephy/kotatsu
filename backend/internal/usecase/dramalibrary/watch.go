@@ -44,17 +44,31 @@ type Database interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-// available は、管理者が TMDb との連携を有効にしていなければ ErrUnavailable を返す。
-func available(ctx context.Context, db sqlc.DBTX) error {
+// available は、システムの設定を返す。管理者が TMDb との連携を有効にしていなければ ErrUnavailable を返す。
+func available(ctx context.Context, db sqlc.DBTX) (*settings.System, error) {
 	system, err := settings.Load(ctx, db)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !system.DramaLinkingEnabled {
-		return ErrUnavailable
+		return nil, ErrUnavailable
 	}
 
-	return nil
+	return system, nil
+}
+
+// thresholdPercent は、ユーザー userID の見た話にする割合を返す。アニメの記録の設定 (設計書 3.8) を使うが、その設定はアニメの連携の
+// 画面にしか出さないので、管理者がアニメの連携を無効にしている間は、変えられない設定に従わず、既定の割合を使う。
+func thresholdPercent(ctx context.Context, db sqlc.DBTX, system *settings.System, userID uuid.UUID) (int, error) {
+	if !system.AnimeLinkingEnabled {
+		return animerecord.DefaultThresholdPercent, nil
+	}
+	userSettings, err := animerecord.LoadSettings(ctx, db, userID)
+	if err != nil {
+		return 0, err
+	}
+
+	return userSettings.ThresholdPercent, nil
 }
 
 // SetStatus は、ユーザー userID の見ている作品に、TMDb の作品 seriesID を、状態 status で足すか、状態を変える。status が空なら外す。
@@ -64,7 +78,7 @@ func SetStatus(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, seriesID int
 	if seriesID <= 0 {
 		return ErrInvalidEpisode
 	}
-	if err := available(ctx, db); err != nil {
+	if _, err := available(ctx, db); err != nil {
 		return err
 	}
 	q := sqlc.New(db)
@@ -141,7 +155,7 @@ func SetWatched(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, episode *Ep
 	if !episode.valid() {
 		return ErrInvalidEpisode
 	}
-	if err := available(ctx, db); err != nil {
+	if _, err := available(ctx, db); err != nil {
 		return err
 	}
 	q := sqlc.New(db)
@@ -192,7 +206,7 @@ type watchedProgram struct {
 }
 
 // Report は、ユーザー userID のプレイヤーが、target を実際に再生した区間 intervals を、話に結びついたドラマの番組ごとに足す。
-// 番組の長さのうち、ユーザーが決めた割合 (アニメの記録の設定。既定は 20%) を見たら、番組に結びついた話を、見た話にする (設計書 3.9)。
+// 番組の長さのうち、ユーザーが決めた割合 (アニメの記録の設定。既定は 20%。アニメの連携が無効の間は既定の割合) を見たら、番組に結びついた話を、見た話にする (設計書 3.9)。
 // 見た区間は、アニメの記録と同じ行に持ち、同じ判定 (設計書 3.8) で決める。見ている作品に入れていない作品の話も、見た話にする。
 // 管理者が連携を無効にしていれば、何もせずに false を返す。
 func Report(
@@ -202,7 +216,8 @@ func Report(
 	if err != nil {
 		return false, err
 	}
-	if err := available(ctx, db); err != nil {
+	system, err := available(ctx, db)
+	if err != nil {
 		if errors.Is(err, ErrUnavailable) {
 			return false, nil
 		}
@@ -219,13 +234,13 @@ func Report(
 	if len(programs) == 0 {
 		return true, nil
 	}
-	userSettings, err := animerecord.LoadSettings(ctx, db, userID)
+	percent, err := thresholdPercent(ctx, db, system, userID)
 	if err != nil {
 		return false, err
 	}
 	for _, p := range programs {
 		if err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-			reached, err := animerecord.AddPlayed(ctx, tx, userID, p.serviceID, p.startAt, p.endAt, spans, userSettings.ThresholdPercent, now)
+			reached, err := animerecord.AddPlayed(ctx, tx, userID, p.serviceID, p.startAt, p.endAt, spans, percent, now)
 			if err != nil || !reached {
 				return err
 			}

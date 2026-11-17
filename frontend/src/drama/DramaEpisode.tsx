@@ -133,7 +133,13 @@ export function DramaEpisode({
         </Anchor>
         {canOverride && <DramaOverrideButton programName={programName} episode={episode} />}
       </Group>
-      {episode.watched !== undefined && <DramaWatch episode={episode} />}
+      {episode.watched !== undefined && (
+        // 読み直して、状態や話が変わったら、手元の状態を作り直す。
+        <DramaWatch
+          key={`${episode.series.tmdbId}:${episode.seasonNumber}:${episode.episodeNumber}:${episode.series.watchStatus}:${episode.watched}`}
+          episode={episode}
+        />
+      )}
       <TMDbAttribution />
     </Stack>
   );

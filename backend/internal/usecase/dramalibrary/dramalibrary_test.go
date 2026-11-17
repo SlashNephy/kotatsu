@@ -40,6 +40,8 @@ const (
 	unlinked int32 = 9002
 	// stateCompleted は、録り終えた録画の状態。
 	stateCompleted = "completed"
+	// watchedByPlayback は、プレイヤーで見た割合から見た話にした、シーズン 1 第 4 話。
+	watchedByPlayback = "1:4:playback"
 )
 
 // testNow は、テストの今。faketuner は、30 分ごとの番組を、今の 1 時間前から 6 時間後まで出す。
@@ -274,20 +276,37 @@ func TestReport(t *testing.T) {
 		episode   int32
 		from, to  time.Time
 		recording bool
-		want      []string
-		wantOK    bool
+		// savedPercent が 0 でなければ、ユーザーが見たアニメを記録する割合を変えておく。animeEnabled なら、アニメの連携を有効にする。
+		savedPercent int
+		animeEnabled bool
+		want         []string
+		wantOK       bool
 	}{
-		{name: "live viewing over the threshold", enabled: true, episode: 4, from: at(12, 0), to: at(12, 7), want: []string{"1:4:playback"}, wantOK: true},
+		{name: "live viewing over the threshold", enabled: true, episode: 4, from: at(12, 0), to: at(12, 7), want: []string{watchedByPlayback}, wantOK: true},
 		{name: "live viewing under the threshold", enabled: true, episode: 4, from: at(12, 0), to: at(12, 5), want: []string{}, wantOK: true},
-		{name: "recording playback over the threshold", enabled: true, episode: 4, from: at(12, 0), to: at(12, 10), recording: true, want: []string{"1:4:playback"}, wantOK: true},
+		{name: "recording playback over the threshold", enabled: true, episode: 4, from: at(12, 0), to: at(12, 10), recording: true, want: []string{watchedByPlayback}, wantOK: true},
 		{name: "program linked to the series only", enabled: true, episode: 0, from: at(12, 0), to: at(12, 10), want: []string{}, wantOK: true},
 		{name: "drama linking disabled", enabled: false, episode: 4, from: at(12, 0), to: at(12, 10), want: []string{}, wantOK: false},
+		{
+			name: "a saved percent applies while anime linking is enabled", enabled: true, episode: 4, from: at(12, 0), to: at(12, 7),
+			savedPercent: 80, animeEnabled: true, want: []string{}, wantOK: true,
+		},
+		{
+			name: "a saved percent is ignored while anime linking is disabled", enabled: true, episode: 4, from: at(12, 0), to: at(12, 7),
+			savedPercent: 80, animeEnabled: false, want: []string{watchedByPlayback}, wantOK: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t, tt.enabled)
 			f.link(t, 12, 0, tt.episode)
+			if tt.savedPercent > 0 {
+				f.exec(t, `INSERT INTO anime_record_settings (user_id, threshold_percent, updated_at) VALUES ($1, $2, now())`, f.alice, tt.savedPercent)
+			}
+			if tt.animeEnabled {
+				f.exec(t, `UPDATE system_settings SET anime_linking_enabled = true`)
+			}
 			target := &animerecord.Target{ServiceID: new(serviceID()), RecordingID: nil}
 			if tt.recording {
 				recordingID := id.New()
@@ -325,22 +344,27 @@ func TestLibrary(t *testing.T) {
 		{
 			name:    "the next broadcast skips an episode already watched",
 			watched: [][2]int32{{1, 1}, {1, 2}, {1, 3}},
-			want:    "ドラマA|watching|last=1:3|next=1:4:話1-4|broadcast=13:00|1:2:watched:1,1:3:watched:1,1:5:unwatched:2,2:1:unwatched:1",
+			want:    "ドラマA|watching|last=1:3|next=1:4:話1-4|broadcast=13:00|0:1:unwatched:1,1:2:watched:1,1:3:watched:1,1:5:unwatched:2,2:1:unwatched:1",
 		},
 		{
 			name:    "a special does not advance the progress",
 			watched: [][2]int32{{1, 4}, {0, 1}},
-			want:    "ドラマA|watching|last=1:4|next=1:5:話1-5|broadcast=12:30|1:2:watched:1,1:3:watched:1,1:5:unwatched:2,2:1:unwatched:1",
+			want:    "ドラマA|watching|last=1:4|next=1:5:話1-5|broadcast=12:30|0:1:watched:1,1:2:watched:1,1:3:watched:1,1:5:unwatched:2,2:1:unwatched:1",
 		},
 		{
 			name:    "the last episode of a season leads to the next season",
 			watched: [][2]int32{{1, 5}},
-			want:    "ドラマA|watching|last=1:5|next=2:1:話2-1|broadcast=12:30|1:2:watched:1,1:3:watched:1,1:5:watched:2,2:1:unwatched:1",
+			want:    "ドラマA|watching|last=1:5|next=2:1:話2-1|broadcast=12:30|0:1:unwatched:1,1:2:watched:1,1:3:watched:1,1:5:watched:2,2:1:unwatched:1",
+		},
+		{
+			name:    "a watched special is hidden even without regular episodes",
+			watched: [][2]int32{{0, 1}},
+			want:    "ドラマA|watching|last=-|next=-|broadcast=12:30|0:1:watched:1,1:2:unwatched:1,1:3:unwatched:1,1:5:unwatched:2,2:1:unwatched:1",
 		},
 		{
 			name:    "without watched episodes, nothing is claimed as unwatched",
 			watched: nil,
-			want:    "ドラマA|watching|last=-|next=-|broadcast=12:30|1:2:unknown:1,1:3:unknown:1,1:5:unknown:2,2:1:unknown:1",
+			want:    "ドラマA|watching|last=-|next=-|broadcast=12:30|0:1:unknown:1,1:2:unknown:1,1:3:unknown:1,1:5:unknown:2,2:1:unknown:1",
 		},
 	}
 	for _, tt := range tests {
@@ -358,11 +382,11 @@ func TestLibrary(t *testing.T) {
 				require.NoError(t, dramalibrary.SetWatched(t.Context(), f.pool, f.alice,
 					&dramalibrary.Episode{SeriesID: series, Season: episode[0], Number: episode[1]}, true, testNow()))
 			}
-			// 第 5 話は 2 回録り、録れなかった第 6 話の録画は数えない。
+			// 特別編の第 1 話を録り、第 5 話は 2 回録り、録れなかった第 6 話の録画は数えない。
 			for i, recording := range []struct {
 				season, episode int32
 				state           string
-			}{{1, 2, stateCompleted}, {1, 3, "partial"}, {1, 5, stateCompleted}, {1, 5, stateCompleted}, {2, 1, "recording"}, {1, 6, "failed"}} {
+			}{{0, 1, stateCompleted}, {1, 2, stateCompleted}, {1, 3, "partial"}, {1, 5, stateCompleted}, {1, 5, stateCompleted}, {2, 1, "recording"}, {1, 6, "failed"}} {
 				f.addRecording(t, recording.season, recording.episode, recording.state, at(1, 0).Add(time.Duration(i)*time.Hour))
 			}
 

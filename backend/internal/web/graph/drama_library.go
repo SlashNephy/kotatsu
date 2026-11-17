@@ -210,9 +210,6 @@ func (r *Resolver) setDramaWatchStatus(ctx context.Context, seriesID int, status
 	series := &model.DramaSeries{
 		TmdbID: int(id), Name: name, OriginalName: originalName, URL: fmt.Sprintf("%s/tv/%d", tmdbWebURL, id), WatchStatus: nil,
 	}
-	if status != nil {
-		series.WatchStatus = new(*status)
-	}
 
 	return series, nil
 }
