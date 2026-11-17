@@ -1,6 +1,5 @@
 import {
   ActionIcon,
-  Alert,
   Badge,
   Button,
   Card,
@@ -18,6 +17,7 @@ import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useSaveNotice } from '../settings/saveNotice';
 import { usePlayerSettings, type CommentSettingsInput } from '../yunomi/usePlayerSettings';
 import {
   isKeywordMuteMatch as isMatch,
@@ -61,7 +61,7 @@ const validRegExp = (pattern: string) => {
 export function CommentSettingsCard() {
   const { t } = useTranslation();
   const { comments, setComments } = usePlayerSettings();
-  const [failed, setFailed] = useState(false);
+  const notice = useSaveNotice();
   const [keyword, setKeyword] = useState('');
   const [match, setMatch] = useState<KeywordMuteMatch>('PARTIAL');
   const [user, setUser] = useState('');
@@ -93,12 +93,18 @@ export function CommentSettingsCard() {
     mutedCommands: [...comments.mutedCommands],
     mixOtherBroadcasts: comments.mixOtherBroadcasts,
   });
+  // save は、変えた設定を保存し、結果を設定の保存の通知で知らせる (#1740)。失敗したら、スライダーを保存してある値に戻す。
   const save = (change: Partial<CommentSettingsInput>) => {
-    setFailed(false);
-    setComments({ ...current(), ...change }, () => {
-      setFailed(true);
-      setDraft({});
-    });
+    setComments(
+      { ...current(), ...change },
+      {
+        onSaved: notice.saved,
+        onFailed: (error) => {
+          notice.failed(error);
+          setDraft({});
+        },
+      },
+    );
   };
 
   const keywordText = keyword.trim();
@@ -155,15 +161,10 @@ export function CommentSettingsCard() {
         <Title order={3} size="h5">
           {t('settings.comments.title')}
         </Title>
-        {failed && (
-          <Alert color="red" role="alert" withCloseButton onClose={() => setFailed(false)}>
-            {t('settings.comments.saveError')}
-          </Alert>
-        )}
         {slider('opacity', 0.1, 1, (v) => `${Math.round(v * 100)}%`)}
         {slider('speed', 0.5, 2, (v) => `×${v.toFixed(2)}`)}
         {slider('scale', 0.5, 1.5, (v) => `×${v.toFixed(2)}`)}
-        <CommentOffsetSetting />
+        <CommentOffsetSetting onSaved={notice.saved} />
         <Switch
           label={t('settings.comments.showAll')}
           description={t('settings.comments.showAllHelp')}

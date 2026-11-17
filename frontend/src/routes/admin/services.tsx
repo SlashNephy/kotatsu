@@ -1,14 +1,4 @@
-import {
-  Alert,
-  Button,
-  Group,
-  NumberInput,
-  ScrollArea,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-} from '@mantine/core';
+import { Group, ScrollArea, Stack, Text } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,14 +7,24 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
-import { useAction } from '../../admin/useAction';
 import { Section } from '../../admin/Section';
-import { settingsErrorMessage } from '../../settings/errors';
+import {
+  AutoSaveNumberInput,
+  AutoSaveSwitch,
+  AutoSaveTextInput,
+} from '../../settings/AutoSaveFields';
 import { mutate } from '../../settings/mutate';
-import type { servicesChannelTypeMutation } from './__generated__/servicesChannelTypeMutation.graphql';
-import type { servicesQuery } from './__generated__/servicesQuery.graphql';
-import type { servicesServiceMutation } from './__generated__/servicesServiceMutation.graphql';
+import { useAutoSave } from '../../settings/useAutoSave';
+import type {
+  ChannelTypeInput,
+  servicesChannelTypeMutation,
+} from './__generated__/servicesChannelTypeMutation.graphql';
 import type { servicesJikkyoChannelMutation } from './__generated__/servicesJikkyoChannelMutation.graphql';
+import type { servicesQuery } from './__generated__/servicesQuery.graphql';
+import type {
+  ServiceInput,
+  servicesServiceMutation,
+} from './__generated__/servicesServiceMutation.graphql';
 import type {
   AnimeChannelInput,
   servicesAnimeChannelMutation,
@@ -38,6 +38,7 @@ export const Route = createFileRoute('/admin/services')({
 // ServicesPage は、放送波 (チャンネル種別) の表示名と並び順、番組表とライブに出すサービスと並び順を変える、
 // 管理者向けの画面 (設計書 10.3)。タイムシフトで録るサービスは、タイムシフトの画面 (/admin/timeshift) で決める。
 // しょぼいカレンダーと Annict のチャンネルの対応の上書き (設計書 3.8) と、ニコニコ実況のチャンネルの対応 (設計書 7.4、#1869) も、ここで変える。
+// どの項目も、変えたらその項目だけを保存する (#1740)。
 function ServicesPage() {
   const { t } = useTranslation();
 
@@ -99,55 +100,123 @@ function ServiceSettings() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const action = useAction();
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const fail = (caught: unknown) =>
-    setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
-  const done = () => {
-    setMessage({ ok: true, text: t('admin.saved') });
-    refresh();
-  };
+  const { save } = useAutoSave();
+
+  const saveChannelType = (type: string, input: ChannelTypeInput) =>
+    save(async () => {
+      await mutate<servicesChannelTypeMutation>(
+        environment,
+        graphql`
+          mutation servicesChannelTypeMutation($type: String!, $input: ChannelTypeInput!) {
+            updateChannelType(type: $type, input: $input) {
+              type
+              displayName
+              sortOrder
+            }
+          }
+        `,
+        { type, input },
+      );
+      refresh();
+    });
+  const saveService = (id: string, input: ServiceInput) =>
+    save(async () => {
+      await mutate<servicesServiceMutation>(
+        environment,
+        graphql`
+          mutation servicesServiceMutation($id: ID!, $input: ServiceInput!) {
+            updateService(id: $id, input: $input) {
+              id
+              hidden
+              sortOrder
+            }
+          }
+        `,
+        { id, input },
+      );
+      refresh();
+    });
+  const saveAnimeChannel = (serviceId: string, input: AnimeChannelInput) =>
+    save(async () => {
+      await mutate<servicesAnimeChannelMutation>(
+        environment,
+        graphql`
+          mutation servicesAnimeChannelMutation($serviceId: ID!, $input: AnimeChannelInput!) {
+            updateAnimeChannel(serviceId: $serviceId, input: $input) {
+              serviceId
+              syobocalChannelIdOverride
+              annictChannelIdOverride
+            }
+          }
+        `,
+        { serviceId, input },
+      );
+      refresh();
+    });
+
+  // saveJikkyoChannel は、サービスとニコニコ実況のチャンネルの対応を保存する (#1869)。null なら、対応を消して同梱の対応表に戻す。
+  const saveJikkyoChannel = (
+    service: { networkId: number; serviceId: number },
+    channelId: string | null,
+  ) =>
+    save(async () => {
+      await mutate<servicesJikkyoChannelMutation>(
+        environment,
+        graphql`
+          mutation servicesJikkyoChannelMutation($input: SystemSettingsInput!) {
+            updateSystemSettings(input: $input) {
+              jikkyoChannels {
+                networkId
+                serviceId
+                channelId
+              }
+            }
+          }
+        `,
+        {
+          input: {
+            jikkyoChannels: [
+              { networkId: service.networkId, serviceId: service.serviceId, channelId },
+            ],
+          },
+        },
+      );
+      refresh();
+    });
 
   return (
     <Stack gap="md">
-      {message !== null && (
-        <Alert
-          color={message.ok ? 'teal' : 'red'}
-          role={message.ok ? 'status' : 'alert'}
-          withCloseButton
-          onClose={() => setMessage(null)}
-        >
-          {message.text}
-        </Alert>
-      )}
-
       <Section title={t('admin.system.channelTypes')}>
         {data.channelTypes.map((channelType) => (
-          <ChannelTypeEditor
-            key={`${channelType.type}/${channelType.displayName}/${channelType.sortOrder}`}
-            channelType={channelType}
-            onSave={(input) =>
-              action.run(async () => {
-                await mutate<servicesChannelTypeMutation>(
-                  environment,
-                  graphql`
-                    mutation servicesChannelTypeMutation(
-                      $type: String!
-                      $input: ChannelTypeInput!
-                    ) {
-                      updateChannelType(type: $type, input: $input) {
-                        type
-                        displayName
-                        sortOrder
-                      }
-                    }
-                  `,
-                  { type: channelType.type, input },
-                );
-                done();
-              }, fail)
-            }
-          />
+          <Group
+            key={channelType.type}
+            gap="xs"
+            align="flex-start"
+            data-channel-type={channelType.type}
+          >
+            <Text fw={600} w={48} pt={28}>
+              {channelType.type}
+            </Text>
+            <AutoSaveTextInput
+              size="xs"
+              w={160}
+              label={t('admin.system.channelTypeName')}
+              maxLength={32}
+              required
+              value={channelType.displayName}
+              onSave={(displayName) => saveChannelType(channelType.type, { displayName })}
+            />
+            <AutoSaveNumberInput
+              size="xs"
+              w={120}
+              label={t('admin.system.channelTypeOrder')}
+              min={0}
+              max={10000}
+              allowDecimal={false}
+              value={channelType.sortOrder}
+              onSave={(sortOrder) => saveChannelType(channelType.type, { sortOrder })}
+            />
+          </Group>
         ))}
       </Section>
 
@@ -158,35 +227,38 @@ function ServiceSettings() {
         <ScrollArea.Autosize mah={480}>
           <Stack gap="xs">
             {data.services.map((service) => (
-              <ServiceEditor
-                key={`${service.id}/${service.sortOrder}`}
-                service={service}
-                busy={action.busy}
-                onSave={(input, revert = () => {}) =>
-                  action.run(
-                    async () => {
-                      await mutate<servicesServiceMutation>(
-                        environment,
-                        graphql`
-                          mutation servicesServiceMutation($id: ID!, $input: ServiceInput!) {
-                            updateService(id: $id, input: $input) {
-                              id
-                              hidden
-                              sortOrder
-                            }
-                          }
-                        `,
-                        { id: service.id, input },
-                      );
-                      done();
-                    },
-                    (caught) => {
-                      revert();
-                      fail(caught);
-                    },
-                  )
-                }
-              />
+              // 番組表に出さない印と、並び順の上書き。並び順を空にすると、上書きを消して、リモコンのキーの順に戻す。
+              <Group key={service.id} gap="xs" align="flex-end">
+                <ServiceName
+                  name={service.name}
+                  logoUrl={service.logoUrl}
+                  sub={service.channelType.displayName}
+                />
+                <AutoSaveSwitch
+                  size="sm"
+                  pb={6}
+                  label={t('admin.system.serviceHidden')}
+                  checked={service.hidden}
+                  onSave={(hidden) => saveService(service.id, { hidden })}
+                />
+                <AutoSaveNumberInput
+                  nullable
+                  size="xs"
+                  w={120}
+                  label={t('admin.system.serviceOrder')}
+                  placeholder={t('admin.system.serviceOrderDefault')}
+                  min={0}
+                  max={10000}
+                  allowDecimal={false}
+                  value={service.sortOrder ?? null}
+                  onSave={(order) =>
+                    saveService(
+                      service.id,
+                      order === null ? { resetSortOrder: true } : { sortOrder: order },
+                    )
+                  }
+                />
+              </Group>
             ))}
           </Stack>
         </ScrollArea.Autosize>
@@ -209,41 +281,59 @@ function ServiceSettings() {
               if (channel === undefined) {
                 return [];
               }
+              const imported = (id: number | null | undefined) =>
+                id == null ? t('admin.system.animeChannelNone') : String(id);
 
+              // しょぼいカレンダーの ChID と Annict のチャンネルの対応の上書き (設計書 3.8)。
+              // 欄を空にすると、上書きを消して、saya-definitions から取り込んだ対応 (欄の薄い文字) に戻す。
               return [
-                <AnimeChannelEditor
-                  key={`${channel.serviceId}/${channel.syobocalChannelIdOverride}/${channel.annictChannelIdOverride}`}
-                  service={service}
-                  channel={channel}
-                  onSave={(input) =>
-                    action.run(async () => {
-                      await mutate<servicesAnimeChannelMutation>(
-                        environment,
-                        graphql`
-                          mutation servicesAnimeChannelMutation(
-                            $serviceId: ID!
-                            $input: AnimeChannelInput!
-                          ) {
-                            updateAnimeChannel(serviceId: $serviceId, input: $input) {
-                              serviceId
-                              syobocalChannelIdOverride
-                              annictChannelIdOverride
-                            }
-                          }
-                        `,
-                        { serviceId: channel.serviceId, input },
-                      );
-                      done();
-                    }, fail)
-                  }
-                />,
+                <Group key={channel.serviceId} gap="xs" align="flex-end">
+                  <ServiceName
+                    name={service.name}
+                    logoUrl={service.logoUrl}
+                    sub={channel.definitionName ?? service.channelType.displayName}
+                  />
+                  <AutoSaveNumberInput
+                    nullable
+                    size="xs"
+                    w={180}
+                    label={t('admin.system.syobocalChannel')}
+                    placeholder={imported(channel.importedSyobocalChannelId)}
+                    min={1}
+                    allowDecimal={false}
+                    value={channel.syobocalChannelIdOverride ?? null}
+                    onSave={(id) =>
+                      saveAnimeChannel(
+                        channel.serviceId,
+                        id === null ? { resetSyobocalChannelId: true } : { syobocalChannelId: id },
+                      )
+                    }
+                  />
+                  <AutoSaveNumberInput
+                    nullable
+                    size="xs"
+                    w={180}
+                    label={t('admin.system.annictChannel')}
+                    placeholder={imported(channel.importedAnnictChannelId)}
+                    min={1}
+                    allowDecimal={false}
+                    value={channel.annictChannelIdOverride ?? null}
+                    onSave={(id) =>
+                      saveAnimeChannel(
+                        channel.serviceId,
+                        id === null ? { resetAnnictChannelId: true } : { annictChannelId: id },
+                      )
+                    }
+                  />
+                </Group>,
               ];
             })}
           </Stack>
         </ScrollArea.Autosize>
       </Section>
 
-      {/* ニコニコ実況のチャンネルの対応 (#1869)。前は設定ファイルの jikkyo.channels で渡していた。 */}
+      {/* ニコニコ実況のチャンネルの対応 (#1869)。前は設定ファイルの jikkyo.channels で渡していた。
+          欄を空にすると、対応を消して、同梱した対応表に戻す。 */}
       <Section title={t('admin.system.jikkyoChannels')}>
         <Text size="sm" c="dimmed">
           {t('admin.system.jikkyoChannelsDescription')}
@@ -257,42 +347,28 @@ function ServiceSettings() {
               );
 
               return (
-                <JikkyoChannelEditor
-                  key={`${service.id}/${override?.channelId ?? ''}`}
-                  service={service}
-                  channelId={override?.channelId ?? ''}
-                  busy={action.busy}
-                  onSave={(channelId) =>
-                    action.run(async () => {
-                      await mutate<servicesJikkyoChannelMutation>(
-                        environment,
-                        graphql`
-                          mutation servicesJikkyoChannelMutation($input: SystemSettingsInput!) {
-                            updateSystemSettings(input: $input) {
-                              jikkyoChannels {
-                                networkId
-                                serviceId
-                                channelId
-                              }
-                            }
-                          }
-                        `,
-                        {
-                          input: {
-                            jikkyoChannels: [
-                              {
-                                networkId: service.networkId,
-                                serviceId: service.serviceId,
-                                channelId,
-                              },
-                            ],
-                          },
-                        },
-                      );
-                      done();
-                    }, fail)
-                  }
-                />
+                <Group key={service.id} gap="xs" align="flex-end">
+                  <ServiceName
+                    name={service.name}
+                    logoUrl={service.logoUrl}
+                    sub={service.channelType.displayName}
+                  />
+                  <AutoSaveTextInput
+                    size="xs"
+                    w={180}
+                    label={t('admin.system.jikkyoChannel')}
+                    placeholder={t('admin.system.jikkyoChannelBundled')}
+                    validate={(value) =>
+                      value === '' || jikkyoChannelPattern.test(value)
+                        ? null
+                        : t('admin.system.jikkyoChannelInvalid')
+                    }
+                    value={override?.channelId ?? ''}
+                    onSave={(channelId) =>
+                      saveJikkyoChannel(service, channelId === '' ? null : channelId)
+                    }
+                  />
+                </Group>
               );
             })}
           </Stack>
@@ -305,287 +381,24 @@ function ServiceSettings() {
 // jikkyoChannelPattern は、実況のチャンネルの ID の形 (jk1 など)。サーバーと同じ。
 const jikkyoChannelPattern = /^jk\d{1,6}$/;
 
-// JikkyoChannelEditor は、サービスとニコニコ実況のチャンネルの対応を変える行 (#1869)。
-// 空にして保存すると、対応を消して、同梱した対応表に戻す。文字の欄なので、保存のボタンで保存する (#1740)。
-function JikkyoChannelEditor({
-  service,
-  channelId,
-  busy,
-  onSave,
+// ServiceName は、行の左に出す、サービスの名前とロゴ、その下の小さな説明 sub。
+function ServiceName({
+  name,
+  logoUrl,
+  sub,
 }: {
-  service: {
-    name: string;
-    logoUrl: string | null | undefined;
-    channelType: { displayName: string };
-  };
-  channelId: string;
-  busy: boolean;
-  onSave: (channelId: string | null) => void;
+  name: string;
+  logoUrl: string | null | undefined;
+  sub: string;
 }) {
-  const { t } = useTranslation();
-  const [value, setValue] = useState(channelId);
-  const trimmed = value.trim();
-  const invalid = trimmed !== '' && !jikkyoChannelPattern.test(trimmed);
-
   return (
-    <Group gap="xs" align="flex-end">
-      <Stack gap={0} w={200} pb={4}>
-        <Text size="sm" fw={600} truncate>
-          <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
-        </Text>
-        <Text size="xs" c="dimmed">
-          {service.channelType.displayName}
-        </Text>
-      </Stack>
-      <TextInput
-        size="xs"
-        w={180}
-        label={t('admin.system.jikkyoChannel')}
-        placeholder={t('admin.system.jikkyoChannelBundled')}
-        value={value}
-        error={invalid ? t('admin.system.jikkyoChannelInvalid') : undefined}
-        onChange={(event) => setValue(event.currentTarget.value)}
-      />
-      <Button
-        size="compact-sm"
-        mb={2}
-        disabled={trimmed === channelId || invalid || busy}
-        onClick={() => onSave(trimmed === '' ? null : trimmed)}
-      >
-        {t('admin.save')}
-      </Button>
-    </Group>
-  );
-}
-
-type AnimeChannelItem = {
-  definitionName: string | null | undefined;
-  importedSyobocalChannelId: number | null | undefined;
-  importedAnnictChannelId: number | null | undefined;
-  syobocalChannelIdOverride: number | null | undefined;
-  annictChannelIdOverride: number | null | undefined;
-};
-
-// overrideChange は、上書きの入力 value を、今の上書き current と比べ、変える項目にする。
-// 空にすると上書きを消し、取り込んだ対応に戻す。変えていなければ、set も reset もない値を返す。
-function overrideChange(
-  value: number | string,
-  current: number | null | undefined,
-): { set?: number; reset: boolean } {
-  if (typeof value !== 'number') {
-    return { reset: current != null };
-  }
-  if (value === current) {
-    return { reset: false };
-  }
-
-  return { set: value, reset: false };
-}
-
-// AnimeChannelEditor は、サービスとしょぼいカレンダーの ChID、Annict のチャンネルの対応の上書きを変える行 (設計書 3.8)。
-// 入力を空にすると、上書きを消して、saya-definitions から取り込んだ対応 (入力の薄い文字) に戻す。
-function AnimeChannelEditor({
-  service,
-  channel,
-  onSave,
-}: {
-  service: {
-    name: string;
-    logoUrl: string | null | undefined;
-    channelType: { displayName: string };
-  };
-  channel: AnimeChannelItem;
-  onSave: (input: AnimeChannelInput) => void;
-}) {
-  const { t } = useTranslation();
-  const [syobocal, setSyobocal] = useState<number | string>(
-    channel.syobocalChannelIdOverride ?? '',
-  );
-  const [annict, setAnnict] = useState<number | string>(channel.annictChannelIdOverride ?? '');
-  const imported = (id: number | null | undefined) =>
-    id == null ? t('admin.system.animeChannelNone') : String(id);
-  const syobocalChange = overrideChange(syobocal, channel.syobocalChannelIdOverride);
-  const annictChange = overrideChange(annict, channel.annictChannelIdOverride);
-  const changed =
-    syobocalChange.set !== undefined ||
-    syobocalChange.reset ||
-    annictChange.set !== undefined ||
-    annictChange.reset;
-
-  return (
-    <Group gap="xs" align="flex-end">
-      <Stack gap={0} w={200} pb={4}>
-        <Text size="sm" fw={600} truncate>
-          <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
-        </Text>
-        <Text size="xs" c="dimmed" truncate>
-          {channel.definitionName ?? service.channelType.displayName}
-        </Text>
-      </Stack>
-      <NumberInput
-        size="xs"
-        w={180}
-        label={t('admin.system.syobocalChannel')}
-        placeholder={imported(channel.importedSyobocalChannelId)}
-        min={1}
-        allowDecimal={false}
-        value={syobocal}
-        onChange={setSyobocal}
-      />
-      <NumberInput
-        size="xs"
-        w={180}
-        label={t('admin.system.annictChannel')}
-        placeholder={imported(channel.importedAnnictChannelId)}
-        min={1}
-        allowDecimal={false}
-        value={annict}
-        onChange={setAnnict}
-      />
-      <Button
-        size="compact-sm"
-        mb={2}
-        disabled={!changed}
-        onClick={() =>
-          onSave({
-            syobocalChannelId: syobocalChange.set,
-            resetSyobocalChannelId: syobocalChange.reset,
-            annictChannelId: annictChange.set,
-            resetAnnictChannelId: annictChange.reset,
-          })
-        }
-      >
-        {t('admin.save')}
-      </Button>
-    </Group>
-  );
-}
-
-// ServiceEditor は、サービスの、番組表に出さない印と並び順の上書きを変える行。
-// 番組表に出さない印は、変えたらすぐ、それだけを保存する (#1740)。並び順は、打っている途中の値を保存しないよう、保存のボタンで保存する。
-// 並び順を空にして保存すると、上書きを消して、リモコンのキーの順に戻す。
-function ServiceEditor({
-  service,
-  busy,
-  onSave,
-}: {
-  service: {
-    id: string;
-    name: string;
-    logoUrl: string | null | undefined;
-    hidden: boolean;
-    sortOrder: number | null | undefined;
-    channelType: { displayName: string };
-  };
-  busy: boolean;
-  onSave: (
-    input: { hidden?: boolean; sortOrder?: number; resetSortOrder: boolean },
-    revert?: () => void,
-  ) => void;
-}) {
-  const { t } = useTranslation();
-  // 切り替えた値は、読み直した値 (service.hidden) が変わるまで出す。
-  const [toggled, setToggled] = useState({ value: service.hidden, base: service.hidden });
-  // 読み直した値が変わったら (保存した、ほかの管理者が変えた)、切り替えた値を捨てて、読み直した値から始め直す。
-  if (toggled.base !== service.hidden) {
-    setToggled({ value: service.hidden, base: service.hidden });
-  }
-  const hidden = toggled.base === service.hidden ? toggled.value : service.hidden;
-  const [sortOrder, setSortOrder] = useState<number | string>(service.sortOrder ?? '');
-  const order = typeof sortOrder === 'number' ? sortOrder : null;
-
-  return (
-    <Group gap="xs" align="flex-end">
-      <Stack gap={0} w={200} pb={4}>
-        <Text size="sm" fw={600} truncate>
-          <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
-        </Text>
-        <Text size="xs" c="dimmed">
-          {service.channelType.displayName}
-        </Text>
-      </Stack>
-      <Switch
-        size="sm"
-        pb={6}
-        label={t('admin.system.serviceHidden')}
-        checked={hidden}
-        disabled={busy}
-        onChange={(event) => {
-          const value = event.currentTarget.checked;
-          setToggled({ value, base: service.hidden });
-          onSave({ hidden: value, resetSortOrder: false }, () =>
-            setToggled({ value: service.hidden, base: service.hidden }),
-          );
-        }}
-      />
-      <NumberInput
-        size="xs"
-        w={120}
-        label={t('admin.system.serviceOrder')}
-        placeholder={t('admin.system.serviceOrderDefault')}
-        min={0}
-        max={10000}
-        allowDecimal={false}
-        value={sortOrder}
-        onChange={setSortOrder}
-      />
-      <Button
-        size="compact-sm"
-        mb={2}
-        onClick={() =>
-          onSave(
-            order === null ? { resetSortOrder: true } : { sortOrder: order, resetSortOrder: false },
-          )
-        }
-      >
-        {t('admin.save')}
-      </Button>
-    </Group>
-  );
-}
-
-function ChannelTypeEditor({
-  channelType,
-  onSave,
-}: {
-  channelType: { type: string; displayName: string; sortOrder: number };
-  onSave: (input: { displayName: string; sortOrder: number }) => void;
-}) {
-  const { t } = useTranslation();
-  const [displayName, setDisplayName] = useState(channelType.displayName);
-  const [sortOrder, setSortOrder] = useState<number | string>(channelType.sortOrder);
-  const name = displayName.trim();
-
-  return (
-    <Group gap="xs" align="flex-end" data-channel-type={channelType.type}>
-      <Text fw={600} w={48} pb={4}>
-        {channelType.type}
+    <Stack gap={0} w={200} pb={4}>
+      <Text size="sm" fw={600} truncate>
+        <ServiceLabel name={name} logoUrl={logoUrl} />
       </Text>
-      <TextInput
-        size="xs"
-        w={160}
-        label={t('admin.system.channelTypeName')}
-        maxLength={32}
-        value={displayName}
-        onChange={(event) => setDisplayName(event.currentTarget.value)}
-      />
-      <NumberInput
-        size="xs"
-        w={120}
-        label={t('admin.system.channelTypeOrder')}
-        min={0}
-        max={10000}
-        allowDecimal={false}
-        value={sortOrder}
-        onChange={setSortOrder}
-      />
-      <Button
-        size="compact-sm"
-        disabled={name === '' || typeof sortOrder !== 'number'}
-        onClick={() => onSave({ displayName: name, sortOrder: Number(sortOrder) })}
-      >
-        {t('admin.save')}
-      </Button>
-    </Group>
+      <Text size="xs" c="dimmed" truncate>
+        {sub}
+      </Text>
+    </Stack>
   );
 }

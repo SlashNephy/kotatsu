@@ -12,12 +12,15 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { appIconIds, appIconUrl, useAppIcon, type AppIconId } from './appIcon';
+import { useDeviceSave } from './useAutoSave';
 
 // AppIconSettings は、ヘッダーのロゴに出すアイコンを、この端末で選ぶ設定 (#1665)。
 // 選んだらすぐ、ヘッダーのロゴを替える。タブの favicon とインストールしたアイコンは変えない。
 export function AppIconSettings() {
   const { t } = useTranslation();
   const [current, setCurrent] = useAppIcon();
+  // 選んだら、ほかの設定と同じ通知で知らせる (#1740)。
+  const deviceSave = useDeviceSave();
 
   return (
     <Card withBorder>
@@ -36,7 +39,7 @@ export function AppIconSettings() {
         </Text>
         <Radio.Group
           value={current}
-          onChange={(value) => setCurrent(value as AppIconId)}
+          onChange={(value) => deviceSave(setCurrent)(value as AppIconId)}
           // 選択肢のまとまりの名前は見出しと同じなので、読み上げにだけ渡す。
           // ラベルは inline-block のままだと、見えなくても 1 行分の高さを取るので、block にする。
           label={<VisuallyHidden>{t('settings.appIcon.title')}</VisuallyHidden>}

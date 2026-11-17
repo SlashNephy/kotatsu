@@ -43,6 +43,11 @@ type Props = {
   // programs は、当てはめる番組の候補。見本の番組のほかに選べる。
   programs?: readonly { id: string; name: string }[];
   disabled?: boolean;
+  // onCommit は、入力を確定したとき (欄を離れた、Enter を押した、よく使うテンプレートで置き換えた) に、その値で呼ぶ。
+  // 変えたらすぐ保存する設定の画面 (#1740) で使う。
+  onCommit?: (value: string) => void;
+  // error は、欄の下に出す、保存できない理由。
+  error?: string;
 };
 
 // FileNameTemplateField は、ファイル名のテンプレートの入力欄 (設計書 4.7)。入力が止まったら、番組を当てはめたファイル名を
@@ -55,6 +60,8 @@ export function FileNameTemplateField({
   fallback,
   programs = [],
   disabled = false,
+  onCommit,
+  error,
 }: Props) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -85,6 +92,13 @@ export function FileNameTemplateField({
         ff="monospace"
         value={value}
         onChange={(event) => onChange(event.currentTarget.value)}
+        onBlur={(event) => onCommit?.(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+            onCommit?.(event.currentTarget.value);
+          }
+        }}
+        error={error}
         disabled={disabled}
       />
       <Group gap="xs" align="center" wrap="nowrap">
@@ -119,7 +133,15 @@ export function FileNameTemplateField({
       </Anchor>
       {helpOpened && (
         <Suspense fallback={<Loader size="xs" />}>
-          <Help onInsert={insert} onReplace={onChange} disabled={disabled} />
+          <Help
+            onInsert={insert}
+            onReplace={(template) => {
+              onChange(template);
+              // 置き換えでは欄にフォーカスが戻らず、欄を離れたときの確定が来ないので、ここで確定する。
+              onCommit?.(template);
+            }}
+            disabled={disabled}
+          />
         </Suspense>
       )}
     </Stack>

@@ -1,4 +1,5 @@
 import { Alert, Anchor, Card, Group, Stack, Switch, Table, Text, Title } from '@mantine/core';
+import { notifySaveFailed, useSaveNotice } from '../../settings/saveNotice';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -107,7 +108,8 @@ function Settings() {
   // endpoint は、この端末の購読の送り先。購読していなければ null、まだ調べていなければ undefined。
   const [endpoint, setEndpoint] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // 変えたら、ほかの設定と同じ通知で知らせる (#1740)。
+  const notice = useSaveNotice();
   const supported = pushSupported();
   const refresh = () => setFetchKey((key) => key + 1);
 
@@ -127,7 +129,6 @@ function Settings() {
 
   const toggle = async (next: boolean) => {
     setBusy(true);
-    setError(null);
     try {
       if (next) {
         const keys = await subscribe(data.webPushPublicKey);
@@ -154,8 +155,12 @@ function Settings() {
         setEndpoint(null);
       }
       refresh();
+      notice.saved();
     } catch {
-      setError(next ? t('notifications.subscribeError') : t('notifications.unsubscribeError'));
+      notifySaveFailed(
+        t('settings.autosave.failed'),
+        next ? t('notifications.subscribeError') : t('notifications.unsubscribeError'),
+      );
     } finally {
       setBusy(false);
     }
@@ -177,11 +182,6 @@ function Settings() {
             <Text size="sm" c="dimmed">
               {t('notifications.pushUnsupported')}
             </Text>
-          )}
-          {error !== null && (
-            <Alert color="red" role="alert">
-              {error}
-            </Alert>
           )}
         </Stack>
       </Card>
@@ -231,11 +231,21 @@ function Settings() {
                 updater: write,
                 onCompleted: (_response, errors) => {
                   if (errors != null && errors.length > 0) {
-                    setError(t('notifications.preferenceError'));
+                    notifySaveFailed(
+                      t('settings.autosave.failed'),
+                      t('notifications.preferenceError'),
+                    );
                     refresh();
+
+                    return;
                   }
+                  notice.saved();
                 },
-                onError: () => setError(t('notifications.preferenceError')),
+                onError: () =>
+                  notifySaveFailed(
+                    t('settings.autosave.failed'),
+                    t('notifications.preferenceError'),
+                  ),
               });
             };
 

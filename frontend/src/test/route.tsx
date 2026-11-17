@@ -1,4 +1,5 @@
 import { MantineProvider } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
 import {
   createMemoryHistory,
   createRootRoute,
@@ -146,6 +147,7 @@ async function mount(routeTree: AnyRoute, url: string, environment: Environment)
   // env="test" は、Mantine の動きの遷移とポータルを止め、開いたメニューをすぐに描く。
   const result = render(
     <MantineProvider env="test">
+      <Notifications />
       <RelayEnvironmentProvider environment={environment}>
         <RouterProvider router={router} />
       </RelayEnvironmentProvider>

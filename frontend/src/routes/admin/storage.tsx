@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Group, NumberInput, Progress, Stack, Text } from '@mantine/core';
+import { Alert, Box, Button, Group, Progress, Stack, Text } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,17 +6,20 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
-import { useAction } from '../../admin/useAction';
 import { useDataChanges } from '../../changes/DataChanges';
 import { Section } from '../../admin/Section';
-import { settingsErrorMessage } from '../../settings/errors';
+import { AutoSaveNumberInput } from '../../settings/AutoSaveFields';
+import { useAutoSave } from '../../settings/useAutoSave';
 import { formatBytes } from '../../futon';
 import classes from './storage.module.css';
 import { mutate } from '../../settings/mutate';
 import { MissingRecordings } from '../../admin/MissingRecordings';
 import { OrphanFiles } from '../../admin/OrphanFiles';
 import { RecordingRenames } from '../../admin/RecordingRenames';
-import type { storagePoolMutation } from './__generated__/storagePoolMutation.graphql';
+import type {
+  StoragePoolInput,
+  storagePoolMutation,
+} from './__generated__/storagePoolMutation.graphql';
 import type { storageQuery } from './__generated__/storageQuery.graphql';
 
 export const Route = createFileRoute('/admin/storage')({
@@ -62,33 +65,13 @@ function StorageSettings() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const action = useAction();
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const fail = (caught: unknown) =>
-    setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
-  const done = () => {
-    setMessage({ ok: true, text: t('admin.saved') });
-    refresh();
-  };
+  const { save } = useAutoSave();
   const { pools } = data.systemStatus;
 
   return (
     <Stack gap="md">
       {/* 空き容量は保存しなくても変わるので、読み直せるようにする。 */}
-      <Group justify="space-between">
-        {message !== null ? (
-          <Alert
-            color={message.ok ? 'teal' : 'red'}
-            role={message.ok ? 'status' : 'alert'}
-            withCloseButton
-            onClose={() => setMessage(null)}
-            flex={1}
-          >
-            {message.text}
-          </Alert>
-        ) : (
-          <span />
-        )}
+      <Group justify="flex-end">
         <Button size="compact-sm" variant="default" onClick={refresh}>
           {t('admin.system.refresh')}
         </Button>
@@ -102,10 +85,10 @@ function StorageSettings() {
         ) : (
           pools.map((pool) => (
             <PoolEditor
-              key={`${pool.id}/${pool.priority}/${pool.minFreeBytes}`}
+              key={pool.id}
               pool={pool}
               onSave={(input) =>
-                action.run(async () => {
+                save(async () => {
                   await mutate<storagePoolMutation>(
                     environment,
                     graphql`
@@ -119,8 +102,8 @@ function StorageSettings() {
                     `,
                     { id: pool.id, input },
                   );
-                  done();
-                }, fail)
+                  refresh();
+                })
               }
             />
           ))
@@ -178,6 +161,8 @@ function PoolUsage({ free, total, minFree }: { free: number; total: number; minF
 }
 
 // PoolEditor は、保存先プールの優先順位と容量の閾値を変える。閾値は GB で入力する。
+// どちらも、欄を離れたときか Enter で保存する (#1740)。ただし、閾値を今の空き容量より大きくすると、容量の管理が
+// 次の確認 (数分ごと) で古い録画を消し始め、取り消せないので、すぐには保存せず、確かめてから保存する。
 function PoolEditor({
   pool,
   onSave,
@@ -190,11 +175,29 @@ function PoolEditor({
     freeBytes: number | null | undefined;
     totalBytes: number | null | undefined;
   };
-  onSave: (input: { priority: number; minFreeBytes: number }) => void;
+  onSave: (input: StoragePoolInput) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
-  const [priority, setPriority] = useState<number | string>(pool.priority);
-  const [minFreeGB, setMinFreeGB] = useState<number | string>(pool.minFreeBytes / bytesPerGB);
+  // confirming は、確かめてから保存する閾値 (バイト)。
+  const [confirming, setConfirming] = useState<number | null>(null);
+  // resetKey を変えると、閾値の欄を作り直し、保存してある値に戻す。確かめてやめたときに使う。
+  const [resetKey, setResetKey] = useState(0);
+  const saveMinFree = (gb: number) => {
+    const minFreeBytes = Math.round(gb * bytesPerGB);
+    // 空き容量を測れていて、閾値を上げると空き容量が足りなくなるときは、確かめる。
+    if (
+      pool.freeBytes != null &&
+      minFreeBytes > pool.minFreeBytes &&
+      minFreeBytes > pool.freeBytes
+    ) {
+      setConfirming(minFreeBytes);
+
+      return Promise.resolve(false);
+    }
+    setConfirming(null);
+
+    return onSave({ minFreeBytes });
+  };
 
   return (
     <Stack gap={4} data-pool={pool.id}>
@@ -212,8 +215,8 @@ function PoolEditor({
       {pool.freeBytes != null && pool.totalBytes != null && pool.totalBytes > 0 && (
         <PoolUsage free={pool.freeBytes} total={pool.totalBytes} minFree={pool.minFreeBytes} />
       )}
-      <Group gap="xs" align="flex-end">
-        <NumberInput
+      <Group gap="xs" align="flex-start">
+        <AutoSaveNumberInput
           size="xs"
           w={240}
           label={t('admin.system.poolPriority')}
@@ -221,32 +224,52 @@ function PoolEditor({
           min={-1000}
           max={1000}
           allowDecimal={false}
-          value={priority}
-          onChange={setPriority}
+          value={pool.priority}
+          onSave={(priority) => onSave({ priority })}
         />
-        <NumberInput
+        <AutoSaveNumberInput
+          key={resetKey}
           size="xs"
           w={320}
           label={t('admin.system.poolMinFree')}
           description={t('admin.system.poolMinFreeDescription')}
           min={0}
           decimalScale={1}
-          value={minFreeGB}
-          onChange={setMinFreeGB}
+          value={pool.minFreeBytes / bytesPerGB}
+          onSave={saveMinFree}
         />
-        <Button
-          size="compact-sm"
-          disabled={typeof priority !== 'number' || typeof minFreeGB !== 'number'}
-          onClick={() =>
-            onSave({
-              priority: Number(priority),
-              minFreeBytes: Math.round(Number(minFreeGB) * bytesPerGB),
-            })
-          }
-        >
-          {t('admin.save')}
-        </Button>
       </Group>
+      {confirming !== null && (
+        <Alert color="red" role="alert">
+          <Stack gap="xs">
+            <Text size="sm">
+              {t('admin.system.poolMinFreeConfirm', { free: formatBytes(confirming) })}
+            </Text>
+            <Group gap="xs">
+              <Button
+                size="compact-sm"
+                color="red"
+                onClick={() => {
+                  setConfirming(null);
+                  void onSave({ minFreeBytes: confirming });
+                }}
+              >
+                {t('admin.system.poolMinFreeConfirmSave')}
+              </Button>
+              <Button
+                size="compact-sm"
+                variant="subtle"
+                onClick={() => {
+                  setConfirming(null);
+                  setResetKey((key) => key + 1);
+                }}
+              >
+                {t('admin.system.poolMinFreeConfirmCancel')}
+              </Button>
+            </Group>
+          </Stack>
+        </Alert>
+      )}
     </Stack>
   );
 }

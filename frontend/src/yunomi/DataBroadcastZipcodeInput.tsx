@@ -1,31 +1,19 @@
-import { Badge, Group, TextInput } from '@mantine/core';
-import { useEffect, useState } from 'react';
+import { Badge, Group } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
+import { AutoSaveTextInput } from '../settings/AutoSaveFields';
+import { useDeviceSave } from '../settings/useAutoSave';
 import { normalizeZipcode, useDataBroadcastZipcode } from './dataBroadcastZipcode';
 
-// DataBroadcastZipcodeInput は、データ放送の受信機の郵便番号の入力欄 (#442)。この端末だけに覚え、入力欄を離れたときに保存する。
+// DataBroadcastZipcodeInput は、データ放送の受信機の郵便番号の入力欄 (#442)。この端末だけに覚え、
+// 入力欄を離れたときか Enter で保存し、保存の通知を出す (#1740)。読めない値は、欄の下に理由を出して保存しない。
 export function DataBroadcastZipcodeInput() {
   const { t } = useTranslation();
   const [zipcode, setZipcode] = useDataBroadcastZipcode();
-  const [value, setValue] = useState(zipcode);
-  const [invalid, setInvalid] = useState(false);
-  // ほかのタブで変えたら、入力欄にも反映する。
-  useEffect(() => setValue(zipcode), [zipcode]);
-  const save = () => {
-    const normalized = normalizeZipcode(value);
-    if (normalized === null) {
-      setInvalid(true);
-
-      return;
-    }
-    setInvalid(false);
-    setValue(normalized);
-    setZipcode(normalized);
-  };
+  const deviceSave = useDeviceSave();
 
   return (
-    <TextInput
+    <AutoSaveTextInput
       label={
         <Group gap={6} component="span">
           {t('settings.account.dataBroadcastZipcode')}
@@ -38,10 +26,16 @@ export function DataBroadcastZipcodeInput() {
       placeholder="1000001"
       inputMode="numeric"
       autoComplete="postal-code"
-      value={value}
-      onChange={(event) => setValue(event.currentTarget.value)}
-      onBlur={save}
-      error={invalid ? t('settings.account.dataBroadcastZipcodeInvalid') : undefined}
+      value={zipcode}
+      validate={(value) =>
+        normalizeZipcode(value) === null ? t('settings.account.dataBroadcastZipcodeInvalid') : null
+      }
+      normalize={(value) => normalizeZipcode(value) ?? value}
+      onSave={(value) => {
+        deviceSave(setZipcode)(value);
+
+        return Promise.resolve(true);
+      }}
       styles={{ input: { maxWidth: 280 } }}
     />
   );

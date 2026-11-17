@@ -1,17 +1,14 @@
-import { Alert, Card, Group, NumberInput, Select, Stack, Switch, Text, Title } from '@mantine/core';
+import { Card, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
-import { startTransition, useState, type FormEvent } from 'react';
+import { startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
-import { useSyncedForm } from '../../rules/useSyncedForm';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
 import { CaptionModels } from '../../admin/CaptionModels';
-import { useAction } from '../../admin/useAction';
-import { SaveRow } from '../../admin/SaveRow';
-import { settingsErrorMessage } from '../../settings/errors';
+import { UpdatedAt } from '../../admin/UpdatedAt';
 import { FileNameTemplateField } from '../../reservations/FileNameTemplateField';
 import {
   frameRateOptions,
@@ -21,7 +18,14 @@ import {
   transcodeOptions,
   useTranscodePresets,
 } from '../../rules/transcode';
+import {
+  AutoSaveNumberInput,
+  AutoSaveSelect,
+  AutoSaveSwitch,
+  useAutoSaveField,
+} from '../../settings/AutoSaveFields';
 import { mutate } from '../../settings/mutate';
+import { useAutoSave } from '../../settings/useAutoSave';
 import type { recordingMutation } from './__generated__/recordingMutation.graphql';
 import type { CMDetector, recordingQuery } from './__generated__/recordingQuery.graphql';
 
@@ -40,7 +44,7 @@ function RecordingPage() {
   return (
     <AdminPage title={t('admin.recording.title')}>
       <RecordingSettings />
-      {/* 字幕の自動生成のモデル (#1682)。自動で保存する録画の既定値とは別に読み直すので、別の問い合わせにする。 */}
+      {/* 字幕の自動生成のモデル (#1682)。録画の既定値とは別に読み直すので、別の問い合わせにする。 */}
       <CaptionModels />
     </AdminPage>
   );
@@ -91,96 +95,17 @@ const saveMutation = graphql`
   }
 `;
 
-type Form = {
-  poolId: string;
-  fileNameTemplate: string;
-  startMarginSeconds: number | string;
-  endMarginSeconds: number | string;
-  priority: number | string;
-  joinSegments: boolean;
-  // detectCm は、録画が終わったら CM の区間を見分けるかどうか (#1209)。既定は切る。
-  detectCm: boolean;
-  // generateCaptions は、録画が終わったら音声から字幕を自動生成するかどうか (#1682)。既定は切る。
-  generateCaptions: boolean;
-  // cmDetector は、CM の区間の見分け方 (#1505)。既定は FFMPEG (無音とシーンの切り替わり)。
-  cmDetector: CMDetector;
-  // tvtplayChapters は、CM の区間を見分け終えたら、TvtPlay のチャプターのファイルを書くかどうか (#1737)。既定は切る。
-  tvtplayChapters: boolean;
-  // transcodePreset は、録画が終わったら変換するときの画質 (#1253)。空なら変換しない (既定)。
-  transcodePreset: string;
-  // transcodeFrameRate は、変換で出すコマ数 (#1509。auto、30、60)。既定は auto。
-  transcodeFrameRate: string;
-  // ルールを作るときの既定値 (#470)。重複を避ける日数は、空なら期間を区切らない。
-  ruleAvoidDuplicates: boolean;
-  ruleDuplicateWindowDays: number | string;
-  ruleFollowEventRelay: boolean;
-  ruleBundleSameEpisodes: boolean;
-  // ruleUnmatchedGraceMinutes は、ルールから外れた予約を、消さずに残す放送前の時間 (分。#1501)。
-  ruleUnmatchedGraceMinutes: number | string;
-  // thumbnailPreviews は、シークバーのプレビュー画像を作るかどうか。既定は入れる。設定ファイルから画面に移した (#1869)。
-  thumbnailPreviews: boolean;
-  // captionThreads は、字幕の自動生成で whisper-cli に使わせるスレッドの数。0 なら CPU の数から決める (#1869)。
-  captionThreads: number | string;
-  // sleepControl は、Windows と macOS の all の構成で、OS のスリープを扱うかどうか (#1522)。既定は入れる (#1869)。
-  sleepControl: boolean;
-};
-
-// Autosaved は、変えたらすぐ保存する項目 (切り替えと、選ぶ項目。#1740)。
-type Autosaved = Pick<
-  Form,
-  | 'poolId'
-  | 'joinSegments'
-  | 'detectCm'
-  | 'generateCaptions'
-  | 'cmDetector'
-  | 'tvtplayChapters'
-  | 'transcodePreset'
-  | 'transcodeFrameRate'
-  | 'ruleAvoidDuplicates'
-  | 'ruleFollowEventRelay'
-  | 'ruleBundleSameEpisodes'
-  | 'thumbnailPreviews'
-  | 'sleepControl'
->;
-
-// autosaveInput は、変えた項目 patch だけを送る入力にする。省いた項目は、サーバーが変えない。
-function autosaveInput(patch: Partial<Autosaved>): recordingMutation['variables']['input'] {
-  return {
-    recordingDefaults: {
-      ...(patch.poolId !== undefined && { poolId: patch.poolId }),
-      ...(patch.joinSegments !== undefined && { joinSegments: patch.joinSegments }),
-      ...(patch.detectCm !== undefined && { detectCm: patch.detectCm }),
-      ...(patch.generateCaptions !== undefined && { generateCaptions: patch.generateCaptions }),
-      ...(patch.transcodePreset !== undefined && { transcodePreset: patch.transcodePreset }),
-      ...(patch.transcodeFrameRate !== undefined && {
-        transcodeFrameRate: patch.transcodeFrameRate,
-      }),
-    },
-    ruleDefaults: {
-      ...(patch.ruleAvoidDuplicates !== undefined && {
-        avoidDuplicates: patch.ruleAvoidDuplicates,
-      }),
-      ...(patch.ruleFollowEventRelay !== undefined && {
-        followEventRelay: patch.ruleFollowEventRelay,
-      }),
-      ...(patch.ruleBundleSameEpisodes !== undefined && {
-        bundleSameEpisodes: patch.ruleBundleSameEpisodes,
-      }),
-    },
-    ...(patch.cmDetector !== undefined && { cmDetector: patch.cmDetector }),
-    ...(patch.tvtplayChapters !== undefined && { tvtplayChaptersEnabled: patch.tvtplayChapters }),
-    ...(patch.thumbnailPreviews !== undefined && {
-      thumbnailPreviewsEnabled: patch.thumbnailPreviews,
-    }),
-    ...(patch.sleepControl !== undefined && { sleepControlEnabled: patch.sleepControl }),
-  };
+// isCMDetector は、選んだ値が、画面が知っている CM の区間の見分け方 (#1505) かどうかを返す。
+function isCMDetector(value: string): value is CMDetector {
+  return value === 'FFMPEG' || value === 'LOGO';
 }
 
-// sameForm は、2 つのフォームの値が同じかどうかを返す。
-function sameForm(a: Form, b: Form): boolean {
-  return (Object.keys(a) as (keyof Form)[]).every((key) => a[key] === b[key]);
-}
+type Input = recordingMutation['variables']['input'];
+type RecordingDefaultsInput = NonNullable<Input['recordingDefaults']>;
+type RuleDefaultsInput = NonNullable<Input['ruleDefaults']>;
 
+// RecordingSettings は、録画の既定値を変える。どの項目も、変えたらその項目だけを保存する (#1740)。
+// 切り替えと選ぶ項目は変えたらすぐ、数と文字の欄は、欄を離れたときか Enter で保存する。
 function RecordingSettings() {
   const { t } = useTranslation();
   const transcodePresets = useTranscodePresets();
@@ -194,383 +119,271 @@ function RecordingSettings() {
     {},
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
-  const action = useAction();
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const { save } = useAutoSave();
   const settings = data.systemSettings;
   const defaults = settings.recordingDefaults;
-  // 触っていないフォームは、読み直した値 (ほかの管理者が保存したものなど) に合わせる。触ったフォームの入力は捨てない (#1420)。
-  const initial: Form = {
-    poolId: defaults.poolId ?? autoPool,
-    fileNameTemplate: defaults.fileNameTemplate,
-    startMarginSeconds: defaults.startMarginSeconds,
-    endMarginSeconds: defaults.endMarginSeconds,
-    priority: defaults.priority,
-    joinSegments: defaults.joinSegments,
-    detectCm: defaults.detectCm,
-    generateCaptions: defaults.generateCaptions,
-    cmDetector: settings.cmDetector,
-    tvtplayChapters: settings.tvtplayChaptersEnabled,
-    transcodePreset: defaults.transcodePreset ?? noTranscode,
-    transcodeFrameRate: defaults.transcodeFrameRate,
-    ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
-    ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
-    ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
-    ruleBundleSameEpisodes: settings.ruleDefaults.bundleSameEpisodes,
-    ruleUnmatchedGraceMinutes: settings.ruleUnmatchedGraceMinutes,
-    thumbnailPreviews: settings.thumbnailPreviewsEnabled,
-    captionThreads: settings.captionThreads,
-    sleepControl: settings.sleepControlEnabled,
-  };
-  const { form, set } = useSyncedForm(initial, sameForm);
-  const numbers = [
-    form.startMarginSeconds,
-    form.endMarginSeconds,
-    form.priority,
-    form.ruleUnmatchedGraceMinutes,
-    form.captionThreads,
-  ];
-  const valid = form.fileNameTemplate.trim() !== '' && numbers.every((n) => typeof n === 'number');
-
-  // autosave は、切り替えと選ぶ項目を、変えたらすぐ、その項目だけ保存する (#1740)。数と文字の欄は、打っている途中の値を
-  // 保存しないよう、保存のボタンで保存する。ほかの欄の書きかけは送らない。失敗したら、変える前の値に戻す。
-  const autosave = (patch: Partial<Autosaved>) => {
-    const previous: Partial<Autosaved> = {};
-    for (const key of Object.keys(patch) as (keyof Autosaved)[]) {
-      Object.assign(previous, { [key]: form[key] });
-    }
-    set(patch);
-    setMessage(null);
-    action.run(
-      async () => {
-        await mutate<recordingMutation>(environment, saveMutation, {
-          input: autosaveInput(patch),
-        });
-        setMessage({ ok: true, text: t('admin.saved') });
-        startTransition(() => setFetchKey((key) => key + 1));
-      },
-      (caught) => {
-        set(previous);
-        setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
-      },
-    );
-  };
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    setMessage(null);
-    // 送るのは前後の空白を除いたテンプレートなので、入力もそろえる。そろえないと、読み直した値と入力が食い違い、
-    // 保存の後も触ったままになって、それからの読み直しに追従しない。
-    const fileNameTemplate = form.fileNameTemplate.trim();
-    if (fileNameTemplate !== form.fileNameTemplate) {
-      set({ fileNameTemplate });
-    }
-    action.run(
-      async () => {
-        // この画面の項目だけを送る。省いた項目 (保持期間や MCP) は、サーバーが変えない。
-        await mutate<recordingMutation>(environment, saveMutation, {
-          input: {
-            recordingDefaults: {
-              poolId: form.poolId,
-              fileNameTemplate,
-              startMarginSeconds: Number(form.startMarginSeconds),
-              endMarginSeconds: Number(form.endMarginSeconds),
-              priority: Number(form.priority),
-              joinSegments: form.joinSegments,
-              detectCm: form.detectCm,
-              generateCaptions: form.generateCaptions,
-              transcodePreset: form.transcodePreset,
-              transcodeFrameRate: form.transcodeFrameRate,
-            },
-            ruleDefaults: {
-              avoidDuplicates: form.ruleAvoidDuplicates,
-              ...(typeof form.ruleDuplicateWindowDays === 'number'
-                ? { duplicateWindowDays: form.ruleDuplicateWindowDays }
-                : { clearDuplicateWindowDays: true }),
-              followEventRelay: form.ruleFollowEventRelay,
-              bundleSameEpisodes: form.ruleBundleSameEpisodes,
-            },
-            ruleUnmatchedGraceMinutes: Number(form.ruleUnmatchedGraceMinutes),
-            cmDetector: form.cmDetector,
-            tvtplayChaptersEnabled: form.tvtplayChapters,
-            thumbnailPreviewsEnabled: form.thumbnailPreviews,
-            captionThreads: Number(form.captionThreads),
-            sleepControlEnabled: form.sleepControl,
-          },
-        });
-        setMessage({ ok: true, text: t('admin.saved') });
-        startTransition(() => setFetchKey((key) => key + 1));
-      },
-      (caught) => setMessage({ ok: false, text: settingsErrorMessage(t, caught) }),
-    );
-  };
+  // saveSettings は、変えた項目 input だけを送る。省いた項目は、サーバーが変えない。
+  const saveSettings = (input: Input) =>
+    save(async () => {
+      await mutate<recordingMutation>(environment, saveMutation, { input });
+      startTransition(() => setFetchKey((key) => key + 1));
+    });
+  const saveDefaults = (recordingDefaults: RecordingDefaultsInput) =>
+    saveSettings({ recordingDefaults });
+  const saveRuleDefaults = (ruleDefaults: RuleDefaultsInput) => saveSettings({ ruleDefaults });
+  const template = useAutoSaveField<string, string>({
+    value: defaults.fileNameTemplate,
+    toDraft: (value) => value,
+    parse: (draft) =>
+      draft.trim() === '' ? { error: t('settings.autosave.required') } : { value: draft.trim() },
+    onSave: (fileNameTemplate) => saveDefaults({ fileNameTemplate }),
+  });
 
   return (
-    <form onSubmit={submit}>
-      <Stack gap="md">
-        {message !== null && (
-          <Alert
-            color={message.ok ? 'teal' : 'red'}
-            role={message.ok ? 'status' : 'alert'}
-            withCloseButton
-            onClose={() => setMessage(null)}
-          >
-            {message.text}
-          </Alert>
-        )}
-
-        <Card withBorder>
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('admin.settings.recordingDefaults')}
-            </Title>
-            <Text size="xs" c="dimmed">
-              {t('admin.settings.recordingDefaultsNote')}
-            </Text>
-            <Select
-              disabled={action.busy}
+    <Stack gap="md">
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.recordingDefaults')}
+          </Title>
+          <Text size="xs" c="dimmed">
+            {t('admin.settings.recordingDefaultsNote')}
+          </Text>
+          <AutoSaveSelect
+            size="xs"
+            maw={480}
+            label={t('admin.settings.pool')}
+            description={t('admin.settings.poolHelp')}
+            data={[
+              { value: autoPool, label: t('admin.settings.poolAuto') },
+              ...data.systemStatus.pools.map((pool) => ({ value: pool.id, label: pool.id })),
+            ]}
+            value={defaults.poolId ?? autoPool}
+            onSave={(poolId) => saveDefaults({ poolId })}
+          />
+          <FileNameTemplateField
+            label={t('admin.settings.fileNameTemplate')}
+            description={t('admin.settings.fileNameTemplateHelp')}
+            value={template.draft}
+            onChange={template.setDraft}
+            onCommit={template.commit}
+            error={template.error}
+          />
+          <Group gap="xs" align="flex-start">
+            <AutoSaveNumberInput
               size="xs"
-              maw={480}
-              label={t('admin.settings.pool')}
-              description={t('admin.settings.poolHelp')}
-              allowDeselect={false}
-              data={[
-                { value: autoPool, label: t('admin.settings.poolAuto') },
-                ...data.systemStatus.pools.map((pool) => ({ value: pool.id, label: pool.id })),
-              ]}
-              value={form.poolId}
-              onChange={(value) => autosave({ poolId: value ?? autoPool })}
-            />
-            <FileNameTemplateField
-              label={t('admin.settings.fileNameTemplate')}
-              description={t('admin.settings.fileNameTemplateHelp')}
-              value={form.fileNameTemplate}
-              onChange={(value) => set({ fileNameTemplate: value })}
-            />
-            <Group gap="xs" align="flex-start">
-              <NumberInput
-                size="xs"
-                w={180}
-                label={t('admin.settings.startMargin')}
-                min={0}
-                max={3600}
-                allowDecimal={false}
-                value={form.startMarginSeconds}
-                onChange={(value) => set({ startMarginSeconds: value })}
-              />
-              <NumberInput
-                size="xs"
-                w={180}
-                label={t('admin.settings.endMargin')}
-                min={0}
-                max={3600}
-                allowDecimal={false}
-                value={form.endMarginSeconds}
-                onChange={(value) => set({ endMarginSeconds: value })}
-              />
-            </Group>
-            <NumberInput
-              size="xs"
-              maw={480}
-              label={t('admin.settings.priority')}
-              description={t('admin.settings.priorityHelp')}
-              min={-10}
-              max={10}
-              allowDecimal={false}
-              value={form.priority}
-              onChange={(value) => set({ priority: value })}
-            />
-            <Switch
-              disabled={action.busy}
-              size="sm"
-              label={t('admin.settings.joinSegments')}
-              description={t('admin.settings.joinSegmentsHelp')}
-              checked={form.joinSegments}
-              onChange={(event) => autosave({ joinSegments: event.currentTarget.checked })}
-            />
-            <Switch
-              disabled={action.busy}
-              size="sm"
-              label={t('admin.settings.detectCm')}
-              description={t('admin.settings.detectCmHelp')}
-              checked={form.detectCm}
-              onChange={(event) => autosave({ detectCm: event.currentTarget.checked })}
-            />
-            <Select
-              disabled={action.busy}
-              size="sm"
-              label={t('admin.settings.cmDetector')}
-              description={t('admin.settings.cmDetectorHelp')}
-              maw={360}
-              data={[
-                { value: 'FFMPEG', label: t('admin.settings.cmDetectorFfmpeg') },
-                { value: 'LOGO', label: t('admin.settings.cmDetectorLogo') },
-              ]}
-              value={form.cmDetector}
-              onChange={(value) =>
-                (value === 'FFMPEG' || value === 'LOGO') && autosave({ cmDetector: value })
-              }
-              allowDeselect={false}
-            />
-            <Switch
-              disabled={action.busy}
-              size="sm"
-              label={t('admin.settings.tvtplayChapters')}
-              description={t('admin.settings.tvtplayChaptersHelp')}
-              checked={form.tvtplayChapters}
-              onChange={(event) => autosave({ tvtplayChapters: event.currentTarget.checked })}
-            />
-            <Switch
-              disabled={action.busy}
-              size="sm"
-              label={t('admin.settings.generateCaptions')}
-              description={t('admin.settings.generateCaptionsHelp')}
-              checked={form.generateCaptions}
-              onChange={(event) => autosave({ generateCaptions: event.currentTarget.checked })}
-            />
-            <Select
-              disabled={action.busy}
-              size="sm"
-              label={t('rules.transcode')}
-              description={t('admin.settings.transcodeHelp')}
-              maw={360}
-              data={transcodeOptions(t, transcodePresets)}
-              value={optionOfPreset(form.transcodePreset)}
-              onChange={(value) =>
-                value !== null && autosave({ transcodePreset: presetOfOption(value) })
-              }
-              allowDeselect={false}
-            />
-            <Select
-              disabled={action.busy}
-              size="sm"
-              label={t('rules.transcodeFrameRate')}
-              description={t('admin.settings.transcodeFrameRateHelp')}
-              maw={360}
-              data={frameRateOptions(t)}
-              value={form.transcodeFrameRate}
-              onChange={(value) => value !== null && autosave({ transcodeFrameRate: value })}
-              allowDeselect={false}
-            />
-          </Stack>
-        </Card>
-
-        <Card withBorder>
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('admin.settings.ruleDefaults')}
-            </Title>
-            <Text size="xs" c="dimmed">
-              {t('admin.settings.ruleDefaultsNote')}
-            </Text>
-            <Group gap="xs" align="flex-end">
-              <Switch
-                disabled={action.busy}
-                size="sm"
-                label={t('rules.avoidDuplicates')}
-                checked={form.ruleAvoidDuplicates}
-                onChange={(event) => autosave({ ruleAvoidDuplicates: event.currentTarget.checked })}
-              />
-              {form.ruleAvoidDuplicates && (
-                <NumberInput
-                  size="xs"
-                  w={160}
-                  aria-label={t('rules.duplicateWindowDays')}
-                  placeholder={t('rules.duplicateWindowDaysPlaceholder')}
-                  min={1}
-                  max={3650}
-                  allowDecimal={false}
-                  suffix={t('rules.days')}
-                  value={form.ruleDuplicateWindowDays}
-                  onChange={(value) => set({ ruleDuplicateWindowDays: value })}
-                />
-              )}
-            </Group>
-            <Switch
-              disabled={action.busy}
-              size="sm"
-              label={t('rules.followEventRelay')}
-              checked={form.ruleFollowEventRelay}
-              onChange={(event) => autosave({ ruleFollowEventRelay: event.currentTarget.checked })}
-            />
-            <Switch
-              disabled={action.busy}
-              size="sm"
-              label={t('rules.bundleSameEpisodes')}
-              checked={form.ruleBundleSameEpisodes}
-              onChange={(event) =>
-                autosave({ ruleBundleSameEpisodes: event.currentTarget.checked })
-              }
-            />
-          </Stack>
-        </Card>
-
-        <Card withBorder>
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('admin.settings.ruleMatching')}
-            </Title>
-            <NumberInput
-              size="xs"
-              maw={480}
-              label={t('admin.settings.ruleUnmatchedGrace')}
-              description={t('admin.settings.ruleUnmatchedGraceHelp')}
+              w={180}
+              label={t('admin.settings.startMargin')}
               min={0}
-              max={1440}
+              max={3600}
               allowDecimal={false}
-              allowNegative={false}
-              value={form.ruleUnmatchedGraceMinutes}
-              onChange={(value) => set({ ruleUnmatchedGraceMinutes: value })}
+              value={defaults.startMarginSeconds}
+              onSave={(startMarginSeconds) => saveDefaults({ startMarginSeconds })}
             />
-          </Stack>
-        </Card>
-
-        {/* 録画の後処理の負荷 (#1869)。ルールや予約では変えない、nekonote の全体の設定。 */}
-        <Card withBorder>
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('admin.settings.postProcessing')}
-            </Title>
-            <Switch
-              disabled={action.busy}
-              size="sm"
-              label={t('admin.settings.thumbnailPreviews')}
-              description={t('admin.settings.thumbnailPreviewsHelp')}
-              checked={form.thumbnailPreviews}
-              onChange={(event) => autosave({ thumbnailPreviews: event.currentTarget.checked })}
-            />
-            <NumberInput
+            <AutoSaveNumberInput
               size="xs"
-              maw={480}
-              label={t('admin.settings.captionThreads')}
-              description={t('admin.settings.captionThreadsHelp')}
+              w={180}
+              label={t('admin.settings.endMargin')}
               min={0}
-              max={256}
+              max={3600}
               allowDecimal={false}
-              allowNegative={false}
-              value={form.captionThreads}
-              onChange={(value) => set({ captionThreads: value })}
+              value={defaults.endMarginSeconds}
+              onSave={(endMarginSeconds) => saveDefaults({ endMarginSeconds })}
             />
-          </Stack>
-        </Card>
+          </Group>
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.priority')}
+            description={t('admin.settings.priorityHelp')}
+            min={-10}
+            max={10}
+            allowDecimal={false}
+            value={defaults.priority}
+            onSave={(priority) => saveDefaults({ priority })}
+          />
+          <AutoSaveSwitch
+            size="sm"
+            label={t('admin.settings.joinSegments')}
+            description={t('admin.settings.joinSegmentsHelp')}
+            checked={defaults.joinSegments}
+            onSave={(joinSegments) => saveDefaults({ joinSegments })}
+          />
+          <AutoSaveSwitch
+            size="sm"
+            label={t('admin.settings.detectCm')}
+            description={t('admin.settings.detectCmHelp')}
+            checked={defaults.detectCm}
+            onSave={(detectCm) => saveDefaults({ detectCm })}
+          />
+          <AutoSaveSelect
+            size="sm"
+            label={t('admin.settings.cmDetector')}
+            description={t('admin.settings.cmDetectorHelp')}
+            maw={360}
+            data={[
+              { value: 'FFMPEG', label: t('admin.settings.cmDetectorFfmpeg') },
+              { value: 'LOGO', label: t('admin.settings.cmDetectorLogo') },
+            ]}
+            value={settings.cmDetector}
+            onSave={(value) =>
+              isCMDetector(value) ? saveSettings({ cmDetector: value }) : Promise.resolve(false)
+            }
+          />
+          <AutoSaveSwitch
+            size="sm"
+            label={t('admin.settings.tvtplayChapters')}
+            description={t('admin.settings.tvtplayChaptersHelp')}
+            checked={settings.tvtplayChaptersEnabled}
+            onSave={(tvtplayChaptersEnabled) => saveSettings({ tvtplayChaptersEnabled })}
+          />
+          <AutoSaveSwitch
+            size="sm"
+            label={t('admin.settings.generateCaptions')}
+            description={t('admin.settings.generateCaptionsHelp')}
+            checked={defaults.generateCaptions}
+            onSave={(generateCaptions) => saveDefaults({ generateCaptions })}
+          />
+          <AutoSaveSelect
+            size="sm"
+            label={t('rules.transcode')}
+            description={t('admin.settings.transcodeHelp')}
+            maw={360}
+            data={transcodeOptions(t, transcodePresets)}
+            value={optionOfPreset(defaults.transcodePreset ?? noTranscode)}
+            onSave={(value) => saveDefaults({ transcodePreset: presetOfOption(value) })}
+          />
+          <AutoSaveSelect
+            size="sm"
+            label={t('rules.transcodeFrameRate')}
+            description={t('admin.settings.transcodeFrameRateHelp')}
+            maw={360}
+            data={frameRateOptions(t)}
+            value={defaults.transcodeFrameRate}
+            onSave={(transcodeFrameRate) => saveDefaults({ transcodeFrameRate })}
+          />
+        </Stack>
+      </Card>
 
-        <Card withBorder>
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('admin.settings.power')}
-            </Title>
-            <Switch
-              disabled={action.busy}
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.ruleDefaults')}
+          </Title>
+          <Text size="xs" c="dimmed">
+            {t('admin.settings.ruleDefaultsNote')}
+          </Text>
+          <Group gap="xs" align="flex-end">
+            <AutoSaveSwitch
               size="sm"
-              label={t('admin.settings.sleepControl')}
-              description={t('admin.settings.sleepControlHelp')}
-              checked={form.sleepControl}
-              onChange={(event) => autosave({ sleepControl: event.currentTarget.checked })}
+              label={t('rules.avoidDuplicates')}
+              checked={settings.ruleDefaults.avoidDuplicates}
+              onSave={(avoidDuplicates) => saveRuleDefaults({ avoidDuplicates })}
             />
-          </Stack>
-        </Card>
+            {settings.ruleDefaults.avoidDuplicates && (
+              // 空にすると、期間を区切らない。
+              <AutoSaveNumberInput
+                nullable
+                size="xs"
+                w={160}
+                aria-label={t('rules.duplicateWindowDays')}
+                placeholder={t('rules.duplicateWindowDaysPlaceholder')}
+                min={1}
+                max={3650}
+                allowDecimal={false}
+                suffix={t('rules.days')}
+                value={settings.ruleDefaults.duplicateWindowDays ?? null}
+                onSave={(days) =>
+                  saveRuleDefaults(
+                    days === null
+                      ? { clearDuplicateWindowDays: true }
+                      : { duplicateWindowDays: days },
+                  )
+                }
+              />
+            )}
+          </Group>
+          <AutoSaveSwitch
+            size="sm"
+            label={t('rules.followEventRelay')}
+            checked={settings.ruleDefaults.followEventRelay}
+            onSave={(followEventRelay) => saveRuleDefaults({ followEventRelay })}
+          />
+          <AutoSaveSwitch
+            size="sm"
+            label={t('rules.bundleSameEpisodes')}
+            checked={settings.ruleDefaults.bundleSameEpisodes}
+            onSave={(bundleSameEpisodes) => saveRuleDefaults({ bundleSameEpisodes })}
+          />
+        </Stack>
+      </Card>
 
-        <SaveRow updatedAt={settings.updatedAt} disabled={!valid || action.busy} />
-      </Stack>
-    </form>
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.ruleMatching')}
+          </Title>
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.ruleUnmatchedGrace')}
+            description={t('admin.settings.ruleUnmatchedGraceHelp')}
+            min={0}
+            max={1440}
+            allowDecimal={false}
+            allowNegative={false}
+            value={settings.ruleUnmatchedGraceMinutes}
+            onSave={(ruleUnmatchedGraceMinutes) => saveSettings({ ruleUnmatchedGraceMinutes })}
+          />
+        </Stack>
+      </Card>
+
+      {/* 録画の後処理の負荷 (#1869)。ルールや予約では変えない、nekonote の全体の設定。 */}
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.postProcessing')}
+          </Title>
+          <AutoSaveSwitch
+            size="sm"
+            label={t('admin.settings.thumbnailPreviews')}
+            description={t('admin.settings.thumbnailPreviewsHelp')}
+            checked={settings.thumbnailPreviewsEnabled}
+            onSave={(thumbnailPreviewsEnabled) => saveSettings({ thumbnailPreviewsEnabled })}
+          />
+          {/* 0 なら、CPU の数から決める。 */}
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.captionThreads')}
+            description={t('admin.settings.captionThreadsHelp')}
+            min={0}
+            max={256}
+            allowDecimal={false}
+            allowNegative={false}
+            value={settings.captionThreads}
+            onSave={(captionThreads) => saveSettings({ captionThreads })}
+          />
+        </Stack>
+      </Card>
+
+      {/* Windows と macOS の all の構成で、OS のスリープを扱うかどうか (#1522、#1869)。 */}
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.settings.power')}
+          </Title>
+          <AutoSaveSwitch
+            size="sm"
+            label={t('admin.settings.sleepControl')}
+            description={t('admin.settings.sleepControlHelp')}
+            checked={settings.sleepControlEnabled}
+            onSave={(sleepControlEnabled) => saveSettings({ sleepControlEnabled })}
+          />
+        </Stack>
+      </Card>
+
+      <UpdatedAt updatedAt={settings.updatedAt} />
+    </Stack>
   );
 }

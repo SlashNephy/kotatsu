@@ -6,6 +6,7 @@ import { AuthError } from '../auth/api';
 import { oidcErrorMessage } from '../auth/messages';
 import { Reauthenticate, type ReauthenticationMethods } from '../auth/Reauthenticate';
 import { graphQLErrorDetails } from '../relay/environment';
+import { SaveCancelled } from './useAutoSave';
 
 // needsReauthentication は、直近の認証から時間が経っていて、もう一度確かめる必要があるというエラーかどうかを返す (設計書 9.5)。
 export function needsReauthentication(error: unknown): boolean {
@@ -51,6 +52,7 @@ export function useReauthGate(
   returnTo: string,
 ): {
   run: ReauthRun;
+  save: (operation: () => Promise<unknown>) => Promise<void>;
   busy: boolean;
   modal: ReactNode;
 } {
@@ -84,6 +86,26 @@ export function useReauthGate(
       });
   };
 
+  // save は、設定を、必要なら再認証してから保存し、結果を Promise で返す (#1740)。useAutoSave に渡す。
+  // 再認証をやめたら SaveCancelled で失敗させ、呼ぶ側で変える前の値に戻させる。
+  // ほかの操作の途中なら、重ねて送らずに失敗させる。黙って捨てると、待っている保存が終わらないため。
+  const save = (operation: () => Promise<unknown>) =>
+    new Promise<void>((resolve, reject) => {
+      if (running.current) {
+        reject(new Error('another operation is in progress'));
+
+        return;
+      }
+      execute(
+        async () => {
+          await operation();
+          resolve();
+        },
+        reject,
+        () => reject(new SaveCancelled()),
+      );
+    });
+
   const modal = (
     <>
       {error !== null && (
@@ -115,7 +137,7 @@ export function useReauthGate(
     </>
   );
 
-  return { run: execute, busy, modal };
+  return { run: execute, save, busy, modal };
 }
 
 // reauthMethods は、第二要素とパスキーの登録の状況から、再認証に使える方法を返す。

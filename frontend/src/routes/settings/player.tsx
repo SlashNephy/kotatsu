@@ -1,22 +1,14 @@
-import {
-  Alert,
-  Anchor,
-  Badge,
-  Card,
-  Group,
-  Select,
-  Stack,
-  Switch,
-  TextInput,
-  Title,
-} from '@mantine/core';
+import { Alert, Anchor, Badge, Card, Group, Select, Stack, Switch, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { CommentSettingsCard } from '../../jikkyo/CommentSettingsCard';
+import { AutoSaveTextInput } from '../../settings/AutoSaveFields';
+import { useSaveNotice } from '../../settings/saveNotice';
 import { ShortcutKeysCard } from '../../settings/ShortcutKeysCard';
+import { useDeviceSave } from '../../settings/useAutoSave';
 import { WatchPositionsClear } from '../../settings/WatchPositionsClear';
 import { isUnauthenticated } from '../../relay/environment';
 import {
@@ -111,6 +103,11 @@ function PlayerSettings() {
   const [swipeControls, setSwipeControls] = useSwipeControlsSetting();
   // タッチで操作できない端末では、スワイプの設定の項目を出さない (#1598)。
   const [swipeControlsAvailable] = useState(touchSupported);
+  // 変えたら、保存の通知を出す (#1740)。この端末の設定は deviceSave で、アカウントの設定は saveCallbacks で知らせる。
+  // 知らせはこの画面で出し、プレイヤーと共有するフックの中では出さない。
+  const deviceSave = useDeviceSave();
+  const notice = useSaveNotice();
+  const saveCallbacks = { onSaved: notice.saved, onFailed: notice.failed };
 
   return (
     <Stack gap="md">
@@ -127,6 +124,7 @@ function PlayerSettings() {
                   event.currentTarget.checked
                     ? [...player.commentSources, source]
                     : player.commentSources.filter((enabled) => enabled !== source),
+                  saveCallbacks,
                 )
               }
             />
@@ -134,7 +132,9 @@ function PlayerSettings() {
           <Switch
             label={t('settings.account.captions')}
             checked={player.captionsEnabled}
-            onChange={(event) => player.setCaptionsEnabled(event.currentTarget.checked)}
+            onChange={(event) =>
+              player.setCaptionsEnabled(event.currentTarget.checked, saveCallbacks)
+            }
           />
           {/* 字幕の見た目と、文字スーパーを出すかどうか (#491)。字幕を出さなければ、どれも効かない。 */}
           <Stack gap="xs" pl="lg">
@@ -144,10 +144,10 @@ function PlayerSettings() {
               disabled={!player.captionsEnabled}
               checked={player.captions.superimposeLive}
               onChange={(event) =>
-                player.setCaptions({
-                  ...player.captions,
-                  superimposeLive: event.currentTarget.checked,
-                })
+                player.setCaptions(
+                  { ...player.captions, superimposeLive: event.currentTarget.checked },
+                  saveCallbacks,
+                )
               }
             />
             <Switch
@@ -156,10 +156,10 @@ function PlayerSettings() {
               disabled={!player.captionsEnabled}
               checked={player.captions.superimposeRecorded}
               onChange={(event) =>
-                player.setCaptions({
-                  ...player.captions,
-                  superimposeRecorded: event.currentTarget.checked,
-                })
+                player.setCaptions(
+                  { ...player.captions, superimposeRecorded: event.currentTarget.checked },
+                  saveCallbacks,
+                )
               }
             />
             <Switch
@@ -168,7 +168,10 @@ function PlayerSettings() {
               disabled={!player.captionsEnabled}
               checked={player.captions.stroke}
               onChange={(event) =>
-                player.setCaptions({ ...player.captions, stroke: event.currentTarget.checked })
+                player.setCaptions(
+                  { ...player.captions, stroke: event.currentTarget.checked },
+                  saveCallbacks,
+                )
               }
             />
             <Select
@@ -190,10 +193,13 @@ function PlayerSettings() {
               }
               onChange={(value) =>
                 value !== null &&
-                player.setCaptions({
-                  ...player.captions,
-                  backgroundOpacity: value === 'broadcast' ? null : Number(value),
-                })
+                player.setCaptions(
+                  {
+                    ...player.captions,
+                    backgroundOpacity: value === 'broadcast' ? null : Number(value),
+                  },
+                  saveCallbacks,
+                )
               }
               maw={240}
             />
@@ -210,7 +216,7 @@ function PlayerSettings() {
             }
             description={t('settings.account.dataBroadcastPreloadHelp')}
             checked={dataBroadcastPreload}
-            onChange={(event) => setDataBroadcastPreload(event.currentTarget.checked)}
+            onChange={(event) => deviceSave(setDataBroadcastPreload)(event.currentTarget.checked)}
           />
           <Switch
             label={
@@ -223,7 +229,7 @@ function PlayerSettings() {
             }
             description={t('settings.account.lowLatencyHelp')}
             checked={lowLatency}
-            onChange={(event) => setLowLatency(event.currentTarget.checked)}
+            onChange={(event) => deviceSave(setLowLatency)(event.currentTarget.checked)}
           />
           <Switch
             label={
@@ -236,7 +242,7 @@ function PlayerSettings() {
             }
             description={t('settings.account.cmAutoSkipHelp')}
             checked={cmAutoSkip}
-            onChange={(event) => setCmAutoSkip(event.currentTarget.checked)}
+            onChange={(event) => deviceSave(setCmAutoSkip)(event.currentTarget.checked)}
           />
           {/* 表示が追いつくかは端末によるので、端末ごとに覚える (#1655)。 */}
           <Switch
@@ -250,7 +256,7 @@ function PlayerSettings() {
             }
             description={t('settings.account.fieldRateHelp')}
             checked={fieldRate}
-            onChange={(event) => setFieldRate(event.currentTarget.checked)}
+            onChange={(event) => deviceSave(setFieldRate)(event.currentTarget.checked)}
           />
           {/* GPU の負荷と、拡大する大きさは端末の画面によるので、端末ごとに覚える (#1654)。 */}
           <Switch
@@ -264,7 +270,7 @@ function PlayerSettings() {
             }
             description={t('settings.account.superResolutionHelp')}
             checked={superResolution}
-            onChange={(event) => setSuperResolution(event.currentTarget.checked)}
+            onChange={(event) => deviceSave(setSuperResolution)(event.currentTarget.checked)}
           />
           {/* 鮮鋭化の強さ。映像の質と画面によって好みが分かれるので、RTX Video Super Resolution の品質の段のように選ばせる (#1654)。 */}
           <Select
@@ -280,7 +286,7 @@ function PlayerSettings() {
             onChange={(value) => {
               const strength = superResolutionStrengths.find((s) => String(s) === value);
               if (strength !== undefined) {
-                setSuperResolutionStrength(strength);
+                deviceSave(setSuperResolutionStrength)(strength);
               }
             }}
             maw={240}
@@ -297,7 +303,7 @@ function PlayerSettings() {
             }
             description={t('settings.account.interpolationHelp')}
             checked={interpolation}
-            onChange={(event) => setInterpolation(event.currentTarget.checked)}
+            onChange={(event) => deviceSave(setInterpolation)(event.currentTarget.checked)}
           />
           {/* ブラウザは画面の書き換えの速さを教えないので、既定は、書き換えの間隔を測って合わせる (#1655)。 */}
           <Stack gap="xs" pl="lg">
@@ -317,14 +323,14 @@ function PlayerSettings() {
               value={interpolationRate === null ? 'display' : String(interpolationRate)}
               onChange={(value) =>
                 value !== null &&
-                setInterpolationRate(
+                deviceSave(setInterpolationRate)(
                   interpolationRates.find((rate) => String(rate) === value) ?? null,
                 )
               }
               maw={240}
             />
           </Stack>
-          <TextInput
+          <AutoSaveTextInput
             label={
               <Group gap={6} component="span">
                 {t('settings.account.captureFileName')}
@@ -344,8 +350,13 @@ function PlayerSettings() {
               ),
             })}
             placeholder={t('settings.account.captureFileNameDefault')}
+            trim={false}
             value={captureTemplate}
-            onChange={(event) => setCaptureTemplate(event.currentTarget.value)}
+            onSave={(template) => {
+              deviceSave(setCaptureTemplate)(template);
+
+              return Promise.resolve(true);
+            }}
             maw={480}
           />
           <DataBroadcastZipcodeInput />
@@ -361,7 +372,7 @@ function PlayerSettings() {
             }
             description={t('settings.account.miniPlayerHelp')}
             checked={miniPlayer}
-            onChange={(event) => setMiniPlayer(event.currentTarget.checked)}
+            onChange={(event) => deviceSave(setMiniPlayer)(event.currentTarget.checked)}
           />
           {autoPictureInPictureAvailable && (
             <Switch
@@ -375,7 +386,7 @@ function PlayerSettings() {
               }
               description={t('settings.account.autoPictureInPictureHelp')}
               checked={autoPictureInPicture}
-              onChange={(event) => setAutoPictureInPicture(event.currentTarget.checked)}
+              onChange={(event) => deviceSave(setAutoPictureInPicture)(event.currentTarget.checked)}
             />
           )}
           {fullscreenLandscapeAvailable && (
@@ -390,7 +401,7 @@ function PlayerSettings() {
               }
               description={t('settings.account.fullscreenLandscapeHelp')}
               checked={fullscreenLandscape}
-              onChange={(event) => setFullscreenLandscape(event.currentTarget.checked)}
+              onChange={(event) => deviceSave(setFullscreenLandscape)(event.currentTarget.checked)}
             />
           )}
           {swipeControlsAvailable && (
@@ -405,7 +416,7 @@ function PlayerSettings() {
               }
               description={t('settings.account.swipeControlsHelp')}
               checked={swipeControls}
-              onChange={(event) => setSwipeControls(event.currentTarget.checked)}
+              onChange={(event) => deviceSave(setSwipeControls)(event.currentTarget.checked)}
             />
           )}
         </Stack>

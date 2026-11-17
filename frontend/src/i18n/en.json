@@ -69,7 +69,6 @@
     "watchReminderMinutes": "Minutes before the broadcast to notify",
     "watchReminderHint": "From 0 to 60 minutes. Set 0 to be notified when the broadcast starts.",
     "watchReminderUnit": "min before",
-    "watchReminderError": "Could not change the watch reminder setting. Enter a value between 0 and 60 minutes.",
     "webPush": "Web Push",
     "inApp": "In-app",
     "kindColumn": "Notification type",
@@ -253,7 +252,6 @@
   "settings": {
     "comments": {
       "title": "Live comments",
-      "saveError": "Could not save. Please try again later.",
       "opacity": "Opacity",
       "speed": "Scroll speed",
       "scale": "Text size",
@@ -569,6 +567,19 @@
       "recording": "Recording",
       "people": "Users and integrations",
       "status": "Status"
+    },
+    "autosave": {
+      "saved": "Saved",
+      "failed": "Couldn't save",
+      "required": "Enter a value",
+      "integer": "Enter a whole number",
+      "integerRange": "Enter a whole number from {{min}} to {{max}}",
+      "integerMin": "Enter a whole number of {{min}} or more",
+      "integerMax": "Enter a whole number of {{max}} or less",
+      "number": "Enter a number",
+      "numberRange": "Enter a number from {{min}} to {{max}}",
+      "numberMin": "Enter a number of {{min}} or more",
+      "numberMax": "Enter a number of {{max}} or less"
     }
   },
   "connection": {
@@ -2025,7 +2036,10 @@
         "description": "The stations on the air no longer match the channels of the tuner server, or some channels keep failing to tune. Rescan the channels on the tuner server. Stations you left out of the tuner server on purpose keep showing up here.",
         "occurredAt": "Time",
         "message": "Details"
-      }
+      },
+      "poolMinFreeConfirm": "Setting the threshold to {{free}} puts free space below it, so the next check (every 5 minutes) starts deleting the oldest recordings. Deleted recordings can't be restored. Save it?",
+      "poolMinFreeConfirmSave": "Save",
+      "poolMinFreeConfirmCancel": "Cancel"
     },
     "users": {
       "title": "Users",
@@ -2056,7 +2070,8 @@
       "delete": "Delete",
       "deleteHelp": "Deletes the account and personal data of {{username}}. Recordings, reservations, rules, and audit logs are kept. This cannot be undone.",
       "deleteConfirm": "To confirm, enter the username ({{username}})",
-      "deleted": "Deleted {{username}}"
+      "deleted": "Deleted {{username}}",
+      "close": "Close"
     },
     "webhooks": {
       "title": "Webhooks",
@@ -2082,7 +2097,8 @@
       "cancel": "Cancel",
       "delete": "Delete",
       "deleted": "Deleted {{name}}",
-      "confirmDelete": "Delete {{name}}? Deliveries waiting to be retried will also be canceled."
+      "confirmDelete": "Delete {{name}}? Deliveries waiting to be retried will also be canceled.",
+      "close": "Close"
     },
     "audit": {
       "title": "Audit log",
@@ -2428,7 +2444,8 @@
       "md5": "MD5",
       "text": "Replacement text",
       "add": "Add",
-      "remove": "Remove"
+      "remove": "Remove",
+      "textInvalid": "Enter 1 to {{max}} characters"
     },
     "retention": {
       "title": "Retention",
@@ -2436,7 +2453,8 @@
     },
     "integrations": {
       "title": "Integrations",
-      "summary": "Set up integration with MCP clients and webhooks that send notifications to services such as Discord or Slack"
+      "summary": "Set up integration with MCP clients and webhooks that send notifications to services such as Discord or Slack",
+      "register": "Register"
     },
     "issuedStreamUrls": {
       "title": "Issued external player URLs",
@@ -2698,7 +2716,6 @@
     "settingsTitle": "Recording settings",
     "threshold": "Share to count as watched",
     "thresholdHelp": "Record once the time you actually played reaches this share of the program length",
-    "thresholdInvalid": "Enter a whole number from 1 to 100",
     "statusTitle": "Change the work status",
     "watchingOnFirst": "Set to \"Watching\" after the first episode ([新])",
     "watchingOnEpisode": "Set to \"Watching\" after any episode except the last ([終])",

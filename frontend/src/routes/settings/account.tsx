@@ -5,14 +5,13 @@ import {
   Card,
   Checkbox,
   Group,
-  NumberInput,
   Stack,
   Switch,
   Text,
   Title,
 } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense, startTransition, useState } from 'react';
+import { Suspense, startTransition, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 
@@ -26,7 +25,9 @@ import { useDataChanges } from '../../changes/DataChanges';
 import { ErrorBoundary, PageLoader, useDocumentTitle, zonedFormat } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
-import { settingsErrorMessage } from '../../settings/errors';
+import { AutoSaveNumberInput } from '../../settings/AutoSaveFields';
+import { useSaveNotice } from '../../settings/saveNotice';
+import { useAutoSave, useDeviceSave } from '../../settings/useAutoSave';
 import { mutate } from '../../settings/mutate';
 import type { accountBeginMutation } from './__generated__/accountBeginMutation.graphql';
 import type { accountDisconnectMutation } from './__generated__/accountDisconnectMutation.graphql';
@@ -136,22 +137,20 @@ function AnimeRecords() {
     { fetchKey: `${fetchKey}:${viewerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const settings = data.animeRecordSettings;
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [running, setRunning] = useState(false);
+  const notice = useSaveNotice();
+  const { save: autoSave } = useAutoSave();
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   // 戻ってきたときの結果は、一度出したら URL から外す。読み直したときに、もう一度出さないため。
   const clearSearch = () => void navigate({ search: {}, replace: true });
-  // run は、operation を動かし、成功したかを返す。失敗したら、理由を出す。
+  // run は、記録先との連携と、連携を外す操作を動かし、成功したかを返す。失敗したら、設定の保存と同じ通知で理由を出す (#1740)。
   const run = (operation: () => Promise<void>): Promise<boolean> => {
-    setError(null);
-    setSaved(false);
     setRunning(true);
 
     return operation()
       .then(() => true)
       .catch((caught: unknown) => {
-        setError(settingsErrorMessage(t, caught));
+        notice.failed(caught);
 
         return false;
       })
@@ -191,8 +190,9 @@ function AnimeRecords() {
       clearSearch();
       refresh();
     });
-  const save = (input: AnimeRecordSettingsInput) =>
-    run(async () => {
+  // save は、記録の設定を保存する (#1740)。結果は、設定の保存の通知で知らせる。
+  const save = (input: () => AnimeRecordSettingsInput) =>
+    autoSave(async () => {
       await mutate<accountSettingsMutation>(
         environment,
         graphql`
@@ -202,9 +202,9 @@ function AnimeRecords() {
             }
           }
         `,
-        { input },
+        // 送る直前に入力を作る。前の保存を待っている間に変えた項目も、まとめて送るため。
+        { input: input() },
       );
-      setSaved(true);
       refresh();
     });
   const callbackError = search.error === undefined ? null : animeRecordCallbackError(search.error);
@@ -224,11 +224,6 @@ function AnimeRecords() {
           {t('animeRecords.wishlistLink')}
         </Anchor>
       </Text>
-      {error !== null && (
-        <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
       {callbackError !== null && (
         <Alert color="red" role="alert" withCloseButton onClose={clearSearch}>
           {t(`animeRecords.callbackErrors.${callbackError}`)}
@@ -296,7 +291,6 @@ function AnimeRecords() {
       })}
       <RecordOnDeviceSwitch />
       <RecordSettings
-        key={`${settings.thresholdPercent}/${String(settings.watchingOnFirst)}/${String(settings.watchingOnEpisode)}/${String(settings.watchedOnLast)}/${String(settings.notifyWishlist)}`}
         initial={{
           thresholdPercent: settings.thresholdPercent,
           watchingOnFirst: settings.watchingOnFirst,
@@ -304,8 +298,6 @@ function AnimeRecords() {
           watchedOnLast: settings.watchedOnLast,
           notifyWishlist: settings.notifyWishlist,
         }}
-        busy={running}
-        saved={saved}
         onSave={save}
       />
     </Stack>
@@ -313,10 +305,11 @@ function AnimeRecords() {
 }
 
 // RecordOnDeviceSwitch は、この端末で見たアニメを記録するかを切り替える (#1283)。
-// 端末ごとに覚え、ほかの端末と同期しないので、保存のボタンを待たずにすぐ反映する。
+// 端末ごとに覚え、ほかの端末と同期しない。変えたら、ほかの設定と同じ通知で知らせる (#1740)。
 function RecordOnDeviceSwitch() {
   const { t } = useTranslation();
   const [enabled, setEnabled] = useRecordOnDevice();
+  const deviceSave = useDeviceSave();
 
   return (
     <Card withBorder>
@@ -324,119 +317,113 @@ function RecordOnDeviceSwitch() {
         label={t('animeRecords.recordOnDevice')}
         description={t('animeRecords.recordOnDeviceHelp')}
         checked={enabled}
-        onChange={(event) => setEnabled(event.currentTarget.checked)}
+        onChange={(event) => deviceSave(setEnabled)(event.currentTarget.checked)}
       />
     </Card>
   );
 }
 
+// sameSettings は、2 つの記録の設定が同じかどうかを返す。
+function sameSettings(a: AnimeRecordSettingsInput, b: AnimeRecordSettingsInput): boolean {
+  return (Object.keys(a) as (keyof AnimeRecordSettingsInput)[]).every((key) => a[key] === b[key]);
+}
+
 // RecordSettings は、見たと判定する割合と、作品の状態を変える条件 (既定ではどれも変えない) を変える。
 // 保存のボタンは置かず、変えたらすぐ保存する (#1740)。割合は、打っている途中の値 (100 を打つ途中の 1 や 10) を
 // 保存しないよう、欄を離れたときか Enter で、1〜100 に収まっていれば保存する。
+// 保存の API は設定をまるごと置き換えるので、前の保存を待っている間に変えた項目も、送るときの最新の入力 latest にまとめる。
 function RecordSettings({
   initial,
-  busy,
-  saved,
   onSave,
 }: {
   initial: AnimeRecordSettingsInput;
-  busy: boolean;
-  saved: boolean;
-  onSave: (input: AnimeRecordSettingsInput) => Promise<boolean>;
+  onSave: (input: () => AnimeRecordSettingsInput) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState(initial);
-  const [threshold, setThreshold] = useState<number | string>(initial.thresholdPercent);
-  const thresholdValid =
-    typeof threshold === 'number' &&
-    Number.isInteger(threshold) &&
-    threshold >= 1 &&
-    threshold <= 100;
-  // 保存に失敗したら、チェックを保存してある値 (initial) に戻す。割合は打った値のまま残し、
-  // 保存してある値と比べるので、もう一度欄を離れれば保存し直せる。
-  // 保存の途中は、次の変更を受け付けない (欄も押せなくする)。重ねて送ると、後から届いた古い値で上書きしかねないため。
-  const change = (next: AnimeRecordSettingsInput) => {
-    if (busy) {
-      return;
+  const [base, setBase] = useState(initial);
+  // pending は、送り終えていない保存の数。保存の途中は、読み直した値で入力を上書きしない。
+  const [pending, setPending] = useState(0);
+  // 読み直した値が変わり (保存した、ほかの端末で変えた)、保存の途中でなければ、入力をそれに合わせる。
+  if (!sameSettings(base, initial)) {
+    setBase(initial);
+    if (pending === 0) {
+      setInput(initial);
     }
+  }
+  // latest は、送るときに使う最新の入力。保存の途中でなければ、画面の入力から始める。
+  const latest = useRef(initial);
+  // change は、patch を当てて保存する。保存できなかったら、patch の項目のうち、後から変えていないものだけを、変える前に戻す。
+  // 割合の欄は、打った値を欄に残す (AutoSaveNumberInput)。
+  const change = (patch: Partial<AnimeRecordSettingsInput>) => {
+    const before = pending === 0 ? input : latest.current;
+    const next = { ...before, ...patch };
+    latest.current = next;
     setInput(next);
-    void onSave(next).then((ok) => {
+    setPending((count) => count + 1);
+
+    return onSave(() => latest.current).then((ok) => {
+      setPending((count) => count - 1);
       if (!ok) {
-        setInput(initial);
+        const reverted = { ...latest.current };
+        for (const key of Object.keys(patch) as (keyof AnimeRecordSettingsInput)[]) {
+          if (latest.current[key] === next[key]) {
+            Object.assign(reverted, { [key]: before[key] });
+          }
+        }
+        latest.current = reverted;
+        setInput(reverted);
       }
+
+      return ok;
     });
-  };
-  const commitThreshold = () => {
-    if (thresholdValid && threshold !== input.thresholdPercent) {
-      change({ ...input, thresholdPercent: threshold });
-    }
   };
 
   return (
     <Card withBorder>
       <Stack gap="sm">
-        <Group justify="space-between" gap="sm">
-          <Title order={3} size="h5">
-            {t('animeRecords.settingsTitle')}
-          </Title>
-          {/* 入れ直しを求めている間は、前の保存を「保存しました」と出さない。 */}
-          {saved && !busy && thresholdValid && (
-            <Text size="sm" c="teal" role="status">
-              {t('admin.saved')}
-            </Text>
-          )}
-        </Group>
-        <NumberInput
+        <Title order={3} size="h5">
+          {t('animeRecords.settingsTitle')}
+        </Title>
+        <AutoSaveNumberInput
           label={t('animeRecords.threshold')}
           description={t('animeRecords.thresholdHelp')}
-          error={thresholdValid ? undefined : t('animeRecords.thresholdInvalid')}
           min={1}
           max={100}
           allowDecimal={false}
           suffix="%"
           maw={240}
-          value={threshold}
-          disabled={busy}
-          onChange={setThreshold}
-          onBlur={commitThreshold}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              commitThreshold();
-            }
-          }}
+          value={initial.thresholdPercent}
+          onSave={(thresholdPercent) => change({ thresholdPercent })}
         />
         <Text size="sm" fw={500}>
           {t('animeRecords.statusTitle')}
         </Text>
         <Checkbox
-          disabled={busy}
           label={t('animeRecords.watchingOnFirst')}
           checked={input.watchingOnFirst}
-          onChange={(event) => change({ ...input, watchingOnFirst: event.currentTarget.checked })}
+          onChange={(event) => void change({ watchingOnFirst: event.currentTarget.checked })}
         />
         <Checkbox
-          disabled={busy}
           label={t('animeRecords.watchingOnEpisode')}
           checked={input.watchingOnEpisode}
-          onChange={(event) => change({ ...input, watchingOnEpisode: event.currentTarget.checked })}
+          onChange={(event) => void change({ watchingOnEpisode: event.currentTarget.checked })}
         />
         <Checkbox
-          disabled={busy}
           label={t('animeRecords.watchedOnLast')}
           description={t('animeRecords.statusHelp')}
           checked={input.watchedOnLast}
-          onChange={(event) => change({ ...input, watchedOnLast: event.currentTarget.checked })}
+          onChange={(event) => void change({ watchedOnLast: event.currentTarget.checked })}
         />
         {/* 見たいリストの作品の放送を、視聴予約で通知する (#1234)。 */}
         <Text size="sm" fw={500}>
           {t('animeRecords.notifyTitle')}
         </Text>
         <Checkbox
-          disabled={busy}
           label={t('animeRecords.notifyWishlist')}
           description={t('animeRecords.notifyWishlistHelp')}
           checked={input.notifyWishlist === true}
-          onChange={(event) => change({ ...input, notifyWishlist: event.currentTarget.checked })}
+          onChange={(event) => void change({ notifyWishlist: event.currentTarget.checked })}
         />
       </Stack>
     </Card>

@@ -1,6 +1,5 @@
 import {
   ActionIcon,
-  Alert,
   Button,
   Card,
   Code,
@@ -13,18 +12,18 @@ import {
 } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { Trash2 } from 'lucide-react';
-import { startTransition, useState, type FormEvent } from 'react';
+import { startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
-import { useAction } from '../../admin/useAction';
-import { SaveRow } from '../../admin/SaveRow';
-import { settingsErrorMessage } from '../../settings/errors';
+import { UpdatedAt } from '../../admin/UpdatedAt';
+import { AutoSaveTextInput } from '../../settings/AutoSaveFields';
 import { mutate } from '../../settings/mutate';
-import { diffDRCS, validDRCSText } from '../../yunomi/drcs';
+import { useAutoSave } from '../../settings/useAutoSave';
+import { maxDRCSText, validDRCSText } from '../../yunomi/drcs';
 import type { captionsMutation } from './__generated__/captionsMutation.graphql';
 import type { captionsQuery } from './__generated__/captionsQuery.graphql';
 
@@ -58,6 +57,9 @@ const query = graphql`
 
 const md5Pattern = /^[0-9a-f]{32}$/i;
 
+// DRCSReplacements は、外字の置き換えの表。置き換える文字は欄を離れたときか Enter で、消すのと足すのは押したらすぐ、
+// その外字だけを保存する (#1740)。表を丸ごと送らないのは、ほかの画面 (字幕の履歴) や管理者が登録したものを、
+// 古い表で上書きして消さないためである。
 function DRCSReplacements() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
@@ -69,172 +71,127 @@ function DRCSReplacements() {
     {},
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
-  const action = useAction();
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const { save } = useAutoSave();
   const settings = data.systemSettings;
-  // base は、編集を始めたときのサーバーの表。保存では、base から変えた外字だけを送る。
-  // 表を丸ごと送らないのは、ほかの画面 (字幕の履歴) や管理者が登録したものを、古い表で上書きして消さないためである。
-  const [base, setBase] = useState(settings.drcsReplacements);
-  const [rows, setRows] = useState(() => settings.drcsReplacements.map((row) => ({ ...row })));
-  // stale は、保存したときに出ていた、保存前のサーバーの表。保存の後は、これより新しい表を読み直すまで、表を合わせない。
-  const [stale, setStale] = useState<typeof base | null>(null);
-  const changes = diffDRCS(base, rows);
-  // 読み直した表が変わっていて、まだ何も編集していなければ、読み直した表に合わせる。
-  if (
-    settings.drcsReplacements !== base &&
-    settings.drcsReplacements !== stale &&
-    changes.length === 0
-  ) {
-    setStale(null);
-    setBase(settings.drcsReplacements);
-    setRows(settings.drcsReplacements.map((row) => ({ ...row })));
-  }
+  const rows = settings.drcsReplacements;
   const [md5, setMD5] = useState('');
   const [text, setText] = useState('');
+  // adding は、足している途中かどうか。続けて押して、同じ外字を重ねて送らないようにする。
+  const [adding, setAdding] = useState(false);
   const newValid =
     md5Pattern.test(md5) &&
     validDRCSText(text) &&
     !rows.some((row) => row.md5 === md5.toLowerCase());
-  const valid = rows.every((row) => validDRCSText(row.text));
+  const textError = (value: string) =>
+    validDRCSText(value) ? null : t('admin.captions.textInvalid', { max: maxDRCSText });
+
+  // saveChange は、外字 1 つの置き換えを保存する。text が null なら、消す。
+  const saveChange = (change: { md5: string; text: string | null }) =>
+    save(async () => {
+      await mutate<captionsMutation>(
+        environment,
+        graphql`
+          mutation captionsMutation($input: SystemSettingsInput!) {
+            updateSystemSettings(input: $input) {
+              updatedAt
+            }
+          }
+        `,
+        { input: { drcsReplacements: [change] } },
+      );
+      startTransition(() => setFetchKey((key) => key + 1));
+    });
 
   const add = () => {
-    setRows((current) =>
-      [...current, { md5: md5.toLowerCase(), text }].sort((a, b) => a.md5.localeCompare(b.md5)),
-    );
-    setMD5('');
-    setText('');
-  };
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    setMessage(null);
-    // saved は、送った時点の表。保存できたら、これを base にして、送った差分を編集の差分から外す (#1419)。
-    // 保存の間に編集したものは、差分に残る。差分がなくなれば、読み直した表が届いたときに、その表に合わせる。
-    const saved = rows;
-    action.run(
-      async () => {
-        await mutate<captionsMutation>(
-          environment,
-          graphql`
-            mutation captionsMutation($input: SystemSettingsInput!) {
-              updateSystemSettings(input: $input) {
-                updatedAt
-              }
-            }
-          `,
-          { input: { drcsReplacements: changes } },
-        );
-        setStale(settings.drcsReplacements);
-        setBase(saved);
-        setMessage({ ok: true, text: t('admin.saved') });
-        startTransition(() => setFetchKey((key) => key + 1));
-      },
-      (caught) => setMessage({ ok: false, text: settingsErrorMessage(t, caught) }),
-    );
+    setAdding(true);
+    void saveChange({ md5: md5.toLowerCase(), text }).then((ok) => {
+      setAdding(false);
+      // 足せなかったら、入れた値を残し、やり直せるようにする。
+      if (ok) {
+        setMD5('');
+        setText('');
+      }
+    });
   };
 
   return (
-    <form onSubmit={submit}>
-      <Stack gap="md">
-        {message !== null && (
-          <Alert
-            color={message.ok ? 'teal' : 'red'}
-            role={message.ok ? 'status' : 'alert'}
-            withCloseButton
-            onClose={() => setMessage(null)}
-          >
-            {message.text}
-          </Alert>
-        )}
-
-        <Card withBorder>
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('admin.captions.drcs')}
-            </Title>
+    <Stack gap="md">
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('admin.captions.drcs')}
+          </Title>
+          <Text size="sm" c="dimmed">
+            {t('admin.captions.drcsHelp')}
+          </Text>
+          {rows.length === 0 ? (
             <Text size="sm" c="dimmed">
-              {t('admin.captions.drcsHelp')}
+              {t('admin.captions.empty')}
             </Text>
-            {rows.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                {t('admin.captions.empty')}
-              </Text>
-            ) : (
-              <Table>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>{t('admin.captions.md5')}</Table.Th>
-                    <Table.Th>{t('admin.captions.text')}</Table.Th>
-                    <Table.Th />
+          ) : (
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('admin.captions.md5')}</Table.Th>
+                  <Table.Th>{t('admin.captions.text')}</Table.Th>
+                  <Table.Th />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {rows.map((row) => (
+                  <Table.Tr key={row.md5}>
+                    <Table.Td>
+                      <Code fz="xs">{row.md5}</Code>
+                    </Table.Td>
+                    <Table.Td>
+                      <AutoSaveTextInput
+                        size="xs"
+                        w={160}
+                        aria-label={t('admin.captions.text')}
+                        trim={false}
+                        validate={textError}
+                        value={row.text}
+                        onSave={(value) => saveChange({ md5: row.md5, text: value })}
+                      />
+                    </Table.Td>
+                    <Table.Td>
+                      <ActionIcon
+                        variant="subtle"
+                        color="red"
+                        aria-label={t('admin.captions.remove')}
+                        onClick={() => void saveChange({ md5: row.md5, text: null })}
+                      >
+                        <Trash2 size={16} />
+                      </ActionIcon>
+                    </Table.Td>
                   </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {rows.map((row, index) => (
-                    <Table.Tr key={row.md5}>
-                      <Table.Td>
-                        <Code fz="xs">{row.md5}</Code>
-                      </Table.Td>
-                      <Table.Td>
-                        <TextInput
-                          size="xs"
-                          w={100}
-                          aria-label={t('admin.captions.text')}
-                          value={row.text}
-                          error={!validDRCSText(row.text)}
-                          onChange={(event) => {
-                            const value = event.currentTarget.value;
-                            setRows((current) =>
-                              current.map((item, i) =>
-                                i === index ? { ...item, text: value } : item,
-                              ),
-                            );
-                          }}
-                        />
-                      </Table.Td>
-                      <Table.Td>
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          aria-label={t('admin.captions.remove')}
-                          onClick={() =>
-                            setRows((current) => current.filter((_, i) => i !== index))
-                          }
-                        >
-                          <Trash2 size={16} />
-                        </ActionIcon>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            )}
-            <Group gap="xs" align="flex-end">
-              <TextInput
-                size="xs"
-                w={300}
-                label={t('admin.captions.md5')}
-                value={md5}
-                onChange={(event) => setMD5(event.currentTarget.value.trim())}
-              />
-              <TextInput
-                size="xs"
-                w={100}
-                label={t('admin.captions.text')}
-                value={text}
-                onChange={(event) => setText(event.currentTarget.value)}
-              />
-              <Button size="xs" variant="default" disabled={!newValid} onClick={add}>
-                {t('admin.captions.add')}
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+          <Group gap="xs" align="flex-end">
+            <TextInput
+              size="xs"
+              w={300}
+              label={t('admin.captions.md5')}
+              value={md5}
+              onChange={(event) => setMD5(event.currentTarget.value.trim())}
+            />
+            <TextInput
+              size="xs"
+              w={100}
+              label={t('admin.captions.text')}
+              value={text}
+              onChange={(event) => setText(event.currentTarget.value)}
+            />
+            <Button size="xs" variant="default" disabled={!newValid || adding} onClick={add}>
+              {t('admin.captions.add')}
+            </Button>
+          </Group>
+        </Stack>
+      </Card>
 
-        <SaveRow
-          updatedAt={settings.updatedAt}
-          disabled={!valid || changes.length === 0 || action.busy}
-        />
-      </Stack>
-    </form>
+      <UpdatedAt updatedAt={settings.updatedAt} />
+    </Stack>
   );
 }
