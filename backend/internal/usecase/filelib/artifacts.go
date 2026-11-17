@@ -2,6 +2,7 @@ package filelib
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -59,7 +60,7 @@ func (x *Indexer) Artifacts() (*Usage, error) {
 // 移した置き場は、PurgeDetached で消す。消した後にファイルを開けば、索引と画像を作り直す。
 //
 // この tenban で作っている途中の索引は、取りやめて止まるのを待ってから移し、移し終えるまで作り始めない。record には、消す量を渡す。
-// record が失敗すれば、移さない。監査ログを書けなければ消さないためである。生成物がなければ、record を呼ばずに、空の量を返す。
+// record が失敗すれば、移さない。監査ログを書けなければ消さないためである。消すファイルがなければ、record を呼ばずに、その量を返す。
 //
 // 置き場を消すのでなく移すのは、nekonote のジョブなどが書いている途中でも、記録 (source.json、images.json など) と中身のずれを
 // 残さないためである。移した後に書き続けたものは、移した先に入るか、置き場がなくて失敗するので、新しい置き場には残らない。
@@ -76,26 +77,22 @@ func (x *Indexer) ClearArtifacts(ctx context.Context, record func(*Usage) error)
 	if err != nil {
 		return nil, err
 	}
-	dir := filepath.Join(x.dataDir, kago.LibraryIndexDir)
-	_, statErr := os.Lstat(dir)
-	exists := statErr == nil
-	if statErr != nil && !errors.Is(statErr, fs.ErrNotExist) {
-		return nil, fmt.Errorf("failed to read the library artifacts: %w", statErr)
-	}
-	detached, err := x.detachedDirs()
-	if err != nil {
-		return nil, err
-	}
-	if !exists && len(detached) == 0 {
+	// ファイルがなければ (空のディレクトリだけなら)、消すものはないので、監査ログに残さない。空のディレクトリは PurgeDetached が消す。
+	if usage.Files == 0 {
 		return usage, nil
 	}
 	if err := record(usage); err != nil {
 		return nil, err
 	}
-	if !exists {
+	dir := filepath.Join(x.dataDir, kago.LibraryIndexDir)
+	if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
+		// 前に消しきれずに残った置き場だけなら、移すものはない。
 		return usage, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to read the library artifacts: %w", err)
 	}
-	to := filepath.Join(x.dataDir, detachedPrefix+strconv.FormatInt(x.clock.Now().UnixNano(), 10)+detachedSuffix)
+	// 前に移した置き場を消しきれずに残していても重ならないよう、時刻に乱数を添える。
+	to := filepath.Join(x.dataDir, detachedPrefix+strconv.FormatInt(x.clock.Now().UnixNano(), 10)+"-"+rand.Text()+detachedSuffix)
 	if err := os.Rename(dir, to); err != nil {
 		return nil, fmt.Errorf("failed to detach the library artifacts: %w", err)
 	}

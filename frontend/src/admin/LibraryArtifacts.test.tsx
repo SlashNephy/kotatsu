@@ -94,4 +94,38 @@ describe('LibraryArtifacts (#1896)', () => {
     );
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+  test.each([
+    {
+      name: 'ほかの片付けの途中なら、終わっていないことを伝える',
+      code: 'CONFLICT',
+      want: 'ほかの片付けが終わっていません。時間をおいてやり直してください',
+    },
+    {
+      name: 'ほかの失敗なら、消せなかったことを伝える',
+      code: 'INTERNAL',
+      want: '消せませんでした。時間をおいてやり直してください',
+    },
+  ])('$name', async ({ code, want }) => {
+    await renderArtifacts(measured, {
+      data: null,
+      errors: [{ message: 'failed', extensions: { code } }],
+    } as unknown as GraphQLResponse);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '片付ける' })));
+    await screen.findByText(/1234 個のファイル/);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '消す' })));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(want);
+  });
+
+  test('量を数えられなければ、そう伝える', async () => {
+    await renderArtifacts({
+      data: null,
+      errors: [{ message: 'failed', extensions: { code: 'INTERNAL' } }],
+    } as unknown as GraphQLResponse);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '片付ける' })));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      '生成物の量を数えられませんでした。時間をおいてやり直してください',
+    );
+  });
 });

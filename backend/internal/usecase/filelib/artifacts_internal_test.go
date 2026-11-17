@@ -36,7 +36,9 @@ func TestClearArtifacts(t *testing.T) {
 	tests := []struct {
 		name string
 		// artifacts は、置く生成物の名前と大きさ。
-		artifacts  map[string]int
+		artifacts map[string]int
+		// dirs は、置く空のディレクトリ。
+		dirs       []string
 		recordErr  error
 		wantUsage  *Usage
 		wantRecord bool
@@ -57,7 +59,9 @@ func TestClearArtifacts(t *testing.T) {
 			name: "only detached", artifacts: map[string]int{".libraries-1.removing/c/index": 5},
 			wantUsage: &Usage{Size: 5, Files: 1}, wantRecord: true,
 		},
-		{name: "empty directory", artifacts: map[string]int{"libraries/.keep": 0}, wantUsage: &Usage{Size: 0, Files: 1}, wantRecord: true},
+		{name: "empty file", artifacts: map[string]int{"libraries/.keep": 0}, wantUsage: &Usage{Size: 0, Files: 1}, wantRecord: true},
+		// 空のディレクトリだけなら、消すものはないので、監査ログに残さない。PurgeDetached が、空の置き場を消す。
+		{name: "empty directories", dirs: []string{"libraries/a", ".libraries-1.removing"}, wantUsage: &Usage{Size: 0, Files: 0}, wantRemain: true},
 		// 消すものがなければ、監査ログに残さない。
 		{name: "nothing", artifacts: map[string]int{}, wantUsage: &Usage{Size: 0, Files: 0}, wantRecord: false},
 		// 監査ログを書けなければ、消さない。
@@ -73,6 +77,9 @@ func TestClearArtifacts(t *testing.T) {
 			dataDir := t.TempDir()
 			for name, size := range tt.artifacts {
 				writeArtifact(t, dataDir, name, size)
+			}
+			for _, dir := range tt.dirs {
+				require.NoError(t, os.MkdirAll(filepath.Join(dataDir, filepath.FromSlash(dir)), 0o755))
 			}
 			for _, name := range outside {
 				writeArtifact(t, dataDir, name, 1)
