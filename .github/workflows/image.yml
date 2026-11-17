@@ -133,6 +133,8 @@ jobs:
   # 必須のチェック (image (...)) とは別のジョブにして、新しく公開された脆弱性でマージを止めない。
   trivy:
     needs: image
+    # タグ (リリース) では動かさない。公開したイメージは scan.yml が毎日確かめる。
+    if: github.ref_type != 'tag'
     name: trivy (${{ matrix.target }})
     runs-on: ubuntu-latest
     permissions:
