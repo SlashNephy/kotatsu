@@ -2408,6 +2408,35 @@
       "clientId": "クライアントID",
       "clientSecret": "クライアントシークレット",
       "secretKept": "登録済み（変えるときだけ入れる）"
+    },
+    "googleDrive": {
+      "title": "Google Drive",
+      "help": "管理者のGoogle Driveを、ライブラリとして接続します。Google CloudでOAuthクライアント（ウェブアプリケーション）を作り、承認済みのリダイレクトURIに下のURIを入れてから、クライアントIDとシークレットを登録して、接続してください。スコープは、Google Driveの読み取り（drive.readonly）だけを求めます。",
+      "familyNote": "接続したアカウントのGoogle Driveにある、TS（.ts、.m2ts、.mts）とフォルダは、視聴者を含むログインした家族全員がライブラリから見られます。",
+      "testingNote": "OAuthの同意画面を「テスト中」のまま外部向けにすると、Googleは7日で接続を切ります。切れたら、ここで接続し直してください。",
+      "redirectUri": "リダイレクトURI",
+      "clientId": "クライアントID",
+      "clientSecret": "クライアントシークレット",
+      "secretKept": "登録済み（変えるときだけ入れる）",
+      "configured": "登録済み",
+      "notConfigured": "未登録",
+      "connect": "接続する",
+      "reconnect": "接続し直す",
+      "disconnect": "接続を外す",
+      "connectedAs": "{{account}} と接続しています（{{date}}）",
+      "notConnected": "接続していません",
+      "needsClient": "接続するには、先にクライアントIDとシークレットを登録してください",
+      "revoked": "Googleで接続が切れました（{{date}}）。アクセスを取り消したか、期限が切れました。接続し直すまで、ライブラリにGoogle Driveを出しません",
+      "connected": "Google Driveを接続しました。ライブラリから開けます",
+      "disconnected": "Google Driveの接続を外しました",
+      "callbackErrors": {
+        "google_expired": "接続の期限が切れました。もう一度接続してください",
+        "google_mismatch": "この端末で始めた接続ではないので、受け付けませんでした。もう一度接続してください",
+        "google_denied": "Googleで接続を断ったか、Google Driveの読み取りを許さなかったので、接続しませんでした",
+        "google_no_refresh_token": "Googleがリフレッシュトークンを返さなかったので、接続しませんでした。もう一度接続してください",
+        "google_unavailable": "クライアントの登録が消えたので、接続できませんでした",
+        "google_failed": "接続できませんでした。クライアントIDとシークレットを確かめて、やり直してください"
+      }
     }
   },
   "authorship": {
@@ -2816,6 +2845,10 @@
       "CAPTION_MODEL_DOWNLOAD": {
         "title": "字幕のモデルのダウンロード",
         "body": "管理者が選んだ字幕の自動生成のモデルを、Hugging Faceからダウンロードしました"
+      },
+      "GOOGLE_DRIVE": {
+        "title": "Google Drive",
+        "body": "ライブラリとして接続したGoogle Driveの、フォルダの一覧とファイルの中身を読みました"
       }
     },
     "hostHidden": "非公開の接続先"
@@ -2864,7 +2897,8 @@
     "error": "ライブラリを読めませんでした",
     "kind": {
       "pool": "保存先",
-      "folder": "フォルダ"
+      "folder": "フォルダ",
+      "googleDrive": "Google Drive"
     },
     "name": "名前",
     "size": "大きさ",
@@ -2875,6 +2909,7 @@
     "unsupported": "このファイルは再生できません。188 バイトのパケットの TS だけを再生できます（Blu-ray の .m2ts は再生できません）",
     "indexing": "シークの準備中",
     "indexingStatus": "シークの準備をしています。{{seconds}} までシークできます",
-    "writing": "このファイルは書いている途中なので、シークの準備をしていません。頭から再生できます"
+    "writing": "このファイルは書いている途中なので、シークの準備をしていません。頭から再生できます",
+    "myDrive": "マイドライブ"
   }
 }

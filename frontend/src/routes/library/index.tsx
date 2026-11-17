@@ -11,7 +11,7 @@ import {
   Title,
 } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { FileVideo, Folder, FolderOpen, HardDrive } from 'lucide-react';
+import { Cloud, FileVideo, Folder, FolderOpen, HardDrive } from 'lucide-react';
 import { Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
@@ -28,6 +28,7 @@ import { graphQLErrorDetails } from '../../relay/environment';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import {
   breadcrumbs,
+  isMyDrive,
   parentPath,
   parseLibrarySearch,
   type LibrarySearch,
@@ -39,6 +40,13 @@ export const Route = createFileRoute('/library/')({
   validateSearch: parseLibrarySearch,
   component: LibraryPage,
 });
+
+// formatModified は、更新日時を出す。日時のないもの (Google Drive のマイドライブの根元) は空にする。
+function formatModified(modifiedAt: string): string {
+  const date = new Date(modifiedAt);
+
+  return date.getTime() > 0 ? modifiedFormat.format(date) : '';
+}
 
 const modifiedFormat = zonedFormat({
   year: 'numeric',
@@ -104,6 +112,22 @@ function FolderLink({
   );
 }
 
+// useLibraryKind は、ライブラリの種類から、表示名とバッジの色を返す関数を返す。
+function useLibraryKind() {
+  const { t } = useTranslation();
+
+  return (kind: string) => {
+    switch (kind) {
+      case 'POOL':
+        return { label: t('library.kind.pool'), color: 'blue' };
+      case 'GOOGLE_DRIVE':
+        return { label: t('library.kind.googleDrive'), color: 'teal' };
+      default:
+        return { label: t('library.kind.folder'), color: 'gray' };
+    }
+  };
+}
+
 // LibraryList は、ライブラリの一覧。
 function LibraryList() {
   const { t } = useTranslation();
@@ -118,6 +142,7 @@ function LibraryList() {
     `,
     {},
   );
+  const kindOf = useLibraryKind();
   if (libraries.length === 0) {
     return <EmptyState icon={HardDrive} title={t('library.empty')} hint={t('library.emptyHint')} />;
   }
@@ -134,10 +159,14 @@ function LibraryList() {
           )}
         >
           <Group gap="sm" wrap="nowrap">
-            <HardDrive size={18} aria-hidden />
+            {library.kind === 'GOOGLE_DRIVE' ? (
+              <Cloud size={18} aria-hidden />
+            ) : (
+              <HardDrive size={18} aria-hidden />
+            )}
             <Text fw={500}>{library.name}</Text>
-            <Badge variant="light" color={library.kind === 'POOL' ? 'blue' : 'gray'}>
-              {library.kind === 'POOL' ? t('library.kind.pool') : t('library.kind.folder')}
+            <Badge variant="light" color={kindOf(library.kind).color}>
+              {kindOf(library.kind).label}
             </Badge>
           </Group>
         </Card>
@@ -153,7 +182,11 @@ function Directory({ library, path }: { library: string; path: string }) {
     graphql`
       query libraryDirectoryQuery($library: String!, $path: String!) {
         libraryDirectory(library: $library, path: $path) {
+          library {
+            kind
+          }
           path
+          names
           entries {
             name
             path
@@ -167,7 +200,11 @@ function Directory({ library, path }: { library: string; path: string }) {
     { library, path },
     { fetchPolicy: 'store-and-network' },
   );
-  const crumbs = breadcrumbs(library, directory.path);
+  const kind = directory.library.kind;
+  // Google Drive のマイドライブの根元は、サーバーが英語の名前で返すので、訳して出す (#1902)。
+  const crumbs = breadcrumbs(library, directory.path, directory.names).map((crumb) =>
+    isMyDrive(kind, crumb.path) ? { ...crumb, name: t('library.myDrive') } : crumb,
+  );
 
   return (
     <Stack gap="sm">
@@ -226,7 +263,7 @@ function Directory({ library, path }: { library: string; path: string }) {
                       )}
                       {entry.directory ? (
                         <FolderLink library={library} path={entry.path}>
-                          {entry.name}
+                          {isMyDrive(kind, entry.path) ? t('library.myDrive') : entry.name}
                         </FolderLink>
                       ) : (
                         <Anchor
@@ -256,7 +293,7 @@ function Directory({ library, path }: { library: string; path: string }) {
                     {entry.directory ? '' : formatBytes(Number(entry.size))}
                   </Table.Td>
                   <Table.Td visibleFrom="sm" style={{ whiteSpace: 'nowrap' }}>
-                    {modifiedFormat.format(new Date(entry.modifiedAt))}
+                    {formatModified(entry.modifiedAt)}
                   </Table.Td>
                 </Table.Tr>
               ))}

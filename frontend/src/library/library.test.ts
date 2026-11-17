@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   breadcrumbs,
   clampSeek,
+  isMyDrive,
   libraryResumePosition,
   parentPath,
   parseLibrarySearch,
@@ -41,6 +42,25 @@ describe('breadcrumbs', () => {
     },
   ])('$path', ({ path, want }) => {
     expect(breadcrumbs('anime', path)).toEqual(want);
+  });
+
+  // Google Drive では、段が ID なので、サーバーが返した名前で出す (#1902)。
+  test('段ごとの名前', () => {
+    expect(breadcrumbs('Google Drive', 'root/f1', ['My Drive', 'アニメ'])).toEqual([
+      { name: 'Google Drive', path: '' },
+      { name: 'My Drive', path: 'root' },
+      { name: 'アニメ', path: 'root/f1' },
+    ]);
+  });
+});
+
+describe('isMyDrive', () => {
+  test.each([
+    { kind: 'GOOGLE_DRIVE', path: 'root', want: true },
+    { kind: 'GOOGLE_DRIVE', path: 'root/f1', want: false },
+    { kind: 'FOLDER', path: 'root', want: false },
+  ])('$kind $path', ({ kind, path, want }) => {
+    expect(isMyDrive(kind, path)).toBe(want);
   });
 });
 

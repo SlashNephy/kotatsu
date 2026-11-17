@@ -22,14 +22,25 @@ export function parseLibrarySearch(search: Record<string, unknown>): LibrarySear
 export type Crumb = { name: string; path: string };
 
 // breadcrumbs は、ディレクトリ path (根元は空) の、根元から自分までのパンくずを返す。根元の名前はライブラリの名前にする。
-export function breadcrumbs(library: string, path: string): Crumb[] {
+// names は、サーバーが返した段ごとの名前 (LibraryDirectory.names)。Google Drive ではパスの段が ID なので、名前はこれで出す。
+// 足りなければ、段をそのまま名前にする。
+export function breadcrumbs(library: string, path: string, names: readonly string[] = []): Crumb[] {
   const crumbs: Crumb[] = [{ name: library, path: '' }];
   const parts = path === '' ? [] : path.split('/');
   parts.forEach((part, i) => {
-    crumbs.push({ name: part, path: parts.slice(0, i + 1).join('/') });
+    crumbs.push({ name: names[i] ?? part, path: parts.slice(0, i + 1).join('/') });
   });
 
   return crumbs;
+}
+
+// googleDriveLibrary は、Google Drive のライブラリの名前 (#1902)。myDriveName は、サーバーが返すマイドライブの根元の名前。
+export const googleDriveLibrary = 'google-drive';
+export const myDriveName = 'My Drive';
+
+// isMyDrive は、Google Drive のライブラリの、マイドライブの根元 (パス root) かどうかを返す。画面は、名前を訳して出す。
+export function isMyDrive(kind: string, path: string): boolean {
+  return kind === 'GOOGLE_DRIVE' && path === 'root';
 }
 
 // parentPath は、パス path の親のディレクトリのパスを返す。根元の中なら空。

@@ -2498,6 +2498,35 @@
       "clientId": "Client ID",
       "clientSecret": "Client secret",
       "secretKept": "Registered (enter only to change)"
+    },
+    "googleDrive": {
+      "title": "Google Drive",
+      "help": "Connect the administrator's Google Drive as a library. Create an OAuth client (web application) on Google Cloud with the redirect URI below as an authorized redirect URI, register its client ID and secret, then connect. Kotatsu asks only for read access to Google Drive (drive.readonly).",
+      "familyNote": "TS files (.ts, .m2ts, .mts) and folders in the connected account's Google Drive can be seen from the library by every signed-in family member, including viewers.",
+      "testingNote": "If the OAuth consent screen is external and left in Testing, Google disconnects after 7 days. Reconnect here when that happens.",
+      "redirectUri": "Redirect URI",
+      "clientId": "Client ID",
+      "clientSecret": "Client secret",
+      "secretKept": "Registered (enter only to change)",
+      "configured": "Registered",
+      "notConfigured": "Not registered",
+      "connect": "Connect",
+      "reconnect": "Reconnect",
+      "disconnect": "Disconnect",
+      "connectedAs": "Connected as {{account}} ({{date}})",
+      "notConnected": "Not connected",
+      "needsClient": "Register the client ID and secret before connecting",
+      "revoked": "Google ended the connection ({{date}}): access was revoked or expired. Google Drive is hidden from the library until you reconnect",
+      "connected": "Connected Google Drive. You can open it from the library",
+      "disconnected": "Disconnected Google Drive",
+      "callbackErrors": {
+        "google_expired": "The connection expired. Connect again",
+        "google_mismatch": "The connection was not started on this device, so it was rejected. Connect again",
+        "google_denied": "The connection was declined on Google, or read access to Google Drive was not allowed",
+        "google_no_refresh_token": "Google did not return a refresh token. Connect again",
+        "google_unavailable": "The client registration was removed, so the connection failed",
+        "google_failed": "Could not connect. Check the client ID and secret and try again"
+      }
     }
   },
   "authorship": {
@@ -2906,6 +2935,10 @@
       "CAPTION_MODEL_DOWNLOAD": {
         "title": "Caption model download",
         "body": "Downloaded the model for auto-generated captions chosen by an administrator from Hugging Face"
+      },
+      "GOOGLE_DRIVE": {
+        "title": "Google Drive",
+        "body": "Read folder listings and file contents from the Google Drive connected as a library"
       }
     },
     "hostHidden": "Undisclosed destination"
@@ -2954,7 +2987,8 @@
     "error": "Failed to read the library",
     "kind": {
       "pool": "Storage",
-      "folder": "Folder"
+      "folder": "Folder",
+      "googleDrive": "Google Drive"
     },
     "name": "Name",
     "size": "Size",
@@ -2965,6 +2999,7 @@
     "unsupported": "This file cannot be played. Only TS with 188-byte packets is supported (Blu-ray .m2ts is not).",
     "indexing": "Preparing to seek",
     "indexingStatus": "Preparing to seek. You can seek up to {{seconds}}.",
-    "writing": "This file is still being written, so it is not prepared for seeking. It can be played from the beginning."
+    "writing": "This file is still being written, so it is not prepared for seeking. It can be played from the beginning.",
+    "myDrive": "My Drive"
   }
 }
