@@ -146,3 +146,19 @@ export function dataBroadcastSource(streamUrl: string): DataBroadcastSource | nu
 
   return { url: query === undefined ? url : `${url}?${query}`, serviceId: id % serviceIDBase };
 }
+
+// dataBroadcastPath は、tenban のデータ放送用のエンドポイント (GET /internal/streams/services/{id}/data-broadcast) の URL。
+const dataBroadcastPath = /^\/internal\/streams\/services\/(\d+)\/data-broadcast(?:\?(.*))?$/;
+
+// dataBroadcastEndpoint は、url が tenban のデータ放送用のエンドポイントなら、読みに行く URL を返す。ほかの先なら null を返す。
+// データ放送の Web Worker は、受け取った URL をそのまま読まずに、決まったパスへ組み直し、ほかのホストやパスを読まないようにする。
+export function dataBroadcastEndpoint(url: string): string | null {
+  const match = dataBroadcastPath.exec(url);
+  if (match === null) {
+    return null;
+  }
+  const [, id = '', query] = match;
+  const path = `/internal/streams/services/${encodeURIComponent(id)}/data-broadcast`;
+
+  return query === undefined ? path : `${path}?${query}`;
+}

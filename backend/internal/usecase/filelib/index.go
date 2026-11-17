@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/fileimport"
@@ -277,7 +278,7 @@ func (x *Indexer) Ensure(ctx context.Context, ref Ref, entry *medialib.Entry) {
 		defer func() { <-x.slots }()
 		if err := x.buildIndex(ctx, ref, entry); err != nil && ctx.Err() == nil {
 			x.logger.WarnContext(ctx, "failed to index the library file",
-				slog.String("library", ref.Library), slog.String("path", ref.Path), slog.Any("error", err))
+				logattr.String("library", ref.Library), logattr.String("path", ref.Path), logattr.Error(err))
 		}
 	})
 }
@@ -424,7 +425,7 @@ func (x *Indexer) probeBroadcast(ctx context.Context, ref Ref, file io.ReaderAt,
 	probe, err := fileimport.ReadProbe(file, size)
 	if err != nil {
 		x.logger.WarnContext(ctx, "failed to read the broadcast of the library file",
-			slog.String("library", ref.Library), slog.String("path", ref.Path), slog.Any("error", err))
+			logattr.String("library", ref.Library), logattr.String("path", ref.Path), slog.Any("error", err))
 
 		return nil
 	}

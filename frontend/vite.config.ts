@@ -101,7 +101,9 @@ function readPackage(dir: string): BundledPackage {
     ) {
       throw new Error(`no license file found for ${manifest.name}@${manifest.version}`);
     }
-    files.push({ name: 'LICENSE', text: mitLicenseText(author.replace(/\s*<[^>]*>/, '')) });
+    // author は「名前 <メールアドレス>」の形なので、メールアドレスの前の名前だけを著作権者にする。
+    const holder = author.split('<', 1)[0]?.trim() ?? '';
+    files.push({ name: 'LICENSE', text: mitLicenseText(holder) });
     generated = true;
   }
 

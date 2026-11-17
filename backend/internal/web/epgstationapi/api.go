@@ -12,6 +12,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/query"
 )
 
@@ -42,13 +43,13 @@ func (h *Handler) writeJSON(w http.ResponseWriter, r *http.Request, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		h.logger.DebugContext(r.Context(), "failed to write the response", slog.String("path", r.URL.Path), slog.Any("error", err))
+		h.logger.DebugContext(r.Context(), "failed to write the response", logattr.String("path", r.URL.Path), slog.Any("error", err))
 	}
 }
 
 // fail は、エラーをログに残し、500 を返す。
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	h.logger.ErrorContext(r.Context(), "failed to serve the EPGStation-compatible API",
-		slog.String("path", r.URL.Path), slog.Any("error", err))
+		logattr.String("path", r.URL.Path), slog.Any("error", err))
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }

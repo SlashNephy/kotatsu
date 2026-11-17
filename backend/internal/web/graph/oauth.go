@@ -3,13 +3,13 @@ package graph
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/url"
 	"slices"
 	"strings"
 	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -60,7 +60,7 @@ func (r *Resolver) oauthError(ctx context.Context, err error) error {
 		return NewError(CodeNotFound, "MCP is disabled")
 	case errors.Is(err, oauth.ErrClientMetadataUnavailable):
 		// 取りに行けなかった理由 (名前を引いたアドレス、DNS や TLS のエラー) は、サーバーから見た内側のネットワークを明かすので、ログにだけ残す。
-		r.logger.WarnContext(ctx, "failed to fetch the OAuth client metadata", slog.Any("error", err))
+		r.logger.WarnContext(ctx, "failed to fetch the OAuth client metadata", logattr.Error(err))
 
 		return NewError(CodeBadUserInput, "invalid authorization request: the client metadata could not be fetched")
 	case errors.Is(err, oauth.ErrInvalidAuthorizationRequest):

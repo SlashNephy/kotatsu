@@ -203,6 +203,9 @@ func TestCanonicalPath(t *testing.T) {
 		{name: "escaped slash is kept", method: http.MethodGet, target: "/a%2Fb//c", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/a%2Fb/c"},
 		{name: "subtree without slash", method: http.MethodGet, target: "/api?x=1", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/api/?x=1"},
 		{name: "subtree with double slash", method: http.MethodGet, target: "//api", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/api/"},
+		// ブラウザは「/\」を「//」と読むので、\ はエスケープしたまま返し、ほかのホストへのリダイレクトにしない。
+		{name: "leading backslash", method: http.MethodGet, target: `/\evil.example/`, wantStatus: http.StatusOK, wantLocation: ""},
+		{name: "double slash before backslash", method: http.MethodGet, target: `//\evil.example/`, wantStatus: http.StatusTemporaryRedirect, wantLocation: "/%5Cevil.example/"},
 	}
 	for _, tt := range tests {
 		for name, handler := range map[string]http.Handler{"echo": router, "mux": mux} {
