@@ -48,10 +48,11 @@ func sleepEncodeKinds() []string {
 
 // runSleepControl は、ctx が終わるまで、OS のスリープを扱う (#1522、設計書 11.7)。止まるときは、抑止を外し、起こす予約を消す。
 // all の構成のときだけ扱う。録画と視聴とジョブを、1 つのプロセスで見渡せるからである。
-// 設定で切ったときと、スリープを扱わない OS (Linux とコンテナ) では、何もしない。扱えなくても、ほかのロールは止めない。
+// スリープを扱わない OS (Linux とコンテナ) では、何もしない。扱えなくても、ほかのロールは止めない。
+// 管理者が画面で切ったとき (#1869) は、判定のたびに設定を読み、抑止を外して起こす予約を消す。再起動しなくても切り替わるようにするためである。
 func runSleepControl(ctx context.Context, logger *slog.Logger, opts *Options, deps *Deps, all bool, api *apiHandler, live *kyusu.Live) {
 	// DB がなければ、判定に使う値を読めない。テストで差し替えた OpenDatabase は nil を返すことがある。
-	if !all || !deps.Config.Power.ManageSleep || opts.SleepSystem == nil || deps.DB == nil {
+	if !all || opts.SleepSystem == nil || deps.DB == nil {
 		return
 	}
 	logger = logger.With(slog.String("component", "sleep"))

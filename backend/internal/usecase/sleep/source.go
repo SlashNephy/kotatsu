@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
 // DBSource は、DB から録画と後処理のジョブと予約を読み、このプロセスの視聴の数を足して、Activity を返す。
@@ -25,8 +26,15 @@ func NewDBSource(pool *pgxpool.Pool, encodeKinds []string, viewers func() int64)
 	return &DBSource{pool: pool, encodeKinds: encodeKinds, viewers: viewers}
 }
 
-// Activity は、now の時点の Activity を返す。
+// Activity は、now の時点の Activity を返す。管理者が画面で OS のスリープを扱わないようにしていれば (#1869)、Disabled だけを立てて返す。
 func (s *DBSource) Activity(ctx context.Context, now time.Time) (*Activity, error) {
+	system, err := settings.Load(ctx, s.pool)
+	if err != nil {
+		return nil, err
+	}
+	if !system.SleepControlEnabled {
+		return &Activity{Disabled: true, Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: time.Time{}}, nil
+	}
 	q := sqlc.New(s.pool)
 	row, err := q.GetSleepActivity(ctx, now)
 	if err != nil {
@@ -43,7 +51,7 @@ func (s *DBSource) Activity(ctx context.Context, now time.Time) (*Activity, erro
 		return nil, err
 	}
 	activity := &Activity{
-		Recordings: row.Recordings + row.Timeshifts, Encodings: encodings, Viewers: s.viewers(), Airing: row.Airing, NextStart: time.Time{},
+		Disabled: false, Recordings: row.Recordings + row.Timeshifts, Encodings: encodings, Viewers: s.viewers(), Airing: row.Airing, NextStart: time.Time{},
 	}
 	if len(next) > 0 {
 		activity.NextStart = next[0]

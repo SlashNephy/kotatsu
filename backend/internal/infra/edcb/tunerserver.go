@@ -34,6 +34,14 @@ type TunerServer struct {
 	settings *timerSettingsCache
 	// now は、今の時刻を返す。EPG の取得の前後かを決めるのに使う。
 	now func() time.Time
+	// stopped は、プロセスが止まり始めたら閉じる (#1850)。nil なら閉じない。
+	stopped <-chan struct{}
+	// handoverGrace は、止まるときに、最後の持ち主だった NetworkTV を、ほかのインスタンスが引き継ぐのを待つ時間 (#1850)。
+	handoverGrace time.Duration
+	// releaseRetryInterval は、ID の持ち主から外れられなかったときに、外れ直す間隔 (#1850)。
+	releaseRetryInterval time.Duration
+	// streams は、開いて、まだ閉じ終えていない NetworkTV のストリームを数える (#1850)。
+	streams *openStreams
 }
 
 // TunerServerOptions は TunerServer の設定。
@@ -50,39 +58,49 @@ type TunerServerOptions struct {
 	SubscriberBufferSize int
 	// Clock は、EPG の取得の前後かを決めるのに使う時計 (#1536)。nil なら OS の時計。
 	Clock clock.Clock
+	// Stopped は、プロセスが止まり始めたら閉じるチャネル (#1850)。閉じた後に閉じるストリームは、最後の持ち主でも NetworkTV をすぐには閉じず、
+	// ほかのインスタンスが加わるのを HandoverGrace だけ待つ。nil なら待たない。
+	Stopped <-chan struct{}
+	// HandoverGrace は、止まるときに、ほかのインスタンスが加わるのを待つ時間 (#1850)。0 なら DefaultHandoverGrace。
+	HandoverGrace time.Duration
+	// ReleaseRetryInterval は、ID の持ち主から外れられなかったときに、外れ直す間隔 (#1850)。0 なら DefaultReleaseRetryInterval。
+	ReleaseRetryInterval time.Duration
 }
 
 // NewTunerServer は TunerServer を返す。opts は nil でもよい。
 func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
+	if opts == nil {
+		opts = new(TunerServerOptions)
+	}
 	bonDrivers := map[string]bool{}
-	var ids NetworkTVIDs
-	interval := defaultPreemptionCheckInterval
-	bufferSize := DefaultSubscriberBufferSize
+	for _, name := range opts.BonDrivers {
+		bonDrivers[strings.ToLower(name)] = true
+	}
 	now := time.Now
-	if opts != nil {
-		if opts.Clock != nil {
-			now = opts.Clock.Now
-		}
-		if opts.PreemptionCheckInterval > 0 {
-			interval = opts.PreemptionCheckInterval
-		}
-		if opts.SubscriberBufferSize > 0 {
-			bufferSize = opts.SubscriberBufferSize
-		}
-		for _, name := range opts.BonDrivers {
-			bonDrivers[strings.ToLower(name)] = true
-		}
-		ids = opts.NetworkTVIDs
+	if opts.Clock != nil {
+		now = opts.Clock.Now
 	}
 
 	server := &TunerServer{
-		client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids, preemptionCheckInterval: interval,
-		logos: &logoMap{mu: sync.Mutex{}, ids: nil, loadedAt: time.Time{}}, share: nil,
+		client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: opts.NetworkTVIDs,
+		preemptionCheckInterval: positiveOr(opts.PreemptionCheckInterval, defaultPreemptionCheckInterval),
+		logos:                   &logoMap{mu: sync.Mutex{}, ids: nil, loadedAt: time.Time{}}, share: nil,
 		settings: &timerSettingsCache{mu: sync.Mutex{}, settings: nil, loadedAt: time.Time{}}, now: now,
+		stopped: opts.Stopped, handoverGrace: positiveOr(opts.HandoverGrace, DefaultHandoverGrace),
+		releaseRetryInterval: positiveOr(opts.ReleaseRetryInterval, DefaultReleaseRetryInterval), streams: newOpenStreams(),
 	}
-	server.share = newSharedStreams(server, bufferSize)
+	server.share = newSharedStreams(server, positiveOr(opts.SubscriberBufferSize, DefaultSubscriberBufferSize))
 
 	return server
+}
+
+// positiveOr は、v が正なら v を、そうでなければ def を返す。
+func positiveOr[T int | time.Duration](v, def T) T {
+	if v > 0 {
+		return v
+	}
+
+	return def
 }
 
 // newTextReplacer は、EDCB の文を Mirakurun と同じ形に戻す置き換えを作る。

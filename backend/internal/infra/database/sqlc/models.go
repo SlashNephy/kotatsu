@@ -298,10 +298,17 @@ type DramaTitleOverride struct {
 
 type EdcbNetworkTv struct {
 	ID         int32
-	InstanceID uuid.UUID
 	NetworkID  int32
 	ServiceID  int32
 	AcquiredAt time.Time
+	ReleasedAt *time.Time
+	ClosingAt  *time.Time
+}
+
+type EdcbNetworkTvHolder struct {
+	NetworkTVID int32
+	InstanceID  uuid.UUID
+	AcquiredAt  time.Time
 }
 
 type EpgChange struct {
@@ -973,6 +980,14 @@ type SystemSetting struct {
 	TimeshiftWhileWatching                 bool
 	TimeshiftWhileWatchingRetentionSeconds int32
 	RuleUnmatchedGraceMinutes              int32
+	AuditRetentionDays                     int32
+	AuditClientInfoRetentionDays           int32
+	HibpEnabled                            bool
+	WebPushSubject                         string
+	ThumbnailPreviewsEnabled               bool
+	SleepControlEnabled                    bool
+	CaptionThreads                         int32
+	JikkyoChannels                         []byte
 	UpdatedAt                              time.Time
 }
 

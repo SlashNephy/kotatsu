@@ -11,29 +11,38 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
 // errPasswordRequired は、標準入力からパスワードを読めなかったことを表す。
 var errPasswordRequired = errors.New("the password must be given on the standard input")
 
-// hibpOf は、設定で有効にしたときだけ、Have I Been Pwned への照会を返す。
-func hibpOf(cfg *config.Config, recorder *netactivity.Recorder) *password.HIBP {
-	if !cfg.Auth.HIBP.Enabled {
-		return nil
-	}
+// hibpEnabledOf は、Have I Been Pwned に照会するかどうかを、全体の設定から読む関数を返す (#1869)。
+// 管理者が画面で切り替えるので、パスワードを確かめるたびに読む。
+func hibpEnabledOf(db sqlc.DBTX) func(ctx context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
+		system, err := settings.Load(ctx, db)
+		if err != nil {
+			return false, err
+		}
 
-	return password.NewHIBP(cfg.Auth.HIBP.URL, recorder)
+		return system.HIBPEnabled, nil
+	}
 }
 
-// newPasswordPolicy は、設定に従って、パスワードの規定を作る。
-func newPasswordPolicy(opts *Options, cfg *config.Config, recorder *netactivity.Recorder) (*password.Policy, error) {
-	return password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(cfg, recorder), StrengthTimeout: opts.PasswordStrengthTimeout, Estimator: nil, Logger: opts.Logger})
+// newPasswordPolicy は、設定に従って、パスワードの規定を作る。Have I Been Pwned に照会するかは、db の全体の設定から読む。
+func newPasswordPolicy(opts *Options, cfg *config.Config, db sqlc.DBTX, recorder *netactivity.Recorder) (*password.Policy, error) {
+	return password.NewPolicy(&password.PolicyOptions{
+		HIBP: password.NewHIBP(cfg.Auth.HIBP.URL, recorder), HIBPEnabled: hibpEnabledOf(db),
+		StrengthTimeout: opts.PasswordStrengthTimeout, Estimator: nil, Logger: opts.Logger,
+	})
 }
 
 // newUserCommand は kotatsu user を作る。初回セットアップ (#31) の画面ができるまで、管理者がパスワードを設定するのにも使う。
@@ -64,7 +73,7 @@ func newUserCommand(opts *Options, connect func(ctx context.Context) (*config.Co
 				return err
 			}
 			defer closePool(pool)
-			policy, err := newPasswordPolicy(opts, cfg, nil)
+			policy, err := newPasswordPolicy(opts, cfg, pool, nil)
 			if err != nil {
 				return err
 			}

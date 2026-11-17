@@ -1,6 +1,7 @@
 package webpush_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -88,7 +89,7 @@ func (f *fixture) deliverTo(t *testing.T, client *http.Client, args webpush.Deli
 
 	location, err := time.LoadLocation("Asia/Tokyo")
 	require.NoError(t, err)
-	worker := webpush.NewDeliverWorker(f.pool, f.service, f.clock, subject, location, client)
+	worker := webpush.NewDeliverWorker(f.pool, f.service, f.clock, func(context.Context) (string, error) { return subject, nil }, location, client)
 	job := &river.Job[webpush.DeliverArgs]{JobRow: new(rivertype.JobRow), Args: args}
 
 	return worker.Work(t.Context(), job)

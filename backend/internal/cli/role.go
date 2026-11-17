@@ -73,6 +73,8 @@ type sharedEDCB struct {
 	once   sync.Once
 	server *edcb.TunerServer
 	err    error
+	// stopped は、プロセスが止まり始めたら閉じる。止まるときは、開いている NetworkTV を、ほかのインスタンスが引き継げるよう少し残す (#1850)。
+	stopped <-chan struct{}
 }
 
 // tenbanRoleName は、API を受け持つロールの名前。
@@ -361,10 +363,28 @@ func sharedEDCBServer(deps *Deps) (*edcb.TunerServer, error) {
 		}
 		deps.edcb.server = edcb.NewTunerServer(client, &edcb.TunerServerOptions{
 			BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids, PreemptionCheckInterval: 0, SubscriberBufferSize: 0, Clock: deps.Clock,
+			Stopped: deps.edcb.stopped, HandoverGrace: 0, ReleaseRetryInterval: 0,
 		})
 	})
 
 	return deps.edcb.server, deps.edcb.err
+}
+
+// edcbCloseWait は、止まるときに、EDCB の NetworkTV のストリームを閉じ終えるのを待つ時間の上限 (#1850)。
+// 最後の持ち主だった NetworkTV を、ほかのインスタンスが引き継ぐのを待つ時間と、閉じるのに掛ける時間を足した長さにする。
+const edcbCloseWait = edcb.DefaultHandoverGrace + 10*time.Second
+
+// waitEDCBStreams は、このプロセスが開いた EDCB の NetworkTV のストリームを、閉じ終えるまで待つ (#1850)。
+// 閉じ終える前に終わると、NetworkTV を開いたまま残す。neko が閉じるが、neko も止めたときは、次に動かすまで残る。
+func waitEDCBStreams(ctx context.Context, logger *slog.Logger, deps *Deps) {
+	if deps.edcb == nil || deps.edcb.server == nil {
+		return
+	}
+	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), edcbCloseWait)
+	defer cancel()
+	if err := deps.edcb.server.WaitClosed(waitCtx); err != nil {
+		logger.WarnContext(waitCtx, "stopped before closing EDCB NetworkTVs", slog.Any("error", err))
+	}
 }
 
 // newEDCBClient は、EpgTimerSrv の CtrlCmd のクライアントを返す。

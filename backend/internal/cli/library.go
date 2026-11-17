@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
 // libraryParts は、ライブラリ (録画として登録していない TS のフォルダ) を読む部品 (設計書 5.8、#1734)。
@@ -40,8 +42,14 @@ func libraryJobsOf(deps *Deps) filelib.JobInserter {
 // ジョブごとに探し、取り出した音声は kyusu と同じ一時領域に置く。
 func newLibraryCaptionsWorker(deps *Deps, parts *libraryParts, lowerer *procprio.Lowerer) *filelib.CaptionsWorker {
 	return filelib.NewCaptionsWorker(parts.libraries, parts.indexer, deps.Clock,
-		func() (autocaption.Transcriber, error) {
-			return autocaption.NewWhisper(&deps.Config.Captions, deps.Config.Storage.DataDir, lowerer)
+		func(ctx context.Context) (autocaption.Transcriber, error) {
+			// 録画と同じく、管理者が画面で選んだスレッドの数をジョブごとに読む。
+			system, err := settings.Load(ctx, poolOf(deps))
+			if err != nil {
+				return nil, err
+			}
+
+			return autocaption.NewWhisper(&deps.Config.Captions, system.CaptionThreads, deps.Config.Storage.DataDir, lowerer)
 		},
 		func() (autocaption.ReaderExtractor, error) { return autocaption.FFmpegReaderExtractor(lowerer) },
 		deps.Config.Kyusu.WorkDir)
