@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<673a816ef4baa1feed19a63a4cce0730>>
+ * @generated SignedSource<<9ce4f1c18da100ca6ea9de30e954d7d2>>
  * @lightSyntaxTransform
  */
 
@@ -24,6 +24,7 @@ export type DramaRecordsQuery$data = {
       readonly destination: DramaRecordDestination;
     }>;
     readonly enabled: boolean;
+    readonly thresholdPercent: number;
   };
 };
 export type DramaRecordsQuery = {
@@ -46,6 +47,13 @@ var v0 = [
         "args": null,
         "kind": "ScalarField",
         "name": "enabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "thresholdPercent",
         "storageKey": null
       },
       {
@@ -141,16 +149,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "8a74c363132aed482122b064a65f5685",
+    "cacheID": "a09f03f6b46229f09be06d3c6fdfcd62",
     "id": null,
     "metadata": {},
     "name": "DramaRecordsQuery",
     "operationKind": "query",
-    "text": "query DramaRecordsQuery {\n  dramaRecordSettings {\n    enabled\n    destinations {\n      destination\n      available\n      connection {\n        accountName\n        connectedAt\n        reauthorizationRequired\n        watchlistImportedAt\n        watchlistError\n      }\n    }\n  }\n}\n"
+    "text": "query DramaRecordsQuery {\n  dramaRecordSettings {\n    enabled\n    thresholdPercent\n    destinations {\n      destination\n      available\n      connection {\n        accountName\n        connectedAt\n        reauthorizationRequired\n        watchlistImportedAt\n        watchlistError\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "88b0a0f22c61b81523b9a17d1f31d38f";
+(node as any).hash = "b7d85e7987b8ed2960f7b1b164d5f816";
 
 export default node;

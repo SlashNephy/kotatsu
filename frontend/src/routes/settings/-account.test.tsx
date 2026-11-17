@@ -174,7 +174,7 @@ describe('記録の設定を、変えたらすぐ保存する (#1740)', () => {
 
     await act(async () =>
       fireEvent.click(
-        await screen.findByRole('switch', { name: /^この端末で見たアニメとドラマを記録する/ }),
+        await screen.findByRole('switch', { name: /^この端末で見たアニメを記録する/ }),
       ),
     );
 
@@ -185,12 +185,14 @@ describe('記録の設定を、変えたらすぐ保存する (#1740)', () => {
 // serveDrama は、Simkl と連携したユーザーの、ドラマの記録の問い合わせに応え、取り込み直しの依頼を覚える Relay の環境を作る (#1649)。
 function serveDrama() {
   const imports: unknown[] = [];
+  const saved: unknown[] = [];
   const environment = createTestEnvironment((request, variables) => {
     if (request.name === 'DramaRecordsQuery') {
       return {
         data: {
           dramaRecordSettings: {
             enabled: true,
+            thresholdPercent: 20,
             destinations: [
               {
                 destination: 'SIMKL',
@@ -207,6 +209,11 @@ function serveDrama() {
           },
         },
       };
+    }
+    if (request.name === 'DramaRecordsSettingsMutation') {
+      saved.push(variables);
+
+      return { data: { updateDramaRecordSettings: { thresholdPercent: 20 } } };
     }
     if (request.name === 'DramaRecordsImportMutation') {
       imports.push(variables);
@@ -229,7 +236,7 @@ function serveDrama() {
     };
   });
 
-  return { environment, imports };
+  return { environment, imports, saved };
 }
 
 describe('見たドラマを記録する Simkl との連携 (#1649)', () => {
@@ -269,5 +276,20 @@ describe('見たドラマを記録する Simkl との連携 (#1649)', () => {
     await renderRoute(Route, '/settings/account', '/settings/account?connected=simkl', environment);
 
     expect(await screen.findByText('Simklと連携しました')).toBeTruthy();
+  });
+
+  test('見たドラマの割合は、アニメの割合と別の欄で、欄を離れたら保存する', async () => {
+    const { environment, saved } = serveDrama();
+    await renderRoute(Route, '/settings/account', '/settings/account', environment);
+    const thresholds = await screen.findAllByRole('textbox', { name: '見たとみなす割合' });
+    // アニメの欄とドラマの欄に、1 つずつある。後ろがドラマの欄。
+    expect(thresholds).toHaveLength(2);
+
+    fireEvent.change(thresholds[1]!, { target: { value: '40' } });
+    await act(async () => fireEvent.blur(thresholds[1]!));
+
+    expect(saved).toEqual([{ input: { thresholdPercent: 40 } }]);
+    expect(screen.getByRole('switch', { name: /^この端末で見たドラマを記録する/ })).toBeTruthy();
+    expect(screen.getByRole('switch', { name: /^この端末で見たアニメを記録する/ })).toBeTruthy();
   });
 });

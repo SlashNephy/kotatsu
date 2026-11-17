@@ -102,7 +102,7 @@ func (r *mutationResolver) UpdateAnimeRecordSettings(ctx context.Context, input 
 }
 
 // ReportAnimePlayback is the resolver for the reportAnimePlayback field.
-func (r *mutationResolver) ReportAnimePlayback(ctx context.Context, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) (bool, error) {
+func (r *mutationResolver) ReportAnimePlayback(ctx context.Context, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput, anime bool, drama bool) (bool, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
 		return false, err
@@ -116,11 +116,14 @@ func (r *mutationResolver) ReportAnimePlayback(ctx context.Context, serviceID *s
 		return false, err
 	}
 	// 同じ区間から、見たドラマの話も決める (#1652、設計書 3.9)。アニメとドラマのどちらかが対象なら、プレイヤーは送り続ける。
-	dramaTracked, err := dramalibrary.Report(ctx, r.db, r.jobs, principal.UserID, target, converted, r.clock.Now())
-	if err != nil {
-		return false, animeRecordError(err)
+	// この端末で記録しないと決めたほう (#1283、#1649) は、記録しない。
+	dramaTracked := false
+	if drama {
+		if dramaTracked, err = dramalibrary.Report(ctx, r.db, r.jobs, principal.UserID, target, converted, r.clock.Now()); err != nil {
+			return false, animeRecordError(err)
+		}
 	}
-	if r.animeRecords == nil {
+	if r.animeRecords == nil || !anime {
 		return dramaTracked, nil
 	}
 	tracked, err := r.animeRecords.Report(ctx, r.db, r.jobs, principal.UserID, target, converted)

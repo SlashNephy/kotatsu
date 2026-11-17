@@ -333,11 +333,11 @@ function AnimeRecords() {
   );
 }
 
-// RecordOnDeviceSwitch は、この端末で見たアニメを記録するかを切り替える (#1283)。
+// RecordOnDeviceSwitch は、この端末で見たアニメを記録するかを切り替える (#1283)。見たドラマは、ドラマの欄で別に切り替える (#1649)。
 // 端末ごとに覚え、ほかの端末と同期しない。変えたら、ほかの設定と同じ通知で知らせる (#1740)。
 function RecordOnDeviceSwitch() {
   const { t } = useTranslation();
-  const [enabled, setEnabled] = useRecordOnDevice();
+  const [enabled, setEnabled] = useRecordOnDevice('anime');
   const deviceSave = useDeviceSave();
 
   return (

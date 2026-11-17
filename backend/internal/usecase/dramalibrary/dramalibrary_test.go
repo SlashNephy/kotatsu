@@ -265,7 +265,7 @@ func TestSetWatched(t *testing.T) {
 }
 
 // TestReport は、プレイヤーで見た区間が、番組の長さのうち決めた割合 (既定は 20%) に届いたら、番組に結びついた話を見た話にすることを
-// 確かめる (#1652)。アニメの連携がなくても、TMDb との連携が有効なら数える。
+// 確かめる (#1652)。アニメの連携がなくても、TMDb との連携が有効なら数える。割合は、見たアニメを記録する割合とは別のドラマの設定に従う (#1649)。
 func TestReport(t *testing.T) {
 	t.Parallel()
 
@@ -276,9 +276,9 @@ func TestReport(t *testing.T) {
 		episode   int32
 		from, to  time.Time
 		recording bool
-		// savedPercent が 0 でなければ、ユーザーが見たアニメを記録する割合を変えておく。animeEnabled なら、アニメの連携を有効にする。
-		savedPercent int
-		animeEnabled bool
+		// dramaPercent と animePercent が 0 でなければ、ユーザーがドラマとアニメの割合を変えておく。アニメの連携は有効にする。
+		dramaPercent int
+		animePercent int
 		want         []string
 		wantOK       bool
 	}{
@@ -288,12 +288,16 @@ func TestReport(t *testing.T) {
 		{name: "program linked to the series only", enabled: true, episode: 0, from: at(12, 0), to: at(12, 10), want: []string{}, wantOK: true},
 		{name: "drama linking disabled", enabled: false, episode: 4, from: at(12, 0), to: at(12, 10), want: []string{}, wantOK: false},
 		{
-			name: "a saved percent applies while anime linking is enabled", enabled: true, episode: 4, from: at(12, 0), to: at(12, 7),
-			savedPercent: 80, animeEnabled: true, want: []string{}, wantOK: true,
+			name: "a higher drama percent needs more", enabled: true, episode: 4, from: at(12, 0), to: at(12, 7),
+			dramaPercent: 80, want: []string{}, wantOK: true,
 		},
 		{
-			name: "a saved percent is ignored while anime linking is disabled", enabled: true, episode: 4, from: at(12, 0), to: at(12, 7),
-			savedPercent: 80, animeEnabled: false, want: []string{watchedByPlayback}, wantOK: true,
+			name: "a lower drama percent records earlier", enabled: true, episode: 4, from: at(12, 0), to: at(12, 4),
+			dramaPercent: 10, want: []string{watchedByPlayback}, wantOK: true,
+		},
+		{
+			name: "the anime percent does not apply to dramas", enabled: true, episode: 4, from: at(12, 0), to: at(12, 7),
+			animePercent: 80, want: []string{watchedByPlayback}, wantOK: true,
 		},
 	}
 	for _, tt := range tests {
@@ -301,10 +305,12 @@ func TestReport(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t, tt.enabled)
 			f.link(t, 12, 0, tt.episode)
-			if tt.savedPercent > 0 {
-				f.exec(t, `INSERT INTO anime_record_settings (user_id, threshold_percent, updated_at) VALUES ($1, $2, now())`, f.alice, tt.savedPercent)
+			if tt.dramaPercent > 0 {
+				_, err := dramalibrary.SaveThresholdPercent(t.Context(), f.pool, clocktest.NewFake(testNow()), f.alice, tt.dramaPercent)
+				require.NoError(t, err)
 			}
-			if tt.animeEnabled {
+			if tt.animePercent > 0 {
+				f.exec(t, `INSERT INTO anime_record_settings (user_id, threshold_percent, updated_at) VALUES ($1, $2, now())`, f.alice, tt.animePercent)
 				f.exec(t, `UPDATE system_settings SET anime_linking_enabled = true`)
 			}
 			target := &animerecord.Target{ServiceID: new(serviceID()), RecordingID: nil}
@@ -466,6 +472,44 @@ func TestNextEpisode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, dramalibrary.NextEpisode(tt.seasons, tt.episodes, tt.season, tt.number))
+		})
+	}
+}
+
+// TestThresholdPercent は、見たドラマの話にする割合を、既定の 20% から変えられ、1〜100 の外は断ることを確かめる (#1649)。
+func TestThresholdPercent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		percent int
+		want    int
+		wantErr bool
+	}{
+		{name: "the lowest", percent: 1, want: 1},
+		{name: "the highest", percent: 100, want: 100},
+		{name: "zero", percent: 0, want: dramalibrary.DefaultThresholdPercent, wantErr: true},
+		{name: "over 100", percent: 101, want: dramalibrary.DefaultThresholdPercent, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t, true)
+			before, err := dramalibrary.ThresholdPercent(t.Context(), f.pool, f.alice)
+			require.NoError(t, err)
+			assert.Equal(t, dramalibrary.DefaultThresholdPercent, before, "the default applies until changed")
+			_, err = dramalibrary.SaveThresholdPercent(t.Context(), f.pool, clocktest.NewFake(testNow()), f.alice, tt.percent)
+			if tt.wantErr {
+				require.ErrorIs(t, err, dramalibrary.ErrInvalidSettings)
+			} else {
+				require.NoError(t, err)
+			}
+			got, err := dramalibrary.ThresholdPercent(t.Context(), f.pool, f.alice)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+			other, err := dramalibrary.ThresholdPercent(t.Context(), f.pool, f.bob)
+			require.NoError(t, err)
+			assert.Equal(t, dramalibrary.DefaultThresholdPercent, other, "the setting is kept per user")
 		})
 	}
 }

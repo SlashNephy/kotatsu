@@ -2226,3 +2226,12 @@ CREATE TABLE drama_watchlist_imports (
   FOREIGN KEY (user_id, destination) REFERENCES drama_record_connections (user_id, destination) ON DELETE CASCADE
 );
 CREATE INDEX drama_watchlist_imports_pending_idx ON drama_watchlist_imports (user_id, destination) WHERE NOT applied;
+
+-- ユーザーごとの、見たドラマの記録の設定 (#1649)。行がなければ既定値を使う。
+-- 見たアニメを記録する割合 (anime_record_settings) とは分ける。アニメの連携がなくても、ドラマの見た話と Simkl への記録に効くため。
+CREATE TABLE drama_record_settings (
+  user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  -- 番組の長さのうち、何 % を見たら、見た話にするか。
+  threshold_percent smallint NOT NULL DEFAULT 20 CHECK (threshold_percent BETWEEN 1 AND 100),
+  updated_at timestamptz NOT NULL
+);

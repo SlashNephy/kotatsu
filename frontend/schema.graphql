@@ -1611,7 +1611,18 @@ type DramaRecordSettings {
   管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。
   """
   enabled: Boolean!
+  """
+  番組の長さのうち、何 % を実際に再生したら、見たドラマの話にするか (1〜100)。見た話は、連携した Simkl にも記録する。
+  見たアニメを記録する割合とは別に持つ。
+  """
+  thresholdPercent: Int!
   destinations: [DramaRecordDestinationStatus!]!
+}
+"""
+見たドラマの記録の設定の変更 (#1649)。
+"""
+input DramaRecordSettingsInput {
+  thresholdPercent: Int!
 }
 """
 TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
@@ -2831,8 +2842,9 @@ type Mutation {
   区間は、番組ごとに重ねずにまとめるので、同じ区間を送り直しても、複数のタブから送っても、多く数えない。
   番組の長さのうち、決めた割合を見たら、結びついた話を記録する。TMDb の話に結びついたドラマの番組なら、見たドラマの話にする (#1652)。
   記録の対象でなければ (アニメの連携が無効か連携しておらず、TMDb との連携も無効) false を返す。
+  anime と drama は、この端末で見たアニメと見たドラマを記録するか (端末ごとの設定。#1283、#1649)。false のほうは記録しない。
   """
-  reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
+  reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!, anime: Boolean! = true, drama: Boolean! = true): Boolean!
   """
   ログイン中のユーザーが手で選んだ話を、連携した記録先ごとに記録する (#1232)。プレイヤーで見た割合から記録するときと同じジョブで送り、
   結果は、そのユーザーだけに通知する。送るのを待たずに返す。視聴者も使える。
@@ -2952,6 +2964,10 @@ type Mutation {
   取り込み終えて見ている作品が変わったら、dataChanged の DRAMA_WATCHLIST で知らせる。
   """
   importDramaWatchlist(force: Boolean! = false): Boolean!
+  """
+  ログイン中のユーザーの、見たドラマの記録の設定を変える (#1649)。視聴者も使える。割合が 1〜100 でなければ BAD_USER_INPUT を返す。
+  """
+  updateDramaRecordSettings(input: DramaRecordSettingsInput!): DramaRecordSettings!
   """
   Google の OAuth クライアントを変える (#1902)。管理者だけが使える。サーバーが Google と通信し始めるかどうかの元になる値なので、
   直近の再認証を求める (設計書 9.5)。クライアント ID を空にすると、Google Drive の接続も外す。

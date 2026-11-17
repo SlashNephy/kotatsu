@@ -84,6 +84,7 @@ const servicesOf = (ids: readonly string[]) =>
 function demoDramaRecordSettings() {
   return {
     enabled: false,
+    thresholdPercent: 20,
     destinations: [{ destination: 'SIMKL', available: false, connection: null }],
   };
 }

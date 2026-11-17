@@ -877,8 +877,16 @@ type DramaRecordDestinationStatus struct {
 // ログイン中のユーザーの、見たドラマの記録の様子 (#1649)。
 type DramaRecordSettings struct {
 	// 管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。
-	Enabled      bool                            `json:"enabled"`
-	Destinations []*DramaRecordDestinationStatus `json:"destinations"`
+	Enabled bool `json:"enabled"`
+	// 番組の長さのうち、何 % を実際に再生したら、見たドラマの話にするか (1〜100)。見た話は、連携した Simkl にも記録する。
+	// 見たアニメを記録する割合とは別に持つ。
+	ThresholdPercent int                             `json:"thresholdPercent"`
+	Destinations     []*DramaRecordDestinationStatus `json:"destinations"`
+}
+
+// 見たドラマの記録の設定の変更 (#1649)。
+type DramaRecordSettingsInput struct {
+	ThresholdPercent int `json:"thresholdPercent"`
 }
 
 // TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。

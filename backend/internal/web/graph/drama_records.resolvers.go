@@ -2,7 +2,9 @@ package graph
 
 import (
 	"context"
+	"errors"
 
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramalibrary"
 	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -86,6 +88,23 @@ func (r *mutationResolver) ImportDramaWatchlist(ctx context.Context, force bool)
 	}
 
 	return enqueued, nil
+}
+
+// UpdateDramaRecordSettings is the resolver for the updateDramaRecordSettings field.
+func (r *mutationResolver) UpdateDramaRecordSettings(ctx context.Context, input model.DramaRecordSettingsInput) (*model.DramaRecordSettings, error) {
+	principal, err := viewer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := dramalibrary.SaveThresholdPercent(ctx, r.db, r.clock, principal.UserID, input.ThresholdPercent); err != nil {
+		if errors.Is(err, dramalibrary.ErrInvalidSettings) {
+			return nil, NewError(CodeBadUserInput, err.Error())
+		}
+
+		return nil, err
+	}
+
+	return r.dramaRecordSettings(ctx, principal.UserID)
 }
 
 // DramaRecordApps is the resolver for the dramaRecordApps field.

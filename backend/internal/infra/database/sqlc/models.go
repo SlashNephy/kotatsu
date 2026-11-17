@@ -344,6 +344,12 @@ type DramaRecordConnection struct {
 	WatchlistRetryAt         *time.Time
 }
 
+type DramaRecordSetting struct {
+	UserID           uuid.UUID
+	ThresholdPercent int16
+	UpdatedAt        time.Time
+}
+
 type DramaTitleOverride struct {
 	TitleKey     string
 	TmdbSeriesID *int32

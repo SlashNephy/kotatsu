@@ -1,19 +1,23 @@
-import { Alert, Anchor, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Card, Group, Stack, Switch, Text, Title } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 
 import { animeRecordCallbackError } from '../animeRecords/destinations';
+import { useRecordOnDevice } from '../animeRecords/recordOnDevice';
 import { useDataChanges } from '../changes/DataChanges';
 import { zonedFormat } from '../futon';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import { mutate } from '../settings/mutate';
+import { AutoSaveNumberInput } from '../settings/AutoSaveFields';
 import { useSaveNotice } from '../settings/saveNotice';
+import { useAutoSave, useDeviceSave } from '../settings/useAutoSave';
 import type { DramaRecordsBeginMutation } from './__generated__/DramaRecordsBeginMutation.graphql';
 import type { DramaRecordsDisconnectMutation } from './__generated__/DramaRecordsDisconnectMutation.graphql';
 import type { DramaRecordsImportMutation } from './__generated__/DramaRecordsImportMutation.graphql';
 import type { DramaRecordsQuery } from './__generated__/DramaRecordsQuery.graphql';
+import type { DramaRecordsSettingsMutation } from './__generated__/DramaRecordsSettingsMutation.graphql';
 
 // destinationName は、ドラマの記録先の、画面に出す名前。サービスの名前なので、翻訳しない。
 const destinationName = 'Simkl';
@@ -49,6 +53,7 @@ export function DramaRecords({
       query DramaRecordsQuery {
         dramaRecordSettings {
           enabled
+          thresholdPercent
           destinations {
             destination
             available
@@ -155,6 +160,7 @@ export function DramaRecords({
           {t('dramaRecords.watchlistLink')}
         </Anchor>
       </Text>
+      <DramaRecordSettings thresholdPercent={settings.thresholdPercent} onSaved={refresh} />
       {callbackError !== null && (
         <Alert color="red" role="alert" withCloseButton onClose={onDismiss}>
           {t(`animeRecords.callbackErrors.${callbackError}`)}
@@ -250,5 +256,64 @@ export function DramaRecords({
         );
       })}
     </Stack>
+  );
+}
+
+// DramaRecordSettings は、見たドラマの話にする割合と、この端末で見たドラマを記録するかを変える (#1649)。見たアニメの設定とは別に持つ。
+// Simkl と連携していなくても、Kotatsu の中の見た話 (#1652) に効くので、TMDb との連携が有効なら出す。
+// 割合は、アニメの記録の設定と同じく、欄を離れたときか Enter で、1〜100 に収まっていれば保存する (#1740)。
+function DramaRecordSettings({
+  thresholdPercent,
+  onSaved,
+}: {
+  thresholdPercent: number;
+  onSaved: () => void;
+}) {
+  const { t } = useTranslation();
+  const environment = useRelayEnvironment();
+  const { save } = useAutoSave();
+  const deviceSave = useDeviceSave();
+  const [recordOnDevice, setRecordOnDevice] = useRecordOnDevice('drama');
+
+  return (
+    <Card withBorder>
+      <Stack gap="sm">
+        <Title order={4} size="h5">
+          {t('dramaRecords.settingsTitle')}
+        </Title>
+        <Switch
+          label={t('dramaRecords.recordOnDevice')}
+          description={t('dramaRecords.recordOnDeviceHelp')}
+          checked={recordOnDevice}
+          onChange={(event) => deviceSave(setRecordOnDevice)(event.currentTarget.checked)}
+        />
+        <AutoSaveNumberInput
+          label={t('dramaRecords.threshold')}
+          description={t('dramaRecords.thresholdHelp')}
+          min={1}
+          max={100}
+          allowDecimal={false}
+          suffix="%"
+          maw={240}
+          value={thresholdPercent}
+          onSave={(value) =>
+            save(async () => {
+              await mutate<DramaRecordsSettingsMutation>(
+                environment,
+                graphql`
+                  mutation DramaRecordsSettingsMutation($input: DramaRecordSettingsInput!) {
+                    updateDramaRecordSettings(input: $input) {
+                      thresholdPercent
+                    }
+                  }
+                `,
+                { input: { thresholdPercent: value } },
+              );
+              onSaved();
+            })
+          }
+        />
+      </Stack>
+    </Card>
   );
 }

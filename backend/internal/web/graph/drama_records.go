@@ -7,6 +7,7 @@ import (
 	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/secretbox"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramalibrary"
 	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -87,7 +88,12 @@ func (r *Resolver) dramaRecordSettings(ctx context.Context, userID uuid.UUID) (*
 		destinations = append(destinations, status)
 	}
 
-	return &model.DramaRecordSettings{Enabled: availability.LinkingEnabled, Destinations: destinations}, nil
+	percent, err := dramalibrary.ThresholdPercent(ctx, r.db, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.DramaRecordSettings{Enabled: availability.LinkingEnabled, ThresholdPercent: percent, Destinations: destinations}, nil
 }
 
 // dramaRecordError は、ドラマの記録のエラーを、エラーコードを持つエラーにする。

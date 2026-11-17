@@ -524,8 +524,9 @@ type ComplexityRoot struct {
 	}
 
 	DramaRecordSettings struct {
-		Destinations func(childComplexity int) int
-		Enabled      func(childComplexity int) int
+		Destinations     func(childComplexity int) int
+		Enabled          func(childComplexity int) int
+		ThresholdPercent func(childComplexity int) int
 	}
 
 	DramaSeries struct {
@@ -986,7 +987,7 @@ type ComplexityRoot struct {
 		RenameRecordingFiles          func(childComplexity int, ids []string) int
 		RenameRuleGroup               func(childComplexity int, id string, name string) int
 		ReorderRuleGroups             func(childComplexity int, ids []string) int
-		ReportAnimePlayback           func(childComplexity int, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) int
+		ReportAnimePlayback           func(childComplexity int, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput, anime bool, drama bool) int
 		ResetRecordingFailureCounts   func(childComplexity int, reasons []domain.RecordingFailureReason) int
 		ResetUserPassword             func(childComplexity int, id string, password string) int
 		RetryJob                      func(childComplexity int, id string) int
@@ -1018,6 +1019,7 @@ type ComplexityRoot struct {
 		UpdateChannelType             func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
 		UpdateDramaLinkingToken       func(childComplexity int, token string) int
 		UpdateDramaRecordApp          func(childComplexity int, destination model.DramaRecordDestination, input model.DramaRecordAppInput) int
+		UpdateDramaRecordSettings     func(childComplexity int, input model.DramaRecordSettingsInput) int
 		UpdateDramaTitleOverride      func(childComplexity int, input model.DramaTitleOverrideInput) int
 		UpdateGoogleApp               func(childComplexity int, input model.GoogleAppInput) int
 		UpdateGuideView               func(childComplexity int, id string, input model.GuideViewInput) int
@@ -1938,7 +1940,7 @@ type MutationResolver interface {
 	BeginAnimeRecordConnection(ctx context.Context, destination model.AnimeRecordDestination) (string, error)
 	DisconnectAnimeRecord(ctx context.Context, destination model.AnimeRecordDestination) (*model.AnimeRecordSettings, error)
 	UpdateAnimeRecordSettings(ctx context.Context, input model.AnimeRecordSettingsInput) (*model.AnimeRecordSettings, error)
-	ReportAnimePlayback(ctx context.Context, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) (bool, error)
+	ReportAnimePlayback(ctx context.Context, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput, anime bool, drama bool) (bool, error)
 	RecordAnimeEpisodes(ctx context.Context, input model.RecordAnimeEpisodesInput) (bool, error)
 	RefreshAnimeWishlist(ctx context.Context) (bool, error)
 	CreateAnimeWishlistRule(ctx context.Context, tid int) (*model.Rule, error)
@@ -1961,6 +1963,7 @@ type MutationResolver interface {
 	BeginDramaRecordConnection(ctx context.Context, destination model.DramaRecordDestination) (string, error)
 	DisconnectDramaRecord(ctx context.Context, destination model.DramaRecordDestination) (*model.DramaRecordSettings, error)
 	ImportDramaWatchlist(ctx context.Context, force bool) (bool, error)
+	UpdateDramaRecordSettings(ctx context.Context, input model.DramaRecordSettingsInput) (*model.DramaRecordSettings, error)
 	UpdateGoogleApp(ctx context.Context, input model.GoogleAppInput) (*model.GoogleIntegration, error)
 	BeginGoogleDriveConnection(ctx context.Context) (string, error)
 	DisconnectGoogleDrive(ctx context.Context) (*model.GoogleIntegration, error)
@@ -3983,6 +3986,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DramaRecordSettings.Enabled(childComplexity), true
+	case "DramaRecordSettings.thresholdPercent":
+		if e.ComplexityRoot.DramaRecordSettings.ThresholdPercent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordSettings.ThresholdPercent(childComplexity), true
 
 	case "DramaSeries.name":
 		if e.ComplexityRoot.DramaSeries.Name == nil {
@@ -6167,7 +6176,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.ReportAnimePlayback(childComplexity, args["serviceId"].(*string), args["recordingId"].(*string), args["intervals"].([]*model.PlaybackIntervalInput)), true
+		return e.ComplexityRoot.Mutation.ReportAnimePlayback(childComplexity, args["serviceId"].(*string), args["recordingId"].(*string), args["intervals"].([]*model.PlaybackIntervalInput), args["anime"].(bool), args["drama"].(bool)), true
 	case "Mutation.resetRecordingFailureCounts":
 		if e.ComplexityRoot.Mutation.ResetRecordingFailureCounts == nil {
 			break
@@ -6504,6 +6513,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateDramaRecordApp(childComplexity, args["destination"].(model.DramaRecordDestination), args["input"].(model.DramaRecordAppInput)), true
+	case "Mutation.updateDramaRecordSettings":
+		if e.ComplexityRoot.Mutation.UpdateDramaRecordSettings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDramaRecordSettings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDramaRecordSettings(childComplexity, args["input"].(model.DramaRecordSettingsInput)), true
 	case "Mutation.updateDramaTitleOverride":
 		if e.ComplexityRoot.Mutation.UpdateDramaTitleOverride == nil {
 			break
@@ -10623,6 +10643,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("CreateUserInput", ec.unmarshalInputCreateUserInput),
 			graphql.NewInputUnmarshaler("CreateWebhookInput", ec.unmarshalInputCreateWebhookInput),
 			graphql.NewInputUnmarshaler("DramaRecordAppInput", ec.unmarshalInputDramaRecordAppInput),
+			graphql.NewInputUnmarshaler("DramaRecordSettingsInput", ec.unmarshalInputDramaRecordSettingsInput),
 			graphql.NewInputUnmarshaler("DramaTitleOverrideInput", ec.unmarshalInputDramaTitleOverrideInput),
 			graphql.NewInputUnmarshaler("DrcsReplacementInput", ec.unmarshalInputDrcsReplacementInput),
 			graphql.NewInputUnmarshaler("GenreInput", ec.unmarshalInputGenreInput),
@@ -11452,8 +11473,15 @@ extend type Mutation {
   区間は、番組ごとに重ねずにまとめるので、同じ区間を送り直しても、複数のタブから送っても、多く数えない。
   番組の長さのうち、決めた割合を見たら、結びついた話を記録する。TMDb の話に結びついたドラマの番組なら、見たドラマの話にする (#1652)。
   記録の対象でなければ (アニメの連携が無効か連携しておらず、TMDb との連携も無効) false を返す。
+  anime と drama は、この端末で見たアニメと見たドラマを記録するか (端末ごとの設定。#1283、#1649)。false のほうは記録しない。
   """
-  reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
+  reportAnimePlayback(
+    serviceId: ID
+    recordingId: ID
+    intervals: [PlaybackIntervalInput!]!
+    anime: Boolean! = true
+    drama: Boolean! = true
+  ): Boolean!
 }
 
 """
@@ -12396,7 +12424,19 @@ type DramaRecordDestinationStatus {
 type DramaRecordSettings {
   "管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。"
   enabled: Boolean!
+  """
+  番組の長さのうち、何 % を実際に再生したら、見たドラマの話にするか (1〜100)。見た話は、連携した Simkl にも記録する。
+  見たアニメを記録する割合とは別に持つ。
+  """
+  thresholdPercent: Int!
   destinations: [DramaRecordDestinationStatus!]!
+}
+
+"""
+見たドラマの記録の設定の変更 (#1649)。
+"""
+input DramaRecordSettingsInput {
+  thresholdPercent: Int!
 }
 
 extend type Query {
@@ -12427,6 +12467,8 @@ extend type Mutation {
   取り込み終えて見ている作品が変わったら、dataChanged の DRAMA_WATCHLIST で知らせる。
   """
   importDramaWatchlist(force: Boolean! = false): Boolean!
+  "ログイン中のユーザーの、見たドラマの記録の設定を変える (#1649)。視聴者も使える。割合が 1〜100 でなければ BAD_USER_INPUT を返す。"
+  updateDramaRecordSettings(input: DramaRecordSettingsInput!): DramaRecordSettings!
 }
 `, BuiltIn: false},
 	{Name: "../schema/epg.graphqls", Input: `"""
@@ -17000,6 +17042,8 @@ func (ec *executionContext) childFields_DramaRecordSettings(ctx context.Context,
 	switch field.Name {
 	case "enabled":
 		return ec.fieldContext_DramaRecordSettings_enabled(ctx, field)
+	case "thresholdPercent":
+		return ec.fieldContext_DramaRecordSettings_thresholdPercent(ctx, field)
 	case "destinations":
 		return ec.fieldContext_DramaRecordSettings_destinations(ctx, field)
 	}
@@ -20401,6 +20445,22 @@ func (ec *executionContext) field_Mutation_reportAnimePlayback_args(ctx context.
 		return nil, err
 	}
 	args["intervals"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "anime",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["anime"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "drama",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["drama"] = arg4
 	return args, nil
 }
 
@@ -20997,6 +21057,20 @@ func (ec *executionContext) field_Mutation_updateDramaRecordApp_args(ctx context
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDramaRecordSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.DramaRecordSettingsInput, error) {
+			return ec.unmarshalNDramaRecordSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordSettingsInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -28835,6 +28909,29 @@ func (ec *executionContext) fieldContext_DramaRecordSettings_enabled(_ context.C
 	return graphql.NewScalarFieldContext("DramaRecordSettings", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _DramaRecordSettings_thresholdPercent(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordSettings_thresholdPercent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ThresholdPercent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordSettings_thresholdPercent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordSettings", field, false, false, "Int")
+}
+
 func (ec *executionContext) _DramaRecordSettings_destinations(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34828,7 +34925,7 @@ func (ec *executionContext) _Mutation_reportAnimePlayback(ctx context.Context, f
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ReportAnimePlayback(ctx, fc.Args["serviceId"].(*string), fc.Args["recordingId"].(*string), fc.Args["intervals"].([]*model.PlaybackIntervalInput))
+			return ec.Resolvers.Mutation().ReportAnimePlayback(ctx, fc.Args["serviceId"].(*string), fc.Args["recordingId"].(*string), fc.Args["intervals"].([]*model.PlaybackIntervalInput), fc.Args["anime"].(bool), fc.Args["drama"].(bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
@@ -35737,6 +35834,50 @@ func (ec *executionContext) fieldContext_Mutation_importDramaWatchlist(ctx conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_importDramaWatchlist_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDramaRecordSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDramaRecordSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDramaRecordSettings(ctx, fc.Args["input"].(model.DramaRecordSettingsInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaRecordSettings) graphql.Marshaler {
+			return ec.marshalNDramaRecordSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDramaRecordSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaRecordSettings(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDramaRecordSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -57647,6 +57788,48 @@ func UnmarshalDramaRecordAppInput(ctx context.Context, raw any) (model.DramaReco
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputDramaRecordSettingsInput(ctx context.Context, obj any) (model.DramaRecordSettingsInput, error) {
+	var it model.DramaRecordSettingsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"thresholdPercent"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "thresholdPercent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("thresholdPercent"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ThresholdPercent = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalDramaRecordSettingsInput unmarshals raw into the DramaRecordSettingsInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalDramaRecordSettingsInput(ctx context.Context, raw any) (model.DramaRecordSettingsInput, error) {
+	var out model.DramaRecordSettingsInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "DramaRecordSettingsInput", raw, &out)
+	return out, err
+}
+
 func (ec *executionContext) unmarshalInputDramaTitleOverrideInput(ctx context.Context, obj any) (model.DramaTitleOverrideInput, error) {
 	var it model.DramaTitleOverrideInput
 	if obj == nil {
@@ -63313,6 +63496,11 @@ func (ec *executionContext) _DramaRecordSettings(ctx context.Context, sel ast.Se
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "thresholdPercent":
+			out.Values[i] = ec._DramaRecordSettings_thresholdPercent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "destinations":
 			out.Values[i] = ec._DramaRecordSettings_destinations(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -66166,6 +66354,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "importDramaWatchlist":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_importDramaWatchlist(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateDramaRecordSettings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDramaRecordSettings(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -73902,6 +74097,11 @@ func (ec *executionContext) marshalNDramaRecordSettings2ᚖgithubᚗcomᚋSlashN
 		return graphql.Null
 	}
 	return ec._DramaRecordSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDramaRecordSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordSettingsInput(ctx context.Context, v any) (model.DramaRecordSettingsInput, error) {
+	res, err := ec.unmarshalInputDramaRecordSettingsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNDramaSeries2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeries(ctx context.Context, sel ast.SelectionSet, v *model.DramaSeries) graphql.Marshaler {

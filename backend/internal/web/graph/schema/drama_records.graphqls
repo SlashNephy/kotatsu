@@ -64,7 +64,19 @@ type DramaRecordDestinationStatus {
 type DramaRecordSettings {
   "管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。"
   enabled: Boolean!
+  """
+  番組の長さのうち、何 % を実際に再生したら、見たドラマの話にするか (1〜100)。見た話は、連携した Simkl にも記録する。
+  見たアニメを記録する割合とは別に持つ。
+  """
+  thresholdPercent: Int!
   destinations: [DramaRecordDestinationStatus!]!
+}
+
+"""
+見たドラマの記録の設定の変更 (#1649)。
+"""
+input DramaRecordSettingsInput {
+  thresholdPercent: Int!
 }
 
 extend type Query {
@@ -95,4 +107,6 @@ extend type Mutation {
   取り込み終えて見ている作品が変わったら、dataChanged の DRAMA_WATCHLIST で知らせる。
   """
   importDramaWatchlist(force: Boolean! = false): Boolean!
+  "ログイン中のユーザーの、見たドラマの記録の設定を変える (#1649)。視聴者も使える。割合が 1〜100 でなければ BAD_USER_INPUT を返す。"
+  updateDramaRecordSettings(input: DramaRecordSettingsInput!): DramaRecordSettings!
 }
