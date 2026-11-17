@@ -74,6 +74,8 @@ jobs:
       # アップロードできたときは、Code scanning で開いているアラートを数える。dismiss したものは数えない。
       # アップロードしないとき (フォークからの PR) と、アップロードに失敗したときは、SARIF の結果を数える。
       # SARIF には dismiss が載らないので、抑制 (suppressions) されたものと、もう無いもの (baselineState が absent) だけを除く。
+      # PR では、action が送るときに変わった行の結果だけに絞る (diff-informed analysis)。output の SARIF は絞る前のものなので、
+      # SARIF で数えるときは、main にあるアラートも数える。
       - name: Fail on alerts
         if: ${{ !cancelled() && (steps.analyze.outcome == 'success' || steps.analyze.outcome == 'failure') }}
         env:
