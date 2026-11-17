@@ -49,6 +49,7 @@ type Guard func(ctx context.Context, tx pgx.Tx) error
 //   - 予約はあるのに、どのルールにも一致しなくなった番組は、放送が始まっていなければルール予約を消す。
 //     無効にしたルール予約も、一致しなくなれば消す。一致している間は、無効のまま残すので作り直されない。
 //     ただし、放送の直前 (猶予の内) の予約と、番組名が空の番組の予約は、結び付いたルールが有効な間は残す (#1501)。
+//     番組が EPG から消えた予約は残すが、同じ枠にルールに一致する別のイベントの番組が出ていれば、差し替えられたとみなして消す (#518、#1875)。
 //   - 手動の番組予約がある番組は、手動の設定を優先する。一致したルールの関係だけを残す。
 //
 // あわせて、ユーザーごとの視聴ルールも同じ番組に照合し、一致した番組に視聴予約を付ける (設計書 4.8)。
@@ -139,7 +140,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		duplicates := map[programKey]*skippedProgram{}
 		// 重複の回避と同じ回の束ねで外した番組は、絞り込みの中で duplicates に入る。前の回を比べる相手を選ぶのにも、
 		// apply と同じ残し方を使うので、絞り込む前に作る。
-		keep := newKeepPolicy(now, system.RuleUnmatchedGrace(), rules, duplicates)
+		keep := newKeepPolicy(now, system.RuleUnmatchedGrace(), rules, duplicates, matched)
 		desired, err := e.narrow(ctx, tx, now, matched, duplicates, keep, result)
 		if err != nil {
 			return err
@@ -188,7 +189,9 @@ func (e *Engine) desired(
 		skipped = map[programKey]*skippedProgram{}
 	}
 
-	return e.narrow(ctx, tx, now, matched, skipped, newKeepPolicy(now, system.RuleUnmatchedGrace(), rules, skipped), result)
+	keep := newKeepPolicy(now, system.RuleUnmatchedGrace(), rules, skipped, matched)
+
+	return e.narrow(ctx, tx, now, matched, skipped, keep, result)
 }
 
 // narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避、イベント共有、同じ回の束ね、前の回を録らない設定で絞り込み、
@@ -579,6 +582,44 @@ type keepPolicy struct {
 	enabled map[uuid.UUID]bool
 	// duplicates は、重複の回避と同じ回の束ねで、予約すべき集合から外した番組。
 	duplicates map[programKey]*skippedProgram
+	// slots は、サービスごとの、有効なルールのどれかに一致した、EPG にある番組の放送の枠 (#1875)。
+	// 絞り込む前の一致で作るので、apply と、前の回を比べる相手を選ぶ removedRuleReservations で同じものを見る。
+	slots map[int64][]broadcastSlot
+}
+
+// broadcastSlot は、番組の放送の枠 [startAt, endAt)。
+type broadcastSlot struct {
+	startAt time.Time
+	endAt   time.Time
+}
+
+// replaced は、EPG から消えた番組の予約 row の枠に、ルールに一致した別の番組が出ているかを返す (#1875)。
+// 局が番組を別のイベント ID で出し直して差し替えると、古いイベントは EPG から消え、同じ枠に新しいイベントが入る。
+// 重なりが短い方の長さの半分を超えるときだけ、同じ枠とみなす。前後の回が少し重なっただけで、一時的に消えた回の予約を消さないためである。
+func (k *keepPolicy) replaced(row *sqlc.ListFutureProgramReservationsRow) bool {
+	return slices.ContainsFunc(k.slots[row.ServiceID], func(s broadcastSlot) bool {
+		start := latest(row.StartAt, s.startAt)
+		end := earliest(row.EndAt, s.endAt)
+		shorter := min(row.EndAt.Sub(row.StartAt), s.endAt.Sub(s.startAt))
+
+		return end.Sub(start)*2 > shorter
+	})
+}
+
+func latest(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+
+	return b
+}
+
+func earliest(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+
+	return b
 }
 
 // removesNow は、番組の予約を、録画済みで外れたので猶予の内でもすぐ消すかどうかを返す。
@@ -588,13 +629,20 @@ func (k *keepPolicy) removesNow(key programKey) bool {
 	return s != nil && s.immediate()
 }
 
-func newKeepPolicy(now time.Time, grace time.Duration, rules []*compiledRule, duplicates map[programKey]*skippedProgram) *keepPolicy {
+// newKeepPolicy は keepPolicy を作る。matched は、ルールに一致した番組で、絞り込む前に渡す。
+func newKeepPolicy(
+	now time.Time, grace time.Duration, rules []*compiledRule, duplicates map[programKey]*skippedProgram, matched map[programKey]*desiredProgram,
+) *keepPolicy {
 	enabled := make(map[uuid.UUID]bool, len(rules))
 	for _, r := range rules {
 		enabled[r.ID] = true
 	}
+	slots := map[int64][]broadcastSlot{}
+	for key, d := range matched {
+		slots[key.serviceID] = append(slots[key.serviceID], broadcastSlot{startAt: d.row.StartAt, endAt: d.row.EndAt})
+	}
 
-	return &keepPolicy{graceUntil: now.Add(grace), enabled: enabled, duplicates: duplicates}
+	return &keepPolicy{graceUntil: now.Add(grace), enabled: enabled, duplicates: duplicates, slots: slots}
 }
 
 // apply は、予約すべき集合と既存の予約を突き合わせる。
@@ -778,6 +826,10 @@ func keepsUnmatched(row *sqlc.ListFutureProgramReservationsRow, have map[uuid.UU
 	case linksAny(have, result.Skipped):
 		// 照合から外したルールに結び付いた予約は、一致しなくなったとはみなさない (#529)。
 		return true
+	case row.Enabled && !row.Listed && keep.replaced(row):
+		// 番組が EPG から消え、同じ枠に、ルールに一致する別のイベントの番組が出た。局が番組を出し直して差し替えたので、
+		// 残すと同じ放送を 2 本録る。猶予の内でも消す (#1875)。無効の予約は録らず、取り消しの記録 (#1504) にもなるので残す。
+		return false
 	case !row.Decided && len(have) > 0:
 		// 番組が EPG から消えたか、終了時刻が未定になった。どちらも一時的なことがあり、消すと録り逃す (#518)。
 		// ルールを消して関係もなくなったときは、消したルールの予約で録画しないよう、消す。
