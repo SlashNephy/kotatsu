@@ -47,6 +47,12 @@ export function insertByTime(
   return [...comments.slice(0, i), comment, ...comments.slice(i)];
 }
 
+// commentKey は、取り直した過去ログのコメントが、もう取ってあるものと同じかを見分けるキー。
+// 同じ時間帯の基準で取るので、同じコメントは同じ時刻になる。
+function commentKey(comment: JikkyoComment): string {
+  return JSON.stringify([comment.time, comment.content, comment.mail, comment.userId ?? null]);
+}
+
 // useRecordedJikkyo は、録画の再生で、録画の時間帯の実況の過去ログを流す (設計書 7.4)。
 // 過去ログは、tenban が過去ログ API から取って中継する。url が null なら、何もしない。
 // clock は、録画の始まりからの再生位置 (秒) を返す。過去ログの時刻も、録画の始まりからの秒。
@@ -63,6 +69,9 @@ export function useRecordedJikkyo(
   othersUrl: string | null = null,
   // nicolog は、上映会のコメント (NICOLOG) の URL と、録画の CM の区間 (#1363)。ソースをオプトインしていれば渡す。
   nicolog: { url: string; cmSections: readonly CmSection[] } | null = null,
+  // growing は、過去ログの時間帯がまだ伸びるかどうか (#1910)。ライブラリのファイルは、索引を作り終えるまで終わりが伸びる。
+  // 伸びる途中に取った過去ログは、伸び終えたら取り直し、足りなかったコメントだけを足す。流しているコメントは消さない。
+  growing = false,
 ): {
   overlay: ReactNode;
   state: RecordedJikkyoState | null;
@@ -75,6 +84,8 @@ export function useRecordedJikkyo(
 } {
   // cache は、取った過去ログ。画質を変えて描く canvas が作り直されても、実況を切って入れ直しても、取り直さずに渡す。
   const cache = useRef(new Map<string, JikkyoComment[]>());
+  // grown は、時間帯が伸びる途中に取った過去ログの URL (#1910)。伸び終えたら取り直す。
+  const grown = useRef(new Set<string>());
   const canvas = useRef<CommentCanvasHandle | null>(null);
   const [state, setState] = useState<RecordedJikkyoState | null>(null);
   const [comments, setComments] = useState<readonly JikkyoComment[] | null>(null);
@@ -205,15 +216,19 @@ export function useRecordedJikkyo(
       return;
     }
     const cached = cache.current.get(url);
+    // refresh は、伸びる途中に取った過去ログを、伸び終えたので取り直すかどうか。取り直す間も、取ってあるコメントを流し続ける。
+    const refresh = cached !== undefined && !growing && grown.current.has(url);
     if (cached !== undefined) {
       setState({ kind: 'loaded', count: cached.length });
       setComments(cached);
-
-      return;
+      if (!refresh) {
+        return;
+      }
+    } else {
+      setComments(null);
+      setState({ kind: 'loading' });
     }
-    setComments(null);
     const controller = new AbortController();
-    setState({ kind: 'loading' });
     void fetch(url, { signal: controller.signal, credentials: 'same-origin' })
       .then(async (response) => {
         if (!response.ok) {
@@ -224,24 +239,37 @@ export function useRecordedJikkyo(
       })
       .then((body) => {
         // 過去ログが届く前に、リアルタイムのコメントが届いていることがある。上書きせず、流す時刻の順に合わせる。
-        const received = cache.current.get(url) ?? [];
+        // 取り直したときは、取り直した過去ログで置き換える。伸びる途中の終わりは見込みなので、取り直すと縮むこともある。
+        // canvas には、まだ渡していないコメントだけを足す。渡したコメントは、canvas から消せないが、縮んだ分は再生の終わりより後なので流れない。
+        const received = refresh ? [] : (cache.current.get(url) ?? []);
+        const known = refresh ? new Set((cache.current.get(url) ?? []).map(commentKey)) : null;
+        const fresh =
+          known === null
+            ? body.comments
+            : body.comments.filter((comment) => !known.has(commentKey(comment)));
         const merged = [...body.comments, ...received].sort((a, b) => a.time - b.time);
         cache.current.set(url, merged);
+        if (growing) {
+          grown.current.add(url);
+        } else {
+          grown.current.delete(url);
+        }
         if (body.origin !== null) {
           origin.current.set(url, body.origin);
         }
-        canvas.current?.add(body.comments);
+        canvas.current?.add(fresh);
         setState({ kind: 'loaded', count: body.comments.length });
         setComments(merged);
       })
       .catch(() => {
-        if (!controller.signal.aborted) {
+        // 取り直しに失敗したら、取ってある過去ログを流し続ける。次に実況を入れ直したときに、また取り直す。
+        if (!controller.signal.aborted && !refresh) {
           setState({ kind: 'error' });
         }
       });
 
     return () => controller.abort();
-  }, [url]);
+  }, [url, growing]);
 
   // 録画中の間は、リアルタイムのコメントを受け取り、書き込まれた時刻の放送に当たる位置に流す (#1515)。過去ログと同じく、
   // 書き込まれた時刻を使うので、届くまでの遅れの分だけ後ろにずれない。tenban が書き込まれた時刻を知らせなければ、届いた時刻にする。
