@@ -2,9 +2,10 @@
 
 Kotatsuを動かすには、PostgreSQLと、チューナーサーバーが1つ必要です。
 チューナーサーバーには、Mirakurun、mirakc、Mahironのどれかか、EDCBのEpgTimerSrvを使えます。EDCBを使うときは、[EDCBを使う](#edcbを使う)も読んでください。
-CIでは、PostgreSQL 17で動作を確認しています。
+PostgreSQLは17以降に対応し、CIでは17と18で動作を確認しています。
+SQLiteなどのほかのDBには対応しません。
 
-このドキュメントの手順は、Docker ComposeとHelmの2通りです。
+このドキュメントの手順は、Docker Compose、Helm、バイナリの3通りです。
 設定の項目は[設定](configuration.md)に、運用の注意点は[運用](operations.md)にまとめました。
 
 ## コンテナイメージ
@@ -224,6 +225,194 @@ helm install kotatsu ./deploy/helm/kotatsu -f values.yaml
 インストールと更新の前に、Chartのフックが`kotatsu migrate`のJobを実行し、DBのスキーマを更新します。
 
 続けて、[最初の管理者を作る](#最初の管理者を作る)に進んでください。
+
+## バイナリで動かす
+
+[リリース](https://github.com/SlashNephy/kotatsu/releases)に、Linux、macOS、Windows向けのアーカイブ（amd64とarm64）を添えています。
+バイナリで動かすときは、PostgreSQLを自分で用意してください。
+ここでは、Kotatsuと同じマシンにPostgreSQLを入れる手順を、OSごとに書きます。
+コマンドはPostgreSQLの公式の案内（[ダウンロードのページ](https://www.postgresql.org/download/)）に沿っています。
+
+### PostgreSQLを入れる
+
+KotatsuはPostgreSQL 17以降を使います。
+OSのパッケージのPostgreSQLが16以前なら、PostgreSQLの開発者が配るリポジトリ（PGDG）から18を入れてください。
+
+| OS | OSのパッケージの版 | 入れ方 |
+| --- | --- | --- |
+| Windows | なし | [EDBのインストーラー](#windows) |
+| macOS | なし | [Homebrew](#macos) |
+| Debian 13（trixie） | 17 | [OSのパッケージ](#debianubunturaspberry-pi-os) |
+| Debian 12（bookworm） | 15 | [PGDG](#debianubunturaspberry-pi-os) |
+| Ubuntu 26.04 | 18 | [OSのパッケージ](#debianubunturaspberry-pi-os) |
+| Ubuntu 24.04、22.04 | 16、14 | [PGDG](#debianubunturaspberry-pi-os) |
+| Raspberry Pi OS（trixie） | 17 | [OSのパッケージ](#debianubunturaspberry-pi-os) |
+| RHEL、Rocky Linux、AlmaLinux 8〜10 | 16以前 | [PGDG](#rhel系) |
+
+#### Windows
+
+公式の案内にある、EDBのインストーラーで入れます。
+
+1. [Windows向けのダウンロードのページ](https://www.postgresql.org/download/windows/)から、EDBのインストーラーの18を取ってきて、実行します。
+2. 入れる部品は、「PostgreSQL Server」と「Command Line Tools」があれば足ります。「pgAdmin 4」と「Stack Builder」は要りません。
+3. 途中で、スーパーユーザー（`postgres`）のパスワードを決めます。[DBと利用者を作る](#dbと利用者を作る)で使います。
+4. ポートは既定の5432のままにします。
+
+PostgreSQLはWindowsのサービスとして動きます。
+既定の場所に入れると、コマンドは`C:\Program Files\PostgreSQL\18\bin`に入ります。
+
+#### macOS
+
+Homebrewで入れます。
+
+```bash
+brew install postgresql@18
+brew services start postgresql@18
+export PATH="$(brew --prefix postgresql@18)/bin:$PATH"
+```
+
+- `postgresql@18`は、ほかの版と並べて入れられるように、`PATH`に入りません（keg-only）。`createuser`などのコマンドを使う前に、3行目で`PATH`に足してください。
+- 入れるときに、HomebrewがDBのデータ（クラスター）を作ります。スーパーユーザーは、Homebrewで入れたmacOSのユーザーです。
+- `brew services start`は、今と、ログインするたびにPostgreSQLを起動します。
+- 公式の案内には、ほかにEDBのインストーラーとPostgres.appがあります。
+
+#### Debian、Ubuntu、Raspberry Pi OS
+
+OSのパッケージが17以降なら、そのまま入れます。
+
+```bash
+sudo apt install postgresql
+```
+
+OSのパッケージが16以前なら、PGDGのリポジトリを足してから、18を入れます。
+
+```bash
+sudo apt install -y postgresql-common
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+sudo apt install postgresql-18
+```
+
+- どちらでも、入れるとDBのデータが作られ、PostgreSQLが起動します。
+- PGDGはDebian 12と13、Ubuntu 22.04、24.04、26.04に対応します。Ubuntuのarm64はLTSの版だけです。
+- KotatsuのLinux向けのアーカイブはamd64とarm64だけなので、Raspberry Piでは64ビット版のRaspberry Pi OSを使います（Raspberry Pi 3以降など、64ビットのCPUを持つ機種）。
+- PGDGの案内には、Raspberry Pi OSが載っていません。bookwormを元にした古いRaspberry Pi OSでは、Debian 12向けのPGDGで入る見込みですが、確かめていません（推測）。trixieを元にした今のRaspberry Pi OSなら、OSのパッケージで足ります。
+
+#### RHEL系
+
+RHEL、Rocky Linux、AlmaLinuxのAppStreamのPostgreSQLは16以前なので、PGDGから入れます。
+次は9のx86_64の例です。
+8と10では`EL-9`の`9`を、arm64では`x86_64`を`aarch64`に変えてください。
+
+```bash
+sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+sudo dnf install -y postgresql18-server
+sudo /usr/pgsql-18/bin/postgresql-18-setup initdb
+sudo systemctl enable postgresql-18
+sudo systemctl start postgresql-18
+```
+
+- 8では、`postgresql18-server`を入れる前に、`sudo dnf -qy module disable postgresql`でOSのPostgreSQLのモジュールを切ってください。
+- PGDGはOSの新しいほうから2つのマイナーリリース（10.2と10.1など）にだけ対応します。古いマイナーリリースのままだと、リポジトリが見つからずに失敗するので、先にOSを更新してください。
+
+### DBと利用者を作る
+
+Kotatsuが使う利用者とDBを作ります。
+DBの所有者はKotatsuの利用者にしてください。
+PostgreSQL 15以降は、`public`スキーマに表を作れるのがDBの所有者だけなので、所有者でないと`kotatsu migrate`が失敗します。
+Kotatsuの利用者に、スーパーユーザーの権限は要りません。
+
+LinuxではOSの`postgres`ユーザーとして、macOSでは入れたユーザーのまま、次のコマンドを実行します。
+1つ目のコマンドがKotatsuの利用者のパスワードを2回尋ねます。
+
+```bash
+# Linux
+sudo -u postgres createuser --pwprompt kotatsu
+sudo -u postgres createdb --owner=kotatsu kotatsu
+
+# macOS
+createuser --pwprompt kotatsu
+createdb --owner=kotatsu kotatsu
+```
+
+WindowsではPowerShellで実行します。
+Kotatsuの利用者のパスワードを2回尋ねた後、それぞれのコマンドが`postgres`のパスワードを尋ねます。
+
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\createuser.exe" -U postgres --pwprompt kotatsu
+& "C:\Program Files\PostgreSQL\18\bin\createdb.exe" -U postgres --owner=kotatsu kotatsu
+```
+
+### Kotatsuをつなぐ
+
+`KOTATSU_DATABASE_URL`に、作った利用者とDBを書きます（[設定](configuration.md#database)）。
+
+```bash
+export KOTATSU_DATABASE_URL='postgres://kotatsu:<パスワード>@127.0.0.1:5432/kotatsu'
+```
+
+WindowsではPowerShellで次のように設定します。
+
+```powershell
+$env:KOTATSU_DATABASE_URL = 'postgres://kotatsu:<パスワード>@127.0.0.1:5432/kotatsu'
+```
+
+パスワードに`@`、`:`、`/`などの記号が入るときは、URLエンコードしてください（`@`は`%40`、`/`は`%2F`）。
+
+DBのスキーマを作ってから、Kotatsuを起動します。
+更新するときも、新しい版で`kotatsu migrate`を実行してから起動し直します（[運用](operations.md)）。
+
+```bash
+kotatsu migrate
+kotatsu all
+```
+
+ほかの設定は[設定](configuration.md)を見てください。
+続けて、[最初の管理者を作る](#最初の管理者を作る)に進んでください。
+
+### 小さいマシンで動かす
+
+PostgreSQLの既定の設定は、メモリが少ないマシンには大きめです。
+Raspberry Piのようなマシンでは、次のように小さくできます。
+
+| 設定 | 既定 | 小さい設定 |
+| --- | --- | --- |
+| `shared_buffers` | 128MB | 16MB |
+| `max_connections` | 100 | 30 |
+| `work_mem` | 4MB | 1MB |
+| `maintenance_work_mem` | 64MB | 16MB |
+| `wal_buffers` | 4MB（`shared_buffers`から決まる） | 1MB |
+| `max_wal_size` | 1GB | 64MB |
+| `min_wal_size` | 80MB | 32MB |
+
+PostgreSQL 18のコンテナに、Kotatsuのスキーマを作り、待機しているときのメモリを測りました（#1254）。
+
+| 設定 | 待機しているときのメモリ |
+| --- | --- |
+| 既定 | 約20〜31MiB |
+| 小さい設定 | 約7〜14MiB |
+
+- 手元のamd64のPCで、データの入っていないDBを測った値です。Raspberry Piでは測っていません。
+- 値はコンテナのメモリ（cgroup）で、ファイルのキャッシュとカーネルが使う分を含みます。同じ設定でも、測るたびに揺れました。
+- データが増えると、キャッシュの分だけ増えます。
+- 小さい設定の値は測るために選んだものです。小さいマシンで長く動かして確かめた値ではありません。`work_mem`を小さくすると、大きな並べ替えが遅くなることがあります（推測）。
+- `max_connections`の30は`kotatsu all`に足りる見込みです（推測）。Kotatsuは接続の数の上限を、pgxの既定（CPUの数と4の大きいほう）のままにしています。
+
+設定は`ALTER SYSTEM`で変えて、PostgreSQLを起動し直します。
+Linuxでは次のように実行します。
+
+```bash
+sudo -u postgres psql \
+  -c "ALTER SYSTEM SET shared_buffers = '16MB'" \
+  -c "ALTER SYSTEM SET max_connections = 30" \
+  -c "ALTER SYSTEM SET work_mem = '1MB'" \
+  -c "ALTER SYSTEM SET maintenance_work_mem = '16MB'" \
+  -c "ALTER SYSTEM SET wal_buffers = '1MB'" \
+  -c "ALTER SYSTEM SET max_wal_size = '64MB'" \
+  -c "ALTER SYSTEM SET min_wal_size = '32MB'"
+sudo systemctl restart postgresql
+```
+
+RHEL系では最後の行の`postgresql`を`postgresql-18`にします。
 
 ## EDCBを使う
 
