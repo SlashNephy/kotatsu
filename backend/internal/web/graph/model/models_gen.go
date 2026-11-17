@@ -979,6 +979,61 @@ type GenreInput struct {
 	Lv2 *int `json:"lv2,omitempty"`
 }
 
+// Google の OAuth クライアントの変更。
+type GoogleAppInput struct {
+	// クライアント ID。空にすると、登録を消し、Google Drive の接続も外す。
+	ClientID string `json:"clientId"`
+	// クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。
+	ClientSecret *string `json:"clientSecret,omitempty"`
+}
+
+// ライブラリとして読む Google Drive の接続 (#1902)。サーバーに 1 つ (管理者のアカウント) だけ持つ。
+type GoogleDriveConnection struct {
+	// 接続した Google のアカウント (メールアドレス)。
+	AccountName string    `json:"accountName"`
+	ConnectedAt time.Time `json:"connectedAt"`
+	// リフレッシュトークンが使えなくなった (取り消された、同意の画面が「テスト中」で期限が切れたなど) と分かった日時。
+	// 使えていれば null。接続し直すまで、Drive を読まない。
+	RevokedAt *time.Time `json:"revokedAt,omitempty"`
+}
+
+// ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。選んだフォルダごとに、ライブラリが 1 つある。
+type GoogleDriveFolder struct {
+	// Drive のフォルダの ID。
+	ID string `json:"id"`
+	// ライブラリの名前。保存先プールの ID と同じ規則 (英小文字、数字、-、_)。
+	LibraryName string `json:"libraryName"`
+	// 選んだときのフォルダの名前。
+	Name    string    `json:"name"`
+	AddedAt time.Time `json:"addedAt"`
+}
+
+// 見せるフォルダを選ぶときに出す、Drive のフォルダ (#1902)。
+type GoogleDriveFolderChoice struct {
+	// Drive のフォルダの ID。マイドライブの根元は root。
+	ID string `json:"id"`
+	// フォルダの名前。マイドライブの根元は "My Drive"。
+	Name string `json:"name"`
+}
+
+// 管理者が登録した Google の OAuth クライアントと、それで接続した Google Drive (#1902、設計書 5.8)。クライアントシークレットとトークンは返さない。
+type GoogleIntegration struct {
+	// 登録したクライアント ID。登録していなければ null。
+	ClientID *string `json:"clientId,omitempty"`
+	// クライアント ID とシークレットを登録したかどうか。
+	Configured bool `json:"configured"`
+	// 管理者が Google Cloud の OAuth クライアント (ウェブアプリケーション) に登録するリダイレクト URI。いま接続しているオリジンから決める。
+	// Google の連携で共有する (/internal/auth/google/callback)。
+	RedirectURI string `json:"redirectUri"`
+	// 最後に変えた日時。登録していなければ null。
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+	// Google Drive の接続。接続していなければ null。
+	Drive *GoogleDriveConnection `json:"drive,omitempty"`
+	// ライブラリとして見せると選んだフォルダを、選んだ順に返す (#1902)。選んだフォルダの下だけを見せ、1 つも選んでいなければ、
+	// ライブラリに Google Drive を出さない。
+	Folders []*GoogleDriveFolder `json:"folders"`
+}
+
 // 番組表ビューの内容。ジャンルで lv2 を省くと、大分類のすべてを表す。
 type GuideViewInput struct {
 	Name               string        `json:"name"`
@@ -1232,6 +1287,9 @@ type LibraryDirectory struct {
 	Library *Library `json:"library"`
 	// ライブラリの中の / 区切りの相対パス。根元は空。
 	Path string `json:"path"`
+	// パスの段ごとの、画面に出す名前。パンくずに使う。フォルダのライブラリでは段そのもの、Google Drive ではフォルダの名前
+	// (マイドライブの根元は "My Drive")。根元なら空。
+	Names []string `json:"names"`
 	// 中のディレクトリと、再生できるファイルを、ディレクトリ、ファイルの順に、それぞれ名前の順に返す。
 	// 隠しファイル、再生できないファイル、ライブラリの外を指すシンボリックリンクは返さない。
 	Entries []*LibraryEntry `json:"entries"`
@@ -1330,6 +1388,22 @@ type LibraryProgram struct {
 	StartAt *time.Time `json:"startAt,omitempty"`
 	// 番組の終わり。未定なら null。
 	EndAt *time.Time `json:"endAt,omitempty"`
+}
+
+// ライブラリの名前の検索で見つけたファイル (#1902)。
+type LibrarySearchHit struct {
+	Entry *LibraryEntry `json:"entry"`
+	// ファイルのあるフォルダの、根元からの段ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
+	// Google Drive では、フォルダの名前 (パスの段は ID)。
+	FolderNames []string `json:"folderNames"`
+}
+
+// ライブラリの名前の検索の結果 (#1902)。
+type LibrarySearchResult struct {
+	// 見つけたファイル。
+	Hits []*LibrarySearchHit `json:"hits"`
+	// 件数の上限や、たどる数の上限で、探すのを打ち切ったかどうか。打ち切ったら、語を足して絞るよう出す。
+	Truncated bool `json:"truncated"`
 }
 
 // ライブのサービスの、PID の種類ごとのビットレートと、TS のパケットの異常の数 (#812)。
@@ -3516,16 +3590,20 @@ const (
 	LibraryKindPool LibraryKind = "POOL"
 	// 設定 (storage.libraries) で足したフォルダ。
 	LibraryKindFolder LibraryKind = "FOLDER"
+	// 管理者が接続した Google Drive (#1902)。接続しているときだけ出す。パスは、名前でなく、マイドライブ (root) か共有ドライブの ID と、
+	// フォルダとファイルの ID を / でつないだもの。
+	LibraryKindGoogleDrive LibraryKind = "GOOGLE_DRIVE"
 )
 
 var AllLibraryKind = []LibraryKind{
 	LibraryKindPool,
 	LibraryKindFolder,
+	LibraryKindGoogleDrive,
 }
 
 func (e LibraryKind) IsValid() bool {
 	switch e {
-	case LibraryKindPool, LibraryKindFolder:
+	case LibraryKindPool, LibraryKindFolder, LibraryKindGoogleDrive:
 		return true
 	}
 	return false

@@ -418,6 +418,20 @@ KubernetesでPodを動かすときは、`kyusu.work_dir`にemptyDirのパスを�
 
 `tmdb.url`は、本物のAPIの代わりに検証用のサーバーへ向けるときだけ設定してください。
 
+### google
+
+Google Driveを、ライブラリとして接続する連携の設定です（[設計書 5.8](spec.v1.md#google-drive)）。
+GoogleのOAuthクライアントのクライアントIDとシークレット、接続は、管理者が連携の画面（`/admin/integrations`）で決めます。
+設定ファイルと環境変数では渡しません。
+Google CloudでOAuthクライアント（ウェブアプリケーション）を作るときは、承認済みのリダイレクトURIに`<Kotatsuの公開URL>/internal/auth/google/callback`を入れてください。連携の画面にも出します。
+
+| YAML | 環境変数 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| `google.url` | `KOTATSU_GOOGLE_URL` | なし（`https://accounts.google.com`、`https://oauth2.googleapis.com`、`https://www.googleapis.com`） | Googleの認可の画面、トークンのAPI、Drive APIを向ける先のオリジン |
+
+`google.url`は、本物のGoogleの代わりに検証用のサーバー（`backend/internal/cmd/fakegoogle`）へ向けるときだけ設定してください。
+Driveを読むtenban、kyusu、nekonoteは、Googleへ通信できる必要があります。
+
 ### backup
 
 nekonoteが定期のバックアップを書き出す先です（[設計書 11.4](spec.v1.md#114-バックアップと更新)）。

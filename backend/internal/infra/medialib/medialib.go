@@ -1,7 +1,8 @@
 // Package medialib は、録画として登録していない TS を再生するために、ファイルを読んでよいフォルダ (ライブラリ) を扱う (設計書 5.8、#1734)。
 //
-// ライブラリの中身は、一覧 (List)、情報 (Stat)、開く (Open) の 3 つの口だけで読む。今はローカルのディレクトリ (Local) だけを実装し、
-// クラウドストレージは、後でこの口に当てはめる。パスは、ライブラリの中の / 区切りの相対パスで表し、ライブラリの外へは出られない。
+// ライブラリの中身は、一覧 (List)、情報 (Stat)、開く (Open) の 3 つの口だけで読む。ローカルのディレクトリ (Local) と、
+// 管理者が接続した Google Drive (Drive、#1902) を、この口に当てはめる。パスは、ライブラリの中の / 区切りの相対パスで表し、
+// ライブラリの外へは出られない。
 package medialib
 
 import (
@@ -72,9 +73,70 @@ type Library interface {
 	Open(ctx context.Context, p string) (File, error)
 }
 
+// Identifier は、ファイルを見分ける値を、ライブラリの名前とパスと別に持つライブラリ。Google Drive では、ライブラリの名前や
+// パスの形が変わっても、同じファイルを同じものとして扱う。持たなければ、ライブラリの名前とパスで見分ける。
+type Identifier interface {
+	// Identity は、ファイル p を見分ける値を、名前空間と、その中の値の組で返す。
+	Identity(p string) (string, string)
+}
+
+// IdentityOf は、ライブラリ l のファイル p を見分ける値を、名前空間と、その中の値の組で返す。索引の置き場と、
+// 再生位置を保存するファイルの ID に使う。
+func IdentityOf(l Library, p string) (string, string) {
+	if identifier, ok := l.(Identifier); ok {
+		return identifier.Identity(p)
+	}
+
+	return l.Name(), p
+}
+
+// LibraryProvider は、実行中に増えたり減ったりするライブラリ (管理者が選んだ Google Drive のフォルダ) を作る。
+type LibraryProvider interface {
+	// Libraries は、今あるライブラリを返す。
+	Libraries(ctx context.Context) ([]Library, error)
+	// Lookup は、名前が name のライブラリを返す。ctx を受け取らないので、覚えたものから引く。
+	Lookup(name string) (Library, bool)
+}
+
+// Namer は、パスの段と、画面に出す名前が違うライブラリ。持たなければ、段をそのまま名前にする。
+type Namer interface {
+	// Names は、パス p の段ごとの名前を返す。根元なら空を返す。
+	Names(ctx context.Context, p string) ([]string, error)
+}
+
+// NamesOf は、ライブラリ l のパス p の段ごとの、画面に出す名前を返す。
+func NamesOf(ctx context.Context, l Library, p string) ([]string, error) {
+	if namer, ok := l.(Namer); ok {
+		return namer.Names(ctx, p)
+	}
+	p, err := CleanPath(p)
+	if err != nil {
+		return nil, err
+	}
+	if p == "" {
+		return []string{}, nil
+	}
+
+	return strings.Split(p, "/"), nil
+}
+
+// Searcher は、名前でファイルを探せるライブラリ。
+type Searcher interface {
+	// Search は、ディレクトリ dir (空なら根元) の下から、名前に query を含む再生できるファイルを、limit 件まで返す。
+	// 2 つ目の戻り値は、上限などで探すのを打ち切ったかどうか。
+	Search(ctx context.Context, dir, query string, limit int) ([]*Entry, bool, error)
+}
+
+// Connector は、使えるかどうかが実行中に変わるライブラリ。管理者が接続したときだけ、ライブラリの一覧に出す。
+type Connector interface {
+	// Connected は、今使えるかどうかを返す。
+	Connected(ctx context.Context) (bool, error)
+}
+
 // Set は、このインスタンスから読めるライブラリの一覧。
 type Set struct {
 	libraries []Library
+	providers []LibraryProvider
 }
 
 // NewSet は、保存先プール (pools、設定に書いた順 poolOrder) と、設定で足したフォルダ (folders) のライブラリの一覧を返す。
@@ -98,10 +160,56 @@ func NewSet(pools map[string]string, poolOrder []string, folders map[string]stri
 		libraries = append(libraries, NewLocal(name, folders[name], KindFolder))
 	}
 
-	return &Set{libraries: libraries}
+	return &Set{libraries: libraries, providers: []LibraryProvider{}}
 }
 
-// All は、ライブラリを、プール、フォルダの順に返す。
+// WithProvider は、実行中に増えたり減ったりするライブラリを作る provider を足した一覧を返す。設定のライブラリと同じ名前のものは出さない。
+func (s *Set) WithProvider(provider LibraryProvider) *Set {
+	return &Set{libraries: s.libraries, providers: append(slices.Clone(s.providers), provider)}
+}
+
+// Names は、設定のライブラリ (保存先プールとフォルダ) の名前を返す。実行中に足すライブラリの名前と重ならないように確かめるのに使う。
+func (s *Set) Names() []string {
+	names := make([]string, 0, len(s.libraries))
+	for _, l := range s.libraries {
+		names = append(names, l.Name())
+	}
+
+	return names
+}
+
+// Available は、今使えるライブラリを、設定のライブラリ、実行中に足したライブラリの順に返す。接続していない Google Drive などは除く。
+func (s *Set) Available(ctx context.Context) ([]Library, error) {
+	candidates := slices.Clone(s.libraries)
+	for _, provider := range s.providers {
+		dynamic, err := provider.Libraries(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, l := range dynamic {
+			if !slices.Contains(s.Names(), l.Name()) {
+				candidates = append(candidates, l)
+			}
+		}
+	}
+	libraries := make([]Library, 0, len(candidates))
+	for _, l := range candidates {
+		if connector, ok := l.(Connector); ok {
+			connected, err := connector.Connected(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if !connected {
+				continue
+			}
+		}
+		libraries = append(libraries, l)
+	}
+
+	return libraries, nil
+}
+
+// All は、設定のライブラリを、プール、フォルダの順に返す。実行中に足したライブラリは含めない。
 func (s *Set) All() []Library {
 	return slices.Clone(s.libraries)
 }
@@ -110,6 +218,11 @@ func (s *Set) All() []Library {
 func (s *Set) Get(name string) (Library, bool) {
 	for _, library := range s.libraries {
 		if library.Name() == name {
+			return library, true
+		}
+	}
+	for _, provider := range s.providers {
+		if library, ok := provider.Lookup(name); ok {
 			return library, true
 		}
 	}

@@ -3,18 +3,20 @@
 import { resumePosition } from '../yunomi/resume';
 
 // LibrarySearch は、ファイラーと再生の画面の URL のクエリ。library はライブラリの名前、path はライブラリの中の / 区切りのパス。
-// ファイラーでは、library を省くとライブラリの一覧を、path を省くとライブラリの根元を出す。
-export type LibrarySearch = { library?: string; path?: string };
+// ファイラーでは、library を省くとライブラリの一覧を、path を省くとライブラリの根元を出す。q は、path の下を名前で探す語 (#1902)。
+export type LibrarySearch = { library?: string; path?: string; q?: string };
 
 // parseLibrarySearch は、URL のクエリを読む。文字列でない値は捨てる。
 export function parseLibrarySearch(search: Record<string, unknown>): LibrarySearch {
   const library =
     typeof search.library === 'string' && search.library !== '' ? search.library : undefined;
   const path = typeof search.path === 'string' && search.path !== '' ? search.path : undefined;
+  const q = typeof search.q === 'string' && search.q.trim() !== '' ? search.q : undefined;
 
   return {
     ...(library === undefined ? {} : { library }),
     ...(path === undefined ? {} : { path }),
+    ...(q === undefined || library === undefined ? {} : { q }),
   };
 }
 
@@ -22,14 +24,45 @@ export function parseLibrarySearch(search: Record<string, unknown>): LibrarySear
 export type Crumb = { name: string; path: string };
 
 // breadcrumbs は、ディレクトリ path (根元は空) の、根元から自分までのパンくずを返す。根元の名前はライブラリの名前にする。
-export function breadcrumbs(library: string, path: string): Crumb[] {
+// names は、サーバーが返した段ごとの名前 (LibraryDirectory.names)。Google Drive ではパスの段が ID なので、名前はこれで出す。
+// 足りなければ、段をそのまま名前にする。
+export function breadcrumbs(library: string, path: string, names: readonly string[] = []): Crumb[] {
   const crumbs: Crumb[] = [{ name: library, path: '' }];
   const parts = path === '' ? [] : path.split('/');
   parts.forEach((part, i) => {
-    crumbs.push({ name: part, path: parts.slice(0, i + 1).join('/') });
+    crumbs.push({ name: names[i] ?? part, path: parts.slice(0, i + 1).join('/') });
   });
 
   return crumbs;
+}
+
+// libraryNamePattern は、ライブラリの名前の規則。保存先プールの ID と同じ (英小文字、数字、-、_ で、英小文字か数字で始まる、63 文字まで)。
+const libraryNamePattern = /^[a-z0-9][a-z0-9_-]{0,62}$/;
+
+// libraryNameProblem は、ライブラリの名前 name の問題を返す。規則に合わなければ 'format' を、taken (ほかのライブラリの名前) と
+// 重なれば 'taken' を、問題がなければ null を返す。保存先プールと重なるかは、サーバーが確かめる。
+export function libraryNameProblem(
+  name: string,
+  taken: readonly string[],
+): 'format' | 'taken' | null {
+  if (!libraryNamePattern.test(name)) {
+    return 'format';
+  }
+
+  return taken.includes(name) ? 'taken' : null;
+}
+
+// suggestLibraryName は、Google Drive のフォルダの名前から、ライブラリの名前の案を作る (#1902)。ライブラリの名前は、保存先プールの ID と
+// 同じ規則 (英小文字、数字、-、_ で、英小文字か数字で始まる、63 文字まで) にする。使えない文字は - にし、何も残らなければ drive にする。
+export function suggestLibraryName(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[-_]+/, '')
+    .slice(0, 63)
+    .replace(/-+$/, '');
+
+  return slug === '' ? 'drive' : slug;
 }
 
 // parentPath は、パス path の親のディレクトリのパスを返す。根元の中なら空。
