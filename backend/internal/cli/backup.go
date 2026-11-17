@@ -72,7 +72,7 @@ func newBackupCommand(opts *Options, connect func(ctx context.Context) (*config.
 // newRestoreCommand は kotatsu admin restore を作る (#1926、設計書 11.4)。
 // kotatsu admin backup のファイルを、age の秘密鍵で読み、空の DB に戻す。
 func newRestoreCommand(opts *Options, connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error)) *cobra.Command {
-	var input, identityFile, secretKeyOut string
+	var input, identityFile, keySavePath string
 	cmd := &cobra.Command{
 		Use:   "restore",
 		Short: "Restore a backup into an empty database",
@@ -93,7 +93,7 @@ func newRestoreCommand(opts *Options, connect func(ctx context.Context) (*config
 			}
 			defer closePool(pool)
 
-			keyOut, err := createSecretKeyFile(secretKeyOut)
+			keyOut, err := createSecretKeyFile(keySavePath)
 			if err != nil {
 				return err
 			}
@@ -115,9 +115,9 @@ func newRestoreCommand(opts *Options, connect func(ctx context.Context) (*config
 			opts.Logger.InfoContext(cmd.Context(), "backup restored",
 				slog.String("path", input), slog.Time("created_at", manifest.CreatedAt), slog.String("kotatsu_version", manifest.KotatsuVersion),
 				slog.Int64("schema_version", manifest.SchemaVersion), slog.Int("tables", len(manifest.Tables)), slog.Int("captures", manifest.Captures))
-			if secretKeyOut != "" {
+			if keySavePath != "" {
 				opts.Logger.WarnContext(cmd.Context(), "the app secret key of the backup was saved; set it as auth.secret_key before starting kotatsu",
-					slog.String("path", secretKeyOut))
+					slog.String("path", keySavePath))
 			}
 
 			return nil
@@ -125,7 +125,7 @@ func newRestoreCommand(opts *Options, connect func(ctx context.Context) (*config
 	}
 	cmd.Flags().StringVarP(&input, "input", "i", "", "path of the backup file to restore")
 	cmd.Flags().StringVar(&identityFile, "identity", "", "file with the age private key (AGE-SECRET-KEY-1...) to decrypt the backup")
-	cmd.Flags().StringVar(&secretKeyOut, "secret-key-out", "", "path to save the app secret key of the backup to (created with mode 0600; it must not exist)")
+	cmd.Flags().StringVar(&keySavePath, "secret-key-out", "", "path to save the app secret key of the backup to (created with mode 0600; it must not exist)")
 	_ = cmd.MarkFlagRequired("input")
 	_ = cmd.MarkFlagRequired("identity")
 
