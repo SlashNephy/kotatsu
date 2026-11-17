@@ -30,3 +30,8 @@ func (r *queryResolver) LibraryDirectory(ctx context.Context, library string, pa
 func (r *queryResolver) LibraryFile(ctx context.Context, library string, path string) (*model.LibraryFile, error) {
 	return r.libraryFile(ctx, library, path)
 }
+
+// LibrarySearch is the resolver for the librarySearch field.
+func (r *queryResolver) LibrarySearch(ctx context.Context, library string, path string, query string) (*model.LibrarySearchResult, error) {
+	return r.librarySearch(ctx, library, path, query)
+}

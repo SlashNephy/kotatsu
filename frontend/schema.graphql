@@ -1722,6 +1722,96 @@ type GoModuleLicense {
   files: [LicenseFile!]!
 }
 """
+Google の OAuth クライアントの変更。
+"""
+input GoogleAppInput {
+  """
+  クライアント ID。空にすると、登録を消し、Google Drive の接続も外す。
+  """
+  clientId: String!
+  """
+  クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。
+  """
+  clientSecret: String
+}
+"""
+ライブラリとして読む Google Drive の接続 (#1902)。サーバーに 1 つ (管理者のアカウント) だけ持つ。
+"""
+type GoogleDriveConnection {
+  """
+  接続した Google のアカウント (メールアドレス)。
+  """
+  accountName: String!
+  connectedAt: Time!
+  """
+  リフレッシュトークンが使えなくなった (取り消された、同意の画面が「テスト中」で期限が切れたなど) と分かった日時。
+  使えていれば null。接続し直すまで、Drive を読まない。
+  """
+  revokedAt: Time
+}
+"""
+ライブラリとして見せると選んだ Google Drive のフォルダ (#1902)。選んだフォルダごとに、ライブラリが 1 つある。
+"""
+type GoogleDriveFolder {
+  """
+  Drive のフォルダの ID。
+  """
+  id: String!
+  """
+  ライブラリの名前。保存先プールの ID と同じ規則 (英小文字、数字、-、_)。
+  """
+  libraryName: String!
+  """
+  選んだときのフォルダの名前。
+  """
+  name: String!
+  addedAt: Time!
+}
+"""
+見せるフォルダを選ぶときに出す、Drive のフォルダ (#1902)。
+"""
+type GoogleDriveFolderChoice {
+  """
+  Drive のフォルダの ID。マイドライブの根元は root。
+  """
+  id: String!
+  """
+  フォルダの名前。マイドライブの根元は "My Drive"。
+  """
+  name: String!
+}
+"""
+管理者が登録した Google の OAuth クライアントと、それで接続した Google Drive (#1902、設計書 5.8)。クライアントシークレットとトークンは返さない。
+"""
+type GoogleIntegration {
+  """
+  登録したクライアント ID。登録していなければ null。
+  """
+  clientId: String
+  """
+  クライアント ID とシークレットを登録したかどうか。
+  """
+  configured: Boolean!
+  """
+  管理者が Google Cloud の OAuth クライアント (ウェブアプリケーション) に登録するリダイレクト URI。いま接続しているオリジンから決める。
+  Google の連携で共有する (/internal/auth/google/callback)。
+  """
+  redirectUri: String!
+  """
+  最後に変えた日時。登録していなければ null。
+  """
+  updatedAt: Time
+  """
+  Google Drive の接続。接続していなければ null。
+  """
+  drive: GoogleDriveConnection
+  """
+  ライブラリとして見せると選んだフォルダを、選んだ順に返す (#1902)。選んだフォルダの下だけを見せ、1 つも選んでいなければ、
+  ライブラリに Google Drive を出さない。
+  """
+  folders: [GoogleDriveFolder!]!
+}
+"""
 番組表の 1 列 (1 つのサービスの番組)。
 """
 type GuideRow {
@@ -2217,6 +2307,11 @@ type LibraryDirectory {
   """
   path: String!
   """
+  パスの段ごとの、画面に出す名前。パンくずに使う。フォルダのライブラリでは段そのもの、Google Drive ではフォルダの名前
+  (マイドライブの根元は "My Drive")。根元なら空。
+  """
+  names: [String!]!
+  """
   中のディレクトリと、再生できるファイルを、ディレクトリ、ファイルの順に、それぞれ名前の順に返す。
   隠しファイル、再生できないファイル、ライブラリの外を指すシンボリックリンクは返さない。
   """
@@ -2371,6 +2466,11 @@ enum LibraryKind {
   設定 (storage.libraries) で足したフォルダ。
   """
   FOLDER
+  """
+  管理者が接続した Google Drive (#1902)。接続しているときだけ出す。パスは、名前でなく、マイドライブ (root) か共有ドライブの ID と、
+  フォルダとファイルの ID を / でつないだもの。
+  """
+  GOOGLE_DRIVE
 }
 """
 ライブラリのファイルの、EIT[p/f] で読んだ番組。
@@ -2388,6 +2488,30 @@ type LibraryProgram {
   番組の終わり。未定なら null。
   """
   endAt: Time
+}
+"""
+ライブラリの名前の検索で見つけたファイル (#1902)。
+"""
+type LibrarySearchHit {
+  entry: LibraryEntry!
+  """
+  ファイルのあるフォルダの、根元からの段ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
+  Google Drive では、フォルダの名前 (パスの段は ID)。
+  """
+  folderNames: [String!]!
+}
+"""
+ライブラリの名前の検索の結果 (#1902)。
+"""
+type LibrarySearchResult {
+  """
+  見つけたファイル。
+  """
+  hits: [LibrarySearchHit!]!
+  """
+  件数の上限や、たどる数の上限で、探すのを打ち切ったかどうか。打ち切ったら、語を足して絞るよう出す。
+  """
+  truncated: Boolean!
 }
 """
 ライセンスの文書のファイル 1 つ。
@@ -2711,6 +2835,36 @@ type Mutation {
   変えた後に、見たかどうかを返す。
   """
   setDramaEpisodeWatched(seriesId: Int!, seasonNumber: Int!, episodeNumber: Int!, watched: Boolean!): Boolean!
+  """
+  Google の OAuth クライアントを変える (#1902)。管理者だけが使える。サーバーが Google と通信し始めるかどうかの元になる値なので、
+  直近の再認証を求める (設計書 9.5)。クライアント ID を空にすると、Google Drive の接続も外す。
+  """
+  updateGoogleApp(input: GoogleAppInput!): GoogleIntegration!
+  """
+  管理者のアカウントで Google Drive を接続する認可を始め、ブラウザーを送り出す Google の認可の画面の URL を返す (#1902)。
+  Google から GET /internal/auth/google/callback に戻ってきたら、接続する。管理者だけが、ブラウザーのセッションでだけ使える。
+  Drive のファイルを家族全員に見せ始める操作なので、直近の再認証を求める。クライアントを登録していなければ CONFLICT を返す。
+  """
+  beginGoogleDriveConnection: String!
+  """
+  Google Drive の接続を外し、リフレッシュトークンを Google で取り消す (#1902)。管理者だけが使える。
+  """
+  disconnectGoogleDrive: GoogleIntegration!
+  """
+  Drive のフォルダ id を、名前 libraryName のライブラリとして見せるフォルダに足す (#1902)。管理者だけが使える。
+  Drive のファイルを家族に見せ始める操作なので、直近の再認証を求める。フォルダでないか、名前が保存先プールの ID と同じ規則
+  (英小文字、数字、-、_) に合わないか、ほかのライブラリやプールと重なれば BAD_USER_INPUT を返す。
+  """
+  addGoogleDriveFolder(id: String!, libraryName: String!): GoogleIntegration!
+  """
+  Drive のフォルダ id のライブラリの名前を変える (#1902)。管理者だけが使える。見せるものは変わらないので、再認証は求めない。
+  再生位置と索引は、Drive のファイルの ID で引くので、名前を変えても引き継ぐ。名前が規則に合わないか重なれば BAD_USER_INPUT を返す。
+  """
+  renameGoogleDriveFolder(id: String!, libraryName: String!): GoogleIntegration!
+  """
+  Drive のフォルダ id を、見せるフォルダから外す (#1902)。管理者だけが使える。
+  """
+  removeGoogleDriveFolder(id: String!): GoogleIntegration!
   """
   ジョブを、すぐに試し直す (#1279)。管理者だけが使える。動いているジョブは試し直せない。監査ログに残す。
   """
@@ -3199,6 +3353,10 @@ enum NetworkActivityPurpose {
   字幕の自動生成のモデルのダウンロード (#1682)
   """
   CAPTION_MODEL_DOWNLOAD
+  """
+  ライブラリとして接続した Google Drive (#1902)
+  """
+  GOOGLE_DRIVE
 }
 """
 ID で引けるもの (Relay の Global Object Identification)。
@@ -3988,6 +4146,15 @@ type Query {
   """
   previewFileName(template: String!, program: ID): FileNamePreview!
   """
+  Google の OAuth クライアントと、Google Drive の接続を返す (#1902)。管理者だけが使える。
+  """
+  googleIntegration: GoogleIntegration!
+  """
+  見せるフォルダを選ぶために、Drive のフォルダ parentId の中のフォルダを、名前の順に返す (#1902)。parentId を省けば、
+  マイドライブと、見える共有ドライブを返す。管理者だけが使える。接続していなければ NOT_FOUND を、フォルダでなければ BAD_USER_INPUT を返す。
+  """
+  googleDriveFolderChoices(parentId: String): [GoogleDriveFolderChoice!]!
+  """
   ログイン中のユーザーの番組表ビュー。
   """
   guideViews: [GuideView!]!
@@ -4013,6 +4180,12 @@ type Query {
   ファイルがないか再生できるファイルでなければ NOT_FOUND を、Blu-ray の 192 バイトのパケットの .m2ts のように TS でなければ BAD_USER_INPUT を返す。
   """
   libraryFile(library: String!, path: String!): LibraryFile!
+  """
+  ライブラリ library の、ディレクトリ path (根元は空) の下から、名前に query を含む再生できるファイルを、名前の順に 100 件まで返す (#1902)。
+  query は前後の空白を除いて 1〜100 文字。フォルダのライブラリは、名前の部分一致 (大文字と小文字を区別しない) で下をたどる。
+  Google Drive は、Drive の名前の検索 (name contains) で探し、path の下にあるものだけを返す。
+  """
+  librarySearch(library: String!, path: String!, query: String!): LibrarySearchResult!
   """
   データディレクトリの、ライブラリのファイルの生成物の量を返す。管理者だけが使える。
   前に片付けたときに消しきれずに残ったものも含める。データディレクトリを設定していなければ CONFLICT を返す。
