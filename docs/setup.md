@@ -345,18 +345,31 @@ Kotatsuの利用者のパスワードを2回尋ねた後、それぞれのコマ
 ### Kotatsuをつなぐ
 
 `KOTATSU_DATABASE_URL`に、作った利用者とDBを書きます（[設定](configuration.md#database)）。
+パスワードに`@`、`:`、`/`などの記号が入るときは、URLエンコードしてください（`@`は`%40`、`/`は`%2F`）。
+
+Kotatsuを起動するには、ほかにアプリの秘密キー（`KOTATSU_AUTH_SECRET_KEY`）とチューナーサーバーのURL（`KOTATSU_TUNER_URL`）も要ります。
+秘密キーは、一度作ったファイルを使い続けてください。
+なくすと、TOTPとWeb Pushの設定し直しと、Webhookの作り直しが必要になります。
+チューナーサーバーにEDCBを使うときは、`KOTATSU_TUNER_URL`の代わりに[EDCBを使う](#edcbを使う)の設定をします。
 
 ```bash
+openssl rand -base64 48 > secret_key.txt
+chmod 600 secret_key.txt
 export KOTATSU_DATABASE_URL='postgres://kotatsu:<パスワード>@127.0.0.1:5432/kotatsu'
+export KOTATSU_AUTH_SECRET_KEY_FILE="$PWD/secret_key.txt"
+export KOTATSU_TUNER_URL='http://<チューナーサーバー>:40772/'
 ```
 
 WindowsではPowerShellで次のように設定します。
 
 ```powershell
+$key = New-Object byte[] 48
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($key)
+[Convert]::ToBase64String($key) | Set-Content secret_key.txt
 $env:KOTATSU_DATABASE_URL = 'postgres://kotatsu:<パスワード>@127.0.0.1:5432/kotatsu'
+$env:KOTATSU_AUTH_SECRET_KEY_FILE = "$PWD\secret_key.txt"
+$env:KOTATSU_TUNER_URL = 'http://<チューナーサーバー>:40772/'
 ```
-
-パスワードに`@`、`:`、`/`などの記号が入るときは、URLエンコードしてください（`@`は`%40`、`/`は`%2F`）。
 
 DBのスキーマを作ってから、Kotatsuを起動します。
 更新するときも、新しい版で`kotatsu migrate`を実行してから起動し直します（[運用](operations.md)）。
@@ -398,7 +411,7 @@ PostgreSQL 18のコンテナに、Kotatsuのスキーマを作り、待機して
 - `max_connections`の30は`kotatsu all`に足りる見込みです（推測）。Kotatsuは接続の数の上限を、pgxの既定（CPUの数と4の大きいほう）のままにしています。
 
 設定は`ALTER SYSTEM`で変えて、PostgreSQLを起動し直します。
-Linuxでは次のように実行します。
+Linux（Debian、Ubuntu、Raspberry Pi OS）では次のように実行します。
 
 ```bash
 sudo -u postgres psql \
@@ -413,6 +426,8 @@ sudo systemctl restart postgresql
 ```
 
 RHEL系では最後の行の`postgresql`を`postgresql-18`にします。
+macOSでは、`sudo -u postgres psql`を`psql postgres`に、最後の行を`brew services restart postgresql@18`にします。
+Windowsでは、`psql.exe -U postgres`で同じ`ALTER SYSTEM`を流し、管理者のPowerShellで`Get-Service postgresql* | Restart-Service`を実行します。
 
 ## EDCBを使う
 
