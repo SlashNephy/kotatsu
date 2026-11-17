@@ -45,6 +45,11 @@ func (e *fakeExtractor) Extract(_ context.Context, r io.Reader, _ thumbnail.Size
 	return out.Bytes(), nil
 }
 
+// constPreview は、プレビュー画像を作るかの設定を、決まった値で返す。
+func constPreview(enabled bool) func(context.Context) (bool, error) {
+	return func(context.Context) (bool, error) { return enabled, nil }
+}
+
 // fakeInserter は、入れたジョブの引数を覚える。
 type fakeInserter struct {
 	args []river.JobArgs
@@ -87,7 +92,7 @@ func newImagesFixture(t *testing.T) *imagesFixture {
 
 	return &imagesFixture{
 		dir: libraryDir, ref: ref, reader: NewSource(libraries, reader), tenban: tenban, extractor: extractor,
-		worker: newImagesWorker(libraries, reader, true, func() (thumbnail.Extractor, error) { return extractor, nil }),
+		worker: newImagesWorker(libraries, reader, constPreview(true), func() (thumbnail.Extractor, error) { return extractor, nil }),
 	}
 }
 
@@ -178,7 +183,7 @@ func TestImagesWorkerWithoutPreview(t *testing.T) {
 
 		return changed.Index.Complete
 	}, 10*time.Second, 10*time.Millisecond)
-	worker := newImagesWorker(f.worker.libraries, f.reader.Indexer(), false, func() (thumbnail.Extractor, error) { return f.extractor, nil })
+	worker := newImagesWorker(f.worker.libraries, f.reader.Indexer(), constPreview(false), func() (thumbnail.Extractor, error) { return f.extractor, nil })
 	args.FileID = changed.ID()
 	require.NoError(t, worker.Work(t.Context(), &river.Job[ImagesArgs]{JobRow: nil, Args: args}))
 	assert.Equal(t, http.StatusOK, f.get(t, ThumbnailFileName).Code)

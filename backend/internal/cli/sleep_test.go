@@ -3,7 +3,7 @@ package cli_test
 import (
 	"context"
 	"log/slog"
-	"maps"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +17,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
+
+// callCancel は、起こす予約を消したことを表す、記録の名前。
+const callCancel = "cancel"
 
 // recordingSleepSystem は、OS に伝えたことを記録する SleepSystem。
 type recordingSleepSystem struct {
@@ -46,7 +49,7 @@ func (s *recordingSleepSystem) ScheduleWake(time.Time) error {
 }
 
 func (s *recordingSleepSystem) CancelWake() error {
-	s.record("cancel")
+	s.record(callCancel)
 
 	return nil
 }
@@ -78,17 +81,23 @@ func TestSleepControl(t *testing.T) {
 	tests := []struct {
 		name    string
 		command string
-		env     map[string]string
+		// disabled は、管理者が画面で OS のスリープを扱わないようにしているかどうか (#1869)。
+		disabled bool
 		// want は、OS に伝えること。nil なら、口を作らない。
 		want []string
 	}{
 		{
-			name: "all keeps the system awake for the near recording and releases it on stop", command: allCommand, env: map[string]string{},
+			name: "all keeps the system awake for the near recording and releases it on stop", command: allCommand, disabled: false,
 			// 起動したときに前の予約を消し、止めるときに抑止を外して予約を消す。
-			want: []string{"cancel", "inhibit", "schedule", "release", "cancel", "close"},
+			want: []string{callCancel, "inhibit", "schedule", "release", callCancel, "close"},
 		},
-		{name: "disabled by the setting", command: allCommand, env: map[string]string{"KOTATSU_POWER_MANAGE_SLEEP": "false"}, want: nil},
-		{name: "a single role does not manage sleep", command: roleTenban, env: map[string]string{}, want: nil},
+		{
+			// 画面で切っていれば、近くに始まる予約があっても、スリープを止めず、起こす予約も置かない。
+			// 判定のたびに設定を読むので、口は作り、前のプロセスが残した予約は消す。
+			name: "disabled on the admin screen", command: allCommand, disabled: true,
+			want: []string{callCancel, callCancel, "close"},
+		},
+		{name: "a single role does not manage sleep", command: roleTenban, disabled: false, want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -99,7 +108,6 @@ func TestSleepControl(t *testing.T) {
 			env := testEnv()
 			env["KOTATSU_DATABASE_URL"] = database.URL.Value()
 			env["KOTATSU_STORAGE_DATA_DIR"] = dataDir
-			maps.Copy(env, tt.env)
 			opts := cli.DefaultOptions(slog.New(slog.DiscardHandler))
 			opts.LookupEnv = func(key string) (string, bool) {
 				v, ok := env[key]
@@ -129,7 +137,7 @@ func TestSleepControl(t *testing.T) {
 			migrate := cli.NewCommand(opts)
 			migrate.SetArgs([]string{subcommandMigrate})
 			require.NoError(t, migrate.ExecuteContext(t.Context()))
-			insertNearReservation(t, database.URL.Value())
+			insertNearReservation(t, database.URL.Value(), tt.disabled)
 
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -147,7 +155,18 @@ func TestSleepControl(t *testing.T) {
 				done <- cmd.ExecuteContext(ctx)
 			}()
 			wait := registered
-			if tt.want != nil {
+			switch {
+			case tt.disabled:
+				// 最初の判定を終えても、スリープを止めず、起こす予約も置かないことを確かめる。
+				require.Eventually(t, func() bool { return slices.Contains(system.Calls(), callCancel) }, 30*time.Second, 10*time.Millisecond)
+				require.Never(t, func() bool {
+					calls := system.Calls()
+
+					return slices.Contains(calls, "inhibit") || slices.Contains(calls, "schedule")
+				}, 2*time.Second, 50*time.Millisecond)
+				wait = make(chan struct{}, 1)
+				wait <- struct{}{}
+			case tt.want != nil:
 				// 最初の判定で、近くに始まる予約の前に起こす予約を置くまで待つ。
 				wait = make(chan struct{}, 1)
 				go func() {
@@ -178,7 +197,8 @@ func TestSleepControl(t *testing.T) {
 }
 
 // insertNearReservation は、8 分後に始まる予約を DB に置く。録画する予定の開始は抑止の前倒し (10 分) の内にあり、起こす時刻 (5 分前) はまだ過ぎていない。
-func insertNearReservation(t *testing.T, databaseURL string) {
+// sleepDisabled なら、全体の設定で OS のスリープを扱わないようにする (#1869)。
+func insertNearReservation(t *testing.T, databaseURL string, sleepDisabled bool) {
 	t.Helper()
 
 	pool, err := pgxpool.New(t.Context(), databaseURL)
@@ -197,6 +217,10 @@ func insertNearReservation(t *testing.T, databaseURL string) {
 			enabled, follow_event_relay, settings, created_at, updated_at, assignment_state, planned_start_at, planned_end_at)
 			VALUES ($1, 'time', 3273601024, NULL, $2, $3, '', '', '{}', '[]', true, false, '{}', $4, $4, 'ok', $2, $3)`,
 			args: []any{id.New(), now.Add(8 * time.Minute), now.Add(time.Hour), now},
+		},
+		{
+			sql:  "INSERT INTO system_settings (id, recording_defaults, archive_retention_days, sleep_control_enabled, updated_at) VALUES (1, '{}', 90, $1, $2)",
+			args: []any{!sleepDisabled, now},
 		},
 	} {
 		_, err := pool.Exec(t.Context(), stmt.sql, stmt.args...)

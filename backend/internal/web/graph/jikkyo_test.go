@@ -11,6 +11,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
@@ -52,7 +53,7 @@ func TestServiceJikkyo(t *testing.T) {
 				_, _ = w.Write([]byte(tt.channels))
 			}))
 			t.Cleanup(nx.Close)
-			table, err := jikkyo.NewTable(nil)
+			table, err := jikkyo.NewTable(nil, clock.Real{}, nil)
 			require.NoError(t, err)
 			client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: nx.URL, KakologURL: nx.URL, HTTPClient: httpclienttest.New(t), Clock: nil})
 			f := newFixture(t, &graph.Options{JikkyoTable: table, JikkyoClient: client})
@@ -117,7 +118,7 @@ func TestServiceJikkyoOptIn(t *testing.T) {
 				_, _ = w.Write([]byte(`[{"id":"jk1","name":"NHK総合"}]`))
 			}))
 			t.Cleanup(nx.Close)
-			table, err := jikkyo.NewTable(nil)
+			table, err := jikkyo.NewTable(nil, clock.Real{}, nil)
 			require.NoError(t, err)
 			client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: nx.URL, KakologURL: nx.URL, HTTPClient: httpclienttest.New(t), Clock: nil})
 			f := newFixture(t, &graph.Options{JikkyoTable: table, JikkyoClient: client})

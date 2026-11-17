@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a1218166eefa4c296e1afd906cd176f0>>
+ * @generated SignedSource<<c9a15f65721747a9fbe98cdd36a0eda4>>
  * @lightSyntaxTransform
  */
 
@@ -13,6 +13,9 @@ export type CommentSource = "NICOLOG" | "NX_JIKKYO" | "%future added value";
 export type SystemSettingsInput = {
   animeLinkingEnabled?: boolean | null | undefined;
   archiveRetentionDays?: number | null | undefined;
+  auditClientInfoRetentionDays?: number | null | undefined;
+  auditRetentionDays?: number | null | undefined;
+  captionThreads?: number | null | undefined;
   cmDetector?: CMDetector | null | undefined;
   commentSources?: ReadonlyArray<CommentSource> | null | undefined;
   dataBroadcastIpEnabled?: boolean | null | undefined;
@@ -20,7 +23,9 @@ export type SystemSettingsInput = {
   drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;
   epgstationApiEnabled?: boolean | null | undefined;
   externalPlayerUrlsEnabled?: boolean | null | undefined;
+  hibpEnabled?: boolean | null | undefined;
   iptvFeedsEnabled?: boolean | null | undefined;
+  jikkyoChannels?: ReadonlyArray<JikkyoChannelOverrideInput> | null | undefined;
   mcpEnabled?: boolean | null | undefined;
   networkActivityEnabled?: boolean | null | undefined;
   networkActivityRetentionDays?: number | null | undefined;
@@ -29,10 +34,13 @@ export type SystemSettingsInput = {
   recordingDownloadsEnabled?: boolean | null | undefined;
   ruleDefaults?: RuleDefaultsInput | null | undefined;
   ruleUnmatchedGraceMinutes?: number | null | undefined;
+  sleepControlEnabled?: boolean | null | undefined;
+  thumbnailPreviewsEnabled?: boolean | null | undefined;
   timeshiftWhileWatching?: boolean | null | undefined;
   timeshiftWhileWatchingRetentionSeconds?: number | null | undefined;
   tvtplayChaptersEnabled?: boolean | null | undefined;
   watchProgressRetentionDays?: number | null | undefined;
+  webPushSubject?: string | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {
   cmDetector?: CMDetector | null | undefined;
@@ -57,6 +65,11 @@ export type RuleDefaultsInput = {
 export type DrcsReplacementInput = {
   md5: string;
   text?: string | null | undefined;
+};
+export type JikkyoChannelOverrideInput = {
+  channelId?: string | null | undefined;
+  networkId: number;
+  serviceId: number;
 };
 export type recordingMutation$variables = {
   input: SystemSettingsInput;

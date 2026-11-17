@@ -8,9 +8,11 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"uuid"
@@ -205,5 +207,83 @@ func TestStreamsPicksSameNabeForService(t *testing.T) {
 			first = string(got)
 		}
 		assert.Equal(t, first, string(got))
+	}
+}
+
+// brokenNabe は、届くが、ストリームを開けずに 502 を返す nabe を立て、そのアドレスと、受けたリクエストの数を返す。
+func brokenNabe(t *testing.T) (string, *atomic.Int32) {
+	t.Helper()
+
+	requests := new(atomic.Int32)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	t.Cleanup(server.Close)
+
+	return strings.TrimPrefix(server.URL, "http://"), requests
+}
+
+func TestStreamsFailsOverToNextNabe(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// broken は、届くが開けない nabe の数。healthy は、開ける nabe があるかどうか。
+		broken  int
+		healthy bool
+		want    string
+		// wantLocal は、自分で開く回数。
+		wantLocal int
+	}{
+		// 先頭の nabe が開けなくても、次の nabe から受け取る (#1850)。開けなかった nabe は後回しにするので、何度もは試さない。
+		{name: "next nabe", broken: 1, healthy: true, want: fromRemote, wantLocal: 0},
+		// どの nabe からも受け取れなければ、自分で開く。
+		{name: "no nabe works", broken: 2, healthy: false, want: fromLocal, wantLocal: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			instances := &fakeInstances{instances: []*registry.Instance{}, err: nil}
+			add := func(address string) {
+				instances.instances = append(instances.instances, &registry.Instance{
+					ID: uuid.New(), Role: nabe.Role, Address: address, StartedAt: time.Time{}, HeartbeatAt: time.Time{},
+				})
+			}
+			broken := make([]*atomic.Int32, 0, tt.broken)
+			for range tt.broken {
+				address, requests := brokenNabe(t)
+				broken = append(broken, requests)
+				add(address)
+			}
+			if tt.healthy {
+				add(startNabe(t, &fakeOpener{body: []byte(fromRemote)}, keyMaterial))
+			}
+			local := &fakeOpener{body: []byte(fromLocal)}
+			token, err := nabe.NewToken(keyMaterial)
+			require.NoError(t, err)
+			streams := nabe.NewStreams(instances, token, local, new(clock.Real), slog.New(slog.DiscardHandler))
+
+			const opens = 3
+			for range opens {
+				stream, err := streams.OpenServiceStream(t.Context(), 3273601024, nil)
+				require.NoError(t, err)
+				got, err := io.ReadAll(stream)
+				require.NoError(t, err)
+				require.NoError(t, stream.Close())
+				assert.Equal(t, tt.want, string(got))
+			}
+			for _, requests := range broken {
+				if tt.healthy {
+					// 開けなかった nabe は、登録簿から外れるまで、開ける nabe の後ろに回す。
+					assert.LessOrEqual(t, requests.Load(), int32(1))
+				} else {
+					// 開ける nabe がなければ、後回しにした nabe も試す。
+					assert.Equal(t, int32(opens), requests.Load())
+				}
+			}
+			assert.Equal(t, tt.wantLocal, local.count())
+		})
 	}
 }

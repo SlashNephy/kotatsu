@@ -260,17 +260,17 @@ func TestTunerServerSharedStreamClosesWhenContextEnds(t *testing.T) {
 	assert.Equal(t, 1, countCommand(s, 1074))
 }
 
-// slowIDs は、ID を返すのを、release が閉じられるまで待たせる。
+// slowIDs は、ID を消すのを、release が閉じられるまで待たせる。
 type slowIDs struct {
 	*fakeIDs
 
 	release chan struct{}
 }
 
-func (s *slowIDs) Release(ctx context.Context, id int32) error {
+func (s *slowIDs) Forget(ctx context.Context, id int32) error {
 	<-s.release
 
-	return s.fakeIDs.Release(ctx, id)
+	return s.fakeIDs.Forget(ctx, id)
 }
 
 func TestTunerServerSharedStreamWaitsForClose(t *testing.T) {

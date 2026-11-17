@@ -8,13 +8,19 @@ import { Route } from './services';
 afterEach(cleanup);
 
 // servicesResponse は、サービスが 1 つの画面の応答を作る。hidden は、そのサービスの番組表に出さない印。
-function servicesResponse(hidden: boolean) {
+// jikkyoChannels は、画面で足した実況のチャンネルの対応 (#1869)。
+function servicesResponse(
+  hidden: boolean,
+  jikkyoChannels: { networkId: number; serviceId: number; channelId: string }[] = [],
+) {
   return {
     data: {
       channelTypes: [],
       services: [
         {
           id: 'U2VydmljZTox',
+          networkId: 32736,
+          serviceId: 1024,
           name: 'こたつテスト1',
           logoUrl: null,
           hidden,
@@ -22,7 +28,7 @@ function servicesResponse(hidden: boolean) {
           channelType: { displayName: '地上波' },
         },
       ],
-      systemSettings: { animeLinkingEnabled: false },
+      systemSettings: { animeLinkingEnabled: false, jikkyoChannels },
       animeChannels: [],
     },
   };
@@ -96,5 +102,51 @@ describe('番組表に出さない印は、変えたらすぐ保存する (#1740
     );
 
     expect(screen.getByRole('switch', { name: '出さない' })).toHaveProperty('checked', false);
+  });
+});
+
+describe('ニコニコ実況のチャンネル (#1869)', () => {
+  test.each([
+    { name: '入れたチャンネルを、サービスの組で送る', saved: [], value: 'jk8', want: 'jk8' },
+    {
+      name: '空にすると、対応を消す (null を送る)',
+      saved: [{ networkId: 32736, serviceId: 1024, channelId: 'jk8' }],
+      value: '',
+      want: null,
+    },
+  ])('$name', async ({ saved, value, want }) => {
+    const sent: unknown[] = [];
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'servicesJikkyoChannelMutation') {
+        sent.push(variables.input);
+
+        return { data: { updateSystemSettings: { jikkyoChannels: [] } } };
+      }
+
+      return servicesResponse(false, saved);
+    });
+    await renderRoute(Route, '/admin/services', '/admin/services', environment);
+    fireEvent.change(await screen.findByRole('textbox', { name: '実況のチャンネル（jk1など）' }), {
+      target: { value },
+    });
+
+    await act(async () =>
+      fireEvent.click(screen.getAllByRole('button', { name: '保存' }).at(-1) ?? document.body),
+    );
+    await screen.findByRole('status');
+
+    expect(sent).toEqual([
+      { jikkyoChannels: [{ networkId: 32736, serviceId: 1024, channelId: want }] },
+    ]);
+  });
+
+  test('jk と数字でなければ、保存させない', async () => {
+    const environment = createTestEnvironment(() => servicesResponse(false));
+    await renderRoute(Route, '/admin/services', '/admin/services', environment);
+    fireEvent.change(await screen.findByRole('textbox', { name: '実況のチャンネル（jk1など）' }), {
+      target: { value: '101' },
+    });
+
+    expect(screen.getAllByRole('button', { name: '保存' }).at(-1)).toHaveProperty('disabled', true);
   });
 });

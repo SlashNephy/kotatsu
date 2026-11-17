@@ -947,3 +947,129 @@ func TestEngineDoesNotReserveCancelledBroadcasts(t *testing.T) {
 		})
 	}
 }
+
+const replacedName = "差し替えテスト"
+
+// slotProgram は、testNow から 5 時間と offset 後に始まる、こたつテスト1 の 1 時間の番組。
+func slotProgram(eventID int, name string, offset time.Duration) *faketuner.Program {
+	return &faketuner.Program{
+		ID: faketuner.ProgramID(grNetworkID, grServiceID, eventID), EventID: eventID, ServiceID: grServiceID, NetworkID: grNetworkID,
+		StartAt: testNow().Add(5*time.Hour + offset).UnixMilli(), Duration: time.Hour.Milliseconds(), IsFree: true, Name: name, Description: "",
+		RelatedItems: []*faketuner.RelatedItem{},
+	}
+}
+
+// TestEngineDeletesReservationsOfReplacedPrograms は、局が番組を別のイベント ID で出し直して差し替えたら、EPG から消えた古い番組の
+// ルール予約を消し、同じ放送を 2 本録らないことを確かめる (#1875)。差し替え先が無いときは、一時的に消えただけかもしれないので残す (#518)。
+func TestEngineDeletesReservationsOfReplacedPrograms(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// replacement は、古い番組 (eventId 300) を EPG から消した後に入る番組。nil なら何も入らない。
+		replacement *faketuner.Program
+		// otherRule は、空でなければ、番組名がこれに一致する別のルールも作る。
+		otherRule  string
+		graceHours int
+		// disableOld は、古い予約を人が取り消しておくかどうか。
+		disableOld bool
+		// recorded は、空でなければ、この番組名を録画済みにし、ルールに重複の回避を入れる。
+		recorded string
+		want     map[int64]bool
+	}{
+		{
+			name:        "同じ枠に同じルールに一致する番組が出た",
+			replacement: slotProgram(301, replacedName+" 総集編", 0),
+			want:        map[int64]bool{301: true},
+		},
+		{
+			name: "番組が一時的に消えただけ",
+			want: map[int64]bool{300: true},
+		},
+		{
+			name:        "猶予の内に差し替えられた",
+			replacement: slotProgram(301, replacedName+" 総集編", 0),
+			graceHours:  24,
+			want:        map[int64]bool{301: true},
+		},
+		{
+			name:        "開始が少しずれて差し替えられた",
+			replacement: slotProgram(301, replacedName+" 総集編", 5*time.Minute),
+			want:        map[int64]bool{301: true},
+		},
+		{
+			name:        "同じ枠に別のルールに一致する番組が出た",
+			replacement: slotProgram(301, "特番", 0),
+			otherRule:   "特番",
+			want:        map[int64]bool{301: true},
+		},
+		{
+			name:        "同じ枠にどのルールにも一致しない番組が出た",
+			replacement: slotProgram(301, "特番", 0),
+			want:        map[int64]bool{300: true},
+		},
+		{
+			name:        "すぐ後に次の回がある",
+			replacement: slotProgram(301, replacedName+" 次の回", time.Hour),
+			want:        map[int64]bool{300: true, 301: true},
+		},
+		{
+			name:        "次の回が少しだけ重なる",
+			replacement: slotProgram(301, replacedName+" 次の回", 50*time.Minute),
+			want:        map[int64]bool{300: true, 301: true},
+		},
+		{
+			// 差し替え先を重複の回避で予約しなくても、古い予約でその枠を録らない。
+			name:        "差し替え先を録画済みで予約しない",
+			replacement: slotProgram(301, replacedName+" 総集編", 0),
+			recorded:    replacedName + " 総集編",
+			want:        map[int64]bool{},
+		},
+		{
+			// 取り消した予約は録らず、同じ放送を取り消した記録 (#1504) にもなるので、残す。
+			name:        "古い予約を人が取り消していた",
+			replacement: slotProgram(301, replacedName+" 総集編", 0),
+			disableOld:  true,
+			want:        map[int64]bool{300: false, 301: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newEngineFixture(t, slotProgram(300, replacedName+" 第1話", 0))
+			f.setGrace(t, tt.graceHours*60)
+			f.createRule(t, replacedName, func(in *rule.Input) { in.AvoidDuplicates = tt.recorded != "" })
+			if tt.otherRule != "" {
+				f.createRule(t, tt.otherRule, nil)
+			}
+			f.run(t)
+			require.Equal(t, map[int64]bool{300: true}, f.reserved(t))
+			if tt.disableOld {
+				require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, f.reservationOf(t, 300).ID))
+			}
+
+			if tt.recorded != "" {
+				_, err := f.pool.Exec(t.Context(),
+					"INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at) VALUES ($1, $2, $3, $4, $5, $6, $6)",
+					id.New(), serviceID(), rule.TitleKey(tt.recorded), tt.recorded, testNow().Add(-time.Hour), testNow().Add(-30*time.Minute))
+				require.NoError(t, err)
+			}
+
+			require.NoError(t, f.fake.ForgetProgram(faketuner.ProgramID(grNetworkID, grServiceID, 300)))
+			if tt.replacement != nil {
+				f.fake.AddProgram(tt.replacement)
+			}
+			_, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+
+			f.run(t)
+			assert.Equal(t, tt.want, f.reserved(t))
+			// 何度照合しても変わらない。
+			result := f.run(t)
+			assert.Zero(t, result.Created)
+			assert.Zero(t, result.Deleted)
+			assert.Equal(t, tt.want, f.reserved(t))
+		})
+	}
+}

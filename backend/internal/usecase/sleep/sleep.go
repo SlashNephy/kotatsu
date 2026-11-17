@@ -51,6 +51,9 @@ type System interface {
 
 // Activity は、判定に使う、今の録画、エンコード、視聴と、次の録画の予定。
 type Activity struct {
+	// Disabled は、管理者が画面で、OS のスリープを扱わないようにしているかどうか (#1869)。
+	// true なら、ほかの値によらず、スリープさせ、起こす予約も置かない。
+	Disabled bool
 	// Recordings は、mikan が録っている、録画とタイムシフトの割り振りの数。
 	Recordings int64
 	// Encodings は、動いている後処理のジョブ (録画の変換、CM の区間の見分け、チャプターの書き込み) の数。
@@ -112,6 +115,9 @@ type Decision struct {
 func Decide(activity *Activity, now time.Time, opts *Options) *Decision {
 	opts = opts.withDefaults()
 	d := &Decision{Inhibit: false, Reasons: []string{}, WakeAt: time.Time{}}
+	if activity.Disabled {
+		return d
+	}
 	if activity.Recordings > 0 {
 		d.Reasons = append(d.Reasons, ReasonRecording)
 	}

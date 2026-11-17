@@ -87,10 +87,11 @@ type Inserter interface {
 type GenerateWorker struct {
 	river.WorkerDefaults[GenerateArgs]
 
-	db      sqlc.DBTX
-	store   *kago.Store
-	clock   clock.Clock
-	preview bool
+	db    sqlc.DBTX
+	store *kago.Store
+	clock clock.Clock
+	// preview は、プレビュー画像を作るかどうかを返す。管理者が画面で切り替える (#1869) ので、ジョブごとに読む。
+	preview func(ctx context.Context) (bool, error)
 	// newExtractor は、フレームを取り出す Extractor を作る。テストでは差し替える。
 	newExtractor func() (Extractor, error)
 }
@@ -98,12 +99,14 @@ type GenerateWorker struct {
 var _ river.Worker[GenerateArgs] = new(GenerateWorker)
 
 // NewGenerateWorker は GenerateWorker を返す。store は、このインスタンスにマウントされたプール。
-// preview が false なら、代表画像だけを作る。
-func NewGenerateWorker(db sqlc.DBTX, store *kago.Store, clk clock.Clock, preview bool) *GenerateWorker {
+// preview は、ジョブごとに、プレビュー画像を作るかどうかを返す。false なら、代表画像だけを作る。
+func NewGenerateWorker(db sqlc.DBTX, store *kago.Store, clk clock.Clock, preview func(ctx context.Context) (bool, error)) *GenerateWorker {
 	return newGenerateWorker(db, store, clk, preview, func() (Extractor, error) { return NewFFmpeg() })
 }
 
-func newGenerateWorker(db sqlc.DBTX, store *kago.Store, clk clock.Clock, preview bool, newExtractor func() (Extractor, error)) *GenerateWorker {
+func newGenerateWorker(
+	db sqlc.DBTX, store *kago.Store, clk clock.Clock, preview func(ctx context.Context) (bool, error), newExtractor func() (Extractor, error),
+) *GenerateWorker {
 	return &GenerateWorker{
 		WorkerDefaults: river.WorkerDefaults[GenerateArgs]{},
 		db:             db, store: store, clock: clk, preview: preview, newExtractor: newExtractor,
@@ -202,9 +205,16 @@ func (w *GenerateWorker) checkRecording(ctx context.Context, q *sqlc.Queries, ar
 // options は、ジョブの引数から、画像の作り方を決める。録画を終えた録画では、CM の区間を避けて代表画像を選ぶ (#1810)。
 // shift は、使える最初のセグメントの始まりの、録画を始めた日時からの時間。
 func (w *GenerateWorker) options(ctx context.Context, q *sqlc.Queries, args *GenerateArgs, shift time.Duration) (*Options, error) {
-	opts := &Options{Preview: w.preview && !args.Live && !args.ThumbnailOnly, Interval: 0, Latest: args.Live, Avoid: nil}
+	opts := &Options{Preview: false, Interval: 0, Latest: args.Live, Avoid: nil}
 	if args.Live {
 		return opts, nil
+	}
+	if !args.ThumbnailOnly {
+		preview, err := w.preview(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read whether to generate the preview: %w", err)
+		}
+		opts.Preview = preview
 	}
 	avoid, err := cmSpans(ctx, q, args.RecordingID, shift)
 	if err != nil {

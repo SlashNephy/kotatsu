@@ -113,25 +113,23 @@ func TestLogoDetectorFallsBack(t *testing.T) {
 }
 
 // TestLogoDetector は、局ロゴを、出ている所、消えた所 (CM)、また出た所の順に描いた合成の TS で、
-// ロゴの消えた所を CM の区間にすることを確かめる。FFmpeg か ffprobe がなければ飛ばす。
+// ロゴの消えた所を CM の区間にすることを確かめる。縦が 1080 ラインより大きい映像では、縮めて学習し測る (#1505)。
 // ローカルのパスのないファイル (ライブラリのファイル。#1734) は、Open で開いてパイプで読み、長さは Duration で渡し、ServiceID の番組を読む。
+// FFmpeg か ffprobe がなければ飛ばす。
 func TestLogoDetector(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		input func(path string) *cmdetect.Input
+		name string
+		// zoom は、合成の映像 (640×360) を拡大する倍率。
+		zoom int
+		// open は、ローカルのパスでなく、Open で渡すかどうか。
+		open bool
 	}{
-		{name: "path", input: func(path string) *cmdetect.Input {
-			return &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil, Program: nil, Open: nil, Duration: 0}
-		}},
-		{name: "open", input: func(path string) *cmdetect.Input {
-			return &cmdetect.Input{
-				// FFmpeg の mpegts の既定の番組 (program_number) は 1。Open で渡すファイルは、この番組の映像と音声を読む。
-				Path: "library/logo.ts", ServiceID: 1, Progress: nil, Program: nil, Duration: 40 * time.Second,
-				Open: func() (io.ReadSeekCloser, error) { return os.Open(path) },
-			}
-		}},
+		{name: "縮めない映像", zoom: 1, open: false},
+		// 2560×1440 は、縦が 1080 ラインより大きいので、半分に縮めて測る。
+		{name: "縮める映像", zoom: 4, open: false},
+		{name: "Open で渡すファイル", zoom: 1, open: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -145,7 +143,16 @@ func TestLogoDetector(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			got, report, err := detector.DetectWithReport(t.Context(), tt.input(writeLogoTS(t, 15, 30)))
+			path := writeZoomedLogoTS(t, 15, 30, tt.zoom)
+			input := &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil, Program: nil, Open: nil, Duration: 0}
+			if tt.open {
+				// FFmpeg の mpegts の既定の番組 (program_number) は 1。Open で渡すファイルは、この番組の映像と音声を読む。
+				input = &cmdetect.Input{
+					Path: "library/logo.ts", ServiceID: 1, Progress: nil, Program: nil, Duration: 40 * time.Second,
+					Open: func() (io.ReadSeekCloser, error) { return os.Open(path) },
+				}
+			}
+			got, report, err := detector.DetectWithReport(t.Context(), input)
 			require.NoError(t, err)
 			// ロゴで決められたので、理由は空で、合成の TS には映像の欠けもない (#1508)。
 			assert.Equal(t, &cmdetect.Report{Note: "", Missing: 0}, report)
@@ -195,6 +202,13 @@ func TestParseFrameLogHugeFrameNumber(t *testing.T) {
 func writeLogoTS(t *testing.T, hideFrom, hideTo int) string {
 	t.Helper()
 
+	return writeZoomedLogoTS(t, hideFrom, hideTo, 1)
+}
+
+// writeZoomedLogoTS は、writeLogoTS と同じ映像を、縦横を zoom 倍に拡大して書く。
+func writeZoomedLogoTS(t *testing.T, hideFrom, hideTo, zoom int) string {
+	t.Helper()
+
 	path := filepath.Join(t.TempDir(), "logo.ts")
 	shown := fmt.Sprintf("enable='lt(t,%d)+gte(t,%d)'", hideFrom, hideTo)
 	const logoStrokes = 3
@@ -206,9 +220,15 @@ func writeLogoTS(t *testing.T, hideFrom, hideTo int) string {
 			fmt.Sprintf("drawbox=x=%d:y=20:w=4:h=24:color=white:t=fill:%s", x, shown),
 			fmt.Sprintf("drawbox=x=%d:y=30:w=14:h=4:color=white:t=fill:%s", x, shown))
 	}
+	// 拡大した映像には B フレーム (参照されないコマ) を入れ、縮める映像でデコードしないコマがある並びにする。
+	bFrames := "0"
+	if zoom > 1 {
+		filters = append(filters, fmt.Sprintf("scale=iw*%d:ih*%d:flags=neighbor", zoom, zoom))
+		bFrames = "2"
+	}
 	filter := strings.Join(filters, ",")
 	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=640x360:r=30000/1001", "-t", "40",
-		"-vf", filter, "-c:v", "mpeg2video", "-q:v", "4", "-g", "15", "-f", "mpegts", path)
+		"-vf", filter, "-c:v", "mpeg2video", "-q:v", "4", "-g", "15", "-bf", bFrames, "-f", "mpegts", path)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 
@@ -524,26 +544,61 @@ func TestMissingSections(t *testing.T) {
 	assert.InDelta(t, 8.0, got[0].End.Seconds(), 1e-6)
 }
 
-// TestLogoDetectorSkipsTallVideo は、縦が 1080 ラインより大きい映像 (BS4K など) では、ロゴを試さずに、今の見分け方で見分けることを確かめる (#1505)。
-func TestLogoDetectorSkipsTallVideo(t *testing.T) {
+// TestLogoScale は、縦が 1080 ラインより大きい映像を、1080 ライン以下になる整数の倍率で縮めることを確かめる (#1505)。
+func TestLogoScale(t *testing.T) {
 	t.Parallel()
 
-	fallback := NewMockDetector(gomock.NewController(t))
-	want := []cmdetect.Section{{Start: 0, End: 100 * time.Millisecond}}
-	detector, err := cmdetect.NewLogoDetectorWith(fallback)
-	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
-		t.Skip("FFmpeg is not installed")
+	tests := []struct {
+		name   string
+		height int
+		want   int
+	}{
+		{name: "地上波の 1080i は縮めない", height: 1080, want: 1},
+		{name: "480i は縮めない", height: 480, want: 1},
+		{name: "1080 ラインを 1 ライン超えれば半分にする", height: 1081, want: 2},
+		{name: "4K は半分にする", height: 2160, want: 2},
+		{name: "8K は 4 分の 1 にする", height: 4320, want: 4},
 	}
-	require.NoError(t, err)
-	path := filepath.Join(t.TempDir(), "uhd.ts")
-	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=3840x2160:r=30000/1001", "-t", "1",
-		"-c:v", "mpeg2video", "-q:v", "8", "-f", "mpegts", path)
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, string(out))
-	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(want, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, cmdetect.LogoScale(tt.height))
+		})
+	}
+}
 
-	got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil, Program: nil})
-	require.NoError(t, err)
-	assert.Equal(t, want, got)
-	assert.Contains(t, report.Note, "2160 lines tall")
+// TestMeasuredRate は、参照されないコマを捨てて間の空いたコマの時刻から、測ったコマの速さを、映像の欠けを除いて求めることを確かめる (#1505)。
+func TestMeasuredRate(t *testing.T) {
+	t.Parallel()
+
+	const fps = 60000.0 / 1001
+	// 59.94p のコマを、間を 1 コマと 3 コマで交互に空けて残す (BS4K の HEVC で、参照されないコマを捨てたときの並び)。
+	halved := make([]float64, 0, 300)
+	for i := 0; i < 600; i += 2 {
+		halved = append(halved, float64(i+i%4/2)/fps)
+	}
+	// 真ん中で 3 秒欠ける。
+	withGap := make([]float64, 0, len(halved))
+	for i, at := range halved {
+		if i >= len(halved)/2 {
+			at += 3
+		}
+		withGap = append(withGap, at)
+	}
+	tests := []struct {
+		name  string
+		times []float64
+		want  float64
+	}{
+		{name: "参照されないコマを捨てれば半分の速さになる", times: halved, want: fps / 2},
+		{name: "映像の欠けは数えない", times: withGap, want: fps / 2},
+		{name: "コマが 1 つなら映像の速さにする", times: []float64{1.5}, want: fps},
+		{name: "時刻が進まなければ映像の速さにする", times: []float64{1, 1, 1}, want: fps},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.InEpsilon(t, tt.want, cmdetect.MeasuredRate(tt.times, fps), 0.01)
+		})
+	}
 }

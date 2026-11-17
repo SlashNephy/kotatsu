@@ -400,6 +400,22 @@ CREATE TABLE system_settings (
   -- どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。
   -- 番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。0 なら残さない。
   rule_unmatched_grace_minutes integer NOT NULL DEFAULT 180 CHECK (rule_unmatched_grace_minutes BETWEEN 0 AND 1440),
+  -- 監査ログの保持期間 (日。設計書 8.5)。これを過ぎた記録は、nekonote が 1 日ごとに消す (#1869 で設定ファイルから移した)。
+  audit_retention_days integer NOT NULL DEFAULT 365 CHECK (audit_retention_days BETWEEN 1 AND 3650),
+  -- 監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。過ぎた記録は、この 2 つだけを空にする。
+  audit_client_info_retention_days integer NOT NULL DEFAULT 90 CHECK (audit_client_info_retention_days BETWEEN 1 AND 3650),
+  -- パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会するかどうか (設計書 9.3)。外部へ問い合わせるので、既定では照会しない。
+  hibp_enabled boolean NOT NULL DEFAULT false,
+  -- Web Push で、プッシュサービスに示す送り手の連絡先 (mailto: か https: の URI。RFC 8292、設計書 6.2)。空なら Kotatsu のリポジトリの URL にする。
+  web_push_subject text NOT NULL DEFAULT '' CHECK (web_push_subject = '' OR web_push_subject LIKE 'mailto:%' OR web_push_subject LIKE 'https://%'),
+  -- 録画のシークバー用のプレビュー画像を作るかどうか (設計書 6.1)。低スペック機では切って、代表画像だけにして負荷を減らせる。
+  thumbnail_previews_enabled boolean NOT NULL DEFAULT true,
+  -- all の構成を Windows か macOS で動かすときに、OS のスリープを扱うかどうか (#1522、設計書 11.7)。Linux とコンテナでは何もしない。
+  sleep_control_enabled boolean NOT NULL DEFAULT true,
+  -- 字幕の自動生成で whisper-cli に使わせるスレッドの数 (#1682)。0 なら、nekonote の CPU の数の半分 (1〜8) にする。
+  caption_threads integer NOT NULL DEFAULT 0 CHECK (caption_threads BETWEEN 0 AND 256),
+  -- 同梱した対応表に重ねる、サービスとニコニコ実況のチャンネルの対応 (設計書 7.4、#1869)。{"ネットワーク ID:サービス ID": "jk1"} の形。
+  jikkyo_channels jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL
 );
 
@@ -1913,16 +1929,28 @@ CREATE TABLE job_progress (
   updated_at timestamptz NOT NULL
 );
 
--- EDCB の NetworkTV の ID の持ち主 (#1533、設計書 3.1)。ID は EpgTimerSrv 全体で 1 つの名前空間で、持ち主の概念がないので、
--- 設定した範囲 (tuner.edcb.network_tv_id_start と _count) から、Kotatsu の中で配る。持ち主は、開いたインスタンス (instances.id)。
+-- EDCB の NetworkTV の ID (#1533、設計書 3.1)。ID は EpgTimerSrv 全体で 1 つの名前空間で、持ち主の概念がないので、
+-- 設定した範囲 (tuner.edcb.network_tv_id_start と _count) から、Kotatsu の中で配る。
+-- 1 つの ID を、2 つまでのインスタンスが持ち (edcb_network_tv_holders)、同じ TS を受け取る (#1850)。最後の持ち主が去ったら閉じる。
 -- 持ち主が止まって閉じられなかった ID は、neko が NWTV_ID_CLOSE を送ってから消す。
 CREATE TABLE edcb_network_tvs (
   id integer PRIMARY KEY CHECK (id > 0),
-  instance_id uuid NOT NULL,
-  -- 開いたサービス。ログと調べ物のためだけに持つ。
+  -- 開いたサービス。同じサービスを開くインスタンスが、この ID に加わるのに使う。
   network_id integer NOT NULL,
   service_id integer NOT NULL,
-  acquired_at timestamptz NOT NULL
+  acquired_at timestamptz NOT NULL,
+  -- 最後の持ち主が外れた時刻。止まるインスタンスは、ほかのインスタンスが加われるよう、閉じずに外れる。持ち主が加われば NULL に戻す。
+  released_at timestamptz,
+  -- 閉じ始めた時刻。閉じ始めた ID には加わらない。閉じ終えたら行を消す。
+  closing_at timestamptz
+);
+
+-- EDCB の NetworkTV の ID の持ち主 (#1850)。持ち主は、ID を開いて TS を受け取っているインスタンス (instances.id)。
+CREATE TABLE edcb_network_tv_holders (
+  network_tv_id integer NOT NULL REFERENCES edcb_network_tvs (id) ON DELETE CASCADE,
+  instance_id uuid NOT NULL,
+  acquired_at timestamptz NOT NULL,
+  PRIMARY KEY (network_tv_id, instance_id)
 );
 
 -- TMDb の作品の検索の結果 (#1651、設計書 3.9)。番組名から読んだ作品名ごとに持ち、同じ作品名で問い合わせ直さない。

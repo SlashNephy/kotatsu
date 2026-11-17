@@ -95,6 +95,15 @@ func TestDecide(t *testing.T) {
 			wantReasons: []string{sleep.ReasonRecording, sleep.ReasonEncoding, sleep.ReasonWatching, sleep.ReasonDue, sleep.ReasonNextIsClose},
 			wantWakeAt:  time.Time{},
 		},
+		{
+			// 管理者が画面で切ったら (#1869)、録画中でも、次の録画が近くても、スリープさせ、起こす予約も置かない。
+			name: "disabled in the settings lets the system sleep without a wake",
+			activity: sleep.Activity{
+				Disabled: true, Recordings: 1, Encodings: 1, Viewers: 1, Airing: 1, NextStart: base.Add(time.Hour),
+			},
+			now:         base,
+			wantInhibit: false, wantReasons: []string{}, wantWakeAt: time.Time{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
