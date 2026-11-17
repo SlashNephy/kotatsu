@@ -80,6 +80,77 @@ nekonoteに、定期にバックアップを書き出させることもできま
 最後の書き出しの結果は、同じ画面に出ます。「今すぐ書き出す」で、間隔を待たずに書き出させることもできます。
 書き出せなかったときは、理由を画面に出し、1時間後に書き出し直します。
 
+Docker Composeの例では、`compose.yaml`の`KOTATSU_BACKUP_DIR`と`./backups`の行のコメントを外し、`./backups`を作ってから起動し直します。
+
+```bash
+mkdir backups && sudo chown 65532:65532 backups
+docker compose up -d
+```
+
+Helm Chartでは、`backup.volume`に書き出す先のvolumeを渡します。
+allかnekonoteのPodにマウントし、`KOTATSU_BACKUP_DIR`を渡します。
+
+```yaml
+backup:
+  volume:
+    persistentVolumeClaim:
+      claimName: kotatsu-backups
+```
+
+### 外へ写す
+
+Kotatsuは、書き出す先のディレクトリにだけ書きます。
+同じディスクが壊れても戻せるよう、書き出したファイルを、別のマシンやクラウドストレージへ写してください。
+ファイルは暗号化してあるので、そのまま置いても中は読めません。
+
+[rclone](https://rclone.org/)なら、たとえば次のコマンドをcronで1日ごとに動かします（`remote:`は、`rclone config`で作った写す先）。
+
+```bash
+rclone copy /srv/kotatsu/backups remote:kotatsu-backups --include 'kotatsu-backup-*.age'
+```
+
+`rclone copy`は、Kotatsuが古い世代を消しても、写した先のファイルを消しません。
+写した先も同じ世代の数にそろえるなら、`rclone sync`を使います。
+写す先の古いファイルは、ストレージの機能（保持期間やライフサイクルの設定）で消すこともできます。
+
+Kubernetesでは、同じvolumeをマウントしたCronJobでrcloneを動かせます。
+rcloneの設定ファイル（`rclone.conf`）は、Secretにして渡します。
+nekonoteとCronJobのPodが同じvolumeをマウントするので、ReadWriteManyのvolume（NFSなど）にするか、ReadWriteOnceなら両方を同じノードで動かしてください。
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kotatsu-backup-copy
+spec:
+  schedule: "30 4 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: rclone
+              image: rclone/rclone:<版>
+              args: ["copy", "/backups", "remote:kotatsu-backups", "--include", "kotatsu-backup-*.age", "--config", "/config/rclone.conf"]
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                  readOnly: true
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: kotatsu-backups
+            - name: config
+              secret:
+                secretName: rclone-config
+```
+
+NASの同期の機能やスナップショットで写すこともできます。
+
 ### 戻す
 
 戻す先は、空のDBにします。表のあるDBには戻しません。

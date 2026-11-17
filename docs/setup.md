@@ -148,6 +148,7 @@ secrets:
 
 `KOTATSU_STORAGE_POOLS`は、`storage.pools`からChartが作るので、`config`には書きません。
 録画の生成物（索引、代表画像、プレビュー画像）を置くデータディレクトリのvolumeを、`storage.data.volume`に必ず書きます。Chartが`KOTATSU_STORAGE_DATA_DIR`を渡し、プールと同じロールにマウントします。生成物は録画ファイルのプールに置かないので、プールをクラウドと同期していても混ざりません。
+定期のバックアップを書き出すなら、書き出す先のvolumeを`backup.volume`に書きます。Chartが`KOTATSU_BACKUP_DIR`を渡し、allかnekonoteにマウントします（[運用](operations.md#定期に書き出す)）。
 
 Ingressを使うときは、`ingress.enabled`と一緒に`ingress.trustedProxies`を書きます。
 Kotatsuは、ここに書いたネットワークから届いた`X-Forwarded-For`だけを信頼します。

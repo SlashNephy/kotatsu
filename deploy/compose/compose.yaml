@@ -56,6 +56,9 @@ services:
       KOTATSU_TUNER_URL: http://mirakurun:40772/
       KOTATSU_STORAGE_POOLS: main=/recordings
       KOTATSU_STORAGE_DATA_DIR: /data
+      # 定期のバックアップを ./backups に書き出すなら、次の行と、volumes の ./backups の行のコメントを外し、
+      # 管理者の画面 (/admin/backup) で age の公開鍵を登録する (設計書 11.4)。./backups も UID 65532 が書けるようにしておく。
+      # KOTATSU_BACKUP_DIR: /backups
       KOTATSU_SERVER_LISTEN: ":8080"
     ports:
       - "8080:8080"
@@ -72,6 +75,11 @@ services:
         target: /data
         bind:
           create_host_path: false
+      # - type: bind
+      #   source: ./backups
+      #   target: /backups
+      #   bind:
+      #     create_host_path: false
     tmpfs:
       - /tmp
     secrets:
