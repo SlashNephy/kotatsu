@@ -973,7 +973,9 @@ func TestEngineDeletesReservationsOfReplacedPrograms(t *testing.T) {
 		graceHours int
 		// disableOld は、古い予約を人が取り消しておくかどうか。
 		disableOld bool
-		want       map[int64]bool
+		// recorded は、空でなければ、この番組名を録画済みにし、ルールに重複の回避を入れる。
+		recorded string
+		want     map[int64]bool
 	}{
 		{
 			name:        "同じ枠に同じルールに一致する番組が出た",
@@ -1017,6 +1019,13 @@ func TestEngineDeletesReservationsOfReplacedPrograms(t *testing.T) {
 			want:        map[int64]bool{300: true, 301: true},
 		},
 		{
+			// 差し替え先を重複の回避で予約しなくても、古い予約でその枠を録らない。
+			name:        "差し替え先を録画済みで予約しない",
+			replacement: slotProgram(301, replacedName+" 総集編", 0),
+			recorded:    replacedName + " 総集編",
+			want:        map[int64]bool{},
+		},
+		{
 			// 取り消した予約は録らず、同じ放送を取り消した記録 (#1504) にもなるので、残す。
 			name:        "古い予約を人が取り消していた",
 			replacement: slotProgram(301, replacedName+" 総集編", 0),
@@ -1030,7 +1039,7 @@ func TestEngineDeletesReservationsOfReplacedPrograms(t *testing.T) {
 
 			f := newEngineFixture(t, slotProgram(300, replacedName+" 第1話", 0))
 			f.setGrace(t, tt.graceHours*60)
-			f.createRule(t, replacedName, nil)
+			f.createRule(t, replacedName, func(in *rule.Input) { in.AvoidDuplicates = tt.recorded != "" })
 			if tt.otherRule != "" {
 				f.createRule(t, tt.otherRule, nil)
 			}
@@ -1038,6 +1047,13 @@ func TestEngineDeletesReservationsOfReplacedPrograms(t *testing.T) {
 			require.Equal(t, map[int64]bool{300: true}, f.reserved(t))
 			if tt.disableOld {
 				require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, f.reservationOf(t, 300).ID))
+			}
+
+			if tt.recorded != "" {
+				_, err := f.pool.Exec(t.Context(),
+					"INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at) VALUES ($1, $2, $3, $4, $5, $6, $6)",
+					id.New(), serviceID(), rule.TitleKey(tt.recorded), tt.recorded, testNow().Add(-time.Hour), testNow().Add(-30*time.Minute))
+				require.NoError(t, err)
 			}
 
 			require.NoError(t, f.fake.ForgetProgram(faketuner.ProgramID(grNetworkID, grServiceID, 300)))
