@@ -24,6 +24,7 @@ const kindKeys = {
   audit_prune: 'admin.jobs.kinds.audit_prune',
   caption_model_download: 'admin.jobs.kinds.caption_model_download',
   library_images_generate: 'admin.jobs.kinds.library_images_generate',
+  library_cm_detect: 'admin.jobs.kinds.library_cm_detect',
   notification_dispatch: 'admin.jobs.kinds.notification_dispatch',
   notification_prune: 'admin.jobs.kinds.notification_prune',
   oauth_prune: 'admin.jobs.kinds.oauth_prune',

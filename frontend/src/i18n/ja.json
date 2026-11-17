@@ -2074,7 +2074,8 @@
         "web_push_deliver": "Web Pushの配信",
         "webhook_deliver": "Webhookの配信",
         "caption_model_download": "字幕のモデルのダウンロード",
-        "library_images_generate": "ライブラリのファイルのサムネイル"
+        "library_images_generate": "ライブラリのファイルのサムネイル",
+        "library_cm_detect": "ライブラリのファイルのCMの区間"
       }
     },
     "captionModels": {
