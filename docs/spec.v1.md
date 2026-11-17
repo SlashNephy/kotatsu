@@ -2779,7 +2779,22 @@ Helm Chartは次の方針で作ります。
 - ロールごとに、台数、リソース、配置先（kyusuをGPUのあるノードに置く、など）、RuntimeClass（`runtimeClassName`）を指定できるようにします。RuntimeClassは、NVIDIAのランタイムが既定でないクラスター（k3sなど）で、kyusuにGPUを渡すのに使います（#509）。
 - 接続先と秘密キーは、項目ごとに別のSecretから渡せるようにします。CloudNativePGが作るSecretを、そのまま使えるようにするためです。
 - イメージはdigestでも固定でき、PodにはPriorityClassを付けられるようにします。
-- mikanにはPodDisruptionBudgetと、引き継ぎに十分な`terminationGracePeriodSeconds`を設定します。
+- mikanにはPodDisruptionBudgetと、引き継ぎに十分な`terminationGracePeriodSeconds`を設定します。PodDisruptionBudgetの`unhealthyPodEvictionPolicy`は`IfHealthyBudget`にし、readyのmikanが足りないときは、readyでないmikanも退避させません。mikanはDBに5分届かないとreadyでなくなりますが（[11.3](#113-監視)）、その間も録画を続けるからです。
+- ロールごとのコンテナには、既定でCPUとメモリのrequestsと、メモリのlimitsを付けます。requestsは本番の`split`の構成で使っている値（待機しているときのプロセスのメモリは、全ロールを合わせて100 MB未満）に寄せ、limitsは漏れたときにOOMKillで止まるよう、余裕を持たせます。FFmpegと`whisper-cli`を動かすnekonote、kyusu、`all`は、実測がないので広めに取ります。CPUのlimitsは、処理を詰まらせないよう付けません。どれもvaluesの`resources`で上書きできます。
+
+| ロール | CPUのrequests | メモリのrequests | メモリのlimits |
+| --- | --- | --- | --- |
+| `all` | 100m | 128Mi | 8Gi |
+| tenban | 25m | 64Mi | 1Gi |
+| neko | 25m | 64Mi | 512Mi |
+| mikan | 50m | 64Mi | 1Gi |
+| nekonote | 50m | 128Mi | 4Gi |
+| kyusu | 50m | 128Mi | 4Gi |
+| nabe | 25m | 64Mi | 1Gi |
+| マイグレーションのJob | 10m | 32Mi | 256Mi（空のDBにすべてを適用したときの最大のRSSは約65 MB） |
+
+- 2台以上動かすロールで、`affinity`を書いていなければ、同じロールのPodをなるべく別のノードに置くpodAntiAffinity（`preferredDuringSchedulingIgnoredDuringExecution`、`kubernetes.io/hostname`）を付けます。1台のノードが止まっても、mikanの録画とtenbanの配信が残るようにするためです。preferredなので、置ける先が1つならそこに置き、Pendingにはしません。
+- マイグレーションのJobは、終わってから1日で消します（`ttlSecondsAfterFinished`）。成功したJobはフックの設定ですぐ消えるので、主に失敗したJobに効き、失敗のログを読む時間を残します。
 - tenbanには、止める前にServiceから外れるのを待つpreStop（5秒のsleep）を入れ、`terminationGracePeriodSeconds`を、preStopの待ち、視聴者がつなぎ直すのを待つ時間（20秒）、処理中のリクエストを待つ時間（20秒）に見合う60秒にします（#1085）。Serviceから外れる前に止まり始めると、止まりかけのtenbanに新しい接続が来るからです。
 - securityContextの既定値を堅くします。`readOnlyRootFilesystem`、全capabilityの削除、非rootでの実行、seccompの`RuntimeDefault`を、そのまま使えるようにします。KotatsuはKubernetesのAPIを使わないので、既定ではPodにServiceAccountのトークンを渡しません（`automountServiceAccountToken`）。
 - livenessとreadinessのプローブの待ち時間などを、全体（`probes`）とロールごとに変えられるようにします。CPUが飽和しがちなノードで、応答が遅れただけでPodが再起動されないようにするためです（#932）。
