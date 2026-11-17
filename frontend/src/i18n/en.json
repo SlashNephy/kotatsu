@@ -2159,7 +2159,8 @@
         "watch_notify": "Watch reservation notification",
         "web_push_deliver": "Deliver Web Push",
         "webhook_deliver": "Deliver webhook",
-        "caption_model_download": "Download caption model"
+        "caption_model_download": "Download caption model",
+        "library_images_generate": "Library file thumbnails"
       }
     },
     "captionModels": {
