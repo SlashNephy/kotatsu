@@ -50,6 +50,16 @@ func MissingSections(times []float64, fps float64) []Section {
 	return missingSections(times, fps)
 }
 
+// LogoScale は logoScale。
+func LogoScale(height int) int {
+	return logoScale(height)
+}
+
+// MeasuredRate は measuredRate。
+func MeasuredRate(times []float64, fallback float64) float64 {
+	return measuredRate(times, fallback)
+}
+
 // FrameRate は frameRate。
 func FrameRate(s string) float64 {
 	return frameRate(s)

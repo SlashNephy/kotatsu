@@ -197,6 +197,114 @@ func TestSystemSettings(t *testing.T) {
 	assert.True(t, got.SystemSettings.JikkyoEnabled, "rejected changes are not saved")
 }
 
+// TestMovedSystemSettings は、設定ファイルから画面に移した項目 (#1869) を、管理者が変えられ、Web Push の送り手の連絡先は
+// 管理者だけが読め、Have I Been Pwned への照会を変えるには直前の再認証が要ることを確かめる (設計書 9.5、11.2)。
+func TestMovedSystemSettings(t *testing.T) {
+	t.Parallel()
+
+	const (
+		movedQuery = `{ systemSettings { auditRetentionDays auditClientInfoRetentionDays hibpEnabled thumbnailPreviewsEnabled
+			sleepControlEnabled captionThreads } }`
+		subjectQuery = `{ systemSettings { webPushSubject } }`
+		updateMoved  = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { auditRetentionDays
+			auditClientInfoRetentionDays hibpEnabled webPushSubject thumbnailPreviewsEnabled sleepControlEnabled captionThreads } }`
+		subject = "mailto:admin@kotatsu.example"
+		// fieldCaptionThreads は、字幕の自動生成のスレッドの数の項目。
+		fieldCaptionThreads = "captionThreads"
+	)
+	type moved struct {
+		AuditRetentionDays           int     `json:"auditRetentionDays"`
+		AuditClientInfoRetentionDays int     `json:"auditClientInfoRetentionDays"`
+		HIBPEnabled                  bool    `json:"hibpEnabled"`
+		WebPushSubject               *string `json:"webPushSubject"`
+		ThumbnailPreviewsEnabled     bool    `json:"thumbnailPreviewsEnabled"`
+		SleepControlEnabled          bool    `json:"sleepControlEnabled"`
+		CaptionThreads               int     `json:"captionThreads"`
+	}
+
+	f := newFixture(t, nil)
+	viewerFixture := f.as(t, "viewer", domain.RoleViewer)
+	admin := f.as(t, adminName, domain.RoleAdmin)
+	var got struct {
+		SystemSettings moved `json:"systemSettings"`
+	}
+	require.Empty(t, viewerFixture.query(t, movedQuery, nil, &got))
+	assert.Equal(t, moved{
+		AuditRetentionDays: 365, AuditClientInfoRetentionDays: 90, HIBPEnabled: false, WebPushSubject: nil,
+		ThumbnailPreviewsEnabled: true, SleepControlEnabled: true, CaptionThreads: 0,
+	}, got.SystemSettings, "the defaults of the config file")
+
+	var updated struct {
+		UpdateSystemSettings moved `json:"updateSystemSettings"`
+	}
+	require.Empty(t, admin.query(t, updateMoved, map[string]any{varInput: map[string]any{
+		"auditRetentionDays": 30, "auditClientInfoRetentionDays": 7, "hibpEnabled": true, "webPushSubject": subject,
+		"thumbnailPreviewsEnabled": false, "sleepControlEnabled": false, fieldCaptionThreads: 4,
+	}}, &updated))
+	assert.Equal(t, moved{
+		AuditRetentionDays: 30, AuditClientInfoRetentionDays: 7, HIBPEnabled: true, WebPushSubject: new(subject),
+		ThumbnailPreviewsEnabled: false, SleepControlEnabled: false, CaptionThreads: 4,
+	}, updated.UpdateSystemSettings)
+
+	// 送り手の連絡先は、管理者の連絡先を含みうるので、管理者のほかには読ませない。
+	var subjects struct {
+		SystemSettings struct {
+			WebPushSubject *string `json:"webPushSubject"`
+		} `json:"systemSettings"`
+	}
+	require.Empty(t, admin.query(t, subjectQuery, nil, &subjects))
+	assert.Equal(t, new(subject), subjects.SystemSettings.WebPushSubject)
+	for _, user := range []*fixture{f, viewerFixture} {
+		assert.Equal(t, []string{codeForbidden}, user.query(t, subjectQuery, nil, nil))
+	}
+
+	// 正しくない値は、BAD_USER_INPUT を返す。
+	for _, input := range []map[string]any{
+		{"auditRetentionDays": 0}, {"auditClientInfoRetentionDays": 3651}, {"webPushSubject": "admin@kotatsu.example"}, {fieldCaptionThreads: -1},
+	} {
+		assert.Equal(t, []string{codeBadUserInput}, admin.query(t, updateMoved, map[string]any{varInput: input}, nil), "%v", input)
+	}
+
+	// Have I Been Pwned への照会は、外部へ問い合わせ始めるかどうかを決めるので、直前の再認証を求める。ほかの項目は求めない。
+	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
+	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateMoved, map[string]any{varInput: map[string]any{"hibpEnabled": false}}, nil))
+	require.Empty(t, admin.query(t, updateMoved, map[string]any{varInput: map[string]any{fieldCaptionThreads: 2, "sleepControlEnabled": true}}, &updated))
+	assert.True(t, updated.UpdateSystemSettings.HIBPEnabled, "the rejected change is not saved")
+	assert.Equal(t, 2, updated.UpdateSystemSettings.CaptionThreads)
+
+	// 実況のチャンネルの対応は、書いたサービスだけを変え、ネットワーク ID とサービス ID の順に返す。同じサービスを 2 度書くと拒む。
+	const (
+		fieldJikkyoChannels = "jikkyoChannels"
+		fieldChannelID      = "channelId"
+	)
+	// row は、実況のチャンネルの対応の変更の 1 行。
+	row := func(networkID, serviceID int, channelID any) map[string]any {
+		return map[string]any{"networkId": networkID, "serviceId": serviceID, fieldChannelID: channelID}
+	}
+	const updateJikkyo = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
+		jikkyoChannels { networkId serviceId channelId } } }`
+	type channel struct {
+		NetworkID int    `json:"networkId"`
+		ServiceID int    `json:"serviceId"`
+		ChannelID string `json:"channelId"`
+	}
+	var channels struct {
+		UpdateSystemSettings struct {
+			JikkyoChannels []channel `json:"jikkyoChannels"`
+		} `json:"updateSystemSettings"`
+	}
+	require.Empty(t, admin.query(t, updateJikkyo, map[string]any{varInput: map[string]any{fieldJikkyoChannels: []map[string]any{
+		row(32736, 1024, "jk2"), row(4, 101, "jk103"),
+	}}}, &channels))
+	require.Empty(t, admin.query(t, updateJikkyo, map[string]any{varInput: map[string]any{fieldJikkyoChannels: []map[string]any{
+		row(32736, 1024, nil),
+	}}}, &channels))
+	assert.Equal(t, []channel{{NetworkID: 4, ServiceID: 101, ChannelID: "jk103"}}, channels.UpdateSystemSettings.JikkyoChannels)
+	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, updateJikkyo, map[string]any{varInput: map[string]any{fieldJikkyoChannels: []map[string]any{
+		row(4, 101, "jk3"), row(4, 101, nil),
+	}}}, nil))
+}
+
 type drcsReplacement struct {
 	MD5  string `json:"md5"`
 	Text string `json:"text"`

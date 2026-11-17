@@ -318,7 +318,9 @@ func TestPruneWorkerRunsPeriodically(t *testing.T) {
 	record(t, pool, now, "recent")
 
 	workers := river.NewWorkers()
-	river.AddWorker(workers, audit.NewPruneWorker(pool, clocktest.NewFake(now), retention, retention))
+	river.AddWorker(workers, audit.NewPruneWorker(pool, clocktest.NewFake(now), func(context.Context) (*audit.Retentions, error) {
+		return &audit.Retentions{Events: retention, ClientInfo: retention}, nil
+	}))
 	client, err := jobs.NewClient(pool, slog.New(slog.DiscardHandler), &jobs.Options{
 		PollOnly:     false,
 		Workers:      workers,

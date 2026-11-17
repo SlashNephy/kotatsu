@@ -1,28 +1,32 @@
 package graph
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
 // systemSettingsAdministrator は、全体の設定を変える管理者を確かめ、操作者を返す。
 // MCP のクライアントとの連携、データ放送の通信の中継 (#501)、外部プレイヤーと IPTV のクライアント用の URL (#1755)、
-// しょぼいカレンダー、Annict、AniList との連携、TMDb との連携、ニコニコ実況を変えるときだけ、
+// しょぼいカレンダー、Annict、AniList との連携、TMDb との連携、ニコニコ実況、Have I Been Pwned への照会 (#1869) を変えるときだけ、
 // 外部のサービスに読ませたり、受信機の情報を外部のサーバーへ送らせたり、URL を持つ人に映像を見せたり、外部へ問い合わせ始めたりするかどうかを決める操作なので、
 // 直近 10 分以内の再認証を求める。録画やルールの既定値、保持期間は、第三者に影響しないので求めない (設計書 9.5)。
 func (r *Resolver) systemSettingsAdministrator(ctx context.Context, input model.SystemSettingsInput) (*auth.Principal, *audit.Actor, error) {
 	const message = "only administrators can change the system settings"
 	if input.McpEnabled != nil || input.DataBroadcastIPEnabled != nil || input.ExternalPlayerUrlsEnabled != nil || input.IptvFeedsEnabled != nil || input.RecordingDownloadsEnabled != nil || input.EpgstationAPIEnabled != nil ||
-		input.AnimeLinkingEnabled != nil || input.DramaLinkingEnabled != nil || input.CommentSources != nil {
+		input.AnimeLinkingEnabled != nil || input.DramaLinkingEnabled != nil || input.CommentSources != nil || input.HibpEnabled != nil {
 		return r.recentAdministrator(ctx, message)
 	}
 
@@ -77,7 +81,15 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		DrcsReplacements:          drcsReplacementsOf(system.DRCSReplacements),
 		TimeshiftWhileWatching:    system.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: system.TimeshiftWhileWatchingRetentionSeconds,
 		RuleUnmatchedGraceMinutes: system.RuleUnmatchedGraceMinutes,
-		UpdatedAt:                 system.UpdatedAt,
+		AuditRetentionDays:        system.AuditRetentionDays, AuditClientInfoRetentionDays: system.AuditClientInfoRetentionDays,
+		HibpEnabled: system.HIBPEnabled,
+		// 管理者だけに返すので、リゾルバ (systemSettingsResolver.WebPushSubject) が確かめてから出す。
+		WebPushSubject:           new(system.WebPushSubject),
+		ThumbnailPreviewsEnabled: system.ThumbnailPreviewsEnabled,
+		SleepControlEnabled:      system.SleepControlEnabled,
+		CaptionThreads:           system.CaptionThreads,
+		JikkyoChannels:           jikkyoChannelsOf(system.JikkyoChannels),
+		UpdatedAt:                system.UpdatedAt,
 	}
 }
 
@@ -104,6 +116,39 @@ func toDRCSReplacements(input []*model.DrcsReplacementInput) (map[string]*string
 	}
 
 	return replacements, nil
+}
+
+// jikkyoChannelsOf は、実況のチャンネルの対応を、ネットワーク ID とサービス ID の順に並べた GraphQL の形にする (#1869)。
+// 読めないキーと、ID が 16 ビットに収まらないキーは除く。保存するときに確かめているので、ふつうはない。
+func jikkyoChannelsOf(channels map[string]string) []*model.JikkyoChannelOverride {
+	result := make([]*model.JikkyoChannelOverride, 0, len(channels))
+	for key, id := range channels {
+		networkID, serviceID, ok := jikkyo.ParseServiceKey(key)
+		if !ok || networkID < 0 || networkID > math.MaxUint16 || serviceID < 0 || serviceID > math.MaxUint16 {
+			continue
+		}
+		result = append(result, &model.JikkyoChannelOverride{NetworkID: int(networkID), ServiceID: int(serviceID), ChannelID: id})
+	}
+	slices.SortFunc(result, func(a, b *model.JikkyoChannelOverride) int {
+		return cmp.Or(cmp.Compare(a.NetworkID, b.NetworkID), cmp.Compare(a.ServiceID, b.ServiceID))
+	})
+
+	return result
+}
+
+// toJikkyoChannels は、実況のチャンネルの対応の変更の入力を、「ネットワーク ID:サービス ID」からチャンネルの ID (nil なら消す) への表にする。
+// 同じサービスが 2 度出てきたら、どちらを採るか決められないので拒む。
+func toJikkyoChannels(input []*model.JikkyoChannelOverrideInput) (map[string]*string, error) {
+	channels := make(map[string]*string, len(input))
+	for _, row := range input {
+		key := fmt.Sprintf("%d:%d", row.NetworkID, row.ServiceID)
+		if _, ok := channels[key]; ok {
+			return nil, NewError(CodeBadUserInput, "jikkyoChannels has a duplicated service: "+key)
+		}
+		channels[key] = row.ChannelID
+	}
+
+	return channels, nil
 }
 
 // toRuleChanges は、ルールの既定値の入力を、変える項目にする。

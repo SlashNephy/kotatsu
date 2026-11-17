@@ -24,6 +24,7 @@ import { mutate } from '../../settings/mutate';
 import type { servicesChannelTypeMutation } from './__generated__/servicesChannelTypeMutation.graphql';
 import type { servicesQuery } from './__generated__/servicesQuery.graphql';
 import type { servicesServiceMutation } from './__generated__/servicesServiceMutation.graphql';
+import type { servicesJikkyoChannelMutation } from './__generated__/servicesJikkyoChannelMutation.graphql';
 import type {
   AnimeChannelInput,
   servicesAnimeChannelMutation,
@@ -36,7 +37,7 @@ export const Route = createFileRoute('/admin/services')({
 
 // ServicesPage は、放送波 (チャンネル種別) の表示名と並び順、番組表とライブに出すサービスと並び順を変える、
 // 管理者向けの画面 (設計書 10.3)。タイムシフトで録るサービスは、タイムシフトの画面 (/admin/timeshift) で決める。
-// しょぼいカレンダーと Annict のチャンネルの対応の上書き (設計書 3.8) も、ここで変える。
+// しょぼいカレンダーと Annict のチャンネルの対応の上書き (設計書 3.8) と、ニコニコ実況のチャンネルの対応 (設計書 7.4、#1869) も、ここで変える。
 function ServicesPage() {
   const { t } = useTranslation();
 
@@ -56,6 +57,8 @@ const query = graphql`
     }
     services(includeHidden: true) {
       id
+      networkId
+      serviceId
       name
       logoUrl
       hidden
@@ -66,6 +69,11 @@ const query = graphql`
     }
     systemSettings {
       animeLinkingEnabled
+      jikkyoChannels {
+        networkId
+        serviceId
+        channelId
+      }
     }
     animeChannels {
       serviceId
@@ -234,7 +242,119 @@ function ServiceSettings() {
           </Stack>
         </ScrollArea.Autosize>
       </Section>
+
+      {/* ニコニコ実況のチャンネルの対応 (#1869)。前は設定ファイルの jikkyo.channels で渡していた。 */}
+      <Section title={t('admin.system.jikkyoChannels')}>
+        <Text size="sm" c="dimmed">
+          {t('admin.system.jikkyoChannelsDescription')}
+        </Text>
+        <ScrollArea.Autosize mah={480}>
+          <Stack gap="xs" data-testid="jikkyo-channels">
+            {data.services.map((service) => {
+              const override = data.systemSettings.jikkyoChannels.find(
+                (item) =>
+                  item.networkId === service.networkId && item.serviceId === service.serviceId,
+              );
+
+              return (
+                <JikkyoChannelEditor
+                  key={`${service.id}/${override?.channelId ?? ''}`}
+                  service={service}
+                  channelId={override?.channelId ?? ''}
+                  busy={action.busy}
+                  onSave={(channelId) =>
+                    action.run(async () => {
+                      await mutate<servicesJikkyoChannelMutation>(
+                        environment,
+                        graphql`
+                          mutation servicesJikkyoChannelMutation($input: SystemSettingsInput!) {
+                            updateSystemSettings(input: $input) {
+                              jikkyoChannels {
+                                networkId
+                                serviceId
+                                channelId
+                              }
+                            }
+                          }
+                        `,
+                        {
+                          input: {
+                            jikkyoChannels: [
+                              {
+                                networkId: service.networkId,
+                                serviceId: service.serviceId,
+                                channelId,
+                              },
+                            ],
+                          },
+                        },
+                      );
+                      done();
+                    }, fail)
+                  }
+                />
+              );
+            })}
+          </Stack>
+        </ScrollArea.Autosize>
+      </Section>
     </Stack>
+  );
+}
+
+// jikkyoChannelPattern は、実況のチャンネルの ID の形 (jk1 など)。サーバーと同じ。
+const jikkyoChannelPattern = /^jk\d{1,6}$/;
+
+// JikkyoChannelEditor は、サービスとニコニコ実況のチャンネルの対応を変える行 (#1869)。
+// 空にして保存すると、対応を消して、同梱した対応表に戻す。文字の欄なので、保存のボタンで保存する (#1740)。
+function JikkyoChannelEditor({
+  service,
+  channelId,
+  busy,
+  onSave,
+}: {
+  service: {
+    name: string;
+    logoUrl: string | null | undefined;
+    channelType: { displayName: string };
+  };
+  channelId: string;
+  busy: boolean;
+  onSave: (channelId: string | null) => void;
+}) {
+  const { t } = useTranslation();
+  const [value, setValue] = useState(channelId);
+  const trimmed = value.trim();
+  const invalid = trimmed !== '' && !jikkyoChannelPattern.test(trimmed);
+
+  return (
+    <Group gap="xs" align="flex-end">
+      <Stack gap={0} w={200} pb={4}>
+        <Text size="sm" fw={600} truncate>
+          <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
+        </Text>
+        <Text size="xs" c="dimmed">
+          {service.channelType.displayName}
+        </Text>
+      </Stack>
+      <TextInput
+        size="xs"
+        w={180}
+        label={t('admin.system.jikkyoChannel')}
+        placeholder={t('admin.system.jikkyoChannelBundled')}
+        value={value}
+        error={invalid ? t('admin.system.jikkyoChannelInvalid') : undefined}
+        onChange={(event) => setValue(event.currentTarget.value)}
+      />
+      <Button
+        size="compact-sm"
+        mb={2}
+        disabled={trimmed === channelId || invalid || busy}
+        onClick={() => onSave(trimmed === '' ? null : trimmed)}
+      >
+        {t('admin.save')}
+      </Button>
+    </Group>
   );
 }
 

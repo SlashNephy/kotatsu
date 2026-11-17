@@ -111,20 +111,21 @@ type Payload struct {
 type DeliverWorker struct {
 	river.WorkerDefaults[DeliverArgs]
 
-	db       sqlc.DBTX
-	service  *Service
-	clock    clock.Clock
-	subject  string
+	db      sqlc.DBTX
+	service *Service
+	clock   clock.Clock
+	// subject は、プッシュサービスに示す送り手の連絡先を返す。管理者が画面で変える (#1869) ので、送るたびに読む。
+	subject  func(ctx context.Context) (string, error)
 	location *time.Location
 	client   *http.Client
 }
 
 var _ river.Worker[DeliverArgs] = new(DeliverWorker)
 
-// NewDeliverWorker は DeliverWorker を返す。subject は、プッシュサービスに示す送り手の連絡先 (mailto: か https: の URI)。
+// NewDeliverWorker は DeliverWorker を返す。subject は、送るたびに、プッシュサービスに示す送り手の連絡先 (mailto: か https: の URI) を返す。
 // location は、通知の文の日時のタイムゾーン。client は、NewHTTPClient で作ったものを渡す。
 func NewDeliverWorker(
-	db sqlc.DBTX, service *Service, clk clock.Clock, subject string, location *time.Location, client *http.Client,
+	db sqlc.DBTX, service *Service, clk clock.Clock, subject func(ctx context.Context) (string, error), location *time.Location, client *http.Client,
 ) *DeliverWorker {
 	return &DeliverWorker{
 		WorkerDefaults: river.WorkerDefaults[DeliverArgs]{},
@@ -201,7 +202,11 @@ func (w *DeliverWorker) payload(event *sqlc.NotificationEvent) ([]byte, error) {
 }
 
 func (w *DeliverWorker) send(ctx context.Context, subscription *sqlc.WebPushSubscription, keys *Keys, kind domain.NotificationKind, body []byte) error {
-	authorization, err := keys.authorization(subscription.Endpoint, w.subject, w.clock.Now())
+	subject, err := w.subject(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to read the web push subject: %w", err)
+	}
+	authorization, err := keys.authorization(subscription.Endpoint, subject, w.clock.Now())
 	if err != nil {
 		return river.JobCancel(err)
 	}

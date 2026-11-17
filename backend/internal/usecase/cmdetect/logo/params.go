@@ -39,6 +39,9 @@ type Params struct {
 	BundleStrengthRatio float64
 	// LogoShareMin は、括った塊の強い縁が、張り合う量に占める割合の下限。
 	LogoShareMin float64
+	// BandLineRatio は、締めた枠の行から画面の中央の側へ、揃い方が MinCornerCoherence 以上の画素が隅の端まで埋める割合の上限。
+	// これ以上埋める行があれば、枠は隅を横切る帯の一部とみなし、その隅を諦める (#1883)。
+	BandLineRatio float64
 	// TrimRatio は、枠を締めるとき、各端から切り落とす強い縁の割合。
 	TrimRatio float64
 	// MarginMin と MarginRatio は、締めた枠の四方に足す余白 (max(MarginMin, 枠の大きさ × MarginRatio))。
@@ -110,6 +113,7 @@ func DefaultParams() *Params {
 		BundleDistance:      24,
 		BundleStrengthRatio: 0.2,
 		LogoShareMin:        0.6,
+		BandLineRatio:       0.9,
 		TrimRatio:           0.02,
 		MarginMin:           4,
 		MarginRatio:         0.1,

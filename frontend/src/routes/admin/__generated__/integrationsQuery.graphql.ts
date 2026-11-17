@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<193cac08a1eb2e229a0b4b536bd133f3>>
+ * @generated SignedSource<<0a1b1661d0c76659d188d0e00e61c685>>
  * @lightSyntaxTransform
  */
 
@@ -63,10 +63,12 @@ export type integrationsQuery$data = {
     readonly dramaLinkingEnabled: boolean;
     readonly epgstationApiEnabled: boolean;
     readonly externalPlayerUrlsEnabled: boolean;
+    readonly hibpEnabled: boolean;
     readonly iptvFeedsEnabled: boolean;
     readonly mcpEnabled: boolean;
     readonly networkActivityEnabled: boolean;
     readonly recordingDownloadsEnabled: boolean;
+    readonly webPushSubject: string | null | undefined;
   };
   readonly webhooks: ReadonlyArray<{
     readonly enabled: boolean;
@@ -174,6 +176,20 @@ v2 = [
         "args": null,
         "kind": "ScalarField",
         "name": "commentSources",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "hibpEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "webPushSubject",
         "storageKey": null
       }
     ],
@@ -484,16 +500,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "5a1f012d3e829a59f39e2468ae8cdb96",
+    "cacheID": "99f81c654761f8853c5a67f437c6dd4a",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    recordingDownloadsEnabled\n    epgstationApiEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    dramaLinkingEnabled\n    commentSources\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  dramaLinking {\n    tokenConfigured\n    tokenHint\n  }\n  dramaTitleOverrides {\n    titleKey\n    tmdbSeriesId\n    updatedAt\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    recordingDownloadsEnabled\n    epgstationApiEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    dramaLinkingEnabled\n    commentSources\n    hibpEnabled\n    webPushSubject\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  dramaLinking {\n    tokenConfigured\n    tokenHint\n  }\n  dramaTitleOverrides {\n    titleKey\n    tmdbSeriesId\n    updatedAt\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "ea6f95371f9f867baffa646d0b06b993";
+(node as any).hash = "9ce7fc3ef9a75a44615fe9ee868fdb7b";
 
 export default node;

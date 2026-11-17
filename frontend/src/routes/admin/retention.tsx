@@ -19,7 +19,7 @@ export const Route = createFileRoute('/admin/retention')({
   component: RetentionPage,
 });
 
-// RetentionPage は、過去の番組と画面内の通知と録画の再生位置を残す日数を変える、管理者向けの画面 (設計書 10.3、11.2)。
+// RetentionPage は、過去の番組と画面内の通知と録画の再生位置と監査ログを残す日数を変える、管理者向けの画面 (設計書 10.3、11.2)。
 function RetentionPage() {
   const { t } = useTranslation();
 
@@ -37,6 +37,8 @@ const query = graphql`
       notificationRetentionDays
       watchProgressRetentionDays
       networkActivityRetentionDays
+      auditRetentionDays
+      auditClientInfoRetentionDays
       updatedAt
     }
   }
@@ -48,6 +50,9 @@ type Form = {
   notificationDays: number | string;
   watchProgressDays: number | string;
   networkActivityDays: number | string;
+  // 監査ログと、その送信元の IP アドレスと User-Agent の保持期間 (#1869)。設定ファイルから画面に移した。
+  auditDays: number | string;
+  auditClientInfoDays: number | string;
 };
 
 // sameForm は、2 つのフォームの値が同じかどうかを返す。
@@ -76,14 +81,19 @@ function RetentionSettings() {
     notificationDays: settings.notificationRetentionDays,
     watchProgressDays: settings.watchProgressRetentionDays,
     networkActivityDays: settings.networkActivityRetentionDays,
+    auditDays: settings.auditRetentionDays,
+    auditClientInfoDays: settings.auditClientInfoRetentionDays,
   };
   const { form, set } = useSyncedForm(initial, sameForm);
-  const { archiveDays, notificationDays, watchProgressDays, networkActivityDays } = form;
-  const valid =
-    typeof networkActivityDays === 'number' &&
-    typeof archiveDays === 'number' &&
-    typeof notificationDays === 'number' &&
-    typeof watchProgressDays === 'number';
+  const {
+    archiveDays,
+    notificationDays,
+    watchProgressDays,
+    networkActivityDays,
+    auditDays,
+    auditClientInfoDays,
+  } = form;
+  const valid = Object.values(form).every((days) => typeof days === 'number');
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -106,6 +116,8 @@ function RetentionSettings() {
               notificationRetentionDays: Number(notificationDays),
               watchProgressRetentionDays: Number(watchProgressDays),
               networkActivityRetentionDays: Number(networkActivityDays),
+              auditRetentionDays: Number(auditDays),
+              auditClientInfoRetentionDays: Number(auditClientInfoDays),
             },
           },
         );
@@ -198,6 +210,39 @@ function RetentionSettings() {
               allowDecimal={false}
               value={networkActivityDays}
               onChange={(value) => set({ networkActivityDays: value })}
+            />
+          </Stack>
+        </Card>
+
+        {/* 監査ログは、ほかの記録と違い、無期限にはできない (設計書 8.5)。 */}
+        <Card withBorder>
+          <Stack gap="xs">
+            <Title order={3} size="h5">
+              {t('admin.settings.audit')}
+            </Title>
+            <NumberInput
+              size="xs"
+              maw={480}
+              label={t('admin.settings.auditRetentionDays')}
+              description={t('admin.settings.auditRetentionHelp')}
+              min={1}
+              max={3650}
+              allowDecimal={false}
+              allowNegative={false}
+              value={auditDays}
+              onChange={(value) => set({ auditDays: value })}
+            />
+            <NumberInput
+              size="xs"
+              maw={480}
+              label={t('admin.settings.auditClientInfoRetentionDays')}
+              description={t('admin.settings.auditClientInfoRetentionHelp')}
+              min={1}
+              max={3650}
+              allowDecimal={false}
+              allowNegative={false}
+              value={auditClientInfoDays}
+              onChange={(value) => set({ auditClientInfoDays: value })}
             />
           </Stack>
         </Card>

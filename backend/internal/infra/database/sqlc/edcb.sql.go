@@ -13,9 +13,9 @@ import (
 )
 
 const acquireEDCBNetworkTV = `-- name: AcquireEDCBNetworkTV :one
-INSERT INTO edcb_network_tvs (id, instance_id, network_id, service_id, acquired_at)
-SELECT c.n, $1::uuid, $2::integer, $3::integer, $4::timestamptz
-FROM generate_series($5::integer, $5::integer + $6::integer - 1) AS c(n)
+INSERT INTO edcb_network_tvs (id, network_id, service_id, acquired_at)
+SELECT c.n, $1::integer, $2::integer, $3::timestamptz
+FROM generate_series($4::integer, $4::integer + $5::integer - 1) AS c(n)
 WHERE NOT EXISTS (SELECT 1 FROM edcb_network_tvs t WHERE t.id = c.n)
 ORDER BY c.n
 LIMIT 1
@@ -24,18 +24,16 @@ RETURNING id
 `
 
 type AcquireEDCBNetworkTVParams struct {
-	InstanceID uuid.UUID
-	NetworkID  int32
-	ServiceID  int32
-	Now        time.Time
-	Start      int32
-	Count      int32
+	NetworkID int32
+	ServiceID int32
+	Now       time.Time
+	Start     int32
+	Count     int32
 }
 
 // 範囲 [@start, @start + @count) のうち、空いている最も小さい ID を取る。取り合いになって空きがなくなれば、行を返さない。
 func (q *Queries) AcquireEDCBNetworkTV(ctx context.Context, arg AcquireEDCBNetworkTVParams) (int32, error) {
 	row := q.db.QueryRow(ctx, acquireEDCBNetworkTV,
-		arg.InstanceID,
 		arg.NetworkID,
 		arg.ServiceID,
 		arg.Now,
@@ -45,6 +43,46 @@ func (q *Queries) AcquireEDCBNetworkTV(ctx context.Context, arg AcquireEDCBNetwo
 	var id int32
 	err := row.Scan(&id)
 	return id, err
+}
+
+const addEDCBNetworkTVHolder = `-- name: AddEDCBNetworkTVHolder :exec
+WITH holder AS (
+  INSERT INTO edcb_network_tv_holders (network_tv_id, instance_id, acquired_at)
+  VALUES ($1, $2, $3)
+)
+UPDATE edcb_network_tvs SET released_at = NULL WHERE id = $1
+`
+
+type AddEDCBNetworkTVHolderParams struct {
+	NetworkTVID int32
+	InstanceID  uuid.UUID
+	Now         time.Time
+}
+
+// @instance_id を ID の持ち主に加え、最後の持ち主が外れた印を消す。
+func (q *Queries) AddEDCBNetworkTVHolder(ctx context.Context, arg AddEDCBNetworkTVHolderParams) error {
+	_, err := q.db.Exec(ctx, addEDCBNetworkTVHolder, arg.NetworkTVID, arg.InstanceID, arg.Now)
+	return err
+}
+
+const countAliveEDCBNetworkTVHolders = `-- name: CountAliveEDCBNetworkTVHolders :one
+SELECT count(*) FROM edcb_network_tv_holders h
+WHERE h.network_tv_id = $1
+  AND (h.acquired_at > $2::timestamptz
+    OR EXISTS (SELECT 1 FROM instances i WHERE i.id = h.instance_id AND i.heartbeat_at > $2::timestamptz))
+`
+
+type CountAliveEDCBNetworkTVHoldersParams struct {
+	NetworkTVID int32
+	AliveSince  time.Time
+}
+
+// ID の、生きている持ち主の数を返す。生きているかは FindJoinableEDCBNetworkTV と同じ。
+func (q *Queries) CountAliveEDCBNetworkTVHolders(ctx context.Context, arg CountAliveEDCBNetworkTVHoldersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAliveEDCBNetworkTVHolders, arg.NetworkTVID, arg.AliveSince)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countEDCBNetworkTVs = `-- name: CountEDCBNetworkTVs :one
@@ -63,35 +101,113 @@ func (q *Queries) CountEDCBNetworkTVs(ctx context.Context, arg CountEDCBNetworkT
 	return count, err
 }
 
-const deleteEDCBNetworkTV = `-- name: DeleteEDCBNetworkTV :exec
-DELETE FROM edcb_network_tvs WHERE id = $1 AND instance_id = $2
+const deleteDeadEDCBNetworkTVHolders = `-- name: DeleteDeadEDCBNetworkTVHolders :execrows
+DELETE FROM edcb_network_tv_holders h
+WHERE h.acquired_at < $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM instances i WHERE i.id = h.instance_id AND i.heartbeat_at > $1::timestamptz)
 `
 
-type DeleteEDCBNetworkTVParams struct {
-	ID         int32
-	InstanceID uuid.UUID
+// 止まったインスタンスの持ち主の行を消す。ID は、ほかの持ち主が使い続けるので残す。持ち主がいなくなった ID は、ListOrphanedEDCBNetworkTVs で閉じる。
+func (q *Queries) DeleteDeadEDCBNetworkTVHolders(ctx context.Context, aliveSince time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDeadEDCBNetworkTVHolders, aliveSince)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-func (q *Queries) DeleteEDCBNetworkTV(ctx context.Context, arg DeleteEDCBNetworkTVParams) error {
-	_, err := q.db.Exec(ctx, deleteEDCBNetworkTV, arg.ID, arg.InstanceID)
+const deleteEDCBNetworkTV = `-- name: DeleteEDCBNetworkTV :exec
+DELETE FROM edcb_network_tvs WHERE id = $1
+`
+
+func (q *Queries) DeleteEDCBNetworkTV(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, deleteEDCBNetworkTV, id)
 	return err
 }
 
+const deleteEDCBNetworkTVHolder = `-- name: DeleteEDCBNetworkTVHolder :exec
+DELETE FROM edcb_network_tv_holders WHERE network_tv_id = $1 AND instance_id = $2
+`
+
+type DeleteEDCBNetworkTVHolderParams struct {
+	NetworkTVID int32
+	InstanceID  uuid.UUID
+}
+
+func (q *Queries) DeleteEDCBNetworkTVHolder(ctx context.Context, arg DeleteEDCBNetworkTVHolderParams) error {
+	_, err := q.db.Exec(ctx, deleteEDCBNetworkTVHolder, arg.NetworkTVID, arg.InstanceID)
+	return err
+}
+
+const findJoinableEDCBNetworkTV = `-- name: FindJoinableEDCBNetworkTV :one
+SELECT t.id FROM edcb_network_tvs t
+WHERE t.network_id = $1::integer AND t.service_id = $2::integer
+  AND t.id >= $3::integer AND t.id < $3::integer + $4::integer
+  AND t.closing_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM edcb_network_tv_holders h WHERE h.network_tv_id = t.id AND h.instance_id = $5::uuid)
+  AND (
+    SELECT count(*) FROM edcb_network_tv_holders h
+    WHERE h.network_tv_id = t.id
+      AND (h.acquired_at > $6::timestamptz
+        OR EXISTS (SELECT 1 FROM instances i WHERE i.id = h.instance_id AND i.heartbeat_at > $6::timestamptz))
+  ) < $7::integer
+ORDER BY t.id
+LIMIT 1
+FOR UPDATE OF t
+`
+
+type FindJoinableEDCBNetworkTVParams struct {
+	NetworkID  int32
+	ServiceID  int32
+	Start      int32
+	Count      int32
+	InstanceID uuid.UUID
+	AliveSince time.Time
+	MaxHolders int32
+}
+
+// 範囲 [@start, @start + @count) のうち、同じサービスを開いていて、閉じ始めておらず、生きている持ち主が @max_holders に満たない ID を返す (#1850)。
+// 生きている持ち主は、インスタンスが AliveTTL のうちにハートビートを書いたか、取った直後のもの。止まった持ち主の中継は切れているので、数えない。
+// 行を FOR UPDATE で押さえ、加わるまでに、ほかのインスタンスが閉じ始めないようにする。
+func (q *Queries) FindJoinableEDCBNetworkTV(ctx context.Context, arg FindJoinableEDCBNetworkTVParams) (int32, error) {
+	row := q.db.QueryRow(ctx, findJoinableEDCBNetworkTV,
+		arg.NetworkID,
+		arg.ServiceID,
+		arg.Start,
+		arg.Count,
+		arg.InstanceID,
+		arg.AliveSince,
+		arg.MaxHolders,
+	)
+	var id int32
+	err := row.Scan(&id)
+	return id, err
+}
+
 const listOrphanedEDCBNetworkTVs = `-- name: ListOrphanedEDCBNetworkTVs :many
-SELECT id, instance_id, network_id, service_id, acquired_at FROM edcb_network_tvs t
-WHERE t.acquired_at < $1
-  AND NOT EXISTS (SELECT 1 FROM instances i WHERE i.id = t.instance_id AND i.heartbeat_at > $2)
+SELECT t.id, t.network_id, t.service_id, t.acquired_at, t.released_at, t.closing_at FROM edcb_network_tvs t
+WHERE t.acquired_at < $1::timestamptz
+  AND (t.released_at IS NULL OR t.released_at < $1::timestamptz)
+  AND (t.closing_at IS NULL OR t.closing_at < $2::timestamptz)
+  AND NOT EXISTS (
+    SELECT 1 FROM edcb_network_tv_holders h
+    WHERE h.network_tv_id = t.id
+      AND (h.acquired_at > $1::timestamptz
+        OR EXISTS (SELECT 1 FROM instances i WHERE i.id = h.instance_id AND i.heartbeat_at > $1::timestamptz))
+  )
 ORDER BY t.id
 `
 
 type ListOrphanedEDCBNetworkTVsParams struct {
-	AcquiredBefore time.Time
-	AliveSince     time.Time
+	AliveSince    time.Time
+	ClosingBefore time.Time
 }
 
-// 持ち主のインスタンスが、どのロールでも生きていない ID を返す。取った直後の ID は、登録の前の持ち主のものかもしれないので含めない。
+// 生きている持ち主のいない ID を返す。閉じ始めた ID は、閉じ始めてから @closing_before を過ぎたものだけ返す
+// (閉じる途中で止まったインスタンスの ID)。取った直後と、最後の持ち主が外れた直後の ID は、
+// 登録の前の持ち主のものか、ほかのインスタンスが引き継ぐかもしれないので含めない。
 func (q *Queries) ListOrphanedEDCBNetworkTVs(ctx context.Context, arg ListOrphanedEDCBNetworkTVsParams) ([]EdcbNetworkTv, error) {
-	rows, err := q.db.Query(ctx, listOrphanedEDCBNetworkTVs, arg.AcquiredBefore, arg.AliveSince)
+	rows, err := q.db.Query(ctx, listOrphanedEDCBNetworkTVs, arg.AliveSince, arg.ClosingBefore)
 	if err != nil {
 		return nil, err
 	}
@@ -101,10 +217,11 @@ func (q *Queries) ListOrphanedEDCBNetworkTVs(ctx context.Context, arg ListOrphan
 		var i EdcbNetworkTv
 		if err := rows.Scan(
 			&i.ID,
-			&i.InstanceID,
 			&i.NetworkID,
 			&i.ServiceID,
 			&i.AcquiredAt,
+			&i.ReleasedAt,
+			&i.ClosingAt,
 		); err != nil {
 			return nil, err
 		}
@@ -116,16 +233,65 @@ func (q *Queries) ListOrphanedEDCBNetworkTVs(ctx context.Context, arg ListOrphan
 	return items, nil
 }
 
-const releaseEDCBNetworkTV = `-- name: ReleaseEDCBNetworkTV :exec
-DELETE FROM edcb_network_tvs WHERE id = $1 AND instance_id = $2
+const lockEDCBNetworkTV = `-- name: LockEDCBNetworkTV :one
+SELECT id, network_id, service_id, acquired_at, released_at, closing_at FROM edcb_network_tvs WHERE id = $1 FOR UPDATE
 `
 
-type ReleaseEDCBNetworkTVParams struct {
-	ID         int32
-	InstanceID uuid.UUID
+// ID の行を押さえる。加わるのと、外れて閉じ始めるのを、1 つずつにする。行がなければ返さない。
+func (q *Queries) LockEDCBNetworkTV(ctx context.Context, id int32) (EdcbNetworkTv, error) {
+	row := q.db.QueryRow(ctx, lockEDCBNetworkTV, id)
+	var i EdcbNetworkTv
+	err := row.Scan(
+		&i.ID,
+		&i.NetworkID,
+		&i.ServiceID,
+		&i.AcquiredAt,
+		&i.ReleasedAt,
+		&i.ClosingAt,
+	)
+	return i, err
 }
 
-func (q *Queries) ReleaseEDCBNetworkTV(ctx context.Context, arg ReleaseEDCBNetworkTVParams) error {
-	_, err := q.db.Exec(ctx, releaseEDCBNetworkTV, arg.ID, arg.InstanceID)
+const lockEDCBNetworkTVService = `-- name: LockEDCBNetworkTVService :exec
+SELECT pg_advisory_xact_lock(hashtext('kotatsu.edcb_network_tv'), hashtext($1::integer || '/' || $2::integer))
+`
+
+type LockEDCBNetworkTVServiceParams struct {
+	NetworkID int32
+	ServiceID int32
+}
+
+// 同じサービスの ID を取るのと加わるのを、インスタンスをまたいで 1 つずつにする (#1850)。トランザクションの終わりまで持つ。
+// 2 つのインスタンスが同時に同じサービスを開いても、別々の ID を取って、チューナーを 2 本使わないようにする。
+func (q *Queries) LockEDCBNetworkTVService(ctx context.Context, arg LockEDCBNetworkTVServiceParams) error {
+	_, err := q.db.Exec(ctx, lockEDCBNetworkTVService, arg.NetworkID, arg.ServiceID)
+	return err
+}
+
+const markEDCBNetworkTVClosing = `-- name: MarkEDCBNetworkTVClosing :exec
+UPDATE edcb_network_tvs SET closing_at = $1::timestamptz WHERE id = $2
+`
+
+type MarkEDCBNetworkTVClosingParams struct {
+	Now time.Time
+	ID  int32
+}
+
+func (q *Queries) MarkEDCBNetworkTVClosing(ctx context.Context, arg MarkEDCBNetworkTVClosingParams) error {
+	_, err := q.db.Exec(ctx, markEDCBNetworkTVClosing, arg.Now, arg.ID)
+	return err
+}
+
+const markEDCBNetworkTVReleased = `-- name: MarkEDCBNetworkTVReleased :exec
+UPDATE edcb_network_tvs SET released_at = $1::timestamptz WHERE id = $2
+`
+
+type MarkEDCBNetworkTVReleasedParams struct {
+	Now time.Time
+	ID  int32
+}
+
+func (q *Queries) MarkEDCBNetworkTVReleased(ctx context.Context, arg MarkEDCBNetworkTVReleasedParams) error {
+	_, err := q.db.Exec(ctx, markEDCBNetworkTVReleased, arg.Now, arg.ID)
 	return err
 }

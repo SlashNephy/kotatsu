@@ -58,7 +58,7 @@ func newLiveFixture(t *testing.T) *liveFixture {
 	t.Cleanup(pool.Close)
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 	nx := nxjikkyotest.New(t)
-	table, err := jikkyo.NewTable(nil)
+	table, err := jikkyo.NewTable(nil, clock.Real{}, nil)
 	require.NoError(t, err)
 	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{
 		NXJikkyoURL: nx.URL, KakologURL: nx.URL, HTTPClient: httpclienttest.New(t), Clock: nil, LiveRetryDelays: []time.Duration{10 * time.Millisecond},

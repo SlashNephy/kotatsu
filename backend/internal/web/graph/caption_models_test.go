@@ -59,7 +59,7 @@ func TestCaptionModels(t *testing.T) {
 	dataDir := t.TempDir()
 	f := newFixture(t, &graph.Options{
 		DataDir: dataDir, Jobs: inserter, JobAdmin: admin,
-		Captions: &config.Captions{WhisperCommand: "", WhisperModel: "", Threads: 0, VADCommand: "", VADModel: "/models/vad.bin"},
+		Captions: &config.Captions{WhisperCommand: "", WhisperModel: "", VADCommand: "", VADModel: "/models/vad.bin"},
 	})
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 	client, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})

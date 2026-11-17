@@ -13,6 +13,16 @@
   margin-inline: auto;
 }
 
+/* スマートフォンの幅 (Mantine の xs より狭い) では、ヘッダーの部品の間を詰め、360px の幅に収める (#1879)。 */
+/* ユーザーのメニューも、この幅では表示名を隠す (UserMenu)。 */
+/* Group の gap は、Mantine がインラインの変数で決めるので、ヘッダーの中の Group として指定し、Mantine の指定より強くする。 */
+@media (max-width: 35.99375em) {
+  .header .headerStart,
+  .header .headerEnd {
+    gap: var(--mantine-spacing-xs);
+  }
+}
+
 .content {
   max-width: var(--layout-width);
   margin-inline: auto;
