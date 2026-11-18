@@ -93,8 +93,8 @@ export function useHDRDisplay(): boolean {
 
 // expandHighlightsShader は、sRGB で符号化した色の明るい所を、白より明るく伸ばす GLSL の関数。
 // 線形の輝度が hdrKnee までは変えず、そこから 1 (SDR の白) へ向けて、滑らかに hdrPeak 倍まで伸ばす。
-// 色相を変えないよう、RGB に同じ倍率を掛ける。extended の描画先は、1 を超える値も sRGB の符号化のまま読むので、
-// 伸ばした線形の値を、sRGB の曲線をそのまま 1 の先へ延ばして符号化し直す。
+// 色相を変えないよう、RGB に同じ倍率を掛ける。extended の描画先も、値を sRGB の符号化のまま読む (0.5 が RGBA8 と
+// 同じ明るさで出る) ので、伸ばした線形の値を、sRGB の曲線をそのまま 1 の先へ延ばして符号化し直す。
 export const expandHighlightsShader = `
 const float hdrKnee = 0.5;
 const float hdrPeak = 2.0;
