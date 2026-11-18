@@ -1,0 +1,116 @@
+---
+# Source: kotatsu/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kotatsu-all
+  namespace: default
+  labels:
+    app.kubernetes.io/name: kotatsu
+    app.kubernetes.io/instance: kotatsu
+    app.kubernetes.io/version: "edge"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: kotatsu-0.0.0
+    app.kubernetes.io/component: all
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kotatsu
+      app.kubernetes.io/instance: kotatsu
+      app.kubernetes.io/component: all
+  template:
+    metadata:
+      annotations:
+        sidecar.example.com/apikey-secret-name: sidecar-api-key
+        sidecar.example.com/roles: kotatsu:all
+      labels:
+        app.kubernetes.io/name: kotatsu
+        app.kubernetes.io/instance: kotatsu
+        app.kubernetes.io/version: "edge"
+        app.kubernetes.io/managed-by: Helm
+        helm.sh/chart: kotatsu-0.0.0
+        app.kubernetes.io/component: all
+        example.com/team: tv
+        sidecar.example.com/inject: "false"
+    spec:
+      serviceAccountName: kotatsu-all
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 300
+      containers:
+        - name: kotatsu
+          image: ghcr.io/slashnephy/kotatsu:edge-ffmpeg
+          imagePullPolicy: IfNotPresent
+          args:
+            - all
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: KOTATSU_SERVER_LISTEN
+              value: ":8080"
+            - name: KOTATSU_SERVER_ADVERTISE_HOST
+              value: "$(POD_IP)"
+            - name: KOTATSU_METRICS_LISTEN
+              value: ":9090"
+            - name: KOTATSU_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: kotatsu
+                  key: database-url
+            - name: KOTATSU_AUTH_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kotatsu
+                  key: secret-key
+            - name: KOTATSU_KYUSU_WORK_DIR
+              value: /var/lib/kotatsu/work
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 2
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          resources:
+            limits:
+              memory: 8Gi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: work
+              mountPath: /var/lib/kotatsu/work
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: work
+          emptyDir: {}
+
