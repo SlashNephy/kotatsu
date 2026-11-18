@@ -243,6 +243,8 @@ export function createYadifUpscaler({
 
   const fail = (error: unknown) => {
     broken = true;
+    // 以後は yadif がそのまま写す。描画先は浮動小数点のまま残りうるが、1 を超える値は書かないので、擬似 HDR ではない。
+    hdrDrawn = false;
     output = null;
     release();
     onUnavailable?.(error);
@@ -274,7 +276,9 @@ export function createYadifUpscaler({
           output = null;
         }
         // 拡大しなくても、擬似 HDR で描くなら、元の大きさのまま描く (yadif にそのまま写させない)。
-        if (size === null && wantsHDR()) {
+        // 擬似 HDR を切った直後も、描画先を SDR に戻し、伸ばさずに描き直すため、一度は元の大きさで描かせる。
+        // yadif は、大きさを返したときだけ最後のコマを描き直すので、止めている間も伸ばしたコマが残らない。
+        if (size === null && (wantsHDR() || hdrDrawn)) {
           return { width, height };
         }
 

@@ -335,6 +335,30 @@ describe('createYadifUpscaler', () => {
     expect(upscaler.hdr()).toBe(false);
   });
 
+  test('拡大を切ったまま擬似 HDR を切っても、一度は元の大きさで描かせ、SDR に戻して描き直させる', () => {
+    let hdr = true;
+    const copy = fakeCopy();
+    const setDrawingBuffer = vi.fn();
+    const upscaler = createYadifUpscaler({
+      upscale: () => false,
+      hdr: () => hdr,
+      create: fakeUpscaler,
+      createCopy: () => copy,
+      setDrawingBuffer,
+    });
+    const gl = fakeContext();
+    upscaler.draw(gl, texture, false, 1440, 1080, 1440, 1080);
+    hdr = false;
+
+    expect(upscaler.size(gl, 1440, 1080, 1920, 1080)).toEqual({ width: 1440, height: 1080 });
+    upscaler.draw(gl, texture, false, 1440, 1080, 1440, 1080);
+    expect(setDrawingBuffer).toHaveBeenLastCalledWith(gl, false, 1440, 1080);
+    expect(copy.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, false);
+    expect(upscaler.hdr()).toBe(false);
+    // SDR に戻した後は、yadif にそのまま写させる。
+    expect(upscaler.size(gl, 1440, 1080, 1920, 1080)).toBeNull();
+  });
+
   test('描画先を浮動小数点にできなければ、知らせて SDR で描き、以後は擬似 HDR にしない', () => {
     const copy = fakeCopy();
     const onHDRUnavailable = vi.fn();

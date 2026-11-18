@@ -595,13 +595,15 @@ export function TsPlayer({
   // 拡大の設定も、読み直さずに切り替える (#1654)。切り抜きを変えたときは、映る大きさが変わるので、大きさを決め直させる。
   // yadif は、同じものを渡し直すと、大きさを決め直し、拡大していれば最後のコマを描き直す。
   // 鮮鋭化の強さを変えたときも渡し直し、止めている間でも、今のコマを新しい強さで描き直させる。
-  // 擬似 HDR (#1656) の切り替えも同じ。拡大と擬似 HDR のどちらも切ると、yadif がそのまま写すので、描画先は浮動小数点の
-  // まま残るが、1 を超える値を書かないので、見え方は SDR と変わらない。
+  // 擬似 HDR (#1656) の切り替えも同じ。擬似 HDR で描いていた間に拡大と擬似 HDR のどちらも切ったときは、拡大の処理を
+  // 外さずに渡し直し、描画先を SDR に戻して最後のコマを描き直させる。外すと、yadif は描き直さないので、止めている間は
+  // 伸ばしたコマが残る。外すのは、次に設定を変えたときになる。
   const { scale: cropScale, stretchX: cropStretchX } = crop;
   useEffect(() => {
     for (const slot of [activeRef.current, pendingRef.current]) {
       if (slot?.yadif != null) {
-        slot.yadif.scaler = superResolution || hdrOutput ? slot.upscaler : null;
+        slot.yadif.scaler =
+          superResolution || hdrOutput || slot.upscaler.hdr() ? slot.upscaler : null;
       }
     }
   }, [superResolution, superResolutionStrength, hdrOutput, cropScale, cropStretchX]);
