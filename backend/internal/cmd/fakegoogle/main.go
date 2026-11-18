@@ -31,7 +31,9 @@ func run() int {
 	listen := flag.String("listen", "127.0.0.1:5559", "address of the fake Google")
 	clientID := flag.String("client-id", "kotatsu", "client ID")
 	clientSecret := flag.String("client-secret", "kotatsu-secret", "client secret")
-	redirectURIs := flag.String("redirect-uri", "", "comma-separated redirect URIs registered for the client")
+	redirectURIs := flag.String(
+		"redirect-uri", "http://localhost:9090/internal/auth/google/callback", "comma-separated redirect URIs registered for the client",
+	)
 	tsPaths := flag.String("ts", "", "comma-separated TS files placed in the fake Drive")
 	flag.Parse()
 

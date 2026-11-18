@@ -28,6 +28,8 @@ import (
 // AnimeLink = ANIME_LINK
 // AnimeImage = ANIME_IMAGE
 // DramaLinking = DRAMA_LINKING
+// DramaRecord = DRAMA_RECORD
+// DramaLink = DRAMA_LINK
 // UserAvatar = USER_AVATAR
 // OIDC = OIDC
 // HIBP = HIBP
@@ -55,11 +57,11 @@ type Initiator string
 func initiatorOf(p Purpose) Initiator {
 	switch p {
 	case PurposeAnimeProgramSync, PurposeAnimeMappings, PurposeAnimeWorkIDs, PurposeAnimeArtworks, PurposeAnimeRecord, PurposeDramaLinking,
-		PurposeUpdateCheck, PurposeTelemetryTraces, PurposeTelemetryMetrics, PurposeWebPush, PurposeWebhook:
+		PurposeDramaRecord, PurposeUpdateCheck, PurposeTelemetryTraces, PurposeTelemetryMetrics, PurposeWebPush, PurposeWebhook:
 		return InitiatorScheduled
 	case PurposeJikkyoChannels, PurposeJikkyoComments, PurposeJikkyoKakolog, PurposeNicologComments, PurposeAnimeLink, PurposeAnimeImage,
-		PurposeUserAvatar, PurposeOIDC, PurposeHIBP, PurposeMCPClientMetadata, PurposeDataBroadcast, PurposeCaptionModelDownload,
-		PurposeGoogleDrive:
+		PurposeDramaLink, PurposeUserAvatar, PurposeOIDC, PurposeHIBP, PurposeMCPClientMetadata, PurposeDataBroadcast,
+		PurposeCaptionModelDownload, PurposeGoogleDrive:
 		return InitiatorUser
 	default:
 		return InitiatorUser
@@ -108,6 +110,8 @@ func knownHosts(p Purpose) ([]string, bool) {
 		return []string{annict, annictAPI, aniList, aniListAPI}, false
 	case PurposeDramaLinking:
 		return []string{"api.themoviedb.org"}, false
+	case PurposeDramaRecord, PurposeDramaLink:
+		return []string{"simkl.com", "api.simkl.com"}, false
 	case PurposeHIBP:
 		return []string{"api.pwnedpasswords.com"}, false
 	case PurposeUpdateCheck:

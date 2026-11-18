@@ -77,7 +77,7 @@ const (
 type Server struct {
 	ClientID     string
 	ClientSecret string
-	// RedirectURIs は、クライアントに登録したリダイレクト URI。空なら、どれも受け付ける。
+	// RedirectURIs は、クライアントに登録したリダイレクト URI。本物と同じく、認可の画面はこの中のどれかにだけ戻す。
 	RedirectURIs []string
 	// Account は、about.get が返すメールアドレス。
 	Account string
@@ -232,11 +232,12 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	redirectURI := q.Get("redirect_uri")
+	// 本物の Google と同じく、登録したリダイレクト URI と 1 文字ずつ同じものにだけ戻す。戻す先は、登録した値から作る。
+	index := slices.Index(s.RedirectURIs, q.Get("redirect_uri"))
 	switch {
 	case q.Get("client_id") != s.ClientID:
 		http.Error(w, "unknown client", http.StatusBadRequest)
-	case len(s.RedirectURIs) > 0 && !slices.Contains(s.RedirectURIs, redirectURI):
+	case index < 0:
 		http.Error(w, "redirect_uri_mismatch", http.StatusBadRequest)
 	case q.Get("response_type") != keyCode || q.Get("code_challenge_method") != "S256" || q.Get("code_challenge") == "":
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -245,18 +246,18 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	case !slices.Contains(strings.Fields(q.Get("scope")), DriveScope):
 		http.Error(w, "invalid scope", http.StatusBadRequest)
 	default:
-		code := random()
-		s.mu.Lock()
-		s.codes[code] = &grant{challenge: q.Get("code_challenge"), redirectURI: redirectURI, scope: q.Get("scope")}
-		s.mu.Unlock()
-		target, err := url.Parse(redirectURI)
+		registered := s.RedirectURIs[index]
+		target, err := url.Parse(registered)
 		if err != nil {
 			http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
 
 			return
 		}
+		code := random()
+		s.mu.Lock()
+		s.codes[code] = &grant{challenge: q.Get("code_challenge"), redirectURI: registered, scope: q.Get("scope")}
+		s.mu.Unlock()
 		target.RawQuery = url.Values{keyCode: {code}, "state": {q.Get("state")}, "scope": {q.Get("scope")}}.Encode()
-		// 本物の Google と同じく、登録したリダイレクト URI へ戻す (RedirectURIs が空なら、検証用にどこへでも戻す)。
 		w.Header().Set("Location", target.String())
 		w.WriteHeader(http.StatusFound)
 	}

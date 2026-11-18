@@ -269,7 +269,7 @@ func urgency(kind domain.NotificationKind) string {
 		return "high"
 	case domain.NotificationKindRecordingStarted, domain.NotificationKindRecordingCompleted, domain.NotificationKindReservationConflict,
 		domain.NotificationKindWatchReminder, domain.NotificationKindAnimeRecorded, domain.NotificationKindAnimeRecordFailed,
-		domain.NotificationKindScrambledRecordings, domain.NotificationKindLineupChanged:
+		domain.NotificationKindDramaRecorded, domain.NotificationKindDramaRecordFailed, domain.NotificationKindScrambledRecordings, domain.NotificationKindLineupChanged:
 		return "normal"
 	default:
 		return "normal"

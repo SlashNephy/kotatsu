@@ -1,44 +1,21 @@
 name: Release
 
+# タグの版で、バイナリ (GitHub Releases)、コンテナイメージ (image.yml)、Helm Chart (GitHub Pages) を公開する (設計書 11.1)。
+# Tag a release (tag-release.yml) が、打ったタグでこの workflow を動かす。
+# 配布の設定 (.goreleaser.yaml、Helm Chart) を変えた PR では、CI (ci.yml) の archives と deploy のジョブが、公開せずに作れるかを確かめる。
 on:
-  pull_request:
-    # 配布の設定を変えた PR では、公開せずにビルドできるかを確かめる。
-    paths:
-      - .goreleaser.yaml
-      - .github/workflows/release.yml
-      - deploy/helm/**
-      - mise.toml
-      - mise.lock
   push:
     tags:
       - v*
   workflow_dispatch:
 
 concurrency:
-  # pull_request では github.ref が refs/pull/N/merge になるため head_ref でまとめる
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions: {}
 
 jobs:
-  # 配布の設定を変えた PR などでは、公開せずに、SPA を埋め込んだバイナリを作れるかを確かめる。
-  snapshot:
-    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-      # 公開する workflow なので、PR でもキャッシュを書かない。PR から公開のジョブにキャッシュを汚させないため。
-      - uses: jdx/mise-action@v5.2.7
-        with:
-          cache: false
-      - run: mise run release:snapshot
-      - run: helm package deploy/helm/kotatsu --destination "$RUNNER_TEMP"
-
   # SPA を埋め込んだ Linux、macOS、Windows の amd64 と arm64 のバイナリを、GitHub Releases に公開する (設計書 11.1)。
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -79,6 +56,17 @@ jobs:
       - uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ runner.temp }}/chart/*.tgz
+
+  # 2 種類のイメージを作り、タグの版で ghcr.io に公開する (設計書 2.4)。CI と同じ手順で作る。
+  image:
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: ./.github/workflows/image.yml
 
   # Helm Chart を、タグの版で GitHub Pages の Helm リポジトリ (https://slashnephy.github.io/kotatsu) に公開する (設計書 11.1)。
   # Chart の本体はリリースに添付してあり、gh-pages ブランチの index.yaml からそれを指す。

@@ -1,0 +1,6 @@
+# Chart が付けるラベルは、podLabels で上書きできない。
+mode: split
+roles:
+  tenban:
+    podLabels:
+      app.kubernetes.io/component: other

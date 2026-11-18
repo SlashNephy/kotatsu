@@ -94,13 +94,26 @@ const mutation = graphql`
     $serviceId: ID
     $recordingId: ID
     $intervals: [PlaybackIntervalInput!]!
+    $anime: Boolean!
+    $drama: Boolean!
   ) {
-    reportAnimePlayback(serviceId: $serviceId, recordingId: $recordingId, intervals: $intervals)
+    reportAnimePlayback(
+      serviceId: $serviceId
+      recordingId: $recordingId
+      intervals: $intervals
+      anime: $anime
+      drama: $drama
+    )
   }
 `;
 
-function variablesOf(target: PlaybackTarget, intervals: PlayedInterval[]) {
+// RecordOnDevice は、この端末で見たアニメと見たドラマを記録するか (#1283、#1649)。
+type RecordOnDevice = { anime: boolean; drama: boolean };
+
+function variablesOf(target: PlaybackTarget, intervals: PlayedInterval[], record: RecordOnDevice) {
   return {
+    anime: record.anime,
+    drama: record.drama,
     serviceId: 'serviceId' in target ? target.serviceId : null,
     recordingId: 'recordingId' in target ? target.recordingId : null,
     intervals: intervals.map((interval) => ({
@@ -113,22 +126,25 @@ function variablesOf(target: PlaybackTarget, intervals: PlayedInterval[]) {
 // usePlaybackReporter は、ライブ視聴と録画の再生で、実際に再生した区間を、しばらくごとと、画面を閉じるときにサーバーへ送る (#927)。
 // サーバーは、番組の長さの一定の割合を見たら、Annict と AniList に記録する。broadcastAt は、いま出している場面の放送の時刻
 // (Unix ミリ秒) を返す。分からなければ null を返す。記録の対象でないとサーバーが答えたら、この画面では送るのをやめる。
-// この端末で記録しない設定 (#1283) にしていれば、区間を集めず、何も送らない。
+// この端末で見たアニメも見たドラマも記録しない設定 (#1283、#1649) にしていれば、区間を集めず、何も送らない。
+// どちらかだけを記録する設定なら、記録しないほうをサーバーに伝え、サーバーはそちらを記録しない。
 export function usePlaybackReporter(
   target: PlaybackTarget | null,
   video: HTMLVideoElement | null,
   broadcastAt: () => number | null,
 ): void {
   const [commit] = useMutation<usePlaybackReporterMutation>(mutation);
-  const [recordOnDevice] = useRecordOnDevice();
+  const [recordAnime] = useRecordOnDevice('anime');
+  const [recordDrama] = useRecordOnDevice('drama');
   const broadcastAtRef = useRef(broadcastAt);
   broadcastAtRef.current = broadcastAt;
   const targetKey = target === null ? null : JSON.stringify(target);
 
   useEffect(() => {
-    if (targetKey === null || video === null || !recordOnDevice) {
+    if (targetKey === null || video === null || (!recordAnime && !recordDrama)) {
       return;
     }
+    const record: RecordOnDevice = { anime: recordAnime, drama: recordDrama };
     const reportTarget = JSON.parse(targetKey) as PlaybackTarget;
     const tracker = new PlaybackTracker();
     // stopped は、記録の対象でないとサーバーが答えたかどうか。
@@ -149,7 +165,7 @@ export function usePlaybackReporter(
       }
       sending = true;
       commit({
-        variables: variablesOf(reportTarget, intervals),
+        variables: variablesOf(reportTarget, intervals, record),
         onCompleted: (response) => {
           sending = false;
           tracker.acknowledge(closed);
@@ -177,8 +193,8 @@ export function usePlaybackReporter(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query:
-            'mutation ($serviceId: ID, $recordingId: ID, $intervals: [PlaybackIntervalInput!]!) { reportAnimePlayback(serviceId: $serviceId, recordingId: $recordingId, intervals: $intervals) }',
-          variables: variablesOf(reportTarget, intervals),
+            'mutation ($serviceId: ID, $recordingId: ID, $intervals: [PlaybackIntervalInput!]!, $anime: Boolean!, $drama: Boolean!) { reportAnimePlayback(serviceId: $serviceId, recordingId: $recordingId, intervals: $intervals, anime: $anime, drama: $drama) }',
+          variables: variablesOf(reportTarget, intervals, record),
         }),
       }).catch(() => {});
     };
@@ -188,12 +204,14 @@ export function usePlaybackReporter(
       window.removeEventListener('pagehide', onPageHide);
       clearInterval(sampler);
       clearInterval(reporter);
-      // この端末で記録しない設定に切り替えたときは、それまでに集めた区間も送らない。
-      if (!loadRecordOnDevice(browserStorage())) {
+      // この端末で記録しない設定に切り替えたときは、それまでに集めた区間も、記録しないと決めたほうには送らない。
+      record.anime = record.anime && loadRecordOnDevice(browserStorage(), 'anime');
+      record.drama = record.drama && loadRecordOnDevice(browserStorage(), 'drama');
+      if (!record.anime && !record.drama) {
         return;
       }
       sample();
       report();
     };
-  }, [targetKey, video, commit, recordOnDevice]);
+  }, [targetKey, video, commit, recordAnime, recordDrama]);
 }

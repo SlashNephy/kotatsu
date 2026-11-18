@@ -118,8 +118,15 @@ extend type Mutation {
   区間は、番組ごとに重ねずにまとめるので、同じ区間を送り直しても、複数のタブから送っても、多く数えない。
   番組の長さのうち、決めた割合を見たら、結びついた話を記録する。TMDb の話に結びついたドラマの番組なら、見たドラマの話にする (#1652)。
   記録の対象でなければ (アニメの連携が無効か連携しておらず、TMDb との連携も無効) false を返す。
+  anime と drama は、この端末で見たアニメと見たドラマを記録するか (端末ごとの設定。#1283、#1649)。false のほうは記録しない。
   """
-  reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
+  reportAnimePlayback(
+    serviceId: ID
+    recordingId: ID
+    intervals: [PlaybackIntervalInput!]!
+    anime: Boolean! = true
+    drama: Boolean! = true
+  ): Boolean!
 }
 
 """
