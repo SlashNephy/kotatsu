@@ -38,6 +38,7 @@ import {
   useSuperResolution,
   useSuperResolutionStrength,
 } from '../../yunomi/superResolution';
+import { hdrOutputSupported, useHDRDisplay, useHDROutput } from '../../yunomi/hdr';
 
 // captionBackgrounds は、字幕の背景の選択肢 (#491)。broadcast は放送の指定どおり、ほかは黒の不透明度。
 const captionBackgrounds = ['broadcast', '0', '0.25', '0.5', '0.75', '1'];
@@ -93,6 +94,10 @@ function PlayerSettings() {
   const [interpolationRate, setInterpolationRate] = useInterpolationRate();
   const [superResolution, setSuperResolution] = useSuperResolution();
   const [superResolutionStrength, setSuperResolutionStrength] = useSuperResolutionStrength();
+  const [hdrOutput, setHDROutput] = useHDROutput();
+  // 擬似 HDR (#1656) は、WebGL の HDR の出力を持つブラウザでしか描けないので、持たなければ切り替えさせない。
+  const [hdrOutputAvailable] = useState(hdrOutputSupported);
+  const hdrDisplay = useHDRDisplay();
   const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
   const [miniPlayer, setMiniPlayer] = useMiniPlayer();
   // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
@@ -290,6 +295,27 @@ function PlayerSettings() {
               }
             }}
             maw={240}
+          />
+          {/* 画面が HDR を出せるかは端末によるので、端末ごとに覚える (#1656)。 */}
+          <Switch
+            label={
+              <Group gap={6} component="span">
+                {t('settings.account.hdrOutput')}
+                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                  {t('settings.account.deviceOnly')}
+                </Badge>
+              </Group>
+            }
+            description={
+              !hdrOutputAvailable
+                ? t('settings.account.hdrOutputUnsupported')
+                : hdrDisplay
+                  ? t('settings.account.hdrOutputHelp')
+                  : t('settings.account.hdrOutputNoDisplay')
+            }
+            disabled={!hdrOutputAvailable}
+            checked={hdrOutputAvailable && hdrOutput}
+            onChange={(event) => deviceSave(setHDROutput)(event.currentTarget.checked)}
           />
           {/* GPU の負荷と、作ったコマの崩れ方は端末と映像によるので、端末ごとに覚える (#1655)。 */}
           <Switch

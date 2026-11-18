@@ -22,6 +22,7 @@ import {
   useInterpolationRate,
 } from './frameInterpolation';
 import { advanceBeforeHandover } from './handoverAdvance';
+import { hdrOutputSupported, useHDRDisplay, useHDROutput } from './hdr';
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
@@ -107,6 +108,7 @@ export type PlayerSettingsOverride = {
   interpolate?: boolean;
   interpolationRate?: InterpolationRate;
   superResolution?: boolean;
+  hdrOutput?: boolean;
 };
 
 // Slot は、映像を 1 本読み込むための、video と変換のプレイヤーと字幕の組。切り替えのときだけ、裏でもう 1 つ作る (#1083)。
@@ -200,6 +202,8 @@ function sourcePicture(
         : !yadif.doubleRate && yadif.interpolator?.wants('frame') === true),
     // 拡大して描いている大きさ (#1654)。設定を切っている間と、元の大きさ以下に映している間は null。
     upscaled: yadif !== null && yadif.scaler === upscaler ? upscaler.output() : null,
+    // 擬似 HDR で描いていること (#1656)。
+    hdr: yadif !== null && yadif.scaler === upscaler && upscaler.hdr(),
     // 拡大を入れているのに拡大していないとき (映す大きさが元の大きさ以下) は、映す大きさを添えて、理由を分かるようにする。
     notUpscaled:
       yadif !== null && yadif.scaler === upscaler && upscaler.output() === null
@@ -303,6 +307,13 @@ export function TsPlayer({
   const [superResolutionStrength] = useSuperResolutionStrength();
   const superResolutionStrengthRef = useRef(superResolutionStrength);
   superResolutionStrengthRef.current = superResolutionStrength;
+  // hdrOutput は、解除したコマを擬似 HDR で描くか (#1656)。端末ごとの設定で入れていても、ブラウザが対応し、
+  // 画面が HDR を出せるときだけ描く。描くたびに読むので、ref で渡す。
+  const [savedHDROutput] = useHDROutput();
+  const hdrDisplay = useHDRDisplay();
+  const hdrOutput = (settings?.hdrOutput ?? savedHDROutput) && hdrDisplay && hdrOutputSupported();
+  const hdrOutputRef = useRef(hdrOutput);
+  hdrOutputRef.current = hdrOutput;
   // zoom は、切り抜き (#496) の拡大率。拡大する大きさを決めるたびに読むので、ref で渡す。
   const zoomRef = useRef(scales(crop));
   zoomRef.current = scales(crop);
@@ -383,8 +394,13 @@ export function TsPlayer({
       upscaler: createYadifUpscaler({
         zoom: () => zoomRef.current,
         strength: () => superResolutionStrengthRef.current,
+        upscale: () => superResolutionRef.current,
+        hdr: () => hdrOutputRef.current,
         onUnavailable: (error) => {
           console.warn('upscaling is unavailable; showing the pictures as they are', error);
+        },
+        onHDRUnavailable: (error) => {
+          console.warn('HDR output is unavailable; showing the pictures in SDR', error);
         },
       }),
       unfiltered: false,
@@ -421,8 +437,11 @@ export function TsPlayer({
         doubleRate: fieldRateRef.current,
         // 24p と 29.97p のコマの間を補間する (#1655)。補間するコマは、yadif が 1 枚遅らせて出す。
         interpolator: interpolateRef.current ? slot.interpolation : null,
-        // 解除したコマを、映像を描く矩形の端末の画素の大きさへ拡大して描く (#1654)。
-        scaler: superResolutionRef.current ? slot.upscaler : null,
+        // 解除したコマを、映像を描く矩形の端末の画素の大きさへ拡大して描く (#1654)。擬似 HDR (#1656) も、ここで描く。
+        scaler: superResolutionRef.current || hdrOutputRef.current ? slot.upscaler : null,
+        // 擬似 HDR (#1656) で描画先の形式を変えるには、alpha のあるコンテキストが要る。どのコマも不透明に描くので、
+        // 見え方は変わらない。WebGL の HDR の出力を持たないブラウザでは、今までどおり alpha なしで作る。
+        alpha: hdrOutputSupported(),
         // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
         // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで知らせる。
         onStats: (stats) => {
@@ -576,14 +595,16 @@ export function TsPlayer({
   // 拡大の設定も、読み直さずに切り替える (#1654)。切り抜きを変えたときは、映る大きさが変わるので、大きさを決め直させる。
   // yadif は、同じものを渡し直すと、大きさを決め直し、拡大していれば最後のコマを描き直す。
   // 鮮鋭化の強さを変えたときも渡し直し、止めている間でも、今のコマを新しい強さで描き直させる。
+  // 擬似 HDR (#1656) の切り替えも同じ。拡大と擬似 HDR のどちらも切ると、yadif がそのまま写すので、描画先は浮動小数点の
+  // まま残るが、1 を超える値を書かないので、見え方は SDR と変わらない。
   const { scale: cropScale, stretchX: cropStretchX } = crop;
   useEffect(() => {
     for (const slot of [activeRef.current, pendingRef.current]) {
       if (slot?.yadif != null) {
-        slot.yadif.scaler = superResolution ? slot.upscaler : null;
+        slot.yadif.scaler = superResolution || hdrOutput ? slot.upscaler : null;
       }
     }
-  }, [superResolution, superResolutionStrength, cropScale, cropStretchX]);
+  }, [superResolution, superResolutionStrength, hdrOutput, cropScale, cropStretchX]);
 
   // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
   const destroySlot = (slot: Slot) => {

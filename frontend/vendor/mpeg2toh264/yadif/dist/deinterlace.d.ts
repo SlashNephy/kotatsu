@@ -124,6 +124,14 @@ export interface DeinterlacerOptions {
     interpolator?: PictureInterpolator | null;
     /** What to put pictures onto the canvas with, at a size of its own. See PictureScaler. */
     scaler?: PictureScaler | null;
+    /**
+     * Whether to give the canvas's buffer an alpha channel. Every picture is
+     * drawn opaque, so this does not change what is shown, but a page that
+     * changes the buffer's format with `drawingBufferStorage` -- a floating
+     * point buffer for HDR output, say -- needs one: the browser refuses to
+     * change the format of a buffer without alpha.
+     */
+    alpha?: boolean;
 }
 /** How often pictures come out: one per frame, one per field, or film at 24p. */
 export type Cadence = "frame" | "field" | "film";
