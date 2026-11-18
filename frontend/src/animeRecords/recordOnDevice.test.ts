@@ -11,6 +11,14 @@ describe('loadRecordOnDevice', () => {
     expect(loadRecordOnDevice({ getItem: () => stored })).toBe(want);
   });
 
+  test('見たドラマは、見たアニメと別に覚える (#1649)', () => {
+    const stored: Record<string, string> = { 'kotatsu.animeRecords.recordOnDevice': 'false' };
+    const storage = { getItem: (key: string) => stored[key] ?? null };
+
+    expect(loadRecordOnDevice(storage, 'anime')).toBe(false);
+    expect(loadRecordOnDevice(storage, 'drama')).toBe(true);
+  });
+
   test('読めなければ記録する', () => {
     expect(
       loadRecordOnDevice({

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8964cfea2e3c40070d2bcf2f5d43e929>>
+ * @generated SignedSource<<dcb23f1ead574639d9b0d4f9887a4eaa>>
  * @lightSyntaxTransform
  */
 
@@ -13,6 +13,8 @@ export type PlaybackIntervalInput = {
   to: string;
 };
 export type usePlaybackReporterMutation$variables = {
+  anime: boolean;
+  drama: boolean;
   intervals: ReadonlyArray<PlaybackIntervalInput>;
   recordingId?: string | null | undefined;
   serviceId?: string | null | undefined;
@@ -29,22 +31,42 @@ const node: ConcreteRequest = (function(){
 var v0 = {
   "defaultValue": null,
   "kind": "LocalArgument",
-  "name": "intervals"
+  "name": "anime"
 },
 v1 = {
   "defaultValue": null,
   "kind": "LocalArgument",
-  "name": "recordingId"
+  "name": "drama"
 },
 v2 = {
   "defaultValue": null,
   "kind": "LocalArgument",
+  "name": "intervals"
+},
+v3 = {
+  "defaultValue": null,
+  "kind": "LocalArgument",
+  "name": "recordingId"
+},
+v4 = {
+  "defaultValue": null,
+  "kind": "LocalArgument",
   "name": "serviceId"
 },
-v3 = [
+v5 = [
   {
     "alias": null,
     "args": [
+      {
+        "kind": "Variable",
+        "name": "anime",
+        "variableName": "anime"
+      },
+      {
+        "kind": "Variable",
+        "name": "drama",
+        "variableName": "drama"
+      },
       {
         "kind": "Variable",
         "name": "intervals",
@@ -71,37 +93,41 @@ return {
     "argumentDefinitions": [
       (v0/*:: as any*/),
       (v1/*:: as any*/),
-      (v2/*:: as any*/)
+      (v2/*:: as any*/),
+      (v3/*:: as any*/),
+      (v4/*:: as any*/)
     ],
     "kind": "Fragment",
     "metadata": null,
     "name": "usePlaybackReporterMutation",
-    "selections": (v3/*:: as any*/),
+    "selections": (v5/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
   },
   "kind": "Request",
   "operation": {
     "argumentDefinitions": [
+      (v4/*:: as any*/),
+      (v3/*:: as any*/),
       (v2/*:: as any*/),
-      (v1/*:: as any*/),
-      (v0/*:: as any*/)
+      (v0/*:: as any*/),
+      (v1/*:: as any*/)
     ],
     "kind": "Operation",
     "name": "usePlaybackReporterMutation",
-    "selections": (v3/*:: as any*/)
+    "selections": (v5/*:: as any*/)
   },
   "params": {
-    "cacheID": "893e8addeb5a87ebe55a313e2d7aa7c3",
+    "cacheID": "8e36192f44b6c746582b3df7e78b01ec",
     "id": null,
     "metadata": {},
     "name": "usePlaybackReporterMutation",
     "operationKind": "mutation",
-    "text": "mutation usePlaybackReporterMutation(\n  $serviceId: ID\n  $recordingId: ID\n  $intervals: [PlaybackIntervalInput!]!\n) {\n  reportAnimePlayback(serviceId: $serviceId, recordingId: $recordingId, intervals: $intervals)\n}\n"
+    "text": "mutation usePlaybackReporterMutation(\n  $serviceId: ID\n  $recordingId: ID\n  $intervals: [PlaybackIntervalInput!]!\n  $anime: Boolean!\n  $drama: Boolean!\n) {\n  reportAnimePlayback(serviceId: $serviceId, recordingId: $recordingId, intervals: $intervals, anime: $anime, drama: $drama)\n}\n"
   }
 };
 })();
 
-(node as any).hash = "30f098df25fe409d4692f6a8f1d1ded4";
+(node as any).hash = "9a655e5b0ca6569ce03101da3d5c57f3";
 
 export default node;

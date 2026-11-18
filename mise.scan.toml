@@ -1,4 +1,4 @@
-# コンテナイメージの脆弱性と、マニフェストの設定を確かめるときだけ使うツール (設計書 11.1、.github/workflows/scan.yml と image.yml の trivy)。
+# コンテナイメージの脆弱性と、マニフェストの設定を確かめるときだけ使うツール (設計書 11.1、.github/workflows/scan.yml、image.yml、ci.yml の kube-linter)。
 # ほかの作業で入れずに済むよう、MISE_ENV=scan のときだけ読む。
 #
 #   MISE_ENV=scan mise exec -- trivy image ghcr.io/slashnephy/kotatsu:edge

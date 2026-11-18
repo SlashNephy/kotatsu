@@ -41,3 +41,4 @@
 
 - コミットメッセージと PR のタイトルは、Conventional Commits の形式で書きます（[CONTRIBUTING.md](.github/CONTRIBUTING.md)）。PR のタイトルの種類（`feat`、`fix`、`perf`、`docs`）から、リリースノートで分けるためのラベルが付くので、変更の中身に合った種類を選びます。
 - Issue のタイトルは、Conventional Commits の形式にせず、日本語の文で書きます。種類のラベル（`bug`、`enhancement`）を付けます。
+- 1 つの PR で足すマイグレーションのファイルは、1 つまでにします。PR の途中でスキーマを直すときも、新しいファイルを足さず、その PR のファイルを直します。main と衝突したら、main の最新より後の時刻に改名して `atlas migrate hash` を流し直します。

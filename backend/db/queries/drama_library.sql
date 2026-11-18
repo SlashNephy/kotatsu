@@ -72,3 +72,12 @@ ORDER BY m.tmdb_series_id, m.season_number, m.episode_number, r.recorded_from DE
 -- name: ListTMDbSeasonsOf :many
 -- 作品 series_ids の、キャッシュにあるシーズンを返す。
 SELECT * FROM tmdb_seasons WHERE series_id = ANY(@series_ids::integer[]) ORDER BY series_id, season_number;
+
+-- name: GetDramaRecordSettings :one
+SELECT * FROM drama_record_settings WHERE user_id = @user_id;
+
+-- name: UpsertDramaRecordSettings :one
+INSERT INTO drama_record_settings (user_id, threshold_percent, updated_at)
+VALUES (@user_id, @threshold_percent, @now)
+ON CONFLICT (user_id) DO UPDATE SET threshold_percent = EXCLUDED.threshold_percent, updated_at = EXCLUDED.updated_at
+RETURNING *;

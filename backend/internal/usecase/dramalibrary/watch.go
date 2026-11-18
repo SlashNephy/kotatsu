@@ -12,8 +12,10 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
@@ -44,31 +46,17 @@ type Database interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-// available は、システムの設定を返す。管理者が TMDb との連携を有効にしていなければ ErrUnavailable を返す。
-func available(ctx context.Context, db sqlc.DBTX) (*settings.System, error) {
+// available は、管理者が TMDb との連携を有効にしていなければ ErrUnavailable を返す。
+func available(ctx context.Context, db sqlc.DBTX) error {
 	system, err := settings.Load(ctx, db)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if !system.DramaLinkingEnabled {
-		return nil, ErrUnavailable
+		return ErrUnavailable
 	}
 
-	return system, nil
-}
-
-// thresholdPercent は、ユーザー userID の見た話にする割合を返す。アニメの記録の設定 (設計書 3.8) を使うが、その設定はアニメの連携の
-// 画面にしか出さないので、管理者がアニメの連携を無効にしている間は、変えられない設定に従わず、既定の割合を使う。
-func thresholdPercent(ctx context.Context, db sqlc.DBTX, system *settings.System, userID uuid.UUID) (int, error) {
-	if !system.AnimeLinkingEnabled {
-		return animerecord.DefaultThresholdPercent, nil
-	}
-	userSettings, err := animerecord.LoadSettings(ctx, db, userID)
-	if err != nil {
-		return 0, err
-	}
-
-	return userSettings.ThresholdPercent, nil
+	return nil
 }
 
 // SetStatus は、ユーザー userID の見ている作品に、TMDb の作品 seriesID を、状態 status で足すか、状態を変える。status が空なら外す。
@@ -78,7 +66,7 @@ func SetStatus(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, seriesID int
 	if seriesID <= 0 {
 		return ErrInvalidEpisode
 	}
-	if _, err := available(ctx, db); err != nil {
+	if err := available(ctx, db); err != nil {
 		return err
 	}
 	q := sqlc.New(db)
@@ -155,7 +143,7 @@ func SetWatched(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, episode *Ep
 	if !episode.valid() {
 		return ErrInvalidEpisode
 	}
-	if _, err := available(ctx, db); err != nil {
+	if err := available(ctx, db); err != nil {
 		return err
 	}
 	q := sqlc.New(db)
@@ -202,22 +190,25 @@ type watchedProgram struct {
 	serviceID int64
 	startAt   time.Time
 	endAt     time.Time
+	name      string
 	episode   *Episode
 }
 
 // Report は、ユーザー userID のプレイヤーが、target を実際に再生した区間 intervals を、話に結びついたドラマの番組ごとに足す。
-// 番組の長さのうち、ユーザーが決めた割合 (アニメの記録の設定。既定は 20%。アニメの連携が無効の間は既定の割合) を見たら、番組に結びついた話を、見た話にする (設計書 3.9)。
+// 番組の長さのうち、ユーザーが決めた割合 (見たドラマの記録の設定。既定は 20%。アニメの割合とは別。#1649) を見たら、番組に結びついた話を、
+// 見た話にする (設計書 3.9)。
 // 見た区間は、アニメの記録と同じ行に持ち、同じ判定 (設計書 3.8) で決める。見ている作品に入れていない作品の話も、見た話にする。
-// 管理者が連携を無効にしていれば、何もせずに false を返す。
+// 見た話にした番組は、ユーザーが連携した Simkl などの記録先に、番組と話と記録先の組で 1 回だけ記録する (#1649)。記録は inserter で入れる
+// ジョブで送る。管理者が連携を無効にしていれば、何もせずに false を返す。
 func Report(
-	ctx context.Context, db Database, userID uuid.UUID, target *animerecord.Target, intervals []*animerecord.Interval, now time.Time,
+	ctx context.Context, db Database, inserter anime.Inserter, userID uuid.UUID, target *animerecord.Target, intervals []*animerecord.Interval,
+	now time.Time,
 ) (bool, error) {
 	spans, err := animerecord.NewPlayedSpans(intervals, now)
 	if err != nil {
 		return false, err
 	}
-	system, err := available(ctx, db)
-	if err != nil {
+	if err := available(ctx, db); err != nil {
 		if errors.Is(err, ErrUnavailable) {
 			return false, nil
 		}
@@ -234,7 +225,7 @@ func Report(
 	if len(programs) == 0 {
 		return true, nil
 	}
-	percent, err := thresholdPercent(ctx, db, system, userID)
+	percent, err := ThresholdPercent(ctx, db, userID)
 	if err != nil {
 		return false, err
 	}
@@ -251,7 +242,10 @@ func Report(
 				return fmt.Errorf("failed to insert the watched drama episode: %w", err)
 			}
 
-			return nil
+			return dramarecord.InsertRecords(ctx, tx, inserter, userID, &dramarecord.WatchedProgram{
+				ServiceID: p.serviceID, StartAt: p.startAt, Name: p.name,
+				SeriesID: p.episode.SeriesID, Season: p.episode.Season, Number: p.episode.Number,
+			}, now)
 		}); err != nil {
 			return false, err
 		}
@@ -278,7 +272,7 @@ func watchedPrograms(ctx context.Context, db sqlc.DBTX, target *animerecord.Targ
 				return nil, err
 			}
 			if episode := episodeOf(linked, found); episode != nil {
-				programs = append(programs, &watchedProgram{serviceID: row.ServiceID, startAt: row.StartAt, endAt: row.EndAt, episode: episode})
+				programs = append(programs, &watchedProgram{serviceID: row.ServiceID, startAt: row.StartAt, endAt: row.EndAt, name: row.Name, episode: episode})
 			}
 		}
 	case target.RecordingID != nil:
@@ -294,7 +288,7 @@ func watchedPrograms(ctx context.Context, db sqlc.DBTX, target *animerecord.Targ
 			return nil, err
 		}
 		if episode := episodeOf(linked, found); episode != nil {
-			programs = append(programs, &watchedProgram{serviceID: row.ServiceID, startAt: row.StartAt, endAt: row.EndAt, episode: episode})
+			programs = append(programs, &watchedProgram{serviceID: row.ServiceID, startAt: row.StartAt, endAt: row.EndAt, name: row.Name, episode: episode})
 		}
 	default:
 		return nil, fmt.Errorf("%w: no target", animerecord.ErrInvalidReport)

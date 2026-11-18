@@ -1,23 +1,15 @@
 name: Image
 
+# 2 種類のイメージを amd64 と arm64 でビルドし、main とタグでは ghcr.io に公開する (設計書 2.4、11.1)。
+# CI (ci.yml) が PR と main への push で、Release (release.yml) がタグで呼ぶ。
+# 作ったイメージは、起動を確かめ、Trivy で脆弱性を調べる (#1918)。調べるのは公開した後なので、見つかっても edge の公開は止めない。
+# タグ (リリース) では調べない。公開したイメージは、定期の検査 (scan.yml) が毎日確かめる (#1922)。
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-    tags:
-      - v*
-  workflow_dispatch:
-
-concurrency:
-  # pull_request では github.ref が refs/pull/N/merge になるため head_ref でまとめる
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions: {}
 
 jobs:
-  # 2 種類のイメージを amd64 と arm64 でビルドし、main とタグでは ghcr.io に公開する (設計書 2.4、11.1)。
   image:
     runs-on: ubuntu-latest
     # id-token と attestations は、公開したイメージに出所の証明を付けるのに使う (#1524)。
@@ -28,9 +20,9 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    # バイナリに埋め込む版。イメージの種類の接尾辞を除くので、matrix のどちらでも同じ値になる。
-    outputs:
-      version: ${{ steps.version.outputs.version }}
+    env:
+      # Trivy は、mise.scan.toml で版とチェックサムまで固定したものを使う (設計書 11.1)。
+      MISE_ENV: scan
     strategy:
       fail-fast: false
       matrix:
@@ -65,6 +57,7 @@ jobs:
           SUFFIX: ${{ matrix.suffix }}
         run: echo "version=${META_VERSION%"$SUFFIX"}" >> "$GITHUB_OUTPUT"
       # 公開する前に、amd64 のイメージを読み取り専用のルートファイルシステムで起動できるかを確かめる。
+      # このイメージを、後で Trivy でも調べる。アーキテクチャで入るパッケージは変わらないので、amd64 だけを見る。
       - uses: docker/build-push-action@v7.4.0
         with:
           context: .
@@ -127,46 +120,12 @@ jobs:
           subject-name: ghcr.io/slashnephy/kotatsu
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
-
-  # PR と main への push で作ったイメージを Trivy で確かめ、重さが HIGH 以上の脆弱性があれば失敗にする (#1918、設計書 11.1)。
-  # 公開済みのイメージは scan.yml で毎日確かめる。そちらは、次のリリースまで直らないので失敗にしない。
-  # 必須のチェック (image (...)) とは別のジョブにして、新しく公開された脆弱性でマージを止めない。
-  trivy:
-    needs: image
-    # タグ (リリース) では動かさない。公開したイメージは scan.yml が毎日確かめる。
-    if: github.ref_type != 'tag'
-    name: trivy (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      MISE_ENV: scan
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - static
-          - ffmpeg
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@v5.2.7
+      # 起動を確かめた amd64 のイメージを Trivy で調べ、修正版のある、重さが HIGH 以上の脆弱性があれば失敗にする (#1918)。
+      # 修正版のない脆弱性は、対処のしようがないので除く (scan.yml と同じ)。
+      - if: github.ref_type != 'tag'
+        uses: jdx/mise-action@v5.2.7
         with:
           install_args: trivy
-      - uses: docker/setup-buildx-action@v4.4.1
-      # image のジョブと同じ版と同じキャッシュで、amd64 のイメージを作り直す。層はキャッシュから読むので、ほとんどビルドしない。
-      # アーキテクチャで入るパッケージは変わらないので、amd64 だけを見る。
-      - uses: docker/build-push-action@v7.4.0
-        with:
-          context: .
-          target: ${{ matrix.target }}
-          platforms: linux/amd64
-          load: true
-          tags: kotatsu:scan
-          build-args: |
-            VERSION=${{ needs.image.outputs.version }}+${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.target }}
-      # 修正版のない脆弱性は、対処のしようがないので除く (scan.yml と同じ)。
       - name: Scan the image
-        run: trivy image --quiet --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 kotatsu:scan
+        if: github.ref_type != 'tag'
+        run: trivy image --quiet --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 kotatsu:smoke

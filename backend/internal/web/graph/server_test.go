@@ -31,6 +31,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
@@ -161,8 +162,8 @@ func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixt
 	opts.OAuth = oauth.NewServer(pool, clk, oauth.NewFetcher(clk, nil), audit.NewRecorder(clk))
 	opts.Players = player.NewService(pool, clk)
 	// 記録先には問い合わせない。届かないアドレスに向けておく。
+	applicationKey := "kotatsu-graph-test-application-key-0123456789"
 	if opts.AnimeRecords == nil {
-		applicationKey := "kotatsu-graph-test-application-key-0123456789"
 		opts.AnimeRecords, err = animerecord.NewService(&animerecord.Options{
 			Clock: clk, Recorder: audit.NewRecorder(clk), AppSecret: applicationKey,
 			Destinations: []animerecord.Destination{
@@ -170,6 +171,16 @@ func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixt
 				animerecord.NewAniList(animerecord.NewHTTPClient(nil, netactivity.PurposeAnimeLink), "http://127.0.0.1:9"),
 			},
 			Logger: slog.New(slog.DiscardHandler),
+		})
+		require.NoError(tb, err)
+	}
+	if opts.DramaRecords == nil {
+		opts.DramaRecords, err = dramarecord.NewService(&dramarecord.Options{
+			Clock: clk, Recorder: audit.NewRecorder(clk), AppSecret: applicationKey,
+			Destinations: []dramarecord.Destination{
+				dramarecord.NewSimkl(dramarecord.NewHTTPClient(nil, netactivity.PurposeDramaLink), "http://127.0.0.1:9"),
+			},
+			Logger: slog.New(slog.DiscardHandler), Inserter: nil, RequestInterval: 0,
 		})
 		require.NoError(tb, err)
 	}

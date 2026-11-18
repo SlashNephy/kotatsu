@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/google"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
@@ -79,7 +80,9 @@ type Resolver struct {
 	// google は、Google の OAuth クライアントと Google Drive の接続を扱う (#1902)。nil なら、連携を扱わない。
 	google *google.Service
 	// dramaTokens は、管理者が入れる TMDb のトークン (#1651)。nil なら、トークンを扱わない。
-	dramaTokens  *drama.Tokens
+	dramaTokens *drama.Tokens
+	// dramaRecords は、見たドラマを Simkl に記録する連携を扱う (#1649)。nil なら、連携の操作は内部のエラーにする。
+	dramaRecords *dramarecord.Service
 	inbox        *notification.Inbox
 	webhooks     *webhook.Store
 	webPush      *webpush.Service

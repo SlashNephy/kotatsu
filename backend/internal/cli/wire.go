@@ -31,6 +31,7 @@ func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
 		jobInserterOf,
 		newLinkedAnimeRecords,
 		newDramaTokens,
+		newLinkedDramaRecords,
 		wire.Struct(new(sealedStores), "*"),
 	))
 }
@@ -134,6 +135,7 @@ func newAnimeJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) (*
 		animeLoggerOf,
 		newSyobocalClient,
 		newRecordingAnimeRecords,
+		newRecordingDramaRecords,
 		newAnimeImporter,
 		newAnimeMatcher,
 		newNicologMatcher,

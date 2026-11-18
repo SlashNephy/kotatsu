@@ -28,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/google"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
@@ -130,6 +131,9 @@ type Options struct {
 	// DramaTokens は、管理者が連携の画面で入れる TMDb のトークン (#1651)。tenban は保存するだけで、TMDb に問い合わせない。
 	// nil なら、トークンの操作は内部のエラーにする。
 	DramaTokens *drama.Tokens
+	// DramaRecords は、見たドラマを Simkl に記録する連携を扱う (#1649)。tenban は、連携と連携を外すときだけ Simkl に問い合わせる。
+	// nil なら、連携の操作は内部のエラーにする。
+	DramaRecords *dramarecord.Service
 	// Jobs は、ジョブを入れる River のクライアント。録画の画像を作り直すのに使う。nil なら、作り直せない。
 	Jobs thumbnail.Inserter
 	// JobAdmin は、管理者向けにジョブを読み、試し直し、取り消す River のクライアント (#1279)。nil なら、ジョブの画面を使えない。
@@ -231,6 +235,7 @@ func NewHandler(opts *Options) http.Handler {
 		animeRecords:     o.AnimeRecords,
 		dramaOverrides:   drama.NewOverrides(o.Clock, o.Recorder, o.Jobs),
 		dramaTokens:      o.DramaTokens,
+		dramaRecords:     o.DramaRecords,
 		google:           o.Google,
 		inbox:            notification.NewInbox(o.Clock),
 		webhooks:         o.Webhooks,

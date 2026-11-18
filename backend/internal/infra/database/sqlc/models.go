@@ -290,6 +290,66 @@ type DramaMatchCursor struct {
 	UpdatedAt  time.Time
 }
 
+type DramaRecord struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	ServiceID     int64
+	StartAt       time.Time
+	Destination   string
+	TmdbSeriesID  int32
+	SeasonNumber  int32
+	EpisodeNumber int32
+	ProgramName   string
+	WatchedAt     time.Time
+	State         string
+	URL           *string
+	Error         *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type DramaRecordApp struct {
+	Destination           string
+	ClientID              string
+	ClientSecretEncrypted []byte
+	UpdatedAt             time.Time
+}
+
+type DramaRecordAuthorization struct {
+	ID           uuid.UUID
+	StateHash    []byte
+	SessionID    uuid.UUID
+	UserID       uuid.UUID
+	Destination  string
+	CodeVerifier string
+	RedirectUri  string
+	CreatedAt    time.Time
+	ExpiresAt    time.Time
+}
+
+type DramaRecordConnection struct {
+	UserID                   uuid.UUID
+	Destination              string
+	AccessTokenEncrypted     []byte
+	RefreshTokenEncrypted    []byte
+	AccessTokenExpiresAt     time.Time
+	AccountName              string
+	ConnectedAt              time.Time
+	ReauthorizationRequired  bool
+	WatchlistActivity        *string
+	WatchlistRemovedActivity *string
+	WatchlistCheckedAt       *time.Time
+	WatchlistImportedAt      *time.Time
+	WatchlistError           *string
+	WatchlistRetryAt         *time.Time
+}
+
+type DramaRecordSetting struct {
+	UserID           uuid.UUID
+	ThresholdPercent int16
+	UpdatedAt        time.Time
+}
+
 type DramaTitleOverride struct {
 	TitleKey     string
 	TmdbSeriesID *int32
@@ -310,6 +370,16 @@ type DramaWatchlistEntry struct {
 	TmdbSeriesID int32
 	Status       string
 	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type DramaWatchlistImport struct {
+	UserID       uuid.UUID
+	Destination  string
+	TmdbSeriesID int32
+	SimklID      *int64
+	Status       string
+	Applied      bool
 	UpdatedAt    time.Time
 }
 
