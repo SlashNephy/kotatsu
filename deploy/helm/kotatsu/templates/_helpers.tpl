@@ -251,7 +251,7 @@ podAnnotations は、ロールの Pod に付ける annotation (YAML)。引数は
 全体の podAnnotations に、all やロールの podAnnotations をキーごとに重ね、同じキーはロールのほうを使う。
 */}}
 {{- define "kotatsu.podAnnotations" -}}
-{{- toYaml (merge (deepCopy (.pod.podAnnotations | default dict)) (.root.Values.podAnnotations | default dict)) -}}
+{{- toYaml (mergeOverwrite (deepCopy (.root.Values.podAnnotations | default dict)) (deepCopy (.pod.podAnnotations | default dict))) -}}
 {{- end -}}
 
 {{/*
@@ -259,7 +259,7 @@ podLabels は、ロールの Pod に足すラベル (YAML)。引数は (dict "ro
 Chart が付けるラベルは、selector や Service と食い違わないよう、上書きさせずに描画を止める。
 */}}
 {{- define "kotatsu.podLabels" -}}
-{{- $labels := merge (deepCopy (.pod.podLabels | default dict)) (.root.Values.podLabels | default dict) -}}
+{{- $labels := mergeOverwrite (deepCopy (.root.Values.podLabels | default dict)) (deepCopy (.pod.podLabels | default dict)) -}}
 {{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/version" "app.kubernetes.io/managed-by" "app.kubernetes.io/component" "helm.sh/chart" -}}
 {{- if hasKey $labels $key -}}
 {{- fail (printf "podLabels must not set %s, which the chart sets" $key) -}}
