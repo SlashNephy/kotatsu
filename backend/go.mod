@@ -14,7 +14,7 @@ require (
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/goforj/wire v1.3.1
 	github.com/graph-gophers/dataloader/v7 v7.2.0
-	github.com/jackc/pgx/v5 v5.12.0
+	github.com/jackc/pgx/v5 v5.13.0
 	github.com/labstack/echo/v5 v5.4.4
 	github.com/lestrrat-go/jwx/v4 v4.6.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
