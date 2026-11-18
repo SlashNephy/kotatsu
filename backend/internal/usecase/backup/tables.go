@@ -120,6 +120,11 @@ func includedTables() []string {
 		"drama_title_overrides",
 		"drama_watchlist_entries",
 		"drama_watched_episodes",
+		"drama_record_apps",
+		"drama_record_connections",
+		"drama_record_settings",
+		"drama_records",
+		"drama_watchlist_imports",
 		"google_apps",
 		"google_drive_connections",
 		"google_drive_folders",
@@ -141,11 +146,12 @@ func excludedTables() map[string]string {
 		"anime_match_cursor": "holds a version of epg_changes, which starts over after a restore",
 		"drama_match_cursor": "holds a version of epg_changes, which starts over after a restore",
 		"sessions":           "restoring sessions would revive old sign-ins; everyone signs in again",
-		// 次の 4 つは、sessions を外部キーで指す途中の状態 (ログインの手続き、連携の認可、再生中の端末) なので、sessions と組で外す。
+		// 次の 5 つは、sessions を外部キーで指す途中の状態 (ログインの手続き、連携の認可、再生中の端末) なので、sessions と組で外す。
 		"players":                     refersToSessions,
 		"player_commands":             "refers to players",
 		"oidc_logins":                 refersToSessions,
 		"anime_record_authorizations": refersToSessions,
+		"drama_record_authorizations": refersToSessions,
 		"google_authorizations":       refersToSessions,
 		// River のジョブの ID を持つので、River の表と組で外す。残すと、戻した後のジョブが同じ ID の古い進み具合を読む。
 		"job_progress":     "holds IDs of River jobs, which are not backed up",
