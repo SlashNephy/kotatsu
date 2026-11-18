@@ -1,0 +1,15 @@
+# 全体の podAnnotations、podLabels、serviceAccountName を、ロールごとにキー単位で重ねて上書きできること。
+mode: split
+podLabels:
+  sidecar.example.com/inject: "true"
+podAnnotations:
+  sidecar.example.com/apikey-secret-name: sidecar-api-key
+serviceAccountName: sidecar-agent
+roles:
+  tenban:
+    podAnnotations:
+      sidecar.example.com/roles: kotatsu:tenban
+  mikan:
+    podLabels:
+      sidecar.example.com/inject: "false"
+    serviceAccountName: kotatsu-mikan

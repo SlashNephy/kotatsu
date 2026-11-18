@@ -18,7 +18,7 @@ export default defineConfig({
   use: {
     ...devices['Desktop Chrome'],
     baseURL: 'http://127.0.0.1:4174',
-    // 失敗したときは、CI が test-results を artifact に上げる (.github/workflows/screenshots.yml)。
+    // 失敗したときは、CI が test-results を artifact に上げる (.github/workflows/ci.yml の screenshots)。
     trace: 'retain-on-failure',
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 1,

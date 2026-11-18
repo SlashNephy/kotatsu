@@ -60,11 +60,8 @@ import type {
   SystemSettingsInput,
   integrationsSystemSettingsMutation,
 } from './__generated__/integrationsSystemSettingsMutation.graphql';
-import type {
-  AnimeRecordAppInput,
-  AnimeRecordDestination,
-  integrationsAnimeRecordAppMutation,
-} from './__generated__/integrationsAnimeRecordAppMutation.graphql';
+import type { integrationsAnimeRecordAppMutation } from './__generated__/integrationsAnimeRecordAppMutation.graphql';
+import type { integrationsDramaRecordAppMutation } from './__generated__/integrationsDramaRecordAppMutation.graphql';
 import type { integrationsGoogleAppMutation } from './__generated__/integrationsGoogleAppMutation.graphql';
 import type { integrationsGoogleDriveBeginMutation } from './__generated__/integrationsGoogleDriveBeginMutation.graphql';
 import type { integrationsGoogleDriveAddFolderMutation } from './__generated__/integrationsGoogleDriveAddFolderMutation.graphql';
@@ -165,6 +162,13 @@ const query = graphql`
     }
     animeImportToken {
       configured
+    }
+    # 見たドラマを記録させる Simkl のアプリ (#1649)。
+    dramaRecordApps {
+      destination
+      clientId
+      configured
+      redirectUri
     }
     # Google Drive をライブラリとして接続する (#1902)。
     googleIntegration {
@@ -538,8 +542,9 @@ function Integrations() {
               {t('admin.animeRecords.help')}
             </Text>
             {data.animeRecordApps.map((app) => (
-              <AnimeRecordAppForm
+              <RecordAppForm
                 key={`${app.destination}/${app.clientId ?? ''}/${String(app.configured)}`}
+                name={app.destination === 'ANNICT' ? 'Annict' : 'AniList'}
                 app={app}
                 busy={gate.busy}
                 onSave={(input, onDone) =>
@@ -552,6 +557,45 @@ function Integrations() {
                           $input: AnimeRecordAppInput!
                         ) {
                           updateAnimeRecordApp(destination: $destination, input: $input) {
+                            destination
+                            clientId
+                            configured
+                          }
+                        }
+                      `,
+                      { destination: app.destination, input },
+                    );
+                    onDone();
+                    succeed(t('admin.saved'));
+                  }, fail)
+                }
+              />
+            ))}
+          </Stack>
+        </Section>
+
+        {/* 見たドラマを記録させる Simkl のアプリ (#1649)。アニメの記録先と同じく、ここで再認証を求める。 */}
+        <Section title={t('admin.dramaRecords.title')}>
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              {t('admin.dramaRecords.help')}
+            </Text>
+            {data.dramaRecordApps.map((app) => (
+              <RecordAppForm
+                key={`${app.destination}/${app.clientId ?? ''}/${String(app.configured)}`}
+                name="Simkl"
+                app={app}
+                busy={gate.busy}
+                onSave={(input, onDone) =>
+                  gate.run(async () => {
+                    await mutate<integrationsDramaRecordAppMutation>(
+                      environment,
+                      graphql`
+                        mutation integrationsDramaRecordAppMutation(
+                          $destination: DramaRecordDestination!
+                          $input: DramaRecordAppInput!
+                        ) {
+                          updateDramaRecordApp(destination: $destination, input: $input) {
                             destination
                             clientId
                             configured
@@ -1231,28 +1275,31 @@ function AnimeImportTokenForm({
   );
 }
 
-type AnimeRecordAppItem = {
-  destination: AnimeRecordDestination;
+type RecordAppItem = {
   clientId: string | null | undefined;
   configured: boolean;
   redirectUri: string;
 };
 
-// AnimeRecordAppForm は、見たアニメを記録させるアプリ (Annict か AniList) のクライアント ID とシークレットを変える (#927)。
+// RecordAppInput は、記録先のアプリの変更。アニメの記録先 (AnimeRecordAppInput) とドラマの記録先 (DramaRecordAppInput) で同じ形。
+type RecordAppInput = { clientId: string; clientSecret?: string | null };
+
+// RecordAppForm は、見たアニメやドラマを記録させるアプリ (Annict、AniList、Simkl。#927、#1649) のクライアント ID とシークレットを変える。
 // シークレットはサーバーから返らないので、変えるときだけ入れる。クライアント ID を空にして保存すると、登録を消す。
-function AnimeRecordAppForm({
+function RecordAppForm({
+  name,
   app,
   busy,
   onSave,
 }: {
-  app: AnimeRecordAppItem;
+  name: string;
+  app: RecordAppItem;
   busy: boolean;
-  onSave: (input: AnimeRecordAppInput, onDone: () => void) => void;
+  onSave: (input: RecordAppInput, onDone: () => void) => void;
 }) {
   const { t } = useTranslation();
   const [clientId, setClientId] = useState(app.clientId ?? '');
   const [clientSecret, setClientSecret] = useState('');
-  const name = app.destination === 'ANNICT' ? 'Annict' : 'AniList';
   const changed = clientId.trim() !== (app.clientId ?? '') || clientSecret !== '';
   const submit = (event: FormEvent) => {
     event.preventDefault();

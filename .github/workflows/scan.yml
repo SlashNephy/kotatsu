@@ -1,32 +1,25 @@
 name: Scan
 
-# 公開したコンテナイメージと、Go と画面の依存の脆弱性、マニフェストの設定を、毎日確かめる (設計書 11.1)。
+# 定期の検査をまとめる (設計書 11.1、#1939)。PR と main への push での検査は CI (ci.yml) が行う。
+# - 毎日: 公開したコンテナイメージと、Go と画面の依存の脆弱性、マニフェストの設定を確かめる。
+# - 毎週: CodeQL で main のコード全体を解析し直す。CodeQL の更新で増えたクエリを、push がなくても当てるため。
 # 結果は SARIF で Code scanning に送る。直った脆弱性のアラートは、次のスキャンで閉じる。
-# Go と画面の依存とマニフェストは、見つかったらジョブを失敗にする (#1918)。どのジョブも必須のチェックではないので、マージは止めない。
+# Code scanning の構成は analysis_key (workflow のパスとジョブの id) で分かれるので、ファイルの名前とジョブの id を変えない。
+# 変えると、開いているアラートが古い構成に残り、閉じなくなる。
+# Go と画面の依存とマニフェストは、見つかったらジョブを失敗にする (#1918)。
 # 公開済みのイメージは、コードを直しても次のリリースまで直らないので、見つかっても失敗にしない。
-# PR と main への push で作ったイメージは、image.yml で確かめ、見つかったら失敗にする。
 # 失敗にする段は、Code scanning へのアップロードの後に置く。先に落とすと、結果が送られない。
+# 手で動かすと、すべてのジョブが走る。この workflow を変えた PR では、ブランチで手で動かして確かめる。
 on:
   schedule:
     # 毎日 6:23 (JST)。
     - cron: '23 21 * * *'
-  pull_request:
-    # スキャンの設定と、依存とマニフェストを変えた PR では、スキャンが動くことと、その時点の結果を確かめる。
-    paths:
-      - .github/workflows/scan.yml
-      - .github/scan/**
-      - mise.scan.toml
-      - mise.scan.lock
-      - backend/go.mod
-      - backend/go.sum
-      - frontend/package.json
-      - frontend/pnpm-lock.yaml
-      - deploy/kubernetes/**
+    # 毎週月曜の 4:37 (JST)。CodeQL だけを動かす。
+    - cron: '37 19 * * 0'
   workflow_dispatch:
 
 concurrency:
-  # pull_request では github.ref が refs/pull/N/merge になるため head_ref でまとめる
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions: {}
@@ -36,6 +29,7 @@ jobs:
   # 見るのは、main のイメージ (edge) と最新のリリースの、それぞれ 2 種類 (設計書 2.4)。
   # 見つかっても失敗にしない。公開済みのイメージは、コードを直しても次のリリースまで直らず、赤くしても対処できないため。
   image:
+    if: github.event.schedule != '37 19 * * 0'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -72,14 +66,13 @@ jobs:
             echo "$category ($tag): $(jq '[.runs[].results[]?] | length' "sarif/$category.sarif") results"
           done < sarif/targets
           rm sarif/targets
-      # フォークからの PR では、トークンが読み取り専用で送れない。
-      - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: github/codeql-action/upload-sarif@v4.39.3
+      - uses: github/codeql-action/upload-sarif@v4.39.3
         with:
           sarif_file: sarif
 
   # Go の依存と標準ライブラリの脆弱性を govulncheck で確かめる。呼び出しまで追うので、使っていない脆弱なコードは note に下がる。
   govulncheck:
+    if: github.event.schedule != '37 19 * * 0'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -101,8 +94,7 @@ jobs:
           jq '(.. | objects | select(.uriBaseId? == "%SRCROOT%") | .uri) |= "backend/" + .' ../govulncheck.sarif > ../govulncheck.tmp
           mv ../govulncheck.tmp ../govulncheck.sarif
           echo "$(jq '[.runs[].results[]?] | length' ../govulncheck.sarif) results"
-      - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: github/codeql-action/upload-sarif@v4.39.3
+      - uses: github/codeql-action/upload-sarif@v4.39.3
         with:
           sarif_file: govulncheck.sarif
           category: govulncheck
@@ -115,6 +107,7 @@ jobs:
   # 画面 (frontend/) の依存の脆弱性を pnpm audit で確かめる。開発用の依存もビルドと開発で動くので、含めて見る。
   # pnpm audit は SARIF を出さないので、JSON から直して送る (.github/scan/pnpm-audit-sarif.jq)。
   pnpm-audit:
+    if: github.event.schedule != '37 19 * * 0'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -138,8 +131,7 @@ jobs:
           fi
           jq --rawfile lock pnpm-lock.yaml -f ../.github/scan/pnpm-audit-sarif.jq ../pnpm-audit.json > ../pnpm-audit.sarif
           echo "$(jq '[.runs[].results[]?] | length' ../pnpm-audit.sarif) results"
-      - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: github/codeql-action/upload-sarif@v4.39.3
+      - uses: github/codeql-action/upload-sarif@v4.39.3
         with:
           sarif_file: pnpm-audit.sarif
           category: pnpm-audit
@@ -151,6 +143,7 @@ jobs:
   # Helm Chart から生成したマニフェストの設定 (securityContext、リソースの指定、プローブなど) を kube-linter で確かめる。
   # all と split の両方の構成を見る (設計書 2.4)。
   kube-linter:
+    if: github.event.schedule != '37 19 * * 0'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -174,11 +167,51 @@ jobs:
             exit 1
           fi
           echo "$(jq '[.runs[].results[]?] | length' kube-linter.sarif) results"
-      - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: github/codeql-action/upload-sarif@v4.39.3
+      - uses: github/codeql-action/upload-sarif@v4.39.3
         with:
           sarif_file: kube-linter.sarif
           category: kube-linter
       # 指摘があれば 1 で終わる。指摘はテキストで出す。
       - name: Fail on findings
         run: kube-linter lint deploy/kubernetes/all.yaml deploy/kubernetes/split.yaml
+
+  # main のコード全体を CodeQL で解析し直す。CI の codeql のジョブと同じ手順 (.github/actions/codeql) で、
+  # Code scanning の構成も同じにする (analysis_key を固定する)。開いているアラートがあれば失敗にする。
+  codeql:
+    if: github.event.schedule != '23 21 * * *'
+    name: codeql (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          # frontend/bench/wasm-decode の glue.c。
+          - language: c-cpp
+            build-mode: none
+          - language: go
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+          # frontend/scripts の生成用のスクリプト。
+          - language: python
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      # Go は、ビルドを見て解析する。go.mod より古い Go で autobuild が版を落としに行かないよう、mise で同じ版を入れる。
+      - if: matrix.language == 'go'
+        uses: jdx/mise-action@v5.2.7
+        with:
+          working_directory: backend
+          install_args: go
+      - uses: $/.github/actions/codeql
+        with:
+          language: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          matrix: ${{ toJSON(matrix) }}

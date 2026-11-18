@@ -90,6 +90,8 @@
       "WATCH_REMINDER": "Watch reminder program starting",
       "ANIME_RECORDED": "An anime you watched was recorded",
       "ANIME_RECORD_FAILED": "An anime you watched could not be recorded",
+      "DRAMA_RECORDED": "A drama you watched was recorded",
+      "DRAMA_RECORD_FAILED": "A drama you watched could not be recorded",
       "SCRAMBLED_RECORDINGS": "Recordings kept coming out scrambled",
       "LINEUP_CHANGED": "Channel lineup changed"
     },
@@ -2578,6 +2580,10 @@
           "taken": "Another library has this name"
         }
       }
+    },
+    "dramaRecords": {
+      "title": "Simkl records",
+      "help": "Register a Kotatsu app so users can record watched dramas to Simkl and import their Simkl watchlist. Create a \"Server apps & services\" app (AUTH V2) in the Simkl developer settings, enter the redirect URI below, then save the client ID and secret. Available only while TMDB linking is enabled."
     }
   },
   "authorship": {
@@ -2814,8 +2820,8 @@
     "notConnected": "Not connected",
     "notRegistered": "The administrator has not registered an app, so you cannot connect",
     "aniListRevokeHint": "Kotatsu cannot revoke AniList tokens. After disconnecting, also remove the app in your AniList settings",
-    "recordOnDevice": "Record anime and dramas watched on this device",
-    "recordOnDeviceHelp": "When off, live viewing and recording playback on this device do not record watched anime or drama episodes. This setting is kept per device and is not synced to other devices.",
+    "recordOnDevice": "Record anime watched on this device",
+    "recordOnDeviceHelp": "When off, anime watched live or from recordings on this device is not recorded. Dramas have their own switch in the drama records section. This setting is kept per device and is not synced to other devices.",
     "settingsTitle": "Recording settings",
     "threshold": "Share to count as watched",
     "thresholdHelp": "Record once the time you actually played reaches this share of the program length",
@@ -2966,6 +2972,14 @@
         "title": "Drama series and episodes",
         "body": "Looked up TMDB series and episodes from drama program titles"
       },
+      "DRAMA_RECORD": {
+        "title": "Watched drama sync",
+        "body": "Exchanged watched dramas and the watchlist with Simkl"
+      },
+      "DRAMA_LINK": {
+        "title": "Drama account linking",
+        "body": "Linked or unlinked a drama record service"
+      },
       "USER_AVATAR": {
         "title": "User avatars",
         "body": "Fetched avatars shown on the screen",
@@ -3094,5 +3108,30 @@
       "empty": "No files contain \"{{query}}\"",
       "emptyHint": "Try another word, or search from a parent folder"
     }
+  },
+  "dramaRecords": {
+    "title": "Watched drama records",
+    "description": "Episodes of dramas you actually played for a set share of the program length, live or from a recording, are marked as watched. When Simkl is connected, they are also recorded to Simkl. The same episode of the same program is recorded only once. Episodes you mark as watched by hand stay in Kotatsu and are not sent to Simkl.",
+    "watchlistHint": "Works you set to Watching or Plan to Watch on Simkl are added to the drama watch list when they are linked to a program or recording. A work you remove in Kotatsu is not added again until its status changes on Simkl.",
+    "watchlistLink": "Open the drama watch list",
+    "disabled": "An administrator has not enabled TMDB linking, so watched dramas cannot be recorded",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "connected": "Connected to {{name}}",
+    "connectedAs": "Connected as {{account}} ({{date}})",
+    "notConnected": "Not connected",
+    "notRegistered": "An administrator has not registered an app, so you cannot connect",
+    "reauthorize": "Simkl refused to refresh the token, so recording and importing are paused. Connect again",
+    "importedAt": "Watchlist imported: {{date}}",
+    "notImported": "The watchlist has not been imported yet",
+    "importError": "Could not import ({{reason}})",
+    "reimport": "Import again",
+    "reimportQueued": "Started importing. The works will appear on the drama watch list when it finishes",
+    "reimportSkipped": "An import started a moment ago, or Kotatsu is waiting before asking again",
+    "settingsTitle": "Record settings",
+    "recordOnDevice": "Record dramas watched on this device",
+    "recordOnDeviceHelp": "When off, drama episodes watched live or from recordings on this device are not recorded. Anime has its own switch in the anime records section. This setting is kept per device and is not synced to other devices.",
+    "threshold": "Share to count as watched",
+    "thresholdHelp": "An episode is marked as watched once the time you actually played reaches this share of the program length. This is separate from the share for anime"
   }
 }

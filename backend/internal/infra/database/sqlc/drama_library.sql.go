@@ -94,6 +94,17 @@ func (q *Queries) DramaSeriesLinked(ctx context.Context, seriesID int32) (bool, 
 	return linked, err
 }
 
+const getDramaRecordSettings = `-- name: GetDramaRecordSettings :one
+SELECT user_id, threshold_percent, updated_at FROM drama_record_settings WHERE user_id = $1
+`
+
+func (q *Queries) GetDramaRecordSettings(ctx context.Context, userID uuid.UUID) (DramaRecordSetting, error) {
+	row := q.db.QueryRow(ctx, getDramaRecordSettings, userID)
+	var i DramaRecordSetting
+	err := row.Scan(&i.UserID, &i.ThresholdPercent, &i.UpdatedAt)
+	return i, err
+}
+
 const getDramaWatchlistStatus = `-- name: GetDramaWatchlistStatus :one
 SELECT status FROM drama_watchlist_entries WHERE user_id = $1 AND tmdb_series_id = $2
 `
@@ -385,6 +396,26 @@ func (q *Queries) ListTMDbSeasonsOf(ctx context.Context, seriesIds []int32) ([]T
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertDramaRecordSettings = `-- name: UpsertDramaRecordSettings :one
+INSERT INTO drama_record_settings (user_id, threshold_percent, updated_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id) DO UPDATE SET threshold_percent = EXCLUDED.threshold_percent, updated_at = EXCLUDED.updated_at
+RETURNING user_id, threshold_percent, updated_at
+`
+
+type UpsertDramaRecordSettingsParams struct {
+	UserID           uuid.UUID
+	ThresholdPercent int16
+	Now              time.Time
+}
+
+func (q *Queries) UpsertDramaRecordSettings(ctx context.Context, arg UpsertDramaRecordSettingsParams) (DramaRecordSetting, error) {
+	row := q.db.QueryRow(ctx, upsertDramaRecordSettings, arg.UserID, arg.ThresholdPercent, arg.Now)
+	var i DramaRecordSetting
+	err := row.Scan(&i.UserID, &i.ThresholdPercent, &i.UpdatedAt)
+	return i, err
 }
 
 const upsertDramaWatchlistEntry = `-- name: UpsertDramaWatchlistEntry :exec

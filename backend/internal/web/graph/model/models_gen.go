@@ -872,6 +872,66 @@ type DramaLinkingStatus struct {
 	TokenUpdatedAt *time.Time `json:"tokenUpdatedAt,omitempty"`
 }
 
+// 管理者がドラマの記録先に登録したアプリ (#1649)。クライアントシークレットは返さない。
+type DramaRecordApp struct {
+	Destination DramaRecordDestination `json:"destination"`
+	// 登録したアプリのクライアント ID。登録していなければ null。
+	ClientID *string `json:"clientId,omitempty"`
+	// クライアント ID とシークレットを登録したかどうか。
+	Configured bool `json:"configured"`
+	// 管理者が記録先のアプリに登録するリダイレクト URI。いま接続しているオリジンから決める。
+	RedirectURI string `json:"redirectUri"`
+	// 最後に変えた日時。登録していなければ null。
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
+// ドラマの記録先に登録したアプリの変更。
+type DramaRecordAppInput struct {
+	// クライアント ID。空にすると、登録を消す。
+	ClientID string `json:"clientId"`
+	// クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。
+	ClientSecret *string `json:"clientSecret,omitempty"`
+}
+
+// ログイン中のユーザーとドラマの記録先の連携 (#1649)。トークンは返さない。
+type DramaRecordConnection struct {
+	// 記録先のアカウントの名前。
+	AccountName string    `json:"accountName"`
+	ConnectedAt time.Time `json:"connectedAt"`
+	// 記録先がトークンの更新を断ったので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。
+	ReauthorizationRequired bool `json:"reauthorizationRequired"`
+	// ウォッチリストを最後に問い合わせた日時。問い合わせていなければ null。
+	WatchlistCheckedAt *time.Time `json:"watchlistCheckedAt,omitempty"`
+	// ウォッチリストを最後に取り込めた日時。取り込めていなければ null。
+	WatchlistImportedAt *time.Time `json:"watchlistImportedAt,omitempty"`
+	// 最後の取り込みが失敗した理由。取り込めていれば null。
+	WatchlistError *string `json:"watchlistError,omitempty"`
+}
+
+// ログイン中のユーザーから見た、ドラマの記録先の様子。
+type DramaRecordDestinationStatus struct {
+	Destination DramaRecordDestination `json:"destination"`
+	// 管理者がアプリを登録していて、連携を始められるかどうか。
+	Available bool `json:"available"`
+	// 連携していなければ null。
+	Connection *DramaRecordConnection `json:"connection,omitempty"`
+}
+
+// ログイン中のユーザーの、見たドラマの記録の様子 (#1649)。
+type DramaRecordSettings struct {
+	// 管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。
+	Enabled bool `json:"enabled"`
+	// 番組の長さのうち、何 % を実際に再生したら、見たドラマの話にするか (1〜100)。見た話は、連携した Simkl にも記録する。
+	// 見たアニメを記録する割合とは別に持つ。
+	ThresholdPercent int                             `json:"thresholdPercent"`
+	Destinations     []*DramaRecordDestinationStatus `json:"destinations"`
+}
+
+// 見たドラマの記録の設定の変更 (#1649)。
+type DramaRecordSettingsInput struct {
+	ThresholdPercent int `json:"thresholdPercent"`
+}
+
 // TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
 type DramaSeries struct {
 	// TMDb の作品の ID。
@@ -3214,6 +3274,8 @@ const (
 	DataChannelRecordings DataChannel = "RECORDINGS"
 	// フォロー中のユーザーの視聴状況を問い合わせ終えた (#1372)
 	DataChannelAnimeFollowing DataChannel = "ANIME_FOLLOWING"
+	// ドラマの記録先のウォッチリストを取り込み、見ている作品が変わった (#1649)
+	DataChannelDramaWatchlist DataChannel = "DRAMA_WATCHLIST"
 	// 管理のデータ。監査ログに残る操作で変わる。管理者にだけ届く (#869)
 	DataChannelAdmin DataChannel = "ADMIN"
 )
@@ -3227,12 +3289,13 @@ var AllDataChannel = []DataChannel{
 	DataChannelTuners,
 	DataChannelRecordings,
 	DataChannelAnimeFollowing,
+	DataChannelDramaWatchlist,
 	DataChannelAdmin,
 }
 
 func (e DataChannel) IsValid() bool {
 	switch e {
-	case DataChannelEpg, DataChannelRules, DataChannelReservations, DataChannelAssignments, DataChannelReservationConflicts, DataChannelTuners, DataChannelRecordings, DataChannelAnimeFollowing, DataChannelAdmin:
+	case DataChannelEpg, DataChannelRules, DataChannelReservations, DataChannelAssignments, DataChannelReservationConflicts, DataChannelTuners, DataChannelRecordings, DataChannelAnimeFollowing, DataChannelDramaWatchlist, DataChannelAdmin:
 		return true
 	}
 	return false
@@ -3326,6 +3389,60 @@ func (e *DramaEpisodeSource) UnmarshalJSON(b []byte) error {
 }
 
 func (e DramaEpisodeSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 見たドラマを記録する先 (#1649)。
+type DramaRecordDestination string
+
+const (
+	DramaRecordDestinationSimkl DramaRecordDestination = "SIMKL"
+)
+
+var AllDramaRecordDestination = []DramaRecordDestination{
+	DramaRecordDestinationSimkl,
+}
+
+func (e DramaRecordDestination) IsValid() bool {
+	switch e {
+	case DramaRecordDestinationSimkl:
+		return true
+	}
+	return false
+}
+
+func (e DramaRecordDestination) String() string {
+	return string(e)
+}
+
+func (e *DramaRecordDestination) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DramaRecordDestination(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DramaRecordDestination", str)
+	}
+	return nil
+}
+
+func (e DramaRecordDestination) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DramaRecordDestination) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DramaRecordDestination) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -125,7 +125,7 @@ func TestTablesAreClassified(t *testing.T) {
 		}
 		assert.Contains(t, []string{
 			"programs", "epg_changes", "change_versions", "anime_match_cursor", "drama_match_cursor",
-			"sessions", "players", "player_commands", "oidc_logins", "anime_record_authorizations", "google_authorizations",
+			"sessions", "players", "player_commands", "oidc_logins", "anime_record_authorizations", "drama_record_authorizations", "google_authorizations",
 			"job_progress", "goose_db_version", "goose_lock",
 		}, name)
 	}

@@ -1,0 +1,12 @@
+name: pnpm cache
+description: pnpm のストアを、frontend/pnpm-lock.yaml ごとに復元し、ジョブの終わりに保存する。
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v6.1.0
+      with:
+        path: ~/.local/share/pnpm/store
+        key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-${{ runner.os }}-

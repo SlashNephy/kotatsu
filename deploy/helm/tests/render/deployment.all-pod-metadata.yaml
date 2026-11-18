@@ -1,0 +1,14 @@
+# mode が all のときも、全体の podAnnotations、podLabels、serviceAccountName に all の指定をキーごとに重ねられること。
+mode: all
+podLabels:
+  sidecar.example.com/inject: "true"
+  example.com/team: tv
+podAnnotations:
+  sidecar.example.com/apikey-secret-name: sidecar-api-key
+serviceAccountName: sidecar-agent
+all:
+  podLabels:
+    sidecar.example.com/inject: "false"
+  podAnnotations:
+    sidecar.example.com/roles: kotatsu:all
+  serviceAccountName: kotatsu-all

@@ -521,6 +521,35 @@ type ComplexityRoot struct {
 		TokenUpdatedAt  func(childComplexity int) int
 	}
 
+	DramaRecordApp struct {
+		ClientID    func(childComplexity int) int
+		Configured  func(childComplexity int) int
+		Destination func(childComplexity int) int
+		RedirectURI func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+	}
+
+	DramaRecordConnection struct {
+		AccountName             func(childComplexity int) int
+		ConnectedAt             func(childComplexity int) int
+		ReauthorizationRequired func(childComplexity int) int
+		WatchlistCheckedAt      func(childComplexity int) int
+		WatchlistError          func(childComplexity int) int
+		WatchlistImportedAt     func(childComplexity int) int
+	}
+
+	DramaRecordDestinationStatus struct {
+		Available   func(childComplexity int) int
+		Connection  func(childComplexity int) int
+		Destination func(childComplexity int) int
+	}
+
+	DramaRecordSettings struct {
+		Destinations     func(childComplexity int) int
+		Enabled          func(childComplexity int) int
+		ThresholdPercent func(childComplexity int) int
+	}
+
 	DramaSeries struct {
 		Name         func(childComplexity int) int
 		OriginalName func(childComplexity int) int
@@ -905,6 +934,7 @@ type ComplexityRoot struct {
 		AddGoogleDriveFolder          func(childComplexity int, id string, libraryName string) int
 		ApproveOAuthAuthorization     func(childComplexity int, query string, scopes []string) int
 		BeginAnimeRecordConnection    func(childComplexity int, destination model.AnimeRecordDestination) int
+		BeginDramaRecordConnection    func(childComplexity int, destination model.DramaRecordDestination) int
 		BeginGoogleDriveConnection    func(childComplexity int) int
 		BeginTotpEnrollment           func(childComplexity int) int
 		CancelCaptionModelDownload    func(childComplexity int, kind captionmodel.Kind) int
@@ -953,11 +983,13 @@ type ComplexityRoot struct {
 		DetectRecordingCM             func(childComplexity int, id string) int
 		DisableUser                   func(childComplexity int, id string) int
 		DisconnectAnimeRecord         func(childComplexity int, destination model.AnimeRecordDestination) int
+		DisconnectDramaRecord         func(childComplexity int, destination model.DramaRecordDestination) int
 		DisconnectGoogleDrive         func(childComplexity int) int
 		DownloadCaptionModel          func(childComplexity int, id string) int
 		EnableUser                    func(childComplexity int, id string) int
 		GenerateLibraryCaptions       func(childComplexity int, id string) int
 		GenerateRecordingCaptions     func(childComplexity int, id string) int
+		ImportDramaWatchlist          func(childComplexity int, force bool) int
 		InspectChannel                func(childComplexity int, channelType string, channel string) int
 		MarkAllNotificationsRead      func(childComplexity int) int
 		MarkNotificationsRead         func(childComplexity int, ids []string) int
@@ -976,7 +1008,7 @@ type ComplexityRoot struct {
 		RenameRecordingFiles          func(childComplexity int, ids []string) int
 		RenameRuleGroup               func(childComplexity int, id string, name string) int
 		ReorderRuleGroups             func(childComplexity int, ids []string) int
-		ReportAnimePlayback           func(childComplexity int, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) int
+		ReportAnimePlayback           func(childComplexity int, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput, anime bool, drama bool) int
 		ResetRecordingFailureCounts   func(childComplexity int, reasons []domain.RecordingFailureReason) int
 		ResetUserPassword             func(childComplexity int, id string, password string) int
 		RetryJob                      func(childComplexity int, id string) int
@@ -1009,6 +1041,8 @@ type ComplexityRoot struct {
 		UpdateBackupSettings          func(childComplexity int, input model.BackupSettingsInput) int
 		UpdateChannelType             func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
 		UpdateDramaLinkingToken       func(childComplexity int, token string) int
+		UpdateDramaRecordApp          func(childComplexity int, destination model.DramaRecordDestination, input model.DramaRecordAppInput) int
+		UpdateDramaRecordSettings     func(childComplexity int, input model.DramaRecordSettingsInput) int
 		UpdateDramaTitleOverride      func(childComplexity int, input model.DramaTitleOverrideInput) int
 		UpdateGoogleApp               func(childComplexity int, input model.GoogleAppInput) int
 		UpdateGuideView               func(childComplexity int, id string, input model.GuideViewInput) int
@@ -1265,6 +1299,8 @@ type ComplexityRoot struct {
 		ContinueWatching         func(childComplexity int, first int) int
 		DramaLibrary             func(childComplexity int) int
 		DramaLinking             func(childComplexity int) int
+		DramaRecordApps          func(childComplexity int) int
+		DramaRecordSettings      func(childComplexity int) int
 		DramaTitleOverrides      func(childComplexity int) int
 		DrcsReplacements         func(childComplexity int) int
 		FileNameTemplateHelp     func(childComplexity int) int
@@ -1928,7 +1964,7 @@ type MutationResolver interface {
 	BeginAnimeRecordConnection(ctx context.Context, destination model.AnimeRecordDestination) (string, error)
 	DisconnectAnimeRecord(ctx context.Context, destination model.AnimeRecordDestination) (*model.AnimeRecordSettings, error)
 	UpdateAnimeRecordSettings(ctx context.Context, input model.AnimeRecordSettingsInput) (*model.AnimeRecordSettings, error)
-	ReportAnimePlayback(ctx context.Context, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) (bool, error)
+	ReportAnimePlayback(ctx context.Context, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput, anime bool, drama bool) (bool, error)
 	RecordAnimeEpisodes(ctx context.Context, input model.RecordAnimeEpisodesInput) (bool, error)
 	RefreshAnimeWishlist(ctx context.Context) (bool, error)
 	CreateAnimeWishlistRule(ctx context.Context, tid int) (*model.Rule, error)
@@ -1949,6 +1985,11 @@ type MutationResolver interface {
 	UpdateDramaTitleOverride(ctx context.Context, input model.DramaTitleOverrideInput) ([]*model.DramaTitleOverride, error)
 	SetDramaWatchStatus(ctx context.Context, seriesID int, status *model.DramaWatchStatus) (*model.DramaSeries, error)
 	SetDramaEpisodeWatched(ctx context.Context, seriesID int, seasonNumber int, episodeNumber int, watched bool) (bool, error)
+	UpdateDramaRecordApp(ctx context.Context, destination model.DramaRecordDestination, input model.DramaRecordAppInput) (*model.DramaRecordApp, error)
+	BeginDramaRecordConnection(ctx context.Context, destination model.DramaRecordDestination) (string, error)
+	DisconnectDramaRecord(ctx context.Context, destination model.DramaRecordDestination) (*model.DramaRecordSettings, error)
+	ImportDramaWatchlist(ctx context.Context, force bool) (bool, error)
+	UpdateDramaRecordSettings(ctx context.Context, input model.DramaRecordSettingsInput) (*model.DramaRecordSettings, error)
 	UpdateGoogleApp(ctx context.Context, input model.GoogleAppInput) (*model.GoogleIntegration, error)
 	BeginGoogleDriveConnection(ctx context.Context) (string, error)
 	DisconnectGoogleDrive(ctx context.Context) (*model.GoogleIntegration, error)
@@ -2083,6 +2124,8 @@ type QueryResolver interface {
 	DramaLinking(ctx context.Context) (*model.DramaLinkingStatus, error)
 	DramaTitleOverrides(ctx context.Context) ([]*model.DramaTitleOverride, error)
 	DramaLibrary(ctx context.Context) (*model.DramaLibrary, error)
+	DramaRecordApps(ctx context.Context) ([]*model.DramaRecordApp, error)
+	DramaRecordSettings(ctx context.Context) (*model.DramaRecordSettings, error)
 	Node(ctx context.Context, id string) (model.Node, error)
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
@@ -3946,6 +3989,112 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.DramaLinkingStatus.TokenUpdatedAt(childComplexity), true
 
+	case "DramaRecordApp.clientId":
+		if e.ComplexityRoot.DramaRecordApp.ClientID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordApp.ClientID(childComplexity), true
+	case "DramaRecordApp.configured":
+		if e.ComplexityRoot.DramaRecordApp.Configured == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordApp.Configured(childComplexity), true
+	case "DramaRecordApp.destination":
+		if e.ComplexityRoot.DramaRecordApp.Destination == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordApp.Destination(childComplexity), true
+	case "DramaRecordApp.redirectUri":
+		if e.ComplexityRoot.DramaRecordApp.RedirectURI == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordApp.RedirectURI(childComplexity), true
+	case "DramaRecordApp.updatedAt":
+		if e.ComplexityRoot.DramaRecordApp.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordApp.UpdatedAt(childComplexity), true
+
+	case "DramaRecordConnection.accountName":
+		if e.ComplexityRoot.DramaRecordConnection.AccountName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordConnection.AccountName(childComplexity), true
+	case "DramaRecordConnection.connectedAt":
+		if e.ComplexityRoot.DramaRecordConnection.ConnectedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordConnection.ConnectedAt(childComplexity), true
+	case "DramaRecordConnection.reauthorizationRequired":
+		if e.ComplexityRoot.DramaRecordConnection.ReauthorizationRequired == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordConnection.ReauthorizationRequired(childComplexity), true
+	case "DramaRecordConnection.watchlistCheckedAt":
+		if e.ComplexityRoot.DramaRecordConnection.WatchlistCheckedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordConnection.WatchlistCheckedAt(childComplexity), true
+	case "DramaRecordConnection.watchlistError":
+		if e.ComplexityRoot.DramaRecordConnection.WatchlistError == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordConnection.WatchlistError(childComplexity), true
+	case "DramaRecordConnection.watchlistImportedAt":
+		if e.ComplexityRoot.DramaRecordConnection.WatchlistImportedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordConnection.WatchlistImportedAt(childComplexity), true
+
+	case "DramaRecordDestinationStatus.available":
+		if e.ComplexityRoot.DramaRecordDestinationStatus.Available == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordDestinationStatus.Available(childComplexity), true
+	case "DramaRecordDestinationStatus.connection":
+		if e.ComplexityRoot.DramaRecordDestinationStatus.Connection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordDestinationStatus.Connection(childComplexity), true
+	case "DramaRecordDestinationStatus.destination":
+		if e.ComplexityRoot.DramaRecordDestinationStatus.Destination == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordDestinationStatus.Destination(childComplexity), true
+
+	case "DramaRecordSettings.destinations":
+		if e.ComplexityRoot.DramaRecordSettings.Destinations == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordSettings.Destinations(childComplexity), true
+	case "DramaRecordSettings.enabled":
+		if e.ComplexityRoot.DramaRecordSettings.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordSettings.Enabled(childComplexity), true
+	case "DramaRecordSettings.thresholdPercent":
+		if e.ComplexityRoot.DramaRecordSettings.ThresholdPercent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaRecordSettings.ThresholdPercent(childComplexity), true
+
 	case "DramaSeries.name":
 		if e.ComplexityRoot.DramaSeries.Name == nil {
 			break
@@ -5375,6 +5524,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.BeginAnimeRecordConnection(childComplexity, args["destination"].(model.AnimeRecordDestination)), true
+	case "Mutation.beginDramaRecordConnection":
+		if e.ComplexityRoot.Mutation.BeginDramaRecordConnection == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_beginDramaRecordConnection_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.BeginDramaRecordConnection(childComplexity, args["destination"].(model.DramaRecordDestination)), true
 	case "Mutation.beginGoogleDriveConnection":
 		if e.ComplexityRoot.Mutation.BeginGoogleDriveConnection == nil {
 			break
@@ -5853,6 +6013,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DisconnectAnimeRecord(childComplexity, args["destination"].(model.AnimeRecordDestination)), true
+	case "Mutation.disconnectDramaRecord":
+		if e.ComplexityRoot.Mutation.DisconnectDramaRecord == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_disconnectDramaRecord_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DisconnectDramaRecord(childComplexity, args["destination"].(model.DramaRecordDestination)), true
 	case "Mutation.disconnectGoogleDrive":
 		if e.ComplexityRoot.Mutation.DisconnectGoogleDrive == nil {
 			break
@@ -5903,6 +6074,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.GenerateRecordingCaptions(childComplexity, args["id"].(string)), true
+	case "Mutation.importDramaWatchlist":
+		if e.ComplexityRoot.Mutation.ImportDramaWatchlist == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_importDramaWatchlist_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ImportDramaWatchlist(childComplexity, args["force"].(bool)), true
 	case "Mutation.inspectChannel":
 		if e.ComplexityRoot.Mutation.InspectChannel == nil {
 			break
@@ -6096,7 +6278,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.ReportAnimePlayback(childComplexity, args["serviceId"].(*string), args["recordingId"].(*string), args["intervals"].([]*model.PlaybackIntervalInput)), true
+		return e.ComplexityRoot.Mutation.ReportAnimePlayback(childComplexity, args["serviceId"].(*string), args["recordingId"].(*string), args["intervals"].([]*model.PlaybackIntervalInput), args["anime"].(bool), args["drama"].(bool)), true
 	case "Mutation.resetRecordingFailureCounts":
 		if e.ComplexityRoot.Mutation.ResetRecordingFailureCounts == nil {
 			break
@@ -6439,6 +6621,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateDramaLinkingToken(childComplexity, args["token"].(string)), true
+	case "Mutation.updateDramaRecordApp":
+		if e.ComplexityRoot.Mutation.UpdateDramaRecordApp == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDramaRecordApp_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDramaRecordApp(childComplexity, args["destination"].(model.DramaRecordDestination), args["input"].(model.DramaRecordAppInput)), true
+	case "Mutation.updateDramaRecordSettings":
+		if e.ComplexityRoot.Mutation.UpdateDramaRecordSettings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDramaRecordSettings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDramaRecordSettings(childComplexity, args["input"].(model.DramaRecordSettingsInput)), true
 	case "Mutation.updateDramaTitleOverride":
 		if e.ComplexityRoot.Mutation.UpdateDramaTitleOverride == nil {
 			break
@@ -7645,6 +7849,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.DramaLinking(childComplexity), true
+	case "Query.dramaRecordApps":
+		if e.ComplexityRoot.Query.DramaRecordApps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DramaRecordApps(childComplexity), true
+	case "Query.dramaRecordSettings":
+		if e.ComplexityRoot.Query.DramaRecordSettings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DramaRecordSettings(childComplexity), true
 	case "Query.dramaTitleOverrides":
 		if e.ComplexityRoot.Query.DramaTitleOverrides == nil {
 			break
@@ -10552,6 +10768,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("CommentSettingsInput", ec.unmarshalInputCommentSettingsInput),
 			graphql.NewInputUnmarshaler("CreateUserInput", ec.unmarshalInputCreateUserInput),
 			graphql.NewInputUnmarshaler("CreateWebhookInput", ec.unmarshalInputCreateWebhookInput),
+			graphql.NewInputUnmarshaler("DramaRecordAppInput", ec.unmarshalInputDramaRecordAppInput),
+			graphql.NewInputUnmarshaler("DramaRecordSettingsInput", ec.unmarshalInputDramaRecordSettingsInput),
 			graphql.NewInputUnmarshaler("DramaTitleOverrideInput", ec.unmarshalInputDramaTitleOverrideInput),
 			graphql.NewInputUnmarshaler("DrcsReplacementInput", ec.unmarshalInputDrcsReplacementInput),
 			graphql.NewInputUnmarshaler("GenreInput", ec.unmarshalInputGenreInput),
@@ -11381,8 +11599,15 @@ extend type Mutation {
   区間は、番組ごとに重ねずにまとめるので、同じ区間を送り直しても、複数のタブから送っても、多く数えない。
   番組の長さのうち、決めた割合を見たら、結びついた話を記録する。TMDb の話に結びついたドラマの番組なら、見たドラマの話にする (#1652)。
   記録の対象でなければ (アニメの連携が無効か連携しておらず、TMDb との連携も無効) false を返す。
+  anime と drama は、この端末で見たアニメと見たドラマを記録するか (端末ごとの設定。#1283、#1649)。false のほうは記録しない。
   """
-  reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
+  reportAnimePlayback(
+    serviceId: ID
+    recordingId: ID
+    intervals: [PlaybackIntervalInput!]!
+    anime: Boolean! = true
+    drama: Boolean! = true
+  ): Boolean!
 }
 
 """
@@ -11862,6 +12087,8 @@ enum DataChannel {
   RECORDINGS
   "フォロー中のユーザーの視聴状況を問い合わせ終えた (#1372)"
   ANIME_FOLLOWING
+  "ドラマの記録先のウォッチリストを取り込み、見ている作品が変わった (#1649)"
+  DRAMA_WATCHLIST
   "管理のデータ。監査ログに残る操作で変わる。管理者にだけ届く (#869)"
   ADMIN
 }
@@ -12323,6 +12550,119 @@ extend type Mutation {
   変えた後に、見たかどうかを返す。
   """
   setDramaEpisodeWatched(seriesId: Int!, seasonNumber: Int!, episodeNumber: Int!, watched: Boolean!): Boolean!
+}
+`, BuiltIn: false},
+	{Name: "../schema/drama_records.graphqls", Input: `"""
+見たドラマを記録する先 (#1649)。
+"""
+enum DramaRecordDestination {
+  SIMKL
+}
+
+"""
+管理者がドラマの記録先に登録したアプリ (#1649)。クライアントシークレットは返さない。
+"""
+type DramaRecordApp {
+  destination: DramaRecordDestination!
+  "登録したアプリのクライアント ID。登録していなければ null。"
+  clientId: String
+  "クライアント ID とシークレットを登録したかどうか。"
+  configured: Boolean!
+  "管理者が記録先のアプリに登録するリダイレクト URI。いま接続しているオリジンから決める。"
+  redirectUri: String!
+  "最後に変えた日時。登録していなければ null。"
+  updatedAt: Time
+}
+
+"""
+ドラマの記録先に登録したアプリの変更。
+"""
+input DramaRecordAppInput {
+  "クライアント ID。空にすると、登録を消す。"
+  clientId: String!
+  "クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。"
+  clientSecret: String
+}
+
+"""
+ログイン中のユーザーとドラマの記録先の連携 (#1649)。トークンは返さない。
+"""
+type DramaRecordConnection {
+  "記録先のアカウントの名前。"
+  accountName: String!
+  connectedAt: Time!
+  "記録先がトークンの更新を断ったので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。"
+  reauthorizationRequired: Boolean!
+  "ウォッチリストを最後に問い合わせた日時。問い合わせていなければ null。"
+  watchlistCheckedAt: Time
+  "ウォッチリストを最後に取り込めた日時。取り込めていなければ null。"
+  watchlistImportedAt: Time
+  "最後の取り込みが失敗した理由。取り込めていれば null。"
+  watchlistError: String
+}
+
+"""
+ログイン中のユーザーから見た、ドラマの記録先の様子。
+"""
+type DramaRecordDestinationStatus {
+  destination: DramaRecordDestination!
+  "管理者がアプリを登録していて、連携を始められるかどうか。"
+  available: Boolean!
+  "連携していなければ null。"
+  connection: DramaRecordConnection
+}
+
+"""
+ログイン中のユーザーの、見たドラマの記録の様子 (#1649)。
+"""
+type DramaRecordSettings {
+  "管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。"
+  enabled: Boolean!
+  """
+  番組の長さのうち、何 % を実際に再生したら、見たドラマの話にするか (1〜100)。見た話は、連携した Simkl にも記録する。
+  見たアニメを記録する割合とは別に持つ。
+  """
+  thresholdPercent: Int!
+  destinations: [DramaRecordDestinationStatus!]!
+}
+
+"""
+見たドラマの記録の設定の変更 (#1649)。
+"""
+input DramaRecordSettingsInput {
+  thresholdPercent: Int!
+}
+
+extend type Query {
+  "ドラマの記録先ごとに、管理者が登録したアプリを返す (#1649)。管理者だけが使える。"
+  dramaRecordApps: [DramaRecordApp!]!
+  "ログイン中のユーザーの、見たドラマの記録先との連携を返す (#1649)。視聴者も使える。"
+  dramaRecordSettings: DramaRecordSettings!
+}
+
+extend type Mutation {
+  """
+  ドラマの記録先 destination に登録したアプリを変える (#1649)。管理者だけが使える。
+  利用者を記録先へ送り出すアプリを決める操作なので、直近の再認証を求める (設計書 9.5)。
+  """
+  updateDramaRecordApp(destination: DramaRecordDestination!, input: DramaRecordAppInput!): DramaRecordApp!
+  """
+  ログイン中のユーザーとドラマの記録先 destination の連携を始め、ブラウザーを送り出す記録先の認可のエンドポイントの URL を返す (#1649)。
+  記録先から GET /internal/auth/{destination}/callback に戻ってきたら、連携する。ブラウザーのセッションでだけ使える。
+  管理者が TMDb との連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
+  """
+  beginDramaRecordConnection(destination: DramaRecordDestination!): String!
+  "ログイン中のユーザーとドラマの記録先 destination の連携を外し、記録先でトークンを取り消す (#1649)。見ている作品に写した作品は残す。"
+  disconnectDramaRecord(destination: DramaRecordDestination!): DramaRecordSettings!
+  """
+  ログイン中のユーザーの、ドラマの記録先のウォッチリストを取り込むジョブを入れる (#1649)。ドラマの視聴管理の画面を開いたときと、
+  取り込み直しを押したとき (force) に呼ぶ。force でなければ、前に問い合わせてから 30 分たった連携だけを取り込む。
+  取り込めなかった連携は、問い合わせ直す日時まで取り込まない。ジョブを入れたら true を返す。
+  取り込み終えて見ている作品が変わったら、dataChanged の DRAMA_WATCHLIST で知らせる。
+  """
+  importDramaWatchlist(force: Boolean! = false): Boolean!
+  "ログイン中のユーザーの、見たドラマの記録の設定を変える (#1649)。視聴者も使える。割合が 1〜100 でなければ BAD_USER_INPUT を返す。"
+  updateDramaRecordSettings(input: DramaRecordSettingsInput!): DramaRecordSettings!
 }
 `, BuiltIn: false},
 	{Name: "../schema/epg.graphqls", Input: `"""
@@ -13195,6 +13535,10 @@ enum NetworkActivityPurpose {
   ANIME_LINK
   ANIME_IMAGE
   DRAMA_LINKING
+  "見たドラマの記録とウォッチリストの取り込み (#1649)"
+  DRAMA_RECORD
+  "ドラマの記録先との連携の手続き (#1649)"
+  DRAMA_LINK
   USER_AVATAR
   OIDC
   HIBP
@@ -13272,6 +13616,10 @@ enum NotificationKind {
   ANIME_RECORDED
   "見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。"
   ANIME_RECORD_FAILED
+  "見たドラマを Simkl に記録した (#1649)。見たユーザーだけに届き、Webhook では送らない。"
+  DRAMA_RECORDED
+  "見たドラマを Simkl に記録できなかった (#1649)。見たユーザーだけに届き、Webhook では送らない。"
+  DRAMA_RECORD_FAILED
   "スクランブルされたまま録れた録画が続いた (#1517)。管理者にだけ届く。"
   SCRAMBLED_RECORDINGS
   "放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違った (#1519)。管理者にだけ届く。"
@@ -16880,6 +17228,64 @@ func (ec *executionContext) childFields_DramaLinkingStatus(ctx context.Context, 
 	return nil, fmt.Errorf("no field named %q was found under type DramaLinkingStatus", field.Name)
 }
 
+func (ec *executionContext) childFields_DramaRecordApp(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "destination":
+		return ec.fieldContext_DramaRecordApp_destination(ctx, field)
+	case "clientId":
+		return ec.fieldContext_DramaRecordApp_clientId(ctx, field)
+	case "configured":
+		return ec.fieldContext_DramaRecordApp_configured(ctx, field)
+	case "redirectUri":
+		return ec.fieldContext_DramaRecordApp_redirectUri(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_DramaRecordApp_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaRecordApp", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaRecordConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "accountName":
+		return ec.fieldContext_DramaRecordConnection_accountName(ctx, field)
+	case "connectedAt":
+		return ec.fieldContext_DramaRecordConnection_connectedAt(ctx, field)
+	case "reauthorizationRequired":
+		return ec.fieldContext_DramaRecordConnection_reauthorizationRequired(ctx, field)
+	case "watchlistCheckedAt":
+		return ec.fieldContext_DramaRecordConnection_watchlistCheckedAt(ctx, field)
+	case "watchlistImportedAt":
+		return ec.fieldContext_DramaRecordConnection_watchlistImportedAt(ctx, field)
+	case "watchlistError":
+		return ec.fieldContext_DramaRecordConnection_watchlistError(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaRecordConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaRecordDestinationStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "destination":
+		return ec.fieldContext_DramaRecordDestinationStatus_destination(ctx, field)
+	case "available":
+		return ec.fieldContext_DramaRecordDestinationStatus_available(ctx, field)
+	case "connection":
+		return ec.fieldContext_DramaRecordDestinationStatus_connection(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaRecordDestinationStatus", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaRecordSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "enabled":
+		return ec.fieldContext_DramaRecordSettings_enabled(ctx, field)
+	case "thresholdPercent":
+		return ec.fieldContext_DramaRecordSettings_thresholdPercent(ctx, field)
+	case "destinations":
+		return ec.fieldContext_DramaRecordSettings_destinations(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaRecordSettings", field.Name)
+}
+
 func (ec *executionContext) childFields_DramaSeries(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "tmdbId":
@@ -19368,6 +19774,20 @@ func (ec *executionContext) field_Mutation_beginAnimeRecordConnection_args(ctx c
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_beginDramaRecordConnection_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "destination",
+		func(ctx context.Context, v any) (model.DramaRecordDestination, error) {
+			return ec.unmarshalNDramaRecordDestination2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestination(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["destination"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_cancelCaptionModelDownload_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -19900,6 +20320,20 @@ func (ec *executionContext) field_Mutation_disconnectAnimeRecord_args(ctx contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_disconnectDramaRecord_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "destination",
+		func(ctx context.Context, v any) (model.DramaRecordDestination, error) {
+			return ec.unmarshalNDramaRecordDestination2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestination(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["destination"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_downloadCaptionModel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -19953,6 +20387,20 @@ func (ec *executionContext) field_Mutation_generateRecordingCaptions_args(ctx co
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_importDramaWatchlist_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "force",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["force"] = arg0
 	return args, nil
 }
 
@@ -20233,6 +20681,22 @@ func (ec *executionContext) field_Mutation_reportAnimePlayback_args(ctx context.
 		return nil, err
 	}
 	args["intervals"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "anime",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["anime"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "drama",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["drama"] = arg4
 	return args, nil
 }
 
@@ -20821,6 +21285,42 @@ func (ec *executionContext) field_Mutation_updateDramaLinkingToken_args(ctx cont
 		return nil, err
 	}
 	args["token"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDramaRecordApp_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "destination",
+		func(ctx context.Context, v any) (model.DramaRecordDestination, error) {
+			return ec.unmarshalNDramaRecordDestination2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestination(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["destination"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.DramaRecordAppInput, error) {
+			return ec.unmarshalNDramaRecordAppInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordAppInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDramaRecordSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.DramaRecordSettingsInput, error) {
+			return ec.unmarshalNDramaRecordSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordSettingsInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -28599,6 +29099,415 @@ func (ec *executionContext) fieldContext_DramaLinkingStatus_tokenUpdatedAt(_ con
 	return graphql.NewScalarFieldContext("DramaLinkingStatus", field, false, false, "Time")
 }
 
+func (ec *executionContext) _DramaRecordApp_destination(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordApp_destination(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Destination, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.DramaRecordDestination) graphql.Marshaler {
+			return ec.marshalNDramaRecordDestination2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestination(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordApp_destination(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordApp", field, false, false, "DramaRecordDestination")
+}
+
+func (ec *executionContext) _DramaRecordApp_clientId(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordApp_clientId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordApp_clientId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordApp", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaRecordApp_configured(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordApp_configured(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Configured, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordApp_configured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordApp", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaRecordApp_redirectUri(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordApp_redirectUri(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RedirectURI, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordApp_redirectUri(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordApp", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaRecordApp_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordApp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordApp_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordApp_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordApp", field, false, false, "Time")
+}
+
+func (ec *executionContext) _DramaRecordConnection_accountName(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordConnection_accountName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AccountName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordConnection_accountName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordConnection", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaRecordConnection_connectedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordConnection_connectedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConnectedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordConnection_connectedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordConnection", field, false, false, "Time")
+}
+
+func (ec *executionContext) _DramaRecordConnection_reauthorizationRequired(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordConnection_reauthorizationRequired(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReauthorizationRequired, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordConnection_reauthorizationRequired(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordConnection", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaRecordConnection_watchlistCheckedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordConnection_watchlistCheckedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WatchlistCheckedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordConnection_watchlistCheckedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordConnection", field, false, false, "Time")
+}
+
+func (ec *executionContext) _DramaRecordConnection_watchlistImportedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordConnection_watchlistImportedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WatchlistImportedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordConnection_watchlistImportedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordConnection", field, false, false, "Time")
+}
+
+func (ec *executionContext) _DramaRecordConnection_watchlistError(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordConnection_watchlistError(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WatchlistError, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordConnection_watchlistError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordConnection", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaRecordDestinationStatus_destination(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordDestinationStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordDestinationStatus_destination(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Destination, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.DramaRecordDestination) graphql.Marshaler {
+			return ec.marshalNDramaRecordDestination2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestination(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordDestinationStatus_destination(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordDestinationStatus", field, false, false, "DramaRecordDestination")
+}
+
+func (ec *executionContext) _DramaRecordDestinationStatus_available(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordDestinationStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordDestinationStatus_available(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Available, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordDestinationStatus_available(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordDestinationStatus", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaRecordDestinationStatus_connection(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordDestinationStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordDestinationStatus_connection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Connection, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaRecordConnection) graphql.Marshaler {
+			return ec.marshalODramaRecordConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordConnection(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordDestinationStatus_connection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaRecordDestinationStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaRecordConnection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaRecordSettings_enabled(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordSettings_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordSettings_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaRecordSettings_thresholdPercent(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordSettings_thresholdPercent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ThresholdPercent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordSettings_thresholdPercent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaRecordSettings", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaRecordSettings_destinations(ctx context.Context, field graphql.CollectedField, obj *model.DramaRecordSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaRecordSettings_destinations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Destinations, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaRecordDestinationStatus) graphql.Marshaler {
+			return ec.marshalNDramaRecordDestinationStatus2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestinationStatusᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaRecordSettings_destinations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaRecordSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaRecordDestinationStatus(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _DramaSeries_tmdbId(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34560,7 +35469,7 @@ func (ec *executionContext) _Mutation_reportAnimePlayback(ctx context.Context, f
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ReportAnimePlayback(ctx, fc.Args["serviceId"].(*string), fc.Args["recordingId"].(*string), fc.Args["intervals"].([]*model.PlaybackIntervalInput))
+			return ec.Resolvers.Mutation().ReportAnimePlayback(ctx, fc.Args["serviceId"].(*string), fc.Args["recordingId"].(*string), fc.Args["intervals"].([]*model.PlaybackIntervalInput), fc.Args["anime"].(bool), fc.Args["drama"].(bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
@@ -35369,6 +36278,226 @@ func (ec *executionContext) fieldContext_Mutation_setDramaEpisodeWatched(ctx con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_setDramaEpisodeWatched_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDramaRecordApp(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDramaRecordApp(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDramaRecordApp(ctx, fc.Args["destination"].(model.DramaRecordDestination), fc.Args["input"].(model.DramaRecordAppInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaRecordApp) graphql.Marshaler {
+			return ec.marshalNDramaRecordApp2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordApp(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDramaRecordApp(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaRecordApp(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDramaRecordApp_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_beginDramaRecordConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_beginDramaRecordConnection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().BeginDramaRecordConnection(ctx, fc.Args["destination"].(model.DramaRecordDestination))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_beginDramaRecordConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_beginDramaRecordConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_disconnectDramaRecord(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_disconnectDramaRecord(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DisconnectDramaRecord(ctx, fc.Args["destination"].(model.DramaRecordDestination))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaRecordSettings) graphql.Marshaler {
+			return ec.marshalNDramaRecordSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_disconnectDramaRecord(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaRecordSettings(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_disconnectDramaRecord_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_importDramaWatchlist(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_importDramaWatchlist(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ImportDramaWatchlist(ctx, fc.Args["force"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_importDramaWatchlist(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_importDramaWatchlist_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDramaRecordSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDramaRecordSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDramaRecordSettings(ctx, fc.Args["input"].(model.DramaRecordSettingsInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaRecordSettings) graphql.Marshaler {
+			return ec.marshalNDramaRecordSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDramaRecordSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaRecordSettings(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDramaRecordSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -43607,6 +44736,70 @@ func (ec *executionContext) fieldContext_Query_dramaLibrary(_ context.Context, f
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_DramaLibrary(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_dramaRecordApps(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_dramaRecordApps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DramaRecordApps(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaRecordApp) graphql.Marshaler {
+			return ec.marshalNDramaRecordApp2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordAppᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_dramaRecordApps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaRecordApp(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_dramaRecordSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_dramaRecordSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DramaRecordSettings(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaRecordSettings) graphql.Marshaler {
+			return ec.marshalNDramaRecordSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_dramaRecordSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaRecordSettings(ctx, field)
 		},
 	}
 	return fc, nil
@@ -57254,6 +58447,97 @@ func UnmarshalCreateWebhookInput(ctx context.Context, raw any) (model.CreateWebh
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputDramaRecordAppInput(ctx context.Context, obj any) (model.DramaRecordAppInput, error) {
+	var it model.DramaRecordAppInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"clientId", "clientSecret"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "clientId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientID = data
+		case "clientSecret":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clientSecret"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClientSecret = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalDramaRecordAppInput unmarshals raw into the DramaRecordAppInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalDramaRecordAppInput(ctx context.Context, raw any) (model.DramaRecordAppInput, error) {
+	var out model.DramaRecordAppInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "DramaRecordAppInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputDramaRecordSettingsInput(ctx context.Context, obj any) (model.DramaRecordSettingsInput, error) {
+	var it model.DramaRecordSettingsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"thresholdPercent"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "thresholdPercent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("thresholdPercent"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ThresholdPercent = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalDramaRecordSettingsInput unmarshals raw into the DramaRecordSettingsInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalDramaRecordSettingsInput(ctx context.Context, raw any) (model.DramaRecordSettingsInput, error) {
+	var out model.DramaRecordSettingsInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "DramaRecordSettingsInput", raw, &out)
+	return out, err
+}
+
 func (ec *executionContext) unmarshalInputDramaTitleOverrideInput(ctx context.Context, obj any) (model.DramaTitleOverrideInput, error) {
 	var it model.DramaTitleOverrideInput
 	if obj == nil {
@@ -62894,6 +64178,203 @@ func (ec *executionContext) _DramaLinkingStatus(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var dramaRecordAppImplementors = []string{"DramaRecordApp"}
+
+func (ec *executionContext) _DramaRecordApp(ctx context.Context, sel ast.SelectionSet, obj *model.DramaRecordApp) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaRecordAppImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaRecordApp")
+		case "destination":
+			out.Values[i] = ec._DramaRecordApp_destination(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clientId":
+			out.Values[i] = ec._DramaRecordApp_clientId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "configured":
+			out.Values[i] = ec._DramaRecordApp_configured(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "redirectUri":
+			out.Values[i] = ec._DramaRecordApp_redirectUri(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._DramaRecordApp_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaRecordConnectionImplementors = []string{"DramaRecordConnection"}
+
+func (ec *executionContext) _DramaRecordConnection(ctx context.Context, sel ast.SelectionSet, obj *model.DramaRecordConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaRecordConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaRecordConnection")
+		case "accountName":
+			out.Values[i] = ec._DramaRecordConnection_accountName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "connectedAt":
+			out.Values[i] = ec._DramaRecordConnection_connectedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reauthorizationRequired":
+			out.Values[i] = ec._DramaRecordConnection_reauthorizationRequired(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "watchlistCheckedAt":
+			out.Values[i] = ec._DramaRecordConnection_watchlistCheckedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "watchlistImportedAt":
+			out.Values[i] = ec._DramaRecordConnection_watchlistImportedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "watchlistError":
+			out.Values[i] = ec._DramaRecordConnection_watchlistError(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaRecordDestinationStatusImplementors = []string{"DramaRecordDestinationStatus"}
+
+func (ec *executionContext) _DramaRecordDestinationStatus(ctx context.Context, sel ast.SelectionSet, obj *model.DramaRecordDestinationStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaRecordDestinationStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaRecordDestinationStatus")
+		case "destination":
+			out.Values[i] = ec._DramaRecordDestinationStatus_destination(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "available":
+			out.Values[i] = ec._DramaRecordDestinationStatus_available(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "connection":
+			out.Values[i] = ec._DramaRecordDestinationStatus_connection(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaRecordSettingsImplementors = []string{"DramaRecordSettings"}
+
+func (ec *executionContext) _DramaRecordSettings(ctx context.Context, sel ast.SelectionSet, obj *model.DramaRecordSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaRecordSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaRecordSettings")
+		case "enabled":
+			out.Values[i] = ec._DramaRecordSettings_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "thresholdPercent":
+			out.Values[i] = ec._DramaRecordSettings_thresholdPercent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "destinations":
+			out.Values[i] = ec._DramaRecordSettings_destinations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var dramaSeriesImplementors = []string{"DramaSeries"}
 
 func (ec *executionContext) _DramaSeries(ctx context.Context, sel ast.SelectionSet, obj *model.DramaSeries) graphql.Marshaler {
@@ -65715,6 +67196,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "updateDramaRecordApp":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDramaRecordApp(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "beginDramaRecordConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_beginDramaRecordConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "disconnectDramaRecord":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_disconnectDramaRecord(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "importDramaWatchlist":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_importDramaWatchlist(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateDramaRecordSettings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDramaRecordSettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updateGoogleApp":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateGoogleApp(ctx, field)
@@ -67947,6 +69463,18 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_dramaLibrary(ctx, field)
+				})
+		case "dramaRecordApps":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_dramaRecordApps(ctx, field)
+				})
+		case "dramaRecordSettings":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_dramaRecordSettings(ctx, field)
 				})
 		case "node":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -73393,6 +74921,82 @@ func (ec *executionContext) marshalNDramaLinkingStatus2ᚖgithubᚗcomᚋSlashNe
 	return ec._DramaLinkingStatus(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNDramaRecordApp2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordAppᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DramaRecordApp) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDramaRecordApp2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordApp(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDramaRecordApp2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordApp(ctx context.Context, sel ast.SelectionSet, v *model.DramaRecordApp) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaRecordApp!")
+		return graphql.Null
+	}
+	return ec._DramaRecordApp(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDramaRecordAppInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordAppInput(ctx context.Context, v any) (model.DramaRecordAppInput, error) {
+	res, err := ec.unmarshalInputDramaRecordAppInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNDramaRecordDestination2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestination(ctx context.Context, v any) (model.DramaRecordDestination, error) {
+	var res model.DramaRecordDestination
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDramaRecordDestination2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestination(ctx context.Context, sel ast.SelectionSet, v model.DramaRecordDestination) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNDramaRecordDestinationStatus2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestinationStatusᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DramaRecordDestinationStatus) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDramaRecordDestinationStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestinationStatus(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDramaRecordDestinationStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordDestinationStatus(ctx context.Context, sel ast.SelectionSet, v *model.DramaRecordDestinationStatus) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaRecordDestinationStatus!")
+		return graphql.Null
+	}
+	return ec._DramaRecordDestinationStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDramaRecordSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordSettings(ctx context.Context, sel ast.SelectionSet, v *model.DramaRecordSettings) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaRecordSettings!")
+		return graphql.Null
+	}
+	return ec._DramaRecordSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDramaRecordSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordSettingsInput(ctx context.Context, v any) (model.DramaRecordSettingsInput, error) {
+	res, err := ec.unmarshalInputDramaRecordSettingsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNDramaSeries2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeries(ctx context.Context, sel ast.SelectionSet, v *model.DramaSeries) graphql.Marshaler {
 	if v == nil {
 		graphql.AddInvalidNullError(ctx, "DramaSeries!")
@@ -74658,6 +76262,8 @@ var (
 		"ANIME_LINK":             netactivity.PurposeAnimeLink,
 		"ANIME_IMAGE":            netactivity.PurposeAnimeImage,
 		"DRAMA_LINKING":          netactivity.PurposeDramaLinking,
+		"DRAMA_RECORD":           netactivity.PurposeDramaRecord,
+		"DRAMA_LINK":             netactivity.PurposeDramaLink,
 		"USER_AVATAR":            netactivity.PurposeUserAvatar,
 		"OIDC":                   netactivity.PurposeOIDC,
 		"HIBP":                   netactivity.PurposeHIBP,
@@ -74684,6 +76290,8 @@ var (
 		netactivity.PurposeAnimeLink:            "ANIME_LINK",
 		netactivity.PurposeAnimeImage:           "ANIME_IMAGE",
 		netactivity.PurposeDramaLinking:         "DRAMA_LINKING",
+		netactivity.PurposeDramaRecord:          "DRAMA_RECORD",
+		netactivity.PurposeDramaLink:            "DRAMA_LINK",
 		netactivity.PurposeUserAvatar:           "USER_AVATAR",
 		netactivity.PurposeOIDC:                 "OIDC",
 		netactivity.PurposeHIBP:                 "HIBP",
@@ -74765,6 +76373,8 @@ var (
 		"WATCH_REMINDER":           domain.NotificationKindWatchReminder,
 		"ANIME_RECORDED":           domain.NotificationKindAnimeRecorded,
 		"ANIME_RECORD_FAILED":      domain.NotificationKindAnimeRecordFailed,
+		"DRAMA_RECORDED":           domain.NotificationKindDramaRecorded,
+		"DRAMA_RECORD_FAILED":      domain.NotificationKindDramaRecordFailed,
 		"SCRAMBLED_RECORDINGS":     domain.NotificationKindScrambledRecordings,
 		"LINEUP_CHANGED":           domain.NotificationKindLineupChanged,
 	}
@@ -74778,6 +76388,8 @@ var (
 		domain.NotificationKindWatchReminder:          "WATCH_REMINDER",
 		domain.NotificationKindAnimeRecorded:          "ANIME_RECORDED",
 		domain.NotificationKindAnimeRecordFailed:      "ANIME_RECORD_FAILED",
+		domain.NotificationKindDramaRecorded:          "DRAMA_RECORDED",
+		domain.NotificationKindDramaRecordFailed:      "DRAMA_RECORD_FAILED",
 		domain.NotificationKindScrambledRecordings:    "SCRAMBLED_RECORDINGS",
 		domain.NotificationKindLineupChanged:          "LINEUP_CHANGED",
 	}
@@ -77033,6 +78645,13 @@ func (ec *executionContext) marshalODramaLibraryPastBroadcast2ᚖgithubᚗcomᚋ
 		return graphql.Null
 	}
 	return ec._DramaLibraryPastBroadcast(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODramaRecordConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaRecordConnection(ctx context.Context, sel ast.SelectionSet, v *model.DramaRecordConnection) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DramaRecordConnection(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalODramaWatchStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaWatchStatus(ctx context.Context, v any) (*model.DramaWatchStatus, error) {

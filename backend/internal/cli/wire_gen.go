@@ -41,11 +41,16 @@ func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
 	if err != nil {
 		return nil, err
 	}
+	dramarecordService, err := newLinkedDramaRecords(deps, logger, inserter)
+	if err != nil {
+		return nil, err
+	}
 	cliSealedStores := &sealedStores{
 		webhooks:     store,
 		webPush:      service,
 		animeRecords: animerecordService,
 		dramaTokens:  tokens,
+		dramaRecords: dramarecordService,
 	}
 	return cliSealedStores, nil
 }
@@ -199,11 +204,16 @@ func newAnimeJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) (*
 	importer := newAnimeImporter(deps, pool, clock, client, inserter, service, cliAnimeLogger)
 	matcher := newAnimeMatcher(pool, clock, client, cliAnimeLogger)
 	nicologMatcher := newNicologMatcher(deps, pool, clock, cliAnimeLogger)
+	dramarecordService, err := newRecordingDramaRecords(deps, logger, inserter)
+	if err != nil {
+		return nil, err
+	}
 	cliAnimeJobParts := &animeJobParts{
-		importer: importer,
-		matcher:  matcher,
-		nicolog:  nicologMatcher,
-		records:  service,
+		importer:     importer,
+		matcher:      matcher,
+		nicolog:      nicologMatcher,
+		records:      service,
+		dramaRecords: dramarecordService,
 	}
 	return cliAnimeJobParts, nil
 }
