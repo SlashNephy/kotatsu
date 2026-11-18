@@ -297,6 +297,27 @@ type ComplexityRoot struct {
 		Node   func(childComplexity int) int
 	}
 
+	BackupRun struct {
+		Error      func(childComplexity int) int
+		FileName   func(childComplexity int) int
+		FinishedAt func(childComplexity int) int
+		Manual     func(childComplexity int) int
+		Size       func(childComplexity int) int
+		StartedAt  func(childComplexity int) int
+	}
+
+	BackupSettings struct {
+		Generations   func(childComplexity int) int
+		IntervalHours func(childComplexity int) int
+		Recipients    func(childComplexity int) int
+		UpdatedAt     func(childComplexity int) int
+	}
+
+	BackupStatus struct {
+		LatestRun func(childComplexity int) int
+		Settings  func(childComplexity int) int
+	}
+
 	BroadcastClock struct {
 		Pcr        func(childComplexity int) int
 		ReceivedAt func(childComplexity int) int
@@ -994,6 +1015,7 @@ type ComplexityRoot struct {
 		RevokeOtherSessions           func(childComplexity int) int
 		RevokeSession                 func(childComplexity int, id string) int
 		RevokeStreamURL               func(childComplexity int, id string) int
+		RunBackup                     func(childComplexity int) int
 		SaveLibraryWatchPosition      func(childComplexity int, id string, positionMs int64) int
 		SaveWatchPosition             func(childComplexity int, id string, positionMs int64) int
 		SendPlayerCommand             func(childComplexity int, id string, command model.PlayerCommandInput) int
@@ -1016,6 +1038,7 @@ type ComplexityRoot struct {
 		UpdateAnimeImportToken        func(childComplexity int, annictToken string) int
 		UpdateAnimeRecordApp          func(childComplexity int, destination model.AnimeRecordDestination, input model.AnimeRecordAppInput) int
 		UpdateAnimeRecordSettings     func(childComplexity int, input model.AnimeRecordSettingsInput) int
+		UpdateBackupSettings          func(childComplexity int, input model.BackupSettingsInput) int
 		UpdateChannelType             func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
 		UpdateDramaLinkingToken       func(childComplexity int, token string) int
 		UpdateDramaRecordApp          func(childComplexity int, destination model.DramaRecordDestination, input model.DramaRecordAppInput) int
@@ -1267,6 +1290,7 @@ type ComplexityRoot struct {
 		AnimeRecordSettings      func(childComplexity int) int
 		AnimeWishlist            func(childComplexity int) int
 		AuditEvents              func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
+		Backup                   func(childComplexity int) int
 		CalendarFeed             func(childComplexity int) int
 		CaptionModels            func(childComplexity int) int
 		Captures                 func(childComplexity int, first int, after *string, keyword *string) int
@@ -1946,6 +1970,8 @@ type MutationResolver interface {
 	CreateAnimeWishlistRule(ctx context.Context, tid int) (*model.Rule, error)
 	CreateAPIToken(ctx context.Context, name string) (*model.CreatedAPIToken, error)
 	DeleteAPIToken(ctx context.Context, id string) (string, error)
+	UpdateBackupSettings(ctx context.Context, input model.BackupSettingsInput) (*model.BackupStatus, error)
+	RunBackup(ctx context.Context) (*model.BackupStatus, error)
 	CreateCalendarFeed(ctx context.Context) (*model.CreatedCalendarFeed, error)
 	DeleteCalendarFeed(ctx context.Context) (bool, error)
 	CreateIptvFeed(ctx context.Context) (*model.CreatedIptvFeed, error)
@@ -2089,6 +2115,7 @@ type QueryResolver interface {
 	AnimeRecordSettings(ctx context.Context) (*model.AnimeRecordSettings, error)
 	AnimeWishlist(ctx context.Context) (*model.AnimeWishlist, error)
 	APITokens(ctx context.Context) ([]*model.APIToken, error)
+	Backup(ctx context.Context) (*model.BackupStatus, error)
 	CalendarFeed(ctx context.Context) (*model.CalendarFeed, error)
 	IptvFeed(ctx context.Context) (*model.IptvFeed, error)
 	CaptionModels(ctx context.Context) ([]*model.CaptionModelSlot, error)
@@ -3161,6 +3188,81 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AuditEventEdge.Node(childComplexity), true
+
+	case "BackupRun.error":
+		if e.ComplexityRoot.BackupRun.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupRun.Error(childComplexity), true
+	case "BackupRun.fileName":
+		if e.ComplexityRoot.BackupRun.FileName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupRun.FileName(childComplexity), true
+	case "BackupRun.finishedAt":
+		if e.ComplexityRoot.BackupRun.FinishedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupRun.FinishedAt(childComplexity), true
+	case "BackupRun.manual":
+		if e.ComplexityRoot.BackupRun.Manual == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupRun.Manual(childComplexity), true
+	case "BackupRun.size":
+		if e.ComplexityRoot.BackupRun.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupRun.Size(childComplexity), true
+	case "BackupRun.startedAt":
+		if e.ComplexityRoot.BackupRun.StartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupRun.StartedAt(childComplexity), true
+
+	case "BackupSettings.generations":
+		if e.ComplexityRoot.BackupSettings.Generations == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupSettings.Generations(childComplexity), true
+	case "BackupSettings.intervalHours":
+		if e.ComplexityRoot.BackupSettings.IntervalHours == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupSettings.IntervalHours(childComplexity), true
+	case "BackupSettings.recipients":
+		if e.ComplexityRoot.BackupSettings.Recipients == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupSettings.Recipients(childComplexity), true
+	case "BackupSettings.updatedAt":
+		if e.ComplexityRoot.BackupSettings.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupSettings.UpdatedAt(childComplexity), true
+
+	case "BackupStatus.latestRun":
+		if e.ComplexityRoot.BackupStatus.LatestRun == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupStatus.LatestRun(childComplexity), true
+	case "BackupStatus.settings":
+		if e.ComplexityRoot.BackupStatus.Settings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BackupStatus.Settings(childComplexity), true
 
 	case "BroadcastClock.pcr":
 		if e.ComplexityRoot.BroadcastClock.Pcr == nil {
@@ -6238,6 +6340,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeStreamURL(childComplexity, args["id"].(string)), true
+	case "Mutation.runBackup":
+		if e.ComplexityRoot.Mutation.RunBackup == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.RunBackup(childComplexity), true
 	case "Mutation.saveLibraryWatchPosition":
 		if e.ComplexityRoot.Mutation.SaveLibraryWatchPosition == nil {
 			break
@@ -6480,6 +6588,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateAnimeRecordSettings(childComplexity, args["input"].(model.AnimeRecordSettingsInput)), true
+	case "Mutation.updateBackupSettings":
+		if e.ComplexityRoot.Mutation.UpdateBackupSettings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateBackupSettings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateBackupSettings(childComplexity, args["input"].(model.BackupSettingsInput)), true
 	case "Mutation.updateChannelType":
 		if e.ComplexityRoot.Mutation.UpdateChannelType == nil {
 			break
@@ -7666,6 +7785,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AuditEvents(childComplexity, args["first"].(int), args["after"].(*string), args["filter"].(*model.AuditEventFilter)), true
+	case "Query.backup":
+		if e.ComplexityRoot.Query.Backup == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Backup(childComplexity), true
 	case "Query.calendarFeed":
 		if e.ComplexityRoot.Query.CalendarFeed == nil {
 			break
@@ -10637,6 +10762,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("AnimeRecordSettingsInput", ec.unmarshalInputAnimeRecordSettingsInput),
 			graphql.NewInputUnmarshaler("ArchiveRangeInput", ec.unmarshalInputArchiveRangeInput),
 			graphql.NewInputUnmarshaler("AuditEventFilter", ec.unmarshalInputAuditEventFilter),
+			graphql.NewInputUnmarshaler("BackupSettingsInput", ec.unmarshalInputBackupSettingsInput),
 			graphql.NewInputUnmarshaler("CaptionSettingsInput", ec.unmarshalInputCaptionSettingsInput),
 			graphql.NewInputUnmarshaler("ChannelTypeInput", ec.unmarshalInputChannelTypeInput),
 			graphql.NewInputUnmarshaler("CommentSettingsInput", ec.unmarshalInputCommentSettingsInput),
@@ -11646,6 +11772,74 @@ extend type Mutation {
   createApiToken(name: String!): CreatedApiToken!
   "API トークンを取り消し、取り消したトークンの ID を返す。"
   deleteApiToken(id: ID!): ID!
+}
+`, BuiltIn: false},
+	{Name: "../schema/backup.graphqls", Input: `"""
+定期のバックアップの設定 (設計書 11.4、#1926)。書き出す先のディレクトリは、nekonote の設定ファイル (backup.dir) で決める。
+"""
+type BackupSettings {
+  "暗号化する age の公開鍵 (age1...)。どれか 1 つの秘密鍵で読める。空なら、定期のバックアップをしない。"
+  recipients: [String!]!
+  "書き出す間隔 (時間)。"
+  intervalHours: Int!
+  "残す世代の数。書き出し終えたら、これより古いファイルを消す。"
+  generations: Int!
+  "最後に変えた日時。一度も変えていなければ null。"
+  updatedAt: Time
+}
+
+"""
+バックアップの書き出しの結果 (#1926)。
+"""
+type BackupRun {
+  "管理者が画面から頼んだものかどうか。false なら、定期のもの。"
+  manual: Boolean!
+  startedAt: Time!
+  finishedAt: Time!
+  "書き出したファイルの名前 (書き出す先のディレクトリの中)。失敗したら null。"
+  fileName: String
+  "書き出したファイルの大きさ (バイト)。失敗したら null。"
+  size: Int64
+  "失敗したときの理由。成功したら null。"
+  error: String
+}
+
+"""
+定期のバックアップの設定を変える (#1926)。省いた項目は変えない。
+"""
+input BackupSettingsInput {
+  "暗号化する age の公開鍵。渡すと、登録してある鍵をすべて置き換える。"
+  recipients: [String!]
+  "書き出す間隔 (1〜720 時間)。"
+  intervalHours: Int
+  "残す世代の数 (1〜365)。"
+  generations: Int
+}
+
+"""
+バックアップの設定と、最後の書き出しの結果 (設計書 11.4、#1926)。
+"""
+type BackupStatus {
+  settings: BackupSettings!
+  "最後の書き出しの結果。まだ書き出していなければ null。"
+  latestRun: BackupRun
+}
+
+extend type Query {
+  "定期のバックアップの設定と、最後の書き出しの結果を返す (設計書 11.4、#1926)。管理者だけが使える。"
+  backup: BackupStatus!
+}
+
+extend type Mutation {
+  """
+  定期のバックアップの設定を変える (#1926)。管理者だけが使える。公開鍵が age の公開鍵として読めなければ BAD_USER_INPUT にする。
+  """
+  updateBackupSettings(input: BackupSettingsInput!): BackupStatus!
+  """
+  今すぐバックアップを書き出すジョブを入れる (#1926)。管理者だけが使える。書き出しは nekonote が行う。
+  公開鍵を登録していなければ BAD_USER_INPUT に、頼んだ書き出しを待っているか動かしていれば CONFLICT にする。
+  """
+  runBackup: BackupStatus!
 }
 `, BuiltIn: false},
 	{Name: "../schema/calendar_feeds.graphqls", Input: `"""
@@ -16586,6 +16780,48 @@ func (ec *executionContext) childFields_AuditEventEdge(ctx context.Context, fiel
 	return nil, fmt.Errorf("no field named %q was found under type AuditEventEdge", field.Name)
 }
 
+func (ec *executionContext) childFields_BackupRun(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "manual":
+		return ec.fieldContext_BackupRun_manual(ctx, field)
+	case "startedAt":
+		return ec.fieldContext_BackupRun_startedAt(ctx, field)
+	case "finishedAt":
+		return ec.fieldContext_BackupRun_finishedAt(ctx, field)
+	case "fileName":
+		return ec.fieldContext_BackupRun_fileName(ctx, field)
+	case "size":
+		return ec.fieldContext_BackupRun_size(ctx, field)
+	case "error":
+		return ec.fieldContext_BackupRun_error(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BackupRun", field.Name)
+}
+
+func (ec *executionContext) childFields_BackupSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "recipients":
+		return ec.fieldContext_BackupSettings_recipients(ctx, field)
+	case "intervalHours":
+		return ec.fieldContext_BackupSettings_intervalHours(ctx, field)
+	case "generations":
+		return ec.fieldContext_BackupSettings_generations(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_BackupSettings_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BackupSettings", field.Name)
+}
+
+func (ec *executionContext) childFields_BackupStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "settings":
+		return ec.fieldContext_BackupStatus_settings(ctx, field)
+	case "latestRun":
+		return ec.fieldContext_BackupStatus_latestRun(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BackupStatus", field.Name)
+}
+
 func (ec *executionContext) childFields_BroadcastClock(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "pcr":
@@ -20994,6 +21230,20 @@ func (ec *executionContext) field_Mutation_updateAnimeRecordSettings_args(ctx co
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.AnimeRecordSettingsInput, error) {
 			return ec.unmarshalNAnimeRecordSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeRecordSettingsInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateBackupSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.BackupSettingsInput, error) {
+			return ec.unmarshalNBackupSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBackupSettingsInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -25639,6 +25889,300 @@ func (ec *executionContext) fieldContext_AuditEventEdge_node(_ context.Context, 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AuditEvent(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BackupRun_manual(ctx context.Context, field graphql.CollectedField, obj *model.BackupRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupRun_manual(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Manual, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BackupRun_manual(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BackupRun", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _BackupRun_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.BackupRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupRun_startedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BackupRun_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BackupRun", field, false, false, "Time")
+}
+
+func (ec *executionContext) _BackupRun_finishedAt(ctx context.Context, field graphql.CollectedField, obj *model.BackupRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupRun_finishedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FinishedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BackupRun_finishedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BackupRun", field, false, false, "Time")
+}
+
+func (ec *executionContext) _BackupRun_fileName(ctx context.Context, field graphql.CollectedField, obj *model.BackupRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupRun_fileName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FileName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BackupRun_fileName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BackupRun", field, false, false, "String")
+}
+
+func (ec *executionContext) _BackupRun_size(ctx context.Context, field graphql.CollectedField, obj *model.BackupRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupRun_size(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BackupRun_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BackupRun", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _BackupRun_error(ctx context.Context, field graphql.CollectedField, obj *model.BackupRun) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupRun_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BackupRun_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BackupRun", field, false, false, "String")
+}
+
+func (ec *executionContext) _BackupSettings_recipients(ctx context.Context, field graphql.CollectedField, obj *model.BackupSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupSettings_recipients(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recipients, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BackupSettings_recipients(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BackupSettings", field, false, false, "String")
+}
+
+func (ec *executionContext) _BackupSettings_intervalHours(ctx context.Context, field graphql.CollectedField, obj *model.BackupSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupSettings_intervalHours(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IntervalHours, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BackupSettings_intervalHours(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BackupSettings", field, false, false, "Int")
+}
+
+func (ec *executionContext) _BackupSettings_generations(ctx context.Context, field graphql.CollectedField, obj *model.BackupSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupSettings_generations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Generations, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BackupSettings_generations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BackupSettings", field, false, false, "Int")
+}
+
+func (ec *executionContext) _BackupSettings_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.BackupSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupSettings_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BackupSettings_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BackupSettings", field, false, false, "Time")
+}
+
+func (ec *executionContext) _BackupStatus_settings(ctx context.Context, field graphql.CollectedField, obj *model.BackupStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupStatus_settings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Settings, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BackupSettings) graphql.Marshaler {
+			return ec.marshalNBackupSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBackupSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BackupStatus_settings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BackupStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BackupSettings(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BackupStatus_latestRun(ctx context.Context, field graphql.CollectedField, obj *model.BackupStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BackupStatus_latestRun(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LatestRun, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BackupRun) graphql.Marshaler {
+			return ec.marshalOBackupRun2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBackupRun(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BackupStatus_latestRun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BackupStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BackupRun(ctx, field)
 		},
 	}
 	return fc, nil
@@ -35158,6 +35702,82 @@ func (ec *executionContext) fieldContext_Mutation_deleteApiToken(ctx context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_updateBackupSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateBackupSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateBackupSettings(ctx, fc.Args["input"].(model.BackupSettingsInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BackupStatus) graphql.Marshaler {
+			return ec.marshalNBackupStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBackupStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateBackupSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BackupStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateBackupSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_runBackup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_runBackup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().RunBackup(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BackupStatus) graphql.Marshaler {
+			return ec.marshalNBackupStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBackupStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_runBackup(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BackupStatus(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createCalendarFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -43825,6 +44445,38 @@ func (ec *executionContext) fieldContext_Query_apiTokens(_ context.Context, fiel
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ApiToken(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_backup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_backup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().Backup(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BackupStatus) graphql.Marshaler {
+			return ec.marshalNBackupStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBackupStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_backup(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BackupStatus(ctx, field)
 		},
 	}
 	return fc, nil
@@ -57399,6 +58051,62 @@ func UnmarshalAuditEventFilter(ctx context.Context, raw any) (model.AuditEventFi
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputBackupSettingsInput(ctx context.Context, obj any) (model.BackupSettingsInput, error) {
+	var it model.BackupSettingsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"recipients", "intervalHours", "generations"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "recipients":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recipients"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Recipients = data
+		case "intervalHours":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("intervalHours"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IntervalHours = data
+		case "generations":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("generations"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Generations = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalBackupSettingsInput unmarshals raw into the BackupSettingsInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalBackupSettingsInput(ctx context.Context, raw any) (model.BackupSettingsInput, error) {
+	var out model.BackupSettingsInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "BackupSettingsInput", raw, &out)
+	return out, err
+}
+
 func (ec *executionContext) unmarshalInputCaptionSettingsInput(ctx context.Context, obj any) (model.CaptionSettingsInput, error) {
 	var it model.CaptionSettingsInput
 	if obj == nil {
@@ -61933,6 +62641,150 @@ func (ec *executionContext) _AuditEventEdge(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var backupRunImplementors = []string{"BackupRun"}
+
+func (ec *executionContext) _BackupRun(ctx context.Context, sel ast.SelectionSet, obj *model.BackupRun) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, backupRunImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BackupRun")
+		case "manual":
+			out.Values[i] = ec._BackupRun_manual(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startedAt":
+			out.Values[i] = ec._BackupRun_startedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "finishedAt":
+			out.Values[i] = ec._BackupRun_finishedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fileName":
+			out.Values[i] = ec._BackupRun_fileName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "size":
+			out.Values[i] = ec._BackupRun_size(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._BackupRun_error(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var backupSettingsImplementors = []string{"BackupSettings"}
+
+func (ec *executionContext) _BackupSettings(ctx context.Context, sel ast.SelectionSet, obj *model.BackupSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, backupSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BackupSettings")
+		case "recipients":
+			out.Values[i] = ec._BackupSettings_recipients(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "intervalHours":
+			out.Values[i] = ec._BackupSettings_intervalHours(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "generations":
+			out.Values[i] = ec._BackupSettings_generations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._BackupSettings_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var backupStatusImplementors = []string{"BackupStatus"}
+
+func (ec *executionContext) _BackupStatus(ctx context.Context, sel ast.SelectionSet, obj *model.BackupStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, backupStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BackupStatus")
+		case "settings":
+			out.Values[i] = ec._BackupStatus_settings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "latestRun":
+			out.Values[i] = ec._BackupStatus_latestRun(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var broadcastClockImplementors = []string{"BroadcastClock"}
 
 func (ec *executionContext) _BroadcastClock(ctx context.Context, sel ast.SelectionSet, obj *model.BroadcastClock) graphql.Marshaler {
@@ -66239,6 +67091,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "updateBackupSettings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateBackupSettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runBackup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_runBackup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createCalendarFeed":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createCalendarFeed(ctx, field)
@@ -68543,6 +69409,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_apiTokens(ctx, field)
+				})
+		case "backup":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_backup(ctx, field)
 				})
 		case "calendarFeed":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -73579,6 +74451,27 @@ func (ec *executionContext) marshalNAuditEventEdge2ᚖgithubᚗcomᚋSlashNephy�
 	return ec._AuditEventEdge(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNBackupSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBackupSettings(ctx context.Context, sel ast.SelectionSet, v *model.BackupSettings) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "BackupSettings!")
+		return graphql.Null
+	}
+	return ec._BackupSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNBackupSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBackupSettingsInput(ctx context.Context, v any) (model.BackupSettingsInput, error) {
+	res, err := ec.unmarshalInputBackupSettingsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBackupStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBackupStatus(ctx context.Context, sel ast.SelectionSet, v *model.BackupStatus) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "BackupStatus!")
+		return graphql.Null
+	}
+	return ec._BackupStatus(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -77568,6 +78461,13 @@ func (ec *executionContext) unmarshalOAuditEventFilter2ᚖgithubᚗcomᚋSlashNe
 	}
 	res, err := ec.unmarshalInputAuditEventFilter(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOBackupRun2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBackupRun(ctx context.Context, sel ast.SelectionSet, v *model.BackupRun) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._BackupRun(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v any) (bool, error) {

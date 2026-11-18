@@ -52,6 +52,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/backup"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/dramarecord"
@@ -245,12 +246,17 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, dramarecord.NewRecordWorker(animeJobs.dramaRecords, deps.DB))
 	river.AddWorker(workers, dramarecord.NewWatchlistWorker(animeJobs.dramaRecords, deps.DB))
 	river.AddWorker(workers, dramarecord.NewPruneWorker(animeJobs.dramaRecords, deps.DB))
+	// 管理者が画面で公開鍵を登録していれば、DB とキャプチャを backup.dir に定期に書き出す (#1926、設計書 11.4)。
+	river.AddWorker(workers, backup.NewWorker(&backup.WorkerOptions{
+		DB: poolOf(deps), Store: storeOf(deps.Config), SecretKey: deps.Config.Auth.SecretKey.Value(), Dir: deps.Config.Backup.Dir,
+		Clock: deps.Clock, Logger: logger.With(slog.String("component", "backup")),
+	}))
 
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), library.PruneProgressPeriodicJob(), networkactivity.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), anime.NicologPeriodicJob(), animerecord.PrunePeriodicJob(),
-		animerecord.WishlistPeriodicJob(), dramarecord.PrunePeriodicJob(), thumbnail.LivePeriodicJob(),
+		animerecord.WishlistPeriodicJob(), dramarecord.PrunePeriodicJob(), thumbnail.LivePeriodicJob(), backup.PeriodicJob(),
 	}, slices.Concat(anime.MatchPeriodicJobs(), drama.MatchPeriodicJobs())...), nil
 }
 
@@ -309,6 +315,18 @@ func warnIgnoredSettings(ctx context.Context, logger *slog.Logger, ignored []con
 func migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
 	return database.WithMigrationLock(ctx, logger, pool, func(ctx context.Context) error {
 		if err := database.Migrate(ctx, logger, pool); err != nil {
+			return err
+		}
+
+		return jobs.Migrate(ctx, logger, pool)
+	})
+}
+
+// migrateUpTo は、Kotatsu のスキーマを version まで上げ、River のテーブルを最新まで上げる (#1926)。
+// 正規化した列を埋める処理は、最新のスキーマの列を読み書きするので行わない。最新まで上げるときに、kotatsu migrate が行う。
+func migrateUpTo(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, version int64) error {
+	return database.WithMigrationLock(ctx, logger, pool, func(ctx context.Context) error {
+		if err := database.MigrateTo(ctx, logger, pool, version); err != nil {
 			return err
 		}
 
@@ -495,20 +513,7 @@ func NewCommand(opts *Options) *cobra.Command {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
-		Use:   "migrate",
-		Short: "Apply database migrations",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, pool, err := connect(cmd.Context())
-			if err != nil {
-				return err
-			}
-			defer closePool(pool)
-
-			return opts.Migrate(cmd.Context(), opts.Logger, pool)
-		},
-	})
+	root.AddCommand(newMigrateCommand(opts, connect))
 
 	root.AddCommand(newImportCommand(opts, loadConfig, connect))
 	root.AddCommand(newUserCommand(opts, connect))
@@ -524,6 +529,34 @@ func NewCommand(opts *Options) *cobra.Command {
 	))
 
 	return root
+}
+
+// newMigrateCommand は kotatsu migrate を作る。--to を渡すと、Kotatsu のマイグレーションをそのバージョンまでで止める (#1926)。
+func newMigrateCommand(opts *Options, connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error)) *cobra.Command {
+	var migrateTo int64
+	migrateCmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Apply database migrations",
+		Long: "Apply database migrations. With --to, apply the migrations of Kotatsu only up to that version, " +
+			"for example to load rows written with an older schema (kotatsu admin restore does this by itself).",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			_, pool, err := connect(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer closePool(pool)
+
+			if cmd.Flags().Changed("to") {
+				return migrateUpTo(cmd.Context(), opts.Logger, pool, migrateTo)
+			}
+
+			return opts.Migrate(cmd.Context(), opts.Logger, pool)
+		},
+	}
+	migrateCmd.Flags().Int64Var(&migrateTo, "to", 0, "apply the migrations of Kotatsu only up to this version (the River tables are always migrated to the latest)")
+
+	return migrateCmd
 }
 
 // newMeterProviders は、送信先を設定していれば、メトリクスを OTLP で送り始める (設計書 11.3)。

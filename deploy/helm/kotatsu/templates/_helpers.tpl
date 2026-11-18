@@ -179,7 +179,8 @@ configEnv は、values の config から作る環境変数 (KOTATSU_ の後ろ�
 
 {{/*
 volumeMounts は、コンテナにマウントするもの。ルートファイルシステムは読み取り専用なので、書く場所は emptyDir にする。
-引数は (dict "root" $ "pools" 真偽値)。pools が true なら、録画の保存先プールと、データとタイムシフトのディレクトリもマウントする。
+引数は (dict "root" $ "pools" 真偽値 "backup" 真偽値)。pools が true なら、録画の保存先プールと、データとタイムシフトのディレクトリもマウントする。
+backup が true なら、定期のバックアップを書き出すディレクトリもマウントする (#1926)。
 volume の名前は、プール ID に使える _ を含められないので、プールの並びの番号にする。
 */}}
 {{- define "kotatsu.volumeMounts" -}}
@@ -200,6 +201,10 @@ volume の名前は、プール ID に使える _ を含められないので、
 - name: timeshift
   mountPath: /var/lib/kotatsu/timeshift
 {{- end }}
+{{- end }}
+{{- if .backup }}
+- name: backup
+  mountPath: /var/lib/kotatsu/backups
 {{- end }}
 {{- end -}}
 
@@ -227,6 +232,10 @@ volume の名前は、プール ID に使える _ を含められないので、
 - name: timeshift
   {{- toYaml . | nindent 2 }}
 {{- end }}
+{{- end }}
+{{- if .backup }}
+- name: backup
+  {{- toYaml .root.Values.backup.volume | nindent 2 }}
 {{- end }}
 {{- end -}}
 
@@ -271,6 +280,11 @@ Chart が付けるラベルは、selector や Service と食い違わないよ�
 {{/* deployment は、ロールの Deployment。引数は (dict "root" $ "component" 名前 "args" 引数 "pod" 設定 "replicas" 台数 "ffmpeg" 真偽値 "pools" 真偽値)。 */}}
 {{- define "kotatsu.deployment" -}}
 {{- $root := .root -}}
+{{- /* 定期のバックアップは nekonote が書き出すので、all と nekonote にだけ書き出す先を渡す (#1926)。 */ -}}
+{{- $backup := and (not (empty $root.Values.backup.volume)) (has .component (list "all" "nekonote")) -}}
+{{- if and (not (empty $root.Values.backup.volume)) (hasKey $root.Values.config "BACKUP_DIR") }}
+{{- fail "set either backup.volume or config.BACKUP_DIR, not both" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -322,6 +336,10 @@ spec:
             {{- toYaml .args | nindent 12 }}
           env:
             {{- include "kotatsu.env" $root | nindent 12 }}
+            {{- if $backup }}
+            - name: KOTATSU_BACKUP_DIR
+              value: /var/lib/kotatsu/backups
+            {{- end }}
           {{- with $root.Values.extraEnvFrom }}
           envFrom:
             {{- toYaml . | nindent 12 }}
@@ -346,9 +364,9 @@ spec:
           resources:
             {{- toYaml .pod.resources | nindent 12 }}
           volumeMounts:
-            {{- include "kotatsu.volumeMounts" (dict "root" $root "pools" .pools) | nindent 12 }}
+            {{- include "kotatsu.volumeMounts" (dict "root" $root "pools" .pools "backup" $backup) | nindent 12 }}
       volumes:
-        {{- include "kotatsu.volumes" (dict "root" $root "pools" .pools "workSizeLimit" .pod.workSizeLimit) | nindent 8 }}
+        {{- include "kotatsu.volumes" (dict "root" $root "pools" .pools "backup" $backup "workSizeLimit" .pod.workSizeLimit) | nindent 8 }}
       {{- with .pod.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

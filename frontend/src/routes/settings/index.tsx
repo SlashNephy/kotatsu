@@ -2,6 +2,7 @@ import { Card, Group, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   Activity,
+  DatabaseBackup,
   Bell,
   CalendarDays,
   Cat,
@@ -189,6 +190,12 @@ function AdminLinks() {
           title: t('admin.system.title'),
           body: t('admin.system.summary'),
           icon: Activity,
+        },
+        {
+          to: '/admin/backup',
+          title: t('admin.backup.title'),
+          body: t('admin.backup.summary'),
+          icon: DatabaseBackup,
         },
         {
           to: '/admin/audit',

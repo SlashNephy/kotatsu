@@ -1,0 +1,6 @@
+# バックアップの volume と、config の BACKUP_DIR を両方渡した。同じ環境変数が 2 つになる。
+backup:
+  volume:
+    emptyDir: {}
+config:
+  BACKUP_DIR: /backups

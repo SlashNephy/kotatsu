@@ -2235,3 +2235,32 @@ CREATE TABLE drama_record_settings (
   threshold_percent smallint NOT NULL DEFAULT 20 CHECK (threshold_percent BETWEEN 1 AND 100),
   updated_at timestamptz NOT NULL
 );
+
+-- 定期のバックアップの設定 (#1926、設計書 11.4)。1 行だけ持つ。行がないか、公開鍵がなければ、定期のバックアップをしない。
+-- 書き出す先のディレクトリは、nekonote のファイルシステムのパスなので、設定ファイル (backup.dir) に置く (設計書 11.2)。
+CREATE TABLE backup_settings (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  -- 暗号化する age の公開鍵 (age1...)。どれか 1 つの秘密鍵で読める。公開鍵なので、暗号化せずに持つ。
+  recipients text[] NOT NULL,
+  -- 書き出す間隔 (時間)。
+  interval_hours integer NOT NULL CHECK (interval_hours BETWEEN 1 AND 720),
+  -- 残す世代の数。書き出し終えたら、これより古いファイルを消す。
+  generations integer NOT NULL CHECK (generations BETWEEN 1 AND 365),
+  updated_at timestamptz NOT NULL
+);
+
+-- バックアップの書き出しの結果 (#1926)。管理者の画面に、最後の結果を出す。古い行は、書き出すたびに消し、最近のものだけを残す。
+CREATE TABLE backup_runs (
+  id uuid PRIMARY KEY,
+  -- manual は管理者が画面から頼んだもの、schedule は定期のもの。
+  trigger text NOT NULL CHECK (trigger IN ('schedule', 'manual')),
+  started_at timestamptz NOT NULL,
+  finished_at timestamptz NOT NULL,
+  -- 書き出したファイルの名前 (書き出す先のディレクトリの中) と大きさ (バイト)。失敗したら NULL。
+  file_name text,
+  size_bytes bigint CHECK (size_bytes >= 0),
+  -- 失敗したときの理由。成功したら NULL。
+  error text,
+  CHECK ((error IS NULL) = (file_name IS NOT NULL))
+);
+CREATE INDEX backup_runs_started_at_idx ON backup_runs (started_at DESC);

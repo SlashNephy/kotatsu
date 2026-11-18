@@ -457,6 +457,49 @@ type AuditEventFilter struct {
 	Until *time.Time `json:"until,omitempty"`
 }
 
+// バックアップの書き出しの結果 (#1926)。
+type BackupRun struct {
+	// 管理者が画面から頼んだものかどうか。false なら、定期のもの。
+	Manual     bool      `json:"manual"`
+	StartedAt  time.Time `json:"startedAt"`
+	FinishedAt time.Time `json:"finishedAt"`
+	// 書き出したファイルの名前 (書き出す先のディレクトリの中)。失敗したら null。
+	FileName *string `json:"fileName,omitempty"`
+	// 書き出したファイルの大きさ (バイト)。失敗したら null。
+	Size *int64 `json:"size,omitempty"`
+	// 失敗したときの理由。成功したら null。
+	Error *string `json:"error,omitempty"`
+}
+
+// 定期のバックアップの設定 (設計書 11.4、#1926)。書き出す先のディレクトリは、nekonote の設定ファイル (backup.dir) で決める。
+type BackupSettings struct {
+	// 暗号化する age の公開鍵 (age1...)。どれか 1 つの秘密鍵で読める。空なら、定期のバックアップをしない。
+	Recipients []string `json:"recipients"`
+	// 書き出す間隔 (時間)。
+	IntervalHours int `json:"intervalHours"`
+	// 残す世代の数。書き出し終えたら、これより古いファイルを消す。
+	Generations int `json:"generations"`
+	// 最後に変えた日時。一度も変えていなければ null。
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
+// 定期のバックアップの設定を変える (#1926)。省いた項目は変えない。
+type BackupSettingsInput struct {
+	// 暗号化する age の公開鍵。渡すと、登録してある鍵をすべて置き換える。
+	Recipients []string `json:"recipients,omitempty"`
+	// 書き出す間隔 (1〜720 時間)。
+	IntervalHours *int `json:"intervalHours,omitempty"`
+	// 残す世代の数 (1〜365)。
+	Generations *int `json:"generations,omitempty"`
+}
+
+// バックアップの設定と、最後の書き出しの結果 (設計書 11.4、#1926)。
+type BackupStatus struct {
+	Settings *BackupSettings `json:"settings"`
+	// 最後の書き出しの結果。まだ書き出していなければ null。
+	LatestRun *BackupRun `json:"latestRun,omitempty"`
+}
+
 // 放送の時計 (#1515)。PCR と、それを含む TS を tenban が受け取った時刻の組。受け取った時刻から PCR を引いた量が最も小さい組を送る。
 // 映しているコマの放送の時刻は、receivedAt + (コマの PTS − pcr) で出せる。
 type BroadcastClock struct {

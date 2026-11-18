@@ -48,6 +48,54 @@ func TestMigrateAppliesToEmptyDatabase(t *testing.T) {
 	assert.Equal(t, len(database.MigrationVersions()), applied)
 }
 
+// TestMigrateTo は、指定したバージョンで止め、そこから Migrate で最新まで上げられることと、
+// 知らないバージョンや、今より古いバージョンを拒むことを確かめる (#1926)。
+func TestMigrateTo(t *testing.T) {
+	t.Parallel()
+
+	versions := database.MigrationVersions()
+	middle := versions[len(versions)/2]
+	tests := []struct {
+		name    string
+		prepare func(t *testing.T, pool *pgxpool.Pool)
+		version int64
+		wantErr bool
+	}{
+		{name: "stops at the version", prepare: func(*testing.T, *pgxpool.Pool) {}, version: middle, wantErr: false},
+		{name: "rejects an unknown version", prepare: func(*testing.T, *pgxpool.Pool) {}, version: middle + 1, wantErr: true},
+		{
+			name: "rejects a version older than the database",
+			prepare: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+			},
+			version: middle, wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pool := open(t, databasetest.New(t))
+			tt.prepare(t, pool)
+			err := database.MigrateTo(t.Context(), slog.New(slog.DiscardHandler), pool, tt.version)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+			require.NoError(t, err)
+			var current int64
+			require.NoError(t, pool.QueryRow(t.Context(), "SELECT max(version_id) FROM goose_db_version").Scan(&current))
+			assert.Equal(t, tt.version, current)
+			require.ErrorIs(t, database.CheckSchema(t.Context(), pool), database.ErrSchemaOutdated)
+
+			require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+			require.NoError(t, database.CheckSchema(t.Context(), pool))
+		})
+	}
+}
+
 // TestMigrateConcurrently は、kotatsu migrate を同時に実行しても、どれも失敗せず、マイグレーションを一度ずつ適用することを確かめる。
 // Helm のフックの Job と手で実行した migrate、2 つの helm upgrade などで重なりうる。
 func TestMigrateConcurrently(t *testing.T) {

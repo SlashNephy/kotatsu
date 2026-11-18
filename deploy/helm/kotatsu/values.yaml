@@ -128,6 +128,16 @@ storage:
   data: {}
   timeshift: {}
 
+# backup.volume は、nekonote が定期のバックアップを書き出す volume (設計書 11.4、#1926)。
+# 設定すると、all か nekonote にマウントし、KOTATSU_BACKUP_DIR を渡す。暗号化する公開鍵と間隔と残す世代の数は、管理者の画面で決める。
+# 書き出したファイルは、rclone などで外へ写す (docs/operations.md)。プールやデータディレクトリとは別の volume にする。
+# 例:
+#   volume:
+#     persistentVolumeClaim:
+#       claimName: kotatsu-backups
+backup:
+  volume: {}
+
 # podSecurityContext と securityContext は、すべての Pod とコンテナに付ける。既定値は堅くしてあり、そのまま使える。
 podSecurityContext:
   runAsNonRoot: true

@@ -3,6 +3,7 @@ module github.com/SlashNephy/kotatsu
 go 1.27.0
 
 require (
+	filippo.io/age v1.3.2
 	github.com/99designs/gqlgen v0.17.98
 	github.com/coder/websocket v1.8.15
 	github.com/coreos/go-oidc/v3 v3.21.0
@@ -54,6 +55,7 @@ require (
 require (
 	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect

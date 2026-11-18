@@ -1,0 +1,6 @@
+# ロールを分けた構成では、バックアップの volume と KOTATSU_BACKUP_DIR を、nekonote にだけ渡す (#1926)。
+mode: split
+backup:
+  volume:
+    persistentVolumeClaim:
+      claimName: kotatsu-backups
