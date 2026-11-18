@@ -246,6 +246,28 @@ httpGet:
 {{- end }}
 {{- end -}}
 
+{{/*
+podAnnotations は、ロールの Pod に付ける annotation (YAML)。引数は (dict "root" $ "pod" 設定)。
+全体の podAnnotations に、all やロールの podAnnotations をキーごとに重ね、同じキーはロールのほうを使う。
+*/}}
+{{- define "kotatsu.podAnnotations" -}}
+{{- toYaml (merge (deepCopy (.pod.podAnnotations | default dict)) (.root.Values.podAnnotations | default dict)) -}}
+{{- end -}}
+
+{{/*
+podLabels は、ロールの Pod に足すラベル (YAML)。引数は (dict "root" $ "pod" 設定)。重ね方は podAnnotations と同じ。
+Chart が付けるラベルは、selector や Service と食い違わないよう、上書きさせずに描画を止める。
+*/}}
+{{- define "kotatsu.podLabels" -}}
+{{- $labels := merge (deepCopy (.pod.podLabels | default dict)) (.root.Values.podLabels | default dict) -}}
+{{- range $key := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/version" "app.kubernetes.io/managed-by" "app.kubernetes.io/component" "helm.sh/chart" -}}
+{{- if hasKey $labels $key -}}
+{{- fail (printf "podLabels must not set %s, which the chart sets" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- toYaml $labels -}}
+{{- end -}}
+
 {{/* deployment は、ロールの Deployment。引数は (dict "root" $ "component" 名前 "args" 引数 "pod" 設定 "replicas" 台数 "ffmpeg" 真偽値 "pools" 真偽値)。 */}}
 {{- define "kotatsu.deployment" -}}
 {{- $root := .root -}}
@@ -264,13 +286,23 @@ spec:
       {{- include "kotatsu.selectorLabels" (dict "root" $root "component" .component) | nindent 6 }}
   template:
     metadata:
+      {{- with include "kotatsu.podAnnotations" (dict "root" $root "pod" .pod) | fromYaml }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
         {{- include "kotatsu.labels" $root | nindent 8 }}
         app.kubernetes.io/component: {{ .component }}
+        {{- with include "kotatsu.podLabels" (dict "root" $root "pod" .pod) | fromYaml }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with $root.Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .pod.serviceAccountName | default $root.Values.serviceAccountName }}
+      serviceAccountName: {{ . }}
       {{- end }}
       automountServiceAccountToken: {{ $root.Values.automountServiceAccountToken }}
       securityContext:

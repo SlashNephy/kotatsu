@@ -41,6 +41,30 @@ secrets:
 # automountServiceAccountToken は、Pod に ServiceAccount のトークンを渡すかどうか。Kotatsu は Kubernetes の API を使わないので、既定では渡さない。
 automountServiceAccountToken: false
 
+# serviceAccountName は、すべての Deployment の Pod が使う ServiceAccount。Chart は ServiceAccount を作らないので、先に作っておく。
+# 空なら namespace の default を使う。all や roles の各ロールで serviceAccountName を指定すると、そちらを使う。
+# Pod にサイドカーを注入する仕組みが、サイドカーに渡す権限を ServiceAccount で決めるときなどに使う。
+# マイグレーションの Job には付けない。Job は install と upgrade の前に (Argo CD では PreSync で) 走るので、
+# 同じ構成で作る ServiceAccount より先に走ると Pod を作れないからである。Job には要らない権限を持たせないためでもある。
+serviceAccountName: ""
+
+# podAnnotations と podLabels は、すべての Deployment の Pod に足す annotation とラベル。
+# all や roles の各ロールの podAnnotations と podLabels を、キーごとに重ねる。同じキーは、ロールのほうを使う。
+# Chart が付けるラベル (app.kubernetes.io/name、instance、version、managed-by、component と helm.sh/chart) は、
+# selector と食い違わないよう、podLabels に書くと描画を止める。
+# マイグレーションの Job には付けない。サイドカーを注入するラベルが Job に付くと、サイドカーが終わらず Job が完了しないからである。
+# 例 (サイドカーをラベルで注入し、ロールごとに名前を annotation で渡す):
+#   podLabels:
+#     sidecar.example.com/inject: "true"
+#   podAnnotations:
+#     sidecar.example.com/apikey-secret-name: sidecar-api-key
+#   roles:
+#     tenban:
+#       podAnnotations:
+#         sidecar.example.com/roles: kotatsu:tenban
+podAnnotations: {}
+podLabels: {}
+
 # probes は、すべてのコンテナの liveness と readiness のプローブの設定 (Kubernetes の Probe のうち、httpGet のほか)。
 # all や roles の各ロールの probes で、項目ごとに上書きできる。CPU が飽和しがちなノードでは、timeoutSeconds を延ばす。
 # 例:

@@ -2850,6 +2850,7 @@ Helm Chartは次の方針で作ります。
 - ロールごとに、台数、リソース、配置先（kyusuをGPUのあるノードに置く、など）、RuntimeClass（`runtimeClassName`）を指定できるようにします。RuntimeClassは、NVIDIAのランタイムが既定でないクラスター（k3sなど）で、kyusuにGPUを渡すのに使います（#509）。
 - 接続先と秘密キーは、項目ごとに別のSecretから渡せるようにします。CloudNativePGが作るSecretを、そのまま使えるようにするためです。
 - イメージはdigestでも固定でき、PodにはPriorityClassを付けられるようにします。
+- DeploymentのPodには、annotation（`podAnnotations`）、ラベル（`podLabels`）、ServiceAccount（`serviceAccountName`）を、全体とロールごとに指定できるようにします。サイドカーを注入する仕組み（監視のエージェントなど）が、Podのラベルとannotationで注入先と設定を、ServiceAccountでサイドカーの権限を決めるからです。ロールごとの指定は、全体の指定にキーごとに重ねます。ServiceAccountはChartで作らず、既にあるものを名前で指定します。Chartが付けるラベルは、selectorと食い違わないよう、`podLabels`で上書きさせずに描画を止めます。マイグレーションのJobには付けません。注入するラベルが付くとサイドカーが終わらずJobが完了しないことと、install前のフックで走るJobが、同じ構成で作るServiceAccountより先に走ると、Podを作れないことが理由です。
 - mikanにはPodDisruptionBudgetと、引き継ぎに十分な`terminationGracePeriodSeconds`を設定します。PodDisruptionBudgetの`unhealthyPodEvictionPolicy`は`IfHealthyBudget`にし、readyのmikanが足りないときは、readyでないmikanも退避させません。mikanはDBに5分届かないとreadyでなくなりますが（[11.3](#113-監視)）、その間も録画を続けるからです。
 - ロールごとのコンテナには、既定でCPUとメモリのrequestsと、メモリのlimitsを付けます。requestsは本番の`split`の構成で使っている値（待機しているときのプロセスのメモリは、全ロールを合わせて100 MB未満）に寄せ、limitsは漏れたときにOOMKillで止まるよう、余裕を持たせます。FFmpegと`whisper-cli`を動かすnekonote、kyusu、`all`は、実測がないので広めに取ります。CPUのlimitsは、処理を詰まらせないよう付けません。どれもvaluesの`resources`で上書きできます。
 
@@ -2881,7 +2882,7 @@ Helm Chartは次の方針で作ります。
 
 Kubernetesのマニフェストは、全ロールを1つのPodで動かす構成例と、ロールを分けた構成例の2つを生成します。
 Chartから生成した結果とリポジトリ上のマニフェストの差分は、CIの検査対象です。
-CIでは、Chartの`fail`の検査が描画を止めること（知らない`mode`、信頼するプロキシのないIngressやHTTPRoute、GatewayのないHTTPRoute、二重の指定など）と、HTTPRouteとNetworkPolicyが期待どおりに描かれることも確かめます（`mise run deploy:test`、#1526）。
+CIでは、Chartの`fail`の検査が描画を止めること（知らない`mode`、信頼するプロキシのないIngressやHTTPRoute、GatewayのないHTTPRoute、Chartが付けるラベルの上書き、二重の指定など）と、HTTPRoute、NetworkPolicy、Podのannotationとラベルが期待どおりに描かれることも確かめます（`mise run deploy:test`、#1526）。
 
 
 ### 11.2 設定の置き場所
