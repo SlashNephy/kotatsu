@@ -38,8 +38,15 @@ const (
 	stateRecording = "recording"
 	// detectMaxAttempts は、CM の区間を見分けるジョブを試す回数の上限。
 	detectMaxAttempts = 3
-	// detectTimeout は、CM の区間を見分けるジョブの時間の上限。30 分の録画で 1 分もかからないが、長い録画や遅いディスクのために長めにとる。
-	detectTimeout = 30 * time.Minute
+	// minTimeLimit は、CM の区間を見分けるジョブの時間の上限の下限。30 分の地上波の録画で数分で済むが、遅いディスクのために長めにとる。
+	minTimeLimit = 30 * time.Minute
+	// timeLimitPerRecording は、録画の長さ 1 秒あたりに許す、見分ける時間 (#1505)。4K の録画を局ロゴで見分けると、
+	// 全コマをデコードするので、手元の機械でも録画の長さの 0.4 倍ほどかかり、ロゴを使えずに見分け直すと、さらに今の見分け方の分が足される。
+	// 遅い機械でも打ち切られないよう、録画の長さと同じだけ許す。
+	timeLimitPerRecording = 1.0
+	// MaxTimeLimit は、CM の区間を見分けるジョブの時間の上限の上限。River が実行中のまま止まったとみなす時間 (3 時間) より短くし、
+	// 動いているジョブを、ほかの nekonote に二重に動かさせない (#515)。
+	MaxTimeLimit = 150 * time.Minute
 	// lockedSnooze は、同じ録画のファイルをほかでつないでいるときに、やり直すまで待つ時間。
 	lockedSnooze = 10 * time.Minute
 	// finalizingSnooze は、つないだファイルへの置き換えが終わっていないときに、やり直すまで待つ時間。置き換えはすぐ終わるので、短くする (#1719)。
@@ -361,8 +368,23 @@ func newDetectWorker(
 	}
 }
 
+// Timeout は、時間の上限の上限を返す。録画の長さに合わせた上限は、録画を読んでから work で掛ける (#1505)。
 func (w *DetectWorker) Timeout(*river.Job[DetectArgs]) time.Duration {
-	return detectTimeout
+	return MaxTimeLimit
+}
+
+// TimeLimit は、長さ length の録画の CM の区間を見分ける時間の上限を返す (#1505)。長さが分からなければ 0 を渡す。
+func TimeLimit(length time.Duration) time.Duration {
+	return min(max(minTimeLimit, time.Duration(float64(length)*timeLimitPerRecording)), MaxTimeLimit)
+}
+
+// recordingLength は、録画の長さ (録画を始めてから終えるまで) を返す。終えた日時がなければ 0。
+func recordingLength(recording *sqlc.Recording) time.Duration {
+	if recording.RecordedUntil == nil {
+		return 0
+	}
+
+	return max(recording.RecordedUntil.Sub(recording.RecordedFrom), 0)
 }
 
 // Work は、録画ごとの advisory lock を取ってから、CM の区間を見分ける。
@@ -430,6 +452,8 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithTimeout(ctx, TimeLimit(recordingLength(&recording)))
+	defer cancel()
 
 	// 材料が残っていれば、読み直さずに判定し直す (#1507)。
 	if found, report, ok := w.redetect(ctx, detector, &recording, segments); ok {
