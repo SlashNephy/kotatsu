@@ -27,8 +27,9 @@ const (
 	// LogoDetectorName と logoDetectorVersion は、LogoDetector の名前と版。規則や値を変えたら版を上げる。
 	// 版 3 で、縦が 1080 ラインより大きい映像 (BS4K、8K) も、縮めてロゴで見分けるようにした (#1505)。
 	// 版 4 で、隅を横切る帯 (番組の話題の帯) の端のアイコンを、局ロゴとして覚えないようにした (#1883)。
+	// 版 5 で、録画の途中の 60 秒を超える CM (通販の CM など) を CM にし、録画の端の近くの CM を端まで延ばした (#1958)。
 	LogoDetectorName    = "logo"
-	logoDetectorVersion = 4
+	logoDetectorVersion = 5
 	// ffprobeCommand は、PATH から探す ffprobe のコマンドの名前。FFmpeg に付いてくる。
 	ffprobeCommand = "ffprobe"
 	// rawReadBuffer は、FFmpeg が出す生のコマを読むバッファの大きさ。
