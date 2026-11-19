@@ -139,7 +139,7 @@ type RecordingSettings struct {
 const (
 	// CMDetectorFFmpeg は、無音とシーンの切り替わりで CM の区間を見分けること。
 	CMDetectorFFmpeg = "ffmpeg"
-	// CMDetectorLogo は、局ロゴが出ているかで CM の区間を見分けること (試験的、#1505)。
+	// CMDetectorLogo は、局ロゴが出ているかで CM の区間を見分けること (高精度、#1505)。
 	CMDetectorLogo = "logo"
 )
 

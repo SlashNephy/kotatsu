@@ -3144,7 +3144,7 @@ type CMDetector string
 const (
 	// 無音とシーンの切り替わりで見分ける。
 	CMDetectorFfmpeg CMDetector = "FFMPEG"
-	// 局ロゴが出ているかで見分ける (試験的)。ロゴを学習できない録画では、FFMPEG で見分ける。
+	// 局ロゴが出ているかで見分ける (高精度)。無音とシーンの切り替わりより精度が高い代わりに、全コマを読むので、時間と CPU を多く使う。ロゴを学習できない録画では、FFMPEG で見分ける。
 	CMDetectorLogo CMDetector = "LOGO"
 )
 
