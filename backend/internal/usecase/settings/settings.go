@@ -64,7 +64,7 @@ const (
 const (
 	// CMDetectorFFmpeg は、無音とシーンの切り替わりで見分ける、今までの見分け方。既定にする。
 	CMDetectorFFmpeg = domain.CMDetectorFFmpeg
-	// CMDetectorLogo は、局ロゴが出ているかで見分ける、試験的な見分け方。
+	// CMDetectorLogo は、局ロゴが出ているかで見分ける、精度の高い見分け方。
 	CMDetectorLogo = domain.CMDetectorLogo
 )
 

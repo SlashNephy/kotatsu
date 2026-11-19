@@ -1,7 +1,7 @@
 // Package cmdetect は、録画の中の CM の区間を見分ける (設計書 6.1、#479)。
 //
-// 見分け方は Detector で差し替えられる。いまは、FFmpeg の無音の検出とシーンの切り替わりに、TS の中の手掛かりを合わせる
-// FFmpegDetector だけがある。精度が足りなければ、join_logo_scp のような外部のツールを使う Detector を足す。
+// 見分け方は Detector で差し替えられる。FFmpeg の無音の検出とシーンの切り替わりに、TS の中の手掛かりを合わせる FFmpegDetector (既定) と、
+// 録画ごとに局ロゴを学習し、ロゴの出ていない所を CM とみなす LogoDetector (#1505) がある。どちらも外部のツールを使わない。
 // 見分けた区間は、Detector の名前と版と一緒に DB に残すので、Detector を直したら、版を上げて録り直さずに見分け直せる。
 package cmdetect
 
