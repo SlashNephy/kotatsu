@@ -21,8 +21,15 @@ const (
 	combineLogoPenalty = 3.0
 	// combineTolerance は、CM の長さが 15 秒の倍数からずれてよい幅 (許すずれ)。
 	combineTolerance = 1.0
-	// combineMaxCM は、録画の端に接しない CM の区間の 1 本の長さの上限 (CM の最長)。
+	// combineMaxCM は、録画の端に接しない CM の区間の 1 本の長さの上限 (CM の最長)。これを超える CM は、長い CM として扱う。
 	combineMaxCM = 60.0
+	// combineMaxLongCM は、録画の端に接しない長い CM (通販の CM など) の 1 本の長さの上限 (長い CM の最長、#1958)。
+	// BS の局は、間に無音のない 90〜180 秒の通販の CM を流す。
+	combineMaxLongCM = 180.0
+	// combineLongTolerance は、長い CM の長さが 15 秒の倍数からずれてよい幅 (長い CM の許すずれ、#1958)。
+	// 局がロゴを消したオープニング (90 秒ほど) を長い CM と取り違えにくいよう、CM の許すずれより狭くする。
+	// 2026 年 11 月の本番の録画では、通販の CM は、1080i で 15 秒の倍数から 0.12 秒以内、BS4K で 0.4 秒ずれていた。
+	combineLongTolerance = 0.5
 	// combineSponsorMin と combineSponsorMax は、提供 (番組の終わりに出す、スポンサーの表示。局ロゴを消して出すことが多い) とみなす長さの幅。提供が 2 枚続くと、15 秒を少し超える (実録画で 15.5 秒)。
 	// 本当の CM は、無音から無音までがほぼちょうど 15 秒 (実録画で 15.0〜15.2 秒) なので、本編の直後でも、
 	// 15 秒にぴったり合う区間は、CM の点が提供の点を上回る。
@@ -46,6 +53,8 @@ const (
 // 境目の候補は、無音 (とシーンの切り替わり、音声の構成の変化) の境目と、録画の始まりと終わり。ロゴの端は候補にしない。
 // 本編の区間は、ロゴが見えた秒を足し、ロゴがなかった秒を引く。CM の区間は、15 秒の倍数への合い方で足し、ロゴが見えた秒を大きく引く。
 // 録画の端に接する CM は、前後の番組の CM が途中から入るので、長さを問わず、ロゴが見えた秒だけを引く。
+// CM の最長を超える CM (通販の CM など) は、長い CM の最長まで、15 秒の倍数にほぼちょうど合うときだけ CM とみなす (#1958)。
+// 録画の端の近くの CM は、端まで延ばす (#1958)。
 // 本編の直後の 10 秒前後の区間で、次が CM か録画の終わりのものは、提供として本編の側に数え、加点する。
 // 5 秒か 10 秒の区間は、告知として、長さが合うほど足す。本編の直後の告知の後に、CM を挟まずに本編へ戻るときは、大きく引く。
 // 本編と CM の並びは、境目の候補を順にたどる動的計画法で選ぶ。番組の頭の切れ目、ロゴの点数の変化などの細かい規則は、まだ入れていない。
@@ -61,7 +70,24 @@ func combineSections(bounds []boundary, duration float64, logo []span) []span {
 	sc := &combineScorer{duration: duration, logo: logo}
 	table := sc.solve(points)
 
-	return mergeAdjacent(table.trace(points))
+	return extendToEdges(mergeAdjacent(table.trace(points)), duration)
+}
+
+// extendToEdges は、録画の始まりか終わりから edgeExtension の内にある CM の区間を、その端まで延ばす (今の見分け方と同じ規則、#1958)。
+// 録画の前後のマージンには、前後の番組が入る。番組の窓を置けない録画 (マージンが短い録画など) では、次の番組の頭のロゴが見え、
+// 長い CM (#1958) の後の数秒を、本編として残してしまうためである。
+func extendToEdges(sections []span, duration float64) []span {
+	if len(sections) == 0 {
+		return sections
+	}
+	if sections[0].start <= edgeExtension {
+		sections[0].start = 0
+	}
+	if last := len(sections) - 1; duration-sections[last].end <= edgeExtension {
+		sections[last].end = duration
+	}
+
+	return sections
 }
 
 // 動的計画法の状態。直前の区間が、本編、CM、提供、本編の直後の告知のどれで終わったか。
@@ -104,10 +130,16 @@ func (sc *combineScorer) cm(a, b float64) (float64, bool) {
 		return -combineLogoPenalty * s, true
 	}
 	length := b - a
-	if length > combineMaxCM+combineTolerance {
+	if length > combineMaxLongCM+combineLongTolerance {
 		return 0, false
 	}
 	f := cmFit(length)
+	if length > combineMaxCM+combineTolerance {
+		// 長い CM は、15 秒の倍数にほぼちょうど合うものだけを CM にする。ロゴの減点は、ふつうの CM と同じに掛ける。
+		if f = longCMFit(length); f == 0 {
+			return 0, false
+		}
+	}
 
 	return combineCMWeight*length*f - combineMismatch*(1-f) - combineLogoPenalty*s, true
 }
@@ -216,8 +248,8 @@ func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
 		base, prev = best(none, from...)
 		update(stateCM, base, prev, v)
 	}
-	// 端に接しない CM は、CM の最長より遠くの候補からは始められない。
-	if a > 0 && b < sc.duration && b-a > combineMaxCM+combineTolerance {
+	// 端に接しない CM は、長い CM の最長より遠くの候補からは始められない。
+	if a > 0 && b < sc.duration && b-a > combineMaxLongCM+combineLongTolerance {
 		return
 	}
 	if v, ok := sc.cm(a, b); ok {
@@ -275,4 +307,18 @@ func cmFit(length float64) float64 {
 	}
 
 	return 1 - diff/combineTolerance
+}
+
+// longCMFit は、CM の最長を超える長さ length の、15 秒の倍数への合い方を、0〜1 で返す (#1958)。
+// 最寄りの倍数からのずれが長い CM の許すずれ以上か、長い CM の最長を超えれば 0。
+func longCMFit(length float64) float64 {
+	if length > combineMaxLongCM+combineLongTolerance {
+		return 0
+	}
+	diff := math.Abs(length - math.Round(length/cmUnit)*cmUnit)
+	if diff >= combineLongTolerance {
+		return 0
+	}
+
+	return 1 - diff/combineLongTolerance
 }

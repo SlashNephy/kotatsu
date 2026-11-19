@@ -64,6 +64,41 @@ func TestCombineSections(t *testing.T) {
 			shown:  [][2]float64{{0, 100}, {102.5, 600}},
 			want:   [][2]float64{},
 		},
+		{
+			// 本編の間の、無音に挟まれた 120 秒の通販の CM は、CM の最長 (60 秒) を超えても CM にする (#1958)。
+			name:   "a 120-second infomercial between the program parts is a CM",
+			bounds: []float64{200, 320},
+			shown:  [][2]float64{{0, 200}, {320, 600}},
+			want:   [][2]float64{{200, 320}},
+		},
+		{
+			// 通販の電話番号の文字が局ロゴの隅に重なり、頭の 19 秒をロゴとみなしても、長い CM にする (#1958)。
+			name:   "a long CM is a CM even when its first seconds are taken as the logo",
+			bounds: []float64{200, 320},
+			shown:  [][2]float64{{0, 219.4}, {320, 600}},
+			want:   [][2]float64{{200, 320}},
+		},
+		{
+			// 局がロゴを消した 90 秒ほどのオープニングは、15 秒の倍数から 0.5 秒以上ずれていれば、長い CM にしない (#1958)。
+			name:   "a logo-less opening that does not fit 15 seconds closely stays in the program",
+			bounds: []float64{100, 189.4},
+			shown:  [][2]float64{{0, 100}, {189.4, 600}},
+			want:   [][2]float64{},
+		},
+		{
+			// 長い CM の最長 (180 秒) を超える、ロゴのない所は、長い CM にしない。
+			name:   "a logo-less part longer than 180 seconds is not a long CM",
+			bounds: []float64{100, 310},
+			shown:  [][2]float64{{0, 100}, {310, 600}},
+			want:   [][2]float64{},
+		},
+		{
+			// 録画の終わりから 15.5 秒の内で終わる CM は、終わりまで延ばす。番組の窓を置けない録画で、次の番組の頭のロゴを本編にしない (#1958)。
+			name:   "a CM that ends near the end of the recording is extended to the end",
+			bounds: []float64{470, 590},
+			shown:  [][2]float64{{0, 470}, {590, 600}},
+			want:   [][2]float64{{470, 600}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
