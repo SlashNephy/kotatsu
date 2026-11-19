@@ -743,3 +743,24 @@ func TestResolveDetector(t *testing.T) {
 		})
 	}
 }
+
+func TestTimeLimit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		length time.Duration
+		want   time.Duration
+	}{
+		{name: "長さが分からなければ 30 分", length: 0, want: 30 * time.Minute},
+		{name: "30 分より短い録画は 30 分", length: 10 * time.Minute, want: 30 * time.Minute},
+		{name: "30 分を超える録画は録画の長さ", length: 122 * time.Minute, want: 122 * time.Minute},
+		{name: "とても長い録画は 2 時間 30 分で頭打ち", length: 6 * time.Hour, want: 150 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, cmdetect.TimeLimit(tt.length))
+		})
+	}
+}

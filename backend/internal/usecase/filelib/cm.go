@@ -23,8 +23,6 @@ const (
 	cmPriority = 3
 	// cmMaxAttempts は、見分けるジョブを試す回数の上限。録画と同じ。
 	cmMaxAttempts = 3
-	// cmTimeout は、見分けるジョブの時間の上限。録画と同じ。
-	cmTimeout = 30 * time.Minute
 	// cmSnooze は、索引を作り終えていないファイルを見分けるジョブを、待たせる時間。
 	cmSnooze = 30 * time.Second
 )
@@ -84,8 +82,9 @@ func newCMWorker(libraries *medialib.Set, indexer *Indexer, newDetector func(ctx
 	}
 }
 
+// Timeout は、時間の上限の上限を返す。ファイルの長さに合わせた上限は、索引を読んでから Work で掛ける (録画と同じ。#1505)。
 func (w *CMWorker) Timeout(*river.Job[CMArgs]) time.Duration {
-	return cmTimeout
+	return cmdetect.MaxTimeLimit
 }
 
 func (w *CMWorker) Work(ctx context.Context, job *river.Job[CMArgs]) error {
@@ -121,6 +120,8 @@ func (w *CMWorker) Work(ctx context.Context, job *river.Job[CMArgs]) error {
 		return river.JobCancel(errNoService)
 	}
 	_, duration, _ := file.Timeline()
+	ctx, cancel := context.WithTimeout(ctx, cmdetect.TimeLimit(duration))
+	defer cancel()
 	input := &cmdetect.Input{
 		Path: ref.Library + "/" + ref.Path, ServiceID: file.Index.Broadcast.ServiceID, Progress: nil,
 		Program: cmProgram(file.Index.Broadcast), Duration: duration,
