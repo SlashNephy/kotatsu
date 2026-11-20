@@ -49,8 +49,10 @@ type Server struct {
 	ts    []byte
 	clock clock.Clock
 
-	mu          sync.Mutex
-	channels    []*Channel
+	mu       sync.Mutex
+	channels []*Channel
+	// missing は、サービスの一覧から外しているサービスの ID (#1973)。
+	missing     map[int64]bool
 	programs    map[int64]*Program
 	tuners      []*tunerState
 	subscribers map[chan *Event]struct{}
@@ -89,6 +91,7 @@ func New(opts *Options) *Server {
 		clock:       clk,
 		mu:          sync.Mutex{},
 		channels:    opts.Channels,
+		missing:     map[int64]bool{},
 		programs:    map[int64]*Program{},
 		tuners:      make([]*tunerState, 0, len(opts.Tuners)),
 		subscribers: map[chan *Event]struct{}{},
@@ -148,6 +151,19 @@ func (s *Server) SetTuners(configs []*TunerConfig) {
 	}
 	for _, tuner := range s.tunersLocked() {
 		s.publishLocked("tuner", "update", tuner)
+	}
+}
+
+// SetServiceMissing は、サービスを、サービスの一覧 (/api/services) から外すか、戻す。
+// チューナーサーバーの設定から局を外したときや、スキャンし直して局が消えたときを再現する (#1973)。
+func (s *Server) SetServiceMissing(id int64, missing bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if missing {
+		s.missing[id] = true
+	} else {
+		delete(s.missing, id)
 	}
 }
 
@@ -357,6 +373,9 @@ func (s *Server) handleServices(w http.ResponseWriter, _ *http.Request) {
 	services := []*Service{}
 	for _, channel := range s.channels {
 		for _, service := range channel.Services {
+			if s.missing[service.ID] {
+				continue
+			}
 			copied := *service
 			copied.Channel = &ChannelRef{Type: channel.Type, Channel: channel.Channel}
 			services = append(services, &copied)

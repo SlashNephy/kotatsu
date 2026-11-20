@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b0769bba96a273c38f13ff4e03246332>>
+ * @generated SignedSource<<ac5cf8ccfad8d7815f5a14dd94c15bc8>>
  * @lightSyntaxTransform
  */
 
@@ -27,6 +27,7 @@ export type servicesQuery$data = {
     readonly channelType: {
       readonly displayName: string;
     };
+    readonly gone: boolean;
     readonly hidden: boolean;
     readonly id: string;
     readonly logoUrl: string | null | undefined;
@@ -104,6 +105,11 @@ v4 = [
     "args": [
       {
         "kind": "Literal",
+        "name": "includeGone",
+        "value": true
+      },
+      {
+        "kind": "Literal",
         "name": "includeHidden",
         "value": true
       }
@@ -147,6 +153,13 @@ v4 = [
       {
         "alias": null,
         "args": null,
+        "kind": "ScalarField",
+        "name": "gone",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
         "concreteType": "ChannelType",
         "kind": "LinkedField",
         "name": "channelType",
@@ -157,7 +170,7 @@ v4 = [
         "storageKey": null
       }
     ],
-    "storageKey": "services(includeHidden:true)"
+    "storageKey": "services(includeGone:true,includeHidden:true)"
   },
   {
     "alias": null,
@@ -263,16 +276,16 @@ return {
     "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "46ed13bd6d00b88bdb863b60692f3e6f",
+    "cacheID": "5a93040fd400d1700b26190eb131fcc8",
     "id": null,
     "metadata": {},
     "name": "servicesQuery",
     "operationKind": "query",
-    "text": "query servicesQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    networkId\n    serviceId\n    name\n    logoUrl\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  systemSettings {\n    animeLinkingEnabled\n    jikkyoChannels {\n      networkId\n      serviceId\n      channelId\n    }\n  }\n  animeChannels {\n    serviceId\n    definitionName\n    importedSyobocalChannelId\n    importedAnnictChannelId\n    syobocalChannelIdOverride\n    annictChannelIdOverride\n  }\n}\n"
+    "text": "query servicesQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true, includeGone: true) {\n    id\n    networkId\n    serviceId\n    name\n    logoUrl\n    hidden\n    sortOrder\n    gone\n    channelType {\n      displayName\n    }\n  }\n  systemSettings {\n    animeLinkingEnabled\n    jikkyoChannels {\n      networkId\n      serviceId\n      channelId\n    }\n  }\n  animeChannels {\n    serviceId\n    definitionName\n    importedSyobocalChannelId\n    importedAnnictChannelId\n    syobocalChannelIdOverride\n    annictChannelIdOverride\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "b902c089210bace3a8d56cd5d0b62f99";
+(node as any).hash = "f7966671df37f94a56901f846c0c5ad4";
 
 export default node;

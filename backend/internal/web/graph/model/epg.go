@@ -28,6 +28,8 @@ type Service struct {
 	RemoteControlKeyID *int   `json:"remoteControlKeyId,omitempty"`
 	Hidden             bool   `json:"hidden"`
 	SortOrder          *int   `json:"sortOrder,omitempty"`
+	// Gone は、上流のサービスの一覧から消えて、猶予がたったかどうか (#1973)。
+	Gone bool `json:"gone"`
 	// HasLogo は、放送がロゴを送っているかどうか。スキーマには出さない。
 	HasLogo bool `json:"-"`
 	// ChannelTypeKey は、チャンネル種別の文字列。スキーマには出さない。

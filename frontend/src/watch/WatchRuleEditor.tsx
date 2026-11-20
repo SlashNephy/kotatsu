@@ -34,7 +34,7 @@ type Props = {
   // watchRuleId は、編集する視聴ルールの ID。新しい視聴ルールなら undefined。
   watchRuleId: string | undefined;
   initial: WatchRuleForm;
-  channelTypes: readonly { type: string; displayName: string }[];
+  channelTypes: readonly { type: string; displayName: string; hasServices?: boolean }[];
   services: readonly ServiceOption[];
 };
 
@@ -59,11 +59,26 @@ export const watchRuleEditorFragment = graphql`
         fields
       }
       channelTypes
+      # 上流から消えたサービスは、選択肢の一覧に無いので、選んでいるものはここから出す (#1973)。
       services {
         id
+        name
+        logoUrl
+        serviceId
+        gone
+        channelType {
+          displayName
+        }
       }
       excludeServices {
         id
+        name
+        logoUrl
+        serviceId
+        gone
+        channelType {
+          displayName
+        }
       }
       genres {
         lv1

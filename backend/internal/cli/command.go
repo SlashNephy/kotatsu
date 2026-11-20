@@ -1407,7 +1407,7 @@ func handleEPGStationAPI(
 	router *echo.Echo, deps *Deps, tokens *auth.APITokens, urlGate *settings.URLGate, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher,
 	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
 ) {
-	h := epgstationapi.New(deps.DB, storeOf(deps.Config), streamLogger)
+	h := epgstationapi.New(deps.DB, storeOf(deps.Config), deps.Clock, streamLogger)
 	// 管理者が有効にしている間だけ提供する (#1769)。無効の間は、API があることを知らせないよう、トークンを確かめる前に 404 を返す。
 	protect := func(next http.Handler) echo.HandlerFunc {
 		return echo.WrapHandler(epgstationapi.RequireEnabled(urlGate, tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(next))))

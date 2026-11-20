@@ -83,7 +83,7 @@ func (r *Resolver) streamResource(ctx context.Context, target string) (*streamTa
 			return nil, err
 		}
 		services, err := q.ListGuideServices(ctx, query.ListGuideServicesParams{
-			IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: []int64{serviceID},
+			IncludeHidden: true, IncludeGone: true, MediaServiceTypes: []int64{}, IDs: []int64{serviceID}, Now: r.clock.Now(),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to look up the service: %w", err)

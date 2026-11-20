@@ -51,10 +51,17 @@ type Guard func(ctx context.Context, tx pgx.Tx) error
 // Result は、1 回の反映の結果。
 type Result struct {
 	ServicesUpserted int
-	ProgramsUpserted int
-	ProgramsDeleted  int
+	// ServicesPresenceChanged は、上流から消えたか、上流に戻ってきたとして、印を書き換えたサービスの数 (#1973)。
+	ServicesPresenceChanged int
+	ProgramsUpserted        int
+	ProgramsDeleted         int
 	// Version は、変更を通知したときの版数。変更が無く、通知しなかったときは 0。
 	Version int64
+}
+
+// changed は、DB を書き換えたかどうかを返す。書き換えたときだけ、変更を通知する。
+func (r *Result) changed() bool {
+	return r.ServicesUpserted > 0 || r.ServicesPresenceChanged > 0 || r.ProgramsUpserted > 0 || r.ProgramsDeleted > 0
 }
 
 // Reconciler は、チューナーサーバーの EPG を取得し、DB と差分で突き合わせて反映する (設計書 3.3)。
@@ -197,7 +204,7 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 	}
 	programs.deletes = keepSilentServices(programs.deletes, upstreamPrograms)
 
-	return r.apply(ctx, &serviceDiff{upserts: []*tunerserver.Service{}}, programs)
+	return r.apply(ctx, &serviceDiff{upserts: []*tunerserver.Service{}, present: nil}, programs)
 }
 
 // withOnAir は、上流の番組に、放送中と次の番組 (EIT[p/f]) の内容を重ねる (設計書 5.1)。
@@ -247,9 +254,11 @@ func (r *Reconciler) withOnAir(ctx context.Context, programs []*tunerserver.Prog
 func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs *programDiff) (*Result, error) {
 	result := &Result{
 		ServicesUpserted: len(services.upserts),
-		ProgramsUpserted: len(programs.upserts),
-		ProgramsDeleted:  0,
-		Version:          0,
+		// 印を書き換えた数は、書いてから数える。
+		ServicesPresenceChanged: 0,
+		ProgramsUpserted:        len(programs.upserts),
+		ProgramsDeleted:         0,
+		Version:                 0,
 	}
 	now := r.clock.Now()
 
@@ -258,9 +267,11 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 			return err
 		}
 		q := sqlc.New(tx)
-		if err := writeServices(ctx, q, services.upserts, now); err != nil {
+		changed, err := writeServiceDiff(ctx, q, services, now)
+		if err != nil {
 			return err
 		}
+		result.ServicesPresenceChanged = changed
 		if err := writePrograms(ctx, q, programs.upserts, now); err != nil {
 			return err
 		}
@@ -279,7 +290,7 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 		result.ProgramsDeleted = len(deleted)
 
 		ranges := changedRanges(programs, deleted)
-		if result.ServicesUpserted == 0 && result.ProgramsUpserted == 0 && result.ProgramsDeleted == 0 {
+		if !result.changed() {
 			return nil
 		}
 
@@ -317,8 +328,33 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 }
 
 // serviceDiff は、書き込むサービス。
+// writeServiceDiff は、サービスを書き足すか書き換え、上流から消えたかどうかの印を書く。印を書き換えた行の数を返す。
+func writeServiceDiff(ctx context.Context, q *sqlc.Queries, services *serviceDiff, now time.Time) (int, error) {
+	if err := writeServices(ctx, q, services.upserts, now); err != nil {
+		return 0, err
+	}
+
+	return writePresence(ctx, q, services.present, now)
+}
+
+// writePresence は、上流にあるサービスの ID (present) と突き合わせ、上流から消えたサービスに気づいた時刻を書き、
+// 戻ってきたサービスの時刻を消す (#1973)。present が nil なら何もしない。書き換えた行の数を返す。
+func writePresence(ctx context.Context, q *sqlc.Queries, present []int64, now time.Time) (int, error) {
+	if present == nil {
+		return 0, nil
+	}
+	changed, err := q.UpdateServicesPresence(ctx, sqlc.UpdateServicesPresenceParams{Present: present, Now: now})
+	if err != nil {
+		return 0, fmt.Errorf("failed to update the presence of services: %w", err)
+	}
+
+	return int(changed), nil
+}
+
 type serviceDiff struct {
 	upserts []*tunerserver.Service
+	// present は、上流にあるサービスの ID。nil なら、上流から消えたかどうかを決めない (#1973)。
+	present []int64
 }
 
 func diffServices(upstream []*tunerserver.Service, current []sqlc.ListServicesRow) *serviceDiff {
@@ -327,18 +363,24 @@ func diffServices(upstream []*tunerserver.Service, current []sqlc.ListServicesRo
 		byID[row.ID] = row
 	}
 
-	diff := &serviceDiff{upserts: []*tunerserver.Service{}}
+	diff := &serviceDiff{upserts: []*tunerserver.Service{}, present: nil}
+	present := []int64{}
 	for _, service := range upstream {
 		// 映像も音声も流さないサービスは、取り込まない。
 		if service.Channel == nil || !domain.IsMediaService(int64(service.Type)) {
 			continue
 		}
+		present = append(present, service.ID)
 		row, ok := byID[service.ID]
 		// 行はポインタの列を持つので、== ではなく値で比べる。
 		if ok && reflect.DeepEqual(row, serviceRow(service)) {
 			continue
 		}
 		diff.upserts = append(diff.upserts, service)
+	}
+	// 上流がサービスを 1 つも返さなかったときは、一時的に空の一覧を返したとみなし、全部を消えた扱いにしない (#518 と同じ)。
+	if len(present) > 0 {
+		diff.present = present
 	}
 
 	return diff

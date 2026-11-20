@@ -1015,6 +1015,7 @@ type Service struct {
 	LogoID             *int64
 	Hidden             bool
 	SortOrder          *int32
+	GoneAt             *time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }

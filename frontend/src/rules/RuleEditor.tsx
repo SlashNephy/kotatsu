@@ -53,7 +53,7 @@ type Props = {
   // ruleId は、編集するルールの ID。新しいルールなら undefined。
   ruleId: string | undefined;
   initial: RuleForm;
-  channelTypes: readonly { type: string; displayName: string }[];
+  channelTypes: readonly { type: string; displayName: string; hasServices?: boolean }[];
   services: readonly ServiceOption[];
   // pools は、選べる保存先プールの ID。defaultPoolId は、全体の既定値の保存先プール (null なら自動で選ぶ)。
   pools: readonly string[];
@@ -96,11 +96,26 @@ export const ruleEditorRuleFragment = graphql`
         fields
       }
       channelTypes
+      # 上流から消えたサービスは、選択肢の一覧に無いので、選んでいるものはここから出す (#1973)。
       services {
         id
+        name
+        logoUrl
+        serviceId
+        gone
+        channelType {
+          displayName
+        }
       }
       excludeServices {
         id
+        name
+        logoUrl
+        serviceId
+        gone
+        channelType {
+          displayName
+        }
       }
       genres {
         lv1

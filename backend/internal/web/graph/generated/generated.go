@@ -40,6 +40,7 @@ func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
 type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
+	ChannelType() ChannelTypeResolver
 	DramaEpisode() DramaEpisodeResolver
 	DramaSeries() DramaSeriesResolver
 	GuideView() GuideViewResolver
@@ -400,6 +401,7 @@ type ComplexityRoot struct {
 
 	ChannelType struct {
 		DisplayName func(childComplexity int) int
+		HasServices func(childComplexity int) int
 		SortOrder   func(childComplexity int) int
 		Type        func(childComplexity int) int
 	}
@@ -1343,7 +1345,7 @@ type ComplexityRoot struct {
 		Rules                    func(childComplexity int) int
 		SearchPrograms           func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
 		SecondFactors            func(childComplexity int) int
-		Services                 func(childComplexity int, includeHidden bool) int
+		Services                 func(childComplexity int, includeHidden bool, includeGone bool) int
 		Sessions                 func(childComplexity int) int
 		SkippedDuplicates        func(childComplexity int) int
 		StoragePoolNames         func(childComplexity int) int
@@ -1659,6 +1661,7 @@ type ComplexityRoot struct {
 	Service struct {
 		Channel            func(childComplexity int) int
 		ChannelType        func(childComplexity int) int
+		Gone               func(childComplexity int) int
 		Hidden             func(childComplexity int) int
 		ID                 func(childComplexity int) int
 		Jikkyo             func(childComplexity int) int
@@ -1943,6 +1946,9 @@ type ComplexityRoot struct {
 
 // region    ************************** generated!.gotpl **************************
 
+type ChannelTypeResolver interface {
+	HasServices(ctx context.Context, obj *model.ChannelType) (bool, error)
+}
 type DramaEpisodeResolver interface {
 	Watched(ctx context.Context, obj *model.DramaEpisode) (bool, error)
 }
@@ -2128,7 +2134,7 @@ type QueryResolver interface {
 	DramaRecordSettings(ctx context.Context) (*model.DramaRecordSettings, error)
 	Node(ctx context.Context, id string) (model.Node, error)
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
-	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
+	Services(ctx context.Context, includeHidden bool, includeGone bool) ([]*model.Service, error)
 	Guide(ctx context.Context, from time.Time, to time.Time, services []string, view *string) ([]*model.GuideRow, error)
 	OldestArchivedProgramAt(ctx context.Context) (*time.Time, error)
 	FileNameTemplateHelp(ctx context.Context) (*model.FileNameTemplateHelp, error)
@@ -3563,6 +3569,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ChannelType.DisplayName(childComplexity), true
+	case "ChannelType.hasServices":
+		if e.ComplexityRoot.ChannelType.HasServices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChannelType.HasServices(childComplexity), true
 	case "ChannelType.sortOrder":
 		if e.ComplexityRoot.ChannelType.SortOrder == nil {
 			break
@@ -8199,7 +8211,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Services(childComplexity, args["includeHidden"].(bool)), true
+		return e.ComplexityRoot.Query.Services(childComplexity, args["includeHidden"].(bool), args["includeGone"].(bool)), true
 	case "Query.sessions":
 		if e.ComplexityRoot.Query.Sessions == nil {
 			break
@@ -9568,6 +9580,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Service.ChannelType(childComplexity), true
+	case "Service.gone":
+		if e.ComplexityRoot.Service.Gone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Service.Gone(childComplexity), true
 	case "Service.hidden":
 		if e.ComplexityRoot.Service.Hidden == nil {
 			break
@@ -12672,6 +12690,8 @@ type ChannelType {
   type: String!
   displayName: String!
   sortOrder: Int!
+  "上流 (チューナーサーバー) から消えていないサービスを持つかどうか (#1973)。持たない種別は、選択肢に出さない。"
+  hasServices: Boolean!
 }
 
 """
@@ -12692,6 +12712,8 @@ type Service implements Node {
   hidden: Boolean!
   "並び順の上書き。小さいほど前に並ぶ。上書きしていなければ null で、リモコンのキーの順に並ぶ。"
   sortOrder: Int
+  "上流 (チューナーサーバー) のサービスの一覧から消えて、24 時間たったかどうか (#1973)。予約や録画から参照されうるので、消えても残す。"
+  gone: Boolean!
   "ライブ視聴の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。"
   streamUrl: String!
   "ロゴの画像の URL のパス。ログイン中のセッションで使う。放送がロゴを送っていなければ null。チューナーサーバーがまだ受信していなければ、URL は 404 を返す。"
@@ -12805,13 +12827,19 @@ extend type Query {
   """
   サービスを、番組表の並び順に並べたもの。映像か音声を流すサービスだけを返し、ワンセグやデータ放送のサービスは返さない。
   includeHidden が true なら、非表示のサービスと、ワンセグやデータ放送のサービスも返す。
+  上流から消えたサービスは、includeGone が true のときだけ返す (#1973)。
   """
-  services("非表示のサービスも含めるかどうか" includeHidden: Boolean! = false): [Service!]!
+  services(
+    "非表示のサービスも含めるかどうか"
+    includeHidden: Boolean! = false
+    "上流から消えたサービスも含めるかどうか"
+    includeGone: Boolean! = false
+  ): [Service!]!
 
   """
   番組表。from から to までの時間帯に重なる番組を、サービスごとに返す。時間帯は 8 日と 1 時間まで (夏時間の切り替えの日を含む 8 日分)。
   services を省くと、非表示でない、映像か音声を流すサービスを返す (ワンセグやデータ放送のサービスは返さない)。
-  指定すると、非表示のサービスや、ワンセグやデータ放送のサービスも返す。
+  指定すると、非表示のサービスや、ワンセグやデータ放送のサービスも返す。上流から消えたサービスは、どちらでも返さない (#1973)。
   view を指定すると、その番組表ビューの条件で、番組を絞り込み、サービスを並べ替える。
   """
   guide(from: Time!, to: Time!, services: [ID!], view: ID): [GuideRow!]!
@@ -16990,6 +17018,8 @@ func (ec *executionContext) childFields_ChannelType(ctx context.Context, field g
 		return ec.fieldContext_ChannelType_displayName(ctx, field)
 	case "sortOrder":
 		return ec.fieldContext_ChannelType_sortOrder(ctx, field)
+	case "hasServices":
+		return ec.fieldContext_ChannelType_hasServices(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ChannelType", field.Name)
 }
@@ -19078,6 +19108,8 @@ func (ec *executionContext) childFields_Service(ctx context.Context, field graph
 		return ec.fieldContext_Service_hidden(ctx, field)
 	case "sortOrder":
 		return ec.fieldContext_Service_sortOrder(ctx, field)
+	case "gone":
+		return ec.fieldContext_Service_gone(ctx, field)
 	case "streamUrl":
 		return ec.fieldContext_Service_streamUrl(ctx, field)
 	case "logoUrl":
@@ -22153,6 +22185,14 @@ func (ec *executionContext) field_Query_services_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["includeHidden"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "includeGone",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["includeGone"] = arg1
 	return args, nil
 }
 
@@ -27426,6 +27466,29 @@ func (ec *executionContext) _ChannelType_sortOrder(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_ChannelType_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ChannelType", field, false, false, "Int")
+}
+
+func (ec *executionContext) _ChannelType_hasServices(ctx context.Context, field graphql.CollectedField, obj *model.ChannelType) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChannelType_hasServices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.ChannelType().HasServices(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChannelType_hasServices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChannelType", field, true, true, "Boolean")
 }
 
 func (ec *executionContext) _CleanUpMissingRecordingsPayload_deletedRecordings(ctx context.Context, field graphql.CollectedField, obj *model.CleanUpMissingRecordingsPayload) (ret graphql.Marshaler) {
@@ -44891,7 +44954,7 @@ func (ec *executionContext) _Query_services(ctx context.Context, field graphql.C
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Services(ctx, fc.Args["includeHidden"].(bool))
+			return ec.Resolvers.Query().Services(ctx, fc.Args["includeHidden"].(bool), fc.Args["includeGone"].(bool))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Service) graphql.Marshaler {
@@ -52131,6 +52194,29 @@ func (ec *executionContext) _Service_sortOrder(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_Service_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Service", field, false, false, "Int")
+}
+
+func (ec *executionContext) _Service_gone(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Service_gone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Gone, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Service_gone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Service", field, false, false, "Boolean")
 }
 
 func (ec *executionContext) _Service_streamUrl(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
@@ -63342,18 +63428,24 @@ func (ec *executionContext) _ChannelType(ctx context.Context, sel ast.SelectionS
 		case "type":
 			out.Values[i] = ec._ChannelType_type(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "displayName":
 			out.Values[i] = ec._ChannelType_displayName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "sortOrder":
 			out.Values[i] = ec._ChannelType_sortOrder(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "hasServices":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._ChannelType_hasServices(ctx, field, obj)
+				})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -71769,6 +71861,11 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 		case "sortOrder":
 			out.Values[i] = ec._Service_sortOrder(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "gone":
+			out.Values[i] = ec._Service_gone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "streamUrl":

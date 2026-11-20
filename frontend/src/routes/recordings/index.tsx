@@ -236,10 +236,12 @@ function Recordings({
           name
           recordings
         }
-        services {
+        # 上流から消えたサービスの録画も残るので、絞り込みの選択肢には、消えたサービスも印を付けて出す (#1973)。
+        services(includeGone: true) {
           id
           name
           logoUrl
+          gone
           channelType {
             displayName
           }
@@ -314,7 +316,9 @@ function Recordings({
         <MultiSelect
           label={t('recordings.services')}
           leftSection={<Tv size={16} aria-hidden />}
-          data={serviceGroups(tags.services)}
+          data={serviceGroups(tags.services, (service) =>
+            service.gone ? t('rules.goneService', { name: service.name }) : service.name,
+          )}
           renderOption={renderServiceOption(tags.services)}
           value={serviceIds}
           onChange={setServiceIds}

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a7f93ec21bf96ccb5e286ec336e456bd>>
+ * @generated SignedSource<<70c92133263a1a88a2ab2623b0cd010b>>
  * @lightSyntaxTransform
  */
 
@@ -26,7 +26,14 @@ export type WatchRuleEditor_watchRule$data = {
     }>;
     readonly excludeMarks: ReadonlyArray<string>;
     readonly excludeServices: ReadonlyArray<{
+      readonly channelType: {
+        readonly displayName: string;
+      };
+      readonly gone: boolean;
       readonly id: string;
+      readonly logoUrl: string | null | undefined;
+      readonly name: string;
+      readonly serviceId: number;
     }>;
     readonly freeOnly: boolean;
     readonly genres: ReadonlyArray<{
@@ -44,7 +51,14 @@ export type WatchRuleEditor_watchRule$data = {
     readonly maxDurationSeconds: number | null | undefined;
     readonly minDurationSeconds: number | null | undefined;
     readonly services: ReadonlyArray<{
+      readonly channelType: {
+        readonly displayName: string;
+      };
+      readonly gone: boolean;
       readonly id: string;
+      readonly logoUrl: string | null | undefined;
+      readonly name: string;
+      readonly serviceId: number;
     }>;
     readonly timeRanges: ReadonlyArray<{
       readonly durationMinutes: number;
@@ -70,7 +84,14 @@ var v0 = {
   "name": "id",
   "storageKey": null
 },
-v1 = [
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "name",
+  "storageKey": null
+},
+v2 = [
   {
     "alias": null,
     "args": null,
@@ -100,10 +121,50 @@ v1 = [
     "storageKey": null
   }
 ],
-v2 = [
-  (v0/*:: as any*/)
-],
 v3 = [
+  (v0/*:: as any*/),
+  (v1/*:: as any*/),
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "logoUrl",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "serviceId",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "gone",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "ChannelType",
+    "kind": "LinkedField",
+    "name": "channelType",
+    "plural": false,
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "displayName",
+        "storageKey": null
+      }
+    ],
+    "storageKey": null
+  }
+],
+v4 = [
   {
     "alias": null,
     "args": null,
@@ -126,13 +187,7 @@ return {
   "name": "WatchRuleEditor_watchRule",
   "selections": [
     (v0/*:: as any*/),
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "name",
-      "storageKey": null
-    },
+    (v1/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -155,7 +210,7 @@ return {
           "kind": "LinkedField",
           "name": "keywords",
           "plural": true,
-          "selections": (v1/*:: as any*/),
+          "selections": (v2/*:: as any*/),
           "storageKey": null
         },
         {
@@ -172,7 +227,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeKeywords",
           "plural": true,
-          "selections": (v1/*:: as any*/),
+          "selections": (v2/*:: as any*/),
           "storageKey": null
         },
         {
@@ -189,7 +244,7 @@ return {
           "kind": "LinkedField",
           "name": "services",
           "plural": true,
-          "selections": (v2/*:: as any*/),
+          "selections": (v3/*:: as any*/),
           "storageKey": null
         },
         {
@@ -199,7 +254,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeServices",
           "plural": true,
-          "selections": (v2/*:: as any*/),
+          "selections": (v3/*:: as any*/),
           "storageKey": null
         },
         {
@@ -209,7 +264,7 @@ return {
           "kind": "LinkedField",
           "name": "genres",
           "plural": true,
-          "selections": (v3/*:: as any*/),
+          "selections": (v4/*:: as any*/),
           "storageKey": null
         },
         {
@@ -219,7 +274,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeGenres",
           "plural": true,
-          "selections": (v3/*:: as any*/),
+          "selections": (v4/*:: as any*/),
           "storageKey": null
         },
         {
@@ -298,6 +353,6 @@ return {
 };
 })();
 
-(node as any).hash = "d6860b9b6df615da9a84328a1b487f81";
+(node as any).hash = "4d6b85d9ccb6d4065bd82c8a2a39e86c";
 
 export default node;

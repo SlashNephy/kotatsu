@@ -61,7 +61,10 @@ ORDER BY s.id;
 -- name: ListServiceChannels :many
 -- サービスのあるチャンネル種別とチャンネルの組。チューナーサーバーが番組表を取るチャンネルで、
 -- タイムシフトの割り振りで、番組表の取得に残すチューナーを決めるのに使う。
-SELECT DISTINCT channel_type, channel FROM services ORDER BY channel_type, channel;
+-- 上流から消えたサービス (gone_at が gone_before より前) のチャンネルは、チューナーサーバーが番組表を取らないので数えない (#1973)。
+SELECT DISTINCT channel_type, channel FROM services
+WHERE gone_at IS NULL OR gone_at >= @gone_before::timestamptz
+ORDER BY channel_type, channel;
 
 -- name: UpsertTimeshiftChannel :exec
 INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at, updated_by)

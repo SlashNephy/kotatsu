@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2bc8c20bbb44ec2ec240370c0ddf37ff>>
+ * @generated SignedSource<<d5913d5664388b6dce86af43b6f5ce4c>>
  * @lightSyntaxTransform
  */
 
@@ -16,6 +16,7 @@ export type WatchRuleIdQuery$variables = {
 export type WatchRuleIdQuery$data = {
   readonly channelTypes: ReadonlyArray<{
     readonly displayName: string;
+    readonly hasServices: boolean;
     readonly type: string;
   }>;
   readonly node?: {
@@ -79,7 +80,14 @@ v2 = {
       "name": "type",
       "storageKey": null
     },
-    (v1/*:: as any*/)
+    (v1/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "hasServices",
+      "storageKey": null
+    }
   ],
   "storageKey": null
 },
@@ -100,6 +108,32 @@ v4 = {
 v5 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v6 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "serviceId",
+  "storageKey": null
+},
+v7 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "ChannelType",
+  "kind": "LinkedField",
+  "name": "channelType",
+  "plural": false,
+  "selections": [
+    (v1/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v8 = {
+  "alias": null,
+  "args": null,
   "concreteType": "Service",
   "kind": "LinkedField",
   "name": "services",
@@ -107,50 +141,27 @@ v5 = {
   "selections": [
     (v3/*:: as any*/),
     (v4/*:: as any*/),
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "logoUrl",
-      "storageKey": null
-    },
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "serviceId",
-      "storageKey": null
-    },
-    {
-      "alias": null,
-      "args": null,
-      "concreteType": "ChannelType",
-      "kind": "LinkedField",
-      "name": "channelType",
-      "plural": false,
-      "selections": [
-        (v1/*:: as any*/)
-      ],
-      "storageKey": null
-    }
+    (v5/*:: as any*/),
+    (v6/*:: as any*/),
+    (v7/*:: as any*/)
   ],
   "storageKey": null
 },
-v6 = [
+v9 = [
   {
     "kind": "Variable",
     "name": "id",
     "variableName": "id"
   }
 ],
-v7 = {
+v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "__typename",
   "storageKey": null
 },
-v8 = [
+v11 = [
   {
     "alias": null,
     "args": null,
@@ -180,10 +191,21 @@ v8 = [
     "storageKey": null
   }
 ],
-v9 = [
-  (v3/*:: as any*/)
+v12 = [
+  (v3/*:: as any*/),
+  (v4/*:: as any*/),
+  (v5/*:: as any*/),
+  (v6/*:: as any*/),
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "gone",
+    "storageKey": null
+  },
+  (v7/*:: as any*/)
 ],
-v10 = [
+v13 = [
   {
     "alias": null,
     "args": null,
@@ -207,7 +229,7 @@ return {
     "name": "WatchRuleIdQuery",
     "selections": [
       (v2/*:: as any*/),
-      (v5/*:: as any*/),
+      (v8/*:: as any*/),
       {
         "condition": "skip",
         "kind": "Condition",
@@ -215,13 +237,13 @@ return {
         "selections": [
           {
             "alias": null,
-            "args": (v6/*:: as any*/),
+            "args": (v9/*:: as any*/),
             "concreteType": null,
             "kind": "LinkedField",
             "name": "node",
             "plural": false,
             "selections": [
-              (v7/*:: as any*/),
+              (v10/*:: as any*/),
               {
                 "kind": "InlineFragment",
                 "selections": [
@@ -262,7 +284,7 @@ return {
     "name": "WatchRuleIdQuery",
     "selections": [
       (v2/*:: as any*/),
-      (v5/*:: as any*/),
+      (v8/*:: as any*/),
       {
         "condition": "skip",
         "kind": "Condition",
@@ -270,13 +292,13 @@ return {
         "selections": [
           {
             "alias": null,
-            "args": (v6/*:: as any*/),
+            "args": (v9/*:: as any*/),
             "concreteType": null,
             "kind": "LinkedField",
             "name": "node",
             "plural": false,
             "selections": [
-              (v7/*:: as any*/),
+              (v10/*:: as any*/),
               (v3/*:: as any*/),
               {
                 "kind": "InlineFragment",
@@ -304,7 +326,7 @@ return {
                         "kind": "LinkedField",
                         "name": "keywords",
                         "plural": true,
-                        "selections": (v8/*:: as any*/),
+                        "selections": (v11/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -321,7 +343,7 @@ return {
                         "kind": "LinkedField",
                         "name": "excludeKeywords",
                         "plural": true,
-                        "selections": (v8/*:: as any*/),
+                        "selections": (v11/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -338,7 +360,7 @@ return {
                         "kind": "LinkedField",
                         "name": "services",
                         "plural": true,
-                        "selections": (v9/*:: as any*/),
+                        "selections": (v12/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -348,7 +370,7 @@ return {
                         "kind": "LinkedField",
                         "name": "excludeServices",
                         "plural": true,
-                        "selections": (v9/*:: as any*/),
+                        "selections": (v12/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -358,7 +380,7 @@ return {
                         "kind": "LinkedField",
                         "name": "genres",
                         "plural": true,
-                        "selections": (v10/*:: as any*/),
+                        "selections": (v13/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -368,7 +390,7 @@ return {
                         "kind": "LinkedField",
                         "name": "excludeGenres",
                         "plural": true,
-                        "selections": (v10/*:: as any*/),
+                        "selections": (v13/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -453,16 +475,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "4be8f8c2afac69e786d0d8e90afbe3d6",
+    "cacheID": "e41000b975d5abbb3031bbf209ad0d27",
     "id": null,
     "metadata": {},
     "name": "WatchRuleIdQuery",
     "operationKind": "query",
-    "text": "query WatchRuleIdQuery(\n  $id: ID!\n  $skip: Boolean!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  node(id: $id) @skip(if: $skip) {\n    __typename\n    ... on WatchRule {\n      id\n      ...WatchRuleEditor_watchRule\n    }\n    id\n  }\n}\n\nfragment WatchRuleEditor_watchRule on WatchRule {\n  id\n  name\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n}\n"
+    "text": "query WatchRuleIdQuery(\n  $id: ID!\n  $skip: Boolean!\n) {\n  channelTypes {\n    type\n    displayName\n    hasServices\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  node(id: $id) @skip(if: $skip) {\n    __typename\n    ... on WatchRule {\n      id\n      ...WatchRuleEditor_watchRule\n    }\n    id\n  }\n}\n\nfragment WatchRuleEditor_watchRule on WatchRule {\n  id\n  name\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n      name\n      logoUrl\n      serviceId\n      gone\n      channelType {\n        displayName\n      }\n    }\n    excludeServices {\n      id\n      name\n      logoUrl\n      serviceId\n      gone\n      channelType {\n        displayName\n      }\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "a6ef8bf8a79acf022f83e7eaa8cdb4b7";
+(node as any).hash = "11c62475862dafe16916c8c691b3f48f";
 
 export default node;

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<db2088178efb52f36233b86625df3cd9>>
+ * @generated SignedSource<<034bae1798e21e1557849ad330caacc3>>
  * @lightSyntaxTransform
  */
 
@@ -93,7 +93,14 @@ v2 = {
   "name": "id",
   "storageKey": null
 },
-v3 = [
+v3 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "name",
+  "storageKey": null
+},
+v4 = [
   {
     "alias": null,
     "args": null,
@@ -123,10 +130,50 @@ v3 = [
     "storageKey": null
   }
 ],
-v4 = [
-  (v2/*:: as any*/)
-],
 v5 = [
+  (v2/*:: as any*/),
+  (v3/*:: as any*/),
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "logoUrl",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "serviceId",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "gone",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "ChannelType",
+    "kind": "LinkedField",
+    "name": "channelType",
+    "plural": false,
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "displayName",
+        "storageKey": null
+      }
+    ],
+    "storageKey": null
+  }
+],
+v6 = [
   {
     "alias": null,
     "args": null,
@@ -184,13 +231,7 @@ return {
         "plural": false,
         "selections": [
           (v2/*:: as any*/),
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "name",
-            "storageKey": null
-          },
+          (v3/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -213,7 +254,7 @@ return {
                 "kind": "LinkedField",
                 "name": "keywords",
                 "plural": true,
-                "selections": (v3/*:: as any*/),
+                "selections": (v4/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -230,7 +271,7 @@ return {
                 "kind": "LinkedField",
                 "name": "excludeKeywords",
                 "plural": true,
-                "selections": (v3/*:: as any*/),
+                "selections": (v4/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -247,7 +288,7 @@ return {
                 "kind": "LinkedField",
                 "name": "services",
                 "plural": true,
-                "selections": (v4/*:: as any*/),
+                "selections": (v5/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -257,7 +298,7 @@ return {
                 "kind": "LinkedField",
                 "name": "excludeServices",
                 "plural": true,
-                "selections": (v4/*:: as any*/),
+                "selections": (v5/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -267,7 +308,7 @@ return {
                 "kind": "LinkedField",
                 "name": "genres",
                 "plural": true,
-                "selections": (v5/*:: as any*/),
+                "selections": (v6/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -277,7 +318,7 @@ return {
                 "kind": "LinkedField",
                 "name": "excludeGenres",
                 "plural": true,
-                "selections": (v5/*:: as any*/),
+                "selections": (v6/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -356,12 +397,12 @@ return {
     ]
   },
   "params": {
-    "cacheID": "c655c875c1e2c1dcb6faa3ca60a9cc1f",
+    "cacheID": "007c5b196b50d90b239a2cde8d9c4947",
     "id": null,
     "metadata": {},
     "name": "WatchRuleEditorUpdateMutation",
     "operationKind": "mutation",
-    "text": "mutation WatchRuleEditorUpdateMutation(\n  $id: ID!\n  $input: WatchRuleInput!\n) {\n  updateWatchRule(id: $id, input: $input) {\n    ...WatchRuleEditor_watchRule\n    id\n  }\n}\n\nfragment WatchRuleEditor_watchRule on WatchRule {\n  id\n  name\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n}\n"
+    "text": "mutation WatchRuleEditorUpdateMutation(\n  $id: ID!\n  $input: WatchRuleInput!\n) {\n  updateWatchRule(id: $id, input: $input) {\n    ...WatchRuleEditor_watchRule\n    id\n  }\n}\n\nfragment WatchRuleEditor_watchRule on WatchRule {\n  id\n  name\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n      name\n      logoUrl\n      serviceId\n      gone\n      channelType {\n        displayName\n      }\n    }\n    excludeServices {\n      id\n      name\n      logoUrl\n      serviceId\n      gone\n      channelType {\n        displayName\n      }\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n}\n"
   }
 };
 })();

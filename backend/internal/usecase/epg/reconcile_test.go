@@ -43,6 +43,7 @@ type fixture struct {
 	pool       *pgxpool.Pool
 	fake       *faketuner.Server
 	client     *mirakurun.Client
+	clock      *clocktest.Fake
 	reconciler *epg.Reconciler
 }
 
@@ -64,11 +65,14 @@ func newFixture(t *testing.T, guard epg.Guard) *fixture {
 		guard = func(context.Context, pgx.Tx) error { return nil }
 	}
 
+	clk := clocktest.NewFake(testNow())
+
 	return &fixture{
 		pool:       pool,
 		fake:       fake,
 		client:     client,
-		reconciler: epg.NewReconciler(pool, client, clocktest.NewFake(testNow()), guard),
+		clock:      clk,
+		reconciler: epg.NewReconciler(pool, client, clk, guard),
 	}
 }
 
@@ -918,4 +922,69 @@ func TestSyncAllRecordsProgramRewrites(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// goneAt は、サービスの gone_at を返す。上流にあるサービスなら nil。
+func (f *fixture) goneAt(t *testing.T, id int64) *time.Time {
+	t.Helper()
+
+	var at *time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT gone_at FROM services WHERE id = $1", id).Scan(&at))
+
+	return at
+}
+
+// TestSyncAllRecordsServicesMissingFromUpstream は、上流のサービスの一覧から消えたサービスに、初めて気づいた時刻を残し、
+// 戻ってきたら消すことを確かめる (#1973)。行は、予約や録画から参照されうるので消さない。
+func TestSyncAllRecordsServicesMissingFromUpstream(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	require.Nil(t, f.goneAt(t, serviceID()))
+
+	// 消えたら、気づいた時刻を書き、番組表を読み直させるよう知らせる。
+	f.fake.SetServiceMissing(serviceID(), true)
+	result, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ServicesPresenceChanged)
+	assert.Positive(t, result.Version)
+	require.NotNil(t, f.goneAt(t, serviceID()))
+	assert.True(t, f.goneAt(t, serviceID()).Equal(testNow()))
+	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM services"))
+	assert.Equal(t, fixtureServices-1, f.count(t, "SELECT count(*) FROM services WHERE gone_at IS NULL"))
+
+	// 消えたままなら、初めて気づいた時刻のまま残す。
+	f.clock.Advance(time.Hour)
+	result, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ServicesPresenceChanged)
+	assert.True(t, f.goneAt(t, serviceID()).Equal(testNow()))
+
+	// 戻ってきたら、時刻を消す。
+	f.fake.SetServiceMissing(serviceID(), false)
+	result, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ServicesPresenceChanged)
+	assert.Nil(t, f.goneAt(t, serviceID()))
+}
+
+// TestSyncAllKeepsServicesWhenUpstreamReturnsNone は、上流がサービスを 1 つも返さなかったときは、全部を消えた扱いにしないことを確かめる (#1973)。
+func TestSyncAllKeepsServicesWhenUpstreamReturnsNone(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+
+	services, err := f.client.Services(t.Context())
+	require.NoError(t, err)
+	for _, service := range services {
+		f.fake.SetServiceMissing(service.ID, true)
+	}
+	result, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ServicesPresenceChanged)
+	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM services WHERE gone_at IS NULL"))
 }

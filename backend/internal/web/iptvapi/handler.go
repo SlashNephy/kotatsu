@@ -146,10 +146,11 @@ func (h *Handler) stillAllowed(ctx context.Context, token string) bool {
 	return err != nil || principal.Role.Can(domain.PermissionWatch)
 }
 
-// services は、番組表に出すサービス (非表示と、映像も音声も流さないサービスを除く) を返す。
+// services は、番組表に出すサービス (非表示と、映像も音声も流さないサービスと、上流から消えたサービス (#1973) を除く) を返す。
+// 映らないチャンネルを、プレイリストに残さない。
 func (h *Handler) services(ctx context.Context) ([]domain.Service, error) {
 	return h.queries.ListGuideServices(ctx, query.ListGuideServicesParams{
-		IncludeHidden: false, MediaServiceTypes: domain.MediaServiceTypes(), IDs: []int64{},
+		IncludeHidden: false, IncludeGone: false, MediaServiceTypes: domain.MediaServiceTypes(), IDs: []int64{}, Now: h.clock.Now(),
 	})
 }
 

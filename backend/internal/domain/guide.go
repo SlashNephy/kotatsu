@@ -18,6 +18,8 @@ type Service struct {
 	LogoID             *int64
 	Hidden             bool
 	SortOrder          *int32
+	// Gone は、上流 (チューナーサーバー) のサービスの一覧から消えて、ServiceGoneAfter がたったかどうか (#1973)。
+	Gone bool
 }
 
 // ChannelType は、チャンネルの種類と、画面での名前と並び順。

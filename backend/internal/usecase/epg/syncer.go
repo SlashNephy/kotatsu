@@ -241,6 +241,7 @@ func (s *Syncer) apply(ctx context.Context, batch *eventBatch) error {
 func (s *Syncer) logResult(ctx context.Context, msg string, result *Result) {
 	s.logger.InfoContext(ctx, msg,
 		slog.Int("services_upserted", result.ServicesUpserted),
+		slog.Int("services_presence_changed", result.ServicesPresenceChanged),
 		slog.Int("programs_upserted", result.ProgramsUpserted),
 		slog.Int("programs_deleted", result.ProgramsDeleted),
 		slog.Int64("version", result.Version))
