@@ -250,10 +250,19 @@ func (d *decoder) optionalStructure(body func(*decoder)) bool {
 	return true
 }
 
-// vector は、配列を読み、要素ごとに item を呼ぶ。数は、残りのバイト数で収まる分までしか信じない。
-// 要素はどれも 4 バイト以上 (構造体の大きさか DWORD) なので、4 で割った数を超えれば壊れた応答とする。
-// 壊れた応答の大きな数で、先に大きく確保しないためである。
+// vector は、配列を読み、要素ごとに item を呼ぶ。要素はどれも 4 バイト以上 (構造体の大きさか DWORD) とする。
 func (d *decoder) vector(item func(*decoder)) {
+	d.vectorOf(minItemSize, item)
+}
+
+// wordVector は、WORD (2 バイト) の配列を読み、要素ごとに item を呼ぶ。
+func (d *decoder) wordVector(item func(*decoder)) {
+	d.vectorOf(wordSize, item)
+}
+
+// vectorOf は、要素が itemSize バイト以上ある配列を読む。数は、残りのバイト数で収まる分までしか信じず、
+// itemSize で割った数を超えれば壊れた応答とする。壊れた応答の大きな数で、先に大きく確保しないためである。
+func (d *decoder) vectorOf(itemSize int, item func(*decoder)) {
 	r := d.region(4)
 	if r.err != nil {
 		d.failf("%v", r.err)
@@ -261,7 +270,7 @@ func (d *decoder) vector(item func(*decoder)) {
 		return
 	}
 	n := int(r.u32())
-	if n > (len(r.b)-r.pos)/minItemSize {
+	if n > (len(r.b)-r.pos)/itemSize {
 		d.failf("vector count %d exceeds the remaining %d bytes", n, len(r.b)-r.pos)
 
 		return

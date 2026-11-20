@@ -204,6 +204,32 @@ func TestParseTimerSettings(t *testing.T) {
 			},
 		},
 		{
+			// EpgTimerSrv は、Count が INT_MAX なら未設定とみなし、毎日 23:00 に取得する。
+			name: "count of INT_MAX is unset",
+			data: []byte("[EPG_CAP]\nCount=2147483647\n0=4:30\n0Select=1\n"),
+			want: &edcb.TimerSettings{
+				Loaded: true, EPGCaptureTimes: []edcb.EPGCaptureTime{daily(23, 0)}, StartMargin: 5 * time.Second, EndMargin: 2 * time.Second,
+				EPGCaptureAnyBonDriver: false, EPGCaptureBonDrivers: noBonDrivers,
+			},
+		},
+		{
+			// 大きな Count でも、節にある番号だけを番号の順に読む (#1981)。Count 以上の番号と、「01」のような書き方は読まない。
+			name: "huge count reads only listed times",
+			data: []byte("[EPG_CAP]\nCount=2147483646\n10=18:00\n10Select=1\n2=6:00\n2Select=1\n01=7:00\n01Select=1\n"),
+			want: &edcb.TimerSettings{
+				Loaded: true, EPGCaptureTimes: []edcb.EPGCaptureTime{daily(6, 0), daily(18, 0)}, StartMargin: 5 * time.Second, EndMargin: 2 * time.Second,
+				EPGCaptureAnyBonDriver: false, EPGCaptureBonDrivers: noBonDrivers,
+			},
+		},
+		{
+			name: "times beyond the count",
+			data: []byte("[EPG_CAP]\nCount=1\n0=4:30\n0Select=1\n1=5:00\n1Select=1\n"),
+			want: &edcb.TimerSettings{
+				Loaded: true, EPGCaptureTimes: []edcb.EPGCaptureTime{daily(4, 30)}, StartMargin: 5 * time.Second, EndMargin: 2 * time.Second,
+				EPGCaptureAnyBonDriver: false, EPGCaptureBonDrivers: noBonDrivers,
+			},
+		},
+		{
 			// Windows の EDCB は、UTF-16 (BOM 付き) で書く。Count が 0 なら取得しない。
 			name: "utf-16 without capture times",
 			data: utf16LE("[SET]\r\nStartMargin=7\r\n[EPG_CAP]\r\nCount=0\r\n"),

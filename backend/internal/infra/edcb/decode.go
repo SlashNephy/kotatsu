@@ -7,6 +7,9 @@ import (
 // minItemSize は、配列の要素の最小のバイト数。構造体は大きさ (DWORD) だけでも 4 バイトで、DWORD の要素も 4 バイト。
 const minItemSize = 4
 
+// wordSize は、WORD の配列 (vector<WORD>) の要素のバイト数。
+const wordSize = 2
+
 // 読み方は、EDCB の Common/CtrlCmdUtil.cpp の ReadVALUE と、Common/StructDef.h の型に合わせる。
 
 func decodeService(d *decoder) *Service {
