@@ -211,10 +211,11 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			env: map[string]string{
 				envKeyURL:                envURL,
 				"KOTATSU_METRICS_LISTEN": ":9100",
+				"KOTATSU_METRICS_PPROF":  "true",
 			},
 			want: &config.Config{
 				Server:   config.Server{Listen: "127.0.0.1:3000", AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
-				Metrics:  config.Metrics{Listen: ":9100"},
+				Metrics:  config.Metrics{Listen: ":9100", Pprof: true},
 				Database: config.Database{URL: envURL, Pooler: true},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(""),

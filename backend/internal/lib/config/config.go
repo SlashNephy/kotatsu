@@ -122,6 +122,9 @@ func DefaultPrivateNetworks() []string {
 type Metrics struct {
 	// Listen は /metrics の待ち受けアドレス。API とは別のアドレスで公開する。
 	Listen string `yaml:"listen"`
+	// Pprof なら、同じ待ち受けで /debug/pprof/ を返す (#1959)。プロセスの中を調べるときだけ有効にする。
+	// 認証をかけないので、待ち受けを外に出している構成では有効にしない。
+	Pprof bool `yaml:"pprof"`
 }
 
 // Database は PostgreSQL への接続の設定。
@@ -477,6 +480,7 @@ func Default() *Config {
 		},
 		Metrics: Metrics{
 			Listen: ":9090",
+			Pprof:  false,
 		},
 		Database: Database{
 			URL:    "",

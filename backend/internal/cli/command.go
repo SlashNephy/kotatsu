@@ -679,7 +679,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		mux.Handle(nabe.PathPrefix, nabeHandler)
 	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
-	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics)
+	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics, deps.Config.Metrics.Pprof)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

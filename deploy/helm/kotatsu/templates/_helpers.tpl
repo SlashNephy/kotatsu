@@ -109,6 +109,10 @@ env は、すべてのコンテナに渡す環境変数。
   value: "$(POD_IP)"
 - name: KOTATSU_METRICS_LISTEN
   value: ":9090"
+{{- if .Values.metrics.pprof }}
+- name: KOTATSU_METRICS_PPROF
+  value: "true"
+{{- end }}
 {{- with include "kotatsu.trustedProxies" . }}
 - name: KOTATSU_SERVER_TRUSTED_PROXIES
   value: {{ . | quote }}

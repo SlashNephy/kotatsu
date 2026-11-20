@@ -278,6 +278,7 @@ Docker Composeの例は、mikanが1つの`all`の構成です。
 | `/healthz` | liveness | プロセスが動いている |
 | `/readyz` | readiness | DBに接続できる |
 | `/metrics` | Prometheusのメトリクス | `metrics.listen`のアドレスで公開する |
+| `/debug/pprof/` | Goのpprofのプロファイル | `metrics.pprof`を`true`にしたときだけ、`metrics.listen`のアドレスで公開する |
 
 `/healthz`と`/readyz`は、認証なしで使えます。
 `/readyz`は、チューナーサーバーの状態を判定に含めません。
