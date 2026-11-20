@@ -146,6 +146,9 @@ export function HlsPlayer({
   interpolationRateRef.current = interpolationRate;
   // generation を変えると、hls.js を作り直して読み直す。ライブを長く一時停止してから再開したときに使う。
   const [generation, setGeneration] = useState(0);
+  // keepPaused は、読み直す前に、利用者が一時停止していたかどうか。読み直しても、一時停止のまま待つ (#1969)。
+  // 配信が切れて今の位置から読み直すときや、画質を変えたときに、勝手に再生を始めない。
+  const keepPaused = useRef(false);
 
   // video の要素は、TsPlayer と同じく React に持たせずに作り、どちらの経路でも同じ見た目にする。
   useEffect(() => {
@@ -189,6 +192,10 @@ export function HlsPlayer({
   }, [videoRef]);
 
   useEffect(() => {
+    // 前の読み込みから引き継いだ一時停止は、読まないときやライブに変えたときにも、ここで使い切る。残すと、後で別の録画やライブを
+    // 開いたときに、止まったまま始まる。
+    const stayPaused = !live && keepPaused.current;
+    keepPaused.current = false;
     const video = videoRef.current;
     if (video === null || url === null) {
       return;
@@ -197,6 +204,8 @@ export function HlsPlayer({
     // parsed は、この hls.js がプレイリストを読み終えたかどうか。それまでの pause は、前の hls.js を video から外したときに
     // ブラウザが出すものなので、一時停止とみなさない。
     let parsed = false;
+    // autoplay のままだと、プレイリストを読み終えたときに、ブラウザが再生を始める。
+    video.autoplay = !stayPaused;
     void import('hls.js').then(({ default: HlsClass }) => {
       if (destroyed) {
         return;
@@ -259,7 +268,9 @@ export function HlsPlayer({
       instance.on(HlsClass.Events.MANIFEST_PARSED, () => {
         parsed = true;
         handlers.current.onLoaded?.();
-        void video.play().catch(() => {});
+        if (!stayPaused) {
+          void video.play().catch(() => {});
+        }
       });
       instance.on(HlsClass.Events.ERROR, (_event, data) => {
         // 致命的でないエラーは、hls.js が読み直して回復する。
@@ -304,6 +315,10 @@ export function HlsPlayer({
       destroyed = true;
       video.removeEventListener('pause', pause);
       video.removeEventListener('play', play);
+      // hls.js を外すと、ブラウザは video を止めるので、外す前に見る。終わりまで再生して止まったのは、一時停止とみなさない。
+      // プレイリストを読み終える前に読み直すなら、まだ video は止まったままなので、前から引き継いだ値をそのまま渡す。
+      // ライブは、止めたまま読み直すのがチャンネルか画質を変えたときだけなので、読み直したら再生する。次の読み込みで見る。
+      keepPaused.current = parsed ? video.paused && !video.ended : stayPaused;
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
