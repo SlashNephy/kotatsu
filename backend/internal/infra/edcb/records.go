@@ -180,8 +180,9 @@ func decodeSearchKey(d *decoder) SearchKey {
 			})
 		})
 		d.vector(func(d *decoder) { k.Services = append(k.Services, d.u64()) })
-		d.vector(func(d *decoder) { _ = d.u16() }) // 映像
-		d.vector(func(d *decoder) { _ = d.u16() }) // 音声
+		// 映像と音声は vector<WORD> で、要素は 2 バイト (EDCB の Common/StructDef.h)。
+		d.wordVector(func(d *decoder) { _ = d.u16() }) // 映像
+		d.wordVector(func(d *decoder) { _ = d.u16() }) // 音声
 		k.Fuzzy, k.NotContents, k.NotDates, k.FreeCA = d.u8() != 0, d.u8() != 0, d.u8() != 0, d.u8()
 		// 版 3 から、録画済みかのチェックと、その期間が続く。期間は使わない。
 		if d.remaining() > 0 {
