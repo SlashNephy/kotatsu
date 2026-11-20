@@ -59,6 +59,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/google"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
+	"github.com/SlashNephy/kotatsu/internal/usecase/keyrebuild"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
@@ -310,11 +311,14 @@ func warnIgnoredSettings(ctx context.Context, logger *slog.Logger, ignored []con
 	}
 }
 
-// migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用する。
-// 同時に実行されても安全なよう、両方をマイグレーションのロックの中で行う。
+// migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用し、番組名から計算して保存したキーを作り直す (keyrebuild)。
+// 同時に実行されても安全なよう、どれもマイグレーションのロックの中で行う。
 func migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
 	return database.WithMigrationLock(ctx, logger, pool, func(ctx context.Context) error {
 		if err := database.Migrate(ctx, logger, pool); err != nil {
+			return err
+		}
+		if err := keyrebuild.Run(ctx, logger, pool); err != nil {
 			return err
 		}
 

@@ -1330,6 +1330,45 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 	return items, nil
 }
 
+const listRecordingHistoryTitleKeys = `-- name: ListRecordingHistoryTitleKeys :many
+SELECT id, name, title_key FROM recording_history
+WHERE id > $1::uuid
+ORDER BY id
+LIMIT $2
+`
+
+type ListRecordingHistoryTitleKeysParams struct {
+	After    uuid.UUID
+	MaxCount int32
+}
+
+type ListRecordingHistoryTitleKeysRow struct {
+	ID       uuid.UUID
+	Name     string
+	TitleKey string
+}
+
+// 録画履歴の番組名とキーを、ID が after より後のものから ID の順に max_count 件返す (#1977)。kotatsu migrate がキーを作り直すのに使う。
+func (q *Queries) ListRecordingHistoryTitleKeys(ctx context.Context, arg ListRecordingHistoryTitleKeysParams) ([]ListRecordingHistoryTitleKeysRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingHistoryTitleKeys, arg.After, arg.MaxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingHistoryTitleKeysRow{}
+	for rows.Next() {
+		var i ListRecordingHistoryTitleKeysRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.TitleKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordingHistoryWithoutSeries = `-- name: ListRecordingHistoryWithoutSeries :many
 SELECT id, name FROM recording_history
 WHERE series IS NULL

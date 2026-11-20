@@ -117,6 +117,13 @@ func IsEnclosedLabel(label string) bool {
 	return false
 }
 
+// IsEnclosedCharacter は、r が表の囲み文字かどうかを返す。
+func IsEnclosedCharacter(r rune) bool {
+	_, ok := enclosedLabel(r)
+
+	return ok
+}
+
 // mayBeEnclosed は、r が表の囲み文字になりうるかを、表を引かずに安く判定する。
 func mayBeEnclosed(r rune) bool {
 	return (r >= 0x1F100 && r <= 0x1F2FF) || r == 0x26BF

@@ -13,6 +13,23 @@ import (
 	"uuid"
 )
 
+const copyDramaTitleOverride = `-- name: CopyDramaTitleOverride :exec
+INSERT INTO drama_title_overrides (title_key, tmdb_series_id, updated_at)
+SELECT $1::text, src.tmdb_series_id, src.updated_at FROM drama_title_overrides src WHERE src.title_key = $2::text
+ON CONFLICT (title_key) DO NOTHING
+`
+
+type CopyDramaTitleOverrideParams struct {
+	ToKey   string
+	FromKey string
+}
+
+// 作品名の鍵 from_key の上書きを、鍵 to_key に写す (#1978)。to_key に上書きがあれば、そちらを残す。
+func (q *Queries) CopyDramaTitleOverride(ctx context.Context, arg CopyDramaTitleOverrideParams) error {
+	_, err := q.db.Exec(ctx, copyDramaTitleOverride, arg.ToKey, arg.FromKey)
+	return err
+}
+
 const copyProgramDramaMatchToRecording = `-- name: CopyProgramDramaMatchToRecording :execrows
 INSERT INTO recording_drama_matches (
   recording_id, tmdb_series_id, season_number, episode_number, series_source, episode_source, matched_at
@@ -87,6 +104,18 @@ func (q *Queries) DeleteTMDbToken(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteUnusedDramaTitleOverride = `-- name: DeleteUnusedDramaTitleOverride :exec
+DELETE FROM drama_title_overrides o
+WHERE o.title_key = $1::text
+  AND NOT EXISTS (SELECT 1 FROM program_drama_matches m WHERE m.title_key = o.title_key)
+`
+
+// 作品名の鍵 key の上書きを、その鍵の番組の結びつきがなければ消す (#1978)。
+func (q *Queries) DeleteUnusedDramaTitleOverride(ctx context.Context, key string) error {
+	_, err := q.db.Exec(ctx, deleteUnusedDramaTitleOverride, key)
+	return err
 }
 
 const getDramaMatchCursor = `-- name: GetDramaMatchCursor :one
@@ -354,6 +383,57 @@ func (q *Queries) ListDramaTitleOverrides(ctx context.Context) ([]DramaTitleOver
 	return items, nil
 }
 
+const listProgramDramaMatchTitleKeys = `-- name: ListProgramDramaMatchTitleKeys :many
+SELECT m.service_id, m.start_at, m.title_key, COALESCE(p.name, a.name)::text AS name
+FROM program_drama_matches m
+LEFT JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
+LEFT JOIN program_archives a ON a.service_id = m.service_id AND a.event_id = m.event_id AND a.start_at = m.start_at
+WHERE (m.service_id, m.start_at) > ($1::bigint, $2::timestamptz)
+  AND COALESCE(p.name, a.name) IS NOT NULL
+ORDER BY m.service_id, m.start_at
+LIMIT $3
+`
+
+type ListProgramDramaMatchTitleKeysParams struct {
+	AfterServiceID int64
+	AfterStartAt   time.Time
+	MaxCount       int32
+}
+
+type ListProgramDramaMatchTitleKeysRow struct {
+	ServiceID int64
+	StartAt   time.Time
+	TitleKey  string
+	Name      string
+}
+
+// 番組の結びつきの作品名の鍵と、番組表かアーカイブにある番組名を、(service_id, start_at) が after より後のものから順に max_count 件返す (#1978)。
+// kotatsu migrate が鍵を作り直すのに使う。番組名のない結びつきは返さない。
+func (q *Queries) ListProgramDramaMatchTitleKeys(ctx context.Context, arg ListProgramDramaMatchTitleKeysParams) ([]ListProgramDramaMatchTitleKeysRow, error) {
+	rows, err := q.db.Query(ctx, listProgramDramaMatchTitleKeys, arg.AfterServiceID, arg.AfterStartAt, arg.MaxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProgramDramaMatchTitleKeysRow{}
+	for rows.Next() {
+		var i ListProgramDramaMatchTitleKeysRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.StartAt,
+			&i.TitleKey,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStaleLinkedTMDbSeasons = `-- name: ListStaleLinkedTMDbSeasons :many
 SELECT l.series_id::integer AS series_id, l.season_number::integer AS season_number FROM (
   SELECT tmdb_series_id AS series_id, season_number FROM program_drama_matches WHERE episode_number IS NOT NULL
@@ -523,6 +603,23 @@ func (q *Queries) PruneTMDbSeries(ctx context.Context, before time.Time) (int64,
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const rekeyProgramDramaMatch = `-- name: RekeyProgramDramaMatch :exec
+UPDATE program_drama_matches SET title_key = $1, finalized_at = NULL
+WHERE service_id = $2 AND start_at = $3
+`
+
+type RekeyProgramDramaMatchParams struct {
+	TitleKey  string
+	ServiceID int64
+	StartAt   time.Time
+}
+
+// 番組の結びつきの作品名の鍵を書き直し、確定を外して、次の照合で照合し直させる (#1978)。
+func (q *Queries) RekeyProgramDramaMatch(ctx context.Context, arg RekeyProgramDramaMatchParams) error {
+	_, err := q.db.Exec(ctx, rekeyProgramDramaMatch, arg.TitleKey, arg.ServiceID, arg.StartAt)
+	return err
 }
 
 const saveDramaMatchCursor = `-- name: SaveDramaMatchCursor :exec
