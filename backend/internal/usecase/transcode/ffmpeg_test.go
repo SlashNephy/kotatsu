@@ -28,9 +28,11 @@ func TestTranscodePresets(t *testing.T) {
 }
 
 // hwaccel は、GPU で復号させる FFmpeg の引数。x264Preset は、CPU でエンコードするときの速さの設定。
+// bitrate720p は、720p の 30 コマの画質の映像のビットレート。
 const (
-	hwaccel    = "-hwaccel"
-	x264Preset = "medium"
+	hwaccel     = "-hwaccel"
+	x264Preset  = "medium"
+	bitrate720p = "3500k"
 )
 
 // TestFFmpegArgs は、エンコーダーの設定ごとに、映像のエンコーダーと、MP4 の書き方を確かめる (#1253)。
@@ -47,12 +49,15 @@ func TestFFmpegArgs(t *testing.T) {
 		notWant []string
 		wantVF  string
 	}{
-		{name: "x264", encoder: "", preset: "720p", want: []string{"libx264", x264Preset, "3500k"}, notWant: []string{hwaccel, "hvc1"}, wantVF: "bwdif=0:-1:1,scale=-2:720,format=yuv420p"},
+		{name: "x264", encoder: "", preset: preset720p, want: []string{"libx264", x264Preset, bitrate720p}, notWant: []string{hwaccel, "hvc1"}, wantVF: "bwdif=0:-1:1,scale=-2:720,format=yuv420p"},
 		{name: "x265", encoder: "", preset: "1080p-hevc", want: []string{"libx265", "hvc1"}, notWant: []string{hwaccel}, wantVF: "bwdif=0:-1:1,scale=-2:1080,format=yuv420p"},
 		{name: "nvenc", encoder: config.EncoderNVENC, preset: "540p", want: []string{"h264_nvenc", hwaccel, "cuda"}, notWant: []string{x264Preset}, wantVF: "bwdif=0:-1:1,scale=-2:540,format=yuv420p"},
-		{name: "vaapi", encoder: config.EncoderVAAPI, preset: "360p", want: []string{"h264_vaapi", "/dev/dri/renderD128"}, notWant: []string{x264Preset}, wantVF: "bwdif=0:-1:1,format=nv12,hwupload,scale_vaapi=w=-2:h=360"},
-		{name: "x264 fields", encoder: "", preset: "720p", fields: true, want: []string{"libx264", "4900k"}, notWant: []string{"3500k"}, wantVF: "bwdif=1:-1:1,fps=60000/1001,scale=-2:720,format=yuv420p"},
-		{name: "qsv fields", encoder: config.EncoderQSV, preset: "1080p-hevc", fields: true, want: []string{"hevc_qsv", "5600k"}, notWant: []string{x264Preset}, wantVF: "bwdif=1:-1:1,fps=60000/1001,format=nv12,hwupload=extra_hw_frames=64,scale_qsv=w=-1:h=1080"},
+		// VAAPI では、復号から縮小までを GPU でし、bwdif の代わりに deinterlace_vaapi で解除する (#1970)。
+		// QSV でも、復号から縮小までは VAAPI でし、hwmap で QSV のフレームにしてエンコーダーに渡す (#1999)。
+		{name: "vaapi", encoder: config.EncoderVAAPI, preset: "360p", want: []string{"h264_vaapi", "vaapi=va:/dev/dri/renderD128", hwaccel}, notWant: []string{x264Preset}, wantVF: "format=nv12|vaapi,hwupload,deinterlace_vaapi=rate=frame:auto=1,scale_vaapi=w=-2:h=360:format=nv12"},
+		{name: "vaapi fields", encoder: config.EncoderVAAPI, preset: preset720p, fields: true, want: []string{"h264_vaapi", "4900k"}, notWant: []string{bitrate720p}, wantVF: "format=nv12|vaapi,hwupload,deinterlace_vaapi=rate=field:auto=1,fps=60000/1001,scale_vaapi=w=-2:h=720:format=nv12"},
+		{name: "x264 fields", encoder: "", preset: preset720p, fields: true, want: []string{"libx264", "4900k"}, notWant: []string{bitrate720p}, wantVF: "bwdif=1:-1:1,fps=60000/1001,scale=-2:720,format=yuv420p"},
+		{name: "qsv fields", encoder: config.EncoderQSV, preset: "1080p-hevc", fields: true, want: []string{"hevc_qsv", "5600k", "vaapi=va:/dev/dri/renderD128", hwaccel}, notWant: []string{x264Preset}, wantVF: "format=nv12|vaapi,hwupload,deinterlace_vaapi=rate=field:auto=1,fps=60000/1001,scale_vaapi=w=-2:h=1080:format=nv12,hwmap=derive_device=qsv,format=qsv"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

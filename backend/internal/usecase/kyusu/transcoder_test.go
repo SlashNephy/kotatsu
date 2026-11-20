@@ -545,16 +545,15 @@ func TestTranscoderNVENCSplitsSegmentsEvery2s(t *testing.T) {
 func TestTranscoderQSVSplitsSegmentsEvery2s(t *testing.T) {
 	t.Parallel()
 
-	transcoder, err := kyusu.NewTranscoder(&config.Kyusu{Encoder: config.EncoderQSV, VAAPIDevice: "", WorkDir: ""})
+	device := gpuDevice(t, config.EncoderQSV)
+	if device == "" {
+		t.Skip("QSV is not available")
+	}
+	transcoder, err := kyusu.NewTranscoder(&config.Kyusu{Encoder: config.EncoderQSV, VAAPIDevice: device, WorkDir: ""})
 	if errors.Is(err, kyusu.ErrToolNotFound) {
 		t.Skip("FFmpeg or tsreadex is not installed")
 	}
 	require.NoError(t, err)
-	check := exec.CommandContext(t.Context(), "ffmpeg", "-hide_banner", "-loglevel", "error",
-		"-init_hw_device", "qsv=hw", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30", "-t", "0.1", "-c:v", "h264_qsv", "-f", "null", "-")
-	if err := check.Run(); err != nil {
-		t.Skip("QSV is not available")
-	}
 
 	// 放送と同じ 1080i の MPEG-2 を 30 秒つくる。60 コマの画質で IDR でないキーフレームが混ざり始めるのは、5 秒ほど後からである。
 	input := filepath.Join(t.TempDir(), "in.ts")
@@ -598,5 +597,158 @@ func TestTranscoderQSVSplitsSegmentsEvery2s(t *testing.T) {
 				assert.InDelta(t, 2.0, d, 0.1, "every segment is about 2 seconds: %v", durations)
 			}
 		})
+	}
+}
+
+// gpuDevice は、encoder (vaapi か qsv) で H.264 をエンコードできる、このマシンの GPU の VAAPI のデバイスを返す。なければ、空を返す。
+// VAAPI のデバイスには、復号しかできないもの (NVIDIA の GPU の VA-API のドライバーなど) もあるので、エンコードを試して選ぶ。
+// QSV では、VAAPI のデバイスから QSV のデバイスを作ってエンコードする (#1999)。
+func gpuDevice(t *testing.T, encoder string) string {
+	t.Helper()
+
+	devices, err := filepath.Glob("/dev/dri/renderD*")
+	require.NoError(t, err)
+	for _, device := range devices {
+		args := []string{
+			"-hide_banner", "-loglevel", "error", "-init_hw_device", "vaapi=va:" + device, "-filter_hw_device", "va",
+			"-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30", "-t", "0.1",
+		}
+		if encoder == config.EncoderQSV {
+			args = append(args, "-vf", "format=nv12,hwupload,hwmap=derive_device=qsv,format=qsv", "-c:v", "h264_qsv")
+		} else {
+			args = append(args, "-vf", "format=nv12,hwupload", "-c:v", "h264_vaapi")
+		}
+		args = append(args, "-f", "null", "-")
+		if err := exec.CommandContext(t.Context(), "ffmpeg", args...).Run(); err == nil {
+			return device
+		}
+	}
+
+	return ""
+}
+
+// TestTranscoderHardwareDecode は、VAAPI と QSV で、復号から縮小までを GPU でして、画質のプリセットどおりの 8 ビットの映像の HLS を書き、
+// セグメントを 2 秒ごとに区切ることを確かめる (#1970、#1999)。インターレースの MPEG-2 は、60fps の画質ではフィールドごとに 1 コマにし、
+// BS4K に似せた 10 ビットの HEVC のプログレッシブの映像は、デインターレースを通さずに 59.94fps のまま送る。
+// GPU が復号できない形式 (H.264 の 4:4:4) の入力でも、CPU で復号して、同じく変換する。
+// そのエンコーダーを使える GPU がなければ、そのエンコーダーのテストを飛ばす。
+func TestTranscoderHardwareDecode(t *testing.T) {
+	t.Parallel()
+
+	// 入力をつくる前に、使える GPU を確かめる。どちらも使えなければ (FFmpeg がないときを含む)、テストを飛ばす。
+	devices := map[string]string{}
+	for _, encoder := range []string{config.EncoderVAAPI, config.EncoderQSV} {
+		if device := gpuDevice(t, encoder); device != "" {
+			devices[encoder] = device
+		}
+	}
+	if len(devices) == 0 {
+		t.Skip("neither VAAPI nor QSV is available")
+	}
+
+	// 放送と同じ 1080i の MPEG-2 と、GPU が復号できない H.264 の 4:4:4 を、それぞれ 10 秒つくる。
+	// tsreadex は放送の映像の形式 (MPEG-2、H.264、HEVC) しか通さないので、復号できない形式は H.264 のプロファイルで作る。
+	// 入力の名前。bs4k は BS4K に似せた 10 ビットの HEVC、mpeg2 は放送と同じ 1080i の MPEG-2、h264444 は GPU が復号できない H.264 の 4:4:4。
+	const bs4k, mpeg2, h264444 = "bs4k", "mpeg2", "h264-444"
+	inputs := map[string][]byte{
+		bs4k: loadTS(t, "test-hevc-main10.ts"),
+	}
+	for name, codec := range map[string][]string{
+		mpeg2:   {"-vf", "setfield=tff", "-c:v", "mpeg2video", "-flags", "+ilme+ildct", "-b:v", "15M"},
+		h264444: {"-c:v", "libx264", "-pix_fmt", "yuv444p", "-preset", "ultrafast"},
+	} {
+		input := filepath.Join(t.TempDir(), name+".ts")
+		args := make([]string, 0, 32)
+		args = append(args,
+			"-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=1440x1080:rate=30000/1001",
+			"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "10",
+		)
+		args = append(args, codec...)
+		args = append(args, "-c:a", "aac", "-ac", "2", "-f", "mpegts", input)
+		out, err := exec.CommandContext(t.Context(), "ffmpeg", args...).CombinedOutput()
+		require.NoError(t, err, string(out))
+		data, err := os.ReadFile(input)
+		require.NoError(t, err)
+		inputs[name] = data
+	}
+
+	const frames30, frames60 = "30000/1001", "60000/1001"
+	tests := []hardwareHLSCase{
+		{input: mpeg2, preset: preset720p, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30},
+		{input: mpeg2, preset: preset720p60, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
+		{input: mpeg2, preset: "720p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 720, wantFrameRate: frames30},
+		{input: bs4k, preset: vodTestPreset, wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames60},
+		{input: bs4k, preset: preset720p60, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
+		{input: h264444, preset: preset720p, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30},
+	}
+	for _, encoder := range []string{config.EncoderVAAPI, config.EncoderQSV} {
+		t.Run(encoder, func(t *testing.T) {
+			t.Parallel()
+
+			device, ok := devices[encoder]
+			if !ok {
+				t.Skip(encoder + " is not available")
+			}
+			transcoder, err := kyusu.NewTranscoder(&config.Kyusu{Encoder: encoder, VAAPIDevice: device, WorkDir: ""})
+			if errors.Is(err, kyusu.ErrToolNotFound) {
+				t.Skip("FFmpeg or tsreadex is not installed")
+			}
+			require.NoError(t, err)
+			for _, tt := range tests {
+				t.Run(tt.input+"/"+tt.preset, func(t *testing.T) {
+					t.Parallel()
+
+					preset, ok := kyusu.PresetByName(tt.preset)
+					require.True(t, ok)
+					dir := t.TempDir()
+					require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(inputs[tt.input]), preset, kyusu.AudioFirst, dir))
+
+					assertHardwareHLS(t, dir, &tt)
+				})
+			}
+		})
+	}
+}
+
+// hardwareHLSCase は、TestTranscoderHardwareDecode の 1 つの場合。
+type hardwareHLSCase struct {
+	input         string
+	preset        string
+	wantCodec     string
+	wantHeight    int
+	wantFrameRate string
+}
+
+// assertHardwareHLS は、dir に書いた HLS の最初のセグメントが tt のとおりの 8 ビットの映像で、セグメントが 2 秒ずつであることを確かめる。
+func assertHardwareHLS(t *testing.T, dir string, tt *hardwareHLSCase) {
+	t.Helper()
+
+	segments, err := filepath.Glob(filepath.Join(dir, "segment*.ts"))
+	require.NoError(t, err)
+	require.NotEmpty(t, segments)
+	sort.Strings(segments)
+	got := map[string]probedStream{}
+	for _, s := range probe(t, segments[0]) {
+		got[s.CodecType] = s
+	}
+	assert.Equal(t, tt.wantCodec, got["video"].CodecName)
+	assert.Equal(t, tt.wantHeight, got["video"].Height)
+	assert.Equal(t, tt.wantFrameRate, got["video"].FrameRate)
+	assert.Equal(t, "yuv420p", got["video"].PixFmt)
+
+	playlist, err := os.ReadFile(filepath.Join(dir, kyusu.PlaylistName))
+	require.NoError(t, err)
+	durations := []float64{}
+	for line := range strings.SplitSeq(string(playlist), "\n") {
+		if rest, ok := strings.CutPrefix(line, "#EXTINF:"); ok {
+			d, err := strconv.ParseFloat(strings.TrimSuffix(rest, ","), 64)
+			require.NoError(t, err)
+			durations = append(durations, d)
+		}
+	}
+	// 最後のセグメントは、入力の終わりで短くなりうるので比べない。
+	require.GreaterOrEqual(t, len(durations), 2, "segments: %v", durations)
+	for _, d := range durations[:len(durations)-1] {
+		assert.InDelta(t, 2.0, d, 0.1, "every segment is about 2 seconds: %v", durations)
 	}
 }

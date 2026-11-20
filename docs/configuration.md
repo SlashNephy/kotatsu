@@ -378,7 +378,7 @@ kyusuが、ライブ視聴と録画の再生のために、サーバー側でト
 | YAML | 環境変数 | 既定値 | 内容 |
 | --- | --- | --- | --- |
 | `kyusu.encoder` | `KOTATSU_KYUSU_ENCODER` | `x264` | 映像のエンコーダー |
-| `kyusu.vaapi_device` | `KOTATSU_KYUSU_VAAPI_DEVICE` | `/dev/dri/renderD128` | VAAPIで使うデバイス |
+| `kyusu.vaapi_device` | `KOTATSU_KYUSU_VAAPI_DEVICE` | `/dev/dri/renderD128` | VAAPIとQSVで使うデバイス。QSVでも、映像の復号と縮小はVAAPIでします |
 | `kyusu.work_dir` | `KOTATSU_KYUSU_WORK_DIR` | OSの一時ディレクトリ | HLSのセグメントを置くディレクトリ |
 
 `kyusu.encoder`には、次のどれかを書きます。

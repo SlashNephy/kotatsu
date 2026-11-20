@@ -130,7 +130,8 @@ func parseRate(s string) float64 {
 }
 
 // FFmpegArgs は、標準入力の TS を、preset の画質の MP4 にして out に書く FFmpeg の引数を返す。
-// 映像は、kyusu と同じく、CPU の bwdif でインターレースを解除してから縮め、8 ビットにする (設計書 7.3)。
+// 映像は、kyusu と同じく、VAAPI と QSV のほかは、CPU の bwdif でインターレースを解除してから縮め、8 ビットにする (設計書 7.3)。
+// VAAPI と QSV では、kyusu と同じく、復号から縮小までを GPU でする (kyusu.VAAPIVideo と kyusu.QSVVideo、#1970、#1999)。
 // bwdif は、インターレースの印のあるコマだけを解除する (deint=interlaced)。fields なら、フィールドごとに 1 コマにし (send_field)、
 // kyusu の 60fps の画質と同じく 59.94 コマに固定して、ビットレートを 1.4 倍にする (#1509)。そうでなければ、コマごとに解除する (send_frame)。
 // 音声は、最初の音声を AAC にする。MP4 は、先頭に索引を置き (faststart)、読み込み終える前から再生できるようにする。
@@ -148,12 +149,10 @@ func FFmpegArgs(cfg *config.Kyusu, preset *kyusu.Preset, fields bool, out string
 	var encoder string
 	switch cfg.Encoder {
 	case config.EncoderVAAPI:
-		device = []string{"-vaapi_device", cfg.VAAPIDevice}
-		filter = deinterlace + ",format=nv12,hwupload,scale_vaapi=w=-2:h=" + height
+		device, filter = kyusu.VAAPIVideo(cfg.VAAPIDevice, preset.Height, fields)
 		encoder = map[kyusu.Codec]string{kyusu.CodecH264: "h264_vaapi", kyusu.CodecHEVC: "hevc_vaapi"}[preset.Codec]
 	case config.EncoderQSV:
-		device = []string{"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"}
-		filter = deinterlace + ",format=nv12,hwupload=extra_hw_frames=64,scale_qsv=w=-1:h=" + height
+		device, filter = kyusu.QSVVideo(cfg.VAAPIDevice, preset.Height, fields)
 		encoder = map[kyusu.Codec]string{kyusu.CodecH264: "h264_qsv", kyusu.CodecHEVC: "hevc_qsv"}[preset.Codec]
 	case config.EncoderNVENC:
 		device = []string{"-hwaccel", "cuda"}

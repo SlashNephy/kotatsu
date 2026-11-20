@@ -390,7 +390,7 @@ func (a *AnimeRecords) validate() []error {
 type Kyusu struct {
 	// Encoder は、映像のエンコーダー (x264、vaapi、qsv、nvenc のどれか)。既定は x264。
 	Encoder string `yaml:"encoder"`
-	// VAAPIDevice は、VAAPI で使うデバイス。
+	// VAAPIDevice は、VAAPI と QSV で使うデバイス。QSV でも、映像の復号と縮小は VAAPI でする (#1999)。
 	VAAPIDevice string `yaml:"vaapi_device"`
 	// WorkDir は、HLS のセグメントを置く一時領域。Kubernetes では emptyDir を指す。空なら、OS の一時ディレクトリの下に作る。
 	WorkDir string `yaml:"work_dir"`
