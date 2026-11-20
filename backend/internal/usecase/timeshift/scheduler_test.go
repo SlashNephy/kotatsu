@@ -233,6 +233,37 @@ func TestSchedulerRunOnce(t *testing.T) {
 	})
 }
 
+// TestSchedulerIgnoresGoneServiceChannels は、上流から消えて 24 時間たったサービスのチャンネルは、番組表の取得に
+// チューナーを残す理由にしないことを確かめる (#1973)。チューナーサーバーは、消えたサービスの番組表を取らない。
+// 地上波のチューナー 2 本と 3 チャンネルで、2 チャンネルを録る。残る 3 番目のチャンネルのサービスを、上流から消えたことにする。
+func TestSchedulerIgnoresGoneServiceChannels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		goneFor time.Duration
+		want    []int64
+	}{
+		{name: "消えて 24 時間たったら、残さずに 2 本とも使う", goneFor: 25 * time.Hour, want: []int64{grService(0), grService(1)}},
+		{name: "消えて 24 時間たつまでは、番組表の取得に 1 本残す", goneFor: 23 * time.Hour, want: []int64{grService(0)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := newEnv(t)
+			e.configure(t, 0)
+			e.configure(t, 1)
+			_, err := e.pool.Exec(t.Context(), "UPDATE services SET gone_at = $2 WHERE id = $1", grService(2), e.clk.Now().Add(-tt.goneFor))
+			require.NoError(t, err)
+
+			_, err = e.scheduler.RunOnce(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, assignedServices(t, e.pool))
+		})
+	}
+}
+
 func TestSchedulerIgnoresConflictedReservation(t *testing.T) {
 	t.Parallel()
 
