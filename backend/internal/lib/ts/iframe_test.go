@@ -27,6 +27,9 @@ func TestIsH264ISliceHeader(t *testing.T) {
 		{name: "SI for the whole picture (slice_type 9)", header: 0b1_0001010_00000000, want: false},
 		{name: "not the first slice of the picture", header: 0b010_011_0000000000, want: false},
 		{name: "slice_type does not fit in two bytes", header: 0b1_000000000000000, want: false},
+		// slice_type は 0〜9 なので、5 で割った余りが 2 でも、10 以上は I スライスとみなさない (#1986)。
+		{name: "invalid slice_type 12", header: 0b1_0001101_00000000, want: false},
+		{name: "invalid slice_type 17", header: 0b1_000010010_000000, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

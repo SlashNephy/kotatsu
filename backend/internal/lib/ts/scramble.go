@@ -146,9 +146,10 @@ type ScrambleDetectorOptions struct {
 type ScrambleDetector struct {
 	opts ScrambleDetectorOptions
 
-	mu       sync.Mutex
-	carry    [PacketSize]byte
-	carryLen int
+	mu sync.Mutex
+	// framer は、書き込みをパケットに切り分ける。判定に使うだけなので、同期している間も次のパケットの頭を確かめ、
+	// 合わないパケットは数えずに読み飛ばす。
+	framer   packetFramer
 	programs *programTable
 	sections map[uint16]*sectionAssembler
 	// esPIDs は、PMT に載った ES の PID。programsGeneration の構成から求める。
@@ -187,7 +188,7 @@ func NewScrambleDetector(opts ScrambleDetectorOptions) *ScrambleDetector {
 	}
 
 	return &ScrambleDetector{
-		opts: opts, mu: sync.Mutex{}, carry: [PacketSize]byte{}, carryLen: 0,
+		opts: opts, mu: sync.Mutex{}, framer: newPacketFramer(true, true),
 		programs: newProgramTable(), sections: map[uint16]*sectionAssembler{}, esPIDs: map[uint16]bool{}, programsGeneration: 0,
 		verdict: ScrambleVerdictUndecided, window: ScrambleCounts{Packets: 0, Scrambled: 0}, windowStart: time.Time{},
 		last: ScrambleCounts{Packets: 0, Scrambled: 0}, over: 0, streakStart: time.Time{},
@@ -255,37 +256,14 @@ func (d *ScrambleDetector) Write(p []byte) (int, error) {
 
 // feed は p のパケットを数え、スクランブルされたままと決めたら true を返す。
 func (d *ScrambleDetector) feed(p []byte) bool {
-	if d.carryLen > 0 {
-		copied := copy(d.carry[d.carryLen:], p)
-		d.carryLen += copied
-		p = p[copied:]
-		if d.carryLen < PacketSize {
-			return false
-		}
-		d.carryLen = 0
-		if d.handle(d.carry[:]) {
-			return true
-		}
-	}
-	for len(p) > 0 && d.verdict == ScrambleVerdictUndecided {
-		if p[0] != syncByte || (len(p) > PacketSize && p[PacketSize] != syncByte) {
-			// 境界がずれていれば、次の sync byte を探す。判定に使うだけなので、Analyzer ほど厳密には合わせ直さない。
-			p = p[1:]
+	decided := false
+	d.framer.feed(p, 0, func(b []byte, _ int64) bool {
+		decided = d.handle(b)
 
-			continue
-		}
-		if len(p) < PacketSize {
-			d.carryLen = copy(d.carry[:], p)
+		return decided || d.verdict != ScrambleVerdictUndecided
+	})
 
-			break
-		}
-		if d.handle(p[:PacketSize]) {
-			return true
-		}
-		p = p[PacketSize:]
-	}
-
-	return false
+	return decided
 }
 
 // handle は 1 パケットを数え、スクランブルされたままと決めたら true を返す。

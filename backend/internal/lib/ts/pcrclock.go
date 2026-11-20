@@ -45,8 +45,9 @@ type PCRClock struct {
 	pmt       *sectionAssembler
 	// pmtPID は、いま組み立てている PMT の PID。PAT を読むまでは 0。
 	pmtPID uint16
-	// rest は、前の塊の終わりに残った、188 バイトに満たないパケットの頭。
-	rest []byte
+	// framer は、塊をパケットに切り分ける。次のパケットの頭が届いていれば sync byte であることを確かめ、
+	// 届いていなければ確かめずに読む。PCR は、塊を受け取った時刻と組にするので、次の塊まで待たない。
+	framer packetFramer
 	// windowStart は、今の区切りを始めた時刻。まだ始めていなければ零値。
 	windowStart time.Time
 	current     *PCRPair
@@ -65,7 +66,7 @@ func NewPCRClock(serviceID uint16, window time.Duration) *PCRClock {
 	return &PCRClock{
 		serviceID: serviceID, window: window, table: newProgramTable(),
 		pat: newSectionAssembler(), pmt: newSectionAssembler(), pmtPID: 0,
-		rest: make([]byte, 0, PacketSize), windowStart: time.Time{}, current: nil, previous: nil, last: -1,
+		framer: newPacketFramer(true, false), windowStart: time.Time{}, current: nil, previous: nil, last: -1,
 	}
 }
 
@@ -73,37 +74,11 @@ func NewPCRClock(serviceID uint16, window time.Duration) *PCRClock {
 // 塊の中の PCR は、どれも receivedAt と組にする。塊の最後の PCR ほど「受け取った時刻 − PCR」が小さく出るので、自然に選ばれる。
 func (c *PCRClock) Write(chunk []byte, receivedAt time.Time) {
 	c.rotate(receivedAt)
-	// 前の塊の残り (sync byte から始まる) に、この塊の頭を足して 1 つのパケットにする。
-	if len(c.rest) > 0 {
-		need := PacketSize - len(c.rest)
-		if len(chunk) < need {
-			c.rest = append(c.rest, chunk...)
+	c.framer.feed(chunk, 0, func(b []byte, _ int64) bool {
+		c.handle(b, receivedAt)
 
-			return
-		}
-		c.rest = append(c.rest, chunk[:need]...)
-		// 次のパケットの頭が sync byte でなければ、残りは途中で切れたものだったので捨て、この塊の頭から同期し直す。
-		if len(chunk) == need || chunk[need] == syncByte {
-			c.handle(c.rest, receivedAt)
-			chunk = chunk[need:]
-		}
-		c.rest = c.rest[:0]
-	}
-	for len(chunk) >= PacketSize {
-		// 同期が外れていたら、次の sync byte まで読み飛ばす。
-		if chunk[0] != syncByte {
-			chunk = chunk[1:]
-
-			continue
-		}
-		c.handle(chunk[:PacketSize], receivedAt)
-		chunk = chunk[PacketSize:]
-	}
-	// 残りは、sync byte から始まる所だけを取っておく。
-	for len(chunk) > 0 && chunk[0] != syncByte {
-		chunk = chunk[1:]
-	}
-	c.rest = append(c.rest, chunk...)
+		return false
+	})
 }
 
 // Pair は、今使う組を返す。まだ組がなければ false を返す。
