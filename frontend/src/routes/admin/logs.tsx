@@ -12,12 +12,13 @@ import {
   TextInput,
 } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
-import { memo, startTransition, useDeferredValue, useState } from 'react';
+import { memo, useDeferredValue, useEffect, useEffectEvent, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql } from 'react-relay';
+import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
 import { AdminPage } from '../../admin/AdminPage';
 import { Section } from '../../admin/Section';
+import { PageLoader } from '../../futon';
 import { environmentText, otherRoles } from '../../admin/logs/environment';
 import { IssueDialog } from '../../admin/logs/IssueDialog';
 import { redact } from '../../admin/logs/redact';
@@ -110,11 +111,48 @@ function failureKey(failure: string) {
   }
 }
 
+// Logs は、開いたときと「読み直す」を押したときに、ログをサーバーから読み、読み終えてから描く。
+// 描くときに useLazyLoadQuery の network-only で読むことはしない。Relay は、描いた部品の effect が片付けられてから走り直すと
+// (開発中の StrictMode など)、読み込みのキーを変えて読み直す。network-only ではそのたびに送り、ログの行は送るたびに変わるので、
+// 読み込み中のまま送り続けた (#1990)。サーバーから読むのは fetchQuery にし、描くときは読んだ結果をストアから読む。
+// 読めなければ、これまでと同じく ErrorBoundary に渡す。
 function Logs() {
+  const environment = useRelayEnvironment();
+  const [state, setState] = useState<{ ready: boolean; error: Error | null }>({
+    ready: false,
+    error: null,
+  });
+  const load = () => {
+    fetchQuery<logsQuery>(environment, query, {}, { fetchPolicy: 'network-only' })
+      .toPromise()
+      .then(
+        () => setState({ ready: true, error: null }),
+        (error: unknown) =>
+          setState((current) => ({
+            ...current,
+            error: error instanceof Error ? error : new Error(String(error)),
+          })),
+      );
+  };
+  // 開いたときに 1 度だけ読む。
+  const loadOnOpen = useEffectEvent(load);
+  useEffect(() => {
+    loadOnOpen();
+  }, []);
+  if (state.error != null) {
+    throw state.error;
+  }
+  if (!state.ready) {
+    return <PageLoader />;
+  }
+
+  return <LogsView refresh={load} />;
+}
+
+function LogsView({ refresh }: { refresh: () => void }) {
   const { t } = useTranslation();
-  const [fetchKey, setFetchKey] = useState(0);
-  const data = useLazyLoadQuery<logsQuery>(query, {}, { fetchKey, fetchPolicy: 'network-only' });
-  const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
+  // Logs が読み終えた結果を、ストアから読む。ストアから消えていたときだけ送る。
+  const data = useLazyLoadQuery<logsQuery>(query, {}, { fetchPolicy: 'store-or-network' });
   const report = data.logReport;
 
   const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set());
