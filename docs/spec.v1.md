@@ -2976,13 +2976,13 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
     | 1 | サーバーから渡された秘密の値（8字以上、長い順、大文字と小文字を区別しない部分一致。サーバーは秘密の値をブラウザに渡さないので、今は空です） | `[REDACTED_SECRET]` |
     | 2 | サーバーから渡されたホスト名（リクエストが来たホスト名、チューナーサーバーとDBのホスト名。4字以上、長い順、前後が英数字・点・ハイフンでないところ）。公開ホスト、IPアドレスの形、`:`を含むもの、`[`で始まるものは除きます | `[REDACTED_HOST]` |
     | 3 | WebhookのURL（Discord、Slack、パスにhookかhooksの語を含むhttp(s)のURL）の全体 | `[REDACTED_WEBHOOK]` |
-    | 4 | URLの中の資格情報（`scheme://ユーザー:パスワード@`）の資格の部分 | `[REDACTED_SECRET]@` |
+    | 4 | URLの中の資格情報（`scheme://ユーザー:パスワード@`）の資格の部分。「ホスト:ポート」の直後に`?`か`#`が続くものは、資格とみなしません | `[REDACTED_SECRET]@` |
     | 5 | Authorization、Proxy-Authorization、Cookie、Set-Cookieの値（行の終わりまで） | `[REDACTED_SECRET]` |
     | 6 | `Bearer`に続く値（8字以上で、数字か記号を含むもの） | `[REDACTED_SECRET]` |
     | 7 | Kotatsuが発行するトークン（`kotatsu_`、`kotatsu_at_`などの接頭辞の後に、大文字か数字を含むbase64urlの43字） | `[REDACTED_SECRET]` |
-    | 8 | 名前にsecret、token、password、passwd、pwd、api key、private key、credential、session idを含む「名前=値」「名前: 値」とJSONの値（引用符の中は空白も含めて閉じる引用符まで。既に印なら触りません） | `[REDACTED_SECRET]` |
+    | 8 | 名前にsecret、token、password、passwd、pwd、api key、private key、credential、session idを含む「名前=値」「名前: 値」とJSONの値（引用符の中は空白も含めて閉じる引用符まで。引用符の無い値は、途中に印があっても、印ごと1つの値として伏せます。値が印だけなら触りません） | `[REDACTED_SECRET]` |
     | 9 | URLのクエリで、値が鍵として働くもの（code、state、nonce、token、access_token、id_token、refresh_token、key、sig、signature）の値。`?`か`&`の直後の名前だけ | `[REDACTED_SECRET]` |
-    | 10 | メールアドレス | `[REDACTED_EMAIL]` |
+    | 10 | メールアドレス（`+`などで直につながったアドレスも、どれも伏せます） | `[REDACTED_EMAIL]` |
     | 11 | カード番号（下を参照） | `[REDACTED_CARD]` |
     | 12 | IPv6（`::`を含む短い形と8組の形、`%ゾーン`を含む）。数字を含むときだけ | `[REDACTED_IP]` |
     | 13 | IPv4。ポートとCIDRの長さは残します。英字＋`/`の直後（製品の版）と、直後に`-英字`が続くもの（カーネルの版）は除きます | `[REDACTED_IP]` |
