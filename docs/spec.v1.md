@@ -2976,7 +2976,7 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
     | 1 | サーバーから渡された秘密の値（8字以上、長い順、大文字と小文字を区別しない部分一致。サーバーは秘密の値をブラウザに渡さないので、今は空です） | `[REDACTED_SECRET]` |
     | 2 | サーバーから渡されたホスト名（リクエストが来たホスト名、チューナーサーバーとDBのホスト名。4字以上、長い順、前後が英数字・点・ハイフンでないところ）。公開ホスト、IPアドレスの形、`:`を含むもの、`[`で始まるものは除きます | `[REDACTED_HOST]` |
     | 3 | WebhookのURL（Discord、Slack、パスにhookかhooksの語を含むhttp(s)のURL）の全体 | `[REDACTED_WEBHOOK]` |
-    | 4 | URLの中の資格情報（`scheme://ユーザー:パスワード@`）の資格の部分。資格には`?`と`#`を含めません | `[REDACTED_SECRET]@` |
+    | 4 | URLの中の資格情報（`scheme://ユーザー:パスワード@`）の資格の部分。「ホスト:ポート」の直後に`?`か`#`が続くものは、資格とみなしません | `[REDACTED_SECRET]@` |
     | 5 | Authorization、Proxy-Authorization、Cookie、Set-Cookieの値（行の終わりまで） | `[REDACTED_SECRET]` |
     | 6 | `Bearer`に続く値（8字以上で、数字か記号を含むもの） | `[REDACTED_SECRET]` |
     | 7 | Kotatsuが発行するトークン（`kotatsu_`、`kotatsu_at_`などの接頭辞の後に、大文字か数字を含むbase64urlの43字） | `[REDACTED_SECRET]` |

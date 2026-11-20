@@ -74,7 +74,13 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       want: 'open https://github.com/SlashNephy/kotatsu',
     },
     {
-      // 資格には ? と # を含められないので、ポートの直後のクエリの @ までを資格とみなさない (#1983)。
+      // エンコードせずに ? や # を書いたパスワードも伏せる。
+      rule: '4 ? と # を含むパスワードも伏せる',
+      input: 'dial postgres://kotatsu:pa?ss#word@db.home.arpa:5432/kotatsu',
+      want: `dial postgres://${marks.secret}@${marks.host}:5432/kotatsu`,
+    },
+    {
+      // 「ホスト:ポート」の直後のクエリの @ までを、資格とみなさない (#1983)。
       rule: '4 ポートの直後のクエリの @ は資格の区切りにしない',
       input: 'open http://example.com:8080?email=user@example.org',
       want: `open http://${marks.host}:8080?email=${marks.email}`,

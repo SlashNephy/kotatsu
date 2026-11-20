@@ -99,8 +99,10 @@ const webhookPatterns = [
 ];
 
 // 4. URL の中の資格情報 (scheme://ユーザー:パスワード@)。資格の部分だけを伏せる。
-// 資格には ? と # を含められない (RFC 3986 の userinfo)。含めると、ポートの直後のクエリの @ までを資格とみなす (#1983)。
-const credentialsPattern = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:?#"'<>\\]+:[^\s/@?#"'<>\\]*@/gi;
+// 「ホスト:ポート」の直後に ? か # が続くもの (http://example.com:8080?email=user@example.org) は、資格とみなさない (#1983)。
+// パスワードは、? と # をエンコードせずに書いたものも伏せるため、使える字を狭めない。
+const credentialsPattern =
+  /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:"'<>\\]+:(?!\d{1,5}[?#])[^\s/@"'<>\\]*@/gi;
 
 // 5. Authorization、Proxy-Authorization、Cookie、Set-Cookie の値。行の終わりまで伏せる。
 const headerPattern =
