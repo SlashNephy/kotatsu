@@ -556,12 +556,27 @@ var bracketedMarks = regexp.MustCompile(`\[[^\[\]]{1,3}\]`)
 
 // ruleKeyword は、ルールのキーワードにする作品名を、番組名から読む。話数の前を作品名にし (設計書 3.8 の番組名の解析)、
 // 話数が書かれていなければ、印を除いた番組名をそのまま使う。話数まで入れると、その話にしか一致しないので、話数は入れない。
+//
+// 印を除いた番組名が、正規化した番組名のひと続きの部分でなければ (途中に印がある、空白が続くなど)、元の番組に一致しないので、
+// 正規化した番組名を印で区切った、最初の空でない部分を使う (#1984)。ひと続きの部分になるときは、作ったルールとの突き合わせ
+// (ruleIdentity) を変えないよう、これまでと同じものを返す。
 func ruleKeyword(name string) string {
 	if parsed, ok := anime.ParseTitle(name); ok {
 		return parsed.Title
 	}
 
-	return strings.Join(strings.Fields(bracketedMarks.ReplaceAllString(domain.Normalize(name), " ")), " ")
+	normalized := domain.Normalize(name)
+	keyword := strings.Join(strings.Fields(bracketedMarks.ReplaceAllString(normalized, " ")), " ")
+	if strings.Contains(normalized, keyword) {
+		return keyword
+	}
+	for _, part := range bracketedMarks.Split(normalized, -1) {
+		if title := strings.TrimSpace(part); title != "" {
+			return title
+		}
+	}
+
+	return ""
 }
 
 // ErrWishlistWorkNotFound は、ユーザーの候補に、その作品がないことを表す。

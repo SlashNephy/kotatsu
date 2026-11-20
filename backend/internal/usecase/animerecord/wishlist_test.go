@@ -242,6 +242,21 @@ func TestWishlistRuleInput(t *testing.T) {
 			matches:     []*match.Program{program(serviceMain, "劇場版 作品B")},
 			misses:      []*match.Program{program(serviceMain, titleB)},
 		},
+		// 印を空白に置き換えると、元の番組名に含まれないキーワードになるので、印の手前までにする (#1984)。
+		{
+			name:        "a name without an episode number, with a mark in the middle",
+			first:       "ＳＰＹ×ＦＡＭＩＬＹ🈑「合否の行方」",
+			wantKeyword: "SPY×FAMILY",
+			matches:     []*match.Program{program(serviceMain, "ＳＰＹ×ＦＡＭＩＬＹ🈑「合否の行方」"), program(serviceMain, "ＳＰＹ×ＦＡＭＩＬＹ「次の話」")},
+			misses:      []*match.Program{program(serviceMain, titleB)},
+		},
+		{
+			name:        "a name without an episode number, with consecutive spaces",
+			first:       "[新]作品C　　特別編",
+			wantKeyword: "作品C  特別編",
+			matches:     []*match.Program{program(serviceMain, "[新]作品C　　特別編")},
+			misses:      []*match.Program{program(serviceMain, titleC)},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -6,22 +6,31 @@ import (
 	"unicode"
 )
 
+// keywordMark は、作品名の終わりを示す、括弧で書いた印の正規表現を返す。囲み文字 (正規化で [新] のような括弧の書き方になる) と、
+// 括弧で書いた囲み文字 (bracketMarkWords) に加え、表にない編成の印 (【一挙】、【連日】)、(日)、(他)、カタカナで書いた (ニ) を含む。
+// [前] と [後] (前編と後編) は、bracketMarkWords と同じく番組名の一部とみなす。中身は、大文字と小文字を区別する。
+func keywordMark() string {
+	return `[\[【(（](?:ニ|日|他|一挙|連日|` + bracketMarkWords() + `)[\]】)）]`
+}
+
 var (
 	// keywordLeadingPattern は、番組名の頭に付く、作品名の一部でない飾り。【50周年記念】のような隅付き括弧と、
-	// ＜日本初＞のような山括弧、[新] のような印、「華◆」のような枠の名前、「TVアニメ」のような前置き。NFKC で正規化した番組名から探す。
+	// ＜日本初＞のような山括弧、[新] や [120P] のような印、「華◆」のような枠の名前、「TVアニメ」のような前置き。NFKC で正規化した番組名から探す。
+	// 印は、中身が 3 文字までの角括弧か、作品名の終わりとみなす印 (keywordMark) なら、長さによらず除く。
 	// かぎ括弧の前の「TVアニメ」は、括弧を残して除く。
-	keywordLeadingPattern = regexp.MustCompile(`^(?:\s+|【[^】]*】|<[^>]*>|\[[^\[\]]{1,3}\]|[^\s◆◇「『]{1,4}[◆◇]|(?:TV|テレビ)?アニメ(?:\s+|[:：]|([「『])))`)
+	keywordLeadingPattern = regexp.MustCompile(`^(?:\s+|【[^】]*】|<[^>]*>|\[[^\[\]]{1,3}\]|` + keywordMark() + `|[^\s◆◇「『]{1,4}[◆◇]|(?:TV|テレビ)?アニメ(?:\s+|[:：]|([「『])))`)
 	// keywordQuotedPattern は、「TVアニメ『作品名』」のように、かぎ括弧で囲んだ作品名。前置きを除いた後の頭にあるものだけを読む。
 	keywordQuotedPattern = regexp.MustCompile(`^[「『]([^」』]+)[」』]`)
 	// keywordEpisodePattern は、話数 (#1、第1話、第六話、第1回、(15)、CHAPTER:5、Episode: 5)。(1971) のような 4 桁の年は、話数とみなさない。
-	keywordEpisodePattern = regexp.MustCompile(`(?i)#\s*[0-9]|第[0-9〇一二三四五六七八九十百]+[話回]|\([0-9]{1,3}\)|\bchapter\s*[:.]?\s*[0-9]|\bep(?:isode)?\s*[:.]?\s*[0-9]`)
+	keywordEpisodePattern = regexp.MustCompile(`#\s*[0-9]|第[0-9〇一二三四五六七八九十百]+[話回]|\([0-9]{1,3}\)|(?i:\bchapter\s*[:.]?\s*[0-9]|\bep(?:isode)?\s*[:.]?\s*[0-9])`)
 	// keywordInnerQuotePattern は、話数の前にある、かぎ括弧で囲んだ部分。「ドラマ「作品名」 第3話」の括弧は、作品名の一部とする。
 	keywordInnerQuotePattern = regexp.MustCompile(`「[^「」]+」`)
-	// keywordEndPattern は、作品名の終わりを示すもの。話数、サブタイトルのかぎ括弧、囲み文字の印 (【一挙】のような編成の印を含む)、
+	// keywordEndPattern は、作品名の終わりを示すもの。話数、サブタイトルのかぎ括弧、印 (keywordMark)、
 	// 注記の山括弧、▽のようなサブタイトルの区切り、出演者の案内。
-	keywordEndPattern = regexp.MustCompile(`(?i)#\s*[0-9]|第[0-9〇一二三四五六七八九十百]+[話回]|\([0-9]{1,3}\)|\bchapter\s*[:.]?\s*[0-9]|\bep(?:isode)?\s*[:.]?\s*[0-9]|「|<|[▽▼]|\s出演[:：]|` +
-		`[\[【(（](?:新|再|字|終|二|ニ|多|解|デ|S|SS|無|映|双|天|生|吹|声|手|交|日|N|B|HV|SD|PPV|MV|料|初|販|他|吹替|字幕|無料|一挙|連日|` +
-		`2K|4K|8K|3D|HDR|SHV|UHD|5\.1|7\.1|22\.2)[\]】)）]`)
+	keywordEndPattern = regexp.MustCompile(`#\s*[0-9]|第[0-9〇一二三四五六七八九十百]+[話回]|\([0-9]{1,3}\)|(?i:\bchapter\s*[:.]?\s*[0-9]|\bep(?:isode)?\s*[:.]?\s*[0-9])|「|<|[▽▼]|\s出演[:：]|` +
+		keywordMark())
+	// keywordMarkSplitPattern は、作品名が読めないときに、番組名を区切る印。
+	keywordMarkSplitPattern = regexp.MustCompile(keywordMark())
 )
 
 // RuleKeyword は、番組名から、ルールの番組名のキーワードにする作品名を読む (設計書 4.2、#1240)。
@@ -31,7 +40,8 @@ var (
 // 頭の飾り (【50周年記念】、＜日本初＞、[新]、「華◆」、「TVアニメ」) を除き、話数、サブタイトル、印、注記の手前までを作品名とする。
 // 話数の前のかぎ括弧 (「ドラマ「作品名」 第3話」) は、作品名に含める。
 // 「TVアニメ『作品名』」のように、前置きの後の作品名をかぎ括弧で囲んでいれば、括弧の中を作品名とする。
-// 作品名が読めなければ、印を除いた番組名を返す。
+// 作品名が読めなければ、正規化した番組名を印で区切った、最初の空でない部分を返す。
+// 印を空白に置き換えたり空白をまとめたりすると、正規化した番組名のひと続きの部分でなくなり、元の番組に一致しなくなるため (#1984)。
 func RuleKeyword(name string) string {
 	normalized := Normalize(name)
 	rest := normalized
@@ -75,7 +85,13 @@ func RuleKeyword(name string) string {
 		return strings.TrimSpace(title)
 	}
 
-	return strings.Join(strings.Fields(bracketMarkPattern.ReplaceAllString(normalized, " ")), " ")
+	for _, part := range keywordMarkSplitPattern.Split(normalized, -1) {
+		if title := strings.TrimSpace(part); title != "" {
+			return title
+		}
+	}
+
+	return ""
 }
 
 // isKeywordSeparator は、作品名と話数の間に置かれる区切り (空白、コロン、ハイフンなど) かどうか。
