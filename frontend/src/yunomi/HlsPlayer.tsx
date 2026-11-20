@@ -192,6 +192,10 @@ export function HlsPlayer({
   }, [videoRef]);
 
   useEffect(() => {
+    // 前の読み込みから引き継いだ一時停止は、読まないときやライブに変えたときにも、ここで使い切る。残すと、後で別の録画やライブを
+    // 開いたときに、止まったまま始まる。
+    const stayPaused = !live && keepPaused.current;
+    keepPaused.current = false;
     const video = videoRef.current;
     if (video === null || url === null) {
       return;
@@ -200,8 +204,6 @@ export function HlsPlayer({
     // parsed は、この hls.js がプレイリストを読み終えたかどうか。それまでの pause は、前の hls.js を video から外したときに
     // ブラウザが出すものなので、一時停止とみなさない。
     let parsed = false;
-    const stayPaused = keepPaused.current;
-    keepPaused.current = false;
     // autoplay のままだと、プレイリストを読み終えたときに、ブラウザが再生を始める。
     video.autoplay = !stayPaused;
     void import('hls.js').then(({ default: HlsClass }) => {
@@ -315,8 +317,8 @@ export function HlsPlayer({
       video.removeEventListener('play', play);
       // hls.js を外すと、ブラウザは video を止めるので、外す前に見る。終わりまで再生して止まったのは、一時停止とみなさない。
       // プレイリストを読み終える前に読み直すなら、まだ video は止まったままなので、前から引き継いだ値をそのまま渡す。
-      // ライブは、止めたまま読み直すのがチャンネルか画質を変えたときだけなので、読み直したら再生する。
-      keepPaused.current = !live && (parsed ? video.paused && !video.ended : stayPaused);
+      // ライブは、止めたまま読み直すのがチャンネルか画質を変えたときだけなので、読み直したら再生する。次の読み込みで見る。
+      keepPaused.current = parsed ? video.paused && !video.ended : stayPaused;
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
