@@ -46,6 +46,7 @@ WHERE assignment_state = 'conflict' AND event_id IS NOT NULL AND start_at > @now
 -- 局をまたいで同じ回を束ねる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
 -- ほかの録画ソフトから引き継いだもの (期間で切らない)、それに録画中の録画。
 -- 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4)。消した録画も、履歴は残る。
+-- 同じ回の録画が複数あれば、照合は最初に一致したものを引くので、終わりが新しい順に決まった順で返す (#1985)。
 SELECT h.service_id, h.name, h.description, h.series_episode, h.syobocal_tid, h.anime_count, h.end_at
 FROM recording_history h
 WHERE h.imported OR h.start_at >= @since
@@ -59,7 +60,8 @@ LEFT JOIN LATERAL (
   WHERE e.recording_id = rec.id
   HAVING count(*) = 1 AND min(e.count_start) = min(e.count_end)
 ) a ON true
-WHERE rec.state = 'recording';
+WHERE rec.state = 'recording'
+ORDER BY end_at DESC, service_id, name, description;
 
 -- name: ListRecordedEpisodesBySeries :many
 -- 前の回を録らない (#1499) ときの「録った回」。録画履歴のうち、シリーズ名が @series のどれかのものの全部 (期間で切らない) と、録画中の録画。

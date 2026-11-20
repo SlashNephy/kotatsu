@@ -142,6 +142,7 @@ LEFT JOIN LATERAL (
 ) a ON true
 WHERE rec.state = 'recording' AND rec.api_id < $4 AND rec.start_at >= $1
   AND NOT (rec.service_id = $2 AND rec.event_id IS NOT DISTINCT FROM $3::bigint)
+ORDER BY service_id, name, description
 `
 
 type ListEarlierRecordedEpisodesParams struct {
@@ -165,6 +166,7 @@ type ListEarlierRecordedEpisodesRow struct {
 // スクランブルの警告のない録画だけを持つ (設計書 4.4)。同じ番組の録画 (取り消して戻した続きなど) は除く。
 // 先に作った録画に限るのは、同時に始まった同じ回の録画が、互いを録画済みとみなして両方やめないためである。api_id は録画を作るときに
 // 振る番号で、EPGStation から取り込んだ録画は取り込み元の ID を引き継ぐが、取り込むのは録り終えた録画だけなので、録画中の録画では作った順になる。
+// 同じ回の録画が複数あれば、最初に一致したものを引くので、決まった順で返す (#1985)。
 func (q *Queries) ListEarlierRecordedEpisodes(ctx context.Context, arg ListEarlierRecordedEpisodesParams) ([]ListEarlierRecordedEpisodesRow, error) {
 	rows, err := q.db.Query(ctx, listEarlierRecordedEpisodes,
 		arg.Since,
