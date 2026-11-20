@@ -9,9 +9,9 @@
   },
   "dependencies": {
     "@fontsource/m-plus-rounded-1c": "5.3.0",
-    "@mantine/core": "9.8.0",
-    "@mantine/hooks": "9.8.0",
-    "@mantine/notifications": "9.8.0",
+    "@mantine/core": "9.8.1",
+    "@mantine/hooks": "9.8.1",
+    "@mantine/notifications": "9.8.1",
     "@mpeg2toh264/player": "workspace:*",
     "@mpeg2toh264/yadif": "workspace:*",
     "@simplewebauthn/browser": "14.0.0",
