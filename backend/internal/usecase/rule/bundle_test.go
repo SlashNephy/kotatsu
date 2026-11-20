@@ -273,6 +273,30 @@ func TestFindSkippedEpisodes(t *testing.T) {
 			assert.Nil(t, s.Instead)
 		}
 	})
+
+	t.Run("同じ回を複数録画済みなら、終わりが新しい録画を引く", func(t *testing.T) {
+		t.Parallel()
+
+		// 入れた順に返ると古い録画を引くので、古い録画を先に入れる (#1985)。
+		f := newEngineFixture(t, earlyAndLateEpisodes()...)
+		older := testNow().Add(-3 * time.Hour).UTC()
+		newer := testNow().Add(-time.Hour).UTC()
+		for _, end := range []time.Time{older, newer} {
+			_, err := f.pool.Exec(t.Context(),
+				`INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at) VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+				id.New(), serviceID(), rule.TitleKey(episodeName), episodeName, end.Add(-time.Hour), end)
+			require.NoError(t, err)
+		}
+		f.createEpisodeRule(t, true)
+		f.run(t)
+
+		skipped, err := rule.FindSkippedDuplicates(t.Context(), f.pool, f.clock, location)
+		require.NoError(t, err)
+		require.Len(t, skipped, 2)
+		for _, s := range skipped {
+			assert.Equal(t, &rule.SkippedRecording{ServiceID: serviceID(), Name: episodeName, EndAt: newer}, s.Recorded)
+		}
+	})
 }
 
 // TestEngineBundlesAnimeEpisodes は、番組名の書き方が揃わなくても、しょぼいカレンダーの同じ話に結びついた放送を束ね、

@@ -22,6 +22,7 @@ WHERE r.id = @id;
 -- スクランブルの警告のない録画だけを持つ (設計書 4.4)。同じ番組の録画 (取り消して戻した続きなど) は除く。
 -- 先に作った録画に限るのは、同時に始まった同じ回の録画が、互いを録画済みとみなして両方やめないためである。api_id は録画を作るときに
 -- 振る番号で、EPGStation から取り込んだ録画は取り込み元の ID を引き継ぐが、取り込むのは録り終えた録画だけなので、録画中の録画では作った順になる。
+-- 同じ回の録画が複数あれば、最初に一致したものを引くので、決まった順で返す (#1985)。
 SELECT h.service_id, h.name, h.description, h.series_episode, h.syobocal_tid, h.anime_count
 FROM recording_history h
 LEFT JOIN recordings hr ON hr.id = h.recording_id
@@ -38,7 +39,8 @@ LEFT JOIN LATERAL (
   HAVING count(*) = 1 AND min(e.count_start) = min(e.count_end)
 ) a ON true
 WHERE rec.state = 'recording' AND rec.api_id < @api_id AND rec.start_at >= @since
-  AND NOT (rec.service_id = @service_id AND rec.event_id IS NOT DISTINCT FROM sqlc.narg(event_id)::bigint);
+  AND NOT (rec.service_id = @service_id AND rec.event_id IS NOT DISTINCT FROM sqlc.narg(event_id)::bigint)
+ORDER BY service_id, name, description;
 
 -- name: GetRecordingEpisodeSource :one
 -- 録画の回を読むための、番組のシリーズの記述子の話数と、録画が 1 つの話に結びついたときの TID と話数。
