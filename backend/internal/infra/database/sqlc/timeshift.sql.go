@@ -700,7 +700,9 @@ func (q *Queries) ListReservationsUsingTunersBetween(ctx context.Context, arg Li
 }
 
 const listServiceChannels = `-- name: ListServiceChannels :many
-SELECT DISTINCT channel_type, channel FROM services ORDER BY channel_type, channel
+SELECT DISTINCT channel_type, channel FROM services
+WHERE gone_at IS NULL OR gone_at >= $1::timestamptz
+ORDER BY channel_type, channel
 `
 
 type ListServiceChannelsRow struct {
@@ -710,8 +712,9 @@ type ListServiceChannelsRow struct {
 
 // サービスのあるチャンネル種別とチャンネルの組。チューナーサーバーが番組表を取るチャンネルで、
 // タイムシフトの割り振りで、番組表の取得に残すチューナーを決めるのに使う。
-func (q *Queries) ListServiceChannels(ctx context.Context) ([]ListServiceChannelsRow, error) {
-	rows, err := q.db.Query(ctx, listServiceChannels)
+// 上流から消えたサービス (gone_at が gone_before より前) のチャンネルは、チューナーサーバーが番組表を取らないので数えない (#1973)。
+func (q *Queries) ListServiceChannels(ctx context.Context, goneBefore time.Time) ([]ListServiceChannelsRow, error) {
+	rows, err := q.db.Query(ctx, listServiceChannels, goneBefore)
 	if err != nil {
 		return nil, err
 	}

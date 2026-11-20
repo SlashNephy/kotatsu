@@ -12,6 +12,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/query"
 )
@@ -20,13 +21,15 @@ import (
 type Handler struct {
 	queries *query.Queries
 	// store は、代表画像があるかを、データディレクトリで確かめるのに使う。
-	store  *kago.Store
+	store *kago.Store
+	// clock は、サービスが上流から消えたかどうかを決める時刻を読むのに使う (#1973)。
+	clock  clock.Clock
 	logger *slog.Logger
 }
 
 // New は Handler を返す。
-func New(pool *pgxpool.Pool, store *kago.Store, logger *slog.Logger) *Handler {
-	return &Handler{queries: query.New(pool), store: store, logger: logger}
+func New(pool *pgxpool.Pool, store *kago.Store, clk clock.Clock, logger *slog.Logger) *Handler {
+	return &Handler{queries: query.New(pool), store: store, clock: clk, logger: logger}
 }
 
 type versionResponse struct {

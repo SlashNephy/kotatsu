@@ -132,7 +132,7 @@ func (h *Handler) serviceNames(ctx context.Context, reservations []*domain.Reser
 	if len(ids) == 0 {
 		return names, nil
 	}
-	services, err := h.queries.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: ids})
+	services, err := h.queries.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, IncludeGone: true, MediaServiceTypes: []int64{}, IDs: ids, Now: h.clock.Now()})
 	if err != nil {
 		return nil, err
 	}

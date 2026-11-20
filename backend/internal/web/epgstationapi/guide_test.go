@@ -15,6 +15,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/web/epgstationapi"
 )
@@ -84,7 +85,7 @@ func newHandler(t *testing.T) (*epgstationapi.Handler, *pgxpool.Pool, string) {
 
 	dataRoot := t.TempDir()
 
-	return epgstationapi.New(pool, kago.New(map[string]string{}, nil).WithDataDir(dataRoot), slog.New(slog.DiscardHandler)), pool, dataRoot
+	return epgstationapi.New(pool, kago.New(map[string]string{}, nil).WithDataDir(dataRoot), clock.Real{}, slog.New(slog.DiscardHandler)), pool, dataRoot
 }
 
 func exec(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) {

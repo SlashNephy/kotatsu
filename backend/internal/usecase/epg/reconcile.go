@@ -59,6 +59,11 @@ type Result struct {
 	Version int64
 }
 
+// changed は、DB を書き換えたかどうかを返す。書き換えたときだけ、変更を通知する。
+func (r *Result) changed() bool {
+	return r.ServicesUpserted > 0 || r.ServicesPresenceChanged > 0 || r.ProgramsUpserted > 0 || r.ProgramsDeleted > 0
+}
+
 // Reconciler は、チューナーサーバーの EPG を取得し、DB と差分で突き合わせて反映する (設計書 3.3)。
 // 全件を削除して入れ直すことはせず、変わった行だけを書く。
 type Reconciler struct {
@@ -262,16 +267,11 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 			return err
 		}
 		q := sqlc.New(tx)
-		if err := writeServices(ctx, q, services.upserts, now); err != nil {
+		changed, err := writeServiceDiff(ctx, q, services, now)
+		if err != nil {
 			return err
 		}
-		if services.present != nil {
-			changed, err := q.UpdateServicesPresence(ctx, sqlc.UpdateServicesPresenceParams{Present: services.present, Now: now})
-			if err != nil {
-				return fmt.Errorf("failed to update the presence of services: %w", err)
-			}
-			result.ServicesPresenceChanged = int(changed)
-		}
+		result.ServicesPresenceChanged = changed
 		if err := writePrograms(ctx, q, programs.upserts, now); err != nil {
 			return err
 		}
@@ -290,7 +290,7 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 		result.ProgramsDeleted = len(deleted)
 
 		ranges := changedRanges(programs, deleted)
-		if result.ServicesUpserted == 0 && result.ServicesPresenceChanged == 0 && result.ProgramsUpserted == 0 && result.ProgramsDeleted == 0 {
+		if !result.changed() {
 			return nil
 		}
 
@@ -328,6 +328,29 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 }
 
 // serviceDiff は、書き込むサービス。
+// writeServiceDiff は、サービスを書き足すか書き換え、上流から消えたかどうかの印を書く。印を書き換えた行の数を返す。
+func writeServiceDiff(ctx context.Context, q *sqlc.Queries, services *serviceDiff, now time.Time) (int, error) {
+	if err := writeServices(ctx, q, services.upserts, now); err != nil {
+		return 0, err
+	}
+
+	return writePresence(ctx, q, services.present, now)
+}
+
+// writePresence は、上流にあるサービスの ID (present) と突き合わせ、上流から消えたサービスに気づいた時刻を書き、
+// 戻ってきたサービスの時刻を消す (#1973)。present が nil なら何もしない。書き換えた行の数を返す。
+func writePresence(ctx context.Context, q *sqlc.Queries, present []int64, now time.Time) (int, error) {
+	if present == nil {
+		return 0, nil
+	}
+	changed, err := q.UpdateServicesPresence(ctx, sqlc.UpdateServicesPresenceParams{Present: present, Now: now})
+	if err != nil {
+		return 0, fmt.Errorf("failed to update the presence of services: %w", err)
+	}
+
+	return int(changed), nil
+}
+
 type serviceDiff struct {
 	upserts []*tunerserver.Service
 	// present は、上流にあるサービスの ID。nil なら、上流から消えたかどうかを決めない (#1973)。

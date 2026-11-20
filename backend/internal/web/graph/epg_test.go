@@ -537,6 +537,127 @@ func TestServicesExcludeNonMediaServices(t *testing.T) {
 	}
 }
 
+// TestServicesExcludeGoneServices は、上流から消えて 24 時間たったサービスを、一覧と番組表から外し、ID からは引けることを確かめる (#1973)。
+// 消えた BS のサービスしか持たない BS の種別は、サービスを持たない種別にする。
+func TestServicesExcludeGoneServices(t *testing.T) {
+	t.Parallel()
+
+	const bsKey = 4*100000 + 101
+	bsID := graph.GlobalID("Service", strconv.FormatInt(bsKey, 10))
+	tests := []struct {
+		name string
+		// goneFor は、上流から消えたと気づいてからの時間。
+		goneFor   time.Duration
+		query     string
+		variables any
+		// want は、BS のサービスが返るかどうか。
+		want     bool
+		wantGone bool
+	}{
+		{name: "services without gone ones", goneFor: 25 * time.Hour, query: `{ services { id gone } }`, want: false},
+		{name: "services including hidden ones", goneFor: 25 * time.Hour, query: `{ services(includeHidden: true) { id gone } }`, want: false},
+		{name: "services including gone ones", goneFor: 25 * time.Hour, query: `{ services(includeHidden: true, includeGone: true) { id gone } }`, want: true, wantGone: true},
+		{name: "services within the grace", goneFor: 23 * time.Hour, query: `{ services { id gone } }`, want: true, wantGone: false},
+		{
+			name:    "guide",
+			goneFor: 25 * time.Hour,
+			query:   `query { services: guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T12:30:00Z") { service { id gone } } }`,
+			want:    false,
+		},
+		{
+			name:      "guide of the specified service",
+			goneFor:   25 * time.Hour,
+			query:     `query($ids: [ID!]) { services: guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T12:30:00Z", services: $ids) { service { id gone } } }`,
+			variables: map[string]any{"ids": []string{bsID}},
+			want:      false,
+		},
+		{
+			name:      "node",
+			goneFor:   25 * time.Hour,
+			query:     `query($id: ID!) { node(id: $id) { ... on Service { id gone } } }`,
+			variables: map[string]any{"id": bsID},
+			want:      true,
+			wantGone:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.syncEPG(t)
+			_, err := f.pool.Exec(t.Context(), `UPDATE services SET gone_at = $2 WHERE id = $1`, bsKey, testNow().Add(-tt.goneFor))
+			require.NoError(t, err)
+			var got struct {
+				Services []struct {
+					ID      string `json:"id"`
+					Gone    bool   `json:"gone"`
+					Service struct {
+						ID   string `json:"id"`
+						Gone bool   `json:"gone"`
+					} `json:"service"`
+				} `json:"services"`
+				Node *struct {
+					ID   string `json:"id"`
+					Gone bool   `json:"gone"`
+				} `json:"node"`
+			}
+			require.Empty(t, f.query(t, tt.query, tt.variables, &got))
+			found, gone := false, false
+			if got.Node != nil && got.Node.ID == bsID {
+				found, gone = true, got.Node.Gone
+			}
+			for _, s := range got.Services {
+				if s.ID == bsID {
+					found, gone = true, s.Gone
+				}
+				if s.Service.ID == bsID {
+					found, gone = true, s.Service.Gone
+				}
+			}
+			assert.Equal(t, tt.want, found)
+			assert.Equal(t, tt.wantGone, gone)
+		})
+	}
+}
+
+// TestChannelTypesHasServices は、上流から消えていないサービスを持たない種別を、サービスを持たないとすることを確かめる (#1973)。
+func TestChannelTypesHasServices(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		goneFor time.Duration
+		wantBS  bool
+	}{
+		{name: "BS のサービスが消えて 24 時間たった", goneFor: 25 * time.Hour, wantBS: false},
+		{name: "BS のサービスが消えて 24 時間たっていない", goneFor: 23 * time.Hour, wantBS: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.syncEPG(t)
+			_, err := f.pool.Exec(t.Context(), `UPDATE services SET gone_at = $1 WHERE channel_type = 'BS'`, testNow().Add(-tt.goneFor))
+			require.NoError(t, err)
+			var got struct {
+				ChannelTypes []struct {
+					Type        string `json:"type"`
+					HasServices bool   `json:"hasServices"`
+				} `json:"channelTypes"`
+			}
+			require.Empty(t, f.query(t, `{ channelTypes { type hasServices } }`, nil, &got))
+			has := map[string]bool{}
+			for _, ct := range got.ChannelTypes {
+				has[ct.Type] = ct.HasServices
+			}
+			assert.True(t, has["GR"])
+			assert.Equal(t, tt.wantBS, has["BS"])
+		})
+	}
+}
+
 // bsServiceName は、偽チューナーの BS のサービスの名前。
 const bsServiceName = "こたつ BS"
 

@@ -189,7 +189,7 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time, ca
 	for _, row := range channelRows {
 		channels = append(channels, &Channel{ServiceID: row.ServiceID, ChannelType: row.ChannelType, Channel: row.Channel})
 	}
-	multiplexRows, err := q.ListServiceChannels(ctx)
+	multiplexRows, err := q.ListServiceChannels(ctx, domain.ServiceGoneBefore(now))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list service channels: %w", err)
 	}

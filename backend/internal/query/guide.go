@@ -12,9 +12,13 @@ import (
 
 // ListGuideServicesParams は、ListGuideServices の条件。
 type ListGuideServicesParams struct {
-	IncludeHidden     bool
+	IncludeHidden bool
+	// IncludeGone なら、上流から消えたサービスも返す (#1973)。ID から引くときや、管理の画面で使う。
+	IncludeGone       bool
 	MediaServiceTypes []int64
 	IDs               []int64
+	// Now は、上流から消えたかどうかを決める時刻。
+	Now time.Time
 }
 
 // GetGuideProgramParams は、GetGuideProgram の条件。
@@ -86,7 +90,13 @@ type GetPresentVideoResolutionParams struct {
 
 // ListGuideServices は、番組表に並べるサービスを返す。
 func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesParams) ([]domain.Service, error) {
-	result, err := sqlc.New(q.pool).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: arg.IncludeHidden, MediaServiceTypes: arg.MediaServiceTypes, Ids: arg.IDs})
+	result, err := sqlc.New(q.pool).ListGuideServices(ctx, sqlc.ListGuideServicesParams{
+		IncludeHidden:     arg.IncludeHidden,
+		IncludeGone:       arg.IncludeGone,
+		GoneBefore:        domain.ServiceGoneBefore(arg.Now),
+		MediaServiceTypes: arg.MediaServiceTypes,
+		Ids:               arg.IDs,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -124,6 +134,14 @@ func (q *Queries) ListChannelTypesByTypes(ctx context.Context, types []string) (
 	}
 
 	return out, nil
+}
+
+// ListChannelTypesWithServices は、types のうち、now の時点で上流から消えていないサービスを持つ種別を返す (#1973)。
+func (q *Queries) ListChannelTypesWithServices(ctx context.Context, types []string, now time.Time) ([]string, error) {
+	return sqlc.New(q.pool).ListChannelTypesWithServices(ctx, sqlc.ListChannelTypesWithServicesParams{
+		Types:      types,
+		GoneBefore: domain.ServiceGoneBefore(now),
+	})
 }
 
 // GetGuideProgram は、現役の番組を 1 つ返す。なければ pgx.ErrNoRows を返す。

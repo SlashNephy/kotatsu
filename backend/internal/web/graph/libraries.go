@@ -320,7 +320,7 @@ func (r *Resolver) libraryBroadcast(ctx context.Context, b *filelib.Broadcast) (
 	if b.NetworkID != nil {
 		out.NetworkID = new(int(*b.NetworkID))
 		rows, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{
-			IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: []int64{int64(*b.NetworkID)*serviceIDBase + int64(b.ServiceID)},
+			IncludeHidden: true, IncludeGone: true, MediaServiceTypes: []int64{}, IDs: []int64{int64(*b.NetworkID)*serviceIDBase + int64(b.ServiceID)}, Now: r.clock.Now(),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to look up the service of the library file: %w", err)

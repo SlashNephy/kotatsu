@@ -641,6 +641,8 @@ type ChannelType struct {
 	Type        string `json:"type"`
 	DisplayName string `json:"displayName"`
 	SortOrder   int    `json:"sortOrder"`
+	// 上流 (チューナーサーバー) から消えていないサービスを持つかどうか (#1973)。持たない種別は、選択肢に出さない。
+	HasServices bool `json:"hasServices"`
 }
 
 // チャンネル種別の表示の変える項目。省いた項目は変えない。

@@ -332,6 +332,11 @@ models:
       # 管理者の連絡先を含みうるので、リゾルバで管理者かを確かめる (#1869)。
       webPushSubject:
         resolver: true
+  ChannelType:
+    fields:
+      # 上流から消えていないサービスを持つかは、要るときにだけ、種別をまとめて引く (#1973)。
+      hasServices:
+        resolver: true
   Service:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Service
     fields:

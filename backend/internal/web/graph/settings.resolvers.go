@@ -116,7 +116,7 @@ func (r *mutationResolver) UpdateService(ctx context.Context, id string, input m
 	if err != nil {
 		return nil, settingsError(err)
 	}
-	rows, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: []int64{serviceID}})
+	rows, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, IncludeGone: true, MediaServiceTypes: []int64{}, IDs: []int64{serviceID}, Now: r.clock.Now()})
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the service: %w", err)
 	}
