@@ -10,6 +10,7 @@ import type { ChangeChannel } from '../../changes/dataChanges';
 import { ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { ConditionsForm } from '../../conditions/form';
+import { withSelectedGoneServices } from '../../conditions/goneServices';
 import { emptyRuleForm, fromRule, type RuleForm } from '../../rules/form';
 import { RuleEditor, ruleEditorRuleFragment } from '../../rules/RuleEditor';
 import type { RuleEditor_rule$key } from '../../rules/__generated__/RuleEditor_rule.graphql';
@@ -97,6 +98,7 @@ function Rule({ ruleId }: { ruleId: string }) {
         channelTypes {
           type
           displayName
+          hasServices
         }
         storagePoolNames
         ruleGroups {
@@ -157,7 +159,7 @@ function Rule({ ruleId }: { ruleId: string }) {
           : newRuleForm(ruleConditions, data.systemSettings.ruleDefaults)
       }
       channelTypes={data.channelTypes}
-      services={data.services}
+      services={withSelectedGoneServices(data.services, rule?.conditions)}
       pools={data.storagePoolNames}
       defaultPoolId={data.systemSettings.recordingDefaults.poolId ?? null}
       groups={data.ruleGroups}

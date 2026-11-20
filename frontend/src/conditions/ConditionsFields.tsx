@@ -65,12 +65,15 @@ export type ServiceOption = {
   logoUrl: string | null | undefined;
   serviceId: number;
   channelType: { displayName: string };
+  // gone は、上流 (チューナーサーバー) から消えたサービスかどうか (#1973)。すでに選んでいるものだけを、印を付けて選択肢に残す。
+  gone?: boolean;
 };
 
 type Props = {
   value: ConditionsForm;
   onChange: (patch: Partial<ConditionsForm>) => void;
-  channelTypes: readonly { type: string; displayName: string }[];
+  // hasServices が false の種別 (上流から消えていないサービスを持たない種別) は、選んでいるときだけ選択肢に残す (#1973)。
+  channelTypes: readonly { type: string; displayName: string; hasServices?: boolean }[];
   services: readonly ServiceOption[];
 };
 
@@ -121,7 +124,11 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
           <MultiSelect
             label={t('rules.channelTypes')}
             leftSection={<RadioTower size={16} aria-hidden />}
-            data={channelTypes.map((type) => ({ value: type.type, label: type.displayName }))}
+            data={channelTypes
+              .filter(
+                (type) => type.hasServices !== false || value.channelTypes.includes(type.type),
+              )
+              .map((type) => ({ value: type.type, label: type.displayName }))}
             value={value.channelTypes}
             onChange={(selected) => onChange({ channelTypes: selected })}
             clearable
@@ -347,16 +354,21 @@ function ServiceMultiSelect({
   value: string[];
   onChange: (selected: string[]) => void;
 }) {
+  const { t } = useTranslation();
+  // 上流から消えたサービスは、この欄で選んでいるときだけ出す。選択肢から外すと、保存のときに黙って外れたように見える (#1973)。
+  const options = services.filter((service) => service.gone !== true || value.includes(service.id));
+
   return (
     <MultiSelect
       label={label}
       description={description}
       leftSection={icon}
-      data={serviceGroups(
-        services,
-        (service) => `${service.name}（${service.channelType.displayName}・${service.serviceId}）`,
-      )}
-      renderOption={renderServiceOption(services)}
+      data={serviceGroups(options, (service) => {
+        const name = `${service.name}（${service.channelType.displayName}・${service.serviceId}）`;
+
+        return service.gone === true ? t('rules.goneService', { name }) : name;
+      })}
+      renderOption={renderServiceOption(options)}
       value={value}
       onChange={onChange}
       searchable

@@ -25,6 +25,7 @@ const (
 	bsService     = int64(400101)
 	hiddenService = int64(3273601025)
 	dataService   = int64(3273601026)
+	goneService   = int64(3273601027)
 
 	newsName = "ニュース７🈑"
 	bsName   = "ＢＳの番組"
@@ -34,7 +35,7 @@ func testNow() time.Time {
 	return time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 }
 
-// newHandler は、GR と BS のサービスを 1 つずつと、出さないサービス (非表示、データ放送) を持つ DB で Handler を返す。
+// newHandler は、GR と BS のサービスを 1 つずつと、出さないサービス (非表示、データ放送、上流から消えた) を持つ DB で Handler を返す。
 // 3 つ目の戻り値は、データディレクトリ。
 func newHandler(t *testing.T) (*epgstationapi.Handler, *pgxpool.Pool, string) {
 	t.Helper()
@@ -64,6 +65,9 @@ func newHandler(t *testing.T) (*epgstationapi.Handler, *pgxpool.Pool, string) {
 		exec(t, pool, `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, logo_id, hidden, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $4, $5, $6, '27', $7, $8, $9, $9)`, s.id, s.networkID, s.sid, s.name, s.serviceType, s.channelType, s.logo, s.hidden, now)
 	}
+	// 上流から消えて、ずっと前に猶予が過ぎたサービス (#1973)。Handler は実際の時計で読むので、十分に前の時刻にする。
+	exec(t, pool, `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, gone_at, created_at, updated_at)
+		VALUES ($1, 32736, 1027, '消えた', '消えた', 1, 'GR', '27', $2, $2, $2)`, goneService, time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
 	programs := []struct {
 		serviceID int64
 		eventID   int64

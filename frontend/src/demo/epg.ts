@@ -9,11 +9,13 @@ export type DemoService = {
   networkId: number;
   serviceId: number;
   name: string;
-  channelType: { type: string; displayName: string; sortOrder: number };
+  channelType: { type: string; displayName: string; sortOrder: number; hasServices: boolean };
   channel: string;
   remoteControlKeyId: number | null;
   hidden: boolean;
   sortOrder: number | null;
+  // gone は、上流から消えたサービスかどうか。デモの局は、どれも消えていない。
+  gone: false;
   streamUrl: string;
   logoUrl: string | null;
   // jikkyo は、実況のチャンネル。NX-Jikkyo にはつながず、架空のコメントを流す (src/demo/jikkyo.ts)。
@@ -48,8 +50,8 @@ export type DemoProgram = {
 };
 
 export const channelTypes = [
-  { type: 'GR', displayName: '地上波', sortOrder: 0 },
-  { type: 'BS', displayName: 'BS', sortOrder: 1 },
+  { type: 'GR', displayName: '地上波', sortOrder: 0, hasServices: true },
+  { type: 'BS', displayName: 'BS', sortOrder: 1, hasServices: true },
 ];
 
 // demoStreamURL は、デモの映像 (64 秒の合成の映像) の URL。ライブ視聴と録画の再生で、どの局と録画もこれを流す。
@@ -185,6 +187,7 @@ export const services: DemoService[] = serviceSeeds.map((seed, index) => {
     remoteControlKeyId: seed.key,
     hidden: false,
     sortOrder: index,
+    gone: false,
     streamUrl: demoStreamURL,
     logoUrl: logo(seed.short, seed.color),
     jikkyoChannelId: `demo${seed.serviceId}`,

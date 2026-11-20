@@ -142,6 +142,7 @@ function Search() {
         channelTypes {
           type
           displayName
+          hasServices
         }
         services {
           id

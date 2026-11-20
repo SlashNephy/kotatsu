@@ -13,6 +13,7 @@ import type { WatchRuleEditor_watchRule$key } from '../../../watch/__generated__
 import { emptyWatchRuleForm, fromWatchRule } from '../../../watch/watchRuleForm';
 import type { WatchRuleIdQuery } from './__generated__/WatchRuleIdQuery.graphql';
 import { readableParams } from '../../../futon/readableId';
+import { withSelectedGoneServices } from '../../../conditions/goneServices';
 
 export const Route = createFileRoute('/rules/watch/$watchRuleId')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
@@ -86,6 +87,7 @@ function WatchRule({ watchRuleId }: { watchRuleId: string }) {
         channelTypes {
           type
           displayName
+          hasServices
         }
         services {
           id
@@ -124,7 +126,7 @@ function WatchRule({ watchRuleId }: { watchRuleId: string }) {
       watchRuleId={node?.__typename === 'WatchRule' ? node.id : undefined}
       initial={watchRule != null ? fromWatchRule(watchRule) : emptyWatchRuleForm()}
       channelTypes={data.channelTypes}
-      services={data.services}
+      services={withSelectedGoneServices(data.services, watchRule?.conditions)}
     />
   );
 }
