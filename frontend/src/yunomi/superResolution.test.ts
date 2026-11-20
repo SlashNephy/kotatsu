@@ -7,6 +7,7 @@ import {
   upscaleSize,
   type SuperResolutionStrength,
 } from './superResolution';
+import type { HDRCopy } from './hdr';
 import type { Upscaler } from './upscaler';
 
 describe('loadSuperResolution', () => {
@@ -150,6 +151,10 @@ function fakeUpscaler() {
   return { draw: vi.fn<Upscaler['draw']>(), destroy: vi.fn() };
 }
 
+function fakeCopy() {
+  return { draw: vi.fn<HDRCopy['draw']>(), destroy: vi.fn() };
+}
+
 const texture = {} as WebGLTexture;
 
 describe('createYadifUpscaler', () => {
@@ -171,7 +176,7 @@ describe('createYadifUpscaler', () => {
     expect(upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160)).toBe(true);
     expect(upscaler.draw(gl, texture, true, 1440, 1080, 3840, 2160)).toBe(true);
     expect(create).toHaveBeenCalledTimes(1);
-    expect(made.draw).toHaveBeenLastCalledWith(texture, true, 1440, 1080, 3840, 2160, 0.2);
+    expect(made.draw).toHaveBeenLastCalledWith(texture, true, 1440, 1080, 3840, 2160, 0.2, false);
     expect(upscaler.output()).toEqual({ width: 3840, height: 2160 });
   });
 
@@ -182,10 +187,10 @@ describe('createYadifUpscaler', () => {
     const gl = fakeContext();
 
     upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160);
-    expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 2);
+    expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 2, false);
     strength = 4;
     upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160);
-    expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 0);
+    expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 0, false);
   });
 
   test('映す大きさは、切り抜きの拡大率を掛けて覚え、元の大きさ以下で拡大しないときの理由に使う', () => {
@@ -262,5 +267,120 @@ describe('createYadifUpscaler', () => {
     expect(upscaler.size(gl, 1440, 1080, 3840, 2160)).toBeNull();
     expect(upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160)).toBe(false);
     expect(upscaler.output()).toBeNull();
+  });
+
+  test('拡大を切っていても、擬似 HDR で描くなら、元の大きさのまま描かせ、拡大しない理由は出さない', () => {
+    const upscaler = createYadifUpscaler({
+      upscale: () => false,
+      hdr: () => true,
+      create: fakeUpscaler,
+    });
+
+    expect(upscaler.size(fakeContext(), 1440, 1080, 3840, 2160)).toEqual({
+      width: 1440,
+      height: 1080,
+    });
+    expect(upscaler.shown()).toBeNull();
+  });
+
+  test('拡大も擬似 HDR も切っていれば、yadif にそのまま写させる', () => {
+    const upscaler = createYadifUpscaler({ upscale: () => false, create: fakeUpscaler });
+
+    expect(upscaler.size(fakeContext(), 1440, 1080, 3840, 2160)).toBeNull();
+  });
+
+  test('擬似 HDR では、描画先を浮動小数点にしてから、明るい所を伸ばして描く', () => {
+    const copy = fakeCopy();
+    const made = fakeUpscaler();
+    const setDrawingBuffer = vi.fn();
+    const upscaler = createYadifUpscaler({
+      hdr: () => true,
+      create: () => made,
+      createCopy: () => copy,
+      setDrawingBuffer,
+    });
+    const gl = fakeContext();
+
+    expect(upscaler.draw(gl, texture, true, 1440, 1080, 1440, 1080)).toBe(true);
+    expect(setDrawingBuffer).toHaveBeenLastCalledWith(gl, true, 1440, 1080);
+    expect(copy.draw).toHaveBeenLastCalledWith(texture, true, 1440, 1080, true);
+    expect(upscaler.output()).toBeNull();
+    expect(upscaler.hdr()).toBe(true);
+
+    expect(upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160)).toBe(true);
+    expect(setDrawingBuffer).toHaveBeenLastCalledWith(gl, true, 3840, 2160);
+    expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 0.2, true);
+  });
+
+  test('擬似 HDR を切れば、描画先を SDR に戻し、伸ばさずに描く。一度も入れていなければ描画先に触れない', () => {
+    let hdr = false;
+    const copy = fakeCopy();
+    const setDrawingBuffer = vi.fn();
+    const upscaler = createYadifUpscaler({
+      hdr: () => hdr,
+      create: fakeUpscaler,
+      createCopy: () => copy,
+      setDrawingBuffer,
+    });
+    const gl = fakeContext();
+
+    upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160);
+    expect(setDrawingBuffer).not.toHaveBeenCalled();
+    hdr = true;
+    upscaler.draw(gl, texture, false, 1440, 1080, 1440, 1080);
+    hdr = false;
+    upscaler.draw(gl, texture, false, 1440, 1080, 1440, 1080);
+    expect(setDrawingBuffer).toHaveBeenLastCalledWith(gl, false, 1440, 1080);
+    expect(copy.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, false);
+    expect(upscaler.hdr()).toBe(false);
+  });
+
+  test('拡大を切ったまま擬似 HDR を切っても、一度は元の大きさで描かせ、SDR に戻して描き直させる', () => {
+    let hdr = true;
+    const copy = fakeCopy();
+    const setDrawingBuffer = vi.fn();
+    const upscaler = createYadifUpscaler({
+      upscale: () => false,
+      hdr: () => hdr,
+      create: fakeUpscaler,
+      createCopy: () => copy,
+      setDrawingBuffer,
+    });
+    const gl = fakeContext();
+    upscaler.draw(gl, texture, false, 1440, 1080, 1440, 1080);
+    hdr = false;
+
+    expect(upscaler.size(gl, 1440, 1080, 1920, 1080)).toEqual({ width: 1440, height: 1080 });
+    upscaler.draw(gl, texture, false, 1440, 1080, 1440, 1080);
+    expect(setDrawingBuffer).toHaveBeenLastCalledWith(gl, false, 1440, 1080);
+    expect(copy.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, false);
+    expect(upscaler.hdr()).toBe(false);
+    // SDR に戻した後は、yadif にそのまま写させる。
+    expect(upscaler.size(gl, 1440, 1080, 1920, 1080)).toBeNull();
+  });
+
+  test('描画先を浮動小数点にできなければ、知らせて SDR で描き、以後は擬似 HDR にしない', () => {
+    const copy = fakeCopy();
+    const onHDRUnavailable = vi.fn();
+    const setDrawingBuffer = vi.fn((_gl: WebGL2RenderingContext, hdr: boolean) => {
+      if (hdr) {
+        throw new Error('the drawing buffer cannot hold floating point colors');
+      }
+    });
+    const upscaler = createYadifUpscaler({
+      hdr: () => true,
+      create: fakeUpscaler,
+      createCopy: () => copy,
+      setDrawingBuffer,
+      onHDRUnavailable,
+    });
+    const gl = fakeContext();
+
+    expect(upscaler.draw(gl, texture, false, 1440, 1080, 1440, 1080)).toBe(true);
+    expect(onHDRUnavailable).toHaveBeenCalledTimes(1);
+    expect(copy.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, false);
+    expect(upscaler.hdr()).toBe(false);
+    // 拡大しない大きさなら、元の大きさで描かせず、yadif にそのまま写させる。
+    expect(upscaler.size(gl, 1440, 1080, 1422, 800)).toBeNull();
   });
 });
