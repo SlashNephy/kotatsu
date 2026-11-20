@@ -166,3 +166,32 @@ ON CONFLICT (id) DO UPDATE SET token_encrypted = EXCLUDED.token_encrypted, updat
 
 -- name: DeleteTMDbToken :execrows
 DELETE FROM tmdb_tokens WHERE id = 1;
+
+-- name: ListProgramDramaMatchTitleKeys :many
+-- 番組の結びつきの作品名の鍵と、番組表かアーカイブにある番組名を、(service_id, start_at) が after より後のものから順に max_count 件返す (#1978)。
+-- kotatsu migrate が鍵を作り直すのに使う。番組名のない結びつきは返さない。
+SELECT m.service_id, m.start_at, m.title_key, COALESCE(p.name, a.name)::text AS name
+FROM program_drama_matches m
+LEFT JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
+LEFT JOIN program_archives a ON a.service_id = m.service_id AND a.event_id = m.event_id AND a.start_at = m.start_at
+WHERE (m.service_id, m.start_at) > (@after_service_id::bigint, @after_start_at::timestamptz)
+  AND COALESCE(p.name, a.name) IS NOT NULL
+ORDER BY m.service_id, m.start_at
+LIMIT @max_count;
+
+-- name: RekeyProgramDramaMatch :exec
+-- 番組の結びつきの作品名の鍵を書き直し、確定を外して、次の照合で照合し直させる (#1978)。
+UPDATE program_drama_matches SET title_key = @title_key, finalized_at = NULL
+WHERE service_id = @service_id AND start_at = @start_at;
+
+-- name: CopyDramaTitleOverride :exec
+-- 作品名の鍵 from_key の上書きを、鍵 to_key に写す (#1978)。to_key に上書きがあれば、そちらを残す。
+INSERT INTO drama_title_overrides (title_key, tmdb_series_id, updated_at)
+SELECT @to_key::text, src.tmdb_series_id, src.updated_at FROM drama_title_overrides src WHERE src.title_key = @from_key::text
+ON CONFLICT (title_key) DO NOTHING;
+
+-- name: DeleteUnusedDramaTitleOverride :exec
+-- 作品名の鍵 key の上書きを、その鍵の番組の結びつきがなければ消す (#1978)。
+DELETE FROM drama_title_overrides o
+WHERE o.title_key = @key::text
+  AND NOT EXISTS (SELECT 1 FROM program_drama_matches m WHERE m.title_key = o.title_key);

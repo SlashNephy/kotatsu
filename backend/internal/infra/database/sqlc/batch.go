@@ -236,6 +236,56 @@ func (b *SetRecordingHistorySeriesBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const setRecordingHistoryTitleKey = `-- name: SetRecordingHistoryTitleKey :batchexec
+UPDATE recording_history SET title_key = $1 WHERE id = $2
+`
+
+type SetRecordingHistoryTitleKeyBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetRecordingHistoryTitleKeyParams struct {
+	TitleKey string
+	ID       uuid.UUID
+}
+
+// 録画履歴のキーを書く (#1977)。
+func (q *Queries) SetRecordingHistoryTitleKey(ctx context.Context, arg []SetRecordingHistoryTitleKeyParams) *SetRecordingHistoryTitleKeyBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.TitleKey,
+			a.ID,
+		}
+		batch.Queue(setRecordingHistoryTitleKey, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetRecordingHistoryTitleKeyBatchResults{br, len(arg), false}
+}
+
+func (b *SetRecordingHistoryTitleKeyBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetRecordingHistoryTitleKeyBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const setRecordingNormalized = `-- name: SetRecordingNormalized :batchexec
 UPDATE recordings SET name_normalized = $1, description_normalized = $2 WHERE id = $3
 `

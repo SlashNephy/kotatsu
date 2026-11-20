@@ -530,3 +530,14 @@ FROM (
   WHERE h.recording_id IS NULL AND NOT h.imported AND h.start_at >= @since
 ) AS outcomes
 ORDER BY outcomes.recorded_from;
+
+-- name: ListRecordingHistoryTitleKeys :many
+-- 録画履歴の番組名とキーを、ID が after より後のものから ID の順に max_count 件返す (#1977)。kotatsu migrate がキーを作り直すのに使う。
+SELECT id, name, title_key FROM recording_history
+WHERE id > @after::uuid
+ORDER BY id
+LIMIT @max_count;
+
+-- name: SetRecordingHistoryTitleKey :batchexec
+-- 録画履歴のキーを書く (#1977)。
+UPDATE recording_history SET title_key = @title_key WHERE id = @id;

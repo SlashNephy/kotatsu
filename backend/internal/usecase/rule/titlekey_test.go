@@ -1,10 +1,12 @@
 package rule_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
@@ -34,12 +36,35 @@ func TestTitleKey(t *testing.T) {
 		{name: "bracketed marks between words", in: "ゆるキャン△[新]SEASON3", want: yurucampSeason3},
 		{name: "theatrical version is a different program", in: "[劇場版]ゆるキャン△", want: "[劇場版]ゆるキャン△"},
 		{name: "first and second halves are different programs", in: "映画「タイタニック」[前]", want: "映画「タイタニック」[前]"},
+		{name: "the key mark outside the enclosed blocks", in: "⚿ゆるキャン△", want: yurucamp},
+		{name: "bracketed video marks", in: "[4K][HDR]ゆるキャン△", want: yurucamp},
+		{name: "bracketed marks of several letters", in: "[120P][Hi-Res][22.2]ゆるキャン△", want: yurucamp},
+		{name: "(他) is also a mark", in: "ゆるキャン△(他)", want: yurucamp},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.want, rule.TitleKey(tt.in))
+		})
+	}
+}
+
+// TestTitleKeyEveryEnclosedCharacter は、表のどの囲み文字も、囲み文字で書いても括弧で書いても、印のない番組名と同じキーになることを確かめる。
+// 表に囲み文字を足したときに、TitleKey が取り除く印の一覧から漏れないようにする。
+// [前] と [後] は、括弧で書くと番組名の一部とみなすので除く。
+func TestTitleKeyEveryEnclosedCharacter(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range domain.EnclosedCharacters() {
+		if c.Label == "前" || c.Label == "後" {
+			continue
+		}
+		t.Run(c.Label, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, yurucamp, rule.TitleKey(string(c.Character)+yurucamp), "enclosed")
+			assert.Equal(t, yurucamp, rule.TitleKey(fmt.Sprintf("[%s]%s", c.Label, yurucamp)), "bracketed")
 		})
 	}
 }

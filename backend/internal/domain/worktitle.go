@@ -3,6 +3,7 @@ package domain
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 var (
@@ -66,6 +67,7 @@ func WorkTitle(name string) string {
 
 // workEpisodeStart は、作品名 title の中で、workEpisode*Pattern の話数が始まる位置を返す。いくつも当たれば、いちばん前のものを使う。
 // anime なら、workAnimeEpisodePattern の話数も探す。当たらなければ、title の長さを返す。
+// シーズンや部の番号 (season 2.、part1) は話数とみなさず、その後ろの話数を探す (作品名 season 2. request 20. サブタイトル。#1978)。
 func workEpisodeStart(title string, anime bool) int {
 	start := len(title)
 	if loc := workAnimeEpisodePattern.FindStringSubmatchIndex(title); anime && loc != nil {
@@ -74,17 +76,44 @@ func workEpisodeStart(title string, anime bool) int {
 	for _, pattern := range []*regexp.Regexp{
 		workEpisodeRequestPattern, workEpisodeScorePattern, workEpisodePeriodPattern, workEpisodeOperationPattern, workEpisodeCountPattern,
 	} {
-		loc := pattern.FindStringSubmatchIndex(title)
-		if loc == nil || loc[2] >= start {
-			continue
+		// FindAllStringSubmatchIndex は使わない。当たった部分の終わりの空白を食べ、続く話数の頭の空白が残らないからである。
+		// 当たった位置の次の文字から探し直す。
+		for offset := 0; offset < start; {
+			loc := pattern.FindStringSubmatchIndex(title[offset:])
+			if loc == nil {
+				break
+			}
+			for i := range loc {
+				if loc[i] >= 0 {
+					loc[i] += offset
+				}
+			}
+			if loc[2] >= start {
+				break
+			}
+			if !seasonNumber(title, loc) {
+				start = loc[2]
+
+				break
+			}
+			_, size := utf8.DecodeRuneInString(title[loc[2]:])
+			offset = loc[2] + size
 		}
-		if len(loc) > 4 && loc[4] >= 0 && workSeasonWordPattern.MatchString(title[loc[4]:loc[5]]) {
-			continue
-		}
-		start = loc[2]
 	}
 
 	return start
+}
+
+// seasonNumber は、workEpisode*Pattern が当たった位置 loc が、話数でなくシーズンや部の番号かを返す。
+// 2 つ目のグループ (英語の言葉) があれば、それが workSeasonWordPattern の言葉かで決める (season 2.、part1)。
+// なければ、当たった位置の直前の言葉で決める (workEpisodePeriodPattern の、作品名 season 2. サブタイトル)。
+func seasonNumber(title string, loc []int) bool {
+	if len(loc) > 4 && loc[4] >= 0 {
+		return workSeasonWordPattern.MatchString(title[loc[4]:loc[5]])
+	}
+	fields := strings.Fields(title[:loc[2]])
+
+	return len(fields) > 0 && workSeasonWordPattern.MatchString(fields[len(fields)-1])
 }
 
 // animePrefixed は、番組名 name の頭の飾りに、「アニメ」や「TVアニメ」の前置きがあるかを返す。

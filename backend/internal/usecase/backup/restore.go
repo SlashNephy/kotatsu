@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/usecase/keyrebuild"
 )
 
 // RestoreOptions は、Restore に渡す依存。
@@ -76,6 +77,10 @@ func Restore(ctx context.Context, opts *RestoreOptions, r io.Reader, identities 
 		}
 		// 戻した行を、最新のスキーマに合わせる。正規化した列を埋める処理も、ここで戻した行に効く。
 		if err := database.Migrate(ctx, opts.Logger, opts.DB); err != nil {
+			return err
+		}
+		// 戻した行のキーも、kotatsu migrate と同じく、今のバイナリの計算に合わせる。
+		if err := keyrebuild.Run(ctx, opts.Logger, opts.DB); err != nil {
 			return err
 		}
 
