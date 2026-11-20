@@ -260,11 +260,12 @@ func liveTimestampArgs() []string { return []string{"-copyts"} }
 
 func liveMuxArgs() []string { return []string{"-muxdelay", "0", "-muxpreload", "0"} }
 
-// ffmpegArgs は、FFmpeg の引数を返す。音声は、audio で選んだ tsreadex の出力の音声を 1 つだけ入れる。映像は、どのエンコーダーでも、CPU の bwdif でインターレースを解除してから縮める (設計書 7.3)。
+// ffmpegArgs は、FFmpeg の引数を返す。音声は、audio で選んだ tsreadex の出力の音声を 1 つだけ入れる。映像は、VAAPI のほかは、CPU の bwdif でインターレースを解除してから縮める (設計書 7.3)。
 // bwdif は、インターレースの印のあるフレームだけを解除するので、BS4K のプログレッシブの映像は、そのまま通す。
 // 縮めた後は 8 ビットにする。BS4K の 10 ビットの映像 (HEVC Main10) をそのまま渡すと、x264 は High 10 で書き、
 // ブラウザで再生できない。NVENC は 10 ビットの入力を受け付けない (#806)。
-// VAAPI と QSV では、解除した後に GPU へ送って縮める。NVENC では、映像の復号を GPU (CUDA) でする。BS4K の 2160p の HEVC を CPU で復号すると重いため。
+// VAAPI では、復号から縮小までを GPU でする (VAAPIVideo、#1970)。QSV では、bwdif で解除した後に GPU へ送って縮める。
+// NVENC では、映像の復号を GPU (CUDA) でする。BS4K の 2160p の HEVC を CPU で復号すると重いため。
 // vod が nil でなければ、録画の仮想 HLS のセグメントを書く。
 // 映像を変換しないプリセットは、passthroughArgs で組み立てる。
 func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod *RunOptions) []string {
@@ -288,8 +289,7 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 	options := []string{}
 	switch cfg.Encoder {
 	case config.EncoderVAAPI:
-		device = []string{"-vaapi_device", cfg.VAAPIDevice}
-		filter = deinterlace + ",format=nv12,hwupload,scale_vaapi=w=-2:h=" + height
+		device, filter = VAAPIVideo(cfg.VAAPIDevice, preset.Height, preset.Fields)
 		encoder = map[Codec]string{CodecH264: "h264_vaapi", CodecHEVC: "hevc_vaapi"}[preset.Codec]
 	case config.EncoderQSV:
 		device = []string{"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"}
@@ -358,6 +358,32 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 	args = append(args, "-f", "hls", "-hls_segment_type", "mpegts", "-hls_time", strconv.Itoa(segmentSeconds))
 
 	return append(args, hls...)
+}
+
+// VAAPIVideo は、VAAPI で映像を復号し、インターレースを解除して、height の高さの 8 ビット (nv12) に縮める FFmpeg の引数を返す (#1970)。
+// 返す値は、入力の前に置く引数と、-vf の値。録画の MP4 への変換 (transcode) も使う。
+//
+// 復号から縮小までを GPU のメモリのまま行う。BS4K の 2160p の HEVC Main10 を CPU で復号すると重く、ライブ視聴の変換が実時間に届かないため。
+// GPU が入力の形式を復号できなければ (Skylake 世代の Intel の GPU の HEVC 10 ビットなど)、FFmpeg は CPU で復号する。
+// そのときは、フレームが CPU のメモリに届くので、format で nv12 にしてから hwupload で GPU へ送る。GPU で復号したフレームは、
+// format が vaapi のまま通し、hwupload も何もせずに通す。どちらでも、インターレースの解除からは同じく GPU でする。
+//
+// deinterlace_vaapi は、auto=1 で、インターレースの印のあるフレームだけを解除するので、BS4K のプログレッシブの映像は、そのまま通す。
+// fields なら、フィールドごとに 1 フレームにし (rate=field)、bwdif と同じく 59.94fps に固定する。
+// scale_vaapi の format=nv12 で、BS4K の 10 ビットの映像を 8 ビットにする。
+func VAAPIVideo(vaapiDevice string, height int, fields bool) ([]string, string) {
+	device := []string{
+		"-init_hw_device", "vaapi=va:" + vaapiDevice,
+		"-hwaccel", "vaapi", "-hwaccel_device", "va", "-hwaccel_output_format", "vaapi",
+		"-filter_hw_device", "va",
+	}
+	deinterlace := "deinterlace_vaapi=rate=frame:auto=1"
+	if fields {
+		deinterlace = "deinterlace_vaapi=rate=field:auto=1,fps=60000/1001"
+	}
+	filter := "format=nv12|vaapi,hwupload," + deinterlace + ",scale_vaapi=w=-2:h=" + strconv.Itoa(height) + ":format=nv12"
+
+	return device, filter
 }
 
 // passthroughArgs は、映像を変換しないプリセットの FFmpeg の引数を返す (#806)。音声と字幕は、ほかのプリセットと同じく扱う。

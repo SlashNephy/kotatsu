@@ -600,3 +600,119 @@ func TestTranscoderQSVSplitsSegmentsEvery2s(t *testing.T) {
 		})
 	}
 }
+
+// vaapiDevice は、VAAPI で H.264 をエンコードできる、このマシンの GPU のデバイスを返す。なければ、テストを飛ばす。
+// VAAPI のデバイスには、復号しかできないもの (NVIDIA の GPU の VA-API のドライバーなど) もあるので、エンコードを試して選ぶ。
+func vaapiDevice(t *testing.T) string {
+	t.Helper()
+
+	devices, err := filepath.Glob("/dev/dri/renderD*")
+	require.NoError(t, err)
+	for _, device := range devices {
+		check := exec.CommandContext(t.Context(), "ffmpeg", "-hide_banner", "-loglevel", "error", "-vaapi_device", device,
+			"-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30", "-t", "0.1", "-vf", "format=nv12,hwupload", "-c:v", "h264_vaapi", "-f", "null", "-")
+		if err := check.Run(); err == nil {
+			return device
+		}
+	}
+	t.Skip("VAAPI is not available")
+
+	return ""
+}
+
+// TestTranscoderVAAPI は、VAAPI で、復号から縮小までを GPU でして、画質のプリセットどおりの 8 ビットの映像の HLS を書き、
+// セグメントを 2 秒ごとに区切ることを確かめる (#1970)。インターレースの MPEG-2 は、60fps の画質ではフィールドごとに 1 コマにし、
+// BS4K に似せた 10 ビットの HEVC のプログレッシブの映像は、デインターレースを通さずに 59.94fps のまま送る。
+// GPU が復号できない形式 (H.264 の 4:4:4) の入力でも、CPU で復号して、同じく変換する。
+// VAAPI でエンコードできる GPU がなければ、テストを飛ばす。
+func TestTranscoderVAAPI(t *testing.T) {
+	t.Parallel()
+
+	device := vaapiDevice(t)
+	transcoder, err := kyusu.NewTranscoder(&config.Kyusu{Encoder: config.EncoderVAAPI, VAAPIDevice: device, WorkDir: ""})
+	if errors.Is(err, kyusu.ErrToolNotFound) {
+		t.Skip("FFmpeg or tsreadex is not installed")
+	}
+	require.NoError(t, err)
+
+	// 放送と同じ 1080i の MPEG-2 と、GPU が復号できない H.264 の 4:4:4 を、それぞれ 10 秒つくる。
+	// tsreadex は放送の映像の形式 (MPEG-2、H.264、HEVC) しか通さないので、復号できない形式は H.264 のプロファイルで作る。
+	// 入力の名前。bs4k は BS4K に似せた 10 ビットの HEVC、mpeg2 は放送と同じ 1080i の MPEG-2、h264444 は GPU が復号できない H.264 の 4:4:4。
+	const bs4k, mpeg2, h264444 = "bs4k", "mpeg2", "h264-444"
+	inputs := map[string][]byte{
+		bs4k: loadTS(t, "test-hevc-main10.ts"),
+	}
+	for name, codec := range map[string][]string{
+		mpeg2:   {"-vf", "setfield=tff", "-c:v", "mpeg2video", "-flags", "+ilme+ildct", "-b:v", "15M"},
+		h264444: {"-c:v", "libx264", "-pix_fmt", "yuv444p", "-preset", "ultrafast"},
+	} {
+		input := filepath.Join(t.TempDir(), name+".ts")
+		args := make([]string, 0, 32)
+		args = append(args,
+			"-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=1440x1080:rate=30000/1001",
+			"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "10",
+		)
+		args = append(args, codec...)
+		args = append(args, "-c:a", "aac", "-ac", "2", "-f", "mpegts", input)
+		out, err := exec.CommandContext(t.Context(), "ffmpeg", args...).CombinedOutput()
+		require.NoError(t, err, string(out))
+		data, err := os.ReadFile(input)
+		require.NoError(t, err)
+		inputs[name] = data
+	}
+
+	const frames30, frames60 = "30000/1001", "60000/1001"
+	tests := []struct {
+		input         string
+		preset        string
+		wantCodec     string
+		wantHeight    int
+		wantFrameRate string
+	}{
+		{input: mpeg2, preset: preset720p, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30},
+		{input: mpeg2, preset: preset720p60, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
+		{input: mpeg2, preset: "720p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 720, wantFrameRate: frames30},
+		{input: bs4k, preset: vodTestPreset, wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames60},
+		{input: bs4k, preset: preset720p60, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
+		{input: h264444, preset: preset720p, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input+"/"+tt.preset, func(t *testing.T) {
+			t.Parallel()
+
+			preset, ok := kyusu.PresetByName(tt.preset)
+			require.True(t, ok)
+			dir := t.TempDir()
+			require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(inputs[tt.input]), preset, kyusu.AudioFirst, dir))
+
+			segments, err := filepath.Glob(filepath.Join(dir, "segment*.ts"))
+			require.NoError(t, err)
+			require.NotEmpty(t, segments)
+			sort.Strings(segments)
+			got := map[string]probedStream{}
+			for _, s := range probe(t, segments[0]) {
+				got[s.CodecType] = s
+			}
+			assert.Equal(t, tt.wantCodec, got["video"].CodecName)
+			assert.Equal(t, tt.wantHeight, got["video"].Height)
+			assert.Equal(t, tt.wantFrameRate, got["video"].FrameRate)
+			assert.Equal(t, "yuv420p", got["video"].PixFmt)
+
+			playlist, err := os.ReadFile(filepath.Join(dir, kyusu.PlaylistName))
+			require.NoError(t, err)
+			durations := []float64{}
+			for line := range strings.SplitSeq(string(playlist), "\n") {
+				if rest, ok := strings.CutPrefix(line, "#EXTINF:"); ok {
+					d, err := strconv.ParseFloat(strings.TrimSuffix(rest, ","), 64)
+					require.NoError(t, err)
+					durations = append(durations, d)
+				}
+			}
+			// 最後のセグメントは、入力の終わりで短くなりうるので比べない。
+			require.GreaterOrEqual(t, len(durations), 2, "segments: %v", durations)
+			for _, d := range durations[:len(durations)-1] {
+				assert.InDelta(t, 2.0, d, 0.1, "every segment is about 2 seconds: %v", durations)
+			}
+		})
+	}
+}
