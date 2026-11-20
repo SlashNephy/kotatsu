@@ -14,7 +14,13 @@ const channelTypes = [
 ];
 
 const services: ServiceOption[] = [
-  { id: 'live', name: '残る局', logoUrl: null, serviceId: 1, channelType: { displayName: '地上波' } },
+  {
+    id: 'live',
+    name: '残る局',
+    logoUrl: null,
+    serviceId: 1,
+    channelType: { displayName: '地上波' },
+  },
   {
     id: 'gone',
     name: '消えた局',
