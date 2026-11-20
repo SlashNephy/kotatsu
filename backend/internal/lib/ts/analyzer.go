@@ -17,15 +17,11 @@ type Analyzer struct {
 	mu sync.Mutex
 	// offset は、これまでに受け取ったバイト数。
 	offset int64
-	// carry は、前の書き込みの終わりで途切れたパケットの前半。
-	carry    [PacketSize]byte
-	carryLen int
-	// synced は、パケットの境界に合っているかどうか。sync byte が見つからなければ false にし、次の sync byte を探す。
-	synced     bool
-	syncLosses int64
-	packets    int64
-	pids       map[uint16]*pidState
-	programs   *programTable
+	// framer は、書き込みをパケットに切り分ける。同期している間は、次のパケットの頭を確かめない。
+	framer   packetFramer
+	packets  int64
+	pids     map[uint16]*pidState
+	programs *programTable
 	// eit は、EIT[p/f] で放送中とされた番組の音声の構成。
 	eit *eitTable
 	// sections は、PAT と PMT の PID ごとの、組み立て中のセクション。
@@ -143,17 +139,14 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 	}
 
 	return &Analyzer{
-		mu:         sync.Mutex{},
-		offset:     0,
-		carry:      [PacketSize]byte{},
-		carryLen:   0,
-		synced:     true,
-		syncLosses: 0,
-		packets:    0,
-		pids:       map[uint16]*pidState{},
-		programs:   newProgramTable(),
-		sections:   map[uint16]*sectionAssembler{},
-		eit:        newEITTable(),
+		mu:       sync.Mutex{},
+		offset:   0,
+		framer:   newPacketFramer(false, true),
+		packets:  0,
+		pids:     map[uint16]*pidState{},
+		programs: newProgramTable(),
+		sections: map[uint16]*sectionAssembler{},
+		eit:      newEITTable(),
 
 		index:              index,
 		indexErr:           nil,
@@ -177,52 +170,15 @@ func (a *Analyzer) Write(p []byte) (int, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	n := len(p)
-	// 前の書き込みで途切れたパケットを先に埋める。
-	if a.carryLen > 0 {
-		copied := copy(a.carry[a.carryLen:], p)
-		a.carryLen += copied
-		a.offset += int64(copied)
-		p = p[copied:]
-		if a.carryLen < PacketSize {
-			return n, nil
-		}
-		a.handle(a.carry[:], a.offset-PacketSize)
-		a.carryLen = 0
-	}
+	base := a.offset
+	a.offset += int64(len(p))
+	a.framer.feed(p, base, func(b []byte, offset int64) bool {
+		a.handle(b, offset)
 
-	for len(p) > 0 {
-		if p[0] != syncByte {
-			if a.synced {
-				a.synced = false
-				a.syncLosses++
-			}
-			p = p[1:]
-			a.offset++
+		return false
+	})
 
-			continue
-		}
-		if !a.synced && len(p) > PacketSize && p[PacketSize] != syncByte {
-			// 同期を失っている間は、次のパケットの先頭も sync byte であることを確かめてから合わせ直す。
-			// ペイロードの中の 0x47 を、パケットの先頭と取り違えないためである。
-			p = p[1:]
-			a.offset++
-
-			continue
-		}
-		a.synced = true
-		if len(p) < PacketSize {
-			a.carryLen = copy(a.carry[:], p)
-			a.offset += int64(len(p))
-
-			break
-		}
-		a.handle(p[:PacketSize], a.offset)
-		p = p[PacketSize:]
-		a.offset += PacketSize
-	}
-
-	return n, nil
+	return len(p), nil
 }
 
 // Stats は、ここまでの統計を返す。
@@ -233,7 +189,7 @@ func (a *Analyzer) Stats() *Stats {
 	return &Stats{
 		Bytes:      a.offset,
 		Packets:    a.packets,
-		SyncLosses: a.syncLosses,
+		SyncLosses: a.framer.syncLosses,
 		PIDs:       a.pidStats(),
 		Programs:   a.programs.snapshot(),
 

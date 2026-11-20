@@ -12,6 +12,8 @@ const (
 	h264NALIDR   = 5
 	// h264SliceTypeI は、slice_type を 5 で割った余りが I スライスであることを表す値。
 	h264SliceTypeI = 2
+	// h264SliceTypeMax は、slice_type の最大の値。
+	h264SliceTypeMax = 9
 
 	// hevcNALBLAWLP から hevcNALCRA までは、HEVC の IRAP (BLA、IDR、CRA) のピクチャの nal_unit_type。
 	hevcNALBLAWLP = 16
@@ -170,6 +172,7 @@ func (d *iframeDetector) step(b byte) bool {
 
 // startCode は、00 00 01 に続くバイトを読む。
 func (d *iframeDetector) startCode(b byte) bool {
+	found := false
 	switch d.codec {
 	case codecMPEG2:
 		if b == pictureStartCode {
@@ -180,9 +183,7 @@ func (d *iframeDetector) startCode(b byte) bool {
 	case codecH264:
 		switch b & 0x1F {
 		case h264NALIDR:
-			d.resetScan()
-
-			return true
+			found = true
 		case h264NALSlice:
 			d.state = scanSliceHeader
 
@@ -191,13 +192,15 @@ func (d *iframeDetector) startCode(b byte) bool {
 	case codecHEVC:
 		// HEVC の NAL ユニットのヘッダーは 2 バイトで、nal_unit_type は 1 バイト目の 2 ビット目から 6 ビット。
 		nalType := b >> 1 & 0x3F
-		d.resetScan()
-
-		return nalType >= hevcNALBLAWLP && nalType <= hevcNALCRA
+		found = nalType >= hevcNALBLAWLP && nalType <= hevcNALCRA
 	}
 	d.resetScan()
+	// 00 00 01 00 00 01 のように、start code に続く 0x00 が、次の start code の先頭のゼロを兼ねることがある (#1986)。
+	if b == 0x00 {
+		d.zeros = 1
+	}
 
-	return false
+	return found
 }
 
 // isH264ISliceHeader は、H.264 のスライスのヘッダーの先頭 2 バイトから、ピクチャの最初の I スライスかどうかを返す。
@@ -221,7 +224,8 @@ func isH264ISliceHeader(header uint16) bool {
 	}
 	sliceType := int(rest>>(15-leadingZeros)) - 1
 
-	return sliceType%5 == h264SliceTypeI
+	// slice_type は 0〜9。それより大きい値は壊れたヘッダーなので、5 で割った余りを見ない (#1986)。
+	return sliceType <= h264SliceTypeMax && sliceType%5 == h264SliceTypeI
 }
 
 // parsePESHeader は、PES のヘッダーを読み、エレメンタリーストリームの部分と PTS を返す。
