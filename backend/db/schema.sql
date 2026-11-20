@@ -610,6 +610,9 @@ CREATE TABLE services (
   -- 番組表に出さない印と、並び順の上書き。どちらも管理者が画面から変え、同期は上書きしない。
   hidden boolean NOT NULL DEFAULT false,
   sort_order integer,
+  -- 上流 (チューナーサーバー) のサービスの一覧に、無いと初めて気づいた時刻 (#1973)。上流に戻ったら NULL に戻す。
+  -- 予約や録画から参照されうるので行は消さず、無いまま 24 時間たったら、番組表や選択肢から外す (domain.ServiceGoneAfter)。
+  gone_at timestamptz,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL
 );

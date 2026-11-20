@@ -428,6 +428,27 @@ func (q *Queries) ServiceExists(ctx context.Context, id int64) (bool, error) {
 	return exists, err
 }
 
+const updateServicesPresence = `-- name: UpdateServicesPresence :execrows
+UPDATE services
+SET gone_at = CASE WHEN id = ANY($1::bigint[]) THEN NULL ELSE $2::timestamptz END
+WHERE (id = ANY($1::bigint[])) = (gone_at IS NOT NULL)
+`
+
+type UpdateServicesPresenceParams struct {
+	Present []int64
+	Now     time.Time
+}
+
+// 上流のサービスの一覧 (present) と突き合わせ、上流に無いサービスに、無いと気づいた時刻を書き、戻ってきたサービスの時刻を消す (#1973)。
+// 前から無いサービスの時刻は、初めて気づいた時刻のまま残す。変わった行の数を返す。
+func (q *Queries) UpdateServicesPresence(ctx context.Context, arg UpdateServicesPresenceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateServicesPresence, arg.Present, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const upsertService = `-- name: UpsertService :exec
 INSERT INTO services (
   id, network_id, sid, name, name_normalized, service_type, channel_type, channel,

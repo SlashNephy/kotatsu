@@ -9,6 +9,13 @@ SELECT id, network_id, sid, name, service_type, channel_type, channel, remote_co
 FROM services
 ORDER BY id;
 
+-- name: UpdateServicesPresence :execrows
+-- 上流のサービスの一覧 (present) と突き合わせ、上流に無いサービスに、無いと気づいた時刻を書き、戻ってきたサービスの時刻を消す (#1973)。
+-- 前から無いサービスの時刻は、初めて気づいた時刻のまま残す。変わった行の数を返す。
+UPDATE services
+SET gone_at = CASE WHEN id = ANY(@present::bigint[]) THEN NULL ELSE @now::timestamptz END
+WHERE (id = ANY(@present::bigint[])) = (gone_at IS NOT NULL);
+
 -- name: UpsertService :exec
 -- 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
 INSERT INTO services (
