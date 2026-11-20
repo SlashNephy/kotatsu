@@ -2,14 +2,19 @@ package domain_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 )
 
 func TestRuleKeyword(t *testing.T) {
 	t.Parallel()
+
+	const work = "作品名"
 
 	tests := []struct {
 		name string
@@ -51,11 +56,64 @@ func TestRuleKeyword(t *testing.T) {
 		{name: "an episode with a colon", in: "Sample Show Episode: 5", want: "Sample Show"},
 		{name: "only enclosed marks", in: "🈑🈞", want: ""},
 		{name: "falls back to the whole name", in: "「名探偵コナン」", want: "「名探偵コナン」"},
+		// 作品名が読めないときは、印を空白に置き換えず、印で区切った最初の部分にする (#1984)。
+		{name: "falls back to the part before the mark", in: "<アニメイズム>🈟#3", want: "<アニメイズム>"},
+		{name: "falls back without collapsing spaces", in: "<アニメ　　イズム>🈟#3", want: "<アニメ  イズム>"},
+		// 表の囲み文字は、どれも作品名の終わりとする (#1984)。
+		{name: "a trailing performer mark", in: "作品名🈦　#2", want: work},
+		{name: "a trailing 120P mark", in: "作品名🆤", want: work},
+		{name: "a trailing parental lock mark", in: "作品名⚿　#2", want: work},
+		{name: "a trailing bracketed wide mark", in: "作品名[W][P]　#2", want: work},
+		{name: "a trailing bracketed data mark", in: "作品名(d) #2", want: work},
+		// 前編と後編は、番組名の一部とする。
+		{name: "the first part is kept", in: "作品名[前]　#2", want: "作品名[前]"},
+		// 囲み文字の中身は、大文字と小文字を区別する。
+		{name: "an uppercase D is not a mark", in: "作品名(D) #2", want: "作品名(D)"},
+		// 頭の印は、中身が表の語なら長さによらず除く (#1984)。
+		{name: "a leading 120P mark", in: "[120P]作品名　#1", want: work},
+		{name: "a leading Hi-Res mark", in: "[Hi-Res]作品名　#1", want: work},
+		{name: "a leading second screen mark", in: "[2ndScr]作品名　#1", want: work},
+		{name: "a leading lossless mark", in: "[Lossless]作品名　#1", want: work},
+		{name: "a leading 22.2 mark", in: "[22.2]作品名　#1", want: work},
+		{name: "a leading parenthesized mark", in: "(字)作品名　#1", want: work},
+		{name: "a leading parenthesized scheduling mark", in: "【新】(日)作品名　#1", want: work},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, domain.RuleKeyword(tt.in))
+			got := domain.RuleKeyword(tt.in)
+			assert.Equal(t, tt.want, got)
+			if got == "" {
+				return
+			}
+			assert.True(t, keywordMatches(t, got, tt.in), "the keyword %q matches the program", got)
 		})
 	}
+}
+
+// keywordMatches は、番組名のキーワード keyword だけのルールが、番組名 name の番組に一致するかを返す。
+func keywordMatches(t *testing.T, keyword, name string) bool {
+	t.Helper()
+	matcher, err := match.Compile(&match.Conditions{
+		Keywords:           []*match.Keyword{{Text: keyword, Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}},
+		KeywordMatch:       match.KeywordMatchAll,
+		ExcludeKeywords:    []*match.Keyword{},
+		ChannelTypes:       []string{},
+		ServiceIDs:         []int64{},
+		ExcludeServiceIDs:  []int64{},
+		Genres:             []*match.Genre{},
+		ExcludeGenres:      []*match.Genre{},
+		TimeRanges:         []*match.TimeRange{},
+		MinDurationSeconds: nil,
+		MaxDurationSeconds: nil,
+		FreeOnly:           false,
+		Marks:              []string{},
+		ExcludeMarks:       []string{},
+	}, time.UTC)
+	require.NoError(t, err)
+
+	return matcher.Match(match.NewProgram(&match.ProgramInput{
+		ServiceID: 1, SharedFrom: 0, ChannelType: "GR", Name: name, Description: "", Extended: map[string]string{}, Genres: []*match.Genre{},
+		StartAt: time.Date(2026, 11, 20, 0, 0, 0, 0, time.UTC), Duration: 30 * time.Minute, IsFree: true,
+	}))
 }
