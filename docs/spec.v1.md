@@ -2911,6 +2911,7 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
 - `/readyz`はreadiness用で、DBに接続できれば成功を返します。チューナーサーバーの状態は判定に含めません（[3.7](#37-時刻と縮退)）。最後にDBに接続できてから5分の間は、接続できなくても成功を返します。DBが短い間止まっても、tenbanをServiceから外さず、覚えた結果で視聴を続けるためです（[9.5](#95-セッションと防御)、#1084）。起動してから一度も接続できていなければ、失敗を返します。
 - `/healthz`と`/readyz`は、外部からの死活監視に使えるよう、認証なしで最小限の情報だけを返します。
 - `/metrics`は、別の待ち受けアドレス（既定は`:9090`）で公開します。メトリクスのラベルには、番組名のように視聴の傾向が分かる情報を入れません。
+- プロセスの中を調べるときのために、`metrics.pprof`（`KOTATSU_METRICS_PPROF`、Helm Chartでは`metrics.pprof`）を`true`にすると、同じ待ち受けで、Goのpprofのプロファイル（`/debug/pprof/`）も返します（#1959）。既定では返しません。認証をかけず、ゴルーチンのスタックやコマンドラインの引数が読めるので、APIの待ち受けには載せず、`/metrics`の待ち受けにだけ置きます。
 - Helm Chartで入れたときは、`metrics.podMonitor.enabled`で、Prometheus OperatorのPodMonitorを作れます。どのロールのPodも`metrics`のポートで待ち受けるので、PodMonitorで全ロールのPodを直接読みます。ロールを分けた構成では、ServiceがtenbanのPodしか選ばないので、ServiceMonitorではnekoやkyusuの値を読めないためです。Podの`app.kubernetes.io/component`（`all`かロールの名前）は、`role`のラベルにします。DBから読まない値（`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、`kotatsu_tenban_database_fallbacks_total`、`kotatsu_mikan_database_unreachable_seconds`）が、どのロールのものかを見分けるためです。間隔、ラベル、relabelingはvaluesで変えられます。
 - 主なメトリクスは、録画中の件数、失敗の件数、ドロップの数、予約の割り当ての状態、チューナーの使用状況、保存先プールの空き容量、EPGの同期の遅れ、nekoのリースを持っているインスタンス、Riverのキューの長さ、kyusuのセッション数、tenbanの配信の本数です。名前は次のとおりです。
 

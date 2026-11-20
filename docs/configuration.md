@@ -168,6 +168,7 @@ Helm Chartは、この値に自動でPodのIPを入れます。
 | YAML | 環境変数 | 既定値 | 内容 |
 | --- | --- | --- | --- |
 | `metrics.listen` | `KOTATSU_METRICS_LISTEN` | `:9090` | `/metrics`の待ち受けアドレス |
+| `metrics.pprof` | `KOTATSU_METRICS_PPROF` | `false` | `true`なら、`metrics.listen`のアドレスで`/debug/pprof/`も返す。認証をかけないので、待ち受けを外に出している構成では有効にしない |
 
 `/metrics`は、APIとは別のアドレスで公開します。
 

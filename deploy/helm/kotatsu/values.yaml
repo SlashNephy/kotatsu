@@ -202,6 +202,9 @@ networkPolicy:
 
 # metrics は、/metrics の scrape の設定 (設計書 11.3)。どのロールの Pod も、metrics のポート (9090 番) で待ち受ける。
 metrics:
+  # pprof を true にすると、metrics のポートで /debug/pprof/ も返す (#1959)。プロセスの中を調べるときだけ有効にする。
+  # 認証をかけないので、metrics のポートを NetworkPolicy で絞っていない構成では有効にしない。
+  pprof: false
   # podMonitor は、Prometheus Operator の PodMonitor。CRD (monitoring.coreos.com/v1) のないクラスターでは作れないので、既定では作らない。
   # 全ロールの Pod を読み、Pod の component (all か、ロールの名前) を role のラベルにする。
   podMonitor:
