@@ -99,7 +99,8 @@ const webhookPatterns = [
 ];
 
 // 4. URL の中の資格情報 (scheme://ユーザー:パスワード@)。資格の部分だけを伏せる。
-const credentialsPattern = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:"'<>\\]+:[^\s/@"'<>\\]*@/gi;
+// 資格には ? と # を含められない (RFC 3986 の userinfo)。含めると、ポートの直後のクエリの @ までを資格とみなす (#1983)。
+const credentialsPattern = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:?#"'<>\\]+:[^\s/@?#"'<>\\]*@/gi;
 
 // 5. Authorization、Proxy-Authorization、Cookie、Set-Cookie の値。行の終わりまで伏せる。
 const headerPattern =
@@ -122,10 +123,13 @@ const secretName = String.raw`[\w.-]*(?:secret|token|password|passwd|pwd|api[ _-
 // JSON の形 ("名前":"値")。
 const jsonSecretPattern = new RegExp(String.raw`("${secretName}"\s*:\s*)"((?:[^"\\]|\\.)*)"`, 'gi');
 // key=value と key: value の形。値が引用符で囲まれていれば、中に空白があっても、閉じる引用符まで伏せる。
+// 引用符のない値は、前の規則で伏せた印を途中に含んでも、印ごと 1 つの値として読む。印で値を切ると、印の後ろが残る (#1983)。
 const plainSecretPattern = new RegExp(
-  String.raw`(?<![\w.-])(${secretName})(\s*[=:]\s*)(\[REDACTED(?:_[A-Z]+)?\]|"(?:[^"\\]|\\.)*"|'[^']*'|[^\s,;&"'}\])]+)`,
+  String.raw`(?<![\w.-])(${secretName})(\s*[=:]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|(?:\[REDACTED(?:_[A-Z]+)?\]|[^\s,;&"'}\])])+)`,
   'gi',
 );
+// onlyMarks は、値が印だけでできているかを返す。
+const onlyMarks = (value: string) => /^(?:\[REDACTED(?:_[A-Z]+)?\])+$/.test(value);
 
 function redactNamedSecrets(text: string): string {
   text = text.replace(jsonSecretPattern, (whole, head: string, value: string) =>
@@ -137,7 +141,7 @@ function redactNamedSecrets(text: string): string {
     (whole, name: string, separator: string, value: string) => {
       const quote = value.startsWith('"') || value.startsWith("'") ? value[0] : '';
       const inner = quote === '' ? value : value.slice(1, -1);
-      if (inner === '' || isMark(inner)) {
+      if (inner === '' || onlyMarks(inner)) {
         return whole;
       }
 
@@ -153,6 +157,19 @@ const queryPattern =
 // 10. メールアドレス。
 const emailPattern =
   /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(?![A-Za-z0-9-])/g;
+
+// redactEmails は、メールアドレスを伏せる。「a@b.com+c@d.com」のように、アドレスの直後に + などで次のアドレスが続くと、
+// 次のアドレスは前が英数字の続きに見えて当たらない。伏せた後は前が印になって当たるので、変わらなくなるまでかける (#1983)。
+// かけるたびに @ が 1 つ以上減るので、必ず止まる。
+function redactEmails(text: string): string {
+  for (;;) {
+    const next = text.replace(emailPattern, marks.email);
+    if (next === text) {
+      return text;
+    }
+    text = next;
+  }
+}
 
 // 11. カード番号。
 // 4 桁ずつ空白かハイフンで区切ったもの (と、American Express などの 4-6-5、4-6-4) は、区切りの形と Luhn の検査で見分ける。
@@ -385,7 +402,7 @@ export function redact(text: string, { secrets, hosts }: RedactOptions): string 
   text = text.replace(queryPattern, (whole, head: string, value: string) =>
     isMark(value) ? whole : `${head}${marks.secret}`,
   );
-  text = text.replace(emailPattern, marks.email);
+  text = redactEmails(text);
   text = redactCards(text);
   text = text.replace(ipv6Pattern, (address) => (/\d/.test(address) ? marks.ip : address));
   text = text.replace(ipv4Pattern, marks.ip);

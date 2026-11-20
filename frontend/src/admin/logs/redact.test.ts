@@ -73,6 +73,12 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       input: 'open https://github.com/SlashNephy/kotatsu',
       want: 'open https://github.com/SlashNephy/kotatsu',
     },
+    {
+      // 資格には ? と # を含められないので、ポートの直後のクエリの @ までを資格とみなさない (#1983)。
+      rule: '4 ポートの直後のクエリの @ は資格の区切りにしない',
+      input: 'open http://example.com:8080?email=user@example.org',
+      want: `open http://${marks.host}:8080?email=${marks.email}`,
+    },
     // 5. Authorization などのヘッダー
     {
       rule: '5 ヘッダーの値を行の終わりまで伏せる',
@@ -129,6 +135,18 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       input: 'password=[REDACTED] token: [REDACTED_SECRET]',
       want: 'password=[REDACTED] token: [REDACTED_SECRET]',
     },
+    {
+      // 値の先頭だけが前の規則で印になっていても、後ろを残さない (#1983)。
+      rule: '8 値の先頭が印でも、値の全体を伏せる',
+      input: 'token=[REDACTED_SECRET]-suffix',
+      want: `token=${marks.secret}`,
+    },
+    {
+      // 値の途中が前の規則で印になっていても、印で値を切らない (#1983)。
+      rule: '8 値の途中に印があっても、値の全体を伏せる',
+      input: 'password=https://user:pass@nas.local:40772/api next',
+      want: `password=${marks.secret} next`,
+    },
     // 9. URL のクエリの鍵
     {
       rule: '9 クエリの鍵の値を伏せる',
@@ -151,6 +169,12 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       rule: '10 @ を含むだけのものは触らない',
       input: '@types/node v@1 user@localhost',
       want: '@types/node v@1 user@localhost',
+    },
+    {
+      // アドレスの直後に + で次のアドレスが続いても、どちらも伏せる (#1983)。+ は、後ろのアドレスのローカル部として伏せる。
+      rule: '10 + でつながったメールアドレスをどちらも伏せる',
+      input: 'to a@b.com+c@d.com',
+      want: `to ${marks.email}${marks.email}`,
     },
     // 11. カード番号
     {
