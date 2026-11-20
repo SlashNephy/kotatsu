@@ -104,15 +104,37 @@ func (s *Secrets) Apply(text string) string {
 	if !truncated {
 		return text
 	}
+	// どの秘密の前半とも一致する、最も長い末尾を伏せる。先に見つかった秘密で決めると、別の秘密の、もっと長い前半が残る (#1982)。
+	// 印 ([REDACTED_SECRET] や設定の [REDACTED]) の中から始まる末尾は、秘密の前半ではないので見ない。印を崩さないためである。
+	limit := len(body) - lastMarkEnd(body)
+	longest := 0
 	for _, value := range s.values {
-		for length := len(value) - 1; length >= minTailPrefix; length-- {
-			if len(body) >= length && strings.EqualFold(body[len(body)-length:], value[:length]) {
-				return body[:len(body)-length] + SecretMark + truncationMark
+		for length := min(len(value)-1, limit); length > longest && length >= minTailPrefix; length-- {
+			if strings.EqualFold(body[len(body)-length:], value[:length]) {
+				longest = length
+
+				break
 			}
 		}
 	}
+	if longest == 0 {
+		return text
+	}
 
-	return text
+	return body[:len(body)-longest] + SecretMark + truncationMark
+}
+
+// markPattern は、伏せた値の代わりに置く印 (SecretMark と、設定の秘密を表に出すときの [REDACTED])。
+var markPattern = regexp.MustCompile(`\[REDACTED(?:_[A-Z]+)?\]`)
+
+// lastMarkEnd は、text の最後の印の終わりの位置を返す。印がなければ 0 を返す。
+func lastMarkEnd(text string) int {
+	matches := markPattern.FindAllStringIndex(text, -1)
+	if len(matches) == 0 {
+		return 0
+	}
+
+	return matches[len(matches)-1][1]
 }
 
 // URLSecrets は、URL の文字列 raw のうち、秘密として伏せる部分を返す。
