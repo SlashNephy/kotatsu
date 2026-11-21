@@ -2,10 +2,11 @@
 //
 // EPGStation から取り込んだ録画には、Kotatsu が録画中に作る索引やドロップの集計がない。
 // このジョブは、取り込んだ TS を読み直して、セグメントの索引を作り、ドロップ、エラー、スクランブルを数え直す。
-// 索引ができたら、代表画像とプレビュー画像を作るジョブを投入する。
+// 代表画像かプレビュー画像がないか、索引より古ければ (索引が変わった)、代表画像とプレビュー画像を作るジョブを投入する (#2012)。
 package analysis
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -99,7 +100,7 @@ type Database interface {
 }
 
 // AnalyzeWorker は、録画のセグメントを読み、索引を作り、ドロップ、エラー、スクランブルを数え直す。
-// 索引と集計を記録するトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
+// 画像を作り直すときは、索引と集計を記録するトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
 type AnalyzeWorker struct {
 	river.WorkerDefaults[AnalyzeArgs]
 
@@ -107,13 +108,20 @@ type AnalyzeWorker struct {
 	store    *kago.Store
 	clock    clock.Clock
 	inserter Inserter
+	// preview は、プレビュー画像を作るかどうかを返す。作らないなら、プレビュー画像がなくても画像を作り直さない。
+	preview func(ctx context.Context) (bool, error)
 }
 
 var _ river.Worker[AnalyzeArgs] = new(AnalyzeWorker)
 
 // NewAnalyzeWorker は AnalyzeWorker を返す。store は、このインスタンスにマウントされたプール。
-func NewAnalyzeWorker(db Database, store *kago.Store, clk clock.Clock, inserter Inserter) *AnalyzeWorker {
-	return &AnalyzeWorker{WorkerDefaults: river.WorkerDefaults[AnalyzeArgs]{}, db: db, store: store, clock: clk, inserter: inserter}
+// preview は、ジョブごとに、プレビュー画像を作るかどうかを返す。画像を作るジョブ (thumbnail.GenerateWorker) と同じ設定を読む。
+func NewAnalyzeWorker(
+	db Database, store *kago.Store, clk clock.Clock, inserter Inserter, preview func(ctx context.Context) (bool, error),
+) *AnalyzeWorker {
+	return &AnalyzeWorker{
+		WorkerDefaults: river.WorkerDefaults[AnalyzeArgs]{}, db: db, store: store, clock: clk, inserter: inserter, preview: preview,
+	}
 }
 
 func (w *AnalyzeWorker) Timeout(*river.Job[AnalyzeArgs]) time.Duration {
@@ -218,7 +226,74 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 		audios = nil
 	}
 
-	return w.record(ctx, job.Args.RecordingID, job.Priority, results, total, audios)
+	regenerate, err := w.needsImages(ctx, files, results)
+	if err != nil {
+		return err
+	}
+
+	return w.record(ctx, job.Args.RecordingID, job.Priority, results, total, audios, regenerate)
+}
+
+// needsImages は、解析の後に、代表画像とプレビュー画像を作り直すかどうかを返す (#2012)。
+// 代表画像か、作る設定のときのプレビュー画像がデータディレクトリにないか、どれかのセグメントの索引より古ければ作る。
+// 画像は索引の I フレームの位置から作るので、索引が変わったら作り直す。索引は、中身が変わったときだけ置き換える (analyze) ので、
+// 索引が画像より新しいことが、画像を作った後に索引が変わったしるしになる。取り込んだ録画の最初の解析と、
+// セグメントをつないだ後の解析 (つなぐときに索引を消す) では、索引を新しく書くので、作り直す。
+// しるしをファイルの日時に置くので、画像を作るジョブを入れる前に解析が失敗しても、やり直したときに作り直す。
+func (w *AnalyzeWorker) needsImages(ctx context.Context, files []sqlc.RecordingFile, results []*analyzed) (bool, error) {
+	owner, ok := thumbnail.ImageSegment(files)
+	if !ok {
+		return true, nil
+	}
+	names := []string{thumbnail.ThumbnailFileName}
+	preview, err := w.preview(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to read whether to generate the preview: %w", err)
+	}
+	if preview {
+		names = append(names, thumbnail.PreviewFileName, thumbnail.ManifestFileName)
+	}
+	var newestIndex time.Time
+	for _, result := range results {
+		info, found, err := w.stat(kago.IndexLocation(result.segment.ID))
+		if err != nil {
+			return false, err
+		}
+		if !found {
+			return true, nil
+		}
+		if info.ModTime().After(newestIndex) {
+			newestIndex = info.ModTime()
+		}
+	}
+	for _, name := range names {
+		info, found, err := w.stat(kago.DataLocation(owner, name))
+		if err != nil {
+			return false, err
+		}
+		if !found || info.ModTime().Before(newestIndex) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// stat は、データディレクトリのファイル location の情報を返す。なければ false を返す。
+func (w *AnalyzeWorker) stat(location *kago.Location) (os.FileInfo, bool, error) {
+	abs, err := w.store.Path(location.PoolID, location.Path)
+	if err != nil {
+		return nil, false, err
+	}
+	info, err := os.Stat(abs)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to inspect the data directory: %w", err)
+	}
+
+	return info, true, nil
 }
 
 // segments は、録画のファイルから TS のセグメントを選ぶ。
@@ -257,6 +332,7 @@ func overlaps(segment, next *sqlc.RecordingFile) bool {
 
 // analyze は、セグメントを読み通して、データディレクトリに索引を書き、統計を返す。
 // cutoff を渡せば、PTS がそこに届いたときの統計も返す。索引は作り直すたびに切り詰めて書くので、何度実行しても同じ索引になる。
+// 中身が前の索引と同じなら、前の索引を置き換えない (#2012)。
 func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile, cutoff *int64) (*analyzed, *ts.Stats, error) {
 	segmentPath, err := w.store.Path(segment.PoolID, segment.Path)
 	if err != nil {
@@ -311,17 +387,42 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	if err := output.Close(); err != nil {
 		return nil, nil, fmt.Errorf("failed to close the index file: %w", err)
 	}
-	if err := sharedfile.Rename(tmpPath, indexPath); err != nil {
-		return nil, nil, fmt.Errorf("failed to replace the index file: %w", err)
+	// 中身が変わらなければ、今の索引を残す。索引の日時で、画像を作った後に索引が変わったかを見分ける (needsImages)。
+	changed, err := indexChanged(indexPath, tmpPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	if changed {
+		if err := sharedfile.Rename(tmpPath, indexPath); err != nil {
+			return nil, nil, fmt.Errorf("failed to replace the index file: %w", err)
+		}
 	}
 
 	return &analyzed{segment: segment, pidStats: nil, video: stats.Video}, stats, nil
 }
 
-// record は、集計を記録し、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
+// indexChanged は、新しく書いた索引 tmpPath が、今の索引 indexPath と違うかを返す。今の索引がなければ true を返す。
+// 索引は、I フレームの位置と PTS を並べたもので、同じ TS からは同じ索引になるので、中身を比べる。
+func indexChanged(indexPath, tmpPath string) (bool, error) {
+	current, err := os.ReadFile(indexPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to read the current index: %w", err)
+	}
+	next, err := os.ReadFile(tmpPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to read the new index: %w", err)
+	}
+
+	return !bytes.Equal(current, next), nil
+}
+
+// record は、集計を記録し、regenerate なら、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
 // audios は、TS から読んだ音声の構成の JSON。読めなければ nil。
 func (w *AnalyzeWorker) record(
-	ctx context.Context, recordingID uuid.UUID, priority int, results []*analyzed, total *ts.PIDStats, audios []byte,
+	ctx context.Context, recordingID uuid.UUID, priority int, results []*analyzed, total *ts.PIDStats, audios []byte, regenerate bool,
 ) error {
 	now := w.clock.Now()
 	err := pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
@@ -353,6 +454,9 @@ func (w *AnalyzeWorker) record(
 			if err := q.SetRecordingAudiosIfUnknown(ctx, sqlc.SetRecordingAudiosIfUnknownParams{Audios: audios, Now: now, ID: recordingID}); err != nil {
 				return fmt.Errorf("failed to record the audio components: %w", err)
 			}
+		}
+		if !regenerate {
+			return nil
 		}
 		// 画像は、解析と同じ優先度で作る。取り込んだ録画の画像は、新しく録った録画の画像より後に回し、
 		// 頼まれてやり直す録画と、セグメントをつないだ録画の画像は、取り込んだ分を待たせない。キューと一意性は、GenerateArgs に従う。
