@@ -17,19 +17,39 @@ ARG TSREADEX_REPOSITORY=https://github.com/xtne6f/tsreadex.git
 ARG WHISPER_CPP_VERSION=v1.9.5
 ARG WHISPER_CPP_REPOSITORY=https://github.com/ggml-org/whisper.cpp.git
 
-# ffmpeg のイメージに入れる Debian のパッケージ。
+# FFmpeg は、リリースの tarball からビルドする (#2001)。tarball は、リリースの署名鍵 (https://ffmpeg.org/download.html#releases) の
+# 署名を確かめてから使う。
+# renovate: datasource=github-tags depName=FFmpeg/FFmpeg versioning=loose extractVersion=^n(?<version>\d+\.\d+(?:\.\d+)?)$
+ARG FFMPEG_VERSION=9.1
+ARG FFMPEG_SIGNING_FINGERPRINT=FCF986EA15E6E293A5644F10B4322F04D67658D8
+ARG FFMPEG_DEPENDENCIES="libx264-dev libx265-dev libnuma-dev libva-dev libdrm-dev"
+ARG FFMPEG_DEPENDENCIES_AMD64="libvpl-dev"
+
+# NVENC と NVDEC を、実行時に読み込むためのヘッダー。版で、動く NVIDIA のドライバの下限が決まる (12.1 は Linux で 530.41.03 以降)。
+# 下限を上げないよう、Renovate では 12.1 の中でだけ上げる (renovate.json5)。
+# renovate: datasource=github-tags depName=FFmpeg/nv-codec-headers versioning=loose extractVersion=^n(?<version>\d+\.\d+\.\d+\.\d+)$
+ARG NV_CODEC_HEADERS_VERSION=12.1.14.1
+ARG NV_CODEC_HEADERS_REPOSITORY=https://github.com/FFmpeg/nv-codec-headers.git
+
+# ffmpeg のイメージに入れる Debian のパッケージ。FFmpeg がリンクする x264、x265、libva、libdrm と、VAAPI と QSV のドライバ。
 # VAAPI と QSV のドライバのうち、Intel のものは amd64 にしかない。Intel の VAAPI のドライバだけは、non-free の
 # intel-media-va-driver-non-free を入れる (#509)。main の intel-media-va-driver は、Gen11 以前の GPU で、縮小 (VPP) と
 # HEVC のエンコードができないため。ライセンスは Expat で再配布できるが、GPU のバイナリにソースがないので non-free にある (付録 B)。
-ARG RUNTIME_PACKAGES="ca-certificates ffmpeg mesa-va-drivers"
+ARG RUNTIME_PACKAGES="ca-certificates libx264-164 libx265-215 libva2 libva-drm2 libdrm2 mesa-va-drivers"
 ARG RUNTIME_PACKAGES_AMD64="intel-media-va-driver-non-free libvpl2 libmfx-gen1.2"
 
-# Debian 13 の slim。ビルドするマシンで動かす段 (--platform=$BUILDPLATFORM) と、対象のアーキテクチャで動かす段の両方の土台にする。
-FROM docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS debian
+# Debian 13 の slim。対象のアーキテクチャで動かす段 (debian) と、ビルドするマシンで動かす段 (debian-build) の土台にする。
+# FROM --platform は、段の名前に付けても効かないので、イメージを 2 回書く。
+ARG DEBIAN_IMAGE=docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+
+FROM ${DEBIAN_IMAGE} AS debian
+SHELL ["/usr/bin/bash", "-euxo", "pipefail", "-c"]
+
+FROM --platform=$BUILDPLATFORM ${DEBIAN_IMAGE} AS debian-build
 SHELL ["/usr/bin/bash", "-euxo", "pipefail", "-c"]
 
 # クロスコンパイルに使う段。対象のアーキテクチャの GNU のツールチェーンを入れ、その三つ組を /triple に書いておく。
-FROM --platform=$BUILDPLATFORM debian AS cross
+FROM debian-build AS cross
 ARG TARGETARCH
 RUN <<EOF
   case "$TARGETARCH" in
@@ -86,7 +106,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/lib/buildinfo.version=${VERSION}" -o /out/kotatsu ./backend/cmd/kotatsu
 
 # tsreadex は、配布されているバイナリがないので、ソースからビルドする。
-FROM --platform=$BUILDPLATFORM debian AS source-tsreadex
+FROM debian-build AS source-tsreadex
 RUN <<EOF
   apt-get update
   apt-get install -y --no-install-recommends ca-certificates git
@@ -110,7 +130,7 @@ EOF
 
 # 字幕の自動生成 (設計書 6.1、#1682) に使う whisper.cpp の whisper-cli と whisper-vad-speech-segments は、配布されている Linux の
 # バイナリがないので、ソースからビルドする。共有ライブラリを持ち込まないよう、静的にリンクする。
-FROM --platform=$BUILDPLATFORM debian AS source-whisper-cpp
+FROM debian-build AS source-whisper-cpp
 RUN <<EOF
   apt-get update
   apt-get install -y --no-install-recommends ca-certificates git
@@ -144,6 +164,98 @@ RUN <<EOF
   echo "whisper.cpp ${WHISPER_CPP_REPOSITORY%.git} $(git rev-parse HEAD)" > /out/doc/SOURCES
 EOF
 
+FROM debian-build AS source-nv-codec-headers
+RUN <<EOF
+  apt-get update
+  apt-get install -y --no-install-recommends ca-certificates git
+  rm -rf /var/lib/apt/lists/*
+EOF
+ARG NV_CODEC_HEADERS_REPOSITORY
+ARG NV_CODEC_HEADERS_VERSION
+RUN git clone --depth 1 --branch "n$NV_CODEC_HEADERS_VERSION" "$NV_CODEC_HEADERS_REPOSITORY" /src
+
+FROM debian-build AS source-ffmpeg
+RUN <<EOF
+  apt-get update
+  apt-get install -y --no-install-recommends ca-certificates curl gpg gpg-agent xz-utils
+  rm -rf /var/lib/apt/lists/*
+EOF
+ARG FFMPEG_VERSION
+ARG FFMPEG_SIGNING_FINGERPRINT
+WORKDIR /download
+RUN <<EOF
+  tarball="ffmpeg-$FFMPEG_VERSION.tar.xz"
+  curl -fsSL -o "$tarball" "https://ffmpeg.org/releases/$tarball"
+  curl -fsSL -o "$tarball.asc" "https://ffmpeg.org/releases/$tarball.asc"
+  export GNUPGHOME="$(mktemp -d)"
+  curl -fsSL https://ffmpeg.org/ffmpeg-devel.asc | gpg --quiet --import
+  if ! gpg --status-fd 1 --verify "$tarball.asc" "$tarball" 2>/dev/null | grep -q "^\[GNUPG:\] VALIDSIG $FFMPEG_SIGNING_FINGERPRINT "; then
+    echo "the signature of $tarball is not by $FFMPEG_SIGNING_FINGERPRINT" >&2
+    exit 1
+  fi
+  mkdir /src
+  tar -C /src --strip-components 1 -xf "$tarball"
+  echo "FFmpeg https://ffmpeg.org/releases/$tarball sha256:$(sha256sum "$tarball" | cut -d ' ' -f 1)" > /src/SOURCES
+EOF
+
+# FFmpeg は、使う部品 (docker/ffmpeg/components) だけを組み込む。--enable-gpl で構成し、--enable-nonfree は付けない (付録 B)。
+# libav* は静的に、x264 などの Debian のライブラリは動的にリンクする。対象のアーキテクチャのライブラリは、Debian の multiarch で入れる。
+FROM cross AS build-ffmpeg
+ARG TARGETARCH
+ARG FFMPEG_DEPENDENCIES
+ARG FFMPEG_DEPENDENCIES_AMD64
+RUN <<EOF
+  dependencies="$FFMPEG_DEPENDENCIES"
+  if [ "$TARGETARCH" = amd64 ]; then
+    dependencies="$dependencies $FFMPEG_DEPENDENCIES_AMD64"
+  fi
+  dpkg --add-architecture "$TARGETARCH"
+  apt-get update
+  # configure は、ビルドするマシン向けのコンパイラ (gcc と libc6-dev) でも、小さなプログラムを作る。
+  apt-get install -y --no-install-recommends gcc libc6-dev nasm pkgconf $(printf "%s:$TARGETARCH " $dependencies)
+  rm -rf /var/lib/apt/lists/*
+EOF
+COPY --from=source-nv-codec-headers /src/ /build/nv-codec-headers/
+RUN make -C nv-codec-headers install PREFIX=/opt/ffnvcodec
+COPY --from=source-ffmpeg /src/ /build/ffmpeg/
+COPY docker/ffmpeg/components /build/components
+ARG NV_CODEC_HEADERS_REPOSITORY
+WORKDIR /build/ffmpeg
+RUN <<EOF
+  triple="$(cat /triple)"
+  enable=()
+  while read -r kind name only; do
+    case "$kind" in '' | '#'*) continue ;; esac
+    if [ -z "${only:-}" ] || [ "$only" = "$TARGETARCH" ]; then
+      enable+=("--enable-$kind=$name")
+    fi
+  done < /build/components
+  libraries=(--enable-libx264 --enable-libx265 --enable-vaapi --enable-libdrm --enable-ffnvcodec --enable-cuda --enable-nvdec --enable-nvenc)
+  if [ "$TARGETARCH" = amd64 ]; then
+    libraries+=(--enable-libvpl)
+  fi
+  export PKG_CONFIG_LIBDIR="/usr/lib/$triple/pkgconfig:/usr/share/pkgconfig:/opt/ffnvcodec/lib/pkgconfig"
+  ./configure \
+    --prefix=/usr/local \
+    --enable-cross-compile --target-os=linux --arch="${triple%%-*}" --cross-prefix="$triple-" --pkg-config=pkg-config \
+    --enable-gpl \
+    --disable-autodetect --disable-everything --disable-doc --disable-ffplay --disable-debug \
+    "${libraries[@]}" "${enable[@]}" \
+    || { tail -n 50 ffbuild/config.log; exit 1; }
+  make -j "$(nproc)"
+  make install
+  # ライセンス文書と、ソースの入手先を残す (付録 B)。
+  install -D -m 644 COPYING.GPLv2 /out/doc/FFmpeg.COPYING.GPLv2.txt
+  install -D -m 644 LICENSE.md /out/doc/FFmpeg.LICENSE.md
+  cp SOURCES /out/doc/SOURCES
+  # nv-codec-headers は、ヘッダーの頭にライセンスを書いている。
+  for header in ../nv-codec-headers/include/ffnvcodec/*.h; do
+    echo "== $(basename "$header")"
+    sed -n '1,/\*\//p' "$header"
+  done > /out/doc/nv-codec-headers.License.txt
+  echo "nv-codec-headers ${NV_CODEC_HEADERS_REPOSITORY%.git} $(git -C ../nv-codec-headers rev-parse HEAD)" >> /out/doc/SOURCES
+EOF
+
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:aafe993665bf6200db38a02c11a9351e782a84b6a45e7f33b6695638c88e3931 AS static
 COPY --from=build /out/kotatsu /usr/local/bin/kotatsu
 USER 65532:65532
@@ -154,7 +266,6 @@ FROM debian AS runtime
 ARG TARGETARCH
 ARG RUNTIME_PACKAGES
 ARG RUNTIME_PACKAGES_AMD64
-# FFmpeg は Debian の ffmpeg パッケージ (GPL-2.0-or-later) を使う (#77)。
 # ベースイメージは、Debian のセキュリティの更新 (trixie-security) をすぐには取り込まないので、入っているパッケージも上げる。
 RUN <<EOF
   packages="$RUNTIME_PACKAGES"
@@ -167,15 +278,20 @@ RUN <<EOF
   apt-get install -y --no-install-recommends $packages
   rm -rf /var/lib/apt/lists/*
 EOF
+COPY --from=build-ffmpeg /usr/local/bin/ffmpeg /usr/local/bin/ffprobe /usr/local/bin/
+# 使う部品が、すべて組み込めたかを確かめる (#2001)。
+RUN --mount=source=docker/ffmpeg,target=/tmp/ffmpeg /tmp/ffmpeg/check-components.sh /tmp/ffmpeg/components "$TARGETARCH"
 COPY --from=build-tsreadex /out/bin/ /usr/local/bin/
 # whisper.cpp のモデルは大きく、使う人も選ぶので、イメージに入れない。管理者が画面からダウンロードする (#1682)。
 COPY --from=build-whisper-cpp /out/bin/ /usr/local/bin/
+COPY --from=build-ffmpeg /out/doc/FFmpeg.COPYING.GPLv2.txt /out/doc/FFmpeg.LICENSE.md /out/doc/nv-codec-headers.License.txt /usr/share/doc/kotatsu/third-party/
 COPY --from=build-tsreadex /out/doc/tsreadex.License.txt /usr/share/doc/kotatsu/third-party/
 COPY --from=build-whisper-cpp /out/doc/whisper.cpp.License.txt /usr/share/doc/kotatsu/third-party/
 # ビルドに使ったリポジトリとコミットの一覧 (付録 B) は、それぞれの段で書いたものをつなぐ。
-RUN --mount=from=build-tsreadex,source=/out/doc/SOURCES,target=/tmp/sources/tsreadex \
+RUN --mount=from=build-ffmpeg,source=/out/doc/SOURCES,target=/tmp/sources/ffmpeg \
+    --mount=from=build-tsreadex,source=/out/doc/SOURCES,target=/tmp/sources/tsreadex \
     --mount=from=build-whisper-cpp,source=/out/doc/SOURCES,target=/tmp/sources/whisper.cpp \
-    cat /tmp/sources/tsreadex /tmp/sources/whisper.cpp > /usr/share/doc/kotatsu/third-party/SOURCES
+    cat /tmp/sources/ffmpeg /tmp/sources/tsreadex /tmp/sources/whisper.cpp > /usr/share/doc/kotatsu/third-party/SOURCES
 # 入れた Debian のパッケージとソースパッケージの一覧を、ソースの入手先とともに書き出す (付録 B)。
 RUN --mount=source=docker/debian/write-debian-sources.sh,target=/tmp/write-debian-sources.sh \
     sh /tmp/write-debian-sources.sh /usr/share/doc/kotatsu/third-party/debian-packages.tsv
@@ -183,9 +299,10 @@ RUN --mount=source=docker/debian/write-debian-sources.sh,target=/tmp/write-debia
 # 開発用のイメージ (compose.yaml、docs/development.md)。ソースはマウントして使い、Go と Node.js は mise で入れる。
 # ソースの変更を watchexec で見て、ビルドし直す。生成したファイルが手元のユーザーの持ち物になるよう、UID と GID をそろえる。
 FROM runtime AS dev
+# Node.js は libatomic を使う。runtime の段には入らないので、ここで入れる。
 RUN <<EOF
   apt-get update
-  apt-get install -y --no-install-recommends git
+  apt-get install -y --no-install-recommends git libatomic1
   rm -rf /var/lib/apt/lists/*
 EOF
 COPY --from=docker.io/jdxcode/mise:2026.11.8@sha256:5c6e71a86c8c997c32d30a169b4269bec9d4681a804e29078bac8f44109f2edc /usr/local/bin/mise /usr/local/bin/mise

@@ -1,0 +1,115 @@
+# -ffmpeg イメージの FFmpeg に組み込む部品 (#2001)。--disable-everything から、ここに書いたものだけを有効にする。
+# 1 行に「種類 名前 [アーキテクチャ]」を書く。種類は configure の --enable-<種類>=<名前> の <種類> で、アーキテクチャを
+# 書いた行は、そのアーキテクチャでだけ有効にする。build-ffmpeg の段で configure に渡し、runtime の段で
+# check-components.sh が、組み込めたかを確かめる (依存が足りない部品は、configure が黙って外すため)。
+# 部品を使い始めたり、使うのをやめたりしたら、ここも直す。
+
+# 入力。ISDB の TS (地上波、BS、BS4K) と、remux で読む MP4、チャプターの ffmetadata。
+demuxer mpegts
+demuxer mov
+demuxer ffmetadata
+parser mpegvideo
+parser h264
+parser hevc
+parser aac
+parser aac_latm
+decoder mpeg2video
+decoder h264
+decoder hevc
+decoder aac
+decoder aac_latm
+protocol file
+protocol pipe
+
+# 出力。kyusu の HLS (MPEG-TS のセグメント)、TS の配信、MP4 への変換、サムネイル、CM の見分け、字幕の自動生成の音声。
+muxer hls
+muxer mpegts
+muxer mp4
+muxer null
+muxer rawvideo
+muxer image2pipe
+muxer wav
+encoder libx264
+encoder libx265
+encoder aac
+encoder mjpeg
+encoder pcm_s16le
+encoder rawvideo
+# null の出力 (fielddiff、CM の見分け) では、映像を wrapped_avframe で書く。
+encoder wrapped_avframe
+bsf h264_mp4toannexb
+bsf hevc_mp4toannexb
+bsf aac_adtstoasc
+bsf extract_extradata
+# ロゴの見分けで、キーフレームを間引く (cmdetect/logo_detector.go)。
+bsf noise
+
+# VAAPI (Intel と AMD)。QSV も、VAAPI で復号してから hwmap で渡す (kyusu/transcoder.go)。
+hwaccel mpeg2_vaapi
+hwaccel h264_vaapi
+hwaccel hevc_vaapi
+encoder h264_vaapi
+encoder hevc_vaapi
+filter hwupload
+filter deinterlace_vaapi
+filter scale_vaapi
+filter hwmap
+# QSV。libvpl は amd64 にしかない。
+encoder h264_qsv amd64
+encoder hevc_qsv amd64
+# NVENC と、CUDA (NVDEC) での復号。
+hwaccel mpeg2_nvdec
+hwaccel h264_nvdec
+hwaccel hevc_nvdec
+encoder h264_nvenc
+encoder hevc_nvenc
+
+# フィルター。ffmpeg の CLI が自分で挟むもの (buffer、format、scale、aresample、trim など) も要る。
+filter buffer
+filter buffersink
+filter abuffer
+filter abuffersink
+filter null
+filter anull
+filter format
+filter aformat
+filter scale
+filter aresample
+filter trim
+filter atrim
+filter transpose
+filter hflip
+filter vflip
+filter bwdif
+filter fps
+filter pad
+filter setsar
+filter crop
+filter vstack
+filter split
+filter field
+filter separatefields
+filter signalstats
+filter metadata
+filter scdet
+filter showinfo
+filter silencedetect
+
+# Go のテストが使うもの。開発用のイメージ (dev) は runtime の段を土台にし、その中でテストを動かすため。
+indev lavfi
+# lavfi の入力は、映像を wrapped_avframe、音声を PCM (sine は s16、anullsrc は u8) として渡すので、それぞれのデコーダーが要る。
+decoder wrapped_avframe
+decoder pcm_s16le
+decoder pcm_u8
+filter testsrc2
+filter color
+filter sine
+filter anullsrc
+filter setfield
+filter geq
+filter noise
+filter drawbox
+filter telecine
+filter interlace
+filter volumedetect
+encoder mpeg2video

@@ -195,6 +195,15 @@ export function imagePrograms(note: string): SoftwareEntry[] {
       note,
     },
     {
+      // FFmpeg のビルドに使い、NVENC と NVDEC を実行時に読み込む部分が FFmpeg に入る (#2001)。
+      name: 'nv-codec-headers',
+      version: null,
+      license: 'MIT',
+      url: 'https://github.com/FFmpeg/nv-codec-headers',
+      licenses: [],
+      note,
+    },
+    {
       name: 'tsreadex',
       version: null,
       license: 'MIT',
