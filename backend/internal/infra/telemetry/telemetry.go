@@ -4,13 +4,10 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/http/pprof"
 	"net/url"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -34,27 +31,6 @@ func NewRegistry() *prometheus.Registry {
 	)
 
 	return registry
-}
-
-// NewMetricsHandler は、gatherer の内容を Prometheus 形式で返す /metrics を作る。
-// registry には、/metrics 自身のエラーの数などを登録する。
-// withPprof なら、プロセスの中を調べるための /debug/pprof/ も同じ待ち受けで返す (設計書 11.3、#1959)。
-func NewMetricsHandler(gatherer prometheus.Gatherer, registry *prometheus.Registry, withPprof bool) http.Handler {
-	mux := http.NewServeMux()
-	mux.Handle("GET /metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
-		Registry: registry,
-	}))
-	if withPprof {
-		// Index は、/debug/pprof/heap のような名前の付いたプロファイルも返す。
-		mux.HandleFunc("GET /debug/pprof/", pprof.Index)
-		mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("POST /debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
-	}
-
-	return mux
 }
 
 // NewTracerProvider は、OTLP/HTTP でトレースを送る TracerProvider を返す。
