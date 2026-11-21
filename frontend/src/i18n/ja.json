@@ -634,7 +634,7 @@
       "partial": "本編の一部が欠ける見込みです。{{start}} 〜 {{end}} を録画する予定です",
       "reservedByRule": "ルール録画予約済み",
       "relatedRules": "関連するルール",
-      "ruleSettings": "録画の設定",
+      "ruleInUse": "このルールが使用されています",
       "cancelReservation": "録画予約を取り消す",
       "cancelDescription": "この番組の録画予約を取り消します。録画は行いません。",
       "cancelRuleDescription": "ルールで入った録画予約なので、この番組の録画だけをやめます。ルールは残ります。",

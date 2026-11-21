@@ -569,7 +569,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
 
 // SourceRuleItems は、ルール予約のもとになったルールを、予約のボタンの ▾ のメニューに並べ、ルールの画面へ移れるようにする。
 // ルールの数によらず、「関連するルール」の見出しの下にルール名を並べる。複数のルールに一致したときは、録画の設定に使う
-// 最も古いルール (先頭) に「録画の設定」と添える。もとのルールを消していれば、何も出さない。
+// 最も古いルール (先頭) の名前の下に、「このルールが使用されています」と薄く添える。もとのルールを消していれば、何も出さない。
 function SourceRuleItems({ rules }: { rules: ReadonlyArray<{ id: string; name: string }> }) {
   const { t } = useTranslation();
   if (rules.length === 0) {
@@ -583,18 +583,16 @@ function SourceRuleItems({ rules }: { rules: ReadonlyArray<{ id: string; name: s
         <Menu.Item
           key={rule.id}
           leftSection={<ListChecks size={16} aria-hidden />}
-          rightSection={
-            rules.length > 1 && index === 0 ? (
-              <Badge size="xs" variant="light" color="gray">
-                {t('guide.detail.ruleSettings')}
-              </Badge>
-            ) : undefined
-          }
           renderRoot={(props) => (
             <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />
           )}
         >
           {rule.name}
+          {rules.length > 1 && index === 0 && (
+            <Text size="xs" c="dimmed">
+              {t('guide.detail.ruleInUse')}
+            </Text>
+          )}
         </Menu.Item>
       ))}
       <Menu.Divider />

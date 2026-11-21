@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
@@ -81,6 +81,44 @@ describe('ProgramDetail', () => {
     expect(await screen.findByText('関連するルール')).toBeTruthy();
     const item = screen.getByRole('menuitem', { name: '縁側の午後' });
     expect(item.getAttribute('href')).toMatch(/^\/rules\/[^/]+$/);
+    // ルールが 1 件なら、どのルールの設定を使うかは明らかなので、注記を添えない。
+    expect(screen.queryByText('このルールが使用されています')).toBeNull();
+  });
+
+  test('複数のルールに一致した予約は、録画の設定に使う最も古いルールに「このルールが使用されています」と添える', async () => {
+    const program = generatePrograms(now).find(
+      (item) =>
+        item.name.includes('縁側の午後') &&
+        item.service.channelType.type === 'GR' &&
+        item.start > now,
+    )!;
+    const environment = createDemoEnvironment({}, { now });
+    // デモの「縁側の午後」のルールより後に、同じ番組に一致するルールを足す。
+    await new Promise<void>((resolve, reject) =>
+      environment
+        .getNetwork()
+        .execute(
+          {
+            id: null,
+            cacheID: 'ProgramDetailTestCreateRule',
+            name: 'ProgramDetailTestCreateRule',
+            operationKind: 'mutation',
+            text: 'mutation { createRule(input: { name: "縁側の午後 (全局)", conditions: { keywords: [{ text: "縁側の午後", fields: [NAME] }] } }) { id } }',
+            metadata: {},
+          },
+          {},
+          {},
+        )
+        .subscribe({ complete: resolve, error: reject }),
+    );
+
+    await renderWithRouter(<Harness programId={program.id} />, environment);
+    await act(async () =>
+      fireEvent.click(await screen.findByRole('button', { name: '録画予約のほかの操作' })),
+    );
+    const [oldest, newer] = await screen.findAllByRole('menuitem', { name: /^縁側の午後/ });
+    expect(within(oldest!).getByText('このルールが使用されています')).toBeTruthy();
+    expect(within(newer!).queryByText('このルールが使用されています')).toBeNull();
   });
 
   test('ドラマの番組には、番組名の横のメニューに、作品名で Filmarks を探すリンクを出し、ほかのジャンルには出さない (#1650)', async () => {
