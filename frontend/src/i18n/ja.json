@@ -645,6 +645,7 @@
       "searchFilmarks": "Filmarksで探す",
       "searchTver": "TVerで探す",
       "searchNhkOne": "NHK ONEで探す",
+      "searchElsewhere": "ほかのサイトで探す",
       "searchSameName": "同じ番組名で探す"
     },
     "view": {

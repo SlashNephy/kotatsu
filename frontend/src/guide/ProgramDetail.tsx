@@ -41,6 +41,7 @@ import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.grap
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
 import { ReservationPeers } from '../reservations/ReservationPeers';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
+import { SearchElsewhereMenu } from './SearchElsewhereMenu';
 import { ServiceLabel } from './ServiceLabel';
 import { WorkPanel } from './WorkPanel';
 import { WatchReserveButton } from '../watch/WatchReserveButton';
@@ -310,9 +311,18 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
     <Stack>
       {/* 番組名の下に、サービス、放送時間、ジャンルを 1 行にまとめる (録画の詳細と同じ並び)。 */}
       <Stack gap={4}>
-        <Title order={3} size="h4">
-          <ProgramTitle name={program.name} />
-        </Title>
+        {/* 作品名でほかのサイトを探すリンクは、番組名の横のメニューにまとめる。 */}
+        <Group gap="xs" wrap="nowrap" align="flex-start" justify="space-between">
+          <Title order={3} size="h4">
+            <ProgramTitle name={program.name} />
+          </Title>
+          <SearchElsewhereMenu
+            genres={program.genres}
+            workTitle={program.workTitle}
+            anime={program.animeEpisodes.length > 0}
+            service={program.service}
+          />
+        </Group>
         <Group gap="xs" wrap="wrap">
           <Text size="sm">
             <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
@@ -519,9 +529,6 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
         dramaEpisode={program.dramaEpisode}
         programName={program.name}
         canOverride={data.viewer.role === 'ADMIN'}
-        genres={program.genres}
-        workTitle={program.workTitle}
-        service={program.service}
       />
       {program.description !== '' && (
         <Text size="sm">

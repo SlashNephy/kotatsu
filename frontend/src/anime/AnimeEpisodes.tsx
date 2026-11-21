@@ -1,6 +1,5 @@
 import { Anchor, Badge, Group, Stack, Text } from '@mantine/core';
 import type { TFunction } from 'i18next';
-import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { RecordAnimeEpisodesInput } from './__generated__/RecordAnimeButtonMutation.graphql';
@@ -67,15 +66,13 @@ export function episodeLinks(
 // AnimeEpisodes は、番組と録画の詳細に、結びついた話の話数とサブタイトル、作品のページへのリンクを出す (設計書 3.8)。
 // 2 話連続の放送のように、1 つの番組が複数の話に結びつけば、1 話ずつ並べる。結びついた話がなければ、何も出さない。
 // record を渡せば、結びついた話を、連携した記録先に手で記録するボタンを置く (#1232)。作品に結びついた話がなければ置かない。
-// 作品のページへのリンクは、話ごとに並べず、最後の 1 行にまとめる。extraLinks は、その行の後ろに足すリンク。
+// 作品のページへのリンクは、話ごとに並べず、最後の 1 行にまとめる。
 export function AnimeEpisodes({
   episodes,
   record,
-  extraLinks,
 }: {
   episodes: readonly AnimeEpisodeItem[];
   record?: RecordAnimeEpisodesInput;
-  extraLinks?: ReactNode;
 }) {
   const { t } = useTranslation();
   if (episodes.length === 0) {
@@ -136,7 +133,7 @@ export function AnimeEpisodes({
       {tids.map((tid) => (
         <AnimeFollowingViewings key={tid} tid={tid} />
       ))}
-      {(links.length > 0 || extraLinks != null) && (
+      {links.length > 0 && (
         <Group gap="sm" wrap="wrap">
           {links.map((link) => (
             <Anchor
@@ -149,7 +146,6 @@ export function AnimeEpisodes({
               {link.label}
             </Anchor>
           ))}
-          {extraLinks}
         </Group>
       )}
     </Stack>

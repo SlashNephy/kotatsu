@@ -74,6 +74,7 @@ import type { RecordingIdReanalyzeMutation } from './__generated__/RecordingIdRe
 import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdRegenerateMutation.graphql';
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
+import { SearchElsewhereMenu } from '../../guide/SearchElsewhereMenu';
 import { WorkPanel } from '../../guide/WorkPanel';
 import { programGenreLabels } from '../../guide/genreOptions';
 import { ServiceLabel } from '../../guide/ServiceLabel';
@@ -633,9 +634,18 @@ function Recording({ recordingId }: { recordingId: string }) {
       </Grid.Col>
       <Grid.Col span={{ base: 12, md: 7 }}>
         <Stack>
-          <Title order={2} size="h3">
-            <ProgramTitle name={recording.name} />
-          </Title>
+          {/* 作品名でほかのサイトを探すリンクは、番組の詳細と同じく、番組名の横のメニューにまとめる。 */}
+          <Group gap="xs" wrap="nowrap" align="flex-start" justify="space-between">
+            <Title order={2} size="h3">
+              <ProgramTitle name={recording.name} />
+            </Title>
+            <SearchElsewhereMenu
+              genres={recording.genres}
+              workTitle={recording.workTitle}
+              anime={recording.animeEpisodes.length > 0}
+              service={recording.service}
+            />
+          </Group>
           <Group gap="xs">
             <Text size="sm">
               <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
@@ -668,9 +678,6 @@ function Recording({ recordingId }: { recordingId: string }) {
             dramaEpisode={recording.dramaEpisode}
             programName={recording.name}
             canOverride={false}
-            genres={recording.genres}
-            workTitle={recording.workTitle}
-            service={recording.service}
           />
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&

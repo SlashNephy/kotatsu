@@ -655,6 +655,7 @@
       "searchFilmarks": "Search on Filmarks",
       "searchTver": "Search on TVer",
       "searchNhkOne": "Search on NHK ONE",
+      "searchElsewhere": "Search on other sites",
       "searchSameName": "Search by the same title"
     },
     "view": {

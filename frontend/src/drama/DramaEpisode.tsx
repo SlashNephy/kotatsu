@@ -10,7 +10,7 @@ import {
   TextInput,
 } from '@mantine/core';
 import type { TFunction } from 'i18next';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 
@@ -100,17 +100,15 @@ export function TMDbAttribution() {
 // DramaEpisode は、番組と録画の詳細に、結びついた TMDB の作品とシーズン、話と、TMDB のページへのリンクを出す (#1651、設計書 3.9)。
 // 結びついていなければ、何も出さない。canOverride なら、管理者が作品を直す操作を置く (programName の作品名の上書き)。
 // ログイン中のユーザーの状態を引いていれば (#1652)、作品を見ている作品に足す操作と、話を見たことにする操作も置く。
-// 作品名とシーズンと話、操作、リンクの順に、1 段ずつ並べる。extraLinks は、TMDB のリンクの後ろに足すリンク。
+// 作品名とシーズンと話、操作、リンクの順に、1 段ずつ並べる。
 export function DramaEpisode({
   episode,
   programName,
   canOverride,
-  extraLinks,
 }: {
   episode: DramaEpisodeItem | null | undefined;
   programName: string;
   canOverride: boolean;
-  extraLinks?: ReactNode;
 }) {
   const { t } = useTranslation();
   if (episode == null) {
@@ -157,7 +155,6 @@ export function DramaEpisode({
         <Anchor size="sm" href={episode.url} target="_blank" rel="noopener noreferrer">
           {t('drama.tmdb')}
         </Anchor>
-        {extraLinks}
       </Group>
     </Stack>
   );
