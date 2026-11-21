@@ -11,7 +11,6 @@ import {
   Tv,
 } from 'lucide-react';
 import { startTransition, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
@@ -57,6 +56,7 @@ import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
+import { PipHost } from '../../yunomi/PipHost';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import { DataBroadcastRemote, DataBroadcastRemoteOverlay } from '../../yunomi/DataBroadcastRemote';
 import { useDataBroadcastKeys } from '../../yunomi/dataBroadcastKeys';
@@ -1369,9 +1369,13 @@ function Live({
             <PlaybackUnavailable route={route} />
             {/* 画面の外に出たときと、タブが隠れたときも再生は続け、データ放送の受信と、実況のコメントの描画だけを止める (設計書 7.2)。 */}
             <div ref={frameRef}>
-              {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
+              <PipHost
+                container={pip.container}
+                placeholder={<PipPlaceholder onBack={pip.close} />}
+              >
+                {playerBox}
+              </PipHost>
             </div>
-            {pip.container !== null && createPortal(playerBox, pip.container)}
           </Stack>
         }
         info={

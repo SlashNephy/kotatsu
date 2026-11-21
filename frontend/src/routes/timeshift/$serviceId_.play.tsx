@@ -3,7 +3,6 @@ import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, Share2 } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
@@ -26,6 +25,7 @@ import {
   normalizeCaption,
   type CaptionEntry,
 } from '../../yunomi/captionHistory';
+import { PipHost } from '../../yunomi/PipHost';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
@@ -257,8 +257,7 @@ function Player({
     variables,
   );
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  // 別のウィンドウに移したり戻したりすると、プレイヤーを作り直すので、今の位置から読み直す。
-  const pip = useDocumentPictureInPicture(() => restartAt(positionRef.current));
+  const pip = useDocumentPictureInPicture();
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const videoState = useVideoState(video);
@@ -862,8 +861,11 @@ function Player({
       player={
         <Stack gap="xs">
           <PlaybackUnavailable route={route} />
-          <div>{pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}</div>
-          {pip.container !== null && createPortal(playerBox, pip.container)}
+          <div>
+            <PipHost container={pip.container} placeholder={<PipPlaceholder onBack={pip.close} />}>
+              {playerBox}
+            </PipHost>
+          </div>
         </Stack>
       }
       info={

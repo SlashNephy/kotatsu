@@ -3,7 +3,6 @@ import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText, Share2 } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
@@ -44,6 +43,7 @@ import {
   CaptionTrackSelect,
   type CaptionTrack,
 } from '../../yunomi/AutoCaptionOverlay';
+import { PipHost } from '../../yunomi/PipHost';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
@@ -326,8 +326,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const frameRef = useRef<HTMLDivElement | null>(null);
   const inPage = useVisible(frameRef);
   // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても、実況のコメントなどを描き続ける (設計書 7.5)。
-  // 別のウィンドウに移したり戻したりすると、プレイヤーを作り直すので、今の位置から読み直す。
-  const pip = useDocumentPictureInPicture(() => startAt(positionRef.current));
+  const pip = useDocumentPictureInPicture();
   const visible = inPage || pip.container !== null;
   // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
@@ -1524,9 +1523,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         <Stack gap="xs">
           <PlaybackUnavailable route={route} />
           <div ref={frameRef}>
-            {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
+            <PipHost container={pip.container} placeholder={<PipPlaceholder onBack={pip.close} />}>
+              {playerBox}
+            </PipHost>
           </div>
-          {pip.container !== null && createPortal(playerBox, pip.container)}
         </Stack>
       }
       info={
