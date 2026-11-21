@@ -95,7 +95,7 @@ func (p Program) WorkTitle() string {
 	return domain.WorkTitle(p.Name)
 }
 
-// DramaTitleKey は、TMDb で作品を探す作品名の鍵 (#1651)。gqlgen が Program.dramaTitleKey に使う。
+// DramaTitleKey は、TMDB で作品を探す作品名の鍵 (#1651)。gqlgen が Program.dramaTitleKey に使う。
 func (p Program) DramaTitleKey() string {
 	return drama.TitleKeyOf(p.Name)
 }

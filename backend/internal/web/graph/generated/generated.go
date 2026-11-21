@@ -11615,8 +11615,8 @@ extend type Mutation {
   """
   プレイヤーが実際に再生した区間を送る (#927)。ライブ視聴では serviceId を、録画の再生では recordingId を渡す。
   区間は、番組ごとに重ねずにまとめるので、同じ区間を送り直しても、複数のタブから送っても、多く数えない。
-  番組の長さのうち、決めた割合を見たら、結びついた話を記録する。TMDb の話に結びついたドラマの番組なら、見たドラマの話にする (#1652)。
-  記録の対象でなければ (アニメの連携が無効か連携しておらず、TMDb との連携も無効) false を返す。
+  番組の長さのうち、決めた割合を見たら、結びついた話を記録する。TMDB の話に結びついたドラマの番組なら、見たドラマの話にする (#1652)。
+  記録の対象でなければ (アニメの連携が無効か連携しておらず、TMDB との連携も無効) false を返す。
   anime と drama は、この端末で見たアニメと見たドラマを記録するか (端末ごとの設定。#1283、#1649)。false のほうは記録しない。
   """
   reportAnimePlayback(
@@ -12307,72 +12307,72 @@ input ProgramConditionsInput {
 }
 `, BuiltIn: false},
 	{Name: "../schema/drama.graphqls", Input: `"""
-番組や録画に結びついた TMDb の作品を、どこから決めたか (#1651、設計書 3.9)。
+番組や録画に結びついた TMDB の作品を、どこから決めたか (#1651、設計書 3.9)。
 """
 enum DramaSeriesSource {
-  "番組名から読んだ作品名で、TMDb を探した"
+  "番組名から読んだ作品名で、TMDB を探した"
   SEARCH
   "管理者が、作品名ごとに決めた (上書き)"
   OVERRIDE
 }
 
 """
-番組や録画に結びついた TMDb の話を、どこから決めたか (#1651、設計書 3.9)。
+番組や録画に結びついた TMDB の話を、どこから決めたか (#1651、設計書 3.9)。
 """
 enum DramaEpisodeSource {
-  "TMDb の話の放送日と、番組の放送日が一致した"
+  "TMDB の話の放送日と、番組の放送日が一致した"
   AIR_DATE
   "番組名の話数 (#7、第7話、(4)) で選んだ"
   TITLE
 }
 
 """
-TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
+TMDB の作品 (TV) (#1651、設計書 3.9)。名前は TMDB から引いたキャッシュから読み、キャッシュがなければ null にする。
 """
 type DramaSeries {
-  "TMDb の作品の ID。"
+  "TMDB の作品の ID。"
   tmdbId: Int!
   "作品の名前 (日本語)。"
   name: String
   "作品の元の言語の名前。"
   originalName: String
-  "TMDb の作品のページ。"
+  "TMDB の作品のページ。"
   url: String!
 }
 
 """
-番組や録画に結びついた TMDb の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
+番組や録画に結びついた TMDB の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
 """
 type DramaEpisode {
   series: DramaSeries!
   seriesSource: DramaSeriesSource!
-  "TMDb のシーズンの番号。0 は特別編。話を決められなければ null。"
+  "TMDB のシーズンの番号。0 は特別編。話を決められなければ null。"
   seasonNumber: Int
   "シーズンの中の話の番号。話を決められなければ null。"
   episodeNumber: Int
   "話の名前。キャッシュがなければ null。"
   episodeName: String
   episodeSource: DramaEpisodeSource
-  "TMDb の話のページ。話を決められなければ、作品のページ。"
+  "TMDB の話のページ。話を決められなければ、作品のページ。"
   url: String!
 }
 
 """
-管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。
+管理者が、番組名から読んだ作品名ごとに決めた TMDB の作品 (#1651、設計書 3.9)。
 """
 type DramaTitleOverride {
   "作品名の鍵 (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。"
   titleKey: String!
-  "結びつける TMDb の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。"
+  "結びつける TMDB の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。"
   tmdbSeriesId: Int
   updatedAt: Time!
 }
 
 """
-TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
+TMDB との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
 """
 type DramaLinkingStatus {
-  "管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。"
+  "管理者が TMDB のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。"
   tokenConfigured: Boolean!
   "入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。"
   tokenHint: String
@@ -12388,46 +12388,46 @@ input DramaTitleOverrideInput {
   programName: String
   "上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。"
   titleKey: String
-  "結びつける TMDb の作品の ID (1 以上)。"
+  "結びつける TMDB の作品の ID (1 以上)。"
   tmdbSeriesId: Int
   "この作品名の番組を、どの作品にも結びつけない。"
   exclude: Boolean! = false
-  "上書きを消し、TMDb を探して作品を決めるのに戻す。"
+  "上書きを消し、TMDB を探して作品を決めるのに戻す。"
   reset: Boolean! = false
 }
 
 extend type Program {
-  "結びついた TMDb の作品と話 (#1651、設計書 3.9)。照合していないか、作品に結びつかなければ null。番組の詳細で使い、一覧では引かない。"
+  "結びついた TMDB の作品と話 (#1651、設計書 3.9)。照合していないか、作品に結びつかなければ null。番組の詳細で使い、一覧では引かない。"
   dramaEpisode: DramaEpisode
-  "番組名から読んだ、TMDb で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
+  "番組名から読んだ、TMDB で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
   dramaTitleKey: String!
 }
 
 extend type Recording {
-  "結びついた TMDb の作品と話 (#1651、設計書 3.9)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。"
+  "結びついた TMDB の作品と話 (#1651、設計書 3.9)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。"
   dramaEpisode: DramaEpisode
-  "番組名から読んだ、TMDb で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
+  "番組名から読んだ、TMDB で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
   dramaTitleKey: String!
 }
 
 extend type Query {
-  "TMDb との連携の様子 (#1651)。管理者だけが使える。"
+  "TMDB との連携の様子 (#1651)。管理者だけが使える。"
   dramaLinking: DramaLinkingStatus!
-  "作品名ごとの TMDb の作品の上書き (#1651)。作品名の鍵の順に並べる。管理者だけが使える。"
+  "作品名ごとの TMDB の作品の上書き (#1651)。作品名の鍵の順に並べる。管理者だけが使える。"
   dramaTitleOverrides: [DramaTitleOverride!]!
 }
 
 extend type Mutation {
   """
-  TMDb の API の読み取りアクセストークンを変える (#1651)。前後の空白は除き、空にすると消す。管理者だけが使える。
-  サーバーが外部へ問い合わせるときに使う秘密情報なので、直近の再認証を求める (設計書 9.5)。TMDb には問い合わせない。
+  TMDB の API の読み取りアクセストークンを変える (#1651)。前後の空白は除き、空にすると消す。管理者だけが使える。
+  サーバーが外部へ問い合わせるときに使う秘密情報なので、直近の再認証を求める (設計書 9.5)。TMDB には問い合わせない。
   2048 文字を超えるか、空白、制御文字、ASCII の外の文字を含めば BAD_USER_INPUT を返す。
   入れたら、6 時間ごとの照合し直しを待たずに照合するジョブを入れる。
   """
   updateDramaLinkingToken(token: String!): DramaLinkingStatus!
   """
-  番組名から読んだ作品名の、TMDb の作品の上書きを変える (#1651)。管理者だけが使える。
-  家族の中で完結する操作なので、再認証は求めない (設計書 9.5)。TMDb には問い合わせず、照合し直すジョブを入れる。
+  番組名から読んだ作品名の、TMDB の作品の上書きを変える (#1651)。管理者だけが使える。
+  家族の中で完結する操作なので、再認証は求めない (設計書 9.5)。TMDB には問い合わせず、照合し直すジョブを入れる。
   正しくない値なら BAD_USER_INPUT を返す。変えた後の、すべての上書きを返す。
   """
   updateDramaTitleOverride(input: DramaTitleOverrideInput!): [DramaTitleOverride!]!
@@ -12447,13 +12447,13 @@ enum DramaWatchStatus {
 ドラマの視聴管理の画面の、作品の 1 話 (#1652)。
 """
 type DramaLibraryEpisode {
-  "TMDb のシーズンの番号。0 は特別編。"
+  "TMDB のシーズンの番号。0 は特別編。"
   seasonNumber: Int!
   "シーズンの中の話の番号。"
   episodeNumber: Int!
-  "話の名前。TMDb のキャッシュになければ null。"
+  "話の名前。TMDB のキャッシュになければ null。"
   name: String
-  "TMDb の話のページ。"
+  "TMDB の話のページ。"
   url: String!
 }
 
@@ -12468,7 +12468,7 @@ type DramaLibraryBroadcast {
   episodeNumber: Int
   "再放送かどうか。"
   rerun: Boolean!
-  "TMDb のシーズンの最後の話かどうか。最後の話が分からなければ false。"
+  "TMDB のシーズンの最後の話かどうか。最後の話が分からなければ false。"
   last: Boolean!
 }
 
@@ -12477,7 +12477,7 @@ type DramaLibraryBroadcast {
 """
 type DramaLibraryPastBroadcast {
   startAt: Time!
-  "TMDb のシーズンの最後の話かどうか。"
+  "TMDB のシーズンの最後の話かどうか。"
   last: Boolean!
 }
 
@@ -12487,7 +12487,7 @@ type DramaLibraryPastBroadcast {
 type DramaLibraryRecordedEpisode {
   seasonNumber: Int!
   episodeNumber: Int!
-  "話の名前。TMDb のキャッシュになければ null。"
+  "話の名前。TMDB のキャッシュになければ null。"
   name: String
   "その話の録画のうち、最も新しく録ったもの。"
   recording: Recording!
@@ -12531,7 +12531,7 @@ type DramaLibraryWork {
 ログイン中のユーザーが見ているドラマの作品を、作品ごとに並べたもの (ドラマの視聴管理の画面。#1652)。
 """
 type DramaLibrary {
-  "管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。"
+  "管理者が、TMDB との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。"
   enabled: Boolean!
   "見ている作品と見たい作品。次の放送の早い順に並べ、放送の予定のない作品は、作品名の順に後ろに回す。"
   works: [DramaLibraryWork!]!
@@ -12550,21 +12550,21 @@ extend type DramaEpisode {
 extend type Query {
   """
   ログイン中のユーザーが見ているドラマの作品を、次の話と次の放送と録画と並べて返す (#1652)。ほかのユーザーの作品は見えない。
-  視聴者も使える。TMDb には問い合わせない。
+  視聴者も使える。TMDB には問い合わせない。
   """
   dramaLibrary: DramaLibrary!
 }
 
 extend type Mutation {
   """
-  ログイン中のユーザーの見ている作品に、TMDb の作品 seriesId を状態 status で足すか、状態を変える。status が null なら外す (#1652)。
+  ログイン中のユーザーの見ている作品に、TMDB の作品 seriesId を状態 status で足すか、状態を変える。status が null なら外す (#1652)。
   視聴者も使える。足せるのは、番組か録画に結びついた作品だけで、結びつきがなければ NOT_FOUND を返す。
-  管理者が TMDb との連携を無効にしていれば CONFLICT を返す。変えた後の作品を返す。
+  管理者が TMDB との連携を無効にしていれば CONFLICT を返す。変えた後の作品を返す。
   """
   setDramaWatchStatus(seriesId: Int!, status: DramaWatchStatus): DramaSeries!
   """
-  ログイン中のユーザーが、TMDb の作品 seriesId のシーズン seasonNumber の話 episodeNumber を見たことを、手で付けるか外す (#1652)。
-  視聴者も使える。番号が正しくなければ BAD_USER_INPUT を、管理者が TMDb との連携を無効にしていれば CONFLICT を返す。
+  ログイン中のユーザーが、TMDB の作品 seriesId のシーズン seasonNumber の話 episodeNumber を見たことを、手で付けるか外す (#1652)。
+  視聴者も使える。番号が正しくなければ BAD_USER_INPUT を、管理者が TMDB との連携を無効にしていれば CONFLICT を返す。
   変えた後に、見たかどうかを返す。
   """
   setDramaEpisodeWatched(seriesId: Int!, seasonNumber: Int!, episodeNumber: Int!, watched: Boolean!): Boolean!
@@ -12634,7 +12634,7 @@ type DramaRecordDestinationStatus {
 ログイン中のユーザーの、見たドラマの記録の様子 (#1649)。
 """
 type DramaRecordSettings {
-  "管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。"
+  "管理者が、TMDB との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。"
   enabled: Boolean!
   """
   番組の長さのうち、何 % を実際に再生したら、見たドラマの話にするか (1〜100)。見た話は、連携した Simkl にも記録する。
@@ -12667,7 +12667,7 @@ extend type Mutation {
   """
   ログイン中のユーザーとドラマの記録先 destination の連携を始め、ブラウザーを送り出す記録先の認可のエンドポイントの URL を返す (#1649)。
   記録先から GET /internal/auth/{destination}/callback に戻ってきたら、連携する。ブラウザーのセッションでだけ使える。
-  管理者が TMDb との連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
+  管理者が TMDB との連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
   """
   beginDramaRecordConnection(destination: DramaRecordDestination!): String!
   "ログイン中のユーザーとドラマの記録先 destination の連携を外し、記録先でトークンを取り消す (#1649)。見ている作品に写した作品は残す。"
@@ -15433,7 +15433,7 @@ type SystemSettings {
   epgstationApiEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
-  "TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。"
+  "TMDB との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。"
   dramaLinkingEnabled: Boolean!
   """
   NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
@@ -15524,7 +15524,7 @@ input SystemSettingsInput {
   epgstationApiEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
-  "TMDb との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
+  "TMDB との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   dramaLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   commentSources: [CommentSource!]

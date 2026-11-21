@@ -769,18 +769,18 @@ type DeleteReservationPayload struct {
 	Reservation *Reservation `json:"reservation,omitempty"`
 }
 
-// 番組や録画に結びついた TMDb の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
+// 番組や録画に結びついた TMDB の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
 type DramaEpisode struct {
 	Series       *DramaSeries      `json:"series"`
 	SeriesSource DramaSeriesSource `json:"seriesSource"`
-	// TMDb のシーズンの番号。0 は特別編。話を決められなければ null。
+	// TMDB のシーズンの番号。0 は特別編。話を決められなければ null。
 	SeasonNumber *int `json:"seasonNumber,omitempty"`
 	// シーズンの中の話の番号。話を決められなければ null。
 	EpisodeNumber *int `json:"episodeNumber,omitempty"`
 	// 話の名前。キャッシュがなければ null。
 	EpisodeName   *string             `json:"episodeName,omitempty"`
 	EpisodeSource *DramaEpisodeSource `json:"episodeSource,omitempty"`
-	// TMDb の話のページ。話を決められなければ、作品のページ。
+	// TMDB の話のページ。話を決められなければ、作品のページ。
 	URL string `json:"url"`
 	// ログイン中のユーザーが、この話を見たかどうか (#1652)。話を決められなければ false。
 	Watched bool `json:"watched"`
@@ -788,7 +788,7 @@ type DramaEpisode struct {
 
 // ログイン中のユーザーが見ているドラマの作品を、作品ごとに並べたもの (ドラマの視聴管理の画面。#1652)。
 type DramaLibrary struct {
-	// 管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。
+	// 管理者が、TMDB との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。
 	Enabled bool `json:"enabled"`
 	// 見ている作品と見たい作品。次の放送の早い順に並べ、放送の予定のない作品は、作品名の順に後ろに回す。
 	Works []*DramaLibraryWork `json:"works"`
@@ -803,26 +803,26 @@ type DramaLibraryBroadcast struct {
 	EpisodeNumber *int `json:"episodeNumber,omitempty"`
 	// 再放送かどうか。
 	Rerun bool `json:"rerun"`
-	// TMDb のシーズンの最後の話かどうか。最後の話が分からなければ false。
+	// TMDB のシーズンの最後の話かどうか。最後の話が分からなければ false。
 	Last bool `json:"last"`
 }
 
 // ドラマの視聴管理の画面の、作品の 1 話 (#1652)。
 type DramaLibraryEpisode struct {
-	// TMDb のシーズンの番号。0 は特別編。
+	// TMDB のシーズンの番号。0 は特別編。
 	SeasonNumber int `json:"seasonNumber"`
 	// シーズンの中の話の番号。
 	EpisodeNumber int `json:"episodeNumber"`
-	// 話の名前。TMDb のキャッシュになければ null。
+	// 話の名前。TMDB のキャッシュになければ null。
 	Name *string `json:"name,omitempty"`
-	// TMDb の話のページ。
+	// TMDB の話のページ。
 	URL string `json:"url"`
 }
 
 // ドラマの作品の始まった放送 (#1652)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
 type DramaLibraryPastBroadcast struct {
 	StartAt time.Time `json:"startAt"`
-	// TMDb のシーズンの最後の話かどうか。
+	// TMDB のシーズンの最後の話かどうか。
 	Last bool `json:"last"`
 }
 
@@ -830,7 +830,7 @@ type DramaLibraryPastBroadcast struct {
 type DramaLibraryRecordedEpisode struct {
 	SeasonNumber  int `json:"seasonNumber"`
 	EpisodeNumber int `json:"episodeNumber"`
-	// 話の名前。TMDb のキャッシュになければ null。
+	// 話の名前。TMDB のキャッシュになければ null。
 	Name *string `json:"name,omitempty"`
 	// その話の録画のうち、最も新しく録ったもの。
 	Recording *Recording `json:"recording"`
@@ -864,9 +864,9 @@ type DramaLibraryWork struct {
 	RecordedEpisodes []*DramaLibraryRecordedEpisode `json:"recordedEpisodes"`
 }
 
-// TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
+// TMDB との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
 type DramaLinkingStatus struct {
-	// 管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。
+	// 管理者が TMDB のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。
 	TokenConfigured bool `json:"tokenConfigured"`
 	// 入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。
 	TokenHint *string `json:"tokenHint,omitempty"`
@@ -921,7 +921,7 @@ type DramaRecordDestinationStatus struct {
 
 // ログイン中のユーザーの、見たドラマの記録の様子 (#1649)。
 type DramaRecordSettings struct {
-	// 管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。
+	// 管理者が、TMDB との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。
 	Enabled bool `json:"enabled"`
 	// 番組の長さのうち、何 % を実際に再生したら、見たドラマの話にするか (1〜100)。見た話は、連携した Simkl にも記録する。
 	// 見たアニメを記録する割合とは別に持つ。
@@ -934,25 +934,25 @@ type DramaRecordSettingsInput struct {
 	ThresholdPercent int `json:"thresholdPercent"`
 }
 
-// TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
+// TMDB の作品 (TV) (#1651、設計書 3.9)。名前は TMDB から引いたキャッシュから読み、キャッシュがなければ null にする。
 type DramaSeries struct {
-	// TMDb の作品の ID。
+	// TMDB の作品の ID。
 	TmdbID int `json:"tmdbId"`
 	// 作品の名前 (日本語)。
 	Name *string `json:"name,omitempty"`
 	// 作品の元の言語の名前。
 	OriginalName *string `json:"originalName,omitempty"`
-	// TMDb の作品のページ。
+	// TMDB の作品のページ。
 	URL string `json:"url"`
 	// ログイン中のユーザーが、この作品を見ている作品に入れた状態 (#1652)。入れていなければ null。
 	WatchStatus *DramaWatchStatus `json:"watchStatus,omitempty"`
 }
 
-// 管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。
+// 管理者が、番組名から読んだ作品名ごとに決めた TMDB の作品 (#1651、設計書 3.9)。
 type DramaTitleOverride struct {
 	// 作品名の鍵 (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。
 	TitleKey string `json:"titleKey"`
-	// 結びつける TMDb の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。
+	// 結びつける TMDB の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。
 	TmdbSeriesID *int      `json:"tmdbSeriesId,omitempty"`
 	UpdatedAt    time.Time `json:"updatedAt"`
 }
@@ -963,11 +963,11 @@ type DramaTitleOverrideInput struct {
 	ProgramName *string `json:"programName,omitempty"`
 	// 上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。
 	TitleKey *string `json:"titleKey,omitempty"`
-	// 結びつける TMDb の作品の ID (1 以上)。
+	// 結びつける TMDB の作品の ID (1 以上)。
 	TmdbSeriesID *int `json:"tmdbSeriesId,omitempty"`
 	// この作品名の番組を、どの作品にも結びつけない。
 	Exclude bool `json:"exclude"`
-	// 上書きを消し、TMDb を探して作品を決めるのに戻す。
+	// 上書きを消し、TMDB を探して作品を決めるのに戻す。
 	Reset bool `json:"reset"`
 }
 
@@ -2438,7 +2438,7 @@ type SystemSettings struct {
 	EpgstationAPIEnabled bool `json:"epgstationApiEnabled"`
 	// しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
 	AnimeLinkingEnabled bool `json:"animeLinkingEnabled"`
-	// TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。
+	// TMDB との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。
 	DramaLinkingEnabled bool `json:"dramaLinkingEnabled"`
 	// NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
 	// ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
@@ -2502,7 +2502,7 @@ type SystemSettingsInput struct {
 	EpgstationAPIEnabled *bool `json:"epgstationApiEnabled,omitempty"`
 	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	AnimeLinkingEnabled *bool `json:"animeLinkingEnabled,omitempty"`
-	// TMDb との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+	// TMDB との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	DramaLinkingEnabled *bool `json:"dramaLinkingEnabled,omitempty"`
 	// 渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	CommentSources []CommentSource `json:"commentSources,omitempty"`
@@ -3338,11 +3338,11 @@ func (e DataChannel) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// 番組や録画に結びついた TMDb の話を、どこから決めたか (#1651、設計書 3.9)。
+// 番組や録画に結びついた TMDB の話を、どこから決めたか (#1651、設計書 3.9)。
 type DramaEpisodeSource string
 
 const (
-	// TMDb の話の放送日と、番組の放送日が一致した
+	// TMDB の話の放送日と、番組の放送日が一致した
 	DramaEpisodeSourceAirDate DramaEpisodeSource = "AIR_DATE"
 	// 番組名の話数 (#7、第7話、(4)) で選んだ
 	DramaEpisodeSourceTitle DramaEpisodeSource = "TITLE"
@@ -3450,11 +3450,11 @@ func (e DramaRecordDestination) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// 番組や録画に結びついた TMDb の作品を、どこから決めたか (#1651、設計書 3.9)。
+// 番組や録画に結びついた TMDB の作品を、どこから決めたか (#1651、設計書 3.9)。
 type DramaSeriesSource string
 
 const (
-	// 番組名から読んだ作品名で、TMDb を探した
+	// 番組名から読んだ作品名で、TMDB を探した
 	DramaSeriesSourceSearch DramaSeriesSource = "SEARCH"
 	// 管理者が、作品名ごとに決めた (上書き)
 	DramaSeriesSourceOverride DramaSeriesSource = "OVERRIDE"

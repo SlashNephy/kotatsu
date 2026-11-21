@@ -66,6 +66,7 @@ export function episodeLinks(
 // AnimeEpisodes は、番組と録画の詳細に、結びついた話の話数とサブタイトル、作品のページへのリンクを出す (設計書 3.8)。
 // 2 話連続の放送のように、1 つの番組が複数の話に結びつけば、1 話ずつ並べる。結びついた話がなければ、何も出さない。
 // record を渡せば、結びついた話を、連携した記録先に手で記録するボタンを置く (#1232)。作品に結びついた話がなければ置かない。
+// 作品のページへのリンクは、話ごとに並べず、最後の 1 行にまとめる。
 export function AnimeEpisodes({
   episodes,
   record,
@@ -81,54 +82,49 @@ export function AnimeEpisodes({
     record !== undefined && episodes.some((episode) => episode.syobocalUrl != null);
   // 2 話連続の放送は、同じ作品の話が並ぶので、作品ごとに 1 つ出す。
   const tids = [...new Set(episodes.flatMap((episode) => episode.syobocalTid ?? []))];
+  // 2 話連続の放送は、同じ作品のページを指すので、重ねずに 1 つずつ出す。
+  const links = episodes
+    .flatMap((episode) => episodeLinks(t, episode))
+    .filter((link, index, all) => all.findIndex((other) => other.href === link.href) === index);
 
   return (
-    <Stack gap={4} data-testid="anime-episodes">
-      {episodes.map((episode) => {
-        const label = episodeLabel(t, episode.countStart, episode.countEnd);
+    <Stack gap="xs" data-testid="anime-episodes">
+      <Stack gap={2}>
+        {episodes.map((episode) => {
+          const label = episodeLabel(t, episode.countStart, episode.countEnd);
 
-        return (
-          // 話は ID を持たないので、作品と話数とサブタイトルで見分ける。
-          <Group
-            key={`${episode.syobocalUrl}/${episode.countStart}/${episode.countEnd}/${episode.subtitle}`}
-            gap="xs"
-            wrap="wrap"
-          >
-            {label !== null && (
-              <Text size="sm" fw={600}>
-                {label}
-              </Text>
-            )}
-            {episode.subtitle != null && <Text size="sm">{`「${episode.subtitle}」`}</Text>}
-            {episode.first && (
-              <Badge size="sm" variant="light" color="teal">
-                {t('anime.first')}
-              </Badge>
-            )}
-            {episode.last && (
-              <Badge size="sm" variant="light" color="grape">
-                {t('anime.last')}
-              </Badge>
-            )}
-            {episode.rerun && (
-              <Badge size="sm" variant="light" color="gray">
-                {t('anime.rerun')}
-              </Badge>
-            )}
-            {episodeLinks(t, episode).map((link) => (
-              <Anchor
-                key={link.href}
-                size="sm"
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {link.label}
-              </Anchor>
-            ))}
-          </Group>
-        );
-      })}
+          return (
+            // 話は ID を持たないので、作品と話数とサブタイトルで見分ける。
+            <Group
+              key={`${episode.syobocalUrl}/${episode.countStart}/${episode.countEnd}/${episode.subtitle}`}
+              gap="xs"
+              wrap="wrap"
+            >
+              {label !== null && (
+                <Text size="sm" fw={600}>
+                  {label}
+                </Text>
+              )}
+              {episode.subtitle != null && <Text size="sm">{`「${episode.subtitle}」`}</Text>}
+              {episode.first && (
+                <Badge size="sm" variant="light" color="teal">
+                  {t('anime.first')}
+                </Badge>
+              )}
+              {episode.last && (
+                <Badge size="sm" variant="light" color="grape">
+                  {t('anime.last')}
+                </Badge>
+              )}
+              {episode.rerun && (
+                <Badge size="sm" variant="light" color="gray">
+                  {t('anime.rerun')}
+                </Badge>
+              )}
+            </Group>
+          );
+        })}
+      </Stack>
       {recordable && (
         <Group gap="xs">
           <RecordAnimeButton input={record} label={t('anime.record.button')} />
@@ -137,6 +133,21 @@ export function AnimeEpisodes({
       {tids.map((tid) => (
         <AnimeFollowingViewings key={tid} tid={tid} />
       ))}
+      {links.length > 0 && (
+        <Group gap="sm" wrap="wrap">
+          {links.map((link) => (
+            <Anchor
+              key={link.href}
+              size="sm"
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {link.label}
+            </Anchor>
+          ))}
+        </Group>
+      )}
     </Stack>
   );
 }

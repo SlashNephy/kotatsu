@@ -21,7 +21,7 @@ const Horizon = 7 * 24 * time.Hour
 // Work は、ドラマの視聴管理の画面の 1 作品 (#1652)。
 type Work struct {
 	SeriesID int32
-	// Name と OriginalName は、TMDb のキャッシュにある作品の名前。キャッシュがなければ nil。
+	// Name と OriginalName は、TMDB のキャッシュにある作品の名前。キャッシュがなければ nil。
 	Name         *string
 	OriginalName *string
 	// Status は、StatusWatching か StatusWannaWatch。
@@ -53,7 +53,7 @@ func (w *Work) title() string {
 	}
 }
 
-// LibraryEpisode は、作品の 1 話と、TMDb のキャッシュにある話の名前。
+// LibraryEpisode は、作品の 1 話と、TMDB のキャッシュにある話の名前。
 type LibraryEpisode struct {
 	Season int32
 	Number int32
@@ -69,7 +69,7 @@ type Broadcast struct {
 	// Season と Number は、放送する話。話を決められなかった放送では nil。
 	Season *int32
 	Number *int32
-	// Rerun は再放送かどうか、Last は TMDb のシーズンの最後の話かどうか。
+	// Rerun は再放送かどうか、Last は TMDB のシーズンの最後の話かどうか。
 	Rerun bool
 	Last  bool
 }
@@ -77,7 +77,7 @@ type Broadcast struct {
 // PastBroadcast は、作品の始まった放送。番組はアーカイブに移っていることがあるので、開始時刻と印だけを持つ。
 type PastBroadcast struct {
 	StartAt time.Time
-	// Last は、TMDb のシーズンの最後の話かどうか。
+	// Last は、TMDB のシーズンの最後の話かどうか。
 	Last bool
 }
 
@@ -94,7 +94,7 @@ type RecordedEpisode struct {
 
 // Library は、ユーザー userID の見ている作品と見たい作品を、作品ごとに、次の話と次の放送と録画と並べて返す (#1652)。
 // 放送は、今から Horizon の間に始まるもの (放送中を含む) を、番組の結びつき (設計書 3.9) で引く。録画は、録画に写した結びつきで引き、
-// 録れなかった録画と、話のない録画は外す。TMDb には問い合わせず、キャッシュにある名前とシーズンの話を使う。
+// 録れなかった録画と、話のない録画は外す。TMDB には問い合わせず、キャッシュにある名前とシーズンの話を使う。
 func Library(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.Time) ([]*Work, error) {
 	q := sqlc.New(db)
 	entries, err := q.ListDramaWatchlistEntries(ctx, userID)
@@ -134,7 +134,7 @@ func Library(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.Time)
 	return arrange(&arrangeInput{entries: entries, cache: cache, watched: watched, programs: programs, recent: recent, recordings: recordings}), nil
 }
 
-// cache は、TMDb のキャッシュにある、作品とシーズンの話。
+// cache は、TMDB のキャッシュにある、作品とシーズンの話。
 type cache struct {
 	series map[int32]*sqlc.TmdbSeries
 	// seasons は、作品ごとの、キャッシュにある作品のシーズンの一覧。
@@ -148,30 +148,30 @@ type seasonKey struct {
 	season int32
 }
 
-// loadCache は、作品 ids の、TMDb のキャッシュを読む。
+// loadCache は、作品 ids の、TMDB のキャッシュを読む。
 func loadCache(ctx context.Context, q *sqlc.Queries, ids []int32) (*cache, error) {
 	c := &cache{series: map[int32]*sqlc.TmdbSeries{}, seasons: map[int32][]*tmdb.Season{}, episodes: map[seasonKey][]*tmdb.Episode{}}
 	series, err := q.ListTMDbSeries(ctx, ids)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list the TMDb series: %w", err)
+		return nil, fmt.Errorf("failed to list the TMDB series: %w", err)
 	}
 	for i := range series {
 		s := &series[i]
 		c.series[s.ID] = s
 		seasons := []*tmdb.Season{}
 		if err := json.Unmarshal(s.Seasons, &seasons); err != nil {
-			return nil, fmt.Errorf("failed to decode the TMDb seasons: %w", err)
+			return nil, fmt.Errorf("failed to decode the TMDB seasons: %w", err)
 		}
 		c.seasons[s.ID] = seasons
 	}
 	seasons, err := q.ListTMDbSeasonsOf(ctx, ids)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list the TMDb seasons: %w", err)
+		return nil, fmt.Errorf("failed to list the TMDB seasons: %w", err)
 	}
 	for i := range seasons {
 		episodes := []*tmdb.Episode{}
 		if err := json.Unmarshal(seasons[i].Episodes, &episodes); err != nil {
-			return nil, fmt.Errorf("failed to decode the TMDb episodes: %w", err)
+			return nil, fmt.Errorf("failed to decode the TMDB episodes: %w", err)
 		}
 		c.episodes[seasonKey{series: seasons[i].SeriesID, season: seasons[i].SeasonNumber}] = episodes
 	}
@@ -209,7 +209,7 @@ func (c *cache) lastNumber(series, season int32) int32 {
 	return 0
 }
 
-// isLast は、話が、TMDb のシーズンの最後の話かどうかを返す。特別編と、最後の話が分からないシーズンは false にする。
+// isLast は、話が、TMDB のシーズンの最後の話かどうかを返す。特別編と、最後の話が分からないシーズンは false にする。
 func (c *cache) isLast(series int32, season, number *int32) bool {
 	if season == nil || number == nil || *season == 0 {
 		return false

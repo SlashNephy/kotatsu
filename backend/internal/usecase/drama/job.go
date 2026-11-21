@@ -26,7 +26,7 @@ const (
 )
 
 const (
-	// matchChangesInterval は、EPG の変更の記録を読む間隔 (付録 A)。TMDb への問い合わせは、キャッシュが古いときだけ行う。
+	// matchChangesInterval は、EPG の変更の記録を読む間隔 (付録 A)。TMDB への問い合わせは、キャッシュが古いときだけ行う。
 	matchChangesInterval = time.Minute
 	// matchHorizonInterval は、これから 1 週間に放送される番組を照合し直す間隔 (付録 A)。
 	matchHorizonInterval = 6 * time.Hour
@@ -91,7 +91,7 @@ func (w *MatchWorker) Work(ctx context.Context, job *river.Job[MatchArgs]) error
 		return err
 	}
 	// 照合しきれなかった番組は、次の定期の照合 (6 時間後など) を待たずに、少し空けてから続きを照合する。
-	// 変更の記録の照合は、1 分ごとに読み直すので、TMDb が 1 分より長く待たせたときだけ、その間を空ける。
+	// 変更の記録の照合は、1 分ごとに読み直すので、TMDB が 1 分より長く待たせたときだけ、その間を空ける。
 	if result.Stopped && (job.Args.Mode != MatchModeChanges || result.ContinueAfter > matchChangesInterval) {
 		return river.JobSnooze(result.ContinueAfter)
 	}

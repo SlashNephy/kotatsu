@@ -37,7 +37,7 @@ const AccessTokenTTL = 7 * 24 * time.Hour
 // Item は、ウォッチリストの 1 作品。
 type Item struct {
 	SimklID int64
-	// TMDbID は、作品の TMDb の ID。0 なら、ID を返さない。
+	// TMDbID は、作品の TMDB の ID。0 なら、ID を返さない。
 	TMDbID int32
 	Status string
 	// UpdatedAt は、ウォッチリストで最後に変わった日時。date_from で差分を返すのに使う。
@@ -67,7 +67,7 @@ type Server struct {
 	// Activity と RemovedActivity は、/sync/activities が返す all と tv_shows.removed_from_list。
 	Activity        string
 	RemovedActivity string
-	// UnknownSeries は、/sync/history で見つからないものとする TMDb の作品の ID。
+	// UnknownSeries は、/sync/history で見つからないものとする TMDB の作品の ID。
 	UnknownSeries []string
 	// UnknownEpisodes は、/sync/history で見つからないものとする話 ("S1E3" の形)。
 	UnknownEpisodes []string

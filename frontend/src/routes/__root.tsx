@@ -48,7 +48,7 @@ const navItems = [
 
 // animeNavItem は、管理者がアニメの連携を有効にしているときだけ出す、視聴管理の画面へのリンク (#1231)。
 const animeNavItem = { to: '/anime', key: 'nav.anime' } as const;
-// dramaNavItem は、管理者が TMDb との連携を有効にしているときだけ出す、ドラマの視聴管理の画面へのリンク (#1652)。
+// dramaNavItem は、管理者が TMDB との連携を有効にしているときだけ出す、ドラマの視聴管理の画面へのリンク (#1652)。
 const dramaNavItem = { to: '/drama', key: 'nav.drama' } as const;
 
 type NavItem = (typeof navItems)[number] | typeof animeNavItem | typeof dramaNavItem;
@@ -235,7 +235,7 @@ const rootNavQuery = graphql`
 `;
 
 // NavLinks は、ヘッダーと引き出しに並べるリンク。視聴管理の画面へのリンクは、管理者がアニメの連携を有効にしているときだけ出す (#1231)。
-// ドラマの視聴管理の画面へのリンクは、TMDb との連携を有効にしているときだけ出す (#1652)。
+// ドラマの視聴管理の画面へのリンクは、TMDB との連携を有効にしているときだけ出す (#1652)。
 // 連携の設定を読めない間と、読めなかったときは、ほかのリンクだけを出す (ヘッダーまで出なくならないようにする)。
 function NavLinks({ size, onClick }: { size?: 'sm'; onClick?: () => void }) {
   const fallback = <NavAnchors items={navItems} size={size} onClick={onClick} />;

@@ -39,7 +39,7 @@ type GetRecordingNextEpisodeSourceRow struct {
 }
 
 // 録画の続きの放送 (#1564) を探すため、録画の回を読む元を返す。番組名、概要、詳細と、番組 (番組表かアーカイブ) の
-// シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数と、録画が結びついた TMDb の作品とシーズンと話の番号。
+// シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数と、録画が結びついた TMDB の作品とシーズンと話の番号。
 // 録画履歴に写すもの (設計書 4.4) と揃える。
 func (q *Queries) GetRecordingNextEpisodeSource(ctx context.Context, id uuid.UUID) (GetRecordingNextEpisodeSourceRow, error) {
 	row := q.db.QueryRow(ctx, getRecordingNextEpisodeSource, id)
@@ -218,7 +218,7 @@ type ListDramaNextProgramsRow struct {
 	RelatedItems  []byte
 }
 
-// TMDb の作品 tmdb_series_id のシーズン season_number の話に結びついた番組のうち、話の番号が episode_number より大きく、
+// TMDB の作品 tmdb_series_id のシーズン season_number の話に結びついた番組のうち、話の番号が episode_number より大きく、
 // since から until までに始まる、終了時刻の決まった番組を返す (#1564)。
 func (q *Queries) ListDramaNextPrograms(ctx context.Context, arg ListDramaNextProgramsParams) ([]ListDramaNextProgramsRow, error) {
 	rows, err := q.db.Query(ctx, listDramaNextPrograms,
@@ -290,7 +290,7 @@ type ListDramaNextProgramsBatchRow struct {
 	RelatedItems  []byte
 }
 
-// TMDb の作品 series_ids[i] のシーズン seasons[i] ごとに、話の番号が episodes[i] より大きく、since から until までに始まる、
+// TMDB の作品 series_ids[i] のシーズン seasons[i] ごとに、話の番号が episodes[i] より大きく、since から until までに始まる、
 // 終了時刻の決まった番組を、放送の早い順に max_rows 件まで返す (#1564)。ListDramaNextPrograms をまとめて引く。
 func (q *Queries) ListDramaNextProgramsBatch(ctx context.Context, arg ListDramaNextProgramsBatchParams) ([]ListDramaNextProgramsBatchRow, error) {
 	rows, err := q.db.Query(ctx, listDramaNextProgramsBatch,
@@ -397,7 +397,7 @@ type ListRecordedDramaEpisodesParams struct {
 	SeasonNumber int32
 }
 
-// TMDb の作品 tmdb_series_id のシーズン season_number の話に結びついた録画履歴の話の番号 (#1564)。録った回を、続きの放送から外すのに使う。
+// TMDB の作品 tmdb_series_id のシーズン season_number の話に結びついた録画履歴の話の番号 (#1564)。録った回を、続きの放送から外すのに使う。
 func (q *Queries) ListRecordedDramaEpisodes(ctx context.Context, arg ListRecordedDramaEpisodesParams) ([]float64, error) {
 	rows, err := q.db.Query(ctx, listRecordedDramaEpisodes, arg.TmdbSeriesID, arg.SeasonNumber)
 	if err != nil {
@@ -438,7 +438,7 @@ type ListRecordedDramaEpisodesBatchRow struct {
 	EpisodeNumber float64
 }
 
-// TMDb の作品 series_ids[i] のシーズン seasons[i] のどれかの話に結びついた録画履歴の、作品とシーズンと話の番号 (#1564)。
+// TMDB の作品 series_ids[i] のシーズン seasons[i] のどれかの話に結びついた録画履歴の、作品とシーズンと話の番号 (#1564)。
 // ListRecordedDramaEpisodes をまとめて引く。
 func (q *Queries) ListRecordedDramaEpisodesBatch(ctx context.Context, arg ListRecordedDramaEpisodesBatchParams) ([]ListRecordedDramaEpisodesBatchRow, error) {
 	rows, err := q.db.Query(ctx, listRecordedDramaEpisodesBatch, arg.SeriesIds, arg.Seasons)

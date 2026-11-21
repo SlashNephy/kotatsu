@@ -262,13 +262,13 @@ func TestFindReadsArchivedSeriesEpisode(t *testing.T) {
 	assert.Equal(t, []int64{901, 902}, eventIDs(got))
 }
 
-// dramaSeries と otherDramaSeries は、TMDb の作品のテストの ID。
+// dramaSeries と otherDramaSeries は、TMDB の作品のテストの ID。
 const (
 	dramaSeries      = 9001
 	otherDramaSeries = 9002
 )
 
-// matchDrama は、地上波の番組 eventID を、TMDb の作品 seriesID のシーズン season の話 episode に結びつける。
+// matchDrama は、地上波の番組 eventID を、TMDB の作品 seriesID のシーズン season の話 episode に結びつける。
 func (f *findFixture) matchDrama(t *testing.T, eventID int, seriesID, season, episode int32) {
 	t.Helper()
 
@@ -278,7 +278,7 @@ func (f *findFixture) matchDrama(t *testing.T, eventID int, seriesID, season, ep
 		faketuner.ServiceItemID(fakeGRNetwork, fakeGRService), eventID, seriesID, season, episode, findNow())
 }
 
-// linkDrama は、録画 recordingID を、TMDb の作品 seriesID のシーズン 1 の話 episode に結びつける。
+// linkDrama は、録画 recordingID を、TMDB の作品 seriesID のシーズン 1 の話 episode に結びつける。
 func (f *findFixture) linkDrama(t *testing.T, recordingID uuid.UUID, seriesID, episode int32) {
 	t.Helper()
 
@@ -286,8 +286,8 @@ func (f *findFixture) linkDrama(t *testing.T, recordingID uuid.UUID, seriesID, e
 		matched_at) VALUES ($1, $2, 1, $3, 'search', 'air_date', $4)`, recordingID, seriesID, episode, findNow())
 }
 
-// TestFindByDrama は、番組名から話数を読めないドラマの録画では、TMDb の作品とシーズンと話の番号で続きの放送を引き、
-// 前の話、別のシーズン、別の作品、録った話、TMDb に結びつかない番組を外すことを確かめる (#1564)。
+// TestFindByDrama は、番組名から話数を読めないドラマの録画では、TMDB の作品とシーズンと話の番号で続きの放送を引き、
+// 前の話、別のシーズン、別の作品、録った話、TMDB に結びつかない番組を外すことを確かめる (#1564)。
 func TestFindByDrama(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +298,7 @@ func TestFindByDrama(t *testing.T) {
 		fakeProgram(fakeGRNetwork, fakeGRService, 803, 5*time.Hour, "夜明けの診療所"),
 		fakeProgram(fakeGRNetwork, fakeGRService, 804, 6*time.Hour, "夜明けの診療所"),
 		fakeProgram(fakeGRNetwork, fakeGRService, 805, 7*time.Hour, "夜明けの診療所"),
-		// TMDb の話に結びつかない番組は、番組名が同じでも出さない。
+		// TMDB の話に結びつかない番組は、番組名が同じでも出さない。
 		fakeProgram(fakeGRNetwork, fakeGRService, 806, 8*time.Hour, "夜明けの診療所"),
 	})
 	f.matchDrama(t, 800, dramaSeries, 1, 4)
@@ -326,7 +326,7 @@ func TestFindByDrama(t *testing.T) {
 	assert.InDelta(t, 4, got[0].Number, 0)
 }
 
-// dramaBroadcast は、TMDb の話に結びつける地上波の放送。
+// dramaBroadcast は、TMDB の話に結びつける地上波の放送。
 type dramaBroadcast struct {
 	eventID int
 	offset  time.Duration
@@ -334,7 +334,7 @@ type dramaBroadcast struct {
 	episode int32
 }
 
-// addDramaHistory は、TMDb の作品 dramaSeries のシーズン season の話 episode を録った録画履歴を足す。
+// addDramaHistory は、TMDB の作品 dramaSeries のシーズン season の話 episode を録った録画履歴を足す。
 func (f *findFixture) addDramaHistory(t *testing.T, season, episode int32) {
 	t.Helper()
 
@@ -343,7 +343,7 @@ func (f *findFixture) addDramaHistory(t *testing.T, season, episode int32) {
 		id.New(), faketuner.ServiceItemID(fakeGRNetwork, fakeGRService), dramaSeries, season, episode, findNow().Add(-24*time.Hour))
 }
 
-// TestFindByDramaNextSeason は、TMDb の作品で探す録画で、今のシーズンの後の話がこれから放送されないときだけ、
+// TestFindByDramaNextSeason は、TMDB の作品で探す録画で、今のシーズンの後の話がこれから放送されないときだけ、
 // 次のシーズンの第 1 話を続きの放送に出すことを確かめる (#1564)。録画は、シーズン 1 の第 10 話。
 func TestFindByDramaNextSeason(t *testing.T) {
 	t.Parallel()

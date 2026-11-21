@@ -642,8 +642,9 @@
       "moreActions": "More reservation actions",
       "reserved": "Recording reserved",
       "partial": "Part of the program is expected to be missed. It will be recorded from {{start}} to {{end}}",
-      "reservedByRules": "Reserved by rules: ",
-      "reservedByRulesSettings": "Recording settings follow the oldest rule, \"{{name}}\"",
+      "reservedByRule": "Reserved by rule",
+      "relatedRules": "Related rules",
+      "ruleInUse": "This rule is used",
       "cancelReservation": "Cancel reservation",
       "cancelDescription": "Cancels the reservation for this program. It will not be recorded.",
       "cancelRuleDescription": "This reservation was made by a rule, so only this program will not be recorded. The rule stays.",
@@ -655,6 +656,7 @@
       "searchFilmarks": "Search on Filmarks",
       "searchTver": "Search on TVer",
       "searchNhkOne": "Search on NHK ONE",
+      "searchElsewhere": "Search on other sites",
       "searchSameName": "Search by the same title"
     },
     "view": {
@@ -2871,7 +2873,7 @@
         "all": "All"
       },
       "loadError": "Could not load the series",
-      "disabled": "An administrator has not enabled TMDb linking",
+      "disabled": "An administrator has not enabled TMDB linking",
       "empty": "No series",
       "emptyHint": "Add series with \"Track\" on a program or recording detail",
       "noWatched": "No episodes watched yet",

@@ -19,7 +19,7 @@ const (
 	thirdPending  = "1:3:pending"
 )
 
-// TestRecord は、ドラマの番組を、見たと判定する割合まで見たら、結びついた話を Simkl の /sync/history に TMDb の ID で送り、
+// TestRecord は、ドラマの番組を、見たと判定する割合まで見たら、結びついた話を Simkl の /sync/history に TMDB の ID で送り、
 // 結果を見たユーザーに通知することを確かめる (#1649)。
 func TestRecord(t *testing.T) {
 	t.Parallel()
@@ -89,7 +89,7 @@ func TestRecord(t *testing.T) {
 			require.Len(t, history, tt.wantHistory)
 			if tt.wantHistory > 0 {
 				assert.Equal(t, &simkltest.Watched{TMDbID: "9001", Season: 1, Episode: 3, WatchedAt: testNow().Format(time.RFC3339)}, history[0],
-					"the episode is sent by its TMDb ID, with the time it was judged as watched")
+					"the episode is sent by its TMDB ID, with the time it was judged as watched")
 			}
 			assert.Equal(t, tt.wantNotified, f.notifications(t))
 		})

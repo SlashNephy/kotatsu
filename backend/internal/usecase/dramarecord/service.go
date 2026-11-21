@@ -52,7 +52,7 @@ const (
 )
 
 var (
-	// ErrUnavailable は、管理者が TMDb との連携を無効にしているか、アプリを登録していないことを表す。
+	// ErrUnavailable は、管理者が TMDB との連携を無効にしているか、アプリを登録していないことを表す。
 	ErrUnavailable = errors.New("drama records are not available")
 	// ErrInvalidApp は、管理者が入れたアプリの値が正しくないことを表す。
 	ErrInvalidApp = errors.New("invalid drama record app")
@@ -245,7 +245,7 @@ func (s *Service) UpdateApp(ctx context.Context, db Database, actor *audit.Actor
 
 // Availability は、記録先ごとに、利用者が連携を始められるかどうか。
 type Availability struct {
-	// LinkingEnabled は、管理者が TMDb との連携を有効にしているかどうか (設計書 3.9)。
+	// LinkingEnabled は、管理者が TMDB との連携を有効にしているかどうか (設計書 3.9)。
 	LinkingEnabled bool
 	// Configured は、記録先の名前から、管理者がアプリを登録したかどうかへの表。
 	Configured map[string]bool
@@ -597,7 +597,7 @@ func (s *Service) destination(name string) (Destination, error) {
 	return destination, nil
 }
 
-// app は、記録先 name に登録したアプリを返す。TMDb との連携を無効にしているか、登録していなければ ErrUnavailable を返す。
+// app は、記録先 name に登録したアプリを返す。TMDB との連携を無効にしているか、登録していなければ ErrUnavailable を返す。
 func (s *Service) app(ctx context.Context, db sqlc.DBTX, name string) (*App, error) {
 	system, err := settings.Load(ctx, db)
 	if err != nil {

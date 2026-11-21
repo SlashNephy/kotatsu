@@ -128,7 +128,7 @@ function AboutContent() {
         <Disclaimer />
       </Card>
 
-      {/* TMDb の API の利用規約は、このアプリについての画面に、帰属の表示 (ロゴと注記) を求める (#1651)。 */}
+      {/* TMDB の API の利用規約は、このアプリについての画面に、帰属の表示 (ロゴと注記) を求める (#1651)。 */}
       <Card withBorder>
         <Stack gap="xs">
           <Text fw={600}>{t('about.dataSources')}</Text>

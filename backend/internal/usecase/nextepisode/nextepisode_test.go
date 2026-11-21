@@ -60,19 +60,19 @@ func TestKeyOf(t *testing.T) {
 			want:  &nextepisode.Key{TID: 0, Count: 0, Series: harbor, Number: 3, Drama: nil},
 		},
 		{
-			name:  "番組名の話数を読めなければ、TMDb の作品とシーズンと話の番号で探す",
+			name:  "番組名の話数を読めなければ、TMDB の作品とシーズンと話の番号で探す",
 			src:   &episode.Source{Name: "霧笛の港", Description: "", Extended: "", SeriesEpisode: nil, Anime: nil},
 			drama: drama,
 			want:  &nextepisode.Key{TID: 0, Count: 0, Series: "", Number: 0, Drama: drama},
 		},
 		{
-			name:  "番組名の話数を読めれば、TMDb の話に結びついていても、シリーズ名と話数で探す",
+			name:  "番組名の話数を読めれば、TMDB の話に結びついていても、シリーズ名と話数で探す",
 			src:   &episode.Source{Name: "霧笛の港 第3話", Description: "", Extended: "", SeriesEpisode: nil, Anime: nil},
 			drama: drama,
 			want:  &nextepisode.Key{TID: 0, Count: 0, Series: harbor, Number: 3, Drama: nil},
 		},
 		{
-			name: "しょぼいカレンダーの話に結びついていれば、TMDb の話に結びついていても、TID と話数で探す",
+			name: "しょぼいカレンダーの話に結びついていれば、TMDB の話に結びついていても、TID と話数で探す",
 			src: &episode.Source{
 				Name: "霧笛の港", Description: "", Extended: "", SeriesEpisode: nil, Anime: &episode.Anime{TID: 6776, Count: 15},
 			},

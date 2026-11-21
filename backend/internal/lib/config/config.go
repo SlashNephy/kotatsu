@@ -44,8 +44,8 @@ type Config struct {
 	AnimeLinking AnimeLinking `yaml:"anime_linking"`
 	// AnimeRecords は、見たアニメを Annict と AniList に記録する設定 (#927)。
 	AnimeRecords AnimeRecords `yaml:"anime_records"`
-	// TMDb は、ドラマの番組を TMDb の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
-	TMDb TMDb `yaml:"tmdb"`
+	// TMDB は、ドラマの番組を TMDB の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
+	TMDB TMDB `yaml:"tmdb"`
 	// Simkl は、見たドラマを Simkl に記録する連携の設定 (#1649、設計書 3.9)。
 	Simkl Simkl `yaml:"simkl"`
 	// Google は、Google Drive をライブラリとして接続する連携の設定 (#1902、設計書 5.8)。
@@ -336,10 +336,10 @@ type AnimeLinking struct {
 	ArmURL Secret `yaml:"arm_url"`
 }
 
-// TMDb は、ドラマの番組を TMDb の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
-// 連携するかどうかと、TMDb の API の読み取りアクセストークンは、管理者が連携の画面で決める。
-type TMDb struct {
-	// URL は、TMDb の API を向ける先のオリジン。空なら https://api.themoviedb.org にする。
+// TMDB は、ドラマの番組を TMDB の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
+// 連携するかどうかと、TMDB の API の読み取りアクセストークンは、管理者が連携の画面で決める。
+type TMDB struct {
+	// URL は、TMDB の API を向ける先のオリジン。空なら https://api.themoviedb.org にする。
 	// 本物の API の代わりに、検証用のサーバーへ向けるときだけ使う。
 	URL string `yaml:"url"`
 }
@@ -526,7 +526,7 @@ func Default() *Config {
 		Kyusu:        Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
 		AnimeLinking: AnimeLinking{ArmURL: ""},
 		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: "", JikanURL: ""},
-		TMDb:         TMDb{URL: ""},
+		TMDB:         TMDB{URL: ""},
 		Simkl:        Simkl{URL: ""},
 		Google:       Google{URL: ""},
 	}
@@ -624,7 +624,7 @@ func (c *Config) validate() error {
 	}
 	errs = append(errs, c.Auth.OIDC.validate()...)
 	errs = append(errs, c.AnimeRecords.validate()...)
-	if err := validateHTTPURL(c.TMDb.URL); err != nil {
+	if err := validateHTTPURL(c.TMDB.URL); err != nil {
 		errs = append(errs, fieldError("tmdb.url", err))
 	}
 	if err := validateHTTPURL(c.Simkl.URL); err != nil {

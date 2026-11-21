@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// other と unlinked は、テストのほかの TMDb の作品。other は 12:30 の番組に結びつき、unlinked はどこにも結びつかない。
+	// other と unlinked は、テストのほかの TMDB の作品。other は 12:30 の番組に結びつき、unlinked はどこにも結びつかない。
 	other    int32 = 9003
 	unlinked int32 = 9004
 	// seriesWatching と otherWatching は、見ている作品の series と other。

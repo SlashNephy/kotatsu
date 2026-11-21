@@ -75,11 +75,11 @@ type Resolver struct {
 	animeChannels *anime.Channels
 	// animeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録を扱わない。
 	animeRecords *animerecord.Service
-	// dramaOverrides は、ドラマの番組の作品名ごとに、TMDb の作品の上書きを変える (#1651、設計書 3.9)。
+	// dramaOverrides は、ドラマの番組の作品名ごとに、TMDB の作品の上書きを変える (#1651、設計書 3.9)。
 	dramaOverrides *drama.Overrides
 	// google は、Google の OAuth クライアントと Google Drive の接続を扱う (#1902)。nil なら、連携を扱わない。
 	google *google.Service
-	// dramaTokens は、管理者が入れる TMDb のトークン (#1651)。nil なら、トークンを扱わない。
+	// dramaTokens は、管理者が入れる TMDB のトークン (#1651)。nil なら、トークンを扱わない。
 	dramaTokens *drama.Tokens
 	// dramaRecords は、見たドラマを Simkl に記録する連携を扱う (#1649)。nil なら、連携の操作は内部のエラーにする。
 	dramaRecords *dramarecord.Service

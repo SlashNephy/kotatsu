@@ -23,7 +23,7 @@ type dramaTitleOverride struct {
 	TmdbSeriesID *int   `json:"tmdbSeriesId"`
 }
 
-// TestDramaTitleOverrides は、管理者だけが、ドラマの作品名ごとの TMDb の作品の上書きを読み、変えられることを確かめる (#1651)。
+// TestDramaTitleOverrides は、管理者だけが、ドラマの作品名ごとの TMDB の作品の上書きを読み、変えられることを確かめる (#1651)。
 // 上書きは家族の中で完結するので、再認証は求めない (設計書 9.5)。
 func TestDramaTitleOverrides(t *testing.T) {
 	t.Parallel()
@@ -58,7 +58,7 @@ func TestDramaTitleOverrides(t *testing.T) {
 		DramaTitleOverrides []dramaTitleOverride `json:"dramaTitleOverrides"`
 	}
 	require.Empty(t, admin.query(t, listQuery, nil, &listed))
-	assert.False(t, listed.DramaLinking.TokenConfigured, "no TMDb token has been entered")
+	assert.False(t, listed.DramaLinking.TokenConfigured, "no TMDB token has been entered")
 	assert.Len(t, listed.DramaTitleOverrides, 1)
 
 	for _, bad := range []map[string]any{
@@ -76,7 +76,7 @@ func TestDramaTitleOverrides(t *testing.T) {
 	assert.Empty(t, updated.UpdateDramaTitleOverride)
 }
 
-// TestDramaLinkingToken は、管理者だけが TMDb のトークンを入れられ、トークンそのものは返さず末尾の数文字だけを返すこと、
+// TestDramaLinkingToken は、管理者だけが TMDB のトークンを入れられ、トークンそのものは返さず末尾の数文字だけを返すこと、
 // 空にすれば消えること、変えるときは直近の再認証を求めることを確かめる (#1651、設計書 9.5)。
 func TestDramaLinkingToken(t *testing.T) {
 	t.Parallel()

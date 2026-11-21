@@ -14,7 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/tmdb"
 )
 
-// LinkedEpisode は、番組や録画に結びついた TMDb の作品と話 (設計書 3.9)。作品と話の名前は、TMDb から引いたキャッシュから読み、
+// LinkedEpisode は、番組や録画に結びついた TMDB の作品と話 (設計書 3.9)。作品と話の名前は、TMDB から引いたキャッシュから読み、
 // キャッシュがなければ (引く前や、6 か月で消した後) nil にする。
 type LinkedEpisode struct {
 	SeriesID int32
@@ -79,7 +79,7 @@ func linked(
 			episode.SeriesOriginalName = new(series.OriginalName)
 		}
 	case !errors.Is(err, pgx.ErrNoRows):
-		return nil, false, fmt.Errorf("failed to read the TMDb series: %w", err)
+		return nil, false, fmt.Errorf("failed to read the TMDB series: %w", err)
 	}
 	if seasonNumber == nil || episodeNumber == nil {
 		return episode, true, nil
@@ -89,11 +89,11 @@ func linked(
 		return episode, true, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to read the TMDb season: %w", err)
+		return nil, false, fmt.Errorf("failed to read the TMDB season: %w", err)
 	}
 	episodes := []*tmdb.Episode{}
 	if err := json.Unmarshal(season.Episodes, &episodes); err != nil {
-		return nil, false, fmt.Errorf("failed to decode the TMDb season: %w", err)
+		return nil, false, fmt.Errorf("failed to decode the TMDB season: %w", err)
 	}
 	for _, e := range episodes {
 		if e.EpisodeNumber == *episodeNumber && e.Name != "" {

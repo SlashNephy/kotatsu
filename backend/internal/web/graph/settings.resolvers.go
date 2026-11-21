@@ -75,7 +75,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 	if updated.AnimeLinkingEnabled && input.AnimeLinkingEnabled != nil {
 		r.startAnimeLinking(ctx)
 	}
-	// TMDb との連携を有効にしたら、6 時間ごとの照合し直しを待たずに、これから 1 週間の番組を照合する (設計書 3.9)。
+	// TMDB との連携を有効にしたら、6 時間ごとの照合し直しを待たずに、これから 1 週間の番組を照合する (設計書 3.9)。
 	if updated.DramaLinkingEnabled && input.DramaLinkingEnabled != nil {
 		r.startDramaLinking(ctx)
 	}

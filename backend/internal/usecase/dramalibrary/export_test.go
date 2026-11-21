@@ -6,7 +6,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/tmdb"
 )
 
-// NextEpisode は、TMDb のキャッシュ (作品のシーズンの一覧 seasons と、シーズンごとの話の番号 episodes) で、作品の話
+// NextEpisode は、TMDB のキャッシュ (作品のシーズンの一覧 seasons と、シーズンごとの話の番号 episodes) で、作品の話
 // (season, number) の次に見る話を求め、"シーズン:話" の形で返す。次の話がなければ "-" を返す。
 func NextEpisode(seasons []*tmdb.Season, episodes map[int32][]int32, season, number int32) string {
 	const series = 1

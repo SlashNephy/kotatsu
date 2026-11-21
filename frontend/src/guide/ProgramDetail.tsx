@@ -1,6 +1,5 @@
 import {
   Alert,
-  Anchor,
   Badge,
   Button,
   Drawer,
@@ -20,6 +19,7 @@ import {
   ChevronDown,
   Film,
   History,
+  ListChecks,
   ListPlus,
   Search,
   Play,
@@ -35,17 +35,15 @@ import { useDataChanges } from '../changes/DataChanges';
 import type { ChangeChannel } from '../changes/dataChanges';
 import { conditionsFromProgram } from '../conditions/form';
 import { ErrorBoundary, LinkifiedText, ProgramTitle, toHalfWidth } from '../futon';
-import { FilmarksLink } from './FilmarksLink';
-import { StreamingLink } from './StreamingLink';
 import { programGenreLabels } from './genreOptions';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
 import { ReservationPeers } from '../reservations/ReservationPeers';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
-import { AnimeEpisodes } from '../anime/AnimeEpisodes';
-import { DramaEpisode } from '../drama/DramaEpisode';
+import { SearchElsewhereMenu } from './SearchElsewhereMenu';
 import { ServiceLabel } from './ServiceLabel';
+import { WorkPanel } from './WorkPanel';
 import { WatchReserveButton } from '../watch/WatchReserveButton';
 import { zonedFormat } from '../futon';
 
@@ -143,7 +141,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
               lv1
               lv2
             }
-            # TMDb で結びつけた作品と話 (#1651、設計書 3.9)。詳細でだけ引く。
+            # TMDB で結びつけた作品と話 (#1651、設計書 3.9)。詳細でだけ引く。
             dramaEpisode {
               series {
                 tmdbId
@@ -311,44 +309,39 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
 
   return (
     <Stack>
-      {/* 番組名、サービス、放送時間、ジャンルの順に、1 段ずつ並べる。 */}
+      {/* 番組名の下に、サービス、放送時間、ジャンルを 1 行にまとめる (録画の詳細と同じ並び)。 */}
       <Stack gap={4}>
-        <Title order={3} size="h4">
-          <ProgramTitle name={program.name} />
-        </Title>
-        <Text size="sm">
-          <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
-        </Text>
-        <Text size="sm" c="dimmed">
-          {t('range', {
-            from: dateTimeFormat.format(start),
-            to: program.endUndecided
-              ? t('guide.detail.endUndecided')
-              : timeFormat.format(Date.parse(program.endAt)),
-          })}
-        </Text>
-        {(genres.length > 0 || !program.isFree) && (
-          <Group gap="xs">
-            {genres.map((genre) => (
-              <Badge key={genre} variant="light">
-                {genre}
-              </Badge>
-            ))}
-            {!program.isFree && <Badge color="gray">{t('guide.detail.paid')}</Badge>}
-          </Group>
-        )}
-        <AnimeEpisodes episodes={program.animeEpisodes} record={{ program: program.id }} />
-        <DramaEpisode
-          episode={program.dramaEpisode}
-          programName={program.name}
-          canOverride={data.viewer.role === 'ADMIN'}
-        />
-        <FilmarksLink
-          genres={program.genres}
-          workTitle={program.workTitle}
-          anime={program.animeEpisodes.length > 0}
-        />
-        <StreamingLink service={program.service} workTitle={program.workTitle} />
+        {/* 作品名でほかのサイトを探すリンクは、番組名の横のメニューにまとめる。 */}
+        <Group gap="xs" wrap="nowrap" align="flex-start" justify="space-between">
+          <Title order={3} size="h4">
+            <ProgramTitle name={program.name} />
+          </Title>
+          <SearchElsewhereMenu
+            genres={program.genres}
+            workTitle={program.workTitle}
+            anime={program.animeEpisodes.length > 0}
+            service={program.service}
+          />
+        </Group>
+        <Group gap="xs" wrap="wrap">
+          <Text size="sm">
+            <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
+          </Text>
+          <Text size="sm" c="dimmed">
+            {t('range', {
+              from: dateTimeFormat.format(start),
+              to: program.endUndecided
+                ? t('guide.detail.endUndecided')
+                : timeFormat.format(Date.parse(program.endAt)),
+            })}
+          </Text>
+          {genres.map((genre) => (
+            <Badge key={genre} variant="light">
+              {genre}
+            </Badge>
+          ))}
+          {!program.isFree && <Badge color="gray">{t('guide.detail.paid')}</Badge>}
+        </Group>
       </Stack>
       {/* 操作は 1 段にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
       {ended && (
@@ -414,6 +407,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             <Button.Group flex={1}>
               {reserved && program.reservation != null ? (
                 // 録画予約済みのボタンを押すと、録画の設定を開く。取り消しは、間違えて押さないよう、メニューに入れる。
+                // ルールで入った予約は「ルール録画予約済み」とし、もとになったルールは ▾ のメニューから開く。
                 <Tooltip label={t('reservations.settings.open')}>
                   <Button
                     variant="outline"
@@ -421,7 +415,9 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
                     onClick={() => setEditing(true)}
                     leftSection={<CalendarCheck size={16} aria-hidden />}
                   >
-                    {t('guide.detail.reserved')}
+                    {program.reservation.kind === 'RULE'
+                      ? t('guide.detail.reservedByRule')
+                      : t('guide.detail.reserved')}
                   </Button>
                 </Tooltip>
               ) : (
@@ -447,25 +443,43 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
                 </Menu.Target>
                 <Menu.Dropdown>
                   {reserved && program.reservation != null ? (
-                    <Menu.Item
-                      color="red"
-                      leftSection={<CalendarX2 size={16} aria-hidden />}
-                      onClick={() => setCancelling(true)}
-                    >
-                      {t('guide.detail.cancelReservation')}
-                    </Menu.Item>
+                    // 項目は、もとになったルールを開く、ルールを作る、取り消すの順に並べ、赤い取り消しを最後に置く。
+                    <>
+                      {program.reservation.kind === 'RULE' && (
+                        <SourceRuleItems rules={program.reservation.rules} />
+                      )}
+                      <Menu.Item
+                        leftSection={<ListPlus size={16} aria-hidden />}
+                        onClick={createRule}
+                      >
+                        {t('guide.detail.createRule')}
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item
+                        color="red"
+                        leftSection={<CalendarX2 size={16} aria-hidden />}
+                        onClick={() => setCancelling(true)}
+                      >
+                        {t('guide.detail.cancelReservation')}
+                      </Menu.Item>
+                    </>
                   ) : (
-                    // ワンクリックの予約とは別に、録画の設定をしてから予約する (#463)。
-                    <Menu.Item
-                      leftSection={<SlidersHorizontal size={16} aria-hidden />}
-                      onClick={() => setConfiguring(true)}
-                    >
-                      {t('reservations.settings.openCreate')}
-                    </Menu.Item>
+                    <>
+                      {/* ワンクリックの予約とは別に、録画の設定をしてから予約する (#463)。 */}
+                      <Menu.Item
+                        leftSection={<SlidersHorizontal size={16} aria-hidden />}
+                        onClick={() => setConfiguring(true)}
+                      >
+                        {t('reservations.settings.openCreate')}
+                      </Menu.Item>
+                      <Menu.Item
+                        leftSection={<ListPlus size={16} aria-hidden />}
+                        onClick={createRule}
+                      >
+                        {t('guide.detail.createRule')}
+                      </Menu.Item>
+                    </>
                   )}
-                  <Menu.Item leftSection={<ListPlus size={16} aria-hidden />} onClick={createRule}>
-                    {t('guide.detail.createRule')}
-                  </Menu.Item>
                 </Menu.Dropdown>
               </Menu>
             </Button.Group>
@@ -513,9 +527,6 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
       {editing && program.reservation != null && (
         <ReservationSettingsDialog id={program.reservation.id} onClose={() => setEditing(false)} />
       )}
-      {reserved && program.reservation != null && program.reservation.kind === 'RULE' && (
-        <ReservedByRules rules={program.reservation.rules} />
-      )}
       {cancelling && program.reservation != null && (
         <CancelDialog
           reservationId={program.reservation.id}
@@ -529,6 +540,14 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           {t('guide.detail.reserveError')}
         </Alert>
       )}
+      {/* 作品の情報は、操作の後ろにまとめる。作品の情報の量によらず、操作のボタンが同じ位置に来る。 */}
+      <WorkPanel
+        animeEpisodes={program.animeEpisodes}
+        record={{ program: program.id }}
+        dramaEpisode={program.dramaEpisode}
+        programName={program.name}
+        canOverride={data.viewer.role === 'ADMIN'}
+      />
       {program.description !== '' && (
         <Text size="sm">
           <LinkifiedText text={toHalfWidth(program.description)} />
@@ -548,38 +567,36 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   );
 }
 
-// ReservedByRules は、ルール予約のもとになったルールを並べ、ルールの画面へ移れるようにする。
-// 複数のルールに一致したときは、録画の設定に使うのが最も古いルール (先頭) であることも示す。
-function ReservedByRules({ rules }: { rules: ReadonlyArray<{ id: string; name: string }> }) {
+// SourceRuleItems は、ルール予約のもとになったルールを、予約のボタンの ▾ のメニューに並べ、ルールの画面へ移れるようにする。
+// ルールの数によらず、「関連するルール」の見出しの下にルール名を並べる。複数のルールに一致したときは、録画の設定に使う
+// 最も古いルール (先頭) の名前の下に、「このルールが使用されています」と薄く添える。もとのルールを消していれば、何も出さない。
+function SourceRuleItems({ rules }: { rules: ReadonlyArray<{ id: string; name: string }> }) {
   const { t } = useTranslation();
   if (rules.length === 0) {
     return null;
   }
 
   return (
-    <Stack gap={2}>
-      <Text size="sm">
-        {t('guide.detail.reservedByRules')}
-        {rules.map((rule, index) => (
-          <span key={rule.id}>
-            {index > 0 && '、'}
-            <Anchor
-              size="sm"
-              renderRoot={(props) => (
-                <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />
-              )}
-            >
-              {rule.name}
-            </Anchor>
-          </span>
-        ))}
-      </Text>
-      {rules.length > 1 && (
-        <Text size="xs" c="dimmed">
-          {t('guide.detail.reservedByRulesSettings', { name: rules[0]?.name })}
-        </Text>
-      )}
-    </Stack>
+    <>
+      <Menu.Label>{t('guide.detail.relatedRules')}</Menu.Label>
+      {rules.map((rule, index) => (
+        <Menu.Item
+          key={rule.id}
+          leftSection={<ListChecks size={16} aria-hidden />}
+          renderRoot={(props) => (
+            <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />
+          )}
+        >
+          {rule.name}
+          {rules.length > 1 && index === 0 && (
+            <Text component="div" size="xs" c="dimmed">
+              {t('guide.detail.ruleInUse')}
+            </Text>
+          )}
+        </Menu.Item>
+      ))}
+      <Menu.Divider />
+    </>
   );
 }
 

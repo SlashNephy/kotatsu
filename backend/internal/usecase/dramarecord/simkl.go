@@ -252,7 +252,7 @@ type allItemsResponse struct {
 }
 
 func (s *Simkl) Watchlist(ctx context.Context, app *App, accessToken, dateFrom string) ([]*WatchlistItem, error) {
-	// 既定の形で引く。作品ごとの状態と、TMDb の ID を含む外部の ID を返す。
+	// 既定の形で引く。作品ごとの状態と、TMDB の ID を含む外部の ID を返す。
 	query := url.Values{}
 	if dateFrom != "" {
 		query.Set("date_from", dateFrom)
@@ -352,7 +352,7 @@ func (s *Simkl) token(ctx context.Context, app *App, form url.Values) (*Token, e
 	return &Token{AccessToken: decoded.AccessToken, RefreshToken: decoded.RefreshToken, ExpiresIn: expiresIn}, nil
 }
 
-// redirectURL は、TMDb の作品 ID tmdb の、Simkl の作品のページへ移るリンクを返す。Simkl の ID を引かずに、作品のページへのリンクを作る。
+// redirectURL は、TMDB の作品 ID tmdb の、Simkl の作品のページへ移るリンクを返す。Simkl の ID を引かずに、作品のページへのリンクを作る。
 func (s *Simkl) redirectURL(app *App, tmdb string) string {
 	query := url.Values{"to": {"simkl"}, "tmdb": {tmdb}, "type": {"tv"}, paramClientID: {app.ClientID}, "app-name": {simklAppName}, "app-version": {appVersion()}}
 

@@ -80,7 +80,7 @@ VALUES (@id, @service_id, @title_key, @name, @series::text, true, @start_at, @en
 -- 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
 -- 解析し直してスクランブルの警告が変わったときに直せるよう、録画も持つ (#1517)。
 -- series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で引くのに使う。
--- ドラマの続きの放送 (#1564) で録った話を外せるよう、録画が結びついた TMDb の作品とシーズンと話の番号も写す。
+-- ドラマの続きの放送 (#1564) で録った話を外せるよう、録画が結びついた TMDB の作品とシーズンと話の番号も写す。
 INSERT INTO recording_history (
   id, service_id, title_key, name, series, description, series_episode, syobocal_tid, anime_count,
   tmdb_series_id, tmdb_season_number, tmdb_episode_number, imported, start_at, end_at, created_at, recording_id

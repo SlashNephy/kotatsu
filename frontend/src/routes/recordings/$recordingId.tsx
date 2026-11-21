@@ -60,8 +60,6 @@ import {
   useDocumentTitle,
 } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
-import { AnimeEpisodes } from '../../anime/AnimeEpisodes';
-import { DramaEpisode } from '../../drama/DramaEpisode';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
 import { ScrambleBadge } from '../../recordings/ScrambleBadge';
 import { StreamQualityButton } from '../../recordings/StreamQualityButton';
@@ -76,8 +74,8 @@ import type { RecordingIdReanalyzeMutation } from './__generated__/RecordingIdRe
 import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdRegenerateMutation.graphql';
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
-import { FilmarksLink } from '../../guide/FilmarksLink';
-import { StreamingLink } from '../../guide/StreamingLink';
+import { SearchElsewhereMenu } from '../../guide/SearchElsewhereMenu';
+import { WorkPanel } from '../../guide/WorkPanel';
 import { programGenreLabels } from '../../guide/genreOptions';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
@@ -258,7 +256,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               lv1
               lv2
             }
-            # 録画を始めたときに写した、TMDb で結びつけた作品と話 (#1651、設計書 3.9)。
+            # 録画を始めたときに写した、TMDB で結びつけた作品と話 (#1651、設計書 3.9)。
             dramaEpisode {
               series {
                 tmdbId
@@ -636,9 +634,18 @@ function Recording({ recordingId }: { recordingId: string }) {
       </Grid.Col>
       <Grid.Col span={{ base: 12, md: 7 }}>
         <Stack>
-          <Title order={2} size="h3">
-            <ProgramTitle name={recording.name} />
-          </Title>
+          {/* 作品名でほかのサイトを探すリンクは、番組の詳細と同じく、番組名の横のメニューにまとめる。 */}
+          <Group gap="xs" wrap="nowrap" align="flex-start" justify="space-between">
+            <Title order={2} size="h3">
+              <ProgramTitle name={recording.name} />
+            </Title>
+            <SearchElsewhereMenu
+              genres={recording.genres}
+              workTitle={recording.workTitle}
+              anime={recording.animeEpisodes.length > 0}
+              service={recording.service}
+            />
+          </Group>
           <Group gap="xs">
             <Text size="sm">
               <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
@@ -664,19 +671,14 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Badge>
             ))}
           </Group>
-          <AnimeEpisodes episodes={recording.animeEpisodes} record={{ recording: recording.id }} />
           {/* 作品の上書きは番組表にある番組にしか及ばないので、録画の詳細には置かない (#1651)。 */}
-          <DramaEpisode
-            episode={recording.dramaEpisode}
+          <WorkPanel
+            animeEpisodes={recording.animeEpisodes}
+            record={{ recording: recording.id }}
+            dramaEpisode={recording.dramaEpisode}
             programName={recording.name}
             canOverride={false}
           />
-          <FilmarksLink
-            genres={recording.genres}
-            workTitle={recording.workTitle}
-            anime={recording.animeEpisodes.length > 0}
-          />
-          <StreamingLink service={recording.service} workTitle={recording.workTitle} />
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&
             (recording.rule != null ? (

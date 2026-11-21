@@ -49,7 +49,7 @@ import { notifySaved, useSaveNotice } from '../../settings/saveNotice';
 import { useAutoSave } from '../../settings/useAutoSave';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
-import { parseTMDbSeriesId, TMDbAttribution } from '../../drama/DramaEpisode';
+import { parseTMDbSeriesId } from '../../drama/DramaEpisode';
 import { SudoGate } from '../../settings/SudoGate';
 import type {
   WebhookFormat,
@@ -186,7 +186,7 @@ const query = graphql`
         libraryName
       }
     }
-    # TMDb との連携 (#1651、設計書 3.9)。
+    # TMDB との連携 (#1651、設計書 3.9)。
     dramaLinking {
       tokenConfigured
       tokenHint
@@ -477,13 +477,13 @@ function Integrations() {
           />
         </AnimeLinkingSettings>
 
-        {/* TMDb との連携 (#1651)。外部へ問い合わせ始めるかどうかを決めるので、ここで再認証を求める。 */}
+        {/* TMDB との連携 (#1651)。外部へ問い合わせ始めるかどうかを決めるので、ここで再認証を求める。 */}
         <DramaLinkingSettings
           key="drama"
           enabled={data.systemSettings.dramaLinkingEnabled}
           tokenConfigured={data.dramaLinking.tokenConfigured}
           tokenForm={
-            // TMDb の API の読み取りアクセストークン。サーバーが外部へ問い合わせるときの秘密情報なので、ここで再認証を求める。
+            // TMDB の API の読み取りアクセストークン。サーバーが外部へ問い合わせるときの秘密情報なので、ここで再認証を求める。
             <DramaTokenForm
               key={`${String(data.dramaLinking.tokenConfigured)}/${data.dramaLinking.tokenHint ?? ''}`}
               configured={data.dramaLinking.tokenConfigured}
@@ -996,8 +996,8 @@ type DramaTitleOverrideItem = {
   updatedAt: string;
 };
 
-// DramaLinkingSettings は、TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうかを変え (#1651、設計書 3.9)、
-// トークンの入力欄 tokenForm と、作品名ごとの上書きを出す。上書きは、番組名と TMDb の作品で足し、一覧から消せる。
+// DramaLinkingSettings は、TMDB との連携 (ドラマの番組と作品の結びつき) を使うかどうかを変え (#1651、設計書 3.9)、
+// トークンの入力欄 tokenForm と、作品名ごとの上書きを出す。上書きは、番組名と TMDB の作品で足し、一覧から消せる。
 function DramaLinkingSettings({
   enabled,
   tokenConfigured,
@@ -1054,7 +1054,6 @@ function DramaLinkingSettings({
           </Alert>
         )}
         {tokenForm}
-        <TMDbAttribution />
         <Title order={5}>{t('admin.settings.dramaOverrides')}</Title>
         <Text size="sm" c="dimmed">
           {t('admin.settings.dramaOverridesHelp')}
@@ -1079,7 +1078,7 @@ function DramaLinkingSettings({
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      {`TMDb ${override.tmdbSeriesId}`}
+                      {`TMDB ${override.tmdbSeriesId}`}
                     </Anchor>
                   )}
                 </Text>
@@ -1136,7 +1135,7 @@ function DramaLinkingSettings({
   );
 }
 
-// DramaTokenForm は、TMDb の API の読み取りアクセストークンを変える (#1651)。
+// DramaTokenForm は、TMDB の API の読み取りアクセストークンを変える (#1651)。
 // トークンはサーバーから返らないので、変えるときだけ入れる。入れたトークンは、末尾の数文字 hint だけで見分ける。
 function DramaTokenForm({
   configured,

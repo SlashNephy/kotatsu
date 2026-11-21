@@ -17,7 +17,7 @@ import (
 // testToken は、テストで使うトークン。エラーの文や URL に出ないことを確かめる。
 const testToken = "test-read-access-token-0123456789"
 
-// request は、偽の TMDb が受けた問い合わせ 1 回。
+// request は、偽の TMDB が受けた問い合わせ 1 回。
 type request struct {
 	path          string
 	rawQuery      string
@@ -25,7 +25,7 @@ type request struct {
 	userAgent     string
 }
 
-// newServer は、handler で応える偽の TMDb を立て、受けた問い合わせを記録する。
+// newServer は、handler で応える偽の TMDB を立て、受けた問い合わせを記録する。
 func newServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, func() []request) {
 	t.Helper()
 
@@ -116,7 +116,7 @@ func TestClientRequests(t *testing.T) {
 	}
 }
 
-// TestClientErrors は、TMDb が断ったときのエラーを確かめる。エラーの文にはトークンを出さない。
+// TestClientErrors は、TMDB が断ったときのエラーを確かめる。エラーの文にはトークンを出さない。
 func TestClientErrors(t *testing.T) {
 	t.Parallel()
 
