@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
+	"github.com/SlashNephy/kotatsu/internal/web/mirakurunapi"
 )
 
 // nabeKeyMaterial は、テストのアプリの秘密キー。
@@ -54,7 +55,7 @@ func TestNabeSharesNetworkTVAcrossRoles(t *testing.T) {
 	s, server, ids, feed := feedServer(t, 0, 0)
 	token, err := nabe.NewToken(nabeKeyMaterial)
 	require.NoError(t, err)
-	hub := httptest.NewServer(nabe.Handler(server, token, "test", slog.New(slog.DiscardHandler)))
+	hub := httptest.NewServer(mirakurunapi.NabeHandler(server, token, "test", slog.New(slog.DiscardHandler)))
 	t.Cleanup(hub.Close)
 	instances := nabeInstances{address: strings.TrimPrefix(hub.URL, "http://")}
 
@@ -92,7 +93,7 @@ func TestNabeClosesNetworkTVWhenRolesLeave(t *testing.T) {
 	s, server, ids, feed := feedServer(t, 0, 0)
 	token, err := nabe.NewToken(nabeKeyMaterial)
 	require.NoError(t, err)
-	hub := httptest.NewServer(nabe.Handler(server, token, "test", slog.New(slog.DiscardHandler)))
+	hub := httptest.NewServer(mirakurunapi.NabeHandler(server, token, "test", slog.New(slog.DiscardHandler)))
 	t.Cleanup(hub.Close)
 	roleStreams := nabe.NewStreams(nabeInstances{address: strings.TrimPrefix(hub.URL, "http://")}, token, unusedOpener{},
 		new(clock.Real), slog.New(slog.DiscardHandler))

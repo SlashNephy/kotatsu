@@ -15,11 +15,15 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/lib/innertoken"
 	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
+	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
+	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
 // streamBufferSize は、ストリームを 1 回に読んで書く大きさ。
@@ -30,29 +34,43 @@ type Server struct {
 	source  tunerserver.Client
 	version string
 	logger  *slog.Logger
-	mux     *http.ServeMux
+	router  http.Handler
 }
 
 var _ http.Handler = new(Server)
 
 // NewServer は、source を公開する Server を返す。version は /api/version で名乗る版。
+// ルートは echo で受ける (#2016)。http.ServeMux で受けていたときと同じく、崩れたパスはリダイレクトし、当たらないパスには素の 404 を返す。
 func NewServer(source tunerserver.Client, version string, logger *slog.Logger) *Server {
-	s := &Server{source: source, version: version, logger: logger, mux: http.NewServeMux()}
-	s.mux.HandleFunc("GET /api/version", s.serveVersion)
-	s.mux.HandleFunc("GET /api/channels", s.serveChannels)
-	s.mux.HandleFunc("GET /api/services", s.serveServices)
-	s.mux.HandleFunc("GET /api/services/{id}/logo", s.serveLogo)
-	s.mux.HandleFunc("GET /api/services/{id}/stream", s.serveServiceStream)
-	s.mux.HandleFunc("GET /api/channels/{type}/{channel}/stream", s.serveChannelStream)
-	s.mux.HandleFunc("GET /api/programs", s.servePrograms)
-	s.mux.HandleFunc("GET /api/tuners", s.serveTuners)
-	s.mux.HandleFunc("GET /api/events/stream", s.serveEvents)
+	s := &Server{source: source, version: version, logger: logger, router: nil}
+	router := httpserver.NewRouter(logger, http.NotFoundHandler())
+	router.Pre(httpserver.CanonicalPath())
+	for path, handler := range map[string]http.HandlerFunc{
+		"/api/version":                        s.serveVersion,
+		"/api/channels":                       s.serveChannels,
+		"/api/services":                       s.serveServices,
+		"/api/services/:id/logo":              s.serveLogo,
+		"/api/services/:id/stream":            s.serveServiceStream,
+		"/api/channels/:type/:channel/stream": s.serveChannelStream,
+		"/api/programs":                       s.servePrograms,
+		"/api/tuners":                         s.serveTuners,
+		"/api/events/stream":                  s.serveEvents,
+	} {
+		httpserver.Handle(router, path, map[string]http.Handler{http.MethodGet: handler})
+	}
+	s.router = router
 
 	return s
 }
 
+// NabeHandler は、source を Mirakurun 互換の API として、nabe.PathPrefix の下に公開するハンドラーを返す (#1535)。
+// token を付けたリクエストだけ受け付ける。トークンは、ルートを探す前に確かめる。
+func NabeHandler(source tunerserver.Client, token *innertoken.Token, version string, logger *slog.Logger) http.Handler {
+	return token.Middleware(http.StripPrefix(strings.TrimSuffix(nabe.PathPrefix, "/"), NewServer(source, version, logger)))
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
+	s.router.ServeHTTP(w, r)
 }
 
 func (s *Server) serveVersion(w http.ResponseWriter, _ *http.Request) {

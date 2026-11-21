@@ -88,6 +88,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/iptvapi"
 	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
+	"github.com/SlashNephy/kotatsu/internal/web/kyusuapi"
 	"github.com/SlashNephy/kotatsu/internal/web/mcpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/metricsapi"
 	"github.com/SlashNephy/kotatsu/internal/web/spa"
@@ -634,9 +635,11 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		return err
 	}
 
-	mux := http.NewServeMux()
 	// DB が止まっても、覚えた結果で視聴を続けられる間は、Service から外さない (#1084)。
-	httpserver.RegisterHealth(mux, logger, deps.DB, database.FallbackTTL)
+	health := httpserver.HealthHandlers(logger, deps.DB, database.FallbackTTL)
+	// kyusu と nabe は、パスの頭の下を受け持つ。
+	subtrees := map[string]http.Handler{}
+	var app http.Handler
 	var api *apiHandler
 	// API は tenban が受け持つ (設計書 1.2、9.1)。
 	if slices.ContainsFunc(roles, func(role *Role) bool { return role.Name == tenbanRoleName }) {
@@ -648,7 +651,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 			return err
 		}
 		// ヘルスチェックは、Kubernetes などがプライベートでないアドレスから叩くこともあるので、接続元の制限に含めない。
-		mux.Handle("/", api.handler)
+		app = api.handler
 	}
 	var live *kyusu.Live
 	var vod *kyusu.VOD
@@ -662,11 +665,12 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 
 			return err
 		}
-		mux.Handle(kyusu.LivePathPrefix, live.Handler(token))
-		vodHandler := vod.Handler(token)
-		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
-		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
-		mux.Handle(kyusu.LibraryPathPrefix, vodHandler)
+		kyusuLogger := logger.With(slog.String("component", "kyusu"))
+		subtrees[kyusu.LivePathPrefix] = kyusuapi.LiveHandler(kyusuLogger, live, token)
+		vodHandler := kyusuapi.VODHandler(kyusuLogger, vod, token)
+		subtrees[kyusu.RecordingPathPrefix] = vodHandler
+		subtrees[kyusu.TimeshiftPathPrefix] = vodHandler
+		subtrees[kyusu.LibraryPathPrefix] = vodHandler
 	}
 	// EDCB の NetworkTV の TS は nabe が配る (#1535)。ほかのロールが、インスタンスの登録簿で引いて受け取る。
 	if serveNabe(deps, roles) {
@@ -677,9 +681,10 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 
 			return err
 		}
-		mux.Handle(nabe.PathPrefix, nabeHandler)
+		subtrees[nabe.PathPrefix] = nabeHandler
 	}
-	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
+	router := httpserver.NewAPIRouter(logger.With(slog.String("server", "api")), health, subtrees, app)
+	handler := otelhttp.NewHandler(router, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
 	metricsLogger := logger.With(slog.String("server", "metrics"))
 	metricsHandler := metricsapi.NewHandler(metricsLogger, prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics, deps.Config.Metrics.Pprof)
 

@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/web/kyusuapi"
 )
 
 const (
@@ -128,7 +129,7 @@ func newLiveFixtureWithScramble(t *testing.T, opener kyusu.ServiceOpener, encode
 	require.NoError(t, err)
 	token, err := kyusu.NewToken(keyMaterial)
 	require.NoError(t, err)
-	server := httptest.NewServer(live.Handler(token))
+	server := httptest.NewServer(kyusuapi.LiveHandler(slog.New(slog.DiscardHandler), live, token))
 	t.Cleanup(server.Close)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)

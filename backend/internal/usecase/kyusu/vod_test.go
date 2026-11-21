@@ -34,6 +34,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
+	"github.com/SlashNephy/kotatsu/internal/web/kyusuapi"
 )
 
 const (
@@ -85,7 +86,7 @@ func newVODFixture(t *testing.T, encoder kyusu.VODEncoder, modify ...func(opts *
 	require.NoError(t, err)
 	token, err := kyusu.NewToken(keyMaterial)
 	require.NoError(t, err)
-	server := httptest.NewServer(vod.Handler(token))
+	server := httptest.NewServer(kyusuapi.VODHandler(slog.New(slog.DiscardHandler), vod, token))
 	t.Cleanup(server.Close)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)

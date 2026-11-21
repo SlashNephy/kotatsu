@@ -268,20 +268,20 @@ func (v *VOD) Run(ctx context.Context) error {
 	}
 }
 
-// Handler は、録画の仮想 HLS を配信するハンドラーを返す。token を付けたリクエストだけを受け付ける。
-func (v *VOD) Handler(token *Token) http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET "+RecordingPathPrefix+"{id}/{preset}/{audio}/{file}", func(w http.ResponseWriter, r *http.Request) {
-		v.serveHTTP(w, r, recordingDir)
-	})
-	mux.HandleFunc("GET "+TimeshiftPathPrefix+"{id}/{preset}/{audio}/{file}", func(w http.ResponseWriter, r *http.Request) {
-		v.serveHTTP(w, r, timeshiftKind)
-	})
-	mux.HandleFunc("GET "+LibraryPathPrefix+"{id}/{preset}/{audio}/{file}", func(w http.ResponseWriter, r *http.Request) {
-		v.serveHTTP(w, r, libraryKind)
-	})
+// ServeRecording は、録画の仮想 HLS のプレイリストかセグメントを返す。パスの id、preset、audio、file を r.PathValue で読む。
+// ルートは web の層 (web/kyusuapi) で登録する (#2016)。
+func (v *VOD) ServeRecording(w http.ResponseWriter, r *http.Request) {
+	v.serveHTTP(w, r, recordingDir)
+}
 
-	return token.Middleware(mux)
+// ServeTimeshift は、タイムシフトのバッファの仮想 HLS を返す。パスの読み方は ServeRecording と同じ。
+func (v *VOD) ServeTimeshift(w http.ResponseWriter, r *http.Request) {
+	v.serveHTTP(w, r, timeshiftKind)
+}
+
+// ServeLibrary は、ライブラリのファイルの仮想 HLS を返す。パスの読み方は ServeRecording と同じ。
+func (v *VOD) ServeLibrary(w http.ResponseWriter, r *http.Request) {
+	v.serveHTTP(w, r, libraryKind)
 }
 
 // reap は、now の時点で、セグメントを idleTimeout より長く要求されていないセッションを止めて、セグメントを消す。

@@ -18,7 +18,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurunapi"
+	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
+	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
+	"github.com/SlashNephy/kotatsu/internal/web/mirakurunapi"
 )
 
 // fakeSource は、決めた値を返すチューナーサーバー。
@@ -374,6 +376,101 @@ func TestServerEvents(t *testing.T) {
 		{Type: tunerserver.EventTypeTunerChanged, ServiceID: 0},
 	}
 	events, err := newClient(t, source).OpenEvents(t.Context())
+	require.NoError(t, err)
+	defer events.Close()
+	for _, want := range source.events {
+		got, err := events.Next()
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
+	}
+}
+
+// nabeVersionPath は、nabe の下の、版を返すパス。
+const nabeVersionPath = "/internal/nabe/api/version"
+
+// TestNabeHandlerRoutes は、http.ServeMux で受けていたときと同じく、トークンをルートより先に確かめ、
+// 1 つの区切りにだけ当たる名前の部分でルートを引くことを確かめる (#2016)。
+func TestNabeHandlerRoutes(t *testing.T) {
+	t.Parallel()
+
+	token, err := nabe.NewToken("kotatsu-nabe-test-application-key-0123456789")
+	require.NoError(t, err)
+	handler := mirakurunapi.NabeHandler(testSource(), token, "2026.11.0", slog.New(slog.DiscardHandler))
+
+	tests := []struct {
+		name      string
+		method    string
+		path      string
+		noToken   bool
+		wantCode  int
+		wantAllow string
+	}{
+		{name: "トークンがなければ、当たらないパスでも 401", method: http.MethodGet, path: "/internal/nabe/nope", noToken: true, wantCode: http.StatusUnauthorized},
+		{name: "版を返す", method: http.MethodGet, path: nabeVersionPath, wantCode: http.StatusOK},
+		{name: "HEAD でも版を返す", method: http.MethodHead, path: nabeVersionPath, wantCode: http.StatusOK},
+		{name: "POST すると 405", method: http.MethodPost, path: nabeVersionPath, wantCode: http.StatusMethodNotAllowed, wantAllow: "GET, HEAD"},
+		{name: "サービスの ID が読めなければ 400", method: http.MethodGet, path: "/internal/nabe/api/services/abc/logo", wantCode: http.StatusBadRequest},
+		{name: "区切りが多いと当たらない", method: http.MethodGet, path: "/internal/nabe/api/services/1/2/logo", wantCode: http.StatusNotFound},
+		{name: "知らないパスは 404", method: http.MethodGet, path: "/internal/nabe/api/nope", wantCode: http.StatusNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, nil)
+			if !tt.noToken {
+				token.Authorize(req)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.wantCode, rec.Code)
+			assert.Equal(t, tt.wantAllow, rec.Header().Get("Allow"))
+		})
+	}
+}
+
+// authorizing は、リクエストに nabe のトークンを付ける。
+type authorizing struct {
+	token interface{ Authorize(r *http.Request) }
+}
+
+func (a *authorizing) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	a.token.Authorize(r)
+
+	return http.DefaultTransport.RoundTrip(r)
+}
+
+// TestNabeThroughAPIRouter は、API の待ち受けの一番外側のルーターに載せた nabe から、ストリームとイベントを
+// 読み切れることを確かめる (#2016)。どちらも、echo のルーターを 2 段通って、書くたびに届く。
+func TestNabeThroughAPIRouter(t *testing.T) {
+	t.Parallel()
+
+	ts := bytes.Repeat([]byte{0x47, 0x01, 0x00, 0x10}, 47)
+	source := testSource()
+	source.streams[3273601024] = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(ts)), nil }
+	source.events = []*tunerserver.Event{
+		{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0},
+		{Type: tunerserver.EventTypeProgramUpdated, ServiceID: 3273601024},
+	}
+	token, err := nabe.NewToken("kotatsu-nabe-test-application-key-0123456789")
+	require.NoError(t, err)
+	logger := slog.New(slog.DiscardHandler)
+	router := httpserver.NewAPIRouter(logger, nil, map[string]http.Handler{nabe.PathPrefix: mirakurunapi.NabeHandler(source, token, "2026.11.0", logger)}, nil)
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+	client, err := mirakurun.New(&mirakurun.Options{URL: server.URL + nabe.PathPrefix, HTTPClient: &http.Client{Transport: &authorizing{token: token}}})
+	require.NoError(t, err)
+
+	stream, err := client.OpenServiceStream(t.Context(), 3273601024, nil)
+	require.NoError(t, err)
+	got, err := io.ReadAll(stream)
+	require.NoError(t, err)
+	require.NoError(t, stream.Close())
+	assert.Equal(t, ts, got)
+
+	events, err := client.OpenEvents(t.Context())
 	require.NoError(t, err)
 	defer events.Close()
 	for _, want := range source.events {

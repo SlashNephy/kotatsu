@@ -24,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
+	"github.com/SlashNephy/kotatsu/internal/web/mirakurunapi"
 )
 
 // keyMaterial は、テストのアプリの秘密キー。
@@ -88,7 +89,7 @@ func startNabe(t *testing.T, remote tunerserver.Client, secret string) string {
 
 	token, err := nabe.NewToken(secret)
 	require.NoError(t, err)
-	server := httptest.NewServer(nabe.Handler(remote, token, "test", slog.New(slog.DiscardHandler)))
+	server := httptest.NewServer(mirakurunapi.NabeHandler(remote, token, "test", slog.New(slog.DiscardHandler)))
 	t.Cleanup(server.Close)
 
 	return strings.TrimPrefix(server.URL, "http://")
