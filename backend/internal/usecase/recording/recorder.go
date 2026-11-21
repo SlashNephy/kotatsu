@@ -1798,7 +1798,7 @@ func (r *Recorder) start(
 		if err := anime.CopyToRecording(ctx, tx, recording.ID, recording.ServiceID, recording.StartAt, at); err != nil {
 			return err
 		}
-		// ドラマの番組と TMDb の作品と話の結びつきも、同じく写す (#1651、設計書 3.9)。
+		// ドラマの番組と TMDB の作品と話の結びつきも、同じく写す (#1651、設計書 3.9)。
 		if err := drama.CopyToRecording(ctx, tx, recording.ID, recording.ServiceID, recording.StartAt, at); err != nil {
 			return err
 		}

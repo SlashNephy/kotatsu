@@ -12,13 +12,13 @@ enum DramaWatchStatus {
 ドラマの視聴管理の画面の、作品の 1 話 (#1652)。
 """
 type DramaLibraryEpisode {
-  "TMDb のシーズンの番号。0 は特別編。"
+  "TMDB のシーズンの番号。0 は特別編。"
   seasonNumber: Int!
   "シーズンの中の話の番号。"
   episodeNumber: Int!
-  "話の名前。TMDb のキャッシュになければ null。"
+  "話の名前。TMDB のキャッシュになければ null。"
   name: String
-  "TMDb の話のページ。"
+  "TMDB の話のページ。"
   url: String!
 }
 
@@ -33,7 +33,7 @@ type DramaLibraryBroadcast {
   episodeNumber: Int
   "再放送かどうか。"
   rerun: Boolean!
-  "TMDb のシーズンの最後の話かどうか。最後の話が分からなければ false。"
+  "TMDB のシーズンの最後の話かどうか。最後の話が分からなければ false。"
   last: Boolean!
 }
 
@@ -42,7 +42,7 @@ type DramaLibraryBroadcast {
 """
 type DramaLibraryPastBroadcast {
   startAt: Time!
-  "TMDb のシーズンの最後の話かどうか。"
+  "TMDB のシーズンの最後の話かどうか。"
   last: Boolean!
 }
 
@@ -52,7 +52,7 @@ type DramaLibraryPastBroadcast {
 type DramaLibraryRecordedEpisode {
   seasonNumber: Int!
   episodeNumber: Int!
-  "話の名前。TMDb のキャッシュになければ null。"
+  "話の名前。TMDB のキャッシュになければ null。"
   name: String
   "その話の録画のうち、最も新しく録ったもの。"
   recording: Recording!
@@ -96,7 +96,7 @@ type DramaLibraryWork {
 ログイン中のユーザーが見ているドラマの作品を、作品ごとに並べたもの (ドラマの視聴管理の画面。#1652)。
 """
 type DramaLibrary {
-  "管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。"
+  "管理者が、TMDB との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。"
   enabled: Boolean!
   "見ている作品と見たい作品。次の放送の早い順に並べ、放送の予定のない作品は、作品名の順に後ろに回す。"
   works: [DramaLibraryWork!]!
@@ -115,21 +115,21 @@ extend type DramaEpisode {
 extend type Query {
   """
   ログイン中のユーザーが見ているドラマの作品を、次の話と次の放送と録画と並べて返す (#1652)。ほかのユーザーの作品は見えない。
-  視聴者も使える。TMDb には問い合わせない。
+  視聴者も使える。TMDB には問い合わせない。
   """
   dramaLibrary: DramaLibrary!
 }
 
 extend type Mutation {
   """
-  ログイン中のユーザーの見ている作品に、TMDb の作品 seriesId を状態 status で足すか、状態を変える。status が null なら外す (#1652)。
+  ログイン中のユーザーの見ている作品に、TMDB の作品 seriesId を状態 status で足すか、状態を変える。status が null なら外す (#1652)。
   視聴者も使える。足せるのは、番組か録画に結びついた作品だけで、結びつきがなければ NOT_FOUND を返す。
-  管理者が TMDb との連携を無効にしていれば CONFLICT を返す。変えた後の作品を返す。
+  管理者が TMDB との連携を無効にしていれば CONFLICT を返す。変えた後の作品を返す。
   """
   setDramaWatchStatus(seriesId: Int!, status: DramaWatchStatus): DramaSeries!
   """
-  ログイン中のユーザーが、TMDb の作品 seriesId のシーズン seasonNumber の話 episodeNumber を見たことを、手で付けるか外す (#1652)。
-  視聴者も使える。番号が正しくなければ BAD_USER_INPUT を、管理者が TMDb との連携を無効にしていれば CONFLICT を返す。
+  ログイン中のユーザーが、TMDB の作品 seriesId のシーズン seasonNumber の話 episodeNumber を見たことを、手で付けるか外す (#1652)。
+  視聴者も使える。番号が正しくなければ BAD_USER_INPUT を、管理者が TMDB との連携を無効にしていれば CONFLICT を返す。
   変えた後に、見たかどうかを返す。
   """
   setDramaEpisodeWatched(seriesId: Int!, seasonNumber: Int!, episodeNumber: Int!, watched: Boolean!): Boolean!

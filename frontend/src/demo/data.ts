@@ -80,7 +80,7 @@ const genreCondition = (genre: GenreInput) => ({ lv1: genre.lv1, lv2: genre.lv2 
 const servicesOf = (ids: readonly string[]) =>
   ids.flatMap((id) => services.filter((item) => item.id === id));
 
-// demoDramaRecordSettings は、デモの、見たドラマの記録の設定 (#1649)。デモは TMDb との連携を使わないので、無効にする。
+// demoDramaRecordSettings は、デモの、見たドラマの記録の設定 (#1649)。デモは TMDB との連携を使わないので、無効にする。
 function demoDramaRecordSettings() {
   return {
     enabled: false,
@@ -184,7 +184,7 @@ export function createRootValue(
     recordings: [],
     recorded: false,
     animeEpisodes: demoAnimeEpisodes(item),
-    // デモは TMDb に問い合わせないので、ドラマの作品には結びつけない (#1651)。
+    // デモは TMDB に問い合わせないので、ドラマの作品には結びつけない (#1651)。
     dramaEpisode: null,
     dramaTitleKey: item.name,
   });
@@ -441,7 +441,7 @@ export function createRootValue(
       epgstationApiEnabled: true,
       // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。
       animeLinkingEnabled: false,
-      // TMDb との連携も、外部へ問い合わせるので使わない (#1651)。
+      // TMDB との連携も、外部へ問い合わせるので使わない (#1651)。
       dramaLinkingEnabled: false,
       // デモは外部につながず、架空のコメントを流す。実況の画面を見せるため、全体では有効にし、ユーザーの設定は切っておく (設計書 7.4)。
       jikkyoEnabled: true,
@@ -455,7 +455,7 @@ export function createRootValue(
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
     animeChannels: () => services.map((service) => animeChannel(service.id)),
     animeImports: () => [],
-    // デモには TMDb のトークンも、作品の指定もない (#1651)。
+    // デモには TMDB のトークンも、作品の指定もない (#1651)。
     dramaLinking: () => ({ tokenConfigured: false, tokenHint: null, tokenUpdatedAt: null }),
     dramaTitleOverrides: () => [],
     // デモは発行した URL を記録しないので、管理者の一覧は空にする (#1757)。
@@ -473,7 +473,7 @@ export function createRootValue(
     }),
     animeWishlist: () => demoAnimeWishlist(),
     animeLibrary: () => demoAnimeLibrary(),
-    // デモは TMDb との連携を使わないので、ドラマの視聴管理の画面も無効にする (#1652)。
+    // デモは TMDB との連携を使わないので、ドラマの視聴管理の画面も無効にする (#1652)。
     dramaLibrary: () => ({ enabled: false, works: [] }),
     // デモは Simkl に問い合わせないので、見たドラマの記録も無効にする (#1649)。
     dramaRecordApps: () => [

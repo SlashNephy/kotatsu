@@ -83,19 +83,19 @@ describe('parseTMDbSeriesId', () => {
 });
 
 describe('DramaEpisode', () => {
-  test('作品名、シーズンと話、話の名前、TMDb の話のページと、帰属の表示を出す', () => {
+  test('作品名、シーズンと話、話の名前と、TMDB の話のページを出す', () => {
     renderEpisode(episode(), false);
 
     expect(screen.getByText('もうパパ！')).toBeDefined();
     expect(screen.getByText('シーズン1 第7話')).toBeDefined();
     expect(screen.getByText('「第7話の名前」')).toBeDefined();
-    const link = screen.getByRole('link', { name: 'TMDb' });
+    const link = screen.getByRole('link', { name: 'TMDB' });
     expect(link.getAttribute('href')).toBe(
       'https://www.themoviedb.org/tv/331304/season/1/episode/7',
     );
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
-    expect(screen.getByText(TMDB_NOTICE)).toBeDefined();
-    expect(screen.getByRole('img', { name: 'TMDB' })).toBeDefined();
+    // 帰属の表示は、このアプリについての画面 (/about) にだけ出す。
+    expect(screen.queryByText(TMDB_NOTICE)).toBeNull();
     expect(screen.queryByRole('button', { name: '作品を直す' })).toBeNull();
   });
 
@@ -111,7 +111,7 @@ describe('DramaEpisode', () => {
     );
 
     expect(screen.queryByText(/シーズン/)).toBeNull();
-    expect(screen.getByRole('link', { name: 'TMDb' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'TMDB' }).getAttribute('href')).toBe(
       'https://www.themoviedb.org/tv/331304',
     );
   });

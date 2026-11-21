@@ -1,7 +1,7 @@
 // Package dramarecord は、Kotatsu で見たドラマを Simkl に記録し、Simkl のウォッチリストを取り込む (#1649、設計書 3.9)。
 //
 // アニメの記録 (animerecord) と同じく、管理者が記録先に登録したアプリで、利用者が自分のアカウントを OAuth で繋ぐ。
-// 作品と話は、番組と録画に結びついた TMDb の作品とシーズンと話 (#1651) で指す。アニメの記録先はしょぼいカレンダーの作品と話数で
+// 作品と話は、番組と録画に結びついた TMDB の作品とシーズンと話 (#1651) で指す。アニメの記録先はしょぼいカレンダーの作品と話数で
 // 記録するので、記録先の interface は分け、ドラマの記録先は Destination の裏に置く。
 package dramarecord
 
@@ -55,7 +55,7 @@ type Token struct {
 	ExpiresIn time.Duration
 }
 
-// Episode は、記録する 1 話。TMDb のシーズンと話の番号で指す。
+// Episode は、記録する 1 話。TMDB のシーズンと話の番号で指す。
 type Episode struct {
 	Season int32
 	Number int32
@@ -91,7 +91,7 @@ type Activities struct {
 type WatchlistItem struct {
 	// SimklID は、記録先の作品 ID。
 	SimklID int64
-	// TMDbID は、TMDb の作品 ID。記録先が持っていなければ 0。
+	// TMDbID は、TMDB の作品 ID。記録先が持っていなければ 0。
 	TMDbID int32
 	// Status は、ウォッチリストの状態 (StatusWatching など)。
 	Status string
@@ -122,7 +122,7 @@ type Destination interface {
 	AccountName(ctx context.Context, app *App, accessToken string) (string, error)
 	// Revoke は、トークンを無効にする。
 	Revoke(ctx context.Context, app *App, token string) error
-	// RecordEpisodes は、TMDb の作品 seriesID の話 episodes を見たことを、1 回の問い合わせで記録する。
+	// RecordEpisodes は、TMDB の作品 seriesID の話 episodes を見たことを、1 回の問い合わせで記録する。
 	RecordEpisodes(ctx context.Context, app *App, accessToken string, seriesID int32, episodes []*Episode) (*Recorded, error)
 	// Activities は、ウォッチリストが最後に変わった日時を返す。
 	Activities(ctx context.Context, app *App, accessToken string) (*Activities, error)

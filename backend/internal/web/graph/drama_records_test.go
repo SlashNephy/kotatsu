@@ -9,7 +9,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
-// TestDramaRecordSettings は、見たドラマの話にする割合を、Simkl と連携していなくても、TMDb との連携が有効なら
+// TestDramaRecordSettings は、見たドラマの話にする割合を、Simkl と連携していなくても、TMDB との連携が有効なら
 // ユーザーごとに変えられ、見たアニメを記録する割合とは別に持つことを確かめる (#1649)。
 func TestDramaRecordSettings(t *testing.T) {
 	t.Parallel()
@@ -37,7 +37,7 @@ func TestDramaRecordSettings(t *testing.T) {
 	}
 	var got settings
 	require.Empty(t, viewer.query(t, read, nil, &got))
-	assert.False(t, got.DramaRecordSettings.Enabled, "TMDb linking is disabled by default")
+	assert.False(t, got.DramaRecordSettings.Enabled, "TMDB linking is disabled by default")
 	assert.Equal(t, 20, got.DramaRecordSettings.ThresholdPercent)
 	require.Len(t, got.DramaRecordSettings.Destinations, 1)
 	assert.Equal(t, "SIMKL", got.DramaRecordSettings.Destinations[0].Destination)

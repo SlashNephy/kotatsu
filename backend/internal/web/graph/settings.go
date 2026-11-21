@@ -20,7 +20,7 @@ import (
 
 // systemSettingsAdministrator は、全体の設定を変える管理者を確かめ、操作者を返す。
 // MCP のクライアントとの連携、データ放送の通信の中継 (#501)、外部プレイヤーと IPTV のクライアント用の URL (#1755)、
-// しょぼいカレンダー、Annict、AniList との連携、TMDb との連携、ニコニコ実況、Have I Been Pwned への照会 (#1869) を変えるときだけ、
+// しょぼいカレンダー、Annict、AniList との連携、TMDB との連携、ニコニコ実況、Have I Been Pwned への照会 (#1869) を変えるときだけ、
 // 外部のサービスに読ませたり、受信機の情報を外部のサーバーへ送らせたり、URL を持つ人に映像を見せたり、外部へ問い合わせ始めたりするかどうかを決める操作なので、
 // 直近 10 分以内の再認証を求める。録画やルールの既定値、保持期間は、第三者に影響しないので求めない (設計書 9.5)。
 func (r *Resolver) systemSettingsAdministrator(ctx context.Context, input model.SystemSettingsInput) (*auth.Principal, *audit.Actor, error) {

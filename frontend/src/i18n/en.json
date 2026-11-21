@@ -2871,7 +2871,7 @@
         "all": "All"
       },
       "loadError": "Could not load the series",
-      "disabled": "An administrator has not enabled TMDb linking",
+      "disabled": "An administrator has not enabled TMDB linking",
       "empty": "No series",
       "emptyHint": "Add series with \"Track\" on a program or recording detail",
       "noWatched": "No episodes watched yet",

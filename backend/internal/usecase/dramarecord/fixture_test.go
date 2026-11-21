@@ -41,7 +41,7 @@ import (
 const (
 	grNetworkID = 0x7FE0
 	grServiceID = 0x0400
-	// series は、番組に結びつける TMDb の作品の ID。
+	// series は、番組に結びつける TMDB の作品の ID。
 	series       int32 = 9001
 	origin             = "http://kotatsu.test"
 	clientID           = "simkl-client"

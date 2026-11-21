@@ -409,20 +409,20 @@ KubernetesでPodを動かすときは、`kyusu.work_dir`にemptyDirのパスを�
 
 ### tmdb
 
-ドラマの番組を、TMDbの作品と話に結びつける連携の設定です（[設計書 3.9](spec.v1.md#39-ドラマの番組と作品の結びつき)）。
-連携するかどうかと、TMDbのAPIの読み取りアクセストークン（API Read Access Token）は、管理者が連携の画面（`/admin/integrations`）で決めます。
+ドラマの番組を、TMDBの作品と話に結びつける連携の設定です（[設計書 3.9](spec.v1.md#39-ドラマの番組と作品の結びつき)）。
+連携するかどうかと、TMDBのAPIの読み取りアクセストークン（API Read Access Token）は、管理者が連携の画面（`/admin/integrations`）で決めます。
 設定ファイルと環境変数では渡しません。
 
 | YAML | 環境変数 | 既定値 | 内容 |
 | --- | --- | --- | --- |
-| `tmdb.url` | `KOTATSU_TMDB_URL` | `https://api.themoviedb.org` | TMDbのAPIを向ける先のオリジン |
+| `tmdb.url` | `KOTATSU_TMDB_URL` | `https://api.themoviedb.org` | TMDBのAPIを向ける先のオリジン |
 
 `tmdb.url`は、本物のAPIの代わりに検証用のサーバーへ向けるときだけ設定してください。
 
 ### simkl
 
 見たドラマをSimklに記録し、Simklのウォッチリストを取り込む連携の設定です（[設計書 3.9](spec.v1.md#39-ドラマの番組と作品の結びつき)、#1649）。
-TMDbとの連携を有効にしている間だけ使えます。
+TMDBとの連携を有効にしている間だけ使えます。
 Simklのアプリのクライアント IDとシークレットは、管理者が連携の画面（`/admin/integrations`）で登録します。
 設定ファイルと環境変数では渡しません。
 

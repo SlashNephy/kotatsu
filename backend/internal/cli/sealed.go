@@ -38,7 +38,7 @@ func newWebhookStore(clk clock.Clock, recorder audit.Recorder, secret appSecret)
 	return webhook.NewStore(clk, recorder, string(secret))
 }
 
-// newDramaTokens は、管理者が連携の画面で入れた TMDb のトークンを扱う部品を作る (#1651)。
+// newDramaTokens は、管理者が連携の画面で入れた TMDB のトークンを扱う部品を作る (#1651)。
 func newDramaTokens(clk clock.Clock, recorder audit.Recorder, secret appSecret) (*drama.Tokens, error) {
 	return drama.NewTokens(clk, recorder, string(secret))
 }

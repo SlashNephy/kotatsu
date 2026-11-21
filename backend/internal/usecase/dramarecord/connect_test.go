@@ -94,7 +94,7 @@ func TestConnect(t *testing.T) {
 	}
 }
 
-// TestConnectRequiresDramaLinking は、管理者が TMDb との連携を無効にしているか、アプリを登録していなければ、連携を始められないことを確かめる。
+// TestConnectRequiresDramaLinking は、管理者が TMDB との連携を無効にしているか、アプリを登録していなければ、連携を始められないことを確かめる。
 func TestConnectRequiresDramaLinking(t *testing.T) {
 	t.Parallel()
 

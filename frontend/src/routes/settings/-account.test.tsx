@@ -6,7 +6,7 @@ import { Route } from './account';
 
 afterEach(cleanup);
 
-// dramaRecordsDisabled は、TMDb との連携が無効なときの、ドラマの記録の問い合わせの応答 (#1649)。
+// dramaRecordsDisabled は、TMDB との連携が無効なときの、ドラマの記録の問い合わせの応答 (#1649)。
 const dramaRecordsDisabled = {
   data: { dramaRecordSettings: { enabled: false, destinations: [] } },
 };

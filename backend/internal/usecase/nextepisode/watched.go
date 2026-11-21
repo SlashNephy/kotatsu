@@ -40,8 +40,8 @@ type watchedSeries struct {
 	recordingID uuid.UUID
 }
 
-// id は、シリーズを見分ける文字列。TID で探すシリーズと、シリーズ名で探すシリーズと、TMDb の作品で探すシリーズは、別のものとする。
-// TMDb の作品は、シーズンごとに別のシリーズとする。
+// id は、シリーズを見分ける文字列。TID で探すシリーズと、シリーズ名で探すシリーズと、TMDB の作品で探すシリーズは、別のものとする。
+// TMDB の作品は、シーズンごとに別のシリーズとする。
 func (k *Key) id() string {
 	if k.TID > 0 {
 		return animeID(k.TID)
@@ -60,7 +60,7 @@ const (
 	rankDrama
 )
 
-// rank は、鍵の強さの順。TID、シリーズ名、TMDb の作品の順に強い。
+// rank は、鍵の強さの順。TID、シリーズ名、TMDB の作品の順に強い。
 func (k *Key) rank() int {
 	switch {
 	case k.TID > 0:
@@ -82,7 +82,7 @@ func seriesID(series string) string {
 	return "s:" + series
 }
 
-// dramaID は、TMDb の作品のシーズンで探すシリーズの id。
+// dramaID は、TMDB の作品のシーズンで探すシリーズの id。
 func dramaID(seriesID, season int32) string {
 	return "d:" + strconv.FormatInt(int64(seriesID), 10) + ":" + strconv.FormatInt(int64(season), 10)
 }
@@ -130,7 +130,7 @@ func FindForUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.T
 	}
 
 	suggestions := []*Suggestion{}
-	// 同じ番組が、違う鍵で探したシリーズに出たら、同じ作品なので、強い鍵 (TID、シリーズ名、TMDb の作品の順) で探した方の 1 行にする。
+	// 同じ番組が、違う鍵で探したシリーズに出たら、同じ作品なので、強い鍵 (TID、シリーズ名、TMDB の作品の順) で探した方の 1 行にする。
 	// 後の方を、その次の放送に繰り下げて出すと、同じ作品の行が 2 つ並ぶ。
 	seen := map[ProgramKey]bool{}
 	for _, s := range series {
@@ -162,7 +162,7 @@ func FindForUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.T
 }
 
 // groupWatched は、見た回をシリーズでまとめ、シリーズごとに話数の最も大きい回を残す。シリーズも話数も読めない回は外す。
-// 返す順は、強い鍵 (TID、シリーズ名、TMDb の作品の順) で探すシリーズを先に、それぞれシリーズの回を最初に読んだ順 (最後に見た新しい順) である。
+// 返す順は、強い鍵 (TID、シリーズ名、TMDB の作品の順) で探すシリーズを先に、それぞれシリーズの回を最初に読んだ順 (最後に見た新しい順) である。
 func groupWatched(rows []sqlc.ListWatchedNextEpisodeSourcesRow) []*watchedSeries {
 	series := []*watchedSeries{}
 	index := map[string]int{}
@@ -278,7 +278,7 @@ func listCandidatesOf(
 	return candidates, recorded, nil
 }
 
-// listDramaCandidatesOf は、TMDb の作品のシーズン dramas ごとの続きの放送の候補と、録画履歴にある録った話の番号を、
+// listDramaCandidatesOf は、TMDB の作品のシーズン dramas ごとの続きの放送の候補と、録画履歴にある録った話の番号を、
 // シリーズの id ごとに candidates と recorded に足す。候補の番組と録画履歴は、それぞれまとめて引く。
 // 録画の続きの放送 (listDramaCandidates) と同じく、今のシーズンの後の話がこれから放送されないシリーズは、次のシーズンの第 1 話を候補にする。
 func listDramaCandidatesOf(
@@ -340,7 +340,7 @@ func listDramaCandidatesOf(
 	return nil
 }
 
-// listDramaProgramsOf は、TMDb の作品のシーズン dramas ごとに、話の番号が Episode より大きい話の、now から Horizon までに始まる放送を、
+// listDramaProgramsOf は、TMDB の作品のシーズン dramas ごとに、話の番号が Episode より大きい話の、now から Horizon までに始まる放送を、
 // 作品とシーズンの id ごとに返す。1 つのクエリでまとめて引く。
 func listDramaProgramsOf(ctx context.Context, q *sqlc.Queries, dramas []*Drama, now time.Time) (map[string][]*Candidate, error) {
 	seriesIDs, seasons, episodes := make([]int32, 0, len(dramas)), make([]int32, 0, len(dramas)), make([]int32, 0, len(dramas))

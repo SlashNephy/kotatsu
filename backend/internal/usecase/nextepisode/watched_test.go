@@ -153,7 +153,7 @@ func TestFindForUserByAnime(t *testing.T) {
 	assert.Equal(t, []suggestion{{recording: anime, eventID: 600}}, suggestionsOf(got))
 }
 
-// TestFindForUserByDrama は、番組名から話数を読めないドラマの見た回では、TMDb の作品とシーズンと話の番号で探し、
+// TestFindForUserByDrama は、番組名から話数を読めないドラマの見た回では、TMDB の作品とシーズンと話の番号で探し、
 // 見た話の最大の番号より後の、録っていない話の放送を出すことと、同じ番組がシリーズ名で探したシリーズにも当たったら、
 // シリーズ名で探した方の 1 行にすることを確かめる (#1564)。
 func TestFindForUserByDrama(t *testing.T) {
@@ -178,8 +178,8 @@ func TestFindForUserByDrama(t *testing.T) {
 	f.linkDrama(t, f.addWatched(t, user, "夜明けの診療所", 1, 2*time.Hour), dramaSeries, 3)
 	clinic4 := f.addWatched(t, user, "夜明けの診療所", 1, time.Hour)
 	f.linkDrama(t, clinic4, dramaSeries, 4)
-	// 同じ作品を、番組名の話数を読める録画 (シリーズ名で探す) と読めない録画 (TMDb の作品で探す) で見た。
-	// TMDb の作品で探す録画を後に見ても、シリーズ名で探した方を残す。
+	// 同じ作品を、番組名の話数を読める録画 (シリーズ名で探す) と読めない録画 (TMDB の作品で探す) で見た。
+	// TMDB の作品で探す録画を後に見ても、シリーズ名で探した方を残す。
 	town4 := f.addWatched(t, user, "灯台の町 #4", 1, 2*time.Hour)
 	f.linkDrama(t, f.addWatched(t, user, "灯台の町", 1, time.Hour), otherDramaSeries, 4)
 
@@ -189,7 +189,7 @@ func TestFindForUserByDrama(t *testing.T) {
 	assert.Equal(t, []suggestion{{recording: town4, eventID: 810}, {recording: clinic4, eventID: 802}}, suggestionsOf(got))
 }
 
-// TestFindForUserByDramaNextSeason は、ホームの続きの放送でも、TMDb の作品で探すシリーズの今のシーズンの後の話が
+// TestFindForUserByDramaNextSeason は、ホームの続きの放送でも、TMDB の作品で探すシリーズの今のシーズンの後の話が
 // これから放送されないときだけ、次のシーズンの第 1 話を出すことを確かめる (#1564)。
 // 見た回は、作品 dramaSeries のシーズン 1 の第 10 話と、作品 otherDramaSeries のシーズン 1 の第 4 話。
 func TestFindForUserByDramaNextSeason(t *testing.T) {

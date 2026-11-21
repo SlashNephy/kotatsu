@@ -47,15 +47,15 @@ func newSyobocalClient(deps *Deps) *syobocal.Client {
 	})
 }
 
-// newDramaMatcher は、ドラマの番組を、TMDb の作品と話に結びつける部品を作る (#1651、設計書 3.9)。
+// newDramaMatcher は、ドラマの番組を、TMDB の作品と話に結びつける部品を作る (#1651、設計書 3.9)。
 // 問い合わせの間隔は、このプロセスの照合のジョブすべてで共有するので、1 つだけ作る。
-// TMDb のトークンは、管理者が連携の画面で入れたものを、照合のたびに DB から読む。
+// TMDB のトークンは、管理者が連携の画面で入れたものを、照合のたびに DB から読む。
 func newDramaMatcher(deps *Deps, logger *slog.Logger) (*drama.Matcher, error) {
 	tokens, err := drama.NewTokens(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
 	if err != nil {
 		return nil, err
 	}
-	client := tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(deps.Network), URL: deps.Config.TMDb.URL, Interval: 0})
+	client := tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(deps.Network), URL: deps.Config.TMDB.URL, Interval: 0})
 
 	return drama.NewMatcher(deps.DB, deps.Clock, client, tokens, logger.With(slog.String("component", "drama")), 0), nil
 }

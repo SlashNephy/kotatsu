@@ -35,7 +35,7 @@ import (
 const (
 	grNetworkID = 0x7FE0
 	grServiceID = 0x0400
-	// series は、テストの TMDb の作品の ID。unlinked は、どの番組にも録画にも結びつかない作品の ID。
+	// series は、テストの TMDB の作品の ID。unlinked は、どの番組にも録画にも結びつかない作品の ID。
 	series   int32 = 9001
 	unlinked int32 = 9002
 	// stateCompleted は、録り終えた録画の状態。
@@ -63,7 +63,7 @@ type fixture struct {
 	bob   uuid.UUID
 }
 
-// newFixture は、番組表を同期した DB を用意する。enabled なら、TMDb との連携を有効にする。
+// newFixture は、番組表を同期した DB を用意する。enabled なら、TMDB との連携を有効にする。
 func newFixture(t *testing.T, enabled bool) *fixture {
 	t.Helper()
 
@@ -138,7 +138,7 @@ func (f *fixture) addRecording(t *testing.T, season, episode int32, state string
 	return recordingID
 }
 
-// cacheSeries は、作品 series の TMDb のキャッシュに、シーズンごとの話の番号 episodes を入れる。
+// cacheSeries は、作品 series の TMDB のキャッシュに、シーズンごとの話の番号 episodes を入れる。
 func (f *fixture) cacheSeries(t *testing.T, episodes map[int32][]int32) {
 	t.Helper()
 
@@ -265,7 +265,7 @@ func TestSetWatched(t *testing.T) {
 }
 
 // TestReport は、プレイヤーで見た区間が、番組の長さのうち決めた割合 (既定は 20%) に届いたら、番組に結びついた話を見た話にすることを
-// 確かめる (#1652)。アニメの連携がなくても、TMDb との連携が有効なら数える。割合は、見たアニメを記録する割合とは別のドラマの設定に従う (#1649)。
+// 確かめる (#1652)。アニメの連携がなくても、TMDB との連携が有効なら数える。割合は、見たアニメを記録する割合とは別のドラマの設定に従う (#1649)。
 func TestReport(t *testing.T) {
 	t.Parallel()
 
@@ -443,7 +443,7 @@ func describe(work *dramalibrary.Work) string {
 	}, "|")
 }
 
-// TestNextEpisode は、最後に見た話の次に見る話を、TMDb のキャッシュのシーズンと話から求めることを確かめる (#1652)。
+// TestNextEpisode は、最後に見た話の次に見る話を、TMDB のキャッシュのシーズンと話から求めることを確かめる (#1652)。
 func TestNextEpisode(t *testing.T) {
 	t.Parallel()
 

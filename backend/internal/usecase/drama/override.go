@@ -20,7 +20,7 @@ const overrideAuditTarget = "drama_title"
 // ErrInvalidOverride は、上書きの値が正しくないことを表す。
 var ErrInvalidOverride = errors.New("invalid drama title override")
 
-// Override は、管理者が作品名ごとに決めた TMDb の作品 (設計書 3.9)。SeriesID が nil なら、その作品名の番組を結びつけない。
+// Override は、管理者が作品名ごとに決めた TMDB の作品 (設計書 3.9)。SeriesID が nil なら、その作品名の番組を結びつけない。
 type Override struct {
 	TitleKey  string
 	SeriesID  *int32
@@ -35,7 +35,7 @@ type OverrideChange struct {
 	Reset    bool
 }
 
-// Overrides は、作品名ごとの上書きを変える。変えたことは監査ログに残す。TMDb には問い合わせず、照合し直すジョブを入れる。
+// Overrides は、作品名ごとの上書きを変える。変えたことは監査ログに残す。TMDB には問い合わせず、照合し直すジョブを入れる。
 type Overrides struct {
 	clock    clock.Clock
 	recorder audit.Recorder

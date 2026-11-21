@@ -20,11 +20,11 @@ import type { DramaEpisodeOverrideMutation } from './__generated__/DramaEpisodeO
 import { DramaWatchedButton, DramaWatchStatusMenu, watchStatusOf } from './DramaWatchControls';
 import tmdbLogo from './tmdb-logo.svg';
 
-// TMDB_NOTICE は、TMDb の API の利用規約が求める帰属の表示。英語の原文のまま出す。
+// TMDB_NOTICE は、TMDB の API の利用規約が求める帰属の表示。英語の原文のまま出す。
 export const TMDB_NOTICE =
   'This product uses the TMDB API but is not endorsed or certified by TMDB.';
 
-// DramaEpisodeItem は、番組や録画に結びついた TMDb の作品と話 (#1651、設計書 3.9)。
+// DramaEpisodeItem は、番組や録画に結びついた TMDB の作品と話 (#1651、設計書 3.9)。
 export type DramaEpisodeItem = {
   readonly series: {
     readonly tmdbId: number;
@@ -68,7 +68,7 @@ export function episodeLabel(
   return `${season} ${t('drama.episode', { number: episode.episodeNumber })}`;
 }
 
-// parseTMDbSeriesId は、TMDb の作品の ID か、作品のページの URL (https://www.themoviedb.org/tv/123-name) から ID を読む。
+// parseTMDbSeriesId は、TMDB の作品の ID か、作品のページの URL (https://www.themoviedb.org/tv/123-name) から ID を読む。
 // 読めなければ null を返す。
 export function parseTMDbSeriesId(value: string): number | null {
   const trimmed = value.trim();
@@ -81,7 +81,8 @@ export function parseTMDbSeriesId(value: string): number | null {
   return Number.isSafeInteger(id) && id > 0 && id <= 2147483647 ? id : null;
 }
 
-// TMDbAttribution は、TMDb の作品の情報を出すところに添える帰属の表示 (TMDb のロゴと注記)。
+// TMDbAttribution は、TMDB の API の利用規約が求める帰属の表示 (TMDB のロゴと注記)。
+// 規約は、帰属の表示をアプリの「About」か「Credits」の区画に置くよう求めるので、このアプリについての画面 (/about) にだけ出す。
 // ロゴは、Kotatsu のロゴより目立たないよう、文字と同じくらいの高さにする。画像は同梱し、外部から読まない。
 export function TMDbAttribution() {
   const { t } = useTranslation();
@@ -96,10 +97,10 @@ export function TMDbAttribution() {
   );
 }
 
-// DramaEpisode は、番組と録画の詳細に、結びついた TMDb の作品とシーズン、話と、TMDb のページへのリンクを出す (#1651、設計書 3.9)。
+// DramaEpisode は、番組と録画の詳細に、結びついた TMDB の作品とシーズン、話と、TMDB のページへのリンクを出す (#1651、設計書 3.9)。
 // 結びついていなければ、何も出さない。canOverride なら、管理者が作品を直す操作を置く (programName の作品名の上書き)。
 // ログイン中のユーザーの状態を引いていれば (#1652)、作品を見ている作品に足す操作と、話を見たことにする操作も置く。
-// 作品名とシーズンと話、操作、リンク、帰属の表示の順に、1 段ずつ並べる。extraLinks は、TMDb のリンクの後ろに足すリンク。
+// 作品名とシーズンと話、操作、リンクの順に、1 段ずつ並べる。extraLinks は、TMDB のリンクの後ろに足すリンク。
 export function DramaEpisode({
   episode,
   programName,
@@ -117,7 +118,7 @@ export function DramaEpisode({
   }
   const label = dramaEpisodeLabel(t, episode);
   const name = episode.series.name ?? episode.series.originalName ?? t('drama.unknownSeries');
-  // TMDb は、名前の決まっていない話に「第6話」のような仮の名前を付ける。話数と同じことしか言わないので出さない。
+  // TMDB は、名前の決まっていない話に「第6話」のような仮の名前を付ける。話数と同じことしか言わないので出さない。
   const episodeName =
     episode.episodeName != null &&
     episode.episodeName !== t('drama.episode', { number: episode.episodeNumber })
@@ -158,7 +159,6 @@ export function DramaEpisode({
         </Anchor>
         {extraLinks}
       </Group>
-      <TMDbAttribution />
     </Stack>
   );
 }
@@ -183,8 +183,8 @@ function DramaWatch({ episode }: { episode: DramaEpisodeItem }) {
   );
 }
 
-// DramaOverrideButton は、管理者が、番組名から読んだ作品名の TMDb の作品を直す操作 (#1651)。
-// 直すと、同じ作品名の番組をまとめて照合し直す。TMDb には問い合わせないので、反映は次の照合 (nekonote) を待つ。
+// DramaOverrideButton は、管理者が、番組名から読んだ作品名の TMDB の作品を直す操作 (#1651)。
+// 直すと、同じ作品名の番組をまとめて照合し直す。TMDB には問い合わせないので、反映は次の照合 (nekonote) を待つ。
 function DramaOverrideButton({
   programName,
   episode,

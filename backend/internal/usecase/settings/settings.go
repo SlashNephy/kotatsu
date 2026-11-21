@@ -116,7 +116,7 @@ type System struct {
 	// AnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
 	// 外部へ問い合わせるので、既定は false (設計書 0.3)。
 	AnimeLinkingEnabled bool
-	// DramaLinkingEnabled は、TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。
+	// DramaLinkingEnabled は、TMDB との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。
 	// 外部へ問い合わせるので、既定は false (設計書 0.3)。
 	DramaLinkingEnabled bool
 	// CommentSources は、管理者がオプトインした実況のコメントのソース (#1405、設計書 7.4)。外部へ問い合わせるので、既定は空 (設計書 0.3)。

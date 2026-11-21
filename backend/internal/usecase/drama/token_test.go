@@ -12,7 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 )
 
-// TestTokens は、管理者が入れた TMDb のトークンを暗号化して保存し、照合とログの報告のために取り出せること、
+// TestTokens は、管理者が入れた TMDB のトークンを暗号化して保存し、照合とログの報告のために取り出せること、
 // 画面には末尾の数文字だけを出すこと、空にすれば消えること、監査ログに値を残さないことを確かめる (#1651)。
 func TestTokens(t *testing.T) {
 	t.Parallel()

@@ -255,7 +255,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               lv1
               lv2
             }
-            # 録画を始めたときに写した、TMDb で結びつけた作品と話 (#1651、設計書 3.9)。
+            # 録画を始めたときに写した、TMDB で結びつけた作品と話 (#1651、設計書 3.9)。
             dramaEpisode {
               series {
                 tmdbId

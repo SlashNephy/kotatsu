@@ -62,7 +62,7 @@ type DramaRecordDestinationStatus {
 ログイン中のユーザーの、見たドラマの記録の様子 (#1649)。
 """
 type DramaRecordSettings {
-  "管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。"
+  "管理者が、TMDB との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。"
   enabled: Boolean!
   """
   番組の長さのうち、何 % を実際に再生したら、見たドラマの話にするか (1〜100)。見た話は、連携した Simkl にも記録する。
@@ -95,7 +95,7 @@ extend type Mutation {
   """
   ログイン中のユーザーとドラマの記録先 destination の連携を始め、ブラウザーを送り出す記録先の認可のエンドポイントの URL を返す (#1649)。
   記録先から GET /internal/auth/{destination}/callback に戻ってきたら、連携する。ブラウザーのセッションでだけ使える。
-  管理者が TMDb との連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
+  管理者が TMDB との連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
   """
   beginDramaRecordConnection(destination: DramaRecordDestination!): String!
   "ログイン中のユーザーとドラマの記録先 destination の連携を外し、記録先でトークンを取り消す (#1649)。見ている作品に写した作品は残す。"

@@ -384,7 +384,7 @@ CREATE TABLE system_settings (
   -- しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
   -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
   anime_linking_enabled boolean NOT NULL DEFAULT false,
-  -- TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。
+  -- TMDB との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。
   -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
   drama_linking_enabled boolean NOT NULL DEFAULT false,
   -- 管理者がオプトインした実況のコメントのソース (#1405、設計書 7.4)。外部へ問い合わせるので、既定では空にする (設計書 0.3)。
@@ -1271,7 +1271,7 @@ CREATE TABLE recording_history (
   -- 録画が 1 つの話に結びついたときの、しょぼいカレンダーの TID と話数 (設計書 3.8)。なければ NULL。
   syobocal_tid integer,
   anime_count double precision,
-  -- 録画が TMDb の話に結びついたときの、作品の ID とシーズンと話の番号 (設計書 3.9)。なければ NULL。
+  -- 録画が TMDB の話に結びついたときの、作品の ID とシーズンと話の番号 (設計書 3.9)。なければ NULL。
   -- ドラマの続きの放送 (#1564) で、録った話を外すのに使う。録画を消すと録画の結びつきも消えるので、履歴に写して残す。
   tmdb_series_id integer,
   tmdb_season_number integer,
@@ -1300,7 +1300,7 @@ CREATE INDEX recording_history_title_key_service_id_end_at_idx ON recording_hist
 -- 前の回を録らない (#1499) 照合で、候補の放送のシリーズ名で履歴を引く。期間で切らないので、索引がなければ全件を読む。
 CREATE INDEX recording_history_series_idx ON recording_history (series);
 
--- ドラマの続きの放送 (#1564) で、録った話を TMDb の作品で引く。
+-- ドラマの続きの放送 (#1564) で、録った話を TMDB の作品で引く。
 CREATE INDEX recording_history_tmdb_series_id_idx ON recording_history (tmdb_series_id) WHERE (tmdb_series_id IS NOT NULL);
 
 -- 番組表ビュー (設計書 10.3)。番組表に適用する条件を、ユーザーごとに名前を付けて保存する。
@@ -1958,8 +1958,8 @@ CREATE TABLE edcb_network_tv_holders (
   PRIMARY KEY (network_tv_id, instance_id)
 );
 
--- TMDb の作品の検索の結果 (#1651、設計書 3.9)。番組名から読んだ作品名ごとに持ち、同じ作品名で問い合わせ直さない。
--- TMDb の利用規約は、取得した情報を 6 か月を超えて持つことを禁じているので、引いてから 180 日たった行は消す。
+-- TMDB の作品の検索の結果 (#1651、設計書 3.9)。番組名から読んだ作品名ごとに持ち、同じ作品名で問い合わせ直さない。
+-- TMDB の利用規約は、取得した情報を 6 か月を超えて持つことを禁じているので、引いてから 180 日たった行は消す。
 CREATE TABLE tmdb_searches (
   -- 問い合わせた作品名 (NFKC で正規化したもの)。
   query text PRIMARY KEY,
@@ -1968,7 +1968,7 @@ CREATE TABLE tmdb_searches (
   fetched_at timestamptz NOT NULL
 );
 
--- TMDb の作品 (TV) の名前とシーズンの一覧 (#1651、設計書 3.9)。引いてから 180 日たった行は消す。
+-- TMDB の作品 (TV) の名前とシーズンの一覧 (#1651、設計書 3.9)。引いてから 180 日たった行は消す。
 CREATE TABLE tmdb_series (
   id integer PRIMARY KEY CHECK (id > 0),
   name text NOT NULL,
@@ -1979,7 +1979,7 @@ CREATE TABLE tmdb_series (
   fetched_at timestamptz NOT NULL
 );
 
--- TMDb のシーズンの話の一覧 (#1651、設計書 3.9)。引いてから 180 日たった行は消す。
+-- TMDB のシーズンの話の一覧 (#1651、設計書 3.9)。引いてから 180 日たった行は消す。
 CREATE TABLE tmdb_seasons (
   series_id integer NOT NULL,
   season_number integer NOT NULL CHECK (season_number >= 0),
@@ -1989,9 +1989,9 @@ CREATE TABLE tmdb_seasons (
   PRIMARY KEY (series_id, season_number)
 );
 
--- ドラマの番組と、TMDb の作品と話の結びつき (#1651、設計書 3.9)。アニメの結びつき (program_anime_matches) と同じく、
+-- ドラマの番組と、TMDB の作品と話の結びつき (#1651、設計書 3.9)。アニメの結びつき (program_anime_matches) と同じく、
 -- programs の主キーの EID は使い回されるので、サービスと開始時刻で持ち、アーカイブへ移した番組の結びつきも残す。
--- どの作品にも結びつかなかった番組の行も残し、照合したことを表す。持つのは TMDb の ID と番号だけで、名前はキャッシュから引く。
+-- どの作品にも結びつかなかった番組の行も残し、照合したことを表す。持つのは TMDB の ID と番号だけで、名前はキャッシュから引く。
 CREATE TABLE program_drama_matches (
   service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
   start_at timestamptz NOT NULL,
@@ -2002,9 +2002,9 @@ CREATE TABLE program_drama_matches (
   tmdb_series_id integer CHECK (tmdb_series_id > 0),
   season_number integer CHECK (season_number >= 0),
   episode_number integer CHECK (episode_number > 0),
-  -- 作品を決めた出どころ。search は TMDb の検索、override は管理者の上書き。作品に結びつかなければ NULL。
+  -- 作品を決めた出どころ。search は TMDB の検索、override は管理者の上書き。作品に結びつかなければ NULL。
   series_source text CHECK (series_source IN ('search', 'override')),
-  -- 話を決めた出どころ。air_date は TMDb の話の放送日、title は番組名の話数。話を決められなければ NULL。
+  -- 話を決めた出どころ。air_date は TMDB の話の放送日、title は番組名の話数。話を決められなければ NULL。
   episode_source text CHECK (episode_source IN ('air_date', 'title')),
   matched_at timestamptz NOT NULL,
   -- 放送が終わった後に照合し直し、結びつきを確定させた日時。確定させた番組は、それからは照合し直さない。
@@ -2026,7 +2026,7 @@ CREATE TABLE drama_match_cursor (
   updated_at timestamptz NOT NULL
 );
 
--- 録画に写した、番組と TMDb の作品と話の結びつき (#1651、設計書 3.9)。アニメと同じく、録画を始めたときの番組の結びつきを写し、
+-- 録画に写した、番組と TMDB の作品と話の結びつき (#1651、設計書 3.9)。アニメと同じく、録画を始めたときの番組の結びつきを写し、
 -- 放送が終わるまでに照合し直したら写し直す。番組がアーカイブから消えても、録画の結びつきは残る。列は program_drama_matches と同じ。
 CREATE TABLE recording_drama_matches (
   recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
@@ -2043,15 +2043,15 @@ CREATE TABLE recording_drama_matches (
 -- ドラマの視聴管理の画面 (#1652) で、作品の録画を引く。
 CREATE INDEX recording_drama_matches_tmdb_series_id_idx ON recording_drama_matches (tmdb_series_id) WHERE (tmdb_series_id IS NOT NULL);
 
--- 管理者が連携の画面で入れた、TMDb の API の読み取りアクセストークン (#1651、設計書 3.9)。1 行だけ持つ。
--- Annict のトークン (anime_import_tokens) と同じく、アプリの秘密キーで暗号化する (設計書 8.4)。行がなければ、TMDb に問い合わせない。
+-- 管理者が連携の画面で入れた、TMDB の API の読み取りアクセストークン (#1651、設計書 3.9)。1 行だけ持つ。
+-- Annict のトークン (anime_import_tokens) と同じく、アプリの秘密キーで暗号化する (設計書 8.4)。行がなければ、TMDB に問い合わせない。
 CREATE TABLE tmdb_tokens (
   id smallint PRIMARY KEY CHECK (id = 1),
   token_encrypted bytea NOT NULL,
   updated_at timestamptz NOT NULL
 );
 
--- 管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。検索で誤った作品に結びついたときに直す。
+-- 管理者が、番組名から読んだ作品名ごとに決めた TMDB の作品 (#1651、設計書 3.9)。検索で誤った作品に結びついたときに直す。
 -- tmdb_series_id が NULL なら、その作品名の番組を、どの作品にも結びつけない。
 CREATE TABLE drama_title_overrides (
   title_key text PRIMARY KEY CHECK (title_key <> ''),
@@ -2108,9 +2108,9 @@ CREATE TABLE google_drive_folders (
   added_at timestamptz NOT NULL
 );
 
--- ユーザーが「見ている」「見たい」にした TMDb の作品 (#1652、設計書 3.9)。ドラマの視聴管理の画面 (/drama) に並べる。
+-- ユーザーが「見ている」「見たい」にした TMDB の作品 (#1652、設計書 3.9)。ドラマの視聴管理の画面 (/drama) に並べる。
 -- アニメの見たいリストは Annict と AniList から取り込むが、ドラマには同じ出どころがないので、Kotatsu の中に持つ。
--- TMDb の利用規約に合わせ、作品の ID だけを持ち、名前は TMDb のキャッシュ (tmdb_series) から引く。
+-- TMDB の利用規約に合わせ、作品の ID だけを持ち、名前は TMDB のキャッシュ (tmdb_series) から引く。
 CREATE TABLE drama_watchlist_entries (
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   tmdb_series_id integer NOT NULL CHECK (tmdb_series_id > 0),
@@ -2122,7 +2122,7 @@ CREATE TABLE drama_watchlist_entries (
 );
 CREATE INDEX drama_watchlist_entries_tmdb_series_id_idx ON drama_watchlist_entries (tmdb_series_id);
 
--- ユーザーが見た TMDb の話 (#1652、設計書 3.9)。同じユーザーと話は 1 行だけ持つ。
+-- ユーザーが見た TMDB の話 (#1652、設計書 3.9)。同じユーザーと話は 1 行だけ持つ。
 -- プレイヤーで見た割合 (アニメの記録と同じ判定) から作るか (playback)、番組や録画の詳細、視聴管理の画面から手で付ける (manual)。
 -- 見た区間 (anime_watch_progress) は 90 日で消すが、見た話は、ユーザーが取り消すまで残す。
 CREATE TABLE drama_watched_episodes (

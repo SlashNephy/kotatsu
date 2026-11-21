@@ -1,7 +1,7 @@
-// Package drama は、ドラマの番組を、TMDb の作品 (TV) とシーズン、話に結びつける (#1651、設計書 3.9)。
+// Package drama は、ドラマの番組を、TMDB の作品 (TV) とシーズン、話に結びつける (#1651、設計書 3.9)。
 //
 // アニメの結びつき (設計書 3.8) と同じく、nekonote のジョブが EPG の同期の後に照合し、結果を DB に持つ。
-// TMDb に問い合わせるのは nekonote のジョブだけで、tenban は DB を読むだけにする。
+// TMDB に問い合わせるのは nekonote のジョブだけで、tenban は DB を読むだけにする。
 package drama
 
 import (
@@ -31,18 +31,18 @@ import (
 const (
 	// MatchHorizon は、定期的に照合し直す、これから放送される番組の範囲 (付録 A)。
 	MatchHorizon = 7 * 24 * time.Hour
-	// SearchMaxAge は、TMDb の検索の結果を引き直すまでの間隔 (付録 A)。始まったばかりの作品が載るのを待つ。
+	// SearchMaxAge は、TMDB の検索の結果を引き直すまでの間隔 (付録 A)。始まったばかりの作品が載るのを待つ。
 	SearchMaxAge = 3 * 24 * time.Hour
-	// DetailMaxAge は、TMDb の作品のシーズンの一覧と、シーズンの話の一覧を引き直すまでの間隔 (付録 A)。
+	// DetailMaxAge は、TMDB の作品のシーズンの一覧と、シーズンの話の一覧を引き直すまでの間隔 (付録 A)。
 	// 話の放送日は、放送の直前まで足されたり直されたりする。
 	DetailMaxAge = 24 * time.Hour
-	// CacheRetention は、TMDb から引いた情報を持つ期間 (付録 A)。TMDb の利用規約は 6 か月を超えて持つことを禁じている。
+	// CacheRetention は、TMDB から引いた情報を持つ期間 (付録 A)。TMDB の利用規約は 6 か月を超えて持つことを禁じている。
 	CacheRetention = 180 * 24 * time.Hour
 	// linkedRefreshAge は、番組か録画に結びついた作品とシーズンを、消す前に引き直すまでの間隔。
 	linkedRefreshAge = 150 * 24 * time.Hour
 	// maxLinkedRefreshes は、1 回の照合し直しで引き直す、結びついた作品とシーズンの数の上限。
 	maxLinkedRefreshes = 20
-	// DefaultMaxRequests は、1 回の照合で TMDb に問い合わせる回数の上限 (付録 A)。超えた番組は、次の機会に回す。
+	// DefaultMaxRequests は、1 回の照合で TMDB に問い合わせる回数の上限 (付録 A)。超えた番組は、次の機会に回す。
 	DefaultMaxRequests = 300
 	// minProgramDuration は、照合する番組の長さの下限。宣伝の短い番組 (数分の見どころなど) を照合しない。
 	minProgramDuration = 10 * time.Minute
@@ -56,7 +56,7 @@ const (
 	minPrefixRunes = 3
 	// recentSeason は、番組名の話数で話を選ぶとき、今のシーズンとみなす、シーズンの始まりからの長さ。
 	recentSeason = 365 * 24 * time.Hour
-	// upcomingSeries は、作品の放送開始が番組の放送より後でも、候補に残す長さ (TMDb の放送開始日のずれを見込む)。
+	// upcomingSeries は、作品の放送開始が番組の放送より後でも、候補に残す長さ (TMDB の放送開始日のずれを見込む)。
 	upcomingSeries = 30 * 24 * time.Hour
 	// unauthorizedPause は、トークンが断られた (401) とき、同じトークンで問い合わせを控える長さ。管理者が入れ直すまで断られ続けるので、
 	// 長く空ける。入れ直したトークンでは、すぐに問い合わせる。
@@ -64,7 +64,7 @@ const (
 	// continueAfter は、問い合わせの上限に達して照合しきれなかったとき、続きを照合するまで待つ長さ。
 	// 連携を有効にした直後は、これから 1 週間のドラマの番組を一度に照合するので、上限ごとに区切って続ける。
 	continueAfter = time.Minute
-	// genreAnimation は、TMDb のジャンルのアニメーション。アニメはしょぼいカレンダーで結びつけるので、候補にしない。
+	// genreAnimation は、TMDB のジャンルのアニメーション。アニメはしょぼいカレンダーで結びつけるので、候補にしない。
 	genreAnimation = 16
 )
 
@@ -82,14 +82,14 @@ type Database interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-// Client は、TMDb に token で問い合わせる。*tmdb.Client が満たす。
+// Client は、TMDB に token で問い合わせる。*tmdb.Client が満たす。
 type Client interface {
 	SearchTV(ctx context.Context, token, query string) ([]*tmdb.SearchResult, error)
 	TV(ctx context.Context, token string, id int32) (*tmdb.Series, error)
 	Season(ctx context.Context, token string, id, number int32) ([]*tmdb.Episode, error)
 }
 
-// TokenSource は、管理者が連携の画面で入れた TMDb のトークンを返す。設定していなければ空を返す。*Tokens が満たす。
+// TokenSource は、管理者が連携の画面で入れた TMDB のトークンを返す。設定していなければ空を返す。*Tokens が満たす。
 type TokenSource interface {
 	Token(ctx context.Context, db sqlc.DBTX) (string, error)
 }
@@ -97,13 +97,13 @@ type TokenSource interface {
 var _ Client = new(tmdb.Client)
 
 var (
-	// errStop は、問い合わせの上限に達したか、TMDb に 429 で断られたので、残りの番組を、少し空けて続きとして照合することを表す。
+	// errStop は、問い合わせの上限に達したか、TMDB に 429 で断られたので、残りの番組を、少し空けて続きとして照合することを表す。
 	errStop = errors.New("stop matching for now")
 	// errUnauthorized は、トークンが断られたので、残りの番組を、次の定期の照合に回すことを表す。
 	errUnauthorized = errors.New("stop matching until the token is fixed")
 )
 
-// Matcher は、ドラマの番組を、TMDb の作品と話に結びつける。
+// Matcher は、ドラマの番組を、TMDB の作品と話に結びつける。
 type Matcher struct {
 	db          Database
 	clock       clock.Clock
@@ -114,17 +114,17 @@ type Matcher struct {
 
 	// mu は、limitedUntil、rejectedToken、rejectedUntil を守る。
 	mu sync.Mutex
-	// limitedUntil は、TMDb に 429 で断られたので、問い合わせを控える期限 (Retry-After の後)。
+	// limitedUntil は、TMDB に 429 で断られたので、問い合わせを控える期限 (Retry-After の後)。
 	// このプロセスの照合のジョブすべてで共有し、どの照合も、期限までは問い合わせない。
 	limitedUntil time.Time
-	// rejectedToken は、TMDb に 401 で断られたトークン。rejectedUntil (unauthorizedPause の後) までは、このトークンで問い合わせない。
+	// rejectedToken は、TMDB に 401 で断られたトークン。rejectedUntil (unauthorizedPause の後) までは、このトークンで問い合わせない。
 	// 管理者がトークンを入れ直したら、新しいトークンで、すぐに問い合わせる。
 	rejectedToken string
 	rejectedUntil time.Time
 }
 
-// NewMatcher は Matcher を返す。tokens は、照合のたびに TMDb のトークンを読む先。
-// maxRequests は、1 回の照合で TMDb に問い合わせる回数の上限 (0 以下なら DefaultMaxRequests)。
+// NewMatcher は Matcher を返す。tokens は、照合のたびに TMDB のトークンを読む先。
+// maxRequests は、1 回の照合で TMDB に問い合わせる回数の上限 (0 以下なら DefaultMaxRequests)。
 func NewMatcher(db Database, clk clock.Clock, client Client, tokens TokenSource, logger *slog.Logger, maxRequests int) *Matcher {
 	if maxRequests <= 0 {
 		maxRequests = DefaultMaxRequests
@@ -148,17 +148,17 @@ type MatchResult struct {
 	Finalized int `json:"finalized"`
 	// Deferred は、問い合わせの上限か失敗で、次の機会に回した番組の数。
 	Deferred int `json:"deferred"`
-	// Requests は、TMDb に問い合わせた回数。Failed は、そのうち失敗した回数。
+	// Requests は、TMDB に問い合わせた回数。Failed は、そのうち失敗した回数。
 	Requests int `json:"requests"`
 	Failed   int `json:"failed"`
 	// Pruned は、古くなって消したキャッシュと結びつきの数。
 	Pruned int64 `json:"pruned"`
-	// Stopped は、問い合わせの上限に達したか、TMDb に 429 で断られて、照合しきれなかった番組があるかどうか。
+	// Stopped は、問い合わせの上限に達したか、TMDB に 429 で断られて、照合しきれなかった番組があるかどうか。
 	// ジョブは、ContinueAfter の後に、続きを照合し直す。トークンが断られた (401) ときは続けず、次の定期の照合に任せる。
 	Stopped bool `json:"stopped"`
-	// ContinueAfter は、続きを照合するまで待つ長さ。TMDb が 429 で示した長さか、上限に達したときは continueAfter。
+	// ContinueAfter は、続きを照合するまで待つ長さ。TMDB が 429 で示した長さか、上限に達したときは continueAfter。
 	ContinueAfter time.Duration `json:"continueAfter"`
-	// Paused は、前に TMDb に断られて問い合わせを控えている間なので、何もしなかったかどうか。
+	// Paused は、前に TMDB に断られて問い合わせを控えている間なので、何もしなかったかどうか。
 	Paused bool `json:"paused"`
 }
 
@@ -174,7 +174,7 @@ type target struct {
 	seriesRepeat  bool
 }
 
-// Link は、番組に結びついた TMDb の作品と話。作品に結びつかなければ SeriesID が nil。
+// Link は、番組に結びついた TMDB の作品と話。作品に結びつかなければ SeriesID が nil。
 type Link struct {
 	// TitleKey は、番組名から読んだ作品名の鍵。管理者の上書きを引くのに使う。
 	TitleKey string
@@ -188,9 +188,9 @@ type Link struct {
 	EpisodeSource *string
 }
 
-// run は、1 回の照合の間に持つ状態。TMDb から引いたものを覚え、同じものを問い合わせ直さない。
+// run は、1 回の照合の間に持つ状態。TMDB から引いたものを覚え、同じものを問い合わせ直さない。
 type run struct {
-	// token は、この照合で TMDb に問い合わせるトークン。
+	// token は、この照合で TMDB に問い合わせるトークン。
 	token     string
 	result    *MatchResult
 	now       time.Time
@@ -287,7 +287,7 @@ func (m *Matcher) MatchHorizon(ctx context.Context) (*MatchResult, error) {
 		return nil, err
 	}
 	now := m.clock.Now()
-	// 無効の間も、TMDb から引いた情報は 6 か月で消す (TMDb の利用規約)。
+	// 無効の間も、TMDB から引いた情報は 6 か月で消す (TMDB の利用規約)。
 	pruned, err := m.prune(ctx, now)
 	if err != nil {
 		return nil, err
@@ -322,7 +322,7 @@ func (m *Matcher) MatchHorizon(ctx context.Context) (*MatchResult, error) {
 }
 
 // Finalize は、放送が終わり、まだアーカイブへ移していない番組を照合し直し、結びつきを確定させる。
-// 確定させた番組は、それからは照合し直さない。TMDb に問い合わせられなかった番組は確定させず、次の機会に回す。
+// 確定させた番組は、それからは照合し直さない。TMDB に問い合わせられなかった番組は確定させず、次の機会に回す。
 func (m *Matcher) Finalize(ctx context.Context) (*MatchResult, error) {
 	result := new(MatchResult)
 	token, err := m.enabled(ctx)
@@ -392,7 +392,7 @@ func (m *Matcher) programs(ctx context.Context, serviceIDs []int64, from, to tim
 }
 
 // match は、targets を照合し、結びつきを書く。finalize なら、照合した番組の結びつきを確定させる。
-// 問い合わせの上限に達したか、TMDb に断られたら、残りの番組を書かずに true を返す。
+// 問い合わせの上限に達したか、TMDB に断られたら、残りの番組を書かずに true を返す。
 func (m *Matcher) match(ctx context.Context, token string, targets []*target, finalize bool, result *MatchResult) (bool, error) {
 	if len(targets) == 0 {
 		return false, nil
@@ -422,7 +422,7 @@ func (m *Matcher) match(ctx context.Context, token string, targets []*target, fi
 			}
 			// 1 つの番組の問い合わせに失敗しても、ほかの番組は照合する。前の結びつきは残し、確定もさせない。
 			result.Deferred++
-			m.logger.WarnContext(ctx, "failed to match a drama program with TMDb",
+			m.logger.WarnContext(ctx, "failed to match a drama program with TMDB",
 				slog.Int64("service_id", t.serviceID), slog.Time("start_at", t.startAt), slog.Any("error", err))
 
 			continue
@@ -494,7 +494,7 @@ func (m *Matcher) resolve(ctx context.Context, r *run, t *target) (*Link, error)
 }
 
 // broadcastDates は、番組の放送日の候補を返す。日本時間の暦の日と、深夜の番組なら前の日 (放送日の数え方) の順。
-// TMDb の話の放送日は、日本の作品では暦の日で書かれていることが多いが、放送日の数え方で書かれた作品もある。
+// TMDB の話の放送日は、日本の作品では暦の日で書かれていることが多いが、放送日の数え方で書かれた作品もある。
 func broadcastDates(startAt time.Time) []string {
 	dates := []string{startAt.In(tokyo()).Format(time.DateOnly)}
 	if shifted := startAt.Add(-broadcastDayShift).In(tokyo()).Format(time.DateOnly); shifted != dates[0] {
@@ -504,12 +504,12 @@ func broadcastDates(startAt time.Time) []string {
 	return dates
 }
 
-// tokyo は、日本時間を返す。TMDb の日本の作品の放送日は、日本時間の日で書かれる。日本は 1951 年から夏時間を使っていない。
+// tokyo は、日本時間を返す。TMDB の日本の作品の放送日は、日本時間の日で書かれる。日本は 1951 年から夏時間を使っていない。
 func tokyo() *time.Location {
 	return time.FixedZone("JST", 9*60*60)
 }
 
-// findSeries は、作品名 title で TMDb を探し、番組の作品を決める。決められなければ 0 を返す。
+// findSeries は、作品名 title で TMDB を探し、番組の作品を決める。決められなければ 0 を返す。
 // 誤った作品に結びつけるより、結びつけないほうを選ぶ。作品名 (NFKC で正規化し、空白と記号を除いたもの) が一致する候補だけを、
 // そのまま結びつける。一致する候補が複数あれば、放送の時期で選ぶ。一致する候補がなく、作品名の前方が一致する候補だけがあれば、
 // その作品に番組の放送日の話があるかで確かめ、1 つだけに確かめられたら結びつける。
@@ -608,7 +608,7 @@ func prefixOf(a, b string) bool {
 }
 
 // pickByDate は、作品名が一致する候補から、番組の放送日 date より前に始まった (始まったばかりのものを含む) 作品のうち、
-// 最も新しく始まった作品を選ぶ。同じ名前のリメイクがあっても、放送中の作品を選ぶため。どれも当たらなければ、TMDb の並びの先頭を選ぶ。
+// 最も新しく始まった作品を選ぶ。同じ名前のリメイクがあっても、放送中の作品を選ぶため。どれも当たらなければ、TMDB の並びの先頭を選ぶ。
 func pickByDate(candidates []*tmdb.SearchResult, date string) int32 {
 	limit := shiftDate(date, upcomingSeries)
 	best := (*tmdb.SearchResult)(nil)
@@ -638,9 +638,9 @@ func shiftDate(date string, d time.Duration) string {
 }
 
 // findEpisode は、作品 seriesID の、番組 t の話を決める。決められなければ episode が 0。
-//   - 再放送でなければ、TMDb の話の放送日と番組の放送日が一致する話を選ぶ。シーズンの番号は番組名の数字と合わないことがある
-//     (晩酌の流儀5 は TMDb ではシーズン 7) ので、番組名からは読まない。
-//   - 放送日で選べなければ (遅れて放送する局や、TMDb にまだ放送日のない話)、番組名の話数で、今放送しているシーズンの話を選ぶ。
+//   - 再放送でなければ、TMDB の話の放送日と番組の放送日が一致する話を選ぶ。シーズンの番号は番組名の数字と合わないことがある
+//     (晩酌の流儀5 は TMDB ではシーズン 7) ので、番組名からは読まない。
+//   - 放送日で選べなければ (遅れて放送する局や、TMDB にまだ放送日のない話)、番組名の話数で、今放送しているシーズンの話を選ぶ。
 //   - 再放送は、放送日では選べないので、番組名の話数で選ぶ。シーズンがいくつもある作品は、どのシーズンか決められないので、作品だけに結びつける。
 //     再放送の印がなくても、今放送しているシーズンがなければ (昔の作品や海外ドラマ)、再放送と同じく選ぶ。
 func (m *Matcher) findEpisode(ctx context.Context, r *run, seriesID int32, t *target, dates []string) (int32, int32, string, error) {
@@ -795,21 +795,21 @@ func (m *Matcher) airedOn(ctx context.Context, r *run, seriesID int32, dates []s
 	return episode > 0, err
 }
 
-// limit は、TMDb に 429 で断られたので、どのトークンでも、問い合わせを d だけ控える。
+// limit は、TMDB に 429 で断られたので、どのトークンでも、問い合わせを d だけ控える。
 func (m *Matcher) limit(d time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.limitedUntil = maxTime(m.limitedUntil, m.clock.Now().Add(d))
 }
 
-// reject は、TMDb に 401 で断られたので、トークン token での問い合わせを unauthorizedPause だけ控える。
+// reject は、TMDB に 401 で断られたので、トークン token での問い合わせを unauthorizedPause だけ控える。
 func (m *Matcher) reject(token string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.rejectedToken, m.rejectedUntil = token, m.clock.Now().Add(unauthorizedPause)
 }
 
-// paused は、トークン token での TMDb への問い合わせを控えている間かどうかを返す。
+// paused は、トークン token での TMDB への問い合わせを控えている間かどうかを返す。
 func (m *Matcher) paused(token string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -818,7 +818,7 @@ func (m *Matcher) paused(token string) bool {
 	return now.Before(m.limitedUntil) || (token == m.rejectedToken && now.Before(m.rejectedUntil))
 }
 
-// request は、TMDb への問い合わせを 1 回数え、上限に達していれば errStop を返す。
+// request は、TMDB への問い合わせを 1 回数え、上限に達していれば errStop を返す。
 func (m *Matcher) request(r *run) error {
 	if r.result.Requests >= m.maxRequests {
 		return errStop
@@ -833,14 +833,14 @@ func (m *Matcher) request(r *run) error {
 func (m *Matcher) failed(ctx context.Context, r *run, err error) error {
 	r.result.Failed++
 	if limited, ok := errors.AsType[*tmdb.RateLimitedError](err); ok {
-		m.logger.WarnContext(ctx, "stopped querying TMDb", slog.Any("error", err))
+		m.logger.WarnContext(ctx, "stopped querying TMDB", slog.Any("error", err))
 		r.result.ContinueAfter = max(r.result.ContinueAfter, limited.RetryAfter)
 		m.limit(limited.RetryAfter)
 
 		return errStop
 	}
 	if errors.Is(err, tmdb.ErrUnauthorized) {
-		m.logger.WarnContext(ctx, "TMDb rejected the token; enter a valid token in the integrations settings", slog.Any("error", err))
+		m.logger.WarnContext(ctx, "TMDB rejected the token; enter a valid token in the integrations settings", slog.Any("error", err))
 		m.reject(r.token)
 
 		return errUnauthorized
@@ -859,14 +859,14 @@ func (m *Matcher) search(ctx context.Context, r *run, query string) ([]*tmdb.Sea
 	if err == nil && row.FetchedAt.After(r.now.Add(-SearchMaxAge)) {
 		results := []*tmdb.SearchResult{}
 		if err := json.Unmarshal(row.Results, &results); err != nil {
-			return nil, fmt.Errorf("failed to decode the cached TMDb search: %w", err)
+			return nil, fmt.Errorf("failed to decode the cached TMDB search: %w", err)
 		}
 		r.searches[query] = results
 
 		return results, nil
 	}
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("failed to read the cached TMDb search: %w", err)
+		return nil, fmt.Errorf("failed to read the cached TMDB search: %w", err)
 	}
 	if err := m.request(r); err != nil {
 		return nil, err
@@ -877,10 +877,10 @@ func (m *Matcher) search(ctx context.Context, r *run, query string) ([]*tmdb.Sea
 	}
 	encoded, err := json.Marshal(results)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode the TMDb search: %w", err)
+		return nil, fmt.Errorf("failed to encode the TMDB search: %w", err)
 	}
 	if err := q.UpsertTMDbSearch(ctx, sqlc.UpsertTMDbSearchParams{Query: query, Results: encoded, Now: m.clock.Now()}); err != nil {
-		return nil, fmt.Errorf("failed to save the TMDb search: %w", err)
+		return nil, fmt.Errorf("failed to save the TMDB search: %w", err)
 	}
 	r.searches[query] = results
 
@@ -888,7 +888,7 @@ func (m *Matcher) search(ctx context.Context, r *run, query string) ([]*tmdb.Sea
 }
 
 // seriesDetail は、作品 id のシーズンの一覧を返す。DetailMaxAge より新しいキャッシュがあれば、問い合わせない。
-// TMDb に作品がなければ (管理者の上書きが、消えた作品を指しているときなど)、シーズンのない作品を返す。
+// TMDB に作品がなければ (管理者の上書きが、消えた作品を指しているときなど)、シーズンのない作品を返す。
 func (m *Matcher) seriesDetail(ctx context.Context, r *run, id int32) (*tmdb.Series, error) {
 	if cached, ok := r.series[id]; ok {
 		return cached, nil
@@ -904,7 +904,7 @@ func (m *Matcher) seriesDetail(ctx context.Context, r *run, id int32) (*tmdb.Ser
 		return series, nil
 	}
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("failed to read the cached TMDb series: %w", err)
+		return nil, fmt.Errorf("failed to read the cached TMDB series: %w", err)
 	}
 	series, err := m.fetchSeries(ctx, r, id)
 	if err != nil {
@@ -915,7 +915,7 @@ func (m *Matcher) seriesDetail(ctx context.Context, r *run, id int32) (*tmdb.Ser
 	return series, nil
 }
 
-// fetchSeries は、作品 id を TMDb から引き、キャッシュを入れ替える。TMDb に作品がなければ、シーズンのない作品を返す。
+// fetchSeries は、作品 id を TMDB から引き、キャッシュを入れ替える。TMDB に作品がなければ、シーズンのない作品を返す。
 func (m *Matcher) fetchSeries(ctx context.Context, r *run, id int32) (*tmdb.Series, error) {
 	if err := m.request(r); err != nil {
 		return nil, err
@@ -930,19 +930,19 @@ func (m *Matcher) fetchSeries(ctx context.Context, r *run, id int32) (*tmdb.Seri
 	}
 	seasons, err := json.Marshal(series.Seasons)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode the TMDb seasons: %w", err)
+		return nil, fmt.Errorf("failed to encode the TMDB seasons: %w", err)
 	}
 	if err := sqlc.New(m.db).UpsertTMDbSeries(ctx, sqlc.UpsertTMDbSeriesParams{
 		ID: series.ID, Name: series.Name, OriginalName: series.OriginalName, FirstAirDate: dateOf(series.FirstAirDate), Seasons: seasons, Now: m.clock.Now(),
 	}); err != nil {
-		return nil, fmt.Errorf("failed to save the TMDb series: %w", err)
+		return nil, fmt.Errorf("failed to save the TMDB series: %w", err)
 	}
 
 	return series, nil
 }
 
 // seasonEpisodes は、作品 seriesID のシーズン number の話の一覧を返す。DetailMaxAge より新しいキャッシュがあれば、問い合わせない。
-// TMDb にシーズンがなければ、空の一覧を返す。
+// TMDB にシーズンがなければ、空の一覧を返す。
 func (m *Matcher) seasonEpisodes(ctx context.Context, r *run, seriesID, number int32) ([]*tmdb.Episode, error) {
 	key := seasonKey{seriesID: seriesID, number: number}
 	if cached, ok := r.seasons[key]; ok {
@@ -952,14 +952,14 @@ func (m *Matcher) seasonEpisodes(ctx context.Context, r *run, seriesID, number i
 	if err == nil && row.FetchedAt.After(r.now.Add(-DetailMaxAge)) {
 		episodes := []*tmdb.Episode{}
 		if err := json.Unmarshal(row.Episodes, &episodes); err != nil {
-			return nil, fmt.Errorf("failed to decode the cached TMDb season: %w", err)
+			return nil, fmt.Errorf("failed to decode the cached TMDB season: %w", err)
 		}
 		r.seasons[key] = episodes
 
 		return episodes, nil
 	}
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("failed to read the cached TMDb season: %w", err)
+		return nil, fmt.Errorf("failed to read the cached TMDB season: %w", err)
 	}
 	episodes, err := m.fetchSeason(ctx, r, seriesID, number)
 	if err != nil {
@@ -970,7 +970,7 @@ func (m *Matcher) seasonEpisodes(ctx context.Context, r *run, seriesID, number i
 	return episodes, nil
 }
 
-// fetchSeason は、作品 seriesID のシーズン number を TMDb から引き、キャッシュを入れ替える。
+// fetchSeason は、作品 seriesID のシーズン number を TMDB から引き、キャッシュを入れ替える。
 func (m *Matcher) fetchSeason(ctx context.Context, r *run, seriesID, number int32) ([]*tmdb.Episode, error) {
 	if err := m.request(r); err != nil {
 		return nil, err
@@ -984,12 +984,12 @@ func (m *Matcher) fetchSeason(ctx context.Context, r *run, seriesID, number int3
 	}
 	encoded, err := json.Marshal(episodes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode the TMDb season: %w", err)
+		return nil, fmt.Errorf("failed to encode the TMDB season: %w", err)
 	}
 	if err := sqlc.New(m.db).UpsertTMDbSeason(ctx, sqlc.UpsertTMDbSeasonParams{
 		SeriesID: seriesID, SeasonNumber: number, Episodes: encoded, Now: m.clock.Now(),
 	}); err != nil {
-		return nil, fmt.Errorf("failed to save the TMDb season: %w", err)
+		return nil, fmt.Errorf("failed to save the TMDB season: %w", err)
 	}
 
 	return episodes, nil
@@ -1030,21 +1030,21 @@ func (m *Matcher) write(ctx context.Context, t *target, link *Link, finalize boo
 	})
 }
 
-// prune は、TMDb から引いて 6 か月がたつ前の情報と、番組表からも過去の番組からもなくなった番組の結びつきを消す。
+// prune は、TMDB から引いて 6 か月がたつ前の情報と、番組表からも過去の番組からもなくなった番組の結びつきを消す。
 func (m *Matcher) prune(ctx context.Context, now time.Time) (int64, error) {
 	q := sqlc.New(m.db)
 	before := now.Add(-CacheRetention)
 	searches, err := q.PruneTMDbSearches(ctx, before)
 	if err != nil {
-		return 0, fmt.Errorf("failed to prune the TMDb searches: %w", err)
+		return 0, fmt.Errorf("failed to prune the TMDB searches: %w", err)
 	}
 	series, err := q.PruneTMDbSeries(ctx, before)
 	if err != nil {
-		return 0, fmt.Errorf("failed to prune the TMDb series: %w", err)
+		return 0, fmt.Errorf("failed to prune the TMDB series: %w", err)
 	}
 	seasons, err := q.PruneTMDbSeasons(ctx, before)
 	if err != nil {
-		return 0, fmt.Errorf("failed to prune the TMDb seasons: %w", err)
+		return 0, fmt.Errorf("failed to prune the TMDB seasons: %w", err)
 	}
 	matches, err := q.PruneProgramDramaMatches(ctx, now.Add(-orphanGrace))
 	if err != nil {
@@ -1065,7 +1065,7 @@ func (m *Matcher) refreshLinked(ctx context.Context, token string, result *Match
 	before := now.Add(-linkedRefreshAge)
 	ids, err := q.ListStaleLinkedTMDbSeries(ctx, sqlc.ListStaleLinkedTMDbSeriesParams{Before: before, MaxCount: maxLinkedRefreshes})
 	if err != nil {
-		return fmt.Errorf("failed to list the stale TMDb series: %w", err)
+		return fmt.Errorf("failed to list the stale TMDB series: %w", err)
 	}
 	for _, id := range ids {
 		if _, err := m.fetchSeries(ctx, r, id); err != nil {
@@ -1074,7 +1074,7 @@ func (m *Matcher) refreshLinked(ctx context.Context, token string, result *Match
 	}
 	seasons, err := q.ListStaleLinkedTMDbSeasons(ctx, sqlc.ListStaleLinkedTMDbSeasonsParams{Before: before, MaxCount: maxLinkedRefreshes})
 	if err != nil {
-		return fmt.Errorf("failed to list the stale TMDb seasons: %w", err)
+		return fmt.Errorf("failed to list the stale TMDB seasons: %w", err)
 	}
 	for _, season := range seasons {
 		if _, err := m.fetchSeason(ctx, r, season.SeriesID, season.SeasonNumber); err != nil {
@@ -1091,7 +1091,7 @@ func (m *Matcher) stopRefresh(ctx context.Context, err error) error {
 		return ctx.Err()
 	}
 	if !errors.Is(err, errStop) && !errors.Is(err, errUnauthorized) {
-		m.logger.WarnContext(ctx, "failed to refresh a linked TMDb series", slog.Any("error", err))
+		m.logger.WarnContext(ctx, "failed to refresh a linked TMDB series", slog.Any("error", err))
 	}
 
 	return nil
@@ -1122,7 +1122,7 @@ func CopyToRecording(ctx context.Context, tx sqlc.DBTX, recordingID uuid.UUID, s
 func seriesOfRow(row *sqlc.TmdbSeries) (*tmdb.Series, error) {
 	seasons := []*tmdb.Season{}
 	if err := json.Unmarshal(row.Seasons, &seasons); err != nil {
-		return nil, fmt.Errorf("failed to decode the cached TMDb seasons: %w", err)
+		return nil, fmt.Errorf("failed to decode the cached TMDB seasons: %w", err)
 	}
 	firstAirDate := ""
 	if row.FirstAirDate.Valid {
@@ -1132,7 +1132,7 @@ func seriesOfRow(row *sqlc.TmdbSeries) (*tmdb.Series, error) {
 	return &tmdb.Series{ID: row.ID, Name: row.Name, OriginalName: row.OriginalName, FirstAirDate: firstAirDate, Seasons: seasons}, nil
 }
 
-// dateOf は、TMDb の日付 (YYYY-MM-DD) を DB の日付にする。空か読めなければ NULL にする。
+// dateOf は、TMDB の日付 (YYYY-MM-DD) を DB の日付にする。空か読めなければ NULL にする。
 func dateOf(value string) pgtype.Date {
 	parsed, err := time.Parse(time.DateOnly, value)
 	if err != nil {

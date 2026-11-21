@@ -26,7 +26,7 @@ const (
 	fieldDataBroadcastIPEnabled = "dataBroadcastIpEnabled"
 	// fieldAnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携を使うかどうかの項目 (設計書 3.8)。
 	fieldAnimeLinkingEnabled = "animeLinkingEnabled"
-	// fieldDramaLinkingEnabled は、TMDb との連携を使うかどうかの項目 (#1651)。
+	// fieldDramaLinkingEnabled は、TMDB との連携を使うかどうかの項目 (#1651)。
 	fieldDramaLinkingEnabled = "dramaLinkingEnabled"
 	// fieldCommentSources は、オプトインする実況のコメントのソースの項目 (#1405、設計書 7.4)。
 	fieldCommentSources = "commentSources"
@@ -159,7 +159,7 @@ func TestSystemSettings(t *testing.T) {
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldAnimeLinkingEnabled: true}}, &partial))
 	want.AnimeLinkingEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
-	// TMDb との連携も、既定では使わず、管理者が有効にする (#1651)。
+	// TMDB との連携も、既定では使わず、管理者が有効にする (#1651)。
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDramaLinkingEnabled: true}}, &partial))
 	want.DramaLinkingEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)

@@ -128,7 +128,7 @@ type Options struct {
 	AnimeRecords *animerecord.Service
 	// Google は、Google の OAuth クライアントと Google Drive の接続を扱う (#1902)。nil なら、連携の操作は内部のエラーにする。
 	Google *google.Service
-	// DramaTokens は、管理者が連携の画面で入れる TMDb のトークン (#1651)。tenban は保存するだけで、TMDb に問い合わせない。
+	// DramaTokens は、管理者が連携の画面で入れる TMDB のトークン (#1651)。tenban は保存するだけで、TMDB に問い合わせない。
 	// nil なら、トークンの操作は内部のエラーにする。
 	DramaTokens *drama.Tokens
 	// DramaRecords は、見たドラマを Simkl に記録する連携を扱う (#1649)。tenban は、連携と連携を外すときだけ Simkl に問い合わせる。

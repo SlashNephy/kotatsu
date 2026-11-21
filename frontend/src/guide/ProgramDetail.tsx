@@ -140,7 +140,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
               lv1
               lv2
             }
-            # TMDb で結びつけた作品と話 (#1651、設計書 3.9)。詳細でだけ引く。
+            # TMDB で結びつけた作品と話 (#1651、設計書 3.9)。詳細でだけ引く。
             dramaEpisode {
               series {
                 tmdbId

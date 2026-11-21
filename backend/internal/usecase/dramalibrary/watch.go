@@ -1,5 +1,5 @@
 // Package dramalibrary は、ユーザーが見ているドラマの作品と見た話を持ち、ドラマの視聴管理の画面 (/drama) に並べる
-// (#1652、設計書 3.9)。作品と話は、番組と録画に結びついた TMDb の作品と話 (#1651) を使う。
+// (#1652、設計書 3.9)。作品と話は、番組と録画に結びついた TMDB の作品と話 (#1651) を使う。
 package dramalibrary
 
 import (
@@ -30,12 +30,12 @@ const (
 )
 
 var (
-	// ErrUnavailable は、管理者が TMDb との連携を無効にしていることを表す。
+	// ErrUnavailable は、管理者が TMDB との連携を無効にしていることを表す。
 	ErrUnavailable = errors.New("drama linking is disabled")
 	// ErrNotLinked は、作品が、どの番組にも録画にも結びついていないことを表す。
-	ErrNotLinked = errors.New("the TMDb series is not linked to any program or recording")
+	ErrNotLinked = errors.New("the TMDB series is not linked to any program or recording")
 	// ErrInvalidEpisode は、作品、シーズン、話の番号が正しくないことを表す。
-	ErrInvalidEpisode = errors.New("invalid TMDb series, season or episode number")
+	ErrInvalidEpisode = errors.New("invalid TMDB series, season or episode number")
 	// ErrInvalidStatus は、見ている作品の状態が正しくないことを表す。
 	ErrInvalidStatus = errors.New("invalid drama watch status")
 )
@@ -46,7 +46,7 @@ type Database interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-// available は、管理者が TMDb との連携を有効にしていなければ ErrUnavailable を返す。
+// available は、管理者が TMDB との連携を有効にしていなければ ErrUnavailable を返す。
 func available(ctx context.Context, db sqlc.DBTX) error {
 	system, err := settings.Load(ctx, db)
 	if err != nil {
@@ -59,7 +59,7 @@ func available(ctx context.Context, db sqlc.DBTX) error {
 	return nil
 }
 
-// SetStatus は、ユーザー userID の見ている作品に、TMDb の作品 seriesID を、状態 status で足すか、状態を変える。status が空なら外す。
+// SetStatus は、ユーザー userID の見ている作品に、TMDB の作品 seriesID を、状態 status で足すか、状態を変える。status が空なら外す。
 // 足せるのは、番組か録画に結びついた作品だけにする (番組と録画の詳細から足す。ID を手で入れて、名前の分からない作品を増やさない)。
 // 管理者が連携を無効にしていれば ErrUnavailable を、結びつきのない作品なら ErrNotLinked を返す。外すのは、結びつきがなくてもできる。
 func SetStatus(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, seriesID int32, status string, now time.Time) error {
@@ -96,7 +96,7 @@ func SetStatus(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, seriesID int
 	return nil
 }
 
-// Status は、ユーザー userID の、TMDb の作品 seriesID の状態を返す。見ている作品に入れていなければ空を返す。
+// Status は、ユーザー userID の、TMDB の作品 seriesID の状態を返す。見ている作品に入れていなければ空を返す。
 func Status(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, seriesID int32) (string, error) {
 	status, err := sqlc.New(db).GetDramaWatchlistStatus(ctx, sqlc.GetDramaWatchlistStatusParams{UserID: userID, TmdbSeriesID: seriesID})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -109,21 +109,21 @@ func Status(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, seriesID int32)
 	return status, nil
 }
 
-// SeriesName は、TMDb の作品 seriesID の名前 (日本語) と元の言語の名前を、TMDb のキャッシュから返す。キャッシュになければ nil を返す
-// (TMDb には問い合わせない)。
+// SeriesName は、TMDB の作品 seriesID の名前 (日本語) と元の言語の名前を、TMDB のキャッシュから返す。キャッシュになければ nil を返す
+// (TMDB には問い合わせない)。
 func SeriesName(ctx context.Context, db sqlc.DBTX, seriesID int32) (*string, *string, error) {
 	series, err := sqlc.New(db).GetTMDbSeries(ctx, seriesID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, nil
 	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get the TMDb series: %w", err)
+		return nil, nil, fmt.Errorf("failed to get the TMDB series: %w", err)
 	}
 
 	return nonEmpty(series.Name), nonEmpty(series.OriginalName), nil
 }
 
-// Episode は、TMDb の作品の 1 話。
+// Episode は、TMDB の作品の 1 話。
 type Episode struct {
 	SeriesID int32
 	Season   int32
@@ -185,7 +185,7 @@ func Watched(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, episode *Episo
 	return watched, nil
 }
 
-// watchedProgram は、見た区間を足す、TMDb の話に結びついた番組。
+// watchedProgram は、見た区間を足す、TMDB の話に結びついた番組。
 type watchedProgram struct {
 	serviceID int64
 	startAt   time.Time
@@ -254,7 +254,7 @@ func Report(
 	return true, nil
 }
 
-// watchedPrograms は、見た区間 spans に重なる、TMDb の話に結びついた番組を返す。
+// watchedPrograms は、見た区間 spans に重なる、TMDB の話に結びついた番組を返す。
 // ライブ視聴は、サービスの番組のうち区間に重なるものを、録画の再生は、録画した番組 (録画に写した結びつき) を返す。
 func watchedPrograms(ctx context.Context, db sqlc.DBTX, target *animerecord.Target, spans *animerecord.PlayedSpans) ([]*watchedProgram, error) {
 	q := sqlc.New(db)

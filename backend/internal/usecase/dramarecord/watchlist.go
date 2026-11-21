@@ -110,7 +110,7 @@ func EnqueueWatchlistImport(ctx context.Context, tx pgx.Tx, inserter anime.Inser
 // ドラマの視聴管理の画面を開いたときと、利用者が取り込み直しを押したとき (force) に呼ぶ。Simkl はタイマーで問い合わせ続けることを
 // 断っているので、定期のジョブでは取り込まない。force でなければ、前に問い合わせてから 30 分たった連携だけを取り込む。
 // 取り込めなかった連携は、force でも、問い合わせ直す日時 (429 の Retry-After を含む) まで待つ。ジョブを入れたら true を返す。
-// 管理者が TMDb との連携を無効にしていれば、何もしない。
+// 管理者が TMDB との連携を無効にしていれば、何もしない。
 func (s *Service) RequestWatchlistImport(ctx context.Context, db Database, inserter anime.Inserter, userID uuid.UUID, force bool) (bool, error) {
 	system, err := settings.Load(ctx, db)
 	if err != nil {
@@ -288,7 +288,7 @@ func (s *Service) mergeItems(ctx context.Context, tx pgx.Tx, row *sqlc.DramaReco
 	changes := 0
 	for _, item := range items {
 		if item.TMDbID <= 0 {
-			// TMDb の ID のない作品は、Kotatsu の作品と結びつけられない。
+			// TMDB の ID のない作品は、Kotatsu の作品と結びつけられない。
 			continue
 		}
 		previous, err := q.GetDramaWatchlistImport(ctx, sqlc.GetDramaWatchlistImportParams{

@@ -457,7 +457,7 @@ type ListStaleLinkedTMDbSeasonsRow struct {
 }
 
 // 番組か録画に結びついた話のシーズンのうち、キャッシュが before より前に引いたものか、ないものを、古い順に limit 件まで返す。
-// ユーザーが手で見たことにした話 (#1652) のシーズンは、番号を利用者が決めるので (TMDb にないシーズンもありうる)、引き直さない。
+// ユーザーが手で見たことにした話 (#1652) のシーズンは、番号を利用者が決めるので (TMDB にないシーズンもありうる)、引き直さない。
 func (q *Queries) ListStaleLinkedTMDbSeasons(ctx context.Context, arg ListStaleLinkedTMDbSeasonsParams) ([]ListStaleLinkedTMDbSeasonsRow, error) {
 	rows, err := q.db.Query(ctx, listStaleLinkedTMDbSeasons, arg.Before, arg.MaxCount)
 	if err != nil {
@@ -501,7 +501,7 @@ type ListStaleLinkedTMDbSeriesParams struct {
 
 // 番組か録画に結びついた作品と、ユーザーが見ている作品と見た話の作品 (#1652) のうち、キャッシュが before より前に引いたものか、
 // ないものを、古い順に limit 件まで返す。6 か月で消す前に引き直し、結びついた作品の名前を出し続ける。
-// 見ている作品と見た話には、番組か録画に結びついた作品だけを足せる (dramalibrary) ので、TMDb にない ID は入らない。
+// 見ている作品と見た話には、番組か録画に結びついた作品だけを足せる (dramalibrary) ので、TMDB にない ID は入らない。
 func (q *Queries) ListStaleLinkedTMDbSeries(ctx context.Context, arg ListStaleLinkedTMDbSeriesParams) ([]int32, error) {
 	rows, err := q.db.Query(ctx, listStaleLinkedTMDbSeries, arg.Before, arg.MaxCount)
 	if err != nil {

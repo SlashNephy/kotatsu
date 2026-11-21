@@ -1,6 +1,6 @@
 -- name: GetRecordingNextEpisodeSource :one
 -- 録画の続きの放送 (#1564) を探すため、録画の回を読む元を返す。番組名、概要、詳細と、番組 (番組表かアーカイブ) の
--- シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数と、録画が結びついた TMDb の作品とシーズンと話の番号。
+-- シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数と、録画が結びついた TMDB の作品とシーズンと話の番号。
 -- 録画履歴に写すもの (設計書 4.4) と揃える。
 SELECT rec.name, rec.description, rec.extended,
   p.series_episode AS program_series_episode, pa.series_episode AS archived_series_episode,
@@ -36,7 +36,7 @@ ORDER BY p.start_at, p.service_id, p.event_id
 LIMIT @max_rows::integer;
 
 -- name: ListDramaNextPrograms :many
--- TMDb の作品 tmdb_series_id のシーズン season_number の話に結びついた番組のうち、話の番号が episode_number より大きく、
+-- TMDB の作品 tmdb_series_id のシーズン season_number の話に結びついた番組のうち、話の番号が episode_number より大きく、
 -- since から until までに始まる、終了時刻の決まった番組を返す (#1564)。
 SELECT p.service_id, p.event_id, p.start_at, m.episode_number::double precision AS episode_number, p.related_items
 FROM program_drama_matches m
@@ -58,7 +58,7 @@ FROM recording_history
 WHERE syobocal_tid = @syobocal_tid::integer AND anime_count IS NOT NULL;
 
 -- name: ListRecordedDramaEpisodes :many
--- TMDb の作品 tmdb_series_id のシーズン season_number の話に結びついた録画履歴の話の番号 (#1564)。録った回を、続きの放送から外すのに使う。
+-- TMDB の作品 tmdb_series_id のシーズン season_number の話に結びついた録画履歴の話の番号 (#1564)。録った回を、続きの放送から外すのに使う。
 SELECT DISTINCT tmdb_episode_number::double precision AS episode_number
 FROM recording_history
 WHERE tmdb_series_id = @tmdb_series_id::integer AND tmdb_season_number = @season_number::integer AND tmdb_episode_number IS NOT NULL;
@@ -129,7 +129,7 @@ FROM recording_history
 WHERE syobocal_tid = ANY(@tids::integer[]) AND anime_count IS NOT NULL;
 
 -- name: ListDramaNextProgramsBatch :many
--- TMDb の作品 series_ids[i] のシーズン seasons[i] ごとに、話の番号が episodes[i] より大きく、since から until までに始まる、
+-- TMDB の作品 series_ids[i] のシーズン seasons[i] ごとに、話の番号が episodes[i] より大きく、since から until までに始まる、
 -- 終了時刻の決まった番組を、放送の早い順に max_rows 件まで返す (#1564)。ListDramaNextPrograms をまとめて引く。
 SELECT k.series_id::integer AS key_series_id, k.season::integer AS key_season,
   c.service_id, c.event_id, c.start_at, c.episode_number, c.related_items
@@ -148,7 +148,7 @@ CROSS JOIN LATERAL (
 ORDER BY k.series_id, k.season, c.start_at, c.service_id, c.event_id;
 
 -- name: ListRecordedDramaEpisodesBatch :many
--- TMDb の作品 series_ids[i] のシーズン seasons[i] のどれかの話に結びついた録画履歴の、作品とシーズンと話の番号 (#1564)。
+-- TMDB の作品 series_ids[i] のシーズン seasons[i] のどれかの話に結びついた録画履歴の、作品とシーズンと話の番号 (#1564)。
 -- ListRecordedDramaEpisodes をまとめて引く。
 SELECT DISTINCT h.tmdb_series_id::integer AS key_series_id, h.tmdb_season_number::integer AS key_season,
   h.tmdb_episode_number::double precision AS episode_number

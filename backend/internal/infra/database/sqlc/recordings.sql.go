@@ -965,7 +965,7 @@ type InsertRecordingHistoryFromRecordingParams struct {
 // 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
 // 解析し直してスクランブルの警告が変わったときに直せるよう、録画も持つ (#1517)。
 // series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で引くのに使う。
-// ドラマの続きの放送 (#1564) で録った話を外せるよう、録画が結びついた TMDb の作品とシーズンと話の番号も写す。
+// ドラマの続きの放送 (#1564) で録った話を外せるよう、録画が結びついた TMDB の作品とシーズンと話の番号も写す。
 func (q *Queries) InsertRecordingHistoryFromRecording(ctx context.Context, arg InsertRecordingHistoryFromRecordingParams) error {
 	_, err := q.db.Exec(ctx, insertRecordingHistoryFromRecording,
 		arg.ID,
