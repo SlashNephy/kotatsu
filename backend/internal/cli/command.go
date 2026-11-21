@@ -89,6 +89,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/iptvapi"
 	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
 	"github.com/SlashNephy/kotatsu/internal/web/mcpserver"
+	"github.com/SlashNephy/kotatsu/internal/web/metricsapi"
 	"github.com/SlashNephy/kotatsu/internal/web/spa"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 	"github.com/SlashNephy/kotatsu/internal/web/webui"
@@ -679,7 +680,8 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		mux.Handle(nabe.PathPrefix, nabeHandler)
 	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
-	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics, deps.Config.Metrics.Pprof)
+	metricsLogger := logger.With(slog.String("server", "metrics"))
+	metricsHandler := metricsapi.NewHandler(metricsLogger, prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics, deps.Config.Metrics.Pprof)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -743,7 +745,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		return opts.RunRegistry(ctx, logger, deps, names, apiListener.Addr().String())
 	})
 	eg.Go(func() error {
-		return httpserver.Serve(ctx, logger.With(slog.String("server", "metrics")), metricsListener, metricsHandler)
+		return httpserver.Serve(ctx, metricsLogger, metricsListener, metricsHandler)
 	})
 	eg.Go(func() error {
 		runSleepControl(ctx, logger, opts, deps, all, api, live)
