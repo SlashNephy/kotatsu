@@ -223,14 +223,9 @@ func mergeFamilies(ctx context.Context, q *sqlc.Queries, series []*watchedSeries
 	if len(stems) == 0 {
 		return series, nil
 	}
-	known, err := q.ListKnownSeries(ctx, stems)
+	known, resolve, err := knownStems(ctx, q, series, stems)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list the known series: %w", err)
-	}
-	for _, s := range series {
-		if s.key.rank() == rankSeries {
-			known = append(known, s.key.Series)
-		}
+		return nil, err
 	}
 	merged := make([]*watchedSeries, 0, len(series))
 	// bases は、まとめたシリーズを、作品名ごとに引く。
@@ -249,11 +244,11 @@ func mergeFamilies(ctx context.Context, q *sqlc.Queries, series []*watchedSeries
 		var b *watchedSeries
 		switch {
 		case s.key.rank() != rankSeries:
+		case s.stem != "" && known[s.stem]:
+			b = base(resolve(s.stem))
 		case slices.Contains(stems, s.key.Series):
-			// 副題のない回 (シリーズ名が作品名) のシリーズ。見た回に副題のある回がなければ、まとめるものがないので、そのまま残す。
+			// 副題のない回 (シリーズ名が作品名) のシリーズ。
 			b = base(s.key.Series)
-		case s.stem != "" && slices.Contains(known, s.stem):
-			b = base(s.stem)
 		}
 		if b == nil {
 			merged = append(merged, s)
@@ -267,6 +262,45 @@ func mergeFamilies(ctx context.Context, q *sqlc.Queries, series []*watchedSeries
 	}
 
 	return merged, nil
+}
+
+// knownStems は、副題のない回があると分かった作品名 (見たシリーズ名か、話数のある番組表の番組か、録画履歴のシリーズ名) の集合と、
+// 作品名をさらに副題を除ける限りたどる関数を返す (#2023)。stems は、見た回から読んだ作品名。
+func knownStems(
+	ctx context.Context, q *sqlc.Queries, series []*watchedSeries, stems []string,
+) (map[string]bool, func(string) string, error) {
+	rows, err := q.ListKnownSeries(ctx, stems)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list the known series: %w", err)
+	}
+	known := map[string]bool{}
+	for _, name := range rows {
+		known[name] = true
+	}
+	// stemOf は、見たシリーズ名ごとの、副題を除いた作品名。副題に空白が入ると、作品名がまた副題を含むので、たどって決める。
+	stemOf := map[string]string{}
+	for _, s := range series {
+		if s.key.rank() == rankSeries {
+			known[s.key.Series] = true
+			if s.stem != "" {
+				stemOf[s.key.Series] = s.stem
+			}
+		}
+	}
+	// resolve は、作品名 name を、さらに副題を除ける限りたどった作品名を返す。
+	resolve := func(name string) string {
+		for range len(stemOf) {
+			next, ok := stemOf[name]
+			if !ok || !known[next] {
+				break
+			}
+			name = next
+		}
+
+		return name
+	}
+
+	return known, resolve, nil
 }
 
 // listCandidatesOf は、シリーズごとの続きの放送の候補と、録画履歴にある録った回の話数を、シリーズの id ごとに返す。
@@ -382,7 +416,7 @@ func listFamilyCandidatesOf(
 	candidates map[string][]*Candidate, recorded map[string]map[float64]bool,
 ) error {
 	rows, err := q.ListSeriesFamilyNextProgramsBatch(ctx, sqlc.ListSeriesFamilyNextProgramsBatchParams{
-		Stems: stems, Numbers: numbers, Since: now, Until: now.Add(Horizon), MaxRows: maxCandidates,
+		Stems: stems, Numbers: numbers, Since: now, Until: now.Add(Horizon),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list the next programs of the series with subtitles: %w", err)
@@ -392,6 +426,9 @@ func listFamilyCandidatesOf(
 			continue
 		}
 		id := seriesID(rows[i].KeyStem)
+		if len(candidates[id]) >= maxCandidates {
+			continue
+		}
 		candidates[id] = append(candidates[id], &Candidate{
 			ServiceID: rows[i].ServiceID, EventID: rows[i].EventID, StartAt: rows[i].StartAt, Number: rows[i].EpisodeNumber,
 			RelatedItems: rows[i].RelatedItems,

@@ -272,6 +272,8 @@ func TestFindForUserMergesSubtitledSeries(t *testing.T) {
 		// 見た第 5 話の再放送は、副題のない番組名で、第 6 話より先に放送される。
 		fakeProgram(fakeGRNetwork, fakeGRService, 600, time.Hour, "港町の灯　＃０５🈞"),
 		fakeProgram(fakeGRNetwork, fakeGRService, 601, 5*time.Hour, "港町の灯　六つ目の嵐　＃０６🈑🈓"),
+		// シリーズ名が作品名で始まるだけの別の番組は、作品名を読み直して外す。
+		fakeProgram(fakeGRNetwork, fakeGRService, 602, 90*time.Minute, "港町の灯台　＃０９"),
 		// 枠の名前の後ろに作品名を書く番組は、副題のない回がなければまとめない。見た「霧の駅」の続きに、別の作品を出さない。
 		fakeProgram(fakeGRNetwork, fakeGRService, 611, 3*time.Hour, "連続劇場　雪の峠　＃５"),
 		// 作品名の後ろの語が期 (数字) なら、副題のない回があってもまとめない。
@@ -314,6 +316,31 @@ func TestFindForUserMergesSubtitledSeries(t *testing.T) {
 		got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
 		require.NoError(t, err)
 		assert.Empty(t, got)
+	})
+	t.Run("副題のある回だけを見ても、番組表に副題のない回があればまとめる", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, programs)
+		user := f.addUser(t, "user")
+		f.addWatched(t, user, "港町の灯　三つの鐘　＃０３🈑🈓", 1, 2*time.Hour)
+		ep5 := f.addWatched(t, user, "港町の灯　五つ目の約束　＃０５🈑🈓", 1, time.Hour)
+
+		got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
+		require.NoError(t, err)
+		assert.Equal(t, []suggestion{{recording: ep5, eventID: 601}}, suggestionsOf(got))
+	})
+	t.Run("副題に空白が入っても、副題のない回のシリーズまでたどってまとめる", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, programs)
+		user := f.addUser(t, "user")
+		f.addWatched(t, user, "港町の灯　＃０１🈑🈓", 1, 3*time.Hour)
+		f.addWatched(t, user, "港町の灯　嵐の夜　＃０４🈑🈓", 1, 2*time.Hour)
+		ep5 := f.addWatched(t, user, "港町の灯　嵐の夜　その二　＃０５🈑🈓", 1, time.Hour)
+
+		got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
+		require.NoError(t, err)
+		assert.Equal(t, []suggestion{{recording: ep5, eventID: 601}}, suggestionsOf(got))
 	})
 	t.Run("副題のある回を録画済みなら出さない", func(t *testing.T) {
 		t.Parallel()

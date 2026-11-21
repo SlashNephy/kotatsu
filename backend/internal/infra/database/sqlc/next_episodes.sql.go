@@ -597,17 +597,12 @@ func (q *Queries) ListRecordedSeriesFamilyEpisodesBatch(ctx context.Context, ste
 }
 
 const listSeriesFamilyNextProgramsBatch = `-- name: ListSeriesFamilyNextProgramsBatch :many
-SELECT k.stem::text AS key_stem, c.service_id, c.event_id, c.start_at, c.episode_number, c.related_items, c.name
+SELECT k.stem::text AS key_stem, p.service_id, p.event_id, p.start_at, p.episode_number::double precision AS episode_number,
+  p.related_items, p.name
 FROM (SELECT unnest($1::text[]) AS stem, unnest($2::bigint[]) AS number) AS k
-CROSS JOIN LATERAL (
-  SELECT p.service_id, p.event_id, p.start_at, p.episode_number::double precision AS episode_number, p.related_items, p.name
-  FROM programs p
-  WHERE starts_with(p.series, k.stem) AND p.series <> k.stem AND p.episode_number IS NOT NULL AND p.episode_number > k.number
-    AND p.start_at >= $3 AND p.start_at < $4 AND NOT p.end_undecided
-  ORDER BY p.start_at, p.service_id, p.event_id
-  LIMIT $5::integer
-) c
-ORDER BY k.stem, c.start_at, c.service_id, c.event_id
+JOIN programs p ON starts_with(p.series, k.stem) AND p.series <> k.stem AND p.episode_number IS NOT NULL AND p.episode_number > k.number
+WHERE p.start_at >= $3 AND p.start_at < $4 AND NOT p.end_undecided
+ORDER BY k.stem, p.start_at, p.service_id, p.event_id
 `
 
 type ListSeriesFamilyNextProgramsBatchParams struct {
@@ -615,7 +610,6 @@ type ListSeriesFamilyNextProgramsBatchParams struct {
 	Numbers []int64
 	Since   time.Time
 	Until   time.Time
-	MaxRows int32
 }
 
 type ListSeriesFamilyNextProgramsBatchRow struct {
@@ -629,15 +623,15 @@ type ListSeriesFamilyNextProgramsBatchRow struct {
 }
 
 // シリーズ名が作品名 stems[i] で始まり (作品名そのものは除く)、話数が numbers[i] より大きく、since から until までに始まる、
-// 終了時刻の決まった番組を、放送の早い順に max_rows 件まで返す (#2023)。番組名に副題が入り、シリーズ名が回ごとに変わる作品の回を探す。
-// 作品名で始まるだけでは同じ作品とは限らないので、呼ぶ側が番組名を読み直して確かめる。
+// 終了時刻の決まった番組を、放送の早い順に返す (#2023)。番組名に副題が入り、シリーズ名が回ごとに変わる作品の回を探す。
+// 作品名で始まるだけでは同じ作品とは限らないので、呼ぶ側が番組名を読み直して確かめる。確かめる前に数を絞ると、
+// 作品名で始まる別の番組 (続編や、作品名を含む長い名前の番組) が先に並んだときに、同じ作品の回を落とすので、件数は絞らない。
 func (q *Queries) ListSeriesFamilyNextProgramsBatch(ctx context.Context, arg ListSeriesFamilyNextProgramsBatchParams) ([]ListSeriesFamilyNextProgramsBatchRow, error) {
 	rows, err := q.db.Query(ctx, listSeriesFamilyNextProgramsBatch,
 		arg.Stems,
 		arg.Numbers,
 		arg.Since,
 		arg.Until,
-		arg.MaxRows,
 	)
 	if err != nil {
 		return nil, err

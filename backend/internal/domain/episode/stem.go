@@ -6,8 +6,9 @@ import (
 )
 
 // seasonWordPattern は、揃えた語のうち、期や続編を表すもの。作品名と話数の間に置いても副題ではない。
+// 「2nd Season」のように空白で区切ったときの、後ろの語 (season など) だけのものも含む。
 var seasonWordPattern = regexp.MustCompile(
-	`^(?:[0-9]+|[ivx]+|s[0-9]+|season[0-9]+|シーズン[0-9]+|[0-9]+(?:st|nd|rd|th)(?:season)?|part[0-9]+|パート[0-9]+)$`)
+	`^(?:[0-9]+|[ivx]+|s[0-9]+|(?:season|シーズン|part|パート)[0-9]*|[0-9]+(?:st|nd|rd|th)(?:season)?)$`)
 
 // Stem は、番組名 name が「作品名 副題 #N」の形なら、副題かもしれない語 (話数の直前の、空白で区切った最後の語) を除いた作品名を、
 // Episode.Series と同じく揃えて返す (#2023)。形が違えば空を返す。
