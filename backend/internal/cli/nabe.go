@@ -15,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/innertoken"
 	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
+	"github.com/SlashNephy/kotatsu/internal/web/mirakurunapi"
 )
 
 // runNabe は、nabe のロールの本体。TS を配るのは、インスタンスのサーバーに載せた API なので、ここでは終わりを待つだけにする。
@@ -50,7 +51,7 @@ func newNabeHandler(deps *Deps, logger *slog.Logger) (http.Handler, error) {
 		return nil, err
 	}
 
-	return httpserver.StopOnShutdown(nabe.Handler(server, token, buildinfo.Get().Version, logger.With(slog.String("component", "nabe")))), nil
+	return httpserver.StopOnShutdown(mirakurunapi.NabeHandler(server, token, buildinfo.Get().Version, logger.With(slog.String("component", "nabe")))), nil
 }
 
 // nabeTuner は、EDCB のチューナーサーバーのうち、ストリームだけを nabe から受け取る (#1535)。

@@ -18,7 +18,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurunapi"
+	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
+	"github.com/SlashNephy/kotatsu/internal/web/mirakurunapi"
 )
 
 // fakeSource は、決めた値を返すチューナーサーバー。
@@ -380,5 +381,50 @@ func TestServerEvents(t *testing.T) {
 		got, err := events.Next()
 		require.NoError(t, err)
 		assert.Equal(t, want, got)
+	}
+}
+
+// nabeVersionPath は、nabe の下の、版を返すパス。
+const nabeVersionPath = "/internal/nabe/api/version"
+
+// TestNabeHandlerRoutes は、http.ServeMux で受けていたときと同じく、トークンをルートより先に確かめ、
+// 1 つの区切りにだけ当たる名前の部分でルートを引くことを確かめる (#2016)。
+func TestNabeHandlerRoutes(t *testing.T) {
+	t.Parallel()
+
+	token, err := nabe.NewToken("kotatsu-nabe-test-application-key-0123456789")
+	require.NoError(t, err)
+	handler := mirakurunapi.NabeHandler(testSource(), token, "2026.11.0", slog.New(slog.DiscardHandler))
+
+	tests := []struct {
+		name      string
+		method    string
+		path      string
+		noToken   bool
+		wantCode  int
+		wantAllow string
+	}{
+		{name: "トークンがなければ、当たらないパスでも 401", method: http.MethodGet, path: "/internal/nabe/nope", noToken: true, wantCode: http.StatusUnauthorized},
+		{name: "版を返す", method: http.MethodGet, path: nabeVersionPath, wantCode: http.StatusOK},
+		{name: "HEAD でも版を返す", method: http.MethodHead, path: nabeVersionPath, wantCode: http.StatusOK},
+		{name: "POST すると 405", method: http.MethodPost, path: nabeVersionPath, wantCode: http.StatusMethodNotAllowed, wantAllow: "GET, HEAD"},
+		{name: "サービスの ID が読めなければ 400", method: http.MethodGet, path: "/internal/nabe/api/services/abc/logo", wantCode: http.StatusBadRequest},
+		{name: "区切りが多いと当たらない", method: http.MethodGet, path: "/internal/nabe/api/services/1/2/logo", wantCode: http.StatusNotFound},
+		{name: "知らないパスは 404", method: http.MethodGet, path: "/internal/nabe/api/nope", wantCode: http.StatusNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, nil)
+			if !tt.noToken {
+				token.Authorize(req)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.wantCode, rec.Code)
+			assert.Equal(t, tt.wantAllow, rec.Header().Get("Allow"))
+		})
 	}
 }
