@@ -54,6 +54,7 @@ type DBCollector struct {
 	poolBytes        *prometheus.Desc
 	poolThreshold    *prometheus.Desc
 	poolMeasured     *prometheus.Desc
+	poolMeasuredAge  *prometheus.Desc
 	jobs             *prometheus.Desc
 	timeshiftBuffer  *prometheus.Desc
 	collectionErrors *prometheus.Desc
@@ -84,6 +85,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 		poolBytes:        desc("storage_pool_bytes", "Size and available space of the storage pools, as last measured by the capacity check.", "pool", "kind"),
 		poolThreshold:    desc("storage_pool_threshold_bytes", "Free space that the capacity check keeps in the storage pools by deleting old recordings. 0 means it deletes nothing.", "pool"),
 		poolMeasured:     desc("storage_pool_last_measured_timestamp_seconds", "Time when the capacity check last measured the storage pools.", "pool"),
+		poolMeasuredAge:  desc("storage_pool_measurement_age_seconds", "Seconds since the capacity check last measured the storage pools.", "pool"),
 		jobs:             desc("river_jobs", "Number of River jobs waiting or running, by queue and state.", "queue", "state"),
 		timeshiftBuffer:  desc("timeshift_buffer_seconds", "Length of the timeshift buffer, from the start of the oldest chunk to the end of the newest, by configured service. 0 if no chunk is buffered.", "service_id"),
 		collectionErrors: desc("metrics_collection_errors", "Number of metric groups that could not be read from the database in this scrape."),
@@ -93,7 +95,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 // Describe は、集めるメトリクスの説明を送る。
 func (c *DBCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
-		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.activeBitrate, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.timeshiftBuffer, c.collectionErrors,
+		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.activeBitrate, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.poolMeasuredAge, c.jobs, c.timeshiftBuffer, c.collectionErrors,
 	} {
 		ch <- d
 	}
@@ -206,7 +208,8 @@ func (c *DBCollector) collectTuners(ctx context.Context, ch chan<- prometheus.Me
 }
 
 // collectStoragePools は、容量の管理が測って残した、保存先プールの容量と空き容量を送る (#957)。測っていないプールは送らない。
-// 測った時刻を送るので、容量の管理が止まって値が古くなったことが分かる。
+// 測った時刻と、それから経った秒数を送るので、容量の管理が止まって値が古くなったことが分かる。
+// 経った秒数は、今の時刻を返す関数 (PromQL の time()) のない OTLP の送り先でも監視できるように送る (#2010)。
 func (c *DBCollector) collectStoragePools(ctx context.Context, ch chan<- prometheus.Metric) error {
 	rows, err := sqlc.New(c.pool).ListStoragePoolMeasurements(ctx)
 	if err != nil {
@@ -217,6 +220,7 @@ func (c *DBCollector) collectStoragePools(ctx context.Context, ch chan<- prometh
 		ch <- prometheus.MustNewConstMetric(c.poolBytes, prometheus.GaugeValue, float64(row.FreeBytes), row.ID, "available")
 		ch <- prometheus.MustNewConstMetric(c.poolThreshold, prometheus.GaugeValue, float64(row.MinFreeBytes), row.ID)
 		ch <- prometheus.MustNewConstMetric(c.poolMeasured, prometheus.GaugeValue, float64(row.MeasuredAt.Unix()), row.ID)
+		ch <- prometheus.MustNewConstMetric(c.poolMeasuredAge, prometheus.GaugeValue, max(c.clock.Now().Sub(row.MeasuredAt).Seconds(), 0), row.ID)
 	}
 
 	return nil

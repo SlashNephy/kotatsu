@@ -181,13 +181,9 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		return err
 	}
 
-	// EPG の同期の遅れは、最後に全量を突き合わせた時刻から求める (設計書 11.3)。リーダーになるまでは 0 で、リーダーでなくなった後は最後の値を残す。
-	// リーダーの値なので、クラスターのレジストリに登録する。元のリーダーが、古い時刻を OTLP で送り続けないようにする (#962)。
-	lastFullSync := prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: metrics.Namespace, Name: "epg_last_full_sync_timestamp_seconds",
-		Help: "Unix time when this instance last synced the whole EPG as the neko leader.",
-	})
-	deps.ClusterMetrics.MustRegister(lastFullSync)
+	// EPG の同期の遅れは、最後に全量を突き合わせた時刻と、それから経った秒数で示す (設計書 11.3)。リーダーでなくなった後は最後の値を残す。
+	fullSync := metrics.NewFullSyncCollector(deps.Clock)
+	deps.ClusterMetrics.MustRegister(fullSync)
 
 	return neko.Run(ctx, logger, &neko.Options{
 		DB:               deps.DB,
@@ -199,7 +195,7 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		NetworkTVSweeper: sweeper,
 		EPG: &epg.SyncerOptions{
 			FullSyncInterval: 0, MinFullSyncInterval: 0, BatchWindow: 0, BackoffInitial: 0, BackoffMax: 0, StableAfter: 0, OnTunerEvent: nil,
-			OnFullSync: func(at time.Time) { lastFullSync.Set(float64(at.Unix())) },
+			OnFullSync: fullSync.Observe,
 		},
 		Archive:  nil,
 		Tuners:   nil,

@@ -2935,7 +2935,9 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
   | `kotatsu_storage_pool_bytes{pool,kind}` | 容量の管理（[6.1](#61-後処理のジョブ)）が最後に測った、保存先プールのファイルシステムの容量（`total`）と、root以外が使える空き容量（`available`）。`total`はrootのために取っておく分も含むので、2つの差は使っている量と一致しません。一度も測っていないプールは出しません。 |
   | `kotatsu_storage_pool_threshold_bytes{pool}` | 保存先プールの容量の閾値。0は、録画を消さないことを表します。 |
   | `kotatsu_storage_pool_last_measured_timestamp_seconds{pool}` | 容量の管理が最後に保存先プールを測った時刻。今の時刻との差が大きければ、容量の管理が止まっています。 |
-  | `kotatsu_epg_last_full_sync_timestamp_seconds` | nekoのリーダーが最後にEPGの全量を突き合わせた時刻。今の時刻との差が、同期の遅れです。 |
+  | `kotatsu_storage_pool_measurement_age_seconds{pool}` | 容量の管理が最後に保存先プールを測ってから経った秒数（#2010）。今の時刻を返す関数（PromQLの`time()`）のない監視先でも、容量の管理が止まったことを見られるように出します。 |
+  | `kotatsu_epg_last_full_sync_timestamp_seconds` | nekoのリーダーが最後にEPGの全量を突き合わせた時刻。今の時刻との差が、同期の遅れです。まだ突き合わせていなければ0です。 |
+  | `kotatsu_epg_full_sync_age_seconds` | nekoのリーダーが最後にEPGの全量を突き合わせてから経った秒数（#2010）。上の時刻と同じく、今の時刻を返す関数のない監視先のために出します。まだ突き合わせていなければ出しません。 |
   | `kotatsu_neko_leader` | このインスタンスがnekoのリースを持っていれば1 |
   | `kotatsu_river_jobs{queue,state}` | 待っているか動いているRiverのジョブの数 |
   | `kotatsu_timeshift_buffer_seconds{service_id}` | タイムシフトで録るサービスごとの、バッファの長さ（秒）。最も古いチャンクの始まりから、最新のチャンクの終わりまでで、書いている途中のチャンクは今まで録れているものとします。チャンクがまだなければ0です。外したサービスは、チャンクが残っていても出しません。 |
@@ -2957,7 +2959,7 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
 
     | 範囲 | 中身 | 送るインスタンス | リソースの属性 |
     |---|---|---|---|
-    | クラスター | DBから読む値（上の表のうち、`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、`kotatsu_tenban_database_fallbacks_total`、`kotatsu_mikan_database_unreachable_seconds`を除くもの）と、nekoのリーダーだけが持つ`kotatsu_epg_last_full_sync_timestamp_seconds` | nekoのリースを持つインスタンスだけ | `service.name`だけ |
+    | クラスター | DBから読む値（上の表のうち、`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、`kotatsu_tenban_database_fallbacks_total`、`kotatsu_mikan_database_unreachable_seconds`を除くもの）と、nekoのリーダーだけが持つ`kotatsu_epg_last_full_sync_timestamp_seconds`、`kotatsu_epg_full_sync_age_seconds` | nekoのリースを持つインスタンスだけ | `service.name`だけ |
     | インスタンス | それ以外（`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、`kotatsu_tenban_database_fallbacks_total`、`kotatsu_mikan_database_unreachable_seconds`、Goのランタイムとプロセス） | すべてのインスタンス | `service.name`、`service.version`、`service.instance.id`（インスタンスのID）、`kotatsu.roles`（動かしているロール） |
 
     クラスターの範囲には、インスタンスのIDも版も付けません。nekoのリーダーが替わっても、リリースしても、受け手から見て同じ系列のまま続くようにするためです。リーダーか分からないとき（DBに問い合わせられないとき）は、重複して送らないよう、その回は送りません。失敗の累計（`kotatsu_recording_failures_total`）には、どのインスタンスでも同じ作成の時刻を付け、送るインスタンスが替わってもカウンターのリセットとみなされないようにします。管理者が累計を0に戻した理由だけは、戻した日時を作成の時刻にします（#1035）。
