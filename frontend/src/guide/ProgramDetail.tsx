@@ -35,17 +35,14 @@ import { useDataChanges } from '../changes/DataChanges';
 import type { ChangeChannel } from '../changes/dataChanges';
 import { conditionsFromProgram } from '../conditions/form';
 import { ErrorBoundary, LinkifiedText, ProgramTitle, toHalfWidth } from '../futon';
-import { FilmarksLink } from './FilmarksLink';
-import { StreamingLink } from './StreamingLink';
 import { programGenreLabels } from './genreOptions';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
 import { ReservationPeers } from '../reservations/ReservationPeers';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
-import { AnimeEpisodes } from '../anime/AnimeEpisodes';
-import { DramaEpisode } from '../drama/DramaEpisode';
 import { ServiceLabel } from './ServiceLabel';
+import { WorkPanel } from './WorkPanel';
 import { WatchReserveButton } from '../watch/WatchReserveButton';
 import { zonedFormat } from '../futon';
 
@@ -311,44 +308,30 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
 
   return (
     <Stack>
-      {/* 番組名、サービス、放送時間、ジャンルの順に、1 段ずつ並べる。 */}
+      {/* 番組名の下に、サービス、放送時間、ジャンルを 1 行にまとめる (録画の詳細と同じ並び)。 */}
       <Stack gap={4}>
         <Title order={3} size="h4">
           <ProgramTitle name={program.name} />
         </Title>
-        <Text size="sm">
-          <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
-        </Text>
-        <Text size="sm" c="dimmed">
-          {t('range', {
-            from: dateTimeFormat.format(start),
-            to: program.endUndecided
-              ? t('guide.detail.endUndecided')
-              : timeFormat.format(Date.parse(program.endAt)),
-          })}
-        </Text>
-        {(genres.length > 0 || !program.isFree) && (
-          <Group gap="xs">
-            {genres.map((genre) => (
-              <Badge key={genre} variant="light">
-                {genre}
-              </Badge>
-            ))}
-            {!program.isFree && <Badge color="gray">{t('guide.detail.paid')}</Badge>}
-          </Group>
-        )}
-        <AnimeEpisodes episodes={program.animeEpisodes} record={{ program: program.id }} />
-        <DramaEpisode
-          episode={program.dramaEpisode}
-          programName={program.name}
-          canOverride={data.viewer.role === 'ADMIN'}
-        />
-        <FilmarksLink
-          genres={program.genres}
-          workTitle={program.workTitle}
-          anime={program.animeEpisodes.length > 0}
-        />
-        <StreamingLink service={program.service} workTitle={program.workTitle} />
+        <Group gap="xs" wrap="wrap">
+          <Text size="sm">
+            <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
+          </Text>
+          <Text size="sm" c="dimmed">
+            {t('range', {
+              from: dateTimeFormat.format(start),
+              to: program.endUndecided
+                ? t('guide.detail.endUndecided')
+                : timeFormat.format(Date.parse(program.endAt)),
+            })}
+          </Text>
+          {genres.map((genre) => (
+            <Badge key={genre} variant="light">
+              {genre}
+            </Badge>
+          ))}
+          {!program.isFree && <Badge color="gray">{t('guide.detail.paid')}</Badge>}
+        </Group>
       </Stack>
       {/* 操作は 1 段にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
       {ended && (
@@ -529,6 +512,17 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           {t('guide.detail.reserveError')}
         </Alert>
       )}
+      {/* 作品の情報は、操作の後ろにまとめる。作品の情報の量によらず、操作のボタンが同じ位置に来る。 */}
+      <WorkPanel
+        animeEpisodes={program.animeEpisodes}
+        record={{ program: program.id }}
+        dramaEpisode={program.dramaEpisode}
+        programName={program.name}
+        canOverride={data.viewer.role === 'ADMIN'}
+        genres={program.genres}
+        workTitle={program.workTitle}
+        service={program.service}
+      />
       {program.description !== '' && (
         <Text size="sm">
           <LinkifiedText text={toHalfWidth(program.description)} />

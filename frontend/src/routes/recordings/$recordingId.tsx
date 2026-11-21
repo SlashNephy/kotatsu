@@ -60,8 +60,6 @@ import {
   useDocumentTitle,
 } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
-import { AnimeEpisodes } from '../../anime/AnimeEpisodes';
-import { DramaEpisode } from '../../drama/DramaEpisode';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
 import { ScrambleBadge } from '../../recordings/ScrambleBadge';
 import { StreamQualityButton } from '../../recordings/StreamQualityButton';
@@ -76,8 +74,7 @@ import type { RecordingIdReanalyzeMutation } from './__generated__/RecordingIdRe
 import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdRegenerateMutation.graphql';
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
-import { FilmarksLink } from '../../guide/FilmarksLink';
-import { StreamingLink } from '../../guide/StreamingLink';
+import { WorkPanel } from '../../guide/WorkPanel';
 import { programGenreLabels } from '../../guide/genreOptions';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
@@ -664,19 +661,17 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Badge>
             ))}
           </Group>
-          <AnimeEpisodes episodes={recording.animeEpisodes} record={{ recording: recording.id }} />
           {/* 作品の上書きは番組表にある番組にしか及ばないので、録画の詳細には置かない (#1651)。 */}
-          <DramaEpisode
-            episode={recording.dramaEpisode}
+          <WorkPanel
+            animeEpisodes={recording.animeEpisodes}
+            record={{ recording: recording.id }}
+            dramaEpisode={recording.dramaEpisode}
             programName={recording.name}
             canOverride={false}
-          />
-          <FilmarksLink
             genres={recording.genres}
             workTitle={recording.workTitle}
-            anime={recording.animeEpisodes.length > 0}
+            service={recording.service}
           />
-          <StreamingLink service={recording.service} workTitle={recording.workTitle} />
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&
             (recording.rule != null ? (

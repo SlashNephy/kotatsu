@@ -116,6 +116,19 @@ describe('DramaEpisode', () => {
     );
   });
 
+  test('話の名前が話数だけの仮の名前なら、話の名前を出さない', () => {
+    renderEpisode(episode({ episodeName: '第7話' }), false);
+
+    expect(screen.getByText('シーズン1 第7話')).toBeDefined();
+    expect(screen.queryByText('「第7話」')).toBeNull();
+  });
+
+  test('話の名前が別の話数の形なら、仮の名前とみなさずに出す', () => {
+    renderEpisode(episode({ episodeName: '第8話' }), false);
+
+    expect(screen.getByText('「第8話」')).toBeDefined();
+  });
+
   test('管理者には、作品を直す操作を出し、管理者が指定した作品には印を付ける', () => {
     renderEpisode(episode({ seriesSource: 'OVERRIDE' }), true);
 

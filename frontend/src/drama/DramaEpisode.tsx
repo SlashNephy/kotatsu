@@ -10,7 +10,7 @@ import {
   TextInput,
 } from '@mantine/core';
 import type { TFunction } from 'i18next';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 
@@ -99,14 +99,17 @@ export function TMDbAttribution() {
 // DramaEpisode は、番組と録画の詳細に、結びついた TMDb の作品とシーズン、話と、TMDb のページへのリンクを出す (#1651、設計書 3.9)。
 // 結びついていなければ、何も出さない。canOverride なら、管理者が作品を直す操作を置く (programName の作品名の上書き)。
 // ログイン中のユーザーの状態を引いていれば (#1652)、作品を見ている作品に足す操作と、話を見たことにする操作も置く。
+// 作品名とシーズンと話、操作、リンク、帰属の表示の順に、1 段ずつ並べる。extraLinks は、TMDb のリンクの後ろに足すリンク。
 export function DramaEpisode({
   episode,
   programName,
   canOverride,
+  extraLinks,
 }: {
   episode: DramaEpisodeItem | null | undefined;
   programName: string;
   canOverride: boolean;
+  extraLinks?: ReactNode;
 }) {
   const { t } = useTranslation();
   if (episode == null) {
@@ -114,25 +117,34 @@ export function DramaEpisode({
   }
   const label = dramaEpisodeLabel(t, episode);
   const name = episode.series.name ?? episode.series.originalName ?? t('drama.unknownSeries');
+  // TMDb は、名前の決まっていない話に「第6話」のような仮の名前を付ける。話数と同じことしか言わないので出さない。
+  const episodeName =
+    episode.episodeName != null &&
+    episode.episodeName !== t('drama.episode', { number: episode.episodeNumber })
+      ? episode.episodeName
+      : null;
 
   return (
-    <Stack gap={4} data-testid="drama-episode">
-      <Group gap="xs" wrap="wrap">
-        <Text size="sm" fw={600}>
-          {name}
-        </Text>
-        {label !== null && <Text size="sm">{label}</Text>}
-        {episode.episodeName != null && <Text size="sm">{`「${episode.episodeName}」`}</Text>}
-        {episode.seriesSource === 'OVERRIDE' && (
-          <Badge size="sm" variant="light" color="gray">
-            {t('drama.overridden')}
-          </Badge>
+    <Stack gap="xs" data-testid="drama-episode">
+      <Stack gap={2}>
+        <Group gap="xs" wrap="wrap">
+          <Text size="sm" fw={600}>
+            {name}
+          </Text>
+          {episode.seriesSource === 'OVERRIDE' && (
+            <Badge size="sm" variant="light" color="gray">
+              {t('drama.overridden')}
+            </Badge>
+          )}
+          {canOverride && <DramaOverrideButton programName={programName} episode={episode} />}
+        </Group>
+        {(label !== null || episodeName !== null) && (
+          <Group gap="xs" wrap="wrap">
+            {label !== null && <Text size="sm">{label}</Text>}
+            {episodeName !== null && <Text size="sm">{`「${episodeName}」`}</Text>}
+          </Group>
         )}
-        <Anchor size="sm" href={episode.url} target="_blank" rel="noopener noreferrer">
-          {t('drama.tmdb')}
-        </Anchor>
-        {canOverride && <DramaOverrideButton programName={programName} episode={episode} />}
-      </Group>
+      </Stack>
       {episode.watched !== undefined && (
         // 読み直して、状態や話が変わったら、手元の状態を作り直す。
         <DramaWatch
@@ -140,6 +152,12 @@ export function DramaEpisode({
           episode={episode}
         />
       )}
+      <Group gap="sm" wrap="wrap">
+        <Anchor size="sm" href={episode.url} target="_blank" rel="noopener noreferrer">
+          {t('drama.tmdb')}
+        </Anchor>
+        {extraLinks}
+      </Group>
       <TMDbAttribution />
     </Stack>
   );
