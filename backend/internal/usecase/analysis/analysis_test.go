@@ -3,6 +3,7 @@ package analysis_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -647,11 +648,15 @@ func TestAnalyzeWorkerRegeneratesImagesOnlyWhenNeeded(t *testing.T) {
 			name: "代表画像がなければ作る", preview: true, images: []string{thumbnail.PreviewFileName, thumbnail.ManifestFileName},
 			staleIndex: false, want: 1,
 		},
-		{name: "プレビュー画像を作る設定で、プレビュー画像がなければ作る", preview: true, images: []string{thumbnail.ThumbnailFileName}, staleIndex: false, want: 1},
+		{
+			name: "プレビュー画像を作る設定で、プレビュー画像の説明がなければ作る", preview: true,
+			images: []string{thumbnail.ThumbnailFileName, thumbnail.PreviewFileName}, staleIndex: false, want: 1,
+		},
 		{
 			name: "プレビュー画像を作らない設定なら、プレビュー画像がなくても作り直さない", preview: false,
 			images: []string{thumbnail.ThumbnailFileName}, staleIndex: false, want: 0,
 		},
+		{name: "プレビュー画像を作らない設定でも、代表画像がなければ作る", preview: false, images: []string{}, staleIndex: false, want: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -659,24 +664,79 @@ func TestAnalyzeWorkerRegeneratesImagesOnlyWhenNeeded(t *testing.T) {
 
 			f := newFixture(t)
 			f.preview = tt.preview
-			recordingID := f.recording(t, completed, singleTestTS(t)...)
-			// 最初の解析は、索引がないので、画像を作る。
-			require.NoError(t, f.analyze(t, recordingID))
-			require.Equal(t, 1, f.thumbnailJobs(t))
-			_, err := f.pool.Exec(t.Context(), "DELETE FROM river_job WHERE kind = 'thumbnail_generate'")
-			require.NoError(t, err)
-
-			segmentID := f.segmentID(t, recordingID, segmentName)
-			for _, name := range tt.images {
-				require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, kago.DataLocation(segmentID, name).Path), []byte("image"), 0o600))
-			}
+			recordingID, segmentID := f.analyzedRecording(t)
 			if tt.staleIndex {
-				require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, kago.IndexLocation(segmentID).Path), []byte("stale"), 0o600))
+				f.writeStaleIndex(t, segmentID)
 			}
+			f.writeImages(t, segmentID, tt.images...)
 			require.NoError(t, f.analyze(t, recordingID))
 
 			assert.Equal(t, tt.want, f.thumbnailJobs(t))
 		})
+	}
+}
+
+// TestAnalyzeWorkerRegeneratesImagesAfterRetry は、索引を置き換えた後に解析が失敗しても、やり直したときに画像を作ることを確かめる (#2012)。
+// 置き換えた索引は前の索引と同じ中身になるので、中身を比べるだけでは、画像が古いことを見落とす。
+func TestAnalyzeWorkerRegeneratesImagesAfterRetry(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID, segmentID := f.analyzedRecording(t)
+	f.writeStaleIndex(t, segmentID)
+	f.writeImages(t, segmentID, thumbnail.ThumbnailFileName, thumbnail.PreviewFileName, thumbnail.ManifestFileName)
+
+	failing := analysis.NewAnalyzeWorker(f.pool, f.store, f.clock, failingInserter{}, func(context.Context) (bool, error) { return true, nil })
+	job := &river.Job[analysis.AnalyzeArgs]{JobRow: &rivertype.JobRow{Priority: jobs.PriorityImported}, Args: analysis.AnalyzeArgs{RecordingID: recordingID}}
+	require.ErrorIs(t, failing.Work(t.Context(), job), errInsert)
+	require.Zero(t, f.thumbnailJobs(t))
+
+	require.NoError(t, f.analyze(t, recordingID))
+	assert.Equal(t, 1, f.thumbnailJobs(t))
+}
+
+// errInsert は、failingInserter が返すエラー。
+var errInsert = errors.New("insert failed")
+
+// failingInserter は、ジョブを投入しようとすると失敗する Inserter。
+type failingInserter struct{}
+
+var _ analysis.Inserter = failingInserter{}
+
+func (failingInserter) InsertManyTx(context.Context, pgx.Tx, []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
+	return nil, errInsert
+}
+
+// analyzedRecording は、テスト用の TS を 1 度解析した録画を作り、録画とセグメントのファイルの ID を返す。
+// 最初の解析は、索引がないので画像を作るジョブを入れる。そのジョブは消しておく。
+func (f *fixture) analyzedRecording(t *testing.T) (uuid.UUID, uuid.UUID) {
+	t.Helper()
+
+	recordingID := f.recording(t, completed, singleTestTS(t)...)
+	require.NoError(t, f.analyze(t, recordingID))
+	require.Equal(t, 1, f.thumbnailJobs(t))
+	_, err := f.pool.Exec(t.Context(), "DELETE FROM river_job WHERE kind = 'thumbnail_generate'")
+	require.NoError(t, err)
+
+	return recordingID, f.segmentID(t, recordingID, segmentName)
+}
+
+// writeStaleIndex は、セグメント segmentID の索引を、前の版の中身 (違う索引) に置き換え、日時を 1 時間前にする。
+func (f *fixture) writeStaleIndex(t *testing.T, segmentID uuid.UUID) {
+	t.Helper()
+
+	path := filepath.Join(f.dataRoot, kago.IndexLocation(segmentID).Path)
+	require.NoError(t, os.WriteFile(path, []byte("stale"), 0o600))
+	past := time.Now().Add(-time.Hour)
+	require.NoError(t, os.Chtimes(path, past, past))
+}
+
+// writeImages は、セグメント segmentID のデータディレクトリに、画像 names を置く。画像は索引より後に作ったものとする。
+func (f *fixture) writeImages(t *testing.T, segmentID uuid.UUID, names ...string) {
+	t.Helper()
+
+	for _, name := range names {
+		require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, kago.DataLocation(segmentID, name).Path), []byte("image"), 0o600))
 	}
 }
 

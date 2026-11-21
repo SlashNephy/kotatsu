@@ -2,7 +2,7 @@
 //
 // EPGStation から取り込んだ録画には、Kotatsu が録画中に作る索引やドロップの集計がない。
 // このジョブは、取り込んだ TS を読み直して、セグメントの索引を作り、ドロップ、エラー、スクランブルを数え直す。
-// 索引が前と変わったか、代表画像かプレビュー画像がなければ、代表画像とプレビュー画像を作るジョブを投入する (#2012)。
+// 代表画像かプレビュー画像がないか、索引より古ければ (索引が変わった)、代表画像とプレビュー画像を作るジョブを投入する (#2012)。
 package analysis
 
 import (
@@ -135,8 +135,6 @@ type analyzed struct {
 	pidStats []byte
 	// video は、セグメントの映像から読んだ映像の形式 (#1310)。読めなければ nil。
 	video *ts.VideoFormat
-	// indexChanged は、作った索引が、前の索引と違うかどうか。前の索引がなければ true (#2012)。
-	indexChanged bool
 }
 
 // Work は、録画ごとの advisory lock を取ってから、録画を解析する。
@@ -237,15 +235,12 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 }
 
 // needsImages は、解析の後に、代表画像とプレビュー画像を作り直すかどうかを返す (#2012)。
-// 画像は索引の I フレームの位置から作るので、索引が前と変わったら作り直す。取り込んだ録画の最初の解析と、
-// セグメントをつないだ後の解析 (つなぐときに索引を消す) では、前の索引がないので、作り直す。
-// 索引が変わらなくても、代表画像か、作る設定のときのプレビュー画像がデータディレクトリになければ作る。
+// 代表画像か、作る設定のときのプレビュー画像がデータディレクトリにないか、どれかのセグメントの索引より古ければ作る。
+// 画像は索引の I フレームの位置から作るので、索引が変わったら作り直す。索引は、中身が変わったときだけ置き換える (analyze) ので、
+// 索引が画像より新しいことが、画像を作った後に索引が変わったしるしになる。取り込んだ録画の最初の解析と、
+// セグメントをつないだ後の解析 (つなぐときに索引を消す) では、索引を新しく書くので、作り直す。
+// しるしをファイルの日時に置くので、画像を作るジョブを入れる前に解析が失敗しても、やり直したときに作り直す。
 func (w *AnalyzeWorker) needsImages(ctx context.Context, files []sqlc.RecordingFile, results []*analyzed) (bool, error) {
-	for _, result := range results {
-		if result.indexChanged {
-			return true, nil
-		}
-	}
 	owner, ok := thumbnail.ImageSegment(files)
 	if !ok {
 		return true, nil
@@ -258,20 +253,47 @@ func (w *AnalyzeWorker) needsImages(ctx context.Context, files []sqlc.RecordingF
 	if preview {
 		names = append(names, thumbnail.PreviewFileName, thumbnail.ManifestFileName)
 	}
-	checker := w.store.NewChecker()
-	defer checker.Close()
-	for _, name := range names {
-		location := kago.DataLocation(owner, name)
-		found, err := checker.Exists(location.PoolID, location.Path)
+	var newestIndex time.Time
+	for _, result := range results {
+		info, found, err := w.stat(kago.IndexLocation(result.segment.ID))
 		if err != nil {
-			return false, fmt.Errorf("failed to inspect the data directory: %w", err)
+			return false, err
 		}
 		if !found {
+			return true, nil
+		}
+		if info.ModTime().After(newestIndex) {
+			newestIndex = info.ModTime()
+		}
+	}
+	for _, name := range names {
+		info, found, err := w.stat(kago.DataLocation(owner, name))
+		if err != nil {
+			return false, err
+		}
+		if !found || info.ModTime().Before(newestIndex) {
 			return true, nil
 		}
 	}
 
 	return false, nil
+}
+
+// stat は、データディレクトリのファイル location の情報を返す。なければ false を返す。
+func (w *AnalyzeWorker) stat(location *kago.Location) (os.FileInfo, bool, error) {
+	abs, err := w.store.Path(location.PoolID, location.Path)
+	if err != nil {
+		return nil, false, err
+	}
+	info, err := os.Stat(abs)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to inspect the data directory: %w", err)
+	}
+
+	return info, true, nil
 }
 
 // segments は、録画のファイルから TS のセグメントを選ぶ。
@@ -310,6 +332,7 @@ func overlaps(segment, next *sqlc.RecordingFile) bool {
 
 // analyze は、セグメントを読み通して、データディレクトリに索引を書き、統計を返す。
 // cutoff を渡せば、PTS がそこに届いたときの統計も返す。索引は作り直すたびに切り詰めて書くので、何度実行しても同じ索引になる。
+// 中身が前の索引と同じなら、前の索引を置き換えない (#2012)。
 func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile, cutoff *int64) (*analyzed, *ts.Stats, error) {
 	segmentPath, err := w.store.Path(segment.PoolID, segment.Path)
 	if err != nil {
@@ -364,15 +387,18 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	if err := output.Close(); err != nil {
 		return nil, nil, fmt.Errorf("failed to close the index file: %w", err)
 	}
+	// 中身が変わらなければ、今の索引を残す。索引の日時で、画像を作った後に索引が変わったかを見分ける (needsImages)。
 	changed, err := indexChanged(indexPath, tmpPath)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := sharedfile.Rename(tmpPath, indexPath); err != nil {
-		return nil, nil, fmt.Errorf("failed to replace the index file: %w", err)
+	if changed {
+		if err := sharedfile.Rename(tmpPath, indexPath); err != nil {
+			return nil, nil, fmt.Errorf("failed to replace the index file: %w", err)
+		}
 	}
 
-	return &analyzed{segment: segment, pidStats: nil, video: stats.Video, indexChanged: changed}, stats, nil
+	return &analyzed{segment: segment, pidStats: nil, video: stats.Video}, stats, nil
 }
 
 // indexChanged は、新しく書いた索引 tmpPath が、今の索引 indexPath と違うかを返す。今の索引がなければ true を返す。
