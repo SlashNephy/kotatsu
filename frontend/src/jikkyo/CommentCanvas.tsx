@@ -120,7 +120,10 @@ export function CommentCanvas({
       if (destroyed) {
         return;
       }
-      rendererRef.current = new Renderer(canvas, [], {
+      // canvas をそのまま渡すと、niconicomments は instanceof HTMLCanvasElement で canvas かを見分ける。
+      // 別のウィンドウ (Document Picture-in-Picture) の canvas は、そのウィンドウの HTMLCanvasElement なので見分けられず、
+      // 描画を作れない。描画先は、こちらで作って渡す。
+      rendererRef.current = new Renderer(Renderer.internal.renderer.createRenderer(canvas), [], {
         format: 'formatted',
         mode: 'default',
         keepCA: true,
