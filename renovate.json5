@@ -40,6 +40,14 @@
       enabled: false,
     },
     {
+      // nv-codec-headers の版で、NVENC と NVDEC が動く NVIDIA のドライバの下限が決まる (Dockerfile の NV_CODEC_HEADERS_VERSION)。
+      // 下限を上げると、古いドライバの利用者の NVENC が動かなくなるので、12.1 の中でだけ上げ、それより上は手で上げる。
+      matchDepNames: [
+        'FFmpeg/nv-codec-headers',
+      ],
+      allowedVersions: '/^12\\.1\\./',
+    },
+    {
       // atlas.hcl の開発用 DB の URL (docker+postgres://) には、digest を書けない。
       matchFileNames: [
         'backend/atlas.hcl',
@@ -118,13 +126,13 @@
     },
     {
       // ブラウザ内でそのままデコードする方式を測るときに組む、WASM の FFmpeg の版と emscripten のイメージ (#1516)。
-      // FFmpeg は、サーバの FFmpeg (Debian 13 の ffmpeg パッケージ) と同じ版を追う。
+      // FFmpeg は、サーバの FFmpeg (Dockerfile の FFMPEG_VERSION) と同じ版を追う。
       customType: 'regex',
       managerFilePatterns: [
         '/^frontend/bench/wasm-decode/SOURCE$/',
       ],
       matchStrings: [
-        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) versioning=(?<versioning>\\S+)\\nffmpeg=(?<currentValue>\\S+)',
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) versioning=(?<versioning>\\S+) extractVersion=(?<extractVersion>\\S+)\\nffmpeg=(?<currentValue>\\S+)',
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nemsdk=(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[0-9a-f]{64})',
       ],
     },

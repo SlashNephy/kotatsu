@@ -82,13 +82,15 @@ jobs:
           docker run --rm --read-only kotatsu:smoke --version | grep -F "kotatsu version $VERSION ($(echo "$GITHUB_SHA" | cut -c1-7))"
           if [ "$TARGET" = ffmpeg ]; then
             docker run --rm --read-only --entrypoint ffmpeg kotatsu:smoke -hide_banner -version
+            docker run --rm --read-only --entrypoint ffprobe kotatsu:smoke -hide_banner -version
             # tsreadex は、引数がないと使い方のエラーで終わる。起動できればよい。
             docker run --rm --read-only --entrypoint sh kotatsu:smoke -c 'tsreadex 2>&1 | grep -q arguments'
             # 字幕の自動生成に使う whisper.cpp (#1682)。静的にリンクしたものが、共有ライブラリなしで起動できればよい。
             docker run --rm --read-only --entrypoint whisper-cli kotatsu:smoke --help
             docker run --rm --read-only --entrypoint whisper-vad-speech-segments kotatsu:smoke --help
             # ライセンス文書とソースの入手先 (設計書の付録 B)。
-            for doc in debian-packages.tsv SOURCES tsreadex.License.txt whisper.cpp.License.txt; do
+            for doc in debian-packages.tsv SOURCES FFmpeg.COPYING.GPLv2.txt FFmpeg.LICENSE.md nv-codec-headers.License.txt \
+              tsreadex.License.txt whisper.cpp.License.txt; do
               docker run --rm --entrypoint test kotatsu:smoke -s "/usr/share/doc/kotatsu/third-party/$doc"
             done
           fi
