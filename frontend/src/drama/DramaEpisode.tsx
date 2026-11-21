@@ -68,9 +68,9 @@ export function episodeLabel(
   return `${season} ${t('drama.episode', { number: episode.episodeNumber })}`;
 }
 
-// parseTMDbSeriesId は、TMDB の作品の ID か、作品のページの URL (https://www.themoviedb.org/tv/123-name) から ID を読む。
+// parseTMDBSeriesId は、TMDB の作品の ID か、作品のページの URL (https://www.themoviedb.org/tv/123-name) から ID を読む。
 // 読めなければ null を返す。
-export function parseTMDbSeriesId(value: string): number | null {
+export function parseTMDBSeriesId(value: string): number | null {
   const trimmed = value.trim();
   const match = /^(\d+)$/.exec(trimmed) ?? /themoviedb\.org\/tv\/(\d+)/.exec(trimmed);
   if (match === null) {
@@ -93,10 +93,10 @@ export function isPlaceholderEpisodeName(
   return name === `第${episodeNumber}話` || name === `Episode ${episodeNumber}`;
 }
 
-// TMDbAttribution は、TMDB の API の利用規約が求める帰属の表示 (TMDB のロゴと注記)。
+// TMDBAttribution は、TMDB の API の利用規約が求める帰属の表示 (TMDB のロゴと注記)。
 // 規約は、帰属の表示をアプリの「About」か「Credits」の区画に置くよう求めるので、このアプリについての画面 (/about) にだけ出す。
 // ロゴは、Kotatsu のロゴより目立たないよう、文字と同じくらいの高さにする。画像は同梱し、外部から読まない。
-export function TMDbAttribution() {
+export function TMDBAttribution() {
   const { t } = useTranslation();
 
   return (
@@ -209,7 +209,7 @@ function DramaOverrideButton({
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const seriesId = parseTMDbSeriesId(value);
+  const seriesId = parseTMDBSeriesId(value);
   const save = async (input: { tmdbSeriesId?: number; exclude?: boolean; reset?: boolean }) => {
     setBusy(true);
     try {

@@ -26,29 +26,29 @@ WHERE p.end_at <= @now AND NOT p.end_undecided
   AND p.genres -> 0 ->> 'lv1' = '3' AND m.finalized_at IS NULL
 ORDER BY p.start_at, p.service_id;
 
--- name: GetTMDbSearch :one
+-- name: GetTMDBSearch :one
 SELECT query, results, fetched_at FROM tmdb_searches WHERE query = @query;
 
--- name: UpsertTMDbSearch :exec
+-- name: UpsertTMDBSearch :exec
 INSERT INTO tmdb_searches (query, results, fetched_at) VALUES (@query, @results, @now)
 ON CONFLICT (query) DO UPDATE SET results = excluded.results, fetched_at = excluded.fetched_at;
 
--- name: GetTMDbSeries :one
+-- name: GetTMDBSeries :one
 SELECT * FROM tmdb_series WHERE id = @id;
 
--- name: ListTMDbSeries :many
+-- name: ListTMDBSeries :many
 SELECT * FROM tmdb_series WHERE id = ANY(@ids::integer[]);
 
--- name: UpsertTMDbSeries :exec
+-- name: UpsertTMDBSeries :exec
 INSERT INTO tmdb_series (id, name, original_name, first_air_date, seasons, fetched_at)
 VALUES (@id, @name, @original_name, sqlc.narg(first_air_date), @seasons, @now)
 ON CONFLICT (id) DO UPDATE SET name = excluded.name, original_name = excluded.original_name,
   first_air_date = excluded.first_air_date, seasons = excluded.seasons, fetched_at = excluded.fetched_at;
 
--- name: GetTMDbSeason :one
+-- name: GetTMDBSeason :one
 SELECT * FROM tmdb_seasons WHERE series_id = @series_id AND season_number = @season_number;
 
--- name: UpsertTMDbSeason :exec
+-- name: UpsertTMDBSeason :exec
 INSERT INTO tmdb_seasons (series_id, season_number, episodes, fetched_at) VALUES (@series_id, @season_number, @episodes, @now)
 ON CONFLICT (series_id, season_number) DO UPDATE SET episodes = excluded.episodes, fetched_at = excluded.fetched_at;
 
@@ -117,16 +117,16 @@ WHERE m.matched_at < @before
   AND NOT EXISTS (SELECT 1 FROM programs p WHERE p.service_id = m.service_id AND p.start_at = m.start_at)
   AND NOT EXISTS (SELECT 1 FROM program_archives a WHERE a.service_id = m.service_id AND a.start_at = m.start_at);
 
--- name: PruneTMDbSearches :execrows
+-- name: PruneTMDBSearches :execrows
 DELETE FROM tmdb_searches WHERE fetched_at < @before;
 
--- name: PruneTMDbSeries :execrows
+-- name: PruneTMDBSeries :execrows
 DELETE FROM tmdb_series WHERE fetched_at < @before;
 
--- name: PruneTMDbSeasons :execrows
+-- name: PruneTMDBSeasons :execrows
 DELETE FROM tmdb_seasons WHERE fetched_at < @before;
 
--- name: ListStaleLinkedTMDbSeries :many
+-- name: ListStaleLinkedTMDBSeries :many
 -- 番組か録画に結びついた作品と、ユーザーが見ている作品と見た話の作品 (#1652) のうち、キャッシュが before より前に引いたものか、
 -- ないものを、古い順に limit 件まで返す。6 か月で消す前に引き直し、結びついた作品の名前を出し続ける。
 -- 見ている作品と見た話には、番組か録画に結びついた作品だけを足せる (dramalibrary) ので、TMDB にない ID は入らない。
@@ -144,7 +144,7 @@ WHERE s.id IS NULL OR s.fetched_at < @before
 ORDER BY s.fetched_at NULLS FIRST, l.id
 LIMIT @max_count;
 
--- name: ListStaleLinkedTMDbSeasons :many
+-- name: ListStaleLinkedTMDBSeasons :many
 -- 番組か録画に結びついた話のシーズンのうち、キャッシュが before より前に引いたものか、ないものを、古い順に limit 件まで返す。
 -- ユーザーが手で見たことにした話 (#1652) のシーズンは、番号を利用者が決めるので (TMDB にないシーズンもありうる)、引き直さない。
 SELECT l.series_id::integer AS series_id, l.season_number::integer AS season_number FROM (
@@ -157,14 +157,14 @@ WHERE s.series_id IS NULL OR s.fetched_at < @before
 ORDER BY s.fetched_at NULLS FIRST, l.series_id, l.season_number
 LIMIT @max_count;
 
--- name: GetTMDbToken :one
+-- name: GetTMDBToken :one
 SELECT * FROM tmdb_tokens WHERE id = 1;
 
--- name: UpsertTMDbToken :exec
+-- name: UpsertTMDBToken :exec
 INSERT INTO tmdb_tokens (id, token_encrypted, updated_at) VALUES (1, @token_encrypted, @now)
 ON CONFLICT (id) DO UPDATE SET token_encrypted = EXCLUDED.token_encrypted, updated_at = EXCLUDED.updated_at;
 
--- name: DeleteTMDbToken :execrows
+-- name: DeleteTMDBToken :execrows
 DELETE FROM tmdb_tokens WHERE id = 1;
 
 -- name: ListProgramDramaMatchTitleKeys :many

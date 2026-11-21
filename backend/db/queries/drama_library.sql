@@ -69,7 +69,7 @@ JOIN recordings r ON r.id = m.recording_id
 WHERE m.tmdb_series_id = ANY(@tmdb_series_ids::integer[]) AND m.episode_number IS NOT NULL AND r.state <> 'failed'
 ORDER BY m.tmdb_series_id, m.season_number, m.episode_number, r.recorded_from DESC, r.id;
 
--- name: ListTMDbSeasonsOf :many
+-- name: ListTMDBSeasonsOf :many
 -- 作品 series_ids の、キャッシュにあるシーズンを返す。
 SELECT * FROM tmdb_seasons WHERE series_id = ANY(@series_ids::integer[]) ORDER BY series_id, season_number;
 

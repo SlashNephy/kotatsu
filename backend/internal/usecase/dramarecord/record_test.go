@@ -88,7 +88,7 @@ func TestRecord(t *testing.T) {
 			f.simkl.Unlock()
 			require.Len(t, history, tt.wantHistory)
 			if tt.wantHistory > 0 {
-				assert.Equal(t, &simkltest.Watched{TMDbID: "9001", Season: 1, Episode: 3, WatchedAt: testNow().Format(time.RFC3339)}, history[0],
+				assert.Equal(t, &simkltest.Watched{TMDBID: "9001", Season: 1, Episode: 3, WatchedAt: testNow().Format(time.RFC3339)}, history[0],
 					"the episode is sent by its TMDB ID, with the time it was judged as watched")
 			}
 			assert.Equal(t, tt.wantNotified, f.notifications(t))

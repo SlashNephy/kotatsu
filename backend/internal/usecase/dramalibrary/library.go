@@ -151,7 +151,7 @@ type seasonKey struct {
 // loadCache は、作品 ids の、TMDB のキャッシュを読む。
 func loadCache(ctx context.Context, q *sqlc.Queries, ids []int32) (*cache, error) {
 	c := &cache{series: map[int32]*sqlc.TmdbSeries{}, seasons: map[int32][]*tmdb.Season{}, episodes: map[seasonKey][]*tmdb.Episode{}}
-	series, err := q.ListTMDbSeries(ctx, ids)
+	series, err := q.ListTMDBSeries(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the TMDB series: %w", err)
 	}
@@ -164,7 +164,7 @@ func loadCache(ctx context.Context, q *sqlc.Queries, ids []int32) (*cache, error
 		}
 		c.seasons[s.ID] = seasons
 	}
-	seasons, err := q.ListTMDbSeasonsOf(ctx, ids)
+	seasons, err := q.ListTMDBSeasonsOf(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the TMDB seasons: %w", err)
 	}

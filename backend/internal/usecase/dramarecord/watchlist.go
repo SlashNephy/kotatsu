@@ -287,12 +287,12 @@ func (s *Service) mergeItems(ctx context.Context, tx pgx.Tx, row *sqlc.DramaReco
 	now := s.clock.Now()
 	changes := 0
 	for _, item := range items {
-		if item.TMDbID <= 0 {
+		if item.TMDBID <= 0 {
 			// TMDB の ID のない作品は、Kotatsu の作品と結びつけられない。
 			continue
 		}
 		previous, err := q.GetDramaWatchlistImport(ctx, sqlc.GetDramaWatchlistImportParams{
-			UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDbID,
+			UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDBID,
 		})
 		exists := err == nil
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -301,7 +301,7 @@ func (s *Service) mergeItems(ctx context.Context, tx pgx.Tx, row *sqlc.DramaReco
 		if exists && previous.Status == item.Status {
 			// 状態が変わっていなければ、見ている作品は変えない (Kotatsu で外した作品を足し直さない)。ID だけを埋める。
 			if err := q.UpsertDramaWatchlistImport(ctx, sqlc.UpsertDramaWatchlistImportParams{
-				UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDbID, SimklID: &item.SimklID,
+				UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDBID, SimklID: &item.SimklID,
 				Status: item.Status, Applied: previous.Applied, Now: now,
 			}); err != nil {
 				return 0, fmt.Errorf("failed to save the drama watchlist import: %w", err)
@@ -317,7 +317,7 @@ func (s *Service) mergeItems(ctx context.Context, tx pgx.Tx, row *sqlc.DramaReco
 			changes += n
 		}
 		if err := q.UpsertDramaWatchlistImport(ctx, sqlc.UpsertDramaWatchlistImportParams{
-			UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDbID, SimklID: &item.SimklID,
+			UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDBID, SimklID: &item.SimklID,
 			Status: item.Status, Applied: false, Now: now,
 		}); err != nil {
 			return 0, fmt.Errorf("failed to save the drama watchlist import: %w", err)

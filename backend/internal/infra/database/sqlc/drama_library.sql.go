@@ -368,13 +368,13 @@ func (q *Queries) ListDramaWatchlistEntries(ctx context.Context, userID uuid.UUI
 	return items, nil
 }
 
-const listTMDbSeasonsOf = `-- name: ListTMDbSeasonsOf :many
+const listTMDBSeasonsOf = `-- name: ListTMDBSeasonsOf :many
 SELECT series_id, season_number, episodes, fetched_at FROM tmdb_seasons WHERE series_id = ANY($1::integer[]) ORDER BY series_id, season_number
 `
 
 // 作品 series_ids の、キャッシュにあるシーズンを返す。
-func (q *Queries) ListTMDbSeasonsOf(ctx context.Context, seriesIds []int32) ([]TmdbSeason, error) {
-	rows, err := q.db.Query(ctx, listTMDbSeasonsOf, seriesIds)
+func (q *Queries) ListTMDBSeasonsOf(ctx context.Context, seriesIds []int32) ([]TmdbSeason, error) {
+	rows, err := q.db.Query(ctx, listTMDBSeasonsOf, seriesIds)
 	if err != nil {
 		return nil, err
 	}

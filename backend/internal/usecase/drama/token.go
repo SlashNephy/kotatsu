@@ -62,7 +62,7 @@ func NewTokens(clk clock.Clock, recorder audit.Recorder, appSecret string) (*Tok
 
 // Status は、トークンを設定したかどうかと、見分けるための末尾の数文字を返す。
 func (t *Tokens) Status(ctx context.Context, db sqlc.DBTX) (*TokenStatus, error) {
-	row, err := sqlc.New(db).GetTMDbToken(ctx)
+	row, err := sqlc.New(db).GetTMDBToken(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return &TokenStatus{Configured: false, Hint: "", UpdatedAt: nil}, nil
 	}
@@ -79,7 +79,7 @@ func (t *Tokens) Status(ctx context.Context, db sqlc.DBTX) (*TokenStatus, error)
 
 // Token は、設定したトークンを返す。設定していなければ空を返す。
 func (t *Tokens) Token(ctx context.Context, db sqlc.DBTX) (string, error) {
-	row, err := sqlc.New(db).GetTMDbToken(ctx)
+	row, err := sqlc.New(db).GetTMDBToken(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil
 	}
@@ -133,7 +133,7 @@ func (t *Tokens) LogSecrets(ctx context.Context, db sqlc.DBTX) ([]string, error)
 // save は、トークンを暗号化して保存するか、空なら消し、監査ログに残す操作の名前を返す。消すものがなければ空を返す。
 func (t *Tokens) save(ctx context.Context, q *sqlc.Queries, token string) (string, error) {
 	if token == "" {
-		deleted, err := q.DeleteTMDbToken(ctx)
+		deleted, err := q.DeleteTMDBToken(ctx)
 		if err != nil {
 			return "", fmt.Errorf("failed to delete the TMDB token: %w", err)
 		}
@@ -147,7 +147,7 @@ func (t *Tokens) save(ctx context.Context, q *sqlc.Queries, token string) (strin
 	if err != nil {
 		return "", err
 	}
-	if err := q.UpsertTMDbToken(ctx, sqlc.UpsertTMDbTokenParams{TokenEncrypted: encrypted, Now: t.clock.Now()}); err != nil {
+	if err := q.UpsertTMDBToken(ctx, sqlc.UpsertTMDBTokenParams{TokenEncrypted: encrypted, Now: t.clock.Now()}); err != nil {
 		return "", fmt.Errorf("failed to save the TMDB token: %w", err)
 	}
 

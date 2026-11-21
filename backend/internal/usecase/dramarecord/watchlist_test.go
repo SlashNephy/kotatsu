@@ -70,11 +70,11 @@ func TestImportWatchlist(t *testing.T) {
 			name: "watching and plan-to-watch works linked to programs are added",
 			steps: []func(t *testing.T, f *fixture){func(_ *testing.T, f *fixture) {
 				f.setItems([]*simklItem{
-					{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching},
-					{SimklID: 2, TMDbID: other, Status: dramarecord.StatusPlanToWatch},
-					{SimklID: 3, TMDbID: unlinked, Status: dramarecord.StatusWatching},
-					{SimklID: 4, TMDbID: 0, Status: dramarecord.StatusWatching},
-					{SimklID: 5, TMDbID: 9005, Status: dramarecord.StatusCompleted},
+					{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching},
+					{SimklID: 2, TMDBID: other, Status: dramarecord.StatusPlanToWatch},
+					{SimklID: 3, TMDBID: unlinked, Status: dramarecord.StatusWatching},
+					{SimklID: 4, TMDBID: 0, Status: dramarecord.StatusWatching},
+					{SimklID: 5, TMDBID: 9005, Status: dramarecord.StatusCompleted},
 				}, false)
 			}},
 			want: []string{seriesWatching, "9003:wanna_watch"},
@@ -83,7 +83,7 @@ func TestImportWatchlist(t *testing.T) {
 			name: "a work is added once it is linked to a program",
 			steps: []func(t *testing.T, f *fixture){
 				func(_ *testing.T, f *fixture) {
-					f.setItems([]*simklItem{{SimklID: 3, TMDbID: unlinked, Status: dramarecord.StatusWatching}}, false)
+					f.setItems([]*simklItem{{SimklID: 3, TMDBID: unlinked, Status: dramarecord.StatusWatching}}, false)
 				},
 				func(t *testing.T, f *fixture) {
 					t.Helper()
@@ -96,14 +96,14 @@ func TestImportWatchlist(t *testing.T) {
 			name: "a work removed in Kotatsu is not added again until it changes on Simkl",
 			steps: []func(t *testing.T, f *fixture){
 				func(_ *testing.T, f *fixture) {
-					f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching}}, false)
+					f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching}}, false)
 				},
 				func(t *testing.T, f *fixture) {
 					t.Helper()
 					require.NoError(t, dramalibrary.SetStatus(t.Context(), f.pool, f.alice.UserID, series, "", f.clock.Now()))
 					// ほかの作品が変わって、差分を引き直しても、外した作品は足し直さない。
 					f.setItems([]*simklItem{
-						{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching, UpdatedAt: at(0, 0)}, {SimklID: 2, TMDbID: other, Status: dramarecord.StatusWatching},
+						{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching, UpdatedAt: at(0, 0)}, {SimklID: 2, TMDBID: other, Status: dramarecord.StatusWatching},
 					}, false)
 				},
 			},
@@ -113,12 +113,12 @@ func TestImportWatchlist(t *testing.T) {
 			name: "a status change on Simkl applies again",
 			steps: []func(t *testing.T, f *fixture){
 				func(_ *testing.T, f *fixture) {
-					f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusPlanToWatch}}, false)
+					f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusPlanToWatch}}, false)
 				},
 				func(t *testing.T, f *fixture) {
 					t.Helper()
 					require.NoError(t, dramalibrary.SetStatus(t.Context(), f.pool, f.alice.UserID, series, "", f.clock.Now()))
-					f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching}}, false)
+					f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching}}, false)
 				},
 			},
 			want: []string{seriesWatching},
@@ -127,10 +127,10 @@ func TestImportWatchlist(t *testing.T) {
 			name: "finishing on Simkl removes the imported work",
 			steps: []func(t *testing.T, f *fixture){
 				func(_ *testing.T, f *fixture) {
-					f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching}, {SimklID: 2, TMDbID: other, Status: dramarecord.StatusWatching}}, false)
+					f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching}, {SimklID: 2, TMDBID: other, Status: dramarecord.StatusWatching}}, false)
 				},
 				func(_ *testing.T, f *fixture) {
-					f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusCompleted}, {SimklID: 2, TMDbID: other, Status: dramarecord.StatusWatching, UpdatedAt: at(0, 0)}}, false)
+					f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusCompleted}, {SimklID: 2, TMDBID: other, Status: dramarecord.StatusWatching, UpdatedAt: at(0, 0)}}, false)
 				},
 			},
 			want: []string{otherWatching},
@@ -139,10 +139,10 @@ func TestImportWatchlist(t *testing.T) {
 			name: "removing from the Simkl watchlist removes the imported work",
 			steps: []func(t *testing.T, f *fixture){
 				func(_ *testing.T, f *fixture) {
-					f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching}, {SimklID: 2, TMDbID: other, Status: dramarecord.StatusWatching}}, false)
+					f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching}, {SimklID: 2, TMDBID: other, Status: dramarecord.StatusWatching}}, false)
 				},
 				func(_ *testing.T, f *fixture) {
-					f.setItems([]*simklItem{{SimklID: 2, TMDbID: other, Status: dramarecord.StatusWatching, UpdatedAt: at(0, 0)}}, true)
+					f.setItems([]*simklItem{{SimklID: 2, TMDBID: other, Status: dramarecord.StatusWatching, UpdatedAt: at(0, 0)}}, true)
 				},
 			},
 			want: []string{otherWatching},
@@ -151,7 +151,7 @@ func TestImportWatchlist(t *testing.T) {
 			name: "a work whose status was changed in Kotatsu is kept",
 			steps: []func(t *testing.T, f *fixture){
 				func(_ *testing.T, f *fixture) {
-					f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching}}, false)
+					f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching}}, false)
 				},
 				func(t *testing.T, f *fixture) {
 					t.Helper()
@@ -167,7 +167,7 @@ func TestImportWatchlist(t *testing.T) {
 				func(t *testing.T, f *fixture) {
 					t.Helper()
 					require.NoError(t, dramalibrary.SetStatus(t.Context(), f.pool, f.alice.UserID, series, dramalibrary.StatusWatching, f.clock.Now()))
-					f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusCompleted}}, false)
+					f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusCompleted}}, false)
 				},
 			},
 			want: []string{seriesWatching},
@@ -197,12 +197,12 @@ func TestImportWatchlistChecksActivities(t *testing.T) {
 	f := newFixture(t)
 	f.link(t, 12, 0, series, 3)
 	f.connect(t, f.alice)
-	f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching}}, false)
+	f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching}}, false)
 	f.importOnce(t)
 	assert.Equal(t, 1, f.allItemsCalls(), "the first import reads the whole watchlist")
 	f.importOnce(t)
 	assert.Equal(t, 1, f.allItemsCalls(), "nothing changed, so the watchlist is not read")
-	f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching, UpdatedAt: at(0, 0)}}, true)
+	f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching, UpdatedAt: at(0, 0)}}, true)
 	f.importOnce(t)
 	assert.Equal(t, 3, f.allItemsCalls(), "a removal reads the changes and every ID")
 }
@@ -226,7 +226,7 @@ func TestImportWatchlistFailure(t *testing.T) {
 			f := newFixture(t)
 			f.link(t, 12, 0, series, 3)
 			f.connect(t, f.alice)
-			f.setItems([]*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching}}, false)
+			f.setItems([]*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching}}, false)
 			f.importOnce(t)
 			f.simkl.Lock()
 			f.simkl.FailNext = tt.status

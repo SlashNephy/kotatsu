@@ -37,8 +37,8 @@ const AccessTokenTTL = 7 * 24 * time.Hour
 // Item は、ウォッチリストの 1 作品。
 type Item struct {
 	SimklID int64
-	// TMDbID は、作品の TMDB の ID。0 なら、ID を返さない。
-	TMDbID int32
+	// TMDBID は、作品の TMDB の ID。0 なら、ID を返さない。
+	TMDBID int32
 	Status string
 	// UpdatedAt は、ウォッチリストで最後に変わった日時。date_from で差分を返すのに使う。
 	UpdatedAt time.Time
@@ -46,7 +46,7 @@ type Item struct {
 
 // Watched は、/sync/history で受け取った 1 話。
 type Watched struct {
-	TMDbID    string
+	TMDBID    string
 	Season    int32
 	Episode   int32
 	WatchedAt string
@@ -363,16 +363,16 @@ func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 
 					continue
 				}
-				s.History = append(s.History, &Watched{TMDbID: tmdb, Season: season.Number, Episode: episode.Number, WatchedAt: episode.WatchedAt})
+				s.History = append(s.History, &Watched{TMDBID: tmdb, Season: season.Number, Episode: episode.Number, WatchedAt: episode.WatchedAt})
 				added++
 			}
 		}
 		// 本物と同じく、見た記録を付けた作品を「見ている」に入れる。
 		statuses = append(statuses, map[string]any{"request": show.IDs, "response": map[string]any{"status": "watching", "simkl_type": "tv"}})
 		var id int32
-		if _, err := fmt.Sscan(tmdb, &id); err == nil && added > 0 && !slices.ContainsFunc(s.Items, func(i *Item) bool { return i.TMDbID == id }) {
+		if _, err := fmt.Sscan(tmdb, &id); err == nil && added > 0 && !slices.ContainsFunc(s.Items, func(i *Item) bool { return i.TMDBID == id }) {
 			s.sequence++
-			s.Items = append(s.Items, &Item{SimklID: int64(100000 + s.sequence), TMDbID: id, Status: "watching", UpdatedAt: s.now()})
+			s.Items = append(s.Items, &Item{SimklID: int64(100000 + s.sequence), TMDBID: id, Status: "watching", UpdatedAt: s.now()})
 			s.Activity = s.now().UTC().Format(time.RFC3339)
 		}
 	}
@@ -416,8 +416,8 @@ func (s *Server) allItems(w http.ResponseWriter, r *http.Request) {
 
 			continue
 		}
-		if item.TMDbID > 0 {
-			ids["tmdb"] = strconv.Itoa(int(item.TMDbID))
+		if item.TMDBID > 0 {
+			ids["tmdb"] = strconv.Itoa(int(item.TMDBID))
 		}
 		shows = append(shows, map[string]any{"status": item.Status, keyShow: map[string]any{"title": keyShow, keyIDs: ids}})
 	}

@@ -112,7 +112,7 @@ func Status(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, seriesID int32)
 // SeriesName は、TMDB の作品 seriesID の名前 (日本語) と元の言語の名前を、TMDB のキャッシュから返す。キャッシュになければ nil を返す
 // (TMDB には問い合わせない)。
 func SeriesName(ctx context.Context, db sqlc.DBTX, seriesID int32) (*string, *string, error) {
-	series, err := sqlc.New(db).GetTMDbSeries(ctx, seriesID)
+	series, err := sqlc.New(db).GetTMDBSeries(ctx, seriesID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, nil
 	}

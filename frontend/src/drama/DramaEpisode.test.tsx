@@ -9,7 +9,7 @@ import { createTestEnvironment } from '../test/route';
 import {
   DramaEpisode,
   dramaEpisodeLabel,
-  parseTMDbSeriesId,
+  parseTMDBSeriesId,
   TMDB_NOTICE,
   type DramaEpisodeItem,
 } from './DramaEpisode';
@@ -60,7 +60,7 @@ describe('dramaEpisodeLabel', () => {
   });
 });
 
-describe('parseTMDbSeriesId', () => {
+describe('parseTMDBSeriesId', () => {
   test.each([
     { name: 'ID', value: '331304', want: 331304 },
     {
@@ -78,7 +78,7 @@ describe('parseTMDbSeriesId', () => {
     { name: '大きすぎる', value: '99999999999', want: null },
     { name: '空', value: ' ', want: null },
   ])('$name', ({ value, want }) => {
-    expect(parseTMDbSeriesId(value)).toBe(want);
+    expect(parseTMDBSeriesId(value)).toBe(want);
   });
 });
 

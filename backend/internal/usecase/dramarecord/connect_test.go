@@ -131,7 +131,7 @@ func TestDisconnect(t *testing.T) {
 	f := newFixture(t)
 	f.link(t, 12, 0, series, 3)
 	f.simkl.Lock()
-	f.simkl.Items = []*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching, UpdatedAt: at(9, 0)}}
+	f.simkl.Items = []*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching, UpdatedAt: at(9, 0)}}
 	f.simkl.Unlock()
 	f.connect(t, f.alice)
 	require.NoError(t, f.service.ImportWatchlist(t.Context(), f.pool, f.alice.UserID, dramarecord.DestinationSimkl))
