@@ -11,7 +11,7 @@ export type VideoFrame = {
 
 // useVideoFrames は、video にコマが映るごとに onFrame を呼ぶ (#1512)。
 // requestVideoFrameCallback があれば使い、なければ requestAnimationFrame で代える。一時停止の間は、requestVideoFrameCallback は来ない。
-// 取りこぼしを防ぐため、timeupdate でも呼ぶ。video を作り直したら (画質の切り替え、別のウィンドウ、つなぎ直し)、付け直す。
+// 取りこぼしを防ぐため、timeupdate でも呼ぶ。video を作り直したら (画質の切り替え、つなぎ直し)、付け直す。
 export function useVideoFrames(
   video: HTMLVideoElement | null,
   onFrame: (frame: VideoFrame) => void,

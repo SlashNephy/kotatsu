@@ -330,7 +330,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const visible = inPage || pip.container !== null;
   // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
-  // video は、今の video の要素。画質を変えたときや、別のウィンドウに移したときに作り直される。
+  // video は、今の video の要素。画質を変えたときに作り直される。
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const videoState = useVideoState(video);
   const navigate = useNavigate();
@@ -1104,7 +1104,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       video.removeEventListener('play', onPlay);
       video.removeEventListener('playing', onPlaying);
     };
-    // 画質を変えたときと、別のウィンドウに出したり戻したりしたときは、video の要素を作り直すので、付け直す。
+    // 画質を変えたときは、video の要素を作り直すので、付け直す。
   }, [startedAt, streamKey, streamSettled, hls, video]);
 
   // coverRef は、映像の上に重ねる蓋 (#1512)。プレイヤーが出し入れの口を入れる。

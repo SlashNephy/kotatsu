@@ -109,7 +109,7 @@ export function useMouseActions(): [MouseActions, (actions: MouseActions) => voi
 }
 
 // usePlayerMouse は、プレイヤーを包む要素で、映像の上のホイールと中クリックを、設定の操作にする。返す ref を、その要素に渡す。
-// 要素は、別のウィンドウ (Document Picture-in-Picture) に移すと作り直されるので、ref で受けて、変わるたびに付け直す。
+// 要素が作り直されても付け直せるよう、ref で受けて、変わるたびに付け直す。
 // 操作バーの上では、ブラウザの動きのままにする。呼ぶ操作がないときも、ページのスクロールは止めない。
 export function usePlayerMouse(commands: PlayerCommands): (element: HTMLElement | null) => void {
   const [actions] = useMouseActions();

@@ -414,7 +414,7 @@ function Live({
   const visible = inPage || pip.container !== null;
   // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
-  // video は、今の video の要素。画質を変えたときや、別のウィンドウに移したときに作り直される。
+  // video は、今の video の要素。画質を変えたときに作り直される。
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const videoState = useVideoState(video);
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。

@@ -27,6 +27,17 @@ export function PipHost({
     if (target !== null && host.parentNode !== target) {
       target.append(host);
     }
+    const win = container?.ownerDocument.defaultView;
+    if (win === null || win === undefined) {
+      return;
+    }
+    // 別のウィンドウが閉じるとき (閉じるボタンや、このページに戻す操作) は、閉じ終える前に、このページの置き場に戻す。
+    // React が描き直すのを待つと、閉じた文書の中で動画が読み直され、再生位置が始めに戻る。
+    const restore = () => {
+      slotRef.current?.append(host);
+    };
+    win.addEventListener('pagehide', restore);
+    return () => win.removeEventListener('pagehide', restore);
   }, [container, host]);
   useEffect(() => () => host.remove(), [host]);
 
