@@ -62,6 +62,26 @@ describe('ProgramDetail', () => {
     expect(screen.getByRole('button', { name: '録画予約済み' })).toBeTruthy();
   });
 
+  test('ルールで入った予約は「ルール録画予約済み」とし、もとになったルールを ▾ のメニューから開ける', async () => {
+    // デモは、地上波の「縁側の午後」を録るルールを最初から持ち、ルール予約を入れている。
+    const program = generatePrograms(now).find(
+      (item) =>
+        item.name.includes('縁側の午後') &&
+        item.service.channelType.type === 'GR' &&
+        item.start > now,
+    )!;
+    const environment = createDemoEnvironment({}, { now });
+
+    await renderWithRouter(<Harness programId={program.id} />, environment);
+    expect(await screen.findByRole('button', { name: 'ルール録画予約済み' })).toBeTruthy();
+    expect(screen.queryByText(/ルールで予約/)).toBeNull();
+    await act(async () =>
+      fireEvent.click(screen.getByRole('button', { name: '録画予約のほかの操作' })),
+    );
+    const item = await screen.findByRole('menuitem', { name: 'ルール「縁側の午後」を開く' });
+    expect(item.getAttribute('href')).toMatch(/^\/rules\/[^/]+$/);
+  });
+
   test('ドラマの番組には、番組名の横のメニューに、作品名で Filmarks を探すリンクを出し、ほかのジャンルには出さない (#1650)', async () => {
     const programs = generatePrograms(now);
     const drama = programs.find((item) => item.genres.some((genre) => genre.lv1 === 3))!;

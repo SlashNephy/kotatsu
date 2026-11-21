@@ -1,6 +1,5 @@
 import {
   Alert,
-  Anchor,
   Badge,
   Button,
   Drawer,
@@ -20,6 +19,7 @@ import {
   ChevronDown,
   Film,
   History,
+  ListChecks,
   ListPlus,
   Search,
   Play,
@@ -407,6 +407,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             <Button.Group flex={1}>
               {reserved && program.reservation != null ? (
                 // 録画予約済みのボタンを押すと、録画の設定を開く。取り消しは、間違えて押さないよう、メニューに入れる。
+                // ルールで入った予約は「ルール録画予約済み」とし、もとになったルールは ▾ のメニューから開く。
                 <Tooltip label={t('reservations.settings.open')}>
                   <Button
                     variant="outline"
@@ -414,7 +415,9 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
                     onClick={() => setEditing(true)}
                     leftSection={<CalendarCheck size={16} aria-hidden />}
                   >
-                    {t('guide.detail.reserved')}
+                    {program.reservation.kind === 'RULE'
+                      ? t('guide.detail.reservedByRule')
+                      : t('guide.detail.reserved')}
                   </Button>
                 </Tooltip>
               ) : (
@@ -440,25 +443,43 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
                 </Menu.Target>
                 <Menu.Dropdown>
                   {reserved && program.reservation != null ? (
-                    <Menu.Item
-                      color="red"
-                      leftSection={<CalendarX2 size={16} aria-hidden />}
-                      onClick={() => setCancelling(true)}
-                    >
-                      {t('guide.detail.cancelReservation')}
-                    </Menu.Item>
+                    // 項目は、もとになったルールを開く、ルールを作る、取り消すの順に並べ、赤い取り消しを最後に置く。
+                    <>
+                      {program.reservation.kind === 'RULE' && (
+                        <SourceRuleItems rules={program.reservation.rules} />
+                      )}
+                      <Menu.Item
+                        leftSection={<ListPlus size={16} aria-hidden />}
+                        onClick={createRule}
+                      >
+                        {t('guide.detail.createRule')}
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item
+                        color="red"
+                        leftSection={<CalendarX2 size={16} aria-hidden />}
+                        onClick={() => setCancelling(true)}
+                      >
+                        {t('guide.detail.cancelReservation')}
+                      </Menu.Item>
+                    </>
                   ) : (
-                    // ワンクリックの予約とは別に、録画の設定をしてから予約する (#463)。
-                    <Menu.Item
-                      leftSection={<SlidersHorizontal size={16} aria-hidden />}
-                      onClick={() => setConfiguring(true)}
-                    >
-                      {t('reservations.settings.openCreate')}
-                    </Menu.Item>
+                    <>
+                      {/* ワンクリックの予約とは別に、録画の設定をしてから予約する (#463)。 */}
+                      <Menu.Item
+                        leftSection={<SlidersHorizontal size={16} aria-hidden />}
+                        onClick={() => setConfiguring(true)}
+                      >
+                        {t('reservations.settings.openCreate')}
+                      </Menu.Item>
+                      <Menu.Item
+                        leftSection={<ListPlus size={16} aria-hidden />}
+                        onClick={createRule}
+                      >
+                        {t('guide.detail.createRule')}
+                      </Menu.Item>
+                    </>
                   )}
-                  <Menu.Item leftSection={<ListPlus size={16} aria-hidden />} onClick={createRule}>
-                    {t('guide.detail.createRule')}
-                  </Menu.Item>
                 </Menu.Dropdown>
               </Menu>
             </Button.Group>
@@ -506,9 +527,6 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
       {editing && program.reservation != null && (
         <ReservationSettingsDialog id={program.reservation.id} onClose={() => setEditing(false)} />
       )}
-      {reserved && program.reservation != null && program.reservation.kind === 'RULE' && (
-        <ReservedByRules rules={program.reservation.rules} />
-      )}
       {cancelling && program.reservation != null && (
         <CancelDialog
           reservationId={program.reservation.id}
@@ -549,38 +567,41 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   );
 }
 
-// ReservedByRules は、ルール予約のもとになったルールを並べ、ルールの画面へ移れるようにする。
-// 複数のルールに一致したときは、録画の設定に使うのが最も古いルール (先頭) であることも示す。
-function ReservedByRules({ rules }: { rules: ReadonlyArray<{ id: string; name: string }> }) {
+// SourceRuleItems は、ルール予約のもとになったルールを、予約のボタンの ▾ のメニューに並べ、ルールの画面へ移れるようにする。
+// ルールが 1 つなら「ルール「A」を開く」の 1 項目にする。複数なら見出しの下にルール名を並べ、録画の設定に使う
+// 最も古いルール (先頭) に「録画の設定」と添える。もとのルールを消していれば、何も出さない。
+function SourceRuleItems({ rules }: { rules: ReadonlyArray<{ id: string; name: string }> }) {
   const { t } = useTranslation();
   if (rules.length === 0) {
     return null;
   }
+  const item = (rule: { id: string; name: string }, label: string, settings: boolean) => (
+    <Menu.Item
+      key={rule.id}
+      leftSection={<ListChecks size={16} aria-hidden />}
+      rightSection={
+        settings ? (
+          <Badge size="xs" variant="light" color="gray">
+            {t('guide.detail.ruleSettings')}
+          </Badge>
+        ) : undefined
+      }
+      renderRoot={(props) => <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />}
+    >
+      {label}
+    </Menu.Item>
+  );
+  const [first] = rules;
+  if (rules.length === 1 && first !== undefined) {
+    return item(first, t('guide.detail.openRule', { name: first.name }), false);
+  }
 
   return (
-    <Stack gap={2}>
-      <Text size="sm">
-        {t('guide.detail.reservedByRules')}
-        {rules.map((rule, index) => (
-          <span key={rule.id}>
-            {index > 0 && '、'}
-            <Anchor
-              size="sm"
-              renderRoot={(props) => (
-                <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />
-              )}
-            >
-              {rule.name}
-            </Anchor>
-          </span>
-        ))}
-      </Text>
-      {rules.length > 1 && (
-        <Text size="xs" c="dimmed">
-          {t('guide.detail.reservedByRulesSettings', { name: rules[0]?.name })}
-        </Text>
-      )}
-    </Stack>
+    <>
+      <Menu.Label>{t('guide.detail.sourceRules')}</Menu.Label>
+      {rules.map((rule, index) => item(rule, rule.name, index === 0))}
+      <Menu.Divider />
+    </>
   );
 }
 
