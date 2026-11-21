@@ -38,6 +38,10 @@ type Suggestion struct {
 type watchedSeries struct {
 	key         *Key
 	recordingID uuid.UUID
+	// stem は、シリーズ名で探すシリーズの見た回の番組名が「作品名 副題 #N」の形のときの、副題を除いた作品名 (episode.Stem)。
+	stem string
+	// family なら、シリーズ名が key.Series で始まり、番組名の作品名 (episode.Stem) が key.Series の番組も、同じシリーズの回とする (#2023)。
+	family bool
 }
 
 // id は、シリーズを見分ける文字列。TID で探すシリーズと、シリーズ名で探すシリーズと、TMDB の作品で探すシリーズは、別のものとする。
@@ -116,6 +120,9 @@ func FindForUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.T
 	if len(series) == 0 {
 		return []*Suggestion{}, nil
 	}
+	if series, err = mergeFamilies(ctx, q, series); err != nil {
+		return nil, err
+	}
 	candidates, recorded, err := listCandidatesOf(ctx, q, series, now)
 	if err != nil {
 		return nil, err
@@ -177,15 +184,19 @@ func groupWatched(rows []sqlc.ListWatchedNextEpisodeSourcesRow) []*watchedSeries
 		if key == nil {
 			continue
 		}
+		stem := ""
+		if key.rank() == rankSeries {
+			stem = episode.Stem(rows[i].Name)
+		}
 		j, ok := index[key.id()]
 		if !ok {
 			index[key.id()] = len(series)
-			series = append(series, &watchedSeries{key: key, recordingID: rows[i].ID})
+			series = append(series, &watchedSeries{key: key, recordingID: rows[i].ID, stem: stem, family: false})
 
 			continue
 		}
 		if key.number() > series[j].key.number() {
-			series[j] = &watchedSeries{key: key, recordingID: rows[i].ID}
+			series[j] = &watchedSeries{key: key, recordingID: rows[i].ID, stem: stem, family: false}
 		}
 	}
 	// 強い鍵で探すシリーズを先に置き、同じ番組に当たった弱い鍵で探すシリーズより優先する。
@@ -194,6 +205,102 @@ func groupWatched(rows []sqlc.ListWatchedNextEpisodeSourcesRow) []*watchedSeries
 	})
 
 	return series
+}
+
+// mergeFamilies は、番組名に副題が入ってシリーズ名が回ごとに変わった見た回を、副題を除いた作品名のシリーズにまとめる (#2023)。
+//
+// 「作品名 副題 #N」の番組名は、副題までをシリーズ名に読むので、回ごとに別のシリーズになる。番組名だけでは、最後の語が副題か
+// 作品名の一部かを決められないので、副題のない回 (「作品名 #N」) が、見た回、番組表、録画履歴のどれかにあるときだけ、まとめる。
+// まとめたシリーズは、見た回の最大の話数を持ち、作品名のシリーズ名の番組に加えて、番組名の作品名が同じ番組も続きの候補にする。
+// 見た回の再放送 (副題のない番組名のことがある) を、見た回より前の回として外し、次の回 (副題のある番組名) を出すためである。
+func mergeFamilies(ctx context.Context, q *sqlc.Queries, series []*watchedSeries) ([]*watchedSeries, error) {
+	stems := []string{}
+	for _, s := range series {
+		if s.stem != "" && !slices.Contains(stems, s.stem) {
+			stems = append(stems, s.stem)
+		}
+	}
+	if len(stems) == 0 {
+		return series, nil
+	}
+	known, resolve, err := knownStems(ctx, q, series, stems)
+	if err != nil {
+		return nil, err
+	}
+	merged := make([]*watchedSeries, 0, len(series))
+	// bases は、まとめたシリーズを、作品名ごとに引く。
+	bases := map[string]*watchedSeries{}
+	base := func(stem string) *watchedSeries {
+		if b, ok := bases[stem]; ok {
+			return b
+		}
+		b := &watchedSeries{key: &Key{TID: 0, Count: 0, Series: stem, Number: 0, Drama: nil}, recordingID: uuid.Nil(), stem: "", family: true}
+		bases[stem] = b
+		merged = append(merged, b)
+
+		return b
+	}
+	for _, s := range series {
+		var b *watchedSeries
+		switch {
+		case s.key.rank() != rankSeries:
+		case s.stem != "" && known[s.stem]:
+			b = base(resolve(s.stem))
+		case slices.Contains(stems, s.key.Series):
+			// 副題のない回 (シリーズ名が作品名) のシリーズ。
+			b = base(s.key.Series)
+		}
+		if b == nil {
+			merged = append(merged, s)
+
+			continue
+		}
+		if b.recordingID == uuid.Nil() || s.key.Number > b.key.Number {
+			b.key = &Key{TID: 0, Count: 0, Series: b.key.Series, Number: s.key.Number, Drama: nil}
+			b.recordingID = s.recordingID
+		}
+	}
+
+	return merged, nil
+}
+
+// knownStems は、副題のない回があると分かった作品名 (見たシリーズ名か、話数のある番組表の番組か、録画履歴のシリーズ名) の集合と、
+// 作品名をさらに副題を除ける限りたどる関数を返す (#2023)。stems は、見た回から読んだ作品名。
+func knownStems(
+	ctx context.Context, q *sqlc.Queries, series []*watchedSeries, stems []string,
+) (map[string]bool, func(string) string, error) {
+	rows, err := q.ListKnownSeries(ctx, stems)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list the known series: %w", err)
+	}
+	known := map[string]bool{}
+	for _, name := range rows {
+		known[name] = true
+	}
+	// stemOf は、見たシリーズ名ごとの、副題を除いた作品名。副題に空白が入ると、作品名がまた副題を含むので、たどって決める。
+	stemOf := map[string]string{}
+	for _, s := range series {
+		if s.key.rank() == rankSeries {
+			known[s.key.Series] = true
+			if s.stem != "" {
+				stemOf[s.key.Series] = s.stem
+			}
+		}
+	}
+	// resolve は、作品名 name を、さらに副題を除ける限りたどった作品名を返す。
+	resolve := func(name string) string {
+		for range len(stemOf) {
+			next, ok := stemOf[name]
+			if !ok || !known[next] {
+				break
+			}
+			name = next
+		}
+
+		return name
+	}
+
+	return known, resolve, nil
 }
 
 // listCandidatesOf は、シリーズごとの続きの放送の候補と、録画履歴にある録った回の話数を、シリーズの id ごとに返す。
@@ -205,6 +312,7 @@ func listCandidatesOf(
 	recorded := map[string]map[float64]bool{}
 	tids, counts := []int32{}, []float64{}
 	names, numbers := []string{}, []int64{}
+	stems, stemNumbers := []string{}, []int64{}
 	dramas := []*Drama{}
 	for _, s := range series {
 		recorded[s.key.id()] = map[float64]bool{}
@@ -215,6 +323,9 @@ func listCandidatesOf(
 			dramas = append(dramas, s.key.Drama)
 		default:
 			names, numbers = append(names, s.key.Series), append(numbers, int64(s.key.Number))
+			if s.family {
+				stems, stemNumbers = append(stems, s.key.Series), append(stemNumbers, int64(s.key.Number))
+			}
 		}
 	}
 
@@ -242,30 +353,14 @@ func listCandidatesOf(
 	}
 
 	if len(names) > 0 {
-		rows, err := q.ListSeriesNextProgramsBatch(ctx, sqlc.ListSeriesNextProgramsBatchParams{
-			Series: names, Numbers: numbers, Since: now, Until: now.Add(Horizon), MaxRows: maxCandidates,
-		})
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list the next programs of the series: %w", err)
+		if err := listSeriesCandidatesOf(ctx, q, names, numbers, now, candidates, recorded); err != nil {
+			return nil, nil, err
 		}
-		for i := range rows {
-			id := seriesID(rows[i].KeySeries)
-			candidates[id] = append(candidates[id], &Candidate{
-				ServiceID: rows[i].ServiceID, EventID: rows[i].EventID, StartAt: rows[i].StartAt, Number: rows[i].EpisodeNumber,
-				RelatedItems: rows[i].RelatedItems,
-			})
-		}
-		history, err := q.ListRecordedSeriesEpisodesBatch(ctx, names)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list the recorded episodes of the series: %w", err)
-		}
-		for i := range history {
-			ep := episode.Parse(&episode.Source{
-				Name: history[i].Name, Description: history[i].Description, Extended: "", SeriesEpisode: history[i].SeriesEpisode, Anime: nil,
-			})
-			if ep.Series == history[i].KeySeries && ep.Number > 0 {
-				recorded[seriesID(history[i].KeySeries)][float64(ep.Number)] = true
-			}
+	}
+
+	if len(stems) > 0 {
+		if err := listFamilyCandidatesOf(ctx, q, stems, stemNumbers, now, candidates, recorded); err != nil {
+			return nil, nil, err
 		}
 	}
 
@@ -276,6 +371,92 @@ func listCandidatesOf(
 	}
 
 	return candidates, recorded, nil
+}
+
+// listSeriesCandidatesOf は、シリーズ名 names[i] ごとに、話数が numbers[i] より大きい続きの放送の候補と、録画履歴にある録った回の話数を、
+// candidates と recorded に足す。候補の番組と録画履歴は、それぞれまとめて引く。
+func listSeriesCandidatesOf(
+	ctx context.Context, q *sqlc.Queries, names []string, numbers []int64, now time.Time,
+	candidates map[string][]*Candidate, recorded map[string]map[float64]bool,
+) error {
+	rows, err := q.ListSeriesNextProgramsBatch(ctx, sqlc.ListSeriesNextProgramsBatchParams{
+		Series: names, Numbers: numbers, Since: now, Until: now.Add(Horizon), MaxRows: maxCandidates,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list the next programs of the series: %w", err)
+	}
+	for i := range rows {
+		id := seriesID(rows[i].KeySeries)
+		candidates[id] = append(candidates[id], &Candidate{
+			ServiceID: rows[i].ServiceID, EventID: rows[i].EventID, StartAt: rows[i].StartAt, Number: rows[i].EpisodeNumber,
+			RelatedItems: rows[i].RelatedItems,
+		})
+	}
+	history, err := q.ListRecordedSeriesEpisodesBatch(ctx, names)
+	if err != nil {
+		return fmt.Errorf("failed to list the recorded episodes of the series: %w", err)
+	}
+	for i := range history {
+		ep := episode.Parse(&episode.Source{
+			Name: history[i].Name, Description: history[i].Description, Extended: "", SeriesEpisode: history[i].SeriesEpisode, Anime: nil,
+		})
+		if ep.Series == history[i].KeySeries && ep.Number > 0 {
+			recorded[seriesID(history[i].KeySeries)][float64(ep.Number)] = true
+		}
+	}
+
+	return nil
+}
+
+// listFamilyCandidatesOf は、まとめたシリーズ (mergeFamilies) の作品名 stems[i] ごとに、番組名に副題が入った回の、話数が numbers[i] より
+// 大きい続きの放送の候補と、録画履歴にある録った回の話数を、candidates と recorded に足す (#2023)。
+// シリーズ名が作品名で始まるだけの別の番組を拾わないよう、番組名から読み直した作品名 (episode.Stem) が同じものだけを使う。
+func listFamilyCandidatesOf(
+	ctx context.Context, q *sqlc.Queries, stems []string, numbers []int64, now time.Time,
+	candidates map[string][]*Candidate, recorded map[string]map[float64]bool,
+) error {
+	rows, err := q.ListSeriesFamilyNextProgramsBatch(ctx, sqlc.ListSeriesFamilyNextProgramsBatchParams{
+		Stems: stems, Numbers: numbers, Since: now, Until: now.Add(Horizon),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list the next programs of the series with subtitles: %w", err)
+	}
+	for i := range rows {
+		if episode.Stem(rows[i].Name) != rows[i].KeyStem {
+			continue
+		}
+		id := seriesID(rows[i].KeyStem)
+		if len(candidates[id]) >= maxCandidates {
+			continue
+		}
+		candidates[id] = append(candidates[id], &Candidate{
+			ServiceID: rows[i].ServiceID, EventID: rows[i].EventID, StartAt: rows[i].StartAt, Number: rows[i].EpisodeNumber,
+			RelatedItems: rows[i].RelatedItems,
+		})
+	}
+	// 作品名のシリーズ名の候補と合わせたので、放送の早い順に並べ直す。
+	for _, stem := range stems {
+		slices.SortStableFunc(candidates[seriesID(stem)], func(a, b *Candidate) int {
+			return cmp.Or(a.StartAt.Compare(b.StartAt), cmp.Compare(a.ServiceID, b.ServiceID), cmp.Compare(a.EventID, b.EventID))
+		})
+	}
+	history, err := q.ListRecordedSeriesFamilyEpisodesBatch(ctx, stems)
+	if err != nil {
+		return fmt.Errorf("failed to list the recorded episodes of the series with subtitles: %w", err)
+	}
+	for i := range history {
+		if episode.Stem(history[i].Name) != history[i].KeyStem {
+			continue
+		}
+		ep := episode.Parse(&episode.Source{
+			Name: history[i].Name, Description: history[i].Description, Extended: "", SeriesEpisode: history[i].SeriesEpisode, Anime: nil,
+		})
+		if ep.Number > 0 {
+			recorded[seriesID(history[i].KeyStem)][float64(ep.Number)] = true
+		}
+	}
+
+	return nil
 }
 
 // listDramaCandidatesOf は、TMDB の作品のシーズン dramas ごとの続きの放送の候補と、録画履歴にある録った話の番号を、
