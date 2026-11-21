@@ -327,6 +327,33 @@ func (q *Queries) ListDramaNextProgramsBatch(ctx context.Context, arg ListDramaN
 	return items, nil
 }
 
+const listKnownSeries = `-- name: ListKnownSeries :many
+SELECT p.series::text AS series FROM programs p WHERE p.series = ANY($1::text[]) AND p.episode_number IS NOT NULL
+UNION
+SELECT h.series::text AS series FROM recording_history h WHERE h.series = ANY($1::text[])
+`
+
+// series のうち、話数のある番組表の番組か、録画履歴のシリーズ名にあるもの (#2023)。副題のない回があるかを確かめる。
+func (q *Queries) ListKnownSeries(ctx context.Context, series []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listKnownSeries, series)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var series string
+		if err := rows.Scan(&series); err != nil {
+			return nil, err
+		}
+		items = append(items, series)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordedAnimeCounts = `-- name: ListRecordedAnimeCounts :many
 SELECT DISTINCT anime_count::double precision AS anime_count
 FROM recording_history
@@ -518,6 +545,115 @@ func (q *Queries) ListRecordedSeriesEpisodesBatch(ctx context.Context, series []
 			&i.Name,
 			&i.Description,
 			&i.SeriesEpisode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordedSeriesFamilyEpisodesBatch = `-- name: ListRecordedSeriesFamilyEpisodesBatch :many
+SELECT k.stem::text AS key_stem, h.name, h.description, h.series_episode
+FROM unnest($1::text[]) AS k(stem)
+JOIN recording_history h ON starts_with(h.series, k.stem) AND h.series <> k.stem
+`
+
+type ListRecordedSeriesFamilyEpisodesBatchRow struct {
+	KeyStem       string
+	Name          string
+	Description   string
+	SeriesEpisode *int32
+}
+
+// シリーズ名が作品名 stems のどれかで始まる (作品名そのものは除く) 録画履歴の、回を読む元 (#2023)。
+// 作品名で始まるだけでは同じ作品とは限らないので、呼ぶ側が番組名を読み直して確かめる。
+func (q *Queries) ListRecordedSeriesFamilyEpisodesBatch(ctx context.Context, stems []string) ([]ListRecordedSeriesFamilyEpisodesBatchRow, error) {
+	rows, err := q.db.Query(ctx, listRecordedSeriesFamilyEpisodesBatch, stems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordedSeriesFamilyEpisodesBatchRow{}
+	for rows.Next() {
+		var i ListRecordedSeriesFamilyEpisodesBatchRow
+		if err := rows.Scan(
+			&i.KeyStem,
+			&i.Name,
+			&i.Description,
+			&i.SeriesEpisode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSeriesFamilyNextProgramsBatch = `-- name: ListSeriesFamilyNextProgramsBatch :many
+SELECT k.stem::text AS key_stem, c.service_id, c.event_id, c.start_at, c.episode_number, c.related_items, c.name
+FROM (SELECT unnest($1::text[]) AS stem, unnest($2::bigint[]) AS number) AS k
+CROSS JOIN LATERAL (
+  SELECT p.service_id, p.event_id, p.start_at, p.episode_number::double precision AS episode_number, p.related_items, p.name
+  FROM programs p
+  WHERE starts_with(p.series, k.stem) AND p.series <> k.stem AND p.episode_number IS NOT NULL AND p.episode_number > k.number
+    AND p.start_at >= $3 AND p.start_at < $4 AND NOT p.end_undecided
+  ORDER BY p.start_at, p.service_id, p.event_id
+  LIMIT $5::integer
+) c
+ORDER BY k.stem, c.start_at, c.service_id, c.event_id
+`
+
+type ListSeriesFamilyNextProgramsBatchParams struct {
+	Stems   []string
+	Numbers []int64
+	Since   time.Time
+	Until   time.Time
+	MaxRows int32
+}
+
+type ListSeriesFamilyNextProgramsBatchRow struct {
+	KeyStem       string
+	ServiceID     int64
+	EventID       int64
+	StartAt       time.Time
+	EpisodeNumber float64
+	RelatedItems  []byte
+	Name          string
+}
+
+// シリーズ名が作品名 stems[i] で始まり (作品名そのものは除く)、話数が numbers[i] より大きく、since から until までに始まる、
+// 終了時刻の決まった番組を、放送の早い順に max_rows 件まで返す (#2023)。番組名に副題が入り、シリーズ名が回ごとに変わる作品の回を探す。
+// 作品名で始まるだけでは同じ作品とは限らないので、呼ぶ側が番組名を読み直して確かめる。
+func (q *Queries) ListSeriesFamilyNextProgramsBatch(ctx context.Context, arg ListSeriesFamilyNextProgramsBatchParams) ([]ListSeriesFamilyNextProgramsBatchRow, error) {
+	rows, err := q.db.Query(ctx, listSeriesFamilyNextProgramsBatch,
+		arg.Stems,
+		arg.Numbers,
+		arg.Since,
+		arg.Until,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSeriesFamilyNextProgramsBatchRow{}
+	for rows.Next() {
+		var i ListSeriesFamilyNextProgramsBatchRow
+		if err := rows.Scan(
+			&i.KeyStem,
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EpisodeNumber,
+			&i.RelatedItems,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}

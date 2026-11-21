@@ -262,3 +262,69 @@ func TestFindForUserByDramaNextSeason(t *testing.T) {
 		})
 	}
 }
+
+// TestFindForUserMergesSubtitledSeries は、番組名に副題が入ってシリーズ名が回ごとに変わる作品でも、副題のない回があれば
+// 1 つのシリーズにまとめ、見た回の再放送を出さず、次の回を出すことを確かめる (#2023)。
+func TestFindForUserMergesSubtitledSeries(t *testing.T) {
+	t.Parallel()
+
+	programs := []*faketuner.Program{
+		// 見た第 5 話の再放送は、副題のない番組名で、第 6 話より先に放送される。
+		fakeProgram(fakeGRNetwork, fakeGRService, 600, time.Hour, "港町の灯　＃０５🈞"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 601, 5*time.Hour, "港町の灯　六つ目の嵐　＃０６🈑🈓"),
+		// 枠の名前の後ろに作品名を書く番組は、副題のない回がなければまとめない。見た「霧の駅」の続きに、別の作品を出さない。
+		fakeProgram(fakeGRNetwork, fakeGRService, 611, 3*time.Hour, "連続劇場　雪の峠　＃５"),
+		// 作品名の後ろの語が期 (数字) なら、副題のない回があってもまとめない。
+		fakeProgram(fakeGRNetwork, fakeGRService, 620, 4*time.Hour, "灯台守　＃３"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 621, 6*time.Hour, "灯台守　４　＃１６"),
+	}
+	watch := func(t *testing.T, f *findFixture, user uuid.UUID) uuid.UUID {
+		t.Helper()
+
+		f.addWatched(t, user, "港町の灯　＃０１🈑🈓", 1, 5*time.Hour)
+		f.addWatched(t, user, "港町の灯　二つの影　＃０２🈑🈓", 1, 4*time.Hour)
+		f.addWatched(t, user, "港町の灯　三つの鐘　＃０３🈑🈓", 1, 3*time.Hour)
+		f.addWatched(t, user, "港町の灯　四つの窓　＃０４🈑🈓", 1, 2*time.Hour)
+		ep5 := f.addWatched(t, user, "港町の灯　五つ目の約束　＃０５🈑🈓", 1, time.Hour)
+		f.addWatched(t, user, "連続劇場　霧の駅　＃３", 1, time.Hour)
+		f.addWatched(t, user, "灯台守　＃１４", 1, time.Hour)
+
+		return ep5
+	}
+
+	t.Run("見た回の再放送を出さず、副題のある次の回を出す", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, programs)
+		user := f.addUser(t, "user")
+		ep5 := watch(t, f, user)
+
+		got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
+		require.NoError(t, err)
+		assert.Equal(t, []suggestion{{recording: ep5, eventID: 601}}, suggestionsOf(got))
+	})
+	t.Run("次の回に予約があれば出さない", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, programs)
+		f.reserve(t, fakeGRNetwork, fakeGRService, 601, true)
+		user := f.addUser(t, "user")
+		watch(t, f, user)
+
+		got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+	t.Run("副題のある回を録画済みなら出さない", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, programs)
+		f.addHistory(t, "港町の灯　六つ目の嵐　＃０６🈑🈓", "港町の灯六つ目の嵐", nil, nil)
+		user := f.addUser(t, "user")
+		watch(t, f, user)
+
+		got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+}

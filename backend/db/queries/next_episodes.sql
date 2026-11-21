@@ -156,3 +156,32 @@ FROM recording_history h
 JOIN (SELECT unnest(@series_ids::integer[]) AS series_id, unnest(@seasons::integer[]) AS season) AS k
   ON h.tmdb_series_id = k.series_id AND h.tmdb_season_number = k.season
 WHERE h.tmdb_episode_number IS NOT NULL;
+
+-- name: ListSeriesFamilyNextProgramsBatch :many
+-- シリーズ名が作品名 stems[i] で始まり (作品名そのものは除く)、話数が numbers[i] より大きく、since から until までに始まる、
+-- 終了時刻の決まった番組を、放送の早い順に max_rows 件まで返す (#2023)。番組名に副題が入り、シリーズ名が回ごとに変わる作品の回を探す。
+-- 作品名で始まるだけでは同じ作品とは限らないので、呼ぶ側が番組名を読み直して確かめる。
+SELECT k.stem::text AS key_stem, c.service_id, c.event_id, c.start_at, c.episode_number, c.related_items, c.name
+FROM (SELECT unnest(@stems::text[]) AS stem, unnest(@numbers::bigint[]) AS number) AS k
+CROSS JOIN LATERAL (
+  SELECT p.service_id, p.event_id, p.start_at, p.episode_number::double precision AS episode_number, p.related_items, p.name
+  FROM programs p
+  WHERE starts_with(p.series, k.stem) AND p.series <> k.stem AND p.episode_number IS NOT NULL AND p.episode_number > k.number
+    AND p.start_at >= @since AND p.start_at < @until AND NOT p.end_undecided
+  ORDER BY p.start_at, p.service_id, p.event_id
+  LIMIT @max_rows::integer
+) c
+ORDER BY k.stem, c.start_at, c.service_id, c.event_id;
+
+-- name: ListRecordedSeriesFamilyEpisodesBatch :many
+-- シリーズ名が作品名 stems のどれかで始まる (作品名そのものは除く) 録画履歴の、回を読む元 (#2023)。
+-- 作品名で始まるだけでは同じ作品とは限らないので、呼ぶ側が番組名を読み直して確かめる。
+SELECT k.stem::text AS key_stem, h.name, h.description, h.series_episode
+FROM unnest(@stems::text[]) AS k(stem)
+JOIN recording_history h ON starts_with(h.series, k.stem) AND h.series <> k.stem;
+
+-- name: ListKnownSeries :many
+-- series のうち、話数のある番組表の番組か、録画履歴のシリーズ名にあるもの (#2023)。副題のない回があるかを確かめる。
+SELECT p.series::text AS series FROM programs p WHERE p.series = ANY(@series::text[]) AND p.episode_number IS NOT NULL
+UNION
+SELECT h.series::text AS series FROM recording_history h WHERE h.series = ANY(@series::text[]);
