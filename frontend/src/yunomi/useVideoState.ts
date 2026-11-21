@@ -17,7 +17,7 @@ export type VideoState = Volume & {
 };
 
 // useVideoState は、video の再生と音量の状態を追い、操作バーから変える。
-// video の要素は、画質を変えたときや、別のウィンドウに移したときに作り直されるので、要素が変わるたびに付け直す。
+// video の要素は、画質を変えたときに作り直されるので、要素が変わるたびに付け直す。
 // 音量は端末ごとに覚えておき、新しい要素にも当てる。
 export function useVideoState(video: HTMLVideoElement | null): VideoState {
   const [paused, setPaused] = useState(true);
