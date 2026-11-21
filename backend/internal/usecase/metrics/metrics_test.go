@@ -193,6 +193,9 @@ kotatsu_storage_pool_threshold_bytes{pool="main"} 300
 # HELP kotatsu_storage_pool_last_measured_timestamp_seconds Time when the capacity check last measured the storage pools.
 # TYPE kotatsu_storage_pool_last_measured_timestamp_seconds gauge
 kotatsu_storage_pool_last_measured_timestamp_seconds{pool="main"} 1.79163354e+09
+# HELP kotatsu_storage_pool_measurement_age_seconds Seconds since the capacity check last measured the storage pools.
+# TYPE kotatsu_storage_pool_measurement_age_seconds gauge
+kotatsu_storage_pool_measurement_age_seconds{pool="main"} 60
 # HELP kotatsu_river_jobs Number of River jobs waiting or running, by queue and state.
 # TYPE kotatsu_river_jobs gauge
 kotatsu_river_jobs{queue="default",state="available"} 2
@@ -207,7 +210,7 @@ kotatsu_metrics_collection_errors 0
 	names := []string{
 		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_failures_total", "kotatsu_recording_last_failure_timestamp_seconds",
 		"kotatsu_recording_active_packets", "kotatsu_reservations", "kotatsu_recording_assignments", "kotatsu_tuners",
-		"kotatsu_storage_pool_bytes", "kotatsu_storage_pool_threshold_bytes", "kotatsu_storage_pool_last_measured_timestamp_seconds", "kotatsu_river_jobs",
+		"kotatsu_storage_pool_bytes", "kotatsu_storage_pool_threshold_bytes", "kotatsu_storage_pool_last_measured_timestamp_seconds", "kotatsu_storage_pool_measurement_age_seconds", "kotatsu_river_jobs",
 		"kotatsu_timeshift_buffer_seconds", "kotatsu_metrics_collection_errors",
 	}
 	require.NoError(t, testutil.CollectAndCompare(collector, strings.NewReader(common), names...))
