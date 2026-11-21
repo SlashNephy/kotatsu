@@ -91,8 +91,8 @@ type Activities struct {
 type WatchlistItem struct {
 	// SimklID は、記録先の作品 ID。
 	SimklID int64
-	// TMDbID は、TMDB の作品 ID。記録先が持っていなければ 0。
-	TMDbID int32
+	// TMDBID は、TMDB の作品 ID。記録先が持っていなければ 0。
+	TMDBID int32
 	// Status は、ウォッチリストの状態 (StatusWatching など)。
 	Status string
 }

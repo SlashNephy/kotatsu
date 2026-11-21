@@ -270,9 +270,9 @@ func (s *Simkl) Watchlist(ctx context.Context, app *App, accessToken, dateFrom s
 		}
 		tmdb := intID(show.Show.IDs["tmdb"])
 		if tmdb > 0 && tmdb <= 1<<31-1 {
-			items = append(items, &WatchlistItem{SimklID: simklID, TMDbID: int32(tmdb), Status: status})
+			items = append(items, &WatchlistItem{SimklID: simklID, TMDBID: int32(tmdb), Status: status})
 		} else {
-			items = append(items, &WatchlistItem{SimklID: simklID, TMDbID: 0, Status: status})
+			items = append(items, &WatchlistItem{SimklID: simklID, TMDBID: 0, Status: status})
 		}
 	}
 

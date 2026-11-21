@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 
 import { Disclaimer } from '../about/Disclaimer';
-import { TMDbAttribution } from '../drama/DramaEpisode';
+import { TMDBAttribution } from '../drama/DramaEpisode';
 import { LicenseList } from '../about/LicenseList';
 import {
   bundledData,
@@ -133,7 +133,7 @@ function AboutContent() {
         <Stack gap="xs">
           <Text fw={600}>{t('about.dataSources')}</Text>
           <Text size="sm">{t('about.tmdb')}</Text>
-          <TMDbAttribution />
+          <TMDBAttribution />
           <Anchor
             href="https://www.themoviedb.org/"
             target="_blank"

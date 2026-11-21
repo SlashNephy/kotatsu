@@ -855,7 +855,7 @@ func (m *Matcher) search(ctx context.Context, r *run, query string) ([]*tmdb.Sea
 		return cached, nil
 	}
 	q := sqlc.New(m.db)
-	row, err := q.GetTMDbSearch(ctx, query)
+	row, err := q.GetTMDBSearch(ctx, query)
 	if err == nil && row.FetchedAt.After(r.now.Add(-SearchMaxAge)) {
 		results := []*tmdb.SearchResult{}
 		if err := json.Unmarshal(row.Results, &results); err != nil {
@@ -879,7 +879,7 @@ func (m *Matcher) search(ctx context.Context, r *run, query string) ([]*tmdb.Sea
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the TMDB search: %w", err)
 	}
-	if err := q.UpsertTMDbSearch(ctx, sqlc.UpsertTMDbSearchParams{Query: query, Results: encoded, Now: m.clock.Now()}); err != nil {
+	if err := q.UpsertTMDBSearch(ctx, sqlc.UpsertTMDBSearchParams{Query: query, Results: encoded, Now: m.clock.Now()}); err != nil {
 		return nil, fmt.Errorf("failed to save the TMDB search: %w", err)
 	}
 	r.searches[query] = results
@@ -893,7 +893,7 @@ func (m *Matcher) seriesDetail(ctx context.Context, r *run, id int32) (*tmdb.Ser
 	if cached, ok := r.series[id]; ok {
 		return cached, nil
 	}
-	row, err := sqlc.New(m.db).GetTMDbSeries(ctx, id)
+	row, err := sqlc.New(m.db).GetTMDBSeries(ctx, id)
 	if err == nil && row.FetchedAt.After(r.now.Add(-DetailMaxAge)) {
 		series, err := seriesOfRow(&row)
 		if err != nil {
@@ -932,7 +932,7 @@ func (m *Matcher) fetchSeries(ctx context.Context, r *run, id int32) (*tmdb.Seri
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the TMDB seasons: %w", err)
 	}
-	if err := sqlc.New(m.db).UpsertTMDbSeries(ctx, sqlc.UpsertTMDbSeriesParams{
+	if err := sqlc.New(m.db).UpsertTMDBSeries(ctx, sqlc.UpsertTMDBSeriesParams{
 		ID: series.ID, Name: series.Name, OriginalName: series.OriginalName, FirstAirDate: dateOf(series.FirstAirDate), Seasons: seasons, Now: m.clock.Now(),
 	}); err != nil {
 		return nil, fmt.Errorf("failed to save the TMDB series: %w", err)
@@ -948,7 +948,7 @@ func (m *Matcher) seasonEpisodes(ctx context.Context, r *run, seriesID, number i
 	if cached, ok := r.seasons[key]; ok {
 		return cached, nil
 	}
-	row, err := sqlc.New(m.db).GetTMDbSeason(ctx, sqlc.GetTMDbSeasonParams{SeriesID: seriesID, SeasonNumber: number})
+	row, err := sqlc.New(m.db).GetTMDBSeason(ctx, sqlc.GetTMDBSeasonParams{SeriesID: seriesID, SeasonNumber: number})
 	if err == nil && row.FetchedAt.After(r.now.Add(-DetailMaxAge)) {
 		episodes := []*tmdb.Episode{}
 		if err := json.Unmarshal(row.Episodes, &episodes); err != nil {
@@ -986,7 +986,7 @@ func (m *Matcher) fetchSeason(ctx context.Context, r *run, seriesID, number int3
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the TMDB season: %w", err)
 	}
-	if err := sqlc.New(m.db).UpsertTMDbSeason(ctx, sqlc.UpsertTMDbSeasonParams{
+	if err := sqlc.New(m.db).UpsertTMDBSeason(ctx, sqlc.UpsertTMDBSeasonParams{
 		SeriesID: seriesID, SeasonNumber: number, Episodes: encoded, Now: m.clock.Now(),
 	}); err != nil {
 		return nil, fmt.Errorf("failed to save the TMDB season: %w", err)
@@ -1034,15 +1034,15 @@ func (m *Matcher) write(ctx context.Context, t *target, link *Link, finalize boo
 func (m *Matcher) prune(ctx context.Context, now time.Time) (int64, error) {
 	q := sqlc.New(m.db)
 	before := now.Add(-CacheRetention)
-	searches, err := q.PruneTMDbSearches(ctx, before)
+	searches, err := q.PruneTMDBSearches(ctx, before)
 	if err != nil {
 		return 0, fmt.Errorf("failed to prune the TMDB searches: %w", err)
 	}
-	series, err := q.PruneTMDbSeries(ctx, before)
+	series, err := q.PruneTMDBSeries(ctx, before)
 	if err != nil {
 		return 0, fmt.Errorf("failed to prune the TMDB series: %w", err)
 	}
-	seasons, err := q.PruneTMDbSeasons(ctx, before)
+	seasons, err := q.PruneTMDBSeasons(ctx, before)
 	if err != nil {
 		return 0, fmt.Errorf("failed to prune the TMDB seasons: %w", err)
 	}
@@ -1063,7 +1063,7 @@ func (m *Matcher) refreshLinked(ctx context.Context, token string, result *Match
 		searches: map[string][]*tmdb.SearchResult{}, series: map[int32]*tmdb.Series{}, seasons: map[seasonKey][]*tmdb.Episode{},
 	}
 	before := now.Add(-linkedRefreshAge)
-	ids, err := q.ListStaleLinkedTMDbSeries(ctx, sqlc.ListStaleLinkedTMDbSeriesParams{Before: before, MaxCount: maxLinkedRefreshes})
+	ids, err := q.ListStaleLinkedTMDBSeries(ctx, sqlc.ListStaleLinkedTMDBSeriesParams{Before: before, MaxCount: maxLinkedRefreshes})
 	if err != nil {
 		return fmt.Errorf("failed to list the stale TMDB series: %w", err)
 	}
@@ -1072,7 +1072,7 @@ func (m *Matcher) refreshLinked(ctx context.Context, token string, result *Match
 			return m.stopRefresh(ctx, err)
 		}
 	}
-	seasons, err := q.ListStaleLinkedTMDbSeasons(ctx, sqlc.ListStaleLinkedTMDbSeasonsParams{Before: before, MaxCount: maxLinkedRefreshes})
+	seasons, err := q.ListStaleLinkedTMDBSeasons(ctx, sqlc.ListStaleLinkedTMDBSeasonsParams{Before: before, MaxCount: maxLinkedRefreshes})
 	if err != nil {
 		return fmt.Errorf("failed to list the stale TMDB seasons: %w", err)
 	}

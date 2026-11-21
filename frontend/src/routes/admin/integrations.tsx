@@ -49,7 +49,7 @@ import { notifySaved, useSaveNotice } from '../../settings/saveNotice';
 import { useAutoSave } from '../../settings/useAutoSave';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
-import { parseTMDbSeriesId } from '../../drama/DramaEpisode';
+import { parseTMDBSeriesId } from '../../drama/DramaEpisode';
 import { SudoGate } from '../../settings/SudoGate';
 import type {
   WebhookFormat,
@@ -1017,7 +1017,7 @@ function DramaLinkingSettings({
   const [programName, setProgramName] = useState('');
   const [series, setSeries] = useState('');
   const [saving, setSaving] = useState(false);
-  const seriesId = parseTMDbSeriesId(series);
+  const seriesId = parseTMDBSeriesId(series);
   const run = async (input: DramaTitleOverrideInput) => {
     setSaving(true);
     try {

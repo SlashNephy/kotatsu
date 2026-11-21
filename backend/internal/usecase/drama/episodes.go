@@ -69,7 +69,7 @@ func linked(
 		SeriesID: *seriesID, SeriesName: nil, SeriesOriginalName: nil, SeasonNumber: seasonNumber, EpisodeNumber: episodeNumber,
 		EpisodeName: nil, SeriesSource: valueOf(seriesSource), EpisodeSource: valueOf(episodeSource),
 	}
-	series, err := q.GetTMDbSeries(ctx, *seriesID)
+	series, err := q.GetTMDBSeries(ctx, *seriesID)
 	switch {
 	case err == nil:
 		if series.Name != "" {
@@ -84,7 +84,7 @@ func linked(
 	if seasonNumber == nil || episodeNumber == nil {
 		return episode, true, nil
 	}
-	season, err := q.GetTMDbSeason(ctx, sqlc.GetTMDbSeasonParams{SeriesID: *seriesID, SeasonNumber: *seasonNumber})
+	season, err := q.GetTMDBSeason(ctx, sqlc.GetTMDBSeasonParams{SeriesID: *seriesID, SeasonNumber: *seasonNumber})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return episode, true, nil
 	}

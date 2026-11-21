@@ -77,7 +77,7 @@ func TestTokensInvalid(t *testing.T) {
 	db := newDB(t)
 	clk := clocktest.NewFake(jst(15, 0, 0))
 	tokens := newTokens(t, clk)
-	setToken(t, db, tokens, testTMDbKey)
+	setToken(t, db, tokens, testTMDBKey)
 
 	tests := []struct {
 		name  string
@@ -96,7 +96,7 @@ func TestTokensInvalid(t *testing.T) {
 			require.ErrorIs(t, err, drama.ErrInvalidToken)
 			got, err := tokens.Token(t.Context(), db)
 			require.NoError(t, err)
-			assert.Equal(t, testTMDbKey, got, "the previous token is kept")
+			assert.Equal(t, testTMDBKey, got, "the previous token is kept")
 		})
 	}
 }

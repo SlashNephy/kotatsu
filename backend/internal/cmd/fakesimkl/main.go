@@ -69,7 +69,7 @@ func serve(ctx context.Context, logger *slog.Logger, listen, control, clientID, 
 type controlRequest struct {
 	Items []struct {
 		SimklID int64  `json:"simklId"`
-		TMDbID  int32  `json:"tmdbId"`
+		TMDBID  int32  `json:"tmdbId"`
 		Status  string `json:"status"`
 	} `json:"items"`
 	// Removed なら、作品を外したことにする (/sync/activities の removed_from_list を進める)。
@@ -89,7 +89,7 @@ func controlHandler(fake *simkltest.Server) http.Handler {
 		now := time.Now().UTC()
 		items := make([]*simkltest.Item, 0, len(body.Items))
 		for _, item := range body.Items {
-			items = append(items, &simkltest.Item{SimklID: item.SimklID, TMDbID: item.TMDbID, Status: item.Status, UpdatedAt: now})
+			items = append(items, &simkltest.Item{SimklID: item.SimklID, TMDBID: item.TMDBID, Status: item.Status, UpdatedAt: now})
 		}
 		fake.Lock()
 		fake.Items = items
