@@ -88,6 +88,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/iptvapi"
 	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
+	"github.com/SlashNephy/kotatsu/internal/web/kyusuapi"
 	"github.com/SlashNephy/kotatsu/internal/web/mcpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/metricsapi"
 	"github.com/SlashNephy/kotatsu/internal/web/spa"
@@ -662,8 +663,9 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 
 			return err
 		}
-		mux.Handle(kyusu.LivePathPrefix, live.Handler(token))
-		vodHandler := vod.Handler(token)
+		kyusuLogger := logger.With(slog.String("component", "kyusu"))
+		mux.Handle(kyusu.LivePathPrefix, kyusuapi.LiveHandler(kyusuLogger, live, token))
+		vodHandler := kyusuapi.VODHandler(kyusuLogger, vod, token)
 		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
 		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
 		mux.Handle(kyusu.LibraryPathPrefix, vodHandler)

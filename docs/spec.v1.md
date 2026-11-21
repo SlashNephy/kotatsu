@@ -3090,7 +3090,7 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `backend/internal/query/` | トランザクションの外の読み取り。DBのプールだけを持ち、`domain`の型を返します |
 | `backend/internal/domain/` | DBに触れない型と規則（番組のジャンルや音声の型、EPGの正規化と囲み文字の表、`match/`のルールの条件の照合、`tunerserver/`のチューナーサーバーの種類に依らない型とinterfaceなど） |
 | `backend/internal/infra/` | DBと外部への接続（`database/`、`mirakurun/`のMirakurun互換のチューナーサーバーのクライアント（応答を`domain/tunerserver`の型に変換します）、`mirakurunapi/`の、`domain/tunerserver`の型をMirakurun互換のAPIとして公開するサーバー（nabeが使います）、`jikkyoclient/`のニコニコ実況のクライアント、`kago/`の保存先プール、`jobs/`、`notify/`など） |
-| `backend/internal/web/` | HTTPの口（`graph/`のGraphQLのスキーマとリゾルバ、`mcpserver/`、`epgstationapi/`、`streamapi/`のtenbanの配信、`jikkyoapi/`の実況のコメント、`avatar/`、`httpserver/`、`spa/`、`webui/`のビルドしたSPAの埋め込み） |
+| `backend/internal/web/` | HTTPの口（`graph/`のGraphQLのスキーマとリゾルバ、`mcpserver/`、`epgstationapi/`、`streamapi/`のtenbanの配信、`kyusuapi/`のkyusuの配信のルート、`jikkyoapi/`の実況のコメント、`avatar/`、`httpserver/`、`spa/`、`webui/`のビルドしたSPAの埋め込み） |
 | `backend/internal/lib/` | ドメインに依らない小さな部品（`clock/`、`config/`、`ts/`、`password/`など） |
 | `backend/internal/testutil/` | テスト用の部品（`databasetest/`、`faketuner/`など） |
 | `backend/db/` | `schema.sql`、マイグレーション、sqlcのクエリ |
