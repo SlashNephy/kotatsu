@@ -17,6 +17,7 @@ const renderers = vi.hoisted(
 
 vi.mock('@xpadev-net/niconicomments', () => ({
   default: class {
+    static internal = { renderer: { createRenderer: (canvas: unknown) => canvas } };
     state: (typeof renderers)[number];
     constructor(
       _canvas: unknown,
