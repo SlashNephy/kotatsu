@@ -568,38 +568,35 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
 }
 
 // SourceRuleItems は、ルール予約のもとになったルールを、予約のボタンの ▾ のメニューに並べ、ルールの画面へ移れるようにする。
-// ルールが 1 つなら「ルール「A」を開く」の 1 項目にする。複数なら見出しの下にルール名を並べ、録画の設定に使う
+// ルールの数によらず、「関連するルール」の見出しの下にルール名を並べる。複数のルールに一致したときは、録画の設定に使う
 // 最も古いルール (先頭) に「録画の設定」と添える。もとのルールを消していれば、何も出さない。
 function SourceRuleItems({ rules }: { rules: ReadonlyArray<{ id: string; name: string }> }) {
   const { t } = useTranslation();
   if (rules.length === 0) {
     return null;
   }
-  const item = (rule: { id: string; name: string }, label: string, settings: boolean) => (
-    <Menu.Item
-      key={rule.id}
-      leftSection={<ListChecks size={16} aria-hidden />}
-      rightSection={
-        settings ? (
-          <Badge size="xs" variant="light" color="gray">
-            {t('guide.detail.ruleSettings')}
-          </Badge>
-        ) : undefined
-      }
-      renderRoot={(props) => <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />}
-    >
-      {label}
-    </Menu.Item>
-  );
-  const [first] = rules;
-  if (rules.length === 1 && first !== undefined) {
-    return item(first, t('guide.detail.openRule', { name: first.name }), false);
-  }
 
   return (
     <>
-      <Menu.Label>{t('guide.detail.sourceRules')}</Menu.Label>
-      {rules.map((rule, index) => item(rule, rule.name, index === 0))}
+      <Menu.Label>{t('guide.detail.relatedRules')}</Menu.Label>
+      {rules.map((rule, index) => (
+        <Menu.Item
+          key={rule.id}
+          leftSection={<ListChecks size={16} aria-hidden />}
+          rightSection={
+            rules.length > 1 && index === 0 ? (
+              <Badge size="xs" variant="light" color="gray">
+                {t('guide.detail.ruleSettings')}
+              </Badge>
+            ) : undefined
+          }
+          renderRoot={(props) => (
+            <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />
+          )}
+        >
+          {rule.name}
+        </Menu.Item>
+      ))}
       <Menu.Divider />
     </>
   );

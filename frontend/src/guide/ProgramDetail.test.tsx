@@ -78,7 +78,8 @@ describe('ProgramDetail', () => {
     await act(async () =>
       fireEvent.click(screen.getByRole('button', { name: '録画予約のほかの操作' })),
     );
-    const item = await screen.findByRole('menuitem', { name: 'ルール「縁側の午後」を開く' });
+    expect(await screen.findByText('関連するルール')).toBeTruthy();
+    const item = screen.getByRole('menuitem', { name: '縁側の午後' });
     expect(item.getAttribute('href')).toMatch(/^\/rules\/[^/]+$/);
   });
 
