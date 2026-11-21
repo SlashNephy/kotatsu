@@ -27,6 +27,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
+	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 )
 
 const (
@@ -54,6 +55,8 @@ type fixture struct {
 	dataRoot string
 	store    *kago.Store
 	inserter *jobs.Client
+	// preview は、プレビュー画像を作る設定かどうか。既定は true。
+	preview bool
 }
 
 // segmentID は、録画 recordingID の、プール内の相対パスが path のセグメントのファイルの ID を返す。
@@ -88,6 +91,7 @@ func newFixture(t *testing.T) *fixture {
 
 	return &fixture{
 		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot, store: kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dataRoot), inserter: inserter,
+		preview: true,
 	}
 }
 
@@ -132,10 +136,15 @@ func (f *fixture) analyze(t *testing.T, recordingID uuid.UUID) error {
 func (f *fixture) analyzeWithPriority(t *testing.T, recordingID uuid.UUID, priority int) error {
 	t.Helper()
 
-	worker := analysis.NewAnalyzeWorker(f.pool, f.store, f.clock, f.inserter)
+	worker := f.worker()
 	job := &river.Job[analysis.AnalyzeArgs]{JobRow: &rivertype.JobRow{Priority: priority}, Args: analysis.AnalyzeArgs{RecordingID: recordingID}}
 
 	return worker.Work(t.Context(), job)
+}
+
+// worker は、テストの設定で AnalyzeWorker を作る。
+func (f *fixture) worker() *analysis.AnalyzeWorker {
+	return analysis.NewAnalyzeWorker(f.pool, f.store, f.clock, f.inserter, func(context.Context) (bool, error) { return f.preview, nil })
 }
 
 func loadTestTS(t *testing.T) []byte {
@@ -470,7 +479,7 @@ func TestAnalyzeWorkerStopsWhenCancelled(t *testing.T) {
 	recordingID := f.recording(t, completedWithErrors, loadTestTS(t))
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	worker := analysis.NewAnalyzeWorker(f.pool, f.store, f.clock, f.inserter)
+	worker := f.worker()
 	err := worker.Work(ctx, &river.Job[analysis.AnalyzeArgs]{JobRow: new(rivertype.JobRow), Args: analysis.AnalyzeArgs{RecordingID: recordingID}})
 	require.ErrorIs(t, err, context.Canceled)
 	var cancelErr *rivertype.JobCancelError
@@ -614,4 +623,69 @@ func continuousRepeat(data []byte, n int) []byte {
 	}
 
 	return repeated
+}
+
+// TestAnalyzeWorkerRegeneratesImagesOnlyWhenNeeded は、解析し直した後、索引が前と変わったときか、
+// 画像がデータディレクトリにないときだけ、画像を作るジョブを投入することを確かめる (#2012)。
+func TestAnalyzeWorkerRegeneratesImagesOnlyWhenNeeded(t *testing.T) {
+	t.Parallel()
+
+	allImages := []string{thumbnail.ThumbnailFileName, thumbnail.PreviewFileName, thumbnail.ManifestFileName}
+	tests := []struct {
+		name string
+		// preview は、プレビュー画像を作る設定かどうか。
+		preview bool
+		// images は、解析し直す前に、データディレクトリに置く画像。
+		images []string
+		// staleIndex なら、解析し直す前に、索引を前の版の中身 (違う索引) に置き換える。
+		staleIndex bool
+		want       int
+	}{
+		{name: "索引が変わらず、画像がそろっていれば、作り直さない", preview: true, images: allImages, staleIndex: false, want: 0},
+		{name: "索引が変わったら、画像がそろっていても作り直す", preview: true, images: allImages, staleIndex: true, want: 1},
+		{
+			name: "代表画像がなければ作る", preview: true, images: []string{thumbnail.PreviewFileName, thumbnail.ManifestFileName},
+			staleIndex: false, want: 1,
+		},
+		{name: "プレビュー画像を作る設定で、プレビュー画像がなければ作る", preview: true, images: []string{thumbnail.ThumbnailFileName}, staleIndex: false, want: 1},
+		{
+			name: "プレビュー画像を作らない設定なら、プレビュー画像がなくても作り直さない", preview: false,
+			images: []string{thumbnail.ThumbnailFileName}, staleIndex: false, want: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			f.preview = tt.preview
+			recordingID := f.recording(t, completed, singleTestTS(t)...)
+			// 最初の解析は、索引がないので、画像を作る。
+			require.NoError(t, f.analyze(t, recordingID))
+			require.Equal(t, 1, f.thumbnailJobs(t))
+			_, err := f.pool.Exec(t.Context(), "DELETE FROM river_job WHERE kind = 'thumbnail_generate'")
+			require.NoError(t, err)
+
+			segmentID := f.segmentID(t, recordingID, segmentName)
+			for _, name := range tt.images {
+				require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, kago.DataLocation(segmentID, name).Path), []byte("image"), 0o600))
+			}
+			if tt.staleIndex {
+				require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, kago.IndexLocation(segmentID).Path), []byte("stale"), 0o600))
+			}
+			require.NoError(t, f.analyze(t, recordingID))
+
+			assert.Equal(t, tt.want, f.thumbnailJobs(t))
+		})
+	}
+}
+
+// thumbnailJobs は、投入された、画像を作るジョブの数を返す。
+func (f *fixture) thumbnailJobs(t *testing.T) int {
+	t.Helper()
+
+	var n int
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM river_job WHERE kind = 'thumbnail_generate'").Scan(&n))
+
+	return n
 }
