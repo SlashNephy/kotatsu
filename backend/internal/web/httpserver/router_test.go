@@ -197,7 +197,7 @@ func TestCanonicalPath(t *testing.T) {
 		wantStatus   int
 		wantLocation string
 	}{
-		{name: "clean", method: http.MethodGet, target: "/guide", wantStatus: http.StatusOK, wantLocation: ""},
+		{name: "clean", method: http.MethodGet, target: guidePath, wantStatus: http.StatusOK, wantLocation: ""},
 		{name: "trailing slash is kept", method: http.MethodGet, target: "/guide/", wantStatus: http.StatusOK, wantLocation: ""},
 		{name: "double slash", method: http.MethodGet, target: "//guide//x", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/guide/x"},
 		{name: "dot segments with query", method: http.MethodPost, target: "/a/./b/../guide?x=1", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/a/guide?x=1"},

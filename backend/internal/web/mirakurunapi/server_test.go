@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
+	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/mirakurunapi"
 )
 
@@ -426,5 +427,55 @@ func TestNabeHandlerRoutes(t *testing.T) {
 			assert.Equal(t, tt.wantCode, rec.Code)
 			assert.Equal(t, tt.wantAllow, rec.Header().Get("Allow"))
 		})
+	}
+}
+
+// authorizing は、リクエストに nabe のトークンを付ける。
+type authorizing struct {
+	token interface{ Authorize(r *http.Request) }
+}
+
+func (a *authorizing) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	a.token.Authorize(r)
+
+	return http.DefaultTransport.RoundTrip(r)
+}
+
+// TestNabeThroughAPIRouter は、API の待ち受けの一番外側のルーターに載せた nabe から、ストリームとイベントを
+// 読み切れることを確かめる (#2016)。どちらも、echo のルーターを 2 段通って、書くたびに届く。
+func TestNabeThroughAPIRouter(t *testing.T) {
+	t.Parallel()
+
+	ts := bytes.Repeat([]byte{0x47, 0x01, 0x00, 0x10}, 47)
+	source := testSource()
+	source.streams[3273601024] = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(ts)), nil }
+	source.events = []*tunerserver.Event{
+		{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0},
+		{Type: tunerserver.EventTypeProgramUpdated, ServiceID: 3273601024},
+	}
+	token, err := nabe.NewToken("kotatsu-nabe-test-application-key-0123456789")
+	require.NoError(t, err)
+	logger := slog.New(slog.DiscardHandler)
+	router := httpserver.NewAPIRouter(logger, nil, map[string]http.Handler{nabe.PathPrefix: mirakurunapi.NabeHandler(source, token, "2026.11.0", logger)}, nil)
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+	client, err := mirakurun.New(&mirakurun.Options{URL: server.URL + nabe.PathPrefix, HTTPClient: &http.Client{Transport: &authorizing{token: token}}})
+	require.NoError(t, err)
+
+	stream, err := client.OpenServiceStream(t.Context(), 3273601024, nil)
+	require.NoError(t, err)
+	got, err := io.ReadAll(stream)
+	require.NoError(t, err)
+	require.NoError(t, stream.Close())
+	assert.Equal(t, ts, got)
+
+	events, err := client.OpenEvents(t.Context())
+	require.NoError(t, err)
+	defer events.Close()
+	for _, want := range source.events {
+		got, err := events.Next()
+		require.NoError(t, err)
+		assert.Equal(t, want, got)
 	}
 }
