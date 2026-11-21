@@ -123,6 +123,23 @@ describe('DramaEpisode', () => {
     expect(screen.queryByText('「第7話」')).toBeNull();
   });
 
+  test('日本語の名前がなく、英語の仮の名前になった話も、話の名前を出さない', () => {
+    renderEpisode(episode({ episodeName: 'Episode 7' }), false);
+
+    expect(screen.queryByText('「Episode 7」')).toBeNull();
+  });
+
+  test('画面の言語が英語でも、日本語の仮の名前を出さない', async () => {
+    await i18next.changeLanguage('en');
+    try {
+      renderEpisode(episode({ episodeName: '第7話' }), false);
+
+      expect(screen.queryByText('「第7話」')).toBeNull();
+    } finally {
+      await i18next.changeLanguage('ja');
+    }
+  });
+
   test('話の名前が別の話数の形なら、仮の名前とみなさずに出す', () => {
     renderEpisode(episode({ episodeName: '第8話' }), false);
 

@@ -81,6 +81,18 @@ export function parseTMDbSeriesId(value: string): number | null {
   return Number.isSafeInteger(id) && id > 0 && id <= 2147483647 ? id : null;
 }
 
+// isPlaceholderEpisodeName は、話の名前 name が、TMDB が名前の決まっていない話に付ける仮の名前 (第6話、Episode 6) かどうかを返す。
+export function isPlaceholderEpisodeName(
+  name: string,
+  episodeNumber: number | null | undefined,
+): boolean {
+  if (episodeNumber == null) {
+    return false;
+  }
+
+  return name === `第${episodeNumber}話` || name === `Episode ${episodeNumber}`;
+}
+
 // TMDbAttribution は、TMDB の API の利用規約が求める帰属の表示 (TMDB のロゴと注記)。
 // 規約は、帰属の表示をアプリの「About」か「Credits」の区画に置くよう求めるので、このアプリについての画面 (/about) にだけ出す。
 // ロゴは、Kotatsu のロゴより目立たないよう、文字と同じくらいの高さにする。画像は同梱し、外部から読まない。
@@ -117,9 +129,11 @@ export function DramaEpisode({
   const label = dramaEpisodeLabel(t, episode);
   const name = episode.series.name ?? episode.series.originalName ?? t('drama.unknownSeries');
   // TMDB は、名前の決まっていない話に「第6話」のような仮の名前を付ける。話数と同じことしか言わないので出さない。
+  // 話の名前は、画面の言語によらず日本語 (ja-JP) で引くので、画面の言語の文言ではなく、TMDB の仮の名前の形と比べる。
+  // 日本語の名前がない話は、英語の「Episode 6」になることがあるので、それも仮の名前とみなす。
   const episodeName =
     episode.episodeName != null &&
-    episode.episodeName !== t('drama.episode', { number: episode.episodeNumber })
+    !isPlaceholderEpisodeName(episode.episodeName, episode.episodeNumber)
       ? episode.episodeName
       : null;
 

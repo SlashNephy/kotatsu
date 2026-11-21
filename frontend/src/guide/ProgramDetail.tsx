@@ -589,7 +589,7 @@ function SourceRuleItems({ rules }: { rules: ReadonlyArray<{ id: string; name: s
         >
           {rule.name}
           {rules.length > 1 && index === 0 && (
-            <Text size="xs" c="dimmed">
+            <Text component="div" size="xs" c="dimmed">
               {t('guide.detail.ruleInUse')}
             </Text>
           )}
