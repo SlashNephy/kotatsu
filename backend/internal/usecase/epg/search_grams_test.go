@@ -58,7 +58,9 @@ func TestSyncAllFillsSearchGrams(t *testing.T) {
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO program_archives (
 		service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
 		name_normalized, description_normalized, extended_normalized, extended, genres, related_items, created_at, updated_at, archived_at
-	) VALUES ($1, 9000, 0, $2, $3, false, true, '過去の番組', '猫が出る', '過去の番組', '猫が出る', '', '{}', '[]', '[]', $2, $2, $3)`,
+	) VALUES ($1, 9000, 0, $2, $3, false, true, '過去の番組', '猫が出る', '過去の番組', '猫が出る', '', '{}', '[]', '[]', $2, $2, $3),
+		-- 番組名も概要も空の番組には、空の配列を書き、埋め直さない。
+		($1, 9001, 0, $2, $3, false, true, '', '', '', '', '', '{}', '[]', '[]', $2, $2, $3)`,
 		serviceID(), start, start.Add(30*time.Minute))
 	require.NoError(t, err)
 
@@ -70,4 +72,6 @@ func TestSyncAllFillsSearchGrams(t *testing.T) {
 	var archived []string
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT search_grams FROM program_archives WHERE event_id = 9000").Scan(&archived))
 	assert.Equal(t, match.SearchGrams("過去の番組", "猫が出る"), archived)
+	assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE search_grams IS NULL"))
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM program_archives WHERE event_id = 9001 AND search_grams = '{}'"))
 }

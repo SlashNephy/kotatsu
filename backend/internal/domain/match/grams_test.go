@@ -133,6 +133,12 @@ func TestRequiredGramsWithoutNarrowing(t *testing.T) {
 			}},
 		},
 		{
+			name: "空のキーワード",
+			conditions: &match.Conditions{Keywords: []*match.Keyword{
+				{Text: "", Regexp: false, CaseSensitive: false, Fields: nameOnly},
+			}},
+		},
+		{
 			name: "必ず含む文字列が 1 つに決まらない正規表現",
 			conditions: &match.Conditions{Keywords: []*match.Keyword{
 				{Text: "猫|犬", Regexp: true, CaseSensitive: false, Fields: nameOnly},
@@ -146,4 +152,16 @@ func TestRequiredGramsWithoutNarrowing(t *testing.T) {
 			assert.Empty(t, match.RequiredGrams(tt.conditions))
 		})
 	}
+}
+
+// TestRequiredGramsSkipsUnnarrowableKeywords は、すべてに一致する条件で、絞れないキーワードを飛ばし、絞れるキーワードの gram だけを返すことを確かめる (#966)。
+func TestRequiredGramsSkipsUnnarrowableKeywords(t *testing.T) {
+	t.Parallel()
+
+	conditions := &match.Conditions{Keywords: []*match.Keyword{
+		{Text: "猫", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName, match.FieldDescription}},
+		{Text: "出演", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldExtended}},
+		{Text: "犬|鳥", Regexp: true, CaseSensitive: false, Fields: []match.Field{match.FieldName}},
+	}}
+	assert.Equal(t, []string{"猫"}, match.RequiredGrams(conditions))
 }
