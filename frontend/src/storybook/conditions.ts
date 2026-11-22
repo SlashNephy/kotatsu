@@ -139,3 +139,31 @@ export function removeProperty(target: object, name: string): () => void {
     }
   };
 }
+
+// withStorage は、localStorage に entries を書き、元に戻す関数を返す。端末ごとの設定 (プレイヤーの拡大や補間など) を変えた
+// 画面を見るのに使う。
+export function withStorage(entries: Record<string, string>): () => void {
+  const previous = Object.keys(entries).map((key) => [key, localStorage.getItem(key)] as const);
+  for (const [key, value] of Object.entries(entries)) {
+    localStorage.setItem(key, value);
+  }
+
+  return () => {
+    for (const [key, value] of previous) {
+      if (value === null) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, value);
+      }
+    }
+  };
+}
+
+// all は、beforeEach の後片付けをまとめる。
+export function all(...cleanups: (() => void)[]): () => void {
+  return () => {
+    for (const cleanup of cleanups.reverse()) {
+      cleanup();
+    }
+  };
+}
