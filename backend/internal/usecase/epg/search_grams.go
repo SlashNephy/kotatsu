@@ -2,9 +2,11 @@ package epg
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
@@ -43,7 +45,7 @@ func fillSearchGrams(ctx context.Context, q *sqlc.Queries) error {
 		params := make([]sqlc.SetProgramSearchGramsParams, 0, len(rows))
 		for i := range rows {
 			params = append(params, sqlc.SetProgramSearchGramsParams{
-				SearchGrams: match.SearchGrams(rows[i].NameNormalized, rows[i].DescriptionNormalized),
+				SearchGrams: match.SearchGrams(rows[i].NameNormalized, rows[i].DescriptionNormalized, extendedText(rows[i].ExtendedNormalized, rows[i].Extended)),
 				ServiceID:   rows[i].ServiceID, EventID: rows[i].EventID,
 			})
 		}
@@ -75,7 +77,7 @@ func fillArchiveSearchGrams(ctx context.Context, q *sqlc.Queries) error {
 		params := make([]sqlc.SetProgramArchiveSearchGramsParams, 0, len(rows))
 		for i := range rows {
 			params = append(params, sqlc.SetProgramArchiveSearchGramsParams{
-				SearchGrams: match.SearchGrams(rows[i].NameNormalized, rows[i].DescriptionNormalized),
+				SearchGrams: match.SearchGrams(rows[i].NameNormalized, rows[i].DescriptionNormalized, extendedText(rows[i].ExtendedNormalized, rows[i].Extended)),
 				ServiceID:   rows[i].ServiceID, EventID: rows[i].EventID, StartAt: rows[i].StartAt,
 			})
 		}
@@ -92,4 +94,18 @@ func fillArchiveSearchGrams(ctx context.Context, q *sqlc.Queries) error {
 	}
 
 	return nil
+}
+
+// extendedText は、正規化した詳細を返す。列を足す前に書いた番組 (extended_normalized が NULL) は、上流の詳細から正規化する。
+// 上流の詳細を読めなければ、空にする。そうした番組は、検索の照合 (toMatchCandidate) でも詳細を読めずに誤りになるので、gram で落としても結果は変わらない。
+func extendedText(normalized *string, raw []byte) string {
+	if normalized != nil {
+		return *normalized
+	}
+	upstream := map[string]string{}
+	if err := json.Unmarshal(raw, &upstream); err != nil {
+		return ""
+	}
+
+	return domain.NormalizeExtended(upstream)
 }

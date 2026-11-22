@@ -478,7 +478,7 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   series_repeat = excluded.series_repeat,
   series = excluded.series,
   episode_number = excluded.episode_number,
-  -- 番組名と概要が変わらない番組は、gram を NULL で送り、今の gram を残す (#966)。同じ配列を書き直すと、GIN の索引も書き直すからである。
+  -- 番組名、概要、詳細が変わらない番組は、gram を NULL で送り、今の gram を残す (#966)。同じ配列を書き直すと、GIN の索引も書き直すからである。
   search_grams = COALESCE(excluded.search_grams, programs.search_grams),
   updated_at = excluded.updated_at
 `

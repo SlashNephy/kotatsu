@@ -269,7 +269,7 @@ func TestSearchArchivedProgramsByExtended(t *testing.T) {
 			FROM services WHERE name = 'こたつテスト1'`, start, start.Add(30*time.Minute), tt.extendedNormalized)
 			require.NoError(t, err)
 
-			conditions := conditionsInput{Keywords: []keywordInput{{Text: actorKeyword, Regexp: false, CaseSensitive: false, Fields: []string{"EXTENDED"}}}}
+			conditions := conditionsInput{Keywords: []keywordInput{{Text: actorKeyword, Regexp: false, CaseSensitive: false, Fields: []string{fieldExtended}}}}
 			var got searchResult
 			require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, &archiveInput{}, 50, nil), &got))
 			assert.Equal(t, []string{"過去の番組"}, got.names())
@@ -430,7 +430,7 @@ func TestSearchProgramsExcludesEndedPrograms(t *testing.T) {
 	// 番組の検索の gram (#966) は、書き換えた番組名に合わせて作り直す。
 	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET name = $1, name_normalized = $1, search_grams = $4, start_at = $2, end_at = $3
 		WHERE (service_id, event_id) = (SELECT service_id, event_id FROM programs ORDER BY start_at, service_id, event_id LIMIT 1)`,
-		name, testNow().Add(-3*time.Hour), testNow().Add(-2*time.Hour), match.SearchGrams(name, ""))
+		name, testNow().Add(-3*time.Hour), testNow().Add(-2*time.Hour), match.SearchGrams(name, "", ""))
 	require.NoError(t, err)
 	conditions := conditionsInput{Keywords: []keywordInput{keyword(name, false)}}
 
@@ -592,11 +592,12 @@ func TestSearchProgramsKeywordMatch(t *testing.T) {
 	}
 }
 
-// actorKeyword は、出演者で探すキーワード。specialName と aibouName は、gram で探すテストの番組名。
+// fieldExtended は、キーワードで詳細を探す項目。actorKeyword は、出演者で探すキーワード。specialName と aibouName は、gram で探すテストの番組名。
 const (
-	actorKeyword = "abc太郎"
-	specialName  = "ＮＨＫスペシャル　猫の島"
-	aibouName    = "相棒 season2"
+	fieldExtended = "EXTENDED"
+	actorKeyword  = "abc太郎"
+	specialName   = "ＮＨＫスペシャル　猫の島"
+	aibouName     = "相棒 season2"
 )
 
 // TestSearchProgramsByGrams は、番組の検索の gram (#966) で候補を絞っても、照合関数が一致とみなす番組を落とさないことを確かめる。
@@ -610,24 +611,26 @@ func TestSearchProgramsByGrams(t *testing.T) {
 	archives := []struct {
 		eventID           int
 		name, description string
+		extended          string // 出演者
 		filled            bool
 	}{
-		{eventID: 9001, name: specialName, description: "島の猫を訪ねる", filled: true},
-		{eventID: 9002, name: aibouName, description: "ＡＢＣ太郎が出演", filled: true},
-		{eventID: 9003, name: "猫の旅", description: "", filled: false},
+		{eventID: 9001, name: specialName, description: "島の猫を訪ねる", extended: "", filled: true},
+		{eventID: 9002, name: aibouName, description: "ＡＢＣ太郎が出演", extended: "ＸＹＺ花子", filled: true},
+		{eventID: 9003, name: "猫の旅", description: "", extended: "", filled: false},
 	}
 	for i, archive := range archives {
 		name, description := domain.Normalize(archive.name), domain.Normalize(archive.description)
 		var grams []string
 		if archive.filled {
-			grams = match.SearchGrams(name, description)
+			grams = match.SearchGrams(name, description, "出演者\n"+domain.Normalize(archive.extended)+"\n")
 		}
 		at := start.Add(time.Duration(i) * time.Hour)
 		_, err := f.pool.Exec(t.Context(), `INSERT INTO program_archives (
 			service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
 			name_normalized, description_normalized, extended_normalized, extended, genres, related_items, search_grams, created_at, updated_at, archived_at
-		) SELECT id, $1, 0, $2, $3, false, true, $4, $5, $6, $7, '', '{}', '[]', '[]', $8, $2, $2, $3
-		FROM services WHERE name = 'こたつテスト1'`, archive.eventID, at, at.Add(30*time.Minute), archive.name, archive.description, name, description, grams)
+		) SELECT id, $1, 0, $2, $3, false, true, $4, $5, $6, $7, $9, jsonb_build_object('出演者', $10::text), '[]', '[]', $8, $2, $2, $3
+		FROM services WHERE name = 'こたつテスト1'`, archive.eventID, at, at.Add(30*time.Minute), archive.name, archive.description, name, description, grams,
+			"出演者\n"+domain.Normalize(archive.extended)+"\n", archive.extended)
 		require.NoError(t, err)
 	}
 
@@ -658,6 +661,11 @@ func TestSearchProgramsByGrams(t *testing.T) {
 			name:    "番組名だけを見るときは、概要に一致しても返さない",
 			keyword: keywordInput{Text: actorKeyword, Regexp: false, CaseSensitive: false, Fields: nameOnly},
 			want:    []string{},
+		},
+		{
+			name:    "詳細だけに一致する",
+			keyword: keywordInput{Text: "xyz花子", Regexp: false, CaseSensitive: false, Fields: []string{fieldName, fieldExtended}},
+			want:    []string{aibouName},
 		},
 		{
 			name:    "正規表現",

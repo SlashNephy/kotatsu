@@ -679,7 +679,7 @@ func filterPrograms(programs []*tunerserver.Program, known map[int64]bool) []*tu
 }
 
 // writePrograms は、番組 programs を書く。previous は、書く前の DB の番組 (diffPrograms の previous)。
-// 番組名と概要が前と同じ番組は、番組の検索の gram (#966) を送らず、DB の gram を残す。
+// 番組名、概要、詳細が前と同じ番組は、番組の検索の gram (#966) を送らず、DB の gram を残す。
 func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, previous map[programKey]*program, now time.Time) error {
 	if len(programs) == 0 {
 		return nil
@@ -695,8 +695,8 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, pr
 		series, number := episodeSeriesOf(p.Name, p.Description, extendedNormalized, p.SeriesEpisode)
 		nameNormalized, descriptionNormalized := domain.Normalize(p.Name), domain.Normalize(p.Description)
 		var grams []string
-		if old, ok := previous[p.key()]; !ok || old.Name != p.Name || old.Description != p.Description {
-			grams = match.SearchGrams(nameNormalized, descriptionNormalized)
+		if old, ok := previous[p.key()]; !ok || old.Name != p.Name || old.Description != p.Description || !maps.Equal(old.Extended, p.Extended) {
+			grams = match.SearchGrams(nameNormalized, descriptionNormalized, extendedNormalized)
 		}
 		params = append(params, sqlc.UpsertProgramsParams{
 			ServiceID:             p.ServiceID,

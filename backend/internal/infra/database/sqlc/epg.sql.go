@@ -151,7 +151,7 @@ func (q *Queries) ListEPGChangesSince(ctx context.Context, version int64) ([]Lis
 }
 
 const listProgramArchivesWithoutSearchGrams = `-- name: ListProgramArchivesWithoutSearchGrams :many
-SELECT service_id, event_id, start_at, name_normalized, description_normalized
+SELECT service_id, event_id, start_at, name_normalized, description_normalized, extended_normalized, extended
 FROM program_archives
 WHERE search_grams IS NULL
 ORDER BY service_id, event_id, start_at
@@ -164,6 +164,8 @@ type ListProgramArchivesWithoutSearchGramsRow struct {
 	StartAt               time.Time
 	NameNormalized        string
 	DescriptionNormalized string
+	ExtendedNormalized    *string
+	Extended              []byte
 }
 
 // 番組の検索の gram の列 (#966) を埋めていないアーカイブを返す。列を足す前に移した番組。
@@ -182,6 +184,8 @@ func (q *Queries) ListProgramArchivesWithoutSearchGrams(ctx context.Context, bat
 			&i.StartAt,
 			&i.NameNormalized,
 			&i.DescriptionNormalized,
+			&i.ExtendedNormalized,
+			&i.Extended,
 		); err != nil {
 			return nil, err
 		}
@@ -321,7 +325,7 @@ func (q *Queries) ListProgramsOfService(ctx context.Context, serviceID int64) ([
 }
 
 const listProgramsWithoutSearchGrams = `-- name: ListProgramsWithoutSearchGrams :many
-SELECT service_id, event_id, name_normalized, description_normalized
+SELECT service_id, event_id, name_normalized, description_normalized, extended_normalized, extended
 FROM programs
 WHERE search_grams IS NULL
 ORDER BY service_id, event_id
@@ -333,6 +337,8 @@ type ListProgramsWithoutSearchGramsRow struct {
 	EventID               int64
 	NameNormalized        string
 	DescriptionNormalized string
+	ExtendedNormalized    *string
+	Extended              []byte
 }
 
 // 番組の検索の gram の列 (#966) を埋めていない番組を返す。列を足す前に書いた番組と、列を知らない古いバイナリが書いた番組。
@@ -350,6 +356,8 @@ func (q *Queries) ListProgramsWithoutSearchGrams(ctx context.Context, batchSize 
 			&i.EventID,
 			&i.NameNormalized,
 			&i.DescriptionNormalized,
+			&i.ExtendedNormalized,
+			&i.Extended,
 		); err != nil {
 			return nil, err
 		}

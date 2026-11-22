@@ -702,7 +702,7 @@ CREATE TABLE programs (
   -- Go で読むので SQL では埋めない。この列を足す前に書いた番組 (NULL) は、全量の突き合わせが埋める。
   series text,
   episode_number integer,
-  -- 番組の検索の索引に入れる gram (#966、match.SearchGrams)。番組名と概要の 1 文字と 2 文字の gram で、番組名だけの gram には印を付ける。
+  -- 番組の検索の索引に入れる gram (#966、match.SearchGrams)。番組名、概要、詳細の 1 文字と 2 文字の gram で、番組名だけの gram には印を付ける。
   -- 検索は、キーワードが必ず含む gram をすべて持つ番組に候補を絞り、一致するかは Go の照合関数で決める。
   -- Go で作るので SQL では埋めない。この列を足す前に書いた番組 (NULL) は、全量の突き合わせが少しずつ埋め、埋めるまでは候補に残す。
   search_grams text[],

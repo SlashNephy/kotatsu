@@ -26,6 +26,7 @@ func TestRequiredGramsKeepsMatchingPrograms(t *testing.T) {
 	tests := []struct {
 		name        string
 		program     [2]string // 番組名と概要
+		extended    map[string]string
 		keyword     *match.Keyword
 		wantMatch   bool
 		wantDropped bool // 一致しない番組を、索引で落とせるか
@@ -81,6 +82,11 @@ func TestRequiredGramsKeepsMatchingPrograms(t *testing.T) {
 			wantMatch: true,
 		},
 		{
+			name: "詳細だけに一致する", program: [2]string{"相棒", ""}, extended: map[string]string{"出演者": "ＡＢＣ太郎"},
+			keyword:   &match.Keyword{Text: "abc太郎", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldExtended}},
+			wantMatch: true,
+		},
+		{
 			name: "キーワードにない語は、索引で落とす", program: [2]string{"猫の島", "島の猫"},
 			keyword:   &match.Keyword{Text: "ぬるぽ", Regexp: false, CaseSensitive: false, Fields: nameAndDescription},
 			wantMatch: false, wantDropped: true,
@@ -93,12 +99,12 @@ func TestRequiredGramsKeepsMatchingPrograms(t *testing.T) {
 			conditions := &match.Conditions{Keywords: []*match.Keyword{tt.keyword}}
 			matcher, err := match.Compile(conditions, time.UTC)
 			require.NoError(t, err)
-			program := match.NewProgram(&match.ProgramInput{Name: tt.program[0], Description: tt.program[1]})
+			program := match.NewProgram(&match.ProgramInput{Name: tt.program[0], Description: tt.program[1], Extended: tt.extended})
 			assert.Equal(t, tt.wantMatch, matcher.Match(program))
 
 			required := match.RequiredGrams(conditions)
 			require.NotEmpty(t, required)
-			grams := match.SearchGrams(domain.Normalize(tt.program[0]), domain.Normalize(tt.program[1]))
+			grams := match.SearchGrams(domain.Normalize(tt.program[0]), domain.Normalize(tt.program[1]), domain.NormalizeExtended(tt.extended))
 			kept := !slices.ContainsFunc(required, func(gram string) bool { return !slices.Contains(grams, gram) })
 			if tt.wantMatch {
 				assert.True(t, kept, "a matching program must keep all the required grams: %q not in %q", required, grams)
@@ -124,12 +130,6 @@ func TestRequiredGramsWithoutNarrowing(t *testing.T) {
 			conditions: &match.Conditions{KeywordMatch: match.KeywordMatchAny, Keywords: []*match.Keyword{
 				{Text: "猫", Regexp: false, CaseSensitive: false, Fields: nameOnly},
 				{Text: "犬", Regexp: false, CaseSensitive: false, Fields: nameOnly},
-			}},
-		},
-		{
-			name: "詳細も見るキーワード",
-			conditions: &match.Conditions{Keywords: []*match.Keyword{
-				{Text: "猫", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName, match.FieldExtended}},
 			}},
 		},
 		{
@@ -160,7 +160,7 @@ func TestRequiredGramsSkipsUnnarrowableKeywords(t *testing.T) {
 
 	conditions := &match.Conditions{Keywords: []*match.Keyword{
 		{Text: "猫", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName, match.FieldDescription}},
-		{Text: "出演", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldExtended}},
+		{Text: "", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldExtended}},
 		{Text: "犬|鳥", Regexp: true, CaseSensitive: false, Fields: []match.Field{match.FieldName}},
 	}}
 	assert.Equal(t, []string{"猫"}, match.RequiredGrams(conditions))

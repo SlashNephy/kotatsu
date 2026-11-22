@@ -8,18 +8,21 @@ import (
 // 番組の文字列は NFKC で正規化してあり、制御文字は出てこないので、本文の gram と重ならない。
 const nameGramMark = "\x01"
 
-// SearchGrams は、番組の検索の索引に入れる gram を返す (#966)。番組名だけの gram (印を付ける) と、番組名と概要の gram を入れる。
-// nameNormalized と descriptionNormalized は、正規化した番組名と概要 (domain.Normalize)。照合関数と同じく、大文字と小文字を畳んでから作る。
+// SearchGrams は、番組の検索の索引に入れる gram を返す (#966)。番組名だけの gram (印を付ける) と、番組名と概要と詳細の gram を入れる。
+// nameNormalized、descriptionNormalized、extendedNormalized は、正規化した番組名、概要、詳細 (domain.Normalize、domain.NormalizeExtended)。
+// 照合関数と同じく、大文字と小文字を畳んでから作る。
 // gram は、1 文字と、続く 2 文字。キーワードが番組の項目に含まれれば、キーワードの gram (KeywordGrams) は、その項目の gram にすべて含まれる。
-// 番組名と概要をつないだ文字列からは作らない。つなぎ目をまたぐ gram は、どのキーワードの照合にも使わないからである。
-func SearchGrams(nameNormalized, descriptionNormalized string) []string {
+// 項目をつないだ文字列からは作らない。つなぎ目をまたぐ gram は、どのキーワードの照合にも使わないからである。
+func SearchGrams(nameNormalized, descriptionNormalized, extendedNormalized string) []string {
 	set := map[string]struct{}{}
 	for _, gram := range textGrams(foldCase(nameNormalized)) {
 		set[nameGramMark+gram] = struct{}{}
 		set[gram] = struct{}{}
 	}
-	for _, gram := range textGrams(foldCase(descriptionNormalized)) {
-		set[gram] = struct{}{}
+	for _, text := range []string{descriptionNormalized, extendedNormalized} {
+		for _, gram := range textGrams(foldCase(text)) {
+			set[gram] = struct{}{}
+		}
 	}
 	grams := make([]string, 0, len(set))
 	for gram := range set {
@@ -45,8 +48,8 @@ func textGrams(text string) []string {
 }
 
 // RequiredGrams は、番組が条件のキーワードに一致するなら、番組の gram (SearchGrams) が必ず含む gram を返す (#966)。
-// 絞り込めるのは、すべてのキーワードに一致する条件 (KeywordMatchAll) の、番組名か概要だけを見るキーワードである。
-// 詳細を見るキーワードは、索引に詳細を入れていないので、どの gram も必ずとは言えない。正規表現は、必ず含む文字列が 1 つに決まるときだけ使う。
+// 絞り込めるのは、すべてのキーワードに一致する条件 (KeywordMatchAll) のキーワードである。番組名だけを見るキーワードは、番組名の gram で絞る。
+// 正規表現は、必ず含む文字列が 1 つに決まるときだけ使う。
 // 絞り込める gram がなければ、空を返す。
 func RequiredGrams(c *Conditions) []string {
 	if c.KeywordMatch == KeywordMatchAny {
@@ -59,7 +62,7 @@ func RequiredGrams(c *Conditions) []string {
 			continue
 		}
 		mark := ""
-		if !slices.Contains(keyword.Fields, FieldDescription) {
+		if len(keyword.Fields) == 1 && keyword.Fields[0] == FieldName {
 			mark = nameGramMark
 		}
 		for _, gram := range KeywordGrams(literal) {
@@ -76,9 +79,9 @@ func RequiredGrams(c *Conditions) []string {
 }
 
 // requiredLiteral は、キーワードに一致する項目の文字列が必ず含む文字列を、畳んで返す。
-// 詳細を見るキーワードと、項目のないキーワード、必ず含む文字列が 1 つに決まらない正規表現では、ok を false にする。
+// 項目のないキーワードと、必ず含む文字列が 1 つに決まらない正規表現では、ok を false にする。
 func requiredLiteral(keyword *Keyword) (string, bool) {
-	if len(keyword.Fields) == 0 || slices.Contains(keyword.Fields, FieldExtended) {
+	if len(keyword.Fields) == 0 {
 		return "", false
 	}
 	compiled, err := compileKeyword(keyword)
