@@ -65,3 +65,50 @@ export function asViewer(role: string) {
 export function merge(...overrides: ((root: DemoRoot) => object)[]) {
   return (root: DemoRoot) => Object.assign({}, ...overrides.map((override) => override(root)));
 }
+
+// RecordingPatch は、録画の差し替えるフィールド。関数なら、デモの録画を受け取って差し替えるフィールドを返す。
+type RecordingPatch = Record<string, unknown> | ((recording: Record<string, unknown>) => object);
+
+function apply(recording: Record<string, unknown>, patch: RecordingPatch) {
+  return { ...recording, ...(typeof patch === 'function' ? patch(recording) : patch) };
+}
+
+// recordingsWith は、録画の一覧の新しい順に、patches を 1 つずつ当てる。録画の詳細 (node) と、続きから見る録画にも同じものを当てる。
+// 録画の詳細の Story は、いちばん新しい録画 (firstRecordingPath) を開くので、patches[0] がその録画に当たる。
+export function recordingsWith(...patches: RecordingPatch[]) {
+  return (root: DemoRoot) => {
+    const newest = call<Connection>(root, 'recordings', { first: 1000, order: 'NEWEST_FIRST' });
+    const byId = new Map<string, RecordingPatch>();
+    newest.edges.forEach((edge, index) => {
+      const patch = patches[index];
+      if (patch !== undefined) {
+        byId.set(String(edge.node['id']), patch);
+      }
+    });
+    const patched = (recording: Record<string, unknown> | null) => {
+      const patch = recording === null ? undefined : byId.get(String(recording['id']));
+
+      return recording === null || patch === undefined ? recording : apply(recording, patch);
+    };
+
+    return {
+      recordings: (args: object) => {
+        const result = call<Connection>(root, 'recordings', args);
+
+        return {
+          ...result,
+          edges: result.edges.map((edge) => ({ ...edge, node: patched(edge.node) })),
+        };
+      },
+      continueWatching: (args: object) =>
+        call<Record<string, unknown>[]>(root, 'continueWatching', args).map(patched),
+      node: (args: { id: string }) =>
+        patched(call<Record<string, unknown> | null>(root, 'node', args)),
+    };
+  };
+}
+
+// minutesAgo は、今から minutes 分前の時刻 (ISO 8601)。
+export function minutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString();
+}
