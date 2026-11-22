@@ -29,11 +29,16 @@ func (q *Queries) DeleteAnimeFollowingViewings(ctx context.Context, arg DeleteAn
 }
 
 const getAnimeFollowingAvatarURL = `-- name: GetAnimeFollowingAvatarURL :one
-SELECT v.avatar_url FROM anime_following_viewings v
-JOIN anime_following_fetches f USING (user_id, destination, syobocal_tid)
-WHERE v.user_id = $1 AND v.destination = $2 AND v.username = $3 AND v.avatar_url IS NOT NULL
-  AND f.fetched_at >= $4::timestamptz
-ORDER BY f.fetched_at DESC
+SELECT avatar_url::text FROM (
+  SELECT v.avatar_url, f.fetched_at FROM anime_following_viewings v
+  JOIN anime_following_fetches f USING (user_id, destination, syobocal_tid)
+  WHERE v.user_id = $1 AND v.destination = $2 AND v.username = $3 AND v.avatar_url IS NOT NULL
+    AND f.fetched_at >= $4::timestamptz
+  UNION ALL
+  SELECT w.avatar_url, w.fetched_at FROM anime_following_watching w
+  WHERE w.user_id = $1 AND w.destination = $2 AND w.username = $3 AND w.avatar_url IS NOT NULL
+) AS avatars
+ORDER BY fetched_at DESC
 LIMIT 1
 `
 
@@ -45,15 +50,16 @@ type GetAnimeFollowingAvatarURLParams struct {
 }
 
 // ユーザーが取り込んだ、フォロー中のユーザーのアバターの URL を返す。保持する期間を過ぎたものは返さない。
-// 同じ人が複数の作品に出るので、最も新しく取り込んだ URL を使う。
-func (q *Queries) GetAnimeFollowingAvatarURL(ctx context.Context, arg GetAnimeFollowingAvatarURLParams) (*string, error) {
+// 同じ人が複数の作品に出るので、最も新しく取り込んだ URL を使う。作品ごとの視聴状況 (#1372) と、見ている作品 (#1968) の両方から探す。
+// 見ている作品は、見たいリストと一緒に取り込み直して入れ替えるので、保持する期間で絞らない。
+func (q *Queries) GetAnimeFollowingAvatarURL(ctx context.Context, arg GetAnimeFollowingAvatarURLParams) (string, error) {
 	row := q.db.QueryRow(ctx, getAnimeFollowingAvatarURL,
 		arg.UserID,
 		arg.Destination,
 		arg.Username,
 		arg.FetchedAfter,
 	)
-	var avatar_url *string
+	var avatar_url string
 	err := row.Scan(&avatar_url)
 	return avatar_url, err
 }

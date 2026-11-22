@@ -114,6 +114,44 @@ type AnimeFollowingViewings struct {
 	Viewings []*AnimeFollowingViewing `json:"viewings"`
 }
 
+// フォロー中のユーザーのうち、作品を「見てる」にした人 (#1968)。
+type AnimeFollowingWatcher struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 記録先でのユーザー名。記録先の中で一意。
+	Username string `json:"username"`
+	// 画面に出す名前。
+	Name string `json:"name"`
+	// アバターを tenban が中継する URL のパス。アバターがなければ null。
+	AvatarURL *string `json:"avatarUrl,omitempty"`
+	// 記録先のユーザーのページ。
+	ProfileURL string `json:"profileUrl"`
+}
+
+// ログイン中のユーザーがフォローしている人が「見てる」にした作品の、これからの放送 (#1968)。結果は本人にだけ見せる。
+type AnimeFollowingWatching struct {
+	// 管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、works は空。
+	Enabled bool `json:"enabled"`
+	// これから 1 週間に放送がある作品。見ている人の多い順に、同じ数なら最初の放送の早い順に並べる。
+	Works []*AnimeFollowingWatchingWork `json:"works"`
+}
+
+// フォロー中のユーザーが「見てる」にした作品のうち、これから放送されるもの (#1968)。しょぼいカレンダーの TID ごとに 1 つにまとめる。
+// 放送、予約済みの判定、ルールの作り方は、見たいリストの候補 (AnimeWishlistWork) と同じにする。
+type AnimeFollowingWatchingWork struct {
+	// しょぼいカレンダーの TID。
+	Tid int `json:"tid"`
+	// 作品名。Annict の作品名を先に選ぶ。
+	Title string `json:"title"`
+	// 作品を見ている人。記録先、名前の順に並べる。
+	Watchers []*AnimeFollowingWatcher `json:"watchers"`
+	// 予約していない放送。放送の早い順に並べ、同じイベントを共有する放送は 1 つにする。
+	Broadcasts []*AnimeWishlistBroadcast `json:"broadcasts"`
+	// 予約のある放送の数。候補からは外している。
+	ReservedBroadcasts int `json:"reservedBroadcasts"`
+	// 予約済みかどうか。見たいリストの候補の covered と同じ決まりで決める。予約済みの作品からは、ルールを作れない。
+	Covered bool `json:"covered"`
+}
+
 // 連携先の情報を取り込んだ様子。取り込み元ごとに 1 つ。1 度も問い合わせていない取り込み元は返さない。
 type AnimeImport struct {
 	Source AnimeImportSource `json:"source"`

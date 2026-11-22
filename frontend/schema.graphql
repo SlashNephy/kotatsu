@@ -194,6 +194,71 @@ type AnimeFollowingViewings {
   viewings: [AnimeFollowingViewing!]!
 }
 """
+フォロー中のユーザーのうち、作品を「見てる」にした人 (#1968)。
+"""
+type AnimeFollowingWatcher {
+  destination: AnimeRecordDestination!
+  """
+  記録先でのユーザー名。記録先の中で一意。
+  """
+  username: String!
+  """
+  画面に出す名前。
+  """
+  name: String!
+  """
+  アバターを tenban が中継する URL のパス。アバターがなければ null。
+  """
+  avatarUrl: String
+  """
+  記録先のユーザーのページ。
+  """
+  profileUrl: String!
+}
+"""
+ログイン中のユーザーがフォローしている人が「見てる」にした作品の、これからの放送 (#1968)。結果は本人にだけ見せる。
+"""
+type AnimeFollowingWatching {
+  """
+  管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、works は空。
+  """
+  enabled: Boolean!
+  """
+  これから 1 週間に放送がある作品。見ている人の多い順に、同じ数なら最初の放送の早い順に並べる。
+  """
+  works: [AnimeFollowingWatchingWork!]!
+}
+"""
+フォロー中のユーザーが「見てる」にした作品のうち、これから放送されるもの (#1968)。しょぼいカレンダーの TID ごとに 1 つにまとめる。
+放送、予約済みの判定、ルールの作り方は、見たいリストの候補 (AnimeWishlistWork) と同じにする。
+"""
+type AnimeFollowingWatchingWork {
+  """
+  しょぼいカレンダーの TID。
+  """
+  tid: Int!
+  """
+  作品名。Annict の作品名を先に選ぶ。
+  """
+  title: String!
+  """
+  作品を見ている人。記録先、名前の順に並べる。
+  """
+  watchers: [AnimeFollowingWatcher!]!
+  """
+  予約していない放送。放送の早い順に並べ、同じイベントを共有する放送は 1 つにする。
+  """
+  broadcasts: [AnimeWishlistBroadcast!]!
+  """
+  予約のある放送の数。候補からは外している。
+  """
+  reservedBroadcasts: Int!
+  """
+  予約済みかどうか。見たいリストの候補の covered と同じ決まりで決める。予約済みの作品からは、ルールを作れない。
+  """
+  covered: Boolean!
+}
+"""
 連携先の情報を取り込んだ様子。取り込み元ごとに 1 つ。1 度も問い合わせていない取り込み元は返さない。
 """
 type AnimeImport {
@@ -2894,6 +2959,11 @@ type Mutation {
   """
   refreshAnimeFollowingViewings(tid: Int!): Boolean!
   """
+  ログイン中のユーザーがフォローしている人が見ている作品 tid を録るルールを作る (#1968)。ルールの作り方は、createAnimeWishlistRule と同じ。
+  視聴者は使えない。候補にない作品なら NOT_FOUND を、予約済みの作品なら CONFLICT を返す。同時に呼ばれても、作るのは 1 つだけ。
+  """
+  createAnimeFollowingWatchingRule(tid: Int!): Rule!
+  """
   記録先 destination に登録したアプリを変える (#927)。管理者だけが使える。
   利用者を記録先へ送り出すアプリを決める操作なので、直近の再認証を求める (設計書 9.5)。
   """
@@ -4286,6 +4356,11 @@ type Query {
   ログイン中のユーザーがフォローしている人の、作品 tid の視聴状況を返す (#1372)。視聴者も使える。
   """
   animeFollowingViewings(tid: Int!): AnimeFollowingViewings!
+  """
+  ログイン中のユーザーがフォローしている人が「見てる」にした作品の、これからの放送を返す (#1968)。見たいリストと一緒に取り込んだものを返し、
+  外部には問い合わせない。視聴者も使える。
+  """
+  animeFollowingWatching: AnimeFollowingWatching!
   """
   ログイン中のユーザーの見たいリストの作品を、次の話と次の放送と録画と並べて返す (#1231)。ほかのユーザーの見たいリストは見えない。視聴者も使える。
   """

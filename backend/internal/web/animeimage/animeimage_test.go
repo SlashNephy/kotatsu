@@ -130,6 +130,7 @@ func TestHandler(t *testing.T) {
 }
 
 // TestServeFollowingAvatar は、ログイン中のユーザーが取り込んだ視聴状況にあるアバターだけを中継することを確かめる (#1372)。
+// フォロー中のユーザーが見ている作品 (#1968) に取り込んだアバターも中継する。
 func TestServeFollowingAvatar(t *testing.T) {
 	t.Parallel()
 
@@ -140,6 +141,7 @@ func TestServeFollowingAvatar(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "取り込んだ人のアバターを中継する", username: "someone", signedIn: true, wantStatus: http.StatusOK},
+		{name: "見ている作品に取り込んだ人のアバターを中継する", username: "watcher", signedIn: true, wantStatus: http.StatusOK},
 		{name: "取り込んでいない人のアバターは返さない", username: "stranger", signedIn: true, wantStatus: http.StatusNotFound},
 		{name: "保持する期間を過ぎたアバターは返さない", username: "expired", signedIn: true, wantStatus: http.StatusNotFound},
 		{name: "ログインしていなければ返さない", username: "someone", signedIn: false, wantStatus: http.StatusUnauthorized},
@@ -174,6 +176,9 @@ func TestServeFollowingAvatar(t *testing.T) {
 			require.NoError(t, err)
 			_, err = pool.Exec(t.Context(), `INSERT INTO anime_following_viewings (user_id, destination, syobocal_tid, username, name, avatar_url, status)
 				VALUES ($1, 'annict', 2, 'expired', '人', $2, 'watching')`, user.ID, upstream.URL+imagePath)
+			require.NoError(t, err)
+			_, err = pool.Exec(t.Context(), `INSERT INTO anime_following_watching (user_id, destination, username, name, avatar_url, work_id, title, fetched_at)
+				VALUES ($1, 'annict', 'watcher', '人', $2, 10, '作品', now())`, user.ID, upstream.URL+imagePath)
 			require.NoError(t, err)
 			handler := animeimage.NewHandlerWithClient(pool, slog.New(slog.DiscardHandler), upstream.Client())
 			mux := http.NewServeMux()
