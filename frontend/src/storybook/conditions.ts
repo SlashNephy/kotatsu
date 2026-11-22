@@ -33,16 +33,22 @@ export function reservationsWith(state: string, count: number, more = false) {
             }
           : edge,
       );
-      if (states == null) {
-        return { ...all, edges: edges.slice(0, Number(rest['first'] ?? edges.length)) };
-      }
-      const filtered = edges.filter((edge) =>
-        states.includes((edge.node['assignment'] as { state: string }).state),
-      );
+      const listed =
+        states == null
+          ? edges
+          : edges.filter((edge) =>
+              states.includes((edge.node['assignment'] as { state: string }).state),
+            );
+      const page = listed.slice(0, Number(rest['first'] ?? listed.length));
 
+      // 続きの有無と終わりの位置は、返す 1 ページから決め直す (1000 件で引いた一覧のままにしない)。
       return {
-        edges: filtered,
-        pageInfo: { ...all.pageInfo, hasNextPage: more },
+        edges: page,
+        pageInfo: {
+          ...all.pageInfo,
+          hasNextPage: more || page.length < listed.length,
+          endCursor: page.at(-1)?.cursor ?? null,
+        },
       };
     },
   });

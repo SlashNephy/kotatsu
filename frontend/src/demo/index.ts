@@ -156,11 +156,11 @@ function registerStreamWorker(): void {
     });
 }
 
-// DemoEnvironmentOptions は、createDemoEnvironment の設定。overrides のフィールドは、デモの値より優先する。
-// now は、デモの番組表を作る時刻 (ミリ秒)。hold が true を返した操作には、応答を返さず待たせる。
 // DemoRoot は、デモの応答のフィールド。関数なら、引数を受け取って値を返す。
 export type DemoRoot = Record<string, unknown>;
 
+// DemoEnvironmentOptions は、createDemoEnvironment の設定。overrides のフィールドは、デモの値より優先する。
+// now は、デモの番組表を作る時刻 (ミリ秒)。hold が true を返した操作には、応答を返さず待たせる。
 export type DemoEnvironmentOptions = {
   // overrides は、デモの応答のうち差し替えるフィールド。関数なら、デモの既定の応答を受け取り、差し替えるフィールドを返す。
   // 既定の応答の一部だけを変える (予約の割り当てを競合にするなど) ときに使う。
