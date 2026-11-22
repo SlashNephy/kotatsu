@@ -577,6 +577,10 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
 	scope := Section{Start: 0, End: duration}
 	if w, ok := programWindow(intervals, m.Times, m.Fps, program); ok {
+		// 無音の材料を読めた回は、窓の端を無音の境目に寄せる。番組の切り替わりは、ふつう無音を挟むからである。
+		if m.bounds != nil {
+			w = snapWindow(w, m.bounds, m.Times[0], m.offset)
+		}
 		intervals = clipIntervals(intervals, m.Times, w.start, w.end)
 		if len(intervals) == 0 {
 			return nil, fmt.Errorf("%w: no frame shows the logo in the program window", errLogoUnusable)

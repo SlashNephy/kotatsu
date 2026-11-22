@@ -28,12 +28,18 @@ const (
 	windowShiftWeight = 0.5
 	// windowTie は、最高点からこの差の内の候補を同点とみなす幅 (秒)。同点なら、番組が始まるはずの時刻に近いものを採る。
 	windowTie = 1.0
+	// windowSnapDistance は、窓の端を無音の境目に寄せる距離 (#1506 の「窓の端を寄せる距離」)。番組表の始まりと実際の始まりのずれより
+	// 広くする。開発用の環境の 5 本の録画では、実際に放送中になった日時は、番組表の始まりより 0.5〜2.6 秒遅れていた。
+	windowSnapDistance = 3.0
+	// windowSnapNoCut は、シーンの切り替わりも音声の構成の変化もない無音の境目を、この秒だけ遠いとみなす量 (「切れ目のない無音の割増し」)。
+	// 切れ目のある境目のほうが、番組の切り替わりとして確かだからである。
+	windowSnapNoCut = 1.0
 )
 
 // programWindow は、番組の尺の窓を、ロゴの出ていた区間 intervals に合わせて置いて返す (#1506 の手順 1)。
 // times はコマごとの時刻 (秒)、fps はコマの速さ、program は番組の時刻 (ファイルの始まりから)。
 // 番組の尺が録画より短いときだけ置き、置けなければ ok を false にする。ロゴから候補が 1 つも作れないときも、番組の頭を削らないよう置かない。
-// 窓の端を無音の境目に寄せることは、無音の材料がまだないので行わない。
+// 窓の端を無音の境目に寄せるのは、置いた後に snapWindow で行う。
 func programWindow(intervals []logo.Interval, times []float64, fps float64, program *Program) (window, bool) {
 	none := window{start: 0, end: 0}
 	if program == nil || program.Duration <= 0 || len(times) == 0 {
@@ -87,6 +93,35 @@ func programWindow(intervals []logo.Interval, times []float64, fps float64, prog
 	}
 
 	return window{start: chosen, end: chosen + length}, true
+}
+
+// snapWindow は、窓 w の両端を、windowSnapDistance 以内で最も近い無音の境目に寄せて返す (#1506 の手順 1)。
+// 切れ目のない境目は、windowSnapNoCut だけ遠いとみなす。寄せた結果、窓の始まりが終わりより後になる境目は使わない。
+// bounds の時刻は、今の見分け方の基準 (コマの時刻に offset を足したもの)。origin は最初のコマの時刻。窓は最初のコマからの秒。
+func snapWindow(w window, bounds []boundary, origin, offset float64) window {
+	snap := func(edge float64, valid func(float64) bool) float64 {
+		best, bestCost := edge, math.Inf(1)
+		for _, b := range bounds {
+			at := b.at - offset - origin
+			distance := math.Abs(at - edge)
+			if distance > windowSnapDistance || !valid(at) {
+				continue
+			}
+			cost := distance
+			if !b.cut {
+				cost += windowSnapNoCut
+			}
+			if cost < bestCost {
+				best, bestCost = at, cost
+			}
+		}
+
+		return best
+	}
+	start := snap(w.start, func(at float64) bool { return at >= 0 && at < w.end })
+	end := snap(w.end, func(at float64) bool { return at > start })
+
+	return window{start: start, end: end}
 }
 
 // window は、番組の窓。始まりと終わりは、最初のコマからの秒。
