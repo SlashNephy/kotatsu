@@ -169,7 +169,8 @@ func (t *programTable) handlePAT(section []byte) {
 }
 
 // handlePMT は PMT のセクションを読む。
-// 前に読んだ同じ番組の PMT と比べて、外れた ES と加わった ES の PID を返す。最初に読んだ PMT では空を返す。
+// 前に読んだ同じ番組の PMT と比べて、外れた ES と加わった ES の PID と、CA 記述子から外れた ECM と加わった ECM の PID を返す。
+// 最初に読んだ PMT では空を返す。
 func (t *programTable) handlePMT(pid uint16, section []byte) []uint16 {
 	header := parseSectionHeader(section)
 	if header == nil || header.tableID != tableIDPMT || !header.currentNext || len(header.body) < 4 {
@@ -219,7 +220,10 @@ func (t *programTable) handlePMT(pid uint16, section []byte) []uint16 {
 		}
 		entry = entry[5+esInfoLength:]
 	}
-	program.ECMPIDs = slices.Sorted(maps.Keys(ecm))
+	// slices.Sorted は、要素がなければ nil を返すので、ECM のない PMT では空のスライスのままにする。
+	if len(ecm) > 0 {
+		program.ECMPIDs = slices.Sorted(maps.Keys(ecm))
+	}
 	t.programs[number] = program
 	t.generation++
 

@@ -141,6 +141,7 @@ func TestAnalyzerProgramsFromTestTS(t *testing.T) {
 			{PID: videoPID, StreamType: 0x02, Kind: ts.StreamKindVideo},
 			{PID: audioPID, StreamType: 0x0F, Kind: ts.StreamKindAudio},
 		},
+		ECMPIDs: []uint16{},
 	}}, analyzer.Stats().Programs)
 }
 
