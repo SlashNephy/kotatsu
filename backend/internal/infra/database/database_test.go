@@ -279,6 +279,62 @@ func TestMigrateFillsRecordingsNormalized(t *testing.T) {
 	}
 }
 
+// TestMigrateFillsCapturesNormalized は、kotatsu migrate が、正規化した字幕の文の列がないキャプチャの列を埋め、
+// 字幕が出ていなかったキャプチャには空を書き、埋まっているキャプチャは書き換えないことを確かめる (#2084)。
+func TestMigrateFillsCapturesNormalized(t *testing.T) {
+	t.Parallel()
+
+	pool := open(t, databasetest.New(t))
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	now := time.Now()
+	userID := id.New()
+	_, err := pool.Exec(t.Context(), "INSERT INTO users (id, username, display_name, role, created_at, updated_at) VALUES ($1, 'alice', 'Alice', 'member', $2, $2)", userID, now)
+	require.NoError(t, err)
+	// 1 回に埋める数より多いキャプチャも、すべて埋める。
+	_, err = pool.Exec(t.Context(), `INSERT INTO captures (id, user_id, service_name, service_name_normalized, program_name_normalized, caption, broadcast_at, taken_at, size, created_at)
+		SELECT gen_random_uuid(), $1, 'こたつテスト1', 'こたつテスト1', '', 'ＡＢＣ' || i, $2, $2, 1, $2 FROM generate_series(1, 501) AS i`, userID, now)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name              string
+		caption           *string
+		captionNormalized *string
+		want              string
+	}{
+		{name: "字幕の文を正規化する", caption: new("ＫＯＴＡＴＳＵ山のふもとから"), captionNormalized: nil, want: "KOTATSU山のふもとから"},
+		{name: "字幕が出ていなければ空にする", caption: nil, captionNormalized: nil, want: ""},
+		{name: "埋まっていれば書き換えない", caption: new("けさの様子"), captionNormalized: new("埋めてある字幕"), want: "埋めてある字幕"},
+	}
+	ids := make([]uuid.UUID, len(tests))
+	for i, tt := range tests {
+		ids[i] = id.New()
+		_, err := pool.Exec(t.Context(), `INSERT INTO captures (id, user_id, service_name, service_name_normalized, program_name_normalized,
+			caption, caption_normalized, broadcast_at, taken_at, size, created_at)
+			VALUES ($1, $2, 'こたつテスト1', 'こたつテスト1', '', $3, $4, $5, $5, 1, $5)`,
+			ids[i], userID, tt.caption, tt.captionNormalized, now)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	var remaining int
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM captures WHERE caption_normalized IS NULL").Scan(&remaining))
+	assert.Zero(t, remaining)
+	var bulk string
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT caption_normalized FROM captures WHERE caption = 'ＡＢＣ501'").Scan(&bulk))
+	assert.Equal(t, "ABC501", bulk)
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got string
+			require.NoError(t, pool.QueryRow(t.Context(), "SELECT caption_normalized FROM captures WHERE id = $1", ids[i]).Scan(&got))
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // TestMigrateFillsRecordingHistorySeries は、kotatsu migrate が、シリーズ名の列がない録画履歴の列を、番組名から読んで埋め、
 // 埋まっている履歴は書き換えないことを確かめる (#1499)。
 func TestMigrateFillsRecordingHistorySeries(t *testing.T) {

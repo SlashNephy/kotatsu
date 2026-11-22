@@ -74,6 +74,9 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 	if err := fillRecordingHistorySeries(ctx, logger, migrationPool); err != nil {
 		return err
 	}
+	if err := fillCapturesNormalized(ctx, logger, migrationPool); err != nil {
+		return err
+	}
 
 	if err := sqlc.New(pool).RaiseMinBinaryVersion(ctx, sqlc.RaiseMinBinaryVersionParams{
 		MinBinaryVersion: CompatibleSince,
@@ -134,7 +137,7 @@ func MigrateTo(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, ver
 	return nil
 }
 
-// fillBatchSize は、正規化した列を埋めるときに、1 回に読み書きする録画の数。
+// fillBatchSize は、正規化した列を埋めるときに、1 回に読み書きする行の数。
 const fillBatchSize = 500
 
 // fillRecordingsNormalized は、正規化した番組名と概要の列がない録画の列を埋める (#1044、設計書 3.5)。
@@ -172,6 +175,50 @@ func fillRecordingsNormalized(ctx context.Context, logger *slog.Logger, pool *pg
 	}
 	if filled > 0 {
 		logger.InfoContext(ctx, "recordings normalized", slog.Int("count", filled))
+	}
+
+	return nil
+}
+
+// fillCapturesNormalized は、正規化した字幕の文の列がないキャプチャの列を埋める (#2084、設計書 3.5)。
+// 正規化は囲み文字を括弧にしてから NFKC にするので (domain.Normalize)、SQL の normalize では書けず、Go で埋める。
+// 列を足す前のキャプチャと、列を知らない古いバイナリがローリング更新の間に書いたキャプチャを、次の kotatsu migrate で埋める。
+// 字幕が出ていなかったキャプチャには空を書き、次の migrate で読み直さないようにする。
+func fillCapturesNormalized(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
+	q := sqlc.New(pool)
+	filled := 0
+	for {
+		rows, err := q.ListCapturesWithoutNormalized(ctx, fillBatchSize)
+		if err != nil {
+			return fmt.Errorf("failed to list the captures to normalize: %w", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		params := make([]sqlc.SetCaptureNormalizedParams, 0, len(rows))
+		for _, row := range rows {
+			caption := ""
+			if row.Caption != nil {
+				caption = *row.Caption
+			}
+			params = append(params, sqlc.SetCaptureNormalizedParams{
+				ID:                row.ID,
+				CaptionNormalized: new(domain.Normalize(caption)),
+			})
+		}
+		errs := []error{}
+		q.SetCaptureNormalized(ctx, params).Exec(func(i int, err error) {
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to normalize capture %s: %w", params[i].ID, err))
+			}
+		})
+		if err := errors.Join(errs...); err != nil {
+			return err
+		}
+		filled += len(rows)
+	}
+	if filled > 0 {
+		logger.InfoContext(ctx, "captures normalized", slog.Int("count", filled))
 	}
 
 	return nil

@@ -164,8 +164,8 @@ VALUES ($1, 41, 3273601024, 99, 'きのうのニュース', '', 'きのうのニ
 		{`INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, created_at)
 VALUES ($1, $2, 'segment', 'main', 'news.m2ts', 1024, $3, $3)`, []any{uuid.New(), s.recordingID, testNow().Add(-2 * time.Hour)}},
 		{"INSERT INTO watch_progress (user_id, recording_id, position_ms, updated_at) VALUES ($1, $2, 60000, $3)", []any{s.userID, s.recordingID, testNow()}},
-		{`INSERT INTO captures (id, user_id, recording_id, position_ms, service_name, service_name_normalized, program_name_normalized, broadcast_at, taken_at, size, created_at)
-VALUES ($1, $2, $3, 1000, 'NHK', 'nhk', '', $4, $4, $5, $4)`, []any{s.captureID, s.userID, s.recordingID, testNow(), len(s.image)}},
+		{`INSERT INTO captures (id, user_id, recording_id, position_ms, service_name, service_name_normalized, program_name_normalized, caption_normalized, broadcast_at, taken_at, size, created_at)
+VALUES ($1, $2, $3, 1000, 'NHK', 'nhk', '', '', $4, $4, $5, $4)`, []any{s.captureID, s.userID, s.recordingID, testNow(), len(s.image)}},
 		// 外す表とそれを指す行。
 		{`INSERT INTO sessions (id, token_hash, user_id, created_at, authenticated_at, last_seen_at, expires_at, user_agent)
 VALUES ($1, '\x01', $2, $3, $3, $3, $4, 'test')`, []any{sessionID, s.userID, testNow(), testNow().Add(24 * time.Hour)}},

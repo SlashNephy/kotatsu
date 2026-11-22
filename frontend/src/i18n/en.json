@@ -2656,7 +2656,7 @@
   "captures": {
     "title": "Captures",
     "description": "Captures you take are saved on the server, newest first. Only you can see them, from any device.",
-    "search": "Search by program or service name",
+    "search": "Search by program, service name, or caption",
     "empty": "No captures yet",
     "emptyHint": "Take a capture with the camera button on the player or the s key, and it will appear here.",
     "noMatch": "No matching captures",

@@ -292,6 +292,7 @@ type Capture struct {
 	ServiceNameNormalized string
 	ProgramNameNormalized string
 	Caption               *string
+	CaptionNormalized     *string
 	BroadcastAt           time.Time
 	TakenAt               time.Time
 	Size                  int64
