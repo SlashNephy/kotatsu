@@ -21,15 +21,24 @@ export type PageStoryProps = {
 export function PageStory({ url, overrides, hold }: PageStoryProps) {
   const [{ environment, executor }] = useState(() => createDemoEnvironment({ overrides, hold }));
   const [router, setRouter] = useState<ReturnType<typeof createRouter> | null>(null);
+  // failure は、パスを返す関数が失敗したときの理由。Story を空のまま止めず、理由を出す。
+  const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    void (typeof url === 'string' ? Promise.resolve(url) : url(executor)).then((path) => {
-      if (!cancelled) {
-        setRouter(
-          createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) }),
-        );
-      }
-    });
+    void (typeof url === 'string' ? Promise.resolve(url) : url(executor)).then(
+      (path) => {
+        if (!cancelled) {
+          setRouter(
+            createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) }),
+          );
+        }
+      },
+      (error: unknown) => {
+        if (!cancelled) {
+          setFailure(error instanceof Error ? error.message : String(error));
+        }
+      },
+    );
 
     return () => {
       cancelled = true;
@@ -40,6 +49,7 @@ export function PageStory({ url, overrides, hold }: PageStoryProps) {
     <>
       <Notifications position="bottom-center" />
       <RelayEnvironmentProvider environment={environment}>
+        {failure !== null && <p role="alert">failed to open the story: {failure}</p>}
         {router !== null && <RouterProvider router={router} />}
       </RelayEnvironmentProvider>
     </>
