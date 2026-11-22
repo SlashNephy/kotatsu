@@ -365,6 +365,8 @@ export function createRootValue(
     notifications: (args: { first: number; after?: string | null }) =>
       paginate([], args.first, args.after),
     unreadNotificationCount: () => 0,
+    // デモは、ほかの端末のプレイヤーを覚えないので、リモコンで操れるプレイヤーは出さない。
+    players: () => [],
     recordings: (args: {
       first: number;
       after?: string | null;
