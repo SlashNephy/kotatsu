@@ -988,3 +988,49 @@ func TestSyncAllKeepsServicesWhenUpstreamReturnsNone(t *testing.T) {
 	assert.Equal(t, 0, result.ServicesPresenceChanged)
 	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM services WHERE gone_at IS NULL"))
 }
+
+// TestSyncAllIgnoresNotationOnlyRewrites は、上流が番組名や概要を、内容の同じ別の書き方で返し直しても、書き換えとみなさず、
+// 番組を書き直さず、書き換えも記録しないことを確かめる (#2051)。書き方の違う番組名で、内容が変わったときは、今までどおり書き換える。
+func TestSyncAllIgnoresNotationOnlyRewrites(t *testing.T) {
+	t.Parallel()
+
+	// captioned は、字幕の囲み文字の付いた番組名。
+	const captioned = "灯台の地図　＃８🈑"
+
+	tests := []struct {
+		name        string
+		first, next string
+		wantName    string
+		wantRewrite bool
+	}{
+		{name: "囲み文字と括弧の書き方", first: captioned, next: "灯台の地図　＃８[字]", wantName: captioned, wantRewrite: false},
+		{name: "4K の囲み文字と括弧の書き方", first: "🆞灯台の地図", next: "[4K]灯台の地図", wantName: "🆞灯台の地図", wantRewrite: false},
+		{name: "波ダッシュと全角チルダ", first: "灯台の地図〜霧笛〜", next: "灯台の地図～霧笛～", wantName: "灯台の地図〜霧笛〜", wantRewrite: false},
+		{name: "異体字セレクタの有無", first: "灯台の地図", next: "灯\U000E0102台の地図", wantName: "灯台の地図", wantRewrite: false},
+		{name: "内容が変われば書き換える", first: captioned, next: "灯台の地図　＃９[字]", wantName: "灯台の地図　＃９[字]", wantRewrite: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			require.NoError(t, f.fake.RenameProgram(programID(6), tt.first))
+			_, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+			require.NoError(t, f.fake.RenameProgram(programID(6), tt.next))
+			result, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+
+			var name string
+			require.NoError(t, f.pool.QueryRow(t.Context(),
+				"SELECT name FROM programs WHERE service_id = $1 AND event_id = 6", serviceID()).Scan(&name))
+			assert.Equal(t, tt.wantName, name)
+			wantRewrites, wantUpserted := 0, 0
+			if tt.wantRewrite {
+				wantRewrites, wantUpserted = 1, 1
+			}
+			assert.Equal(t, wantRewrites, f.count(t, "SELECT count(*) FROM program_rewrites WHERE service_id = $1", serviceID()))
+			assert.Equal(t, wantUpserted, result.ProgramsUpserted)
+		})
+	}
+}

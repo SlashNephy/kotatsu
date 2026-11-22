@@ -10,7 +10,9 @@ import (
 	"math"
 	"reflect"
 	"slices"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -621,7 +623,7 @@ func diffPrograms(upstream []*tunerserver.Program, current []sqlc.ListProgramsRo
 			continue
 		}
 		old, ok := byKey[p.key()]
-		if ok && reflect.DeepEqual(old, p) {
+		if ok && reflect.DeepEqual(old, withNotationOf(p, old)) {
 			continue
 		}
 		diff.upserts = append(diff.upserts, p)
@@ -636,6 +638,53 @@ func diffPrograms(upstream []*tunerserver.Program, current []sqlc.ListProgramsRo
 	}
 
 	return diff, nil
+}
+
+// withNotationOf は、上流の番組 p の番組名、概要、詳細の文のうち、DB の番組 old と書き方だけが違うものを、old の書き方にした写しを返す (#2051)。
+// 上流は、同じ番組名を、囲み文字 (🈑) と括弧の書き方 ([字]) のように、内容の同じ別の書き方で返し直すことがある。
+// そのたびに書き換えとみなすと、全量の突き合わせのたびに番組を書き直し、EPG の変更とルールの照合を走らせ、書き換えの記録も埋まる。
+// 書き方だけの違いでは書き換えず、先に DB に入った書き方を持ち続ける。照合と検索は正規化した列で行うので、どちらの書き方でも同じである。
+func withNotationOf(p, old *program) *program {
+	copied := *p
+	if sameNotation(p.Name, old.Name) {
+		copied.Name = old.Name
+	}
+	if sameNotation(p.Description, old.Description) {
+		copied.Description = old.Description
+	}
+	if len(p.Extended) == len(old.Extended) {
+		extended := make(map[string]string, len(p.Extended))
+		for heading, text := range p.Extended {
+			oldText, ok := old.Extended[heading]
+			if ok && sameNotation(text, oldText) {
+				text = oldText
+			}
+			extended[heading] = text
+		}
+		copied.Extended = extended
+	}
+
+	return &copied
+}
+
+// sameNotation は、a と b が、書き方だけ違う同じ文かどうかを返す。正規化 (domain.Normalize。NFKC と、囲み文字を括弧の書き方にする)
+// の後に、波ダッシュ (〜) を全角チルダと同じ ~ にし、異体字セレクタを除いて比べる。上流の文で、どれも行き来しているのを見たからである。
+func sameNotation(a, b string) bool {
+	return a == b || notationKey(a) == notationKey(b)
+}
+
+// notationKey は、sameNotation で比べるための文。
+func notationKey(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '〜':
+			return '~'
+		case unicode.Is(unicode.Variation_Selector, r):
+			return -1
+		default:
+			return r
+		}
+	}, domain.Normalize(s))
 }
 
 func compareKeys(a, b programKey) int {
