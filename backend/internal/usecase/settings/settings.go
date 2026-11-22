@@ -44,6 +44,11 @@ const (
 	DefaultRuleUnmatchedGraceMinutes = 180
 	// maxRuleUnmatchedGraceMinutes は、その時間の上限 (1 日)。DB の制約と同じ。
 	maxRuleUnmatchedGraceMinutes = 1440
+	// DefaultHistoryMaxDrops は、重複の回避で「録画済み」とみなす、判定に数えるドロップの数の上限の既定値 (付録 A)。
+	// 判定に数えるのは映像と音声の PID のドロップだけなので、1 件でもあれば見たときに乱れる。既定では録画済みとみなさない。
+	DefaultHistoryMaxDrops = 0
+	// maxHistoryMaxDrops は、その上限の上限。DB の制約と同じ。
+	maxHistoryMaxDrops = 1000
 	// DefaultAuditRetentionDays は、監査ログの保持期間の既定値 (付録 A)。
 	DefaultAuditRetentionDays = 365
 	// DefaultAuditClientInfoRetentionDays は、監査ログの送信元の IP アドレスと User-Agent の保持期間の既定値 (付録 A、#1367)。
@@ -129,6 +134,8 @@ type System struct {
 	TimeshiftWhileWatchingRetentionSeconds int
 	// RuleUnmatchedGraceMinutes は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0 なら残さない。
 	RuleUnmatchedGraceMinutes int
+	// HistoryMaxDrops は、重複の回避で「録画済み」とみなす、判定に数えるドロップ (映像と音声の PID のもの) の数の上限 (設計書 4.4)。
+	HistoryMaxDrops int
 	// AuditRetentionDays は、監査ログの保持期間 (日。設計書 8.5)。1 以上。
 	AuditRetentionDays int
 	// AuditClientInfoRetentionDays は、監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。1 以上。
@@ -266,6 +273,7 @@ type Changes struct {
 	TimeshiftWhileWatching                 *bool
 	TimeshiftWhileWatchingRetentionSeconds *int
 	RuleUnmatchedGraceMinutes              *int
+	HistoryMaxDrops                        *int
 	AuditRetentionDays                     *int
 	AuditClientInfoRetentionDays           *int
 	HIBPEnabled                            *bool
@@ -337,6 +345,8 @@ type resolvedRetention struct {
 	timeshiftWhileWatching int32
 	// ruleUnmatchedGrace は、どのルールにも一致しなくなったルール予約を残す放送前の時間 (分)。
 	ruleUnmatchedGrace int32
+	// historyMaxDrops は、録画済みとみなすドロップの数の上限。
+	historyMaxDrops int32
 	// audit と auditClientInfo は、監査ログと、その送信元の情報の保持期間 (日)。
 	audit, auditClientInfo int32
 	// captionThreads は、whisper-cli に使わせるスレッドの数。
@@ -363,6 +373,9 @@ func resolveRetention(current *System, changes *Changes) (resolvedRetention, err
 		return result, err
 	}
 	if result.ruleUnmatchedGrace, err = ruleUnmatchedGraceMinutes(valueOr(changes.RuleUnmatchedGraceMinutes, current.RuleUnmatchedGraceMinutes)); err != nil {
+		return result, err
+	}
+	if result.historyMaxDrops, err = historyMaxDrops(valueOr(changes.HistoryMaxDrops, current.HistoryMaxDrops)); err != nil {
 		return result, err
 	}
 	if result.audit, err = auditRetentionDays("auditRetentionDays", valueOr(changes.AuditRetentionDays, current.AuditRetentionDays)); err != nil {
@@ -408,6 +421,11 @@ func validateRetentionChanges(changes *Changes) error {
 	}
 	if minutes := changes.RuleUnmatchedGraceMinutes; minutes != nil {
 		if _, err := ruleUnmatchedGraceMinutes(*minutes); err != nil {
+			return err
+		}
+	}
+	if drops := changes.HistoryMaxDrops; drops != nil {
+		if _, err := historyMaxDrops(*drops); err != nil {
 			return err
 		}
 	}
@@ -555,6 +573,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			TimeshiftWhileWatching:                 valueOr(changes.TimeshiftWhileWatching, current.TimeshiftWhileWatching),
 			TimeshiftWhileWatchingRetentionSeconds: retention.timeshiftWhileWatching,
 			RuleUnmatchedGraceMinutes:              retention.ruleUnmatchedGrace,
+			HistoryMaxDrops:                        retention.historyMaxDrops,
 			AuditRetentionDays:                     retention.audit,
 			AuditClientInfoRetentionDays:           retention.auditClientInfo,
 			HibpEnabled:                            valueOr(changes.HIBPEnabled, current.HIBPEnabled),
@@ -601,6 +620,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"timeshiftWhileWatching":                 change(current.TimeshiftWhileWatching, updated.TimeshiftWhileWatching),
 				"timeshiftWhileWatchingRetentionSeconds": change(current.TimeshiftWhileWatchingRetentionSeconds, updated.TimeshiftWhileWatchingRetentionSeconds),
 				"ruleUnmatchedGraceMinutes":              change(current.RuleUnmatchedGraceMinutes, updated.RuleUnmatchedGraceMinutes),
+				"historyMaxDrops":                        change(current.HistoryMaxDrops, updated.HistoryMaxDrops),
 				"auditRetentionDays":                     change(current.AuditRetentionDays, updated.AuditRetentionDays),
 				"auditClientInfoRetentionDays":           change(current.AuditClientInfoRetentionDays, updated.AuditClientInfoRetentionDays),
 				"hibpEnabled":                            change(current.HIBPEnabled, updated.HIBPEnabled),
@@ -636,6 +656,15 @@ func ruleUnmatchedGraceMinutes(minutes int) (int32, error) {
 	}
 
 	return int32(minutes), nil
+}
+
+// historyMaxDrops は、録画済みとみなすドロップの数の上限を確かめ、DB に書く値にする。
+func historyMaxDrops(drops int) (int32, error) {
+	if drops < 0 || drops > maxHistoryMaxDrops {
+		return 0, fmt.Errorf("%w: historyMaxDrops must be between 0 and %d", ErrInvalidSettings, maxHistoryMaxDrops)
+	}
+
+	return int32(drops), nil
 }
 
 // timeshiftRetentionSeconds は、視聴している間だけ録るタイムシフトの保持時間 (秒) を確かめ、DB に書く値にする。
@@ -794,6 +823,7 @@ func defaults() *System {
 		DRCSReplacements:          map[string]string{},
 		TimeshiftWhileWatching:    false, TimeshiftWhileWatchingRetentionSeconds: DefaultTimeshiftWhileWatchingRetentionSeconds,
 		RuleUnmatchedGraceMinutes: DefaultRuleUnmatchedGraceMinutes,
+		HistoryMaxDrops:           DefaultHistoryMaxDrops,
 		AuditRetentionDays:        DefaultAuditRetentionDays, AuditClientInfoRetentionDays: DefaultAuditClientInfoRetentionDays,
 		HIBPEnabled:              false,
 		WebPushSubject:           "",
@@ -846,6 +876,7 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		CommentSources:            row.CommentSources,
 		TimeshiftWhileWatching:    row.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: int(row.TimeshiftWhileWatchingRetentionSeconds),
 		RuleUnmatchedGraceMinutes: int(row.RuleUnmatchedGraceMinutes),
+		HistoryMaxDrops:           int(row.HistoryMaxDrops),
 		AuditRetentionDays:        int(row.AuditRetentionDays), AuditClientInfoRetentionDays: int(row.AuditClientInfoRetentionDays),
 		HIBPEnabled:              row.HibpEnabled,
 		WebPushSubject:           row.WebPushSubject,

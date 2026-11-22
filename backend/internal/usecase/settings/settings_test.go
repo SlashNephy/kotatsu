@@ -128,6 +128,8 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 		{name: "negative rule unmatched grace", changes: &settings.Changes{RuleUnmatchedGraceMinutes: new(-1)}, wantErr: settings.ErrInvalidSettings},
 		{name: "unknown CM detector", changes: &settings.Changes{CMDetector: new("join_logo_scp")}, wantErr: settings.ErrInvalidSettings},
 		{name: "too long rule unmatched grace", changes: &settings.Changes{RuleUnmatchedGraceMinutes: new(1441)}, wantErr: settings.ErrInvalidSettings},
+		{name: "negative history max drops", changes: &settings.Changes{HistoryMaxDrops: new(-1)}, wantErr: settings.ErrInvalidSettings},
+		{name: "too many history max drops", changes: &settings.Changes{HistoryMaxDrops: new(1001)}, wantErr: settings.ErrInvalidSettings},
 		// 監査ログは、ほかの保持期間と違い、無期限 (0) にできない (#1869)。
 		{name: "unlimited audit retention", changes: &settings.Changes{AuditRetentionDays: new(0)}, wantErr: settings.ErrInvalidSettings},
 		{name: "too long audit retention", changes: &settings.Changes{AuditRetentionDays: new(3651)}, wantErr: settings.ErrInvalidSettings},
@@ -163,6 +165,33 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, domain.DefaultRecordingSettings(), loaded.Recording)
 	assert.Equal(t, settings.DefaultArchiveRetentionDays, loaded.ArchiveRetentionDays)
+}
+
+// TestUpdateHistoryMaxDrops は、録画済みとみなすドロップの上限が、行を作ったときも既定値 (0 件) で、変えられることを確かめる。
+func TestUpdateHistoryMaxDrops(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+	store := newStore()
+	actor := audit.System("test")
+
+	defaults, err := settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	assert.Equal(t, settings.DefaultHistoryMaxDrops, defaults.HistoryMaxDrops)
+
+	// ほかの項目を変えて行を作っても、DB の既定値は Go の既定値と同じ。
+	_, err = store.Update(t.Context(), db, actor, &settings.Changes{MCPEnabled: new(true)})
+	require.NoError(t, err)
+	loaded, err := settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	assert.Equal(t, settings.DefaultHistoryMaxDrops, loaded.HistoryMaxDrops)
+
+	_, err = store.Update(t.Context(), db, actor, &settings.Changes{HistoryMaxDrops: new(4)})
+	require.NoError(t, err)
+	loaded, err = settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	assert.Equal(t, 4, loaded.HistoryMaxDrops)
+	assert.True(t, loaded.MCPEnabled, "the other change is kept")
 }
 
 // TestUpdateRuleUnmatchedGrace は、ルールから外れた予約を残す時間が、行を作ったときも既定値で、0 にも変えられることを確かめる (#1501)。

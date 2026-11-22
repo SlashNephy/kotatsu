@@ -37,8 +37,8 @@ ON CONFLICT (id) DO NOTHING;
 UPDATE recording_files SET size = @size, ended_at = @ended_at WHERE id = @id;
 
 -- name: AddRecordingStats :exec
--- 書き終えたセグメントのドロップ、エラー、スクランブルを、録画の集計に足す。
-UPDATE recordings SET drops = drops + @drops, errors = errors + @errors, scrambled = scrambled + @scrambled, updated_at = @now
+-- 書き終えたセグメントのドロップ、エラー、スクランブルを、録画の集計に足す。judged_drops は、判定に数えるドロップ (設計書 5.3)。
+UPDATE recordings SET drops = drops + @drops, judged_drops = judged_drops + @judged_drops, errors = errors + @errors, scrambled = scrambled + @scrambled, updated_at = @now
 WHERE id = @id;
 
 -- name: FinishRecording :exec
@@ -138,10 +138,10 @@ UPDATE recordings SET gaps = @gaps, updated_at = @now WHERE id = @id;
 
 -- name: SetRecordingStats :exec
 -- 録画を終えた後に解析したドロップ、エラー、スクランブルで、録画の集計を置き換える。
--- 完了した録画は、ドロップの有無で、完了とエラーありの完了を決め直す。
-UPDATE recordings SET drops = @drops, errors = @errors, scrambled = @scrambled,
+-- 完了した録画は、判定に数えるドロップの有無で、完了とエラーありの完了を決め直す (設計書 5.5)。
+UPDATE recordings SET drops = @drops, judged_drops = @judged_drops, errors = @errors, scrambled = @scrambled,
   state = CASE WHEN state IN ('completed', 'completed_with_errors')
-    THEN CASE WHEN @drops::bigint > 0 THEN 'completed_with_errors' ELSE 'completed' END
+    THEN CASE WHEN @judged_drops::bigint > 0 THEN 'completed_with_errors' ELSE 'completed' END
     ELSE state END,
   updated_at = @now
 WHERE id = @id;
@@ -220,7 +220,7 @@ UPDATE recordings SET broadcast_ended_at = NULL, updated_at = @now WHERE id = @i
 -- name: MarkRecordingWaitedForBroadcast :execrows
 -- 番組が遅れて始まるので、それまでに書いたセグメントを消して待つことを記録する (#1046)。消すセグメントのドロップなどは数え直す。
 -- 予約した番組がすでに放送中になっていれば、セグメントに番組が入っているので、何もせず 0 を返す。
-UPDATE recordings SET waited_for_broadcast = true, drops = 0, errors = 0, scrambled = 0, updated_at = @now
+UPDATE recordings SET waited_for_broadcast = true, drops = 0, judged_drops = 0, errors = 0, scrambled = 0, updated_at = @now
 WHERE id = @id AND broadcast_started_at IS NULL;
 
 -- name: DeleteRecordingSegments :many

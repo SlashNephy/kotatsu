@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d043b04386c2fb6cd2a9ec5e7c4f70a1>>
+ * @generated SignedSource<<ebe91703040350f5301be7be36deb760>>
  * @lightSyntaxTransform
  */
 
@@ -24,6 +24,7 @@ export type SystemSettingsInput = {
   epgstationApiEnabled?: boolean | null | undefined;
   externalPlayerUrlsEnabled?: boolean | null | undefined;
   hibpEnabled?: boolean | null | undefined;
+  historyMaxDrops?: number | null | undefined;
   iptvFeedsEnabled?: boolean | null | undefined;
   jikkyoChannels?: ReadonlyArray<JikkyoChannelOverrideInput> | null | undefined;
   mcpEnabled?: boolean | null | undefined;
