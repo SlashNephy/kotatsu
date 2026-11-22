@@ -21,10 +21,12 @@ import (
 )
 
 const (
-	// maxFollowingWatchingPages と maxFollowingWatchingEntries は、フォローしている人が見ている作品を、記録先ごとに引くページの数と
-	// 項目 (人と作品の組) の数の上限 (#1968)。フォローしている人の数の上限 (maxFollowingViewings、1,000 人) に、1 人あたり数作品を見込む。
-	maxFollowingWatchingPages   = 100
+	// maxFollowingWatchingEntries は、フォローしている人が見ている作品を、記録先ごとに引く項目 (人と作品の組) の数の上限 (#1968)。
+	// フォローしている人の数の上限 (maxFollowingViewings、1,000 人) に、1 人あたり数作品を見込む。
 	maxFollowingWatchingEntries = 5000
+	// maxFollowingWatchingPages は、記録先ごとに引くページの数の上限。AniList は、自分の ID (1 回)、フォローしている人
+	// (1,000 人を 50 人ずつ)、視聴中 (上限の項目を 50 件ずつ) の順に引くので、その和にする。Annict は、人の上限で先に止まる。
+	maxFollowingWatchingPages = 1 + maxFollowingViewings/aniListFollowingWatchingPage + maxFollowingWatchingEntries/aniListFollowingWatchingPage
 	// annictFollowingWatchingUsers と annictFollowingWatchingWorks は、Annict で 1 回に引く人の数と、1 人あたりの作品の数。
 	// 1 人あたりの作品は、この数までにする。「見てる」の作品がこれより多い人は、残りを引かない。
 	annictFollowingWatchingUsers = 25
@@ -304,6 +306,8 @@ func (s *Service) fetchFollowingWatching(ctx context.Context, destination Destin
 	s.wishlistMu.Lock()
 	defer s.wishlistMu.Unlock()
 	entries := []*FollowingWatchingEntry{}
+	// users は、引いた人。Annict は人ごとに作品を返すので、フォローしている人の上限 (maxFollowingViewings) を、ここで当てる。
+	users := map[string]bool{}
 	cursor := ""
 	for range maxFollowingWatchingPages {
 		if err := s.waitWishlistTurn(ctx, destination.Name()); err != nil {
@@ -314,8 +318,14 @@ func (s *Service) fetchFollowingWatching(ctx context.Context, destination Destin
 		if err != nil {
 			return nil, err
 		}
-		entries = append(entries, page.Entries...)
-		if page.Next == "" || len(entries) >= maxFollowingWatchingEntries {
+		for _, entry := range page.Entries {
+			if !users[entry.Username] && len(users) >= maxFollowingViewings {
+				continue
+			}
+			users[entry.Username] = true
+			entries = append(entries, entry)
+		}
+		if page.Next == "" || len(entries) >= maxFollowingWatchingEntries || (destination.Name() == DestinationAnnict && len(users) >= maxFollowingViewings) {
 			break
 		}
 		cursor = page.Next
@@ -328,14 +338,18 @@ func (s *Service) fetchFollowingWatching(ctx context.Context, destination Destin
 }
 
 // importFollowingWatching は、ユーザー userID の、記録先 destination のフォローしている人が見ている作品を取り込み、入れ替える (#1968)。
-// 見たいリストを取り込めた後に呼ぶ。取り込めなければ、前に取り込んだ作品を残し、ログに残すだけにする (見たいリストの取り込みは失敗にしない)。
-func (s *Service) importFollowingWatching(ctx context.Context, db Database, userID uuid.UUID, destination Destination, token string) {
+// 見たいリストを取り込めた後に呼ぶ。取り込めなければ、前に取り込んだ作品を残し、ログに残す (見たいリストの取り込みは失敗にしない)。
+// 記録先が 429 を返したときだけ ErrRateLimited を包んで返し、定期の取り込み (ImportDueWishlists) に、その記録先の残りの連携を次に回させる。
+func (s *Service) importFollowingWatching(ctx context.Context, db Database, userID uuid.UUID, destination Destination, token string) error {
 	entries, err := s.fetchFollowingWatching(ctx, destination, token)
 	if err != nil {
 		s.logger.WarnContext(ctx, "failed to import the works the following users are watching",
 			slog.String("destination", destination.Name()), slog.Any("error", err))
+		if errors.Is(err, ErrRateLimited) {
+			return err
+		}
 
-		return
+		return nil
 	}
 	name := destination.Name()
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
@@ -366,6 +380,8 @@ func (s *Service) importFollowingWatching(ctx context.Context, db Database, user
 		s.logger.WarnContext(ctx, "failed to save the works the following users are watching",
 			slog.String("destination", name), slog.Any("error", err))
 	}
+
+	return nil
 }
 
 // FollowingWatcher は、作品を見ている、フォローしている人。
@@ -441,8 +457,17 @@ func (s *Service) followingWatchingCandidates(ctx context.Context, db sqlc.DBTX,
 	}
 	watchers := map[int32][]*FollowingWatcher{}
 	for tid, list := range sources {
+		// 1 つの TID に、同じ記録先の作品が複数対応すると、同じ人が何度も出るので、記録先とユーザー名で 1 人にする。
+		seenWatcher := map[string]bool{}
 		for _, source := range list {
-			watchers[tid] = append(watchers[tid], byWork[wishlistKey(source.Destination, source.WorkID)]...)
+			for _, watcher := range byWork[wishlistKey(source.Destination, source.WorkID)] {
+				key := watcher.Destination + "/" + watcher.Username
+				if seenWatcher[key] {
+					continue
+				}
+				seenWatcher[key] = true
+				watchers[tid] = append(watchers[tid], watcher)
+			}
 		}
 		slices.SortFunc(watchers[tid], func(a, b *FollowingWatcher) int {
 			return cmp.Or(cmp.Compare(destinationOrder(a.Destination), destinationOrder(b.Destination)), cmp.Compare(a.Name, b.Name), cmp.Compare(a.Username, b.Username))

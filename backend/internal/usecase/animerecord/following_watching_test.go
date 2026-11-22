@@ -1,8 +1,10 @@
 package animerecord_test
 
 import (
+	"net/http"
 	"testing"
 	"time"
+	"uuid"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -149,4 +151,58 @@ func TestCreateFollowingWatchingRule(t *testing.T) {
 	require.ErrorIs(t, err, animerecord.ErrWishlistWorkCovered)
 	_, err = f.service.CreateFollowingWatchingRule(t.Context(), f.pool, rules, audit.User(f.alice.UserID), f.alice.UserID, 7000)
 	require.ErrorIs(t, err, animerecord.ErrWishlistWorkNotFound)
+}
+
+// TestImportFollowingWatchingRateLimited は、フォロー中のユーザーが見ている作品を引くときに記録先が 429 を返したら、見たいリストは
+// 取り込めたものとして残し、その記録先の残りの連携を、次の機会に回すことを確かめる (#1968)。
+func TestImportFollowingWatchingRateLimited(t *testing.T) {
+	t.Parallel()
+	f := newRecordFixture(t)
+	f.connect(t, f.alice, animerecord.DestinationAnnict)
+	f.connect(t, f.bob, animerecord.DestinationAnnict)
+	f.annict.setList([]fakeListEntry{{ID: annictWorkID, Title: titleA, Status: stateWannaWatch}}, 0)
+	f.annict.failNext(opFollowingWatching, http.StatusTooManyRequests, 1)
+
+	require.NoError(t, f.service.ImportDueWishlists(t.Context(), f.pool))
+
+	imported, checked := 0, 0
+	for _, user := range []uuid.UUID{f.alice.UserID, f.bob.UserID} {
+		at, importedAt, reason := f.importState(t, user, animerecord.DestinationAnnict)
+		if at != nil {
+			checked++
+			assert.Nil(t, reason, "the wishlist itself was imported")
+		}
+		if importedAt != nil {
+			imported++
+		}
+	}
+	assert.Equal(t, 1, checked, "the other Annict connection waits for the next check")
+	assert.Equal(t, 1, imported)
+}
+
+// TestFollowingWatchingWatchersAreUnique は、1 つの TID に同じ記録先の作品が複数対応していても、同じ人を 1 度だけ数えることを確かめる (#1968)。
+func TestFollowingWatchingWatchersAreUnique(t *testing.T) {
+	t.Parallel()
+	f := newRecordFixture(t)
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO program_anime_matches (service_id, start_at, event_id, matched_at)
+		SELECT service_id, start_at, event_id, now() FROM programs WHERE service_id = $1 AND start_at = $2`, serviceID(), at(13, 0))
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO program_anime_episodes (service_id, start_at, position, source, syobocal_tid, count_start, count_end, subtitle, is_first, is_last)
+		VALUES ($1, $2, 0, 'syobocal', $3, 5, 5, NULL, false, false)`, serviceID(), at(13, 0), testTID)
+	require.NoError(t, err)
+	// testTID に、Annict の作品 10 (fixture) のほか、分割して登録された作品 11 も対応する。
+	_, err = f.pool.Exec(t.Context(),
+		`INSERT INTO anime_works (source, syobocal_tid, position, annict_work_id, anilist_id, mal_id) VALUES ('arm', $1, 1, 11, NULL, NULL)`, testTID)
+	require.NoError(t, err)
+	f.connect(t, f.alice, animerecord.DestinationAnnict)
+	f.annict.setFollowing([]fakeFollowing{
+		{Username: hanaUsername, Name: hana, WorkID: annictWorkID, Status: stateWatching, Title: titleA},
+		{Username: hanaUsername, Name: hana, WorkID: 11, Status: stateWatching, Title: titleA},
+	}, 0)
+	require.NoError(t, f.service.ImportUserWishlists(t.Context(), f.pool, f.alice.UserID))
+
+	works, err := f.service.FollowingWatchingWorks(t.Context(), f.pool, f.alice.UserID)
+	require.NoError(t, err)
+	require.Len(t, works, 1)
+	assert.Len(t, works[0].Watchers, 1)
 }

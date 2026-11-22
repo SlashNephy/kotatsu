@@ -167,10 +167,8 @@ func (s *Service) ImportWishlist(ctx context.Context, db Database, userID uuid.U
 	if err != nil {
 		return err
 	}
-	// フォローしている人が見ている作品も、見たいリストと一緒に取り込む (#1968)。
-	s.importFollowingWatching(ctx, db, userID, destination, token)
-
-	return nil
+	// フォローしている人が見ている作品も、見たいリストと一緒に取り込む (#1968)。429 のときだけ、見たいリストを書いた後に返す。
+	return s.importFollowingWatching(ctx, db, userID, destination, token)
 }
 
 // wishlistEntriesParams は、見たいリストの作品を、まとめて書く引数にする。配列は NULL を持てないので、分からない数は -1 に、
