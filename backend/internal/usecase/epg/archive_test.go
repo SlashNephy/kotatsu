@@ -50,6 +50,8 @@ func TestArchiverMovesProgramsAfterGrace(t *testing.T) {
 			assert.Equal(t, tt.wantArchived, f.count(t, "SELECT count(*) FROM program_archives"))
 			// 検索で正規化し直さないよう、詳細の正規化した列も移す (#852)。
 			assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE extended_normalized IS NULL"))
+			// 番組の検索の gram (#966) も移す。移さないと、アーカイブで埋め直すまで、索引で絞れない。
+			assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE search_grams IS NULL"))
 			// 移した番組は programs に残らない。
 			assert.Equal(t, fixturePrograms-tt.wantArchived, f.count(t, "SELECT count(*) FROM programs"))
 		})
