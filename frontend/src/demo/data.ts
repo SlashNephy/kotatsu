@@ -40,7 +40,7 @@ const demoUser = {
 
 // paginate は、items を、after (前のページの最後の cursor) の次から first 件だけの connection にする。
 // cursor は、items の中の位置を文字列にしたもの。
-function paginate<T>(items: T[], first: number, after: string | null | undefined) {
+export function paginate<T>(items: T[], first: number, after: string | null | undefined) {
   const start = after == null ? 0 : Number.parseInt(after, 10) + 1;
   const edges = items
     .slice(start, start + first)
@@ -361,6 +361,9 @@ export function createRootValue(
     continueWatching: ({ first }: { first: number }) => recordings.continueWatching(first),
     // デモの録画は番組表の番組と結び付けないので、続きの放送 (#1564) は出さない。
     nextEpisodes: () => [],
+    // デモには通知がない。通知の一覧と、局の構成の変化の知らせ (LineupBanner) は空にする。
+    notifications: (args: { first: number; after?: string | null }) =>
+      paginate([], args.first, args.after),
     recordings: (args: {
       first: number;
       after?: string | null;

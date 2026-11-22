@@ -63,9 +63,23 @@ function interceptFetch(executor: Executor, captures: DemoCaptures): void {
   };
 }
 
-function createNetwork(executor: Executor) {
-  const fetchQuery: FetchFunction = async (operation, variables) =>
-    (await executor.execute(operation.text ?? '', variables)) as GraphQLResponse;
+// Hold は、応答を返さずに待たせる操作を選ぶ。読み込み中の画面を見るのに使う (Storybook、#2056)。
+export type Hold = (operation: { name: string }, variables: Variables) => boolean;
+
+function createNetwork(executor: Executor, hold?: Hold) {
+  const fetchQuery: FetchFunction = (operation, variables) =>
+    Observable.create<GraphQLResponse>((sink) => {
+      if (hold?.(operation, variables) === true) {
+        return;
+      }
+      executor.execute(operation.text ?? '', variables).then(
+        (result) => {
+          sink.next(result as GraphQLResponse);
+          sink.complete();
+        },
+        (error: unknown) => sink.error(error instanceof Error ? error : new Error(String(error))),
+      );
+    });
 
   const subscribe: SubscribeFunction = (operation, variables) =>
     Observable.create<GraphQLResponse>((sink) => {
@@ -117,16 +131,44 @@ function registerStreamWorker(): void {
     });
 }
 
+// DemoEnvironmentOptions は、createDemoEnvironment の設定。overrides のフィールドは、デモの値より優先する。
+// now は、デモの番組表を作る時刻 (ミリ秒)。hold が true を返した操作には、応答を返さず待たせる。
+export type DemoEnvironmentOptions = {
+  overrides?: object;
+  now?: number;
+  hold?: Hold;
+  captures?: DemoCaptures;
+};
+
+// createDemoEnvironment は、デモの応答を返す Relay の Environment と、応答を作る executor を作る。fetch などは横取りしない。
+// Storybook のページの Story (#2056) は、Story ごとに応答を差し替えて使う。
+export function createDemoEnvironment({
+  overrides = {},
+  now = Date.now(),
+  hold,
+  captures = createDemoCaptures(),
+}: DemoEnvironmentOptions = {}): { environment: Environment; executor: Executor } {
+  const executor = createExecutor({
+    ...createRootValue(createEventHub(), now, captures),
+    ...overrides,
+  });
+
+  return {
+    environment: new Environment({
+      network: createNetwork(executor, hold),
+      store: new Store(new RecordSource()),
+    }),
+    executor,
+  };
+}
+
 // installDemo は、fetch と実況の WebSocket を横取りし、デモの応答を返す Relay の Environment を作る。
 export function installDemo(): Environment {
   const captures = createDemoCaptures();
-  const executor = createExecutor(createRootValue(createEventHub(), Date.now(), captures));
+  const { environment, executor } = createDemoEnvironment({ captures });
   interceptFetch(executor, captures);
   installFakeJikkyo();
   registerStreamWorker();
 
-  return new Environment({
-    network: createNetwork(executor),
-    store: new Store(new RecordSource()),
-  });
+  return environment;
 }

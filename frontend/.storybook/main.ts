@@ -1,8 +1,10 @@
 import type { StorybookConfig } from '@storybook/react-vite';
 
-// Storybook は futon の部品の確認に使う (設計書 10.1)。
+// Storybook は、futon の部品と、アプリの画面 (src/storybook/pages) の確認に使う (設計書 10.1、#2056)。
 const config: StorybookConfig = {
   framework: '@storybook/react-vite',
+  // 利用状況を Storybook の開発元に送らない。
+  core: { disableTelemetry: true },
   stories: ['../src/**/*.stories.tsx'],
   viteFinal: (viteConfig) => ({
     ...viteConfig,
