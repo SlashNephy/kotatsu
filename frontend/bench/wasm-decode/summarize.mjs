@@ -19,14 +19,32 @@ for (const row of rows) {
   }
   const key = `${row.file}\t${row.kind}\t${row.variant ?? 'mpeg2toh264'}`;
   const values =
-    row.kind === 'decode'
-      ? { fps: row.fps, p95: row.p95, p99: row.p99, firstMs: row.firstFrameMs, frames: row.frames }
-      : {
-          fps: row.fps,
-          firstMs: row.firstFragmentMs,
-          mbps: (row.bytes * 8) / 30 / 1e6,
-          frames: row.stats?.videoFrames,
-        };
+    row.kind === 'play'
+      ? {
+          // 実時間の再生 (runPlay): デコードの分位、重複と飛び、捨てたコマ
+          decodeP50: row.decodeMs?.p50,
+          decodeP99: row.decodeMs?.p99,
+          uploadP99: row.uploadMs?.p99,
+          duplicated: Object.entries(row.fieldHolds ?? {})
+            .filter(([hold]) => Number(hold) > 1)
+            .reduce((sum, [hold, count]) => sum + (Number(hold) - 1) * count, 0),
+          skipped: row.fieldsSkipped,
+          dropped: row.droppedFrames,
+        }
+      : row.kind === 'decode'
+        ? {
+            fps: row.fps,
+            p95: row.p95,
+            p99: row.p99,
+            firstMs: row.firstFrameMs,
+            frames: row.frames,
+          }
+        : {
+            fps: row.fps,
+            firstMs: row.firstFragmentMs,
+            mbps: (row.bytes * 8) / 30 / 1e6,
+            frames: row.stats?.videoFrames,
+          };
   if (!groups.has(key)) groups.set(key, []);
   groups.get(key).push(values);
 }

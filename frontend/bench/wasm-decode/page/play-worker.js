@@ -177,6 +177,7 @@ async function start({ file, variant, canvas, seconds }) {
     variant,
     // 映像
     nextVideoPes: 0,
+    flushed: false,
     frames: [], // デコード済み (表示時刻の順): { pts, slot, interlaced, tff, fieldDur, shownFields }
     slots: [], // テクスチャの輪: { y, u, v, w, h, busy }
     lastPts: -Infinity,
@@ -299,8 +300,10 @@ function drain() {
     const flags = M._frame_flags(vd);
     const w = M._frame_width(vd);
     const h = M._frame_height(vd);
-    if (s.frameDur === null && s.lastPts > -Infinity && pts > s.lastPts)
-      s.frameDur = pts - s.lastPts;
+    // コマの長さは、隣り合うコマの PTS の差のうち、いちばん小さいもの (コマが欠けた所の差を使わない)
+    const delta = pts - s.lastPts;
+    if (s.lastPts > -Infinity && delta > 0 && (s.frameDur === null || delta < s.frameDur))
+      s.frameDur = delta;
     const interlaced = (flags & FRAME_FLAG_INTERLACED) !== 0;
     s.decodedFrames++;
     // 前より古い時刻のコマは捨てる
@@ -321,11 +324,20 @@ function drain() {
 function decodeAhead(targetPts) {
   const s = state;
   const { M, vd, outp } = s;
-  while (s.nextVideoPes < s.video.length) {
+  while (s.nextVideoPes < s.video.length || !s.flushed) {
     const newest = s.frames.at(-1);
     if (s.frames.length >= params.maxDecoded) break;
     if (newest && targetPts > -Infinity && newest.pts > targetPts + params.lookahead) break;
     if (newest && targetPts === -Infinity && s.frames.length >= 2) break;
+    if (s.nextVideoPes >= s.video.length) {
+      // 映像の終わり: parser に残った最後のコマと、並べ替えで残ったコマを出す
+      s.flushed = true;
+      M._dec_parse(vd, 0, 0, -1, outp);
+      if (M.HEAP32[outp >> 2]) M._dec_send_parsed(vd);
+      M._dec_send(vd, 0, 0, -1);
+      drain();
+      break;
+    }
     const pes = s.video[s.nextVideoPes++];
     const t = performance.now();
     s.ensure(pes.data.length);
@@ -421,7 +433,7 @@ function onVsync({ t }) {
   draw(target);
   if (
     (target - s.startedAt) / SECOND >= s.seconds ||
-    (s.nextVideoPes >= s.video.length && s.frames.length <= 1)
+    (s.flushed && s.frames.length <= 1 && target >= (s.frames[0]?.pts ?? 0) + (s.frameDur ?? 3003))
   )
     finish('done');
 }
@@ -464,11 +476,12 @@ function draw(target) {
   bind(0, frame.slot.y, 'uY');
   bind(1, frame.slot.u, 'uU');
   bind(2, frame.slot.v, 'uV');
-  const prev = s.prevSlot && s.prevSlot.w === frame.w ? s.prevSlot : frame.slot;
-  bind(3, prev.y, 'uPrevY');
+  // 前のコマは、大きさが同じときだけ比べる (選局した直後と、大きさが変わった直後は、コマの中だけで決める)
+  const hasPrev = Boolean(s.prevSlot && s.prevSlot.w === frame.w && s.prevSlot.h === frame.h);
+  bind(3, hasPrev ? s.prevSlot.y : frame.slot.y, 'uPrevY');
   gl.uniform1i(uniforms.uField, parity);
   gl.uniform1i(uniforms.uInterlaced, frame.interlaced ? 1 : 0);
-  gl.uniform1i(uniforms.uHasPrev, s.prevSlot ? 1 : 0);
+  gl.uniform1i(uniforms.uHasPrev, hasPrev ? 1 : 0);
   gl.uniform2f(uniforms.uSource, frame.w, frame.h);
   gl.uniform2f(uniforms.uOutput, s.canvas.width, s.canvas.height);
   gl.uniform4f(
