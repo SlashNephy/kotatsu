@@ -412,3 +412,55 @@ func TestFindByDramaNextSeason(t *testing.T) {
 		})
 	}
 }
+
+// TestFindMergesSubtitledSeries は、録画の詳細の続きの放送でも、番組名に副題が入ってシリーズ名が回ごとに変わる作品を、
+// 副題を除いた作品名のシリーズにまとめることを確かめる (#2031)。副題のない回の録画では、録画そのものを副題のない回とみなす。
+func TestFindMergesSubtitledSeries(t *testing.T) {
+	t.Parallel()
+
+	programs := []*faketuner.Program{
+		// 第 5 話の再放送は、副題のない番組名で放送される。
+		fakeProgram(fakeGRNetwork, fakeGRService, 600, time.Hour, "港町の灯　＃０５🈞"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 601, 5*time.Hour, "港町の灯　六つ目の嵐　＃０６🈑🈓"),
+		// シリーズ名が作品名で始まるだけの別の番組は、作品名を読み直して外す。
+		fakeProgram(fakeGRNetwork, fakeGRService, 602, 90*time.Minute, "港町の灯台　＃０９"),
+		// 枠の名前の後ろに作品名を書く番組は、副題のない回がなければまとめない。
+		fakeProgram(fakeGRNetwork, fakeGRService, 611, 3*time.Hour, "連続劇場　雪の峠　＃５"),
+		// 作品名の後ろの語が期 (数字) なら、まとめない。
+		fakeProgram(fakeGRNetwork, fakeGRService, 621, 6*time.Hour, "灯台守　４　＃１６"),
+	}
+	tests := []struct {
+		name      string
+		recording string
+		want      []int64
+	}{
+		{name: "副題のある回の録画には、再放送を出さず、副題のある次の回を出す", recording: "港町の灯　五つ目の約束　＃０５🈑🈓", want: []int64{601}},
+		{name: "副題のない回の録画には、副題のある回も出す", recording: "港町の灯　＃０４🈑🈓", want: []int64{600, 601}},
+		{name: "副題に空白が入っても、副題のない回のシリーズまでたどってまとめる", recording: "港町の灯　嵐の夜　その二　＃０５🈑🈓", want: []int64{601}},
+		{name: "副題のない回がなければ、枠の名前の後ろの作品をまとめない", recording: "連続劇場　霧の駅　＃３", want: []int64{}},
+		{name: "期の表記の付いた番組を、期のないシリーズにまとめない", recording: "灯台守　＃１４", want: []int64{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFindFixture(t, programs)
+			recording := f.addRecording(t, tt.recording)
+
+			got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, eventIDs(got))
+		})
+	}
+	t.Run("副題のある回を録画済みなら出さない", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, programs)
+		f.addHistory(t, "港町の灯　六つ目の嵐　＃０６🈑🈓", "港町の灯六つ目の嵐", nil, nil)
+		recording := f.addRecording(t, "港町の灯　五つ目の約束　＃０５🈑🈓")
+
+		got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+}
