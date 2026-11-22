@@ -97,11 +97,16 @@ func programWindow(intervals []logo.Interval, times []float64, fps float64, prog
 
 // snapWindow は、窓 w の両端を、windowSnapDistance 以内で最も近い無音の境目に寄せて返す (#1506 の手順 1)。
 // 切れ目のない境目は、windowSnapNoCut だけ遠いとみなす。寄せた結果、窓の始まりが終わりより後になる境目は使わない。
-// bounds の時刻は、今の見分け方の基準 (コマの時刻に offset を足したもの)。origin は最初のコマの時刻。窓は最初のコマからの秒。
-func snapWindow(w window, bounds []boundary, origin, offset float64) window {
+// bounds の時刻は、今の見分け方の基準 (コマの時刻に offset を足したもの)。duration は、その基準での録画の長さ。
+// combineSections と同じく、録画の端 (0 と duration) にある境目は、無音の境目ではないので使わない。
+// origin は最初のコマの時刻。窓は最初のコマからの秒。
+func snapWindow(w window, bounds []boundary, duration, origin, offset float64) window {
 	snap := func(edge float64, valid func(float64) bool) float64 {
 		best, bestCost := edge, math.Inf(1)
 		for _, b := range bounds {
+			if b.at <= 0 || b.at >= duration {
+				continue
+			}
 			at := b.at - offset - origin
 			distance := math.Abs(at - edge)
 			if distance > windowSnapDistance || !valid(at) {

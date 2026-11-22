@@ -127,41 +127,71 @@ func TestSnapWindow(t *testing.T) {
 	t.Parallel()
 
 	// 境目の時刻は、今の見分け方の基準 (コマの時刻 + offset)。ここでは最初のコマの時刻を 2、offset を 0.5 にし、窓の秒に 2.5 を足して書く。
+	// 録画の長さも同じ基準で、窓の秒の 1501 に当たる。
 	const origin, offset = 2.0, 0.5
 	at := func(windowSeconds float64) float64 { return windowSeconds + origin + offset }
+	duration := at(1501)
 	tests := []struct {
 		name               string
-		start              float64
+		start, end         float64
 		bounds             [][2]float64
 		wantStart, wantEnd float64
 	}{
-		{name: "境目がなければ動かさない", start: 60, bounds: [][2]float64{}, wantStart: 60, wantEnd: 1500},
+		{name: "境目がなければ動かさない", start: 60, end: 1500, bounds: [][2]float64{}, wantStart: 60, wantEnd: 1500},
 		{
-			name:      "寄せる距離の内の境目に寄せる",
-			start:     60,
+			name:  "寄せる距離の内の境目に寄せる",
+			start: 60, end: 1500,
 			bounds:    [][2]float64{{at(62), 1}, {at(1498.5), 1}},
 			wantStart: 62, wantEnd: 1498.5,
 		},
-		{name: "寄せる距離の外の境目には寄せない", start: 60, bounds: [][2]float64{{at(56), 1}, {at(1504), 1}}, wantStart: 60, wantEnd: 1500},
 		{
-			name:      "切れ目のない境目より、少し遠い切れ目のある境目を選ぶ",
-			start:     60,
+			name:  "寄せる距離の外の境目には寄せない",
+			start: 60, end: 1500,
+			bounds:    [][2]float64{{at(56), 1}, {at(1504), 1}},
+			wantStart: 60, wantEnd: 1500,
+		},
+		{
+			name:  "切れ目のない境目より、少し遠い切れ目のある境目を選ぶ",
+			start: 60, end: 1500,
 			bounds:    [][2]float64{{at(60.5), 0}, {at(61.2), 1}},
 			wantStart: 61.2, wantEnd: 1500,
 		},
 		{
-			name:      "切れ目のある境目が十分に遠ければ、近い切れ目のない境目を選ぶ",
-			start:     60,
+			name:  "切れ目のある境目が十分に遠ければ、近い切れ目のない境目を選ぶ",
+			start: 60, end: 1500,
 			bounds:    [][2]float64{{at(60.2), 0}, {at(62.5), 1}},
 			wantStart: 60.2, wantEnd: 1500,
 		},
-		{name: "ファイルの始まりより前の境目には寄せない", start: 1, bounds: [][2]float64{{at(-1), 1}}, wantStart: 1, wantEnd: 1500},
+		{
+			name:  "ファイルの始まりより前の境目には寄せない",
+			start: 1, end: 1500,
+			bounds:    [][2]float64{{at(-1), 1}},
+			wantStart: 1, wantEnd: 1500,
+		},
+		{
+			name:  "録画の端にある境目には寄せない",
+			start: 1, end: 1500,
+			bounds:    [][2]float64{{0, 1}, {duration, 1}},
+			wantStart: 1, wantEnd: 1500,
+		},
+		{
+			name:  "始まりは、窓の終わりより後の境目に寄せない",
+			start: 10, end: 12,
+			bounds:    [][2]float64{{at(13), 1}},
+			wantStart: 10, wantEnd: 13,
+		},
+		{
+			name:  "終わりは、寄せた始まりより前の境目に寄せない",
+			start: 10, end: 12,
+			bounds:    [][2]float64{{at(11.5), 1}},
+			wantStart: 11.5, wantEnd: 12,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotStart, gotEnd := cmdetect.SnapWindow(tt.start, 1500, tt.bounds, origin, offset)
+			gotStart, gotEnd := cmdetect.SnapWindow(tt.start, tt.end, tt.bounds, duration, origin, offset)
 			assert.InDelta(t, tt.wantStart, gotStart, 1e-9)
 			assert.InDelta(t, tt.wantEnd, gotEnd, 1e-9)
 		})

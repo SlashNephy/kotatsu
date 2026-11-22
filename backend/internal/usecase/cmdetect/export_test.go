@@ -266,12 +266,12 @@ func ResolveDetector(requested string, global func() (string, error)) (string, e
 }
 
 // SnapWindow は snapWindow。境目は、時刻と、切れ目があるかどうかの組で渡す。
-func SnapWindow(start, end float64, bounds [][2]float64, origin, offset float64) (float64, float64) {
+func SnapWindow(start, end float64, bounds [][2]float64, duration, origin, offset float64) (float64, float64) {
 	list := make([]boundary, 0, len(bounds))
 	for _, b := range bounds {
 		list = append(list, boundary{at: b[0], cut: b[1] != 0})
 	}
-	w := snapWindow(window{start: start, end: end}, list, origin, offset)
+	w := snapWindow(window{start: start, end: end}, list, duration, origin, offset)
 
 	return w.start, w.end
 }
