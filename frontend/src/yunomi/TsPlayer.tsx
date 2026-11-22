@@ -29,6 +29,7 @@ import type { SourcePicture, TsPlayerReading } from './streamMeter';
 import {
   createYadifUpscaler,
   useSuperResolution,
+  useSuperResolutionMethod,
   useSuperResolutionStrength,
   type YadifUpscaler,
 } from './superResolution';
@@ -202,6 +203,8 @@ function sourcePicture(
         : !yadif.doubleRate && yadif.interpolator?.wants('frame') === true),
     // 拡大して描いている大きさ (#1654)。設定を切っている間と、元の大きさ以下に映している間は null。
     upscaled: yadif !== null && yadif.scaler === upscaler ? upscaler.output() : null,
+    // 拡大を、先に Anime4K で 2 倍にしてから行っていること (#1653)。
+    upscaledWithAnime4K: yadif !== null && yadif.scaler === upscaler && upscaler.anime4k(),
     // 擬似 HDR で描いていること (#1656)。
     hdr: yadif !== null && yadif.scaler === upscaler && upscaler.hdr(),
     // 拡大を入れているのに拡大していないとき (映す大きさが元の大きさ以下) は、映す大きさを添えて、理由を分かるようにする。
@@ -307,6 +310,10 @@ export function TsPlayer({
   const [superResolutionStrength] = useSuperResolutionStrength();
   const superResolutionStrengthRef = useRef(superResolutionStrength);
   superResolutionStrengthRef.current = superResolutionStrength;
+  // superResolutionMethod は、拡大の方式 (#1653)。描くたびに読むので、ref で渡す。
+  const [superResolutionMethod] = useSuperResolutionMethod();
+  const superResolutionMethodRef = useRef(superResolutionMethod);
+  superResolutionMethodRef.current = superResolutionMethod;
   // hdrOutput は、解除したコマを擬似 HDR で描くか (#1656)。端末ごとの設定で入れていても、ブラウザが対応し、
   // 画面が HDR を出せるときだけ描く。描くたびに読むので、ref で渡す。
   const [savedHDROutput] = useHDROutput();
@@ -394,6 +401,7 @@ export function TsPlayer({
       upscaler: createYadifUpscaler({
         zoom: () => zoomRef.current,
         strength: () => superResolutionStrengthRef.current,
+        method: () => superResolutionMethodRef.current,
         upscale: () => superResolutionRef.current,
         hdr: () => hdrOutputRef.current,
         onUnavailable: (error) => {
@@ -401,6 +409,9 @@ export function TsPlayer({
         },
         onHDRUnavailable: (error) => {
           console.warn('HDR output is unavailable; showing the pictures in SDR', error);
+        },
+        onAnime4KUnavailable: (error) => {
+          console.warn('Anime4K is unavailable; upscaling with FSR only', error);
         },
       }),
       unfiltered: false,

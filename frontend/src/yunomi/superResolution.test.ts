@@ -3,10 +3,12 @@ import { describe, expect, test, vi } from 'vitest';
 import {
   createYadifUpscaler,
   loadSuperResolution,
+  loadSuperResolutionMethod,
   loadSuperResolutionStrength,
   upscaleSize,
   type SuperResolutionStrength,
 } from './superResolution';
+import type { Anime4K } from './anime4k';
 import type { HDRCopy } from './hdr';
 import type { Upscaler } from './upscaler';
 
@@ -48,6 +50,26 @@ describe('loadSuperResolutionStrength', () => {
         },
       }),
     ).toBe(3);
+  });
+});
+
+describe('loadSuperResolutionMethod', () => {
+  test.each([
+    { name: '覚えていなければ FSR', stored: null, want: 'fsr' },
+    { name: '選んだ方式を覚えていればその方式', stored: 'anime4k', want: 'anime4k' },
+    { name: '知らない値なら FSR', stored: 'rife', want: 'fsr' },
+  ])('$name', ({ stored, want }) => {
+    expect(loadSuperResolutionMethod({ getItem: () => stored })).toBe(want);
+  });
+
+  test('読めなければ FSR', () => {
+    expect(
+      loadSuperResolutionMethod({
+        getItem: () => {
+          throw new Error('denied');
+        },
+      }),
+    ).toBe('fsr');
   });
 });
 
@@ -149,6 +171,12 @@ function fakeContext(maxSize = 16384): WebGL2RenderingContext {
 
 function fakeUpscaler() {
   return { draw: vi.fn<Upscaler['draw']>(), destroy: vi.fn() };
+}
+
+const doubledTexture = {} as WebGLTexture;
+
+function fakeAnime4K() {
+  return { upscale: vi.fn<Anime4K['upscale']>(() => doubledTexture), destroy: vi.fn() };
 }
 
 function fakeCopy() {
@@ -382,5 +410,71 @@ describe('createYadifUpscaler', () => {
     expect(upscaler.hdr()).toBe(false);
     // 拡大しない大きさなら、元の大きさで描かせず、yadif にそのまま写させる。
     expect(upscaler.size(gl, 1440, 1080, 1422, 800)).toBeNull();
+  });
+
+  // Anime4K は 2 倍に決まっているので、縦横とも 2 倍以上に拡大するときだけ先に 2 倍にし、残りを FSR で拡大する (#1653)。
+  test.each([
+    {
+      name: '縦横とも 2 倍以上なら、Anime4K で 2 倍にしてから、残りを FSR で拡大する',
+      method: 'anime4k' as const,
+      output: { width: 3840, height: 2160 },
+      want: { texture: doubledTexture, width: 2880, height: 2160, anime4k: true },
+    },
+    {
+      name: '横だけを拡大するなら、Anime4K を使わない',
+      method: 'anime4k' as const,
+      output: { width: 1920, height: 1080 },
+      want: { texture, width: 1440, height: 1080, anime4k: false },
+    },
+    {
+      name: 'FSR を選んでいれば、Anime4K を使わない',
+      method: 'fsr' as const,
+      output: { width: 3840, height: 2160 },
+      want: { texture, width: 1440, height: 1080, anime4k: false },
+    },
+  ])('$name', ({ method, output, want }) => {
+    const made = fakeUpscaler();
+    const anime4k = fakeAnime4K();
+    const upscaler = createYadifUpscaler({
+      create: () => made,
+      createAnime4KUpscaler: () => anime4k,
+      method: () => method,
+    });
+
+    upscaler.draw(fakeContext(), texture, true, 1440, 1080, output.width, output.height);
+    expect(anime4k.upscale.mock.calls).toEqual(want.anime4k ? [[texture, true, 1440, 1080]] : []);
+    expect(made.draw).toHaveBeenLastCalledWith(
+      want.texture,
+      true,
+      want.width,
+      want.height,
+      output.width,
+      output.height,
+      0.2,
+      false,
+    );
+    expect(upscaler.anime4k()).toBe(want.anime4k);
+  });
+
+  test('Anime4K を作れなければ、知らせて FSR だけで拡大し、以後は作り直さない', () => {
+    const made = fakeUpscaler();
+    const createAnime4KUpscaler = vi.fn((): Anime4K => {
+      throw new Error('no EXT_color_buffer_float');
+    });
+    const onAnime4KUnavailable = vi.fn();
+    const upscaler = createYadifUpscaler({
+      create: () => made,
+      createAnime4KUpscaler,
+      method: () => 'anime4k',
+      onAnime4KUnavailable,
+    });
+    const gl = fakeContext();
+
+    expect(upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160)).toBe(true);
+    expect(upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160)).toBe(true);
+    expect(createAnime4KUpscaler).toHaveBeenCalledTimes(1);
+    expect(onAnime4KUnavailable).toHaveBeenCalledTimes(1);
+    expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 0.2, false);
+    expect(upscaler.anime4k()).toBe(false);
   });
 });
