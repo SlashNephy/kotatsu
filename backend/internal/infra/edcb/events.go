@@ -78,7 +78,8 @@ func (e *eventStream) wait(ctx context.Context, client *Client, count uint32) {
 		var event *tunerserver.Event
 		switch notification.ID {
 		case NotifyUpdateEPGData:
-			event = &tunerserver.Event{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}
+			// EPG のデータを読み込み直した通知は、どのサービスが変わったかを持たないので、全量を突き合わせさせる。
+			event = &tunerserver.Event{Type: tunerserver.EventTypeEPGChanged, ServiceID: 0}
 		case NotifyUpdateReserveInfo:
 			event = &tunerserver.Event{Type: tunerserver.EventTypeTunerChanged, ServiceID: 0}
 		default:

@@ -334,10 +334,12 @@ func fromEvent(e *tunerserver.Event, at time.Time) *mirakurunEvent {
 			event.Type = "create"
 		case tunerserver.EventTypeProgramRemoved:
 			event.Type = "remove"
-		case tunerserver.EventTypeProgramUpdated, tunerserver.EventTypeServiceChanged, tunerserver.EventTypeTunerChanged:
+		case tunerserver.EventTypeProgramUpdated, tunerserver.EventTypeServiceChanged, tunerserver.EventTypeTunerChanged,
+			tunerserver.EventTypeEPGChanged:
 		}
 		event.Data = json.RawMessage(fmt.Sprintf(`{"networkId":%d,"serviceId":%d}`, e.ServiceID/serviceIDBase, e.ServiceID%serviceIDBase))
-	case tunerserver.EventTypeServiceChanged:
+	// Mirakurun には番組表の全体が変わったことを知らせるイベントがないので、EPGChanged もサービスのイベントとして送る。
+	case tunerserver.EventTypeServiceChanged, tunerserver.EventTypeEPGChanged:
 		event.Resource = "service"
 	case tunerserver.EventTypeTunerChanged:
 		event.Resource = "tuner"

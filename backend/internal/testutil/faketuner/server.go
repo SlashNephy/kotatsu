@@ -167,6 +167,31 @@ func (s *Server) SetServiceMissing(id int64, missing bool) {
 	}
 }
 
+// UpdateService は、サービスの名前を name に変え (空なら変えない)、service の update イベントを送る。
+// Mirakurun 互換のチューナーサーバーは、EPG の取得が進むたびにも、名前などを変えずに service の update を送る (#2035)。
+func (s *Server) UpdateService(id int64, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, channel := range s.channels {
+		for _, service := range channel.Services {
+			if service.ID != id {
+				continue
+			}
+			if name != "" {
+				service.Name = name
+			}
+			copied := *service
+			copied.Channel = &ChannelRef{Type: channel.Type, Channel: channel.Channel}
+			s.publishLocked("service", "update", &copied)
+
+			return nil
+		}
+	}
+
+	return fmt.Errorf("service %d not found", id)
+}
+
 // AddProgram は番組を足し、program の create イベントを送る。
 func (s *Server) AddProgram(program *Program) {
 	s.mu.Lock()
