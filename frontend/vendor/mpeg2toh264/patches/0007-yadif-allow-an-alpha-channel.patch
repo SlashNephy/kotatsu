@@ -1,0 +1,28 @@
+diff --git a/packages/yadif/src/deinterlace.ts b/packages/yadif/src/deinterlace.ts
+index 37f9a03..9be57f4 100644
+--- a/packages/yadif/src/deinterlace.ts
++++ b/packages/yadif/src/deinterlace.ts
+@@ -273,6 +273,14 @@ export interface DeinterlacerOptions {
+   interpolator?: PictureInterpolator | null;
+   /** What to put pictures onto the canvas with, at a size of its own. See PictureScaler. */
+   scaler?: PictureScaler | null;
++  /**
++   * Whether to give the canvas's buffer an alpha channel. Every picture is
++   * drawn opaque, so this does not change what is shown, but a page that
++   * changes the buffer's format with `drawingBufferStorage` -- a floating
++   * point buffer for HDR output, say -- needs one: the browser refuses to
++   * change the format of a buffer without alpha.
++   */
++  alpha?: boolean;
+ }
+ 
+ /** How often pictures come out: one per frame, one per field, or film at 24p. */
+@@ -546,7 +554,7 @@ export class Deinterlacer {
+     this.canvas.style.cssText =
+       "position:absolute;pointer-events:none;visibility:hidden";
+     const gl = this.canvas.getContext("webgl2", {
+-      alpha: false,
++      alpha: options.alpha ?? false,
+       antialias: false,
+       depth: false,
+       stencil: false,

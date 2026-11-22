@@ -27,7 +27,8 @@ func Stem(name string) string {
 	if len(words) < 2 {
 		return ""
 	}
-	if seasonWordPattern.MatchString(canon(words[len(words)-1])) {
+	// canon は長音符を揃えるので、期の表記 (シーズン、パート) は、揃える前の語で見る。
+	if seasonWordPattern.MatchString(strings.ToLower(words[len(words)-1])) {
 		return ""
 	}
 
