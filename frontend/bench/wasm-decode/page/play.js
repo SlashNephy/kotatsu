@@ -12,7 +12,11 @@ const SECOND = 90_000;
  * file を、組み方 variant の WASM でデコードし、seconds 秒だけ実時間で再生して測る。
  * canvas は、描く先の canvas 要素 (一度しか worker へ渡せないので、呼ぶたびに作り直す)。
  */
-export const runPlay = (file, variant, { seconds = 25, width = 1920, height = 1080 } = {}) =>
+export const runPlay = (
+  file,
+  variant,
+  { seconds = 25, width = 1920, height = 1080, pacing = true } = {},
+) =>
   new Promise((resolve) => {
     const host = document.getElementById('stage');
     host.replaceChildren();
@@ -105,7 +109,7 @@ export const runPlay = (file, variant, { seconds = 25, width = 1920, height = 10
     ctx
       .resume()
       .then(() =>
-        worker.postMessage({ type: 'start', file, variant, canvas: offscreen, seconds }, [
+        worker.postMessage({ type: 'start', file, variant, canvas: offscreen, seconds, pacing }, [
           offscreen,
         ]),
       )

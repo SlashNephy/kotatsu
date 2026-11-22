@@ -24,6 +24,11 @@ const params = {
   // 画面の切り替わりの間隔: 受け取る範囲 (ms) と、混ぜる割合。
   vsyncRange: [4, 50],
   vsyncBlend: 0.05,
+  // 間合い: 切り替わりごとに進めた PTS と時計の差がこれ以内なら寄せ、超えたら合わせ直す。寄せる割合。
+  ptsSnapRange: 0.025 * SECOND,
+  ptsBlend: 0.02,
+  // 間合いの補正を使うか (使わなければ、切り替わりの時刻の時計でそのまま選ぶ)。比べるために切り替えられる。
+  pacing: true,
   // インタレ解除の閾値 (0〜1 の輝度)。
   weaveThreshold: 4 / 255,
   bobThreshold: 24 / 255,
@@ -119,7 +124,8 @@ onmessage = async ({ data }) => {
   }
 };
 
-async function start({ file, variant, canvas, seconds }) {
+async function start({ file, variant, canvas, seconds, pacing }) {
+  if (pacing !== undefined) params.pacing = pacing;
   const { default: init } = await import(`./wasm/${variant}/dec.mjs`);
   const M = await init({ locateFile: (path) => `./wasm/${variant}/${path}` });
   const response = await fetch(`./media/${file}`);
@@ -207,6 +213,10 @@ async function start({ file, variant, canvas, seconds }) {
     vsyncIntervals: [],
     startedAt: null,
     pendingQueries: [],
+    vsyncPts: null,
+    ptsResyncs: 0,
+    clockResyncs: 0,
+    ptsDiff: [],
   };
   // 最初の音を渡す (メインスレッドは、届いた最初の音の PTS を鳴らし始めの位置にする)
   feedAudio(-Infinity);
@@ -405,28 +415,51 @@ function onClock({ pts, perf }) {
   const s = state;
   if (!s) return;
   const offset = pts - perf * 90;
-  if (s.clockOffset === null || Math.abs(offset - s.clockOffset) > params.clockResync)
+  if (s.clockOffset === null || Math.abs(offset - s.clockOffset) > params.clockResync) {
+    if (s.clockOffset !== null) s.clockResyncs++;
     s.clockOffset = offset;
-  else s.clockOffset += (offset - s.clockOffset) * params.clockBlend;
+  } else s.clockOffset += (offset - s.clockOffset) * params.clockBlend;
 }
 
 // onVsync は、画面が切り替わった時刻 (requestAnimationFrame の時刻) を受け取り、次の切り替わりに出すフィールドを描く。
 function onVsync({ t }) {
   const s = state;
   if (!s) return;
+  let steps = 1;
   if (s.lastVsync !== null) {
     const dt = t - s.lastVsync;
-    if (dt >= params.vsyncRange[0] && dt <= params.vsyncRange[1]) {
+    // 何回分か抜けた回は、回数で割って 1 回分に戻してから覚える
+    steps = s.vsyncInterval === null ? 1 : Math.max(1, Math.round(dt / s.vsyncInterval));
+    const one = dt / steps;
+    if (one >= params.vsyncRange[0] && one <= params.vsyncRange[1]) {
       s.vsyncInterval =
         s.vsyncInterval === null
-          ? dt
-          : s.vsyncInterval + (dt - s.vsyncInterval) * params.vsyncBlend;
-      s.vsyncIntervals.push(dt);
+          ? one
+          : s.vsyncInterval + (one - s.vsyncInterval) * params.vsyncBlend;
+      s.vsyncIntervals.push(one);
     }
   }
   s.lastVsync = t;
   if (s.clockOffset === null || s.vsyncInterval === null) return;
-  const target = s.clockOffset + (t + s.vsyncInterval) * 90;
+  // 次の切り替わりの時刻の時計
+  const clock = s.clockOffset + (t + s.vsyncInterval) * 90;
+  let target = clock;
+  if (params.pacing) {
+    // 切り替わりごとの PTS は、前の切り替わりの PTS に間隔の分を足して進め、時計との差が寄せる範囲の中なら少しずつ寄せる。
+    // 出す時刻の揺れで、同じフィールドが 2 回出て次が飛ぶのを避けるため。範囲を超えたら (飛んだ、貯め直した) 時計に合わせ直す。
+    if (s.vsyncPts === undefined || s.vsyncPts === null) s.vsyncPts = clock;
+    else {
+      const stepped = s.vsyncPts + steps * s.vsyncInterval * 90;
+      const diff = clock - stepped;
+      if (Math.abs(diff) <= params.ptsSnapRange) s.vsyncPts = stepped + diff * params.ptsBlend;
+      else {
+        s.vsyncPts = clock;
+        s.ptsResyncs++;
+      }
+      s.ptsDiff.push(diff / 90);
+    }
+    target = s.vsyncPts;
+  }
   if (s.startedAt === null) s.startedAt = target;
   feedAudio(target);
   decodeAhead(target);
@@ -534,6 +567,10 @@ function finish(reason) {
       kind: 'play',
       file: s.file,
       variant: s.variant,
+      pacing: params.pacing,
+      ptsResyncs: s.ptsResyncs,
+      clockResyncs: s.clockResyncs,
+      ptsDiffMs: summarize(s.ptsDiff.map(Math.abs)),
       reason,
       seconds: s.startedAt === null ? 0 : s.seconds,
       canvas: [s.canvas.width, s.canvas.height],
