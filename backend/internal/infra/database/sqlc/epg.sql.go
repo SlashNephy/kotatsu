@@ -414,6 +414,41 @@ func (q *Queries) ListProgramsWithoutSeries(ctx context.Context, batchSize int32
 	return items, nil
 }
 
+const listServiceProgramNamesLike = `-- name: ListServiceProgramNamesLike :many
+SELECT name_normalized FROM programs
+WHERE service_id = $1 AND event_id <> $2 AND name_normalized LIKE $3
+ORDER BY start_at
+LIMIT 200
+`
+
+type ListServiceProgramNamesLikeParams struct {
+	ServiceID int64
+	EventID   int64
+	Pattern   string
+}
+
+// サービスの番組表の番組のうち、正規化した番組名が pattern (LIKE のパターン) に当たるものの、正規化した番組名 (#2041)。
+// 番組からルールを作るとき、同じ作品のほかの回を探して、回ごとに変わる副題をキーワードから除くのに使う。event_id の番組は除く。
+func (q *Queries) ListServiceProgramNamesLike(ctx context.Context, arg ListServiceProgramNamesLikeParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listServiceProgramNamesLike, arg.ServiceID, arg.EventID, arg.Pattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var name_normalized string
+		if err := rows.Scan(&name_normalized); err != nil {
+			return nil, err
+		}
+		items = append(items, name_normalized)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listServices = `-- name: ListServices :many
 SELECT id, network_id, sid, name, service_type, channel_type, channel, remote_control_key_id, logo_id
 FROM services

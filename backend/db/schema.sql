@@ -533,6 +533,9 @@ CREATE TABLE user_settings (
   comment_settings jsonb,
   -- 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。{superimposeLive, superimposeRecorded, stroke, backgroundOpacity} の形。NULL なら既定値。
   caption_settings jsonb,
+  -- 画面が端末に覚えていた設定のうち、端末をまたいで同期するもの (#1862)。画面の保存先のキーから、保存した文字列への対応。
+  -- 値の中身は画面が決め、サーバーは許したキーと長さだけを確かめる。
+  preferences jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL
 );
 

@@ -1,5 +1,4 @@
 import {
-  Badge,
   Button,
   Card,
   CloseButton,
@@ -134,9 +133,6 @@ export function ShortcutKeysCard() {
             {t('settings.shortcutKeys.title')}
           </Title>
           {/* アカウントの設定と並ぶので、この端末だけの設定であることを示す。 */}
-          <Badge size="sm" variant="light" color="gray" tt="none">
-            {t('settings.account.deviceOnly')}
-          </Badge>
         </Group>
         <Text size="sm" c="dimmed">
           {t('settings.shortcutKeys.description')}

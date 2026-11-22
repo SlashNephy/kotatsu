@@ -130,6 +130,8 @@ type PlayerSettings struct {
 	CaptionsEnabled bool
 	CommentSettings []byte
 	CaptionSettings []byte
+	// Preferences は、端末をまたいで同期する画面の設定 (#1862)。キーから文字列への対応の JSON。
+	Preferences []byte
 }
 
 // ContinueWatching は、続きから見る録画。

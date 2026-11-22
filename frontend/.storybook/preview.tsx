@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import '@mantine/core/styles.css';
+import '@mantine/notifications/styles.css';
 import '../src/futon/global.css';
 import '../src/i18n';
 

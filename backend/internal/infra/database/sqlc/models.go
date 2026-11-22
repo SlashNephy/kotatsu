@@ -1321,6 +1321,7 @@ type UserSetting struct {
 	WatchReminderMinutes int32
 	CommentSettings      []byte
 	CaptionSettings      []byte
+	Preferences          []byte
 	UpdatedAt            time.Time
 }
 

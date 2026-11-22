@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
-// キャプチャのファイル名のテンプレート (#500、設計書 7.5)。保存の仕方は端末ごとに違うので、端末ごとに覚える。
+// キャプチャのファイル名のテンプレート (#500、設計書 7.5)。端末をまたいで同期する (#1862)。
 // 空なら、既定の形 (日時 - サービス名 - 番組名) にする。
 
 const storageKey = 'kotatsu.capture.fileNameTemplate';
@@ -39,6 +40,7 @@ export function useCaptureFileNameTemplate(): [string, (template: string) => voi
     (next) => {
       try {
         browserStorage()?.setItem(storageKey, next);
+        preferenceChanged(storageKey);
       } catch {
         // 書けなければ、次に開いたときは既定に戻るだけ。
       }

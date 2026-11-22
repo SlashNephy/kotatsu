@@ -268,11 +268,16 @@ export function StreamInfo({
     // 拡大して描いているときは、描いている大きさを添える (#1654)。拡大を入れているのに、映す大きさが元の大きさ以下で
     // 拡大していないときは、映す大きさを添えて、拡大しない理由を示す。
     if (source.upscaled !== null) {
-      return t('player.streamInfo.upscaled', {
-        label: shown,
-        width: source.upscaled.width,
-        height: source.upscaled.height,
-      });
+      return t(
+        source.upscaledWithAnime4K
+          ? 'player.streamInfo.upscaledWithAnime4K'
+          : 'player.streamInfo.upscaled',
+        {
+          label: shown,
+          width: source.upscaled.width,
+          height: source.upscaled.height,
+        },
+      );
     }
 
     return source.notUpscaled === null

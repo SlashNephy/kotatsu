@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from '../yunomi/volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
-// 番組表の見た目 (密度、通販番組のグレー、ジャンルの色) を、端末ごとに覚えておく (設計書 10.3、#483)。
-// 画面の大きさで見やすい密度が変わるので、アカウントには保存しない。
+// 番組表の見た目 (密度、通販番組のグレー、ジャンルの色) を覚えておく (設計書 10.3、#483)。端末をまたいで同期する (#1862)。
 
 const storageKey = 'kotatsu.guide.appearance';
 // changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
@@ -123,6 +123,7 @@ export function saveGuideAppearance(
 ): void {
   try {
     storage?.setItem(storageKey, JSON.stringify(appearance));
+    preferenceChanged(storageKey);
   } catch {
     // 書けなければ、次に開いたときは既定に戻るだけ。
   }

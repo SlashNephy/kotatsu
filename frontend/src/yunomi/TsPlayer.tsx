@@ -29,6 +29,7 @@ import type { SourcePicture, TsPlayerReading } from './streamMeter';
 import {
   createYadifUpscaler,
   useSuperResolution,
+  useSuperResolutionMethod,
   useSuperResolutionStrength,
   type YadifUpscaler,
 } from './superResolution';
@@ -202,6 +203,8 @@ function sourcePicture(
         : !yadif.doubleRate && yadif.interpolator?.wants('frame') === true),
     // 拡大して描いている大きさ (#1654)。設定を切っている間と、元の大きさ以下に映している間は null。
     upscaled: yadif !== null && yadif.scaler === upscaler ? upscaler.output() : null,
+    // 拡大を、先に Anime4K で 2 倍にしてから行っていること (#1653)。
+    upscaledWithAnime4K: yadif !== null && yadif.scaler === upscaler && upscaler.anime4k(),
     // 擬似 HDR で描いていること (#1656)。
     hdr: yadif !== null && yadif.scaler === upscaler && upscaler.hdr(),
     // 拡大を入れているのに拡大していないとき (映す大きさが元の大きさ以下) は、映す大きさを添えて、理由を分かるようにする。
@@ -307,6 +310,10 @@ export function TsPlayer({
   const [superResolutionStrength] = useSuperResolutionStrength();
   const superResolutionStrengthRef = useRef(superResolutionStrength);
   superResolutionStrengthRef.current = superResolutionStrength;
+  // superResolutionMethod は、拡大の方式 (#1653)。描くたびに読むので、ref で渡す。
+  const [superResolutionMethod] = useSuperResolutionMethod();
+  const superResolutionMethodRef = useRef(superResolutionMethod);
+  superResolutionMethodRef.current = superResolutionMethod;
   // hdrOutput は、解除したコマを擬似 HDR で描くか (#1656)。端末ごとの設定で入れていても、ブラウザが対応し、
   // 画面が HDR を出せるときだけ描く。描くたびに読むので、ref で渡す。
   const [savedHDROutput] = useHDROutput();
@@ -394,6 +401,7 @@ export function TsPlayer({
       upscaler: createYadifUpscaler({
         zoom: () => zoomRef.current,
         strength: () => superResolutionStrengthRef.current,
+        method: () => superResolutionMethodRef.current,
         upscale: () => superResolutionRef.current,
         hdr: () => hdrOutputRef.current,
         onUnavailable: (error) => {
@@ -401,6 +409,9 @@ export function TsPlayer({
         },
         onHDRUnavailable: (error) => {
           console.warn('HDR output is unavailable; showing the pictures in SDR', error);
+        },
+        onAnime4KUnavailable: (error) => {
+          console.warn('Anime4K is unavailable; upscaling with FSR only', error);
         },
       }),
       unfiltered: false,
@@ -594,7 +605,7 @@ export function TsPlayer({
 
   // 拡大の設定も、読み直さずに切り替える (#1654)。切り抜きを変えたときは、映る大きさが変わるので、大きさを決め直させる。
   // yadif は、同じものを渡し直すと、大きさを決め直し、拡大していれば最後のコマを描き直す。
-  // 鮮鋭化の強さを変えたときも渡し直し、止めている間でも、今のコマを新しい強さで描き直させる。
+  // 鮮鋭化の強さと拡大の方式 (#1653) を変えたときも渡し直し、止めている間でも、今のコマを新しい設定で描き直させる。
   // 擬似 HDR (#1656) の切り替えも同じ。擬似 HDR で描いていた間に拡大と擬似 HDR のどちらも切ったときは、拡大の処理を
   // 外さずに渡し直し、描画先を SDR に戻して最後のコマを描き直させる。外すと、yadif は描き直さないので、止めている間は
   // 伸ばしたコマが残る。外すのは、次に設定を変えたときになる。
@@ -606,7 +617,14 @@ export function TsPlayer({
           superResolution || hdrOutput || slot.upscaler.hdr() ? slot.upscaler : null;
       }
     }
-  }, [superResolution, superResolutionStrength, hdrOutput, cropScale, cropStretchX]);
+  }, [
+    superResolution,
+    superResolutionStrength,
+    superResolutionMethod,
+    hdrOutput,
+    cropScale,
+    cropStretchX,
+  ]);
 
   // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
   const destroySlot = (slot: Slot) => {

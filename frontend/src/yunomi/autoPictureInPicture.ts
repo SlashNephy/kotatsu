@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
 // タブを切り替えたら、自動で視聴画面を別のウィンドウ (Document PiP) に出すか (#492、設計書 7.5)。
-// ブラウザの対応や使い方は端末ごとに違うので、端末ごとに覚える。既定では出さない。
+// 端末をまたいで同期する (#1862)。既定では出さない。
 
 const storageKey = 'kotatsu.player.autoPictureInPicture';
 // changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
@@ -25,6 +26,7 @@ export function saveAutoPictureInPicture(
 ): void {
   try {
     storage?.setItem(storageKey, String(enabled));
+    preferenceChanged(storageKey);
   } catch {
     // 書けなければ、次に開いたときは既定に戻るだけ。
   }

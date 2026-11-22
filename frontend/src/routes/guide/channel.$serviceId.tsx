@@ -18,7 +18,7 @@ import {
 } from '../../futon';
 import { channelWeekColumns, channelWeekDays, type ChannelDay } from '../../guide/channelWeek';
 import { GuideGrid } from '../../guide/GuideGrid';
-import { loadExtendedHours } from '../../guide/hourNotation';
+import { useExtendedHours } from '../../guide/hourNotation';
 import { broadcastDay, dateOf } from '../../guide/layout';
 import { ProgramDetail } from '../../guide/ProgramDetail';
 import { ServiceLabel } from '../../guide/ServiceLabel';
@@ -154,7 +154,7 @@ function ChannelGuide() {
             recorded: program.recorded,
           })),
         );
-  const [extendedHours] = useState(loadExtendedHours);
+  const [extendedHours] = useExtendedHours();
   useDocumentTitle(
     row === undefined ? [] : [toHalfWidth(row.service.name), t('guide.channel.title')],
   );

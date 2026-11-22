@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import type { Environment } from 'relay-runtime';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
+import { PreferencesSync } from '../settings/PreferencesSync';
 
 import { UserMenu } from '../auth/UserMenu';
 import UserMenuQueryNode from '../auth/__generated__/UserMenuQuery.graphql';
@@ -141,6 +142,12 @@ function RootLayout() {
                 </Group>
                 <Group gap="md" wrap="nowrap" className={classes.headerEnd}>
                   <DataChangesSubscriber />
+                  {/* 端末をまたいで同期する設定を、サーバーと揃える (#1862)。読めなくても、ヘッダーは出す。 */}
+                  <ErrorBoundary fallback={() => null}>
+                    <Suspense fallback={null}>
+                      <PreferencesSync />
+                    </Suspense>
+                  </ErrorBoundary>
                   <ConnectionStatus />
                   <HeaderSearch />
                   <NotificationBell />
