@@ -61,6 +61,9 @@ func TestRuleKeyword(t *testing.T) {
 		{name: "a numbered installment", in: "ドキュメント７２時間　第５０回", want: "ドキュメント72時間"},
 		// #2041: 放送枠の名前を除き、かぎ括弧の中を作品名にする。括弧の中のダッシュで囲んだ副題も除く。
 		{name: "a slot with a quoted title and a dashed subtitle", in: "木曜ドラマ「灯台の地図　ー霧笛の夜ー」第８話", want: lighthouse},
+		{name: "a dashed subtitle without a slot", in: "灯台の地図　ー霧笛の夜ー　第８話", want: lighthouse},
+		{name: "a dashed subtitle with a prolonged sound mark inside", in: "灯台の地図　ーヒーローの夜ー　第８話", want: lighthouse},
+		{name: "a prolonged sound mark inside a word is not a subtitle", in: "ヒーローの灯台　第８話", want: "ヒーローの灯台"},
 		{name: "a slot without quotes", in: "連続ドラマＷ　灯台の地図　＃１", want: lighthouse},
 		{name: "a slot with a space before the quoted title", in: "木曜ドラマ　「灯台の地図」　第８話", want: lighthouse},
 		{name: "a slot with a space before the double-quoted title", in: "木曜ドラマ　『灯台の地図』　第８話", want: lighthouse},

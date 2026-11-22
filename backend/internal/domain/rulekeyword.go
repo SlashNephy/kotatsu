@@ -2,6 +2,7 @@ package domain
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -39,6 +40,9 @@ var (
 	// keywordDashSubtitlePattern は、空白の後の、ダッシュか長音符で囲んだ副題 (作品名 ー副題ー)。開きの位置を 1 つ目のグループで返す。
 	// 空白を前に求めるのは、語の中の長音符 (ゴーストライター) を副題の区切りと取り違えないためである。
 	keywordDashSubtitlePattern = regexp.MustCompile(`\S(\s+[ー―—−-])[^ー―—−\s-][^ー―—−-]*[ー―—−-]\s*$`)
+	// keywordLongVowelSubtitlePattern は、長音符で囲んだ副題のうち、中に長音符を含むもの (作品名 ーヒーローの夜ー)。
+	// keywordDashSubtitlePattern は中に長音符を含まない副題だけを読むので、長音符で開いて長音符で閉じる副題は、中の長音符を許して読む。
+	keywordLongVowelSubtitlePattern = regexp.MustCompile(`\S(\s+ー)[^ー―—−\s-][^―—−-]*ー\s*$`)
 )
 
 // stripKeywordSlot は、rest の頭の、ドラマや映画の放送枠の名前を除く (#2041)。
@@ -76,7 +80,7 @@ func stripKeywordSlot(rest string) (string, string) {
 // かぎ括弧の中の副題 (作品名「題〜副題〜」) は除かない。除くと、括弧が閉じないキーワードになるからである。
 func trimEnclosedSubtitle(title string) string {
 	cut := len(title)
-	for _, pattern := range []*regexp.Regexp{keywordWaveSubtitlePattern, keywordDashSubtitlePattern} {
+	for _, pattern := range []*regexp.Regexp{keywordWaveSubtitlePattern, keywordDashSubtitlePattern, keywordLongVowelSubtitlePattern} {
 		loc := pattern.FindStringSubmatchIndex(title)
 		if loc == nil || loc[2] >= cut {
 			continue
@@ -185,6 +189,18 @@ func isKeywordSeparator(r rune) bool {
 	return unicode.IsSpace(r) || strings.ContainsRune(":：-－/／・|｜", r)
 }
 
+// HasKeywordPrefix は、ほかの回の作品名 other が、作品名の候補 prefix (RuleKeywordPrefixes) で始まり、その後ろが空か、空白か区切りの記号
+// (作品名: 副題) で続くかを返す (#2041)。区切りでない文字が続くもの (作品名帳) は、別の作品名なので含めない。
+func HasKeywordPrefix(other, prefix string) bool {
+	rest, ok := strings.CutPrefix(other, prefix)
+	if !ok {
+		return false
+	}
+	r, _ := utf8.DecodeRuneInString(rest)
+
+	return rest == "" || isKeywordSeparator(r)
+}
+
 // HasEpisodeNumber は、番組名 name に話数 (#1、第1話、(15) など) があるかを返す (#2041)。正規化する前の番組名を渡す。
 func HasEpisodeNumber(name string) bool {
 	return keywordEpisodePattern.MatchString(Normalize(name))
@@ -200,7 +216,8 @@ func RuleKeywordPrefixes(keyword string) []string {
 			continue
 		}
 		// 1 文字の作品名は、ほとんどの番組に一致するので、候補にしない。
-		if prefix := strings.TrimRightFunc(keyword[:i], isKeywordSeparator); utf8.RuneCountInString(strings.TrimSpace(prefix)) >= minTrimmedKeywordLength {
+		// 区切りの記号の前後に空白があると (作品名 - 副題)、同じ作品名が 2 度できるので、1 つにする。
+		if prefix := strings.TrimRightFunc(keyword[:i], isKeywordSeparator); utf8.RuneCountInString(strings.TrimSpace(prefix)) >= minTrimmedKeywordLength && !slices.Contains(prefixes, prefix) {
 			prefixes = append(prefixes, prefix)
 		}
 	}
