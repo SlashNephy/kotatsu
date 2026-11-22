@@ -27,7 +27,9 @@ export function authResponse(pathname: string): unknown {
     case '/internal/auth/login/totp/enrollment/confirm':
     case '/internal/auth/login/recovery-code':
       return { recoveryCodes: [] };
+    // GET は、最近再認証したか (recent) を、POST は、再認証した時刻を返す。同じパスなので、両方を返す。
     case '/internal/auth/reauth':
+      return { recent: true, authenticatedAt: new Date().toISOString() };
     case '/internal/auth/reauth/passkey/confirm':
       return { authenticatedAt: new Date().toISOString() };
     default:

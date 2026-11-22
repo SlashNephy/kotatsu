@@ -35,12 +35,17 @@ function json(body: unknown): Response {
 // 戻す関数を返す。Storybook (#2056) は、Story を閉じるときに戻す。
 // Story は同時にいくつも開き (Docs のページ)、開いた順と逆に閉じるとは限らないので、横取りは 1 つだけ入れ、
 // 最後に入れた応答の組 (interceptors の末尾) で応える。組がなくなったら、元の fetch に戻す。
-type Interceptor = { executor: Executor; captures: DemoCaptures };
+// auth は、/internal/auth/* のパスごとに、デモの既定の応答の代わりに返す応答 (Storybook の Story で差し替える)。
+type Interceptor = { executor: Executor; captures: DemoCaptures; auth: Record<string, unknown> };
 const interceptors: Interceptor[] = [];
 let baseFetch: typeof window.fetch | null = null;
 
-export function interceptFetch(executor: Executor, captures: DemoCaptures): () => void {
-  const entry: Interceptor = { executor, captures };
+export function interceptFetch(
+  executor: Executor,
+  captures: DemoCaptures,
+  auth: Record<string, unknown> = {},
+): () => void {
+  const entry: Interceptor = { executor, captures, auth };
   interceptors.push(entry);
   if (baseFetch === null) {
     const base = window.fetch;
@@ -60,7 +65,16 @@ export function interceptFetch(executor: Executor, captures: DemoCaptures): () =
         return json(await current.executor.execute(body.query ?? '', body.variables ?? {}));
       }
       if (url.pathname.startsWith('/internal/auth/')) {
-        return json(authResponse(url.pathname));
+        const replaced = current.auth[url.pathname];
+        // Error を渡したパスは、失敗の応答を返す (失敗の知らせを見るため)。
+        if (replaced instanceof Error) {
+          return new Response(JSON.stringify({ error: replaced.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        return json(replaced ?? authResponse(url.pathname));
       }
       // 録画の再生で読む実況の過去ログ。どの録画も同じ映像を流すので、同じコメントを返す。
       if (url.pathname === demoCommentsPath) {

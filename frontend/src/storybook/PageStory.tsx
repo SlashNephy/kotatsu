@@ -2,6 +2,7 @@
 // アプリと同じルート (routeTree) を、メモリの履歴で url から描く。応答は src/demo のデモのデータで、Story ごとに差し替えられる。
 // ローカルの開発環境では起こしにくい条件 (読み込み中、失敗、空の一覧など) を、画面ごとに並べて見るのに使う。
 import { Notifications } from '@mantine/notifications';
+import { GraphQLError } from 'graphql';
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { RelayEnvironmentProvider } from 'react-relay';
@@ -15,10 +16,12 @@ export type PageStoryProps = {
   // url は、描く画面のパス (/guide、/recordings?state=FAILED など)。デモのデータの ID (録画の ID など) は時刻から作るので、
   // パスに要るときは、デモの応答から読んでパスを返す関数を渡す。
   url: string | ((executor: Executor) => Promise<string>);
+  // auth は、/internal/auth/* のパスごとに返す応答。ログインや OIDC の状態を変えるのに使う。
+  auth?: Record<string, unknown>;
 } & Pick<DemoEnvironmentOptions, 'overrides' | 'hold'>;
 
 // PageStory は、url の画面を、デモの応答で描く。差し替えた応答は、Story を開き直すまで変えない。
-export function PageStory({ url, overrides, hold }: PageStoryProps) {
+export function PageStory({ url, overrides, hold, auth }: PageStoryProps) {
   // デモが応えない画面 (管理の画面など) も枠を描けるよう、デモのデータにないフィールドは型の既定の値で埋める。
   const [{ environment, executor, captures }] = useState(() =>
     createDemoEnvironment({ overrides, hold, fillMissing: true }),
@@ -28,7 +31,7 @@ export function PageStory({ url, overrides, hold }: PageStoryProps) {
   const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
     // Relay を通らずに呼ぶ所 (ログインの画面の /internal/auth/* など) にも、デモの応答を返す。Story を閉じたら戻す。
-    const restore = interceptFetch(executor, captures);
+    const restore = interceptFetch(executor, captures, auth);
     let cancelled = false;
     void (typeof url === 'string' ? Promise.resolve(url) : url(executor)).then(
       (path) => {
@@ -49,7 +52,7 @@ export function PageStory({ url, overrides, hold }: PageStoryProps) {
       cancelled = true;
       restore();
     };
-  }, [url, executor, captures]);
+  }, [url, executor, captures, auth]);
 
   return (
     <>
@@ -80,6 +83,17 @@ export function firstRecordingPath(path: string) {
 
 // holdAll は、すべての操作を待たせる。読み込み中の画面を見るのに使う。
 export const holdAll = () => true;
+
+// failingWith は、呼ばれると、extensions (code、reason など) を持つ GraphQL のエラーを投げる応答を返す。
+// 画面が code で出し分けるエラー (入力の誤り、再認証が要る、など) を見るのに使う。
+export function failingWith(
+  extensions: Record<string, unknown>,
+  message = 'the demo server rejected it',
+) {
+  return () => {
+    throw new GraphQLError(message, { extensions });
+  };
+}
 
 // failing は、呼ばれると投げる応答を返す。GraphQL のエラーとして画面に届く。
 export function failing(message = 'the demo server failed') {

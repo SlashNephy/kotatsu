@@ -112,3 +112,30 @@ export function recordingsWith(...patches: RecordingPatch[]) {
 export function minutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
 }
+
+// replaceProperty は、target の name を value に差し替え、元に戻す関数を返す。Story の beforeEach で、ブラウザの機能
+// (Web Push や WebAuthn など) がない端末や、Service Worker の状態を作るのに使う。
+export function replaceProperty(target: object, name: string, value: unknown): () => void {
+  const original = Object.getOwnPropertyDescriptor(target, name);
+  Object.defineProperty(target, name, { value, configurable: true, writable: true });
+
+  return () => {
+    if (original === undefined) {
+      Reflect.deleteProperty(target, name);
+    } else {
+      Object.defineProperty(target, name, original);
+    }
+  };
+}
+
+// removeProperty は、target から name を消し、元に戻す関数を返す。'name' in target で機能の有無を見る所に、ない端末を作る。
+export function removeProperty(target: object, name: string): () => void {
+  const original = Object.getOwnPropertyDescriptor(target, name);
+  Reflect.deleteProperty(target, name);
+
+  return () => {
+    if (original !== undefined) {
+      Object.defineProperty(target, name, original);
+    }
+  };
+}
