@@ -455,6 +455,7 @@ func (a *Analyzer) handleSection(pid uint16, section []byte) {
 		// PMT から外れた ES と、加わった ES は、continuity_counter を数え直す。
 		// 放送局は、番組の境目で解説放送の音声などを PMT から外し、戻すときに continuity_counter を 0 から始め直す。
 		// discontinuity_indicator は立たないが、パケットは欠けていないので、ドロップと数えない。
+		// CA 記述子が指す ECM も、番組の境目で外れて送られなくなり、戻るときに continuity_counter を振り直すので、同じく数え直す。
 		for _, changed := range a.programs.handlePMT(pid, section) {
 			if state := a.pids[changed]; state != nil {
 				state.lastCC = -1
