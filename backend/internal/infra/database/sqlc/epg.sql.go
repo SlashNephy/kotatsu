@@ -321,14 +321,14 @@ func (q *Queries) ListProgramsWithoutSeries(ctx context.Context, batchSize int32
 	return items, nil
 }
 
-const listServiceProgramNamesWithPrefix = `-- name: ListServiceProgramNamesWithPrefix :many
+const listServiceProgramNamesLike = `-- name: ListServiceProgramNamesLike :many
 SELECT name_normalized FROM programs
 WHERE service_id = $1 AND event_id <> $2 AND name_normalized LIKE $3
 ORDER BY start_at
 LIMIT 200
 `
 
-type ListServiceProgramNamesWithPrefixParams struct {
+type ListServiceProgramNamesLikeParams struct {
 	ServiceID int64
 	EventID   int64
 	Pattern   string
@@ -336,8 +336,8 @@ type ListServiceProgramNamesWithPrefixParams struct {
 
 // サービスの番組表の番組のうち、正規化した番組名が pattern (LIKE のパターン) に当たるものの、正規化した番組名 (#2041)。
 // 番組からルールを作るとき、同じ作品のほかの回を探して、回ごとに変わる副題をキーワードから除くのに使う。event_id の番組は除く。
-func (q *Queries) ListServiceProgramNamesWithPrefix(ctx context.Context, arg ListServiceProgramNamesWithPrefixParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, listServiceProgramNamesWithPrefix, arg.ServiceID, arg.EventID, arg.Pattern)
+func (q *Queries) ListServiceProgramNamesLike(ctx context.Context, arg ListServiceProgramNamesLikeParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listServiceProgramNamesLike, arg.ServiceID, arg.EventID, arg.Pattern)
 	if err != nil {
 		return nil, err
 	}

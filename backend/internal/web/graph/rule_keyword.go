@@ -21,9 +21,10 @@ func (r *Resolver) ruleKeyword(ctx context.Context, p *model.Program) (string, e
 		return keyword, nil
 	}
 	shortest := prefixes[len(prefixes)-1]
+	// 正規化した番組名は頭の飾りや枠の名前 ([新]、連続ドラマW) を残しているので、頭からではなく部分文字列で探す。
 	// LIKE のパターンで特別な意味を持つ文字は、文字どおりに一致させる。
 	likeEscaper := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
-	names, err := r.queries.ListServiceProgramNamesWithPrefix(ctx, p.ServiceKey, int64(p.EventID), likeEscaper.Replace(shortest)+"%")
+	names, err := r.queries.ListServiceProgramNamesLike(ctx, p.ServiceKey, int64(p.EventID), "%"+likeEscaper.Replace(shortest)+"%")
 	if err != nil {
 		return "", fmt.Errorf("failed to list the programs of service %d: %w", p.ServiceKey, err)
 	}

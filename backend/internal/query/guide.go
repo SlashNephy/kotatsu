@@ -368,10 +368,10 @@ func (q *Queries) RecordedPrograms(ctx context.Context, programs []*ProgramSpan)
 	return recorded, nil
 }
 
-// ListServiceProgramNamesWithPrefix は、サービス serviceID の番組表の番組のうち、正規化した番組名が LIKE のパターン pattern に当たるものの、
+// ListServiceProgramNamesLike は、サービス serviceID の番組表の番組のうち、正規化した番組名が LIKE のパターン pattern に当たるものの、
 // 正規化した番組名を返す。eventID の番組は除く (#2041)。
-func (q *Queries) ListServiceProgramNamesWithPrefix(ctx context.Context, serviceID, eventID int64, pattern string) ([]string, error) {
-	return sqlc.New(q.pool).ListServiceProgramNamesWithPrefix(ctx, sqlc.ListServiceProgramNamesWithPrefixParams{
+func (q *Queries) ListServiceProgramNamesLike(ctx context.Context, serviceID, eventID int64, pattern string) ([]string, error) {
+	return sqlc.New(q.pool).ListServiceProgramNamesLike(ctx, sqlc.ListServiceProgramNamesLikeParams{
 		ServiceID: serviceID, EventID: eventID, Pattern: pattern,
 	})
 }

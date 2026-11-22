@@ -175,7 +175,7 @@ WHERE (service_id, event_id, start_at) IN (
   LIMIT @batch_size::integer
 );
 
--- name: ListServiceProgramNamesWithPrefix :many
+-- name: ListServiceProgramNamesLike :many
 -- サービスの番組表の番組のうち、正規化した番組名が pattern (LIKE のパターン) に当たるものの、正規化した番組名 (#2041)。
 -- 番組からルールを作るとき、同じ作品のほかの回を探して、回ごとに変わる副題をキーワードから除くのに使う。event_id の番組は除く。
 SELECT name_normalized FROM programs

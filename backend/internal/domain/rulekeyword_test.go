@@ -62,6 +62,8 @@ func TestRuleKeyword(t *testing.T) {
 		// #2041: 放送枠の名前を除き、かぎ括弧の中を作品名にする。括弧の中のダッシュで囲んだ副題も除く。
 		{name: "a slot with a quoted title and a dashed subtitle", in: "木曜ドラマ「灯台の地図　ー霧笛の夜ー」第８話", want: lighthouse},
 		{name: "a slot without quotes", in: "連続ドラマＷ　灯台の地図　＃１", want: lighthouse},
+		{name: "a slot with a space before the quoted title", in: "木曜ドラマ　「灯台の地図」　第８話", want: lighthouse},
+		{name: "a slot with a space before the double-quoted title", in: "木曜ドラマ　『灯台の地図』　第８話", want: lighthouse},
 		{name: "a slot of period dramas", in: "おはよう！時代劇　灯台の地図１２　＃８", want: "灯台の地図12"},
 		{name: "a subtitle in full-width tildes", in: "灯台の地図～霧笛の夜～　第９話", want: lighthouse},
 		{name: "a long vowel inside a word is not a subtitle", in: "ゴーストライター２（１１）", want: "ゴーストライター2"},
@@ -153,6 +155,29 @@ func TestRuleKeywordPrefixes(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.want, domain.RuleKeywordPrefixes(tt.keyword))
+		})
+	}
+}
+
+func TestHasEpisodeNumber(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{name: "hash", in: "灯台の地図　＃０５", want: true},
+		{name: "kanji episode", in: "灯台の地図　第八話", want: true},
+		{name: "parenthesized number", in: "ブラッサム（２６）", want: true},
+		{name: "a parenthesized year is not an episode", in: "ゲゲゲの鬼太郎(1971)", want: false},
+		{name: "no episode", in: "ＭＵＳＩＣ　ＳＴＡＴＩＯＮ", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, domain.HasEpisodeNumber(tt.in))
 		})
 	}
 }
