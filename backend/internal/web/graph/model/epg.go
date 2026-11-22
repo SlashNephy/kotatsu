@@ -84,12 +84,6 @@ type Program struct {
 
 func (Program) IsNode() {}
 
-// RuleKeyword は、番組からルールを作るときに、番組名のキーワードにする作品名 (#1240)。gqlgen が Program.ruleKeyword に使う。
-// IsNode と同じく値のレシーバーにする (ポインタと混ぜると recvcheck に当たる)。
-func (p Program) RuleKeyword() string {
-	return domain.RuleKeyword(p.Name)
-}
-
 // WorkTitle は、外部のサービスで作品を探すのに使う作品名 (#1650)。gqlgen が Program.workTitle に使う。
 func (p Program) WorkTitle() string {
 	return domain.WorkTitle(p.Name)
