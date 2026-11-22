@@ -400,7 +400,7 @@ func (r *Recorder) completePromoted(
 	switch {
 	case len(gaps) > 0:
 		state = domain.RecordingStatePartial
-	// 字幕・データの PID だけのドロップでは、エラーありにしない (設計書 5.5)。
+	// 映像と音声の PID にドロップがなければ、エラーありにしない (設計書 5.5)。
 	case recording.JudgedDrops > 0:
 		state = domain.RecordingStateCompletedWithErrors
 	}

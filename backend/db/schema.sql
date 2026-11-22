@@ -1035,7 +1035,7 @@ CREATE TABLE recordings (
   drops bigint NOT NULL DEFAULT 0,
   errors bigint NOT NULL DEFAULT 0,
   scrambled bigint NOT NULL DEFAULT 0,
-  -- 録画の状態と重複の回避の判定に数えるドロップ (設計書 5.3、5.5)。drops から、字幕・データの PID のドロップを除いたもの。
+  -- 録画の状態と重複の回避の判定に数えるドロップ (設計書 5.3、5.5)。映像と音声の PID のドロップだけを数える。
   judged_drops bigint NOT NULL DEFAULT 0,
   -- ES の PID だけで出した、スクランブルされていたパケットの割合 (設計書 5.3、5.5、#1517)。録画を終えたときと、解析し直したときに書く。
   -- ES のパケットが少なくて判定しなかった録画と、判定する前の録画は NULL。

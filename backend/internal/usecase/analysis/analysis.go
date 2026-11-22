@@ -187,7 +187,7 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 	}
 	results := make([]*analyzed, len(segments))
 	total := new(ts.PIDStats)
-	// judgedDrops は、判定に数えるドロップ。字幕・データの PID のドロップを除く (設計書 5.3)。
+	// judgedDrops は、判定に数えるドロップ。映像と音声の PID のドロップだけを数える (設計書 5.3)。
 	var judgedDrops int64
 	events := make([][]*ts.EventAudio, len(segments))
 	// 引き継ぎで重なった区間は、後のセグメントでも録っているので、前のセグメントの集計からは除く (#525)。

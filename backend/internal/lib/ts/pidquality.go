@@ -72,21 +72,22 @@ func PIDQualities(stats *Stats, pids []*PIDStats) []PIDQuality {
 }
 
 // JudgedDrops は、PID ごとの統計 pids のドロップのうち、録画の状態と重複の回避の判定に数えるものの合計を返す (設計書 5.3)。
-// stats の PMT で字幕・データ (映像と音声のほかの ES) とされた PID のドロップは数えない。BS4K の録画では、番組の境目で
-// 字幕の MMT パケットの通し番号が飛び、TS に変換したときに字幕の PID の continuity counter も飛ぶ。
-// 映像と音声は欠けていないので、そのドロップで乱れた録画とはみなさない。
+// stats の PMT で映像か音声とされた PID のドロップだけを数える。字幕・データ、番組情報、PMT に載っていない PID のドロップは、
+// 見たときの乱れにならないので数えない。BS4K の録画では、番組の境目で字幕の MMT パケットの通し番号が飛び、TS に変換したときに
+// 字幕の PID の continuity counter も飛ぶ。受信で本当に欠けると、映像と音声の PID にもドロップが出る。
+// PMT を読めていなければ、どれが映像と音声か分からないので、すべての PID のドロップを数える。
 func JudgedDrops(stats *Stats, pids []*PIDStats) int64 {
-	others := map[uint16]bool{}
+	media := map[uint16]bool{}
 	for _, program := range stats.Programs {
 		for _, stream := range program.Streams {
-			if stream.Kind == StreamKindOther {
-				others[stream.PID] = true
+			if stream.Kind == StreamKindVideo || stream.Kind == StreamKindAudio {
+				media[stream.PID] = true
 			}
 		}
 	}
 	var total int64
 	for _, pid := range pids {
-		if !others[pid.PID] {
+		if len(media) == 0 || media[pid.PID] {
 			total += pid.Drops
 		}
 	}

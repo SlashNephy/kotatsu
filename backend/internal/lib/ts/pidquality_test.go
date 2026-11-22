@@ -40,7 +40,7 @@ func TestPIDQualities(t *testing.T) {
 	}, ts.PIDQualities(stats, pids))
 }
 
-// TestJudgedDrops は、判定に数えるドロップから、字幕・データの PID のドロップを除くことを確かめる。
+// TestJudgedDrops は、判定に数えるドロップを、映像と音声の PID のドロップだけにすることを確かめる。
 func TestJudgedDrops(t *testing.T) {
 	t.Parallel()
 
@@ -64,10 +64,17 @@ func TestJudgedDrops(t *testing.T) {
 			want:     0,
 		},
 		{
-			name:     "映像、音声、番組情報、不明の PID のドロップは数える",
+			name:     "映像と音声の PID のドロップだけを数える",
 			programs: programs,
 			pids:     []*ts.PIDStats{{PID: 0x0012, Drops: 1}, {PID: 0x100, Drops: 2}, {PID: 0x110, Drops: 4}, {PID: 0x130, Drops: 3}, {PID: 0x1FF, Drops: 8}},
-			want:     15,
+			want:     6,
+		},
+		{
+			// PMT に載っていない PID (CA 記述子が指す ECM の PID など) と番組情報の PID のドロップは数えない。
+			name:     "番組情報と PMT に載っていない PID だけのドロップは数えない",
+			programs: programs,
+			pids:     []*ts.PIDStats{{PID: 0x0000, Drops: 1}, {PID: 0x100, Drops: 0}, {PID: 0x110, Drops: 0}, {PID: 0x121, Drops: 1}},
+			want:     0,
 		},
 		{
 			name:     "PMT を読めていなければ、すべて数える",

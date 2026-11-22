@@ -764,7 +764,7 @@ func (r *Recorder) finishOnce(
 	}
 
 	// 引き継ぎや再開で、前のセグメントにドロップがあることもあるので、録画全体の集計で決める。
-	// 字幕・データの PID だけのドロップでは、エラーありにしない (設計書 5.5)。
+	// 映像と音声の PID にドロップがなければ、エラーありにしない (設計書 5.5)。
 	finished, err := sqlc.New(r.pool).GetRecording(ctx, recording.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get the recording: %w", err)
