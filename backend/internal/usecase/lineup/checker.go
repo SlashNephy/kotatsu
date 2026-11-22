@@ -138,7 +138,7 @@ func (c *Checker) checkSatellites(ctx context.Context, q *sqlc.Queries, known []
 		return fmt.Errorf("failed to load the idle services: %w", err)
 	}
 	for _, loaded := range observations {
-		obs := WithoutIdle(loaded, idle)
+		obs := WithoutIdle(loaded, idle, known)
 		change, ok := c.comparer.Observe(obs, known)
 		if !ok {
 			continue

@@ -263,18 +263,24 @@ func signatureOf(version uint8, broadcast map[uint16]bool) string {
 	return fmt.Sprint(version, ids)
 }
 
-// WithoutIdle は、obs から、番組のないサービス idle (#2034) を除いた構成を返す。obs は変えない。
-// NIT に載っていても、放送していないサービスは、チューナーサーバーが登録しないので、新しい局と数えない。
-func WithoutIdle(obs *Observation, idle map[Known]bool) *Observation {
-	if len(idle) == 0 {
+// WithoutIdle は、obs から、番組のないサービス idle (#2034) のうち、チューナーサーバーの known にないものを除いた構成を返す。
+// obs は変えない。NIT に載っていても、放送していないサービスは、チューナーサーバーが登録しないので、新しい局と数えない。
+// known にあるサービスは除かない。除くと、登録済みのサービスに番組のない間、終わった局と数えてしまうからである。
+func WithoutIdle(obs *Observation, idle map[Known]bool, known []Known) *Observation {
+	if obs == nil || len(idle) == 0 {
 		return obs
+	}
+	registered := map[Known]bool{}
+	for _, service := range known {
+		registered[service] = true
 	}
 	out := *obs
 	out.Streams = make([]Stream, 0, len(obs.Streams))
 	for _, stream := range obs.Streams {
 		services := make([]Service, 0, len(stream.Services))
 		for _, service := range stream.Services {
-			if !idle[Known{NetworkID: obs.NetworkID, ServiceID: service.ServiceID}] {
+			k := Known{NetworkID: obs.NetworkID, ServiceID: service.ServiceID}
+			if !idle[k] || registered[k] {
 				services = append(services, service)
 			}
 		}

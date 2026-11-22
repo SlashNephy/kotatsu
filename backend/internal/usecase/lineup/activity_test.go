@@ -76,3 +76,53 @@ func TestCheckerIdleServices(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, []any{"BS1 のサービス 103"}, got[0]["addedServices"])
 }
+
+// TestCheckerIdleRegisteredService は、チューナーサーバーにあるサービスは、番組がなくても終わった局と数えないことを確かめる (#2034)。
+func TestCheckerIdleRegisteredService(t *testing.T) {
+	t.Parallel()
+
+	pool, err := database.Open(t.Context(), databasetest.New(t))
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	q := sqlc.New(pool)
+	start := time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC)
+	clk := clocktest.NewFake(start)
+	createAdmin(t, pool, clk)
+	collector := lineup.NewActivityCollector(clk, slog.New(slog.DiscardHandler))
+	tuner := new(fakeServices)
+	tuner.set(bsTV(101), bsTV(102))
+	checker := lineup.NewChecker(pool, tuner, clk, slog.New(slog.DiscardHandler), 0)
+
+	observePresentFollowing(collector, 101, true)
+	observePresentFollowing(collector, 102, false)
+	collector.Flush(t.Context(), q)
+	writeLineup(t, q, start, 101, 102)
+	require.NoError(t, checker.Check(t.Context()))
+	writeLineup(t, q, start.Add(lineup.DefaultRecheckInterval), 101, 102)
+	require.NoError(t, checker.Check(t.Context()))
+	assert.Empty(t, lineupNotifications(t, pool))
+}
+
+// TestActivityCollectorRevert は、書く前に番組の有無が書いた値に戻ったら、戻る前の値を書かないことを確かめる (#2034)。
+func TestActivityCollectorRevert(t *testing.T) {
+	t.Parallel()
+
+	pool, err := database.Open(t.Context(), databasetest.New(t))
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	q := sqlc.New(pool)
+	clk := clocktest.NewFake(time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC))
+	collector := lineup.NewActivityCollector(clk, slog.New(slog.DiscardHandler))
+
+	observePresentFollowing(collector, 103, true)
+	collector.Flush(t.Context(), q)
+	observePresentFollowing(collector, 103, false)
+	observePresentFollowing(collector, 103, true)
+	collector.Flush(t.Context(), q)
+
+	idle, err := lineup.LoadIdle(t.Context(), q)
+	require.NoError(t, err)
+	assert.Empty(t, idle)
+}

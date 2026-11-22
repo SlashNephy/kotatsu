@@ -103,6 +103,9 @@ func (c *ActivityCollector) Observe(section *ts.PresentFollowingSection) {
 		return
 	}
 	if w, ok := c.written[key]; ok && w.hasEvents == hasEvents && now.Sub(w.at) < rewriteMinGap {
+		// 書く前に値が戻ったら、書いていない古い値を書かない。
+		delete(c.pending, key)
+
 		return
 	}
 	c.pending[key] = pendingActivity{transportStreamID: state.transportStreamID, hasEvents: hasEvents, observedAt: now}
