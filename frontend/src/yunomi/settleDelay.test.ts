@@ -55,13 +55,19 @@ describe('useSettledFalse', () => {
     rerender({ value: false });
     expect(result.current).toBe(true);
     // 落ち着く前にまた true になれば、そのまま出し続ける。
-    act(() => vi.advanceTimersByTime(100));
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
     rerender({ value: true });
-    act(() => vi.advanceTimersByTime(settleMs));
+    act(() => {
+      vi.advanceTimersByTime(settleMs);
+    });
     expect(result.current).toBe(true);
 
     rerender({ value: false });
-    act(() => vi.advanceTimersByTime(settleMs));
+    act(() => {
+      vi.advanceTimersByTime(settleMs);
+    });
     expect(result.current).toBe(false);
   });
 });
