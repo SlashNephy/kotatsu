@@ -543,6 +543,7 @@ func TestMigrateRereadsSeriesWithDashVariants(t *testing.T) {
 				assert.Nil(t, number)
 			} else {
 				assert.Equal(t, new(p.series), series)
+				assert.Equal(t, new(int32(3)), number)
 			}
 		})
 	}
