@@ -67,6 +67,19 @@ function newExecutor() {
   return { events, executor: createExecutor(createRootValue(events, now)) };
 }
 
+// subscribeChanges は、viewerEvents を購読し、購読を始めたときに届く今の版数 (データの種類の数と設定の 1 つ) を読み終えて返す。
+async function subscribeChanges(executor: ReturnType<typeof newExecutor>['executor']) {
+  const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
+    Symbol.asyncIterator
+  ]();
+  const current: unknown[] = [];
+  for (let i = 0; i < 11; i++) {
+    current.push((await results.next()).value);
+  }
+
+  return { results, current };
+}
+
 function text(request: ConcreteRequest): string {
   return request.params.text ?? '';
 }
@@ -270,15 +283,32 @@ describe('demo executor answers the queries of the screens', () => {
 });
 
 describe('demo viewerEvents', () => {
+  it('sends the current versions first, as the server does', async () => {
+    const { executor } = newExecutor();
+    const { results, current } = await subscribeChanges(executor);
+
+    expect(current).toContainEqual({
+      data: {
+        viewerEvents: {
+          dataChange: { channel: 'RULES', version: 0 },
+          viewerSettingsVersion: null,
+          unreadNotificationCount: null,
+          streamsDraining: null,
+          liveStreamScrambled: null,
+        },
+      },
+    });
+    expect(current.at(-1)).toMatchObject({
+      data: { viewerEvents: { dataChange: null, viewerSettingsVersion: 0 } },
+    });
+    await results.return?.();
+  });
+
   it('delivers a published data change to the subscriber', async () => {
     const { events, executor } = newExecutor();
-    const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
-      Symbol.asyncIterator
-    ]();
+    const { results } = await subscribeChanges(executor);
 
     const next = results.next();
-    // 購読を始めてから流す。listen はジェネレーターなので、最初の next で購読が始まる。
-    await Promise.resolve();
     events.publish({
       dataChange: { channel: 'RESERVATIONS', version: 3 },
       viewerSettingsVersion: null,
@@ -304,9 +334,7 @@ describe('demo viewerEvents', () => {
 
   it('ends a pending wait when the subscriber stops', async () => {
     const { executor } = newExecutor();
-    const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
-      Symbol.asyncIterator
-    ]();
+    const { results } = await subscribeChanges(executor);
 
     const pending = results.next();
     await results.return?.();
@@ -452,9 +480,7 @@ describe('demo guide and search', () => {
 describe('demo watch reservation', () => {
   it('tells the other screens about the change', async () => {
     const { executor } = newExecutor();
-    const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
-      Symbol.asyncIterator
-    ]();
+    const { results } = await subscribeChanges(executor);
     const next = results.next();
 
     await executor.execute(text(WatchReserveButtonMutation), { program: upcoming, reserved: true });

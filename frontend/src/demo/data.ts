@@ -26,6 +26,21 @@ import {
 import { createRecordings, type RecordingFilter } from './recordings';
 import { createScheduler, type RuleInput, type SettingsInput } from './schedule';
 
+// demoDataChannels は、購読を始めたときに今の版数を送る、データの種類 (GraphQL の DataChannel)。
+// デモのユーザーは管理者なので、管理者だけに送る種類 (ADMIN) も含める。
+const demoDataChannels = [
+  'EPG',
+  'RULES',
+  'RESERVATIONS',
+  'ASSIGNMENTS',
+  'RESERVATION_CONFLICTS',
+  'TUNERS',
+  'RECORDINGS',
+  'ANIME_FOLLOWING',
+  'DRAMA_WATCHLIST',
+  'ADMIN',
+] as const;
+
 // demoUser は、デモでログインしているものとして扱うユーザー。
 const demoUser = {
   __typename: 'User',
@@ -835,7 +850,45 @@ export function createRootValue(
     },
 
     // Subscription。graphql-js は、流れた値を rootValue にして選択集合を解くので、フィールド名で包む。
-    viewerEvents: () => events.listen((event) => ({ viewerEvents: event })),
+    // 本物のサーバーと同じく、購読を始めたら、まず種類ごとの今の版数と設定の版数を送る (設計書 9.1)。
+    // 画面は最初に届いた版数を今の版数として覚えるだけなので、送らないと、最初の変更で読み直さない。
+    viewerEvents: () => {
+      // 版数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。
+      const live = events.listen((event) => ({ viewerEvents: event }));
+      const quiet = {
+        unreadNotificationCount: null,
+        streamsDraining: null,
+        liveStreamScrambled: null,
+      };
+      const current = [
+        ...demoDataChannels.map((channel) => ({
+          viewerEvents: {
+            ...quiet,
+            dataChange: { channel, version: dataVersions.get(channel) ?? 0 },
+            viewerSettingsVersion: null,
+          },
+        })),
+        { viewerEvents: { ...quiet, dataChange: null, viewerSettingsVersion } },
+      ];
+      // ジェネレーターで書くと、待っている next を return で終わらせられない (events.ts の listen と同じ)。
+      // そこで、今の版数を送り終えたら、listen のイテレーターにそのまま任せる。
+      const iterator: AsyncIterableIterator<(typeof current)[number] | { viewerEvents: unknown }> =
+        {
+          next: async () => {
+            const value = current.shift();
+
+            return value === undefined ? live.next() : { done: false, value };
+          },
+          return: async () => {
+            current.length = 0;
+
+            return live.return === undefined ? { done: true, value: undefined } : live.return();
+          },
+          [Symbol.asyncIterator]: () => iterator,
+        };
+
+      return iterator;
+    },
     playerCommands: () => idle.listen(() => ({ playerCommands: null })),
   };
 }
