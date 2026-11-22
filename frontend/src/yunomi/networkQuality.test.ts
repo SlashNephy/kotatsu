@@ -182,7 +182,7 @@ describe('足りない兆し', () => {
     {
       name: 'コマの途絶とみなす時間に満たなければ数えない',
       mode: 'probe' as const,
-      input: { frameAgeMs: params.frameGapMs - 1 },
+      input: { frameAgeMs: params.frameGapMs - 1, ahead: params.frameGapAheadBelow - 0.1 },
       within: 5_000,
       want: false,
     },
@@ -203,7 +203,7 @@ describe('足りない兆し', () => {
     {
       name: '測らないとき (音声だけなど) のコマの途絶は数えない',
       mode: 'probe' as const,
-      input: { frameAgeMs: null },
+      input: { frameAgeMs: null, ahead: params.frameGapAheadBelow - 0.1 },
       within: 5_000,
       want: false,
     },
