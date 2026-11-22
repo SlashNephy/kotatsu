@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="46 96 420 420">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="46 92 420 420">
   <!-- 通知のバッジ (#2061)。Android はステータスバーに、バッジの不透明度だけを 1 色で描くので、採用版 (main-v6.svg) の猫の頭と耳と、頭に載せたみかんを白いシルエットにし、目と口をくり抜く。みかんと頭の境目は、細い隙間で分ける。 -->
   <defs>
     <mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
