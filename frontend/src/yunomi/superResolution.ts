@@ -406,6 +406,7 @@ export function createYadifUpscaler({
           copy ??= createCopy(gl);
           copy.draw(texture, flipped, width, height, expand);
           output = null;
+          anime4kUsed = false;
 
           return true;
         }

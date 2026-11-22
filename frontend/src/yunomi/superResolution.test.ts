@@ -456,6 +456,30 @@ describe('createYadifUpscaler', () => {
     expect(upscaler.anime4k()).toBe(want.anime4k);
   });
 
+  test('Anime4K が途中で失敗すれば、片付けて知らせ、そのコマから FSR だけで拡大する', () => {
+    const made = fakeUpscaler();
+    const anime4k = fakeAnime4K();
+    anime4k.upscale.mockImplementation(() => {
+      throw new Error('context lost');
+    });
+    const onAnime4KUnavailable = vi.fn();
+    const upscaler = createYadifUpscaler({
+      create: () => made,
+      createAnime4KUpscaler: () => anime4k,
+      method: () => 'anime4k',
+      onAnime4KUnavailable,
+    });
+    const gl = fakeContext();
+
+    expect(upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160)).toBe(true);
+    expect(upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160)).toBe(true);
+    expect(anime4k.upscale).toHaveBeenCalledTimes(1);
+    expect(anime4k.destroy).toHaveBeenCalledTimes(1);
+    expect(onAnime4KUnavailable).toHaveBeenCalledTimes(1);
+    expect(made.draw).toHaveBeenCalledTimes(2);
+    expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 0.2, false);
+  });
+
   test('Anime4K を作れなければ、知らせて FSR だけで拡大し、以後は作り直さない', () => {
     const made = fakeUpscaler();
     const createAnime4KUpscaler = vi.fn((): Anime4K => {

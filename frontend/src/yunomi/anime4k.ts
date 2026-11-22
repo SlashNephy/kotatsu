@@ -125,6 +125,8 @@ export function createAnime4K(gl: WebGL2RenderingContext): Anime4K {
         gl.disable(gl.SCISSOR_TEST);
         gl.disable(gl.DEPTH_TEST);
         gl.bindVertexArray(vertexArray);
+        // テクスチャを作るときに当てるユニットを、控えたユニットの中にする。
+        gl.activeTexture(gl.TEXTURE0);
         const target = ensure(width, height);
         const down = flipped ? 1 : -1;
         const textureOf = (name: string) =>

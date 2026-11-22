@@ -605,7 +605,7 @@ export function TsPlayer({
 
   // 拡大の設定も、読み直さずに切り替える (#1654)。切り抜きを変えたときは、映る大きさが変わるので、大きさを決め直させる。
   // yadif は、同じものを渡し直すと、大きさを決め直し、拡大していれば最後のコマを描き直す。
-  // 鮮鋭化の強さを変えたときも渡し直し、止めている間でも、今のコマを新しい強さで描き直させる。
+  // 鮮鋭化の強さと拡大の方式 (#1653) を変えたときも渡し直し、止めている間でも、今のコマを新しい設定で描き直させる。
   // 擬似 HDR (#1656) の切り替えも同じ。擬似 HDR で描いていた間に拡大と擬似 HDR のどちらも切ったときは、拡大の処理を
   // 外さずに渡し直し、描画先を SDR に戻して最後のコマを描き直させる。外すと、yadif は描き直さないので、止めている間は
   // 伸ばしたコマが残る。外すのは、次に設定を変えたときになる。
@@ -617,7 +617,14 @@ export function TsPlayer({
           superResolution || hdrOutput || slot.upscaler.hdr() ? slot.upscaler : null;
       }
     }
-  }, [superResolution, superResolutionStrength, hdrOutput, cropScale, cropStretchX]);
+  }, [
+    superResolution,
+    superResolutionStrength,
+    superResolutionMethod,
+    hdrOutput,
+    cropScale,
+    cropStretchX,
+  ]);
 
   // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
   const destroySlot = (slot: Slot) => {
