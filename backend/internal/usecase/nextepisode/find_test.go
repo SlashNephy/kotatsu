@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 	"uuid"
@@ -452,6 +453,32 @@ func TestFindMergesSubtitledSeries(t *testing.T) {
 			assert.Equal(t, tt.want, eventIDs(got))
 		})
 	}
+	t.Run("副題のない回が録画履歴にだけあっても、まとめる", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, []*faketuner.Program{
+			fakeProgram(fakeGRNetwork, fakeGRService, 701, 5*time.Hour, "汐見の窓　六つ目の嵐　＃０６"),
+		})
+		f.addHistory(t, "汐見の窓　＃０１", "汐見の窓", nil, nil)
+		recording := f.addRecording(t, "汐見の窓　五つ目の約束　＃０５")
+
+		got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+		require.NoError(t, err)
+		assert.Equal(t, []int64{701}, eventIDs(got))
+	})
+	t.Run("副題のない回が長い作品名にも短い作品名にもあれば、長い方にまとめる", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, append(slices.Clone(programs),
+			// 「港町の灯　嵐の夜」も、副題のない回を持つ作品。
+			fakeProgram(fakeGRNetwork, fakeGRService, 630, 2*time.Hour, "港町の灯　嵐の夜　＃０７"),
+		))
+		recording := f.addRecording(t, "港町の灯　嵐の夜　その二　＃０５🈑🈓")
+
+		got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+		require.NoError(t, err)
+		assert.Equal(t, []int64{630}, eventIDs(got))
+	})
 	t.Run("副題のある回を録画済みなら出さない", func(t *testing.T) {
 		t.Parallel()
 

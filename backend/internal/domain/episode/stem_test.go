@@ -55,6 +55,8 @@ func TestStems(t *testing.T) {
 		{name: "副題に空白が入れば、長い順にたどる", title: "港町の灯　嵐の夜　その二　＃０５", want: []string{harbor + "嵐の夜", harbor}},
 		{name: "期を表す語の手前で止める", title: "灯台守　４　嵐の夜　＃５", want: []string{"灯台守4"}},
 		{name: "話数の前に語が 1 つしかなければ空", title: "港町の灯　＃０５", want: []string{}},
+		{name: "話数の後ろに副題があれば空", title: "港町の灯　二つの影　＃０２「霧笛」", want: []string{}},
+		{name: "編を読んだ番組名は空", title: "港町の灯　霧の港編　＃０２", want: []string{}},
 		{name: "先頭の枠の名前は作品名に含めない", title: "<深夜アニメ枠>港町の灯　二つの影　＃０２", want: []string{harbor}},
 	}
 	for _, tt := range tests {
