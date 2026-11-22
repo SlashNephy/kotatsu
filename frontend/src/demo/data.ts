@@ -364,6 +364,7 @@ export function createRootValue(
     // デモには通知がない。通知の一覧と、局の構成の変化の知らせ (LineupBanner) は空にする。
     notifications: (args: { first: number; after?: string | null }) =>
       paginate([], args.first, args.after),
+    unreadNotificationCount: () => 0,
     recordings: (args: {
       first: number;
       after?: string | null;

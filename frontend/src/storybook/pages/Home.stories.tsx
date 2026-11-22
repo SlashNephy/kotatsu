@@ -1,0 +1,19 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+
+import { holdAll, PageStory } from '../PageStory';
+
+// ホーム (/) の画面 (#2056)。
+const meta = {
+  title: 'ページ/ホーム',
+  component: PageStory,
+  args: { url: '/' },
+  parameters: { layout: 'fullscreen' },
+} satisfies Meta<typeof PageStory>;
+
+export default meta;
+
+type Story = StoryObj<typeof meta>;
+
+export const Default: Story = {};
+
+export const Loading: Story = { args: { hold: holdAll } };
