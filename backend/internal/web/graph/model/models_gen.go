@@ -2474,6 +2474,9 @@ type SystemSettings struct {
 	// どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0〜1440。既定は 180。
 	// 番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
 	RuleUnmatchedGraceMinutes int `json:"ruleUnmatchedGraceMinutes"`
+	// 重複の回避で「録画済み」とみなす、映像と音声の PID のドロップの数の上限 (設計書 4.4)。0〜1000。既定は 0。
+	// 0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
+	HistoryMaxDrops int `json:"historyMaxDrops"`
 	// 監査ログの保持期間 (日。設計書 8.5)。1〜3650。既定は 365。
 	AuditRetentionDays int `json:"auditRetentionDays"`
 	// 監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。1〜3650。既定は 90。過ぎた記録は、この 2 つだけを空にする。
@@ -2534,6 +2537,8 @@ type SystemSettingsInput struct {
 	TimeshiftWhileWatchingRetentionSeconds *int `json:"timeshiftWhileWatchingRetentionSeconds,omitempty"`
 	// 0〜1440 分。
 	RuleUnmatchedGraceMinutes *int `json:"ruleUnmatchedGraceMinutes,omitempty"`
+	// 0〜1000 件。
+	HistoryMaxDrops *int `json:"historyMaxDrops,omitempty"`
 	// 1〜3650 日。
 	AuditRetentionDays *int `json:"auditRetentionDays,omitempty"`
 	// 1〜3650 日。

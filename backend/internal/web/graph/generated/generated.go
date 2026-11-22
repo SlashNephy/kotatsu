@@ -1772,6 +1772,7 @@ type ComplexityRoot struct {
 		EpgstationAPIEnabled                   func(childComplexity int) int
 		ExternalPlayerUrlsEnabled              func(childComplexity int) int
 		HibpEnabled                            func(childComplexity int) int
+		HistoryMaxDrops                        func(childComplexity int) int
 		IptvFeedsEnabled                       func(childComplexity int) int
 		JikkyoChannels                         func(childComplexity int) int
 		JikkyoEnabled                          func(childComplexity int) int
@@ -10077,6 +10078,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.HibpEnabled(childComplexity), true
+	case "SystemSettings.historyMaxDrops":
+		if e.ComplexityRoot.SystemSettings.HistoryMaxDrops == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.HistoryMaxDrops(childComplexity), true
 	case "SystemSettings.iptvFeedsEnabled":
 		if e.ComplexityRoot.SystemSettings.IptvFeedsEnabled == nil {
 			break
@@ -15505,6 +15512,11 @@ type SystemSettings {
   番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
   """
   ruleUnmatchedGraceMinutes: Int!
+  """
+  重複の回避で「録画済み」とみなす、映像と音声の PID のドロップの数の上限 (設計書 4.4)。0〜1000。既定は 0。
+  0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
+  """
+  historyMaxDrops: Int!
   "監査ログの保持期間 (日。設計書 8.5)。1〜3650。既定は 365。"
   auditRetentionDays: Int!
   "監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。1〜3650。既定は 90。過ぎた記録は、この 2 つだけを空にする。"
@@ -15588,6 +15600,8 @@ input SystemSettingsInput {
   timeshiftWhileWatchingRetentionSeconds: Int
   "0〜1440 分。"
   ruleUnmatchedGraceMinutes: Int
+  "0〜1000 件。"
+  historyMaxDrops: Int
   "1〜3650 日。"
   auditRetentionDays: Int
   "1〜3650 日。"
@@ -19363,6 +19377,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx, field)
 	case "ruleUnmatchedGraceMinutes":
 		return ec.fieldContext_SystemSettings_ruleUnmatchedGraceMinutes(ctx, field)
+	case "historyMaxDrops":
+		return ec.fieldContext_SystemSettings_historyMaxDrops(ctx, field)
 	case "auditRetentionDays":
 		return ec.fieldContext_SystemSettings_auditRetentionDays(ctx, field)
 	case "auditClientInfoRetentionDays":
@@ -54288,6 +54304,29 @@ func (ec *executionContext) fieldContext_SystemSettings_ruleUnmatchedGraceMinute
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
 }
 
+func (ec *executionContext) _SystemSettings_historyMaxDrops(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_historyMaxDrops(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HistoryMaxDrops, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_historyMaxDrops(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
+}
+
 func (ec *executionContext) _SystemSettings_auditRetentionDays(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -60692,7 +60731,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "dramaLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes", "auditRetentionDays", "auditClientInfoRetentionDays", "hibpEnabled", "webPushSubject", "thumbnailPreviewsEnabled", "sleepControlEnabled", "captionThreads", "jikkyoChannels"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "dramaLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes", "historyMaxDrops", "auditRetentionDays", "auditClientInfoRetentionDays", "hibpEnabled", "webPushSubject", "thumbnailPreviewsEnabled", "sleepControlEnabled", "captionThreads", "jikkyoChannels"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -60853,6 +60892,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.RuleUnmatchedGraceMinutes = data
+		case "historyMaxDrops":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("historyMaxDrops"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HistoryMaxDrops = data
 		case "auditRetentionDays":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("auditRetentionDays"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -72740,6 +72786,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "ruleUnmatchedGraceMinutes":
 			out.Values[i] = ec._SystemSettings_ruleUnmatchedGraceMinutes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "historyMaxDrops":
+			out.Values[i] = ec._SystemSettings_historyMaxDrops(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

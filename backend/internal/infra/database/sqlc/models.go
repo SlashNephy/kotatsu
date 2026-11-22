@@ -1133,6 +1133,7 @@ type SystemSetting struct {
 	TimeshiftWhileWatching                 bool
 	TimeshiftWhileWatchingRetentionSeconds int32
 	RuleUnmatchedGraceMinutes              int32
+	HistoryMaxDrops                        int32
 	AuditRetentionDays                     int32
 	AuditClientInfoRetentionDays           int32
 	HibpEnabled                            bool

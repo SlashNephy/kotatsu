@@ -400,6 +400,9 @@ CREATE TABLE system_settings (
   -- どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。
   -- 番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。0 なら残さない。
   rule_unmatched_grace_minutes integer NOT NULL DEFAULT 180 CHECK (rule_unmatched_grace_minutes BETWEEN 0 AND 1440),
+  -- 重複の回避で「録画済み」とみなす、判定に数えるドロップ (映像と音声の PID のもの) の数の上限 (設計書 4.4、付録 A)。
+  -- 0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
+  history_max_drops integer NOT NULL DEFAULT 0 CHECK (history_max_drops BETWEEN 0 AND 1000),
   -- 監査ログの保持期間 (日。設計書 8.5)。これを過ぎた記録は、nekonote が 1 日ごとに消す (#1869 で設定ファイルから移した)。
   audit_retention_days integer NOT NULL DEFAULT 365 CHECK (audit_retention_days BETWEEN 1 AND 3650),
   -- 監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。過ぎた記録は、この 2 つだけを空にする。

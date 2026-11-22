@@ -72,6 +72,7 @@ const query = graphql`
         bundleSameEpisodes
       }
       ruleUnmatchedGraceMinutes
+      historyMaxDrops
       tvtplayChaptersEnabled
       cmDetector
       thumbnailPreviewsEnabled
@@ -334,6 +335,18 @@ function RecordingSettings() {
             allowNegative={false}
             value={settings.ruleUnmatchedGraceMinutes}
             onSave={(ruleUnmatchedGraceMinutes) => saveSettings({ ruleUnmatchedGraceMinutes })}
+          />
+          <AutoSaveNumberInput
+            size="xs"
+            maw={480}
+            label={t('admin.settings.historyMaxDrops')}
+            description={t('admin.settings.historyMaxDropsHelp')}
+            min={0}
+            max={1000}
+            allowDecimal={false}
+            allowNegative={false}
+            value={settings.historyMaxDrops}
+            onSave={(historyMaxDrops) => saveSettings({ historyMaxDrops })}
           />
         </Stack>
       </Card>

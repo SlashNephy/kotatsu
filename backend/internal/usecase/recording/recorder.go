@@ -60,8 +60,6 @@ const (
 	DefaultRetryInterval = 2 * time.Second
 	// DefaultDatabaseTimeout は、録画中に 1 度に DB を待つ上限の既定値 (#1073)。
 	DefaultDatabaseTimeout = 5 * time.Second
-	// MaxHistoryDrops は、重複の回避で「録画済み」とみなすドロップの数の上限 (付録 A、#1497)。決め方は history.MaxDrops に書く。
-	MaxHistoryDrops = history.MaxDrops
 	// ExtensionStep と MaxExtension は、延長中で終了時刻が未定の番組の、録画の延長幅と上限 (付録 A)。
 	ExtensionStep = 5 * time.Minute
 	MaxExtension  = 3 * time.Hour
