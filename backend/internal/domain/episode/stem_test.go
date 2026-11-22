@@ -40,3 +40,10 @@ func TestStem(t *testing.T) {
 		})
 	}
 }
+
+func TestStemDashVariants(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, episode.Stem("港町の灯〜外伝〜　二つの影　＃０２"), episode.Stem("港町の灯～外伝～　三つの影　＃０３"))
+	assert.NotEmpty(t, episode.Stem("港町の灯〜外伝〜　二つの影　＃０２"))
+}

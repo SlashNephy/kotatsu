@@ -184,3 +184,31 @@ func TestCaptioned(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDashVariants(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		a, b  string
+		equal bool
+	}{
+		{name: "波ダッシュと全角チルダ", a: "灯台の地図〜霧笛の夜〜　＃３", b: "灯台の地図～霧笛の夜～　＃３", equal: true},
+		{name: "波ダッシュと半角チルダ", a: "灯台の地図〜霧笛の夜〜 #3", b: "灯台の地図~霧笛の夜~ #3", equal: true},
+		{name: "全角ハイフンマイナスとマイナス記号", a: "灯台の地図－霧笛の夜－　＃３", b: "灯台の地図－霧笛の夜−　＃３", equal: true},
+		{name: "全角ダッシュとハイフン", a: "灯台の地図—霧笛の夜—　＃３", b: "灯台の地図-霧笛の夜-　＃３", equal: true},
+		{name: "ホリゾンタルバーとエンダッシュ", a: "灯台の地図―霧笛の夜―　＃３", b: "灯台の地図–霧笛の夜–　＃３", equal: true},
+		{name: "長音符はダッシュと揃えない", a: "灯台の地図ー霧笛の夜ー　＃３", b: "灯台の地図-霧笛の夜-　＃３", equal: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			a := episode.Parse(&episode.Source{Name: tt.a})
+			b := episode.Parse(&episode.Source{Name: tt.b})
+			assert.Equal(t, 3, a.Number)
+			assert.Equal(t, tt.equal, a.Series == b.Series, "%q and %q", a.Series, b.Series)
+			assert.Equal(t, tt.equal, a.Key == b.Key, "%q and %q", a.Key, b.Key)
+		})
+	}
+}

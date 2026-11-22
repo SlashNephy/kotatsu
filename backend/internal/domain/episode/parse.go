@@ -156,7 +156,11 @@ func norm(s string) string {
 	return domain.Normalize(s)
 }
 
-// normalizeName は、囲み漢字 (U+1F210〜U+1F23B) を空白にしてから、番組名を半角に寄せる。
+// normalizeName は、囲み漢字 (U+1F210〜U+1F23B) を空白にしてから、番組名を半角に寄せ、波ダッシュとダッシュの書き方を揃える (#2039)。
+// 局や回で書き方が違うと、同じ作品の回が別のシリーズになるからである。
+//
+// NFKC は全角チルダ (U+FF5E) を ~ に、全角ハイフンマイナス (U+FF0D) を - にするが、波ダッシュ (U+301C) とダッシュの類は残す。
+// 波ダッシュは、EPGStation (StrUtil.toHalf) と同じく ~ にする。ダッシュの類は - にする。長音符 (U+30FC) は語の一部なので揃えない。
 func normalizeName(name string) string {
 	name = strings.Map(func(r rune) rune {
 		if r >= 0x1F210 && r <= 0x1F23B {
@@ -166,7 +170,16 @@ func normalizeName(name string) string {
 		return r
 	}, name)
 
-	return domain.Normalize(name)
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '〜':
+			return '~'
+		case '‐', '‑', '‒', '–', '—', '―', '−':
+			return '-'
+		default:
+			return r
+		}
+	}, domain.Normalize(name))
 }
 
 // canon は、小文字にし、空白をすべて除く。
