@@ -57,7 +57,15 @@ func (r *Resolver) playerSettings(ctx context.Context) (*model.PlayerSettings, e
 		return nil, err
 	}
 
-	return &model.PlayerSettings{JikkyoEnabled: row.JikkyoEnabled, CommentSources: commentSourcesOf(row.CommentSources), CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions}, nil
+	preferences, err := decodePreferences(row.Preferences)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.PlayerSettings{
+		JikkyoEnabled: row.JikkyoEnabled, CommentSources: commentSourcesOf(row.CommentSources), CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions,
+		Preferences: preferences,
+	}, nil
 }
 
 // updatePlayerSettings は、プレイヤーの設定を変え、同じユーザーのほかの端末に知らせる。
@@ -77,8 +85,13 @@ func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.Player
 			return nil, err
 		}
 	}
+	setPreferences, unsetPreferences, err := preferencesInput(input.Preferences)
+	if err != nil {
+		return nil, err
+	}
 	row, err := usersettings.UpdatePlayerSettings(ctx, r.db, r.clock, principal.UserID, &usersettings.PlayerSettingsChange{
 		JikkyoEnabled: input.JikkyoEnabled, CommentSources: commentSourcesInput(input.CommentSources), CaptionsEnabled: input.CaptionsEnabled, CommentSettings: encoded, CaptionSettings: encodedCaptions,
+		SetPreferences: setPreferences, UnsetPreferences: unsetPreferences,
 	})
 	if err != nil {
 		return nil, err
@@ -92,7 +105,15 @@ func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.Player
 		return nil, err
 	}
 
-	return &model.PlayerSettings{JikkyoEnabled: row.JikkyoEnabled, CommentSources: commentSourcesOf(row.CommentSources), CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions}, nil
+	preferences, err := decodePreferences(row.Preferences)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.PlayerSettings{
+		JikkyoEnabled: row.JikkyoEnabled, CommentSources: commentSourcesOf(row.CommentSources), CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions,
+		Preferences: preferences,
+	}, nil
 }
 
 // encodeCommentSettings は、コメントの設定を確かめて、DB に書く JSON にする。

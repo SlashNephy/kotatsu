@@ -1,5 +1,4 @@
 import {
-  Badge,
   Button,
   Card,
   ColorSwatch,
@@ -46,9 +45,6 @@ export function GuideAppearanceSettings() {
             {t('settings.guide.title')}
           </Title>
           {/* アカウントの設定と並ぶので、この端末だけの設定であることを示す。 */}
-          <Badge size="sm" variant="light" color="gray" tt="none">
-            {t('settings.account.deviceOnly')}
-          </Badge>
         </Group>
         <Stack gap={4}>
           <Text size="sm" fw={500}>

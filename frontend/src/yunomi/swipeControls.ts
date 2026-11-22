@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
 // 全画面で、映像の左右を縦にスワイプして、明るさと音量を変えるか (#1598、設計書 7.5)。
-// タッチの操作は端末によって合う合わないがあるので、端末ごとに覚える。既定では切っておく。
+// 端末をまたいで同期する (#1862)。既定では切っておく。
 
 const storageKey = 'kotatsu.player.swipeControls';
 // changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
@@ -25,6 +26,7 @@ export function saveSwipeControls(
 ): void {
   try {
     storage?.setItem(storageKey, String(enabled));
+    preferenceChanged(storageKey);
   } catch {
     // 書けなければ、次に開いたときは既定に戻るだけ。
   }

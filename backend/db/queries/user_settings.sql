@@ -14,7 +14,8 @@ SELECT
   coalesce(s.comment_sources, '{}')::text[] AS comment_sources,
   coalesce(s.captions_enabled, true)::boolean AS captions_enabled,
   s.comment_settings,
-  s.caption_settings
+  s.caption_settings,
+  coalesce(s.preferences, '{}')::jsonb AS preferences
 FROM (SELECT @user_id::uuid AS id) AS u
 LEFT JOIN user_settings s ON s.user_id = u.id;
 
@@ -41,7 +42,7 @@ ON CONFLICT (user_id) DO UPDATE SET
   END,
   captions_enabled = coalesce(sqlc.narg(captions_enabled)::boolean, user_settings.captions_enabled),
   updated_at = EXCLUDED.updated_at
-RETURNING ('nx_jikkyo' = ANY(comment_sources))::boolean AS jikkyo_enabled, comment_sources, captions_enabled, comment_settings, caption_settings;
+RETURNING ('nx_jikkyo' = ANY(comment_sources))::boolean AS jikkyo_enabled, comment_sources, captions_enabled, comment_settings, caption_settings, preferences;
 
 -- name: SetCommentSettings :exec
 -- 実況のコメントの表示とミュートの設定を、まるごと置き換える (#488)。
@@ -54,6 +55,14 @@ ON CONFLICT (user_id) DO UPDATE SET comment_settings = EXCLUDED.comment_settings
 INSERT INTO user_settings (user_id, caption_settings, updated_at)
 VALUES (@user_id, @caption_settings, @now)
 ON CONFLICT (user_id) DO UPDATE SET caption_settings = EXCLUDED.caption_settings, updated_at = EXCLUDED.updated_at;
+
+-- name: SetPreferences :exec
+-- 端末をまたいで同期する設定 (#1862) のうち、set のキーを置き換え、unset のキーを消す。ほかのキーは変えない。
+INSERT INTO user_settings (user_id, preferences, updated_at)
+VALUES (@user_id, @set::jsonb, @now)
+ON CONFLICT (user_id) DO UPDATE SET
+  preferences = (user_settings.preferences || @set::jsonb) - @unset::text[],
+  updated_at = EXCLUDED.updated_at;
 
 -- name: ListPinnedServiceIDs :many
 -- ユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。

@@ -1,14 +1,4 @@
-import {
-  Badge,
-  Card,
-  Group,
-  Radio,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title,
-  VisuallyHidden,
-} from '@mantine/core';
+import { Card, Group, Radio, SimpleGrid, Stack, Text, Title, VisuallyHidden } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
 import { appIconIds, appIconUrl, useAppIcon, type AppIconId } from './appIcon';
@@ -30,9 +20,6 @@ export function AppIconSettings() {
             {t('settings.appIcon.title')}
           </Title>
           {/* アカウントの設定と並ぶので、この端末だけの設定であることを示す。 */}
-          <Badge size="sm" variant="light" color="gray" tt="none">
-            {t('settings.account.deviceOnly')}
-          </Badge>
         </Group>
         <Text size="sm" c="dimmed">
           {t('settings.appIcon.help')}

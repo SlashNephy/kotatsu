@@ -3,9 +3,11 @@ import { useEffect, useSyncExternalStore } from 'react';
 import type { PlayerCommands } from './commands';
 import { browserStorage } from './volume';
 import { setAudioDelay } from './volumeBoost';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
 // 音ずれ補正 (#818、設計書 7.5)。音声だけを WebAudio の DelayNode で遅らせ、映像より早く聞こえる音を合わせる。
-// 遅らせることしかできないので、音が映像より遅い場合は補正できない。端末ごとに覚える。
+// 遅らせることしかできないので、音が映像より遅い場合は補正できない。遅らせる量は、音を出す機器によるので端末ごとに覚える。
+// 選局したら元に戻すかは、端末をまたいで同期する (#1862)。
 
 const delayKey = 'kotatsu.player.audioDelayMs';
 const resetKey = 'kotatsu.player.resetAudioDelayOnChannelChange';
@@ -64,6 +66,7 @@ function subscribe(onChange: () => void): () => void {
 function save(key: string, value: string): void {
   try {
     browserStorage()?.setItem(key, value);
+    preferenceChanged(key);
   } catch {
     // 書けなければ、次に開いたときは既定に戻るだけ。
   }

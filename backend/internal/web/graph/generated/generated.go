@@ -1194,6 +1194,7 @@ type ComplexityRoot struct {
 		CommentSources  func(childComplexity int) int
 		Comments        func(childComplexity int) int
 		JikkyoEnabled   func(childComplexity int) int
+		Preferences     func(childComplexity int) int
 	}
 
 	PlayerState struct {
@@ -1209,6 +1210,11 @@ type ComplexityRoot struct {
 		Target        func(childComplexity int) int
 		Title         func(childComplexity int) int
 		Volume        func(childComplexity int) int
+	}
+
+	Preference struct {
+		Key   func(childComplexity int) int
+		Value func(childComplexity int) int
 	}
 
 	PreviewFrame struct {
@@ -7335,6 +7341,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PlayerSettings.JikkyoEnabled(childComplexity), true
+	case "PlayerSettings.preferences":
+		if e.ComplexityRoot.PlayerSettings.Preferences == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerSettings.Preferences(childComplexity), true
 
 	case "PlayerState.audio":
 		if e.ComplexityRoot.PlayerState.Audio == nil {
@@ -7408,6 +7420,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PlayerState.Volume(childComplexity), true
+
+	case "Preference.key":
+		if e.ComplexityRoot.Preference.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Preference.Key(childComplexity), true
+	case "Preference.value":
+		if e.ComplexityRoot.Preference.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Preference.Value(childComplexity), true
 
 	case "PreviewFrame.height":
 		if e.ComplexityRoot.PreviewFrame.Height == nil {
@@ -10803,6 +10828,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("PlayerCommandInput", ec.unmarshalInputPlayerCommandInput),
 			graphql.NewInputUnmarshaler("PlayerSettingsInput", ec.unmarshalInputPlayerSettingsInput),
 			graphql.NewInputUnmarshaler("PlayerStateInput", ec.unmarshalInputPlayerStateInput),
+			graphql.NewInputUnmarshaler("PreferenceInput", ec.unmarshalInputPreferenceInput),
 			graphql.NewInputUnmarshaler("ProgramConditionsInput", ec.unmarshalInputProgramConditionsInput),
 			graphql.NewInputUnmarshaler("ProgramReservationInput", ec.unmarshalInputProgramReservationInput),
 			graphql.NewInputUnmarshaler("RecordAnimeEpisodesInput", ec.unmarshalInputRecordAnimeEpisodesInput),
@@ -13905,6 +13931,18 @@ type PlayerSettings {
   comments: CommentSettings!
   "字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。"
   captions: CaptionSettings!
+  "画面が端末に覚えていた設定のうち、端末をまたいで同期するもの (#1862)。キーの順に並べる。"
+  preferences: [Preference!]!
+}
+
+"""
+端末をまたいで同期する、画面の設定の 1 つ (#1862)。
+"""
+type Preference {
+  "画面の保存先のキー (kotatsu.player.keymap など)。"
+  key: String!
+  "保存した文字列。中身は画面が決める。"
+  value: String!
 }
 
 """
@@ -13981,6 +14019,15 @@ input PlayerSettingsInput {
   comments: CommentSettingsInput
   "渡したら、字幕の設定をまるごと置き換える。"
   captions: CaptionSettingsInput
+  "渡したキーの設定を置き換える。value が null のキーは消す。渡さなかったキーは変えない。"
+  preferences: [PreferenceInput!]
+}
+
+input PreferenceInput {
+  "同期を許したキーだけ。"
+  key: String!
+  "16,384 文字まで。null なら消す。"
+  value: String
 }
 
 input CaptionSettingsInput {
@@ -18340,6 +18387,8 @@ func (ec *executionContext) childFields_PlayerSettings(ctx context.Context, fiel
 		return ec.fieldContext_PlayerSettings_comments(ctx, field)
 	case "captions":
 		return ec.fieldContext_PlayerSettings_captions(ctx, field)
+	case "preferences":
+		return ec.fieldContext_PlayerSettings_preferences(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PlayerSettings", field.Name)
 }
@@ -18372,6 +18421,16 @@ func (ec *executionContext) childFields_PlayerState(ctx context.Context, field g
 		return ec.fieldContext_PlayerState_keyGroups(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PlayerState", field.Name)
+}
+
+func (ec *executionContext) childFields_Preference(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_Preference_key(ctx, field)
+	case "value":
+		return ec.fieldContext_Preference_value(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Preference", field.Name)
 }
 
 func (ec *executionContext) childFields_PreviewFrame(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -42343,6 +42402,38 @@ func (ec *executionContext) fieldContext_PlayerSettings_captions(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _PlayerSettings_preferences(ctx context.Context, field graphql.CollectedField, obj *model.PlayerSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerSettings_preferences(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Preferences, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Preference) graphql.Marshaler {
+			return ec.marshalNPreference2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐPreferenceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerSettings_preferences(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlayerSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Preference(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PlayerState_kind(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -42626,6 +42717,52 @@ func (ec *executionContext) _PlayerState_keyGroups(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_PlayerState_keyGroups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("PlayerState", field, false, false, "String")
+}
+
+func (ec *executionContext) _Preference_key(ctx context.Context, field graphql.CollectedField, obj *model.Preference) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Preference_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Preference_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Preference", field, false, false, "String")
+}
+
+func (ec *executionContext) _Preference_value(ctx context.Context, field graphql.CollectedField, obj *model.Preference) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Preference_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Preference_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Preference", field, false, false, "String")
 }
 
 func (ec *executionContext) _PreviewFrame_url(ctx context.Context, field graphql.CollectedField, obj *model.PreviewFrame) (ret graphql.Marshaler) {
@@ -59433,7 +59570,7 @@ func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"jikkyoEnabled", "commentSources", "captionsEnabled", "comments", "captions"}
+	fieldsInOrder := [...]string{"jikkyoEnabled", "commentSources", "captionsEnabled", "comments", "captions", "preferences"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -59475,6 +59612,13 @@ func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.Captions = data
+		case "preferences":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("preferences"))
+			data, err := ec.unmarshalOPreferenceInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐPreferenceInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Preferences = data
 		}
 	}
 	return it, nil
@@ -59608,6 +59752,55 @@ func (ec *executionContext) unmarshalInputPlayerStateInput(ctx context.Context, 
 func UnmarshalPlayerStateInput(ctx context.Context, raw any) (model.PlayerStateInput, error) {
 	var out model.PlayerStateInput
 	err := graphql.UnmarshalNamedInputFromContext(ctx, "PlayerStateInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputPreferenceInput(ctx context.Context, obj any) (model.PreferenceInput, error) {
+	var it model.PreferenceInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"key", "value"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		case "value":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Value = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalPreferenceInput unmarshals raw into the PreferenceInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalPreferenceInput(ctx context.Context, raw any) (model.PreferenceInput, error) {
+	var out model.PreferenceInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "PreferenceInput", raw, &out)
 	return out, err
 }
 
@@ -68844,6 +69037,11 @@ func (ec *executionContext) _PlayerSettings(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "preferences":
+			out.Values[i] = ec._PlayerSettings_preferences(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -68929,6 +69127,44 @@ func (ec *executionContext) _PlayerState(ctx context.Context, sel ast.SelectionS
 			}
 		case "keyGroups":
 			out.Values[i] = ec._PlayerState_keyGroups(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var preferenceImplementors = []string{"Preference"}
+
+func (ec *executionContext) _Preference(ctx context.Context, sel ast.SelectionSet, obj *model.Preference) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, preferenceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Preference")
+		case "key":
+			out.Values[i] = ec._Preference_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._Preference_value(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -76803,6 +77039,35 @@ func (ec *executionContext) unmarshalNPlayerStateInput2githubᚗcomᚋSlashNephy
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNPreference2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐPreferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Preference) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNPreference2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐPreference(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNPreference2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐPreference(ctx context.Context, sel ast.SelectionSet, v *model.Preference) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "Preference!")
+		return graphql.Null
+	}
+	return ec._Preference(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPreferenceInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐPreferenceInput(ctx context.Context, v any) (*model.PreferenceInput, error) {
+	res, err := ec.unmarshalInputPreferenceInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNProgram2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgramᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Program) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -79159,6 +79424,23 @@ func (ec *executionContext) marshalOOAuthAuthorization2ᚖgithubᚗcomᚋSlashNe
 		return graphql.Null
 	}
 	return ec._OAuthAuthorization(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOPreferenceInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐPreferenceInputᚄ(ctx context.Context, v any) ([]*model.PreferenceInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.PreferenceInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNPreferenceInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐPreferenceInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalOPreviewFrame2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐPreviewFrame(ctx context.Context, sel ast.SelectionSet, v *model.PreviewFrame) graphql.Marshaler {

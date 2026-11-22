@@ -240,9 +240,6 @@ function PlayerSettings() {
             label={
               <Group gap={6} component="span">
                 {t('settings.account.cmAutoSkip')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
               </Group>
             }
             description={t('settings.account.cmAutoSkipHelp')}
@@ -360,9 +357,6 @@ function PlayerSettings() {
             label={
               <Group gap={6} component="span">
                 {t('settings.account.captureFileName')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
               </Group>
             }
             description={t('settings.account.captureFileNameHelp', {
@@ -391,9 +385,6 @@ function PlayerSettings() {
             label={
               <Group gap={6} component="span">
                 {t('settings.account.miniPlayer')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
               </Group>
             }
             description={t('settings.account.miniPlayerHelp')}
@@ -405,9 +396,6 @@ function PlayerSettings() {
               label={
                 <Group gap={6} component="span">
                   {t('settings.account.autoPictureInPicture')}
-                  <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                    {t('settings.account.deviceOnly')}
-                  </Badge>
                 </Group>
               }
               description={t('settings.account.autoPictureInPictureHelp')}
@@ -435,9 +423,6 @@ function PlayerSettings() {
               label={
                 <Group gap={6} component="span">
                   {t('settings.account.swipeControls')}
-                  <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                    {t('settings.account.deviceOnly')}
-                  </Badge>
                 </Group>
               }
               description={t('settings.account.swipeControlsHelp')}

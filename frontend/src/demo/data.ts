@@ -166,6 +166,8 @@ export function createRootValue(
       stroke: true,
       backgroundOpacity: null,
     },
+    // preferences は、端末をまたいで同期する設定 (#1862)。キーの順に並べる。
+    preferences: [] as { key: string; value: string }[],
   };
   let nextPlayer = 1;
   // animeOverrides は、サービスごとの、しょぼいカレンダーと Annict のチャンネルの対応の上書き (設計書 3.8)。
@@ -638,8 +640,17 @@ export function createRootValue(
         captionsEnabled?: boolean | null;
         comments?: Record<string, unknown> | null;
         captions?: Record<string, unknown> | null;
+        preferences?: { key: string; value: string | null }[] | null;
       };
     }) => {
+      const preferences = new Map(playerSettings.preferences.map(({ key, value }) => [key, value]));
+      for (const { key, value } of input.preferences ?? []) {
+        if (value === null) {
+          preferences.delete(key);
+        } else {
+          preferences.set(key, value);
+        }
+      }
       const nextSources = () => {
         if (input.commentSources != null) {
           return input.commentSources;
@@ -660,6 +671,9 @@ export function createRootValue(
         captionsEnabled: input.captionsEnabled ?? playerSettings.captionsEnabled,
         comments: { ...playerSettings.comments, ...input.comments },
         captions: { ...playerSettings.captions, ...input.captions },
+        preferences: [...preferences]
+          .map(([key, value]) => ({ key, value }))
+          .sort((a, b) => a.key.localeCompare(b.key)),
       };
       viewerSettingsChanged();
 
