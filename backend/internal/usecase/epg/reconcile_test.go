@@ -1034,3 +1034,42 @@ func TestSyncAllIgnoresNotationOnlyRewrites(t *testing.T) {
 		})
 	}
 }
+
+// TestSyncAllKeepsNotationWhenOtherFieldsChange は、ほかの項目が変わって番組を書き直すときも、書き方だけ違う番組名と概要は
+// DB の書き方のまま書き、書き換えとして記録しないことを確かめる (#2051)。概要の書き方だけの違いも、書き換えとみなさない。
+func TestSyncAllKeepsNotationWhenOtherFieldsChange(t *testing.T) {
+	t.Parallel()
+
+	const (
+		name        = "灯台の地図　＃８🈑"
+		description = "霧笛の夜〜港の灯〜"
+	)
+	f := newFixture(t, nil)
+	require.NoError(t, f.fake.RenameProgram(programID(6), name))
+	require.NoError(t, f.fake.ChangeProgramDescription(programID(6), description))
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+
+	// 概要の書き方だけが変わっても、書き直さない。
+	require.NoError(t, f.fake.ChangeProgramDescription(programID(6), "霧笛の夜～港の灯～"))
+	result, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ProgramsUpserted)
+
+	// 番組名の書き方の違いと一緒に、時刻が変われば、時刻だけを書き直す。
+	require.NoError(t, f.fake.RenameProgram(programID(6), "灯台の地図　＃８[字]"))
+	require.NoError(t, f.fake.RescheduleProgram(programID(6), testNow().Add(3*time.Hour), time.Hour))
+	result, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ProgramsUpserted)
+
+	var gotName, gotDescription string
+	var startAt time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT name, description, start_at FROM programs WHERE service_id = $1 AND event_id = 6", serviceID()).
+		Scan(&gotName, &gotDescription, &startAt))
+	assert.Equal(t, name, gotName)
+	assert.Equal(t, description, gotDescription)
+	assert.True(t, startAt.Equal(testNow().Add(3*time.Hour)))
+	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM program_rewrites WHERE service_id = $1", serviceID()))
+}

@@ -623,8 +623,12 @@ func diffPrograms(upstream []*tunerserver.Program, current []sqlc.ListProgramsRo
 			continue
 		}
 		old, ok := byKey[p.key()]
-		if ok && reflect.DeepEqual(old, withNotationOf(p, old)) {
-			continue
+		if ok {
+			// 書き方だけ違う文は、ほかの項目が変わっても DB の書き方のまま書く。
+			p = withNotationOf(p, old)
+			if reflect.DeepEqual(old, p) {
+				continue
+			}
 		}
 		diff.upserts = append(diff.upserts, p)
 		if ok {
@@ -643,7 +647,8 @@ func diffPrograms(upstream []*tunerserver.Program, current []sqlc.ListProgramsRo
 // withNotationOf は、上流の番組 p の番組名、概要、詳細の文のうち、DB の番組 old と書き方だけが違うものを、old の書き方にした写しを返す (#2051)。
 // 上流は、同じ番組名を、囲み文字 (🈑) と括弧の書き方 ([字]) のように、内容の同じ別の書き方で返し直すことがある。
 // そのたびに書き換えとみなすと、全量の突き合わせのたびに番組を書き直し、EPG の変更とルールの照合を走らせ、書き換えの記録も埋まる。
-// 書き方だけの違いでは書き換えず、先に DB に入った書き方を持ち続ける。照合と検索は正規化した列で行うので、どちらの書き方でも同じである。
+// 書き方だけの違いでは書き換えず、先に DB に入った書き方を持ち続ける。囲み文字と括弧の書き方は、正規化した列 (照合と検索に使う) でも
+// 同じ文になる。波ダッシュと異体字セレクタは、正規化しても残るので、正規化した列も先に入った書き方のままになる。
 func withNotationOf(p, old *program) *program {
 	copied := *p
 	if sameNotation(p.Name, old.Name) {
@@ -652,11 +657,10 @@ func withNotationOf(p, old *program) *program {
 	if sameNotation(p.Description, old.Description) {
 		copied.Description = old.Description
 	}
-	if len(p.Extended) == len(old.Extended) {
+	if p.Extended != nil {
 		extended := make(map[string]string, len(p.Extended))
 		for heading, text := range p.Extended {
-			oldText, ok := old.Extended[heading]
-			if ok && sameNotation(text, oldText) {
+			if oldText, ok := old.Extended[heading]; ok && sameNotation(text, oldText) {
 				text = oldText
 			}
 			extended[heading] = text
