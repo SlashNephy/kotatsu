@@ -273,19 +273,19 @@ func TestListCaptures(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	save := func(user, serviceName string, programName *string) uuid.UUID {
+	save := func(user, serviceName string, programName, caption *string) uuid.UUID {
 		upload := f.upload()
-		upload.ServiceName, upload.ProgramName = serviceName, programName
+		upload.ServiceName, upload.ProgramName, upload.Caption = serviceName, programName, caption
 		saved, err := f.captures.Save(t.Context(), f.pool, f.users[user], upload)
 		require.NoError(t, err)
 		f.clock.Advance(time.Second)
 
 		return saved.ID
 	}
-	news := save("alice", "ＮＨＫ総合", new("ニュース７"))
-	anime := save("alice", "こたつテスト1", new("アニメ 100%"))
-	unknown := save("alice", "こたつテスト1", nil)
-	_ = save("bob", "ＮＨＫ総合", new("ニュース７"))
+	news := save("alice", "ＮＨＫ総合", new("ニュース７"), new("ＫＯＴＡＴＳＵ山のふもとから、けさの様子をお伝えします"))
+	anime := save("alice", "こたつテスト1", new("アニメ 100%"), nil)
+	unknown := save("alice", "こたつテスト1", nil, nil)
+	_ = save("bob", "ＮＨＫ総合", new("ニュース７"), new("けさの様子"))
 
 	tests := []struct {
 		name    string
@@ -297,6 +297,9 @@ func TestListCaptures(t *testing.T) {
 		{name: "空白で区切った語は、すべてを含むものだけ", keyword: "こたつ　アニメ", want: []uuid.UUID{anime}},
 		{name: "番組名とサービス名にまたがる語", keyword: "ニュース 総合", want: []uuid.UUID{news}},
 		{name: "LIKE の特別な文字は、文字そのものとして探す", keyword: "0%", want: []uuid.UUID{anime}},
+		{name: "撮ったときの字幕の文でも探す (#2084)", keyword: "けさの様子", want: []uuid.UUID{news}},
+		{name: "半角と小文字でも、全角の字幕の文に当たる", keyword: "kotatsu", want: []uuid.UUID{news}},
+		{name: "番組名と字幕の文にまたがる語", keyword: "ニュース ふもと", want: []uuid.UUID{news}},
 		{name: "合うものがない", keyword: "ドラマ", want: []uuid.UUID{}},
 	}
 	for _, tt := range tests {

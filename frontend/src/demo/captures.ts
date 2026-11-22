@@ -47,7 +47,10 @@ export function createDemoCaptures(): DemoCaptures {
       const words = searchWords(keyword ?? '');
       const matched = captures.filter((capture) =>
         containsAllWords(
-          normalizeForSearch(`${capture.programName ?? ''} ${capture.serviceName}`),
+          // サーバーと同じく、番組名、サービス名、撮ったときの字幕の文から探す (#2084)。
+          normalizeForSearch(
+            `${capture.programName ?? ''} ${capture.serviceName} ${capture.caption ?? ''}`,
+          ),
           words,
         ),
       );
