@@ -175,7 +175,7 @@ func keepSilentServices(deletes []*program, upstream []*tunerserver.Program) []*
 }
 
 // SyncServices は、指定したサービスの番組だけを突き合わせる。イベントで変化が分かったサービスに使う。
-// DB に無いサービスは飛ばす。サービス自体は、全量の突き合わせで足す。
+// DB に無いサービスは飛ばす。サービス自体は、全量の突き合わせか、サービスの一覧の突き合わせ (SyncServiceList) で足す。
 func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Result, error) {
 	q := sqlc.New(r.pool)
 	upstreamPrograms := []*tunerserver.Program{}

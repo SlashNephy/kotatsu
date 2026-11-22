@@ -25,8 +25,8 @@ func notification(id, count uint32) reply {
 func TestTunerServerEvents(t *testing.T) {
 	t.Parallel()
 
-	// 最後の通知の巡回カウンタ (5) より後の通知を待つ。予約の変化 (2) はチューナーの変化に、EPG の読み込み (1) は
-	// サービスの変化にする (#1536)。ほかの通知 (録画の開始 102) は読み飛ばす。
+	// 最後の通知の巡回カウンタ (5) より後の通知を待つ。予約の変化 (2) はチューナーの変化に (#1536)、EPG の読み込み (1) は
+	// 番組表の全体が変わったかもしれないことにする (#2035)。ほかの通知 (録画の開始 102) は読み飛ばす。
 	s := newFakeServer(t, map[uint32]reply{2200: {status: 0, payload: nil, stream: nil, hold: true, drop: false}})
 	s.queued[2200] = []reply{
 		notification(edcb.NotifyUpdateSrvStatus, 5), notification(edcb.NotifyUpdateReserveInfo, 6), notification(edcb.NotifyRecStart, 7),

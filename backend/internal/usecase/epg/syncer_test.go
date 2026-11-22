@@ -3,6 +3,7 @@ package epg_test
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -300,4 +301,51 @@ func TestSyncerSyncsServicesOnServiceEvents(t *testing.T) {
 
 	assert.Equal(t, int32(1), upstream.fullFetches.Load())
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 5", quiet))
+}
+
+// epgChangedEvents は、ストリームを開くと、番組表の全体が変わったかもしれないイベントを 1 つ送る (EDCB の EPG の読み込み直し)。
+type epgChangedEvents struct{}
+
+func (epgChangedEvents) OpenEvents(context.Context) (tunerserver.EventStream, error) {
+	return &onceStream{event: &tunerserver.Event{Type: tunerserver.EventTypeEPGChanged, ServiceID: 0}, done: make(chan struct{})}, nil
+}
+
+// onceStream は、イベントを 1 つ返した後は、閉じるまで待つ。
+type onceStream struct {
+	event *tunerserver.Event
+	sent  bool
+	done  chan struct{}
+}
+
+func (s *onceStream) Next() (*tunerserver.Event, error) {
+	if !s.sent {
+		s.sent = true
+
+		return s.event, nil
+	}
+	<-s.done
+
+	return nil, io.EOF
+}
+
+func (s *onceStream) Close() error {
+	close(s.done)
+
+	return nil
+}
+
+// TestSyncerSyncsAllOnEPGChangedEvents は、番組表の全体が変わったかもしれないイベントでは、全量を突き合わせることを確かめる (#2035)。
+func TestSyncerSyncsAllOnEPGChangedEvents(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	upstream := &countingUpstream{Upstream: f.client}
+	reconciler := epg.NewReconciler(f.pool, upstream, f.clock, func(context.Context, pgx.Tx) error { return nil })
+	syncer := epg.NewSyncer(reconciler, epgChangedEvents{}, clock.Real{}, slog.New(slog.DiscardHandler), &epg.SyncerOptions{
+		FullSyncInterval: time.Hour,
+		BatchWindow:      10 * time.Millisecond,
+	})
+	runSyncer(t, syncer)
+	// 接続したときの 1 回と、イベントでの 1 回。
+	require.Eventually(t, func() bool { return upstream.fullFetches.Load() == 2 }, waitFor, tick)
 }
