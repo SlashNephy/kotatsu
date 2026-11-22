@@ -1412,6 +1412,9 @@ CREATE TABLE captures (
   program_name_normalized text NOT NULL,
   -- 撮ったときに出ていた字幕の文 (#458)。出ていなければ NULL。
   caption text,
+  -- NFKC で正規化した字幕の文 (設計書 3.5、#2084)。キャプチャを探すのに使う。字幕が出ていなければ空にする。
+  -- NULL は、列を足す前に撮ったか、列を知らない古いバイナリが書いたキャプチャで、kotatsu migrate が埋める。
+  caption_normalized text,
   -- 撮った場面の放送時刻と、撮った時刻 (端末の時計)。
   broadcast_at timestamptz NOT NULL,
   taken_at timestamptz NOT NULL,

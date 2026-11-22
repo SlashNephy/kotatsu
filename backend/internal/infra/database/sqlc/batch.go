@@ -131,6 +131,56 @@ func (b *InsertProgramRewritesBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const setCaptureNormalized = `-- name: SetCaptureNormalized :batchexec
+UPDATE captures SET caption_normalized = $1 WHERE id = $2
+`
+
+type SetCaptureNormalizedBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetCaptureNormalizedParams struct {
+	CaptionNormalized *string
+	ID                uuid.UUID
+}
+
+// キャプチャの正規化した字幕の文を書く (#2084)。
+func (q *Queries) SetCaptureNormalized(ctx context.Context, arg []SetCaptureNormalizedParams) *SetCaptureNormalizedBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.CaptionNormalized,
+			a.ID,
+		}
+		batch.Queue(setCaptureNormalized, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetCaptureNormalizedBatchResults{br, len(arg), false}
+}
+
+func (b *SetCaptureNormalizedBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetCaptureNormalizedBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const setProgramArchiveSearchGrams = `-- name: SetProgramArchiveSearchGrams :batchexec
 UPDATE program_archives SET search_grams = $1::text[]
 WHERE service_id = $2 AND event_id = $3 AND start_at = $4
