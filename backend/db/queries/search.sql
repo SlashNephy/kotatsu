@@ -58,3 +58,61 @@ WHERE s.service_type = ANY(@media_service_types::bigint[])
   AND (c.start_at, c.service_id, c.event_id) > (@after_start_at::timestamptz, @after_service_id::bigint, @after_event_id::bigint)
 ORDER BY c.start_at, c.service_id, c.event_id
 LIMIT @batch_size::integer;
+
+-- name: SearchProgramCandidatesByGrams :many
+-- SearchProgramCandidates に、キーワードが必ず含む gram (#966、match.RequiredGrams) の絞り込みを足したもの。
+-- 番組の検索の gram の GIN の索引で、キーワードを含みうる番組だけを読む。gram を埋めていない番組 (NULL) は、部分インデックスで引いて候補に残す。
+-- キーワードのない検索では使わない。gram の配列が空だと、索引で絞れないうえ、1 件ごとに配列を読んで比べるので、
+-- SearchProgramCandidates より大きく遅くなるからである。ほかの条件と並び、カーソルは SearchProgramCandidates と同じにする。
+SELECT c.archived, c.service_id, c.event_id, c.start_at, c.end_at, c.end_undecided, c.is_free,
+  c.name, c.description, c.extended, c.genres, c.audios, c.related_items, s.channel_type,
+  c.name_normalized, c.description_normalized, c.extended_normalized
+FROM (
+  SELECT false AS archived, p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.is_free,
+    p.name, p.description, p.extended, p.genres, p.audios, p.related_items,
+    p.name_normalized, p.description_normalized, p.extended_normalized, p.search_grams
+  FROM programs p
+  UNION ALL
+  SELECT true AS archived, a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.is_free,
+    a.name, a.description, a.extended, a.genres, a.audios, a.related_items,
+    a.name_normalized, a.description_normalized, a.extended_normalized, a.search_grams
+  FROM program_archives a
+) c
+JOIN services s ON s.id = c.service_id
+WHERE s.service_type = ANY(@media_service_types::bigint[])
+  -- programs には、アーカイブへ移すまでの猶予の間、放送の終わった番組も残る。
+  -- 過去の放送を含めないときは、まだ終わっていない番組だけにし、含めるときは、終わった番組も期間で絞る。
+  AND CASE WHEN c.archived
+    THEN @include_archive::boolean AND c.start_at >= @archive_from::timestamptz AND c.start_at < @archive_to::timestamptz
+    ELSE c.end_undecided OR c.end_at > @now::timestamptz
+      OR (@include_archive::boolean AND c.start_at >= @archive_from::timestamptz AND c.start_at < @archive_to::timestamptz)
+  END
+  AND (
+    (cardinality(@channel_types::text[]) = 0 AND cardinality(@service_ids::bigint[]) = 0)
+    OR s.channel_type = ANY(@channel_types::text[])
+    OR c.service_id = ANY(@service_ids::bigint[])
+  )
+  AND NOT c.service_id = ANY(@excluded_service_ids::bigint[])
+  AND (
+    cardinality(@genre_lv1s::bigint[]) = 0
+    OR EXISTS (SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY(@genre_lv1s::bigint[]))
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY(@excluded_genre_lv1s::bigint[])
+  )
+  AND (NOT @free_only::boolean OR c.is_free)
+  AND NOT EXISTS (
+    SELECT 1
+    FROM generate_subscripts(@keyword_patterns::text[], 1) AS k (i)
+    WHERE NOT (
+      ((@keyword_in_name::boolean[])[k.i] AND CASE WHEN (@keyword_case_sensitive::boolean[])[k.i]
+        THEN c.name_normalized LIKE (@keyword_patterns::text[])[k.i] ELSE c.name_normalized ILIKE (@keyword_patterns::text[])[k.i] END)
+      OR ((@keyword_in_description::boolean[])[k.i] AND CASE WHEN (@keyword_case_sensitive::boolean[])[k.i]
+        THEN c.description_normalized LIKE (@keyword_patterns::text[])[k.i] ELSE c.description_normalized ILIKE (@keyword_patterns::text[])[k.i] END)
+    )
+  )
+  -- キーワードが必ず含む gram をすべて持つ番組に絞る。gram を埋めていない番組は、落とさずに候補に残す。
+  AND (c.search_grams @> @required_grams::text[] OR c.search_grams IS NULL)
+  AND (c.start_at, c.service_id, c.event_id) > (@after_start_at::timestamptz, @after_service_id::bigint, @after_event_id::bigint)
+ORDER BY c.start_at, c.service_id, c.event_id
+LIMIT @batch_size::integer;

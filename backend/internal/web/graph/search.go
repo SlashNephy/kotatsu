@@ -260,6 +260,8 @@ func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.Arc
 		KeywordInName:        []bool{},
 		KeywordInDescription: []bool{},
 		KeywordCaseSensitive: []bool{},
+		// キーワードが必ず含む gram で、索引から候補を絞る (#966)。
+		RequiredGrams: match.RequiredGrams(conditions),
 		// カーソルが無ければ、最も古い位置から読む。
 		AfterStartAt:   time.Unix(0, 0).UTC(),
 		AfterServiceID: 0,

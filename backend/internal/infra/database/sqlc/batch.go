@@ -131,6 +131,114 @@ func (b *InsertProgramRewritesBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const setProgramArchiveSearchGrams = `-- name: SetProgramArchiveSearchGrams :batchexec
+UPDATE program_archives SET search_grams = $1::text[]
+WHERE service_id = $2 AND event_id = $3 AND start_at = $4
+`
+
+type SetProgramArchiveSearchGramsBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetProgramArchiveSearchGramsParams struct {
+	SearchGrams []string
+	ServiceID   int64
+	EventID     int64
+	StartAt     time.Time
+}
+
+// アーカイブの番組の検索の gram (#966) を書く。ほかの列は変えない。
+func (q *Queries) SetProgramArchiveSearchGrams(ctx context.Context, arg []SetProgramArchiveSearchGramsParams) *SetProgramArchiveSearchGramsBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.SearchGrams,
+			a.ServiceID,
+			a.EventID,
+			a.StartAt,
+		}
+		batch.Queue(setProgramArchiveSearchGrams, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetProgramArchiveSearchGramsBatchResults{br, len(arg), false}
+}
+
+func (b *SetProgramArchiveSearchGramsBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetProgramArchiveSearchGramsBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const setProgramSearchGrams = `-- name: SetProgramSearchGrams :batchexec
+UPDATE programs SET search_grams = $1::text[]
+WHERE service_id = $2 AND event_id = $3
+`
+
+type SetProgramSearchGramsBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetProgramSearchGramsParams struct {
+	SearchGrams []string
+	ServiceID   int64
+	EventID     int64
+}
+
+// 番組の検索の gram (#966) を書く。ほかの列と更新日時は変えない。
+func (q *Queries) SetProgramSearchGrams(ctx context.Context, arg []SetProgramSearchGramsParams) *SetProgramSearchGramsBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.SearchGrams,
+			a.ServiceID,
+			a.EventID,
+		}
+		batch.Queue(setProgramSearchGrams, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetProgramSearchGramsBatchResults{br, len(arg), false}
+}
+
+func (b *SetProgramSearchGramsBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetProgramSearchGramsBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const setProgramSeries = `-- name: SetProgramSeries :batchexec
 UPDATE programs SET series = $1::text, episode_number = $2::integer
 WHERE service_id = $3 AND event_id = $4
@@ -342,12 +450,13 @@ const upsertPrograms = `-- name: UpsertPrograms :batchexec
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, series_episode, series_repeat, series, episode_number, created_at, updated_at
+  video_resolution, series_episode, series_repeat, series, episode_number, search_grams, created_at, updated_at
 )
 VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12, $13, $14, $15, $16,
-  $17, $18, $19, $20::text, $21::integer, $22, $22
+  $17, $18, $19, $20::text, $21::integer,
+  $22::text[], $23, $23
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -369,6 +478,8 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   series_repeat = excluded.series_repeat,
   series = excluded.series,
   episode_number = excluded.episode_number,
+  -- 番組名、概要、詳細が変わらない番組は、gram を NULL で送り、今の gram を残す (#966)。同じ配列を書き直すと、GIN の索引も書き直すからである。
+  search_grams = COALESCE(excluded.search_grams, programs.search_grams),
   updated_at = excluded.updated_at
 `
 
@@ -400,6 +511,7 @@ type UpsertProgramsParams struct {
 	SeriesRepeat          pgtype.Bool
 	Series                string
 	EpisodeNumber         *int32
+	SearchGrams           []string
 	Now                   time.Time
 }
 
@@ -428,6 +540,7 @@ func (q *Queries) UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams
 			a.SeriesRepeat,
 			a.Series,
 			a.EpisodeNumber,
+			a.SearchGrams,
 			a.Now,
 		}
 		batch.Queue(upsertPrograms, vals...)

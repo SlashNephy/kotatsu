@@ -350,7 +350,6 @@ func TestPreviewRule(t *testing.T) {
 func TestRuleWarnings(t *testing.T) {
 	t.Parallel()
 
-	const fieldExtended = "EXTENDED"
 	f := newFixture(t, nil)
 	f.syncEPG(t)
 	input := testProgramRule(f.serviceIDs(t))
