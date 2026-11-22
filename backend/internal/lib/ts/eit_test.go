@@ -255,3 +255,25 @@ func TestAnalyzerPresentFollowing(t *testing.T) {
 		})
 	}
 }
+
+// TestAnalyzerOnPresentFollowing は、EIT[p/f] (自 TS) のセクションごとに、サービスと番組の有無を渡すことを確かめる (#2034)。
+// 番組のないセクションも渡す。サービスが放送されていないかを見分けるのに使うからである。
+func TestAnalyzerOnPresentFollowing(t *testing.T) {
+	t.Parallel()
+
+	got := []ts.PresentFollowingSection{}
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{
+		Index: nil, CutoffPTS: nil, OnTOT: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil,
+		OnPresentFollowing: func(s *ts.PresentFollowingSection) { got = append(got, *s) },
+	})
+	cc := byte(0)
+	for _, p := range psiPackets(0x12, &cc, eitSection(0, 100), eitEmptySection(1)) {
+		_, err := analyzer.Write(p)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, []ts.PresentFollowingSection{
+		{OriginalNetworkID: 0x7FE0, TransportStreamID: 0x7FE0, ServiceID: testServiceID, Following: false, HasEvent: true},
+		{OriginalNetworkID: 0x7FE0, TransportStreamID: 0x7FE0, ServiceID: testServiceID, Following: true, HasEvent: false},
+	}, got)
+}

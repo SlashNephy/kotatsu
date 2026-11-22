@@ -133,7 +133,12 @@ func (c *Checker) checkSatellites(ctx context.Context, q *sqlc.Queries, known []
 	if err != nil {
 		return fmt.Errorf("failed to load the broadcast lineups: %w", err)
 	}
-	for _, obs := range observations {
+	idle, err := LoadIdle(ctx, q)
+	if err != nil {
+		return fmt.Errorf("failed to load the idle services: %w", err)
+	}
+	for _, loaded := range observations {
+		obs := WithoutIdle(loaded, idle)
 		change, ok := c.comparer.Observe(obs, known)
 		if !ok {
 			continue
