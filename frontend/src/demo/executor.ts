@@ -37,7 +37,8 @@ let schema: GraphQLSchema | undefined;
 export type ExecutorOptions = { fillMissing?: boolean };
 
 // placeholder は、型 type の既定の値。文字列は空、数は 0、真偽は false、一覧は空、列挙は最初の値、オブジェクトは中身を埋める空のもの。
-// 64 ビットの整数 (Int64) も 0、時刻 (Time) は今の時刻にする。抽象型と、知らないスカラーは、決められないので null を返す (non-null ならエラーになる)。
+// 64 ビットの整数 (Int64) も 0、時刻 (Time) は今の時刻にする。抽象型は、取りうる型の最初のもの (__typename だけを持つ空のもの) にする。
+// 取りうる型がない抽象型と、知らないスカラーは、決められないので null を返す (non-null ならエラーになる)。
 function placeholder(type: GraphQLOutputType, schemaOf: GraphQLSchema): unknown {
   const inner = getNullableType(type);
   if (isListType(inner)) {
@@ -108,6 +109,7 @@ export function createExecutor(
         document: parse(query),
         rootValue,
         variableValues: variables,
+        fieldResolver,
       });
       if (Symbol.asyncIterator in result) {
         return result;
