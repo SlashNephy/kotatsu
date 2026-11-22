@@ -1088,6 +1088,27 @@ func TestSyncAllKeepsNotationWhenOtherFieldsChange(t *testing.T) {
 	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM program_rewrites WHERE service_id = $1", serviceID()))
 }
 
+// TestSyncAllKeepsExtendedNotation は、詳細の見出しと本文の書き方だけが変わっても書き直さず、DB の書き方のまま持つことを確かめる (#2051)。
+func TestSyncAllKeepsExtendedNotation(t *testing.T) {
+	t.Parallel()
+
+	extended := map[string]string{"出演者〜前半〜": "灯台守〜霧笛〜"}
+	f := newFixture(t, nil)
+	require.NoError(t, f.fake.ChangeProgramExtended(programID(6), extended))
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+
+	require.NoError(t, f.fake.ChangeProgramExtended(programID(6), map[string]string{"出演者～前半～": "灯台守～霧笛～"}))
+	result, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ProgramsUpserted)
+
+	var got map[string]string
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT extended FROM programs WHERE service_id = $1 AND event_id = 6", serviceID()).Scan(&got))
+	assert.Equal(t, extended, got)
+}
+
 // TestSyncServiceListRecordsServicesMissingFromUpstream は、サービスの一覧だけを突き合わせるときも、上流から消えたサービスに
 // 気づいた時刻を残し、上流が 1 つも返さなかったときは消えた扱いにせず、番組は突き合わせないことを確かめる (#2035)。
 func TestSyncServiceListRecordsServicesMissingFromUpstream(t *testing.T) {
@@ -1122,8 +1143,8 @@ func TestSyncServiceListRecordsServicesMissingFromUpstream(t *testing.T) {
 func TestExtendedWithNotationOf(t *testing.T) {
 	t.Parallel()
 
-	// waveHeading と waveShort は、波ダッシュで書いた見出し。tildeShort は、全角チルダで書いた見出し。
-	const waveHeading, waveShort, tildeShort = "内容〜前半〜", "内容〜", "内容～"
+	// waveHeading と waveShort は、波ダッシュで書いた見出し。tildeShort は全角チルダ、asciiShort は半角のチルダで書いた見出し。
+	const waveHeading, waveShort, tildeShort, asciiShort = "内容〜前半〜", "内容〜", "内容～", "内容~"
 	tests := []struct {
 		name          string
 		upstream, old map[string]string
@@ -1143,15 +1164,21 @@ func TestExtendedWithNotationOf(t *testing.T) {
 		},
 		{
 			name:     "書き方だけ違う見出しが DB に 2 つあれば、上流の見出しのまま",
-			upstream: map[string]string{"内容~": "霧笛"},
+			upstream: map[string]string{asciiShort: "霧笛"},
 			old:      map[string]string{waveShort: "霧笛", tildeShort: "霧笛"},
-			want:     map[string]string{"内容~": "霧笛"},
+			want:     map[string]string{asciiShort: "霧笛"},
 		},
 		{
 			name:     "上流が DB の見出しも使っていれば、上流の見出しのまま",
 			upstream: map[string]string{tildeShort: "霧笛", waveShort: "港"},
 			old:      map[string]string{waveShort: "港"},
 			want:     map[string]string{tildeShort: "霧笛", waveShort: "港"},
+		},
+		{
+			name:     "書き方だけ違う見出しが上流に 2 つあれば、どちらも上流の見出しのまま",
+			upstream: map[string]string{tildeShort: "霧笛", asciiShort: "港"},
+			old:      map[string]string{waveShort: "灯"},
+			want:     map[string]string{tildeShort: "霧笛", asciiShort: "港"},
 		},
 	}
 	for _, tt := range tests {

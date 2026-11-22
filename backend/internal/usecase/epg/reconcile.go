@@ -694,21 +694,25 @@ func withNotationOf(p, old *program) *program {
 
 // extendedWithNotationOf は、上流の詳細 extended の見出しと本文のうち、DB の詳細 old と書き方だけが違うものを、old の書き方にして返す (#2051)。
 // 見出しも書き方だけ変わることがあるので、同じ見出しがなければ、書き方だけ違う見出しを探す。
-// 書き方だけ違う見出しが old に 2 つ以上あるときと、old の見出しを上流もそのまま使っているときは、取り違えないよう、上流の見出しのまま書く。
+// 書き方だけ違う見出しが old に 2 つ以上あるときと、上流にも 2 つ以上あるとき (old の見出しを上流もそのまま使っているときを含む) は、
+// 取り違えたり、2 つを 1 つの見出しに重ねて片方を落としたりしないよう、上流の見出しのまま書く。
 func extendedWithNotationOf(extended, old map[string]string) map[string]string {
 	headings := map[string][]string{}
 	for heading := range old {
 		key := notationKey(heading)
 		headings[key] = append(headings[key], heading)
 	}
+	upstream := map[string]int{}
+	for heading := range extended {
+		upstream[notationKey(heading)]++
+	}
 	out := make(map[string]string, len(extended))
 	for heading, text := range extended {
 		target := heading
 		if _, ok := old[heading]; !ok {
-			if candidates := headings[notationKey(heading)]; len(candidates) == 1 {
-				if _, taken := extended[candidates[0]]; !taken {
-					target = candidates[0]
-				}
+			key := notationKey(heading)
+			if candidates := headings[key]; len(candidates) == 1 && upstream[key] == 1 {
+				target = candidates[0]
 			}
 		}
 		if oldText, ok := old[target]; ok && sameNotation(text, oldText) {
