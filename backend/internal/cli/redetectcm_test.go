@@ -129,7 +129,7 @@ func TestAdminRedetectCM(t *testing.T) {
 }
 
 // TestAdminRedetectCMWithLogo は、管理者がロゴの見分け方を選んでいれば、その版で古さを決めることと、
-// 材料が今の形式の版でなければ、読み直す録画として数えることを確かめる (#1814)。ロゴの見分け方の今の版は 5、材料の形式の今の版は 5。
+// 材料が今の形式の版でなければ、読み直す録画として数えることを確かめる (#1814)。ロゴの見分け方の今の版は 6、材料の形式の今の版は 5。
 func TestAdminRedetectCMWithLogo(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +170,7 @@ func TestAdminRedetectCMWithLogo(t *testing.T) {
 	}{
 		{name: "今の形式の材料", version: 3, materialFormat: 5},
 		{name: "古い形式の材料", version: 3, materialFormat: 4},
-		{name: "今の版", version: 5, materialFormat: 5},
+		{name: "今の版", version: 6, materialFormat: 5},
 	}
 	ids := make([]string, len(recordings))
 	for i, recording := range recordings {
@@ -196,7 +196,7 @@ func TestAdminRedetectCMWithLogo(t *testing.T) {
 	cmd.SetOut(&out)
 	require.NoError(t, cmd.ExecuteContext(t.Context()))
 	assert.Equal(t,
-		"2 recordings would be redetected by logo version 5 (1 from the materials, 1 by reading the recordings)\n"+
+		"2 recordings would be redetected by logo version 6 (1 from the materials, 1 by reading the recordings)\n"+
 			fmt.Sprintf("%s\t%s\tlogo v3\tmaterials\t今の形式の材料\n", base.Format(time.RFC3339), ids[0])+
 			fmt.Sprintf("%s\t%s\tlogo v3\tread\t古い形式の材料\n", base.Add(time.Hour).Format(time.RFC3339), ids[1]),
 		out.String())

@@ -332,6 +332,8 @@ export function DeviceBenchmark() {
                       interpolationRate: null,
                       // 拡大 (#1654) は、測る経路の違いに混ぜないよう、利用者の設定によらず切る。
                       superResolution: false,
+                      // 擬似 HDR (#1656) も、同じく切る。
+                      hdrOutput: false,
                     }}
                     onVideo={(video) => {
                       if (video !== null) {

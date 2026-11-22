@@ -385,6 +385,21 @@ func TestServerEvents(t *testing.T) {
 	}
 }
 
+// TestServerEventsSendsEPGChangedAsServiceEvent は、番組表の全体が変わったかもしれない知らせ (EDCB の EPG の読み込み直し) を、
+// Mirakurun にない種類なので、サービスのイベントとして送ることを確かめる (#2035)。
+func TestServerEventsSendsEPGChangedAsServiceEvent(t *testing.T) {
+	t.Parallel()
+
+	source := testSource()
+	source.events = []*tunerserver.Event{{Type: tunerserver.EventTypeEPGChanged, ServiceID: 0}}
+	events, err := newClient(t, source).OpenEvents(t.Context())
+	require.NoError(t, err)
+	defer events.Close()
+	got, err := events.Next()
+	require.NoError(t, err)
+	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}, got)
+}
+
 // nabeVersionPath は、nabe の下の、版を返すパス。
 const nabeVersionPath = "/internal/nabe/api/version"
 

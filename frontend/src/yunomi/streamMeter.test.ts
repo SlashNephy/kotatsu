@@ -150,6 +150,7 @@ describe('shownFrameRate', () => {
     interpolated: false,
     upscaled: null,
     notUpscaled: null,
+    hdr: false,
   };
 
   test.each([
@@ -331,6 +332,7 @@ describe('StreamMeter', () => {
       interpolated: false,
       upscaled: null,
       notUpscaled: null,
+      hdr: false,
     },
   });
 
@@ -352,6 +354,7 @@ describe('StreamMeter', () => {
       interpolated: false,
       upscaled: null,
       notUpscaled: null,
+      hdr: false,
     });
     // 画面の時刻を放送の時刻に直す起点も覚える (#1515)。
     expect(meter.mediaOrigin).toBe(126_000);

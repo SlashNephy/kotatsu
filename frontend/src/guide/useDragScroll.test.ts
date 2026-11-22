@@ -61,9 +61,16 @@ describe('useDragScroll', () => {
     let top = 600;
     Object.defineProperty(element, 'scrollLeft', {
       get: () => left,
-      set: (v: number) => (left = v),
+      set: (v: number) => {
+        left = v;
+      },
     });
-    Object.defineProperty(element, 'scrollTop', { get: () => top, set: (v: number) => (top = v) });
+    Object.defineProperty(element, 'scrollTop', {
+      get: () => top,
+      set: (v: number) => {
+        top = v;
+      },
+    });
 
     pointer('pointerdown', child, { x: 100, y: 100 });
     pointer('pointermove', window, { x: 70, y: 40 });
@@ -98,7 +105,9 @@ describe('useDragScroll', () => {
     let left = 0;
     Object.defineProperty(element, 'scrollLeft', {
       get: () => left,
-      set: (v: number) => (left = v),
+      set: (v: number) => {
+        left = v;
+      },
     });
 
     pointer('pointerdown', element, { x: 100, y: 100 });
@@ -116,7 +125,9 @@ describe('useDragScroll', () => {
     let left = 0;
     Object.defineProperty(element, 'scrollLeft', {
       get: () => left,
-      set: (v: number) => (left = v),
+      set: (v: number) => {
+        left = v;
+      },
     });
 
     pointer('pointerdown', element, { x: 100, y: 100 });

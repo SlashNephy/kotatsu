@@ -377,7 +377,9 @@ func (x *Indexer) buildIndex(ctx context.Context, ref Ref, entry *medialib.Entry
 	if err != nil {
 		return err
 	}
-	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil})
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{
+		Index: writer, CutoffPTS: nil, OnTOT: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil, OnPresentFollowing: nil,
+	})
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return fmt.Errorf("failed to seek the file: %w", err)
 	}
@@ -538,7 +540,9 @@ func ProbeVideo(file io.ReaderAt, size int64) (*ts.VideoFormat, error) {
 }
 
 func probeVideo(file io.ReaderAt, size int64) (*ts.VideoFormat, error) {
-	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil})
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{
+		Index: nil, CutoffPTS: nil, OnTOT: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil, OnPresentFollowing: nil,
+	})
 	buf := make([]byte, ts.PacketSize*1024)
 	for offset := int64(0); offset < min(size, probeLimit); {
 		n, err := file.ReadAt(buf, offset)

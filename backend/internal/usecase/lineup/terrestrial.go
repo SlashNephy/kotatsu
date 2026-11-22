@@ -93,7 +93,7 @@ func (c *TerrestrialCollector) Observe(sdt *ts.SDT) {
 	for number := range int(part.last) + 1 {
 		for _, service := range part.sections[uint8(number)] {
 			if service.HasServiceDescriptor {
-				services = append(services, Service{ServiceID: service.ServiceID, ServiceType: service.ServiceType})
+				services = append(services, Service{ServiceID: service.ServiceID, ServiceType: service.ServiceType, Name: service.Name})
 			}
 		}
 	}

@@ -3,6 +3,7 @@ package epg_test
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -250,4 +251,101 @@ func TestSyncerSyncsAllAfterReconnect(t *testing.T) {
 	require.Eventually(t, func() bool { return f.fake.EventSubscribers() == 1 }, waitFor, tick)
 	// 最初の接続と、失敗した 3 回の後の接続し直しのたびに、全量を取得し直す。
 	assert.GreaterOrEqual(t, upstream.fullFetches.Load(), int32(4))
+}
+
+// TestSyncerSyncsServicesOnServiceEvents は、サービスのイベントでは、全量を突き合わせずに、サービスの一覧と、
+// 増えたか変わったサービスの番組だけを突き合わせることを確かめる (#2035)。
+// Mirakurun 互換のチューナーサーバーは、EPG の取得が進むたびに service の update を送るので、そのたびに全量を突き合わせると、
+// 全量の突き合わせの間隔によらず、数十秒ごとに全量を読むことになる。
+func TestSyncerSyncsServicesOnServiceEvents(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	// later は、始めはチューナーサーバーの一覧になく、後から増えるサービス。
+	later := faketuner.ServiceItemID(grNetworkID+2, 0x0410)
+	f.fake.SetServiceMissing(later, true)
+	upstream := &countingUpstream{Upstream: f.client}
+	reconciler := epg.NewReconciler(f.pool, upstream, f.clock, func(context.Context, pgx.Tx) error { return nil })
+	syncer := epg.NewSyncer(reconciler, f.client, clock.Real{}, slog.New(slog.DiscardHandler), &epg.SyncerOptions{
+		// 全量の突き合わせで反映されないよう、間隔を長くする。
+		FullSyncInterval: time.Hour,
+		BatchWindow:      50 * time.Millisecond,
+	})
+	runSyncer(t, syncer)
+	require.Eventually(t, func() bool {
+		return f.fake.EventSubscribers() == 1 && f.count(t, "SELECT count(*) FROM programs") == fixturePrograms-14
+	}, waitFor, tick)
+	require.Equal(t, int32(1), upstream.fullFetches.Load())
+
+	// 全量を突き合わせれば消える番組を、イベントを送らずに消しておき、全量を突き合わせていないことを確かめる。
+	// 名前を変えるサービスの番組は突き合わせ直すので、別のサービスの番組を消す。
+	quiet := faketuner.ServiceItemID(grNetworkID+1, 0x0408)
+	require.NoError(t, f.fake.ForgetProgram(faketuner.ProgramID(grNetworkID+1, 0x0408, 5)))
+
+	// 名前などを変えない service の update (EPG の取得が進んだ知らせ) が続いても、全量を突き合わせない。
+	for range 3 {
+		require.NoError(t, f.fake.UpdateService(serviceID(), ""))
+	}
+	// 名前が変わったサービスは、DB に書く。
+	require.NoError(t, f.fake.UpdateService(serviceID(), "こたつテスト1 改"))
+	require.Eventually(t, func() bool {
+		return f.count(t, "SELECT count(*) FROM services WHERE id = $1 AND name = 'こたつテスト1 改'", serviceID()) == 1
+	}, waitFor, tick)
+
+	// 増えたサービスは、そのサービスの番組を取り込む。
+	f.fake.SetServiceMissing(later, false)
+	require.NoError(t, f.fake.UpdateService(later, ""))
+	require.Eventually(t, func() bool {
+		return f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1", later) == 14
+	}, waitFor, tick)
+
+	assert.Equal(t, int32(1), upstream.fullFetches.Load())
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 5", quiet))
+}
+
+// epgChangedEvents は、ストリームを開くと、番組表の全体が変わったかもしれないイベントを 1 つ送る (EDCB の EPG の読み込み直し)。
+type epgChangedEvents struct{}
+
+func (epgChangedEvents) OpenEvents(context.Context) (tunerserver.EventStream, error) {
+	return &onceStream{event: &tunerserver.Event{Type: tunerserver.EventTypeEPGChanged, ServiceID: 0}, done: make(chan struct{})}, nil
+}
+
+// onceStream は、イベントを 1 つ返した後は、閉じるまで待つ。
+type onceStream struct {
+	event *tunerserver.Event
+	sent  bool
+	done  chan struct{}
+}
+
+func (s *onceStream) Next() (*tunerserver.Event, error) {
+	if !s.sent {
+		s.sent = true
+
+		return s.event, nil
+	}
+	<-s.done
+
+	return nil, io.EOF
+}
+
+func (s *onceStream) Close() error {
+	close(s.done)
+
+	return nil
+}
+
+// TestSyncerSyncsAllOnEPGChangedEvents は、番組表の全体が変わったかもしれないイベントでは、全量を突き合わせることを確かめる (#2035)。
+func TestSyncerSyncsAllOnEPGChangedEvents(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	upstream := &countingUpstream{Upstream: f.client}
+	reconciler := epg.NewReconciler(f.pool, upstream, f.clock, func(context.Context, pgx.Tx) error { return nil })
+	syncer := epg.NewSyncer(reconciler, epgChangedEvents{}, clock.Real{}, slog.New(slog.DiscardHandler), &epg.SyncerOptions{
+		FullSyncInterval: time.Hour,
+		BatchWindow:      10 * time.Millisecond,
+	})
+	runSyncer(t, syncer)
+	// 接続したときの 1 回と、イベントでの 1 回。
+	require.Eventually(t, func() bool { return upstream.fullFetches.Load() == 2 }, waitFor, tick)
 }

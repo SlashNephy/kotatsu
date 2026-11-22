@@ -1137,7 +1137,7 @@ class ze {
   constructor(e, t = {}) {
     this.#t = e, this.#$ = t.doubleRate ?? !1, this.#Ne = t.spatialCheck ?? !0, this.#G = t.debug ?? !1, this.#N = t.interpolator ?? null, this.#B = t.scaler ?? null, this.#P = t.film ?? !1, this.#be = t.onStats, this.canvas = document.createElement("canvas"), this.canvas.style.cssText = "position:absolute;pointer-events:none;visibility:hidden";
     const i = this.canvas.getContext("webgl2", {
-      alpha: !1,
+      alpha: t.alpha ?? !1,
       antialias: !1,
       depth: !1,
       stencil: !1,
