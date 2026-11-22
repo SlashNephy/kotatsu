@@ -774,6 +774,7 @@ type Recording struct {
 	Drops                 int64
 	Errors                int64
 	Scrambled             int64
+	JudgedDrops           int64
 	ScrambledRatio        *float64
 	ScrambleWarning       bool
 	Gaps                  []byte

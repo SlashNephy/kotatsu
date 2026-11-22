@@ -1031,15 +1031,18 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 	require.NoError(t, err)
 	tests := []struct {
 		name string
-		// earlierDrops は、引き継ぐ前のセグメントで数えたドロップ。
-		earlierDrops int64
-		want         domain.RecordingState
-		wantHistory  bool
+		// earlierDrops は、引き継ぐ前のセグメントで数えたドロップ。earlierJudgedDrops は、そのうち判定に数えるもの。
+		earlierDrops       int64
+		earlierJudgedDrops int64
+		want               domain.RecordingState
+		wantHistory        bool
 	}{
-		{name: "どのセグメントにもドロップがない", earlierDrops: 0, want: domain.RecordingStateCompleted, wantHistory: true},
-		// 録画履歴には、ドロップが 4 件以下の録画だけを記録する (付録 A、#1497)。
-		{name: "前のセグメントのドロップが閾値ちょうど", earlierDrops: 4, want: domain.RecordingStateCompletedWithErrors, wantHistory: true},
-		{name: "前のセグメントのドロップが閾値を超える", earlierDrops: 5, want: domain.RecordingStateCompletedWithErrors, wantHistory: false},
+		{name: "どのセグメントにもドロップがない", earlierDrops: 0, earlierJudgedDrops: 0, want: domain.RecordingStateCompleted, wantHistory: true},
+		// 録画履歴には、判定に数えるドロップが 4 件以下の録画だけを記録する (付録 A、#1497)。
+		{name: "前のセグメントのドロップが閾値ちょうど", earlierDrops: 4, earlierJudgedDrops: 4, want: domain.RecordingStateCompletedWithErrors, wantHistory: true},
+		{name: "前のセグメントのドロップが閾値を超える", earlierDrops: 5, earlierJudgedDrops: 5, want: domain.RecordingStateCompletedWithErrors, wantHistory: false},
+		// 字幕・データの PID だけのドロップは、判定に数えない (設計書 5.5)。
+		{name: "前のセグメントのドロップが字幕・データの PID だけ", earlierDrops: 6, earlierJudgedDrops: 0, want: domain.RecordingStateCompleted, wantHistory: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1049,9 +1052,9 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 			reservationID := f.reserve(t, 0)
 			if tt.earlierDrops > 0 {
 				_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
-					state, protected, drops, recorded_from, created_at, updated_at)
-					SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $2, $4, $4, $4
-					FROM reservations WHERE id = $3`, id.New(), tt.earlierDrops, reservationID, f.clock.Now())
+					state, protected, drops, judged_drops, recorded_from, created_at, updated_at)
+					SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $2, $5, $4, $4, $4
+					FROM reservations WHERE id = $3`, id.New(), tt.earlierDrops, reservationID, f.clock.Now(), tt.earlierJudgedDrops)
 				require.NoError(t, err)
 			}
 			recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)

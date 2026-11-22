@@ -71,6 +71,29 @@ func PIDQualities(stats *Stats, pids []*PIDStats) []PIDQuality {
 	return result
 }
 
+// JudgedDrops は、PID ごとの統計 pids のドロップのうち、録画の状態と重複の回避の判定に数えるものの合計を返す (設計書 5.3)。
+// stats の PMT で字幕・データ (映像と音声のほかの ES) とされた PID のドロップは数えない。BS4K の録画では、番組の境目で
+// 字幕の MMT パケットの通し番号が飛び、TS に変換したときに字幕の PID の continuity counter も飛ぶ。
+// 映像と音声は欠けていないので、そのドロップで乱れた録画とはみなさない。
+func JudgedDrops(stats *Stats, pids []*PIDStats) int64 {
+	others := map[uint16]bool{}
+	for _, program := range stats.Programs {
+		for _, stream := range program.Streams {
+			if stream.Kind == StreamKindOther {
+				others[stream.PID] = true
+			}
+		}
+	}
+	var total int64
+	for _, pid := range pids {
+		if !others[pid.PID] {
+			total += pid.Drops
+		}
+	}
+
+	return total
+}
+
 // isSIPID は、pid が、ARIB で決まった PID で送る PSI と SI の表 (PAT、CAT、NIT、SDT/BAT、EIT、RST、TDT/TOT、SDTT、BIT、CDT など) かどうかを返す。
 func isSIPID(pid uint16) bool {
 	switch pid {

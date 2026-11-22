@@ -764,6 +764,7 @@ func (r *Recorder) finishOnce(
 	}
 
 	// 引き継ぎや再開で、前のセグメントにドロップがあることもあるので、録画全体の集計で決める。
+	// 字幕・データの PID だけのドロップでは、エラーありにしない (設計書 5.5)。
 	finished, err := sqlc.New(r.pool).GetRecording(ctx, recording.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get the recording: %w", err)
@@ -772,7 +773,7 @@ func (r *Recorder) finishOnce(
 	switch {
 	case len(gaps) > 0:
 		finalState = domain.RecordingStatePartial
-	case finished.Drops > 0:
+	case finished.JudgedDrops > 0:
 		finalState = domain.RecordingStateCompletedWithErrors
 	}
 	if err := r.complete(ctx, assignment, recording.ID, finalState, "", "", now); err != nil {
@@ -1014,7 +1015,7 @@ func (r *Recorder) newSegment(
 	seg := &segment{
 		poolID: pool.ID, path: rel, fileID: fileID, tuner: nil, file: file, indexFile: indexFile,
 		buffer: bufio.NewWriterSize(file, writeBufferSize), analyzer: analyzer, startedAt: startedAt,
-		samples: qualitySamples{mu: sync.Mutex{}, samples: []qualitySample{}}, excluded: qualityCounts{Drops: 0, Errors: 0, Scrambled: 0},
+		samples: qualitySamples{mu: sync.Mutex{}, samples: []qualitySample{}}, excluded: qualityCounts{Drops: 0, JudgedDrops: 0, Errors: 0, Scrambled: 0},
 	}
 
 	return seg, "", nil
@@ -1757,9 +1758,11 @@ func addSegmentStats(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID
 		scrambled += pid.Scrambled
 	}
 	// 引き継がれた後の区間は、新しい mikan のセグメントで数えるので、差し引く (#525)。
-	counted := qualityCounts{Drops: drops(stats), Errors: errorsCount, Scrambled: scrambled}.minus(seg.excluded)
+	counted := qualityCounts{
+		Drops: drops(stats), JudgedDrops: ts.JudgedDrops(stats, stats.PIDs), Errors: errorsCount, Scrambled: scrambled,
+	}.minus(seg.excluded)
 	err := q.AddRecordingStats(ctx, sqlc.AddRecordingStatsParams{
-		Drops: max(counted.Drops, 0), Errors: max(counted.Errors, 0), Scrambled: max(counted.Scrambled, 0), Now: now, ID: recordingID,
+		Drops: max(counted.Drops, 0), JudgedDrops: max(counted.JudgedDrops, 0), Errors: max(counted.Errors, 0), Scrambled: max(counted.Scrambled, 0), Now: now, ID: recordingID,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to save the recording stats: %w", err)

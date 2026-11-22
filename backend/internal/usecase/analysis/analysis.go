@@ -187,6 +187,8 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 	}
 	results := make([]*analyzed, len(segments))
 	total := new(ts.PIDStats)
+	// judgedDrops は、判定に数えるドロップ。字幕・データの PID のドロップを除く (設計書 5.3)。
+	var judgedDrops int64
 	events := make([][]*ts.EventAudio, len(segments))
 	// 引き継ぎで重なった区間は、後のセグメントでも録っているので、前のセグメントの集計からは除く (#525)。
 	// 重なりの始まりは、後のセグメントの最初の I フレームの PTS で決めるので、後ろのセグメントから読む。
@@ -210,6 +212,7 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 		if result.pidStats, err = json.Marshal(ts.PIDQualities(stats, counted)); err != nil {
 			return fmt.Errorf("failed to encode the PID stats: %w", err)
 		}
+		judgedDrops += ts.JudgedDrops(stats, counted)
 		for _, pid := range counted {
 			total.Drops += pid.Drops
 			total.Errors += pid.Errors
@@ -231,7 +234,7 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 		return err
 	}
 
-	return w.record(ctx, job.Args.RecordingID, job.Priority, results, total, audios, regenerate)
+	return w.record(ctx, job.Args.RecordingID, job.Priority, results, total, judgedDrops, audios, regenerate)
 }
 
 // needsImages は、解析の後に、代表画像とプレビュー画像を作り直すかどうかを返す (#2012)。
@@ -424,7 +427,7 @@ func indexChanged(indexPath, tmpPath string) (bool, error) {
 // record は、集計を記録し、regenerate なら、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
 // audios は、TS から読んだ音声の構成の JSON。読めなければ nil。
 func (w *AnalyzeWorker) record(
-	ctx context.Context, recordingID uuid.UUID, priority int, results []*analyzed, total *ts.PIDStats, audios []byte, regenerate bool,
+	ctx context.Context, recordingID uuid.UUID, priority int, results []*analyzed, total *ts.PIDStats, judgedDrops int64, audios []byte, regenerate bool,
 ) error {
 	now := w.clock.Now()
 	err := pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
@@ -438,7 +441,7 @@ func (w *AnalyzeWorker) record(
 			}
 		}
 		err := q.SetRecordingStats(ctx, sqlc.SetRecordingStatsParams{
-			Drops: total.Drops, Errors: total.Errors, Scrambled: total.Scrambled, Now: now, ID: recordingID,
+			Drops: total.Drops, JudgedDrops: judgedDrops, Errors: total.Errors, Scrambled: total.Scrambled, Now: now, ID: recordingID,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to record the stats: %w", err)

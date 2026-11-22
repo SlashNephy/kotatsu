@@ -12,18 +12,19 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
-// MaxDrops は、重複の回避で「録画済み」とみなすドロップの数の上限 (付録 A、#1497)。
+// MaxDrops は、重複の回避で「録画済み」とみなす、判定に数えるドロップ (ts.JudgedDrops) の数の上限 (付録 A、#1497)。
 // 本番の録画 (2026-10-12〜11-12 の 1,538 件) では、ドロップは 0 件が 95% で、BS4K は
 // 19 件すべてに 3〜4 件が出ていた。地上波と BS で 2〜4 件の録画は 3 件だけだった。
-// BS4K の録画も録画済みとみなせるよう、上限を 4 件にする。
+// BS4K の録画も録画済みとみなせるよう、上限を 4 件にした。この 3〜4 件は字幕の PID のもので、今は判定に数えない。
 const MaxDrops = 4
 
 // Eligible は、録画 recording を「録画済み」とみなして録画履歴に記録するかを返す。
-// 正常に終わり (完了かエラーありの完了)、ドロップが MaxDrops 以下で、スクランブルの警告がない録画だけを記録する。
+// 正常に終わり (完了かエラーありの完了)、判定に数えるドロップ (字幕・データの PID のドロップを除く) が MaxDrops 以下で、
+// スクランブルの警告がない録画だけを記録する。
 // スクランブルされたまま録れた録画を録画済みとみなすと、カードを直した後の再放送を録らなくなるからである (#1517)。
 func Eligible(recording *sqlc.Recording) bool {
 	return (recording.State == "completed" || recording.State == "completed_with_errors") &&
-		recording.Drops <= MaxDrops && !recording.ScrambleWarning
+		recording.JudgedDrops <= MaxDrops && !recording.ScrambleWarning
 }
 
 // Record は、録画 recording が Eligible なら、録画履歴に記録する。
