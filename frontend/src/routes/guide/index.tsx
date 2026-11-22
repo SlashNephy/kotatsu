@@ -30,7 +30,7 @@ import {
   useDocumentTitle,
   useNow,
 } from '../../futon';
-import { loadExtendedHours, saveExtendedHours } from '../../guide/hourNotation';
+import { useExtendedHours } from '../../guide/hourNotation';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
 import { broadcastDay, dateOf, receivedUntil } from '../../guide/layout';
@@ -347,7 +347,7 @@ function Guide() {
   const [scrollKey, setScrollKey] = useState(0);
   // jumpHour は、時間帯のメニューで選んだ時刻 (時)。選んでいなければ null。日付を移ったら取り消す。
   // extendedHours は、深夜を 24 時以降 (28 時間表記) で表すかどうか。
-  const [extendedHours, setExtendedHours] = useState(loadExtendedHours);
+  const [extendedHours, setExtendedHours] = useExtendedHours();
   const [jumpHour, setJumpHour] = useState<number | null>(null);
   const moveTo = (days: number, keep: boolean) => {
     setJumpHour(null);
@@ -479,7 +479,6 @@ function Guide() {
                   label={t('guide.extendedHours')}
                   checked={extendedHours}
                   onChange={(event) => {
-                    saveExtendedHours(event.currentTarget.checked);
                     setExtendedHours(event.currentTarget.checked);
                   }}
                 />

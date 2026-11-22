@@ -1,6 +1,8 @@
 // 番組表の時刻の表し方 (#486)。放送日は 4 時に始まるので、28 時間表記では、深夜の 0 時〜3 時を 24 時〜27 時と表す。
 
 import { zoneOffset } from '../futon/timeZone';
+import { useSyncExternalStore } from 'react';
+
 import { preferenceChanged } from '../settings/syncedPreferences';
 
 const hour = 3_600_000;
@@ -28,11 +30,7 @@ const storageKey = 'kotatsu.guide.extendedHours';
 
 // loadExtendedHours は、28 時間表記にするかどうかを、端末から読む。読めなければ、使わない。
 export function loadExtendedHours(): boolean {
-  try {
-    return localStorage.getItem(storageKey) === 'true';
-  } catch {
-    return false;
-  }
+  return rawSnapshot() === 'true';
 }
 
 // saveExtendedHours は、28 時間表記にするかどうかを、端末に覚える。覚えられなくても、今の画面には効かせる。
@@ -42,5 +40,34 @@ export function saveExtendedHours(extended: boolean): void {
     preferenceChanged(storageKey);
   } catch {
     // 端末に覚えられないだけで、表示は変える。
+  }
+  window.dispatchEvent(new Event(changeEvent));
+}
+
+// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブと、ほかの端末から同期した値 (#1862) にしか届かない。
+const changeEvent = 'kotatsu:extended-hours';
+
+function subscribe(onChange: () => void): () => void {
+  window.addEventListener('storage', onChange);
+  window.addEventListener(changeEvent, onChange);
+
+  return () => {
+    window.removeEventListener('storage', onChange);
+    window.removeEventListener(changeEvent, onChange);
+  };
+}
+
+// useExtendedHours は、28 時間表記にするかどうかと、それを変える関数を返す。ほかのタブや、ほかの端末で変えても追う (#1862)。
+// 読んだ文字列を手がかりにするので、値が変わらなければ、描き直さない。
+export function useExtendedHours(): [boolean, (next: boolean) => void] {
+  // 読んだ文字列から決める。引数なしで読み直すと、React Compiler が結果を覚えて使い回すからである。
+  return [useSyncExternalStore(subscribe, rawSnapshot) === 'true', saveExtendedHours];
+}
+
+function rawSnapshot(): string | null {
+  try {
+    return localStorage.getItem(storageKey);
+  } catch {
+    return null;
   }
 }

@@ -40,6 +40,9 @@ let uploader: Uploader | null = null;
 const pending = new Set<string>();
 const inFlight = new Set<string>();
 let timer: ReturnType<typeof setTimeout> | null = null;
+// sending は、送って返事を待っているかどうか。送るのは一度に 1 回だけにし、返事が来てから次を送る。
+// 重ねて送ると、先の返事で inFlight の印が早く外れたり、サーバーに着く順が入れ替わったりするからである。
+let sending = false;
 
 // takenOverKey は、この端末の設定をサーバーへ引き継いだことを覚えるキー。引き継ぎは端末ごとに 1 回だけにする。
 // 開くたびに引き継ぐと、ほかの端末で消した (既定に戻した) 設定を、この端末が開いたときに送り直してしまうからである。
@@ -62,7 +65,7 @@ function localStorageOrNull(): Storage | null {
 }
 
 function schedule(): void {
-  if (uploader === null || timer !== null || pending.size === 0) {
+  if (uploader === null || timer !== null || sending || pending.size === 0) {
     return;
   }
   timer = setTimeout(flush, uploadDelayMs);
@@ -80,12 +83,16 @@ function flush(): void {
   for (const key of keys) {
     inFlight.add(key);
   }
+  sending = true;
   send(
     keys.map((key) => ({ key, value: read(storage, key) })),
     () => {
       for (const key of keys) {
         inFlight.delete(key);
       }
+      sending = false;
+      // 待っている間に変えた設定を送る。
+      schedule();
     },
   );
 }
@@ -158,6 +165,7 @@ export function resetSyncedPreferencesForTest(): void {
   uploader = null;
   pending.clear();
   inFlight.clear();
+  sending = false;
   if (timer !== null) {
     clearTimeout(timer);
     timer = null;

@@ -119,4 +119,20 @@ describe('端末をまたいで同期する設定 (#1862)', () => {
     applyServerPreferences([{ key: keymap, value: 'new' }], localStorage);
     expect(localStorage.getItem(keymap)).toBe('new');
   });
+
+  test('送っている途中に変えた設定は、返事が来てから送る', () => {
+    const { sent, done } = uploads();
+    localStorage.setItem(keymap, 'first');
+    preferenceChanged(keymap);
+    vi.runAllTimers();
+    localStorage.setItem(keymap, 'second');
+    preferenceChanged(keymap);
+    vi.runAllTimers();
+    // 先の返事が来るまでは、次を送らない。
+    expect(sent).toEqual([[{ key: keymap, value: 'first' }]]);
+
+    done[0]?.();
+    vi.runAllTimers();
+    expect(sent).toEqual([[{ key: keymap, value: 'first' }], [{ key: keymap, value: 'second' }]]);
+  });
 });
