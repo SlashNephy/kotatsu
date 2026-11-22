@@ -57,8 +57,34 @@ const metaText = (recording: SavedRecording) =>
     savedAt: '2026-11-21T00:00:00+09:00',
   });
 
-// fakeDirectory は、files の本文を持つ、録画のディレクトリの偽物。書き込みは、いつまでも終わらない (保存している途中を見せる)。
-function fakeDirectory(files: Map<string, string>) {
+// Writes は、偽の保存先への書き込みを、片付けまで待たせる。片付けで待っている書き込みを終え、以後の書き込みは待たせない。
+// pipeTo は、中断されても、読んだ分を書き終えるまで書き込み先を中断しないので、書き込みを終わらせないと、
+// 保存が終わらず、次の Story の beforeEach が片付けを待ったまま止まる。
+type Writes = { wait: () => Promise<void>; finish: () => void };
+
+function createWrites(): Writes {
+  let finished = false;
+  const waiting = new Set<() => void>();
+
+  return {
+    wait: () =>
+      finished
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            waiting.add(resolve);
+          }),
+    finish: () => {
+      finished = true;
+      for (const resolve of waiting) {
+        resolve();
+      }
+      waiting.clear();
+    },
+  };
+}
+
+// fakeDirectory は、files の本文を持つ、録画のディレクトリの偽物。書き込みは、writes を終えるまで待つ (保存している途中を見せる)。
+function fakeDirectory(files: Map<string, string>, writes: Writes) {
   return {
     kind: 'directory' as const,
     getFileHandle: (name: string, options?: { create?: boolean }) => {
@@ -71,7 +97,7 @@ function fakeDirectory(files: Map<string, string>) {
         kind: 'file' as const,
         getFile: () => Promise.resolve(new File([text ?? ''], name)),
         createWritable: () =>
-          Promise.resolve(new WritableStream<Uint8Array>({ write: () => new Promise(() => {}) })),
+          Promise.resolve(new WritableStream<Uint8Array>({ write: () => writes.wait() })),
       });
     },
   };
@@ -79,11 +105,13 @@ function fakeDirectory(files: Map<string, string>) {
 
 // fakeStorage は、端末の保存先 (navigator.storage) の偽物。recordings を保存した録画として返す。persisted は、保存の永続化が
 // 許されたか。hanging の録画のディレクトリは、release を呼ぶまで開けない (保存を始めた直後の、大きさの分からない状態を見せる)。
+// 書き込みも、release を呼ぶまで終えない。
 function fakeStorage(saved: SavedRecording[], persisted: boolean, hanging?: string) {
+  const writes = createWrites();
   const directories = new Map(
     saved.map((recording) => [
       recording.id,
-      fakeDirectory(new Map([['meta.json', metaText(recording)]])),
+      fakeDirectory(new Map([['meta.json', metaText(recording)]]), writes),
     ]),
   );
   let release = () => {};
@@ -97,7 +125,7 @@ function fakeStorage(saved: SavedRecording[], persisted: boolean, hanging?: stri
           release = () => reject(new DOMException('aborted', 'AbortError'));
         });
       }
-      const directory = directories.get(name) ?? fakeDirectory(new Map());
+      const directory = directories.get(name) ?? fakeDirectory(new Map(), writes);
       directories.set(name, directory);
 
       return Promise.resolve(directory);
@@ -116,7 +144,10 @@ function fakeStorage(saved: SavedRecording[], persisted: boolean, hanging?: stri
       persist: () => Promise.resolve(persisted),
       estimate: () => Promise.resolve({ usage: 4_050_000_000, quota: 64_000_000_000 }),
     },
-    release: () => release(),
+    release: () => {
+      release();
+      writes.finish();
+    },
   };
 }
 
