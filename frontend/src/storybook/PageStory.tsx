@@ -6,7 +6,7 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { useEffect, useState } from 'react';
 import { RelayEnvironmentProvider } from 'react-relay';
 
-import { createDemoEnvironment, type DemoEnvironmentOptions } from '../demo';
+import { createDemoEnvironment, interceptFetch, type DemoEnvironmentOptions } from '../demo';
 import type { Executor } from '../demo/executor';
 import { routeTree } from '../routeTree.gen';
 
@@ -20,13 +20,15 @@ export type PageStoryProps = {
 // PageStory は、url の画面を、デモの応答で描く。差し替えた応答は、Story を開き直すまで変えない。
 export function PageStory({ url, overrides, hold }: PageStoryProps) {
   // デモが応えない画面 (管理の画面など) も枠を描けるよう、デモのデータにないフィールドは型の既定の値で埋める。
-  const [{ environment, executor }] = useState(() =>
+  const [{ environment, executor, captures }] = useState(() =>
     createDemoEnvironment({ overrides, hold, fillMissing: true }),
   );
   const [router, setRouter] = useState<ReturnType<typeof createRouter> | null>(null);
   // failure は、パスを返す関数が失敗したときの理由。Story を空のまま止めず、理由を出す。
   const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
+    // Relay を通らずに呼ぶ所 (ログインの画面の /internal/auth/* など) にも、デモの応答を返す。Story を閉じたら戻す。
+    const restore = interceptFetch(executor, captures);
     let cancelled = false;
     void (typeof url === 'string' ? Promise.resolve(url) : url(executor)).then(
       (path) => {
@@ -45,8 +47,9 @@ export function PageStory({ url, overrides, hold }: PageStoryProps) {
 
     return () => {
       cancelled = true;
+      restore();
     };
-  }, [url, executor]);
+  }, [url, executor, captures]);
 
   return (
     <>

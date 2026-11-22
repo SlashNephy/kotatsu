@@ -32,8 +32,10 @@ function json(body: unknown): Response {
 // 視聴位置の keepalive の保存、ログインやログアウト)、キャプチャを残す POST /media/captures と、実況の過去ログ (src/demo/jikkyo.ts) に、
 // デモの応答を返す。
 // 呼ぶ側はサブパスを付けずに / からのパスで呼ぶので、同じオリジンのそのパスだけを横取りする。
-function interceptFetch(executor: Executor, captures: DemoCaptures): void {
+// 戻す関数を返す。Storybook (#2056) は、Story を閉じるときに戻す。
+export function interceptFetch(executor: Executor, captures: DemoCaptures): () => void {
   const original = window.fetch.bind(window);
+  const restore = window.fetch;
   window.fetch = async (input, init) => {
     // 横取りしない要求の body を読んでしまわないよう、URL だけを先に見る。
     const url = new URL(input instanceof Request ? input.url : input, window.location.href);
@@ -60,6 +62,10 @@ function interceptFetch(executor: Executor, captures: DemoCaptures): void {
     }
 
     return original(input, init);
+  };
+
+  return () => {
+    window.fetch = restore;
   };
 }
 
@@ -150,7 +156,11 @@ export function createDemoEnvironment({
   hold,
   captures = createDemoCaptures(),
   fillMissing = false,
-}: DemoEnvironmentOptions = {}): { environment: Environment; executor: Executor } {
+}: DemoEnvironmentOptions = {}): {
+  environment: Environment;
+  executor: Executor;
+  captures: DemoCaptures;
+} {
   const executor = createExecutor(
     { ...createRootValue(createEventHub(), now, captures), ...overrides },
     { fillMissing },
@@ -162,6 +172,7 @@ export function createDemoEnvironment({
       store: new Store(new RecordSource()),
     }),
     executor,
+    captures,
   };
 }
 

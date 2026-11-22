@@ -13,7 +13,18 @@ export function authResponse(pathname: string): unknown {
         methods: ['totp'],
         expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       };
+    // 認証アプリの登録 (#2056)。デモの秘密鍵は、どのコードでも通すので意味を持たない。
+    case '/internal/auth/login/totp/enrollment': {
+      const secret = 'KOTATSUDEMOSECRET';
+
+      return {
+        secret,
+        uri: `otpauth://totp/Kotatsu:demo?secret=${secret}&issuer=Kotatsu`,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      };
+    }
     case '/internal/auth/login/totp':
+    case '/internal/auth/login/totp/enrollment/confirm':
     case '/internal/auth/login/recovery-code':
       return { recoveryCodes: [] };
     case '/internal/auth/reauth':
