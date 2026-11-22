@@ -135,6 +135,8 @@ function registerStreamWorker(): void {
 // now は、デモの番組表を作る時刻 (ミリ秒)。hold が true を返した操作には、応答を返さず待たせる。
 export type DemoEnvironmentOptions = {
   overrides?: object;
+  // fillMissing なら、デモのデータにない non-null のフィールドを、型の既定の値で埋める (executor.ts)。
+  fillMissing?: boolean;
   now?: number;
   hold?: Hold;
   captures?: DemoCaptures;
@@ -147,11 +149,12 @@ export function createDemoEnvironment({
   now = Date.now(),
   hold,
   captures = createDemoCaptures(),
+  fillMissing = false,
 }: DemoEnvironmentOptions = {}): { environment: Environment; executor: Executor } {
-  const executor = createExecutor({
-    ...createRootValue(createEventHub(), now, captures),
-    ...overrides,
-  });
+  const executor = createExecutor(
+    { ...createRootValue(createEventHub(), now, captures), ...overrides },
+    { fillMissing },
+  );
 
   return {
     environment: new Environment({
