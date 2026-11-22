@@ -28,8 +28,9 @@ const (
 	// 版 3 で、縦が 1080 ラインより大きい映像 (BS4K、8K) も、縮めてロゴで見分けるようにした (#1505)。
 	// 版 4 で、隅を横切る帯 (番組の話題の帯) の端のアイコンを、局ロゴとして覚えないようにした (#1883)。
 	// 版 5 で、録画の途中の 60 秒を超える CM (通販の CM など) を CM にし、録画の端の近くの CM を端まで延ばした (#1958)。
+	// 版 6 で、番組の窓の端を、近くの無音の境目に寄せるようにした (#1506)。
 	LogoDetectorName    = "logo"
-	logoDetectorVersion = 5
+	logoDetectorVersion = 6
 	// ffprobeCommand は、PATH から探す ffprobe のコマンドの名前。FFmpeg に付いてくる。
 	ffprobeCommand = "ffprobe"
 	// rawReadBuffer は、FFmpeg が出す生のコマを読むバッファの大きさ。
@@ -577,6 +578,10 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
 	scope := Section{Start: 0, End: duration}
 	if w, ok := programWindow(intervals, m.Times, m.Fps, program); ok {
+		// 無音の材料を読めた回は、窓の端を無音の境目に寄せる。番組の切り替わりは、ふつう無音を挟むからである。
+		if m.bounds != nil {
+			w = snapWindow(w, m.bounds, m.boundsDuration, m.Times[0], m.offset)
+		}
 		intervals = clipIntervals(intervals, m.Times, w.start, w.end)
 		if len(intervals) == 0 {
 			return nil, fmt.Errorf("%w: no frame shows the logo in the program window", errLogoUnusable)
