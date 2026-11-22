@@ -60,8 +60,6 @@ const (
 	DefaultRetryInterval = 2 * time.Second
 	// DefaultDatabaseTimeout は、録画中に 1 度に DB を待つ上限の既定値 (#1073)。
 	DefaultDatabaseTimeout = 5 * time.Second
-	// MaxHistoryDrops は、重複の回避で「録画済み」とみなすドロップの数の上限 (付録 A、#1497)。決め方は history.MaxDrops に書く。
-	MaxHistoryDrops = history.MaxDrops
 	// ExtensionStep と MaxExtension は、延長中で終了時刻が未定の番組の、録画の延長幅と上限 (付録 A)。
 	ExtensionStep = 5 * time.Minute
 	MaxExtension  = 3 * time.Hour
@@ -764,6 +762,7 @@ func (r *Recorder) finishOnce(
 	}
 
 	// 引き継ぎや再開で、前のセグメントにドロップがあることもあるので、録画全体の集計で決める。
+	// 映像と音声の PID にドロップがなければ、エラーありにしない (設計書 5.5)。
 	finished, err := sqlc.New(r.pool).GetRecording(ctx, recording.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get the recording: %w", err)
@@ -772,7 +771,7 @@ func (r *Recorder) finishOnce(
 	switch {
 	case len(gaps) > 0:
 		finalState = domain.RecordingStatePartial
-	case finished.Drops > 0:
+	case finished.JudgedDrops > 0:
 		finalState = domain.RecordingStateCompletedWithErrors
 	}
 	if err := r.complete(ctx, assignment, recording.ID, finalState, "", "", now); err != nil {
@@ -1014,7 +1013,7 @@ func (r *Recorder) newSegment(
 	seg := &segment{
 		poolID: pool.ID, path: rel, fileID: fileID, tuner: nil, file: file, indexFile: indexFile,
 		buffer: bufio.NewWriterSize(file, writeBufferSize), analyzer: analyzer, startedAt: startedAt,
-		samples: qualitySamples{mu: sync.Mutex{}, samples: []qualitySample{}}, excluded: qualityCounts{Drops: 0, Errors: 0, Scrambled: 0},
+		samples: qualitySamples{mu: sync.Mutex{}, samples: []qualitySample{}}, excluded: qualityCounts{Drops: 0, JudgedDrops: 0, Errors: 0, Scrambled: 0},
 	}
 
 	return seg, "", nil
@@ -1757,9 +1756,11 @@ func addSegmentStats(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID
 		scrambled += pid.Scrambled
 	}
 	// 引き継がれた後の区間は、新しい mikan のセグメントで数えるので、差し引く (#525)。
-	counted := qualityCounts{Drops: drops(stats), Errors: errorsCount, Scrambled: scrambled}.minus(seg.excluded)
+	counted := qualityCounts{
+		Drops: drops(stats), JudgedDrops: ts.JudgedDrops(stats, stats.PIDs), Errors: errorsCount, Scrambled: scrambled,
+	}.minus(seg.excluded)
 	err := q.AddRecordingStats(ctx, sqlc.AddRecordingStatsParams{
-		Drops: max(counted.Drops, 0), Errors: max(counted.Errors, 0), Scrambled: max(counted.Scrambled, 0), Now: now, ID: recordingID,
+		Drops: max(counted.Drops, 0), JudgedDrops: max(counted.JudgedDrops, 0), Errors: max(counted.Errors, 0), Scrambled: max(counted.Scrambled, 0), Now: now, ID: recordingID,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to save the recording stats: %w", err)

@@ -3,6 +3,7 @@ package analysis_test
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"log/slog"
 	"os"
@@ -164,6 +165,81 @@ func singleTestTS(t *testing.T) [][]byte {
 	return [][]byte{loadTestTS(t)}
 }
 
+// captionPID は、withCaptionDrop で PMT に足す字幕の ES の PID。
+const captionPID = 0x130
+
+// withCaptionDrop は、data の PMT に字幕の ES (stream_type 0x06) を足し、PMT の後ごとに字幕のパケットを 1 つずつ挟んだ TS を返す。
+// 字幕のパケットの continuity counter は、3 つ目で 1 つ飛ばす。BS4K の録画の、字幕の PID だけのドロップに見立てる。
+func withCaptionDrop(t *testing.T, data []byte) []byte {
+	t.Helper()
+
+	out := make([]byte, 0, len(data)+len(data)/10)
+	counters := []byte{0, 1, 3}
+	inserted := 0
+	for offset := 0; offset+ts.PacketSize <= len(data); offset += ts.PacketSize {
+		packet := bytes.Clone(data[offset : offset+ts.PacketSize])
+		pid := uint16(packet[1]&0x1F)<<8 | uint16(packet[2])
+		if pid != pmtPID || packet[1]&0x40 == 0 {
+			out = append(out, packet...)
+
+			continue
+		}
+		out = append(out, withCaptionStream(t, packet)...)
+		if inserted < len(counters) {
+			caption := bytes.Repeat([]byte{0xFF}, ts.PacketSize)
+			caption[0], caption[3] = 0x47, 0x10|counters[inserted]
+			binary.BigEndian.PutUint16(caption[1:3], captionPID)
+			out = append(out, caption...)
+			inserted++
+		}
+	}
+	require.Equal(t, len(counters), inserted, "the caption packets must be inserted")
+
+	return out
+}
+
+// pmtPID は、テスト用の TS の PMT の PID。
+const pmtPID = 0x1F0
+
+// withCaptionStream は、1 つのパケットに収まる PMT のセクションの末尾に、字幕の ES を足したパケットを返す。
+func withCaptionStream(t *testing.T, packet []byte) []byte {
+	t.Helper()
+
+	start := 5 + int(packet[4])
+	length := binary.BigEndian.Uint16(packet[start+1:start+3]) & 0x0FFF
+	// CRC の前までを写し、ES を足して、長さと CRC を書き直す。
+	section := bytes.Clone(packet[start : start+3+int(length)-4])
+	section = append(section, 0x06)
+	section = binary.BigEndian.AppendUint16(section, 0xE000|captionPID)
+	section = append(section, 0xF0, 0x00)
+	binary.BigEndian.PutUint16(section[1:3], binary.BigEndian.Uint16(section[1:3])&0xF000|(length+5))
+	section = binary.BigEndian.AppendUint32(section, mpegCRC32(section))
+	require.LessOrEqual(t, start+len(section), ts.PacketSize, "the PMT must fit in a packet")
+
+	out := bytes.Repeat([]byte{0xFF}, ts.PacketSize)
+	copy(out, packet[:start])
+	copy(out[start:], section)
+
+	return out
+}
+
+// mpegCRC32 は、PSI のセクションの CRC_32 (多項式 0x04C11DB7、反転なし) を返す。
+func mpegCRC32(data []byte) uint32 {
+	crc := uint32(0xFFFFFFFF)
+	for _, b := range data {
+		crc ^= uint32(b) << 24
+		for range 8 {
+			if crc&0x80000000 != 0 {
+				crc = crc<<1 ^ 0x04C11DB7
+			} else {
+				crc <<= 1
+			}
+		}
+	}
+
+	return crc
+}
+
 // withoutVideoPackets は、data から、映像の n 番目 (0 から数える) のパケットを抜いた TS を返す。
 func withoutVideoPackets(t *testing.T, data []byte, ns ...int) []byte {
 	t.Helper()
@@ -227,10 +303,11 @@ func TestAnalyzeWorker(t *testing.T) {
 	t.Parallel()
 
 	type stats struct {
-		State     string
-		Drops     int64
-		Errors    int64
-		Scrambled int64
+		State       string
+		Drops       int64
+		JudgedDrops int64
+		Errors      int64
+		Scrambled   int64
 	}
 	tests := []struct {
 		name  string
@@ -241,7 +318,7 @@ func TestAnalyzeWorker(t *testing.T) {
 		{
 			name: "ドロップがなければ、EPGStation の集計を 0 にし、完了にする", state: completedWithErrors,
 			data: singleTestTS,
-			want: stats{State: completed, Drops: 0, Errors: 0, Scrambled: 0},
+			want: stats{State: completed, Drops: 0, JudgedDrops: 0, Errors: 0, Scrambled: 0},
 		},
 		{
 			name: "映像のパケットが抜けていれば、ドロップを数え、エラーありの完了にする", state: completed,
@@ -250,7 +327,7 @@ func TestAnalyzeWorker(t *testing.T) {
 
 				return [][]byte{withoutVideoPackets(t, loadTestTS(t), 100, 300)}
 			},
-			want: stats{State: completedWithErrors, Drops: 2, Errors: 0, Scrambled: 0},
+			want: stats{State: completedWithErrors, Drops: 2, JudgedDrops: 2, Errors: 0, Scrambled: 0},
 		},
 		{
 			name: "エラーとスクランブルを数えるが、ドロップがなければ完了にする", state: completedWithErrors,
@@ -261,7 +338,7 @@ func TestAnalyzeWorker(t *testing.T) {
 
 				return [][]byte{withFlaggedVideoPackets(t, data, scrambled, 200, 400)}
 			},
-			want: stats{State: completed, Drops: 0, Errors: 1, Scrambled: 2},
+			want: stats{State: completed, Drops: 0, JudgedDrops: 0, Errors: 1, Scrambled: 2},
 		},
 		{
 			name: "セグメントが 2 つあれば、それぞれに索引を作り、集計を合わせる", state: completed,
@@ -270,12 +347,22 @@ func TestAnalyzeWorker(t *testing.T) {
 
 				return [][]byte{withoutVideoPackets(t, loadTestTS(t), 100), withoutVideoPackets(t, loadTestTS(t), 200, 400)}
 			},
-			want: stats{State: completedWithErrors, Drops: 3, Errors: 0, Scrambled: 0},
+			want: stats{State: completedWithErrors, Drops: 3, JudgedDrops: 3, Errors: 0, Scrambled: 0},
+		},
+		{
+			// BS4K の録画は、番組の境目で字幕の PID だけにドロップが出る。映像と音声は欠けていないので、完了にする (設計書 5.5)。
+			name: "字幕の PID だけのドロップは、判定に数えず、完了にする", state: completedWithErrors,
+			data: func(t *testing.T) [][]byte {
+				t.Helper()
+
+				return [][]byte{withCaptionDrop(t, loadTestTS(t))}
+			},
+			want: stats{State: completed, Drops: 1, JudgedDrops: 0, Errors: 0, Scrambled: 0},
 		},
 		{
 			name: "途中で失敗した録画は、状態を変えない", state: "partial",
 			data: singleTestTS,
-			want: stats{State: "partial", Drops: 0, Errors: 0, Scrambled: 0},
+			want: stats{State: "partial", Drops: 0, JudgedDrops: 0, Errors: 0, Scrambled: 0},
 		},
 	}
 	for _, tt := range tests {
@@ -290,8 +377,8 @@ func TestAnalyzeWorker(t *testing.T) {
 			}
 
 			var got stats
-			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, drops, errors, scrambled FROM recordings WHERE id = $1", recordingID).
-				Scan(&got.State, &got.Drops, &got.Errors, &got.Scrambled))
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, drops, judged_drops, errors, scrambled FROM recordings WHERE id = $1", recordingID).
+				Scan(&got.State, &got.Drops, &got.JudgedDrops, &got.Errors, &got.Scrambled))
 			assert.Equal(t, tt.want, got)
 
 			// 索引は、録画中に作るものと同じく、I フレームの位置と PTS を並べる。DB には記録せず、データディレクトリに置く。

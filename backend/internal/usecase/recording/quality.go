@@ -14,15 +14,16 @@ import (
 // 遅れると、落ちた mikan のものとみなして早すぎる時刻で閉じ、実際にはない途切れを記録してしまう。
 const flushInterval = time.Second
 
-// qualityCounts は、録画の品質の集計 (ドロップ、エラー、スクランブル)。
+// qualityCounts は、録画の品質の集計 (ドロップ、エラー、スクランブル)。JudgedDrops は、判定に数えるドロップ (ts.JudgedDrops)。
 type qualityCounts struct {
-	Drops     int64
-	Errors    int64
-	Scrambled int64
+	Drops       int64
+	JudgedDrops int64
+	Errors      int64
+	Scrambled   int64
 }
 
 func countsOf(stats *ts.Stats) qualityCounts {
-	counts := qualityCounts{Drops: drops(stats), Errors: 0, Scrambled: 0}
+	counts := qualityCounts{Drops: drops(stats), JudgedDrops: ts.JudgedDrops(stats, stats.PIDs), Errors: 0, Scrambled: 0}
 	for _, pid := range stats.PIDs {
 		counts.Errors += pid.Errors
 		counts.Scrambled += pid.Scrambled
@@ -32,7 +33,9 @@ func countsOf(stats *ts.Stats) qualityCounts {
 }
 
 func (c qualityCounts) minus(o qualityCounts) qualityCounts {
-	return qualityCounts{Drops: c.Drops - o.Drops, Errors: c.Errors - o.Errors, Scrambled: c.Scrambled - o.Scrambled}
+	return qualityCounts{
+		Drops: c.Drops - o.Drops, JudgedDrops: c.JudgedDrops - o.JudgedDrops, Errors: c.Errors - o.Errors, Scrambled: c.Scrambled - o.Scrambled,
+	}
 }
 
 // qualitySample は、ある時刻までに数えた、セグメントの品質の集計。
@@ -45,7 +48,7 @@ type qualitySample struct {
 // since より前に控えたものがなければ、セグメントの全体を since より後とみなす。書き終えた後なら、重なっていない。
 func countsAfter(samples []qualitySample, since, end time.Time, final qualityCounts) qualityCounts {
 	if !since.Before(end) {
-		return qualityCounts{Drops: 0, Errors: 0, Scrambled: 0}
+		return qualityCounts{Drops: 0, JudgedDrops: 0, Errors: 0, Scrambled: 0}
 	}
 	var before *qualitySample
 	for i := range samples {

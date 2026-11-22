@@ -400,7 +400,8 @@ func (r *Recorder) completePromoted(
 	switch {
 	case len(gaps) > 0:
 		state = domain.RecordingStatePartial
-	case recording.Drops > 0:
+	// 映像と音声の PID にドロップがなければ、エラーありにしない (設計書 5.5)。
+	case recording.JudgedDrops > 0:
 		state = domain.RecordingStateCompletedWithErrors
 	}
 	// 録画した時間の終わりは、書いたセグメントの終わりにする (設計書 5.5)。
