@@ -288,6 +288,15 @@ func TestMessageEscaped(t *testing.T) {
 			payload: map[string]any{keyName: "作品名 #6", keyDestination: annict, keyEpisodes: "#6"},
 			want:    "「<作品名>」の#6をAnnictに記録しました",
 		},
+		{
+			name: "局の顔ぶれの変化の局の名前", kind: domain.NotificationKindLineupChanged,
+			payload: map[string]any{
+				keyLineupKind: "BS", keyNetworkID: 4, keyAdded: 1, keyRemoved: 1,
+				keyAddedServices: []any{"BS15 のサービス 103"}, keyRemovedServices: []any{"*こたつ*（サービス 191）"},
+			},
+			want: "<BS> のチャンネルが放送で変わりました（新しい局: <BS15 のサービス 103>／終わった局: <*こたつ*（サービス 191）>）。" +
+				"チューナーサーバーのチャンネルをスキャンし直してください",
+		},
 		{name: "名前がなければ書き換えない", kind: domain.NotificationKindRecordingFailed, payload: map[string]any{}, want: "録画に失敗しました"},
 	}
 	for _, tt := range tests {

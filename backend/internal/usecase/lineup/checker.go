@@ -304,11 +304,11 @@ func fingerprintOf(known []Known) string {
 	return strings.Join(keys, ",")
 }
 
-// namesOf は、チューナーサーバーのサービスの名前を、ネットワークとサービスで引けるようにする。
+// namesOf は、チューナーサーバーのテレビのサービスの名前を、ネットワークとサービスで引けるようにする。
 func namesOf(services []*tunerserver.Service) map[Known]string {
 	names := map[Known]string{}
 	for _, service := range services {
-		if service == nil || service.Name == "" || service.NetworkID < 0 || service.NetworkID > 0xffff ||
+		if service == nil || service.Type != serviceTypeTV || service.Name == "" || service.NetworkID < 0 || service.NetworkID > 0xffff ||
 			service.ServiceID < 0 || service.ServiceID > 0xffff {
 			continue
 		}

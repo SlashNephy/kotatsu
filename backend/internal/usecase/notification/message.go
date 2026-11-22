@@ -85,7 +85,7 @@ func MessageEscaped(kind domain.NotificationKind, payload map[string]any, locati
 	case domain.NotificationKindScrambledRecordings:
 		return "スクランブルされたまま録れた録画が続いています。チューナーサーバーの B-CAS カードが読めていない可能性があります"
 	case domain.NotificationKindLineupChanged:
-		return lineupChangedMessage(field("kind"), field("channel"), payload)
+		return lineupChangedMessage(field("kind"), field("channel"), payload, escape)
 
 	default:
 		return string(kind)
@@ -259,8 +259,9 @@ const lineupServicesShown = 5
 // 衛星はネットワーク全体の変化を、地上波 (kind が GR) はチャンネル channel で受かる局の食い違いを書く。数が 0 の項目は書かない。
 // 新しい局と終わった局の並び (addedServices、removedServices) があれば局を書き、なければ数を書く (#2034)。
 // 並びを載せる前に届いた知らせも、数で読めるようにするためである。
+// 局の名前は放送局とチューナーサーバーが決めるので、escape で書き換える。
 // 続けて選局できないチャンネル (unreachable) があれば、それを知らせる文にする。
-func lineupChangedMessage(kind, channel string, payload map[string]any) string {
+func lineupChangedMessage(kind, channel string, payload map[string]any, escape func(string) string) string {
 	if channels := texts(payload["unreachable"]); len(channels) > 0 {
 		return unreachableMessage(kind, channels)
 	}
@@ -271,7 +272,7 @@ func lineupChangedMessage(kind, channel string, payload map[string]any) string {
 		{"added", "addedServices", "新しい局"}, {"removed", "removedServices", "終わった局"},
 	} {
 		if services := texts(payload[item.servicesKey]); len(services) > 0 {
-			counts = append(counts, item.label+": "+lineupServices(services))
+			counts = append(counts, item.label+": "+lineupServices(services, escape))
 			separator = "／"
 		} else if n := count(payload[item.key]); n > 0 {
 			counts = append(counts, fmt.Sprintf("%s %d", item.label, n))
@@ -297,11 +298,11 @@ func lineupChangedMessage(kind, channel string, payload map[string]any) string {
 }
 
 // lineupServices は、局の並びを「、」でつなぐ。lineupServicesShown を超えた分は「ほか N 局」とまとめる。
-// 名前の全角の英数字は、ほかの通知と同じく半角にする。
-func lineupServices(services []string) string {
+// 名前の全角の英数字は、ほかの通知と同じく半角にしてから、escape で書き換える。
+func lineupServices(services []string, escape func(string) string) string {
 	shown := make([]string, 0, min(len(services), lineupServicesShown)+1)
 	for _, service := range services[:min(len(services), lineupServicesShown)] {
-		shown = append(shown, halfwidth.Convert(service))
+		shown = append(shown, escape(halfwidth.Convert(service)))
 	}
 	if rest := len(services) - lineupServicesShown; rest > 0 {
 		shown = append(shown, fmt.Sprintf("ほか %d 局", rest))
