@@ -1056,6 +1056,20 @@ func TestSyncAllKeepsNotationWhenOtherFieldsChange(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.ProgramsUpserted)
 
+	// 概要の改行の書き方 (CRLF と LF) だけが変わっても、書き直さない。
+	require.NoError(t, f.fake.ChangeProgramDescription(programID(6), "霧笛の夜〜港の灯〜\r\n※第2音声"))
+	_, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, f.fake.ChangeProgramDescription(programID(6), "霧笛の夜〜港の灯〜\n※第2音声"))
+	result, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ProgramsUpserted)
+	require.NoError(t, f.fake.ChangeProgramDescription(programID(6), description))
+	_, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), "DELETE FROM program_rewrites WHERE service_id = $1", serviceID())
+	require.NoError(t, err)
+
 	// 番組名の書き方の違いと一緒に、時刻が変われば、時刻だけを書き直す。
 	require.NoError(t, f.fake.RenameProgram(programID(6), "灯台の地図　＃８[字]"))
 	require.NoError(t, f.fake.RescheduleProgram(programID(6), testNow().Add(3*time.Hour), time.Hour))

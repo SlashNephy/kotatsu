@@ -676,7 +676,7 @@ func diffPrograms(upstream []*tunerserver.Program, current []sqlc.ListProgramsRo
 // 上流は、同じ番組名を、囲み文字 (🈑) と括弧の書き方 ([字]) のように、内容の同じ別の書き方で返し直すことがある。
 // そのたびに書き換えとみなすと、全量の突き合わせのたびに番組を書き直し、EPG の変更とルールの照合を走らせ、書き換えの記録も埋まる。
 // 書き方だけの違いでは書き換えず、先に DB に入った書き方を持ち続ける。囲み文字と括弧の書き方は、正規化した列 (照合と検索に使う) でも
-// 同じ文になる。波ダッシュと異体字セレクタは、正規化しても残るので、正規化した列も先に入った書き方のままになる。
+// 同じ文になる。波ダッシュ、異体字セレクタと改行の書き方は、正規化しても残るので、正規化した列も先に入った書き方のままになる。
 func withNotationOf(p, old *program) *program {
 	copied := *p
 	if sameNotation(p.Name, old.Name) {
@@ -721,7 +721,8 @@ func extendedWithNotationOf(extended, old map[string]string) map[string]string {
 }
 
 // sameNotation は、a と b が、書き方だけ違う同じ文かどうかを返す。正規化 (domain.Normalize。NFKC と、囲み文字を括弧の書き方にする)
-// の後に、波ダッシュ (〜) を全角チルダと同じ ~ にし、異体字セレクタを除いて比べる。上流の文で、どれも行き来しているのを見たからである。
+// の後に、波ダッシュ (〜) を全角チルダと同じ ~ にし、異体字セレクタを除いて比べる。改行の CRLF と LF も同じとみなす。
+// 上流の文で、どれも行き来しているのを見たからである。
 func sameNotation(a, b string) bool {
 	return a == b || notationKey(a) == notationKey(b)
 }
@@ -737,7 +738,7 @@ func notationKey(s string) string {
 		default:
 			return r
 		}
-	}, domain.Normalize(s))
+	}, domain.Normalize(strings.ReplaceAll(s, "\r\n", "\n")))
 }
 
 func compareKeys(a, b programKey) int {
