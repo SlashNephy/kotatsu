@@ -51,6 +51,8 @@ type Analyzer struct {
 	onLogo func(*Logo)
 	onNIT  func(*NIT)
 	onSDT  func(*SDT)
+	// onPresentFollowing は、EIT[p/f] (自 TS) のセクションを読んだときに呼ぶ (#2034)。nil なら呼ばない。
+	onPresentFollowing func(*PresentFollowingSection)
 }
 
 // AnalyzerOptions は Analyzer の設定。
@@ -68,6 +70,9 @@ type AnalyzerOptions struct {
 	// Write の中で呼ぶので、すぐに返す。nil なら呼ばない。
 	OnNIT func(*NIT)
 	OnSDT func(*SDT)
+	// OnPresentFollowing は、EIT[p/f] (自 TS) のセクションを読んだときに、そのサービスと番組の有無を受け取る (#2034)。
+	// Write の中で呼ぶので、すぐに返す。nil なら呼ばない。
+	OnPresentFollowing func(*PresentFollowingSection)
 }
 
 var _ io.Writer = new(Analyzer)
@@ -134,8 +139,10 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 	var onLogo func(*Logo)
 	var onNIT func(*NIT)
 	var onSDT func(*SDT)
+	var onPresentFollowing func(*PresentFollowingSection)
 	if opts != nil {
 		index, cutoff, onTOT, onLogo, onNIT, onSDT = opts.Index, opts.CutoffPTS, opts.OnTOT, opts.OnLogo, opts.OnNIT, opts.OnSDT
+		onPresentFollowing = opts.OnPresentFollowing
 	}
 
 	return &Analyzer{
@@ -162,6 +169,7 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 		onLogo:             onLogo,
 		onNIT:              onNIT,
 		onSDT:              onSDT,
+		onPresentFollowing: onPresentFollowing,
 	}
 }
 
@@ -421,6 +429,11 @@ func (a *Analyzer) handleSection(pid uint16, section []byte) {
 		a.programs.handlePAT(section)
 	case eitPID:
 		a.eit.handle(section)
+		if a.onPresentFollowing != nil {
+			if pf, ok := parsePresentFollowingSection(section); ok {
+				a.onPresentFollowing(pf)
+			}
+		}
 	case totPID:
 		if at, ok := parseTOT(section); ok {
 			a.onTOT(at)

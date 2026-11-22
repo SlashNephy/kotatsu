@@ -224,6 +224,8 @@ export type SourcePicture = {
   // notUpscaled は、拡大を入れているのに、映す大きさが元の大きさ以下なので拡大していないときの、映す大きさ (端末の画素)。
   // 設定を切っている間と、拡大している間は null。
   notUpscaled: { width: number; height: number } | null;
+  // hdr は、yadif が解除したコマを擬似 HDR で描いていること (#1656)。
+  hdr: boolean;
 };
 
 // EncodedStream は、kyusu の経路で、hls.js が読んでいる画質。

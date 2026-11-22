@@ -14,7 +14,7 @@ class FakeRenderer {
 }
 
 const characters = (text: string) =>
-  [...text].map((character) => ({ tag: 'Character', character }));
+  Array.from(text, (character) => ({ tag: 'Character', character }));
 // extended は、JIS X 0213 で足された漢字 (後の面の字)。basic は、JIS X 0208 の字だけの文。
 const extended = '\u{3406}';
 const basic = '今日の天気';

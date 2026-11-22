@@ -4,7 +4,9 @@
 package lineup
 
 import (
+	"fmt"
 	"math"
+	"slices"
 	"sync"
 	"time"
 
@@ -85,6 +87,8 @@ type Stream struct {
 type Service struct {
 	ServiceID   uint16 `json:"serviceId"`
 	ServiceType uint8  `json:"serviceType"`
+	// Name は、SDT のサービス記述子のサービス名。NIT から読んだ衛星のサービスと、前に書いた構成では空 (#2034)。
+	Name string `json:"name,omitempty"`
 }
 
 // Observation は、ある時点で読んだ、1 つのネットワークの NIT[actual] の構成。
@@ -111,6 +115,9 @@ type Change struct {
 	// Added は、放送にあって、チューナーサーバーにないサービスの数。Removed は、その逆。
 	Added   int
 	Removed int
+	// AddedServiceIDs と RemovedServiceIDs は、Added と Removed のサービスの service_id の昇順 (#2034)。
+	AddedServiceIDs   []uint16
+	RemovedServiceIDs []uint16
 }
 
 // DefaultRecheckInterval は、同じ version の食い違いを 2 回目と数えるまでに、あける時間。
@@ -123,10 +130,10 @@ type key struct {
 	networkID uint16
 }
 
-// pending は、初めて見た食い違いと、その version と時刻。
+// pending は、初めて見た食い違いと、その構成の指紋と時刻。
 type pending struct {
-	version uint8
-	seenAt  time.Time
+	signature string
+	seenAt    time.Time
 }
 
 // Comparer は、放送の NIT[actual] とチューナーサーバーの一覧を比べ、食い違いを知らせるかを決める。
@@ -142,8 +149,10 @@ type Comparer struct {
 	clock    clock.Clock
 	interval time.Duration
 	mu       sync.Mutex
-	checked  map[key]uint8
-	pending  map[key]pending
+	// checked は、確かめ済みの構成の指紋。指紋は、version と、比べるテレビのサービスの集合から作る。
+	// 番組のないサービス (#2034) が変わると、version が同じでも比べるサービスが変わるので、比べ直す。
+	checked map[key]string
+	pending map[key]pending
 }
 
 // NewComparer は、Comparer を返す。interval が 0 以下なら DefaultRecheckInterval を使う。
@@ -152,7 +161,7 @@ func NewComparer(clk clock.Clock, interval time.Duration) *Comparer {
 		interval = DefaultRecheckInterval
 	}
 
-	return &Comparer{clock: clk, interval: interval, mu: sync.Mutex{}, checked: map[key]uint8{}, pending: map[key]pending{}}
+	return &Comparer{clock: clk, interval: interval, mu: sync.Mutex{}, checked: map[key]string{}, pending: map[key]pending{}}
 }
 
 // Observe は、読んだ構成 obs を、チューナーサーバーのテレビのサービス known と比べ、知らせる食い違いがあれば返す。
@@ -169,12 +178,13 @@ func (c *Comparer) Observe(obs *Observation, known []Known) (*Change, bool) {
 	defer c.mu.Unlock()
 
 	k := key{kind: obs.Kind, networkID: obs.NetworkID}
-	if version, ok := c.checked[k]; ok && version == obs.Version {
+	sig := signatureOf(obs.Version, broadcast)
+	if signature, ok := c.checked[k]; ok && signature == sig {
 		return nil, false
 	}
 	change := compare(obs, broadcast, known)
 	if change.Added == 0 && change.Removed == 0 {
-		c.checked[k] = obs.Version
+		c.checked[k] = sig
 		delete(c.pending, k)
 
 		return nil, false
@@ -184,15 +194,15 @@ func (c *Comparer) Observe(obs *Observation, known []Known) (*Change, bool) {
 		now = c.clock.Now()
 	}
 	first, ok := c.pending[k]
-	if !ok || first.version != obs.Version {
-		c.pending[k] = pending{version: obs.Version, seenAt: now}
+	if !ok || first.signature != sig {
+		c.pending[k] = pending{signature: sig, seenAt: now}
 
 		return nil, false
 	}
 	if now.Sub(first.seenAt) < c.interval {
 		return nil, false
 	}
-	c.checked[k] = obs.Version
+	c.checked[k] = sig
 	delete(c.pending, k)
 
 	return change, true
@@ -208,12 +218,13 @@ func (c *Comparer) Unconfirm(obs *Observation) {
 	defer c.mu.Unlock()
 
 	k := key{kind: obs.Kind, networkID: obs.NetworkID}
-	if version, ok := c.checked[k]; !ok || version != obs.Version {
+	sig := signatureOf(obs.Version, tvServices(obs))
+	if signature, ok := c.checked[k]; !ok || signature != sig {
 		return
 	}
 	delete(c.checked, k)
 	// 1 回目を、間隔より十分前に読んだことにする。
-	c.pending[k] = pending{version: obs.Version, seenAt: time.Time{}}
+	c.pending[k] = pending{signature: sig, seenAt: time.Time{}}
 }
 
 // Forget は、チューナーサーバーの一覧が変わったとき (スキャンし直したときなど) に、確かめ済みの version を忘れ、比べ直す。
@@ -241,6 +252,45 @@ func tvServices(obs *Observation) map[uint16]bool {
 	return services
 }
 
+// signatureOf は、version と、比べるテレビのサービスの集合 broadcast から、構成の指紋を作る。
+func signatureOf(version uint8, broadcast map[uint16]bool) string {
+	ids := make([]int, 0, len(broadcast))
+	for id := range broadcast {
+		ids = append(ids, int(id))
+	}
+	slices.Sort(ids)
+
+	return fmt.Sprint(version, ids)
+}
+
+// WithoutIdle は、obs から、番組のないサービス idle (#2034) のうち、チューナーサーバーの known にないものを除いた構成を返す。
+// obs は変えない。NIT に載っていても、放送していないサービスは、チューナーサーバーが登録しないので、新しい局と数えない。
+// known にあるサービスは除かない。除くと、登録済みのサービスに番組のない間、終わった局と数えてしまうからである。
+func WithoutIdle(obs *Observation, idle map[Known]bool, known []Known) *Observation {
+	if obs == nil || len(idle) == 0 {
+		return obs
+	}
+	registered := map[Known]bool{}
+	for _, service := range known {
+		registered[service] = true
+	}
+	out := *obs
+	out.Streams = make([]Stream, 0, len(obs.Streams))
+	for _, stream := range obs.Streams {
+		services := make([]Service, 0, len(stream.Services))
+		for _, service := range stream.Services {
+			k := Known{NetworkID: obs.NetworkID, ServiceID: service.ServiceID}
+			if !idle[k] || registered[k] {
+				services = append(services, service)
+			}
+		}
+		stream.Services = services
+		out.Streams = append(out.Streams, stream)
+	}
+
+	return &out
+}
+
 // compare は、放送のテレビのサービス broadcast と、チューナーサーバーの known を比べる。
 func compare(obs *Observation, broadcast map[uint16]bool, known []Known) *Change {
 	registered := map[uint16]bool{}
@@ -249,17 +299,22 @@ func compare(obs *Observation, broadcast map[uint16]bool, known []Known) *Change
 			registered[service.ServiceID] = true
 		}
 	}
-	change := &Change{Kind: obs.Kind, NetworkID: obs.NetworkID, Added: 0, Removed: 0}
+	change := &Change{
+		Kind: obs.Kind, NetworkID: obs.NetworkID, Added: 0, Removed: 0, AddedServiceIDs: []uint16{}, RemovedServiceIDs: []uint16{},
+	}
 	for id := range broadcast {
 		if !registered[id] {
-			change.Added++
+			change.AddedServiceIDs = append(change.AddedServiceIDs, id)
 		}
 	}
 	for id := range registered {
 		if !broadcast[id] {
-			change.Removed++
+			change.RemovedServiceIDs = append(change.RemovedServiceIDs, id)
 		}
 	}
+	slices.Sort(change.AddedServiceIDs)
+	slices.Sort(change.RemovedServiceIDs)
+	change.Added, change.Removed = len(change.AddedServiceIDs), len(change.RemovedServiceIDs)
 
 	return change
 }

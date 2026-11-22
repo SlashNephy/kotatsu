@@ -34,3 +34,25 @@ func Stem(name string) string {
 
 	return canon(strings.Join(words[:len(words)-1], " "))
 }
+
+// Stems は、番組名 name が「作品名 副題 #N」の形なら、話数の直前の語を後ろから 1 つずつ除いた作品名を、長い順に返す (#2031)。
+// 副題に空白が入る番組名 (「作品名 副題 その二 #5」) で、副題のない回の作品名まで届くようにする。
+// 1 つ目は Stem と同じ値で、除いた後の最後の語が期や続編を表す語なら、そこで止める。形が違えば空を返す。
+func Stems(name string) []string {
+	stems := []string{}
+	if Stem(name) == "" {
+		return stems
+	}
+	stripped := strings.TrimSpace(decorationPattern.ReplaceAllString(normalizeName(name), " "))
+	words := strings.Fields(parseTitle(stripped).work)
+	for n := len(words); n >= 2; n-- {
+		// 話数を付けて Stem に読ませ、期や続編を表す語の扱いを Stem とそろえる。
+		stem := Stem(strings.Join(words[:n], " ") + " #1")
+		if stem == "" {
+			break
+		}
+		stems = append(stems, stem)
+	}
+
+	return stems
+}

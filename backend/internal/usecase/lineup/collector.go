@@ -100,7 +100,7 @@ func (c *Collector) Observe(nit *ts.NIT) {
 		for _, stream := range part.sections[uint8(number)] {
 			services := make([]Service, 0, len(stream.Services))
 			for _, service := range stream.Services {
-				services = append(services, Service{ServiceID: service.ServiceID, ServiceType: service.ServiceType})
+				services = append(services, Service{ServiceID: service.ServiceID, ServiceType: service.ServiceType, Name: ""})
 			}
 			obs.Streams = append(obs.Streams, Stream{TransportStreamID: stream.TransportStreamID, FrequencyKHz: stream.FrequencyKHz, Services: services})
 		}

@@ -259,7 +259,11 @@ export function StreamInfo({
             })
           : pictureLabel(source.width, source.height, source.interlaced);
 
-    const shown = source.interpolated ? t('player.streamInfo.interpolated', { label }) : label;
+    const interpolated = source.interpolated
+      ? t('player.streamInfo.interpolated', { label })
+      : label;
+    // 擬似 HDR で描いているときは、そう添える (#1656)。
+    const shown = source.hdr ? t('player.streamInfo.hdr', { label: interpolated }) : interpolated;
 
     // 拡大して描いているときは、描いている大きさを添える (#1654)。拡大を入れているのに、映す大きさが元の大きさ以下で
     // 拡大していないときは、映す大きさを添えて、拡大しない理由を示す。

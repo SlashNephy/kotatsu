@@ -988,3 +988,33 @@ func TestSyncAllKeepsServicesWhenUpstreamReturnsNone(t *testing.T) {
 	assert.Equal(t, 0, result.ServicesPresenceChanged)
 	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM services WHERE gone_at IS NULL"))
 }
+
+// TestSyncServiceListRecordsServicesMissingFromUpstream は、サービスの一覧だけを突き合わせるときも、上流から消えたサービスに
+// 気づいた時刻を残し、上流が 1 つも返さなかったときは消えた扱いにせず、番組は突き合わせないことを確かめる (#2035)。
+func TestSyncServiceListRecordsServicesMissingFromUpstream(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+
+	// 番組を突き合わせるなら消える番組。
+	require.NoError(t, f.fake.ForgetProgram(programID(5)))
+	f.fake.SetServiceMissing(serviceID(), true)
+	result, changed, err := f.reconciler.SyncServiceList(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ServicesPresenceChanged)
+	assert.Empty(t, changed)
+	assert.True(t, f.goneAt(t, serviceID()).Equal(testNow()))
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 5", serviceID()))
+
+	services, err := f.client.Services(t.Context())
+	require.NoError(t, err)
+	for _, service := range services {
+		f.fake.SetServiceMissing(service.ID, true)
+	}
+	result, _, err = f.reconciler.SyncServiceList(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ServicesPresenceChanged)
+	assert.Equal(t, fixtureServices-1, f.count(t, "SELECT count(*) FROM services WHERE gone_at IS NULL"))
+}

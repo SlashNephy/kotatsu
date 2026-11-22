@@ -80,6 +80,8 @@ type Recorder struct {
 	lineups *lineup.Collector
 	// terrestrial は、タイムシフトで録る TS の SDT[actual] から集める、地上波のネットワークのサービス (#1519)。
 	terrestrial *lineup.TerrestrialCollector
+	// activities は、タイムシフトで録る TS の EIT[p/f] から集める、衛星のサービスの番組の有無 (#2034)。
+	activities *lineup.ActivityCollector
 }
 
 // NewRecorder は Recorder を返す。store には、タイムシフトのディレクトリとデータディレクトリが要る。opts は nil でもよい。
@@ -98,7 +100,7 @@ func NewRecorder(pool *pgxpool.Pool, clk clock.Clock, tuner recording.StreamOpen
 		}
 	}
 
-	return &Recorder{pool: pool, clock: clk, tuner: tuner, store: store, logger: logger, opts: o, logos: servicelogo.NewCollector(clk, logger), lineups: lineup.NewCollector(clk, logger), terrestrial: lineup.NewTerrestrialCollector(clk, logger)}
+	return &Recorder{pool: pool, clock: clk, tuner: tuner, store: store, logger: logger, opts: o, logos: servicelogo.NewCollector(clk, logger), lineups: lineup.NewCollector(clk, logger), terrestrial: lineup.NewTerrestrialCollector(clk, logger), activities: lineup.NewActivityCollector(clk, logger)}
 }
 
 // Session は、Worker に渡す Session を返す。
@@ -498,7 +500,9 @@ func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, pending
 	}
 	// 索引は、データディレクトリの、チャンクの ID のディレクトリに置く。作れなくても、録り続ける。
 	chunkID := id.New()
-	analyzer, indexFile, indexErr := recording.CreateIndex(r.store, chunkID, r.logos.Observe, r.lineups.Observe, r.terrestrial.Observe)
+	analyzer, indexFile, indexErr := recording.CreateIndex(
+		r.store, chunkID, r.logos.Observe, r.lineups.Observe, r.terrestrial.Observe, r.activities.Observe,
+	)
 	if indexErr != nil {
 		logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
@@ -583,6 +587,7 @@ func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending 
 		r.logos.Flush(logoCtx, sqlc.New(r.pool))
 		r.lineups.Flush(logoCtx, sqlc.New(r.pool))
 		r.terrestrial.Flush(logoCtx, sqlc.New(r.pool))
+		r.activities.Flush(logoCtx, sqlc.New(r.pool))
 		cancel()
 	}
 	if err := errors.Join(errs...); err != nil {

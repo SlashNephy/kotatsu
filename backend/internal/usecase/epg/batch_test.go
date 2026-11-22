@@ -18,6 +18,7 @@ func TestBatchEvents(t *testing.T) {
 		name         string
 		events       []*tunerserver.Event
 		wantServices map[int64]struct{}
+		wantList     bool
 		wantAll      bool
 	}{
 		{
@@ -30,8 +31,14 @@ func TestBatchEvents(t *testing.T) {
 			wantServices: map[int64]struct{}{service: {}, other: {}},
 		},
 		{
-			name:         "service changed",
+			name:         "service changed syncs the service list",
 			events:       []*tunerserver.Event{{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}},
+			wantServices: map[int64]struct{}{},
+			wantList:     true,
+		},
+		{
+			name:         "EPG changed syncs all",
+			events:       []*tunerserver.Event{{Type: tunerserver.EventTypeEPGChanged, ServiceID: 0}},
 			wantServices: map[int64]struct{}{},
 			wantAll:      true,
 		},
@@ -45,8 +52,9 @@ func TestBatchEvents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			services, all := epg.BatchEvents(tt.events)
+			services, list, all := epg.BatchEvents(tt.events)
 			assert.Equal(t, tt.wantServices, services)
+			assert.Equal(t, tt.wantList, list)
 			assert.Equal(t, tt.wantAll, all)
 		})
 	}

@@ -164,6 +164,9 @@ func Find(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID, now time.Tim
 	if key == nil {
 		return []*Broadcast{}, nil
 	}
+	if key.rank() == rankSeries {
+		return findSeries(ctx, q, key, row.Name, now)
+	}
 	candidates, recorded, err := listCandidates(ctx, q, key, now)
 	if err != nil {
 		return nil, err
@@ -174,6 +177,43 @@ func Find(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID, now time.Tim
 	}
 
 	return Pick(candidates, reserved, recorded), nil
+}
+
+// findSeries は、シリーズ名で探す録画の続きの放送を返す。番組名に副題が入ってシリーズ名が回ごとに変わる作品は、
+// ホームの続きの放送 (FindForUser) と同じく、副題を除いた作品名のシリーズにまとめる (#2031)。
+//
+//   - 副題のある回の録画 (「作品名 副題 #5」) は、話数の前の語を後ろから除いた作品名のうち、副題のない回が番組表か録画履歴にある、
+//     最も長いものにまとめる。短い方から選ぶと、作品名の一部を除いた別の番組 (「ＭＵＳＩＣ #3」) に当たりうるからである。
+//     副題のない回がなければ、まとめない (枠の名前の後ろに作品名を書く番組など)。
+//   - 副題のない回の録画 (「作品名 #5」) は、録画そのものが副題のない回なので、そのシリーズ名を作品名として、副題のある回もまとめる。
+func findSeries(ctx context.Context, q *sqlc.Queries, key *Key, name string, now time.Time) ([]*Broadcast, error) {
+	series := &watchedSeries{key: key, recordingID: uuid.Nil(), stem: "", family: true}
+	if stems := episode.Stems(name); len(stems) > 0 {
+		known, err := q.ListKnownSeries(ctx, stems)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list the known series: %w", err)
+		}
+		series.family = false
+		for _, stem := range stems {
+			if slices.Contains(known, stem) {
+				series.key = &Key{TID: 0, Count: 0, Series: stem, Number: key.Number, Drama: nil}
+				series.family = true
+
+				break
+			}
+		}
+	}
+	candidates, recorded, err := listCandidatesOf(ctx, q, []*watchedSeries{series}, now)
+	if err != nil {
+		return nil, err
+	}
+	id := series.key.id()
+	reserved, err := reservedPrograms(ctx, q, candidates[id])
+	if err != nil {
+		return nil, err
+	}
+
+	return Pick(candidates[id], reserved, recorded[id]), nil
 }
 
 // sourceOf は、録画の回を読む元を作る。記述子の話数は、アーカイブの番組を先に、なければ番組表の番組を使う。
@@ -208,7 +248,8 @@ func dramaOf(row *sqlc.GetRecordingNextEpisodeSourceRow) *Drama {
 	return &Drama{SeriesID: *row.TmdbSeriesID, Season: *row.TmdbSeasonNumber, Episode: *row.TmdbEpisodeNumber}
 }
 
-// listCandidates は、鍵 key の続きの放送の候補と、録画履歴にある録った回の話数を返す。
+// listCandidates は、TID か TMDB の作品で探す鍵 key の続きの放送の候補と、録画履歴にある録った回の話数を返す。
+// シリーズ名で探す鍵は、findSeries が引く。
 func listCandidates(ctx context.Context, q *sqlc.Queries, key *Key, now time.Time) ([]*Candidate, map[float64]bool, error) {
 	candidates := []*Candidate{}
 	recorded := map[float64]bool{}
@@ -239,32 +280,7 @@ func listCandidates(ctx context.Context, q *sqlc.Queries, key *Key, now time.Tim
 		return listDramaCandidates(ctx, q, key.Drama, now)
 	}
 
-	rows, err := q.ListSeriesNextPrograms(ctx, sqlc.ListSeriesNextProgramsParams{
-		Series: key.Series, Number: int64(key.Number), Since: now, Until: now.Add(Horizon), MaxRows: maxCandidates,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list the next programs of the series: %w", err)
-	}
-	for i := range rows {
-		candidates = append(candidates, &Candidate{
-			ServiceID: rows[i].ServiceID, EventID: rows[i].EventID, StartAt: rows[i].StartAt, Number: rows[i].EpisodeNumber,
-			RelatedItems: rows[i].RelatedItems,
-		})
-	}
-	history, err := q.ListRecordedSeriesEpisodes(ctx, key.Series)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list the recorded episodes of the series: %w", err)
-	}
-	for i := range history {
-		ep := episode.Parse(&episode.Source{
-			Name: history[i].Name, Description: history[i].Description, Extended: "", SeriesEpisode: history[i].SeriesEpisode, Anime: nil,
-		})
-		if ep.Series == key.Series && ep.Number > 0 {
-			recorded[float64(ep.Number)] = true
-		}
-	}
-
-	return candidates, recorded, nil
+	return nil, nil, errors.New("the key has neither a TID nor a TMDB episode")
 }
 
 // listDramaCandidates は、TMDB の作品のシーズン drama の続きの放送の候補と、録画履歴にある録った話の番号を返す。
