@@ -468,3 +468,84 @@ func TestOpenLimitsIdleTransactionsAndStatements(t *testing.T) {
 		})
 	}
 }
+
+// TestMigrateRereadsSeriesWithDashVariants は、波ダッシュとダッシュの書き方を揃える前に書いたシリーズ名のうち、揃える文字を含むものを、
+// kotatsu migrate が読み直すことを確かめる (#2039)。録画履歴は番組名から読み直し、番組は次の全量の突き合わせで読み直すよう空に戻す。
+func TestMigrateRereadsSeriesWithDashVariants(t *testing.T) {
+	t.Parallel()
+
+	// before は、揃える前のバージョン。
+	const before = 20261120170214
+
+	pool := open(t, databasetest.New(t))
+	require.NoError(t, database.MigrateTo(t.Context(), slog.New(slog.DiscardHandler), pool, before))
+
+	now := time.Now()
+	_, err := pool.Exec(t.Context(), "INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
+	require.NoError(t, err)
+	_, err = pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+		VALUES (3273601024, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', $1, $1)`, now)
+	require.NoError(t, err)
+
+	histories := []struct {
+		name, series, want string
+	}{
+		{name: "灯台の地図〜霧笛の夜〜　＃３", series: "灯台の地図〜霧笛の夜〜", want: "灯台の地図~霧笛の夜~"},
+		{name: "灯台の地図－霧笛の夜−　＃３", series: "灯台の地図-霧笛の夜−", want: "灯台の地図-霧笛の夜-"},
+		{name: "灯台の地図　ー霧笛の夜ー　＃３", series: "灯台の地図ー霧笛の夜ー", want: "灯台の地図-霧笛の夜-"},
+		// 揃える文字を含まないシリーズ名は、書き換えない。
+		{name: "灯台の地図　＃３", series: "揃える文字を含まない名前", want: "揃える文字を含まない名前"},
+	}
+	ids := make([]uuid.UUID, len(histories))
+	for i, h := range histories {
+		ids[i] = id.New()
+		_, err := pool.Exec(t.Context(), `INSERT INTO recording_history (id, service_id, title_key, name, series, start_at, end_at, created_at)
+			VALUES ($1, 3273601024, '', $2, $3, $4, $4, $4)`, ids[i], h.name, h.series, now)
+		require.NoError(t, err)
+	}
+	programs := []struct {
+		eventID   int64
+		series    string
+		wantReset bool
+	}{
+		{eventID: 1, series: "灯台の地図〜霧笛の夜〜", wantReset: true},
+		{eventID: 2, series: "灯台の地図—霧笛の夜—", wantReset: true},
+		{eventID: 3, series: "灯台の地図", wantReset: false},
+	}
+	for _, p := range programs {
+		_, err := pool.Exec(t.Context(), `INSERT INTO programs (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
+			name, description, name_normalized, description_normalized, extended, genres, related_items, series, episode_number, created_at, updated_at)
+			VALUES (3273601024, $1, $1, $2, $2, false, true, 'テスト', '', 'テスト', '', '{}', '[]', '[]', $3, 3, $2, $2)`,
+			p.eventID, now, p.series)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	for i, h := range histories {
+		t.Run(h.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got string
+			require.NoError(t, pool.QueryRow(t.Context(), "SELECT series FROM recording_history WHERE id = $1", ids[i]).Scan(&got))
+			assert.Equal(t, h.want, got)
+		})
+	}
+	for _, p := range programs {
+		t.Run(p.series, func(t *testing.T) {
+			t.Parallel()
+
+			var series *string
+			var number *int32
+			require.NoError(t, pool.QueryRow(t.Context(), "SELECT series, episode_number FROM programs WHERE event_id = $1", p.eventID).
+				Scan(&series, &number))
+			if p.wantReset {
+				assert.Nil(t, series)
+				assert.Nil(t, number)
+			} else {
+				assert.Equal(t, new(p.series), series)
+				assert.Equal(t, new(int32(3)), number)
+			}
+		})
+	}
+}
