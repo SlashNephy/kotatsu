@@ -36,7 +36,10 @@ export function PageStory({ url, overrides, hold, auth }: PageStoryProps) {
   const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
     // ライブ視聴と録画の再生で、デモの映像を繰り返して流す (静的なデモと同じ Service Worker)。
-    registerStreamWorker();
+    // 通知の設定の Story は、Service Worker を登録の手段のない偽物に差し替えるので、そのときは登録しない。
+    if (typeof navigator.serviceWorker?.register === 'function') {
+      registerStreamWorker();
+    }
     // Relay を通らずに呼ぶ所 (ログインの画面の /internal/auth/* など) にも、デモの応答を返す。Story を閉じたら戻す。
     const restore = interceptFetch(executor, captures, auth);
     let cancelled = false;
