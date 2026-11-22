@@ -598,3 +598,34 @@ describe('demo system settings', () => {
     ).not.toBeNull();
   });
 });
+
+describe('demo notification preferences', () => {
+  it('keeps the saved preference of a kind and leaves the others enabled (#2073)', async () => {
+    const { executor } = newExecutor();
+
+    await executor.execute(
+      'mutation ($input: NotificationPreferenceInput!) { updateNotificationPreference(input: $input) { kind } }',
+      { input: { kind: 'RECORDING_STARTED', inApp: false, webPush: false } },
+    );
+    const result = await executor.execute(
+      '{ notificationPreferences { kind inApp webPush ruleReservations } }',
+      {},
+    );
+
+    const preferences = (
+      result.data as {
+        notificationPreferences: { kind: string; inApp: boolean; webPush: boolean }[];
+      }
+    ).notificationPreferences;
+    expect(preferences.find((p) => p.kind === 'RECORDING_STARTED')).toEqual({
+      kind: 'RECORDING_STARTED',
+      inApp: false,
+      webPush: false,
+      ruleReservations: true,
+    });
+    expect(preferences.find((p) => p.kind === 'RECORDING_FAILED')).toMatchObject({
+      inApp: true,
+      webPush: true,
+    });
+  });
+});

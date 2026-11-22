@@ -1,3 +1,4 @@
+import { GraphQLError } from 'graphql';
 import {
   demoAnimeEpisodes,
   demoAnimeRecordApps,
@@ -40,6 +41,36 @@ const demoDataChannels = [
   'DRAMA_WATCHLIST',
   'ADMIN',
 ] as const;
+
+// notFound は、呼ばれると、見つからない (NOT_FOUND) のエラーを返す応答を返す。
+const notFound = (message: string) => () => {
+  throw new GraphQLError(message, { extensions: { code: 'NOT_FOUND' } });
+};
+
+// notificationKinds は、通知の種類 (GraphQL の NotificationKind)。
+const notificationKinds = [
+  'RECORDING_STARTED',
+  'RECORDING_COMPLETED',
+  'RECORDING_FAILED',
+  'RESERVATION_CONFLICT',
+  'STORAGE_LOW',
+  'TUNER_SERVER_UNREACHABLE',
+  'WATCH_REMINDER',
+  'ANIME_RECORDED',
+  'ANIME_RECORD_FAILED',
+  'DRAMA_RECORDED',
+  'DRAMA_RECORD_FAILED',
+  'SCRAMBLED_RECORDINGS',
+  'LINEUP_CHANGED',
+];
+
+// defaultNotificationPreference は、変えていない種類の通知の設定。サーバーと同じく、どれも有効にする。
+const defaultNotificationPreference = (kind: string) => ({
+  kind,
+  inApp: true,
+  webPush: true,
+  ruleReservations: true,
+});
 
 // demoUser は、デモでログインしているものとして扱うユーザー。
 const demoUser = {
@@ -138,6 +169,11 @@ export function createRootValue(
       });
     }
   };
+  // notificationPreferences は、通知の種類ごとに保存した設定 (#2073)。
+  const notificationPreferences = new Map<
+    string,
+    { kind: string; inApp: boolean; webPush: boolean; ruleReservations: boolean }
+  >();
   // systemSettings は、全体の設定 (#2073)。管理の画面で保存すると書き換わる。
   let systemSettings: Record<string, unknown> = {
     recordingDefaults: {
@@ -355,6 +391,147 @@ export function createRootValue(
   return {
     // Query
     viewer: () => demoUser,
+    // 管理と設定の画面の応答 (#2073)。デモはデモのユーザー 1 人だけで、ログインしている端末もこのブラウザだけにする。
+    users: () => [demoUser],
+    sessions: () => [
+      {
+        __typename: 'Session',
+        id: 'Session:demo',
+        current: true,
+        createdAt: demoUser.createdAt,
+        lastSeenAt: new Date(now).toISOString(),
+        userAgent: globalThis.navigator?.userAgent ?? '',
+        sourceIp: null,
+      },
+    ],
+    // デモのユーザーは、第二要素を登録していない。
+    secondFactors: () => ({ totp: false, remainingRecoveryCodes: 0 }),
+    // デモは Web Push を送らないので、公開鍵は空にする。
+    webPushPublicKey: () => '',
+    // デモにはタイムシフトのディレクトリがない。
+    timeshiftAvailable: () => false,
+    drcsReplacements: () => systemSettings['drcsReplacements'],
+    // デモは外部へ問い合わせないので、アニメの取り込みのトークンも登録していない。
+    animeImportToken: () => ({ configured: false, updatedAt: null }),
+    // 通知の種類ごとの設定 (設計書 6.2)。サーバーと同じく、変えていない種類は、どれも有効にする。保存すれば覚える。
+    notificationPreferences: () =>
+      notificationKinds.map(
+        (kind) => notificationPreferences.get(kind) ?? defaultNotificationPreference(kind),
+      ),
+    updateNotificationPreference: ({
+      input,
+    }: {
+      input: { kind: string; inApp: boolean; webPush: boolean; ruleReservations?: boolean | null };
+    }) => {
+      const preference = {
+        kind: input.kind,
+        inApp: input.inApp,
+        webPush: input.webPush,
+        ruleReservations:
+          input.ruleReservations ??
+          notificationPreferences.get(input.kind)?.ruleReservations ??
+          true,
+      };
+      notificationPreferences.set(input.kind, preference);
+
+      return preference;
+    },
+    // デモには、ライブラリ、タイムシフトのバッファ、連携の許可の要求がないので、本物のサーバーと同じく、見つからないと答える。
+    libraryDirectory: notFound('library not found'),
+    librarySearch: notFound('library not found'),
+    libraryFile: notFound('library file not found'),
+    timeshiftProgram: notFound('timeshift program not found'),
+    oauthAuthorization: notFound('authorization request not found'),
+    // デモには、裏で動くジョブ (River) がない (設計書 11.3)。
+    jobs: () => ({ nodes: [], endCursor: null }),
+    jobCounts: () => [],
+    // デモでは、API トークンを発行していない。
+    apiTokens: () => [],
+    // デモには、パスキー、連携の許可、Web Push の購読、Webhook、タイムシフトで録るサービス、保存先の片付けの対象がない。
+    passkeys: () => [],
+    oauthGrants: () => [],
+    webPushSubscriptions: () => [],
+    webhooks: () => [],
+    timeshiftChannels: () => [],
+    missingRecordings: () => [],
+    orphanFiles: () => [],
+    recordingRenames: () => [],
+    libraryArtifacts: () => ({ size: 0, files: 0 }),
+    googleDriveFolderChoices: () => [],
+    // 監査ログは記録しない。
+    auditEvents: ({ first, after }: { first: number; after?: string | null }) =>
+      paginate([], first, after),
+    // デモにはログを集めるサーバーがないので、出どころのないログの報告を返す。
+    logReport: () => ({ sources: [], redactHosts: [], instanceId: 'demo', roles: [] }),
+    // システムの状態 (設計書 11.3)。デモは 1 つのブラウザの中で全部のロールを動かすものとして、架空のチューナーと保存先を見せる。
+    systemStatus: () => ({
+      instances: [
+        {
+          instanceId: 'demo',
+          role: 'all',
+          address: '',
+          startedAt: new Date(now).toISOString(),
+          heartbeatAt: new Date(now).toISOString(),
+          alive: true,
+        },
+      ],
+      leases: [],
+      tunerServer: {
+        kind: 'MIRAKURUN',
+        version: 'demo',
+        degraded: false,
+        degradedSince: null,
+        lastError: '',
+        clockSkewMs: 0,
+        clockSkewed: false,
+        clockSkewThresholdMs: 2000,
+        checkedAt: new Date(now).toISOString(),
+        broadcastClockSkewMs: 0,
+        broadcastClockSkewed: false,
+        broadcastClockCheckedAt: new Date(now).toISOString(),
+      },
+      tuners: [
+        { index: 0, name: 'GR0', types: ['GR'], available: true, remote: false, fault: false },
+        { index: 1, name: 'GR1', types: ['GR'], available: true, remote: false, fault: false },
+        {
+          index: 2,
+          name: 'BS0',
+          types: ['BS', 'CS'],
+          available: true,
+          remote: false,
+          fault: false,
+        },
+        {
+          index: 3,
+          name: 'BS1',
+          types: ['BS', 'CS'],
+          available: true,
+          remote: false,
+          fault: false,
+        },
+      ],
+      pools: [
+        {
+          id: 'default',
+          path: '/recordings',
+          priority: 0,
+          minFreeBytes: 50_000_000_000,
+          freeBytes: 1_200_000_000_000,
+          totalBytes: 4_000_000_000_000,
+        },
+      ],
+      recordingFailures: [],
+    }),
+    // デモは外部と通信しないので、通信の記録は空にする (設計書 11.8)。
+    networkActivity: () => ({
+      enabled: systemSettings['networkActivityEnabled'],
+      enabledAt: null,
+      retentionDays: systemSettings['networkActivityRetentionDays'],
+      totalCount: 0,
+      totalSentBytes: 0,
+      totalReceivedBytes: 0,
+      entries: [],
+    }),
     captures: (args: { keyword?: string | null }) => captures.list(args),
     capturesAvailable: () => true,
     // デモには、録画として登録していない TS を置くライブラリがない (設計書 5.8)。
