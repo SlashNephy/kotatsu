@@ -672,10 +672,29 @@ export function createRootValue(
     systemSettings: () => systemSettings,
     // 全体の設定を保存する (#2073)。渡した項目だけを書き換え、保存した時刻を残す。読み直しても、保存した値を返す。
     updateSystemSettings: ({ input }: { input: Record<string, unknown> }) => {
-      const changes = Object.fromEntries(
-        Object.entries(input).filter(([, value]) => value != null),
-      );
-      systemSettings = { ...systemSettings, ...changes, updatedAt: new Date(now).toISOString() };
+      const { ruleDefaults, recordingDefaults, ...rest } = input as Record<string, unknown> & {
+        ruleDefaults?: Record<string, unknown> | null;
+        recordingDefaults?: Record<string, unknown> | null;
+      };
+      const defined = (value: Record<string, unknown> | null | undefined) =>
+        Object.fromEntries(Object.entries(value ?? {}).filter(([, v]) => v != null));
+      // 本物のサーバーと同じく、録画とルールの既定値は、渡した項目だけを書き換える。
+      // 重複を避ける期間は、clearDuplicateWindowDays で空 (区切らない) にする。
+      const { clearDuplicateWindowDays, ...ruleChanges } = defined(ruleDefaults);
+      systemSettings = {
+        ...systemSettings,
+        ...defined(rest),
+        recordingDefaults: {
+          ...(systemSettings['recordingDefaults'] as object),
+          ...defined(recordingDefaults),
+        },
+        ruleDefaults: {
+          ...(systemSettings['ruleDefaults'] as object),
+          ...ruleChanges,
+          ...(clearDuplicateWindowDays === true ? { duplicateWindowDays: null } : {}),
+        },
+        updatedAt: new Date(now).toISOString(),
+      };
       dataChanged(['ADMIN']);
 
       return systemSettings;

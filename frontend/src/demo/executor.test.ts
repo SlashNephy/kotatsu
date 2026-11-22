@@ -629,3 +629,33 @@ describe('demo notification preferences', () => {
     });
   });
 });
+
+describe('demo rule defaults', () => {
+  it('changes only the given rule defaults and clears the duplicate window (#2073)', async () => {
+    const { executor } = newExecutor();
+    const save = (ruleDefaults: object) =>
+      executor.execute(
+        'mutation ($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { archiveRetentionDays } }',
+        { input: { ruleDefaults } },
+      );
+    const read = async () =>
+      (
+        (
+          await executor.execute(
+            '{ systemSettings { ruleDefaults { avoidDuplicates duplicateWindowDays followEventRelay bundleSameEpisodes } } }',
+            {},
+          )
+        ).data as { systemSettings: { ruleDefaults: object } }
+      ).systemSettings.ruleDefaults;
+
+    await save({ avoidDuplicates: true, duplicateWindowDays: 30 });
+    expect(await read()).toEqual({
+      avoidDuplicates: true,
+      duplicateWindowDays: 30,
+      followEventRelay: true,
+      bundleSameEpisodes: true,
+    });
+    await save({ clearDuplicateWindowDays: true });
+    expect(await read()).toMatchObject({ avoidDuplicates: true, duplicateWindowDays: null });
+  });
+});
