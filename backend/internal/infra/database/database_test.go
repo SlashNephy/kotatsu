@@ -492,8 +492,9 @@ func TestMigrateRereadsSeriesWithDashVariants(t *testing.T) {
 	}{
 		{name: "灯台の地図〜霧笛の夜〜　＃３", series: "灯台の地図〜霧笛の夜〜", want: "灯台の地図~霧笛の夜~"},
 		{name: "灯台の地図－霧笛の夜−　＃３", series: "灯台の地図-霧笛の夜−", want: "灯台の地図-霧笛の夜-"},
+		{name: "灯台の地図　ー霧笛の夜ー　＃３", series: "灯台の地図ー霧笛の夜ー", want: "灯台の地図-霧笛の夜-"},
 		// 揃える文字を含まないシリーズ名は、書き換えない。
-		{name: "灯台の地図　＃３", series: "揃える文字のないシリーズ名", want: "揃える文字のないシリーズ名"},
+		{name: "灯台の地図　＃３", series: "揃える文字を含まない名前", want: "揃える文字を含まない名前"},
 	}
 	ids := make([]uuid.UUID, len(histories))
 	for i, h := range histories {

@@ -26,6 +26,8 @@ func TestStem(t *testing.T) {
 		{name: "最後の語が数字 (期) なら空", title: "港町の灯　４　＃３", want: ""},
 		{name: "最後の語がシーズンの表記なら空", title: "港町の灯　Season2　＃３", want: ""},
 		{name: "最後の語がシーズンの略記なら空", title: "港町の灯　S3　＃３", want: ""},
+		{name: "最後の語がカタカナのシーズンの表記なら空", title: "港町の灯　シーズン２　＃３", want: ""},
+		{name: "最後の語がカタカナのパートの表記なら空", title: "港町の灯　パート２　＃３", want: ""},
 		{name: "最後の語がローマ数字なら空", title: "港町の灯　II　＃３", want: ""},
 		{name: "空白で区切ったシーズンの表記なら空", title: "港町の灯　2nd Season　＃３", want: ""},
 		{name: "編を読んだ番組名は空", title: "港町の灯　霧の港編　＃３", want: ""},

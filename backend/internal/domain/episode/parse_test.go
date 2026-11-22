@@ -205,7 +205,9 @@ func TestParseDashVariants(t *testing.T) {
 		{name: "ホリゾンタルバーとエンダッシュ", a: "灯台の地図―霧笛の夜―　＃３", b: "灯台の地図–霧笛の夜–　＃３", equal: true},
 		{name: "ハイフンとノンブレークハイフン", a: "灯台の地図‐霧笛の夜‐　＃３", b: "灯台の地図‑霧笛の夜‑　＃３", equal: true},
 		{name: "フィギュアダッシュとハイフンマイナス", a: "灯台の地図‒霧笛の夜‒　＃３", b: hyphenated, equal: true},
-		{name: "長音符はダッシュと揃えない", a: "灯台の地図ー霧笛の夜ー　＃３", b: hyphenated, equal: false},
+		{name: "ダッシュの代わりに書いた長音符", a: "灯台の地図　ー霧笛の夜ー　＃３", b: "灯台の地図 -霧笛の夜-　＃３", equal: true},
+		{name: "長音符と全角ダッシュ", a: "灯台の地図ー霧笛の夜　＃３", b: "灯台の地図—霧笛の夜　＃３", equal: true},
+		{name: "ほかの語とは揃えない", a: "灯台の地図ー霧笛の夜　＃３", b: "灯台の地図~霧笛の夜　＃３", equal: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -246,4 +248,13 @@ func TestParseDashVariantsInSummary(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseSeasonWithLongVowel(t *testing.T) {
+	t.Parallel()
+
+	// 長音符は比べる値でだけ揃えるので、「シーズン」の期の表記は、揃える前の番組名から読む (#2039)。
+	ep := episode.Parse(&episode.Source{Name: "灯台の地図　第２シーズン　＃３"})
+	assert.True(t, ep.HasSeason)
+	assert.Equal(t, 3, ep.Number)
 }

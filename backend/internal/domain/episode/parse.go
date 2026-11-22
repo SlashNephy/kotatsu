@@ -173,7 +173,9 @@ func normalizeName(name string) string {
 // 局や回、チューナーサーバーで書き方が違うと、同じ作品の回が別のシリーズになり、概要の指紋や副題も一致しないからである。
 //
 // NFKC は全角チルダ (U+FF5E) を ~ に、全角ハイフンマイナス (U+FF0D) を - にするが、波ダッシュ (U+301C) とダッシュの類は残す。
-// 波ダッシュは、EPGStation (StrUtil.toHalf) と同じく ~ にする。ダッシュの類は - にする。長音符 (U+30FC) は語の一部なので揃えない。
+// 波ダッシュは、EPGStation (StrUtil.toHalf) と同じく ~ にする。ダッシュの類は - にする。
+// 長音符 (U+30FC) は、ダッシュの代わりにも書かれるが、ここでは揃えない。「シーズン」のような語を読む正規表現が当たらなくなるからである。
+// 読み終えた後に、比べるための値を作る canon で揃える。
 func normalizeText(s string) string {
 	return strings.Map(func(r rune) rune {
 		switch r {
@@ -187,11 +189,16 @@ func normalizeText(s string) string {
 	}, domain.Normalize(s))
 }
 
-// canon は、小文字にし、空白をすべて除く。
+// canon は、小文字にし、空白をすべて除き、長音符 (U+30FC) を - にする (#2039)。
+// 長音符は、ダッシュの代わりにも書かれる (「作品名 ー副題ー」と「作品名 -副題-」)。canon の値は比べるためだけに使うので、
+// 「ストーリー」のような語の長音符も - にしてよい。
 func canon(s string) string {
 	return strings.Map(func(r rune) rune {
 		if unicode.IsSpace(r) {
 			return -1
+		}
+		if r == 'ー' {
+			return '-'
 		}
 
 		return r
