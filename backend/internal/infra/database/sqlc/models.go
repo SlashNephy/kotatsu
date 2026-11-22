@@ -676,6 +676,7 @@ type Program struct {
 	SeriesRepeat          pgtype.Bool
 	Series                *string
 	EpisodeNumber         *int32
+	SearchGrams           []string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
@@ -723,6 +724,7 @@ type ProgramArchive struct {
 	VideoResolution       *string
 	SeriesEpisode         *int32
 	SeriesRepeat          pgtype.Bool
+	SearchGrams           []string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	ArchivedAt            time.Time

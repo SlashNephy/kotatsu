@@ -271,6 +271,9 @@ func TestRecorderRechecksEpisodeFromPresentFollowing(t *testing.T) {
 
 			f := newFixture(t)
 			reservationID := f.reserveBundled(t, 0, tt.bundles...)
+			// 番組の検索の gram (#966) に目印を置き、EIT[p/f] で概要を書き直したら空にすることを見る。
+			_, err := f.pool.Exec(t.Context(), "UPDATE programs SET search_grams = '{目印}' WHERE service_id = $1 AND event_id = 6", grService(0))
+			require.NoError(t, err)
 			if tt.history != "" {
 				f.recordHistory(t, 1, tt.history)
 			}
@@ -298,9 +301,11 @@ func TestRecorderRechecksEpisodeFromPresentFollowing(t *testing.T) {
 					return description == recheckDescription
 				}, waitTimeout, 10*time.Millisecond)
 				var programDescription string
-				require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT description FROM programs WHERE service_id = $1 AND event_id = 6", grService(0)).
-					Scan(&programDescription))
+				var grams []string
+				require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT description, search_grams FROM programs WHERE service_id = $1 AND event_id = 6", grService(0)).
+					Scan(&programDescription, &grams))
 				assert.Equal(t, recheckDescription, programDescription)
+				assert.Nil(t, grams, "the search grams are cleared to be rebuilt")
 				assert.Zero(t, f.startedEvents(t))
 				f.clock.Advance(recording.EpisodeRecheckTimeout)
 			}

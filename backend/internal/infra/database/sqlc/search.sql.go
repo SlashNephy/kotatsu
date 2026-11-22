@@ -171,3 +171,164 @@ func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgram
 	}
 	return items, nil
 }
+
+const searchProgramCandidatesByGrams = `-- name: SearchProgramCandidatesByGrams :many
+SELECT c.archived, c.service_id, c.event_id, c.start_at, c.end_at, c.end_undecided, c.is_free,
+  c.name, c.description, c.extended, c.genres, c.audios, c.related_items, s.channel_type,
+  c.name_normalized, c.description_normalized, c.extended_normalized
+FROM (
+  SELECT false AS archived, p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.is_free,
+    p.name, p.description, p.extended, p.genres, p.audios, p.related_items,
+    p.name_normalized, p.description_normalized, p.extended_normalized, p.search_grams
+  FROM programs p
+  UNION ALL
+  SELECT true AS archived, a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.is_free,
+    a.name, a.description, a.extended, a.genres, a.audios, a.related_items,
+    a.name_normalized, a.description_normalized, a.extended_normalized, a.search_grams
+  FROM program_archives a
+) c
+JOIN services s ON s.id = c.service_id
+WHERE s.service_type = ANY($1::bigint[])
+  -- programs には、アーカイブへ移すまでの猶予の間、放送の終わった番組も残る。
+  -- 過去の放送を含めないときは、まだ終わっていない番組だけにし、含めるときは、終わった番組も期間で絞る。
+  AND CASE WHEN c.archived
+    THEN $2::boolean AND c.start_at >= $3::timestamptz AND c.start_at < $4::timestamptz
+    ELSE c.end_undecided OR c.end_at > $5::timestamptz
+      OR ($2::boolean AND c.start_at >= $3::timestamptz AND c.start_at < $4::timestamptz)
+  END
+  AND (
+    (cardinality($6::text[]) = 0 AND cardinality($7::bigint[]) = 0)
+    OR s.channel_type = ANY($6::text[])
+    OR c.service_id = ANY($7::bigint[])
+  )
+  AND NOT c.service_id = ANY($8::bigint[])
+  AND (
+    cardinality($9::bigint[]) = 0
+    OR EXISTS (SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($9::bigint[]))
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($10::bigint[])
+  )
+  AND (NOT $11::boolean OR c.is_free)
+  AND NOT EXISTS (
+    SELECT 1
+    FROM generate_subscripts($12::text[], 1) AS k (i)
+    WHERE NOT (
+      (($13::boolean[])[k.i] AND CASE WHEN ($14::boolean[])[k.i]
+        THEN c.name_normalized LIKE ($12::text[])[k.i] ELSE c.name_normalized ILIKE ($12::text[])[k.i] END)
+      OR (($15::boolean[])[k.i] AND CASE WHEN ($14::boolean[])[k.i]
+        THEN c.description_normalized LIKE ($12::text[])[k.i] ELSE c.description_normalized ILIKE ($12::text[])[k.i] END)
+    )
+  )
+  -- キーワードが必ず含む gram をすべて持つ番組に絞る。gram を埋めていない番組は、落とさずに候補に残す。
+  AND (c.search_grams @> $16::text[] OR c.search_grams IS NULL)
+  AND (c.start_at, c.service_id, c.event_id) > ($17::timestamptz, $18::bigint, $19::bigint)
+ORDER BY c.start_at, c.service_id, c.event_id
+LIMIT $20::integer
+`
+
+type SearchProgramCandidatesByGramsParams struct {
+	MediaServiceTypes    []int64
+	IncludeArchive       bool
+	ArchiveFrom          time.Time
+	ArchiveTo            time.Time
+	Now                  time.Time
+	ChannelTypes         []string
+	ServiceIds           []int64
+	ExcludedServiceIds   []int64
+	GenreLv1s            []int64
+	ExcludedGenreLv1s    []int64
+	FreeOnly             bool
+	KeywordPatterns      []string
+	KeywordInName        []bool
+	KeywordCaseSensitive []bool
+	KeywordInDescription []bool
+	RequiredGrams        []string
+	AfterStartAt         time.Time
+	AfterServiceID       int64
+	AfterEventID         int64
+	BatchSize            int32
+}
+
+type SearchProgramCandidatesByGramsRow struct {
+	Archived              bool
+	ServiceID             int64
+	EventID               int64
+	StartAt               time.Time
+	EndAt                 time.Time
+	EndUndecided          bool
+	IsFree                bool
+	Name                  string
+	Description           string
+	Extended              []byte
+	Genres                []byte
+	Audios                []byte
+	RelatedItems          []byte
+	ChannelType           string
+	NameNormalized        string
+	DescriptionNormalized string
+	ExtendedNormalized    *string
+}
+
+// SearchProgramCandidates に、キーワードが必ず含む gram (#966、match.RequiredGrams) の絞り込みを足したもの。
+// 番組の検索の gram の GIN の索引で、キーワードを含みうる番組だけを読む。gram を埋めていない番組 (NULL) は、部分インデックスで引いて候補に残す。
+// キーワードのない検索では使わない。gram の配列が空だと、索引で絞れないうえ、1 件ごとに配列を読んで比べるので、
+// SearchProgramCandidates より大きく遅くなるからである。ほかの条件と並び、カーソルは SearchProgramCandidates と同じにする。
+func (q *Queries) SearchProgramCandidatesByGrams(ctx context.Context, arg SearchProgramCandidatesByGramsParams) ([]SearchProgramCandidatesByGramsRow, error) {
+	rows, err := q.db.Query(ctx, searchProgramCandidatesByGrams,
+		arg.MediaServiceTypes,
+		arg.IncludeArchive,
+		arg.ArchiveFrom,
+		arg.ArchiveTo,
+		arg.Now,
+		arg.ChannelTypes,
+		arg.ServiceIds,
+		arg.ExcludedServiceIds,
+		arg.GenreLv1s,
+		arg.ExcludedGenreLv1s,
+		arg.FreeOnly,
+		arg.KeywordPatterns,
+		arg.KeywordInName,
+		arg.KeywordCaseSensitive,
+		arg.KeywordInDescription,
+		arg.RequiredGrams,
+		arg.AfterStartAt,
+		arg.AfterServiceID,
+		arg.AfterEventID,
+		arg.BatchSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchProgramCandidatesByGramsRow{}
+	for rows.Next() {
+		var i SearchProgramCandidatesByGramsRow
+		if err := rows.Scan(
+			&i.Archived,
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EndAt,
+			&i.EndUndecided,
+			&i.IsFree,
+			&i.Name,
+			&i.Description,
+			&i.Extended,
+			&i.Genres,
+			&i.Audios,
+			&i.RelatedItems,
+			&i.ChannelType,
+			&i.NameNormalized,
+			&i.DescriptionNormalized,
+			&i.ExtendedNormalized,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

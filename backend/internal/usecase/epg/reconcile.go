@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
@@ -302,11 +303,11 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 			return err
 		}
 		result.ServicesPresenceChanged = changed
-		if err := writePrograms(ctx, q, programs.upserts, now); err != nil {
+		if err := writePrograms(ctx, q, programs.upserts, programs.previous, now); err != nil {
 			return err
 		}
 		if programs.fillSeries {
-			if err := fillProgramSeries(ctx, q); err != nil {
+			if err := fillDerivedColumns(ctx, q); err != nil {
 				return err
 			}
 		}
@@ -756,7 +757,10 @@ func filterPrograms(programs []*tunerserver.Program, known map[int64]bool) []*tu
 	})
 }
 
-func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, now time.Time) error {
+// writePrograms は、番組 programs を書く。previous は、書く前の DB の番組 (diffPrograms の previous)。
+// 正規化した番組名、概要、詳細が前と同じ番組は、番組の検索の gram (#966) を送らず、DB の gram を残す。
+// 全角と半角のような、正規化すると同じになる書き換えでは、gram も変わらないからである。
+func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, previous map[programKey]*program, now time.Time) error {
 	if len(programs) == 0 {
 		return nil
 	}
@@ -769,6 +773,11 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 		}
 		extendedNormalized := domain.NormalizeExtended(p.Extended)
 		series, number := episodeSeriesOf(p.Name, p.Description, extendedNormalized, p.SeriesEpisode)
+		nameNormalized, descriptionNormalized := domain.Normalize(p.Name), domain.Normalize(p.Description)
+		var grams []string
+		if old, ok := previous[p.key()]; !ok || !sameSearchText(old, nameNormalized, descriptionNormalized, extendedNormalized) {
+			grams = match.SearchGrams(nameNormalized, descriptionNormalized, extendedNormalized)
+		}
 		params = append(params, sqlc.UpsertProgramsParams{
 			ServiceID:             p.ServiceID,
 			EventID:               p.EventID,
@@ -779,8 +788,8 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 			IsFree:                p.IsFree,
 			Name:                  p.Name,
 			Description:           p.Description,
-			NameNormalized:        domain.Normalize(p.Name),
-			DescriptionNormalized: domain.Normalize(p.Description),
+			NameNormalized:        nameNormalized,
+			DescriptionNormalized: descriptionNormalized,
 			ExtendedNormalized:    &extendedNormalized,
 			Extended:              columns.extended,
 			Genres:                columns.genres,
@@ -791,6 +800,7 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 			SeriesRepeat:          nullBool(p.SeriesRepeat),
 			Series:                series,
 			EpisodeNumber:         number,
+			SearchGrams:           grams,
 			Now:                   now,
 		})
 	}
@@ -970,4 +980,10 @@ func recordRewrites(ctx context.Context, q *sqlc.Queries, diff *programDiff, now
 	})
 
 	return errors.Join(errs...)
+}
+
+// sameSearchText は、前の番組 old の正規化した番組名、概要、詳細が、新しいものと同じかどうかを返す (#966)。
+func sameSearchText(old *program, nameNormalized, descriptionNormalized, extendedNormalized string) bool {
+	return domain.Normalize(old.Name) == nameNormalized && domain.Normalize(old.Description) == descriptionNormalized &&
+		domain.NormalizeExtended(old.Extended) == extendedNormalized
 }
