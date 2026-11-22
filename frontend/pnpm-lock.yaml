@@ -240,8 +240,8 @@ importers:
         specifier: 17.1.0
         version: 17.1.0
       graphql-sse:
-        specifier: 2.6.3
-        version: 2.6.3(graphql@17.1.0)
+        specifier: 2.6.4
+        version: 2.6.4(graphql@17.1.0)
       hls.js:
         specifier: 1.7.4
         version: 1.7.4
@@ -3196,8 +3196,8 @@ packages:
   graceful-fs@4.2.12:
     resolution: {integrity: sha512-iuyGF2E4oafQfPsRrG2wtY2ILupMhvtdrhzrxB+0VcjsPpSPttpfYdjnGFGsTi5MaJFjI1jOKHPQ6UTbTj9TAw==}
 
-  graphql-sse@2.6.3:
-    resolution: {integrity: sha512-UCSx3a+IklDOqJt8gpxGwDhnmWiZLJ5wNPMJ7TLGOQ68PhiKIDxLJBB2i+nKEGyWYLtiSLpTJ5fFEG5kkAxppA==}
+  graphql-sse@2.6.4:
+    resolution: {integrity: sha512-5FJucErfubgQGXXmu6kQiIZ5/pp6eeIXmr+ypqhIjJx0H/xA1koD+xLu3Z0ptSRWp/w9N8Ua9Qnc9+mnWSj0bA==}
     engines: {node: '>=12'}
     peerDependencies:
       graphql: '>=0.11 <=17'
@@ -7234,7 +7234,7 @@ snapshots:
 
   graceful-fs@4.2.12: {}
 
-  graphql-sse@2.6.3(graphql@17.1.0):
+  graphql-sse@2.6.4(graphql@17.1.0):
     dependencies:
       graphql: 17.1.0
 
