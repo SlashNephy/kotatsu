@@ -74,6 +74,8 @@ WHERE service_id = @service_id AND event_id = @event_id;
 -- 番組表の番組を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。シリーズの記述子は、
 -- EIT[p/f] が載せていたときだけ (series_set)、その値 (話数が 0 なら NULL) で書き直す。時刻は書かない。
 -- 番組名から読むシリーズ名と話数 (#1564) は、Go で読むので空にし、次の全量の突き合わせで読み直させる。
+-- 番組の検索の gram (#966) も Go で作るので、番組名か概要を書き直したら空にし、次の全量の突き合わせで作り直させる。
+-- 空の間は、検索の候補に残す。古い gram を残すと、新しい番組名や概要に一致する番組を、検索で落とすからである。
 UPDATE programs SET
   name = coalesce(sqlc.narg(name)::text, name),
   description = coalesce(sqlc.narg(description)::text, description),
@@ -85,6 +87,8 @@ UPDATE programs SET
   series_repeat = CASE WHEN @series_set::boolean THEN sqlc.narg(series_repeat)::boolean ELSE series_repeat END,
   series = NULL,
   episode_number = NULL,
+  search_grams = CASE WHEN sqlc.narg(name_normalized)::text IS NULL AND sqlc.narg(description_normalized)::text IS NULL
+    THEN search_grams ELSE NULL END,
   updated_at = @now
 WHERE service_id = @service_id AND event_id = @event_id;
 

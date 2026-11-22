@@ -55,12 +55,13 @@ ORDER BY event_id;
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, series_episode, series_repeat, series, episode_number, created_at, updated_at
+  video_resolution, series_episode, series_repeat, series, episode_number, search_grams, created_at, updated_at
 )
 VALUES (
   @service_id, @event_id, @mirakurun_id, @start_at, @end_at, @end_undecided, @is_free,
   @name, @description, @name_normalized, @description_normalized, @extended_normalized, @extended, @genres, @related_items, @audios,
-  sqlc.narg(video_resolution), sqlc.narg(series_episode), sqlc.narg(series_repeat), @series::text, sqlc.narg(episode_number)::integer, @now, @now
+  sqlc.narg(video_resolution), sqlc.narg(series_episode), sqlc.narg(series_repeat), @series::text, sqlc.narg(episode_number)::integer,
+  sqlc.narg(search_grams)::text[], @now, @now
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -82,6 +83,8 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   series_repeat = excluded.series_repeat,
   series = excluded.series,
   episode_number = excluded.episode_number,
+  -- 番組名と概要が変わらない番組は、gram を NULL で送り、今の gram を残す (#966)。同じ配列を書き直すと、GIN の索引も書き直すからである。
+  search_grams = COALESCE(excluded.search_grams, programs.search_grams),
   updated_at = excluded.updated_at;
 
 -- name: ListProgramsWithoutSeries :many
@@ -96,6 +99,32 @@ LIMIT @batch_size::integer;
 -- 番組の、番組名から読んだシリーズ名と話数 (#1564) を書く。ほかの列と更新日時は変えない。
 UPDATE programs SET series = @series::text, episode_number = sqlc.narg(episode_number)::integer
 WHERE service_id = @service_id AND event_id = @event_id;
+
+-- name: ListProgramsWithoutSearchGrams :many
+-- 番組の検索の gram の列 (#966) を埋めていない番組を返す。列を足す前に書いた番組と、列を知らない古いバイナリが書いた番組。
+SELECT service_id, event_id, name_normalized, description_normalized
+FROM programs
+WHERE search_grams IS NULL
+ORDER BY service_id, event_id
+LIMIT @batch_size::integer;
+
+-- name: SetProgramSearchGrams :batchexec
+-- 番組の検索の gram (#966) を書く。ほかの列と更新日時は変えない。
+UPDATE programs SET search_grams = @search_grams::text[]
+WHERE service_id = @service_id AND event_id = @event_id;
+
+-- name: ListProgramArchivesWithoutSearchGrams :many
+-- 番組の検索の gram の列 (#966) を埋めていないアーカイブを返す。列を足す前に移した番組。
+SELECT service_id, event_id, start_at, name_normalized, description_normalized
+FROM program_archives
+WHERE search_grams IS NULL
+ORDER BY service_id, event_id, start_at
+LIMIT @batch_size::integer;
+
+-- name: SetProgramArchiveSearchGrams :batchexec
+-- アーカイブの番組の検索の gram (#966) を書く。ほかの列は変えない。
+UPDATE program_archives SET search_grams = @search_grams::text[]
+WHERE service_id = @service_id AND event_id = @event_id AND start_at = @start_at;
 
 -- name: DeletePrograms :batchexec
 -- 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
@@ -137,12 +166,12 @@ WITH moved AS (
 INSERT INTO program_archives (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, series_episode, series_repeat, created_at, updated_at, archived_at
+  video_resolution, series_episode, series_repeat, search_grams, created_at, updated_at, archived_at
 )
 SELECT
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, series_episode, series_repeat, created_at, updated_at, @now
+  video_resolution, series_episode, series_repeat, search_grams, created_at, updated_at, @now
 FROM moved
 -- 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
 ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
@@ -162,6 +191,7 @@ ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   video_resolution = excluded.video_resolution,
   series_episode = excluded.series_episode,
   series_repeat = excluded.series_repeat,
+  search_grams = excluded.search_grams,
   updated_at = excluded.updated_at,
   archived_at = excluded.archived_at;
 

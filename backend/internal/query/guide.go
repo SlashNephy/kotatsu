@@ -64,10 +64,12 @@ type SearchProgramCandidatesParams struct {
 	KeywordInName        []bool
 	KeywordCaseSensitive []bool
 	KeywordInDescription []bool
-	AfterStartAt         time.Time
-	AfterServiceID       int64
-	AfterEventID         int64
-	BatchSize            int32
+	// RequiredGrams は、キーワードが必ず含む gram (#966、match.RequiredGrams)。空でなければ、gram の索引で候補を絞る。
+	RequiredGrams  []string
+	AfterStartAt   time.Time
+	AfterServiceID int64
+	AfterEventID   int64
+	BatchSize      int32
 }
 
 // GetProgramForFileNameParams は、GetProgramForFileName の条件。
@@ -228,7 +230,20 @@ func (q *Queries) ListGuideProgramsByKeys(ctx context.Context, arg ListGuideProg
 }
 
 // SearchProgramCandidates は、番組の検索の候補を、開始時刻、サービス、eventId の順に 1 回分返す。
+// キーワードが必ず含む gram (RequiredGrams) があれば、gram の索引で絞る SQL を使う (#966)。
 func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]domain.ProgramCandidate, error) {
+	if len(arg.RequiredGrams) > 0 {
+		result, err := sqlc.New(q.pool).SearchProgramCandidatesByGrams(ctx, sqlc.SearchProgramCandidatesByGramsParams{MediaServiceTypes: arg.MediaServiceTypes, IncludeArchive: arg.IncludeArchive, ArchiveFrom: arg.ArchiveFrom, ArchiveTo: arg.ArchiveTo, Now: arg.Now, ChannelTypes: arg.ChannelTypes, ServiceIds: arg.ServiceIDs, ExcludedServiceIds: arg.ExcludedServiceIDs, GenreLv1s: arg.GenreLv1s, ExcludedGenreLv1s: arg.ExcludedGenreLv1s, FreeOnly: arg.FreeOnly, KeywordPatterns: arg.KeywordPatterns, KeywordInName: arg.KeywordInName, KeywordCaseSensitive: arg.KeywordCaseSensitive, KeywordInDescription: arg.KeywordInDescription, RequiredGrams: arg.RequiredGrams, AfterStartAt: arg.AfterStartAt, AfterServiceID: arg.AfterServiceID, AfterEventID: arg.AfterEventID, BatchSize: arg.BatchSize})
+		if err != nil {
+			return nil, err
+		}
+		out := make([]domain.ProgramCandidate, len(result))
+		for i := range result {
+			out[i] = domain.ProgramCandidate(result[i])
+		}
+
+		return out, nil
+	}
 	result, err := sqlc.New(q.pool).SearchProgramCandidates(ctx, sqlc.SearchProgramCandidatesParams{MediaServiceTypes: arg.MediaServiceTypes, IncludeArchive: arg.IncludeArchive, ArchiveFrom: arg.ArchiveFrom, ArchiveTo: arg.ArchiveTo, Now: arg.Now, ChannelTypes: arg.ChannelTypes, ServiceIds: arg.ServiceIDs, ExcludedServiceIds: arg.ExcludedServiceIDs, GenreLv1s: arg.GenreLv1s, ExcludedGenreLv1s: arg.ExcludedGenreLv1s, FreeOnly: arg.FreeOnly, KeywordPatterns: arg.KeywordPatterns, KeywordInName: arg.KeywordInName, KeywordCaseSensitive: arg.KeywordCaseSensitive, KeywordInDescription: arg.KeywordInDescription, AfterStartAt: arg.AfterStartAt, AfterServiceID: arg.AfterServiceID, AfterEventID: arg.AfterEventID, BatchSize: arg.BatchSize})
 	if err != nil {
 		return nil, err

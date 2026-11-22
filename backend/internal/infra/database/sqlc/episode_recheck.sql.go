@@ -211,6 +211,8 @@ UPDATE programs SET
   series_repeat = CASE WHEN $7::boolean THEN $9::boolean ELSE series_repeat END,
   series = NULL,
   episode_number = NULL,
+  search_grams = CASE WHEN $3::text IS NULL AND $4::text IS NULL
+    THEN search_grams ELSE NULL END,
   updated_at = $10
 WHERE service_id = $11 AND event_id = $12
 `
@@ -233,6 +235,8 @@ type RewriteProgramInfoParams struct {
 // 番組表の番組を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。シリーズの記述子は、
 // EIT[p/f] が載せていたときだけ (series_set)、その値 (話数が 0 なら NULL) で書き直す。時刻は書かない。
 // 番組名から読むシリーズ名と話数 (#1564) は、Go で読むので空にし、次の全量の突き合わせで読み直させる。
+// 番組の検索の gram (#966) も Go で作るので、番組名か概要を書き直したら空にし、次の全量の突き合わせで作り直させる。
+// 空の間は、検索の候補に残す。古い gram を残すと、新しい番組名や概要に一致する番組を、検索で落とすからである。
 func (q *Queries) RewriteProgramInfo(ctx context.Context, arg RewriteProgramInfoParams) (int64, error) {
 	result, err := q.db.Exec(ctx, rewriteProgramInfo,
 		arg.Name,

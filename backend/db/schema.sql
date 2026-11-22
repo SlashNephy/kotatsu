@@ -690,6 +690,10 @@ CREATE TABLE programs (
   -- Go で読むので SQL では埋めない。この列を足す前に書いた番組 (NULL) は、全量の突き合わせが埋める。
   series text,
   episode_number integer,
+  -- 番組の検索の索引に入れる gram (#966、match.SearchGrams)。番組名と概要の 1 文字と 2 文字の gram で、番組名だけの gram には印を付ける。
+  -- 検索は、キーワードが必ず含む gram をすべて持つ番組に候補を絞り、一致するかは Go の照合関数で決める。
+  -- Go で作るので SQL では埋めない。この列を足す前に書いた番組 (NULL) は、全量の突き合わせが少しずつ埋め、埋めるまでは候補に残す。
+  search_grams text[],
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   PRIMARY KEY (service_id, event_id)
@@ -752,6 +756,8 @@ CREATE TABLE program_archives (
   video_resolution text,
   series_episode integer,
   series_repeat boolean,
+  -- 番組の検索の索引に入れる gram (#966)。programs.search_grams と同じ。
+  search_grams text[],
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   archived_at timestamptz NOT NULL,
@@ -765,6 +771,12 @@ CREATE INDEX program_archives_service_id_start_at_idx ON program_archives (servi
 CREATE INDEX program_archives_end_at_idx ON program_archives (end_at);
 -- 猶予が過ぎた番組を探すときに使う。
 CREATE INDEX programs_end_at_idx ON programs (end_at);
+
+-- 番組の検索で、キーワードの gram を持つ番組と、gram を埋めていない番組を引く (#966)。
+CREATE INDEX programs_search_grams_idx ON programs USING gin (search_grams);
+CREATE INDEX programs_search_grams_null_idx ON programs (service_id, event_id) WHERE (search_grams IS NULL);
+CREATE INDEX program_archives_search_grams_idx ON program_archives USING gin (search_grams);
+CREATE INDEX program_archives_search_grams_null_idx ON program_archives (service_id, event_id, start_at) WHERE (search_grams IS NULL);
 
 -- 予約 (設計書 4.1)。番組予約 (program) と時刻予約 (time) を持つ。ルール予約 (rule) はルールの照合が作る。
 -- どの予約も番組情報のコピーを持ち、番組が EPG から消えても内容を表示できるようにする。

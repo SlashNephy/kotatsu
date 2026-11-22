@@ -21,17 +21,17 @@ WITH moved AS (
     ORDER BY p.end_at
     LIMIT $3::integer
   )
-  RETURNING service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios, video_resolution, series_episode, series_repeat, series, episode_number, created_at, updated_at
+  RETURNING service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios, video_resolution, series_episode, series_repeat, series, episode_number, search_grams, created_at, updated_at
 )
 INSERT INTO program_archives (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, series_episode, series_repeat, created_at, updated_at, archived_at
+  video_resolution, series_episode, series_repeat, search_grams, created_at, updated_at, archived_at
 )
 SELECT
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, series_episode, series_repeat, created_at, updated_at, $1
+  video_resolution, series_episode, series_repeat, search_grams, created_at, updated_at, $1
 FROM moved
 ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -50,6 +50,7 @@ ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   video_resolution = excluded.video_resolution,
   series_episode = excluded.series_episode,
   series_repeat = excluded.series_repeat,
+  search_grams = excluded.search_grams,
   updated_at = excluded.updated_at,
   archived_at = excluded.archived_at
 `
@@ -138,6 +139,49 @@ func (q *Queries) ListEPGChangesSince(ctx context.Context, version int64) ([]Lis
 			&i.ServiceID,
 			&i.StartAt,
 			&i.EndAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProgramArchivesWithoutSearchGrams = `-- name: ListProgramArchivesWithoutSearchGrams :many
+SELECT service_id, event_id, start_at, name_normalized, description_normalized
+FROM program_archives
+WHERE search_grams IS NULL
+ORDER BY service_id, event_id, start_at
+LIMIT $1::integer
+`
+
+type ListProgramArchivesWithoutSearchGramsRow struct {
+	ServiceID             int64
+	EventID               int64
+	StartAt               time.Time
+	NameNormalized        string
+	DescriptionNormalized string
+}
+
+// 番組の検索の gram の列 (#966) を埋めていないアーカイブを返す。列を足す前に移した番組。
+func (q *Queries) ListProgramArchivesWithoutSearchGrams(ctx context.Context, batchSize int32) ([]ListProgramArchivesWithoutSearchGramsRow, error) {
+	rows, err := q.db.Query(ctx, listProgramArchivesWithoutSearchGrams, batchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProgramArchivesWithoutSearchGramsRow{}
+	for rows.Next() {
+		var i ListProgramArchivesWithoutSearchGramsRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.NameNormalized,
+			&i.DescriptionNormalized,
 		); err != nil {
 			return nil, err
 		}
@@ -265,6 +309,47 @@ func (q *Queries) ListProgramsOfService(ctx context.Context, serviceID int64) ([
 			&i.VideoResolution,
 			&i.SeriesEpisode,
 			&i.SeriesRepeat,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProgramsWithoutSearchGrams = `-- name: ListProgramsWithoutSearchGrams :many
+SELECT service_id, event_id, name_normalized, description_normalized
+FROM programs
+WHERE search_grams IS NULL
+ORDER BY service_id, event_id
+LIMIT $1::integer
+`
+
+type ListProgramsWithoutSearchGramsRow struct {
+	ServiceID             int64
+	EventID               int64
+	NameNormalized        string
+	DescriptionNormalized string
+}
+
+// 番組の検索の gram の列 (#966) を埋めていない番組を返す。列を足す前に書いた番組と、列を知らない古いバイナリが書いた番組。
+func (q *Queries) ListProgramsWithoutSearchGrams(ctx context.Context, batchSize int32) ([]ListProgramsWithoutSearchGramsRow, error) {
+	rows, err := q.db.Query(ctx, listProgramsWithoutSearchGrams, batchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProgramsWithoutSearchGramsRow{}
+	for rows.Next() {
+		var i ListProgramsWithoutSearchGramsRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.EventID,
+			&i.NameNormalized,
+			&i.DescriptionNormalized,
 		); err != nil {
 			return nil, err
 		}
