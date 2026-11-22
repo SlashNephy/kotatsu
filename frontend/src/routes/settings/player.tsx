@@ -34,8 +34,10 @@ import { useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMiniPlayer } from '../../yunomi/miniPlayer';
 import {
+  superResolutionMethods,
   superResolutionStrengths,
   useSuperResolution,
+  useSuperResolutionMethod,
   useSuperResolutionStrength,
 } from '../../yunomi/superResolution';
 import { hdrOutputSupported, useHDRDisplay, useHDROutput } from '../../yunomi/hdr';
@@ -94,6 +96,7 @@ function PlayerSettings() {
   const [interpolationRate, setInterpolationRate] = useInterpolationRate();
   const [superResolution, setSuperResolution] = useSuperResolution();
   const [superResolutionStrength, setSuperResolutionStrength] = useSuperResolutionStrength();
+  const [superResolutionMethod, setSuperResolutionMethod] = useSuperResolutionMethod();
   const [hdrOutput, setHDROutput] = useHDROutput();
   // 擬似 HDR (#1656) は、WebGL の HDR の出力を持つブラウザでしか描けないので、持たなければ切り替えさせない。
   const [hdrOutputAvailable] = useState(hdrOutputSupported);
@@ -240,9 +243,6 @@ function PlayerSettings() {
             label={
               <Group gap={6} component="span">
                 {t('settings.account.cmAutoSkip')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
               </Group>
             }
             description={t('settings.account.cmAutoSkipHelp')}
@@ -276,6 +276,25 @@ function PlayerSettings() {
             description={t('settings.account.superResolutionHelp')}
             checked={superResolution}
             onChange={(event) => deviceSave(setSuperResolution)(event.currentTarget.checked)}
+          />
+          {/* 拡大の方式。Anime4K は細部が増えるが GPU の負荷が大きいので、端末の GPU に合わせて選ばせる (#1653)。 */}
+          <Select
+            label={t('settings.account.superResolutionMethod')}
+            description={t('settings.account.superResolutionMethodHelp')}
+            disabled={!superResolution}
+            allowDeselect={false}
+            data={superResolutionMethods.map((method) => ({
+              value: method,
+              label: t(`settings.account.superResolutionMethods.${method}`),
+            }))}
+            value={superResolutionMethod}
+            onChange={(value) => {
+              const method = superResolutionMethods.find((m) => m === value);
+              if (method !== undefined) {
+                deviceSave(setSuperResolutionMethod)(method);
+              }
+            }}
+            maw={240}
           />
           {/* 鮮鋭化の強さ。映像の質と画面によって好みが分かれるので、RTX Video Super Resolution の品質の段のように選ばせる (#1654)。 */}
           <Select
@@ -360,9 +379,6 @@ function PlayerSettings() {
             label={
               <Group gap={6} component="span">
                 {t('settings.account.captureFileName')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
               </Group>
             }
             description={t('settings.account.captureFileNameHelp', {
@@ -391,9 +407,6 @@ function PlayerSettings() {
             label={
               <Group gap={6} component="span">
                 {t('settings.account.miniPlayer')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
               </Group>
             }
             description={t('settings.account.miniPlayerHelp')}
@@ -405,9 +418,6 @@ function PlayerSettings() {
               label={
                 <Group gap={6} component="span">
                   {t('settings.account.autoPictureInPicture')}
-                  <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                    {t('settings.account.deviceOnly')}
-                  </Badge>
                 </Group>
               }
               description={t('settings.account.autoPictureInPictureHelp')}
@@ -435,9 +445,6 @@ function PlayerSettings() {
               label={
                 <Group gap={6} component="span">
                   {t('settings.account.swipeControls')}
-                  <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                    {t('settings.account.deviceOnly')}
-                  </Badge>
                 </Group>
               }
               description={t('settings.account.swipeControlsHelp')}

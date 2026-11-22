@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5620af01d9b0417d483ea9f15fcec699>>
+ * @generated SignedSource<<cb9c80537269854c5dfbe82ddaef8885>>
  * @lightSyntaxTransform
  */
 
@@ -16,6 +16,7 @@ export type PlayerSettingsInput = {
   commentSources?: ReadonlyArray<CommentSource> | null | undefined;
   comments?: CommentSettingsInput | null | undefined;
   jikkyoEnabled?: boolean | null | undefined;
+  preferences?: ReadonlyArray<PreferenceInput> | null | undefined;
 };
 export type CommentSettingsInput = {
   mixOtherBroadcasts: boolean;
@@ -36,6 +37,10 @@ export type CaptionSettingsInput = {
   stroke: boolean;
   superimposeLive: boolean;
   superimposeRecorded: boolean;
+};
+export type PreferenceInput = {
+  key: string;
+  value?: string | null | undefined;
 };
 export type usePlayerSettingsMutation$variables = {
   input: PlayerSettingsInput;

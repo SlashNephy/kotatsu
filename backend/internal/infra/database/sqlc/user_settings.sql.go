@@ -69,7 +69,8 @@ SELECT
   coalesce(s.comment_sources, '{}')::text[] AS comment_sources,
   coalesce(s.captions_enabled, true)::boolean AS captions_enabled,
   s.comment_settings,
-  s.caption_settings
+  s.caption_settings,
+  coalesce(s.preferences, '{}')::jsonb AS preferences
 FROM (SELECT $1::uuid AS id) AS u
 LEFT JOIN user_settings s ON s.user_id = u.id
 `
@@ -80,6 +81,7 @@ type GetPlayerSettingsRow struct {
 	CaptionsEnabled bool
 	CommentSettings []byte
 	CaptionSettings []byte
+	Preferences     []byte
 }
 
 // プレイヤーの設定。一度も変えていなければ、既定値を返す。
@@ -92,6 +94,7 @@ func (q *Queries) GetPlayerSettings(ctx context.Context, userID uuid.UUID) (GetP
 		&i.CaptionsEnabled,
 		&i.CommentSettings,
 		&i.CaptionSettings,
+		&i.Preferences,
 	)
 	return i, err
 }
@@ -184,6 +187,32 @@ func (q *Queries) SetCommentSettings(ctx context.Context, arg SetCommentSettings
 	return err
 }
 
+const setPreferences = `-- name: SetPreferences :exec
+INSERT INTO user_settings (user_id, preferences, updated_at)
+VALUES ($1, $2::jsonb, $3)
+ON CONFLICT (user_id) DO UPDATE SET
+  preferences = (user_settings.preferences || $2::jsonb) - $4::text[],
+  updated_at = EXCLUDED.updated_at
+`
+
+type SetPreferencesParams struct {
+	UserID uuid.UUID
+	Set    []byte
+	Now    time.Time
+	Unset  []string
+}
+
+// 端末をまたいで同期する設定 (#1862) のうち、set のキーを置き換え、unset のキーを消す。ほかのキーは変えない。
+func (q *Queries) SetPreferences(ctx context.Context, arg SetPreferencesParams) error {
+	_, err := q.db.Exec(ctx, setPreferences,
+		arg.UserID,
+		arg.Set,
+		arg.Now,
+		arg.Unset,
+	)
+	return err
+}
+
 const unpinService = `-- name: UnpinService :exec
 DELETE FROM pinned_services WHERE user_id = $1 AND service_id = $2
 `
@@ -214,7 +243,7 @@ ON CONFLICT (user_id) DO UPDATE SET
   END,
   captions_enabled = coalesce($4::boolean, user_settings.captions_enabled),
   updated_at = EXCLUDED.updated_at
-RETURNING ('nx_jikkyo' = ANY(comment_sources))::boolean AS jikkyo_enabled, comment_sources, captions_enabled, comment_settings, caption_settings
+RETURNING ('nx_jikkyo' = ANY(comment_sources))::boolean AS jikkyo_enabled, comment_sources, captions_enabled, comment_settings, caption_settings, preferences
 `
 
 type UpsertPlayerSettingsParams struct {
@@ -231,6 +260,7 @@ type UpsertPlayerSettingsRow struct {
 	CaptionsEnabled bool
 	CommentSettings []byte
 	CaptionSettings []byte
+	Preferences     []byte
 }
 
 // プレイヤーの設定を変える。null の項目は変えない。jikkyo_enabled は、NX-Jikkyo のソースを足すか外す。comment_sources を渡せば、そちらを使う。
@@ -249,6 +279,7 @@ func (q *Queries) UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSett
 		&i.CaptionsEnabled,
 		&i.CommentSettings,
 		&i.CaptionSettings,
+		&i.Preferences,
 	)
 	return i, err
 }

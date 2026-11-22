@@ -9,9 +9,10 @@ import {
 } from './commands';
 import { browserStorage } from './volume';
 import { useWatchMini } from './WatchHost';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
 // Gamepad API でのプレイヤーの操作 (#810、設計書 7.5)。テレビにつないだ PC で、ゲームパッドをリモコンの代わりに使う。
-// ボタンの番号は、Gamepad API の標準の配置 (standard mapping) で数える。割り当ては、キーと同じく端末ごとに変えられる。
+// ボタンの番号は、Gamepad API の標準の配置 (standard mapping) で数える。割り当ては、キーと同じく変えられ、端末をまたいで同期する (#1862)。
 
 // GamepadMap は、操作ごとに割り当てたボタンの番号。
 export type GamepadMap = Readonly<Partial<Record<SimpleCommandId, readonly number[]>>>;
@@ -168,8 +169,10 @@ export function useGamepadMap(): [GamepadMap, (map: GamepadMap | null) => void] 
       try {
         if (map === null) {
           browserStorage()?.removeItem(storageKey);
+          preferenceChanged(storageKey);
         } else {
           browserStorage()?.setItem(storageKey, JSON.stringify(map));
+          preferenceChanged(storageKey);
         }
       } catch {
         // 書けなければ、次に開いたときは既定に戻るだけ。

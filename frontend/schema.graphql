@@ -3978,6 +3978,10 @@ type PlayerSettings {
   字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。
   """
   captions: CaptionSettings!
+  """
+  画面が端末に覚えていた設定のうち、端末をまたいで同期するもの (#1862)。キーの順に並べる。
+  """
+  preferences: [Preference!]!
 }
 """
 プレイヤーの設定の変更。省いた項目は変えない。
@@ -4000,6 +4004,10 @@ input PlayerSettingsInput {
   渡したら、字幕の設定をまるごと置き換える。
   """
   captions: CaptionSettingsInput
+  """
+  渡したキーの設定を置き換える。value が null のキーは消す。渡さなかったキーは変えない。
+  """
+  preferences: [PreferenceInput!]
 }
 """
 再生中のプレイヤーの状態 (#459、設計書 7.7)。プレイヤーが送ったものを、そのまま返す。
@@ -4049,6 +4057,29 @@ input PlayerStateInput {
   audio: String
   dataBroadcast: Boolean!
   keyGroups: [String!]!
+}
+"""
+端末をまたいで同期する、画面の設定の 1 つ (#1862)。
+"""
+type Preference {
+  """
+  画面の保存先のキー (kotatsu.player.keymap など)。
+  """
+  key: String!
+  """
+  保存した文字列。中身は画面が決める。
+  """
+  value: String!
+}
+input PreferenceInput {
+  """
+  同期を許したキーだけ。
+  """
+  key: String!
+  """
+  16,384 文字まで。null なら消す。
+  """
+  value: String
 }
 """
 プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
