@@ -33,39 +33,58 @@ function json(body: unknown): Response {
 // デモの応答を返す。
 // 呼ぶ側はサブパスを付けずに / からのパスで呼ぶので、同じオリジンのそのパスだけを横取りする。
 // 戻す関数を返す。Storybook (#2056) は、Story を閉じるときに戻す。
+// Story は同時にいくつも開き (Docs のページ)、開いた順と逆に閉じるとは限らないので、横取りは 1 つだけ入れ、
+// 最後に入れた応答の組 (interceptors の末尾) で応える。組がなくなったら、元の fetch に戻す。
+type Interceptor = { executor: Executor; captures: DemoCaptures };
+const interceptors: Interceptor[] = [];
+let baseFetch: typeof window.fetch | null = null;
+
 export function interceptFetch(executor: Executor, captures: DemoCaptures): () => void {
-  const original = window.fetch.bind(window);
-  const restore = window.fetch;
-  window.fetch = async (input, init) => {
-    // 横取りしない要求の body を読んでしまわないよう、URL だけを先に見る。
-    const url = new URL(input instanceof Request ? input.url : input, window.location.href);
-    if (url.origin !== window.location.origin) {
+  const entry: Interceptor = { executor, captures };
+  interceptors.push(entry);
+  if (baseFetch === null) {
+    const base = window.fetch;
+    baseFetch = base;
+    const original = base.bind(window);
+    window.fetch = async (input, init) => {
+      const current = interceptors.at(-1);
+      // 横取りしない要求の body を読んでしまわないよう、URL だけを先に見る。
+      const url = new URL(input instanceof Request ? input.url : input, window.location.href);
+      if (current === undefined || url.origin !== window.location.origin) {
+        return original(input, init);
+      }
+      if (url.pathname === '/internal/graphql') {
+        const request = new Request(input, init);
+        const body = (await request.json()) as GraphQLBody;
+
+        return json(await current.executor.execute(body.query ?? '', body.variables ?? {}));
+      }
+      if (url.pathname.startsWith('/internal/auth/')) {
+        return json(authResponse(url.pathname));
+      }
+      // 録画の再生で読む実況の過去ログ。どの録画も同じ映像を流すので、同じコメントを返す。
+      if (url.pathname === demoCommentsPath) {
+        return json({ channel: { id: 'demo' }, origin: null, comments: demoRecordedComments() });
+      }
+      if (url.pathname === '/internal/media/captures') {
+        const id = await current.captures.add(await new Request(input, init).formData());
+
+        return json({ id });
+      }
+
       return original(input, init);
-    }
-    if (url.pathname === '/internal/graphql') {
-      const request = new Request(input, init);
-      const body = (await request.json()) as GraphQLBody;
-
-      return json(await executor.execute(body.query ?? '', body.variables ?? {}));
-    }
-    if (url.pathname.startsWith('/internal/auth/')) {
-      return json(authResponse(url.pathname));
-    }
-    // 録画の再生で読む実況の過去ログ。どの録画も同じ映像を流すので、同じコメントを返す。
-    if (url.pathname === demoCommentsPath) {
-      return json({ channel: { id: 'demo' }, origin: null, comments: demoRecordedComments() });
-    }
-    if (url.pathname === '/internal/media/captures') {
-      const id = await captures.add(await new Request(input, init).formData());
-
-      return json({ id });
-    }
-
-    return original(input, init);
-  };
+    };
+  }
 
   return () => {
-    window.fetch = restore;
+    const index = interceptors.indexOf(entry);
+    if (index >= 0) {
+      interceptors.splice(index, 1);
+    }
+    if (interceptors.length === 0 && baseFetch !== null) {
+      window.fetch = baseFetch;
+      baseFetch = null;
+    }
   };
 }
 
