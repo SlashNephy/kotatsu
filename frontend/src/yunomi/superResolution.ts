@@ -1,6 +1,7 @@
 import type { PictureScaler } from '@mpeg2toh264/yadif';
 import { useSyncExternalStore } from 'react';
 
+import { createHDRCopy, setHDRDrawingBuffer, type HDRCopy } from './hdr';
 import { createUpscaler, type Upscaler } from './upscaler';
 import { browserStorage } from './volume';
 
@@ -154,12 +155,15 @@ function maxDimension(gl: WebGL2RenderingContext): number {
 }
 
 // YadifUpscaler は、yadif に渡す拡大と、今拡大している大きさを読む口と、片付ける口。
+// 擬似 HDR の出力 (#1656) も、yadif が canvas へ描く最後の段なので、ここで描く。拡大しないときは、元の大きさのまま写す。
 export type YadifUpscaler = PictureScaler & {
   // output は、最後に拡大して描いた大きさ。拡大していなければ null。
   output(): Size | null;
   // shown は、最後に大きさを決めたときの、映す大きさ (端末の画素、切り抜きの拡大率を掛けたもの)。
   // 元の大きさ以下に映していて拡大しないときに、その理由として見せる。決めていなければ null。
   shown(): Size | null;
+  // hdr は、最後に描いたコマを、擬似 HDR で描いたか。
+  hdr(): boolean;
   destroy(): void;
 };
 
@@ -167,33 +171,82 @@ export type YadifUpscaler = PictureScaler & {
 // 作れないか、途中で失敗したら、onUnavailable を呼び、以後は拡大しない (yadif はコマをそのまま描く)。
 // yadif の描画の中で投げると、yadif のループが止まるので、ここで受け止める。
 // zoom は、切り抜きの拡大率を、大きさを決めるたびに読む。strength は、鮮鋭化の強さを、描くたびに読む。
-// create は、テストで拡大の処理を差し替える口。
+// upscale は、拡大するかを、大きさを決めるたびに読む。hdr は、擬似 HDR で描くかを、大きさを決めるときと描くたびに読む。
+// 擬似 HDR で描けない (浮動小数点の描画先を作れないなど) ときは、onHDRUnavailable を呼び、以後は SDR で描く。
+// create と createCopy と setDrawingBuffer は、テストで処理を差し替える口。
 export function createYadifUpscaler({
   zoom = () => ({ x: 1, y: 1 }),
   strength = () => defaultSuperResolutionStrength,
+  upscale = () => true,
+  hdr = () => false,
   onUnavailable,
+  onHDRUnavailable,
   create = createUpscaler,
+  createCopy = createHDRCopy,
+  setDrawingBuffer = setHDRDrawingBuffer,
 }: {
   zoom?: () => { x: number; y: number };
   strength?: () => SuperResolutionStrength;
+  upscale?: () => boolean;
+  hdr?: () => boolean;
   onUnavailable?: (error: unknown) => void;
+  onHDRUnavailable?: (error: unknown) => void;
   create?: (gl: WebGL2RenderingContext) => Upscaler;
+  createCopy?: (gl: WebGL2RenderingContext) => HDRCopy;
+  setDrawingBuffer?: typeof setHDRDrawingBuffer;
 } = {}): YadifUpscaler {
   let context: WebGL2RenderingContext | null = null;
   let upscaler: Upscaler | null = null;
+  let copy: HDRCopy | null = null;
   let broken = false;
   let output: Size | null = null;
   let shown: Size | null = null;
+  // hdrBroken は、擬似 HDR で描けなかったこと。hdrDrawn は、描画先を擬似 HDR の形にしていること。
+  let hdrBroken = false;
+  let hdrDrawn = false;
+  const wantsHDR = () => !hdrBroken && hdr();
 
-  const fail = (error: unknown) => {
-    broken = true;
-    output = null;
+  const release = () => {
     try {
       upscaler?.destroy();
+      copy?.destroy();
     } catch {
       // コンテキストを失っていれば、片付けられなくてもよい。
     }
     upscaler = null;
+    copy = null;
+  };
+
+  // prepareDrawingBuffer は、描く直前に、描画先を擬似 HDR で描くかに合わせ、伸ばして描くかを返す。
+  // 描画先を変えられなければ、擬似 HDR をやめ、SDR の描画先に戻して描く。
+  const prepareDrawingBuffer = (gl: WebGL2RenderingContext, width: number, height: number) => {
+    const wanted = wantsHDR();
+    if (!wanted && !hdrDrawn) {
+      return false;
+    }
+    try {
+      setDrawingBuffer(gl, wanted, width, height);
+      hdrDrawn = wanted;
+    } catch (error) {
+      hdrBroken = true;
+      try {
+        setDrawingBuffer(gl, false, width, height);
+      } catch {
+        // 戻せなくても、伸ばさずに描けば SDR と同じ見え方になる。
+      }
+      hdrDrawn = false;
+      onHDRUnavailable?.(error);
+    }
+
+    return hdrDrawn;
+  };
+
+  const fail = (error: unknown) => {
+    broken = true;
+    // 以後は yadif がそのまま写す。描画先は浮動小数点のまま残りうるが、1 を超える値は書かないので、擬似 HDR ではない。
+    hdrDrawn = false;
+    output = null;
+    release();
     onUnavailable?.(error);
   };
 
@@ -203,16 +256,30 @@ export function createYadifUpscaler({
         return null;
       }
       try {
-        const scale = zoom();
-        shown = { width: Math.round(boxWidth * scale.x), height: Math.round(boxHeight * scale.y) };
-        const size = upscaleSize(
-          { width, height },
-          { width: boxWidth, height: boxHeight },
-          scale,
-          maxDimension(gl),
-        );
+        let size: Size | null = null;
+        if (upscale()) {
+          const scale = zoom();
+          shown = {
+            width: Math.round(boxWidth * scale.x),
+            height: Math.round(boxHeight * scale.y),
+          };
+          size = upscaleSize(
+            { width, height },
+            { width: boxWidth, height: boxHeight },
+            scale,
+            maxDimension(gl),
+          );
+        } else {
+          shown = null;
+        }
         if (size === null) {
           output = null;
+        }
+        // 拡大しなくても、擬似 HDR で描くなら、元の大きさのまま描く (yadif にそのまま写させない)。
+        // 擬似 HDR を切った直後も、描画先を SDR に戻し、伸ばさずに描き直すため、一度は元の大きさで描かせる。
+        // yadif は、大きさを返したときだけ最後のコマを描き直すので、止めている間も伸ばしたコマが残らない。
+        if (size === null && (wantsHDR() || hdrDrawn)) {
+          return { width, height };
         }
 
         return size;
@@ -227,11 +294,20 @@ export function createYadifUpscaler({
         return false;
       }
       try {
-        if (context !== gl || upscaler === null) {
-          upscaler?.destroy();
-          upscaler = create(gl);
+        if (context !== gl) {
+          release();
           context = gl;
         }
+        const expand = prepareDrawingBuffer(gl, outputWidth, outputHeight);
+        if (outputWidth === width && outputHeight === height) {
+          // 拡大しない。擬似 HDR のために、元の大きさのまま写す。
+          copy ??= createCopy(gl);
+          copy.draw(texture, flipped, width, height, expand);
+          output = null;
+
+          return true;
+        }
+        upscaler ??= create(gl);
         upscaler.draw(
           texture,
           flipped,
@@ -240,6 +316,7 @@ export function createYadifUpscaler({
           outputWidth,
           outputHeight,
           sharpnessStops[strength()],
+          expand,
         );
         output = { width: outputWidth, height: outputHeight };
 
@@ -256,14 +333,13 @@ export function createYadifUpscaler({
     shown() {
       return shown;
     },
+    hdr() {
+      return hdrDrawn;
+    },
     destroy() {
-      try {
-        upscaler?.destroy();
-      } catch {
-        // コンテキストを失っていれば、片付けられなくてもよい。
-      }
-      upscaler = null;
+      release();
       context = null;
+      hdrDrawn = false;
       output = null;
       shown = null;
     },
