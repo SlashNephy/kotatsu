@@ -29,6 +29,12 @@ const kindTerrestrial = "GR"
 // payloadKind は、知らせの payload の、種別 (BS、CS、GR などのチャンネル種別) の鍵。
 const payloadKind = "kind"
 
+// payloadAddedServices と payloadRemovedServices は、知らせの payload の、新しい局と終わった局を書いた文字列の並びの鍵 (#2034)。
+const (
+	payloadAddedServices   = "addedServices"
+	payloadRemovedServices = "removedServices"
+)
+
 // systemStatusURL は、知らせを押したときに開く、システムの状態の画面のパス。
 const systemStatusURL = "/admin/system"
 
@@ -107,14 +113,15 @@ func (c *Checker) Check(ctx context.Context) error {
 
 	// どれかが失敗しても、ほかの比べ方は進める。
 	return errors.Join(
-		c.checkSatellites(ctx, q, registeredTV(services)),
+		c.checkSatellites(ctx, q, registeredTV(services), namesOf(services)),
 		c.checkTerrestrial(ctx, q, services),
 		c.checkTuning(ctx, q, services),
 	)
 }
 
 // checkSatellites は、衛星の構成を、チューナーサーバーの衛星のテレビのサービス known と比べる。known がなければ比べない。
-func (c *Checker) checkSatellites(ctx context.Context, q *sqlc.Queries, known []Known) error {
+// names は、チューナーサーバーのサービスの名前で、終わった局を書くのに使う。
+func (c *Checker) checkSatellites(ctx context.Context, q *sqlc.Queries, known []Known, names map[Known]string) error {
 	if len(known) == 0 {
 		return nil
 	}
@@ -136,6 +143,8 @@ func (c *Checker) checkSatellites(ctx context.Context, q *sqlc.Queries, known []
 			slog.Int("added", change.Added), slog.Int("removed", change.Removed))
 		payload := map[string]any{
 			payloadKind: string(change.Kind), "networkId": int(change.NetworkID), "added": change.Added, "removed": change.Removed,
+			payloadAddedServices:   satelliteAddedLabels(obs, change.AddedServiceIDs),
+			payloadRemovedServices: registeredLabels(change.NetworkID, change.RemovedServiceIDs, names),
 		}
 		if err := c.notify(ctx, q, payload); err != nil {
 			// 知らせられなかったら、次の回にもう一度知らせる。
@@ -157,6 +166,7 @@ func (c *Checker) checkTerrestrial(ctx context.Context, q *sqlc.Queries, service
 		return fmt.Errorf("failed to load the terrestrial lineups: %w", err)
 	}
 	registered, channels := registeredTerrestrial(services)
+	names := namesOf(services)
 	for _, obs := range observations {
 		known, ok := registered[obs.NetworkID]
 		if !ok {
@@ -180,6 +190,8 @@ func (c *Checker) checkTerrestrial(ctx context.Context, q *sqlc.Queries, service
 		payload := map[string]any{
 			payloadKind: kindTerrestrial, "networkId": int(obs.NetworkID), "channel": channels[obs.NetworkID],
 			"added": len(added), "removed": len(removed),
+			payloadAddedServices:   broadcastLabels(obs.Services, added),
+			payloadRemovedServices: registeredLabels(obs.NetworkID, removed, names),
 		}
 		if err := c.notify(ctx, q, payload); err != nil {
 			return err
@@ -290,4 +302,84 @@ func fingerprintOf(known []Known) string {
 	slices.Sort(keys)
 
 	return strings.Join(keys, ",")
+}
+
+// namesOf は、チューナーサーバーのサービスの名前を、ネットワークとサービスで引けるようにする。
+func namesOf(services []*tunerserver.Service) map[Known]string {
+	names := map[Known]string{}
+	for _, service := range services {
+		if service == nil || service.Name == "" || service.NetworkID < 0 || service.NetworkID > 0xffff ||
+			service.ServiceID < 0 || service.ServiceID > 0xffff {
+			continue
+		}
+		names[Known{NetworkID: uint16(service.NetworkID), ServiceID: uint16(service.ServiceID)}] = service.Name
+	}
+
+	return names
+}
+
+// serviceLabel は、名前の分からないサービスを「サービス 103」の形で書く。
+func serviceLabel(serviceID uint16) string {
+	return "サービス " + strconv.Itoa(int(serviceID))
+}
+
+// satelliteAddedLabels は、衛星の新しい局を「BS15 のサービス 103」の形で書く (#2034)。
+// 放送の NIT には局の名前がないので、中継器とサービスの番号で書く。中継器はチューナーサーバーのチャンネルを探す手がかりになる。
+func satelliteAddedLabels(obs *Observation, serviceIDs []uint16) []string {
+	transponders := map[uint16]int{}
+	for _, stream := range obs.Streams {
+		number, ok := Transponder(obs.Kind, stream.FrequencyKHz)
+		if !ok {
+			continue
+		}
+		for _, service := range stream.Services {
+			if service.ServiceType == serviceTypeTV {
+				transponders[service.ServiceID] = number
+			}
+		}
+	}
+	labels := make([]string, 0, len(serviceIDs))
+	for _, id := range serviceIDs {
+		label := serviceLabel(id)
+		if number, ok := transponders[id]; ok {
+			label = string(obs.Kind) + strconv.Itoa(number) + " の" + label
+		}
+		labels = append(labels, label)
+	}
+
+	return labels
+}
+
+// broadcastLabels は、放送の SDT で読んだ局を、名前で書く。名前がなければ番号で書く (#2034)。
+func broadcastLabels(services []Service, serviceIDs []uint16) []string {
+	names := map[uint16]string{}
+	for _, service := range services {
+		names[service.ServiceID] = service.Name
+	}
+	labels := make([]string, 0, len(serviceIDs))
+	for _, id := range serviceIDs {
+		labels = append(labels, labelOf(names[id], id))
+	}
+
+	return labels
+}
+
+// registeredLabels は、チューナーサーバーにある局を、チューナーサーバーの名前で書く。名前がなければ番号で書く (#2034)。
+func registeredLabels(networkID uint16, serviceIDs []uint16, names map[Known]string) []string {
+	labels := make([]string, 0, len(serviceIDs))
+	for _, id := range serviceIDs {
+		labels = append(labels, labelOf(names[Known{NetworkID: networkID, ServiceID: id}], id))
+	}
+
+	return labels
+}
+
+// labelOf は、名前 name があれば「名前（サービス 103）」、なければ「サービス 103」と書く。
+// 同じ名前の局 (マルチ編成の 101 と 102 など) を見分けられるよう、名前にも番号を添える。
+func labelOf(name string, serviceID uint16) string {
+	if name == "" {
+		return serviceLabel(serviceID)
+	}
+
+	return name + "（" + serviceLabel(serviceID) + "）"
 }

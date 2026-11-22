@@ -252,22 +252,34 @@ func dramaRecordMessage(kind domain.NotificationKind, escape func(string) string
 	return text
 }
 
+// lineupServicesShown は、局の顔ぶれの知らせで、名前を並べる局の数の上限。超えた分は「ほか N 局」とまとめる。
+const lineupServicesShown = 5
+
 // lineupChangedMessage は、放送の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる文を作る (#1519)。
 // 衛星はネットワーク全体の変化を、地上波 (kind が GR) はチャンネル channel で受かる局の食い違いを書く。数が 0 の項目は書かない。
+// 新しい局と終わった局の並び (addedServices、removedServices) があれば局を書き、なければ数を書く (#2034)。
+// 並びを載せる前に届いた知らせも、数で読めるようにするためである。
 // 続けて選局できないチャンネル (unreachable) があれば、それを知らせる文にする。
 func lineupChangedMessage(kind, channel string, payload map[string]any) string {
 	if channels := texts(payload["unreachable"]); len(channels) > 0 {
 		return unreachableMessage(kind, channels)
 	}
 	counts := make([]string, 0, 2)
-	for _, item := range []struct{ key, label string }{{"added", "新しい局"}, {"removed", "終わった局"}} {
-		if n := count(payload[item.key]); n > 0 {
+	// 局を並べたら、項目の中の「、」と見分けられるよう、項目を「／」でつなぐ。
+	separator := "、"
+	for _, item := range []struct{ key, servicesKey, label string }{
+		{"added", "addedServices", "新しい局"}, {"removed", "removedServices", "終わった局"},
+	} {
+		if services := texts(payload[item.servicesKey]); len(services) > 0 {
+			counts = append(counts, item.label+": "+lineupServices(services))
+			separator = "／"
+		} else if n := count(payload[item.key]); n > 0 {
 			counts = append(counts, fmt.Sprintf("%s %d", item.label, n))
 		}
 	}
 	detail := ""
 	if len(counts) > 0 {
-		detail = "（" + strings.Join(counts, "、") + "）"
+		detail = "（" + strings.Join(counts, separator) + "）"
 	}
 	if kind == "GR" {
 		where := "地上波"
@@ -282,6 +294,20 @@ func lineupChangedMessage(kind, channel string, payload map[string]any) string {
 	}
 
 	return kind + " のチャンネルが放送で変わりました" + detail + "。チューナーサーバーのチャンネルをスキャンし直してください"
+}
+
+// lineupServices は、局の並びを「、」でつなぐ。lineupServicesShown を超えた分は「ほか N 局」とまとめる。
+// 名前の全角の英数字は、ほかの通知と同じく半角にする。
+func lineupServices(services []string) string {
+	shown := make([]string, 0, min(len(services), lineupServicesShown)+1)
+	for _, service := range services[:min(len(services), lineupServicesShown)] {
+		shown = append(shown, halfwidth.Convert(service))
+	}
+	if rest := len(services) - lineupServicesShown; rest > 0 {
+		shown = append(shown, fmt.Sprintf("ほか %d 局", rest))
+	}
+
+	return strings.Join(shown, "、")
 }
 
 // unreachableMessage は、チャンネル種別 kind のチャンネル channels の選局が続けて失敗していることを知らせる文を作る (#1519)。

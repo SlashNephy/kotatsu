@@ -5,6 +5,7 @@ package lineup
 
 import (
 	"math"
+	"slices"
 	"sync"
 	"time"
 
@@ -85,6 +86,8 @@ type Stream struct {
 type Service struct {
 	ServiceID   uint16 `json:"serviceId"`
 	ServiceType uint8  `json:"serviceType"`
+	// Name は、SDT のサービス記述子のサービス名。NIT から読んだ衛星のサービスと、前に書いた構成では空 (#2034)。
+	Name string `json:"name,omitempty"`
 }
 
 // Observation は、ある時点で読んだ、1 つのネットワークの NIT[actual] の構成。
@@ -111,6 +114,9 @@ type Change struct {
 	// Added は、放送にあって、チューナーサーバーにないサービスの数。Removed は、その逆。
 	Added   int
 	Removed int
+	// AddedServiceIDs と RemovedServiceIDs は、Added と Removed のサービスの service_id の昇順 (#2034)。
+	AddedServiceIDs   []uint16
+	RemovedServiceIDs []uint16
 }
 
 // DefaultRecheckInterval は、同じ version の食い違いを 2 回目と数えるまでに、あける時間。
@@ -249,17 +255,22 @@ func compare(obs *Observation, broadcast map[uint16]bool, known []Known) *Change
 			registered[service.ServiceID] = true
 		}
 	}
-	change := &Change{Kind: obs.Kind, NetworkID: obs.NetworkID, Added: 0, Removed: 0}
+	change := &Change{
+		Kind: obs.Kind, NetworkID: obs.NetworkID, Added: 0, Removed: 0, AddedServiceIDs: []uint16{}, RemovedServiceIDs: []uint16{},
+	}
 	for id := range broadcast {
 		if !registered[id] {
-			change.Added++
+			change.AddedServiceIDs = append(change.AddedServiceIDs, id)
 		}
 	}
 	for id := range registered {
 		if !broadcast[id] {
-			change.Removed++
+			change.RemovedServiceIDs = append(change.RemovedServiceIDs, id)
 		}
 	}
+	slices.Sort(change.AddedServiceIDs)
+	slices.Sort(change.RemovedServiceIDs)
+	change.Added, change.Removed = len(change.AddedServiceIDs), len(change.RemovedServiceIDs)
 
 	return change
 }

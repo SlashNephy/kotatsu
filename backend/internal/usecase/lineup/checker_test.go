@@ -141,6 +141,7 @@ func TestChecker(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, map[string]any{
 		keyKind: "BS", "networkId": float64(4), "added": float64(2), "removed": float64(1), "url": systemURL,
+		"addedServices": []any{"BS1 のサービス 103", "BS1 のサービス 222"}, "removedServices": []any{"BS（サービス 191）"},
 	}, got[0])
 
 	// 続いている間は、同じ知らせを繰り返さない。
