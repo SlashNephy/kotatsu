@@ -157,7 +157,8 @@ function createNetwork(executor: Executor, hold?: Hold) {
 // registerStreamWorker は、ライブ視聴と録画の再生で、デモの映像を繰り返して流す Service Worker (demo/stream-sw.js) を登録する。
 // Service Worker は、ES モジュール (demo/stream-loop.js) を読むので、モジュールとして登録する。
 // 登録を待たずに画面を出す。Service Worker は登録した直後のページも受け持つので、ライブ視聴を開くまでには間に合う。
-function registerStreamWorker(): void {
+// Storybook の画面の Story (#2056) も、映像を流すのに使う。
+export function registerStreamWorker(): void {
   if (!('serviceWorker' in navigator)) {
     return;
   }

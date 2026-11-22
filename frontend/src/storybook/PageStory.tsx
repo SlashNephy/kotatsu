@@ -7,7 +7,12 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { useEffect, useState } from 'react';
 import { RelayEnvironmentProvider } from 'react-relay';
 
-import { createDemoEnvironment, interceptFetch, type DemoEnvironmentOptions } from '../demo';
+import {
+  createDemoEnvironment,
+  interceptFetch,
+  registerStreamWorker,
+  type DemoEnvironmentOptions,
+} from '../demo';
 import type { Executor } from '../demo/executor';
 import { routeTree } from '../routeTree.gen';
 
@@ -30,6 +35,8 @@ export function PageStory({ url, overrides, hold, auth }: PageStoryProps) {
   // failure は、パスを返す関数が失敗したときの理由。Story を空のまま止めず、理由を出す。
   const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
+    // ライブ視聴と録画の再生で、デモの映像を繰り返して流す (静的なデモと同じ Service Worker)。
+    registerStreamWorker();
     // Relay を通らずに呼ぶ所 (ログインの画面の /internal/auth/* など) にも、デモの応答を返す。Story を閉じたら戻す。
     const restore = interceptFetch(executor, captures, auth);
     let cancelled = false;

@@ -168,3 +168,28 @@ export function all(...cleanups: (() => void)[]): () => void {
     }
   };
 }
+
+// nodeWith は、ID が id のノード (サービスや番組) のフィールドを、patch で差し替える。
+export function nodeWith(id: string, patch: Record<string, unknown>) {
+  return (root: DemoRoot) => ({
+    node: (args: { id: string }) => {
+      const node = call<Record<string, unknown> | null>(root, 'node', args);
+
+      return node !== null && args.id === id ? { ...node, ...patch } : node;
+    },
+  });
+}
+
+// liveStreamScrambled は、afterMs 後に、サービス service がスクランブルされたまま届くと決めたという知らせを流す。
+// 知らせのほかは、デモの既定の知らせのまま流す。
+export function liveStreamScrambled(service: string, afterMs = 3_000) {
+  return (root: DemoRoot) => ({
+    viewerEvents: async function* () {
+      await new Promise((resolve) => setTimeout(resolve, afterMs));
+      yield {
+        viewerEvents: { liveStreamScrambled: { service, decidedAt: new Date().toISOString() } },
+      };
+      yield* call<AsyncIterable<unknown>>(root, 'viewerEvents');
+    },
+  });
+}
