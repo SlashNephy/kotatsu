@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent } from 'storybook/test';
 
+import { replaceProperty } from '../conditions';
 import { failing, holdAll, PageStory } from '../PageStory';
 
 // セキュリティの設定 (/settings/security) の画面 (#2056)。認証アプリ、パスキー、API トークン、予約のカレンダー、IPTV の配信、
@@ -124,14 +125,7 @@ export const PasskeyRenaming: Story = {
 // この端末がパスキーを使えないとき (WebAuthn のないブラウザ)。
 export const PasskeyUnavailable: Story = {
   args: { overrides: base },
-  beforeEach: () => {
-    const original = window.PublicKeyCredential;
-    Object.defineProperty(window, 'PublicKeyCredential', { value: undefined, configurable: true });
-
-    return () => {
-      Object.defineProperty(window, 'PublicKeyCredential', { value: original, configurable: true });
-    };
-  },
+  beforeEach: () => replaceProperty(window, 'PublicKeyCredential', undefined),
 };
 
 // API トークンを発行しているとき。

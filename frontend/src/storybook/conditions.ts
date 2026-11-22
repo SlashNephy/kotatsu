@@ -162,7 +162,8 @@ export function withStorage(entries: Record<string, string>): () => void {
 // all は、beforeEach の後片付けをまとめる。
 export function all(...cleanups: (() => void)[]): () => void {
   return () => {
-    for (const cleanup of cleanups.reverse()) {
+    // 配列を並べ替えずに、後ろから片付ける。2 度呼ばれても、同じ順に片付ける。
+    for (const cleanup of cleanups.toReversed()) {
       cleanup();
     }
   };
