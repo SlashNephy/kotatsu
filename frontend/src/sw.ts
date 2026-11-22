@@ -85,6 +85,8 @@ self.addEventListener('push', (event) => {
       body: payload.body,
       tag: payload.eventId,
       icon: '/icons/icon-192.png',
+      // Android のステータスバーに出す 1 色のアイコン (#2061)。指定しないと、ブラウザーのアイコンか白い四角になる。
+      badge: '/icons/badge-96.png',
       data: { kind: payload.kind, url: notificationPath(payload.url) },
     }),
   );
