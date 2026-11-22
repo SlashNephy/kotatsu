@@ -40,6 +40,13 @@ func TestSyncAllStoresSearchGrams(t *testing.T) {
 	assert.Equal(t, 1, result.ProgramsUpserted)
 	assert.Equal(t, []string{"目印"}, grams())
 
+	// 正規化すると同じになる書き換え (全角と半角) でも、DB の gram を残す。
+	require.NoError(t, f.fake.RenameProgram(programID(6), widen(name)))
+	result, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ProgramsUpserted)
+	assert.Equal(t, []string{"目印"}, grams())
+
 	// 詳細が変わったら、作り直す。
 	require.NoError(t, f.fake.ChangeProgramExtended(programID(6), map[string]string{"出演者": "こたつ太郎"}))
 	_, err = f.reconciler.SyncAll(t.Context())
@@ -83,4 +90,17 @@ func TestSyncAllFillsSearchGrams(t *testing.T) {
 	assert.Equal(t, match.SearchGrams("過去の番組", "猫が出る", "出演者\nABC太郎\n"), archived)
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE search_grams IS NULL"))
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM program_archives WHERE event_id = 9001 AND search_grams = '{}'"))
+}
+
+// widen は、ASCII の英数字を全角にする。NFKC で正規化すると元に戻る。
+func widen(s string) string {
+	out := make([]rune, 0, len(s))
+	for _, r := range s {
+		if ('0' <= r && r <= '9') || ('A' <= r && r <= 'Z') || ('a' <= r && r <= 'z') {
+			r += 0xFEE0
+		}
+		out = append(out, r)
+	}
+
+	return string(out)
 }

@@ -679,7 +679,8 @@ func filterPrograms(programs []*tunerserver.Program, known map[int64]bool) []*tu
 }
 
 // writePrograms は、番組 programs を書く。previous は、書く前の DB の番組 (diffPrograms の previous)。
-// 番組名、概要、詳細が前と同じ番組は、番組の検索の gram (#966) を送らず、DB の gram を残す。
+// 正規化した番組名、概要、詳細が前と同じ番組は、番組の検索の gram (#966) を送らず、DB の gram を残す。
+// 全角と半角のような、正規化すると同じになる書き換えでは、gram も変わらないからである。
 func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, previous map[programKey]*program, now time.Time) error {
 	if len(programs) == 0 {
 		return nil
@@ -695,7 +696,7 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, pr
 		series, number := episodeSeriesOf(p.Name, p.Description, extendedNormalized, p.SeriesEpisode)
 		nameNormalized, descriptionNormalized := domain.Normalize(p.Name), domain.Normalize(p.Description)
 		var grams []string
-		if old, ok := previous[p.key()]; !ok || old.Name != p.Name || old.Description != p.Description || !maps.Equal(old.Extended, p.Extended) {
+		if old, ok := previous[p.key()]; !ok || !sameSearchText(old, nameNormalized, descriptionNormalized, extendedNormalized) {
 			grams = match.SearchGrams(nameNormalized, descriptionNormalized, extendedNormalized)
 		}
 		params = append(params, sqlc.UpsertProgramsParams{
@@ -900,4 +901,10 @@ func recordRewrites(ctx context.Context, q *sqlc.Queries, diff *programDiff, now
 	})
 
 	return errors.Join(errs...)
+}
+
+// sameSearchText は、前の番組 old の正規化した番組名、概要、詳細が、新しいものと同じかどうかを返す (#966)。
+func sameSearchText(old *program, nameNormalized, descriptionNormalized, extendedNormalized string) bool {
+	return domain.Normalize(old.Name) == nameNormalized && domain.Normalize(old.Description) == descriptionNormalized &&
+		domain.NormalizeExtended(old.Extended) == extendedNormalized
 }
