@@ -40,7 +40,7 @@ func TestTunerServerEvents(t *testing.T) {
 	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeTunerChanged, ServiceID: 0}, event)
 	event, err = stream.Next()
 	require.NoError(t, err)
-	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}, event)
+	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeEPGChanged, ServiceID: 0}, event)
 	// 5 回目の問い合わせ (巡回カウンタ 8 より後) は保留される。Close で切る。
 	require.Eventually(t, func() bool { return len(s.received()) == 5 }, testWait, testTick)
 	require.NoError(t, stream.Close())
@@ -95,7 +95,7 @@ func TestTunerServerEventsAfterResponseTimeout(t *testing.T) {
 
 	event, err := stream.Next()
 	require.NoError(t, err)
-	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}, event)
+	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeEPGChanged, ServiceID: 0}, event)
 	received := s.received()
 	counts := make([]uint32, 0, len(received))
 	for _, r := range received[:4] {
