@@ -1,3 +1,5 @@
+import { runPlay } from './play.js';
+
 // 測定のページ。ボタンからも、ブラウザの自動操作 (window.runDecode、window.runConvert) からも測れる。
 const log = document.getElementById('log');
 const append = (result) => {
@@ -126,6 +128,12 @@ const runConvert = (file, { pictureWorkers = 1, save = false } = {}) =>
 
 window.runDecode = runDecode;
 window.runConvert = runConvert;
+// runPlay は、音を鳴らすので、先にページを 1 回押してから呼ぶ (自動再生の制限)。
+window.runPlay = async (file, variant, options) => {
+  const result = await runPlay(file, variant, options);
+  append(result);
+  return result;
+};
 
 const words = (id) => document.getElementById(id).value.split(/\s+/).filter(Boolean);
 const run = async ({ decode, convert }) => {
@@ -140,3 +148,8 @@ const run = async ({ decode, convert }) => {
 document.getElementById('run-decode').onclick = () => run({ decode: true, convert: false });
 document.getElementById('run-convert').onclick = () => run({ decode: false, convert: true });
 document.getElementById('run-all').onclick = () => run({ decode: true, convert: true });
+document.getElementById('run-play').onclick = async () => {
+  for (const file of words('files')) {
+    for (const variant of words('variants')) await window.runPlay(file, variant);
+  }
+};

@@ -10,7 +10,10 @@
 - パケットを落とした TS で、それぞれが出せるコマの数
 - WASM の組み方（最適化の段階、SIMD、LTO）による速さと大きさ
 
-描画（WebGL2）と音の時計は、まだ入っていません。WASM の方式は、デコードまでを測ります。
+- 実時間で再生したときの、段ごとの時間（デコード、テクスチャへの上げ、描画）、画面の切り替わりごとに出したフィールド（重複と飛び）、捨てたコマ、時計とのずれ
+
+実時間の再生（`runPlay`）は、worker の OffscreenCanvas に WebGL2 で描き、音を Web Audio で鳴らします。時計は、鳴っている音の位置（`getOutputTimestamp()`）で、画面の切り替わりの時刻はメインスレッドの `requestAnimationFrame` から worker へ送ります。インタレースのコマは、フィールドごとに、織りと bob を混ぜて描きます（前のコマと比べて止まっている画素は織る）。音量は 0 で鳴らします。
+決めるパラメーターは、`page/play-worker.js` の `params` に仮の値を置いています。
 
 ## 要るもの
 
@@ -66,6 +69,7 @@ node frontend/bench/wasm-decode/summarize.mjs results.jsonl
 
 ブラウザの自動操作で測るときは、ページの `window.runDecode(映像, 組み方)` と `window.runConvert(映像, { save })` を呼びます。
 どちらも結果のオブジェクトを返します。
+実時間の再生は `window.runPlay(映像, 組み方, { seconds })` です。音を鳴らすので、先にページを 1 回押してから呼びます（自動再生の制限）。
 
 ## mpeg2toh264 の出力を調べる
 

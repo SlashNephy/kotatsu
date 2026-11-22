@@ -41,6 +41,12 @@
     <button id="run-decode" type="button">デコードを測る</button>
     <button id="run-convert" type="button">変換を測る</button>
     <button id="run-all" type="button">両方を測る</button>
+    <button id="run-play" type="button">再生して測る</button>
+    <p>
+      「再生して測る」は、WASM でデコードした映像を WebGL2 で描き、音を Web Audio
+      で鳴らして、実時間で再生します（音量は 0）。映像ごとに 25 秒かかります。
+    </p>
+    <div id="stage"></div>
     <label for="log">結果</label>
     <textarea id="log" readonly></textarea>
     <script type="module" src="./main.js"></script>
