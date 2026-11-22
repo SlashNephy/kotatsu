@@ -71,6 +71,17 @@ type AnimeFollowingViewing struct {
 	Notes         *string
 }
 
+type AnimeFollowingWatching struct {
+	UserID      uuid.UUID
+	Destination string
+	Username    string
+	Name        string
+	AvatarUrl   *string
+	WorkID      int32
+	Title       string
+	FetchedAt   time.Time
+}
+
 type AnimeImport struct {
 	Source     string
 	Etag       *string
