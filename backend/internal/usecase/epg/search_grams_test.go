@@ -40,11 +40,11 @@ func TestSyncAllStoresSearchGrams(t *testing.T) {
 	assert.Equal(t, 1, result.ProgramsUpserted)
 	assert.Equal(t, []string{"目印"}, grams())
 
-	// 正規化すると同じになる書き換え (全角と半角) でも、DB の gram を残す。
+	// 正規化すると同じになる書き換え (全角と半角) は、書き方だけの違いなので番組を書き直さず (#2051)、DB の gram を残す。
 	require.NoError(t, f.fake.RenameProgram(programID(6), widen(name)))
 	result, err = f.reconciler.SyncAll(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 1, result.ProgramsUpserted)
+	assert.Equal(t, 0, result.ProgramsUpserted)
 	assert.Equal(t, []string{"目印"}, grams())
 
 	// 詳細が変わったら、作り直す。
