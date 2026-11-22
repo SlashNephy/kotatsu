@@ -1103,3 +1103,48 @@ func TestSyncServiceListRecordsServicesMissingFromUpstream(t *testing.T) {
 	assert.Equal(t, 0, result.ServicesPresenceChanged)
 	assert.Equal(t, fixtureServices-1, f.count(t, "SELECT count(*) FROM services WHERE gone_at IS NULL"))
 }
+
+// TestExtendedWithNotationOf は、詳細の見出しと本文のうち、書き方だけ違うものを DB の書き方にし、取り違えうる見出しはそのまま書くことを確かめる (#2051)。
+func TestExtendedWithNotationOf(t *testing.T) {
+	t.Parallel()
+
+	// waveHeading と waveShort は、波ダッシュで書いた見出し。tildeShort は、全角チルダで書いた見出し。
+	const waveHeading, waveShort, tildeShort = "内容〜前半〜", "内容〜", "内容～"
+	tests := []struct {
+		name          string
+		upstream, old map[string]string
+		want          map[string]string
+	}{
+		{
+			name:     "見出しの書き方だけが違う",
+			upstream: map[string]string{"内容～前半～": "霧笛の夜～港の灯～"},
+			old:      map[string]string{waveHeading: "霧笛の夜〜港の灯〜"},
+			want:     map[string]string{waveHeading: "霧笛の夜〜港の灯〜"},
+		},
+		{
+			name:     "本文が変われば、見出しだけ DB の書き方にする",
+			upstream: map[string]string{"内容～前半～": "別の話"},
+			old:      map[string]string{waveHeading: "霧笛の夜"},
+			want:     map[string]string{waveHeading: "別の話"},
+		},
+		{
+			name:     "書き方だけ違う見出しが DB に 2 つあれば、上流の見出しのまま",
+			upstream: map[string]string{"内容~": "霧笛"},
+			old:      map[string]string{waveShort: "霧笛", tildeShort: "霧笛"},
+			want:     map[string]string{"内容~": "霧笛"},
+		},
+		{
+			name:     "上流が DB の見出しも使っていれば、上流の見出しのまま",
+			upstream: map[string]string{tildeShort: "霧笛", waveShort: "港"},
+			old:      map[string]string{waveShort: "港"},
+			want:     map[string]string{tildeShort: "霧笛", waveShort: "港"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, epg.ExtendedWithNotationOf(tt.upstream, tt.old))
+		})
+	}
+}

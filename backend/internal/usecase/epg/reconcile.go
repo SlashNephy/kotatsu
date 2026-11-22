@@ -686,17 +686,38 @@ func withNotationOf(p, old *program) *program {
 		copied.Description = old.Description
 	}
 	if p.Extended != nil {
-		extended := make(map[string]string, len(p.Extended))
-		for heading, text := range p.Extended {
-			if oldText, ok := old.Extended[heading]; ok && sameNotation(text, oldText) {
-				text = oldText
-			}
-			extended[heading] = text
-		}
-		copied.Extended = extended
+		copied.Extended = extendedWithNotationOf(p.Extended, old.Extended)
 	}
 
 	return &copied
+}
+
+// extendedWithNotationOf は、上流の詳細 extended の見出しと本文のうち、DB の詳細 old と書き方だけが違うものを、old の書き方にして返す (#2051)。
+// 見出しも書き方だけ変わることがあるので、同じ見出しがなければ、書き方だけ違う見出しを探す。
+// 書き方だけ違う見出しが old に 2 つ以上あるときと、old の見出しを上流もそのまま使っているときは、取り違えないよう、上流の見出しのまま書く。
+func extendedWithNotationOf(extended, old map[string]string) map[string]string {
+	headings := map[string][]string{}
+	for heading := range old {
+		key := notationKey(heading)
+		headings[key] = append(headings[key], heading)
+	}
+	out := make(map[string]string, len(extended))
+	for heading, text := range extended {
+		target := heading
+		if _, ok := old[heading]; !ok {
+			if candidates := headings[notationKey(heading)]; len(candidates) == 1 {
+				if _, taken := extended[candidates[0]]; !taken {
+					target = candidates[0]
+				}
+			}
+		}
+		if oldText, ok := old[target]; ok && sameNotation(text, oldText) {
+			text = oldText
+		}
+		out[target] = text
+	}
+
+	return out
 }
 
 // sameNotation は、a と b が、書き方だけ違う同じ文かどうかを返す。正規化 (domain.Normalize。NFKC と、囲み文字を括弧の書き方にする)

@@ -15,3 +15,8 @@ func BatchEvents(events []*tunerserver.Event) (map[int64]struct{}, bool, bool) {
 
 	return batch.serviceIDs, batch.services, batch.all
 }
+
+// ExtendedWithNotationOf は extendedWithNotationOf。
+func ExtendedWithNotationOf(extended, old map[string]string) map[string]string {
+	return extendedWithNotationOf(extended, old)
+}
