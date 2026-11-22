@@ -217,13 +217,27 @@ func (s *Syncer) consume(ctx context.Context, stream tunerserver.EventStream) er
 	}
 }
 
-// apply は、まとめたイベントを反映する。サービスが変わったときは全量を、番組が変わったときはそのサービスを突き合わせる。
+// apply は、まとめたイベントを反映する。番組表の全体が変わったかもしれないときは全量を、サービスが変わったときはサービスの一覧を、
+// 番組が変わったときはそのサービスを突き合わせる。サービスの一覧で、増えたか変わったサービスがあれば、そのサービスの番組も突き合わせる。
+// サービスのイベントでは、全量を突き合わせない (#2035)。番組の正しさは、定期的な全量の突き合わせで保つ。
 func (s *Syncer) apply(ctx context.Context, batch *eventBatch) error {
 	if batch.tuners && s.opts.OnTunerEvent != nil {
 		s.opts.OnTunerEvent()
 	}
-	if batch.services {
+	if batch.all {
 		return s.syncAll(ctx)
+	}
+	if batch.services {
+		result, changed, err := s.reconciler.SyncServiceList(ctx)
+		if err != nil {
+			return err
+		}
+		if result.changed() {
+			s.logResult(ctx, "applied EPG service events", result)
+		}
+		for _, id := range changed {
+			batch.serviceIDs[id] = struct{}{}
+		}
 	}
 	if len(batch.serviceIDs) == 0 {
 		return nil
@@ -270,14 +284,16 @@ func readEvents(ctx context.Context, stream tunerserver.EventStream, events chan
 type eventBatch struct {
 	// serviceIDs は、番組が変わったサービス。
 	serviceIDs map[int64]struct{}
-	// services は、サービスが変わったかどうか。
+	// services は、サービスが変わったかどうか。サービスの一覧を突き合わせる。
 	services bool
+	// all は、番組表の全体が変わったかもしれないかどうか。全量を突き合わせる。
+	all bool
 	// tuners は、チューナーのイベントが届いたかどうか。
 	tuners bool
 }
 
 func newEventBatch() *eventBatch {
-	return &eventBatch{serviceIDs: map[int64]struct{}{}, services: false, tuners: false}
+	return &eventBatch{serviceIDs: map[int64]struct{}{}, services: false, all: false, tuners: false}
 }
 
 // add は、イベントから変化のあったものを読み取る。
@@ -287,6 +303,8 @@ func (b *eventBatch) add(event *tunerserver.Event) {
 		b.serviceIDs[event.ServiceID] = struct{}{}
 	case tunerserver.EventTypeServiceChanged:
 		b.services = true
+	case tunerserver.EventTypeEPGChanged:
+		b.all = true
 	case tunerserver.EventTypeTunerChanged:
 		b.tuners = true
 	}

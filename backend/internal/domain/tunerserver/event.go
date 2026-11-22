@@ -12,6 +12,7 @@ import "io"
 // ProgramRemoved = program-removed // 番組が消えたこと。Event の ServiceID に、番組が変わったサービスを持つ。
 // ServiceChanged = service-changed // サービスが作られたか、変わったか、消えたこと。
 // TunerChanged = tuner-changed // チューナーの状態か構成が変わったこと。
+// EPGChanged = epg-changed // 番組表の全体が変わったかもしれないこと。どのサービスの番組が変わったかは持たない。
 // )
 type EventType string
 

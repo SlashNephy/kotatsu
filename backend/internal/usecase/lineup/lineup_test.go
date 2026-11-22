@@ -88,7 +88,9 @@ func TestComparer(t *testing.T) {
 		// want は知らせる食い違い。nil なら知らせない。
 		want *lineup.Change
 	}
-	added := &lineup.Change{Kind: lineup.KindBS, NetworkID: 4, Added: 1, Removed: 1}
+	added := &lineup.Change{
+		Kind: lineup.KindBS, NetworkID: 4, Added: 1, Removed: 1, AddedServiceIDs: []uint16{103}, RemovedServiceIDs: []uint16{102},
+	}
 	tests := []struct {
 		name  string
 		steps []step
@@ -175,7 +177,9 @@ func TestComparerForget(t *testing.T) {
 	clk.Advance(interval)
 	change, ok := comparer.Observe(observation(1, 101), known(141))
 	require.True(t, ok)
-	assert.Equal(t, &lineup.Change{Kind: lineup.KindBS, NetworkID: 4, Added: 1, Removed: 0}, change)
+	assert.Equal(t, &lineup.Change{
+		Kind: lineup.KindBS, NetworkID: 4, Added: 1, Removed: 0, AddedServiceIDs: []uint16{101}, RemovedServiceIDs: []uint16{},
+	}, change)
 }
 
 // TestComparerUnconfirm は、知らせられなかった食い違いを戻すと、同じ version を次に読んだときに、間隔を待たずにもう一度知らせることを確かめる。
@@ -201,7 +205,9 @@ func TestComparerUnconfirm(t *testing.T) {
 	comparer.Unconfirm(observation(1, 101))
 	change, ok := comparer.Observe(observation(1, 101), known(141))
 	require.True(t, ok)
-	assert.Equal(t, &lineup.Change{Kind: lineup.KindBS, NetworkID: 4, Added: 1, Removed: 0}, change)
+	assert.Equal(t, &lineup.Change{
+		Kind: lineup.KindBS, NetworkID: 4, Added: 1, Removed: 0, AddedServiceIDs: []uint16{101}, RemovedServiceIDs: []uint16{},
+	}, change)
 }
 
 // TestComparerCS は、CS も同じ規則で比べ、構成がないとき (nil) は比べないことを確かめる。
@@ -223,5 +229,7 @@ func TestComparerCS(t *testing.T) {
 	clk.Advance(interval)
 	change, ok := comparer.Observe(cs, known)
 	require.True(t, ok)
-	assert.Equal(t, &lineup.Change{Kind: lineup.KindCS, NetworkID: 6, Added: 1, Removed: 0}, change)
+	assert.Equal(t, &lineup.Change{
+		Kind: lineup.KindCS, NetworkID: 6, Added: 1, Removed: 0, AddedServiceIDs: []uint16{56}, RemovedServiceIDs: []uint16{},
+	}, change)
 }

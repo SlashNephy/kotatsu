@@ -13,15 +13,6 @@ LEFT JOIN recording_anime_episodes e ON e.recording_id = rec.id AND e.count_star
 LEFT JOIN recording_drama_matches d ON d.recording_id = rec.id
 WHERE rec.id = @id;
 
--- name: ListSeriesNextPrograms :many
--- シリーズ名が series で、話数が number より大きく、since から until までに始まる、終了時刻の決まった番組を返す (#1564)。
-SELECT service_id, event_id, start_at, episode_number::double precision AS episode_number, related_items
-FROM programs
-WHERE series = @series::text AND episode_number IS NOT NULL AND episode_number > @number::bigint
-  AND start_at >= @since AND start_at < @until AND NOT end_undecided
-ORDER BY start_at, service_id, event_id
-LIMIT @max_rows::integer;
-
 -- name: ListAnimeNextPrograms :many
 -- しょぼいカレンダーの TID に結びついた番組のうち、話数が count より大きく、since から until までに始まる、
 -- 終了時刻の決まった番組を返す (#1564)。2 話連続の放送のように 1 つの番組が複数の話に結びついたら、小さい話数で 1 行にする。
@@ -46,10 +37,6 @@ WHERE m.tmdb_series_id = @tmdb_series_id::integer AND m.season_number = @season_
   AND p.start_at >= @since AND p.start_at < @until AND NOT p.end_undecided
 ORDER BY p.start_at, p.service_id, p.event_id
 LIMIT @max_rows::integer;
-
--- name: ListRecordedSeriesEpisodes :many
--- シリーズ名が series の録画履歴の、回を読む元 (#1564)。録った回を、続きの放送から外すのに使う。
-SELECT name, description, series_episode FROM recording_history WHERE series = @series::text;
 
 -- name: ListRecordedAnimeCounts :many
 -- TID が syobocal_tid の話に結びついた録画履歴の話数 (#1564)。録った回を、続きの放送から外すのに使う。

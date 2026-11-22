@@ -136,6 +136,34 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 	return r.apply(ctx, services, programs)
 }
 
+// SyncServiceList は、サービスの一覧だけを突き合わせる。番組は突き合わせない (#2035)。
+// サービスのイベントで使う。Mirakurun 互換のチューナーサーバーは、EPG の取得が進むたびにも service の update を送るので、
+// そのたびに全量を突き合わせると、全量の突き合わせの間隔によらず、数十秒ごとに全量を読むことになる。
+// 返す changed は、DB になかったか、DB の行と違っていたサービスの ID。呼ぶ側が、そのサービスの番組を突き合わせる。
+func (r *Reconciler) SyncServiceList(ctx context.Context) (*Result, []int64, error) {
+	upstreamServices, err := r.upstream.Services(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch services: %w", err)
+	}
+	currentServices, err := sqlc.New(r.pool).ListServices(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list services: %w", err)
+	}
+	services := diffServices(upstreamServices, currentServices)
+	changed := make([]int64, 0, len(services.upserts))
+	for _, service := range services.upserts {
+		changed = append(changed, service.ID)
+	}
+	result, err := r.apply(ctx, services, &programDiff{
+		upserts: []*program{}, deletes: []*program{}, previous: map[programKey]*program{}, fillSeries: false,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return result, changed, nil
+}
+
 // keepSilentServices は、上流が番組を 1 つも返さなかったサービスの番組を、消すものから除く (#518)。
 // チューナーサーバーが一時的に空の一覧を返すと、未来の番組と、そこから作ったルール予約が全部消えてしまう。
 func keepSilentServices(deletes []*program, upstream []*tunerserver.Program) []*program {
@@ -148,7 +176,7 @@ func keepSilentServices(deletes []*program, upstream []*tunerserver.Program) []*
 }
 
 // SyncServices は、指定したサービスの番組だけを突き合わせる。イベントで変化が分かったサービスに使う。
-// DB に無いサービスは飛ばす。サービス自体は、全量の突き合わせで足す。
+// DB に無いサービスは飛ばす。サービス自体は、全量の突き合わせか、サービスの一覧の突き合わせ (SyncServiceList) で足す。
 func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Result, error) {
 	q := sqlc.New(r.pool)
 	upstreamPrograms := []*tunerserver.Program{}

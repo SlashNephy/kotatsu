@@ -627,6 +627,18 @@ CREATE TABLE broadcast_lineups (
   observed_at timestamptz NOT NULL
 );
 
+-- 放送の EIT[p/f] (自 TS) で読んだ、衛星のサービスの番組の有無 (#2034)。録画とタイムシフトの TS から mikan が書き、
+-- neko が、NIT に載っていても番組のないサービスを、新しい局と数えないのに使う。サービスごとに、最後に読んだものだけを持つ。
+CREATE TABLE broadcast_service_activities (
+  network_id integer NOT NULL,
+  service_id integer NOT NULL,
+  transport_stream_id integer NOT NULL,
+  -- has_events は、放送中か次の番組のどちらかが載っていたかどうか。両方のセクションを読んでから書く。
+  has_events boolean NOT NULL,
+  observed_at timestamptz NOT NULL,
+  PRIMARY KEY (network_id, service_id)
+);
+
 -- 放送の SDT[actual] で読んだ、地上波のネットワークのテレビのサービス (#1519)。録画とタイムシフトの TS から mikan が書き、
 -- neko が、チューナーサーバーのサービスの一覧と比べる。ネットワークごとに、最後に読んだものだけを持つ。
 CREATE TABLE terrestrial_lineups (

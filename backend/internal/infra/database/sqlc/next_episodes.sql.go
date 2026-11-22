@@ -487,37 +487,6 @@ func (q *Queries) ListRecordedDramaEpisodesBatch(ctx context.Context, arg ListRe
 	return items, nil
 }
 
-const listRecordedSeriesEpisodes = `-- name: ListRecordedSeriesEpisodes :many
-SELECT name, description, series_episode FROM recording_history WHERE series = $1::text
-`
-
-type ListRecordedSeriesEpisodesRow struct {
-	Name          string
-	Description   string
-	SeriesEpisode *int32
-}
-
-// シリーズ名が series の録画履歴の、回を読む元 (#1564)。録った回を、続きの放送から外すのに使う。
-func (q *Queries) ListRecordedSeriesEpisodes(ctx context.Context, series string) ([]ListRecordedSeriesEpisodesRow, error) {
-	rows, err := q.db.Query(ctx, listRecordedSeriesEpisodes, series)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListRecordedSeriesEpisodesRow{}
-	for rows.Next() {
-		var i ListRecordedSeriesEpisodesRow
-		if err := rows.Scan(&i.Name, &i.Description, &i.SeriesEpisode); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listRecordedSeriesEpisodesBatch = `-- name: ListRecordedSeriesEpisodesBatch :many
 SELECT series::text AS key_series, name, description, series_episode
 FROM recording_history WHERE series = ANY($1::text[])
@@ -648,64 +617,6 @@ func (q *Queries) ListSeriesFamilyNextProgramsBatch(ctx context.Context, arg Lis
 			&i.EpisodeNumber,
 			&i.RelatedItems,
 			&i.Name,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSeriesNextPrograms = `-- name: ListSeriesNextPrograms :many
-SELECT service_id, event_id, start_at, episode_number::double precision AS episode_number, related_items
-FROM programs
-WHERE series = $1::text AND episode_number IS NOT NULL AND episode_number > $2::bigint
-  AND start_at >= $3 AND start_at < $4 AND NOT end_undecided
-ORDER BY start_at, service_id, event_id
-LIMIT $5::integer
-`
-
-type ListSeriesNextProgramsParams struct {
-	Series  string
-	Number  int64
-	Since   time.Time
-	Until   time.Time
-	MaxRows int32
-}
-
-type ListSeriesNextProgramsRow struct {
-	ServiceID     int64
-	EventID       int64
-	StartAt       time.Time
-	EpisodeNumber float64
-	RelatedItems  []byte
-}
-
-// シリーズ名が series で、話数が number より大きく、since から until までに始まる、終了時刻の決まった番組を返す (#1564)。
-func (q *Queries) ListSeriesNextPrograms(ctx context.Context, arg ListSeriesNextProgramsParams) ([]ListSeriesNextProgramsRow, error) {
-	rows, err := q.db.Query(ctx, listSeriesNextPrograms,
-		arg.Series,
-		arg.Number,
-		arg.Since,
-		arg.Until,
-		arg.MaxRows,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListSeriesNextProgramsRow{}
-	for rows.Next() {
-		var i ListSeriesNextProgramsRow
-		if err := rows.Scan(
-			&i.ServiceID,
-			&i.EventID,
-			&i.StartAt,
-			&i.EpisodeNumber,
-			&i.RelatedItems,
 		); err != nil {
 			return nil, err
 		}

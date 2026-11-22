@@ -72,17 +72,32 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe('setNormalize', () => {
-  test('入れると、コンプレッサーを通し、切ると直に繋ぐ (#499)', async () => {
-    vi.stubGlobal('AudioContext', FakeAudioContext);
-    const sources: FakeNode[] = [];
-    const original = FakeAudioContext.prototype.createMediaElementSource;
-    FakeAudioContext.prototype.createMediaElementSource = function () {
-      const node = original.call(this);
+// RecordingContext は、作った元の音と DelayNode を覚える AudioContext。
+const recordingContext = () => {
+  const sources: FakeNode[] = [];
+  const delays: FakeNode[] = [];
+  class RecordingContext extends FakeAudioContext {
+    override createMediaElementSource() {
+      const node = super.createMediaElementSource();
       sources.push(node);
 
       return node;
-    };
+    }
+    override createDelay() {
+      const node = super.createDelay();
+      delays.push(node);
+
+      return node;
+    }
+  }
+
+  return { RecordingContext, sources, delays };
+};
+
+describe('setNormalize', () => {
+  test('入れると、コンプレッサーを通し、切ると直に繋ぐ (#499)', async () => {
+    const { RecordingContext, sources } = recordingContext();
+    vi.stubGlobal('AudioContext', RecordingContext);
     const { setNormalize, isNormalized } = await import('./volumeBoost');
     // AudioContext は、ユーザーが操作した後でないと動かせない。
     window.dispatchEvent(new Event('pointerdown'));
@@ -95,7 +110,6 @@ describe('setNormalize', () => {
     setNormalize(video, false);
     expect(isNormalized(video)).toBe(false);
     expect(path(sources[0]!)).toEqual(['source', 'gain', 'destination']);
-    FakeAudioContext.prototype.createMediaElementSource = original;
   });
 
   test('操作の前に入れたら覚えておき、操作した後に入れる', async () => {
@@ -130,7 +144,8 @@ describe('setNormalize', () => {
   });
 
   test('仮想サラウンドを入れると、音量の補正の手前に挟む (#454)', async () => {
-    vi.stubGlobal('AudioContext', FakeAudioContext);
+    const { RecordingContext, sources } = recordingContext();
+    vi.stubGlobal('AudioContext', RecordingContext);
     vi.stubGlobal(
       'PannerNode',
       class extends FakeNode {
@@ -139,14 +154,6 @@ describe('setNormalize', () => {
         }
       },
     );
-    const sources: FakeNode[] = [];
-    const original = FakeAudioContext.prototype.createMediaElementSource;
-    FakeAudioContext.prototype.createMediaElementSource = function () {
-      const node = original.call(this);
-      sources.push(node);
-
-      return node;
-    };
     const { setNormalize, setSurround } = await import('./volumeBoost');
     window.dispatchEvent(new Event('pointerdown'));
     const video = document.createElement('video');
@@ -178,33 +185,10 @@ describe('setNormalize', () => {
 
     setSurround(video, false);
     expect(path(sources[0]!)).toEqual(['source', 'compressor', 'gain', 'gain', 'destination']);
-    FakeAudioContext.prototype.createMediaElementSource = original;
   });
 });
 
 describe('setAudioDelay', () => {
-  // RecordingContext は、作った元の音と DelayNode を覚える AudioContext。
-  const recordingContext = () => {
-    const sources: FakeNode[] = [];
-    const delays: FakeNode[] = [];
-    class RecordingContext extends FakeAudioContext {
-      override createMediaElementSource() {
-        const node = super.createMediaElementSource();
-        sources.push(node);
-
-        return node;
-      }
-      override createDelay() {
-        const node = super.createDelay();
-        delays.push(node);
-
-        return node;
-      }
-    }
-
-    return { RecordingContext, sources, delays };
-  };
-
   test('遅らせると、最初の段に DelayNode を挟んで長さを当て、0 にすると外す (#818)', async () => {
     const { RecordingContext, sources, delays } = recordingContext();
     vi.stubGlobal('AudioContext', RecordingContext);

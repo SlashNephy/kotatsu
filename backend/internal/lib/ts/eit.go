@@ -98,6 +98,36 @@ func parseEventTime(b []byte) *EventTime {
 	return et
 }
 
+// PresentFollowingSection は、EIT[p/f] (自 TS) の 1 つのセクションが示す、サービスの放送中か次の番組の有無 (#2034)。
+type PresentFollowingSection struct {
+	OriginalNetworkID uint16
+	TransportStreamID uint16
+	ServiceID         uint16
+	// Following は、次の番組のセクション (section_number 1) かどうか。false なら放送中の番組のセクション。
+	Following bool
+	// HasEvent は、セクションに番組が載っているかどうか。
+	HasEvent bool
+}
+
+// parsePresentFollowingSection は、EIT[p/f] (自 TS) のセクションから、サービスと番組の有無を読む。
+// EIT[p/f] でないか、壊れていれば false を返す。
+func parsePresentFollowingSection(section []byte) (*PresentFollowingSection, bool) {
+	header := parseSectionHeader(section)
+	if header == nil || header.tableID != tableIDEITPresentFollowingActual || !header.currentNext || section[6] > 1 ||
+		len(header.body) < eitEventsOffset {
+		return nil, false
+	}
+	body := header.body
+
+	return &PresentFollowingSection{
+		TransportStreamID: uint16(body[0])<<8 | uint16(body[1]),
+		OriginalNetworkID: uint16(body[2])<<8 | uint16(body[3]),
+		ServiceID:         header.tableIDExtension,
+		Following:         section[6] == 1,
+		HasEvent:          len(body) >= eitEventsOffset+eitEventHeaderLength,
+	}, true
+}
+
 // handle は、EIT[p/f] (自 TS) のセクションを読む。放送中 (section_number 0) と次 (1) の番組を追い、放送中の番組の音声の構成を集める。
 func (t *eitTable) handle(section []byte) {
 	header := parseSectionHeader(section)
