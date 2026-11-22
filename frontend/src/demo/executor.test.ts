@@ -570,3 +570,31 @@ describe('createExecutor の fillMissing', () => {
     });
   });
 });
+
+describe('demo system settings', () => {
+  it('keeps the saved settings when they are read again (#2073)', async () => {
+    const { executor } = newExecutor();
+
+    await executor.execute(
+      'mutation ($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { archiveRetentionDays } }',
+      { input: { archiveRetentionDays: 60, mcpEnabled: true } },
+    );
+    const result = await executor.execute(
+      '{ systemSettings { archiveRetentionDays mcpEnabled notificationRetentionDays updatedAt } }',
+      {},
+    );
+
+    expect(result).toMatchObject({
+      data: {
+        systemSettings: {
+          archiveRetentionDays: 60,
+          mcpEnabled: true,
+          notificationRetentionDays: 30,
+        },
+      },
+    });
+    expect(
+      (result.data as { systemSettings: { updatedAt: string | null } }).systemSettings.updatedAt,
+    ).not.toBeNull();
+  });
+});

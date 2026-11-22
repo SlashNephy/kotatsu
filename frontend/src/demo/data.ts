@@ -138,6 +138,70 @@ export function createRootValue(
       });
     }
   };
+  // systemSettings は、全体の設定 (#2073)。管理の画面で保存すると書き換わる。
+  let systemSettings: Record<string, unknown> = {
+    recordingDefaults: {
+      poolId: 'default',
+      fileNameTemplate: defaultFileNameTemplate,
+      startMarginSeconds: 0,
+      endMarginSeconds: 0,
+      priority: 0,
+      joinSegments: true,
+      detectCm: false,
+      // 字幕の自動生成 (#1682) は、既定では使わない。
+      generateCaptions: false,
+      transcodePreset: null,
+      // 変換で出すコマ数の既定値 (#1509)。
+      transcodeFrameRate: 'auto',
+    },
+    archiveRetentionDays: 30,
+    notificationRetentionDays: 30,
+    ruleDefaults: {
+      avoidDuplicates: false,
+      duplicateWindowDays: null,
+      followEventRelay: true,
+      bundleSameEpisodes: true,
+    },
+    // デモには tenban がないので、データ放送の文書の通信は中継しない (#501)。
+    dataBroadcastIpEnabled: false,
+    // デモでは、外部プレイヤーと IPTV のクライアントの URL を発行する操作も見せる (#1755)。
+    externalPlayerUrlsEnabled: true,
+    iptvFeedsEnabled: true,
+    // デモでは、録画のダウンロードの操作も見せる (#1762)。
+    recordingDownloadsEnabled: true,
+    cmDetector: 'FFMPEG',
+    tvtplayChaptersEnabled: false,
+    // デモでは、API トークンを発行する操作も見せる (#1769)。
+    epgstationApiEnabled: true,
+    // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。
+    animeLinkingEnabled: false,
+    // TMDB との連携も、外部へ問い合わせるので使わない (#1651)。
+    dramaLinkingEnabled: false,
+    // デモは外部につながず、架空のコメントを流す。実況の画面を見せるため、全体では有効にし、ユーザーの設定は切っておく (設計書 7.4)。
+    jikkyoEnabled: true,
+    commentSources: ['NX_JIKKYO'],
+    // デモにはタイムシフトのディレクトリがない。
+    timeshiftWhileWatching: false,
+    timeshiftWhileWatchingRetentionSeconds: 3600,
+    ruleUnmatchedGraceMinutes: 180,
+    updatedAt: null,
+    // 以下は、サーバーの既定値 (backend/internal/usecase/settings の DefaultXxx と defaultSettings) にそろえる (#2073)。
+    watchProgressRetentionDays: 365,
+    // デモは外部と通信しないので、通信の記録は取らない。
+    networkActivityEnabled: false,
+    networkActivityRetentionDays: 30,
+    mcpEnabled: false,
+    drcsReplacements: [],
+    auditRetentionDays: 365,
+    auditClientInfoRetentionDays: 90,
+    // デモは外部へ問い合わせないので、漏えいしたパスワードの照合は使わない。
+    hibpEnabled: false,
+    webPushSubject: null,
+    thumbnailPreviewsEnabled: true,
+    sleepControlEnabled: true,
+    captionThreads: 0,
+    jikkyoChannels: [],
+  };
   const scheduler = createScheduler({ programs, now, user: demoUser, changed: dataChanged });
   const recordings = createRecordings({
     programs,
@@ -428,53 +492,17 @@ export function createRootValue(
       '540p-hevc',
       '360p-hevc',
     ],
-    systemSettings: () => ({
-      recordingDefaults: {
-        poolId: 'default',
-        fileNameTemplate: defaultFileNameTemplate,
-        startMarginSeconds: 0,
-        endMarginSeconds: 0,
-        priority: 0,
-        joinSegments: true,
-        detectCm: false,
-        // 字幕の自動生成 (#1682) は、既定では使わない。
-        generateCaptions: false,
-        transcodePreset: null,
-        // 変換で出すコマ数の既定値 (#1509)。
-        transcodeFrameRate: 'auto',
-      },
-      archiveRetentionDays: 30,
-      notificationRetentionDays: 30,
-      ruleDefaults: {
-        avoidDuplicates: false,
-        duplicateWindowDays: null,
-        followEventRelay: true,
-        bundleSameEpisodes: true,
-      },
-      // デモには tenban がないので、データ放送の文書の通信は中継しない (#501)。
-      dataBroadcastIpEnabled: false,
-      // デモでは、外部プレイヤーと IPTV のクライアントの URL を発行する操作も見せる (#1755)。
-      externalPlayerUrlsEnabled: true,
-      iptvFeedsEnabled: true,
-      // デモでは、録画のダウンロードの操作も見せる (#1762)。
-      recordingDownloadsEnabled: true,
-      cmDetector: 'FFMPEG',
-      tvtplayChaptersEnabled: false,
-      // デモでは、API トークンを発行する操作も見せる (#1769)。
-      epgstationApiEnabled: true,
-      // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。
-      animeLinkingEnabled: false,
-      // TMDB との連携も、外部へ問い合わせるので使わない (#1651)。
-      dramaLinkingEnabled: false,
-      // デモは外部につながず、架空のコメントを流す。実況の画面を見せるため、全体では有効にし、ユーザーの設定は切っておく (設計書 7.4)。
-      jikkyoEnabled: true,
-      commentSources: ['NX_JIKKYO'],
-      // デモにはタイムシフトのディレクトリがない。
-      timeshiftWhileWatching: false,
-      timeshiftWhileWatchingRetentionSeconds: 3600,
-      ruleUnmatchedGraceMinutes: 180,
-      updatedAt: null,
-    }),
+    systemSettings: () => systemSettings,
+    // 全体の設定を保存する (#2073)。渡した項目だけを書き換え、保存した時刻を残す。読み直しても、保存した値を返す。
+    updateSystemSettings: ({ input }: { input: Record<string, unknown> }) => {
+      const changes = Object.fromEntries(
+        Object.entries(input).filter(([, value]) => value != null),
+      );
+      systemSettings = { ...systemSettings, ...changes, updatedAt: new Date(now).toISOString() };
+      dataChanged(['ADMIN']);
+
+      return systemSettings;
+    },
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
     animeChannels: () => services.map((service) => animeChannel(service.id)),
     animeImports: () => [],
