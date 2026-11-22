@@ -11,6 +11,9 @@ export type NetworkParams = {
   stallMs: number;
   // frameGapMs は、次のコマが来ないのを、映像だけ止まったとみなすまでの時間 (コマの途絶とみなす時間)。
   frameGapMs: number;
+  // frameGapAheadBelow は、コマの途絶を回線の兆しに数える、先に読み込んである量の上限 (秒、コマの途絶を数える先読みの上限)。
+  // 先読みが十分にあるのにコマが途切れるのは、回線ではなく、変換か描画の側で途切れたとみなす (#2033)。
+  frameGapAheadBelow: number;
   // drainBelow、drainDurationMs、drainRate は、バッファの減少を「足りない」とみなす、見るバッファの量 (秒)、減少の継続時間、
   // 減少の速さの閾値 (1 秒あたりの秒)。drainEdgeMs は、減少の継続時間の窓の最初と最後の区間の長さ。区間の最小値どうしを比べる。
   drainBelow: number;
@@ -78,6 +81,8 @@ export const defaultNetworkParams: NetworkParams = {
   // 1 コマ (約 0.033 秒) と、変換の経路の断片の間隔 (約 0.5 秒) より十分長くする。
   stallMs: 1_000,
   frameGapMs: 1_500,
+  // 変換の経路の断片 (約 0.5 秒) の数個分より多くし、読み込みが追いつかずに途切れたときは数える。
+  frameGapAheadBelow: 2.5,
   drainBelow: 4,
   // 塊が届くたびにバッファは増え、次の塊までは減る (kyusu のセグメントでは 2 秒ごと)。区間を塊の間隔より長くし、
   // 区間の最小値 (塊が届く直前の底) どうしを比べて、のこぎりの歯の形の上下を「減り続け」と読まないようにする。
@@ -435,7 +440,11 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     if (!encodeSlow && (input.waiting || (lowSince !== null && now - lowSince >= params.stallMs))) {
       signals.push('stall');
     }
-    if (input.frameAgeMs !== null && input.frameAgeMs >= params.frameGapMs) {
+    if (
+      input.frameAgeMs !== null &&
+      input.frameAgeMs >= params.frameGapMs &&
+      input.ahead < params.frameGapAheadBelow
+    ) {
       signals.push('frameGap');
     }
     if (draining(now, input.ahead) && !encodeSlow) {

@@ -78,7 +78,7 @@ func ReadProbe(r io.ReaderAt, size int64) (*Probe, error) {
 	names := map[uint16]string{}
 	var headLast *time.Time
 	head := ts.NewAnalyzer(&ts.AnalyzerOptions{
-		Index: nil, CutoffPTS: nil, OnLogo: nil, OnNIT: nil,
+		Index: nil, CutoffPTS: nil, OnLogo: nil, OnNIT: nil, OnPresentFollowing: nil,
 		OnTOT: func(at time.Time) {
 			if probe.RecordedFrom == nil {
 				probe.RecordedFrom = &at
@@ -106,7 +106,7 @@ func ReadProbe(r io.ReaderAt, size int64) (*Probe, error) {
 	probe.RecordedUntil = headLast
 	if headEnd < size {
 		tail := ts.NewAnalyzer(&ts.AnalyzerOptions{
-			Index: nil, CutoffPTS: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil,
+			Index: nil, CutoffPTS: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil, OnPresentFollowing: nil,
 			OnTOT: func(at time.Time) { probe.RecordedUntil = &at },
 		})
 		if _, err := feed(tail, r, max(headEnd, size-tailSize), size, nil); err != nil {

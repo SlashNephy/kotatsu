@@ -42,6 +42,39 @@ func (q *Queries) ListBroadcastLineups(ctx context.Context) ([]BroadcastLineup, 
 	return items, nil
 }
 
+const listIdleBroadcastServices = `-- name: ListIdleBroadcastServices :many
+SELECT network_id, service_id
+FROM broadcast_service_activities
+WHERE NOT has_events
+ORDER BY network_id, service_id
+`
+
+type ListIdleBroadcastServicesRow struct {
+	NetworkID int32
+	ServiceID int32
+}
+
+// 最後に読んだとき番組のなかった衛星のサービスを返す (#2034)。
+func (q *Queries) ListIdleBroadcastServices(ctx context.Context) ([]ListIdleBroadcastServicesRow, error) {
+	rows, err := q.db.Query(ctx, listIdleBroadcastServices)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIdleBroadcastServicesRow{}
+	for rows.Next() {
+		var i ListIdleBroadcastServicesRow
+		if err := rows.Scan(&i.NetworkID, &i.ServiceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertBroadcastLineup = `-- name: UpsertBroadcastLineup :exec
 INSERT INTO broadcast_lineups (network_id, version, streams, observed_at)
 VALUES ($1, $2, $3, $4)
@@ -64,6 +97,35 @@ func (q *Queries) UpsertBroadcastLineup(ctx context.Context, arg UpsertBroadcast
 		arg.NetworkID,
 		arg.Version,
 		arg.Streams,
+		arg.ObservedAt,
+	)
+	return err
+}
+
+const upsertBroadcastServiceActivity = `-- name: UpsertBroadcastServiceActivity :exec
+INSERT INTO broadcast_service_activities (network_id, service_id, transport_stream_id, has_events, observed_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (network_id, service_id) DO UPDATE SET
+  transport_stream_id = excluded.transport_stream_id,
+  has_events = excluded.has_events,
+  observed_at = excluded.observed_at
+`
+
+type UpsertBroadcastServiceActivityParams struct {
+	NetworkID         int32
+	ServiceID         int32
+	TransportStreamID int32
+	HasEvents         bool
+	ObservedAt        time.Time
+}
+
+// 衛星のサービスの番組の有無を書く (#2034)。
+func (q *Queries) UpsertBroadcastServiceActivity(ctx context.Context, arg UpsertBroadcastServiceActivityParams) error {
+	_, err := q.db.Exec(ctx, upsertBroadcastServiceActivity,
+		arg.NetworkID,
+		arg.ServiceID,
+		arg.TransportStreamID,
+		arg.HasEvents,
 		arg.ObservedAt,
 	)
 	return err

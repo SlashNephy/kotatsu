@@ -269,6 +269,14 @@ type BroadcastLineup struct {
 	ObservedAt time.Time
 }
 
+type BroadcastServiceActivity struct {
+	NetworkID         int32
+	ServiceID         int32
+	TransportStreamID int32
+	HasEvents         bool
+	ObservedAt        time.Time
+}
+
 type CalendarFeed struct {
 	UserID     uuid.UUID
 	Kind       string

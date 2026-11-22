@@ -411,6 +411,10 @@
         "3": "3 (standard)",
         "4": "4 (strong)"
       },
+      "hdrOutput": "Show in pseudo-HDR",
+      "hdrOutputHelp": "Stretches the bright parts of the broadcast picture (SDR) beyond the display's white. This adds brightness that is not in the original picture, so it changes how the picture looks. Applies when the browser converts the stream itself.",
+      "hdrOutputNoDisplay": "Stretches the bright parts of the broadcast picture (SDR) beyond the display's white. This display is not HDR, so the picture is shown as before even when this is on. It takes effect when the window moves to an HDR display.",
+      "hdrOutputUnsupported": "Unavailable because this browser does not support HDR output from WebGL.",
       "interpolation": "Interpolate frames for smoother motion",
       "interpolationHelp": "Inserts frames estimated from motion between the frames of 30 or 24 fps video, timed to your display's refresh. When the browser converts the stream, applies to 24p film rebuilt from pulldown and to 29.97p when 1080i is not shown field by field. The picture is delayed by one frame (about 0.03 to 0.04 seconds); if speech looks out of sync, delay the audio with the audio sync setting. Fast motion and scene changes may show artifacts.",
       "interpolationRate": "Maximum rate of interpolated frames",
@@ -1582,6 +1586,7 @@
       "interpolated": "{{label}} (frames interpolated)",
       "upscaled": "{{label}} (upscaled to {{width}}×{{height}})",
       "notUpscaled": "{{label}} (not upscaled: shown at {{width}}×{{height}}, no larger than the source)",
+      "hdr": "{{label}} (pseudo-HDR)",
       "playing": "Playing video",
       "frameRate": "Frame rate",
       "audio": "Broadcast audio",
