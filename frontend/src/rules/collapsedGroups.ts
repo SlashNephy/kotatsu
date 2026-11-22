@@ -1,3 +1,5 @@
+import { preferenceChanged } from '../settings/syncedPreferences';
+
 // ルールの一覧で折りたたんだグループの見出し (#1493) を、端末に覚える。ルールを開いてから戻っても、折りたたんだままにする。
 
 const storageKey = 'kotatsu.rules.collapsedGroups';
@@ -19,6 +21,7 @@ export function loadCollapsedGroups(): ReadonlySet<string> {
 export function saveCollapsedGroups(keys: ReadonlySet<string>): void {
   try {
     localStorage.setItem(storageKey, JSON.stringify([...keys]));
+    preferenceChanged(storageKey);
   } catch {
     // 端末に覚えられないだけで、表示は変える。
   }

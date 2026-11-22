@@ -1,3 +1,5 @@
+import { preferenceChanged } from '../settings/syncedPreferences';
+
 // 配信サービスで作品を探すリンク (設計書 3.8、#1235)。録画がない話を配信で見るときのため、作品名で検索する URL を作る。
 // URL の形は annict-tracker と同じにする。
 
@@ -72,6 +74,7 @@ export function loadStreamingServices(): StreamingService[] {
 export function saveStreamingServices(services: readonly StreamingService[]): void {
   try {
     localStorage.setItem(storageKey, JSON.stringify(services));
+    preferenceChanged(storageKey);
   } catch {
     // 端末に覚えられないだけで、表示は変える。
   }

@@ -1,6 +1,7 @@
 // 番組表の時刻の表し方 (#486)。放送日は 4 時に始まるので、28 時間表記では、深夜の 0 時〜3 時を 24 時〜27 時と表す。
 
 import { zoneOffset } from '../futon/timeZone';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
 const hour = 3_600_000;
 // dayStartHour は、放送日が始まる時。
@@ -38,6 +39,7 @@ export function loadExtendedHours(): boolean {
 export function saveExtendedHours(extended: boolean): void {
   try {
     localStorage.setItem(storageKey, String(extended));
+    preferenceChanged(storageKey);
   } catch {
     // 端末に覚えられないだけで、表示は変える。
   }

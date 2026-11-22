@@ -1788,6 +1788,8 @@ type PlayerSettings struct {
 	Comments *CommentSettings `json:"comments"`
 	// 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。
 	Captions *CaptionSettings `json:"captions"`
+	// 画面が端末に覚えていた設定のうち、端末をまたいで同期するもの (#1862)。キーの順に並べる。
+	Preferences []*Preference `json:"preferences"`
 }
 
 // プレイヤーの設定の変更。省いた項目は変えない。
@@ -1801,6 +1803,8 @@ type PlayerSettingsInput struct {
 	Comments *CommentSettingsInput `json:"comments,omitempty"`
 	// 渡したら、字幕の設定をまるごと置き換える。
 	Captions *CaptionSettingsInput `json:"captions,omitempty"`
+	// 渡したキーの設定を置き換える。value が null のキーは消す。渡さなかったキーは変えない。
+	Preferences []*PreferenceInput `json:"preferences,omitempty"`
 }
 
 // 再生中のプレイヤーの状態 (#459、設計書 7.7)。プレイヤーが送ったものを、そのまま返す。
@@ -1838,6 +1842,21 @@ type PlayerStateInput struct {
 	Audio         *string             `json:"audio,omitempty"`
 	DataBroadcast bool                `json:"dataBroadcast"`
 	KeyGroups     []string            `json:"keyGroups"`
+}
+
+// 端末をまたいで同期する、画面の設定の 1 つ (#1862)。
+type Preference struct {
+	// 画面の保存先のキー (kotatsu.player.keymap など)。
+	Key string `json:"key"`
+	// 保存した文字列。中身は画面が決める。
+	Value string `json:"value"`
+}
+
+type PreferenceInput struct {
+	// 同期を許したキーだけ。
+	Key string `json:"key"`
+	// 16,384 文字まで。null なら消す。
+	Value *string `json:"value,omitempty"`
 }
 
 // プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。

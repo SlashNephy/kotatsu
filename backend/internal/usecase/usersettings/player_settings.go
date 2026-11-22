@@ -2,6 +2,7 @@ package usersettings
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"uuid"
 
@@ -21,6 +22,10 @@ type PlayerSettingsChange struct {
 	CaptionsEnabled *bool
 	CommentSettings []byte
 	CaptionSettings []byte
+	// SetPreferences は、置き換える、端末をまたいで同期する設定 (#1862)。キーから値への対応。
+	SetPreferences map[string]string
+	// UnsetPreferences は、消す、端末をまたいで同期する設定のキー。
+	UnsetPreferences []string
 }
 
 // UpdatePlayerSettings は、ユーザー userID のプレイヤーの設定を変え、同じユーザーのほかの端末に知らせる。変えた後の設定を返す。
@@ -38,6 +43,23 @@ func UpdatePlayerSettings(ctx context.Context, db Beginner, clk clock.Clock, use
 			err := q.SetCaptionSettings(ctx, sqlc.SetCaptionSettingsParams{UserID: userID, CaptionSettings: change.CaptionSettings, Now: clk.Now()})
 			if err != nil {
 				return fmt.Errorf("failed to save the caption settings: %w", err)
+			}
+		}
+		if len(change.SetPreferences) > 0 || len(change.UnsetPreferences) > 0 {
+			setPreferences := change.SetPreferences
+			if setPreferences == nil {
+				setPreferences = map[string]string{}
+			}
+			set, err := json.Marshal(setPreferences)
+			if err != nil {
+				return fmt.Errorf("failed to encode the preferences: %w", err)
+			}
+			unset := change.UnsetPreferences
+			if unset == nil {
+				unset = []string{}
+			}
+			if err := q.SetPreferences(ctx, sqlc.SetPreferencesParams{UserID: userID, Set: set, Unset: unset, Now: clk.Now()}); err != nil {
+				return fmt.Errorf("failed to save the preferences: %w", err)
 			}
 		}
 		row, err := q.UpsertPlayerSettings(ctx, sqlc.UpsertPlayerSettingsParams{
