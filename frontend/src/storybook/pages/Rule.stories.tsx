@@ -239,6 +239,10 @@ const captured: DemoRoot[] = [];
 
 // 入力を触った後に、ほかの端末でルールが変わったとき (#533)。入力を残し、読み直すボタンを出す。
 export const Outdated: Story = {
+  // 前に開いたときの応答を残さず、この Story で作ったものにだけ変更を起こす。
+  beforeEach: () => {
+    captured.length = 0;
+  },
   args: {
     overrides: (root: DemoRoot) => {
       captured.push(root);
