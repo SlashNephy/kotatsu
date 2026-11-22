@@ -39,3 +39,17 @@ func TestPIDQualities(t *testing.T) {
 		{PID: 0x0901, Kind: ts.PIDKindUnknown, Packets: 7, Drops: 2, Errors: 0, Scrambled: 0, Payloads: new(int64(0)), ScrambledPayloads: new(int64(0))},
 	}, ts.PIDQualities(stats, pids))
 }
+
+// TestPIDQualitiesECM は、PMT の CA 記述子が指す ECM の PID を、番組情報に分類することを確かめる。
+func TestPIDQualitiesECM(t *testing.T) {
+	t.Parallel()
+
+	stats := &ts.Stats{
+		Programs: []*ts.Program{{Number: 1024, PMTPID: 0x1F0, PCRPID: 0x1FF, Version: 0, Streams: []*ts.Stream{
+			{PID: 0x100, StreamType: 0x02, Kind: ts.StreamKindVideo},
+		}, ECMPIDs: []uint16{0x121}}},
+	}
+	pids := []*ts.PIDStats{{PID: 0x0121, Packets: 4, Drops: 1, Errors: 0, Scrambled: 0}}
+
+	assert.Equal(t, ts.PIDKindPSI, ts.PIDQualities(stats, pids)[0].Kind)
+}

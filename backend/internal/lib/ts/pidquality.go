@@ -1,6 +1,6 @@
 package ts
 
-// PID の種類 (#473)。PMT に書かれたストリームは、映像、音声、そのほか。PSI と SI は、PAT、PMT と、決まった PID の表。
+// PID の種類 (#473)。PMT に書かれたストリームは、映像、音声、そのほか。PSI と SI は、PAT、PMT、PMT の CA 記述子が指す ECM と、決まった PID の表。
 const (
 	PIDKindVideo   = "video"
 	PIDKindAudio   = "audio"
@@ -33,6 +33,10 @@ func PIDQualities(stats *Stats, pids []*PIDStats) []PIDQuality {
 	streams := map[uint16]*Stream{}
 	for _, program := range stats.Programs {
 		kinds[program.PMTPID] = PIDKindPSI
+		// CA 記述子が指す ECM は、ES ではなくセクションで送る表なので、番組情報とみなす。
+		for _, pid := range program.ECMPIDs {
+			kinds[pid] = PIDKindPSI
+		}
 		for _, stream := range program.Streams {
 			streams[stream.PID] = stream
 			switch stream.Kind {
