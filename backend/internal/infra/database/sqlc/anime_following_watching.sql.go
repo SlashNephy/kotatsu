@@ -67,9 +67,14 @@ func (q *Queries) InsertAnimeFollowingWatching(ctx context.Context, arg InsertAn
 const listAnimeFollowingWatching = `-- name: ListAnimeFollowingWatching :many
 SELECT destination, username, name, avatar_url, work_id, title
 FROM anime_following_watching
-WHERE user_id = $1
+WHERE user_id = $1 AND fetched_at >= $2::timestamptz
 ORDER BY destination, work_id, username
 `
+
+type ListAnimeFollowingWatchingParams struct {
+	UserID       uuid.UUID
+	FetchedAfter time.Time
+}
 
 type ListAnimeFollowingWatchingRow struct {
 	Destination string
@@ -80,9 +85,10 @@ type ListAnimeFollowingWatchingRow struct {
 	Title       string
 }
 
-// ユーザーの、フォローしている人が見ている作品を返す (#1968)。
-func (q *Queries) ListAnimeFollowingWatching(ctx context.Context, userID uuid.UUID) ([]ListAnimeFollowingWatchingRow, error) {
-	rows, err := q.db.Query(ctx, listAnimeFollowingWatching, userID)
+// ユーザーの、フォローしている人が見ている作品を返す (#1968)。fetched_after より前に取り込んだものは返さない。
+// 作品ごとの視聴状況 (#1372) と同じく、利用者の情報を、表示に要る範囲を超えて溜めないため。
+func (q *Queries) ListAnimeFollowingWatching(ctx context.Context, arg ListAnimeFollowingWatchingParams) ([]ListAnimeFollowingWatchingRow, error) {
+	rows, err := q.db.Query(ctx, listAnimeFollowingWatching, arg.UserID, arg.FetchedAfter)
 	if err != nil {
 		return nil, err
 	}
@@ -106,4 +112,17 @@ func (q *Queries) ListAnimeFollowingWatching(ctx context.Context, userID uuid.UU
 		return nil, err
 	}
 	return items, nil
+}
+
+const pruneAnimeFollowingWatching = `-- name: PruneAnimeFollowingWatching :execrows
+DELETE FROM anime_following_watching WHERE fetched_at < $1::timestamptz
+`
+
+// before より前に取り込んだ、フォローしている人が見ている作品を消す (#1968)。取り込み直せなかった連携の古い分を残さない。
+func (q *Queries) PruneAnimeFollowingWatching(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, pruneAnimeFollowingWatching, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

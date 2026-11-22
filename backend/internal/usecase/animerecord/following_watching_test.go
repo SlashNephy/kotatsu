@@ -92,6 +92,14 @@ func TestFollowingWatchingWorks(t *testing.T) {
 	// bob は取り込んでいないので、alice の取り込んだものは見えない。
 	check(t, true, []want{})
 
+	// 取り込んでから保持する期間 (24 時間) を過ぎたものは出さない。利用者の情報を、表示に要る範囲を超えて溜めないため。
+	_, err = f.pool.Exec(t.Context(), `UPDATE anime_following_watching SET fetched_at = $1 WHERE user_id = $2`,
+		f.clock.Now().Add(-animerecord.FollowingRetention-time.Minute), f.alice.UserID)
+	require.NoError(t, err)
+	check(t, nil, []want{})
+	_, err = f.pool.Exec(t.Context(), `UPDATE anime_following_watching SET fetched_at = $1 WHERE user_id = $2`, f.clock.Now(), f.alice.UserID)
+	require.NoError(t, err)
+
 	// 連携を外すと、その記録先の分は消える。
 	require.NoError(t, f.service.Disconnect(t.Context(), f.pool, audit.User(f.alice.UserID), f.alice.UserID, animerecord.DestinationAnnict))
 	check(t, nil, []want{{tid: testTID, watchers: []string{"anilist:rin"}, events: 2}})

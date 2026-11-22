@@ -14,8 +14,13 @@ FROM (
 ON CONFLICT (user_id, destination, username, work_id) DO NOTHING;
 
 -- name: ListAnimeFollowingWatching :many
--- ユーザーの、フォローしている人が見ている作品を返す (#1968)。
+-- ユーザーの、フォローしている人が見ている作品を返す (#1968)。fetched_after より前に取り込んだものは返さない。
+-- 作品ごとの視聴状況 (#1372) と同じく、利用者の情報を、表示に要る範囲を超えて溜めないため。
 SELECT destination, username, name, avatar_url, work_id, title
 FROM anime_following_watching
-WHERE user_id = @user_id
+WHERE user_id = @user_id AND fetched_at >= @fetched_after::timestamptz
 ORDER BY destination, work_id, username;
+
+-- name: PruneAnimeFollowingWatching :execrows
+-- before より前に取り込んだ、フォローしている人が見ている作品を消す (#1968)。取り込み直せなかった連携の古い分を残さない。
+DELETE FROM anime_following_watching WHERE fetched_at < @before::timestamptz;

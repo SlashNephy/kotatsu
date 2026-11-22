@@ -376,6 +376,9 @@ func (w *PruneWorker) Work(ctx context.Context, _ *river.Job[PruneArgs]) error {
 	if _, err := q.PruneAnimeFollowingFetches(ctx, now.Add(-FollowingRetention)); err != nil {
 		return fmt.Errorf("failed to prune the following viewings: %w", err)
 	}
+	if _, err := q.PruneAnimeFollowingWatching(ctx, now.Add(-FollowingRetention)); err != nil {
+		return fmt.Errorf("failed to prune the works the following users are watching: %w", err)
+	}
 
 	return nil
 }

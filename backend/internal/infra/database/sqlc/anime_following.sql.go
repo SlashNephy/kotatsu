@@ -37,6 +37,7 @@ SELECT avatar_url::text FROM (
   UNION ALL
   SELECT w.avatar_url, w.fetched_at FROM anime_following_watching w
   WHERE w.user_id = $1 AND w.destination = $2 AND w.username = $3 AND w.avatar_url IS NOT NULL
+    AND w.fetched_at >= $4::timestamptz
 ) AS avatars
 ORDER BY fetched_at DESC
 LIMIT 1
@@ -51,7 +52,6 @@ type GetAnimeFollowingAvatarURLParams struct {
 
 // ユーザーが取り込んだ、フォロー中のユーザーのアバターの URL を返す。保持する期間を過ぎたものは返さない。
 // 同じ人が複数の作品に出るので、最も新しく取り込んだ URL を使う。作品ごとの視聴状況 (#1372) と、見ている作品 (#1968) の両方から探す。
-// 見ている作品は、見たいリストと一緒に取り込み直して入れ替えるので、保持する期間で絞らない。
 func (q *Queries) GetAnimeFollowingAvatarURL(ctx context.Context, arg GetAnimeFollowingAvatarURLParams) (string, error) {
 	row := q.db.QueryRow(ctx, getAnimeFollowingAvatarURL,
 		arg.UserID,

@@ -407,7 +407,9 @@ func (s *Service) FollowingWatchingWorks(ctx context.Context, db sqlc.DBTX, user
 // followingWatchingCandidates は、フォローしている人が見ている作品を、見たいリストの候補と同じ形の候補にし、作品 (TID) ごとの見ている人と返す。
 func (s *Service) followingWatchingCandidates(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (*Wishlist, map[int32][]*FollowingWatcher, error) {
 	q := sqlc.New(db)
-	rows, err := q.ListAnimeFollowingWatching(ctx, userID)
+	rows, err := q.ListAnimeFollowingWatching(ctx, sqlc.ListAnimeFollowingWatchingParams{
+		UserID: userID, FetchedAfter: s.clock.Now().Add(-FollowingRetention),
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list the works the following users are watching: %w", err)
 	}

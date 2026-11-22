@@ -63,6 +63,7 @@ import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDi
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { WatchReservationList } from '../watch/WatchReservationList';
 import { SkippedDuplicateList } from '../reservations/SkippedDuplicateList';
+import { AnimeFollowingWatchingList } from '../reservations/AnimeFollowingWatchingList';
 import { AnimeWishlistList } from '../reservations/AnimeWishlistList';
 import type { reservationsWishlistTabQuery } from './__generated__/reservationsWishlistTabQuery.graphql';
 import { TimeReservationDialog } from '../reservations/TimeReservationDialog';
@@ -136,6 +137,8 @@ type ReservationsSearch = {
   skipped?: boolean;
   // wishlist は、録画の予約の代わりに、見たいリストの作品の放送の候補を出すかどうか (設計書 3.8、#928)。
   wishlist?: boolean;
+  // following は、録画の予約の代わりに、フォロー中の人が見ている作品の放送の候補を出すかどうか (設計書 3.8、#1968)。
+  following?: boolean;
   // problems は、録画が欠ける見込みの予約だけを出すかどうか。
   problems?: boolean;
   // rule は、このルールに一致した予約だけを出すときの、ルールの ID (#468)。
@@ -147,6 +150,7 @@ export const Route = createFileRoute('/reservations')({
     ...(search['watch'] === true ? { watch: true } : {}),
     ...(search['skipped'] === true ? { skipped: true } : {}),
     ...(search['wishlist'] === true ? { wishlist: true } : {}),
+    ...(search['following'] === true ? { following: true } : {}),
     ...(search['problems'] === true ? { problems: true } : {}),
     ...(typeof search['rule'] === 'string' && search['rule'] !== ''
       ? { rule: search['rule'] }
@@ -213,7 +217,7 @@ function ReservationsPage() {
     };
   });
 
-  const { watch, skipped, wishlist } = Route.useSearch();
+  const { watch, skipped, wishlist, following } = Route.useSearch();
   const tab =
     watch === true
       ? 'watch'
@@ -221,7 +225,9 @@ function ReservationsPage() {
         ? 'skipped'
         : wishlist === true
           ? 'wishlist'
-          : 'recording';
+          : following === true
+            ? 'following'
+            : 'recording';
   const navigate = Route.useNavigate();
 
   return (
@@ -239,7 +245,9 @@ function ReservationsPage() {
                   ? { skipped: true }
                   : value === 'wishlist'
                     ? { wishlist: true }
-                    : {},
+                    : value === 'following'
+                      ? { following: true }
+                      : {},
           })
         }
       >
@@ -275,6 +283,8 @@ function ReservationsPage() {
             <SkippedDuplicateList />
           ) : tab === 'wishlist' ? (
             <AnimeWishlistList />
+          ) : tab === 'following' ? (
+            <AnimeFollowingWatchingList />
           ) : (
             <Reservations range={range} />
           )}
@@ -284,7 +294,8 @@ function ReservationsPage() {
   );
 }
 
-// WishlistTab は、見たいリストの作品の放送の候補のタブ (#928)。管理者がアニメの結びつきを無効にしていれば出さない。
+// WishlistTab は、見たいリストの作品の放送の候補のタブ (#928) と、フォロー中の人が見ている作品のタブ (#1968)。
+// 管理者がアニメの結びつきを無効にしていれば出さない。
 function WishlistTab() {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<reservationsWishlistTabQuery>(
@@ -302,7 +313,13 @@ function WishlistTab() {
     return null;
   }
 
-  return <Tabs.Tab value="wishlist">{t('reservations.wishlist.tab')}</Tabs.Tab>;
+  return (
+    <>
+      <Tabs.Tab value="wishlist">{t('reservations.wishlist.tab')}</Tabs.Tab>
+      {/* フォロー中の人が見ている作品も、見たいリストと一緒に取り込むので、同じときだけ出す (#1968)。 */}
+      <Tabs.Tab value="following">{t('reservations.following.tab')}</Tabs.Tab>
+    </>
+  );
 }
 
 function Reservations({ range }: { range: { now: number; from: string; to: string } }) {

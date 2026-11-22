@@ -472,6 +472,8 @@ export function createRootValue(
       folders: [],
     }),
     animeWishlist: () => demoAnimeWishlist(),
+    // デモは Annict と AniList に問い合わせないので、フォロー中の人が見ている作品もない (#1968)。
+    animeFollowingWatching: () => ({ enabled: false, works: [] }),
     animeLibrary: () => demoAnimeLibrary(),
     // デモは TMDB との連携を使わないので、ドラマの視聴管理の画面も無効にする (#1652)。
     dramaLibrary: () => ({ enabled: false, works: [] }),
@@ -546,6 +548,9 @@ export function createRootValue(
     },
     createAnimeWishlistRule: () => {
       throw new Error('the work is not in your wishlist candidates');
+    },
+    createAnimeFollowingWatchingRule: () => {
+      throw new Error('the work is not watched by the users you follow');
     },
     updateAnimeChannel: ({
       serviceId,
