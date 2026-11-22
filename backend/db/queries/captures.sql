@@ -19,13 +19,14 @@ SELECT * FROM captures WHERE id = @id AND user_id = @user_id;
 -- user_id のユーザーのキャプチャを、記録した新しい順に返す。
 -- words は、NFKC で正規化して LIKE のために逃がした語。すべての語が、正規化した番組名、サービス名、字幕の文のどれかに
 -- 含まれるものだけを返す (#2084)。字幕の正規化した列がまだない (NULL の) キャプチャは、字幕では探さない。
+-- NULL のまま比べると、条件の全体が NULL になり、どの語にも当たってしまうので、空として比べる。
 -- before_at と before_id より前 (古い) のキャプチャだけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 SELECT * FROM captures c
 WHERE c.user_id = @user_id
   AND NOT EXISTS (
     SELECT 1 FROM unnest(@words::text[]) AS w (word)
     WHERE NOT (c.program_name_normalized ILIKE '%' || w.word || '%' OR c.service_name_normalized ILIKE '%' || w.word || '%'
-      OR c.caption_normalized ILIKE '%' || w.word || '%')
+      OR coalesce(c.caption_normalized, '') ILIKE '%' || w.word || '%')
   )
   AND (sqlc.narg(before_at)::timestamptz IS NULL
     OR (c.created_at, c.id) < (sqlc.narg(before_at)::timestamptz, sqlc.narg(before_id)::uuid))

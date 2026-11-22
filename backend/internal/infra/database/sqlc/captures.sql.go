@@ -205,7 +205,7 @@ WHERE c.user_id = $1
   AND NOT EXISTS (
     SELECT 1 FROM unnest($2::text[]) AS w (word)
     WHERE NOT (c.program_name_normalized ILIKE '%' || w.word || '%' OR c.service_name_normalized ILIKE '%' || w.word || '%'
-      OR c.caption_normalized ILIKE '%' || w.word || '%')
+      OR coalesce(c.caption_normalized, '') ILIKE '%' || w.word || '%')
   )
   AND ($3::timestamptz IS NULL
     OR (c.created_at, c.id) < ($3::timestamptz, $4::uuid))
@@ -224,6 +224,7 @@ type ListCapturesParams struct {
 // user_id のユーザーのキャプチャを、記録した新しい順に返す。
 // words は、NFKC で正規化して LIKE のために逃がした語。すべての語が、正規化した番組名、サービス名、字幕の文のどれかに
 // 含まれるものだけを返す (#2084)。字幕の正規化した列がまだない (NULL の) キャプチャは、字幕では探さない。
+// NULL のまま比べると、条件の全体が NULL になり、どの語にも当たってしまうので、空として比べる。
 // before_at と before_id より前 (古い) のキャプチャだけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 func (q *Queries) ListCaptures(ctx context.Context, arg ListCapturesParams) ([]Capture, error) {
 	rows, err := q.db.Query(ctx, listCaptures,
