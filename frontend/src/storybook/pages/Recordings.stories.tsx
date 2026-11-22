@@ -3,7 +3,7 @@ import { expect, userEvent, within } from 'storybook/test';
 
 import type { DemoRoot } from '../../demo';
 import { paginate } from '../../demo/data';
-import { asViewer, call, minutesAgo, recordingsWith } from '../conditions';
+import { asViewer, call, recordingsWith } from '../conditions';
 import { failing, holdAll, PageStory } from '../PageStory';
 
 // 録画の一覧 (/recordings) の画面 (#2056)。録画のカードの状態の印、ルールで絞った一覧、まとめて消す操作などを並べる。
@@ -32,22 +32,44 @@ export const Error: Story = { args: { overrides: { recordings: failing() } } };
 
 // カードの印の出し分け。新しい順に、録画中、ドロップあり、一部のみ、失敗、スクランブル、CM の見分けの注記、サムネイルなし、
 // 見かけ (続きから見る位置あり) の録画を並べる。
+// card は、カードの印を 1 つだけ見せるよう、デモの録画が持つ印 (ドロップ、保護、続きの位置) を外してから patch を当てる。
+const card = (patch: Record<string, unknown>) => ({
+  protected: false,
+  drops: 0,
+  errors: 0,
+  watchPositionMs: null,
+  ...patch,
+});
+
+// partial は、放送の途中の 15 分から、終わる 10 分前までだけ録れた録画にする。
+const partial = (recording: Record<string, unknown>) => ({
+  ...card({ state: 'PARTIAL' }),
+  recordedFrom: new Date(Date.parse(String(recording['startAt'])) + 15 * 60_000).toISOString(),
+  recordedUntil: new Date(Date.parse(String(recording['endAt'])) - 10 * 60_000).toISOString(),
+});
+
 export const CardStates: Story = {
   args: {
     overrides: recordingsWith(
-      { state: 'RECORDING', recordedUntil: null },
-      { state: 'COMPLETED_WITH_ERRORS', drops: 128, errors: 12 },
-      { state: 'PARTIAL', recordedFrom: minutesAgo(70), recordedUntil: minutesAgo(45) },
-      { state: 'FAILED', failureReason: 'TUNER_UNAVAILABLE', thumbnailUrl: null, previewUrl: null },
-      {
+      card({ state: 'RECORDING', recordedUntil: null }),
+      card({ state: 'COMPLETED_WITH_ERRORS', drops: 128, errors: 12 }),
+      partial,
+      card({
+        state: 'FAILED',
+        recordedUntil: null,
+        failureReason: 'TUNER_UNAVAILABLE',
+        thumbnailUrl: null,
+        previewUrl: null,
+      }),
+      card({
         state: 'COMPLETED_WITH_ERRORS',
         scrambled: 900_000,
         scrambleWarning: true,
         scrambledRatio: 0.9,
-      },
-      { state: 'COMPLETED', cmDetectionNote: '映像のない区間がありました' },
-      { state: 'COMPLETED', thumbnailUrl: null, previewUrl: null, watchFrame: null },
-      { state: 'COMPLETED', watchPositionMs: 20 * 60_000 },
+      }),
+      card({ state: 'COMPLETED', cmDetectionNote: '映像のない区間がありました' }),
+      card({ state: 'COMPLETED', thumbnailUrl: null, previewUrl: null, watchFrame: null }),
+      card({ state: 'COMPLETED', watchPositionMs: 20 * 60_000 }),
     ),
   },
 };

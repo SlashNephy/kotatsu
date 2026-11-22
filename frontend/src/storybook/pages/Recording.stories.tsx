@@ -25,11 +25,14 @@ export const NotFound: Story = {
 };
 
 // 録画の状態ごとの表示。いちばん新しい録画を、それぞれの状態にして開く。
+// 実際の放送の時刻 (TS の EIT[p/f]) も、予定どおりに放送したことにする。
 const ended = () => ({
   startAt: minutesAgo(90),
   endAt: minutesAgo(30),
   recordedFrom: minutesAgo(90),
   recordedUntil: minutesAgo(30),
+  broadcastStartedAt: minutesAgo(90),
+  broadcastEndedAt: minutesAgo(30),
   liveStats: null,
 });
 
@@ -127,6 +130,9 @@ const failed = (
       ...ended(),
       state: 'FAILED',
       recordedUntil: null,
+      // 録れなかったので、実際の放送の時刻も分からない。
+      broadcastStartedAt: null,
+      broadcastEndedAt: null,
       failureReason,
       failureDetail,
       thumbnailUrl: null,
