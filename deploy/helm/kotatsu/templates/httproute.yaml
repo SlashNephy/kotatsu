@@ -1,6 +1,6 @@
 {{- /*
 Gateway API の HTTPRoute (#1526、設計書 11.1)。Ingress の API は機能が凍結されているので、Gateway でも公開できるようにする。
-API サーバーが既定値を入れる項目 (parentRefs と backendRefs の group、kind、backendRefs の weight) は、省略されても書き出す。
+API サーバーが既定値を入れる項目 (parentRefs と backendRefs の group、kind、backendRefs の weight) は、省略されても出力する。
 書かないと、マニフェストとクラスターにあるものが食い違い、GitOps の ServerSideApply で OutOfSync が続く。
 証明書は Gateway のリスナーが持つので、ここには書かない。
 */}}

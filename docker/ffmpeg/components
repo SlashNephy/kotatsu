@@ -1,7 +1,7 @@
 # -ffmpeg イメージの FFmpeg に組み込む部品 (#2001)。--disable-everything から、ここに書いたものだけを有効にする。
 # 1 行に「種類 名前 [アーキテクチャ]」を書く。種類は configure の --enable-<種類>=<名前> の <種類> で、アーキテクチャを
-# 書いた行は、そのアーキテクチャでだけ有効にする。build-ffmpeg の段で configure に渡し、runtime の段で
-# check-components.sh が、組み込めたかを確かめる (依存が足りない部品は、configure が黙って外すため)。
+# 書いた行は、そのアーキテクチャでだけ有効にする。build-ffmpeg のステージで configure に渡し、runtime のステージで
+# check-components.sh が、組み込めたかを確認する (依存が足りない部品は、configure が黙って外すため)。
 # 部品を使い始めたり、使うのをやめたりしたら、ここも直す。
 
 # 入力。ISDB の TS (地上波、BS、BS4K) と、remux で読む MP4、チャプターの ffmetadata。
@@ -95,7 +95,7 @@ filter scdet
 filter showinfo
 filter silencedetect
 
-# Go のテストが使うもの。開発用のイメージ (dev) は runtime の段を土台にし、その中でテストを動かすため。
+# Go のテストが使うもの。開発用のイメージ (dev) は runtime のステージを土台にし、その中でテストを動かすため。
 indev lavfi
 # lavfi の入力は、映像を wrapped_avframe、音声を PCM (sine は s16、anullsrc は u8) として渡すので、それぞれのデコーダーが要る。
 decoder wrapped_avframe

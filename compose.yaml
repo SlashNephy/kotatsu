@@ -1,5 +1,5 @@
 # 開発のための Docker Compose の構成 (docs/development.md)。手元のソースをマウントして Kotatsu と画面の開発サーバーを動かし、
-# 偽のチューナー、PostgreSQL、Dex と一緒に動かす。ソースを保存すると、Go はビルドし直して起動し直し、画面はその場で差し替わる。
+# モックのチューナー、PostgreSQL、Dex と一緒に動かす。ソースを保存すると、Go はビルドし直して起動し直し、画面はその場で差し替わる。
 # 運用の例は deploy/compose/compose.yaml にある。こちらは開発専用で、秘密キーも固定の値を使うので、運用には使わない。
 #
 #   mise run dev
@@ -48,8 +48,8 @@ services:
   postgres-test:
     image: docker.io/library/postgres:18@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
     profiles: [test]
-    # テストの DB は残す必要がないので、壊れてもよい代わりに、ディスクへの書き出しを待たないで速くする。
-    # 接続の上限は、DB を使うテストをすべて流したときの最大に余裕を持たせる。測ると、-p 4 で 121、-p 20 で 580 だった。
+    # テストの DB は残す必要がないので、壊れてもよい代わりに、ディスクへの書き込みを待たないで速くする。
+    # 接続の上限は、DB を使うテストをすべて流したときの最大に余裕を持たせる。計測すると、-p 4 で 121、-p 20 で 580 だった。
     # 別の作業のテストと同時に流しても、足りるようにする。
     command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off", "-c", "max_connections=1000"]
     environment:
@@ -71,7 +71,7 @@ services:
       timeout: 5s
       retries: 30
 
-  # 偽のチューナーサーバー。backend/testdata/ts/test.ts を、すべてのサービスのストリームとして流す。
+  # モックのチューナーサーバー。backend/testdata/ts/test.ts を、すべてのサービスのストリームとして流す。
   faketuner:
     <<: *dev
     command: ["exec", "--", "go", "run", "./backend/internal/cmd/faketuner", "-listen", "0.0.0.0:40772", "-ts", "backend/testdata/ts/test.ts"]
@@ -112,14 +112,14 @@ services:
       KOTATSU_DATABASE_URL: postgres://postgres:postgres@postgres:5432/kotatsu?sslmode=disable
       # 開発専用の固定の秘密キー。運用では、ランダムな値を Secret で渡す。
       KOTATSU_AUTH_SECRET_KEY: kotatsu-development-only-secret-key-do-not-use
-      # 実際のチューナーサーバーにつなぐときは、KOTATSU_DEV_TUNER_URL で渡す。渡さなければ、偽のチューナーサーバーにつなぐ。
+      # 実際のチューナーサーバーにつなぐときは、KOTATSU_DEV_TUNER_URL で渡す。渡さなければ、モックのチューナーサーバーにつなぐ。
       KOTATSU_TUNER_URL: ${KOTATSU_DEV_TUNER_URL:-http://faketuner:40772/}
       KOTATSU_STORAGE_POOLS: main=/recordings
       KOTATSU_STORAGE_DATA_DIR: /data
       # タイムシフトを画面から試せるよう、バッファの置き場所を設定しておく。録るサービスを選ぶまでは何も録らない。
       KOTATSU_STORAGE_TIMESHIFT_DIR: /timeshift
       KOTATSU_SERVER_LISTEN: ":8080"
-      # 画面の開発サーバー (web) が https を終端して中継するので、その X-Forwarded-Proto を信頼する (#2121)。
+      # 画面の開発サーバー (web) が https を終端してプロキシするので、その X-Forwarded-Proto を信頼する (#2121)。
       # Compose のネットワークのアドレスは決まらないので、プライベートのアドレスをまとめて信頼する。開発専用。
       KOTATSU_SERVER_TRUSTED_PROXIES: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
       # Dex でログインし、グループからロールを決めてユーザーを作る。パスワードと第二要素の登録を省ける。
@@ -176,7 +176,7 @@ services:
     command: ["run", "//frontend:dev:web"]
     environment:
       KOTATSU_DEV_API: http://kotatsu:8080
-      # https で配る (#2121)。証明書は、mise run dev の前に dev:cert が mkcert で作る。
+      # https で配信する (#2121)。証明書は、mise run dev の前に dev:cert が mkcert で作る。
       KOTATSU_DEV_TLS_CERT: /src/docker/dev-certs/localhost.pem
       KOTATSU_DEV_TLS_KEY: /src/docker/dev-certs/localhost-key.pem
     ports:
@@ -210,12 +210,12 @@ services:
 
 volumes:
   # DB と録画は、KOTATSU_DEV_DB を渡すと、その名前を付けた別のボリュームを使う (KOTATSU_DEV_DB=real なら kotatsu-dev_postgres-real)。
-  # 偽のチューナーサーバーと実際のチューナーサーバーで、番組表や録画が混ざらないようにする。渡さなければ、これまでのボリュームを使う。
+  # モックのチューナーサーバーと実際のチューナーサーバーで、番組表や録画が混ざらないようにする。渡さなければ、これまでのボリュームを使う。
   postgres:
     name: kotatsu-dev_postgres${KOTATSU_DEV_DB:+-${KOTATSU_DEV_DB}}
   recordings:
     name: kotatsu-dev_recordings${KOTATSU_DEV_DB:+-${KOTATSU_DEV_DB}}
-  # 索引や代表画像などの生成物は、録画と組なので、同じく KOTATSU_DEV_DB で分ける。
+  # インデックスや代表画像などの生成物は、録画と組なので、同じく KOTATSU_DEV_DB で分ける。
   data:
     name: kotatsu-dev_data${KOTATSU_DEV_DB:+-${KOTATSU_DEV_DB}}
   # タイムシフトのバッファも、録画と同じく KOTATSU_DEV_DB で分ける。
