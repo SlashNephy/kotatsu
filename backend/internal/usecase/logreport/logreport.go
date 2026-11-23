@@ -1,7 +1,7 @@
 // Package logreport は、管理の画面で読む直近のログと、不具合の報告に添える環境を集める (#1521、設計書 11.3)。
 //
 // ログは、このプロセスのメモリのバッファ (logring) と、チューナーサーバーの /api/log から集める。
-// 画面に送る前に、サーバーが知っている秘密の値を伏せる (1 段目)。ホスト名などを伏せる 2 段目は、ブラウザで行う。
+// 画面に送る前に、サーバーが知っている秘密の値をマスクする (第 1 段階)。ホスト名などをマスクする第 2 段階は、ブラウザで行う。
 // サーバーからは GitHub に何も送らない。
 package logreport
 
@@ -32,14 +32,14 @@ type Line struct {
 	// Time は、epoch ミリ秒の時刻。
 	Time  int64
 	Level logring.Level
-	// Inferred は、重さを本文の言葉から推し量ったかどうか。報告の行には、推し量った重さの印を付けない。
+	// Inferred は、重さを本文の言葉から推し量ったかどうか。報告の行には、推し量った重さのマークを付けない。
 	Inferred bool
 	Text     string
 }
 
 //go:generate go tool go-enum --values --nocomments
 
-// SourceKind は、ログの出どころ。
+// SourceKind は、ログのソース。
 //
 // ENUM(Kotatsu = KOTATSU, TunerServer = TUNER_SERVER)
 type SourceKind string
@@ -58,33 +58,33 @@ type Failure string
 // FailureNone は、ログを取れたこと。
 const FailureNone Failure = ""
 
-// Source は、1 つの出どころのログと環境。
+// Source は、1 つのソースのログと環境。
 type Source struct {
 	Kind SourceKind
 	// Lines は、古い順の行。
 	Lines []Line
-	// Total は、出どころが持っていた行の数。Lines は、このうち最後の Limit 行。
+	// Total は、ソースが持っていた行の数。Lines は、このうち最後の Limit 行。
 	Total   int
 	Failure Failure
-	// Version、OS、Arch は、出どころの版と環境。分からなければ空。
+	// Version、OS、Arch は、ソースのバージョンと環境。分からなければ空。
 	Version string
 	OS      string
 	Arch    string
-	// Runtime は、Kotatsu の Go の版。チューナーサーバーでは、サーバーの種類 (mahiron など、分かるときだけ)。
+	// Runtime は、Kotatsu の Go のバージョン。チューナーサーバーでは、サーバーの種類 (mahiron など、分かるときだけ)。
 	Runtime string
 }
 
-// Report は、画面に送るログと、2 段目で伏せるホスト名。
+// Report は、画面に送るログと、第 2 段階でマスクするホスト名。
 type Report struct {
 	Sources []*Source
-	// Hosts は、2 段目で伏せるホスト名。リクエストが来たホスト名と、チューナーサーバー、DB のホスト名。
+	// Hosts は、第 2 段階でマスクするホスト名。リクエストが来たホスト名と、チューナーサーバー、DB のホスト名。
 	Hosts []string
 	// InstanceID と Roles は、このリクエストに答えたプロセス。ロールを分けた構成では、このプロセスのログしか出せない。
 	InstanceID string
 	Roles      []string
 }
 
-// TunerServer は、チューナーサーバーのログと版を読む。*mirakurun.Client が満たす。
+// TunerServer は、チューナーサーバーのログとバージョンを読む。*mirakurun.Client が満たす。
 type TunerServer interface {
 	Version(ctx context.Context) (*mirakurun.Version, error)
 	Status(ctx context.Context) (*mirakurun.Status, error)
@@ -93,7 +93,7 @@ type TunerServer interface {
 
 var _ TunerServer = new(mirakurun.Client)
 
-// SecretSource は、1 段目で伏せる秘密の値を返す。
+// SecretSource は、第 1 段階でマスクする秘密の値を返す。
 type SecretSource func(ctx context.Context) ([]string, error)
 
 // Options は、Service の依存。
@@ -102,7 +102,7 @@ type Options struct {
 	Buffer *logring.Buffer
 	// Tuner は、チューナーサーバー。nil なら、チューナーサーバーのログは出さない。
 	Tuner TunerServer
-	// Hosts は、リクエストが来たホスト名のほかに伏せるホスト名 (チューナーサーバー、EDCB、DB)。URL か host:port で渡す。
+	// Hosts は、リクエストが来たホスト名のほかにマスクするホスト名 (チューナーサーバー、EDCB、DB)。URL か host:port で渡す。
 	Hosts      []string
 	InstanceID string
 	Roles      []string
@@ -139,7 +139,7 @@ func New(opts *Options) *Service {
 }
 
 // Report は、ログの報告を作る。requestHost は、リクエストが来たホスト名 (ポートを含んでもよい)。
-// 秘密の値を集められなければ、伏せていないログを返さないよう、失敗にする。
+// 秘密の値を集められなければ、マスクしていないログを返さないよう、失敗にする。
 func (s *Service) Report(ctx context.Context, requestHost string) (*Report, error) {
 	secretValues, err := s.opts.Secrets(ctx)
 	if err != nil {
@@ -168,7 +168,7 @@ func (s *Service) Report(ctx context.Context, requestHost string) (*Report, erro
 	return report, nil
 }
 
-// tunerServer は、チューナーサーバーのログと版を、問い合わせの待ち時間まで待って集める。
+// tunerServer は、チューナーサーバーのログとバージョンを、問い合わせの待ち時間まで待って集める。
 func (s *Service) tunerServer(ctx context.Context, secrets *redact.Secrets) *Source {
 	ctx, cancel := context.WithTimeout(ctx, s.opts.Timeout)
 	defer cancel()

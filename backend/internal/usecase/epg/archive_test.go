@@ -18,7 +18,7 @@ import (
 
 func noGuard(context.Context, pgx.Tx) error { return nil }
 
-// TestArchiverMovesProgramsAfterGrace は、放送の終わりから猶予が過ぎた番組だけを program_archives へ移すことを確かめる。
+// TestArchiverMovesProgramsAfterGrace は、放送の終わりから猶予が過ぎた番組だけを program_archives へ移すことを確認する。
 // 同期した時点 (12:10) で、eventId 1 (11:00〜11:30) と 2 (11:30〜12:00) は放送が終わっている。
 func TestArchiverMovesProgramsAfterGrace(t *testing.T) {
 	t.Parallel()
@@ -58,7 +58,7 @@ func TestArchiverMovesProgramsAfterGrace(t *testing.T) {
 	}
 }
 
-// TestArchiverSkipsProgramsRemovedBeforeBroadcast は、放送前に予定から消えた番組をアーカイブしないことを確かめる。
+// TestArchiverSkipsProgramsRemovedBeforeBroadcast は、放送前に予定から消えた番組をアーカイブしないことを確認する。
 func TestArchiverSkipsProgramsRemovedBeforeBroadcast(t *testing.T) {
 	t.Parallel()
 
@@ -78,7 +78,7 @@ func TestArchiverSkipsProgramsRemovedBeforeBroadcast(t *testing.T) {
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE service_id = $1 AND event_id = 5", serviceID()))
 }
 
-// TestArchiverArchivesProgramsWithUndecidedEnd は、終了時刻が未定のまま残った番組も、開始から猶予が過ぎたら移すことを確かめる。
+// TestArchiverArchivesProgramsWithUndecidedEnd は、終了時刻が未定のまま残った番組も、開始から猶予が過ぎたら移すことを確認する。
 func TestArchiverArchivesProgramsWithUndecidedEnd(t *testing.T) {
 	t.Parallel()
 
@@ -98,7 +98,7 @@ func TestArchiverArchivesProgramsWithUndecidedEnd(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM program_archives WHERE event_id = 200 AND end_undecided"))
 }
 
-// TestArchiverPrunesInBatches は、保持期間を過ぎたアーカイブを、少しずつ (BatchSize 件ずつ) すべて消すことを確かめる。
+// TestArchiverPrunesInBatches は、保持期間を過ぎたアーカイブを、少しずつ (BatchSize 件ずつ) すべて消すことを確認する。
 func TestArchiverPrunesInBatches(t *testing.T) {
 	t.Parallel()
 
@@ -143,7 +143,7 @@ func TestArchiverPrunesInBatches(t *testing.T) {
 	}
 }
 
-// TestArchiverRetentionError は、保持期間を引けなければ、アーカイブを消さずにエラーを返すことを確かめる。
+// TestArchiverRetentionError は、保持期間を引けなければ、アーカイブを消さずにエラーを返すことを確認する。
 func TestArchiverRetentionError(t *testing.T) {
 	t.Parallel()
 

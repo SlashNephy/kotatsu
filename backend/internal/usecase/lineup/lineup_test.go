@@ -70,7 +70,7 @@ func known(ids ...uint16) []lineup.Known {
 	for _, id := range ids {
 		out = append(out, lineup.Known{NetworkID: 4, ServiceID: id})
 	}
-	// ほかのネットワークのサービスは比べない。
+	// ほかのネットワークのサービスは比較しない。
 	out = append(out, lineup.Known{NetworkID: 6, ServiceID: 55})
 
 	return out
@@ -155,7 +155,7 @@ func TestComparer(t *testing.T) {
 	}
 }
 
-// TestComparerForget は、チューナーサーバーの一覧が変わったら、確かめ済みの version を忘れて比べ直すことを確かめる。
+// TestComparerForget は、チューナーサーバーの一覧が変わったら、確認済みの version を忘れて比較し直すことを確認する。
 func TestComparerForget(t *testing.T) {
 	t.Parallel()
 
@@ -182,7 +182,7 @@ func TestComparerForget(t *testing.T) {
 	}, change)
 }
 
-// TestComparerUnconfirm は、知らせられなかった食い違いを戻すと、同じ version を次に読んだときに、間隔を待たずにもう一度知らせることを確かめる。
+// TestComparerUnconfirm は、通知できなかった食い違いを戻すと、同じ version を次に読んだときに、間隔を待たずにもう一度通知することを確認する。
 func TestComparerUnconfirm(t *testing.T) {
 	t.Parallel()
 
@@ -210,7 +210,7 @@ func TestComparerUnconfirm(t *testing.T) {
 	}, change)
 }
 
-// TestComparerCS は、CS も同じ規則で比べ、構成がないとき (nil) は比べないことを確かめる。
+// TestComparerCS は、CS も同じ規則で比較し、構成がないとき (nil) は比較しないことを確認する。
 func TestComparerCS(t *testing.T) {
 	t.Parallel()
 

@@ -27,7 +27,7 @@ func nitSection(version, number, last uint8, tsid, serviceID uint16) *ts.NIT {
 	}
 }
 
-// TestCollector は、NIT[actual] のセクションが揃ったら 1 つの構成にして DB に書き、読み直せることを確かめる (#1519)。
+// TestCollector は、NIT[actual] のセクションが揃ったら 1 つの構成にして DB に書き、読み直せることを確認する (#1519)。
 func TestCollector(t *testing.T) {
 	t.Parallel()
 
@@ -89,8 +89,8 @@ func TestCollector(t *testing.T) {
 	assert.Equal(t, uint16(105), got[0].Streams[0].Services[0].ServiceID)
 }
 
-// TestComparerUsesObservedAt は、DB から読み直した構成を比べるとき、読み直した時刻ではなく、放送から読んだ時刻で
-// 間隔をあけたかを決めることを確かめる。
+// TestComparerUsesObservedAt は、DB から読み直した構成を比較するとき、読み直した時刻ではなく、放送から読んだ時刻で
+// 間隔をあけたかを決めることを確認する。
 func TestComparerUsesObservedAt(t *testing.T) {
 	t.Parallel()
 

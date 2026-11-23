@@ -33,7 +33,7 @@ func received(channel string, at time.Duration) lineup.TuningOutcome {
 	return lineup.TuningOutcome{ChannelType: "GR", Channel: channel, At: tuningBase().Add(at), Received: true}
 }
 
-// TestUnreachable は、続けて選局できないチャンネルを決める規則を確かめる (#1519)。
+// TestUnreachable は、続けて選局できないチャンネルを決める規則を確認する (#1519)。
 func TestUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -139,7 +139,7 @@ func grChannelTV(networkID, serviceID int, channel string) *tunerserver.Service 
 	}
 }
 
-// TestCheckerTuning は、録画の結果から続けて選局できないチャンネルを決め、管理者に 1 回だけ知らせることを確かめる (#1519)。
+// TestCheckerTuning は、録画の結果から続けて選局できないチャンネルを決め、管理者に 1 回だけ通知することを確認する (#1519)。
 func TestCheckerTuning(t *testing.T) {
 	t.Parallel()
 

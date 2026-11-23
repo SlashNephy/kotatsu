@@ -26,7 +26,7 @@ import (
 // systemURL は、知らせの payload の、押したときに開くシステムの状態の画面のパス。
 const systemURL = "/admin/system"
 
-// keyKind は、知らせの payload の、種別の鍵。
+// keyKind は、通知の payload の、種別のキー。
 const keyKind = "kind"
 
 // createAdmin は、知らせの宛先にする、有効な管理者を作る。
@@ -104,8 +104,8 @@ func lineupNotifications(t *testing.T, pool *pgxpool.Pool) []map[string]any {
 	return payloads
 }
 
-// TestChecker は、DB の衛星の構成を、チューナーサーバーの一覧と比べ、同じ version の食い違いを間隔をあけて 2 回読んだら、
-// 管理者に 1 回だけ知らせることを確かめる (#1519)。
+// TestChecker は、DB の衛星の構成を、チューナーサーバーの一覧と比較し、同じ version の食い違いを間隔をあけて 2 回読んだら、
+// 管理者に 1 回だけ通知することを確認する (#1519)。
 func TestChecker(t *testing.T) {
 	t.Parallel()
 

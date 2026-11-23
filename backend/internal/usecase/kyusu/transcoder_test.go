@@ -87,10 +87,10 @@ func probe(t *testing.T, path string) []probedStream {
 }
 
 // TestTranscoderWritesHLS は、TS を、画質のプリセットどおりの映像と、AAC の音声と、字幕の ID3 timed metadata を持つ
-// MPEG-TS のセグメントの HLS にすることを確かめる (設計書 7.3)。
+// MPEG-TS のセグメントの HLS にすることを確認する (設計書 7.3)。
 // テスト用の TS には字幕がないので、ID3 timed metadata は、tsreadex が補う空のデータである。
 // BS4K に似せた 10 ビットの HEVC の入力でも、ブラウザで再生できる 8 ビットの映像にすることと、
-// 変換しないプリセットでは、HEVC をそのまま送ることを確かめる (#806)。
+// 変換しないプリセットでは、HEVC をそのまま送ることを確認する (#806)。
 func TestTranscoderWritesHLS(t *testing.T) {
 	t.Parallel()
 
@@ -160,7 +160,7 @@ func TestTranscoderWritesHLS(t *testing.T) {
 }
 
 // TestTranscoderWritesAudioOnlyHLS は、映像を送らないプリセットでは、映像を入れず、AAC の音声と字幕の ID3 timed metadata だけの
-// MPEG-TS のセグメントの HLS にすることを確かめる (#1513)。
+// MPEG-TS のセグメントの HLS にすることを確認する (#1513)。
 func TestTranscoderWritesAudioOnlyHLS(t *testing.T) {
 	t.Parallel()
 
@@ -200,7 +200,7 @@ func (r *loopReader) Read(p []byte) (int, error) {
 
 var _ io.Reader = new(loopReader)
 
-// TestTranscoderStopsWithContext は、終わらない入力でも、ctx が終わればプロセスを止めて戻ることを確かめる。
+// TestTranscoderStopsWithContext は、終わらない入力でも、ctx が終わればプロセスを止めて戻ることを確認する。
 func TestTranscoderStopsWithContext(t *testing.T) {
 	t.Parallel()
 
@@ -247,7 +247,7 @@ func (r *stallingReader) Read(p []byte) (int, error) {
 	return 0, io.EOF
 }
 
-// TestTranscoderReportsEncoderFailure は、入力が途切れている間に FFmpeg が失敗しても、待ち続けずに、FFmpeg のエラーを返すことを確かめる。
+// TestTranscoderReportsEncoderFailure は、入力が途切れている間に FFmpeg が失敗しても、待ち続けずに、FFmpeg のエラーを返すことを確認する。
 func TestTranscoderReportsEncoderFailure(t *testing.T) {
 	t.Parallel()
 
@@ -372,7 +372,7 @@ func meanVolume(t *testing.T, path string) float64 {
 	return volume
 }
 
-// TestTranscoderSelectsAudio は、選んだ音声だけを HLS に入れることを確かめる (設計書 7.5)。
+// TestTranscoderSelectsAudio は、選んだ音声だけを HLS に入れることを確認する (設計書 7.5)。
 func TestTranscoderSelectsAudio(t *testing.T) {
 	t.Parallel()
 
@@ -417,7 +417,7 @@ func TestTranscoderSelectsAudio(t *testing.T) {
 }
 
 // TestTranscoderRunVODDiscardsThePartialSegment は、映像を変換しないプリセットの VOD を ctx で止めたとき、
-// 書きかけのセグメントの一時ファイルを残さないことを確かめる (#1094)。
+// 書きかけのセグメントの一時ファイルを残さないことを確認する (#1094)。
 // 入力をそのまま流すスクリプトを、FFmpeg と tsreadex として PATH に置く。PATH はプロセスで共有するので、並行して動かさない。
 func TestTranscoderRunVODDiscardsThePartialSegment(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -471,7 +471,7 @@ func firstPTS(t *testing.T, path, stream string) float64 {
 	return pts
 }
 
-// TestTranscoderKeepsBroadcastPTS は、ライブ視聴のセグメントの PTS を、入力の放送の PTS のままにすることを確かめる (#1515)。
+// TestTranscoderKeepsBroadcastPTS は、ライブ視聴のセグメントの PTS を、入力の放送の PTS のままにすることを確認する (#1515)。
 // 画面は、hls.js が画面の時刻 0 に置いた PTS を、放送の時刻の起点にして「放送から N 秒」を出す。
 // 音声は、入力の最初の音声と同じ PTS から始まる。映像は、インターレースの解除とエンコードの分、1 コマより小さくずれる。
 func TestTranscoderKeepsBroadcastPTS(t *testing.T) {
@@ -498,7 +498,7 @@ func TestTranscoderKeepsBroadcastPTS(t *testing.T) {
 	}
 }
 
-// TestTranscoderNVENCSplitsSegmentsEvery2s は、NVENC でも、HLS のセグメントを 2 秒ごとに区切ることを確かめる (#1845)。
+// TestTranscoderNVENCSplitsSegmentsEvery2s は、NVENC でも、HLS のセグメントを 2 秒ごとに区切ることを確認する (#1845)。
 // NVENC は、-force_key_frames で置いたキーフレームを、既定では IDR でない I フレームにするので、-forced-idr が要る。
 // NVENC の使える GPU がなければ、テストを飛ばす。
 func TestTranscoderNVENCSplitsSegmentsEvery2s(t *testing.T) {
@@ -538,7 +538,7 @@ func TestTranscoderNVENCSplitsSegmentsEvery2s(t *testing.T) {
 	}
 }
 
-// TestTranscoderQSVSplitsSegmentsEvery2s は、QSV でも、どの画質でも HLS のセグメントを 2 秒ごとに区切ることを確かめる (#1848)。
+// TestTranscoderQSVSplitsSegmentsEvery2s は、QSV でも、どの画質でも HLS のセグメントを 2 秒ごとに区切ることを確認する (#1848)。
 // 30 コマの画質では、scale_qsv の後のフレームの長さが前の時間の単位のままになり、HLS の muxer が最初のフレームを複製し続ける。
 // 60 コマの画質では、-force_key_frames で置いたキーフレームが IDR にならないことがある。
 // QSV の使える GPU がなければ、テストを飛ばす。
@@ -628,7 +628,7 @@ func gpuDevice(t *testing.T, encoder string) string {
 }
 
 // TestTranscoderHardwareDecode は、VAAPI と QSV で、復号から縮小までを GPU でして、画質のプリセットどおりの 8 ビットの映像の HLS を書き、
-// セグメントを 2 秒ごとに区切ることを確かめる (#1970、#1999)。インターレースの MPEG-2 は、60fps の画質ではフィールドごとに 1 コマにし、
+// セグメントを 2 秒ごとに区切ることを確認する (#1970、#1999)。インターレースの MPEG-2 は、60fps の画質ではフィールドごとに 1 コマにし、
 // BS4K に似せた 10 ビットの HEVC のプログレッシブの映像は、デインターレースを通さずに 59.94fps のまま送る。
 // GPU が復号できない形式 (H.264 の 4:4:4) の入力でも、CPU で復号して、同じく変換する。
 // そのエンコーダーを使える GPU がなければ、そのエンコーダーのテストを飛ばす。
@@ -719,7 +719,7 @@ type hardwareHLSCase struct {
 	wantFrameRate string
 }
 
-// assertHardwareHLS は、dir に書いた HLS の最初のセグメントが tt のとおりの 8 ビットの映像で、セグメントが 2 秒ずつであることを確かめる。
+// assertHardwareHLS は、dir に書いた HLS の最初のセグメントが tt のとおりの 8 ビットの映像で、セグメントが 2 秒ずつであることを確認する。
 func assertHardwareHLS(t *testing.T, dir string, tt *hardwareHLSCase) {
 	t.Helper()
 

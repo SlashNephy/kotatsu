@@ -21,10 +21,10 @@ const (
 	KindCS Kind = "CS"
 )
 
-// serviceTypeTV は、テレビのサービスの service_type (ARIB STD-B10)。比べるのは、テレビのサービスだけである。
+// serviceTypeTV は、テレビのサービスの service_type (ARIB STD-B10)。比較するのは、テレビのサービスだけである。
 const serviceTypeTV = 0x01
 
-// 中継器の周波数の割り当て (ARIB STD-B20)。番号から周波数を出し、NIT の周波数と比べる。
+// 中継器の周波数の割り当て (ARIB STD-B20)。番号から周波数を出し、NIT の周波数と比較する。
 const (
 	bsFirstMHz   = 11_727.48
 	bsSpacingMHz = 38.36
@@ -43,7 +43,7 @@ const (
 	uhdTransponderBS17 = 17
 )
 
-// Transponder は、kind の中継器の番号を、周波数 (kHz) から求める。表に当てはまらない周波数と、
+// Transponder は、kind の中継器の番号を、周波数 (kHz) から求める。テーブルに当てはまらない周波数と、
 // 4K・8K の中継器 (BS-7、BS-17) なら false を返す。
 func Transponder(kind Kind, frequencyKHz int) (int, bool) {
 	mhz := float64(frequencyKHz) / 1000
@@ -97,7 +97,7 @@ type Observation struct {
 	NetworkID uint16
 	Version   uint8
 	Streams   []Stream
-	// ObservedAt は、放送から読んだ時刻。零値なら、比べた時刻を使う。DB に書いたものを読み直して比べるときは、
+	// ObservedAt は、放送から読んだ時刻。零値なら、比較した時刻を使う。DB に書いたものを読み直して比較するときは、
 	// 読み直した時刻ではなく、放送から読んだ時刻で、間隔をあけて 2 回読んだかを決める。
 	ObservedAt time.Time
 }
@@ -124,7 +124,7 @@ type Change struct {
 // 1 回の読み取りの周回で、別の中継器を続けて読む時間より長くする。短すぎると、混ざった古い情報を 2 回読んで信じる。
 const DefaultRecheckInterval = 30 * time.Minute
 
-// key は、比べる単位 (種別とネットワーク)。
+// key は、比較する単位 (種別とネットワーク)。
 type key struct {
 	kind      Kind
 	networkID uint16
@@ -136,21 +136,21 @@ type pending struct {
 	seenAt    time.Time
 }
 
-// Comparer は、放送の NIT[actual] とチューナーサーバーの一覧を比べ、食い違いを知らせるかを決める。
+// Comparer は、放送の NIT[actual] とチューナーサーバーの一覧を比較し、食い違いを通知するかを決める。
 //
-//   - version_number を (種別、network_id) ごとに「確かめ済み」として覚え、同じ version の NIT が来たら比べるのを省く。
-//   - 食い違いを初めて見たら、その version と時刻を覚えるだけで、知らせない。同じ version の食い違いを、
-//     間隔 (interval) 以上あけてもう一度読んだら、知らせる。放送に古い構成の情報が混ざることがあるからである。
+//   - version_number を (種別、network_id) ごとに「確かめ済み」として保存し、同じ version の NIT が来たら比較するのを省く。
+//   - 食い違いを初めて見たら、その version と時刻を保存するだけで、通知しない。同じ version の食い違いを、
+//     間隔 (interval) 以上あけてもう一度読んだら、通知する。放送に古い構成の情報が混ざることがあるからである。
 //     間隔より前に読んだものは、2 回目に数えない。version が変わったら、数え直す。
 //   - 読めたトランスポートストリームが 1 つもない構成は使わない。読み違いで、全部が消えたと判断しないためである。
 //
-// 比べるのは 1 つずつ順に行う。2 つの経路から同時に来ても、二重に知らせないためである。
+// 比較するのは 1 つずつ順に行う。2 つの経路から同時に来ても、二重に通知しないためである。
 type Comparer struct {
 	clock    clock.Clock
 	interval time.Duration
 	mu       sync.Mutex
-	// checked は、確かめ済みの構成の指紋。指紋は、version と、比べるテレビのサービスの集合から作る。
-	// 番組のないサービス (#2034) が変わると、version が同じでも比べるサービスが変わるので、比べ直す。
+	// checked は、確認済みの構成の指紋。指紋は、version と、比較するテレビのサービスの集合から作る。
+	// 番組のないサービス (#2034) が変わると、version が同じでも比較するサービスが変わるので、比較し直す。
 	checked map[key]string
 	pending map[key]pending
 }
@@ -164,7 +164,7 @@ func NewComparer(clk clock.Clock, interval time.Duration) *Comparer {
 	return &Comparer{clock: clk, interval: interval, mu: sync.Mutex{}, checked: map[key]string{}, pending: map[key]pending{}}
 }
 
-// Observe は、読んだ構成 obs を、チューナーサーバーのテレビのサービス known と比べ、知らせる食い違いがあれば返す。
+// Observe は、読んだ構成 obs を、チューナーサーバーのテレビのサービス known と比較し、通知する食い違いがあれば返す。
 // known は、obs と同じ種別のサービスだけでよい (ほかのネットワークのものは、無視する)。
 func (c *Comparer) Observe(obs *Observation, known []Known) (*Change, bool) {
 	if obs == nil {
@@ -208,7 +208,7 @@ func (c *Comparer) Observe(obs *Observation, known []Known) (*Change, bool) {
 	return change, true
 }
 
-// Unconfirm は、Observe が知らせると決めた obs を、知らせられなかったときに、まだ知らせていないことに戻す。
+// Unconfirm は、Observe が通知すると決めた obs を、通知できなかったときに、まだ通知していないことに戻す。
 // 同じ version を次に読んだら、間隔を待たずに、もう一度知らせると決める。2 回読んで信じたことは変わらないからである。
 func (c *Comparer) Unconfirm(obs *Observation) {
 	if obs == nil {
@@ -227,7 +227,7 @@ func (c *Comparer) Unconfirm(obs *Observation) {
 	c.pending[k] = pending{signature: sig, seenAt: time.Time{}}
 }
 
-// Forget は、チューナーサーバーの一覧が変わったとき (スキャンし直したときなど) に、確かめ済みの version を忘れ、比べ直す。
+// Forget は、チューナーサーバーの一覧が変わったとき (スキャンし直したときなど) に、確認済みの version を忘れ、比較し直す。
 func (c *Comparer) Forget() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -235,7 +235,7 @@ func (c *Comparer) Forget() {
 	clear(c.pending)
 }
 
-// tvServices は、obs の、表に当てはまる中継器のテレビのサービスの service_id を返す。
+// tvServices は、obs の、テーブルに当てはまる中継器のテレビのサービスの service_id を返す。
 func tvServices(obs *Observation) map[uint16]bool {
 	services := map[uint16]bool{}
 	for _, stream := range obs.Streams {
@@ -252,7 +252,7 @@ func tvServices(obs *Observation) map[uint16]bool {
 	return services
 }
 
-// signatureOf は、version と、比べるテレビのサービスの集合 broadcast から、構成の指紋を作る。
+// signatureOf は、version と、比較するテレビのサービスの集合 broadcast から、構成の指紋を作る。
 func signatureOf(version uint8, broadcast map[uint16]bool) string {
 	ids := make([]int, 0, len(broadcast))
 	for id := range broadcast {
@@ -291,7 +291,7 @@ func WithoutIdle(obs *Observation, idle map[Known]bool, known []Known) *Observat
 	return &out
 }
 
-// compare は、放送のテレビのサービス broadcast と、チューナーサーバーの known を比べる。
+// compare は、放送のテレビのサービス broadcast と、チューナーサーバーの known を比較する。
 func compare(obs *Observation, broadcast map[uint16]bool, known []Known) *Change {
 	registered := map[uint16]bool{}
 	for _, service := range known {

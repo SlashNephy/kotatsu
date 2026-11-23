@@ -36,7 +36,7 @@ func (failingEncoder) Run(_ context.Context, src io.Reader, _ *kyusu.Preset, _ k
 	return io.ErrUnexpectedEOF
 }
 
-// recordingWatcher は、パケットを 1 つ数えるたびに時計を 100 ミリ秒進める判定器を作り、スクランブルされたままと記録したサービスを覚える。
+// recordingWatcher は、パケットを 1 つ数えるたびに時計を 100 ミリ秒進める判定器を作り、スクランブルされたままと記録したサービスを保存する。
 type recordingWatcher struct {
 	mu       sync.Mutex
 	now      time.Time
@@ -74,8 +74,8 @@ func (w *recordingWatcher) list() []int64 {
 
 var _ kyusu.ScrambleWatcher = new(recordingWatcher)
 
-// TestLiveReportsScrambledStreams は、エンコーダーに流す TS がスクランブルされたまま届いたら、理由を記録してからセッションを閉じることを確かめる (#1517)。
-// エンコーダーが判定の前に降りたら、いちばん新しい窓だけで決める。
+// TestLiveReportsScrambledStreams は、エンコーダーに流す TS がスクランブルされたまま届いたら、理由を記録してからセッションを閉じることを確認する (#1517)。
+// エンコーダーが判定の前に降りたら、いちばん新しいウィンドウだけで決める。
 func TestLiveReportsScrambledStreams(t *testing.T) {
 	t.Parallel()
 

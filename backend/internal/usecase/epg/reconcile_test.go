@@ -132,7 +132,7 @@ func TestSyncAllWithoutChangesDoesNotNotify(t *testing.T) {
 	assert.Equal(t, &epg.Result{ServicesUpserted: 0, ProgramsUpserted: 0, ProgramsDeleted: 0, Version: 0}, result)
 }
 
-// TestSyncAllReflectsChangesWithoutEvents は、イベントで届かない変更も、全量の突き合わせで反映することを確かめる (設計書 3.3)。
+// TestSyncAllReflectsChangesWithoutEvents は、イベントで届かない変更も、全量の照合で反映することを確認する (設計書 3.3)。
 func TestSyncAllReflectsChangesWithoutEvents(t *testing.T) {
 	t.Parallel()
 
@@ -216,7 +216,7 @@ func TestSyncAllReflectsChangesWithoutEvents(t *testing.T) {
 	}
 }
 
-// TestSyncAllStoresProgramAudios は、番組の音声の構成を保存し、変わらなければ書き直さないことを確かめる (#284)。
+// TestSyncAllStoresProgramAudios は、番組の音声の構成を保存し、変わらなければ書き直さないことを確認する (#284)。
 func TestSyncAllStoresProgramAudios(t *testing.T) {
 	t.Parallel()
 
@@ -243,7 +243,7 @@ func TestSyncAllStoresProgramAudios(t *testing.T) {
 	assert.Equal(t, &epg.Result{ServicesUpserted: 0, ProgramsUpserted: 0, ProgramsDeleted: 0, Version: 0}, result)
 }
 
-// TestSyncAllStoresProgramVideoResolution は、番組の映像の解像度を保存し、変わらなければ書き直さないことを確かめる (#806)。
+// TestSyncAllStoresProgramVideoResolution は、番組の映像の解像度を保存し、変わらなければ書き直さないことを確認する (#806)。
 // BS4K と 8K の番組を見分けるのに使う。
 func TestSyncAllStoresProgramVideoResolution(t *testing.T) {
 	t.Parallel()
@@ -279,7 +279,7 @@ func TestSyncAllStoresProgramVideoResolution(t *testing.T) {
 	assert.Nil(t, resolution())
 }
 
-// TestSyncAllStoresProgramSeries は、シリーズの記述子の話数と再放送の印を保存し、変わらなければ書き直さないことを確かめる (#1311)。
+// TestSyncAllStoresProgramSeries は、シリーズの記述子の話数と再放送のマークを保存し、変わらなければ書き直さないことを確認する (#1311)。
 // 話数が 0 の記述子 (どの値も 0 にして送る局がある) は、ないものとする。
 func TestSyncAllStoresProgramSeries(t *testing.T) {
 	t.Parallel()
@@ -317,7 +317,7 @@ func TestSyncAllStoresProgramSeries(t *testing.T) {
 	assert.Nil(t, repeat)
 }
 
-// TestSyncAllKeepsAdministratorSettings は、管理者が画面から変えた値を同期が上書きしないことを確かめる。
+// TestSyncAllKeepsAdministratorSettings は、管理者が画面から変えた値を同期が上書きしないことを確認する。
 func TestSyncAllKeepsAdministratorSettings(t *testing.T) {
 	t.Parallel()
 
@@ -358,7 +358,7 @@ func TestSyncServicesOnlyTouchesGivenServices(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE mirakurun_id = $1", other))
 }
 
-// TestSyncRejectsWritesFromOldLeader は、リーダーでなくなった neko の同期が DB を書き換えないことを確かめる (設計書 1.4)。
+// TestSyncRejectsWritesFromOldLeader は、リーダーでなくなった neko の同期が DB を書き換えないことを確認する (設計書 1.4)。
 func TestSyncRejectsWritesFromOldLeader(t *testing.T) {
 	t.Parallel()
 
@@ -388,7 +388,7 @@ func TestSyncRejectsWritesFromOldLeader(t *testing.T) {
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM services"))
 }
 
-// TestSyncAllMarksUndecidedEnd は、終了時刻が未定の番組を、上流ごとの表し方によらず未定として記録することを確かめる。
+// TestSyncAllMarksUndecidedEnd は、終了時刻が未定の番組を、上流ごとの表し方によらず未定として記録することを確認する。
 // 長さは、Mirakurun が 1 ミリ秒、Mahiron が 0 で返す (#23 の実測)。
 func TestSyncAllMarksUndecidedEnd(t *testing.T) {
 	t.Parallel()
@@ -423,7 +423,7 @@ func TestSyncAllMarksUndecidedEnd(t *testing.T) {
 }
 
 // TestSyncSkipsArchivablePrograms は、アーカイブへ移す時期を過ぎた番組を、上流が返しても programs に足さず、
-// programs に残っていても消さない (Archiver に移させる) ことを確かめる。
+// programs に残っていても消さない (Archiver に移させる) ことを確認する。
 func TestSyncSkipsArchivablePrograms(t *testing.T) {
 	t.Parallel()
 
@@ -469,8 +469,8 @@ func (u *onAirUpstream) OnAirPrograms(context.Context) ([]*tunerserver.OnAirProg
 	return u.onair, nil
 }
 
-// TestSyncReflectsOnAirPrograms は、番組表 (EIT[schedule]) に、放送中と次の番組 (EIT[p/f]) を重ねて反映することを確かめる (設計書 5.1)。
-// mirakc の /api/programs は、延長や繰り上げを、番組表を取り直すまで反映しない。
+// TestSyncReflectsOnAirPrograms は、番組表 (EIT[schedule]) に、放送中と次の番組 (EIT[p/f]) を重ねて反映することを確認する (設計書 5.1)。
+// mirakc の /api/programs は、延長や繰り上げを、番組表を再取得するまで反映しない。
 func TestSyncReflectsOnAirPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -556,7 +556,7 @@ func (u *dataServiceUpstream) Services(ctx context.Context) ([]*tunerserver.Serv
 }
 
 // TestSyncSkipsNonMediaServices は、映像も音声も流さないサービスとその番組を取り込まず、
-// すでに DB にあるそのようなサービスの番組も、消さずに残すことを確かめる。
+// すでに DB にあるそのようなサービスの番組も、消さずに残すことを確認する。
 func TestSyncSkipsNonMediaServices(t *testing.T) {
 	t.Parallel()
 
@@ -600,7 +600,7 @@ func TestSyncSkipsNonMediaServices(t *testing.T) {
 }
 
 // TestSyncAllKeepsProgramsWhenUpstreamReturnsNone は、上流がサービスの番組を 1 つも返さなかったときは、
-// そのサービスの番組を消さないことを確かめる (#518)。チューナーサーバーが一時的に空の一覧を返すと、未来の番組とルール予約が全部消えていた。
+// そのサービスの番組を消さないことを確認する (#518)。チューナーサーバーが一時的に空の一覧を返すと、未来の番組とルール予約が全部消えていた。
 func TestSyncAllKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
 	t.Parallel()
 
@@ -620,7 +620,7 @@ func TestSyncAllKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
 	assert.Equal(t, before, f.count(t, "SELECT count(*) FROM programs"))
 }
 
-// TestSyncAllDeletesSomeVanishedPrograms は、サービスの番組の一部だけが上流から消えたときは、今までどおり消すことを確かめる。
+// TestSyncAllDeletesSomeVanishedPrograms は、サービスの番組の一部だけが上流から消えたときは、今までどおり消すことを確認する。
 func TestSyncAllDeletesSomeVanishedPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -635,8 +635,8 @@ func TestSyncAllDeletesSomeVanishedPrograms(t *testing.T) {
 	assert.Equal(t, before-1, f.count(t, "SELECT count(*) FROM programs"))
 }
 
-// TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone は、イベントでサービスの番組を突き合わせるときも、
-// 上流がその番組を 1 つも返さなければ消さないことを確かめる (#518)。
+// TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone は、イベントでサービスの番組を照合するときも、
+// 上流がその番組を 1 つも返さなければ消さないことを確認する (#518)。
 func TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
 	t.Parallel()
 
@@ -659,8 +659,8 @@ func TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
 }
 
 // TestSyncInfersSharedEventsWithoutDescriptor は、同じ TS のサブチャンネルで、イベント共有の記述子がなくても、
-// 開始、長さ、番組名が同じ番組を、イベント共有として取り込むことを確かめる (#1024)。
-// 放送の EIT には、event_id が違い、event_group_descriptor もない同じ番組がある (2026 年 10 月に NHK 総合 1 と 2 で確かめた)。
+// 開始、長さ、番組名が同じ番組を、イベント共有として取り込むことを確認する (#1024)。
+// 放送の EIT には、event_id が違い、event_group_descriptor もない同じ番組がある (2026 年 10 月に NHK 総合 1 と 2 で確認した)。
 func TestSyncInfersSharedEventsWithoutDescriptor(t *testing.T) {
 	t.Parallel()
 
@@ -771,7 +771,7 @@ func TestSyncInfersSharedEventsWithoutDescriptor(t *testing.T) {
 }
 
 // TestSyncDoesNotInferSharedEventsAcrossChannels は、別のチャンネルの番組は、開始、長さ、番組名が同じでも、
-// イベント共有とみなさないことを確かめる (#1024)。同じネットワークの別のチャンネル (中継局など) も、同じ TS ではないのでまとめない。
+// イベント共有とみなさないことを確認する (#1024)。同じネットワークの別のチャンネル (中継局など) も、同じ TS ではないのでまとめない。
 func TestSyncDoesNotInferSharedEventsAcrossChannels(t *testing.T) {
 	t.Parallel()
 
@@ -812,7 +812,7 @@ func syncAll(t *testing.T, r *epg.Reconciler) {
 	require.NoError(t, err)
 }
 
-// TestSyncDoesNotInferSharedEventsOnSatellite は、BS と CS では、同じ TS のサービスの番組を、イベント共有とみなさないことを確かめる (#1024)。
+// TestSyncDoesNotInferSharedEventsOnSatellite は、BS と CS では、同じ TS のサービスの番組を、イベント共有とみなさないことを確認する (#1024)。
 // BS と CS は、1 つの TS に別の放送局のサービスが入り、「インフォメーション」のような番組名が同じ時間に重なる。
 func TestSyncDoesNotInferSharedEventsOnSatellite(t *testing.T) {
 	t.Parallel()
@@ -847,7 +847,7 @@ func TestSyncDoesNotInferSharedEventsOnSatellite(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE mirakurun_id = $1 AND end_at = $2", otherProgram, start.Add(30*time.Minute)))
 }
 
-// TestSyncAllRecordsProgramRewrites は、放送前の番組の、番組名と概要の書き換えを記録することを確かめる (#1558)。
+// TestSyncAllRecordsProgramRewrites は、放送前の番組の、番組名と概要の書き換えを記録することを確認する (#1558)。
 func TestSyncAllRecordsProgramRewrites(t *testing.T) {
 	t.Parallel()
 
@@ -935,7 +935,7 @@ func (f *fixture) goneAt(t *testing.T, id int64) *time.Time {
 }
 
 // TestSyncAllRecordsServicesMissingFromUpstream は、上流のサービスの一覧から消えたサービスに、初めて気づいた時刻を残し、
-// 戻ってきたら消すことを確かめる (#1973)。行は、予約や録画から参照されうるので消さない。
+// 戻ってきたら消すことを確認する (#1973)。行は、予約や録画から参照されうるので消さない。
 func TestSyncAllRecordsServicesMissingFromUpstream(t *testing.T) {
 	t.Parallel()
 
@@ -970,7 +970,7 @@ func TestSyncAllRecordsServicesMissingFromUpstream(t *testing.T) {
 	assert.Nil(t, f.goneAt(t, serviceID()))
 }
 
-// TestSyncAllKeepsServicesWhenUpstreamReturnsNone は、上流がサービスを 1 つも返さなかったときは、全部を消えた扱いにしないことを確かめる (#1973)。
+// TestSyncAllKeepsServicesWhenUpstreamReturnsNone は、上流がサービスを 1 つも返さなかったときは、全部を消えた扱いにしないことを確認する (#1973)。
 func TestSyncAllKeepsServicesWhenUpstreamReturnsNone(t *testing.T) {
 	t.Parallel()
 
@@ -989,8 +989,8 @@ func TestSyncAllKeepsServicesWhenUpstreamReturnsNone(t *testing.T) {
 	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM services WHERE gone_at IS NULL"))
 }
 
-// TestSyncServiceListRecordsServicesMissingFromUpstream は、サービスの一覧だけを突き合わせるときも、上流から消えたサービスに
-// 気づいた時刻を残し、上流が 1 つも返さなかったときは消えた扱いにせず、番組は突き合わせないことを確かめる (#2035)。
+// TestSyncServiceListRecordsServicesMissingFromUpstream は、サービスの一覧だけを照合するときも、上流から消えたサービスに
+// 気づいた時刻を残し、上流が 1 つも返さなかったときは消えた扱いにせず、番組は照合しないことを確認する (#2035)。
 func TestSyncServiceListRecordsServicesMissingFromUpstream(t *testing.T) {
 	t.Parallel()
 

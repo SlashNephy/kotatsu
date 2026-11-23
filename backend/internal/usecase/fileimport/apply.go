@@ -292,7 +292,7 @@ type recording struct {
 	recordedUntil time.Time
 }
 
-// read は、ファイルの頭と終わりを読み、取り込む録画を求める。取り込めなければ skipError を返す。
+// read は、ファイルの先頭と終わりを読み、取り込む録画を求める。取り込めなければ skipError を返す。
 func (a *applier) read(entry *kago.Entry) (*recording, error) {
 	f, err := a.importer.store.Open(a.opts.PoolID, entry.Path)
 	if err != nil {
@@ -434,7 +434,7 @@ func (a *applier) insert(ctx context.Context, tx pgx.Tx, entry *kago.Entry, sour
 	if err != nil {
 		return err
 	}
-	// nekonote が、索引とドロップの集計を作り、続けて画像を作る (設計書 6.3)。
+	// nekonote が、インデックスとドロップの集計を作り、続けて画像を作る (設計書 6.3)。
 	params := []river.InsertManyParams{{Args: analysis.AnalyzeArgs{RecordingID: recordingID}, InsertOpts: nil}}
 	if _, err := a.importer.inserter.InsertManyTx(ctx, tx, params); err != nil {
 		return fmt.Errorf("failed to enqueue the analysis: %w", err)

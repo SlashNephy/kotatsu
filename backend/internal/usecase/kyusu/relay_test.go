@@ -42,7 +42,7 @@ func (f *fakeInstances) ListAlive(_ context.Context, role string) ([]*registry.I
 
 var _ kyusu.Instances = new(fakeInstances)
 
-// fakeKyusu は、トークンを確かめて、受け取ったパスを残し、パスに応じた応答を返す kyusu。
+// fakeKyusu は、トークンを確認して、受け取ったパスを残し、パスに応じた応答を返す kyusu。
 type fakeKyusu struct {
 	mu    sync.Mutex
 	paths []string
@@ -91,7 +91,7 @@ func newHLSServer(t *testing.T, instances kyusu.Instances, token *kyusu.Token) *
 	return server
 }
 
-// relayed は、中継した応答。
+// relayed は、プロキシした応答。
 type relayed struct {
 	status       int
 	contentType  string
@@ -115,8 +115,8 @@ func fetch(t *testing.T, rawURL string) *relayed {
 	}
 }
 
-// TestRelayRelaysToKyusu は、ライブ視聴の HLS を、トークンを付けて kyusu に中継し、
-// 同じサービスと画質は、インスタンスの並びによらず同じ kyusu に中継することを確かめる (設計書 7.3)。
+// TestRelayRelaysToKyusu は、ライブ視聴の HLS を、トークンを付けて kyusu にプロキシし、
+// 同じサービスと画質は、インスタンスの並びによらず同じ kyusu にプロキシすることを確認する (設計書 7.3)。
 func TestRelayRelaysToKyusu(t *testing.T) {
 	t.Parallel()
 
@@ -147,7 +147,7 @@ func TestRelayRelaysToKyusu(t *testing.T) {
 	assert.NotEmpty(t, second.requests())
 }
 
-// TestRelayErrors は、kyusu がないときと、kyusu がエラーを返したときの状態を確かめる。
+// TestRelayErrors は、kyusu がないときと、kyusu がエラーを返したときの状態を確認する。
 func TestRelayErrors(t *testing.T) {
 	t.Parallel()
 
@@ -187,7 +187,7 @@ func TestRelayErrors(t *testing.T) {
 	}
 }
 
-// TestRecordingRelay は、録画の仮想 HLS を、書き方をそろえた録画の ID で kyusu に中継し、録画の ID でないものは中継しないことを確かめる。
+// TestRecordingRelay は、録画の仮想 HLS を、書き方をそろえた録画の ID で kyusu にプロキシし、録画の ID でないものはプロキシしないことを確認する。
 func TestRecordingRelay(t *testing.T) {
 	t.Parallel()
 

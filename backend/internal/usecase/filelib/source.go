@@ -13,19 +13,19 @@ import (
 // ErrNotAFile は、パスが再生できるファイル (拡張子が .ts、.m2ts、.mts のもの) でないことを表す。
 var ErrNotAFile = errors.New("the path is not a playable TS file")
 
-// Source は、ライブラリのファイルを、録画の再生と同じく、索引を使って指定した位置から流す (設計書 7.2)。
+// Source は、ライブラリのファイルを、録画の再生と同じく、インデックスを使って指定した位置から流す (設計書 7.2)。
 // tenban の配信と、kyusu の仮想 HLS が使う。
 type Source struct {
 	libraries *medialib.Set
 	indexer   *Indexer
 }
 
-// NewSource は Source を返す。indexer が索引を作るなら (tenban)、開くたびに、索引ができていなければ作り始める。
+// NewSource は Source を返す。indexer がインデックスを作るなら (tenban)、開くたびに、インデックスができていなければ作り始める。
 func NewSource(libraries *medialib.Set, indexer *Indexer) *Source {
 	return &Source{libraries: libraries, indexer: indexer}
 }
 
-// Indexer は、索引と画像を読み書きする Indexer を返す。
+// Indexer は、インデックスと画像を読み書きする Indexer を返す。
 func (s *Source) Indexer() *Indexer {
 	return s.indexer
 }
@@ -36,16 +36,16 @@ type File struct {
 	Entry *medialib.Entry
 	// Library は、ファイルのあるライブラリ。
 	Library medialib.Library
-	// Index は、開いた時点の索引。
+	// Index は、開いた時点のインデックス。
 	Index *Index
-	// Writing は、書いている途中とみなして、索引を作らないかどうか。
+	// Writing は、書いている途中とみなして、インデックスを作らないかどうか。
 	Writing bool
-	// Recording は、索引を使って流すもの。
+	// Recording は、インデックスを使って流すもの。
 	Recording *stream.Recording
 }
 
 // Open は、ファイル ref を開く。ライブラリかファイルがなければ medialib.ErrNotFound を、再生できるファイルでなければ ErrNotAFile を返す。
-// 索引がまだできていなければ、作り始める (tenban のとき)。
+// インデックスがまだできていなければ、作り始める (tenban のとき)。
 func (s *Source) Open(ctx context.Context, ref Ref) (*File, error) {
 	library, ok := s.libraries.Get(ref.Library)
 	if !ok {
@@ -92,9 +92,9 @@ func (s *Source) OpenEncoded(ctx context.Context, id string) (*stream.Recording,
 	return file.Recording, nil
 }
 
-// Timeline は、再生できる長さを返す。seekable は、索引のできた所 (最後の I フレームの位置) で、ここまでシークできる。
-// duration は、ファイル全体の再生の時間。索引を作り終えていれば、録画と同じく求め、作っている途中なら、索引のできた所までの
-// バイト数と時間の比から見込む。索引がまだなければ、どちらも分からないので ok を false にする。
+// Timeline は、再生できる長さを返す。seekable は、インデックスのできた所 (最後の I フレームの位置) で、ここまでシークできる。
+// duration は、ファイル全体の再生の時間。インデックスを作り終えていれば、録画と同じく求め、作っている途中なら、インデックスのできた所までの
+// バイト数と時間の比から見込む。インデックスがまだなければ、どちらも分からないので ok を false にする。
 func (f *File) Timeline() (time.Duration, time.Duration, bool) {
 	keyframes := f.Recording.Keyframes()
 	if len(f.Index.Entries) == 0 || len(keyframes) == 0 {

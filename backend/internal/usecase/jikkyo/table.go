@@ -21,7 +21,7 @@ var konomiTVChannels []byte
 
 const (
 	// terrestrialNetworkID は、KonomiTV の対応表で、地上波のサービスに書かれているネットワーク ID。
-	// 地上波のネットワーク ID は地域ごとに違うので、対応表では 15 にそろえ、サービス ID だけで引く。
+	// 地上波のネットワーク ID は地域ごとに違うので、対応表では 15 にそろえ、サービス ID だけで検索する。
 	terrestrialNetworkID = 15
 	// noChannel は、KonomiTV の対応表で、実況のチャンネルがないことを表す ID。
 	noChannel = -1
@@ -40,7 +40,7 @@ type serviceKey struct {
 	serviceID int64
 }
 
-// Table は、サービスから実況のチャンネルの ID (jk1 など) を引く対応表。同梱した対応表に、管理者が画面で足した対応を重ねる。
+// Table は、サービスから実況のチャンネルの ID (jk1 など) を検索する対応表。同梱した対応表に、管理者が画面で足した対応を重ねる。
 type Table struct {
 	// services は、同梱した対応表の、BS と CS のサービスの対応。
 	// 空の値は、実況のチャンネルがないと対応表に書かれていること。
@@ -166,7 +166,7 @@ func (t *Table) Channel(ctx context.Context, id string) (string, bool) {
 
 // Lookup は、サービスの実況のチャンネルの ID を返す。対応するチャンネルがなければ false を返す。
 // 画面で足した対応は、ネットワーク ID とサービス ID の組で引き、同梱した対応表より優先する。
-// 地上波は、サービス ID だけで引く。サブチャンネルは対応表にないので、サービス ID が 1 つ前か 2 つ前のメインチャンネルに寄せる。
+// 地上波は、サービス ID だけで検索する。サブチャンネルは対応表にないので、サービス ID が 1 つ前か 2 つ前のメインチャンネルに寄せる。
 func (t *Table) Lookup(ctx context.Context, networkID, serviceID int64) (string, bool) {
 	key := serviceKey{networkID: networkID, serviceID: serviceID}
 	if id, ok := t.overridesOf(ctx)[key]; ok {
@@ -200,7 +200,7 @@ func (t *Table) overridesOf(ctx context.Context) map[serviceKey]string {
 		return t.cached
 	}
 	raw, err := t.overrides(ctx)
-	// 要求が取り消されて読めなかったときは、ほかの要求のために、覚えた時刻を進めない。
+	// 要求が取り消されて読めなかったときは、ほかの要求のために、キャッシュした時刻を進めない。
 	if err != nil && ctx.Err() != nil {
 		return t.cached
 	}

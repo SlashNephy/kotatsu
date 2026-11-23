@@ -44,7 +44,7 @@ const (
 	// segmentTimeout は、要求されたセグメントを書き終えるのを待つ時間の上限。エンコーダーを起動し直したときも、ここまで待つ。
 	segmentTimeout = 30 * time.Second
 	// seekMargin は、k 番目のセグメントを書くとき、その始まりより手前から入力を流す時間。
-	// 索引の時刻とエンコーダーの時刻のずれで、始まりより後の I フレームから流してしまわないようにする。
+	// インデックスの時刻とエンコーダーの時刻のずれで、始まりより後の I フレームから流してしまわないようにする。
 	seekMargin = time.Second
 	// aheadSegments は、動いているエンコーダーが、次に書くセグメントからいくつ先までなら、起動し直さずに待つか。
 	// プレイヤーが先読みで少し先のセグメントを要求しても、起動し直さないようにする。
@@ -63,7 +63,7 @@ const (
 	// passthroughBase は、映像を変換しないプリセットで、録画の始まりに付ける出力の PTS (#806)。
 	// 流し始めた位置 (seekMargin より手前) の音声と映像の PTS が、負にならないようにする。
 	passthroughBase = 10 * time.Second
-	// ptsWrap は、PTS (33 ビット) が一周する刻みの数。
+	// ptsWrap は、PTS (33 ビット) が一周するティックの数。
 	ptsWrap = 1 << 33
 )
 
@@ -172,7 +172,7 @@ type vodSession struct {
 
 // VOD は、録画の仮想 HLS を配信する (設計書 7.3)。
 //
-// プレイリストは、索引から、録画の始まりからの時間を 2 秒ずつ区切ったセグメントの一覧として先に作る。
+// プレイリストは、インデックスから、録画の始まりからの時間を 2 秒ずつ区切ったセグメントの一覧として先に作る。
 // まだ書いていないセグメントを要求されたら、その時刻の手前の I フレームからエンコーダーを起動する。
 // 動いているエンコーダーがすぐ後に書くセグメントなら、起動せずに待つ。1 つのセッションには、離れた位置を見る視聴者のために、
 // エンコーダーを maxVODRuns まで動かす。後ろのエンコーダーが前のエンコーダーの書いた位置に追いついたら、後ろを止める。
@@ -407,7 +407,7 @@ func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request, kind string) {
 	}
 }
 
-// servePlaylist は、索引から作ったセグメントの一覧を返す。録画中なら、書き終えた区間のセグメントだけを載せ、終わりの印を付けない。
+// servePlaylist は、インデックスから作ったセグメントの一覧を返す。録画中なら、書き終えた区間のセグメントだけを載せ、終わりのマークを付けない。
 func (v *VOD) servePlaylist(w http.ResponseWriter, r *http.Request, source vodSource, preset *Preset) {
 	recording, err := v.open(r.Context(), source)
 	if err != nil {
@@ -426,7 +426,7 @@ func (v *VOD) servePlaylist(w http.ResponseWriter, r *http.Request, source vodSo
 	_, _ = io.WriteString(w, vodPlaylist(recording.Keyframes(), recording.InProgress, preset.Passthrough))
 }
 
-// open は、録画かタイムシフトのバッファを開く。索引がまだなければ errNotIndexed を返す。
+// open は、録画かタイムシフトのバッファを開く。インデックスがまだなければ errNotIndexed を返す。
 func (v *VOD) open(ctx context.Context, source vodSource) (*stream.Recording, error) {
 	recording, err := v.openSource(ctx, source)
 	if err != nil {
@@ -465,7 +465,7 @@ func (v *VOD) openSource(ctx context.Context, source vodSource) (*stream.Recordi
 	return v.opener.Open(ctx, recordingID)
 }
 
-// parseVODSource は、パスの {id} を、種類に応じて確かめ、同じものが同じ文字列になるようにそろえる。
+// parseVODSource は、パスの {id} を、種類に応じて確認し、同じものが同じ文字列になるようにそろえる。
 func parseVODSource(kind, id string) (vodSource, bool) {
 	if kind == libraryKind {
 		ref, ok := filelib.DecodeRef(id)
@@ -483,7 +483,7 @@ func parseVODSource(kind, id string) (vodSource, bool) {
 }
 
 // FormatTimeshiftID は、タイムシフトのバッファの仮想 HLS のパスの {id} を、サービス ID と起点の時刻から作る。
-// HLS のセグメントは、プレイリストからの相対の URL で引くので、起点もクエリでなくパスに入れる。
+// HLS のセグメントは、プレイリストからの相対の URL で取得するので、起点もクエリでなくパスに入れる。
 func FormatTimeshiftID(serviceID int64, from time.Time) string {
 	return strconv.FormatInt(serviceID, 10) + "-" + strconv.FormatInt(from.UnixMicro(), 10)
 }
@@ -718,7 +718,7 @@ func (v *VOD) ensureRun(ctx context.Context, s *vodSession, preset *Preset, numb
 	_, err := os.Stat(path)
 	run := s.coveringLocked(number, err == nil)
 	if run == nil && err != nil {
-		// 確かめてから、エンコーダーが次に書くセグメントを数えるまでに、number より先まで書いたかもしれない。
+		// 確認してから、エンコーダーが次に書くセグメントを数えるまでに、number より先まで書いたかもしれない。
 		// セグメントを消すのは runMu を持つときだけなので、今あれば、エンコーダーが書いたものである。
 		if _, err := os.Stat(path); err == nil {
 			run = s.coveringLocked(number, true)
@@ -862,7 +862,7 @@ func (l *lookaheadWriter) Write(p []byte) (int, error) {
 }
 
 // fileClock は、dir のファイルシステムが今書いたファイルに付ける更新時刻を返す。
-// 更新時刻はカーネルの粗い時計で付くので、time.Now() と比べると、直後に書いたファイルが前に書いたように見えることがある。
+// 更新時刻はカーネルの粗い時計で付くので、time.Now() と比較すると、直後に書いたファイルが前に書いたように見えることがある。
 // 測れなければ time.Now() を返す。
 func fileClock(dir string) time.Time {
 	file, err := os.CreateTemp(dir, ".clock-")
@@ -928,8 +928,8 @@ func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number i
 }
 
 // passthroughOptions は、映像を変換しないプリセットで、number 番目のセグメントから書くときの設定と、その始まりの時間を返す (#806)。
-// セグメントを、索引の I フレームの PTS で区切らせる。出力の PTS は、number 番目のセグメントの始まりが、passthroughBase に
-// その始まりの時間を足したものになるようにずらす。索引のないセグメントがあれば、PTS が分からないので errNoPTS を返す。
+// セグメントを、インデックスの I フレームの PTS で区切らせる。出力の PTS は、number 番目のセグメントの始まりが、passthroughBase に
+// その始まりの時間を足したものになるようにずらす。インデックスのないセグメントがあれば、PTS が分からないので errNoPTS を返す。
 func passthroughOptions(points []stream.Keyframe, number int) (*RunOptions, time.Duration, error) {
 	keyframes := make([]time.Duration, 0, len(points))
 	for _, point := range points {
@@ -954,9 +954,9 @@ func passthroughOptions(points []stream.Keyframe, number int) (*RunOptions, time
 		}
 	}
 	at := starts[number]
-	// 刻みは、マイクロ秒から求める。ナノ秒に PTSClock を掛けると、長い時間で int64 を超えるため。
+	// ティックは、マイクロ秒から求める。ナノ秒に PTSClock を掛けると、長い時間で int64 を超えるため。
 	offset := (passthroughBase+at).Microseconds()*ts.PTSClock/int64(time.Second/time.Microsecond) - cuts[0]
-	// FFmpeg はマイクロ秒で受け取るので、9 の倍数 (100 マイクロ秒) に切り捨てて、刻みの数を保つ。
+	// FFmpeg はマイクロ秒で受け取るので、9 の倍数 (100 マイクロ秒) に切り捨てて、ティックの数を保つ。
 	offset -= ((offset % 9) + 9) % 9
 	for i := range cuts {
 		cuts[i] = ((cuts[i]+offset)%ptsWrap + ptsWrap) % ptsWrap

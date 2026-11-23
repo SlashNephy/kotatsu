@@ -57,7 +57,7 @@ func (a *fakeAudio) extract(_ context.Context, r io.Reader, serviceID uint16, wa
 }
 
 // TestCaptionsWorker は、ライブラリのファイルの音声を、ライブラリの口で読んで取り出して書き起こし、再生の 0 秒からの時間にそろえて置き、
-// 今のファイルから作った字幕だけを返すことを確かめる (#1734)。
+// 今のファイルから作った字幕だけを返すことを確認する (#1734)。
 func TestCaptionsWorker(t *testing.T) {
 	t.Parallel()
 
@@ -109,7 +109,7 @@ func TestCaptionsWorker(t *testing.T) {
 	assert.ErrorIs(t, err, errFileChanged)
 }
 
-// TestCaptionsWorkerWriting は、書いている途中のファイルは、音声を取り出さずに取りやめることを確かめる。
+// TestCaptionsWorkerWriting は、書いている途中のファイルは、音声を取り出さずに取りやめることを確認する。
 func TestCaptionsWorkerWriting(t *testing.T) {
 	t.Parallel()
 
@@ -131,7 +131,7 @@ func TestCaptionsWorkerWriting(t *testing.T) {
 	assert.Zero(t, audio.read, "音声を取り出さない")
 }
 
-// TestCaptionsWorkerNotConfigured は、whisper-cli かモデルがなければ、やり直さずに取りやめ、理由を残すことを確かめる。
+// TestCaptionsWorkerNotConfigured は、whisper-cli かモデルがなければ、やり直さずに取りやめ、理由を残すことを確認する。
 func TestCaptionsWorkerNotConfigured(t *testing.T) {
 	t.Parallel()
 

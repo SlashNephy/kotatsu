@@ -20,7 +20,7 @@ const (
 )
 
 // ruleInput は、EDCB のキーワード予約を Kotatsu のルールの内容にする。services は、Kotatsu にあるサービスの ID の集合。
-// 写せない条件があれば、取り込まずに飛ばす理由を返す。写せたが捨てた項目は、メモに残す。
+// 変換できない条件があれば、取り込まずに飛ばす理由を返す。変換できたが破棄した項目は、メモに残す。
 func ruleInput(a *edcb.AutoAdd, services map[int64]bool) (*rule.Input, error) {
 	notes := []string{}
 	and := parseAndKey(a.Search.AndKey)
@@ -127,7 +127,7 @@ func applyServices(conditions *match.Conditions, packed []uint64, services map[i
 	return nil
 }
 
-// applyGenres は、EDCB のジャンルを写す。写せないジャンルは外してメモに残し、ジャンルを指定していたのに 1 つも写せなければ飛ばす。
+// applyGenres は、EDCB のジャンルを変換する。変換できないジャンルは外してメモに残し、ジャンルを指定していたのに 1 つも変換できなければ飛ばす。
 func applyGenres(conditions *match.Conditions, search edcb.SearchKey, notes *[]string) error {
 	if len(search.Contents) == 0 {
 		return nil

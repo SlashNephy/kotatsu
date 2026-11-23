@@ -218,7 +218,7 @@ func transcodedRenames(files []sqlc.RecordingFile, segments []*RenameFile) []*Re
 // destination は、セグメントのファイル from を dir/name の start 番目の連番から付け直したときに移る先と、名前が変わるかを返す。
 // kago.Store.Rename と同じく、ふさがっている名前を飛ばして次の連番を試す。ほかの録画が名前をふさいでいて連番が付いた
 // ファイルは、付け直しても名前が変わらないので、計画に出さない。taken の名前も、ふさがっているとみなす。
-// プールを調べられなければ、start 番目の連番に移るとみなす。
+// プールを確認できなければ、start 番目の連番に移るとみなす。
 func destination(checker *kago.Checker, taken map[string]bool, poolID, from, dir, name string, start int) (string, bool) {
 	for n := start; ; n++ {
 		to := path.Join(dir, kago.SequencedName(name, n))
@@ -252,7 +252,7 @@ func (l *Library) recordUnrestoredPath(ctx context.Context, db Database, file *R
 	}
 }
 
-// checkNotJoining は、録画 recordingID のセグメントを、つないでいる途中でないことを確かめる。途中なら ErrBusy を返す (#1721)。
+// checkNotJoining は、録画 recordingID のセグメントを、つないでいる途中でないことを確認する。途中なら ErrBusy を返す (#1721)。
 // つなぐジョブと同じ録画ごとのロックを、トランザクションの終わりまで取る。つないで DB の記録を 1 本にしてから、
 // つないだファイルに置き換えるまでも、つないだ元のファイルを消すのを待っているので、途中とみなす。
 // 最初のセグメントの名前が変わらず、2 つ目以降だけを移すときも、置き換えのジョブが消すはずの元のファイルを動かさないようにする。

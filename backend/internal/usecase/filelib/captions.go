@@ -52,7 +52,7 @@ func (CaptionsArgs) InsertOpts() river.InsertOpts {
 }
 
 // CaptionsWorker は、ライブラリのファイルの音声から字幕を自動生成する (設計書 5.8)。録画と同じ部品 (autocaption) で、音声を取り出して
-// whisper-cli で書き起こし、索引の置き場に置く。nekonote が、ライブラリとデータディレクトリをマウントして動かす。
+// whisper-cli で書き起こし、インデックスの保存先に置く。nekonote が、ライブラリとデータディレクトリをマウントして動かす。
 type CaptionsWorker struct {
 	river.WorkerDefaults[CaptionsArgs]
 
@@ -68,7 +68,7 @@ type CaptionsWorker struct {
 
 var _ river.Worker[CaptionsArgs] = new(CaptionsWorker)
 
-// NewCaptionsWorker は CaptionsWorker を返す。indexer は、索引を作らない (読むだけの) もの。newTranscriber と newExtractor は、ジョブごとに呼ぶ。
+// NewCaptionsWorker は CaptionsWorker を返す。indexer は、インデックスを作らない (読むだけの) もの。newTranscriber と newExtractor は、ジョブごとに呼ぶ。
 func NewCaptionsWorker(
 	libraries *medialib.Set, indexer *Indexer, clk clock.Clock,
 	newTranscriber func(ctx context.Context) (autocaption.Transcriber, error), newExtractor func() (autocaption.ReaderExtractor, error), workDir string,
@@ -137,7 +137,7 @@ func (w *CaptionsWorker) open(ctx context.Context, ref Ref, fileID string) (medi
 	case file.Writing:
 		return nil, nil, river.JobCancel(errFileWriting)
 	case file.Index.Broadcast == nil:
-		// 音声を引くサービスが分からない。
+		// 音声を取り出すサービスが分からない。
 		return nil, nil, river.JobCancel(errNoService)
 	}
 
@@ -168,7 +168,7 @@ func (w *CaptionsWorker) transcribe(
 	for _, c := range found {
 		start, end := max(offset+c.Start, 0), offset+c.End
 		if end <= start {
-			// 最初の I フレームより前 (再生に入らない所) で終わる字幕は捨てる。
+			// 最初の I フレームより前 (再生に入らない所) で終わる字幕は破棄する。
 			continue
 		}
 		cues = append(cues, &CaptionCue{Start: start, End: end, Text: c.Text})

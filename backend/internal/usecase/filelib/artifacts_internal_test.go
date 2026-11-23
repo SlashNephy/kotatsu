@@ -25,8 +25,8 @@ func writeArtifact(t *testing.T, dataDir, name string, size int) {
 	require.NoError(t, os.WriteFile(path, make([]byte, size), 0o600))
 }
 
-// TestClearArtifacts は、libraries/ の下と、前に消しきれずに残った置き場だけを数えて消し、データディレクトリのほかのもの
-// (録画のセグメントの生成物、キャプチャ、字幕のモデル) を残すことを確かめる (#1896)。
+// TestClearArtifacts は、libraries/ の下と、前に消しきれずに残った保存先だけを数えて消し、データディレクトリのほかのもの
+// (録画のセグメントの生成物、キャプチャ、字幕のモデル) を残すことを確認する (#1896)。
 func TestClearArtifacts(t *testing.T) {
 	t.Parallel()
 
@@ -117,7 +117,7 @@ func TestClearArtifacts(t *testing.T) {
 	}
 }
 
-// TestClearArtifactsWithoutDataDir は、データディレクトリを設定していなければ、量を測らず、何も消さないことを確かめる。
+// TestClearArtifactsWithoutDataDir は、データディレクトリを設定していなければ、量を計測せず、何も消さないことを確認する。
 // 空のパスで消すと、作業ディレクトリの libraries/ を消してしまうためである。
 func TestClearArtifactsWithoutDataDir(t *testing.T) {
 	t.Parallel()
@@ -131,7 +131,7 @@ func TestClearArtifactsWithoutDataDir(t *testing.T) {
 	require.ErrorIs(t, indexer.PurgeDetached(), ErrNoDataDir)
 }
 
-// TestClearArtifactsRebuilds は、作り終えた索引を消すと、読んだときに索引がないものとして返し、開けば作り直すことを確かめる。
+// TestClearArtifactsRebuilds は、作り終えたインデックスを消すと、読んだときにインデックスがないものとして返し、開けば作り直すことを確認する。
 func TestClearArtifactsRebuilds(t *testing.T) {
 	t.Parallel()
 
@@ -161,8 +161,8 @@ func TestClearArtifactsRebuilds(t *testing.T) {
 	}, 10*time.Second, 10*time.Millisecond)
 }
 
-// TestClearArtifactsStopsBuilds は、作っている途中の索引を取りやめて止まるのを待ってから消し、片付けている間は作り始めず、
-// 片付けた後に開けば作り直すことを確かめる。取りやめずに消すと、作っていた処理がファイルを読み終えるまで、作り直しが始まらない。
+// TestClearArtifactsStopsBuilds は、作っている途中のインデックスを取りやめて止まるのを待ってから消し、片付けている間は作り始めず、
+// 片付けた後に開けば作り直すことを確認する。取りやめずに消すと、作っていた処理がファイルを読み終えるまで、作り直しが始まらない。
 func TestClearArtifactsStopsBuilds(t *testing.T) {
 	t.Parallel()
 

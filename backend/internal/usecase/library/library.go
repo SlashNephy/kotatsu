@@ -125,7 +125,7 @@ func (l *Library) Delete(ctx context.Context, db Database, actor *audit.Actor, r
 	return nil
 }
 
-// SetProtected は、録画に保護の印を付けるか、外す。保護した録画は、容量の管理でも、ユーザーの操作でも消さない。
+// SetProtected は、録画に保護のマークを付けるか、外す。保護した録画は、容量の管理でも、ユーザーの操作でも消さない。
 func (l *Library) SetProtected(ctx context.Context, db Database, actor *audit.Actor, recordingID uuid.UUID, protected bool) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -216,7 +216,7 @@ func (l *Library) SaveProgress(ctx context.Context, db sqlc.DBTX, userID, record
 }
 
 // SaveFileProgress は、ユーザーの、ライブラリのファイル fileID (filelib.FileID) の再生位置を保存する (#1734)。
-// ファイルは DB に行を持たないので、ファイルがあるかは呼ぶ側が確かめる。再生位置は個人のものなので、監査ログには残さない。
+// ファイルは DB に行を持たないので、ファイルがあるかは呼ぶ側が確認する。再生位置は個人のものなので、監査ログには残さない。
 func (l *Library) SaveFileProgress(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, fileID string, position time.Duration) error {
 	if position < 0 {
 		return fmt.Errorf("%w: the position must not be negative", ErrInvalidPosition)
@@ -274,7 +274,7 @@ func (l *Library) ClearAllProgress(ctx context.Context, db sqlc.DBTX, userID uui
 const foreignKeyViolation = "23503"
 
 // record は、録画の操作を監査ログに残す。要約には、録画の名前を加える。
-// 録画を変えたときに必ず呼ぶので、ここで録画の変更も知らせる。
+// 録画を変えたときに必ず呼ぶので、ここで録画の変更も通知する。
 func (l *Library) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, action string, recording *sqlc.Recording, summary map[string]any) error {
 	summary["name"] = recording.Name
 	if _, err := notify.Publish(ctx, tx, l.clock, notify.RecordingsChannel); err != nil {

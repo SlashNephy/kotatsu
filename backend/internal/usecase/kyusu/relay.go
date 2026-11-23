@@ -17,40 +17,40 @@ import (
 )
 
 const (
-	// Role は、サーバー側でのトランスコードを受け持つロールの名前。インスタンスの登録簿で、kyusu を引くのに使う。
+	// Role は、サーバー側でのトランスコードを受け持つロールの名前。インスタンスの登録簿で、kyusu を検索するのに使う。
 	Role = "kyusu"
 	// relayTimeout は、kyusu への中継にかける時間の上限。kyusu は、ライブ視聴の最初のセグメントを最大 20 秒、
 	// 録画のセグメントを最大 30 秒待つので、それより長くして、kyusu が待ちきれなかった理由を返せるようにする。
 	relayTimeout = time.Minute
 )
 
-// Instances は、ロールの動いているインスタンスを引く。*registry.Registry が満たす。
+// Instances は、ロールの動いているインスタンスを取得する。*registry.Registry が満たす。
 type Instances interface {
 	ListAlive(ctx context.Context, role string) ([]*registry.Instance, error)
 }
 
 var _ Instances = new(registry.Registry)
 
-// Relay は、tenban で、HLS を担当の kyusu に中継する (設計書 7.3)。
+// Relay は、tenban で、HLS を担当の kyusu にプロキシする (設計書 7.3)。
 // ライブ視聴は GET /internal/streams/services/{id}/hls/{preset}/{audio}/{file}、録画は GET /internal/streams/recordings/{id}/hls/{preset}/{audio}/{file}、
 // タイムシフトのバッファは GET /internal/streams/timeshift/{id}/hls/{preset}/{audio}/{file}、ライブラリのファイルは
 // GET /internal/streams/library/{id}/hls/{preset}/{audio}/{file} で受け付ける。
 //
-// 同じものを同じ画質と音声で見る視聴者が 1 つのエンコーダーを共有できるよう、(サービスか録画, 画質, 音声) から決まった kyusu に中継する。
+// 同じものを同じ画質と音声で見る視聴者が 1 つのエンコーダーを共有できるよう、(サービスか録画, 画質, 音声) から決まった kyusu にプロキシする。
 // kyusu が増えたり減ったりして担当が変わると、見ている視聴者は新しい担当のエンコーダーに移る。
 type Relay struct {
 	instances Instances
 	token     *Token
 	client    *http.Client
 	logger    *slog.Logger
-	// prefix は、kyusu のパスの前置き。canonical は、パスの {id} を確かめ、同じものが同じ文字列になるように直す。
+	// prefix は、kyusu のパスの前置き。canonical は、パスの {id} を確認し、同じものが同じ文字列になるように直す。
 	prefix    string
 	canonical func(id string) (string, bool)
 }
 
 var _ http.Handler = new(Relay)
 
-// NewRelay は、ライブ視聴の HLS を中継する Relay を返す。token は、kyusu へのリクエストに付ける。
+// NewRelay は、ライブ視聴の HLS をプロキシする Relay を返す。token は、kyusu へのリクエストに付ける。
 func NewRelay(instances Instances, token *Token, logger *slog.Logger) *Relay {
 	return &Relay{
 		instances: instances, token: token, client: &http.Client{Timeout: relayTimeout}, logger: logger,
@@ -63,7 +63,7 @@ func NewRelay(instances Instances, token *Token, logger *slog.Logger) *Relay {
 	}
 }
 
-// NewRecordingRelay は、録画の仮想 HLS を中継する Relay を返す。token は、kyusu へのリクエストに付ける。
+// NewRecordingRelay は、録画の仮想 HLS をプロキシする Relay を返す。token は、kyusu へのリクエストに付ける。
 func NewRecordingRelay(instances Instances, token *Token, logger *slog.Logger) *Relay {
 	return &Relay{
 		instances: instances, token: token, client: &http.Client{Timeout: relayTimeout}, logger: logger,
@@ -76,7 +76,7 @@ func NewRecordingRelay(instances Instances, token *Token, logger *slog.Logger) *
 	}
 }
 
-// NewTimeshiftRelay は、タイムシフトのバッファの仮想 HLS を中継する Relay を返す。token は、kyusu へのリクエストに付ける。
+// NewTimeshiftRelay は、タイムシフトのバッファの仮想 HLS をプロキシする Relay を返す。token は、kyusu へのリクエストに付ける。
 func NewTimeshiftRelay(instances Instances, token *Token, logger *slog.Logger) *Relay {
 	return &Relay{
 		instances: instances, token: token, client: &http.Client{Timeout: relayTimeout}, logger: logger,
@@ -89,7 +89,7 @@ func NewTimeshiftRelay(instances Instances, token *Token, logger *slog.Logger) *
 	}
 }
 
-// NewLibraryRelay は、ライブラリのファイルの仮想 HLS を中継する Relay を返す。token は、kyusu へのリクエストに付ける。
+// NewLibraryRelay は、ライブラリのファイルの仮想 HLS をプロキシする Relay を返す。token は、kyusu へのリクエストに付ける。
 func NewLibraryRelay(instances Instances, token *Token, logger *slog.Logger) *Relay {
 	return &Relay{
 		instances: instances, token: token, client: &http.Client{Timeout: relayTimeout}, logger: logger,
@@ -103,7 +103,7 @@ func NewLibraryRelay(instances Instances, token *Token, logger *slog.Logger) *Re
 }
 
 func (h *Relay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 書き方の違う同じ ID も、同じ kyusu に中継する。
+	// 書き方の違う同じ ID も、同じ kyusu にプロキシする。
 	id, ok := h.canonical(r.PathValue("id"))
 	if !ok {
 		http.Error(w, "invalid ID", http.StatusBadRequest)

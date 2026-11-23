@@ -101,7 +101,7 @@ type Service struct {
 	logger   *slog.Logger
 	// accountsURL、oauthURL、apiURL は、Google の認可の画面、トークンの API、Drive API のオリジン。
 	accountsURL, oauthURL, apiURL string
-	// tokensMu と tokens は、この部品が作った DriveTokens。接続を変えたら、手元で覚えた接続を捨てさせ、すぐに反映する。
+	// tokensMu と tokens は、この部品が作った DriveTokens。接続を変えたら、手元でキャッシュした接続を破棄させ、すぐに反映する。
 	tokensMu sync.Mutex
 	tokens   []*DriveTokens
 	// admin は、管理者の操作 (見せるフォルダを選ぶ) で Drive を読むときのトークン。初めて使うときに作る。
@@ -184,7 +184,7 @@ type AppChanges struct {
 
 // UpdateApp は、Google の OAuth クライアントを変える。クライアント ID を空にすると、登録を消し、Google Drive の接続も外す
 // (クライアントがなければ、リフレッシュトークンを使えないため)。サーバーが Google と通信し始めるかどうかの元になる値なので、
-// 呼ぶ側で、直近の再認証を確かめる (設計書 9.5)。監査ログには、シークレットを変えたかどうかだけを残す。
+// 呼ぶ側で、直近の再認証を確認する (設計書 9.5)。監査ログには、シークレットを変えたかどうかだけを残す。
 func (s *Service) UpdateApp(ctx context.Context, db Database, actor *audit.Actor, changes *AppChanges) error {
 	clientID := strings.TrimSpace(changes.ClientID)
 	if utf8.RuneCountInString(clientID) > maxClientIDLength {
@@ -251,7 +251,7 @@ func (s *Service) Drive(ctx context.Context, db sqlc.DBTX) (*DriveConnection, er
 }
 
 // BeginDrive は、管理者 principal のアカウントで Google Drive を接続する認可を始め、ブラウザーを送り出す Google の認可の画面の URL を返す。
-// 戻ってきたときに、始めたセッションのまま戻ってきたことを確かめるので、ブラウザーのセッションでだけ始められる。
+// 戻ってきたときに、始めたセッションのまま戻ってきたことを確認するので、ブラウザーのセッションでだけ始められる。
 // origin は、接続したオリジン。リダイレクト URI にする。
 func (s *Service) BeginDrive(ctx context.Context, db Database, principal *auth.Principal, origin string) (string, error) {
 	if principal.SessionID == uuid.Nil() {
@@ -290,7 +290,7 @@ func (s *Service) BeginDrive(ctx context.Context, db Database, principal *auth.P
 		oauth2.SetAuthURLParam("include_granted_scopes", "false"), oauth2.S256ChallengeOption(verifier)), nil
 }
 
-// Callback は、Google から戻ってきたリクエストの中身。
+// Callback は、Google から戻ってきたリクエストの内容。
 type Callback struct {
 	State string
 	Code  string
@@ -300,8 +300,8 @@ type Callback struct {
 	Scope string
 }
 
-// Complete は、Google から戻ってきた認可を確かめ、始めたときの purpose に応じて接続する。接続した purpose を返す。
-// 途中の状態は、確かめられなくても使用済みにする。始めたセッションが、戻ってきたリクエストと同じであることを確かめる。
+// Complete は、Google から戻ってきた認可を確認し、始めたときの purpose に応じて接続する。接続した purpose を返す。
+// 途中の状態は、確認できなくても使用済みにする。始めたセッションが、戻ってきたリクエストと同じであることを確認する。
 // ほかの端末やアカウントで始めた認可を、別のセッションに繋がせないため (CSRF とアカウントの取り違えを防ぐ)。
 func (s *Service) Complete(ctx context.Context, db Database, principal *auth.Principal, callback *Callback, client *auth.ClientInfo) (string, error) {
 	if callback.State == "" {
@@ -471,7 +471,7 @@ func (s *Service) deleteApp(ctx context.Context, db Database, actor *audit.Actor
 	return nil
 }
 
-// forgetConnections は、この部品が作った DriveTokens に、覚えた接続を捨てさせる。ほかのプロセスは、connectionTTL のうちに気づく。
+// forgetConnections は、この部品が作った DriveTokens に、キャッシュした接続を破棄させる。ほかのプロセスは、connectionTTL のうちに気づく。
 func (s *Service) forgetConnections() {
 	s.tokensMu.Lock()
 	defer s.tokensMu.Unlock()
@@ -533,7 +533,7 @@ func (s *Service) httpContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, oauth2.HTTPClient, s.http)
 }
 
-// tokenError は、Google のトークンの API のエラーから、トークンなどの中身を除いて、エラーの種類だけを残す。
+// tokenError は、Google のトークンの API のエラーから、トークンなどの内容を除いて、エラーの種類だけを残す。
 func tokenError(err error) error {
 	if retrieve, ok := errors.AsType[*oauth2.RetrieveError](err); ok {
 		code := retrieve.ErrorCode
@@ -547,7 +547,7 @@ func tokenError(err error) error {
 	return err
 }
 
-// staticToken は、引き換えたばかりのアクセストークンをそのまま返す。接続したアカウントを引くのに使う。
+// staticToken は、引き換えたばかりのアクセストークンをそのまま返す。接続したアカウントを取得するのに使う。
 type staticToken struct {
 	token string
 }

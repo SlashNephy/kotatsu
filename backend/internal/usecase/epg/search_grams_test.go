@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 )
 
-// TestSyncAllStoresSearchGrams は、同期が番組の検索の gram (#966) を書き、番組名か概要が変わったときだけ作り直すことを確かめる。
+// TestSyncAllStoresSearchGrams は、同期が番組の検索の gram (#966) を書き、番組名か概要が変わったときだけ作り直すことを確認する。
 func TestSyncAllStoresSearchGrams(t *testing.T) {
 	t.Parallel()
 
@@ -60,7 +60,7 @@ func TestSyncAllStoresSearchGrams(t *testing.T) {
 	assert.Equal(t, match.SearchGrams("猫の島", description, "出演者\nこたつ太郎\n"), grams())
 }
 
-// TestSyncAllFillsSearchGrams は、gram を埋めていない番組とアーカイブ (列を足す前に書いたもの) を、全量の突き合わせが埋めることを確かめる (#966)。
+// TestSyncAllFillsSearchGrams は、gram を埋めていない番組とアーカイブ (カラムを足す前に書いたもの) を、全量の照合が埋めることを確認する (#966)。
 func TestSyncAllFillsSearchGrams(t *testing.T) {
 	t.Parallel()
 

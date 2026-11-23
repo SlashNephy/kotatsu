@@ -171,7 +171,7 @@ func (f *liveFixture) sessionDirs(t *testing.T) int {
 	return len(entries)
 }
 
-// TestLiveSharesSession は、同じサービスを同じ画質で見る視聴者が、1 つのエンコーダーを共有することを確かめる (設計書 7.3)。
+// TestLiveSharesSession は、同じサービスを同じ画質で見る視聴者が、1 つのエンコーダーを共有することを確認する (設計書 7.3)。
 func TestLiveSharesSession(t *testing.T) {
 	t.Parallel()
 
@@ -201,7 +201,7 @@ func TestLiveSharesSession(t *testing.T) {
 	assert.Equal(t, []kyusu.Audio{kyusu.AudioFirst, kyusu.AudioFirst, kyusu.AudioSecond}, f.encoder.audios)
 }
 
-// TestLiveStopsIdleSession は、セグメントへのリクエストが 10 秒途絶えたら、エンコーダーを止め、HLS を消すことを確かめる。
+// TestLiveStopsIdleSession は、セグメントへのリクエストが 10 秒途絶えたら、エンコーダーを止め、HLS を消すことを確認する。
 // プレイリストへのリクエストだけでは、止めずにおく理由にならない。
 func TestLiveStopsIdleSession(t *testing.T) {
 	t.Parallel()
@@ -228,7 +228,7 @@ func TestLiveStopsIdleSession(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, status, "segments of a stopped session are gone")
 }
 
-// TestLiveWaitsForSlowStart は、最初のセグメントができるまでに 10 秒以上かかっても、セッションを止めないことを確かめる。
+// TestLiveWaitsForSlowStart は、最初のセグメントができるまでに 10 秒以上かかっても、セッションを止めないことを確認する。
 func TestLiveWaitsForSlowStart(t *testing.T) {
 	t.Parallel()
 
@@ -265,7 +265,7 @@ func TestLiveWaitsForSlowStart(t *testing.T) {
 }
 
 // TestLiveReplacesStoppingSession は、使われなくなって止めているセッションと同じ組の視聴者が来たら、
-// 止まり終わるのを待たずに、新しいセッションを作ることを確かめる。
+// 止まり終わるのを待たずに、新しいセッションを作ることを確認する。
 func TestLiveReplacesStoppingSession(t *testing.T) {
 	t.Parallel()
 
@@ -281,7 +281,7 @@ func TestLiveReplacesStoppingSession(t *testing.T) {
 	assert.Equal(t, int32(2), encoder.runs.Load())
 }
 
-// TestNewTokenRequiresSecret は、アプリの秘密キーがなければ、トークンを作らないことを確かめる。
+// TestNewTokenRequiresSecret は、アプリの秘密キーがなければ、トークンを作らないことを確認する。
 func TestNewTokenRequiresSecret(t *testing.T) {
 	t.Parallel()
 
@@ -289,7 +289,7 @@ func TestNewTokenRequiresSecret(t *testing.T) {
 	require.ErrorIs(t, err, kyusu.ErrNoKey)
 }
 
-// TestLiveErrors は、配信できない理由に応じた状態を返すことを確かめる。
+// TestLiveErrors は、配信できない理由に応じた状態を返すことを確認する。
 func TestLiveErrors(t *testing.T) {
 	t.Parallel()
 
@@ -343,7 +343,7 @@ func TestLiveErrors(t *testing.T) {
 	}
 }
 
-// TestLiveRequiresToken は、tenban のトークンのないリクエストを拒むことを確かめる。
+// TestLiveRequiresToken は、tenban のトークンのないリクエストを拒むことを確認する。
 func TestLiveRequiresToken(t *testing.T) {
 	t.Parallel()
 
@@ -363,7 +363,7 @@ func TestLiveRequiresToken(t *testing.T) {
 }
 
 // TestLiveTranscodesTunerStream は、チューナーサーバーのストリームを、実際の tsreadex と FFmpeg で HLS にして配信し、
-// セッションを止めるとチューナーを解放することを確かめる。FFmpeg か tsreadex がなければ飛ばす。
+// セッションを止めるとチューナーを解放することを確認する。FFmpeg か tsreadex がなければ飛ばす。
 func TestLiveTranscodesTunerStream(t *testing.T) {
 	t.Parallel()
 

@@ -50,7 +50,7 @@ const (
 	orphanGrace = time.Hour
 	// broadcastDayShift は、深夜の番組の放送日 (前の日の 24 時台など) を求めるのに戻す時間。
 	broadcastDayShift = 5 * time.Hour
-	// maxCorroborations は、作品名が一致しない候補を、放送日で確かめる数の上限。
+	// maxCorroborations は、作品名が一致しない候補を、放送日で確認する数の上限。
 	maxCorroborations = 3
 	// minPrefixRunes は、作品名の前方一致で候補にする、短いほうの作品名の長さの下限 (文字)。
 	minPrefixRunes = 3
@@ -68,7 +68,7 @@ const (
 	genreAnimation = 16
 )
 
-// 作品と話を決めた出どころ (program_drama_matches.series_source と episode_source)。
+// 作品と話を決めたソース (program_drama_matches.series_source と episode_source)。
 const (
 	SeriesSourceSearch   = "search"
 	SeriesSourceOverride = "override"
@@ -176,19 +176,19 @@ type target struct {
 
 // Link は、番組に結びついた TMDB の作品と話。作品に結びつかなければ SeriesID が nil。
 type Link struct {
-	// TitleKey は、番組名から読んだ作品名の鍵。管理者の上書きを引くのに使う。
+	// TitleKey は、番組名から読んだ作品名のキー。管理者の上書きを取得するのに使う。
 	TitleKey string
 	SeriesID *int32
-	// SeriesSource は、作品を決めた出どころ (SeriesSourceSearch か SeriesSourceOverride)。
+	// SeriesSource は、作品を決めたソース (SeriesSourceSearch か SeriesSourceOverride)。
 	SeriesSource *string
 	// SeasonNumber と EpisodeNumber は、話を決められたときだけ持つ。
 	SeasonNumber  *int32
 	EpisodeNumber *int32
-	// EpisodeSource は、話を決めた出どころ (EpisodeSourceAirDate か EpisodeSourceTitle)。
+	// EpisodeSource は、話を決めたソース (EpisodeSourceAirDate か EpisodeSourceTitle)。
 	EpisodeSource *string
 }
 
-// run は、1 回の照合の間に持つ状態。TMDB から引いたものを覚え、同じものを問い合わせ直さない。
+// run は、1 回の照合の間に持つ状態。TMDB から取得したものをキャッシュし、同じものを問い合わせ直さない。
 type run struct {
 	// token は、この照合で TMDB に問い合わせるトークン。
 	token     string
@@ -206,8 +206,8 @@ type seasonKey struct {
 }
 
 // MatchChanges は、EPG の同期が「EPG が変わった」と通知した (設計書 3.3) サービスと時間帯の番組を照合する。
-// 前に読んだ変更の記録 (epg_changes) の版数を覚え、その後の記録を読む。初めて動いたときと、無効の間は、今の版数を覚えるだけにする。
-// 問い合わせの上限に達したら、版数を進めない。照合しきれなかった番組は、次の機会に読み直す。
+// 前に読んだ変更の記録 (epg_changes) のバージョンを保存し、その後の記録を読む。初めて動いたときと、無効の間は、今のバージョンを保存するだけにする。
+// 問い合わせの上限に達したら、バージョンを進めない。照合しきれなかった番組は、次の機会に読み直す。
 func (m *Matcher) MatchChanges(ctx context.Context) (*MatchResult, error) {
 	result := new(MatchResult)
 	q := sqlc.New(m.db)
@@ -445,7 +445,7 @@ func (m *Matcher) match(ctx context.Context, token string, targets []*target, fi
 	return false, nil
 }
 
-// overrides は、管理者の上書きを、作品名の鍵ごとに返す。値が nil なら、その作品名の番組をどの作品にも結びつけない。
+// overrides は、管理者の上書きを、作品名のキーごとに返す。値が nil なら、その作品名の番組をどの作品にも結びつけない。
 func (m *Matcher) overrides(ctx context.Context) (map[string]*int32, error) {
 	rows, err := sqlc.New(m.db).ListDramaTitleOverrides(ctx)
 	if err != nil {
@@ -512,7 +512,7 @@ func tokyo() *time.Location {
 // findSeries は、作品名 title で TMDB を探し、番組の作品を決める。決められなければ 0 を返す。
 // 誤った作品に結びつけるより、結びつけないほうを選ぶ。作品名 (NFKC で正規化し、空白と記号を除いたもの) が一致する候補だけを、
 // そのまま結びつける。一致する候補が複数あれば、放送の時期で選ぶ。一致する候補がなく、作品名の前方が一致する候補だけがあれば、
-// その作品に番組の放送日の話があるかで確かめ、1 つだけに確かめられたら結びつける。
+// その作品に番組の放送日の話があるかで確認し、1 つだけに絞れたら結びつける。
 func (m *Matcher) findSeries(ctx context.Context, r *run, title string, dates []string) (int32, error) {
 	queries := SearchQueries(title)
 	partial := []*tmdb.SearchResult{}
@@ -567,8 +567,8 @@ func (m *Matcher) findSeries(ctx context.Context, r *run, title string, dates []
 	return corroborated, nil
 }
 
-// headCandidates は、空白の後ろに副題が付いた番組名を、最初の空白より前 (HeadQuery) でも探し、作品名の頭が一致する候補を partial に足す。
-// 頭と同じ名前の作品も、別の作品かもしれないので、作品名が一致する候補としては扱わず、放送日の話で確かめさせる。
+// headCandidates は、空白の後ろにサブタイトルが付いた番組名を、最初の空白より前 (HeadQuery) でも探し、作品名の先頭が一致する候補を partial に足す。
+// 頭と同じ名前の作品も、別の作品かもしれないので、作品名が一致する候補としては扱わず、放送日の話で確認させる。
 func (m *Matcher) headCandidates(
 	ctx context.Context, r *run, title string, queries []string, partial []*tmdb.SearchResult,
 ) ([]*tmdb.SearchResult, error) {
@@ -594,7 +594,7 @@ func (m *Matcher) headCandidates(
 	return partial, nil
 }
 
-// prefixOf は、短いほうの作品名が長いほうの頭と一致するかを返す。短いほうが短すぎれば false。
+// prefixOf は、短いほうの作品名が長いほうの先頭と一致するかを返す。短いほうが短すぎれば false。
 func prefixOf(a, b string) bool {
 	if a == "" || b == "" || a == b {
 		return false
@@ -642,7 +642,7 @@ func shiftDate(date string, d time.Duration) string {
 //     (晩酌の流儀5 は TMDB ではシーズン 7) ので、番組名からは読まない。
 //   - 放送日で選べなければ (遅れて放送する局や、TMDB にまだ放送日のない話)、番組名の話数で、今放送しているシーズンの話を選ぶ。
 //   - 再放送は、放送日では選べないので、番組名の話数で選ぶ。シーズンがいくつもある作品は、どのシーズンか決められないので、作品だけに結びつける。
-//     再放送の印がなくても、今放送しているシーズンがなければ (昔の作品や海外ドラマ)、再放送と同じく選ぶ。
+//     再放送のマークがなくても、今放送しているシーズンがなければ (昔の作品や海外ドラマ)、再放送と同じく選ぶ。
 func (m *Matcher) findEpisode(ctx context.Context, r *run, seriesID int32, t *target, dates []string) (int32, int32, string, error) {
 	series, err := m.seriesDetail(ctx, r, seriesID)
 	if err != nil {
@@ -996,7 +996,7 @@ func (m *Matcher) fetchSeason(ctx context.Context, r *run, seriesID, number int3
 }
 
 // write は、番組 t の結びつきを link で入れ替える。finalize なら、結びつきを確定させる。
-// 放送時間が変わった番組 (設計書 4.6) の、前の放送時間の結びつきは消す。照合し直した結びつきは、この番組の録画の写しにも反映する。
+// 放送時間が変わった番組 (設計書 4.6) の、前の放送時間の結びつきは消す。照合し直した結びつきは、この番組の録画のコピーにも反映する。
 func (m *Matcher) write(ctx context.Context, t *target, link *Link, finalize bool, now time.Time) error {
 	return pgx.BeginFunc(ctx, m.db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -1085,7 +1085,7 @@ func (m *Matcher) refreshLinked(ctx context.Context, token string, result *Match
 	return nil
 }
 
-// stopRefresh は、引き直しの失敗を、ジョブの失敗にせずにログに残す。次の照合し直しで続きを引く。
+// stopRefresh は、再取得の失敗を、ジョブの失敗にせずにログに残す。次の照合し直しで続きを取得する。
 func (m *Matcher) stopRefresh(ctx context.Context, err error) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -1097,7 +1097,7 @@ func (m *Matcher) stopRefresh(ctx context.Context, err error) error {
 	return nil
 }
 
-// saveCursor は、読み終えた EPG の変更の記録の版数を覚える。
+// saveCursor は、読み終えた EPG の変更の記録のバージョンを保存する。
 func (m *Matcher) saveCursor(ctx context.Context, version int64) error {
 	if err := sqlc.New(m.db).SaveDramaMatchCursor(ctx, sqlc.SaveDramaMatchCursorParams{EpgVersion: version, Now: m.clock.Now()}); err != nil {
 		return fmt.Errorf("failed to save the drama match cursor: %w", err)
@@ -1106,8 +1106,8 @@ func (m *Matcher) saveCursor(ctx context.Context, version int64) error {
 	return nil
 }
 
-// CopyToRecording は、tx の中で、番組 (serviceID, startAt) の結びつきを、録画 recordingID に写す (設計書 3.9)。
-// アニメの結びつきと同じく、録画を始めたときに写す。番組をまだ照合していなければ、何もしない。
+// CopyToRecording は、tx の中で、番組 (serviceID, startAt) の結びつきを、録画 recordingID にコピーする (設計書 3.9)。
+// アニメの結びつきと同じく、録画を始めたときにコピーする。番組をまだ照合していなければ、何もしない。
 func CopyToRecording(ctx context.Context, tx sqlc.DBTX, recordingID uuid.UUID, serviceID int64, startAt, now time.Time) error {
 	if _, err := sqlc.New(tx).CopyProgramDramaMatchToRecording(ctx, sqlc.CopyProgramDramaMatchToRecordingParams{
 		RecordingID: recordingID, Now: now, ServiceID: serviceID, StartAt: startAt,

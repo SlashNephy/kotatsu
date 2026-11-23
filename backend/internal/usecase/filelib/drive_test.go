@@ -20,7 +20,7 @@ import (
 // driveFolder は、テストの Drive のフォルダの ID。
 const driveFolder = "folder-1"
 
-// driveTokens は、偽の Google が発行したアクセストークンを返す。
+// driveTokens は、モックの Google が発行したアクセストークンを返す。
 type driveTokens struct {
 	server *googletest.Server
 	token  string
@@ -36,8 +36,8 @@ func (t *driveTokens) Token(context.Context) (string, error) {
 
 func (t *driveTokens) Invalidate() { t.token = "" }
 
-// TestSourceGoogleDrive は、Google Drive のファイルを、ローカルのファイルと同じく開いて索引を作れることと、
-// ライブラリやパスが違っても、同じファイルなら索引とファイルの ID を分けないことを確かめる (#1902)。
+// TestSourceGoogleDrive は、Google Drive のファイルを、ローカルのファイルと同じく開いてインデックスを作れることと、
+// ライブラリやパスが違っても、同じファイルならインデックスとファイルの ID を分けないことを確認する (#1902)。
 func TestSourceGoogleDrive(t *testing.T) {
 	t.Parallel()
 

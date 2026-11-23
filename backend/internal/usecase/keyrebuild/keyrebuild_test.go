@@ -65,7 +65,7 @@ func TestRunRebuildsHistoryTitleKeys(t *testing.T) {
 	}
 }
 
-// TestRunRebuildsSyobocalTitleKeys は、しょぼいカレンダーのタイトルの鍵を、今の計算に合わせて書き直すことを確かめる (#2041)。
+// TestRunRebuildsSyobocalTitleKeys は、しょぼいカレンダーのタイトルのキーを、今の計算に合わせて書き直すことを確認する (#2041)。
 func TestRunRebuildsSyobocalTitleKeys(t *testing.T) {
 	t.Parallel()
 

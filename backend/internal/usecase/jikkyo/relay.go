@@ -15,7 +15,7 @@ import (
 const (
 	// relayGrace は、最後の視聴者が抜けてから NX-Jikkyo との接続を閉じるまでの時間。局を行き来しても、つなぎ直さずに済ませる。
 	relayGrace = 10 * time.Second
-	// subscriberBuffer は、視聴者ごとに溜めておくイベントの数。これを超えたら、遅い視聴者の分だけ捨てる。
+	// subscriberBuffer は、視聴者ごとにバッファしておくイベントの数。これを超えたら、遅い視聴者の分だけ破棄する。
 	subscriberBuffer = 256
 )
 
@@ -25,7 +25,7 @@ type Event struct {
 	Comment *jikkyoclient.LiveComment
 }
 
-// Relay は、NX-Jikkyo のライブのコメントを、チャンネルごとに 1 本の接続で受け取り、視聴者に配る (設計書 7.4)。
+// Relay は、NX-Jikkyo のライブのコメントを、チャンネルごとに 1 本の接続で受け取り、視聴者に配信する (設計書 7.4)。
 // tenban のプロセスごとに持ち、複数の tenban の間では調整しない。
 type Relay struct {
 	client *jikkyoclient.Client
@@ -38,7 +38,7 @@ type Relay struct {
 type hub struct {
 	session     *jikkyoclient.LiveSession
 	subscribers map[*Subscription]struct{}
-	// status は、最後の接続の状態。あとから来た視聴者にも知らせる。
+	// status は、最後の接続の状態。あとから来た視聴者にも通知する。
 	status *jikkyoclient.LiveStatus
 	timer  *time.Timer
 }

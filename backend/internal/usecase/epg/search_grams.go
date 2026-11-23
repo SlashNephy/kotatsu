@@ -12,15 +12,15 @@ import (
 )
 
 const (
-	// searchGramsFillBatchSize は、番組の検索の gram の列を埋めるときに、1 回に読み書きする番組の数。
+	// searchGramsFillBatchSize は、番組の検索の gram のカラムを埋めるときに、1 回に読み書きする番組の数。
 	searchGramsFillBatchSize = 1000
-	// searchGramsFillLimit は、1 回の全量の突き合わせで gram を埋める番組の数の上限。番組とアーカイブで別に数える。
-	// 列を足した直後は、アーカイブに数十万件の番組がある。全量の突き合わせのトランザクションを長く延ばさないよう、何回かに分けて埋める。
+	// searchGramsFillLimit は、1 回の全量の照合で gram を埋める番組の数の上限。番組とアーカイブで別に数える。
+	// カラムを足した直後は、アーカイブに数十万件の番組がある。全量の照合のトランザクションを長く延ばさないよう、何回かに分けて埋める。
 	searchGramsFillLimit = 5 * searchGramsFillBatchSize
 )
 
-// fillDerivedColumns は、Go で作る列 (シリーズ名と話数 (#1564)、番組の検索の gram (#966)) を埋めていない番組を埋める。
-// 全量の突き合わせのときだけ呼ぶ。
+// fillDerivedColumns は、Go で作るカラム (シリーズ名と話数 (#1564)、番組の検索の gram (#966)) を埋めていない番組を埋める。
+// 全量の照合のときだけ呼ぶ。
 func fillDerivedColumns(ctx context.Context, q *sqlc.Queries) error {
 	if err := fillProgramSeries(ctx, q); err != nil {
 		return err
@@ -29,10 +29,10 @@ func fillDerivedColumns(ctx context.Context, q *sqlc.Queries) error {
 	return fillSearchGrams(ctx, q)
 }
 
-// fillSearchGrams は、番組の検索の gram の列がない番組とアーカイブの、gram を埋める (#966)。
-// 列を足す前に書いた番組と、列を知らない古いバイナリがローリング更新の間に書いた番組、EIT[p/f] で番組名か概要を書き直した番組を、
-// 全量の突き合わせのたびに searchGramsFillLimit 件ずつ埋める。埋めるまでの番組は、検索の候補に残るので、検索の結果は変わらない。
-// 番組名も概要も空の番組には、空の配列を書き、読み直さないようにする。番組の中身は変わらないので、EPG の変更としては記録しない。
+// fillSearchGrams は、番組の検索の gram のカラムがない番組とアーカイブの、gram を埋める (#966)。
+// カラムを足す前に書いた番組と、カラムを知らない古いバイナリがローリング更新の間に書いた番組、EIT[p/f] で番組名か概要を書き直した番組を、
+// 全量の照合のたびに searchGramsFillLimit 件ずつ埋める。埋めるまでの番組は、検索の候補に残るので、検索の結果は変わらない。
+// 番組名も概要も空の番組には、空の配列を書き、読み直さないようにする。番組の内容は変わらないので、EPG の変更としては記録しない。
 func fillSearchGrams(ctx context.Context, q *sqlc.Queries) error {
 	for filled := 0; filled < searchGramsFillLimit; {
 		rows, err := q.ListProgramsWithoutSearchGrams(ctx, searchGramsFillBatchSize)
@@ -64,7 +64,7 @@ func fillSearchGrams(ctx context.Context, q *sqlc.Queries) error {
 	return fillArchiveSearchGrams(ctx, q)
 }
 
-// fillArchiveSearchGrams は、番組の検索の gram の列がないアーカイブの、gram を searchGramsFillLimit 件まで埋める (#966)。
+// fillArchiveSearchGrams は、番組の検索の gram のカラムがないアーカイブの、gram を searchGramsFillLimit 件まで埋める (#966)。
 func fillArchiveSearchGrams(ctx context.Context, q *sqlc.Queries) error {
 	for filled := 0; filled < searchGramsFillLimit; {
 		rows, err := q.ListProgramArchivesWithoutSearchGrams(ctx, searchGramsFillBatchSize)
@@ -96,7 +96,7 @@ func fillArchiveSearchGrams(ctx context.Context, q *sqlc.Queries) error {
 	return nil
 }
 
-// extendedText は、正規化した詳細を返す。列を足す前に書いた番組 (extended_normalized が NULL) は、上流の詳細から正規化する。
+// extendedText は、正規化した詳細を返す。カラムを足す前に書いた番組 (extended_normalized が NULL) は、上流の詳細から正規化する。
 // 上流の詳細を読めなければ、空にする。そうした番組は、検索の照合 (toMatchCandidate) でも詳細を読めずに誤りになるので、gram で落としても結果は変わらない。
 func extendedText(normalized *string, raw []byte) string {
 	if normalized != nil {

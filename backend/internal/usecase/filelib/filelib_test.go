@@ -91,7 +91,7 @@ func TestFileID(t *testing.T) {
 	}
 }
 
-// newFixture は、testdata/ts/test.ts (MPEG-2 の 480i) を show.ts として置いたライブラリから、索引を作りながら開く Source と、
+// newFixture は、testdata/ts/test.ts (MPEG-2 の 480i) を show.ts として置いたライブラリから、インデックスを作りながら開く Source と、
 // ライブラリのディレクトリを返す。
 func newFixture(t *testing.T) (*filelib.Source, string) {
 	t.Helper()
@@ -109,7 +109,7 @@ func newFixture(t *testing.T) (*filelib.Source, string) {
 	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{testLibrary: dir})
 	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
 	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), true)
-	// テストを終えるときは、作っている途中の索引を止めてから、一時ディレクトリを消す。
+	// テストを終えるときは、作っている途中のインデックスを止めてから、一時ディレクトリを消す。
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -124,7 +124,7 @@ func newFixture(t *testing.T) (*filelib.Source, string) {
 	return filelib.NewSource(libraries, indexer), dir
 }
 
-// waitComplete は、索引を作り終えるまで、開き直して待つ。
+// waitComplete は、インデックスを作り終えるまで、開き直して待つ。
 func waitComplete(t *testing.T, source *filelib.Source, ref filelib.Ref) *filelib.File {
 	t.Helper()
 	var file *filelib.File
@@ -202,7 +202,7 @@ func TestSourceOpenErrors(t *testing.T) {
 	}
 }
 
-// TestSourceBDAV は、192 バイトのパケットの .m2ts は、索引を作らず、映像の形式を読むときに見分けることを確かめる。
+// TestSourceBDAV は、192 バイトのパケットの .m2ts は、インデックスを作らず、映像の形式を読むときに見分けることを確認する。
 func TestSourceBDAV(t *testing.T) {
 	t.Parallel()
 
@@ -217,8 +217,8 @@ func TestSourceBDAV(t *testing.T) {
 	require.ErrorIs(t, err, fileimport.ErrBDAV)
 }
 
-// TestSourceSkipsWritingFiles は、最後に書いてから 1 分たっていないファイルは、書いている途中とみなして索引を作らず、
-// 頭から流せることを確かめる。録画中のプールのファイルで、作り終えるたびに作り直すのを繰り返さないためである。
+// TestSourceSkipsWritingFiles は、最後に書いてから 1 分たっていないファイルは、書いている途中とみなしてインデックスを作らず、
+// 頭から流せることを確認する。録画中のプールのファイルで、作り終えるたびに作り直すのを繰り返さないためである。
 func TestSourceSkipsWritingFiles(t *testing.T) {
 	t.Parallel()
 
@@ -236,7 +236,7 @@ func TestSourceSkipsWritingFiles(t *testing.T) {
 	assert.Empty(t, entries, "書いている途中のファイルの索引は作らない")
 }
 
-// TestIndexerReadOnly は、索引を作らない Indexer (kyusu) は、開いても索引を作り始めないことを確かめる。
+// TestIndexerReadOnly は、インデックスを作らない Indexer (kyusu) は、開いてもインデックスを作り始めないことを確認する。
 func TestIndexerReadOnly(t *testing.T) {
 	t.Parallel()
 

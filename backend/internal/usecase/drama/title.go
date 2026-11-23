@@ -14,11 +14,11 @@ var (
 	// noisePattern は、番組名のどこにあっても作品名の一部でないもの。【心底ムカついています】のような隅付き括弧の煽り文句、
 	// ★のような飾り、「第7週」のような週の数え方 (連続テレビ小説)。NFKC で正規化した番組名から除く。
 	noisePattern = regexp.MustCompile(`【[^】]*】|[★☆◆◇■□●○▲△]|第[0-9]+週`)
-	// excludedPattern は、照合しない、宣伝や総集編の番組の印 (PR、ダイジェスト、見どころ、予告、メイキング)。
+	// excludedPattern は、照合しない、宣伝や総集編の番組のマーク (PR、ダイジェスト、見どころ、予告、メイキング)。
 	excludedPattern = regexp.MustCompile(`(?:^|[^A-Za-z])PR(?:[^A-Za-z]|$)|ダイジェスト|見どころ|予告|メイキング`)
 	// episodePattern は、番組名に書いた話数 (#7、第7話、(4))。(1971) のような 4 桁の年は、話数とみなさない。
 	episodePattern = regexp.MustCompile(`#\s*([0-9]{1,4})(?:[^0-9.]|$)|第([0-9]{1,4})話|\(([0-9]{1,3})\)`)
-	// wavePattern は、作品名の後ろの「〜副題〜」。TMDB の作品名にない副題を除いて探し直すのに使う。
+	// wavePattern は、作品名の後ろの「〜副題〜」。TMDB の作品名にないサブタイトルを除いて探し直すのに使う。
 	wavePattern = regexp.MustCompile(`\s*[~〜～].*$`)
 	// sequelPattern は、作品名の後ろの続編の番号 (晩酌の流儀5、はぐれ刑事純情派2、スケバン刑事II)。
 	// TMDB は続編を 1 つの作品のシーズンにまとめることが多いので、番号を除いた作品名でも探す。番号は TMDB のシーズンの番号と合わない。
@@ -37,7 +37,7 @@ func WorkTitle(name string) string {
 	return domain.WorkTitle(cleaned)
 }
 
-// TitleKey は、作品名を比べる鍵を返す。NFKC で正規化し、小文字にし、空白と、表記の揺れやすい記号 (〜、・、!、? など) を除く。
+// TitleKey は、作品名を比較するキーを返す。NFKC で正規化し、小文字にし、空白と、表記の揺れやすい記号 (〜、・、!、? など) を除く。
 // TMDB の作品名 (「TOKYO MER 〜走る緊急救命室〜」) と番組名 (「TOKYO MER〜走る緊急救命室〜」) の、空白や波ダッシュの違いを吸収する。
 func TitleKey(title string) string {
 	return strings.Map(func(r rune) rune {
@@ -68,9 +68,9 @@ func SearchQueries(title string) []string {
 	return queries
 }
 
-// HeadQuery は、作品名 title の最初の空白より前を返す。空白の後ろに副題が付いた番組名 (南田南弁護士は天才肌 嘘をつくのは悪いことです!) は、
+// HeadQuery は、作品名 title の最初の空白より前を返す。空白の後ろにサブタイトルが付いた番組名 (南田南弁護士は天才肌 嘘をつくのは悪いことです!) は、
 // そのままでは TMDB で見つからないので、頭だけで探し直すのに使う。頭だけの名前は、別の作品の名前と同じことがあるので、
-// 見つかった作品は、名前の頭が一致する候補として、放送日の話があるかで確かめてから結びつける。空白がないか、頭が短すぎれば空を返す。
+// 見つかった作品は、名前の先頭が一致する候補として、放送日の話があるかで確認してから結びつける。空白がないか、頭が短すぎれば空を返す。
 func HeadQuery(title string) string {
 	fields := strings.Fields(title)
 	if len(fields) < 2 || len([]rune(fields[0])) < minPrefixRunes {
@@ -102,7 +102,7 @@ func EpisodeNumber(name string) int32 {
 	return 0
 }
 
-// Rerun は、番組名の [再] の印 (囲み文字の 🈞 を含む) か、シリーズの記述子の再放送の印から、再放送かどうかを返す。
+// Rerun は、番組名の [再] のマーク (囲み文字の 🈞 を含む) か、シリーズの記述子の再放送のマークから、再放送かどうかを返す。
 func Rerun(name string, seriesRepeat bool) bool {
 	return seriesRepeat || slices.Contains(domain.Marks(name), "再")
 }

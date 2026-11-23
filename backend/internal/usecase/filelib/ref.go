@@ -1,6 +1,6 @@
 // Package filelib は、録画として登録していない TS を、ライブラリ (medialib) から選んで、録画と同じ経路で再生する (設計書 5.8、#1734)。
 //
-// ファイルは、ライブラリの名前と、ライブラリの中のパスで指す (Ref)。シークの索引は、初めて開いたときに tenban が裏で作り (Indexer)、
+// ファイルは、ライブラリの名前と、ライブラリの中のパスで指す (Ref)。シークのインデックスは、初めて開いたときに tenban が裏で作り (Indexer)、
 // データディレクトリに置いて使い回す。ファイルの大きさか更新日時が変われば作り直す。
 package filelib
 
@@ -27,7 +27,7 @@ type Ref struct {
 const refSeparator = "\x00"
 
 // Encode は、Ref を、URL のパスに置ける 1 つの文字列にする。配信と kyusu の仮想 HLS の URL、GraphQL の ID に使う。
-// HLS のセグメントは、プレイリストからの相対の URL で引くので、パスにスラッシュを含めない。
+// HLS のセグメントは、プレイリストからの相対の URL で取得するので、パスにスラッシュを含めない。
 func (r Ref) Encode() string {
 	return base64.RawURLEncoding.EncodeToString([]byte(r.Library + refSeparator + r.Path))
 }
@@ -59,8 +59,8 @@ func FileID(ref Ref, size int64, modifiedAt time.Time) string {
 	return hex.EncodeToString(sum[:16])
 }
 
-// indexKey は、データディレクトリに置く索引のディレクトリの名前。ライブラリの名前とパスから作り、大きさと更新日時は含めない。
-// ファイルを書き換えたら、同じディレクトリの索引を作り直して置き換えるので、古い索引が溜まらない。
+// indexKey は、データディレクトリに置くインデックスのディレクトリの名前。ライブラリの名前とパスから作り、大きさと更新日時は含めない。
+// ファイルを書き換えたら、同じディレクトリのインデックスを作り直して置き換えるので、古いインデックスが溜まらない。
 func indexKey(ref Ref) string {
 	sum := sha256.Sum256([]byte(ref.Library + refSeparator + ref.Path))
 

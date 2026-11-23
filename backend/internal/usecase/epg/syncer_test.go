@@ -26,7 +26,7 @@ const (
 	tick    = 20 * time.Millisecond
 )
 
-// runSyncer は、ctx が終わるまで syncer を動かす。テストの終わりに止まったことを確かめる。
+// runSyncer は、ctx が終わるまで syncer を動かす。テストの終わりに止まったことを確認する。
 func runSyncer(t *testing.T, syncer *epg.Syncer) {
 	t.Helper()
 
@@ -41,8 +41,8 @@ func runSyncer(t *testing.T, syncer *epg.Syncer) {
 	})
 }
 
-// TestSyncerAppliesEvents は、イベントで届いた番組の追加、更新、削除が、全量の突き合わせを待たずに反映されることを確かめる。
-// 反映のたびに、変更の通知の版数が上がる。
+// TestSyncerAppliesEvents は、イベントで届いた番組の追加、更新、削除が、全量の照合を待たずに反映されることを確認する。
+// 反映のたびに、変更の通知のバージョンが上がる。
 func TestSyncerAppliesEvents(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +106,7 @@ func TestSyncerAppliesEvents(t *testing.T) {
 	}
 }
 
-// TestSyncerSyncsAllPeriodically は、イベントで届かない削除が、定期的な全量の突き合わせで反映されることを確かめる。
+// TestSyncerSyncsAllPeriodically は、イベントで届かない削除が、定期的な全量の照合で反映されることを確認する。
 func TestSyncerSyncsAllPeriodically(t *testing.T) {
 	t.Parallel()
 
@@ -162,7 +162,7 @@ func (e *failingEvents) snapshot() []time.Time {
 }
 
 // TestSyncerBacksOffWhileReconnecting は、接続し直しが続くときに待つ時間を延ばし、
-// 全量の突き合わせを下限の間隔より頻繁には行わないことを確かめる (設計書 3.3)。
+// 全量の照合を下限の間隔より頻繁には行わないことを確認する (設計書 3.3)。
 func TestSyncerBacksOffWhileReconnecting(t *testing.T) {
 	t.Parallel()
 
@@ -191,7 +191,7 @@ func TestSyncerBacksOffWhileReconnecting(t *testing.T) {
 	assert.Equal(t, int32(1), upstream.fullFetches.Load())
 }
 
-// TestSyncerNotifiesTunerEvents は、チューナーのイベントが届くと OnTunerEvent を呼ぶことを確かめる (設計書 3.6)。
+// TestSyncerNotifiesTunerEvents は、チューナーのイベントが届くと OnTunerEvent を呼ぶことを確認する (設計書 3.6)。
 func TestSyncerNotifiesTunerEvents(t *testing.T) {
 	t.Parallel()
 
@@ -232,7 +232,7 @@ func (e *flakyEvents) OpenEvents(ctx context.Context) (tunerserver.EventStream, 
 	return e.EventSource.OpenEvents(ctx)
 }
 
-// TestSyncerSyncsAllAfterReconnect は、接続できない状態から戻ったら、全量の突き合わせからやり直すことを確かめる (設計書 3.7)。
+// TestSyncerSyncsAllAfterReconnect は、接続できない状態から戻ったら、全量の照合からやり直すことを確認する (設計書 3.7)。
 func TestSyncerSyncsAllAfterReconnect(t *testing.T) {
 	t.Parallel()
 
@@ -253,10 +253,10 @@ func TestSyncerSyncsAllAfterReconnect(t *testing.T) {
 	assert.GreaterOrEqual(t, upstream.fullFetches.Load(), int32(4))
 }
 
-// TestSyncerSyncsServicesOnServiceEvents は、サービスのイベントでは、全量を突き合わせずに、サービスの一覧と、
-// 増えたか変わったサービスの番組だけを突き合わせることを確かめる (#2035)。
-// Mirakurun 互換のチューナーサーバーは、EPG の取得が進むたびに service の update を送るので、そのたびに全量を突き合わせると、
-// 全量の突き合わせの間隔によらず、数十秒ごとに全量を読むことになる。
+// TestSyncerSyncsServicesOnServiceEvents は、サービスのイベントでは、全量を照合せずに、サービスの一覧と、
+// 増えたか変わったサービスの番組だけを照合することを確認する (#2035)。
+// Mirakurun 互換のチューナーサーバーは、EPG の取得が進むたびに service の update を送るので、そのたびに全量を照合すると、
+// 全量の照合の間隔によらず、数十秒ごとに全量を読むことになる。
 func TestSyncerSyncsServicesOnServiceEvents(t *testing.T) {
 	t.Parallel()
 
@@ -334,7 +334,7 @@ func (s *onceStream) Close() error {
 	return nil
 }
 
-// TestSyncerSyncsAllOnEPGChangedEvents は、番組表の全体が変わったかもしれないイベントでは、全量を突き合わせることを確かめる (#2035)。
+// TestSyncerSyncsAllOnEPGChangedEvents は、番組表の全体が変わったかもしれないイベントでは、全量を照合することを確認する (#2035)。
 func TestSyncerSyncsAllOnEPGChangedEvents(t *testing.T) {
 	t.Parallel()
 

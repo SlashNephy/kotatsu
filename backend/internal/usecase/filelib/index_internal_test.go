@@ -22,13 +22,13 @@ const (
 	internalShowTS  = "show.ts"
 )
 
-// indexFixture は、testdata/ts/test.ts を show.ts として置いたライブラリと、その索引の置き場を持つ。
+// indexFixture は、testdata/ts/test.ts を show.ts として置いたライブラリと、そのインデックスの保存先を持つ。
 type indexFixture struct {
 	indexer *Indexer
 	clock   *clocktest.Fake
 	ref     Ref
 	entry   *medialib.Entry
-	// index は、show.ts の索引のファイルの中身。
+	// index は、show.ts のインデックスのファイルの内容。
 	index []byte
 }
 
@@ -65,7 +65,7 @@ func newIndexFixture(t *testing.T) *indexFixture {
 	return &indexFixture{indexer: indexer, clock: clk, ref: ref, entry: entry, index: index.Bytes()}
 }
 
-// place は、作っている途中と記録した索引の置き場に、name の名前で索引を置く。
+// place は、作っている途中と記録したインデックスの保存先に、name の名前でインデックスを置く。
 func (f *indexFixture) place(t *testing.T, name string) {
 	t.Helper()
 
@@ -80,8 +80,8 @@ func (f *indexFixture) place(t *testing.T, name string) {
 	require.NoError(t, os.Chtimes(filepath.Join(dir, name), f.clock.Now(), f.clock.Now()))
 }
 
-// TestEnsureLeavesOtherBuilds は、別の tenban が作っている途中の索引 (書きかけが伸び続けているもの) は作り直さず、
-// staleBuild より長く伸びていなければ、作っていた tenban が落ちたとみなして作り直すことを確かめる。
+// TestEnsureLeavesOtherBuilds は、別の tenban が作っている途中のインデックス (書きかけが伸び続けているもの) は作り直さず、
+// staleBuild より長く伸びていなければ、作っていた tenban が落ちたとみなして作り直すことを確認する。
 func TestEnsureLeavesOtherBuilds(t *testing.T) {
 	t.Parallel()
 
@@ -125,8 +125,8 @@ func TestEnsureLeavesOtherBuilds(t *testing.T) {
 	}
 }
 
-// TestReadAfterRename は、書きかけの索引の名前を変えてから、作り終えたと記録するまでの間に読んでも、名前を変えた索引でシークできるが、
-// ドロップなどの集計をまだ記録に書いていないので、作り終えていないものとして返すことを確かめる (#1734)。
+// TestReadAfterRename は、書きかけのインデックスの名前を変えてから、作り終えたと記録するまでの間に読んでも、名前を変えたインデックスでシークできるが、
+// ドロップなどの集計をまだ記録に書いていないので、作り終えていないものとして返すことを確認する (#1734)。
 func TestReadAfterRename(t *testing.T) {
 	t.Parallel()
 
@@ -148,8 +148,8 @@ func TestReadAfterRename(t *testing.T) {
 	}, 10*time.Second, 10*time.Millisecond)
 }
 
-// TestReadOldVersion は、前の版の記録 (放送の情報のないもの) の索引は、シークに使えるが、作り終えていないものとして返し、
-// 開くと作り直して、放送の情報を埋めることを確かめる。画面は、作り終えるまで読み直すので、埋まった項目を受け取れる。
+// TestReadOldVersion は、前のバージョンの記録 (放送の情報のないもの) のインデックスは、シークに使えるが、作り終えていないものとして返し、
+// 開くと作り直して、放送の情報を埋めることを確認する。画面は、作り終えるまで読み直すので、埋まった項目を受け取れる。
 func TestReadOldVersion(t *testing.T) {
 	t.Parallel()
 

@@ -245,7 +245,7 @@ func (im *Importer) Apply(ctx context.Context, db Database, snapshot *Snapshot, 
 	return a.result, nil
 }
 
-// historyKey は、録画の履歴を二重に取り込まないための鍵。局と、予約したときの開始 (なければ開始)。
+// historyKey は、録画の履歴を二重に取り込まないためのキー。局と、予約したときの開始 (なければ開始)。
 type historyKey struct {
 	edcb.ServiceKey
 
@@ -395,7 +395,7 @@ func (a *applier) history(ctx context.Context, tx pgx.Tx, f *edcb.RecordedFile) 
 		return uuid.Nil(), skip("service %d is not in Kotatsu", serviceID)
 	}
 	historyID := id.New()
-	// ミリ秒は捨てる。
+	// ミリ秒は破棄する。
 	start := f.Start.Truncate(time.Second).UTC()
 	err := sqlc.New(tx).InsertRecordingHistory(ctx, sqlc.InsertRecordingHistoryParams{
 		ID: historyID, ServiceID: serviceID, TitleKey: rule.TitleKey(f.Title), Name: f.Title, Series: episode.SeriesOf(f.Title),

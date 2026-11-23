@@ -45,7 +45,7 @@ func grTV(serviceID int) *tunerserver.Service {
 	}
 }
 
-// TestTerrestrialCollector は、地上波の SDT[actual] のセクションが揃ったら、サービス記述子のあるサービスを DB に書くことを確かめる。
+// TestTerrestrialCollector は、地上波の SDT[actual] のセクションが揃ったら、サービス記述子のあるサービスを DB に書くことを確認する。
 func TestTerrestrialCollector(t *testing.T) {
 	t.Parallel()
 
@@ -87,7 +87,7 @@ func TestTerrestrialCollector(t *testing.T) {
 }
 
 // TestCheckerTerrestrial は、地上波のサービスがチューナーサーバーと食い違ったら、管理者に 1 回だけ知らせ、
-// 同じになったら忘れて、また食い違ったら知らせることを確かめる (#1519)。
+// 同じになったら忘れて、また食い違ったら通知することを確認する (#1519)。
 func TestCheckerTerrestrial(t *testing.T) {
 	t.Parallel()
 
