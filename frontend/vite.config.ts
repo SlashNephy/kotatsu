@@ -20,6 +20,20 @@ import { demoStream } from './demo/plugin';
 const devAPI =
   process.env.KOTATSU_DEV_API || `http://127.0.0.1:${process.env.KOTATSU_DEV_PORT || '8080'}`;
 
+// devHttps は、開発サーバーを https で配るための証明書と秘密鍵 (#2121)。https のページでしか使えない機能
+// (Chrome がタブを切り替えたときに自動で開くピクチャーインピクチャーなど) を、開発中にも確かめられるようにする。
+// mise run dev:cert が mkcert で作り、開発用の Compose と mise run //frontend:dev が KOTATSU_DEV_TLS_* で渡す。
+// 渡していなければ (テストや Storybook が設定を読むとき)、https にしない。
+function devHttps(): { cert: Buffer; key: Buffer } | undefined {
+  const cert = process.env.KOTATSU_DEV_TLS_CERT;
+  const key = process.env.KOTATSU_DEV_TLS_KEY;
+  if (!cert || !key) {
+    return undefined;
+  }
+
+  return { cert: readFileSync(cert), key: readFileSync(key) };
+}
+
 // inlineAppleTouchIcon は、index.html の apple-touch-icon を、public/icons の PNG の data: URL に置き換える (#582)。
 // iOS 27 の「ホーム画面に追加」は、URL で指したアイコンを読み込めず、タイトルの頭文字のタイルを出す。
 // data: URL なら、別のリクエストなしにアイコンを渡せる。
@@ -230,22 +244,24 @@ export default defineConfig(({ mode }) => ({
     assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
   },
   server: {
+    https: devHttps(),
     // 開発中は、API を手元の tenban に中継する。compose.yaml と同じく、KOTATSU_DEV_PORT でポートを変えられる。
     // Host は書き換えない。tenban は、Host から求めたオリジンと Origin を比べて /internal/auth/* の CSRF を防ぎ、
     // OIDC のリダイレクト URI も Host から作る。文字列で書くと changeOrigin が有効になり、どちらも食い違う。
+    // https で配るので、X-Forwarded-Proto (xfwd) を付け、tenban に https のオリジンと Cookie の Secure を使わせる。
     proxy: {
       // 画面がセッションの Cookie で使う端点 (GraphQL、ログイン、映像、画像、#1605) を中継する。
       // 実況のコメントの中継 (/internal/media/jikkyo/*/ws) は WebSocket なので、ws も中継する。
       // 映像、録画の画像、ロゴも中継し、開発サーバーだけで画面のすべてを確かめられるようにする。
-      '/internal/': { target: devAPI, changeOrigin: false, ws: true },
+      '/internal/': { target: devAPI, changeOrigin: false, xfwd: true, ws: true },
       // ブラウザ以外から叩く端点 (EPGStation 互換の API、予約の iCalendar、IPTV、署名付き URL の配信、#1605) も、
       // 開発サーバーから確かめられるようにする。
-      '/api': { target: devAPI, changeOrigin: false },
+      '/api': { target: devAPI, changeOrigin: false, xfwd: true },
       // MCP のクライアントにトークンを発行する認可サーバー (#963) も、開発サーバーから確かめられるようにする。
-      '/oauth': { target: devAPI, changeOrigin: false },
-      '/.well-known': { target: devAPI, changeOrigin: false },
+      '/oauth': { target: devAPI, changeOrigin: false, xfwd: true },
+      '/.well-known': { target: devAPI, changeOrigin: false, xfwd: true },
       // MCP サーバー (#964) も、開発サーバーから確かめられるようにする。
-      '/mcp': { target: devAPI, changeOrigin: false },
+      '/mcp': { target: devAPI, changeOrigin: false, xfwd: true },
     },
   },
   fmt: {

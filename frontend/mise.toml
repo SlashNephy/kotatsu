@@ -97,5 +97,7 @@ run = [
 ]
 
 [tasks.dev]
-depends = ["install"]
+# https で配る (#2121)。証明書は、ルートの dev:cert が作る。
+depends = ["install", "//:dev:cert"]
+env = { KOTATSU_DEV_TLS_CERT = "{{config_root}}/../docker/dev-certs/localhost.pem", KOTATSU_DEV_TLS_KEY = "{{config_root}}/../docker/dev-certs/localhost-key.pem" }
 run = "pnpm exec vp dev"
