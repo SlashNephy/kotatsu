@@ -44,8 +44,10 @@ const broadcast = (
     name: `アニメ「${id}」#${count}`,
     startAt: at(start),
     endAt: at(start + hour / 2),
-    reservation: fields.reservation ?? null,
-    service: { name: 'デモ総合', logoUrl: null, channelType: { type: 'GR' } },
+    reservation: fields.reservation
+      ? { id: `Reservation:${id}-${count}`, ...fields.reservation }
+      : null,
+    service: { id: 'Service:1024', name: 'デモ総合', logoUrl: null, channelType: { type: 'GR' } },
   },
 });
 

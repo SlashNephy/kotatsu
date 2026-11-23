@@ -34,7 +34,7 @@ const program = (patch: Record<string, unknown> = {}) => ({
     gaps: [],
     streamUrl: demoStreamURL,
     hlsUrl: '/demo/timeshift/playlist.m3u8',
-    service: { name: 'こたつテレビ', logoUrl: null, videoFormat: 'HD' },
+    service: { id: 'Service:1024', name: 'こたつテレビ', logoUrl: null, videoFormat: 'HD' },
     ...patch,
   }),
 });
@@ -115,6 +115,8 @@ export const KyusuRoute: Story = {
 // BS4K のサービスで、kyusu がいないとき (ブラウザの中では変換できない)。
 export const UnavailableUHD: Story = {
   args: {
-    overrides: program({ service: { name: 'こたつ4K', logoUrl: null, videoFormat: 'UHD' } }),
+    overrides: program({
+      service: { id: 'Service:1025', name: 'こたつ4K', logoUrl: null, videoFormat: 'UHD' },
+    }),
   },
 };

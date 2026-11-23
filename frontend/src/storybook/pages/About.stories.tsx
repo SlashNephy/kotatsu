@@ -97,7 +97,12 @@ export const Error: Story = { args: { overrides: { version: failing() } } };
 export const Released: Story = {
   args: {
     overrides: {
-      version: () => ({ version: 'v2026.11.0', revision: '0123456789abcdef' }),
+      version: () => ({
+        version: 'v2026.11.0',
+        revision: '0123456789abcdef',
+        modified: false,
+        latestRelease: null,
+      }),
       goModuleLicenses,
     },
   },

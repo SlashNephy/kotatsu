@@ -63,7 +63,7 @@ const source = (kind: string, lines: Line[], patch: object = {}) => ({
 const allRoles = ['tenban', 'neko', 'mikan', 'nekonote', 'kyusu'];
 
 const withReport = (sources: object[], roles: string[] = allRoles) => ({
-  version: () => ({ version: 'v2026.11.0' }),
+  version: () => ({ version: 'v2026.11.0', revision: null, modified: false, latestRelease: null }),
   logReport: () => ({
     sources,
     redactHosts: ['tuner.example.com'],
