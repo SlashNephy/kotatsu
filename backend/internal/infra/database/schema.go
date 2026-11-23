@@ -15,7 +15,6 @@ import (
 
 	"ariga.io/atlas/sql/postgres"
 	"ariga.io/atlas/sql/schema"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 
@@ -204,21 +203,11 @@ const (
 )
 
 // script は、データを書き換える 1 回だけのスクリプト (db/scripts)。
-// SQL で書けない書き換え (Go で正規化し直すものなど) は、body の代わりに run を持つ (goScripts)。
 type script struct {
 	version int64
 	name    string
 	phase   scriptPhase
 	body    string
-	run     func(ctx context.Context, tx pgx.Tx) error
-}
-
-// goScripts は、Go で書いた 1 回だけのスクリプト。版は、足したときに上げたスキーマの版 (db/schema.sum) にする。
-// 足した版より古いスキーマで書き出したバックアップを戻すと、また流す。
-func goScripts() []*script {
-	return []*script{
-		{version: renormalizeDashVariantsVersion, name: "renormalize_dash_variants", phase: phaseAfter, body: "", run: renormalizeDashVariants},
-	}
 }
 
 // createScriptsTable は、流したスクリプトを記録する表を作る。schema.sql の schema_scripts と同じ定義にする。
@@ -258,14 +247,7 @@ func loadScripts(fsys fs.FS) ([]*script, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read the one-time script %s: %w", name, err)
 		}
-		scripts = append(scripts, &script{version: version, name: name, phase: phase, body: string(body), run: nil})
-	}
-	for _, s := range goScripts() {
-		if other, ok := seen[s.version]; ok {
-			return nil, fmt.Errorf("one-time scripts %s and %s have the same version", other, s.name)
-		}
-		seen[s.version] = s.name
-		scripts = append(scripts, s)
+		scripts = append(scripts, &script{version: version, name: name, phase: phase, body: string(body)})
 	}
 	slices.SortFunc(scripts, func(a, b *script) int { return cmp.Compare(a.version, b.version) })
 
@@ -308,12 +290,7 @@ func runScript(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, s *
 		return fmt.Errorf("failed to begin the one-time script %s: %w", s.name, err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	if s.run != nil {
-		err = s.run(ctx, tx)
-	} else {
-		_, err = tx.Exec(ctx, s.body)
-	}
-	if err != nil {
+	if _, err := tx.Exec(ctx, s.body); err != nil {
 		return fmt.Errorf("failed to run the one-time script %s: %w", s.name, err)
 	}
 	if _, err := tx.Exec(ctx, "INSERT INTO schema_scripts (version, applied_at) VALUES ($1, $2)", s.version, time.Now()); err != nil {

@@ -221,8 +221,9 @@ func TestMigrateRunsBeforeScripts(t *testing.T) {
 	}
 }
 
-// TestMigrateRenormalizesDashVariants は、正規化で波ダッシュとダッシュの類をそろえる前に書いた、正規化した列を、
-// kotatsu migrate が書き直すことを確かめる (#2041)。そろえる文字を含まない行は変えない。
+// TestMigrateRenormalizesDashVariants は、正規化で波ダッシュとダッシュの類をそろえる前の書き方が残る、正規化した列を、
+// kotatsu migrate が書き直すことを確かめる (#2041)。そろえる前に書いた行と、ローリング更新の間に古いバイナリが書いた行に当たる。
+// そろえる文字を含まない行は変えない。
 func TestMigrateRenormalizesDashVariants(t *testing.T) {
 	t.Parallel()
 
@@ -272,14 +273,10 @@ func TestMigrateRenormalizesDashVariants(t *testing.T) {
 	exec(`INSERT INTO captures (id, user_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized,
 		caption, caption_normalized, broadcast_at, taken_at, size, created_at)
 		VALUES ($1, $2, 0, 'こたつ―テレビ', NULL, 'こたつ―テレビ', '', '山田〜太郎', '山田〜太郎', $3, $3, 1, $3)`, captureID, userID, now)
-	historyID := id.New()
-	exec(`INSERT INTO recording_history (id, service_id, title_key, name, series, start_at, end_at, created_at)
-		VALUES ($1, 3273601024, '', '作品名〜副題〜 #3', '作品名〜副題〜', $2, $2, $2)`, historyID, now)
 	recordingID := id.New()
 	exec(`INSERT INTO recordings (id, service_id, name, description, name_normalized, description_normalized, start_at, end_at, state, recorded_from, created_at, updated_at)
 		VALUES ($1, 3273601024, '作品名〜副題〜', '', '作品名〜副題〜', '', $2, $2, 'completed', $2, $2, $2)`, recordingID, now)
 
-	require.NoError(t, database.ForgetScriptsAfter(t.Context(), pool, database.RenormalizeDashVariantsVersion-1))
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 
 	var serviceName string
@@ -318,10 +315,7 @@ func TestMigrateRenormalizesDashVariants(t *testing.T) {
 	require.NoError(t, pool.QueryRow(t.Context(), "SELECT service_name_normalized, program_name_normalized, caption_normalized FROM captures WHERE id = $1", captureID).
 		Scan(&captureService, &captureProgram, &captureCaption))
 	assert.Equal(t, []string{"こたつ-テレビ", "", "山田~太郎"}, []string{captureService, captureProgram, captureCaption})
-	// 録画履歴のシリーズ名は空に戻して、同じ migrate の中で読み直す。
-	var historySeries string
-	require.NoError(t, pool.QueryRow(t.Context(), "SELECT series FROM recording_history WHERE id = $1", historyID).Scan(&historySeries))
-	assert.NotEqual(t, "作品名〜副題〜", historySeries)
+
 	// 録画は空に戻し、同じ migrate の中で埋め直す。
 	var recordingName string
 	require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized FROM recordings WHERE id = $1", recordingID).Scan(&recordingName))

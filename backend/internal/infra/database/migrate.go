@@ -24,7 +24,10 @@ import (
 // スキーマの変更は、列を追加し、新しい列を使うように切り替え、古い列を削除する、という段階を踏んで
 // 古いバイナリとの互換性を保つ (設計書 11.4)。古いバイナリの読み書きを壊す変更
 // (古いバイナリがまだ使う列の削除など) を足したときは、その値をその変更のスキーマの版に上げる。
-const CompatibleSince int64 = 20261101123249
+//
+// 20261123030402: 照合の正規化で、波ダッシュとダッシュの類をそろえた (#2041)。古いバイナリは、そろえる前の書き方のキーワードで、
+// 書き直した列と照合して、一致しなくなったルール予約を消すので、動かさない。
+const CompatibleSince int64 = 20261123030402
 
 // GooseFloorVersion は、新しい仕組みへそのまま移せる、goose のマイグレーションの版の下限 (#2040)。
 // v2026.11.5 に入れた最後のマイグレーションの版で、それより古い DB は、先に v2026.11.5 で kotatsu migrate を実行してもらう。
@@ -175,6 +178,9 @@ func ForgetScriptsAfter(ctx context.Context, pool *pgxpool.Pool, version int64) 
 // fill は、新しい DB にも要る行を足し、Go で計算する列のうち、埋まっていないものを埋める。
 func fill(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
 	if err := ensureRows(ctx, pool); err != nil {
+		return err
+	}
+	if err := renormalizeDashVariants(ctx, pool); err != nil {
 		return err
 	}
 	if err := fillRecordingsNormalized(ctx, logger, pool); err != nil {

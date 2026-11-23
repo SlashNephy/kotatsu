@@ -28,6 +28,3 @@ func ScriptVersions() ([]int64, error) {
 
 	return versions, nil
 }
-
-// RenormalizeDashVariantsVersion は、正規化し直すスクリプトの版。
-const RenormalizeDashVariantsVersion = renormalizeDashVariantsVersion

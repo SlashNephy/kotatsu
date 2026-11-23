@@ -7,24 +7,32 @@ import (
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
-// renormalizeDashVariantsVersion は、renormalizeDashVariants の版。足したときに上げたスキーマの版。
-const renormalizeDashVariantsVersion int64 = 20261123030402
-
-// dashVariantsPattern は、正規化で ~ と - にそろえるようにした文字 (波ダッシュとダッシュの類、#2041) を含むかを調べる、
-// PostgreSQL の正規表現。
+// dashVariantsPattern は、正規化で ~ と - にそろえる文字 (波ダッシュとダッシュの類、#2041) を含むかを調べる、PostgreSQL の正規表現。
+// 今の正規化 (domain.Normalize) は、これらの文字を残さない。
 const dashVariantsPattern = "[〜‐-―−]"
 
-// renormalizeDashVariants は、正規化で波ダッシュとダッシュの類をそろえる前に書いた、正規化した列を書き直す (#2041)。
-// そろえる文字を含む行だけを読む。番組表の同期は、上流の番組が変わらなければ書き直さず、正規化した列を埋める処理は空の列しか埋めないので、
-// ここで書き直す。
+// renormalizeBatchSize は、番組を正規化し直すときに、1 回に読む行の数。過去の番組は多いので、まとめて読まない。
+const renormalizeBatchSize = 1000
+
+// renormalizeDashVariants は、正規化した列のうち、波ダッシュとダッシュの類をそろえる前の書き方の行を書き直す (#2041)。
+// 今の正規化はこれらの文字を残さないので、正規化した列にこれらの文字が残る行は、そろえる前に書いたものか、
+// ローリング更新の間に古いバイナリが書いたものである。番組表の同期は上流の番組が変わらなければ書き直さず、
+// 正規化した列を埋める処理は空の列しか埋めないので、kotatsu migrate のたびに、ここで書き直す。正規化した列だけを調べるので、
+// 書き直す行がなければ、何も変えない (開発用の DB の番組と過去の番組の 26 万件で 0.4 秒ほど)。
 //
-// NULL にできる列 (録画の番組名と概要、キャプチャの字幕、番組の検索の gram、シリーズ名) は空に戻し、
-// kotatsu migrate と番組表の全量の突き合わせの、空の列を埋める処理に任せる。
-func renormalizeDashVariants(ctx context.Context, tx pgx.Tx) error {
+// NULL にできる列 (録画の番組名と概要、キャプチャの字幕) は空に戻し、この後の、空の列を埋める処理に作り直させる。
+// 番組の検索の gram も、正規化した列から作るので空に戻し、番組表の全量の突き合わせで作り直させる。
+func renormalizeDashVariants(ctx context.Context, pool *pgxpool.Pool) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin normalizing again: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	steps := []func(context.Context, pgx.Tx) error{
 		renormalizePrograms, renormalizeProgramArchives, renormalizeServices, renormalizeCaptures,
 	}
@@ -34,13 +42,15 @@ func renormalizeDashVariants(ctx context.Context, tx pgx.Tx) error {
 		}
 	}
 	for _, statement := range []string{
-		"UPDATE recordings SET name_normalized = NULL, description_normalized = NULL WHERE name ~ $1 OR description ~ $1",
-		"UPDATE recording_history SET series = NULL WHERE name ~ $1",
-		"UPDATE captures SET caption_normalized = NULL WHERE caption ~ $1",
+		"UPDATE recordings SET name_normalized = NULL, description_normalized = NULL WHERE name_normalized ~ $1 OR description_normalized ~ $1",
+		"UPDATE captures SET caption_normalized = NULL WHERE caption_normalized ~ $1",
 	} {
 		if _, err := tx.Exec(ctx, statement, dashVariantsPattern); err != nil {
 			return fmt.Errorf("failed to clear the normalized columns: %w", err)
 		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit normalizing again: %w", err)
 	}
 
 	return nil
@@ -54,13 +64,10 @@ type programText struct {
 	extended           map[string]string
 }
 
-// renormalizeBatchSize は、番組を正規化し直すときに、1 回に読む行の数。過去の番組は多いので、まとめて読まない。
-const renormalizeBatchSize = 1000
-
-// listProgramTexts は、table から、そろえる文字を含む番組を、主キーが after より後のものから、主キーの順に読む。
+// listProgramTexts は、table から、正規化した列にそろえる前の書き方が残る番組を、主キーが after より後のものから、主キーの順に読む。
 func listProgramTexts(ctx context.Context, tx pgx.Tx, table string, after *programText) ([]*programText, error) {
 	rows, err := tx.Query(ctx, `SELECT service_id, event_id, start_at, name, description, extended FROM `+table+`
-		WHERE (name ~ $1 OR description ~ $1 OR extended::text ~ $1) AND (service_id, event_id, start_at) > ($2, $3, $4)
+		WHERE (name_normalized ~ $1 OR description_normalized ~ $1 OR extended_normalized ~ $1) AND (service_id, event_id, start_at) > ($2, $3, $4)
 		ORDER BY service_id, event_id, start_at LIMIT $5`,
 		dashVariantsPattern, after.serviceID, after.eventID, after.startAt, renormalizeBatchSize)
 	if err != nil {
@@ -102,16 +109,16 @@ func renormalizeProgramTable(ctx context.Context, tx pgx.Tx, table string, queue
 	}
 }
 
-// renormalizePrograms は、番組表の番組の正規化した列を書き直す。検索の gram とシリーズ名は空に戻し、全量の突き合わせで作り直させる。
+// renormalizePrograms は、番組表の番組の正規化した列を書き直し、検索の gram を空に戻す。
 func renormalizePrograms(ctx context.Context, tx pgx.Tx) error {
 	return renormalizeProgramTable(ctx, tx, "programs", func(batch *pgx.Batch, p *programText) {
 		batch.Queue(`UPDATE programs SET name_normalized = $3, description_normalized = $4, extended_normalized = $5,
-			search_grams = NULL, series = NULL, episode_number = NULL WHERE service_id = $1 AND event_id = $2`,
+			search_grams = NULL WHERE service_id = $1 AND event_id = $2`,
 			p.serviceID, p.eventID, domain.Normalize(p.name), domain.Normalize(p.description), domain.NormalizeExtended(p.extended))
 	})
 }
 
-// renormalizeProgramArchives は、過去の番組の正規化した列を書き直す。検索の gram は空に戻し、全量の突き合わせで作り直させる。
+// renormalizeProgramArchives は、過去の番組の正規化した列を書き直し、検索の gram を空に戻す。
 func renormalizeProgramArchives(ctx context.Context, tx pgx.Tx) error {
 	return renormalizeProgramTable(ctx, tx, "program_archives", func(batch *pgx.Batch, p *programText) {
 		batch.Queue(`UPDATE program_archives SET name_normalized = $4, description_normalized = $5, extended_normalized = $6,
@@ -122,7 +129,7 @@ func renormalizeProgramArchives(ctx context.Context, tx pgx.Tx) error {
 
 // renormalizeServices は、サービス名の正規化した列を書き直す。
 func renormalizeServices(ctx context.Context, tx pgx.Tx) error {
-	rows, err := tx.Query(ctx, "SELECT id, name FROM services WHERE name ~ $1", dashVariantsPattern)
+	rows, err := tx.Query(ctx, "SELECT id, name FROM services WHERE name_normalized ~ $1", dashVariantsPattern)
 	if err != nil {
 		return fmt.Errorf("failed to list the services to normalize again: %w", err)
 	}
@@ -149,7 +156,8 @@ func renormalizeServices(ctx context.Context, tx pgx.Tx) error {
 
 // renormalizeCaptures は、キャプチャのサービス名と番組名の正規化した列を書き直す。番組名がなければ、空を正規化したものにする。
 func renormalizeCaptures(ctx context.Context, tx pgx.Tx) error {
-	rows, err := tx.Query(ctx, "SELECT id, service_name, COALESCE(program_name, '') FROM captures WHERE service_name ~ $1 OR program_name ~ $1", dashVariantsPattern)
+	rows, err := tx.Query(ctx, `SELECT id, service_name, COALESCE(program_name, '') FROM captures
+		WHERE service_name_normalized ~ $1 OR program_name_normalized ~ $1`, dashVariantsPattern)
 	if err != nil {
 		return fmt.Errorf("failed to list the captures to normalize again: %w", err)
 	}
