@@ -65,11 +65,11 @@ func (o *OIDC) BeginReauthentication(
 	return o.begin(ctx, db, client, &oidcSessionRequest{sessionID: principal.SessionID, returnTo: returnTo, link: false})
 }
 
-// reauthenticate は、IdP で認証し直したユーザーが、再認証を始めたセッションのユーザーであることを確かめ、セッションの認証の日時を更新する。
+// reauthenticate は、IdP で認証し直したユーザーが、再認証を始めたセッションのユーザーであることを確認し、セッションの認証の日時を更新する。
 func (o *OIDC) reauthenticate(
 	ctx context.Context, db Database, row *sqlc.OidcLogin, claims *oidcClaims, principal *Principal, client *ClientInfo,
 ) (*OIDCReauthentication, error) {
-	// 再認証を始めたセッションのまま戻ってきたかを確かめる。ほかの端末やセッションで、途中の状態を使わせない。
+	// 再認証を始めたセッションのまま戻ってきたかを確認する。ほかの端末やセッションで、途中の状態を使わせない。
 	if principal == nil || principal.SessionID != *row.SessionID {
 		return nil, ErrOIDCReauthenticationMismatch
 	}
@@ -119,7 +119,7 @@ func authTimeOf(claims map[string]any) (time.Time, bool) {
 	return time.Unix(int64(value), 0), true
 }
 
-// normalizeReturnTo は、再認証を終えたときに戻すパスを確かめる。ほかのサイトに戻させないよう、同じオリジンの絶対パスに限る。
+// normalizeReturnTo は、再認証を終えたときに戻すパスを確認する。ほかのサイトに戻させないよう、同じオリジンの絶対パスに限る。
 func normalizeReturnTo(returnTo string) (string, error) {
 	if returnTo == "" {
 		return "/", nil

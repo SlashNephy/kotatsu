@@ -17,26 +17,26 @@ import (
 const SourceAnnictWorks = "annict_works"
 
 const (
-	// seasonalInterval は、今期と来期の作品を Annict から引き直す間隔 (付録 A)。
+	// seasonalInterval は、今期と来期の作品を Annict から再取得する間隔 (付録 A)。
 	seasonalInterval = 24 * time.Hour
-	// fullPassInterval は、Annict の作品をすべて引き終えてから、また初めから引き直すまでの間隔 (付録 A)。
+	// fullPassInterval は、Annict の作品をすべて取得し終えてから、また初めから再取得するまでの間隔 (付録 A)。
 	fullPassInterval = 30 * 24 * time.Hour
-	// fullPassPages は、Annict の作品をすべて引くとき、1 回の取り込みで引くページの数 (付録 A)。全件を数日に分けて引く。
+	// fullPassPages は、Annict の作品をすべて取得するとき、1 回の取り込みで取得するページの数 (付録 A)。全件を数日に分けて取得する。
 	fullPassPages = 20
-	// maxSeasonalPages は、今期と来期の作品を引くページの数の上限。1 期は数百作品なので、足りる。
+	// maxSeasonalPages は、今期と来期の作品を取得するページの数の上限。1 期は数百作品なので、足りる。
 	maxSeasonalPages = 20
-	// aniListRecheckInterval は、AniList の ID を引き直す間隔 (付録 A)。
+	// aniListRecheckInterval は、AniList の ID を再取得する間隔 (付録 A)。
 	aniListRecheckInterval = 30 * 24 * time.Hour
 	// aniListBatches は、1 回の取り込みで、AniList に問い合わせる回数 (付録 A)。
 	aniListBatches = 20
 	// DefaultAnnictRequestInterval と DefaultAniListRequestInterval は、問い合わせの間を空ける長さ (付録 A)。
-	// Annict は 1 分に 600 回まで受け付けるが、全件を一度に引かず、間を空けて 1 つずつ送るよう求めている。
+	// Annict は 1 分に 600 回まで受け付けるが、全件を一度に取得せず、間を空けて 1 つずつ送るよう求めている。
 	// AniList は 1 分に 90 回 (混んでいるときは 30 回) まで受け付ける。
 	DefaultAnnictRequestInterval  = time.Second
 	DefaultAniListRequestInterval = 2 * time.Second
 )
 
-// WorkIDFetcher は、Annict と AniList から作品 ID を引く。*workids.Client が満たす。
+// WorkIDFetcher は、Annict と AniList から作品 ID を取得する。*workids.Client が満たす。
 type WorkIDFetcher interface {
 	AnnictWorks(ctx context.Context, token string, seasons []string, cursor string) (*workids.AnnictPage, error)
 	AniListIDsByMAL(ctx context.Context, malIDs []int32) (map[int32]int32, error)
@@ -46,7 +46,7 @@ var _ WorkIDFetcher = new(workids.Client)
 
 //go:generate go tool mockgen -typed -destination=mock_token_source_test.go -package=anime_test . TokenSource
 
-// TokenSource は、管理者が設定した、作品 ID を引くための Annict のトークンを返す。設定していなければ空を返す。
+// TokenSource は、管理者が設定した、作品 ID を取得するための Annict のトークンを返す。設定していなければ空を返す。
 // *animerecord.Service が満たす。
 type TokenSource interface {
 	AnnictImportToken(ctx context.Context, db sqlc.DBTX) (string, error)
@@ -68,12 +68,12 @@ func (i *Importer) WithWorkIDs(opts *WorkIDOptions) *Importer {
 	return i
 }
 
-// importAnnictWorks は、Annict と AniList から作品 ID を引いて、作品 ID の対応 (anime_works の annict) を作り直す (#1223)。
+// importAnnictWorks は、Annict と AniList から作品 ID を取得して、作品 ID の対応 (anime_works の annict) を作り直す (#1223)。
 // 管理者が Annict のトークンを設定していなければ、何もしない。
 //
-// Annict の負荷を抑えるため、今期と来期の作品は 1 日に 1 回、それ以外は、1 回に fullPassPages ページずつ数日かけて引き、
-// 引き終えたら 30 日後にまた初めから引く。引いた作品は annict_works に持ち、引いたところまでを annict_work_sync に覚えるので、
-// 途中で失敗しても、次は続きから引く。AniList の ID は、MyAnimeList の ID から 50 件ずつ引く。
+// Annict の負荷を抑えるため、今期と来期の作品は 1 日に 1 回、それ以外は、1 回に fullPassPages ページずつ数日かけて取得し、
+// 取得し終えたら 30 日後にまた初めから取得する。取得した作品は annict_works に持ち、取得したところまでを annict_work_sync に保存するので、
+// 途中で失敗しても、次は続きから取得する。AniList の ID は、MyAnimeList の ID から 50 件ずつ取得する。
 // 問い合わせに失敗したら、理由を result と anime_imports に残して nil を返し、1 時間後に問い合わせ直す。
 // 429 の Retry-After も、1 時間までなら、これで守れる。
 func (i *Importer) importAnnictWorks(ctx context.Context, force bool, result *ImportResult) error {
@@ -105,7 +105,7 @@ func (i *Importer) importAnnictWorks(ctx context.Context, force bool, result *Im
 	if err != nil {
 		return i.recordAnnictWorksFailure(ctx, err, result)
 	}
-	// 前の取り込みが途中で失敗していれば、そこまでに引いた作品を、まだ対応に写していない。
+	// 前の取り込みが途中で失敗していれば、そこまでに取得した作品を、まだ対応に写していない。
 	if !changed && found && previous.Error == nil && previous.ImportedAt != nil {
 		result.Unchanged = append(result.Unchanged, SourceAnnictWorks)
 		if err := sqlc.New(i.db).RecordAnimeImport(ctx, sqlc.RecordAnimeImportParams{
@@ -125,7 +125,7 @@ func (i *Importer) importAnnictWorks(ctx context.Context, force bool, result *Im
 	return nil
 }
 
-// recordAnnictWorksFailure は、作品 ID を引けなかった理由を、result と anime_imports に残す。
+// recordAnnictWorksFailure は、作品 ID を取得できなかった理由を、result と anime_imports に残す。
 func (i *Importer) recordAnnictWorksFailure(ctx context.Context, cause error, result *ImportResult) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -142,7 +142,7 @@ func (i *Importer) recordAnnictWorksFailure(ctx context.Context, cause error, re
 	return nil
 }
 
-// fetchAnnictWorks は、引く時期の来た Annict の作品を引いて、annict_works に書く。作品を書いたかどうかを返す。
+// fetchAnnictWorks は、取得する時期の来た Annict の作品を取得して、annict_works に書く。作品を書いたかどうかを返す。
 func (i *Importer) fetchAnnictWorks(ctx context.Context, token string, force bool) (bool, error) {
 	sync, err := sqlc.New(i.db).GetAnnictWorkSync(ctx)
 	if err != nil {
@@ -150,7 +150,7 @@ func (i *Importer) fetchAnnictWorks(ctx context.Context, token string, force boo
 	}
 	now := i.clock.Now()
 	changed := false
-	// 今期と来期の作品。放送が始まる前に、TID が付いていくので、毎日引き直す。
+	// 今期と来期の作品。放送が始まる前に、TID が付いていくので、毎日再取得する。
 	if force || sync.SeasonalAt == nil || !now.Before(sync.SeasonalAt.Add(seasonalInterval)) {
 		if err := i.fetchSeasonalWorks(ctx, token, now); err != nil {
 			return false, err
@@ -161,7 +161,7 @@ func (i *Importer) fetchAnnictWorks(ctx context.Context, token string, force boo
 			return changed, err
 		}
 	}
-	// すべての作品。引き終えてから fullPassInterval が過ぎたら、初めから引き直す。
+	// すべての作品。取得し終えてから fullPassInterval が過ぎたら、初めから再取得する。
 	if sync.FullCompletedAt != nil && !now.Before(sync.FullCompletedAt.Add(fullPassInterval)) {
 		sync.FullCompletedAt, sync.FullCursor = nil, nil
 	}
@@ -173,7 +173,7 @@ func (i *Importer) fetchAnnictWorks(ctx context.Context, token string, force boo
 	return changed || fetched, err
 }
 
-// fetchSeasonalWorks は、今期と来期の作品をすべて引いて、annict_works に書く。
+// fetchSeasonalWorks は、今期と来期の作品をすべて取得して、annict_works に書く。
 func (i *Importer) fetchSeasonalWorks(ctx context.Context, token string, now time.Time) error {
 	cursor := ""
 	for range maxSeasonalPages {
@@ -192,7 +192,7 @@ func (i *Importer) fetchSeasonalWorks(ctx context.Context, token string, now tim
 	return nil
 }
 
-// fetchAllWorks は、すべての作品を、前に引いたところの続きから fullPassPages ページまで引いて、annict_works に書く。
+// fetchAllWorks は、すべての作品を、前に取得したところの続きから fullPassPages ページまで取得して、annict_works に書く。
 // 作品を書いたかどうかを返す。
 func (i *Importer) fetchAllWorks(ctx context.Context, token string, sync *sqlc.AnnictWorkSync, now time.Time) (bool, error) {
 	changed := false
@@ -213,7 +213,7 @@ func (i *Importer) fetchAllWorks(ctx context.Context, token string, sync *sqlc.A
 		if page.Next == "" {
 			sync.FullCompletedAt = new(now)
 		}
-		// 途中で失敗しても、次は続きから引けるよう、ページごとに覚える。
+		// 途中で失敗しても、次は続きから取得できるよう、ページごとに保存する。
 		if err := i.saveAnnictWorkSync(ctx, sync); err != nil {
 			return changed, err
 		}
@@ -225,7 +225,7 @@ func (i *Importer) fetchAllWorks(ctx context.Context, token string, sync *sqlc.A
 	return changed, nil
 }
 
-// saveAnnictWorkSync は、Annict の作品を引いたところまでを覚える。
+// saveAnnictWorkSync は、Annict の作品を取得したところまでを保存する。
 func (i *Importer) saveAnnictWorkSync(ctx context.Context, sync *sqlc.AnnictWorkSync) error {
 	if err := sqlc.New(i.db).UpdateAnnictWorkSync(ctx, sqlc.UpdateAnnictWorkSyncParams{
 		SeasonalAt: sync.SeasonalAt, FullCursor: sync.FullCursor, FullCompletedAt: sync.FullCompletedAt,
@@ -236,7 +236,7 @@ func (i *Importer) saveAnnictWorkSync(ctx context.Context, sync *sqlc.AnnictWork
 	return nil
 }
 
-// annictPage は、間を空けてから、Annict の作品の 1 ページを引く。
+// annictPage は、間を空けてから、Annict の作品の 1 ページを取得する。
 func (i *Importer) annictPage(ctx context.Context, token string, seasons []string, cursor string) (*workids.AnnictPage, error) {
 	if err := i.waitWorkIDs(ctx, i.workIDs.AnnictInterval); err != nil {
 		return nil, err
@@ -267,7 +267,7 @@ func (i *Importer) upsertAnnictWorks(ctx context.Context, works []*workids.Annic
 	return nil
 }
 
-// resolveAniListIDs は、MyAnimeList の ID を持つ作品の AniList の ID を、まだ引いていないか、引いてから時間の経ったものから引く。
+// resolveAniListIDs は、MyAnimeList の ID を持つ作品の AniList の ID を、まだ取得していないか、取得してから時間の経ったものから取得する。
 // AniList の ID を書いたかどうかを返す。
 func (i *Importer) resolveAniListIDs(ctx context.Context) (bool, error) {
 	q := sqlc.New(i.db)

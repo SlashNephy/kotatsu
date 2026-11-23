@@ -68,7 +68,7 @@ func (o *OIDC) linkedToIssuer(ctx context.Context, db Database, userID uuid.UUID
 	return false, nil
 }
 
-// linkSession は、紐付けを始めたセッションのまま戻ってきたことを確かめ、ログイン中のユーザーを、IdP で認証したユーザーと紐付ける。
+// linkSession は、紐付けを始めたセッションのまま戻ってきたことを確認し、ログイン中のユーザーを、IdP で認証したユーザーと紐付ける。
 func (o *OIDC) linkSession(
 	ctx context.Context, db Database, row *sqlc.OidcLogin, claims *oidcClaims, principal *Principal, client *ClientInfo,
 ) error {
@@ -78,7 +78,7 @@ func (o *OIDC) linkSession(
 	}
 
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		// 始めてから戻ってくるまでの間に、ほかの経路で紐付けたかもしれないので、もう一度確かめる。
+		// 始めてから戻ってくるまでの間に、ほかの経路で紐付けたかもしれないので、もう一度確認する。
 		linked, err := o.linkedToIssuer(ctx, tx, principal.UserID)
 		if err != nil {
 			return err

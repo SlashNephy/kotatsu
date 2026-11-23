@@ -82,7 +82,7 @@ func (f *oidcReauthFixture) authenticatedAt(t *testing.T) time.Time {
 }
 
 // TestOIDCReauthentication は、OIDC で紐付けたユーザーが、ログイン中のセッションのまま、IdP でもう一度認証して、
-// セッションの認証の日時を更新できることを確かめる (設計書 9.5)。IdP が認証し直したと言えないときは、再認証として扱わない。
+// セッションの認証の日時を更新できることを確認する (設計書 9.5)。IdP が認証し直したと言えないときは、再認証として扱わない。
 func TestOIDCReauthentication(t *testing.T) {
 	t.Parallel()
 
@@ -182,7 +182,7 @@ func TestOIDCReauthentication(t *testing.T) {
 }
 
 // TestOIDCReauthenticationIsNotALogin は、再認証として始めたものを、ログインとしては完了させず、
-// ログインとして始めたものも、再認証としては扱わないことを確かめる。
+// ログインとして始めたものも、再認証としては扱わないことを確認する。
 func TestOIDCReauthenticationIsNotALogin(t *testing.T) {
 	t.Parallel()
 
@@ -206,7 +206,7 @@ func TestOIDCReauthenticationIsNotALogin(t *testing.T) {
 	assert.Equal(t, before, f.authenticatedAt(t))
 }
 
-// TestBeginOIDCReauthenticationRejects は、IdP と紐付いていないユーザーと、ほかのサイトに戻させるパスを拒むことを確かめる。
+// TestBeginOIDCReauthenticationRejects は、IdP と紐付いていないユーザーと、ほかのサイトに戻させるパスを拒むことを確認する。
 func TestBeginOIDCReauthenticationRejects(t *testing.T) {
 	t.Parallel()
 
@@ -244,12 +244,12 @@ func TestBeginOIDCReauthenticationRejects(t *testing.T) {
 	})
 }
 
-// TestOIDCReauthenticationHandlers は、画面からの再認証の始まりから、IdP から戻って、始めたときのパスに戻るまでを、HTTP で確かめる。
+// TestOIDCReauthenticationHandlers は、画面からの再認証の始まりから、IdP から戻って、始めたときのパスに戻るまでを、HTTP で確認する。
 func TestOIDCReauthenticationHandlers(t *testing.T) {
 	t.Parallel()
 
 	base := newOIDCFixture(t, auth.OIDCAutoCreate{})
-	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして捨てる。
+	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして破棄する。
 	// セッションも時計で期限切れになるので、ログインの前に、ログインから時間が経った後でちょうど今になるよう時計を進める。
 	base.clock.Advance(time.Since(base.clock.Now()) - auth.RecentAuthenticationWindow - time.Minute)
 	f := newOIDCReauthFixtureFrom(t, base)

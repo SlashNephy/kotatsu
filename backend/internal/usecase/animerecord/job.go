@@ -225,7 +225,7 @@ func (s *Service) followUp(ctx context.Context, args *RecordArgs, recorded *Reco
 }
 
 // advanceWishlist は、記録先 name に話数 number を記録できたら、見たいリストの作品 workIDs の進み具合を、その話数まで進める (#1230)。
-// 次に取り込むまでの間も、見たいリストが古くならないようにする。話数のない話 (劇場版など) と、整数でない話数 (総集編の 12.5 話など) では
+// 次に取り込むまでの間も、見たいリストが古くならないようにする。話数のない話 (劇場バージョンなど) と、整数でない話数 (総集編の 12.5 話など) では
 // 進めない。できたらよい操作なので、失敗してもログに残すだけにし、記録は付け直さない。
 func (s *Service) advanceWishlist(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, name string, workIDs []int32, number *float64) {
 	if number == nil || *number < 0 || *number != math.Trunc(*number) || *number > math.MaxInt32 || len(workIDs) == 0 {
@@ -239,7 +239,7 @@ func (s *Service) advanceWishlist(ctx context.Context, db sqlc.DBTX, userID uuid
 	}
 }
 
-// prepare は、記録を送れるかを確かめ、ユーザーのトークンを返す。連携が無効か、連携していなければ、ErrPermanent を包んで返す。
+// prepare は、記録を送れるかを確認し、ユーザーのトークンを返す。連携が無効か、連携していなければ、ErrPermanent を包んで返す。
 func (s *Service) prepare(ctx context.Context, db sqlc.DBTX, args *RecordArgs) (string, error) {
 	system, err := settings.Load(ctx, db)
 	if err != nil {
@@ -281,7 +281,7 @@ func (s *Service) finish(ctx context.Context, db sqlc.DBTX, row *sqlc.AnimeRecor
 	return nil
 }
 
-// failureReason は、記録できなかった理由を、通知に出す文にする。トークンなどの中身は、もともとエラーに入れない。
+// failureReason は、記録できなかった理由を、通知に出す文にする。トークンなどの内容は、もともとエラーに入れない。
 func failureReason(err error) string {
 	switch {
 	case errors.Is(err, ErrNotConnected):

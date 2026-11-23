@@ -20,7 +20,7 @@ const (
 	stateCompleted = "completed"
 )
 
-// TestLibrary は、視聴管理の画面の作品を、TID ごとにまとめ、次の話、次の放送、録画のある話を求めることを確かめる (#1231)。
+// TestLibrary は、視聴管理の画面の作品を、TID ごとにまとめ、次の話、次の放送、録画のある話を求めることを確認する (#1231)。
 func TestLibrary(t *testing.T) {
 	t.Parallel()
 	// unmapped は、作品 ID の対応のない作品。番組も録画も引けないので、後ろに回る。
@@ -142,7 +142,7 @@ VALUES ($1, 0, 'syobocal', 6776, $2, $2, false, false)`, id, episode)
 	require.NoError(t, err)
 }
 
-// describeLibraryWork は、作品を、比べやすい 1 行にする。NULL は「-」にする。
+// describeLibraryWork は、作品を、比較しやすい 1 行にする。NULL は「-」にする。
 func describeLibraryWork(work *animerecord.LibraryWork) string {
 	tid, progress, next, broadcast := "-", "-", "-", "-"
 	if work.TID != nil {
@@ -173,7 +173,7 @@ func describeLibraryWork(work *animerecord.LibraryWork) string {
 	return fmt.Sprintf("%s|%s|%s|progress=%s|next=%s|broadcast=%s|%s", tid, work.Title, status, progress, next, broadcast, strings.Join(episodes, ","))
 }
 
-// TestLibraryBroadcastMarks は、放送の再放送と最終話の印と、この 1 週間に始まった本放送と再放送の最も新しい放送を返すことを確かめる (#1233)。
+// TestLibraryBroadcastMarks は、放送の再放送と最終話のマークと、この 1 週間に始まった本放送と再放送の最も新しい放送を返すことを確認する (#1233)。
 func TestLibraryBroadcastMarks(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -203,7 +203,7 @@ VALUES ($1, 'annict', $2, 'watching', '作品A', now())`, f.alice.UserID, annict
 	assert.Equal(t, []string{"12:00 rerun=false", "11:00 rerun=true"}, recent, "the latest broadcast and the latest rerun, newest first")
 }
 
-// TestLibraryImage は、作品の画像に AniList の画像を先に選び、AniList に画像がなければ Annict の画像を使うことを確かめる (#1235)。
+// TestLibraryImage は、作品の画像に AniList の画像を先に選び、AniList に画像がなければ Annict の画像を使うことを確認する (#1235)。
 func TestLibraryImage(t *testing.T) {
 	t.Parallel()
 

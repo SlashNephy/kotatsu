@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	// modelBody は、手元のサーバーが返すモデルの中身。
+	// modelBody は、手元のサーバーが返すモデルの内容。
 	modelBody = "ggml model body"
 	// testModelID は、テストの一覧の書き起こしのモデルの ID。
 	testModelID = "test-whisper"
@@ -38,7 +38,7 @@ const (
 	modelPath = "whisper/ggml-model.bin"
 	// vadPath は、データディレクトリの中の、VAD のモデルの置き場所。
 	vadPath = "whisper/ggml-silero-vad.bin"
-	// oldBody は、前に置いてあったモデルの中身。
+	// oldBody は、前に置いてあったモデルの内容。
 	oldBody = "old model"
 	// sileroID は、一覧の Silero VAD の ID。
 	sileroID = "silero-v5.1.2"
@@ -84,7 +84,7 @@ func testModel(url string) captionmodel.Model {
 	}
 }
 
-// TestWorker は、モデルを落として照合し、既定の場所に置いて記録することと、照合できなければ前のモデルを残すことを確かめる。
+// TestWorker は、モデルを落として照合し、既定の場所に置いて記録することと、照合できなければ前のモデルを残すことを確認する。
 func TestWorker(t *testing.T) {
 	t.Parallel()
 
@@ -99,7 +99,7 @@ func TestWorker(t *testing.T) {
 		// wantCancel は、やり直さずに取りやめるかどうか。wantErr は、失敗するかどうか。
 		wantErr    bool
 		wantCancel bool
-		// wantBody は、置き場所のファイルの中身。
+		// wantBody は、置き場所のファイルの内容。
 		wantBody string
 	}{
 		{name: "照合できたら置き換える", body: modelBody, status: http.StatusOK, modelID: testModelID, kind: captionmodel.KindWhisper, wantErr: false, wantCancel: false, wantBody: modelBody},
@@ -155,7 +155,7 @@ func TestWorker(t *testing.T) {
 	}
 }
 
-// TestEnqueueTx は、同じ種類のダウンロードを重ねて入れず、ほかの種類は入れることを確かめる。
+// TestEnqueueTx は、同じ種類のダウンロードを重ねて入れず、ほかの種類は入れることを確認する。
 func TestEnqueueTx(t *testing.T) {
 	t.Parallel()
 
@@ -206,7 +206,7 @@ func (f *fixture) insertJob(t *testing.T, kind captionmodel.Kind, modelID, state
 	return result.Job.ID
 }
 
-// TestStatuses は、置いたモデルとダウンロードのジョブとファイルから、種類ごとの状態を決めることを確かめる。
+// TestStatuses は、置いたモデルとダウンロードのジョブとファイルから、種類ごとの状態を決めることを確認する。
 func TestStatuses(t *testing.T) {
 	t.Parallel()
 
@@ -217,7 +217,7 @@ func TestStatuses(t *testing.T) {
 		// record は、DB に記録した書き起こしのモデルの大きさ。0 なら記録しない。recordedBefore は、ジョブを試し始める前に記録したかどうか。
 		record         int64
 		recordedBefore bool
-		// file は、置き場所に置くファイルの中身。空なら置かない。
+		// file は、置き場所に置くファイルの内容。空なら置かない。
 		file string
 		// job は、書き起こしのモデルのダウンロードのジョブの状態と最後のエラー。空なら入れない。
 		jobState, jobError string
@@ -304,7 +304,7 @@ func TestStatuses(t *testing.T) {
 	}
 }
 
-// assertDownload は、ダウンロード got が、want なら modelID のもので、wantProgress なら進み具合を持つことを確かめる。
+// assertDownload は、ダウンロード got が、want なら modelID のもので、wantProgress なら進み具合を持つことを確認する。
 func assertDownload(t *testing.T, got *captionmodel.Download, want, wantProgress bool, modelID string) {
 	t.Helper()
 
@@ -326,7 +326,7 @@ func assertDownload(t *testing.T, got *captionmodel.Download, want, wantProgress
 	assert.Equal(t, new(time.Minute), got.Progress.Remaining)
 }
 
-// TestRemove は、置いたモデルのファイルと記録を消すことと、ダウンロードしている間や、置いていなければ消さないことを確かめる。
+// TestRemove は、置いたモデルのファイルと記録を消すことと、ダウンロードしている間や、置いていなければ消さないことを確認する。
 func TestRemove(t *testing.T) {
 	t.Parallel()
 
@@ -400,7 +400,7 @@ func TestRemove(t *testing.T) {
 	}
 }
 
-// TestAllowedHost は、ダウンロードの転送を、HTTPS の Hugging Face とその配信網にだけ許すことを確かめる。
+// TestAllowedHost は、ダウンロードの転送を、HTTPS の Hugging Face とその配信網にだけ許すことを確認する。
 func TestAllowedHost(t *testing.T) {
 	t.Parallel()
 
@@ -426,7 +426,7 @@ func TestAllowedHost(t *testing.T) {
 	}
 }
 
-// TestCatalog は、一覧のモデルが、種類ごとに 1 つ勧めるものを持ち、置き場所の違う種類が入り混じらないことを確かめる。
+// TestCatalog は、一覧のモデルが、種類ごとに 1 つ勧めるものを持ち、置き場所の違う種類が入り混じらないことを確認する。
 func TestCatalog(t *testing.T) {
 	t.Parallel()
 

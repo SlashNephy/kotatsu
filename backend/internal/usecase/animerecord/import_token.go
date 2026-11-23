@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	// importSealPurpose は、作品 ID を引くための Annict のトークンを暗号化する用途 (設計書 8.4、#1223)。
+	// importSealPurpose は、作品 ID を取得するための Annict のトークンを暗号化する用途 (設計書 8.4、#1223)。
 	importSealPurpose = "kotatsu/anime-import-token/v1"
 	// auditTargetImportToken は、監査ログの対象の種類。
 	auditTargetImportToken = "anime_import_token"
@@ -29,13 +29,13 @@ var ErrInvalidImportToken = errors.New("invalid Annict token")
 
 var _ anime.TokenSource = new(Service)
 
-// ImportTokenStatus は、作品 ID を引くための Annict のトークンの様子。トークンは返さない。
+// ImportTokenStatus は、作品 ID を取得するための Annict のトークンの様子。トークンは返さない。
 type ImportTokenStatus struct {
 	Configured bool
 	UpdatedAt  *time.Time
 }
 
-// ImportToken は、管理者が設定した、作品 ID を引くための Annict のトークンの様子を返す (#1223)。
+// ImportToken は、管理者が設定した、作品 ID を取得するための Annict のトークンの様子を返す (#1223)。
 func (s *Service) ImportToken(ctx context.Context, db sqlc.DBTX) (*ImportTokenStatus, error) {
 	row, err := sqlc.New(db).GetAnimeImportToken(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -48,7 +48,7 @@ func (s *Service) ImportToken(ctx context.Context, db sqlc.DBTX) (*ImportTokenSt
 	return &ImportTokenStatus{Configured: true, UpdatedAt: new(row.UpdatedAt)}, nil
 }
 
-// AnnictImportToken は、管理者が設定した、作品 ID を引くための Annict のトークンを返す。設定していなければ空を返す。
+// AnnictImportToken は、管理者が設定した、作品 ID を取得するための Annict のトークンを返す。設定していなければ空を返す。
 func (s *Service) AnnictImportToken(ctx context.Context, db sqlc.DBTX) (string, error) {
 	row, err := sqlc.New(db).GetAnimeImportToken(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -65,8 +65,8 @@ func (s *Service) AnnictImportToken(ctx context.Context, db sqlc.DBTX) (string, 
 	return string(token), nil
 }
 
-// UpdateImportToken は、作品 ID を引くための Annict のトークンを変える (#1223)。空にすると、消す。
-// サーバーが外部へ問い合わせるときに使う値なので、呼ぶ側で、直近の再認証を確かめる (設計書 9.5)。
+// UpdateImportToken は、作品 ID を取得するための Annict のトークンを変える (#1223)。空にすると、消す。
+// サーバーが外部へ問い合わせるときに使う値なので、呼ぶ側で、直近の再認証を確認する (設計書 9.5)。
 // 監査ログには、変えたことだけを残し、値は残さない。
 func (s *Service) UpdateImportToken(ctx context.Context, db Database, actor *audit.Actor, token string) error {
 	token = strings.TrimSpace(token)
@@ -105,8 +105,8 @@ func (s *Service) UpdateImportToken(ctx context.Context, db Database, actor *aud
 	})
 }
 
-// LogSecrets は、ログの報告から伏せる値として、記録先のアプリのクライアントシークレット、ユーザーのアクセストークン、
-// 作品 ID を引くための Annict のトークンを返す (#1521)。連携を無効にしていても、保存してある値は返す。
+// LogSecrets は、ログの報告からマスクする値として、記録先のアプリのクライアントシークレット、ユーザーのアクセストークン、
+// 作品 ID を取得するための Annict のトークンを返す (#1521)。連携を無効にしていても、保存してある値は返す。
 func (s *Service) LogSecrets(ctx context.Context, db sqlc.DBTX) ([]string, error) {
 	q := sqlc.New(db)
 	secrets := []string{}

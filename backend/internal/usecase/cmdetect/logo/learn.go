@@ -43,29 +43,29 @@ func (c Corner) String() string {
 	return [...]string{"top-right", "top-left", "bottom-right", "bottom-left"}[c]
 }
 
-// 隅を諦めた理由。学習できなかった局で、どのパラメーターが原因かを見るのに使う (#1505 の「測ること」)。
+// 隅を諦めた理由。学習できなかった局で、どのパラメーターが原因かを見るのに使う (#1505 の「計測すること」)。
 var (
 	// ErrWeakCorner は、強い縁の閾値が、隅を採る揃い方の下限に届かなかったことを表す。
 	ErrWeakCorner = errors.New("the strong edges are too weak")
-	// ErrFlatCorner は、強い縁の閾値が、隅の揃い方の中央値に比べて目立たなかったことを表す。
+	// ErrFlatCorner は、強い縁の閾値が、隅の揃い方の中央値に比較して目立たなかったことを表す。
 	ErrFlatCorner = errors.New("the strong edges do not stand out from the corner")
-	// ErrNoCore は、核にできる塊がなかったことを表す。
+	// ErrNoCore は、核にできるチャンクがなかったことを表す。
 	ErrNoCore = errors.New("no blob is large enough for a logo")
 	// ErrSharedCorner は、ロゴと張り合う動かない縁が多いことを表す。
 	ErrSharedCorner = errors.New("other still edges compete with the logo")
-	// ErrBandCorner は、ロゴとした塊が、隅を横切る帯 (番組の話題の帯など) の端にあることを表す (#1883)。
+	// ErrBandCorner は、ロゴとしたチャンクが、隅を横切る帯 (番組の話題の帯など) の端にあることを表す (#1883)。
 	ErrBandCorner = errors.New("the logo is a part of a band across the corner")
 	// ErrNoLogo は、どの隅にもロゴを言い切れなかったことを表す。
 	ErrNoLogo = errors.New("no corner has a logo")
 )
 
-// CornerResult は、1 つの隅を調べた結果。
+// CornerResult は、1 つの隅を確認した結果。
 type CornerResult struct {
 	Corner Corner
 	// Threshold は、強い縁の閾値 (隅の揃い方の分位)。Median は、隅の揃い方の中央値。
 	Threshold float64
 	Median    float64
-	// Share は、括った塊の強い縁が、張り合う量に占める割合。塊を作る前に諦めたら 0。
+	// Share は、括ったチャンクの強い縁が、張り合う量に占める割合。チャンクを作る前に諦めたら 0。
 	Share float64
 	// Box は、採った枠 (コマの座標)。諦めたら空。
 	Box Box
@@ -79,7 +79,7 @@ type LearnResult struct {
 	Box Box
 	// Corner は、ロゴを見つけた隅。
 	Corner Corner
-	// Corners は、調べた隅ごとの結果。採った隅で止めるので、その後の隅は入らない。
+	// Corners は、確認した隅ごとの結果。採った隅で止めるので、その後の隅は入らない。
 	Corners []CornerResult
 }
 
@@ -91,7 +91,7 @@ func Band(frameHeight int, p *Params) int {
 }
 
 // Learn は、上の帯 top と下の帯 bottom の縁の向きの積算から、ロゴの枠を割り出す (#1505 の B の 3 と 4)。
-// 隅を、右上、左上、右下、左下の順に調べ、最初にロゴと言い切れた隅を採る。どの隅も駄目なら ErrNoLogo を返す。
+// 隅を、右上、左上、右下、左下の順に確認し、最初にロゴと言い切れた隅を採る。どの隅も駄目なら ErrNoLogo を返す。
 func Learn(top, bottom *Accumulator, frameWidth, frameHeight int, p *Params) (*LearnResult, error) {
 	result := &LearnResult{Box: Box{X: 0, Y: 0, W: 0, H: 0}, Corner: TopRight, Corners: []CornerResult{}}
 	cornerWidth := int(math.Round(float64(frameWidth) * p.CornerRatio))
@@ -119,7 +119,7 @@ func Learn(top, bottom *Accumulator, frameWidth, frameHeight int, p *Params) (*L
 	return result, ErrNoLogo
 }
 
-// blob は、強い縁の印を太らせた後の、4 近傍でつながった塊。
+// blob は、強い縁のマークを太らせた後の、4 近傍でつながったチャンク。
 type blob struct {
 	box    Box
 	strong int
@@ -222,7 +222,7 @@ func bandLine(coherence []float64, width int, region, logo Box, threshold float6
 	return float64(best) / float64(x1-x0)
 }
 
-// blobLimits は、塊の大きさの条件 (画素)。
+// blobLimits は、チャンクの大きさの条件 (画素)。
 type blobLimits struct {
 	tooLargeW, tooLargeH float64
 	coreMinW, coreMinH   float64
@@ -232,9 +232,9 @@ func (l blobLimits) tooLarge(b Box) bool {
 	return float64(b.W) > l.tooLargeW || float64(b.H) > l.tooLargeH
 }
 
-// pickLogo は、塊 blobs から、ロゴの枠と、括った塊の強い縁が張り合う量に占める割合を返す。核にできる塊がなければ false を返す。
-// 大きすぎる塊 (テロップの帯や黒帯の縁) は、核を選ぶ前に比較から外す。核を選んでから大きさで弾くと、隣のロゴを見ずに打ち切るからである。
-// 図形と文字が離れたロゴのため、核の近くの、十分に強い塊を括る。
+// pickLogo は、チャンク blobs から、ロゴの枠と、括ったチャンクの強い縁が張り合う量に占める割合を返す。核にできるチャンクがなければ false を返す。
+// 大きすぎるチャンク (テロップの帯や黒帯の縁) は、核を選ぶ前に比較から外す。核を選んでから大きさで弾くと、隣のロゴを見ずに打ち切るからである。
+// 図形と文字が離れたロゴのため、核の近くの、十分に強いチャンクを括る。
 func pickLogo(blobs []blob, limits blobLimits, p *Params) (Box, float64, bool) {
 	competing := 0
 	core := -1
@@ -268,9 +268,9 @@ func pickLogo(blobs []blob, limits blobLimits, p *Params) (Box, float64, bool) {
 	return logo, float64(bundled) / float64(competing), true
 }
 
-// findBlobs は、印 mask (width × height) を radius の正方形で太らせ、4 近傍でつながった塊に分ける。
-// 塊の枠は、太らせた分と Sobel が縁の外に出す 1 画素の分 (radius + 1) だけ四方から縮め、幅と高さは最低 1 画素残す。
-// 塊の強い縁は、太らせる前の印の数。
+// findBlobs は、マーク mask (width × height) を radius の正方形で太らせ、4 近傍でつながったチャンクに分ける。
+// チャンクの枠は、太らせた分と Sobel が縁の外に出す 1 画素の分 (radius + 1) だけ四方から縮め、幅と高さは最低 1 画素残す。
+// チャンクの強い縁は、太らせる前のマークの数。
 func findBlobs(mask []bool, width, height, radius int) []blob {
 	dilated := dilate(mask, width, height, radius)
 	label := make([]bool, len(mask))
@@ -301,7 +301,7 @@ func findBlobs(mask []bool, width, height, radius int) []blob {
 	return blobs
 }
 
-// dilate は、印 mask を radius の正方形で太らせる。
+// dilate は、マーク mask を radius の正方形で太らせる。
 func dilate(mask []bool, width, height, radius int) []bool {
 	dilated := make([]bool, len(mask))
 	for i, on := range mask {
@@ -319,7 +319,7 @@ func dilate(mask []bool, width, height, radius int) []bool {
 	return dilated
 }
 
-// appendNeighbors は、(x, y) の上下左右のうち、印があってまだ数えていない画素を、数えたことにして stack に足す。
+// appendNeighbors は、(x, y) の上下左右のうち、マークがあってまだ数えていない画素を、数えたことにして stack に足す。
 func appendNeighbors(stack []int, dilated, label []bool, width, height, x, y int) []int {
 	for _, n := range [4][2]int{{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}} {
 		if n[0] < 0 || n[1] < 0 || n[0] >= width || n[1] >= height {
@@ -342,7 +342,7 @@ func shrink(b Box, n int) Box {
 	return Box{X: b.X + (b.W-w)/2, Y: b.Y + (b.H-h)/2, W: w, H: h}
 }
 
-// trim は、枠 b の中の強い縁を列ごと・行ごとに数え、上下左右のそれぞれの端から、合計の ratio までを切り落とす。
+// trim は、枠 b の中の強い縁をカラムごと・行ごとに数え、上下左右のそれぞれの端から、合計の ratio までを切り落とす。
 func trim(strong []bool, width int, b Box, ratio float64) Box {
 	cols := make([]int, b.W)
 	rows := make([]int, b.H)

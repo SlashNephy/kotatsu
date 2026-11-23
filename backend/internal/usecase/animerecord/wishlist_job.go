@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// wishlistCheckInterval は、見たいリストを取り込み直す時期が来たかを確かめる間隔 (付録 A)。
+	// wishlistCheckInterval は、見たいリストを取り込み直す時期が来たかを確認する間隔 (付録 A)。
 	// 取り込み直すのは、取り込めてから WishlistRefreshInterval が過ぎた連携と、取り込めなかったときは問い合わせ直す日時を過ぎた連携だけである。
 	// Retry-After で示された長さに近く問い合わせ直せるよう、問い合わせ直す間隔より短くする。DB を読むだけなので軽い。
 	wishlistCheckInterval = 10 * time.Minute
@@ -65,7 +65,7 @@ func (w *WishlistWorker) Work(ctx context.Context, job *river.Job[WishlistArgs])
 	if err != nil {
 		return err
 	}
-	// 取り込んだ作品の高画質の画像を引く (#1315)。引けなくても、取り込みは失敗にしない。次の機会に引き直す。
+	// 取り込んだ作品の高画質の画像を取得する (#1315)。取得できなくても、取り込みは失敗にしない。次の機会に再取得する。
 	if refreshErr := w.service.RefreshArtworks(ctx, w.db); refreshErr != nil && ctx.Err() == nil {
 		w.service.logger.WarnContext(ctx, "failed to refresh the artworks", slog.Any("error", refreshErr))
 	}
@@ -73,7 +73,7 @@ func (w *WishlistWorker) Work(ctx context.Context, job *river.Job[WishlistArgs])
 	return nil
 }
 
-// WishlistPeriodicJob は、見たいリストを取り込み直す時期が来たかを、10 分ごとに確かめる定期ジョブを返す。
+// WishlistPeriodicJob は、見たいリストを取り込み直す時期が来たかを、10 分ごとに確認する定期ジョブを返す。
 func WishlistPeriodicJob() *river.PeriodicJob {
 	return river.NewPeriodicJob(
 		river.PeriodicInterval(wishlistCheckInterval),

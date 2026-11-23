@@ -19,7 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
 
-// TestComplementSections は、ロゴの出ていた区間の外を、コマの時刻で CM の区間にすることを確かめる。
+// TestComplementSections は、ロゴの出ていた区間の外を、コマの時刻で CM の区間にすることを確認する。
 func TestComplementSections(t *testing.T) {
 	t.Parallel()
 
@@ -67,7 +67,7 @@ func TestComplementSections(t *testing.T) {
 	}
 }
 
-// TestFrameRate は、ffprobe の速さを数にすることを確かめる。
+// TestFrameRate は、ffprobe の速さを数にすることを確認する。
 func TestFrameRate(t *testing.T) {
 	t.Parallel()
 
@@ -89,7 +89,7 @@ func TestFrameRate(t *testing.T) {
 	}
 }
 
-// TestLogoDetectorFallsBack は、局ロゴのない録画では、ロゴを使えないときの見分け方 (FFmpegDetector) の区間を返すことを確かめる。
+// TestLogoDetectorFallsBack は、局ロゴのない録画では、ロゴを使えないときの見分け方 (FFmpegDetector) の区間を返すことを確認する。
 // FFmpeg か ffprobe がなければ飛ばす。
 func TestLogoDetectorFallsBack(t *testing.T) {
 	t.Parallel()
@@ -113,7 +113,7 @@ func TestLogoDetectorFallsBack(t *testing.T) {
 }
 
 // TestLogoDetector は、局ロゴを、出ている所、消えた所 (CM)、また出た所の順に描いた合成の TS で、
-// ロゴの消えた所を CM の区間にすることを確かめる。縦が 1080 ラインより大きい映像では、縮めて学習し測る (#1505)。
+// ロゴの消えた所を CM の区間にすることを確認する。縦が 1080 ラインより大きい映像では、縮めて学習し計測する (#1505)。
 // ローカルのパスのないファイル (ライブラリのファイル。#1734) は、Open で開いてパイプで読み、長さは Duration で渡し、ServiceID の番組を読む。
 // FFmpeg か ffprobe がなければ飛ばす。
 func TestLogoDetector(t *testing.T) {
@@ -127,7 +127,7 @@ func TestLogoDetector(t *testing.T) {
 		open bool
 	}{
 		{name: "縮めない映像", zoom: 1, open: false},
-		// 2560×1440 は、縦が 1080 ラインより大きいので、半分に縮めて測る。
+		// 2560×1440 は、縦が 1080 ラインより大きいので、半分に縮めて計測する。
 		{name: "縮める映像", zoom: 4, open: false},
 		{name: "Open で渡すファイル", zoom: 1, open: true},
 	}
@@ -157,21 +157,21 @@ func TestLogoDetector(t *testing.T) {
 			// ロゴで決められたので、理由は空で、合成の TS には映像の欠けもない (#1508)。
 			assert.Equal(t, &cmdetect.Report{Note: "", Missing: 0}, report)
 			require.Len(t, got, 1, "%v", got)
-			// 境目は、窓とならしで少し揺れるので、1 秒の内なら同じとみなす。
+			// 境目は、ウィンドウとならしで少し揺れるので、1 秒の内なら同じとみなす。
 			assert.InDelta(t, 15, got[0].Start.Seconds(), 1, "%v", got)
 			assert.InDelta(t, 30, got[0].End.Seconds(), 1, "%v", got)
 		})
 	}
 }
 
-// TestParseFrameLog は、showinfo のログの頭と本文の間に -progress のまとまりが入り、時刻の入った本文が
-// progress=continue の行の後ろにつながっても、コマの時刻を落とさないことを確かめる (#1800)。
+// TestParseFrameLog は、showinfo のログの先頭と本文の間に -progress のまとまりが入り、時刻の入った本文が
+// progress=continue の行の後ろにつながっても、コマの時刻を落とさないことを確認する (#1800)。
 func TestParseFrameLog(t *testing.T) {
 	t.Parallel()
 
 	stderr := "[Parsed_showinfo_2 @ 0x1] n:   0 pts:      0 pts_time:0       duration:   3003 fmt:gray iskey:1 type:I\n" +
 		"[Parsed_showinfo_2 @ 0x1]  color_range:tv\n" +
-		// ログの頭の後ろに -progress のまとまりが入り、本文が progress=continue の行につながった。
+		// ログの先頭の後ろに -progress のまとまりが入り、本文が progress=continue の行につながった。
 		"[Parsed_showinfo_2 @ 0x1] frame=1\n" +
 		"fps=0.00\n" +
 		"progress=continuen:   1 pts:   3003 pts_time:0.0333667 duration:   3003 fmt:gray iskey:0 type:P\n" +
@@ -185,7 +185,7 @@ func TestParseFrameLog(t *testing.T) {
 	assert.Equal(t, 2, blocks)
 }
 
-// TestParseFrameLogHugeFrameNumber は、ログに紛れた大きなコマの番号で、長く回らずに読み終えることを確かめる。
+// TestParseFrameLogHugeFrameNumber は、ログに紛れた大きなコマの番号で、長く回らずに読み終えることを確認する。
 // 番号が抜けた分は、コマと時刻の数が合わなくなるので、呼ぶ側がロゴを使わずに見分け直す。
 func TestParseFrameLogHugeFrameNumber(t *testing.T) {
 	t.Parallel()
@@ -197,7 +197,7 @@ func TestParseFrameLogHugeFrameNumber(t *testing.T) {
 
 // writeLogoTS は、局ロゴを、出ている所、hideFrom 秒から hideTo 秒まで消えた所 (CM)、また出た所の順に描いた、40 秒の合成の TS を書く。
 //
-// 背景は、3 秒の周期で明るさが変わる灰色に、コマごとに変わる雑音を足したもの。縁の向きはコマごとに変わり、明るさの段には、
+// 背景は、3 秒の周期で明るさが変わる灰色に、コマごとに変わる雑音を足したもの。縁の向きはコマごとに変わり、明るさの段階には、
 // ロゴの出ているコマと消えたコマが混ざる。右上に、白い文字のような形のロゴを描く。
 func writeLogoTS(t *testing.T, hideFrom, hideTo int) string {
 	t.Helper()
@@ -236,7 +236,7 @@ func writeZoomedLogoTS(t *testing.T, hideFrom, hideTo, zoom int) string {
 }
 
 // TestLogoDetectorRedetectsTooMuchCM は、ロゴで決めた CM の割合が上限以上なら、ロゴの結果を使わずに今の見分け方で見分け直し、
-// それも上限以上なら CM なしにすることを確かめる (#1508)。
+// それも上限以上なら CM なしにすることを確認する (#1508)。
 func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 	t.Parallel()
 
@@ -244,7 +244,7 @@ func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 		name     string
 		fallback []cmdetect.Section
 		want     []cmdetect.Section
-		// dropped は、見分け直した結果も捨てたことを、理由に書くか。
+		// dropped は、見分け直した結果も破棄したことを、理由に書くか。
 		dropped bool
 	}{
 		{
@@ -276,7 +276,7 @@ func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 			got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: writeLogoTS(t, 10, 34), ServiceID: 0, Progress: nil, Program: nil})
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
-			// ロゴの結果を捨てた理由を残す (#1508)。
+			// ロゴの結果を破棄した理由を残す (#1508)。
 			assert.Contains(t, report.Note, "of the recording was detected as CM")
 			if tt.dropped {
 				assert.Contains(t, report.Note, "the redetected result was dropped")
@@ -287,8 +287,8 @@ func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 	}
 }
 
-// TestLogoDetectorRedetect は、ロゴで見分けた回の材料から判定し直すと、読み直したのと同じ区間と欠けになることを確かめる (#1507)。
-// 縮めて読み戻した材料でも変わらないことと、ロゴの結果を捨てる録画では、材料だけでは決められないことも確かめる。
+// TestLogoDetectorRedetect は、ロゴで見分けた回の材料から判定し直すと、読み直したのと同じ区間と欠けになることを確認する (#1507)。
+// 縮めて読み戻した材料でも変わらないことと、ロゴの結果を破棄する録画では、材料だけでは決められないことも確認する。
 func TestLogoDetectorRedetect(t *testing.T) {
 	t.Parallel()
 
@@ -337,8 +337,8 @@ func TestLogoDetectorRedetect(t *testing.T) {
 	}
 }
 
-// TestLogoDetectorCountsCMInProgramWindow は、番組の窓を置いたら、CM の割合を窓の中だけで数えることを確かめる (#1506)。
-// 窓の外は前後の番組なので、遅れて始まった放送で、前の番組が録画の大半を占めても、ロゴの結果を捨てない。
+// TestLogoDetectorCountsCMInProgramWindow は、番組のウィンドウを置いたら、CM の割合をウィンドウの中だけで数えることを確認する (#1506)。
+// ウィンドウの外は前後の番組なので、遅れて始まった放送で、前の番組が録画の大半を占めても、ロゴの結果を破棄しない。
 func TestLogoDetectorCountsCMInProgramWindow(t *testing.T) {
 	t.Parallel()
 
@@ -350,7 +350,7 @@ func TestLogoDetectorCountsCMInProgramWindow(t *testing.T) {
 	}{
 		// 前の 24 秒にロゴがないので、録画全体では CM が 6 割になり、上限を超える。
 		{name: "窓がなければ、録画全体で数えて捨てる", program: nil, wantRedetectable: false},
-		// 25 秒から 14 秒の番組の窓には、ロゴが出続けているので、窓の中の CM はない。
+		// 25 秒から 14 秒の番組のウィンドウには、ロゴが出続けているので、ウィンドウの中の CM はない。
 		{name: "窓を置いたら、窓の中だけで数える", program: &cmdetect.Program{Start: 25 * time.Second, Duration: 14 * time.Second}, wantRedetectable: true},
 	}
 	fallback := NewMockDetector(gomock.NewController(t))
@@ -370,7 +370,7 @@ func TestLogoDetectorCountsCMInProgramWindow(t *testing.T) {
 			got, _, ok := detector.Redetect(material, tt.program)
 			require.Equal(t, tt.wantRedetectable, ok)
 			if ok {
-				// 窓の前 (前の番組) は CM になり、窓の中に CM はない。窓の後ろの残りも、窓の外なので CM になる。
+				// ウィンドウの前 (前の番組) は CM になり、ウィンドウの中に CM はない。ウィンドウの後ろの残りも、ウィンドウの外なので CM になる。
 				require.NotEmpty(t, got)
 				assert.Equal(t, time.Duration(0), got[0].Start)
 				assert.InDelta(t, 24, got[0].End.Seconds(), 1)
@@ -382,7 +382,7 @@ func TestLogoDetectorCountsCMInProgramWindow(t *testing.T) {
 	}
 }
 
-// TestLogoDetectorDropsTooMuchCM は、ロゴを使えずに見分け直した結果も、CM の割合が上限以上なら、CM なしにすることを確かめる (#1508)。
+// TestLogoDetectorDropsTooMuchCM は、ロゴを使えずに見分け直した結果も、CM の割合が上限以上なら、CM なしにすることを確認する (#1508)。
 func TestLogoDetectorDropsTooMuchCM(t *testing.T) {
 	t.Parallel()
 
@@ -399,7 +399,7 @@ func TestLogoDetectorDropsTooMuchCM(t *testing.T) {
 	assert.Empty(t, got)
 }
 
-// TestCMRatio は、CM の割合を、映像の欠けを分母からも分子からも外して求めることを確かめる (#1508)。
+// TestCMRatio は、CM の割合を、映像の欠けを分母からも分子からも外して求めることを確認する (#1508)。
 func TestCMRatio(t *testing.T) {
 	t.Parallel()
 
@@ -427,7 +427,7 @@ func TestCMRatio(t *testing.T) {
 	}
 }
 
-// TestTrimMissing は、CM の端にかかった映像の欠けを CM から切り落とし、CM の内側の欠けは残すことを確かめる (#1508)。
+// TestTrimMissing は、CM の端にかかった映像の欠けを CM から切り落とし、CM の内側の欠けは残すことを確認する (#1508)。
 func TestTrimMissing(t *testing.T) {
 	t.Parallel()
 
@@ -455,7 +455,7 @@ func TestTrimMissing(t *testing.T) {
 	}
 }
 
-// TestEdgeMissing は、ファイルの始まりから最初のコマまでと、最後のコマからファイルの終わりまでの欠けを、1 秒以上のときだけ数えることを確かめる (#1508)。
+// TestEdgeMissing は、ファイルの始まりから最初のコマまでと、最後のコマからファイルの終わりまでの欠けを、1 秒以上のときだけ数えることを確認する (#1508)。
 func TestEdgeMissing(t *testing.T) {
 	t.Parallel()
 
@@ -482,8 +482,8 @@ func TestEdgeMissing(t *testing.T) {
 	}
 }
 
-// TestLogoDetail は、ロゴの結果を捨てた理由の詳細に、型の在り処と大きさ、ロゴが出ていたコマの割合、点数の分布、
-// ロゴで CM とした区間とその中の点数の中央値を書くことを確かめる (#1508)。
+// TestLogoDetail は、ロゴの結果を破棄した理由の詳細に、型の在り処と大きさ、ロゴが出ていたコマの割合、点数の分布、
+// ロゴで CM とした区間とその中の点数の中央値を書くことを確認する (#1508)。
 func TestLogoDetail(t *testing.T) {
 	t.Parallel()
 
@@ -501,7 +501,7 @@ func TestLogoDetail(t *testing.T) {
 }
 
 // TestLogoDetailLimitsSections は、理由の詳細に書く CM の区間を 10 個までにし、残りを「...」にすることと、
-// コマがなければその旨を書くことを確かめる (#1508)。
+// コマがなければその旨を書くことを確認する (#1508)。
 func TestLogoDetailLimitsSections(t *testing.T) {
 	t.Parallel()
 
@@ -525,7 +525,7 @@ func TestLogoDetailLimitsSections(t *testing.T) {
 		cmdetect.LogoDetail(logo.TopRight, logo.Box{X: 0, Y: 0, W: 1, H: 1}, []logo.Measure{}, []logo.Interval{}, []float64{}, 1))
 }
 
-// TestMissingSections は、コマの時刻が 1 秒以上空いた所を、映像の欠けとして返すことを確かめる (#1508)。
+// TestMissingSections は、コマの時刻が 1 秒以上空いた所を、映像の欠けとして返すことを確認する (#1508)。
 func TestMissingSections(t *testing.T) {
 	t.Parallel()
 
@@ -544,7 +544,7 @@ func TestMissingSections(t *testing.T) {
 	assert.InDelta(t, 8.0, got[0].End.Seconds(), 1e-6)
 }
 
-// TestLogoScale は、縦が 1080 ラインより大きい映像を、1080 ライン以下になる整数の倍率で縮めることを確かめる (#1505)。
+// TestLogoScale は、縦が 1080 ラインより大きい映像を、1080 ライン以下になる整数の倍率で縮めることを確認する (#1505)。
 func TestLogoScale(t *testing.T) {
 	t.Parallel()
 
@@ -567,12 +567,12 @@ func TestLogoScale(t *testing.T) {
 	}
 }
 
-// TestMeasuredRate は、参照されないコマを捨てて間の空いたコマの時刻から、測ったコマの速さを、映像の欠けを除いて求めることを確かめる (#1505)。
+// TestMeasuredRate は、参照されないコマを破棄して間の空いたコマの時刻から、計測したコマの速さを、映像の欠けを除いて求めることを確認する (#1505)。
 func TestMeasuredRate(t *testing.T) {
 	t.Parallel()
 
 	const fps = 60000.0 / 1001
-	// 59.94p のコマを、間を 1 コマと 3 コマで交互に空けて残す (BS4K の HEVC で、参照されないコマを捨てたときの並び)。
+	// 59.94p のコマを、間を 1 コマと 3 コマで交互に空けて残す (BS4K の HEVC で、参照されないコマを破棄したときの並び)。
 	halved := make([]float64, 0, 300)
 	for i := 0; i < 600; i += 2 {
 		halved = append(halved, float64(i+i%4/2)/fps)

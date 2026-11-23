@@ -131,7 +131,7 @@ func newPlaced(r *Reservation, rank int) *placed {
 	return &placed{reservation: r, start: r.fullStart(), end: r.fullEnd(), coreStart: coreStart, coreEnd: r.EndAt, rank: rank}
 }
 
-// hardStart と hardEnd は、他の予約に譲れない区間。本編を削った予約は、残した区間になり、捨てた側は他の予約が使える。
+// hardStart と hardEnd は、他の予約に譲れない区間。本編を削った予約は、残した区間になり、破棄した側は他の予約が使える。
 func (p *placed) hardStart() time.Time { return p.coreStart }
 func (p *placed) hardEnd() time.Time   { return p.coreEnd }
 
@@ -176,7 +176,7 @@ func Assign(reservations []*Reservation, tuners []*Tuner) []*Assignment {
 		for _, r := range d.reservations {
 			byTuner[tuner] = append(byTuner[tuner], newPlaced(r, rank))
 		}
-		// 置いたらすぐに本編を削り、次の需要を置くときに、捨てた側を空いているとみなせるようにする (#1718)。
+		// 置いたらすぐに本編を削り、次の需要を置くときに、破棄した側を空いているとみなせるようにする (#1718)。
 		resolveCores(byTuner[tuner])
 	}
 
@@ -365,7 +365,7 @@ type span struct {
 	start, end time.Time
 }
 
-// union は、予約が譲れない区間を、重なりをまとめた区間の列にする。
+// union は、予約が譲れない区間を、重なりをまとめた区間の並びにする。
 func union(list []*placed) []span {
 	spans := make([]span, 0, len(list))
 	for _, p := range list {
@@ -389,7 +389,7 @@ func union(list []*placed) []span {
 	return merged
 }
 
-// longestGap は、区間 [start, end) から、重なりをまとめて並べた区間の列 spans を除いて残る区間のうち、最も長いものを返す。
+// longestGap は、区間 [start, end) から、重なりをまとめて並べた区間の並び spans を除いて残る区間のうち、最も長いものを返す。
 // 同じ長さなら前のものを返す。何も残らなければ false を返す。
 func longestGap(start, end time.Time, spans []span) (span, bool) {
 	var best span
@@ -459,7 +459,7 @@ func conflicting(a, b *placed) bool {
 // 録画が始まった予約は、始まりを動かせないので、録画の始まりから続く区間を残す。
 // 本編はマージンより優先するので、残った本編に重なる相手のマージンも削る。
 func resolveCores(list []*placed) {
-	// 置いた順に、勝った予約の区間を確かめてから、負けた予約を削る。録画が始まった需要は先に置いてあるので、常に勝つ。
+	// 置いた順に、勝った予約の区間を確認してから、負けた予約を削る。録画が始まった需要は先に置いてあるので、常に勝つ。
 	order := slices.Clone(list)
 	slices.SortStableFunc(order, func(a, b *placed) int { return cmp.Compare(a.rank, b.rank) })
 	for i, l := range order {

@@ -33,7 +33,7 @@ const (
 	annictFollowingWatchingWorks = 50
 	// aniListFollowingWatchingPage は、AniList で 1 回に引く件数 (Page の perPage の上限)。
 	aniListFollowingWatchingPage = 50
-	// aniListPhaseUsers と aniListPhaseList は、AniList のフォローしている人が見ている作品を引く段。
+	// aniListPhaseUsers と aniListPhaseList は、AniList のフォローしている人が見ている作品を取得するフェーズ。
 	aniListPhaseUsers = "users"
 	aniListPhaseList  = "list"
 	// aniListVariablePage は、AniList の Page のページの番号の変数。
@@ -56,12 +56,12 @@ type FollowingWatchingEntry struct {
 // FollowingWatchingPage は、フォローしている人が見ている作品の 1 ページ。
 type FollowingWatchingPage struct {
 	Entries []*FollowingWatchingEntry
-	// Next は、続きを引くときに渡す cursor。続きがなければ空。
+	// Next は、続きを取得するときに渡す cursor。続きがなければ空。
 	Next string
 }
 
 // FollowingWatching は、トークンの持ち主がフォローしている人が「見てる」にした作品の 1 ページを返す (#1968)。
-// フォローしている人を annictFollowingWatchingUsers 人ずつ引き、1 人あたり annictFollowingWatchingWorks 作品まで引く。
+// フォローしている人を annictFollowingWatchingUsers 人ずつ取得し、1 人あたり annictFollowingWatchingWorks 作品まで取得する。
 func (a *Annict) FollowingWatching(ctx context.Context, token, cursor string) (*FollowingWatchingPage, error) {
 	const query = `query ($cursor: String, $users: Int!, $works: Int!) {
   viewer { followingWatching: following(first: $users, after: $cursor) {
@@ -131,11 +131,11 @@ func (a *Annict) FollowingWatching(ctx context.Context, token, cursor string) (*
 	return page, nil
 }
 
-// aniListFollowingWatchingCursor は、AniList のフォローしている人が見ている作品を引く、どこまで進んだか。
+// aniListFollowingWatchingCursor は、AniList のフォローしている人が見ている作品を取得する、どこまで進んだか。
 // 自分の ID を引き、フォローしている人を Page.following で引いてから、その人たちの「視聴中」を Page.mediaList でまとめて引く。
-// 引いた人の ID は、続きを引くのに要るので、cursor に入れて持ち回る (保存はしない)。
+// 取得した人の ID は、続きを取得するのに要るので、cursor に入れて持ち回る (保存はしない)。
 type aniListFollowingWatchingCursor struct {
-	// phase は、aniListPhaseUsers (フォローしている人を引く) か aniListPhaseList (視聴中を引く)。
+	// phase は、aniListPhaseUsers (フォローしている人を取得する) か aniListPhaseList (視聴中を取得する)。
 	phase   string
 	viewer  int64
 	page    int
@@ -200,7 +200,7 @@ func (a *AniList) FollowingWatching(ctx context.Context, token, cursor string) (
 	return a.followingListPage(ctx, token, c)
 }
 
-// followingUsersPage は、フォローしている人の 1 ページを引き、続きの cursor を返す。人が尽きたら、視聴中を引く段に移る。
+// followingUsersPage は、フォローしている人の 1 ページを取得し、続きの cursor を返す。人が尽きたら、視聴中を取得するフェーズに移る。
 func (a *AniList) followingUsersPage(ctx context.Context, token string, c *aniListFollowingWatchingCursor) (*FollowingWatchingPage, error) {
 	const query = `query ($userId: Int!, $page: Int!, $perPage: Int!) {
   Page(page: $page, perPage: $perPage) { followingUsers: following(userId: $userId) { id } pageInfo { hasNextPage } }
@@ -243,7 +243,7 @@ func (a *AniList) followingUsersPage(ctx context.Context, token string, c *aniLi
 	return page, nil
 }
 
-// followingListPage は、フォローしている人の視聴中の作品の 1 ページを引く。
+// followingListPage は、フォローしている人の視聴中の作品の 1 ページを取得する。
 func (a *AniList) followingListPage(ctx context.Context, token string, c *aniListFollowingWatchingCursor) (*FollowingWatchingPage, error) {
 	const query = `query ($userIds: [Int], $page: Int!, $perPage: Int!) {
   Page(page: $page, perPage: $perPage) {
@@ -389,7 +389,7 @@ type FollowingWatcher struct {
 	Destination string
 	Username    string
 	Name        string
-	// AvatarURL は、記録先が示したアバターの URL。なければ空。tenban が中継する。
+	// AvatarURL は、記録先が示したアバターの URL。なければ空。tenban がプロキシする。
 	AvatarURL string
 }
 

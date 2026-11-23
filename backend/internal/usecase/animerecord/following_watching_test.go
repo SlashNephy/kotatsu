@@ -15,14 +15,14 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
-// hana と hanaUsername は、偽のフォロー中のユーザーの名前とユーザー名。
+// hana と hanaUsername は、モックのフォロー中のユーザーの名前とユーザー名。
 const (
 	hana         = "Hana"
 	hanaUsername = "hana"
 )
 
 // TestFollowingWatchingWorks は、フォロー中のユーザーが「見てる」にした作品を、見たいリストと一緒に Annict と AniList から取り込み、
-// これからの放送のある作品を、見ている人の多い順に返すことを確かめる (#1968)。「見たい」などほかの状態の作品と、TID に対応しない作品は出さない。
+// これからの放送のある作品を、見ている人の多い順に返すことを確認する (#1968)。「見たい」などほかの状態の作品と、TID に対応しない作品は出さない。
 // ほかのユーザーには見せず、連携を外すと、その記録先の分は消える。
 func TestFollowingWatchingWorks(t *testing.T) {
 	t.Parallel()
@@ -49,7 +49,7 @@ func TestFollowingWatchingWorks(t *testing.T) {
 	f.connect(t, f.alice, animerecord.DestinationAnnict)
 	f.connect(t, f.alice, animerecord.DestinationAniList)
 	f.connect(t, f.bob, animerecord.DestinationAnnict)
-	// 1 ページに 1 人ずつ返し、ページをたどることも確かめる。
+	// 1 ページに 1 人ずつ返し、ページをたどることも確認する。
 	f.annict.setFollowing([]fakeFollowing{
 		{Username: hanaUsername, Name: hana, WorkID: annictWorkID, Status: stateWatching, Title: titleA},
 		{Username: "kai", Name: "Kai", WorkID: annictWorkID, Status: stateWatching, Title: titleA},
@@ -108,7 +108,7 @@ func TestFollowingWatchingWorks(t *testing.T) {
 }
 
 // TestImportFollowingWatchingKeepsWishlist は、フォロー中のユーザーが見ている作品を引けなくても、見たいリストの取り込みは成功とし、
-// 前に取り込んだ見ている作品を残すことを確かめる (#1968)。
+// 前に取り込んだ見ている作品を残すことを確認する (#1968)。
 func TestImportFollowingWatchingKeepsWishlist(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -127,7 +127,7 @@ func TestImportFollowingWatchingKeepsWishlist(t *testing.T) {
 }
 
 // TestCreateFollowingWatchingRule は、フォロー中のユーザーが見ている作品から、見たいリストと同じ決まりでルールを作り、
-// 作った後は予約済みとして、もう作らせないことを確かめる (#1968)。
+// 作った後は予約済みとして、もう作らせないことを確認する (#1968)。
 func TestCreateFollowingWatchingRule(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -153,8 +153,8 @@ func TestCreateFollowingWatchingRule(t *testing.T) {
 	require.ErrorIs(t, err, animerecord.ErrWishlistWorkNotFound)
 }
 
-// TestImportFollowingWatchingRateLimited は、フォロー中のユーザーが見ている作品を引くときに記録先が 429 を返したら、見たいリストは
-// 取り込めたものとして残し、その記録先の残りの連携を、次の機会に回すことを確かめる (#1968)。
+// TestImportFollowingWatchingRateLimited は、フォロー中のユーザーが見ている作品を取得するときに記録先が 429 を返したら、見たいリストは
+// 取り込めたものとして残し、その記録先の残りの連携を、次の機会に回すことを確認する (#1968)。
 func TestImportFollowingWatchingRateLimited(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -180,7 +180,7 @@ func TestImportFollowingWatchingRateLimited(t *testing.T) {
 	assert.Equal(t, 1, imported)
 }
 
-// TestFollowingWatchingWatchersAreUnique は、1 つの TID に同じ記録先の作品が複数対応していても、同じ人を 1 度だけ数えることを確かめる (#1968)。
+// TestFollowingWatchingWatchersAreUnique は、1 つの TID に同じ記録先の作品が複数対応していても、同じ人を 1 度だけ数えることを確認する (#1968)。
 func TestFollowingWatchingWatchersAreUnique(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)

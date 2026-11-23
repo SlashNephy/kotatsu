@@ -7,8 +7,8 @@ package logo
 
 import "time"
 
-// Params は、ロゴの学習と判定のパラメーター。#1505 の「決めるパラメーター」の表に当たる。
-// 既定値 (DefaultParams) は仮の値で、実放送の録画で測って決め直す。
+// Params は、ロゴの学習と判定のパラメーター。#1505 の「決めるパラメーター」のテーブルに当たる。
+// 既定値 (DefaultParams) は仮の値で、実放送の録画で計測して決め直す。
 type Params struct {
 	// EdgeStrength は、勾配を縁として数える強さの下限 (Sobel の 3×3 の、画素値 0〜255 の単位)。
 	EdgeStrength float64
@@ -27,17 +27,17 @@ type Params struct {
 	MinCornerCoherence float64
 	// CornerMedianRatio は、強い縁の閾値が、隅の揃い方の中央値の何倍以上なら採るか。
 	CornerMedianRatio float64
-	// DilateRadius は、強い縁の印を太らせる正方形の半径 (画素)。
+	// DilateRadius は、強い縁のマークを太らせる正方形の半径 (画素)。
 	DilateRadius int
-	// TooLargeRatio は、ロゴより大きいとして比較から外す塊の幅と高さの、コマに対する割合。
+	// TooLargeRatio は、ロゴより大きいとして比較から外すチャンクの幅と高さの、コマに対する割合。
 	TooLargeRatio float64
-	// CoreMinRatio は、核にできる塊の幅と高さの下限の、コマに対する割合。
+	// CoreMinRatio は、核にできるチャンクの幅と高さの下限の、コマに対する割合。
 	CoreMinRatio float64
-	// BundleDistance は、核と同じロゴとして括る塊の、核からの距離 (画素)。
+	// BundleDistance は、核と同じロゴとして括るチャンクの、核からの距離 (画素)。
 	BundleDistance int
-	// BundleStrengthRatio は、括る塊の強い縁の数の、核に対する割合の下限。
+	// BundleStrengthRatio は、括るチャンクの強い縁の数の、核に対する割合の下限。
 	BundleStrengthRatio float64
-	// LogoShareMin は、括った塊の強い縁が、張り合う量に占める割合の下限。
+	// LogoShareMin は、括ったチャンクの強い縁が、張り合う量に占める割合の下限。
 	LogoShareMin float64
 	// BandLineRatio は、締めた枠の行から画面の中央の側へ、揃い方が MinCornerCoherence 以上の画素が隅の端まで埋める割合の上限。
 	// これ以上埋める行があれば、枠は隅を横切る帯の一部とみなし、その隅を諦める (#1883)。
@@ -66,7 +66,7 @@ type Params struct {
 	NearWindow time.Duration
 	// BrightnessLevels は、1 段目で明るさを分ける段の数。
 	BrightnessLevels int
-	// LevelMinDuration は、段や格子を確かめるのに要るコマの量。
+	// LevelMinDuration は、段や格子を確認するのに要るコマの量。
 	LevelMinDuration time.Duration
 	// LevelQuantile は、1 段目で段を判断できるとする点数の分位 (0.9 なら上位 10%)。
 	LevelQuantile float64
@@ -79,9 +79,9 @@ type Params struct {
 	GridMissRatio float64
 	// WindowHalf は、コマごとに見る前後の時間。
 	WindowHalf time.Duration
-	// WindowRank は、窓の値に使う順位 (1 なら最高点)。
+	// WindowRank は、ウィンドウの値に使う順位 (1 なら最高点)。
 	WindowRank int
-	// WindowMinRatio は、窓の値を出すのに要る、判断できるコマの窓に対する割合。
+	// WindowMinRatio は、ウィンドウの値を出すのに要る、判断できるコマのウィンドウに対する割合。
 	WindowMinRatio float64
 	// SmoothFrames は、境目の戻しで使う中央値の幅 (コマ)。
 	SmoothFrames int
@@ -89,11 +89,11 @@ type Params struct {
 	PullbackMax time.Duration
 	// FillGap は、埋める途切れの長さの上限。
 	FillGap time.Duration
-	// MinInterval は、捨てるロゴ区間の長さの上限。
+	// MinInterval は、破棄するロゴ区間の長さの上限。
 	MinInterval time.Duration
 }
 
-// DefaultParams は、仮の既定値を返す。どれも実放送の録画で測って決め直す (#1505 の「測ること」)。
+// DefaultParams は、仮の既定値を返す。どれも実放送の録画で計測して決め直す (#1505 の「計測すること」)。
 // 縁とみなす強さ、強い縁の分位、出たとみなす点数、続いているとみなす点数は、地上波の 5 局の録画 (1440×1080) で、
 // 半透明のロゴの縁が落ちないこと、ロゴの縁が隅の 1〜2% しか占めないこと、点数がロゴの出ている所で 0.6〜0.8、
 // CM の間で 0 付近に分かれることを見て決めた。ほかは仮の値のまま。

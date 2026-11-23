@@ -23,7 +23,7 @@ import (
 
 const day = 24 * time.Hour
 
-// sessionFixture は、ユーザーを 1 人作った DB と、偽の時計で動く Sessions。
+// sessionFixture は、ユーザーを 1 人作った DB と、モックの時計で動く Sessions。
 type sessionFixture struct {
 	db       *pgxpool.Pool
 	clock    *clocktest.Fake
@@ -371,7 +371,7 @@ func TestMiddlewareClearsInvalidCookie(t *testing.T) {
 
 	login := do(t, client, http.MethodPost, server.URL+"/login", nil)
 	require.Equal(t, http.StatusOK, login.status)
-	// cookiejar は実時間で Expires を判定し、固定の時計で発行した Cookie を捨てるので、Cookie は手で送る。
+	// cookiejar は実時間で Expires を判定し、固定の時計で発行した Cookie を破棄するので、Cookie は手で送る。
 	cookie := sessionCookie(t, login)
 	assert.Equal(t, http.StatusOK, do(t, client, http.MethodGet, server.URL+"/watch", cookie).status)
 
@@ -435,7 +435,7 @@ func TestAuthenticateWhileDatabaseIsUnreachable(t *testing.T) {
 			wantUnavailable: true,
 		},
 		{
-			// 取り消した tenban と同じプロセスなら、取り消した後に一度も認証しなくても、覚えた結果を使わない。
+			// 取り消した tenban と同じプロセスなら、取り消した後に一度も認証しなくても、キャッシュした結果を使わない。
 			name: "revoked before the outage",
 			beforeOutage: func(t *testing.T, f *sessionFixture, sessions *auth.Sessions, conn *databasetest.Switch, token string, session *auth.Session) {
 				t.Helper()
@@ -446,7 +446,7 @@ func TestAuthenticateWhileDatabaseIsUnreachable(t *testing.T) {
 			wantUnavailable: true,
 		},
 		{
-			// ほかの tenban で取り消したら、DB が止まる前に一度認証したときに、取り消したと分かって覚えた結果を忘れる。
+			// ほかの tenban で取り消したら、DB が止まる前に一度認証したときに、取り消したと分かってキャッシュした結果を忘れる。
 			name: "revoked on another instance before the outage",
 			beforeOutage: func(t *testing.T, f *sessionFixture, sessions *auth.Sessions, conn *databasetest.Switch, token string, session *auth.Session) {
 				t.Helper()
@@ -511,7 +511,7 @@ func TestAuthenticateWhileDatabaseIsUnreachable(t *testing.T) {
 	}
 }
 
-// TestRevokeDeletesWebPushSubscriptions は、セッションを失効させると、そのセッションで購読した Web Push だけを消すことを確かめる (#1365)。
+// TestRevokeDeletesWebPushSubscriptions は、セッションを失効させると、そのセッションで購読した Web Push だけを消すことを確認する (#1365)。
 func TestRevokeDeletesWebPushSubscriptions(t *testing.T) {
 	t.Parallel()
 

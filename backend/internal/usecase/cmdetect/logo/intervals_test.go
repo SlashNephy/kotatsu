@@ -10,7 +10,7 @@ import (
 
 const fps = 30.0
 
-// scene は、同じ測りが続く場面。
+// scene は、同じ計測値が続く場面。
 type scene struct {
 	seconds float64
 	m       logo.Measure
@@ -27,13 +27,13 @@ func measures(scenes ...scene) []logo.Measure {
 	return out
 }
 
-// TestIntervals は、ロゴが出ていた区間を、白っぽい背景で見えない間は持ち越し、真っ黒では持ち越さずに出すことを確かめる。
+// TestIntervals は、ロゴが出ていた区間を、白っぽい背景で見えない間は持ち越し、真っ黒では持ち越さずに出すことを確認する。
 func TestIntervals(t *testing.T) {
 	t.Parallel()
 
 	// shown は、暗い背景でロゴが出ているコマ。
 	shown := logo.Measure{Score: 0.7, Brightness: 90, Texture: 20}
-	// hidden は、CM の間 (ロゴがない) のコマ。明るさと肌理は本編と同じ段にする。CM だけの段があると、その段は判断できない段になる。
+	// hidden は、CM の間 (ロゴがない) のコマ。明るさと肌理は本編と同じ段にする。CM だけの段があると、その段は判断できない段階になる。
 	hidden := logo.Measure{Score: 0.0, Brightness: 90, Texture: 20}
 	// washed は、白っぽい背景で、ロゴが出ているのに見えないコマ。
 	washed := logo.Measure{Score: 0.02, Brightness: 245, Texture: 6}
@@ -51,7 +51,7 @@ func TestIntervals(t *testing.T) {
 			want:   []logo.Interval{{Start: 0, End: 1800}, {Start: 2700, End: 4500}},
 		},
 		{
-			// 白っぽい場面は、本編の中にしか出ないので、近いコマだけで数えた明るさの段で、判断できない段になる。
+			// 白っぽい場面は、本編の中にしか出ないので、近いコマだけで数えた明るさの段で、判断できない段階になる。
 			name:   "本編の中の白っぽい場面は、ロゴが見えなくても持ち越す",
 			scenes: []scene{{60, shown}, {20, washed}, {60, shown}, {30, hidden}, {60, shown}},
 			want:   []logo.Interval{{Start: 0, End: 4200}, {Start: 5100, End: 6900}},
@@ -72,7 +72,7 @@ func TestIntervals(t *testing.T) {
 			t.Parallel()
 
 			got := logo.Intervals(measures(tt.scenes...), fps, logo.DefaultParams())
-			// 境目は、窓とならしで数コマ揺れるので、0.5 秒の内なら同じとみなす。
+			// 境目は、ウィンドウとならしで数コマ揺れるので、0.5 秒の内なら同じとみなす。
 			if !assert.Len(t, got, len(tt.want), "%v", got) {
 				return
 			}

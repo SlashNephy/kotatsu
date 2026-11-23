@@ -25,7 +25,7 @@ func blocked(startMinute, endMinute int) *assign.Tuner {
 	}}}
 }
 
-// TestAssignEDCB は、EDCB の性質 (相乗りの単位がサービスであること、EDCB の予約がチューナーをふさぐこと) を渡した割り当てを確かめる (#1536)。
+// TestAssignEDCB は、EDCB の性質 (相乗りの単位がサービスであること、EDCB の予約がチューナーをふさぐこと) を渡した割り当てを確認する (#1536)。
 // Mirakurun 互換のサーバーでは、サービスを 0 にし、ふさぐ時間帯を空にするので、今までどおりになる。
 func TestAssignEDCB(t *testing.T) {
 	t.Parallel()
@@ -149,7 +149,7 @@ func TestAssignEDCB(t *testing.T) {
 	}
 }
 
-// TestPeersEDCB は、相乗りの単位がサービスのとき、同じチャンネルの別のサービスの予約を、チューナーを取り合う相手に含めることを確かめる (#1536)。
+// TestPeersEDCB は、相乗りの単位がサービスのとき、同じチャンネルの別のサービスの予約を、チューナーを取り合う相手に含めることを確認する (#1536)。
 func TestPeersEDCB(t *testing.T) {
 	t.Parallel()
 

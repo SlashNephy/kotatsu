@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	// maxBroadcastTitles は、1 回のジョブで引く TID の数の上限。しょぼいカレンダーへの問い合わせを散らす。
+	// maxBroadcastTitles は、1 回のジョブで取得する TID の数の上限。しょぼいカレンダーへの問い合わせを散らす。
 	maxBroadcastTitles = 20
 	// broadcastRefreshInterval は、同じ TID を引き直す間隔。broadcastRefreshWindow は、録画を終えてから引き直し続ける期間。
 	// 同じ話は、録画の後の 1 週間ほどで別の局でも放送されることが多い。

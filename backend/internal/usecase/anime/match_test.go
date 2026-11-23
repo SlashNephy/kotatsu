@@ -33,7 +33,7 @@ func jst(day, hour, minute int) time.Time {
 	return time.Date(2026, time.November, day, hour, minute, 0, 0, syobocal.Tokyo())
 }
 
-// lookupCall は、偽のしょぼいカレンダーへの問い合わせ 1 回。
+// lookupCall は、モックのしょぼいカレンダーへの問い合わせ 1 回。
 type lookupCall struct {
 	channelIDs []int32
 	from, to   time.Time
@@ -121,7 +121,7 @@ func defaultSyobocal() *fakeSyobocal {
 			syobocalProgram(101, 11, grChannel, jst(2, 0, 30), jst(2, 1, 0), "1", "", "はじまり", 0),
 			syobocalProgram(102, 11, grChannel, jst(2, 1, 0), jst(2, 1, 30), "2", "", "", syobocal.FlagFinal),
 			deleted,
-			// BS の放送は、再放送の印 (#1233) を持つ。
+			// BS の放送は、再放送のマーク (#1233) を持つ。
 			syobocalProgram(200, 20, bsChannel, jst(2, 22, 0), jst(2, 23, 0), "3", "#3～#4", "", syobocal.FlagRerun),
 		},
 		calls: []lookupCall{},
@@ -188,7 +188,7 @@ func matchOf(t *testing.T, db *pgxpool.Pool, serviceID int64, start time.Time) m
 	return record
 }
 
-// newMatchFixture は、連携を有効にし、チャンネルの対応を取り込んだ DB と、偽のしょぼいカレンダーを使う Matcher を用意する。
+// newMatchFixture は、連携を有効にし、チャンネルの対応を取り込んだ DB と、モックのしょぼいカレンダーを使う Matcher を用意する。
 // 番組は、地上波に 11 月 2 日 0:00 からのアニメ (30 分)、0:30 からのアニメ (2 話連続の 60 分)、1:30 からのニュースを、
 // BS に 22:00 からのアニメ (60 分) を置く。
 func newMatchFixture(t *testing.T) (*pgxpool.Pool, *clocktest.Fake, *fakeSyobocal, *anime.Matcher) {
@@ -208,7 +208,7 @@ func newMatchFixture(t *testing.T) (*pgxpool.Pool, *clocktest.Fake, *fakeSyoboca
 	return db, clk, client, anime.NewMatcher(db, clk, client, slog.New(slog.DiscardHandler))
 }
 
-// TestMatchHorizon は、これから放送されるアニメの番組を、しょぼいカレンダーの放送時間データで話に結びつけることを確かめる。
+// TestMatchHorizon は、これから放送されるアニメの番組を、しょぼいカレンダーの放送時間データで話に結びつけることを確認する。
 // 同じ期間の ChID は 1 回の問い合わせにまとめ、引いた放送時間データは 6 時間使い回す。
 func TestMatchHorizon(t *testing.T) {
 	t.Parallel()
@@ -258,7 +258,7 @@ func TestMatchHorizon(t *testing.T) {
 	assert.True(t, matchOf(t, db, grService, jst(2, 0, 30)).found, "a program without episodes is still recorded as matched")
 }
 
-// TestMatchDisabled は、連携が無効なら、しょぼいカレンダーに問い合わせないことを確かめる (設計書 0.3)。
+// TestMatchDisabled は、連携が無効なら、しょぼいカレンダーに問い合わせないことを確認する (設計書 0.3)。
 func TestMatchDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -275,7 +275,7 @@ func TestMatchDisabled(t *testing.T) {
 	assert.Empty(t, client.takeCalls())
 }
 
-// recordEPGChange は、EPG の同期と同じく、版数を上げて、変わったサービスと時間帯を記録する。
+// recordEPGChange は、EPG の同期と同じく、バージョンを上げて、変わったサービスと時間帯を記録する。
 func recordEPGChange(t *testing.T, db *pgxpool.Pool, serviceID int64, start, end time.Time) {
 	t.Helper()
 
@@ -288,8 +288,8 @@ func recordEPGChange(t *testing.T, db *pgxpool.Pool, serviceID int64, start, end
 	require.NoError(t, err)
 }
 
-// TestMatchChanges は、EPG の同期が通知したサービスと時間帯の番組だけを照合し、読んだ変更は読み直さないことを確かめる。
-// 初めて動いたときは、今の版数を覚えるだけにする。
+// TestMatchChanges は、EPG の同期が通知したサービスと時間帯の番組だけを照合し、読んだ変更は読み直さないことを確認する。
+// 初めて動いたときは、今のバージョンを保存するだけにする。
 func TestMatchChanges(t *testing.T) {
 	t.Parallel()
 
@@ -314,7 +314,7 @@ func TestMatchChanges(t *testing.T) {
 	assert.Zero(t, result.Programs, "changes already read are not read again")
 }
 
-// TestFinalize は、放送が終わった番組を、放送が終わった後に引いた放送時間データで照合し直し、確定させることを確かめる。
+// TestFinalize は、放送が終わった番組を、放送が終わった後に引いた放送時間データで照合し直し、確定させることを確認する。
 // 確定させた番組は照合し直さず、しょぼいカレンダーに問い合わせられなかった番組は確定させない。
 func TestFinalize(t *testing.T) {
 	t.Parallel()
@@ -356,7 +356,7 @@ func TestFinalize(t *testing.T) {
 	assert.Equal(t, 1, result.Programs, "only the BS program, which has not ended, is matched again")
 }
 
-// archiveProgram は、アーカイブへ移す処理と同じく、番組を過去の番組へ写す。
+// archiveProgram は、アーカイブへ移す処理と同じく、番組を過去の番組へコピーする。
 func archiveProgram(t *testing.T, db *pgxpool.Pool, serviceID, eventID int64) {
 	t.Helper()
 
@@ -369,7 +369,7 @@ func archiveProgram(t *testing.T, db *pgxpool.Pool, serviceID, eventID int64) {
 	require.NoError(t, err)
 }
 
-// TestMatchMovedProgram は、放送時間が変わった番組 (設計書 4.6) の、前の放送時間の結びつきを消すことを確かめる。
+// TestMatchMovedProgram は、放送時間が変わった番組 (設計書 4.6) の、前の放送時間の結びつきを消すことを確認する。
 // 前の放送時間の番組をアーカイブへ移していれば、同じイベント ID でも別の放送なので、その結びつきは残す。
 func TestMatchMovedProgram(t *testing.T) {
 	t.Parallel()
@@ -419,7 +419,7 @@ func exists(t *testing.T, db *pgxpool.Pool, query string, args ...any) bool {
 }
 
 // TestMatchPrune は、放送が終わって CacheRetention を過ぎた放送時間データと、その前の日の問い合わせの記録を消し、
-// 番組表からも過去の番組からもなくなって OrphanGrace を過ぎた結びつきを消すことを確かめる。それより新しいものは残す。
+// 番組表からも過去の番組からもなくなって OrphanGrace を過ぎた結びつきを消すことを確認する。それより新しいものは残す。
 func TestMatchPrune(t *testing.T) {
 	t.Parallel()
 

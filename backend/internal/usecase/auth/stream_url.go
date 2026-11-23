@@ -22,7 +22,7 @@ const (
 	targetStreamURL       = "stream_url"
 	summaryTarget         = "target"
 	summaryUser           = "userId"
-	// liveResourcePrefix は、ライブ視聴の署名付き URL のパスの頭。一覧で、ライブか録画かを見分けるのに使う。
+	// liveResourcePrefix は、ライブ視聴の署名付き URL のパスの先頭。一覧で、ライブか録画かを見分けるのに使う。
 	liveResourcePrefix = "/api/streams/services/"
 )
 
@@ -30,7 +30,7 @@ const (
 var ErrStreamURLNotFound = errors.New("stream URL not found")
 
 // StreamURLActiveWindow は、期限を過ぎた URL を、まだ流れ続けているとみなす、最後に使われてからの時間 (#1757)。
-// 期限は開くときにだけ確かめるので、期限の前に開いた配信は、期限を過ぎても流れ続ける。流している間は、確かめ直すたびに
+// 期限は開くときにだけ確認するので、期限の前に開いた配信は、期限を過ぎても流れ続ける。流している間は、再確認するたびに
 // (最長で urlTouchInterval ごとに) 使われた日時を書き直すので、それより十分に長くする。この時間の内に使われた記録は、
 // 期限が過ぎても消さず、一覧に出して取り消せるようにする。
 const StreamURLActiveWindow = 10 * time.Minute
@@ -67,7 +67,7 @@ type StreamURLs struct {
 	users    *URLUsers
 }
 
-// NewStreamURLs は StreamURLs を返す。users は、取り消した URL について覚えた結果を忘れさせるのに使う。nil なら忘れさせない。
+// NewStreamURLs は StreamURLs を返す。users は、取り消した URL についてキャッシュした結果を忘れさせるのに使う。nil なら忘れさせない。
 func NewStreamURLs(db Database, clk clock.Clock, recorder audit.Recorder, users *URLUsers) *StreamURLs {
 	return &StreamURLs{db: db, clock: clk, recorder: recorder, users: users}
 }
@@ -114,7 +114,7 @@ func (s *StreamURLs) List(ctx context.Context) ([]*IssuedStreamURL, error) {
 }
 
 // Delete は、URL の記録を消して取り消し、監査ログに残す。記録がなければ ErrStreamURLNotFound を返す。
-// 消した URL は、次に開くときと、開いたままの配信を確かめ直すときに断られる。
+// 消した URL は、次に開くときと、開いたままの配信を再確認するときに断られる。
 func (s *StreamURLs) Delete(ctx context.Context, actor *audit.Actor, urlID uuid.UUID) error {
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		row, err := sqlc.New(tx).DeleteStreamURL(ctx, urlID)

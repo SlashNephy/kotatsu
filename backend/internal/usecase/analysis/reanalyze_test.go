@@ -50,7 +50,7 @@ func (f *fixture) generate(t *testing.T, segmentID uuid.UUID, name string) {
 }
 
 // TestCandidates は、録画中でない、書いたもののあるセグメントを持つ録画を、新しい順に返し、
-// 索引か代表画像がデータディレクトリにない録画を Missing にすることを確かめる (#897)。
+// インデックスか代表画像がデータディレクトリにない録画を Missing にすることを確認する (#897)。
 func TestCandidates(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func TestCandidates(t *testing.T) {
 	}, got)
 }
 
-// TestEnqueue は、解析し直すジョブを投入し、待っているジョブの録画には重ねて投入しないことを確かめる (#897)。
+// TestEnqueue は、解析し直すジョブを投入し、待っているジョブの録画には重ねて投入しないことを確認する (#897)。
 func TestEnqueue(t *testing.T) {
 	t.Parallel()
 

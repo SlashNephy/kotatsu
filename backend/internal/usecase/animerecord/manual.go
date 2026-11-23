@@ -30,7 +30,7 @@ var (
 type ManualTarget struct {
 	// Program は、番組 (サービスと開始時刻、番組名)。番組に結びついた話を記録する。番組の詳細から使う。
 	Program *ManualProgram
-	// RecordingID は、録画。録画に写した結びつきの話を記録する。録画の詳細から使う。
+	// RecordingID は、録画。録画にコピーした結びつきの話を記録する。録画の詳細から使う。
 	RecordingID *uuid.UUID
 	// Work は、作品 (TID) の 1 話。番組によらず記録する。視聴管理の画面のカードから使う。
 	Work *ManualWork

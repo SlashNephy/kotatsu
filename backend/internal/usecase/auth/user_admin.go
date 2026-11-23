@@ -42,7 +42,7 @@ type UserAdmin struct {
 	passwords *Passwords
 }
 
-// NewUserAdmin は UserAdmin を返す。policy で、管理者が設定するパスワードの規定を確かめる。
+// NewUserAdmin は UserAdmin を返す。policy で、管理者が設定するパスワードの規定を確認する。
 func NewUserAdmin(clk clock.Clock, recorder audit.Recorder, policy *password.Policy) *UserAdmin {
 	return &UserAdmin{clock: clk, recorder: recorder, policy: policy, passwords: NewPasswords(clk, recorder, policy)}
 }
@@ -76,7 +76,7 @@ func (a *UserAdmin) List(ctx context.Context, db sqlc.DBTX) ([]*User, error) {
 	return users, nil
 }
 
-// Create はユーザーを作る。パスワードを渡したときは、規定を満たすかを確かめてから、ハッシュにして保存する。
+// Create はユーザーを作る。パスワードを渡したときは、規定を満たすかを確認してから、ハッシュにして保存する。
 func (a *UserAdmin) Create(ctx context.Context, db Database, actor *audit.Actor, account *NewAccount) (*User, error) {
 	if account == nil {
 		return nil, fmt.Errorf("%w: account is nil", ErrInvalidUser)

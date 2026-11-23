@@ -51,7 +51,7 @@ func (f *setupFixture) admin(phrase string) *auth.NewAdmin {
 	return &auth.NewAdmin{Username: "admin", DisplayName: "管理者", Password: phrase}
 }
 
-// TestSetup は、セットアップトークンがあるときだけ最初の管理者を作れ、作った後はトークンが無効になることを確かめる (設計書 9.2)。
+// TestSetup は、セットアップトークンがあるときだけ最初の管理者を作れ、作った後はトークンが無効になることを確認する (設計書 9.2)。
 func TestSetup(t *testing.T) {
 	t.Parallel()
 
@@ -105,7 +105,7 @@ func TestSetup(t *testing.T) {
 	assert.Equal(t, 1, audited)
 }
 
-// TestSetupCreatesOnlyOneAdmin は、別々のトークンで同時に管理者を作っても、1 人しか作られないことを確かめる。
+// TestSetupCreatesOnlyOneAdmin は、別々のトークンで同時に管理者を作っても、1 人しか作られないことを確認する。
 func TestSetupCreatesOnlyOneAdmin(t *testing.T) {
 	t.Parallel()
 

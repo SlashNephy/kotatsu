@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	// SourceTitle は、番組名を解析して結びつけた話の出どころ。
+	// SourceTitle は、番組名を解析して結びつけた話のソース。
 	SourceTitle = "title"
 	// SourceSyobocalTitles は、しょぼいカレンダーのタイトルの一覧の取り込み元の名前 (anime_imports.source)。
 	SourceSyobocalTitles = "syobocal_titles"
@@ -29,7 +29,7 @@ const (
 )
 
 var (
-	// leadingMarks と trailingMarks は、番組名の前後に付く、[新] や [字] のような印。
+	// leadingMarks と trailingMarks は、番組名の前後に付く、[新] や [字] のようなマーク。
 	leadingMarks  = regexp.MustCompile(`^(?:\[[^\[\]]{1,3}\]\s*)+`)
 	trailingMarks = regexp.MustCompile(`(?:\s*\[[^\[\]]{1,3}\])+$`)
 	// 番組名の話数の書き方。TVTestAnnictRecorder と同じく、作品名の後に「#1」や「#1-#2」と書くものに加え、「第1話」も読む。
@@ -81,12 +81,12 @@ func ParseTitle(name string) (*ParsedTitle, bool) {
 	return nil, false
 }
 
-// stripMarks は、番組名を NFKC で正規化し、前後の [新] や [字] のような印を除く。
+// stripMarks は、番組名を NFKC で正規化し、前後の [新] や [字] のようなマークを除く。
 func stripMarks(name string) string {
 	return strings.TrimSpace(trailingMarks.ReplaceAllString(leadingMarks.ReplaceAllString(domain.Normalize(name), ""), ""))
 }
 
-// TitleKey は、作品名を引く鍵を返す。NFKC で正規化し、空白を除き、小文字にする。
+// TitleKey は、作品名を検索するキーを返す。NFKC で正規化し、空白を除き、小文字にする。
 func TitleKey(title string) string {
 	return strings.Map(func(r rune) rune {
 		if unicode.IsSpace(r) {
@@ -103,7 +103,7 @@ type Series struct {
 	Repeat  bool
 }
 
-// seriesOf は、DB の列から Series を返す。話数がなければ nil を返す。
+// seriesOf は、DB のカラムから Series を返す。話数がなければ nil を返す。
 func seriesOf(episode *int32, repeat pgtype.Bool) *Series {
 	if episode == nil || *episode <= 0 {
 		return nil
@@ -113,7 +113,7 @@ func seriesOf(episode *int32, repeat pgtype.Bool) *Series {
 }
 
 // titleEpisodes は、番組名 name を解析した話を返す。作品名がしょぼいカレンダーのタイトル 1 つだけに一致すれば、その TID を付ける。
-// 番組名に話数が書かれていなければ、シリーズの記述子の話数 series を使い (#1311)、印を除いた番組名を作品名とする。
+// 番組名に話数が書かれていなければ、シリーズの記述子の話数 series を使い (#1311)、マークを除いた番組名を作品名とする。
 // 番組名の話数とシリーズの記述子の話数が食い違えば、番組名の話数を使う。番組名は人が書くので、記述子より誤りに気付かれやすい。
 // どちらにも話数がなければ、空の一覧を返す。
 func titleEpisodes(ctx context.Context, db sqlc.DBTX, name string, series *Series) ([]*Episode, error) {
@@ -149,7 +149,7 @@ func titleEpisodes(ctx context.Context, db sqlc.DBTX, name string, series *Serie
 
 //go:generate go tool mockgen -typed -destination=mock_title_fetcher_test.go -package=anime_test . TitleFetcher
 
-// TitleFetcher は、しょぼいカレンダーのタイトルの一覧を引く。*syobocal.Client が満たす。
+// TitleFetcher は、しょぼいカレンダーのタイトルの一覧を取得する。*syobocal.Client が満たす。
 type TitleFetcher interface {
 	TitleLookup(ctx context.Context, since time.Time) ([]*syobocal.Title, error)
 }
@@ -157,7 +157,7 @@ type TitleFetcher interface {
 var _ TitleFetcher = new(syobocal.Client)
 
 // importTitles は、しょぼいカレンダーのタイトルの一覧を取り込み、取り込んだタイトルの数を返す。
-// 前に取り込んだときより後に更新されたタイトルだけを引く。初めてなら、すべてのタイトルを 1 回の問い合わせで引く。
+// 前に取り込んだときより後に更新されたタイトルだけを取得する。初めてなら、すべてのタイトルを 1 回の問い合わせで取得する。
 func (i *Importer) importTitles(ctx context.Context) (int, error) {
 	q := sqlc.New(i.db)
 	since := time.Time{}

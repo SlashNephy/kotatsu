@@ -20,7 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/backup"
 )
 
-// 定期のバックアップのファイルの名前。書き出した時刻 (UTC) を名前に入れる。
+// 定期のバックアップのファイルの名前。作成した時刻 (UTC) を名前に入れる。
 const (
 	firstBackup  = "kotatsu-backup-20261117T030000Z.age"
 	manualBackup = "kotatsu-backup-20261117T040100Z.age"
@@ -59,8 +59,8 @@ func saveSettings(t *testing.T, pool *pgxpool.Pool, clk *clocktest.Fake, recipie
 	}))
 }
 
-// TestWorkerSchedule は、定期のバックアップが、公開鍵を登録したときだけ、間隔ごとに書き出し、残す世代の数より古いファイルを消すことと、
-// 頼まれたものは間隔を待たずに書き出すことを確かめる (#1926)。
+// TestWorkerSchedule は、定期のバックアップが、公開鍵を登録したときだけ、間隔ごとに作成し、残す世代の数より古いファイルを消すことと、
+// 頼まれたものは間隔を待たずに作成することを確認する (#1926)。
 func TestWorkerSchedule(t *testing.T) {
 	t.Parallel()
 
@@ -102,7 +102,7 @@ func TestWorkerSchedule(t *testing.T) {
 	}
 	assert.Contains(t, listBackups(t, dir), "notes.txt")
 
-	// 書き出したファイルは、持ち主だけが読め、登録した公開鍵の秘密鍵で読める。
+	// 作成したファイルは、持ち主だけが読め、登録した公開鍵の秘密鍵で読める。
 	path := filepath.Join(dir, nextBackup)
 	info, err := os.Stat(path)
 	require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestWorkerSchedule(t *testing.T) {
 	assert.Nil(t, latest.Error)
 }
 
-// TestWorkerFailure は、書き出す先のディレクトリがなければ、失敗を結果に残し、間隔を待たずに 1 時間後に書き出し直すことを確かめる (#1926)。
+// TestWorkerFailure は、作成する先のディレクトリがなければ、失敗を結果に残し、間隔を待たずに 1 時間後に作り直すことを確認する (#1926)。
 func TestWorkerFailure(t *testing.T) {
 	t.Parallel()
 
@@ -146,7 +146,7 @@ func TestWorkerFailure(t *testing.T) {
 	assert.Len(t, listBackups(t, dir), 1)
 }
 
-// TestSaveSettings は、読めない公開鍵と、範囲の外の値を拒むことを確かめる (#1926)。
+// TestSaveSettings は、読めない公開鍵と、範囲の外の値を拒むことを確認する (#1926)。
 func TestSaveSettings(t *testing.T) {
 	t.Parallel()
 

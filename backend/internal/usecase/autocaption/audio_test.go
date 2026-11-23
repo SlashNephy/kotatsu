@@ -56,8 +56,8 @@ func TestAudioOffset(t *testing.T) {
 	}
 }
 
-// TestFFmpegExtractor は、録画の音声を 16 kHz のモノラルの WAV に取り出し、WAV の始まりの、最初の I フレームからの位置を返すことを確かめる。
-// 位置は、ffprobe で読んだ最初の音声のパケットと最初の映像のキーフレームの PTS の差と比べる。FFmpeg か ffprobe がなければ飛ばす。
+// TestFFmpegExtractor は、録画の音声を 16 kHz のモノラルの WAV に取り出し、WAV の始まりの、最初の I フレームからの位置を返すことを確認する。
+// 位置は、ffprobe で読んだ最初の音声のパケットと最初の映像のキーフレームの PTS の差と比較する。FFmpeg か ffprobe がなければ飛ばす。
 func TestFFmpegExtractor(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func TestFFmpegExtractor(t *testing.T) {
 }
 
 // TestFFmpegReaderExtractor は、ローカルのパスのないファイル (ライブラリのファイル。#1734) から、serviceID の番組の音声を取り出し、
-// パスで読んだときと同じ位置を返すことを確かめる。ほかのサービスの番組を指せば、そのサービスの音声はないので、ほかのサービスの音声を
+// パスで読んだときと同じ位置を返すことを確認する。ほかのサービスの番組を指せば、そのサービスの音声はないので、ほかのサービスの音声を
 // 取り出さずに失敗する。
 // FFmpeg か ffprobe がなければ飛ばす。
 func TestFFmpegReaderExtractor(t *testing.T) {
@@ -132,7 +132,7 @@ func TestFFmpegReaderExtractor(t *testing.T) {
 	}
 }
 
-// TestFFmpegExtractorWithoutAudio は、音声のない録画では ErrNoAudio を返すことを確かめる。FFmpeg がなければ飛ばす。
+// TestFFmpegExtractorWithoutAudio は、音声のない録画では ErrNoAudio を返すことを確認する。FFmpeg がなければ飛ばす。
 func TestFFmpegExtractorWithoutAudio(t *testing.T) {
 	t.Parallel()
 
@@ -145,7 +145,7 @@ func TestFFmpegExtractorWithoutAudio(t *testing.T) {
 	require.ErrorIs(t, err, autocaption.ErrNoAudio)
 }
 
-// TestFFmpegExtractorStopped は、止めたら ErrNoAudio ではなく、止めた理由を返すことを確かめる。音声のないセグメントとして飛ばし、
+// TestFFmpegExtractorStopped は、止めたら ErrNoAudio ではなく、止めた理由を返すことを確認する。音声のないセグメントとして飛ばし、
 // 残りのセグメントを読み続けないようにする。FFmpeg がなければ飛ばす。
 func TestFFmpegExtractorStopped(t *testing.T) {
 	t.Parallel()
@@ -162,7 +162,7 @@ func TestFFmpegExtractorStopped(t *testing.T) {
 	require.NotErrorIs(t, err, autocaption.ErrNoAudio)
 }
 
-// TestFFmpegExtractorUnreadable は、FFmpeg が読めないファイル (TS でないもの) を、音声のないセグメントとして飛ばさないことを確かめる。
+// TestFFmpegExtractorUnreadable は、FFmpeg が読めないファイル (TS でないもの) を、音声のないセグメントとして飛ばさないことを確認する。
 // FFmpeg がなければ飛ばす。
 func TestFFmpegExtractorUnreadable(t *testing.T) {
 	t.Parallel()

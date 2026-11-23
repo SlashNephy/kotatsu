@@ -15,7 +15,7 @@ type point struct {
 	cx, cy float64
 }
 
-// Template は、コマごとにロゴが出ているかを測る型 (#1505 の C)。
+// Template は、コマごとにロゴが出ているかを計測する型 (#1505 の C)。
 type Template struct {
 	// Crop は、コマから切り出す範囲 (コマの座標)。ロゴの枠の四方を Shift + 1 画素広げたもの。
 	Crop   Box
@@ -67,7 +67,7 @@ func (t *Template) Points() int {
 	return len(t.points)
 }
 
-// Measure は、1 コマの測り (#1505 の D)。
+// Measure は、1 コマの計測値 (#1505 の D)。
 type Measure struct {
 	// Score は、ロゴが出ているかの点数。型の点のうち向きの合う割合から、型を斜め 4 方向にずらしたときの割合の平均を引いたもの。
 	// 背景の細かい柄はずらしても揃うので、引き算で消える。
@@ -78,7 +78,7 @@ type Measure struct {
 	Texture float64
 }
 
-// Measure は、切り出し範囲 crop (t.Crop の大きさのグレースケール) の測りを返す。
+// Measure は、切り出し範囲 crop (t.Crop の大きさのグレースケール) の計測値を返す。
 func (t *Template) Measure(crop *Gray) Measure {
 	s := t.shift
 	center := t.match(crop, 0, 0)

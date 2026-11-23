@@ -24,7 +24,7 @@ const (
 	nicologInterval = time.Hour
 	// maxNicologRecordings は、1 回のジョブで探す録画の数の上限。個人が運営するサービスなので、問い合わせを控えめにする。
 	maxNicologRecordings = 20
-	// nicologRecheckInterval は、見つからなかった録画を調べ直す間隔。nicologRecheckWindow は、録画を終えてから調べ直し続ける期間。
+	// nicologRecheckInterval は、見つからなかった録画を確認し直す間隔。nicologRecheckWindow は、録画を終えてから確認し直し続ける期間。
 	nicologRecheckInterval = 24 * time.Hour
 	nicologRecheckWindow   = 14 * 24 * time.Hour
 	// nicologRequestInterval は、NICOLOG への問い合わせの間隔の下限。
@@ -59,7 +59,7 @@ func NewNicologMatcher(db Database, clk clock.Clock, client NicologClient, inter
 // DefaultNicologRequestInterval は、NICOLOG への問い合わせの間隔の既定値。
 const DefaultNicologRequestInterval = nicologRequestInterval
 
-// Match は、まだ調べていない録画の、NICOLOG のファイルを探す。管理者が NICOLOG のソースをオプトインしていなければ、問い合わせない。
+// Match は、まだ確認していない録画の、NICOLOG のファイルを探す。管理者が NICOLOG のソースをオプトインしていなければ、問い合わせない。
 func (m *NicologMatcher) Match(ctx context.Context) (*MatchResult, error) {
 	result := new(MatchResult)
 	system, err := settings.Load(ctx, m.db)

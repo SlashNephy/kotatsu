@@ -86,7 +86,7 @@ func paintWaves(img *logo.Gray, rng *rng) {
 	// 向きと細かさと位相がコマごとにでたらめな、3 つの波を重ねる。縁の向きは、コマをまたぐと打ち消し合う。
 	// 画素ごとに sin を求めると、テストの時間のほとんどを占める (#1941)。
 	// sin(kx·x + ky·y + φ) = sin(kx·x)·cos(ky·y + φ) + cos(kx·x)·sin(ky·y + φ) と x と y に分け、
-	// x の側は列ごとの表を前もって作り、y の側は行ごとに求める。
+	// x の側はカラムごとのテーブルを前もって作り、y の側は行ごとに求める。
 	type wave struct{ kx, ky, phase float64 }
 	waves := [3]wave{}
 	for i := range waves {
@@ -171,7 +171,7 @@ func crop(img *logo.Gray, b logo.Box) *logo.Gray {
 const learnFrames = 120
 
 // learn は、frame で作る learnFrames 枚のコマから上下の帯を積算して学習する。
-// コマは作るたびに積算し、溜めない。溜めると、並列に走るテストがそれぞれ何十 MB も持ち続ける (#1941)。
+// コマは作るたびに積算し、蓄積しない。蓄積すると、並列に走るテストがそれぞれ何十 MB も持ち続ける (#1941)。
 func learn(t *testing.T, p *logo.Params, frame func(i int) *logo.Gray) (*logo.LearnResult, *logo.Accumulator, error) {
 	t.Helper()
 
@@ -189,7 +189,7 @@ func learn(t *testing.T, p *logo.Params, frame func(i int) *logo.Gray) (*logo.Le
 	return result, top, err
 }
 
-// TestCoherence は、ロゴの縁では揃い方がロゴの出ていた割合に近く、コマごとに変わる背景の縁では 0 に近いことを確かめる。
+// TestCoherence は、ロゴの縁では揃い方がロゴの出ていた割合に近く、コマごとに変わる背景の縁では 0 に近いことを確認する。
 // 背景が暗くても明るくても、白いロゴの縁の向きは同じに数える (2 倍角)。
 func TestCoherence(t *testing.T) {
 	t.Parallel()
@@ -216,7 +216,7 @@ func TestCoherence(t *testing.T) {
 	assert.Less(t, coherence[60*frameW+400], 0.3)
 }
 
-// TestLearn は、右上のロゴの枠を割り出し、枠がロゴを囲むことを確かめる。
+// TestLearn は、右上のロゴの枠を割り出し、枠がロゴを囲むことを確認する。
 func TestLearn(t *testing.T) {
 	t.Parallel()
 
@@ -240,7 +240,7 @@ func TestLearn(t *testing.T) {
 	assert.Less(t, b.H, logoBox().H*3)
 }
 
-// TestLearnGivesUp は、ロゴと張り合う動かない縁がある隅や、ロゴのない録画では、学習を諦めることを確かめる。
+// TestLearnGivesUp は、ロゴと張り合う動かない縁がある隅や、ロゴのない録画では、学習を諦めることを確認する。
 func TestLearnGivesUp(t *testing.T) {
 	t.Parallel()
 
@@ -313,7 +313,7 @@ func mirror(img *logo.Gray) {
 	}
 }
 
-// TestLearnBandCorner は、ロゴの形のものの行を、隅を横切る帯の線が通るときだけ、その隅を諦めることを確かめる (#1883)。
+// TestLearnBandCorner は、ロゴの形のものの行を、隅を横切る帯の線が通るときだけ、その隅を諦めることを確認する (#1883)。
 // 帯の線は、帯の出ないコマもあるので、半分のコマで出す。
 func TestLearnBandCorner(t *testing.T) {
 	t.Parallel()
@@ -377,7 +377,7 @@ func TestLearnBandCorner(t *testing.T) {
 	}
 }
 
-// TestLearnWideBand は、隅の幅のほとんどを占める横長のものは、帯の線を見る幅が枠より狭くても、線が埋めれば諦めることを確かめる (#1883)。
+// TestLearnWideBand は、隅の幅のほとんどを占める横長のものは、帯の線を見る幅が枠より狭くても、線が埋めれば諦めることを確認する (#1883)。
 // 横長の枠は、それ自体が帯であることが多い (2026 年 11 月の録画で、見る幅が狭いときに諦めないようにすると、隅の帯を採った)。
 // 揃い方を直に置いた積算で、枠と線を決まった形にする。
 func TestLearnWideBand(t *testing.T) {
@@ -407,7 +407,7 @@ func TestLearnWideBand(t *testing.T) {
 	assert.ErrorIs(t, result.Corners[0].Err, logo.ErrBandCorner, "%+v", result)
 }
 
-// TestLearnSkipsLargeBlobs は、テロップの帯のような大きすぎる塊を比較から外し、隣のロゴを採ることを確かめる。
+// TestLearnSkipsLargeBlobs は、テロップの帯のような大きすぎるチャンクを比較から外し、隣のロゴを採ることを確認する。
 func TestLearnSkipsLargeBlobs(t *testing.T) {
 	t.Parallel()
 
@@ -428,7 +428,7 @@ func TestLearnSkipsLargeBlobs(t *testing.T) {
 	assert.Less(t, result.Box.Y+result.Box.H, 80, "%+v", result)
 }
 
-// TestMeasure は、ロゴの出ているコマの点数が高く、ロゴのないコマでは、細かい柄の背景でも点数が 0 に近いことを確かめる。
+// TestMeasure は、ロゴの出ているコマの点数が高く、ロゴのないコマでは、細かい柄の背景でも点数が 0 に近いことを確認する。
 func TestMeasure(t *testing.T) {
 	t.Parallel()
 
@@ -488,7 +488,7 @@ func TestMeasure(t *testing.T) {
 	}
 }
 
-// TestLearnBottomRight は、下の帯の隅のロゴも見つけ、枠をコマの座標で返すことを確かめる。
+// TestLearnBottomRight は、下の帯の隅のロゴも見つけ、枠をコマの座標で返すことを確認する。
 func TestLearnBottomRight(t *testing.T) {
 	t.Parallel()
 
@@ -513,7 +513,7 @@ func TestLearnBottomRight(t *testing.T) {
 	assert.LessOrEqual(t, b.Y+b.H, frameH)
 }
 
-// TestNewTemplateTooFewPoints は、型の点が少なすぎれば、その回はロゴを使わないことを確かめる。
+// TestNewTemplateTooFewPoints は、型の点が少なすぎれば、その回はロゴを使わないことを確認する。
 func TestNewTemplateTooFewPoints(t *testing.T) {
 	t.Parallel()
 

@@ -45,8 +45,8 @@ func storedBroadcasts(t *testing.T, db *pgxpool.Pool, tid int32) []int32 {
 	return pids
 }
 
-// TestCollectBroadcasts は、録画に結びついた作品の放送を引いて持ち、削除された放送と話数のない放送を除き、
-// 引いたばかりの作品は引き直さないことを確かめる。
+// TestCollectBroadcasts は、録画に結びついた作品の放送を取得して持ち、削除された放送と話数のない放送を除き、
+// 取得したばかりの作品は取得し直さないことを確認する。
 func TestCollectBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -67,7 +67,7 @@ func TestCollectBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int32{broadcastTID}, client.tidCalls, "a title looked up just now is not looked up again")
 
-	// 1 日たつと、録画を終えて間もない作品は引き直す。消えた放送は、持っている放送からも消す。
+	// 1 日たつと、録画を終えて間もない作品は再取得する。消えた放送は、持っている放送からも消す。
 	clk.Advance(25 * time.Hour)
 	client.programs = client.programs[:len(client.programs)-1]
 	_, err = matcher.CollectBroadcasts(t.Context())
@@ -76,7 +76,7 @@ func TestCollectBroadcasts(t *testing.T) {
 	assert.Equal(t, []int32{101}, storedBroadcasts(t, db, broadcastTID))
 }
 
-// TestCollectBroadcastsDisabled は、連携が無効なら、しょぼいカレンダーに問い合わせないことを確かめる。
+// TestCollectBroadcastsDisabled は、連携が無効なら、しょぼいカレンダーに問い合わせないことを確認する。
 func TestCollectBroadcastsDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -92,7 +92,7 @@ func TestCollectBroadcastsDisabled(t *testing.T) {
 	assert.Empty(t, client.tidCalls)
 }
 
-// TestCollectBroadcastsFailure は、問い合わせに失敗したら、ジョブを失敗にして、次の機会に引き直せるようにすることを確かめる。
+// TestCollectBroadcastsFailure は、問い合わせに失敗したら、ジョブを失敗にして、次の機会に再取得できるようにすることを確認する。
 func TestCollectBroadcastsFailure(t *testing.T) {
 	t.Parallel()
 

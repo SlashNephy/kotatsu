@@ -14,18 +14,18 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
 
-// materialFormatVersion は、材料の形式の版 (#1507)。形式を変えたら上げる。違う版の材料は使わずに、読み直して書き直す。
-// 判定の規則の版 (Detector.Version) とは別に持つので、規則の版が上がっただけなら、材料から判定し直せる。
-// 版 4 で、境目の候補の時刻の基準を、最初の映像の PES から、最初の I フレームに移した (#1811)。
-// 版 5 で、学習の規則を変えた (#1883)。形式は同じだが、材料には学習した枠とその枠で測った点数が入るので、版 4 までの材料から
+// materialFormatVersion は、材料の形式のバージョン (#1507)。形式を変えたら上げる。違うバージョンの材料は使わずに、読み直して書き直す。
+// 判定の規則のバージョン (Detector.Version) とは別に持つので、規則のバージョンが上がっただけなら、材料から判定し直せる。
+// バージョン 4 で、境目の候補の時刻の基準を、最初の映像の PES から、最初の I フレームに移した (#1811)。
+// バージョン 5 で、学習の規則を変えた (#1883)。形式は同じだが、材料には学習した枠とその枠で計測した点数が入るので、バージョン 4 までの材料から
 // 判定し直すと、帯の端のアイコンを局ロゴとした結果がそのまま残る。読み直させるために上げる。
 const materialFormatVersion = 5
 
 const (
-	// scoreScale は、ロゴの点数を int16 にするときの倍率。点数は -1〜1 なので、1e-4 の刻みで収まる。
-	// 点数の閾値 (0.2、0.4) の比較が、丸めで変わらない刻みにする。
+	// scoreScale は、ロゴの点数を int16 にするときの倍率。点数は -1〜1 なので、1e-4 の粒度で収まる。
+	// 点数の閾値 (0.2、0.4) の比較が、丸めで変わらない粒度にする。
 	scoreScale = 10000
-	// levelScale は、明るさと肌理 (0〜255) を uint16 にするときの倍率。0.01 の刻みにする。
+	// levelScale は、明るさと肌理 (0〜255) を uint16 にするときの倍率。0.01 の粒度にする。
 	levelScale = 100
 	// maxMaterialHeader は、読み戻すときに受け付ける JSON の長さの上限。壊れた材料で大きな領域を取らないようにする。
 	maxMaterialHeader = 1 << 20
@@ -40,7 +40,7 @@ type SegmentMaterial struct {
 	Material *Material
 }
 
-// materialHeader は、材料の先頭に置く JSON。数の列の並びは、segments の順に、コマどうしの時刻の差、点数、明るさ、肌理。
+// materialHeader は、材料の先頭に置く JSON。数のカラムの並びは、segments の順に、コマどうしの時刻の差、点数、明るさ、肌理。
 type materialHeader struct {
 	Version  int                   `json:"version"`
 	Segments []materialSegmentInfo `json:"segments"`
@@ -68,7 +68,7 @@ type materialBound struct {
 }
 
 // EncodeMaterials は、録画の材料を、DB に残すバイト列にする (#1507)。
-// 先頭に JSON の長さ (int32、リトルエンディアン)、続けて JSON、続けて数の列を並べ、全体を gzip で縮める。
+// 先頭に JSON の長さ (int32、リトルエンディアン)、続けて JSON、続けて数のカラムを並べ、全体を gzip で縮める。
 // コマの時刻は、1 コマ目をマイクロ秒で JSON に書き、コマどうしの差を int32 のマイクロ秒で並べる。
 func EncodeMaterials(segments []SegmentMaterial) ([]byte, error) {
 	header := materialHeader{Version: materialFormatVersion, Segments: make([]materialSegmentInfo, 0, len(segments))}
@@ -122,7 +122,7 @@ func EncodeMaterials(segments []SegmentMaterial) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// DecodeMaterials は、EncodeMaterials で作ったバイト列を読み戻す。形式の版が違うか、壊れていれば、errBrokenMaterial を包んで返す。
+// DecodeMaterials は、EncodeMaterials で作ったバイト列を読み戻す。形式のバージョンが違うか、壊れていれば、errBrokenMaterial を包んで返す。
 func DecodeMaterials(data []byte) ([]SegmentMaterial, error) {
 	zr, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
@@ -146,8 +146,8 @@ func DecodeMaterials(data []byte) ([]SegmentMaterial, error) {
 	}
 	segments := make([]SegmentMaterial, 0, len(header.Segments))
 	for _, info := range header.Segments {
-		// 1 コマにつき、時刻の差 (最初のコマにはない) と 3 つの測りで、10 バイトずつ要る (全部で 10 × コマ数 − 4)。
-		// 壊れたコマ数で掛け算があふれないよう、割り算で比べる。
+		// 1 コマにつき、時刻の差 (最初のコマにはない) と 3 つの計測値で、10 バイトずつ要る (全部で 10 × コマ数 − 4)。
+		// 壊れたコマ数で掛け算があふれないよう、割り算で比較する。
 		if info.Frames <= 0 || info.Frames > (len(r.data)+4)/10 {
 			return nil, fmt.Errorf("%w: %s has %d frames", errBrokenMaterial, info.Path, info.Frames)
 		}
@@ -201,7 +201,7 @@ func appendLE(buf *bytes.Buffer, v any) {
 	buf.Write(out)
 }
 
-// materialReader は、数の列を前から読む。足りなければ err を立て、0 を返す。
+// materialReader は、数のカラムを前から読む。足りなければ err を立て、0 を返す。
 type materialReader struct {
 	data []byte
 	err  error

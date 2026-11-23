@@ -47,7 +47,7 @@ func newAuthenticator(t *testing.T) *webauthntest.Authenticator {
 	return a
 }
 
-// beginRegistration は、パスキーの登録を始め、認証器にパスキーを作らせた応答と、手続きのトークンを返す。
+// beginRegistration は、パスキーの登録を始め、オーセンティケーターにパスキーを作らせた応答と、手続きのトークンを返す。
 func (f *passkeyFixture) beginRegistration(t *testing.T, a *webauthntest.Authenticator) ([]byte, string) {
 	t.Helper()
 
@@ -59,7 +59,7 @@ func (f *passkeyFixture) beginRegistration(t *testing.T, a *webauthntest.Authent
 	return response, creation.Token
 }
 
-// register は、認証器 a のパスキーを登録する。
+// register は、オーセンティケーター a のパスキーを登録する。
 func (f *passkeyFixture) register(t *testing.T, a *webauthntest.Authenticator) *auth.Passkey {
 	t.Helper()
 
@@ -70,7 +70,7 @@ func (f *passkeyFixture) register(t *testing.T, a *webauthntest.Authenticator) *
 	return passkey
 }
 
-// loginWithPasskey は、認証器 a のパスキーだけでログインする。
+// loginWithPasskey は、オーセンティケーター a のパスキーだけでログインする。
 func (f *passkeyFixture) loginWithPasskey(t *testing.T, a *webauthntest.Authenticator) (*auth.LoginResult, error) {
 	t.Helper()
 
@@ -83,13 +83,13 @@ func (f *passkeyFixture) loginWithPasskey(t *testing.T, a *webauthntest.Authenti
 	return f.logins.CompleteWithPasskey(t.Context(), f.db, assertion.Token, response, f.client)
 }
 
-// TestPasskeyRegistration は、認証器の応答を確かめてから、パスキーを登録することを確かめる。
+// TestPasskeyRegistration は、オーセンティケーターの応答を確認してから、パスキーを登録することを確認する。
 func TestPasskeyRegistration(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name string
-		// authenticator は、登録を始める前に、認証器の振る舞いを変える。
+		// authenticator は、登録を始める前に、オーセンティケーターの振る舞いを変える。
 		authenticator func(a *webauthntest.Authenticator)
 		// after は、登録を始めた後に、送るトークンやユーザーを変える。
 		after    func(t *testing.T, f *passkeyFixture, token *string, userID *uuid.UUID)
@@ -169,7 +169,7 @@ func TestPasskeyRegistration(t *testing.T) {
 	}
 }
 
-// TestPasskeyRegistrationConsumesTheCeremony は、確かめられなかった手続きも使用済みにすることを確かめる。
+// TestPasskeyRegistrationConsumesTheCeremony は、確認できなかった手続きも使用済みにすることを確認する。
 func TestPasskeyRegistrationConsumesTheCeremony(t *testing.T) {
 	t.Parallel()
 
@@ -182,7 +182,7 @@ func TestPasskeyRegistrationConsumesTheCeremony(t *testing.T) {
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM webauthn_ceremonies"))
 }
 
-// TestPasskeyRegistrationLimit は、登録できるパスキーの数に上限があり、同じ認証器を重ねて登録させないことを確かめる。
+// TestPasskeyRegistrationLimit は、登録できるパスキーの数に上限があり、同じオーセンティケーターを重ねて登録させないことを確認する。
 func TestPasskeyRegistrationLimit(t *testing.T) {
 	t.Parallel()
 
@@ -190,7 +190,7 @@ func TestPasskeyRegistrationLimit(t *testing.T) {
 	first := newAuthenticator(t)
 	f.register(t, first)
 
-	// 登録済みの認証器は、作らせないよう、登録の開始で伝える。
+	// 登録済みのオーセンティケーターは、作らせないよう、登録の開始で伝える。
 	creation, err := f.passkeys.BeginRegistration(t.Context(), f.db, f.user.ID, f.client)
 	require.NoError(t, err)
 	require.Len(t, creation.Options.CredentialExcludeList, 1)
@@ -203,7 +203,7 @@ func TestPasskeyRegistrationLimit(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrTooManyPasskeys)
 }
 
-// TestPasskeyNeedsSecureContext は、パスキーを、ドメイン名の Secure Context でだけ使わせることを確かめる。
+// TestPasskeyNeedsSecureContext は、パスキーを、ドメイン名の Secure Context でだけ使わせることを確認する。
 func TestPasskeyNeedsSecureContext(t *testing.T) {
 	t.Parallel()
 
@@ -242,7 +242,7 @@ func TestPasskeyNeedsSecureContext(t *testing.T) {
 	}
 }
 
-// TestPasskeyLogin は、パスキーだけでログインでき、本人の確認や複製の疑いを確かめることを確かめる。
+// TestPasskeyLogin は、パスキーだけでログインでき、本人の確認や複製の疑いを確認することを確認する。
 func TestPasskeyLogin(t *testing.T) {
 	t.Parallel()
 
@@ -280,7 +280,7 @@ func TestPasskeyLogin(t *testing.T) {
 				t.Helper()
 				_, err := f.loginWithPasskey(t, a)
 				require.NoError(t, err)
-				// 複製した認証器は、署名の回数が増えない。
+				// 複製したオーセンティケーターは、署名の回数が増えない。
 				a.IncrementCounter = false
 			},
 		},
@@ -315,7 +315,7 @@ func TestPasskeyLogin(t *testing.T) {
 	}
 }
 
-// TestPasskeyLoginRejectsUnknownPasskey は、登録していないパスキーや、使用済みの手続きでは、ログインさせないことを確かめる。
+// TestPasskeyLoginRejectsUnknownPasskey は、登録していないパスキーや、使用済みの手続きでは、ログインさせないことを確認する。
 func TestPasskeyLoginRejectsUnknownPasskey(t *testing.T) {
 	t.Parallel()
 
@@ -329,7 +329,7 @@ func TestPasskeyLoginRejectsUnknownPasskey(t *testing.T) {
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM sessions"))
 }
 
-// TestPasskeyAsSecondFactor は、パスワードの後の第二要素として、パスキーを使えることを確かめる。
+// TestPasskeyAsSecondFactor は、パスワードの後の第二要素として、パスキーを使えることを確認する。
 func TestPasskeyAsSecondFactor(t *testing.T) {
 	t.Parallel()
 
@@ -377,7 +377,7 @@ func TestPasskeyAsSecondFactor(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'user.login' AND summary->>'method' = 'passkey'"))
 }
 
-// TestPasskeySecondFactorNeedsAPasskey は、パスキーのないユーザーには、パスキーでの確認を始めさせないことを確かめる。
+// TestPasskeySecondFactorNeedsAPasskey は、パスキーのないユーザーには、パスキーでの確認を始めさせないことを確認する。
 func TestPasskeySecondFactorNeedsAPasskey(t *testing.T) {
 	t.Parallel()
 
@@ -386,7 +386,7 @@ func TestPasskeySecondFactorNeedsAPasskey(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrNoPasskey)
 }
 
-// TestRenameAndDeletePasskey は、パスキーの名前を変え、消せること、パスワードのないユーザーの最後のパスキーは消せないことを確かめる。
+// TestRenameAndDeletePasskey は、パスキーの名前を変え、消せること、パスワードのないユーザーの最後のパスキーは消せないことを確認する。
 func TestRenameAndDeletePasskey(t *testing.T) {
 	t.Parallel()
 
@@ -423,7 +423,7 @@ func TestRenameAndDeletePasskey(t *testing.T) {
 			err = pgx.BeginFunc(t.Context(), f.db, func(tx pgx.Tx) error {
 				return f.passkeys.Delete(t.Context(), tx, actor, f.user.ID, target.ID)
 			})
-			// 登録、名前の変更、削除のたびに、ほかの端末に知らせるため、設定の版数を上げる。消せなければ上げない。
+			// 登録、名前の変更、削除のたびに、ほかの端末に通知するため、設定のバージョンを上げる。消せなければ上げない。
 			version := func() int64 {
 				v, err := query.New(f.db).UserSettingsVersion(t.Context(), f.user.ID)
 				require.NoError(t, err)
@@ -445,7 +445,7 @@ func TestRenameAndDeletePasskey(t *testing.T) {
 	}
 }
 
-// TestPasskeyOfAnotherUser は、ほかのユーザーのパスキーを、変えも消しもさせないことを確かめる。
+// TestPasskeyOfAnotherUser は、ほかのユーザーのパスキーを、変えも消しもさせないことを確認する。
 func TestPasskeyOfAnotherUser(t *testing.T) {
 	t.Parallel()
 
@@ -474,7 +474,7 @@ func TestPasskeyOfAnotherUser(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM user_passkeys WHERE name = $1", deviceLabel))
 }
 
-// TestPasskeyIsBoundToTheHost は、パスキーを、登録したときのホスト名でだけ使わせることを確かめる。
+// TestPasskeyIsBoundToTheHost は、パスキーを、登録したときのホスト名でだけ使わせることを確認する。
 func TestPasskeyIsBoundToTheHost(t *testing.T) {
 	t.Parallel()
 
@@ -504,8 +504,8 @@ func TestPasskeyIsBoundToTheHost(t *testing.T) {
 	assert.Empty(t, creation.Options.CredentialExcludeList)
 }
 
-// TestPasskeyWithMixedCaseHost は、Host ヘッダーに大文字が混じっていても、小文字の RP ID でパスキーを登録することを確かめる。
-// ブラウザーは、オリジンのホスト名を小文字にして署名する。go-webauthn は、オリジンを大文字と小文字を区別せずに比べる。
+// TestPasskeyWithMixedCaseHost は、Host ヘッダーに大文字が混じっていても、小文字の RP ID でパスキーを登録することを確認する。
+// ブラウザーは、オリジンのホスト名を小文字にして署名する。go-webauthn は、オリジンを大文字と小文字を区別せずに比較する。
 func TestPasskeyWithMixedCaseHost(t *testing.T) {
 	t.Parallel()
 
