@@ -2516,9 +2516,6 @@ type SystemSettings struct {
 	TimeshiftWhileWatching bool `json:"timeshiftWhileWatching"`
 	// 視聴している間だけ録るサービスの保持時間 (秒)。600〜86400。既定は 3600。
 	TimeshiftWhileWatchingRetentionSeconds int `json:"timeshiftWhileWatchingRetentionSeconds"`
-	// どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0〜1440。既定は 180。
-	// 番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
-	RuleUnmatchedGraceMinutes int `json:"ruleUnmatchedGraceMinutes"`
 	// 重複の回避で「録画済み」とみなす、映像と音声の PID のドロップの数の上限 (設計書 4.4)。0〜1000。既定は 0。
 	// 0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
 	HistoryMaxDrops int `json:"historyMaxDrops"`
@@ -2580,8 +2577,6 @@ type SystemSettingsInput struct {
 	TimeshiftWhileWatching *bool `json:"timeshiftWhileWatching,omitempty"`
 	// 600〜86400 秒。
 	TimeshiftWhileWatchingRetentionSeconds *int `json:"timeshiftWhileWatchingRetentionSeconds,omitempty"`
-	// 0〜1440 分。
-	RuleUnmatchedGraceMinutes *int `json:"ruleUnmatchedGraceMinutes,omitempty"`
 	// 0〜1000 件。
 	HistoryMaxDrops *int `json:"historyMaxDrops,omitempty"`
 	// 1〜3650 日。

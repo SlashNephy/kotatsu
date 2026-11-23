@@ -90,16 +90,17 @@ WHERE r.enabled AND r.assignment_state <> 'conflict' AND r.end_at > @now
 -- name: ListFutureProgramReservations :many
 -- 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。
 -- 録画は開始マージンとチューニングの時間だけ前に始まるので、録画中かどうか (recording) も返す。録画中の予約は、照合で消さない (設計書 4.3)。
--- 番組が EPG にあり、終了時刻が決まっているか (decided) も返す。番組が消えたか、未定になったのは一時的なことがあるので、
+-- 番組が EPG にあり、終了時刻が決まっているか (decided) も返す。終了時刻が未定になったのは延長などの一時的なことなので、
 -- ルールに一致しなくなったとはみなさない (#518)。
--- 番組名が空か (unnamed) も返す。条件から外れたのか、まだ読めていないだけなのかを区別できないので、消さない (#1501)。
 -- 番組が EPG にあるか (listed) も返す。EPG から消えた番組の予約は、同じ枠にルールに一致する別の番組が出ていれば、差し替えられたとみなして消す (#1875)。
+-- そうでなければ、予約に残した番組の情報 (番組名、概要、詳細、ジャンル) とサービスのチャンネル種別で、ルールに照合し直す。
 SELECT r.id, r.kind, r.service_id, r.event_id, r.start_at, r.end_at, r.enabled, r.follow_event_relay,
+  r.name, r.description, r.extended, r.genres, s.channel_type,
   EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id AND rec.state = 'recording') AS recording,
   EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id) AS listed,
-  EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id AND NOT p.end_undecided) AS decided,
-  EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id AND p.name = '') AS unnamed
+  EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id AND NOT p.end_undecided) AS decided
 FROM reservations r
+JOIN services s ON s.id = r.service_id
 WHERE r.event_id IS NOT NULL AND r.start_at > @now
 ORDER BY r.id;
 
