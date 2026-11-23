@@ -228,14 +228,29 @@ function stop(): void {
   }
 }
 
+// streamPath は、tenban のライブ視聴の TS (GET /internal/streams/services/{id}) の URL。
+const streamPath = /^\/internal\/streams\/services\/(\d+)(?:\?(.*))?$/;
+
+// streamEndpoint は、url がライブ視聴の TS なら、読みに行く URL を返す。ほかの先なら null を返す。
+function streamEndpoint(url: string): string | null {
+  const match = streamPath.exec(url);
+  if (match === null) {
+    return null;
+  }
+  const [, id = '', query] = match;
+  const path = `/internal/streams/services/${encodeURIComponent(id)}`;
+
+  return query === undefined ? path : `${path}?${query}`;
+}
+
 async function read(current: Loading, url: string): Promise<void> {
   try {
-    // 読むのは、画面と同じ origin のストリームだけ。ほかの origin の URL を渡されても、ほかへは送らない。
-    const target = new URL(url, self.location.href);
-    if (target.origin !== self.location.origin) {
-      throw new Error('the stream is not on the same origin');
+    // 受け取った URL をそのまま読まずに、ライブ視聴の TS のパスへ組み直し、ほかのホストやパスを読まないようにする。
+    const endpoint = streamEndpoint(url);
+    if (endpoint === null) {
+      throw new Error('the stream is not a live stream of tenban');
     }
-    const response = await fetch(`${target.pathname}${target.search}`, {
+    const response = await fetch(endpoint, {
       signal: current.abort.signal,
       cache: 'no-store',
       credentials: 'same-origin',
