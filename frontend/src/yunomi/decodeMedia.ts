@@ -69,8 +69,10 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
   private width = 0;
   private height = 0;
   private stats: DecodeStats | null = null;
-  // animation は、requestAnimationFrame の番号。
+  // animation は、requestAnimationFrame の番号。animationView は、それを予約した窓。
   private animation: number | null = null;
+  private animationView: Window | null = null;
+  private disposed = false;
   private lastTimeupdate = 0;
   // stopped は、止めたときに読み込みも止めたか。再開したら、放送の今から読み直す。
   private stopped = false;
@@ -99,6 +101,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     // 音量の段 (volumeBoost) が段を挟むまでは、そのまま鳴らす。
     this.volumeNode.connect(this.context.destination);
     worker.addEventListener('message', this.onMessage);
+    this.context.addEventListener('statechange', this.onContextState);
   }
 
   get currentTime(): number {
@@ -225,6 +228,9 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
         // 下で断る。
       }
     }
+    if (this.disposed) {
+      return;
+    }
     if (this.context.state !== 'running') {
       // ユーザーが操作するまで、音ありで鳴らせない。<video> と同じく断る。
       throw new DOMException('the user has not interacted with the page yet', 'NotAllowedError');
@@ -266,22 +272,21 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
 
   // dispose は、音を止め、worker から外れる。worker は、作った側が止める。
   dispose(): void {
+    this.disposed = true;
     this.stopAudio();
     this.worker.removeEventListener('message', this.onMessage);
+    this.context.removeEventListener('statechange', this.onContextState);
     this.volumeNode.disconnect();
     if (this.visibilityTimer !== null) {
       clearInterval(this.visibilityTimer);
       this.visibilityTimer = null;
     }
-    if (this.animation !== null) {
-      (this.element.ownerDocument.defaultView ?? window).cancelAnimationFrame(this.animation);
-      this.animation = null;
-    }
+    this.cancelLoop();
   }
 
   // restart は、新しい読み込みを始める。
   private restart(): void {
-    if (this.url === null) {
+    if (this.url === null || this.disposed) {
       return;
     }
     this.load += 1;
@@ -364,9 +369,21 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     this.scheduleChunk(message);
   }
 
+  // onContextState は、OS やブラウザが止めた AudioContext が動き出したら、貯めた音を鳴らし始める。
+  private readonly onContextState = () => {
+    if (this.context.state === 'running' && this.pending.length > 0) {
+      this.startAudio();
+    }
+  };
+
   // startAudio は、貯めた音を鳴らし始める。
   private startAudio(): void {
-    if (this.stateValue.paused || this.context.state !== 'running') {
+    // 貯めた音が鳴らし始めの量に届くまでは、onAudio が始める。
+    if (
+      this.stateValue.paused ||
+      this.context.state !== 'running' ||
+      this.stateValue.readyState < readyStates.enoughData
+    ) {
       return;
     }
     const pending = this.pending;
@@ -436,27 +453,41 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
   // clockPts は、いま耳に届いている音の PTS。鳴らしていなければ null。
   private clockPts(): number | null {
     const stamp = this.context.getOutputTimestamp();
-    const time = stamp.contextTime ?? this.context.currentTime;
+    // 動き出した直後は、まだ鳴らした位置がなく、0 を返すブラウザがある。そのときは currentTime を使う。
+    const time =
+      stamp.contextTime !== undefined && stamp.contextTime > 0
+        ? stamp.contextTime
+        : this.context.currentTime;
 
     return this.timeline.ptsAt(time);
   }
 
   // loop は、画面の切り替わりごとに、時計と切り替わりの時刻を worker へ送る。映している窓の requestAnimationFrame を使う
-  // (別のウィンドウに移したときも、その窓の切り替わりに合わせる)。
+  // (別のウィンドウ (PiP) に移したときも、その窓の切り替わりに合わせる)。窓が替わったら、watchVisibility が予約し直す。
   private loop(): void {
-    if (this.animation !== null) {
+    if (this.animation !== null || this.disposed) {
       return;
     }
-    const tick = (time: number) => {
+    const view = this.element.ownerDocument.defaultView ?? window;
+    const tick = (frameTime: number) => {
       this.animation = null;
+      this.animationView = null;
+      // 別の窓の requestAnimationFrame の時刻は、その窓の timeOrigin から数える。worker と同じ、この窓の物差しに直す。
+      const time = frameTime + view.performance.timeOrigin - performance.timeOrigin;
       const stamp = this.context.getOutputTimestamp();
-      const pts = stamp.contextTime === undefined ? null : this.timeline.ptsAt(stamp.contextTime);
-      if (pts !== null && stamp.performanceTime !== undefined && !this.stateValue.paused) {
+      // 動き出した直後は、まだ鳴らした位置がなく、0 を返すブラウザがある。そのときは時計を送らない。
+      const stamped =
+        stamp.contextTime !== undefined &&
+        stamp.contextTime > 0 &&
+        stamp.performanceTime !== undefined &&
+        stamp.performanceTime > 0;
+      const pts = stamped ? this.timeline.ptsAt(stamp.contextTime!) : null;
+      if (pts !== null && !this.stateValue.paused) {
         this.worker.postMessage({
           type: 'clock',
           load: this.load,
           pts,
-          perf: stamp.performanceTime,
+          perf: stamp.performanceTime!,
         } satisfies ToDecodeWorker);
       }
       this.worker.postMessage({ type: 'vsync', time } satisfies ToDecodeWorker);
@@ -464,12 +495,23 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
         this.lastTimeupdate = time;
         this.fire('timeupdate');
       }
-      // 別のウィンドウ (PiP) に移したときも、映している窓の切り替わりに合わせる。
-      const view = this.element.ownerDocument.defaultView ?? window;
-      this.animation = view.requestAnimationFrame(tick);
+      this.loop();
     };
-    const view = this.element.ownerDocument.defaultView ?? window;
     this.animation = view.requestAnimationFrame(tick);
+    this.animationView = view;
+  }
+
+  // cancelLoop は、予約した窓で requestAnimationFrame を取り消す。
+  private cancelLoop(): void {
+    if (this.animation !== null && this.animationView !== null) {
+      try {
+        this.animationView.cancelAnimationFrame(this.animation);
+      } catch {
+        // 閉じた窓では、もう走らない。
+      }
+    }
+    this.animation = null;
+    this.animationView = null;
   }
 
   // watchVisibility は、映像が見えているかを、変わったときに worker へ知らせる。見えていない間、worker は映像をデコードしない。
@@ -479,6 +521,13 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
       return;
     }
     const check = () => {
+      // 映している窓が替わった (PiP を開いた、閉じた) ら、新しい窓で切り替わりを待ち直す。
+      // 古い窓は、隠れていたり閉じたりして、requestAnimationFrame が走らないことがある。
+      const view = this.element.ownerDocument.defaultView ?? window;
+      if (this.animationView !== null && this.animationView !== view) {
+        this.cancelLoop();
+        this.loop();
+      }
       const visible = this.element.ownerDocument.visibilityState !== 'hidden';
       if (visible !== this.visible) {
         this.visible = visible;
