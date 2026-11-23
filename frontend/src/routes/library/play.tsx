@@ -143,7 +143,7 @@ import {
 } from '../../yunomi/reconnect';
 import { copyPositionUrl, parseStartSeconds } from '../../yunomi/shareUrl';
 import { useLibraryPositionSaver } from '../../yunomi/useWatchPositionSaver';
-import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
 import {
   clampSeek,
   fileDuration,
@@ -374,6 +374,8 @@ function Player({
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
   const media = video === null ? null : mediaOf(video);
+  // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
+  useWatchMedia(media);
   const videoState = useVideoState(media);
   const autoplay = useAutoplayBlocked(media);
   const videoLoading = useVideoLoading(media);
@@ -752,7 +754,7 @@ function Player({
   const capture = useCapture({
     crop,
     frameRef: playerBoxRef,
-    videoRef,
+    media: () => (videoRef.current === null ? null : mediaOf(videoRef.current)),
     serviceName,
     programName: program?.name ?? file.name,
     captureTime: () => clockAt(currentPosition()) ?? Date.now(),

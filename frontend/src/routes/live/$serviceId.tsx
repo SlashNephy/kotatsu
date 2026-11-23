@@ -158,7 +158,7 @@ import {
   recordChannel,
   saveRecentChannels,
 } from '../../yunomi/recentChannels';
-import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
 import { mediaOf } from '../../yunomi/playerMedia';
 
@@ -419,6 +419,8 @@ function Live({
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
   const media = video === null ? null : mediaOf(video);
+  // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
+  useWatchMedia(media);
   const videoState = useVideoState(media);
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
   const autoplay = useAutoplayBlocked(media);
@@ -735,7 +737,7 @@ function Live({
   const capture = useCapture({
     crop,
     frameRef: playerBoxRef,
-    videoRef,
+    media: () => (videoRef.current === null ? null : mediaOf(videoRef.current)),
     serviceName,
     programName,
     captureTime: () =>

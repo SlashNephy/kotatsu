@@ -146,7 +146,7 @@ import { resumePosition } from '../../yunomi/resume';
 import { copyPositionUrl, parseStartSeconds } from '../../yunomi/shareUrl';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
-import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
 import { mediaOf } from '../../yunomi/playerMedia';
 
@@ -335,6 +335,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
   const media = video === null ? null : mediaOf(video);
+  // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
+  useWatchMedia(media);
   const videoState = useVideoState(media);
   const navigate = useNavigate();
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
@@ -858,7 +860,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const capture = useCapture({
     crop,
     frameRef: playerBoxRef,
-    videoRef,
+    media: () => (videoRef.current === null ? null : mediaOf(videoRef.current)),
     serviceName: recording?.service.name ?? '',
     programName: recording?.name ?? null,
     captureTime: () =>
