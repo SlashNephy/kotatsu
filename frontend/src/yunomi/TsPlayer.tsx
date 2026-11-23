@@ -35,6 +35,7 @@ import {
 } from './superResolution';
 import classes from './TsPlayer.module.css';
 import { createYadifInterpolation, type YadifInterpolation } from './yadifInterpolation';
+import { mediaOf, type PlayerMedia } from './playerMedia';
 
 // wasmURL は、変換に使う WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
 // ストリーミングコンパイルを効かせる (設計書 7.2)。
@@ -52,7 +53,8 @@ type Props = {
   // handoverScope は、裏で読み込んで切り替えてよい範囲。前の読み込みと範囲が違えば、handover でもすぐ読み直す (#1729)。
   // ライブ視聴で、タイムシフトのバッファとライブを行き来するのは、つなぎ直しではなくシークなので、範囲を分ける。
   handoverScope?: string;
-  videoRef: RefObject<HTMLVideoElement | null>;
+  // mediaRef には、映している経路を入れる。画質の切り替えなどで作り直すたびに入れ替える。
+  mediaRef: RefObject<PlayerMedia | null>;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
   // superimpose は、文字スーパーを出すかどうか (#491)。captions を切っていれば、出さない。
@@ -78,8 +80,8 @@ type Props = {
   overlay?: ReactNode;
   // controls は、映像の上に重ねる操作バー。重ねたもの (overlay) より上に置き、操作を受ける。
   controls?: ReactNode;
-  // onVideo は、video の要素を作ったときと、取り除いたとき (null) に呼ぶ。
-  onVideo?: (video: HTMLVideoElement | null) => void;
+  // onMedia は、映す経路を作ったときと、取り除いたとき (null) に呼ぶ。
+  onMedia?: (media: PlayerMedia | null) => void;
   // onAudio は、番組の音声と、今どれを聞いているかが分かったとき、変わったときに呼ぶ。
   onAudio?: (tracks: AudioTracks) => void;
   // audio は、聞く音声 (audioChoices の値)。null なら、プレイヤーに任せる。
@@ -228,7 +230,7 @@ export function TsPlayer({
   url,
   handover = false,
   handoverScope = '',
-  videoRef,
+  mediaRef,
   captions,
   superimpose = true,
   captionStyle = defaultCaptionStyle,
@@ -240,7 +242,7 @@ export function TsPlayer({
   onLoaded,
   overlay,
   controls,
-  onVideo,
+  onMedia,
   onAudio,
   audio = null,
   onReading,
@@ -268,7 +270,7 @@ export function TsPlayer({
     onError,
     onLoaded,
     onAudio,
-    onVideo,
+    onMedia,
     onReading,
     onDeinterlaceStats,
     handoverTarget,
@@ -278,7 +280,7 @@ export function TsPlayer({
     onError,
     onLoaded,
     onAudio,
-    onVideo,
+    onMedia,
     onReading,
     onDeinterlaceStats,
     handoverTarget,
@@ -333,7 +335,7 @@ export function TsPlayer({
   const loadedScope = useRef(handoverScope);
   // covered は、蓋を出しているかどうか。出している間は、CM の字幕を残さないよう、字幕を消す (#1512)。
   const covered = useRef(false);
-  const cover = usePlayerCover(videoRef, (shown) => {
+  const cover = usePlayerCover(mediaRef, (shown) => {
     covered.current = shown;
     for (const slot of [activeRef.current, pendingRef.current]) {
       slot?.captions.setVisible(showCaptions.current && !shown);
@@ -351,7 +353,8 @@ export function TsPlayer({
     };
   }, [coverRef, cover.cover]);
 
-  const mediaRef = useRef<HTMLDivElement | null>(null);
+  // boxRef は、組 (createSlot) を入れる要素。
+  const boxRef = useRef<HTMLDivElement | null>(null);
 
   // createSlot は、組を作って media に入れる。hidden なら、切り替えるまで見せず、音も出さない。
   // video の要素は、React に持たせずに作る。yadif は、video を別の要素で包んで動かすので、
@@ -650,14 +653,14 @@ export function TsPlayer({
     }
     slot.container.style.visibility = '';
     // データ放送が、映っていた組を自分の中へ移しているなら、新しい組を同じ所に置く。外の CSS が届かないので、大きさをインラインで整える。
-    if (previous !== null && previous.container.parentNode !== mediaRef.current) {
+    if (previous !== null && previous.container.parentNode !== boxRef.current) {
       fitMedia([slot.container]);
       previous.container.replaceWith(slot.container);
     }
     pendingRef.current = null;
     activeRef.current = slot;
-    videoRef.current = slot.video;
-    handlers.current.onVideo?.(slot.video);
+    mediaRef.current = mediaOf(slot.video);
+    handlers.current.onMedia?.(mediaRef.current);
     if (previous !== null) {
       destroySlot(previous);
     }
@@ -671,14 +674,14 @@ export function TsPlayer({
   };
 
   useEffect(() => {
-    const media = mediaRef.current;
+    const media = boxRef.current;
     if (media === null) {
       return;
     }
     const slot = createSlot(media, false);
     activeRef.current = slot;
-    videoRef.current = slot.video;
-    handlers.current.onVideo?.(slot.video);
+    mediaRef.current = mediaOf(slot.video);
+    handlers.current.onMedia?.(mediaRef.current);
     void attachPlayer(slot).then((player) => {
       if (player !== null) {
         setReady(true);
@@ -693,11 +696,11 @@ export function TsPlayer({
       }
       pendingRef.current = null;
       activeRef.current = null;
-      videoRef.current = null;
-      handlers.current.onVideo?.(null);
+      mediaRef.current = null;
+      handlers.current.onMedia?.(null);
       setReady(false);
     };
-  }, [videoRef]);
+  }, [mediaRef]);
 
   useEffect(() => {
     for (const slot of [activeRef.current, pendingRef.current]) {
@@ -731,7 +734,7 @@ export function TsPlayer({
   useEffect(() => {
     const active = activeRef.current;
     const player = active?.player ?? null;
-    const media = mediaRef.current;
+    const media = boxRef.current;
     if (!ready || active === null || player === null || media === null) {
       return;
     }
@@ -874,7 +877,7 @@ export function TsPlayer({
         data-fill={crop.fill === true && isCropped(crop) ? '' : undefined}
       >
         <div
-          ref={mediaRef}
+          ref={boxRef}
           className={classes.media}
           style={{ ...cropStyle(crop), ...brightnessStyle(brightness) }}
         />

@@ -36,6 +36,7 @@ import {
 import { measureEstimate } from './estimateBenchmark';
 import { TsPlayer } from './TsPlayer';
 import { useCloseWatch } from './WatchHost';
+import type { PlayerMedia } from './playerMedia';
 
 // loadTimeoutMs は、再生を始めるまで待つ時間。これを過ぎたら、その回は測れなかったものとする。
 const loadTimeoutMs = 15_000;
@@ -116,7 +117,7 @@ export function DeviceBenchmark() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [report, setReport] = useState<BenchmarkReport | null>(null);
   const [failed, setFailed] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaRef = useRef<PlayerMedia | null>(null);
   const collector = useRef<Collector>({
     stats: null,
     fieldRateDropped: false,
@@ -159,7 +160,7 @@ export function DeviceBenchmark() {
   const counters = (): Counters => ({
     time: performance.now(),
     late: collector.current.stats?.late ?? 0,
-    dropped: videoRef.current?.getVideoPlaybackQuality?.().droppedVideoFrames ?? 0,
+    dropped: mediaRef.current?.getVideoPlaybackQuality?.().droppedVideoFrames ?? 0,
   });
 
   // runOnce は、経路を 1 回測る。測れなければ null。
@@ -323,7 +324,7 @@ export function DeviceBenchmark() {
                   <TsPlayer
                     key={mounted.key}
                     url={mounted.url}
-                    videoRef={videoRef}
+                    mediaRef={mediaRef}
                     captions={false}
                     settings={{
                       fieldRate: mounted.scenario.fieldRate,
@@ -335,15 +336,15 @@ export function DeviceBenchmark() {
                       // 擬似 HDR (#1656) も、同じく切る。
                       hdrOutput: false,
                     }}
-                    onVideo={(video) => {
-                      if (video !== null) {
+                    onMedia={(media) => {
+                      if (media !== null) {
                         // 合成の映像に音はないが、念のため消音して流す。
-                        video.muted = true;
-                        video.volume = 0;
+                        media.muted = true;
+                        media.volume = 0;
                       }
                     }}
                     onLoaded={() => {
-                      void videoRef.current?.play().catch(() => undefined);
+                      void mediaRef.current?.play().catch(() => undefined);
                       collector.current.loaded?.();
                     }}
                     onDeinterlaceStats={(stats, fieldRateDropped) => {

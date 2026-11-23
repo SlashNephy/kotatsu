@@ -114,7 +114,8 @@ export interface PlayerMedia {
   // getVideoPlaybackQuality は、出したコマと落としたコマの数を返す。経路が対応していなければ無い。
   readonly getVideoPlaybackQuality?: () => PlayerMediaQuality;
   // audioPort は、音を WebAudio に通すための口を返す。初めて呼ぶと、経路の音は WebAudio を通るようになり、
-  // sink に繋ぐまで聞こえなくなる。
+  // sink に繋ぐまで聞こえなくなる。音量の段 (volumeBoost) だけが呼ぶ。ほかから呼ぶと、volumeBoost が
+  // 繋いでいないと知らないまま、音が出なくなる。
   audioPort(): AudioPort;
   // frame は、今のコマを描いたもの。drawImage に渡す。すぐに描けない経路では null。
   readonly frame: CanvasImageSource | null;

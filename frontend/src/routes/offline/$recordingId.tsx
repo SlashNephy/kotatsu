@@ -38,7 +38,7 @@ import { useWakeLock } from '../../yunomi/useWakeLock';
 import { WatchHeading, WatchLayout } from '../../yunomi/WatchLayout';
 import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
-import { mediaOf } from '../../yunomi/playerMedia';
+import type { PlayerMedia } from '../../yunomi/playerMedia';
 
 export const Route = createFileRoute('/offline/$recordingId')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
@@ -129,11 +129,9 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   useDocumentTitle([toHalfWidth(meta.name)]);
   const videoURL = useObjectURL(files.video);
   const jikkyoURL = useObjectURL(files.jikkyo);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaRef = useRef<PlayerMedia | null>(null);
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
-  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
-  // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
-  const media = video === null ? null : mediaOf(video);
+  const [media, setMedia] = useState<PlayerMedia | null>(null);
   // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
   useWatchMedia(media);
   const videoState = useVideoState(media);
@@ -149,8 +147,8 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   // loads は、読み直した回数。「やり直す」で、同じファイルを読み直させる。
   const [loads, setLoads] = useState(0);
 
-  // 保存した TS は、配信が切り詰めた 1 本のファイルなので、video の時刻が、そのまま録画の始まりからの位置になる。
-  // 長さは、プレイヤーがファイルから求めて video に渡す。分かるまでは、録画の時間帯から求める。
+  // 保存した TS は、配信が切り詰めた 1 本のファイルなので、media の時刻が、そのまま録画の始まりからの位置になる。
+  // 長さは、プレイヤーがファイルから求めて media に渡す。分かるまでは、録画の時間帯から求める。
   const fallbackDuration = recordingPosition(
     meta.recordedFrom,
     meta.gaps,
@@ -160,37 +158,37 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   const [duration, setDuration] = useState(fallbackDuration);
   const [seeking, setSeeking] = useState<number | null>(null);
   useEffect(() => {
-    if (video === null) {
+    if (media === null) {
       return;
     }
-    const update = () => setPosition(video.currentTime);
+    const update = () => setPosition(media.currentTime);
     const onDuration = () => {
-      if (Number.isFinite(video.duration) && video.duration > 0) {
-        setDuration(video.duration);
+      if (Number.isFinite(media.duration) && media.duration > 0) {
+        setDuration(media.duration);
       }
     };
-    video.addEventListener('timeupdate', update);
-    video.addEventListener('durationchange', onDuration);
+    media.addEventListener('timeupdate', update);
+    media.addEventListener('durationchange', onDuration);
     onDuration();
 
     return () => {
-      video.removeEventListener('timeupdate', update);
-      video.removeEventListener('durationchange', onDuration);
+      media.removeEventListener('timeupdate', update);
+      media.removeEventListener('durationchange', onDuration);
     };
-  }, [video]);
-  const currentPosition = () => videoRef.current?.currentTime ?? position;
+  }, [media]);
+  const currentPosition = () => mediaRef.current?.currentTime ?? position;
   const jikkyo = useRecordedJikkyo(jikkyoEnabled ? jikkyoURL : null, currentPosition, true);
 
   const seek = (target: number) => {
-    const element = videoRef.current;
+    const element = mediaRef.current;
     if (element === null) {
       return;
     }
-    element.currentTime = Math.min(Math.max(target, 0), duration);
+    element.seek(Math.min(Math.max(target, 0), duration));
     setPosition(element.currentTime);
   };
   const togglePlay = () => {
-    const element = videoRef.current;
+    const element = mediaRef.current;
     if (element === null) {
       return;
     }
@@ -201,8 +199,8 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
     }
   };
   const commands: PlayerCommands = {
-    play: () => void videoRef.current?.play().catch(() => {}),
-    pause: () => videoRef.current?.pause(),
+    play: () => void mediaRef.current?.play().catch(() => {}),
+    pause: () => mediaRef.current?.pause(),
     togglePlay,
     seekBackward: () => seek(currentPosition() - 10),
     seekForward: () => seek(currentPosition() + 10),
@@ -298,8 +296,8 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
           <TsPlayer
             // フラグメントは、読み直すためだけに付ける。blob: の URL でも、読むときには外される。
             url={videoURL === null ? null : `${videoURL}#${loads}`}
-            videoRef={videoRef}
-            onVideo={setVideo}
+            mediaRef={mediaRef}
+            onMedia={setMedia}
             controls={controlBar}
             captions={captions}
             onLoaded={() => setError(false)}

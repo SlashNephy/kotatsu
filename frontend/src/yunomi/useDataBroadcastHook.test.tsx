@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import classes from './TsPlayer.module.css';
 import { settleMs } from './settleDelay';
+import { mediaOf, type PlayerMedia } from './playerMedia';
 import { RemoteKey, useDataBroadcast } from './useDataBroadcast';
 
 // FakeBrowser は、BMLBrowser の代わり。イベントを外から送り、映像の位置の有無を決められる。
@@ -86,12 +87,12 @@ const players: HTMLVideoElement[] = [];
 
 // Harness は、TsPlayer と同じく、映像の要素 (.media) の中に video を置き、データ放送の層を重ねる。
 function Harness({ shown = true, receive = true }: { shown?: boolean; receive?: boolean }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaRef = useRef<PlayerMedia | null>(null);
   const { layer, state, receiving, press } = useDataBroadcast(
     receive
       ? { url: '/internal/streams/services/3273601024/data-broadcast', serviceId: 1024 }
       : null,
-    videoRef,
+    mediaRef,
     shown,
     false,
   );
@@ -102,10 +103,10 @@ function Harness({ shown = true, receive = true }: { shown?: boolean; receive?: 
         className={classes.media}
         data-testid="media"
         ref={(element) => {
-          if (element !== null && videoRef.current === null) {
+          if (element !== null && mediaRef.current === null) {
             const video = document.createElement('video');
             element.append(video);
-            videoRef.current = video;
+            mediaRef.current = mediaOf(video);
             players.push(video);
           }
         }}
@@ -691,10 +692,10 @@ function TuneHarness({
   onTune: (networkId: number, serviceId: number) => boolean;
   onSelectAudio: (componentTag: number, channelId?: number) => boolean;
 }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaRef = useRef<PlayerMedia | null>(null);
   const { layer } = useDataBroadcast(
     { url: '/internal/streams/services/3273601024/data-broadcast', serviceId: 1024 },
-    videoRef,
+    mediaRef,
     true,
     false,
     { onTune, onSelectAudio },
@@ -702,7 +703,11 @@ function TuneHarness({
 
   return (
     <div className={classes.media}>
-      <video ref={videoRef} />
+      <video
+        ref={(video) => {
+          mediaRef.current = video === null ? null : mediaOf(video);
+        }}
+      />
       {layer}
     </div>
   );
@@ -733,17 +738,21 @@ describe('データ放送の文書からの選局と音声の切り替え', () =
 
 // IPHarness は、データ放送の文書の通信を中継させるかを切り替える (#501)。
 function IPHarness({ ipEnabled }: { ipEnabled: boolean }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaRef = useRef<PlayerMedia | null>(null);
   const { layer } = useDataBroadcast(
     { url: '/internal/streams/services/3273601024/data-broadcast', serviceId: 1024 },
-    videoRef,
+    mediaRef,
     true,
     ipEnabled,
   );
 
   return (
     <div className={classes.media}>
-      <video ref={videoRef} />
+      <video
+        ref={(video) => {
+          mediaRef.current = video === null ? null : mediaOf(video);
+        }}
+      />
       {layer}
     </div>
   );

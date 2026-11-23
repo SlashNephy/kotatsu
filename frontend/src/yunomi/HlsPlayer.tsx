@@ -11,11 +11,13 @@ import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { HlsSegment } from './streamMeter';
 import classes from './TsPlayer.module.css';
 import { attachVideoInterpolation, type VideoInterpolation } from './videoInterpolation';
+import { mediaOf, type PlayerMedia } from './playerMedia';
 
 type Props = {
   // url は、kyusu の HLS のプレイリストの URL。null なら、何も読まない。
   url: string | null;
-  videoRef: RefObject<HTMLVideoElement | null>;
+  // mediaRef には、映している経路を入れる。
+  mediaRef: RefObject<PlayerMedia | null>;
   // live は、ライブ視聴かどうか。ライブは最新の位置から、録画は startPosition から読む。
   live: boolean;
   // lowLatency は、ライブで、放送からの遅れが広がったら少し速く再生して追いつくかどうか (#495)。
@@ -41,8 +43,8 @@ type Props = {
   overlay?: ReactNode;
   // controls は、映像の上に重ねる操作バー。重ねたもの (overlay) より上に置き、操作を受ける。
   controls?: ReactNode;
-  // onVideo は、video の要素を作ったときと、取り除いたとき (null) に呼ぶ。
-  onVideo?: (video: HTMLVideoElement | null) => void;
+  // onMedia は、映す経路を作ったときと、取り除いたとき (null) に呼ぶ。
+  onMedia?: (media: PlayerMedia | null) => void;
   // onSegment は、映像のセグメントを読み終えるたびに、その大きさと長さと画質を受け取る (#828)。
   onSegment?: (segment: HlsSegment) => void;
   // coverRef は、映像の上に重ねる蓋 (#1512) を出し入れする口を受け取る。
@@ -73,7 +75,7 @@ function liveSyncConfig(lowLatency: boolean): {
 // iPhone の Safari では、ManagedMediaSource の上で hls.js が動く。
 export function HlsPlayer({
   url,
-  videoRef,
+  mediaRef,
   live,
   lowLatency = false,
   captions,
@@ -87,7 +89,7 @@ export function HlsPlayer({
   onLoaded,
   overlay,
   controls,
-  onVideo,
+  onMedia,
   onSegment,
   coverRef,
 }: Props) {
@@ -101,8 +103,8 @@ export function HlsPlayer({
       Object.assign(instance.config, liveSyncConfig(live && lowLatency));
     }
   }, [live, lowLatency]);
-  const handlers = useRef({ onError, onLoaded, onVideo, onSegment });
-  handlers.current = { onError, onLoaded, onVideo, onSegment };
+  const handlers = useRef({ onError, onLoaded, onMedia, onSegment });
+  handlers.current = { onError, onLoaded, onMedia, onSegment };
   // 読み始める位置は、読み直すときにだけ使う。位置が変わるたびに読み直さないよう、ref で渡す。
   const start = useRef(startPosition);
   start.current = startPosition;
@@ -120,7 +122,7 @@ export function HlsPlayer({
   styleRef.current = captionStyle;
   // covered は、蓋を出しているかどうか。出している間は、CM の字幕を残さないよう、字幕を消す (#1512)。
   const covered = useRef(false);
-  const cover = usePlayerCover(videoRef, (shown) => {
+  const cover = usePlayerCover(mediaRef, (shown) => {
     covered.current = shown;
     captionsRef.current?.setVisible(showCaptions.current && !shown);
   });
@@ -161,8 +163,8 @@ export function HlsPlayer({
     video.playsInline = true;
     video.autoplay = true;
     frame.append(video);
-    videoRef.current = video;
-    handlers.current.onVideo?.(video);
+    mediaRef.current = mediaOf(video);
+    handlers.current.onMedia?.(mediaRef.current);
     // 字幕は、aribb24.js を読み終えるまで溜めておくので、最初のセグメントの字幕も落とさない。
     const renderer = createCaptions(video, frame, (text) => captionText.current?.(text));
     renderer.setVisible(showCaptions.current && !covered.current);
@@ -185,18 +187,19 @@ export function HlsPlayer({
       interpolationRef.current = null;
       captionsRef.current?.destroy();
       captionsRef.current = null;
-      videoRef.current = null;
-      handlers.current.onVideo?.(null);
+      mediaRef.current = null;
+      handlers.current.onMedia?.(null);
       frame.replaceChildren();
     };
-  }, [videoRef]);
+  }, [mediaRef]);
 
   useEffect(() => {
     // 前の読み込みから引き継いだ一時停止は、読まないときやライブに変えたときにも、ここで使い切る。残すと、後で別の録画やライブを
     // 開いたときに、止まったまま始まる。
     const stayPaused = !live && keepPaused.current;
     keepPaused.current = false;
-    const video = videoRef.current;
+    // hls.js に渡すのは <video> の要素。
+    const video = mediaRef.current?.video ?? null;
     if (video === null || url === null) {
       return;
     }
@@ -322,7 +325,7 @@ export function HlsPlayer({
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
-  }, [videoRef, url, live, generation]);
+  }, [mediaRef, url, live, generation]);
 
   useEffect(() => {
     interpolationRef.current?.setEnabled(interpolate);

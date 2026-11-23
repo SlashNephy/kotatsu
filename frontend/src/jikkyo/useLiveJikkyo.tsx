@@ -5,6 +5,7 @@ import { CommentCanvas, type CommentCanvasHandle } from './CommentCanvas';
 import { compileMute, defaultCommentSettings, type CommentSettings } from './comments';
 import { syncedCommentWait, type BroadcastNow } from './liveSync';
 import { JikkyoSession, type SessionStatus } from './session';
+import type { PlayerMedia } from '../yunomi/playerMedia';
 
 // liveRetainSeconds は、ライブで、設定を変えて描き直すときに足し直すコメントの秒数。流れている間のコメントが収まればよい。
 const liveRetainSeconds = 30;
@@ -14,13 +15,13 @@ const maxDelay = 10;
 
 // playbackDelay は、映像が放送からどれだけ遅れて映っているか (秒) を返す。先に読んだ分だけ遅れている。
 // コメントは放送の時刻で届くので、この分だけ遅らせて流すと、映像の場面と合う。
-export function playbackDelay(video: HTMLVideoElement | null): number {
-  if (video === null || video.buffered.length === 0) {
+export function playbackDelay(media: PlayerMedia | null): number {
+  if (media === null || media.buffered.length === 0) {
     return 0;
   }
 
   return Math.min(
-    Math.max(video.buffered.end(video.buffered.length - 1) - video.currentTime, 0),
+    Math.max(media.buffered.end(media.buffered.length - 1) - media.currentTime, 0),
     maxDelay,
   );
 }
@@ -32,7 +33,7 @@ export function playbackDelay(video: HTMLVideoElement | null): number {
 // 返せなければ (kyusu の経路や、放送の時計がまだ届かない間)、受け取った時刻に先読みの分を足して流す。
 export function useLiveJikkyo(
   channelId: string | null,
-  videoRef: RefObject<HTMLVideoElement | null>,
+  mediaRef: RefObject<PlayerMedia | null>,
   active: boolean,
   settings: CommentSettings = defaultCommentSettings,
   broadcast: () => BroadcastNow | null = noBroadcast,
@@ -68,7 +69,7 @@ export function useLiveJikkyo(
     const session = new JikkyoSession(channelId, {
       onComment: (comment) => {
         arrivals.current.push(comment.at);
-        const wait = commentWait(comment.postedAt, broadcastRef.current(), videoRef.current);
+        const wait = commentWait(comment.postedAt, broadcastRef.current(), mediaRef.current);
         const drawn = {
           time: (comment.at - origin.current) / 1000 + (wait ?? 0),
           content: comment.content,
@@ -106,7 +107,7 @@ export function useLiveJikkyo(
       setStatus(null);
       setForce(null);
     };
-  }, [channelId, active, videoRef]);
+  }, [channelId, active, mediaRef]);
 
   // 局を変えたら、前の局のコメントは捨てる。見えなくなって接続を閉じている間は、読み返せるよう残す。
   useEffect(() => {
@@ -175,10 +176,10 @@ function noBroadcast(): BroadcastNow | null {
 function commentWait(
   postedAt: number | undefined,
   broadcast: BroadcastNow | null,
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
 ): number | null {
   if (postedAt === undefined || broadcast === null) {
-    return playbackDelay(video);
+    return playbackDelay(media);
   }
 
   return syncedCommentWait(postedAt, broadcast);

@@ -160,7 +160,7 @@ import {
 } from '../../yunomi/recentChannels';
 import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
-import { mediaOf } from '../../yunomi/playerMedia';
+import type { PlayerMedia } from '../../yunomi/playerMedia';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -406,7 +406,7 @@ function Live({
     const storage = browserStorage();
     saveRecentChannels(storage, recordChannel(loadRecentChannels(storage), serviceId));
   }, [serviceId]);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaRef = useRef<PlayerMedia | null>(null);
   // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
   const frameRef = useRef<HTMLDivElement | null>(null);
   const inPage = useVisible(frameRef);
@@ -415,10 +415,8 @@ function Live({
   const visible = inPage || pip.container !== null;
   // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
-  // video は、今の video の要素。画質を変えたときに作り直される。
-  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
-  // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
-  const media = video === null ? null : mediaOf(video);
+  // media は、今映している経路 (#1516)。画質を変えたときに作り直される。部品は <video> ではなく、これを受け取る。
+  const [media, setMedia] = useState<PlayerMedia | null>(null);
   // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
   useWatchMedia(media);
   const videoState = useVideoState(media);
@@ -508,8 +506,9 @@ function Live({
       pictureInPicture: pip.container !== null,
     },
   );
+  // ライブの追いつきは、<video> の経路のための処理なので、<video> を渡す (playerMedia.ts の先頭)。
   const liveCatchUp = useLiveCatchUp(
-    video,
+    media?.video ?? null,
     lowLatency && route.kind === 'convert' && !timeshift.behind,
     { pictureInPicture: pip.container !== null, videoLag: adaptive.videoLag },
   );
@@ -644,7 +643,7 @@ function Live({
   );
   const jikkyo = useLiveJikkyo(
     jikkyoEnabled ? channelId : null,
-    videoRef,
+    mediaRef,
     visible,
     commentSettings,
     broadcast,
@@ -737,7 +736,7 @@ function Live({
   const capture = useCapture({
     crop,
     frameRef: playerBoxRef,
-    media: () => (videoRef.current === null ? null : mediaOf(videoRef.current)),
+    media: () => mediaRef.current,
     serviceName,
     programName,
     captureTime: () =>
@@ -749,13 +748,13 @@ function Live({
       showFlash(t('player.flash.captured'));
     }
   };
-  // 押し続けると、描き直す前に次のキーが来るので、今の音量は video の要素から読む。映像がなければ何もしない。
+  // 押し続けると、描き直す前に次のキーが来るので、今の音量は mediaRef から読む。映像がなければ何もしない。
   const changeVolume = (delta: number) => {
-    const video = videoRef.current;
-    if (video === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    const next = stepVolume(currentVolume(mediaOf(video)), delta);
+    const next = stepVolume(currentVolume(current), delta);
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };
@@ -775,7 +774,7 @@ function Live({
       disconnection === null
       ? dataBroadcastSource(service.streamUrl)
       : null,
-    videoRef,
+    mediaRef,
     dataBroadcastEnabled,
     data.systemSettings.dataBroadcastIpEnabled,
     {
@@ -804,14 +803,14 @@ function Live({
   );
   const commands: PlayerCommands = {
     ...audioDelayCommands,
-    play: () => void videoRef.current?.play().catch(() => {}),
-    pause: () => videoRef.current?.pause(),
+    play: () => void mediaRef.current?.play().catch(() => {}),
+    pause: () => mediaRef.current?.pause(),
     togglePlay: () => {
-      const video = videoRef.current;
-      if (video?.paused === true) {
-        void video.play().catch(() => {});
+      const current = mediaRef.current;
+      if (current?.paused === true) {
+        void current.play().catch(() => {});
       } else {
-        video?.pause();
+        current?.pause();
       }
     },
     // バッファへシークできるなら、録画と同じく、← と → で戻ったり進んだりする。データ放送を出している間は、データ放送の操作に譲る。
@@ -838,12 +837,12 @@ function Live({
     toggleCaptions: () => setCaptions(!captions),
     ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
     toggleMute: () => {
-      const video = videoRef.current;
-      if (video === null) {
+      const current = mediaRef.current;
+      if (current === null) {
         return;
       }
       videoState.toggleMute();
-      showFlash(t(video.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
+      showFlash(t(current.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
     },
     toggleFullscreen: fullscreen.toggle,
     volumeUp: () => changeVolume(volumeStep),
@@ -987,7 +986,7 @@ function Live({
   });
   // osd は、選局したときと番組が変わったときに、番組の情報を映像に重ねて出しているか (#815)。
   // バッファを再生している間は、放送中の番組と映像の番組が違うので出さない。
-  const osd = useProgramOsd(playerEvents, video !== null && !videoLoading, !timeshift.behind);
+  const osd = useProgramOsd(playerEvents, media !== null && !videoLoading, !timeshift.behind);
   // 小さなプレイヤーで描いている間は、開いている別の画面のタイトルを変えない (#1731)。
   const watchMini = useWatchMini();
   useDocumentTitle(documentTitle(player), !watchMini);
@@ -1007,7 +1006,7 @@ function Live({
   // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
   // ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
   const openRemote = useRemoteOpen();
-  useRemotePlayer(video === null ? null : player, playerEvents, commands, undefined, openRemote);
+  useRemotePlayer(media === null ? null : player, playerEvents, commands, undefined, openRemote);
   // commentRows は、右の列のコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
   const commentRows = useMemo(
     () =>
@@ -1027,7 +1026,7 @@ function Live({
   // 映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す。
   const resumeBehind = () => {
     const position = timeshift.positionRef.current;
-    if (videoRef.current?.error != null) {
+    if (mediaRef.current?.error != null) {
       const next = skipBrokenMedia(position, lastBrokenSkip.current);
       if (next !== null) {
         lastBrokenSkip.current = next;
@@ -1209,8 +1208,8 @@ function Live({
           // バッファからライブに戻るのもシークなので、範囲を分けて、すぐ読み直す (#1729)。
           handover={!timeshift.behind}
           handoverScope={timeshift.behind ? 'buffer' : 'live'}
-          videoRef={videoRef}
-          onVideo={setVideo}
+          mediaRef={mediaRef}
+          onMedia={setMedia}
           controls={controlBar}
           captions={captions}
           superimpose={captionSettings.superimposeLive}
@@ -1280,8 +1279,8 @@ function Live({
                 ? withSession(hlsURL(service.streamUrl, route.preset, audio.kyusuAudio))
                 : null
           }
-          videoRef={videoRef}
-          onVideo={setVideo}
+          mediaRef={mediaRef}
+          onMedia={setMedia}
           onSegment={(segment) => {
             streamMeter.onSegment(segment);
             adaptive.network.onSegment(segment);
