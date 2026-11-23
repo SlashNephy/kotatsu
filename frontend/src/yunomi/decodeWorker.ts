@@ -101,6 +101,11 @@ function post(message: FromDecodeWorker, transfer: Transferable[] = []): void {
 }
 
 self.onmessage = (event: MessageEvent<ToDecodeWorker>) => {
+  // 専用の Worker に送れるのは、作った画面のスレッドだけで、そのメッセージの origin は空になる (Chromium と Firefox)。
+  // 空にしないブラウザでも通るよう、同じ origin も受け、ほかの origin のものは読まない。
+  if (event.origin !== '' && event.origin !== self.location.origin) {
+    return;
+  }
   const message = event.data;
   switch (message.type) {
     case 'start':
@@ -225,7 +230,16 @@ function stop(): void {
 
 async function read(current: Loading, url: string): Promise<void> {
   try {
-    const response = await fetch(url, { signal: current.abort.signal, cache: 'no-store' });
+    // 読むのは、画面と同じ origin のストリームだけ。ほかの origin の URL を渡されても、ほかへは送らない。
+    const target = new URL(url, self.location.href);
+    if (target.origin !== self.location.origin) {
+      throw new Error('the stream is not on the same origin');
+    }
+    const response = await fetch(`${target.pathname}${target.search}`, {
+      signal: current.abort.signal,
+      cache: 'no-store',
+      credentials: 'same-origin',
+    });
     if (!response.ok || response.body === null) {
       throw new Error(`failed to read the stream: ${response.status}`);
     }
