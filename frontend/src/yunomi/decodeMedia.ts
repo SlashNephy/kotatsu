@@ -214,10 +214,13 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
   async play(): Promise<void> {
     if (this.context.state !== 'running') {
       try {
-        await Promise.race([
-          this.context.resume(),
-          new Promise((resolve) => setTimeout(resolve, resumeTimeout)),
-        ]);
+        // ユーザーの操作の直後なら、動き出すまで待つ。操作の前は、返らないブラウザがあるので、待つ時間に上限を付ける。
+        await (navigator.userActivation?.isActive === true
+          ? this.context.resume()
+          : Promise.race([
+              this.context.resume(),
+              new Promise((resolve) => setTimeout(resolve, resumeTimeout)),
+            ]));
       } catch {
         // 下で断る。
       }
