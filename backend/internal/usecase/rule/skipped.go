@@ -27,25 +27,6 @@ type skippedProgram struct {
 	instead *programKey
 	// laterEpisode は、前の回として外したときの、比べた相手の一番大きい話数。ほかの理由では 0。
 	laterEpisode int
-	// byRecording は、前の回として外したときに、録画 (録画履歴か録画中の録画) が理由に含まれるかどうか。
-	byRecording bool
-}
-
-// immediate は、外れた予約を、放送の直前の猶予の内でもすぐ消すかどうかを返す (#1501)。
-// 録画済みで外れた予約は、番組表の書き換えでなく録画の完了で外れたので、すぐ消す。
-// 別の放送で録るので外れた予約と、予約や番組表の放送だけを理由に前の回として外れた予約は、番組表の変化で外れたものなので、
-// 猶予の内なら残す (#1498、#1499)。
-func (s *skippedProgram) immediate() bool {
-	switch s.reason {
-	case SkipReasonOtherBroadcast:
-		return false
-	case SkipReasonEarlierEpisode:
-		return s.byRecording
-	case SkipReasonDuplicateTitle, SkipReasonRecordedEpisode:
-		return true
-	}
-
-	return true
 }
 
 // SkippedDuplicate は、ルールに一致したが、同じ番組名か同じ回を録画済みか、同じ回を別の放送で録るので予約しなかった番組

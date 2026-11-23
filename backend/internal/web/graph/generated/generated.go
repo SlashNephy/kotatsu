@@ -1807,7 +1807,6 @@ type ComplexityRoot struct {
 		RecordingDefaults                      func(childComplexity int) int
 		RecordingDownloadsEnabled              func(childComplexity int) int
 		RuleDefaults                           func(childComplexity int) int
-		RuleUnmatchedGraceMinutes              func(childComplexity int) int
 		SleepControlEnabled                    func(childComplexity int) int
 		ThumbnailPreviewsEnabled               func(childComplexity int) int
 		TimeshiftWhileWatching                 func(childComplexity int) int
@@ -10268,12 +10267,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.RuleDefaults(childComplexity), true
-	case "SystemSettings.ruleUnmatchedGraceMinutes":
-		if e.ComplexityRoot.SystemSettings.RuleUnmatchedGraceMinutes == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SystemSettings.RuleUnmatchedGraceMinutes(childComplexity), true
 	case "SystemSettings.sleepControlEnabled":
 		if e.ComplexityRoot.SystemSettings.SleepControlEnabled == nil {
 			break
@@ -15697,11 +15690,6 @@ type SystemSettings {
   "視聴している間だけ録るサービスの保持時間 (秒)。600〜86400。既定は 3600。"
   timeshiftWhileWatchingRetentionSeconds: Int!
   """
-  どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0〜1440。既定は 180。
-  番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
-  """
-  ruleUnmatchedGraceMinutes: Int!
-  """
   重複の回避で「録画済み」とみなす、映像と音声の PID のドロップの数の上限 (設計書 4.4)。0〜1000。既定は 0。
   0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
   """
@@ -15787,8 +15775,6 @@ input SystemSettingsInput {
   timeshiftWhileWatching: Boolean
   "600〜86400 秒。"
   timeshiftWhileWatchingRetentionSeconds: Int
-  "0〜1440 分。"
-  ruleUnmatchedGraceMinutes: Int
   "0〜1000 件。"
   historyMaxDrops: Int
   "1〜3650 日。"
@@ -19608,8 +19594,6 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_timeshiftWhileWatching(ctx, field)
 	case "timeshiftWhileWatchingRetentionSeconds":
 		return ec.fieldContext_SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx, field)
-	case "ruleUnmatchedGraceMinutes":
-		return ec.fieldContext_SystemSettings_ruleUnmatchedGraceMinutes(ctx, field)
 	case "historyMaxDrops":
 		return ec.fieldContext_SystemSettings_historyMaxDrops(ctx, field)
 	case "auditRetentionDays":
@@ -54930,29 +54914,6 @@ func (ec *executionContext) fieldContext_SystemSettings_timeshiftWhileWatchingRe
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
 }
 
-func (ec *executionContext) _SystemSettings_ruleUnmatchedGraceMinutes(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SystemSettings_ruleUnmatchedGraceMinutes(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.RuleUnmatchedGraceMinutes, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt2int(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SystemSettings_ruleUnmatchedGraceMinutes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
-}
-
 func (ec *executionContext) _SystemSettings_historyMaxDrops(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -61401,7 +61362,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "dramaLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes", "historyMaxDrops", "auditRetentionDays", "auditClientInfoRetentionDays", "hibpEnabled", "webPushSubject", "thumbnailPreviewsEnabled", "sleepControlEnabled", "captionThreads", "jikkyoChannels"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "dramaLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "historyMaxDrops", "auditRetentionDays", "auditClientInfoRetentionDays", "hibpEnabled", "webPushSubject", "thumbnailPreviewsEnabled", "sleepControlEnabled", "captionThreads", "jikkyoChannels"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -61555,13 +61516,6 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.TimeshiftWhileWatchingRetentionSeconds = data
-		case "ruleUnmatchedGraceMinutes":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ruleUnmatchedGraceMinutes"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.RuleUnmatchedGraceMinutes = data
 		case "historyMaxDrops":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("historyMaxDrops"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -73613,11 +73567,6 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "timeshiftWhileWatchingRetentionSeconds":
 			out.Values[i] = ec._SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "ruleUnmatchedGraceMinutes":
-			out.Values[i] = ec._SystemSettings_ruleUnmatchedGraceMinutes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

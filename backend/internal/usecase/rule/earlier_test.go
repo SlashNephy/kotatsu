@@ -228,28 +228,23 @@ func TestEngineIgnoresRejectedLaterEpisodes(t *testing.T) {
 }
 
 // TestEngineRemovesEarlierEpisodeReservations は、予約した後に、より大きい話数が先に流れると分かったときと、より大きい話数を
-// 録り終えたときに、前の回の予約を引っ込めることを確かめる (#1499)。番組表の放送だけが理由なら、猶予の内は残し、
-// 録画が理由なら、猶予の内でもすぐ消す (#1501)。
+// 録り終えたときに、前の回の予約を引っ込めることを確かめる (#1499)。
 func TestEngineRemovesEarlierEpisodeReservations(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
-		grace    int
 		recorded bool
 		want     map[int64]bool
 	}{
-		{name: "先に流れる 6 話が入れば、5 話の予約を消す", grace: 0, recorded: false, want: map[int64]bool{506: true}},
-		{name: "猶予の内なら、5 話の予約も残す", grace: 24 * 60, recorded: false, want: map[int64]bool{506: true, 605: true}},
-		{name: "6 話を録り終えたら、猶予の内でも消す", grace: 24 * 60, recorded: true, want: map[int64]bool{}},
+		{name: "先に流れる 6 話が入れば、5 話の予約を消す", recorded: false, want: map[int64]bool{506: true}},
+		{name: "6 話を録り終えたら、5 話の予約を消す", recorded: true, want: map[int64]bool{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// 猶予の上限 (1 日) の内に始まるよう、5 話を 20 時間後にする。
 			f := newEngineFixture(t, bsEpisode(605, 20*time.Hour, seriesName+" #5"))
-			f.setGrace(t, tt.grace)
 			f.createSeriesRule(t, true, false)
 			f.run(t)
 			require.Equal(t, map[int64]bool{605: true}, f.reservedSeries(t))
@@ -273,9 +268,8 @@ func TestEngineRemovesEarlierEpisodeReservations(t *testing.T) {
 func TestEngineIgnoresReservationsRemovedInTheSameRun(t *testing.T) {
 	t.Parallel()
 
-	// 6 話は、猶予 (0 分) の外の 20 時間後に、地上波で流れる。
+	// 6 話は、20 時間後に地上波で流れる。
 	f := newEngineFixture(t, grEpisode(506, 20*time.Hour, seriesName+" #6"))
-	f.setGrace(t, 0)
 	r := f.createSeriesRule(t, true, false)
 	f.run(t)
 	require.Equal(t, map[int64]bool{506: true}, f.reservedSeries(t))
@@ -300,14 +294,13 @@ func TestEngineIgnoresReservationsRemovedInTheSameRun(t *testing.T) {
 	assert.Equal(t, map[int64]bool{605: true}, f.reservedSeries(t))
 }
 
-// TestEngineIgnoresReservationsOfDisabledRules は、猶予の内でも、結び付いたルールを無効にして同じ照合で消えるルール予約は、
-// 前の回を比べる相手にしないことを確かめる (#1724)。apply は、無効にしたルールの予約を、猶予の内でも消す。
+// TestEngineIgnoresReservationsOfDisabledRules は、結び付いたルールを無効にして同じ照合で消えるルール予約は、
+// 前の回を比べる相手にしないことを確かめる (#1724)。
 func TestEngineIgnoresReservationsOfDisabledRules(t *testing.T) {
 	t.Parallel()
 
-	// 6 話は猶予 (1 日) の内の 20 時間後に地上波で、5 話はその後の 30 時間後に BS で流れる。
+	// 6 話は 20 時間後に地上波で、5 話はその後の 30 時間後に BS で流れる。
 	f := newEngineFixture(t, grEpisode(506, 20*time.Hour, seriesName+" #6"), bsEpisode(605, 30*time.Hour, seriesName+" #5"))
-	f.setGrace(t, 24*60)
 	input := func(serviceID int64, skip, enabled bool) *rule.Input {
 		return &rule.Input{
 			Name: seriesName, Memo: "", Enabled: enabled,
