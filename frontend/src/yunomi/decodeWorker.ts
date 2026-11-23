@@ -1,0 +1,552 @@
+/// <reference lib="webworker" />
+// ブラウザ内でデコードする経路 (#1516、設計書 7.2) の worker。
+// TS を読んで PES に分け (tsDemux)、映像と音声を WASM の FFmpeg でデコードし、映像は OffscreenCanvas に WebGL2 で描き
+// (pictureRenderer)、音声はメインスレッドへ渡す。時計は、メインスレッドが鳴らしている音 (decodeClock) で、
+// コマを出す間合いは、メインスレッドから届く画面の切り替わりの時刻で決める (fieldPacer)。
+import createDecoderModule, { type DecoderModule } from '@kotatsu/ffmpeg-decoder';
+
+import { AdtsSplitter } from './adtsFrames';
+import { DecodeClock } from './decodeClock';
+import type { DecodeStats, FromDecodeWorker, ToDecodeWorker } from './decodeProtocol';
+import { FieldPacer } from './fieldPacer';
+import { PictureQueue } from './pictureQueue';
+import { type ColorMatrix, type PictureSlot, PictureRenderer } from './pictureRenderer';
+import { PtsTimeline, ptsTicksPerSecond } from './ptsTimeline';
+import { type TsPes, TsDemuxer } from './tsDemux';
+
+declare const self: DedicatedWorkerGlobalScope;
+
+// params は、#1516 の「決めるパラメーター」のうち、worker が使うもの (PTS の単位)。
+const params = {
+  // lookahead は、映す PTS のこれだけ前までデコードしておく量。重いコマのデコード時間より長くする。
+  lookahead: 0.2 * ptsTicksPerSecond,
+  // maxDecoded は、デコードして待たせるコマの上限。並べ替え (B フレーム) と先読みに要る枚数より多くする。
+  maxDecoded: 8,
+  // audioAhead は、鳴っている位置のこれだけ先まで、音をデコードして渡す量。
+  audioAhead: 1 * ptsTicksPerSecond,
+  // maxCompressed は、デコードしていない映像の PES を持つ長さの上限。止めている間に溜め込まない。
+  maxCompressed: 10 * ptsTicksPerSecond,
+};
+
+// AVFrame の flags (libavutil/frame.h)。
+const frameFlagInterlaced = 1 << 3;
+const frameFlagTopFieldFirst = 1 << 4;
+// AV_SAMPLE_FMT_FLTP (libavutil/samplefmt.h)。AAC のデコーダは、この形で出す。
+const sampleFormatFloatPlanar = 8;
+// AVColorSpace のうち、BT.601 のもの (BT470BG、SMPTE170M)。
+const bt601ColorSpaces = new Set([5, 6]);
+// 映像の PES に sequence_header_code (00 00 01 B3) があれば、そこから GOP が始まる (I フレームから映せる)。
+const sequenceHeader = [0x00, 0x00, 0x01, 0xb3];
+
+type CompressedVideo = { pts: number | null; data: Uint8Array; keyframe: boolean };
+type CompressedAudio = { pts: number; data: Uint8Array };
+
+type Loading = {
+  load: number;
+  abort: AbortController;
+  demuxer: TsDemuxer;
+  timeline: PtsTimeline;
+  adts: AdtsSplitter;
+  video: CompressedVideo[];
+  audio: CompressedAudio[];
+  origin: number | null;
+  // audioSentUntil は、渡した音の終わりの PTS。
+  audioSentUntil: number | null;
+  presented: boolean;
+  shape: string | null;
+  bytesRead: number;
+  // waitKeyframe は、I フレームから始まる PES まで映像を捨てるか (読み始め、見えるようになった直後)。
+  waitKeyframe: boolean;
+  // nextPts は、PTS のないコマに当てる時刻。
+  nextPts: number | null;
+};
+
+type Engine = {
+  module: DecoderModule;
+  videoDecoder: number;
+  audioDecoder: number;
+  renderer: PictureRenderer;
+  queue: PictureQueue<PictureSlot>;
+  // input は、WASM へデータを渡す領域。
+  input: { pointer: number; size: number };
+  // flag は、dec_parse が「切り出せたか」を書く 4 バイト。
+  flag: number;
+  matrix: ColorMatrix;
+};
+
+let engine: Engine | null = null;
+let loading: Loading | null = null;
+const clock = new DecodeClock();
+const pacer = new FieldPacer();
+let visible = true;
+let presented = 0;
+const decodeTimes: number[] = [];
+let statsTimer: ReturnType<typeof setInterval> | null = null;
+
+function post(message: FromDecodeWorker, transfer: Transferable[] = []): void {
+  self.postMessage(message, transfer);
+}
+
+self.onmessage = (event: MessageEvent<ToDecodeWorker>) => {
+  const message = event.data;
+  switch (message.type) {
+    case 'start':
+      void start(message.canvas, message.wasmUrl);
+      break;
+    case 'load':
+      load(message.load, message.url, message.serviceId);
+      break;
+    case 'stop':
+      stop();
+      break;
+    case 'clock':
+      if (loading?.load === message.load) {
+        clock.observe(message.pts, message.perf);
+      }
+      break;
+    case 'vsync':
+      onVsync(message.time);
+      break;
+    case 'visible':
+      setVisible(message.visible);
+      break;
+  }
+};
+
+async function start(canvas: OffscreenCanvas, wasmUrl: string): Promise<void> {
+  try {
+    const module = await createDecoderModule({ locateFile: () => wasmUrl });
+    const videoDecoder = module._dec_open(0);
+    const audioDecoder = module._dec_open(1);
+    if (videoDecoder === 0 || audioDecoder === 0) {
+      throw new Error('failed to open the decoders');
+    }
+    const renderer = new PictureRenderer(canvas);
+    canvas.addEventListener('webglcontextlost', () => {
+      post({ type: 'error', load: loading?.load ?? null, message: 'the WebGL context was lost' });
+    });
+    const flag = module._buf_alloc(4);
+    engine = {
+      module,
+      videoDecoder,
+      audioDecoder,
+      renderer,
+      queue: new PictureQueue((slot) => renderer.release(slot)),
+      input: { pointer: 0, size: 0 },
+      flag,
+      matrix: 'bt709',
+    };
+    post({ type: 'ready' });
+  } catch (error) {
+    post({ type: 'error', load: null, message: errorMessage(error) });
+  }
+}
+
+function load(load: number, url: string, serviceId: number | null): void {
+  stop();
+  const timeline = new PtsTimeline();
+  const abort = new AbortController();
+  const current: Loading = {
+    load,
+    abort,
+    timeline,
+    adts: new AdtsSplitter(),
+    video: [],
+    audio: [],
+    origin: null,
+    audioSentUntil: null,
+    presented: false,
+    shape: null,
+    bytesRead: 0,
+    waitKeyframe: true,
+    nextPts: null,
+    demuxer: new TsDemuxer({
+      serviceId,
+      onProgram: (program) => post({ type: 'program', load, audios: program.audios }),
+      onPes: (pes) => onPes(current, pes),
+    }),
+  };
+  loading = current;
+  statsTimer = setInterval(() => sendStats(current), 1_000);
+  void read(current, url);
+}
+
+function stop(): void {
+  if (statsTimer !== null) {
+    clearInterval(statsTimer);
+    statsTimer = null;
+  }
+  if (loading !== null) {
+    loading.abort.abort();
+    loading = null;
+  }
+  clock.reset();
+  pacer.reset();
+  presented = 0;
+  decodeTimes.length = 0;
+  if (engine !== null) {
+    engine.queue.clear();
+    engine.module._dec_flush(engine.videoDecoder);
+    engine.module._dec_flush(engine.audioDecoder);
+  }
+}
+
+async function read(current: Loading, url: string): Promise<void> {
+  try {
+    const response = await fetch(url, { signal: current.abort.signal, cache: 'no-store' });
+    if (!response.ok || response.body === null) {
+      throw new Error(`failed to read the stream: ${response.status}`);
+    }
+    const reader = response.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      current.bytesRead += value.length;
+      current.demuxer.push(value);
+    }
+    current.demuxer.flush();
+    if (loading === current) {
+      post({ type: 'ended', load: current.load });
+    }
+  } catch (error) {
+    if (!current.abort.signal.aborted) {
+      post({ type: 'error', load: current.load, message: errorMessage(error) });
+    }
+  }
+}
+
+function onPes(current: Loading, pes: TsPes): void {
+  const pts = pes.pts === null ? null : current.timeline.extend(pes.pts);
+  switch (pes.kind) {
+    case 'video': {
+      // sequence_header は PES の頭に置かれるので、頭の方だけを探す。
+      const keyframe = includes(pes.data.subarray(0, 512), sequenceHeader);
+      if (current.waitKeyframe) {
+        // I フレームが来るまで映像を渡さない。P や B を先に渡すと、灰色の映像が出る。
+        if (!keyframe) {
+          return;
+        }
+        current.waitKeyframe = false;
+      }
+      current.video.push({ pts, data: pes.data, keyframe });
+      trimVideo(current);
+      // まだ時計がなければ、最初のコマを出すために、ここでデコードを進める。
+      if (clock.at(performance.now()) === null) {
+        decodeVideo(current, null);
+      }
+      break;
+    }
+    case 'audio':
+      for (const frame of current.adts.push(pes.data, pts)) {
+        current.audio.push({ pts: frame.pts, data: frame.data });
+      }
+      feedAudio(current, clock.at(performance.now()));
+      break;
+    case 'captions':
+    case 'superimpose':
+      if (pts !== null) {
+        const data = pes.data.slice().buffer;
+        post({ type: 'caption', load: current.load, kind: pes.kind, pts, data }, [data]);
+      }
+      break;
+  }
+}
+
+// trimVideo は、デコードしていない映像が上限を超えたら、古い GOP から捨てる。見えていない間は、最新の GOP だけを残す。
+function trimVideo(current: Loading): void {
+  const newest = current.video.at(-1)?.pts ?? null;
+  const limit = visible ? params.maxCompressed : 0;
+  while (current.video.length > 1) {
+    const first = current.video[0]!;
+    const nextKeyframe = current.video.findIndex((item, i) => i > 0 && item.keyframe);
+    if (nextKeyframe < 0) {
+      return;
+    }
+    const tooLong = newest !== null && first.pts !== null && newest - first.pts > limit;
+    if (!tooLong) {
+      return;
+    }
+    current.video.splice(0, nextKeyframe);
+  }
+}
+
+// ensureInput は、WASM へデータを渡す領域を size バイト以上にする。
+function ensureInput(size: number): number {
+  const target = engine!;
+  if (target.input.size < size) {
+    if (target.input.pointer !== 0) {
+      target.module._buf_free(target.input.pointer);
+    }
+    const next = Math.max(size, target.input.size * 2, 1 << 16);
+    target.input.pointer = target.module._buf_alloc(next);
+    target.input.size = next;
+  }
+
+  return target.input.pointer;
+}
+
+// decodeVideo は、映す PTS target の先読みの分まで、待たせる上限を超えない範囲で映像をデコードする。
+// target が null (まだ時計がない) なら、最初のコマを出すまでデコードする。
+function decodeVideo(current: Loading, target: number | null): void {
+  if (engine === null || !visible) {
+    return;
+  }
+  const { module, videoDecoder, queue, flag } = engine;
+  while (current.video.length > 0) {
+    if (queue.length >= params.maxDecoded) {
+      return;
+    }
+    const newest = queue.newest;
+    if (
+      target === null ? queue.length >= 1 : newest !== null && newest > target + params.lookahead
+    ) {
+      return;
+    }
+    const item = current.video.shift()!;
+    const started = performance.now();
+    const pointer = ensureInput(item.data.length);
+    module.HEAPU8.set(item.data, pointer);
+    let offset = 0;
+    do {
+      const used = module._dec_parse(
+        videoDecoder,
+        pointer + offset,
+        item.data.length - offset,
+        offset === 0 && item.pts !== null ? item.pts : Number.NaN,
+        flag,
+      );
+      if (used < 0) {
+        break;
+      }
+      offset += used;
+      if (module.HEAP32[flag >> 2] !== 0) {
+        module._dec_send_parsed(videoDecoder);
+        receivePictures(current);
+      }
+    } while (offset < item.data.length);
+    decodeTimes.push(performance.now() - started);
+    if (decodeTimes.length > 120) {
+      decodeTimes.shift();
+    }
+  }
+}
+
+// receivePictures は、デコードしたコマを受け取り、テクスチャに上げて待ち行列に足す。
+function receivePictures(current: Loading): void {
+  const target = engine!;
+  const { module, videoDecoder, renderer, queue } = target;
+  while (module._dec_receive(videoDecoder) === 0) {
+    const width = module._frame_width(videoDecoder);
+    const height = module._frame_height(videoDecoder);
+    const flags = module._frame_flags(videoDecoder);
+    const interlaced = (flags & frameFlagInterlaced) !== 0;
+    let pts: number;
+    if (module._frame_has_pts(videoDecoder) !== 0) {
+      pts = module._frame_pts(videoDecoder);
+    } else if (current.nextPts !== null) {
+      pts = current.nextPts;
+    } else {
+      continue;
+    }
+    current.nextPts = pts + (queue.frameDuration ?? 3003);
+    const sarNum = module._frame_sar_num(videoDecoder);
+    const sarDen = module._frame_sar_den(videoDecoder);
+    const displayWidth = sarNum > 0 && sarDen > 0 ? Math.round((width * sarNum) / sarDen) : width;
+    const colorSpace = module._frame_colorspace(videoDecoder);
+    target.matrix =
+      bt601ColorSpaces.has(colorSpace) || (colorSpace === 2 && height < 720) ? 'bt601' : 'bt709';
+    const shape = `${displayWidth}x${height}:${interlaced}`;
+    if (current.shape !== shape) {
+      current.shape = shape;
+      renderer.resize(displayWidth, height);
+      post({ type: 'picture', load: current.load, width: displayWidth, height, interlaced });
+    }
+    const slot = renderer.acquire(width, height);
+    renderer.upload(slot, module.HEAPU8, [
+      {
+        pointer: module._frame_data(videoDecoder, 0),
+        stride: module._frame_linesize(videoDecoder, 0),
+      },
+      {
+        pointer: module._frame_data(videoDecoder, 1),
+        stride: module._frame_linesize(videoDecoder, 1),
+      },
+      {
+        pointer: module._frame_data(videoDecoder, 2),
+        stride: module._frame_linesize(videoDecoder, 2),
+      },
+    ]);
+    const added = queue.push({
+      pts,
+      interlaced,
+      topFieldFirst: (flags & frameFlagTopFieldFirst) !== 0,
+      slot,
+    });
+    if (added && current.origin === null) {
+      current.origin = pts;
+      post({ type: 'origin', load: current.load, pts });
+    }
+    if (added && !current.presented && clock.at(performance.now()) === null) {
+      // 時計が動く前 (音を貯めている間) は、最初のコマを出して待つ。
+      present(current, pts);
+    }
+  }
+}
+
+// feedAudio は、鳴っている位置 now の少し先までの音をデコードし、メインスレッドへ渡す。
+// まだ時計がなければ (鳴らし始める前)、先読みの分だけ渡す。
+function feedAudio(current: Loading, now: number | null): void {
+  if (engine === null) {
+    return;
+  }
+  const { module, audioDecoder } = engine;
+  const first = current.audio[0]?.pts ?? null;
+  const until = (now ?? first ?? 0) + params.audioAhead;
+  while (
+    current.audio.length > 0 &&
+    (current.audioSentUntil === null || current.audioSentUntil < until)
+  ) {
+    const frame = current.audio.shift()!;
+    const pointer = ensureInput(frame.data.length);
+    module.HEAPU8.set(frame.data, pointer);
+    if (module._dec_send(audioDecoder, pointer, frame.data.length, frame.pts) < 0) {
+      // 壊れたフレームは飛ばす。
+      continue;
+    }
+    while (module._dec_receive(audioDecoder) === 0) {
+      if (module._frame_format(audioDecoder) !== sampleFormatFloatPlanar) {
+        post({ type: 'error', load: current.load, message: 'unexpected audio sample format' });
+
+        return;
+      }
+      const samples = module._frame_nb_samples(audioDecoder);
+      const sampleRate = module._frame_sample_rate(audioDecoder);
+      const channels = module._frame_channels(audioDecoder);
+      const plane = (index: number) =>
+        new Float32Array(
+          module.HEAPU8.buffer,
+          module._frame_data(audioDecoder, index),
+          samples,
+        ).slice();
+      // 5.1ch は前の左右の 2 つだけを鳴らす (ダウンミックスは持たない)。AAC のデコーダは、前の左右を先に並べる。
+      const left = plane(0);
+      const right = channels >= 2 ? plane(1) : left.slice();
+      const pts =
+        module._frame_has_pts(audioDecoder) !== 0 ? module._frame_pts(audioDecoder) : frame.pts;
+      current.audioSentUntil = pts + (samples * ptsTicksPerSecond) / sampleRate;
+      post({ type: 'audio', load: current.load, pts, sampleRate, left, right }, [
+        left.buffer,
+        right.buffer,
+      ]);
+    }
+  }
+}
+
+function onVsync(time: number): void {
+  const current = loading;
+  if (current === null || engine === null) {
+    return;
+  }
+  const target = pacer.onVsync(time, (perf) => clock.at(perf));
+  feedAudio(current, clock.at(time));
+  if (target === null) {
+    return;
+  }
+  decodeVideo(current, target);
+  const choice = engine.queue.choose(target);
+  if (choice === null) {
+    return;
+  }
+  engine.renderer.draw({
+    slot: choice.picture.slot,
+    previous: engine.queue.previous?.slot ?? null,
+    interlaced: choice.picture.interlaced,
+    parity: choice.parity,
+    matrix: engine.matrix,
+  });
+  presented += 1;
+  if (!current.presented) {
+    current.presented = true;
+    post({ type: 'presented', load: current.load });
+  }
+}
+
+// present は、時計が動く前に、待ち行列の最初のコマを描いて待つ。
+function present(current: Loading, pts: number): void {
+  const choice = engine?.queue.choose(pts) ?? null;
+  if (engine === null || choice === null) {
+    return;
+  }
+  engine.renderer.draw({
+    slot: choice.picture.slot,
+    previous: null,
+    interlaced: choice.picture.interlaced,
+    parity: choice.parity,
+    matrix: engine.matrix,
+  });
+  current.presented = true;
+  post({ type: 'presented', load: current.load });
+}
+
+function setVisible(next: boolean): void {
+  visible = next;
+  const current = loading;
+  if (current === null || engine === null) {
+    return;
+  }
+  if (!next) {
+    // 見えていない間は映像をデコードしない。裏のタブでデコードし続けると、見ているタブが間に合わなくなる。
+    engine.queue.clear();
+    trimVideo(current);
+
+    return;
+  }
+  // 見えたら、最新の I フレームからデコードし直す。
+  engine.module._dec_flush(engine.videoDecoder);
+  const keyframe = current.video.findLastIndex((item) => item.keyframe);
+  if (keyframe > 0) {
+    current.video.splice(0, keyframe);
+  }
+  pacer.reset();
+}
+
+function sendStats(current: Loading): void {
+  if (loading !== current || engine === null) {
+    return;
+  }
+  const sorted = [...decodeTimes].sort((a, b) => a - b);
+  const stats: DecodeStats = {
+    decodeMs:
+      sorted.length === 0
+        ? null
+        : {
+            median: sorted[Math.floor(sorted.length / 2)]!,
+            p95: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]!,
+          },
+    presented,
+    dropped: engine.queue.dropped,
+    bytesRead: current.bytesRead,
+  };
+  post({ type: 'stats', load: current.load, stats });
+}
+
+// includes は、data の中に pattern があるかを返す。
+function includes(data: Uint8Array, pattern: readonly number[]): boolean {
+  outer: for (let i = 0; i + pattern.length <= data.length; i++) {
+    for (let j = 0; j < pattern.length; j++) {
+      if (data[i + j] !== pattern[j]) {
+        continue outer;
+      }
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
