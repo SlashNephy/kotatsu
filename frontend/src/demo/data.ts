@@ -233,7 +233,8 @@ export function createRootValue(
     auditClientInfoRetentionDays: 90,
     // デモは外部へ問い合わせないので、漏えいしたパスワードの照合は使わない。
     hibpEnabled: false,
-    webPushSubject: null,
+    // 本物のサーバーは、設定していなくても空の文字列を返す。
+    webPushSubject: '',
     thumbnailPreviewsEnabled: true,
     sleepControlEnabled: true,
     captionThreads: 0,
@@ -675,18 +676,68 @@ export function createRootValue(
     systemSettings: () => systemSettings,
     // 全体の設定を保存する (#2073)。渡した項目だけを書き換え、保存した時刻を残す。読み直しても、保存した値を返す。
     updateSystemSettings: ({ input }: { input: Record<string, unknown> }) => {
-      const { ruleDefaults, recordingDefaults, ...rest } = input as Record<string, unknown> & {
-        ruleDefaults?: Record<string, unknown> | null;
-        recordingDefaults?: Record<string, unknown> | null;
-      };
+      const { ruleDefaults, recordingDefaults, drcsReplacements, jikkyoChannels, ...rest } =
+        input as Record<string, unknown> & {
+          ruleDefaults?: Record<string, unknown> | null;
+          recordingDefaults?: Record<string, unknown> | null;
+          drcsReplacements?: { md5: string; text?: string | null }[] | null;
+          jikkyoChannels?:
+            | { networkId: number; serviceId: number; channelId?: string | null }[]
+            | null;
+        };
       const defined = (value: Record<string, unknown> | null | undefined) =>
         Object.fromEntries(Object.entries(value ?? {}).filter(([, v]) => v != null));
       // 本物のサーバーと同じく、録画とルールの既定値は、渡した項目だけを書き換える。
       // 重複を避ける期間は、clearDuplicateWindowDays で空 (区切らない) にする。
       const { clearDuplicateWindowDays, ...ruleChanges } = defined(ruleDefaults);
+      const changes = defined(rest);
+      // 実況を流すかは、本物のサーバーと同じく、コメントの取得元に NX-Jikkyo を含むかから決める。
+      if (Array.isArray(changes['commentSources'])) {
+        changes['jikkyoEnabled'] = changes['commentSources'].includes('NX_JIKKYO');
+      }
+      // 外字の置き換えと実況のチャンネルの対応は、渡したものだけを変え、null なら消す (本物のサーバーと同じ)。
+      if (drcsReplacements != null) {
+        const table = new Map(
+          (systemSettings['drcsReplacements'] as { md5: string; text: string }[]).map((row) => [
+            row.md5,
+            row.text,
+          ]),
+        );
+        for (const { md5, text } of drcsReplacements) {
+          if (text == null) {
+            table.delete(md5);
+          } else {
+            table.set(md5, text);
+          }
+        }
+        changes['drcsReplacements'] = [...table]
+          .map(([md5, text]) => ({ md5, text }))
+          .toSorted((a, b) => a.md5.localeCompare(b.md5));
+      }
+      if (jikkyoChannels != null) {
+        const table = new Map(
+          (
+            systemSettings['jikkyoChannels'] as {
+              networkId: number;
+              serviceId: number;
+              channelId: string;
+            }[]
+          ).map((row) => [`${row.networkId}:${row.serviceId}`, row]),
+        );
+        for (const { networkId, serviceId, channelId } of jikkyoChannels) {
+          if (channelId == null) {
+            table.delete(`${networkId}:${serviceId}`);
+          } else {
+            table.set(`${networkId}:${serviceId}`, { networkId, serviceId, channelId });
+          }
+        }
+        changes['jikkyoChannels'] = [...table.values()].toSorted(
+          (a, b) => a.networkId - b.networkId || a.serviceId - b.serviceId,
+        );
+      }
       systemSettings = {
         ...systemSettings,
-        ...defined(rest),
+        ...changes,
         recordingDefaults: {
           ...(systemSettings['recordingDefaults'] as object),
           ...defined(recordingDefaults),
