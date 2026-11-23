@@ -209,7 +209,7 @@ GitHubのSocial previewに使う`docs/screenshots/social-preview.png`も、番�
 | コマンド | 内容 |
 | --- | --- |
 | `mise run dev` | 開発用のComposeを動かす。ソースを保存すると、その場で反映される |
-| `mise run //backend:generate` | sqlc、gqlgen、GraphQLのスキーマなどの生成物を作り直し、マイグレーションを検証する |
+| `mise run //backend:generate` | sqlc、gqlgen、GraphQLのスキーマなどの生成物を作り直す |
 | `mise run //backend:test` | Goのテストを`-race`付きで実行する |
 | `mise run //backend:test:db` | `postgres-test`を起動し、DBを使うテストも含めてGoのテストを実行する |
 | `mise run //backend:lint` | golangci-lintを実行する |

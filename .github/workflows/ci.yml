@@ -248,7 +248,7 @@ jobs:
           name: ${{ github.job }}
       - uses: $/.github/actions/pnpm-cache
       - run: mise run //backend:generate
-      # 生成物や未生成のマイグレーションがあれば、新しいファイルも含めて差分として検出する。
+      # 生成物の作り忘れがあれば、新しいファイルも含めて差分として検出する。
       - run: git add -N . && git diff --exit-code
 
   # フロントエンド (設計書 10.1)。整形、lint、型検査、Vitest、Storybook のビルド、E2E テストを行う。

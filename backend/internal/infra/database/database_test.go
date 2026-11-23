@@ -98,6 +98,18 @@ func TestMigrateFromGoose(t *testing.T) {
 		assert.Equal(t, scriptVersions(t), appliedScripts(t, pool))
 	})
 
+	t.Run("does not run the scripts that goose has run", func(t *testing.T) {
+		t.Parallel()
+
+		pool := open(t, databasetest.New(t))
+		loadGooseFixture(t, pool)
+		// goose の版より古いスクリプトは、goose のマイグレーションで流したものとみなす。流せば失敗する。
+		fsys := withScript(t, fmt.Sprintf("scripts/%d_ran_by_goose.after.sql", database.GooseFloorVersion), "SELECT 1 / 0;")
+
+		require.NoError(t, database.MigrateWithScripts(t.Context(), slog.New(slog.DiscardHandler), pool, fsys))
+		assert.Contains(t, appliedScripts(t, pool), database.GooseFloorVersion)
+	})
+
 	t.Run("rejects a database older than v2026.11.5", func(t *testing.T) {
 		t.Parallel()
 

@@ -29,7 +29,7 @@
       enabled: false,
     },
     {
-      // CI で確かめる、対応する最も古い DB の版 (.github/workflows/ci.yml の oldest) と、atlas.hcl の開発用 DB。
+      // CI で確かめる、対応する最も古い DB の版 (.github/workflows/ci.yml の oldest)。
       // 古いバージョンのマネージド DB や EPGStation の利用者の DB で動くことを確かめるために残すので、メジャーバージョンは手で上げる。
       matchDepTypes: [
         'oldest',
@@ -46,13 +46,6 @@
         'FFmpeg/nv-codec-headers',
       ],
       allowedVersions: '/^12\\.1\\./',
-    },
-    {
-      // atlas.hcl の開発用 DB の URL (docker+postgres://) には、digest を書けない。
-      matchFileNames: [
-        'backend/atlas.hcl',
-      ],
-      pinDigests: false,
     },
     {
       // 配布物の例 (deploy/) にある Kotatsu 自身のイメージは、利用者が edge の最新を追うためのものなので、digest で固定しない。
@@ -135,18 +128,6 @@
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) versioning=(?<versioning>\\S+) extractVersion=(?<extractVersion>\\S+)\\nffmpeg=(?<currentValue>\\S+)',
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nemsdk=(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[0-9a-f]{64})',
       ],
-    },
-    {
-      // atlas.hcl の開発用 DB のイメージ。
-      customType: 'regex',
-      managerFilePatterns: [
-        '/^backend/atlas\\.hcl$/',
-      ],
-      matchStrings: [
-        'docker\\+postgres://(?<depName>[^:]+):(?<currentValue>[^/]+)/',
-      ],
-      datasourceTemplate: 'docker',
-      depTypeTemplate: 'oldest',
     },
     {
       // CI で確かめる DB の版。oldest と latest の 2 つの版を、matrix の値として書いている。
