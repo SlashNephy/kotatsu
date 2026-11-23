@@ -38,7 +38,7 @@ describe('FieldPacer', () => {
     }
   });
 
-  test('何回分か抜けた切り替わりは、回数で割って間隔を覚え、PTS を回数分進める', () => {
+  test('何回分か抜けた切り替わりでは、間隔を変えず、PTS を回数分進める', () => {
     const pacer = new FieldPacer();
     pacer.onVsync(0, clockAt());
     const before = pacer.onVsync(refresh, clockAt())!;

@@ -102,18 +102,20 @@ export class FieldPacer {
         const sorted = [...this.long].sort((a, b) => a - b);
         this.interval = sorted[Math.floor(sorted.length / 2)]!;
         this.long = [];
+        // 今回の steps は古い間隔で数えたので、位置を覚え直す。
+        this.pts = null;
       }
 
       return;
     }
-    const one = gap / steps;
-    if (steps >= 2 || one < this.params.minInterval || one > this.params.maxInterval) {
+    // 抜けた切り替わりの間隔は揺れが大きいので、1 回分の間隔だけで覚える。
+    if (steps >= 2 || gap < this.params.minInterval || gap > this.params.maxInterval) {
       return;
     }
     this.long = [];
     this.interval =
       this.interval === null
-        ? one
-        : this.interval + (one - this.interval) * this.params.intervalBlend;
+        ? gap
+        : this.interval + (gap - this.interval) * this.params.intervalBlend;
   }
 }

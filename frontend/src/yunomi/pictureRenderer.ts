@@ -77,6 +77,21 @@ vec2 c(ivec2 p) {
   return vec2(texelFetch(uU, q, 0).r, texelFetch(uV, q, 0).r);
 }
 
+// keepAt は、このフィールドにない輝度の行 m で、もう片方のフィールドの値をそのまま使う度合いを返す。
+// 上下の行から飛び出していなければ (くしが出ていなければ) 1、飛び出していて、前のコマから動いていれば 0 に寄せる。
+float keepAt(ivec2 m) {
+  float a = y(m - ivec2(0, 1));
+  float b = y(m + ivec2(0, 1));
+  float o = y(m);
+  float over = max(0.0, max(o - max(a, b), min(a, b) - o));
+  float keep = 1.0 - smoothstep(uThresholds.x, uThresholds.y, over);
+  if (over > uThresholds.x && uHasPrev == 1) {
+    float motion = max(abs(o - py(m)), max(abs(a - py(m - ivec2(0, 1))), abs(b - py(m + ivec2(0, 1)))));
+    keep = max(keep, 1.0 - smoothstep(uThresholds.z, uThresholds.w, motion));
+  }
+  return keep;
+}
+
 void main() {
   // 描く先は行を下から数え、元の画像は上から数える。
   vec2 uv = vec2(gl_FragCoord.x / uOutput.x, 1.0 - gl_FragCoord.y / uOutput.y);
@@ -88,21 +103,15 @@ void main() {
     luma = y(p);
     chroma = c(q);
   } else {
-    // keep は、もう片方のフィールドの値をそのまま使う度合い。
-    float keep = 1.0;
+    // m は、p と同じ 2 行の組の中で、このフィールドにない輝度の行。p がその行なら p 自身。
+    // 色差の行は 2 行の輝度の組に 1 行で、輝度の行がこのフィールドにあっても、色差の行は抜けていることがある。
+    // そのときも、組の中の抜けた輝度の行で、動いているかを測る。
+    ivec2 m = ivec2(p.x, (p.y & ~1) | (1 - uField));
+    float keep = keepAt(m);
     if ((p.y & 1) == uField) {
       luma = y(p);
     } else {
-      float a = y(p - ivec2(0, 1));
-      float b = y(p + ivec2(0, 1));
-      float o = y(p);
-      float over = max(0.0, max(o - max(a, b), min(a, b) - o));
-      keep = 1.0 - smoothstep(uThresholds.x, uThresholds.y, over);
-      if (over > uThresholds.x && uHasPrev == 1) {
-        float motion = max(abs(o - py(p)), max(abs(a - py(p - ivec2(0, 1))), abs(b - py(p + ivec2(0, 1)))));
-        keep = max(keep, 1.0 - smoothstep(uThresholds.z, uThresholds.w, motion));
-      }
-      luma = mix((a + b) * 0.5, o, keep);
+      luma = mix((y(p - ivec2(0, 1)) + y(p + ivec2(0, 1))) * 0.5, y(p), keep);
     }
     // 色差の行も、フィールドごとに交互に並ぶ。抜けた行は、輝度で決めた度合いで、上下の平均ともう片方の値を混ぜる。
     if ((q.y & 1) == uField) {

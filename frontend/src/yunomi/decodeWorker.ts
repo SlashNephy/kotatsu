@@ -216,6 +216,8 @@ function stop(): void {
   decodeTimes.length = 0;
   if (engine !== null) {
     engine.queue.clear();
+    // 映さずに捨てた数は、読み込みごとに数え直す (getVideoPlaybackQuality と同じ)。
+    engine.queue.dropped = 0;
     engine.module._dec_flush(engine.videoDecoder);
     engine.module._dec_flush(engine.audioDecoder);
   }
@@ -312,8 +314,17 @@ function trimAudio(current: Loading): void {
 
 // trimVideo は、デコードしていない映像が上限を超えたら、古い GOP から捨てる。見えていない間は、最新の GOP だけを残す。
 function trimVideo(current: Loading): void {
+  if (!visible) {
+    // 時刻を見ずに、最新の I フレームより前を捨てる (PTS のない PES があっても溜め続けない)。
+    const keyframe = current.video.findLastIndex((item) => item.keyframe);
+    if (keyframe > 0) {
+      current.video.splice(0, keyframe);
+    }
+
+    return;
+  }
   const newest = current.video.at(-1)?.pts ?? null;
-  const limit = visible ? params.maxCompressed : 0;
+  const limit = params.maxCompressed;
   while (current.video.length > 1) {
     const first = current.video[0]!;
     const nextKeyframe = current.video.findIndex((item, i) => i > 0 && item.keyframe);
@@ -568,7 +579,13 @@ function setVisible(next: boolean): void {
   const keyframe = current.video.findLastIndex((item) => item.keyframe);
   if (keyframe > 0) {
     current.video.splice(0, keyframe);
+  } else if (keyframe < 0) {
+    // I フレームがなければ、崩れたコマを出さないよう、次の I フレームまで待つ。
+    current.video.length = 0;
+    current.waitKeyframe = true;
   }
+  // デコーダを空にしたので、PTS のないコマの時刻も数え直す。
+  current.nextPts = null;
   pacer.reset();
 }
 
