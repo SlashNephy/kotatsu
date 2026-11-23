@@ -1,3 +1,5 @@
+import type { PlayerMedia } from './playerMedia';
+
 // VideoStats は、右の列の「情報」(#828) に出す、映像の再生の様子 (#499)。
 export type VideoStats = {
   width: number;
@@ -13,10 +15,14 @@ export type VideoStats = {
 // readVideoStats は、video から、再生の様子を読む。
 export function readVideoStats(
   video: Pick<
-    HTMLVideoElement,
-    'videoWidth' | 'videoHeight' | 'currentTime' | 'buffered' | 'playbackRate'
-  > &
-    Partial<Pick<HTMLVideoElement, 'getVideoPlaybackQuality'>>,
+    PlayerMedia,
+    | 'videoWidth'
+    | 'videoHeight'
+    | 'currentTime'
+    | 'buffered'
+    | 'playbackRate'
+    | 'getVideoPlaybackQuality'
+  >,
 ): VideoStats {
   let buffered = 0;
   for (let i = 0; i < video.buffered.length; i++) {
