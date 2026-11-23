@@ -20,4 +20,5 @@ FFmpeg のリリースの tarball を取り、`SOURCE` の鍵で署名を確か�
 | `../../public/ffmpeg/` | デコーダの WebAssembly と、ライセンス文書、ソースの入手先 | LGPL-2.1-or-later |
 
 FFmpeg は、LGPL の条件に沿って、ほかのコードと混ぜずに独立したモジュールのまま配信します。
-差し替えるときは、同じ `glue.c` の関数を持つビルドで、`public/ffmpeg/decoder.wasm` を置き換えてください。
+WebAssembly を読み込む `decoder/dist/decoder.js` は、WebAssembly の関数を縮めた名前で呼び、画面の JS に束ねられます。
+そのため、差し替えるときは、`decoder.wasm` だけを置き換えず、上のコマンドで `decoder.wasm` と `decoder.js` を組で組み直してから、画面を組み直してください。

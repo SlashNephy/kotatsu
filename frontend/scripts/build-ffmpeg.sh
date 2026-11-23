@@ -53,8 +53,10 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$work:/w" -e "FFMPEG_VERSION=$ffmpeg"
       --disable-programs --disable-doc --disable-network --disable-autodetect --disable-debug --disable-runtime-cpudetect \
       --disable-everything --disable-avdevice --disable-avformat --disable-avfilter --disable-swscale --disable-swresample \
       --enable-decoder=mpeg2video,aac --enable-parser=mpegvideo \
-      --optflags="$cflags" --extra-cflags="$cflags" --extra-ldflags="$cflags" >/w/out/configure.log
-    emmake make -j"$(nproc)" >/w/out/make.log 2>&1
+      --optflags="$cflags" --extra-cflags="$cflags" --extra-ldflags="$cflags" >/w/out/configure.log ||
+      { cat /w/obj/ffbuild/config.log >&2; exit 1; }
+    # 長いので、落ちたときだけ出す。
+    emmake make -j"$(nproc)" >/w/out/make.log 2>&1 || { cat /w/out/make.log >&2; exit 1; }
     # shellcheck disable=SC2086 # cflags は空白で分けて渡す
     emcc $cflags -I. -I"/w/ffmpeg-$FFMPEG_VERSION" /w/glue.c \
       libavcodec/libavcodec.a libavutil/libavutil.a \
@@ -76,5 +78,5 @@ cat >"$public/SOURCE" <<EOF
 FFmpeg $ffmpeg (LGPL-2.1-or-later), configured with only the mpeg2video and aac decoders and the mpegvideo parser.
 Source: https://ffmpeg.org/releases/ffmpeg-$ffmpeg.tar.xz
 Glue code and build script: frontend/vendor/ffmpeg/glue.c and frontend/scripts/build-ffmpeg.sh in https://github.com/SlashNephy/kotatsu
-To replace this library, build decoder.wasm with the same glue code and exported functions and put it in place of this file.
+To replace this library, rebuild decoder.wasm (next to this file) together with decoder.js using the build script above, then rebuild the frontend that bundles decoder.js.
 EOF
