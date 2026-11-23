@@ -36,8 +36,8 @@ type RestoreOptions struct {
 
 // Restore は、Write で書き出したバックアップを、identities の秘密鍵で読み、空の DB に戻す。
 //
-// 書き出したときのスキーマの版までマイグレーションを当て、1 つのトランザクションの中で表を流し込み、キャプチャの画像をデータディレクトリに書く。
-// 流し込み終えたら、最新の版までマイグレーションを当てる。戻す間は、マイグレーションのロックを持つ。
+// 今のスキーマを当て、1 つのトランザクションの中で表を流し込み、キャプチャの画像をデータディレクトリに書く。
+// 流し込み終えたら、書き出したときの版より新しい 1 回だけのスクリプトを、戻した行に流す (#2040)。戻す間は、マイグレーションのロックを持つ。
 func Restore(ctx context.Context, opts *RestoreOptions, r io.Reader, identities []age.Identity) (*Manifest, error) {
 	decrypted, err := age.Decrypt(r, identities...)
 	if err != nil {

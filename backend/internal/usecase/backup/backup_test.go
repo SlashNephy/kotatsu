@@ -297,6 +297,35 @@ VALUES ($1, 3273601024, 'new', '', $2, $3, 'completed', $2, $2, $2) RETURNING ap
 	assert.Equal(t, int64(1), watcher.Version(epg.NotifyChannel))
 }
 
+// TestRestoreRunsNewerScripts は、新しい仕組みに移る前 (v2026.11.5) に書き出したバックアップを戻すと、
+// 書き出したときの版より新しい 1 回だけのスクリプトを、戻した行に流すことを確かめる (#2040)。
+func TestRestoreRunsNewerScripts(t *testing.T) {
+	t.Parallel()
+
+	source := newDB(t)
+	sourceDir := t.TempDir()
+	s := insertSeed(t, source, sourceDir)
+	// v2026.11.5 の DB には、判定に数えるドロップの列がまだない。列の既定の値 (0) のまま書き出したものとして扱う。
+	_, err := source.Exec(t.Context(), "UPDATE recordings SET drops = 4, judged_drops = 0 WHERE id = $1", s.recordingID)
+	require.NoError(t, err)
+	_, err = source.Exec(t.Context(), "UPDATE schema_compatibility SET schema_version = $1", database.GooseFloorVersion)
+	require.NoError(t, err)
+	identity := newIdentity(t)
+	var buf bytes.Buffer
+	_, err = backup.Write(t.Context(), writeOptions(source, kago.New(nil, nil).WithDataDir(sourceDir)), &buf, []age.Recipient{identity.Recipient()})
+	require.NoError(t, err)
+
+	target := newEmptyDB(t)
+	manifest, err := backup.Restore(t.Context(), restoreOptions(target, kago.New(nil, nil).WithDataDir(t.TempDir())), bytes.NewReader(buf.Bytes()), []age.Identity{identity})
+	require.NoError(t, err)
+	assert.Equal(t, database.GooseFloorVersion, manifest.SchemaVersion)
+
+	require.NoError(t, database.CheckSchema(t.Context(), target))
+	var judgedDrops int64
+	require.NoError(t, target.QueryRow(t.Context(), "SELECT judged_drops FROM recordings WHERE id = $1", s.recordingID).Scan(&judgedDrops))
+	assert.Equal(t, int64(4), judgedDrops)
+}
+
 // TestRestoreRejects は、戻せないバックアップや戻す先を、DB を変えずに拒むことを確かめる。
 func TestRestoreRejects(t *testing.T) {
 	t.Parallel()
@@ -309,6 +338,12 @@ func TestRestoreRejects(t *testing.T) {
 	_, err := backup.Write(t.Context(), writeOptions(source, kago.New(nil, nil).WithDataDir(sourceDir)), &buf, []age.Recipient{identity.Recipient()})
 	require.NoError(t, err)
 	data := buf.Bytes()
+	// v2026.11.5 より前に書き出したもの。
+	_, err = source.Exec(t.Context(), "UPDATE schema_compatibility SET schema_version = $1", database.GooseFloorVersion-1)
+	require.NoError(t, err)
+	var old bytes.Buffer
+	_, err = backup.Write(t.Context(), writeOptions(source, kago.New(nil, nil).WithDataDir(sourceDir)), &old, []age.Recipient{identity.Recipient()})
+	require.NoError(t, err)
 
 	tests := []struct {
 		name       string
@@ -325,6 +360,13 @@ func TestRestoreRejects(t *testing.T) {
 				t.Helper()
 				var noMatch *age.NoIdentityMatchError
 				require.ErrorAs(t, err, &noMatch)
+			}, wantTables: false,
+		},
+		{
+			name: "a backup older than v2026.11.5", data: old.Bytes(), identity: identity,
+			target: newEmptyDB, secretKey: testSecretKey, wantErr: func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorIs(t, err, backup.ErrBackupTooOld)
 			}, wantTables: false,
 		},
 		{

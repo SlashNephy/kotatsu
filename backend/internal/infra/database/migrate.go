@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"time"
 
@@ -48,6 +49,11 @@ func SchemaVersion() int64 {
 // Migrate は、埋め込んだスキーマ (db/schema.sql) と DB の差を当て、まだ流していない 1 回だけのスクリプトを流す (#2040)。
 // 差がなく、流すスクリプトもなければ、スキーマは変えない。表、列、型を消す差があれば、当てずに ErrDestructiveChange を返す。
 func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
+	return migrate(ctx, logger, pool, db.Scripts)
+}
+
+// migrate は、Migrate の本体。1 回だけのスクリプトを scriptsFS の scripts/ から読む。
+func migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, scriptsFS fs.FS) error {
 	// スキーマの変更は、大きな表の書き換えで長くかかることがあるので、問い合わせの時間の上限を外した接続で流す (#527)。
 	migrationPool, err := withoutStatementTimeout(ctx, pool)
 	if err != nil {
@@ -61,14 +67,23 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 	if err != nil {
 		return err
 	}
-	plan, err := planScripts(ctx, migrationPool, state)
+	scripts, err := loadScripts(scriptsFS)
+	if err != nil {
+		return err
+	}
+	plan, err := planScripts(ctx, migrationPool, state, scripts)
 	if err != nil {
 		return err
 	}
 
-	// 差を当てる前に流すスクリプト (列の改名や、意図して消すものなど)。
-	ran, err := runScripts(ctx, logger, migrationPool, plan.before, state.hasScripts)
-	if err != nil {
+	// 差を当てる前に流すスクリプト (列の改名や、意図して消すものなど)。流したことを同じトランザクションで記録するよう、
+	// goose から移る DB でも、記録する表を先に作る。schema.sql と同じ定義なので、差を当てるときには変えない。
+	if len(plan.before) > 0 && !state.hasScripts {
+		if _, err := migrationPool.Exec(ctx, createScriptsTable); err != nil {
+			return fmt.Errorf("failed to create the table of the one-time scripts: %w", err)
+		}
+	}
+	if err := runScripts(ctx, logger, migrationPool, plan.before); err != nil {
 		return err
 	}
 
@@ -76,23 +91,23 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 		return err
 	}
 
-	// 差を当てたので、スクリプトを記録する表がある。記録する表がないうちに流したものと、流したものとみなすものを記録する。
+	// 差を当てたので、スクリプトを記録する表がある。流したものとみなすものを記録する。
 	if err := sqlc.New(migrationPool).MarkSchemaScriptsApplied(ctx, sqlc.MarkSchemaScriptsAppliedParams{
-		Versions:  append(ran, plan.assumed...),
+		Versions:  plan.assumed,
 		AppliedAt: time.Now(),
 	}); err != nil {
 		return fmt.Errorf("failed to record the one-time scripts: %w", err)
 	}
 
 	// 差を当てた後に流すスクリプト (足した列を埋めるものなど)。
-	if _, err := runScripts(ctx, logger, migrationPool, plan.after, true); err != nil {
+	if err := runScripts(ctx, logger, migrationPool, plan.after); err != nil {
 		return err
 	}
 	if err := fill(ctx, logger, migrationPool); err != nil {
 		return err
 	}
 
-	if err := sqlc.New(pool).RecordSchemaVersion(ctx, sqlc.RecordSchemaVersionParams{
+	if err := sqlc.New(migrationPool).RecordSchemaVersion(ctx, sqlc.RecordSchemaVersionParams{
 		MinBinaryVersion: CompatibleSince,
 		SchemaVersion:    SchemaVersion(),
 		UpdatedAt:        time.Now(),
@@ -112,7 +127,7 @@ type scriptPlan struct {
 }
 
 // planScripts は、DB の状態から、流すスクリプトを決める。DB がこのバイナリより新しいか、移せないほど古ければ、エラーを返す。
-func planScripts(ctx context.Context, pool *pgxpool.Pool, state *schemaState) (*scriptPlan, error) {
+func planScripts(ctx context.Context, pool *pgxpool.Pool, state *schemaState, scripts []*script) (*scriptPlan, error) {
 	if state.schemaVersion > SchemaVersion() {
 		return nil, fmt.Errorf("%w (database: %d, this binary: %d)", ErrBinaryOutdated, state.schemaVersion, SchemaVersion())
 	}
@@ -125,10 +140,6 @@ func planScripts(ctx context.Context, pool *pgxpool.Pool, state *schemaState) (*
 	// 空の DB から作るときは、書き換えるデータがないので、どのスクリプトも流したものとみなす。
 	fresh := !state.hasCompatibility
 
-	scripts, err := loadScripts()
-	if err != nil {
-		return nil, err
-	}
 	applied, err := appliedScripts(ctx, pool, state)
 	if err != nil {
 		return nil, err

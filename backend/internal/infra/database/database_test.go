@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 	"uuid"
 
@@ -159,6 +161,52 @@ func TestForgetScriptsAfter(t *testing.T) {
 	require.NoError(t, pool.QueryRow(t.Context(), "SELECT judged_drops FROM recordings WHERE id = $1", recordingID).Scan(&judgedDrops))
 	assert.Equal(t, int64(5), judgedDrops)
 	assert.Equal(t, scriptVersions(t), appliedScripts(t, pool))
+}
+
+// TestMigrateRunsBeforeScripts は、差を当てる前に流すスクリプトで、schema.sql から外した列を消してから差を当て、
+// 流したことを記録して 2 度は流さないことを確かめる (#2040)。goose から移る DB でも、記録する表を先に作って記録する。
+func TestMigrateRunsBeforeScripts(t *testing.T) {
+	t.Parallel()
+
+	const version = 29991231000000
+	fsys := withScript(t, fmt.Sprintf("scripts/%d_drop_users_legacy.before.sql", version), "ALTER TABLE users DROP COLUMN legacy;")
+	tests := []struct {
+		name    string
+		prepare func(t *testing.T, pool *pgxpool.Pool)
+	}{
+		{
+			name: "migrated database",
+			prepare: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+			},
+		},
+		{
+			name: "goose database without the table of the scripts",
+			prepare: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				gooseUp(t, pool, database.GooseFloorVersion)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pool := open(t, databasetest.New(t))
+			tt.prepare(t, pool)
+			// schema.sql にない列。消すスクリプトがなければ、消す差として止まる。
+			_, err := pool.Exec(t.Context(), "ALTER TABLE users ADD COLUMN legacy text")
+			require.NoError(t, err)
+			require.ErrorIs(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool), database.ErrDestructiveChange)
+
+			require.NoError(t, database.MigrateWithScripts(t.Context(), slog.New(slog.DiscardHandler), pool, fsys))
+			require.NoError(t, database.CheckSchema(t.Context(), pool))
+			assert.Contains(t, appliedScripts(t, pool), int64(version))
+			// 2 度目は流さない (流せば、消した列がなくて失敗する)。
+			require.NoError(t, database.MigrateWithScripts(t.Context(), slog.New(slog.DiscardHandler), pool, fsys))
+		})
+	}
 }
 
 // TestMigrateConcurrently は、kotatsu migrate を同時に実行しても、どれも失敗しないことを確かめる。
@@ -592,6 +640,22 @@ func gooseUp(t *testing.T, pool *pgxpool.Pool, version int64) {
 	t.Cleanup(func() { _ = provider.Close() })
 	_, err = provider.UpTo(t.Context(), version)
 	require.NoError(t, err)
+}
+
+// withScript は、埋め込んだ 1 回だけのスクリプトに、name のスクリプトを足した FS を返す。
+func withScript(t *testing.T, name, body string) fstest.MapFS {
+	t.Helper()
+
+	fsys := fstest.MapFS{name: &fstest.MapFile{Data: []byte(body)}}
+	names, err := fs.Glob(db.Scripts, "scripts/*.sql")
+	require.NoError(t, err)
+	for _, n := range names {
+		data, err := fs.ReadFile(db.Scripts, n)
+		require.NoError(t, err)
+		fsys[n] = &fstest.MapFile{Data: data}
+	}
+
+	return fsys
 }
 
 // scriptVersions は、埋め込んだ 1 回だけのスクリプトの版を古い順に返す。

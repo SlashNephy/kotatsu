@@ -210,10 +210,14 @@ type script struct {
 	body    string
 }
 
-// loadScripts は、埋め込んだ 1 回だけのスクリプトを、版の古い順に読む。
+// createScriptsTable は、流したスクリプトを記録する表を作る。schema.sql の schema_scripts と同じ定義にする。
+// goose から移る DB で、差を当てる前に流すスクリプトを記録するのに使う。
+const createScriptsTable = "CREATE TABLE IF NOT EXISTS schema_scripts (version bigint PRIMARY KEY, applied_at timestamptz NOT NULL)"
+
+// loadScripts は、fsys の scripts/ にある 1 回だけのスクリプトを、版の古い順に読む。
 // ファイルの名前は「版_名前.before.sql」か「版_名前.after.sql」にする。
-func loadScripts() ([]*script, error) {
-	names, err := fs.Glob(db.Scripts, "scripts/*.sql")
+func loadScripts(fsys fs.FS) ([]*script, error) {
+	names, err := fs.Glob(fsys, "scripts/*.sql")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the one-time scripts: %w", err)
 	}
@@ -239,7 +243,7 @@ func loadScripts() ([]*script, error) {
 			return nil, fmt.Errorf("one-time scripts %s and %s have the same version", other, name)
 		}
 		seen[version] = name
-		body, err := fs.ReadFile(db.Scripts, path)
+		body, err := fs.ReadFile(fsys, path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read the one-time script %s: %w", name, err)
 		}
@@ -267,22 +271,19 @@ func appliedScripts(ctx context.Context, pool *pgxpool.Pool, state *schemaState)
 	return applied, nil
 }
 
-// runScripts は、scripts を古い順に流し、流したスクリプトの版を返す。
-func runScripts(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, scripts []*script, record bool) ([]int64, error) {
-	ran := make([]int64, 0, len(scripts))
+// runScripts は、scripts を古い順に流す。
+func runScripts(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, scripts []*script) error {
 	for _, s := range scripts {
-		if err := runScript(ctx, logger, pool, s, record); err != nil {
-			return nil, err
+		if err := runScript(ctx, logger, pool, s); err != nil {
+			return err
 		}
-		ran = append(ran, s.version)
 	}
 
-	return ran, nil
+	return nil
 }
 
-// runScript は、1 回だけのスクリプトを 1 つのトランザクションで流す。record なら、同じトランザクションで流したことを記録する。
-// 記録する表がまだないとき (goose から移る DB で、差を当てる前に流すとき) は、差を当てた後に Migrate が記録する。
-func runScript(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, s *script, record bool) error {
+// runScript は、1 回だけのスクリプトを 1 つのトランザクションで流し、同じトランザクションで流したことを記録する。
+func runScript(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, s *script) error {
 	start := time.Now()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -292,10 +293,8 @@ func runScript(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, s *
 	if _, err := tx.Exec(ctx, s.body); err != nil {
 		return fmt.Errorf("failed to run the one-time script %s: %w", s.name, err)
 	}
-	if record {
-		if _, err := tx.Exec(ctx, "INSERT INTO schema_scripts (version, applied_at) VALUES ($1, $2)", s.version, time.Now()); err != nil {
-			return fmt.Errorf("failed to record the one-time script %s: %w", s.name, err)
-		}
+	if _, err := tx.Exec(ctx, "INSERT INTO schema_scripts (version, applied_at) VALUES ($1, $2)", s.version, time.Now()); err != nil {
+		return fmt.Errorf("failed to record the one-time script %s: %w", s.name, err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit the one-time script %s: %w", s.name, err)
