@@ -55,7 +55,7 @@ func enabledRecorder(t *testing.T, store *fakeStore, now time.Time) (*netactivit
 	return recorder, flush
 }
 
-// TestClientRecords は、通信の回数、送受信量、結果を、URL のパスとクエリを持たずに集計することを確かめる。
+// TestClientRecords は、通信の回数、送受信量、結果を、URL のパスとクエリを持たずに集計することを確認する。
 func TestClientRecords(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +104,7 @@ func TestClientRecords(t *testing.T) {
 	}
 }
 
-// TestHostVisibility は、決まった接続先だけホスト名を残し、設定の中身が分かるものは残さないことを確かめる。
+// TestHostVisibility は、決まった接続先だけホスト名を残し、設定の内容が分かるものは残さないことを確認する。
 func TestHostVisibility(t *testing.T) {
 	t.Parallel()
 
@@ -137,7 +137,7 @@ func TestHostVisibility(t *testing.T) {
 	}
 }
 
-// TestRecorderIsDisabledByDefault は、記録が無効の間は数えず、無効に戻したら残りを捨てることを確かめる。
+// TestRecorderIsDisabledByDefault は、記録が無効の間は数えず、無効に戻したら残りを破棄することを確認する。
 func TestRecorderIsDisabledByDefault(t *testing.T) {
 	t.Parallel()
 
@@ -155,7 +155,7 @@ func TestRecorderIsDisabledByDefault(t *testing.T) {
 	assert.Empty(t, store.saved, "無効に戻したら、それまでの集計を捨てる")
 }
 
-// TestFlushRetriesAfterFailure は、書けなかった集計を失わず、次に足し合わせて書くことを確かめる。
+// TestFlushRetriesAfterFailure は、書けなかった集計を失わず、次に足し合わせて書くことを確認する。
 func TestFlushRetriesAfterFailure(t *testing.T) {
 	t.Parallel()
 
@@ -177,7 +177,7 @@ func TestFlushRetriesAfterFailure(t *testing.T) {
 	assert.Equal(t, netactivity.Totals{Count: 2, SentBytes: 2, ReceivedBytes: 4}, store.saved[0].Totals)
 }
 
-// TestWithPurposeOverrides は、1 つのクライアントで目的を切り替えられることを確かめる。
+// TestWithPurposeOverrides は、1 つのクライアントで目的を切り替えられることを確認する。
 func TestWithPurposeOverrides(t *testing.T) {
 	t.Parallel()
 

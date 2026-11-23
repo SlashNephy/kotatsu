@@ -45,7 +45,7 @@ type result struct {
 	remaining float64
 }
 
-// TestTracker は、-progress の出力から、割合と残り時間を求めることを確かめる (#1511)。
+// TestTracker は、-progress の出力から、割合と残り時間を求めることを確認する (#1511)。
 func TestTracker(t *testing.T) {
 	t.Parallel()
 
@@ -65,7 +65,7 @@ func TestTracker(t *testing.T) {
 		},
 		{
 			name: "capped until the end", est: ffprogress.Estimate{Frames: 1000, Bytes: 0},
-			// 見込みに届いても、溜めたコマの書き出しと mux の後処理が残るので、progress=end までは頭打ちの割合で止める。
+			// 見込みに届いても、バッファしたコマの出力と mux の後処理が残るので、progress=end までは頭打ちの割合で止める。
 			steps: []step{{at: 0, frame: "980"}, {at: time.Second, frame: "1000"}, {at: 2 * time.Second, frame: "1100"}},
 			want:  []result{{0.98, -1}, {0.99, -1}, {0.99, -1}},
 		},
@@ -77,20 +77,20 @@ func TestTracker(t *testing.T) {
 		},
 		{
 			name: "remaining needs the minimum window", est: ffprogress.Estimate{Frames: 1000, Bytes: 0},
-			// 窓の幅が 10 秒に満たないうちは出さない。10 秒で 100 コマ進めば、残りの 800 コマは 80 秒。
+			// ウィンドウの幅が 10 秒に満たないうちは出さない。10 秒で 100 コマ進めば、残りの 800 コマは 80 秒。
 			steps: []step{{at: 0, frame: "100"}, {at: 5 * time.Second, frame: "150"}, {at: 9 * time.Second, frame: "190"}, {at: 10 * time.Second, frame: "200"}},
 			want:  []result{{0.1, -1}, {0.15, -1}, {0.19, -1}, {0.2, 80}},
 		},
 		{
 			name: "remaining uses the recent window", est: ffprogress.Estimate{Frames: 1000, Bytes: 0},
-			// 窓 (60 秒) より古い記録は使わない。始めの 60 秒は 1 秒に 1 コマ、その後の 60 秒は 1 秒に 5 コマなら、
-			// 120 秒の時点の窓は 60 秒から 120 秒で、残りの 640 コマは 128 秒。
+			// ウィンドウ (60 秒) より古い記録は使わない。始めの 60 秒は 1 秒に 1 コマ、その後の 60 秒は 1 秒に 5 コマなら、
+			// 120 秒の時点のウィンドウは 60 秒から 120 秒で、残りの 640 コマは 128 秒。
 			steps: []step{{at: 0, frame: "0"}, {at: 60 * time.Second, frame: "60"}, {at: 120 * time.Second, frame: "360"}},
 			want:  []result{{0, -1}, {0.06, 1000 - 60}, {0.36, 128}},
 		},
 		{
 			name: "too small progress means unknown remaining", est: ffprogress.Estimate{Frames: 0, Bytes: 1 << 50},
-			// 大きな入力で、窓の中でごくわずかしか進まないと、見込みが time.Duration に入りきらない。負に回さず、不明にする。
+			// 大きな入力で、ウィンドウの中でごくわずかしか進まないと、見込みが time.Duration に入りきらない。負に回さず、不明にする。
 			steps: []step{{at: 0, frame: "", read: 1}, {at: 60 * time.Second, frame: "", read: 2}},
 			want:  []result{{1.0 / (1 << 50), -1}, {2.0 / (1 << 50), -1}},
 		},
@@ -145,7 +145,7 @@ func TestTracker(t *testing.T) {
 	}
 }
 
-// TestParserOtherLines は、標準エラー出力に混ぜた -progress の行を、ほかのログと見分けることを確かめる (#1511)。
+// TestParserOtherLines は、標準エラー出力に混ぜた -progress の行を、ほかのログと見分けることを確認する (#1511)。
 // CM の区間の見分けでは、標準出力をシーンの切り替わりに使うので、-progress を標準エラー出力に出させる。
 func TestParserOtherLines(t *testing.T) {
 	t.Parallel()

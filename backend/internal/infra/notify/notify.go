@@ -1,12 +1,12 @@
 // Package notify は、ロール間の変更の通知を扱う (設計書 1.4)。
 //
-// 変更を書く側は、そのトランザクションの中で Publish を呼ぶ。Publish はチャンネルの版数を上げ、
+// 変更を書く側は、そのトランザクションの中で Publish を呼ぶ。Publish はチャンネルのバージョンを上げ、
 // PostgreSQL の NOTIFY を送る。NOTIFY はコミットしたときにだけ送られる。
 //
-// 受け取る側の Watcher は、LISTEN で通知を待ちつつ、版数を定期的にポーリングする。
+// 受け取る側の Watcher は、LISTEN で通知を待ちつつ、バージョンを定期的にポーリングする。
 // PgBouncer などのトランザクションプーリングを経由すると LISTEN を使えないので、そのときはポーリングだけで動く。
 // LISTEN の接続が切れている間も、ポーリングで変更に気づける。
-// どちらの経路でも、届くのは「版数が上がった」ことだけである。何が変わったかは、受け取った側が DB を読み直して知る。
+// どちらの経路でも、届くのは「バージョンが上がった」ことだけである。何が変わったかは、受け取った側が DB を読み直して知る。
 package notify
 
 import (
@@ -25,23 +25,23 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
-// RecordingsChannel は、録画が変わったことを知らせる変更通知のチャンネル (#868)。録画を始めた、終えた、消した、
-// 保護やタグを変えた、サムネイルや解析の結果を書いた、CM の区間の見分けを入れたか区間を書いた (#1571) ときに版数を上げる。
+// RecordingsChannel は、録画が変わったことを通知する変更通知のチャンネル (#868)。録画を始めた、終えた、消した、
+// 保護やタグを変えた、サムネイルや解析の結果を書いた、CM の区間の見分けを入れたか区間を書いた (#1571) ときにバージョンを上げる。
 // 録画中にファイルが伸びるだけでは上げない。
 // 録画は recording、library、thumbnail、analysis、cmdetect、epgstation が書くので、互いに import しなくて済むよう、ここに置く。
 const RecordingsChannel = "recordings"
 
-// AuditChannel は、監査ログに残る操作があったことを知らせる変更通知のチャンネル (#869)。
+// AuditChannel は、監査ログに残る操作があったことを通知する変更通知のチャンネル (#869)。
 // 管理の画面 (チャンネル、ユーザー、Webhook、設定、監査ログ) のデータは、どれも監査ログに残る操作で変わるので、
-// 監査ログを書くたびに版数を上げ、管理の画面の読み直しの合図にする。
+// 監査ログを書くたびにバージョンを上げ、管理の画面の読み直しの合図にする。
 const AuditChannel = "audit"
 
-// DefaultPollInterval は、版数をポーリングする既定の間隔。
+// DefaultPollInterval は、バージョンをポーリングする既定の間隔。
 const DefaultPollInterval = 5 * time.Second
 
-// Publish は、db で channel の版数を上げて NOTIFY を送り、上げた後の版数を返す。
-// db がトランザクションなら、版数はコミットしたときに上がり、NOTIFY もコミットしたときに送られる。
-// トランザクションの外で書いた変更は、書いた後に、トランザクションでない db を渡して知らせる。
+// Publish は、db で channel のバージョンを上げて NOTIFY を送り、上げた後のバージョンを返す。
+// db がトランザクションなら、バージョンはコミットしたときに上がり、NOTIFY もコミットしたときに送られる。
+// トランザクションの外で書いた変更は、書いた後に、トランザクションでない db を渡して通知する。
 func Publish(ctx context.Context, db sqlc.DBTX, clk clock.Clock, channel string) (int64, error) {
 	q := sqlc.New(db)
 	version, err := q.BumpChangeVersion(ctx, sqlc.BumpChangeVersionParams{Channel: channel, Now: clk.Now()})
@@ -62,11 +62,11 @@ func Publish(ctx context.Context, db sqlc.DBTX, clk clock.Clock, channel string)
 type WatcherOptions struct {
 	// UseListen は LISTEN を使うかどうか。トランザクションプーリングを経由するときは false にする。
 	UseListen bool
-	// PollInterval は版数をポーリングする間隔。LISTEN を使うときも、取りこぼしに備えてポーリングする。
+	// PollInterval はバージョンをポーリングする間隔。LISTEN を使うときも、取りこぼしに備えてポーリングする。
 	PollInterval time.Duration
 }
 
-// Watcher は、チャンネルの版数が上がったことを知らせる。
+// Watcher は、チャンネルのバージョンが上がったことを通知する。
 type Watcher struct {
 	pool     *pgxpool.Pool
 	logger   *slog.Logger
@@ -80,7 +80,7 @@ type Watcher struct {
 }
 
 // NewWatcher は channels を見張る Watcher を作る。
-// 今の版数をこの時点で読むので、NewWatcher が返った後の変更を Run が知らせる。
+// 今のバージョンをこの時点で読むので、NewWatcher が返った後の変更を Run が通知する。
 func NewWatcher(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, channels []string, opts WatcherOptions) (*Watcher, error) {
 	w := &Watcher{
 		pool:     pool,
@@ -98,13 +98,13 @@ func NewWatcher(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, ch
 	return w, nil
 }
 
-// Changes は、いずれかのチャンネルの版数が上がると値を受け取れるチャンネルを返す。
-// 受け取る前に何度変更があっても、受け取れるのは 1 回にまとまる。受け取ったら Version で版数を確かめる。
+// Changes は、いずれかのチャンネルのバージョンが上がると値を受け取れるチャンネルを返す。
+// 受け取る前に何度変更があっても、受け取れるのは 1 回にまとまる。受け取ったら Version でバージョンを確認する。
 func (w *Watcher) Changes() <-chan struct{} {
 	return w.changes
 }
 
-// Version は、channel について最後に確かめた版数を返す。一度も変更のないチャンネルは 0 を返す。
+// Version は、channel について最後に確認したバージョンを返す。一度も変更のないチャンネルは 0 を返す。
 func (w *Watcher) Version(channel string) int64 {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -147,7 +147,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 	}
 }
 
-// poll は版数を読み、上がったチャンネルがあれば true を返す。
+// poll はバージョンを読み、上がったチャンネルがあれば true を返す。
 func (w *Watcher) poll(ctx context.Context) (bool, error) {
 	rows, err := sqlc.New(w.pool).ListChangeVersions(ctx, w.channels)
 	if err != nil {

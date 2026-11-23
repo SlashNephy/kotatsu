@@ -9,7 +9,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/redact"
 )
 
-// redactedTruncatedLine は、切った行の末尾の秘密を伏せた行。
+// redactedTruncatedLine は、切った行の末尾の秘密をマスクした行。
 const redactedTruncatedLine = "log [REDACTED_SECRET]…"
 
 func TestSecrets(t *testing.T) {
@@ -71,14 +71,14 @@ func TestSecrets(t *testing.T) {
 			want:    redactedTruncatedLine,
 		},
 		{
-			// 長い秘密の前半 (abcd) が先に当たっても、別の秘密のもっと長い前半 (xyz_abcd) を伏せる (#1982)。
+			// 長い秘密の前半 (abcd) が先に当たっても、別の秘密のもっと長い前半 (xyz_abcd) をマスクする (#1982)。
 			name:    "切った行の末尾は、最も長く一致する前半を伏せる",
 			secrets: []string{"abcd_very_long_secret", "xyz_abcd_short"},
 			text:    "log xyz_abcd…",
 			want:    redactedTruncatedLine,
 		},
 		{
-			// 先頭が印の末尾と重なる秘密でも、伏せた印を崩さない (#1982)。
+			// 先頭がマークの末尾と重なる秘密でも、マスクしたマークを崩さない (#1982)。
 			name:    "切った行の末尾の印を崩さない",
 			secrets: []string{"ret]123456", "mysecretvalue1"},
 			text:    "log mysecretvalue1…",

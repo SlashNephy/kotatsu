@@ -21,8 +21,8 @@ const (
 	OccupancyTrail = 30 * time.Second
 	// EPGCaptureLead と EPGCaptureTrail は、EPG の取得の時刻の前後で、ライブ視聴とタイムシフトのために、
 	// チューナーを 1 本空けておく時間 (#1536、初期値)。
-	// EpgTimerSrv は、毎分 0 秒に取得の時刻かを確かめ、そのときに使っていないチューナーがなければ、その回の取得をしない
-	// (ReserveManager.cpp の CheckEpgCap)。取得が始まった後は、ENUM_TUNER_PROCESS の取得中の印で分かるので、後ろは短くする。
+	// EpgTimerSrv は、毎分 0 秒に取得の時刻かを確認し、そのときに使っていないチューナーがなければ、その回の取得をしない
+	// (ReserveManager.cpp の CheckEpgCap)。取得が始まった後は、ENUM_TUNER_PROCESS の取得中のマークで分かるので、後ろは短くする。
 	EPGCaptureLead  = 5 * time.Minute
 	EPGCaptureTrail = 2 * time.Minute
 )

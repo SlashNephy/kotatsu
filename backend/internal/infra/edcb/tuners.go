@@ -85,7 +85,7 @@ func (s *TunerServer) ServerDate(context.Context) (time.Time, error) {
 	return time.Time{}, tunerserver.ErrClockUnavailable
 }
 
-// Identify は、種類として EDCB を返す。EpgTimerSrv は版を名乗らないので、版は空にする。
+// Identify は、種類として EDCB を返す。EpgTimerSrv はバージョンを名乗らないので、バージョンは空にする。
 func (s *TunerServer) Identify(context.Context) (*tunerserver.Identity, error) {
 	return &tunerserver.Identity{Kind: tunerserver.KindEdcb, Version: ""}, nil
 }

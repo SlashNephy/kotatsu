@@ -15,7 +15,7 @@ import (
 // labBonDriver は、応答を取った EDCB の BonDriver の名前。
 const labBonDriver = "BonDriver_LinuxMirakurun.so"
 
-// tunerServer は、実際の EDCB の、チューナーが 2 つ (2 つ目を視聴中) で、地上波だけのチャンネルの設定を返す偽のサーバー。
+// tunerServer は、実際の EDCB の、チューナーが 2 つ (2 つ目を視聴中) で、地上波だけのチャンネルの設定を返すモックのサーバー。
 func tunerServer(t *testing.T) *fakeServer {
 	t.Helper()
 

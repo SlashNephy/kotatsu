@@ -26,7 +26,7 @@ const (
 	livePostTimeout = 10 * time.Second
 	// defaultKeepSeatInterval は、NX-Jikkyo が keepSeat の間隔を知らせなかったときの間隔。
 	defaultKeepSeatInterval = 30 * time.Second
-	// minKeepSeatInterval と maxKeepSeatInterval は、NX-Jikkyo が知らせた keepSeat の間隔として受け入れる範囲。
+	// minKeepSeatInterval と maxKeepSeatInterval は、NX-Jikkyo が通知した keepSeat の間隔として受け入れる範囲。
 	minKeepSeatInterval = time.Second
 	maxKeepSeatInterval = 10 * time.Minute
 	// nxUserIDCookie は、NX-Jikkyo がユーザーの ID を作るのに使う Cookie の名前。
@@ -311,7 +311,7 @@ func (c *liveConnection) isConnected() bool {
 	return c.connected
 }
 
-// markConnected は、つながったことを記録して知らせる。
+// markConnected は、つながったことを記録して通知する。
 func (c *liveConnection) markConnected() {
 	c.mu.Lock()
 	c.connected = true
@@ -377,8 +377,8 @@ func (c *liveConnection) handleRoom(parent context.Context, message *liveWatchMe
 	return ""
 }
 
-// keepSeatInterval は、NX-Jikkyo が知らせた keepSeat の間隔を返す。
-// 外部から届く値なので、換算後の値を確かめる。あふれて負になった値を time.NewTicker に渡すと、panic でプロセスごと落ちる。
+// keepSeatInterval は、NX-Jikkyo が通知した keepSeat の間隔を返す。
+// 外部から届く値なので、換算後の値を確認する。あふれて負になった値を time.NewTicker に渡すと、panic でプロセスごと落ちる。
 func keepSeatInterval(seconds *float64) time.Duration {
 	if seconds == nil {
 		return defaultKeepSeatInterval
@@ -483,7 +483,7 @@ func (c *liveConnection) runComment(ctx context.Context, threadID, threadKey str
 	}
 }
 
-// liveHandshake は、コメントセッションを開いたときに送るメッセージを返す。直近の 100 件を求め、rf:0 の ping で、求めた分を送り終えたことを知らせてもらう。
+// liveHandshake は、コメントセッションを開いたときに送るメッセージを返す。直近の 100 件を求め、rf:0 の ping で、求めた分を送り終えたことを通知してもらう。
 func liveHandshake(threadID, threadKey string) []any {
 	return []any{
 		map[string]any{liveMessagePing: map[string]any{liveFieldContent: "rs:0"}},
@@ -506,7 +506,7 @@ func (s *LiveSession) setWatch(watch *websocket.Conn) {
 	s.watch = watch
 }
 
-// setRoom は、投稿に要る値を覚えて、投稿できるようにする。
+// setRoom は、投稿に要る値をキャッシュして、投稿できるようにする。
 func (s *LiveSession) setRoom(base time.Time, yourPostKey string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -620,7 +620,7 @@ func postedAt(date, micros int64) time.Time {
 }
 
 // flexInt は、数でも、数を書いた文字列でも読める整数。NX-Jikkyo は、同じ項目を、ライブでは数で、過去ログでは文字列で返す。
-// 読めない値は 0 にし、コメントそのものは捨てない。
+// 読めない値は 0 にし、コメントそのものは破棄しない。
 type flexInt int64
 
 func (n *flexInt) UnmarshalJSON(data []byte) error {

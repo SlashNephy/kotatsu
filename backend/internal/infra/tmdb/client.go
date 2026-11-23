@@ -27,7 +27,7 @@ const (
 	DefaultURL = "https://api.themoviedb.org"
 	// DefaultInterval は、問い合わせの間隔の下限 (付録 A)。TMDB は上限を公開していないが、控えめにする。
 	DefaultInterval = 250 * time.Millisecond
-	// Language は、作品名と話の名前を引く言語。日本の放送の番組名と照らし合わせるので、日本語で引く。
+	// Language は、作品名と話の名前を取得する言語。日本の放送の番組名と照合するので、日本語で取得する。
 	Language = "ja-JP"
 	// requestTimeout は、1 回の問い合わせの時間の上限。
 	requestTimeout = 30 * time.Second

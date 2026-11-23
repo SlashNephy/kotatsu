@@ -21,7 +21,7 @@ type stubServer struct {
 	kind atomic.Value
 }
 
-// stubVersion は、スタブが Mirakurun と mirakc として名乗る版。
+// stubVersion は、スタブが Mirakurun と mirakc として名乗るバージョン。
 const stubVersion = "4.0.0"
 
 func newStubServer(t *testing.T, kind mirakurun.ServerKind) (*stubServer, *httptest.Server) {
@@ -208,7 +208,7 @@ func TestOpenEventsInvalidatesOnFailure(t *testing.T) {
 	require.ErrorAs(t, err, &apiErr)
 	require.Equal(t, http.StatusNotFound, apiErr.StatusCode)
 
-	// 失敗したら判定の結果を捨てるので、時計を進めなくても次は Mirakurun として開ける。
+	// 失敗したら判定の結果を破棄するので、時計を進めなくても次は Mirakurun として開ける。
 	stream, err := client.OpenEvents(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = stream.Close() })
@@ -217,7 +217,7 @@ func TestOpenEventsInvalidatesOnFailure(t *testing.T) {
 	assert.Equal(t, tunerserver.EventTypeTunerChanged, event.Type)
 }
 
-// TestIdentify は、判定した種類と名乗った版を、種類に依らない型で返すことを確かめる (#1538)。
+// TestIdentify は、判定した種類と名乗ったバージョンを、種類に依らない型で返すことを確認する (#1538)。
 func TestIdentify(t *testing.T) {
 	t.Parallel()
 

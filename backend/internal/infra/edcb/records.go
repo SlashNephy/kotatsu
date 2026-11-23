@@ -65,7 +65,7 @@ type SearchKey struct {
 	NotDates    bool
 	// FreeCA は、無料と有料の条件。0 はどちらでも、1 は無料だけ、2 は有料だけ。
 	FreeCA uint8
-	// CheckRecorded は、録画済みかのチェックをするかどうか (版 3 から)。
+	// CheckRecorded は、録画済みかのチェックをするかどうか (バージョン 3 から)。
 	CheckRecorded bool
 }
 
@@ -122,7 +122,7 @@ func (c *Client) RecordedFiles(ctx context.Context) ([]*RecordedFile, error) {
 	return enumerate(ctx, c, cmdEnumRecInfoBasic2, decodeRecordedFile)
 }
 
-// enumerate は、版だけを送る「2」の付く一覧のコマンドを送り、応答の配列を読む。
+// enumerate は、バージョンだけを送る「2」の付く一覧のコマンドを送り、応答の配列を読む。
 func enumerate[T any](ctx context.Context, c *Client, cmd uint32, item func(*decoder) T) ([]T, error) {
 	var e encoder
 	e.u16(cmdVersion)
@@ -184,7 +184,7 @@ func decodeSearchKey(d *decoder) SearchKey {
 		d.wordVector(func(d *decoder) { _ = d.u16() }) // 映像
 		d.wordVector(func(d *decoder) { _ = d.u16() }) // 音声
 		k.Fuzzy, k.NotContents, k.NotDates, k.FreeCA = d.u8() != 0, d.u8() != 0, d.u8() != 0, d.u8()
-		// 版 3 から、録画済みかのチェックと、その期間が続く。期間は使わない。
+		// バージョン 3 から、録画済みかのチェックと、その期間が続く。期間は使わない。
 		if d.remaining() > 0 {
 			k.CheckRecorded = d.u8() != 0
 		}
@@ -214,7 +214,7 @@ func decodeReserve(d *decoder) *Reserve {
 		r.ONID, r.TSID, r.SID, r.EventID = d.u16(), d.u16(), d.u16(), d.u16()
 		r.Comment = d.str()
 		r.ID = d.u32()
-		_ = d.u8()         // 待機の印 (廃止)
+		_ = d.u8()         // 待機のマーク (廃止)
 		_ = d.u8()         // 重なりの状態
 		_ = d.str()        // 録画先のパス (廃止)
 		_ = d.systemTime() // 予約したときの開始

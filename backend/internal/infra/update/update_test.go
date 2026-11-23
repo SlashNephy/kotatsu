@@ -14,12 +14,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
 )
 
-// runningVersion は、テストで動いている版。
+// runningVersion は、テストで動いているバージョン。
 const runningVersion = "1.2.3"
 
 const releaseURL = "https://github.com/SlashNephy/kotatsu/releases/tag/v1.3.0"
 
-// TestCheck は、動いている版より新しいリリースだけを覚え、確かめられないときはエラーを返すことを確かめる。
+// TestCheck は、動いているバージョンより新しいリリースだけをキャッシュし、確認できないときはエラーを返すことを確認する。
 func TestCheck(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func TestCheck(t *testing.T) {
 	}
 }
 
-// TestComparable は、リリースの版だけを比べ、main のビルド (edge) と版を埋め込まないビルド (dev) は比べないことを確かめる。
+// TestComparable は、リリースのバージョンだけを比較し、main のビルド (edge) とバージョンを埋め込まないビルド (dev) は比較しないことを確認する。
 func TestComparable(t *testing.T) {
 	t.Parallel()
 

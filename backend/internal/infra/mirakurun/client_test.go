@@ -271,7 +271,7 @@ func TestClientOpenServiceStreamErrors(t *testing.T) {
 	}
 }
 
-// TestClientOpenServiceStreamStatus は、ストリームを開くときの状態を、選局を断られたのか、チューナーの空きがないのかに読み替えることを確かめる (#1519)。
+// TestClientOpenServiceStreamStatus は、ストリームを開くときの状態を、選局を断られたのか、チューナーの空きがないのかに読み替えることを確認する (#1519)。
 // Mahiron は設定にないチャンネルに本文なしの 404 を、Mirakurun は空きがなければ 503 を、ほかのストリームの失敗には 500 を返す。
 func TestClientOpenServiceStreamStatus(t *testing.T) {
 	t.Parallel()
@@ -428,7 +428,7 @@ func TestClientAPIErrorHidesCredentials(t *testing.T) {
 	assert.NotContains(t, err.Error(), "secret")
 }
 
-// TestClientOpenChannelStream は、チャンネルのストリームを、チャンネルの URL と優先度で開くことを確かめる (#830)。
+// TestClientOpenChannelStream は、チャンネルのストリームを、チャンネルの URL と優先度で開くことを確認する (#830)。
 func TestClientOpenChannelStream(t *testing.T) {
 	t.Parallel()
 

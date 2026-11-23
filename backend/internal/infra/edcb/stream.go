@@ -18,12 +18,12 @@ import (
 const (
 	// relayRetryInterval と relayRetryTimeout は、NetworkTV を開いてから TS を受け取れるようになるまで、
 	// RELAY_VIEW_STREAM をやり直す間隔と上限。開いた直後は、TS を送る FIFO (Windows では名前付きパイプ) ができていない。
-	// 2026年11月に Linux の EDCB で測ったときは、0.2 秒で受け取れた。
+	// 2026年11月に Linux の EDCB で計測したときは、0.2 秒で受け取れた。
 	relayRetryInterval = 100 * time.Millisecond
 	relayRetryTimeout  = 10 * time.Second
 	// sharedRelayTimeout は、ほかのインスタンスが開いている NetworkTV に加わったときに、RELAY_VIEW_STREAM をやり直す上限 (#1850)。
 	// TS を送る FIFO はできているはずなので、これを過ぎても受け取れなければ、中継の空きがない (EDCB は 3 つ目の中継を断る) とみなす。
-	// 開いた直後に加わったときに、FIFO ができるのを待てるよう、測った時間 (0.2 秒) より長くする。
+	// 開いた直後に加わったときに、FIFO ができるのを待てるよう、計測した時間 (0.2 秒) より長くする。
 	sharedRelayTimeout = 2 * time.Second
 	// DefaultReleaseRetryInterval は、ID の持ち主から外れられなかったときに、外れ直す既定の間隔 (#1850)。
 	DefaultReleaseRetryInterval = 10 * time.Second
@@ -43,7 +43,7 @@ var ErrNoNetworkTVID = errors.New("no NetworkTV ID is free")
 // errRelayBusy は、ほかのインスタンスが開いている NetworkTV に加わったのに、中継に空きがなかったことを表す (#1850)。
 var errRelayBusy = errors.New("the shared NetworkTV has no free relay")
 
-// NetworkTVIDs は、NetworkTV の ID を配る (#1533)。ID は EpgTimerSrv 全体で 1 つの名前空間なので、
+// NetworkTVIDs は、NetworkTV の ID を配信する (#1533)。ID は EpgTimerSrv 全体で 1 つの名前空間なので、
 // Kotatsu のどのインスタンスとも重ならないように、DB で持ち主を記録する。
 // 同じサービスを開くインスタンスは、2 つまで同じ ID を持ち、同じ TS を受け取る (#1850)。
 type NetworkTVIDs interface {
@@ -69,7 +69,7 @@ type NetworkTVIDs interface {
 //   - サービスがチャンネルの設定 (ChSet5.txt) になければ tunerserver.ErrNotFound を、ID が足りないか、
 //     EDCB がチューナーを開けなければ tunerserver.ErrTunerUnavailable を包んで返す。
 //   - 同じサービスをすでに開いていれば、新しく開かずに、その TS を分け合う (#1535)。最後の受け手が閉じたら、NetworkTV を閉じる。
-//     読むのが遅く、溜められる上限を超えた受け手は、ErrSubscriberTooSlow で切る。
+//     読むのが遅く、バッファできる上限を超えた受け手は、ErrSubscriberTooSlow で切る。
 func (s *TunerServer) OpenServiceStream(ctx context.Context, id int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	entries, err := s.channelEntries(ctx)
 	if err != nil {
@@ -101,8 +101,8 @@ func (s *TunerServer) OpenChannelStream(ctx context.Context, channelType, channe
 }
 
 // openShared は、service のストリームを、分け合う NetworkTV から受け取る。
-// ライブ視聴、kyusu、タイムシフトが新しく NetworkTV を開くときは、EPG の取得のためにチューナーを空けておくかを先に確かめる (#1536)。
-// すでに開いている NetworkTV に加わるだけなら、チューナーを増やさないので確かめない。
+// ライブ視聴、kyusu、タイムシフトが新しく NetworkTV を開くときは、EPG の取得のためにチューナーを空けておくかを先に確認する (#1536)。
+// すでに開いている NetworkTV に加わるだけなら、チューナーを増やさないので確認しない。
 func (s *TunerServer) openShared(ctx context.Context, service ServiceKey, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if viewing(opts) && !s.share.active(service) && s.keepsTunerForEPG(ctx) {
 		return nil, errEPGCapture
@@ -277,7 +277,7 @@ var _ io.ReadCloser = new(networkTVStream)
 
 // Read は、TS を読む。EDCB の予約にチューナーを取られたと分かったら、tunerserver.ErrTunerPreempted を返す。
 // 取られた後に届いた別の局の TS は返さない。1 回に読んだ中で局が変わったときは、変わったと分かったパケットより前の分を返す。
-// 分け合うストリーム (#1535) は大きく読むので、読んだ分をまとめて捨てると、自分の局の TS まで落とすためである。
+// 分け合うストリーム (#1535) は大きく読むので、読んだ分をまとめて破棄すると、自分の局の TS まで落とすためである。
 func (n *networkTVStream) Read(p []byte) (int, error) {
 	if n.preempted.Load() {
 		return 0, n.preemption()

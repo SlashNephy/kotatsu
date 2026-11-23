@@ -17,7 +17,7 @@ const (
 // セクションは複数のパケットにまたがることがあり、1 つのパケットに複数のセクションが入ることもある。
 type sectionAssembler struct {
 	buf []byte
-	// active は、セクションの途中を受け取っているかどうか。始まりを見ていなければ、続きのパケットは捨てる。
+	// active は、セクションの途中を受け取っているかどうか。始まりを見ていなければ、続きのパケットは破棄する。
 	active bool
 }
 
@@ -25,7 +25,7 @@ func newSectionAssembler() *sectionAssembler {
 	return &sectionAssembler{buf: make([]byte, 0, 1024), active: false}
 }
 
-// reset は、組み立て中のセクションを捨てる。ドロップや誤りでパケットが欠けたときに呼ぶ。
+// reset は、組み立て中のセクションを破棄する。ドロップや誤りでパケットが欠けたときに呼ぶ。
 func (s *sectionAssembler) reset() {
 	s.buf = s.buf[:0]
 	s.active = false
@@ -100,7 +100,7 @@ func (s *sectionAssembler) append(data []byte, emit func(section []byte)) {
 
 // crc32MPEG は、MPEG-2 の CRC-32 (多項式 0x04C11DB7、初期値 0xFFFFFFFF、反転なし) を計算する。
 // 末尾の CRC を含めたセクション全体に対して計算すると、壊れていなければ 0 になる。
-// hash/crc32 はビットを反転する方式なので使えない。セクションは小さいので、表を使わずにビットごとに計算する。
+// hash/crc32 はビットを反転する方式なので使えない。セクションは小さいので、テーブルを使わずにビットごとに計算する。
 func crc32MPEG(b []byte) uint32 {
 	crc := uint32(0xFFFFFFFF)
 	for _, v := range b {
@@ -128,7 +128,7 @@ type sectionHeader struct {
 	body []byte
 }
 
-// parseSectionHeader は、セクションのヘッダーを読み、CRC を確かめる。壊れていれば nil を返す。
+// parseSectionHeader は、セクションのヘッダーを読み、CRC を確認する。壊れていれば nil を返す。
 func parseSectionHeader(section []byte) *sectionHeader {
 	// table_id から last_section_number までの 8 バイトと、CRC の 4 バイトは必ずある。
 	if len(section) < 12 || section[1]&0x80 == 0 || crc32MPEG(section) != 0 {

@@ -9,7 +9,7 @@ import (
 )
 
 // Analyzer は、書き込まれる TS を流し読みし、PID ごとの統計と、PAT と PMT が表す番組の構成を記録する。
-// 索引の書き込み先を渡せば、MPEG-2 映像の I フレームの位置と PTS を索引に追記していく。
+// インデックスの書き込み先を渡せば、MPEG-2 映像の I フレームの位置と PTS をインデックスに追記していく。
 //
 // 録画ファイルへの書き込みと並べて io.MultiWriter で使う。パケットの途中で区切られた書き込みも受け付ける。
 // Write は 1 つの goroutine から呼ぶ。Stats は、Write と並行に別の goroutine から呼んでよい。
@@ -17,7 +17,7 @@ type Analyzer struct {
 	mu sync.Mutex
 	// offset は、これまでに受け取ったバイト数。
 	offset int64
-	// framer は、書き込みをパケットに切り分ける。同期している間は、次のパケットの頭を確かめない。
+	// framer は、書き込みをパケットに切り分ける。同期している間は、次のパケットの先頭を確認しない。
 	framer   packetFramer
 	packets  int64
 	pids     map[uint16]*pidState
@@ -28,7 +28,7 @@ type Analyzer struct {
 	sections map[uint16]*sectionAssembler
 
 	index *IndexWriter
-	// indexErr は、索引の書き込みで起きたエラー。起きたら、それ以降は索引を書かない。
+	// indexErr は、インデックスの書き込みで起きたエラー。起きたら、それ以降はインデックスを書かない。
 	// 録画の書き込みを止めないよう、Write からは返さない。
 	indexErr error
 	iframes  int64
@@ -38,7 +38,7 @@ type Analyzer struct {
 	programsGeneration int
 	// firstPTS は、最初に見つけた I フレームの PTS。まだなければ nil。
 	firstPTS *int64
-	// videoProbe は、映像の形式を読むために、映像の先頭を溜める。読み終えたら nil にする。
+	// videoProbe は、映像の形式を読むために、映像の先頭をバッファする。読み終えたら nil にする。
 	videoProbe *videoFormatProbe
 	// videoFormat は、読んだ映像の形式 (#1310)。まだ読んでいなければ nil。
 	videoFormat *VideoFormat
@@ -57,7 +57,7 @@ type Analyzer struct {
 
 // AnalyzerOptions は Analyzer の設定。
 type AnalyzerOptions struct {
-	// Index は索引の書き込み先。nil なら索引を作らない。
+	// Index はインデックスの書き込み先。nil ならインデックスを作らない。
 	Index *IndexWriter
 	// CutoffPTS は、PID ごとの統計を控えておく位置。PTS がこの値に届いた I フレームを見つけたときの統計を、
 	// Stats.PIDsBeforeCutoff に返す。引き継ぎで重なった区間を、古いセグメントの集計から除くのに使う (#525)。nil なら控えない。
@@ -119,7 +119,7 @@ type Stats struct {
 	TransportStreamID *uint16
 	// IFrames は、見つけた I フレームの数。
 	IFrames int64
-	// IndexError は、索引の書き込みで起きたエラー。起きていなければ nil。
+	// IndexError は、インデックスの書き込みで起きたエラー。起きていなければ nil。
 	IndexError error
 	// Events は、EIT[p/f] で放送中とされた番組と、その音声の構成。サービス ID、eventId の順に並べる。
 	Events []*EventAudio
@@ -250,7 +250,7 @@ func (a *Analyzer) EventTime(serviceID, eventID uint16) *EventTime {
 	return &copied
 }
 
-// pidStats は、PID ごとの統計を、PID の昇順に写して返す。
+// pidStats は、PID ごとの統計を、PID の昇順にコピーして返す。
 func (a *Analyzer) pidStats() []*PIDStats {
 	pids := make([]*PIDStats, 0, len(a.pids))
 	for _, pid := range slices.Sorted(maps.Keys(a.pids)) {
@@ -317,8 +317,8 @@ func (a *Analyzer) handle(b []byte, offset int64) {
 	a.handleVideo(&pkt, offset, result == continuityDropped)
 }
 
-// discardPayload は、ペイロードを読めなかった PID の、組み立て中のセクションと I フレームの探索を捨てる。
-// 欠けたペイロードをまたいでつなぐと、壊れたセクションや、別の PES の位置を索引に書いてしまうからである。
+// discardPayload は、ペイロードを読めなかった PID の、組み立て中のセクションと I フレームの探索を破棄する。
+// 欠けたペイロードをまたいでつなぐと、壊れたセクションや、別の PES の位置をインデックスに書いてしまうからである。
 func (a *Analyzer) discardPayload(pid uint16) {
 	if assembler := a.sections[pid]; assembler != nil {
 		assembler.reset()
@@ -328,7 +328,7 @@ func (a *Analyzer) discardPayload(pid uint16) {
 	}
 }
 
-// handleVideo は、映像のパケットから I フレームを探し、見つけたら索引に追記する。
+// handleVideo は、映像のパケットから I フレームを探し、見つけたらインデックスに追記する。
 func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	if a.programsGeneration != a.programs.generation {
 		a.programsGeneration = a.programs.generation
@@ -370,7 +370,7 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	}
 }
 
-// probeVideoFormat は、映像の先頭を溜め、映像の形式を読み終えたら覚える (#1310)。
+// probeVideoFormat は、映像の先頭をバッファし、映像の形式を読み終えたらキャッシュする (#1310)。
 func (a *Analyzer) probeVideoFormat(pkt *packet) {
 	if a.videoProbe == nil {
 		return
@@ -396,7 +396,7 @@ func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 		a.sections[pid] = assembler
 	}
 	if dropped {
-		// 途中のパケットが欠けたセクションは、組み立てても CRC で弾かれるので、捨てて次の始まりを待つ。
+		// 途中のパケットが欠けたセクションは、組み立てても CRC で弾かれるので、破棄して次の始まりを待つ。
 		assembler.reset()
 	}
 	assembler.feed(pkt.payloadUnitStart, pkt.payload, func(section []byte) {
@@ -404,7 +404,7 @@ func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 	})
 }
 
-// readsPSI は、pid のセクションを組み立てて読むかどうかを返す。受け取る先がない表は、組み立てない。
+// readsPSI は、pid のセクションを組み立てて読むかどうかを返す。受け取る先がないテーブルは、組み立てない。
 func (a *Analyzer) readsPSI(pid uint16) bool {
 	switch pid {
 	case patPID, eitPID:
@@ -447,7 +447,7 @@ func (a *Analyzer) handleSection(pid uint16, section []byte) {
 			a.onNIT(nit)
 		}
 	case sdtPID:
-		// SDT の PID は、BAT も運ぶ。BAT は parseSDT が捨てる。
+		// SDT の PID は、BAT も運ぶ。BAT は parseSDT が破棄する。
 		if sdt, ok := parseSDT(section); ok {
 			a.onSDT(sdt)
 		}
@@ -465,11 +465,11 @@ func (a *Analyzer) handleSection(pid uint16, section []byte) {
 	}
 }
 
-// continuity は、continuity_counter を調べた結果。
+// continuity は、continuity_counter を確認した結果。
 type continuity int
 
 const (
-	// continuityOK は、連続しているか、調べようがない (最初のパケット、ペイロードがない、意図的な不連続) ことを表す。
+	// continuityOK は、連続しているか、確認しようがない (最初のパケット、ペイロードがない、意図的な不連続) ことを表す。
 	continuityOK continuity = iota
 	// continuityDuplicate は、直前のパケットの再送であることを表す。ペイロードは二重に読んではいけない。
 	continuityDuplicate

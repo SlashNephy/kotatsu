@@ -35,7 +35,7 @@ const (
 	cmdFileCopy2        = 2060
 )
 
-// cmdVersion は、「2」の付くコマンドで、要求の本文の先頭に送る版 (CMD_VER)。応答も、この版で書かれる。
+// cmdVersion は、「2」の付くコマンドで、要求の本文の先頭に送るバージョン (CMD_VER)。応答も、このバージョンで書かれる。
 const cmdVersion = 5
 
 // 戻り値 (EDCB の Common/ErrDef.h)。
@@ -71,7 +71,7 @@ var (
 	ErrFailed = errors.New("EpgTimerSrv failed the command")
 )
 
-// StatusError は、EpgTimerSrv が成功以外の戻り値を返したことを表す。errors.Is で ErrBusy などと比べられる。
+// StatusError は、EpgTimerSrv が成功以外の戻り値を返したことを表す。errors.Is で ErrBusy などと比較できる。
 type StatusError struct {
 	Command uint32
 	Status  uint32
@@ -185,11 +185,11 @@ func (c *Client) Services(ctx context.Context) ([]*Service, error) {
 	return decode(cmdEnumService, payload, decodeServices)
 }
 
-// EventsQuery は、Events で引く番組の条件。
+// EventsQuery は、Events で検索する番組の条件。
 type EventsQuery struct {
-	// Services は、引くサービス。空なら、すべてのサービスを引く。
+	// Services は、検索するサービス。空なら、すべてのサービスを検索する。
 	Services []ServiceKey
-	// From と To は、番組の開始時刻の範囲 [From, To)。どちらもゼロ値なら、開始時刻が未定の番組も含めてすべてを引く。
+	// From と To は、番組の開始時刻の範囲 [From, To)。どちらもゼロ値なら、開始時刻が未定の番組も含めてすべてを取得する。
 	// 片方だけを指定したときは、もう片方を限りのないものとし、開始時刻が未定の番組は含めない。
 	From, To time.Time
 }
@@ -240,7 +240,7 @@ const (
 	fileTimeEpoch = 116444736000000000
 )
 
-// fileTime は、時刻を、EDCB が番組の時刻を比べるのに使う、日本標準時の FILETIME の値にする。
+// fileTime は、時刻を、EDCB が番組の時刻を比較するのに使う、日本標準時の FILETIME の値にする。
 // EDCB は、SYSTEMTIME をタイムゾーンなしで FILETIME に直すので、日本標準時の壁時計の時刻として数える。
 func fileTime(t time.Time) int64 {
 	wall := t.In(jst())

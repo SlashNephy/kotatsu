@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// leaderCheckTimeout は、送るたびに、リーダーかどうかを DB で確かめる時間の上限。
+	// leaderCheckTimeout は、送るたびに、リーダーかどうかを DB で確認する時間の上限。
 	leaderCheckTimeout = 5 * time.Second
 	// flushTimeout は、止めるときに、溜まっている値を送り切るのを待つ時間の上限。
 	// exporter は送れるまで送り直し続けるので、受け手が応答しないと、Pod の停止の猶予を使い切ってしまう。
@@ -80,7 +80,7 @@ func NewMeterProviders(ctx context.Context, cfg *config.Telemetry, opts *MeterOp
 			),
 		},
 		{
-			// クラスターの範囲には、インスタンスの ID も版も付けない。リーダーが替わっても、リリースしても、系列を続けるため。
+			// クラスターの範囲には、インスタンスの ID もバージョンも付けない。リーダーが替わっても、リリースしても、系列を続けるため。
 			gatherer: &leaderGatherer{gatherer: opts.Cluster, isLeader: opts.IsLeader, logger: opts.Logger},
 			resource: resource.NewSchemaless(attribute.String("service.name", serviceName)),
 		},
@@ -163,7 +163,7 @@ func (g *excludeGatherer) Gather() ([]*dto.MetricFamily, error) {
 
 func (g *excludeGatherer) excluded(name string) bool {
 	for _, pattern := range g.patterns {
-		// パターンは設定を読むときに確かめてあるので、エラーにはならない。
+		// パターンは設定を読むときに確認してあるので、エラーにはならない。
 		if matched, _ := path.Match(pattern, name); matched {
 			return true
 		}

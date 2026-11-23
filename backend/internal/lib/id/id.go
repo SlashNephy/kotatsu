@@ -1,7 +1,7 @@
 // Package id は、Kotatsu 自身のデータの ID を生成する。
 //
 // ID の型には標準ライブラリの uuid の UUID をそのまま使う。pgx と sqlc が直接扱えるので、
-// DB の uuid 列との変換を書かずに済む。sqlc の生成物でも、uuid 列はこの型になる。
+// DB の uuid カラムとの変換を書かずに済む。sqlc の生成物でも、uuid カラムはこの型になる。
 package id
 
 import "uuid"

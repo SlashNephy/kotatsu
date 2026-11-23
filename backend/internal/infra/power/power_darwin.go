@@ -60,7 +60,7 @@ func loadIOKit() (*iokit, error) {
 		{iokitLib, "IOPMSchedulePowerEvent", &k.schedulePowerEvent},
 		{iokitLib, "IOPMCancelScheduledPowerEvent", &k.cancelScheduledPowerEvent},
 	} {
-		// RegisterLibFunc は、関数がないと panic するので、先に Dlsym で確かめる。
+		// RegisterLibFunc は、関数がないと panic するので、先に Dlsym で確認する。
 		sym, err := purego.Dlsym(f.lib, f.name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to find %s: %w", f.name, err)
@@ -109,7 +109,7 @@ func (k *iokit) powerEvent(call func(at, id, eventType uintptr) uint32, at time.
 //
 // 抑止は、IOPMAssertionCreateWithName で名前を付けて取り、IOPMAssertionRelease で外す。プロセスが落ちれば、OS が外す。
 // 起こす予約は IOPMSchedulePowerEvent で置き、root が要る。
-// 予約は OS が覚えていて、プロセスを起動し直しても残るので、置いた時刻をデータディレクトリのファイルに書く。
+// 予約は OS がキャッシュしていて、プロセスを起動し直しても残るので、置いた時刻をデータディレクトリのファイルに書く。
 type System struct {
 	k    *iokit
 	file *wakeFile
@@ -117,7 +117,7 @@ type System struct {
 	mu sync.Mutex
 	// assertion は、取った抑止の ID。取っていなければ 0。
 	assertion uint32
-	// scheduled は、このプロセスが置いた予約の時刻。置いていなければゼロ。データディレクトリがなくても取り消せるよう、覚えておく。
+	// scheduled は、このプロセスが置いた予約の時刻。置いていなければゼロ。データディレクトリがなくても取り消せるよう、キャッシュしておく。
 	scheduled time.Time
 }
 

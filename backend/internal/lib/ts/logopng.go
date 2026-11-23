@@ -62,7 +62,7 @@ func LogoPNG(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Join(errInvalidLogo, err)
 	}
-	// 放送のTSは信じず、展開する前に大きさを確かめる。ロゴは 64×36 までなので、余裕を持たせた大きさを超えれば読まない。
+	// 放送のTSは信じず、展開する前に大きさを確認する。ロゴは 64×36 までなので、余裕を持たせた大きさを超えれば読まない。
 	if config.Width > maxLogoSide || config.Height > maxLogoSide {
 		return nil, errInvalidLogo
 	}

@@ -51,7 +51,7 @@ func TestURLError(t *testing.T) {
 	}
 }
 
-// TestURLErrorKeepsCause は、URL を除いても、原因を errors.Is で確かめられることを確かめる。
+// TestURLErrorKeepsCause は、URL を除いても、原因を errors.Is で確認できることを確認する。
 func TestURLErrorKeepsCause(t *testing.T) {
 	t.Parallel()
 

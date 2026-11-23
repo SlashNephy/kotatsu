@@ -14,7 +14,7 @@ import (
 // res180p は、テストの H.264 と HEVC の映像 (320x180 のプログレッシブ) の解像度。
 const res180p = "180p"
 
-// TestAnalyzerVideoFormat は、最初の映像のシーケンスヘッダーか SPS から、映像の形式を読むことを確かめる (#1310)。
+// TestAnalyzerVideoFormat は、最初の映像のシーケンスヘッダーか SPS から、映像の形式を読むことを確認する (#1310)。
 func TestAnalyzerVideoFormat(t *testing.T) {
 	t.Parallel()
 
@@ -51,7 +51,7 @@ func TestAnalyzerVideoFormat(t *testing.T) {
 	}
 }
 
-// TestAnalyzerVideoFormatTruncated は、映像の先頭が途中で切れていても、止まらずに形式を読まないことを確かめる (#1310)。
+// TestAnalyzerVideoFormatTruncated は、映像の先頭が途中で切れていても、止まらずに形式を読まないことを確認する (#1310)。
 func TestAnalyzerVideoFormatTruncated(t *testing.T) {
 	t.Parallel()
 
@@ -96,7 +96,7 @@ func (w *bitWriter) bytes() []byte {
 }
 
 // TestParseH264SPSHugePOCCycle は、壊れた SPS の num_ref_frames_in_pic_order_cnt_cycle が大きくても、
-// 長く回らずに、形式を読まないことを確かめる (#1310)。
+// 長く回らずに、形式を読まないことを確認する (#1310)。
 func TestParseH264SPSHugePOCCycle(t *testing.T) {
 	t.Parallel()
 
@@ -151,7 +151,7 @@ func TestParseH264SPSHugePOCCycle(t *testing.T) {
 	}
 }
 
-// TestParseH264SPSCrop422 は、4:2:2 の H.264 のクロップを、縦は 1 行単位で数えることを確かめる (#1310、ITU-T H.264 表 6-1)。
+// TestParseH264SPSCrop422 は、4:2:2 の H.264 のクロップを、縦は 1 行単位で数えることを確認する (#1310、ITU-T H.264 テーブル 6-1)。
 func TestParseH264SPSCrop422(t *testing.T) {
 	t.Parallel()
 

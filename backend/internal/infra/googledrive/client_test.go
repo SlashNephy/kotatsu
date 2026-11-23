@@ -31,7 +31,7 @@ func modified() time.Time {
 	return time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 }
 
-// tokens は、偽の Google が発行したアクセストークンを返し、捨てられたら発行し直す TokenSource。
+// tokens は、モックの Google が発行したアクセストークンを返し、破棄されたら発行し直す TokenSource。
 type tokens struct {
 	server *googletest.Server
 
@@ -57,7 +57,7 @@ func (t *tokens) Invalidate() {
 	t.invalidated++
 }
 
-// newClient は、次の中身の偽の Drive と、そこへ向けたクライアントを返す。やり直す前に待った長さを waits に残す。
+// newClient は、次の内容のモックの Drive と、そこへ向けたクライアントを返す。やり直す前に待った長さを waits に残す。
 //
 //	マイドライブ: anime/ (ep1.ts, ep2.ts), notes.gdoc, trashed.ts
 //	共有ドライブ shared (Backup): backup.ts
@@ -88,7 +88,7 @@ func newClient(t *testing.T) *fixture {
 	return &fixture{client: client, server: server, tokens: source, waits: waits}
 }
 
-// fixture は、偽の Drive と、そこへ向けたクライアント。waits は、やり直す前に待った長さ。
+// fixture は、モックの Drive と、そこへ向けたクライアント。waits は、やり直す前に待った長さ。
 type fixture struct {
 	client *googledrive.Client
 	server *googletest.Server
@@ -105,7 +105,7 @@ func TestClientList(t *testing.T) {
 		driveID   string
 		wantNames []string
 	}{
-		// ゴミ箱にあるものは返さない。偽の Drive は 1 件ずつのページで返すので、ページをたどって集める。
+		// ゴミ箱にあるものは返さない。モックの Drive は 1 件ずつのページで返すので、ページをたどって集める。
 		{name: "my drive", parent: googledrive.MyDriveID, driveID: "", wantNames: []string{"anime", "notes"}},
 		{name: "folder", parent: folderID, driveID: "", wantNames: []string{fileName, "ep2.ts"}},
 		{name: "shared drive", parent: driveID, driveID: driveID, wantNames: []string{"backup.ts"}},
@@ -181,7 +181,7 @@ func TestClientDownload(t *testing.T) {
 }
 
 // TestClientRetry は、上限に当たったとき (429、403 の userRateLimitExceeded) と、トークンの期限が切れたとき (401) に、
-// やり直すことと、やり直してはならない失敗 (downloadQuotaExceeded) と、やり直しても当たり続けるときの扱いを確かめる。
+// やり直すことと、やり直してはならない失敗 (downloadQuotaExceeded) と、やり直しても当たり続けるときの扱いを確認する。
 func TestClientRetry(t *testing.T) {
 	t.Parallel()
 
@@ -223,7 +223,7 @@ func TestClientRetry(t *testing.T) {
 			wantErr: googledrive.ErrUnauthorized, wantCalls: 2, wantInvalidated: 1,
 		},
 		{
-			// 待つ長さの合計は、索引が作り直される時間より短く収める。Retry-After が長ければ、早めに諦める。
+			// 待つ長さの合計は、インデックスが作り直される時間より短く収める。Retry-After が長ければ、早めに諦める。
 			name: "long Retry-After", faults: []googletest.Fault{googletest.FaultLongRateLimit, googletest.FaultLongRateLimit},
 			wantErr: googledrive.ErrRateLimited, wantCalls: 2, wantWaits: 1,
 		},
@@ -257,7 +257,7 @@ func TestClientRetry(t *testing.T) {
 	}
 }
 
-// TestClientRangeIgnored は、範囲を無視して頭から返されたら、頭から読むときだけ使うことを確かめる。
+// TestClientRangeIgnored は、範囲を無視して頭から返されたら、頭から読むときだけ使うことを確認する。
 func TestClientRangeIgnored(t *testing.T) {
 	t.Parallel()
 
@@ -286,7 +286,7 @@ func TestClientRangeIgnored(t *testing.T) {
 	}
 }
 
-// TestClientRetryAfter は、429 の Retry-After に従って待つことを確かめる。
+// TestClientRetryAfter は、429 の Retry-After に従って待つことを確認する。
 func TestClientRetryAfter(t *testing.T) {
 	t.Parallel()
 	f := newClient(t)

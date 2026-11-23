@@ -8,7 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/redact"
 )
 
-// TestSecretsEscaped は、ログの整形でエスケープされた形の秘密の値も伏せることを確かめる。
+// TestSecretsEscaped は、ログの整形でエスケープされた形の秘密の値もマスクすることを確認する。
 // slog の JSON は " と \ と制御文字を、encoding/json はさらに < > & を < の形にする。logfmt は strconv.Quote の形にする。
 func TestSecretsEscaped(t *testing.T) {
 	t.Parallel()
@@ -36,7 +36,7 @@ func TestSecretsEscaped(t *testing.T) {
 	}
 }
 
-// TestSecretsTruncated は、1 行の上限で切った行の末尾に、秘密の値の前半が残らないことを確かめる。
+// TestSecretsTruncated は、1 行の上限で切った行の末尾に、秘密の値の前半が残らないことを確認する。
 func TestSecretsTruncated(t *testing.T) {
 	t.Parallel()
 

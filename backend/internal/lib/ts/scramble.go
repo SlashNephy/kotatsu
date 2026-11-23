@@ -9,7 +9,7 @@ import (
 
 // スクランブルされたまま届いた TS を見分けるパラメーター (#1517、設計書 5.3、7.1、付録 A)。
 //
-// どれも、チューナーサーバーのカードを抜いた実機で測っていない仮の値である。実機で測ったら直す。
+// どれも、チューナーサーバーのカードを抜いた実機で計測していない仮の値である。実機で計測したら直す。
 const (
 	// ScrambledRatioThreshold は、ES のパケットのうち、スクランブルされているものの割合の閾値。これを超えたら、スクランブルされたままとする。
 	// 正常に復号できた TS は 0 に、カードが読めていない TS は 1 に寄ると見込むので、両者から最も離れた真ん中に置く。
@@ -19,17 +19,17 @@ const (
 	// 地上波 (15 Mbps 前後) の約 3 秒分で、選局した直後の 1 秒ほどがスクランブルされたままでも、割合は閾値に届かない。
 	// ビットレートの低いラジオ (100 kbps 前後) では約 7 分分になり、それより短い録画は判定しない。
 	MinRecordingScramblePackets = 30000
-	// DefaultScrambleWindowPackets は、ライブで割合を出す窓 1 つの、ES のパケットの数。
+	// DefaultScrambleWindowPackets は、ライブで割合を出すウィンドウ 1 つの、ES のパケットの数。
 	// 地上波では 0.1 秒に満たず、ラジオでも約 8 秒で埋まる。
 	DefaultScrambleWindowPackets = 500
-	// DefaultScrambleWindows は、閾値を超えた窓が、これだけ続いたらスクランブルされたままと決める窓の数。
-	// 1 だと、ラジオでは窓 1 つで抑止時間を越え、選局した直後の窓 1 つで決めてしまうので、2 以上にする。
+	// DefaultScrambleWindows は、閾値を超えたウィンドウが、これだけ続いたらスクランブルされたままと決めるウィンドウの数。
+	// 1 だと、ラジオではウィンドウ 1 つで抑止時間を越え、選局した直後のウィンドウ 1 つで決めてしまうので、2 以上にする。
 	DefaultScrambleWindows = 2
-	// DefaultScrambleHold は、閾値を超えた窓が続き始めてから、スクランブルされたままと決めるまでに待つ時間。
-	// 選局した直後に鍵がそろうまでの時間と、デスクランブラーが ECM を問い合わせ直す時間より長く取る。
+	// DefaultScrambleHold は、閾値を超えたウィンドウが続き始めてから、スクランブルされたままと決めるまでに待つ時間。
+	// 選局した直後に暗号鍵がそろうまでの時間と、デスクランブラーが ECM を問い合わせ直す時間より長く取る。
 	DefaultScrambleHold = 10 * time.Second
-	// DefaultScrambleMinPartialPackets は、判定の前にエンコーダーが降りたとき、埋まりかけの窓を使ってよい ES のパケットの最少の数。
-	// 窓の大きさより小さくする。
+	// DefaultScrambleMinPartialPackets は、判定の前にエンコーダーが降りたとき、埋まりかけのウィンドウを使ってよい ES のパケットの最少の数。
+	// ウィンドウの大きさより小さくする。
 	DefaultScrambleMinPartialPackets = 200
 )
 
@@ -128,26 +128,26 @@ type ScrambleDetectorOptions struct {
 	Windows           int
 	Hold              time.Duration
 	MinPartialPackets int
-	// Now は今の時刻を返す。抑止時間を測るのに使う。
+	// Now は今の時刻を返す。抑止時間を計測するのに使う。
 	Now func() time.Time
 	// OnScrambled は、スクランブルされたままと決めたときに、1 度だけ呼ぶ。Write の中で呼び、返すまで Write は ErrScrambled を返さない。
 	// 理由を画面に送ってから、ストリームを閉じるのに使う。nil なら呼ばない。
 	OnScrambled func()
 }
 
-// ScrambleDetector は、ライブで流す TS を流し読みし、スクランブルされたまま届いているかを、連続した窓で判定する (#1517、設計書 7.1)。
+// ScrambleDetector は、ライブで流す TS を流し読みし、スクランブルされたまま届いているかを、連続したウィンドウで判定する (#1517、設計書 7.1)。
 //
 // 数えるのは、PMT に載った ES の PID の、ペイロードを持ち、transport_error_indicator の立っていないパケットだけである。
-// PMT を読むまでは何も数えない。窓 1 つの割合が閾値以下なら、スクランブルされていないと決めて、数えるのをやめる。
-// 閾値を超えた窓が Windows 以上続き、続き始めた窓の 1 個目のパケットを数えてから Hold 以上たったら、スクランブルされたままと決める。
-// 選局した直後に、鍵がそろう前のパケットが流れても、無料の局を止めないためである。
+// PMT を読むまでは何も数えない。ウィンドウ 1 つの割合が閾値以下なら、スクランブルされていないと決めて、数えるのをやめる。
+// 閾値を超えたウィンドウが Windows 以上続き、続き始めたウィンドウの 1 個目のパケットを数えてから Hold 以上たったら、スクランブルされたままと決める。
+// 選局した直後に、暗号鍵がそろう前のパケットが流れても、無料の局を止めないためである。
 //
 // Write は 1 つの goroutine から呼ぶ。Verdict と Finish は、別の goroutine から呼んでよい。
 type ScrambleDetector struct {
 	opts ScrambleDetectorOptions
 
 	mu sync.Mutex
-	// framer は、書き込みをパケットに切り分ける。判定に使うだけなので、同期している間も次のパケットの頭を確かめ、
+	// framer は、書き込みをパケットに切り分ける。判定に使うだけなので、同期している間も次のパケットの先頭を確認し、
 	// 合わないパケットは数えずに読み飛ばす。
 	framer   packetFramer
 	programs *programTable
@@ -157,12 +157,12 @@ type ScrambleDetector struct {
 	programsGeneration int
 
 	verdict ScrambleVerdict
-	// window は、埋めている窓の数。windowStart は、その窓の 1 個目のパケットを数えた時刻。
+	// window は、埋めているウィンドウの数。windowStart は、そのウィンドウの 1 個目のパケットを数えた時刻。
 	window      ScrambleCounts
 	windowStart time.Time
-	// last は、最後に埋まった窓の数。まだなければ Packets が 0。
+	// last は、最後に埋まったウィンドウの数。まだなければ Packets が 0。
 	last ScrambleCounts
-	// over は、閾値を超えて続いた窓の数。streakStart は、その最初の窓の 1 個目のパケットを数えた時刻。
+	// over は、閾値を超えて続いたウィンドウの数。streakStart は、その最初のウィンドウの 1 個目のパケットを数えた時刻。
 	over        int
 	streakStart time.Time
 }
@@ -203,8 +203,8 @@ func (d *ScrambleDetector) Verdict() ScrambleVerdict {
 	return d.verdict
 }
 
-// Finish は、判定の前にストリームが終わった (エンコーダーが降りた) ときに、いちばん新しい窓だけで決めて返す。
-// 埋まりかけの窓が MinPartialPackets 以上あればそれを、なければ最後に埋まった窓を使う。窓が 1 つもなければ決めない。
+// Finish は、判定の前にストリームが終わった (エンコーダーが降りた) ときに、いちばん新しいウィンドウだけで決めて返す。
+// 埋まりかけのウィンドウが MinPartialPackets 以上あればそれを、なければ最後に埋まったウィンドウを使う。ウィンドウが 1 つもなければ決めない。
 // すでに決めていれば、その判定を返す。Finish で決めたときは、OnScrambled を呼ばない。
 func (d *ScrambleDetector) Finish() ScrambleVerdict {
 	d.mu.Lock()
@@ -311,7 +311,7 @@ func (d *ScrambleDetector) handlePSI(pkt *packet) {
 	})
 }
 
-// count は、ES のパケットを窓に数え、窓が埋まったら判定を進める。スクランブルされたままと決めたら true を返す。
+// count は、ES のパケットをウィンドウに数え、ウィンドウが埋まったら判定を進める。スクランブルされたままと決めたら true を返す。
 func (d *ScrambleDetector) count(scrambled bool) bool {
 	now := d.opts.Now()
 	if d.window.Packets == 0 {
@@ -327,7 +327,7 @@ func (d *ScrambleDetector) count(scrambled bool) bool {
 	filled := d.window
 	d.last, d.window = filled, ScrambleCounts{Packets: 0, Scrambled: 0}
 	if filled.Ratio() <= ScrambledRatioThreshold {
-		// スクランブルされていない窓が来たら、そこで決める。閾値を超えた窓は、必ず続いた並びになる。
+		// スクランブルされていないウィンドウが来たら、そこで決める。閾値を超えたウィンドウは、必ず続いた並びになる。
 		d.verdict = ScrambleVerdictClear
 
 		return false

@@ -22,7 +22,7 @@ type TunerServer struct {
 	text *strings.Replacer
 	// bonDrivers は、Kotatsu がライブと録画に使う BonDriver の名前。空なら、すべてのチューナーを使えるとみなす (#1532)。
 	bonDrivers map[string]bool
-	// ids は、NetworkTV の ID を配る (#1533)。nil なら、ストリームを開けない。
+	// ids は、NetworkTV の ID を配信する (#1533)。nil なら、ストリームを開けない。
 	ids NetworkTVIDs
 	// preemptionCheckInterval は、NetworkTV がまだ開いているかを問い合わせる間隔 (#1534)。
 	preemptionCheckInterval time.Duration
@@ -49,11 +49,11 @@ type TunerServerOptions struct {
 	// BonDrivers は、Kotatsu がライブと録画に使う BonDriver の名前。EpgTimerSrv.ini の [TVTEST] に並べたものと同じにする。
 	// 空なら、すべてのチューナーを使えるとみなす (#1532)。
 	BonDrivers []string
-	// NetworkTVIDs は、ストリームを開くときに NetworkTV の ID を配る (#1533)。nil なら、ストリームを開けない。
+	// NetworkTVIDs は、ストリームを開くときに NetworkTV の ID を配信する (#1533)。nil なら、ストリームを開けない。
 	NetworkTVIDs NetworkTVIDs
 	// PreemptionCheckInterval は、NetworkTV がまだ開いているかを問い合わせる間隔 (#1534)。0 なら 5 秒。
 	PreemptionCheckInterval time.Duration
-	// SubscriberBufferSize は、同じサービスのストリームを分け合う受け手ごとに溜められるバイト数 (#1535)。
+	// SubscriberBufferSize は、同じサービスのストリームを分け合う受け手ごとにバッファできるバイト数 (#1535)。
 	// 読むのが遅く、これを超えた受け手は切る。0 なら DefaultSubscriberBufferSize。
 	SubscriberBufferSize int
 	// Clock は、EPG の取得の前後かを決めるのに使う時計 (#1536)。nil なら OS の時計。
@@ -111,7 +111,7 @@ func positiveOr[T int | time.Duration](v, def T) T {
 //   - 追加記号の代わりの文字列 (「[字]」など) のうち、戻せるものを記号に戻す (gaijiFallbacks)。
 //
 // 中型の英数を半角にするかどうかや、いくつもの記号が同じ文字列になるものは、EDCB が書いた時点で分からなくなるので、戻さない。
-// 照合は NFKC で幅をそろえ、括弧の印も囲み文字と同じに扱うので、照合には効かない (設計書 3.5)。
+// 照合は NFKC で幅をそろえ、括弧のマークも囲み文字と同じに扱うので、照合には効かない (設計書 3.5)。
 func newTextReplacer() *strings.Replacer {
 	pairs := append([]string{"\r\n", "\n", "～", "〜", "―", "—"}, gaijiFallbacks()...)
 
@@ -143,7 +143,7 @@ func (s *TunerServer) Services(ctx context.Context) ([]*tunerserver.Service, err
 }
 
 // Programs は、番組を返す。query が nil なら全件を返す。開始時刻が未定の番組は返さない (Mirakurun も返さない)。
-// EDCB はサービスを TSID まで含めて見分けるので、サービスを絞るときは、チャンネルの設定から TSID を引く。
+// EDCB はサービスを TSID まで含めて見分けるので、サービスを絞るときは、チャンネルの設定から TSID を取得する。
 func (s *TunerServer) Programs(ctx context.Context, query *tunerserver.ProgramsQuery) ([]*tunerserver.Program, error) {
 	events := &EventsQuery{Services: nil, From: time.Time{}, To: time.Time{}}
 	if query != nil && query.NetworkID != 0 && query.ServiceID != 0 {
@@ -241,8 +241,8 @@ func missingSharedServices(list []*ServiceEvents, index map[eventKey]*Event) []S
 	return missing
 }
 
-// withSharedDetails は、文を持たない番組に、共有のイベントグループが指す番組の文、ジャンル、映像、音声、詳細を写した番組を返す。
-// Mirakurun も、サブチャンネルの番組に、メインのチャンネルの番組の情報を写して返す。スクランブルの有無は、番組自身のものを使う。
+// withSharedDetails は、文を持たない番組に、共有のイベントグループが指す番組の文、ジャンル、映像、音声、詳細をコピーした番組を返す。
+// Mirakurun も、サブチャンネルの番組に、メインのチャンネルの番組の情報をコピーして返す。スクランブルの有無は、番組自身のものを使う。
 func withSharedDetails(event *Event, index map[eventKey]*Event) *Event {
 	source := sharedSource(event, index)
 	if source == nil {
@@ -305,7 +305,7 @@ func (s *TunerServer) toService(entry *ChannelEntry, remoteKey uint8) *tunerserv
 
 // ChannelType は、ONID から、チャンネル種別 (GR、BS、CS、BS4K、SKY) を決める。EDCB は種別を持たない。
 // 地上波は、ネットワーク ID が 0x7880 から 0x7FE8 の範囲にある (ARIB TR-B14)。
-// チャンネルは、TS (TSID) ごとに 1 つとする。EDCB は物理チャンネルを返さないので、同じ TS のサービスを束ねるのに TSID を使う。
+// チャンネルは、TS (TSID) ごとに 1 つとする。EDCB は物理チャンネルを返さないので、同じ TS のサービスをまとめるのに TSID を使う。
 func ChannelType(onid uint16) string {
 	switch {
 	case onid >= 0x7880 && onid <= 0x7FE8:
@@ -400,7 +400,7 @@ func relatedItems(group *EventGroup) []*domain.RelatedItem {
 	return items
 }
 
-// videoResolution は、映像のコンポーネント記述子の component_type から、解像度を引く。Mirakurun の表と同じ。
+// videoResolution は、映像のコンポーネント記述子の component_type から、解像度を求める。Mirakurun のテーブルと同じ。
 func videoResolution(componentType uint8) (string, bool) {
 	switch componentType {
 	case 0x01, 0x02, 0x03, 0x04:
@@ -429,7 +429,7 @@ func videoResolution(componentType uint8) (string, bool) {
 // ParseExtended は、EDCB が 1 本にまとめた詳細 (拡張形式イベント記述子) を、項目名から本文への対応に戻す。
 // EDCB は、項目ごとに「- 項目名」の行と本文の行を、CRLF で並べる。項目名と本文の行頭の「-…- 」には、
 // 項目名の行と見分けられるよう、「-」を 1 つ足している (EDCB の EpgDataCap3/EpgDBUtil.cpp の EscapeHyphenSpaceAndAppend)。
-// 本文の改行は、Mirakurun と同じく LF にする。最初の項目名より前の行は読み捨てる。
+// 本文の改行は、Mirakurun と同じく LF にする。最初の項目名より前の行は読み飛ばしる。
 func ParseExtended(text string) map[string]string {
 	result := map[string]string{}
 	var key string

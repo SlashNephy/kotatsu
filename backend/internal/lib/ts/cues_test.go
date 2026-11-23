@@ -23,7 +23,7 @@ func encodePTS(pts uint64) []byte {
 	return []byte{0x21 | high[7]&0x0E, mid[0], mid[1], low[0], low[1]}
 }
 
-// pesPacket は、PTS が pts で、中身が data の PES を、1 つのパケットに入れて作る。
+// pesPacket は、PTS が pts で、内容が data の PES を、1 つのパケットに入れて作る。
 func pesPacket(pid uint16, cc *byte, streamID byte, pts uint64, data []byte) []byte {
 	p := make([]byte, ts.PacketSize)
 	for i := range p {
@@ -53,7 +53,7 @@ func TestCueScanner(t *testing.T) {
 	streams = append(streams, esEntry{streamType: 0x02, pid: videoPID}, esEntry{streamType: 0x0F, pid: audioPID})
 	pkts := psiPackets(0x0000, &patCC, patSection(0, map[uint16]uint16{programNum: pmtPID}))
 	pkts = append(pkts, psiPackets(pmtPID, &pmtCC, pmtSection(0, streams...))...)
-	// 録画の頭の映像は、I フレームの前の P ピクチャから始まる (MPEG-2 の picture header の picture_coding_type が 2)。
+	// 録画の先頭の映像は、I フレームの前の P ピクチャから始まる (MPEG-2 の picture header の picture_coding_type が 2)。
 	pkts = append(pkts, pesPacket(videoPID, &videoCC, 0xE0, 1000, []byte{0x00, 0x00, 0x01, 0x00, 0x00, 0x10}))
 	pkts = append(pkts, pesPacket(videoPID, &videoCC, 0xE0, 2000, []byte{0x00, 0x00, 0x01, 0x00, 0x00, 0x08}))
 	pkts = append(pkts, pesPacket(videoPID, &videoCC, 0xE0, 3000, []byte{0x00, 0x00, 0x01, 0x00, 0x00, 0x08}))

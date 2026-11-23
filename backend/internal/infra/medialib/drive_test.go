@@ -16,7 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/googletest"
 )
 
-// driveTokens は、偽の Google が発行したアクセストークンを返す。
+// driveTokens は、モックの Google が発行したアクセストークンを返す。
 type driveTokens struct {
 	server *googletest.Server
 	token  string
@@ -60,12 +60,12 @@ const (
 	bigName     = "big.ts"
 )
 
-// bigContent は、読み出しを確かめる大きめのファイルの中身。
+// bigContent は、読み出しを確認する大きめのファイルの内容。
 func bigContent() []byte {
 	return []byte(strings.Repeat("0123456789", 1000))
 }
 
-// newDriveWith は、次の中身の偽の Drive の、scope で選んだフォルダのライブラリを作る部品を返す。
+// newDriveWith は、次の内容のモックの Drive の、scope で選んだフォルダのライブラリを作る部品を返す。
 //
 //	マイドライブ: videos/ (episode.ts, big.ts, memo (Google ドキュメント), .dot.ts, dup.ts ×2, a/b.ts, season2/ (episode2.ts)),
 //	             a.ts, secret/ (episode-secret.ts)
@@ -121,7 +121,7 @@ func newDriveLibrary(t *testing.T, name string) (medialib.Library, *googletest.S
 	return library, server
 }
 
-// TestDriveLibraries は、選んだフォルダごとにライブラリを作り、接続していなければ一覧に出さないことを確かめる。
+// TestDriveLibraries は、選んだフォルダごとにライブラリを作り、接続していなければ一覧に出さないことを確認する。
 func TestDriveLibraries(t *testing.T) {
 	t.Parallel()
 	drive, _ := newDriveWith(t, defaultScope())
@@ -183,7 +183,7 @@ func TestDriveList(t *testing.T) {
 		wantErr   error
 	}{
 		{
-			// パスは名前でつなぐ。同じ名前が並ぶときだけ、~ と ID の頭を付ける。/ は形の似た文字にする。
+			// パスは名前でつなぐ。同じ名前が並ぶときだけ、~ と ID の先頭を付ける。/ は形の似た文字にする。
 			// Google ドキュメントと、. で始まる名前は出さない。
 			name: "selected folder", library: videosLibrary, dir: "",
 			wantPaths: []string{"a∕b.ts", bigName, dupName + "~dupaaaa1", dupName + "~dupaaaa2", episodeName, seasonName},
@@ -218,7 +218,7 @@ func TestDriveList(t *testing.T) {
 	}
 }
 
-// TestDriveSharedDriveRoot は、共有ドライブの根元を選んでも、中身をたどれることを確かめる。
+// TestDriveSharedDriveRoot は、共有ドライブの根元を選んでも、内容をたどれることを確認する。
 func TestDriveSharedDriveRoot(t *testing.T) {
 	t.Parallel()
 	drive, _ := newDriveWith(t, googletest.NewScope(&medialib.DriveFolder{ID: sharedID, DriveID: sharedID, Library: "atmos"}))
@@ -286,7 +286,7 @@ func TestDriveStatAndIdentity(t *testing.T) {
 	assert.Equal(t, []string{slashName}, names, "the names keep the slash")
 }
 
-// TestDriveSearch は、名前で探し、選んだフォルダ (と、探すフォルダ) の下にあるものだけを返すことを確かめる。
+// TestDriveSearch は、名前で探し、選んだフォルダ (と、探すフォルダ) の下にあるものだけを返すことを確認する。
 func TestDriveSearch(t *testing.T) {
 	t.Parallel()
 
@@ -326,7 +326,7 @@ func TestDriveSearch(t *testing.T) {
 	}
 }
 
-// TestDriveRead は、ファイルを途中から読めることと、続きを読むなら開いた本文を使い回すことを確かめる。
+// TestDriveRead は、ファイルを途中から読めることと、続きを読むなら開いた本文を使い回すことを確認する。
 func TestDriveRead(t *testing.T) {
 	t.Parallel()
 
@@ -349,7 +349,7 @@ func TestDriveRead(t *testing.T) {
 			wantRanges: []string{fromHead},
 		},
 		{
-			// 少し先へ飛ぶなら読み捨てて進め、戻るなら開き直す。
+			// 少し先へ飛ぶなら読み飛ばして進め、戻るなら開き直す。
 			name:       "skip and rewind",
 			steps:      []step{{seek: -1, readAt: 0, n: 10}, {seek: -1, readAt: 5000, n: 10}, {seek: 100, readAt: -1, n: 10}},
 			wantRanges: []string{fromHead, "bytes=100-"},
@@ -422,7 +422,7 @@ func TestDriveReadEnd(t *testing.T) {
 	require.ErrorIs(t, err, medialib.ErrNotFound)
 }
 
-// TestDriveReadGivesUp は、途中で切れ続けたら、開き直す回数の上限で諦めることを確かめる。
+// TestDriveReadGivesUp は、途中で切れ続けたら、開き直す回数の上限で諦めることを確認する。
 func TestDriveReadGivesUp(t *testing.T) {
 	t.Parallel()
 	drive, server := newDriveLibrary(t, videosLibrary)
@@ -447,7 +447,7 @@ func (revokedTokens) Token(context.Context) (string, error) { return "", googled
 
 func (revokedTokens) Invalidate() {}
 
-// TestDriveRevoked は、接続していると覚えていても、トークンを作れなければ、接続していないものとして返すことを確かめる。
+// TestDriveRevoked は、接続しているとキャッシュしていても、トークンを作れなければ、接続していないものとして返すことを確認する。
 // 配信や画像の口とジョブは、ErrNotFound で見分ける。
 func TestDriveRevoked(t *testing.T) {
 	t.Parallel()

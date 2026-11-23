@@ -8,7 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// TestDecodeARIBString は、ARIB STD-B24 の 8 単位符号の文字列を、チューナーサーバーの番組情報と同じ書き方で読むことを確かめる (#1500)。
+// TestDecodeARIBString は、ARIB STD-B24 の 8 単位符号の文字列を、チューナーサーバーの番組情報と同じ書き方で読むことを確認する (#1500)。
 func TestDecodeARIBString(t *testing.T) {
 	t.Parallel()
 
@@ -35,13 +35,13 @@ func TestDecodeARIBString(t *testing.T) {
 			want: "AB 1２",
 		},
 		{
-			// 0x2141 は、EUC-JP の復号器が U+FF5E にするが、チューナーサーバーにそろえて U+301C にする。
+			// 0x2141 は、EUC-JP のデコーダーが U+FF5E にするが、チューナーサーバーにそろえて U+301C にする。
 			name: "波ダッシュは JIS X 0208 の対応",
 			in:   []byte{0x21, 0x41, 0x25, 0x46, 0x21, 0x41},
 			want: "〜テ〜",
 		},
 		{
-			// 0x213D は、EUC-JP の復号器が U+2015 にするが、チューナーサーバーにそろえて U+2014 にする。
+			// 0x213D は、EUC-JP のデコーダーが U+2015 にするが、チューナーサーバーにそろえて U+2014 にする。
 			name: "ダッシュは JIS X 0208 の対応",
 			in:   []byte{0x21, 0x3D, 0x21, 0x3D},
 			want: "——",

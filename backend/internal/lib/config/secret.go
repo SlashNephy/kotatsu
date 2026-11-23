@@ -7,7 +7,7 @@ import (
 
 const redacted = "[REDACTED]"
 
-// Secret は秘密情報の値。fmt、slog、JSON のどれで出力しても値を伏せる。
+// Secret は秘密情報の値。fmt、slog、JSON のどれで出力しても値をマスクする。
 // 値そのものは Value で取り出す。
 type Secret string
 
@@ -16,7 +16,7 @@ var (
 	_ json.Marshaler = Secret("")
 )
 
-// Value は伏せていない値を返す。
+// Value はマスクしていない値を返す。
 func (s Secret) Value() string {
 	return string(s)
 }

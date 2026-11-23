@@ -49,7 +49,7 @@ func TestMigrateAppliesToEmptyDatabase(t *testing.T) {
 }
 
 // TestMigrateTo は、指定したバージョンで止め、そこから Migrate で最新まで上げられることと、
-// 知らないバージョンや、今より古いバージョンを拒むことを確かめる (#1926)。
+// 知らないバージョンや、今より古いバージョンを拒むことを確認する (#1926)。
 func TestMigrateTo(t *testing.T) {
 	t.Parallel()
 
@@ -96,8 +96,8 @@ func TestMigrateTo(t *testing.T) {
 	}
 }
 
-// TestMigrateRenormalizesDashVariants は、正規化で波ダッシュとダッシュの類をそろえる前の書き方が残る、正規化した列を、
-// kotatsu migrate が書き直すことを確かめる (#2041)。そろえる前に書いた行と、ローリング更新の間に古いバイナリが書いた行に当たる。
+// TestMigrateRenormalizesDashVariants は、正規化で波ダッシュとダッシュの類をそろえる前の書き方が残る、正規化したカラムを、
+// kotatsu migrate が書き直すことを確認する (#2041)。そろえる前に書いた行と、ローリング更新の間に古いバイナリが書いた行に当たる。
 // そろえる文字を含まない行は変えない。
 func TestMigrateRenormalizesDashVariants(t *testing.T) {
 	t.Parallel()
@@ -133,7 +133,7 @@ func TestMigrateRenormalizesDashVariants(t *testing.T) {
 	insertProgram(4, plainName, "あらすじ―後編―", "{}")
 	// そろえる文字をどこにも含まない番組は、書き直さない。
 	insertProgram(5, plainName, "あらすじ", "{}")
-	// 詳細の正規化した列は、そろえる前の書き方にしておく。
+	// 詳細の正規化したカラムは、そろえる前の書き方にしておく。
 	exec("UPDATE programs SET extended_normalized = $1 WHERE extended::text <> '{}'", "出演者\n山田〜太郎\n")
 	// 過去の番組は、番組表から移したものとして作る。
 	exec(`WITH moved AS (DELETE FROM programs WHERE event_id = 3 RETURNING *)
@@ -197,7 +197,7 @@ func TestMigrateRenormalizesDashVariants(t *testing.T) {
 	assert.Equal(t, "作品名~副題~", recordingName)
 }
 
-// TestMigrateConcurrently は、kotatsu migrate を同時に実行しても、どれも失敗せず、マイグレーションを一度ずつ適用することを確かめる。
+// TestMigrateConcurrently は、kotatsu migrate を同時に実行しても、どれも失敗せず、マイグレーションを一度ずつ適用することを確認する。
 // Helm のフックの Job と手で実行した migrate、2 つの helm upgrade などで重なりうる。
 func TestMigrateConcurrently(t *testing.T) {
 	t.Parallel()
@@ -308,8 +308,8 @@ func TestMigrateDoesNotLowerMinBinaryVersion(t *testing.T) {
 	assert.Equal(t, raised, got)
 }
 
-// TestMigrateFillsRecordingsNormalized は、kotatsu migrate が、正規化した番組名と概要の列がない録画の列を埋め、
-// 埋まっている録画は書き換えないことを確かめる (#1044)。
+// TestMigrateFillsRecordingsNormalized は、kotatsu migrate が、正規化した番組名と概要のカラムがない録画のカラムを埋め、
+// 埋まっている録画は書き換えないことを確認する (#1044)。
 func TestMigrateFillsRecordingsNormalized(t *testing.T) {
 	t.Parallel()
 
@@ -380,8 +380,8 @@ func TestMigrateFillsRecordingsNormalized(t *testing.T) {
 	}
 }
 
-// TestMigrateFillsCapturesNormalized は、kotatsu migrate が、正規化した字幕の文の列がないキャプチャの列を埋め、
-// 字幕が出ていなかったキャプチャには空を書き、埋まっているキャプチャは書き換えないことを確かめる (#2084)。
+// TestMigrateFillsCapturesNormalized は、kotatsu migrate が、正規化した字幕の文のカラムがないキャプチャのカラムを埋め、
+// 字幕が出ていなかったキャプチャには空を書き、埋まっているキャプチャは書き換えないことを確認する (#2084)。
 func TestMigrateFillsCapturesNormalized(t *testing.T) {
 	t.Parallel()
 
@@ -436,12 +436,12 @@ func TestMigrateFillsCapturesNormalized(t *testing.T) {
 	}
 }
 
-// TestMigrateFillsRecordingHistorySeries は、kotatsu migrate が、シリーズ名の列がない録画履歴の列を、番組名から読んで埋め、
-// 埋まっている履歴は書き換えないことを確かめる (#1499)。
+// TestMigrateFillsRecordingHistorySeries は、kotatsu migrate が、シリーズ名のカラムがない録画履歴のカラムを、番組名から読んで埋め、
+// 埋まっている履歴は書き換えないことを確認する (#1499)。
 func TestMigrateFillsRecordingHistorySeries(t *testing.T) {
 	t.Parallel()
 
-	// filled は、埋まっている履歴のシリーズ名。番組名から読める値と違うものにして、書き換えないことを確かめる。
+	// filled は、埋まっている履歴のシリーズ名。番組名から読める値と違うものにして、書き換えないことを確認する。
 	const filled = "書き換えない"
 
 	pool := open(t, databasetest.New(t))
@@ -524,7 +524,7 @@ func TestOpenScansTimeInUTCAndRoundTripsID(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// 2 回目以降もプリペアドステートメントの扱いで失敗しないことを確かめるため、同じクエリを繰り返す。
+			// 2 回目以降もプリペアドステートメントの扱いで失敗しないことを確認するため、同じクエリを繰り返す。
 			for range 2 {
 				rows, err := pool.Query(t.Context(), "SELECT id, at FROM items ORDER BY id")
 				require.NoError(t, err)
@@ -594,7 +594,7 @@ func raiseMinBinaryVersion(t *testing.T, pool *pgxpool.Pool, version int64) {
 }
 
 // TestOpenLimitsIdleTransactionsAndStatements は、接続に、トランザクションの中で何もしない時間と、1 つの問い合わせの時間の
-// 上限を設けることを確かめる (#527)。固まったトランザクションが、neko のリースを取れないまま残らないようにする。
+// 上限を設けることを確認する (#527)。固まったトランザクションが、neko のリースを取れないまま残らないようにする。
 // トランザクションプーリングを経由するときは、接続の開始のパラメーターを渡せないので、設けない。
 func TestOpenLimitsIdleTransactionsAndStatements(t *testing.T) {
 	t.Parallel()
@@ -627,7 +627,7 @@ func TestOpenLimitsIdleTransactionsAndStatements(t *testing.T) {
 }
 
 // TestMigrateRereadsSeriesWithDashVariants は、波ダッシュとダッシュの書き方を揃える前に書いたシリーズ名のうち、揃える文字を含むものを、
-// kotatsu migrate が読み直すことを確かめる (#2039)。録画履歴は番組名から読み直し、番組は次の全量の突き合わせで読み直すよう空に戻す。
+// kotatsu migrate が読み直すことを確認する (#2039)。録画履歴は番組名から読み直し、番組は次の全量の照合で読み直すよう空に戻す。
 func TestMigrateRereadsSeriesWithDashVariants(t *testing.T) {
 	t.Parallel()
 

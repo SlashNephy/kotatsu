@@ -132,7 +132,7 @@ func (t *programTable) isPMTPID(pid uint16) bool {
 	return false
 }
 
-// handlePAT は PAT のセクションを読む。版が変わったら、PAT から消えた番組の構成も捨てる。
+// handlePAT は PAT のセクションを読む。バージョンが変わったら、PAT から消えた番組の構成も破棄する。
 func (t *programTable) handlePAT(section []byte) {
 	header := parseSectionHeader(section)
 	if header == nil || header.tableID != tableIDPAT || !header.currentNext {
@@ -169,7 +169,7 @@ func (t *programTable) handlePAT(section []byte) {
 }
 
 // handlePMT は PMT のセクションを読む。
-// 前に読んだ同じ番組の PMT と比べて、外れた ES と加わった ES の PID と、CA 記述子から外れた ECM と加わった ECM の PID を返す。
+// 前に読んだ同じ番組の PMT と比較して、外れた ES と加わった ES の PID と、CA 記述子から外れた ECM と加わった ECM の PID を返す。
 // 最初に読んだ PMT では空を返す。
 func (t *programTable) handlePMT(pid uint16, section []byte) []uint16 {
 	header := parseSectionHeader(section)
@@ -180,7 +180,7 @@ func (t *programTable) handlePMT(pid uint16, section []byte) []uint16 {
 	if t.pmtPIDs[number] != pid {
 		return []uint16{}
 	}
-	// 同じ PID の同じ版は読み飛ばす。PAT で PID が移ったら、版が同じでも中身が違いうるので読む (#1428)。
+	// 同じ PID の同じバージョンは読み飛ばす。PAT で PID が移ったら、バージョンが同じでも内容が違いうるので読む (#1428)。
 	previous := t.programs[number]
 	if previous != nil && previous.Version == header.version && previous.PMTPID == pid {
 		return []uint16{}

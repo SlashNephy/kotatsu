@@ -8,15 +8,15 @@ import (
 
 // Splitter は、TS を、映像の I フレームを含む PES の先頭で、決めておいた PTS の位置ごとに区切って書く (設計書 7.3)。
 //
-// kyusu が録画の映像を変換せずに配信するとき、録画の索引の I フレームの位置でセグメントを切るのに使う (#806)。
+// kyusu が録画の映像を変換せずに配信するとき、録画のインデックスの I フレームの位置でセグメントを切るのに使う (#806)。
 // FFmpeg の HLS や segment の muxer は、出力の始まりからの時間で切るので、起動し直すたびに区切りがずれる。
 //
 // 区切りは、PTS の昇順の並び (cuts) で決める。PTS が cuts[0] 以上の最初の I フレームから最初のセグメントを始め、
-// I フレームの PTS が次の区切り以上になったら、その PES の先頭から次のセグメントにする。最初のセグメントより前のパケットは捨てる。
+// I フレームの PTS が次の区切り以上になったら、その PES の先頭から次のセグメントにする。最初のセグメントより前のパケットは破棄する。
 // 区切りを飛び越えた (間の I フレームが欠けた) ときは、飛び越えた区切りの分のセグメントを作らず、届いた区切りの番号にする。
 // cuts を使い切った後は、今のセグメントを始めた I フレームから interval 以上進んだ最初の I フレームで切る。
-// 録画中の録画では、まだ索引にない先の区切りを、この規則で決める。
-// 各セグメントの先頭には、直前の PAT と PMT のパケットを写し、そのセグメントだけで再生を始められるようにする。
+// 録画中の録画では、まだインデックスにない先の区切りを、この規則で決める。
+// 各セグメントの先頭には、直前の PAT と PMT のパケットをコピーし、そのセグメントだけで再生を始められるようにする。
 type Splitter struct {
 	cuts []int64
 	// interval は、cuts を使い切った後に切る間隔 (90 kHz)。
@@ -28,14 +28,14 @@ type Splitter struct {
 	next int
 	// started は、今のセグメントを始めた I フレームの PTS。
 	started int64
-	// current は、書いているセグメント。置くのに失敗したセグメントも、Abort で捨てるまで持つ。
+	// current は、書いているセグメント。置くのに失敗したセグメントも、Abort で破棄するまで持つ。
 	current Segment
-	// pending は、映像の PES の始まりから、I フレームかどうかが分かるまでのパケット。ほかの PID のパケットも、順を保って溜める。
+	// pending は、映像の PES の始まりから、I フレームかどうかが分かるまでのパケット。ほかの PID のパケットも、順を保ってバッファする。
 	pending []byte
-	// holding は、pending に PES を溜めているかどうか。
+	// holding は、pending に PES をバッファしているかどうか。
 	holding bool
 
-	// pat と pmt は、直前の PAT と PMT のパケット。セグメントの先頭に写す。
+	// pat と pmt は、直前の PAT と PMT のパケット。セグメントの先頭にコピーする。
 	pat, pmt   []byte
 	programs   *programTable
 	sections   map[uint16]*sectionAssembler
@@ -54,7 +54,7 @@ type Segment interface {
 	io.Writer
 	// Close は、書き終えたセグメントを置く。
 	Close() error
-	// Abort は、書きかけのセグメントを置かずに捨てる。Close に失敗した後にも呼ぶ。
+	// Abort は、書きかけのセグメントを置かずに破棄する。Close に失敗した後にも呼ぶ。
 	Abort() error
 }
 
@@ -120,7 +120,7 @@ func (s *Splitter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// Close は、溜めているパケットを書き、最後のセグメントを閉じる。入力を最後まで書いたときだけ呼ぶ。
+// Close は、バッファしているパケットを書き、最後のセグメントを閉じる。入力を最後まで書いたときだけ呼ぶ。
 func (s *Splitter) Close() error {
 	if s.err != nil {
 		return s.err
@@ -142,7 +142,7 @@ func (s *Splitter) Close() error {
 	return nil
 }
 
-// Abort は、書きかけのセグメントを置かずに捨てる。置くのに失敗したセグメントも捨てる。書き終えたセグメントには触らない。
+// Abort は、書きかけのセグメントを置かずに破棄する。置くのに失敗したセグメントも破棄する。書き終えたセグメントには触らない。
 // 入力を最後まで書かずに止めるときと、Write か Close が失敗したときに呼ぶ。以後の Write と Close は ErrAborted を返す。
 // 先に失敗していたときは、そのエラーを返し続ける。
 func (s *Splitter) Abort() error {
@@ -241,7 +241,7 @@ func (s *Splitter) updateVideo() {
 	}
 }
 
-// keyframe は、溜めている PES が、PTS が pts の I フレームだと分かったときに呼ぶ。区切りに届いていれば、新しいセグメントを始める。
+// keyframe は、バッファしている PES が、PTS が pts の I フレームだと分かったときに呼ぶ。区切りに届いていれば、新しいセグメントを始める。
 func (s *Splitter) keyframe(pts int64) {
 	reached := -1
 	for i := s.next; i < len(s.cuts) && PTSDiff(s.cuts[i], pts) >= 0; i++ {
@@ -256,7 +256,7 @@ func (s *Splitter) keyframe(pts int64) {
 	s.flushPending()
 }
 
-// start は、今のセグメントを閉じ、i 番目の区切りから、PTS が pts の I フレームで新しいセグメントを始める。先頭に PAT と PMT を写す。
+// start は、今のセグメントを閉じ、i 番目の区切りから、PTS が pts の I フレームで新しいセグメントを始める。先頭に PAT と PMT をコピーする。
 func (s *Splitter) start(i int, pts int64) {
 	if s.current != nil {
 		if err := s.current.Close(); err != nil {
@@ -279,7 +279,7 @@ func (s *Splitter) start(i int, pts int64) {
 	s.write(s.pmt)
 }
 
-// flushPending は、溜めているパケットを今のセグメントに書く。
+// flushPending は、バッファしているパケットを今のセグメントに書く。
 func (s *Splitter) flushPending() {
 	s.holding = false
 	if len(s.pending) == 0 {
@@ -289,7 +289,7 @@ func (s *Splitter) flushPending() {
 	s.pending = s.pending[:0]
 }
 
-// emit は、映像の PES を溜めていればその後ろに、そうでなければ今のセグメントに、パケットを書く。
+// emit は、映像の PES をバッファしていればその後ろに、そうでなければ今のセグメントに、パケットを書く。
 func (s *Splitter) emit(b []byte) {
 	if s.holding {
 		s.pending = append(s.pending, b...)
@@ -299,7 +299,7 @@ func (s *Splitter) emit(b []byte) {
 	s.write(b)
 }
 
-// write は、今のセグメントに書く。最初のセグメントを始める前なら捨てる。
+// write は、今のセグメントに書く。最初のセグメントを始める前なら破棄する。
 func (s *Splitter) write(b []byte) {
 	if s.err != nil || s.current == nil || len(b) == 0 {
 		return

@@ -15,31 +15,31 @@ import (
 )
 
 const (
-	// GoogleDriveName は、Google Drive のファイルを見分ける値の名前空間。索引の置き場と再生位置の file_id は、ライブラリの名前でなく、
+	// GoogleDriveName は、Google Drive のファイルを見分ける値の名前空間。インデックスの保存先と再生位置の file_id は、ライブラリの名前でなく、
 	// この名前と Drive のファイルの ID から作るので、ライブラリの名前を変えても、パスの形を変えても引き継がれる。
 	GoogleDriveName = "google-drive"
 	// KindGoogleDrive は、Google Drive のライブラリ (#1902)。管理者が選んだフォルダごとに 1 つある。
 	KindGoogleDrive Kind = "google_drive"
-	// driveStatTTL は、ファイルの情報とフォルダの中身を覚えておく長さ。再生の画面は、索引を作り終えるまで数秒ごとに読み直すので、
+	// driveStatTTL は、ファイルの情報とフォルダの内容をキャッシュしておく長さ。再生の画面は、インデックスを作り終えるまで数秒ごとに読み直すので、
 	// そのたびに問い合わせない。
 	driveStatTTL = 30 * time.Second
-	// drivePathTTL は、パスからファイルの ID を引いた結果を覚えておく長さ。
+	// drivePathTTL は、パスからファイルの ID を引いた結果をキャッシュしておく長さ。
 	drivePathTTL = 5 * time.Minute
-	// maxDriveCache は、覚えておくものの数の上限。超えたら、まとめて捨てる。
+	// maxDriveCache は、キャッシュしておくものの数の上限。超えたら、まとめて破棄する。
 	maxDriveCache = 4096
 	// maxDriveDepth は、親をたどる深さの上限。
 	maxDriveDepth = 64
 	// driveSearchPages は、名前で探すときに読むページの数の上限 (1 ページ 1000 件)。
 	driveSearchPages = 5
-	// driveSkipLimit は、読み出しの位置が少し先へ飛んだときに、新しく問い合わせずに読み捨てて進める長さの上限。
+	// driveSkipLimit は、読み出しの位置が少し先へ飛んだときに、新しく問い合わせずに読み飛ばして進める長さの上限。
 	driveSkipLimit = 4 << 20
 	// driveReopenLimit は、読み出しが途中で切れたときに、読めた所から開き直す回数の上限。
 	driveReopenLimit = 5
 	// driveLookupTimeout は、ctx のない呼び出し (Set.Get) で、選んだフォルダを読み直すときの時間の上限。
 	driveLookupTimeout = 10 * time.Second
-	// driveIDSeparator は、同じフォルダに同じ名前が並ぶときに、名前の後ろに付ける、ID の頭の前の印。
+	// driveIDSeparator は、同じフォルダに同じ名前が並ぶときに、名前の後ろに付ける、ID の先頭の前のマーク。
 	driveIDSeparator = "~"
-	// minDriveIDPrefix は、名前の後ろに付ける ID の頭の、短い方の長さ。
+	// minDriveIDPrefix は、名前の後ろに付ける ID の先頭の、短い方の長さ。
 	minDriveIDPrefix = 6
 )
 
@@ -81,8 +81,8 @@ type DriveScope interface {
 // Drive は、管理者が接続した Google Drive の、選んだフォルダごとのライブラリを作る (設計書 5.8、#1902)。
 //
 // ライブラリの中のパスは、ふだんはフォルダとファイルの名前を / でつなぐ。Drive では同じフォルダに同じ名前が並ぶことがあるので、
-// そのときだけ、名前の後ろに ~ と ID の頭を付けて見分ける。名前の / と \ は、形の似た文字に置き換える。パスは、選んだフォルダから
-// 名前をたどって引くので、選んだフォルダの外のファイルには届かない。ファイルの ID を見分ける値にし、索引と再生位置は ID で引き継ぐ。
+// そのときだけ、名前の後ろに ~ と ID の先頭を付けて見分ける。名前の / と \ は、形の似た文字に置き換える。パスは、選んだフォルダから
+// 名前をたどって引くので、選んだフォルダの外のファイルには届かない。ファイルの ID を見分ける値にし、インデックスと再生位置は ID で引き継ぐ。
 type Drive struct {
 	api   DriveAPI
 	scope DriveScope
@@ -99,7 +99,7 @@ type driveStat struct {
 	fetchedAt time.Time
 }
 
-// driveDir は、フォルダの中身。段の名前から子への対応も持つ。
+// driveDir は、フォルダの内容。セグメントの名前から子への対応も持つ。
 type driveDir struct {
 	children  []*googledrive.File
 	segments  map[string]*googledrive.File
@@ -141,7 +141,7 @@ func (d *Drive) Libraries(ctx context.Context) ([]Library, error) {
 }
 
 // Lookup は、名前が name のライブラリを返す。ctx を受け取らない呼び出し (Set.Get) から使うので、選んだフォルダは、
-// scope が覚えたものを、時間を区切って読む。接続していなくても返し、読むときに ErrNotConnected を返す。
+// scope がキャッシュしたものを、時間を区切って読む。接続していなくても返し、読むときに ErrNotConnected を返す。
 func (d *Drive) Lookup(name string) (Library, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), driveLookupTimeout)
 	defer cancel()
@@ -181,8 +181,8 @@ func (l *DriveLibrary) Connected(ctx context.Context) (bool, error) {
 	return l.drive.scope.Connected(ctx)
 }
 
-// Identity は、ファイル p を見分ける値として、Drive のファイルの ID を返す。パスから引いた結果を覚えていなければ、
-// 時間を区切って引く。引けなければ、パスをそのまま返す (索引も再生位置も、引けるようになるまで使えない)。
+// Identity は、ファイル p を見分ける値として、Drive のファイルの ID を返す。パスから引いた結果をキャッシュしていなければ、
+// 時間を区切って引く。引けなければ、パスをそのまま返す (インデックスも再生位置も、引けるようになるまで使えない)。
 func (l *DriveLibrary) Identity(p string) (string, string) {
 	if id, ok := l.drive.cachedPath(l.folder, p); ok {
 		return GoogleDriveName, id
@@ -226,7 +226,7 @@ func (l *DriveLibrary) List(ctx context.Context, dir string) ([]*Entry, error) {
 	return entries, nil
 }
 
-// Names は、パス p の段ごとの名前 (名前を置き換える前の、Drive の名前) を返す。パンくずに使う。
+// Names は、パス p のセグメントごとの名前 (名前を置き換える前の、Drive の名前) を返す。パンくずに使う。
 func (l *DriveLibrary) Names(ctx context.Context, p string) ([]string, error) {
 	p, err := CleanPath(p)
 	if err != nil {
@@ -329,8 +329,8 @@ func (l *DriveLibrary) Search(ctx context.Context, dir, query string, limit int)
 	return entries, truncated, nil
 }
 
-// pathUnder は、ファイル file がフォルダ anchor の下にあれば、anchor からのパスを返す。親をたどり、段ごとに、親のフォルダの中身から
-// 段の名前を決める。下になければ errOutsideFolder を返す。親が複数あるファイル (古い Drive のもの) は、最初の親だけをたどる。
+// pathUnder は、ファイル file がフォルダ anchor の下にあれば、anchor からのパスを返す。親をたどり、セグメントごとに、親のフォルダの内容から
+// セグメントの名前を決める。下になければ errOutsideFolder を返す。親が複数あるファイル (古い Drive のもの) は、最初の親だけをたどる。
 func (l *DriveLibrary) pathUnder(ctx context.Context, anchor string, file *googledrive.File) (string, error) {
 	segments := []string{}
 	current := file
@@ -366,7 +366,7 @@ func (l *DriveLibrary) pathUnder(ctx context.Context, anchor string, file *googl
 	return "", errOutsideFolder
 }
 
-// resolve は、ライブラリの中のパス p (空なら選んだフォルダ) のファイルかフォルダを返す。選んだフォルダから、段の名前で子をたどる。
+// resolve は、ライブラリの中のパス p (空なら選んだフォルダ) のファイルかフォルダを返す。選んだフォルダから、セグメントの名前で子をたどる。
 func (l *DriveLibrary) resolve(ctx context.Context, p string) (*googledrive.File, error) {
 	connected, err := l.drive.scope.Connected(ctx)
 	if err != nil {
@@ -403,7 +403,7 @@ func (l *DriveLibrary) resolve(ctx context.Context, p string) (*googledrive.File
 	return current, nil
 }
 
-// segmentOf は、フォルダの中身のうち、ID が id の子の段の名前を返す。
+// segmentOf は、フォルダの内容のうち、ID が id の子のセグメントの名前を返す。
 func (d *driveDir) segmentOf(id string) (string, bool) {
 	for segment, child := range d.segments {
 		if child.ID == id {
@@ -414,8 +414,8 @@ func (d *driveDir) segmentOf(id string) (string, bool) {
 	return "", false
 }
 
-// driveSegments は、フォルダの中身から、段の名前と子の対応を作る。ふだんは名前 (/ と \ を置き換えたもの) にし、同じ名前が並ぶときだけ、
-// 名前の後ろに ~ と、並んだもの同士で重ならない長さの ID の頭を付ける。
+// driveSegments は、フォルダの内容から、セグメントの名前と子の対応を作る。ふだんは名前 (/ と \ を置き換えたもの) にし、同じ名前が並ぶときだけ、
+// 名前の後ろに ~ と、並んだもの同士で重ならない長さの ID の先頭を付ける。
 func driveSegments(children []*googledrive.File) map[string]*googledrive.File {
 	groups := map[string][]*googledrive.File{}
 	for _, child := range children {
@@ -450,7 +450,7 @@ func driveSegments(children []*googledrive.File) map[string]*googledrive.File {
 	return segments
 }
 
-// segmentName は、Drive の名前を、パスの段に置ける形にする。/ と \ はパスの区切りとして読まれるので、
+// segmentName は、Drive の名前を、パスのセグメントに置ける形にする。/ と \ はパスの区切りとして読まれるので、
 // 形の似た文字 (∕ U+2215 と ⧵ U+29F5) に置き換える。
 func segmentName(name string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(name, "/", "\u2215"), `\`, "\u29f5")
@@ -462,7 +462,7 @@ func visible(file *googledrive.File) bool {
 	return (file.Folder() || file.Blob()) && !strings.HasPrefix(file.Name, ".")
 }
 
-// dir は、フォルダ id の中身を返す。少し前に引いたものがあれば、問い合わせずに返す。
+// dir は、フォルダ id の内容を返す。少し前に引いたものがあれば、問い合わせずに返す。
 func (d *Drive) dir(ctx context.Context, id, driveID string) (*driveDir, error) {
 	d.mu.Lock()
 	cached, ok := d.dirs[id]
@@ -492,7 +492,7 @@ func (d *Drive) dir(ctx context.Context, id, driveID string) (*driveDir, error) 
 	return listing, nil
 }
 
-// cachedPath は、ライブラリ folder のパス p から引いたファイルの ID を、覚えていれば返す。
+// cachedPath は、ライブラリ folder のパス p から引いたファイルの ID を、キャッシュしていれば返す。
 func (d *Drive) cachedPath(folder *DriveFolder, p string) (string, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -504,7 +504,7 @@ func (d *Drive) cachedPath(folder *DriveFolder, p string) (string, bool) {
 	return cached.id, true
 }
 
-// rememberPath は、ライブラリ folder のパス p から引いたファイルの ID を覚える。
+// rememberPath は、ライブラリ folder のパス p から引いたファイルの ID をキャッシュする。
 func (d *Drive) rememberPath(folder *DriveFolder, p, id string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -531,7 +531,7 @@ func (d *Drive) get(ctx context.Context, id string) (*googledrive.File, error) {
 	return file, nil
 }
 
-// remember は、引いたファイルの情報を覚える。上限を超えたら、まとめて捨てる。
+// remember は、引いたファイルの情報をキャッシュする。上限を超えたら、まとめて破棄する。
 func (d *Drive) remember(file *googledrive.File) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -553,7 +553,7 @@ func joinPath(dir, rest string) string {
 	}
 }
 
-// cmpFirst は、最初の 0 でない比べた結果を返す。
+// cmpFirst は、最初の 0 でない比較した結果を返す。
 func cmpFirst(results ...int) int {
 	for _, r := range results {
 		if r != 0 {
@@ -580,7 +580,7 @@ func driveError(err error) error {
 // driveFile は、Google Drive のファイルを、範囲を指定した読み出しで、途中から読めるようにしたもの。
 //
 // 1 回の読み出しごとに問い合わせると、細かく読む呼び出し (頭の解析など) で問い合わせが増えるので、終わりまでの範囲で開いた本文を
-// 持ち続け、続きの位置を読むなら、その本文から読む。少し先へ飛んだときは、読み捨てて進める。途中で切れたら、読めた所から開き直す。
+// 持ち続け、続きの位置を読むなら、その本文から読む。少し先へ飛んだときは、読み飛ばして進める。途中で切れたら、読めた所から開き直す。
 type driveFile struct {
 	// download は、off から終わりまでを読む本文を開く。canceled は、Open に渡された ctx を取りやめたかどうかを返す。
 	download func(off int64) (io.ReadCloser, error)
@@ -686,7 +686,7 @@ func (f *driveFile) readAt(p []byte, off int64, full bool) (int, error) {
 	return read, nil
 }
 
-// seekBody は、本文を off から読める状態にする。今の本文の少し先なら読み捨てて進め、そうでなければ開き直す。
+// seekBody は、本文を off から読める状態にする。今の本文の少し先なら読み飛ばして進め、そうでなければ開き直す。
 func (f *driveFile) seekBody(off int64) error {
 	if f.body != nil && off > f.bodyPos && off-f.bodyPos <= driveSkipLimit {
 		skipped, err := io.CopyN(io.Discard, f.body, off-f.bodyPos)

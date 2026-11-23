@@ -29,7 +29,7 @@ const (
 	// envKeyDataDir と envKeyTimeshiftDir は、データディレクトリとタイムシフト用のディレクトリを渡す環境変数。
 	envKeyDataDir      = "KOTATSU_STORAGE_DATA_DIR"
 	envKeyTimeshiftDir = "KOTATSU_STORAGE_TIMESHIFT_DIR"
-	// poolMain は、プールの設定を確かめるテストで使うプール ID。
+	// poolMain は、プールの設定を確認するテストで使うプール ID。
 	poolMain = "main"
 	// envKeyTunerURL は、チューナーサーバーの URL を渡す環境変数。
 	envKeyTunerURL = "KOTATSU_TUNER_URL"
@@ -364,21 +364,21 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 
 			cfg, err := config.Load(path, lookup(tt.env))
 			require.NoError(t, err)
-			// OIDC を扱わないケースでは、既定値のままであることを確かめる。
+			// OIDC を扱わないケースでは、既定値のままであることを確認する。
 			if tt.want.Auth.OIDC.Scopes == nil {
 				tt.want.Auth.OIDC = defaultOIDC()
 			}
-			// kyusu の設定は TestLoadKyusu で確かめるので、ここでは既定値のままであることだけを確かめる。
+			// kyusu の設定は TestLoadKyusu で確認するので、ここでは既定値のままであることだけを確認する。
 			tt.want.Kyusu = config.Kyusu{Encoder: config.EncoderX264, VAAPIDevice: defaultVAAPIDevice, WorkDir: ""}
 			// 画面に移した項目を書いていないケースでは、無視した項目はない。
 			if tt.want.Ignored == nil {
 				tt.want.Ignored = []config.IgnoredSetting{}
 			}
-			// OTLP のメトリクスの設定は TestLoadTelemetry で確かめるので、ここでは既定値のままであることだけを確かめる。
+			// OTLP のメトリクスの設定は TestLoadTelemetry で確認するので、ここでは既定値のままであることだけを確認する。
 			tt.want.Telemetry.OTLPMetricsProtocol = config.OTLPProtocolGRPC
 			tt.want.Telemetry.OTLPMetricsIntervalSeconds = defaultOTLPMetricsIntervalSeconds
 			tt.want.Telemetry.OTLPMetricsExclude = []string{}
-			// タイムゾーンは、この表では変えないので、既定値になる。読み込みは TestLoadTimeZone で確かめる。
+			// タイムゾーンは、このテーブルでは変えないので、既定値になる。読み込みは TestLoadTimeZone で確認する。
 			want := *tt.want
 			want.TimeZone = config.DefaultTimeZone
 			assert.Equal(t, &want, cfg)
@@ -386,7 +386,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 	}
 }
 
-// TestLoadStorage は、保存先プールとデータディレクトリを、YAML と環境変数から読むことを確かめる。
+// TestLoadStorage は、保存先プールとデータディレクトリを、YAML と環境変数から読むことを確認する。
 func TestLoadStorage(t *testing.T) {
 	t.Parallel()
 
@@ -475,7 +475,7 @@ func TestLoadStorage(t *testing.T) {
 // defaultVAAPIDevice は、VAAPI で使うデバイスの既定値。
 const defaultVAAPIDevice = "/dev/dri/renderD128"
 
-// TestLoadKyusu は、kyusu の設定を、YAML と環境変数から読み、知らないエンコーダーを拒むことを確かめる。
+// TestLoadKyusu は、kyusu の設定を、YAML と環境変数から読み、知らないエンコーダーを拒むことを確認する。
 func TestLoadKyusu(t *testing.T) {
 	t.Parallel()
 
@@ -569,7 +569,7 @@ func TestLoadTimeZone(t *testing.T) {
 	}
 }
 
-// TestLoadTuner は、チューナーサーバーの種類と、EDCB の接続先と NetworkTV の ID の範囲を読み、誤りを起動時に知らせることを確かめる (#1530)。
+// TestLoadTuner は、チューナーサーバーの種類と、EDCB の接続先と NetworkTV の ID の範囲を読み、誤りを起動時に通知することを確認する (#1530)。
 func TestLoadTuner(t *testing.T) {
 	t.Parallel()
 
@@ -712,7 +712,7 @@ func TestLoadTuner(t *testing.T) {
 	}
 }
 
-// TestLoadAnimeLinking は、作品 ID の対応を取り込む URL を、YAML、環境変数、ファイルから読み、誤りを起動時に知らせることを確かめる (設計書 3.8)。
+// TestLoadAnimeLinking は、作品 ID の対応を取り込む URL を、YAML、環境変数、ファイルから読み、誤りを起動時に通知することを確認する (設計書 3.8)。
 func TestLoadAnimeLinking(t *testing.T) {
 	t.Parallel()
 
@@ -759,7 +759,7 @@ func TestLoadAnimeLinking(t *testing.T) {
 	}
 }
 
-// TestLoadTelemetry は、OTLP でメトリクスを送る設定を、YAML、環境変数、ファイルから読み、誤りを起動時に知らせることを確かめる (#962)。
+// TestLoadTelemetry は、OTLP でメトリクスを送る設定を、YAML、環境変数、ファイルから読み、誤りを起動時に通知することを確認する (#962)。
 func TestLoadTelemetry(t *testing.T) {
 	t.Parallel()
 
@@ -1119,7 +1119,7 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 	}
 }
 
-// TestLoadRejectsInvalidLibraries は、ライブラリ (#1734) の名前とディレクトリの誤りを、まとめて返すことを確かめる。
+// TestLoadRejectsInvalidLibraries は、ライブラリ (#1734) の名前とディレクトリの誤りを、まとめて返すことを確認する。
 func TestLoadRejectsInvalidLibraries(t *testing.T) {
 	t.Parallel()
 
@@ -1172,7 +1172,7 @@ func TestLoadErrorDoesNotLeakSecret(t *testing.T) {
 	assert.NotContains(t, err.Error(), "hunter2")
 }
 
-// TestSecretURLErrorDoesNotLeakSecret は、秘密情報として扱う URL が不正なときに、エラーに URL を含めないことを確かめる。
+// TestSecretURLErrorDoesNotLeakSecret は、秘密情報として扱う URL が不正なときに、エラーに URL を含めないことを確認する。
 func TestSecretURLErrorDoesNotLeakSecret(t *testing.T) {
 	t.Parallel()
 
@@ -1250,7 +1250,7 @@ func writeFile(t *testing.T, dir, name, content string) string {
 }
 
 // TestLoadIgnoresMovedSettings は、画面で設定するようになった項目 (#1869) を、設定ファイルや環境変数に書いてあっても、
-// 起動を止めずに読まず、無視した項目として挙げることを確かめる。同じ節の、設定に残した項目は読む。
+// 起動を止めずに読まず、無視した項目として挙げることを確認する。同じ節の、設定に残した項目は読む。
 func TestLoadIgnoresMovedSettings(t *testing.T) {
 	t.Parallel()
 
@@ -1349,7 +1349,7 @@ func TestLoadIgnoresMovedSettings(t *testing.T) {
 }
 
 // TestLoadRejectsTimeshiftDirectoryReachedByAnotherPath は、タイムシフト用のディレクトリが、名前の上では重ならなくても、
-// ファイルシステムが同じディレクトリとみなすものの中にあれば、拒否することを確かめる (#1097)。
+// ファイルシステムが同じディレクトリとみなすものの中にあれば、拒否することを確認する (#1097)。
 // 大文字と小文字を区別しない NTFS や APFS では、大文字と小文字だけが違うパスが同じディレクトリになる。その代わりに、シンボリックリンクを置く。
 func TestLoadRejectsTimeshiftDirectoryReachedByAnotherPath(t *testing.T) {
 	t.Parallel()
@@ -1401,7 +1401,7 @@ func nativePaths(s string) string {
 	return rootedPath.ReplaceAllString(s, "${1}C:/")
 }
 
-// nativeEnv は、値の中の絶対パスを nativePaths で直した写しを返す。
+// nativeEnv は、値の中の絶対パスを nativePaths で変換したコピーを返す。
 func nativeEnv(env map[string]string) map[string]string {
 	if env == nil {
 		return nil
@@ -1424,7 +1424,7 @@ const (
 	internet = "0.0.0.0/0"
 )
 
-// TestLoadAddsExternalNetworks は、既定の家の中の範囲を書き直さずに、家の外の範囲を足せることを確かめる (#1759)。
+// TestLoadAddsExternalNetworks は、既定の家の中の範囲を書き直さずに、家の外の範囲を足せることを確認する (#1759)。
 func TestLoadAddsExternalNetworks(t *testing.T) {
 	t.Parallel()
 
@@ -1436,7 +1436,7 @@ func TestLoadAddsExternalNetworks(t *testing.T) {
 }
 
 // TestLoadRejectsMisplacedNetworks は、家の外の範囲を家の中の項目に、家の中の範囲を家の外の項目に書いたら、
-// 正しい項目を案内して起動しないことを確かめる (#1759)。Tailscale と CGNAT の共有アドレス空間は、家の外とみなす。
+// 正しい項目を案内して起動しないことを確認する (#1759)。Tailscale と CGNAT の共有アドレス空間は、家の外とみなす。
 func TestLoadRejectsMisplacedNetworks(t *testing.T) {
 	t.Parallel()
 
@@ -1471,7 +1471,7 @@ func TestLoadRejectsMisplacedNetworks(t *testing.T) {
 	}
 }
 
-// TestLoadRejectsRenamedAllowedNetworks は、前の版の server.allowed_networks が残っていたら、新しい項目を案内して起動しないことを確かめる (#1759)。
+// TestLoadRejectsRenamedAllowedNetworks は、前のバージョンの server.allowed_networks が残っていたら、新しい項目を案内して起動しないことを確認する (#1759)。
 func TestLoadRejectsRenamedAllowedNetworks(t *testing.T) {
 	t.Parallel()
 
