@@ -180,22 +180,22 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   const jikkyo = useRecordedJikkyo(jikkyoEnabled ? jikkyoURL : null, currentPosition, true);
 
   const seek = (target: number) => {
-    const element = mediaRef.current;
-    if (element === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    element.seek(Math.min(Math.max(target, 0), duration));
-    setPosition(element.currentTime);
+    current.seek(Math.min(Math.max(target, 0), duration));
+    setPosition(current.currentTime);
   };
   const togglePlay = () => {
-    const element = mediaRef.current;
-    if (element === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    if (element.paused) {
-      void element.play().catch(() => {});
+    if (current.paused) {
+      void current.play().catch(() => {});
     } else {
-      element.pause();
+      current.pause();
     }
   };
   const commands: PlayerCommands = {

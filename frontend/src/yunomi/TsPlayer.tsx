@@ -356,11 +356,11 @@ export function TsPlayer({
   // boxRef は、組 (createSlot) を入れる要素。
   const boxRef = useRef<HTMLDivElement | null>(null);
 
-  // createSlot は、組を作って media に入れる。hidden なら、切り替えるまで見せず、音も出さない。
+  // createSlot は、組を作って box に入れる。hidden なら、切り替えるまで見せず、音も出さない。
   // video の要素は、React に持たせずに作る。yadif は、video を別の要素で包んで動かすので、
   // React が持っていると、外すときに元の親から取り除こうとして失敗する。
   // 変換のプレイヤーのイベントは、映っている組のものだけを渡す。裏で読み込んでいる組の失敗は、load の失敗で受け取る。
-  const createSlot = (media: HTMLElement, hidden: boolean): Slot => {
+  const createSlot = (box: HTMLElement, hidden: boolean): Slot => {
     const container = document.createElement('div');
     container.className = classes.slot ?? '';
     // データ放送は、映像の要素を外の CSS が届かない所へ移すので、隠すのはインラインで指定する。
@@ -371,7 +371,7 @@ export function TsPlayer({
     video.autoplay = true;
     video.muted = hidden;
     container.append(video);
-    media.append(container);
+    box.append(container);
     // 字幕は、aribb24.js を読み終えるまで溜めておくので、プレイヤーより先に作る。
     const renderer = createCaptions(video, container, (text) => {
       if (activeRef.current === slot) {
@@ -674,11 +674,11 @@ export function TsPlayer({
   };
 
   useEffect(() => {
-    const media = boxRef.current;
-    if (media === null) {
+    const box = boxRef.current;
+    if (box === null) {
       return;
     }
-    const slot = createSlot(media, false);
+    const slot = createSlot(box, false);
     activeRef.current = slot;
     mediaRef.current = mediaOf(slot.video);
     handlers.current.onMedia?.(mediaRef.current);
@@ -734,8 +734,8 @@ export function TsPlayer({
   useEffect(() => {
     const active = activeRef.current;
     const player = active?.player ?? null;
-    const media = boxRef.current;
-    if (!ready || active === null || player === null || media === null) {
+    const box = boxRef.current;
+    if (!ready || active === null || player === null || box === null) {
       return;
     }
     if (url === null) {
@@ -749,7 +749,7 @@ export function TsPlayer({
     const sameScope = loadedScope.current === scopeRef.current;
     loadedScope.current = scopeRef.current;
     if (handoverRef.current && sameScope && hasPicture(active.video)) {
-      const slot = createSlot(media, true);
+      const slot = createSlot(box, true);
       pendingRef.current = slot;
       void attachPlayer(slot)
         .then(async (next) => {
