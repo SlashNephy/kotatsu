@@ -239,19 +239,26 @@ func TestMigrateRenormalizesDashVariants(t *testing.T) {
 	exec(`INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
 		VALUES (3273601024, 32736, 1024, 'こたつ―テレビ', 'こたつ―テレビ', 1, 'GR', '27', $1, $1)`, now)
 	const (
-		plainName    = "揃える文字を含まない名前"
-		wantExtended = "出演者\n山田~太郎\n"
+		programsTable = "programs"
+		plainName     = "揃える文字を含まない名前"
+		wantExtended  = "出演者\n山田~太郎\n"
 	)
-	insertProgram := func(eventID int64, name string) {
+	insertProgram := func(eventID int64, name, description, extended string) {
 		t.Helper()
 		exec(`INSERT INTO programs (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
 			name, description, name_normalized, description_normalized, extended, extended_normalized, genres, related_items, search_grams, created_at, updated_at)
-			VALUES (3273601024, $1, $1, $2, $2, false, true, $3, '', $3, '', '{"出演者": "山田〜太郎"}', '出演者\n山田〜太郎\n', '[]', '[]', '{x}', $2, $2)`,
-			eventID, now, name)
+			VALUES (3273601024, $1, $1, $2, $2, false, true, $3, $4, $3, $4, $5::jsonb, '', '[]', '[]', '{x}', $2, $2)`,
+			eventID, now, name, description, extended)
 	}
-	insertProgram(1, "作品名〜副題〜")
-	insertProgram(2, plainName)
-	insertProgram(3, "作品名－副題－")
+	const staleExtended = `{"出演者": "山田〜太郎"}`
+	insertProgram(1, "作品名〜副題〜", "", staleExtended)
+	insertProgram(2, plainName, "", staleExtended)
+	insertProgram(3, "作品名－副題－", "", staleExtended)
+	insertProgram(4, plainName, "あらすじ―後編―", "{}")
+	// そろえる文字をどこにも含まない番組は、書き直さない。
+	insertProgram(5, plainName, "あらすじ", "{}")
+	// 詳細の正規化した列は、そろえる前の書き方にしておく。
+	exec("UPDATE programs SET extended_normalized = $1 WHERE extended::text <> '{}'", "出演者\n山田〜太郎\n")
 	// 過去の番組は、番組表から移したものとして作る。
 	exec(`WITH moved AS (DELETE FROM programs WHERE event_id = 3 RETURNING *)
 		INSERT INTO program_archives (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
@@ -259,6 +266,15 @@ func TestMigrateRenormalizesDashVariants(t *testing.T) {
 		SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
 			name_normalized, description_normalized, extended, extended_normalized, genres, related_items, audios, search_grams, created_at, updated_at, $1
 		FROM moved`, now)
+	userID := id.New()
+	exec("INSERT INTO users (id, username, display_name, role, created_at, updated_at) VALUES ($1, 'u', 'u', 'admin', $2, $2)", userID, now)
+	captureID := id.New()
+	exec(`INSERT INTO captures (id, user_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized,
+		caption, caption_normalized, broadcast_at, taken_at, size, created_at)
+		VALUES ($1, $2, 0, 'こたつ―テレビ', NULL, 'こたつ―テレビ', '', '山田〜太郎', '山田〜太郎', $3, $3, 1, $3)`, captureID, userID, now)
+	historyID := id.New()
+	exec(`INSERT INTO recording_history (id, service_id, title_key, name, series, start_at, end_at, created_at)
+		VALUES ($1, 3273601024, '', '作品名〜副題〜 #3', '作品名〜副題〜', $2, $2, $2)`, historyID, now)
 	recordingID := id.New()
 	exec(`INSERT INTO recordings (id, service_id, name, description, name_normalized, description_normalized, start_at, end_at, state, recorded_from, created_at, updated_at)
 		VALUES ($1, 3273601024, '作品名〜副題〜', '', '作品名〜副題〜', '', $2, $2, 'completed', $2, $2, $2)`, recordingID, now)
@@ -270,29 +286,42 @@ func TestMigrateRenormalizesDashVariants(t *testing.T) {
 	require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized FROM services").Scan(&serviceName))
 	assert.Equal(t, "こたつ-テレビ", serviceName)
 	tests := []struct {
-		table, where   string
-		wantName       string
-		wantExtended   string
-		wantGramsReset bool
+		table, where    string
+		wantName        string
+		wantDescription string
+		wantExtended    string
+		wantGramsReset  bool
 	}{
-		{table: "programs", where: "event_id = 1", wantName: "作品名~副題~", wantExtended: wantExtended, wantGramsReset: true},
+		{table: programsTable, where: "event_id = 1", wantName: "作品名~副題~", wantDescription: "", wantExtended: wantExtended, wantGramsReset: true},
 		// 名前には揃える文字がなくても、詳細にあれば書き直す。
-		{table: "programs", where: "event_id = 2", wantName: plainName, wantExtended: wantExtended, wantGramsReset: true},
-		{table: "program_archives", where: "event_id = 3", wantName: "作品名-副題-", wantExtended: wantExtended, wantGramsReset: true},
+		{table: programsTable, where: "event_id = 2", wantName: plainName, wantDescription: "", wantExtended: wantExtended, wantGramsReset: true},
+		{table: programsTable, where: "event_id = 4", wantName: plainName, wantDescription: "あらすじ-後編-", wantExtended: "", wantGramsReset: true},
+		{table: programsTable, where: "event_id = 5", wantName: plainName, wantDescription: "あらすじ", wantExtended: "", wantGramsReset: false},
+		{table: "program_archives", where: "event_id = 3", wantName: "作品名-副題-", wantDescription: "", wantExtended: wantExtended, wantGramsReset: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.table+" "+tt.where, func(t *testing.T) {
 			t.Parallel()
 
-			var name, extended string
+			var name, description, extended string
 			var grams []string
-			require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized, extended_normalized, search_grams FROM "+tt.table+" WHERE "+tt.where).
-				Scan(&name, &extended, &grams))
+			require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized, description_normalized, extended_normalized, search_grams FROM "+tt.table+" WHERE "+tt.where).
+				Scan(&name, &description, &extended, &grams))
 			assert.Equal(t, tt.wantName, name)
+			assert.Equal(t, tt.wantDescription, description)
 			assert.Equal(t, tt.wantExtended, extended)
 			assert.Equal(t, tt.wantGramsReset, grams == nil)
 		})
 	}
+	// キャプチャの名前は書き直し、字幕は空に戻して、同じ migrate の中で埋め直す。番組名がなければ空のまま。
+	var captureService, captureProgram, captureCaption string
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT service_name_normalized, program_name_normalized, caption_normalized FROM captures WHERE id = $1", captureID).
+		Scan(&captureService, &captureProgram, &captureCaption))
+	assert.Equal(t, []string{"こたつ-テレビ", "", "山田~太郎"}, []string{captureService, captureProgram, captureCaption})
+	// 録画履歴のシリーズ名は空に戻して、同じ migrate の中で読み直す。
+	var historySeries string
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT series FROM recording_history WHERE id = $1", historyID).Scan(&historySeries))
+	assert.NotEqual(t, "作品名〜副題〜", historySeries)
 	// 録画は空に戻し、同じ migrate の中で埋め直す。
 	var recordingName string
 	require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized FROM recordings WHERE id = $1", recordingID).Scan(&recordingName))
