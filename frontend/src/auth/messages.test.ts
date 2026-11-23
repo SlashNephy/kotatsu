@@ -38,14 +38,14 @@ describe('authErrorMessage', () => {
       want: 'パスキーは、HTTPSかlocalhostで、IPアドレスではなくドメイン名で接続したときだけ使えます',
     },
     {
-      name: '確かめられなかったパスキー',
+      name: '確認できなかったパスキー',
       error: new AuthError(401, 'INVALID_PASSKEY', undefined, undefined),
-      want: 'パスキーを確かめられませんでした。登録したパスキーで、もう一度お試しください',
+      want: 'パスキーを確認できませんでした。登録したパスキーで、もう一度お試しください',
     },
     {
       name: '期限の切れたパスキーの手続き',
       error: new AuthError(401, 'PASSKEY_CEREMONY_EXPIRED', undefined, undefined),
-      want: '時間が経ったので、もう一度パスキーで確かめてください',
+      want: '時間が経ったので、もう一度パスキーで確認してください',
     },
     {
       name: 'この接続先のパスキーがない',
@@ -60,7 +60,7 @@ describe('authErrorMessage', () => {
     {
       name: 'IdP と紐付いていないユーザーの再認証',
       error: new AuthError(409, 'OIDC_NOT_LINKED', undefined, undefined),
-      want: 'このユーザーはIdPと紐付いていないので、IdPでは確かめられません',
+      want: 'このユーザーはIdPと紐付いていないので、IdPでは確認できません',
     },
     {
       name: 'パスキーの確認の取り消し',
@@ -90,9 +90,9 @@ describe('oidcErrorMessage', () => {
       want: '時間が経ったので、もう一度ログインしてください',
     },
     {
-      name: 'state や ID トークンを確かめられない',
+      name: 'state や ID トークンを確認できない',
       reason: 'oidc_invalid',
-      want: 'ログインを確かめられませんでした。もう一度ログインしてください',
+      want: 'ログインを確認できませんでした。もう一度ログインしてください',
     },
     {
       name: 'ユーザー名の重なり',
@@ -107,7 +107,7 @@ describe('oidcErrorMessage', () => {
     {
       name: 'IdP が、もう一度認証させなかった',
       reason: 'oidc_reauth_stale',
-      want: 'IdPで、もう一度認証したことを確かめられませんでした。IdPにもう一度ログインしてから、やり直してください',
+      want: 'IdPで、もう一度認証したことを確認できませんでした。IdPにもう一度ログインしてから、やり直してください',
     },
     {
       name: 'ログイン中のユーザーと違うアカウントでの再認証',
