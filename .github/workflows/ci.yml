@@ -124,6 +124,13 @@ jobs:
         with:
           name: ${{ github.job }}-${{ matrix.db }}
       - run: mise run build
+      # kotatsu migrate は、schema.sql を 1 つのトランザクションで流して読むので、1 回に 1,400 ほどのロックを持つ (#2040)。
+      # テストは DB を並べて作るので、既定の max_locks_per_transaction (64) ではロックの表が足りなくなる。手元の postgres-test と同じ程度に広げる。
+      - name: Raise the lock table of PostgreSQL
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -c "ALTER SYSTEM SET max_locks_per_transaction = 640"
+          docker restart ${{ job.services.postgres.id }}
+          until docker exec ${{ job.services.postgres.id }} pg_isready -U postgres; do sleep 1; done
       - run: mise run //backend:test
 
   # Linux 以外の配布先 (Windows、macOS) でも、DB を使わないテストを動かす (#1099)。

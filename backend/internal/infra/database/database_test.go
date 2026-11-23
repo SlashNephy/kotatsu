@@ -39,7 +39,8 @@ func TestSchemaSumMatchesSchema(t *testing.T) {
 	t.Parallel()
 
 	_, digest := db.SchemaSum()
-	sum := sha256.Sum256([]byte(db.Schema))
+	// Windows で取り出すと、改行が CRLF になる。mise run //backend:db:sum は LF のファイルから計算する。
+	sum := sha256.Sum256([]byte(strings.ReplaceAll(db.Schema, "\r\n", "\n")))
 	assert.Equal(t, hex.EncodeToString(sum[:]), digest, "schema.sql has changed; run mise run //backend:db:sum")
 	// goose のマイグレーションで上げていた DB の版より新しくないと、移った DB を古いとみなせない。
 	assert.Greater(t, database.SchemaVersion(), latestGooseVersion(t))
