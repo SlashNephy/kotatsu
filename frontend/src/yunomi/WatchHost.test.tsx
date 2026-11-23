@@ -138,7 +138,7 @@ describe('小さなプレイヤー', () => {
     expect(oldPause).toHaveBeenCalledOnce();
 
     // プレイヤーがつなぎ直すと、裏で読み込んだ組の映像に替え、視聴の画面は新しい映像の経路を覚えさせ直す。
-    // 裏で読み込んでいる間は、プレイヤーは古い映像のまま知らせる (TsPlayer の onVideo)。
+    // 裏で読み込んでいる間は、プレイヤーは古い映像のまま知らせる (TsPlayer の onMedia)。
     const next = document.createElement('video');
     Object.defineProperty(next, 'paused', { configurable: true, value: false });
     const pause = vi.fn();

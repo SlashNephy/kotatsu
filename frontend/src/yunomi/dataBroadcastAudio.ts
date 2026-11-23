@@ -22,7 +22,7 @@ export function broadcastGain(video: Pick<PlayerMedia, 'volume' | 'muted'> | nul
 // 効果音は短いので、鳴らすたびに、その時の音量とミュートを GainNode に写す。
 // Web Audio API のない環境では null を返し、web-bml の既定の出口に任せる。
 export function createDataBroadcastAudio(
-  video: () => HTMLVideoElement | null,
+  video: () => Pick<PlayerMedia, 'volume' | 'muted'> | null,
 ): DataBroadcastAudio | null {
   if (typeof AudioContext === 'undefined') {
     return null;

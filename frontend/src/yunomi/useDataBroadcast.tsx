@@ -19,6 +19,7 @@ import { fitMedia } from './mediaFit';
 import { createSettler, useSettledFalse } from './settleDelay';
 import classes from './TsPlayer.module.css';
 import { useWatchMini } from './WatchHost';
+import type { PlayerMedia } from './playerMedia';
 
 // RemoteKey は、リモコンのボタン。値は web-bml の AribKeyCode (content.ts) と同じにする。
 export const RemoteKey = {
@@ -138,7 +139,7 @@ export type DataBroadcastHandlers = {
 
 export function useDataBroadcast(
   source: DataBroadcastSource | null,
-  videoRef: RefObject<HTMLVideoElement | null>,
+  mediaRef: RefObject<PlayerMedia | null>,
   shown: boolean,
   // ipEnabled は、管理者が、文書の双方向の通信を tenban に中継させているか (#501)。切っていれば、文書に通信の機能を渡さない。
   ipEnabled: boolean,
@@ -206,7 +207,7 @@ export function useDataBroadcast(
     // 受信機の郵便番号を、文書が読む NVRAM に書いておく (#442)。
     writeZipcodeNVRAM(browserStorage(), loadDataBroadcastZipcode(browserStorage()));
     // 効果音は、プレイヤーの音量とミュートに合わせて鳴らす (#439)。
-    const audio = createDataBroadcastAudio(() => videoRef.current);
+    const audio = createDataBroadcastAudio(() => mediaRef.current);
     audioRef.current = audio;
     const browser = new BMLBrowser({
       ...(audio !== null ? { audioNodeProvider: audio } : {}),
@@ -256,16 +257,16 @@ export function useDataBroadcast(
     // place は、映像をデータ放送の中へ移すか、プレイヤーへ戻す。どのイベントでも、同じ条件で決める。
     // 層を隠している間と、映像の位置がないページでは、mediaElement が見えないか文書の外に出るので、プレイヤーへ戻す。
     const place = () => {
-      const video = videoRef.current;
+      const media = mediaRef.current;
       if (
         !shownRef.current ||
         shownHidden ||
-        video === null ||
+        media === null ||
         browser.getVideoElement() === null
       ) {
         putBack();
       } else if (restore === null) {
-        restore = moveMedia(video, mediaElement);
+        restore = moveMedia(media.element, mediaElement);
       }
     };
     // データ放送を入れたら、リモコンの d ボタンを押したときと同じく、データ放送の画面に入る。
@@ -468,7 +469,7 @@ export function useDataBroadcast(
       setInvisible(false);
       setKeyGroups(defaultKeyGroups);
     };
-  }, [url, serviceId, layer, videoRef, generation, ipEnabled]);
+  }, [url, serviceId, layer, mediaRef, generation, ipEnabled]);
 
   // 出すことになったら、データ放送の画面に入る。出すのをやめたら、最初の文書へ戻す。
   // 最初の描画では、まだ文書がないので、何もしない。

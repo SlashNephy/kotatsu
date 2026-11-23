@@ -2,6 +2,7 @@ import { useRef, type RefObject } from 'react';
 
 import { fitContain } from './capture';
 import type { CoverKind } from './cmAutoSkipper';
+import type { PlayerMedia } from './playerMedia';
 
 // PlayerCover は、映像の上に重ねる蓋 (#1512)。CM を飛ぶ間、CM のコマを隠す。
 export type PlayerCover = {
@@ -39,10 +40,11 @@ export function coverRect(
 }
 
 // usePlayerCover は、蓋の要素に渡す ref と、蓋を出し入れする PlayerCover を返す。
-// 写す元は video の要素にする。yadif が描く WebGL の canvas は preserveDrawingBuffer を使っておらず、写すと黒になる。
+// 写す元は PlayerMedia の frame (<video> の経路では video の要素) にする。yadif が描く WebGL の canvas は
+// preserveDrawingBuffer を使っておらず、写すと黒になる。frame のない経路では、黒で覆う。
 // onChange は、蓋を出したとき (true) と外したとき (false) に呼ぶ。蓋を出している間は、字幕を消す (CM の字幕を残さない)。
 export function usePlayerCover(
-  videoRef: RefObject<HTMLVideoElement | null>,
+  mediaRef: RefObject<PlayerMedia | null>,
   onChange: (shown: boolean) => void,
 ): { ref: RefObject<HTMLDivElement | null>; cover: PlayerCover } {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -55,24 +57,24 @@ export function usePlayerCover(
   // place は、映像の今の矩形に蓋を合わせる。全画面の切り替え、要素の大きさの変化、別のウィンドウへの移動でも、毎フレーム置き直す。
   const place = () => {
     const element = ref.current;
-    const video = videoRef.current;
+    const media = mediaRef.current;
     const container = element?.parentElement;
-    if (element === null || video === null || container == null) {
+    if (element === null || media === null || container == null) {
       return;
     }
     // 読み直すと、video は新しい映像が届くまで大きさを失う。その間は、置いた場所のままにする。
     if (
       element.dataset['cmCover'] !== 'still' ||
-      video.videoWidth === 0 ||
-      video.videoHeight === 0
+      media.videoWidth === 0 ||
+      media.videoHeight === 0
     ) {
       return;
     }
     const rect = coverRect(
       container.getBoundingClientRect(),
-      video.getBoundingClientRect(),
-      video.videoWidth,
-      video.videoHeight,
+      media.element.getBoundingClientRect(),
+      media.videoWidth,
+      media.videoHeight,
       window.devicePixelRatio,
     );
     element.style.left = `${rect.left}px`;
@@ -93,15 +95,16 @@ export function usePlayerCover(
       }
       const canvas = element.querySelector('canvas');
       let shown: CoverKind = 'black';
-      const video = videoRef.current;
-      if (kind === 'still' && canvas !== null && video !== null) {
+      const media = mediaRef.current;
+      const source = media?.frame ?? null;
+      if (kind === 'still' && canvas !== null && media !== null && source !== null) {
         try {
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+          if (media.videoWidth > 0 && media.videoHeight > 0) {
+            canvas.width = media.videoWidth;
+            canvas.height = media.videoHeight;
             const context = canvas.getContext('2d');
             if (context !== null) {
-              context.drawImage(video, 0, 0, canvas.width, canvas.height);
+              context.drawImage(source, 0, 0, canvas.width, canvas.height);
               shown = 'still';
             }
           }

@@ -3,6 +3,7 @@ import { createRef, type RefObject } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { HlsPlayer } from './HlsPlayer';
+import type { PlayerMedia } from './playerMedia';
 
 // FakeHls は、hls.js の代わり。作られたものを instances に残し、読み込みを止めたか、読み直したかを数える。
 const fake = vi.hoisted(() => {
@@ -51,15 +52,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function player(url: string | null, videoRef: RefObject<HTMLVideoElement | null>, live: boolean) {
-  return <HlsPlayer url={url} videoRef={videoRef} live={live} captions={false} />;
+function player(url: string | null, mediaRef: RefObject<PlayerMedia | null>, live: boolean) {
+  return <HlsPlayer url={url} mediaRef={mediaRef} live={live} captions={false} />;
 }
 
 async function renderPlayer(live: boolean) {
-  const videoRef = createRef<HTMLVideoElement | null>() as { current: HTMLVideoElement | null };
-  const { rerender } = render(player('/playlist.m3u8', videoRef, live));
+  const mediaRef = createRef<PlayerMedia | null>() as { current: PlayerMedia | null };
+  const { rerender } = render(player('/playlist.m3u8', mediaRef, live));
   await vi.waitFor(() => expect(fake.FakeHls.instances).toHaveLength(1));
-  const video = videoRef.current;
+  const video = mediaRef.current?.video ?? null;
   if (video === null) {
     throw new Error('no video');
   }
@@ -71,7 +72,7 @@ async function renderPlayer(live: boolean) {
   // next で、読み直すときにライブかどうかを変えられる。
   const reload = async (url: string, parse = true, next = live) => {
     const count = fake.FakeHls.instances.length;
-    rerender(player(url, videoRef, next));
+    rerender(player(url, mediaRef, next));
     await vi.waitFor(() => expect(fake.FakeHls.instances).toHaveLength(count + 1));
     if (parse) {
       act(() => fake.FakeHls.instances.at(-1)?.emit('parsed'));
@@ -79,7 +80,7 @@ async function renderPlayer(live: boolean) {
   };
 
   // unload は、URL を null にして、読むのをやめさせる。
-  const unload = () => rerender(player(null, videoRef, live));
+  const unload = () => rerender(player(null, mediaRef, live));
 
   return { video, play, reload, unload };
 }

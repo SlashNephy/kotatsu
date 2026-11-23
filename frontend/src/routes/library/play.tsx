@@ -152,7 +152,7 @@ import {
   seekLimit,
 } from '../../library/library';
 import type { playLibraryFileQuery } from './__generated__/playLibraryFileQuery.graphql';
-import { mediaOf } from '../../yunomi/playerMedia';
+import type { PlayerMedia } from '../../yunomi/playerMedia';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -368,12 +368,10 @@ function Player({
     transcoding,
     viewer,
   } = useLazyLoadQuery<playLibraryFileQuery>(playQuery, variables);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaRef = useRef<PlayerMedia | null>(null);
   const pip = useDocumentPictureInPicture();
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
-  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
-  // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
-  const media = video === null ? null : mediaOf(video);
+  const [media, setMedia] = useState<PlayerMedia | null>(null);
   // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
   useWatchMedia(media);
   const videoState = useVideoState(media);
@@ -631,9 +629,9 @@ function Player({
   // kyusu の仮想 HLS は、プレイリストの中を移るだけで、読み直さない。
   const jumpTo = (target: number) => {
     const seconds = clampSeek(target, file.index);
-    const video = videoRef.current;
-    if (hls && video !== null) {
-      video.currentTime = seconds;
+    const current = mediaRef.current;
+    if (hls && current !== null) {
+      current.seek(seconds);
       hlsStream.seekTo(seconds);
 
       return seconds;
@@ -655,21 +653,21 @@ function Player({
   const [rate, setRate] = useState(1);
   const fastForward = useFastForward(rate, { growing: false, position, duration });
   useEffect(() => {
-    if (video !== null) {
-      video.defaultPlaybackRate = rate;
-      video.playbackRate = fastForward.playbackRate;
+    if (media !== null) {
+      media.defaultPlaybackRate = rate;
+      media.playbackRate = fastForward.playbackRate;
     }
-  }, [rate, fastForward.playbackRate, video, stream.url, hlsStream.loads]);
+  }, [rate, fastForward.playbackRate, media, stream.url, hlsStream.loads]);
 
   const togglePlay = () => {
-    const video = videoRef.current;
-    if (video === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    if (video.paused) {
-      void video.play().catch(() => {});
+    if (current.paused) {
+      void current.play().catch(() => {});
     } else {
-      video.pause();
+      current.pause();
     }
   };
   const [flash, showFlash] = usePlayerFlash();
@@ -688,7 +686,7 @@ function Player({
       new CmAutoSkipper({
         enabled: () => live.current.cmAutoSkip,
         scrubbing: () => live.current.scrubbing,
-        paused: () => videoRef.current?.paused ?? true,
+        paused: () => mediaRef.current?.paused ?? true,
         lastSeek: () => lastSeek.current,
         sections: () => live.current.cmSpans,
         cover: (kind) => coverRef.current?.show(kind),
@@ -705,14 +703,14 @@ function Player({
   useEffect(() => () => skipper.dispose(), [skipper]);
   // 判定は、映ったコマごとに、そのコマの時刻で行う。読み直していて位置を信じられない間は、位置を渡さない。
   useVideoFrames(media, ({ mediaTime, presented }) => {
-    if (video === null) {
+    if (media === null) {
       return;
     }
-    const time = mediaTime ?? video.currentTime;
+    const time = mediaTime ?? media.currentTime;
     skipper.frame({
       position: hls ? hlsStream.framePosition(time) : stream.framePosition(time),
-      seeking: video.seeking,
-      paused: video.paused,
+      seeking: media.seeking,
+      paused: media.paused,
       presented,
     });
   });
@@ -720,7 +718,7 @@ function Player({
   // 続きから開いたときは、続きから始めたことだけを伝え、CM を飛ばした知らせは出さない。
   const openingHeld = useRef(false);
   useEffect(() => {
-    if (!opening.skipped || openingHeld.current || video === null) {
+    if (!opening.skipped || openingHeld.current || media === null) {
       return;
     }
     openingHeld.current = true;
@@ -728,7 +726,7 @@ function Player({
     if (!opening.resumed) {
       showFlash(t('player.flash.cmSkipped'));
     }
-  }, [video]);
+  }, [media]);
   // 自動で飛ばす設定を入れた瞬間に CM の中にいれば、その場で飛ぶ。設定を入れたことを、飛ばしたい意思として扱う (#1512)。
   const previousCmAutoSkip = useRef(cmAutoSkip);
   useEffect(() => {
@@ -754,7 +752,7 @@ function Player({
   const capture = useCapture({
     crop,
     frameRef: playerBoxRef,
-    media: () => (videoRef.current === null ? null : mediaOf(videoRef.current)),
+    media: () => mediaRef.current,
     serviceName,
     programName: program?.name ?? file.name,
     captureTime: () => clockAt(currentPosition()) ?? Date.now(),
@@ -773,11 +771,11 @@ function Player({
     showFlash(t(side === 'left' ? 'player.flash.seekBackward' : 'player.flash.seekForward'));
   });
   const changeVolume = (delta: number) => {
-    const video = videoRef.current;
-    if (video === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    const next = stepVolume(currentVolume(mediaOf(video)), delta);
+    const next = stepVolume(currentVolume(current), delta);
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };
@@ -799,8 +797,8 @@ function Player({
     ...(channelId === null || !jikkyoEnabled ? {} : commentOffsetCommands),
     ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
     capture: () => void saveCapture(),
-    play: () => void videoRef.current?.play().catch(() => {}),
-    pause: () => videoRef.current?.pause(),
+    play: () => void mediaRef.current?.play().catch(() => {}),
+    pause: () => mediaRef.current?.pause(),
     togglePlay,
     seekBackward: () => {
       skip(-10);
@@ -828,12 +826,12 @@ function Player({
     },
     toggleCaptions: () => setCaptions(!captions),
     toggleMute: () => {
-      const video = videoRef.current;
-      if (video === null) {
+      const current = mediaRef.current;
+      if (current === null) {
         return;
       }
       videoState.toggleMute();
-      showFlash(t(video.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
+      showFlash(t(current.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
     },
     toggleFullscreen: fullscreen.toggle,
     volumeUp: () => changeVolume(volumeStep),
@@ -931,7 +929,7 @@ function Player({
 
   // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
-    if (videoRef.current?.error != null) {
+    if (mediaRef.current?.error != null) {
       const next = skipBrokenMedia(positionRef.current, lastBrokenSkip.current);
       if (next !== null) {
         lastBrokenSkip.current = next;
@@ -952,11 +950,11 @@ function Player({
   // onConvertState は、配信がファイルの終わりに届く前に終わったら、途中で切れたとみなして読み直す。
   // 索引を作っている途中は、長さが見込みなので、終わりかどうかを決められない。読み直しを繰り返さないよう、見分けない。
   const onConvertState = (state: PlayerState) => {
-    const video = videoRef.current;
-    if (state !== 'completed' || video === null || indexing) {
+    const current = mediaRef.current;
+    if (state !== 'completed' || current === null || indexing) {
       return;
     }
-    const { buffered } = video;
+    const { buffered } = current;
     const end =
       buffered.length === 0
         ? positionRef.current
@@ -1134,8 +1132,8 @@ function Player({
         <TsPlayer
           url={stream.url}
           handover={handover}
-          videoRef={videoRef}
-          onVideo={setVideo}
+          mediaRef={mediaRef}
+          onMedia={setMedia}
           controls={controlBar}
           captions={captions && !autoCaptionsShown}
           superimpose={captionSettings.superimposeRecorded}
@@ -1166,8 +1164,8 @@ function Player({
               ? null
               : `${hlsURL(file.hlsUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`
           }
-          videoRef={videoRef}
-          onVideo={setVideo}
+          mediaRef={mediaRef}
+          onMedia={setMedia}
           onSegment={streamMeter.onSegment}
           controls={controlBar}
           captions={captions && !autoCaptionsShown}
