@@ -182,6 +182,7 @@ overrides:
 patchedDependencies:
   '@adobe/css-tools@5.0.0': ca2115bbd5dedc11344d69f43e4505ceed1ff14a91c399da214568207f7f941a
   '@zxcvbn-ts/core@4.2.0': 695e13034eebf753282a23270d347e3d9fe96dc753d254507d41b27ffcd03cd9
+  aribb24.js@2.0.34: 90cbc8278fc2e68f246e903012ba9203568f6933559ce7cddd7c6f283704195e
   web-bml@1.0.1: 0a0e017dce273418311de4fbba65cad52b478ec7315d19c3835e2ea01f70b7af
 
 importers:
@@ -232,7 +233,7 @@ importers:
         version: 4.1.1
       aribb24.js:
         specifier: 2.0.34
-        version: 2.0.34
+        version: 2.0.34(patch_hash=90cbc8278fc2e68f246e903012ba9203568f6933559ce7cddd7c6f283704195e)
       get-nonce:
         specifier: 1.0.1
         version: 1.0.1
@@ -6649,7 +6650,7 @@ snapshots:
 
   arib-mmt-tlv-ts@2.0.2: {}
 
-  aribb24.js@2.0.34: {}
+  aribb24.js@2.0.34(patch_hash=90cbc8278fc2e68f246e903012ba9203568f6933559ce7cddd7c6f283704195e): {}
 
   array-buffer-byte-length@1.0.2:
     dependencies:
