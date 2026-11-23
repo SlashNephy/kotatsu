@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -41,6 +40,10 @@ func TestSchemaSumMatchesSchema(t *testing.T) {
 	// Windows で取り出すと、改行が CRLF になる。mise run //backend:db:sum は LF のファイルから計算する。
 	sum := sha256.Sum256([]byte(strings.ReplaceAll(db.Schema, "\r\n", "\n")))
 	assert.Equal(t, hex.EncodeToString(sum[:]), digest, "schema.sql has changed; run mise run //backend:db:sum")
+	// スクリプトは、足したときに上げたスキーマの版にする。版がスキーマより新しいと、足した後に書き出したバックアップを戻すたびに流し直す。
+	for _, version := range scriptVersions(t) {
+		assert.LessOrEqual(t, version, database.SchemaVersion(), "a one-time script must not be newer than the schema version")
+	}
 }
 
 func TestMigrateAppliesToEmptyDatabase(t *testing.T) {
@@ -216,6 +219,84 @@ func TestMigrateRunsBeforeScripts(t *testing.T) {
 			require.NoError(t, database.MigrateWithScripts(t.Context(), slog.New(slog.DiscardHandler), pool, fsys))
 		})
 	}
+}
+
+// TestMigrateRenormalizesDashVariants は、正規化で波ダッシュとダッシュの類をそろえる前に書いた、正規化した列を、
+// kotatsu migrate が書き直すことを確かめる (#2041)。そろえる文字を含まない行は変えない。
+func TestMigrateRenormalizesDashVariants(t *testing.T) {
+	t.Parallel()
+
+	pool := open(t, databasetest.New(t))
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	now := time.Now()
+	exec := func(query string, args ...any) {
+		t.Helper()
+		_, err := pool.Exec(t.Context(), query, args...)
+		require.NoError(t, err)
+	}
+	exec("INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
+	// そろえる前の正規化 (NFKC だけ) で書いた行。
+	exec(`INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+		VALUES (3273601024, 32736, 1024, 'こたつ―テレビ', 'こたつ―テレビ', 1, 'GR', '27', $1, $1)`, now)
+	const (
+		plainName    = "揃える文字を含まない名前"
+		wantExtended = "出演者\n山田~太郎\n"
+	)
+	insertProgram := func(eventID int64, name string) {
+		t.Helper()
+		exec(`INSERT INTO programs (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
+			name, description, name_normalized, description_normalized, extended, extended_normalized, genres, related_items, search_grams, created_at, updated_at)
+			VALUES (3273601024, $1, $1, $2, $2, false, true, $3, '', $3, '', '{"出演者": "山田〜太郎"}', '出演者\n山田〜太郎\n', '[]', '[]', '{x}', $2, $2)`,
+			eventID, now, name)
+	}
+	insertProgram(1, "作品名〜副題〜")
+	insertProgram(2, plainName)
+	insertProgram(3, "作品名－副題－")
+	// 過去の番組は、番組表から移したものとして作る。
+	exec(`WITH moved AS (DELETE FROM programs WHERE event_id = 3 RETURNING *)
+		INSERT INTO program_archives (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
+			name_normalized, description_normalized, extended, extended_normalized, genres, related_items, audios, search_grams, created_at, updated_at, archived_at)
+		SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
+			name_normalized, description_normalized, extended, extended_normalized, genres, related_items, audios, search_grams, created_at, updated_at, $1
+		FROM moved`, now)
+	recordingID := id.New()
+	exec(`INSERT INTO recordings (id, service_id, name, description, name_normalized, description_normalized, start_at, end_at, state, recorded_from, created_at, updated_at)
+		VALUES ($1, 3273601024, '作品名〜副題〜', '', '作品名〜副題〜', '', $2, $2, 'completed', $2, $2, $2)`, recordingID, now)
+
+	require.NoError(t, database.ForgetScriptsAfter(t.Context(), pool, database.RenormalizeDashVariantsVersion-1))
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	var serviceName string
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized FROM services").Scan(&serviceName))
+	assert.Equal(t, "こたつ-テレビ", serviceName)
+	tests := []struct {
+		table, where   string
+		wantName       string
+		wantExtended   string
+		wantGramsReset bool
+	}{
+		{table: "programs", where: "event_id = 1", wantName: "作品名~副題~", wantExtended: wantExtended, wantGramsReset: true},
+		// 名前には揃える文字がなくても、詳細にあれば書き直す。
+		{table: "programs", where: "event_id = 2", wantName: plainName, wantExtended: wantExtended, wantGramsReset: true},
+		{table: "program_archives", where: "event_id = 3", wantName: "作品名-副題-", wantExtended: wantExtended, wantGramsReset: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.table+" "+tt.where, func(t *testing.T) {
+			t.Parallel()
+
+			var name, extended string
+			var grams []string
+			require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized, extended_normalized, search_grams FROM "+tt.table+" WHERE "+tt.where).
+				Scan(&name, &extended, &grams))
+			assert.Equal(t, tt.wantName, name)
+			assert.Equal(t, tt.wantExtended, extended)
+			assert.Equal(t, tt.wantGramsReset, grams == nil)
+		})
+	}
+	// 録画は空に戻し、同じ migrate の中で埋め直す。
+	var recordingName string
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized FROM recordings WHERE id = $1", recordingID).Scan(&recordingName))
+	assert.Equal(t, "作品名~副題~", recordingName)
 }
 
 // TestMigrateConcurrently は、kotatsu migrate を同時に実行しても、どれも失敗しないことを確かめる。
@@ -638,20 +719,12 @@ func withScript(t *testing.T, name, body string) fstest.MapFS {
 	return fsys
 }
 
-// scriptVersions は、埋め込んだ 1 回だけのスクリプトの版を古い順に返す。
+// scriptVersions は、埋め込んだ 1 回だけのスクリプト (SQL と Go) の版を古い順に返す。
 func scriptVersions(t *testing.T) []int64 {
 	t.Helper()
 
-	names, err := fs.Glob(db.Scripts, "scripts/*.sql")
+	versions, err := database.ScriptVersions()
 	require.NoError(t, err)
-	versions := make([]int64, 0, len(names))
-	for _, name := range names {
-		prefix, _, _ := strings.Cut(strings.TrimPrefix(name, "scripts/"), "_")
-		version, err := strconv.ParseInt(prefix, 10, 64)
-		require.NoError(t, err)
-		versions = append(versions, version)
-	}
-	slices.Sort(versions)
 
 	return versions
 }

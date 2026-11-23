@@ -1130,6 +1130,45 @@ func (q *Queries) ListSyobocalPrograms(ctx context.Context, arg ListSyobocalProg
 	return items, nil
 }
 
+const listSyobocalTitleKeys = `-- name: ListSyobocalTitleKeys :many
+SELECT tid, title, title_key FROM syobocal_titles
+WHERE tid > $1::integer
+ORDER BY tid
+LIMIT $2
+`
+
+type ListSyobocalTitleKeysParams struct {
+	After    int32
+	MaxCount int32
+}
+
+type ListSyobocalTitleKeysRow struct {
+	Tid      int32
+	Title    string
+	TitleKey string
+}
+
+// しょぼいカレンダーのタイトルと鍵を、TID が after より後のものから TID の順に max_count 件返す (#2041)。kotatsu migrate が鍵を作り直すのに使う。
+func (q *Queries) ListSyobocalTitleKeys(ctx context.Context, arg ListSyobocalTitleKeysParams) ([]ListSyobocalTitleKeysRow, error) {
+	rows, err := q.db.Query(ctx, listSyobocalTitleKeys, arg.After, arg.MaxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSyobocalTitleKeysRow{}
+	for rows.Next() {
+		var i ListSyobocalTitleKeysRow
+		if err := rows.Scan(&i.Tid, &i.Title, &i.TitleKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSyobocalTitlesByKey = `-- name: ListSyobocalTitlesByKey :many
 SELECT tid, title FROM syobocal_titles WHERE title_key = $1 ORDER BY tid LIMIT 2
 `

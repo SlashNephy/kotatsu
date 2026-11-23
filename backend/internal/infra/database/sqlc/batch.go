@@ -496,6 +496,56 @@ func (b *SetRecordingNormalizedBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const setSyobocalTitleKey = `-- name: SetSyobocalTitleKey :batchexec
+UPDATE syobocal_titles SET title_key = $1 WHERE tid = $2
+`
+
+type SetSyobocalTitleKeyBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetSyobocalTitleKeyParams struct {
+	TitleKey string
+	Tid      int32
+}
+
+// しょぼいカレンダーのタイトルの鍵を書く (#2041)。
+func (q *Queries) SetSyobocalTitleKey(ctx context.Context, arg []SetSyobocalTitleKeyParams) *SetSyobocalTitleKeyBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.TitleKey,
+			a.Tid,
+		}
+		batch.Queue(setSyobocalTitleKey, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetSyobocalTitleKeyBatchResults{br, len(arg), false}
+}
+
+func (b *SetSyobocalTitleKeyBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetSyobocalTitleKeyBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const upsertPrograms = `-- name: UpsertPrograms :batchexec
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,

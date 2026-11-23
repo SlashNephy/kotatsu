@@ -125,7 +125,7 @@ docker compose logs kotatsu | grep setup_token
 | 画面のGraphQLのクエリ | `relay`が、`__generated__`を作り直します |
 
 `backend/db/schema.sql`を変えたら、`mise run //backend:db:sum`でスキーマの版を上げてください。`kotatsu migrate`が、DBとの差を当てます（#2040）。
-データを書き換えるときは、`backend/db/scripts`に1回だけのスクリプト（`<版>_<名前>.before.sql`か`<版>_<名前>.after.sql`）を置きます。表や列を消すときは、差を当てる前に流すスクリプト（`.before.sql`）で消します。
+データを書き換えるときは、`backend/db/scripts`に1回だけのスクリプト（`<版>_<名前>.before.sql`か`<版>_<名前>.after.sql`）を置きます。版は、`mise run //backend:db:sum`で上げたスキーマの版にします。表や列を消すときは、差を当てる前に流すスクリプト（`.before.sql`）で消します。
 
 ビルドに失敗したときは、`docker compose logs -f kotatsu`でエラーを確かめてください。
 直して保存すると、またビルドします。

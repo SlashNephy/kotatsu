@@ -10,10 +10,11 @@ import (
 
 // テストで何度も使う作品名。
 const (
-	titleMoPapa   = "もうパパ!"
-	titleKyumei   = "救命病棟24時"
-	titleHagure2  = "はぐれ刑事純情派2"
-	titleBanshaku = "晩酌の流儀5〜秋冬篇〜"
+	titleMoPapa  = "もうパパ!"
+	titleKyumei  = "救命病棟24時"
+	titleHagure2 = "はぐれ刑事純情派2"
+	// 番組名の波ダッシュは、正規化で ~ になる (#2041)。
+	titleBanshaku = "晩酌の流儀5~秋冬篇~"
 	titleSukeban  = "スケバン刑事II"
 )
 
@@ -36,7 +37,7 @@ func TestWorkTitle(t *testing.T) {
 		{name: "morning period drama slot", input: "おはよう！時代劇　暴れん坊将軍１２　＃４🈑🈞", want: "暴れん坊将軍12"},
 		{name: "roman numeral and star", input: "スケバン刑事Ⅱ　少女鉄仮面伝説　★第２６話", want: "スケバン刑事II 少女鉄仮面伝説"},
 		{name: "wave subtitle and kanji episode", input: banshakuEpisode7, want: titleBanshaku},
-		{name: "enclosed new mark", input: "🈟TOKYO MER〜走る緊急救命室〜 #1🈑", want: "TOKYO MER〜走る緊急救命室〜"},
+		{name: "enclosed new mark", input: "🈟TOKYO MER〜走る緊急救命室〜 #1🈑", want: "TOKYO MER~走る緊急救命室~"},
 		{name: "mystery slot", input: "日曜ミステリー『神楽坂署生活安全課３迷刑事エイジとロク』舘ひろし、モト冬樹🈞🈑🈖", want: "神楽坂署生活安全課3迷刑事エイジとロク"},
 	}
 	for _, tt := range tests {
