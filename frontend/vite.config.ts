@@ -210,7 +210,9 @@ export default defineConfig(({ mode }) => ({
         // ブラウザの中での変換の WebAssembly (500 KB ほど) は、端末に保存した録画 (#480) をオフラインで再生するのに要るので含める。
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,wasm}'],
         // パスワードの強度の判定の辞書 (2 MB ほど) は、セットアップとパスワードの変更でしか使わないので含めない。
-        globIgnores: ['**/zxcvbn-*.js'],
+        // ブラウザ内でデコードする経路の WebAssembly (900 KB ほど、#1516) は、手で選んだときだけ使い、
+        // 端末に保存した録画ではまだ使わないので含めない。
+        globIgnores: ['**/zxcvbn-*.js', '**/ffmpeg/**'],
       },
       manifest: {
         name: 'Kotatsu',

@@ -18,6 +18,11 @@ run = [
 [tasks.mpeg2toh264]
 run = "./scripts/build-mpeg2toh264.sh"
 
+# ブラウザ内でデコードする経路の WASM の FFmpeg を、vendor/ffmpeg/SOURCE の版から組み直す (設計書 7.2、#1516)。
+# 組むのは Docker の emscripten のイメージの中で行う。curl と gpg も使う。
+[tasks.ffmpeg]
+run = "./scripts/build-ffmpeg.sh"
+
 # 静的なデモの映像 (demo/stream.m2ts) を、scripts/build-demo-stream.sh で作り直す (設計書 10.1、#1050)。
 # FFmpeg は mise.demo-stream.toml で固定しているので、MISE_ENV=demo-stream を付けて実行する。
 [tasks.demo-stream]

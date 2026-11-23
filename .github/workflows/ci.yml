@@ -33,6 +33,7 @@ jobs:
       web: ${{ steps.changes.outputs.web }}
       deploy: ${{ steps.changes.outputs.deploy }}
       mpeg2toh264: ${{ steps.changes.outputs.mpeg2toh264 }}
+      ffmpeg: ${{ steps.changes.outputs.ffmpeg }}
       image: ${{ steps.changes.outputs.image }}
       pnpm-audit: ${{ steps.changes.outputs.pnpm-audit }}
       kube-linter: ${{ steps.changes.outputs.kube-linter }}
@@ -224,6 +225,21 @@ jobs:
           working_directory: frontend
       - run: mise run //frontend:mpeg2toh264
       - run: git add -N frontend/vendor frontend/public && git diff --exit-code frontend/vendor frontend/public
+
+  # ブラウザ内でデコードする経路の WASM の FFmpeg を、固定した版と emscripten のイメージで組み直し、
+  # リポジトリに置いたものと差分がないことを確かめる (設計書 7.2、#1516)。組むのは Docker の中で行う。
+  ffmpeg:
+    needs: changes
+    if: needs.changes.outputs.ffmpeg == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: frontend/scripts/build-ffmpeg.sh
+      - run: git add -N frontend/vendor/ffmpeg frontend/public/ffmpeg && git diff --exit-code frontend/vendor/ffmpeg frontend/public/ffmpeg
 
   generate:
     needs: changes
@@ -654,6 +670,7 @@ jobs:
       - lint
       - deploy
       - mpeg2toh264
+      - ffmpeg
       - generate
       - web
       - e2e-stack

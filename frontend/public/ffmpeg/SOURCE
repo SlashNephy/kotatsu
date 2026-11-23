@@ -1,0 +1,4 @@
+FFmpeg 9.1 (LGPL-2.1-or-later), configured with only the mpeg2video and aac decoders and the mpegvideo parser.
+Source: https://ffmpeg.org/releases/ffmpeg-9.1.tar.xz
+Glue code and build script: frontend/vendor/ffmpeg/glue.c and frontend/scripts/build-ffmpeg.sh in https://github.com/SlashNephy/kotatsu
+To replace this library, build decoder.wasm with the same glue code and exported functions and put it in place of this file.

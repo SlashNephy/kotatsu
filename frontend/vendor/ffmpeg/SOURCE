@@ -1,6 +1,6 @@
-# ブラウザ内で MPEG-2 をそのままデコードする方式を測るときに組む、WASM の FFmpeg の版と、組むのに使う emscripten のイメージ (#1516)。
+# ブラウザ内でデコードする経路 (#1516、設計書 7.2) で使う、WASM の FFmpeg の版と、組むのに使う emscripten のイメージ。
 # FFmpeg は、サーバの FFmpeg (Dockerfile の FFMPEG_VERSION) と同じ版にする。
-# 変えたら、MISE_ENV=wasm-decode-bench mise run //frontend:wasm-decode:build で組み直す。
+# 変えたら、mise run //frontend:ffmpeg で組み直す。測定の道具 (bench/wasm-decode) も、この版で組む。
 # renovate: datasource=github-tags depName=FFmpeg/FFmpeg versioning=loose extractVersion=^n(?<version>\d+\.\d+(?:\.\d+)?)$
 ffmpeg=9.1
 # renovate: datasource=docker depName=docker.io/emscripten/emsdk

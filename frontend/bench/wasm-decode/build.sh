@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SOURCE で固定した版の FFmpeg から、mpeg2video・AAC・Opus のデコーダだけを emscripten で WASM に組む (#1516)。
+# vendor/ffmpeg/SOURCE で固定した版の FFmpeg から、mpeg2video・AAC・Opus のデコーダだけを emscripten で WASM に組む (#1516)。
 #
 # 使い方: build.sh [組み方の名前...]
 # 名前を省くと、VARIANTS の組み方を全部組む。組んだものは .work/out/<名前>/ に置き、大きさと組む時間を .work/out/sizes.tsv に書く。
@@ -8,7 +8,8 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 work="$here/.work"
-value() { sed -n "s/^$1=//p" "$here/SOURCE"; }
+# 版は、配信するデコーダ (vendor/ffmpeg) と同じものを使う。
+value() { sed -n "s/^$1=//p" "$here/../../vendor/ffmpeg/SOURCE"; }
 ffmpeg="$(value ffmpeg)"
 emsdk="$(value emsdk)"
 ffmpeg_signing_key="$(value ffmpeg_signing_key)"

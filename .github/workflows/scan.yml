@@ -190,7 +190,7 @@ jobs:
         include:
           - language: actions
             build-mode: none
-          # frontend/bench/wasm-decode の glue.c。
+          # frontend/vendor/ffmpeg と frontend/bench/wasm-decode の glue.c。
           - language: c-cpp
             build-mode: none
           - language: go

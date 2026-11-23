@@ -125,11 +125,12 @@
       autoReplaceStringTemplate: '# renovate: datasource={{{datasource}}} depName={{{depName}}} currentValue={{{currentValue}}}\ncommit={{{newDigest}}}',
     },
     {
-      // ブラウザ内でそのままデコードする方式を測るときに組む、WASM の FFmpeg の版と emscripten のイメージ (#1516)。
+      // ブラウザ内でデコードする経路の WASM の FFmpeg の版と emscripten のイメージ (#1516)。
       // FFmpeg は、サーバの FFmpeg (Dockerfile の FFMPEG_VERSION) と同じ版を追う。
+      // 上げたら、mise run //frontend:ffmpeg で組み直したものを、同じ PR に入れる (CI が差分を確かめる)。
       customType: 'regex',
       managerFilePatterns: [
-        '/^frontend/bench/wasm-decode/SOURCE$/',
+        '/^frontend/vendor/ffmpeg/SOURCE$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) versioning=(?<versioning>\\S+) extractVersion=(?<extractVersion>\\S+)\\nffmpeg=(?<currentValue>\\S+)',
