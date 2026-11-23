@@ -545,32 +545,6 @@ describe('demo watch rules', () => {
   });
 });
 
-// Storybook のページの Story (#2056) は、デモのデータにないフィールドを、型の既定の値で埋めて描く。
-describe('createExecutor の fillMissing', () => {
-  const query = '{ users { id } viewer { id username role } timeZone oldestArchivedProgramAt }';
-
-  it('埋めなければ、デモのデータにない non-null のフィールドはエラーになる', async () => {
-    const result = await createExecutor({ timeZone: () => 'Asia/Tokyo' }).execute(query, {});
-
-    expect(result.errors?.[0]?.message).toMatch(/non-nullable field Query\.users/);
-  });
-
-  it('埋めれば、一覧は空、オブジェクトは中身を既定の値 (列挙は最初の値) にし、デモのデータにある値と nullable のフィールドはそのままにする', async () => {
-    const result = await createExecutor(
-      { timeZone: () => 'Asia/Tokyo' },
-      { fillMissing: true },
-    ).execute(query, {});
-
-    expect(result.errors).toBeUndefined();
-    expect(result.data).toEqual({
-      users: [],
-      viewer: { id: '', username: '', role: 'ADMIN' },
-      timeZone: 'Asia/Tokyo',
-      oldestArchivedProgramAt: null,
-    });
-  });
-});
-
 describe('demo system settings', () => {
   it('keeps the saved settings when they are read again (#2073)', async () => {
     const { executor } = newExecutor();

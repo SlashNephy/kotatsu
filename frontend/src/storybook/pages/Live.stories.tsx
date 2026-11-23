@@ -42,9 +42,10 @@ export const DisconnectedByRecording: Story = {
           return call<object>(root, 'recordings', args);
         }
         const node = {
+          id: 'Recording:recording-now',
           name: 'ねこの町を歩く',
           recordedFrom: new Date().toISOString(),
-          service: { name: 'こたつテレビ', logoUrl: null },
+          service: { id: 'Service:1024', name: 'こたつテレビ', logoUrl: null },
         };
 
         return {

@@ -26,7 +26,11 @@ const users = () => [
 type AuditEvent = {
   id: string;
   occurredAt: string;
-  actor: { type: string; user: { username: string; displayName: string } | null; role: string };
+  actor: {
+    type: string;
+    user: { id: string; username: string; displayName: string } | null;
+    role: string;
+  };
   action: string;
   targetType: string;
   targetId: string | null;
@@ -35,7 +39,11 @@ type AuditEvent = {
   userAgent: string | null;
 };
 
-const admin = { type: 'user', user: { username: 'admin', displayName: '管理者' }, role: 'ADMIN' };
+const admin = {
+  type: 'user',
+  user: { id: 'User:1', username: 'admin', displayName: '管理者' },
+  role: 'ADMIN',
+};
 
 // events は、操作者と送信元の違う記録。ユーザーの操作、システムの操作、消したユーザーの操作を含む。
 const events: AuditEvent[] = [

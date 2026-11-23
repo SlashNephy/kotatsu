@@ -624,6 +624,8 @@ export function createRootValue(
     notifications: (args: { first: number; after?: string | null }) =>
       paginate([], args.first, args.after),
     unreadNotificationCount: () => 0,
+    // デモは通知を持たないので、既読にする通知もない。本物のサーバーと同じく、既読にした数を返す。
+    markNotificationsRead: () => 0,
     // デモは、ほかの端末のプレイヤーを覚えないので、リモコンで操れるプレイヤーは出さない。
     players: () => [],
     recordings: (args: {
