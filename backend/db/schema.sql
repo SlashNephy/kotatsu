@@ -400,6 +400,9 @@ CREATE TABLE system_settings (
   -- どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。
   -- 番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。0 なら残さない。
   rule_unmatched_grace_minutes integer NOT NULL DEFAULT 180 CHECK (rule_unmatched_grace_minutes BETWEEN 0 AND 1440),
+  -- 重複の回避で「録画済み」とみなす、判定に数えるドロップ (映像と音声の PID のもの) の数の上限 (設計書 4.4、付録 A)。
+  -- 0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
+  history_max_drops integer NOT NULL DEFAULT 0 CHECK (history_max_drops BETWEEN 0 AND 1000),
   -- 監査ログの保持期間 (日。設計書 8.5)。これを過ぎた記録は、nekonote が 1 日ごとに消す (#1869 で設定ファイルから移した)。
   audit_retention_days integer NOT NULL DEFAULT 365 CHECK (audit_retention_days BETWEEN 1 AND 3650),
   -- 監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。過ぎた記録は、この 2 つだけを空にする。
@@ -533,6 +536,9 @@ CREATE TABLE user_settings (
   comment_settings jsonb,
   -- 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。{superimposeLive, superimposeRecorded, stroke, backgroundOpacity} の形。NULL なら既定値。
   caption_settings jsonb,
+  -- 画面が端末に覚えていた設定のうち、端末をまたいで同期するもの (#1862)。画面の保存先のキーから、保存した文字列への対応。
+  -- 値の中身は画面が決め、サーバーは許したキーと長さだけを確かめる。
+  preferences jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL
 );
 
@@ -1035,6 +1041,8 @@ CREATE TABLE recordings (
   drops bigint NOT NULL DEFAULT 0,
   errors bigint NOT NULL DEFAULT 0,
   scrambled bigint NOT NULL DEFAULT 0,
+  -- 録画の状態と重複の回避の判定に数えるドロップ (設計書 5.3、5.5)。映像と音声の PID のドロップだけを数える。
+  judged_drops bigint NOT NULL DEFAULT 0,
   -- ES の PID だけで出した、スクランブルされていたパケットの割合 (設計書 5.3、5.5、#1517)。録画を終えたときと、解析し直したときに書く。
   -- ES のパケットが少なくて判定しなかった録画と、判定する前の録画は NULL。
   scrambled_ratio double precision,
@@ -1407,6 +1415,9 @@ CREATE TABLE captures (
   program_name_normalized text NOT NULL,
   -- 撮ったときに出ていた字幕の文 (#458)。出ていなければ NULL。
   caption text,
+  -- NFKC で正規化した字幕の文 (設計書 3.5、#2084)。キャプチャを探すのに使う。字幕が出ていなければ空にする。
+  -- NULL は、列を足す前に撮ったか、列を知らない古いバイナリが書いたキャプチャで、kotatsu migrate が埋める。
+  caption_normalized text,
   -- 撮った場面の放送時刻と、撮った時刻 (端末の時計)。
   broadcast_at timestamptz NOT NULL,
   taken_at timestamptz NOT NULL,

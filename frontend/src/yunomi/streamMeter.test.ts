@@ -149,6 +149,7 @@ describe('shownFrameRate', () => {
     fieldRateDropped: false,
     interpolated: false,
     upscaled: null,
+    upscaledWithAnime4K: false,
     notUpscaled: null,
     hdr: false,
   };
@@ -331,6 +332,7 @@ describe('StreamMeter', () => {
       fieldRateDropped: false,
       interpolated: false,
       upscaled: null,
+      upscaledWithAnime4K: false,
       notUpscaled: null,
       hdr: false,
     },
@@ -353,6 +355,7 @@ describe('StreamMeter', () => {
       fieldRateDropped: false,
       interpolated: false,
       upscaled: null,
+      upscaledWithAnime4K: false,
       notUpscaled: null,
       hdr: false,
     });

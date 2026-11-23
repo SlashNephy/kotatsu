@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="46 92 420 420">
+  <!-- 通知のバッジ (#2061)。Android はステータスバーに、バッジの不透明度だけを 1 色で描くので、採用版 (main-v6.svg) の猫の頭と耳と、頭に載せたみかんを白いシルエットにし、目と口をくり抜く。みかんと頭の境目は、細い隙間で分ける。 -->
+  <defs>
+    <mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#000"/>
+      <g fill="#fff">
+        <path d="M106 384l-14-200 118 80z"/>
+        <path d="M406 384L302 264L420 184z"/>
+        <path d="M86 520q0-300 170-300t170 300z"/>
+      </g>
+      <circle cx="256" cy="198" r="70" fill="#000"/>
+      <circle cx="256" cy="198" r="56" fill="#fff"/>
+      <path d="M256 146.9v-12.2" stroke="#fff" stroke-width="9.7" stroke-linecap="round"/>
+      <path d="M258.4 134.7q17 -31.7 53.6 -21.9q-12.2 31.7 -53.6 21.9z" fill="#fff"/>
+      <circle cx="184" cy="374" r="19.5" fill="#000"/>
+      <circle cx="328" cy="374" r="19.5" fill="#000"/>
+      <path d="M238 412q9 9 18 0 9 9 18 0" fill="none" stroke="#000" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect width="512" height="512" fill="#fff" mask="url(#m)"/>
+</svg>

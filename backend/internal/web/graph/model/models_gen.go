@@ -1826,6 +1826,8 @@ type PlayerSettings struct {
 	Comments *CommentSettings `json:"comments"`
 	// 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。
 	Captions *CaptionSettings `json:"captions"`
+	// 画面が端末に覚えていた設定のうち、端末をまたいで同期するもの (#1862)。キーの順に並べる。
+	Preferences []*Preference `json:"preferences"`
 }
 
 // プレイヤーの設定の変更。省いた項目は変えない。
@@ -1839,6 +1841,8 @@ type PlayerSettingsInput struct {
 	Comments *CommentSettingsInput `json:"comments,omitempty"`
 	// 渡したら、字幕の設定をまるごと置き換える。
 	Captions *CaptionSettingsInput `json:"captions,omitempty"`
+	// 渡したキーの設定を置き換える。value が null のキーは消す。渡さなかったキーは変えない。
+	Preferences []*PreferenceInput `json:"preferences,omitempty"`
 }
 
 // 再生中のプレイヤーの状態 (#459、設計書 7.7)。プレイヤーが送ったものを、そのまま返す。
@@ -1876,6 +1880,21 @@ type PlayerStateInput struct {
 	Audio         *string             `json:"audio,omitempty"`
 	DataBroadcast bool                `json:"dataBroadcast"`
 	KeyGroups     []string            `json:"keyGroups"`
+}
+
+// 端末をまたいで同期する、画面の設定の 1 つ (#1862)。
+type Preference struct {
+	// 画面の保存先のキー (kotatsu.player.keymap など)。
+	Key string `json:"key"`
+	// 保存した文字列。中身は画面が決める。
+	Value string `json:"value"`
+}
+
+type PreferenceInput struct {
+	// 同期を許したキーだけ。
+	Key string `json:"key"`
+	// 16,384 文字まで。null なら消す。
+	Value *string `json:"value,omitempty"`
 }
 
 // プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
@@ -2493,6 +2512,9 @@ type SystemSettings struct {
 	// どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0〜1440。既定は 180。
 	// 番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
 	RuleUnmatchedGraceMinutes int `json:"ruleUnmatchedGraceMinutes"`
+	// 重複の回避で「録画済み」とみなす、映像と音声の PID のドロップの数の上限 (設計書 4.4)。0〜1000。既定は 0。
+	// 0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
+	HistoryMaxDrops int `json:"historyMaxDrops"`
 	// 監査ログの保持期間 (日。設計書 8.5)。1〜3650。既定は 365。
 	AuditRetentionDays int `json:"auditRetentionDays"`
 	// 監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。1〜3650。既定は 90。過ぎた記録は、この 2 つだけを空にする。
@@ -2553,6 +2575,8 @@ type SystemSettingsInput struct {
 	TimeshiftWhileWatchingRetentionSeconds *int `json:"timeshiftWhileWatchingRetentionSeconds,omitempty"`
 	// 0〜1440 分。
 	RuleUnmatchedGraceMinutes *int `json:"ruleUnmatchedGraceMinutes,omitempty"`
+	// 0〜1000 件。
+	HistoryMaxDrops *int `json:"historyMaxDrops,omitempty"`
 	// 1〜3650 日。
 	AuditRetentionDays *int `json:"auditRetentionDays,omitempty"`
 	// 1〜3650 日。

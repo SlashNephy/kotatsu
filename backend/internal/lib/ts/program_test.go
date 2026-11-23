@@ -67,7 +67,22 @@ type esEntry struct {
 
 // pmtSection は、program_number が programNum の PMT を作る。
 func pmtSection(version byte, streams ...esEntry) []byte {
-	body := []byte{0xE1, 0x11, 0xF0, 0x00}
+	return pmtSectionWithInfo(version, nil, streams...)
+}
+
+// caECMPID は、テストの PMT の CA 記述子が指す ECM の PID。
+const caECMPID = 0x0121
+
+// caDescriptor は、CA_system_id が 0x0005 で、CA_PID が caECMPID の CA 記述子を作る。
+func caDescriptor() []byte {
+	return binary.BigEndian.AppendUint16([]byte{0x09, 0x04, 0x00, 0x05}, 0xE000|caECMPID)
+}
+
+// pmtSectionWithInfo は、program_info に記述子の並び info を入れた PMT を作る。
+func pmtSectionWithInfo(version byte, info []byte, streams ...esEntry) []byte {
+	body := []byte{0xE1, 0x11}
+	body = binary.BigEndian.AppendUint16(body, 0xF000|uint16(len(info)&0x0FFF))
+	body = append(body, info...)
 	for _, s := range streams {
 		body = append(body, s.streamType)
 		body = binary.BigEndian.AppendUint16(body, 0xE000|s.pid)
@@ -126,6 +141,7 @@ func TestAnalyzerProgramsFromTestTS(t *testing.T) {
 			{PID: videoPID, StreamType: 0x02, Kind: ts.StreamKindVideo},
 			{PID: audioPID, StreamType: 0x0F, Kind: ts.StreamKindAudio},
 		},
+		ECMPIDs: []uint16{},
 	}}, analyzer.Stats().Programs)
 }
 
@@ -384,6 +400,79 @@ func TestAnalyzerContinuityAcrossPMTChanges(t *testing.T) {
 			stats := analyzer.Stats()
 			assert.Equal(t, tt.wantSecond, statsOf(stats, second.pid).Drops, "second audio drops")
 			assert.Equal(t, tt.wantAudio, statsOf(stats, audio.pid).Drops, "audio drops")
+		})
+	}
+}
+
+// TestAnalyzerContinuityAcrossECMChanges は、PMT の CA 記述子が外れて戻った ECM の PID の continuity_counter を数え直すことを確かめる。
+// 番組の境目で CA 記述子が外れると ECM は送られなくなり、戻るときに continuity_counter を振り直す。パケットは欠けていない。
+func TestAnalyzerContinuityAcrossECMChanges(t *testing.T) {
+	t.Parallel()
+
+	video := esEntry{streamType: 0x02, pid: 0x0100}
+	audio := esEntry{streamType: 0x0F, pid: 0x0110}
+	// captionWithCA は、ES_info に CA 記述子を持つ字幕の ES。
+	captionWithCA := esEntry{streamType: 0x06, pid: 0x0130, descriptors: caDescriptor()}
+	pat := map[uint16]uint16{programNum: pmtPID}
+
+	tests := []struct {
+		name string
+		// first は、最初の PMT。build は、その後に続くパケットを作る。
+		first     []byte
+		build     func(pmtCC *byte) [][]byte
+		wantDrops int64
+	}{
+		{
+			name:  "an ECM re-added to the program info restarts its counter",
+			first: pmtSectionWithInfo(0, caDescriptor(), video, audio),
+			build: func(pmtCC *byte) [][]byte {
+				pkts := [][]byte{esPacket(caECMPID, 2, false, true)}
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSection(1, video, audio))...)
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSectionWithInfo(2, caDescriptor(), video, audio))...)
+
+				return append(pkts, esPacket(caECMPID, 12, false, true), esPacket(caECMPID, 13, false, true))
+			},
+			wantDrops: 0,
+		},
+		{
+			name:  "an ECM re-added to the ES info restarts its counter",
+			first: pmtSection(0, video, audio, captionWithCA),
+			build: func(pmtCC *byte) [][]byte {
+				pkts := [][]byte{esPacket(caECMPID, 7, false, true)}
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSection(1, video, audio))...)
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSection(2, video, audio, captionWithCA))...)
+
+				return append(pkts, esPacket(caECMPID, 0, false, true))
+			},
+			wantDrops: 0,
+		},
+		{
+			// CA 記述子が載り続けたまま continuity_counter が飛べば、ECM が欠けたのでドロップと数える。
+			name:  "an ECM kept in an updated PMT keeps its counter",
+			first: pmtSectionWithInfo(0, caDescriptor(), video, audio),
+			build: func(pmtCC *byte) [][]byte {
+				pkts := [][]byte{esPacket(caECMPID, 2, false, true)}
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSectionWithInfo(1, caDescriptor(), video))...)
+
+				return append(pkts, esPacket(caECMPID, 12, false, true))
+			},
+			wantDrops: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			patCC, pmtCC := new(byte), new(byte)
+			pkts := psiPackets(0, patCC, patSection(0, pat))
+			pkts = append(pkts, psiPackets(pmtPID, pmtCC, tt.first)...)
+			pkts = append(pkts, tt.build(pmtCC)...)
+			analyzer := ts.NewAnalyzer(nil)
+			_, err := analyzer.Write(join(pkts))
+			require.NoError(t, err)
+
+			stats := analyzer.Stats()
+			assert.Equal(t, tt.wantDrops, statsOf(stats, caECMPID).Drops, "ECM drops")
 		})
 	}
 }

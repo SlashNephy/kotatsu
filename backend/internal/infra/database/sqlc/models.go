@@ -303,6 +303,7 @@ type Capture struct {
 	ServiceNameNormalized string
 	ProgramNameNormalized string
 	Caption               *string
+	CaptionNormalized     *string
 	BroadcastAt           time.Time
 	TakenAt               time.Time
 	Size                  int64
@@ -785,6 +786,7 @@ type Recording struct {
 	Drops                 int64
 	Errors                int64
 	Scrambled             int64
+	JudgedDrops           int64
 	ScrambledRatio        *float64
 	ScrambleWarning       bool
 	Gaps                  []byte
@@ -1142,6 +1144,7 @@ type SystemSetting struct {
 	TimeshiftWhileWatching                 bool
 	TimeshiftWhileWatchingRetentionSeconds int32
 	RuleUnmatchedGraceMinutes              int32
+	HistoryMaxDrops                        int32
 	AuditRetentionDays                     int32
 	AuditClientInfoRetentionDays           int32
 	HibpEnabled                            bool
@@ -1331,6 +1334,7 @@ type UserSetting struct {
 	WatchReminderMinutes int32
 	CommentSettings      []byte
 	CaptionSettings      []byte
+	Preferences          []byte
 	UpdatedAt            time.Time
 }
 

@@ -2,9 +2,10 @@ import { useSyncExternalStore } from 'react';
 
 import type { PlayerCommands } from '../yunomi/commands';
 import { browserStorage } from '../yunomi/volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
 // 実況のコメントの位置 (#1357、設計書 7.4)。録画の再生で、コメントを流す位置を前後にずらす。
-// 正の値で遅らせ、負の値で早める。投稿者がコメントを打つまでの時間があるので、コメントは映像より遅れて見えることが多い。端末ごとに 1 つ覚える。
+// 正の値で遅らせ、負の値で早める。投稿者がコメントを打つまでの時間があるので、コメントは映像より遅れて見えることが多い。1 つ覚え、端末をまたいで同期する (#1862)。
 
 const offsetKey = 'kotatsu.player.commentOffsetMs';
 // changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
@@ -64,6 +65,7 @@ export function useCommentOffset(): [number, (ms: number) => void] {
     (next) => {
       try {
         browserStorage()?.setItem(offsetKey, String(clampCommentOffset(next)));
+        preferenceChanged(offsetKey);
       } catch {
         // 書けなければ、次に開いたときは既定に戻るだけ。
       }

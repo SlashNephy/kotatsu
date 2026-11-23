@@ -183,4 +183,51 @@ describe('conditionsFromProgram', () => {
   test('囲み文字だけの番組名では、キーワードを入れない', () => {
     expect(conditionsFromProgram('🈑', 'U2VydmljZToxMjM').keywords).toEqual([]);
   });
+
+  // 宣伝の番組から作るルールは、本編を録るためのものなので、宣伝の語を除外する (#2041)。
+  test.each([
+    {
+      name: '全角の ＰＲ は、PR を大文字と小文字を区別して除外する',
+      program: '連続テレビ小説「灯台の地図」ＰＲ',
+      keyword: '灯台の地図',
+      want: [{ text: 'PR', regexp: false, caseSensitive: true, fields: ['NAME'] }],
+    },
+    {
+      name: 'ダイジェストを除外する',
+      program: '大河ドラマ「灯台の地図」２分ダイジェスト',
+      keyword: '灯台の地図',
+      want: [{ text: 'ダイジェスト', regexp: false, caseSensitive: false, fields: ['NAME'] }],
+    },
+    {
+      name: '両方あれば、両方を除外する',
+      program: '灯台の地図 PR ダイジェスト',
+      keyword: '灯台の地図',
+      want: [
+        { text: 'PR', regexp: false, caseSensitive: true, fields: ['NAME'] },
+        { text: 'ダイジェスト', regexp: false, caseSensitive: false, fields: ['NAME'] },
+      ],
+    },
+    {
+      name: '英字の語の一部の PR は、宣伝とみなさない',
+      program: 'SPRING PRIDE #3',
+      keyword: 'SPRING PRIDE',
+      want: [],
+    },
+    {
+      name: '作品名が宣伝の語を含めば、除外しない',
+      program: '名場面ダイジェスト #4',
+      keyword: '名場面ダイジェスト',
+      want: [],
+    },
+    {
+      name: '宣伝の語がなければ、除外しない',
+      program: '灯台の地図 #5',
+      keyword: '灯台の地図',
+      want: [],
+    },
+  ])('$name', ({ program, keyword, want }) => {
+    expect(conditionsFromProgram(program, 'U2VydmljZToxMjM', keyword).excludeKeywords).toEqual(
+      want,
+    );
+  });
 });

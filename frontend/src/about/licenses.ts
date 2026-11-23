@@ -1,5 +1,7 @@
 // /about の画面に並べる、Kotatsu が同梱するソフトウェアとデータの一覧 (設計書 10.3、付録 B、#1604)。
 
+import { anime4kLicenseText } from '../yunomi/anime4kShaders';
+
 // LicenseText は、ライセンスの文書のファイル 1 つ。
 export type LicenseText = { name: string; text: string };
 
@@ -146,6 +148,14 @@ export function bundledData(
         libaribcaptionNotice === null
           ? []
           : [{ name: 'libaribcaption.txt', text: libaribcaptionNotice }],
+      note: null,
+    },
+    {
+      name: 'Anime4K（映像の拡大の CNN のシェーダー）',
+      version: null,
+      license: 'MIT',
+      url: 'https://github.com/bloc97/Anime4K',
+      licenses: [{ name: 'LICENSE', text: anime4kLicenseText }],
       note: null,
     },
     {

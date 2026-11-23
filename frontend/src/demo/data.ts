@@ -26,6 +26,21 @@ import {
 import { createRecordings, type RecordingFilter } from './recordings';
 import { createScheduler, type RuleInput, type SettingsInput } from './schedule';
 
+// demoDataChannels は、購読を始めたときに今の版数を送る、データの種類 (GraphQL の DataChannel)。
+// デモのユーザーは管理者なので、管理者だけに送る種類 (ADMIN) も含める。
+const demoDataChannels = [
+  'EPG',
+  'RULES',
+  'RESERVATIONS',
+  'ASSIGNMENTS',
+  'RESERVATION_CONFLICTS',
+  'TUNERS',
+  'RECORDINGS',
+  'ANIME_FOLLOWING',
+  'DRAMA_WATCHLIST',
+  'ADMIN',
+] as const;
+
 // demoUser は、デモでログインしているものとして扱うユーザー。
 const demoUser = {
   __typename: 'User',
@@ -40,7 +55,7 @@ const demoUser = {
 
 // paginate は、items を、after (前のページの最後の cursor) の次から first 件だけの connection にする。
 // cursor は、items の中の位置を文字列にしたもの。
-function paginate<T>(items: T[], first: number, after: string | null | undefined) {
+export function paginate<T>(items: T[], first: number, after: string | null | undefined) {
   const start = after == null ? 0 : Number.parseInt(after, 10) + 1;
   const edges = items
     .slice(start, start + first)
@@ -151,6 +166,8 @@ export function createRootValue(
       stroke: true,
       backgroundOpacity: null,
     },
+    // preferences は、端末をまたいで同期する設定 (#1862)。キーの順に並べる。
+    preferences: [] as { key: string; value: string }[],
   };
   let nextPlayer = 1;
   // animeOverrides は、サービスごとの、しょぼいカレンダーと Annict のチャンネルの対応の上書き (設計書 3.8)。
@@ -361,6 +378,12 @@ export function createRootValue(
     continueWatching: ({ first }: { first: number }) => recordings.continueWatching(first),
     // デモの録画は番組表の番組と結び付けないので、続きの放送 (#1564) は出さない。
     nextEpisodes: () => [],
+    // デモには通知がない。通知の一覧と、局の構成の変化の知らせ (LineupBanner) は空にする。
+    notifications: (args: { first: number; after?: string | null }) =>
+      paginate([], args.first, args.after),
+    unreadNotificationCount: () => 0,
+    // デモは、ほかの端末のプレイヤーを覚えないので、リモコンで操れるプレイヤーは出さない。
+    players: () => [],
     recordings: (args: {
       first: number;
       after?: string | null;
@@ -450,6 +473,7 @@ export function createRootValue(
       timeshiftWhileWatching: false,
       timeshiftWhileWatchingRetentionSeconds: 3600,
       ruleUnmatchedGraceMinutes: 180,
+      historyMaxDrops: 0,
       updatedAt: null,
     }),
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
@@ -622,8 +646,17 @@ export function createRootValue(
         captionsEnabled?: boolean | null;
         comments?: Record<string, unknown> | null;
         captions?: Record<string, unknown> | null;
+        preferences?: { key: string; value: string | null }[] | null;
       };
     }) => {
+      const preferences = new Map(playerSettings.preferences.map(({ key, value }) => [key, value]));
+      for (const { key, value } of input.preferences ?? []) {
+        if (value === null) {
+          preferences.delete(key);
+        } else {
+          preferences.set(key, value);
+        }
+      }
       const nextSources = () => {
         if (input.commentSources != null) {
           return input.commentSources;
@@ -644,6 +677,9 @@ export function createRootValue(
         captionsEnabled: input.captionsEnabled ?? playerSettings.captionsEnabled,
         comments: { ...playerSettings.comments, ...input.comments },
         captions: { ...playerSettings.captions, ...input.captions },
+        preferences: [...preferences]
+          .map(([key, value]) => ({ key, value }))
+          .sort((a, b) => a.key.localeCompare(b.key)),
       };
       viewerSettingsChanged();
 
@@ -834,7 +870,45 @@ export function createRootValue(
     },
 
     // Subscription。graphql-js は、流れた値を rootValue にして選択集合を解くので、フィールド名で包む。
-    viewerEvents: () => events.listen((event) => ({ viewerEvents: event })),
+    // 本物のサーバーと同じく、購読を始めたら、まず種類ごとの今の版数と設定の版数を送る (設計書 9.1)。
+    // 画面は最初に届いた版数を今の版数として覚えるだけなので、送らないと、最初の変更で読み直さない。
+    viewerEvents: () => {
+      // 版数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。
+      const live = events.listen((event) => ({ viewerEvents: event }));
+      const quiet = {
+        unreadNotificationCount: null,
+        streamsDraining: null,
+        liveStreamScrambled: null,
+      };
+      const current = [
+        ...demoDataChannels.map((channel) => ({
+          viewerEvents: {
+            ...quiet,
+            dataChange: { channel, version: dataVersions.get(channel) ?? 0 },
+            viewerSettingsVersion: null,
+          },
+        })),
+        { viewerEvents: { ...quiet, dataChange: null, viewerSettingsVersion } },
+      ];
+      // ジェネレーターで書くと、待っている next を return で終わらせられない (events.ts の listen と同じ)。
+      // そこで、今の版数を送り終えたら、listen のイテレーターにそのまま任せる。
+      const iterator: AsyncIterableIterator<(typeof current)[number] | { viewerEvents: unknown }> =
+        {
+          next: async () => {
+            const value = current.shift();
+
+            return value === undefined ? live.next() : { done: false, value };
+          },
+          return: async () => {
+            current.length = 0;
+
+            return live.return === undefined ? { done: true, value: undefined } : live.return();
+          },
+          [Symbol.asyncIterator]: () => iterator,
+        };
+
+      return iterator;
+    },
     playerCommands: () => idle.listen(() => ({ playerCommands: null })),
   };
 }

@@ -131,10 +131,10 @@ func (q *Queries) InsertImportSource(ctx context.Context, arg InsertImportSource
 
 const insertImportedRecording = `-- name: InsertImportedRecording :exec
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
-  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
+  start_at, end_at, state, failure_reason, protected, drops, judged_drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
 VALUES ($1, NULL, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, NULL,
-  $11, $12, $13, $14, $8, $9, $15, $15)
+  $11, $12, $12, $13, $14, $8, $9, $15, $15)
 `
 
 type InsertImportedRecordingParams struct {
@@ -156,6 +156,7 @@ type InsertImportedRecordingParams struct {
 }
 
 // 取り込んだ、録画を終えた録画を記録する。予約とは結び付けない。
+// PID ごとの内訳がないので、ドロップはすべて判定に数える (設計書 5.3)。
 func (q *Queries) InsertImportedRecording(ctx context.Context, arg InsertImportedRecordingParams) error {
 	_, err := q.db.Exec(ctx, insertImportedRecording,
 		arg.ID,

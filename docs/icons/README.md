@@ -9,6 +9,7 @@
 | `main-v6.svg` | 夕焼け色 (#f3b97a) の背景に、頭にみかんを載せた三毛猫の顔を描いた絵です。インストール用アイコンのすべてのサイズと、ヘッダーのロゴで使います。`frontend/public/icons/icon.svg` と同じものです。 |
 | `favicon-mikan.svg` | ブラウザのタブに出す favicon です。16px では猫の顔が潰れて見分けにくいので、`main-v6.svg` と同じ背景にみかんだけを載せています。背景に埋もれないよう、みかんを濃い橙にして右下に影を付けています (#759)。`frontend/public/icons/favicon.svg` と同じものです。 |
 | `main-v6-maskable.svg` | マスカブル版です。縮尺は `main-v6.svg` のままで、背景を全面に敷き、顔とみかんを半径 40% のセーフゾーンに収めています。`frontend/public/icons/icon-maskable-512.png` の元です。 |
+| `badge.svg` | 通知のバッジです (#2061)。Android はステータスバーにバッジの不透明度だけを 1 色で描くので、`main-v6.svg` の猫の頭と耳とみかんを白いシルエットにし、目と口をくり抜いています。`frontend/public/icons/badge-96.png` の元で、`rsvg-convert -w 96 -h 96 badge.svg -o ../../frontend/public/icons/badge-96.png` で書き出します。 |
 
 ## 柄の組
 

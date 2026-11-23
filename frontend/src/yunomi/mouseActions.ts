@@ -3,9 +3,10 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { runCommand, type PlayerCommands, type SimpleCommandId } from './commands';
 import { onVideoSurface } from './useControlsVisibility';
 import { browserStorage } from './volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
 // マウスのホイールと中クリックでの、プレイヤーの操作 (#810、設計書 7.5)。TVTest から移ってくる人が
-// 同じ手つきで使えるよう、既定では TVTest に合わせて、映像の上のホイールで音量を変え、中クリックでミュートを切り替える。どちらも端末ごとに変えられる。
+// 同じ手つきで使えるよう、既定では TVTest に合わせて、映像の上のホイールで音量を変え、中クリックでミュートを切り替える。どちらも変えられ、端末をまたいで同期する (#1862)。
 
 // WheelAction は、ホイールで何をするか。volume は音量、seek は 10 秒のシーク、none は何もしない (ページを流す)。
 export type WheelAction = 'volume' | 'seek' | 'none';
@@ -100,6 +101,7 @@ export function useMouseActions(): [MouseActions, (actions: MouseActions) => voi
     (actions) => {
       try {
         browserStorage()?.setItem(storageKey, JSON.stringify(actions));
+        preferenceChanged(storageKey);
       } catch {
         // 書けなければ、次に開いたときは既定に戻るだけ。
       }

@@ -31,6 +31,8 @@ type Recording struct {
 	Drops         int64
 	Errors        int64
 	Scrambled     int64
+	// JudgedDrops は、録画の状態と重複の回避の判定に数えるドロップ。映像と音声の PID のドロップだけを数える (設計書 5.3)。
+	JudgedDrops int64
 	// ScrambledRatio は、ES の PID だけで出した、スクランブルされていたパケットの割合 (#1517)。判定しなかった録画では nil。
 	ScrambledRatio *float64
 	// ScrambleWarning は、スクランブルされたまま録れたという警告の印 (設計書 5.5)。状態とは別に持つ。
@@ -128,6 +130,8 @@ type PlayerSettings struct {
 	CaptionsEnabled bool
 	CommentSettings []byte
 	CaptionSettings []byte
+	// Preferences は、端末をまたいで同期する画面の設定 (#1862)。キーから文字列への対応の JSON。
+	Preferences []byte
 }
 
 // ContinueWatching は、続きから見る録画。

@@ -152,9 +152,9 @@ func workTitle(name string) string {
 			return strings.TrimSpace(match[1])
 		}
 		if strings.TrimSpace(after) != "" {
-			return RuleKeyword(after)
+			return ruleKeyword(after, false)
 		}
 	}
 
-	return RuleKeyword(name)
+	return ruleKeyword(name, false)
 }

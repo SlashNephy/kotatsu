@@ -210,3 +210,68 @@ func TestCaptionSettings(t *testing.T) {
 	}
 	assert.Equal(t, valid, get(), "rejected changes are not saved")
 }
+
+type preference struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// TestPreferences は、端末をまたいで同期する設定 (#1862) を、渡したキーだけ置き換えて消せ、許していないキーと長すぎる値を断ることを確かめる。
+func TestPreferences(t *testing.T) {
+	t.Parallel()
+
+	const keymap, cmAutoSkip, enabled = "kotatsu.player.keymap", "kotatsu.player.cmAutoSkip", "true"
+	pref := func(key string, value any) map[string]any { return map[string]any{"key": key, "value": value} }
+	f := newFixture(t, nil)
+	update := func(input []map[string]any) ([]preference, []string) {
+		var got struct {
+			UpdatePlayerSettings struct {
+				Preferences []preference `json:"preferences"`
+			} `json:"updatePlayerSettings"`
+		}
+		errs := f.query(t, `mutation($input: PlayerSettingsInput!) {
+			updatePlayerSettings(input: $input) { preferences { key value } }
+		}`, map[string]any{varInput: map[string]any{"preferences": input}}, &got)
+
+		return got.UpdatePlayerSettings.Preferences, errs
+	}
+	get := func() []preference {
+		var got struct {
+			PlayerSettings struct {
+				Preferences []preference `json:"preferences"`
+			} `json:"playerSettings"`
+		}
+		require.Empty(t, f.query(t, `{ playerSettings { preferences { key value } } }`, nil, &got))
+
+		return got.PlayerSettings.Preferences
+	}
+
+	assert.Empty(t, get())
+	got, errs := update([]map[string]any{pref(keymap, `{"play":"k"}`), pref(cmAutoSkip, enabled)})
+	require.Empty(t, errs)
+	assert.Equal(t, []preference{{Key: cmAutoSkip, Value: enabled}, {Key: keymap, Value: `{"play":"k"}`}}, got)
+
+	// 渡さなかったキーは変えず、null を渡したキーは消す。
+	got, errs = update([]map[string]any{pref(keymap, nil)})
+	require.Empty(t, errs)
+	assert.Equal(t, []preference{{Key: cmAutoSkip, Value: enabled}}, got)
+	assert.Equal(t, got, get())
+
+	tests := []struct {
+		name  string
+		input map[string]any
+	}{
+		{name: "同期しないキー", input: pref("kotatsu.player.volume", "0.5")},
+		{name: "長すぎる値", input: pref(keymap, strings.Repeat("a", 16385))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// 断る変更は、どれも DB を変えないので、並べて流してもよい。
+			_, errs := update([]map[string]any{tt.input})
+			assert.NotEmpty(t, errs)
+			assert.Equal(t, []preference{{Key: cmAutoSkip, Value: enabled}}, get())
+		})
+	}
+}

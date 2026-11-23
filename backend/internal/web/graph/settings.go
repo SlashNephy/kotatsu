@@ -81,6 +81,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		DrcsReplacements:          drcsReplacementsOf(system.DRCSReplacements),
 		TimeshiftWhileWatching:    system.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: system.TimeshiftWhileWatchingRetentionSeconds,
 		RuleUnmatchedGraceMinutes: system.RuleUnmatchedGraceMinutes,
+		HistoryMaxDrops:           system.HistoryMaxDrops,
 		AuditRetentionDays:        system.AuditRetentionDays, AuditClientInfoRetentionDays: system.AuditClientInfoRetentionDays,
 		HibpEnabled: system.HIBPEnabled,
 		// 管理者だけに返すので、リゾルバ (systemSettingsResolver.WebPushSubject) が確かめてから出す。

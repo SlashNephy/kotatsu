@@ -7,9 +7,10 @@ import {
   type SimpleCommandId,
 } from './commands';
 import { browserStorage } from './volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
 // プレイヤーのキーボードショートカット (設計書 7.5)。操作そのものは commands.ts の登録簿にあり、ここはキーの割り当てだけを持つ。
-// 割り当ては、設定のページで端末ごとに変えられる (#810)。
+// 割り当ては、設定のページで変えられ、端末をまたいで同期する (#810、#1862)。
 
 // Keymap は、操作ごとに割り当てたキー (KeyboardEvent.key)。割り当てのない操作は、キーでは呼べない。
 // 文字でないキーを Shift と一緒に押すときは、`Shift+` を前に付けて書く。文字のキーは、Shift で変わった文字 (? など) で書く。
@@ -215,8 +216,10 @@ export function useKeymap(): [Keymap, (keymap: Keymap | null) => void] {
       try {
         if (keymap === null) {
           browserStorage()?.removeItem(storageKey);
+          preferenceChanged(storageKey);
         } else {
           browserStorage()?.setItem(storageKey, JSON.stringify(keymap));
+          preferenceChanged(storageKey);
         }
       } catch {
         // 書けなければ、次に開いたときは既定に戻るだけ。

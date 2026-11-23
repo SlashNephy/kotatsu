@@ -402,7 +402,13 @@
       "fieldRate": "Show 1080i field by field",
       "fieldRateHelp": "Shows interlaced broadcasts at 59.94p, one picture per field, for smoother motion. Applies when the browser converts the stream itself. On devices that cannot keep up, playback falls back to one picture per frame (29.97p).",
       "superResolution": "Upscale the picture for sharper display",
-      "superResolutionHelp": "Upscales the broadcast picture to the size it is shown at with an edge-aware filter, then sharpens it (the FSR 1 method). Looks less blurry on large or high-resolution displays. Applies when the browser converts the stream itself. Uses more GPU, and makes compression noise a little more visible.",
+      "superResolutionHelp": "Upscales the broadcast picture to the size it is shown at with an edge-aware filter, then sharpens it. Looks less blurry on large or high-resolution displays. Applies when the browser converts the stream itself. Uses more GPU, and makes compression noise a little more visible.",
+      "superResolutionMethod": "Upscaling method",
+      "superResolutionMethodHelp": "When upscaling to at least twice the width and height, Anime4K first doubles the picture with a CNN, then upscales the rest with FSR. Edges and details look crisper, but it puts more load on the GPU, and integrated GPUs may not keep up with every frame.",
+      "superResolutionMethods": {
+        "fsr": "FSR (default)",
+        "anime4k": "Anime4K (CNN)"
+      },
       "superResolutionStrength": "Sharpening strength",
       "superResolutionStrengthHelp": "How much to sharpen edges after upscaling. Stronger makes details crisper, but also makes compression noise and edge halos more visible.",
       "superResolutionStrengths": {
@@ -1585,6 +1591,7 @@
       "fieldRateDropped": "{{picture}} (shown per frame: the display could not keep up)",
       "interpolated": "{{label}} (frames interpolated)",
       "upscaled": "{{label}} (upscaled to {{width}}×{{height}})",
+      "upscaledWithAnime4K": "{{label}} (upscaled to {{width}}×{{height}} with Anime4K)",
       "notUpscaled": "{{label}} (not upscaled: shown at {{width}}×{{height}}, no larger than the source)",
       "hdr": "{{label}} (pseudo-HDR)",
       "playing": "Playing video",
@@ -2325,6 +2332,8 @@
       "ruleMatching": "Rule matching",
       "ruleUnmatchedGrace": "Keep reservations that stop matching (minutes before airtime)",
       "ruleUnmatchedGraceHelp": "When a program guide update makes a reservation stop matching its rule, it is still recorded if the program starts within this time. 0 keeps none. When the rule is deleted or disabled, its reservations are deleted even within this time.",
+      "historyMaxDrops": "Maximum video and audio drops to count as recorded",
+      "historyMaxDropsHelp": "Only recordings with at most this many video and audio drops count as recorded when avoiding duplicates. Others are recorded again on a rerun. With 0, any recording with a drop is recorded again. Drops in captions, data broadcasting, and other streams are not counted.",
       "poolHelp": "When automatic, the pool that fits the estimated size is chosen in order of priority.",
       "fileNameTemplate": "File name template",
       "fileNameTemplateHelp": "Written in Go's text/template. The available syntax is listed in the table under \"Show available syntax\" below.",
@@ -2658,7 +2667,7 @@
   "captures": {
     "title": "Captures",
     "description": "Captures you take are saved on the server, newest first. Only you can see them, from any device.",
-    "search": "Search by program or service name",
+    "search": "Search by program, service name, or caption",
     "empty": "No captures yet",
     "emptyHint": "Take a capture with the camera button on the player or the s key, and it will appear here.",
     "noMatch": "No matching captures",

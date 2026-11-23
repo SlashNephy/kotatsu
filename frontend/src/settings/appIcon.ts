@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from '../yunomi/volume';
+import { preferenceChanged } from './syncedPreferences';
 
-// ヘッダーのロゴに出すアイコンを、端末ごとに選ぶ (#1665)。
+// ヘッダーのロゴに出すアイコンを選ぶ (#1665)。端末をまたいで同期する (#1862)。
 // タブの favicon は、16px では柄の違いが見えないので、どの組でもみかんの favicon のままにする (#759)。
 // インストールしたアイコン (マニフェストの icons と apple-touch-icon) も変えない。
 // 絵は docs/icons の原本を frontend/public/icons に写したもので、同じオリジンの SVG として読む (CSP の img-src 'self')。
@@ -39,7 +40,7 @@ export function appIconUrl(id: AppIconId): string {
   return `${import.meta.env.BASE_URL}icons/${appIconFiles[id]}`;
 }
 
-// storageKey は、この端末で選んだアイコンを覚えるキー。ほかの端末とは同期しない。
+// storageKey は、選んだアイコンを覚えるキー。端末をまたいで同期する (#1862)。
 const storageKey = 'kotatsu.appIcon';
 // changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:app-icon';
@@ -72,6 +73,7 @@ export function saveAppIcon(storage: Pick<Storage, 'setItem'> | null, id: AppIco
   try {
     if (storage !== null) {
       storage.setItem(storageKey, id);
+      preferenceChanged(storageKey);
       unsaved = null;
     }
   } catch {

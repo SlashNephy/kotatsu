@@ -221,6 +221,8 @@ export type SourcePicture = {
   interpolated: boolean;
   // upscaled は、yadif が解除したコマを拡大して描いている大きさ (#1654)。拡大していなければ null。
   upscaled: { width: number; height: number } | null;
+  // upscaledWithAnime4K は、拡大するときに、先に Anime4K で 2 倍にしていること (#1653)。拡大していなければ false。
+  upscaledWithAnime4K: boolean;
   // notUpscaled は、拡大を入れているのに、映す大きさが元の大きさ以下なので拡大していないときの、映す大きさ (端末の画素)。
   // 設定を切っている間と、拡大している間は null。
   notUpscaled: { width: number; height: number } | null;
