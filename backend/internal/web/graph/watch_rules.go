@@ -61,7 +61,7 @@ func watchRuleError(err error) error {
 	}
 }
 
-// watchRule は、ログイン中のユーザーの視聴ルールを引く。ほかのユーザーのものは見つからないことにする。
+// watchRule は、ログイン中のユーザーの視聴ルールを取得する。ほかのユーザーのものは見つからないことにする。
 func (r *Resolver) watchRule(ctx context.Context, globalID string) (*model.WatchRule, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -160,7 +160,7 @@ func (r *Resolver) deleteWatchRule(ctx context.Context, globalID string) (string
 	return globalID, nil
 }
 
-// ownNode は、ログイン中のユーザーだけのもの (番組表ビューと視聴ルール) を、グローバル ID で引く。
+// ownNode は、ログイン中のユーザーだけのもの (番組表ビューと視聴ルール) を、グローバル ID で取得する。
 // ほかのユーザーのものは見つからないことにする。
 func (r *Resolver) ownNode(ctx context.Context, typeName, globalID string) (model.Node, error) {
 	if typeName == watchRuleType {

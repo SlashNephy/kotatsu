@@ -9,7 +9,7 @@ import (
 // benchSearchPrograms は、放送前の番組と、過去の番組のそれぞれの件数。1 週間ぶんの EPG が約 2 万番組 (#530)。
 const benchSearchPrograms = 20000
 
-// BenchmarkSearchPrograms は、条件の組み合わせごとに、番組の検索 1 回 (50 件) にかかる時間を測る (#852)。
+// BenchmarkSearchPrograms は、条件の組み合わせごとに、番組の検索 1 回 (50 件) にかかる時間を計測する (#852)。
 // どの組み合わせも、ほとんどの番組に一致しないので、候補を最後まで照合する。SQL で粗く絞れない条件でも、遅くなりすぎないことを見る。
 func BenchmarkSearchPrograms(b *testing.B) {
 	allFields := []string{fieldName, "DESCRIPTION", fieldExtended}

@@ -186,7 +186,7 @@ func TestAccessPolicy(t *testing.T) {
 }
 
 // TestAccessPolicyExternalNetworks は、家の中の範囲に加えて、家の外の項目に書いた範囲からも受け付け、
-// 家の中の範囲を空にすれば、家の外の範囲からだけ受け付けることを確かめる (#1759)。
+// 家の中の範囲を空にすれば、家の外の範囲からだけ受け付けることを確認する (#1759)。
 // tailscaleAddr は、Tailscale と CGNAT の共有アドレス空間のアドレス。
 const tailscaleAddr = "100.101.102.103"
 
@@ -223,7 +223,7 @@ func TestAccessPolicyExternalNetworks(t *testing.T) {
 	}
 }
 
-// TestAccessPolicyAllowedHosts は、server.allowed_hosts を設定したとき、一覧にない Host のリクエストを拒むことを確かめる (#546)。
+// TestAccessPolicyAllowedHosts は、server.allowed_hosts を設定したとき、一覧にない Host のリクエストを拒むことを確認する (#546)。
 // DNS リバインディングでは、Host が攻撃者のホスト名になる。
 func TestAccessPolicyAllowedHosts(t *testing.T) {
 	t.Parallel()
@@ -339,7 +339,7 @@ func TestRequireSameOrigin(t *testing.T) {
 	}
 }
 
-// TestRequireSameOriginUpgrade は、WebSocket の接続を始める GET も、同じオリジンからだけ受け付けることを確かめる。
+// TestRequireSameOriginUpgrade は、WebSocket の接続を始める GET も、同じオリジンからだけ受け付けることを確認する。
 func TestRequireSameOriginUpgrade(t *testing.T) {
 	t.Parallel()
 

@@ -203,7 +203,7 @@ func searchParams(filter *model.RecordingFilter) (*query.SearchRecordingsParams,
 		params.TagIDs = append(params.TagIDs, tagID)
 	}
 	if filter.Keyword != nil && strings.TrimSpace(*filter.Keyword) != "" {
-		// 番組名と概要の正規化した列に当てるので、キーワードも正規化する (設計書 3.5)。
+		// 番組名と概要の正規化したカラムに当てるので、キーワードも正規化する (設計書 3.5)。
 		params.Keyword = new(escapeLike(domain.Normalize(strings.TrimSpace(*filter.Keyword))))
 	}
 	params.Since, params.Until = filter.Since, filter.Until
@@ -568,7 +568,7 @@ const dbStateRecording = "recording"
 // fileKindSegment は、DB に記録する、TS のセグメントのファイルの種類。
 const fileKindSegment = "segment"
 
-// reanalyzeRecording は、録画の索引と集計を作り直すジョブを入れる。同じ録画のジョブを待っていれば、入れずに false を返す。
+// reanalyzeRecording は、録画のインデックスと集計を作り直すジョブを入れる。同じ録画のジョブを待っていれば、入れずに false を返す。
 func (r *Resolver) reanalyzeRecording(ctx context.Context, globalID string) (bool, error) {
 	if _, err := librarian(ctx); err != nil {
 		return false, err
@@ -586,7 +586,7 @@ func (r *Resolver) reanalyzeRecording(ctx context.Context, globalID string) (boo
 	} else if err != nil {
 		return false, fmt.Errorf("failed to get the recording: %w", err)
 	}
-	// 録画中は、録画が索引と集計を作っている。
+	// 録画中は、録画がインデックスと集計を作っている。
 	if recording.State == dbStateRecording {
 		return false, NewError(CodeConflict, "the recording is still being recorded")
 	}
@@ -632,7 +632,7 @@ func (r *Resolver) detectRecordingCM(ctx context.Context, globalID string) (bool
 
 // generateRecordingCaptions は、録画の音声から字幕を自動生成するジョブを入れる (設計書 6.1、#1682)。同じ録画のジョブを待っていれば、入れずに false を返す。
 // 全体や予約の設定にかかわらず生成する。CM の区間の見分けと同じく、視聴者には許さない (設計書 9.7)。
-// whisper-cli とモデルがあるかは、ジョブを動かす nekonote でしか分からないので、ここでは確かめない。
+// whisper-cli とモデルがあるかは、ジョブを動かす nekonote でしか分からないので、ここでは確認しない。
 func (r *Resolver) generateRecordingCaptions(ctx context.Context, globalID string) (bool, error) {
 	if _, err := librarian(ctx); err != nil {
 		return false, err
@@ -807,7 +807,7 @@ func (r *Resolver) recordingCMSections(ctx context.Context, obj *model.Recording
 	return out, nil
 }
 
-// recordingCMDetection は、録画の CM の区間の見分けの状態を返す (#1571)。失敗の理由は、管理者がジョブの画面で確かめるので返さない。
+// recordingCMDetection は、録画の CM の区間の見分けの状態を返す (#1571)。失敗の理由は、管理者がジョブの画面で確認するので返さない。
 func (r *Resolver) recordingCMDetection(ctx context.Context, obj *model.Recording) (*model.RecordingCMDetection, error) {
 	recordingID, err := parseRecordingID(obj.ID)
 	if err != nil {
@@ -851,7 +851,7 @@ func (r *Resolver) recordingAutoCaptions(ctx context.Context, obj *model.Recordi
 	return out, nil
 }
 
-// recordingAutoCaptionsStatus は、録画の字幕の自動生成の状態を返す (#1682)。失敗の理由は、管理者がジョブの画面で確かめるので返さない。
+// recordingAutoCaptionsStatus は、録画の字幕の自動生成の状態を返す (#1682)。失敗の理由は、管理者がジョブの画面で確認するので返さない。
 // whisper-cli とモデルがなくて取りやめたことだけは、置き方を示せるよう、状態で返す。
 func (r *Resolver) recordingAutoCaptionsStatus(ctx context.Context, obj *model.Recording) (*model.RecordingAutoCaptions, error) {
 	recordingID, err := parseRecordingID(obj.ID)
@@ -886,7 +886,7 @@ func recordingCMReport(ctx context.Context, obj *model.Recording) (cmdetect.Repo
 	return loadersFrom(ctx).CMReports.Load(ctx, recordingID)()
 }
 
-// recordingCMDetectionNote は、録画の一覧の印に使う、いつもの見分け方で決められなかった理由を返す。なければ nil (#1508)。
+// recordingCMDetectionNote は、録画の一覧のマークに使う、いつもの見分け方で決められなかった理由を返す。なければ nil (#1508)。
 func (r *Resolver) recordingCMDetectionNote(ctx context.Context, obj *model.Recording) (*string, error) {
 	report, err := recordingCMReport(ctx, obj)
 	if err != nil || report.Note == "" {
@@ -896,7 +896,7 @@ func (r *Resolver) recordingCMDetectionNote(ctx context.Context, obj *model.Reco
 	return &report.Note, nil
 }
 
-// recordingCMVideoMissingSeconds は、録画の一覧の印に使う、映像の欠けの長さの合計の秒を返す (#1508)。
+// recordingCMVideoMissingSeconds は、録画の一覧のマークに使う、映像の欠けの長さの合計の秒を返す (#1508)。
 func (r *Resolver) recordingCMVideoMissingSeconds(ctx context.Context, obj *model.Recording) (float64, error) {
 	report, err := recordingCMReport(ctx, obj)
 

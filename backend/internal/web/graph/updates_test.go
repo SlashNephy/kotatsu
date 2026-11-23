@@ -19,7 +19,7 @@ var _ graph.Updates = new(fakeUpdates)
 
 func (f *fakeUpdates) Latest() *update.Release { return f.release }
 
-// TestLatestRelease は、新しいリリースを管理者にだけ返し、確かめない設定なら返さないことを確かめる (#506)。
+// TestLatestRelease は、新しいリリースを管理者にだけ返し、確認しない設定なら返さないことを確認する (#506)。
 func TestLatestRelease(t *testing.T) {
 	t.Parallel()
 

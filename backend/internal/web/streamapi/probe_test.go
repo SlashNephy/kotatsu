@@ -19,12 +19,12 @@ import (
 )
 
 const (
-	// probeUser と probeOther は、試しのデータを求めるユーザーの ID。
+	// probeUser と probeOther は、プローブのデータを求めるユーザーの ID。
 	probeUser  = "0199d000-0000-7000-8000-0000000000c1"
 	probeOther = "0199d000-0000-7000-8000-0000000000c2"
 )
 
-// probeRequest は、user (空ならログインしていない) で、試しのデータを query で求める。
+// probeRequest は、user (空ならログインしていない) で、プローブのデータを query で求める。
 func probeRequest(t *testing.T, handler http.Handler, user, query string) *httptest.ResponseRecorder {
 	t.Helper()
 
@@ -38,7 +38,7 @@ func probeRequest(t *testing.T, handler http.Handler, user, query string) *httpt
 	return w
 }
 
-// TestProbeHandlerSize は、求めた量だけ、キャッシュさせない乱数を返し、範囲の外の量は断ることを確かめる (設計書 7.3、#1513)。
+// TestProbeHandlerSize は、求めた量だけ、キャッシュさせない乱数を返し、範囲の外の量は断ることを確認する (設計書 7.3、#1513)。
 func TestProbeHandlerSize(t *testing.T) {
 	t.Parallel()
 
@@ -81,7 +81,7 @@ func TestProbeHandlerSize(t *testing.T) {
 	}
 }
 
-// TestProbeHandlerInterval は、同じユーザーには試しの間隔の制限に 1 回までしか返さず、超えたら 429 と Retry-After を返すことを確かめる。
+// TestProbeHandlerInterval は、同じユーザーにはプローブの間隔の制限に 1 回までしか返さず、超えたら 429 と Retry-After を返すことを確認する。
 func TestProbeHandlerInterval(t *testing.T) {
 	t.Parallel()
 

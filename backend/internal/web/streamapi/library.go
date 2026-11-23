@@ -12,8 +12,8 @@ import (
 
 // LibraryHandler は、ライブラリのファイル (録画として登録していない TS) を配信する (GET /internal/streams/library/{id}?start=秒、設計書 5.8、7.2)。
 // id は、ライブラリの名前とパスを符号化したもの (filelib.Ref.Encode)。
-// 録画の再生と同じく、索引を使って start 秒の位置の手前の I フレームから流し、実際に流し始めた位置 (ファイルの始まりからの秒) を
-// X-Kotatsu-Start で返す。HEAD でも返す。索引がまだできていなければ、作り始め、できた所までの I フレームから流す。
+// 録画の再生と同じく、インデックスを使って start 秒の位置の手前の I フレームから流し、実際に流し始めた位置 (ファイルの始まりからの秒) を
+// X-Kotatsu-Start で返す。HEAD でも返す。インデックスがまだできていなければ、作り始め、できた所までの I フレームから流す。
 type LibraryHandler struct {
 	source *filelib.Source
 	logger *slog.Logger

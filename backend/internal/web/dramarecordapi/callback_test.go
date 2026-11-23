@@ -26,8 +26,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/dramarecordapi"
 )
 
-// TestCallbackHandler は、Simkl から戻ってきたリクエストを、アカウントの連携の画面へ戻すことを確かめる (#1649)。
-// 連携できたら connected=simkl を、できなければ、トークンなどの中身を入れずに error=<理由> を付ける。
+// TestCallbackHandler は、Simkl から戻ってきたリクエストを、アカウントの連携の画面へ戻すことを確認する (#1649)。
+// 連携できたら connected=simkl を、できなければ、トークンなどの内容を入れずに error=<理由> を付ける。
 func TestCallbackHandler(t *testing.T) {
 	t.Parallel()
 

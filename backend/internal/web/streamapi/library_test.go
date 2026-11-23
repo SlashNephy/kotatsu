@@ -34,7 +34,7 @@ func loadLibraryTS(t *testing.T) []byte {
 	return data
 }
 
-// TestLibraryHandler は、ライブラリのファイルを、索引のできた後は指定した位置の手前の I フレームから流し、流し始めた位置を返すことを確かめる (#1734)。
+// TestLibraryHandler は、ライブラリのファイルを、インデックスのできた後は指定した位置の手前の I フレームから流し、流し始めた位置を返すことを確認する (#1734)。
 func TestLibraryHandler(t *testing.T) {
 	t.Parallel()
 

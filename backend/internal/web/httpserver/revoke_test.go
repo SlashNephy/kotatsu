@@ -17,7 +17,7 @@ import (
 )
 
 // TestStopWhenRevoked は、配信している間に allowed が false を返したら、流しているストリームを止め、
-// true を返し続ける間は止めないことを確かめる (#1755)。
+// true を返し続ける間は止めないことを確認する (#1755)。
 func TestStopWhenRevoked(t *testing.T) {
 	t.Parallel()
 

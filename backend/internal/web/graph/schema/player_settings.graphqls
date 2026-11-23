@@ -12,7 +12,7 @@ type PlayerSettings {
   comments: CommentSettings!
   "字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。"
   captions: CaptionSettings!
-  "画面が端末に覚えていた設定のうち、端末をまたいで同期するもの (#1862)。キーの順に並べる。"
+  "画面が端末に保存していた設定のうち、端末をまたいで同期するもの (#1862)。キーの順に並べる。"
   preferences: [Preference!]!
 }
 
@@ -22,7 +22,7 @@ type PlayerSettings {
 type Preference {
   "画面の保存先のキー (kotatsu.player.keymap など)。"
   key: String!
-  "保存した文字列。中身は画面が決める。"
+  "保存した文字列。内容は画面が決める。"
   value: String!
 }
 
@@ -143,6 +143,6 @@ extend type Query {
 }
 
 extend type Mutation {
-  "プレイヤーの設定を変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。"
+  "プレイヤーの設定を変え、同じユーザーのほかの端末に viewerSettingsChanged で通知する。"
   updatePlayerSettings(input: PlayerSettingsInput!): PlayerSettings!
 }

@@ -33,7 +33,7 @@ type auditCursor struct {
 	ID         uuid.UUID `json:"id"`
 }
 
-// administer は、ログイン中のユーザーが管理者であることを確かめる。読むだけなので、再認証は求めない。
+// administer は、ログイン中のユーザーが管理者であることを確認する。読むだけなので、再認証は求めない。
 func administer(ctx context.Context) error {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -109,8 +109,8 @@ func (r *Resolver) listAuditEvents(ctx context.Context, first int, after *string
 	return &model.AuditEventConnection{Edges: edges, PageInfo: info}, nil
 }
 
-// auditActors は、監査ログの操作者のユーザーを引く。監査ログは、ユーザーを消しても残すので (設計書 8.5)、
-// 見つからないユーザーは表に入れず、操作者のユーザーを null にする。
+// auditActors は、監査ログの操作者のユーザーを取得する。監査ログは、ユーザーを消しても残すので (設計書 8.5)、
+// 見つからないユーザーはマップに入れず、操作者のユーザーを null にする。
 func (r *Resolver) auditActors(ctx context.Context, ids []*uuid.UUID) (map[uuid.UUID]*model.User, error) {
 	keys := make([]uuid.UUID, 0, len(ids))
 	for _, userID := range ids {
@@ -351,7 +351,7 @@ func (r *Resolver) resetRecordingFailureCounts(ctx context.Context, reasons []do
 }
 
 // tunerServerKind は、DB に記録したチューナーサーバーの種類を返す (#1538)。記録がないか、知らない種類なら nil を返す。
-// 知らない種類は、新しい版が書いた値を古い版が読んだときに起きうる。
+// 知らない種類は、新しいバージョンが書いた値を古いバージョンが読んだときに起きうる。
 func tunerServerKind(value *string) *tunerserver.Kind {
 	if value == nil {
 		return nil
@@ -364,7 +364,7 @@ func tunerServerKind(value *string) *tunerserver.Kind {
 	return &kind
 }
 
-// versionOf は、DB に記録したチューナーサーバーの版を返す。記録がないか、名乗らなかった (空) なら nil を返す。
+// versionOf は、DB に記録したチューナーサーバーのバージョンを返す。記録がないか、名乗らなかった (空) なら nil を返す。
 func versionOf(value *string) *string {
 	if value == nil {
 		return nil

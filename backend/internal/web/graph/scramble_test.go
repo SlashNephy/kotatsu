@@ -32,7 +32,7 @@ const (
 	scrambledQuery   = `subscription { viewerEvents { liveStreamScrambled { service decidedAt } } }`
 )
 
-// scrambleRelay は、faketuner を上流にした、ブラウザ内での変換のライブの中継を立てる。clk で、スクランブルの抑止時間を測る。
+// scrambleRelay は、faketuner を上流にした、ブラウザ内での変換のライブの中継を立てる。clk で、スクランブルの抑止時間を計測する。
 func scrambleRelay(t *testing.T, f *fixture, clk *clocktest.Fake) *httptest.Server {
 	t.Helper()
 
@@ -89,8 +89,8 @@ func watchLive(t *testing.T, server *httptest.Server, clk *clocktest.Fake, servi
 	_, _ = io.Copy(io.Discard, resp.Body)
 }
 
-// subscribeScrambled は、viewerEvents を購読し、始めに届く今の版数の知らせを待ってから返す。
-// 応答の頭が届いても、購読がサービスごとに最後に決めた日時を控え終えたとは限らない。控える前に決めた判定は送らないので、
+// subscribeScrambled は、viewerEvents を購読し、始めに届く今のバージョンの知らせを待ってから返す。
+// 応答の先頭が届いても、購読がサービスごとに最後に決めた日時を控え終えたとは限らない。控える前に決めた判定は送らないので、
 // 待たずに決めると、テストの判定が、控えた日時に紛れて届かないことがある。
 func subscribeScrambled(t *testing.T, f *fixture) <-chan json.RawMessage {
 	t.Helper()
@@ -129,7 +129,7 @@ func scrambledServices(t *testing.T, events <-chan json.RawMessage, within time.
 }
 
 // TestLiveStreamScrambled は、ブラウザ内での変換の中継が、スクランブルされたまま届くと決めたら、ストリームを閉じ、
-// 理由が viewerEvents でプレイヤーに届くことを確かめる (設計書 7.1、#1517)。
+// 理由が viewerEvents でプレイヤーに届くことを確認する (設計書 7.1、#1517)。
 func TestLiveStreamScrambled(t *testing.T) {
 	t.Parallel()
 
@@ -151,8 +151,8 @@ func TestLiveStreamScrambled(t *testing.T) {
 	assert.Equal(t, []string{graph.GlobalID("Service", scrambledService)}, scrambledServices(t, events, 3*time.Second))
 }
 
-// TestLiveStreamScrambledSkipsEarlierVerdicts は、購読を始める前に決めた判定を送らないことを確かめる。
-// 前に見た人の判定で、カードを直した後の視聴を止めないためである。
+// TestLiveStreamScrambledSkipsEarlierVerdicts は、購読を始める前に決めた判定を送らないことを確認する。
+// 前に見た人の判定で、カードを修正した後の視聴を止めないためである。
 func TestLiveStreamScrambledSkipsEarlierVerdicts(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +170,7 @@ func TestLiveStreamScrambledSkipsEarlierVerdicts(t *testing.T) {
 	assert.Equal(t, []string{graph.GlobalID("Service", scrambledService)}, scrambledServices(t, events, 1500*time.Millisecond))
 }
 
-// TestLiveStreamScrambledWithSkewedClocks は、時計の遅れたホストが後から決めても、新しい判定として届くことを確かめる。
+// TestLiveStreamScrambledWithSkewedClocks は、時計の遅れたホストが後から決めても、新しい判定として届くことを確認する。
 func TestLiveStreamScrambledWithSkewedClocks(t *testing.T) {
 	t.Parallel()
 

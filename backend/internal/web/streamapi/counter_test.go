@@ -10,7 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
-// TestStreamCounter は、流している最中の応答を、種類ごとに数えることを確かめる (#959)。HEAD はストリームを開かないので数えない。
+// TestStreamCounter は、流している最中の応答を、種類ごとに数えることを確認する (#959)。HEAD はストリームを開かないので数えない。
 func TestStreamCounter(t *testing.T) {
 	t.Parallel()
 

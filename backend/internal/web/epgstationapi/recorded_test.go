@@ -64,7 +64,7 @@ func addRecording(
 	return id, apiID
 }
 
-// TestRecorded は、再生できる録画を、新しい順に、件数と番組名で区切って返すことを確かめる (#431)。
+// TestRecorded は、再生できる録画を、新しい順に、件数と番組名で区切って返すことを確認する (#431)。
 func TestRecorded(t *testing.T) {
 	t.Parallel()
 
@@ -134,7 +134,7 @@ func getItem(t *testing.T, handler http.HandlerFunc, id int64, out any) int {
 	return get(t, mux.ServeHTTP, "/api/recorded/"+strconv.FormatInt(id, 10), out)
 }
 
-// TestWithRecording は、動画とサムネイルの ID を、Kotatsu の録画の ID に読み替えてつなぐことを確かめる。
+// TestWithRecording は、動画とサムネイルの ID を、Kotatsu の録画の ID に読み替えてつなぐことを確認する。
 func TestWithRecording(t *testing.T) {
 	t.Parallel()
 

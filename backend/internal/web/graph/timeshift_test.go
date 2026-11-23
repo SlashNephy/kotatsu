@@ -66,7 +66,7 @@ func (f *fixture) lastTimeshiftAuditAction(t *testing.T) string {
 }
 
 // TestTimeshiftChannels は、管理者だけが、タイムシフトで録るチャンネルを読み、足し、保持時間を変え、外せることと、
-// バッファの範囲と録っているかを返すことを確かめる。
+// バッファの範囲と録っているかを返すことを確認する。
 func TestTimeshiftChannels(t *testing.T) {
 	t.Parallel()
 
@@ -145,7 +145,7 @@ func TestTimeshiftChannels(t *testing.T) {
 	assert.Empty(t, admin.query(t, removeTimeshiftChannel, set, nil))
 }
 
-// TestSetTimeshiftChannelRejectsInvalidInput は、範囲外の保持時間と、ないサービスを拒み、保存しないことを確かめる。
+// TestSetTimeshiftChannelRejectsInvalidInput は、範囲外の保持時間と、ないサービスを拒み、保存しないことを確認する。
 func TestSetTimeshiftChannelRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
@@ -182,7 +182,7 @@ func TestSetTimeshiftChannelRejectsInvalidInput(t *testing.T) {
 }
 
 // TestTimeshiftUnavailable は、タイムシフトのディレクトリを設定していない tenban では、使えないことを返し、
-// チャンネルを足させないことを確かめる。neko は、足されたチャンネルを割り振るので、ここで止める。
+// チャンネルを足させないことを確認する。neko は、足されたチャンネルを割り振るので、ここで止める。
 func TestTimeshiftUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -227,7 +227,7 @@ type timeshiftProgram struct {
 	HlsURL    string `json:"hlsUrl"`
 }
 
-// TestTimeshiftPrograms は、視聴者が、バッファから再生できる番組と、それを流す URL を読めることを確かめる (設計書 7.2)。
+// TestTimeshiftPrograms は、視聴者が、バッファから再生できる番組と、それを流す URL を読めることを確認する (設計書 7.2)。
 // タイムシフトのディレクトリがない tenban では、バッファを流せないので、番組を返さない。
 func TestTimeshiftPrograms(t *testing.T) {
 	t.Parallel()
@@ -336,7 +336,7 @@ func TestTimeshiftPrograms(t *testing.T) {
 }
 
 // TestPromoteTimeshiftProgram は、予約を作れるユーザーが、バッファにある放送の終わった番組を録画に昇格でき、
-// 録画中の録画を返して、書き出すジョブを入れることを確かめる (#1057、設計書 5.7)。
+// 録画中の録画を返して、出力するジョブを入れることを確認する (#1057、設計書 5.7)。
 func TestPromoteTimeshiftProgram(t *testing.T) {
 	t.Parallel()
 

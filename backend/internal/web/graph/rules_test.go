@@ -130,7 +130,7 @@ func ruleVariables(id string, input ruleInput) map[string]any {
 	return variables
 }
 
-// TestRules は、ルールを作り、取得し、変え、消せることと、その操作が操作者とともに監査ログに残ることを確かめる。
+// TestRules は、ルールを作り、取得し、変え、消せることと、その操作が操作者とともに監査ログに残ることを確認する。
 func TestRules(t *testing.T) {
 	t.Parallel()
 
@@ -288,7 +288,7 @@ func TestRuleErrors(t *testing.T) {
 	})
 }
 
-// TestPreviewRule は、プレビューが、ルールの照合と同じく、放送が始まった番組、終了時刻が未定の番組、有効期間の外の番組を含めないことを確かめる。
+// TestPreviewRule は、プレビューが、ルールの照合と同じく、放送が始まった番組、終了時刻が未定の番組、有効期間の外の番組を含めないことを確認する。
 func TestPreviewRule(t *testing.T) {
 	t.Parallel()
 
@@ -346,7 +346,7 @@ func TestPreviewRule(t *testing.T) {
 	assert.Empty(t, listed.Rules)
 }
 
-// TestRuleWarnings は、詳細まで探す正規表現のうち、前段で絞り込めないキーワードを、警告として返すことを確かめる (#904)。
+// TestRuleWarnings は、詳細まで探す正規表現のうち、前段で絞り込めないキーワードを、警告として返すことを確認する (#904)。
 func TestRuleWarnings(t *testing.T) {
 	t.Parallel()
 
@@ -374,7 +374,7 @@ func TestRuleWarnings(t *testing.T) {
 	assert.Equal(t, 1, got.RuleWarnings[0].Index)
 }
 
-// TestPreviewRulePages は、プレビューを続きから読むと、同じ番組を 2 回返さずに読み進められることを確かめる。
+// TestPreviewRulePages は、プレビューを続きから読むと、同じ番組を 2 回返さずに読み進められることを確認する。
 func TestPreviewRulePages(t *testing.T) {
 	t.Parallel()
 
@@ -397,7 +397,7 @@ func TestPreviewRulePages(t *testing.T) {
 	assert.Equal(t, []string{programName(4), programName(5), programName(6), programName(7)}, got)
 }
 
-// TestBulkRules は、ルールをまとめて有効、無効にし、まとめて消せることと、見つからないルールは飛ばして数えることを確かめる (#471)。
+// TestBulkRules は、ルールをまとめて有効、無効にし、まとめて消せることと、見つからないルールは飛ばして数えることを確認する (#471)。
 func TestBulkRules(t *testing.T) {
 	t.Parallel()
 

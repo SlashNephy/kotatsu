@@ -266,7 +266,7 @@ func TestCommentsHandlerErrors(t *testing.T) {
 	}
 }
 
-// TestCommentsHandlerOptIn は、全体の設定かユーザーの設定で実況を切っていれば、過去ログ API へ問い合わせないことを確かめる (設計書 0.3、7.4)。
+// TestCommentsHandlerOptIn は、全体の設定かユーザーの設定で実況を切っていれば、過去ログ API へ問い合わせないことを確認する (設計書 0.3、7.4)。
 func TestCommentsHandlerOptIn(t *testing.T) {
 	t.Parallel()
 

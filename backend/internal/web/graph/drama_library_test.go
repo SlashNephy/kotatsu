@@ -62,7 +62,7 @@ type dramaLibraryResult struct {
 }
 
 // TestDramaLibrary は、ドラマの視聴管理の画面の作品を、ユーザーごとに自分の分だけ返し、見ている作品と見た話を変えられることを
-// 確かめる (#1652)。見た話は、アニメの連携がなくても、プレイヤーで見た区間から付く。
+// 確認する (#1652)。見た話は、アニメの連携がなくても、プレイヤーで見た区間から付く。
 func TestDramaLibrary(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)

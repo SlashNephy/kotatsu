@@ -10,7 +10,7 @@ import (
 )
 
 // TestDramaRecordSettings は、見たドラマの話にする割合を、Simkl と連携していなくても、TMDB との連携が有効なら
-// ユーザーごとに変えられ、見たアニメを記録する割合とは別に持つことを確かめる (#1649)。
+// ユーザーごとに変えられ、見たアニメを記録する割合とは別に持つことを確認する (#1649)。
 func TestDramaRecordSettings(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)

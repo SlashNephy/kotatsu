@@ -16,14 +16,14 @@ import (
 const (
 	// targetBackup は、バックアップの操作の、監査ログの対象の種類 (#1926)。
 	targetBackup = "backup"
-	// 監査ログの種類。設定を変えたことと、今すぐ書き出すよう頼んだこと。
+	// 監査ログの種類。設定を変えたことと、今すぐバックアップするよう頼んだこと。
 	actionBackupSettingsUpdate = "backup.settings.update"
 	actionBackupRun            = "backup.run"
 	// onlyAdminsBackup は、管理者でないときの誤りの文。
 	onlyAdminsBackup = "only administrators can manage backups"
 )
 
-// backupStatus は、定期のバックアップの設定と、最後の書き出しの結果を返す (#1926)。管理者だけが使える。
+// backupStatus は、定期のバックアップの設定と、最後のバックアップの結果を返す (#1926)。管理者だけが使える。
 func (r *Resolver) backupStatus(ctx context.Context) (*model.BackupStatus, error) {
 	if _, _, err := r.administratorActor(ctx, onlyAdminsBackup); err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func (r *Resolver) updateBackupSettings(ctx context.Context, input model.BackupS
 	return r.loadBackupStatus(ctx)
 }
 
-// runBackup は、今すぐバックアップを書き出すジョブを入れ、監査ログに残す (#1926)。
+// runBackup は、今すぐバックアップを作成するジョブを入れ、監査ログに残す (#1926)。
 func (r *Resolver) runBackup(ctx context.Context) (*model.BackupStatus, error) {
 	_, actor, err := r.administratorActor(ctx, onlyAdminsBackup)
 	if err != nil {

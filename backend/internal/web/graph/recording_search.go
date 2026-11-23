@@ -16,7 +16,7 @@ import (
 const recordingSearchBatchSize = 200
 
 // recordingKeywordConditions は、録画の絞り込みのキーワードの条件 (#966) を、照合の条件にする。キーワードの条件がなければ、ok に false を返す。
-// 録画は詳細を正規化した列を持たず、詳細では探さないので (設計書 3.5)、詳細を見るキーワードは拒む。
+// 録画は詳細を正規化したカラムを持たず、詳細では探さないので (設計書 3.5)、詳細を見るキーワードは拒む。
 func recordingKeywordConditions(filter *model.RecordingFilter) (*match.Conditions, bool, error) {
 	if filter == nil || (len(filter.Keywords) == 0 && len(filter.ExcludeKeywords) == 0) {
 		return nil, false, nil
@@ -42,8 +42,8 @@ func recordingKeywordConditions(filter *model.RecordingFilter) (*match.Condition
 	return conditions, true, nil
 }
 
-// coarseRecordingKeyword は、SQL で粗く絞るのに使うキーワードを、LIKE のパターンの中身にして返す。使えるものがなければ nil を返す。
-// 録画の検索の SQL は、番組名か概要の正規化した列の部分一致で絞る (大文字と小文字を区別しない)。照合関数がすべてに一致を求めるとき、
+// coarseRecordingKeyword は、SQL で粗く絞るのに使うキーワードを、LIKE のパターンの内容にして返す。使えるものがなければ nil を返す。
+// 録画の検索の SQL は、番組名か概要の正規化したカラムの部分一致で絞る (大文字と小文字を区別しない)。照合関数がすべてに一致を求めるとき、
 // 正規表現でないキーワードは、そのどちらかに必ず含まれるので、これで絞っても結果は変わらない。
 func coarseRecordingKeyword(conditions *match.Conditions) *string {
 	if conditions.KeywordMatch == match.KeywordMatchAny {
@@ -124,8 +124,8 @@ func (r *Resolver) searchRecordingRows(ctx context.Context, params *query.Search
 	return rows, nil
 }
 
-// recordingMatchProgram は、録画を、キーワードの照合に渡す形にする。番組名と概要は正規化した列を使い、
-// 列のない録画 (列を知らない古いバイナリが書いたもの) は、ここで正規化する。キーワードのほかの条件は照合しないので、ほかの項目は空にする。
+// recordingMatchProgram は、録画を、キーワードの照合に渡す形にする。番組名と概要は正規化したカラムを使い、
+// カラムのない録画 (カラムを知らない古いバイナリが書いたもの) は、ここで正規化する。キーワードのほかの条件は照合しないので、ほかの項目は空にする。
 func recordingMatchProgram(recording *domain.Recording) *match.Program {
 	normalized := func(column *string, raw string) string {
 		if column != nil {

@@ -16,7 +16,7 @@ const pprofPathPrefix = "/debug/pprof/"
 
 // NewHandler は、gatherer の内容を Prometheus 形式で返す /metrics を、echo で受けるハンドラーを作る (#2008)。
 // registry には、/metrics 自身のエラーの数などを登録する。
-// withPprof なら、プロセスの中を調べるための /debug/pprof/ も同じ待ち受けで返す (設計書 11.3、#1959)。
+// withPprof なら、プロセスの中を調査するための /debug/pprof/ も同じ待ち受けで返す (設計書 11.3、#1959)。
 // http.ServeMux で受けていたときと同じく、崩れたパスはリダイレクトし、当たらないパスには素の 404 を返す。
 func NewHandler(logger *slog.Logger, gatherer prometheus.Gatherer, registry *prometheus.Registry, withPprof bool) http.Handler {
 	router := httpserver.NewRouter(logger, http.NotFoundHandler())

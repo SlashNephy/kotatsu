@@ -1,4 +1,4 @@
-// Package avatar は、ユーザーのアイコンの画像を、IdP から取って中継する (#778、設計書 10.2)。
+// Package avatar は、ユーザーのアイコンの画像を、IdP から取ってプロキシする (#778、設計書 10.2)。
 // 画像の URL は、ログインのときに ID トークンの picture のクレームから保存する。
 // ブラウザに IdP の画像を直に読ませると、CSP の img-src を IdP ごとに緩める必要があるので、tenban が同じオリジンで返す。
 package avatar
@@ -30,9 +30,9 @@ import (
 const (
 	// fetchTimeout は、IdP から画像を取ってくるのを待つ長さ。
 	fetchTimeout = 5 * time.Second
-	// maxImageBytes は、中継する画像の大きさの上限。アイコンなので、大きな画像は断る。
+	// maxImageBytes は、プロキシする画像の大きさの上限。アイコンなので、大きな画像は断る。
 	maxImageBytes = 1 << 20
-	// cacheControl は、ブラウザに画像を覚えさせる長さ。IdP で画像を変えても、1 時間で反映される。
+	// cacheControl は、ブラウザに画像をキャッシュさせる長さ。IdP で画像を変えても、1 時間で反映される。
 	cacheControl = "private, max-age=3600"
 )
 
@@ -42,7 +42,7 @@ var (
 	errNotImage       = errors.New("the response is not an image")
 )
 
-// Handler は、ユーザーのアイコンの画像を中継する (GET /internal/media/users/{id}/avatar)。
+// Handler は、ユーザーのアイコンの画像をプロキシする (GET /internal/media/users/{id}/avatar)。
 //
 // picture の URL は IdP が返すが、IdP によってはユーザーが自由に書き換えられる。そのため、接続先を限り、LAN の中のサーバーへ
 // リクエストを送らせないようにする。IdP の issuer と同じホストの URL だけは、IdP と同じく信じて、LAN の中でも取りに行く。
@@ -80,7 +80,7 @@ func NewHandler(pool *pgxpool.Pool, issuer string, logger *slog.Logger, recorder
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 失敗の応答は覚えさせない。画像を出せないときは、画面が表示名の頭文字を出す。
+	// 失敗の応答はキャッシュさせない。画像を出せないときは、画面が表示名の先頭文字を出す。
 	w.Header().Set("Cache-Control", "no-store")
 	userID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -118,7 +118,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(data))
 }
 
-// fetch は、画像を取ってきて、中身と、中身から決めた Content-Type を返す。
+// fetch は、画像を取ってきて、内容と、内容から決めた Content-Type を返す。
 func (h *Handler) fetch(ctx context.Context, picture string) ([]byte, string, error) {
 	u, err := url.Parse(picture)
 	if err != nil {
@@ -128,12 +128,12 @@ func (h *Handler) fetch(ctx context.Context, picture string) ([]byte, string, er
 	if h.issuerHost != "" && strings.EqualFold(u.Host, h.issuerHost) {
 		client = h.issuer
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody) //nolint:gosec // IdP の picture を中継するのが目的。接続先は publicnet.Control と issuer のホストに限り、リダイレクトに従わない (#778)。
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody) //nolint:gosec // IdP の picture をプロキシするのが目的。接続先は publicnet.Control と issuer のホストに限り、リダイレクトに従わない (#778)。
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to build the request: %w", err)
 	}
 	req.Header.Set("Accept", "image/*")
-	resp, err := client.Do(req) //nolint:gosec // IdP の picture を中継するのが目的。接続先は publicnet.Control と issuer のホストに限り、リダイレクトに従わない (#778)。
+	resp, err := client.Do(req) //nolint:gosec // IdP の picture をプロキシするのが目的。接続先は publicnet.Control と issuer のホストに限り、リダイレクトに従わない (#778)。
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to fetch the avatar: %w", err)
 	}
@@ -148,7 +148,7 @@ func (h *Handler) fetch(ctx context.Context, picture string) ([]byte, string, er
 	if len(data) > maxImageBytes {
 		return nil, "", errTooLarge
 	}
-	// 上流の Content-Type は信じず、中身から決める。SVG はスクリプトを含められるので、DetectContentType が画像とみなさないまま断る。
+	// 上流の Content-Type は信じず、内容から決める。SVG はスクリプトを含められるので、DetectContentType が画像とみなさないまま断る。
 	contentType := http.DetectContentType(data)
 	if !strings.HasPrefix(contentType, "image/") {
 		return nil, "", fmt.Errorf("%w: %s", errNotImage, contentType)

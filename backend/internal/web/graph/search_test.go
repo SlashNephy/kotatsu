@@ -162,7 +162,7 @@ func TestSearchPrograms(t *testing.T) {
 	}
 }
 
-// TestSearchProgramsPagination は、カーソルで続きのページを取得できることを確かめる。
+// TestSearchProgramsPagination は、カーソルで続きのページを取得できることを確認する。
 func TestSearchProgramsPagination(t *testing.T) {
 	t.Parallel()
 
@@ -191,7 +191,7 @@ func TestSearchProgramsPagination(t *testing.T) {
 	assert.Equal(t, programName(14), pages[2][1])
 }
 
-// TestSearchArchivedPrograms は、過去の番組を、期間を指定したときだけ検索することを確かめる (設計書 3.4)。
+// TestSearchArchivedPrograms は、過去の番組を、期間を指定したときだけ検索することを確認する (設計書 3.4)。
 func TestSearchArchivedPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -243,8 +243,8 @@ func TestSearchArchivedPrograms(t *testing.T) {
 	}
 }
 
-// TestSearchArchivedProgramsByExtended は、アーカイブの番組の詳細を、正規化した列で探せることを確かめる。
-// 列を写す前に移したアーカイブ (列が NULL) は、上流の詳細から正規化して探す (#852)。
+// TestSearchArchivedProgramsByExtended は、アーカイブの番組の詳細を、正規化したカラムで探せることを確認する。
+// カラムをコピーする前に移したアーカイブ (カラムが NULL) は、上流の詳細から正規化して探す (#852)。
 func TestSearchArchivedProgramsByExtended(t *testing.T) {
 	t.Parallel()
 
@@ -301,7 +301,7 @@ func TestSearchProgramsRejectsInvalidInput(t *testing.T) {
 }
 
 // TestSearchProgramsReadsAllCandidates は、一致する番組が少なくても、候補を最後まで照合して 1 回で返し、
-// 続きがないときは hasNextPage を false にすることを確かめる。
+// 続きがないときは hasNextPage を false にすることを確認する。
 func TestSearchProgramsReadsAllCandidates(t *testing.T) {
 	t.Parallel()
 
@@ -329,7 +329,7 @@ func TestSearchProgramsReadsAllCandidates(t *testing.T) {
 	}
 }
 
-// TestSearchProgramsByGenre は、ジャンルの包含と除外で絞り込めることを確かめる。
+// TestSearchProgramsByGenre は、ジャンルの包含と除外で絞り込めることを確認する。
 func TestSearchProgramsByGenre(t *testing.T) {
 	t.Parallel()
 
@@ -379,7 +379,7 @@ func TestSearchProgramsByGenre(t *testing.T) {
 	}
 }
 
-// TestSearchProgramsNarrowsKeywordsInSQL は、SQL でキーワードを粗く絞っても、照合関数と同じ番組が見つかることを確かめる。
+// TestSearchProgramsNarrowsKeywordsInSQL は、SQL でキーワードを粗く絞っても、照合関数と同じ番組が見つかることを確認する。
 // LIKE の記号は文字どおりに扱い、大文字と小文字は、区別するかどうかの指定に従う。
 func TestSearchProgramsNarrowsKeywordsInSQL(t *testing.T) {
 	t.Parallel()
@@ -419,7 +419,7 @@ func TestSearchProgramsNarrowsKeywordsInSQL(t *testing.T) {
 }
 
 // TestSearchProgramsExcludesEndedPrograms は、アーカイブへ移す前の、放送の終わった番組を、
-// 過去の放送を含めないときは返さず、含めるときは期間で絞って返すことを確かめる。
+// 過去の放送を含めないときは返さず、含めるときは期間で絞って返すことを確認する。
 func TestSearchProgramsExcludesEndedPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -455,7 +455,7 @@ func TestSearchProgramsExcludesEndedPrograms(t *testing.T) {
 }
 
 // TestSearchProgramsSkipsNonMediaServices は、映像も音声も流さないサービス (データ放送など) の番組を返さず、
-// 映像のサービスの番組は返すことを確かめる。
+// 映像のサービスの番組は返すことを確認する。
 func TestSearchProgramsSkipsNonMediaServices(t *testing.T) {
 	t.Parallel()
 
@@ -497,7 +497,7 @@ func TestSearchProgramsSkipsNonMediaServices(t *testing.T) {
 }
 
 // TestSearchProgramsOmitsSharedEvents は、サブチャンネルが元のサービスと同じ番組を流している (イベント共有) とき、
-// 元の番組も一致していれば、サブチャンネルの番組を返さないことを確かめる。ページをまたいでも省く。
+// 元の番組も一致していれば、サブチャンネルの番組を返さないことを確認する。ページをまたいでも省く。
 func TestSearchProgramsOmitsSharedEvents(t *testing.T) {
 	t.Parallel()
 
@@ -562,7 +562,7 @@ func TestSearchProgramsOmitsSharedEvents(t *testing.T) {
 	}
 }
 
-// TestSearchProgramsKeywordMatch は、含めるキーワードを、すべてに一致か、いずれかに一致かで照合することを確かめる。
+// TestSearchProgramsKeywordMatch は、含めるキーワードを、すべてに一致か、いずれかに一致かで照合することを確認する。
 func TestSearchProgramsKeywordMatch(t *testing.T) {
 	t.Parallel()
 
@@ -600,7 +600,7 @@ const (
 	aibouName     = "相棒 season2"
 )
 
-// TestSearchProgramsByGrams は、番組の検索の gram (#966) で候補を絞っても、照合関数が一致とみなす番組を落とさないことを確かめる。
+// TestSearchProgramsByGrams は、番組の検索の gram (#966) で候補を絞っても、照合関数が一致とみなす番組を落とさないことを確認する。
 // gram を埋めていない番組 (NULL) も、候補に残して照合する。
 func TestSearchProgramsByGrams(t *testing.T) {
 	t.Parallel()

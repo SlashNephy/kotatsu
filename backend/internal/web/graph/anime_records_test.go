@@ -31,7 +31,7 @@ type animeRecordApp struct {
 }
 
 // TestAnimeRecordApps は、管理者だけが記録先のアプリを登録でき、クライアントシークレットを返さず、
-// 変えるときは直近の再認証を求めることを確かめる (#927、設計書 9.5)。
+// 変えるときは直近の再認証を求めることを確認する (#927、設計書 9.5)。
 func TestAnimeRecordApps(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)
@@ -68,7 +68,7 @@ func TestAnimeRecordApps(t *testing.T) {
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateAnimeRecordApp, input, nil))
 }
 
-// TestAnimeRecordSettings は、視聴者も自分の記録の設定を変え、連携を始められ、管理者が連携を無効にしている間は始められないことを確かめる (#927)。
+// TestAnimeRecordSettings は、視聴者も自分の記録の設定を変え、連携を始められ、管理者が連携を無効にしている間は始められないことを確認する (#927)。
 func TestAnimeRecordSettings(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)
@@ -150,8 +150,8 @@ func TestAnimeRecordSettings(t *testing.T) {
 		"viewers can record, but not before connecting")
 }
 
-// TestAnimeImportToken は、管理者だけが作品 ID を引くための Annict のトークンを設定でき、トークンを返さず、
-// 変えるときは直近の再認証を求めることを確かめる (#1223、設計書 9.5)。
+// TestAnimeImportToken は、管理者だけが作品 ID を取得するための Annict のトークンを設定でき、トークンを返さず、
+// 変えるときは直近の再認証を求めることを確認する (#1223、設計書 9.5)。
 func TestAnimeImportToken(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)

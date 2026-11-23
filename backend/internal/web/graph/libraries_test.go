@@ -109,9 +109,9 @@ func loadLibraryTS(t *testing.T) []byte {
 type libraryParts struct {
 	// dir は、ライブラリ anime のディレクトリ。
 	dir string
-	// images は、画像を作るジョブを入れる代わりに、入れたジョブを覚える。
+	// images は、画像を作るジョブを入れる代わりに、入れたジョブを記録する。
 	images *fakeImages
-	// indexer は、索引と画像の置き場を読み書きする。
+	// indexer は、インデックスと画像の保存先を読み書きする。
 	indexer *filelib.Indexer
 	// dataDir は、データディレクトリ。
 	dataDir string
@@ -161,7 +161,7 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 	return f, &libraryParts{dir: libraryDir, images: images, indexer: indexer, dataDir: dataDir}
 }
 
-// TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの中身は、ディレクトリと再生できるファイルだけを返すことを確かめる (#1734)。
+// TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの内容は、ディレクトリと再生できるファイルだけを返すことを確認する (#1734)。
 func TestLibraries(t *testing.T) {
 	t.Parallel()
 
@@ -231,7 +231,7 @@ func TestLibraries(t *testing.T) {
 	}
 }
 
-// TestLibrarySearch は、フォルダのライブラリで、名前の部分一致でディレクトリの下を探せることを確かめる (#1902)。
+// TestLibrarySearch は、フォルダのライブラリで、名前の部分一致でディレクトリの下を探せることを確認する (#1902)。
 func TestLibrarySearch(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +298,7 @@ func nonNil(codes []string) []string {
 	return codes
 }
 
-// TestLibraryFile は、ファイルを開くと索引を作り始め、作り終えたらシークできる所と長さを返し、再生位置をユーザーごとに保存することを確かめる (#1734)。
+// TestLibraryFile は、ファイルを開くとインデックスを作り始め、作り終えたらシークできる所と長さを返し、再生位置をユーザーごとに保存することを確認する (#1734)。
 func TestLibraryFile(t *testing.T) {
 	t.Parallel()
 
@@ -433,7 +433,7 @@ func TestLibraryFile(t *testing.T) {
 	}
 }
 
-// fakeImages は、ライブラリのファイルの画像や CM の区間のジョブを入れる代わりに、入れたジョブの種類を覚える。
+// fakeImages は、ライブラリのファイルの画像や CM の区間のジョブを入れる代わりに、入れたジョブの種類を記録する。
 type fakeImages struct {
 	mu   sync.Mutex
 	args []river.JobArgs

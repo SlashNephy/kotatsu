@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
-// errChannelInspectionUnavailable は、チャンネルの TS を調べられない (チューナーサーバーを設定していない) ときのエラー。
+// errChannelInspectionUnavailable は、チャンネルの TS を調査できない (チューナーサーバーを設定していない) ときのエラー。
 var errChannelInspectionUnavailable = errors.New("channel inspection is unavailable")
 
 // inspectChannel は、物理チャンネルの TS を数秒受け取り、サービスごとの構成とビットレートを返す (#830)。管理者だけが使える。

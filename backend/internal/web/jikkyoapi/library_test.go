@@ -36,8 +36,8 @@ func readTestTS(t *testing.T) []byte {
 	return data
 }
 
-// TestLibraryCommentsHandler は、ライブラリのファイルの過去ログを、TS から読んだ局と時間帯で引き、TOT で読んだ録り始めを基準にすることを確かめる (#1734)。
-// Kotatsu のサービスの行がなくても、ネットワークとサービス ID で実況のチャンネルを引く。
+// TestLibraryCommentsHandler は、ライブラリのファイルの過去ログを、TS から読んだ局と時間帯で引き、TOT で読んだ録り始めを基準にすることを確認する (#1734)。
+// Kotatsu のサービスの行がなくても、ネットワークとサービス ID で実況のチャンネルを検索する。
 func TestLibraryCommentsHandler(t *testing.T) {
 	t.Parallel()
 
@@ -102,8 +102,8 @@ func TestLibraryCommentsHandler(t *testing.T) {
 	}
 }
 
-// TestLibraryCommentsHandlerBeforeIndex は、索引を作り終える前は、局と時間帯が分からないのでチャンネルなしで返し、
-// 後で分かるので使い回させないことを確かめる。
+// TestLibraryCommentsHandlerBeforeIndex は、インデックスを作り終える前は、局と時間帯が分からないのでチャンネルなしで返し、
+// 後で分かるので使い回させないことを確認する。
 func TestLibraryCommentsHandlerBeforeIndex(t *testing.T) {
 	t.Parallel()
 

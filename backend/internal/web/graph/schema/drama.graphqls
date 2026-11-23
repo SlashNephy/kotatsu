@@ -53,7 +53,7 @@ type DramaEpisode {
 管理者が、番組名から読んだ作品名ごとに決めた TMDB の作品 (#1651、設計書 3.9)。
 """
 type DramaTitleOverride {
-  "作品名の鍵 (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。"
+  "作品名のキー (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。"
   titleKey: String!
   "結びつける TMDB の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。"
   tmdbSeriesId: Int
@@ -76,9 +76,9 @@ type DramaLinkingStatus {
 作品名の上書きの変更 (#1651)。programName か titleKey のどちらか 1 つと、tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
 """
 input DramaTitleOverrideInput {
-  "上書きする作品名を読む番組名。照合と同じ読み方で、作品名の鍵にする。"
+  "上書きする作品名を読む番組名。照合と同じ読み方で、作品名のキーにする。"
   programName: String
-  "上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。"
+  "上書きする作品名のキー (dramaTitleOverrides の titleKey)。一覧から消すときに使う。"
   titleKey: String
   "結びつける TMDB の作品の ID (1 以上)。"
   tmdbSeriesId: Int
@@ -91,21 +91,21 @@ input DramaTitleOverrideInput {
 extend type Program {
   "結びついた TMDB の作品と話 (#1651、設計書 3.9)。照合していないか、作品に結びつかなければ null。番組の詳細で使い、一覧では引かない。"
   dramaEpisode: DramaEpisode
-  "番組名から読んだ、TMDB で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
+  "番組名から読んだ、TMDB で作品を探す作品名のキー (#1651)。管理者が上書きするのに使う。"
   dramaTitleKey: String!
 }
 
 extend type Recording {
-  "結びついた TMDB の作品と話 (#1651、設計書 3.9)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。"
+  "結びついた TMDB の作品と話 (#1651、設計書 3.9)。録画を始めたときの番組の結びつきをコピーしたもの。録画の詳細で使い、一覧では引かない。"
   dramaEpisode: DramaEpisode
-  "番組名から読んだ、TMDB で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
+  "番組名から読んだ、TMDB で作品を探す作品名のキー (#1651)。管理者が上書きするのに使う。"
   dramaTitleKey: String!
 }
 
 extend type Query {
   "TMDB との連携の様子 (#1651)。管理者だけが使える。"
   dramaLinking: DramaLinkingStatus!
-  "作品名ごとの TMDB の作品の上書き (#1651)。作品名の鍵の順に並べる。管理者だけが使える。"
+  "作品名ごとの TMDB の作品の上書き (#1651)。作品名のキーの順に並べる。管理者だけが使える。"
   dramaTitleOverrides: [DramaTitleOverride!]!
 }
 

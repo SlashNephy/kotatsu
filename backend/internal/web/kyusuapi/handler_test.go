@@ -23,8 +23,8 @@ const (
 	invalidID    = "invalid ID\n"
 )
 
-// TestHandlerRoutes は、http.ServeMux で受けていたときと同じく、トークンをルートより先に確かめ、
-// 1 つの区切りにだけ当たる名前の部分でルートを引くことを確かめる (#2016)。
+// TestHandlerRoutes は、http.ServeMux で受けていたときと同じく、トークンをルートより先に確認し、
+// 1 つの区切りにだけ当たる名前の部分でルートを選ぶことを確認する (#2016)。
 // ID とプリセットの読めないリクエストは、配信を始める前に断るので、ルートに当たったかを、その応答で見分ける。
 func TestHandlerRoutes(t *testing.T) {
 	t.Parallel()

@@ -26,8 +26,8 @@ func lighthouseRuleInput() map[string]any {
 	}
 }
 
-// TestSkippedEpisodes は、同じ回の束ねで見送った番組を、理由と、録った局か代わりに録る放送と一緒に返すことと、
-// ルールの同じ回の束ねの設定を保存して返すことを確かめる (#1498)。
+// TestSkippedEpisodes は、同じ回のまとめで見送った番組を、理由と、録った局か代わりに録る放送と一緒に返すことと、
+// ルールの同じ回のまとめの設定を保存して返すことを確認する (#1498)。
 func TestSkippedEpisodes(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +115,7 @@ func TestSkippedEpisodes(t *testing.T) {
 }
 
 // TestSkippedEarlierEpisodes は、前の回を録らない設定で見送った番組を、一番大きい話数と一緒に返すことと、
-// ルールの前の回を録らない設定を保存して返し、省けば切になることを確かめる (#1499)。
+// ルールの前の回を録らない設定を保存して返し、省けば切になることを確認する (#1499)。
 func TestSkippedEarlierEpisodes(t *testing.T) {
 	t.Parallel()
 

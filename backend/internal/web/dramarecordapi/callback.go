@@ -15,12 +15,12 @@ import (
 // SettingsPath は、連携を終えたときに戻す画面のパス (設計書 10.3)。アニメの記録先と同じ、アカウントの連携の画面に戻す。
 const SettingsPath = "/settings/account"
 
-// CallbackHandler は、記録先 name から戻ってきた認可を確かめ、ログイン中のユーザーと記録先を連携するハンドラーを返す
+// CallbackHandler は、記録先 name から戻ってきた認可を確認し、ログイン中のユーザーと記録先を連携するハンドラーを返す
 // (GET /internal/auth/<記録先>/callback)。記録先ごとに登録し、記録先をリクエストのパスからは選ばない。
 //
-// 記録先からのリダイレクトなので、Origin を確かめられない。代わりに、state で認可の途中の状態を引き、始めたセッションのまま
-// 戻ってきたことと、応答の iss が記録先の認可サーバーであることを確かめる。結果は、設定の画面へのリダイレクトで伝える。
-// 連携したら connected=<記録先> を、失敗したら error=<理由> を付けて戻す。理由には、トークンなどの中身を入れない。
+// 記録先からのリダイレクトなので、Origin を確認できない。代わりに、state で認可の途中の状態を引き、始めたセッションのまま
+// 戻ってきたことと、応答の iss が記録先の認可サーバーであることを確認する。結果は、設定の画面へのリダイレクトで伝える。
+// 連携したら connected=<記録先> を、失敗したら error=<理由> を付けて戻す。理由には、トークンなどの内容を入れない。
 func CallbackHandler(
 	service *dramarecord.Service, db dramarecord.Database, client func(*http.Request) *auth.ClientInfo, name string, logger *slog.Logger,
 ) http.Handler {

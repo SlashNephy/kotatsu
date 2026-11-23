@@ -36,7 +36,7 @@ func (f *recordingFixture) otherFile(t *testing.T, recordingID uuid.UUID, kind, 
 }
 
 // TestOtherFileHandler は、取り込んだ録画の TS 以外のファイルを、Range に答えながらそのまま流し、
-// ほかの種類のファイルや、ほかの録画のファイルは流さないことを確かめる (設計書 6.3、#308)。
+// ほかの種類のファイルや、ほかの録画のファイルは流さないことを確認する (設計書 6.3、#308)。
 func TestOtherFileHandler(t *testing.T) {
 	t.Parallel()
 

@@ -22,8 +22,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/animerecordapi"
 )
 
-// TestCallbackHandler は、記録先から戻ってきたリクエストを、設定の画面へ戻し、失敗の理由だけを伝えることを確かめる (#927)。
-// state を知らない、ログインしていない、などで連携できなければ、トークンなどの中身を入れずに error=<理由> を付ける。
+// TestCallbackHandler は、記録先から戻ってきたリクエストを、設定の画面へ戻し、失敗の理由だけを伝えることを確認する (#927)。
+// state を知らない、ログインしていない、などで連携できなければ、トークンなどの内容を入れずに error=<理由> を付ける。
 func TestCallbackHandler(t *testing.T) {
 	t.Parallel()
 

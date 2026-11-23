@@ -18,7 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
-// systemSettingsAdministrator は、全体の設定を変える管理者を確かめ、操作者を返す。
+// systemSettingsAdministrator は、全体の設定を変える管理者を確認し、操作者を返す。
 // MCP のクライアントとの連携、データ放送の通信の中継 (#501)、外部プレイヤーと IPTV のクライアント用の URL (#1755)、
 // しょぼいカレンダー、Annict、AniList との連携、TMDB との連携、ニコニコ実況、Have I Been Pwned への照会 (#1869) を変えるときだけ、
 // 外部のサービスに読ませたり、受信機の情報を外部のサーバーへ送らせたり、URL を持つ人に映像を見せたり、外部へ問い合わせ始めたりするかどうかを決める操作なので、
@@ -93,7 +93,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 	}
 }
 
-// drcsReplacementsOf は、外字の置き換えの表を、MD5 の順に並べた GraphQL の形にする (#825)。
+// drcsReplacementsOf は、外字の置き換えのテーブルを、MD5 の順に並べた GraphQL の形にする (#825)。
 func drcsReplacementsOf(replacements map[string]string) []*model.DrcsReplacement {
 	result := make([]*model.DrcsReplacement, 0, len(replacements))
 	for _, md5 := range slices.Sorted(maps.Keys(replacements)) {
@@ -103,7 +103,7 @@ func drcsReplacementsOf(replacements map[string]string) []*model.DrcsReplacement
 	return result
 }
 
-// toDRCSReplacements は、外字の置き換えの表の変更の入力を、MD5 から文字 (nil なら消す) への表にする。
+// toDRCSReplacements は、外字の置き換えのテーブルの変更の入力を、MD5 から文字 (nil なら消す) へのマップにする。
 // 同じ MD5 が 2 度出てきたら、どちらを採るか決められないので拒む。
 func toDRCSReplacements(input []*model.DrcsReplacementInput) (map[string]*string, error) {
 	replacements := make(map[string]*string, len(input))
@@ -119,7 +119,7 @@ func toDRCSReplacements(input []*model.DrcsReplacementInput) (map[string]*string
 }
 
 // jikkyoChannelsOf は、実況のチャンネルの対応を、ネットワーク ID とサービス ID の順に並べた GraphQL の形にする (#1869)。
-// 読めないキーと、ID が 16 ビットに収まらないキーは除く。保存するときに確かめているので、ふつうはない。
+// 読めないキーと、ID が 16 ビットに収まらないキーは除く。保存するときに確認しているので、ふつうはない。
 func jikkyoChannelsOf(channels map[string]string) []*model.JikkyoChannelOverride {
 	result := make([]*model.JikkyoChannelOverride, 0, len(channels))
 	for key, id := range channels {
@@ -136,7 +136,7 @@ func jikkyoChannelsOf(channels map[string]string) []*model.JikkyoChannelOverride
 	return result
 }
 
-// toJikkyoChannels は、実況のチャンネルの対応の変更の入力を、「ネットワーク ID:サービス ID」からチャンネルの ID (nil なら消す) への表にする。
+// toJikkyoChannels は、実況のチャンネルの対応の変更の入力を、「ネットワーク ID:サービス ID」からチャンネルの ID (nil なら消す) へのマップにする。
 // 同じサービスが 2 度出てきたら、どちらを採るか決められないので拒む。
 func toJikkyoChannels(input []*model.JikkyoChannelOverrideInput) (map[string]*string, error) {
 	channels := make(map[string]*string, len(input))

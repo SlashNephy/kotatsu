@@ -71,13 +71,13 @@ func tmdbSeriesIDOf(value int) (int32, error) {
 	return int32(value), nil
 }
 
-// dramaTitleKeyOf は、上書きの変更の入力から、作品名の鍵を返す。番組名と鍵のどちらか 1 つだけを受け付ける。
+// dramaTitleKeyOf は、上書きの変更の入力から、作品名のキーを返す。番組名とキーのどちらか 1 つだけを受け付ける。
 func dramaTitleKeyOf(input *model.DramaTitleOverrideInput) (string, error) {
 	switch {
 	case input.ProgramName != nil && input.TitleKey == nil:
 		return drama.TitleKeyOf(*input.ProgramName), nil
 	case input.ProgramName == nil && input.TitleKey != nil:
-		// 一覧の鍵はもう鍵の形なので、そのまま同じ鍵になる。空白や記号だけの値は空になり、BAD_USER_INPUT にする。
+		// 一覧のキーはもうキーの形なので、そのまま同じキーになる。空白や記号だけの値は空になり、BAD_USER_INPUT にする。
 		return drama.TitleKey(*input.TitleKey), nil
 	default:
 		return "", NewError(CodeBadUserInput, "pass exactly one of programName and titleKey")

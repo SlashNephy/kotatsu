@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	// LivePath は、ライブの実況のコメントを中継する WebSocket のパス。
+	// LivePath は、ライブの実況のコメントをプロキシする WebSocket のパス。
 	LivePath = "/internal/media/jikkyo/{channel}/ws"
 
 	// maxPostRunes は、投稿できるコメントの長さの上限。画面の入力の上限と同じにする。
@@ -46,7 +46,7 @@ const (
 	postErrorFailed  = "COMMENT_POST_FAILED"
 )
 
-// SessionChecker は、接続中のセッションが今も使えるかを確かめる。
+// SessionChecker は、接続中のセッションが今も使えるかを確認する。
 type SessionChecker func(ctx context.Context, sessionID uuid.UUID) (bool, error)
 
 // LiveOptions は、LiveHandler の設定。
@@ -64,7 +64,7 @@ type LiveOptions struct {
 	RevalidateInterval time.Duration
 }
 
-// LiveHandler は、ライブの実況のコメントの受信と投稿を、WebSocket で中継する (GET /internal/media/jikkyo/{channel}/ws、設計書 7.4)。
+// LiveHandler は、ライブの実況のコメントの受信と投稿を、WebSocket でプロキシする (GET /internal/media/jikkyo/{channel}/ws、設計書 7.4)。
 // ブラウザを NX-Jikkyo につながせないのは、視聴者の IP アドレスと見ているチャンネルを、第三者に渡さないためである。
 // 全体の設定とユーザーの設定の両方で実況を有効にしていなければ、404 を返し、NX-Jikkyo にはつながない。
 type LiveHandler struct {
@@ -160,7 +160,7 @@ func (h *LiveHandler) reservePost(userID uuid.UUID, now time.Time) bool {
 	if last, ok := h.lastPosts[userID]; ok && now.Sub(last) < minPostInterval {
 		return false
 	}
-	// 間隔を過ぎた行は、もう判定に使わないので捨てる。
+	// 間隔を過ぎた行は、もう判定に使わないので破棄する。
 	for user, last := range h.lastPosts {
 		if now.Sub(last) >= minPostInterval {
 			delete(h.lastPosts, user)
@@ -252,7 +252,7 @@ func (v *liveViewer) messageOf(event *jikkyo.Event) *serverMessage {
 	}
 }
 
-// revalidate は、接続中に、セッションと実況の設定を確かめ直す。ログアウトしたり、実況を切ったりしたら、外部との通信を続けない。
+// revalidate は、接続中に、セッションと実況の設定を確認し直す。ログアウトしたり、実況を切ったりしたら、外部との通信を続けない。
 func (v *liveViewer) revalidate(ctx context.Context, cancel context.CancelFunc) {
 	ticker := time.NewTicker(v.handler.opts.RevalidateInterval)
 	defer ticker.Stop()
@@ -272,7 +272,7 @@ func (v *liveViewer) revalidate(ctx context.Context, cancel context.CancelFunc) 
 	}
 }
 
-// stillAllowed は、接続を続けてよいかどうかを返す。DB に届かないときは、確かめられないので続ける。
+// stillAllowed は、接続を続けてよいかどうかを返す。DB に届かないときは、確認できないので続ける。
 func (v *liveViewer) stillAllowed(ctx context.Context) bool {
 	h := v.handler
 	usable, err := h.opts.Sessions(ctx, v.principal.SessionID)
@@ -327,7 +327,7 @@ func (v *liveViewer) send(ctx context.Context, text string) string {
 			ChannelID: v.channelID, Cookie: jikkyo.PosterCookie(h.opts.Secret, v.principal.UserID), Receive: false, OnComment: nil, OnStatus: nil,
 		})
 	}
-	// 共有の受信の接続から、投稿の結果より先に自分の投稿が届くことがあるので、投稿する前に自分の ID を覚える。
+	// 共有の受信の接続から、投稿の結果より先に自分の投稿が届くことがあるので、投稿する前に自分の ID を記録する。
 	if err := v.poster.Ready(ctx); err != nil {
 		return postErrorFailed
 	}

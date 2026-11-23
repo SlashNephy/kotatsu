@@ -24,7 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/googleapi"
 )
 
-// TestCallbackHandler は、Google から戻ってきたリクエストを、連携の画面へ戻し、接続したことか、失敗の理由だけを伝えることを確かめる (#1902)。
+// TestCallbackHandler は、Google から戻ってきたリクエストを、連携の画面へ戻し、接続したことか、失敗の理由だけを伝えることを確認する (#1902)。
 func TestCallbackHandler(t *testing.T) {
 	t.Parallel()
 

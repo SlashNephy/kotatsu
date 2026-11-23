@@ -11,7 +11,7 @@ import (
 )
 
 // TestStreamQuality は、録画のセグメントの PID ごとの集計を、PID ごとに足し合わせて返し、
-// 集計のないセグメントは飛ばし、種類の分かったセグメントの種類を使うことを確かめる (#473)。
+// 集計のないセグメントは飛ばし、種類の分かったセグメントの種類を使うことを確認する (#473)。
 func TestStreamQuality(t *testing.T) {
 	t.Parallel()
 

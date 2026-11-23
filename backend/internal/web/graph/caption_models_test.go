@@ -50,7 +50,7 @@ type captionModelSlot struct {
 }
 
 // TestCaptionModels は、管理者が、字幕の自動生成のモデルの状態を見て、ダウンロードを頼み、取り消し、置いたモデルを消せることと、
-// 操作を監査ログに残すこと、管理者でなければ使えないことを確かめる (#1682)。
+// 操作を監査ログに残すこと、管理者でなければ使えないことを確認する (#1682)。
 func TestCaptionModels(t *testing.T) {
 	t.Parallel()
 

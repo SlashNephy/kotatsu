@@ -40,7 +40,7 @@ type animeFollowingWatchingResult struct {
 }
 
 // TestAnimeFollowingWatching は、フォロー中のユーザーが見ている作品のこれからの放送を、取り込んだ本人にだけ返し、
-// 予約できるユーザーだけが、その作品からルールを作れることを確かめる (#1968、設計書 9.7)。
+// 予約できるユーザーだけが、その作品からルールを作れることを確認する (#1968、設計書 9.7)。
 func TestAnimeFollowingWatching(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)

@@ -394,7 +394,7 @@ func TestHandler(t *testing.T) {
 	}
 }
 
-// TestSubscriptionOverSSE は、subscription が SSE で届くことを確かめる。
+// TestSubscriptionOverSSE は、subscription が SSE で届くことを確認する。
 func TestSubscriptionOverSSE(t *testing.T) {
 	t.Parallel()
 
@@ -424,7 +424,7 @@ func TestSubscriptionOverSSE(t *testing.T) {
 	assert.Equal(t, 2, events)
 }
 
-// TestSubscriptionEndsWhenSessionIsRevoked は、接続中の subscription (SSE) が、セッションを失効させたら切れることを確かめる。
+// TestSubscriptionEndsWhenSessionIsRevoked は、接続中の subscription (SSE) が、セッションを失効させたら切れることを確認する。
 func TestSubscriptionEndsWhenSessionIsRevoked(t *testing.T) {
 	t.Parallel()
 

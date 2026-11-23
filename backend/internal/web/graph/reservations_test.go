@@ -115,7 +115,7 @@ func (f *fixture) createProgramReservation(t *testing.T, eventID int) reservatio
 	return got.CreateProgramReservation
 }
 
-// TestReservations は、予約を作り、一覧で取得し、変え、消せることを確かめる。
+// TestReservations は、予約を作り、一覧で取得し、変え、消せることを確認する。
 func TestReservations(t *testing.T) {
 	t.Parallel()
 
@@ -218,7 +218,7 @@ func TestReservations(t *testing.T) {
 	assert.ElementsMatch(t, []string{"reservation.create", "reservation.create", "reservation.update", "reservation.delete"}, actions)
 }
 
-// TestRuleReservations は、ルール予約が一致したルールを持ち、消すと無効になることを確かめる。
+// TestRuleReservations は、ルール予約が一致したルールを持ち、消すと無効になることを確認する。
 func TestRuleReservations(t *testing.T) {
 	t.Parallel()
 
@@ -389,7 +389,7 @@ func TestReservationErrors(t *testing.T) {
 }
 
 // TestBulkReservations は、予約をまとめて無効、有効にし、まとめて消せることと、録画中の予約は無効にも削除にもせず、
-// 見つからない予約と一緒に飛ばして数えることを確かめる (#471)。
+// 見つからない予約と一緒に飛ばして数えることを確認する (#471)。
 func TestBulkReservations(t *testing.T) {
 	t.Parallel()
 

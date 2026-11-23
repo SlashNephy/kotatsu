@@ -17,7 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 
-// tunerVersion は、偽のチューナーサーバーが返す版。
+// tunerVersion は、モックのチューナーサーバーが返すバージョン。
 const tunerVersion = "5.3.2"
 
 const logReportQuery = `query {
@@ -55,7 +55,7 @@ type logReportResult struct {
 	} `json:"logReport"`
 }
 
-// newLogTuner は、/api/log に logHandler で答える偽のチューナーサーバーの Client を作る。logHandler が nil なら、チューナーサーバーは無い。
+// newLogTuner は、/api/log に logHandler で答えるモックのチューナーサーバーの Client を作る。logHandler が nil なら、チューナーサーバーは無い。
 func newLogTuner(t *testing.T, logHandler http.HandlerFunc) logreport.TunerServer {
 	t.Helper()
 	if logHandler == nil {
@@ -78,7 +78,7 @@ func newLogTuner(t *testing.T, logHandler http.HandlerFunc) logreport.TunerServe
 	return client
 }
 
-// tunerSource は、偽のチューナーサーバーの出どころとして返るはずのもの。
+// tunerSource は、モックのチューナーサーバーのソースとして返るはずのもの。
 func tunerSource(total int, failure *string, lines []logLine) *logSource {
 	return &logSource{
 		Kind: "TUNER_SERVER", Total: total, Failure: failure, Version: tunerVersion, OS: "linux", Runtime: "mahiron", Lines: lines,

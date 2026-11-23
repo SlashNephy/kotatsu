@@ -13,8 +13,8 @@ import (
 
 const approveMutation = `mutation($authorizationQuery: String!, $scopes: [String!]!) { approveOAuthAuthorization(query: $authorizationQuery, scopes: $scopes) }`
 
-// TestApproveOAuthAuthorizationRejects は、同意に直近の認証が要り、クエリが読めなければ断ることを確かめる (#963)。
-// 同意から認可コードの発行までは、internal/usecase/oauth のテストで確かめる。
+// TestApproveOAuthAuthorizationRejects は、同意に直近の認証が要り、クエリが読めなければ断ることを確認する (#963)。
+// 同意から認可コードの発行までは、internal/usecase/oauth のテストで確認する。
 func TestApproveOAuthAuthorizationRejects(t *testing.T) {
 	t.Parallel()
 
@@ -40,7 +40,7 @@ func TestApproveOAuthAuthorizationRejects(t *testing.T) {
 	}
 }
 
-// TestOAuthAuthorizationHidesFetchError は、クライアントのメタデータを取りに行けなかった理由を、応答に書かないことを確かめる (#1015)。
+// TestOAuthAuthorizationHidesFetchError は、クライアントのメタデータを取りに行けなかった理由を、応答に書かないことを確認する (#1015)。
 // 理由には、名前を引いたアドレスや DNS のエラーのような、サーバーから見た内側のネットワークが入る。
 func TestOAuthAuthorizationHidesFetchError(t *testing.T) {
 	t.Parallel()
@@ -82,7 +82,7 @@ func (f *fixture) listOAuthGrants(t *testing.T) []oauthGrant {
 	return got.OauthGrants
 }
 
-// TestManageOAuthGrants は、ログイン中のユーザーが、連携中の MCP のクライアントを一覧し、取り消せることを確かめる (#965)。
+// TestManageOAuthGrants は、ログイン中のユーザーが、連携中の MCP のクライアントを一覧し、取り消せることを確認する (#965)。
 func TestManageOAuthGrants(t *testing.T) {
 	t.Parallel()
 

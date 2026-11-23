@@ -37,11 +37,11 @@ const (
 	poolID = "main"
 	// recordingPattern は、録画の再生のパス。
 	recordingPattern = "GET /internal/streams/recordings/{id}"
-	// pollInterval は、追っかけ再生のテストで、ファイルが伸びるのを確かめる間隔。
+	// pollInterval は、追っかけ再生のテストで、ファイルが伸びるのを確認する間隔。
 	pollInterval = 10 * time.Millisecond
 )
 
-// wantIFramePTS は、testdata/ts/test.ts の I フレームの PTS。internal/lib/ts の索引のテストと同じ値で、0.5005 秒 (45045 刻み) ごとに並ぶ。
+// wantIFramePTS は、testdata/ts/test.ts の I フレームの PTS。internal/lib/ts のインデックスのテストと同じ値で、0.5005 秒 (45045 ティック) ごとに並ぶ。
 func wantIFramePTS() []int64 {
 	return []int64{129003, 174048, 219093, 264138, 309183, 354228, 399273, 444318, 489363, 534408, 579453, 624498}
 }
@@ -94,7 +94,7 @@ func newRecordingFixture(t *testing.T, pools map[string]string) *recordingFixtur
 	return f
 }
 
-// serve は、db で録画を引くハンドラーのサーバーを立てる。
+// serve は、db で録画を取得するハンドラーのサーバーを立てる。
 func (f *recordingFixture) serve(t *testing.T, db *pgxpool.Pool) *httptest.Server {
 	t.Helper()
 
@@ -119,7 +119,7 @@ func (f *recordingFixture) recording(t *testing.T, state string) uuid.UUID {
 	return recordingID
 }
 
-// segment は、data のセグメントと、ts.Analyzer で作った索引を、録画のファイルとして置く。
+// segment は、data のセグメントと、ts.Analyzer で作ったインデックスを、録画のファイルとして置く。
 // セグメントの始まりは、録画の始まりから offset 後にする。open なら、書いている途中のセグメントにする。
 func (f *recordingFixture) segment(t *testing.T, recordingID uuid.UUID, name string, data []byte, offset time.Duration, open bool) uuid.UUID {
 	t.Helper()
@@ -207,8 +207,8 @@ func packetAligned(offset int) int {
 	return offset / ts.PacketSize * ts.PacketSize
 }
 
-// TestRecordingHandler は、録画を、指定した位置の手前の I フレームから流し、引き継ぎで重なった区間を切り詰めることを確かめる。
-// 流した TS を解析し直して、I フレームが重複も欠落もなく並ぶことを確かめる (設計書 5.4、7.2)。
+// TestRecordingHandler は、録画を、指定した位置の手前の I フレームから流し、引き継ぎで重なった区間を切り詰めることを確認する。
+// 流した TS を解析し直して、I フレームが重複も欠落もなく並ぶことを確認する (設計書 5.4、7.2)。
 func TestRecordingHandler(t *testing.T) {
 	t.Parallel()
 
@@ -273,7 +273,7 @@ func (f *recordingFixture) getRange(t *testing.T, recordingID uuid.UUID, rangeHe
 	return &fetched{status: resp.StatusCode, contentType: resp.Header.Get("Content-Type"), disposition: resp.Header.Get("Content-Disposition"), body: body}, resp.Header
 }
 
-// TestRecordingHandlerServesRanges は、録画を終えた録画に、長さを返し、Range に 206 で答えることを確かめる (#535)。
+// TestRecordingHandlerServesRanges は、録画を終えた録画に、長さを返し、Range に 206 で答えることを確認する (#535)。
 // 外部プレイヤーは ?start= を知らず、HTTP の Range でシークする。範囲は、引き継ぎで切り詰めた後の流れの中のバイト位置とする。
 func TestRecordingHandlerServesRanges(t *testing.T) {
 	t.Parallel()
@@ -316,7 +316,7 @@ func TestRecordingHandlerServesRanges(t *testing.T) {
 	}
 }
 
-// TestRecordingHandlerDownloads は、download を付けたら、録画を終えた録画を、録画ファイルの名前で保存させることを確かめる (#474)。
+// TestRecordingHandlerDownloads は、download を付けたら、録画を終えた録画を、録画ファイルの名前で保存させることを確認する (#474)。
 // 録画中の録画は、長さが決まらないので、保存させない。
 func TestRecordingHandlerDownloads(t *testing.T) {
 	t.Parallel()
@@ -358,7 +358,7 @@ func TestRecordingHandlerDownloads(t *testing.T) {
 }
 
 // TestRecordingHandlerDownloadsWhileDisabled は、管理者が録画のダウンロードを有効にしていなければ、download を断り、
-// download を付けない配信 (ブラウザ内の再生と、端末に保存) は今までどおり流すことを確かめる (#1762)。
+// download を付けない配信 (ブラウザ内の再生と、端末に保存) は今までどおり流すことを確認する (#1762)。
 func TestRecordingHandlerDownloadsWhileDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -390,8 +390,8 @@ func TestRecordingHandlerDownloadsWhileDisabled(t *testing.T) {
 	}
 }
 
-// TestRecordingHandlerDownloadsWithoutSettings は、録画のダウンロードを有効にしているかを読めなければ、download を断ることを確かめる (#1762)。
-// DB に届かず、覚えた設定もなければ 503、そのほかの誤りなら 500 を返す。
+// TestRecordingHandlerDownloadsWithoutSettings は、録画のダウンロードを有効にしているかを読めなければ、download を断ることを確認する (#1762)。
+// DB に届かず、キャッシュした設定もなければ 503、そのほかの誤りなら 500 を返す。
 func TestRecordingHandlerDownloadsWithoutSettings(t *testing.T) {
 	t.Parallel()
 
@@ -418,7 +418,7 @@ func TestRecordingHandlerDownloadsWithoutSettings(t *testing.T) {
 }
 
 // TestRecordingHandlerStreamsRecordingInProgress は、録画中の録画には、長さが決まらないので Range に答えず、
-// 今までどおり 200 で流し続けることを確かめる (#535)。
+// 今までどおり 200 で流し続けることを確認する (#535)。
 func TestRecordingHandlerStreamsRecordingInProgress(t *testing.T) {
 	t.Parallel()
 
@@ -442,7 +442,7 @@ func TestRecordingHandlerStreamsRecordingInProgress(t *testing.T) {
 	assert.Equal(t, data[:ts.PacketSize], head)
 }
 
-// TestRecordingHandlerStartsAtIndexedOffset は、指定した位置から流すとき、索引が指す I フレームのパケットから流すことを確かめる。
+// TestRecordingHandlerStartsAtIndexedOffset は、指定した位置から流すとき、インデックスが指す I フレームのパケットから流すことを確認する。
 func TestRecordingHandlerStartsAtIndexedOffset(t *testing.T) {
 	t.Parallel()
 
@@ -459,7 +459,7 @@ func TestRecordingHandlerStartsAtIndexedOffset(t *testing.T) {
 	assert.Equal(t, []uint16{0x0000, 0x01F0}, []uint16{pidOf(prelude[:ts.PacketSize]), pidOf(prelude[ts.PacketSize:])}, "PAT and PMT")
 }
 
-// TestRecordingHandlerReportsStartOnHead は、HEAD でも、流し始める位置を返すことを確かめる (#536)。
+// TestRecordingHandlerReportsStartOnHead は、HEAD でも、流し始める位置を返すことを確認する (#536)。
 // 画面は、先に HEAD で位置を引いて、再生位置の起点にできる。
 func TestRecordingHandlerReportsStartOnHead(t *testing.T) {
 	t.Parallel()
@@ -482,7 +482,7 @@ func TestRecordingHandlerReportsStartOnHead(t *testing.T) {
 }
 
 // TestRecordingHandlerFollowsGrowingFile は、録画中のファイルの末尾まで流した後も、ファイルが伸びるのを待って流し続け、
-// 書き終えたら流し終えることを確かめる (追っかけ再生)。
+// 書き終えたら流し終えることを確認する (追っかけ再生)。
 func TestRecordingHandlerFollowsGrowingFile(t *testing.T) {
 	t.Parallel()
 
@@ -520,7 +520,7 @@ func TestRecordingHandlerFollowsGrowingFile(t *testing.T) {
 }
 
 // TestRecordingHandlerFollowsGrowingFileWhileDatabaseIsUnreachable は、追っかけ再生の途中で DB に届かなくなっても、
-// ファイルが伸びた分を流し続け、DB に届くようになってから、録画が終わったと分かって流し終えることを確かめる (#1084)。
+// ファイルが伸びた分を流し続け、DB に届くようになってから、録画が終わったと分かって流し終えることを確認する (#1084)。
 func TestRecordingHandlerFollowsGrowingFileWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -578,8 +578,8 @@ func TestRecordingHandlerFollowsGrowingFileWhileDatabaseIsUnreachable(t *testing
 	}
 }
 
-// TestRecordingHandlerEndsWhenSegmentClosesShort は、索引が指す位置までファイルが伸びないまま、
-// 書いている途中のセグメントを閉じたら、待ち続けずに流し終えることを確かめる。
+// TestRecordingHandlerEndsWhenSegmentClosesShort は、インデックスが指す位置までファイルが伸びないまま、
+// 書いている途中のセグメントを閉じたら、待ち続けずに流し終えることを確認する。
 func TestRecordingHandlerEndsWhenSegmentClosesShort(t *testing.T) {
 	t.Parallel()
 
@@ -628,7 +628,7 @@ func TestRecordingHandlerEndsWhenSegmentClosesShort(t *testing.T) {
 	assert.Empty(t, rest)
 }
 
-// TestRecordingHandlerErrors は、録画を流せない理由に応じた状態を返すことを確かめる。
+// TestRecordingHandlerErrors は、録画を流せない理由に応じた状態を返すことを確認する。
 func TestRecordingHandlerErrors(t *testing.T) {
 	t.Parallel()
 
@@ -677,7 +677,7 @@ func TestRecordingHandlerErrors(t *testing.T) {
 }
 
 // TestRecordingHandlerFollowsHandover は、追っかけ再生の途中で引き継ぎが起きても、新しいセグメントを続けて流し、
-// 重なった区間を、流し終えたセグメントの最後の I フレームより後から流すことを確かめる (設計書 5.4)。
+// 重なった区間を、流し終えたセグメントの最後の I フレームより後から流すことを確認する (設計書 5.4)。
 func TestRecordingHandlerFollowsHandover(t *testing.T) {
 	t.Parallel()
 
@@ -713,7 +713,7 @@ func TestRecordingHandlerFollowsHandover(t *testing.T) {
 }
 
 // TestRecordingHandlerAcrossHandovers は、追っかけ再生の途中で引き継ぎが重なって起き、録画が終わっても、
-// 録画が終わる前にできたセグメントをすべて流し、セグメントどうしの重なりも切り詰めることを確かめる (設計書 5.4)。
+// 録画が終わる前にできたセグメントをすべて流し、セグメントどうしの重なりも切り詰めることを確認する (設計書 5.4)。
 func TestRecordingHandlerAcrossHandovers(t *testing.T) {
 	t.Parallel()
 
@@ -760,7 +760,7 @@ func TestRecordingHandlerAcrossHandovers(t *testing.T) {
 }
 
 // TestRecordingHandlerTrimsOpenPredecessor は、引き継ぎの最中で、前後のセグメントをどちらも書いている途中でも、
-// 前のセグメントを切り詰める位置で止めることを確かめる。
+// 前のセグメントを切り詰める位置で止めることを確認する。
 func TestRecordingHandlerTrimsOpenPredecessor(t *testing.T) {
 	t.Parallel()
 

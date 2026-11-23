@@ -47,7 +47,7 @@ func newSigner(t *testing.T, key string) *stream.Signer {
 	return signer
 }
 
-// TestSigner は、署名付き URL が、署名したリソース、ユーザー、有効期限の組でだけ通ることを確かめる (設計書 9.6)。
+// TestSigner は、署名付き URL が、署名したリソース、ユーザー、有効期限の組でだけ通ることを確認する (設計書 9.6)。
 func TestSigner(t *testing.T) {
 	t.Parallel()
 
@@ -135,7 +135,7 @@ func TestNewSignerRequiresSecret(t *testing.T) {
 }
 
 // TestAuthorizer は、画面の経路はログイン中のセッションでだけ、外部プレイヤーの経路は無効にしていないユーザーの署名付き URL でだけ、
-// 映像を見られることを確かめる (設計書 9.6、#1605)。もう一方の経路の認証は受け付けない。
+// 映像を見られることを確認する (設計書 9.6、#1605)。もう一方の経路の認証は受け付けない。
 func TestAuthorizer(t *testing.T) {
 	t.Parallel()
 
@@ -206,7 +206,7 @@ func TestAuthorizer(t *testing.T) {
 }
 
 // TestAuthorizerWhileDatabaseIsUnreachable は、DB に届かない間は、DB が止まる前に認可できたセッションと署名付き URL のユーザーに限って、
-// 覚えた結果で映像を見られることを確かめる (#1084)。
+// キャッシュした結果で映像を見られることを確認する (#1084)。
 func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -290,7 +290,7 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 }
 
 // TestAuthorizerFollowsExternalPlayerURLsSetting は、管理者が外部プレイヤー用の URL を有効にしている間だけ、
-// 署名付き URL で映像を見られることを確かめる (#1755)。無効にしたら、期限の前に発行した URL も、その場で断る。
+// 署名付き URL で映像を見られることを確認する (#1755)。無効にしたら、期限の前に発行した URL も、その場で断る。
 func TestAuthorizerFollowsExternalPlayerURLsSetting(t *testing.T) {
 	t.Parallel()
 
@@ -338,7 +338,7 @@ func TestAuthorizerFollowsExternalPlayerURLsSetting(t *testing.T) {
 }
 
 // TestAuthorizerStopsOpenStreams は、署名付き URL で流している間に、管理者が外部プレイヤー用の URL を無効にするか、
-// URL を取り消すか (#1757)、URL を発行したユーザーを無効にしたら、開いたままの配信も止めることを確かめる (#1755)。
+// URL を取り消すか (#1757)、URL を発行したユーザーを無効にしたら、開いたままの配信も止めることを確認する (#1755)。
 func TestAuthorizerStopsOpenStreams(t *testing.T) {
 	t.Parallel()
 

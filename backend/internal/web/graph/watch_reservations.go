@@ -15,7 +15,7 @@ import (
 )
 
 // setWatchReservation は、ログイン中のユーザーの、番組の視聴予約を付け外しする (設計書 4.8)。
-// 閲覧だけのユーザーも使える。同じユーザーのほかの端末に知らせる。
+// 閲覧だけのユーザーも使える。同じユーザーのほかの端末に通知する。
 func (r *Resolver) setWatchReservation(ctx context.Context, programID string, reserved bool) (*model.Program, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -112,7 +112,7 @@ func (r *Resolver) watchReminderSettings(ctx context.Context) (*model.WatchRemin
 	return &model.WatchReminderSettings{MinutesBefore: minutes}, nil
 }
 
-// updateWatchReminderSettings は、視聴予約の通知を放送の何分前に送るかを変え、同じユーザーのほかの端末に知らせる。
+// updateWatchReminderSettings は、視聴予約の通知を放送の何分前に送るかを変え、同じユーザーのほかの端末に通知する。
 func (r *Resolver) updateWatchReminderSettings(ctx context.Context, minutesBefore int) (*model.WatchReminderSettings, error) {
 	principal, err := viewer(ctx)
 	if err != nil {

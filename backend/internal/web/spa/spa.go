@@ -23,7 +23,7 @@ const (
 )
 
 // ContentSecurityPolicy は、nonce を使う、index.html の Content Security Policy を返す (設計書 10.4)。
-// 明示的に許すのは、WebAssembly の実行だけにする。実況のコメントも tenban が中継するので、外部への接続は許さない。
+// 明示的に許すのは、WebAssembly の実行だけにする。実況のコメントも tenban がプロキシするので、外部への接続は許さない。
 // nonce は、Mantine が差し込む <style> と、Vite が出力する <script> と <link> に付く。
 func ContentSecurityPolicy(nonce string) string {
 	return strings.Join([]string{
@@ -52,7 +52,7 @@ func ContentSecurityPolicy(nonce string) string {
 type Handler struct {
 	app   fs.FS
 	files http.Handler
-	// built は、SPA がビルドされているかどうか。index はビルドされているときだけ中身がある。
+	// built は、SPA がビルドされているかどうか。index はビルドされているときだけ内容がある。
 	built  bool
 	index  []byte
 	logger *slog.Logger
@@ -107,7 +107,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, name string) {
-	// Go の mime パッケージが知らない拡張子は、中身から推測させずに型を決める。
+	// Go の mime パッケージが知らない拡張子は、内容から推測させずに型を決める。
 	if path.Ext(name) == ".webmanifest" {
 		w.Header().Set("Content-Type", "application/manifest+json")
 	}

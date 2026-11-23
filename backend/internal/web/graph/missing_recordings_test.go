@@ -19,7 +19,7 @@ const (
 	remainingRecordingName = "残っている録画"
 )
 
-// TestMissingRecordings は、管理者が、ファイルの見つからない録画を探して DB から消せ、ほかのロールは使えないことを確かめる。
+// TestMissingRecordings は、管理者が、ファイルの見つからない録画を探して DB から消せ、ほかのロールは使えないことを確認する。
 func TestMissingRecordings(t *testing.T) {
 	t.Parallel()
 

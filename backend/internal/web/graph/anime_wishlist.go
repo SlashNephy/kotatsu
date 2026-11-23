@@ -74,7 +74,7 @@ func (r *Resolver) animeWishlist(ctx context.Context) (*model.AnimeWishlist, *an
 	return result, wishlist, nil
 }
 
-// wishlistPrograms は、候補の放送の番組を、番組表と同じ形で引く。
+// wishlistPrograms は、候補の放送の番組を、番組表と同じ形で取得する。
 func (r *Resolver) wishlistPrograms(ctx context.Context, works []*animerecord.WishlistWork) (map[string]*model.Program, error) {
 	serviceIDs, eventIDs := []int64{}, []int64{}
 	for _, work := range works {

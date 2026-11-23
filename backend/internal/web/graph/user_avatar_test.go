@@ -10,7 +10,7 @@ import (
 
 const avatarQuery = `{ viewer { avatarUrl } }`
 
-// TestViewerAvatarURL は、IdP が picture を返したユーザーにだけ、アイコンを中継する URL を返すことを確かめる (#778)。
+// TestViewerAvatarURL は、IdP が picture を返したユーザーにだけ、アイコンをプロキシする URL を返すことを確認する (#778)。
 func TestViewerAvatarURL(t *testing.T) {
 	t.Parallel()
 

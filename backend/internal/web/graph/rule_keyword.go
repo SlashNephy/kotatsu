@@ -11,9 +11,9 @@ import (
 
 // ruleKeyword は、番組からルールを作るときに、番組名のキーワードにする作品名を返す (#1240、#2041)。
 // 番組名から読んだ作品名 (domain.RuleKeyword) が「作品名 副題」のように空白で区切った語を持ち、番組に話数があれば、
-// 同じサービスの番組表のほかの回と突き合わせ、回ごとに変わる副題を除く。ほかの回のキーワードが、語の並びの頭の部分で一致し、
+// 同じサービスの番組表のほかの回と照合し、回ごとに変わるサブタイトルを除く。ほかの回のキーワードが、語の並びの先頭の部分で一致し、
 // その後ろだけが違えば (作品名 霧の朝 #6、作品名: 霧の朝 #6、作品名 #7)、一致した部分を作品名とする。長い部分から順に探す。
-// 話数のない番組とは突き合わせない。頭の語が同じだけの別の番組 (MUSIC STATION と MUSIC BLISS #26) で、作品名を削りすぎないためである。
+// 話数のない番組とは照合しない。頭の語が同じだけの別の番組 (MUSIC STATION と MUSIC BLISS #26) で、作品名を削りすぎないためである。
 func (r *Resolver) ruleKeyword(ctx context.Context, p *model.Program) (string, error) {
 	keyword := domain.RuleKeyword(p.Name)
 	prefixes := domain.RuleKeywordPrefixes(keyword)

@@ -117,7 +117,7 @@ func (r *Resolver) unsubscribeWebPush(ctx context.Context, endpoint string) (boo
 	return r.webPush.Unsubscribe(ctx, r.db, principal.UserID, endpoint)
 }
 
-// decodeKey は、PushSubscription の鍵を読む。toJSON() は詰め物のない base64url を返すが、詰め物があっても受け付ける。
+// decodeKey は、PushSubscription のキーを読む。toJSON() は詰め物のない base64url を返すが、詰め物があっても受け付ける。
 func decodeKey(value string) ([]byte, error) {
 	return base64.RawURLEncoding.DecodeString(strings.TrimRight(value, "="))
 }

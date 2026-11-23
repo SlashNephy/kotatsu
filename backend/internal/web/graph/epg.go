@@ -47,7 +47,7 @@ func parseServiceGlobalID(globalID string) (int64, error) {
 	return parseServiceID(raw)
 }
 
-// parseServiceID は、Service の ID の中身から、Mirakurun のサービス ID を取り出す。
+// parseServiceID は、Service の ID の内容から、Mirakurun のサービス ID を取り出す。
 func parseServiceID(raw string) (int64, error) {
 	id, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
@@ -103,7 +103,7 @@ func toService(row *domain.Service) *model.Service {
 }
 
 func toChannelType(row *domain.ChannelType) *model.ChannelType {
-	// サービスを持つかどうかは、リゾルバが dataloader で引く。
+	// サービスを持つかどうかは、リゾルバが dataloader で取得する。
 	return &model.ChannelType{Type: row.Type, DisplayName: row.DisplayName, SortOrder: int(row.SortOrder), HasServices: false}
 }
 

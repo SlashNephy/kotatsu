@@ -19,7 +19,7 @@ func (r *Resolver) pinnedServices(ctx context.Context) ([]*model.Service, error)
 	return r.pinnedServicesOf(ctx, principal.UserID)
 }
 
-// setServicePinned は、サービスをピン留めするか外し、ほかの端末に知らせる。
+// setServicePinned は、サービスをピン留めするか外し、ほかの端末に通知する。
 func (r *Resolver) setServicePinned(ctx context.Context, globalID string, pinned bool) ([]*model.Service, error) {
 	principal, err := viewer(ctx)
 	if err != nil {

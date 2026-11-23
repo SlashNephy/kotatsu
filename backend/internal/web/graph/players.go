@@ -39,7 +39,7 @@ func parsePlayerID(globalID string) (uuid.UUID, error) {
 	return playerID, nil
 }
 
-// playerState は、プレイヤーが送った状態を確かめ、DB に書く JSON にする。
+// playerState は、プレイヤーが送った状態を確認し、DB に書く JSON にする。
 func playerState(state *model.PlayerStateInput) ([]byte, error) {
 	tooLong := func(s *string) bool { return s != nil && utf8.RuneCountInString(*s) > maxPlayerText }
 	if len(state.Audios) > maxPlayerAudios || len(state.KeyGroups) > maxPlayerKeyGroups ||
@@ -65,7 +65,7 @@ func playerState(state *model.PlayerStateInput) ([]byte, error) {
 	return data, nil
 }
 
-// playerCommand は、操作を確かめ、DB に書く JSON にする。操作の種類ごとに、要る値があるかを確かめる。
+// playerCommand は、操作を確認し、DB に書く JSON にする。操作の種類ごとに、要る値があるかを確認する。
 func playerCommand(command *model.PlayerCommandInput) ([]byte, error) {
 	valid := true
 	switch command.Type {
@@ -96,8 +96,8 @@ func playerCommand(command *model.PlayerCommandInput) ([]byte, error) {
 	return data, nil
 }
 
-// openTarget は、開かせるもの (サービスか録画のどちらか 1 つ) の ID が正しいかを確かめる (#802)。
-// サービスや録画があるかは確かめない。開いた画面が、見つからないことを示す。
+// openTarget は、開かせるもの (サービスか録画のどちらか 1 つ) の ID が正しいかを確認する (#802)。
+// サービスや録画があるかは確認しない。開いた画面が、見つからないことを示す。
 func openTarget(serviceID, recordingID *string) bool {
 	switch {
 	case serviceID != nil && recordingID == nil:
@@ -158,7 +158,7 @@ func (r *Resolver) currentPlayer(ctx context.Context, principal *auth.Principal,
 	return nil, NewError(CodeNotFound, "player not found")
 }
 
-// subscribePlayersChanged は、ログイン中のユーザーのプレイヤーの一覧の版を、今の版から送り、上がるたびに送る。
+// subscribePlayersChanged は、ログイン中のユーザーのプレイヤーの一覧のバージョンを、今のバージョンから送り、上がるたびに送る。
 func (r *Resolver) subscribePlayersChanged(ctx context.Context) (<-chan int, error) {
 	if r.players == nil || r.changes == nil {
 		return nil, errPlayersUnavailable
@@ -167,7 +167,7 @@ func (r *Resolver) subscribePlayersChanged(ctx context.Context) (<-chan int, err
 	if err != nil {
 		return nil, err
 	}
-	// 版を読む前に購読し、読んでから購読するまでの間の変更を取りこぼさないようにする。
+	// バージョンを読む前に購読し、読んでから購読するまでの間の変更を取りこぼさないようにする。
 	wake, unsubscribe := r.changes.Subscribe()
 	channelVersion := r.changes.Version(player.NotifyChannel)
 	version, err := r.players.Version(ctx, principal.UserID)

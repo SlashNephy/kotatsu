@@ -97,7 +97,7 @@ func program() domain.Program {
 	}
 }
 
-// TestPlaylist は、サービスごとに、無変換の TS のストリームとロゴと、XMLTV のチャンネルの ID を書いた M3U を作ることを確かめる (#1324)。
+// TestPlaylist は、サービスごとに、無変換の TS のストリームとロゴと、XMLTV のチャンネルの ID を書いた M3U を作ることを確認する (#1324)。
 func TestPlaylist(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +113,7 @@ func TestPlaylist(t *testing.T) {
 	assert.Equal(t, want, iptvapi.Playlist(base, services()))
 }
 
-// TestGuide は、M3U と同じチャンネルの ID で、番組を UTC の時刻で書いた XMLTV を作ることを確かめる (#1324)。
+// TestGuide は、M3U と同じチャンネルの ID で、番組を UTC の時刻で書いた XMLTV を作ることを確認する (#1324)。
 func TestGuide(t *testing.T) {
 	t.Parallel()
 
@@ -161,7 +161,7 @@ func TestGuide(t *testing.T) {
 	assert.Nil(t, doc.Programmes[1].Desc)
 }
 
-// TestHandler は、パスの秘密の値で認証し、違えば 404 を返し、URL を途中のキャッシュに残させないことを確かめる (#1324)。
+// TestHandler は、パスの秘密の値で認証し、違えば 404 を返し、URL を途中のキャッシュに残させないことを確認する (#1324)。
 func TestHandler(t *testing.T) {
 	t.Parallel()
 
@@ -229,7 +229,7 @@ func (g *switchGate) IPTVFeedsEnabled(context.Context) (bool, error) {
 }
 
 // TestStopWhenRevoked は、IPTV のストリームを流している間に、管理者が無効にしたら、流しているストリームも止め、
-// 使えるうちは止めないことを確かめる (#1755)。
+// 使えるうちは止めないことを確認する (#1755)。
 func TestStopWhenRevoked(t *testing.T) {
 	t.Parallel()
 

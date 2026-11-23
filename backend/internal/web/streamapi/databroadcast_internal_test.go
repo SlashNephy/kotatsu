@@ -23,7 +23,7 @@ func siPacket(pid uint16, fill byte) []byte {
 }
 
 // TestDataBroadcastWriterSplitsPackets は、パケットの途中で切れた書き込みや、境目のずれがあっても、
-// パケットを正しく切り分けて、残すパケットだけを書くことを確かめる。
+// パケットを正しく切り分けて、残すパケットだけを書くことを確認する。
 func TestDataBroadcastWriterSplitsPackets(t *testing.T) {
 	t.Parallel()
 

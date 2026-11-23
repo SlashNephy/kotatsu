@@ -13,21 +13,21 @@ import (
 )
 
 const (
-	// ProbePath は、試しのデータのパス (設計書 7.3、#1513)。
+	// ProbePath は、プローブのデータのパス (設計書 7.3、#1513)。
 	ProbePath = "/internal/streams/probe"
-	// ProbeMinBytes と ProbeMaxBytes は、1 回に返す試しのデータの量の下限と上限。範囲の外は 400 にする。
+	// ProbeMinBytes と ProbeMaxBytes は、1 回に返すプローブのデータの量の下限と上限。範囲の外は 400 にする。
 	// 下限は、往復の待ちに埋もれずに速さを測れる量。上限は、再生中の映像を細らせない量。どちらも初期値 (設計書の付録 A)。
 	ProbeMinBytes = 64 << 10
 	ProbeMaxBytes = 8 << 20
-	// ProbeInterval は、同じユーザーに試しのデータを返す最短の間隔 (試しの間隔の制限)。画面が試す間隔 (30 秒) より短くし、
+	// ProbeInterval は、同じユーザーにプローブのデータを返す最短の間隔 (プローブの間隔の制限)。画面が試す間隔 (30 秒) より短くし、
 	// ふつうの使い方で 429 にならないようにする。初期値 (設計書の付録 A)。
 	ProbeInterval = 5 * time.Second
 	// probeBlockSize は、使い回す乱数の大きさ。返す量がこれより多ければ、繰り返して返す。
 	probeBlockSize = 256 << 10
 )
 
-// ProbeHandler は、画質を上げる前に回線の余裕を確かめる、試しのデータを返す (GET /internal/streams/probe?bytes=N、設計書 7.3、#1513)。
-// 中身は、起動したときに作った乱数の使い回し。圧縮されないように乱数にする。キャッシュさせない。
+// ProbeHandler は、画質を上げる前に回線の余裕を確認する、プローブのデータを返す (GET /internal/streams/probe?bytes=N、設計書 7.3、#1513)。
+// 内容は、起動したときに作った乱数の使い回し。圧縮されないように乱数にする。キャッシュさせない。
 // 同じユーザーには、ProbeInterval に 1 回まで返し、超えたら 429 と Retry-After を返す。数えるのはこのインスタンスの中だけ。
 // ログイン中のセッションでだけ受け付けるので (Authorizer.Session で包む)、ユーザーごとに数える。
 type ProbeHandler struct {
@@ -91,7 +91,7 @@ func (h *ProbeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// reserve は、key に試しのデータを返してよければ、その時刻を記録して 0 を返す。まだ返せなければ、返せるまでの時間を返す。
+// reserve は、key にプローブのデータを返してよければ、その時刻を記録して 0 を返す。まだ返せなければ、返せるまでの時間を返す。
 func (h *ProbeHandler) reserve(key string) time.Duration {
 	now := h.clock.Now()
 	h.mu.Lock()

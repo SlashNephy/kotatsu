@@ -15,7 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 )
 
-// defaultPort は、scheme の既定のポートを返す。Origin では省かれるので、比べる前に取り除く。
+// defaultPort は、scheme の既定のポートを返す。Origin では省かれるので、比較する前に取り除く。
 func defaultPort(scheme string) string {
 	switch strings.ToLower(scheme) {
 	case "http":

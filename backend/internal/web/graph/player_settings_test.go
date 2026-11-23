@@ -15,7 +15,7 @@ type playerSettings struct {
 	CaptionsEnabled bool `json:"captionsEnabled"`
 }
 
-// TestPlayerSettings は、プレイヤーの設定を、省いた項目を変えずに変えられ、ほかの端末に知らせることを確かめる。
+// TestPlayerSettings は、プレイヤーの設定を、省いた項目を変えずに変えられ、ほかの端末に通知することを確認する。
 func TestPlayerSettings(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ type commentSettings struct {
 
 const commentSettingsFields = `comments { opacity speed scale showAll mutedKeywords { text match } mutedUsers mutedCommands mixOtherBroadcasts }`
 
-// TestCommentSettings は、実況のコメントの設定を、既定値から置き換えられ、ほかの項目を変えず、範囲の外は断ることを確かめる (#488)。
+// TestCommentSettings は、実況のコメントの設定を、既定値から置き換えられ、ほかの項目を変えず、範囲の外は断ることを確認する (#488)。
 func TestCommentSettings(t *testing.T) {
 	t.Parallel()
 
@@ -164,7 +164,7 @@ type captionSettings struct {
 
 const captionSettingsFields = `captions { superimposeLive superimposeRecorded stroke backgroundOpacity }`
 
-// TestCaptionSettings は、字幕の設定を、既定値から変えて残し、範囲の外の値を断ることを確かめる (#491)。
+// TestCaptionSettings は、字幕の設定を、既定値から変えて残し、範囲の外の値を断ることを確認する (#491)。
 func TestCaptionSettings(t *testing.T) {
 	t.Parallel()
 
@@ -216,7 +216,7 @@ type preference struct {
 	Value string `json:"value"`
 }
 
-// TestPreferences は、端末をまたいで同期する設定 (#1862) を、渡したキーだけ置き換えて消せ、許していないキーと長すぎる値を断ることを確かめる。
+// TestPreferences は、端末をまたいで同期する設定 (#1862) を、渡したキーだけ置き換えて消せ、許していないキーと長すぎる値を断ることを確認する。
 func TestPreferences(t *testing.T) {
 	t.Parallel()
 

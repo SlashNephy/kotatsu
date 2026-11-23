@@ -5,7 +5,7 @@ type AnimeFollowingWatcher {
   username: String!
   "画面に出す名前。"
   name: String!
-  "アバターを tenban が中継する URL のパス。アバターがなければ null。"
+  "アバターを tenban がプロキシする URL のパス。アバターがなければ null。"
   avatarUrl: String
   "記録先のユーザーのページ。"
   profileUrl: String!

@@ -16,7 +16,7 @@ import (
 const frame = 500500 * time.Microsecond
 
 // TestRecordingKeyframesAndSeek は、録画の I フレームの時間を、引き継ぎで切り詰める区間を除いて並べ、
-// 流し始める位置を、その時間の手前の I フレームに合わせることを確かめる。
+// 流し始める位置を、その時間の手前の I フレームに合わせることを確認する。
 func TestRecordingKeyframesAndSeek(t *testing.T) {
 	t.Parallel()
 
@@ -65,7 +65,7 @@ func TestRecordingKeyframesAndSeek(t *testing.T) {
 	}
 }
 
-// TestRecordingSourceOpenErrors は、録画を開けない理由を返すことを確かめる。
+// TestRecordingSourceOpenErrors は、録画を開けない理由を返すことを確認する。
 func TestRecordingSourceOpenErrors(t *testing.T) {
 	t.Parallel()
 

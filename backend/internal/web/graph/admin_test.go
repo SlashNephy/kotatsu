@@ -85,7 +85,7 @@ func (f *fixture) record(t *testing.T, event *audit.Event) {
 	}))
 }
 
-// TestAuditEvents は、管理者が監査ログを、新しい順に、絞り込んでページを送りながら読めることを確かめる。
+// TestAuditEvents は、管理者が監査ログを、新しい順に、絞り込んでページを送りながら読めることを確認する。
 func TestAuditEvents(t *testing.T) {
 	t.Parallel()
 
@@ -168,7 +168,7 @@ func TestAuditEvents(t *testing.T) {
 	}
 }
 
-// TestSystemStatus は、管理者が、インスタンス、リース、チューナー、保存先プールの状態を読めることを確かめる。
+// TestSystemStatus は、管理者が、インスタンス、リース、チューナー、保存先プールの状態を読めることを確認する。
 func TestSystemStatus(t *testing.T) {
 	t.Parallel()
 
@@ -253,7 +253,7 @@ func TestSystemStatus(t *testing.T) {
 	assert.Equal(t, mountMain, status.Pools[0].Path)
 }
 
-// TestSystemStatusBeforeChecks は、まだ何も確かめていないときも、空の状態を返すことを確かめる。
+// TestSystemStatusBeforeChecks は、まだ何も確認していないときも、空の状態を返すことを確認する。
 func TestSystemStatusBeforeChecks(t *testing.T) {
 	t.Parallel()
 
@@ -278,7 +278,7 @@ func TestSystemStatusBeforeChecks(t *testing.T) {
 }
 
 // TestStoragePoolNames は、保存先プールの名前を、閲覧だけのユーザーも読めることと、
-// このインスタンスにマウントしたプールと、設定を保存したプールを合わせて返すことを確かめる (#463)。
+// このインスタンスにマウントしたプールと、設定を保存したプールを合わせて返すことを確認する (#463)。
 func TestStoragePoolNames(t *testing.T) {
 	t.Parallel()
 
@@ -316,7 +316,7 @@ func TestStoragePoolNames(t *testing.T) {
 	}
 }
 
-// TestResetRecordingFailureCounts は、管理者が、理由ごとに録画の失敗の累計を 0 に戻し、監査ログに残すことを確かめる (#1035)。
+// TestResetRecordingFailureCounts は、管理者が、理由ごとに録画の失敗の累計を 0 に戻し、監査ログに残すことを確認する (#1035)。
 func TestResetRecordingFailureCounts(t *testing.T) {
 	t.Parallel()
 

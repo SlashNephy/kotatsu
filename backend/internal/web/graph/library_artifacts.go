@@ -37,7 +37,7 @@ func (r *Resolver) libraryArtifacts(ctx context.Context) (*model.LibraryArtifact
 }
 
 // clearLibraryArtifacts は、データディレクトリの、ライブラリのファイルの生成物を丸ごと消す (設計書 5.8、#1896)。
-// 同じデータディレクトリをマウントした tenban が消す。nekonote のジョブにしないのは、この tenban が作っている途中の索引を、
+// 同じデータディレクトリをマウントした tenban が消す。nekonote のジョブにしないのは、この tenban が作っている途中のインデックスを、
 // 取りやめてから消すためである。まだ動いていないライブラリのジョブの行も消す。
 // 家族の中で完結する管理の操作なので、再認証は求めない (設計書 9.5)。
 func (r *Resolver) clearLibraryArtifacts(ctx context.Context) (*model.LibraryArtifacts, error) {

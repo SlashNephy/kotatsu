@@ -176,7 +176,7 @@ func post(t *testing.T, conn *websocket.Conn, id int, text string) *liveMessage 
 	return read(t, conn, resultKey)
 }
 
-// TestLiveHandlerOptIn は、実況を使えないときは NX-Jikkyo につながないことを確かめる (設計書 0.3、7.4)。
+// TestLiveHandlerOptIn は、実況を使えないときは NX-Jikkyo につながないことを確認する (設計書 0.3、7.4)。
 func TestLiveHandlerOptIn(t *testing.T) {
 	t.Parallel()
 
@@ -293,7 +293,7 @@ func TestLiveHandlerRefusesRapidPosts(t *testing.T) {
 	assert.Len(t, f.nx.Posts(), 1, "NX-Jikkyo の連投の制限に当たらないよう、ここで止める")
 }
 
-// TestLiveHandlerRefusesRapidPostsAcrossConnections は、接続を増やしても投稿の間隔を縮められないことを確かめる。
+// TestLiveHandlerRefusesRapidPostsAcrossConnections は、接続を増やしても投稿の間隔を縮められないことを確認する。
 func TestLiveHandlerRefusesRapidPostsAcrossConnections(t *testing.T) {
 	t.Parallel()
 

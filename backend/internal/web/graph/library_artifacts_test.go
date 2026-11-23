@@ -28,7 +28,7 @@ type libraryArtifactsResult struct {
 }
 
 // TestClearLibraryArtifacts は、管理者が、データディレクトリの libraries/ の下を丸ごと消せ、ほかの生成物、ユーザーごとの再生位置、
-// 動いているジョブは残し、まだ動いていないライブラリのジョブを消し、監査ログに残し、消した後に開けば索引を作り直すことを確かめる (#1896)。
+// 動いているジョブは残し、まだ動いていないライブラリのジョブを消し、監査ログに残し、消した後に開けばインデックスを作り直すことを確認する (#1896)。
 func TestClearLibraryArtifacts(t *testing.T) {
 	t.Parallel()
 
@@ -134,7 +134,7 @@ func TestClearLibraryArtifacts(t *testing.T) {
 	assert.Equal(t, int64(4500), *file.LibraryFile.WatchPositionMs)
 }
 
-// TestClearLibraryArtifactsWithoutDataDir は、データディレクトリを設定していない tenban では、量を測れず、消せないことを確かめる。
+// TestClearLibraryArtifactsWithoutDataDir は、データディレクトリを設定していない tenban では、量を測れず、消せないことを確認する。
 // 空のデータディレクトリで消すと、作業ディレクトリの libraries/ を消してしまうためである。
 func TestClearLibraryArtifactsWithoutDataDir(t *testing.T) {
 	t.Parallel()
