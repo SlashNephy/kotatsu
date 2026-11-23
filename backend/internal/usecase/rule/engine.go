@@ -134,7 +134,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		}
 		// 前の回を比べる相手を選ぶのにも、apply と同じ残し方を使うので、絞り込む前に作る。
 		keep := newKeepPolicy(rules, matched)
-		desired, err := e.narrow(ctx, tx, now, matched, map[programKey]*skippedProgram{}, keep, result)
+		desired, err := e.narrow(ctx, tx, now, matched, nil, keep, result)
 		if err != nil {
 			return err
 		}
@@ -173,11 +173,6 @@ func (e *Engine) desired(
 	if err != nil {
 		return nil, err
 	}
-	// 外した番組は、前の回を比べる相手を選ぶのにも使うので、渡されなくても集める。
-	if skipped == nil {
-		skipped = map[programKey]*skippedProgram{}
-	}
-
 	keep := newKeepPolicy(rules, matched)
 
 	return e.narrow(ctx, tx, now, matched, skipped, keep, result)
@@ -186,7 +181,7 @@ func (e *Engine) desired(
 // narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避、イベント共有、同じ回の束ね、前の回を録らない設定で絞り込み、
 // 予約すべき番組にする。skipped を渡せば、重複の回避、同じ回の束ね、前の回を録らない設定で予約すべき集合から外した番組を、そこに入れる。
 // keep と result は、apply と同じく、どのルールにも一致しなくなったルール予約を残すかを決める。前の回を比べる相手から、
-// この照合で消える予約を除くのに使う。skipped は nil にしない (keep が同じものを見る)。
+// この照合で消える予約を除くのに使う。
 func (e *Engine) narrow(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
 	keep *keepPolicy, result *Result,
@@ -623,6 +618,9 @@ func earliest(a, b time.Time) time.Time {
 // 照合したもののどれかに一致するかを返す。番組が消えても予約は残すが (#518)、人がルールを書き換えて外した予約まで
 // 残さないよう、照合し直す。
 func (k *keepPolicy) matchesStored(row *sqlc.ListFutureProgramReservationsRow, have map[uuid.UUID]bool) (bool, error) {
+	if !linksAny(have, k.enabled) {
+		return false, nil
+	}
 	program, err := storedProgram(row)
 	if err != nil {
 		return false, err

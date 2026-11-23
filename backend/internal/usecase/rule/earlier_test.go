@@ -228,7 +228,7 @@ func TestEngineIgnoresRejectedLaterEpisodes(t *testing.T) {
 }
 
 // TestEngineRemovesEarlierEpisodeReservations は、予約した後に、より大きい話数が先に流れると分かったときと、より大きい話数を
-// 録り終えたときに、前の回の予約を、放送の直前でも引っ込めることを確かめる (#1499)。
+// 録り終えたときに、前の回の予約を引っ込めることを確かめる (#1499)。
 func TestEngineRemovesEarlierEpisodeReservations(t *testing.T) {
 	t.Parallel()
 

@@ -183,7 +183,7 @@ func TestEngineSkipsCancelledEpisodeInBundle(t *testing.T) {
 }
 
 // TestEngineRemovesBundledReservations は、予約した後に同じ回の早い放送が番組表に入ったときと、同じ回を録り終えたときに、
-// 外れた予約を、放送の直前でも引っ込めることを確かめる (#1498)。
+// 外れた予約を引っ込めることを確かめる (#1498)。
 func TestEngineRemovesBundledReservations(t *testing.T) {
 	t.Parallel()
 

@@ -587,7 +587,9 @@ func TestEngineRechecksReservationsOfVanishedPrograms(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
+		name string
+		// other は、同じ番組に一致する別のルールも作っておくかどうか。
+		other  bool
 		change func(t *testing.T, f *engineFixture, r *rule.Rule)
 		kept   bool
 	}{
@@ -622,6 +624,12 @@ func TestEngineRechecksReservationsOfVanishedPrograms(t *testing.T) {
 			_, err := f.rules.SetEnabled(t.Context(), f.pool, f.user, r.ID, false)
 			require.NoError(t, err)
 		}},
+		{name: "ほかに一致するルールがある", other: true, change: func(t *testing.T, f *engineFixture, r *rule.Rule) {
+			t.Helper()
+
+			_, err := f.rules.SetEnabled(t.Context(), f.pool, f.user, r.ID, false)
+			require.NoError(t, err)
+		}, kept: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -629,6 +637,9 @@ func TestEngineRechecksReservationsOfVanishedPrograms(t *testing.T) {
 
 			f := newEngineFixture(t)
 			r := f.createRule(t, `テスト番組 6$`, nil)
+			if tt.other {
+				f.createRule(t, `番組 6$`, nil)
+			}
 			f.run(t)
 			reservation := f.reservationOf(t, 6)
 			// 予約は、作ったときの番組のジャンル (番組紹介・お知らせ) を残している。
