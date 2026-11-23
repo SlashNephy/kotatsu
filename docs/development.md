@@ -16,6 +16,14 @@ mise install
 mise -C backend install
 ```
 
+開発用の環境は、画面をhttpsで配ります（#2121）。
+証明書は[mkcert](https://github.com/FiloSottile/mkcert)で作るので、ブラウザがその証明書を信頼するよう、初めに一度だけ、mkcertのCAを手元に入れてください。
+このコマンドは、OSとブラウザの信頼する証明書にCAを足すので、パスワードを求められることがあります。
+
+```bash
+mise exec -- mkcert -install
+```
+
 ## Docker Composeで動かす
 
 リポジトリの直下の[compose.yaml](../compose.yaml)は、開発のための構成です。
@@ -28,6 +36,7 @@ mise run dev
 
 `mise run dev`は、`docker compose up --build`に、手元のユーザーのUIDとGIDを渡して実行します。
 コンテナの中で作ったファイルを、手元のユーザーの持ち物にするためです。
+その前に、`mise run dev:cert`で、`localhost`の証明書を`docker/dev-certs/`に作ります（作ってあれば作り直しません）。
 
 | サービス | 内容 | 手元からの接続先 |
 | --- | --- | --- |
@@ -37,7 +46,7 @@ mise run dev
 | `dex` | 開発用のOIDCのIdP（[Dex](https://dexidp.io/)） | `http://dex.localhost:5556/dex` |
 | `kotatsu` | 全ロールを1つのコンテナで動かします | なし（`web`が中継します） |
 | `web-install` | 画面の依存を入れます | なし |
-| `web` | 画面の開発サーバー（Vite）。ブラウザはここを開きます | `http://localhost:8080` |
+| `web` | 画面の開発サーバー（Vite）。ブラウザはここを開きます。httpsで配り、APIへは`X-Forwarded-Proto`を付けて中継します | `https://localhost:8080` |
 | `generate` | SQLとGraphQLのスキーマの変更から、生成物を作り直します | なし |
 | `relay` | 画面のクエリの変更から、Relayの生成物を作り直します | なし |
 
@@ -85,7 +94,7 @@ KOTATSU_DEV_TUNER_URL=http://192.0.2.10:40772/ KOTATSU_DEV_DB=real mise run dev
 
 ### ログインする
 
-`http://localhost:8080/login`を開き、「Dexでログイン」を押してください。
+`https://localhost:8080/login`を開き、「Dexでログイン」を押してください。
 Dexの画面で、次のどれかのユーザーでログインします。
 パスワードはどれも`password`です。
 
@@ -140,8 +149,9 @@ docker compose restart web
 `Dockerfile`や、ルートと`backend/`と`frontend/`の`mise.toml`、`mise.dev.toml`を変えたときは、`mise run dev`を実行し直してください。
 開発用のイメージを作り直します。
 
-`mise run //frontend:dev`は、Composeの外で画面の開発サーバーを`http://localhost:5173`に起動します。
+`mise run //frontend:dev`は、Composeの外で画面の開発サーバーを`https://localhost:5173`に起動します。
 Composeを使わずに、手元でKotatsuを`127.0.0.1:8080`に起動しているときに使います。
+画面の開発サーバーは、Kotatsuへ中継するときに`X-Forwarded-Proto`などを付けるので、手元のKotatsuには、`KOTATSU_SERVER_TRUSTED_PROXIES=127.0.0.1/32,::1/128`を渡して、画面の開発サーバーを信頼させてください。
 
 ### 画面の要素からソースを辿る
 

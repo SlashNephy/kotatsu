@@ -2,3 +2,6 @@
 
 # goreleaser の出力
 /dist/
+
+# mise run dev:cert が作る、開発用の Compose の証明書と秘密鍵
+/docker/dev-certs/

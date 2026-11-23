@@ -4,7 +4,7 @@
 #
 #   mise run dev
 #
-# http://localhost:8080/ で画面を開ける (ポートは KOTATSU_DEV_PORT で変えられる)。Dex の admin@example.com (パスワードは password) でログインすると、管理者が作られる。
+# https://localhost:8080/ で画面を開ける (ポートは KOTATSU_DEV_PORT で変えられる)。証明書は mise run dev が mkcert で作る (#2121)。Dex の admin@example.com (パスワードは password) でログインすると、管理者が作られる。
 name: kotatsu-dev
 
 # ソースをマウントして動かすサービスの共通の設定。
@@ -119,6 +119,9 @@ services:
       # タイムシフトを画面から試せるよう、バッファの置き場所を設定しておく。録るサービスを選ぶまでは何も録らない。
       KOTATSU_STORAGE_TIMESHIFT_DIR: /timeshift
       KOTATSU_SERVER_LISTEN: ":8080"
+      # 画面の開発サーバー (web) が https を終端して中継するので、その X-Forwarded-Proto を信頼する (#2121)。
+      # Compose のネットワークのアドレスは決まらないので、プライベートのアドレスをまとめて信頼する。開発専用。
+      KOTATSU_SERVER_TRUSTED_PROXIES: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
       # Dex でログインし、グループからロールを決めてユーザーを作る。パスワードと第二要素の登録を省ける。
       KOTATSU_AUTH_OIDC_ISSUER: http://dex.localhost:5556/dex
       KOTATSU_AUTH_OIDC_CLIENT_ID: kotatsu
@@ -173,6 +176,9 @@ services:
     command: ["run", "//frontend:dev:web"]
     environment:
       KOTATSU_DEV_API: http://kotatsu:8080
+      # https で配る (#2121)。証明書は、mise run dev の前に dev:cert が mkcert で作る。
+      KOTATSU_DEV_TLS_CERT: /src/docker/dev-certs/localhost.pem
+      KOTATSU_DEV_TLS_KEY: /src/docker/dev-certs/localhost-key.pem
     ports:
       # ほかのアプリが 8080 を使っていれば、KOTATSU_DEV_PORT で変える。
       - "127.0.0.1:${KOTATSU_DEV_PORT:-8080}:8080"
