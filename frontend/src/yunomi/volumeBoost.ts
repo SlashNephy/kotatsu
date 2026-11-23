@@ -1,4 +1,5 @@
 import { audioStageChain, type AudioStage, type AudioStageName } from './audioStages';
+import { existingAudioContext, sharedAudioContext } from './sharedAudioContext';
 import { maxVolume } from './volume';
 import { createVirtualSurround } from './virtualSurround';
 
@@ -17,9 +18,6 @@ type Booster = {
   enabled: Set<AudioStageName>;
 };
 
-// sharedContext は、すべての video で使う AudioContext。画質を変えたり選局したりするたびに video は作り直されるが、
-// AudioContext は同時に作れる数に限りがあるので、1 つを使い回す。
-let sharedContext: AudioContext | null = null;
 const boosters = new WeakMap<HTMLMediaElement, Booster>();
 // sources は、video ごとの MediaElementAudioSourceNode。1 つの video からは 1 度しか作れないので、外した後も持っておき、
 // 同じ video でまた上げるときは繋ぎ直す。
@@ -120,8 +118,9 @@ function canStartAudio(): boolean {
 
 // resumeContext は、止まっている AudioContext を動かす。ユーザーの操作の後に呼ぶ。
 function resumeContext(): void {
-  if (sharedContext?.state === 'suspended') {
-    void sharedContext.resume().catch(() => {});
+  const context = existingAudioContext();
+  if (context?.state === 'suspended') {
+    void context.resume().catch(() => {});
   }
 }
 
@@ -134,18 +133,18 @@ function boosterOf(video: HTMLMediaElement): Booster | null {
     return null;
   }
   try {
-    sharedContext ??= new AudioContext();
-    const gain = sharedContext.createGain();
-    const source = sources.get(video) ?? sharedContext.createMediaElementSource(video);
+    const context = sharedAudioContext();
+    const gain = context.createGain();
+    const source = sources.get(video) ?? context.createMediaElementSource(video);
     sources.set(video, source);
-    gain.connect(sharedContext.destination);
+    gain.connect(context.destination);
     const booster: Booster = {
       source,
       gain,
       stages: new Map(),
       enabled: new Set(wanted.get(video)),
     };
-    wire(sharedContext, booster);
+    wire(context, booster);
     applyDelay(video, booster);
     boosters.set(video, booster);
 
@@ -184,7 +183,8 @@ function setStage(video: HTMLMediaElement, name: AudioStageName, enabled: boolea
     wanted.get(video)?.delete(name);
   }
   const booster = enabled || sources.has(video) ? boosterOf(video) : null;
-  if (booster === null || sharedContext === null) {
+  const context = existingAudioContext();
+  if (booster === null || context === null) {
     return;
   }
   if (booster.enabled.has(name) !== enabled) {
@@ -193,7 +193,7 @@ function setStage(video: HTMLMediaElement, name: AudioStageName, enabled: boolea
     } else {
       booster.enabled.delete(name);
     }
-    wire(sharedContext, booster);
+    wire(context, booster);
   }
   applyDelay(video, booster);
   // 作ったばかりの AudioContext は止まっていることがあるので、動かす。動かさないと、WebAudio を通した音が出ない。
