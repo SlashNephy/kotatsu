@@ -37,6 +37,11 @@
 - React Compiler を有効にしているので、`useMemo` と `useCallback` は新しく書きません（#1684）。値や関数をそのまま書けば、コンパイラが覚えます。
 - コンパイラが最適化を諦めたコンポーネント（描画の中で ref を読むなど）では、手で書いた `useMemo` と `useCallback` を外しません。外すと、描くたびに作り直し、それを依存に持つ effect が繰り返し走ります。外す前に、そのコンポーネントがコンパイラを通るかを確かめます。
 
+## 日本語の文章
+
+- 日本語の文章の決まりは [docs/writing.md](docs/writing.md) にまとめています。画面の文言、ドキュメント、コードのコメント、コミット、Issue と PR を書く前に読みます。
+- [.yomiyasu-words/](.yomiyasu-words/) の一覧にある語は使いません。指摘が出たら、一覧のその語の注釈を読んで書き直します。
+
 ## コミットと PR
 
 - コミットメッセージと PR のタイトルは、Conventional Commits の形式で書きます（[CONTRIBUTING.md](.github/CONTRIBUTING.md)）。PR のタイトルの種類（`feat`、`fix`、`perf`、`docs`）から、リリースノートで分けるためのラベルが付くので、変更の中身に合った種類を選びます。
