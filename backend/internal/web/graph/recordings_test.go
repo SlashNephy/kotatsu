@@ -1330,6 +1330,16 @@ func TestRecordingsByKeywordConditions(t *testing.T) {
 			want: []string{lighthouse1},
 		},
 		{
+			name:   "only an excluded keyword",
+			filter: map[string]any{varExcludeKeywords: []keywordVar{keyword("灯台", "NAME")}},
+			want:   []string{"港の朝"},
+		},
+		{
+			name:   "case sensitive",
+			filter: map[string]any{varKeywords: []keywordVar{{Text: "#1", Regexp: false, CaseSensitive: true, Fields: []string{"NAME"}}}},
+			want:   []string{lighthouse1},
+		},
+		{
 			name: "with the plain keyword",
 			filter: map[string]any{
 				"keyword": "灯台", varKeywords: []keywordVar{keyword("#1", "NAME")},
