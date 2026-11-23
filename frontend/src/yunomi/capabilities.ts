@@ -66,7 +66,10 @@ function probeDecode(scope: typeof globalThis): boolean {
     if (typeof canvas.transferControlToOffscreen !== 'function') {
       return false;
     }
-    const gl = canvas.getContext('webgl2', { failIfMajorPerformanceCaveat: true });
+    // worker は OffscreenCanvas に WebGL2 で描くので、OffscreenCanvas で確かめる (OffscreenCanvas では 2D しか使えないブラウザがある)。
+    const gl = new scope.OffscreenCanvas(1, 1).getContext('webgl2', {
+      failIfMajorPerformanceCaveat: true,
+    });
     if (gl === null) {
       return false;
     }

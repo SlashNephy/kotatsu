@@ -44,15 +44,20 @@ describe('ブラウザの中でデコードする経路 (#1516) を使えるか'
   // decodeScope は、WASM の SIMD、OffscreenCanvas、AudioContext、WebGL2 の有無を決めた端末の代わり。
   const decodeScope = ({ simd = true, webgl2 = true, offscreen = true } = {}) => ({
     WebAssembly: { validate: () => simd },
-    OffscreenCanvas: function OffscreenCanvas() {},
+    // GPU のない端末と、OffscreenCanvas では 2D しか使えない端末では、WebGL2 を断る。
+    OffscreenCanvas: class {
+      getContext() {
+        return webgl2 ? { getExtension: () => null } : null;
+      }
+    },
     AudioContext: Object.assign(function AudioContext() {}, {
       prototype: { getOutputTimestamp: () => ({}) },
     }),
     document: {
       createElement: () => ({
         transferControlToOffscreen: offscreen ? () => ({}) : undefined,
-        // GPU のない端末では、failIfMajorPerformanceCaveat で WebGL2 を断る。
-        getContext: () => (webgl2 ? { getExtension: () => null } : null),
+        // ページの canvas では、WebGL2 を使える。
+        getContext: () => ({ getExtension: () => null }),
       }),
     },
   });
@@ -60,7 +65,11 @@ describe('ブラウザの中でデコードする経路 (#1516) を使えるか'
   test.each([
     { name: 'すべてそろえば使える', scope: decodeScope(), want: true },
     { name: 'WASM の SIMD がなければ使えない', scope: decodeScope({ simd: false }), want: false },
-    { name: 'GPU で描けなければ使えない', scope: decodeScope({ webgl2: false }), want: false },
+    {
+      name: 'worker の canvas に GPU で描けなければ使えない',
+      scope: decodeScope({ webgl2: false }),
+      want: false,
+    },
     {
       name: 'canvas を worker へ渡せなければ使えない',
       scope: decodeScope({ offscreen: false }),

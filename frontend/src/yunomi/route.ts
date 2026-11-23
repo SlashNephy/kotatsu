@@ -122,8 +122,10 @@ export function chooseRoute(
   if (passthrough !== undefined) {
     return { kind: 'kyusu', preset: passthrough.name };
   }
+  // ブラウザの中での変換とデコードは kyusu の画質でないので、kyusu の画質だけから選ぶ。デコードする経路は、選ばれたときにだけ使う。
+  const presets = choices.filter((choice) => choice !== original && choice !== decoded);
   const preferred = format === 'UHD' && capabilities.convert ? uhdDesktopPreset : defaultPreset;
-  const preset = choices.includes(preferred) ? preferred : choices[0];
+  const preset = presets.includes(preferred) ? preferred : presets[0];
   if (preset !== undefined) {
     return { kind: 'kyusu', preset };
   }

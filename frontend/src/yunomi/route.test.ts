@@ -221,6 +221,23 @@ describe('ブラウザの中でデコードする経路 (#1516)', () => {
     });
   });
 
+  test.each([
+    {
+      name: 'kyusu がいなければ、再生できない',
+      transcoding: withoutKyusu,
+      want: { kind: 'unavailable', reason: 'noTranscoder' },
+    },
+    {
+      name: 'kyusu の既定の画質がなければ、ほかの kyusu の画質を選ぶ',
+      transcoding: { available: true, presets: presets.filter((preset) => preset.name !== '720p') },
+      want: { kind: 'kyusu', preset: '1080p' },
+    },
+  ])('ブラウザの中で変換できない端末でも、自動では選ばない: $name', ({ transcoding, want }) => {
+    const decodeOnly: Capabilities = { ...nothing, hls: true, decode: true };
+
+    expect(chooseRoute(decodeOnly, transcoding, undefined, 'HD', { decode: true })).toEqual(want);
+  });
+
   test('選ばせない画面で覚えていたら、既定の経路に戻す', () => {
     expect(chooseRoute(pc, withKyusu, decoded, 'HD')).toEqual({ kind: 'convert' });
   });
