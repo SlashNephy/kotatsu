@@ -1,5 +1,5 @@
 // 録画の端末への保存 (#480、設計書 7.8)。保存先は、オリジンのプライベートファイルシステム (OPFS) にする。
-// 何 GB にもなる TS を、メモリに溜めずに、届いた順に書けるからである。CacheStorage は、応答を丸ごと 1 つとして持つので、
+// 何 GB にもなる TS を、メモリにバッファせずに、届いた順に書けるからである。CacheStorage は、応答を丸ごと 1 つとして持つので、
 // 書いている途中の進み具合を見せにくく、Range で途中から読ませるのも、応答を作り直さないとできない。
 //
 // 保存した録画は、録画ごとのディレクトリ (offline-recordings/<録画の ID>/) に、次のファイルで置く。
@@ -20,7 +20,7 @@ const videoName = 'video.m2ts';
 const jikkyoName = 'jikkyo.json';
 const metaName = 'meta.json';
 
-// progressIntervalMs は、保存の進み具合を画面に知らせる間隔。届くたびに描き直すと重いので、間引く。
+// progressIntervalMs は、保存の進み具合を画面に通知する間隔。届くたびに描き直すと重いので、間引く。
 const progressIntervalMs = 250;
 
 // SaveSource は、保存する録画。録画の詳細の画面が、GraphQL で読んだ値を渡す。
@@ -62,7 +62,7 @@ const listeners = new Set<() => void>();
 const controllers = new Map<string, AbortController>();
 
 // lockName は、録画を保存している間に持つ Web Lock の名前。ほかのタブが、保存している途中のディレクトリを
-// 書きかけの残りとして消したり、同じ録画を重ねて保存したりしないよう、タブをまたいで知らせる。
+// 書きかけの残りとして消したり、同じ録画を重ねて保存したりしないよう、タブをまたいで通知する。
 const lockName = (id: string) => `kotatsu-offline-recording:${id}`;
 
 // savingElsewhere は、ほかのタブかこのタブが、録画 id を保存している途中かどうかを返す。
@@ -211,7 +211,7 @@ async function writeRecording(source: SaveSource, controller: AbortController): 
       throw new Error(`unexpected status ${response.status}`);
     }
     const total = expectedSize(response.headers.get('Content-Length'), source.files);
-    // 書き始める前に、端末の空きを確かめ、ブラウザに消されないよう、保存の永続化を求める。
+    // 書き始める前に、端末の空きを確認し、ブラウザに消されないよう、保存の永続化を求める。
     // 永続化を断られても保存はできるので、断られたことは一覧に出すだけにする。
     if (!hasRoom(await navigator.storage.estimate(), total)) {
       await response.body.cancel();
@@ -328,7 +328,7 @@ export async function removeOfflineRecording(id: string): Promise<void> {
 export type OfflineFiles = { meta: OfflineMeta; video: File; jikkyo: File | null };
 
 // openOfflineRecording は、保存した録画のファイルを開く。保存していなければ null を返す。
-// OPFS の File は、中身をメモリに読まずに、ディスクから読む。
+// OPFS の File は、内容をメモリに読まずに、ディスクから読む。
 export async function openOfflineRecording(id: string): Promise<OfflineFiles | null> {
   const root = await rootDirectory();
   let directory: FileSystemDirectoryHandle;
@@ -354,10 +354,10 @@ export async function openOfflineRecording(id: string): Promise<OfflineFiles | n
   }
 }
 
-// changes は、保存した録画が変わったことを、同じオリジンのほかのタブに知らせる BroadcastChannel。初めて読まれたときに作る。
+// changes は、保存した録画が変わったことを、同じオリジンのほかのタブに通知する BroadcastChannel。初めて読まれたときに作る。
 let changes: BroadcastChannel | null = null;
 
-// announceChange は、保存した録画が変わったことを、ほかのタブに知らせる。
+// announceChange は、保存した録画が変わったことを、ほかのタブに通知する。
 function announceChange() {
   changes?.postMessage('changed');
 }

@@ -104,10 +104,10 @@ export const LoginFailed: Story = {
   play: signIn,
 };
 
-// パスワードを確かめ、第二要素の確認に進んだとき。
+// パスワードを確認し、第二要素の確認に進んだとき。
 export const ToSecondFactor: Story = { play: signIn };
 
-// パスワードを確かめ、第二要素の登録に進んだとき (第二要素を 1 つも登録していない)。
+// パスワードを確認し、第二要素の登録に進んだとき (第二要素を 1 つも登録していない)。
 export const ToEnroll: Story = {
   args: {
     auth: {

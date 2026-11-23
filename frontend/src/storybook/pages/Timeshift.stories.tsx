@@ -70,7 +70,7 @@ export const Default: Story = {};
 
 export const Loading: Story = { args: { hold: holdAll } };
 
-// バッファに番組があるとき。放送中、頭から録れていない、名前のない、録画に書き出している途中の番組を含む。
+// バッファに番組があるとき。放送中、先頭から録れていない、名前のない、録画として出力している途中の番組を含む。
 export const Programs: Story = { args: { overrides: withPrograms(programs) } };
 
 // 視聴者 (予約を作れない) のとき。「録画に残す」を出さない。
@@ -88,7 +88,7 @@ export const Reserved: Story = {
   play: promoteLast,
 };
 
-// 放送の終わった番組を昇格して、録画に書き出し始めたとき。
+// 放送の終わった番組を昇格して、録画として出力し始めたとき。
 export const Promoted: Story = {
   args: {
     overrides: merge(withPrograms(programs), () => ({
@@ -98,7 +98,7 @@ export const Promoted: Story = {
   play: promoteLast,
 };
 
-// ほかで同じ番組を昇格していたとき (書き出している途中として出す)。
+// ほかで同じ番組を昇格していたとき (出力している途中として出す)。
 export const PromoteConflict: Story = {
   args: {
     overrides: merge(withPrograms(programs), () => ({

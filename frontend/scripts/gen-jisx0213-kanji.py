@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# 字幕のフォントを分けるのに使う、JIS X 0213 で足された漢字の表 (scripts/jisx0213-kanji.json) を作る (#1520)。
+# 字幕のフォントを分けるのに使う、JIS X 0213 で足された漢字のテーブル (scripts/jisx0213-kanji.json) を作る (#1520)。
 # JIS X 0208 に無く (ISO-2022-JP で符号化できず)、JIS X 0213 にある (EUC-JIS-2004 で符号化できる) 漢字を集める。
-# ARIB の追加漢字 (aribb24.js の追加記号の表) は、字幕でよく使うので、基本のファイルに残すよう除く。
-# 表は符号化の規格だけで決まるので、作り直すのは、aribb24.js の表が変わったときだけでよい。Python の標準の符号化だけを使う。
+# ARIB の追加漢字 (aribb24.js の追加記号のテーブル) は、字幕でよく使うので、基本のファイルに残すよう除く。
+# テーブルは符号化の規格だけで決まるので、作り直すのは、aribb24.js のテーブルが変わったときだけでよい。Python の標準の符号化だけを使う。
 #
 # 使い方: python3 scripts/gen-jisx0213-kanji.py (frontend で、pnpm install の後に)
 import json

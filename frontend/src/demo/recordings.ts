@@ -87,7 +87,7 @@ export function createRecordings(options: {
   rules: RecordingRule[];
   // ruleView は、録画のルールを返す。ルールを消していれば null。
   ruleView: (id: string) => object | null;
-  // changed は、録画が変わったことを画面に知らせる。CM の区間を見分け終えたときに使う。
+  // changed は、録画が変わったことを画面に通知する。CM の区間を見分け終えたときに使う。
   changed?: (channels: string[]) => void;
 }) {
   const { programs, now, rules, ruleView, changed } = options;

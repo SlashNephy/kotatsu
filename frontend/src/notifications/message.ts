@@ -9,7 +9,7 @@ export type MessageParts = {
 };
 
 // splitMessage は、通知の文 (message) から、材料 (payload) の番組名を探して、前後に分ける。
-// 文はサーバーが作るので、画面では番組名の部分だけを差し替えて、囲み文字を印として描く。
+// 文はサーバーが作るので、画面では番組名の部分だけを差し替えて、囲み文字をマークとして描く。
 // サーバーは番組名の全角の英数字を半角にして文に書くので、同じく半角にした番組名で探す。
 // payload は JSON の文字列。読めないときや、番組名が文になければ、文をそのまま返す。
 export function splitMessage(message: string, payload: string): MessageParts {

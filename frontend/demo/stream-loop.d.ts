@@ -1,4 +1,4 @@
-// demo/stream-loop.js の型。Service Worker (demo/stream-sw.js) はビルドせずにそのまま配るので、実装は JavaScript で書き、
+// demo/stream-loop.js の型。Service Worker (demo/stream-sw.js) はビルドせずにそのまま配信するので、実装は JavaScript で書き、
 // テスト (src/demo/streamLoop.test.ts) から読むための型だけをここに書く。
 
 export const packetSize: number;

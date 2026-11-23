@@ -7,7 +7,7 @@ import { expect, type Page, test } from '@playwright/test';
 // 番組表に、夜の番組が並ぶ時刻にする。
 const fixedTime = new Date('2026-04-01T20:30:00+09:00');
 
-// 画像は toHaveScreenshot の比べる先 (docs/screenshots) として扱い、updateSnapshots: 'changed' で書き換える
+// 画像は toHaveScreenshot の比較する先 (docs/screenshots) として扱い、updateSnapshots: 'changed' で書き換える
 // (playwright.screenshots.config.ts)。同じ画面でも、ブラウザを起動するたびに、カードの角のアンチエイリアスが
 // 数ピクセルだけ変わる。許容差の中なら書き換えないので、画面が変わらない限り PNG は変わらない。
 async function capture(page: Page, name: string, scheme: string) {

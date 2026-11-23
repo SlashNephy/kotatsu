@@ -16,10 +16,10 @@ import {
   subscribeLineupDismissals,
 } from './lineupAlerts';
 
-// systemPath は、チャンネルの変更を確かめるシステムの状態の画面。開くと、お知らせを既読にする。
+// systemPath は、チャンネルの変更を確認するシステムの状態の画面。開くと、お知らせを既読にする。
 const systemPath = '/admin/system';
 
-// LineupBanner は、衛星の局の顔ぶれがチューナーサーバーと食い違ったこと (チャンネルの変更、#1519) を、画面の上の 1 行で知らせる。
+// LineupBanner は、衛星の局の顔ぶれがチューナーサーバーと食い違ったこと (チャンネルの変更、#1519) を、画面の上の 1 行で通知する。
 // 知らせは管理者にだけ届くので、管理者のときだけ読む。システムの状態の画面を開くまで、出しておく長さの間だけ出す。
 export function LineupBanner() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });

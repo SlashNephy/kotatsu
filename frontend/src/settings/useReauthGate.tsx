@@ -45,7 +45,7 @@ function returnedError(): string | null {
 // 期限 (10 分) が切れたときのためのもの。run に渡した操作が再認証を求められたら、再認証の画面を出し、終えたら
 // 同じ操作をもう一度行う。再認証の画面を閉じたら、操作をやめて onCancel を呼ぶ。
 // IdP で再認証するときは、ページを離れて、この画面に戻ってくる。戻ってきた画面は、開いたときと同じく SudoGate が
-// 確かめるので、待っていた操作は続けず、利用者にもう一度操作してもらう。
+// 確認するので、待っていた操作は続けず、利用者にもう一度操作してもらう。
 // modal は、再認証の画面と、IdP での再認証に失敗して戻ってきたときの理由。
 export function useReauthGate(
   methods: ReauthenticationMethods,
@@ -88,7 +88,7 @@ export function useReauthGate(
 
   // save は、設定を、必要なら再認証してから保存し、結果を Promise で返す (#1740)。useAutoSave に渡す。
   // 再認証をやめたら SaveCancelled で失敗させ、呼ぶ側で変える前の値に戻させる。
-  // ほかの操作の途中なら、重ねて送らずに失敗させる。黙って捨てると、待っている保存が終わらないため。
+  // ほかの操作の途中なら、重ねて送らずに失敗させる。黙って破棄すると、待っている保存が終わらないため。
   const save = (operation: () => Promise<unknown>) =>
     new Promise<void>((resolve, reject) => {
       if (running.current) {

@@ -30,7 +30,7 @@ type Props = {
   methods: ReauthenticationMethods;
   // returnTo は、IdP で再認証したときに戻す、この画面のパス。
   returnTo: string;
-  // description は、なぜ確かめるのかの説明。省くと、操作の前に確かめる説明を出す。
+  // description は、なぜ確認するのかの説明。省くと、操作の前に確認する説明を出す。
   description?: string;
   onDone: () => void;
 };

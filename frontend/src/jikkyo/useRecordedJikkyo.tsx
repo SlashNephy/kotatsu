@@ -47,14 +47,14 @@ export function insertByTime(
   return [...comments.slice(0, i), comment, ...comments.slice(i)];
 }
 
-// commentKey は、取り直した過去ログのコメントが、もう取ってあるものと同じかを見分けるキー。
+// commentKey は、再取得した過去ログのコメントが、もう取ってあるものと同じかを見分けるキー。
 // 同じ時間帯の基準で取るので、同じコメントは同じ時刻になる。
 function commentKey(comment: JikkyoComment): string {
   return JSON.stringify([comment.time, comment.content, comment.mail, comment.userId ?? null]);
 }
 
 // useRecordedJikkyo は、録画の再生で、録画の時間帯の実況の過去ログを流す (設計書 7.4)。
-// 過去ログは、tenban が過去ログ API から取って中継する。url が null なら、何もしない。
+// 過去ログは、tenban が過去ログ API から取得してプロキシする。url が null なら、何もしない。
 // clock は、録画の始まりからの再生位置 (秒) を返す。過去ログの時刻も、録画の始まりからの秒。
 // live は、録画中の録画を追っかけ再生しているときの、実況のチャンネルと、放送時刻を再生位置に直す関数。
 // 過去ログには、取った後のコメントがないので、録画中の間は、リアルタイムのコメントも受け取り、録画の中の位置に流す (#667)。
@@ -69,8 +69,8 @@ export function useRecordedJikkyo(
   othersUrl: string | null = null,
   // nicolog は、上映会のコメント (NICOLOG) の URL と、録画の CM の区間 (#1363)。ソースをオプトインしていれば渡す。
   nicolog: { url: string; cmSections: readonly CmSection[] } | null = null,
-  // growing は、過去ログの時間帯がまだ伸びるかどうか (#1910)。ライブラリのファイルは、索引を作り終えるまで終わりが伸びる。
-  // 伸びる途中に取った過去ログは、伸び終えたら取り直し、足りなかったコメントだけを足す。流しているコメントは消さない。
+  // growing は、過去ログの時間帯がまだ伸びるかどうか (#1910)。ライブラリのファイルは、インデックスを作り終えるまで終わりが伸びる。
+  // 伸びる途中に取った過去ログは、伸び終えたら再取得し、足りなかったコメントだけを足す。流しているコメントは消さない。
   growing = false,
 ): {
   overlay: ReactNode;
@@ -82,15 +82,15 @@ export function useRecordedJikkyo(
   // offset は、コメントを流す位置をずらす秒数 (#1357)。正の値で遅らせる。一覧も、この分をずらして出す。
   offset: number;
 } {
-  // cache は、取った過去ログ。画質を変えて描く canvas が作り直されても、実況を切って入れ直しても、取り直さずに渡す。
+  // cache は、取った過去ログ。画質を変えて描く canvas が作り直されても、実況を切って入れ直しても、再取得せずに渡す。
   const cache = useRef(new Map<string, JikkyoComment[]>());
-  // grown は、時間帯が伸びる途中に取った過去ログの URL (#1910)。伸び終えたら取り直す。
+  // grown は、時間帯が伸びる途中に取った過去ログの URL (#1910)。伸び終えたら再取得する。
   const grown = useRef(new Set<string>());
   const canvas = useRef<CommentCanvasHandle | null>(null);
   const [state, setState] = useState<RecordedJikkyoState | null>(null);
   const [comments, setComments] = useState<readonly JikkyoComment[] | null>(null);
   const [offsetMs] = useCommentOffset();
-  // othersCache は、取った別の放送の過去ログ。切り替えても取り直さない。
+  // othersCache は、取った別の放送の過去ログ。切り替えても再取得しない。
   const othersCache = useRef(new Map<string, JikkyoComment[][]>());
   const [others, setOthers] = useState<{ url: string; logs: JikkyoComment[][] } | null>(null);
   const othersTarget = settings.mixOtherBroadcasts && live === null ? othersUrl : null;
@@ -132,7 +132,7 @@ export function useRecordedJikkyo(
         : others.logs.flatMap((log) => mixBroadcast(comments, log)),
     [comments, others, othersTarget],
   );
-  // nicologCache は、取った上映会のコメント。切り替えても取り直さない。
+  // nicologCache は、取った上映会のコメント。切り替えても再取得しない。
   const nicologCache = useRef(new Map<string, JikkyoComment[]>());
   const [nicologLog, setNicologLog] = useState<{ url: string; comments: JikkyoComment[] } | null>(
     null,
@@ -311,7 +311,7 @@ export function useRecordedJikkyo(
   }, [url, liveChannel, drawing]);
 
   // 一覧には、ミュートしたコメントを出さない。
-  // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、中身で比べる。
+  // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、内容で比較する。
   const muteKey = JSON.stringify([
     settings.mutedKeywords,
     settings.mutedUsers,

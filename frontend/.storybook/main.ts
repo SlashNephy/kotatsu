@@ -16,7 +16,7 @@ const config: StorybookConfig = {
     // 置き場所 (assets/) から探して見つからないので、アプリと同じく / に置く。
     base: '/',
     // Storybook には、ルーティングの生成と Service Worker の生成が要らない。
-    // 画面の Story で、ライブ視聴と録画の再生にデモの映像を流せるよう、静的なデモと同じ Service Worker と映像を配る。
+    // 画面の Story で、ライブ視聴と録画の再生にデモの映像を流せるよう、静的なデモと同じ Service Worker と映像を配信する。
     plugins: [
       ...(viteConfig.plugins ?? []).flat().filter((plugin) => {
         const name = plugin && typeof plugin === 'object' && 'name' in plugin ? plugin.name : '';

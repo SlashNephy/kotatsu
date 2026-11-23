@@ -65,7 +65,7 @@ export type ServiceOption = {
   logoUrl: string | null | undefined;
   serviceId: number;
   channelType: { displayName: string };
-  // gone は、上流 (チューナーサーバー) から消えたサービスかどうか (#1973)。すでに選んでいるものだけを、印を付けて選択肢に残す。
+  // gone は、上流 (チューナーサーバー) から消えたサービスかどうか (#1973)。すでに選んでいるものだけを、マークを付けて選択肢に残す。
   gone?: boolean;
 };
 
@@ -232,7 +232,7 @@ type KeywordRowsProps = {
   newRow?: () => KeywordRow;
 };
 
-// MarkChips は、番組名の囲み文字 (新、字など) を選ぶ欄。表の囲み文字をすべてチップで並べ、
+// MarkChips は、番組名の囲み文字 (新、字など) を選ぶ欄。テーブルの囲み文字をすべてチップで並べ、
 // 押すたびに、含める、除外する、選ばない、の順に切り替える。
 // 一覧にない囲み文字 (API で保存したもの) も、選んだまま残すために並べる。
 function MarkChips({
@@ -257,7 +257,7 @@ function MarkChips({
       ? [{ key: 'others', label: t('rules.markGroup.others'), items: others }]
       : []),
   ];
-  // 押した順でなく、表の順にそろえて持つ。
+  // 押した順でなく、テーブルの順にそろえて持つ。
   const order = [...known, ...others];
   const sorted = (list: string[]) => [...list].sort((a, b) => order.indexOf(a) - order.indexOf(b));
   const cycle = (mark: string) => {

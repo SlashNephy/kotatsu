@@ -27,7 +27,7 @@ import {
 import { createRecordings, type RecordingFilter } from './recordings';
 import { createScheduler, type RuleInput, type SettingsInput } from './schedule';
 
-// demoDataChannels は、購読を始めたときに今の版数を送る、データの種類 (GraphQL の DataChannel)。
+// demoDataChannels は、購読を始めたときに今のバージョンを送る、データの種類 (GraphQL の DataChannel)。
 // デモのユーザーは管理者なので、管理者だけに送る種類 (ADMIN) も含める。
 const demoDataChannels = [
   'EPG',
@@ -155,7 +155,7 @@ export function createRootValue(
   let viewerSettingsVersion = 0;
   let minutesBefore = 5;
   const dataVersions = new Map<string, number>();
-  // dataChanged は、予約やルールを変えたことを、変わった種類ごとに版を上げて画面に知らせる。
+  // dataChanged は、予約やルールを変えたことを、変わった種類ごとにバージョンを上げて画面に通知する。
   const dataChanged = (channels: string[]) => {
     for (const channel of channels) {
       const version = (dataVersions.get(channel) ?? 0) + 1;
@@ -330,7 +330,7 @@ export function createRootValue(
   });
 
   // applyWatchRules は、ルールの照合 (設計書 4.8) を簡単にしたもの。有効な視聴ルールに一致したこれからの番組に視聴予約を付け、
-  // 視聴ルールが付けた視聴予約のうち、一致しなくなったものを外す。手で外した番組を覚えることは、デモでは省く。
+  // 視聴ルールが付けた視聴予約のうち、一致しなくなったものを外す。手で外した番組を保持することは、デモでは省く。
   const applyWatchRules = () => {
     const enabled = [...watchRules.values()].filter((rule) => rule.input.enabled !== false);
     const matched = new Set(
@@ -355,7 +355,7 @@ export function createRootValue(
     }
   };
 
-  // node は、node(id) で引く。ID の頭に型の名前を付けて、型をまたいで重ならないようにしている。
+  // node は、node(id) で取得する。ID のプレフィックスに型の名前を付けて、型をまたいで重ならないようにしている。
   const node = (id: string) => {
     const found = programsById.get(id);
     if (found !== undefined) {
@@ -377,7 +377,7 @@ export function createRootValue(
     return services.find((item) => item.id === id) ?? null;
   };
 
-  // viewerSettingsChanged は、ピン留め、番組表ビュー、視聴予約を変えたことを、画面に知らせる。
+  // viewerSettingsChanged は、ピン留め、番組表ビュー、視聴予約を変えたことを、画面に通知する。
   const viewerSettingsChanged = () => {
     viewerSettingsVersion += 1;
     events.publish({
@@ -414,7 +414,7 @@ export function createRootValue(
     drcsReplacements: () => systemSettings['drcsReplacements'],
     // デモは外部へ問い合わせないので、アニメの取り込みのトークンも登録していない。
     animeImportToken: () => ({ configured: false, updatedAt: null }),
-    // 通知の種類ごとの設定 (設計書 6.2)。サーバーと同じく、変えていない種類は、どれも有効にする。保存すれば覚える。
+    // 通知の種類ごとの設定 (設計書 6.2)。サーバーと同じく、変えていない種類は、どれも有効にする。保存すれば保持する。
     notificationPreferences: () =>
       notificationKinds.map(
         (kind) => notificationPreferences.get(kind) ?? defaultNotificationPreference(kind),

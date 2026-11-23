@@ -69,7 +69,7 @@ const debounceMs = 400;
 
 type Preview = RulePreviewQuery$data['previewRule'];
 type Warning = RulePreviewQuery$data['ruleWarnings'][number];
-// Warnings は、警告と、警告を求めた入力。警告はキーワードを位置で指すので、求めた入力から文字列を引く。
+// Warnings は、警告と、警告を求めた入力。警告はキーワードを位置で指すので、求めた入力から文字列を取り出す。
 // 入力を変えた後の入力から引くと、キーワードを消したときに、別のキーワードを指してしまう。
 type Warnings = { items: readonly Warning[]; input: Props['input'] };
 
@@ -82,17 +82,17 @@ export function RulePreview({ input, enabled, disabledHint, onPrograms }: Props)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [selected, setSelected] = useState<string | undefined>(undefined);
-  // 渡されるたびに作り直される関数で取り直さないよう、ref で持つ。
+  // 渡されるたびに作り直される関数で再取得しないよう、ref で持つ。
   const onProgramsRef = useRef(onPrograms);
   onProgramsRef.current = onPrograms;
-  // 入力の中身が変わったときと、番組表が変わったときだけ取り直す。
+  // 入力の内容が変わったときと、番組表が変わったときだけ再取得する。
   const key = JSON.stringify(input);
-  // 番組表が変わったら、一致する番組を取り直す (#867)。
+  // 番組表が変わったら、一致する番組を再取得する (#867)。
   const epgChanges = useDataChanges(previewChannels);
 
   useEffect(() => {
     if (!enabled) {
-      // 条件を消したら、読み込み中とエラーの表示も消す。読み込み中の応答は、cleanup で捨てている。
+      // 条件を消したら、読み込み中とエラーの表示も消す。読み込み中の応答は、cleanup で破棄している。
       setPreview(null);
       setWarnings(null);
       setLoading(false);

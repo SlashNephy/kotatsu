@@ -4,7 +4,7 @@
 //
 //   node scripts/convert-anime4k.mjs <Anime4K_Upscale_CNN_x2_M.glsl>
 //
-// 畳み込みの段 (//!SAVE で結果を名前を付けて残す段) だけを直す。最後の Depth-to-Space の段は、拡大と元の絵への足し込みを
+// 畳み込みのステップ (//!SAVE で結果を名前を付けて残すステップ) だけを修正する。最後の Depth-to-Space のステップは、拡大と元の絵への足し込みを
 // まとめて src/yunomi/anime4k.ts に書く。mpv の texOff と tex は、テクスチャの端で端の画素を読む (clamp) ので、同じく端に寄せて読む。
 // mpv は y を画像の下向きに数えるので、テクスチャの行の向き (uDown) を掛けて読む。
 import { execFileSync } from 'node:child_process';
@@ -35,7 +35,7 @@ for (const block of text.split(/^(?=\/\/!DESC )/m).slice(1)) {
   );
   const save = directives.SAVE?.[0]?.split(' ')[1];
   if (save === undefined || save === 'MAIN') {
-    // Depth-to-Space の段 (元のコマの MAIN に書き戻す段) は、anime4k.ts に書く。
+    // Depth-to-Space のステップ (元のコマの MAIN に書き戻すステップ) は、anime4k.ts に書く。
     continue;
   }
   const inputs = (directives.BIND ?? []).map((line) => line.split(' ')[1]);
@@ -70,17 +70,17 @@ for (const block of text.split(/^(?=\/\/!DESC )/m).slice(1)) {
 }
 
 const out = `// このファイルは scripts/convert-anime4k.mjs が書いた。手で直さない。
-// Anime4K (https://github.com/bloc97/Anime4K) の Anime4K_Upscale_CNN_x2_M.glsl の畳み込みの段を、WebGL2 に直したもの (#1653)。
+// Anime4K (https://github.com/bloc97/Anime4K) の Anime4K_Upscale_CNN_x2_M.glsl の畳み込みのステップを、WebGL2 に直したもの (#1653)。
 // 元のライセンスの文は、そのまま anime4kLicenseText に残す。
 
 // anime4kLicenseText は、元のシェーダーのライセンスの文。/about の一覧に出す (付録 B)。
 export const anime4kLicenseText = \`${license.replaceAll(/^\/\/ ?/gm, '')}
 \`;
 
-// Anime4KPass は、畳み込みの 1 段。inputs のテクスチャ (同じ名前の sampler) を読み、output の名前で RGBA の 4 つの値を残す。
+// Anime4KPass は、畳み込みの 1 ステップ。inputs のテクスチャ (同じ名前の sampler) を読み、output の名前で RGBA の 4 つの値を残す。
 export type Anime4KPass = { output: string; inputs: readonly string[]; fragment: string };
 
-// anime4kPasses は、畳み込みの段を、動かす順に並べたもの。最初の段の入力 MAIN は、拡大する元のコマ。
+// anime4kPasses は、畳み込みのステップを、動かす順に並べたもの。最初のステップの入力 MAIN は、拡大する元のコマ。
 export const anime4kPasses: readonly Anime4KPass[] = ${JSON.stringify(passes, null, 2)};
 `;
 const target = fileURLToPath(new URL('../src/yunomi/anime4kShaders.ts', import.meta.url));

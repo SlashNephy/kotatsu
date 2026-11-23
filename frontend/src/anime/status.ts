@@ -43,7 +43,7 @@ export function parseLibraryStatus(value: unknown): LibraryStatus {
   return libraryStatuses.find((status) => status === value) ?? 'WATCHING';
 }
 
-// parseAnimeSearch は、URL のクエリを読む。知らない値は、絞り込まないものとして捨てる。
+// parseAnimeSearch は、URL のクエリを読む。知らない値は、絞り込まないものとして破棄する。
 export function parseAnimeSearch(search: Record<string, unknown>): AnimeSearch {
   const status = parseLibraryStatus(search['status']);
   const season = search['season'];

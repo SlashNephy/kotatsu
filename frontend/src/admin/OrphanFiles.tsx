@@ -57,10 +57,10 @@ const dateTimeFormat = zonedFormat({
   hourCycle: 'h23',
 });
 
-// keyOf は、選んだファイルを覚えておくためのキー。プール (データディレクトリなら null) とパスと、生成物のディレクトリかどうかで決まる。
+// keyOf は、選んだファイルを保持しておくためのキー。プール (データディレクトリなら null) とパスと、生成物のディレクトリかどうかで決まる。
 const keyOf = (orphan: Orphan) => JSON.stringify([orphan.poolId, orphan.path, orphan.segmentDir]);
 
-// OrphanFiles は、プールとデータディレクトリにあるのに DB に記録のないファイルを探し、確かめてから消す (設計書 5.6)。
+// OrphanFiles は、プールとデータディレクトリにあるのに DB に記録のないファイルを探し、確認してから消す (設計書 5.6)。
 // 録画を消すのに失敗したときや、取り込みをやり直したときに残るので、管理者が片付ける。
 export function OrphanFiles() {
   const { t } = useTranslation();
@@ -73,7 +73,7 @@ export function OrphanFiles() {
   const [deleting, setDeleting] = useState(false);
 
   // search は、DB にないファイルを探す。消した後に探し直すときは、消した結果の表示を残す (keepMessage)。
-  // 消すかどうかは一つずつ確かめてほしいので、はじめは何も選ばない。
+  // 消すかどうかは一つずつ確認してほしいので、はじめは何も選ばない。
   const search = async (keepMessage = false) => {
     setSearching(true);
     if (!keepMessage) {

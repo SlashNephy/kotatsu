@@ -25,7 +25,7 @@ const runDecode = (file, variant, checksum = false) =>
 
 /**
  * mpeg2toh264 の変換だけを 1 回測る。sink を main にし、断片は MSE に入れずに受け取るだけにする。
- * オプションは Kotatsu と同じ既定値で、比べ方を揃えるため pictureWorkers だけ 1 にする。
+ * オプションは Kotatsu と同じ既定値で、比較の条件を揃えるため pictureWorkers だけ 1 にする。
  * save を付けると、出力の MP4 をサーバの .work/save/ に書く。
  */
 const runConvert = (file, { pictureWorkers = 1, save = false } = {}) =>

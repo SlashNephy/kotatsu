@@ -74,7 +74,7 @@ function setup(errors: Error[]) {
     </RelayEnvironmentProvider>,
   );
 
-  // recover は、つなぎ直していた接続がつながったことにして、サーバーが戻ったと知らせる。
+  // recover は、つなぎ直していた接続がつながったことにして、サーバーが戻ったと通知する。
   const recover = () => {
     const connection = tracker.track();
     connection.reconnecting();

@@ -361,7 +361,7 @@ function SystemStatus() {
   );
 }
 
-// DataTable は、狭い画面では横にスクロールする表。
+// DataTable は、狭い画面では横にスクロールするテーブル。
 function DataTable({
   head,
   rows,

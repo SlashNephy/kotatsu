@@ -4,9 +4,9 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { JikkyoComment } from './comments';
 import { insertByTime, useRecordedJikkyo } from './useRecordedJikkyo';
 
-// added は、偽の CommentCanvas に渡った過去ログ。canvas を作るたびに、別の配列にする。
+// added は、モックの CommentCanvas に渡った過去ログ。canvas を作るたびに、別の配列にする。
 const added: JikkyoComment[][] = [];
-// canvasClock は、偽の CommentCanvas に渡った時計。
+// canvasClock は、モックの CommentCanvas に渡った時計。
 const canvasClock = vi.hoisted(() => ({ current: (): number => Number.NaN }));
 
 vi.mock('./CommentCanvas', async () => {
@@ -33,7 +33,7 @@ vi.mock('./CommentCanvas', async () => {
   };
 });
 
-// sessions は、偽の JikkyoSession。リアルタイムのコメントを、外から送れる。
+// sessions は、モックの JikkyoSession。リアルタイムのコメントを、外から送れる。
 const sessions = vi.hoisted(
   () =>
     [] as {

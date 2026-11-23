@@ -387,7 +387,7 @@ function ServiceSettings() {
 const jikkyoChannelPattern = /^jk\d{1,6}$/;
 
 // ServiceName は、行の左に出す、サービスの名前とロゴ、その下の小さな説明 sub。
-// 上流から消えたサービス (gone) には、説明の横に印を付ける (#1973)。
+// 上流から消えたサービス (gone) には、説明の横にマークを付ける (#1973)。
 function ServiceName({
   name,
   logoUrl,

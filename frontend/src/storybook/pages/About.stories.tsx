@@ -3,7 +3,7 @@ import { userEvent } from 'storybook/test';
 
 import { failing, holdAll, PageStory } from '../PageStory';
 
-// Kotatsu について (/about) の画面 (#2056)。版、同梱するソフトウェアのライセンスの一覧 (書き出していないビルド、読んでいる途中、
+// Kotatsu について (/about) の画面 (#2056)。バージョン、同梱するソフトウェアのライセンスの一覧 (出力していないビルド、読んでいる途中、
 // 絞り込んで当たらないとき) と、読み込めなかったときの表示を並べる。
 const meta = {
   title: 'ページ/Kotatsuについて',
@@ -20,7 +20,7 @@ type Story = StoryObj<typeof meta>;
 // 静的にビルドした Storybook では BASE_URL が相対になるので、パスの末尾で見分ける。
 let serving: Record<string, string | null> = {};
 
-// serveFiles は、ビルドで書き出すライセンスの一覧などのファイルを、files の本文で返すように fetch を包む。
+// serveFiles は、ビルドで出力するライセンスの一覧などのファイルを、files の本文で返すように fetch を包む。
 // デモの応答 (interceptFetch) は、Story を描くときに、ここで包んだ fetch をさらに包む。包まれたまま残っても、片付けた後は
 // 何も返さずに元の fetch へ渡す。
 function serveFiles(files: Record<string, string | null>) {
@@ -85,7 +85,7 @@ const goModuleLicenses = () => [
   },
 ];
 
-// 既定。ビルドがライセンスの一覧を書き出していないので、フロントエンドとバックエンドの一覧は「書き出していない」と出す。
+// 既定。ビルドがライセンスの一覧を出力していないので、フロントエンドとバックエンドの一覧は「書き出していない」と出す。
 export const Default: Story = {};
 
 export const Loading: Story = { args: { hold: holdAll } };
@@ -93,7 +93,7 @@ export const Loading: Story = { args: { hold: holdAll } };
 // 読み込めなかったとき。
 export const Error: Story = { args: { overrides: { version: failing() } } };
 
-// リリースしたビルド。版とコミットが分かり、ライセンスの一覧も書き出してある。
+// リリースしたビルド。バージョンとコミットが分かり、ライセンスの一覧も出力してある。
 export const Released: Story = {
   args: {
     overrides: {

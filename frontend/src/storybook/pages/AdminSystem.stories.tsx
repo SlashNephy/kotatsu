@@ -6,7 +6,7 @@ import { call, minutesAgo } from '../conditions';
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';
 
 // システムの状態 (/admin/system) の画面 (#2056)。チューナーサーバーとチューナー、録画の失敗の累計、録画中の録画、
-// チャンネルの TS の調べ、インスタンスとリースの状態を並べる。
+// チャンネルの TS の調査結果、インスタンスとリースの状態を並べる。
 const meta = {
   title: 'ページ/管理/システム',
   component: PageStory,
@@ -135,7 +135,7 @@ const active = {
   }),
 };
 
-// inspection は、チャンネルの TS を調べた結果。Kotatsu の知らないサービスと、コーデックの分からない ES と、ドロップを含む。
+// inspection は、チャンネルの TS を調査した結果。Kotatsu の知らないサービスと、コーデックの分からない ES と、ドロップを含む。
 const inspection = {
   inspectChannel: () => ({
     transportStreamId: 0x7fe0,
@@ -226,7 +226,7 @@ const lineup = {
   }),
 };
 
-// release は、新しい版が出ている状態。
+// release は、新しいバージョンが出ている状態。
 const release = (root: DemoRoot) => ({
   version: () => ({
     ...call<object>(root, 'version'),
@@ -252,7 +252,7 @@ export const Forbidden: Story = {
 // 状態を読めなかったとき。
 export const Failed: Story = { args: { overrides: { systemStatus: failing() } } };
 
-// 起動した直後で、チューナーサーバーをまだ確かめておらず、チューナーも録画中の録画もないとき。
+// 起動した直後で、チューナーサーバーをまだ確認しておらず、チューナーも録画中の録画もないとき。
 export const Unchecked: Story = {
   args: {
     overrides: {
@@ -262,7 +262,7 @@ export const Unchecked: Story = {
   },
 };
 
-// 新しい版が出ていて、チャンネルの変更の知らせがあるとき。
+// 新しいバージョンが出ていて、チャンネルの変更の通知があるとき。
 export const Notices: Story = {
   args: {
     overrides: (root: DemoRoot) => ({ ...withStatus(), ...active, ...release(root), ...lineup }),
@@ -276,7 +276,7 @@ export const LineupMarkFailed: Story = {
   },
 };
 
-// チューナーサーバーにつながらない縮退中で、最後の失敗の理由を出すとき。種類は分かるが、版は分からない。
+// チューナーサーバーにつながらない縮退中で、最後の失敗の理由を出すとき。種類は分かるが、バージョンは分からない。
 export const Degraded: Story = {
   args: {
     overrides: withTunerServer({
@@ -320,7 +320,7 @@ export const ClockSkewed: Story = {
   },
 };
 
-// 失敗の累計を 0 に戻す前に確かめるとき。
+// 失敗の累計を 0 に戻す前に確認するとき。
 export const ConfirmResetFailures: Story = {
   args: { overrides: withStatus() },
   play: async ({ canvas }) => {
@@ -344,7 +344,7 @@ export const ResetFailuresFailed: Story = {
   },
 };
 
-// チャンネルの TS を調べた結果を出したとき。
+// チャンネルの TS を調査した結果を出したとき。
 export const Inspected: Story = {
   args: { overrides: { ...withStatus(), ...inspection } },
   play: async ({ canvas }) => {
@@ -352,7 +352,7 @@ export const Inspected: Story = {
   },
 };
 
-// 調べたが、PAT を受け取れず TSID が分からなかったとき。
+// 調査したが、PAT を受け取れず TSID が分からなかったとき。
 export const InspectedWithoutPat: Story = {
   args: {
     overrides: {
@@ -363,13 +363,13 @@ export const InspectedWithoutPat: Story = {
   play: Inspected.play,
 };
 
-// チャンネルの TS を調べられなかったとき。
+// チャンネルの TS を調査できなかったとき。
 export const InspectFailed: Story = {
   args: { overrides: { ...withStatus(), inspectChannel: failing() } },
   play: Inspected.play,
 };
 
-// 調べているあいだ (ボタンが読み込み中)。
+// 調査しているあいだ (ボタンが読み込み中)。
 export const Inspecting: Story = {
   args: {
     overrides: withStatus(),
@@ -378,7 +378,7 @@ export const Inspecting: Story = {
   play: Inspected.play,
 };
 
-// サービスがなく、調べるチャンネルを選べないとき。
+// サービスがなく、調査するチャンネルを選べないとき。
 export const NoChannels: Story = {
   args: { overrides: { ...withStatus(), services: () => [] } },
 };

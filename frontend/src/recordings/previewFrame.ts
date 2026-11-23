@@ -20,7 +20,7 @@ export type PreviewFrame = {
 
 // manifestUrl は、preview.jpg の URL を、同じディレクトリの preview.json の URL にする。
 export function manifestUrl(previewUrl: string): string {
-  // 作り直したら変わるよう、URL に添えた版 (?v=) も引き継ぐ。
+  // 作り直したら変わるよう、URL に添えたバージョン (?v=) も引き継ぐ。
   return previewUrl.replace(/preview\.jpg(\?|$)/, 'preview.json$1');
 }
 

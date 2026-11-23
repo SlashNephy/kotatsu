@@ -136,7 +136,7 @@ export const NoMatch: Story = { args: { url: '/rules?q=見つからない語' } 
 // グループに分けたとき (#1493)。ルールのないグループの見出しと、「その他」の見出しも出す。
 export const Groups: Story = { args: { overrides: withGroups } };
 
-// 「その他」の見出しを折りたたんだとき。端末に覚えた折りたたみを読む。
+// 「その他」の見出しを折りたたんだとき。端末に保存した折りたたみを読む。
 export const GroupCollapsed: Story = {
   args: { overrides: withGroups },
   beforeEach: () => withStorage({ 'kotatsu.rules.collapsedGroups': '["others"]' }),
@@ -182,7 +182,7 @@ export const GroupRenameError: Story = {
   },
 };
 
-// グループを消す前の確かめ。
+// グループを消す前の確認。
 export const GroupDeleteConfirm: Story = {
   args: { overrides: withGroups },
   play: async ({ canvasElement }) => {
@@ -243,7 +243,7 @@ export const BulkError: Story = {
   },
 };
 
-// 選んだルールをまとめて消す前の確かめ。
+// 選んだルールをまとめて消す前の確認。
 export const BulkDeleteConfirm: Story = {
   play: async ({ canvasElement, canvas }) => {
     await startSelecting(canvasElement);
@@ -306,7 +306,7 @@ export const WatchRules: Story = {
   args: { url: '/rules?watch=true', overrides: withWatchRules(2) },
 };
 
-// 視聴ルールが上限まであるとき。作成のボタンを押せなくし、上限を知らせる。
+// 視聴ルールが上限まであるとき。作成のボタンを押せなくし、上限を通知する。
 export const WatchRulesFull: Story = {
   args: { url: '/rules?watch=true', overrides: withWatchRules(50) },
 };

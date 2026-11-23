@@ -9,7 +9,7 @@ import { useDeviceSave } from './useAutoSave';
 export function AppIconSettings() {
   const { t } = useTranslation();
   const [current, setCurrent] = useAppIcon();
-  // 選んだら、ほかの設定と同じ通知で知らせる (#1740)。
+  // 選んだら、ほかの設定と同じ通知で伝える (#1740)。
   const deviceSave = useDeviceSave();
 
   return (

@@ -172,11 +172,11 @@ function Search() {
   // loading は、読み込み中の操作。新しい検索と、続きの読み込みで、表示を分ける。
   const [loading, setLoading] = useState<'search' | 'more' | null>(null);
   const [error, setError] = useState(false);
-  // request は、最後に始めた読み込みの番号。古い読み込みの応答は捨てる。
+  // request は、最後に始めた読み込みの番号。古い読み込みの応答は破棄する。
   const request = useRef(0);
   const [selected, setSelected] = useState<string | undefined>(undefined);
   const enabled = hasConditions(conditions);
-  // 条件の中身が変わったときだけ検索し直す。
+  // 条件の内容が変わったときだけ検索し直す。
   const key = JSON.stringify({
     conditions: toConditionsInput(conditions),
     archiveDays: includeArchive ? archiveDays : null,
@@ -264,7 +264,7 @@ function Search() {
   const canCreateRule = viewer.viewer.role !== 'VIEWER';
 
   return (
-    // 広い画面では、画面の高さに収め、条件と結果をそれぞれの列の中でスクロールする。
+    // 広い画面では、画面の高さに収め、条件と結果をそれぞれのカラムの中でスクロールする。
     <div className={classes.layout}>
       <div className={classes.pane}>
         <Stack>

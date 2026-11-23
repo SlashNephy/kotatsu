@@ -40,50 +40,50 @@ export type GuideProgram = {
   shared: boolean;
   // reserved は、有効な録画予約があること。枠を赤で囲む。
   reserved: boolean;
-  // watchReserved は、ログイン中のユーザーが視聴予約したこと。時刻の前にベルの印を出す (設計書 4.8)。
+  // watchReserved は、ログイン中のユーザーが視聴予約したこと。時刻の前にベルのマークを出す (設計書 4.8)。
   watchReserved: boolean;
-  // recorded は、番組の録画があること (#1278)。時刻の前に録画の印を出す。
+  // recorded は、番組の録画があること (#1278)。時刻の前に録画のマークを出す。
   recorded: boolean;
 };
 
 // GuideGenre は、番組のジャンルの大分類と中分類。
 export type GuideGenre = { readonly lv1: number; readonly lv2: number };
 
-// GuideColumn は、番組表の 1 列 (1 つのサービス)。programs は開始時刻の順に並べる。
+// GuideColumn は、番組表の 1 カラム (1 つのサービス)。programs は開始時刻の順に並べる。
 export type GuideColumn = {
   id: string;
   name: string;
   // logoUrl は、サービスのロゴの URL のパス。ロゴがなければ null。
   logoUrl: string | null;
   programs: GuideProgram[];
-  // receivedUntil は、この列の EPG が届いている時刻。これより後は、この列だけ、まだ届いていないと案内する。
-  // 列ごとに届いている時刻が違うとき (1 つのチャンネルの番組表) に使う。省くと、列では案内しない。
+  // receivedUntil は、このカラムの EPG が届いている時刻。これより後は、このカラムだけ、まだ届いていないと案内する。
+  // カラムごとに届いている時刻が違うとき (1 つのチャンネルの番組表) に使う。省くと、カラムでは案内しない。
   receivedUntil?: number;
 };
 
 type Props = {
   window: GuideWindow;
   columns: GuideColumn[];
-  // now は、いまの時刻。時間帯に入っていれば、線を引く。
+  // now は、いまの時刻。時間帯に入っていれば、線を描く。
   now: number;
   // receivedUntil は、番組表が届いている時刻。これより後は、まだ届いていないと案内する。省くと、案内しない。
   receivedUntil?: number;
   // scrollKey を変えると、日付が同じでも、scrollTime へスクロールし直す。
   scrollKey?: number;
-  // scrollProgram は、scrollTime へスクロールするときに、横にも見えるようにする番組の ID。その番組の列を左端に寄せる。
+  // scrollProgram は、scrollTime へスクロールするときに、横にも見えるようにする番組の ID。その番組のカラムを左端に寄せる。
   scrollProgram?: string | undefined;
   // scrollTime は、日付を変えたとき (と最初) に、上の方に出す時刻。null なら、それまで見ていた時間帯のままにする。
   scrollTime: number | null;
   // extendedHours は、深夜を 24 時以降 (28 時間表記) で表すかどうか (#486)。
   extendedHours?: boolean;
-  // renderHeader は、列の見出し。省くと、サービス名 (押すとライブ視聴) と、そのチャンネルの1週間の番組表への入り口を出す。
+  // renderHeader は、カラムの見出し。省くと、サービス名 (押すとライブ視聴) と、そのチャンネルの1週間の番組表へのリンクを出す。
   renderHeader?: (column: GuideColumn) => ReactNode;
   onSelect: (programId: string) => void;
 };
 
 const axisWidth = 44;
-// lastColumnLine は、最後の列の右の罫線。列の左の罫線と同じ線を、番組表の右の外に影で引く。
-// 列が少なく右に余白があるときに見え、横にスクロールできるときは、外枠の内側で切れて、外枠の線と重ならない。
+// lastColumnLine は、最後のカラムの右の罫線。カラムの左の罫線と同じ線を、番組表の右の外に影で描く。
+// カラムが少なく右に余白があるときに見え、横にスクロールできるときは、外枠の内側で切れて、外枠の線と重ならない。
 // 影は、スクロールできる範囲を広げない。
 const lastColumnLine = '1px 0 0 var(--mantine-color-default-border)';
 const headerHeight = 36;
@@ -91,7 +91,7 @@ const headerHeight = 36;
 const overscanPixels = 600;
 
 // GuideGrid は、横にサービス、縦に時刻を並べた番組表。
-// サービスの数と番組の数が多くても滑らかに動くよう、横はサービスの列を、縦は列の中の番組を、見えている範囲だけ描く。
+// サービスの数と番組の数が多くても滑らかに動くよう、横はサービスのカラムを、縦はカラムの中の番組を、見えている範囲だけ描く。
 export function GuideGrid({
   window: day,
   columns,
@@ -111,7 +111,7 @@ export function GuideGrid({
   // マウスでドラッグして、番組表を動かせるようにする (#698)。
   useDragScroll(scroller);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
-  // 列の番組の配置は、番組が変わったときだけ計算し直す。
+  // カラムの番組の配置は、番組が変わったときだけ計算し直す。
   const layouts = useMemo(() => columns.map((column) => layoutColumn(column.programs)), [columns]);
   // 短い番組がある時間だけ高くした目盛り。番組表の位置は、すべてこれで計算する。
   const window = useMemo(
@@ -135,7 +135,7 @@ export function GuideGrid({
     estimateSize: () => columnWidth,
     overscan: 2,
   });
-  // 密度を変えたら、列の幅を測り直す。
+  // 密度を変えたら、カラムの幅を計測し直す。
   useEffect(() => {
     virtualizer.measure();
   }, [virtualizer, columnWidth]);
@@ -188,7 +188,7 @@ export function GuideGrid({
     const time = scrollTimeRef.current;
     if (time !== null) {
       element.scrollTop = Math.max(timeToY(window, time) - 60 * minuteHeightOf(window) * 0.5, 0);
-      // 列は同じ幅で並ぶので、番組の列の番号から横の位置が決まる。
+      // カラムは同じ幅で並ぶので、番組のカラムの番号から横の位置が決まる。
       const programId = scrollProgramRef.current;
       const index =
         programId === undefined
@@ -232,7 +232,7 @@ export function GuideGrid({
       data-testid="guide-scroller"
       style={{
         overflow: 'auto',
-        // ヘッダーと、表の上の操作 (116px) を除いた高さにする。ヘッダーは、ステータスバーの下まで描くと高くなる (#425)。
+        // ヘッダーと、テーブルの上の操作 (116px) を除いた高さにする。ヘッダーは、ステータスバーの下まで描くと高くなる (#425)。
         height: 'calc(100dvh - var(--app-shell-header-height) - 116px)',
         minHeight: 320,
         border: '1px solid var(--mantine-color-default-border)',
@@ -377,7 +377,7 @@ export function GuideGrid({
 }
 
 // NotReceived は、まだ EPG が届いていない時間帯。斜線で塗り、縦にスクロールしても見える位置に案内を出す。
-// stickyLeft は、横にスクロールしても案内を見える位置に置くかどうか。すべての列にまたがって塗るときに使う。
+// stickyLeft は、横にスクロールしても案内を見える位置に置くかどうか。すべてのカラムにまたがって塗るときに使う。
 function NotReceived({
   top,
   left,
@@ -462,7 +462,7 @@ function GuideColumnView({
       {column.programs.slice(start, end).map((program, offset) => {
         const index = start + offset;
         const box = boxes[index]!;
-        // 重なる番組は、列の幅を分けて横に並べる。
+        // 重なる番組は、カラムの幅を分けて横に並べる。
         const laneWidth = width / layout.laneCounts[index]!;
 
         return (
@@ -540,7 +540,7 @@ function GuideColumnView({
   );
 }
 
-// ServiceHeader は、サービスの列の見出し。サービス名を押すとライブ視聴を開き、右のボタンでそのチャンネルの1週間の番組表を開く (#482)。
+// ServiceHeader は、サービスのカラムの見出し。サービス名を押すとライブ視聴を開き、右のボタンでそのチャンネルの1週間の番組表を開く (#482)。
 function ServiceHeader({ column }: { column: GuideColumn }) {
   const { t } = useTranslation();
   const name = toHalfWidth(column.name);

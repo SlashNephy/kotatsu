@@ -6,16 +6,16 @@ import { browserStorage } from '../yunomi/volume';
 import { loadRecordOnDevice, useRecordOnDevice } from './recordOnDevice';
 import type { PlayerMedia } from '../yunomi/playerMedia';
 
-// sampleInterval は、再生した区間を確かめる間隔 (ミリ秒)。
+// sampleInterval は、再生した区間を確認する間隔 (ミリ秒)。
 const sampleInterval = 1_000;
 // reportInterval は、再生した区間をサーバーに送る間隔 (ミリ秒、付録 A)。
 export const reportInterval = 30_000;
-// slackMs は、1 回の確かめで、放送の時刻が壁の時計より進んでもよい余裕 (ミリ秒)。タイマーの遅れを見込む。
+// slackMs は、1 回の確認で、放送の時刻が壁の時計より進んでもよい余裕 (ミリ秒)。タイマーの遅れを見込む。
 // これより大きく進んだら、シークしたものとして、区間を切る。
 const slackMs = 1_500;
 // minIntervalMs は、送る区間の長さの下限 (ミリ秒)。
 const minIntervalMs = 1_000;
-// maxPending は、送れずに溜めておく区間の数の上限。サーバーが受け付ける数 (100) より少なくする。
+// maxPending は、送れずにバッファに保持しておく区間の数の上限。サーバーが受け付ける数 (100) より少なくする。
 const maxPending = 50;
 
 export type PlaybackTarget = { serviceId: string } | { recordingId: string };
@@ -23,12 +23,12 @@ export type PlaybackTarget = { serviceId: string } | { recordingId: string };
 export type PlayedInterval = { from: number; to: number };
 
 // PlaybackTracker は、プレイヤーが実際に再生した、放送の時刻の区間を集める (#927)。
-// 再生位置ではなく、確かめるたびに、映像の時刻が進み、放送の時刻が壁の時計と同じくらい進んだ分だけを、再生したものとして足す。
+// 再生位置ではなく、確認するたびに、映像の時刻が進み、放送の時刻が壁の時計と同じくらい進んだ分だけを、再生したものとして足す。
 // 一時停止している間は進まず、シークで飛んだ分は区間を切るので、最後までシークしただけでは数えない。
 export class PlaybackTracker {
   private closed: PlayedInterval[] = [];
   // first は、closed の先頭の区間の通し番号。閉じた区間に、閉じた順に 0 から番号を振る。
-  // 上限を超えて古い区間を捨てても、送った区間がどこまでかを番号で分かるようにする (#1418)。
+  // 上限を超えて古い区間を破棄しても、送った区間がどこまでかを番号で分かるようにする (#1418)。
   private first = 0;
   private current: PlayedInterval | null = null;
   private last: { wall: number; at: number; media: number } | null = null;
@@ -69,8 +69,8 @@ export class PlaybackTracker {
     return { intervals, closed: this.first + this.closed.length };
   }
 
-  // acknowledge は、送り届けた閉じた区間 (通し番号が closed より前のもの) を捨てる。続いている区間は、伸び続けるので残す。
-  // 送っている間に上限を超えて古い区間を捨てていても、その後に閉じた区間は捨てない。
+  // acknowledge は、送り届けた閉じた区間 (通し番号が closed より前のもの) を破棄する。続いている区間は、伸び続けるので残す。
+  // 送っている間に上限を超えて古い区間を破棄していても、その後に閉じた区間は破棄しない。
   acknowledge(closed: number): void {
     const count = Math.min(Math.max(closed - this.first, 0), this.closed.length);
     this.closed = this.closed.slice(count);
@@ -80,7 +80,7 @@ export class PlaybackTracker {
   private close(): void {
     if (this.current !== null && this.current.to - this.current.from >= minIntervalMs) {
       this.closed.push(this.current);
-      // 送れない間に溜まりすぎたら、古いものから捨てる。
+      // 送れない間にたまりすぎたら、古いものから破棄する。
       if (this.closed.length > maxPending) {
         this.first += this.closed.length - maxPending;
         this.closed = this.closed.slice(-maxPending);

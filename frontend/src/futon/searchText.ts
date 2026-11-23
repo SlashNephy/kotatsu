@@ -6,7 +6,7 @@ export function normalizeForSearch(text: string): string {
   return text.normalize('NFKC').toLowerCase();
 }
 
-// searchWords は、検索の入力を、空白 (全角の空白を含む) で区切った、正規化した語にする。空の語は捨てる。
+// searchWords は、検索の入力を、空白 (全角の空白を含む) で区切った、正規化した語にする。空の語は破棄する。
 export function searchWords(query: string): string[] {
   return normalizeForSearch(query)
     .split(/\s+/)

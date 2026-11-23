@@ -16,7 +16,7 @@ import { createEventHub } from './events';
 import { createExecutor, type Executor, type Variables } from './executor';
 import { demoCommentsPath, demoRecordedComments, installFakeJikkyo } from './jikkyo';
 
-// 静的なデモ (#832) の入口。`vp build --mode demo` のときだけ main.tsx が読み込む。
+// 静的なデモ (#832) のエントリーポイント。`vp build --mode demo` のときだけ main.tsx が読み込む。
 // tenban の代わりに、GraphQL と /auth/* の応答をブラウザの中で返す。
 
 type GraphQLBody = { query?: string; variables?: Variables | null };

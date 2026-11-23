@@ -105,7 +105,7 @@ export const Route = createFileRoute('/admin/integrations')({
 
     return result;
   },
-  // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
+  // IdP での再認証を出すかを確認する。確認できなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: IntegrationsPage,
 });
@@ -255,7 +255,7 @@ function Integrations() {
   // revoking は、外部プレイヤーの URL を取り消している途中かどうか (#1757)。続けて押して、同じ URL を二度取り消さないようにする。
   const [revoking, setRevoking] = useState(false);
   // fail と succeed は、設定ではない操作 (トークンの登録、Webhook を作る、URL を取り消すなど) の結果を、
-  // 設定の保存と同じ通知で知らせる (#1740)。
+  // 設定の保存と同じ通知で伝える (#1740)。
   const fail = (caught: unknown) => notice.failed(caught);
   const succeed = (text: string) => {
     notifySaved(text);
@@ -831,7 +831,7 @@ function Integrations() {
 }
 
 // SwitchSetting は、全体の設定のうち、入れるか切るかの項目を変える。MCP のクライアントに使わせるか (#965) と、
-// データ放送の通信を中継するか (#501) に使う。
+// データ放送の通信をプロキシするか (#501) に使う。
 // commentSources は、実況のコメントのソースの一覧 (#1405)。ソースを足したら、ここと翻訳に足す。
 const commentSources = ['NX_JIKKYO', 'NICOLOG'] as const;
 

@@ -55,7 +55,7 @@ const renameMutation = graphql`
 `;
 
 // RecordingRenames は、ファイル名のテンプレートを変えた後に、既存の録画のファイルを今のテンプレートの名前に付け直す (設計書 4.7)。
-// 元の名前と新しい名前の一覧を見せ、確かめてから付け直す。
+// 元の名前と新しい名前の一覧を見せ、確認してから付け直す。
 export function RecordingRenames() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();

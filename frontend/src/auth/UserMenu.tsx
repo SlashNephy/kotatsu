@@ -43,7 +43,7 @@ export function UserMenu() {
     `,
     {},
   );
-  // 新しい版は、管理者にだけ届く (#506)。
+  // 新しいバージョンは、管理者にだけ届く (#506)。
   const latest = data.version.latestRelease;
   const environment = useRelayEnvironment();
   // 端末に保存した録画があるときに、消すかどうかを尋ねるダイアログ (#1365)。

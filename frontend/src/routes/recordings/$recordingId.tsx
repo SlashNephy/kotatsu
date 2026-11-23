@@ -442,7 +442,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               <RecordingThumbnail url={recording.thumbnailUrl} />
             </AspectRatio>
           </Card>
-          {/* 画像の不具合を直したときなどに、代表画像とプレビュー画像を作り直す (#476)。作り直すまでは、今の画像を出す。 */}
+          {/* 画像の不具合を修正したときなどに、代表画像とプレビュー画像を作り直す (#476)。作り直すまでは、今の画像を出す。 */}
           {canEdit && segments.length > 0 && recording.state !== 'RECORDING' && (
             <Group gap="xs">
               <Button

@@ -43,7 +43,7 @@ function AnimePage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const filters = filtersOf(search);
-  // 作品を探すリンクを出す配信サービス (#1235)。端末ごとに覚える。
+  // 作品を探すリンクを出す配信サービス (#1235)。端末ごとに保存する。
   const [streaming, setStreaming] = useStreamingServices();
   // update は、絞り込みを変える。既定の値は、URL から外す。
   const update = (changes: Partial<AnimeSearch>) =>

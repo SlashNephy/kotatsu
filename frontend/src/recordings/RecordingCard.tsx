@@ -37,18 +37,18 @@ export type RecordingCardData = {
   drops?: unknown;
   errors?: unknown;
   scrambled?: unknown;
-  // scrambleWarning は、スクランブルされたまま録れたという警告の印 (#1517)。
+  // scrambleWarning は、スクランブルされたまま録れたという警告のマーク (#1517)。
   scrambleWarning?: boolean | null;
-  // cmDetectionNote は、CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。あれば印を出す。
+  // cmDetectionNote は、CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。あればマークを出す。
   cmDetectionNote?: string | null;
-  // cmVideoMissingSeconds は、CM の見分けで測った映像の欠けの長さの合計の秒 (#1508)。
+  // cmVideoMissingSeconds は、CM の見分けで計測した映像の欠けの長さの合計の秒 (#1508)。
   cmVideoMissingSeconds?: number | null;
   // tags は、録画の一覧でだけ渡す。
   tags?: readonly { id: string; name: string }[];
 };
 
-// listedVideoMissingSeconds は、録画の一覧で映像の欠けの印を出す長さ (秒、#1508)。
-// 短すぎると、ほとんど気付かない一瞬の欠けにも印が出すぎるので、録画の詳細 (1 秒) より長くする。
+// listedVideoMissingSeconds は、録画の一覧で映像の欠けのマークを出す長さ (秒、#1508)。
+// 短すぎると、ほとんど気付かない一瞬の欠けにもマークが出すぎるので、録画の詳細 (1 秒) より長くする。
 export const listedVideoMissingSeconds = 5;
 
 const dateTimeFormat = zonedFormat({
@@ -78,7 +78,7 @@ const timeFormat = zonedFormat({
 
 // RecordingCard は、サムネイル付きの録画のカード。押すと、録画の詳細を開く。ホームと録画の一覧で使う。
 // 行の間は、放送中の番組のカードと揃える (番組名と放送時間は 4px、サービスとの間は xs)。
-// highlights は、番組名に印を付けるキーワード (#966)。録画の検索で絞ったときに渡す。
+// highlights は、番組名にマークを付けるキーワード (#966)。録画の検索で絞ったときに渡す。
 export function RecordingCard({
   recording,
   highlights = [],

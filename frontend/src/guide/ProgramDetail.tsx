@@ -608,7 +608,7 @@ type CancelProps = {
   onClose: () => void;
 };
 
-// CancelDialog は、録画予約を取り消す前に確かめる。番組予約は消し、ルール予約は無効にする (deleteReservation)。
+// CancelDialog は、録画予約を取り消す前に確認する。番組予約は消し、ルール予約は無効にする (deleteReservation)。
 function CancelDialog({ reservationId, byRule, programName, onClose }: CancelProps) {
   const { t } = useTranslation();
   const [error, setError] = useState(false);

@@ -13,13 +13,13 @@ export function sharesWithListed(
 
 type SharedLike = { sharedFrom?: { id: string } | null };
 
-// MarkedColumn は、番組に shared の印を付けた列。
+// MarkedColumn は、番組に shared のマークを付けたカラム。
 type MarkedColumn<C extends { programs: readonly SharedLike[] }> = Omit<C, 'programs'> & {
   programs: (C['programs'][number] & { shared: boolean })[];
 };
 
-// collapseSharedColumns は、番組表の列から、その日ずっと元のサービスと同じ番組を流している列 (サブチャンネル) を外し、
-// 残った列では、元のサービスと同じ番組に shared の印を付ける。番組のない列は、そのまま残す。
+// collapseSharedColumns は、番組表のカラムから、その日ずっと元のサービスと同じ番組を流しているカラム (サブチャンネル) を外し、
+// 残ったカラムでは、元のサービスと同じ番組に shared のマークを付ける。番組のないカラムは、そのまま残す。
 export function collapseSharedColumns<C extends { id: string; programs: readonly SharedLike[] }>(
   columns: readonly C[],
 ): MarkedColumn<C>[] {

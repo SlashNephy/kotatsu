@@ -239,7 +239,7 @@ function Form({ id, onClose, onReserved }: Props) {
 
   // 録画の設定に使うのは、一致したルールのうち最も古いもの (先頭) の上書き。
   const rule = kind === 'RULE' ? reservation?.rules[0] : undefined;
-  // 空の項目が従う値と、その出どころ。ルールに上書きがあればルール、なければ全体の既定値。
+  // 空の項目が従う値と、その取得元。ルールに上書きがあればルール、なければ全体の既定値。
   const defaults = data.systemSettings.recordingDefaults;
   const rulePriority = rule?.settings.priority ?? null;
   const ruleJoin = rule?.settings.joinSegments ?? null;

@@ -38,7 +38,7 @@ const firstOp = (markers: readonly PartMarker[]): number | null =>
   markers.find((marker) => marker.part === 'OP')?.time ?? null;
 
 // alignNicolog は、上映会のコメントを録画の位置に直して返す。どちらかに `OP` がないか、CM の区間がなければ空を返す。
-// `OP` より前のコメントは、録画と上映会でずれることがあるので捨てる。
+// `OP` より前のコメントは、録画と上映会でずれることがあるので破棄する。
 export function alignNicolog(
   comments: readonly JikkyoComment[],
   nicologMarkers: readonly PartMarker[],

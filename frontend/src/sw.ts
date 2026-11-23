@@ -39,7 +39,7 @@ registerRoute(
 
 // 字幕を描くフォントは、基本の字 (1.6 MB ほど) と、JIS X 0213 で足された漢字 (1 MB ほど) の 2 つのファイルに分けてある (#1520)。
 // 大きいのでプリキャッシュせず、一度読んだら残す。端末に保存した録画 (#480) をオフラインで再生するときも、字幕を描けるようにするためである。
-// ファイル名は版ごとに変わるので、それぞれ最後に読んだ 1 つだけを残す。片方を読んだときに、もう片方は消さない。
+// ファイル名はバージョンごとに変わるので、それぞれ最後に読んだ 1 つだけを残す。片方を読んだときに、もう片方は消さない。
 const broadcastFontCache = 'kotatsu-broadcast-font';
 const broadcastFontPattern = /\/assets\/rounded-mplus-1m-wadalab-mix-(base|jisx0213)-[^/]*\.woff2$/;
 registerRoute(
@@ -65,8 +65,8 @@ registerRoute(
 );
 
 // プリキャッシュの一覧は、vite-plugin-pwa が self.__WB_MANIFEST に注入する。
-// 新しい版の Service Worker は、開いているタブがすべて閉じてから有効になる。
-// それまでは、開いているタブが読み込む古い版のファイルを、古いキャッシュから返し続ける。
+// 新しいバージョンの Service Worker は、開いているタブがすべて閉じてから有効になる。
+// それまでは、開いているタブが読み込む古いバージョンのファイルを、古いキャッシュから返し続ける。
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 

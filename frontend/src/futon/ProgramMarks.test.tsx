@@ -9,7 +9,7 @@ import { theme } from './theme';
 
 afterEach(cleanup);
 
-// render は、印 (Badge) を描くため、Mantine のテーマの中で描く。
+// render は、マーク (Badge) を描くため、Mantine のテーマの中で描く。
 const render = (element: ReactElement) =>
   renderElement(<MantineProvider theme={theme}>{element}</MantineProvider>);
 

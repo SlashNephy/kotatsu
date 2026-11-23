@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';
 
-// ライブラリ (/library) の画面 (#2056)。ライブラリの一覧、フォルダの中身、名前で探した結果と、それぞれが空のとき、
+// ライブラリ (/library) の画面 (#2056)。ライブラリの一覧、フォルダの内容、名前で探した結果と、それぞれが空のとき、
 // 読み込めなかったときの表示を並べる。デモにはライブラリがないので、既定は空の一覧になる。
 const meta = {
   title: 'ページ/ライブラリ',
@@ -39,7 +39,7 @@ const folder = (path: string) => ({
   modifiedAt,
 });
 
-// directory は、ライブラリ archive のフォルダ path の中身を返す。
+// directory は、ライブラリ archive のフォルダ path の内容を返す。
 const directory = ({ path }: { path: string }) =>
   path === ''
     ? {

@@ -25,13 +25,13 @@ export type OfflineMeta = {
   savedAt: string;
 };
 
-// metaVersion は、OfflineMeta の形の版。形を変えたら上げ、古い版は読めないものとして扱う。
+// metaVersion は、OfflineMeta の形のバージョン。形を変えたら上げ、古いバージョンは読めないものとして扱う。
 const metaVersion = 1;
 
 const isString = (value: unknown): value is string => typeof value === 'string';
 
 // parseMeta は、保存した録画の情報を読む。壊れているか、形の違うものなら null を返す。
-// 書きかけで止まった保存や、古い版の情報を、保存した録画として並べないためである。
+// 書きかけで止まった保存や、古いバージョンの情報を、保存した録画として並べないためである。
 export function parseMeta(text: string): OfflineMeta | null {
   let value: unknown;
   try {
@@ -89,7 +89,7 @@ export function expectedSize(
 }
 
 // hasRoom は、端末の空き (navigator.storage.estimate の結果) に、required バイトを書けるかどうかを返す。
-// ブラウザが上限を知らせないときは、確かめようがないので、書いてみて、溢れたらそこで止める。
+// ブラウザが上限を通知しないときは、確認しようがないので、書いてみて、溢れたらそこで止める。
 export function hasRoom(estimate: StorageEstimate, required: number): boolean {
   if (estimate.quota === undefined) {
     return true;

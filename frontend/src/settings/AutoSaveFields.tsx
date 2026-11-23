@@ -38,7 +38,7 @@ export function useAutoSaveField<V, D>({
   // committed は、保存に渡し、まだ保存してある値に届いていない値。Enter の後に欄を離れたとき (再認証の画面に
   // フォーカスを取られたときを含む) に、同じ値を重ねて送らないために持つ。保存できなかったら消し、送り直せるようにする。
   const [committed, setCommitted] = useState<{ value: V } | null>(null);
-  // 描画の中で、前に受け取った値と比べて入れ直す。effect で入れ直すと、古い入力で一度描いてしまう。
+  // 描画の中で、前に受け取った値と比較して入れ直す。effect で入れ直すと、古い入力で一度描いてしまう。
   if (!equals(value, base)) {
     setBase(value);
     setDraft(toDraft(value));
@@ -260,7 +260,7 @@ export function AutoSaveTextInput({
 
 // useAutoSavedValue は、切り替えと選ぶ項目を、変えたらすぐ保存するための値を持つ (#1740)。
 // 変えた値は、保存して読み直した値が届くまで出す。保存できなかったら、変える前の値 (保存してある値) に戻す。
-// 保存してある値が変わったら (保存した、ほかの端末や管理者が変えた)、変えた値を捨てて、保存してある値を出す。
+// 保存してある値が変わったら (保存した、ほかの端末や管理者が変えた)、変えた値を破棄して、保存してある値を出す。
 export function useAutoSavedValue<V>(
   saved: V,
   onSave: (value: V) => Promise<boolean>,

@@ -38,7 +38,7 @@ const approve: Story['play'] = async ({ canvas }) => {
   await userEvent.click(await canvas.findByRole('button', { name: '許可する' }));
 };
 
-// 既定。デモは認可のリクエストを確かめないので、正しくないリクエストとして出す (クライアントへ戻す先も分からない)。
+// 既定。デモは認可のリクエストを確認しないので、正しくないリクエストとして出す (クライアントへ戻す先も分からない)。
 export const Default: Story = {};
 
 export const Loading: Story = { args: { hold: holdAll } };
@@ -52,7 +52,7 @@ export const ScopeNotAllowed: Story = { args: { overrides: consent(['mcp:read'])
 // 求められたスコープを 1 つも許せないとき (許可するを押せない)。
 export const NoScopeAllowed: Story = { args: { overrides: consent([]) } };
 
-// しばらく本人の確認をしていないので、スコープを選ぶ前に確かめるとき。
+// しばらく本人の確認をしていないので、スコープを選ぶ前に確認するとき。
 export const SudoRequired: Story = {
   args: {
     overrides: consent(['mcp:read', 'mcp:write']),
@@ -85,7 +85,7 @@ export const SudoUnavailable: Story = {
   },
 };
 
-// 許可しようとしたら、本人の確認の期限が切れていたとき (確かめる画面を出す)。
+// 許可しようとしたら、本人の確認の期限が切れていたとき (確認する画面を出す)。
 export const ReauthOnApprove: Story = {
   args: {
     overrides: {
@@ -121,7 +121,7 @@ export const Disabled: Story = {
   args: { overrides: { oauthAuthorization: failingWith({ code: 'NOT_FOUND' }) } },
 };
 
-// リクエストを確かめられなかったとき (クライアントの文書を読めないなど)。
+// リクエストを確認できなかったとき (クライアントの文書を読めないなど)。
 export const BadRequest: Story = {
   args: { overrides: { oauthAuthorization: failingWith({ code: 'BAD_USER_INPUT' }) } },
 };

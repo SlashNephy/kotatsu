@@ -34,7 +34,7 @@ describe('toRawId', () => {
       id: 'V2F0Y2hSdWxlOjAxYTEzYWQxLTJkNjAtN2I3Yi05ZjFkLTFkZDFiM2ZhM2Y5MQ',
       want: '01a13ad1-2d60-7b7b-9f1d-1dd1b3fa3f91',
     },
-    // 型名が合っても、中身が素の ID の形でなければそのまま (Service:abc)。
+    // 型名が合っても、内容が素の ID の形でなければそのまま (Service:abc)。
     {
       name: '中身が素の ID でなければそのまま',
       type: 'Service' as const,

@@ -2,16 +2,16 @@ import { useSyncExternalStore } from 'react';
 
 import { preferenceChanged } from '../settings/syncedPreferences';
 
-// ルールの一覧で折りたたんだグループの見出し (#1493) を、端末に覚える。ルールを開いてから戻っても、折りたたんだままにする。
+// ルールの一覧で折りたたんだグループの見出し (#1493) を、端末に保存する。ルールを開いてから戻っても、折りたたんだままにする。
 
 const storageKey = 'kotatsu.rules.collapsedGroups';
 
-// loadCollapsedGroups は、折りたたんだ見出しの鍵 (listFilter の sectionKey) を、端末から読む。読めなければ、すべて開く。
+// loadCollapsedGroups は、折りたたんだ見出しのキー (listFilter の sectionKey) を、端末から読む。読めなければ、すべて開く。
 export function loadCollapsedGroups(): ReadonlySet<string> {
   return parseCollapsedGroups(rawSnapshot());
 }
 
-// parseCollapsedGroups は、端末に覚えた文字列 raw を、折りたたんだ見出しの鍵にする。読めなければ、すべて開く。
+// parseCollapsedGroups は、端末に保存した文字列 raw を、折りたたんだ見出しのキーにする。読めなければ、すべて開く。
 function parseCollapsedGroups(raw: string | null): ReadonlySet<string> {
   try {
     const parsed: unknown = JSON.parse(raw ?? '[]');
@@ -24,18 +24,18 @@ function parseCollapsedGroups(raw: string | null): ReadonlySet<string> {
   }
 }
 
-// saveCollapsedGroups は、折りたたんだ見出しの鍵を、端末に覚える。覚えられなくても、今の画面には効かせる。
+// saveCollapsedGroups は、折りたたんだ見出しのキーを、端末に保存する。保存できなくても、今の画面には効かせる。
 export function saveCollapsedGroups(keys: ReadonlySet<string>): void {
   try {
     localStorage.setItem(storageKey, JSON.stringify([...keys]));
     preferenceChanged(storageKey);
   } catch {
-    // 端末に覚えられないだけで、表示は変える。
+    // 端末に保存できないだけで、表示は変える。
   }
   window.dispatchEvent(new Event(changeEvent));
 }
 
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブと、ほかの端末から同期した値 (#1862) にしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブと、ほかの端末から同期した値 (#1862) にしか届かない。
 const changeEvent = 'kotatsu:collapsed-groups';
 
 function subscribe(onChange: () => void): () => void {
@@ -48,10 +48,10 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-// useCollapsedGroups は、折りたたんだ見出しの鍵と、それを変える関数を返す。ほかのタブや、ほかの端末で変えても追う (#1862)。
+// useCollapsedGroups は、折りたたんだ見出しのキーと、それを変える関数を返す。ほかのタブや、ほかの端末で変えても追う (#1862)。
 // 読んだ文字列を手がかりにするので、値が変わらなければ、描き直さない。
 export function useCollapsedGroups(): [ReadonlySet<string>, (next: ReadonlySet<string>) => void] {
-  // 読んだ文字列から解く。引数なしで読み直すと、React Compiler が結果を覚えて使い回すからである。
+  // 読んだ文字列から解く。引数なしで読み直すと、React Compiler が結果をメモ化して使い回すからである。
   return [parseCollapsedGroups(useSyncExternalStore(subscribe, rawSnapshot)), saveCollapsedGroups];
 }
 

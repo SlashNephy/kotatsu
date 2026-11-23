@@ -60,7 +60,7 @@ const hex = (n: number, digits: number) =>
   `0x${n.toString(16).toUpperCase().padStart(digits, '0')}`;
 
 // ChannelInspector は、物理チャンネルの TS をまるごと数秒受け取り、TSID、サービスの一覧、サービスごとの ES とビットレートを
-// 出す (#830、設計書 10.3)。マルチ編成で帯域が分かれる様子を見るのに使う。調べる間、チューナーを 1 本使うので、押したときだけ調べる。
+// 出す (#830、設計書 10.3)。マルチ編成で帯域が分かれる様子を見るのに使う。調査する間、チューナーを 1 本使うので、押したときだけ調査する。
 export function ChannelInspector() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();

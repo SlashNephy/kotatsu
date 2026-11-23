@@ -86,7 +86,7 @@ function recordingKeyword(): KeywordRow {
   return { text: '', regexp: false, caseSensitive: false, fields: ['NAME', 'DESCRIPTION'] };
 }
 
-// keywordInputs は、中身のあるキーワードの行を、tenban に送る形にする。
+// keywordInputs は、内容のあるキーワードの行を、tenban に送る形にする。
 function keywordInputs(rows: readonly KeywordRow[]) {
   return rows
     .filter((row) => row.text.trim() !== '' && row.fields.length > 0)
@@ -427,7 +427,7 @@ function Recordings({
         styles={{
           // 下から出るので、見出しはステータスバーに届かない (futon/global.css)。
           root: { '--drawer-safe-area-top': '0px' },
-          // シートの高さは中身に合わせ、一覧が後ろに見えるようにする。
+          // シートの高さは内容に合わせ、一覧が後ろに見えるようにする。
           content: {
             height: 'auto',
             maxHeight: '85dvh',
@@ -551,7 +551,7 @@ function RecordingGrid({
     { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
   // more は、続きの読み込みで足した録画と、その次のカーソル。changes は、読み込んだときの録画の変更の回数。
-  // 録画が変わって最初のページを読み直したら、続きは捨てて、最初のページから出し直す。
+  // 録画が変わって最初のページを読み直したら、続きは破棄して、最初のページから出し直す。
   // 続きを残すと、録画が増えて最初のページからこぼれた録画が、どちらにも出なくなる (#868)。
   const [loaded, setMore] = useState<{
     changes: number;
@@ -714,7 +714,7 @@ function RecordingGrid({
   );
 }
 
-// SelectionOverlay は、録画を選ぶときに、カードの上に重ねる選択の印。カードを押しても、詳細へ移らずに選ぶ。
+// SelectionOverlay は、録画を選ぶときに、カードの上に重ねる選択のマーク。カードを押しても、詳細へ移らずに選ぶ。
 // 選べない録画は、理由を出して押せないようにする (#471)。
 function SelectionOverlay({
   label,
@@ -750,7 +750,7 @@ function SelectionOverlay({
           outline: checked ? '2px solid var(--mantine-primary-color-filled)' : undefined,
         }}
       >
-        {/* ボタンの中に入力欄を入れないよう、見た目だけの印にする。 */}
+        {/* ボタンの中に入力欄を入れないよう、見た目だけのマークにする。 */}
         <Checkbox.Indicator
           checked={checked}
           disabled={disabled}

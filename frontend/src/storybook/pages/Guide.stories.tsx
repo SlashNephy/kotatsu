@@ -8,7 +8,7 @@ import { GraphQLRequestError } from '../../relay/environment';
 import { call, merge, withStorage } from '../conditions';
 import { failing, holdAll, PageStory } from '../PageStory';
 
-// 番組表 (/guide) の画面 (#2056)。日付の移動、種別とピン留めのタブ、番組表ビュー、枠の印 (録画予約、視聴予約、録画、
+// 番組表 (/guide) の画面 (#2056)。日付の移動、種別とピン留めのタブ、番組表ビュー、枠のマーク (録画予約、視聴予約、録画、
 // サブチャンネル)、まだ届いていない時間帯、端末の表示の設定を、Story ごとに並べる。番組の詳細のパネルは、番組表/番組の詳細にまとめる。
 const meta = {
   title: 'ページ/番組表',
@@ -69,7 +69,7 @@ async function viewPath(executor: Executor) {
   return `/guide?view=${encodeURIComponent(id)}`;
 }
 
-// withMarks は、枠の印を散らす。これからの番組に視聴予約を付け、いくつかの番組に録画があることにし、
+// withMarks は、枠のマークを散らす。これからの番組に視聴予約を付け、いくつかの番組に録画があることにし、
 // 2 つ目の地上波のサービスの番組の半分を、1 つ目のサービスと同じ番組を流すサブチャンネルの枠にする。
 function withMarks(root: DemoRoot) {
   const now = Date.now();
@@ -183,21 +183,21 @@ export const JumpMenu: Story = {
   },
 };
 
-// 深夜を 24 時以降で表すとき (#486)。端末に覚えた設定を読む。
+// 深夜を 24 時以降で表すとき (#486)。端末に保存した設定を読む。
 export const ExtendedHours: Story = {
   beforeEach: () => withStorage({ 'kotatsu.guide.extendedHours': 'true' }),
 };
 
-// 番組表の密度を「狭い」にしたとき。端末に覚えた見た目の設定を読む。
+// 番組表の密度を「狭い」にしたとき。端末に保存した見た目の設定を読む。
 export const CompactDensity: Story = {
   beforeEach: () =>
     withStorage({ 'kotatsu.guide.appearance': JSON.stringify({ density: 'compact' }) }),
 };
 
-// 枠の印。録画予約 (ルール予約と番組予約)、視聴予約、録画があることと、サブチャンネルで同じ番組を流す枠を出す。
+// 枠のマーク。録画予約 (ルール予約と番組予約)、視聴予約、録画があることと、サブチャンネルで同じ番組を流す枠を出す。
 export const Marks: Story = { args: { overrides: withMarks } };
 
-// その日ずっと 1 つ目のサービスと同じ番組を流しているサブチャンネルは、列を出さない。
+// その日ずっと 1 つ目のサービスと同じ番組を流しているサブチャンネルは、カラムを出さない。
 export const SubchannelCollapsed: Story = {
   args: {
     overrides: patchGuide((rows) => {
@@ -309,7 +309,7 @@ export const FromMissingReservation: Story = {
   args: { url: () => Promise.resolve('/guide?reservation=Reservation:missing') },
 };
 
-// 放送がロゴを送っていないサービス。列の見出しに、ロゴの代わりにサービス名を出す。
+// 放送がロゴを送っていないサービス。カラムの見出しに、ロゴの代わりにサービス名を出す。
 export const NoLogos: Story = {
   args: {
     overrides: patchGuide((rows) =>

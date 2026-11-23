@@ -185,7 +185,7 @@ function ProgramList({ serviceId }: { serviceId: string }) {
 }
 
 // PromoteButton は、番組を録画に昇格するボタン (設計書 5.7)。放送中の番組は番組予約を作り、放送の終わった番組は
-// バッファから録画に書き出す。昇格したら、ボタンの代わりに、予約したか、書き出していることを出す。
+// バッファから録画にエクスポートする。昇格したら、ボタンの代わりに、予約したか、エクスポートしていることを出す。
 function PromoteButton({
   serviceId,
   startAt,

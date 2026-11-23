@@ -1,9 +1,9 @@
-// 不具合の報告を作るときに、ブラウザで伏せる規則 (2 段目、#1521、設計書 11.3)。
-// サーバーが知っている秘密の値は、画面に送る前にサーバーが伏せてある (1 段目)。ここでは、家に辿り着ける情報と、
-// 形で分かる秘密を伏せる。ホスト名は、本人が自分の家の構成を見るのに要るので、画面ではそのまま出し、報告にだけかける。
-// 規則は設計書 11.3 の 2 段目の表の順に当てる。印をさらに伏せないので、何度かけても結果は変わらない。
+// 不具合の報告を作るときに、ブラウザでマスクする規則 (2 番目のステップ、#1521、設計書 11.3)。
+// サーバーが知っている秘密の値は、画面に送る前にサーバーがマスクしてある (1 番目のステップ)。ここでは、家に辿り着ける情報と、
+// 形で分かる秘密をマスクする。ホスト名は、本人が自分の家の構成を見るのに要るので、画面ではそのまま出し、報告にだけかける。
+// 規則は設計書 11.3 の 2 番目のステップのテーブルの順に当てる。マークをさらにマスクしないので、何度かけても結果は変わらない。
 
-// marks は、伏せたものの代わりに置く印。何かを伏せたことと、伏せたものの種類が、読み手に分かるようにする。
+// marks は、マスクしたものの代わりに置くマーク。何かをマスクしたことと、マスクしたものの種類が、読み手に分かるようにする。
 export const marks = {
   secret: '[REDACTED_SECRET]',
   host: '[REDACTED_HOST]',
@@ -15,7 +15,7 @@ export const marks = {
 } as const;
 
 // 決めるパラメーター (設計書 付録 A)。
-// minSecretLength は、伏せる秘密の値の最短の長さ。サーバーの 1 段目 (redact.MinSecretLength) とそろえる。
+// minSecretLength は、マスクする秘密の値の最短の長さ。サーバーの 1 番目のステップ (redact.MinSecretLength) とそろえる。
 export const minSecretLength = 8;
 // minHostLength は、サーバーから渡されたホスト名を当てる最短の長さ。
 export const minHostLength = 4;
@@ -26,10 +26,10 @@ export const minPortDigits = 2;
 // minHostLetters は、「点の無い名前:ポート」の名前に要る英字の数。
 export const minHostLetters = 2;
 
-// publicHosts は、伏せないホスト。
+// publicHosts は、マスクしないホスト。
 export const publicHosts = ['localhost', 'github.com', 'raw.githubusercontent.com', 'ghcr.io'];
 
-// markPattern は、伏せた後の印。設定の秘密の値は、サーバーのログで [REDACTED] になっている (config.Secret)。
+// markPattern は、マスクした後のマーク。設定の秘密の値は、サーバーのログで [REDACTED] になっている (config.Secret)。
 const markPattern = /^\[REDACTED(?:_[A-Z]+)?\]$/;
 const isMark = (value: string) => markPattern.test(value);
 
@@ -82,10 +82,10 @@ function redactHosts(text: string, hosts: string[]): string {
   return text;
 }
 
-// urlChars は、URL の中に続く字。空白、引用符、山括弧、バックスラッシュ (JSON の \" の頭) で終わる。
+// urlChars は、URL の中に続く字。空白、引用符、山括弧、バックスラッシュ (JSON の \" の先頭) で終わる。
 const urlChars = String.raw`[^\s"'<>\\` + '`' + ']';
 
-// 3. Webhook の URL (Discord、Slack、パスに hook か hooks の語を含む http(s) の URL)。URL の全体を伏せる。
+// 3. Webhook の URL (Discord、Slack、パスに hook か hooks の語を含む http(s) の URL)。URL の全体をマスクする。
 const webhookPatterns = [
   new RegExp(
     String.raw`https?://(?:[a-z0-9-]+\.)*discord(?:app)?\.com/api/webhooks/${urlChars}*`,
@@ -98,13 +98,13 @@ const webhookPatterns = [
   ),
 ];
 
-// 4. URL の中の資格情報 (scheme://ユーザー:パスワード@)。資格の部分だけを伏せる。
+// 4. URL の中の資格情報 (scheme://ユーザー:パスワード@)。資格の部分だけをマスクする。
 // 「ホスト:ポート」の直後に ? か # が続くもの (http://example.com:8080?email=user@example.org) は、資格とみなさない (#1983)。
-// パスワードは、? と # をエンコードせずに書いたものも伏せるため、使える字を狭めない。
+// パスワードは、? と # をエンコードせずに書いたものもマスクするため、使える字を狭めない。
 const credentialsPattern =
   /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:"'<>\\]+:(?!\d{1,5}[?#])[^\s/@"'<>\\]*@/gi;
 
-// 5. Authorization、Proxy-Authorization、Cookie、Set-Cookie の値。行の終わりまで伏せる。
+// 5. Authorization、Proxy-Authorization、Cookie、Set-Cookie の値。行の終わりまでマスクする。
 const headerPattern =
   /\b(proxy-authorization|authorization|set-cookie|cookie)(["']?\s*[:=]\s*)(?!\[REDACTED_SECRET\]$)\S.*$/gim;
 
@@ -124,13 +124,13 @@ const looksRandom = (token: string) => /[A-Z0-9]/.test(token.replace(/^kotatsu_/
 const secretName = String.raw`[\w.-]*(?:secret|token|password|passwd|pwd|api[ _-]?key|private[ _-]?key|credential|session[ _-]?id)[\w.-]*`;
 // JSON の形 ("名前":"値")。
 const jsonSecretPattern = new RegExp(String.raw`("${secretName}"\s*:\s*)"((?:[^"\\]|\\.)*)"`, 'gi');
-// key=value と key: value の形。値が引用符で囲まれていれば、中に空白があっても、閉じる引用符まで伏せる。
-// 引用符のない値は、前の規則で伏せた印を途中に含んでも、印ごと 1 つの値として読む。印で値を切ると、印の後ろが残る (#1983)。
+// key=value と key: value の形。値が引用符で囲まれていれば、中に空白があっても、閉じる引用符までマスクする。
+// 引用符のない値は、前の規則でマスクしたマークを途中に含んでも、マークごと 1 つの値として読む。マークで値を切ると、マークの後ろが残る (#1983)。
 const plainSecretPattern = new RegExp(
   String.raw`(?<![\w.-])(${secretName})(\s*[=:]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|(?:\[REDACTED(?:_[A-Z]+)?\]|[^\s,;&"'}\])])+)`,
   'gi',
 );
-// onlyMarks は、値が印だけでできているかを返す。
+// onlyMarks は、値がマークだけでできているかを返す。
 const onlyMarks = (value: string) => /^(?:\[REDACTED(?:_[A-Z]+)?\])+$/.test(value);
 
 function redactNamedSecrets(text: string): string {
@@ -152,7 +152,7 @@ function redactNamedSecrets(text: string): string {
   );
 }
 
-// 9. URL のクエリで、値そのものが鍵として働くもの。? か & の直後の名前だけに当てる。
+// 9. URL のクエリで、値そのものがキーとして働くもの。? か & の直後の名前だけに当てる。
 const queryPattern =
   /([?&](?:code|state|nonce|token|access_token|id_token|refresh_token|key|sig|signature)=)([^&#\s"'<>\\]+)/gi;
 
@@ -160,8 +160,8 @@ const queryPattern =
 const emailPattern =
   /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(?![A-Za-z0-9-])/g;
 
-// redactEmails は、メールアドレスを伏せる。「a@b.com+c@d.com」のように、アドレスの直後に + などで次のアドレスが続くと、
-// 次のアドレスは前が英数字の続きに見えて当たらない。伏せた後は前が印になって当たるので、変わらなくなるまでかける (#1983)。
+// redactEmails は、メールアドレスをマスクする。「a@b.com+c@d.com」のように、アドレスの直後に + などで次のアドレスが続くと、
+// 次のアドレスは前が英数字の続きに見えて当たらない。マスクした後は前がマークになって当たるので、変わらなくなるまでかける (#1983)。
 // かけるたびに @ が 1 つ以上減るので、必ず止まる。
 function redactEmails(text: string): string {
   for (;;) {
@@ -269,7 +269,7 @@ function redactCards(text: string): string {
   return text.replace(plainCardPattern, (whole) => (isCardNumber(whole) ? marks.card : whole));
 }
 
-// 12. IPv6 (:: を含む短い形と 8 組の形。%ゾーンを含めて)。C++ の名前 (a::b) と見分けるため、数字を含むときだけ伏せる。
+// 12. IPv6 (:: を含む短い形と 8 組の形。%ゾーンを含めて)。C++ の名前 (a::b) と見分けるため、数字を含むときだけマスクする。
 const hex = '[0-9A-Fa-f]{1,4}';
 const ipv6Pattern = new RegExp(
   String.raw`(?<![0-9A-Za-z:.])(?:(?:${hex}:){7}${hex}|(?:${hex}(?::${hex})*)?::(?:${hex}(?::${hex})*)?(?::\d{1,3}(?:\.\d{1,3}){3})?)(?:%[0-9A-Za-z._-]+)?(?![0-9A-Za-z:])`,
@@ -277,7 +277,7 @@ const ipv6Pattern = new RegExp(
 );
 
 // 13. IPv4。ポートと CIDR の長さは、当てる範囲の外なので残る。
-// 英字＋/ の直後 (Chrome/131.0.0.0 のような製品の版) と、直後に -英字 が続くもの (カーネルの版) は除く。
+// 英字＋/ の直後 (Chrome/131.0.0.0 のような製品のバージョン) と、直後に -英字 が続くもの (カーネルのバージョン) は除く。
 const octet = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`;
 const ipv4Pattern = new RegExp(
   String.raw`(?<![\d.])(?<![A-Za-z]/)${octet}(?:\.${octet}){3}(?!\.?\d|-[A-Za-z])`,
@@ -287,7 +287,7 @@ const ipv4Pattern = new RegExp(
 // 14. URL のホスト部。
 const urlHostPattern = /\b([a-z][a-z0-9+.-]*:\/\/(?:[^\s/@"'<>\\]*@)?)([^/\s:?#"'<>\\[\]@]+)/gi;
 
-// 15. 「点の無い名前:ポート」のホスト名。後ろにさらに :数字 が続くもの (時刻、行と列) と、ホストでない語は除く。
+// 15. 「点の無い名前:ポート」のホスト名。後ろにさらに :数字 が続くもの (時刻、行と桁) と、ホストでない語は除く。
 const hostPortPattern = new RegExp(
   String.raw`(?<![A-Za-z0-9_.\-/:@\[])([A-Za-z0-9][A-Za-z0-9_-]*):(\d{${minPortDigits},5})(?!\d|:\d|\.\d)`,
   'g',
@@ -381,13 +381,13 @@ const homePattern = /(\/Users\/|\/home\/|\b[A-Za-z]:(?:\\\\|\\)Users(?:\\\\|\\))
 
 // RedactOptions は、サーバーから渡されたもの。
 export type RedactOptions = {
-  // secrets は、伏せる秘密の値。サーバーは、秘密の値をブラウザに渡さないので、ふつうは空。
+  // secrets は、マスクする秘密の値。サーバーは、秘密の値をブラウザに渡さないので、ふつうは空。
   secrets: readonly string[];
-  // hosts は、伏せるホスト名 (リクエストが来たホスト名と、チューナーサーバーなどのホスト名)。
+  // hosts は、マスクするホスト名 (リクエストが来たホスト名と、チューナーサーバーなどのホスト名)。
   hosts: readonly string[];
 };
 
-// redact は、text の秘密の値と、家に辿り着ける情報を、設計書 11.3 の 2 段目の表の順に伏せる。
+// redact は、text の秘密の値と、家に辿り着ける情報を、設計書 11.3 の 2 番目のステップのテーブルの順にマスクする。
 export function redact(text: string, { secrets, hosts }: RedactOptions): string {
   text = redactSecrets(text, [...secrets]);
   text = redactHosts(text, [...hosts]);

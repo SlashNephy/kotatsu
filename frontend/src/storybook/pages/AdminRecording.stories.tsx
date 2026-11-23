@@ -228,7 +228,7 @@ export const CaptionModelDownloadFailed: Story = {
   },
 };
 
-// 置いたモデルを消す前に確かめるとき。
+// 置いたモデルを消す前に確認するとき。
 export const CaptionModelDeleting: Story = {
   args: { overrides: CaptionModelPlaced.args?.overrides },
   play: async ({ canvas }) => {

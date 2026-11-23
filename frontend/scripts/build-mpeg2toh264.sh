@@ -31,7 +31,7 @@ for patch in "$vendor"/patches/*.patch; do
   git -C "$src" apply "$patch"
 done
 
-# wasm-bindgen は、成果物に自分の版 (ビルドした commit を含む) を書くので、mise で固定した配布物を使う。
+# wasm-bindgen は、成果物に自分のバージョン (ビルドした commit を含む) を書くので、mise で固定した配布物を使う。
 # cargo install で入れたものが ~/.cargo/bin にあると、そちらが先に見つかってしまう。
 if command -v mise >/dev/null 2>&1; then
   PATH="$(mise where github:wasm-bindgen/wasm-bindgen):$PATH"
@@ -49,7 +49,7 @@ EOF
 unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 (
   cd "$src"
-  # 上流のスクリプトは、wasm-bindgen の CLI と crate の版が揃っていることを確かめてからビルドする。
+  # 上流のスクリプトは、wasm-bindgen の CLI と crate のバージョンが揃っていることを確認してからビルドする。
   ./tools/build-wasm.sh >/dev/null
   npm ci --ignore-scripts --no-audit --no-fund >/dev/null
   npm run packages:build >/dev/null

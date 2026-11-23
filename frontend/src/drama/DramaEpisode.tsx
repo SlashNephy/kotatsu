@@ -112,7 +112,7 @@ export function TMDBAttribution() {
 // DramaEpisode は、番組と録画の詳細に、結びついた TMDB の作品とシーズン、話と、TMDB のページへのリンクを出す (#1651、設計書 3.9)。
 // 結びついていなければ、何も出さない。canOverride なら、管理者が作品を直す操作を置く (programName の作品名の上書き)。
 // ログイン中のユーザーの状態を引いていれば (#1652)、作品を見ている作品に足す操作と、話を見たことにする操作も置く。
-// 作品名とシーズンと話、操作、リンクの順に、1 段ずつ並べる。
+// 作品名とシーズンと話、操作、リンクの順に、1 ステップずつ並べる。
 export function DramaEpisode({
   episode,
   programName,
@@ -129,7 +129,7 @@ export function DramaEpisode({
   const label = dramaEpisodeLabel(t, episode);
   const name = episode.series.name ?? episode.series.originalName ?? t('drama.unknownSeries');
   // TMDB は、名前の決まっていない話に「第6話」のような仮の名前を付ける。話数と同じことしか言わないので出さない。
-  // 話の名前は、画面の言語によらず日本語 (ja-JP) で引くので、画面の言語の文言ではなく、TMDB の仮の名前の形と比べる。
+  // 話の名前は、画面の言語によらず日本語 (ja-JP) で検索するので、画面の言語の文言ではなく、TMDB の仮の名前の形と比較する。
   // 日本語の名前がない話は、英語の「Episode 6」になることがあるので、それも仮の名前とみなす。
   const episodeName =
     episode.episodeName != null &&

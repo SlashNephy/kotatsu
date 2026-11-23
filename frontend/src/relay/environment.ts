@@ -93,7 +93,7 @@ let sseClient: Client | undefined;
 // subscribe は、subscription を graphql-sse で受け取る。tenban は、同じエンドポイントで SSE を返す。
 // 接続が切れたら、上限なしにつなぎ直す。graphql-sse の既定 (5 回、約 30 秒) で諦めると、
 // サーバーの再起動などの後、ページを読み込み直すまで変更が届かなくなるため (#503)。
-// つなぎ直している間は、serverConnections に知らせ、ヘッダーに印を出す。
+// つなぎ直している間は、serverConnections に通知し、ヘッダーにマークを出す。
 const subscribe: SubscribeFunction = (operation, variables) => {
   sseClient ??= createClient({
     url: endpoint,

@@ -30,7 +30,7 @@ const swatch = (color: string) => `var(--mantine-color-${color}-light)`;
 export function GuideAppearanceSettings() {
   const { t } = useTranslation();
   const [appearance, setAppearance] = useGuideAppearance();
-  // 変えたら、ほかの設定と同じ通知で知らせる (#1740)。
+  // 変えたら、ほかの設定と同じ通知で伝える (#1740)。
   const save = useDeviceSave()(setAppearance);
   const colorOptions = genreColorChoices.map((color) => ({
     value: color,

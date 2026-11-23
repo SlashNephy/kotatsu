@@ -45,10 +45,10 @@ export async function uploadCapture(image: Blob, info: CaptureInfo): Promise<voi
   }
 }
 
-// legacyDatabaseName は、キャプチャの履歴を端末に残していた版 (#457) の IndexedDB の名前。
+// legacyDatabaseName は、キャプチャの履歴を端末に残していたバージョン (#457) の IndexedDB の名前。
 const legacyDatabaseName = 'kotatsu-captures';
 
-// removeLegacyHistory は、端末に残していたキャプチャの履歴を消す。サーバーの一覧に置き換えたので、移さずに捨てる (#908)。
+// removeLegacyHistory は、端末に残していたキャプチャの履歴を消す。サーバーの一覧に置き換えたので、移さずに破棄する (#908)。
 // 消せなくても (IndexedDB を使えないブラウザなど)、何もしない。
 export function removeLegacyHistory(): void {
   try {

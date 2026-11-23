@@ -5,7 +5,7 @@ import { asViewer, merge } from '../conditions';
 import { failing, holdAll, PageStory } from '../PageStory';
 
 // 通信の記録 (/network-activity) の画面 (#2056)。記録していないとき、記録していて通信がないとき、日ごとの通信の一覧
-// (失敗した通信、宛先を伏せた通信)、管理者でないとき、切り替えに失敗したときの表示を並べる。
+// (失敗した通信、宛先をマスクした通信)、管理者でないとき、切り替えに失敗したときの表示を並べる。
 const meta = {
   title: 'ページ/通信の記録',
   component: PageStory,
@@ -60,9 +60,9 @@ const activity = () => ({
       receivedBytes: 3_500_000,
     }),
     entry(2, 'UPDATE_CHECK', 'api.example.com', { success: false }),
-    // Webhook の宛先は、利用者の設定なので伏せる。
+    // Webhook の宛先は、利用者の設定なのでマスクする。
     entry(3, 'WEBHOOK', null, { initiator: 'USER' }),
-    // 宛先を伏せる通信のうち、伏せた理由の文を持たないもの。
+    // 宛先をマスクする通信のうち、マスクした理由の文を持たないもの。
     entry(4, 'WEB_PUSH', null),
     entry(30, 'ANIME_PROGRAM_SYNC', 'calendar.example.com', { count: 24 }),
   ],
@@ -76,7 +76,7 @@ export const Loading: Story = { args: { hold: holdAll } };
 // 読み込めなかったとき。
 export const Error: Story = { args: { overrides: { networkActivity: failing() } } };
 
-// 記録していて、日ごとの通信があるとき。失敗した通信と、宛先を伏せた通信を含む。
+// 記録していて、日ごとの通信があるとき。失敗した通信と、宛先をマスクした通信を含む。
 export const Recorded: Story = { args: { overrides: { networkActivity: activity } } };
 
 // 記録を有効にしたが、まだ通信がないとき。
