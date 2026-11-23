@@ -32,7 +32,6 @@ function settingsResponse() {
           followEventRelay: true,
           bundleSameEpisodes: true,
         },
-        ruleUnmatchedGraceMinutes: 180,
         historyMaxDrops: 0,
         tvtplayChaptersEnabled: false,
         cmDetector: 'FFMPEG',
@@ -115,34 +114,14 @@ describe('数と文字の欄は、欄を離れたときか Enter で保存する
       return saved;
     });
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
-    const grace = await screen.findByRole('textbox', {
-      name: 'ルールから外れた予約を残す時間（放送前の分）',
-    });
-    expect(grace).toHaveProperty('value', '180');
-
-    fireEvent.change(grace, { target: { value: '0' } });
-    expect(sent).toEqual([]);
-
-    await act(async () => fireEvent.blur(grace));
-
-    expect((await screen.findByRole('status')).textContent).toContain('保存しました');
-    expect(sent).toEqual([{ ruleUnmatchedGraceMinutes: 0 }]);
-  });
-
-  test('録画済みとみなすドロップの上限を、欄を離れたら保存する', async () => {
-    const sent: unknown[] = [];
-    const environment = respondWith((input) => {
-      sent.push(input);
-
-      return saved;
-    });
-    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
     const maxDrops = await screen.findByRole('textbox', {
       name: '録画済みとみなす映像・音声のドロップの上限（件）',
     });
     expect(maxDrops).toHaveProperty('value', '0');
 
     fireEvent.change(maxDrops, { target: { value: '4' } });
+    expect(sent).toEqual([]);
+
     await act(async () => fireEvent.blur(maxDrops));
 
     expect((await screen.findByRole('status')).textContent).toContain('保存しました');

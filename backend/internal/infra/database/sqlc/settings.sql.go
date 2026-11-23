@@ -189,11 +189,11 @@ UPDATE system_settings SET recording_defaults = $1, archive_retention_days = $2,
   iptv_feeds_enabled = $12, recording_downloads_enabled = $13, tvtplay_chapters_enabled = $14, cm_detector = $15, epgstation_api_enabled = $16, anime_linking_enabled = $17, drama_linking_enabled = $18, comment_sources = $19,
   drcs_replacements = $20, timeshift_while_watching = $21,
   timeshift_while_watching_retention_seconds = $22,
-  rule_unmatched_grace_minutes = $23, history_max_drops = $24, audit_retention_days = $25,
-  audit_client_info_retention_days = $26, hibp_enabled = $27, web_push_subject = $28,
-  thumbnail_previews_enabled = $29, sleep_control_enabled = $30, caption_threads = $31,
-  jikkyo_channels = $32,
-  updated_at = $33
+  history_max_drops = $23, audit_retention_days = $24,
+  audit_client_info_retention_days = $25, hibp_enabled = $26, web_push_subject = $27,
+  thumbnail_previews_enabled = $28, sleep_control_enabled = $29, caption_threads = $30,
+  jikkyo_channels = $31,
+  updated_at = $32
 WHERE id = 1
 RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, history_max_drops, audit_retention_days, audit_client_info_retention_days, hibp_enabled, web_push_subject, thumbnail_previews_enabled, sleep_control_enabled, caption_threads, jikkyo_channels, updated_at
 `
@@ -221,7 +221,6 @@ type UpdateSystemSettingsParams struct {
 	DrcsReplacements                       []byte
 	TimeshiftWhileWatching                 bool
 	TimeshiftWhileWatchingRetentionSeconds int32
-	RuleUnmatchedGraceMinutes              int32
 	HistoryMaxDrops                        int32
 	AuditRetentionDays                     int32
 	AuditClientInfoRetentionDays           int32
@@ -258,7 +257,6 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		arg.DrcsReplacements,
 		arg.TimeshiftWhileWatching,
 		arg.TimeshiftWhileWatchingRetentionSeconds,
-		arg.RuleUnmatchedGraceMinutes,
 		arg.HistoryMaxDrops,
 		arg.AuditRetentionDays,
 		arg.AuditClientInfoRetentionDays,

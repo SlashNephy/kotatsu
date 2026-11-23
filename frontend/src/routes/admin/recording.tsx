@@ -71,7 +71,6 @@ const query = graphql`
         followEventRelay
         bundleSameEpisodes
       }
-      ruleUnmatchedGraceMinutes
       historyMaxDrops
       tvtplayChaptersEnabled
       cmDetector
@@ -324,18 +323,6 @@ function RecordingSettings() {
           <Title order={3} size="h5">
             {t('admin.settings.ruleMatching')}
           </Title>
-          <AutoSaveNumberInput
-            size="xs"
-            maw={480}
-            label={t('admin.settings.ruleUnmatchedGrace')}
-            description={t('admin.settings.ruleUnmatchedGraceHelp')}
-            min={0}
-            max={1440}
-            allowDecimal={false}
-            allowNegative={false}
-            value={settings.ruleUnmatchedGraceMinutes}
-            onSave={(ruleUnmatchedGraceMinutes) => saveSettings({ ruleUnmatchedGraceMinutes })}
-          />
           <AutoSaveNumberInput
             size="xs"
             maw={480}

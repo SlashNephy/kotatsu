@@ -40,10 +40,6 @@ const (
 	// minTimeshiftRetentionSeconds と maxTimeshiftRetentionSeconds は、タイムシフトの保持時間の下限と上限。DB の制約と同じ。
 	minTimeshiftRetentionSeconds = 600
 	maxTimeshiftRetentionSeconds = 86400
-	// DefaultRuleUnmatchedGraceMinutes は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分) の既定値 (付録 A、#1501)。
-	DefaultRuleUnmatchedGraceMinutes = 180
-	// maxRuleUnmatchedGraceMinutes は、その時間の上限 (1 日)。DB の制約と同じ。
-	maxRuleUnmatchedGraceMinutes = 1440
 	// DefaultHistoryMaxDrops は、重複の回避で「録画済み」とみなす、判定に数えるドロップの数の上限の既定値 (付録 A)。
 	// 判定に数えるのは映像と音声の PID のドロップだけなので、1 件でもあれば見たときに乱れる。既定では録画済みとみなさない。
 	DefaultHistoryMaxDrops = 0
@@ -132,8 +128,6 @@ type System struct {
 	TimeshiftWhileWatching bool
 	// TimeshiftWhileWatchingRetentionSeconds は、視聴している間だけ録るサービスの保持時間 (秒)。
 	TimeshiftWhileWatchingRetentionSeconds int
-	// RuleUnmatchedGraceMinutes は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0 なら残さない。
-	RuleUnmatchedGraceMinutes int
 	// HistoryMaxDrops は、重複の回避で「録画済み」とみなす、判定に数えるドロップ (映像と音声の PID のもの) の数の上限 (設計書 4.4)。
 	HistoryMaxDrops int
 	// AuditRetentionDays は、監査ログの保持期間 (日。設計書 8.5)。1 以上。
@@ -205,11 +199,6 @@ func (s *System) NotificationRetention() time.Duration {
 	return time.Duration(s.NotificationRetentionDays) * 24 * time.Hour
 }
 
-// RuleUnmatchedGrace は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間を返す (#1501)。
-func (s *System) RuleUnmatchedGrace() time.Duration {
-	return time.Duration(s.RuleUnmatchedGraceMinutes) * time.Minute
-}
-
 // RuleDefaults は、ルールを作るときの既定値 (#470)。ルールは家族で共有するので、全体の設定に持つ。
 type RuleDefaults struct {
 	// AvoidDuplicates は、同じ番組名を録画済みなら予約しないかどうか (設計書 4.4)。既定は false。
@@ -272,7 +261,6 @@ type Changes struct {
 	DRCSReplacements                       map[string]*string
 	TimeshiftWhileWatching                 *bool
 	TimeshiftWhileWatchingRetentionSeconds *int
-	RuleUnmatchedGraceMinutes              *int
 	HistoryMaxDrops                        *int
 	AuditRetentionDays                     *int
 	AuditClientInfoRetentionDays           *int
@@ -343,8 +331,6 @@ type resolvedRetention struct {
 	archive, notification, watchProgress, networkActivity int32
 	// timeshiftWhileWatching は、視聴している間だけ録るタイムシフトの保持時間 (秒)。
 	timeshiftWhileWatching int32
-	// ruleUnmatchedGrace は、どのルールにも一致しなくなったルール予約を残す放送前の時間 (分)。
-	ruleUnmatchedGrace int32
 	// historyMaxDrops は、録画済みとみなすドロップの数の上限。
 	historyMaxDrops int32
 	// audit と auditClientInfo は、監査ログと、その送信元の情報の保持期間 (日)。
@@ -370,9 +356,6 @@ func resolveRetention(current *System, changes *Changes) (resolvedRetention, err
 		return result, err
 	}
 	if result.timeshiftWhileWatching, err = timeshiftRetentionSeconds(valueOr(changes.TimeshiftWhileWatchingRetentionSeconds, current.TimeshiftWhileWatchingRetentionSeconds)); err != nil {
-		return result, err
-	}
-	if result.ruleUnmatchedGrace, err = ruleUnmatchedGraceMinutes(valueOr(changes.RuleUnmatchedGraceMinutes, current.RuleUnmatchedGraceMinutes)); err != nil {
 		return result, err
 	}
 	if result.historyMaxDrops, err = historyMaxDrops(valueOr(changes.HistoryMaxDrops, current.HistoryMaxDrops)); err != nil {
@@ -416,11 +399,6 @@ func validateRetentionChanges(changes *Changes) error {
 	}
 	if seconds := changes.TimeshiftWhileWatchingRetentionSeconds; seconds != nil {
 		if _, err := timeshiftRetentionSeconds(*seconds); err != nil {
-			return err
-		}
-	}
-	if minutes := changes.RuleUnmatchedGraceMinutes; minutes != nil {
-		if _, err := ruleUnmatchedGraceMinutes(*minutes); err != nil {
 			return err
 		}
 	}
@@ -572,7 +550,6 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			DrcsReplacements:                       replacementsEncoded,
 			TimeshiftWhileWatching:                 valueOr(changes.TimeshiftWhileWatching, current.TimeshiftWhileWatching),
 			TimeshiftWhileWatchingRetentionSeconds: retention.timeshiftWhileWatching,
-			RuleUnmatchedGraceMinutes:              retention.ruleUnmatchedGrace,
 			HistoryMaxDrops:                        retention.historyMaxDrops,
 			AuditRetentionDays:                     retention.audit,
 			AuditClientInfoRetentionDays:           retention.auditClientInfo,
@@ -619,7 +596,6 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"drcsReplacements":                       drcsChanges(current.DRCSReplacements, updated.DRCSReplacements, changes.DRCSReplacements),
 				"timeshiftWhileWatching":                 change(current.TimeshiftWhileWatching, updated.TimeshiftWhileWatching),
 				"timeshiftWhileWatchingRetentionSeconds": change(current.TimeshiftWhileWatchingRetentionSeconds, updated.TimeshiftWhileWatchingRetentionSeconds),
-				"ruleUnmatchedGraceMinutes":              change(current.RuleUnmatchedGraceMinutes, updated.RuleUnmatchedGraceMinutes),
 				"historyMaxDrops":                        change(current.HistoryMaxDrops, updated.HistoryMaxDrops),
 				"auditRetentionDays":                     change(current.AuditRetentionDays, updated.AuditRetentionDays),
 				"auditClientInfoRetentionDays":           change(current.AuditClientInfoRetentionDays, updated.AuditClientInfoRetentionDays),
@@ -648,16 +624,6 @@ func change(from, to any) map[string]any {
 	return map[string]any{"from": from, "to": to}
 }
 
-// retentionDays は、保持期間 name の日数が範囲にあるかを確かめ、DB に保存する形にする。
-// ruleUnmatchedGraceMinutes は、ルールから外れた予約を残す放送前の時間 (分) を確かめ、DB に書く値にする。
-func ruleUnmatchedGraceMinutes(minutes int) (int32, error) {
-	if minutes < 0 || minutes > maxRuleUnmatchedGraceMinutes {
-		return 0, fmt.Errorf("%w: ruleUnmatchedGraceMinutes must be between 0 and %d", ErrInvalidSettings, maxRuleUnmatchedGraceMinutes)
-	}
-
-	return int32(minutes), nil
-}
-
 // historyMaxDrops は、録画済みとみなすドロップの数の上限を確かめ、DB に書く値にする。
 func historyMaxDrops(drops int) (int32, error) {
 	if drops < 0 || drops > maxHistoryMaxDrops {
@@ -676,6 +642,7 @@ func timeshiftRetentionSeconds(seconds int) (int32, error) {
 	return int32(seconds), nil
 }
 
+// retentionDays は、保持期間 name の日数が範囲にあるかを確かめ、DB に保存する形にする。
 func retentionDays(name string, days int) (int32, error) {
 	if days < 0 || days > maxArchiveRetentionDays {
 		return 0, fmt.Errorf("%w: %s must be between 0 and %d", ErrInvalidSettings, name, maxArchiveRetentionDays)
@@ -822,9 +789,8 @@ func defaults() *System {
 		CommentSources:            []string{},
 		DRCSReplacements:          map[string]string{},
 		TimeshiftWhileWatching:    false, TimeshiftWhileWatchingRetentionSeconds: DefaultTimeshiftWhileWatchingRetentionSeconds,
-		RuleUnmatchedGraceMinutes: DefaultRuleUnmatchedGraceMinutes,
-		HistoryMaxDrops:           DefaultHistoryMaxDrops,
-		AuditRetentionDays:        DefaultAuditRetentionDays, AuditClientInfoRetentionDays: DefaultAuditClientInfoRetentionDays,
+		HistoryMaxDrops:    DefaultHistoryMaxDrops,
+		AuditRetentionDays: DefaultAuditRetentionDays, AuditClientInfoRetentionDays: DefaultAuditClientInfoRetentionDays,
 		HIBPEnabled:              false,
 		WebPushSubject:           "",
 		ThumbnailPreviewsEnabled: true,
@@ -875,9 +841,8 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		DramaLinkingEnabled:       row.DramaLinkingEnabled,
 		CommentSources:            row.CommentSources,
 		TimeshiftWhileWatching:    row.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: int(row.TimeshiftWhileWatchingRetentionSeconds),
-		RuleUnmatchedGraceMinutes: int(row.RuleUnmatchedGraceMinutes),
-		HistoryMaxDrops:           int(row.HistoryMaxDrops),
-		AuditRetentionDays:        int(row.AuditRetentionDays), AuditClientInfoRetentionDays: int(row.AuditClientInfoRetentionDays),
+		HistoryMaxDrops:    int(row.HistoryMaxDrops),
+		AuditRetentionDays: int(row.AuditRetentionDays), AuditClientInfoRetentionDays: int(row.AuditClientInfoRetentionDays),
 		HIBPEnabled:              row.HibpEnabled,
 		WebPushSubject:           row.WebPushSubject,
 		ThumbnailPreviewsEnabled: row.ThumbnailPreviewsEnabled,

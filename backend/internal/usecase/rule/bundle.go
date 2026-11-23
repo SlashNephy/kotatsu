@@ -86,7 +86,7 @@ func bundleSameEpisodes(
 		})
 		s := &skippedProgram{
 			row: d.row, rules: removed, reason: SkipReasonOtherBroadcast, lastRecorded: nil, recorded: nil, instead: nil,
-			laterEpisode: 0, byRecording: false,
+			laterEpisode: 0,
 		}
 		if decision.Recorded != nil {
 			s.reason = SkipReasonRecordedEpisode
