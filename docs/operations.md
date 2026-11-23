@@ -131,7 +131,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: rclone
-              image: rclone/rclone:<版>
+              image: rclone/rclone:<バージョン>
               args: ["copy", "/backups", "remote:kotatsu-backups", "--include", "kotatsu-backup-*.age", "--config", "/config/rclone.conf"]
               volumeMounts:
                 - name: backups
