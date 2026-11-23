@@ -540,15 +540,16 @@ export function useDataBroadcast(
   return { layer: element, state, receiving, keyGroups, press };
 }
 
-// moveMedia は、video を含むプレイヤーの映像の要素 (字幕の canvas などを含む) を target へ移し、戻す関数を返す。
+// moveMedia は、映像を映している要素 element (PlayerMedia の element) を含むプレイヤーの映像の要素 (字幕の canvas などを含む) を
+// target へ移し、戻す関数を返す。
 // target は web-bml の閉じた shadow root の中にあり、外の CSS が届かないので、大きさをインラインで整える。
 // TsPlayer は、切り替えのときに裏で読み込む組 (.slot) を重ねるので、映っている組だけを移す (#1083)。
-export function moveMedia(video: HTMLVideoElement, target: HTMLElement): () => void {
-  const media = video.closest<HTMLElement>(`.${classes.media}`) ?? video.parentElement;
+export function moveMedia(element: HTMLElement, target: HTMLElement): () => void {
+  const media = element.closest<HTMLElement>(`.${classes.media}`) ?? element.parentElement;
   if (media === null) {
     return () => {};
   }
-  const slot = video.closest<HTMLElement>(`.${classes.slot}`);
+  const slot = element.closest<HTMLElement>(`.${classes.slot}`);
   const nodes = slot !== null && media.contains(slot) ? [slot] : Array.from(media.childNodes);
   // 戻すときに元に戻すので、移す前のインラインのスタイルを覚える。
   const saved = fitMedia(nodes);
@@ -557,8 +558,8 @@ export function moveMedia(video: HTMLVideoElement, target: HTMLElement): () => v
   return () => {
     // 移している間に TsPlayer が組を切り替えたら、target には新しい組が入っている。そのとき target にあるものを戻す。
     media.append(...Array.from(target.childNodes));
-    for (const [element, cssText] of saved) {
-      element.style.cssText = cssText;
+    for (const [node, cssText] of saved) {
+      node.style.cssText = cssText;
     }
   };
 }

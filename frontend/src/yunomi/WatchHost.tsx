@@ -13,6 +13,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { loadMiniPlayer } from './miniPlayer';
+import type { PlayerMedia } from './playerMedia';
 import { browserStorage } from './volume';
 import classes from './WatchHost.module.css';
 
@@ -40,15 +41,19 @@ type WatchStore = {
   leave: () => void;
   // close は、視聴の画面を閉じる。
   close: () => void;
-  // attach は、描いている視聴の画面を包む要素を覚える。再生中かを、その中の映像で調べる。
-  attach: (container: HTMLElement | null) => void;
   subscribe: (listener: () => void) => () => void;
+  // media は、視聴の画面が今映している経路。再生中かを、これで調べる。映していなければ null。
+  media: () => PlayerMedia | null;
+  // setMedia は、視聴の画面が今映している経路を覚える。
+  setMedia: (media: PlayerMedia | null) => void;
+  subscribeMedia: (listener: () => void) => () => void;
 };
 
 function createWatchStore(): WatchStore {
   let state = emptyState;
-  let container: HTMLElement | null = null;
+  let media: PlayerMedia | null = null;
   const listeners = new Set<() => void>();
+  const mediaListeners = new Set<() => void>();
   const update = (next: WatchState) => {
     state = next;
     for (const listener of listeners) {
@@ -63,7 +68,7 @@ function createWatchStore(): WatchStore {
       if (
         state.element !== null &&
         !state.mini &&
-        isPlaying(container) &&
+        isPlaying(media) &&
         loadMiniPlayer(browserStorage())
       ) {
         update({ ...state, mini: true });
@@ -73,9 +78,6 @@ function createWatchStore(): WatchStore {
       update(emptyState);
     },
     close: () => update(emptyState),
-    attach: (element) => {
-      container = element;
-    },
     subscribe: (listener) => {
       listeners.add(listener);
 
@@ -83,15 +85,29 @@ function createWatchStore(): WatchStore {
         listeners.delete(listener);
       };
     },
+    media: () => media,
+    setMedia: (next) => {
+      if (media === next) {
+        return;
+      }
+      media = next;
+      for (const listener of mediaListeners) {
+        listener();
+      }
+    },
+    subscribeMedia: (listener) => {
+      mediaListeners.add(listener);
+
+      return () => {
+        mediaListeners.delete(listener);
+      };
+    },
   };
 }
 
-// isPlaying は、container の中の映像を再生しているかを返す。止めているか、映像がなければ false。
-// 裏で読み込んでいる組の映像ではなく、今映っている映像を見る。
-function isPlaying(container: HTMLElement | null): boolean {
-  const video = container === null ? null : visibleVideo(container);
-
-  return video !== null && !video.paused && !video.ended;
+// isPlaying は、media を再生しているかを返す。止めているか、映像がなければ false。
+function isPlaying(media: PlayerMedia | null): boolean {
+  return media !== null && !media.paused && !media.ended;
 }
 
 const WatchStoreContext = createContext<WatchStore | null>(null);
@@ -135,67 +151,48 @@ export function WatchHost() {
 
   return (
     <WatchMiniContext value={mini}>
-      <div
-        ref={store.attach}
-        className={mini ? classes.mini : undefined}
-        data-mini={mini || undefined}
-      >
+      <div className={mini ? classes.mini : undefined} data-mini={mini || undefined}>
         <div className={mini ? classes.miniFrame : undefined}>{element}</div>
-        {mini && <MiniPlayerBar href={href} onClose={store.close} />}
+        {mini && <MiniPlayerBar store={store} href={href} onClose={store.close} />}
       </div>
     </WatchMiniContext>
   );
 }
 
 // MiniPlayerBar は、小さなプレイヤーの操作。映像を押すと視聴の画面へ戻り、再生と一時停止と、閉じる操作を置く。
-function MiniPlayerBar({ href, onClose }: { href: string; onClose: () => void }) {
+function MiniPlayerBar({
+  store,
+  href,
+  onClose,
+}: {
+  store: WatchStore;
+  href: string;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  // frame は、視聴の画面を包む要素。プレイヤーは、つなぎ直すたびに video を作り直すので、その中の今映っている video を見張り続ける (#1730)。
-  const [frame, setFrame] = useState<HTMLElement | null>(null);
-  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  // media は、視聴の画面が今映している経路。プレイヤーは、つなぎ直すたびに作り直すので、変わるたびに追う (#1730)。
+  const media = useSyncExternalStore(store.subscribeMedia, store.media, store.media);
   const [paused, setPaused] = useState(false);
   const open = () => void navigate({ href });
 
   useEffect(() => {
-    if (frame === null) {
+    if (media === null) {
       return;
     }
-    const pick = () => setVideo(visibleVideo(frame));
-    pick();
-    const observer = new MutationObserver(pick);
-    observer.observe(frame, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['style'],
-    });
-
-    return () => observer.disconnect();
-  }, [frame]);
-
-  useEffect(() => {
-    if (video === null) {
-      return;
-    }
-    const sync = () => setPaused(video.paused);
+    const sync = () => setPaused(media.paused);
     sync();
-    video.addEventListener('play', sync);
-    video.addEventListener('pause', sync);
+    media.addEventListener('play', sync);
+    media.addEventListener('pause', sync);
 
     return () => {
-      video.removeEventListener('play', sync);
-      video.removeEventListener('pause', sync);
+      media.removeEventListener('play', sync);
+      media.removeEventListener('pause', sync);
     };
-  }, [video]);
+  }, [media]);
 
   return (
-    <div
-      ref={(bar) => {
-        setFrame(bar?.parentElement ?? null);
-      }}
-      className={classes.miniControls}
-    >
+    <div className={classes.miniControls}>
       {/* 映像を押すと、視聴の画面へ戻る。 */}
       <button
         type="button"
@@ -219,13 +216,13 @@ function MiniPlayerBar({ href, onClose }: { href: string; onClose: () => void })
             variant="filled"
             color="dark"
             onClick={() => {
-              if (video === null) {
+              if (media === null) {
                 return;
               }
-              if (video.paused) {
-                void video.play().catch(() => {});
+              if (media.paused) {
+                void media.play().catch(() => {});
               } else {
-                video.pause();
+                media.pause();
               }
             }}
             aria-label={paused ? t('player.mini.play') : t('player.mini.pause')}
@@ -269,19 +266,27 @@ export function useHostedWatch(element: ReactNode): ReactNode {
   return store === null ? element : null;
 }
 
+// useWatchMedia は、視聴の画面が今映している経路を、置き場に覚えさせる。小さなプレイヤーにするかを決めるときと、
+// 小さなプレイヤーの再生と一時停止に使う。視聴の画面の中 (useHostedWatch で渡した element の中) で呼ぶ。
+// 置き場の show と leave と同じく layout effect で覚えさせ、プレイヤーが映像を替えた直後に、前の経路を見ないようにする。
+export function useWatchMedia(media: PlayerMedia | null): void {
+  const store = useContext(WatchStoreContext);
+  useLayoutEffect(() => {
+    store?.setMedia(media);
+
+    return () => {
+      // 次の経路を覚えさせた後に、前の経路の片付けで消さないようにする。
+      if (store?.media() === media) {
+        store.setMedia(null);
+      }
+    };
+  }, [store, media]);
+}
+
 function noSubscribe() {
   return () => {};
 }
 
 function noState(): WatchState {
   return emptyState;
-}
-
-// visibleVideo は、frame の中の、今映っている video を返す。裏で読み込んでいる組 (隠してある) の video は選ばない。
-function visibleVideo(frame: HTMLElement): HTMLVideoElement | null {
-  return (
-    [...frame.querySelectorAll('video')].find(
-      (v) => v.closest('[style*="visibility: hidden"]') === null,
-    ) ?? null
-  );
 }

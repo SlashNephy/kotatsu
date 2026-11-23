@@ -18,6 +18,7 @@ import { uploadCapture } from '../captures/upload';
 import { ControlButton, playerControlsClasses } from './PlayerControls';
 import classes from './TsPlayer.module.css';
 import type { useDocumentPictureInPicture } from './useDocumentPictureInPicture';
+import type { PlayerMedia } from './playerMedia';
 
 // useNotice は、少しの間だけ出す知らせ。
 function useNotice(): [string | null, (message: string) => void] {
@@ -36,7 +37,8 @@ function useNotice(): [string | null, (message: string) => void] {
 
 type CaptureOptions = {
   frameRef: RefObject<HTMLElement | null>;
-  videoRef: RefObject<HTMLVideoElement | null>;
+  // media は、撮るときの、再生している経路を返す。映像がなければ null。
+  media: () => PlayerMedia | null;
   // serviceName と programName は、キャプチャのファイル名に使う。番組が分からなければ programName は null。
   serviceName: string;
   programName: string | null;
@@ -66,7 +68,7 @@ export type Capture = {
 // useCapture は、今の場面を画像に保存するか、コピーする操作を返す (設計書 7.5)。
 export function useCapture({
   frameRef,
-  videoRef,
+  media,
   serviceName,
   programName,
   captureTime,
@@ -82,9 +84,9 @@ export function useCapture({
   const [message, notify] = useNotice();
 
   const capture = async (action: 'save' | 'copy'): Promise<CaptureResult> => {
-    const video = videoRef.current;
+    const current = media();
     const frame = frameRef.current;
-    if (video === null || frame === null) {
+    if (current === null || frame === null) {
       return null;
     }
     // 画像を作る間に再生が進むので、押した時の時刻を先に取る。
@@ -93,7 +95,7 @@ export function useCapture({
     const at = position?.() ?? null;
     const text = caption?.() ?? null;
     try {
-      const blob = await captureFrame(video, overlays ? overlayCanvases(frame) : [], crop);
+      const blob = await captureFrame(current, overlays ? overlayCanvases(frame) : [], crop);
       // 番組情報を書き込んだ画像を、保存してもコピーしても、サーバーに残す (#908)。残せなくても、保存とコピーは続ける。
       const named = await withCaptureTexts(
         blob,

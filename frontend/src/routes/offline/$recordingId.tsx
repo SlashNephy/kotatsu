@@ -36,7 +36,7 @@ import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { WatchHeading, WatchLayout } from '../../yunomi/WatchLayout';
-import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
 import { mediaOf } from '../../yunomi/playerMedia';
 
@@ -134,6 +134,8 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
   const media = video === null ? null : mediaOf(video);
+  // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
+  useWatchMedia(media);
   const videoState = useVideoState(media);
   const autoplay = useAutoplayBlocked(media);
   const videoLoading = useVideoLoading(media);

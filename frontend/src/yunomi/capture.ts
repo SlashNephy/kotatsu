@@ -4,6 +4,7 @@ import { toHalfWidth } from '../futon/halfWidth';
 import { splitProgramMarks } from '../futon/programMarks';
 import { cropSource, isCropped, noCrop, type Crop } from './crop';
 import { withPNGText, type PNGText } from './pngText';
+import type { PlayerMedia } from './playerMedia';
 
 // captureSize は、画像の大きさ。放送の映像の表示の比率 (16:9) にそろえる。
 const captureSize = { width: 1920, height: 1080 };
@@ -28,14 +29,18 @@ export function fitContain(
   };
 }
 
-// captureFrame は、video の今の場面を PNG にする。overlays を渡せば、字幕とコメントの canvas を、枠いっぱいに重ねる。
+// captureFrame は、media の今の場面を PNG にする。overlays を渡せば、字幕とコメントの canvas を、枠いっぱいに重ねる。
 // 字幕とコメントの canvas は、どちらも映像の枠 (16:9) に合わせて描いている。
 // crop で切り抜いているときは、画面と同じく、映像と字幕だけを切り抜いた範囲で写し、コメントは切り抜かずに重ねる (#496)。
 export async function captureFrame(
-  video: HTMLVideoElement,
+  media: Pick<PlayerMedia, 'frame' | 'videoWidth' | 'videoHeight'>,
   overlays: HTMLCanvasElement[],
   crop: Crop = noCrop,
 ): Promise<Blob> {
+  const { frame } = media;
+  if (frame === null) {
+    throw new Error('the current frame is not available');
+  }
   const canvas = document.createElement('canvas');
   canvas.width = captureSize.width;
   canvas.height = captureSize.height;
@@ -46,11 +51,11 @@ export async function captureFrame(
   context.fillStyle = 'black';
   context.fillRect(0, 0, canvas.width, canvas.height);
   // 画面と同じく、枠に収めて描く。videoWidth と videoHeight は、画素の比率 (1440x1080 の放送の 4:3 の画素など) を当てた後の大きさ。
-  const shown = fitContain(video.videoWidth, video.videoHeight, canvas.width, canvas.height);
+  const shown = fitContain(media.videoWidth, media.videoHeight, canvas.width, canvas.height);
   const captions = overlays.filter((overlay) => overlay.dataset['overlay'] === 'captions');
   const others = overlays.filter((overlay) => overlay.dataset['overlay'] !== 'captions');
   if (!isCropped(crop)) {
-    context.drawImage(video, shown.x, shown.y, shown.width, shown.height);
+    context.drawImage(frame, shown.x, shown.y, shown.width, shown.height);
     for (const overlay of captions) {
       context.drawImage(overlay, 0, 0, canvas.width, canvas.height);
     }
@@ -63,7 +68,7 @@ export async function captureFrame(
     if (fullContext === null) {
       throw new Error('2D canvas is not available');
     }
-    fullContext.drawImage(video, shown.x, shown.y, shown.width, shown.height);
+    fullContext.drawImage(frame, shown.x, shown.y, shown.width, shown.height);
     for (const overlay of captions) {
       fullContext.drawImage(overlay, 0, 0, full.width, full.height);
     }
