@@ -40,7 +40,7 @@
 ## 日本語の文章
 
 - 日本語の文章の決まりは [docs/writing.md](docs/writing.md) にまとめています。画面の文言、ドキュメント、コードのコメント、コミット、Issue と PR を書く前に読みます。
-- [.yomiyasu-words/](.yomiyasu-words/) の一覧にある語は使いません。指摘が出たら、一覧のその語の注釈を読んで直します。
+- [.yomiyasu-words/](.yomiyasu-words/) の一覧にある語は使いません。指摘が出たら、一覧のその語の注釈を読んで書き直します。
 
 ## コミットと PR
 
