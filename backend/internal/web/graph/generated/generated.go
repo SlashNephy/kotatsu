@@ -14808,8 +14808,17 @@ input RecordingFilter {
   tagIds: [ID!]
   states: [RecordingState!]
   serviceIds: [ID!]
-  "番組名に含む文字列。大文字と小文字を区別しない。"
+  "番組名か概要に含む文字列。大文字と小文字を区別しない。"
   keyword: String
+  """
+  番組名と概要で探すキーワード (#966)。番組の検索と同じく照合する。録画は詳細では探さないので、EXTENDED は指定できない。
+  keyword と一緒に指定すると、両方に一致する録画を返す。
+  """
+  keywords: [KeywordInput!]
+  "keywords の照合のしかた。省くと、すべてに一致する録画を返す。"
+  keywordMatch: KeywordMatch
+  "どれか 1 つに一致したら除外するキーワード。EXTENDED は指定できない。"
+  excludeKeywords: [KeywordInput!]
   "放送の開始がこの日時以降の録画。"
   since: Time
   "放送の開始がこの日時より前の録画。"
@@ -60763,7 +60772,7 @@ func (ec *executionContext) unmarshalInputRecordingFilter(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"tagIds", "states", "serviceIds", "keyword", "since", "until", "ruleId", "genres"}
+	fieldsInOrder := [...]string{"tagIds", "states", "serviceIds", "keyword", "keywords", "keywordMatch", "excludeKeywords", "since", "until", "ruleId", "genres"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -60798,6 +60807,27 @@ func (ec *executionContext) unmarshalInputRecordingFilter(ctx context.Context, o
 				return it, err
 			}
 			it.Keyword = data
+		case "keywords":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keywords"))
+			data, err := ec.unmarshalOKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Keywords = data
+		case "keywordMatch":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keywordMatch"))
+			data, err := ec.unmarshalOKeywordMatch2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.KeywordMatch = data
+		case "excludeKeywords":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("excludeKeywords"))
+			data, err := ec.unmarshalOKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExcludeKeywords = data
 		case "since":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("since"))
 			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
@@ -80206,6 +80236,36 @@ func (ec *executionContext) unmarshalOKeywordInput2ᚕᚖgithubᚗcomᚋSlashNep
 	}
 	return res, nil
 }
+
+func (ec *executionContext) unmarshalOKeywordMatch2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch(ctx context.Context, v any) (*match.KeywordMatch, error) {
+	if v == nil {
+		return nil, nil
+	}
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOKeywordMatch2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOKeywordMatch2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch(ctx context.Context, sel ast.SelectionSet, v *match.KeywordMatch) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOKeywordMatch2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch[*v])
+	return res
+}
+
+var (
+	unmarshalOKeywordMatch2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch = map[string]match.KeywordMatch{
+		"ALL": match.KeywordMatchAll,
+		"ANY": match.KeywordMatchAny,
+	}
+	marshalOKeywordMatch2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch = map[match.KeywordMatch]string{
+		match.KeywordMatchAll: "ALL",
+		match.KeywordMatchAny: "ANY",
+	}
+)
 
 func (ec *executionContext) marshalOLibraryBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryBroadcast(ctx context.Context, sel ast.SelectionSet, v *model.LibraryBroadcast) graphql.Marshaler {
 	if v == nil {
