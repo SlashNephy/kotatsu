@@ -9,3 +9,10 @@
   margin-inline-start: 4px;
   vertical-align: top;
 }
+
+/* 検索のキーワードに当たった所 (#966)。文字の色は変えず、背景だけを付ける。 */
+.highlight {
+  color: inherit;
+  background-color: var(--mantine-color-yellow-light);
+  border-radius: 2px;
+}

@@ -1335,7 +1335,11 @@
       }
     },
     "title": "Recordings",
-    "keyword": "Program name",
+    "keywords": "Keywords to include",
+    "keywordsDescription": "Searches program names and descriptions, and shows recordings that match all keywords (AND search).",
+    "keywordsAnyDescription": "Searches program names and descriptions, and shows recordings that match any of the keywords (OR search).",
+    "excludeKeywords": "Keywords to exclude",
+    "excludeKeywordsDescription": "Hides recordings that match any of the keywords (OR search).",
     "tags": "Tags",
     "states": "States",
     "services": "Services",
