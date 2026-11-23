@@ -1,4 +1,4 @@
-h1:lrqxm0UfO62dPS929z7lzV14x/Yfq5DhrK+qmTrvUz8=
+h1:lqoyn2ERESzUUd86BCOXLfPRYJ1a+alLkUXaGWxyoVo=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -152,3 +152,5 @@ h1:lrqxm0UfO62dPS929z7lzV14x/Yfq5DhrK+qmTrvUz8=
 20261122043006_add_program_search_grams.sql h1:VEJANa9Bo8unVW3LUNOp1v2KfNjzukw19z/oavth13I=
 20261122061107_add_user_preferences.sql h1:z/sv6iYvrq8CuzeDpJEr11qVVx5iigZI5CaIKVLStVI=
 20261122142835_add_capture_caption_normalized.sql h1:4YJ60tbcO/0VnwcedT6jbF5kM9JGBUkbWmvJOuDj6kE=
+20261122150000_add_recording_judged_drops.sql h1:2u0DJkLhSzv18a/EtwZ+BzYtWtke0QVNTF7BQnIu3XU=
+20261122152621_add_history_max_drops.sql h1:RtLbN+uhcQZi2sS1Mh8S+TkJChxawMAnEJwLAKMw2zs=

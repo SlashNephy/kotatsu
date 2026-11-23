@@ -56,6 +56,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		DRCSReplacements:          replacements,
 		TimeshiftWhileWatching:    input.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: input.TimeshiftWhileWatchingRetentionSeconds,
 		RuleUnmatchedGraceMinutes: input.RuleUnmatchedGraceMinutes,
+		HistoryMaxDrops:           input.HistoryMaxDrops,
 		AuditRetentionDays:        input.AuditRetentionDays, AuditClientInfoRetentionDays: input.AuditClientInfoRetentionDays,
 		HIBPEnabled:              input.HibpEnabled,
 		WebPushSubject:           input.WebPushSubject,

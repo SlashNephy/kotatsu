@@ -1031,15 +1031,21 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 	require.NoError(t, err)
 	tests := []struct {
 		name string
-		// earlierDrops は、引き継ぐ前のセグメントで数えたドロップ。
-		earlierDrops int64
-		want         domain.RecordingState
-		wantHistory  bool
+		// earlierDrops は、引き継ぐ前のセグメントで数えたドロップ。earlierJudgedDrops は、そのうち判定に数えるもの。
+		earlierDrops       int64
+		earlierJudgedDrops int64
+		// maxDrops は、全体の設定の、録画済みとみなすドロップの上限。nil なら設定の行を作らず、既定値 (0 件) に従う。
+		maxDrops    *int
+		want        domain.RecordingState
+		wantHistory bool
 	}{
-		{name: "どのセグメントにもドロップがない", earlierDrops: 0, want: domain.RecordingStateCompleted, wantHistory: true},
-		// 録画履歴には、ドロップが 4 件以下の録画だけを記録する (付録 A、#1497)。
-		{name: "前のセグメントのドロップが閾値ちょうど", earlierDrops: 4, want: domain.RecordingStateCompletedWithErrors, wantHistory: true},
-		{name: "前のセグメントのドロップが閾値を超える", earlierDrops: 5, want: domain.RecordingStateCompletedWithErrors, wantHistory: false},
+		{name: "どのセグメントにもドロップがない", earlierDrops: 0, earlierJudgedDrops: 0, maxDrops: nil, want: domain.RecordingStateCompleted, wantHistory: true},
+		// 既定では、映像か音声に 1 件でもドロップがあれば、録画履歴に記録しない (付録 A)。
+		{name: "既定の上限で、判定に数えるドロップが 1 件", earlierDrops: 1, earlierJudgedDrops: 1, maxDrops: nil, want: domain.RecordingStateCompletedWithErrors, wantHistory: false},
+		{name: "設定した上限ちょうど", earlierDrops: 4, earlierJudgedDrops: 4, maxDrops: new(4), want: domain.RecordingStateCompletedWithErrors, wantHistory: true},
+		{name: "設定した上限を超える", earlierDrops: 5, earlierJudgedDrops: 5, maxDrops: new(4), want: domain.RecordingStateCompletedWithErrors, wantHistory: false},
+		// 映像と音声のほかの PID のドロップは、判定に数えない (設計書 5.5)。
+		{name: "前のセグメントのドロップが映像と音声のほかの PID だけ", earlierDrops: 6, earlierJudgedDrops: 0, maxDrops: nil, want: domain.RecordingStateCompleted, wantHistory: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1047,11 +1053,16 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 
 			f := newFixture(t)
 			reservationID := f.reserve(t, 0)
+			if tt.maxDrops != nil {
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO system_settings (id, recording_defaults, archive_retention_days, history_max_drops, updated_at)
+					VALUES (1, '{}', 90, $1, $2)`, *tt.maxDrops, f.clock.Now())
+				require.NoError(t, err)
+			}
 			if tt.earlierDrops > 0 {
 				_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
-					state, protected, drops, recorded_from, created_at, updated_at)
-					SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $2, $4, $4, $4
-					FROM reservations WHERE id = $3`, id.New(), tt.earlierDrops, reservationID, f.clock.Now())
+					state, protected, drops, judged_drops, recorded_from, created_at, updated_at)
+					SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $2, $5, $4, $4, $4
+					FROM reservations WHERE id = $3`, id.New(), tt.earlierDrops, reservationID, f.clock.Now(), tt.earlierJudgedDrops)
 				require.NoError(t, err)
 			}
 			recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)

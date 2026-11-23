@@ -125,7 +125,7 @@ jobs:
       # 起動を確かめた amd64 のイメージを Trivy で調べ、修正版のある、重さが HIGH 以上の脆弱性があれば失敗にする (#1918)。
       # 修正版のない脆弱性は、対処のしようがないので除く (scan.yml と同じ)。
       - if: github.ref_type != 'tag'
-        uses: jdx/mise-action@v5.2.8
+        uses: jdx/mise-action@v5.2.9
         with:
           install_args: trivy
       - name: Scan the image

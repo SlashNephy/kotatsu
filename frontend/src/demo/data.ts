@@ -220,6 +220,7 @@ export function createRootValue(
     timeshiftWhileWatching: false,
     timeshiftWhileWatchingRetentionSeconds: 3600,
     ruleUnmatchedGraceMinutes: 180,
+    historyMaxDrops: 0,
     updatedAt: null,
     // 以下は、サーバーの既定値 (backend/internal/usecase/settings の DefaultXxx と defaultSettings) にそろえる (#2073)。
     watchProgressRetentionDays: 365,

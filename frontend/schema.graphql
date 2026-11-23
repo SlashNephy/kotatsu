@@ -6172,6 +6172,11 @@ type SystemSettings {
   """
   ruleUnmatchedGraceMinutes: Int!
   """
+  重複の回避で「録画済み」とみなす、映像と音声の PID のドロップの数の上限 (設計書 4.4)。0〜1000。既定は 0。
+  0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
+  """
+  historyMaxDrops: Int!
+  """
   監査ログの保持期間 (日。設計書 8.5)。1〜3650。既定は 365。
   """
   auditRetentionDays: Int!
@@ -6278,6 +6283,10 @@ input SystemSettingsInput {
   0〜1440 分。
   """
   ruleUnmatchedGraceMinutes: Int
+  """
+  0〜1000 件。
+  """
+  historyMaxDrops: Int
   """
   1〜3650 日。
   """
