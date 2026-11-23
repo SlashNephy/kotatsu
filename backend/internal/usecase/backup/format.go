@@ -57,6 +57,8 @@ var (
 	ErrInvalidBackup = errors.New("invalid backup file")
 	// ErrUnsupportedFormat は、このバイナリが読めない形式のファイルであることを表す。
 	ErrUnsupportedFormat = errors.New("unsupported backup format")
+	// ErrBackupTooOld は、バックアップのスキーマが古すぎて、このバイナリでは戻せないことを表す (#2040)。
+	ErrBackupTooOld = errors.New("the backup was made with a Kotatsu older than v2026.11.5; restore it with v2026.11.5 and make the backup again")
 	// ErrBackupNewer は、バックアップのスキーマがこのバイナリより新しいので、戻せないことを表す。
 	ErrBackupNewer = errors.New("the backup was made with a newer schema than this binary; restore it with the newer kotatsu")
 )
@@ -67,7 +69,8 @@ type Manifest struct {
 	Format int `json:"format"`
 	// KotatsuVersion は、書き出した Kotatsu の版。
 	KotatsuVersion string `json:"kotatsuVersion"`
-	// SchemaVersion は、書き出したときのスキーマの版 (goose の版)。戻すときは、この版まで上げてから流し込む。
+	// SchemaVersion は、書き出したときのスキーマの版 (db/schema.sum。v2026.11.5 までは goose の版)。
+	// 戻すときは、今のスキーマに流し込んでから、この版より新しい 1 回だけのスクリプトを流す (#2040)。
 	SchemaVersion int64 `json:"schemaVersion"`
 	// CreatedAt は、書き出した日時。
 	CreatedAt time.Time `json:"createdAt"`

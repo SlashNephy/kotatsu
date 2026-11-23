@@ -160,7 +160,9 @@ func excludedTables() map[string]string {
 		// River のジョブの ID を持つので、River の表と組で外す。残すと、戻した後のジョブが同じ ID の古い進み具合を読む。
 		"job_progress":     "holds IDs of River jobs, which are not backed up",
 		"goose_db_version": "the schema version is applied by kotatsu migrate",
-		"goose_lock":       "the lock of kotatsu migrate",
+		// 戻すときは、書き出したときの版より新しいスクリプトを、戻した行に流し直す (#2040)。
+		"schema_scripts": "the one-time scripts are run by kotatsu migrate",
+		"goose_lock":     "the lock of kotatsu migrate",
 	}
 }
 

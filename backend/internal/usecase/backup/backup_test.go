@@ -126,12 +126,12 @@ func TestTablesAreClassified(t *testing.T) {
 		assert.Contains(t, []string{
 			"programs", "epg_changes", "change_versions", "anime_match_cursor", "drama_match_cursor",
 			"sessions", "players", "player_commands", "oidc_logins", "anime_record_authorizations", "drama_record_authorizations", "google_authorizations",
-			"job_progress", "goose_db_version", "goose_lock",
+			"job_progress", "goose_db_version", "goose_lock", "schema_scripts",
 		}, name)
 	}
 	assert.Contains(t, written, "program_archives")
 	assert.Contains(t, written, "recordings")
-	assert.Equal(t, database.LatestVersion(), result.Manifest.SchemaVersion)
+	assert.Equal(t, database.SchemaVersion(), result.Manifest.SchemaVersion)
 }
 
 // seed は、戻すことを確かめる行を入れる。

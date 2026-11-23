@@ -10,33 +10,102 @@ import (
 	"time"
 )
 
-const getMinBinaryVersion = `-- name: GetMinBinaryVersion :one
-SELECT min_binary_version FROM schema_compatibility WHERE id
+const ensureRecordingFailureCounts = `-- name: EnsureRecordingFailureCounts :exec
+INSERT INTO recording_failure_counts (reason)
+SELECT unnest($1::text[])
+ON CONFLICT (reason) DO NOTHING
 `
 
-func (q *Queries) GetMinBinaryVersion(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, getMinBinaryVersion)
-	var min_binary_version int64
-	err := row.Scan(&min_binary_version)
-	return min_binary_version, err
+// 失敗の理由ごとに 0 件の行を作っておき、一度も失敗していない理由も 0 として出す (設計書 5.5)。
+func (q *Queries) EnsureRecordingFailureCounts(ctx context.Context, reasons []string) error {
+	_, err := q.db.Exec(ctx, ensureRecordingFailureCounts, reasons)
+	return err
 }
 
-const raiseMinBinaryVersion = `-- name: RaiseMinBinaryVersion :exec
-INSERT INTO schema_compatibility (id, min_binary_version, updated_at)
-VALUES (true, $1, $2)
+const forgetSchemaScriptsAfter = `-- name: ForgetSchemaScriptsAfter :exec
+DELETE FROM schema_scripts WHERE version > $1
+`
+
+// バックアップを戻した後に、書き出したときの版より新しいスクリプトを、戻した行に流し直すために消す。
+func (q *Queries) ForgetSchemaScriptsAfter(ctx context.Context, version int64) error {
+	_, err := q.db.Exec(ctx, forgetSchemaScriptsAfter, version)
+	return err
+}
+
+const getSchemaCompatibility = `-- name: GetSchemaCompatibility :one
+SELECT min_binary_version, schema_version FROM schema_compatibility WHERE id
+`
+
+type GetSchemaCompatibilityRow struct {
+	MinBinaryVersion int64
+	SchemaVersion    int64
+}
+
+func (q *Queries) GetSchemaCompatibility(ctx context.Context) (GetSchemaCompatibilityRow, error) {
+	row := q.db.QueryRow(ctx, getSchemaCompatibility)
+	var i GetSchemaCompatibilityRow
+	err := row.Scan(&i.MinBinaryVersion, &i.SchemaVersion)
+	return i, err
+}
+
+const listAppliedSchemaScripts = `-- name: ListAppliedSchemaScripts :many
+SELECT version FROM schema_scripts ORDER BY version
+`
+
+func (q *Queries) ListAppliedSchemaScripts(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.Query(ctx, listAppliedSchemaScripts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var version int64
+		if err := rows.Scan(&version); err != nil {
+			return nil, err
+		}
+		items = append(items, version)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markSchemaScriptsApplied = `-- name: MarkSchemaScriptsApplied :exec
+INSERT INTO schema_scripts (version, applied_at)
+SELECT unnest($1::bigint[]), $2::timestamptz
+ON CONFLICT (version) DO NOTHING
+`
+
+type MarkSchemaScriptsAppliedParams struct {
+	Versions  []int64
+	AppliedAt time.Time
+}
+
+func (q *Queries) MarkSchemaScriptsApplied(ctx context.Context, arg MarkSchemaScriptsAppliedParams) error {
+	_, err := q.db.Exec(ctx, markSchemaScriptsApplied, arg.Versions, arg.AppliedAt)
+	return err
+}
+
+const recordSchemaVersion = `-- name: RecordSchemaVersion :exec
+INSERT INTO schema_compatibility (id, min_binary_version, schema_version, updated_at)
+VALUES (true, $1, $2, $3)
 ON CONFLICT (id) DO UPDATE
 SET
   min_binary_version = GREATEST(schema_compatibility.min_binary_version, EXCLUDED.min_binary_version),
+  schema_version = GREATEST(schema_compatibility.schema_version, EXCLUDED.schema_version),
   updated_at = EXCLUDED.updated_at
 `
 
-type RaiseMinBinaryVersionParams struct {
+type RecordSchemaVersionParams struct {
 	MinBinaryVersion int64
+	SchemaVersion    int64
 	UpdatedAt        time.Time
 }
 
-// 下限は上げるだけで、下げない。古いバイナリで migrate を実行しても、新しいバイナリが記録した下限は残る。
-func (q *Queries) RaiseMinBinaryVersion(ctx context.Context, arg RaiseMinBinaryVersionParams) error {
-	_, err := q.db.Exec(ctx, raiseMinBinaryVersion, arg.MinBinaryVersion, arg.UpdatedAt)
+// 下限とスキーマの版は上げるだけで、下げない。古いバイナリで migrate を実行しても、新しいバイナリが記録した値は残る。
+func (q *Queries) RecordSchemaVersion(ctx context.Context, arg RecordSchemaVersionParams) error {
+	_, err := q.db.Exec(ctx, recordSchemaVersion, arg.MinBinaryVersion, arg.SchemaVersion, arg.UpdatedAt)
 	return err
 }

@@ -28,6 +28,11 @@ run = "golangci-lint fmt"
 [tasks."db:diff"]
 run = "atlas migrate diff --env local"
 
+# db/schema.sql を変えたら、スキーマの版を今の日時に上げ、schema.sql のハッシュと一緒に db/schema.sum に書く (設計書 11.4、#2040)。
+# 書き忘れると、database のテスト (TestSchemaSumMatchesSchema) が落ちる。
+[tasks."db:sum"]
+run = 'printf "%s\n%s\n" "$(date -u +%Y%m%d%H%M%S)" "$(sha256sum db/schema.sql | cut -d " " -f 1)" > db/schema.sum'
+
 [tasks.generate]
 depends = ["//frontend:zxcvbn"]
 run = [

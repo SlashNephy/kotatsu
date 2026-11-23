@@ -328,18 +328,6 @@ func migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 	})
 }
 
-// migrateUpTo は、Kotatsu のスキーマを version まで上げ、River のテーブルを最新まで上げる (#1926)。
-// 正規化した列を埋める処理は、最新のスキーマの列を読み書きするので行わない。最新まで上げるときに、kotatsu migrate が行う。
-func migrateUpTo(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, version int64) error {
-	return database.WithMigrationLock(ctx, logger, pool, func(ctx context.Context) error {
-		if err := database.MigrateTo(ctx, logger, pool, version); err != nil {
-			return err
-		}
-
-		return jobs.Migrate(ctx, logger, pool)
-	})
-}
-
 // checkSchema は、Kotatsu のスキーマと River のテーブルで、このバイナリが動けるかを確かめる。
 func checkSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	if err := database.CheckSchema(ctx, pool); err != nil {
@@ -537,15 +525,13 @@ func NewCommand(opts *Options) *cobra.Command {
 	return root
 }
 
-// newMigrateCommand は kotatsu migrate を作る。--to を渡すと、Kotatsu のマイグレーションをそのバージョンまでで止める (#1926)。
+// newMigrateCommand は kotatsu migrate を作る。
 func newMigrateCommand(opts *Options, connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error)) *cobra.Command {
-	var migrateTo int64
-	migrateCmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "migrate",
 		Short: "Apply database migrations",
-		Long: "Apply database migrations. With --to, apply the migrations of Kotatsu only up to that version, " +
-			"for example to load rows written with an older schema (kotatsu admin restore does this by itself).",
-		Args: cobra.NoArgs,
+		Long:  "Apply the embedded schema to the database, run the one-time scripts that have not run, and migrate the tables of River.",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			_, pool, err := connect(cmd.Context())
 			if err != nil {
@@ -553,16 +539,9 @@ func newMigrateCommand(opts *Options, connect func(ctx context.Context) (*config
 			}
 			defer closePool(pool)
 
-			if cmd.Flags().Changed("to") {
-				return migrateUpTo(cmd.Context(), opts.Logger, pool, migrateTo)
-			}
-
 			return opts.Migrate(cmd.Context(), opts.Logger, pool)
 		},
 	}
-	migrateCmd.Flags().Int64Var(&migrateTo, "to", 0, "apply the migrations of Kotatsu only up to this version (the River tables are always migrated to the latest)")
-
-	return migrateCmd
 }
 
 // newMeterProviders は、送信先を設定していれば、メトリクスを OTLP で送り始める (設計書 11.3)。

@@ -4,17 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
-	"slices"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 
 	"github.com/SlashNephy/kotatsu/db"
@@ -24,24 +18,37 @@ import (
 )
 
 // CompatibleSince は、このバイナリの最新のスキーマで動かしてよいバイナリの下限。
-// バイナリが知っている最新のマイグレーションのバージョンで比べる。
+// バイナリが知っているスキーマの版 (SchemaVersion) で比べる。
 //
-// マイグレーションは、列を追加し、新しい列を使うように切り替え、古い列を削除する、という段階を踏んで
-// 古いバイナリとの互換性を保つ (設計書 11.4)。古いバイナリの読み書きを壊すマイグレーション
-// (古いバイナリがまだ使う列の削除など) を足したときは、その値をそのマイグレーションのバージョンに上げる。
+// スキーマの変更は、列を追加し、新しい列を使うように切り替え、古い列を削除する、という段階を踏んで
+// 古いバイナリとの互換性を保つ (設計書 11.4)。古いバイナリの読み書きを壊す変更
+// (古いバイナリがまだ使う列の削除など) を足したときは、その値をその変更のスキーマの版に上げる。
 const CompatibleSince int64 = 20261101123249
+
+// GooseFloorVersion は、新しい仕組みへそのまま移せる、goose のマイグレーションの版の下限 (#2040)。
+// v2026.11.5 に入れた最後のマイグレーションの版で、それより古い DB は、先に v2026.11.5 で kotatsu migrate を実行してもらう。
+const GooseFloorVersion int64 = 20261120170214
 
 var (
 	// ErrSchemaOutdated は、DB のスキーマがこのバイナリより古いことを表す。
 	ErrSchemaOutdated = errors.New("the database schema is older than this binary requires; run kotatsu migrate")
 	// ErrBinaryOutdated は、DB のスキーマがこのバイナリでは動かせないほど新しいことを表す。
 	ErrBinaryOutdated = errors.New("the database schema is newer than this binary supports; upgrade kotatsu")
+	// ErrDatabaseTooOld は、DB が、新しい仕組みへそのまま移せないほど古い goose のマイグレーションで止まっていることを表す。
+	ErrDatabaseTooOld = errors.New("the database was migrated by a Kotatsu older than v2026.11.5; run kotatsu migrate of v2026.11.5 first")
 )
 
-// Migrate は、埋め込んだマイグレーションのうち未適用のものを適用する。
-// 適用済みなら何もしない。
+// SchemaVersion は、このバイナリに埋め込んだスキーマの版 (db/schema.sum) を返す。
+func SchemaVersion() int64 {
+	version, _ := db.SchemaSum()
+
+	return version
+}
+
+// Migrate は、埋め込んだスキーマ (db/schema.sql) と DB の差を当て、まだ流していない 1 回だけのスクリプトを流す (#2040)。
+// 差がなく、流すスクリプトもなければ、スキーマは変えない。表、列、型を消す差があれば、当てずに ErrDestructiveChange を返す。
 func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
-	// マイグレーションは、大きな表の書き換えで長くかかることがあるので、問い合わせの時間の上限を外した接続で流す (#527)。
+	// スキーマの変更は、大きな表の書き換えで長くかかることがあるので、問い合わせの時間の上限を外した接続で流す (#527)。
 	migrationPool, err := withoutStatementTimeout(ctx, pool)
 	if err != nil {
 		return err
@@ -49,90 +56,136 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 	if migrationPool != pool {
 		defer migrationPool.Close()
 	}
-	provider, err := newProvider(migrationPool)
+
+	state, err := readSchemaState(ctx, migrationPool)
 	if err != nil {
 		return err
 	}
-	defer provider.Close()
-
-	results, err := provider.Up(ctx)
+	plan, err := planScripts(ctx, migrationPool, state)
 	if err != nil {
-		return fmt.Errorf("failed to apply migrations: %w", err)
-	}
-	for _, result := range results {
-		logger.InfoContext(
-			ctx,
-			"migration applied",
-			slog.Int64("version", result.Source.Version),
-			slog.Duration("duration", result.Duration),
-		)
-	}
-
-	if err := fillRecordingsNormalized(ctx, logger, migrationPool); err != nil {
-		return err
-	}
-	if err := fillRecordingHistorySeries(ctx, logger, migrationPool); err != nil {
-		return err
-	}
-	if err := fillCapturesNormalized(ctx, logger, migrationPool); err != nil {
 		return err
 	}
 
-	if err := sqlc.New(pool).RaiseMinBinaryVersion(ctx, sqlc.RaiseMinBinaryVersionParams{
+	// 差を当てる前に流すスクリプト (列の改名や、意図して消すものなど)。
+	ran, err := runScripts(ctx, logger, migrationPool, plan.before, state.hasScripts)
+	if err != nil {
+		return err
+	}
+
+	if err := applySchema(ctx, logger, migrationPool); err != nil {
+		return err
+	}
+
+	// 差を当てたので、スクリプトを記録する表がある。記録する表がないうちに流したものと、流したものとみなすものを記録する。
+	if err := sqlc.New(migrationPool).MarkSchemaScriptsApplied(ctx, sqlc.MarkSchemaScriptsAppliedParams{
+		Versions:  append(ran, plan.assumed...),
+		AppliedAt: time.Now(),
+	}); err != nil {
+		return fmt.Errorf("failed to record the one-time scripts: %w", err)
+	}
+
+	// 差を当てた後に流すスクリプト (足した列を埋めるものなど)。
+	if _, err := runScripts(ctx, logger, migrationPool, plan.after, true); err != nil {
+		return err
+	}
+	if err := fill(ctx, logger, migrationPool); err != nil {
+		return err
+	}
+
+	if err := sqlc.New(pool).RecordSchemaVersion(ctx, sqlc.RecordSchemaVersionParams{
 		MinBinaryVersion: CompatibleSince,
+		SchemaVersion:    SchemaVersion(),
 		UpdatedAt:        time.Now(),
 	}); err != nil {
-		return fmt.Errorf("failed to record the compatible binary version: %w", err)
+		return fmt.Errorf("failed to record the schema version: %w", err)
 	}
-
-	current, err := provider.GetDBVersion(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the schema version: %w", err)
-	}
-	logger.InfoContext(ctx, "database schema is up to date", slog.Int64("version", current), slog.Int("applied", len(results)))
+	logger.InfoContext(ctx, "database schema is up to date", slog.Int64("version", SchemaVersion()))
 
 	return nil
 }
 
-// ErrUnknownVersion は、指定したスキーマのバージョンが、このバイナリに埋め込んだマイグレーションにないことを表す。
-var ErrUnknownVersion = errors.New("the schema version is not one of the migrations embedded in this binary")
+// scriptPlan は、Migrate が流す 1 回だけのスクリプトと、流さずに流したものとみなすスクリプトの版。
+type scriptPlan struct {
+	before  []*script
+	after   []*script
+	assumed []int64
+}
 
-// MigrateTo は、埋め込んだマイグレーションのうち、version までの未適用のものを適用する (#1926)。
-// バックアップを戻すときに、書き出したときのスキーマに合わせてから行を流し込むのに使う。
-// Migrate と違い、正規化した列を埋める処理と、動かしてよいバイナリの下限の記録はしない。どちらも最新のスキーマの列を読み書きするからである。
-// 戻し終えたら Migrate で最新まで上げ、その中で埋める。
-func MigrateTo(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, version int64) error {
-	if !slices.Contains(MigrationVersions(), version) {
-		return fmt.Errorf("%w: %d", ErrUnknownVersion, version)
+// planScripts は、DB の状態から、流すスクリプトを決める。DB がこのバイナリより新しいか、移せないほど古ければ、エラーを返す。
+func planScripts(ctx context.Context, pool *pgxpool.Pool, state *schemaState) (*scriptPlan, error) {
+	if state.schemaVersion > SchemaVersion() {
+		return nil, fmt.Errorf("%w (database: %d, this binary: %d)", ErrBinaryOutdated, state.schemaVersion, SchemaVersion())
 	}
-	migrationPool, err := withoutStatementTimeout(ctx, pool)
+	// goose のマイグレーションで上げていた DB を、初めて新しい仕組みで上げる。goose_db_version は、ローリング更新の間に
+	// 古いバイナリが起動時に読むので、消さずに残す。
+	transition := state.hasCompatibility && state.schemaVersion == 0 && state.gooseVersion > 0
+	if transition && state.gooseVersion < GooseFloorVersion {
+		return nil, fmt.Errorf("%w (database: %d, required: %d or newer)", ErrDatabaseTooOld, state.gooseVersion, GooseFloorVersion)
+	}
+	// 空の DB から作るときは、書き換えるデータがないので、どのスクリプトも流したものとみなす。
+	fresh := !state.hasCompatibility
+
+	scripts, err := loadScripts()
 	if err != nil {
+		return nil, err
+	}
+	applied, err := appliedScripts(ctx, pool, state)
+	if err != nil {
+		return nil, err
+	}
+	plan := &scriptPlan{before: []*script{}, after: []*script{}, assumed: []int64{}}
+	for _, s := range scripts {
+		switch {
+		case applied[s.version]:
+		// goose のマイグレーションで流した書き換えは、同じ版のスクリプトでは流さない。
+		case fresh || (transition && s.version <= state.gooseVersion):
+			plan.assumed = append(plan.assumed, s.version)
+		case s.phase == phaseBefore:
+			plan.before = append(plan.before, s)
+		default:
+			plan.after = append(plan.after, s)
+		}
+	}
+
+	return plan, nil
+}
+
+// ForgetScriptsAfter は、版が version より新しい 1 回だけのスクリプトを、流していないことにする。
+// バックアップを戻した後に、書き出したときの版より新しいスクリプトを、戻した行に流し直すのに使う (#2040)。
+// 次の Migrate で流す。
+func ForgetScriptsAfter(ctx context.Context, pool *pgxpool.Pool, version int64) error {
+	if err := sqlc.New(pool).ForgetSchemaScriptsAfter(ctx, version); err != nil {
+		return fmt.Errorf("failed to forget the one-time scripts after version %d: %w", version, err)
+	}
+
+	return nil
+}
+
+// fill は、新しい DB にも要る行を足し、Go で計算する列のうち、埋まっていないものを埋める。
+func fill(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
+	if err := ensureRows(ctx, pool); err != nil {
 		return err
 	}
-	if migrationPool != pool {
-		defer migrationPool.Close()
-	}
-	provider, err := newProvider(migrationPool)
-	if err != nil {
+	if err := fillRecordingsNormalized(ctx, logger, pool); err != nil {
 		return err
 	}
-	defer provider.Close()
+	if err := fillRecordingHistorySeries(ctx, logger, pool); err != nil {
+		return err
+	}
 
-	current, err := provider.GetDBVersion(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the schema version: %w", err)
+	return fillCapturesNormalized(ctx, logger, pool)
+}
+
+// ensureRows は、新しい DB にも要る行を足す。今ある行は変えない。
+func ensureRows(ctx context.Context, pool *pgxpool.Pool) error {
+	values := domain.RecordingFailureReasonValues()
+	reasons := make([]string, 0, len(values))
+	for _, reason := range values {
+		reasons = append(reasons, reason.String())
 	}
-	if current > version {
-		return fmt.Errorf("the database schema (version %d) is already newer than version %d; migrations cannot be undone", current, version)
+	if err := sqlc.New(pool).EnsureRecordingFailureCounts(ctx, reasons); err != nil {
+		return fmt.Errorf("failed to add the recording failure counts: %w", err)
 	}
-	results, err := provider.UpTo(ctx, version)
-	if err != nil {
-		return fmt.Errorf("failed to apply migrations up to version %d: %w", version, err)
-	}
-	for _, result := range results {
-		logger.InfoContext(ctx, "migration applied", slog.Int64("version", result.Source.Version), slog.Duration("duration", result.Duration))
-	}
-	logger.InfoContext(ctx, "database schema migrated to the requested version", slog.Int64("version", version), slog.Int("applied", len(results)))
 
 	return nil
 }
@@ -300,84 +353,19 @@ func WithMigrationLock(ctx context.Context, logger *slog.Logger, pool *pgxpool.P
 // ローリング更新では、新しいバイナリが kotatsu migrate を実行したあとも、古いバイナリが動き続けるからである。
 // ただし、kotatsu migrate が記録した下限よりこのバイナリが古ければ ErrBinaryOutdated を返す。
 func CheckSchema(ctx context.Context, pool *pgxpool.Pool) error {
-	provider, err := newProvider(pool)
+	state, err := readSchemaState(ctx, pool)
 	if err != nil {
 		return err
 	}
-	defer provider.Close()
-
-	current, err := provider.GetDBVersion(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the schema version: %w", err)
+	latest := SchemaVersion()
+	if state.schemaVersion < latest {
+		return fmt.Errorf("%w (database: %d, required: %d)", ErrSchemaOutdated, state.schemaVersion, latest)
 	}
-	latest := LatestVersion()
-	if current < latest {
-		return fmt.Errorf("%w (database: %d, required: %d)", ErrSchemaOutdated, current, latest)
-	}
-
-	minBinaryVersion, err := sqlc.New(pool).GetMinBinaryVersion(ctx)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// マイグレーションは適用されているのに下限が記録されていない。migrate の途中で止まった場合に起こる。
-			return fmt.Errorf("%w (the compatible binary version is not recorded)", ErrSchemaOutdated)
-		}
-
-		return fmt.Errorf("failed to get the compatible binary version: %w", err)
-	}
-	if latest < minBinaryVersion {
-		return fmt.Errorf("%w (database requires binaries that know version %d, this binary knows up to %d)", ErrBinaryOutdated, minBinaryVersion, latest)
+	if latest < state.minBinaryVersion {
+		return fmt.Errorf("%w (database requires binaries that know version %d, this binary knows up to %d)", ErrBinaryOutdated, state.minBinaryVersion, latest)
 	}
 
 	return nil
-}
-
-// LatestVersion は、このバイナリに埋め込んだ最新のマイグレーションのバージョンを返す。
-func LatestVersion() int64 {
-	versions := MigrationVersions()
-
-	return versions[len(versions)-1]
-}
-
-// MigrationVersions は、このバイナリに埋め込んだマイグレーションのバージョンを古い順に返す。
-// goose と同じく、ファイル名の先頭の _ までをバージョンとして読む。
-func MigrationVersions() []int64 {
-	// goose.Provider は DB の接続がないと作れないので、ファイル名から直接読む。
-	names, err := fs.Glob(migrationsFS(), "*.sql")
-	if err != nil || len(names) == 0 {
-		// 埋め込んだファイルが壊れているのはビルドの誤りで、実行時に回復できない。
-		panic(fmt.Sprintf("no embedded migrations: %v", err))
-	}
-
-	versions := make([]int64, 0, len(names))
-	for _, name := range names {
-		prefix, _, _ := strings.Cut(name, "_")
-		version, err := strconv.ParseInt(prefix, 10, 64)
-		if err != nil {
-			panic(fmt.Sprintf("invalid migration file name %s: %v", name, err))
-		}
-		versions = append(versions, version)
-	}
-	slices.Sort(versions)
-
-	return versions
-}
-
-func newProvider(pool *pgxpool.Pool) (*goose.Provider, error) {
-	provider, err := goose.NewProvider(goose.DialectPostgres, stdlib.OpenDBFromPool(pool), migrationsFS())
-	if err != nil {
-		return nil, fmt.Errorf("failed to load migrations: %w", err)
-	}
-
-	return provider, nil
-}
-
-func migrationsFS() fs.FS {
-	fsys, err := fs.Sub(db.Migrations, "migrations")
-	if err != nil {
-		panic(fmt.Sprintf("invalid embedded migrations: %v", err))
-	}
-
-	return fsys
 }
 
 // withoutStatementTimeout は、pool に問い合わせの時間の上限があれば、上限を外した別のプールを返す。なければ pool をそのまま返す。

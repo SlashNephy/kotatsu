@@ -69,13 +69,17 @@ func Restore(ctx context.Context, opts *RestoreOptions, r io.Reader, identities 
 		if err := checkEmpty(ctx, opts.DB); err != nil {
 			return err
 		}
-		if err := database.MigrateTo(ctx, opts.Logger, opts.DB, manifest.SchemaVersion); err != nil {
+		// 今のスキーマを当ててから流し込む。書き出したときより後に足した列は、既定の値で埋まる (#2040)。
+		if err := database.Migrate(ctx, opts.Logger, opts.DB); err != nil {
 			return err
 		}
 		if err := load(ctx, opts, archive, manifest); err != nil {
 			return err
 		}
-		// 戻した行を、最新のスキーマに合わせる。正規化した列を埋める処理も、ここで戻した行に効く。
+		// 書き出したときの版より新しい 1 回だけのスクリプトを、戻した行に流す。正規化した列を埋める処理も、ここで戻した行に効く。
+		if err := database.ForgetScriptsAfter(ctx, opts.DB, manifest.SchemaVersion); err != nil {
+			return err
+		}
 		if err := database.Migrate(ctx, opts.Logger, opts.DB); err != nil {
 			return err
 		}
@@ -105,8 +109,12 @@ func readManifestEntry(archive *tar.Reader) (*Manifest, error) {
 	if manifest.Format != formatVersion {
 		return nil, fmt.Errorf("%w: format %d (this binary reads format %d)", ErrUnsupportedFormat, manifest.Format, formatVersion)
 	}
-	if latest := database.LatestVersion(); manifest.SchemaVersion > latest {
+	if latest := database.SchemaVersion(); manifest.SchemaVersion > latest {
 		return nil, fmt.Errorf("%w (backup: %d, this binary: %d)", ErrBackupNewer, manifest.SchemaVersion, latest)
+	}
+	// それより古いファイルには、今のスキーマで消えた列が残っていることがある (#2040)。
+	if manifest.SchemaVersion < database.GooseFloorVersion {
+		return nil, fmt.Errorf("%w (backup: %d, required: %d or newer)", ErrBackupTooOld, manifest.SchemaVersion, database.GooseFloorVersion)
 	}
 	seen := map[string]bool{}
 	for _, table := range manifest.Tables {

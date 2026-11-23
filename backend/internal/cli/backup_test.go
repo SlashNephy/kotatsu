@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -95,24 +94,4 @@ func TestAdminBackupRestore(t *testing.T) {
 	var users int
 	require.NoError(t, restored.QueryRow(t.Context(), "SELECT count(*) FROM users WHERE username = 'admin'").Scan(&users))
 	assert.Equal(t, 1, users)
-}
-
-// TestMigrateTo は、kotatsu migrate --to が、指定したバージョンまでで止めることを確かめる (#1926)。
-func TestMigrateTo(t *testing.T) {
-	t.Parallel()
-
-	dbConfig := databasetest.New(t)
-	env := testEnv()
-	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
-	opts := newEnvOptions(env)
-	versions := database.MigrationVersions()
-	version := versions[len(versions)-2]
-	require.NoError(t, runCommand(t, opts, subcommandMigrate, "--to", strconv.FormatInt(version, 10)))
-
-	pool, err := database.Open(t.Context(), dbConfig)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	var current int64
-	require.NoError(t, pool.QueryRow(t.Context(), "SELECT max(version_id) FROM goose_db_version").Scan(&current))
-	assert.Equal(t, version, current)
 }

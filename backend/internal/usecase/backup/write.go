@@ -154,10 +154,10 @@ func liftTimeouts(ctx context.Context, tx pgx.Tx) error {
 // readManifest は、スキーマの版と、書き出す表と列を、トランザクションの時点で読む。表は、外部キーで指される表が先になるよう並べる。
 func readManifest(ctx context.Context, tx pgx.Tx, now time.Time) (*Manifest, error) {
 	var version int64
-	if err := tx.QueryRow(ctx, "SELECT COALESCE(max(version_id), 0) FROM goose_db_version WHERE is_applied").Scan(&version); err != nil {
+	if err := tx.QueryRow(ctx, "SELECT COALESCE(max(schema_version), 0) FROM schema_compatibility").Scan(&version); err != nil {
 		return nil, fmt.Errorf("failed to read the schema version: %w", err)
 	}
-	if latest := database.LatestVersion(); version > latest {
+	if latest := database.SchemaVersion(); version > latest {
 		return nil, fmt.Errorf("%w (database: %d, this binary: %d)", ErrSchemaNewer, version, latest)
 	}
 

@@ -1016,6 +1016,12 @@ type SchemaCompatibility struct {
 	ID               bool
 	MinBinaryVersion int64
 	UpdatedAt        time.Time
+	SchemaVersion    int64
+}
+
+type SchemaScript struct {
+	Version   int64
+	AppliedAt time.Time
 }
 
 type ScrambleAlert struct {

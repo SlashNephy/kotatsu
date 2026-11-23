@@ -1,13 +1,23 @@
--- Kotatsu のスキーマの原本。変更したら mise run //backend:db:diff でマイグレーションを生成する。
+-- Kotatsu のスキーマの原本。kotatsu migrate が、DB との差を出して当てる (設計書 11.4、#2040)。
+-- 変更したら mise run //backend:db:sum でスキーマの版を上げる。goose のマイグレーションを消すまでは、mise run //backend:db:diff でも生成する。
 
--- このスキーマで動かしてよいバイナリの下限を、kotatsu migrate が記録する。
+-- このスキーマで動かしてよいバイナリの下限と、当てたスキーマの版を、kotatsu migrate が記録する (設計書 11.4)。
 -- ローリング更新の間は新旧のバイナリが同時に動くので、DB のスキーマがバイナリより新しくても、
--- バイナリが知っている最新のマイグレーションがこの下限以上なら起動を許す。
+-- バイナリが知っているスキーマの版がこの下限以上なら起動を許す。
 CREATE TABLE schema_compatibility (
   -- 行を 1 つに限るための列。
   id boolean PRIMARY KEY DEFAULT true CHECK (id),
   min_binary_version bigint NOT NULL,
-  updated_at timestamptz NOT NULL
+  updated_at timestamptz NOT NULL,
+  -- 当てたスキーマの版 (db/schema.sum、#2040)。goose のマイグレーションで上げていた DB では、新しい仕組みで当てるまで 0。
+  schema_version bigint NOT NULL DEFAULT 0
+);
+
+-- 流した 1 回だけのスクリプト (db/scripts、#2040)。データの書き換えを、DB ごとに 1 度だけ流す。
+CREATE TABLE schema_scripts (
+  -- スクリプトの版 (ファイル名の先頭の数)。
+  version bigint PRIMARY KEY,
+  applied_at timestamptz NOT NULL
 );
 
 -- リーダー選出に使うリース (設計書 1.4)。neko は名前 neko のリースを取ったインスタンスだけがアクティブになる。

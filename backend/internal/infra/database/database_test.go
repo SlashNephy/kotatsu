@@ -1,19 +1,29 @@
 package database_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"io/fs"
 	"log/slog"
 	"net/url"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/db"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
@@ -21,12 +31,16 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
-func TestCompatibleSinceIsEmbeddedMigration(t *testing.T) {
+// TestSchemaSumMatchesSchema は、schema.sql を変えたのに、スキーマの版 (schema.sum) を上げ忘れていないかを確かめる (#2040)。
+// 落ちたら、mise run //backend:db:sum を実行する。
+func TestSchemaSumMatchesSchema(t *testing.T) {
 	t.Parallel()
 
-	// 下限を上げ忘れた、あるいは存在しないバージョンを書いた、という誤りを検出する。
-	assert.Contains(t, database.MigrationVersions(), database.CompatibleSince)
-	assert.LessOrEqual(t, database.CompatibleSince, database.LatestVersion())
+	_, digest := db.SchemaSum()
+	sum := sha256.Sum256([]byte(db.Schema))
+	assert.Equal(t, hex.EncodeToString(sum[:]), digest, "schema.sql has changed; run mise run //backend:db:sum")
+	// goose のマイグレーションで上げていた DB の版より新しくないと、移った DB を古いとみなせない。
+	assert.Greater(t, database.SchemaVersion(), latestGooseVersion(t))
 }
 
 func TestMigrateAppliesToEmptyDatabase(t *testing.T) {
@@ -38,65 +52,116 @@ func TestMigrateAppliesToEmptyDatabase(t *testing.T) {
 
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 	require.NoError(t, database.CheckSchema(t.Context(), pool))
+	// 空の DB には書き換えるデータがないので、1 回だけのスクリプトは流さずに、流したものとして記録する。
+	assert.Equal(t, scriptVersions(t), appliedScripts(t, pool))
+	// 失敗の理由ごとに 0 件の行を作る。
+	assert.Equal(t, len(domain.RecordingFailureReasonValues()), countRows(t, pool, "recording_failure_counts"))
 
-	// 2 回目は何も適用しない。
-	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	// 2 回目は、スキーマを変えない。
+	var logs bytes.Buffer
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), pool))
+	assert.NotContains(t, logs.String(), "schema change applied")
 	require.NoError(t, database.CheckSchema(t.Context(), pool))
-
-	var applied int
-	require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM goose_db_version WHERE version_id > 0").Scan(&applied))
-	assert.Equal(t, len(database.MigrationVersions()), applied)
 }
 
-// TestMigrateTo は、指定したバージョンで止め、そこから Migrate で最新まで上げられることと、
-// 知らないバージョンや、今より古いバージョンを拒むことを確かめる (#1926)。
-func TestMigrateTo(t *testing.T) {
+// TestMigrateFromGoose は、goose のマイグレーションで上げていた DB を、新しい仕組みへ移せることを確かめる (#2040)。
+func TestMigrateFromGoose(t *testing.T) {
 	t.Parallel()
 
-	versions := database.MigrationVersions()
-	middle := versions[len(versions)/2]
+	t.Run("the latest goose schema is the same as schema.sql", func(t *testing.T) {
+		t.Parallel()
+
+		pool := open(t, databasetest.New(t))
+		gooseUp(t, pool, latestGooseVersion(t))
+
+		var logs bytes.Buffer
+		require.NoError(t, database.Migrate(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), pool))
+		assert.NotContains(t, logs.String(), "schema change applied", "the goose migrations and schema.sql must define the same schema")
+		require.NoError(t, database.CheckSchema(t.Context(), pool))
+		// ローリング更新の間に古いバイナリが読むので、goose の版は残す。
+		var gooseVersion int64
+		require.NoError(t, pool.QueryRow(t.Context(), "SELECT max(version_id) FROM goose_db_version").Scan(&gooseVersion))
+		assert.Equal(t, latestGooseVersion(t), gooseVersion)
+	})
+
+	t.Run("runs the one-time scripts newer than the goose version", func(t *testing.T) {
+		t.Parallel()
+
+		pool := open(t, databasetest.New(t))
+		gooseUp(t, pool, database.GooseFloorVersion)
+		recordingID := insertRecordingWithDrops(t, pool, 3)
+
+		require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+		require.NoError(t, database.CheckSchema(t.Context(), pool))
+		// 判定に数えるドロップの列を足し、今までの録画を埋めるスクリプトを流した。
+		var judgedDrops int64
+		require.NoError(t, pool.QueryRow(t.Context(), "SELECT judged_drops FROM recordings WHERE id = $1", recordingID).Scan(&judgedDrops))
+		assert.Equal(t, int64(3), judgedDrops)
+		assert.Equal(t, scriptVersions(t), appliedScripts(t, pool))
+	})
+
+	t.Run("rejects a database older than v2026.11.5", func(t *testing.T) {
+		t.Parallel()
+
+		pool := open(t, databasetest.New(t))
+		versions := gooseVersions(t)
+		older := versions[slices.Index(versions, database.GooseFloorVersion)-1]
+		gooseUp(t, pool, older)
+
+		require.ErrorIs(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool), database.ErrDatabaseTooOld)
+	})
+}
+
+// TestMigrateRefusesDestructiveChange は、表や列を消す差を当てずに止めることを確かめる (#2040)。
+// 古いバイナリで kotatsu migrate を実行したときに、新しいバイナリが足した列を消さない。
+func TestMigrateRefusesDestructiveChange(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name    string
-		prepare func(t *testing.T, pool *pgxpool.Pool)
-		version int64
-		wantErr bool
+		name  string
+		alter string
 	}{
-		{name: "stops at the version", prepare: func(*testing.T, *pgxpool.Pool) {}, version: middle, wantErr: false},
-		{name: "rejects an unknown version", prepare: func(*testing.T, *pgxpool.Pool) {}, version: middle + 1, wantErr: true},
-		{
-			name: "rejects a version older than the database",
-			prepare: func(t *testing.T, pool *pgxpool.Pool) {
-				t.Helper()
-				require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
-			},
-			version: middle, wantErr: true,
-		},
+		{name: "column", alter: "ALTER TABLE users ADD COLUMN added_by_newer_binary text"},
+		{name: "table", alter: "CREATE TABLE added_by_newer_binary (id bigint PRIMARY KEY)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			pool := open(t, databasetest.New(t))
-			tt.prepare(t, pool)
-			err := database.MigrateTo(t.Context(), slog.New(slog.DiscardHandler), pool, tt.version)
-			if tt.wantErr {
-				require.Error(t, err)
-
-				return
-			}
-			require.NoError(t, err)
-			var current int64
-			require.NoError(t, pool.QueryRow(t.Context(), "SELECT max(version_id) FROM goose_db_version").Scan(&current))
-			assert.Equal(t, tt.version, current)
-			require.ErrorIs(t, database.CheckSchema(t.Context(), pool), database.ErrSchemaOutdated)
-
 			require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
-			require.NoError(t, database.CheckSchema(t.Context(), pool))
+			_, err := pool.Exec(t.Context(), tt.alter)
+			require.NoError(t, err)
+
+			require.ErrorIs(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool), database.ErrDestructiveChange)
+			var exists bool
+			require.NoError(t, pool.QueryRow(t.Context(), `SELECT EXISTS (
+				SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND (table_name = 'added_by_newer_binary' OR column_name = 'added_by_newer_binary')
+			)`).Scan(&exists))
+			assert.True(t, exists)
 		})
 	}
 }
 
-// TestMigrateConcurrently は、kotatsu migrate を同時に実行しても、どれも失敗せず、マイグレーションを一度ずつ適用することを確かめる。
+// TestForgetScriptsAfter は、流していないことにしたスクリプトを、次の Migrate で流し直すことを確かめる (#2040)。
+// バックアップを戻した後に、書き出したときの版より新しいスクリプトを、戻した行に流すのに使う。
+func TestForgetScriptsAfter(t *testing.T) {
+	t.Parallel()
+
+	pool := open(t, databasetest.New(t))
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	recordingID := insertRecordingWithDrops(t, pool, 5)
+
+	require.NoError(t, database.ForgetScriptsAfter(t.Context(), pool, database.GooseFloorVersion))
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	var judgedDrops int64
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT judged_drops FROM recordings WHERE id = $1", recordingID).Scan(&judgedDrops))
+	assert.Equal(t, int64(5), judgedDrops)
+	assert.Equal(t, scriptVersions(t), appliedScripts(t, pool))
+}
+
+// TestMigrateConcurrently は、kotatsu migrate を同時に実行しても、どれも失敗しないことを確かめる。
 // Helm のフックの Job と手で実行した migrate、2 つの helm upgrade などで重なりうる。
 func TestMigrateConcurrently(t *testing.T) {
 	t.Parallel()
@@ -118,9 +183,7 @@ func TestMigrateConcurrently(t *testing.T) {
 
 	pool := open(t, cfg)
 	require.NoError(t, database.CheckSchema(t.Context(), pool))
-	var applied int
-	require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM goose_db_version WHERE version_id > 0").Scan(&applied))
-	assert.Equal(t, len(database.MigrationVersions()), applied)
+	assert.Equal(t, scriptVersions(t), appliedScripts(t, pool))
 }
 
 func TestCheckSchema(t *testing.T) {
@@ -128,7 +191,7 @@ func TestCheckSchema(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// setup は、マイグレーションを適用したあとの DB を書き換える。
+		// setup は、スキーマを当てたあとの DB を書き換える。
 		setup   func(t *testing.T, pool *pgxpool.Pool)
 		wantErr error
 	}{
@@ -138,32 +201,32 @@ func TestCheckSchema(t *testing.T) {
 		},
 		{
 			// ローリング更新で、新しいバイナリが migrate を実行したあとも古いバイナリは動き続ける。
-			name: "database is one migration ahead",
+			name: "database is one version ahead",
 			setup: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
-				applyFakeMigration(t, pool, database.LatestVersion()+1)
+				setSchemaVersion(t, pool, database.SchemaVersion()+1)
 			},
 		},
 		{
 			name: "database is ahead and incompatible with this binary",
 			setup: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
-				applyFakeMigration(t, pool, database.LatestVersion()+1)
-				raiseMinBinaryVersion(t, pool, database.LatestVersion()+1)
+				setSchemaVersion(t, pool, database.SchemaVersion()+1)
+				raiseMinBinaryVersion(t, pool, database.SchemaVersion()+1)
 			},
 			wantErr: database.ErrBinaryOutdated,
 		},
 		{
-			name: "migration was rolled back",
+			name: "database is one version behind",
 			setup: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
-				_, err := pool.Exec(t.Context(), "DELETE FROM goose_db_version WHERE version_id = $1", database.LatestVersion())
+				_, err := pool.Exec(t.Context(), "UPDATE schema_compatibility SET schema_version = $1", database.SchemaVersion()-1)
 				require.NoError(t, err)
 			},
 			wantErr: database.ErrSchemaOutdated,
 		},
 		{
-			name: "compatible binary version is not recorded",
+			name: "schema version is not recorded",
 			setup: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
 				_, err := pool.Exec(t.Context(), "DELETE FROM schema_compatibility")
@@ -202,9 +265,9 @@ func TestMigrateDoesNotLowerMinBinaryVersion(t *testing.T) {
 	raiseMinBinaryVersion(t, pool, raised)
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 
-	got, err := sqlc.New(pool).GetMinBinaryVersion(t.Context())
+	got, err := sqlc.New(pool).GetSchemaCompatibility(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, raised, got)
+	assert.Equal(t, raised, got.MinBinaryVersion)
 }
 
 // TestMigrateFillsRecordingsNormalized は、kotatsu migrate が、正規化した番組名と概要の列がない録画の列を埋め、
@@ -475,21 +538,115 @@ func open(t *testing.T, cfg *config.Database) *pgxpool.Pool {
 	return pool
 }
 
-// applyFakeMigration は、このバイナリが知らない新しいマイグレーションが適用された状態を作る。
-func applyFakeMigration(t *testing.T, pool *pgxpool.Pool, version int64) {
+// setSchemaVersion は、このバイナリが知らない新しいスキーマの版が当たった状態を作る。
+func setSchemaVersion(t *testing.T, pool *pgxpool.Pool, version int64) {
 	t.Helper()
 
-	_, err := pool.Exec(t.Context(), "INSERT INTO goose_db_version (version_id, is_applied) VALUES ($1, true)", version)
+	_, err := pool.Exec(t.Context(), "UPDATE schema_compatibility SET schema_version = $1", version)
 	require.NoError(t, err)
 }
 
 func raiseMinBinaryVersion(t *testing.T, pool *pgxpool.Pool, version int64) {
 	t.Helper()
 
-	require.NoError(t, sqlc.New(pool).RaiseMinBinaryVersion(t.Context(), sqlc.RaiseMinBinaryVersionParams{
+	require.NoError(t, sqlc.New(pool).RecordSchemaVersion(t.Context(), sqlc.RecordSchemaVersionParams{
 		MinBinaryVersion: version,
 		UpdatedAt:        time.Now(),
 	}))
+}
+
+// gooseVersions は、埋め込んだ goose のマイグレーションの版を古い順に返す。
+func gooseVersions(t *testing.T) []int64 {
+	t.Helper()
+
+	names, err := fs.Glob(db.Migrations, "migrations/*.sql")
+	require.NoError(t, err)
+	versions := make([]int64, 0, len(names))
+	for _, name := range names {
+		prefix, _, _ := strings.Cut(strings.TrimPrefix(name, "migrations/"), "_")
+		version, err := strconv.ParseInt(prefix, 10, 64)
+		require.NoError(t, err)
+		versions = append(versions, version)
+	}
+	slices.Sort(versions)
+
+	return versions
+}
+
+func latestGooseVersion(t *testing.T) int64 {
+	t.Helper()
+
+	versions := gooseVersions(t)
+
+	return versions[len(versions)-1]
+}
+
+// gooseUp は、新しい仕組みに移る前の kotatsu migrate と同じく、goose のマイグレーションを version まで当てる。
+func gooseUp(t *testing.T, pool *pgxpool.Pool, version int64) {
+	t.Helper()
+
+	migrations, err := fs.Sub(db.Migrations, "migrations")
+	require.NoError(t, err)
+	provider, err := goose.NewProvider(goose.DialectPostgres, stdlib.OpenDBFromPool(pool), migrations)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = provider.Close() })
+	_, err = provider.UpTo(t.Context(), version)
+	require.NoError(t, err)
+}
+
+// scriptVersions は、埋め込んだ 1 回だけのスクリプトの版を古い順に返す。
+func scriptVersions(t *testing.T) []int64 {
+	t.Helper()
+
+	names, err := fs.Glob(db.Scripts, "scripts/*.sql")
+	require.NoError(t, err)
+	versions := make([]int64, 0, len(names))
+	for _, name := range names {
+		prefix, _, _ := strings.Cut(strings.TrimPrefix(name, "scripts/"), "_")
+		version, err := strconv.ParseInt(prefix, 10, 64)
+		require.NoError(t, err)
+		versions = append(versions, version)
+	}
+	slices.Sort(versions)
+
+	return versions
+}
+
+func appliedScripts(t *testing.T, pool *pgxpool.Pool) []int64 {
+	t.Helper()
+
+	versions, err := sqlc.New(pool).ListAppliedSchemaScripts(t.Context())
+	require.NoError(t, err)
+
+	return versions
+}
+
+func countRows(t *testing.T, pool *pgxpool.Pool, table string) int {
+	t.Helper()
+
+	var n int
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM "+pgx.Identifier{table}.Sanitize()).Scan(&n))
+
+	return n
+}
+
+// insertRecordingWithDrops は、セグメントのない、drops 件のドロップのある、エラーありで終えた録画を入れる。
+// 判定に数えるドロップの列 (judged_drops) を足す前の DB にも入れられるよう、その列は書かない。
+func insertRecordingWithDrops(t *testing.T, pool *pgxpool.Pool, drops int64) uuid.UUID {
+	t.Helper()
+
+	now := time.Now()
+	_, err := pool.Exec(t.Context(), "INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10) ON CONFLICT DO NOTHING")
+	require.NoError(t, err)
+	_, err = pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+		VALUES (3273601024, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', $1, $1) ON CONFLICT DO NOTHING`, now)
+	require.NoError(t, err)
+	recordingID := id.New()
+	_, err = pool.Exec(t.Context(), `INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at, drops)
+		VALUES ($1, 3273601024, 'こたつの時間', '', $2, $2, 'completed_with_errors', $2, $2, $2, $3)`, recordingID, now, drops)
+	require.NoError(t, err)
+
+	return recordingID
 }
 
 // TestOpenLimitsIdleTransactionsAndStatements は、接続に、トランザクションの中で何もしない時間と、1 つの問い合わせの時間の
@@ -530,11 +687,10 @@ func TestOpenLimitsIdleTransactionsAndStatements(t *testing.T) {
 func TestMigrateRereadsSeriesWithDashVariants(t *testing.T) {
 	t.Parallel()
 
-	// before は、揃える前のバージョン。
-	const before = 20261120170214
-
+	// 揃える前のバージョン (v2026.11.5) の goose のマイグレーションで上げた DB から、新しい仕組みに移るときに、
+	// 1 回だけのスクリプトで読み直す (#2040)。
 	pool := open(t, databasetest.New(t))
-	require.NoError(t, database.MigrateTo(t.Context(), slog.New(slog.DiscardHandler), pool, before))
+	gooseUp(t, pool, database.GooseFloorVersion)
 
 	now := time.Now()
 	_, err := pool.Exec(t.Context(), "INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
