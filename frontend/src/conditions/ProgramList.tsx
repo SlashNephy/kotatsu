@@ -1,7 +1,7 @@
 import { Badge, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
-import { ProgramTitle } from '../futon';
+import { ProgramTitle, type HighlightKeyword } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import classes from './ProgramList.module.css';
 import { zonedFormat } from '../futon';
@@ -27,12 +27,14 @@ type Props = {
   programs: readonly ProgramListItem[];
   // onSelect は、番組を押したときに呼ぶ。番組の詳細を開くのに使う。
   onSelect: (programId: string) => void;
+  // highlights は、番組名に印を付けるキーワード (#966)。
+  highlights?: readonly HighlightKeyword[];
 };
 
 // ProgramList は、条件に一致した番組の一覧。番組の検索の結果と、ルールのプレビューで使う。
 // 日時は、番組名の頭が揃うよう、いちばん長い日時 (12/28(月) 00:00) が収まる幅に固定する。
 // 狭い画面では、番組名が読めるよう、日時とチャンネルの下の段に回す。
-export function ProgramList({ programs, onSelect }: Props) {
+export function ProgramList({ programs, onSelect, highlights = [] }: Props) {
   const { t } = useTranslation();
 
   return (
@@ -51,7 +53,7 @@ export function ProgramList({ programs, onSelect }: Props) {
               <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
             </Text>
             <Text size="sm" truncate className={classes.title}>
-              <ProgramTitle name={program.name} />
+              <ProgramTitle name={program.name} highlights={highlights} />
             </Text>
             {program.archived === true && (
               <Badge color="gray" variant="light" style={{ flexShrink: 0 }}>

@@ -497,7 +497,7 @@ func TestMatchHorizon(t *testing.T) {
 	}
 	requests := f.fake.takeRequests()
 	assert.NotContains(t, requests, "/3/search/tv?夜ドラ", "promotions are not looked up")
-	assert.Contains(t, requests, "/3/search/tv?晩酌の流儀5〜秋冬篇〜", "the full title is tried first")
+	assert.Contains(t, requests, "/3/search/tv?晩酌の流儀5~秋冬篇~", "the full title is tried first")
 
 	// 録画にも、番組の結びつきを写す。
 	episode, found, err := drama.RecordingEpisode(t.Context(), f.db, recordingID)

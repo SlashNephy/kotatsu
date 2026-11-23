@@ -631,7 +631,8 @@ export type ProgramConditionsInput = {
   freeOnly?: boolean | null;
 };
 
-function matchesKeyword(program: DemoProgram, keyword: KeywordInput): boolean {
+// matchesKeyword は、番組が keyword に一致するかを返す。番組の検索のほか、録画の検索 (#966) でも使う。
+export function matchesKeyword(program: DemoProgram, keyword: KeywordInput): boolean {
   const texts = keyword.fields.map((field) =>
     field === 'NAME'
       ? program.name

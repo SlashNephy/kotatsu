@@ -29,7 +29,10 @@ import (
 // マイグレーションは、列を追加し、新しい列を使うように切り替え、古い列を削除する、という段階を踏んで
 // 古いバイナリとの互換性を保つ (設計書 11.4)。古いバイナリの読み書きを壊すマイグレーション
 // (古いバイナリがまだ使う列の削除など) を足したときは、その値をそのマイグレーションのバージョンに上げる。
-const CompatibleSince int64 = 20261101123249
+//
+// 20261123010000: 照合の正規化で、波ダッシュとダッシュの類をそろえた (#2041)。古いバイナリは、そろえる前の書き方のキーワードで、
+// 書き直した列と照合して、一致しなくなったルール予約を消すので、動かさない。マイグレーションを伴わないので、最新のマイグレーションの版にする。
+const CompatibleSince int64 = 20261123010000
 
 var (
 	// ErrSchemaOutdated は、DB のスキーマがこのバイナリより古いことを表す。
@@ -68,6 +71,9 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 		)
 	}
 
+	if err := renormalizeDashVariants(ctx, migrationPool); err != nil {
+		return err
+	}
 	if err := fillRecordingsNormalized(ctx, logger, migrationPool); err != nil {
 		return err
 	}

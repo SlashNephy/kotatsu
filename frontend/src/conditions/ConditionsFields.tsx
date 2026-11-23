@@ -226,6 +226,10 @@ type KeywordRowsProps = {
   icon: ReactNode;
   rows: KeywordRow[];
   onChange: (rows: KeywordRow[]) => void;
+  // fields は、選べる項目。録画は詳細では探さないので、録画の検索では番組名と概要だけにする (#966)。
+  fields?: readonly KeywordField[];
+  // newRow は、行を足したときの初めの値。
+  newRow?: () => KeywordRow;
 };
 
 // MarkChips は、番組名の囲み文字 (新、字など) を選ぶ欄。表の囲み文字をすべてチップで並べ、
@@ -377,8 +381,8 @@ function ServiceMultiSelect({
   );
 }
 
-// KeywordRows は、キーワードの行を足し、変え、消す。
-function KeywordRows({
+// KeywordRows は、キーワードの行を足し、変え、消す。番組の検索とルールの編集のほか、録画の検索でも使う (#966)。
+export function KeywordRows({
   label,
   description,
   match,
@@ -386,6 +390,8 @@ function KeywordRows({
   icon,
   rows,
   onChange,
+  fields = keywordFields,
+  newRow = emptyKeyword,
 }: KeywordRowsProps) {
   const { t } = useTranslation();
   const change = (index: number, patch: Partial<KeywordRow>) =>
@@ -443,7 +449,7 @@ function KeywordRows({
               onChange={(fields) => change(index, { fields: fields as KeywordField[] })}
             >
               <Group gap={4}>
-                {keywordFields.map((field) => (
+                {fields.map((field) => (
                   <Chip key={field} value={field} size="xs">
                     {t(fieldKeys[field])}
                   </Chip>
@@ -473,7 +479,7 @@ function KeywordRows({
           variant="default"
           size="xs"
           leftSection={<Plus size={14} aria-hidden />}
-          onClick={() => onChange([...rows, emptyKeyword()])}
+          onClick={() => onChange([...rows, newRow()])}
         >
           {t('rules.addKeyword')}
         </Button>

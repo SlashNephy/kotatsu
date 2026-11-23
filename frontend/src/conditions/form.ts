@@ -1,6 +1,7 @@
 // 番組の条件の入力と、tenban の番組の条件 (ProgramConditions と ProgramConditionsInput) を行き来させる。
 // 番組の検索とルールの編集で、同じ入力を使う。
 
+import type { HighlightKeyword } from '../futon/highlight';
 import { splitProgramMarks } from '../futon/programMarks';
 
 export type KeywordField = 'NAME' | 'DESCRIPTION' | 'EXTENDED';
@@ -179,6 +180,27 @@ export function fromConditions(c: ConditionsData): ConditionsForm {
     marks: [...c.marks],
     excludeMarks: [...c.excludeMarks],
   };
+}
+
+// KeywordInputLike は、tenban に送ったキーワード (KeywordInput)。
+type KeywordInputLike = {
+  readonly text: string;
+  readonly regexp?: boolean | null;
+  readonly caseSensitive?: boolean | null;
+  readonly fields: readonly string[];
+};
+
+// nameHighlights は、tenban に送った含めるキーワードのうち、番組名を見るものを、番組名に印を付けるキーワードにする (#966)。
+export function nameHighlights(
+  keywords: readonly KeywordInputLike[] | null | undefined,
+): HighlightKeyword[] {
+  return (keywords ?? [])
+    .filter((keyword) => keyword.text.trim() !== '' && keyword.fields.includes('NAME'))
+    .map((keyword) => ({
+      text: keyword.text,
+      regexp: keyword.regexp === true,
+      caseSensitive: keyword.caseSensitive === true,
+    }));
 }
 
 // toConditionsInput は、入力を、tenban の ProgramConditionsInput にする。

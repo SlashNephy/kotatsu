@@ -1287,7 +1287,11 @@
       }
     },
     "title": "録画",
-    "keyword": "番組名",
+    "keywords": "含めるキーワード",
+    "keywordsDescription": "番組名と概要から探し、すべてのキーワードに一致する録画を出します（AND検索）。",
+    "keywordsAnyDescription": "番組名と概要から探し、いずれかのキーワードに一致する録画を出します（OR検索）。",
+    "excludeKeywords": "除外するキーワード",
+    "excludeKeywordsDescription": "いずれかのキーワードに一致する録画を除きます（OR検索）。",
     "tags": "タグ",
     "states": "状態",
     "services": "サービス",

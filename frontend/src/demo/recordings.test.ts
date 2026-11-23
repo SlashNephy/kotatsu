@@ -247,6 +247,27 @@ describe('demo recordings', () => {
     ).toEqual([target.id]);
   });
 
+  it('narrows the list by the keyword conditions of the program search (#966)', async () => {
+    const executor = newExecutor();
+    const all = await listRecordings(executor);
+    const target = all[0]!;
+    const word = target.name.slice(0, 3);
+    const keyword = (text: string) => ({
+      text,
+      regexp: false,
+      caseSensitive: false,
+      fields: ['NAME', 'DESCRIPTION'],
+    });
+
+    const included = await listRecordings(executor, { keywords: [keyword(word)] });
+    const excluded = await listRecordings(executor, { excludeKeywords: [keyword(word)] });
+
+    expect(included.map((item) => item.id)).toContain(target.id);
+    expect(included.every((item) => item.name.includes(word))).toBe(true);
+    expect(excluded.map((item) => item.id)).not.toContain(target.id);
+    expect(included.length + excluded.length).toBe(all.length);
+  });
+
   it('lists a recording in continue watching after its position is saved', async () => {
     const executor = newExecutor();
     const target = (await listRecordings(executor)).find((item) => item.state === 'COMPLETED')!;

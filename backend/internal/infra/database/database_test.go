@@ -96,6 +96,107 @@ func TestMigrateTo(t *testing.T) {
 	}
 }
 
+// TestMigrateRenormalizesDashVariants は、正規化で波ダッシュとダッシュの類をそろえる前の書き方が残る、正規化した列を、
+// kotatsu migrate が書き直すことを確かめる (#2041)。そろえる前に書いた行と、ローリング更新の間に古いバイナリが書いた行に当たる。
+// そろえる文字を含まない行は変えない。
+func TestMigrateRenormalizesDashVariants(t *testing.T) {
+	t.Parallel()
+
+	pool := open(t, databasetest.New(t))
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	now := time.Now()
+	exec := func(query string, args ...any) {
+		t.Helper()
+		_, err := pool.Exec(t.Context(), query, args...)
+		require.NoError(t, err)
+	}
+	exec("INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
+	// そろえる前の正規化 (NFKC だけ) で書いた行。
+	exec(`INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+		VALUES (3273601024, 32736, 1024, 'こたつ―テレビ', 'こたつ―テレビ', 1, 'GR', '27', $1, $1)`, now)
+	const (
+		programsTable = "programs"
+		plainName     = "揃える文字を含まない名前"
+		wantExtended  = "出演者\n山田~太郎\n"
+	)
+	insertProgram := func(eventID int64, name, description, extended string) {
+		t.Helper()
+		exec(`INSERT INTO programs (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
+			name, description, name_normalized, description_normalized, extended, extended_normalized, genres, related_items, search_grams, created_at, updated_at)
+			VALUES (3273601024, $1, $1, $2, $2, false, true, $3, $4, $3, $4, $5::jsonb, '', '[]', '[]', '{x}', $2, $2)`,
+			eventID, now, name, description, extended)
+	}
+	const staleExtended = `{"出演者": "山田〜太郎"}`
+	insertProgram(1, "作品名〜副題〜", "", staleExtended)
+	insertProgram(2, plainName, "", staleExtended)
+	insertProgram(3, "作品名－副題－", "", staleExtended)
+	insertProgram(4, plainName, "あらすじ―後編―", "{}")
+	// そろえる文字をどこにも含まない番組は、書き直さない。
+	insertProgram(5, plainName, "あらすじ", "{}")
+	// 詳細の正規化した列は、そろえる前の書き方にしておく。
+	exec("UPDATE programs SET extended_normalized = $1 WHERE extended::text <> '{}'", "出演者\n山田〜太郎\n")
+	// 過去の番組は、番組表から移したものとして作る。
+	exec(`WITH moved AS (DELETE FROM programs WHERE event_id = 3 RETURNING *)
+		INSERT INTO program_archives (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
+			name_normalized, description_normalized, extended, extended_normalized, genres, related_items, audios, search_grams, created_at, updated_at, archived_at)
+		SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
+			name_normalized, description_normalized, extended, extended_normalized, genres, related_items, audios, search_grams, created_at, updated_at, $1
+		FROM moved`, now)
+	userID := id.New()
+	exec("INSERT INTO users (id, username, display_name, role, created_at, updated_at) VALUES ($1, 'u', 'u', 'admin', $2, $2)", userID, now)
+	captureID := id.New()
+	exec(`INSERT INTO captures (id, user_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized,
+		caption, caption_normalized, broadcast_at, taken_at, size, created_at)
+		VALUES ($1, $2, 0, 'こたつ―テレビ', NULL, 'こたつ―テレビ', '', '山田〜太郎', '山田〜太郎', $3, $3, 1, $3)`, captureID, userID, now)
+	recordingID := id.New()
+	exec(`INSERT INTO recordings (id, service_id, name, description, name_normalized, description_normalized, start_at, end_at, state, recorded_from, created_at, updated_at)
+		VALUES ($1, 3273601024, '作品名〜副題〜', '', '作品名〜副題〜', '', $2, $2, 'completed', $2, $2, $2)`, recordingID, now)
+
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	var serviceName string
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized FROM services").Scan(&serviceName))
+	assert.Equal(t, "こたつ-テレビ", serviceName)
+	tests := []struct {
+		table, where    string
+		wantName        string
+		wantDescription string
+		wantExtended    string
+		wantGramsReset  bool
+	}{
+		{table: programsTable, where: "event_id = 1", wantName: "作品名~副題~", wantDescription: "", wantExtended: wantExtended, wantGramsReset: true},
+		// 名前には揃える文字がなくても、詳細にあれば書き直す。
+		{table: programsTable, where: "event_id = 2", wantName: plainName, wantDescription: "", wantExtended: wantExtended, wantGramsReset: true},
+		{table: programsTable, where: "event_id = 4", wantName: plainName, wantDescription: "あらすじ-後編-", wantExtended: "", wantGramsReset: true},
+		{table: programsTable, where: "event_id = 5", wantName: plainName, wantDescription: "あらすじ", wantExtended: "", wantGramsReset: false},
+		{table: "program_archives", where: "event_id = 3", wantName: "作品名-副題-", wantDescription: "", wantExtended: wantExtended, wantGramsReset: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.table+" "+tt.where, func(t *testing.T) {
+			t.Parallel()
+
+			var name, description, extended string
+			var grams []string
+			require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized, description_normalized, extended_normalized, search_grams FROM "+tt.table+" WHERE "+tt.where).
+				Scan(&name, &description, &extended, &grams))
+			assert.Equal(t, tt.wantName, name)
+			assert.Equal(t, tt.wantDescription, description)
+			assert.Equal(t, tt.wantExtended, extended)
+			assert.Equal(t, tt.wantGramsReset, grams == nil)
+		})
+	}
+	// キャプチャの名前は書き直し、字幕は空に戻して、同じ migrate の中で埋め直す。番組名がなければ空のまま。
+	var captureService, captureProgram, captureCaption string
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT service_name_normalized, program_name_normalized, caption_normalized FROM captures WHERE id = $1", captureID).
+		Scan(&captureService, &captureProgram, &captureCaption))
+	assert.Equal(t, []string{"こたつ-テレビ", "", "山田~太郎"}, []string{captureService, captureProgram, captureCaption})
+
+	// 録画は空に戻し、同じ migrate の中で埋め直す。
+	var recordingName string
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized FROM recordings WHERE id = $1", recordingID).Scan(&recordingName))
+	assert.Equal(t, "作品名~副題~", recordingName)
+}
+
 // TestMigrateConcurrently は、kotatsu migrate を同時に実行しても、どれも失敗せず、マイグレーションを一度ずつ適用することを確かめる。
 // Helm のフックの Job と手で実行した migrate、2 つの helm upgrade などで重なりうる。
 func TestMigrateConcurrently(t *testing.T) {
