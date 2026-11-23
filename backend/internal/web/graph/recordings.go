@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
@@ -81,21 +82,10 @@ func (r *Resolver) listRecordings(
 		params.BeforeAt, params.BeforeID = &cursor.RecordedFrom, &cursor.ID
 	}
 
-	var rows []domain.Recording
-	if order == model.RecordingOrderOldestFirst {
-		rows, err = r.queries.SearchRecordingsOldest(ctx, query.SearchRecordingsOldestParams{
-			States: params.States, ServiceIDs: params.ServiceIDs, TagIDs: params.TagIDs, Keyword: params.Keyword,
-			Since: params.Since, Until: params.Until, RuleID: params.RuleID, Genres: params.Genres,
-			AfterAt: params.BeforeAt, AfterID: params.BeforeID, MaxCount: params.MaxCount,
-		})
-	} else {
-		rows, err = r.queries.SearchRecordings(ctx, *params)
-	}
+	rows, hasNext, err := r.findRecordings(ctx, filter, params, order, first)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search recordings: %w", err)
+		return nil, err
 	}
-	hasNext := len(rows) > first
-	rows = rows[:min(len(rows), first)]
 	recordings, err := r.recordingModels(ctx, rows)
 	if err != nil {
 		return nil, err
@@ -114,6 +104,34 @@ func (r *Resolver) listRecordings(
 	}
 
 	return &model.RecordingConnection{Edges: edges, PageInfo: info}, nil
+}
+
+// findRecordings は、params の録画を order の順に first 件まで読み、続きがあるかも返す。
+// キーワードの条件 (#966) があれば、番組の検索と同じ照合で絞る。
+func (r *Resolver) findRecordings(
+	ctx context.Context, filter *model.RecordingFilter, params *query.SearchRecordingsParams, order model.RecordingOrder, first int,
+) ([]domain.Recording, bool, error) {
+	conditions, ok, err := recordingKeywordConditions(filter)
+	if err != nil {
+		return nil, false, err
+	}
+	if ok {
+		matcher, err := match.Compile(conditions, r.location)
+		if err != nil {
+			return nil, false, NewError(CodeBadUserInput, err.Error())
+		}
+		if params.Keyword == nil {
+			params.Keyword = coarseRecordingKeyword(conditions)
+		}
+
+		return r.collectRecordings(ctx, matcher, params, order, first)
+	}
+	rows, err := r.searchRecordingRows(ctx, params, order)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return rows[:min(len(rows), first)], len(rows) > first, nil
 }
 
 const (

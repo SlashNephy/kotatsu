@@ -2087,8 +2087,15 @@ type RecordingFilter struct {
 	TagIds     []string                `json:"tagIds,omitempty"`
 	States     []domain.RecordingState `json:"states,omitempty"`
 	ServiceIds []string                `json:"serviceIds,omitempty"`
-	// 番組名に含む文字列。大文字と小文字を区別しない。
+	// 番組名か概要に含む文字列。大文字と小文字を区別しない。
 	Keyword *string `json:"keyword,omitempty"`
+	// 番組名と概要で探すキーワード (#966)。番組の検索と同じく照合する。録画は詳細では探さないので、EXTENDED は指定できない。
+	// keyword と一緒に指定すると、両方に一致する録画を返す。
+	Keywords []*KeywordInput `json:"keywords,omitempty"`
+	// keywords の照合のしかた。省くと、すべてに一致する録画を返す。
+	KeywordMatch *match.KeywordMatch `json:"keywordMatch,omitempty"`
+	// どれか 1 つに一致したら除外するキーワード。EXTENDED は指定できない。
+	ExcludeKeywords []*KeywordInput `json:"excludeKeywords,omitempty"`
 	// 放送の開始がこの日時以降の録画。
 	Since *time.Time `json:"since,omitempty"`
 	// 放送の開始がこの日時より前の録画。

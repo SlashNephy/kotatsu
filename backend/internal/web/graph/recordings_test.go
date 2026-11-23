@@ -150,7 +150,7 @@ func (f *fixture) recordings(t *testing.T, first int, after *string, filter map[
 	t.Helper()
 
 	var page recordingPage
-	require.Empty(t, f.query(t, listRecordings, map[string]any{varFirst: first, varAfter: after, "filter": filter}, &page))
+	require.Empty(t, f.query(t, listRecordings, map[string]any{varFirst: first, varAfter: after, varFilter: filter}, &page))
 
 	return &page
 }
@@ -1233,4 +1233,134 @@ func TestRecordingsLiveThumbnail(t *testing.T) {
 			assert.Nil(t, node.PreviewURL, "the preview is made after the recording ends")
 		})
 	}
+}
+
+// keywordVar は、GraphQL の KeywordInput の変数。
+type keywordVar struct {
+	Text          string   `json:"text"`
+	Regexp        bool     `json:"regexp"`
+	CaseSensitive bool     `json:"caseSensitive"`
+	Fields        []string `json:"fields"`
+}
+
+const (
+	varKeywords        = "keywords"
+	varExcludeKeywords = "excludeKeywords"
+	lighthouse1        = "灯台の地図～霧笛の夜～ #1"
+	lighthouse2        = "灯台の地図〜霧笛の夜〜 #2"
+)
+
+// TestRecordingsByKeywordConditions は、録画を、番組の検索と同じキーワードの条件で絞れることを確かめる (#966)。
+func TestRecordingsByKeywordConditions(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	// 新しい順に、灯台の地図 #2、灯台の地図 #1、港の朝。
+	f.addRecording(t, dir, "港の朝", "completed", 3*time.Hour)
+	first := f.addRecording(t, dir, lighthouse1, "completed", 2*time.Hour)
+	f.addRecording(t, dir, lighthouse2, "completed", time.Hour)
+	_, rawID, err := graph.ParseGlobalID(first)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), "UPDATE recordings SET description = '港の灯台を守る一家の話' WHERE id = $1", rawID)
+	require.NoError(t, err)
+	// 録画を記録するときと同じく、正規化した番組名と概要を持たせる (設計書 3.5)。
+	rows, err := f.pool.Query(t.Context(), "SELECT id, name, description FROM recordings")
+	require.NoError(t, err)
+	type text struct {
+		id                uuid.UUID
+		name, description string
+	}
+	texts, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (text, error) {
+		var tx text
+		err := row.Scan(&tx.id, &tx.name, &tx.description)
+
+		return tx, err
+	})
+	require.NoError(t, err)
+	for _, tx := range texts {
+		_, err = f.pool.Exec(t.Context(), "UPDATE recordings SET name_normalized = $2, description_normalized = $3 WHERE id = $1",
+			tx.id, domain.Normalize(tx.name), domain.Normalize(tx.description))
+		require.NoError(t, err)
+	}
+
+	keyword := func(text string, fields ...string) keywordVar {
+		return keywordVar{Text: text, Regexp: false, CaseSensitive: false, Fields: fields}
+	}
+	regexp := func(text string, fields ...string) keywordVar {
+		return keywordVar{Text: text, Regexp: true, CaseSensitive: false, Fields: fields}
+	}
+	tests := []struct {
+		name   string
+		filter map[string]any
+		want   []string
+	}{
+		{
+			// 波ダッシュと全角チルダは、正規化で同じ文字になる (#2041)。
+			name:   "a literal keyword in the name",
+			filter: map[string]any{varKeywords: []keywordVar{keyword("灯台の地図〜霧笛の夜〜", "NAME")}},
+			want:   []string{lighthouse2, lighthouse1},
+		},
+		{
+			name:   "a regular expression",
+			filter: map[string]any{varKeywords: []keywordVar{regexp(`#1$`, "NAME")}},
+			want:   []string{lighthouse1},
+		},
+		{
+			name:   "a keyword only in the description",
+			filter: map[string]any{varKeywords: []keywordVar{keyword("一家", "DESCRIPTION")}},
+			want:   []string{lighthouse1},
+		},
+		{
+			name:   "the name does not have the description keyword",
+			filter: map[string]any{varKeywords: []keywordVar{keyword("一家", "NAME")}},
+			want:   []string{},
+		},
+		{
+			name: "any of the keywords",
+			filter: map[string]any{
+				varKeywords: []keywordVar{keyword("港の朝", "NAME"), keyword("#2", "NAME")}, "keywordMatch": "ANY",
+			},
+			want: []string{lighthouse2, "港の朝"},
+		},
+		{
+			name: "an excluded keyword",
+			filter: map[string]any{
+				varKeywords: []keywordVar{keyword("灯台", "NAME")}, varExcludeKeywords: []keywordVar{keyword("#2", "NAME")},
+			},
+			want: []string{lighthouse1},
+		},
+		{
+			name: "with the plain keyword",
+			filter: map[string]any{
+				"keyword": "灯台", varKeywords: []keywordVar{keyword("#1", "NAME")},
+			},
+			want: []string{lighthouse1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, f.recordings(t, 10, nil, tt.filter).names())
+		})
+	}
+
+	t.Run("pages through the matched recordings", func(t *testing.T) {
+		t.Parallel()
+
+		filter := map[string]any{varKeywords: []keywordVar{keyword("灯台", "NAME")}}
+		page := f.recordings(t, 1, nil, filter)
+		assert.Equal(t, []string{lighthouse2}, page.names())
+		assert.True(t, page.Recordings.PageInfo.HasNextPage)
+		next := f.recordings(t, 1, page.Recordings.PageInfo.EndCursor, filter)
+		assert.Equal(t, []string{lighthouse1}, next.names())
+		assert.False(t, next.Recordings.PageInfo.HasNextPage)
+	})
+
+	t.Run("rejects the extended description", func(t *testing.T) {
+		t.Parallel()
+
+		filter := map[string]any{varKeywords: []keywordVar{keyword("灯台", "EXTENDED")}}
+		assert.Equal(t, []string{codeBadUserInput}, f.query(t, listRecordings, map[string]any{varFirst: 10, varFilter: filter}, nil))
+	})
 }
