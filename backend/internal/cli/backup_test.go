@@ -40,7 +40,7 @@ func runCommand(t *testing.T, opts *cli.Options, args ...string) error {
 }
 
 // TestAdminBackupRestore は、kotatsu admin backup が持ち主だけが読めるファイルを書き、kotatsu admin restore が空の DB に戻すことと、
-// アプリの秘密キーが設定と違えば、--secret-key-out を渡さない限り戻さないことを確かめる (#1926)。
+// アプリの秘密キーが設定と違えば、--secret-key-out を渡さない限り戻さないことを確認する (#1926)。
 func TestAdminBackupRestore(t *testing.T) {
 	t.Parallel()
 
@@ -97,7 +97,7 @@ func TestAdminBackupRestore(t *testing.T) {
 	assert.Equal(t, 1, users)
 }
 
-// TestMigrateTo は、kotatsu migrate --to が、指定したバージョンまでで止めることを確かめる (#1926)。
+// TestMigrateTo は、kotatsu migrate --to が、指定したバージョンまでで止めることを確認する (#1926)。
 func TestMigrateTo(t *testing.T) {
 	t.Parallel()
 

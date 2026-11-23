@@ -207,7 +207,7 @@ type InsertWatchRuleDismissalParams struct {
 	Now       time.Time
 }
 
-// ユーザーが手で外した視聴予約の番組を覚える。視聴ルールに一致しても、付け直さない。
+// ユーザーが手で外した視聴予約の番組を保存する。視聴ルールに一致しても、付け直さない。
 func (q *Queries) InsertWatchRuleDismissal(ctx context.Context, arg InsertWatchRuleDismissalParams) error {
 	_, err := q.db.Exec(ctx, insertWatchRuleDismissal,
 		arg.UserID,

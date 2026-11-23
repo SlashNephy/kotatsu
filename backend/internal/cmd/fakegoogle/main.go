@@ -1,6 +1,6 @@
-// Command fakegoogle は、Google Drive のライブラリ (#1902) を、本物の Google を使わずに確かめるための偽の Google を起動する。
+// Command fakegoogle は、Google Drive のライブラリ (#1902) を、本物の Google を使わずに確認するためのモックの Google を起動する。
 //
-// internal/testutil/googletest の偽の Google を、決まったアドレスで待ち受けさせる。認可のエンドポイントは、人の操作をまねずに、
+// internal/testutil/googletest のモックの Google を、決まったアドレスで待ち受けさせる。認可のエンドポイントは、人の操作をまねずに、
 // その場でコードを作って redirect_uri に戻す。Kotatsu は、設定の google.url (KOTATSU_GOOGLE_URL) をこのアドレスに向ける。
 // -ts で渡した TS を、マイドライブの「Kotatsu」(と、その中の「Season 2」)、「Private」と、共有ドライブ「Backup」に置く。
 package main
@@ -68,7 +68,7 @@ func run() int {
 	return 0
 }
 
-// place は、TS を次のように置く。見せるフォルダで絞ることと、名前で探すことを確かめられるようにする。
+// place は、TS を次のように置く。見せるフォルダで絞ることと、名前で探すことを確認できるようにする。
 //
 //	マイドライブ: Kotatsu/ (<名前> ×2, 2026/11 <名前>, Season 2/ (s2-<名前>)), Private/ (private-<名前>)
 //	共有ドライブ Backup: <名前>

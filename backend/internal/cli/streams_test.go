@@ -19,7 +19,7 @@ import (
 )
 
 // TestTenbanServesStreams は、tenban が、映像の配信 (/internal/streams/*) を echo のルーターで受け (#1606)、
-// mux のときと同じく、セッションの Cookie で認可し、パスの名前付きの部分をハンドラーに渡すことを確かめる。
+// mux のときと同じく、セッションの Cookie で認可し、パスの名前付きの部分をハンドラーに渡すことを確認する。
 // この tenban には、チューナーサーバーも kyusu もないので、届いた配信は、流せずに終わる。
 func TestTenbanServesStreams(t *testing.T) {
 	t.Parallel()
@@ -78,7 +78,7 @@ func TestTenbanServesStreams(t *testing.T) {
 	}
 }
 
-// TestTenbanStreamsLive は、echo のルーターで受けたライブ視聴の配信が、チューナーサーバーの TS をそのまま流すことを確かめる (#1606)。
+// TestTenbanStreamsLive は、echo のルーターで受けたライブ視聴の配信が、チューナーサーバーの TS をそのまま流すことを確認する (#1606)。
 func TestTenbanStreamsLive(t *testing.T) {
 	t.Parallel()
 

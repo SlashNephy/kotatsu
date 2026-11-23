@@ -25,7 +25,7 @@ import (
 var errPasswordRequired = errors.New("the password must be given on the standard input")
 
 // hibpEnabledOf は、Have I Been Pwned に照会するかどうかを、全体の設定から読む関数を返す (#1869)。
-// 管理者が画面で切り替えるので、パスワードを確かめるたびに読む。
+// 管理者が画面で切り替えるので、パスワードを確認するたびに読む。
 func hibpEnabledOf(db sqlc.DBTX) func(ctx context.Context) (bool, error) {
 	return func(ctx context.Context) (bool, error) {
 		system, err := settings.Load(ctx, db)

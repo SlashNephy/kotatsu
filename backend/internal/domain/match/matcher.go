@@ -14,7 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
-// Program は、照合する番組。文字列の項目は、NewProgram で NFKC で正規化しておくか、DB の正規化した列から入れる。
+// Program は、照合する番組。文字列の項目は、NewProgram で NFKC で正規化しておくか、DB の正規化したカラムから入れる。
 type Program struct {
 	ServiceID int64
 	// SharedFrom は、イベント共有の元のサービス (domain.SharedFrom)。共有していないか、番組が元であれば 0。
@@ -28,7 +28,7 @@ type Program struct {
 	StartAt  time.Time
 	Duration time.Duration
 	IsFree   bool
-	// Marks は、番組名の囲み文字の中身。囲み文字を括弧の書き方にする前に正規化した番組名では、囲み文字が「新」のような文字になり、
+	// Marks は、番組名の囲み文字の内容。囲み文字を括弧の書き方にする前に正規化した番組名では、囲み文字が「新」のような文字になり、
 	// 番組名の文字と見分けられないので、正規化する前の番組名から domain.Marks で取り出しておく。
 	Marks []string
 
@@ -263,7 +263,7 @@ func foldCase(s string) string {
 	}, s)
 }
 
-// Match は、番組が条件に一致するかどうかを返す。安い条件から順に調べる。
+// Match は、番組が条件に一致するかどうかを返す。安い条件から順に確認する。
 func (m *Matcher) Match(p *Program) bool {
 	c := m.conditions
 	if c.FreeOnly && !p.IsFree {
@@ -369,7 +369,7 @@ func anyMark(conditions, marks []string) bool {
 }
 
 // inTimeRanges は、開始時刻が、曜日と時間帯の組のどれかに入るかどうかを返す。
-// 週の中の位置 (日曜日 0 時からの分) で比べるので、日付や週をまたぐ範囲も扱える。
+// 週の中の位置 (日曜日 0 時からの分) で比較するので、日付や週をまたぐ範囲も扱える。
 func (m *Matcher) inTimeRanges(start time.Time) bool {
 	local := start.In(m.location)
 	minute := int(local.Weekday())*minutesPerDay + local.Hour()*60 + local.Minute()

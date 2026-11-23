@@ -6,14 +6,14 @@ import (
 	"time"
 )
 
-// Broadcast は、束ねる候補の放送。
+// Broadcast は、まとめる候補の放送。
 type Broadcast struct {
 	Episode   *Episode
 	ServiceID int64
 	EventID   int64
 	StartAt   time.Time
 	EndAt     time.Time
-	// Captioned は、番組名に字幕付きの印があるかどうか。Satellite は、地上波でない局の放送かどうか。
+	// Captioned は、番組名に字幕付きのマークがあるかどうか。Satellite は、地上波でない局の放送かどうか。
 	Captioned bool
 	Satellite bool
 	// Rejected は、割り当てで競合になり、録れない見込みの放送かどうか。
@@ -33,7 +33,7 @@ type Decision struct {
 	Instead *Broadcast
 }
 
-// Resolve は、候補の放送を局をまたいで同じ回で束ね、束ごとに 1 本だけを残す (設計書 4.4)。
+// Resolve は、候補の放送を局をまたいで同じ回でまとめ、グループごとに 1 本だけを残す (設計書 4.4)。
 // 返す値は broadcasts と同じ並びで、それぞれの扱いを表す。
 // 毎週同じ概要は、候補と録った回を合わせて見分けるので、broadcasts と recorded の回の指紋を書き換える。
 func Resolve(broadcasts []*Broadcast, recorded []*Recorded) []*Decision {
@@ -74,7 +74,7 @@ type bundle struct {
 	members []int
 }
 
-// bundleKnown は、回の分かる放送を束ね、束と、回の分からない放送の添字を返す。
+// bundleKnown は、回の分かる放送をまとめ、グループと、回の分からない放送の添字を返す。
 func bundleKnown(broadcasts []*Broadcast) ([]*bundle, []int) {
 	known, unknown := []int{}, []int{}
 	for i, b := range broadcasts {
@@ -190,9 +190,9 @@ func attachable(u, b *Broadcast) bool {
 	return b.Episode.Known() && !b.Episode.Special && b.Episode.Work == u.Episode.Work && overlaps(u, b)
 }
 
-// bundleUnknown は、残った回の分からない放送を、飾りの印を除いて揃えた番組名ごとに分け、時間が重なるものだけを束ねる。
-// 時刻をまたいでは束ねない。束ねると、毎日の「ニュース」が初回しか録れなくなる。2 本以上の束だけを返す。
-// 間の放送を介してつながるだけで、どれかの組が重ならない束は、束ねない。回が分からないので、どれも録る。
+// bundleUnknown は、残った回の分からない放送を、飾りのマークを除いて揃えた番組名ごとに分け、時間が重なるものだけをまとめる。
+// 時刻をまたいではまとめない。まとめると、毎日の「ニュース」が初回しか録れなくなる。2 本以上のグループだけを返す。
+// 間の放送を介してつながるだけで、どれかの組が重ならないグループは、まとめない。回が分からないので、どれも録る。
 func bundleUnknown(broadcasts []*Broadcast, unknown []int) [][]int {
 	uf := newUnionFind(len(broadcasts))
 	adjacent := make([][]bool, len(broadcasts))

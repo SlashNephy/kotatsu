@@ -42,7 +42,7 @@ import (
 // Deps は、ロールを起動する前に用意し、全ロールで共有するもの。
 type Deps struct {
 	Config *config.Config
-	// DB は、スキーマのバージョンを確かめた後の接続。
+	// DB は、スキーマのバージョンを確認した後の接続。
 	DB *pgxpool.Pool
 	// Metrics は、インスタンスごとの値のレジストリ。各ロールのメトリクスはここに登録する。
 	Metrics *prometheus.Registry
@@ -60,7 +60,7 @@ type Deps struct {
 	JobWorkers *river.Workers
 	// Roles は、このプロセスで動かすロールの名前。ログの画面に、どのロールのログかを出すのに使う (#1521)。
 	Roles []string
-	// LookupEnv は、環境変数を引く。ログから伏せる、OTLP のヘッダーの環境変数を読むのに使う (#1521)。
+	// LookupEnv は、環境変数を取得する。ログからマスクする、OTLP のヘッダーの環境変数を読むのに使う (#1521)。
 	LookupEnv config.LookupEnv
 	// Logs は、このプロセスのログのバッファ (#1521)。nil なら、ログの画面は空になる。
 	Logs *logring.Buffer

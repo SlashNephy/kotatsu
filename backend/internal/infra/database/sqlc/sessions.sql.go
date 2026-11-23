@@ -83,7 +83,7 @@ type GetSessionUsableParams struct {
 	ID        uuid.UUID
 }
 
-// セッションが今も使えるか (失効させていない、期限の中、ユーザーが有効) を返す。接続中の subscription を確かめ直すのに使う。
+// セッションが今も使えるか (失効させていない、期限の中、ユーザーが有効) を返す。接続中の subscription を確認し直すのに使う。
 func (q *Queries) GetSessionUsable(ctx context.Context, arg GetSessionUsableParams) (bool, error) {
 	row := q.db.QueryRow(ctx, getSessionUsable, arg.Now, arg.IdleSince, arg.ID)
 	var usable bool

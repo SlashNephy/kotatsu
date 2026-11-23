@@ -37,5 +37,5 @@ RETURNING *;
 SELECT id, hidden, sort_order FROM services WHERE id = @id FOR UPDATE;
 
 -- name: UpdateServiceDisplay :exec
--- 番組表に出さない印と、並び順の上書きを変える。EPG の同期は、この 2 つを上書きしない (設計書 8.2)。
+-- 番組表に出さないマークと、並び順の上書きを変える。EPG の同期は、この 2 つを上書きしない (設計書 8.2)。
 UPDATE services SET hidden = @hidden, sort_order = sqlc.narg(sort_order), updated_at = @now WHERE id = @id;

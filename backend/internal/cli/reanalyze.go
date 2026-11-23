@@ -14,7 +14,7 @@ import (
 )
 
 // newReanalyzeCommand は kotatsu admin reanalyze を作る (#897)。
-// 索引か代表画像のない録画を探し、解析し直すジョブをまとめて投入する。解析が終われば、画像も作り直す。
+// インデックスか代表画像のない録画を探し、解析し直すジョブをまとめて投入する。解析が終われば、画像も作り直す。
 func newReanalyzeCommand(opts *Options, connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error)) *cobra.Command {
 	var all, dryRun bool
 	cmd := &cobra.Command{

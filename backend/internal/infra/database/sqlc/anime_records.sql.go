@@ -264,7 +264,7 @@ const listAnimeRecordAccessTokens = `-- name: ListAnimeRecordAccessTokens :many
 SELECT access_token_encrypted FROM anime_record_connections ORDER BY user_id, destination
 `
 
-// ログの報告から伏せるため、全ユーザーの記録先のアクセストークンを返す (#1521)。
+// ログの報告でマスクするため、全ユーザーの記録先のアクセストークンを返す (#1521)。
 func (q *Queries) ListAnimeRecordAccessTokens(ctx context.Context) ([][]byte, error) {
 	rows, err := q.db.Query(ctx, listAnimeRecordAccessTokens)
 	if err != nil {

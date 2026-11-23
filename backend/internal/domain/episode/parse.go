@@ -43,45 +43,45 @@ type Episode struct {
 	Core string
 	// Number は話数。読めなければ 0。
 	Number int
-	// Subtitle は副題。UncertainSubtitle は、副題が後ろの枠名や出演者かもしれない (確かでない) かどうか。
+	// Subtitle はサブタイトル。UncertainSubtitle は、サブタイトルが後ろの枠名や出演者かもしれない (確かでない) かどうか。
 	Subtitle          string
 	UncertainSubtitle bool
 	// Fingerprint は、揃えた概要。概要が短ければ空。
 	Fingerprint string
-	// Key は、飾りの印を除いて揃えた番組名。回の分からない放送を、同時刻の同じ番組名で束ねるのに使う。
+	// Key は、飾りのマークを除いて揃えた番組名。回の分からない放送を、同時刻の同じ番組名でまとめるのに使う。
 	Key string
-	// Special は、番組名か概要に、総集編や特別編のような、通常の回でない印があるかどうか。
+	// Special は、番組名か概要に、総集編や特別編のような、通常の回でないマークがあるかどうか。
 	Special bool
 	// Anime は、しょぼいカレンダーの作品と話数。なければ nil。
 	Anime *Anime
 }
 
-// Known は、回が分かる (話数か副題を読めたか、しょぼいカレンダーの話に結びついた) かどうかを返す。
+// Known は、回が分かる (話数かサブタイトルを読めたか、しょぼいカレンダーの話に結びついた) かどうかを返す。
 func (e *Episode) Known() bool {
 	return e.knownByTitle() || e.Anime != nil
 }
 
-// knownByTitle は、番組名か概要から、話数か副題を読めたかどうかを返す。
+// knownByTitle は、番組名か概要から、話数かサブタイトルを読めたかどうかを返す。
 func (e *Episode) knownByTitle() bool {
 	return e.Number > 0 || e.Subtitle != ""
 }
 
 var (
-	// decorationPattern は、番組名の、括弧で囲んだ放送の種類の印。
+	// decorationPattern は、番組名の、括弧で囲んだ放送の種類のマーク。
 	decorationPattern = regexp.MustCompile(`[\[【(](?:新|終|再|字|解|デ|二|多|SS|初|最終回|無料|無|生|映)[\]】)]`)
 	// framePattern は、番組名の先頭の <…> (枠の名前)。
 	framePattern = regexp.MustCompile(`^<([^<>]{1,` + strconv.Itoa(MaxFrameNameLength) + `})>`)
-	// leadingQuotePattern は、番組名の先頭の鍵括弧 (作品名)。
+	// leadingQuotePattern は、番組名の先頭のかぎ括弧 (作品名)。
 	leadingQuotePattern = regexp.MustCompile(`^(?:「([^「」]+)」|『([^『』]+)』)`)
-	// trailingQuotePattern は、末尾の鍵括弧 (副題)。
+	// trailingQuotePattern は、末尾のかぎ括弧 (サブタイトル)。
 	trailingQuotePattern = regexp.MustCompile(`(?:「([^「」]*)」|『([^『』]*)』)$`)
-	// wholeQuotePattern は、全体が鍵括弧 1 つだけのもの。
+	// wholeQuotePattern は、全体がかぎ括弧 1 つだけのもの。
 	wholeQuotePattern = regexp.MustCompile(`^(?:「([^「」]*)」|『([^『』]*)』)$`)
 	// trailingFramesPattern は、末尾の【…】の並び (枠の名前)。
 	trailingFramesPattern = regexp.MustCompile(`(?:\s*【[^【】]*】)+$`)
 	// seasonPattern は、期 (第2期、第二シーズンなど)。括弧で囲まれていてもよい。
 	seasonPattern = regexp.MustCompile(`[(\[【]?第([0-9]+|[〇一二三四五六七八九十]+)(期|シーズン|クール|章|部)[)\]】]?`)
-	// seasonFollowPattern は、期のすぐ後ろに来てよいもの (話数の印か、第＋数字)。
+	// seasonFollowPattern は、期のすぐ後ろに来てよいもの (話数のマークか、第＋数字)。
 	seasonFollowPattern = regexp.MustCompile(`^(?:#|第[0-9])`)
 	// titleNumberPattern は、番組名の話数 (#N、第N話、第N回)。NFKC で ＃ は # になる。
 	titleNumberPattern = regexp.MustCompile(`#([0-9]+)|第([0-9]+)[話回]`)
@@ -91,17 +91,17 @@ var (
 	trailingArcPattern = regexp.MustCompile(`\s(\S+編)$`)
 	// workFramePattern は、作品名の先頭の「アニメ」「ドラマ」の枠。地上波と BS で、先頭の枠名だけが違う局に合わせる。
 	workFramePattern = regexp.MustCompile(`^(?:アニメ|ドラマ)[A-Za-z]?(?:・|\s)+`)
-	// specialPattern は、通常の回でない印。大文字と小文字は区別しない。SP は前後に英字がないときだけ見る。
+	// specialPattern は、通常の回でないマーク。大文字と小文字は区別しない。SP は前後に英字がないときだけ見る。
 	specialPattern = regexp.MustCompile(`(?i)総集編|特別[編篇版回]|番外|一挙|振り返り|スペシャル`)
 	spPattern      = regexp.MustCompile(`(?i)sp`)
-	// captionPattern は、字幕付きの印。
+	// captionPattern は、字幕付きのマーク。
 	captionPattern = regexp.MustCompile(`\[字\]|【字】|🈑`)
 	// excludedArcPattern は、末尾の「…編」に含まれていれば、編として読まない語。
 	excludedArcPattern = regexp.MustCompile(`総集|特別|番外|完結`)
 )
 
 const (
-	// uncertainMarks は、副題の先頭にあれば、その副題を確かでない副題とする記号。後ろの枠名や出演者の可能性がある。
+	// uncertainMarks は、サブタイトルの先頭にあれば、そのサブタイトルを確かでないサブタイトルとする記号。後ろの枠名や出演者の可能性がある。
 	uncertainMarks = "▼▽◆◇■□★☆"
 	// coreSeparators は、芯を取り出すときに語を区切る括弧。
 	coreSeparators = "「」『』【】[]()<>〈〉《》〔〕"
@@ -146,7 +146,7 @@ func Parse(src *Source) *Episode {
 	return ep
 }
 
-// Captioned は、番組名が字幕付きの印を含むかどうかを返す。
+// Captioned は、番組名が字幕付きのマークを含むかどうかを返す。
 func Captioned(name string) bool {
 	return captionPattern.MatchString(norm(name))
 }
@@ -170,12 +170,12 @@ func normalizeName(name string) string {
 }
 
 // normalizeText は、番組名や概要を半角に寄せ、波ダッシュとダッシュの書き方を揃える (#2039)。
-// 局や回、チューナーサーバーで書き方が違うと、同じ作品の回が別のシリーズになり、概要の指紋や副題も一致しないからである。
+// 局や回、チューナーサーバーで書き方が違うと、同じ作品の回が別のシリーズになり、概要の指紋やサブタイトルも一致しないからである。
 //
 // NFKC は全角チルダ (U+FF5E) を ~ に、全角ハイフンマイナス (U+FF0D) を - にするが、波ダッシュ (U+301C) とダッシュの類は残す。
 // 波ダッシュは、EPGStation (StrUtil.toHalf) と同じく ~ にする。ダッシュの類は - にする。
 // 長音符 (U+30FC) は、ダッシュの代わりにも書かれるが、ここでは揃えない。「シーズン」のような語を読む正規表現が当たらなくなるからである。
-// 読み終えた後に、比べるための値を作る canon で揃える。
+// 読み終えた後に、比較するための値を作る canon で揃える。
 func normalizeText(s string) string {
 	return strings.Map(func(r rune) rune {
 		switch r {
@@ -190,7 +190,7 @@ func normalizeText(s string) string {
 }
 
 // canon は、小文字にし、空白をすべて除き、長音符 (U+30FC) を - にする (#2039)。
-// 長音符は、ダッシュの代わりにも書かれる (「作品名 ー副題ー」と「作品名 -副題-」)。canon の値は比べるためだけに使うので、
+// 長音符は、ダッシュの代わりにも書かれる (「作品名 ー副題ー」と「作品名 -副題-」)。canon の値は比較するためだけに使うので、
 // 「ストーリー」のような語の長音符も - にしてよい。
 func canon(s string) string {
 	return strings.Map(func(r rune) rune {
@@ -264,7 +264,7 @@ type title struct {
 	subtitle  string
 }
 
-// parseTitle は、飾りの印を除いた番組名を、作品名、編、期、話数、副題に分ける。
+// parseTitle は、飾りのマークを除いた番組名を、作品名、編、期、話数、サブタイトルに分ける。
 func parseTitle(name string) *title {
 	if m := framePattern.FindStringIndex(name); m != nil {
 		name = strings.TrimSpace(name[m[1]:])
@@ -367,7 +367,7 @@ func parseDigits(digits string) (int, bool) {
 	return n, true
 }
 
-// trailingSubtitle は、話数の後ろから副題を読む。末尾の【…】の並び (枠の名前) は除き、全体が鍵括弧 1 つなら括弧を外す。
+// trailingSubtitle は、話数の後ろからサブタイトルを読む。末尾の【…】の並び (枠の名前) は除き、全体がかぎ括弧 1 つなら括弧を外す。
 func trailingSubtitle(after string) string {
 	s := strings.TrimSpace(trailingFramesPattern.ReplaceAllString(after, ""))
 	if m := wholeQuotePattern.FindStringSubmatch(s); m != nil {

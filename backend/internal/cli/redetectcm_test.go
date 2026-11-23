@@ -25,9 +25,9 @@ const (
 	detectorLogo   = "logo"
 )
 
-// TestAdminRedetectCM は、kotatsu admin redetect-cm が、最後に見分けた CM の区間が今の見分け方の古い版の録画だけを選び、
-// --all-detectors ではほかの見分け方で見分けた録画も選ぶことと、待っているジョブの録画には重ねて投入しないことを確かめる (#1814)。
-// 見分け方は、設定の行がないので、既定の FFmpegDetector (版 2) になる。
+// TestAdminRedetectCM は、kotatsu admin redetect-cm が、最後に見分けた CM の区間が今の見分け方の古いバージョンの録画だけを選び、
+// --all-detectors ではほかの見分け方で見分けた録画も選ぶことと、待っているジョブの録画には重ねて投入しないことを確認する (#1814)。
+// 見分け方は、設定の行がないので、既定の FFmpegDetector (バージョン 2) になる。
 func TestAdminRedetectCM(t *testing.T) {
 	t.Parallel()
 
@@ -128,8 +128,8 @@ func TestAdminRedetectCM(t *testing.T) {
 	}
 }
 
-// TestAdminRedetectCMWithLogo は、管理者がロゴの見分け方を選んでいれば、その版で古さを決めることと、
-// 材料が今の形式の版でなければ、読み直す録画として数えることを確かめる (#1814)。ロゴの見分け方の今の版は 6、材料の形式の今の版は 5。
+// TestAdminRedetectCMWithLogo は、管理者がロゴの見分け方を選んでいれば、そのバージョンで古さを決めることと、
+// 材料が今の形式のバージョンでなければ、読み直す録画として数えることを確認する (#1814)。ロゴの見分け方の今のバージョンは 6、材料の形式の今のバージョンは 5。
 func TestAdminRedetectCMWithLogo(t *testing.T) {
 	t.Parallel()
 

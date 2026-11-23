@@ -75,14 +75,14 @@ func New(t *testing.T) *Server {
 	return s
 }
 
-// SetMessageServer は、room で知らせるコメントセッションの接続先を変える。
+// SetMessageServer は、room で通知するコメントセッションの接続先を変える。
 func (s *Server) SetMessageServer(uri string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.messageServer = uri
 }
 
-// SetKeepInterval は、seat で知らせる keepSeat の間隔 (秒) を変える。
+// SetKeepInterval は、seat で通知する keepSeat の間隔 (秒) を変える。
 func (s *Server) SetKeepInterval(seconds float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -310,8 +310,8 @@ func (s *Server) serveComment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// rf:0 を送る前に、開いているコメントセッションに数える (#1622)。クライアントは rf:0 を受けて接続を知らせるので、
-	// 送った後に数えると、知らせを受けたテストが CommentSessions を確かめたり Chat を送ったりするのに、数えるのが間に合わないことがある。
+	// rf:0 を送る前に、開いているコメントセッションに数える (#1622)。クライアントは rf:0 を受けて接続を通知するので、
+	// 送った後に数えると、通知を受けたテストが CommentSessions を確認したり Chat を送ったりするのに、数えるのが間に合わないことがある。
 	// Chat を送るテストは、接続の知らせを待ってから送るので、Chat が rf:0 より先に届くことはない。
 	s.mu.Lock()
 	s.comments[conn] = struct{}{}

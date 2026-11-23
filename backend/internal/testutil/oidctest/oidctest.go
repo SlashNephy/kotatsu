@@ -36,7 +36,7 @@ const (
 	s256      = "S256"
 )
 
-// Provider は、テスト用の IdP。Subject と Claims を変えると、次に発行する ID トークンの中身が変わる。
+// Provider は、テスト用の IdP。Subject と Claims を変えると、次に発行する ID トークンの内容が変わる。
 type Provider struct {
 	ClientID     string
 	ClientSecret string
@@ -77,7 +77,7 @@ func New(clientID, clientSecret string, redirectURIs ...string) (*Provider, erro
 }
 
 // NewOn は、IdP を listener で起動して返す。listener が nil なら、空いているポートで起動する。
-// 別のプロセスとして立てる偽の IdP (internal/cmd/fakeidp) が、決まったアドレスで待ち受けるのに使う。
+// 別のプロセスとして立てるモックの IdP (internal/cmd/fakeidp) が、決まったアドレスで待ち受けるのに使う。
 func NewOn(listener net.Listener, clientID, clientSecret string, redirectURIs ...string) (*Provider, error) {
 	key, err := rsa.GenerateKey(rand.Reader, rsaBits)
 	if err != nil {
@@ -210,7 +210,7 @@ func (p *Provider) keys(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, set)
 }
 
-// signingKey は、ID トークンに署名する鍵 (公開鍵か秘密鍵) を、鍵の ID、アルゴリズム、用途を付けた JWK にする。
+// signingKey は、ID トークンに署名するキー (公開鍵か秘密鍵) を、キーの ID、アルゴリズム、用途を付けた JWK にする。
 func signingKey(raw any) (jwk.Key, error) {
 	key, err := jwk.Import[jwk.Key](raw)
 	if err != nil {
@@ -247,7 +247,7 @@ func (p *Provider) token(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// authenticateClient は、クライアントの ID と秘密を、Basic 認証か、本文のパラメーターで確かめる。
+// authenticateClient は、クライアントの ID と秘密を、Basic 認証か、本文のパラメーターで確認する。
 func (p *Provider) authenticateClient(r *http.Request) bool {
 	id, secret, ok := r.BasicAuth()
 	if !ok {
@@ -321,7 +321,7 @@ func (p *Provider) idToken(nonce string) (string, error) {
 	if err := headers.Set(jws.TypeKey, "JWT"); err != nil {
 		return "", fmt.Errorf("failed to set the type of the ID token: %w", err)
 	}
-	// 鍵の ID (kid) は、JWK に付けた ID がヘッダーに入る。
+	// キーの ID (kid) は、JWK に付けた ID がヘッダーに入る。
 	signed, err := jws.Sign(payload, jws.WithKey(jwa.RS256(), key, jws.WithProtectedHeaders(headers)))
 	if err != nil {
 		return "", fmt.Errorf("failed to sign the ID token: %w", err)

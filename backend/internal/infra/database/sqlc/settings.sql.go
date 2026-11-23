@@ -170,7 +170,7 @@ type UpdateServiceDisplayParams struct {
 	ID        int64
 }
 
-// 番組表に出さない印と、並び順の上書きを変える。EPG の同期は、この 2 つを上書きしない (設計書 8.2)。
+// 番組表に出さないマークと、並び順の上書きを変える。EPG の同期は、この 2 つを上書きしない (設計書 8.2)。
 func (q *Queries) UpdateServiceDisplay(ctx context.Context, arg UpdateServiceDisplayParams) error {
 	_, err := q.db.Exec(ctx, updateServiceDisplay,
 		arg.Hidden,

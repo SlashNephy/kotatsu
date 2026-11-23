@@ -229,7 +229,7 @@ func TestRoleDoesNotStartWithInvalidConfig(t *testing.T) {
 	assert.False(t, started.Load())
 }
 
-// TestRolesRequireSecretKey は、アプリの秘密キーがなければ、tenban、nekonote、kyusu と、EDCB を使う nabe を起動しないことを確かめる (設計書 8.4)。
+// TestRolesRequireSecretKey は、アプリの秘密キーがなければ、tenban、nekonote、kyusu と、EDCB を使う nabe を起動しないことを確認する (設計書 8.4)。
 func TestRolesRequireSecretKey(t *testing.T) {
 	t.Parallel()
 
@@ -413,7 +413,7 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 	}
 }
 
-// idleChanges は、変更を知らせない ChangeFeed。DB に接続しないテストで使う。
+// idleChanges は、変更を通知しない ChangeFeed。DB に接続しないテストで使う。
 type idleChanges struct{}
 
 var _ cli.ChangeFeed = new(idleChanges)

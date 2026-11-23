@@ -20,7 +20,7 @@ SELECT (EXISTS (SELECT 1 FROM program_drama_matches p WHERE p.tmdb_series_id = @
   OR EXISTS (SELECT 1 FROM recording_drama_matches r WHERE r.tmdb_series_id = @series_id::integer))::boolean AS linked;
 
 -- name: InsertDramaWatchedEpisode :execrows
--- 見た話を足す。もう見た話なら、何もしない (見た日時と出どころは、最初に足したものを残す)。
+-- 見た話を足す。もう見た話なら、何もしない (見た日時とソースは、最初に足したものを残す)。
 INSERT INTO drama_watched_episodes (user_id, tmdb_series_id, season_number, episode_number, source, watched_at)
 VALUES (@user_id, @tmdb_series_id, @season_number, @episode_number, @source, @now)
 ON CONFLICT (user_id, tmdb_series_id, season_number, episode_number) DO NOTHING;

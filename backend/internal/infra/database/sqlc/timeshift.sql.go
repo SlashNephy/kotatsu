@@ -17,7 +17,7 @@ WITH target AS (
   SELECT a.id, a.state AS previous_state, a.lease_expires_at AS previous_lease_expires_at FROM timeshift_assignments a
   WHERE ((a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= $3::timestamptz))
     OR (a.state = 'handover' AND a.holder IS DISTINCT FROM $1::uuid))
-    -- 自分が録っている割り振りは取らない。DB が止まっていた間にリースの期限が切れても、取り直すと世代番号が進み、録画が止まる (#1073)。
+    -- 自分が録っている割り振りは取らない。DB が止まっていた間にリースの期限が切れても、取得し直すと世代番号が進み、録画が止まる (#1073)。
     AND NOT (a.id = ANY($4::uuid[]))
   ORDER BY a.priority DESC, a.created_at, a.id
   LIMIT 1
@@ -324,7 +324,7 @@ const getTimeshiftChunkEnd = `-- name: GetTimeshiftChunkEnd :one
 SELECT ended_at FROM timeshift_chunks WHERE id = $1
 `
 
-// チャンクの終わりの時刻。書いている途中なら NULL。バッファから再生している間に、チャンクを書き終えたかを確かめるのに使う。
+// チャンクの終わりの時刻。書いている途中なら NULL。バッファから再生している間に、チャンクを書き終えたかを確認するのに使う。
 func (q *Queries) GetTimeshiftChunkEnd(ctx context.Context, id uuid.UUID) (*time.Time, error) {
 	row := q.db.QueryRow(ctx, getTimeshiftChunkEnd, id)
 	var ended_at *time.Time
@@ -579,7 +579,7 @@ FROM timeshift_chunks c
 LEFT JOIN timeshift_channels t ON t.service_id = c.service_id
 WHERE c.ended_at IS NOT NULL
   AND (t.service_id IS NULL OR c.ended_at + t.retention_seconds * interval '1 second' < $1::timestamptz)
-  -- 録画に昇格している番組の範囲と重なるチャンクは、書き出し終えるまで消さない (#1057)。
+  -- 録画に昇格している番組の範囲と重なるチャンクは、出力し終えるまで消さない (#1057)。
   AND NOT EXISTS (
     SELECT 1 FROM timeshift_promotions p
     WHERE p.service_id = c.service_id AND c.started_at < p.to_at AND c.ended_at > p.from_at
@@ -909,7 +909,7 @@ type ListTimeshiftChunkIDsRow struct {
 	Path string
 }
 
-// 記録のあるチャンクの ID とパス。ディスク上のファイルとの突き合わせに使う。
+// 記録のあるチャンクの ID とパス。ディスク上のファイルとの照合に使う。
 func (q *Queries) ListTimeshiftChunkIDs(ctx context.Context) ([]ListTimeshiftChunkIDsRow, error) {
 	rows, err := q.db.Query(ctx, listTimeshiftChunkIDs)
 	if err != nil {
@@ -948,7 +948,7 @@ type ListTimeshiftChunksSinceRow struct {
 	EndedAt   *time.Time
 }
 
-// since より後まで録ったチャンク (書いている途中のものを含む) を、始まりの順に返す。バッファから再生するときに、流すチャンクを引くのに使う (設計書 7.2)。
+// since より後まで録ったチャンク (書いている途中のものを含む) を、始まりの順に返す。バッファから再生するときに、流すチャンクを取得するのに使う (設計書 7.2)。
 func (q *Queries) ListTimeshiftChunksSince(ctx context.Context, arg ListTimeshiftChunksSinceParams) ([]ListTimeshiftChunksSinceRow, error) {
 	rows, err := q.db.Query(ctx, listTimeshiftChunksSince, arg.ServiceID, arg.Since)
 	if err != nil {
@@ -1021,7 +1021,7 @@ type ListTimeshiftPromotionsRow struct {
 	EventID *int64
 }
 
-// サービスの、録画に昇格している途中の番組と、そのイベント ID。番組の一覧に、書き出している途中であることを出すのに使う。
+// サービスの、録画に昇格している途中の番組と、そのイベント ID。番組の一覧に、出力している途中であることを出すのに使う。
 func (q *Queries) ListTimeshiftPromotions(ctx context.Context, serviceID int64) ([]ListTimeshiftPromotionsRow, error) {
 	rows, err := q.db.Query(ctx, listTimeshiftPromotions, serviceID)
 	if err != nil {
@@ -1114,7 +1114,7 @@ type MarkTimeshiftHandoverParams struct {
 	Holder     *uuid.UUID
 }
 
-// 止まる mikan が、割り振りに引き継ぎ待ちの印を付ける (設計書 5.4)。
+// 止まる mikan が、割り振りに引き継ぎ待ちのマークを付ける (設計書 5.4)。
 func (q *Queries) MarkTimeshiftHandover(ctx context.Context, arg MarkTimeshiftHandoverParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markTimeshiftHandover,
 		arg.Now,
@@ -1306,7 +1306,7 @@ type TouchTimeshiftWatchParams struct {
 }
 
 // ライブ視聴が続いていることを記録する。視聴している間だけ録る設定が切れていれば、何も書かず、行を返さない。
-// 視聴が新しく始まったかどうかを返す。始まったら、neko に知らせて、次の見直しを待たずに録り始める。
+// 視聴が新しく始まったかどうかを返す。始まったら、neko に通知して、次の見直しを待たずに録り始める。
 func (q *Queries) TouchTimeshiftWatch(ctx context.Context, arg TouchTimeshiftWatchParams) (bool, error) {
 	row := q.db.QueryRow(ctx, touchTimeshiftWatch, arg.Now, arg.ServiceID, arg.WatchingUntil)
 	var started bool

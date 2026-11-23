@@ -40,7 +40,7 @@ type GetRecordingNextEpisodeSourceRow struct {
 
 // 録画の続きの放送 (#1564) を探すため、録画の回を読む元を返す。番組名、概要、詳細と、番組 (番組表かアーカイブ) の
 // シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数と、録画が結びついた TMDB の作品とシーズンと話の番号。
-// 録画履歴に写すもの (設計書 4.4) と揃える。
+// 録画履歴にコピーするもの (設計書 4.4) と揃える。
 func (q *Queries) GetRecordingNextEpisodeSource(ctx context.Context, id uuid.UUID) (GetRecordingNextEpisodeSourceRow, error) {
 	row := q.db.QueryRow(ctx, getRecordingNextEpisodeSource, id)
 	var i GetRecordingNextEpisodeSourceRow
@@ -333,7 +333,7 @@ UNION
 SELECT h.series::text AS series FROM recording_history h WHERE h.series = ANY($1::text[])
 `
 
-// series のうち、話数のある番組表の番組か、録画履歴のシリーズ名にあるもの (#2023)。副題のない回があるかを確かめる。
+// series のうち、話数のある番組表の番組か、録画履歴のシリーズ名にあるもの (#2023)。サブタイトルのない回があるかを確認する。
 func (q *Queries) ListKnownSeries(ctx context.Context, series []string) ([]string, error) {
 	rows, err := q.db.Query(ctx, listKnownSeries, series)
 	if err != nil {
@@ -539,7 +539,7 @@ type ListRecordedSeriesFamilyEpisodesBatchRow struct {
 }
 
 // シリーズ名が作品名 stems のどれかで始まる (作品名そのものは除く) 録画履歴の、回を読む元 (#2023)。
-// 作品名で始まるだけでは同じ作品とは限らないので、呼ぶ側が番組名を読み直して確かめる。
+// 作品名で始まるだけでは同じ作品とは限らないので、呼ぶ側が番組名を読み直して確認する。
 func (q *Queries) ListRecordedSeriesFamilyEpisodesBatch(ctx context.Context, stems []string) ([]ListRecordedSeriesFamilyEpisodesBatchRow, error) {
 	rows, err := q.db.Query(ctx, listRecordedSeriesFamilyEpisodesBatch, stems)
 	if err != nil {
@@ -592,8 +592,8 @@ type ListSeriesFamilyNextProgramsBatchRow struct {
 }
 
 // シリーズ名が作品名 stems[i] で始まり (作品名そのものは除く)、話数が numbers[i] より大きく、since から until までに始まる、
-// 終了時刻の決まった番組を、放送の早い順に返す (#2023)。番組名に副題が入り、シリーズ名が回ごとに変わる作品の回を探す。
-// 作品名で始まるだけでは同じ作品とは限らないので、呼ぶ側が番組名を読み直して確かめる。確かめる前に数を絞ると、
+// 終了時刻の決まった番組を、放送の早い順に返す (#2023)。番組名にサブタイトルが入り、シリーズ名が回ごとに変わる作品の回を探す。
+// 作品名で始まるだけでは同じ作品とは限らないので、呼ぶ側が番組名を読み直して確認する。確認する前に数を絞ると、
 // 作品名で始まる別の番組 (続編や、作品名を含む長い名前の番組) が先に並んだときに、同じ作品の回を落とすので、件数は絞らない。
 func (q *Queries) ListSeriesFamilyNextProgramsBatch(ctx context.Context, arg ListSeriesFamilyNextProgramsBatchParams) ([]ListSeriesFamilyNextProgramsBatchRow, error) {
 	rows, err := q.db.Query(ctx, listSeriesFamilyNextProgramsBatch,

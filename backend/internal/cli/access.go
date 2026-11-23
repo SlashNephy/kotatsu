@@ -33,7 +33,7 @@ func networkOf(deps *Deps) *netactivity.Recorder {
 	return deps.Network
 }
 
-// newURLUsers は、署名付き URL を発行したユーザーを引く部品を作る。DB に届かない間は、覚えた結果を使う (#1084)。
+// newURLUsers は、署名付き URL を発行したユーザーを検索する部品を作る。DB に届かない間は、キャッシュした結果を使う (#1084)。
 func newURLUsers(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *auth.URLUsers {
 	return auth.NewURLUsers(pool, clk, logger.With(slog.String("component", "stream")))
 }

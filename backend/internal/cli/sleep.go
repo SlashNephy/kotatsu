@@ -24,7 +24,7 @@ type SleepSystem interface {
 var _ SleepSystem = new(power.System)
 
 // newSleepSystem は、この OS の SleepSystem を返す。
-// nil の *power.System を interface に入れると nil と比べられなくなるので、失敗したら interface のまま nil を返す。
+// nil の *power.System を interface に入れると nil と比較できなくなるので、失敗したら interface のまま nil を返す。
 func newSleepSystem(opts *power.Options) (SleepSystem, error) {
 	system, err := power.New(opts)
 	if err != nil {

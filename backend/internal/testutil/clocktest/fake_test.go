@@ -9,7 +9,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 )
 
-// TestFakeStopwatch は、Stopwatch の経過時間が Advance でだけ進み、Set で壁時計を動かしても変わらないことを確かめる。
+// TestFakeStopwatch は、Stopwatch の経過時間が Advance でだけ進み、Set で壁時計を動かしても変わらないことを確認する。
 func TestFakeStopwatch(t *testing.T) {
 	t.Parallel()
 

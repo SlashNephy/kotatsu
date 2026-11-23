@@ -74,7 +74,7 @@ func (s *recordingSleepSystem) record(call string) {
 }
 
 // TestSleepControl は、all の構成のときだけ、OS のスリープを扱うことと、近くに始まる予約で、
-// スリープさせず起こす予約を置き、止めるときに外すことを確かめる (#1522、設計書 11.7)。
+// スリープさせず起こす予約を置き、止めるときに外すことを確認する (#1522、設計書 11.7)。
 func TestSleepControl(t *testing.T) {
 	t.Parallel()
 

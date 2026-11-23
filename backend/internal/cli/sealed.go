@@ -43,13 +43,13 @@ func newDramaTokens(clk clock.Clock, recorder audit.Recorder, secret appSecret) 
 	return drama.NewTokens(clk, recorder, string(secret))
 }
 
-// newWebPush は、Web Push の部品を作る。VAPID の鍵は、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。
+// newWebPush は、Web Push の部品を作る。VAPID のキーは、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。
 func newWebPush(clk clock.Clock, secret appSecret) (*webpush.Service, error) {
 	return webpush.NewService(clk, string(secret))
 }
 
 // jobInserterOf は、ジョブを入れる先を返す。ジョブを入れられないプロセスでは nil を返す。
-// 型付きの nil を interface に入れると nil と比べられなくなるので、Jobs が nil なら interface の nil を返す。
+// 型付きの nil を interface に入れると nil と比較できなくなるので、Jobs が nil なら interface の nil を返す。
 func jobInserterOf(deps *Deps) anime.Inserter {
 	if deps.Jobs == nil {
 		return nil

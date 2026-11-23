@@ -140,7 +140,7 @@ func keywordMatches(t *testing.T, keyword, name string) bool {
 	}))
 }
 
-// TestRuleKeywordPrefixes は、キーワードを空白で区切った語の頭からの部分を、長い順に返し、1 文字のものは返さないことを確かめる (#2041)。
+// TestRuleKeywordPrefixes は、キーワードを空白で区切った語の先頭からの部分を、長い順に返し、1 文字のものは返さないことを確認する (#2041)。
 func TestRuleKeywordPrefixes(t *testing.T) {
 	t.Parallel()
 

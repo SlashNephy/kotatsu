@@ -16,8 +16,8 @@ import (
 const actorDescription = "ＡＢＣ太郎が出演"
 
 // TestRequiredGramsKeepsMatchingPrograms は、照合関数がキーワードに一致するとみなす番組の gram (SearchGrams) が、
-// キーワードの gram (RequiredGrams) をすべて含むこと、つまり索引の絞り込みで一致する番組を落とさないことを確かめる (#966)。
-// 一致しない番組のうち、索引で落とせるものは、gram を含まないことも確かめる。
+// キーワードの gram (RequiredGrams) をすべて含むこと、つまりインデックスの絞り込みで一致する番組を落とさないことを確認する (#966)。
+// 一致しない番組のうち、インデックスで落とせるものは、gram を含まないことも確認する。
 func TestRequiredGramsKeepsMatchingPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +115,7 @@ func TestRequiredGramsKeepsMatchingPrograms(t *testing.T) {
 	}
 }
 
-// TestRequiredGramsWithoutNarrowing は、索引で絞れない条件では、gram を返さないことを確かめる (#966)。
+// TestRequiredGramsWithoutNarrowing は、インデックスで絞れない条件では、gram を返さないことを確認する (#966)。
 func TestRequiredGramsWithoutNarrowing(t *testing.T) {
 	t.Parallel()
 
@@ -154,7 +154,7 @@ func TestRequiredGramsWithoutNarrowing(t *testing.T) {
 	}
 }
 
-// TestRequiredGramsSkipsUnnarrowableKeywords は、すべてに一致する条件で、絞れないキーワードを飛ばし、絞れるキーワードの gram だけを返すことを確かめる (#966)。
+// TestRequiredGramsSkipsUnnarrowableKeywords は、すべてに一致する条件で、絞れないキーワードを飛ばし、絞れるキーワードの gram だけを返すことを確認する (#966)。
 func TestRequiredGramsSkipsUnnarrowableKeywords(t *testing.T) {
 	t.Parallel()
 

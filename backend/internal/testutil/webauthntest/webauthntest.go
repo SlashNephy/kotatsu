@@ -1,7 +1,7 @@
-// Package webauthntest は、テストでパスキーの登録とログインを行う、ソフトウェアの認証器を提供する。
+// Package webauthntest は、テストでパスキーの登録とログインを行う、ソフトウェアのオーセンティケーターを提供する。
 //
-// ブラウザーと認証器の代わりに、go-webauthn が受け取る PublicKeyCredential の JSON を作る。
-// 鍵は P-256 の ECDSA で、attestation は none にする。
+// ブラウザーとオーセンティケーターの代わりに、go-webauthn が受け取る PublicKeyCredential の JSON を作る。
+// キーは P-256 の ECDSA で、attestation は none にする。
 package webauthntest
 
 import (
@@ -18,14 +18,14 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 )
 
-// 認証器のデータのフラグ (WebAuthn 6.1)。
+// オーセンティケーターのデータのフラグ (WebAuthn 6.1)。
 const (
 	flagUserPresent  byte = 0x01
 	flagUserVerified byte = 0x04
 	flagAttested     byte = 0x40
 )
 
-// COSE の鍵の項目 (RFC 9053)。
+// COSE のキーの項目 (RFC 9053)。
 const (
 	coseKeyType   = 1
 	coseAlgorithm = 3
@@ -41,7 +41,7 @@ const (
 // credentialIDLength は、作るパスキーの ID の長さ。
 const credentialIDLength = 32
 
-// Authenticator は、1 つのパスキーを持つソフトウェアの認証器。
+// Authenticator は、1 つのパスキーを持つソフトウェアのオーセンティケーター。
 type Authenticator struct {
 	// Origin は、ブラウザーが clientDataJSON に入れるオリジン。
 	Origin string
@@ -57,7 +57,7 @@ type Authenticator struct {
 	rpID         string
 }
 
-// New は、origin のブラウザーで使う認証器を返す。本人の確認をし、署名の回数を増やす。
+// New は、origin のブラウザーで使うオーセンティケーターを返す。本人の確認をし、署名の回数を増やす。
 func New(origin string) (*Authenticator, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

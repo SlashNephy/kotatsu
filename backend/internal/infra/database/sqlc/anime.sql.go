@@ -28,7 +28,7 @@ type CopyProgramAnimeEpisodesToRecordingParams struct {
 	StartAt     time.Time
 }
 
-// 番組 (サービスと開始時刻の組) に結びついた話を、録画に写す。呼ぶ前に、録画の照合した記録を書き、前に写した話を消す。
+// 番組 (サービスと開始時刻の組) に結びついた話を、録画にコピーする。呼ぶ前に、録画の照合した記録を書き、前にコピーした話を消す。
 func (q *Queries) CopyProgramAnimeEpisodesToRecording(ctx context.Context, arg CopyProgramAnimeEpisodesToRecordingParams) (int64, error) {
 	result, err := q.db.Exec(ctx, copyProgramAnimeEpisodesToRecording, arg.RecordingID, arg.ServiceID, arg.StartAt)
 	if err != nil {
@@ -225,7 +225,7 @@ const getEPGChangeVersion = `-- name: GetEPGChangeVersion :one
 SELECT COALESCE((SELECT version FROM change_versions WHERE channel = 'epg'), 0)::bigint AS version
 `
 
-// EPG の変更の通知の、今の版数を返す。一度も通知していなければ 0。
+// EPG の変更の通知の、今のバージョンを返す。一度も通知していなければ 0。
 func (q *Queries) GetEPGChangeVersion(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, getEPGChangeVersion)
 	var version int64
@@ -511,8 +511,8 @@ type ListAnimeChannelServicesRow struct {
 	OverrideAnnictChannelID   *int32
 }
 
-// サービスごとに、取り込んだ対応と照らし合わせるための ID と種別、管理者の上書きを返す (設計書 3.8)。
-// 取り込んだ対応との照らし合わせは、地上波の他の地域やサブチャンネルの規則があるので、呼ぶ側で行う。
+// サービスごとに、取り込んだ対応と照合するための ID と種別、管理者の上書きを返す (設計書 3.8)。
+// 取り込んだ対応との照合は、地上波の他の地域やサブチャンネルの規則があるので、呼ぶ側で行う。
 func (q *Queries) ListAnimeChannelServices(ctx context.Context) ([]ListAnimeChannelServicesRow, error) {
 	rows, err := q.db.Query(ctx, listAnimeChannelServices)
 	if err != nil {
@@ -740,7 +740,7 @@ type ListAnnictWorksToResolveRow struct {
 	MalAnimeID int32
 }
 
-// AniList の ID を引く (#1223) 作品を返す。一度も引いていない作品を先に、引いてから checked_before より前の作品を引き直す。
+// AniList の ID を取得する (#1223) 作品を返す。一度も取得していない作品を先に、取得してから checked_before より前の作品を取得し直す。
 // TID のない作品は、対応を作れないので引かない。
 func (q *Queries) ListAnnictWorksToResolve(ctx context.Context, arg ListAnnictWorksToResolveParams) ([]ListAnnictWorksToResolveRow, error) {
 	rows, err := q.db.Query(ctx, listAnnictWorksToResolve, arg.CheckedBefore, arg.MaxCount)
@@ -986,7 +986,7 @@ type ListRecordingsForNicologRow struct {
 	EpisodeCount float64
 }
 
-// NICOLOG のファイルを探す録画 (#1363)。1 話だけに結びつき、CM の区間のある録画を対象にする。見つからなかった録画は、終えて間もない間だけ調べ直す。
+// NICOLOG のファイルを探す録画 (#1363)。1 話だけに結びつき、CM の区間のある録画を対象にする。見つからなかった録画は、終えて間もない間だけ確認し直す。
 func (q *Queries) ListRecordingsForNicolog(ctx context.Context, arg ListRecordingsForNicologParams) ([]ListRecordingsForNicologRow, error) {
 	rows, err := q.db.Query(ctx, listRecordingsForNicolog, arg.CheckedBefore, arg.RecordedSince, arg.MaxRecordings)
 	if err != nil {
@@ -1148,7 +1148,7 @@ type ListSyobocalTitleKeysRow struct {
 	TitleKey string
 }
 
-// しょぼいカレンダーのタイトルと鍵を、TID が after より後のものから TID の順に max_count 件返す (#2041)。kotatsu migrate が鍵を作り直すのに使う。
+// しょぼいカレンダーのタイトルとキーを、TID が after より後のものから TID の順に max_count 件返す (#2041)。kotatsu migrate がキーを作り直すのに使う。
 func (q *Queries) ListSyobocalTitleKeys(ctx context.Context, arg ListSyobocalTitleKeysParams) ([]ListSyobocalTitleKeysRow, error) {
 	rows, err := q.db.Query(ctx, listSyobocalTitleKeys, arg.After, arg.MaxCount)
 	if err != nil {
@@ -1216,7 +1216,7 @@ type ListTitlesForBroadcastLookupParams struct {
 	MaxTitles     int32
 }
 
-// ほかの放送を引く TID を、引いていないものから順に返す。録画を終えてすぐの間は、後から放送されることがあるので、引き直す。
+// ほかの放送を取得する TID を、取得していないものから順に返す。録画を終えてすぐの間は、後から放送されることがあるので、取得し直す。
 func (q *Queries) ListTitlesForBroadcastLookup(ctx context.Context, arg ListTitlesForBroadcastLookupParams) ([]int32, error) {
 	rows, err := q.db.Query(ctx, listTitlesForBroadcastLookup, arg.FetchedBefore, arg.RecordedSince, arg.MaxTitles)
 	if err != nil {

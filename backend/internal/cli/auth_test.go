@@ -18,7 +18,7 @@ import (
 const authSetupPath = "/internal/auth/setup"
 
 // TestTenbanServesAuth は、tenban が、ログインやログアウトなどの手続き (/internal/auth/*) を echo のルーターで受け (#1606)、
-// mux のときと同じく、セッションの Cookie を読み、状態を変える POST で Origin を確かめ、メソッドの違う要求に 405 を返すことを確かめる。
+// mux のときと同じく、セッションの Cookie を読み、状態を変える POST で Origin を確認し、メソッドの違う要求に 405 を返すことを確認する。
 func TestTenbanServesAuth(t *testing.T) {
 	t.Parallel()
 

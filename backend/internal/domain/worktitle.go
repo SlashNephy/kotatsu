@@ -44,7 +44,7 @@ var (
 )
 
 // WorkTitle は、番組名から、外部のサービスで作品を探すのに使う作品名を読む (#1650)。
-// 頭の飾り (【新】のような印) の後に、ドラマや映画の放送枠の名前 (土曜ドラマ、ドラマ24、映画など) があれば除き、
+// 先頭の飾り (【新】のようなマーク) の後に、ドラマや映画の放送枠の名前 (土曜ドラマ、ドラマ24、映画など) があれば除き、
 // 続くかぎ括弧の中を作品名とする (土曜ドラマ「作品名」 第3話)。かぎ括弧がなければ、枠の名前の後から RuleKeyword で読む。
 // 枠の名前がなければ、RuleKeyword と同じ作品名を返す。ルールのキーワードと違い、番組名のひと続きの部分になるとは限らない。
 // 作品名の途中や後ろに残ったすみ付き括弧 (【最終章へ…】) は、外部のサービスで探すときの邪魔になるので除く。
@@ -76,7 +76,7 @@ func workEpisodeStart(title string, anime bool) int {
 	for _, pattern := range []*regexp.Regexp{
 		workEpisodeRequestPattern, workEpisodeScorePattern, workEpisodePeriodPattern, workEpisodeOperationPattern, workEpisodeCountPattern,
 	} {
-		// FindAllStringSubmatchIndex は使わない。当たった部分の終わりの空白を食べ、続く話数の頭の空白が残らないからである。
+		// FindAllStringSubmatchIndex は使わない。当たった部分の終わりの空白を食べ、続く話数の先頭の空白が残らないからである。
 		// 当たった位置の次の文字から探し直す。
 		for offset := 0; offset < start; {
 			loc := pattern.FindStringSubmatchIndex(title[offset:])
@@ -116,7 +116,7 @@ func seasonNumber(title string, loc []int) bool {
 	return len(fields) > 0 && workSeasonWordPattern.MatchString(fields[len(fields)-1])
 }
 
-// animePrefixed は、番組名 name の頭の飾りに、「アニメ」や「TVアニメ」の前置きがあるかを返す。
+// animePrefixed は、番組名 name の先頭の飾りに、「アニメ」や「TVアニメ」の前置きがあるかを返す。
 func animePrefixed(name string) bool {
 	rest := Normalize(name)
 	for {

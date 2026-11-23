@@ -8,7 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 )
 
-// TestTunerOf は、利用者の ID から、その利用者が使っているチューナーを見つけることを確かめる (#1467)。
+// TestTunerOf は、利用者の ID から、その利用者が使っているチューナーを見つけることを確認する (#1467)。
 func TestTunerOf(t *testing.T) {
 	t.Parallel()
 

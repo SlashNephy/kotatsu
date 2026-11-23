@@ -29,7 +29,7 @@ const (
 
 // TestTenbanRoutesRoot は、tenban の一番外側の echo のルーターが (#1606)、http.ServeMux の fallback をなくしても、
 // mux のときと同じく、崩れたパスを整えた先へリダイレクトし、/api と /internal の下の知らないパスに画面を返さず、
-// ほかのパスに画面を返し、OAuth の認可サーバーと MCP サーバーの端点に答えることを確かめる。
+// ほかのパスに画面を返し、OAuth の認可サーバーと MCP サーバーの端点に答えることを確認する。
 func TestTenbanRoutesRoot(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +100,7 @@ func TestTenbanRoutesRoot(t *testing.T) {
 	}
 }
 
-// TestTenbanServesOAuth は、MCP を有効にしたとき、echo のルーターで受けた認可サーバーと MCP サーバーの端点が答えることを確かめる (#1606)。
+// TestTenbanServesOAuth は、MCP を有効にしたとき、echo のルーターで受けた認可サーバーと MCP サーバーの端点が答えることを確認する (#1606)。
 func TestTenbanServesOAuth(t *testing.T) {
 	t.Parallel()
 
