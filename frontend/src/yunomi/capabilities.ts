@@ -35,13 +35,29 @@ const simdModule = new Uint8Array([
 // canDecode は、ブラウザの中で MPEG-2 をデコードする経路 (#1516) を使えるかを返す。WASM の SIMD、worker へ渡せる
 // OffscreenCanvas、GPU で描く WebGL2、AudioContext の 4 つがそろっていればよい。GPU のない端末では、WebGL がソフトウェアで
 // 描くので (コマの持ち時間を超えるおそれがある)、使わない。
+// decodeResults は、端末ごと (scope ごと) に調べた結果。調べるたびに WebGL2 のコンテキストを作らないよう、1 度だけ調べる。
+const decodeResults = new WeakMap<object, boolean>();
+
 function canDecode(scope: typeof globalThis): boolean {
+  const known = decodeResults.get(scope);
+  if (known !== undefined) {
+    return known;
+  }
+  const result = probeDecode(scope);
+  decodeResults.set(scope, result);
+
+  return result;
+}
+
+function probeDecode(scope: typeof globalThis): boolean {
   try {
     if (
       typeof scope.WebAssembly?.validate !== 'function' ||
       !scope.WebAssembly.validate(simdModule) ||
       typeof scope.OffscreenCanvas !== 'function' ||
       typeof scope.AudioContext !== 'function' ||
+      // 時計に、鳴っている音の位置 (getOutputTimestamp) を使う。
+      typeof scope.AudioContext.prototype?.getOutputTimestamp !== 'function' ||
       typeof scope.document?.createElement !== 'function'
     ) {
       return false;

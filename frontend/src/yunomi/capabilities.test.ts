@@ -45,7 +45,9 @@ describe('ブラウザの中でデコードする経路 (#1516) を使えるか'
   const decodeScope = ({ simd = true, webgl2 = true, offscreen = true } = {}) => ({
     WebAssembly: { validate: () => simd },
     OffscreenCanvas: function OffscreenCanvas() {},
-    AudioContext: function AudioContext() {},
+    AudioContext: Object.assign(function AudioContext() {}, {
+      prototype: { getOutputTimestamp: () => ({}) },
+    }),
     document: {
       createElement: () => ({
         transferControlToOffscreen: offscreen ? () => ({}) : undefined,

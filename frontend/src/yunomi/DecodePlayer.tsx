@@ -76,7 +76,12 @@ export function DecodePlayer({
     const worker = new Worker(new URL('./decodeWorker.ts', import.meta.url), { type: 'module' });
     const offscreen = canvas.transferControlToOffscreen();
     worker.postMessage(
-      { type: 'start', canvas: offscreen, wasmUrl: wasmURL } satisfies ToDecodeWorker,
+      {
+        type: 'start',
+        canvas: offscreen,
+        wasmUrl: wasmURL,
+        timeOrigin: performance.timeOrigin,
+      } satisfies ToDecodeWorker,
       [offscreen],
     );
     const media = new DecodeMedia({ canvas, worker });
@@ -85,12 +90,9 @@ export function DecodePlayer({
     let waiting: { data: ArrayBuffer; pts: number }[] = [];
     const onMessage = (event: MessageEvent<FromDecodeWorker>) => {
       const message = event.data;
-      if (message.type === 'error' && message.load === null) {
-        handlers.current.onError?.(new Error(message.message));
-
-        return;
-      }
-      if (message.type !== 'caption') {
+      // worker の失敗は DecodeMedia が error として送るので、ここでは字幕だけを扱う。
+      // 選局した後に、前の局の字幕を出さないよう、今の読み込みのものだけを使う。
+      if (message.type !== 'caption' || message.load !== media.currentLoad) {
         return;
       }
       waiting.push({ data: message.data, pts: message.pts });
