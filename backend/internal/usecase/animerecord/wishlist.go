@@ -144,7 +144,7 @@ func (s *Service) ImportWishlist(ctx context.Context, db Database, userID uuid.U
 		return err
 	}
 
-	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		now := s.clock.Now()
 		// 連携を外した後なら、作品を書かない (行は連携と一緒に消えている)。
@@ -164,6 +164,11 @@ func (s *Service) ImportWishlist(ctx context.Context, db Database, userID uuid.U
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// フォローしている人が見ている作品も、見たいリストと一緒に取り込む (#1968)。429 のときだけ、見たいリストを書いた後に返す。
+	return s.importFollowingWatching(ctx, db, userID, destination, token)
 }
 
 // wishlistEntriesParams は、見たいリストの作品を、まとめて書く引数にする。配列は NULL を持てないので、分からない数は -1 に、
@@ -341,6 +346,17 @@ func (s *Service) Wishlist(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) 
 	if err != nil {
 		return nil, err
 	}
+	works, err := s.candidateWorks(ctx, q, sources)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Wishlist{Imports: imports, Works: works}, nil
+}
+
+// candidateWorks は、TID ごとの作品 sources の、これから WishlistHorizon の間の放送から、候補の作品を作る。
+// 見たいリスト (Wishlist) と、フォローしている人が見ている作品 (FollowingWatchingWorks、#1968) に使う。
+func (s *Service) candidateWorks(ctx context.Context, q *sqlc.Queries, sources map[int32][]*WishlistSource) ([]*WishlistWork, error) {
 	tids := make([]int32, 0, len(sources))
 	for tid := range sources {
 		tids = append(tids, tid)
@@ -360,7 +376,7 @@ func (s *Service) Wishlist(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) 
 		return nil, err
 	}
 
-	return &Wishlist{Imports: imports, Works: pickWishlistWorks(sources, programs, reserved, rules)}, nil
+	return pickWishlistWorks(sources, programs, reserved, rules), nil
 }
 
 // wishlistSources は、見たいリストの作品を、TID ごとにまとめる。対応のない作品は外す。

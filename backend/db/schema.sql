@@ -1938,6 +1938,24 @@ CREATE TABLE anime_following_viewings (
   FOREIGN KEY (user_id, destination, syobocal_tid) REFERENCES anime_following_fetches (user_id, destination, syobocal_tid) ON DELETE CASCADE
 );
 
+-- ユーザーがフォローしている人が、記録先で「見てる」にした作品 (#1968)。見たいリストの取り込みと一緒に、記録先ごとに入れ替える。
+-- フォロー関係は本人のトークンで引くものなので、ユーザーごとに持ち、ほかのユーザーには見せない (#1372 と同じ)。
+CREATE TABLE anime_following_watching (
+  user_id uuid NOT NULL,
+  destination text NOT NULL,
+  -- フォローしている人の、記録先でのユーザー名。記録先の中で一意。
+  username text NOT NULL,
+  -- 画面に出す名前と、記録先が示したアバターの URL (tenban が中継する)。
+  name text NOT NULL,
+  avatar_url text,
+  -- 記録先の作品 ID (Annict の作品 ID か、AniList の ID) と作品名。
+  work_id integer NOT NULL,
+  title text NOT NULL,
+  fetched_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, destination, username, work_id),
+  FOREIGN KEY (user_id, destination) REFERENCES anime_record_connections (user_id, destination) ON DELETE CASCADE
+);
+
 -- 外部との通信の、1 時間ごとの集計 (#1369、設計書 11.6)。URL のパスやヘッダー、ユーザー、番組は持たない。
 CREATE TABLE network_activity (
   -- 通信した時間帯の始まり。

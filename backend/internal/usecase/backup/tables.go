@@ -109,6 +109,7 @@ func includedTables() []string {
 		"anime_wishlist_entries",
 		"anime_following_fetches",
 		"anime_following_viewings",
+		"anime_following_watching",
 		"network_activity",
 		"edcb_network_tvs",
 		"edcb_network_tv_holders",

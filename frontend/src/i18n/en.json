@@ -932,6 +932,15 @@
         "refresh": "Could not import again. Please try again later"
       }
     },
+    "following": {
+      "tab": "Watched by people you follow",
+      "description": "Anime that people you follow on Annict and AniList are watching, with broadcasts in the coming week. Sorted by how many are watching. Imported together with your wishlist. Broadcasts already reserved are not shown",
+      "notConnected": "Connect Annict or AniList to see broadcasts of anime the people you follow are watching",
+      "empty": "No broadcasts in the coming week for anime the people you follow are watching",
+      "watcher": "{{name}} ({{destination}})",
+      "watching_one": "{{count}} person is watching",
+      "watching_other": "{{count}} people are watching"
+    },
     "skipped": {
       "tab": "Skipped as duplicates",
       "description": "These programs matched a rule but were not reserved, because a program with the same name or the same episode has already been recorded, the same episode will be recorded from another broadcast, or it is an earlier episode of a series you follow. You can reserve a program manually if you want to record it again. Manual reservations are not subject to duplicate avoidance, episode bundling, or skipping earlier episodes.",

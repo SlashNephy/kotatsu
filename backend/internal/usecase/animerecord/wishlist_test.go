@@ -29,8 +29,10 @@ const (
 	titleC          = "作品C"
 	stateWannaWatch = "WANNA_WATCH"
 	listCurrent     = "CURRENT"
-	listPlanning    = "PLANNING"
-	stateWatching   = "WATCHING"
+	// wishlistRowA は、Annict の作品 10 (作品A) を「見たい」にした見たいリストの行。
+	wishlistRowA  = "annict:10:wanna_watch:作品A"
+	listPlanning  = "PLANNING"
+	stateWatching = "WATCHING"
 )
 
 const (
@@ -343,7 +345,7 @@ func TestImportWishlist(t *testing.T) {
 				t.Helper()
 				fake.setList([]fakeListEntry{{ID: 10, Title: titleA, Status: stateWannaWatch}, {ID: 11, Title: titleB, Status: stateWatching}, {ID: 12, Title: titleC, Status: stateWatching}}, 2)
 			},
-			wantRows:     []string{"annict:10:wanna_watch:作品A", "annict:11:watching:作品B", "annict:12:watching:作品C"},
+			wantRows:     []string{wishlistRowA, "annict:11:watching:作品B", "annict:12:watching:作品C"},
 			wantRequests: 2,
 		},
 		{
@@ -379,7 +381,7 @@ func TestImportWishlist(t *testing.T) {
 				fake.failNext(opLibrary, http.StatusTooManyRequests, 1)
 			},
 			wantErr:      animerecord.ErrRateLimited,
-			wantRows:     []string{"annict:10:wanna_watch:作品A"},
+			wantRows:     []string{wishlistRowA},
 			wantRequests: 1,
 			wantError:    true,
 		},
