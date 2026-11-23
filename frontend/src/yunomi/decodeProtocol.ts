@@ -7,7 +7,9 @@ import type { TsStream } from './tsDemux';
 // ToDecodeWorker は、メインスレッドから worker へのメッセージ。
 export type ToDecodeWorker =
   // start は、最初に 1 度だけ送る。canvas は、DOM の canvas から transferControlToOffscreen したもの。
-  | { type: 'start'; canvas: OffscreenCanvas; wasmUrl: string }
+  // timeOrigin は、メインスレッドの performance.timeOrigin。worker の performance の時刻は worker を作った時刻が 0 なので、
+  // メインスレッドから届く時刻 (clock と vsync) とそろえるのに使う。
+  | { type: 'start'; canvas: OffscreenCanvas; wasmUrl: string; timeOrigin: number }
   // load は、url の TS を読み始める。前の読み込みは止める。serviceId は、選ぶ番組 (null なら最初の番組)。
   | { type: 'load'; load: number; url: string; serviceId: number | null }
   // stop は、読み込みを止め、待っているものを捨てる。

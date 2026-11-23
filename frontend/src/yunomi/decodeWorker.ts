@@ -57,6 +57,12 @@ type Loading = {
   bytesRead: number;
   // waitKeyframe は、I フレームから始まる PES まで映像を捨てるか (読み始め、見えるようになった直後)。
   waitKeyframe: boolean;
+  // audioPid は、鳴らす音声の ES の PID。PMT の最初の音声。ほかの音声の ES は捨てる。
+  audioPid: number | null;
+  // audioStart は、時計が動く前に渡し始めた音の PTS。時計が動くまでは、ここから先読みの分だけ渡す。
+  audioStart: number | null;
+  // lastVideoPts は、最後に届いた映像の PES の PTS。時刻を持たない文字スーパーの時刻に使う。
+  lastVideoPts: number | null;
   // nextPts は、PTS のないコマに当てる時刻。
   nextPts: number | null;
 };
@@ -75,6 +81,13 @@ type Engine = {
 };
 
 let engine: Engine | null = null;
+// mainOrigin は、メインスレッドの performance.timeOrigin。mainNow で、メインスレッドの performance の時刻にそろえる。
+let mainOrigin = performance.timeOrigin;
+
+// mainNow は、今の時刻を、メインスレッドの performance の時刻で返す。時計 (decodeClock) はメインスレッドの時刻で合わせるため。
+function mainNow(): number {
+  return performance.now() + performance.timeOrigin - mainOrigin;
+}
 let loading: Loading | null = null;
 const clock = new DecodeClock();
 const pacer = new FieldPacer();
@@ -91,6 +104,7 @@ self.onmessage = (event: MessageEvent<ToDecodeWorker>) => {
   const message = event.data;
   switch (message.type) {
     case 'start':
+      mainOrigin = message.timeOrigin;
       void start(message.canvas, message.wasmUrl);
       break;
     case 'load':
@@ -160,9 +174,25 @@ function load(load: number, url: string, serviceId: number | null): void {
     bytesRead: 0,
     waitKeyframe: true,
     nextPts: null,
+    audioPid: null,
+    audioStart: null,
+    lastVideoPts: null,
     demuxer: new TsDemuxer({
       serviceId,
-      onProgram: (program) => post({ type: 'program', load, audios: program.audios }),
+      onProgram: (program) => {
+        // 音声は、PMT の最初の ES を鳴らす (選び直しとデュアルモノの振り分けは、まだ持たない)。
+        // 複数の ES を 1 つのデコーダに混ぜると、音が壊れる。
+        const pid = program.audios[0]?.pid ?? null;
+        if (current.audioPid !== pid) {
+          current.audioPid = pid;
+          current.adts.reset();
+          current.audio = [];
+          if (engine !== null) {
+            engine.module._dec_flush(engine.audioDecoder);
+          }
+        }
+        post({ type: 'program', load, audios: program.audios });
+      },
       onPes: (pes) => onPes(current, pes),
     }),
   };
@@ -230,27 +260,53 @@ function onPes(current: Loading, pes: TsPes): void {
         }
         current.waitKeyframe = false;
       }
+      if (pts !== null) {
+        current.lastVideoPts = pts;
+      }
       current.video.push({ pts, data: pes.data, keyframe });
       trimVideo(current);
       // まだ時計がなければ、最初のコマを出すために、ここでデコードを進める。
-      if (clock.at(performance.now()) === null) {
+      if (clock.at(mainNow()) === null) {
         decodeVideo(current, null);
       }
       break;
     }
     case 'audio':
+      if (pes.pid !== current.audioPid) {
+        return;
+      }
       for (const frame of current.adts.push(pes.data, pts)) {
         current.audio.push({ pts: frame.pts, data: frame.data });
       }
-      feedAudio(current, clock.at(performance.now()));
+      trimAudio(current);
+      feedAudio(current, clock.at(mainNow()));
       break;
     case 'captions':
-    case 'superimpose':
-      if (pts !== null) {
+    case 'superimpose': {
+      // 文字スーパーは時刻を持たないので、届いたときの映像の時刻で出す。
+      const time = pts ?? current.lastVideoPts;
+      if (time !== null) {
         const data = pes.data.slice().buffer;
-        post({ type: 'caption', load: current.load, kind: pes.kind, pts, data }, [data]);
+        post({ type: 'caption', load: current.load, kind: pes.kind, pts: time, data }, [data]);
       }
       break;
+    }
+  }
+}
+
+// trimAudio は、時計が動く前 (鳴らし始める前) に、渡していない音が上限を超えたら、古い方から捨てる。
+// 音ありの自動再生を断られている間に、溜め込まないため。
+function trimAudio(current: Loading): void {
+  if (clock.at(mainNow()) !== null) {
+    return;
+  }
+  const newest = current.audio.at(-1)?.pts ?? null;
+  while (
+    newest !== null &&
+    current.audio.length > 0 &&
+    newest - current.audio[0]!.pts > params.maxCompressed
+  ) {
+    current.audio.shift();
   }
 }
 
@@ -357,7 +413,8 @@ function receivePictures(current: Loading): void {
     const colorSpace = module._frame_colorspace(videoDecoder);
     target.matrix =
       bt601ColorSpaces.has(colorSpace) || (colorSpace === 2 && height < 720) ? 'bt601' : 'bt709';
-    const shape = `${displayWidth}x${height}:${interlaced}`;
+    // 大きさが変わったときだけ知らせる (走査の方式は、プルダウンの素材ではコマごとに変わりうるので含めない)。
+    const shape = `${displayWidth}x${height}`;
     if (current.shape !== shape) {
       current.shape = shape;
       renderer.resize(displayWidth, height);
@@ -388,7 +445,7 @@ function receivePictures(current: Loading): void {
       current.origin = pts;
       post({ type: 'origin', load: current.load, pts });
     }
-    if (added && !current.presented && clock.at(performance.now()) === null) {
+    if (added && !current.presented && clock.at(mainNow()) === null) {
       // 時計が動く前 (音を貯めている間) は、最初のコマを出して待つ。
       present(current, pts);
     }
@@ -402,8 +459,11 @@ function feedAudio(current: Loading, now: number | null): void {
     return;
   }
   const { module, audioDecoder } = engine;
-  const first = current.audio[0]?.pts ?? null;
-  const until = (now ?? first ?? 0) + params.audioAhead;
+  // 時計が動く前は、渡し始めた位置から先読みの分だけ渡す。届くたびに基準をずらすと、際限なく渡してしまう。
+  if (now === null && current.audioStart === null) {
+    current.audioStart = current.audio[0]?.pts ?? null;
+  }
+  const until = (now ?? current.audioStart ?? 0) + params.audioAhead;
   while (
     current.audio.length > 0 &&
     (current.audioSentUntil === null || current.audioSentUntil < until)
