@@ -27,9 +27,10 @@ describe('コマごとの呼び返しと、コマの数', () => {
 
     const media = mediaOf(video);
 
-    expect(media.requestVideoFrameCallback).toBeUndefined();
-    expect(media.cancelVideoFrameCallback).toBeUndefined();
-    expect(media.getVideoPlaybackQuality).toBeUndefined();
+    // 値が undefined のプロパティもあってはならない。'requestVideoFrameCallback' in media で判定する部品があるため。
+    expect('requestVideoFrameCallback' in media).toBe(false);
+    expect('cancelVideoFrameCallback' in media).toBe(false);
+    expect('getVideoPlaybackQuality' in media).toBe(false);
   });
 
   test('<video> が持てば、<video> に渡す', async () => {

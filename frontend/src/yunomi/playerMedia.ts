@@ -138,9 +138,11 @@ export interface PlayerMedia {
 // mediaOf からだけ作る。
 class VideoElementMedia implements PlayerMedia {
   readonly seekMode = 'exact';
-  readonly requestVideoFrameCallback?: (callback: PlayerFrameCallback) => number;
-  readonly cancelVideoFrameCallback?: (handle: number) => void;
-  readonly getVideoPlaybackQuality?: () => PlayerMediaQuality;
+  // declare を付け、宣言だけではプロパティを作らない。付けないと、対応していないときも値が undefined の
+  // プロパティができ、'requestVideoFrameCallback' in media のような判定が通ってしまう。
+  declare readonly requestVideoFrameCallback?: (callback: PlayerFrameCallback) => number;
+  declare readonly cancelVideoFrameCallback?: (handle: number) => void;
+  declare readonly getVideoPlaybackQuality?: () => PlayerMediaQuality;
   private port: AudioPort | null = null;
 
   constructor(readonly video: HTMLVideoElement) {
