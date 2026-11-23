@@ -37,6 +37,7 @@ import { audioStep, type NetworkStatus } from './networkQuality';
 import { original } from './route';
 import type { NetworkQuality } from './useNetworkQuality';
 import classes from './StreamInfo.module.css';
+import type { PlayerMedia } from './playerMedia';
 
 // useStreamMeter は、再生している経路から届く様子を溜める StreamMeter を作る (#828)。
 // routeKey (画質の名前) が変わったら、前の経路の様子を捨てる。
@@ -110,7 +111,7 @@ function audioLabel(t: TFunction, audio: StreamAudio): string {
 
 type Props = {
   meter: StreamMeter;
-  video: HTMLVideoElement | null;
+  media: PlayerMedia | null;
   // quality は、今の経路を表す画質の名前。
   quality: string | null;
   // kind は、再生している経路。ブラウザ内での変換 (convert) か、kyusu の HLS (kyusu) か。
@@ -143,7 +144,7 @@ type Props = {
 // エンコードした後のセグメントのビットレートと、hls.js が推定した帯域を出す。
 export function StreamInfo({
   meter,
-  video,
+  media,
   quality,
   kind,
   audios,
@@ -168,14 +169,14 @@ export function StreamInfo({
     const frames: FrameCount[] = [];
     const update = () => {
       const now = Date.now();
-      const quality = video?.getVideoPlaybackQuality?.();
-      if (video !== null && quality !== undefined && !video.paused) {
-        const next = { frames: quality.totalVideoFrames, time: video.currentTime };
+      const quality = media?.getVideoPlaybackQuality?.();
+      if (media !== null && quality !== undefined && !media.paused) {
+        const next = { frames: quality.totalVideoFrames, time: media.currentTime };
         const previous = frames.at(-1);
         // シークや読み直しを挟んだら、その前の点を捨てる。
         if (
           previous !== undefined &&
-          !continuesFrames(previous, next, snapshotIntervalMs / 1_000, video.playbackRate)
+          !continuesFrames(previous, next, snapshotIntervalMs / 1_000, media.playbackRate)
         ) {
           frames.length = 0;
         }
@@ -192,9 +193,9 @@ export function StreamInfo({
         transport: meter.transport,
         source: meter.source,
         encoded: meter.encoded,
-        video: video === null ? null : readVideoStats(video),
+        video: media === null ? null : readVideoStats(media),
         fps: first === undefined || last === undefined ? null : frameRate(first, last),
-        delay: delayOf(video, meter.mediaOrigin, clock.current, now),
+        delay: delayOf(media, meter.mediaOrigin, clock.current, now),
         liveBuffer: readLiveBuffer(),
         videoLag: readVideoLag(),
         network: readNetwork(),
@@ -204,7 +205,7 @@ export function StreamInfo({
     const timer = setInterval(update, snapshotIntervalMs);
 
     return () => clearInterval(timer);
-  }, [meter, video]);
+  }, [meter, media]);
 
   // live は、tenban から届いた放送の内訳。購読していないか、まだ届いていなければ null。
   const [live, setLive] = useState<LiveRates | null>(null);
@@ -675,15 +676,15 @@ function LiveRatesSubscriber({
 
 // delayOf は、映しているコマが放送から遅れている秒数を返す (#1515)。映像、画面の時刻の起点、放送の時計のどれかがなければ null。
 function delayOf(
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   mediaOrigin: number | null,
   clock: BroadcastClockSample | null,
   now: number,
 ): number | null {
-  if (video === null || mediaOrigin === null || clock === null) {
+  if (media === null || mediaOrigin === null || clock === null) {
     return null;
   }
-  const delay = broadcastDelaySeconds(video.currentTime, mediaOrigin, clock, now);
+  const delay = broadcastDelaySeconds(media.currentTime, mediaOrigin, clock, now);
 
   return Math.abs(delay) > maxDelaySeconds ? null : delay;
 }

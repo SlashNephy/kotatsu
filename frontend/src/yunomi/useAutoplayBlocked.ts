@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+import type { PlayerMedia } from './playerMedia';
+
 export type AutoplayBlocked = {
   // blocked は、ブラウザに自動再生を断られて、止まったままかどうか。
   blocked: boolean;
@@ -11,20 +13,20 @@ export type AutoplayBlocked = {
 // Chrome などは、ページを操作していないうちは、音ありの自動再生を断る (NotAllowedError)。断られると、映像は最初のコマで止まる。
 // video は autoplay で再生を始めるが、断られても知らせがないので、再生できるようになったら自分で play() を試して確かめる。
 // 一度再生が始まったら、それ以降は試さない。止めてからシークしたときに、勝手に再生し直さないようにする。
-export function useAutoplayBlocked(video: HTMLVideoElement | null): AutoplayBlocked {
+export function useAutoplayBlocked(media: PlayerMedia | null): AutoplayBlocked {
   const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
-    if (video === null) {
+    if (media === null) {
       return;
     }
     let played = false;
     let disposed = false;
     const tryPlay = () => {
-      if (played || !video.paused) {
+      if (played || !media.paused) {
         return;
       }
-      video.play().catch((error: unknown) => {
+      media.play().catch((error: unknown) => {
         if (!disposed && error instanceof DOMException && error.name === 'NotAllowedError') {
           setBlocked(true);
         }
@@ -34,25 +36,25 @@ export function useAutoplayBlocked(video: HTMLVideoElement | null): AutoplayBloc
       played = true;
       setBlocked(false);
     };
-    video.addEventListener('canplay', tryPlay);
-    video.addEventListener('play', onPlay);
+    media.addEventListener('canplay', tryPlay);
+    media.addEventListener('play', onPlay);
     // HAVE_FUTURE_DATA (3) 以上なら、canplay はもう過ぎている。
-    if (video.readyState >= 3) {
+    if (media.readyState >= 3) {
       tryPlay();
     }
 
     return () => {
       disposed = true;
-      video.removeEventListener('canplay', tryPlay);
-      video.removeEventListener('play', onPlay);
+      media.removeEventListener('canplay', tryPlay);
+      media.removeEventListener('play', onPlay);
       setBlocked(false);
     };
-  }, [video]);
+  }, [media]);
 
   return {
     blocked,
     play: () => {
-      void video?.play().catch(() => {});
+      void media?.play().catch(() => {});
     },
   };
 }

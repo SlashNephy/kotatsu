@@ -4,6 +4,7 @@ import { graphql, useMutation } from 'react-relay';
 import type { usePlaybackReporterMutation } from './__generated__/usePlaybackReporterMutation.graphql';
 import { browserStorage } from '../yunomi/volume';
 import { loadRecordOnDevice, useRecordOnDevice } from './recordOnDevice';
+import type { PlayerMedia } from '../yunomi/playerMedia';
 
 // sampleInterval は、再生した区間を確かめる間隔 (ミリ秒)。
 const sampleInterval = 1_000;
@@ -130,7 +131,7 @@ function variablesOf(target: PlaybackTarget, intervals: PlayedInterval[], record
 // どちらかだけを記録する設定なら、記録しないほうをサーバーに伝え、サーバーはそちらを記録しない。
 export function usePlaybackReporter(
   target: PlaybackTarget | null,
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   broadcastAt: () => number | null,
 ): void {
   const [commit] = useMutation<usePlaybackReporterMutation>(mutation);
@@ -141,7 +142,7 @@ export function usePlaybackReporter(
   const targetKey = target === null ? null : JSON.stringify(target);
 
   useEffect(() => {
-    if (targetKey === null || video === null || (!recordAnime && !recordDrama)) {
+    if (targetKey === null || media === null || (!recordAnime && !recordDrama)) {
       return;
     }
     const record: RecordOnDevice = { anime: recordAnime, drama: recordDrama };
@@ -154,9 +155,9 @@ export function usePlaybackReporter(
       tracker.sample(
         Date.now(),
         broadcastAtRef.current(),
-        video.currentTime,
-        !video.paused && !video.seeking,
-        video.playbackRate,
+        media.currentTime,
+        !media.paused && !media.seeking,
+        media.playbackRate,
       );
     const report = () => {
       const { intervals, closed } = tracker.pending();
@@ -213,5 +214,5 @@ export function usePlaybackReporter(
       sample();
       report();
     };
-  }, [targetKey, video, commit, recordAnime, recordDrama]);
+  }, [targetKey, media, commit, recordAnime, recordDrama]);
 }

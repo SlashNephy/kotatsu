@@ -148,6 +148,7 @@ import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
 import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
+import { mediaOf } from '../../yunomi/playerMedia';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -332,11 +333,13 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
   // video は、今の video の要素。画質を変えたときに作り直される。
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
+  const media = video === null ? null : mediaOf(video);
   const videoState = useVideoState(video);
   const navigate = useNavigate();
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
-  const autoplay = useAutoplayBlocked(video);
-  const videoLoading = useVideoLoading(video);
+  const autoplay = useAutoplayBlocked(media);
+  const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
   // overlaid は、プレイヤーだけを出していて、ページの知らせが見えないかどうか。そのときは、映像に重ねて出す (#435)。
   const overlaid = fullscreen.active || pip.container !== null;
@@ -581,7 +584,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const channelId = recording?.service.jikkyoChannelId ?? null;
   useWatchPositionSaver(recordingId, currentPosition, !paused);
   // 実際に再生した区間を送り、見たアニメを記録させる (#927)。
-  usePlaybackReporter(recording === null ? null : { recordingId }, video, () =>
+  usePlaybackReporter(recording === null ? null : { recordingId }, media, () =>
     recording === null
       ? null
       : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
@@ -770,7 +773,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // 映像だけの遅れを飛び直しで直す (#1513)。デコードが追いつかなければ、画質が「自動」の間は段を下げ、それまでの位置から続ける。
   // 段を下げるのは、録画中の追っかけ再生でだけ。
   const adaptive = useAdaptiveQuality(
-    video,
+    media,
     {
       automatic: playback.automatic,
       lowerAvailable: playback.lowerAvailable,
@@ -1134,7 +1137,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   );
   useEffect(() => () => skipper.dispose(), [skipper]);
   // 判定は、映ったコマごとに、そのコマの時刻で行う。timeupdate は間隔が粗く、currentTime は代入した時点で飛び先を返すため。
-  useVideoFrames(video, ({ mediaTime, presented }) => {
+  useVideoFrames(media, ({ mediaTime, presented }) => {
     if (video === null) {
       return;
     }
@@ -1606,7 +1609,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                     videoLag={adaptive.videoLag}
                     network={adaptive.network}
                     meter={streamMeter.meter}
-                    video={video}
+                    media={media}
                     quality={playback.current}
                     kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                     audios={recording?.audios ?? null}
