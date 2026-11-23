@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d7477661289cc8813c795931c15e0c6f>>
+ * @generated SignedSource<<8f01dac69f4527f5603dde8a4397ab16>>
  * @lightSyntaxTransform
  */
 
@@ -34,7 +34,6 @@ export type SystemSettingsInput = {
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;
   recordingDownloadsEnabled?: boolean | null | undefined;
   ruleDefaults?: RuleDefaultsInput | null | undefined;
-  ruleUnmatchedGraceMinutes?: number | null | undefined;
   sleepControlEnabled?: boolean | null | undefined;
   thumbnailPreviewsEnabled?: boolean | null | undefined;
   timeshiftWhileWatching?: boolean | null | undefined;

@@ -183,28 +183,23 @@ func TestEngineSkipsCancelledEpisodeInBundle(t *testing.T) {
 }
 
 // TestEngineRemovesBundledReservations は、予約した後に同じ回の早い放送が番組表に入ったときと、同じ回を録り終えたときに、
-// 外れた予約を引っ込めることを確かめる (#1498)。別の放送で録るので外れた予約は、番組表の変化で外れたので猶予の内なら残し、
-// 録り終えて外れた予約は、猶予の内でもすぐ消す (#1501)。
+// 外れた予約を、放送の直前でも引っ込めることを確かめる (#1498)。
 func TestEngineRemovesBundledReservations(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
-		grace    int
 		recorded bool
 		want     map[int64]bool
 	}{
-		{name: "早い放送が入れば、遅い放送の予約を消す", grace: 0, recorded: false, want: map[int64]bool{300: true}},
-		{name: "猶予の内なら、遅い放送の予約も残す", grace: 24 * 60, recorded: false, want: map[int64]bool{300: true, 400: true}},
-		{name: "録り終えたら、猶予の内でも消す", grace: 24 * 60, recorded: true, want: map[int64]bool{}},
+		{name: "早い放送が入れば、遅い放送の予約を消す", recorded: false, want: map[int64]bool{300: true}},
+		{name: "録り終えたら消す", recorded: true, want: map[int64]bool{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// 猶予の上限 (1 日) の内に始まるよう、BS の放送を 20 時間後にする。
 			f := newEngineFixture(t, episodeProgram(bsNetworkID, bsServiceID, 400, 20*time.Hour, "灯台の地図 #3"))
-			f.setGrace(t, tt.grace)
 			f.createEpisodeRule(t, true)
 			f.run(t)
 			require.Equal(t, map[int64]bool{400: true}, f.reservedEpisodes(t))

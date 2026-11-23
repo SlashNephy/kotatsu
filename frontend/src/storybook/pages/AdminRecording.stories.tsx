@@ -61,8 +61,7 @@ export const Default: Story = { args: { overrides: pools } };
 export const Loading: Story = { args: { hold: holdAll } };
 
 // failingLeaf は、この画面だけが読む項目を fail で失敗させる。ヘッダーも読む全体の設定は、失敗させない。
-const failingLeaf = (fail: () => never) =>
-  withSettings(() => ({ ruleUnmatchedGraceMinutes: fail }));
+const failingLeaf = (fail: () => never) => withSettings(() => ({ historyMaxDrops: fail }));
 
 // 管理者でないとき (サーバーが FORBIDDEN で拒んだ)。
 export const Forbidden: Story = {
