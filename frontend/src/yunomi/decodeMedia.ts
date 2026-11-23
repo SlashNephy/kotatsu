@@ -28,6 +28,14 @@ const readyStates = { nothing: 0, currentData: 2, enoughData: 4 } as const;
 const startBuffer = 0.3 * ptsTicksPerSecond;
 // timeupdateInterval は、timeupdate を送る間隔 (ミリ秒)。<video> と同じく、4 回/秒ほどにする。
 const timeupdateInterval = 250;
+// staleStart は、鳴らし始める前に溜めた音が、これより古くなったら (ミリ秒)、鳴らし始めるときに放送の今から読み直す。
+// 音ありの自動再生を断られたまま待っていた間の音を、遅れて鳴らさないため。
+const staleStart = 3_000;
+// resumeTimeout は、AudioContext を動かすのを待つ上限 (ミリ秒)。ユーザーの操作の前は、返らないブラウザがある。
+const resumeTimeout = 300;
+// visibilityInterval は、映像が見えているかを調べる間隔 (ミリ秒)。別のウィンドウへ移ると文書が替わるので、
+// イベントではなく、映している文書をその都度調べる。
+const visibilityInterval = 500;
 
 class MediaFailure implements PlayerMediaError {
   constructor(
@@ -66,6 +74,10 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
   private lastTimeupdate = 0;
   // stopped は、止めたときに読み込みも止めたか。再開したら、放送の今から読み直す。
   private stopped = false;
+  // pendingSince は、鳴らし始める前に、最初の音が届いた時刻。
+  private pendingSince: number | null = null;
+  private visible: boolean | null = null;
+  private visibilityTimer: ReturnType<typeof setInterval> | null = null;
   private stateValue = {
     paused: true,
     ended: false,
@@ -187,6 +199,11 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     droppedVideoFrames: this.stats?.dropped ?? 0,
   });
 
+  // currentLoad は、今の読み込みの番号。古い読み込みのメッセージ (字幕など) を見分けるのに使う。
+  get currentLoad(): number {
+    return this.load;
+  }
+
   // open は、url の TS を読み始める。serviceId は、選ぶ番組。
   open(url: string, serviceId: number | null): void {
     this.url = url;
@@ -197,7 +214,10 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
   async play(): Promise<void> {
     if (this.context.state !== 'running') {
       try {
-        await this.context.resume();
+        await Promise.race([
+          this.context.resume(),
+          new Promise((resolve) => setTimeout(resolve, resumeTimeout)),
+        ]);
       } catch {
         // 下で断る。
       }
@@ -211,8 +231,9 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     }
     this.stateValue.paused = false;
     this.fire('play');
-    if (this.stopped) {
-      // 止めている間に捨てた。放送の今から読み直す。
+    const stale = this.pendingSince !== null && performance.now() - this.pendingSince > staleStart;
+    if (this.stopped || stale) {
+      // 止めている間に捨てたか、鳴らし始める前に溜めた音が古い。放送の今から読み直す。
       this.restart();
 
       return;
@@ -245,6 +266,10 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     this.stopAudio();
     this.worker.removeEventListener('message', this.onMessage);
     this.volumeNode.disconnect();
+    if (this.visibilityTimer !== null) {
+      clearInterval(this.visibilityTimer);
+      this.visibilityTimer = null;
+    }
     if (this.animation !== null) {
       (this.element.ownerDocument.defaultView ?? window).cancelAnimationFrame(this.animation);
       this.animation = null;
@@ -258,6 +283,8 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     }
     this.load += 1;
     this.stopped = false;
+    this.pendingSince = null;
+    this.watchVisibility();
     this.stopAudio();
     this.origin = null;
     this.stats = null;
@@ -317,6 +344,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
 
   private onAudio(message: Extract<FromDecodeWorker, { type: 'audio' }>): void {
     if (this.timeline.ptsAt(this.context.currentTime) === null) {
+      this.pendingSince ??= performance.now();
       this.pending.push(message);
       const first = this.pending[0]!.pts;
       const last = message.pts + (message.left.length * ptsTicksPerSecond) / message.sampleRate;
@@ -344,6 +372,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
       this.scheduleChunk(chunk);
     }
     if (pending.length > 0) {
+      this.pendingSince = null;
       this.fire('playing');
     }
   }
@@ -393,6 +422,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     }
     this.sources.clear();
     this.pending = [];
+    this.pendingSince = null;
     this.timeline.reset();
   }
 
@@ -437,6 +467,23 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     };
     const view = this.element.ownerDocument.defaultView ?? window;
     this.animation = view.requestAnimationFrame(tick);
+  }
+
+  // watchVisibility は、映像が見えているかを、変わったときに worker へ知らせる。見えていない間、worker は映像をデコードしない。
+  // ピクチャーインピクチャーの別のウィンドウに移していれば、その窓の文書で見る。
+  private watchVisibility(): void {
+    if (this.visibilityTimer !== null) {
+      return;
+    }
+    const check = () => {
+      const visible = this.element.ownerDocument.visibilityState !== 'hidden';
+      if (visible !== this.visible) {
+        this.visible = visible;
+        this.worker.postMessage({ type: 'visible', visible } satisfies ToDecodeWorker);
+      }
+    };
+    check();
+    this.visibilityTimer = setInterval(check, visibilityInterval);
   }
 
   // fire は、<video> と同じく、イベントをタスクとして送る (呼んだ処理の中では送らない)。
