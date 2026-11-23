@@ -65,7 +65,7 @@ func (f *fixture) user(t *testing.T, username string) uuid.UUID {
 	return userID
 }
 
-// browser は、購読するブラウザ。通知を復号する鍵を持つ。
+// browser は、購読するブラウザ。通知を復号する秘密鍵を持つ。
 type browser struct {
 	private *ecdh.PrivateKey
 	auth    []byte
@@ -122,7 +122,7 @@ func (b *browser) decrypt(t *testing.T, body []byte) []byte {
 	return record[:len(record)-1]
 }
 
-// vapidClaims は、プッシュサービスの手順 (RFC 8292) で、Authorization ヘッダーの JWT の署名を、k の公開鍵で確かめ、
+// vapidClaims は、プッシュサービスの手順 (RFC 8292) で、Authorization ヘッダーの JWT の署名を、k の公開鍵で確認し、
 // JWT の claim と、k の公開鍵を返す。
 func vapidClaims(t *testing.T, authorization string) (map[string]any, []byte) {
 	t.Helper()
@@ -160,12 +160,12 @@ func vapidClaims(t *testing.T, authorization string) (map[string]any, []byte) {
 	return claims, publicKey
 }
 
-// TestKeys は、VAPID の鍵を初めて使うときに作り、どのインスタンスでも同じ鍵を使い、秘密鍵をアプリの秘密キーで暗号化して保存することを確かめる。
+// TestKeys は、VAPID の公開鍵と秘密鍵を初めて使うときに作り、どのインスタンスでも同じ公開鍵と秘密鍵を使い、秘密鍵をアプリの秘密キーで暗号化して保存することを確認する。
 func TestKeys(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	// 2 つのインスタンスが同時に作っても、同じ鍵になる。
+	// 2 つのインスタンスが同時に作っても、同じ公開鍵と秘密鍵になる。
 	other, err := webpush.NewService(f.clock, appKeyMaterial)
 	require.NoError(t, err)
 	results := make(chan []byte, 2)
@@ -192,7 +192,7 @@ func TestKeys(t *testing.T) {
 		Scan(&count, &publicKey, &sealed))
 	assert.Equal(t, 1, count)
 	assert.Equal(t, first, publicKey)
-	// 秘密鍵は、アプリの秘密キーから導出した VAPID 用の鍵で暗号化している。別の用途の鍵では開けない。
+	// 秘密鍵は、アプリの秘密キーから導出した VAPID 用の暗号鍵で暗号化している。別の用途の暗号鍵では開けない。
 	box, err := secretbox.New(appKeyMaterial, webpush.SealPurpose)
 	require.NoError(t, err)
 	raw, err := box.Open(sealed)
@@ -204,7 +204,7 @@ func TestKeys(t *testing.T) {
 	require.ErrorIs(t, err, secretbox.ErrDecrypt)
 }
 
-// TestSubscribe は、購読を保存し、正しくない購読を拒み、同じ端末を別のユーザーが購読し直したら移すことを確かめる。
+// TestSubscribe は、購読を保存し、正しくない購読を拒み、同じ端末を別のユーザーが購読し直したら移すことを確認する。
 func TestSubscribe(t *testing.T) {
 	t.Parallel()
 
@@ -272,7 +272,7 @@ func TestSubscribe(t *testing.T) {
 	})
 }
 
-// TestLogSecrets は、ログの報告から伏せる値として、全ユーザーの購読の送り先と認証用の秘密を返すことを確かめる (#1521)。
+// TestLogSecrets は、ログの報告からマスクする値として、全ユーザーの購読の送り先と認証用の秘密を返すことを確認する (#1521)。
 func TestLogSecrets(t *testing.T) {
 	t.Parallel()
 

@@ -36,7 +36,7 @@ const (
 	RelayWindow = DefaultFinishedGrace
 )
 
-// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
+// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確認する。
 type Guard func(ctx context.Context, tx pgx.Tx) error
 
 // FollowerOptions は Follower の設定。0 の項目は既定値にする。
@@ -205,7 +205,7 @@ func (f *Follower) update(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservat
 	if err != nil {
 		return false, fmt.Errorf("failed to update reservation %s: %w", row.ID, err)
 	}
-	// 録画は始めたときの予約の番組情報を写すので、その後の変更も録画に写す (#1045)。
+	// 録画は始めたときの予約の番組情報をコピーするので、その後の変更も録画にコピーする (#1045)。
 	recordings, err := sqlc.New(tx).UpdateRecordingProgram(ctx, sqlc.UpdateRecordingProgramParams{
 		StartAt:               row.ProgramStartAt,
 		EndAt:                 endAt,

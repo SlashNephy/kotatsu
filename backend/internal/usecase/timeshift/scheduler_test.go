@@ -234,7 +234,7 @@ func TestSchedulerRunOnce(t *testing.T) {
 }
 
 // TestSchedulerIgnoresGoneServiceChannels は、上流から消えて 24 時間たったサービスのチャンネルは、番組表の取得に
-// チューナーを残す理由にしないことを確かめる (#1973)。チューナーサーバーは、消えたサービスの番組表を取らない。
+// チューナーを残す理由にしないことを確認する (#1973)。チューナーサーバーは、消えたサービスの番組表を取らない。
 // 地上波のチューナー 2 本と 3 チャンネルで、2 チャンネルを録る。残る 3 番目のチャンネルのサービスを、上流から消えたことにする。
 func TestSchedulerIgnoresGoneServiceChannels(t *testing.T) {
 	t.Parallel()
@@ -293,7 +293,7 @@ func TestSchedulerIgnoresConflictedReservation(t *testing.T) {
 }
 
 // TestSchedulerSkipsOccupiedTuners は、チューナーサーバー自身の予約 (EDCB の予約) が、今から先回りの時間までに使うチューナーを、
-// タイムシフトに使わないことを確かめる (#1536)。地上波のチューナーは 2 本で、1 本は番組表の取得に残す。
+// タイムシフトに使わないことを確認する (#1536)。地上波のチューナーは 2 本で、1 本は番組表の取得に残す。
 func TestSchedulerSkipsOccupiedTuners(t *testing.T) {
 	t.Parallel()
 
@@ -327,7 +327,7 @@ func TestSchedulerSkipsOccupiedTuners(t *testing.T) {
 	})
 }
 
-// TestSchedulerReplacesFinishedAssignment は、終わったことになったタイムシフトの割り振りを、ないものとして扱うことを確かめる。
+// TestSchedulerReplacesFinishedAssignment は、終わったことになったタイムシフトの割り振りを、ないものとして扱うことを確認する。
 // 終わった割り振りはどの mikan も取らないので、残すとそのチャンネルを録れなくなる (#1055)。
 func TestSchedulerReplacesFinishedAssignment(t *testing.T) {
 	t.Parallel()
@@ -379,7 +379,7 @@ func TestSchedulerReplacesFinishedAssignment(t *testing.T) {
 	}
 }
 
-// fakeCapture は、EPG の取得の時刻の前後を from から to までとする、偽の EPG の取得の設定。
+// fakeCapture は、EPG の取得の時刻の前後を from から to までとする、モックの EPG の取得の設定。
 type fakeCapture struct {
 	known      bool
 	from, to   time.Time
@@ -410,7 +410,7 @@ func edcbOptions(capture tunerserver.EPGCaptureReporter) *timeshift.SchedulerOpt
 	return &timeshift.SchedulerOptions{Interval: 0, Lead: 0, PollOnly: false, PollInterval: 0, ShareByService: true, EPGCapture: capture}
 }
 
-// TestSchedulerShareUnit は、予約と同じチャンネルのサービスを、予約の録画と相乗りさせるかを確かめる。
+// TestSchedulerShareUnit は、予約と同じチャンネルのサービスを、予約の録画と相乗りさせるかを確認する。
 // Mirakurun 互換のサーバーではチャンネルが、EDCB ではサービスが相乗りの単位になる (#1856)。
 // 偽チューナーサーバーの BS と CS のチューナーは故障にし、同じ BonDriver の地上波のチューナー 2 本だけにする。1 番目のチャンネルには、サービスが 2 つある。
 func TestSchedulerShareUnit(t *testing.T) {
@@ -467,7 +467,7 @@ func TestSchedulerShareUnit(t *testing.T) {
 }
 
 // TestSchedulerKeepsIdleTuner は、EDCB で EpgTimerSrv.ini を読めないとき、EPG の取得に、種別と録られるチャンネルを問わずに、
-// BonDriver ごとに空きチューナーを 1 本、時刻を問わずに残すことを確かめる (#1856)。
+// BonDriver ごとに空きチューナーを 1 本、時刻を問わずに残すことを確認する (#1856)。
 // BonDriver は、EDCB のチューナーの名前で分かる。偽チューナーサーバーのチューナーは、地上波の 2 本と、BS と CS の 1 本。地上波の 3 チャンネルを録る。
 func TestSchedulerKeepsIdleTuner(t *testing.T) {
 	t.Parallel()
@@ -516,7 +516,7 @@ func TestSchedulerKeepsIdleTuner(t *testing.T) {
 }
 
 // TestSchedulerEPGCaptureWindow は、EDCB で、EPG の取得の時刻の前後だけ、BonDriver ごとに EPGCount の数の空きチューナーを残し、
-// 前後を過ぎたら戻すことを確かめる (#1856)。偽チューナーサーバーの地上波のチューナー 2 本 (同じ BonDriver) で、地上波の 3 チャンネルを録る。
+// 前後を過ぎたら戻すことを確認する (#1856)。偽チューナーサーバーの地上波のチューナー 2 本 (同じ BonDriver) で、地上波の 3 チャンネルを録る。
 // BS と CS のチューナーは別の BonDriver。取得の時刻の前後は 12:20 から 12:27 まで。
 func TestSchedulerEPGCaptureWindow(t *testing.T) {
 	t.Parallel()

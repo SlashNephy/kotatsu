@@ -21,7 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
 )
 
-// TestDBCollector は、DB の録画、予約、割り振り、チューナー、保存先プール、ジョブの状態を、メトリクスとして返すことを確かめる (設計書 11.3)。
+// TestDBCollector は、DB の録画、予約、割り振り、チューナー、保存先プール、ジョブの状態を、メトリクスとして返すことを確認する (設計書 11.3)。
 func TestDBCollector(t *testing.T) {
 	t.Parallel()
 
@@ -106,13 +106,13 @@ func TestDBCollector(t *testing.T) {
 	reserve(true, "conflict", now.Add(-time.Minute), new(now.Add(time.Minute)))
 	// 無効な予約は、割り当ての結果が残っていても、無効として数える。
 	reserve(false, "conflict", now.Add(time.Hour), new(now.Add(time.Hour)))
-	// 予定の終わりが過ぎた予約は、猶予の間は表に残っていても数えない。無効な予約も同じ。
+	// 予定の終わりが過ぎた予約は、猶予の間はテーブルに残っていても数えない。無効な予約も同じ。
 	reserve(true, "ok", now.Add(time.Hour), new(now.Add(-time.Minute)))
 	reserve(true, "partial", now.Add(-time.Minute), new(now.Add(-time.Minute)))
 	reserve(false, "pending", now.Add(-time.Minute), nil)
 	exec(`INSERT INTO recording_assignments (id, reservation_id, priority, state, generation, created_at, updated_at)
 		VALUES ($1, $2, 2, 'recording', 1, $3, $3)`, id.New(), reservation, now)
-	// 保存先プール (#957)。測っていないプールは出さない。
+	// 保存先プール (#957)。計測していないプールは出さない。
 	exec(`INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at, total_bytes, free_bytes, measured_at)
 		VALUES ('main', 0, 300, $1, 1000, 400, $2)`, now, now.Add(-time.Minute))
 	exec(`INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at) VALUES ('unmeasured', 0, 100, $1)`, now)
@@ -242,7 +242,7 @@ kotatsu_metrics_collection_errors 0
 	}
 }
 
-// TestLeaderCollector は、このインスタンスが neko のリースを持っているかを、メトリクスとして返すことを確かめる。
+// TestLeaderCollector は、このインスタンスが neko のリースを持っているかを、メトリクスとして返すことを確認する。
 func TestLeaderCollector(t *testing.T) {
 	t.Parallel()
 

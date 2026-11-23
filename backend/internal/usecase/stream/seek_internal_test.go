@@ -10,11 +10,11 @@ import (
 )
 
 // TestRecordingSeekBefore は、タイムシフトのバッファの起点が I フレームの間にあるとき、手前の I フレームから流し、
-// 起点より前にはみ出た分を Before で返すことを確かめる。kyusu は、その分も切り落とす (#1128)。
+// 起点より前にはみ出た分を Before で返すことを確認する。kyusu は、その分も切り落とす (#1128)。
 func TestRecordingSeekBefore(t *testing.T) {
 	t.Parallel()
 
-	// I フレームは 0.5005 秒 (45045 刻み) ごとに 10 個ある。
+	// I フレームは 0.5005 秒 (45045 間隔) ごとに 10 個ある。
 	index := make([]ts.IndexEntry, 0, 10)
 	for k := range int64(10) {
 		index = append(index, ts.IndexEntry{Offset: k * 1000, PTS: k * 45045})
@@ -44,8 +44,8 @@ func TestRecordingSeekBefore(t *testing.T) {
 	}
 }
 
-// TestRecordingDuration は、録画の再生の時間を、最後の I フレームの後に 1 間隔を足して求め、索引のないセグメントがあれば
-// 求めないことを確かめる。録画の変換の進み具合の見込みに使う (#1511)。
+// TestRecordingDuration は、録画の再生の時間を、最後の I フレームの後に 1 間隔を足して求め、インデックスのないセグメントがあれば
+// 求めないことを確認する。録画の変換の進み具合の見込みに使う (#1511)。
 func TestRecordingDuration(t *testing.T) {
 	t.Parallel()
 

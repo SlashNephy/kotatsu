@@ -17,7 +17,7 @@ const (
 )
 
 // pesPackets は、PID の PES を、長さ length (0 なら長さを持たない映像の PES) で、パケットに分けて返す。
-// 中身は、count 個のパケットに収まるだけ詰める。
+// 内容は、count 個のパケットに収まるだけ詰める。
 func pesPackets(pid, length uint16, count int) [][]byte {
 	packets := make([][]byte, 0, count)
 	for i := range count {
@@ -36,7 +36,7 @@ func pesPackets(pid, length uint16, count int) [][]byte {
 	return packets
 }
 
-// TestCompleteTail は、続きのないセグメントの終わりで、途中で切れた長さを持つ PES を流さないことを確かめる (#1131)。
+// TestCompleteTail は、続きのないセグメントの終わりで、途中で切れた長さを持つ PES を流さないことを確認する (#1131)。
 func TestCompleteTail(t *testing.T) {
 	t.Parallel()
 
@@ -98,7 +98,7 @@ func TestCompleteTail(t *testing.T) {
 	}
 }
 
-// TestCompleteTailAlignsToPackets は、書きかけのまま閉じて、パケットの途中で終わるセグメントは、パケットの境目で切ることを確かめる。
+// TestCompleteTailAlignsToPackets は、書きかけのまま閉じて、パケットの途中で終わるセグメントは、パケットの境目で切ることを確認する。
 func TestCompleteTailAlignsToPackets(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +115,7 @@ func continuation(pid uint16, count int) [][]byte {
 	return packets[1:]
 }
 
-// TestCompleteHead は、続きのないセグメントの頭で、PES の始まりより前にある、前から続く PES の残りのパケットを落とすことを確かめる (#1131)。
+// TestCompleteHead は、続きのないセグメントの先頭で、PES の始まりより前にある、前から続く PES の残りのパケットを落とすことを確認する (#1131)。
 func TestCompleteHead(t *testing.T) {
 	t.Parallel()
 

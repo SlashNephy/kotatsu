@@ -167,7 +167,7 @@ func (f *fixture) refreshWithScope(t *testing.T, refreshToken, scope string) (in
 	})
 }
 
-// TestRefreshScope は、トークンの更新で求められた scope を、スコープの包含関係で確かめることを確かめる (#1415)。
+// TestRefreshScope は、トークンの更新で求められた scope を、スコープの包含関係で確認することを確認する (#1415)。
 // 書くスコープでは読むツールも使えるので、書くだけの連携に読むスコープを求めても断らない。広げることはできない。
 func TestRefreshScope(t *testing.T) {
 	t.Parallel()
@@ -208,7 +208,7 @@ func TestRefreshScope(t *testing.T) {
 	}
 }
 
-// TestAuthorizationCodeFlow は、同意から、トークンの発行、入れ替え、使い回しを見つけて取り消すまでを確かめる。
+// TestAuthorizationCodeFlow は、同意から、トークンの発行、入れ替え、使い回しを見つけて取り消すまでを確認する。
 func TestAuthorizationCodeFlow(t *testing.T) {
 	t.Parallel()
 
@@ -266,7 +266,7 @@ func TestAuthorizationCodeFlow(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, status)
 }
 
-// TestAccessTokenExpires は、アクセストークンが 1 時間で使えなくなり、ユーザーを無効にしたら使えなくなることを確かめる。
+// TestAccessTokenExpires は、アクセストークンが 1 時間で使えなくなり、ユーザーを無効にしたら使えなくなることを確認する。
 func TestAccessTokenExpires(t *testing.T) {
 	t.Parallel()
 
@@ -312,7 +312,7 @@ func TestAccessTokenExpires(t *testing.T) {
 	assert.Equal(t, errorInvalidGrant, body["error"])
 }
 
-// TestApproveScopes は、同意で選べるスコープを、求められたもので、ロールに許すものに限ることを確かめる。
+// TestApproveScopes は、同意で選べるスコープを、求められたもので、ロールに許すものに限ることを確認する。
 func TestApproveScopes(t *testing.T) {
 	t.Parallel()
 
@@ -349,7 +349,7 @@ func TestApproveScopes(t *testing.T) {
 	}
 }
 
-// TestPrepareErrors は、クライアントへ戻せない誤りは画面に出し、戻せる誤りはエラーを付けて戻すことを確かめる。
+// TestPrepareErrors は、クライアントへ戻せない誤りは画面に出し、戻せる誤りはエラーを付けて戻すことを確認する。
 func TestPrepareErrors(t *testing.T) {
 	t.Parallel()
 
@@ -396,7 +396,7 @@ func TestPrepareErrors(t *testing.T) {
 	}
 }
 
-// TestTokenErrors は、トークンのエンドポイントが、正しくない引き換えを断り、認可コードを使えなくすることを確かめる。
+// TestTokenErrors は、トークンのエンドポイントが、正しくない引き換えを断り、認可コードを使えなくすることを確認する。
 func TestTokenErrors(t *testing.T) {
 	t.Parallel()
 
@@ -436,7 +436,7 @@ func TestTokenErrors(t *testing.T) {
 	}
 }
 
-// TestRevoke は、アクセストークンの失効はそのトークンだけを、リフレッシュトークンの失効は連携ごと取り消すことを確かめる。
+// TestRevoke は、アクセストークンの失効はそのトークンだけを、リフレッシュトークンの失効は連携ごと取り消すことを確認する。
 func TestRevoke(t *testing.T) {
 	t.Parallel()
 
@@ -473,7 +473,7 @@ func TestRevoke(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, revoke(access, ""))
 }
 
-// TestDisabled は、管理者が MCP を有効にしていなければ、認可サーバーがないものとして振る舞うことを確かめる。
+// TestDisabled は、管理者が MCP を有効にしていなければ、認可サーバーがないものとして振る舞うことを確認する。
 func TestDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -522,7 +522,7 @@ func TestDisabled(t *testing.T) {
 	require.ErrorIs(t, err, oauth.ErrDisabled)
 }
 
-// TestPrune は、期限を過ぎた認可コードとトークンと、トークンがなくなった連携を消すことを確かめる。
+// TestPrune は、期限を過ぎた認可コードとトークンと、トークンがなくなった連携を消すことを確認する。
 func TestPrune(t *testing.T) {
 	t.Parallel()
 

@@ -26,7 +26,7 @@ const (
 	kindSegment = "segment"
 	// stateRecording は、録画中の録画の状態。
 	stateRecording = "recording"
-	// defaultPollInterval は、追っかけ再生で、録画中のファイルが伸びるのを確かめる間隔。
+	// defaultPollInterval は、追っかけ再生で、録画中のファイルが伸びるのを確認する間隔。
 	defaultPollInterval = 500 * time.Millisecond
 )
 
@@ -52,7 +52,7 @@ var _ File = new(os.File)
 
 // timeline は、連結して流すセグメントの並び。録画のセグメントか、タイムシフトのチャンクを、DB から引く。
 type timeline interface {
-	// load は、セグメントを、始まりの順に、索引と一緒に読む。
+	// load は、セグメントを、始まりの順に、インデックスと一緒に読む。
 	load(ctx context.Context) ([]*segment, error)
 	// inProgress は、セグメントがまだ増えるかどうかを返す。録画なら録画中かどうか。
 	inProgress(ctx context.Context) (bool, error)
@@ -63,7 +63,7 @@ type timeline interface {
 // streamer は、セグメントの並びを、指定した範囲から連結して流す。書いている途中のセグメントは、伸びるのを待ちながら流す。
 type streamer struct {
 	store *kago.Store
-	// pollInterval は、追っかけ再生で、書いている途中のファイルが伸びるのを確かめる間隔。
+	// pollInterval は、追っかけ再生で、書いている途中のファイルが伸びるのを確認する間隔。
 	pollInterval time.Duration
 }
 
@@ -76,7 +76,7 @@ func newStreamer(store *kago.Store, pollInterval time.Duration) *streamer {
 	return &streamer{store: store, pollInterval: pollInterval}
 }
 
-// RecordingSource は、録画のセグメントを、索引を使って、指定した位置から連結して流す。
+// RecordingSource は、録画のセグメントを、インデックスを使って、指定した位置から連結して流す。
 // 引き継ぎで重なった区間は切り詰める。録画中の録画は、ファイルの末尾まで読んだら、ファイルが伸びるのを待ちながら流し続ける。
 // tenban の録画の配信と、kyusu の録画のトランスコードが使う。
 type RecordingSource struct {
@@ -90,14 +90,14 @@ func NewRecordingSource(db sqlc.DBTX, store *kago.Store, pollInterval time.Durat
 	return &RecordingSource{db: db, streamer: newStreamer(store, pollInterval)}
 }
 
-// Recording は、開いた録画か、タイムシフトのバッファ。開いた時点のセグメントと索引を持つ。
+// Recording は、開いた録画か、タイムシフトのバッファ。開いた時点のセグメントとインデックスを持つ。
 type Recording struct {
 	streamer *streamer
 	timeline timeline
 	// InProgress は、開いた時点で録画中だったかどうか。タイムシフトのバッファは、常に録画中として扱う。
 	InProgress bool
 	segments   []*segment
-	// skip は、最初のセグメントの始まりから、再生の時間の起点までの時間。タイムシフトのバッファを、番組の頭から流すのに使う。
+	// skip は、最初のセグメントの始まりから、再生の時間の起点までの時間。タイムシフトのバッファを、番組の先頭から流すのに使う。
 	// Seek と Position.At の時間は、ここからの時間で表す。起点が最初のセグメントの始まりより前なら負になる。録画では 0。
 	skip time.Duration
 }
@@ -148,7 +148,7 @@ func (r *Recording) Seek(start time.Duration) *Position {
 }
 
 // Keyframes は、流す I フレームの、録画の始まり (タイムシフトのバッファでは起点) からの時間を、順に返す。
-// 引き継ぎで切り詰める区間の I フレームと、起点より前の I フレームは含めない。索引のないセグメントは、その始まりだけを含める。
+// 引き継ぎで切り詰める区間の I フレームと、起点より前の I フレームは含めない。インデックスのないセグメントは、その始まりだけを含める。
 func (r *Recording) Keyframes() []time.Duration {
 	points := r.KeyframePoints()
 	times := make([]time.Duration, 0, len(points))
@@ -176,14 +176,14 @@ func (r *Recording) KeyframePoints() []Keyframe {
 	return shifted
 }
 
-// Indexed は、索引のあるセグメントがあるかどうかを返す。取り込んだ直後の録画は、解析するまで索引がない。
+// Indexed は、インデックスのあるセグメントがあるかどうかを返す。取り込んだ直後の録画は、解析するまでインデックスがない。
 func (r *Recording) Indexed() bool {
 	return slices.ContainsFunc(r.segments, func(seg *segment) bool { return len(seg.index) > 0 })
 }
 
 // Duration は、最初の I フレームから流したときの、録画の再生の時間 (途切れた区間を含めない) を返す。
 // 最後の I フレームの後には、その前の I フレームの間隔だけコマが続くものとする。
-// 索引のないセグメントがあれば、そのセグメントの長さが分からないので、false を返す。録画の変換の進み具合の見込みに使う (#1511)。
+// インデックスのないセグメントがあれば、そのセグメントの長さが分からないので、false を返す。録画の変換の進み具合の見込みに使う (#1511)。
 func (r *Recording) Duration() (time.Duration, bool) {
 	if slices.ContainsFunc(r.segments, func(seg *segment) bool { return len(seg.index) == 0 }) {
 		return 0, false
@@ -241,7 +241,7 @@ func (t *recordingTimeline) load(ctx context.Context) ([]*segment, error) {
 }
 
 // inProgress は、録画がまだ録画中かどうかを返す。
-// 流している間に DB を引くときは、DB への接続が詰まっても流すのを止めないよう、database.FallbackQueryTimeout で打ち切る。
+// 流している間に DB から取得するときは、DB への接続が詰まっても流すのを止めないよう、database.FallbackQueryTimeout で打ち切る。
 func (t *recordingTimeline) inProgress(ctx context.Context) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, database.FallbackQueryTimeout)
 	defer cancel()
@@ -275,7 +275,7 @@ func (t *recordingTimeline) segmentClosed(ctx context.Context, segmentID uuid.UU
 	return true, nil
 }
 
-// readIndex は、索引を読む。書いている途中の索引の、書きかけの最後の記録は読まない。索引がなければ、空を返す。
+// readIndex は、インデックスを読む。書いている途中のインデックスの、書きかけの最後の記録は読まない。インデックスがなければ、空を返す。
 func (s *streamer) readIndex(index *kago.Location) ([]ts.IndexEntry, error) {
 	file, err := s.store.Open(index.PoolID, index.Path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -336,7 +336,7 @@ func (s *streamer) write(ctx context.Context, w io.Writer, tl timeline, pieces [
 // following は、流し終えた last より後に並ぶセグメントを、互いの重なりを切り詰めて返す。セグメントは始まりの順に並ぶ。
 // last は最後まで流したので、last と次のセグメントの重なりは、次のセグメントの側で、last の最後の I フレームより後から流して切り詰める。
 // 次のセグメントが last の続き (continues) なら、バイトをそのままつなぐので、始まりから流す。
-// 次のセグメントの索引がまだ追いついていなければ、wait を true にして、何も返さない。
+// 次のセグメントのインデックスがまだ追いついていなければ、wait を true にして、何も返さない。
 func (s *streamer) following(ctx context.Context, tl timeline, last *segment, inProgress bool) ([]*piece, bool, error) {
 	loadCtx, cancel := context.WithTimeout(ctx, database.FallbackQueryTimeout)
 	defer cancel()
@@ -363,8 +363,8 @@ func (s *streamer) following(ctx context.Context, tl timeline, last *segment, in
 	// 録画が終わっていれば、書いている途中のセグメントも、もう伸びない。
 	growing := next.segment.open && inProgress
 	if len(next.segment.index) == 0 {
-		// 書き始めたばかりのセグメントには、まだ索引がない。索引ができるまで待たないと、重なりを切り詰められない。
-		// 索引を作れなかったセグメントは、書き終えてから、始まりから流す。
+		// 書き始めたばかりのセグメントには、まだインデックスがない。インデックスができるまで待たないと、重なりを切り詰められない。
+		// インデックスを作れなかったセグメントは、書き終えてから、始まりから流す。
 		return []*piece{}, growing, nil
 	}
 	tail := lastIndex[len(lastIndex)-1].PTS
@@ -376,7 +376,7 @@ func (s *streamer) following(ctx context.Context, tl timeline, last *segment, in
 		}
 	}
 	if growing {
-		// 新しいセグメントに、まだ重なりより後の I フレームがない。索引が伸びるのを待つ。
+		// 新しいセグメントに、まだ重なりより後の I フレームがない。インデックスが伸びるのを待つ。
 		return []*piece{}, true, nil
 	}
 
@@ -444,7 +444,7 @@ func (s *streamer) servePiece(ctx context.Context, w io.Writer, tl timeline, p *
 
 // serveGrowing は、書いている途中のセグメントを、書き終えるまで、伸びるのを待ちながら流す。
 func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p *piece, joined bool, file File) error {
-	// 録画は TS をまとめて書くので、索引が指す位置を、まだファイルに書いていないことがある。書くまで待つ。
+	// 録画は TS をまとめて書くので、インデックスが指す位置を、まだファイルに書いていないことがある。書くまで待つ。
 	// 書き込みのエラーなどで、その位置まで書かないままセグメントを閉じたら、流すものがないので終える。
 	offset := p.from
 	if size, err := s.waitSize(ctx, tl, p, file, offset); err != nil || size < offset {
@@ -475,7 +475,7 @@ func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p
 		if err != nil {
 			return err
 		}
-		// 書き終えたかを確かめてから末尾まで読むので、確かめた後に書かれた分も読み残さない。
+		// 書き終えたかを確認してから末尾まで読むので、確認した後に書かれた分も読み残さない。
 		// 引き継ぎで切り詰める位置 (to) があれば、そこで止める。
 		var src io.Reader = file
 		if p.to >= 0 {
@@ -517,7 +517,7 @@ func servedEnd(file File, p *piece) (int64, error) {
 // waitSize は、書いている途中のセグメントが want まで書かれるか、書き終えるまで待ち、そのときのファイルの大きさを返す。
 func (s *streamer) waitSize(ctx context.Context, tl timeline, p *piece, file File, want int64) (int64, error) {
 	for {
-		// 閉じたかを確かめてからファイルの大きさを見るので、確かめた後に書かれた分も見落とさない。
+		// 閉じたかを確認してからファイルの大きさを見るので、確認した後に書かれた分も見落とさない。
 		closed, err := segmentClosedOrUnknown(ctx, tl, p.segment.id)
 		if err != nil {
 			return 0, err
@@ -537,7 +537,7 @@ func (s *streamer) waitSize(ctx context.Context, tl timeline, p *piece, file Fil
 
 // writeHead は、セグメントの範囲 p を from から流すとき、前のセグメントにつなぐ (joined) なら、頭の前から続く PES の残りを落として書き
 // (completeHead)、続きを流す位置を返す。前のセグメントの続き (continues) は、残りが前の PES の続きなので、落とさずに from を返す。
-// 最初の範囲は、プレイヤーが前から続く残りを捨てるので、そのまま流す。
+// 最初の範囲は、プレイヤーが前から続く残りを破棄するので、そのまま流す。
 func writeHead(w io.Writer, file io.ReaderAt, p *piece, joined bool, from, end int64) (int64, error) {
 	if !joined || p.segment.continues {
 		return from, nil

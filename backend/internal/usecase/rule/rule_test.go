@@ -63,7 +63,7 @@ func validInput() *rule.Input {
 	}
 }
 
-// TestRuleLifecycleIsAudited は、ルールを作り、変え、消せて、そのたびに監査ログが残ることを確かめる。
+// TestRuleLifecycleIsAudited は、ルールを作り、変え、消せて、そのたびに監査ログが残ることを確認する。
 func TestRuleLifecycleIsAudited(t *testing.T) {
 	t.Parallel()
 

@@ -29,9 +29,9 @@ const (
 	// Kubernetes の既定の猶予 (30 秒) に収まるようにする。
 	DefaultHandoverTimeout = 20 * time.Second
 	// DefaultReleaseCooldown は、録画できずに割り振りを手放した mikan が、割り振りを取らずに待つ時間 (付録 A、#524)。
-	// 待たないと、手放した割り振りを、自分ですぐに取り直してしまう。
+	// 待たないと、手放した割り振りを、自分ですぐに取得し直してしまう。
 	DefaultReleaseCooldown = time.Minute
-	// mikanRole は、録画のロールの名前。引き継ぐ mikan がいるかを、インスタンスの登録簿で調べるのに使う。
+	// mikanRole は、録画のロールの名前。引き継ぐ mikan がいるかを、インスタンスの登録簿で検索するのに使う。
 	mikanRole = "mikan"
 )
 
@@ -95,8 +95,8 @@ type Worker struct {
 	active map[uuid.UUID]*activeSession
 	// cooldownUntil は、録画できずに割り振りを手放したので、割り振りを取らない期限 (#524)。
 	cooldownUntil atomic.Pointer[time.Time]
-	// cooldownMu は、期限を確かめて割り振りを取る間と、期限を決めて割り振りを手放す間を、互いに待たせる。
-	// 取る側が期限を確かめた後に手放されると、手放したばかりの割り振りを、期限の前に取り直してしまう。
+	// cooldownMu は、期限を確認して割り振りを取る間と、期限を決めて割り振りを手放す間を、互いに待たせる。
+	// 取る側が期限を確認した後に手放されると、手放したばかりの割り振りを、期限の前に取得し直してしまう。
 	cooldownMu sync.Mutex
 }
 
@@ -139,7 +139,7 @@ type activeSession struct {
 
 // Run は、ctx が終わるまで、割り振りが変わったときと AcquireInterval ごとに、取れる割り振りをすべて取って録画する。
 //
-// ctx が終わったら、録画を引き継ぐ (設計書 5.4)。ほかの mikan が動いていれば、割り振りに引き継ぎ待ちの印を付け、
+// ctx が終わったら、録画を引き継ぐ (設計書 5.4)。ほかの mikan が動いていれば、割り振りに引き継ぎ待ちのフラグを立て、
 // ほかの mikan がストリームを開くまで録り続けてから止める。いなければ、割り振りを手放してすぐに止め、再起動した mikan に続きを任せる。
 // どちらも、割り振りは終わったことにしない。Session がすべて返るまで待つ。
 func (w *Worker) Run(ctx context.Context) error {
@@ -196,7 +196,7 @@ func (w *Worker) DatabaseUnreachableFor() time.Duration {
 }
 
 // acquireUnlessCoolingDown は、録画できずに割り振りを手放した後のしばらくの間でなければ、割り振りを取る (#524)。
-// 手放している途中に取らないよう、期限を確かめてから取り終えるまで、手放す側を待たせる。
+// 手放している途中に取らないよう、期限を確認してから取り終えるまで、手放す側を待たせる。
 func (w *Worker) acquireUnlessCoolingDown(ctx context.Context) (*Assignment, bool, error) {
 	w.cooldownMu.Lock()
 	defer w.cooldownMu.Unlock()
@@ -259,7 +259,7 @@ func (w *Worker) handOver(ctx context.Context, active *activeSession, hasPeers b
 	a := active.assignment
 	logger := w.logger.With(slog.String("assignment_id", a.ID.String()), slog.Int64("generation", a.Generation))
 	if hasPeers {
-		// 印を付けたら、ほかの mikan はすぐに割り振りを取り、世代を進める。印を付けてから引き継ぎ待ちにすると、その間のリースの延長が
+		// フラグを立てたら、ほかの mikan はすぐに割り振りを取り、世代を進める。フラグを立ててから引き継ぎ待ちにすると、その間のリースの延長が
 		// 世代が進んだのを見て、リースを失ったものとして録画を止めてしまうので、先に引き継ぎ待ちにする (#1673)。
 		active.handingOver.Store(true)
 		marked, err := w.markHandover(ctx, a)
@@ -288,7 +288,7 @@ func (w *Worker) handOver(ctx context.Context, active *activeSession, hasPeers b
 	}
 }
 
-// markHandover は、割り振りに引き継ぎ待ちの印を付け、ほかの mikan に知らせる。
+// markHandover は、割り振りに引き継ぎ待ちのフラグを立て、ほかの mikan に通知する。
 func (w *Worker) markHandover(ctx context.Context, a *Assignment) (bool, error) {
 	return w.leases.MarkHandover(ctx, w.clock, a, w.holder)
 }
@@ -430,7 +430,7 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 	}
 	deleted, err := w.leases.DeleteUnrecorded(ctx, assignment, w.holder)
 	if err != nil {
-		// 終わったことにすると、予約を有効に戻しても書き直せないので、そのままにする。リースが切れれば、ほかの mikan が取り直す。
+		// 終わったことにすると、予約を有効に戻しても書き直せないので、そのままにする。リースが切れれば、ほかの mikan が取得し直する。
 		logger.WarnContext(ctx, "failed to delete the unrecorded assignment", slog.Any("error", err))
 
 		return
@@ -451,7 +451,7 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 }
 
 // release は、録画できない理由がこの mikan にあるので、割り振りを手放し、しばらく割り振りを取らない (#524)。
-// ほかの mikan が取って録画する。ほかの mikan がいなければ、待った後に自分で取り直す。
+// ほかの mikan が取って録画する。ほかの mikan がいなければ、待った後に自分で取得し直する。
 func (w *Worker) release(ctx context.Context, assignment *Assignment, logger *slog.Logger, cause error) {
 	logger.WarnContext(ctx, "released the assignment; this mikan is unable to record", slog.Any("error", cause))
 	w.cooldownMu.Lock()
@@ -522,7 +522,7 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 			return
 		case n == 0 && w.assignmentDeleted(ctx, assignment.ID, logger):
 			// 録画中に予約が消され、割り振りも一緒に消えた。録画は、予約を読み直したときに取り消しとして終える。
-			// タイムシフトでは、neko が割り振りを消した。Session が、割り振りを確かめて止まる。
+			// タイムシフトでは、neko が割り振りを消した。Session が、割り振りを確認して止まる。
 			logger.InfoContext(ctx, "the assignment was deleted")
 
 			return
@@ -544,7 +544,7 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 	}
 }
 
-// assignmentDeleted は、割り振りが DB から消えたかどうかを返す。確かめられなければ、消えていないとみなす。
+// assignmentDeleted は、割り振りが DB から消えたかどうかを返す。確認できなければ、消えていないとみなす。
 func (w *Worker) assignmentDeleted(ctx context.Context, id uuid.UUID, logger *slog.Logger) bool {
 	exists, err := w.leases.Exists(ctx, id)
 	if err != nil {

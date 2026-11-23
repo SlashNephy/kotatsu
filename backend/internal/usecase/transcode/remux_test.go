@@ -55,7 +55,7 @@ func encodeMP4(t *testing.T, src, dir string) string {
 }
 
 // TestFFmpegEncoderProgress は、本物の FFmpeg が、変換しながら -progress のまとまりを出し、最後のまとまりが progress=end で、
-// そのコマ数が MP4 のコマ数と同じであることを確かめる (#1511)。進み具合の分子に使う。
+// そのコマ数が MP4 のコマ数と同じであることを確認する (#1511)。進み具合の分子に使う。
 func TestFFmpegEncoderProgress(t *testing.T) {
 	t.Parallel()
 
@@ -145,8 +145,8 @@ func millis(t *testing.T, s string) int64 {
 	return time.Duration(f * float64(time.Second)).Round(time.Millisecond).Milliseconds()
 }
 
-// TestFFmpegChapterer は、本物の FFmpeg で、変換した MP4 に ffmetadata のチャプターを写し、書き直し、外せることを確かめる (#1510)。
-// 写し直しても、映像と音声のストリーム、映像の始まりの時刻、長さは変わらず、前のチャプターのトラックも残らない。
+// TestFFmpegChapterer は、本物の FFmpeg で、変換した MP4 に ffmetadata のチャプターをコピーし、書き直し、外せることを確認する (#1510)。
+// コピーし直しても、映像と音声のストリーム、映像の始まりの時刻、長さは変わらず、前のチャプターのトラックも残らない。
 func TestFFmpegChapterer(t *testing.T) {
 	t.Parallel()
 
@@ -174,14 +174,14 @@ func TestFFmpegChapterer(t *testing.T) {
 		name     string
 		chapters []transcode.Chapter
 		want     []probedChapter
-		// wantStreams は、写した MP4 のストリームの数。チャプターを書くと、映像と音声に、チャプターのトラックが 1 つ加わる。
+		// wantStreams は、コピーした MP4 のストリームの数。チャプターを書くと、映像と音声に、チャプターのトラックが 1 つ加わる。
 		wantStreams int
 	}{
 		{name: "write", chapters: chapters, want: want, wantStreams: 3},
 		{name: "rewrite", chapters: chapters, want: want, wantStreams: 3},
 		{name: "strip", chapters: []transcode.Chapter{}, want: []probedChapter{}, wantStreams: 2},
 	}
-	// 前の段の MP4 を写し直していく。
+	// 前のステップの MP4 をコピーし直していく。
 	in := original
 	for i, tt := range tests {
 		metadata := ""

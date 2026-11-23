@@ -20,15 +20,15 @@ import (
 // 録画の割り振りと、タイムシフトの割り振りで、Worker を共有するために切り出している。
 // 割り振りの行は、世代番号 (Generation) と持ち主 (holder) が合うときだけ書き換える。合わなければ、行数 0 を返す。
 type LeaseStore interface {
-	// Channel は、割り振りの変更を知らせる通知のチャンネル。Worker はこれを LISTEN する。
+	// Channel は、割り振りの変更を通知する通知のチャンネル。Worker はこれを LISTEN する。
 	Channel() string
 	// Acquire は、取れる割り振りを 1 つ取る。なければ false を返す。now は取る時刻で、引き継ぎかどうかの判断に使う。
 	// active は、この mikan が録っている割り振り。リースの期限が切れていても取らない。
 	Acquire(ctx context.Context, holder uuid.UUID, now, expiresAt time.Time, active []uuid.UUID) (*Assignment, bool, error)
 	// Renew は、リースを expiresAt まで延ばす。延ばせた行の数を返す。
 	Renew(ctx context.Context, a *Assignment, holder uuid.UUID, now, expiresAt time.Time) (int64, error)
-	// MarkHandover は、割り振りに引き継ぎ待ちの印を付け、ほかの mikan に知らせる。印を付けたら true を返す。
-	// 印と通知を 1 つのトランザクションで行うので、トランザクションはこのメソッドの中に閉じる。
+	// MarkHandover は、割り振りに引き継ぎ待ちのフラグを立て、ほかの mikan に通知する。フラグを立てたら true を返す。
+	// フラグと通知を 1 つのトランザクションで行うので、トランザクションはこのメソッドの中に閉じる。
 	MarkHandover(ctx context.Context, clk clock.Clock, a *Assignment, holder uuid.UUID) (bool, error)
 	// Release は、止まる mikan が、割り振りを手放す。再起動した mikan がすぐに取れる。
 	Release(ctx context.Context, now time.Time, a *Assignment, holder uuid.UUID) error
@@ -41,7 +41,7 @@ type LeaseStore interface {
 	Finish(ctx context.Context, now time.Time, a *Assignment, holder uuid.UUID) (int64, error)
 	// Exists は、割り振りが DB に残っているかどうかを返す。
 	Exists(ctx context.Context, id uuid.UUID) (bool, error)
-	// StreamGeneration は、ストリームを開いた世代番号を返す。引き継ぐ mikan がストリームを開いたかを調べるのに使う。
+	// StreamGeneration は、ストリームを開いた世代番号を返す。引き継ぐ mikan がストリームを開いたかを確認するのに使う。
 	StreamGeneration(ctx context.Context, id uuid.UUID) (int64, error)
 }
 
@@ -104,7 +104,7 @@ func (l *recordingLeases) MarkHandover(ctx context.Context, clk clock.Clock, a *
 
 		return err
 	})
-	// 知らせられずにトランザクションを戻したら、印も付いていない。
+	// 知らせられずにトランザクションを戻したら、フラグも立っていない。
 	if err != nil {
 		return false, err
 	}

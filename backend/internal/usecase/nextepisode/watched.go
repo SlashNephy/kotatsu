@@ -34,11 +34,11 @@ type Suggestion struct {
 	Broadcast *Broadcast
 }
 
-// watchedSeries は、見た回をシリーズでまとめたもの。key は、シリーズの見た回のうち、話数の最も大きい回の鍵。
+// watchedSeries は、見た回をシリーズでまとめたもの。key は、シリーズの見た回のうち、話数の最も大きい回のキー。
 type watchedSeries struct {
 	key         *Key
 	recordingID uuid.UUID
-	// stem は、シリーズ名で探すシリーズの見た回の番組名が「作品名 副題 #N」の形のときの、副題を除いた作品名 (episode.Stem)。
+	// stem は、シリーズ名で探すシリーズの見た回の番組名が「作品名 サブタイトル #N」の形のときの、サブタイトルを除いた作品名 (episode.Stem)。
 	stem string
 	// family なら、シリーズ名が key.Series で始まり、番組名の作品名 (episode.Stem) が key.Series の番組も、同じシリーズの回とする (#2023)。
 	family bool
@@ -57,14 +57,14 @@ func (k *Key) id() string {
 	return seriesID(k.Series)
 }
 
-// 鍵の強さの順。小さいほど強い。
+// キーの強さの順。小さいほど強い。
 const (
 	rankAnime = iota
 	rankSeries
 	rankDrama
 )
 
-// rank は、鍵の強さの順。TID、シリーズ名、TMDB の作品の順に強い。
+// rank は、キーの強さの順。TID、シリーズ名、TMDB の作品の順に強い。
 func (k *Key) rank() int {
 	switch {
 	case k.TID > 0:
@@ -91,7 +91,7 @@ func dramaID(seriesID, season int32) string {
 	return "d:" + strconv.FormatInt(int64(seriesID), 10) + ":" + strconv.FormatInt(int64(season), 10)
 }
 
-// number は、比べるための話数。
+// number は、比較するための話数。
 func (k *Key) number() float64 {
 	if k.TID > 0 {
 		return k.Count
@@ -107,7 +107,7 @@ func (k *Key) number() float64 {
 // 放送の早い順に MaxSeries 件まで返す (#1564、ホームの「続きの放送」)。
 //
 // 見た回は、WatchedWindow の間に、録画の長さの WatchedRatio 以上まで再生した録画である。シリーズごとに、見た回の最大の話数より
-// 後の放送を、録画の続きの放送 (Find) と同じ決まりで選ぶ。シリーズの数によらず、決まった数のクエリで引く。
+// 後の放送を、録画の続きの放送 (Find) と同じ決まりで選ぶ。シリーズの数によらず、決まった数のクエリで取得する。
 func FindForUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.Time) ([]*Suggestion, error) {
 	q := sqlc.New(db)
 	rows, err := q.ListWatchedNextEpisodeSources(ctx, sqlc.ListWatchedNextEpisodeSourcesParams{
@@ -137,7 +137,7 @@ func FindForUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.T
 	}
 
 	suggestions := []*Suggestion{}
-	// 同じ番組が、違う鍵で探したシリーズに出たら、同じ作品なので、強い鍵 (TID、シリーズ名、TMDB の作品の順) で探した方の 1 行にする。
+	// 同じ番組が、違うキーで探したシリーズに出たら、同じ作品なので、強いキー (TID、シリーズ名、TMDB の作品の順) で探した方の 1 行にする。
 	// 後の方を、その次の放送に繰り下げて出すと、同じ作品の行が 2 つ並ぶ。
 	seen := map[ProgramKey]bool{}
 	for _, s := range series {
@@ -169,7 +169,7 @@ func FindForUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.T
 }
 
 // groupWatched は、見た回をシリーズでまとめ、シリーズごとに話数の最も大きい回を残す。シリーズも話数も読めない回は外す。
-// 返す順は、強い鍵 (TID、シリーズ名、TMDB の作品の順) で探すシリーズを先に、それぞれシリーズの回を最初に読んだ順 (最後に見た新しい順) である。
+// 返す順は、強いキー (TID、シリーズ名、TMDB の作品の順) で探すシリーズを先に、それぞれシリーズの回を最初に読んだ順 (最後に見た新しい順) である。
 func groupWatched(rows []sqlc.ListWatchedNextEpisodeSourcesRow) []*watchedSeries {
 	series := []*watchedSeries{}
 	index := map[string]int{}
@@ -199,7 +199,7 @@ func groupWatched(rows []sqlc.ListWatchedNextEpisodeSourcesRow) []*watchedSeries
 			series[j] = &watchedSeries{key: key, recordingID: rows[i].ID, stem: stem, family: false}
 		}
 	}
-	// 強い鍵で探すシリーズを先に置き、同じ番組に当たった弱い鍵で探すシリーズより優先する。
+	// 強いキーで探すシリーズを先に置き、同じ番組に当たった弱いキーで探すシリーズより優先する。
 	slices.SortStableFunc(series, func(a, b *watchedSeries) int {
 		return cmp.Compare(a.key.rank(), b.key.rank())
 	})
@@ -207,12 +207,12 @@ func groupWatched(rows []sqlc.ListWatchedNextEpisodeSourcesRow) []*watchedSeries
 	return series
 }
 
-// mergeFamilies は、番組名に副題が入ってシリーズ名が回ごとに変わった見た回を、副題を除いた作品名のシリーズにまとめる (#2023)。
+// mergeFamilies は、番組名にサブタイトルが入ってシリーズ名が回ごとに変わった見た回を、サブタイトルを除いた作品名のシリーズにまとめる (#2023)。
 //
-// 「作品名 副題 #N」の番組名は、副題までをシリーズ名に読むので、回ごとに別のシリーズになる。番組名だけでは、最後の語が副題か
-// 作品名の一部かを決められないので、副題のない回 (「作品名 #N」) が、見た回、番組表、録画履歴のどれかにあるときだけ、まとめる。
+// 「作品名 サブタイトル #N」の番組名は、サブタイトルまでをシリーズ名に読むので、回ごとに別のシリーズになる。番組名だけでは、最後の語がサブタイトルか
+// 作品名の一部かを決められないので、サブタイトルのない回 (「作品名 #N」) が、見た回、番組表、録画履歴のどれかにあるときだけ、まとめる。
 // まとめたシリーズは、見た回の最大の話数を持ち、作品名のシリーズ名の番組に加えて、番組名の作品名が同じ番組も続きの候補にする。
-// 見た回の再放送 (副題のない番組名のことがある) を、見た回より前の回として外し、次の回 (副題のある番組名) を出すためである。
+// 見た回の再放送 (サブタイトルのない番組名のことがある) を、見た回より前の回として外し、次の回 (サブタイトルのある番組名) を出すためである。
 func mergeFamilies(ctx context.Context, q *sqlc.Queries, series []*watchedSeries) ([]*watchedSeries, error) {
 	stems := []string{}
 	for _, s := range series {
@@ -247,7 +247,7 @@ func mergeFamilies(ctx context.Context, q *sqlc.Queries, series []*watchedSeries
 		case s.stem != "" && known[s.stem]:
 			b = base(resolve(s.stem))
 		case slices.Contains(stems, s.key.Series):
-			// 副題のない回 (シリーズ名が作品名) のシリーズ。
+			// サブタイトルのない回 (シリーズ名が作品名) のシリーズ。
 			b = base(s.key.Series)
 		}
 		if b == nil {
@@ -264,8 +264,8 @@ func mergeFamilies(ctx context.Context, q *sqlc.Queries, series []*watchedSeries
 	return merged, nil
 }
 
-// knownStems は、副題のない回があると分かった作品名 (見たシリーズ名か、話数のある番組表の番組か、録画履歴のシリーズ名) の集合と、
-// 作品名をさらに副題を除ける限りたどる関数を返す (#2023)。stems は、見た回から読んだ作品名。
+// knownStems は、サブタイトルのない回があると分かった作品名 (見たシリーズ名か、話数のある番組表の番組か、録画履歴のシリーズ名) の集合と、
+// 作品名をさらにサブタイトルを除ける限りたどる関数を返す (#2023)。stems は、見た回から読んだ作品名。
 func knownStems(
 	ctx context.Context, q *sqlc.Queries, series []*watchedSeries, stems []string,
 ) (map[string]bool, func(string) string, error) {
@@ -277,7 +277,7 @@ func knownStems(
 	for _, name := range rows {
 		known[name] = true
 	}
-	// stemOf は、見たシリーズ名ごとの、副題を除いた作品名。副題に空白が入ると、作品名がまた副題を含むので、たどって決める。
+	// stemOf は、見たシリーズ名ごとの、サブタイトルを除いた作品名。サブタイトルに空白が入ると、作品名がまたサブタイトルを含むので、たどって決める。
 	stemOf := map[string]string{}
 	for _, s := range series {
 		if s.key.rank() == rankSeries {
@@ -287,7 +287,7 @@ func knownStems(
 			}
 		}
 	}
-	// resolve は、作品名 name を、さらに副題を除ける限りたどった作品名を返す。
+	// resolve は、作品名 name を、さらにサブタイトルを除ける限りたどった作品名を返す。
 	resolve := func(name string) string {
 		for range len(stemOf) {
 			next, ok := stemOf[name]
@@ -408,7 +408,7 @@ func listSeriesCandidatesOf(
 	return nil
 }
 
-// listFamilyCandidatesOf は、まとめたシリーズ (mergeFamilies) の作品名 stems[i] ごとに、番組名に副題が入った回の、話数が numbers[i] より
+// listFamilyCandidatesOf は、まとめたシリーズ (mergeFamilies) の作品名 stems[i] ごとに、番組名にサブタイトルが入った回の、話数が numbers[i] より
 // 大きい続きの放送の候補と、録画履歴にある録った回の話数を、candidates と recorded に足す (#2023)。
 // シリーズ名が作品名で始まるだけの別の番組を拾わないよう、番組名から読み直した作品名 (episode.Stem) が同じものだけを使う。
 func listFamilyCandidatesOf(
@@ -470,7 +470,7 @@ func listDramaCandidatesOf(
 	if err != nil {
 		return err
 	}
-	// seasonOf は、シリーズの id ごとの、候補を出すシーズン。録った話を、このシーズンの録画履歴で引く。
+	// seasonOf は、シリーズの id ごとの、候補を出すシーズン。録った話を、このシーズンの録画履歴から検索する。
 	seasonOf := map[string]*Drama{}
 	nexts := []*Drama{}
 	for _, d := range dramas {

@@ -50,8 +50,8 @@ func TestTitleKey(t *testing.T) {
 	}
 }
 
-// TestTitleKeyEveryEnclosedCharacter は、表のどの囲み文字も、囲み文字で書いても括弧で書いても、印のない番組名と同じキーになることを確かめる。
-// 表に囲み文字を足したときに、TitleKey が取り除く印の一覧から漏れないようにする。
+// TestTitleKeyEveryEnclosedCharacter は、テーブルのどの囲み文字も、囲み文字で書いても括弧で書いても、マークのない番組名と同じキーになることを確認する。
+// テーブルに囲み文字を足したときに、TitleKey が取り除くマークの一覧から漏れないようにする。
 // [前] と [後] は、括弧で書くと番組名の一部とみなすので除く。
 func TestTitleKeyEveryEnclosedCharacter(t *testing.T) {
 	t.Parallel()

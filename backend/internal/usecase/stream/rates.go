@@ -53,7 +53,7 @@ type LiveRates struct {
 	Scrambled int64
 	// Clock は、放送の時計 (#1515)。PCR と、それを含む TS を受け取った時刻の組。まだ読めていなければ nil。
 	Clock *ts.PCRPair
-	// ServerTime は、内訳を送る時点のサーバーの時計。画面は、端末の時計との差を、これで測る。
+	// ServerTime は、内訳を送る時点のサーバーの時計。画面は、端末の時計との差を、これで計測する。
 	ServerTime time.Time
 }
 
@@ -178,7 +178,7 @@ func (w *LiveRatesWatcher) Watch(ctx context.Context, serviceID int64) (<-chan *
 			}
 			rates.ServerTime = w.clock.Now()
 			previous, last = current, now
-			// 受け取る側が遅れていれば、古い値を捨て、今の値だけを残す。
+			// 受け取る側が遅れていれば、古い値を破棄し、今の値だけを残す。
 			select {
 			case out <- rates:
 			default:
@@ -213,7 +213,7 @@ func (c *lockedPCRClock) pair() (ts.PCRPair, bool) {
 	return c.clock.Pair()
 }
 
-// clockedWriter は、受け取った TS を解析器に渡し、受け取った時刻と一緒に放送の時計にも渡す。
+// clockedWriter は、受け取った TS をパーサーに渡し、受け取った時刻と一緒に放送の時計にも渡す。
 type clockedWriter struct {
 	analyzer *ts.Analyzer
 	clock    *lockedPCRClock

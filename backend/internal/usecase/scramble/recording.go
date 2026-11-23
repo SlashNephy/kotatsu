@@ -1,4 +1,4 @@
-// Package scramble は、スクランブルされたまま録れた録画と、スクランブルされたまま届くライブを記録し、知らせる (#1517、設計書 5.5、6.2、7.1)。
+// Package scramble は、スクランブルされたまま録れた録画と、スクランブルされたまま届くライブを記録し、通知する (#1517、設計書 5.5、6.2、7.1)。
 package scramble
 
 import (
@@ -17,16 +17,16 @@ import (
 )
 
 const (
-	// AlertConsecutive は、判定できた録画がこの数だけ続けてスクランブルされたままだったら、管理者に知らせる数 (設計書 6.2、付録 A)。
-	// 1 本だけなら、契約のない局を録った録画のこともあるので、2 本続いたら、カードが読めていない見込みが高いとみなす。実機で測っていない仮の値。
+	// AlertConsecutive は、判定できた録画がこの数だけ続けてスクランブルされたままだったら、管理者に通知する数 (設計書 6.2、付録 A)。
+	// 1 本だけなら、契約のない局を録った録画のこともあるので、2 本続いたら、カードが読めていない見込みが高いとみなす。実機で計測していない仮の値。
 	AlertConsecutive = 2
 	// AlertInterval は、管理者へ同じ知らせを送る最短の間隔 (設計書 6.2、付録 A)。
-	// カードを直すまでは、録画のたびに続くので、1 日に 1 回までにする。直した後にまた起きても、翌日には気付ける。
+	// カードを修正するまでは、録画のたびに続くので、1 日に 1 回までにする。修正した後にまた起きても、翌日には気付ける。
 	AlertInterval = 24 * time.Hour
 )
 
 // Judge は、録画 recordingID のセグメントの PID ごとの集計から、スクランブルされたまま録れたかを判定し、録画に記録する (設計書 5.5)。
-// 録画を終えるときと、録画の後に解析し直したときに呼ぶ。判定しなかったら、割合を NULL にし、警告の印を下ろす。
+// 録画を終えるときと、録画の後に解析し直したときに呼ぶ。判定しなかったら、割合を NULL にし、警告のフラグを下ろす。
 func Judge(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID, now time.Time) (ts.RecordingScramble, error) {
 	rows, err := q.ListRecordingSegmentPIDStats(ctx, recordingID)
 	if err != nil {
@@ -66,7 +66,7 @@ func AddToPayload(payload map[string]any, result ts.RecordingScramble) {
 }
 
 // Alert は、録画を終えたときの判定 result を、続けてスクランブルされたままだった録画の数に足し、
-// AlertConsecutive に届いたら、AlertInterval に 1 回まで、管理者に知らせる (設計書 6.2)。判定しなかった録画は数を変えない。
+// AlertConsecutive に届いたら、AlertInterval に 1 回まで、管理者に通知する (設計書 6.2)。判定しなかった録画は数を変えない。
 // 録画を終える文と同じトランザクション db で呼ぶ。payload には、知らせのきっかけになった録画の材料 (録画の ID、番組名、サービス名) を渡す。
 func Alert(ctx context.Context, db sqlc.DBTX, clk clock.Clock, result ts.RecordingScramble, payload map[string]any) error {
 	if !result.Judged {
@@ -86,7 +86,7 @@ func Alert(ctx context.Context, db sqlc.DBTX, clk clock.Clock, result ts.Recordi
 		return fmt.Errorf("failed to list the administrators: %w", err)
 	}
 	if len(admins) == 0 {
-		// 宛先を空にすると全員に届くので、管理者がいなければ知らせない。
+		// 宛先を空にすると全員に届くので、管理者がいなければ通知しない。
 		return nil
 	}
 	if err := q.MarkScrambleAlertNotified(ctx, &now); err != nil {

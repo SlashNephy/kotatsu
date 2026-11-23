@@ -119,7 +119,7 @@ func (f *chapterFixture) get(t *testing.T, g tvtplay.DownloadGate, recordingID s
 	}
 }
 
-// TestChapterHandler は、録画の CM の区間を、ダウンロードした TS の名前の .chapter として返し、返せないときは断ることを確かめる。
+// TestChapterHandler は、録画の CM の区間を、ダウンロードした TS の名前の .chapter として返し、返せないときは断ることを確認する。
 func TestChapterHandler(t *testing.T) {
 	t.Parallel()
 

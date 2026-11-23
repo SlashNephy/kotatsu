@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
-// ErrDatabaseUnavailable は、DB に届かず、覚えた設定もないので、URL を受け付けるかを確かめられないことを表す (#1084)。
+// ErrDatabaseUnavailable は、DB に届かず、キャッシュした設定もないので、URL を受け付けるかを確認できないことを表す (#1084)。
 var ErrDatabaseUnavailable = errors.New("the database is unavailable")
 
 // URLGate は、外の道具に渡す URL (外部プレイヤー用の署名付き URL と、IPTV のクライアント用の URL) と、録画のダウンロード (#1762) を受け付けるかを、
@@ -22,13 +22,13 @@ type URLGate struct {
 	fallback *database.Fallback[struct{}, *System]
 }
 
-// NewURLGate は URLGate を返す。logger には、DB に届かずに覚えた設定を使ったことを出す。
+// NewURLGate は URLGate を返す。logger には、DB に届かずにキャッシュした設定を使ったことを出す。
 func NewURLGate(db sqlc.DBTX, clk clock.Clock, logger *slog.Logger) *URLGate {
 	return &URLGate{db: db, fallback: database.NewFallback[struct{}, *System]("url_gate", database.FallbackTTL, clk, logger)}
 }
 
 // ExternalPlayerURLsEnabled は、外部プレイヤー用の署名付き URL を受け付けるかどうかを返す。
-// DB に届かず、覚えた設定もなければ、ErrDatabaseUnavailable を包んで返す。
+// DB に届かず、キャッシュした設定もなければ、ErrDatabaseUnavailable を包んで返す。
 func (g *URLGate) ExternalPlayerURLsEnabled(ctx context.Context) (bool, error) {
 	system, err := g.load(ctx)
 	if err != nil {
@@ -39,7 +39,7 @@ func (g *URLGate) ExternalPlayerURLsEnabled(ctx context.Context) (bool, error) {
 }
 
 // IPTVFeedsEnabled は、IPTV のクライアント用の URL を受け付けるかどうかを返す。
-// DB に届かず、覚えた設定もなければ、ErrDatabaseUnavailable を包んで返す。
+// DB に届かず、キャッシュした設定もなければ、ErrDatabaseUnavailable を包んで返す。
 func (g *URLGate) IPTVFeedsEnabled(ctx context.Context) (bool, error) {
 	system, err := g.load(ctx)
 	if err != nil {
@@ -50,7 +50,7 @@ func (g *URLGate) IPTVFeedsEnabled(ctx context.Context) (bool, error) {
 }
 
 // RecordingDownloadsEnabled は、録画の「ダウンロード」を受け付けるかどうかを返す (#1762)。
-// DB に届かず、覚えた設定もなければ、ErrDatabaseUnavailable を包んで返す。
+// DB に届かず、キャッシュした設定もなければ、ErrDatabaseUnavailable を包んで返す。
 func (g *URLGate) RecordingDownloadsEnabled(ctx context.Context) (bool, error) {
 	system, err := g.load(ctx)
 	if err != nil {
@@ -61,7 +61,7 @@ func (g *URLGate) RecordingDownloadsEnabled(ctx context.Context) (bool, error) {
 }
 
 // EPGStationAPIEnabled は、EPGStation 互換の API を提供するかどうかを返す (#1769)。
-// DB に届かず、覚えた設定もなければ、ErrDatabaseUnavailable を包んで返す。
+// DB に届かず、キャッシュした設定もなければ、ErrDatabaseUnavailable を包んで返す。
 func (g *URLGate) EPGStationAPIEnabled(ctx context.Context) (bool, error) {
 	system, err := g.load(ctx)
 	if err != nil {
@@ -71,7 +71,7 @@ func (g *URLGate) EPGStationAPIEnabled(ctx context.Context) (bool, error) {
 	return system.EPGStationAPIEnabled, nil
 }
 
-// FallbackUsed は、DB に届かずに、覚えた設定を使った回数を返す。
+// FallbackUsed は、DB に届かずに、キャッシュした設定を使った回数を返す。
 func (g *URLGate) FallbackUsed() int64 {
 	return g.fallback.Used()
 }

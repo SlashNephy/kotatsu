@@ -256,7 +256,7 @@ func TestMessage(t *testing.T) {
 	}
 }
 
-// TestMessageEscaped は、番組名、放送されていた番組名、サービス名を、escape で書き換えることを確かめる (#1010)。
+// TestMessageEscaped は、番組名、放送されていた番組名、サービス名を、escape で書き換えることを確認する (#1010)。
 func TestMessageEscaped(t *testing.T) {
 	t.Parallel()
 

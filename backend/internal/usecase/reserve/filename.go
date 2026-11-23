@@ -14,7 +14,7 @@ import (
 )
 
 // fileNameFuncs は、ファイル名のテンプレートで使える関数 (設計書 4.7)。Go のテンプレートを書かない利用者向けに、
-// 画面では FileNameTemplateItems の表で書き方を示す。
+// 画面では FileNameTemplateItems のテーブルで書き方を示す。
 func fileNameFuncs() template.FuncMap {
 	return template.FuncMap{
 		"weekdayJa": WeekdayJa,
@@ -27,7 +27,7 @@ func WeekdayJa(t time.Time) string {
 	return []string{"日", "月", "火", "水", "木", "金", "土"}[t.Weekday()]
 }
 
-// SampleFileNameData は、テンプレートを確かめ、画面で書き方の例を示すのに使う、見本の番組。
+// SampleFileNameData は、テンプレートを確認し、画面で書き方の例を示すのに使う、見本の番組。
 func SampleFileNameData() *FileNameData {
 	start := time.Date(2026, 10, 12, 0, 30, 0, 0, time.FixedZone("JST", 9*60*60))
 
@@ -50,7 +50,7 @@ type FileNameTemplateItem struct {
 	Description string
 }
 
-// FileNameTemplateItems は、画面で表にして示す、ファイル名のテンプレートの書き方。
+// FileNameTemplateItems は、画面でテーブルにして示す、ファイル名のテンプレートの書き方。
 // テンプレートの項目や関数を足したら、ここにも足す。
 func FileNameTemplateItems() []FileNameTemplateItem {
 	return []FileNameTemplateItem{
@@ -95,7 +95,7 @@ var errDisallowedSyntax = errors.New("only fields, if, with and the functions ha
 // maxFileNameOutputB は、テンプレートを当てはめた結果の長さの上限。ファイル名は 255 バイトまでで、ディレクトリも数段しか掘らない。
 const maxFileNameOutputB = 4096
 
-// checkFileNameNodes は、テンプレートが許した書き方だけを使っているかを確かめる (許可リスト)。
+// checkFileNameNodes は、テンプレートが許した書き方だけを使っているかを確認する (許可リスト)。
 // 使えるのは、文字列、項目 (.Name や .StartAt.Format "..." のようなメソッドの呼び出し)、if と with、
 // 関数 half と weekdayJa だけにする。printf などの組み込みの関数や、繰り返し、変数、テンプレートの呼び出しは、
 // 当てはめる時間や確保するメモリを際限なく延ばせるので受け付けない。
@@ -113,7 +113,7 @@ func checkFileNameNodes(node parse.Node) error {
 	return nil
 }
 
-// allowedChildren は、node が許した書き方なら、その中の確かめるべきノードを返す。許していなければ false を返す。
+// allowedChildren は、node が許した書き方なら、その中の確認するべきノードを返す。許していなければ false を返す。
 func allowedChildren(node parse.Node) ([]parse.Node, bool) {
 	switch n := node.(type) {
 	case *parse.TextNode, *parse.FieldNode, *parse.DotNode, *parse.StringNode, *parse.NumberNode, *parse.BoolNode, *parse.NilNode:

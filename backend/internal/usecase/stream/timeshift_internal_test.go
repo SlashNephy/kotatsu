@@ -9,11 +9,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// TestCutAt は、昇格した録画の終わり (#1057) を、終わりの時刻か、その後の最初の I フレームの手前で切ることを確かめる。
+// TestCutAt は、昇格した録画の終わり (#1057) を、終わりの時刻か、その後の最初の I フレームの手前で切ることを確認する。
 func TestCutAt(t *testing.T) {
 	t.Parallel()
 
-	// I フレームは 0.5005 秒 (45045 刻み) ごとにある。2 つ目のチャンクは、1 つ目の続き (continues) で、PTS も続く。
+	// I フレームは 0.5005 秒 (45045 間隔) ごとにある。2 つ目のチャンクは、1 つ目の続き (continues) で、PTS も続く。
 	indexOf := func(first, n int64) []ts.IndexEntry {
 		index := make([]ts.IndexEntry, 0, n)
 		for k := range n {

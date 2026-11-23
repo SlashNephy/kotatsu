@@ -73,7 +73,7 @@ func Reserve(ctx context.Context, db sqlc.DBTX, clk clock.Clock, userID uuid.UUI
 }
 
 // Cancel は、ユーザー userID の、番組 key の視聴予約を手で外す。付けていなければ何もしない。
-// 外した番組は覚えておき、視聴ルールに一致しても付け直さない (設計書 4.8)。
+// 外した番組は記録しておき、視聴ルールに一致しても付け直さない (設計書 4.8)。
 func Cancel(ctx context.Context, db sqlc.DBTX, clk clock.Clock, userID uuid.UUID, key domain.ProgramKey) error {
 	q := sqlc.New(db)
 	deleted, err := q.DeleteWatchReservation(ctx, sqlc.DeleteWatchReservationParams{
@@ -95,7 +95,7 @@ func Cancel(ctx context.Context, db sqlc.DBTX, clk clock.Clock, userID uuid.UUID
 	return nil
 }
 
-// SetReserved は、ユーザー userID の、番組 key の視聴予約を付けるか外し、同じユーザーのほかの端末に知らせる。
+// SetReserved は、ユーザー userID の、番組 key の視聴予約を付けるか外し、同じユーザーのほかの端末に通知する。
 // 付けるときに、番組が EPG にないか、放送が始まっていれば ErrProgramUnavailable を返す。
 func SetReserved(ctx context.Context, db usersettings.Beginner, clk clock.Clock, userID uuid.UUID, key domain.ProgramKey, reserved bool) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
@@ -111,7 +111,7 @@ func SetReserved(ctx context.Context, db usersettings.Beginner, clk clock.Clock,
 	})
 }
 
-// UpdateReminderMinutes は、ユーザー userID の、視聴予約の通知を放送の何分前に送るかを変え、同じユーザーのほかの端末に知らせる。
+// UpdateReminderMinutes は、ユーザー userID の、視聴予約の通知を放送の何分前に送るかを変え、同じユーザーのほかの端末に通知する。
 // 変えた後の分を返す。0 から MaxReminderMinutes の外なら ErrInvalidReminderMinutes を返す。
 func UpdateReminderMinutes(ctx context.Context, db usersettings.Beginner, clk clock.Clock, userID uuid.UUID, minutes int) (int, error) {
 	var updated int

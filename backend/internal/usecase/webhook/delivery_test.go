@@ -92,7 +92,7 @@ func tokyo(t *testing.T) *time.Location {
 	return location
 }
 
-// verify は、受信側の手順で署名を確かめる。HMAC-SHA256 を、秘密キーで「<t>.<本文>」に対して計算し、v1 と比べる。
+// verify は、受信側の手順で署名を確認する。HMAC-SHA256 を、秘密キーで「<t>.<本文>」に対して計算し、v1 と比較する。
 func verify(t *testing.T, secret string, request received) time.Time {
 	t.Helper()
 
@@ -112,7 +112,7 @@ func verify(t *testing.T, secret string, request received) time.Time {
 	return time.Unix(unix, 0).UTC()
 }
 
-// TestEnqueuerQueuesDeliveries は、イベントを配るとき、その種類を送る有効な Webhook ごとに、配信のジョブを投入することを確かめる。
+// TestEnqueuerQueuesDeliveries は、イベントを配信するとき、その種類を送る有効な Webhook ごとに、配信のジョブを投入することを確認する。
 func TestEnqueuerQueuesDeliveries(t *testing.T) {
 	t.Parallel()
 
@@ -143,7 +143,7 @@ func TestEnqueuerQueuesDeliveries(t *testing.T) {
 	assert.Equal(t, []queued{{WebhookID: target, EventID: eventID, MaxAttempts: 8}}, got)
 }
 
-// TestDeliverWorkerSendsSignedBody は、3 つの形式の本文を送り、受信側が署名を確かめられることを確かめる (設計書 6.2)。
+// TestDeliverWorkerSendsSignedBody は、3 つの形式の本文を送り、受信側が署名を確認できることを確認する (設計書 6.2)。
 func TestDeliverWorkerSendsSignedBody(t *testing.T) {
 	t.Parallel()
 
@@ -190,7 +190,7 @@ func TestDeliverWorkerSendsSignedBody(t *testing.T) {
 	}
 }
 
-// TestBodyEscapesNames は、Discord と Slack の本文で、名前に書いた記法が効かないことを確かめる (#1010)。
+// TestBodyEscapesNames は、Discord と Slack の本文で、名前に書いた記法が効かないことを確認する (#1010)。
 func TestBodyEscapesNames(t *testing.T) {
 	t.Parallel()
 
@@ -236,7 +236,7 @@ func TestBodyEscapesNames(t *testing.T) {
 	}
 }
 
-// TestDeliverWorkerRedactsURL は、送れなかったときのエラーに、URL のパスのトークンを残さないことを確かめる (#1016)。
+// TestDeliverWorkerRedactsURL は、送れなかったときのエラーに、URL のパスのトークンを残さないことを確認する (#1016)。
 // エラーは、River がログとジョブの記録に残す。
 func TestDeliverWorkerRedactsURL(t *testing.T) {
 	t.Parallel()
@@ -254,7 +254,7 @@ func TestDeliverWorkerRedactsURL(t *testing.T) {
 	assert.Contains(t, err.Error(), server.URL, "the host is kept for debugging")
 }
 
-// TestDeliverWorkerFailures は、送れなければ再試行に任せ、送る理由がなくなれば取りやめることを確かめる。
+// TestDeliverWorkerFailures は、送れなければ再試行に任せ、送る理由がなくなれば取りやめることを確認する。
 func TestDeliverWorkerFailures(t *testing.T) {
 	t.Parallel()
 

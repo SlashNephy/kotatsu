@@ -57,7 +57,7 @@ func NewChannels(clk clock.Clock, recorder audit.Recorder) *Channels {
 	return &Channels{clock: clk, recorder: recorder}
 }
 
-// ValidateRetention は、保持時間 (秒) が下限と上限の間にあるかを確かめ、DB に書く値にする。範囲外なら ErrInvalidRetention を返す。
+// ValidateRetention は、保持時間 (秒) が下限と上限の間にあるかを確認し、DB に書く値にする。範囲外なら ErrInvalidRetention を返す。
 func ValidateRetention(retentionSeconds int) (int32, error) {
 	if retentionSeconds < minRetentionSeconds || retentionSeconds > maxRetentionSeconds {
 		return 0, fmt.Errorf("%w: retentionSeconds must be between %d and %d", ErrInvalidRetention, minRetentionSeconds, maxRetentionSeconds)

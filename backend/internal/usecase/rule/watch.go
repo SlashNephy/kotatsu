@@ -61,12 +61,12 @@ func (e *Engine) enabledWatchRules(ctx context.Context, tx pgx.Tx, result *Resul
 	return rules, skippedUsers, nil
 }
 
-// applyWatch は、視聴ルールに一致した番組と、視聴ルールが作った視聴予約を、ユーザーごとに突き合わせる (設計書 4.8)。
+// applyWatch は、視聴ルールに一致した番組と、視聴ルールが作った視聴予約を、ユーザーごとに照合する (設計書 4.8)。
 //
 //   - 一致した番組に視聴予約がなければ、作る。手で外した番組と、通知を送る時刻を過ぎた番組には作らない。
 //   - 視聴ルールが作った視聴予約のうち、そのユーザーのどの有効な視聴ルールにも一致しなくなったものは、放送の前なら消す。
 //     手で付けた視聴予約と、視聴ルールを消して手で付けたものと同じになった視聴予約は消さない。
-//   - 視聴予約を付け外ししたユーザーには、ユーザーの設定の変更として、ほかの端末に知らせる。
+//   - 視聴予約を付け外ししたユーザーには、ユーザーの設定の変更として、ほかの端末に通知する。
 //
 // rows は、照合の対象にした番組。
 func (e *Engine) applyWatch(
@@ -87,7 +87,7 @@ func (e *Engine) applyWatch(
 		keys := slices.SortedFunc(maps.Keys(programs), compareKeys)
 		params := sqlc.InsertRuleWatchReservationsParams{
 			// 照合に時間がかかる間に、通知のジョブが通知の時刻を過ぎた視聴予約を通知していることがある。照合を始めた時刻ではなく、
-			// 付ける直前の時刻で、通知の時刻を過ぎたかを確かめる。
+			// 付ける直前の時刻で、通知の時刻を過ぎたかを確認する。
 			UserID: userID, Now: e.clock.Now(),
 			ServiceIds: make([]int64, 0, len(keys)), EventIds: make([]int64, 0, len(keys)), RuleIds: make([]uuid.UUID, 0, len(keys)),
 		}

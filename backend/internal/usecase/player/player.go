@@ -2,7 +2,7 @@
 //
 // プレイヤーを開いた端末は、自分を登録し、状態を HeartbeatInterval ごとに送る。ExpireAfter の間送られてこなければ、
 // 閉じたとみなす。同じユーザーのほかの端末は、一覧から選んで操作を送る。操作は、操作される端末が subscription で受け取る。
-// どの tenban を経由しても届くよう、登録と操作は DB に書き、変更の通知 (設計書 1.4) で知らせる。
+// どの tenban を経由しても届くよう、登録と操作は DB に書き、変更の通知 (設計書 1.4) で通知する。
 package player
 
 import (
@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	// NotifyChannel は、プレイヤーの一覧の変化と、プレイヤーへの操作を知らせる、変更の通知のチャンネル。
+	// NotifyChannel は、プレイヤーの一覧の変化と、プレイヤーへの操作を通知する、変更の通知のチャンネル。
 	NotifyChannel = "players"
 	// HeartbeatInterval は、プレイヤーが状態を送る間隔。ExpireAfter は、送られてこなければ閉じたとみなすまでの長さ。
 	HeartbeatInterval = 10 * time.Second
@@ -86,7 +86,7 @@ func (s *Service) Register(ctx context.Context, userID, sessionID uuid.UUID, sta
 	return playerID, nil
 }
 
-// Update は、セッションのプレイヤーの状態を書き直し、閉じていないことを知らせる。
+// Update は、セッションのプレイヤーの状態を書き直し、閉じていないことを通知する。
 // announce なら、ほかの端末に、一覧を読み直させる。再生位置が進んだだけのときは、知らせなくてよい。
 func (s *Service) Update(ctx context.Context, userID, sessionID, playerID uuid.UUID, state []byte, announce bool) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
@@ -166,7 +166,7 @@ func (s *Service) Send(ctx context.Context, userID, playerID uuid.UUID, command 
 	})
 }
 
-// Owned は、プレイヤーが、セッションのものかどうかを確かめる。閉じたプレイヤーと、ほかのセッションのものなら ErrNotFound を返す。
+// Owned は、プレイヤーが、セッションのものかどうかを確認する。閉じたプレイヤーと、ほかのセッションのものなら ErrNotFound を返す。
 func (s *Service) Owned(ctx context.Context, sessionID, playerID uuid.UUID) error {
 	owner, err := sqlc.New(s.pool).GetPlayerOwner(ctx, sqlc.GetPlayerOwnerParams{ID: playerID, AliveSince: s.aliveSince()})
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && owner.SessionID != sessionID) {
@@ -203,7 +203,7 @@ func (s *Service) Commands(ctx context.Context, playerID uuid.UUID, after int64)
 	return commands, nil
 }
 
-// Version は、ユーザーの、再生中のプレイヤーの一覧の版を返す。
+// Version は、ユーザーの、再生中のプレイヤーの一覧のバージョンを返す。
 func (s *Service) Version(ctx context.Context, userID uuid.UUID) (int64, error) {
 	version, err := sqlc.New(s.pool).GetPlayerVersion(ctx, userID)
 	if err != nil {
@@ -213,7 +213,7 @@ func (s *Service) Version(ctx context.Context, userID uuid.UUID) (int64, error) 
 	return version, nil
 }
 
-// changed は、ユーザーのプレイヤーの一覧の版を上げ、ほかの端末に知らせる。
+// changed は、ユーザーのプレイヤーの一覧のバージョンを上げ、ほかの端末に通知する。
 func (s *Service) changed(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
 	if err := sqlc.New(tx).BumpPlayerVersion(ctx, sqlc.BumpPlayerVersionParams{UserID: userID, Now: s.clock.Now()}); err != nil {
 		return fmt.Errorf("failed to bump the player version: %w", err)

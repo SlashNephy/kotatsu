@@ -37,12 +37,12 @@ func engineActor() *audit.Actor {
 	return audit.System("neko")
 }
 
-// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
+// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確認する。
 type Guard func(ctx context.Context, tx pgx.Tx) error
 
 // Engine は、ルールの照合を行う (設計書 4.3)。
 //
-// 全ルールについて「予約すべき番組の集合」を計算し、既存の予約と突き合わせる。何度実行しても同じ結果になる。
+// 全ルールについて「予約すべき番組の集合」を計算し、既存の予約と照合する。何度実行しても同じ結果になる。
 //
 //   - 集合にあって予約がない番組には、ルール予約を作る。
 //   - 予約はあるのに、どのルールにも一致しなくなった番組は、放送が始まっていなければルール予約を消す。
@@ -132,7 +132,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		if err != nil {
 			return err
 		}
-		// 前の回を比べる相手を選ぶのにも、apply と同じ残し方を使うので、絞り込む前に作る。
+		// 前の回を比較する相手を選ぶのにも、apply と同じ残し方を使うので、絞り込む前に作る。
 		keep := newKeepPolicy(rules, matched)
 		desired, err := e.narrow(ctx, tx, now, matched, nil, keep, result)
 		if err != nil {
@@ -178,9 +178,9 @@ func (e *Engine) desired(
 	return e.narrow(ctx, tx, now, matched, skipped, keep, result)
 }
 
-// narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避、イベント共有、同じ回の束ね、前の回を録らない設定で絞り込み、
-// 予約すべき番組にする。skipped を渡せば、重複の回避、同じ回の束ね、前の回を録らない設定で予約すべき集合から外した番組を、そこに入れる。
-// keep と result は、apply と同じく、どのルールにも一致しなくなったルール予約を残すかを決める。前の回を比べる相手から、
+// narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避、イベント共有、同じ回のまとめ、前の回を録らない設定で絞り込み、
+// 予約すべき番組にする。skipped を渡せば、重複の回避、同じ回のまとめ、前の回を録らない設定で予約すべき集合から外した番組を、そこに入れる。
+// keep と result は、apply と同じく、どのルールにも一致しなくなったルール予約を残すかを決める。前の回を比較する相手から、
 // この照合で消える予約を除くのに使う。
 func (e *Engine) narrow(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
@@ -194,17 +194,17 @@ func (e *Engine) narrow(
 	}
 	pickSharedEvents(matched, func(d *desiredProgram) []byte { return d.row.RelatedItems })
 	// イベント共有で残した側の放送を見る。先に外すと、落とした側の放送が残って、同じ放送を別のサービスで録る。
-	// 束ねる前に外すのは、手動で予約した同じ回を、束ねる相手に入れないのと揃えるためである (設計書 4.4)。
+	// まとめる前に外すのは、手動で予約した同じ回を、まとめる相手に入れないのと揃えるためである (設計書 4.4)。
 	if err := excludeManuallyReservedSlots(ctx, tx, now, matched, keep); err != nil {
 		return nil, err
 	}
-	// イベント共有で落とした側の放送を除いてから束ねる。
-	// 束ねた後に前の回を外す。両方に当たる放送は、束ねた理由 (別の放送で録る、録画済み) を優先して出す (#1499)。
+	// イベント共有で落とした側の放送を除いてからまとめる。
+	// まとめた後に前の回を外す。両方に当たる放送は、まとめた理由 (別の放送で録る、録画済み) を優先して出す (#1499)。
 	bundled := map[programKey]*skippedProgram{}
 	if err := bundleSameEpisodes(ctx, tx, now, matched, skipped, bundled); err != nil {
 		return nil, err
 	}
-	// この照合で消えるルール予約は、前の回を比べる相手にしない。消える予約を理由に若い回を外すと、両方の予約が消える (#1724)。
+	// この照合で消えるルール予約は、前の回を比較する相手にしない。消える予約を理由に若い回を外すと、両方の予約が消える (#1724)。
 	removed, err := removedRuleReservations(ctx, tx, now, matched, keep, result)
 	if err != nil {
 		return nil, err
@@ -350,7 +350,7 @@ func (e *Engine) enabledRules(ctx context.Context, tx pgx.Tx, result *Result) ([
 		if !row.Enabled {
 			continue
 		}
-		// 条件を読めないルール (ローリング更新の途中で、新しい版が足した条件など) は飛ばし、ほかのルールの照合を続ける (#529)。
+		// 条件を読めないルール (ローリング更新の途中で、新しいバージョンが足した条件など) は飛ばし、ほかのルールの照合を続ける (#529)。
 		r, err := fromRow(row)
 		if err != nil {
 			result.Skipped[row.ID] = err
@@ -386,10 +386,10 @@ func toMatchProgram(row sqlc.ListMatchableProgramsRow) (*match.Program, error) {
 	for _, g := range upstreamGenres {
 		genres = append(genres, &match.Genre{Lv1: g.Lv1, Lv2: new(g.Lv2)})
 	}
-	// 番組ごとに NFKC で正規化し直すと重いので、同期で正規化して持った列を使う (#530)。
+	// 番組ごとに NFKC で正規化し直すと重いので、同期で正規化して持ったカラムを使う (#530)。
 	extended := row.ExtendedNormalized
 	if extended == nil {
-		// 列を足す前に書いた番組は、上流の詳細から正規化する。
+		// カラムを足す前に書いた番組は、上流の詳細から正規化する。
 		upstream := map[string]string{}
 		if err := json.Unmarshal(row.Extended, &upstream); err != nil {
 			return nil, fmt.Errorf("failed to decode the extended of program %d/%d: %w", row.ServiceID, row.EventID, err)
@@ -481,7 +481,7 @@ func (e *Engine) avoidDuplicates(
 }
 
 // CancelledBroadcastTolerance は、人が取り消した予約と同じ放送とみなす、開始の差の最大 (付録 A、#1504)。
-// イベント ID が変わる経路 (局の送り直しと、枝番の局の束ねが一時的に外れたとき) では、開始はほとんど動かない。
+// イベント ID が変わる経路 (局の送り直しと、枝番の局のまとめが一時的に外れたとき) では、開始はほとんど動かない。
 // 延長や繰り下げで開始が動いても、イベント ID が同じなら、取り消した予約そのものが番組を追う。
 // 一方、本番の番組表では、同じ局で同じ番組名の放送が 15 分未満の間隔で並ぶことがある (多くは穴埋めの番組)。
 // そうした別の回まで録らなくならないよう、短くする。
@@ -568,7 +568,7 @@ type keepPolicy struct {
 	// enabled は、照合した (有効で、条件を読めた) ルール。無効にしたか消したルールは含まない。
 	enabled map[uuid.UUID]*compiledRule
 	// slots は、サービスごとの、有効なルールのどれかに一致した、EPG にある番組の放送の枠 (#1875)。
-	// 絞り込む前の一致で作るので、apply と、前の回を比べる相手を選ぶ removedRuleReservations で同じものを見る。
+	// 絞り込む前の一致で作るので、apply と、前の回を比較する相手を選ぶ removedRuleReservations で同じものを見る。
 	slots map[int64][]broadcastSlot
 	// manuallyReserved は、EPG から消えた番組の有効な手動の予約の時刻に収まるので、予約すべき集合から外した番組 (#1903)。
 	// 絞り込みの中で excludeManuallyReservedSlots が入れる。
@@ -688,7 +688,7 @@ func (s broadcastSlot) contains(other broadcastSlot) bool {
 }
 
 // excludeManuallyReservedSlots は、番組が EPG から消えた有効な手動の予約の時刻 (開始から終了) に収まる、
-// 同じサービスの番組を、予約すべき集合 matched から外し、keep に覚える (#1903)。
+// 同じサービスの番組を、予約すべき集合 matched から外し、keep に保存する (#1903)。
 // 局が番組を別のイベント ID で出し直して差し替えると、古いイベントは EPG から消え、同じ枠に新しいイベントが入る。手動の予約は、
 // 手動を優先して消さず (#1875)、番組を見失っても予定の終わりまで録る (設計書 5.1) ので、新しいイベントをルールで予約すると 2 本録る。
 // 新しいイベントが予約の時刻からはみ出すとき (遅れる、延びるなど) は、手動の予約では録り逃すので外さない。2 本録るほうを選ぶ。
@@ -722,7 +722,7 @@ func excludeManuallyReservedSlots(
 	return nil
 }
 
-// apply は、予約すべき集合と既存の予約を突き合わせる。
+// apply は、予約すべき集合と既存の予約を照合する。
 func (e *Engine) apply(
 	ctx context.Context, tx pgx.Tx, now time.Time, desired map[programKey]*desiredProgram, keep *keepPolicy, result *Result,
 ) error {
@@ -785,7 +785,7 @@ func futureReservations(
 }
 
 // removedRuleReservations は、この照合の apply が消すルール予約の番組を返す。予約すべき集合 matched にない番組のルール予約を、
-// apply と同じ keepsUnmatched で確かめる (#1724)。
+// apply と同じ keepsUnmatched で確認する (#1724)。
 func removedRuleReservations(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, keep *keepPolicy, result *Result,
 ) (map[programKey]bool, error) {

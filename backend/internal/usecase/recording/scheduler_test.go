@@ -92,7 +92,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 }
 
-// streaming は、偽のチューナーサーバーのストリームを、誰かが開いているかどうかを返す。
+// streaming は、モックのチューナーサーバーのストリームを、誰かが開いているかどうかを返す。
 func (f *fixture) streaming(t *testing.T) bool {
 	t.Helper()
 
@@ -163,7 +163,7 @@ func (f *fixture) version(t *testing.T) int64 {
 	return version
 }
 
-// recordingsVersion は、録画の変更の通知の版数を返す (#868)。
+// recordingsVersion は、録画の変更の通知のバージョンを返す (#868)。
 func (f *fixture) recordingsVersion(t *testing.T) int64 {
 	t.Helper()
 
@@ -175,7 +175,7 @@ func (f *fixture) recordingsVersion(t *testing.T) int64 {
 }
 
 // TestSchedulerWritesAssignmentsBeforeStart は、録画の予定の開始の 2 分前になった予約にだけ割り振りを書き、
-// 競合した予約は優先度を下げ、書き直さないことを確かめる (設計書 1.5、1.6)。
+// 競合した予約は優先度を下げ、書き直さないことを確認する (設計書 1.5、1.6)。
 func TestSchedulerWritesAssignmentsBeforeStart(t *testing.T) {
 	t.Parallel()
 
@@ -199,14 +199,14 @@ func TestSchedulerWritesAssignmentsBeforeStart(t *testing.T) {
 	assert.Equal(t, map[int32]int{recording.Priority: 2, recording.ConflictPriority: 1}, priorities)
 	assert.Equal(t, int64(1), f.version(t), "mikan is notified")
 
-	// 書いた割り振りは書き直さず、変わらなければ知らせない。
+	// 書いた割り振りは書き直さず、変わらなければ通知しない。
 	assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 0}, f.schedule(t))
 	assert.Equal(t, int64(1), f.version(t))
 }
 
 // TestSchedulerSkipsConflictsWithoutPreemption は、チューナーを奪えないチューナーサーバー (EDCB) では、競合した予約を録りに行かず、
 // 割り当てた予約だけに割り振りを書き、録りに行かない予約は、予定の開始が過ぎたら、チューナーを確保できなかった録画の失敗として
-// 1 度だけ記録して通知することを確かめる (#1536、設計書 1.6)。
+// 1 度だけ記録して通知することを確認する (#1536、設計書 1.6)。
 func TestSchedulerSkipsConflictsWithoutPreemption(t *testing.T) {
 	t.Parallel()
 
@@ -275,7 +275,7 @@ func TestSchedulerSkipsConflictsWithoutPreemption(t *testing.T) {
 }
 
 // TestSchedulerDeletesStaleAssignments は、まだ mikan が取っていない割り振りのうち、録画しなくなった予約のものを消し、
-// mikan が取った割り振りは消さないことを確かめる。
+// mikan が取った割り振りは消さないことを確認する。
 func TestSchedulerDeletesStaleAssignments(t *testing.T) {
 	t.Parallel()
 
@@ -328,7 +328,7 @@ func TestSchedulerDeletesStaleAssignments(t *testing.T) {
 	}
 }
 
-// TestSchedulerSkipsFinishedReservations は、予定の終わりが過ぎた予約には割り振りを書かないことを確かめる。
+// TestSchedulerSkipsFinishedReservations は、予定の終わりが過ぎた予約には割り振りを書かないことを確認する。
 func TestSchedulerSkipsFinishedReservations(t *testing.T) {
 	t.Parallel()
 
@@ -339,7 +339,7 @@ func TestSchedulerSkipsFinishedReservations(t *testing.T) {
 }
 
 // TestSchedulerFailsStuckRecordings は、予定の終わりから 10 分が過ぎても「録画中」のままで、録画している割り振りもない録画を、
-// 失敗にして通知することを確かめる (#516)。録画している mikan がいなければ、ほかに録画を終える人がいない。
+// 失敗にして通知することを確認する (#516)。録画している mikan がいなければ、ほかに録画を終える人がいない。
 func TestSchedulerFailsStuckRecordings(t *testing.T) {
 	t.Parallel()
 
@@ -430,7 +430,7 @@ func TestSchedulerFailsStuckRecordings(t *testing.T) {
 }
 
 // TestSchedulerRecordsMissedRecordings は、mikan が 1 台も取らないまま予定の終わりが過ぎた割り振りを、消す前に、
-// 録画の失敗 (recorder_unavailable) として記録し、通知することを確かめる (#517)。記録しないと、録り逃したことに気づけない。
+// 録画の失敗 (recorder_unavailable) として記録し、通知することを確認する (#517)。記録しないと、録り逃したことに気づけない。
 func TestSchedulerRecordsMissedRecordings(t *testing.T) {
 	t.Parallel()
 
@@ -497,7 +497,7 @@ func TestSchedulerRecordsMissedRecordings(t *testing.T) {
 }
 
 // TestSchedulerFailsReleasedRecordingsWithTheirReason は、録画できずに手放されたまま予定の終わりが過ぎた録画を、
-// 手放した mikan が残した理由で失敗にすることを確かめる (#524)。
+// 手放した mikan が残した理由で失敗にすることを確認する (#524)。
 func TestSchedulerFailsReleasedRecordingsWithTheirReason(t *testing.T) {
 	t.Parallel()
 

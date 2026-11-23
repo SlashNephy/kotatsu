@@ -18,7 +18,7 @@ import (
 // testTS は、合成した 720×480 (画素の縦横比 1:1) の約 6 秒の TS。I フレームは 0.5 秒ごとにある。
 const testTS = "../../../testdata/ts/test.ts"
 
-// indexOf は、録画と同じく、TS を解析して索引を作る。
+// indexOf は、録画と同じく、TS を解析してインデックスを作る。
 func indexOf(t *testing.T, path string) []ts.IndexEntry {
 	t.Helper()
 
@@ -35,7 +35,7 @@ func indexOf(t *testing.T, path string) []ts.IndexEntry {
 	return index
 }
 
-// TestFFmpeg は、本物の FFmpeg で、合成した TS から代表画像とプレビュー画像を作ることを確かめる。
+// TestFFmpeg は、本物の FFmpeg で、合成した TS から代表画像とプレビュー画像を作ることを確認する。
 // FFmpeg のない環境 (CI など) では飛ばす。
 func TestFFmpeg(t *testing.T) {
 	t.Parallel()
@@ -61,7 +61,7 @@ func TestFFmpeg(t *testing.T) {
 	assert.Less(t, max(r, g, b)>>8, uint32(16), "the pillarbox is black")
 }
 
-// TestFFmpegCodecs は、本物の FFmpeg で、H.264 と HEVC の TS からも、索引を使って代表画像とプレビュー画像を作れることを確かめる。
+// TestFFmpegCodecs は、本物の FFmpeg で、H.264 と HEVC の TS からも、インデックスを使って代表画像とプレビュー画像を作れることを確認する。
 // どちらも 320×180 の約 4 秒の TS で、I フレームは約 1 秒ごとにある。FFmpeg のない環境 (CI など) では飛ばす。
 func TestFFmpegCodecs(t *testing.T) {
 	t.Parallel()
@@ -96,7 +96,7 @@ func TestFFmpegCodecs(t *testing.T) {
 	}
 }
 
-// TestFFmpegDeinterlace は、インターレースの映像から作る画像が、2 つのフィールドの混ざった二重写しにならないことを確かめる。
+// TestFFmpegDeinterlace は、インターレースの映像から作る画像が、2 つのフィールドの混ざった二重写しにならないことを確認する。
 // 映像は、黒地を幅 48 の白い棒がフィールドごとに 48 ずつ右へ動く、640×480 のインターレースの MPEG-2 で、次のように作った。
 //
 //	ffmpeg -f lavfi -i color=c=black:s=640x480:r=60000/1001:d=1 -f lavfi -i color=c=white:s=48x480:r=60000/1001:d=1 \
@@ -150,7 +150,7 @@ func TestFFmpegDeinterlace(t *testing.T) {
 	}
 }
 
-// TestNewFFmpegNotFound は、FFmpeg が PATH に見つからなければ、ErrFFmpegNotFound を返すことを確かめる。
+// TestNewFFmpegNotFound は、FFmpeg が PATH に見つからなければ、ErrFFmpegNotFound を返すことを確認する。
 // 環境変数を変えるので、ほかのテストと並べて動かさない。
 func TestNewFFmpegNotFound(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())

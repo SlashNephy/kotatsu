@@ -28,7 +28,7 @@ type PlayerSettingsChange struct {
 	UnsetPreferences []string
 }
 
-// UpdatePlayerSettings は、ユーザー userID のプレイヤーの設定を変え、同じユーザーのほかの端末に知らせる。変えた後の設定を返す。
+// UpdatePlayerSettings は、ユーザー userID のプレイヤーの設定を変え、同じユーザーのほかの端末に通知する。変えた後の設定を返す。
 func UpdatePlayerSettings(ctx context.Context, db Beginner, clk clock.Clock, userID uuid.UUID, change *PlayerSettingsChange) (*domain.PlayerSettings, error) {
 	var settings *domain.PlayerSettings
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {

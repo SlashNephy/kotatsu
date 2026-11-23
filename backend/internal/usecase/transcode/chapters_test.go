@@ -10,8 +10,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/transcode"
 )
 
-// TestPlaybackPosition は、日時を、途切れた区間を詰めた再生の時間にすることを確かめる。
-// web の再生画面の recordingPosition (frontend/src/yunomi/position.test.ts) と同じ例で、同じ値になることを確かめる (#1510)。
+// TestPlaybackPosition は、日時を、途切れた区間を詰めた再生の時間にすることを確認する。
+// web の再生画面の recordingPosition (frontend/src/yunomi/position.test.ts) と同じ例で、同じ値になることを確認する (#1510)。
 func TestPlaybackPosition(t *testing.T) {
 	t.Parallel()
 
@@ -43,7 +43,7 @@ func TestPlaybackPosition(t *testing.T) {
 	}
 }
 
-// TestBuildChapters は、CM の区間から、本編と CM を交互に並べたチャプターを作ることを確かめる (#1510)。
+// TestBuildChapters は、CM の区間から、本編と CM を交互に並べたチャプターを作ることを確認する (#1510)。
 func TestBuildChapters(t *testing.T) {
 	t.Parallel()
 
@@ -97,7 +97,7 @@ func TestBuildChapters(t *testing.T) {
 			want:     []transcode.Chapter{main(0, 100), cm(100, 130), main(130, duration)},
 		},
 		{
-			// 変換で先頭を捨てた分だけ、前に詰める。
+			// 変換で先頭を破棄した分だけ、前に詰める。
 			name:     "head",
 			sections: []cmdetect.Section{section(10, 40)},
 			head:     sec(5),
@@ -111,14 +111,14 @@ func TestBuildChapters(t *testing.T) {
 			want:     []transcode.Chapter{cm(0, 25), main(25, duration)},
 		},
 		{
-			// 詰めて 1 秒以下になった区間は捨てる。CM が残らなければ、チャプターを外す。
+			// 詰めて 1 秒以下になった区間は破棄する。CM が残らなければ、チャプターを外す。
 			name:     "too short after the head",
 			sections: []cmdetect.Section{section(10, 40)},
 			head:     sec(39.5),
 			want:     []transcode.Chapter{},
 		},
 		{
-			// MP4 の映像が音声より後から始まれば (先頭を捨てた長さが負なら)、後ろにずらす。
+			// MP4 の映像が音声より後から始まれば (先頭を破棄した長さが負なら)、後ろにずらす。
 			name:     "negative head",
 			sections: []cmdetect.Section{section(10, 40)},
 			head:     -sec(0.25),
@@ -146,7 +146,7 @@ func TestBuildChapters(t *testing.T) {
 	}
 }
 
-// TestFFMetadata は、チャプターを、ffmetadata 形式のミリ秒で書くことを確かめる (#1510)。
+// TestFFMetadata は、チャプターを、ffmetadata 形式のミリ秒で書くことを確認する (#1510)。
 func TestFFMetadata(t *testing.T) {
 	t.Parallel()
 

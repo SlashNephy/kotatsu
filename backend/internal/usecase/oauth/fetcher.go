@@ -33,7 +33,7 @@ const (
 	// 短すぎると認可のたびに取りに行き、長すぎるとクライアントがリダイレクト URI を変えても反映されない。
 	minFreshness = 5 * time.Minute
 	maxFreshness = 24 * time.Hour
-	// maxCacheEntries は、使い回すために覚えておくメタデータの数の上限。
+	// maxCacheEntries は、使い回すために保存しておくメタデータの数の上限。
 	maxCacheEntries = 1024
 )
 
@@ -45,11 +45,11 @@ var (
 	errTooManyRedirects = errors.New("too many redirects")
 )
 
-// Fetcher は、CIMD のクライアントのメタデータを取ってきて確かめ、しばらく使い回す。
+// Fetcher は、CIMD のクライアントのメタデータを取ってきて確認し、しばらく使い回す。
 //
 // client_id の URL は誰でも指定できるので、LAN の中のサーバーへ接続させないよう、接続するときのアドレスで
 // グローバルでないものを断る。名前解決の結果を後から変えられたときや、リダイレクトの先にも効く。
-// 使い回すのは tenban ごとのメモリの中で、エラーや正しくない文書は覚えない。
+// 使い回すのは tenban ごとのメモリの中で、エラーや正しくない文書はキャッシュしない。
 type Fetcher struct {
 	client *http.Client
 	clock  clock.Clock
@@ -95,7 +95,7 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
-// Fetch は、clientID のクライアントのメタデータを返す。覚えているものがまだ新しければ、それを返す。
+// Fetch は、clientID のクライアントのメタデータを返す。保存しているものがまだ新しければ、それを返す。
 // 返すメタデータは、ほかの呼び出しと共有するので、書き換えてはならない。
 // client_id が正しくなければ ErrInvalidClientID を、取ってこられなければ ErrClientMetadataUnavailable を、
 // 文書が正しくないか Kotatsu で使えなければ ErrInvalidClientMetadata を返す。
@@ -123,7 +123,7 @@ func (f *Fetcher) Fetch(ctx context.Context, clientID string) (*ClientMetadata, 
 	}
 }
 
-// cached は、覚えているメタデータがまだ新しければ返す。
+// cached は、保存しているメタデータがまだ新しければ返す。
 func (f *Fetcher) cached(clientID string) *ClientMetadata {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -170,8 +170,8 @@ func (f *Fetcher) fetch(ctx context.Context, clientID string) (*ClientMetadata, 
 	return &metadata, nil
 }
 
-// store は、取ってきたメタデータを覚える。覚えている数が上限に達していれば、古くなったものを捨て、
-// それでも空かなければ、最も前に取ってきたものを捨てる。
+// store は、取ってきたメタデータを保存する。保存している数が上限に達していれば、古くなったものを破棄し、
+// それでも空かなければ、最も前に取ってきたものを破棄する。
 func (f *Fetcher) store(clientID string, metadata *ClientMetadata, ttl time.Duration) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

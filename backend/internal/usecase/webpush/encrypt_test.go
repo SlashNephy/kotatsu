@@ -22,7 +22,7 @@ func decodeRFC(t *testing.T, value string) []byte {
 	return decoded
 }
 
-// TestEncryptRFC8291 は、RFC 8291 の付録 A の入力から、付録 A と同じ暗号文を作ることを確かめる。
+// TestEncryptRFC8291 は、RFC 8291 の付録 A の入力から、付録 A と同じ暗号文を作ることを確認する。
 func TestEncryptRFC8291(t *testing.T) {
 	t.Parallel()
 
@@ -44,7 +44,7 @@ func TestEncryptRFC8291(t *testing.T) {
 	assert.Equal(t, append(header, ciphertext...), got)
 }
 
-// TestEncryptRejects は、長すぎる平文と、正しくない購読の鍵を拒むことを確かめる。
+// TestEncryptRejects は、長すぎる平文と、正しくない購読の公開鍵を拒むことを確認する。
 func TestEncryptRejects(t *testing.T) {
 	t.Parallel()
 

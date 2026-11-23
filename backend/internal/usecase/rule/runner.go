@@ -28,7 +28,7 @@ type RunnerOptions struct {
 	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
 	// トランザクションプーリングを経由するときは true にする。
 	PollOnly bool
-	// PollInterval は、変更の通知の版数をポーリングする間隔。0 なら notify の既定値。
+	// PollInterval は、変更の通知のバージョンをポーリングする間隔。0 なら notify の既定値。
 	PollInterval time.Duration
 }
 

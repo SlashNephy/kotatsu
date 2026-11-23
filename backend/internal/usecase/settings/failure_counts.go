@@ -15,7 +15,7 @@ import (
 const failureCountAuditTarget = "recording_failure_count"
 
 // ResetRecordingFailureCounts は、理由 reasons の、録画の失敗の累計を 0 に、最後に失敗した日時を空に戻す (#1035、設計書 5.5)。
-// 検証で失敗させた分や、直した障害の分を消すのに使う。戻したことは、理由ごとに、戻す前の値とともに監査ログに残す。
+// 検証で失敗させた分や、解消した障害の分を消すのに使う。戻したことは、理由ごとに、戻す前の値とともに監査ログに残す。
 // 戻した日時は、/metrics の累計の作成の時刻にし、Prometheus や OTLP の受け手がカウンターのリセットとして扱えるようにする。
 func (s *Store) ResetRecordingFailureCounts(ctx context.Context, db Database, actor *audit.Actor, reasons []string) error {
 	if len(reasons) == 0 {
