@@ -4,7 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ProgramTitle } from '../futon';
+import { ProgramTitle, type HighlightKeyword } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { RecordingThumbnail } from './RecordingThumbnail';
 import { framePosition, type FramePosition } from './previewFrame';
@@ -78,7 +78,14 @@ const timeFormat = zonedFormat({
 
 // RecordingCard は、サムネイル付きの録画のカード。押すと、録画の詳細を開く。ホームと録画の一覧で使う。
 // 行の間は、放送中の番組のカードと揃える (番組名と放送時間は 4px、サービスとの間は xs)。
-export function RecordingCard({ recording }: { recording: RecordingCardData }) {
+// highlights は、番組名に印を付けるキーワード (#966)。録画の検索で絞ったときに渡す。
+export function RecordingCard({
+  recording,
+  highlights = [],
+}: {
+  recording: RecordingCardData;
+  highlights?: readonly HighlightKeyword[];
+}) {
   const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const slide = usePreviewSlideshow(recording.previewUrl, hovered);
@@ -161,7 +168,7 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
       <Stack gap={0} p="xs" flex={1}>
         {/* 番組名は 2 行までにし、1 行でも 2 行分の高さを取って、並んだカードの日時やサービスの行を揃える。 */}
         <Text size="sm" lineClamp={2} mih="2lh">
-          <ProgramTitle name={recording.name} />
+          <ProgramTitle name={recording.name} highlights={highlights} />
         </Text>
         <Box flex={1}>
           <Group gap={6} pt={4}>

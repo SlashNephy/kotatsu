@@ -1,6 +1,7 @@
 import { Badge } from '@mantine/core';
 
 import { toHalfWidth } from './halfWidth';
+import { highlightRanges, type HighlightKeyword } from './highlight';
 import classes from './ProgramMarks.module.css';
 import { splitProgramMarks } from './programMarks';
 
@@ -34,14 +35,49 @@ export function ProgramMarkBadges({ marks }: { marks: readonly string[] }) {
 }
 
 // ProgramTitle は、番組名から囲み文字を外し、番組名の後ろに印として並べる。全角の英数字は半角にする。囲み文字は、フォントによっては潰れて読めない。
-// アプリの中で番組名を出すところは、これを使う。
-export function ProgramTitle({ name }: { name: string }) {
+// アプリの中で番組名を出すところは、これを使う。highlights を渡すと、番組名のうち、そのキーワードに当たった所に印を付ける (#966)。
+export function ProgramTitle({
+  name,
+  highlights = [],
+}: {
+  name: string;
+  highlights?: readonly HighlightKeyword[];
+}) {
   const program = splitProgramMarks(name);
+  const title = toHalfWidth(program.name);
 
   return (
     <>
-      {toHalfWidth(program.name)}
+      <HighlightedText text={title} keywords={highlights} />
       <ProgramMarkBadges marks={program.marks} />
     </>
   );
+}
+
+// HighlightedText は、text のうち、keywords に当たった所を <mark> で囲んで出す。
+function HighlightedText({
+  text,
+  keywords,
+}: {
+  text: string;
+  keywords: readonly HighlightKeyword[];
+}) {
+  const ranges = keywords.length === 0 ? [] : highlightRanges(text, keywords);
+  if (ranges.length === 0) {
+    return text;
+  }
+  const parts = [];
+  let at = 0;
+  for (const range of ranges) {
+    parts.push(text.slice(at, range.start));
+    parts.push(
+      <mark key={range.start} className={classes.highlight}>
+        {text.slice(range.start, range.end)}
+      </mark>,
+    );
+    at = range.end;
+  }
+  parts.push(text.slice(at));
+
+  return parts;
 }

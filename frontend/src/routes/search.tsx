@@ -25,6 +25,7 @@ import {
   hasConditions,
   toConditionsInput,
   type ConditionsForm,
+  nameHighlights,
 } from '../conditions/form';
 import { ProgramList } from '../conditions/ProgramList';
 import { EmptyState, ErrorBoundary, PageLoader, useDocumentTitle } from '../futon';
@@ -336,7 +337,12 @@ function Search() {
               <EmptyState icon={SearchX} title={t('search.empty')} hint={t('search.emptyHint')} />
             )}
             {enabled && page !== null && page.results.length > 0 && (
-              <ProgramList programs={page.results} onSelect={setSelected} />
+              <ProgramList
+                programs={page.results}
+                onSelect={setSelected}
+                // 印は、結果を読んだときの条件で付ける。打っている途中の条件では付けない。
+                highlights={nameHighlights(page.variables.conditions.keywords)}
+              />
             )}
             {enabled && page?.next != null && (
               <Button
