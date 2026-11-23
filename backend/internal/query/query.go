@@ -8,7 +8,7 @@
 //     (行のロック、書いた直後の読み直し、確認してから書く処理) は usecase が持つ。
 //   - 状態遷移を伴う副作用を持ってはならない。書き込みは usecase の責務。
 //   - sqlc の行型を返してはならない。domain の型に直して返す。
-//   - 行が見つからないとき、sqlc の問い合わせをコピーしたメソッドは pgx.ErrNoRows をそのまま返す。usecase から移した
+//   - 行が見つからないとき、sqlc の問い合わせと同じ形のメソッドは pgx.ErrNoRows をそのまま返す。usecase から移した
 //     メソッドは、移す前と同じ domain のエラー (domain.ErrReservationNotFound など) を返す。
 package query
 
