@@ -348,7 +348,7 @@ export const ResetFailuresFailed: Story = {
 export const Inspected: Story = {
   args: { overrides: { ...withStatus(), ...inspection } },
   play: async ({ canvas }) => {
-    await userEvent.click(await canvas.findByRole('button', { name: '調べる' }));
+    await userEvent.click(await canvas.findByRole('button', { name: '調査する' }));
   },
 };
 

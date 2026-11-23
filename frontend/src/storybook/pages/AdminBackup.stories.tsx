@@ -69,7 +69,7 @@ export const RunRequested: Story = {
     },
   },
   play: async ({ canvas }) => {
-    await userEvent.click(await canvas.findByRole('button', { name: '今すぐ書き出す' }));
+    await userEvent.click(await canvas.findByRole('button', { name: '今すぐバックアップする' }));
   },
 };
 
