@@ -86,6 +86,10 @@ export class AdtsSplitter {
       }
       offset += length;
     }
+    // この PES の中で始まったフレームが、次の PES へまたがって切れたら、そのフレームにこの PES の PTS を当てる。
+    if (pesStart === null && pts !== null && offset >= resumeAt && offset < data.length) {
+      time = pts;
+    }
     this.carry = data.slice(offset);
     this.next = time;
 

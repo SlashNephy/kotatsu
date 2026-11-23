@@ -328,6 +328,27 @@ describe('TsDemuxer', () => {
     ]);
   });
 
+  test('PES_packet_length の分がそろったら、次の頭を待たずに渡す', () => {
+    const { demuxer, pesList } = demux(1024);
+    // 字幕の PES は、PES_packet_length を持つ。2 つのパケットにまたがる大きさにする。
+    const caption = Array.from({ length: 300 }, (_, i) => i & 0xff);
+    const data = pes(0xbd, caption, 9_000);
+    data[4] = (data.length - 6) >> 8;
+    data[5] = (data.length - 6) & 0xff;
+    demuxer.push(
+      concat([
+        ...packets(0, pat([{ serviceId: 1024, pmtPid: 0x1f0 }]), { section: true }),
+        ...packets(0x1f0, pmt(1024, streams), { section: true }),
+        ...packets(0x130, data),
+      ]),
+    );
+
+    // flush も、次の PES の頭も送らない。
+    expect(pesList.map(({ kind, pts, data }) => ({ kind, pts, data: [...data] }))).toEqual([
+      { kind: 'captions', pts: 9_000, data: caption },
+    ]);
+  });
+
   test('重複して送られたパケットは、二重につながない', () => {
     const { demuxer, pesList } = demux(1024);
     const video = packets(

@@ -65,6 +65,22 @@ describe('AdtsSplitter', () => {
     ]);
   });
 
+  test('PES の中で始まったフレームが次の PES へまたがっても、そのフレームに PES の PTS を当てる', () => {
+    const splitter = new AdtsSplitter();
+    const first = adts(30, 1);
+    const second = adts(30, 2);
+
+    splitter.push(new Uint8Array(first.slice(0, 12)), 0);
+    // 2 つ目の PES の PTS は、その中で始まる 2 つ目のフレームの時刻。パケットが落ちて時刻が飛んだ場合。
+    const a = splitter.push(new Uint8Array([...first.slice(12), ...second.slice(0, 5)]), 50_000);
+    const b = splitter.push(new Uint8Array(second.slice(5)), null);
+
+    expect([...a, ...b].map(({ pts, data }) => ({ pts, fill: data[7] }))).toEqual([
+      { pts: 0, fill: 1 },
+      { pts: 50_000, fill: 2 },
+    ]);
+  });
+
   test('PTS のない PES は、前のフレームの続きの時刻にする', () => {
     const splitter = new AdtsSplitter();
     splitter.push(new Uint8Array(adts(10, 1)), 1_000);

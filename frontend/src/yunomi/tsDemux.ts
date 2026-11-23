@@ -73,6 +73,8 @@ type PesBuffer = {
   kind: TsStreamKind;
   chunks: Uint8Array[];
   size: number;
+  // expected は、PES_packet_length から分かる PES の大きさ。0 (映像) なら null で、次の頭まで組み立てる。
+  expected: number | null;
   discontinuous: boolean;
 };
 
@@ -395,13 +397,16 @@ export class TsDemuxer {
         previous.discontinuous = true;
       }
       this.finishPes(pid);
+      const length = payload.length >= 6 ? (payload[4]! << 8) | payload[5]! : 0;
       this.pes.set(pid, {
         stream: entry.stream,
         kind: entry.kind,
         chunks: [payload.slice()],
         size: payload.length,
+        expected: length > 0 ? 6 + length : null,
         discontinuous: false,
       });
+      this.finishIfComplete(pid);
 
       return;
     }
@@ -415,6 +420,16 @@ export class TsDemuxer {
     }
     buffer.chunks.push(payload.slice());
     buffer.size += payload.length;
+    this.finishIfComplete(pid);
+  }
+
+  // finishIfComplete は、PES_packet_length の分がそろった PES を、次の頭を待たずに渡す。
+  // 字幕と文字スーパーの PES は約 1 秒おきに届くので、次の頭を待つと、出すのがその分遅れる。
+  private finishIfComplete(pid: number): void {
+    const buffer = this.pes.get(pid);
+    if (buffer !== undefined && buffer.expected !== null && buffer.size >= buffer.expected) {
+      this.finishPes(pid);
+    }
   }
 
   private finishPes(pid: number): void {
@@ -423,12 +438,17 @@ export class TsDemuxer {
       return;
     }
     this.pes.delete(pid);
-    const packet = new Uint8Array(buffer.size);
+    const whole = new Uint8Array(buffer.size);
     let offset = 0;
     for (const chunk of buffer.chunks) {
-      packet.set(chunk, offset);
+      whole.set(chunk, offset);
       offset += chunk.length;
     }
+    // PES_packet_length より後ろは、パケットの詰め物なので外す。
+    const packet =
+      buffer.expected !== null && buffer.expected < whole.length
+        ? whole.subarray(0, buffer.expected)
+        : whole;
     const parsed = parsePes(packet);
     if (parsed === null) {
       return;
