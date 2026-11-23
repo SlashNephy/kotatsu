@@ -372,3 +372,14 @@ ON CONFLICT (recording_id) DO UPDATE SET path = excluded.path, checked_at = excl
 
 -- name: GetRecordingNicologPath :one
 SELECT path FROM recording_nicolog_files WHERE recording_id = @recording_id AND path IS NOT NULL;
+
+-- name: ListSyobocalTitleKeys :many
+-- しょぼいカレンダーのタイトルと鍵を、TID が after より後のものから TID の順に max_count 件返す (#2041)。kotatsu migrate が鍵を作り直すのに使う。
+SELECT tid, title, title_key FROM syobocal_titles
+WHERE tid > @after::integer
+ORDER BY tid
+LIMIT @max_count;
+
+-- name: SetSyobocalTitleKey :batchexec
+-- しょぼいカレンダーのタイトルの鍵を書く (#2041)。
+UPDATE syobocal_titles SET title_key = @title_key WHERE tid = @tid;

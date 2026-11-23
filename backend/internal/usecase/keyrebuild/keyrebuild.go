@@ -1,4 +1,4 @@
-// Package keyrebuild は、Go で番組名から計算して DB に保存したキーを、今のバイナリの計算に合わせて作り直す (#1977、#1978、設計書 11.4)。
+// Package keyrebuild は、Go で番組名や作品名から計算して DB に保存したキーを、今のバイナリの計算に合わせて作り直す (#1977、#1978、#2041、設計書 11.4)。
 //
 // キーの計算を直すと、保存したキーと、同じ番組名から今計算したキーが食い違い、重複の回避やドラマの上書きが効かなくなる。
 // kotatsu migrate (とバックアップを戻すとき) に、マイグレーションの後で呼ぶ。保存したキーと今のキーが違う行だけを書き直すので、
@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
@@ -26,13 +27,59 @@ import (
 // batchSize は、1 回に読む行の数。
 const batchSize = 500
 
-// Run は、録画履歴のキーと、ドラマの作品名の鍵を作り直す。
+// Run は、録画履歴のキーと、ドラマの作品名の鍵と、しょぼいカレンダーのタイトルの鍵を作り直す。
 func Run(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
 	if err := rebuildHistoryTitleKeys(ctx, logger, pool); err != nil {
 		return err
 	}
+	if err := rebuildDramaTitleKeys(ctx, logger, pool); err != nil {
+		return err
+	}
 
-	return rebuildDramaTitleKeys(ctx, logger, pool)
+	return rebuildSyobocalTitleKeys(ctx, logger, pool)
+}
+
+// rebuildSyobocalTitleKeys は、しょぼいカレンダーのタイトルの鍵 (syobocal_titles.title_key) を、タイトルから計算し直した鍵
+// (anime.TitleKey) に書き直す (#2041)。タイトルの取り込みは、前に取り込んでから更新されたタイトルしか読み直さないので、
+// 鍵の計算を直したら、ここで書き直す。
+func rebuildSyobocalTitleKeys(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
+	q := sqlc.New(pool)
+	after := int32(0)
+	rebuilt := 0
+	for {
+		rows, err := q.ListSyobocalTitleKeys(ctx, sqlc.ListSyobocalTitleKeysParams{After: after, MaxCount: batchSize})
+		if err != nil {
+			return fmt.Errorf("failed to list the syobocal title keys: %w", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		after = rows[len(rows)-1].Tid
+		params := []sqlc.SetSyobocalTitleKeyParams{}
+		for _, row := range rows {
+			if key := anime.TitleKey(row.Title); key != row.TitleKey {
+				params = append(params, sqlc.SetSyobocalTitleKeyParams{Tid: row.Tid, TitleKey: key})
+			}
+		}
+		if len(params) == 0 {
+			continue
+		}
+		errs := []error{}
+		q.SetSyobocalTitleKey(ctx, params).Exec(func(i int, err error) {
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to set the title key of syobocal title %d: %w", params[i].Tid, err))
+			}
+		})
+		if err := errors.Join(errs...); err != nil {
+			return err
+		}
+		rebuilt += len(params)
+	}
+	if rebuilt > 0 {
+		logger.InfoContext(ctx, "syobocal title keys rebuilt", slog.Int("count", rebuilt))
+	}
+
+	return nil
 }
 
 // rebuildHistoryTitleKeys は、録画履歴の重複の回避のキー (title_key) を、番組名から計算し直したキー (rule.TitleKey) に書き直す (#1977)。

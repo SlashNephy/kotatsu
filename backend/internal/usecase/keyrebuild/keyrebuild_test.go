@@ -65,6 +65,35 @@ func TestRunRebuildsHistoryTitleKeys(t *testing.T) {
 	}
 }
 
+// TestRunRebuildsSyobocalTitleKeys は、しょぼいカレンダーのタイトルの鍵を、今の計算に合わせて書き直すことを確かめる (#2041)。
+func TestRunRebuildsSyobocalTitleKeys(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+	// 直す前の鍵は、波ダッシュを ~ にそろえていなかった。
+	rows := []struct {
+		tid                 int32
+		title, stored, want string
+	}{
+		{tid: 1, title: "作品名〜副題〜", stored: "作品名〜副題〜", want: "作品名~副題~"},
+		{tid: 2, title: "作品名 第2期", stored: "作品名第2期", want: "作品名第2期"},
+	}
+	for _, row := range rows {
+		_, err := db.Exec(t.Context(), "INSERT INTO syobocal_titles (tid, title, title_key) VALUES ($1, $2, $3)", row.tid, row.title, row.stored)
+		require.NoError(t, err)
+	}
+
+	// 2 回目は何も変えない。
+	for range 2 {
+		require.NoError(t, keyrebuild.Run(t.Context(), slog.New(slog.DiscardHandler), db))
+		for _, row := range rows {
+			var got string
+			require.NoError(t, db.QueryRow(t.Context(), "SELECT title_key FROM syobocal_titles WHERE tid = $1", row.tid).Scan(&got))
+			assert.Equal(t, row.want, got, row.title)
+		}
+	}
+}
+
 func TestRunRebuildsDramaTitleKeys(t *testing.T) {
 	t.Parallel()
 
