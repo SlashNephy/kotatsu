@@ -152,6 +152,7 @@ import {
   seekLimit,
 } from '../../library/library';
 import type { playLibraryFileQuery } from './__generated__/playLibraryFileQuery.graphql';
+import { mediaOf } from '../../yunomi/playerMedia';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -371,9 +372,11 @@ function Player({
   const pip = useDocumentPictureInPicture();
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
+  const media = video === null ? null : mediaOf(video);
   const videoState = useVideoState(video);
-  const autoplay = useAutoplayBlocked(video);
-  const videoLoading = useVideoLoading(video);
+  const autoplay = useAutoplayBlocked(media);
+  const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
   const overlaid = fullscreen.active || pip.container !== null;
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -493,11 +496,11 @@ function Player({
   // 再生できない経路 (8K や kyusu のない UHD) では、配信に HEAD を送らない。
   const stream = useSeekableStream(
     file.streamUrl,
-    video,
+    media,
     initialPosition,
     route.kind === 'convert',
   );
-  const hlsStream = useHlsStream(video, hls, initialPosition);
+  const hlsStream = useHlsStream(media, hls, initialPosition);
   const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
   const [seeking, setSeeking] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -699,7 +702,7 @@ function Player({
   );
   useEffect(() => () => skipper.dispose(), [skipper]);
   // 判定は、映ったコマごとに、そのコマの時刻で行う。読み直していて位置を信じられない間は、位置を渡さない。
-  useVideoFrames(video, ({ mediaTime, presented }) => {
+  useVideoFrames(media, ({ mediaTime, presented }) => {
     if (video === null) {
       return;
     }
@@ -1367,7 +1370,7 @@ function Player({
               content: (
                 <StreamInfo
                   meter={streamMeter.meter}
-                  video={video}
+                  media={media}
                   quality={quality}
                   kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                   audios={audios}

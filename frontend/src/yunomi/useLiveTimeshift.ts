@@ -6,6 +6,7 @@ import { broadcastTime, recordingPosition, type Gap } from './position';
 import { useHlsStream } from './useHlsStream';
 import { useSeekableStream, type SeekableStream } from './useSeekableStream';
 import { browserStorage } from './volume';
+import type { PlayerMedia } from './playerMedia';
 
 // TimeshiftBuffer は、サービスのタイムシフトのバッファの、再生できる範囲 (設計書 5.7)。
 export type TimeshiftBuffer = {
@@ -68,7 +69,7 @@ export type LiveTimeshift = {
 // service を渡せば、バッファを見ていた位置を端末に覚え、同じサービスのライブ視聴に戻ったときに、その位置から再開する (#1600)。
 export function useLiveTimeshift(
   buffer: TimeshiftBuffer | null,
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   mode: TimeshiftMode,
   service: string | null = null,
 ): LiveTimeshift {
@@ -78,9 +79,9 @@ export function useLiveTimeshift(
   // 経路を替えてバッファを再生できなくなったら、ライブに戻ったものとして扱う。
   const behind = available && pinned !== null;
   const frame = behind ? pinned : buffer;
-  const stream = useSeekableStream(frame?.streamUrl ?? '', video, 0, behind && mode === 'convert');
+  const stream = useSeekableStream(frame?.streamUrl ?? '', media, 0, behind && mode === 'convert');
   const hlsBehind = behind && mode === 'hls';
-  const hls = useHlsStream(video, hlsBehind);
+  const hls = useHlsStream(media, hlsBehind);
   const now = useNow(1000);
   const positionAt = (at: number) =>
     frame === null ? 0 : recordingPosition(frame.from, frame.gaps, at);
@@ -138,12 +139,12 @@ export function useLiveTimeshift(
   positionAtRef.current = positionAt;
   const live = !behind && available;
   useEffect(() => {
-    if (video === null || !live) {
+    if (media === null || !live) {
       return;
     }
     let pausedAt: number | null = null;
     const pause = () => {
-      if (!video.ended) {
+      if (!media.ended) {
         pausedAt = Date.now();
       }
     };
@@ -153,14 +154,14 @@ export function useLiveTimeshift(
       }
       pausedAt = null;
     };
-    video.addEventListener('pause', pause);
-    video.addEventListener('play', play);
+    media.addEventListener('pause', pause);
+    media.addEventListener('play', play);
 
     return () => {
-      video.removeEventListener('pause', pause);
-      video.removeEventListener('play', play);
+      media.removeEventListener('pause', pause);
+      media.removeEventListener('play', play);
     };
-  }, [video, live]);
+  }, [media, live]);
 
   const currentPosition = hlsBehind ? hls.currentPosition : stream.currentPosition;
   const currentPositionRef = useRef(currentPosition);

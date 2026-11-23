@@ -160,6 +160,7 @@ import {
 } from '../../yunomi/recentChannels';
 import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
+import { mediaOf } from '../../yunomi/playerMedia';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -416,10 +417,12 @@ function Live({
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
   // video は、今の video の要素。画質を変えたときに作り直される。
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
+  const media = video === null ? null : mediaOf(video);
   const videoState = useVideoState(video);
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
-  const autoplay = useAutoplayBlocked(video);
-  const videoLoading = useVideoLoading(video);
+  const autoplay = useAutoplayBlocked(media);
+  const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
   // overlaid は、プレイヤーだけを出していて、ページの知らせやリモコンが見えないかどうか。そのときは、映像に重ねて出す (#435)。
   const overlaid = fullscreen.active || pip.container !== null;
@@ -461,12 +464,12 @@ function Live({
   // バッファを見ていた位置は、サービスごとに端末に覚え、戻ったときにその位置から再開する (#1600)。
   const timeshift = useLiveTimeshift(
     data.node?.__typename === 'Service' ? (data.node.timeshiftBuffer ?? null) : null,
-    video,
+    media,
     route.kind === 'convert' ? 'convert' : route.kind === 'kyusu' ? 'hls' : null,
     serviceId,
   );
   // 実際に再生した区間を送り、見たアニメを記録させる (#927)。バッファを再生している間は、その位置の放送時刻を使う。
-  usePlaybackReporter(data.node?.__typename === 'Service' ? { serviceId } : null, video, () =>
+  usePlaybackReporter(data.node?.__typename === 'Service' ? { serviceId } : null, media, () =>
     timeshift.behind ? timeshift.clockAt(timeshift.currentPosition()) : Date.now(),
   );
   // seeking は、シークバーを動かしている間の位置。
@@ -482,7 +485,7 @@ function Live({
   // 回線が足りなければ段を下げ、余裕が戻れば上げる (#1513)。ライブは実時間でしか届かないので試しのデータで、
   // バッファの再生は先に読むので受け取りの速さで、余裕を確かめる。
   const adaptive = useAdaptiveQuality(
-    video,
+    media,
     {
       ...playback,
       // バッファを再生している間に段を替えるときは、画質のメニューと同じく、今の位置から読み直す。
@@ -634,7 +637,7 @@ function Live({
   // 実況のコメントは、ライブの端を見ている間、放送の時計で場面に合わせる (#1515)。kyusu の経路も、ライブのセグメントは放送の PTS のままなので合わせられる。
   const broadcast = useBroadcastClock(
     jikkyoEnabled && channelId !== null && visible && !timeshift.behind ? serviceId : null,
-    video,
+    media,
     streamMeter.meter,
   );
   const jikkyo = useLiveJikkyo(
@@ -672,7 +675,7 @@ function Live({
   // tuneRequest は、データ放送の文書が選局しようとしたサービス。確かめてから移る (#440)。
   const [tuneRequest, setTuneRequest] = useState<{ id: string; name: string } | null>(null);
   // バッファへシークできるなら、長く止めた後も、止めた位置からバッファで続けるので、読み直さない。
-  const behind = useLiveLag(video, {
+  const behind = useLiveLag(media, {
     reloadOnResume: route.kind === 'convert' && !timeshift.available,
     onReload: reload,
   });
@@ -1500,7 +1503,7 @@ function Live({
                       videoLag={adaptive.videoLag}
                       network={adaptive.network}
                       meter={streamMeter.meter}
-                      video={video}
+                      media={media}
                       quality={playback.current}
                       kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                       audios={program?.audios ?? null}

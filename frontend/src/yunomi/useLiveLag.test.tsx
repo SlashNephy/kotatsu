@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { liveReloadAfterMs, useLiveLag } from './useLiveLag';
+import { mediaOf } from './playerMedia';
 
 function fire(video: HTMLVideoElement, type: string) {
   act(() => {
@@ -40,7 +41,7 @@ describe('useLiveLag', () => {
   ])('$name', ({ pausedMs, reloadOnResume, reloads }) => {
     const video = document.createElement('video');
     const onReload = vi.fn();
-    const { result } = renderHook(() => useLiveLag(video, { reloadOnResume, onReload }));
+    const { result } = renderHook(() => useLiveLag(mediaOf(video), { reloadOnResume, onReload }));
     expect(result.current).toBe(false);
 
     fire(video, 'pause');
@@ -60,7 +61,7 @@ describe('useLiveLag', () => {
   test('読み直した後に再開しても、前の一時停止で読み直さない', () => {
     const video = document.createElement('video');
     const onReload = vi.fn();
-    renderHook(() => useLiveLag(video, { reloadOnResume: true, onReload }));
+    renderHook(() => useLiveLag(mediaOf(video), { reloadOnResume: true, onReload }));
 
     fire(video, 'pause');
     act(() => {
@@ -75,7 +76,7 @@ describe('useLiveLag', () => {
     const video = document.createElement('video');
     Object.defineProperty(video, 'ended', { configurable: true, get: () => true });
     const { result } = renderHook(() =>
-      useLiveLag(video, { reloadOnResume: true, onReload: vi.fn() }),
+      useLiveLag(mediaOf(video), { reloadOnResume: true, onReload: vi.fn() }),
     );
 
     fire(video, 'pause');

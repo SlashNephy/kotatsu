@@ -13,6 +13,7 @@ import {
 import { ReceiveMeter } from './receiveRate';
 import type { HlsSegment, TsPlayerReading } from './streamMeter';
 import type { VideoLag } from './useVideoLag';
+import type { PlayerMedia } from './playerMedia';
 
 // NetworkPlayback は、usePlaybackRoute のうち、回線のために段を動かすのに使う部分。
 export type NetworkPlayback = {
@@ -57,8 +58,8 @@ const haveFutureData = 3;
 const selfLimitAhead = 6;
 
 // aheadOf は、今の位置から先に読み込んである量 (秒)。
-function aheadOf(video: HTMLVideoElement): number {
-  const { buffered, currentTime } = video;
+function aheadOf(media: PlayerMedia): number {
+  const { buffered, currentTime } = media;
   for (let i = 0; i < buffered.length; i++) {
     if (buffered.start(i) <= currentTime && currentTime <= buffered.end(i)) {
       return buffered.end(i) - currentTime;
@@ -72,7 +73,7 @@ function aheadOf(video: HTMLVideoElement): number {
 // 決める部分は networkQuality.ts にあり、ここは video の要素とプレイヤーから測って渡し、決めたとおりに段を動かし、試しのデータを取る。
 // 制御は、画面を開いている間は、段を替えて video が変わっても引き継ぐ。
 export function useNetworkQuality(
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   playback: NetworkPlayback,
   options: NetworkQualityOptions,
 ): NetworkQuality {
@@ -112,7 +113,7 @@ export function useNetworkQuality(
   }, [meter, options.mode, playback.current]);
 
   useEffect(() => {
-    if (video === null) {
+    if (media === null) {
       return;
     }
     let waiting = false;
@@ -134,7 +135,7 @@ export function useNetworkQuality(
     // 数え直すと、細い回線で数秒おきに端へ移る間、切り替え直後の無視時間が続き、兆しを一度も見られない。
     const internalSeek = () => read().mode === 'probe';
     const onWaiting = () => {
-      if (!video.paused && (!video.seeking || internalSeek()) && !excused()) {
+      if (!media.paused && (!media.seeking || internalSeek()) && !excused()) {
         waiting = true;
       }
     };
@@ -153,29 +154,31 @@ export function useNetworkQuality(
       waiting = false;
       controller.restart(performance.now());
     };
-    video.addEventListener('waiting', onWaiting);
-    video.addEventListener('playing', onPlaying);
+    media.addEventListener('waiting', onWaiting);
+    media.addEventListener('playing', onPlaying);
     // 選局やつなぎ直しで読み込み直したら、新しい映像が映り出してから数え直す (ライブのシークでは数え直さないため)。
     const onLoadStart = () => {
       waiting = false;
       started.current = false;
     };
-    video.addEventListener('seeking', onSeeking);
-    video.addEventListener('loadstart', onLoadStart);
-    video.addEventListener('play', onResume);
+    media.addEventListener('seeking', onSeeking);
+    media.addEventListener('loadstart', onLoadStart);
+    media.addEventListener('play', onResume);
     document.addEventListener('visibilitychange', onResume);
 
     let frameRequest: number | null = null;
-    const frames = typeof video.requestVideoFrameCallback === 'function';
+    const requestFrame = media.requestVideoFrameCallback;
+    const cancelFrame = media.cancelVideoFrameCallback;
+    const frames = requestFrame !== undefined;
     const onFrame = () => {
-      if (stopped) {
+      if (stopped || requestFrame === undefined) {
         return;
       }
       start(performance.now());
-      frameRequest = video.requestVideoFrameCallback(onFrame);
+      frameRequest = requestFrame(onFrame);
     };
-    if (frames) {
-      frameRequest = video.requestVideoFrameCallback(onFrame);
+    if (requestFrame !== undefined) {
+      frameRequest = requestFrame(onFrame);
     }
 
     const probe = (bytes: number) => {
@@ -211,21 +214,21 @@ export function useNetworkQuality(
       if (state.current === null) {
         return;
       }
-      const ahead = aheadOf(video);
+      const ahead = aheadOf(media);
       const active =
-        !video.paused &&
-        (!video.seeking || state.mode === 'probe') &&
-        !video.ended &&
+        !media.paused &&
+        (!media.seeking || state.mode === 'probe') &&
+        !media.ended &&
         (document.visibilityState === 'visible' ||
           state.pictureInPicture ||
-          document.pictureInPictureElement === video);
+          document.pictureInPictureElement === media.element);
       if (!active) {
         lastFrameAt = now;
       }
       if (state.convert && state.mode === 'rate' && ahead >= selfLimitAhead) {
         meter.limit(now);
       }
-      const { buffered } = video;
+      const { buffered } = media;
       const receiveRate =
         state.mode === 'rate' && !state.convert
           ? meter.throughput(now)
@@ -241,7 +244,7 @@ export function useNetworkQuality(
           active,
           started: started.current,
           waiting: waiting && !excused(),
-          lowReadyState: video.readyState < haveFutureData,
+          lowReadyState: media.readyState < haveFutureData,
           // 音声だけの段と、コマごとのコールバックが無い端末では、コマの途絶を測らない。
           frameAgeMs: frames && state.current !== audioStep ? now - lastFrameAt : null,
           ahead,
@@ -284,16 +287,16 @@ export function useNetworkQuality(
       stopped = true;
       window.clearInterval(timer);
       if (frameRequest !== null) {
-        video.cancelVideoFrameCallback(frameRequest);
+        cancelFrame?.(frameRequest);
       }
-      video.removeEventListener('waiting', onWaiting);
-      video.removeEventListener('playing', onPlaying);
-      video.removeEventListener('seeking', onSeeking);
-      video.removeEventListener('loadstart', onLoadStart);
-      video.removeEventListener('play', onResume);
+      media.removeEventListener('waiting', onWaiting);
+      media.removeEventListener('playing', onPlaying);
+      media.removeEventListener('seeking', onSeeking);
+      media.removeEventListener('loadstart', onLoadStart);
+      media.removeEventListener('play', onResume);
       document.removeEventListener('visibilitychange', onResume);
     };
-  }, [video, controller, meter]);
+  }, [media, controller, meter]);
 
   // 画面を閉じたら、取っている試しのデータを打ち切る。
   useEffect(
@@ -304,7 +307,7 @@ export function useNetworkQuality(
   );
 
   return {
-    status: () => (video === null ? null : controller.status(performance.now())),
+    status: () => (media === null ? null : controller.status(performance.now())),
     onReading: (reading) => {
       const last = lastReading.current;
       if (reading.seeking) {

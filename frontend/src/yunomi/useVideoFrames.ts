@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 
+import type { PlayerFrameMetadata, PlayerMedia } from './playerMedia';
+
 // VideoFrame は、映ったコマ 1 つ分の知らせ。
 export type VideoFrame = {
   // mediaTime は、そのコマの時刻 (requestVideoFrameCallback の mediaTime)。
@@ -13,28 +15,30 @@ export type VideoFrame = {
 // requestVideoFrameCallback があれば使い、なければ requestAnimationFrame で代える。一時停止の間は、requestVideoFrameCallback は来ない。
 // 取りこぼしを防ぐため、timeupdate でも呼ぶ。video を作り直したら (画質の切り替え、つなぎ直し)、付け直す。
 export function useVideoFrames(
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   onFrame: (frame: VideoFrame) => void,
 ): void {
   const handler = useRef(onFrame);
   handler.current = onFrame;
   useEffect(() => {
-    if (video === null) {
+    if (media === null) {
       return;
     }
     let stopped = false;
     let cancel: () => void;
-    if (typeof video.requestVideoFrameCallback === 'function') {
+    const request = media.requestVideoFrameCallback;
+    const cancelFrame = media.cancelVideoFrameCallback;
+    if (request !== undefined && cancelFrame !== undefined) {
       let id = 0;
-      const next = (_now: number, metadata: VideoFrameCallbackMetadata) => {
+      const next = (_now: number, metadata: PlayerFrameMetadata) => {
         if (stopped) {
           return;
         }
-        id = video.requestVideoFrameCallback(next);
+        id = request(next);
         handler.current({ mediaTime: metadata.mediaTime, presented: true });
       };
-      id = video.requestVideoFrameCallback(next);
-      cancel = () => video.cancelVideoFrameCallback(id);
+      id = request(next);
+      cancel = () => cancelFrame(id);
     } else {
       let id = 0;
       const next = () => {
@@ -48,12 +52,12 @@ export function useVideoFrames(
       cancel = () => cancelAnimationFrame(id);
     }
     const onTimeUpdate = () => handler.current({ mediaTime: null, presented: false });
-    video.addEventListener('timeupdate', onTimeUpdate);
+    media.addEventListener('timeupdate', onTimeUpdate);
 
     return () => {
       stopped = true;
       cancel();
-      video.removeEventListener('timeupdate', onTimeUpdate);
+      media.removeEventListener('timeupdate', onTimeUpdate);
     };
-  }, [video]);
+  }, [media]);
 }

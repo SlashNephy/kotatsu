@@ -6,6 +6,7 @@ import type { BroadcastNow } from '../jikkyo/liveSync';
 import type { useBroadcastClockSubscription } from './__generated__/useBroadcastClockSubscription.graphql';
 import { broadcastDelaySeconds, type BroadcastClockSample } from './broadcastDelay';
 import type { StreamMeter } from './streamMeter';
+import type { PlayerMedia } from './playerMedia';
 
 // maxDelaySeconds は、放送からの遅れとして使う上限。これを超える値は、組と画面の時刻の取り違えとみなして使わない。
 const maxDelaySeconds = 3_600;
@@ -15,13 +16,13 @@ const maxDelaySeconds = 3_600;
 // 返す関数は、映像、画面の時刻の起点 (ブラウザの中で変換する経路と、kyusu の経路のライブが知らせる)、放送の時計のどれかがなければ null を返す。
 export function useBroadcastClock(
   serviceId: string | null,
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   meter: StreamMeter,
 ): () => BroadcastNow | null {
   const environment = useRelayEnvironment();
   const sample = useRef<BroadcastClockSample | null>(null);
-  const videoRef = useRef(video);
-  videoRef.current = video;
+  const mediaRef = useRef(media);
+  mediaRef.current = media;
 
   useEffect(() => {
     sample.current = null;
@@ -67,7 +68,7 @@ export function useBroadcastClock(
 
   return () => {
     const clock = sample.current;
-    const current = videoRef.current;
+    const current = mediaRef.current;
     const origin = meter.mediaOrigin;
     if (clock === null || current === null || origin === null) {
       return null;

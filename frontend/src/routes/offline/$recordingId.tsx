@@ -38,6 +38,7 @@ import { useWakeLock } from '../../yunomi/useWakeLock';
 import { WatchHeading, WatchLayout } from '../../yunomi/WatchLayout';
 import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
+import { mediaOf } from '../../yunomi/playerMedia';
 
 export const Route = createFileRoute('/offline/$recordingId')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
@@ -131,9 +132,11 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
+  const media = video === null ? null : mediaOf(video);
   const videoState = useVideoState(video);
-  const autoplay = useAutoplayBlocked(video);
-  const videoLoading = useVideoLoading(video);
+  const autoplay = useAutoplayBlocked(media);
+  const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
   useWakeLock(!videoState.paused);

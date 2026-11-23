@@ -6,6 +6,7 @@ import { audioStep, type NetworkMode, type StepReason } from './networkQuality';
 import { original } from './route';
 import { useNetworkQuality, type NetworkPlayback, type NetworkQuality } from './useNetworkQuality';
 import { useVideoLag, type VideoLag } from './useVideoLag';
+import type { PlayerMedia } from './playerMedia';
 
 // reasonNoticeMs は、段を動かした理由を映像の上に出しておく時間 (理由の表示時間)。
 export const reasonNoticeMs = 5_000;
@@ -39,14 +40,15 @@ export type AdaptiveOptions = {
 // 画質が「自動」なら段を動かして理由を出し、手で選んでいれば動かさずに「自動」を勧める。
 // notice は、映像の上に重ねる知らせ。network は、プレイヤーから届いた量を受け取る口と、再生の情報に出す様子。
 export function useAdaptiveQuality(
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   playback: Playback,
   { stepDown, network: networkOptions, pictureInPicture = false }: AdaptiveOptions,
 ): { videoLag: VideoLag; network: NetworkQuality; notice: ReactNode } {
   const { t } = useTranslation();
   const [notice, setNotice] = useState<Notice | null>(null);
+  // 映像だけの遅れの検出は、<video> の経路のための処理なので、<video> を渡す (playerMedia.ts の先頭)。
   const videoLag = useVideoLag(
-    video,
+    media?.video ?? null,
     stepDown
       ? {
           onHeavy: () => {
@@ -66,7 +68,7 @@ export function useAdaptiveQuality(
         }
       : {},
   );
-  const network = useNetworkQuality(video, playback, {
+  const network = useNetworkQuality(media, playback, {
     ...networkOptions,
     videoLag,
     pictureInPicture,

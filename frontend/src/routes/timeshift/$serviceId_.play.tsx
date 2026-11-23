@@ -112,6 +112,7 @@ import {
 import type { ServiceIdPlayTimeshiftQuery } from './__generated__/ServiceIdPlayTimeshiftQuery.graphql';
 import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
+import { mediaOf } from '../../yunomi/playerMedia';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -260,9 +261,11 @@ function Player({
   const pip = useDocumentPictureInPicture();
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
+  const media = video === null ? null : mediaOf(video);
   const videoState = useVideoState(video);
-  const autoplay = useAutoplayBlocked(video);
-  const videoLoading = useVideoLoading(video);
+  const autoplay = useAutoplayBlocked(media);
+  const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
   const overlaid = fullscreen.active || pip.container !== null;
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -309,8 +312,8 @@ function Player({
     start === undefined ? 0 : Math.min(timeshiftStartPosition(program, start), duration),
   );
   // stream は、再生できる範囲の始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。kyusu の経路では、仮想 HLS を流す。
-  const stream = useSeekableStream(program.streamUrl, video, initialPosition, !hls);
-  const hlsStream = useHlsStream(video, hls, initialPosition);
+  const stream = useSeekableStream(program.streamUrl, media, initialPosition, !hls);
+  const hlsStream = useHlsStream(media, hls, initialPosition);
   const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
   const [seeking, setSeeking] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -389,7 +392,7 @@ function Player({
   // 映像だけの遅れを飛び直しで直す (#1513)。デコードが追いつかなければ、画質が「自動」の間は段を下げ、それまでの位置から続ける。
   // 段を下げるのは、放送中の番組 (追っかけと同じく、バッファの端が伸びている) でだけ。
   const adaptive = useAdaptiveQuality(
-    video,
+    media,
     {
       automatic: playback.automatic,
       lowerAvailable: playback.lowerAvailable,
@@ -931,7 +934,7 @@ function Player({
                   videoLag={adaptive.videoLag}
                   network={adaptive.network}
                   meter={streamMeter.meter}
-                  video={video}
+                  media={media}
                   quality={playback.current}
                   kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                   audios={null}

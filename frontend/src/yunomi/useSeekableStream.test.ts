@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { useSeekableStream } from './useSeekableStream';
+import type { PlayerMedia } from './playerMedia';
 
 // FakeVideo は、timeupdate を送り、時刻を書き換えられる video の代わり。
 class FakeVideo extends EventTarget {
@@ -53,7 +54,7 @@ describe('useSeekableStream', () => {
   async function playFrom(video: FakeVideo) {
     const hook = renderHook(
       ({ element }: { element: FakeVideo }) =>
-        useSeekableStream('/stream', element as unknown as HTMLVideoElement, 100),
+        useSeekableStream('/stream', element as unknown as PlayerMedia, 100),
       { initialProps: { element: video } },
     );
     await act(async () => {});
