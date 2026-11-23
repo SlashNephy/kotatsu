@@ -1,5 +1,5 @@
 -- Kotatsu のスキーマの原本。kotatsu migrate が、DB との差を出して当てる (設計書 11.4、#2040)。
--- 変更したら mise run //backend:db:sum でスキーマの版を上げる。goose のマイグレーションを消すまでは、mise run //backend:db:diff でも生成する。
+-- 変更したら mise run //backend:db:sum でスキーマの版を上げる。データを書き換えるときは db/scripts に 1 回だけのスクリプトを置く。
 
 -- このスキーマで動かしてよいバイナリの下限と、当てたスキーマの版を、kotatsu migrate が記録する (設計書 11.4)。
 -- ローリング更新の間は新旧のバイナリが同時に動くので、DB のスキーマがバイナリより新しくても、

@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,8 +20,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -42,8 +41,6 @@ func TestSchemaSumMatchesSchema(t *testing.T) {
 	// Windows で取り出すと、改行が CRLF になる。mise run //backend:db:sum は LF のファイルから計算する。
 	sum := sha256.Sum256([]byte(strings.ReplaceAll(db.Schema, "\r\n", "\n")))
 	assert.Equal(t, hex.EncodeToString(sum[:]), digest, "schema.sql has changed; run mise run //backend:db:sum")
-	// goose のマイグレーションで上げていた DB の版より新しくないと、移った DB を古いとみなせない。
-	assert.Greater(t, database.SchemaVersion(), latestGooseVersion(t))
 }
 
 func TestMigrateAppliesToEmptyDatabase(t *testing.T) {
@@ -71,27 +68,25 @@ func TestMigrateAppliesToEmptyDatabase(t *testing.T) {
 func TestMigrateFromGoose(t *testing.T) {
 	t.Parallel()
 
-	t.Run("the latest goose schema is the same as schema.sql", func(t *testing.T) {
+	t.Run("keeps the goose version for the old binaries", func(t *testing.T) {
 		t.Parallel()
 
 		pool := open(t, databasetest.New(t))
-		gooseUp(t, pool, latestGooseVersion(t))
+		loadGooseFixture(t, pool)
 
-		var logs bytes.Buffer
-		require.NoError(t, database.Migrate(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), pool))
-		assert.NotContains(t, logs.String(), "schema change applied", "the goose migrations and schema.sql must define the same schema")
+		require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 		require.NoError(t, database.CheckSchema(t.Context(), pool))
 		// ローリング更新の間に古いバイナリが読むので、goose の版は残す。
 		var gooseVersion int64
 		require.NoError(t, pool.QueryRow(t.Context(), "SELECT max(version_id) FROM goose_db_version").Scan(&gooseVersion))
-		assert.Equal(t, latestGooseVersion(t), gooseVersion)
+		assert.Equal(t, database.GooseFloorVersion, gooseVersion)
 	})
 
 	t.Run("runs the one-time scripts newer than the goose version", func(t *testing.T) {
 		t.Parallel()
 
 		pool := open(t, databasetest.New(t))
-		gooseUp(t, pool, database.GooseFloorVersion)
+		loadGooseFixture(t, pool)
 		recordingID := insertRecordingWithDrops(t, pool, 3)
 
 		require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
@@ -107,9 +102,10 @@ func TestMigrateFromGoose(t *testing.T) {
 		t.Parallel()
 
 		pool := open(t, databasetest.New(t))
-		versions := gooseVersions(t)
-		older := versions[slices.Index(versions, database.GooseFloorVersion)-1]
-		gooseUp(t, pool, older)
+		loadGooseFixture(t, pool)
+		// v2026.11.5 の最後のマイグレーションを当てる前の DB にする。
+		_, err := pool.Exec(t.Context(), "DELETE FROM goose_db_version WHERE version_id = $1", database.GooseFloorVersion)
+		require.NoError(t, err)
 
 		require.ErrorIs(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool), database.ErrDatabaseTooOld)
 	})
@@ -186,7 +182,7 @@ func TestMigrateRunsBeforeScripts(t *testing.T) {
 			name: "goose database without the table of the scripts",
 			prepare: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
-				gooseUp(t, pool, database.GooseFloorVersion)
+				loadGooseFixture(t, pool)
 			},
 		},
 	}
@@ -604,42 +600,13 @@ func raiseMinBinaryVersion(t *testing.T, pool *pgxpool.Pool, version int64) {
 	}))
 }
 
-// gooseVersions は、埋め込んだ goose のマイグレーションの版を古い順に返す。
-func gooseVersions(t *testing.T) []int64 {
+// loadGooseFixture は、v2026.11.5 の kotatsu migrate (goose のマイグレーション) で上げた DB を作る (testdata)。
+func loadGooseFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 
-	names, err := fs.Glob(db.Migrations, "migrations/*.sql")
+	ddl, err := os.ReadFile("testdata/goose_v2026.11.5.sql")
 	require.NoError(t, err)
-	versions := make([]int64, 0, len(names))
-	for _, name := range names {
-		prefix, _, _ := strings.Cut(strings.TrimPrefix(name, "migrations/"), "_")
-		version, err := strconv.ParseInt(prefix, 10, 64)
-		require.NoError(t, err)
-		versions = append(versions, version)
-	}
-	slices.Sort(versions)
-
-	return versions
-}
-
-func latestGooseVersion(t *testing.T) int64 {
-	t.Helper()
-
-	versions := gooseVersions(t)
-
-	return versions[len(versions)-1]
-}
-
-// gooseUp は、新しい仕組みに移る前の kotatsu migrate と同じく、goose のマイグレーションを version まで当てる。
-func gooseUp(t *testing.T, pool *pgxpool.Pool, version int64) {
-	t.Helper()
-
-	migrations, err := fs.Sub(db.Migrations, "migrations")
-	require.NoError(t, err)
-	provider, err := goose.NewProvider(goose.DialectPostgres, stdlib.OpenDBFromPool(pool), migrations)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = provider.Close() })
-	_, err = provider.UpTo(t.Context(), version)
+	_, err = pool.Exec(t.Context(), string(ddl))
 	require.NoError(t, err)
 }
 
@@ -755,7 +722,7 @@ func TestMigrateRereadsSeriesWithDashVariants(t *testing.T) {
 	// 揃える前のバージョン (v2026.11.5) の goose のマイグレーションで上げた DB から、新しい仕組みに移るときに、
 	// 1 回だけのスクリプトで読み直す (#2040)。
 	pool := open(t, databasetest.New(t))
-	gooseUp(t, pool, database.GooseFloorVersion)
+	loadGooseFixture(t, pool)
 
 	now := time.Now()
 	_, err := pool.Exec(t.Context(), "INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")

@@ -9,7 +9,7 @@
 - Docker（Compose v2を含む）：PostgreSQL、偽のチューナーサーバー、Kotatsuを動かします。
 
 ツールは、リポジトリの直下で次のコマンドを実行して入れてください。
-`mise install`は、そのディレクトリの`mise.toml`のツールだけを入れるので、`backend/`のツール（golangci-lint、sqlc、atlas）は`backend/`で入れます。
+`mise install`は、そのディレクトリの`mise.toml`のツールだけを入れるので、`backend/`のツール（golangci-lint、sqlc）は`backend/`で入れます。
 
 ```bash
 mise install
@@ -125,8 +125,7 @@ docker compose logs kotatsu | grep setup_token
 | 画面のGraphQLのクエリ | `relay`が、`__generated__`を作り直します |
 
 `backend/db/schema.sql`を変えたら、`mise run //backend:db:sum`でスキーマの版を上げてください。`kotatsu migrate`が、DBとの差を当てます（#2040）。
-gooseのマイグレーションのファイルを消すまでは、`mise run //backend:db:diff -- <名前>`でマイグレーションも作ってください。
-データを書き換えるときは、`backend/db/scripts`に1回だけのスクリプト（`<版>_<名前>.before.sql`か`<版>_<名前>.after.sql`）を置きます。
+データを書き換えるときは、`backend/db/scripts`に1回だけのスクリプト（`<版>_<名前>.before.sql`か`<版>_<名前>.after.sql`）を置きます。表や列を消すときは、差を当てる前に流すスクリプト（`.before.sql`）で消します。
 
 ビルドに失敗したときは、`docker compose logs -f kotatsu`でエラーを確かめてください。
 直して保存すると、またビルドします。
@@ -218,4 +217,3 @@ GitHubのSocial previewに使う`docs/screenshots/social-preview.png`も、番�
 | `mise run //frontend:test` | 画面のテストを実行する |
 | `mise run //frontend:screenshots` | READMEのスクリーンショットをデモから撮り直し、`docs/screenshots`に書き出す |
 | `mise run //backend:db:sum` | `backend/db/schema.sql`を変えた後に、スキーマの版を上げる |
-| `mise run //backend:db:diff -- <名前>` | `backend/db/schema.sql`の変更からマイグレーションを作る |

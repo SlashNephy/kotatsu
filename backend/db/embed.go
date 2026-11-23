@@ -23,12 +23,6 @@ var schemaSum string
 //go:embed scripts/*.sql
 var Scripts embed.FS
 
-// Migrations は goose の形式のマイグレーション。ファイルは migrations/ の下にある。
-// kotatsu migrate は使わず、schema.sql と同じスキーマになることをテストで確かめるためだけに残す (#2040)。
-//
-//go:embed migrations/*.sql
-var Migrations embed.FS
-
 // SchemaSum は、schema.sum に書いたスキーマの版と、schema.sql の SHA-256 (16 進)。
 // schema.sum は mise run //backend:db:sum で書く。
 func SchemaSum() (int64, string) {

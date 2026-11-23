@@ -2,7 +2,6 @@
 golangci-lint = "2.15.0" # go より先に置かないと、go/bin/ のバイナリが優先されてしまう
 # ルートと同じ版。golangci-lint より後に置くため、ここでも書く。
 go = "1.27.4"
-atlas-community = "1.3.0"
 sqlc = "1.31.1"
 
 [tasks.test]
@@ -22,11 +21,6 @@ run = "golangci-lint run"
 
 [tasks.fmt]
 run = "golangci-lint fmt"
-
-# db/schema.sql とマイグレーションの差分から、新しいマイグレーションを生成する (Docker が要る)。
-# 名前を付けるときは mise run //backend:db:diff -- add_users のように渡す。
-[tasks."db:diff"]
-run = "atlas migrate diff --env local"
 
 # db/schema.sql を変えたら、スキーマの版を今の日時に上げ、schema.sql のハッシュと一緒に db/schema.sum に書く (設計書 11.4、#2040)。
 # 書き忘れると、database のテスト (TestSchemaSumMatchesSchema) が落ちる。
@@ -49,7 +43,4 @@ run = [
   "go run ./internal/domain/printenclosed > ../frontend/src/futon/enclosedCharacters.gen.ts",
   # MCP サーバーが SPA なしで返すアイコンを、画面の原本から写す。
   "cp ../frontend/public/icons/icon.svg ../frontend/public/icons/icon-192.png internal/web/webui/icons/",
-  # schema.sql とマイグレーションが食い違っていれば、ここで新しいマイグレーションが生成される。
-  "atlas migrate diff --env local",
-  "atlas migrate validate --env local",
 ]
