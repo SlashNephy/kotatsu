@@ -46,6 +46,9 @@ export function QualitySelect({
     if (name === original) {
       return t('player.original');
     }
+    if (name === decoded) {
+      return t('player.decoded');
+    }
     if (name === passthrough) {
       return t('player.passthrough');
     }
