@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { createInterpolator } from './interpolator';
 import { createYadifInterpolation } from './yadifInterpolation';
 
-// 補間の処理は WebGL2 が要るので、作る口だけを差し替え、yadif との受け渡しを確かめる。
+// 補間の処理は WebGL2 が要るので、作る口だけを差し替え、yadif との受け渡しを確認する。
 vi.mock('./interpolator', () => ({ createInterpolator: vi.fn() }));
 
 const gl = {} as WebGL2RenderingContext;

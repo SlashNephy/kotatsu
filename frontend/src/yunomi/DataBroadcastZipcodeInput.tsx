@@ -5,7 +5,7 @@ import { AutoSaveTextInput } from '../settings/AutoSaveFields';
 import { useDeviceSave } from '../settings/useAutoSave';
 import { normalizeZipcode, useDataBroadcastZipcode } from './dataBroadcastZipcode';
 
-// DataBroadcastZipcodeInput は、データ放送の受信機の郵便番号の入力欄 (#442)。この端末だけに覚え、
+// DataBroadcastZipcodeInput は、データ放送の受信機の郵便番号の入力欄 (#442)。この端末だけに保存し、
 // 入力欄を離れたときか Enter で保存し、保存の通知を出す (#1740)。読めない値は、欄の下に理由を出して保存しない。
 export function DataBroadcastZipcodeInput() {
   const { t } = useTranslation();

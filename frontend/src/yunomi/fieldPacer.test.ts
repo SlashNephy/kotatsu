@@ -21,7 +21,7 @@ describe('FieldPacer', () => {
 
   test('切り替わりの時刻が揺れても、PTS は間隔の分ずつ進める', () => {
     const pacer = new FieldPacer();
-    // 先に、揺れのない切り替わりで間隔を覚える。
+    // 先に、揺れのない切り替わりで間隔を保持する。
     for (let i = 0; i < 30; i++) {
       pacer.onVsync(i * refresh, clockAt());
     }

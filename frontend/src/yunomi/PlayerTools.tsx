@@ -50,7 +50,7 @@ type CaptureOptions = {
   position?: (() => number) | null;
   // caption は、今出ている字幕の文を返す (#458)。出ていなければ null。保存する画像に書き込む。
   caption?: (() => string | null) | null;
-  // crop は、今の切り抜き (#496)。キャプチャも、画面と同じ範囲で写す。
+  // crop は、今の切り抜き (#496)。キャプチャも、画面と同じ範囲でコピーする。
   crop?: Crop;
 };
 
@@ -78,7 +78,7 @@ export function useCapture({
   crop = noCrop,
 }: CaptureOptions): Capture {
   const { t } = useTranslation();
-  // overlays は、キャプチャに、字幕とコメントを写すかどうか。
+  // overlays は、キャプチャに、字幕とコメントをコピーするかどうか。
   const [overlays, setOverlays] = useState(true);
   const [template] = useCaptureFileNameTemplate();
   const [message, notify] = useNotice();
@@ -101,7 +101,7 @@ export function useCapture({
         blob,
         captureTexts(time, serviceName, programName, text),
       );
-      // uploadFailed は、サーバーに残せなかったか。先に失敗を知らせていたら、コピーできた知らせで上書きしない。
+      // uploadFailed は、サーバーに残せなかったか。先に失敗を通知していたら、コピーできた知らせで上書きしない。
       let uploadFailed = false;
       uploadCapture(named, {
         time,
@@ -120,7 +120,7 @@ export function useCapture({
 
         return 'saved';
       }
-      // クリップボードでは、ブラウザが文字の情報を落とすことがあるので、書き込む前の画像を写す。
+      // クリップボードでは、ブラウザが文字の情報を落とすことがあるので、書き込む前の画像をコピーする。
       await copyBlob(blob);
       if (!uploadFailed) {
         notify(t('player.copied'));

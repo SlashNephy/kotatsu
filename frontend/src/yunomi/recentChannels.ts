@@ -1,7 +1,7 @@
-// ライブ視聴で見た局の履歴 (#816、設計書 7.5)。端末ごとに覚え、直前の局へ戻る操作と、選局の欄の「最近」に使う。
+// ライブ視聴で見た局の履歴 (#816、設計書 7.5)。端末ごとに保存し、直前の局へ戻る操作と、選局の欄の「最近」に使う。
 // 見る局は端末ごとに違うので、アカウントには保存しない。
 
-// maxRecentChannels は、覚えておく局の数。
+// maxRecentChannels は、保存しておく局の数。
 export const maxRecentChannels = 10;
 
 const storageKey = 'kotatsu.live.recentChannels';
@@ -31,7 +31,7 @@ export function recordChannel(recent: readonly string[], id: string): string[] {
   return [id, ...recent.filter((other) => other !== id)].slice(0, maxRecentChannels);
 }
 
-// saveRecentChannels は、履歴を覚える。書けなくても、視聴は続ける。
+// saveRecentChannels は、履歴を保存する。書けなくても、視聴は続ける。
 export function saveRecentChannels(
   storage: Pick<Storage, 'setItem'> | null,
   recent: readonly string[],

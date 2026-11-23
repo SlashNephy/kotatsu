@@ -31,7 +31,7 @@ export function useFastForward(rate: number, edge: Edge) {
     // active は、早回しで再生しているかどうか。押していても、端の手前では false になる。
     active,
     playbackRate: active ? rate * fastForwardFactor : rate,
-    // setHeld は、操作バーのボタンを押しているかどうかを知らせる。
+    // setHeld は、操作バーのボタンを押しているかどうかを通知する。
     setHeld,
   };
 }

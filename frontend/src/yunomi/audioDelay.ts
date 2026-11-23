@@ -7,26 +7,26 @@ import { preferenceChanged } from '../settings/syncedPreferences';
 import type { PlayerMedia } from './playerMedia';
 
 // 音ずれ補正 (#818、設計書 7.5)。音声だけを WebAudio の DelayNode で遅らせ、映像より早く聞こえる音を合わせる。
-// 遅らせることしかできないので、音が映像より遅い場合は補正できない。遅らせる量は、音を出す機器によるので端末ごとに覚える。
+// 遅らせることしかできないので、音が映像より遅い場合は補正できない。遅らせる量は、音を出す機器によるので端末ごとに保存する。
 // 選局したら元に戻すかは、端末をまたいで同期する (#1862)。
 
 const delayKey = 'kotatsu.player.audioDelayMs';
 const resetKey = 'kotatsu.player.resetAudioDelayOnChannelChange';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:audio-delay';
 
 // maxAudioDelayMs は、遅らせられる上限 (ミリ秒)。audioDelayStepMs は、キーとメニューで変える幅。
 export const maxAudioDelayMs = 500;
 export const audioDelayStepMs = 20;
 
-// clampAudioDelay は、遅らせる長さを、0 から上限の、刻みにそろえた値にする。
+// clampAudioDelay は、遅らせる長さを、0 から上限の、単位にそろえた値にする。
 function clampAudioDelay(ms: number): number {
   const stepped = Math.round(ms / audioDelayStepMs) * audioDelayStepMs;
 
   return Math.min(Math.max(stepped, 0), maxAudioDelayMs);
 }
 
-// loadAudioDelay は、覚えた遅らせる長さ (ミリ秒) を読む。読めなければ 0 を返す。
+// loadAudioDelay は、保存した遅らせる長さ (ミリ秒) を読む。読めなければ 0 を返す。
 export function loadAudioDelay(storage: Pick<Storage, 'getItem'> | null): number {
   try {
     const ms = Number(storage?.getItem(delayKey) ?? 0);
@@ -46,7 +46,7 @@ export function loadResetAudioDelay(storage: Pick<Storage, 'getItem'> | null): b
   }
 }
 
-// stepAudioDelay は、遅らせる長さ ms を、direction の向きに 1 刻み変えた値を返す。
+// stepAudioDelay は、遅らせる長さ ms を、direction の向きに 1 単位変えた値を返す。
 export function stepAudioDelay(ms: number, direction: 1 | -1): number {
   return clampAudioDelay(
     Math.round(ms / audioDelayStepMs) * audioDelayStepMs + direction * audioDelayStepMs,
@@ -63,7 +63,7 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-// save は、設定を書き、同じタブの購読者に知らせる。
+// save は、設定を書き、同じタブの購読者に通知する。
 function save(key: string, value: string): void {
   try {
     browserStorage()?.setItem(key, value);

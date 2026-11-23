@@ -11,7 +11,7 @@ export type AutoplayBlocked = {
 
 // useAutoplayBlocked は、音ありの自動再生をブラウザに断られたかを見分ける。
 // Chrome などは、ページを操作していないうちは、音ありの自動再生を断る (NotAllowedError)。断られると、映像は最初のコマで止まる。
-// video は autoplay で再生を始めるが、断られても知らせがないので、再生できるようになったら自分で play() を試して確かめる。
+// video は autoplay で再生を始めるが、断られても知らせがないので、再生できるようになったら自分で play() を試して確認する。
 // 一度再生が始まったら、それ以降は試さない。止めてからシークしたときに、勝手に再生し直さないようにする。
 export function useAutoplayBlocked(media: PlayerMedia | null): AutoplayBlocked {
   const [blocked, setBlocked] = useState(false);

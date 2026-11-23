@@ -156,7 +156,7 @@ describe('upscaleSize', () => {
   });
 });
 
-// GPU の上限を読む口だけを持つ、偽のコンテキスト。
+// GPU の上限を読む口だけを持つ、モックのコンテキスト。
 function fakeContext(maxSize = 16384): WebGL2RenderingContext {
   const MAX_TEXTURE_SIZE = 0x0d33;
   const MAX_VIEWPORT_DIMS = 0x0d3a;
@@ -383,7 +383,7 @@ describe('createYadifUpscaler', () => {
     expect(setDrawingBuffer).toHaveBeenLastCalledWith(gl, false, 1440, 1080);
     expect(copy.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, false);
     expect(upscaler.hdr()).toBe(false);
-    // SDR に戻した後は、yadif にそのまま写させる。
+    // SDR に戻した後は、yadif にそのままコピーさせる。
     expect(upscaler.size(gl, 1440, 1080, 1920, 1080)).toBeNull();
   });
 
@@ -408,7 +408,7 @@ describe('createYadifUpscaler', () => {
     expect(onHDRUnavailable).toHaveBeenCalledTimes(1);
     expect(copy.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, false);
     expect(upscaler.hdr()).toBe(false);
-    // 拡大しない大きさなら、元の大きさで描かせず、yadif にそのまま写させる。
+    // 拡大しない大きさなら、元の大きさで描かせず、yadif にそのままコピーさせる。
     expect(upscaler.size(gl, 1440, 1080, 1422, 800)).toBeNull();
   });
 

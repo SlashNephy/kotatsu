@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { fontAwareRenderer } from './captions';
 
-// FakeRenderer は、描いた字幕を覚えるだけの、aribb24.js の CanvasMainThreadRenderer の代わり。
+// FakeRenderer は、描いた字幕を記録するだけの、aribb24.js の CanvasMainThreadRenderer の代わり。
 class FakeRenderer {
   readonly rendered: string[] = [];
   render(_state: unknown, tokens: { tag: string; character?: string }[]): void {
@@ -78,7 +78,7 @@ describe('fontAwareRenderer', () => {
     render(renderer, extended);
     next(renderer);
     font.resolve();
-    // 待った後の描画が走る機会を与えてから確かめる。
+    // 待った後の描画が走る機会を与えてから確認する。
     await new Promise((done) => setTimeout(done, 0));
     expect(renderer.rendered).toEqual(want);
   });

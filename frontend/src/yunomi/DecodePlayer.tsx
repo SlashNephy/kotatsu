@@ -26,7 +26,7 @@ type Props = {
   crop?: Crop;
   brightness?: number;
   onCaptionText?: (text: string) => void;
-  // onState は、読み終えたら completed を知らせる。続けられなくなったことは、onError で知らせる。
+  // onState は、読み終えたら completed を通知する。続けられなくなったことは、onError で通知する。
   onState?: (state: PlayerState) => void;
   onError?: (error: Error) => void;
   // onLoaded は、最初のコマを映せるようになったときに呼ぶ。
@@ -86,9 +86,9 @@ export function DecodePlayer({
     );
     const media = new DecodeMedia({ canvas, worker });
     const renderer = createCaptions(media, slot, (text) => handlers.current.onCaptionText?.(text));
-    // 字幕の PES は、画面の時刻 (currentTime と同じ物差し) にして渡す。起点が決まるまでは溜める。
-    // 読み直すと画面の時刻の起点が変わるので、溜めたものと出ている字幕は、読み込みが替わったときに捨てる。
-    // loadstart は遅れて届くので、それより先に新しい読み込みの字幕が届いても捨てないよう、どの読み込みの分かを覚える。
+    // 字幕の PES は、画面の時刻 (currentTime と同じ物差し) にして渡す。起点が決まるまではバッファする。
+    // 読み直すと画面の時刻の起点が変わるので、バッファしたものと出ている字幕は、読み込みが替わったときに破棄する。
+    // loadstart は遅れて届くので、それより先に新しい読み込みの字幕が届いても破棄しないよう、どの読み込みの分かを保持する。
     let waiting: { data: ArrayBuffer; pts: number }[] = [];
     let waitingLoad = media.currentLoad;
     const follow = (load: number) => {

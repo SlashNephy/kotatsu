@@ -48,7 +48,7 @@ export function keysFor(id: PlayerCommandId, keymap: Keymap = defaultKeymap): re
   return (keymap as Partial<Record<PlayerCommandId, readonly string[]>>)[id] ?? [];
 }
 
-// actionsByKey は、キーから操作を引く表を作る。
+// actionsByKey は、キーから操作を検索するテーブルを作る。
 function actionsByKey(keymap: Keymap): ReadonlyMap<string, SimpleCommandId> {
   return new Map(
     (Object.entries(keymap) as [SimpleCommandId, readonly string[]][]).flatMap(([action, keys]) =>
@@ -150,11 +150,11 @@ export function removeKey(keymap: Keymap, id: SimpleCommandId, key: string): Key
 }
 
 const storageKey = 'kotatsu.player.keymap';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:keymap';
 
-// parseKeymap は、覚えた割り当てを読む。覚えた操作は、その割り当てで置き換える。読めなければ既定を返す。
-// 覚えたときになかった操作 (後の版で足した操作) は既定のキーにするが、覚えた操作が使っているキーは外し、
+// parseKeymap は、保存した割り当てを読む。保存した操作は、その割り当てで置き換える。読めなければ既定を返す。
+// 保存したときになかった操作 (後のバージョンで足した操作) は既定のキーにするが、保存した操作が使っているキーは外し、
 // 1 つのキーを 1 つの操作にだけ割り当てる。
 export function parseKeymap(raw: string | null): Keymap {
   if (raw === null) {

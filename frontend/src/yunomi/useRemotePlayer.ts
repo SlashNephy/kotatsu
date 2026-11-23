@@ -18,7 +18,7 @@ import { RemoteKey } from './useDataBroadcast';
 
 // heartbeatMs は、状態を送る間隔。サーバーは、3 回分送られてこなければ、閉じたとみなす (設計書 7.7)。
 export const heartbeatMs = 10_000;
-// announceDelayMs は、状態が変わってから、ほかの端末に知らせるまでの間。続けて変わったときに、まとめて送る。
+// announceDelayMs は、状態が変わってから、ほかの端末に通知するまでの間。続けて変わったときに、まとめて送る。
 export const announceDelayMs = 300;
 
 // RemoteState は、ほかの端末に見せる、プレイヤーの状態 (GraphQL の PlayerStateInput)。
@@ -95,8 +95,8 @@ export function remoteState(state: RemotePlayerSnapshot): RemoteState {
   };
 }
 
-// announcedEvents は、ほかの端末に知らせるイベント。RemoteState のうち、再生位置と長さのほかが変わったときに出る。
-// 再生位置と長さは、10 秒ごとに送る状態で伝わる。追っかけ再生では、長さも描くたびに延びるので、知らせると、
+// announcedEvents は、ほかの端末に通知するイベント。RemoteState のうち、再生位置と長さのほかが変わったときに出る。
+// 再生位置と長さは、10 秒ごとに送る状態で伝わる。追っかけ再生では、長さも描くたびに延びるので、通知すると、
 // ほかの端末に一覧を読み直させ続けることになる。
 const announcedEvents = [
   'programChanged',
@@ -111,8 +111,8 @@ export function remoteKey(name: string): RemoteKey | null {
   return Object.hasOwn(RemoteKey, name) ? RemoteKey[name as keyof typeof RemoteKey] : null;
 }
 
-// dispatch は、届いた操作を、登録簿の操作にして呼ぶ。今使えない操作と、値の足りない操作は捨てる。
-// 開かせる操作 (OPEN) は、open で、その画面へ移る。open がなければ捨てる。
+// dispatch は、届いた操作を、登録簿の操作にして呼ぶ。今使えない操作と、値の足りない操作は破棄する。
+// 開かせる操作 (OPEN) は、open で、その画面へ移る。open がなければ破棄する。
 export function dispatch(
   command: RemoteCommand,
   commands: PlayerCommands,
@@ -167,7 +167,7 @@ export function dispatch(
 
 // useRemotePlayer は、このプレイヤーを「再生中のプレイヤー」として登録し、同じアカウントのほかの端末から操作できるようにする
 // (#459、設計書 7.7)。state が null の間は登録しない。登録したら、状態を 10 秒ごとに送る。events で再生位置のほかが
-// 変わったと知ったら、少し待ってから、ほかの端末に知らせる。届いた操作は、commands の操作にして呼ぶ。画面を離れたら、登録を取り消す。
+// 変わったと知ったら、少し待ってから、ほかの端末に通知する。届いた操作は、commands の操作にして呼ぶ。画面を離れたら、登録を取り消す。
 export function useRemotePlayer(
   state: RemotePlayerSnapshot | null,
   events: PlayerEvents,
@@ -188,12 +188,12 @@ export function useRemotePlayer(
   openRef.current = open;
   // id は、登録したプレイヤーの ID。
   const idRef = useRef<string | null>(null);
-  // changed は、最後に送ってから、知らせるべき変化があったかどうか。登録の返事を待つ間に変わったら、返事が来たところで知らせる。
+  // changed は、最後に送ってから、通知するべき変化があったかどうか。登録の返事を待つ間に変わったら、返事が来たところで通知する。
   const changed = useRef(false);
   const announceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const active = state !== null;
 
-  // announceSoon は、少し待ってから、今の状態をほかの端末に知らせる。待つ間にまた変わったら、最後の変化から待ち直してまとめて送る。
+  // announceSoon は、少し待ってから、今の状態をほかの端末に通知する。待つ間にまた変わったら、最後の変化から待ち直してまとめて送る。
   const announceSoon = useCallback(() => {
     changed.current = true;
     const id = idRef.current;

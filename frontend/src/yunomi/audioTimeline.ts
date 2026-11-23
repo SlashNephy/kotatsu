@@ -3,7 +3,7 @@ import { ptsTicksPerSecond } from './ptsTimeline';
 // ブラウザ内でデコードする経路 (#1516) の、音を Web Audio の時間の上に並べる部分。
 // 届いた順に、隙間なく予約する。鳴らし始めは「今 + 鳴らし始めの余裕」にする (今すぐにすると先頭が欠けるため)。
 // 予約した区間から、Web Audio の時刻と PTS を対応させ、いま鳴っている PTS を出す (これが再生の時計になる)。
-// 前より古い時刻の音は捨てる。番を過ぎた音 (途切れた後の音) は、その音から今の後ろに鳴らし直す (遅れたまま並べると、そこから先が全部ずれるため)。
+// 前より古い時刻の音は破棄する。番を過ぎた音 (途切れた後の音) は、その音から今の後ろに鳴らし直す (遅れたまま並べると、そこから先が全部ずれるため)。
 
 export type AudioTimelineParams = {
   // lead は、鳴らし始めを「今」から遅らせる量 (秒)。予約から実際に鳴るまでの処理の時間より長くする。
@@ -14,7 +14,7 @@ export const defaultAudioTimelineParams: AudioTimelineParams = {
   lead: 0.1,
 };
 
-// Scheduled は、予約した音。when は Web Audio の時刻 (秒)、offset は、音の頭から切り落とす秒数。
+// Scheduled は、予約した音。when は Web Audio の時刻 (秒)、offset は、音の先頭から切り落とす秒数。
 export type Scheduled = { when: number; offset: number };
 
 // AudioTimeline は、PTS と Web Audio の時刻の対応を持つ。
@@ -29,7 +29,7 @@ export class AudioTimeline {
   constructor(private readonly params: AudioTimelineParams = defaultAudioTimelineParams) {}
 
   // schedule は、pts から duration (PTS の単位) の音を、Web Audio の時刻 now に予約する時刻を返す。
-  // 捨てる音なら null を返す。
+  // 破棄する音なら null を返す。
   schedule(pts: number, duration: number, now: number): Scheduled | null {
     if (this.end !== null && pts + duration <= this.end) {
       // 前より古い音。

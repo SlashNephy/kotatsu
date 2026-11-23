@@ -39,12 +39,12 @@ type Props = {
   player: ReactNode;
   // info は、映像の下に置く番組の情報と、映像に付く操作 (字幕の履歴など)。
   info: ReactNode;
-  // side は、右の列の中身 (実況や、ほかの局の一覧)。出すものがなければ null にし、映像を本文の幅いっぱいに広げる。
+  // side は、右のカラムの内容 (実況や、ほかの局の一覧)。出すものがなければ null にし、映像を本文の幅いっぱいに広げる。
   side: ReactNode | null;
 };
 
-// WatchLayout は、ライブ視聴と録画の再生の画面の並び。YouTube と同じく、映像の下に番組の情報を、右の列に実況と一覧を置く。
-// 狭い画面では、右の列の中身を、番組の情報の下に並べる。
+// WatchLayout は、ライブ視聴と録画の再生の画面の並び。YouTube と同じく、映像の下に番組の情報を、右のカラムに実況と一覧を置く。
+// 狭い画面では、右のカラムの内容を、番組の情報の下に並べる。
 // 小さなプレイヤー (#1602) では、映像だけを出す。映像の位置は変えず、プレイヤーを作り直さない。
 export function WatchLayout({ player, info, side }: Props) {
   const mini = useWatchMini();
@@ -122,7 +122,7 @@ export function WatchHeading({ title, serviceName, serviceLogoUrl, time, actions
   );
 }
 
-// watchCommentsHeight は、右の列に置く実況のコメントの一覧の高さ。画面の幅で変わる。
+// watchCommentsHeight は、右のカラムに置く実況のコメントの一覧の高さ。画面の幅で変わる。
 export const watchCommentsHeight = 'var(--watch-comments-height)';
 
 // descriptionMaxHeight は、番組の説明を畳んでおく高さ (px)。3 行ほど出し、長ければ「もっと見る」で開く。

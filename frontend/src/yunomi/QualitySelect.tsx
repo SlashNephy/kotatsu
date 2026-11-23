@@ -342,7 +342,7 @@ export function RateSelect({
 }
 
 // CropSelect は、表示の比率を選ぶ (#496、#824)。L 字放送の切り抜きでは、拡大率と拡大の起点も選ぶ。
-// 4:3 の映像の左右の黒い縁を消す、横に伸ばす、のプリセットも選べる。切り抜きは、その場限りで覚えない。
+// 4:3 の映像の左右の黒い縁を消す、横に伸ばす、のプリセットも選べる。切り抜きは、その場限りで保存しない。
 export function CropSelect({ value, onChange }: { value: Crop; onChange: (crop: Crop) => void }) {
   const { t } = useTranslation();
   const mode = cropMode(value);

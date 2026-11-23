@@ -6,7 +6,7 @@ import type { PlayerMedia } from './playerMedia';
 
 // PlayerCover は、映像の上に重ねる蓋 (#1512)。CM を飛ぶ間、CM のコマを隠す。
 export type PlayerCover = {
-  // show は、蓋を出す。still なら、いま映っているコマを写して、映像が実際に出ている矩形に重ねる。
+  // show は、蓋を出す。still なら、いま映っているコマをコピーして、映像が実際に出ている矩形に重ねる。
   // 写せなければ (大きさが 0、例外)、black と同じく、プレイヤーの枠全体を黒で覆う。
   show: (kind: CoverKind) => void;
   hide: () => void;
@@ -40,8 +40,8 @@ export function coverRect(
 }
 
 // usePlayerCover は、蓋の要素に渡す ref と、蓋を出し入れする PlayerCover を返す。
-// 写す元は PlayerMedia の frame (<video> の経路では video の要素) にする。yadif が描く WebGL の canvas は
-// preserveDrawingBuffer を使っておらず、写すと黒になる。frame のない経路では、黒で覆う。
+// コピーする元は PlayerMedia の frame (<video> の経路では video の要素) にする。yadif が描く WebGL の canvas は
+// preserveDrawingBuffer を使っておらず、コピーすると黒になる。frame のない経路では、黒で覆う。
 // onChange は、蓋を出したとき (true) と外したとき (false) に呼ぶ。蓋を出している間は、字幕を消す (CM の字幕を残さない)。
 export function usePlayerCover(
   mediaRef: RefObject<PlayerMedia | null>,

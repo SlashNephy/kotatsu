@@ -3,7 +3,7 @@ import { ptsTicksPerSecond } from './ptsTimeline';
 // ブラウザ内でデコードする経路 (#1516) の、AAC の音声の PES を、ADTS のフレームに分ける部分。
 // 1 つの PES には、ADTS のフレームがいくつか入り、PES の境目でフレームが切れることもある。
 // PES の PTS は、その PES で始まる最初のフレームの時刻なので、続くフレームの時刻は、フレームの長さを足して求める。
-// ヘッダーの中身 (プロファイルなど) の解釈はデコーダに任せ、ここでは区切りと時刻だけを付ける。
+// ヘッダーの内容 (プロファイルなど) の解釈はデコーダに任せ、ここでは区切りと時刻だけを付ける。
 
 // AdtsFrame は、ADTS のフレーム 1 つ。data はヘッダーを含む。
 export type AdtsFrame = {
@@ -17,7 +17,7 @@ export type AdtsFrame = {
   data: Uint8Array;
 };
 
-// adtsSampleRates は、sampling_frequency_index から周波数を引く表 (ISO/IEC 14496-3)。
+// adtsSampleRates は、sampling_frequency_index から周波数を検索するテーブル (ISO/IEC 14496-3)。
 const adtsSampleRates = [
   96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000,
   7_350,

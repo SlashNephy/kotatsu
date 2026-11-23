@@ -343,7 +343,7 @@ describe('TsDemuxer', () => {
       ]),
     );
 
-    // flush も、次の PES の頭も送らない。
+    // flush も、次の PES の先頭も送らない。
     expect(pesList.map(({ kind, pts, data }) => ({ kind, pts, data: [...data] }))).toEqual([
       { kind: 'captions', pts: 9_000, data: caption },
     ]);

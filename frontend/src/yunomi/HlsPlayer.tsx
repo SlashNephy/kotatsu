@@ -165,7 +165,7 @@ export function HlsPlayer({
     frame.append(video);
     mediaRef.current = mediaOf(video);
     handlers.current.onMedia?.(mediaRef.current);
-    // 字幕は、aribb24.js を読み終えるまで溜めておくので、最初のセグメントの字幕も落とさない。
+    // 字幕は、aribb24.js を読み終えるまでバッファしておくので、最初のセグメントの字幕も落とさない。
     const renderer = createCaptions(video, frame, (text) => captionText.current?.(text));
     renderer.setVisible(showCaptions.current && !covered.current);
     renderer.setSuperimposeVisible(superimposeRef.current);
@@ -281,7 +281,7 @@ export function HlsPlayer({
           handlers.current.onError?.(new Error(`${data.type}: ${data.details}`));
         }
       });
-      // ライブを読み直すと、video の時刻の基準が変わるので、前の字幕を捨てる。
+      // ライブを読み直すと、video の時刻の基準が変わるので、前の字幕を破棄する。
       captionsRef.current?.reset();
       instance.loadSource(url);
       instance.attachMedia(video);

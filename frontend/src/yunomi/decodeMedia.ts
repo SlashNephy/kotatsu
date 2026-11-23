@@ -21,20 +21,20 @@ import { sharedAudioContext } from './sharedAudioContext';
 //   <video> と同じく emptied と loadstart を送る。
 // - 音ありの自動再生を断られたら、<video> と同じく止まったままにし、play() を NotAllowedError で断る。
 
-// readyStates は、HTMLMediaElement の readyState の段。
+// readyStates は、HTMLMediaElement の readyState の段階。
 const readyStates = { nothing: 0, currentData: 2, enoughData: 4 } as const;
 
 // startBuffer は、鳴らし始めるまでに貯める音の長さ (PTS の単位)。
 const startBuffer = 0.3 * ptsTicksPerSecond;
 // timeupdateInterval は、timeupdate を送る間隔 (ミリ秒)。<video> と同じく、4 回/秒ほどにする。
 const timeupdateInterval = 250;
-// staleStart は、鳴らし始める前に溜めた音が、これより古くなったら (ミリ秒)、鳴らし始めるときに放送の今から読み直す。
+// staleStart は、鳴らし始める前にバッファした音が、これより古くなったら (ミリ秒)、鳴らし始めるときに放送の今から読み直す。
 // 音ありの自動再生を断られたまま待っていた間の音を、遅れて鳴らさないため。
 const staleStart = 3_000;
 // resumeTimeout は、AudioContext を動かすのを待つ上限 (ミリ秒)。ユーザーの操作の前は、返らないブラウザがある。
 const resumeTimeout = 300;
-// visibilityInterval は、映像が見えているかを調べる間隔 (ミリ秒)。別のウィンドウへ移ると文書が替わるので、
-// イベントではなく、映している文書をその都度調べる。
+// visibilityInterval は、映像が見えているかを確認する間隔 (ミリ秒)。別のウィンドウへ移ると文書が替わるので、
+// イベントではなく、映している文書をその都度確認する。
 const visibilityInterval = 500;
 
 class MediaFailure implements PlayerMediaError {
@@ -69,7 +69,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
   private width = 0;
   private height = 0;
   private stats: DecodeStats | null = null;
-  // animation は、requestAnimationFrame の番号。animationView は、それを予約した窓。
+  // animation は、requestAnimationFrame の番号。animationView は、それを予約したウィンドウ。
   private animation: number | null = null;
   private animationView: Window | null = null;
   private disposed = false;
@@ -98,7 +98,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     this.worker = worker;
     this.context = sharedAudioContext();
     this.volumeNode = this.context.createGain();
-    // 音量の段 (volumeBoost) が段を挟むまでは、そのまま鳴らす。
+    // 音量のステップ (volumeBoost) がステップを挟むまでは、そのまま鳴らす。
     this.volumeNode.connect(this.context.destination);
     worker.addEventListener('message', this.onMessage);
     this.context.addEventListener('statechange', this.onContextState);
@@ -192,7 +192,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
 
   set defaultPlaybackRate(_value: number) {}
 
-  // frame は、worker が描いた canvas。drawImage で、描いた最後のコマを写せる (#1516 で確かめた)。
+  // frame は、worker が描いた canvas。drawImage で、描いた最後のコマを写せる (#1516 で確認した)。
   get frame(): CanvasImageSource {
     return this.element;
   }
@@ -208,7 +208,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
   }
 
   // timeOf は、伸ばした PTS を、画面の時刻 (秒、currentTime と同じ物差し) にする。起点がまだなければ null。
-  // 字幕の PES の時刻を、字幕の描画器に渡すのに使う。
+  // 字幕の PES の時刻を、字幕のレンダラーに渡すのに使う。
   timeOf(pts: number): number | null {
     return this.origin === null ? null : (pts - this.origin) / ptsTicksPerSecond;
   }
@@ -248,7 +248,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     this.fire('play');
     const stale = this.pendingSince !== null && performance.now() - this.pendingSince > staleStart;
     if (this.stopped || stale) {
-      // 止めている間に捨てたか、鳴らし始める前に溜めた音が古い。放送の今から読み直す。
+      // 止めている間に破棄したか、鳴らし始める前にバッファした音が古い。放送の今から読み直す。
       this.restart();
 
       return;
@@ -468,8 +468,8 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     return this.timeline.ptsAt(time);
   }
 
-  // loop は、画面の切り替わりごとに、時計と切り替わりの時刻を worker へ送る。映している窓の requestAnimationFrame を使う
-  // (別のウィンドウ (PiP) に移したときも、その窓の切り替わりに合わせる)。窓が替わったら、watchVisibility が予約し直す。
+  // loop は、画面の切り替わりごとに、時計と切り替わりの時刻を worker へ送る。映しているウィンドウの requestAnimationFrame を使う
+  // (別のウィンドウ (PiP) に移したときも、そのウィンドウの切り替わりに合わせる)。ウィンドウが替わったら、watchVisibility が予約し直す。
   private loop(): void {
     if (this.animation !== null || this.disposed) {
       return;
@@ -478,7 +478,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     const tick = (frameTime: number) => {
       this.animation = null;
       this.animationView = null;
-      // 別の窓の requestAnimationFrame の時刻は、その窓の timeOrigin から数える。worker と同じ、この窓の物差しに直す。
+      // 別のウィンドウの requestAnimationFrame の時刻は、そのウィンドウの timeOrigin から数える。worker と同じ、このウィンドウの物差しに直す。
       const time = frameTime + view.performance.timeOrigin - performance.timeOrigin;
       const stamp = this.context.getOutputTimestamp();
       // 動き出した直後は、まだ鳴らした位置がなく、0 を返すブラウザがある。そのときは時計を送らない。
@@ -507,28 +507,28 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     this.animationView = view;
   }
 
-  // cancelLoop は、予約した窓で requestAnimationFrame を取り消す。
+  // cancelLoop は、予約したウィンドウで requestAnimationFrame を取り消す。
   private cancelLoop(): void {
     if (this.animation !== null && this.animationView !== null) {
       try {
         this.animationView.cancelAnimationFrame(this.animation);
       } catch {
-        // 閉じた窓では、もう走らない。
+        // 閉じたウィンドウでは、もう走らない。
       }
     }
     this.animation = null;
     this.animationView = null;
   }
 
-  // watchVisibility は、映像が見えているかを、変わったときに worker へ知らせる。見えていない間、worker は映像をデコードしない。
-  // ピクチャーインピクチャーの別のウィンドウに移していれば、その窓の文書で見る。
+  // watchVisibility は、映像が見えているかを、変わったときに worker へ通知する。見えていない間、worker は映像をデコードしない。
+  // ピクチャーインピクチャーの別のウィンドウに移していれば、そのウィンドウの文書で見る。
   private watchVisibility(): void {
     if (this.visibilityTimer !== null) {
       return;
     }
     const check = () => {
-      // 映している窓が替わった (PiP を開いた、閉じた) ら、新しい窓で切り替わりを待ち直す。
-      // 古い窓は、隠れていたり閉じたりして、requestAnimationFrame が走らないことがある。
+      // 映しているウィンドウが替わった (PiP を開いた、閉じた) ら、新しいウィンドウで切り替わりを待ち直す。
+      // 古いウィンドウは、隠れていたり閉じたりして、requestAnimationFrame が走らないことがある。
       const view = this.element.ownerDocument.defaultView ?? window;
       if (this.animationView !== null && this.animationView !== view) {
         this.cancelLoop();

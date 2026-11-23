@@ -14,7 +14,7 @@ function api(): DocumentPictureInPicture | null {
 
 // useDocumentPictureInPicture は、視聴画面を別のウィンドウに出す (設計書 7.5)。
 // container に、別のウィンドウの中の要素を返すので、そこへ React のポータルで描く。
-// 別のウィンドウには、このページのスタイルシートを写して、同じ見た目にする。
+// 別のウィンドウには、このページのスタイルシートをコピーして、同じ見た目にする。
 // プレイヤーは、PipHost で、作り直さずに別のウィンドウとこのページの間を動かす (#1955)。
 export function useDocumentPictureInPicture(): {
   supported: boolean;
@@ -46,7 +46,7 @@ export function useDocumentPictureInPicture(): {
       return;
     }
     const win = await pip.requestWindow({ width, height });
-    // スタイルシートを写す。nonce の付いた style も、写したものは nonce を引き継ぐので、CSP に拒まれない。
+    // スタイルシートをコピーする。nonce の付いた style も、コピーしたものは nonce を引き継ぐので、CSP に拒まれない。
     for (const node of document.head.querySelectorAll('style, link[rel="stylesheet"]')) {
       win.document.head.append(node.cloneNode(true));
     }

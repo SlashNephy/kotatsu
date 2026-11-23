@@ -9,7 +9,7 @@ import {
 } from './interpolationTiming';
 
 // video の映像に、コマを補間した canvas を重ねる (#1655、設計書 7.5)。kyusu の経路で使う。
-// video が新しいコマを出すたびにテクスチャへ写して前のコマとの動きを推し量り、画面を更新するたびに、
+// video が新しいコマを出すたびにテクスチャへコピーして前のコマとの動きを推し量り、画面を更新するたびに、
 // 1 コマ遅らせた時刻のコマを作って描く。補間しないとき (一時停止、シーク、準備ができていない) は canvas を隠し、
 // video をそのまま見せる。
 
@@ -20,11 +20,11 @@ export type VideoInterpolation = {
   destroy(): void;
 };
 
-// slots は、写したコマを持つテクスチャの数。出している 2 コマのほかに、届いたばかりのコマを置く。
+// slots は、コピーしたコマを持つテクスチャの数。出している 2 コマのほかに、届いたばかりのコマを置く。
 const slots = 3;
 // periodSamples は、コマの間隔を求めるのに使う、最近のコマの数。
 const periodSamples = 12;
-// refreshSmoothing は、画面の更新の間隔を測るときに、新しい値を混ぜる割合。
+// refreshSmoothing は、画面の更新の間隔を計測するときに、新しい値を混ぜる割合。
 const refreshSmoothing = 0.1;
 // passthroughRatio は、コマの実時間の間隔が、画面の更新の間隔のこの倍より短ければ、補間しない割合。
 // 60p の映像を 60 Hz の画面で見るときや、30p を倍速で見るときなどは、間を埋めるコマがなく、1 コマ遅れるだけになる。
@@ -58,9 +58,9 @@ export function attachVideoInterpolation(
   // 横に引き伸ばして映す映像 (1440×1080 を 16:9 で映すなど) では、2 つが違う。
   let size: { width: number; height: number } | null = null;
   let frameSize: { width: number; height: number } | null = null;
-  // frames は、写したコマ。時刻の早い順に、最大 2 コマ持つ。
+  // frames は、コピーしたコマ。時刻の早い順に、最大 2 コマ持つ。
   let frames: Frame[] = [];
-  // estimated は、動きを推し量った 2 コマ (frames の添字でなく、時刻で覚える)。
+  // estimated は、動きを推し量った 2 コマ (frames の添字でなく、時刻で保持する)。
   let estimated: { previous: number; next: number } | null = null;
   let times: number[] = [];
   let clock: MediaClock | null = null;
@@ -91,7 +91,7 @@ export function attachVideoInterpolation(
       return false;
     }
     try {
-      // コマが出るたびに知らせる口がなければ、写す時機が分からない。
+      // コマが出るたびに通知する口がなければ、コピーする時機が分からない。
       if (typeof video.requestVideoFrameCallback !== 'function') {
         throw new Error('requestVideoFrameCallback is unavailable');
       }
@@ -130,7 +130,7 @@ export function attachVideoInterpolation(
   };
 
   // resize は、映す大きさと届くコマの大きさが変わったら、canvas とテクスチャを作り直す。
-  // テクスチャの大きさは、写すときにブラウザが決める (texImage2D) ので、ここでは作るだけにする。
+  // テクスチャの大きさは、コピーするときにブラウザが決める (texImage2D) ので、ここでは作るだけにする。
   const resize = (width: number, height: number, frameWidth: number, frameHeight: number) => {
     if (
       gl === null ||
@@ -163,7 +163,7 @@ export function attachVideoInterpolation(
     estimated = null;
   };
 
-  // onFrame は、video が新しいコマを出したときに、そのコマを写し、前のコマとの動きを推し量る。
+  // onFrame は、video が新しいコマを出したときに、そのコマをコピーし、前のコマとの動きを推し量る。
   const onFrame = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
     frameHandle = null;
     if (!enabled || destroyed || gl === null || interpolator === null) {
@@ -172,7 +172,7 @@ export function attachVideoInterpolation(
     try {
       const width = video.videoWidth;
       const height = video.videoHeight;
-      // rVFC の大きさは、届いたコマの大きさ。知らせないブラウザでは、映す大きさと同じとみなす。
+      // rVFC の大きさは、届いたコマの大きさ。通知しないブラウザでは、映す大きさと同じとみなす。
       const frameWidth = metadata.width > 0 ? metadata.width : width;
       const frameHeight = metadata.height > 0 ? metadata.height : height;
       if (width > 0 && height > 0) {
@@ -183,7 +183,7 @@ export function attachVideoInterpolation(
           estimated = null;
           times = [];
         }
-        // 出している 2 コマに使っていないテクスチャへ写す。
+        // 出している 2 コマに使っていないテクスチャへコピーする。
         const used = new Set(frames.map((frame) => frame.slot));
         const slot = [...Array(slots).keys()].find((i) => !used.has(i)) ?? 0;
         const texture = textures[slot];
@@ -236,7 +236,7 @@ export function attachVideoInterpolation(
     ) {
       return false;
     }
-    // コマの間隔は映像の時刻で測るので、再生の速さで割って、実時間の間隔にして比べる。
+    // コマの間隔は映像の時刻で計測するので、再生の速さで割って、実時間の間隔にして比較する。
     const period = framePeriod(times);
     if (
       period === null ||

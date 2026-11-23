@@ -10,9 +10,9 @@ export const swipeBandWidth = 0.3;
 export const swipeEdgeMargin = 24;
 // swipeThreshold は、縦か横かを決めるまでに、指が動く距離 (px)。これより短い動きは、タップとして残す。
 export const swipeThreshold = 16;
-// swipeStep は、1 段変えるのに、指が縦に動く距離 (px)。
+// swipeStep は、1 ステップ変えるのに、指が縦に動く距離 (px)。
 export const swipeStep = 24;
-// swipeVolumeStep は、音量の帯のスワイプ 1 段で変える音量 (0 から 2 の割合)。
+// swipeVolumeStep は、音量の帯のスワイプ 1 ステップで変える音量 (0 から 2 の割合)。
 export const swipeVolumeStep = 0.05;
 
 // swipeBandAt は、横の位置 x (プレイヤーの左端から、幅 width) で始めたスワイプの帯を返す。帯の外や、
@@ -43,7 +43,7 @@ export class SwipeTracker {
     private readonly startY: number,
   ) {}
 
-  // move は、指が (x, y) へ動いたときに、前に呼んだときから変える段の数を返す。上へ動かすと正、下へ動かすと負。
+  // move は、指が (x, y) へ動いたときに、前に呼んだときから変えるステップの数を返す。上へ動かすと正、下へ動かすと負。
   move(x: number, y: number): number {
     if (this.direction === 'pending') {
       const dx = x - this.startX;

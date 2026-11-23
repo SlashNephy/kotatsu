@@ -1,7 +1,7 @@
 // ブラウザ内でデコードする経路 (#1516) の、デコードしたコマの待ち行列。
 // 画面の切り替わりごとに、映す PTS (fieldPacer.ts) から、映すコマとフィールドを選ぶ。インタレースのコマは、
 // コマの前半に 1 枚目のフィールド、後半に 2 枚目のフィールドを映す (どちらを先に出すかは top_field_first に従う)。
-// 番を過ぎたコマは、映さずに捨て、コマ落ちとして数える。遅れて映すと、そこから先が全部ずれるため。
+// 番を過ぎたコマは、映さずに破棄し、コマ落ちとして数える。遅れて映すと、そこから先が全部ずれるため。
 
 // QueuedPicture は、待っているコマ。slot は、コマを上げたテクスチャなど、呼ぶ側の持ち物。
 export type QueuedPicture<Slot> = {
@@ -26,7 +26,7 @@ export class PictureQueue<Slot> {
   // frameDuration は、隣り合うコマの PTS の差のうち、いちばん小さいもの (コマが欠けた所の差を使わない)。
   frameDuration: number | null = null;
   private lastPts: number | null = null;
-  // dropped は、映さずに捨てたコマの数。
+  // dropped は、映さずに破棄したコマの数。
   dropped = 0;
   // current は、今映しているコマ。
   private current: QueuedPicture<Slot> | null = null;
@@ -45,7 +45,7 @@ export class PictureQueue<Slot> {
     return this.pictures.at(-1)?.pts ?? null;
   }
 
-  // push は、デコードしたコマを足す。前より古い時刻のコマは捨てて false を返す (slot は release する)。
+  // push は、デコードしたコマを足す。前より古い時刻のコマは破棄して false を返す (slot は release する)。
   push(picture: QueuedPicture<Slot>): boolean {
     if (this.lastPts !== null && picture.pts <= this.lastPts) {
       this.dropped += 1;
@@ -67,7 +67,7 @@ export class PictureQueue<Slot> {
 
   // choose は、PTS target に映すコマとフィールドを返す。まだ映すものがなければ null。
   choose(target: number): FieldChoice<Slot> | null {
-    // 次のコマの番が来ていれば、前のコマは捨てる。
+    // 次のコマの番が来ていれば、前のコマは破棄する。
     while (this.pictures.length >= 2 && this.pictures[1]!.pts <= target) {
       const old = this.pictures.shift()!;
       this.retire(old);
@@ -85,7 +85,7 @@ export class PictureQueue<Slot> {
     return { picture, second, parity };
   }
 
-  // clear は、待っているコマをすべて捨てる (slot は release する)。選局したときと、飛んだときに呼ぶ。
+  // clear は、待っているコマをすべて破棄する (slot は release する)。選局したときと、飛んだときに呼ぶ。
   clear(): void {
     for (const picture of this.pictures.splice(0)) {
       if (picture !== this.current) {

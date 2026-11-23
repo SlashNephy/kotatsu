@@ -23,7 +23,7 @@ import type { KyusuAudio, PlaybackRoute } from './route';
 
 // usePlayerAudio は、聞く音声を選ぶ (設計書 7.5)。ブラウザの中で変換する経路では、番組の音声から選び、
 // kyusu の経路では、番組の音声の構成 (programAudios) から、第 1 音声と第 2 音声を選ぶ。第 2 音声がない番組では、第 1 音声にする。
-// どちらで選んでも、選んだ音声 (slot) を覚えておき、画質を変えて経路が変わっても、同じ音声を聞けるようにする。
+// どちらで選んでも、選んだ音声 (slot) を保持しておき、画質を変えて経路が変わっても、同じ音声を聞けるようにする。
 // kyusu の経路で音声を変えると、HLS の URL が変わって読み直すので、その前に onReload を呼ぶ。録画では、位置を保つのに使う。
 // programAudios は、EPG から読んだ番組の音声の構成。分からなければ null にする。
 export function usePlayerAudio(
@@ -51,7 +51,7 @@ export function usePlayerAudio(
 } {
   const { t } = useTranslation();
   const [tracks, setTracks] = useState<AudioTracks | null>(null);
-  // choice は、ブラウザの中で変換する経路のメニューで選んだもの。kyusu の経路で選び直したら捨てる。
+  // choice は、ブラウザの中で変換する経路のメニューで選んだもの。kyusu の経路で選び直したら破棄する。
   const [choice, setChoice] = useState<string | null>(null);
   // pickedSlot は、利用者が選んだ音声の番号。選ぶまでは null で、番組ごとに、優先する言語 (#819) の音声か、第 1 音声にする。
   const [pickedSlot, setSlot] = useState<KyusuAudio | null>(null);
@@ -59,7 +59,7 @@ export function usePlayerAudio(
   const convertTracks = route.kind === 'convert' ? tracks : null;
   const kyusuChoices = kyusuAudioChoices(programAudios);
   const slot = pickedSlot ?? preferredSlot(kyusuChoices, language) ?? 1;
-  // 選んだ番号の音声がない番組では、第 1 音声を流す。選んだ番号は、次に第 2 音声がある番組のために覚えておく。
+  // 選んだ番号の音声がない番組では、第 1 音声を流す。選んだ番号は、次に第 2 音声がある番組のために保持しておく。
   const kyusuAudio = kyusuChoices.some((candidate) => candidate.slot === slot) ? slot : 1;
   const choices = audioChoices(convertTracks);
   // 選んだものが今の番組の音声になければ (番組が変わって音声の構成が変わったときなど)、選んだ音声の番号から選び直す。

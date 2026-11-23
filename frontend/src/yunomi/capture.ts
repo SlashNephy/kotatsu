@@ -31,7 +31,7 @@ export function fitContain(
 
 // captureFrame は、media の今の場面を PNG にする。overlays を渡せば、字幕とコメントの canvas を、枠いっぱいに重ねる。
 // 字幕とコメントの canvas は、どちらも映像の枠 (16:9) に合わせて描いている。
-// crop で切り抜いているときは、画面と同じく、映像と字幕だけを切り抜いた範囲で写し、コメントは切り抜かずに重ねる (#496)。
+// crop で切り抜いているときは、画面と同じく、映像と字幕だけを切り抜いた範囲でコピーし、コメントは切り抜かずに重ねる (#496)。
 export async function captureFrame(
   media: Pick<PlayerMedia, 'frame' | 'videoWidth' | 'videoHeight'>,
   overlays: HTMLCanvasElement[],
@@ -60,7 +60,7 @@ export async function captureFrame(
       context.drawImage(overlay, 0, 0, canvas.width, canvas.height);
     }
   } else {
-    // 映像と字幕を枠いっぱいに描いてから、切り抜いた範囲を拡大して写す。
+    // 映像と字幕を枠いっぱいに描いてから、切り抜いた範囲を拡大してコピーする。
     const full = document.createElement('canvas');
     full.width = canvas.width;
     full.height = canvas.height;
@@ -98,7 +98,7 @@ export async function captureFrame(
 }
 
 // overlayCanvases は、映像の枠の中にある、字幕とコメントの canvas のうち、出しているものを返す。
-// どちらも data-overlay の印を付けている。yadif が映像の上に重ねる canvas は、映像そのものなので、印がない。
+// どちらも data-overlay のマークを付けている。yadif が映像の上に重ねる canvas は、映像そのものなので、マークがない。
 export function overlayCanvases(frame: HTMLElement): HTMLCanvasElement[] {
   return [...frame.querySelectorAll<HTMLCanvasElement>('canvas[data-overlay]')].filter(
     (canvas) => canvas.style.visibility !== 'hidden',
@@ -127,7 +127,7 @@ export const captureFileNameItems = [
   '{{.StartAt.Format "05"}}',
 ] as const;
 
-// captureFileNameMacros は、前の版の書き方 (#500)。TVTest と同じ書き方 (#814) なので、
+// captureFileNameMacros は、前のバージョンの書き方 (#500)。TVTest と同じ書き方 (#814) なので、
 // TVTest から移ってくる人のために、Go のテンプレートの書き方と並べて受け付け続ける。
 export const captureFileNameMacros = [
   '%date%',
@@ -194,12 +194,12 @@ export function formatGoLayout(date: Date, layout: string): string {
   return layout.replace(goLayoutTokens, (token) => values[token] ?? token);
 }
 
-// goAction は、{{ と }} の中身のうち、受け付ける形。
+// goAction は、{{ と }} の内容のうち、受け付ける形。
 // .Name、.ServiceName、half .Name、half .ServiceName、weekdayJa .StartAt、.StartAt.Format "layout" (` で囲んでもよい)。
 const goAction =
   /^(?:(?<field>\.Name|\.ServiceName)|half\s+(?<halfField>\.Name|\.ServiceName)|weekdayJa\s+\.StartAt|\.StartAt\.Format\s+(?:"(?<layout>[^"\\]*)"|`(?<rawLayout>[^`]*)`))$/;
 
-// expandGoAction は、{{ と }} の中身 body を当てはめる。受け付けない形なら null を返す。
+// expandGoAction は、{{ と }} の内容 body を当てはめる。受け付けない形なら null を返す。
 function expandGoAction(body: string, date: Date, serviceName: string, program: string) {
   const match = goAction.exec(body);
   if (match === null) {

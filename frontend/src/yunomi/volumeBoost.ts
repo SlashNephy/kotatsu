@@ -9,25 +9,25 @@ import { createVirtualSurround } from './virtualSurround';
 // 初めて 100% を超えたときにだけ GainNode を挟む。一度挟んだら、その media の音は WebAudio を通り続ける。
 
 // Booster は、media の音の WebAudio のグラフ。
-// source → 入れている段 (audioStageOrder の順) → gain → sink。切っている段は、飛ばして繋ぐ (#812)。
+// source → 入れているステップ (audioStageOrder の順) → gain → sink。切っているステップは、飛ばして繋ぐ (#812)。
 // source と sink は、media の音の口 (audioPort) から受け取る。
 type Booster = {
   context: BaseAudioContext;
   source: AudioNode;
   gain: GainNode;
-  // stages は、作った段。初めて入れたときに作り、切っても残しておく。
+  // stages は、作ったステップ。初めて入れたときに作り、切っても残しておく。
   stages: Map<AudioStageName, AudioStage>;
-  // enabled は、入れている段。
+  // enabled は、入れているステップ。
   enabled: Set<AudioStageName>;
 };
 
 const boosters = new WeakMap<PlayerMedia, Booster>();
-// routed は、音の口を受け取って、音が WebAudio を通るようになった media。音の口は media が覚えているので、外した後に
+// routed は、音の口を受け取って、音が WebAudio を通るようになった media。音の口は media が保持しているので、外した後に
 // 同じ media でまた上げるときは、同じ口に繋ぎ直す。
 const routed = new WeakSet<PlayerMedia>();
 // pending は、まだ GainNode を挟めていない media の、上げたい倍率。ユーザーが操作するまで、AudioContext を動かせないため。
 const pending = new WeakMap<PlayerMedia, number>();
-// wanted は、media ごとの、入れた段。まだ WebAudio を通せていなくても、通せたら入れる。
+// wanted は、media ごとの、入れたステップ。まだ WebAudio を通せていなくても、通せたら入れる。
 const wanted = new WeakMap<PlayerMedia, Set<AudioStageName>>();
 
 // 音量の補正 (#499) のコンプレッサーの設定。大きな音を抑え、抑えた分を makeupGain で全体に足して、
@@ -36,7 +36,7 @@ const compressorSettings = { threshold: -30, knee: 20, ratio: 4, attack: 0.01, r
 // makeupGain は、コンプレッサーで抑えた分を戻す倍率 (約 +4 dB)。
 const makeupGain = 1.6;
 
-// createNormalize は、音量の補正の段 (compressor → makeup) を作る。
+// createNormalize は、音量の補正のステップ (compressor → makeup) を作る。
 function createNormalize(ctx: BaseAudioContext): AudioStage {
   const compressor = ctx.createDynamicsCompressor();
   compressor.threshold.value = compressorSettings.threshold;
@@ -54,24 +54,24 @@ function createNormalize(ctx: BaseAudioContext): AudioStage {
 // maxDelaySeconds は、音ずれ補正 (#818) で遅らせられる上限 (秒)。DelayNode は、作るときに上限を決める。
 const maxDelaySeconds = 1;
 
-// createDelay は、音ずれ補正の段を作る。遅らせる長さは、setStage が setAudioDelay の値にする。
+// createDelay は、音ずれ補正のステップを作る。遅らせる長さは、setStage が setAudioDelay の値にする。
 function createDelay(ctx: BaseAudioContext): AudioStage {
   const delay = ctx.createDelay(maxDelaySeconds);
 
   return { input: delay, output: delay, nodes: [delay] };
 }
 
-// stageFactories は、段ごとの作り方。段を足すときは、audioStageOrder とここに足す。
+// stageFactories は、ステップごとの作り方。ステップを足すときは、audioStageOrder とここに足す。
 const stageFactories: Record<AudioStageName, (ctx: BaseAudioContext) => AudioStage> = {
   delay: createDelay,
   surround: createVirtualSurround,
   normalize: createNormalize,
 };
 
-// delays は、media ごとの、遅らせる長さ (秒)。段をまだ作れていなくても、作ったらこの長さにする。
+// delays は、media ごとの、遅らせる長さ (秒)。ステップをまだ作れていなくても、作ったらこの長さにする。
 const delays = new WeakMap<PlayerMedia, number>();
 
-// wantedOf は、media に入れた段を返す。
+// wantedOf は、media に入れたステップを返す。
 function wantedOf(media: PlayerMedia): Set<AudioStageName> {
   let stages = wanted.get(media);
   if (stages === undefined) {
@@ -159,7 +159,7 @@ function boosterOf(media: PlayerMedia): Booster | null {
   }
 }
 
-// wire は、booster の入れている段に合わせて、source から gain までを繋ぎ直す。段の中の繋がりは、そのまま残す。
+// wire は、booster の入れているステップに合わせて、source から gain までを繋ぎ直す。ステップの中の繋がりは、そのまま残す。
 function wire(ctx: BaseAudioContext, booster: Booster): void {
   booster.source.disconnect();
   for (const stage of booster.stages.values()) {
@@ -178,8 +178,8 @@ function wire(ctx: BaseAudioContext, booster: Booster): void {
   previous.connect(booster.gain);
 }
 
-// setStage は、media の音の段 name を入れるか切る。入れるときは、WebAudio を通す。
-// ユーザーがまだ操作しておらず AudioContext を動かせなければ、覚えておき、操作した後 (resumePendingBoost) に入れる。
+// setStage は、media の音のステップ name を入れるか切る。入れるときは、WebAudio を通す。
+// ユーザーがまだ操作しておらず AudioContext を動かせなければ、保持しておき、操作した後 (resumePendingBoost) に入れる。
 function setStage(media: PlayerMedia, name: AudioStageName, enabled: boolean): void {
   if (enabled) {
     wantedOf(media).add(name);
@@ -203,7 +203,7 @@ function setStage(media: PlayerMedia, name: AudioStageName, enabled: boolean): v
   resumeContext();
 }
 
-// applyDelay は、音ずれ補正の段に、覚えた長さを当てる。段を作ったとき (setStage でも、音量を上げて booster を
+// applyDelay は、音ずれ補正のステップに、保持した長さを当てる。ステップを作ったとき (setStage でも、音量を上げて booster を
 // 作ったときでも) と、長さだけを変えたときに呼ぶ。
 function applyDelay(media: PlayerMedia, booster: Booster): void {
   const delay = booster.stages.get('delay')?.input as DelayNode | undefined;
@@ -212,7 +212,7 @@ function applyDelay(media: PlayerMedia, booster: Booster): void {
   }
 }
 
-// hasStage は、media の音に、今、段 name を入れているかを返す。
+// hasStage は、media の音に、今、ステップ name を入れているかを返す。
 function hasStage(media: PlayerMedia, name: AudioStageName): boolean {
   return boosters.get(media)?.enabled.has(name) ?? false;
 }
@@ -227,7 +227,7 @@ export function isSurrounded(media: PlayerMedia): boolean {
   return hasStage(media, 'surround');
 }
 
-// setAudioDelay は、media の音を seconds 秒遅らせる (#818)。0 なら、音ずれ補正の段を外す。
+// setAudioDelay は、media の音を seconds 秒遅らせる (#818)。0 なら、音ずれ補正のステップを外す。
 export function setAudioDelay(media: PlayerMedia, seconds: number): void {
   const clamped = Math.min(Math.max(seconds, 0), maxDelaySeconds);
   delays.set(media, clamped);

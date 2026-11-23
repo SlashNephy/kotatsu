@@ -1,5 +1,5 @@
 // このファイルは scripts/convert-anime4k.mjs が書いた。手で直さない。
-// Anime4K (https://github.com/bloc97/Anime4K) の Anime4K_Upscale_CNN_x2_M.glsl の畳み込みの段を、WebGL2 に直したもの (#1653)。
+// Anime4K (https://github.com/bloc97/Anime4K) の Anime4K_Upscale_CNN_x2_M.glsl の畳み込みのステップを、WebGL2 に直したもの (#1653)。
 // 元のライセンスの文は、そのまま anime4kLicenseText に残す。
 
 // anime4kLicenseText は、元のシェーダーのライセンスの文。/about の一覧に出す (付録 B)。
@@ -27,10 +27,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `;
 
-// Anime4KPass は、畳み込みの 1 段。inputs のテクスチャ (同じ名前の sampler) を読み、output の名前で RGBA の 4 つの値を残す。
+// Anime4KPass は、畳み込みの 1 ステップ。inputs のテクスチャ (同じ名前の sampler) を読み、output の名前で RGBA の 4 つの値を残す。
 export type Anime4KPass = { output: string; inputs: readonly string[]; fragment: string };
 
-// anime4kPasses は、畳み込みの段を、動かす順に並べたもの。最初の段の入力 MAIN は、拡大する元のコマ。
+// anime4kPasses は、畳み込みのステップを、動かす順に並べたもの。最初のステップの入力 MAIN は、拡大する元のコマ。
 export const anime4kPasses: readonly Anime4KPass[] = [
   {
     output: 'conv2d_tf',

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PlayerMedia } from './playerMedia';
 
 // liveReloadAfterMs は、ライブを一時停止してから、再開するときに放送中の位置から読み直すまでの時間。
-// ブラウザ内での変換では、止めている間もストリームを受け取って溜めるので、長く止めるほど放送から遅れる (#449)。
+// ブラウザ内での変換では、止めている間もストリームを受け取ってバッファするので、長く止めるほど放送から遅れる (#449)。
 export const liveReloadAfterMs = 10_000;
 
 // useLiveLag は、ライブの再生が放送から遅れているかを返す (設計書 7.2、7.3)。

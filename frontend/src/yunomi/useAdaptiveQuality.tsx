@@ -8,7 +8,7 @@ import { useNetworkQuality, type NetworkPlayback, type NetworkQuality } from './
 import { useVideoLag, type VideoLag } from './useVideoLag';
 import type { PlayerMedia } from './playerMedia';
 
-// reasonNoticeMs は、段を動かした理由を映像の上に出しておく時間 (理由の表示時間)。
+// reasonNoticeMs は、段階を動かした理由を映像の上に出しておく時間 (理由の表示時間)。
 export const reasonNoticeMs = 5_000;
 // hintClearMs は、手で選んだ画質が重い (足りない) 旨の表示を、その状態が起きなくなってから消すまでの時間 (表示を消すまでの時間)。
 export const hintClearMs = 30_000;
@@ -19,14 +19,14 @@ type Notice =
   | { kind: 'network'; name: string; direction: 'down' | 'up'; reason: StepReason; at: number }
   | { kind: 'networkManual'; at: number };
 
-// Playback は、usePlaybackRoute のうち、段を動かすのに使う部分。
+// Playback は、usePlaybackRoute のうち、段階を動かすのに使う部分。
 type Playback = NetworkPlayback & {
   lowerAvailable: boolean;
   stepDownForDecode: () => string | null;
 };
 
 export type AdaptiveOptions = {
-  // stepDown は、デコードが追いつかない端末で段を下げるか。ライブと追っかけだけ。
+  // stepDown は、デコードが追いつかない端末で段階を下げるか。ライブと追っかけだけ。
   stepDown: boolean;
   // network は、回線の側の判定の口。mode は上げ方 (ライブは probe、録画と追っかけは rate)。convert は、ブラウザ内で変換する経路か。
   // topBitrate は、最高画質 (オリジナル) のビットレート (bps)。分からなければ null。
@@ -35,9 +35,9 @@ export type AdaptiveOptions = {
   pictureInPicture?: boolean;
 };
 
-// useAdaptiveQuality は、映像だけの遅れを飛び直しで直し (どの画面でも)、stepDown なら、デコードが追いつかない端末で段を下げる (#1513)。
-// どの画面でも、回線が足りなければ段を下げ、余裕が戻れば上げる。
-// 画質が「自動」なら段を動かして理由を出し、手で選んでいれば動かさずに「自動」を勧める。
+// useAdaptiveQuality は、映像だけの遅れを飛び直しで修正し (どの画面でも)、stepDown なら、デコードが追いつかない端末で段階を下げる (#1513)。
+// どの画面でも、回線が足りなければ段階を下げ、余裕が戻れば上げる。
+// 画質が「自動」なら段階を動かして理由を出し、手で選んでいれば動かさずに「自動」を勧める。
 // notice は、映像の上に重ねる知らせ。network は、プレイヤーから届いた量を受け取る口と、再生の情報に出す様子。
 export function useAdaptiveQuality(
   media: PlayerMedia | null,
@@ -53,7 +53,7 @@ export function useAdaptiveQuality(
       ? {
           onHeavy: () => {
             if (!playback.automatic) {
-              // 「自動」にしても下げる段が無ければ、勧めない。
+              // 「自動」にしても下げる段階が無ければ、勧めない。
               if (playback.lowerAvailable) {
                 setNotice({ kind: 'manual', at: Date.now() });
               }
@@ -99,7 +99,7 @@ export function useAdaptiveQuality(
     return () => window.clearTimeout(timer);
   }, [notice]);
 
-  // stepName は、知らせに出す段の名前。
+  // stepName は、知らせに出す段階の名前。
   const stepName = (name: string): string =>
     name === original
       ? t('player.originalShort')

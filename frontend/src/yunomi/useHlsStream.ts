@@ -13,7 +13,7 @@ export type HlsStream = {
   positionRef: { current: number };
   // restartAt は、指定の位置から読み直す。
   restartAt: (seconds: number) => void;
-  // seekTo は、読み直さずに、video の時刻を移したときの位置を覚える。再生を始める前のシークも、位置と、次に読み始める位置に入れる。
+  // seekTo は、読み直さずに、video の時刻を移したときの位置を保持する。再生を始める前のシークも、位置と、次に読み始める位置に入れる。
   seekTo: (seconds: number) => void;
   // currentPosition は、video の時刻から求め直した今の再生位置。
   currentPosition: () => number;

@@ -6,7 +6,7 @@ export type CaptionStyle = { stroke: boolean; backgroundOpacity: number | null }
 
 export const defaultCaptionStyle: CaptionStyle = { stroke: false, backgroundOpacity: null };
 
-// rendererColor は、字幕の見た目を、aribb24.js の描画器の色の設定 (null なら放送の指定どおり) にする。
+// rendererColor は、字幕の見た目を、aribb24.js のレンダラーの色の設定 (null なら放送の指定どおり) にする。
 export function rendererColor(style: CaptionStyle): {
   stroke: string | null;
   background: string | null;

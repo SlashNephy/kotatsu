@@ -2,7 +2,7 @@ import type { AudioNodeProvider } from 'web-bml';
 
 import type { PlayerMedia } from './playerMedia';
 
-// DataBroadcastAudio は、データ放送の効果音の出口 (#439)。web-bml は、鳴らすたびに getAudioDestinationNode() で出口を引く。
+// DataBroadcastAudio は、データ放送の効果音の出口 (#439)。web-bml は、鳴らすたびに getAudioDestinationNode() で出口を取得する。
 export type DataBroadcastAudio = AudioNodeProvider & {
   // resume は、ブラウザの自動再生の制限で止まっている AudioContext を動かす。ユーザーの操作の中で呼ぶ。
   resume: () => void;
@@ -19,7 +19,7 @@ export function broadcastGain(video: Pick<PlayerMedia, 'volume' | 'muted'> | nul
 }
 
 // createDataBroadcastAudio は、効果音をプレイヤーの音量とミュートに合わせて鳴らす出口を作る。
-// 効果音は短いので、鳴らすたびに、その時の音量とミュートを GainNode に写す。
+// 効果音は短いので、鳴らすたびに、その時の音量とミュートを GainNode にコピーする。
 // Web Audio API のない環境では null を返し、web-bml の既定の出口に任せる。
 export function createDataBroadcastAudio(
   video: () => Pick<PlayerMedia, 'volume' | 'muted'> | null,

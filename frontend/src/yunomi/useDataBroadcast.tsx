@@ -57,7 +57,7 @@ export type KeyGroup = 'basic' | 'data-button' | 'numeric-tuning';
 // defaultKeyGroups は、文書が使うキーを宣言していないときに使えるとみなすグループ。
 const defaultKeyGroups: ReadonlySet<KeyGroup> = new Set(['basic', 'data-button']);
 
-// usedKeyGroups は、web-bml が知らせた used-key-list から、リモコンのボタンを押せるグループを返す (#441)。
+// usedKeyGroups は、web-bml が通知した used-key-list から、リモコンのボタンを押せるグループを返す (#441)。
 // 宣言がなければ、basic と data-button とみなす。
 export function usedKeyGroups(list: ReadonlySet<string>): ReadonlySet<KeyGroup> {
   const groups = new Set<KeyGroup>();
@@ -113,8 +113,8 @@ export function fitDocument(layer: { width: number; height: number }, resolution
 // enterIntervalMs と maxEnterTries は、データ放送の画面に入るために、d ボタンを押し直す間隔と回数 (20 秒まで)。
 const enterIntervalMs = 200;
 const maxEnterTries = 100;
-// standbyCheckMs は、文書を読んでから、待機文書 (#717) かを確かめるまでの間。文書のスクリプトが d ボタンを受け取る仕組みを
-// 登録するのを待つ。standbyIntervalMs は、待機文書で d ボタンを押し直す間隔。押すと、局の文書は通信の確かめなどをしてから
+// standbyCheckMs は、文書を読んでから、待機文書 (#717) かを確認するまでの間。文書のスクリプトが d ボタンを受け取る仕組みを
+// 登録するのを待つ。standbyIntervalMs は、待機文書で d ボタンを押し直す間隔。押すと、局の文書は通信の確認などをしてから
 // 移るので、見えない文書より間を空ける。
 const standbyCheckMs = 1000;
 const standbyIntervalMs = 3000;
@@ -196,7 +196,7 @@ export function useDataBroadcast(
       return;
     }
     setState('loading');
-    // BMLBrowser は、渡した要素に shadow root を付ける。React が中身を持たない要素を作って渡す。
+    // BMLBrowser は、渡した要素に shadow root を付ける。React が内容を持たない要素を作って渡す。
     const container = document.createElement('div');
     layer.append(container);
     const mediaElement = document.createElement('div');
@@ -270,13 +270,13 @@ export function useDataBroadcast(
       }
     };
     // データ放送を入れたら、リモコンの d ボタンを押したときと同じく、データ放送の画面に入る。
-    // web-bml は、load を知らせてから文書のスクリプトを走らせ、d ボタンを受け取る仕組みを最後に登録する。登録の前に押しても
+    // web-bml は、load を通知してから文書のスクリプトを走らせ、d ボタンを受け取る仕組みを最後に登録する。登録の前に押しても
     // 何も起きないので、文書が見えるようになる (d ボタンが効く) か、利用者がリモコンを使うまで、間を空けて押し直す。
-    // 見えない文書は、受け取り直すと同じ文書をもう一度読む。読み直したあとに d ボタンを受け取れるようになることが多いので、
+    // 見えない文書は、受信し直すと同じ文書をもう一度読む。読み直したあとに d ボタンを受け取れるようになることが多いので、
     // load では止めずに押し続ける。
     let entering: 'idle' | 'pressing' | 'done' = 'idle';
     // gaveUp は、押し直しを回数で諦めたこと。文書が見えた、利用者が操作した、などで止めたときは false のまま。
-    // テレビ東京の共通の起動文書は、初めての受信機では、NVRAM に印を書くまで 1 分ほど待ってから局の文書へ移る (#718)。
+    // テレビ東京の共通の起動文書は、初めての受信機では、NVRAM にマークを書くまで 1 分ほど待ってから局の文書へ移る (#718)。
     // 諦めた後に次の文書を読んだら、もう一度押し直す。
     let gaveUp = false;
     // userStopped は、利用者がリモコンを使って、押し直しを止めたこと。待機文書でも押さない。
@@ -307,7 +307,7 @@ export function useDataBroadcast(
       setPressing(true);
       enterTimer = setTimeout(() => {
         enterTimer = null;
-        // 見えている文書は、待機文書のときだけ押す。中身のある文書に渡すと、最初の文書へ戻ってしまう。
+        // 見えている文書は、待機文書のときだけ押す。内容のある文書に渡すと、最初の文書へ戻ってしまう。
         // 読んだ文書が見えるかをまだ知らされていなければ、これまでどおり押す。
         if (!hidden && !justLoaded && !standby()) {
           stopEntering();
@@ -326,8 +326,8 @@ export function useDataBroadcast(
         pressLater(hidden ? enterIntervalMs : standbyIntervalMs);
       }, delay);
     };
-    // 待機文書は見える文書なので、見えたところで押すのを止めてしまう。文書を読んで少し待ってから確かめ、待機文書なら押し直す。
-    // 出している間に、見えた待機文書なら押し始める。裏で受け取っている間に読んだ待機文書は、出したときに確かめる。
+    // 待機文書は見える文書なので、見えたところで押すのを止めてしまう。文書を読んで少し待ってから確認し、待機文書なら押し直す。
+    // 出している間に、見えた待機文書なら押し始める。裏で受け取っている間に読んだ待機文書は、出したときに確認する。
     const pressIfStandby = () => {
       if (shownRef.current && !userStopped && entering !== 'pressing' && !hidden && standby()) {
         tries = 0;
@@ -366,7 +366,7 @@ export function useDataBroadcast(
       }
     };
     // 出すのをやめたら、受け取りは続けたまま、受信機で d ボタンを押して消すのと同じく、最初の見えない文書へ戻す。
-    // 受け取り直すと、次に出すときに、また d ボタンを受け取れるまで待つことになる。
+    // 受信し直すと、次に出すときに、また d ボタンを受け取れるまで待つことになる。
     hideRef.current = () => {
       stopEntering();
       if (loaded && !hidden) {
@@ -406,7 +406,7 @@ export function useDataBroadcast(
         stopEntering();
       }
       // 最初の文書を読む前と、文書を読んだ直後の最初の知らせは、待たずに反映する。web-bml は、読んだ文書が見えるかを
-      // load の直後に知らせるので、待つと、隠れた文書のときに、一度データ放送の中へ移してから戻すことになり、かえってちらつく。
+      // load の直後に通知するので、待つと、隠れた文書のときに、一度データ放送の中へ移してから戻すことになり、かえってちらつく。
       if (loaded && !justLoaded) {
         invisibility.set(event.detail);
       } else {
@@ -552,7 +552,7 @@ export function moveMedia(element: HTMLElement, target: HTMLElement): () => void
   }
   const slot = element.closest<HTMLElement>(`.${classes.slot}`);
   const nodes = slot !== null && media.contains(slot) ? [slot] : Array.from(media.childNodes);
-  // 戻すときに元に戻すので、移す前のインラインのスタイルを覚える。
+  // 戻すときに元に戻すので、移す前のインラインのスタイルを保持する。
   const saved = fitMedia(nodes);
   target.replaceChildren(...nodes);
 

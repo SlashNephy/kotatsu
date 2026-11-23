@@ -25,7 +25,7 @@ export function positionUrl(href: string, seconds: number): string {
 }
 
 // TimeshiftRange は、タイムシフトの番組の始まりと、再生できる範囲。
-// 再生位置の起点 (playableFrom) は、番組の頭のチャンクを捨てると後ろへ動くので、URL の t は番組の始まりからの放送の秒で表す。
+// 再生位置の起点 (playableFrom) は、番組の先頭のチャンクを破棄すると後ろへ動くので、URL の t は番組の始まりからの放送の秒で表す。
 type TimeshiftRange = { startAt: string; playableFrom: string; gaps: readonly Gap[] };
 
 // timeshiftShareSeconds は、タイムシフトの再生位置 position (秒) を、URL に載せる、番組の始まりからの秒に直す。
@@ -35,7 +35,7 @@ export function timeshiftShareSeconds(range: TimeshiftRange, position: number): 
   );
 }
 
-// timeshiftStartPosition は、URL の t (番組の始まりからの秒) を、今の再生位置に直す。もう捨てた所を指していたら、再生できる範囲の始まりにする。
+// timeshiftStartPosition は、URL の t (番組の始まりからの秒) を、今の再生位置に直す。もう破棄した所を指していたら、再生できる範囲の始まりにする。
 export function timeshiftStartPosition(range: TimeshiftRange, seconds: number): number {
   return recordingPosition(
     range.playableFrom,

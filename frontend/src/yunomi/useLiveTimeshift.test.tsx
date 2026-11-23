@@ -185,7 +185,7 @@ describe('useLiveTimeshift の、見ていた位置の再開 (#1600)', () => {
     expect(result.current.behind).toBe(behind);
     if (behind) {
       expect(result.current.hlsStart).toBeCloseTo((600_000 - ago) / 1000, 0);
-      // 移れたら、続けて見ている位置を覚え直す。
+      // 移れたら、続けて見ている位置を保持し直す。
       act(() => {
         vi.advanceTimersByTime(5_000);
       });

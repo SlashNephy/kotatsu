@@ -202,7 +202,7 @@ export const repeatIntervalMs = 120;
 
 // useRepeatPress は、押し続けると繰り返すボタンのハンドラーを返す。ポインターで押したときに 1 回押し、押し続けると繰り返す。
 // キーボードでボタンを押したときは click だけが届くので、そのときに 1 回押す。キーボードの click は detail が 0 になる。
-// ポインターの後に届く click (detail が 1 以上) では押さない。タッチでは pointerleave が click より先に届くので、印では見分けない。
+// ポインターの後に届く click (detail が 1 以上) では押さない。タッチでは pointerleave が click より先に届くので、マークでは見分けない。
 function useRepeatPress(onPress: (key: RemoteKey) => void) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stop = () => {

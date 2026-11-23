@@ -1,5 +1,5 @@
 // ライブで貯める量 (目標量) を、止まり方と届き方から決め、再生の速さで寄せる制御 (#1514、設計書 7.2)。
-// video の要素にも React にも触れず、時刻と測った値を渡されて決めるだけにする。要素を読んで渡すのは useLiveCatchUp。
+// video の要素にも React にも触れず、時刻と計測した値を渡されて決めるだけにする。要素を読んで渡すのは useLiveCatchUp。
 // 映像だけの遅れ (#1513) と、MPEG-2 を WASM でデコードする経路 (#1516) も、この制御を使う。
 
 // LiveBufferParams は、制御の値。秒の値は秒、時間の値はミリ秒で持つ。既定値は設計書の付録 A。
@@ -24,7 +24,7 @@ export type LiveBufferParams = {
   // speedUpRate と slowDownRate は、溜まりすぎのときと、足りないときの再生の速さ。
   speedUpRate: number;
   slowDownRate: number;
-  // gapMemoryMs は、届く間隔の最大を覚えておく長さ。
+  // gapMemoryMs は、届く間隔の最大を保持しておく長さ。
   gapMemoryMs: number;
   // maxCountedGap は、揺れとして覆う届く間隔の最大 (秒)。これより長いのは途絶えなので、覆わない。
   maxCountedGap: number;
@@ -33,7 +33,7 @@ export type LiveBufferParams = {
   coverAdd: number;
   // lowWindowMs は、バッファの最小値と届く間隔の最大を見る直近の長さ (バッファの低い所を見る長さ)。
   lowWindowMs: number;
-  // arrivalWindowMs と shortArrivalRatio は、届いた映像の長さを、経った時間と比べる直近の長さと、回線が足りないとみなす割合。
+  // arrivalWindowMs と shortArrivalRatio は、届いた映像の長さを、経った時間と比較する直近の長さと、回線が足りないとみなす割合。
   // 詰まった時点で、直近に届いた映像の長さが経った時間 × この割合より短ければ、受け取りの速さが放送のビットレートを
   // 下回っていた (回線のせい) とみなし、下限は上げずに目標量だけを上げる。
   arrivalWindowMs: number;
@@ -42,20 +42,20 @@ export type LiveBufferParams = {
   retargetIntervalMs: number;
   // selfInflictedGraceMs は、選局、飛び、MediaSource の作り直しの直後に、詰まりを数えない時間。
   selfInflictedGraceMs: number;
-  // speedUpStartRatio と speedUpStopRatio は、比べる値が「目標量 × 倍率」を超えたら速め、以下になったらやめる倍率。
+  // speedUpStartRatio と speedUpStopRatio は、比較する値が「目標量 × 倍率」を超えたら速め、以下になったらやめる倍率。
   speedUpStartRatio: number;
   speedUpStopRatio: number;
   // webkitStartMargin と webkitStopRatio は、Safari と iPad/iPhone で、速め始める「目標量 + 余り」と、やめる倍率。
   webkitStartMargin: number;
   webkitStopRatio: number;
-  // tickMs は、塊が届かない間も、速さを判断する周期 (判断の刻み)。
+  // tickMs は、チャンクが届かない間も、速さを判断する周期 (判断の間隔)。
   tickMs: number;
   // chaseEndRatio は、追っかけで、バッファが「目標量 × この倍率」以下に戻ったらライブに戻す倍率。
   chaseEndRatio: number;
 };
 
-// defaultLiveBufferParams は、制御の既定値。どれも初期値で、実機で測って決め直す (設計書の付録 A)。
-// 変換の経路の断片は約 0.5 秒 (MPEG-2 の GOP ごと) で、ほぼ 0.5 秒おきに届くことを、開発用の環境で確かめた。
+// defaultLiveBufferParams は、制御の既定値。どれも初期値で、実機で計測して決め直す (設計書の付録 A)。
+// 変換の経路の断片は約 0.5 秒 (MPEG-2 の GOP ごと) で、ほぼ 0.5 秒おきに届くことを、開発用の環境で確認した。
 export const defaultLiveBufferParams: LiveBufferParams = {
   // 断片の 2 つ分。止まれば伸びるので、小さい側から始める。
   minTarget: 1,
@@ -115,7 +115,7 @@ export type RateDecision = {
 export type LiveBufferStatus = {
   target: number;
   floor: number;
-  // maxGap は、覚えている届く間隔の最大 (秒)。いま空いている最中の間隔も含める。
+  // maxGap は、保持している届く間隔の最大 (秒)。いま空いている最中の間隔も含める。
   maxGap: number;
   // rateChanges は、速さを変えた回数。
   rateChanges: number;
@@ -123,7 +123,7 @@ export type LiveBufferStatus = {
   stalls: number;
   // chasing は、一時停止の後で、わざと遅れて見ている (追っかけ) か。
   chasing: boolean;
-  // learned は、初期の最小量より上の下限を覚えているか。覚えた下限を捨てるボタンは、このときだけ出す。
+  // learned は、初期の最小量より上の下限を保存しているか。保存した下限を破棄するボタンは、このときだけ出す。
   learned: boolean;
 };
 
@@ -133,25 +133,25 @@ type Sample = { at: number; buffer: number };
 
 // LiveBufferController は、目標量と下限を持ち、事象を受けて決め直す。時刻 now は、どれもミリ秒。
 export type LiveBufferController = {
-  // arrive は、塊が届いたことを知らせる。bufferBefore は、届く直前のバッファ。
-  // まだ何も読み込んでいなかった (読み込み直後の最初の塊) なら null。0 として記録すると、しばらく足りないとみなして遅くするため。
+  // arrive は、チャンクが届いたことを通知する。bufferBefore は、届く直前のバッファ。
+  // まだ何も読み込んでいなかった (読み込み直後の最初のチャンク) なら null。0 として記録すると、しばらく足りないとみなして遅くするため。
   // tail は、届いた後の buffered の末尾 (秒)。渡せば、届いた映像の長さから、回線が足りなかったかを見分ける。
   arrive(now: number, bufferBefore: number | null, tail?: number): void;
-  // sample は、映ったコマや判断の刻みで測ったバッファを知らせる。
+  // sample は、映ったコマや判断の間隔で計測したバッファを通知する。
   sample(now: number, buffer: number): void;
   // forgetArrival は、前の到着時刻を忘れる。シーク、一時停止、タブが隠れたとき。
   forgetArrival(): void;
-  // pause は、一時停止したことを知らせる。再開したら、追いつくまで追っかけとして扱い、飛ばない。
+  // pause は、一時停止したことを通知する。再開したら、追いつくまで追っかけとして扱い、飛ばない。
   pause(): void;
-  // selfInflicted は、選局、飛び、MediaSource の作り直しを知らせる。前の到着時刻を忘れ、しばらく詰まりを数えない。
+  // selfInflicted は、選局、飛び、MediaSource の作り直しを通知する。前の到着時刻を忘れ、しばらく詰まりを数えない。
   selfInflicted(now: number): void;
   // stall は、止まったことを知らせ、数えたら目標量を決め直す。数えたかを返す。
   stall(now: number): boolean;
-  // tick は、判断の刻みごとに呼ぶ。決め直す間隔がたっていれば、目標量を決め直す。
+  // tick は、判断の間隔ごとに呼ぶ。決め直す間隔がたっていれば、目標量を決め直す。
   tick(now: number): void;
   // decide は、次の再生の速さと、飛ぶかどうかを決める。
   decide(now: number, input: RateInput): RateDecision;
-  // forgetFloor は、覚えた下限を捨て、目標量を初期の最小量まで詰める。放送の今へ戻すのは、呼んだ側。
+  // forgetFloor は、保存した下限を破棄し、目標量を初期の最小量まで詰める。放送の今へ戻すのは、呼んだ側。
   forgetFloor(now: number): void;
   // coverage は、今の覆う量。
   coverage(now: number): number;
@@ -162,10 +162,10 @@ export type LiveBufferController = {
 
 export type LiveBufferOptions = {
   now: number;
-  // storedFloor は、端末に覚えた下限。なければ null。
+  // storedFloor は、端末に保存した下限。なければ null。
   storedFloor: number | null;
   params?: LiveBufferParams;
-  // onFloorChange は、下限が変わったときに呼ぶ。初期の最小量まで戻ったら null を渡す。端末に覚えるのは呼んだ側。
+  // onFloorChange は、下限が変わったときに呼ぶ。初期の最小量まで戻ったら null を渡す。端末に保存するのは呼んだ側。
   onFloorChange?: (floor: number | null) => void;
 };
 
@@ -173,7 +173,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-// clampFloor は、端末に覚えた下限を、初期の最小量から上限の間に丸める。読めない値は null。
+// clampFloor は、端末に保存した下限を、初期の最小量から上限の間に丸める。読めない値は null。
 export function clampFloor(value: number | null, params = defaultLiveBufferParams): number | null {
   if (value === null || !Number.isFinite(value)) {
     return null;
@@ -182,7 +182,7 @@ export function clampFloor(value: number | null, params = defaultLiveBufferParam
   return clamp(value, params.minTarget, params.maxTarget);
 }
 
-// createLiveBufferController は、目標量の制御を作る。目標量は、覚えた下限から始める。
+// createLiveBufferController は、目標量の制御を作る。目標量は、保存した下限から始める。
 // 毎回初期値から始めると、開いてすぐに決まって 1 回止まるため。
 export function createLiveBufferController(options: LiveBufferOptions): LiveBufferController {
   const params = options.params ?? defaultLiveBufferParams;
@@ -240,10 +240,10 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
     return max;
   };
 
-  // openGap は、いま空いている最中の間隔 (秒)。前の到着を覚えていなければ 0。
+  // openGap は、いま空いている最中の間隔 (秒)。前の到着を保持していなければ 0。
   const openGap = (now: number) => (lastArrival === null ? 0 : (now - lastArrival) / 1_000);
 
-  // coveredGap は、覆う量に通す間隔。直近の覚える長さの最大と、いま空いている最中の間隔 (上限まで) の長い方。
+  // coveredGap は、覆う量に通す間隔。直近の保持する長さの最大と、いま空いている最中の間隔 (上限まで) の長い方。
   const coveredGap = (now: number) =>
     Math.max(recordedGap(now, params.gapMemoryMs), Math.min(openGap(now), params.maxCountedGap));
 
@@ -254,8 +254,8 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
       params.maxTarget,
     );
 
-  // arrivedShort は、直近の比べる長さに届いた映像の長さが、経った時間 × 割合より短かったか (受け取りの速さが放送のビットレートを
-  // 下回っていたか)。比べる長さの半分より短い間しか測っていなければ、分からないとして false。
+  // arrivedShort は、直近の比較する長さに届いた映像の長さが、経った時間 × 割合より短かったか (受け取りの速さが放送のビットレートを
+  // 下回っていたか)。比較する長さの半分より短い間しか計測していなければ、分からないとして false。
   const arrivedShort = (now: number) => {
     const first = tails[0];
     const last = tails.at(-1);
@@ -272,7 +272,7 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
     if (stalled) {
       lastStallAt = now;
       if (cover > target) {
-        // 空きで説明がつく詰まり。下限は動かさず、空きが来なくなれば、覚える長さがたって忘れ、縮む。
+        // 空きで説明がつく詰まり。下限は動かさず、空きが来なくなれば、保持する長さがたって忘れ、縮む。
         target = clamp(Math.max(cover, floor), params.minTarget, params.maxTarget);
       } else if (arrivedShort(now)) {
         // 回線が足りずに貯めきれなかった詰まり。端末の詰まりではないので、下限は動かさず、目標量だけを上げる。
@@ -365,14 +365,14 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
 
         return { rate: 1, jump: true };
       }
-      // 届いた直後のバッファは束のたびに跳ねるので、直近の低い所に、同じ長さの届く間隔の最大を足して比べる。
+      // 届いた直後のバッファは束のたびに跳ねるので、直近の低い所に、同じ長さの届く間隔の最大を足して比較する。
       let low = input.buffer;
       for (const sample of samples) {
         if (sample.at >= now - params.lowWindowMs && sample.buffer < low) {
           low = sample.buffer;
         }
       }
-      // いま空いている最中の間隔は、覚える長さの間の最大までしか足さない。それより長く空いたら、足さずに遅くして持たせる。
+      // いま空いている最中の間隔は、保持する長さの間の最大までしか足さない。それより長く空いたら、足さずに遅くして持たせる。
       const gap = Math.max(
         recordedGap(now, params.lowWindowMs),
         Math.min(openGap(now), recordedGap(now, params.gapMemoryMs)),
@@ -418,7 +418,7 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
   };
 }
 
-// nextMode は、比べる値 compared と目標量 target から、次の寄せ方を決める。
+// nextMode は、比較する値 compared と目標量 target から、次の寄せ方を決める。
 // 速めるときは、やめる所を始める所より低く置き、境目での往復を防ぐ。遅くしているときは、目標量に戻ったらすぐ等速に戻す。
 export function nextMode(
   current: RateMode,
@@ -455,7 +455,7 @@ export function rateOf(mode: RateMode, params: LiveBufferParams = defaultLiveBuf
   }
 }
 
-// prefersConservativeRate は、遅くせず、速さを変える回数を減らすブラウザか。Safari と、iPad/iPhone のすべてのブラウザ (中身が WebKit)。
+// prefersConservativeRate は、遅くせず、速さを変える回数を減らすブラウザか。Safari と、iPad/iPhone のすべてのブラウザ (内容が WebKit)。
 // WebKit は、再生中に playbackRate を変えるたびに、音と映像がつまずくことがある (要確認)。
 // iPadOS の Safari は Mac の User-Agent を名乗るので、タッチの点の数で見分ける。
 export function prefersConservativeRate(userAgent: string, maxTouchPoints: number): boolean {
@@ -475,7 +475,7 @@ export function prefersConservativeRate(userAgent: string, maxTouchPoints: numbe
 
 const floorStorageKey = 'kotatsu.player.liveBufferFloor';
 
-// loadLiveBufferFloor は、端末に覚えた下限を読み、初期の最小量から上限の間に丸める。読めない、覚えていなければ null。
+// loadLiveBufferFloor は、端末に保存した下限を読み、初期の最小量から上限の間に丸める。読めない、保存していなければ null。
 export function loadLiveBufferFloor(
   storage: Pick<Storage, 'getItem'> | null,
   params = defaultLiveBufferParams,
@@ -492,7 +492,7 @@ export function loadLiveBufferFloor(
   }
 }
 
-// saveLiveBufferFloor は、下限を端末に覚える。null なら消す。書けなければ、次に開いたときは初期の最小量から始めるだけ。
+// saveLiveBufferFloor は、下限を端末に保存する。null なら消す。書けなければ、次に開いたときは初期の最小量から始めるだけ。
 export function saveLiveBufferFloor(
   storage: Pick<Storage, 'setItem' | 'removeItem'> | null,
   floor: number | null,

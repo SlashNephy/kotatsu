@@ -8,9 +8,9 @@ import { browserStorage } from './volume';
 // (WebGL の drawingBufferToneMapping。https://github.com/KhronosGroup/WebGL/pull/3668)。
 // 持たないブラウザ (Chromium 158 でも既定では無効) と、HDR でない画面では、今までどおり SDR で描く。
 
-// storageKey は、擬似 HDR で出すかを覚えるキー。画面は端末によるので、ほかの端末とは同期しない。
+// storageKey は、擬似 HDR で出すかを保存するキー。画面は端末によるので、ほかの端末とは同期しない。
 const storageKey = 'kotatsu.player.hdrOutput';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:hdr-output';
 // hdrDisplayQuery は、HDR を出せる画面かを問うメディアクエリ。
 const hdrDisplayQuery = '(dynamic-range: high)';
@@ -115,7 +115,7 @@ vec3 expandHighlights(vec3 c) {
 }
 `;
 
-// copyShader は、テクスチャを、同じ大きさの canvas へ写す。uExpand なら、明るい所を伸ばす。
+// copyShader は、テクスチャを、同じ大きさの canvas へコピーする。uExpand なら、明るい所を伸ばす。
 // 行は下から数える (framebuffer と同じ向き)。uFlip のテクスチャは行を上から持つので、読むときに返す。
 const copyShader = `#version 300 es
 precision highp float;
@@ -136,10 +136,10 @@ void main() {
 }
 `;
 
-// HDRCopy は、拡大せずに、明るい所を伸ばして canvas へ写す処理。擬似 HDR をやめた直後のコマは、伸ばさずに写す。
+// HDRCopy は、拡大せずに、明るい所を伸ばして canvas へコピーする処理。擬似 HDR をやめた直後のコマは、伸ばさずにコピーする。
 export type HDRCopy = {
-  // draw は、width × height の texture を、同じ大きさの canvas (既定の framebuffer) へ写す。
-  // texture は行を下から持つ。flipped なら行を上から持つ (video を写したテクスチャ)。expand なら、明るい所を伸ばす。
+  // draw は、width × height の texture を、同じ大きさの canvas (既定の framebuffer) へコピーする。
+  // texture は行を下から持つ。flipped なら行を上から持つ (video をコピーしたテクスチャ)。expand なら、明るい所を伸ばす。
   draw(
     texture: WebGLTexture,
     flipped: boolean,
@@ -150,7 +150,7 @@ export type HDRCopy = {
   destroy(): void;
 };
 
-// createHDRCopy は、gl に写すシェーダーを作る。作れなければ投げる。変えた GL の状態は戻す。
+// createHDRCopy は、gl にコピーするシェーダーを作る。作れなければ投げる。変えた GL の状態は戻す。
 export function createHDRCopy(gl: WebGL2RenderingContext): HDRCopy {
   const program = compileProgram(gl, copyShader);
   const location = {
@@ -190,7 +190,7 @@ export function createHDRCopy(gl: WebGL2RenderingContext): HDRCopy {
 }
 
 // setHDRDrawingBuffer は、gl の描画先 (canvas) を、hdr なら RGBA16F と extended のトーンマッピングに、
-// そうでなければ RGBA8 と standard に変える。既にその形なら何もしない。変えると描画先の中身は消えるので、
+// そうでなければ RGBA8 と standard に変える。既にその形なら何もしない。変えると描画先の内容は消えるので、
 // 描く直前に呼ぶ。width と height は、canvas の大きさ。
 // 浮動小数点の描画先を作れない (EXT_color_buffer_float がない) か、口を持たなければ投げる。
 export function setHDRDrawingBuffer(
@@ -208,7 +208,7 @@ export function setHDRDrawingBuffer(
   if (hdr && gl.getExtension('EXT_color_buffer_float') === null) {
     throw new Error('the drawing buffer cannot hold floating point colors');
   }
-  // alpha のないコンテキストなどでは、形式を変えられず、GL のエラーになるだけで投げない。変わったかを確かめてから、
+  // alpha のないコンテキストなどでは、形式を変えられず、GL のエラーになるだけで投げない。変わったかを確認してから、
   // トーンマッピングを変える。
   context.drawingBufferStorage(hdr ? gl.RGBA16F : gl.RGBA8, width, height);
   if (context.drawingBufferFormat !== (hdr ? gl.RGBA16F : gl.RGBA8)) {
