@@ -94,7 +94,7 @@ export const NoMatch: Story = {
   args: { overrides: { captures: listed([]) } },
   play: async ({ canvas }) => {
     await userEvent.type(
-      await canvas.findByRole('textbox', { name: '番組名やサービス名で探す' }),
+      await canvas.findByRole('textbox', { name: '番組名、サービス名、字幕で探す' }),
       '該当なし',
     );
   },

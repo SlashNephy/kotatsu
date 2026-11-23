@@ -180,8 +180,6 @@ export type DemoEnvironmentOptions = {
   // overrides は、デモの応答のうち差し替えるフィールド。関数なら、デモの既定の応答を受け取り、差し替えるフィールドを返す。
   // 既定の応答の一部だけを変える (予約の割り当てを競合にするなど) ときに使う。
   overrides?: object | ((root: DemoRoot) => object);
-  // fillMissing なら、デモのデータにない non-null のフィールドを、型の既定の値で埋める (executor.ts)。
-  fillMissing?: boolean;
   now?: number;
   hold?: Hold;
   captures?: DemoCaptures;
@@ -194,17 +192,16 @@ export function createDemoEnvironment({
   now = Date.now(),
   hold,
   captures = createDemoCaptures(),
-  fillMissing = false,
 }: DemoEnvironmentOptions = {}): {
   environment: Environment;
   executor: Executor;
   captures: DemoCaptures;
 } {
   const root = createRootValue(createEventHub(), now, captures) as DemoRoot;
-  const executor = createExecutor(
-    { ...root, ...(typeof overrides === 'function' ? overrides(root) : overrides) },
-    { fillMissing },
-  );
+  const executor = createExecutor({
+    ...root,
+    ...(typeof overrides === 'function' ? overrides(root) : overrides),
+  });
 
   return {
     environment: new Environment({

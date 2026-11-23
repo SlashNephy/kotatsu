@@ -36,7 +36,17 @@ const endpoint = 'https://push.example.com/kotatsu-demo';
 
 const preferences = (subscribed: boolean) => ({
   webPushPublicKey: () => 'BKotatsuDemoPublicKey',
-  webPushSubscriptions: () => (subscribed ? [{ endpoint }] : []),
+  webPushSubscriptions: () =>
+    subscribed
+      ? [
+          {
+            id: 'WebPushSubscription:1',
+            endpoint,
+            userAgent: navigator.userAgent,
+            createdAt: '2026-11-01T12:00:00+09:00',
+          },
+        ]
+      : [],
   notificationPreferences: () =>
     kinds.map((kind, index) => ({
       kind,

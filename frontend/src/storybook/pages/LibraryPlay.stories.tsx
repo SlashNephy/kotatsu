@@ -34,7 +34,7 @@ const broadcast = {
   jikkyoChannelId: null,
   recordedFrom,
   recordedUntil,
-  service: { name: 'こたつテレビ', logoUrl: null },
+  service: { id: 'Service:1024', name: 'こたつテレビ', logoUrl: null },
   program: {
     name: '[字]こたつの時間',
     description: 'こたつで過ごす冬の夜を、家族の会話とともに描きます。',

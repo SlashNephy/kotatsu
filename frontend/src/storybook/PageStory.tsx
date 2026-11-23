@@ -27,9 +27,8 @@ export type PageStoryProps = {
 
 // PageStory は、url の画面を、デモの応答で描く。差し替えた応答は、Story を開き直すまで変えない。
 export function PageStory({ url, overrides, hold, auth }: PageStoryProps) {
-  // デモが応えない画面 (管理の画面など) も枠を描けるよう、デモのデータにないフィールドは型の既定の値で埋める。
   const [{ environment, executor, captures }] = useState(() =>
-    createDemoEnvironment({ overrides, hold, fillMissing: true }),
+    createDemoEnvironment({ overrides, hold }),
   );
   const [router, setRouter] = useState<ReturnType<typeof createRouter> | null>(null);
   // failure は、パスを返す関数が失敗したときの理由。Story を空のまま止めず、理由を出す。

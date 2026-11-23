@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent } from 'storybook/test';
 
-import { replaceProperty } from '../conditions';
+import type { DemoRoot } from '../../demo';
+import { call, replaceProperty } from '../conditions';
 import { failing, holdAll, PageStory } from '../PageStory';
 
 // セキュリティの設定 (/settings/security) の画面 (#2056)。認証アプリ、パスキー、API トークン、予約のカレンダー、IPTV の配信、
@@ -19,15 +20,13 @@ type Story = StoryObj<typeof meta>;
 
 const at = (day: number) => `2026-11-${String(day).padStart(2, '0')}T12:00:00+09:00`;
 
-// base は、どれも使っていない状態。管理者は API トークンと IPTV の配信を有効にしている。
+// base は、どれも使っていない状態。管理者 (デモのユーザー) は、API トークンと IPTV の配信を有効にしている (デモの既定の設定)。
 const base = {
-  viewer: () => ({ id: 'User:demo', username: 'demo', role: 'ADMIN' }),
   secondFactors: () => ({ totp: false, remainingRecoveryCodes: 0 }),
   passkeys: () => [],
   calendarFeed: () => null,
   iptvFeed: () => null,
   apiTokens: () => [],
-  systemSettings: () => ({ iptvFeedsEnabled: true, epgstationApiEnabled: true }),
   beginTotpEnrollment: () => ({
     secret: 'KOTATSUDEMOSECRET',
     uri: 'otpauth://totp/Kotatsu:demo?secret=KOTATSUDEMOSECRET&issuer=Kotatsu',
@@ -51,6 +50,15 @@ const base = {
 };
 
 const used = { createdAt: at(1), lastUsedAt: at(21) };
+
+// features は、base に、管理者が API と IPTV の配信を有効にしているかを重ねる。そのほかの全体の設定は、デモの既定の値を使う。
+const features =
+  (enabled: { iptvFeedsEnabled: boolean; epgstationApiEnabled: boolean }, patch: object = {}) =>
+  (root: DemoRoot) => ({
+    ...base,
+    ...patch,
+    systemSettings: () => ({ ...call<object>(root, 'systemSettings'), ...enabled }),
+  });
 
 export const Default: Story = { args: { overrides: base } };
 
@@ -156,21 +164,17 @@ export const ApiTokenIssued: Story = {
 // 管理者が EPGStation 互換の API を無効にしたが、発行済みのトークンがあるとき。
 export const ApiTokensDisabled: Story = {
   args: {
-    overrides: {
-      ...base,
-      systemSettings: () => ({ iptvFeedsEnabled: true, epgstationApiEnabled: false }),
-      apiTokens: () => [{ id: 'ApiToken:1', name: 'スマートフォンのアプリ', ...used }],
-    },
+    overrides: features(
+      { iptvFeedsEnabled: true, epgstationApiEnabled: false },
+      { apiTokens: () => [{ id: 'ApiToken:1', name: 'スマートフォンのアプリ', ...used }] },
+    ),
   },
 };
 
 // 管理者が API と IPTV の配信を無効にし、発行済みのものもないとき (欄を出さない)。
 export const FeaturesDisabled: Story = {
   args: {
-    overrides: {
-      ...base,
-      systemSettings: () => ({ iptvFeedsEnabled: false, epgstationApiEnabled: false }),
-    },
+    overrides: features({ iptvFeedsEnabled: false, epgstationApiEnabled: false }),
   },
 };
 
@@ -198,11 +202,10 @@ export const IptvFeedCreated: Story = {
 // 管理者が IPTV の配信を無効にしたが、発行済みの URL があるとき。
 export const IptvFeedDisabled: Story = {
   args: {
-    overrides: {
-      ...base,
-      iptvFeed: () => used,
-      systemSettings: () => ({ iptvFeedsEnabled: false, epgstationApiEnabled: true }),
-    },
+    overrides: features(
+      { iptvFeedsEnabled: false, epgstationApiEnabled: true },
+      { iptvFeed: () => used },
+    ),
   },
 };
 

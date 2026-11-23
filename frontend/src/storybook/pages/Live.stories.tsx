@@ -42,9 +42,10 @@ export const DisconnectedByRecording: Story = {
           return call<object>(root, 'recordings', args);
         }
         const node = {
+          id: 'Recording:recording-now',
           name: 'ねこの町を歩く',
           recordedFrom: new Date().toISOString(),
-          service: { name: 'こたつテレビ', logoUrl: null },
+          service: { id: 'Service:1024', name: 'こたつテレビ', logoUrl: null },
         };
 
         return {
@@ -65,7 +66,14 @@ export const DisconnectedByRecording: Story = {
 export const Scrambled: Story = { args: { overrides: liveStreamScrambled(service) } };
 
 // 今の時刻の番組が番組表にないとき。
-export const NoProgram: Story = { args: { overrides: { guide: () => [{ programs: [] }] } } };
+export const NoProgram: Story = {
+  args: {
+    overrides: (root: DemoRoot) => ({
+      guide: (args: object) =>
+        call<object[]>(root, 'guide', args).map((row) => ({ ...row, programs: [] })),
+    }),
+  },
+};
 
 // openMoreActions は、番組名の横の「そのほかの操作」のメニューを開く。番組の詳細、外部プレイヤー、タイムシフトの項目の出し分けを見る。
 const openMoreActions: Story['play'] = async ({ canvas }) => {

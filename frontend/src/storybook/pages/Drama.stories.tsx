@@ -49,8 +49,8 @@ const nextBroadcast = (
     name: `ドラマ「${id}」`,
     startAt: at(start),
     endAt: at(start + hour),
-    reservation: fields.reservation ?? null,
-    service: { name: 'デモ総合', logoUrl: null, channelType: { type: 'GR' } },
+    reservation: fields.reservation ? { id: `Reservation:${id}`, ...fields.reservation } : null,
+    service: { id: 'Service:1024', name: 'デモ総合', logoUrl: null, channelType: { type: 'GR' } },
   },
 });
 

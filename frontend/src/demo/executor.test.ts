@@ -545,28 +545,164 @@ describe('demo watch rules', () => {
   });
 });
 
-// Storybook のページの Story (#2056) は、デモのデータにないフィールドを、型の既定の値で埋めて描く。
-describe('createExecutor の fillMissing', () => {
-  const query = '{ users { id } viewer { id username role } timeZone oldestArchivedProgramAt }';
+describe('demo system settings', () => {
+  const save = (executor: ReturnType<typeof newExecutor>['executor'], input: object) =>
+    executor.execute(
+      'mutation ($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { updatedAt } }',
+      { input },
+    );
 
-  it('埋めなければ、デモのデータにない non-null のフィールドはエラーになる', async () => {
-    const result = await createExecutor({ timeZone: () => 'Asia/Tokyo' }).execute(query, {});
+  it('derives jikkyoEnabled from the comment sources like the server', async () => {
+    const { executor } = newExecutor();
 
-    expect(result.errors?.[0]?.message).toMatch(/non-nullable field Query\.users/);
+    await save(executor, { commentSources: ['NICOLOG'] });
+    const result = await executor.execute(
+      '{ systemSettings { jikkyoEnabled commentSources } }',
+      {},
+    );
+
+    expect(result.data).toEqual({
+      systemSettings: { jikkyoEnabled: false, commentSources: ['NICOLOG'] },
+    });
   });
 
-  it('埋めれば、一覧は空、オブジェクトは中身を既定の値 (列挙は最初の値) にし、デモのデータにある値と nullable のフィールドはそのままにする', async () => {
-    const result = await createExecutor(
-      { timeZone: () => 'Asia/Tokyo' },
-      { fillMissing: true },
-    ).execute(query, {});
+  it('applies the DRCS replacements as a patch, removing the ones whose text is null', async () => {
+    const { executor } = newExecutor();
+    const md5 = (digit: string) => digit.repeat(32);
 
-    expect(result.errors).toBeUndefined();
-    expect(result.data).toEqual({
-      users: [],
-      viewer: { id: '', username: '', role: 'ADMIN' },
-      timeZone: 'Asia/Tokyo',
-      oldestArchivedProgramAt: null,
+    await save(executor, {
+      drcsReplacements: [
+        { md5: md5('b'), text: '①' },
+        { md5: md5('a'), text: '②' },
+      ],
     });
+    await save(executor, {
+      drcsReplacements: [
+        { md5: md5('a'), text: null },
+        { md5: md5('c'), text: '③' },
+      ],
+    });
+    const result = await executor.execute('{ drcsReplacements { md5 text } }', {});
+
+    expect(result.data).toEqual({
+      drcsReplacements: [
+        { md5: md5('b'), text: '①' },
+        { md5: md5('c'), text: '③' },
+      ],
+    });
+  });
+
+  it('applies the jikkyo channels as a patch, removing the ones whose channel is null', async () => {
+    const { executor } = newExecutor();
+
+    await save(executor, {
+      jikkyoChannels: [
+        { networkId: 4, serviceId: 101, channelId: 'jk101' },
+        { networkId: 32736, serviceId: 1024, channelId: 'jk1' },
+      ],
+    });
+    await save(executor, {
+      jikkyoChannels: [
+        { networkId: 4, serviceId: 101, channelId: null },
+        { networkId: 32736, serviceId: 1024, channelId: 'jk2' },
+      ],
+    });
+    const result = await executor.execute(
+      '{ systemSettings { jikkyoChannels { networkId serviceId channelId } } }',
+      {},
+    );
+
+    expect(result.data).toEqual({
+      systemSettings: {
+        jikkyoChannels: [{ networkId: 32736, serviceId: 1024, channelId: 'jk2' }],
+      },
+    });
+  });
+
+  it('keeps the saved settings when they are read again (#2073)', async () => {
+    const { executor } = newExecutor();
+
+    await executor.execute(
+      'mutation ($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { archiveRetentionDays } }',
+      { input: { archiveRetentionDays: 60, mcpEnabled: true } },
+    );
+    const result = await executor.execute(
+      '{ systemSettings { archiveRetentionDays mcpEnabled notificationRetentionDays updatedAt } }',
+      {},
+    );
+
+    expect(result).toMatchObject({
+      data: {
+        systemSettings: {
+          archiveRetentionDays: 60,
+          mcpEnabled: true,
+          notificationRetentionDays: 30,
+        },
+      },
+    });
+    expect(
+      (result.data as { systemSettings: { updatedAt: string | null } }).systemSettings.updatedAt,
+    ).not.toBeNull();
+  });
+});
+
+describe('demo notification preferences', () => {
+  it('keeps the saved preference of a kind and leaves the others enabled (#2073)', async () => {
+    const { executor } = newExecutor();
+
+    await executor.execute(
+      'mutation ($input: NotificationPreferenceInput!) { updateNotificationPreference(input: $input) { kind } }',
+      { input: { kind: 'RECORDING_STARTED', inApp: false, webPush: false } },
+    );
+    const result = await executor.execute(
+      '{ notificationPreferences { kind inApp webPush ruleReservations } }',
+      {},
+    );
+
+    const preferences = (
+      result.data as {
+        notificationPreferences: { kind: string; inApp: boolean; webPush: boolean }[];
+      }
+    ).notificationPreferences;
+    expect(preferences.find((p) => p.kind === 'RECORDING_STARTED')).toEqual({
+      kind: 'RECORDING_STARTED',
+      inApp: false,
+      webPush: false,
+      ruleReservations: true,
+    });
+    expect(preferences.find((p) => p.kind === 'RECORDING_FAILED')).toMatchObject({
+      inApp: true,
+      webPush: true,
+    });
+  });
+});
+
+describe('demo rule defaults', () => {
+  it('changes only the given rule defaults and clears the duplicate window (#2073)', async () => {
+    const { executor } = newExecutor();
+    const save = (ruleDefaults: object) =>
+      executor.execute(
+        'mutation ($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { archiveRetentionDays } }',
+        { input: { ruleDefaults } },
+      );
+    const read = async () =>
+      (
+        (
+          await executor.execute(
+            '{ systemSettings { ruleDefaults { avoidDuplicates duplicateWindowDays followEventRelay bundleSameEpisodes } } }',
+            {},
+          )
+        ).data as { systemSettings: { ruleDefaults: object } }
+      ).systemSettings.ruleDefaults;
+
+    await save({ avoidDuplicates: true, duplicateWindowDays: 30 });
+    expect(await read()).toEqual({
+      avoidDuplicates: true,
+      duplicateWindowDays: 30,
+      followEventRelay: true,
+      bundleSameEpisodes: true,
+    });
+    await save({ clearDuplicateWindowDays: true });
+    expect(await read()).toMatchObject({ avoidDuplicates: true, duplicateWindowDays: null });
   });
 });
