@@ -29,7 +29,7 @@ run = "DEV_UID=$(id -u) DEV_GID=$(id -g) docker compose up --build"
 # 開発用の Compose の画面を https で配る証明書を、mkcert で docker/dev-certs/ に作る (docs/development.md)。
 # 作ってあれば、作り直さない。ブラウザに信頼させるには、一度だけ mkcert -install で、手元に mkcert の CA を入れる。
 [tasks."dev:cert"]
-run = ["mkdir -p docker/dev-certs", "test -f docker/dev-certs/localhost.pem || mkcert -cert-file docker/dev-certs/localhost.pem -key-file docker/dev-certs/localhost-key.pem localhost 127.0.0.1 ::1"]
+run = ["mkdir -p docker/dev-certs", "test -f docker/dev-certs/localhost.pem && test -f docker/dev-certs/localhost-key.pem || mkcert -cert-file docker/dev-certs/localhost.pem -key-file docker/dev-certs/localhost-key.pem localhost 127.0.0.1 ::1"]
 
 # 埋め込んだバイナリを作るときは、mise run //frontend:build の後に実行する。
 [tasks.build]

@@ -35,8 +35,8 @@ mise run dev
 ```
 
 `mise run dev`は、`docker compose up --build`に、手元のユーザーのUIDとGIDを渡して実行します。
-その前に、`mise run dev:cert`で、`localhost`の証明書を`docker/dev-certs/`に作ります（作ってあれば作り直しません）。
 コンテナの中で作ったファイルを、手元のユーザーの持ち物にするためです。
+その前に、`mise run dev:cert`で、`localhost`の証明書を`docker/dev-certs/`に作ります（作ってあれば作り直しません）。
 
 | サービス | 内容 | 手元からの接続先 |
 | --- | --- | --- |
@@ -149,8 +149,9 @@ docker compose restart web
 `Dockerfile`や、ルートと`backend/`と`frontend/`の`mise.toml`、`mise.dev.toml`を変えたときは、`mise run dev`を実行し直してください。
 開発用のイメージを作り直します。
 
-`mise run //frontend:dev`は、Composeの外で画面の開発サーバーを`http://localhost:5173`に起動します。
+`mise run //frontend:dev`は、Composeの外で画面の開発サーバーを`https://localhost:5173`に起動します。
 Composeを使わずに、手元でKotatsuを`127.0.0.1:8080`に起動しているときに使います。
+画面の開発サーバーは、Kotatsuへ中継するときに`X-Forwarded-Proto`などを付けるので、手元のKotatsuには、`KOTATSU_SERVER_TRUSTED_PROXIES=127.0.0.1/32,::1/128`を渡して、画面の開発サーバーを信頼させてください。
 
 ### 画面の要素からソースを辿る
 

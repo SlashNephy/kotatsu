@@ -33,6 +33,9 @@ function devHttps(): { cert: Buffer; key: Buffer } | undefined {
 
   return { cert: readFileSync(cert), key: readFileSync(key) };
 }
+const devServerHttps = devHttps();
+// devForwarded は、中継に X-Forwarded-* を付けるか。https で配るときだけ付け、tenban に https のオリジンを使わせる。
+const devForwarded = devServerHttps !== undefined;
 
 // inlineAppleTouchIcon は、index.html の apple-touch-icon を、public/icons の PNG の data: URL に置き換える (#582)。
 // iOS 27 の「ホーム画面に追加」は、URL で指したアイコンを読み込めず、タイトルの頭文字のタイルを出す。
@@ -244,24 +247,24 @@ export default defineConfig(({ mode }) => ({
     assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
   },
   server: {
-    https: devHttps(),
+    https: devServerHttps,
     // 開発中は、API を手元の tenban に中継する。compose.yaml と同じく、KOTATSU_DEV_PORT でポートを変えられる。
     // Host は書き換えない。tenban は、Host から求めたオリジンと Origin を比べて /internal/auth/* の CSRF を防ぎ、
     // OIDC のリダイレクト URI も Host から作る。文字列で書くと changeOrigin が有効になり、どちらも食い違う。
-    // https で配るので、X-Forwarded-Proto (xfwd) を付け、tenban に https のオリジンと Cookie の Secure を使わせる。
+    // https で配るときは、X-Forwarded-Proto (xfwd) を付け、tenban に https のオリジンと Cookie の Secure を使わせる。
     proxy: {
       // 画面がセッションの Cookie で使う端点 (GraphQL、ログイン、映像、画像、#1605) を中継する。
       // 実況のコメントの中継 (/internal/media/jikkyo/*/ws) は WebSocket なので、ws も中継する。
       // 映像、録画の画像、ロゴも中継し、開発サーバーだけで画面のすべてを確かめられるようにする。
-      '/internal/': { target: devAPI, changeOrigin: false, xfwd: true, ws: true },
+      '/internal/': { target: devAPI, changeOrigin: false, xfwd: devForwarded, ws: true },
       // ブラウザ以外から叩く端点 (EPGStation 互換の API、予約の iCalendar、IPTV、署名付き URL の配信、#1605) も、
       // 開発サーバーから確かめられるようにする。
-      '/api': { target: devAPI, changeOrigin: false, xfwd: true },
+      '/api': { target: devAPI, changeOrigin: false, xfwd: devForwarded },
       // MCP のクライアントにトークンを発行する認可サーバー (#963) も、開発サーバーから確かめられるようにする。
-      '/oauth': { target: devAPI, changeOrigin: false, xfwd: true },
-      '/.well-known': { target: devAPI, changeOrigin: false, xfwd: true },
+      '/oauth': { target: devAPI, changeOrigin: false, xfwd: devForwarded },
+      '/.well-known': { target: devAPI, changeOrigin: false, xfwd: devForwarded },
       // MCP サーバー (#964) も、開発サーバーから確かめられるようにする。
-      '/mcp': { target: devAPI, changeOrigin: false, xfwd: true },
+      '/mcp': { target: devAPI, changeOrigin: false, xfwd: devForwarded },
     },
   },
   fmt: {
