@@ -194,16 +194,17 @@ export class TsDemuxer {
     return packet.subarray(offset);
   }
 
-  // continuous は、continuity_counter が続いているかを返し、覚え直す。ペイロードのあるパケットだけを数える。
-  private continuous(pid: number, packet: Uint8Array): boolean {
+  // continuity は、continuity_counter から、続いているか、欠けたか、重複して送られたかを返し、覚え直す。
+  // ペイロードのあるパケットだけを数える。同じ値の繰り返しは、重複して送られたパケット (ISO/IEC 13818-1 2.4.3.3) で、捨てる。
+  private continuityOf(pid: number, packet: Uint8Array): 'continuous' | 'lost' | 'duplicate' {
     const counter = packet[3]! & 0xf;
     const previous = this.continuity.get(pid);
     this.continuity.set(pid, counter);
-    if (previous === undefined) {
-      return true;
+    if (previous === undefined || counter === ((previous + 1) & 0xf)) {
+      return 'continuous';
     }
-    // 同じ値の繰り返しは、重複して送られたパケット (ISO/IEC 13818-1 2.4.3.3)。
-    return counter === ((previous + 1) & 0xf) || counter === previous;
+
+    return counter === previous ? 'duplicate' : 'lost';
   }
 
   private section(pid: number, packet: Uint8Array): void {
@@ -382,9 +383,17 @@ export class TsDemuxer {
     if (payload === null) {
       return;
     }
-    const continuous = this.continuous(pid, packet);
+    const continuity = this.continuityOf(pid, packet);
+    if (continuity === 'duplicate') {
+      return;
+    }
     const start = (packet[1]! & 0x40) !== 0;
     if (start) {
+      // 頭のパケットの前が欠けていたら、組み立て中の PES は尾が欠けている。
+      const previous = this.pes.get(pid);
+      if (previous !== undefined && continuity === 'lost') {
+        previous.discontinuous = true;
+      }
       this.finishPes(pid);
       this.pes.set(pid, {
         stream: entry.stream,
@@ -401,7 +410,7 @@ export class TsDemuxer {
       // PES の頭を逃したパケットは、組み立てられないので捨てる。
       return;
     }
-    if (!continuous) {
+    if (continuity === 'lost') {
       buffer.discontinuous = true;
     }
     buffer.chunks.push(payload.slice());
@@ -458,11 +467,21 @@ function readTimestamp(data: Uint8Array, offset: number): number {
   );
 }
 
+// headerlessStreamIds は、PES のヘッダーの続き (フラグと時刻) を持たない stream_id (ISO/IEC 13818-1 表 2-22)。
+// ARIB の文字スーパーは private_stream_2 (0xBF) で届き、時刻を持たない。
+const headerlessStreamIds = new Set([0xbc, 0xbe, 0xbf, 0xf0, 0xf1, 0xf2, 0xf8, 0xff]);
+
 // parsePes は、PES を、時刻とペイロードに分ける。PES でなければ null。
 export function parsePes(
   packet: Uint8Array,
 ): { pts: number | null; dts: number | null; data: Uint8Array } | null {
-  if (packet.length < 9 || packet[0] !== 0 || packet[1] !== 0 || packet[2] !== 1) {
+  if (packet.length < 6 || packet[0] !== 0 || packet[1] !== 0 || packet[2] !== 1) {
+    return null;
+  }
+  if (headerlessStreamIds.has(packet[3]!)) {
+    return { pts: null, dts: null, data: packet.subarray(6) };
+  }
+  if (packet.length < 9) {
     return null;
   }
   const flags = packet[7]!;

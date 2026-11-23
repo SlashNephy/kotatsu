@@ -206,12 +206,14 @@ describe('TsDemuxer', () => {
   test('パケットの途中で切れて届いても、同期がずれても、PES を組み立てる', () => {
     const { demuxer, pesList } = demux(null);
     const video = Array.from({ length: 500 }, (_, i) => i & 0xff);
+    // continuity_counter は、PES をまたいで続ける。
+    const counter = { value: 0 };
     const stream = concat([
       ...packets(0, pat([{ serviceId: 1024, pmtPid: 0x1f0 }]), { section: true }),
       ...packets(0x1f0, pmt(1024, streams), { section: true }),
       new Uint8Array([0x00, 0x13]),
-      ...packets(0x100, pes(0xe0, video, 9_000, 6_000)),
-      ...packets(0x100, pes(0xe0, [1, 2, 3], 12_000)),
+      ...packets(0x100, pes(0xe0, video, 9_000, 6_000), { counter }),
+      ...packets(0x100, pes(0xe0, [1, 2, 3], 12_000), { counter }),
     ]);
     for (let i = 0; i < stream.length; i += 77) {
       demuxer.push(stream.subarray(i, i + 77));
@@ -306,6 +308,51 @@ describe('TsDemuxer', () => {
     expect(pesList.map(({ pts, discontinuous }) => ({ pts, discontinuous }))).toEqual([
       { pts: 1_000, discontinuous: true },
     ]);
+  });
+
+  test('文字スーパー (private_stream_2) の PES は、時刻を持たないまま、ペイロードを渡す', () => {
+    const { demuxer, pesList } = demux(1024);
+    // private_stream_2 は、PES_packet_length の後にすぐペイロードが続く。
+    const superimpose = new Uint8Array([0, 0, 1, 0xbf, 0, 4, 0x81, 0xff, 0xf0, 0x01]);
+    demuxer.push(
+      concat([
+        ...packets(0, pat([{ serviceId: 1024, pmtPid: 0x1f0 }]), { section: true }),
+        ...packets(0x1f0, pmt(1024, streams), { section: true }),
+        ...packets(0x138, superimpose),
+      ]),
+    );
+    demuxer.flush();
+
+    expect(pesList.map(({ kind, pts, data }) => ({ kind, pts, data: [...data] }))).toEqual([
+      { kind: 'superimpose', pts: null, data: [0x81, 0xff, 0xf0, 0x01] },
+    ]);
+  });
+
+  test('重複して送られたパケットは、二重につながない', () => {
+    const { demuxer, pesList } = demux(1024);
+    const video = packets(
+      0x100,
+      pes(
+        0xe0,
+        Array.from({ length: 300 }, (_, i) => i & 0xff),
+        1_000,
+      ),
+    );
+    demuxer.push(
+      concat([
+        ...packets(0, pat([{ serviceId: 1024, pmtPid: 0x1f0 }]), { section: true }),
+        ...packets(0x1f0, pmt(1024, streams), { section: true }),
+        video[0]!,
+        video[1]!,
+        // 同じ continuity_counter のパケットが、もう一度届く。
+        video[1]!,
+      ]),
+    );
+    demuxer.flush();
+
+    expect(
+      pesList.map(({ data, discontinuous }) => ({ length: data.length, discontinuous })),
+    ).toEqual([{ length: 300, discontinuous: false }]);
   });
 
   test('PMT の版が変わったら、番組を知らせ直す', () => {
