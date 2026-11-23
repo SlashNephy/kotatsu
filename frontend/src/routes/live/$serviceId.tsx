@@ -419,7 +419,7 @@ function Live({
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
   const media = video === null ? null : mediaOf(video);
-  const videoState = useVideoState(video);
+  const videoState = useVideoState(media);
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
   const autoplay = useAutoplayBlocked(media);
   const videoLoading = useVideoLoading(media);
@@ -648,8 +648,8 @@ function Live({
     broadcast,
   );
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
-  useVolumeNormalizer(video);
-  useAudioDelayer(video);
+  useVolumeNormalizer(media);
+  useAudioDelayer(media);
   useResetAudioDelayOnChannel(serviceId);
   // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
@@ -726,7 +726,7 @@ function Live({
   const audio = usePlayerAudio(route, program?.audios ?? null, restartBehind);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(program?.audios ?? null);
-  useVirtualSurround(video, surroundAvailable);
+  useVirtualSurround(media, surroundAvailable);
   const programName = program?.name ?? null;
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
   const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
@@ -753,7 +753,7 @@ function Live({
     if (video === null) {
       return;
     }
-    const next = stepVolume(currentVolume(video), delta);
+    const next = stepVolume(currentVolume(mediaOf(video)), delta);
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };

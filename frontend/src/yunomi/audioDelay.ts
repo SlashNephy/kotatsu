@@ -4,6 +4,7 @@ import type { PlayerCommands } from './commands';
 import { browserStorage } from './volume';
 import { setAudioDelay } from './volumeBoost';
 import { preferenceChanged } from '../settings/syncedPreferences';
+import type { PlayerMedia } from './playerMedia';
 
 // 音ずれ補正 (#818、設計書 7.5)。音声だけを WebAudio の DelayNode で遅らせ、映像より早く聞こえる音を合わせる。
 // 遅らせることしかできないので、音が映像より遅い場合は補正できない。遅らせる量は、音を出す機器によるので端末ごとに覚える。
@@ -87,14 +88,14 @@ export function useResetAudioDelay(): [boolean, (enabled: boolean) => void] {
   return [enabled, (next) => save(resetKey, String(next))];
 }
 
-// useAudioDelayer は、設定に合わせて、video の音を遅らせる。
-export function useAudioDelayer(video: HTMLVideoElement | null): void {
+// useAudioDelayer は、設定に合わせて、media の音を遅らせる。
+export function useAudioDelayer(media: PlayerMedia | null): void {
   const [ms] = useAudioDelay();
   useEffect(() => {
-    if (video !== null) {
-      setAudioDelay(video, ms / 1_000);
+    if (media !== null) {
+      setAudioDelay(media, ms / 1_000);
     }
-  }, [video, ms]);
+  }, [media, ms]);
 }
 
 // useResetAudioDelayOnChannel は、選局したとき (serviceId が変わったとき、ライブの画面を開いたとき) に、

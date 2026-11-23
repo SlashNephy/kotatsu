@@ -374,7 +374,7 @@ function Player({
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
   const media = video === null ? null : mediaOf(video);
-  const videoState = useVideoState(video);
+  const videoState = useVideoState(media);
   const autoplay = useAutoplayBlocked(media);
   const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
@@ -575,12 +575,12 @@ function Player({
         });
 
   const streamMeter = useStreamMeter(quality);
-  useVolumeNormalizer(video);
-  useAudioDelayer(video);
+  useVolumeNormalizer(media);
+  useAudioDelayer(media);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
   const audios = file.audios.length === 0 ? null : file.audios;
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(audios);
-  useVirtualSurround(video, surroundAvailable);
+  useVirtualSurround(media, surroundAvailable);
   const [crop, setCrop] = useState<Crop>(noCrop);
   const shownCrop = useScreenCrop(crop, fullscreen.active);
   // restartAt は、指定の位置から読み直す。
@@ -775,7 +775,7 @@ function Player({
     if (video === null) {
       return;
     }
-    const next = stepVolume(currentVolume(video), delta);
+    const next = stepVolume(currentVolume(mediaOf(video)), delta);
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };

@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
 import { setNormalize } from './volumeBoost';
+import type { PlayerMedia } from './playerMedia';
 
 // 音量の補正 (#499、設計書 7.5)。番組と CM、局どうしの音量の差を縮める。
 // WebAudio を通すので、iOS の Safari やバックグラウンドの再生で動きが変わるおそれがある。端末ごとに選び、既定では切る。
@@ -46,12 +47,12 @@ export function useNormalizeVolume(): [boolean, (enabled: boolean) => void] {
   ];
 }
 
-// useVolumeNormalizer は、設定に合わせて、video の音量の補正を入れるか切る。
-export function useVolumeNormalizer(video: HTMLVideoElement | null): void {
+// useVolumeNormalizer は、設定に合わせて、media の音量の補正を入れるか切る。
+export function useVolumeNormalizer(media: PlayerMedia | null): void {
   const [enabled] = useNormalizeVolume();
   useEffect(() => {
-    if (video !== null) {
-      setNormalize(video, enabled);
+    if (media !== null) {
+      setNormalize(media, enabled);
     }
-  }, [video, enabled]);
+  }, [media, enabled]);
 }

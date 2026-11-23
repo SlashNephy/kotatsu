@@ -263,7 +263,7 @@ function Player({
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
   const media = video === null ? null : mediaOf(video);
-  const videoState = useVideoState(video);
+  const videoState = useVideoState(media);
   const autoplay = useAutoplayBlocked(media);
   const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
@@ -325,8 +325,8 @@ function Player({
 
   // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
   const streamMeter = useStreamMeter(playback.current);
-  useVolumeNormalizer(video);
-  useAudioDelayer(video);
+  useVolumeNormalizer(media);
+  useAudioDelayer(media);
   const [crop, setCrop] = useState<Crop>(noCrop);
   // shownCrop は、画面に映すときの切り抜き。画面いっぱいに広げるときは、全画面の画面の比率で拡大する (#1599)。
   const shownCrop = useScreenCrop(crop, fullscreen.active);
@@ -473,7 +473,7 @@ function Player({
     if (video === null) {
       return;
     }
-    const next = stepVolume(currentVolume(video), delta);
+    const next = stepVolume(currentVolume(mediaOf(video)), delta);
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };

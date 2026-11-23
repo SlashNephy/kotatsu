@@ -8,6 +8,7 @@ import {
   releaseBoost,
   resumePendingBoost,
 } from './volumeBoost';
+import type { PlayerMedia } from './playerMedia';
 
 export type VideoState = Volume & {
   paused: boolean;
@@ -16,82 +17,82 @@ export type VideoState = Volume & {
   toggleMute: () => void;
 };
 
-// useVideoState は、video の再生と音量の状態を追い、操作バーから変える。
-// video の要素は、画質を変えたときに作り直されるので、要素が変わるたびに付け直す。
+// useVideoState は、media の再生と音量の状態を追い、操作バーから変える。
+// media は、画質を変えたときに作り直されるので、変わるたびに付け直す。
 // 音量は端末ごとに覚えておき、新しい要素にも当てる。
-export function useVideoState(video: HTMLVideoElement | null): VideoState {
+export function useVideoState(media: PlayerMedia | null): VideoState {
   const [paused, setPaused] = useState(true);
   const [volume, setVolumeState] = useState(() => loadVolume(browserStorage()));
 
   useEffect(() => {
-    if (video === null) {
+    if (media === null) {
       return;
     }
     const stored = loadVolume(browserStorage());
-    applyVolume(video, stored.volume);
-    video.muted = stored.muted;
+    applyVolume(media, stored.volume);
+    media.muted = stored.muted;
     const sync = () => {
-      setPaused(video.paused);
-      setVolumeState({ volume: currentVolume(video), muted: video.muted });
+      setPaused(media.paused);
+      setVolumeState({ volume: currentVolume(media), muted: media.muted });
     };
     // キーボードの m や、OS のメディア操作で変えたときも、ここで拾って覚える。
     // ほかの経路で 1 より下げたときは、100% を超えて上げていた分を戻す。
     const onVolume = () => {
-      lowerBoost(video);
-      const next = { volume: currentVolume(video), muted: video.muted };
+      lowerBoost(media);
+      const next = { volume: currentVolume(media), muted: media.muted };
       setVolumeState(next);
       saveVolume(browserStorage(), next);
     };
     // 100% を超える音量を覚えていても、ユーザーが操作するまでは WebAudio を動かせないので、最初の操作で上げる (#453)。
-    const onActivate = () => resumePendingBoost(video);
+    const onActivate = () => resumePendingBoost(media);
     sync();
-    video.addEventListener('play', sync);
-    video.addEventListener('pause', sync);
-    video.addEventListener('volumechange', onVolume);
+    media.addEventListener('play', sync);
+    media.addEventListener('pause', sync);
+    media.addEventListener('volumechange', onVolume);
     window.addEventListener('pointerdown', onActivate, { once: true });
     window.addEventListener('keydown', onActivate, { once: true });
 
     return () => {
       window.removeEventListener('pointerdown', onActivate);
       window.removeEventListener('keydown', onActivate);
-      video.removeEventListener('play', sync);
-      video.removeEventListener('pause', sync);
-      video.removeEventListener('volumechange', onVolume);
-      // 画質を変えたときなどに作り直された video は、AudioContext から外す。
-      releaseBoost(video);
+      media.removeEventListener('play', sync);
+      media.removeEventListener('pause', sync);
+      media.removeEventListener('volumechange', onVolume);
+      // 画質を変えたときなどに作り直された media は、AudioContext から外す。
+      releaseBoost(media);
     };
-  }, [video]);
+  }, [media]);
 
   return {
     paused,
     ...volume,
     togglePlay: () => {
-      if (video === null) {
+      if (media === null) {
         return;
       }
-      if (video.paused) {
-        void video.play().catch(() => {});
+      if (media.paused) {
+        void media.play().catch(() => {});
       } else {
-        video.pause();
+        media.pause();
       }
     },
     setVolume: (next) => {
-      if (video === null) {
+      if (media === null) {
         return;
       }
-      applyVolume(video, next);
+      applyVolume(media, next);
       // 音量を上げたら、ミュートを解除する。
       if (next > 0) {
-        video.muted = false;
+        media.muted = false;
       }
-      // 100% を超えたところで変えても、video.volume は 1 のままで volumechange が届かないので、ここで覚える。
-      const state = { volume: currentVolume(video), muted: video.muted };
+      // 100% を超えたところで変えても、media.volume は 1 のままで volumechange が届かないので、ここで覚える。
+      const state = { volume: currentVolume(media), muted: media.muted };
       setVolumeState(state);
       saveVolume(browserStorage(), state);
     },
     toggleMute: () => {
-      if (video !== null) {
-        video.muted = !video.muted;
+      if (media !== null) {
+        media.muted = !media.muted;
       }
     },
   };
