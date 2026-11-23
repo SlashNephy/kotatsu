@@ -2,7 +2,7 @@
 // 段の表は、上から、オリジナル (ブラウザの中で変換) → kyusu の 1080p → 720p → 540p → 360p。
 
 import { audioOnlyBitrate, audioStep } from './networkQuality';
-import { original, type PlaybackRoute, type Preset } from './route';
+import { decoded, original, type PlaybackRoute, type Preset } from './route';
 
 // autoQuality は、画質のメニューの「自動」を表す名前。覚えた画質がこれか、覚えていなければ、自動で上げ下げする。
 export const autoQuality = 'auto';
@@ -76,7 +76,16 @@ export const audioOnlyHeight = 0;
 
 // routeQuality は、経路を表す画質の名前。再生できなければ null。
 export function routeQuality(route: PlaybackRoute): string | null {
-  return route.kind === 'convert' ? original : route.kind === 'kyusu' ? route.preset : null;
+  switch (route.kind) {
+    case 'convert':
+      return original;
+    case 'decode':
+      return decoded;
+    case 'kyusu':
+      return route.preset;
+    default:
+      return null;
+  }
 }
 
 // decodeStepDown は、デコードが追いつかないときに、current から 1 段下げた段を返す。下げる段が無ければ null。

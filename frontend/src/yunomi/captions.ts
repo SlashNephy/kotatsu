@@ -14,6 +14,7 @@ import {
   prepareDRCS,
   recordDRCS,
 } from './drcs';
+import type { PlayerMedia } from './playerMedia';
 
 export { rendererColor, type CaptionStyle } from './captionStyle';
 
@@ -181,8 +182,9 @@ export function fontAwareRenderer(
 // aribb24.js と字幕のフォントは大きいので、ここから読み始める。読み終えるまでに届いた字幕は溜めておき、読み終えたら描く。
 // 読めなかったときは、字幕なしで再生を続ける。
 // onText は、字幕 (文字スーパーは除く) が出るたびに、その文を受け取る (#450)。字幕が消えたら、空の文を受け取る。
+// media は、<video> か、ブラウザの中でデコードする経路の PlayerMedia (#1516)。
 export function createCaptions(
-  video: HTMLVideoElement,
+  media: HTMLVideoElement | PlayerMedia,
   container: HTMLElement,
   onText?: (text: string) => void,
 ): Captions {
@@ -265,7 +267,9 @@ export function createCaptions(
         if (text !== null) {
           controller.attachRenderer(text);
         }
-        controller.attachMedia(video, container);
+        // aribb24.js は HTMLVideoElement を受け取る型だが、読むのは currentTime、videoWidth、videoHeight と、
+        // seeking、resize、play、pause のイベントだけなので、PlayerMedia も渡せる。
+        controller.attachMedia(media as HTMLVideoElement, container);
 
         return { type, controller, feeder, renderer, text };
       });

@@ -157,6 +157,7 @@ async function start(canvas: OffscreenCanvas, wasmUrl: string): Promise<void> {
     };
     post({ type: 'ready' });
   } catch (error) {
+    console.error('failed to start the decoder', error);
     post({ type: 'error', load: null, message: errorMessage(error) });
   }
 }
