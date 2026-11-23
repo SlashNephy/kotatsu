@@ -26,19 +26,21 @@ export function useVideoFrames(
     }
     let stopped = false;
     let cancel: () => void;
-    const request = media.requestVideoFrameCallback;
-    const cancelFrame = media.cancelVideoFrameCallback;
-    if (request !== undefined && cancelFrame !== undefined) {
+    // 呼ぶときは media から呼ぶ (取り出して呼ぶと、メソッドの this が外れる)。
+    if (
+      media.requestVideoFrameCallback !== undefined &&
+      media.cancelVideoFrameCallback !== undefined
+    ) {
       let id = 0;
       const next = (_now: number, metadata: PlayerFrameMetadata) => {
         if (stopped) {
           return;
         }
-        id = request(next);
+        id = media.requestVideoFrameCallback?.(next) ?? 0;
         handler.current({ mediaTime: metadata.mediaTime, presented: true });
       };
-      id = request(next);
-      cancel = () => cancelFrame(id);
+      id = media.requestVideoFrameCallback(next);
+      cancel = () => media.cancelVideoFrameCallback?.(id);
     } else {
       let id = 0;
       const next = () => {

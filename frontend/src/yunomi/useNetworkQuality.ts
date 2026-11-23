@@ -167,18 +167,18 @@ export function useNetworkQuality(
     document.addEventListener('visibilitychange', onResume);
 
     let frameRequest: number | null = null;
-    const requestFrame = media.requestVideoFrameCallback;
-    const cancelFrame = media.cancelVideoFrameCallback;
-    const frames = requestFrame !== undefined;
+    // 呼ぶときは media から呼ぶ (取り出して呼ぶと、メソッドの this が外れる)。止められないと困るので、両方あるときだけ使う。
+    const frames =
+      media.requestVideoFrameCallback !== undefined && media.cancelVideoFrameCallback !== undefined;
     const onFrame = () => {
-      if (stopped || requestFrame === undefined) {
+      if (stopped) {
         return;
       }
       start(performance.now());
-      frameRequest = requestFrame(onFrame);
+      frameRequest = media.requestVideoFrameCallback?.(onFrame) ?? null;
     };
-    if (requestFrame !== undefined) {
-      frameRequest = requestFrame(onFrame);
+    if (frames) {
+      frameRequest = media.requestVideoFrameCallback?.(onFrame) ?? null;
     }
 
     const probe = (bytes: number) => {
@@ -287,7 +287,7 @@ export function useNetworkQuality(
       stopped = true;
       window.clearInterval(timer);
       if (frameRequest !== null) {
-        cancelFrame?.(frameRequest);
+        media.cancelVideoFrameCallback?.(frameRequest);
       }
       media.removeEventListener('waiting', onWaiting);
       media.removeEventListener('playing', onPlaying);
