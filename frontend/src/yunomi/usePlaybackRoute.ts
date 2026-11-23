@@ -37,7 +37,11 @@ import { browserStorage } from './volume';
 export function usePlaybackRoute(
   transcoding: Transcoding,
   format: VideoFormat,
-  { inheritCap = true, audioOnly = false }: { inheritCap?: boolean; audioOnly?: boolean } = {},
+  {
+    inheritCap = true,
+    audioOnly = false,
+    decode = false,
+  }: { inheritCap?: boolean; audioOnly?: boolean; decode?: boolean } = {},
 ): {
   route: PlaybackRoute;
   // choices は、画質のメニューに出す選択肢。選べる画質が 2 つ以上あれば、先頭に「自動」を置く。
@@ -67,15 +71,17 @@ export function usePlaybackRoute(
   const [requested, setRequested] = useState(() => loadQuality(browserStorage()));
   const [cap, setCap] = useState(() => (inheritCap ? loadDecodeCap() : null));
   const [networkCap, setNetworkCap] = useState(() => loadNetworkCap());
-  const available = qualities(capabilities, transcoding, format);
+  // decode は、ブラウザの中でデコードする経路 (#1516) を選ばせるか。選べる画面だけが true にする。
+  const options = { decode };
+  const available = qualities(capabilities, transcoding, format, options);
   const rungs = ladder(available, transcoding.presets);
   const manual =
     requested !== undefined && requested !== autoQuality && available.includes(requested);
   // kyusu の H.264 の段があれば、kyusu が動いていて、端末が HLS を再生できる。音声だけの画質も、kyusu で送る。
   const audioAvailable = audioOnly && rungs.some((rung) => rung.name !== original);
-  const base = chooseRoute(capabilities, transcoding, undefined, format);
+  const base = chooseRoute(capabilities, transcoding, undefined, format, options);
   const route = manual
-    ? chooseRoute(capabilities, transcoding, requested, format)
+    ? chooseRoute(capabilities, transcoding, requested, format, options)
     : capRoute(base, minCap(cap, networkCap), rungs, { audioOnly: audioAvailable });
   const current = routeQuality(route);
   const preset =

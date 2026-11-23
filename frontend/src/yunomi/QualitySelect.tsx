@@ -9,7 +9,7 @@ import { audioLanguages, useAudioLanguage, type AudioLanguage } from './audioLan
 import { audioDelayStepMs, maxAudioDelayMs, useAudioDelay, useResetAudioDelay } from './audioDelay';
 import { sleepMinuteChoices, type SleepChoice, type SleepTimer } from './sleepTimer';
 import { useVirtualSurroundSetting } from './useVirtualSurround';
-import { original, type KyusuAudio, type PlaybackRoute } from './route';
+import { decoded, original, type KyusuAudio, type PlaybackRoute } from './route';
 import { autoQuality } from './autoQuality';
 import { audioStep } from './networkQuality';
 
@@ -59,6 +59,9 @@ export function QualitySelect({
   const autoDetail = (name: string): string => {
     if (name === original) {
       return t('player.originalShort');
+    }
+    if (name === decoded) {
+      return t('player.decodedShort');
     }
     if (name === passthrough) {
       return 'HEVC 2160p';

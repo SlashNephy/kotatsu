@@ -108,6 +108,7 @@ import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { useLiveCatchUp, useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { TsPlayer } from '../../yunomi/TsPlayer';
+import { DecodePlayer } from '../../yunomi/DecodePlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { useAdaptiveQuality } from '../../yunomi/useAdaptiveQuality';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
@@ -438,7 +439,11 @@ function Live({
   // chasing は、タイムシフトのバッファを再生しているか (下の timeshift.behind を写したもの)。経路を決めるのに使うので、
   // timeshift より前に要る。音声だけの画質 (#1513) は、ライブを流している間だけ使う。
   const [chasing, setChasing] = useState(false);
-  const playback = usePlaybackRoute(data.transcoding, videoFormat, { audioOnly: !chasing });
+  // ブラウザの中でデコードする経路 (#1516) は、今はライブ視聴でだけ、画質のメニューから選べる。
+  const playback = usePlaybackRoute(data.transcoding, videoFormat, {
+    audioOnly: !chasing,
+    decode: true,
+  });
   const { route, choices, quality, setQuality } = playback;
   // BS4K と 8K のデータ放送は、BML でなく HTML5 で作られていて、web-bml では描けないので出さない (設計書 7.4)。
   const dataBroadcastAvailable = videoFormat === 'HD';
@@ -1266,6 +1271,49 @@ function Live({
             adaptive.network.onReading(reading);
           }}
           audio={audio.convertAudio}
+        />
+      )}
+      {route.kind === 'decode' && (
+        <DecodePlayer
+          // ブラウザの中でデコードする経路は、シークできないので、バッファの再生では使わない (ライブの端だけ)。
+          url={disconnection === null && !timeshift.behind ? withSession(service.streamUrl) : null}
+          mediaRef={mediaRef}
+          onMedia={setMedia}
+          controls={controlBar}
+          captions={captions}
+          superimpose={captionSettings.superimposeLive}
+          captionStyle={captionSettings}
+          crop={shownCrop}
+          brightness={brightness}
+          onCaptionText={onCaptionText}
+          onLoaded={onLoaded}
+          overlay={
+            <>
+              {dataBroadcast.layer}
+              {jikkyo.overlay}
+              <ProgramOverlay
+                visible={osd || (pip.container !== null && controls.visible)}
+                serviceName={serviceName}
+                current={program}
+                next={nextProgram}
+              />
+              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {adaptive.notice}
+              {dataBroadcast.receiving && (
+                <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
+              )}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+              {videoLoading && !autoplay.blocked && disconnection === null && <PlayerLoading />}
+              {overlays}
+            </>
+          }
+          onState={(state) => {
+            // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
+            if (state === 'completed' || state === 'error') {
+              disconnected();
+            }
+          }}
+          onError={disconnected}
         />
       )}
       {route.kind === 'kyusu' && (

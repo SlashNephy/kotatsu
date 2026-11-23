@@ -207,6 +207,12 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     return this.load;
   }
 
+  // timeOf は、伸ばした PTS を、画面の時刻 (秒、currentTime と同じ物差し) にする。起点がまだなければ null。
+  // 字幕の PES の時刻を、字幕の描画器に渡すのに使う。
+  timeOf(pts: number): number | null {
+    return this.origin === null ? null : (pts - this.origin) / ptsTicksPerSecond;
+  }
+
   // open は、url の TS を読み始める。serviceId は、選ぶ番組。
   open(url: string, serviceId: number | null): void {
     this.url = url;

@@ -2,9 +2,11 @@ import { describe, expect, test } from 'vitest';
 
 import {
   chooseRoute,
+  decoded,
   dataBroadcastEndpoint,
   dataBroadcastSource,
   hlsURL,
+  original,
   qualities,
   toVideoFormat,
   type Capabilities,
@@ -12,13 +14,32 @@ import {
 } from './route';
 
 // pc は、HEVC の 2160p の 10 ビットを復号できない PC (Linux の Chrome など)。
-const pc: Capabilities = { convert: true, hls: true, hevc: true, hevcUhd: false };
+// GPU があり、ブラウザの中で MPEG-2 をデコードできる (#1516)。
+const pc: Capabilities = { convert: true, hls: true, hevc: true, hevcUhd: false, decode: true };
 // uhdPC は、BS4K の映像をそのまま再生できる PC。
-const uhdPC: Capabilities = { convert: true, hls: true, hevc: true, hevcUhd: true };
+const uhdPC: Capabilities = { convert: true, hls: true, hevc: true, hevcUhd: true, decode: false };
 // iPhone は MediaSource を持たず、ManagedMediaSource で hls.js を動かす。HEVC は再生できる。
-const iphone: Capabilities = { convert: false, hls: true, hevc: true, hevcUhd: true };
-const noHevc: Capabilities = { convert: false, hls: true, hevc: false, hevcUhd: false };
-const nothing: Capabilities = { convert: false, hls: false, hevc: false, hevcUhd: false };
+const iphone: Capabilities = {
+  convert: false,
+  hls: true,
+  hevc: true,
+  hevcUhd: true,
+  decode: false,
+};
+const noHevc: Capabilities = {
+  convert: false,
+  hls: true,
+  hevc: false,
+  hevcUhd: false,
+  decode: false,
+};
+const nothing: Capabilities = {
+  convert: false,
+  hls: false,
+  hevc: false,
+  hevcUhd: false,
+  decode: false,
+};
 
 const presets = [
   { name: '1080p', codec: 'H264', passthrough: false },
@@ -174,6 +195,34 @@ describe('chooseRoute', () => {
     },
   ])('$name', ({ capabilities, transcoding, requested, format, want }) => {
     expect(chooseRoute(capabilities, transcoding, requested, format)).toEqual(want);
+  });
+});
+
+describe('ブラウザの中でデコードする経路 (#1516)', () => {
+  test('選ばせる画面で、HD の番組なら、オリジナルの次に並べる', () => {
+    expect(qualities(pc, withKyusu, 'HD', { decode: true }).slice(0, 2)).toEqual([
+      original,
+      decoded,
+    ]);
+  });
+
+  test('選ばせない画面と、BS4K の番組と、デコードできない端末では並べない', () => {
+    expect(qualities(pc, withKyusu, 'HD')).not.toContain(decoded);
+    expect(qualities(pc, withKyusu, 'UHD', { decode: true })).not.toContain(decoded);
+    expect(qualities(uhdPC, withKyusu, 'HD', { decode: true })).not.toContain(decoded);
+  });
+
+  test('手で選んだときだけ使い、自動では選ばない', () => {
+    expect(chooseRoute(pc, withKyusu, decoded, 'HD', { decode: true })).toEqual({
+      kind: 'decode',
+    });
+    expect(chooseRoute(pc, withKyusu, undefined, 'HD', { decode: true })).toEqual({
+      kind: 'convert',
+    });
+  });
+
+  test('選ばせない画面で覚えていたら、既定の経路に戻す', () => {
+    expect(chooseRoute(pc, withKyusu, decoded, 'HD')).toEqual({ kind: 'convert' });
   });
 });
 

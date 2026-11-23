@@ -1762,6 +1762,7 @@
     "auto": "Auto",
     "autoWith": "Auto ({{detail}})",
     "originalShort": "Original",
+    "decodedShort": "Original (decoded in the browser)",
     "qualityStepDownDecode": "Lowered the quality to {{name}} because this device could not keep up",
     "qualityHeavyManual": "This device is not keeping up. Set the quality to Auto to keep playing at a lower quality",
     "qualityStepDownNetwork": "Lowered the quality to {{name}} because the connection is too slow",
