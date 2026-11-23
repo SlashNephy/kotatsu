@@ -268,9 +268,10 @@ export function useHostedWatch(element: ReactNode): ReactNode {
 
 // useWatchMedia は、視聴の画面が今映している経路を、置き場に覚えさせる。小さなプレイヤーにするかを決めるときと、
 // 小さなプレイヤーの再生と一時停止に使う。視聴の画面の中 (useHostedWatch で渡した element の中) で呼ぶ。
+// 置き場の show と leave と同じく layout effect で覚えさせ、プレイヤーが映像を替えた直後に、前の経路を見ないようにする。
 export function useWatchMedia(media: PlayerMedia | null): void {
   const store = useContext(WatchStoreContext);
-  useEffect(() => {
+  useLayoutEffect(() => {
     store?.setMedia(media);
 
     return () => {

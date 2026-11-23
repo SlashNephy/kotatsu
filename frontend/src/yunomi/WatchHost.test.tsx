@@ -25,6 +25,7 @@ import {
 afterEach(() => {
   cleanup();
   saveMiniPlayer(browserStorage(), true);
+  replaceVideo = () => {};
 });
 
 // Counter は、押した回数を覚える。置き場で描き直しても状態が残るかを確かめる。

@@ -558,8 +558,8 @@ export function moveMedia(element: HTMLElement, target: HTMLElement): () => void
   return () => {
     // 移している間に TsPlayer が組を切り替えたら、target には新しい組が入っている。そのとき target にあるものを戻す。
     media.append(...Array.from(target.childNodes));
-    for (const [element, cssText] of saved) {
-      element.style.cssText = cssText;
+    for (const [node, cssText] of saved) {
+      node.style.cssText = cssText;
     }
   };
 }
