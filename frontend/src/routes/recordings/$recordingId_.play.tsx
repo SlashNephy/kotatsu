@@ -335,7 +335,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
   const media = video === null ? null : mediaOf(video);
-  const videoState = useVideoState(video);
+  const videoState = useVideoState(media);
   const navigate = useNavigate();
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
   const autoplay = useAutoplayBlocked(media);
@@ -676,11 +676,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
   const streamMeter = useStreamMeter(playback.current);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
-  useVolumeNormalizer(video);
-  useAudioDelayer(video);
+  useVolumeNormalizer(media);
+  useAudioDelayer(media);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(recording?.audios ?? null);
-  useVirtualSurround(video, surroundAvailable);
+  useVirtualSurround(media, surroundAvailable);
   // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
   // shownCrop は、画面に映すときの切り抜き。画面いっぱいに広げるときは、全画面の画面の比率で拡大する (#1599)。
@@ -888,7 +888,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     if (video === null) {
       return;
     }
-    const next = stepVolume(currentVolume(video), delta);
+    const next = stepVolume(currentVolume(mediaOf(video)), delta);
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };

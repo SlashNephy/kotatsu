@@ -134,7 +134,7 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   // media は、再生している経路を部品から扱う面 (#1516)。部品は <video> ではなく、これを受け取る。
   const media = video === null ? null : mediaOf(video);
-  const videoState = useVideoState(video);
+  const videoState = useVideoState(media);
   const autoplay = useAutoplayBlocked(media);
   const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
