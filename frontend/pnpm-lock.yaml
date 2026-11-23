@@ -192,6 +192,9 @@ importers:
       '@fontsource/m-plus-rounded-1c':
         specifier: 5.3.0
         version: 5.3.0
+      '@kotatsu/ffmpeg-decoder':
+        specifier: workspace:*
+        version: link:vendor/ffmpeg/decoder
       '@mantine/core':
         specifier: 9.8.2
         version: 9.8.2(@mantine/hooks@9.8.2(react@19.3.1))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -361,6 +364,8 @@ importers:
       workbox-window:
         specifier: 7.4.1
         version: 7.4.1
+
+  vendor/ffmpeg/decoder: {}
 
   vendor/mpeg2toh264/player: {}
 

@@ -3608,6 +3608,7 @@ Kotatsu本体はApache License 2.0で公開します。
 | ソフトウェア | ライセンス | 扱い |
 |---|---|---|
 | @mpeg2toh264/yadif | LGPL-2.1-or-later（FFmpeg由来） | フロントエンドに同梱します。差し替えられる形（独立したモジュール）で配信し、ソースの入手先と、上流に加えた修正のパッチを一緒に置きます。 |
+| FFmpegのmpeg2videoとAACのデコーダ（WebAssembly。`frontend/vendor/ffmpeg`。#1516） | LGPL-2.1-or-later（`--enable-gpl`を付けずに構成します） | ブラウザ内でデコードする経路で使うため、フロントエンドに同梱します。リリースのtarball（署名を確かめます）から、デコーダとparserだけに絞ってemscriptenで組み、`frontend/public/ffmpeg/decoder.wasm`として明示的なURLで配信します。差し替えられる形（WebAssemblyと、それを読み込むJSの独立したモジュール）で配ります。読み込むJSはWebAssemblyの関数を縮めた名前で呼び、画面のJSに束ねるので、差し替えるときは、組み方のスクリプトで2つを組で組み直してから、画面を組み直します。WebAssemblyの隣には、ライセンス文書と、ソースの入手先、つなぐコード（`glue.c`）と組み方の在りかを置きます。組んだものはリポジトリに置き、CIが同じ版から組み直して差分がないことを確かめます。 |
 | FFmpeg（リリースのtarballからビルド。#2001） | GPL-2.0-or-later（`--enable-gpl`で構成し、`--enable-nonfree`は付けません。イメージのビルドで、付いていないことを確かめます） | `-ffmpeg`イメージにだけ同梱し、子プロセスとして実行します（サムネイル、CMの区間の見分け、トランスコードなど）。本体とはリンクしません。ライセンス文書とソースの入手先は、この表の後で示す方法でイメージに含めます。 |
 | nv-codec-headers | MIT（各ヘッダーの頭に書かれています） | FFmpegのビルドに使うヘッダーで、NVENCとNVDECを実行時に読み込む部分がFFmpegに入ります。ドライバのライブラリは同梱せず、NVIDIA Container Toolkitがホストから渡します。ライセンス文書は、FFmpegと同じくイメージに含めます。 |
 | tsreadex | MIT | `-ffmpeg`イメージに同梱し、子プロセスとして実行します。 |

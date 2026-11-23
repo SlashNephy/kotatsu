@@ -28,7 +28,7 @@ FFmpeg を入れます。
 MISE_ENV=wasm-decode-bench mise -C frontend install
 ```
 
-WASM の FFmpeg を組みます。`SOURCE` の版の tarball を取り、署名を確かめてから、組み方ごとに `.work/out/<名前>/` に組みます。
+WASM の FFmpeg を組みます。`../../vendor/ffmpeg/SOURCE` の版の tarball を取り、署名を確かめてから、組み方ごとに `.work/out/<名前>/` に組みます。
 大きさと組む時間は `.work/out/sizes.tsv` に書きます。組み方の名前を渡すと、その組み方だけを組みます。
 
 ```bash
@@ -90,7 +90,6 @@ MISE_ENV=wasm-decode-bench mise exec -C frontend -- sh -c 'ffmpeg -v error -i be
 
 | ファイル                            | 中身                                                                                                     |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `SOURCE`                            | WASM に組む FFmpeg の版、emscripten のイメージ、FFmpeg の署名鍵。Renovate が追います                     |
 | `build.sh`、`build-in-container.sh` | FFmpeg を mpeg2video・AAC・Opus のデコーダと mpegvideo の parser、swresample だけに絞り、WASM に組みます |
 | `glue.c`                            | WASM の中のデコーダを JS から呼ぶ関数                                                                    |
 | `make-media.sh`、`drop-packets.mjs` | 合成の映像と、パケットを落とした TS を作ります                                                           |

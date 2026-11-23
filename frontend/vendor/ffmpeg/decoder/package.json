@@ -1,0 +1,14 @@
+{
+  "name": "@kotatsu/ffmpeg-decoder",
+  "version": "0.0.0",
+  "private": true,
+  "description": "FFmpeg mpeg2video and AAC decoders compiled to WebAssembly, built by scripts/build-ffmpeg.sh",
+  "type": "module",
+  "license": "LGPL-2.1-or-later",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./dist/decoder.js"
+    }
+  }
+}
