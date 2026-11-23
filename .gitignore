@@ -2,3 +2,9 @@
 
 # goreleaser の出力
 /dist/
+
+# backend/ で go build ./internal/cmd/<名前> したときの、開発と検証用の入口のバイナリ (設計書 11.5)
+/backend/fakegoogle
+/backend/fakeidp
+/backend/fakesimkl
+/backend/faketuner
