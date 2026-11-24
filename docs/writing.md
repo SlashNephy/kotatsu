@@ -36,6 +36,13 @@ python3 <yomiyasuのフォルダ>/scripts/yomiyasu_lint.py docs/setup.md
 
 指摘は`info`なので、lintの終了コードは変わりません。
 
+lintは行頭を4つ以上の空白かタブで字下げした行をMarkdownのコードブロックとして読まないので、その行には指摘が出ません。
+コードのコメントを検査するときは、行頭の空白を除いてから標準入力で渡します。行の数は変わらないので、指摘の行番号は元のファイルの行番号と同じです。
+
+```bash
+sed -E 's/^[[:space:]]+//' backend/internal/usecase/recording/recorder.go | python3 <yomiyasuのフォルダ>/scripts/yomiyasu_lint.py -
+```
+
 ### 指摘が出たときの書き直し方
 
 1. 指摘の出た語が使う語と同じものを指すなら、使う語に替えます。
