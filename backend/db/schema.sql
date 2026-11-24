@@ -735,8 +735,8 @@ CREATE TABLE epg_changes (
 CREATE INDEX epg_changes_version_idx ON epg_changes (version);
 CREATE INDEX epg_changes_created_at_idx ON epg_changes (created_at);
 
--- 放送前の番組の、番組名と概要の書き換え (#1558)。書き換えが放送開始のどれだけ前まで起きるかを計測し、ルール予約の直前の猶予を決め直すのに使う。
--- 書き換えを見つけた時点で放送開始より後のものだけを残す。observed_at から保持期間が過ぎたら消す (設計書 3.3)。
+-- 使わない。かつて、放送前の番組の、番組名と概要の書き換えを記録していた (#1558)。猶予の廃止 (#2122) で記録をやめた (#2129)。
+-- ローリング更新の間は古いバイナリが書き込むので、残す。次のバージョンで消す。
 CREATE TABLE program_rewrites (
   service_id bigint NOT NULL,
   event_id bigint NOT NULL,
