@@ -1133,7 +1133,6 @@ type SystemSetting struct {
 	DrcsReplacements                       []byte
 	TimeshiftWhileWatching                 bool
 	TimeshiftWhileWatchingRetentionSeconds int32
-	RuleUnmatchedGraceMinutes              int32
 	HistoryMaxDrops                        int32
 	AuditRetentionDays                     int32
 	AuditClientInfoRetentionDays           int32

@@ -397,9 +397,6 @@ CREATE TABLE system_settings (
   timeshift_while_watching boolean NOT NULL DEFAULT false,
   -- 視聴している間だけ録るサービスの保持時間 (秒)。範囲は timeshift_channels の保持時間と同じ。
   timeshift_while_watching_retention_seconds integer NOT NULL DEFAULT 3600 CHECK (timeshift_while_watching_retention_seconds BETWEEN 600 AND 86400),
-  -- 使わない。かつて、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分) だった (#1501)。
-  -- ローリング更新の間は古いバイナリが読み書きするので、残す。次のバージョンで消す。
-  rule_unmatched_grace_minutes integer NOT NULL DEFAULT 180 CHECK (rule_unmatched_grace_minutes BETWEEN 0 AND 1440),
   -- 重複の回避で「録画済み」とみなす、判定に数えるドロップ (映像と音声の PID のもの) の数の上限 (設計書 4.4、付録 A)。
   -- 0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
   history_max_drops integer NOT NULL DEFAULT 0 CHECK (history_max_drops BETWEEN 0 AND 1000),
