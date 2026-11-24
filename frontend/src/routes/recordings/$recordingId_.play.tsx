@@ -159,7 +159,7 @@ type PlaySearch = { t?: number };
 export const Route = createFileRoute('/recordings/$recordingId_/play')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
   params: readableParams('recordingId', 'Recording'),
-  // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
+  // 右のカラムを置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
   staticData: { fluid: true },
   validateSearch: (search: Record<string, unknown>): PlaySearch => {
     const t = parseStartSeconds(search.t);
@@ -170,7 +170,7 @@ export const Route = createFileRoute('/recordings/$recordingId_/play')({
 });
 
 // PlayPage は、録画を再生する画面。ブラウザの中で変換するか、kyusu の HLS で再生する (設計書 7.1)。
-// 画面は、アプリの根元の置き場で描く (#1602)。
+// 画面は、アプリのルートで描く (#1602)。
 function PlayPage() {
   const { recordingId } = Route.useParams();
   const { t: start } = Route.useSearch();
@@ -178,7 +178,7 @@ function PlayPage() {
   return useHostedWatch(<PlayWatch recordingId={recordingId} start={start} />);
 }
 
-// PlayWatch は、録画 recordingId を、位置 start (秒) から再生する画面の中身。
+// PlayWatch は、録画 recordingId を、位置 start (秒) から再生する画面の内容。
 function PlayWatch({ recordingId, start }: { recordingId: string; start: number | undefined }) {
   const { t } = useTranslation();
   // 小さなプレイヤー (#1602) では、戻るリンクを出さず、映像だけにする。
@@ -309,10 +309,10 @@ const playQuery = graphql`
 `;
 
 // hlsRestoreTolerance は、kyusu の HLS を作り直したあと、求めた位置へ移ったとみなす、映ったコマとの差 (秒)。
-// hls.js は、セグメントの頭から流すので、セグメントの長さ (約 2 秒) より広く取る。
+// hls.js は、セグメントの先頭から流すので、セグメントの長さ (約 2 秒) より広く取る。
 const hlsRestoreTolerance = 5;
 
-// positionEpsilon は、位置を比べるときの、計算の丸めの誤差 (秒)。
+// positionEpsilon は、位置を比較するときの、計算の丸めの誤差 (秒)。
 const positionEpsilon = 0.001;
 
 // recordingRefreshMs は、録画中の録画を追っかけ再生している間に、録画を読み直す間隔 (#671)。
@@ -323,7 +323,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const { t } = useTranslation();
   const data = useLazyLoadQuery<RecordingIdPlayQuery>(playQuery, { id: recordingId });
   const mediaRef = useRef<PlayerMedia | null>(null);
-  // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
+  // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で確認する。
   const frameRef = useRef<HTMLDivElement | null>(null);
   const inPage = useVisible(frameRef);
   // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても、実況のコメントなどを描き続ける (設計書 7.5)。
@@ -333,7 +333,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
   // media は、今映している経路 (#1516)。画質を変えたときに作り直される。部品は <video> ではなく、これを受け取る。
   const [media, setMedia] = useState<PlayerMedia | null>(null);
-  // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
+  // 小さなプレイヤーは、この経路で再生中かを確認し、再生と一時停止を操作する。
   useWatchMedia(media);
   const videoState = useVideoState(media);
   const navigate = useNavigate();
@@ -350,7 +350,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // 再生している間は、画面を消さない。
   useWakeLock(!videoState.paused);
   // BS4K と 8K の録画では、経路の選び方が変わる (#806)。
-  // デコードが追いつかずにほかの画面で下げた段の上限は、段を下げる追っかけ再生でだけ引き継ぐ (#1513)。
+  // デコードが追いつかずにほかの画面で下げた段階の上限は、段階を下げる追っかけ再生でだけ引き継ぐ (#1513)。
   const playback = usePlaybackRoute(
     data.transcoding,
     data.node?.__typename === 'Recording' ? toVideoFormat(data.node.videoFormat) : 'HD',
@@ -388,7 +388,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
     return () => clearInterval(timer);
   }, [environment, stillRecording, recordingId]);
-  // duration は、録画の長さ (秒)。ファイルには途切れた区間の分の映像がないので、その分を引く。
+  // duration は、録画の長さ (秒)。ファイルには途切れた区間の分の映像がないので、その分を差し引く。
   const duration =
     recording === null
       ? 0
@@ -508,7 +508,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     lastVideoTime.current = base.current;
     phase.current = 'playing';
   };
-  // reached は、読み込み (streamKey) ごとに、求めた位置 (offset) 以上のコマが映ったと確かめた読み込み (#1512)。
+  // reached は、読み込み (streamKey) ごとに、求めた位置 (offset) 以上のコマが映ったと確認した読み込み (#1512)。
   const reached = useRef<string | null>(null);
   // reachedStart は、今の読み込みで、求めた位置以上のコマが映ったかを返す。まだなら、映っているコマの位置を信じない。
   // ブラウザの中で変換する配信は、求めた位置の手前の I フレームから流れる (設計書 7.2)。最初のコマが求めた位置より手前なら、
@@ -516,7 +516,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // 配信を読み直すので、届くのを待ってから進める。kyusu の HLS は、プレイヤーを作り直したばかりのとき、まだ求めた位置へ
   // 移っておらず、頭の位置を返すことがあるので、求めた位置の近くのコマが映るまで待つ。
   const reachedStart = (current: PlayerMedia, mediaTime: number | null) => {
-    // 裏で読み込んでいる間に映っているのは、前の読み込みの映像で、その位置は確かめてある。
+    // 裏で読み込んでいる間に映っているのは、前の読み込みの映像で、その位置は確認済み。
     if (reached.current === streamKey || handoverFrom.current !== null) {
       return true;
     }
@@ -642,7 +642,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       };
     });
   }, [jikkyo.comments, jikkyo.offset, listedCount, recording, commentLabels]);
-  // partBands は、実況のコメントから見つけた番組の区切りの印 (#1358)。コメントの位置をずらしたら、印も同じだけ動かす。
+  // partBands は、実況のコメントから見つけた番組の区切りのマーク (#1358)。コメントの位置をずらしたら、マークも同じだけ動かす。
   const partBands = useMemo(
     () =>
       findPartMarkers(jikkyo.ownComments ?? []).map((marker) => {
@@ -673,7 +673,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                   : t('jikkyo.kakologLoaded', { count: jikkyo.state.count }),
         });
 
-  // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
+  // streamMeter は、右のカラムの「情報」に出す、届いた映像のビットレートと放送の形式をバッファに保持する (#828)。
   const streamMeter = useStreamMeter(playback.current);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(media);
@@ -698,7 +698,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     setOffset(seconds);
     setLoads((n) => n + 1);
   };
-  // tenban が止まる前に知らせてきたら、ブラウザの中で変換するときは、今の位置から、新しい接続を張ってから切り替える (#1085)。
+  // tenban が止まる前に通知してきたら、ブラウザの中で変換するときは、今の位置から、新しい接続を張ってから切り替える (#1085)。
   // kyusu の HLS は、セグメントごとに読むので、つなぎ直さなくてよい。
   const drains = useStreamsDrains();
   const seenDrains = useRef(drains);
@@ -734,7 +734,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
   const currentCaption = useRef<string | null>(null);
-  // 字幕の外字を置き換える表を読む (#825)。
+  // 字幕の外字を置き換えるテーブルを読む (#825)。
   const drcs = useDRCSReplacements();
   const onCaptionText = (text: string) => {
     const normalized = normalizeCaption(text);
@@ -770,8 +770,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     startAt(positionRef.current);
     setQuality(next);
   };
-  // 映像だけの遅れを飛び直しで直す (#1513)。デコードが追いつかなければ、画質が「自動」の間は段を下げ、それまでの位置から続ける。
-  // 段を下げるのは、録画中の追っかけ再生でだけ。
+  // 映像だけの遅れを飛び直しで修正する (#1513)。デコードが追いつかなければ、画質が「自動」の間は段階を下げ、それまでの位置から続ける。
+  // 段階を下げるのは、録画中の追っかけ再生でだけ。
   const adaptive = useAdaptiveQuality(
     media,
     {
@@ -795,7 +795,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     {
       stepDown: stillRecording,
       pictureInPicture: pip.container !== null,
-      // 録画は先に読むので、受け取りの速さで余裕を確かめて上げる。オリジナルのビットレートは、録画の平均で比べる。
+      // 録画は先に読むので、受け取りの速さで余裕を確認して上げる。オリジナルのビットレートは、録画の平均で比較する。
       network: {
         mode: 'rate',
         convert: route.kind === 'convert',
@@ -991,7 +991,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const mouseRef = usePlayerMouse(commands);
   // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
   // 全画面で、映像の左右を縦にスワイプして、明るさと音量を変える (#1598)。端末の設定で入れたときだけ受け付ける。
-  // 明るさは、その場限りで覚えない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
+  // 明るさは、その場限りで保存しない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
   const [swipeControls] = useSwipeControlsSetting();
   const [volumeAvailable] = useState(volumeChangeable);
   const [brightness, setBrightness] = useState(1);
@@ -1153,7 +1153,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   });
   // 開いた位置が CM の中で、最初から CM の終わりを求めたときは、黒い蓋で覆い、CM の終わり以上のコマが映るまで待つ。
   // 配信は手前の I フレームから流れるので、CM の末尾が映りうる。続きから開いたときは、続きから始めたことだけを伝え、
-  // CM を飛ばした知らせは出さない。頭から開いたときは、ほかの自動のスキップと同じく知らせる。
+  // CM を飛ばした通知は出さない。先頭から開いたときは、ほかの自動のスキップと同じく通知する。
   const openingHeld = useRef(false);
   useEffect(() => {
     if (!opening.skipped || openingHeld.current || media === null) {
@@ -1187,7 +1187,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   );
 
   // cmBands は、CM とみなした区間 (#479)。途切れた区間と同じく、録画の時間軸の日時を、途切れた分を詰めた再生の位置にする。
-  // 途切れた位置の印を上に重ねるよう、先に並べる。
+  // 途切れた位置のマークを上に重ねるよう、先に並べる。
   const cmBands = cmPositions.map(({ from, to }) => ({
     from,
     to,
@@ -1247,7 +1247,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     <PlayerAlert title={error} action={{ label: t('player.retry'), onClick: retry }} />
   );
   const shown = seeking ?? position;
-  // gapMarks は、録画が途切れた位置の印 (#479)。途切れた区間はシークバーの長さに含めないので (#754)、長さのない印にし、
+  // gapMarks は、録画が途切れた位置のマーク (#479)。途切れた区間はシークバーの長さに含めないので (#754)、長さのないマークにし、
   // カーソルを乗せたら、途切れていた長さを出す。
   const gapMarks = (recording?.gaps ?? []).map((gap) => {
     const at = recordingPosition(recording!.recordedFrom, recording!.gaps, Date.parse(gap.from));
@@ -1259,7 +1259,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     <SkipButton
       raised={controls.visible}
       // CM から出るための操作なので、CM を見たい意思 (lastSeek) を消す (#1512)。自動で飛ばす設定なら、続いた CM の終わりまで、
-      // 蓋を出して 1 回で飛ぶ。区間の終わりへ移るだけだと、残りの CM の頭が映ってから飛ぶ。
+      // 蓋を出して 1 回で飛ぶ。区間の終わりへ移るだけだと、残りの CM の先頭が映ってから飛ぶ。
       onClick={() => {
         lastSeek.current = null;
         if (!skipper.skipFrom(currentPosition())) {
@@ -1517,7 +1517,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     </div>
   );
 
-  // 実況の過去ログがあれば、右の列で字幕の履歴と切り替えて出す。
+  // 実況の過去ログがあれば、右のカラムで字幕の履歴と切り替えて出す。
   const commentsShown = jikkyo.comments !== null && jikkyo.comments.length > 0;
 
   return (

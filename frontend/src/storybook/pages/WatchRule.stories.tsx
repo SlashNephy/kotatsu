@@ -126,7 +126,7 @@ export const SaveError: Story = {
   },
 };
 
-// 視聴ルールを消す前の確かめ。
+// 視聴ルールを消す前の確認。
 export const DeleteConfirm: Story = {
   play: async ({ canvas }) => {
     await clickDelete(canvas);
@@ -146,7 +146,7 @@ export const DeleteError: Story = {
 };
 
 // captured は、Outdated の Story で作ったデモの既定の応答。play の中から、ほかの端末での変更を起こすのに使う。
-// StrictMode で環境が 2 度作られても届くよう、作ったものをすべて覚える。
+// StrictMode で環境が 2 度作られても届くよう、作ったものをすべて保持する。
 const captured: DemoRoot[] = [];
 
 // 入力を触った後に、ほかの端末で視聴ルールが変わったとき。入力を残し、読み直すボタンを出す。

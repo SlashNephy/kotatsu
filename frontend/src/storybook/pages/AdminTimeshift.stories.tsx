@@ -79,7 +79,7 @@ export const WhileWatching: Story = {
   },
 };
 
-// サービスを外す前に確かめるとき。
+// サービスを外す前に確認するとき。
 export const ConfirmRemove: Story = {
   args: { overrides: channels },
   play: async ({ canvas }) => {

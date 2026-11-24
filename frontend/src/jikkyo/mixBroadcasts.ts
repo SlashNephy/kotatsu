@@ -66,7 +66,7 @@ export function matchMarkers(
   return matched.length >= minMatched ? matched : [];
 }
 
-// mapComments は、別の放送のコメントを、録画の位置に直す。どの区間にも入らないコメント (CM の間など) は捨てる。
+// mapComments は、別の放送のコメントを、録画の位置に直す。どの区間にも入らないコメント (CM の間など) は破棄する。
 export function mapComments(
   comments: readonly JikkyoComment[],
   matched: readonly MatchedMarker[],

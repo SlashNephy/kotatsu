@@ -6,7 +6,7 @@ import { paginate } from '../../demo/data';
 import { asViewer, call, recordingsWith } from '../conditions';
 import { failing, holdAll, PageStory } from '../PageStory';
 
-// 録画の一覧 (/recordings) の画面 (#2056)。録画のカードの状態の印、ルールで絞った一覧、まとめて消す操作などを並べる。
+// 録画の一覧 (/recordings) の画面 (#2056)。録画のカードの状態のマーク、ルールで絞った一覧、まとめて消す操作などを並べる。
 const meta = {
   title: 'ページ/録画',
   component: PageStory,
@@ -30,9 +30,9 @@ export const Empty: Story = { args: { overrides: { recordings: emptyRecordings }
 
 export const Error: Story = { args: { overrides: { recordings: failing() } } };
 
-// カードの印の出し分け。新しい順に、録画中、ドロップあり、一部のみ、失敗、スクランブル、CM の見分けの注記、サムネイルなし、
+// カードのマークの出し分け。新しい順に、録画中、ドロップあり、一部のみ、失敗、スクランブル、CM の見分けの注記、サムネイルなし、
 // 見かけ (続きから見る位置あり) の録画を並べる。
-// card は、カードの印を 1 つだけ見せるよう、デモの録画が持つ印 (ドロップ、保護、続きの位置) を外してから patch を当てる。
+// card は、カードのマークを 1 つだけ見せるよう、デモの録画が持つマーク (ドロップ、保護、続きの位置) を外してから patch を当てる。
 const card = (patch: Record<string, unknown>) => ({
   protected: false,
   drops: 0,
@@ -123,7 +123,7 @@ export const Deleted: Story = {
       await userEvent.click(selectable);
     }
     await userEvent.click(await canvas.findByRole('button', { name: '選んだ1件を削除' }));
-    // 確かめのダイアログは、Story の外 (ポータル) に出る。
+    // 確認のダイアログは、Story の外 (ポータル) に出る。
     const dialog = await within(document.body).findByRole('dialog');
     await userEvent.click(await within(dialog).findByRole('button', { name: '選んだ1件を削除' }));
     await expect(await canvas.findByRole('status')).toBeVisible();

@@ -20,7 +20,7 @@ function wordBigrams(dictionaries: Record<string, Record<string, number>>): stri
   return [...bigrams].sort();
 }
 
-// rankedDictionary は、辞書に順位を付け終えたものを、JSON の文字列として書き出す。
+// rankedDictionary は、辞書に順位を付け終えたものを、JSON の文字列として出力する。
 // 順位の付け方は zxcvbn-ts の Options に任せるので、クライアントで付ける順位と同じになる。
 // JS のオブジェクトのリテラルではなく文字列にするのは、goja で JSON.parse する方が速いからである。
 function rankedDictionary(): Plugin {
@@ -46,14 +46,14 @@ function rankedDictionary(): Plugin {
 }
 
 // サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2)。mise run //backend:generate で
-// backend/internal/lib/password/zxcvbn.js に書き出し、Go のバイナリに gzip で埋め込む。
-// goja は ES2020 までなら動くことを確かめているので、それより新しい構文は変換する。
+// backend/internal/lib/password/zxcvbn.js に出力し、Go のバイナリに gzip で埋め込む。
+// goja は ES2020 までなら動くことを確認しているので、それより新しい構文は変換する。
 export default defineConfig({
   plugins: [rankedDictionary()],
   publicDir: false,
   build: {
     target: 'es2020',
-    // frontend/dist はデモの出力先なので、別のディレクトリに書き出す。
+    // frontend/dist はデモの出力先なので、別のディレクトリに出力する。
     outDir: 'zxcvbn/dist',
     emptyOutDir: true,
     minify: true,

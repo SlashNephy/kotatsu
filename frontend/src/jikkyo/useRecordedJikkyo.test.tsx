@@ -4,9 +4,9 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { JikkyoComment } from './comments';
 import { insertByTime, useRecordedJikkyo } from './useRecordedJikkyo';
 
-// added は、偽の CommentCanvas に渡った過去ログ。canvas を作るたびに、別の配列にする。
+// added は、モックの CommentCanvas に渡った過去ログ。canvas を作るたびに、別の配列にする。
 const added: JikkyoComment[][] = [];
-// canvasClock は、偽の CommentCanvas に渡った時計。
+// canvasClock は、モックの CommentCanvas に渡った時計。
 const canvasClock = vi.hoisted(() => ({ current: (): number => Number.NaN }));
 
 vi.mock('./CommentCanvas', async () => {
@@ -33,7 +33,7 @@ vi.mock('./CommentCanvas', async () => {
   };
 });
 
-// sessions は、偽の JikkyoSession。リアルタイムのコメントを、外から送れる。
+// sessions は、モックの JikkyoSession。リアルタイムのコメントを、外から送れる。
 const sessions = vi.hoisted(
   () =>
     [] as {
@@ -246,12 +246,12 @@ describe('useRecordedJikkyo', () => {
     await waitFor(() => expect(result.current.state).toEqual({ kind: 'loaded', count: 2 }));
     expect(added).toEqual([[...comments, beyond]]);
 
-    // 伸びている間に描き直しても、取り直さない。
+    // 伸びている間に描き直しても、再取得しない。
     rerender({ growing: true });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     rerender({ growing: false });
-    // 取り直している間も、取ってあるコメントを出し続ける。
+    // 再取得している間も、取ってあるコメントを出し続ける。
     expect(result.current.comments).toEqual([...comments, beyond]);
     await waitFor(() => expect(result.current.comments).toEqual([...comments, tail]));
     expect(result.current.state).toEqual({ kind: 'loaded', count: 2 });
@@ -259,7 +259,7 @@ describe('useRecordedJikkyo', () => {
     // canvas は作り直さず、まだ渡していないコメントだけを足す。
     expect(added).toEqual([[...comments, beyond, tail]]);
 
-    // 画質を変えて canvas を作り直したら、取り直した過去ログを渡す。
+    // 画質を変えて canvas を作り直したら、再取得した過去ログを渡す。
     first.unmount();
     render(<>{result.current.overlay}</>);
     expect(added.at(-1)).toEqual([...comments, tail]);
@@ -288,7 +288,7 @@ describe('useRecordedJikkyo', () => {
     expect(result.current.state).toEqual({ kind: 'loaded', count: 1 });
     expect(result.current.comments).toEqual(comments);
 
-    // 実況を切って入れ直すと、まだ伸びた分を取れていないので、取り直す。
+    // 実況を切って入れ直すと、まだ伸びた分を取れていないので、再取得する。
     rerender({ src: null, growing: false });
     rerender({ src: url, growing: false });
     await waitFor(() => expect(result.current.state).toEqual({ kind: 'loaded', count: 2 }));

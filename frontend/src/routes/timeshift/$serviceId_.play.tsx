@@ -123,7 +123,7 @@ type PlaySearch = { program: string; t?: number };
 export const Route = createFileRoute('/timeshift/$serviceId_/play')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
   params: readableParams('serviceId', 'Service'),
-  // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
+  // 右のカラムを置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
   staticData: { fluid: true },
   validateSearch: (search: Record<string, unknown>): PlaySearch => {
     const t = parseStartSeconds(search.t);
@@ -137,7 +137,7 @@ export const Route = createFileRoute('/timeshift/$serviceId_/play')({
 });
 
 // PlayPage は、タイムシフトのバッファにある番組を、頭から再生する画面 (設計書 5.7)。
-// バッファは、ブラウザの中で変換する経路だけで再生する。画面は、アプリの根元の置き場で描く (#1602)。
+// バッファは、ブラウザの中で変換する経路だけで再生する。画面は、アプリのルート要素に描く (#1602)。
 function PlayPage() {
   const { serviceId } = Route.useParams();
   const { program, t: start } = Route.useSearch();
@@ -145,7 +145,7 @@ function PlayPage() {
   return useHostedWatch(<PlayWatch serviceId={serviceId} program={program} start={start} />);
 }
 
-// PlayWatch は、サービス serviceId の、program に始まった番組を、位置 start (秒) から再生する画面の中身。
+// PlayWatch は、サービス serviceId の、program に始まった番組を、位置 start (秒) から再生する画面の内容。
 function PlayWatch({
   serviceId,
   program,
@@ -261,7 +261,7 @@ function Player({
   const pip = useDocumentPictureInPicture();
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
   const [media, setMedia] = useState<PlayerMedia | null>(null);
-  // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
+  // 小さなプレイヤーは、この経路で再生中かを確認し、再生と一時停止を操作する。
   useWatchMedia(media);
   const videoState = useVideoState(media);
   const autoplay = useAutoplayBlocked(media);
@@ -272,7 +272,7 @@ function Player({
   const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
   useWakeLock(!videoState.paused);
   // 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する (設計書 7.1)。
-  // デコードが追いつかずにほかの画面で下げた段の上限は、段を下げる放送中の番組でだけ引き継ぐ (#1513)。
+  // デコードが追いつかずにほかの画面で下げた段階の上限は、段階を下げる放送中の番組でだけ引き継ぐ (#1513)。
   const playback = usePlaybackRoute(transcoding, toVideoFormat(program.service.videoFormat), {
     inheritCap: program.endAt == null,
   });
@@ -299,9 +299,9 @@ function Player({
     }, refreshMs);
 
     return () => clearInterval(timer);
-    // variables は描画ごとに作り直すが、中身は serviceId と startAt だけで決まる。
+    // variables は描画ごとに作り直すが、内容は serviceId と startAt だけで決まる。
   }, [environment, onAir, serviceId, startAt]);
-  // duration は、再生できる長さ (秒)。途切れた区間の分は、バッファに映像がないので引く。放送中は今まで伸ばす。
+  // duration は、再生できる長さ (秒)。途切れた区間の分は、バッファに映像がないので差し引く。放送中は今まで伸ばす。
   const duration = recordingPosition(
     program.playableFrom,
     program.gaps,
@@ -323,7 +323,7 @@ function Player({
   // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
   const [handover, setHandover] = useState(false);
 
-  // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
+  // streamMeter は、右のカラムの「情報」に出す、届いた映像のビットレートと放送の形式を保持する (#828)。
   const streamMeter = useStreamMeter(playback.current);
   useVolumeNormalizer(media);
   useAudioDelayer(media);
@@ -340,7 +340,7 @@ function Player({
     }
     stream.restartAt(seconds);
   };
-  // tenban が止まる前に知らせてきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。
+  // tenban が止まる前に通知してきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。
   // kyusu の経路は、セグメントごとに読み、次のセグメントは止まらない tenban に届くので、つなぎ直さない (設計書 11.4、#1727)。
   const drains = useStreamsDrains();
   const seenDrains = useRef(drains);
@@ -363,7 +363,7 @@ function Player({
   // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   const currentCaption = useRef<string | null>(null);
-  // 字幕の外字を置き換える表を読む (#825)。
+  // 字幕の外字を置き換えるテーブルを読む (#825)。
   const drcs = useDRCSReplacements();
   const onCaptionText = (text: string) => {
     const normalized = normalizeCaption(text);
@@ -389,8 +389,8 @@ function Player({
     restartAt(positionRef.current);
     setQuality(next);
   };
-  // 映像だけの遅れを飛び直しで直す (#1513)。デコードが追いつかなければ、画質が「自動」の間は段を下げ、それまでの位置から続ける。
-  // 段を下げるのは、放送中の番組 (追っかけと同じく、バッファの端が伸びている) でだけ。
+  // 映像だけの遅れを飛び直しで修正する (#1513)。デコードが追いつかなければ、画質が「自動」の間は段階を下げ、それまでの位置から続ける。
+  // 段階を下げるのは、放送中の番組 (追っかけと同じく、バッファの端が伸びている) でだけ。
   const adaptive = useAdaptiveQuality(
     media,
     {
@@ -411,7 +411,7 @@ function Player({
         playback.setNetworkStep(name);
       },
     },
-    // バッファは先に読むので、受け取りの速さで余裕を確かめて上げる。
+    // バッファは先に読むので、受け取りの速さで余裕を確認して上げる。
     {
       stepDown: onAir,
       pictureInPicture: pip.container !== null,
@@ -561,7 +561,7 @@ function Player({
   const mouseRef = usePlayerMouse(commands);
   // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
   // 全画面で、映像の左右を縦にスワイプして、明るさと音量を変える (#1598)。端末の設定で入れたときだけ受け付ける。
-  // 明るさは、その場限りで覚えない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
+  // 明るさは、その場限りで保存しない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
   const [swipeControls] = useSwipeControlsSetting();
   const [volumeAvailable] = useState(volumeChangeable);
   const [brightness, setBrightness] = useState(1);
@@ -671,7 +671,7 @@ function Player({
     <PlayerAlert title={error} action={{ label: t('player.retry'), onClick: retry }} />
   );
   const shown = seeking ?? position;
-  // gapMarks は、バッファが途切れた位置の印。途切れた区間はシークバーの長さに含めないので、長さのない印にする。
+  // gapMarks は、バッファが途切れた位置のマーク。途切れた区間はシークバーの長さに含めないので、長さのないマークにする。
   const gapMarks = program.gaps.map((gap) => {
     const at = recordingPosition(program.playableFrom, program.gaps, Date.parse(gap.from));
     const length = Math.max((Date.parse(gap.to) - Date.parse(gap.from)) / 1000, 0);

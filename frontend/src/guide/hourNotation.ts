@@ -33,18 +33,18 @@ export function loadExtendedHours(): boolean {
   return rawSnapshot() === 'true';
 }
 
-// saveExtendedHours は、28 時間表記にするかどうかを、端末に覚える。覚えられなくても、今の画面には効かせる。
+// saveExtendedHours は、28 時間表記にするかどうかを、端末に保存する。保存できなくても、今の画面には効かせる。
 export function saveExtendedHours(extended: boolean): void {
   try {
     localStorage.setItem(storageKey, String(extended));
     preferenceChanged(storageKey);
   } catch {
-    // 端末に覚えられないだけで、表示は変える。
+    // 端末に保存できないだけで、表示は変える。
   }
   window.dispatchEvent(new Event(changeEvent));
 }
 
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブと、ほかの端末から同期した値 (#1862) にしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブと、ほかの端末から同期した値 (#1862) にしか届かない。
 const changeEvent = 'kotatsu:extended-hours';
 
 function subscribe(onChange: () => void): () => void {
@@ -60,7 +60,7 @@ function subscribe(onChange: () => void): () => void {
 // useExtendedHours は、28 時間表記にするかどうかと、それを変える関数を返す。ほかのタブや、ほかの端末で変えても追う (#1862)。
 // 読んだ文字列を手がかりにするので、値が変わらなければ、描き直さない。
 export function useExtendedHours(): [boolean, (next: boolean) => void] {
-  // 読んだ文字列から決める。引数なしで読み直すと、React Compiler が結果を覚えて使い回すからである。
+  // 読んだ文字列から決める。引数なしで読み直すと、React Compiler が結果をメモ化して使い回すからである。
   return [useSyncExternalStore(subscribe, rawSnapshot) === 'true', saveExtendedHours];
 }
 

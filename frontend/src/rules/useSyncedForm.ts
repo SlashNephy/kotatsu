@@ -10,7 +10,7 @@ export function useSyncedForm<T>(initial: T, same: (a: T, b: T) => boolean) {
   const [touched, setTouched] = useState(false);
   const [outdated, setOutdated] = useState(false);
 
-  // 描画の中で、前に受け取った initial と比べて入れ直す。effect で入れ直すと、古い入力で一度描いてしまう。
+  // 描画の中で、前に受け取った initial と比較して入れ直す。effect で入れ直すと、古い入力で一度描いてしまう。
   if (!same(initial, base)) {
     setBase(initial);
     if (!touched || same(initial, form)) {
@@ -30,7 +30,7 @@ export function useSyncedForm<T>(initial: T, same: (a: T, b: T) => boolean) {
       setTouched(true);
       setForm((prev) => ({ ...prev, ...patch }));
     },
-    // reload は、入力を捨てて、サーバーの値を入れ直す。
+    // reload は、入力を破棄して、サーバーの値を入れ直す。
     reload: () => {
       setForm(initial);
       setTouched(false);

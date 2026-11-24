@@ -176,7 +176,7 @@ function LibraryList() {
   );
 }
 
-// Directory は、ライブラリ library のディレクトリ path の中身。ディレクトリと、再生できるファイルだけを出す。
+// Directory は、ライブラリ library のディレクトリ path の内容。ディレクトリと、再生できるファイルだけを出す。
 function Directory({ library, path, q }: { library: string; path: string; q: string | undefined }) {
   const { t } = useTranslation();
   const { libraryDirectory: directory } = useLazyLoadQuery<libraryDirectoryQuery>(

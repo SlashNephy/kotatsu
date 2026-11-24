@@ -39,7 +39,7 @@ export type RuleForm = ConditionsForm & {
   avoidDuplicates: boolean;
   duplicateWindowDays: number | null;
   followEventRelay: boolean;
-  // bundleSameEpisodes は、局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (#1498)。
+  // bundleSameEpisodes は、局をまたいで同じ回をまとめ、最初の放送だけを予約するかどうか (#1498)。
   bundleSameEpisodes: boolean;
   // skipEarlierEpisodes は、追っているシリーズの前の回を予約しないかどうか (#1499)。
   skipEarlierEpisodes: boolean;
@@ -148,7 +148,7 @@ export function cmDetectorOf(value: string | null | undefined): CMDetector | nul
 }
 
 // toInput は、編集の画面の入力を、tenban の RuleInput にする。グループは含めない。
-// プレビューと照合を重くする書き方の確かめは、グループに関わらないので、グループを変えても問い合わせ直さないためである。
+// プレビューと照合を重くする書き方の確認は、グループに関わらないので、グループを変えても問い合わせ直さないためである。
 export function toInput(form: RuleForm) {
   return {
     name: form.name.trim(),

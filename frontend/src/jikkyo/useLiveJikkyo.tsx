@@ -109,7 +109,7 @@ export function useLiveJikkyo(
     };
   }, [channelId, active, mediaRef]);
 
-  // 局を変えたら、前の局のコメントは捨てる。見えなくなって接続を閉じている間は、読み返せるよう残す。
+  // 局を変えたら、前の局のコメントは破棄する。見えなくなって接続を閉じている間は、読み返せるよう残す。
   useEffect(() => {
     setComments([]);
   }, [channelId]);
@@ -126,7 +126,7 @@ export function useLiveJikkyo(
   };
 
   // 届いた後にミュートしたユーザーやキーワードのコメントも、一覧から外す (#767)。
-  // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、中身で比べる。
+  // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、内容で比較する。
   const muteKey = JSON.stringify([
     settings.mutedKeywords,
     settings.mutedUsers,

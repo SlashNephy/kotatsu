@@ -23,7 +23,7 @@ import type { authorizeQuery } from './__generated__/authorizeQuery.graphql';
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 
 // 同意の画面 (#965、設計書 9.9)。認可のエンドポイント (/oauth/authorize) が、受け取ったクエリをそのまま付けて、ここへ送る。
-// クエリは、ログインした後に GraphQL で確かめる。ログインしていなければ、ログインさせてから戻る。
+// クエリは、ログインした後に GraphQL で確認する。ログインしていなければ、ログインさせてから戻る。
 export const Route = createFileRoute('/authorize')({
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: AuthorizePage,
@@ -36,7 +36,7 @@ function currentPath(): string {
 
 function AuthorizePage() {
   const { t } = useTranslation();
-  // クエリは、認可のエンドポイントに届いたものを、書き換えずにそのまま確かめる。
+  // クエリは、認可のエンドポイントに届いたものを、書き換えずにそのまま確認する。
   const [query] = useState(() => window.location.search.replace(/^\?/, ''));
 
   return (
@@ -50,7 +50,7 @@ function AuthorizePage() {
   );
 }
 
-// AuthorizeError は、認可のリクエストを確かめられなかったときの画面。ログインしていなければ、ログインの画面へ移る。
+// AuthorizeError は、認可のリクエストを確認できなかったときの画面。ログインしていなければ、ログインの画面へ移る。
 function AuthorizeError({ error }: { error: unknown }) {
   const { t } = useTranslation();
   const unauthenticated = isUnauthenticated(error);

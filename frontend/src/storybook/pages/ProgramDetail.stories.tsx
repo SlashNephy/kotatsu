@@ -93,7 +93,7 @@ function programPath(pick: (program: ListedProgram, now: number) => boolean) {
   };
 }
 
-// patchProgram は、node で引く番組を、patch で変える。詳細のパネルは、開いた番組を node で引く。
+// patchProgram は、node で取得する番組を、patch で変える。詳細のパネルは、開いた番組を node で取得する。
 function patchProgram(patch: (program: Node, root: DemoRoot) => Node) {
   return (root: DemoRoot) => ({
     node: (args: { id: string }) => {
@@ -168,7 +168,7 @@ export const ReserveError: Story = {
   },
 };
 
-// 視聴予約を付けられなかったとき。ベルのボタンに知らせる。
+// 視聴予約を付けられなかったとき。ベルのボタンに通知する。
 export const WatchReserveError: Story = {
   args: { overrides: { setWatchReservation: failing() } },
   play: async () => {
@@ -200,7 +200,7 @@ export const ReservedSettings: Story = {
   },
 };
 
-// 番組予約を取り消す前の確かめ。番組予約は消す。
+// 番組予約を取り消す前の確認。番組予約は消す。
 export const CancelProgramReservation: Story = {
   args: { url: programPath(reservedBy('PROGRAM')) },
   play: async () => {
@@ -225,7 +225,7 @@ export const ReservedByRule: Story = {
   play: openMore,
 };
 
-// ルール予約を取り消す前の確かめ。ルール予約は消さずに無効にすると説明する。
+// ルール予約を取り消す前の確認。ルール予約は消さずに無効にすると説明する。
 export const CancelRuleReservation: Story = {
   args: { url: programPath(reservedBy('RULE')) },
   play: async () => {
@@ -326,7 +326,7 @@ export const SearchSameName: Story = {
 // 視聴者から見たとき。録画予約とルールのボタンを出さず、視聴予約のボタンだけを出す。
 export const AsViewer: Story = { args: { overrides: asViewer('VIEWER') } };
 
-// 視聴者から、放送の終わった番組を見たとき。操作のボタンの段を出さない。
+// 視聴者から、放送の終わった番組を見たとき。操作のボタンの行を出さない。
 export const AsViewerEnded: Story = {
   args: { url: programPath(ended), overrides: asViewer('VIEWER') },
 };

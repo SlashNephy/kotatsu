@@ -75,7 +75,7 @@ export const OnlyThisSession: Story = {
   args: { overrides: { ...base, sessions: () => [current], oauthGrants: () => [] } },
 };
 
-// ほかの端末をまとめて取り消す前の確かめ。
+// ほかの端末をまとめて取り消す前の確認。
 export const ConfirmRevokeOthers: Story = {
   args: { overrides: base },
   play: async ({ canvas }) => {

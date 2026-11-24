@@ -91,7 +91,7 @@ describe('端末をまたいで同期する設定 (#1862)', () => {
     uploads();
     applyServerPreferences([], localStorage);
     vi.runAllTimers();
-    // 開き直した (覚えた状態を捨てた) 後に、ほかの端末で消した値が、この端末に残っていたとする。
+    // 開き直した (保持した状態を破棄した) 後に、ほかの端末で消した値が、この端末に残っていたとする。
     resetSyncedPreferencesForTest();
     const { sent } = uploads();
     localStorage.setItem(keymap, 'stale');

@@ -13,7 +13,7 @@ const regexp = (text: string, caseSensitive = false): HighlightKeyword => ({
   caseSensitive,
 });
 
-// marked は、text の印を付けた所を [ ] で囲んで返す。
+// marked は、text のマークを付けた所を [ ] で囲んで返す。
 function marked(text: string, keywords: HighlightKeyword[]): string {
   let result = '';
   let at = 0;
@@ -39,7 +39,7 @@ describe('highlightRanges', () => {
       keywords: [literal('ねこ')],
       want: '[ねこ] と [ねこ]',
     },
-    // 全角の英数字は、正規化して照らし、元の文字に印を付ける。
+    // 全角の英数字は、正規化して照合し、元の文字にマークを付ける。
     {
       name: 'full-width letters',
       text: 'ＮＨＫニュース',

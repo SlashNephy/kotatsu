@@ -4,15 +4,15 @@ import { broadcastDay, receivedUntil } from './layout';
 // channelWeekDays は、1 つのチャンネルの番組表に並べる日数。EPG が届く 8 日分にする (#482)。
 export const channelWeekDays = 8;
 
-// ChannelDay は、1 つのチャンネルの番組表の 1 列 (1 つの放送日)。
+// ChannelDay は、1 つのチャンネルの番組表の 1 カラム (1 つの放送日)。
 export type ChannelDay = GuideColumn & {
   // from は、その放送日の始まり (4 時) の時刻。
   from: number;
 };
 
-// channelWeekColumns は、1 つのチャンネルの番組を、今日から days 日分の放送日ごとの列に分ける。
-// 番組表 (GuideGrid) は、すべての列が同じ時間帯 (今日の放送日) を共有するので、各列の番組の時刻を、今日の放送日へずらす。
-// 時刻の表示は時と分だけなので、ずらしても同じ時刻に見える。放送日をまたぐ番組は、始まった日の列に入れる。
+// channelWeekColumns は、1 つのチャンネルの番組を、今日から days 日分の放送日ごとのカラムに分ける。
+// 番組表 (GuideGrid) は、すべてのカラムが同じ時間帯 (今日の放送日) を共有するので、各カラムの番組の時刻を、今日の放送日へずらす。
+// 時刻の表示は時と分だけなので、ずらしても同じ時刻に見える。放送日をまたぐ番組は、始まった日のカラムに入れる。
 export function channelWeekColumns(
   today: number,
   serviceId: string,
@@ -34,8 +34,8 @@ export function channelWeekColumns(
         startAt: program.startAt - shift,
         endAt: program.endAt - shift,
       }));
-    // 日ごとに EPG が届いている時刻が違うので、列ごとに、まだ届いていない時間帯を案内する。
-    // 前の日から続く番組は、その日の列に入らないので、届いている時刻を求めるときは含める。
+    // 日ごとに EPG が届いている時刻が違うので、カラムごとに、まだ届いていない時間帯を案内する。
+    // 前の日から続く番組は、その日のカラムに入らないので、届いている時刻を求めるときは含める。
     const until = receivedUntil(
       programs
         .filter((program) => program.startAt < window.to)

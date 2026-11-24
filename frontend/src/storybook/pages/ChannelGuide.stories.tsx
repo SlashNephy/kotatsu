@@ -6,7 +6,7 @@ import { GraphQLRequestError } from '../../relay/environment';
 import { call, withStorage } from '../conditions';
 import { failing, holdAll, PageStory } from '../PageStory';
 
-// サービスごとの番組表 (/guide/channel/$serviceId) の画面 (#2056)。1 つのチャンネルの 8 日分を、日付を列にして並べる。
+// サービスごとの番組表 (/guide/channel/$serviceId) の画面 (#2056)。1 つのチャンネルの 8 日分を、日付をカラムにして並べる。
 const meta = {
   title: 'ページ/番組表/サービスごと',
   component: PageStory,
@@ -54,7 +54,7 @@ export const Empty: Story = {
   },
 };
 
-// 後ろの日の番組表が、まだ届いていないとき。日ごとの列に、届いていない時間帯を塗る。
+// 後ろの日の番組表が、まだ届いていないとき。日ごとのカラムに、届いていない時間帯を塗る。
 export const NotReceived: Story = {
   args: {
     overrides: (root: DemoRoot) => ({
@@ -69,7 +69,7 @@ export const NotReceived: Story = {
   },
 };
 
-// 深夜を 24 時以降で表すとき (#486)。番組表の画面と同じ、端末に覚えた設定を読む。
+// 深夜を 24 時以降で表すとき (#486)。番組表の画面と同じ、端末に保存した設定を読む。
 export const ExtendedHours: Story = {
   beforeEach: () => withStorage({ 'kotatsu.guide.extendedHours': 'true' }),
 };

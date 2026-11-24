@@ -1,4 +1,4 @@
-// streamQuality は、録画の詳細の PID ごとの品質の表 (#473、#827) に出す値を作る。
+// streamQuality は、録画の詳細の PID ごとの品質のテーブル (#473、#827) に出す値を作る。
 
 // packetSize は、TS のパケットの大きさ (バイト)。
 const packetSize = 188;

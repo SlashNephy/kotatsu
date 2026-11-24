@@ -4,8 +4,8 @@ import { userEvent } from 'storybook/test';
 import { asViewer, merge, minutesAgo } from '../conditions';
 import { failingWith, holdAll, PageStory } from '../PageStory';
 
-// バックアップ (/admin/backup) の画面 (#2056)。最後の結果 (まだない、書き出した、失敗した)、公開鍵の有無と入力、
-// 今すぐ書き出すよう頼んだとき、保存の途中と失敗を並べる。
+// バックアップ (/admin/backup) の画面 (#2056)。最後の結果 (まだない、バックアップした、失敗した)、公開鍵の有無と入力、
+// 今すぐバックアップするよう頼んだとき、保存の途中と失敗を並べる。
 const meta = {
   title: 'ページ/管理/バックアップ',
   component: PageStory,
@@ -17,7 +17,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-// 架空の公開鍵。画面は形 (age1 と Bech32 の文字) だけを確かめる。
+// 架空の公開鍵。画面は形 (age1 と Bech32 の文字) だけを確認する。
 const keys = [
   'age1kq7tz9xyadem3d5ua8zm4fhgxl0cevsjn2p6wrqt9s5h3yuk7ancxdg2zq',
   'age1x8d2m0sw7pfajcne3tzgq5hy9ku6lv4r2xcm8nqd0ts7ey3wazjh5fgp9u',
@@ -39,7 +39,7 @@ const succeeded = {
   error: null,
 };
 
-// 公開鍵を登録しておらず、まだ書き出していないとき (デモの既定)。書き出すボタンは押せない。
+// 公開鍵を登録しておらず、まだバックアップしていないとき (デモの既定)。「今すぐバックアップする」ボタンは押せない。
 export const Default: Story = {};
 
 export const Loading: Story = { args: { hold: holdAll } };
@@ -60,7 +60,7 @@ export const RunFailed: Story = {
   },
 };
 
-// 今すぐ書き出すよう頼み、結果を待っているとき。
+// 今すぐバックアップするよう頼み、結果を待っているとき。
 export const RunRequested: Story = {
   args: {
     overrides: {

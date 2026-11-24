@@ -153,7 +153,7 @@ async function clickButton(canvas: Canvas, name: string, index = 0) {
   await userEvent.click(button);
 }
 
-// confirmDialog は、確かめるダイアログの name のボタンを押す。
+// confirmDialog は、確認のダイアログの name のボタンを押す。
 async function confirmDialog(name: string) {
   const dialog = await within(document.body).findByRole('dialog');
   await userEvent.click(within(dialog).getByRole('button', { name }));
@@ -179,7 +179,7 @@ export const Failed: Story = { args: { overrides: { systemStatus: failing() } } 
 // このインスタンスに保存先プールがないとき。
 export const NoPools: Story = {};
 
-// 空き容量より大きい閾値を打ち、すぐには保存せず確かめるとき。
+// 空き容量より大きい閾値を打ち、すぐには保存せず確認するとき。
 export const ConfirmMinFree: Story = {
   args: { overrides: pools },
   play: async ({ canvas }) => {
@@ -240,7 +240,7 @@ export const MissingSearchFailed: Story = {
   play: async ({ canvas }) => searchMissing(canvas),
 };
 
-// ファイルの見つからない録画を消す前に確かめるとき。
+// ファイルの見つからない録画を消す前に確認するとき。
 export const MissingConfirm: Story = {
   args: { overrides: { ...pools, ...missing } },
   play: async ({ canvas }) => {
@@ -276,7 +276,7 @@ export const OrphansNoneSelected: Story = {
   play: async ({ canvas }) => searchOrphans(canvas),
 };
 
-// DB にないファイルが見つかり、一部だけ選んだとき (すべて選ぶの欄は途中の印)。
+// DB にないファイルが見つかり、一部だけ選んだとき (すべて選ぶの欄は途中のマーク)。
 export const OrphansFound: Story = {
   args: { overrides: { ...pools, ...orphans } },
   play: async ({ canvas }) => {
@@ -295,7 +295,7 @@ export const OrphansSearchFailed: Story = {
   play: async ({ canvas }) => searchOrphans(canvas),
 };
 
-// DB にないファイルをすべて選び、消す前に確かめるとき。
+// DB にないファイルをすべて選び、消す前に確認するとき。
 export const OrphansConfirm: Story = {
   args: { overrides: { ...pools, ...orphans } },
   play: async ({ canvas }) => {
@@ -320,7 +320,7 @@ export const OrphansDeleteFailed: Story = {
   play: OrphansDeleted.play,
 };
 
-// ライブラリの生成物を数え、消す前に確かめるとき。
+// ライブラリの生成物を数え、消す前に確認するとき。
 export const ArtifactsConfirm: Story = {
   args: { overrides: { ...pools, ...artifacts } },
   play: async ({ canvas }) => measureArtifacts(canvas),
@@ -404,7 +404,7 @@ export const RenamesSearchFailed: Story = {
   play: async ({ canvas }) => searchRenames(canvas),
 };
 
-// 付け直す前に確かめるとき。
+// 付け直す前に確認するとき。
 export const RenamesConfirm: Story = {
   args: { overrides: { ...pools, ...renames } },
   play: async ({ canvas }) => {

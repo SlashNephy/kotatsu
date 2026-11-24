@@ -169,7 +169,7 @@ const volumeStep = 0.05;
 export const Route = createFileRoute('/live/$serviceId')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
   params: readableParams('serviceId', 'Service'),
-  // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
+  // 右のカラムを置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
   staticData: { fluid: true },
   component: LiveServicePage,
 });
@@ -192,14 +192,14 @@ const recordingsQuery = graphql`
 `;
 
 // LiveServicePage は、サービスをライブ視聴する画面。ブラウザの中で変換するか、kyusu の HLS で再生する (設計書 7.1)。
-// 画面は、アプリの根元の置き場で描く (#1602)。
+// 画面は、アプリのルート要素に描く (#1602)。
 function LiveServicePage() {
   const { serviceId } = Route.useParams();
 
   return useHostedWatch(<LiveServiceWatch serviceId={serviceId} />);
 }
 
-// LiveServiceWatch は、サービス serviceId のライブ視聴の画面の中身。
+// LiveServiceWatch は、サービス serviceId のライブ視聴の画面の内容。
 function LiveServiceWatch({ serviceId }: { serviceId: string }) {
   const { t } = useTranslation();
   // 小さなプレイヤー (#1602) では、戻るリンクを出さず、映像だけにする。
@@ -243,7 +243,7 @@ function LiveServiceWatch({ serviceId }: { serviceId: string }) {
   );
 }
 
-// liveRange は、now から、次の番組まで読める時間帯。放送中の番組と、その次の番組を引くのに使う (#438)。
+// liveRange は、now から、次の番組まで読める時間帯。放送中の番組と、その次の番組を取得するのに使う (#438)。
 function liveRange(now: number): { now: number; from: string; to: string } {
   return {
     now,
@@ -377,7 +377,7 @@ function Live({
           # 視聴している間だけ録るなら、バッファができるのを待って読み直す (#1408)。
           timeshiftWhileWatching
         }
-        # OS のメディア操作の前と次で移る局と、データ放送の選局で移る先を引く、番組表と同じ並びのサービス (#493、#440)。
+        # OS のメディア操作の前と次で移る局と、データ放送の選局で移る先を検索する、番組表と同じ並びのサービス (#493、#440)。
         services {
           id
           name
@@ -408,7 +408,7 @@ function Live({
     saveRecentChannels(storage, recordChannel(loadRecentChannels(storage), serviceId));
   }, [serviceId]);
   const mediaRef = useRef<PlayerMedia | null>(null);
-  // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
+  // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で確認する。
   const frameRef = useRef<HTMLDivElement | null>(null);
   const inPage = useVisible(frameRef);
   // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても、実況のコメントなどを描き続ける (設計書 7.5)。
@@ -418,7 +418,7 @@ function Live({
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
   // media は、今映している経路 (#1516)。画質を変えたときに作り直される。部品は <video> ではなく、これを受け取る。
   const [media, setMedia] = useState<PlayerMedia | null>(null);
-  // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
+  // 小さなプレイヤーは、この経路で再生中かを確認し、再生と一時停止を操作する。
   useWatchMedia(media);
   const videoState = useVideoState(media);
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
@@ -436,7 +436,7 @@ function Live({
   // videoFormat は、放送中の番組の映像の種類。BS4K と 8K では、経路の選び方が変わる (#806)。
   const videoFormat =
     data.node?.__typename === 'Service' ? toVideoFormat(data.node.videoFormat) : 'HD';
-  // chasing は、タイムシフトのバッファを再生しているか (下の timeshift.behind を写したもの)。経路を決めるのに使うので、
+  // chasing は、タイムシフトのバッファを再生しているか (下の timeshift.behind をコピーしたもの)。経路を決めるのに使うので、
   // timeshift より前に要る。音声だけの画質 (#1513) は、ライブを流している間だけ使う。
   const [chasing, setChasing] = useState(false);
   // ブラウザの中でデコードする経路 (#1516) は、今はライブ視聴でだけ、画質のメニューから選べる。
@@ -466,7 +466,7 @@ function Live({
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
   const [dataBroadcastPreload] = useDataBroadcastPreload();
   // timeshift は、タイムシフトのバッファへのシーク (設計書 5.7)。ブラウザ内で変換する経路では TS を、kyusu の経路では仮想 HLS を流す。
-  // バッファを見ていた位置は、サービスごとに端末に覚え、戻ったときにその位置から再開する (#1600)。
+  // バッファを見ていた位置は、サービスごとに端末に保存し、戻ったときにその位置から再開する (#1600)。
   const timeshift = useLiveTimeshift(
     data.node?.__typename === 'Service' ? (data.node.timeshiftBuffer ?? null) : null,
     media,
@@ -482,18 +482,18 @@ function Live({
   // 低遅延モードなら、貯める量を止まり方と届き方から決め、再生の速さで寄せて、放送からの遅れを小さくする (#495、#1514)。
   const [lowLatency] = useLowLatency();
   // kyusu の経路は、hls.js が追いつくので、ブラウザ内で変換する経路でだけ、再生の速さを変える。バッファを再生している間は追いつかない。
-  // 映像だけの遅れを飛び直しで直し、デコードが追いつかなければ、画質が「自動」の間は段を下げる (#1513)。
-  // 段を下げるのは、ライブを流している間だけ。バッファの再生でも飛び直しはする。
+  // 映像だけの遅れを飛び直しで修正し、デコードが追いつかなければ、画質が「自動」の間は段階を下げる (#1513)。
+  // 段階を下げるのは、ライブを流している間だけ。バッファの再生でも飛び直しはする。
   if (chasing !== timeshift.behind) {
     setChasing(timeshift.behind);
   }
-  // 回線が足りなければ段を下げ、余裕が戻れば上げる (#1513)。ライブは実時間でしか届かないので試しのデータで、
-  // バッファの再生は先に読むので受け取りの速さで、余裕を確かめる。
+  // 回線が足りなければ段階を下げ、余裕が戻れば上げる (#1513)。ライブは実時間でしか届かないのでプローブのデータで、
+  // バッファの再生は先に読むので受け取りの速さで、余裕を確認する。
   const adaptive = useAdaptiveQuality(
     media,
     {
       ...playback,
-      // バッファを再生している間に段を替えるときは、画質のメニューと同じく、今の位置から読み直す。
+      // バッファを再生している間に段階を替えるときは、画質のメニューと同じく、今の位置から読み直す。
       setNetworkStep: (name) => {
         if (timeshift.behind) {
           restartBehind();
@@ -536,7 +536,7 @@ function Live({
 
   // 視聴が切れたら、まず知らせを出さずにすぐつなぎ直す。tenban の入れ替えや回線の瞬断なら、これで戻る (#1083)。
   // ブラウザ内での変換では、切れる前に受け取った映像を流したまま、裏でつなぎ直して切り替える。
-  // すぐのつなぎ直しでも戻れなければ、理由を調べ、知らせを出して、間隔を延ばしながらつなぎ直す。
+  // すぐのつなぎ直しでも戻れなければ、理由を調査し、通知を出して、間隔を延ばしながらつなぎ直す。
   const disconnected = () => {
     if (disconnection !== null) {
       return;
@@ -582,11 +582,11 @@ function Live({
         }
         setDisconnection((prev) => (prev?.at === at ? { ...prev, recordings } : prev));
       })
-      // 理由を調べられなくても、つなぎ直しは続ける。
+      // 理由を調査できなくても、つなぎ直しは続ける。
       .catch(() => {});
   };
 
-  // reconnectNow は、数え終わるのを待たずに、すぐにつなぎ直す。スクランブルされたまま届いて止めたときも、カードを直した後に試せる。
+  // reconnectNow は、数え終わるのを待たずに、すぐにつなぎ直す。スクランブルされたまま届いて止めたときも、カードや契約を確認した後に試せる。
   const reconnectNow = () =>
     setDisconnection((prev) => (prev === null ? null : { ...prev, retryIn: 0, scrambled: false }));
 
@@ -624,7 +624,7 @@ function Live({
   // 一時停止したら、放送から遅れる。ブラウザ内での変換では、長く止めていたら再開するときに読み直す。
   // kyusu の経路は、プレイヤーが読み直す (設計書 7.3)。どちらの経路でも、遅れている間は「ライブに戻る」で読み直せる (#449)。
   const reload = () => setSession((n) => n + 1);
-  // tenban が止まる前に知らせてきたら、ブラウザ内での変換では、新しい接続を張ってから切り替える (#1085)。
+  // tenban が止まる前に通知してきたら、ブラウザ内での変換では、新しい接続を張ってから切り替える (#1085)。
   // kyusu の経路は、セグメントごとに読むので、止まる tenban を避けて次のセグメントを読む。つなぎ直さなくてよい。
   const drains = useStreamsDrains();
   const seenDrains = useRef(drains);
@@ -637,8 +637,8 @@ function Live({
       setSession((n) => n + 1);
     }
   }, [drains, route.kind, disconnection]);
-  // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
-  // タイムシフトのバッファは測れないので、バッファへ移ったときと、放送中の位置へ戻ったときに、それまでの分を捨てる。
+  // streamMeter は、右のカラムの「情報」に出す、届いた映像のビットレートと放送の形式を保持する (#828)。
+  // タイムシフトのバッファは測れないので、バッファへ移ったときと、放送中の位置へ戻ったときに、それまでの分を破棄する。
   const streamMeter = useStreamMeter(`${playback.current}:${timeshift.behind}`);
   // 実況のコメントは、ライブの端を見ている間、放送の時計で場面に合わせる (#1515)。kyusu の経路も、ライブのセグメントは放送の PTS のままなので合わせられる。
   const broadcast = useBroadcastClock(
@@ -661,11 +661,11 @@ function Live({
   const [crop, setCrop] = useState<Crop>(noCrop);
   // shownCrop は、画面に映すときの切り抜き。画面いっぱいに広げるときは、全画面の画面の比率で拡大する (#1599)。
   const shownCrop = useScreenCrop(crop, fullscreen.active);
-  // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので捨てる。
+  // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので破棄する。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
   const currentCaption = useRef<string | null>(null);
-  // 字幕の外字を置き換える表を読む (#825)。
+  // 字幕の外字を置き換えるテーブルを読む (#825)。
   const drcs = useDRCSReplacements();
   const onCaptionText = (text: string) => {
     const normalized = normalizeCaption(text);
@@ -678,7 +678,7 @@ function Live({
   const [externalOpen, setExternalOpen] = useState(false);
   // detailOpen は、放送中の番組の詳細 (録画予約のボタンがある) を出しているかどうか (#826)。
   const [detailOpen, setDetailOpen] = useState(false);
-  // tuneRequest は、データ放送の文書が選局しようとしたサービス。確かめてから移る (#440)。
+  // tuneRequest は、データ放送の文書が選局しようとしたサービス。確認してから移る (#440)。
   const [tuneRequest, setTuneRequest] = useState<{ id: string; name: string } | null>(null);
   // バッファへシークできるなら、長く止めた後も、止めた位置からバッファで続けるので、読み直さない。
   const behind = useLiveLag(media, {
@@ -783,7 +783,7 @@ function Live({
     dataBroadcastEnabled,
     data.systemSettings.dataBroadcastIpEnabled,
     {
-      // 文書が勝手に局を変えないよう、移る先を出して確かめてから移る (#440)。
+      // 文書が勝手に局を変えないよう、移る先を出して確認してから移る (#440)。
       onTune: (networkId, sid) => {
         const target = data.services.find(
           (candidate) => candidate.networkId === networkId && candidate.serviceId === sid,
@@ -797,7 +797,7 @@ function Live({
 
         return true;
       },
-      // 音声の切り替えは、確かめずに従う。
+      // 音声の切り替えは、確認せずに従う。
       onSelectAudio: audio.selectComponent,
     },
   );
@@ -917,7 +917,7 @@ function Live({
   const mouseRef = usePlayerMouse(commands);
   // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
   // 全画面で、映像の左右を縦にスワイプして、明るさと音量を変える (#1598)。端末の設定で入れたときだけ受け付ける。
-  // 明るさは、その場限りで覚えない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
+  // 明るさは、その場限りで保存しない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
   const [swipeControls] = useSwipeControlsSetting();
   const [volumeAvailable] = useState(volumeChangeable);
   const [brightness, setBrightness] = useState(1);
@@ -970,7 +970,7 @@ function Live({
     program: program === null ? null : { id: program.id, name: program.name },
     artwork: serviceLogoUrl,
     paused: videoState.paused,
-    // ライブはシークできないので、再生位置は知らせない。
+    // ライブはシークできないので、再生位置は通知しない。
     position: null,
     duration: null,
     playbackRate: 1,
@@ -1012,7 +1012,7 @@ function Live({
   // ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
   const openRemote = useRemoteOpen();
   useRemotePlayer(media === null ? null : player, playerEvents, commands, undefined, openRemote);
-  // commentRows は、右の列のコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
+  // commentRows は、右のカラムのコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
   const commentRows = useMemo(
     () =>
       jikkyo.comments.map((comment) => ({

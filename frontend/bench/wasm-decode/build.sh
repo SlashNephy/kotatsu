@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# vendor/ffmpeg/SOURCE で固定した版の FFmpeg から、mpeg2video・AAC・Opus のデコーダだけを emscripten で WASM に組む (#1516)。
+# vendor/ffmpeg/SOURCE で固定したバージョンの FFmpeg から、mpeg2video・AAC・Opus のデコーダだけを emscripten で WASM に組む (#1516)。
 #
 # 使い方: build.sh [組み方の名前...]
 # 名前を省くと、VARIANTS の組み方を全部組む。組んだものは .work/out/<名前>/ に置き、大きさと組む時間を .work/out/sizes.tsv に書く。
-# FFmpeg の tarball は、SOURCE の鍵で署名を確かめてから使う。組むのは Docker の emscripten のイメージの中で行う。
+# FFmpeg の tarball は、SOURCE の公開鍵で署名を検証してから使う。組むのは Docker の emscripten のイメージの中で行う。
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 work="$here/.work"
-# 版は、配信するデコーダ (vendor/ffmpeg) と同じものを使う。
+# バージョンは、配信するデコーダ (vendor/ffmpeg) と同じものを使う。
 value() { sed -n "s/^$1=//p" "$here/../../vendor/ffmpeg/SOURCE"; }
 ffmpeg="$(value ffmpeg)"
 emsdk="$(value emsdk)"
@@ -33,7 +33,7 @@ if [ ! -d "$work/src/ffmpeg-$ffmpeg" ]; then
   gnupg="$(mktemp -d)"
   trap 'rm -rf "$gnupg"' EXIT
   curl -fsSL https://ffmpeg.org/ffmpeg-devel.asc | GNUPGHOME="$gnupg" gpg --quiet --import
-  # 取り込んだ鍵が SOURCE の鍵と同じで、その鍵で署名されていることを確かめる。
+  # 取り込んだ公開鍵が SOURCE の公開鍵と同じで、その公開鍵で署名されていることを検証する。
   GNUPGHOME="$gnupg" gpg --quiet --status-fd 1 --verify "$tarball.asc" "$tarball" 2>/dev/null |
     grep -q "^\[GNUPG:\] VALIDSIG $ffmpeg_signing_key " || {
     echo "the signature of ffmpeg-$ffmpeg.tar.xz is not by $ffmpeg_signing_key" >&2

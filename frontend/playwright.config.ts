@@ -16,7 +16,7 @@ export default defineConfig({
   },
   projects: [
     {
-      // spa は、ビルドした SPA だけで確かめるテスト。
+      // spa は、ビルドした SPA だけで検証するテスト。
       name: 'spa',
       use: {
         ...devices['Desktop Chrome'],
@@ -25,7 +25,7 @@ export default defineConfig({
       },
     },
     {
-      // stack は、偽のチューナーサーバーと Kotatsu を立てて、主な流れを確かめるテスト (#508)。
+      // stack は、モックのチューナーサーバーと Kotatsu を立てて、主な流れを検証するテスト (#508)。
       // scripts/e2e-stack.sh から流す。初回セットアップから順に進めるので、1 つずつ順に流す。
       name: 'stack',
       testDir: './e2e/stack',
@@ -37,7 +37,7 @@ export default defineConfig({
       },
     },
     {
-      // stack-oidc は、偽の IdP で OIDC のログインを通しで確かめるテスト (#1525)。
+      // stack-oidc は、モックの IdP で OIDC のログインを通しで検証するテスト (#1525)。
       // 自動で作るユーザーが既存のユーザー名と重なる場面に、初回セットアップの管理者を使うので、stack の後に流す。
       name: 'stack-oidc',
       testDir: './e2e/stack',

@@ -6,7 +6,7 @@ export const dragThreshold = 5;
 type Point = { x: number; y: number };
 
 // dragScrollPosition は、ドラッグを始めたときのスクロールの位置と、ポインターの動きから、スクロールの位置を求める。
-// ポインターを右下へ動かすと、中身も右下へ動く (スクロールの位置は左上へ戻る)。
+// ポインターを右下へ動かすと、内容も右下へ動く (スクロールの位置は左上へ戻る)。
 export function dragScrollPosition(scrollStart: Point, pointerStart: Point, pointer: Point): Point {
   return {
     x: scrollStart.x - (pointer.x - pointerStart.x),
@@ -16,7 +16,7 @@ export function dragScrollPosition(scrollStart: Point, pointerStart: Point, poin
 
 // useDragScroll は、マウスで押したままドラッグして、要素をスクロールできるようにする (#698)。
 // タッチとペンは、ブラウザがもともとスクロールするので、マウスだけを扱う。
-// ドラッグした後に届くクリックは捨て、番組の詳細などを開かないようにする。少しだけ動いたときは、クリックのままにする。
+// ドラッグした後に届くクリックは破棄し、番組の詳細などを開かないようにする。少しだけ動いたときは、クリックのままにする。
 export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
   useEffect(() => {
     const element = ref.current;
@@ -62,7 +62,7 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
       element.scrollLeft = position.x;
       element.scrollTop = position.y;
     };
-    // finish は、ドラッグを終える。ドラッグしていたら、その後に届くクリックを捨てる。
+    // finish は、ドラッグを終える。ドラッグしていたら、その後に届くクリックを破棄する。
     const finish = () => {
       if (start === null) {
         return;
@@ -73,7 +73,7 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
       }
       element.style.cursor = '';
       element.style.userSelect = '';
-      // ドラッグを終えたときのクリックだけを捨てる。クリックが届かないこともあるので、次のタスクで取り下げる。
+      // ドラッグを終えたときのクリックだけを破棄する。クリックが届かないこともあるので、次のタスクで取り下げる。
       const swallow = (click: MouseEvent) => {
         click.preventDefault();
         click.stopPropagation();

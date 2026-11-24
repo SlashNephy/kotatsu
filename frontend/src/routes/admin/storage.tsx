@@ -164,7 +164,7 @@ function PoolUsage({ free, total, minFree }: { free: number; total: number; minF
 
 // PoolEditor は、保存先プールの優先順位と容量の閾値を変える。閾値は GB で入力する。
 // どちらも、欄を離れたときか Enter で保存する (#1740)。ただし、閾値を今の空き容量より大きくすると、容量の管理が
-// 次の確認 (数分ごと) で古い録画を消し始め、取り消せないので、すぐには保存せず、確かめてから保存する。
+// 次の確認 (数分ごと) で古い録画を消し始め、取り消せないので、すぐには保存せず、確認してから保存する。
 function PoolEditor({
   pool,
   onSave,
@@ -180,13 +180,13 @@ function PoolEditor({
   onSave: (input: StoragePoolInput) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
-  // confirming は、確かめてから保存する閾値 (バイト)。
+  // confirming は、確認してから保存する閾値 (バイト)。
   const [confirming, setConfirming] = useState<number | null>(null);
-  // resetKey を変えると、閾値の欄を作り直し、保存してある値に戻す。確かめてやめたときに使う。
+  // resetKey を変えると、閾値の欄を作り直し、保存してある値に戻す。確認してやめたときに使う。
   const [resetKey, setResetKey] = useState(0);
   const saveMinFree = (gb: number) => {
     const minFreeBytes = Math.round(gb * bytesPerGB);
-    // 空き容量を測れていて、閾値を上げると空き容量が足りなくなるときは、確かめる。
+    // 空き容量を測れていて、閾値を上げると空き容量が足りなくなるときは、確認する。
     if (
       pool.freeBytes != null &&
       minFreeBytes > pool.minFreeBytes &&

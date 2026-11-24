@@ -26,7 +26,7 @@ export function fromInputValue(value: string): number | null {
 // TimeRangeError は、時刻の範囲の誤り。
 export type TimeRangeError = 'missing' | 'order' | 'tooLong';
 
-// validateRange は、時刻予約の時間帯を確かめる。正しければ null を返す。
+// validateRange は、時刻予約の時間帯を確認する。正しければ null を返す。
 export function validateRange(start: number | null, end: number | null): TimeRangeError | null {
   if (start === null || end === null) {
     return 'missing';

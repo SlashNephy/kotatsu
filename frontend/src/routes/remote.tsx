@@ -105,7 +105,7 @@ type Player = remoteQuery$data['players'][number];
 
 function RemoteControl() {
   const { t } = useTranslation();
-  // version は、プレイヤーの一覧の版。変わったら読み直す。tick は、選んだプレイヤーの再生位置を読み直すための数。
+  // version は、プレイヤーの一覧のバージョン。変わったら読み直す。tick は、選んだプレイヤーの再生位置を読み直すための数。
   const [version, setVersion] = useState(0);
   const [tick, setTick] = useState(0);
   const config = {
@@ -187,7 +187,7 @@ function PlayerRemote({ player }: { player: Player }) {
   };
   const position = estimatedPosition(state, player.lastSeenAt, now);
   // seeking と volume は、スライダーを動かしている間の値。離したところで送り、ほかの端末から新しい状態が届くまで保つ。
-  // すぐに捨てると、届くまでの間、スライダーが前の値に戻って見える。
+  // すぐに破棄すると、届くまでの間、スライダーが前の値に戻って見える。
   const [seeking, setSeeking] = useState<number | null>(null);
   const [volume, setVolume] = useState<number | null>(null);
   useEffect(() => {

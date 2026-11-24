@@ -27,13 +27,13 @@ type Props = {
   programs: readonly ProgramListItem[];
   // onSelect は、番組を押したときに呼ぶ。番組の詳細を開くのに使う。
   onSelect: (programId: string) => void;
-  // highlights は、番組名に印を付けるキーワード (#966)。
+  // highlights は、番組名にマークを付けるキーワード (#966)。
   highlights?: readonly HighlightKeyword[];
 };
 
 // ProgramList は、条件に一致した番組の一覧。番組の検索の結果と、ルールのプレビューで使う。
-// 日時は、番組名の頭が揃うよう、いちばん長い日時 (12/28(月) 00:00) が収まる幅に固定する。
-// 狭い画面では、番組名が読めるよう、日時とチャンネルの下の段に回す。
+// 日時は、番組名の先頭が揃うよう、いちばん長い日時 (12/28(月) 00:00) が収まる幅に固定する。
+// 狭い画面では、番組名が読めるよう、日時とチャンネルの下の行に回す。
 export function ProgramList({ programs, onSelect, highlights = [] }: Props) {
   const { t } = useTranslation();
 

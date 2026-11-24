@@ -28,7 +28,7 @@ const timeFormat = zonedFormat({
 });
 const dateFormat = zonedFormat({ year: 'numeric', month: 'numeric', day: 'numeric' });
 
-// SkippedDuplicateList は、ルールに一致したが、重複の回避、同じ回の束ね、前の回を録らない設定で予約しなかった番組の一覧
+// SkippedDuplicateList は、ルールに一致したが、重複の回避、同じ回のまとめ、前の回を録らない設定で予約しなかった番組の一覧
 // (設計書 4.4、#469、#1498、#1499)。録り直したい番組は、ここから手動で予約する。手動の予約は、これらの対象にならない。
 export function SkippedDuplicateList() {
   const { t } = useTranslation();

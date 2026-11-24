@@ -78,7 +78,7 @@ export const NotSubscribed: Story = {
   beforeEach: fakeServiceWorker(null),
 };
 
-// この端末の購読を調べている途中 (切り替えを押せない)。
+// この端末の購読を確認している途中 (切り替えを押せない)。
 export const CheckingSubscription: Story = {
   args: { overrides: preferences(false) },
   beforeEach: () =>

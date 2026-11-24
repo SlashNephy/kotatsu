@@ -25,7 +25,7 @@ type Props = {
 };
 
 // FailureCounts は、理由ごとの、録画の失敗の累計と、0 に戻すボタン (設計書 5.5、#1035)。
-// 検証で失敗させた分や、直した障害の分を消すのに使う。戻す前に確かめ、戻したことは監査ログに残る。
+// 検証で失敗させた分や、修正した障害の分を消すのに使う。戻す前に確認し、戻したことは監査ログに残る。
 export function FailureCounts({ counts, formatTime, onReset }: Props) {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState<RecordingFailureReason | null>(null);

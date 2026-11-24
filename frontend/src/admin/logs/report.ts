@@ -1,4 +1,4 @@
-// 不具合の報告の組み立て (#1521、設計書 11.3)。GitHub の Issue のフォームを開く URL を、問い合わせのキーで中身を埋めて作る。
+// 不具合の報告の組み立て (#1521、設計書 11.3)。GitHub の Issue のフォームを開く URL を、問い合わせのキーで内容を埋めて作る。
 // キーは .github/ISSUE_TEMPLATE/bug_report.yml の欄の id。「起きていること」と「再現の手順」は、利用者が GitHub で書く。
 
 // issueFormURL は、不具合の報告のフォームを開く URL の、問い合わせの前の部分。
@@ -9,7 +9,7 @@ export const issueTemplate = 'bug_report.yml';
 // 決めるパラメーター (設計書 付録 A)。
 // urlLimit は、フォームを開く URL の全体の字数の上限。GitHub は 8192 字以上の URL を 414 で断る。
 // GitHub にログインしていないブラウザでは、ログインの画面へ送る応答が約 5740 字から 500 になるので、それより下に置く
-// (2026-11-12 に Chromium で確かめた。curl では約 6960 字。ブラウザが送るヘッダーの分だけ短くなる)。
+// (2026-11-12 に Chromium で確認した。curl では約 6960 字。ブラウザが送るヘッダーの分だけ短くなる)。
 export const urlLimit = 5500;
 // reportLineLimit は、報告に入れるときに 1 行を切る字数。
 export const reportLineLimit = 400;
@@ -24,17 +24,17 @@ export type ReportLine = {
   // time は、epoch ミリ秒の時刻。
   time: number;
   level: Level;
-  // inferred は、重さを本文の言葉から推し量ったかどうか。推し量った重さの印は、行に付けない。
+  // inferred は、重さを本文の言葉から推し量ったかどうか。推し量った重さのマークは、行に付けない。
   inferred: boolean;
   text: string;
 };
 
 export type ReportSource = {
-  // name は、見出しに出す出どころの名前。
+  // name は、見出しに出すソースの名前。
   name: string;
   // lines は、古い順の行。
   lines: readonly ReportLine[];
-  // total は、出どころが持っていた行の数。
+  // total は、ソースが持っていた行の数。
   total: number;
   // failure は、ログを取れなかった理由の一言。取れたら null。
   failure: string | null;
@@ -126,7 +126,7 @@ export function formatTime(time: number): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-// formatLine は、報告の 1 行にする。重さが本物の warn と error のときだけ、印を付ける。maxLength で本文を切る (0 なら切らない)。
+// formatLine は、報告の 1 行にする。重さが本物の warn と error のときだけ、マークを付ける。maxLength で本文を切る (0 なら切らない)。
 export function formatLine(line: ReportLine, maxLength = reportLineLimit): string {
   const mark = line.inferred || line.level === 'INFO' ? '' : ` [${line.level.toLowerCase()}]`;
   const text = toWellFormed(line.text.replace(/\r?\n/g, ' '));
@@ -134,24 +134,24 @@ export function formatLine(line: ReportLine, maxLength = reportLineLimit): strin
   return `${formatTime(line.time)}${mark} ${maxLength > 0 ? truncate(text, maxLength) : text}`;
 }
 
-// heading は、出どころごとの見出しの行。入れた行数と、全体の行数を含む。
+// heading は、ソースごとの見出しの行。入れた行数と、全体の行数を含む。
 export const heading = (source: ReportSource, included: number) =>
   `== ${source.name} (${included} / ${source.total}) ==`;
 // failureLine は、ログを取れなかった理由の行。
 export const failureLine = (failure: string) => `(${failure})`;
-// skippedLine は、URL の上限に入らずに省いた行の数を知らせる行。
+// skippedLine は、URL の上限に入らずに省いた行の数を示す行。
 export const skippedLine = (count: number) =>
   `(URL の上限に入らない ${count} 行を省きました。全部入りの報告は「コピー」か「ダウンロード」で取れます)`;
-// trimmedLine は、書き足して上限を超えたときに、古い方から省いた行の数を知らせる行。
+// trimmedLine は、書き足して上限を超えたときに、古い方から省いた行の数を示す行。
 export const trimmedLine = (count: number) => `(古い方から ${count} 行を省きました)`;
 
 const severity = (level: Level) => (level === 'ERROR' ? 2 : level === 'WARN' ? 1 : 0);
 
 // selectLogs は、ログの欄に budget (エンコード後の長さ) まで入る行を選んで、ログの欄の文字列を返す。
-//   1. 見出し、取れなかった理由、省いた行数を知らせる行の分を、先に確保する。省いた行数は、最大の桁数で見積もる。
+//   1. 見出し、取れなかった理由、省いた行数を示す行の分を、先に確保する。省いた行数は、最大の桁数で見積もる。
 //   2. 全部の行を、warn と error を先に、同じ重さなら新しい順に並べる。
 //   3. 入る行は取り、入らない行は飛ばして次を試す。
-//   4. 出すときは、出どころごとに古い順へ並べ直す。
+//   4. 出すときは、ソースごとに古い順へ並べ直す。
 export function selectLogs(sources: readonly ReportSource[], budget: number): string {
   const allLines = sources.reduce((sum, source) => sum + source.lines.length, 0);
   const maxCount = Math.max(allLines, ...sources.map((source) => source.total));
@@ -264,7 +264,7 @@ export function fitURL(fields: IssueFields, limit = urlLimit): { url: string; tr
     }
   }
 
-  // ログが空なら、削った行は無い (タイトルや版が長くて上限を超えても、ログのせいではない)。
+  // ログが空なら、削った行は無い (タイトルやバージョンが長くて上限を超えても、ログのせいではない)。
   return {
     url: buildURL({ ...limited, logs: '' }),
     trimmed: limited.logs === '' ? 0 : lines.length,

@@ -56,7 +56,7 @@ const query = graphql`
       displayName
       sortOrder
     }
-    # 上流から消えたサービスも、印を付けて出す。非表示の印や並び順を直せるようにしておく (#1973)。
+    # 上流から消えたサービスも、マークを付けて出す。非表示のマークや並び順を修正できるようにしておく (#1973)。
     services(includeHidden: true, includeGone: true) {
       id
       networkId
@@ -229,7 +229,7 @@ function ServiceSettings() {
         <ScrollArea.Autosize mah={480}>
           <Stack gap="xs">
             {data.services.map((service) => (
-              // 番組表に出さない印と、並び順の上書き。並び順を空にすると、上書きを消して、リモコンのキーの順に戻す。
+              // 番組表に出さないマークと、並び順の上書き。並び順を空にすると、上書きを消して、リモコンのキーの順に戻す。
               <Group key={service.id} gap="xs" align="flex-end">
                 <ServiceName
                   name={service.name}
@@ -387,7 +387,7 @@ function ServiceSettings() {
 const jikkyoChannelPattern = /^jk\d{1,6}$/;
 
 // ServiceName は、行の左に出す、サービスの名前とロゴ、その下の小さな説明 sub。
-// 上流から消えたサービス (gone) には、説明の横に印を付ける (#1973)。
+// 上流から消えたサービス (gone) には、説明の横にマークを付ける (#1973)。
 function ServiceName({
   name,
   logoUrl,

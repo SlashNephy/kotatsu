@@ -48,14 +48,14 @@ export const Route = createFileRoute('/offline/$recordingId')({
 });
 
 // OfflinePlayPage は、端末に保存した録画を再生する画面 (#480、設計書 7.8)。サーバーにつながらなくても見られるよう、
-// GraphQL を読まず、保存した TS をブラウザの中で変換して流す (設計書 7.2)。画面は、アプリの根元の置き場で描く (#1602)。
+// GraphQL を読まず、保存した TS をブラウザの中で変換して流す (設計書 7.2)。画面は、アプリのルート要素に描く (#1602)。
 function OfflinePlayPage() {
   const { recordingId } = Route.useParams();
 
   return useHostedWatch(<OfflinePlayWatch recordingId={recordingId} />);
 }
 
-// OfflinePlayWatch は、端末に保存した録画 recordingId を再生する画面の中身。
+// OfflinePlayWatch は、端末に保存した録画 recordingId を再生する画面の内容。
 function OfflinePlayWatch({ recordingId }: { recordingId: string }) {
   const { t } = useTranslation();
   // 小さなプレイヤー (#1602) では、戻るリンクを出さず、映像だけにする。
@@ -132,7 +132,7 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   const mediaRef = useRef<PlayerMedia | null>(null);
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
   const [media, setMedia] = useState<PlayerMedia | null>(null);
-  // 小さなプレイヤーは、この経路で再生中かを調べ、再生と一時停止を操作する。
+  // 小さなプレイヤーは、この経路で再生中かを確認し、再生と一時停止を操作する。
   useWatchMedia(media);
   const videoState = useVideoState(media);
   const autoplay = useAutoplayBlocked(media);

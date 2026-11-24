@@ -256,7 +256,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               lv1
               lv2
             }
-            # 録画を始めたときに写した、TMDB で結びつけた作品と話 (#1651、設計書 3.9)。
+            # 録画を始めたときにコピーした、TMDB で結びつけた作品と話 (#1651、設計書 3.9)。
             dramaEpisode {
               series {
                 tmdbId
@@ -272,7 +272,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               url
               watched
             }
-            # 録画を始めたときに写した、しょぼいカレンダーで結びつけた話 (設計書 3.8)。
+            # 録画を始めたときにコピーした、しょぼいカレンダーで結びつけた話 (設計書 3.8)。
             animeEpisodes {
               syobocalTid
               syobocalUrl
@@ -442,7 +442,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               <RecordingThumbnail url={recording.thumbnailUrl} />
             </AspectRatio>
           </Card>
-          {/* 画像の不具合を直したときなどに、代表画像とプレビュー画像を作り直す (#476)。作り直すまでは、今の画像を出す。 */}
+          {/* 画像の不具合を修正したときなどに、代表画像とプレビュー画像を作り直す (#476)。作り直すまでは、今の画像を出す。 */}
           {canEdit && segments.length > 0 && recording.state !== 'RECORDING' && (
             <Group gap="xs">
               <Button
@@ -470,7 +470,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               >
                 {t('recordings.regenerateImages')}
               </Button>
-              {/* 索引とドロップなどの集計を、録画のファイルから作り直す。終われば画像も作り直す (#476)。 */}
+              {/* インデックスとドロップなどの集計を、録画のファイルから作り直す。終われば画像も作り直す (#476)。 */}
               <Button
                 size="xs"
                 variant="subtle"
@@ -717,7 +717,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Stack>
             </Alert>
           )}
-          {/* スクランブルされたまま録れた録画は、失敗にしないので、理由と確かめることを警告で出す (#1517)。 */}
+          {/* スクランブルされたまま録れた録画は、失敗にしないので、理由と確認することを警告で出す (#1517)。 */}
           {recording.scrambleWarning && (
             <Alert color="amber">
               <Text size="sm">

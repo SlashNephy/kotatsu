@@ -1,7 +1,7 @@
-// 番組の検索と録画の検索で、番組名のうちキーワードに当たった所に印を付ける (#966)。
+// 番組の検索と録画の検索で、番組名のうちキーワードに当たった所にマークを付ける (#966)。
 // tenban はキーワードと番組名を正規化してから照らすので (設計書 3.5)、ここでも同じく、NFKC で正規化し、波ダッシュを ~ に、
 // ダッシュの類を - にそろえて (#2041) 照らし、当たった所を、画面に出す番組名の位置に戻す。
-// 印は見た目の手がかりで、一致するかどうかは tenban が決める。正規表現は、tenban (Go) と同じ書き方の範囲で、JavaScript で照らす。
+// マークは見た目の手がかりで、一致するかどうかは tenban が決める。正規表現は、tenban (Go) と同じ書き方の範囲で、JavaScript で照らす。
 
 // HighlightKeyword は、番組名で探したキーワード。
 export type HighlightKeyword = {
@@ -10,7 +10,7 @@ export type HighlightKeyword = {
   readonly caseSensitive: boolean;
 };
 
-// HighlightRange は、印を付ける範囲 (UTF-16 の位置。start を含み、end を含まない)。
+// HighlightRange は、マークを付ける範囲 (UTF-16 の位置。start を含み、end を含まない)。
 export type HighlightRange = { start: number; end: number };
 
 // foldDash は、tenban の domain.Normalize と同じく、波ダッシュを ~ に、ダッシュの類を - にする。
@@ -28,7 +28,7 @@ function normalizeKeyword(text: string, caseSensitive: boolean): string {
 // Normalized は、正規化した文字列と、その 1 文字 (UTF-16) ごとの、元の文字列での範囲。
 type Normalized = { text: string; starts: number[]; ends: number[] };
 
-// normalizeWithPositions は、text を 1 文字 (コードポイント) ずつ正規化し、正規化した文字ごとに、元の位置を覚える。
+// normalizeWithPositions は、text を 1 文字 (コードポイント) ずつ正規化し、正規化した文字ごとに、元の位置を保持する。
 // 1 文字ずつ正規化するので、半角のカタカナと濁点のような、つないで 1 文字になる組は、つながない。
 function normalizeWithPositions(text: string, caseSensitive: boolean): Normalized {
   const result: Normalized = { text: '', starts: [], ends: [] };
@@ -57,7 +57,7 @@ function findMatches(haystack: string, keyword: HighlightKeyword): HighlightRang
         keyword.caseSensitive ? 'gu' : 'giu',
       );
     } catch {
-      // JavaScript で読めない正規表現 (Go だけの書き方) には、印を付けない。
+      // JavaScript で読めない正規表現 (Go だけの書き方) には、マークを付けない。
       return ranges;
     }
     for (const match of haystack.matchAll(pattern)) {

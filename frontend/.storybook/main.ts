@@ -13,10 +13,10 @@ const config: StorybookConfig = {
   viteFinal: (viteConfig) => ({
     ...viteConfig,
     // ブラウザの中で変換する Worker は、WebAssembly を BASE_URL から読む。Storybook の既定の相対の base (./) では、Worker の
-    // 置き場所 (assets/) から探して見つからないので、アプリと同じく / に置く。
+    // assets/ から探して見つからないので、アプリと同じく / に置く。
     base: '/',
     // Storybook には、ルーティングの生成と Service Worker の生成が要らない。
-    // 画面の Story で、ライブ視聴と録画の再生にデモの映像を流せるよう、静的なデモと同じ Service Worker と映像を配る。
+    // 画面の Story で、ライブ視聴と録画の再生にデモの映像を流せるよう、静的なデモと同じ Service Worker と映像を配信する。
     plugins: [
       ...(viteConfig.plugins ?? []).flat().filter((plugin) => {
         const name = plugin && typeof plugin === 'object' && 'name' in plugin ? plugin.name : '';

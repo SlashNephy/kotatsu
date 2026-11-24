@@ -20,7 +20,7 @@ type Settings = {
   notifyWishlist: boolean;
 };
 
-// serve は、記録の設定を返し、保存を受けたら送った値を覚えて返す Relay の環境と、送った値の一覧を作る。
+// serve は、記録の設定を返し、保存を受けたら送った値を保持して返す Relay の環境と、送った値の一覧を作る。
 // fails が true の間は、保存を断る。
 function serve(fails = { value: false }) {
   let settings: Settings = {
@@ -182,7 +182,7 @@ describe('記録の設定を、変えたらすぐ保存する (#1740)', () => {
   });
 });
 
-// serveDrama は、Simkl と連携したユーザーの、ドラマの記録の問い合わせに応え、取り込み直しの依頼を覚える Relay の環境を作る (#1649)。
+// serveDrama は、Simkl と連携したユーザーの、ドラマの記録の問い合わせに応え、取り込み直しの依頼を保持する Relay の環境を作る (#1649)。
 function serveDrama() {
   const imports: unknown[] = [];
   const saved: unknown[] = [];

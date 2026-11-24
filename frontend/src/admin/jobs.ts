@@ -14,7 +14,7 @@ export const jobStates = [
 
 export type JobStateName = (typeof jobStates)[number];
 
-// kindKeys は、名前を付けたジョブの種類 (River の kind) と、設計書 6.1 の表の名前の翻訳のキー。
+// kindKeys は、名前を付けたジョブの種類 (River の kind) と、設計書 6.1 のテーブルの名前の翻訳のキー。
 const kindKeys = {
   anime_import: 'admin.jobs.kinds.anime_import',
   anime_match: 'admin.jobs.kinds.anime_match',

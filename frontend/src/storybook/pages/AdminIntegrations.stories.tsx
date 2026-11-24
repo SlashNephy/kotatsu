@@ -193,7 +193,7 @@ export const ReauthRequired: Story = {
   args: { auth: { '/internal/auth/reauth': { recent: false } } },
 };
 
-// 設定を保存しようとして、再認証を求められたとき (本人確認の窓)。
+// 設定を保存しようとして、再認証を求められたとき (本人確認のダイアログ)。
 export const ReauthOnSave: Story = {
   args: {
     overrides: { updateSystemSettings: failingWith({ code: 'REAUTHENTICATION_REQUIRED' }) },
@@ -392,7 +392,7 @@ export const WebhookEditing: Story = {
   },
 };
 
-// Webhook を削除するか確かめているとき。
+// Webhook を削除するか確認しているとき。
 export const WebhookConfirmDelete: Story = {
   args: { overrides: { webhooks } },
   play: async ({ canvas }) => {

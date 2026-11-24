@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# ブラウザ内でデコードする経路 (#1516、設計書 7.2) の WASM の FFmpeg を、frontend/vendor/ffmpeg/SOURCE で固定した版から組み、
+# ブラウザ内でデコードする経路 (#1516、設計書 7.2) の WASM の FFmpeg を、frontend/vendor/ffmpeg/SOURCE で固定したバージョンから組み、
 # frontend に置く。
 #
 # FFmpeg を mpeg2video と AAC のデコーダ、mpegvideo の parser だけに絞り、vendor/ffmpeg/glue.c とつないで emscripten で組む。
 # 手書きアセンブリと pthreads は使わない (crossOriginIsolated が要らないようにする)。組むのは、SOURCE で固定した
-# emscripten のイメージの中で行う。FFmpeg の tarball は、SOURCE の鍵で署名を確かめてから使う。
-# 同じ版からは同じものができるので、CI は、組み直したものとリポジトリのものに差分がないことを確かめる。
+# emscripten のイメージの中で行う。FFmpeg の tarball は、SOURCE の公開鍵で署名を検証してから使う。
+# 同じバージョンからは同じものができるので、CI は、組み直したものとリポジトリのものに差分がないことを確認する。
 #
 # 置くもの:
 #   frontend/vendor/ffmpeg/decoder/dist/decoder.js  emscripten が作る、WASM を読み込む JS (LGPL-2.1-or-later)
@@ -31,7 +31,7 @@ curl -fsSL -o "$tarball.asc" "https://ffmpeg.org/releases/ffmpeg-$ffmpeg.tar.xz.
 gnupg="$work/gnupg"
 mkdir -m 700 "$gnupg"
 curl -fsSL https://ffmpeg.org/ffmpeg-devel.asc | GNUPGHOME="$gnupg" gpg --quiet --import
-# 取り込んだ鍵が SOURCE の鍵と同じで、その鍵で署名されていることを確かめる。
+# 取り込んだ公開鍵が SOURCE の公開鍵と同じで、その公開鍵で署名されていることを検証する。
 GNUPGHOME="$gnupg" gpg --quiet --status-fd 1 --verify "$tarball.asc" "$tarball" 2>/dev/null |
   grep -q "^\[GNUPG:\] VALIDSIG $signing_key " || {
   echo "the signature of ffmpeg-$ffmpeg.tar.xz is not by $signing_key" >&2

@@ -29,7 +29,7 @@ class ResizeObserverStub {
 }
 window.ResizeObserver = ResizeObserverStub;
 
-// 画面の言語はブラウザの言語の設定で選ぶ (#831)。jsdom は英語なので、日本語の文言を確かめるテストのために日本語にする。
+// 画面の言語はブラウザの言語の設定で選ぶ (#831)。jsdom は英語なので、日本語の文言を検証するテストのために日本語にする。
 Object.defineProperty(navigator, 'languages', { configurable: true, value: ['ja-JP'] });
 
 // jsdom の要素には scrollIntoView がない。Mantine の Combobox は、開いた選択肢を見える位置へ動かすときに呼ぶ。

@@ -1,6 +1,6 @@
 import { Component, createContext, type ContextType, type ErrorInfo, type ReactNode } from 'react';
 
-// ErrorRecovery は、時間をおけば通る見込みのある失敗から、サーバーが戻ったことを ErrorBoundary に知らせる。
+// ErrorRecovery は、時間をおけば通る見込みのある失敗から、サーバーが戻ったことを ErrorBoundary に通知する。
 // futon は Relay に依存しないので、アプリが ErrorRecoveryContext で渡す。
 export type ErrorRecovery = {
   // recoveries は、サーバーが戻った回数。増えたら戻ったとみなす。
@@ -14,7 +14,7 @@ export const ErrorRecoveryContext = createContext<ErrorRecovery | null>(null);
 
 // ErrorBoundaryAttemptContext は、いちばん近い ErrorBoundary が、エラーから戻した回数。
 // データの読み込みは、これを読み込みのキーに混ぜ、戻したときに読み直す。
-// Relay は、失敗したクエリのエラーをしばらく覚えていて、描き直すだけでは送り直さないため。
+// Relay は、失敗したクエリのエラーをしばらく保持していて、描き直すだけでは送り直さないため。
 export const ErrorBoundaryAttemptContext = createContext(0);
 
 type Props = {

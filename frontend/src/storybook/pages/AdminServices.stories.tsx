@@ -20,7 +20,7 @@ type Story = StoryObj<typeof meta>;
 type Service = Record<string, unknown> & { id: string; networkId: number; serviceId: number };
 type AnimeChannel = Record<string, unknown> & { serviceId: string };
 
-// marked は、最初のサービスを番組表に出さない印付きにし、2 つ目を上流から消えたものにして並び順の上書きを消す。
+// marked は、最初のサービスを番組表に出さないマーク付きにし、2 つ目を上流から消えたものにして並び順の上書きを消す。
 const marked = (root: DemoRoot) => ({
   services: () =>
     call<Service[]>(root, 'services').map((service, index) =>
@@ -85,7 +85,7 @@ export const Forbidden: Story = {
 // 設定を読めなかったとき。
 export const Failed: Story = { args: { overrides: { channelTypes: failing() } } };
 
-// 番組表に出さないサービスと、上流から消えたサービス (印を付ける) があるとき。
+// 番組表に出さないサービスと、上流から消えたサービス (マークを付ける) があるとき。
 export const HiddenAndGone: Story = { args: { overrides: marked } };
 
 // アニメの連携が有効で、照合と実況のチャンネルの対応を上書きしているとき。対応のないサービスは、照合の一覧に出さない。

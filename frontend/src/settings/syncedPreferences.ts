@@ -1,9 +1,9 @@
-// 端末に覚える設定のうち、端末をまたいで同期するものを、サーバーと揃える (#1862、設計書 9.1)。
-// 各設定は、今までどおり localStorage を読み書きし、ここが localStorage とサーバーの間を写す。
-// - 画面を開いたら、サーバーの値を localStorage に写し、storage イベントで各設定に知らせる。
+// 端末に保存する設定のうち、端末をまたいで同期するものを、サーバーと揃える (#1862、設計書 9.1)。
+// 各設定は、今までどおり localStorage を読み書きし、ここが localStorage とサーバーの間をコピーする。
+// - 画面を開いたら、サーバーの値を localStorage にコピーし、storage イベントで各設定に通知する。
 // - 設定を変えたら (preferenceChanged)、少し待ってまとめてサーバーへ送る。
 // - サーバーにまだないキーは、この端末で初めて揃えるときだけ、この端末の値を送って引き継ぐ。
-// 機器や回線によって変わる設定 (音量、画質、拡大など) と、端末で見ていた位置は、端末ごとに覚えるので入れない。
+// 機器や回線によって変わる設定 (音量、画質、拡大など) と、端末で見ていた位置は、端末ごとに保存するので入れない。
 
 // syncedPreferenceKeys は、同期するキー。サーバーの backend/internal/web/graph/preferences.go と同じものにする。
 export const syncedPreferenceKeys: ReadonlySet<string> = new Set([
@@ -41,10 +41,10 @@ const pending = new Set<string>();
 const inFlight = new Set<string>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 // sending は、送って返事を待っているかどうか。送るのは一度に 1 回だけにし、返事が来てから次を送る。
-// 重ねて送ると、先の返事で inFlight の印が早く外れたり、サーバーに着く順が入れ替わったりするからである。
+// 重ねて送ると、先の返事で inFlight のマークが早く外れたり、サーバーに着く順が入れ替わったりするからである。
 let sending = false;
 
-// takenOverKey は、この端末の設定をサーバーへ引き継いだことを覚えるキー。引き継ぎは端末ごとに 1 回だけにする。
+// takenOverKey は、この端末の設定をサーバーへ引き継いだことを保存するキー。引き継ぎは端末ごとに 1 回だけにする。
 // 開くたびに引き継ぐと、ほかの端末で消した (既定に戻した) 設定を、この端末が開いたときに送り直してしまうからである。
 const takenOverKey = 'kotatsu.preferences.takenOver';
 
@@ -97,7 +97,7 @@ function flush(): void {
   );
 }
 
-// preferenceChanged は、設定 key を localStorage に書いた (消した) ことを知らせる。同期するキーなら、サーバーへ送る。
+// preferenceChanged は、設定 key を localStorage に書いた (消した) ことを通知する。同期するキーなら、サーバーへ送る。
 // 送るのは、送るときの localStorage の値なので、続けて変えれば最後の値だけを送る。
 export function preferenceChanged(key: string): void {
   if (!syncedPreferenceKeys.has(key)) {
@@ -119,7 +119,7 @@ export function registerPreferenceUploader(next: Uploader): () => void {
   };
 }
 
-// applyServerPreferences は、サーバーの値 preferences を storage に写し、変えたキーを storage イベントで知らせる。
+// applyServerPreferences は、サーバーの値 preferences を storage にコピーし、変えたキーを storage イベントで通知する。
 // この端末で初めて揃えるときは、サーバーになく、この端末にある値を送って引き継ぐ。それ以外のときにサーバーにない値は、この端末でも消す。
 // サーバーにある値は、初めて揃えるときもサーバーの値を使う。先に揃えた端末の値が、ほかの端末に写る。
 export function applyServerPreferences(
@@ -160,7 +160,7 @@ export function applyServerPreferences(
   }
 }
 
-// resetSyncedPreferencesForTest は、テストのために、覚えている状態を捨てる。
+// resetSyncedPreferencesForTest は、テストのために、保持している状態を破棄する。
 export function resetSyncedPreferencesForTest(): void {
   uploader = null;
   pending.clear();
