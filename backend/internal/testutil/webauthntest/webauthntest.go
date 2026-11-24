@@ -1,7 +1,7 @@
 // Package webauthntest は、テストでパスキーの登録とログインを行う、ソフトウェアのオーセンティケーターを提供する。
 //
 // ブラウザーとオーセンティケーターの代わりに、go-webauthn が受け取る PublicKeyCredential の JSON を作る。
-// キーは P-256 の ECDSA で、attestation は none にする。
+// 署名鍵は P-256 の ECDSA で、attestation は none にする。
 package webauthntest
 
 import (
@@ -25,7 +25,7 @@ const (
 	flagAttested     byte = 0x40
 )
 
-// COSE のキーの項目 (RFC 9053)。
+// COSE の公開鍵の項目 (RFC 9053)。
 const (
 	coseKeyType   = 1
 	coseAlgorithm = 3

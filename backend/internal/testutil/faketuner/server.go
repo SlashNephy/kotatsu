@@ -771,7 +771,7 @@ func (s *Server) tsOf(id int64) []byte {
 }
 
 // Scramble は、TS ts のうち、PID が pids のパケットのペイロードをスクランブルされたものとしてマークを付けた複製を返す (#1517)。
-// transport_scrambling_control を 0b10 (偶数キー) にするだけで、ペイロードは書き換えない。
+// transport_scrambling_control を 0b10 (偶数側の暗号鍵) にするだけで、ペイロードは書き換えない。
 // 合成した TS で、チューナーサーバーの B-CAS カードが読めていないときの TS を真似るのに使う。
 func Scramble(ts []byte, pids ...uint16) []byte {
 	scrambled := bytes.Clone(ts)

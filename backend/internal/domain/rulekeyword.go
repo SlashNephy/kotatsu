@@ -46,7 +46,7 @@ var (
 )
 
 // stripKeywordSlot は、rest の先頭の、ドラマや映画の放送枠の名前を除く (#2041)。
-// 枠の名前の後にかぎ括弧が来れば (間に空白があってもよい)、括弧の中を quoted に返す (木曜ドラマ「作品名 ー副題ー」第8話)。
+// 枠の名前の後にかぎ括弧が来れば (間に空白があってもよい)、括弧の中を quoted に返す (木曜ドラマ「作品名 ーサブタイトルー」第8話)。
 // 括弧がなければ、枠の名前の後ろを after に返す。枠の名前がないときと、後ろに話数やマークしか残らないとき (土曜ドラマ #3) は、rest をそのまま返す。
 func stripKeywordSlot(rest string) (string, string) {
 	loc := workSlotPattern.FindStringSubmatchIndex(rest)

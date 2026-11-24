@@ -773,7 +773,7 @@ func registeredRoles(deps *Deps, roles []*Role, live *kyusu.Live) []string {
 		if role.Name == kyusuRoleName && (live == nil || !live.CanTranscode()) {
 			continue
 		}
-		// EDCB を使わない nabe は、割り当てるものがないので、登録簿に載せない。
+		// EDCB を使わない nabe は、配信するものがないので、登録簿に載せない。
 		if role.Name == nabe.Role && !serveNabe(deps, roles) {
 			continue
 		}

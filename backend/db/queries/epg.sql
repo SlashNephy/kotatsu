@@ -10,7 +10,7 @@ FROM services
 ORDER BY id;
 
 -- name: UpdateServicesPresence :execrows
--- 上流のサービスの一覧 (present) と照合、上流に無いサービスに、無いと気づいた時刻を書き、戻ってきたサービスの時刻を消す (#1973)。
+-- 上流のサービスの一覧 (present) と照合し、上流に無いサービスに、無いと気づいた時刻を書き、戻ってきたサービスの時刻を消す (#1973)。
 -- 前から無いサービスの時刻は、初めて気づいた時刻のまま残す。変わった行の数を返す。
 UPDATE services
 SET gone_at = CASE WHEN id = ANY(@present::bigint[]) THEN NULL ELSE @now::timestamptz END

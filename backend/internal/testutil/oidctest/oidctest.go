@@ -210,7 +210,7 @@ func (p *Provider) keys(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, set)
 }
 
-// signingKey は、ID トークンに署名するキー (公開鍵か秘密鍵) を、キーの ID、アルゴリズム、用途を付けた JWK にする。
+// signingKey は、ID トークンの署名鍵 (公開鍵か秘密鍵) を、署名鍵の ID、アルゴリズム、用途を付けた JWK にする。
 func signingKey(raw any) (jwk.Key, error) {
 	key, err := jwk.Import[jwk.Key](raw)
 	if err != nil {
@@ -321,7 +321,7 @@ func (p *Provider) idToken(nonce string) (string, error) {
 	if err := headers.Set(jws.TypeKey, "JWT"); err != nil {
 		return "", fmt.Errorf("failed to set the type of the ID token: %w", err)
 	}
-	// キーの ID (kid) は、JWK に付けた ID がヘッダーに入る。
+	// 署名鍵の ID (kid) は、JWK に付けた ID がヘッダーに入る。
 	signed, err := jws.Sign(payload, jws.WithKey(jwa.RS256(), key, jws.WithProtectedHeaders(headers)))
 	if err != nil {
 		return "", fmt.Errorf("failed to sign the ID token: %w", err)

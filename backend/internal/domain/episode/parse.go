@@ -190,7 +190,7 @@ func normalizeText(s string) string {
 }
 
 // canon は、小文字にし、空白をすべて除き、長音符 (U+30FC) を - にする (#2039)。
-// 長音符は、ダッシュの代わりにも書かれる (「作品名 ー副題ー」と「作品名 -副題-」)。canon の値は比較するためだけに使うので、
+// 長音符は、ダッシュの代わりにも書かれる (「作品名 ーサブタイトルー」と「作品名 -サブタイトル-」)。canon の値は比較するためだけに使うので、
 // 「ストーリー」のような語の長音符も - にしてよい。
 func canon(s string) string {
 	return strings.Map(func(r rune) rune {

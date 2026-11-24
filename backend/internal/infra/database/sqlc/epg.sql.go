@@ -567,7 +567,7 @@ type UpdateServicesPresenceParams struct {
 	Now     time.Time
 }
 
-// 上流のサービスの一覧 (present) と照合、上流に無いサービスに、無いと気づいた時刻を書き、戻ってきたサービスの時刻を消す (#1973)。
+// 上流のサービスの一覧 (present) と照合し、上流に無いサービスに、無いと気づいた時刻を書き、戻ってきたサービスの時刻を消す (#1973)。
 // 前から無いサービスの時刻は、初めて気づいた時刻のまま残す。変わった行の数を返す。
 func (q *Queries) UpdateServicesPresence(ctx context.Context, arg UpdateServicesPresenceParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateServicesPresence, arg.Present, arg.Now)
