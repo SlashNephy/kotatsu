@@ -102,8 +102,8 @@ class E {
     if (!t) throw new Error("this browser has no Media Source Extensions");
     this.#t = t, this.mediaSource = new t(), this.managed = t === h, this.managed && (this.mediaSource.addEventListener(
       "startstreaming",
-      this.#H
-    ), this.mediaSource.addEventListener("endstreaming", this.#B)), this.#s = new Promise((i) => {
+      this.#B
+    ), this.mediaSource.addEventListener("endstreaming", this.#H)), this.#s = new Promise((i) => {
       this.mediaSource.addEventListener(
         "sourceopen",
         () => {
@@ -167,10 +167,10 @@ class E {
   close() {
     this.#d || (this.#d = !0, this.managed && (this.mediaSource.removeEventListener(
       "startstreaming",
-      this.#H
+      this.#B
     ), this.mediaSource.removeEventListener(
       "endstreaming",
-      this.#B
+      this.#H
     )), this.#e?.removeEventListener("updateend", this.#I), this.#e?.removeEventListener("error", this.#O), this.#e = null, this.#o = [], this.#g = 0, this.#c = [], this.#R.abandon(), this.#v(!0));
   }
   /** Tell the sink where playback has got to, so it can evict what is behind. */
@@ -227,7 +227,7 @@ class E {
    * The managed source asking for data again, which is the only thing that
    * reopens the door `endstreaming` closed.
    */
-  #H = () => {
+  #B = () => {
     this.#S = !0, this.#m(), this.#y();
   };
   /**
@@ -238,7 +238,7 @@ class E {
    * is taken until it asks. This is the whole point of the managed source: it
    * knows what the radio and the battery are doing and the page does not.
    */
-  #B = () => {
+  #H = () => {
     this.#S = !1, this.#m(), this.#y();
   };
   #O = () => {
@@ -585,16 +585,16 @@ class _ extends EventTarget {
     if (!this.#s) {
       const e = new Worker(new URL(
         /* @vite-ignore */
-        "" + new URL("assets/worker-CYFLA1oX.js", import.meta.url).href,
+        "" + new URL("assets/worker-B3Er2Irg.js", import.meta.url).href,
         import.meta.url
       ), {
         type: "module"
       });
-      e.onmessage = this.#H, e.onerror = (t) => this.#L(new Error(t.message || "the worker failed")), this.#s = e;
+      e.onmessage = this.#B, e.onerror = (t) => this.#L(new Error(t.message || "the worker failed")), this.#s = e;
     }
     return this.#s;
   }
-  #H = (e) => {
+  #B = (e) => {
     const t = e.data;
     if (t.id === this.#e)
       switch (t.type) {
@@ -602,7 +602,7 @@ class _ extends EventTarget {
           t.managed && this.#T(), this.video.srcObject = t.handle, this.#v("attached", a());
           break;
         case "open":
-          this.#B(t.mimeCodec, t.data);
+          this.#H(t.mimeCodec, t.data);
           break;
         case "video-config":
           this.#R(
@@ -678,7 +678,7 @@ class _ extends EventTarget {
       }
   };
   /** Open a MediaSource here, for browsers that cannot have one in a worker. */
-  #B(e, t) {
+  #H(e, t) {
     const i = this.#e;
     let s;
     try {
