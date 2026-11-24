@@ -72,7 +72,7 @@ func TestNewSignals(t *testing.T) {
 			want: &cmdetect.Signals{Silences: [][2]float64{{10, 11}}, Scenes: []float64{60.5}, AudioChanges: []float64{20}, Duration: 1800},
 		},
 		{
-			// 録画の頭の、最初の I フレームより前の PES (0.5 秒) は、再生に入らないので、時刻の 0 にしない (#1811)。
+			// 録画の先頭の、最初の I フレームより前の PES (0.5 秒) は、再生に入らないので、時刻の 0 にしない (#1811)。
 			name:  "時刻を、最初の I フレームからの秒にそろえる",
 			first: 90_000 * 100, last: 90_000 * 1900, keyframe: new(int64(90_000*100 + 45_000)),
 			scenes: []float64{160.5}, silences: [][2]float64{{100.2, 100.8}, {110, 111}}, audio: []int64{90_000 * 120},

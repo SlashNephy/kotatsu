@@ -62,20 +62,20 @@ type Params struct {
 	AppearScore float64
 	// ContinueScore は、ヒステリシスの下の閾値 (続いているとみなす点数)。AppearScore より低くする。
 	ContinueScore float64
-	// NearWindow は、1 段目で近いコマとする前後の時間。
+	// NearWindow は、第 1 ステップで近いコマとする前後の時間。
 	NearWindow time.Duration
-	// BrightnessLevels は、1 段目で明るさを分ける段の数。
+	// BrightnessLevels は、第 1 ステップで明るさを分ける区分の数。
 	BrightnessLevels int
-	// LevelMinDuration は、段や格子を確認するのに要るコマの量。
+	// LevelMinDuration は、区分や格子を確認するのに要るコマの量。
 	LevelMinDuration time.Duration
-	// LevelQuantile は、1 段目で段を判断できるとする点数の分位 (0.9 なら上位 10%)。
+	// LevelQuantile は、第 1 ステップで区分を判断できるとする点数の分位 (0.9 なら上位 10%)。
 	LevelQuantile float64
 	// FlatTexture と WhiteBrightness は、のっぺりの上書きを掛ける肌理の上限と明るさの上限。
 	FlatTexture     float64
 	WhiteBrightness float64
-	// TextureEdges は、2 段目の肌理の段の境目 (昇順)。段の数は len(TextureEdges) + 1。
+	// TextureEdges は、第 2 ステップの肌理の区分の境目 (昇順)。区分の数は len(TextureEdges) + 1。
 	TextureEdges []float64
-	// GridMissRatio は、2 段目で格子を判断できるとする、続いているとみなす点数未満のコマの割合の上限。
+	// GridMissRatio は、第 2 ステップで格子を判断できるとする、続いているとみなす点数未満のコマの割合の上限。
 	GridMissRatio float64
 	// WindowHalf は、コマごとに見る前後の時間。
 	WindowHalf time.Duration

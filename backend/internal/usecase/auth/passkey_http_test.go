@@ -152,7 +152,7 @@ func TestPasskeyHandlers(t *testing.T) {
 	created, err := a.Create(&creation.Options)
 	require.NoError(t, err)
 
-	// 名前が違うだけなら、手続きは残り、直して送り直せる。
+	// 名前が違うだけなら、手続きは残り、修正して送り直せる。
 	assert.Equal(t, http.StatusBadRequest, s.post("/internal/auth/passkey/registration/confirm", credentialBody(t, created, " "), &failed))
 	assert.Equal(t, "INVALID_PASSKEY_NAME", failed.Error.Code)
 	var passkey struct {

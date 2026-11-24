@@ -385,7 +385,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 		return nil, nil, fmt.Errorf("failed to read the segment %s/%s: %w", segment.PoolID, segment.Path, err)
 	}
 	stats := analyzer.Stats()
-	// 解析器は、インデックスを書けなくても解析を続けるので、ここで確認する。
+	// アナライザーは、インデックスを書けなくても解析を続けるので、ここで確認する。
 	if stats.IndexError != nil {
 		return nil, nil, fmt.Errorf("failed to write the index: %w", stats.IndexError)
 	}
