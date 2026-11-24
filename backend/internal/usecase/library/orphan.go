@@ -145,7 +145,7 @@ func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Ac
 	})
 }
 
-// usedFiles は、DB にある録画ファイルと、つなぐ処理が使っているファイルの置き場所と ID。
+// usedFiles は、DB にある録画ファイルと、つなぐ処理が使っているファイルのパスと ID。
 // ID は、生成物のディレクトリの持ち主を確認するのに使う。
 type usedFiles struct {
 	locations map[kago.Location]struct{}

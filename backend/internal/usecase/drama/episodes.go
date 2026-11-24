@@ -26,7 +26,7 @@ type LinkedEpisode struct {
 	EpisodeNumber *int32
 	// EpisodeName は、話の名前。
 	EpisodeName *string
-	// SeriesSource と EpisodeSource は、作品と話を決めたソース。EpisodeSource は、話を決められなければ空。
+	// SeriesSource と EpisodeSource は、作品と話を決めた根拠。EpisodeSource は、話を決められなければ空。
 	SeriesSource  string
 	EpisodeSource string
 }

@@ -51,7 +51,7 @@ var _ ServiceLister = tunerserver.Client(nil)
 //
 // 比較した状態 (衛星の確認済みの version と 1 回目に見た食い違い、地上波の通知した食い違い、通知した続けて選局できないチャンネル) は、
 // プロセスの中だけに持つ。
-// 再起動したら、続いている食い違いも、もう一度知らせる (衛星は 2 回読み直したところで)。
+// 再起動したら、続いている食い違いも、もう一度通知する (衛星は 2 回読み直したところで)。
 type Checker struct {
 	pool     *pgxpool.Pool
 	services ServiceLister

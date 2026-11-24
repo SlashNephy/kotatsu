@@ -68,7 +68,7 @@ const (
 	genreAnimation = 16
 )
 
-// 作品と話を決めたソース (program_drama_matches.series_source と episode_source)。
+// 作品と話を決めた根拠 (program_drama_matches.series_source と episode_source)。
 const (
 	SeriesSourceSearch   = "search"
 	SeriesSourceOverride = "override"
@@ -179,12 +179,12 @@ type Link struct {
 	// TitleKey は、番組名から読んだ作品名のキー。管理者の上書きを取得するのに使う。
 	TitleKey string
 	SeriesID *int32
-	// SeriesSource は、作品を決めたソース (SeriesSourceSearch か SeriesSourceOverride)。
+	// SeriesSource は、作品を決めた根拠 (SeriesSourceSearch か SeriesSourceOverride)。
 	SeriesSource *string
 	// SeasonNumber と EpisodeNumber は、話を決められたときだけ持つ。
 	SeasonNumber  *int32
 	EpisodeNumber *int32
-	// EpisodeSource は、話を決めたソース (EpisodeSourceAirDate か EpisodeSourceTitle)。
+	// EpisodeSource は、話を決めた根拠 (EpisodeSourceAirDate か EpisodeSourceTitle)。
 	EpisodeSource *string
 }
 

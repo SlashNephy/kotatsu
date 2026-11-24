@@ -138,7 +138,7 @@ type pending struct {
 
 // Comparer は、放送の NIT[actual] とチューナーサーバーの一覧を比較し、食い違いを通知するかを決める。
 //
-//   - version_number を (種別、network_id) ごとに「確かめ済み」として保存し、同じ version の NIT が来たら比較するのを省く。
+//   - version_number を (種別、network_id) ごとに「確認済み」として保存し、同じ version の NIT が来たら比較するのを省く。
 //   - 食い違いを初めて見たら、その version と時刻を保存するだけで、通知しない。同じ version の食い違いを、
 //     間隔 (interval) 以上あけてもう一度読んだら、通知する。放送に古い構成の情報が混ざることがあるからである。
 //     間隔より前に読んだものは、2 回目に数えない。version が変わったら、数え直す。

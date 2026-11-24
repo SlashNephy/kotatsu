@@ -18,7 +18,7 @@ var (
 	excludedPattern = regexp.MustCompile(`(?:^|[^A-Za-z])PR(?:[^A-Za-z]|$)|ダイジェスト|見どころ|予告|メイキング`)
 	// episodePattern は、番組名に書いた話数 (#7、第7話、(4))。(1971) のような 4 桁の年は、話数とみなさない。
 	episodePattern = regexp.MustCompile(`#\s*([0-9]{1,4})(?:[^0-9.]|$)|第([0-9]{1,4})話|\(([0-9]{1,3})\)`)
-	// wavePattern は、作品名の後ろの「〜副題〜」。TMDB の作品名にないサブタイトルを除いて探し直すのに使う。
+	// wavePattern は、作品名の後ろの「〜サブタイトル〜」。TMDB の作品名にないサブタイトルを除いて探し直すのに使う。
 	wavePattern = regexp.MustCompile(`\s*[~〜～].*$`)
 	// sequelPattern は、作品名の後ろの続編の番号 (晩酌の流儀5、はぐれ刑事純情派2、スケバン刑事II)。
 	// TMDB は続編を 1 つの作品のシーズンにまとめることが多いので、番号を除いた作品名でも探す。番号は TMDB のシーズンの番号と合わない。
