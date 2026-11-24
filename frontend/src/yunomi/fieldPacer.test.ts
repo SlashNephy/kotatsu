@@ -32,7 +32,7 @@ describe('FieldPacer', () => {
       .map((value, i) => value! - pts[i]!)
       .map((step) => step / 90);
 
-    // 揺れ (最大 ±1.5ms) をそのまま映すと、刻みは 13〜19ms になる。均すので、間隔の近くにとどまる。
+    // 揺れ (最大 ±1.5ms) をそのまま映すと、切り替わりの間隔は 13〜19ms になる。均すので、間隔の近くにとどまる。
     for (const step of steps) {
       expect(Math.abs(step - refresh)).toBeLessThan(1);
     }
