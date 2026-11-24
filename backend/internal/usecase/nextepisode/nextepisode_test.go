@@ -204,7 +204,7 @@ func TestPick(t *testing.T) {
 	}
 }
 
-// TestPickLimitsBroadcasts は、毎日の再放送が並んでも、MaxBroadcasts 件までしか返さないことを確かめる。
+// TestPickLimitsBroadcasts は、毎日の再放送が並んでも、MaxBroadcasts 件までしか返さないことを確認する。
 func TestPickLimitsBroadcasts(t *testing.T) {
 	t.Parallel()
 

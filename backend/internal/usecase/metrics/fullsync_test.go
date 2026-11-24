@@ -12,16 +12,16 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
 )
 
-// TestFullSyncCollector は、最後に EPG の全量を突き合わせた時刻と、それから経った秒数を返すことを確かめる (設計書 11.3、#2010)。
+// TestFullSyncCollector は、最後に EPG の全量を照合した時刻と、それから経った秒数を返すことを確認する (設計書 11.3、#2010)。
 func TestFullSyncCollector(t *testing.T) {
 	t.Parallel()
 
 	start := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name string
-		// synced は、突き合わせ終えた時刻を start からの長さで並べたもの。最後のものが残る。
+		// synced は、照合し終えた時刻を start からの長さで並べたもの。最後のものが残る。
 		synced []time.Duration
-		// elapsed は、最後の突き合わせから、収集するまでに進める長さ。
+		// elapsed は、最後の照合から、収集するまでに進める長さ。
 		elapsed time.Duration
 		want    string
 	}{

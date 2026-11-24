@@ -17,7 +17,7 @@ import (
 // ErrWrongAudience は、アクセストークンが、ほかの MCP サーバー宛てに発行したものであることを表す。
 var ErrWrongAudience = errors.New("the access token is not issued for this resource")
 
-// Grant は、アクセストークンの連携。MCP のツールが、スコープとクライアントを確かめるのに使う。
+// Grant は、アクセストークンの連携。MCP のツールが、スコープとクライアントを確認するのに使う。
 type Grant struct {
 	ID         uuid.UUID
 	ClientID   string

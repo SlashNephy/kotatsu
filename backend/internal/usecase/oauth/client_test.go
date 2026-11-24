@@ -9,7 +9,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 )
 
-// TestParseClientID は、CIMD の client_id として、https でパスを持つ URL だけを受け付けることを確かめる。
+// TestParseClientID は、CIMD の client_id として、https でパスを持つ URL だけを受け付けることを確認する。
 func TestParseClientID(t *testing.T) {
 	t.Parallel()
 
@@ -51,7 +51,7 @@ func TestParseClientID(t *testing.T) {
 }
 
 // TestMatchRedirectURI は、登録したリダイレクト URI と完全に一致するものだけを受け付け、
-// ループバックの http だけはポートを無視することを確かめる。
+// ループバックの http だけはポートを無視することを確認する。
 func TestMatchRedirectURI(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func TestMatchRedirectURI(t *testing.T) {
 	}
 }
 
-// TestVerifyCodeVerifier は、RFC 7636 の付録 B の例で、S256 の照合ができることを確かめる。
+// TestVerifyCodeVerifier は、RFC 7636 の付録 B の例で、S256 の照合ができることを確認する。
 func TestVerifyCodeVerifier(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +115,7 @@ func TestVerifyCodeVerifier(t *testing.T) {
 	}
 }
 
-// TestValidCodeChallenge は、S256 の code_challenge の形だけを受け付けることを確かめる。
+// TestValidCodeChallenge は、S256 の code_challenge の形だけを受け付けることを確認する。
 func TestValidCodeChallenge(t *testing.T) {
 	t.Parallel()
 

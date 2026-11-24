@@ -13,7 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 )
 
-// TestLeasesRenewExpiredLease は、リースの期限が切れていても、ほかの mikan が取っていなければ延長できることを確かめる。
+// TestLeasesRenewExpiredLease は、リースの期限が切れていても、ほかの mikan が取っていなければ延長できることを確認する。
 // DB が止まっていた間に期限が切れても、戻った後に延ばして録り続けるため (#1073)。
 func TestLeasesRenewExpiredLease(t *testing.T) {
 	t.Parallel()

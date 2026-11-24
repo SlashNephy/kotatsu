@@ -52,7 +52,7 @@ func (f *fixture) syncEPG(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestFollowerUpdatesRescheduledPrograms は、放送時間の変更が、予約の番組情報と時刻に反映されることを確かめる。
+// TestFollowerUpdatesRescheduledPrograms は、放送時間の変更が、予約の番組情報と時刻に反映されることを確認する。
 func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -164,7 +164,7 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 	}
 }
 
-// TestFollowerCreatesRelayedReservations は、イベントリレーの引き継ぎ先の予約を、追従が有効な予約にだけ作ることを確かめる。
+// TestFollowerCreatesRelayedReservations は、イベントリレーの引き継ぎ先の予約を、追従が有効な予約にだけ作ることを確認する。
 func TestFollowerCreatesRelayedReservations(t *testing.T) {
 	t.Parallel()
 
@@ -219,7 +219,7 @@ func TestFollowerCreatesRelayedReservations(t *testing.T) {
 	}
 }
 
-// TestFollowerRelaysAfterTheEnd は、引き継ぎ先の番組が、元の番組の終わりの後に EPG に出ても、引き継ぎ先の予約を作ることを確かめる (#639)。
+// TestFollowerRelaysAfterTheEnd は、引き継ぎ先の番組が、元の番組の終わりの後に EPG に出ても、引き継ぎ先の予約を作ることを確認する (#639)。
 // 延長で臨時のサブチャンネルへ移るときは、移る先の番組が、移った時点で初めて EPG に出ることがある。
 func TestFollowerRelaysAfterTheEnd(t *testing.T) {
 	t.Parallel()
@@ -269,7 +269,7 @@ func TestFollowerRelaysAfterTheEnd(t *testing.T) {
 	}
 }
 
-// TestFollowerRelaysRuleSettings は、ルール予約を引き継ぐとき、一致したルールの録画設定を引き継ぐことを確かめる。
+// TestFollowerRelaysRuleSettings は、ルール予約を引き継ぐとき、一致したルールの録画設定を引き継ぐことを確認する。
 func TestFollowerRelaysRuleSettings(t *testing.T) {
 	t.Parallel()
 
@@ -295,7 +295,7 @@ func TestFollowerRelaysRuleSettings(t *testing.T) {
 	assert.Equal(t, 4, priority)
 }
 
-// TestFollowerRemovesFinishedReservations は、放送が終わって猶予が過ぎ、録画も終わった予約を消すことを確かめる。
+// TestFollowerRemovesFinishedReservations は、放送が終わって猶予が過ぎ、録画も終わった予約を消すことを確認する。
 func TestFollowerRemovesFinishedReservations(t *testing.T) {
 	t.Parallel()
 
@@ -358,7 +358,7 @@ func TestFollowerRemovesFinishedReservations(t *testing.T) {
 }
 
 // TestFollowerReleasesReusedEventIDs は、放送が終わった予約の EID が別の番組に再利用されたとき、
-// 古い予約を新しい番組に書き換えず、新しい番組を予約できるようにすることを確かめる (#510)。
+// 古い予約を新しい番組に書き換えず、新しい番組を予約できるようにすることを確認する (#510)。
 func TestFollowerReleasesReusedEventIDs(t *testing.T) {
 	t.Parallel()
 
@@ -383,7 +383,7 @@ func TestFollowerReleasesReusedEventIDs(t *testing.T) {
 	assert.Equal(t, reused, reservation.StartAt)
 }
 
-// TestFollowerDoesNotRewriteEndedReservations は、猶予の間に EID が再利用されても、終わった予約を新しい番組に書き換えないことを確かめる。
+// TestFollowerDoesNotRewriteEndedReservations は、猶予の間に EID が再利用されても、終わった予約を新しい番組に書き換えないことを確認する。
 // 同じ放送の終わりが延びたときは、予約の終わりが過ぎていても追従する。
 func TestFollowerDoesNotRewriteEndedReservations(t *testing.T) {
 	t.Parallel()
@@ -440,7 +440,7 @@ func TestFollowerDoesNotRewriteEndedReservations(t *testing.T) {
 	}
 }
 
-// TestFollowerKeepsExtendedReservations は、割り当ての予定の終わりより後まで放送が延びた予約を、延びた終わりまで消さないことを確かめる。
+// TestFollowerKeepsExtendedReservations は、割り当ての予定の終わりより後まで放送が延びた予約を、延びた終わりまで消さないことを確認する。
 func TestFollowerKeepsExtendedReservations(t *testing.T) {
 	t.Parallel()
 
@@ -463,8 +463,8 @@ func TestFollowerKeepsExtendedReservations(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestReservationsOfUndecidedPrograms は、終了時刻が未定の番組からも、引き継ぎと手動で予約を作れることを確かめる (#521)。
-// Mahiron は未定の長さを 0 で返すので、番組の終わりを写すと、予約の始まりと終わりが同じになり、制約に違反していた。
+// TestReservationsOfUndecidedPrograms は、終了時刻が未定の番組からも、引き継ぎと手動で予約を作れることを確認する (#521)。
+// Mahiron は未定の長さを 0 で返すので、番組の終わりをコピーすると、予約の始まりと終わりが同じになり、制約に違反していた。
 // 予約の終わりは、始まりから 1 時間にしておき、終了時刻が決まったら追従で直す。
 func TestReservationsOfUndecidedPrograms(t *testing.T) {
 	t.Parallel()
@@ -520,7 +520,7 @@ func TestReservationsOfUndecidedPrograms(t *testing.T) {
 }
 
 // TestDeletingRelayedReservationDisablesIt は、イベントリレーで引き継いだ予約を消す操作では、予約を消さずに無効にし、
-// 追従で作り直さないことを確かめる (#522)。消すと、引き継ぎ元がある限り、次の追従でまた作られていた。
+// 追従で作り直さないことを確認する (#522)。消すと、引き継ぎ元がある限り、次の追従でまた作られていた。
 func TestDeletingRelayedReservationDisablesIt(t *testing.T) {
 	t.Parallel()
 

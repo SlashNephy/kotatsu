@@ -21,14 +21,14 @@ var ErrServiceNotFound = errors.New("service not found")
 
 // ServiceChanges は、サービスの表示の変える項目。nil の項目は変えない。
 type ServiceChanges struct {
-	// Hidden は、番組表に出さない印。
+	// Hidden は、番組表に出さないフラグ。
 	Hidden *bool
 	// SortOrder は、並び順の上書き。ResetSortOrder を立てると、上書きを消して既定の並び (リモコンのキーの順) に戻す。
 	SortOrder      *int
 	ResetSortOrder bool
 }
 
-// UpdateService は、サービス serviceID の、番組表に出さない印と並び順の上書きを変える (設計書 8.2、10.3)。
+// UpdateService は、サービス serviceID の、番組表に出さないフラグと並び順の上書きを変える (設計書 8.2、10.3)。
 func (s *Store) UpdateService(ctx context.Context, db Database, actor *audit.Actor, serviceID int64, changes *ServiceChanges) error {
 	if changes == nil {
 		return fmt.Errorf("%w: changes is nil", ErrInvalidSettings)

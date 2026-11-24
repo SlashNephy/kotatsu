@@ -9,7 +9,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
-// TestCountsAfter は、引き継がれた後の区間のドロップ、エラー、スクランブルを、控えた数から求めることを確かめる (#525)。
+// TestCountsAfter は、引き継がれた後の区間のドロップ、エラー、スクランブルを、控えた数から求めることを確認する (#525)。
 // 引き継ぎで重なった区間は、新しい mikan のセグメントでも数えるので、古い mikan はその分を数えない。
 func TestCountsAfter(t *testing.T) {
 	t.Parallel()

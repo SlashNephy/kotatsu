@@ -13,7 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 )
 
-// TestPrune は、配り終えた通知のうち、保持期間を過ぎたものだけを、既読か未読かにかかわらず消すことを確かめる (#551)。
+// TestPrune は、配信し終えた通知のうち、保持期間を過ぎたものだけを、既読か未読かにかかわらず消すことを確認する (#551)。
 func TestPrune(t *testing.T) {
 	t.Parallel()
 
@@ -45,16 +45,16 @@ func TestPrune(t *testing.T) {
 
 			f := newFixture(t)
 			userID := f.user(t, "kotatsu")
-			// 100 日前に 2 件配り、1 件を既読にする。
+			// 100 日前に 2 件配信し、1 件を既読にする。
 			f.emit(t, domain.NotificationKindRecordingStarted)
 			f.emit(t, domain.NotificationKindRecordingFailed)
 			require.Equal(t, 2, f.dispatch(t))
 			old := f.list(t, userID, &query.NotificationListQuery{UnreadOnly: false, Before: nil, Limit: 50})
 			_, err := f.inbox.MarkRead(t.Context(), f.pool, userID, []uuid.UUID{old[0].ID})
 			require.NoError(t, err)
-			// まだ配っていない通知は、古くても消さない。配るジョブが止まっていた間の通知を失わないため。
+			// まだ配信していない通知は、古くても消さない。配信するジョブが止まっていた間の通知を失わないため。
 			f.emit(t, domain.NotificationKindTunerServerUnreachable)
-			// 1 日前に 1 件配る (上で配っていなかった分は、配らないまま残す)。
+			// 1 日前に 1 件配信する (上で配信していなかった分は、配信しないまま残す)。
 			f.clock.Advance(99 * day)
 			_, err = f.pool.Exec(t.Context(), `UPDATE notification_events SET dispatched_at = NULL WHERE kind = 'tuner_server_unreachable'`)
 			require.NoError(t, err)

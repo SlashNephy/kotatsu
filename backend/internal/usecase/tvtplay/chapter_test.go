@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
 )
 
-// TestBuild は、CM の区間を、TvtPlay のスキップのチャプター (ix と ox) にすることを確かめる。
+// TestBuild は、CM の区間を、TvtPlay のスキップのチャプター (ix と ox) にすることを確認する。
 func TestBuild(t *testing.T) {
 	t.Parallel()
 
@@ -77,7 +77,7 @@ func TestBuild(t *testing.T) {
 	}
 }
 
-// TestFileName は、TS のファイルの名前の拡張子を .chapter に替えることを確かめる。
+// TestFileName は、TS のファイルの名前の拡張子を .chapter に替えることを確認する。
 func TestFileName(t *testing.T) {
 	t.Parallel()
 

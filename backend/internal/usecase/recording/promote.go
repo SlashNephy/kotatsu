@@ -35,10 +35,10 @@ const (
 	promoteMaxAttempts = 5
 )
 
-// errPromotionGone は、昇格の行が消えたことを表す。録画を消したか、ほかの nekonote が書き出し終えた。
+// errPromotionGone は、昇格の行が消えたことを表す。録画を消したか、ほかの nekonote が書き込み終えた。
 var errPromotionGone = errors.New("the timeshift promotion no longer exists")
 
-// PromoteArgs は、タイムシフトのバッファにある、放送の終わった番組を、録画に書き出すジョブの引数 (#1057、設計書 5.7)。
+// PromoteArgs は、タイムシフトのバッファにある、放送の終わった番組を、録画に書き込むジョブの引数 (#1057、設計書 5.7)。
 type PromoteArgs struct {
 	RecordingID uuid.UUID `json:"recordingId"`
 }
@@ -49,14 +49,14 @@ func (PromoteArgs) Kind() string { return "timeshift_promote" }
 
 func (PromoteArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
-		// 書き出しは数分かかるので、代表画像やセグメントをつなぐジョブ (media のキュー) を待たせないよう、既定のキューで動かす。
+		// 書き込みは数分かかるので、代表画像やセグメントをつなぐジョブ (media のキュー) を待たせないよう、既定のキューで動かす。
 		MaxAttempts: promoteMaxAttempts,
 		UniqueOpts:  river.UniqueOpts{ByArgs: true},
 	}
 }
 
 // PromoteWorker は、昇格のジョブを実行する。バッファの、番組の始まりから終わり (前後のマージンを含む) までを、
-// 続いたチャンクの並びごとに録画のセグメントに書き出し、録画を完了にする。
+// 続いたチャンクの並びごとに録画のセグメントに書き込み、録画を完了にする。
 type PromoteWorker struct {
 	river.WorkerDefaults[PromoteArgs]
 
@@ -115,7 +115,7 @@ var _ river.JobArgs = new(ReapPromotionsArgs)
 func (ReapPromotionsArgs) Kind() string { return "timeshift_promote_reap" }
 
 // ReapPromotionsWorker は、終わっていない昇格のジョブがない昇格を、録画を storage_unavailable で失敗にして片付ける。
-// 最後に試している間に nekonote が落ちると、River はジョブを Work を呼ばずに捨てるので、昇格の行が残り続け、
+// 最後に試している間に nekonote が落ちると、River はジョブを Work を呼ばずに破棄するので、昇格の行が残り続け、
 // 録画は録画中のまま、範囲のチャンクも破棄されなくなるためである。
 type ReapPromotionsWorker struct {
 	river.WorkerDefaults[ReapPromotionsArgs]
@@ -185,7 +185,7 @@ func ReapPromotionsPeriodicJob() *river.PeriodicJob {
 	)
 }
 
-// promote は、昇格する録画をバッファから書き出して完了にする。失敗したら、書いたファイルを消し、録画の失敗の理由も返す。
+// promote は、昇格する録画をバッファから書き込んで完了にする。失敗したら、書いたファイルを消し、録画の失敗の理由も返す。
 func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID uuid.UUID) (domain.RecordingFailureReason, error) {
 	// ほかの nekonote がタイムシフトのディレクトリをマウントしていれば、そちらでやり直せるよう、エラーにする。
 	if !r.store.HasTimeshiftDir() {
@@ -216,7 +216,7 @@ func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID
 		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to open the timeshift buffer: %w", err)
 	}
 	if len(runs) == 0 {
-		// 番組の時間のチャンクがもうないので、書き出せない。やり直しても変わらない。
+		// 番組の時間のチャンクがもうないので、書き込めない。やり直しても変わらない。
 		logger.WarnContext(ctx, "nothing to promote; the timeshift buffer has no chunk for the program")
 
 		return domain.RecordingFailureReasonProgramNotFound, r.failPromotion(ctx, recordingID, domain.RecordingFailureReasonProgramNotFound)
@@ -257,14 +257,14 @@ func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID
 	return "", nil
 }
 
-// promotedSegment は、バッファから書き出したセグメント。
+// promotedSegment は、バッファから書き込んだセグメント。
 type promotedSegment struct {
 	segment *segment
 	stats   *ts.Stats
 	endedAt time.Time
 }
 
-// promoteRun は、続いたチャンクの並び run を、録画の新しいセグメントに書き出す。DB には記録しない。
+// promoteRun は、続いたチャンクの並び run を、録画の新しいセグメントに書き込む。DB には記録しない。
 func (r *Recorder) promoteRun(
 	ctx context.Context, logger *slog.Logger, settings *domain.RecordingSettings, pools []*kago.Pool,
 	program *sqlc.GetReservationForRecordingRow, run *stream.TimeshiftRun,
@@ -285,7 +285,7 @@ func (r *Recorder) promoteRun(
 	return &promotedSegment{segment: seg, stats: seg.analyzer.Stats(), endedAt: *run.To}, "", nil
 }
 
-// finishPromotion は、書き出したセグメントを記録し、録画を完了にする。1 つのトランザクションで、昇格の行を消し、
+// finishPromotion は、書き込んだセグメントを記録し、録画を完了にする。1 つのトランザクションで、昇格の行を消し、
 // セグメントと途切れた区間を記録し、予約の録画と同じく、録画履歴に記録して完了を通知する (設計書 4.4、6.2)。
 // 昇格の行がもうなければ、何も記録せずに errPromotionGone を返す。
 func (r *Recorder) finishPromotion(
@@ -346,11 +346,11 @@ func (r *Recorder) finishPromotion(
 	})
 }
 
-// savePromotedSegments は、書き出したセグメントを記録し、録画の集計に足す。録画した時間の終わり (最後のセグメントの終わり) を返す。
+// savePromotedSegments は、書き込んだセグメントを記録し、録画の集計に足す。録画した時間の終わり (最後のセグメントの終わり) を返す。
 func (r *Recorder) savePromotedSegments(
 	ctx context.Context, logger *slog.Logger, q *sqlc.Queries, recording *sqlc.Recording, written []*promotedSegment, now time.Time,
 ) (time.Time, error) {
-	// 録り始めた日時は、書き出した最初のセグメントの始まりにする。セグメントを記録すると変えられないので、先に書く。
+	// 録り始めた日時は、書き込んだ最初のセグメントの始まりにする。セグメントを記録すると変えられないので、先に書く。
 	err := q.SetRecordingRecordedFrom(ctx, sqlc.SetRecordingRecordedFromParams{At: written[0].segment.startedAt, Now: now, ID: recording.ID})
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to save the start of the recording: %w", err)
@@ -373,7 +373,7 @@ func (r *Recorder) savePromotedSegments(
 }
 
 // completePromoted は、記録したセグメントから途切れた区間を求めて録画を終え、正常に終わってドロップが閾値以下なら録画履歴に記録する。
-// 番組の頭がもうバッファになければ冒頭の欠けを、バッファの穴はセグメントの間のすき間を、途切れた区間にする。
+// 番組の先頭がもうバッファになければ冒頭の欠けを、バッファの穴はセグメントの間のすき間を、途切れた区間にする。
 func (r *Recorder) completePromoted(
 	ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID, promotion *sqlc.TimeshiftPromotion, recordedUntil, now time.Time,
 ) (domain.RecordingState, error) {

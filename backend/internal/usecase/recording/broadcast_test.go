@@ -10,7 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
-// TestBroadcastTracker は、EIT[p/f] の放送中と次の番組から、録画を止める時刻と、放送されなかったことを決めることを確かめる (#389)。
+// TestBroadcastTracker は、EIT[p/f] の放送中と次の番組から、録画を止める時刻と、放送されなかったことを決めることを確認する (#389)。
 // 予約した番組の eventId は 100、予定の終わりは 12:30 (マージン込み)、後ろのマージンは 15 秒、延ばす単位は 5 分、上限は 15:30。
 func TestBroadcastTracker(t *testing.T) {
 	t.Parallel()

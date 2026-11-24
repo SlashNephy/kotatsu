@@ -19,7 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 )
 
-// watchFixture は、視聴ルールの照合を確かめるための、2 人のユーザーを足した engineFixture。
+// watchFixture は、視聴ルールの照合を確認するための、2 人のユーザーを足した engineFixture。
 type watchFixture struct {
 	*engineFixture
 
@@ -99,7 +99,7 @@ func (f *watchFixture) settingsVersion(t *testing.T, userID uuid.UUID) int64 {
 }
 
 // TestEngineWatchRules は、視聴ルールに一致した放送前の番組に、持ち主の視聴予約を付け、
-// 視聴ルールが作った視聴予約だけを、一致しなくなったら外すことを確かめる (設計書 4.8)。
+// 視聴ルールが作った視聴予約だけを、一致しなくなったら外すことを確認する (設計書 4.8)。
 // eventId 3 は放送中 (12:00〜)、4 は 12:30、5 は 13:00 に始まる。照合は 12:10 に行う。
 func TestEngineWatchRules(t *testing.T) {
 	t.Parallel()
@@ -315,7 +315,7 @@ func TestEngineWatchRules(t *testing.T) {
 }
 
 // TestEngineWatchRulesDeleteRule は、視聴ルールを消したら、作った視聴予約のうち放送の前のものを消し、
-// 放送が始まった番組のものと、手で付けたものは残すことを確かめる (#1268)。消すのは視聴ルールを消すときで、照合では外さない。
+// 放送が始まった番組のものと、手で付けたものは残すことを確認する (#1268)。消すのは視聴ルールを消すときで、照合では外さない。
 func TestEngineWatchRulesDeleteRule(t *testing.T) {
 	t.Parallel()
 
@@ -362,7 +362,7 @@ func TestEngineWatchRulesDeleteRule(t *testing.T) {
 	}
 }
 
-// TestEngineWatchRulesNotifyOnce は、通知のジョブが通知して消した視聴予約を、次の照合で付け直さず、二度通知しないことを確かめる。
+// TestEngineWatchRulesNotifyOnce は、通知のジョブが通知して消した視聴予約を、次の照合で付け直さず、二度通知しないことを確認する。
 func TestEngineWatchRulesNotifyOnce(t *testing.T) {
 	t.Parallel()
 
@@ -391,7 +391,7 @@ func TestEngineWatchRulesNotifyOnce(t *testing.T) {
 	assert.Empty(t, f.watchReserved(t, f.alice))
 }
 
-// TestEngineWatchRulesTouchSettings は、照合で視聴予約を付け外ししたユーザーにだけ、ユーザーの設定の変更として知らせることを確かめる。
+// TestEngineWatchRulesTouchSettings は、照合で視聴予約を付け外ししたユーザーにだけ、ユーザーの設定の変更として通知することを確認する。
 func TestEngineWatchRulesTouchSettings(t *testing.T) {
 	t.Parallel()
 
@@ -410,7 +410,7 @@ func TestEngineWatchRulesTouchSettings(t *testing.T) {
 }
 
 // TestEngineWatchRulesPickOneOfSharedEvents は、同じイベントを複数のサービスで放送している番組が一致したとき、
-// 視聴予約を 1 つだけ付け、二度通知しないことを確かめる。
+// 視聴予約を 1 つだけ付け、二度通知しないことを確認する。
 func TestEngineWatchRulesPickOneOfSharedEvents(t *testing.T) {
 	t.Parallel()
 
@@ -428,7 +428,7 @@ func TestEngineWatchRulesPickOneOfSharedEvents(t *testing.T) {
 	assert.Equal(t, []int64{serviceID()}, serviceIDs)
 }
 
-// TestEngineWatchRulesPruneDismissals は、手で外した番組の記録を、番組が programs からなくなったら消すことを確かめる。
+// TestEngineWatchRulesPruneDismissals は、手で外した番組の記録を、番組が programs からなくなったら消すことを確認する。
 func TestEngineWatchRulesPruneDismissals(t *testing.T) {
 	t.Parallel()
 

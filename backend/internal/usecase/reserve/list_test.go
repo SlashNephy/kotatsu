@@ -34,9 +34,9 @@ func at(hour, minute int) time.Time {
 type listFixture struct {
 	*fixture
 
-	// names は、予約の ID から、確かめやすい名前を引く。
+	// names は、予約の ID から、確認しやすい名前を取得する。
 	names map[uuid.UUID]string
-	// ids は、名前から予約の ID を引く。
+	// ids は、名前から予約の ID を取得する。
 	ids map[string]uuid.UUID
 }
 
@@ -154,7 +154,7 @@ func TestList(t *testing.T) {
 	}
 }
 
-// TestListPagesThroughAllReservations は、最後の予約の位置から続きを読むと、すべての予約を 1 回ずつ読めることを確かめる。
+// TestListPagesThroughAllReservations は、最後の予約の位置から続きを読むと、すべての予約を 1 回ずつ読めることを確認する。
 func TestListPagesThroughAllReservations(t *testing.T) {
 	t.Parallel()
 

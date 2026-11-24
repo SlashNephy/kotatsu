@@ -21,7 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 )
 
-// fakeInserter は、入れたジョブを覚える Inserter。
+// fakeInserter は、入れたジョブを保存する Inserter。
 type fakeInserter struct {
 	params []river.InsertManyParams
 }
@@ -114,14 +114,14 @@ func (e *promoteEnv) auditActions(t *testing.T) [][2]string {
 }
 
 // TestPromoteEndedProgram は、放送の終わった番組を昇格すると、予約のない録画を録画中として作り、番組表の時間と mikan が気づいた時間を
-// 合わせた範囲に前後のマージンを足した範囲を書き出すジョブを入れ、監査ログに残すことを確かめる (#1057、設計書 5.7)。
+// 合わせた範囲に前後のマージンを足した範囲を書き込むジョブを入れ、監査ログに残すことを確認する (#1057、設計書 5.7)。
 func TestPromoteEndedProgram(t *testing.T) {
 	t.Parallel()
 
 	e := newPromoteEnv(t)
 	ctx := t.Context()
 	programStart := time.Date(2026, 10, 10, 11, 30, 0, 0, time.UTC)
-	// 番組の詳細も、番組表から写す (#1646)。
+	// 番組の詳細も、番組表からコピーする (#1646)。
 	_, err := e.pool.Exec(ctx, `UPDATE programs SET extended = '{"出演者":"こたつ"}' WHERE service_id = $1 AND event_id = 2`, grService(0))
 	require.NoError(t, err)
 	promotion, err := e.promoter.Promote(ctx, e.pool, audit.User(e.userID), grService(0), programStart.Add(noticeDelay))
@@ -147,7 +147,7 @@ func TestPromoteEndedProgram(t *testing.T) {
 
 	require.Len(t, e.inserter.params, 1)
 	assert.Equal(t, recording.PromoteArgs{RecordingID: *promotion.RecordingID}, e.inserter.params[0].Args)
-	// 終わりのマージンは今より前に過ぎているので、すぐに書き出す。
+	// 終わりのマージンは今より前に過ぎているので、すぐに書き込む。
 	assert.True(t, e.inserter.params[0].InsertOpts.ScheduledAt.IsZero())
 	assert.Equal(t, [][2]string{{"recording", "timeshift.promote"}}, e.auditActions(t))
 
@@ -159,7 +159,7 @@ func TestPromoteEndedProgram(t *testing.T) {
 	}
 	assert.Equal(t, map[int64]bool{1: false, 2: true, 3: false}, promoting)
 
-	// 同じ番組を書き出している途中なら、重ねて昇格しない。マージンを変えて書き出す範囲が変わっても同じ。
+	// 同じ番組を書き込んでいる途中なら、重ねて昇格しない。マージンを変えて書き込む範囲が変わっても同じ。
 	_, err = e.promoter.Promote(ctx, e.pool, audit.User(e.userID), grService(0), programStart.Add(noticeDelay))
 	require.ErrorIs(t, err, timeshift.ErrAlreadyPromoting)
 	settings := domain.DefaultRecordingSettings()
@@ -170,8 +170,8 @@ func TestPromoteEndedProgram(t *testing.T) {
 	assert.Len(t, e.inserter.params, 1)
 }
 
-// TestPromoteOnAirProgram は、放送中の番組を昇格すると、番組予約を作り、監査ログに予約の作成と昇格を残すことを確かめる。
-// 番組の頭からの分は、録画を始めた mikan がバッファから写す (#826)。
+// TestPromoteOnAirProgram は、放送中の番組を昇格すると、番組予約を作り、監査ログに予約の作成と昇格を残すことを確認する。
+// 番組の先頭からの分は、録画を始めた mikan がバッファからコピーする (#826)。
 func TestPromoteOnAirProgram(t *testing.T) {
 	t.Parallel()
 
@@ -187,7 +187,7 @@ func TestPromoteOnAirProgram(t *testing.T) {
 	assert.Equal(t, [][2]string{{"reservation", "reservation.create"}, {"reservation", "timeshift.promote"}}, e.auditActions(t))
 }
 
-// TestPromoteUnknownProgram は、バッファにない番組は昇格できないことを確かめる。
+// TestPromoteUnknownProgram は、バッファにない番組は昇格できないことを確認する。
 func TestPromoteUnknownProgram(t *testing.T) {
 	t.Parallel()
 

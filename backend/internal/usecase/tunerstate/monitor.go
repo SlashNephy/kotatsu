@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// NotifyChannel は、チューナーの構成が変わったことを知らせる変更通知のチャンネル。
+	// NotifyChannel は、チューナーの構成が変わったことを通知する変更通知のチャンネル。
 	NotifyChannel = "tuners"
 	// DefaultPollInterval は、チューナーの構成を取得し直す間隔。
 	DefaultPollInterval = time.Minute
@@ -47,7 +47,7 @@ type Upstream interface {
 
 var _ Upstream = tunerserver.Client(nil)
 
-// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
+// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確認する。
 type Guard func(ctx context.Context, tx pgx.Tx) error
 
 // Options は Monitor の設定。0 の項目は既定値にする。
@@ -129,8 +129,8 @@ func (m *Monitor) Check(ctx context.Context) error {
 		return m.recordDegraded(ctx, now, err)
 	}
 
-	// 時計は、Date ヘッダーが取れたときだけ比べる。取れなくても、チューナーの構成は記録する。
-	// EDCB は時計を返さないので (#1532)、比べずに、警告も出さない。
+	// 時計は、Date ヘッダーが取れたときだけ比較する。取れなくても、チューナーの構成は記録する。
+	// EDCB は時計を返さないので (#1532)、比較せずに、警告も出さない。
 	var skewMs *int64
 	date, err := m.upstream.ServerDate(ctx)
 	switch {
@@ -158,7 +158,7 @@ func (m *Monitor) Check(ctx context.Context) error {
 		occupancies = []*tunerserver.TunerOccupancy{}
 	}
 
-	// 種類と版は、判定できたときだけ書く。判定できなければ、最後に分かったものを残す (#1538)。
+	// 種類とバージョンは、判定できたときだけ書く。判定できなければ、最後に分かったものを残す (#1538)。
 	var kind, version *string
 	identity, err := m.upstream.Identify(ctx)
 	if err != nil {
@@ -263,7 +263,7 @@ func (m *Monitor) recordDegraded(ctx context.Context, now time.Time, cause error
 		}
 
 		message := truncate(cause.Error(), maxErrorLength)
-		// 縮退し始めたときだけ通知する (設計書 6.2)。縮退が続く間は、確かめるたびに通知しない。
+		// 縮退し始めたときだけ通知する (設計書 6.2)。縮退が続く間は、確認するたびに通知しない。
 		// 通知は視聴者にも届くので、チューナーサーバーの URL を含みうる理由は載せない。理由は、管理者がシステムの状態で読む。
 		if starting {
 			if err := notification.Emit(ctx, tx, m.clock, domain.NotificationKindTunerServerUnreachable, nil); err != nil {
@@ -310,7 +310,7 @@ func (m *Monitor) replaceTuners(ctx context.Context, q *sqlc.Queries, tuners []*
 		next = append(next, sqlc.ListTunersRow{
 			TunerIndex: int64(tuner.Index),
 			Name:       tuner.Name,
-			// 種別の列は NOT NULL なので、返されなかったときは空にする。
+			// 種別のカラムは NOT NULL なので、返されなかったときは空にする。
 			Types:       append([]string{}, tuner.Types...),
 			IsAvailable: tuner.IsAvailable,
 			IsRemote:    tuner.IsRemote,

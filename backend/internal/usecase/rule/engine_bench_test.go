@@ -16,7 +16,7 @@ const (
 	benchRules    = 50
 )
 
-// BenchmarkEngineRun は、条件の組み合わせごとに、照合 1 回にかかる時間を測る (#530、#852)。
+// BenchmarkEngineRun は、条件の組み合わせごとに、照合 1 回にかかる時間を計測する (#530、#852)。
 // どの組み合わせも、照合の時間が番組の数とルールの数に比例する程度に収まることを見る。
 func BenchmarkEngineRun(b *testing.B) {
 	allFields := []match.Field{match.FieldName, match.FieldDescription, match.FieldExtended}
@@ -35,7 +35,7 @@ func BenchmarkEngineRun(b *testing.B) {
 			},
 		},
 		{
-			// 詳細の正規化した列を足す前に書いた番組は、照合のたびに正規化し直す。
+			// 詳細の正規化したカラムを足す前に書いた番組は、照合のたびに正規化し直す。
 			name:   "literal keyword written before the column",
 			update: "UPDATE programs SET extended_normalized = NULL",
 			modify: func(i int, in *rule.Input) {
@@ -101,7 +101,7 @@ func BenchmarkEngineRun(b *testing.B) {
 			for i := range benchRules {
 				f.createRule(b, fmt.Sprintf("ルール%d", i), func(in *rule.Input) { tt.modify(i, in) })
 			}
-			// 1 回目は予約を作るので、測るのは、予約がそろった後の照合にする。
+			// 1 回目は予約を作るので、計測するのは、予約がそろった後の照合にする。
 			f.run(b)
 
 			for b.Loop() {

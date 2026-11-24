@@ -40,7 +40,7 @@ func newStore() *settings.Store {
 	return settings.NewStore(clk, audit.NewRecorder(clk))
 }
 
-// TestLoadDefaults は、一度も変えていなければ、既定値を返すことを確かめる。
+// TestLoadDefaults は、一度も変えていなければ、既定値を返すことを確認する。
 func TestLoadDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -52,7 +52,7 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Nil(t, got.UpdatedAt)
 }
 
-// TestUpdate は、変えた項目だけを、既定値や前の変更に重ねることを確かめる。
+// TestUpdate は、変えた項目だけを、既定値や前の変更に重ねることを確認する。
 func TestUpdate(t *testing.T) {
 	t.Parallel()
 
@@ -110,7 +110,7 @@ func TestUpdate(t *testing.T) {
 	assert.Equal(t, 4, audited)
 }
 
-// TestUpdateRejectsInvalidSettings は、正しくない値を保存しないことを確かめる。
+// TestUpdateRejectsInvalidSettings は、正しくない値を保存しないことを確認する。
 func TestUpdateRejectsInvalidSettings(t *testing.T) {
 	t.Parallel()
 
@@ -165,7 +165,7 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 	assert.Equal(t, settings.DefaultArchiveRetentionDays, loaded.ArchiveRetentionDays)
 }
 
-// TestUpdateHistoryMaxDrops は、録画済みとみなすドロップの上限が、行を作ったときも既定値 (0 件) で、変えられることを確かめる。
+// TestUpdateHistoryMaxDrops は、録画済みとみなすドロップの上限が、行を作ったときも既定値 (0 件) で、変えられることを確認する。
 func TestUpdateHistoryMaxDrops(t *testing.T) {
 	t.Parallel()
 
@@ -193,7 +193,7 @@ func TestUpdateHistoryMaxDrops(t *testing.T) {
 }
 
 // TestUpdateMovedSettings は、設定ファイルから画面に移した項目 (#1869) が、行がなくても、ほかの項目で行を作っても、
-// 設定ファイルの既定値と同じで、変えられ、変えたことを監査ログに残すことを確かめる。
+// 設定ファイルの既定値と同じで、変えられ、変えたことを監査ログに残すことを確認する。
 func TestUpdateMovedSettings(t *testing.T) {
 	t.Parallel()
 
@@ -277,7 +277,7 @@ func fromTo(from, to any) map[string]any {
 	return map[string]any{"from": from, "to": to}
 }
 
-// TestUpdateWebPushSubjectBackToDefault は、Web Push の送り手の連絡先を空にすると、既定の URL に戻ることを確かめる (#1869)。
+// TestUpdateWebPushSubjectBackToDefault は、Web Push の送り手の連絡先を空にすると、既定の URL に戻ることを確認する (#1869)。
 func TestUpdateWebPushSubjectBackToDefault(t *testing.T) {
 	t.Parallel()
 
@@ -290,7 +290,7 @@ func TestUpdateWebPushSubjectBackToDefault(t *testing.T) {
 	assert.Equal(t, settings.DefaultWebPushSubject, updated.WebPushSubjectOrDefault())
 }
 
-// TestUpdateJikkyoChannels は、実況のチャンネルの対応を、書いたサービスだけ変え、10 進のキーにそろえ、正しくない対応を拒むことを確かめる (#1869)。
+// TestUpdateJikkyoChannels は、実況のチャンネルの対応を、書いたサービスだけ変え、10 進のキーにそろえ、正しくない対応を拒むことを確認する (#1869)。
 func TestUpdateJikkyoChannels(t *testing.T) {
 	t.Parallel()
 
@@ -349,7 +349,7 @@ func TestUpdateJikkyoChannels(t *testing.T) {
 	}
 }
 
-// TestUpdateConcurrently は、違う項目を同時に変えても、どちらの変更も失わないことを確かめる。
+// TestUpdateConcurrently は、違う項目を同時に変えても、どちらの変更も失わないことを確認する。
 func TestUpdateConcurrently(t *testing.T) {
 	t.Parallel()
 
@@ -374,7 +374,7 @@ func TestUpdateConcurrently(t *testing.T) {
 	assert.Equal(t, end, loaded.Recording.EndMarginSeconds)
 }
 
-// TestUpdateRuleDefaults は、ルールを作るときの既定値を、変えた項目だけ重ねて保存することを確かめる (#470)。
+// TestUpdateRuleDefaults は、ルールを作るときの既定値を、変えた項目だけ重ねて保存することを確認する (#470)。
 func TestUpdateRuleDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -447,7 +447,7 @@ func TestUpdateRuleDefaults(t *testing.T) {
 	}
 }
 
-// TestUpdateNetworkActivity は、外部との通信の記録を有効にした日時を残し、無効に戻すと記録を消すことを確かめる (#1369)。
+// TestUpdateNetworkActivity は、外部との通信の記録を有効にした日時を残し、無効に戻すと記録を消すことを確認する (#1369)。
 func TestUpdateNetworkActivity(t *testing.T) {
 	t.Parallel()
 
@@ -473,7 +473,7 @@ func TestUpdateNetworkActivity(t *testing.T) {
 	assert.Zero(t, count, "無効に戻したら、それまでの記録を消す")
 }
 
-// TestUpdateCMDetector は、CM の区間の見分け方が既定で ffmpeg で、logo に替えて戻せることを確かめる (#1505)。
+// TestUpdateCMDetector は、CM の区間の見分け方が既定で ffmpeg で、logo に替えて戻せることを確認する (#1505)。
 func TestUpdateCMDetector(t *testing.T) {
 	t.Parallel()
 

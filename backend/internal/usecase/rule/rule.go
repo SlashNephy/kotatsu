@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	// NotifyChannel は、ルールが変わったことを知らせる変更通知のチャンネル。
+	// NotifyChannel は、ルールが変わったことを通知する変更通知のチャンネル。
 	NotifyChannel = "rules"
 	// auditTarget は、監査ログの対象の種類。
 	auditTarget = "rule"
@@ -63,7 +63,7 @@ type Rule struct {
 	// DuplicateWindowDays は、重複を避ける期間 (日)。nil なら期間を区切らない。
 	DuplicateWindowDays *int
 	FollowEventRelay    bool
-	// BundleSameEpisodes は、局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。
+	// BundleSameEpisodes は、局をまたいで同じ回をまとめ、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。
 	BundleSameEpisodes bool
 	// SkipEarlierEpisodes は、追っているシリーズの前の回 (録った回や予約した回より話数の小さい回) を予約しないかどうか
 	// (設計書 4.4、#1499)。

@@ -157,7 +157,7 @@ func (f *fixture) recording(t *testing.T, reservationID uuid.UUID) (recorded, bo
 	return r, true
 }
 
-// connectionRefused は、チューナーサーバーにつながらないときのエラーの本文。録画に残す本文 (#1467) と比べる。
+// connectionRefused は、チューナーサーバーにつながらないときのエラーの本文。録画に残す本文 (#1467) と比較する。
 const connectionRefused = "connection refused"
 
 // failureDetail は、録画に残した、失敗した理由に至ったエラーの本文を返す (#1467)。
@@ -249,7 +249,7 @@ func plannedStart() time.Time {
 	return programStart().Add(-domain.DefaultMarginSeconds * time.Second)
 }
 
-// TestRecorderRecordsUntilPlannedEnd は、予定の開始にストリームを開き、予定の終わりまで、録画ファイルと索引を書くことを確かめる (設計書 5.1、5.2、5.3)。
+// TestRecorderRecordsUntilPlannedEnd は、予定の開始にストリームを開き、予定の終わりまで、録画ファイルとインデックスを書くことを確認する (設計書 5.1、5.2、5.3)。
 func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 	t.Parallel()
 
@@ -288,7 +288,7 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 	assert.Equal(t, string(domain.RecordingStateCompletedWithErrors), got.state)
 	assert.Nil(t, got.failureReason)
 	assert.Positive(t, got.drops)
-	// 索引は DB に記録せず、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。
+	// インデックスは DB に記録せず、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。
 	files := f.files(t, reservationID)
 	require.Len(t, files, 1)
 	segment = files[0]
@@ -319,7 +319,7 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 		WHERE r.reservation_id = $1`, reservationID).Scan(&pidDrops, &videoPackets))
 	assert.Equal(t, got.drops, pidDrops)
 	assert.Positive(t, videoPackets)
-	// 索引には、書きながら見つけた I フレームが入る。
+	// インデックスには、書きながら見つけた I フレームが入る。
 	indexFile, err := os.Open(indexPath)
 	require.NoError(t, err)
 	defer indexFile.Close()
@@ -329,7 +329,7 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 }
 
 // TestRecorderRecordsWithoutTuner は、受信しているチューナーを探せなくても、録画を続け、
-// セグメントにはチューナーを記録しないことを確かめる (#1467)。チューナーの一覧は、録画には要らない。
+// セグメントにはチューナーを記録しないことを確認する (#1467)。チューナーの一覧は、録画には要らない。
 func TestRecorderRecordsWithoutTuner(t *testing.T) {
 	t.Parallel()
 
@@ -342,7 +342,7 @@ func TestRecorderRecordsWithoutTuner(t *testing.T) {
 	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 	require.NoError(t, wait(t, done))
 
-	// ドロップの有無は、偽のチューナーサーバーが TS を繰り返すつなぎ目次第なので、失敗していないことだけを見る。
+	// ドロップの有無は、モックのチューナーサーバーが TS を繰り返すつなぎ目次第なので、失敗していないことだけを見る。
 	got, _ := f.recording(t, reservationID)
 	assert.NotEqual(t, string(domain.RecordingStateFailed), got.state)
 	assert.Nil(t, got.failureReason)
@@ -366,7 +366,7 @@ func (unlistableTuner) Tuners(context.Context) ([]*tunerserver.Tuner, error) {
 }
 
 // TestRecorderFinishesWhileDatabaseIsUnreachable は、予定の終わりに DB に届かなくても、録り直さずに録画を止め、
-// DB が戻ってから、録画を止めた時刻で完了にすることを確かめる (#1073)。DB への問い合わせが詰まっても、予定の終わりで止める。
+// DB が戻ってから、録画を止めた時刻で完了にすることを確認する (#1073)。DB への問い合わせが詰まっても、予定の終わりで止める。
 func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -431,7 +431,7 @@ func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
 }
 
 // TestRecorderStartsWhileDatabaseIsUnreachable は、予定の開始に DB に届かなくても、最後に読めた予約で録画を始め、
-// DB が戻ったら、録画とセグメントを、書き始めた時刻で記録することを確かめる (#1073)。
+// DB が戻ったら、録画とセグメントを、書き始めた時刻で記録することを確認する (#1073)。
 func TestRecorderStartsWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -473,7 +473,7 @@ func TestRecorderStartsWhileDatabaseIsUnreachable(t *testing.T) {
 }
 
 // TestRecorderReopensWhileDatabaseIsUnreachable は、DB に届かない間にストリームが切れても、DB を待たずに開き直して
-// 新しいセグメントに書き続け、DB が戻ったら、どのセグメントも記録することを確かめる (#1073)。
+// 新しいセグメントに書き続け、DB が戻ったら、どのセグメントも記録することを確認する (#1073)。
 func TestRecorderReopensWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -508,7 +508,7 @@ func TestRecorderReopensWhileDatabaseIsUnreachable(t *testing.T) {
 }
 
 // TestRecorderFailsWhileDatabaseIsUnreachable は、DB に届かずに録画を記録できていないまま、保存先に書けずに録画を失敗にするときも、
-// DB が戻ってから、録画を記録して失敗にすることを確かめる (#1073)。
+// DB が戻ってから、録画を記録して失敗にすることを確認する (#1073)。
 func TestRecorderFailsWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -541,7 +541,7 @@ func waitForQueries(t *testing.T, db *databasetest.Switch) {
 }
 
 // TestRecorderFinishesRecordingLeftAfterPlannedEnd は、予定の終わりの後に割り振りを取った mikan が、前の mikan が録り終えたまま
-// 録画中で残した録画を、予定の終わりで完了にすることを確かめる (#1073)。DB が予定の終わりをまたいで止まり、戻った直後に
+// 録画中で残した録画を、予定の終わりで完了にすることを確認する (#1073)。DB が予定の終わりをまたいで止まり、戻った直後に
 // ほかの mikan が割り振りを取ると、前の mikan は録画を完了にできない。
 func TestRecorderFinishesRecordingLeftAfterPlannedEnd(t *testing.T) {
 	t.Parallel()
@@ -572,7 +572,7 @@ func TestRecorderFinishesRecordingLeftAfterPlannedEnd(t *testing.T) {
 }
 
 // TestRecorderKeepsExtendingWhileDatabaseIsUnreachable は、番組の終了時刻が未定で延長しているときに DB に届かなくなっても、
-// 最後に読めた番組の終わりで延長を続け、予定の終わりで止めてしまわないことを確かめる (#1073)。
+// 最後に読めた番組の終わりで延長を続け、予定の終わりで止めてしまわないことを確認する (#1073)。
 func TestRecorderKeepsExtendingWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -642,7 +642,7 @@ func segmentFiles(t *testing.T, dir string) []string {
 	return names
 }
 
-// TestRecorderStopsWhenStopped は、リースを失うか止めるときは、録画ファイルを閉じて、録画を録画中のまま残すことを確かめる (設計書 5.4)。
+// TestRecorderStopsWhenStopped は、リースを失うか止めるときは、録画ファイルを閉じて、録画を録画中のまま残すことを確認する (設計書 5.4)。
 func TestRecorderStopsWhenStopped(t *testing.T) {
 	t.Parallel()
 
@@ -668,7 +668,7 @@ func TestRecorderStopsWhenStopped(t *testing.T) {
 	assert.Positive(t, f.files(t, reservationID)[0].size)
 }
 
-// TestRecorderSkipsDisabledReservations は、録画を始める前に予約を無効にしたら、録画しないことを確かめる。
+// TestRecorderSkipsDisabledReservations は、録画を始める前に予約を無効にしたら、録画しないことを確認する。
 func TestRecorderSkipsDisabledReservations(t *testing.T) {
 	t.Parallel()
 
@@ -765,7 +765,7 @@ func (s *attemptedStream) wait(t *testing.T) {
 
 var _ recording.StreamOpener = new(attemptedStream)
 
-// TestRecorderRecordsFailures は、録画できなかった理由を記録することを確かめる (設計書 5.5)。
+// TestRecorderRecordsFailures は、録画できなかった理由を記録することを確認する (設計書 5.5)。
 func TestRecorderRecordsFailures(t *testing.T) {
 	t.Parallel()
 
@@ -893,7 +893,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 	}
 }
 
-// TestRecorderTruncatesFailureDetail は、録画に残すエラーの本文を、省略記号を含めて MaxFailureDetail 文字までに切り詰めることを確かめる (#1467)。
+// TestRecorderTruncatesFailureDetail は、録画に残すエラーの本文を、省略記号を含めて MaxFailureDetail 文字までに切り詰めることを確認する (#1467)。
 func TestRecorderTruncatesFailureDetail(t *testing.T) {
 	t.Parallel()
 
@@ -934,7 +934,7 @@ func TestRecorderTruncatesFailureDetail(t *testing.T) {
 	}
 }
 
-// TestFinishRecordingCountsFailures は、録画を終えるときに、失敗に変わった録画だけを、失敗の累計に足すことを確かめる (#960)。
+// TestFinishRecordingCountsFailures は、録画を終えるときに、失敗に変わった録画だけを、失敗の累計に足すことを確認する (#960)。
 // すでに失敗の録画を、もう一度失敗で終えても、足さない。
 func TestFinishRecordingCountsFailures(t *testing.T) {
 	t.Parallel()
@@ -1023,7 +1023,7 @@ func (s onceStream) OpenServiceStream(ctx context.Context, _ int64, _ *tunerserv
 	return reader, nil
 }
 
-// TestRecorderDecidesStateFromWholeRecording は、録画を終えたときの状態を、前のセグメントも含めた録画全体のドロップで決めることを確かめる。
+// TestRecorderDecidesStateFromWholeRecording は、録画を終えたときの状態を、前のセグメントも含めた録画全体のドロップで決めることを確認する。
 func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 	t.Parallel()
 
@@ -1084,7 +1084,7 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 	}
 }
 
-// TestRecorderCancelsWhenDisabled は、録画中に予約を無効にしたら、録画を取り消しとして失敗にすることを確かめる。
+// TestRecorderCancelsWhenDisabled は、録画中に予約を無効にしたら、録画を取り消しとして失敗にすることを確認する。
 func TestRecorderCancelsWhenDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -1137,7 +1137,7 @@ func TestRecorderCancelsWhenDisabled(t *testing.T) {
 	}
 }
 
-// TestRecorderFailsOnUnmountedPool は、録画設定のプールがこのインスタンスにマウントされていなければ、保存先がないとして失敗にすることを確かめる。
+// TestRecorderFailsOnUnmountedPool は、録画設定のプールがこのインスタンスにマウントされていなければ、保存先がないとして失敗にすることを確認する。
 func TestRecorderFailsOnUnmountedPool(t *testing.T) {
 	t.Parallel()
 
@@ -1242,7 +1242,7 @@ func (f *fixture) segments(t *testing.T, reservationID uuid.UUID) int {
 }
 
 // TestRecorderDoesNotReopenAfterPlannedEnd は、予定の終わりにチューナーサーバーがストリームを閉じたとき、
-// 開き直さずに録画を終えることを確かめる (#305)。
+// 開き直さずに録画を終えることを確認する (#305)。
 func TestRecorderDoesNotReopenAfterPlannedEnd(t *testing.T) {
 	t.Parallel()
 
@@ -1268,7 +1268,7 @@ func TestRecorderDoesNotReopenAfterPlannedEnd(t *testing.T) {
 	assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 }
 
-// TestRecorderWaitsBeforeReopeningShortStreams は、開いてすぐに切れ続けるストリームを、RetryInterval に 1 回までしか開き直さないことを確かめる (#305)。
+// TestRecorderWaitsBeforeReopeningShortStreams は、開いてすぐに切れ続けるストリームを、RetryInterval に 1 回までしか開き直さないことを確認する (#305)。
 func TestRecorderWaitsBeforeReopeningShortStreams(t *testing.T) {
 	t.Parallel()
 
@@ -1298,9 +1298,9 @@ func TestRecorderWaitsBeforeReopeningShortStreams(t *testing.T) {
 	assert.LessOrEqual(t, int64(f.segments(t, reservationID)), limit)
 }
 
-// TestRecorderSkipsUntilPlannedStart は、チューニングのために早く開いたストリームを予定の開始まで読み捨て、
-// TS パケットの区切りから書き始めることを確かめる (#847)。開始前のマージンが、チューニングにかかる時間のぶん長くならない。
-// 読み捨てる長さは最初に決め、経過時間で測るので、読み捨てている間に壁時計が戻っても、読み捨て続けない。
+// TestRecorderSkipsUntilPlannedStart は、チューニングのために早く開いたストリームを予定の開始まで読み飛ばし、
+// TS パケットの区切りから書き始めることを確認する (#847)。開始前のマージンが、チューニングにかかる時間のぶん長くならない。
+// 読み飛ばす長さは最初に決め、経過時間で計測するので、読み飛ばしている間に壁時計が戻っても、読み飛ばし続けない。
 func TestRecorderSkipsUntilPlannedStart(t *testing.T) {
 	t.Parallel()
 
@@ -1312,7 +1312,7 @@ func TestRecorderSkipsUntilPlannedStart(t *testing.T) {
 		jump time.Duration
 	}{
 		{name: "壁時計が飛ばない", jump: 0},
-		// 戻った壁時計で予定の開始を待つと、データを流し終えるまで (1000 秒余り) 読み捨て続け、何も書けない。
+		// 戻った壁時計で予定の開始を待つと、データを流し終えるまで (1000 秒余り) 読み飛ばし続け、何も書けない。
 		{name: "読み捨てている間に壁時計が 1 時間戻る", jump: -time.Hour},
 	}
 	for _, tt := range tests {
@@ -1335,7 +1335,7 @@ func TestRecorderSkipsUntilPlannedStart(t *testing.T) {
 			_, done := f.session(t, recorder, reservationID)
 			f.clock.Advance(plannedStart().Add(-recording.DefaultTuningTime).Sub(f.clock.Now()))
 
-			// 5000 バイトを読み捨て、次のパケットの区切り (27 パケット目の終わり) まで捨てる。
+			// 5000 バイトを読み飛ばし、次のパケットの区切り (27 パケット目の終わり) まで破棄する。
 			skipped := 27 * 188
 			require.Eventually(t, func() bool {
 				files := f.files(t, reservationID)
@@ -1360,8 +1360,8 @@ func TestRecorderSkipsUntilPlannedStart(t *testing.T) {
 	}
 }
 
-// TestRecorderReopensWhenInterruptedBeforePlannedStart は、予定の開始まで読み捨てている間にストリームが切れたら、
-// 開き直して、改めて予定の開始まで読み捨ててから書き始めることを確かめる (#847)。
+// TestRecorderReopensWhenInterruptedBeforePlannedStart は、予定の開始まで読み飛ばしている間にストリームが切れたら、
+// 開き直して、改めて予定の開始まで読み飛ばしてから書き始めることを確認する (#847)。
 func TestRecorderReopensWhenInterruptedBeforePlannedStart(t *testing.T) {
 	t.Parallel()
 
@@ -1369,13 +1369,13 @@ func TestRecorderReopensWhenInterruptedBeforePlannedStart(t *testing.T) {
 	require.NoError(t, err)
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
-	// 最初のストリームは、2 回読ませて (2 秒進めて) 切れる。開き直したストリームは、残りの 3 秒を読み捨てさせる。
+	// 最初のストリームは、2 回読ませて (2 秒進めて) 切れる。開き直したストリームは、残りの 3 秒を読み飛ばさせる。
 	stream := &interruptedStream{first: data[:2000], data: data, chunk: 1000, tick: func() { f.clock.Advance(time.Second) }, opened: atomic.Int32{}}
 	recorder, dir := f.newRecorder(t, stream, nil)
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Add(-recording.DefaultTuningTime).Sub(f.clock.Now()))
 
-	// 開き直したストリームで 3000 バイトを読み捨て、次のパケットの区切り (16 パケット目の終わり) まで捨てる。
+	// 開き直したストリームで 3000 バイトを読み飛ばし、次のパケットの区切り (16 パケット目の終わり) まで破棄する。
 	skipped := 16 * 188
 	require.Eventually(t, func() bool {
 		files := f.files(t, reservationID)
@@ -1466,7 +1466,7 @@ func (r *tickingReader) Close() error {
 }
 
 // TestRecorderReconnects は、予定の終わりの前にストリームが切れたら、開き直して新しいセグメントに書き、
-// 途切れた区間を記録して、録画を一部のみにすることを確かめる (設計書 5.2、5.5)。
+// 途切れた区間を記録して、録画を一部のみにすることを確認する (設計書 5.2、5.5)。
 func TestRecorderReconnects(t *testing.T) {
 	t.Parallel()
 
@@ -1496,7 +1496,7 @@ func TestRecorderReconnects(t *testing.T) {
 }
 
 // TestRecorderExtendsWhileEndIsUndecided は、番組の終了時刻が未定 (延長中) の間は、終わりが来るたびに録画を 5 分ずつ延ばし、
-// 終了時刻が決まったら、決まった終わりと後ろのマージンまで録って止めることを確かめる (設計書 5.1)。
+// 終了時刻が決まったら、決まった終わりと後ろのマージンまで録って止めることを確認する (設計書 5.1)。
 func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 	t.Parallel()
 
@@ -1573,7 +1573,7 @@ func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 	}
 }
 
-// TestRecorderKeepsRecordingWhenProgramIsLost は、番組が EPG から消えたら、予定の終わりまで録って、見失ったと記録することを確かめる (設計書 5.1)。
+// TestRecorderKeepsRecordingWhenProgramIsLost は、番組が EPG から消えたら、予定の終わりまで録って、見失ったと記録することを確認する (設計書 5.1)。
 func TestRecorderKeepsRecordingWhenProgramIsLost(t *testing.T) {
 	t.Parallel()
 
@@ -1605,7 +1605,7 @@ func TestRecorderKeepsRecordingWhenProgramIsLost(t *testing.T) {
 }
 
 // TestRecorderCopiesProgramAudios は、録画を始めたときの番組の音声の構成 (#284) と映像の解像度 (#806) を録画に残し、
-// 録画中に番組の構成が変わっても書き換えないことを確かめる。
+// 録画中に番組の構成が変わっても書き換えないことを確認する。
 func TestRecorderCopiesProgramAudios(t *testing.T) {
 	t.Parallel()
 
@@ -1634,7 +1634,7 @@ func TestRecorderCopiesProgramAudios(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT audios = $2::jsonb, video_resolution FROM recordings WHERE reservation_id = $1",
 		reservationID, bilingual).Scan(&same, &resolution))
 	assert.True(t, same)
-	// 解像度は、録画を始めたときに EPG から写した値 (2160p) を、セグメントを閉じたときに、映像から読んだ値で置き換える (#1310)。
+	// 解像度は、録画を始めたときに EPG からコピーした値 (2160p) を、セグメントを閉じたときに、映像から読んだ値で置き換える (#1310)。
 	// テストの TS は、720x480 のプログレッシブの MPEG-2。
 	assert.Equal(t, new("480p"), resolution)
 	var video []byte
@@ -1644,7 +1644,7 @@ func TestRecorderCopiesProgramAudios(t *testing.T) {
 }
 
 // TestRecorderCopiesRuleAndGenres は、録画を始めたときに、予約のジャンルと番組の詳細と、一致したルールのうち最も古いものとその名前を、
-// 録画に残すことを確かめる (#468、#1646)。予約やルールを消しても、録画をルールとジャンルで絞り、番組の詳細を出せるようにするため。
+// 録画に残すことを確認する (#468、#1646)。予約やルールを消しても、録画をルールとジャンルで絞り、番組の詳細を出せるようにするため。
 func TestRecorderCopiesRuleAndGenres(t *testing.T) {
 	t.Parallel()
 
@@ -1686,7 +1686,7 @@ func TestRecorderCopiesRuleAndGenres(t *testing.T) {
 	assert.JSONEq(t, `{"出演者":"こたつ"}`, extended)
 }
 
-// TestRecorderRecordsGapOnResume は、引き継ぎや再開で続きを録るとき、前のセグメントを書き終えてからの間を、途切れた区間として記録することを確かめる。
+// TestRecorderRecordsGapOnResume は、引き継ぎや再開で続きを録るとき、前のセグメントを書き終えてからの間を、途切れた区間として記録することを確認する。
 func TestRecorderRecordsGapOnResume(t *testing.T) {
 	t.Parallel()
 
@@ -1732,7 +1732,7 @@ func TestRecorderRecordsGapOnResume(t *testing.T) {
 	assert.Equal(t, time.Minute, gap.To.Sub(gap.From))
 }
 
-// TestRecorderIgnoresEmptyEarlierSegments は、前の mikan が何も書けなかったセグメントを、録れたものに数えないことを確かめる。
+// TestRecorderIgnoresEmptyEarlierSegments は、前の mikan が何も書けなかったセグメントを、録れたものに数えないことを確認する。
 func TestRecorderIgnoresEmptyEarlierSegments(t *testing.T) {
 	t.Parallel()
 
@@ -1761,7 +1761,7 @@ func TestRecorderIgnoresEmptyEarlierSegments(t *testing.T) {
 }
 
 // TestRecorderCopiesEpisodeToHistory は、録り終えた録画の録画履歴に、回を読むための概要と、番組のシリーズの記述子の話数と、
-// 番組名から読んだシリーズ名を写すことを確かめる (#1498、#1499)。
+// 番組名から読んだシリーズ名をコピーすることを確認する (#1498、#1499)。
 // 録画を消しても、同じ回を録ったことを、番組名だけでなく概要と話数から見分けられるようにするためである。
 func TestRecorderCopiesEpisodeToHistory(t *testing.T) {
 	t.Parallel()
@@ -1831,7 +1831,7 @@ func (f *fixture) events(t *testing.T) []event {
 }
 
 // TestRecorderEmitsEvents は、録画を始めたとき、終えたとき、失敗したときに、通知するイベントを記録し、
-// 正常に終えた録画だけを録画履歴に記録することを確かめる (設計書 4.4、6.2)。
+// 正常に終えた録画だけを録画履歴に記録することを確認する (設計書 4.4、6.2)。
 func TestRecorderEmitsEvents(t *testing.T) {
 	t.Parallel()
 
@@ -1919,7 +1919,7 @@ func reservationName(t *testing.T, f *fixture, reservationID uuid.UUID) string {
 	return name
 }
 
-// TestRecorderUsesPoolSettings は、録画を書くプールを、設定した優先順位と容量の閾値で選ぶことを確かめる (設計書 5.6)。
+// TestRecorderUsesPoolSettings は、録画を書くプールを、設定した優先順位と容量の閾値で選ぶことを確認する (設計書 5.6)。
 func TestRecorderUsesPoolSettings(t *testing.T) {
 	t.Parallel()
 
@@ -1969,7 +1969,7 @@ func TestRecorderUsesPoolSettings(t *testing.T) {
 }
 
 // TestRecorderContinuesAfterHandover は、止まる mikan から引き継いだときは、古い mikan と重なって録るので、
-// 途切れた区間を記録しないことを確かめる (設計書 5.4)。
+// 途切れた区間を記録しないことを確認する (設計書 5.4)。
 func TestRecorderContinuesAfterHandover(t *testing.T) {
 	t.Parallel()
 
@@ -2006,7 +2006,7 @@ func TestRecorderContinuesAfterHandover(t *testing.T) {
 }
 
 // TestRecorderTakesOverFromCrashedMikan は、落ちた mikan の代わりに取ったときは、書きかけのセグメントを、
-// ファイルの大きさと、最後に書き込んだ時刻で閉じ、そこからを途切れた区間とすることを確かめる (設計書 5.4)。
+// ファイルの大きさと、最後に書き込んだ時刻で閉じ、そこからを途切れた区間とすることを確認する (設計書 5.4)。
 func TestRecorderTakesOverFromCrashedMikan(t *testing.T) {
 	t.Parallel()
 
@@ -2073,7 +2073,7 @@ func (s failOnceStream) OpenServiceStream(ctx context.Context, serviceID int64, 
 }
 
 // TestRecorderHandoverGap は、引き継いだ mikan がストリームをすぐに開けなくても、古い mikan が書いている間は途切れた区間にせず、
-// 古い mikan がもう止まっていれば、そのセグメントの終わりからを途切れた区間にすることを確かめる (設計書 5.4)。
+// 古い mikan がもう止まっていれば、そのセグメントの終わりからを途切れた区間にすることを確認する (設計書 5.4)。
 func TestRecorderHandoverGap(t *testing.T) {
 	t.Parallel()
 
@@ -2141,7 +2141,7 @@ func TestRecorderHandoverGap(t *testing.T) {
 }
 
 // TestRecorderHandoverEdgeCases は、引き継いだのに録れなかったときや、古い mikan が引き継ぎの最中に落ちたときに、
-// 途切れた区間と録画の状態を正しく記録することを確かめる (設計書 5.4)。
+// 途切れた区間と録画の状態を正しく記録することを確認する (設計書 5.4)。
 func TestRecorderHandoverEdgeCases(t *testing.T) {
 	t.Parallel()
 
@@ -2239,7 +2239,7 @@ func TestRecorderHandoverEdgeCases(t *testing.T) {
 }
 
 // TestRecorderLeavesFinishingToCurrentGeneration は、ほかの mikan が割り振りを取った後に予定の終わりが来ても、
-// 古い世代の mikan は録画を終えず、今の世代の mikan に任せることを確かめる。
+// 古い世代の mikan は録画を終えず、今の世代の mikan に任せることを確認する。
 func TestRecorderLeavesFinishingToCurrentGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -2271,7 +2271,7 @@ func TestRecorderLeavesFinishingToCurrentGeneration(t *testing.T) {
 }
 
 // TestRecorderRecordsTrailingGap は、ストリームが切れたまま開き直せずに予定の終わりが来たら、
-// 最後のセグメントの終わりから予定の終わりまでを、途切れた区間にすることを確かめる。
+// 最後のセグメントの終わりから予定の終わりまでを、途切れた区間にすることを確認する。
 func TestRecorderRecordsTrailingGap(t *testing.T) {
 	t.Parallel()
 
@@ -2313,7 +2313,7 @@ func (s cutThenFail) OpenServiceStream(ctx context.Context, serviceID int64, opt
 	return nil, errors.New("connection refused")
 }
 
-// TestRecorderWaitsThroughDatabaseErrors は、録画を始めるのを待つ間に、予約を一時的に読めなくても、録画を諦めないことを確かめる (#516)。
+// TestRecorderWaitsThroughDatabaseErrors は、録画を始めるのを待つ間に、予約を一時的に読めなくても、録画を諦めないことを確認する (#516)。
 // 諦めると、割り振りが終わったことになり、録画されない。
 func TestRecorderWaitsThroughDatabaseErrors(t *testing.T) {
 	t.Parallel()
@@ -2321,7 +2321,7 @@ func TestRecorderWaitsThroughDatabaseErrors(t *testing.T) {
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
 	recorder, _ := f.newRecorder(t, f.tuner, nil)
-	// 予約を読むクエリが失敗するよう、サービスの表の名前を一時的に変える。
+	// 予約を読むクエリが失敗するよう、サービスのテーブルの名前を一時的に変える。
 	_, err := f.pool.Exec(t.Context(), "ALTER TABLE services RENAME TO services_unavailable")
 	require.NoError(t, err)
 	_, done := f.session(t, recorder, reservationID)
@@ -2343,7 +2343,7 @@ func TestRecorderWaitsThroughDatabaseErrors(t *testing.T) {
 }
 
 // TestRecorderRecordsLateStartAsGap は、録画を始めるのが予定の開始より 30 秒を超えて遅れたら、冒頭の欠けを途切れた区間にし、
-// 一部のみ (partial) にすることを確かめる (#517)。完了にすると録画履歴に載り、重複の回避で再放送も録らなくなる。
+// 一部のみ (partial) にすることを確認する (#517)。完了にすると録画履歴に載り、重複の回避で再放送も録らなくなる。
 func TestRecorderRecordsLateStartAsGap(t *testing.T) {
 	t.Parallel()
 
@@ -2382,7 +2382,7 @@ func TestRecorderRecordsLateStartAsGap(t *testing.T) {
 }
 
 // TestRecorderReselectsPoolForRemainingTime は、録画の途中で開き直すときに、保存先を、番組の全長ではなく残りの時間の
-// 推定サイズで選び直すことを確かめる (#519)。全長で選ぶと、終盤ほど選べるプールがなくなり、それまで録れていても失敗していた。
+// 推定サイズで選び直すことを確認する (#519)。全長で選ぶと、終盤ほど選べるプールがなくなり、それまで録れていても失敗していた。
 func TestRecorderReselectsPoolForRemainingTime(t *testing.T) {
 	t.Parallel()
 
@@ -2412,7 +2412,7 @@ func TestRecorderReselectsPoolForRemainingTime(t *testing.T) {
 }
 
 // TestRecorderRetriesSegmentAfterStorageError は、録画の途中で新しいセグメントを作れなくても、録画を失敗にせず、
-// 作れるようになるまでやり直して続きを録り、途切れた区間を記録することを確かめる (#519)。
+// 作れるようになるまでやり直して続きを録り、途切れた区間を記録することを確認する (#519)。
 func TestRecorderRetriesSegmentAfterStorageError(t *testing.T) {
 	t.Parallel()
 
@@ -2453,7 +2453,7 @@ func TestRecorderRetriesSegmentAfterStorageError(t *testing.T) {
 }
 
 // TestRecorderRetriesSegmentOnResume は、続きを録る mikan が、最初のセグメントを作れなくても、前の mikan が録った分があれば、
-// 録画を失敗にせず、作れるようになるまでやり直すことを確かめる (#519)。
+// 録画を失敗にせず、作れるようになるまでやり直すことを確認する (#519)。
 func TestRecorderRetriesSegmentOnResume(t *testing.T) {
 	t.Parallel()
 
@@ -2491,7 +2491,7 @@ func TestRecorderRetriesSegmentOnResume(t *testing.T) {
 }
 
 // TestRecorderReleasesWhenUnableToRecord は、録画できない理由がこの mikan にあり、ほかに mikan が動いていれば、
-// 録画を失敗にせず、ErrRecorderUnavailable を返して割り振りを手放させることを確かめる (#524)。
+// 録画を失敗にせず、ErrRecorderUnavailable を返して割り振りを手放させることを確認する (#524)。
 // 理由は、ほかの mikan も録れなかったときのために、録画の行に残す。ほかに mikan がいなければ、今までどおり自分で扱う。
 func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 	t.Parallel()
@@ -2536,7 +2536,7 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 			_, done := f.session(t, recorder, reservationID)
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 			if tt.advance > 0 {
-				// つながらなくなった時刻を覚えてから、時計を進める。開こうとした合図は、つながらなかったと分かる前に出るので、
+				// つながらなくなった時刻を保存してから、時計を進める。開こうとした合図は、つながらなかったと分かる前に出るので、
 				// 2 回目に開こうとするまで待つ。
 				stream.wait(t)
 				stream.wait(t)
@@ -2553,8 +2553,8 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 	}
 }
 
-// TestRecorderFlushesLowBitrateStreams は、ビットレートが低くても、書き込みのバッファを一定の時間ごとに書き出し、
-// 録画ファイルの更新時刻を遅らせないことを確かめる (#525)。遅れると、落ちた mikan のものとみなして早すぎる時刻で閉じ、
+// TestRecorderFlushesLowBitrateStreams は、ビットレートが低くても、書き込みのバッファを一定の時間ごとにフラッシュし、
+// 録画ファイルの更新時刻を遅らせないことを確認する (#525)。遅れると、落ちた mikan のものとみなして早すぎる時刻で閉じ、
 // 実際にはない途切れを記録していた。
 func TestRecorderFlushesLowBitrateStreams(t *testing.T) {
 	t.Parallel()

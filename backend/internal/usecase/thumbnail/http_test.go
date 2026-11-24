@@ -51,7 +51,7 @@ func (f *jobFixture) addImages(t *testing.T, recordingID uuid.UUID) {
 	}
 }
 
-// response は、画像の要求に対する応答の、確かめる部分。
+// response は、画像の要求に対する応答の、確認する部分。
 type response struct {
 	status int
 	header http.Header
@@ -155,7 +155,7 @@ func TestImageHandler(t *testing.T) {
 			res := serveImage(t, tt.store, f, tt.path, nil)
 			assert.Equal(t, tt.wantStatus, res.status)
 			if tt.wantStatus != http.StatusOK {
-				// 「ない」という応答を、ブラウザにも前段のプロキシにも覚えさせない (#426)。ファイルを戻したら、すぐに出るようにする。
+				// 「ない」という応答を、ブラウザにも前段のプロキシにもキャッシュさせない (#426)。ファイルを戻したら、すぐに出るようにする。
 				assert.Equal(t, "no-store", res.header.Get("Cache-Control"))
 
 				return
@@ -168,7 +168,7 @@ func TestImageHandler(t *testing.T) {
 	}
 }
 
-// TestImageHandlerNotModified は、ブラウザが持っている画像が変わっていなければ、本文を返さないことを確かめる。
+// TestImageHandlerNotModified は、ブラウザが持っている画像が変わっていなければ、本文を返さないことを確認する。
 func TestImageHandlerNotModified(t *testing.T) {
 	t.Parallel()
 

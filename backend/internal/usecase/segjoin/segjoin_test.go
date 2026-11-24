@@ -56,7 +56,7 @@ type fixture struct {
 	store    *kago.Store
 	inserter *jobs.Client
 	original []byte
-	// segmentIDs は、recording で作ったセグメントのファイルの ID を、プール内の相対パスで引く。
+	// segmentIDs は、recording で作ったセグメントのファイルの ID を、プール内の相対パスで検索する。
 	segmentIDs map[string]uuid.UUID
 }
 
@@ -86,13 +86,13 @@ func newFixture(t *testing.T) *fixture {
 	}
 }
 
-// segment は、録画のセグメントの中身と、表す時間。
+// segment は、録画のセグメントの内容と、表す時間。
 type segment struct {
 	data       []byte
 	start, end time.Duration
 }
 
-// recording は、segments を持つ、完了した録画を作る。各セグメントには、生成物のディレクトリに索引の記録も作る。
+// recording は、segments を持つ、完了した録画を作る。各セグメントには、生成物のディレクトリにインデックスの記録も作る。
 func (f *fixture) recording(t *testing.T, segments []segment) (uuid.UUID, []string) {
 	t.Helper()
 
@@ -193,7 +193,7 @@ func TestJoin(t *testing.T) {
 		name string
 		// segments は、テストの TS からセグメントを作る。
 		segments func(original []byte) []segment
-		// want は、つないだファイルの中身。nil なら、つながずに分けたまま残す。
+		// want は、つないだファイルの内容。nil なら、つながずに分けたまま残す。
 		want func(original []byte) []byte
 	}{
 		{
@@ -251,7 +251,7 @@ func TestJoin(t *testing.T) {
 				return
 			}
 			want := tt.want(f.original)
-			// 記録は、最初のセグメントの 1 行だけになる。索引は作り直すので消える。
+			// 記録は、最初のセグメントの 1 行だけになる。インデックスは作り直すので消える。
 			assert.Equal(t, []string{"segment " + paths[0] + " " + strconv.Itoa(len(want))}, f.files(t, recordingID))
 			queued := f.jobs(t)
 			require.Contains(t, queued, kindFinalize)
@@ -264,7 +264,7 @@ func TestJoin(t *testing.T) {
 			// つないだ元のセグメントは、生成物のディレクトリごと消える。
 			assert.NoFileExists(t, filepath.Join(f.dir, paths[1]))
 			assert.NoDirExists(t, filepath.Join(f.dataRoot, f.segmentIDs[paths[1]].String()))
-			// 置き換えた最初のセグメントの索引は合わなくなるので消え、解析のジョブが作り直す。
+			// 置き換えた最初のセグメントのインデックスは合わなくなるので消え、解析のジョブが作り直す。
 			// 新しく録った録画なので、取り込んだ録画の解析 (優先度 4) の後ろで待たせない。
 			assert.NoFileExists(t, filepath.Join(f.dataRoot, kago.IndexLocation(f.segmentIDs[paths[0]]).Path))
 			assert.Contains(t, f.jobs(t), kindAnalyze)
@@ -383,7 +383,7 @@ func overlapping(o []byte) []segment {
 }
 
 // TestJoinKeepsJoinedFileWhenCommitIsAmbiguous は、コミットの結果があいまい (実際には確定したのに、エラーが返った) でも、
-// つないだファイルを消さず、後の置き換えで録画の後半を失わないことを確かめる (#514)。
+// つないだファイルを消さず、後の置き換えで録画の後半を失わないことを確認する (#514)。
 func TestJoinKeepsJoinedFileWhenCommitIsAmbiguous(t *testing.T) {
 	t.Parallel()
 
@@ -403,7 +403,7 @@ func TestJoinKeepsJoinedFileWhenCommitIsAmbiguous(t *testing.T) {
 	assert.True(t, bytes.Equal(f.original, got), "the joined file differs from the original stream")
 }
 
-// TestJoinCancelsWhenRecordingIsDeleted は、つないでいる間に録画が消されたら、つないだファイルを消して取りやめることを確かめる (#514)。
+// TestJoinCancelsWhenRecordingIsDeleted は、つないでいる間に録画が消されたら、つないだファイルを消して取りやめることを確認する (#514)。
 func TestJoinCancelsWhenRecordingIsDeleted(t *testing.T) {
 	t.Parallel()
 
@@ -422,7 +422,7 @@ func TestJoinCancelsWhenRecordingIsDeleted(t *testing.T) {
 	assert.NotContains(t, f.jobs(t), kindFinalize)
 }
 
-// TestFinalizeWaitsForUnmountedPool は、プールがマウントされていなければ、取りやめずに後でやり直すことを確かめる (#514)。
+// TestFinalizeWaitsForUnmountedPool は、プールがマウントされていなければ、取りやめずに後でやり直すことを確認する (#514)。
 func TestFinalizeWaitsForUnmountedPool(t *testing.T) {
 	t.Parallel()
 
@@ -443,7 +443,7 @@ func TestFinalizeWaitsForUnmountedPool(t *testing.T) {
 	assert.FileExists(t, filepath.Join(f.dir, paths[0]+".joining"))
 }
 
-// TestFinalizeCleansUpDeletedRecording は、つないだ後に録画が消されていたら、置き換えずに、つないだファイルと元のセグメントを消すことを確かめる (#514)。
+// TestFinalizeCleansUpDeletedRecording は、つないだ後に録画が消されていたら、置き換えずに、つないだファイルと元のセグメントを消すことを確認する (#514)。
 func TestFinalizeCleansUpDeletedRecording(t *testing.T) {
 	t.Parallel()
 
@@ -464,8 +464,8 @@ func TestFinalizeCleansUpDeletedRecording(t *testing.T) {
 	assert.NotContains(t, f.jobs(t), kindAnalyze)
 }
 
-// TestFinalizeWaitsForReaders は、録画のファイルをほかのジョブが読んでいる (録画ごとのロックを持っている) 間は、置き換えずに後でやり直すことを確かめる (#1719)。
-// 置き換えが終わるまでは、置き換えのジョブが残っていることを、ファイルを読むジョブに知らせる。
+// TestFinalizeWaitsForReaders は、録画のファイルをほかのジョブが読んでいる (録画ごとのロックを持っている) 間は、置き換えずに後でやり直すことを確認する (#1719)。
+// 置き換えが終わるまでは、置き換えのジョブが残っていることを、ファイルを読むジョブに通知する。
 func TestFinalizeWaitsForReaders(t *testing.T) {
 	t.Parallel()
 
@@ -496,7 +496,7 @@ func TestFinalizeWaitsForReaders(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(f.dir, paths[1]))
 }
 
-// TestJoinSnoozesWhileAnotherJoinRuns は、同じ録画をほかでつないでいる間は、つながずに後でやり直すことを確かめる (#515)。
+// TestJoinSnoozesWhileAnotherJoinRuns は、同じ録画をほかでつないでいる間は、つながずに後でやり直すことを確認する (#515)。
 // 時間の上限を超えたジョブが救出され、ほかの nekonote が同じ一時ファイルを開き直して壊さないようにする。
 func TestJoinSnoozesWhileAnotherJoinRuns(t *testing.T) {
 	t.Parallel()
@@ -522,7 +522,7 @@ func TestJoinSnoozesWhileAnotherJoinRuns(t *testing.T) {
 	assert.Contains(t, f.jobs(t), kindFinalize)
 }
 
-// TestJoinKeepsSplitWithoutRoom は、つないだファイルを書く空きがなければ、つながずに分けたまま残すことを確かめる (#515)。
+// TestJoinKeepsSplitWithoutRoom は、つないだファイルを書く空きがなければ、つながずに分けたまま残すことを確認する (#515)。
 // つないでいる間は全長分をもう 1 本使うので、容量の管理に古い録画を消させたり、並行する録画を失敗させたりしないようにする。
 func TestJoinKeepsSplitWithoutRoom(t *testing.T) {
 	t.Parallel()

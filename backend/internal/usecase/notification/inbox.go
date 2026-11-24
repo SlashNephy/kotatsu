@@ -49,7 +49,7 @@ func (b *Inbox) MarkAllRead(ctx context.Context, db Database, userID uuid.UUID) 
 	})
 }
 
-// SetPreference は、ユーザーのイベントの種類 kind の通知設定を変え、同じユーザーのほかの端末に、設定が変わったことを知らせる。
+// SetPreference は、ユーザーのイベントの種類 kind の通知設定を変え、同じユーザーのほかの端末に、設定が変わったことを通知する。
 func (b *Inbox) SetPreference(ctx context.Context, db Database, userID uuid.UUID, preference *domain.NotificationPreference) error {
 	if _, err := domain.ParseNotificationKind(string(preference.Kind)); err != nil {
 		return err

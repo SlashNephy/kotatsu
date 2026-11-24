@@ -1,7 +1,7 @@
 // Package webpush は、PWA から購読した端末に、Web Push で通知を送る (設計書 6.2)。
 //
-// 本文は、購読したブラウザの鍵で暗号化し (RFC 8291)、送り手は VAPID の鍵で示す (RFC 8292)。
-// VAPID の鍵は、初めて使うときに作り、秘密鍵はアプリの秘密キーで暗号化して保存する (設計書 8.4)。
+// 本文は、購読したブラウザの公開鍵で暗号化し (RFC 8291)、送り手は VAPID の公開鍵と秘密鍵で示す (RFC 8292)。
+// VAPID の公開鍵と秘密鍵は、初めて使うときに作り、秘密鍵はアプリの秘密キーで暗号化して保存する (設計書 8.4)。
 package webpush
 
 import (
@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	// SealPurpose は、VAPID の秘密鍵を暗号化する鍵の用途。
+	// SealPurpose は、VAPID の秘密鍵を暗号化する暗号鍵の用途。
 	SealPurpose = "kotatsu/vapid/v1"
 	// maxEndpointLength は、購読の送り先の URL の長さの上限。
 	maxEndpointLength = 2048
@@ -33,7 +33,7 @@ const (
 	maxUserAgentLength = 512
 )
 
-// ErrInvalidSubscription は、購読の送り先か鍵が正しくないことを表す。
+// ErrInvalidSubscription は、購読の送り先、公開鍵、認証用の秘密のいずれかが正しくないことを表す。
 var ErrInvalidSubscription = errors.New("invalid web push subscription")
 
 // Subscription は、ブラウザの PushSubscription。
@@ -51,7 +51,7 @@ type Subscription struct {
 	UpdatedAt time.Time
 }
 
-// Service は、VAPID の鍵と、ユーザーの購読を扱う。
+// Service は、VAPID の公開鍵と秘密鍵と、ユーザーの購読を扱う。
 type Service struct {
 	clock clock.Clock
 	box   *secretbox.Box
@@ -70,8 +70,8 @@ func NewService(clk clock.Clock, appSecret string) (*Service, error) {
 	return &Service{clock: clk, box: box, mu: sync.Mutex{}, keys: nil}, nil
 }
 
-// Keys は、VAPID の鍵を返す。まだなければ作って保存する。
-// 複数のインスタンスが同時に作っても、先に保存した鍵を皆が使う。鍵は変わらないので、一度読んだら覚えておく。
+// Keys は、VAPID の公開鍵と秘密鍵を返す。まだなければ作って保存する。
+// 複数のインスタンスが同時に作っても、先に保存した公開鍵と秘密鍵を皆が使う。これらは変わらないので、一度読んだらキャッシュしておく。
 func (s *Service) Keys(ctx context.Context, db sqlc.DBTX) (*Keys, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -148,7 +148,7 @@ func (s *Service) List(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) ([]*
 	return subscriptions, nil
 }
 
-// LogSecrets は、ログの報告から伏せる値として、全ユーザーの購読の送り先 (URL の全体) と、認証の秘密を返す (#1521)。
+// LogSecrets は、ログの報告からマスクする値として、全ユーザーの購読の送り先 (URL の全体) と、認証の秘密を返す (#1521)。
 func (s *Service) LogSecrets(ctx context.Context, db sqlc.DBTX) ([]string, error) {
 	rows, err := sqlc.New(db).ListWebPushSecrets(ctx)
 	if err != nil {

@@ -95,8 +95,8 @@ func (s *Server) ProtectedResourceMetadataHandler(logger *slog.Logger) http.Hand
 }
 
 // AuthorizeHandler は、認可のエンドポイント (GET /oauth/authorize) のハンドラーを返す。
-// ここでは何も確かめず、クエリをそのまま付けて、同意の画面へ送る。ログインしていなければ、画面がログインさせてから同意を求める。
-// クエリを確かめ、クライアントのメタデータを取るのは、ログインした後の GraphQL (Prepare) で行う。
+// ここでは何も確認せず、クエリをそのまま付けて、同意の画面へ送る。ログインしていなければ、画面がログインさせてから同意を求める。
+// クエリを確認し、クライアントのメタデータを取るのは、ログインした後の GraphQL (Prepare) で行う。
 func (s *Server) AuthorizeHandler(logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !s.serveEnabled(w, r, logger) {

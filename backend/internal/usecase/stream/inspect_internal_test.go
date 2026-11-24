@@ -55,7 +55,7 @@ func (c *closingReader) Close() error {
 	return nil
 }
 
-// TestChannelInspector は、チャンネルの TS を、サービスごとの構成とビットレートにまとめることを確かめる (#830)。
+// TestChannelInspector は、チャンネルの TS を、サービスごとの構成とビットレートにまとめることを確認する (#830)。
 func TestChannelInspector(t *testing.T) {
 	t.Parallel()
 
@@ -82,7 +82,7 @@ func TestChannelInspector(t *testing.T) {
 	assert.GreaterOrEqual(t, got.TotalBPS, got.Programs[0].BPS)
 }
 
-// TestChannelInspectorInterrupted は、調べる長さより前にストリームが終わったら、欠けた結果を返さないことを確かめる。
+// TestChannelInspectorInterrupted は、調査する長さより前にストリームが終わったら、欠けた結果を返さないことを確認する。
 func TestChannelInspectorInterrupted(t *testing.T) {
 	t.Parallel()
 

@@ -34,11 +34,11 @@ type MP4Info struct {
 type Chapterer interface {
 	// Probe は、in の MP4 の時刻を読む。
 	Probe(ctx context.Context, in string) (*MP4Info, error)
-	// Rewrite は、in の MP4 を、ffmetadata 形式のファイル metadata のチャプターに替えて、out に写す。metadata が空なら、チャプターを外す。
+	// Rewrite は、in の MP4 を、ffmetadata 形式のファイル metadata のチャプターに替えて、out にコピーする。metadata が空なら、チャプターを外す。
 	Rewrite(ctx context.Context, in, metadata, out string) error
 }
 
-// FFmpegChapterer は、FFmpeg で、変換した MP4 を再エンコードせずに写し直し、チャプターを書く。
+// FFmpegChapterer は、FFmpeg で、変換した MP4 を再エンコードせずにコピーし直し、チャプターを書く。
 // 録画の後処理なので、OS の最低の優先度で動かし、ライブ視聴の変換 (kyusu) に CPU を譲る (#1511)。
 type FFmpegChapterer struct {
 	lowerer *procprio.Lowerer
@@ -97,10 +97,10 @@ func (c *FFmpegChapterer) Probe(ctx context.Context, in string) (*MP4Info, error
 	return &MP4Info{VideoStart: start, Duration: duration, Chapters: len(out.Chapters)}, nil
 }
 
-// Rewrite は、MP4 を再エンコードせずに写し直す。MP4 は、変換したときと同じく、索引を先頭に置き直す (faststart)。
+// Rewrite は、MP4 を再エンコードせずにコピーし直す。MP4 は、変換したときと同じく、インデックスを先頭に置き直す (faststart)。
 //
 // MP4 のチャプターは、FFmpeg が読むと、チャプターとは別に、データのストリーム (QuickTime のチャプタートラック) としても見える。
-// -map 0 だけで写すと、前に書いたチャプタートラックがデータのストリームとして残り、書き直すたびに増え、外しても残るので、
+// -map 0 だけでコピーすると、前に書いたチャプタートラックがデータのストリームとして残り、書き直すたびに増え、外しても残るので、
 // データのストリームを除く (-map -0:d?)。変換した MP4 は、映像と音声だけを持つ (FFmpegArgs) ので、ほかに除くものはない。
 func (c *FFmpegChapterer) Rewrite(ctx context.Context, in, metadata, out string) error {
 	var cmd *exec.Cmd

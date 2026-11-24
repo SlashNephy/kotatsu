@@ -14,7 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
-// skippedProgram は、ルールに一致したが、重複の回避か、同じ回を束ねたか、前の回を録らない設定で予約しなかった番組。
+// skippedProgram は、ルールに一致したが、重複の回避か、同じ回をまとめたか、前の回を録らない設定で予約しなかった番組。
 type skippedProgram struct {
 	row    sqlc.ListMatchableProgramsRow
 	rules  []*compiledRule
@@ -25,7 +25,7 @@ type skippedProgram struct {
 	recorded *recordedEpisode
 	// instead は、同じ回を別の放送で録るときの、その放送。
 	instead *programKey
-	// laterEpisode は、前の回として外したときの、比べた相手の一番大きい話数。ほかの理由では 0。
+	// laterEpisode は、前の回として外したときの、比較した相手の一番大きい話数。ほかの理由では 0。
 	laterEpisode int
 }
 
@@ -68,7 +68,7 @@ type SkippedRule struct {
 	Name string
 }
 
-// FindSkippedDuplicates は、照合と同じ計算で、重複の回避と同じ回の束ねで予約しなかった番組を、放送の早い順に返す。DB には書かない。
+// FindSkippedDuplicates は、照合と同じ計算で、重複の回避と同じ回のまとめで予約しなかった番組を、放送の早い順に返す。DB には書かない。
 // すでに予約のある番組 (利用者が手動で予約したものなど) は返さない。
 func FindSkippedDuplicates(ctx context.Context, db Beginner, clk clock.Clock, location *time.Location) ([]*SkippedDuplicate, error) {
 	e := &Engine{pool: nil, clock: clk, location: location, guard: nil, reservations: nil}

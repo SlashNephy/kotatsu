@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	// DispatchInterval は、配っていないイベントを配る間隔 (付録 A)。
+	// DispatchInterval は、配信していないイベントを配信する間隔 (付録 A)。
 	DispatchInterval = 10 * time.Second
-	// dispatchBatchSize は、1 つのトランザクションで配るイベントの数の上限。
+	// dispatchBatchSize は、1 つのトランザクションで配信するイベントの数の上限。
 	dispatchBatchSize = 100
 )
 
@@ -36,26 +36,26 @@ type Event struct {
 	Audience Audience
 }
 
-// Hook は、イベントを配るトランザクションの中で、イベントごとに呼ぶ処理。Webhook の配信のジョブの投入などに使う。
+// Hook は、イベントを配信するトランザクションの中で、イベントごとに呼ぶ処理。Webhook の配信のジョブの投入などに使う。
 // 画面内の通知を受け取るユーザーがいなくても呼ぶ。外部への送信は、ここでは行わず、ジョブに任せる。
 type Hook interface {
 	OnEvent(ctx context.Context, tx pgx.Tx, event *Event) error
 }
 
-// Dispatcher は、配っていないイベントを、受け取るユーザーごとの画面内の通知に配る。
-// 複数の nekonote が同時に動いても、行のロックを飛ばすので、同じイベントを二度配らない。
+// Dispatcher は、配信していないイベントを、受け取るユーザーごとの画面内の通知に配信する。
+// 複数の nekonote が同時に動いても、行のロックを飛ばすので、同じイベントを二度配信しない。
 type Dispatcher struct {
 	pool  *pgxpool.Pool
 	clock clock.Clock
 	hooks []Hook
 }
 
-// NewDispatcher は Dispatcher を返す。hooks は、イベントごとに、配るトランザクションの中で呼ぶ。
+// NewDispatcher は Dispatcher を返す。hooks は、イベントごとに、配信するトランザクションの中で呼ぶ。
 func NewDispatcher(pool *pgxpool.Pool, clk clock.Clock, hooks ...Hook) *Dispatcher {
 	return &Dispatcher{pool: pool, clock: clk, hooks: hooks}
 }
 
-// DispatchOnce は、配っていないイベントがなくなるまで配り、配ったイベントの数を返す。
+// DispatchOnce は、配信していないイベントがなくなるまで配信し、配信したイベントの数を返す。
 func (d *Dispatcher) DispatchOnce(ctx context.Context) (int, error) {
 	total := 0
 	for {
@@ -84,7 +84,7 @@ func (d *Dispatcher) dispatchBatch(ctx context.Context) (int, error) {
 				return err
 			}
 		}
-		// 画面内の通知が増えたことを、subscription を配信する tenban に知らせる。
+		// 画面内の通知が増えたことを、subscription を配信する tenban に通知する。
 		if len(events) > 0 {
 			if _, err := notify.Publish(ctx, tx, d.clock, NotifyChannel); err != nil {
 				return fmt.Errorf("failed to publish the notification change: %w", err)
@@ -101,7 +101,7 @@ func (d *Dispatcher) dispatchBatch(ctx context.Context) (int, error) {
 	return dispatched, nil
 }
 
-// dispatchEvent は、1 つのイベントを、受け取るユーザーの通知にし、フックを呼び、配ったことを記録する。
+// dispatchEvent は、1 つのイベントを、受け取るユーザーの通知にし、フックを呼び、配信したことを記録する。
 // 受け取るユーザーは、種類ごとの設定と、イベントの絞り込み (Audience) で決まる。
 func (d *Dispatcher) dispatchEvent(ctx context.Context, tx pgx.Tx, row *sqlc.NotificationEvent, now time.Time) error {
 	q := sqlc.New(tx)
@@ -151,14 +151,14 @@ func eventOf(row *sqlc.NotificationEvent) (*Event, error) {
 	}, nil
 }
 
-// DispatchArgs は、配っていないイベントを配るジョブの引数。
+// DispatchArgs は、配信していないイベントを配信するジョブの引数。
 type DispatchArgs struct{}
 
 var _ river.JobArgs = new(DispatchArgs)
 
 func (DispatchArgs) Kind() string { return "notification_dispatch" }
 
-// DispatchWorker は、配っていないイベントを配るジョブを実行する。
+// DispatchWorker は、配信していないイベントを配信するジョブを実行する。
 type DispatchWorker struct {
 	river.WorkerDefaults[DispatchArgs]
 
@@ -184,7 +184,7 @@ func (w *DispatchWorker) Work(ctx context.Context, _ *river.Job[DispatchArgs]) e
 	return nil
 }
 
-// DispatchPeriodicJob は、配っていないイベントを DispatchInterval ごとに配る定期ジョブを返す。
+// DispatchPeriodicJob は、配信していないイベントを DispatchInterval ごとに配信する定期ジョブを返す。
 func DispatchPeriodicJob() *river.PeriodicJob {
 	return river.NewPeriodicJob(
 		river.PeriodicInterval(DispatchInterval),

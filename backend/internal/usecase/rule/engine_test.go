@@ -187,7 +187,7 @@ func TestEngineIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestEngineFollowsEventRelaySettingOfRules は、ルール予約のイベントリレーへの追従を、一致したルールに合わせることを確かめる。
+// TestEngineFollowsEventRelaySettingOfRules は、ルール予約のイベントリレーへの追従を、一致したルールに合わせることを確認する。
 func TestEngineFollowsEventRelaySettingOfRules(t *testing.T) {
 	t.Parallel()
 
@@ -212,7 +212,7 @@ func unmatchedInput(r *rule.Rule) *rule.Input {
 }
 
 // TestEngineDeletesReservationsThatNoLongerMatch は、どのルールにも一致しなくなった録画前の予約を消し、
-// 放送が始まった予約は残すことを確かめる。
+// 放送が始まった予約は残すことを確認する。
 func TestEngineDeletesReservationsThatNoLongerMatch(t *testing.T) {
 	t.Parallel()
 
@@ -230,7 +230,7 @@ func TestEngineDeletesReservationsThatNoLongerMatch(t *testing.T) {
 	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
 }
 
-// TestEngineKeepsReservationsWhoseRecordingStarted は、放送の前でも、録画が始まった予約は、ルールに一致しなくなっても消さないことを確かめる (#304)。
+// TestEngineKeepsReservationsWhoseRecordingStarted は、放送の前でも、録画が始まった予約は、ルールに一致しなくなっても消さないことを確認する (#304)。
 // 録画は、放送の開始マージンとチューニングの時間だけ前に始まる。
 func TestEngineKeepsReservationsWhoseRecordingStarted(t *testing.T) {
 	t.Parallel()
@@ -257,7 +257,7 @@ func TestEngineKeepsReservationsWhoseRecordingStarted(t *testing.T) {
 	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
 }
 
-// TestEngineKeepsRecordingReservationsOfDeletedRules は、ルールを消しても、そのルールで録画中の予約は消さず、録画を最後まで録らせることを確かめる (#471)。
+// TestEngineKeepsRecordingReservationsOfDeletedRules は、ルールを消しても、そのルールで録画中の予約は消さず、録画を最後まで録らせることを確認する (#471)。
 func TestEngineKeepsRecordingReservationsOfDeletedRules(t *testing.T) {
 	t.Parallel()
 
@@ -279,7 +279,7 @@ func TestEngineKeepsRecordingReservationsOfDeletedRules(t *testing.T) {
 }
 
 // TestManualReservationOverridesRuleReservation は、ルール予約がある番組を手動で予約すると、手動の番組予約に切り替わり、
-// 手動の設定が残ることと、ルールに一致しなくなっても消えないことを確かめる (設計書 4.1、#306)。
+// 手動の設定が残ることと、ルールに一致しなくなっても消えないことを確認する (設計書 4.1、#306)。
 func TestManualReservationOverridesRuleReservation(t *testing.T) {
 	t.Parallel()
 
@@ -329,7 +329,7 @@ func TestManualReservationOverridesRuleReservation(t *testing.T) {
 	}
 }
 
-// TestEngineDoesNotRecreateDisabledReservations は、ユーザーが削除したルール予約を無効にして残し、次の照合で作り直さないことを確かめる。
+// TestEngineDoesNotRecreateDisabledReservations は、ユーザーが削除したルール予約を無効にして残し、次の照合で作り直さないことを確認する。
 func TestEngineDoesNotRecreateDisabledReservations(t *testing.T) {
 	t.Parallel()
 
@@ -364,7 +364,7 @@ func TestEngineIgnoresProgramsWithUndecidedEnd(t *testing.T) {
 	assert.Empty(t, f.reserved(t))
 }
 
-// TestEngineAvoidsDuplicates は、同じ番組名を期間内に録画済みなら予約しないことを確かめる (設計書 4.4)。
+// TestEngineAvoidsDuplicates は、同じ番組名を期間内に録画済みなら予約しないことを確認する (設計書 4.4)。
 func TestEngineAvoidsDuplicates(t *testing.T) {
 	t.Parallel()
 
@@ -402,7 +402,7 @@ func TestEngineAvoidsDuplicates(t *testing.T) {
 }
 
 // TestEngineKeepsOneReservationForMultipleRules は、複数のルールに一致した番組の予約を 1 件にまとめ、
-// 一致したルールを reservation_rules に残すことを確かめる。手動の予約は、手動のまま関係だけを持つ。
+// 一致したルールを reservation_rules に残すことを確認する。手動の予約は、手動のまま関係だけを持つ。
 func TestEngineKeepsOneReservationForMultipleRules(t *testing.T) {
 	t.Parallel()
 
@@ -448,7 +448,7 @@ func sharedEvent(serviceID, otherServiceID int) *faketuner.Program {
 	}
 }
 
-// TestEnginePicksOneOfSharedEvents は、同じイベントを複数のサービスで放送している番組が一致したとき、1 つだけを予約することを確かめる。
+// TestEnginePicksOneOfSharedEvents は、同じイベントを複数のサービスで放送している番組が一致したとき、1 つだけを予約することを確認する。
 func TestEnginePicksOneOfSharedEvents(t *testing.T) {
 	t.Parallel()
 
@@ -466,7 +466,7 @@ func TestEnginePicksOneOfSharedEvents(t *testing.T) {
 	assert.Equal(t, []int64{serviceID()}, serviceIDs)
 }
 
-// TestEngineMatchesProgramsInParallel は、番組を並べて照合しても (#878)、どの番組も落とさず、一致したルールをすべて残すことを確かめる。
+// TestEngineMatchesProgramsInParallel は、番組を並べて照合しても (#878)、どの番組も落とさず、一致したルールをすべて残すことを確認する。
 // 番組の数は、照合を並べる数 (GOMAXPROCS) より多くする。
 func TestEngineMatchesProgramsInParallel(t *testing.T) {
 	t.Parallel()
@@ -491,7 +491,7 @@ func TestEngineMatchesProgramsInParallel(t *testing.T) {
 	assert.Equal(t, 2*programs, result.Linked)
 }
 
-// TestEngineFailsOnUnreadablePrograms は、番組を並べて照合する途中で読めない番組があれば、照合を失敗にし、予約を作らないことを確かめる。
+// TestEngineFailsOnUnreadablePrograms は、番組を並べて照合する途中で読めない番組があれば、照合を失敗にし、予約を作らないことを確認する。
 func TestEngineFailsOnUnreadablePrograms(t *testing.T) {
 	t.Parallel()
 
@@ -506,7 +506,7 @@ func TestEngineFailsOnUnreadablePrograms(t *testing.T) {
 }
 
 // TestEngineExcludesSharedEventsOfExcludedServices は、除外するサービスと同じイベントを流しているサービスの番組を、
-// 除外するサービスがイベント共有の元のときだけ除くことを確かめる (#899)。
+// 除外するサービスがイベント共有の元のときだけ除くことを確認する (#899)。
 func TestEngineExcludesSharedEventsOfExcludedServices(t *testing.T) {
 	t.Parallel()
 
@@ -539,7 +539,7 @@ func TestEngineExcludesSharedEventsOfExcludedServices(t *testing.T) {
 }
 
 // TestEngineKeepsReservationsWhileProgramIsUncertain は、番組の終了時刻が未定になったときや、番組が EPG から消えたときに、
-// ルール予約を消さないことを確かめる (#518)。どちらも一時的なことがあり、消すと録り逃す。
+// ルール予約を消さないことを確認する (#518)。どちらも一時的なことがあり、消すと録り逃す。
 func TestEngineKeepsReservationsWhileProgramIsUncertain(t *testing.T) {
 	t.Parallel()
 
@@ -581,7 +581,7 @@ func TestEngineKeepsReservationsWhileProgramIsUncertain(t *testing.T) {
 }
 
 // TestEngineRechecksReservationsOfVanishedPrograms は、番組が EPG から消えたルール予約を、予約に残した番組の情報で
-// ルールに照合し直し、外れていれば消すことを確かめる。番組が消えても予約は残すが (#518)、人がルールを書き換えて外した予約まで
+// ルールに照合し直し、外れていれば消すことを確認する。番組が消えても予約は残すが (#518)、人がルールを書き換えて外した予約まで
 // 残すと、外したはずの番組を録るからである。
 func TestEngineRechecksReservationsOfVanishedPrograms(t *testing.T) {
 	t.Parallel()
@@ -672,7 +672,7 @@ func ruleInput(r *rule.Rule) *rule.Input {
 }
 
 // TestEngineKeepsDisabledReservationsOfExistingRules は、ユーザーが無効にしたルール予約を、ルールがある間は、
-// 一時的にルールに一致しなくなっても消さないことを確かめる (#518)。消すと、また一致したときに、有効な予約として作り直してしまう。
+// 一時的にルールに一致しなくなっても消さないことを確認する (#518)。消すと、また一致したときに、有効な予約として作り直してしまう。
 func TestEngineKeepsDisabledReservationsOfExistingRules(t *testing.T) {
 	t.Parallel()
 
@@ -698,7 +698,7 @@ func TestEngineKeepsDisabledReservationsOfExistingRules(t *testing.T) {
 	assert.Equal(t, map[int64]bool{5: false}, f.reserved(t))
 }
 
-// TestEngineDeletesUncertainReservationsOfDeletedRules は、番組の終了時刻が未定でも、ルールを消したら、そのルール予約を消すことを確かめる。
+// TestEngineDeletesUncertainReservationsOfDeletedRules は、番組の終了時刻が未定でも、ルールを消したら、そのルール予約を消すことを確認する。
 // 残すと、消したルールの予約で録画してしまう。
 func TestEngineDeletesUncertainReservationsOfDeletedRules(t *testing.T) {
 	t.Parallel()
@@ -717,7 +717,7 @@ func TestEngineDeletesUncertainReservationsOfDeletedRules(t *testing.T) {
 }
 
 // TestEngineSkipsUnreadableRules は、条件を読めないルールがあっても、ほかのルールの照合を続け、読めないルールの予約は
-// 消さずに残すことを確かめる (#529)。ローリング更新の途中で、新しい版が足した条件を古い版が読めなくても、照合が止まらないようにする。
+// 消さずに残すことを確認する (#529)。ローリング更新の途中で、新しいバージョンが足した条件を古いバージョンが読めなくても、照合が止まらないようにする。
 func TestEngineSkipsUnreadableRules(t *testing.T) {
 	t.Parallel()
 
@@ -727,7 +727,7 @@ func TestEngineSkipsUnreadableRules(t *testing.T) {
 		update string
 	}{
 		{
-			// 新しい版が、古い版の知らない条件を書いた。
+			// 新しいバージョンが、古いバージョンの知らない条件を書いた。
 			name:   "unknown condition",
 			update: `UPDATE rules SET conditions = '{"version": 1, "conditions": {"unknownField": true}}' WHERE id = $1`,
 		},
@@ -762,8 +762,8 @@ func TestEngineSkipsUnreadableRules(t *testing.T) {
 	}
 }
 
-// TestEngineMatchesNormalizedExtended は、詳細を、同期で正規化して持った列で照合することを確かめる (#530)。
-// 列を足す前に書いた番組 (NULL) は、上流の詳細から正規化し直して照合する。
+// TestEngineMatchesNormalizedExtended は、詳細を、同期で正規化して持ったカラムで照合することを確認する (#530)。
+// カラムを足す前に書いた番組 (NULL) は、上流の詳細から正規化し直して照合する。
 func TestEngineMatchesNormalizedExtended(t *testing.T) {
 	t.Parallel()
 
@@ -799,7 +799,7 @@ func TestEngineMatchesNormalizedExtended(t *testing.T) {
 	}
 }
 
-// TestEngineMatchesMarksFromRawName は、囲み文字を、正規化する前の番組名から取り出して照合することを確かめる。
+// TestEngineMatchesMarksFromRawName は、囲み文字を、正規化する前の番組名から取り出して照合することを確認する。
 // 囲み文字を括弧の書き方にする前に正規化した番組名では、🈟 が「新」になり、番組名の文字と見分けられない。
 func TestEngineMatchesMarksFromRawName(t *testing.T) {
 	t.Parallel()
@@ -821,7 +821,7 @@ func TestEngineMatchesMarksFromRawName(t *testing.T) {
 }
 
 // TestEngineDeletesUnmatchedReservationsBeforeBroadcast は、ルールを書き換えて外れた予約を、放送の直前でも消し、
-// 条件に戻れば作り直すことを確かめる。人が書き換えて外した予約を残すと、外したはずの番組を録るからである。
+// 条件に戻れば作り直すことを確認する。人が書き換えて外した予約を残すと、外したはずの番組を録るからである。
 func TestEngineDeletesUnmatchedReservationsBeforeBroadcast(t *testing.T) {
 	t.Parallel()
 
@@ -847,7 +847,7 @@ func TestEngineDeletesUnmatchedReservationsBeforeBroadcast(t *testing.T) {
 }
 
 // TestEngineDeletesReservationsOfStoppedRules は、人がルールを消したか無効にしたら、放送の直前でも、
-// 番組名が空でも、そのルールの予約を消すことを確かめる。
+// 番組名が空でも、そのルールの予約を消すことを確認する。
 func TestEngineDeletesReservationsOfStoppedRules(t *testing.T) {
 	t.Parallel()
 
@@ -887,7 +887,7 @@ func TestEngineDeletesReservationsOfStoppedRules(t *testing.T) {
 }
 
 // TestEngineDeletesReservationsOfUnnamedPrograms は、番組表にある番組の名前が空になってルールから外れたら、予約を消し、
-// 番組名が入って条件に戻れば作り直すことを確かめる。名前が空の番組は、ほかの番組と同じく、条件で決める。
+// 番組名が入って条件に戻れば作り直すことを確認する。名前が空の番組は、ほかの番組と同じく、条件で決める。
 func TestEngineDeletesReservationsOfUnnamedPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -910,7 +910,7 @@ func TestEngineDeletesReservationsOfUnnamedPrograms(t *testing.T) {
 }
 
 // TestEngineDeletesDuplicateReservations は、予約した後に同じ番組名を録り終え、重複の回避で外れた予約を、
-// 放送の直前でも消すことを確かめる。
+// 放送の直前でも消すことを確認する。
 func TestEngineDeletesDuplicateReservations(t *testing.T) {
 	t.Parallel()
 
@@ -931,7 +931,7 @@ func TestEngineDeletesDuplicateReservations(t *testing.T) {
 }
 
 // TestEngineSkipsUnconditionedRules は、番組を選ぶ条件のないルール (更新の前に保存した、時間帯と曜日だけのルール) を照合で当てず、
-// そのルールで作り済みの予約は消さずに残すことを確かめる (#1501)。当てると、その時間の全局を録ってディスクを埋める。
+// そのルールで作り済みの予約は消さずに残すことを確認する (#1501)。当てると、その時間の全局を録ってディスクを埋める。
 func TestEngineSkipsUnconditionedRules(t *testing.T) {
 	t.Parallel()
 
@@ -965,7 +965,7 @@ func resentProgram(serviceID, eventID int, offset time.Duration) *faketuner.Prog
 }
 
 // TestEngineDoesNotReserveCancelledBroadcasts は、人が取り消した予約と同じ放送が、別のイベント ID で送り直されても、
-// 予約し直さないことを確かめる (#1504)。同じ放送とは、物理チャンネルが同じで、番組名が一致し、開始の差が許容幅の内の番組である。
+// 予約し直さないことを確認する (#1504)。同じ放送とは、物理チャンネルが同じで、番組名が一致し、開始の差が許容幅の内の番組である。
 func TestEngineDoesNotReserveCancelledBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -1020,7 +1020,7 @@ func slotProgram(eventID int, name string, offset time.Duration) *faketuner.Prog
 }
 
 // TestEngineDeletesReservationsOfReplacedPrograms は、局が番組を別のイベント ID で出し直して差し替えたら、EPG から消えた古い番組の
-// ルール予約を消し、同じ放送を 2 本録らないことを確かめる (#1875)。差し替え先が無いときは、一時的に消えただけかもしれないので残す (#518)。
+// ルール予約を消し、同じ放送を 2 本録らないことを確認する (#1875)。差し替え先が無いときは、一時的に消えただけかもしれないので残す (#518)。
 func TestEngineDeletesReservationsOfReplacedPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -1134,7 +1134,7 @@ func resized(p *faketuner.Program, duration time.Duration) *faketuner.Program {
 }
 
 // TestEngineSkipsSlotsOfReplacedManualReservations は、局が番組を別のイベント ID で出し直して差し替えたとき、EPG から消えた古い番組の
-// 手動の予約の時刻 (マージンを含めない) に収まる番組には、ルール予約を作らず、同じ放送を 2 本録らないことを確かめる (#1903)。
+// 手動の予約の時刻 (マージンを含めない) に収まる番組には、ルール予約を作らず、同じ放送を 2 本録らないことを確認する (#1903)。
 // はみ出す番組は、手動の予約では録り逃すので、ルール予約を作る。手動の予約は、手動を優先して消さない。
 func TestEngineSkipsSlotsOfReplacedManualReservations(t *testing.T) {
 	t.Parallel()

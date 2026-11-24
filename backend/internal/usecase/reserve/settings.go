@@ -61,7 +61,7 @@ func ParseFileNameTemplate(text string) (*template.Template, error) {
 	return tmpl, nil
 }
 
-// ValidateOverrides は、上書きの値が正しいかを確かめる。プールが設定にあるかどうかは、設定を持つ API の層で確かめる。
+// ValidateOverrides は、上書きの値が正しいかを確認する。プールが設定にあるかどうかは、設定を持つ API の層で確認する。
 func ValidateOverrides(o *domain.RecordingOverrides) error {
 	if o == nil {
 		return nil
@@ -94,7 +94,7 @@ func ValidateOverrides(o *domain.RecordingOverrides) error {
 	return errors.Join(errs...)
 }
 
-// validateAfterRecording は、録画を終えた後の処理 (変換と CM の区間の見分け方) の上書きの値が、選べるもののどれかかを確かめる。
+// validateAfterRecording は、録画を終えた後の処理 (変換と CM の区間の見分け方) の上書きの値が、選べるもののどれかかを確認する。
 func validateAfterRecording(o *domain.RecordingOverrides) []error {
 	errs := []error{}
 	if o.TranscodePreset != nil && *o.TranscodePreset != "" && !slices.Contains(domain.TranscodePresets(), *o.TranscodePreset) {
