@@ -653,25 +653,18 @@ jobs:
           # PR では、main とのマージコミットを取り出すので、1 つ前の親 (main) との差分が PR の変更になる。
           fetch-depth: 2
           persist-credentials: false
-      - id: yomiyasu
-        # commit が空だと、checkout は既定のブランチを取り出すので、40 桁の commit でなければ止める
-        run: |
+      # 取り出すのは scripts/yomiyasu.SOURCE に固定した commit だけ。commit が 40 桁でなければ止める。
+      # actions/checkout に動的な ref を渡さず、git fetch で commit を指して取る (CodeQL の actions/untrusted-checkout)。
+      - run: |
           commit=$(sed -n 's/^commit=//p' scripts/yomiyasu.SOURCE)
           if ! printf '%s' "$commit" | grep -Eqx '[0-9a-f]{40}'; then
             echo "::error file=scripts/yomiyasu.SOURCE::commit must be a 40-character SHA"
             exit 1
           fi
-          echo "commit=$commit" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v7.0.1
-        with:
-          repository: nanaism/yomiyasu
-          ref: ${{ steps.yomiyasu.outputs.commit }}
-          # 作業フォルダの中にしか取り出せない。PR の差分はコミットの間で取るので、取り出したファイルは数えない。
-          path: .yomiyasu-lint
-          persist-credentials: false
-      - env:
-          YOMIYASU: .yomiyasu-lint/skills/yomiyasu
-        run: python3 scripts/check-words.py "$YOMIYASU" HEAD^1
+          git init -q "$RUNNER_TEMP/yomiyasu"
+          git -C "$RUNNER_TEMP/yomiyasu" fetch -q --depth 1 https://github.com/nanaism/yomiyasu.git "$commit"
+          git -C "$RUNNER_TEMP/yomiyasu" checkout -q --detach FETCH_HEAD
+          python3 scripts/check-words.py "$RUNNER_TEMP/yomiyasu/skills/yomiyasu" HEAD^1
 
   # workflow が使う actions が、.github/workflows/actions.lock に固定した commit と合っているかを確認する (#790)。
   # actions は、uses: にタグで書き、commit はロックファイルで固定する。Renovate が actions を上げるときに、ロックファイルも作り直す。
