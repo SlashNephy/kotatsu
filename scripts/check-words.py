@@ -3,8 +3,8 @@
 
 使い方: scripts/check-words.py <yomiyasu のスキルのフォルダ> <比較の元のコミット>
 
-比較の元のコミットからの差分で、足した行と書き換えた行だけを見る。一覧の語に当たる行があれば、
-GitHub Actions の注釈の形で出して、終了コード 1 で終わる。
+比較の元のコミットから HEAD までの差分で、足した行と書き換えた行だけを見る。コミットしていない変更は見ない。
+一覧の語に当たる行があれば、GitHub Actions の注釈の形で出して、終了コード 1 で終わる。
 
 yomiyasu の lint は Markdown として読むので、字下げした行 (コードブロック)、< で始まる行 (HTML のブロック)、
 ``` (コードの囲み) を含む行の後ろを読み飛ばす。そのため、各行の行頭の空白を除き、行頭に "x " を足し、
@@ -32,21 +32,39 @@ HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 
 def added_lines(base: str) -> dict[str, set[int]]:
-    """base から作業ツリーの HEAD までで、足した行と書き換えた行の番号をファイルごとに返す。"""
+    """base から HEAD までで、足した行と書き換えた行の番号をファイルごとに返す。"""
+    # 手元の git の設定 (パスの引用、接頭辞、外部の diff) で、差分の形が変わらないようにする
     out = subprocess.run(
-        ["git", "diff", "-U0", "--no-color", "--no-renames", "--diff-filter=AM", base, "HEAD"],
+        ["git", "-c", "core.quotePath=false", "diff", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/",
+         "-U0", "--no-color", "--no-renames", "--diff-filter=AM", base, "HEAD"],
         check=True, capture_output=True, text=True, encoding="utf-8", errors="replace",
     ).stdout
     result: dict[str, set[int]] = {}
     path = None
+    in_header = False
     for line in out.split("\n"):
-        if line.startswith("+++ "):
+        # ファイルの見出しは diff --git から最初の @@ までの間だけにある。内容の行が「++ 」で始まっても、見出しと取り違えない
+        if line.startswith("diff --git "):
+            in_header, path = True, None
+        elif in_header and line.startswith("+++ "):
             path = line[6:] if line.startswith("+++ b/") else None
-        elif path is not None and (m := HUNK.match(line)):
+        elif m := HUNK.match(line):
+            in_header = False
             start, count = int(m.group(1)), int(m.group(2) or "1")
-            if count:
+            if path is not None and count:
                 result.setdefault(path, set()).update(range(start, start + count))
     return result
+
+
+def read_head(path: str) -> str | None:
+    """HEAD のファイルの内容。差分と同じコミットから読み、作業ツリーの変更で行番号がずれないようにする。"""
+    out = subprocess.run(["git", "show", f"HEAD:{path}"], capture_output=True)
+    if out.returncode != 0:
+        return None
+    try:
+        return out.stdout.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def lint(lint_path: str, words: str, text: str) -> list[dict]:
@@ -72,12 +90,8 @@ def main() -> int:
     for path, lines in sorted(added_lines(base).items()):
         if SKIP.search(path):
             continue
-        try:
-            with open(path, encoding="utf-8") as f:
-                text = f.read()
-        except (OSError, UnicodeDecodeError):
-            continue
-        if not JAPANESE.search(text):
+        text = read_head(path)
+        if text is None or not JAPANESE.search(text):
             continue
         source = text.split("\n")
         for finding in lint(lint_path, words, text):

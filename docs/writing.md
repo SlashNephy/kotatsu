@@ -49,7 +49,7 @@ PRではCIの`words`のジョブが、PRで足した行と書き換えた行に�
 検査するのは`scripts/check-words.py`で、yomiyasuは`scripts/yomiyasu.SOURCE`に固定したコミットを使います。
 生成物、英語の画面の文言、ライセンスの文書は見ません。
 
-手元でも、比較の元のコミットを渡して同じ検査を流せます。
+手元でも、比較の元のコミットを渡して同じ検査を流せます。見るのはコミットした変更だけです。
 
 ```bash
 python3 scripts/check-words.py <yomiyasuのスキルのフォルダ> origin/main

@@ -654,7 +654,14 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
       - id: yomiyasu
-        run: echo "commit=$(sed -n 's/^commit=//p' scripts/yomiyasu.SOURCE)" >> "$GITHUB_OUTPUT"
+        # commit が空だと、checkout は既定のブランチを取り出すので、40 桁の commit でなければ止める
+        run: |
+          commit=$(sed -n 's/^commit=//p' scripts/yomiyasu.SOURCE)
+          if ! printf '%s' "$commit" | grep -Eqx '[0-9a-f]{40}'; then
+            echo "::error file=scripts/yomiyasu.SOURCE::commit must be a 40-character SHA"
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7.0.1
         with:
           repository: nanaism/yomiyasu
