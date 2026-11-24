@@ -124,7 +124,7 @@ func (s *Secrets) Apply(text string) string {
 	return body[:len(body)-longest] + SecretMark + truncationMark
 }
 
-// markPattern は、マスクした値の代わりに置くマーク (SecretMark と、設定の秘密をテーブルに出すときの [REDACTED])。
+// markPattern は、マスクした値の代わりに置くマーク (SecretMark と、設定の秘密を出力するときの [REDACTED])。
 var markPattern = regexp.MustCompile(`\[REDACTED(?:_[A-Z]+)?\]`)
 
 // lastMarkEnd は、text の最後のマークの終わりの位置を返す。マークがなければ 0 を返す。

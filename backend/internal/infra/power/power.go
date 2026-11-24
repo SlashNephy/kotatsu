@@ -1,7 +1,7 @@
 // Package power は、OS のスリープの抑止と、スリープから起こす予約を OS に伝える (#1522、設計書 11.7)。
 //
 // Windows では kernel32 の SetThreadExecutionState とタスク スケジューラ (schtasks) を、
-// macOS では IOKit の電源管理の API を、cgo を使わずに purego で読み込んで呼ぶ。配信するバイナリを CGO_ENABLED=0 でクロスコンパイルするためである。
+// macOS では IOKit の電源管理の API を、cgo を使わずに purego で読み込んで呼ぶ。配布するバイナリを CGO_ENABLED=0 でクロスコンパイルするためである。
 // ほかの OS では、New が ErrUnsupported を返す。
 package power
 
@@ -49,7 +49,7 @@ func cfAbsoluteTime(t time.Time) float64 {
 	return float64(t.Unix() - cfAbsoluteTimeEpoch)
 }
 
-// wakeFile は、置いた予約の時刻を書くファイル。macOS の予約は OS がキャッシュしていて、プロセスを起動し直しても残り、
+// wakeFile は、置いた予約の時刻を書くファイル。macOS の予約は OS が保持していて、プロセスを起動し直しても残り、
 // 置いたときと同じ時刻でないと取り消せないので、置いた時刻を残す。
 type wakeFile struct {
 	// path が空なら、読みも書きもしない。

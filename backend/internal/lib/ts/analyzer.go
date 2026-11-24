@@ -370,7 +370,7 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	}
 }
 
-// probeVideoFormat は、映像の先頭をバッファし、映像の形式を読み終えたらキャッシュする (#1310)。
+// probeVideoFormat は、映像の先頭をバッファし、映像の形式を読み終えたら保持する (#1310)。
 func (a *Analyzer) probeVideoFormat(pkt *packet) {
 	if a.videoProbe == nil {
 		return

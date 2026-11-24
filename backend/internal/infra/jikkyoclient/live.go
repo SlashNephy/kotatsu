@@ -506,7 +506,7 @@ func (s *LiveSession) setWatch(watch *websocket.Conn) {
 	s.watch = watch
 }
 
-// setRoom は、投稿に要る値をキャッシュして、投稿できるようにする。
+// setRoom は、投稿に要る値を保持して、投稿できるようにする。
 func (s *LiveSession) setRoom(base time.Time, yourPostKey string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

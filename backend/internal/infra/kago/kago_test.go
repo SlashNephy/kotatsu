@@ -373,7 +373,7 @@ func TestRenameKeepsSegmentDir(t *testing.T) {
 }
 
 // TestSelectWithoutMeasurablePools は、空き容量を取得できたプールが 1 つもなければ、容量が足りない (ErrNoPoolFits) とせず、
-// ErrPoolUnavailable を返すことを確認する (#526)。容量が足りないと記録すると、確認する方向を誤る。
+// ErrPoolUnavailable を返すことを確認する (#526)。容量が足りないと記録すると、調査する方向を誤る。
 func TestSelectWithoutMeasurablePools(t *testing.T) {
 	t.Parallel()
 

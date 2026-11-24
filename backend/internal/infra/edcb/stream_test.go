@@ -17,7 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 )
 
-// fakeIDs は、NetworkTV の ID を 1 つだけ配信する。released には、消した (Forget) ID を記録する。
+// fakeIDs は、NetworkTV の ID を 1 つだけ割り当てる。released には、消した (Forget) ID を記録する。
 type fakeIDs struct {
 	mu       sync.Mutex
 	used     bool

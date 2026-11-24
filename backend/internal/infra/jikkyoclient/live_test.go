@@ -18,7 +18,7 @@ const (
 	liveTick    = 5 * time.Millisecond
 )
 
-// liveRecorder は、セッションから届いたものをキャッシュする。
+// liveRecorder は、セッションから届いたものを記録する。
 type liveRecorder struct {
 	mu       sync.Mutex
 	comments []string

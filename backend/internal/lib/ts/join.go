@@ -176,7 +176,7 @@ func (j *Joiner) copyPackets(r io.Reader, shift *patShift) error {
 	}
 }
 
-// adjustPAT は、chunk の PAT の continuity_counter をずらし、最後の値をキャッシュする。continuity_counter は 4 ビットなので、下位 4 ビットで数える。
+// adjustPAT は、chunk の PAT の continuity_counter をずらし、最後の値を保持する。continuity_counter は 4 ビットなので、下位 4 ビットで数える。
 func (j *Joiner) adjustPAT(chunk []byte, shift *patShift) {
 	for i := 0; i+PacketSize <= len(chunk); i += PacketSize {
 		p := chunk[i : i+PacketSize]

@@ -45,7 +45,7 @@ func TestPATWatcher(t *testing.T) {
 		}},
 		// 先頭に半端なバイトがあっても、同期バイトで合わせ直す。
 		{name: "garbage first", chunks: func() [][]byte { return [][]byte{append([]byte{0x00, 0x01, 0x02}, stream...)} }},
-		// 読み始めがパケットの途中で、パケットより小さな塊に分けて渡されても、合わせ直す。
+		// 読み始めがパケットの途中で、パケットより小さなチャンクに分けて渡されても、合わせ直す。
 		{name: "garbage first in small chunks", chunks: func() [][]byte {
 			misaligned := append(bytes.Repeat([]byte{0x11}, 50), stream...)
 			chunks := [][]byte{}

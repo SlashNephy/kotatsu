@@ -90,7 +90,7 @@ func TestAnalyzerMutations(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// mutate は、パケットのカラムを書き換える。
+		// mutate は、パケットの並びを書き換える。
 		mutate        func(t *testing.T, pkts [][]byte) [][]byte
 		wantVideo     ts.PIDStats
 		wantAudioDrop int64

@@ -22,7 +22,7 @@ type TunerServer struct {
 	text *strings.Replacer
 	// bonDrivers は、Kotatsu がライブと録画に使う BonDriver の名前。空なら、すべてのチューナーを使えるとみなす (#1532)。
 	bonDrivers map[string]bool
-	// ids は、NetworkTV の ID を配信する (#1533)。nil なら、ストリームを開けない。
+	// ids は、NetworkTV の ID を割り当てる (#1533)。nil なら、ストリームを開けない。
 	ids NetworkTVIDs
 	// preemptionCheckInterval は、NetworkTV がまだ開いているかを問い合わせる間隔 (#1534)。
 	preemptionCheckInterval time.Duration
@@ -49,7 +49,7 @@ type TunerServerOptions struct {
 	// BonDrivers は、Kotatsu がライブと録画に使う BonDriver の名前。EpgTimerSrv.ini の [TVTEST] に並べたものと同じにする。
 	// 空なら、すべてのチューナーを使えるとみなす (#1532)。
 	BonDrivers []string
-	// NetworkTVIDs は、ストリームを開くときに NetworkTV の ID を配信する (#1533)。nil なら、ストリームを開けない。
+	// NetworkTVIDs は、ストリームを開くときに NetworkTV の ID を割り当てる (#1533)。nil なら、ストリームを開けない。
 	NetworkTVIDs NetworkTVIDs
 	// PreemptionCheckInterval は、NetworkTV がまだ開いているかを問い合わせる間隔 (#1534)。0 なら 5 秒。
 	PreemptionCheckInterval time.Duration
@@ -429,7 +429,7 @@ func videoResolution(componentType uint8) (string, bool) {
 // ParseExtended は、EDCB が 1 本にまとめた詳細 (拡張形式イベント記述子) を、項目名から本文への対応に戻す。
 // EDCB は、項目ごとに「- 項目名」の行と本文の行を、CRLF で並べる。項目名と本文の行頭の「-…- 」には、
 // 項目名の行と見分けられるよう、「-」を 1 つ足している (EDCB の EpgDataCap3/EpgDBUtil.cpp の EscapeHyphenSpaceAndAppend)。
-// 本文の改行は、Mirakurun と同じく LF にする。最初の項目名より前の行は読み飛ばしる。
+// 本文の改行は、Mirakurun と同じく LF にする。最初の項目名より前の行は読み飛ばす。
 func ParseExtended(text string) map[string]string {
 	result := map[string]string{}
 	var key string

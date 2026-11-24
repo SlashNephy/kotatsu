@@ -43,7 +43,7 @@ var ErrNoNetworkTVID = errors.New("no NetworkTV ID is free")
 // errRelayBusy は、ほかのインスタンスが開いている NetworkTV に加わったのに、中継に空きがなかったことを表す (#1850)。
 var errRelayBusy = errors.New("the shared NetworkTV has no free relay")
 
-// NetworkTVIDs は、NetworkTV の ID を配信する (#1533)。ID は EpgTimerSrv 全体で 1 つの名前空間なので、
+// NetworkTVIDs は、NetworkTV の ID を割り当てる (#1533)。ID は EpgTimerSrv 全体で 1 つの名前空間なので、
 // Kotatsu のどのインスタンスとも重ならないように、DB で持ち主を記録する。
 // 同じサービスを開くインスタンスは、2 つまで同じ ID を持ち、同じ TS を受け取る (#1850)。
 type NetworkTVIDs interface {

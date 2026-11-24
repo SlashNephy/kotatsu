@@ -28,7 +28,7 @@ const progLookupXML = `<?xml version="1.0" encoding="UTF-8"?><ProgLookupResponse
 	`<SubTitle>#1～#2</SubTitle><Flag>6</Flag><Deleted>1</Deleted><ChID>19</ChID></ProgItem>` +
 	`</ProgItems><Result><Code>200</Code><Message></Message></Result></ProgLookupResponse>`
 
-// recorder は、サーバーが受け取ったリクエストの時刻とクエリをキャッシュする。
+// recorder は、サーバーが受け取ったリクエストの時刻とクエリを記録する。
 type recorder struct {
 	mu       sync.Mutex
 	times    []time.Time
