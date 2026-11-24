@@ -50,7 +50,7 @@ type CaptureOptions = {
   position?: (() => number) | null;
   // caption は、今出ている字幕の文を返す (#458)。出ていなければ null。保存する画像に書き込む。
   caption?: (() => string | null) | null;
-  // crop は、今の切り抜き (#496)。キャプチャも、画面と同じ範囲でコピーする。
+  // crop は、今の切り抜き (#496)。キャプチャも、画面と同じ範囲を切り出す。
   crop?: Crop;
 };
 
@@ -78,7 +78,7 @@ export function useCapture({
   crop = noCrop,
 }: CaptureOptions): Capture {
   const { t } = useTranslation();
-  // overlays は、キャプチャに、字幕とコメントをコピーするかどうか。
+  // overlays は、キャプチャに、字幕とコメントを含めるかどうか。
   const [overlays, setOverlays] = useState(true);
   const [template] = useCaptureFileNameTemplate();
   const [message, notify] = useNotice();

@@ -455,7 +455,7 @@ export function rateOf(mode: RateMode, params: LiveBufferParams = defaultLiveBuf
   }
 }
 
-// prefersConservativeRate は、遅くせず、速さを変える回数を減らすブラウザか。Safari と、iPad/iPhone のすべてのブラウザ (内容が WebKit)。
+// prefersConservativeRate は、遅くせず、速さを変える回数を減らすブラウザか。Safari と、iPad/iPhone のすべてのブラウザ (エンジンが WebKit)。
 // WebKit は、再生中に playbackRate を変えるたびに、音と映像がつまずくことがある (要確認)。
 // iPadOS の Safari は Mac の User-Agent を名乗るので、タッチの点の数で見分ける。
 export function prefersConservativeRate(userAgent: string, maxTouchPoints: number): boolean {

@@ -442,7 +442,7 @@ export function TsPlayer({
     const isActive = () => activeRef.current === slot;
     const createYadif = (element: HTMLVideoElement) => {
       const lateWatch = createLateWatch();
-      // reported は、最後に通知したときの、戻したマークと、yadif がコマを出す時刻を決めていたか。
+      // reported は、最後に通知したときの、戻したフラグと、yadif がコマを出す時刻を決めていたか。
       // 戻したときと設定を切ったときは、24p でもなくなり、progress も来ない (読み込みを終えた録画) ことがあるので、
       // 変わったことを見て通知する。設定の切り替えは、組を直に書き換えるので、次の知らせでここが拾う。
       let reported = { dropped: false, scheduled: false };
@@ -506,7 +506,7 @@ export function TsPlayer({
       deinterlace: true,
       deinterlacer: (element) => {
         // WebGL2 がなければ yadif を作れない。投げるとプレイヤーがエラーとして知らせ、画面はつなぎ直しを繰り返すので、
-        // 解除せずに再生を続け、再生の情報で通知する (#1617)。マークは、次の読み込みの知らせ (progress) で画面に届く。
+        // 解除せずに再生を続け、再生の情報で通知する (#1617)。フラグは、次の読み込みの通知 (progress) で画面に届く。
         const created = createDeinterlacer(() => createYadif(element));
         slot.unfiltered = !created.available;
 

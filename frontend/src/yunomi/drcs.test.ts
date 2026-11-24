@@ -122,7 +122,7 @@ const enlarge = (source: string[], n: number): string[] =>
     return Array.from({ length: n }, () => wide);
   });
 
-// glyph18 は、18x18 の外字。斜めの線と、縦横の線と、塗りのチャンクを含める。
+// glyph18 は、18x18 の外字。斜めの線と、縦横の線と、塗りつぶした領域を含める。
 const glyph18 = Array.from({ length: 18 }, (_, y) =>
   Array.from({ length: 18 }, (_, x) =>
     x === y || x === 3 || y === 15 || (x >= 12 && y <= 4) ? '#' : '.',
@@ -137,7 +137,7 @@ describe('foldDRCS', () => {
       want: glyph18,
     },
     { name: '4 倍の 72x72 も、18x18 に畳む', source: enlarge(glyph18, 4), want: glyph18 },
-    // カラムは 3 本で奇数なので畳まず、行だけを畳む。
+    // 横幅は 3 画素で奇数なので横方向は畳まず、縦方向だけを畳む。
     {
       name: '奇数の幅は、列を畳まない',
       source: ['##.', '##.', '..#', '..#'],

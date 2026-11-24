@@ -70,7 +70,7 @@ export function openDRCS(glyph: {
 }
 
 // foldDRCS は、縦か横に整数倍して送られた外字を、元の大きさに畳む (手順 2)。畳めなくなるまで繰り返す。
-// 畳まないと、2x2 のチャンクは斜めに接する点を持たないので、Scale2x がほとんど丸めない。
+// 畳まないと、2x2 のブロックは斜めに接する点を持たないので、Scale2x がほとんど丸めない。
 export function foldDRCS(image: DRCSImage): DRCSImage {
   let current = image;
   for (;;) {

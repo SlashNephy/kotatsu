@@ -151,7 +151,7 @@ export type HoldPressProps = {
 export function useHoldPress(onPress: () => void, onHold: ((held: boolean) => void) | undefined) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holding = useRef(false);
-  // swallowClick は、押し続けた後に届くクリックを、押したことにしないためのマーク。
+  // swallowClick は、押し続けた後に届くクリックを、押したことにしないためのフラグ。
   const swallowClick = useRef(false);
   const onHoldRef = useRef(onHold);
   onHoldRef.current = onHold;
