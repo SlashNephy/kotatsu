@@ -17,7 +17,7 @@ helm = "4.3.2"
 # フロントエンドのツールチェーン。frontend/ はここから引き継ぐ。Vite+ は frontend/package.json の devDependency にする (設計書 10.1)。
 node = "26.13.1"
 pnpm = "12.22.0"
-# 開発用の Compose の画面を https で配る証明書を作る (docs/development.md)。
+# 開発用の Compose の画面を https で配信する証明書を作る (docs/development.md)。
 mkcert = "1.4.4"
 
 # 開発用の Compose を、ソースの変更を見てビルドし直す構成で動かす (docs/development.md)。
@@ -26,18 +26,18 @@ mkcert = "1.4.4"
 depends = ["dev:cert"]
 run = "DEV_UID=$(id -u) DEV_GID=$(id -g) docker compose up --build"
 
-# 開発用の Compose の画面を https で配る証明書を、mkcert で docker/dev-certs/ に作る (docs/development.md)。
+# 開発用の Compose の画面を https で配信する証明書を、mkcert で docker/dev-certs/ に作る (docs/development.md)。
 # 作ってあれば、作り直さない。ブラウザに信頼させるには、一度だけ mkcert -install で、手元に mkcert の CA を入れる。
 [tasks."dev:cert"]
 run = ["mkdir -p docker/dev-certs", "test -f docker/dev-certs/localhost.pem && test -f docker/dev-certs/localhost-key.pem || mkcert -cert-file docker/dev-certs/localhost.pem -key-file docker/dev-certs/localhost-key.pem localhost 127.0.0.1 ::1"]
 
 # 埋め込んだバイナリを作るときは、mise run //frontend:build の後に実行する。
 [tasks.build]
-# 本体に組み込む Go のモジュールのライセンスの一覧を、ビルドの前に書き出して埋め込む (#1604)。
+# 本体に組み込む Go のモジュールのライセンスの一覧を、ビルドの前に出力して埋め込む (#1604)。
 run = ["go -C backend run ./internal/web/licenses/printlicenses -o internal/web/licenses/dist/go.json", "go build -trimpath -o ./bin/ ./backend/cmd/kotatsu"]
 
 # Helm Chart から、全ロールを 1 つの Pod で動かす構成と、ロールを分けた構成のマニフェストを生成する (設計書 11.1)。
-# 生成したものとリポジトリの内容に差分がないことを、CI で確かめる。
+# 生成したものとリポジトリの内容に差分がないことを、CI で確認する。
 [tasks."deploy:manifests"]
 run = [
   "helm lint deploy/helm/kotatsu",
@@ -45,7 +45,7 @@ run = [
   "helm template kotatsu deploy/helm/kotatsu -f deploy/kubernetes/values-split.yaml > deploy/kubernetes/split.yaml",
 ]
 
-# Helm Chart の fail の検査が描画を止めること、描いた HTTPRoute、NetworkPolicy、Deployment が期待どおりであることを確かめる (#1526)。
+# Helm Chart の fail の検査が描画を止めること、描いた HTTPRoute、NetworkPolicy、Deployment が期待どおりであることを確認する (#1526)。
 [tasks."deploy:test"]
 run = "./deploy/helm/test.sh"
 
@@ -54,7 +54,7 @@ run = "./deploy/helm/test.sh"
 depends = ["//frontend:build"]
 run = "goreleaser release --snapshot --clean"
 
-# 偽のチューナーサーバーと Kotatsu を立てて、初回セットアップ、ルール、ライブ視聴の流れを E2E で確かめる (#508)。
+# モックのチューナーサーバーと Kotatsu を立てて、初回セットアップ、ルール、ライブ視聴の流れを E2E で確認する (#508)。
 # KOTATSU_DATABASE_URL に、空の DB を渡す。
 [tasks."e2e:stack"]
 # 画面を埋め込むので、Kotatsu は //frontend:build の後にビルドする。depends に並べると、同時に走ってしまう。

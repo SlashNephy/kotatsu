@@ -34,8 +34,8 @@ if [[ -n "$parent" ]]; then
     merge=(--merge "$work/index.yaml")
   fi
 fi
-# 生成した index.yaml は apiVersion: で始まるので、Jekyll はそのまま配る。
-# 先頭に --- を付けると front matter として読まれ、配るファイルから消えるので付けない。
+# 生成した index.yaml は apiVersion: で始まるので、Jekyll はそのまま配信する。
+# 先頭に --- を付けると front matter として読まれ、配信するファイルから消えるので付けない。
 helm repo index "$chart_dir" --url "https://github.com/${REPOSITORY}/releases/download/${ref_name}" "${merge[@]}"
 
 blob="$(base64 -w0 "$chart_dir/index.yaml" | jq -Rn '{content: input, encoding: "base64"}' |

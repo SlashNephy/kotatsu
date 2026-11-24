@@ -14,10 +14,10 @@ SQLiteなどのほかのDBには対応しません。
 
 | タグ | 内容 |
 | --- | --- |
-| `edge` | mainの最新版。FFmpegを含まない |
-| `edge-ffmpeg` | mainの最新版。FFmpegとtsreadexとwhisper.cppを含む |
-| `<バージョン>` | リリースした版。FFmpegを含まない |
-| `<バージョン>-ffmpeg` | リリースした版。FFmpegとtsreadexとwhisper.cppを含む |
+| `edge` | mainの最新バージョン。FFmpegを含まない |
+| `edge-ffmpeg` | mainの最新バージョン。FFmpegとtsreadexとwhisper.cppを含む |
+| `<バージョン>` | リリースしたバージョン。FFmpegを含まない |
+| `<バージョン>-ffmpeg` | リリースしたバージョン。FFmpegとtsreadexとwhisper.cppを含む |
 
 サムネイルを作るnekonoteと、サーバー側でトランスコードするkyusuは、FFmpegを使います。
 1つのプロセスで全ロールを動かすときは、`-ffmpeg`のイメージを使ってください。
@@ -25,11 +25,11 @@ SQLiteなどのほかのDBには対応しません。
 コンテナは、UID 65532の一般ユーザーで動きます。
 ルートファイルシステムを読み取り専用にしても動きます。
 
-### 配布物を確かめる
+### 配布物を確認する
 
 配布物には、このリポジトリのGitHub Actionsで作ったことを示す出所の証明（Sigstoreの署名）を付けています。
 `checksums.txt`は壊れたファイルを見分けられますが、リリースごと差し替えられると、ハッシュも一緒に差し替えられてしまいます。
-入れる前に、[GitHub CLI](https://cli.github.com/)で確かめられます。
+入れる前に、[GitHub CLI](https://cli.github.com/)で確認できます。
 
 ```bash
 # コンテナイメージ
@@ -38,7 +38,7 @@ gh attestation verify oci://ghcr.io/slashnephy/kotatsu:<バージョン> -R Slas
 gh attestation verify kotatsu_<バージョン>_linux_amd64.tar.gz -R SlashNephy/kotatsu
 ```
 
-コンテナイメージは`edge`と`2026.11.4`以降の版（タグに`v`は付きません）から、アーカイブとHelm Chartは`v2026.11.4`以降のリリースから、証明を付けています。
+コンテナイメージは`edge`と`2026.11.4`以降のバージョン（タグに`v`は付きません）から、アーカイブとHelm Chartは`v2026.11.4`以降のリリースから、証明を付けています。
 
 ## Docker Composeで動かす
 
@@ -61,7 +61,7 @@ openssl rand -base64 48 > secret_key.txt
 chmod 644 secret_key.txt
 ```
 
-録画を置くディレクトリと、索引や代表画像などの生成物を置くディレクトリは、UID 65532が書き込めるようにしておきます。
+録画を置くディレクトリと、インデックスや代表画像などの生成物を置くディレクトリは、UID 65532が書き込めるようにしておきます。
 
 ```bash
 mkdir recordings data
@@ -147,8 +147,8 @@ secrets:
 ```
 
 `KOTATSU_STORAGE_POOLS`は、`storage.pools`からChartが作るので、`config`には書きません。
-録画の生成物（索引、代表画像、プレビュー画像）を置くデータディレクトリのvolumeを、`storage.data.volume`に必ず書きます。Chartが`KOTATSU_STORAGE_DATA_DIR`を渡し、プールと同じロールにマウントします。生成物は録画ファイルのプールに置かないので、プールをクラウドと同期していても混ざりません。
-定期のバックアップを書き出すなら、書き出す先のvolumeを`backup.volume`に書きます。Chartが`KOTATSU_BACKUP_DIR`を渡し、allかnekonoteにマウントします（[運用](operations.md#定期に書き出す)）。
+録画の生成物（インデックス、代表画像、プレビュー画像）を置くデータディレクトリのvolumeを、`storage.data.volume`に必ず書きます。Chartが`KOTATSU_STORAGE_DATA_DIR`を渡し、プールと同じロールにマウントします。生成物は録画ファイルのプールに置かないので、プールをクラウドと同期していても混ざりません。
+定期のバックアップを出力するなら、出力先のvolumeを`backup.volume`に書きます。Chartが`KOTATSU_BACKUP_DIR`を渡し、allかnekonoteにマウントします（[運用](operations.md#定期にバックアップする)）。
 
 Ingressを使うときは、`ingress.enabled`と一緒に`ingress.trustedProxies`を書きます。
 Kotatsuは、ここに書いたネットワークから届いた`X-Forwarded-For`だけを信頼します。
@@ -181,12 +181,12 @@ roles:
 
 `all`と`split`の例は、[deploy/kubernetes](../deploy/kubernetes)にも置いています。
 同じディレクトリにある`all.yaml`と`split.yaml`は、その例から作ったマニフェストです。
-Helmを使わずに、マニフェストを手で直して使うこともできます。
-マニフェストは`default`のnamespaceに入れる形で作っているので、別のnamespaceに入れるときは、各リソースの`namespace`も直してください。
+Helmを使わずに、マニフェストを手で修正して使うこともできます。
+マニフェストは`default`のnamespaceに入れる形で作っているので、別のnamespaceに入れるときは、各リソースの`namespace`も修正してください。
 
 `split`でチューナーサーバーにEDCBを使うときは、nabeを動かすと、同じ局のライブ視聴と録画でチューナーを分け合えます（[EDCBを使う](#edcbを使う)）。
 nabeは既定では動かさないので、`roles.nabe.replicas`を2にします。
-2台のnabeは同じチューナーのTSを配るので、1台が止まっても、録画とタイムシフトはもう1台から受け取り続けます（#1850）。
+2台のnabeは同じチューナーのTSを配信するので、1台が止まっても、録画とタイムシフトはもう1台から受け取り続けます（#1850）。
 1でも動きますが、nabeが止まると、受け手が自分でNetworkTVを開き直します。
 Mirakurun互換のチューナーサーバーでは、nabeは何もしないので、動かしません。
 
@@ -220,7 +220,7 @@ probes:
 
 ### インストールする
 
-リリースした版のChartは、GitHub PagesのHelmリポジトリ（`https://slashnephy.github.io/kotatsu`）で配布しています。
+リリースしたバージョンのChartは、GitHub PagesのHelmリポジトリ（`https://slashnephy.github.io/kotatsu`）で配布しています。
 
 ```bash
 helm repo add kotatsu https://slashnephy.github.io/kotatsu
@@ -228,7 +228,7 @@ helm repo update
 helm install kotatsu kotatsu/kotatsu --version <バージョン> -f values.yaml
 ```
 
-リリースしていないmainの版を使うときは、リポジトリのChartをそのまま指定してください。
+リリースしていないmainのバージョンを使うときは、リポジトリのChartをそのまま指定してください。
 
 ```bash
 helm install kotatsu ./deploy/helm/kotatsu -f values.yaml
@@ -248,9 +248,9 @@ helm install kotatsu ./deploy/helm/kotatsu -f values.yaml
 ### PostgreSQLを入れる
 
 KotatsuはPostgreSQL 17以降を使います。
-OSのパッケージのPostgreSQLが16以前なら、PostgreSQLの開発者が配るリポジトリ（PGDG）から18を入れてください。
+OSのパッケージのPostgreSQLが16以前なら、PostgreSQLの開発者が配布するリポジトリ（PGDG）から18を入れてください。
 
-| OS | OSのパッケージの版 | 入れ方 |
+| OS | OSのパッケージのバージョン | 入れ方 |
 | --- | --- | --- |
 | Windows | なし | [EDBのインストーラー](#windows) |
 | macOS | なし | [Homebrew](#macos) |
@@ -283,7 +283,7 @@ brew services start postgresql@18
 export PATH="$(brew --prefix postgresql@18)/bin:$PATH"
 ```
 
-- `postgresql@18`は、ほかの版と並べて入れられるように、`PATH`に入りません（keg-only）。`createuser`などのコマンドを使う前に、3行目で`PATH`に足してください。
+- `postgresql@18`は、ほかのバージョンと並べて入れられるように、`PATH`に入りません（keg-only）。`createuser`などのコマンドを使う前に、3行目で`PATH`に足してください。
 - 入れるときに、HomebrewがDBのデータ（クラスター）を作ります。スーパーユーザーは、Homebrewで入れたmacOSのユーザーです。
 - `brew services start`は、今と、ログインするたびにPostgreSQLを起動します。
 - 公式の案内には、ほかにEDBのインストーラーとPostgres.appがあります。
@@ -305,9 +305,9 @@ sudo apt install postgresql-18
 ```
 
 - どちらでも、入れるとDBのデータが作られ、PostgreSQLが起動します。
-- PGDGはDebian 12と13、Ubuntu 22.04、24.04、26.04に対応します。Ubuntuのarm64はLTSの版だけです。
-- KotatsuのLinux向けのアーカイブはamd64とarm64だけなので、Raspberry Piでは64ビット版のRaspberry Pi OSを使います（Raspberry Pi 3以降など、64ビットのCPUを持つ機種）。
-- PGDGの案内には、Raspberry Pi OSが載っていません。bookwormを元にした古いRaspberry Pi OSでは、Debian 12向けのPGDGで入る見込みですが、確かめていません（推測）。trixieを元にした今のRaspberry Pi OSなら、OSのパッケージで足ります。
+- PGDGはDebian 12と13、Ubuntu 22.04、24.04、26.04に対応します。Ubuntuのarm64はLTSのバージョンだけです。
+- KotatsuのLinux向けのアーカイブはamd64とarm64だけなので、Raspberry Piでは64ビットバージョンのRaspberry Pi OSを使います（Raspberry Pi 3以降など、64ビットのCPUを持つ機種）。
+- PGDGの案内には、Raspberry Pi OSが載っていません。bookwormを元にした古いRaspberry Pi OSでは、Debian 12向けのPGDGで入る見込みですが、確認していません（推測）。trixieを元にした今のRaspberry Pi OSなら、OSのパッケージで足ります。
 
 #### RHEL系
 
@@ -330,7 +330,7 @@ sudo systemctl start postgresql-18
 
 Kotatsuが使う利用者とDBを作ります。
 DBの所有者はKotatsuの利用者にしてください。
-PostgreSQL 15以降は、`public`スキーマに表を作れるのがDBの所有者だけなので、所有者でないと`kotatsu migrate`が失敗します。
+PostgreSQL 15以降は、`public`スキーマにテーブルを作れるのがDBの所有者だけなので、所有者でないと`kotatsu migrate`が失敗します。
 Kotatsuの利用者に、スーパーユーザーの権限は要りません。
 
 LinuxではOSの`postgres`ユーザーとして、macOSでは入れたユーザーのまま、次のコマンドを実行します。
@@ -384,7 +384,7 @@ $env:KOTATSU_TUNER_URL = 'http://<チューナーサーバー>:40772/'
 ```
 
 DBのスキーマを作ってから、Kotatsuを起動します。
-更新するときも、新しい版で`kotatsu migrate`を実行してから起動し直します（[運用](operations.md)）。
+更新するときも、新しいバージョンで`kotatsu migrate`を実行してから起動し直します（[運用](operations.md)）。
 
 ```bash
 kotatsu migrate
@@ -409,17 +409,17 @@ Raspberry Piのようなマシンでは、次のように小さくできます�
 | `max_wal_size` | 1GB | 64MB |
 | `min_wal_size` | 80MB | 32MB |
 
-PostgreSQL 18のコンテナに、Kotatsuのスキーマを作り、待機しているときのメモリを測りました（#1254）。
+PostgreSQL 18のコンテナに、Kotatsuのスキーマを作り、待機しているときのメモリを計測しました（#1254）。
 
 | 設定 | 待機しているときのメモリ |
 | --- | --- |
 | 既定 | 約20〜31MiB |
 | 小さい設定 | 約7〜14MiB |
 
-- 手元のamd64のPCで、データの入っていないDBを測った値です。Raspberry Piでは測っていません。
-- 値はコンテナのメモリ（cgroup）で、ファイルのキャッシュとカーネルが使う分を含みます。同じ設定でも、測るたびに揺れました。
+- 手元のamd64のPCで、データの入っていないDBを計測した値です。Raspberry Piでは計測していません。
+- 値はコンテナのメモリ（cgroup）で、ファイルのキャッシュとカーネルが使う分を含みます。同じ設定でも、計測するたびに揺れました。
 - データが増えると、キャッシュの分だけ増えます。
-- 小さい設定の値は測るために選んだものです。小さいマシンで長く動かして確かめた値ではありません。`work_mem`を小さくすると、大きな並べ替えが遅くなることがあります（推測）。
+- 小さい設定の値は計測するために選んだものです。小さいマシンで長く動かして確認した値ではありません。`work_mem`を小さくすると、大きな並べ替えが遅くなることがあります（推測）。
 - `max_connections`の30は`kotatsu all`に足りる見込みです（推測）。Kotatsuは接続の数の上限を、pgxの既定（CPUの数と4の大きいほう）のままにしています。
 
 設定は`ALTER SYSTEM`で変えて、PostgreSQLを起動し直します。
@@ -454,7 +454,7 @@ Kotatsuをつなぐ前に、EDCBの側で次のことを設定してください
 - 別のホストからつなぐときは、`TCPAccessControlList`にKotatsuのホストを入れます。既定は`+127.0.0.1,+192.168.0.0/16`です。一覧から外れたホストからの接続は、何も返さずに切られます。
 - Windowsでは、EpgTimerSrvを初めて起動したときのダイアログで許可しないと、ファイアウォールに受信を遮断するルールが残ります。別のホストからつなぐ前に、EpgTimerSrvの受信を許可してください。
 - `EpgTimerSrv.ini`の`[TVTEST]`に、Kotatsuのライブ視聴と録画に使うBonDriverを並べます。NetworkTVは、ここに並べたBonDriverしか使わないので、空のままだと1本も開けません。同じ名前を、Kotatsuの設定の`tuner.edcb.bon_drivers`にも並べてください。EpgTimerSrvはこの一覧をKotatsuに返さないので、Kotatsuはチューナーの一覧で使えるチューナーを見分けるのに、設定の一覧を使います。
-- `EpgDataCap_Bon.ini`の`[SET_TCP]`で、TSを名前付きパイプ（LinuxではFIFO）に送る設定（`IP0=[0.0.0.1]`、`Port0=0`、`Count=1`）を入れます。NetworkTVは、この送り先からTSを中継するので、設定がないと、NetworkTVは開けてもTSを受け取れません（2026年11月に、LinuxのEDCBで確かめました）。
+- `EpgDataCap_Bon.ini`の`[SET_TCP]`で、TSを名前付きパイプ（LinuxではFIFO）に送る設定（`IP0=[0.0.0.1]`、`Port0=0`、`Count=1`）を入れます。NetworkTVは、この送り先からTSを配信するので、設定がないと、NetworkTVは開けてもTSを受け取れません（2026年11月に、LinuxのEDCBで確認しました）。
 - `EpgTimerSrv.ini`の`[SET]`に`CompatFlags=128`を入れることを勧めます（すでに値があれば、128を足した値にします）。EpgTimerSrvは、この互換動作を有効にしたときだけ、`EpgTimerSrv.ini`をKotatsuに返します。Kotatsuは、そこからEPGの取得の時刻と、取得に要る空きチューナーの数と、予約のマージンの既定を読みます。返さなければ、KotatsuはEPGの取得の時刻を知らないので、ライブ視聴は取得の時刻の前にチューナーを空けておけません。タイムシフトは、BonDriverごとに1本をいつも空けておきます（#1536、#1856）。
 
 次のことに注意してください。
@@ -467,7 +467,7 @@ Kotatsuをつなぐ前に、EDCBの側で次のことを設定してください
 - EDCBのEPGの取得の時刻の5分前から2分後までは、ライブ視聴とタイムシフトに、EPGの取得に要る空きチューナーを使いません。タイムシフトは、一度開くと取得の時刻をまたいで録り続けるので、その時間に入ると、要る分のタイムシフトを止め、過ぎたら録り直します。取得している最中も、新しいNetworkTVが取得中のチューナーを選ぶときは開きません。NetworkTVを開くと、そのチューナーのEPGの取得が取り消されるからです。このときは、チューナーが足りないときと同じく、ライブ視聴が始まりません。録画は、すべてのチューナーを使います。
   - EpgTimerSrvは、BonDriverごとに、EPGの取得に使うチューナーの数（`EpgTimerSrv.ini`の各BonDriverの節の`EPGCount`）だけ空きチューナーがなければ、その回の取得をしません。Kotatsuはこの数を読んで空けます。既定（0）は、そのBonDriverのすべてのチューナーを使うので、取得の時刻の前後は、そのBonDriverのタイムシフトとライブ視聴が止まります。止める本数を減らしたいときは、`EPGCount=1`にしてください。
 - EDCBはKotatsuの予約を知りません。EDCBの予約の割り当てや、EDCBのスリープの判断には、Kotatsuの予約は入りません。EDCBの「録画後にスリープ」や、予約の前に起こす機能は、Kotatsuの録画を考えずにPCを眠らせ、Kotatsuの録画の前にPCを起こしません。KotatsuとEDCBを同じPCで動かすときは、EDCBのスリープ（EpgTimerの設定の録画後の動作と、復帰のための設定）を使わず、Kotatsuの電源の管理（[WindowsとmacOSの電源の設定](#windowsとmacosの電源の設定)）に任せてください。Kotatsuは、録画とライブ視聴の間と次の録画の直前にスリープさせず、次の録画の前に起こす予約を置きます。EDCBの予約は、Kotatsuからは見えないので、この管理には入りません。EDCBの予約も録るなら、OSをスリープしない設定にしてください。
-- EDCBのNetworkTVは、ほかの利用者とチューナーを分け合いません。そこで、Kotatsuは、1つのプロセスの中で、同じサービスのストリームを1本のNetworkTVで分け合います（#1535）。`kotatsu all`では、同じ局を録画しながらライブで見ても、チューナーは1本です。ロールを分けた構成では、ロールごとに開くので、同じ局でもチューナーを別に使います。分け合うには、`kotatsu nabe`（`kotatsu hub`）を動かしてください。2台動かすと、2台は同じチューナーのTSを配るので、1台が止まっても、受け手はもう1台から受け取り続けます（#1850）。Helmのチャートでは、`roles.nabe.replicas`を2にします（[Helmで動かす](#helmで動かす)）。nabeがNetworkTVを開き、tenban、mikan、kyusuはインスタンスの登録簿でnabeを見つけて、TSを受け取ります。設定は要りません。ただし、nabeと、nabeから受け取るロールには、同じアプリの秘密キー（`auth.secret_key`）を設定してください。nabeがいないか届かないときは、今までどおりロールごとにNetworkTVを開くので、録画は止まりません。Mirakurun互換のチューナーサーバーでは、nabeは何もしません。
+- EDCBのNetworkTVは、ほかの利用者とチューナーを分け合いません。そこで、Kotatsuは、1つのプロセスの中で、同じサービスのストリームを1本のNetworkTVで分け合います（#1535）。`kotatsu all`では、同じ局を録画しながらライブで見ても、チューナーは1本です。ロールを分けた構成では、ロールごとに開くので、同じ局でもチューナーを別に使います。分け合うには、`kotatsu nabe`（`kotatsu hub`）を動かしてください。2台動かすと、2台は同じチューナーのTSを配信するので、1台が止まっても、受け手はもう1台から受け取り続けます（#1850）。Helmのチャートでは、`roles.nabe.replicas`を2にします（[Helmで動かす](#helmで動かす)）。nabeがNetworkTVを開き、tenban、mikan、kyusuはインスタンスの登録簿でnabeを見つけて、TSを受け取ります。設定は要りません。ただし、nabeと、nabeから受け取るロールには、同じアプリの秘密キー（`auth.secret_key`）を設定してください。nabeがいないか届かないときは、今までどおりロールごとにNetworkTVを開くので、録画は止まりません。Mirakurun互換のチューナーサーバーでは、nabeは何もしません。
 - サービスのロゴは、EDCBが集めたもの（`LogoData`）を使います。EDCBがロゴを集めていなければ、Kotatsuが録画とタイムシフトのTSから集めたロゴを使います。
 
 ## WindowsとmacOSの電源の設定
@@ -479,7 +479,7 @@ WindowsとmacOSで`kotatsu all`を動かすと、録画、ライブ視聴、エ�
 
 - Windowsでは、起こす予約を、タスク スケジューラのタスク（`\Kotatsu\Wake`）として登録します。登録には管理者の権限が要るので、Kotatsuを管理者として動かしてください。管理者でなければ、スリープさせないことだけを行い、起動した後に1回だけ警告を出します。
 - Windowsでは、電源オプションの詳細設定の「スリープ」で、「スリープ解除タイマーの許可」を有効にしてください。無効だと、予約を置いても起きません。
-- macOSでは、起こす予約にrootが要ります。LaunchDaemonなどで、rootとして動かしてください。rootでなければ、スリープさせないことだけを行います。予約は`pmset -g sched`で確かめられます。
+- macOSでは、起こす予約にrootが要ります。LaunchDaemonなどで、rootとして動かしてください。rootでなければ、スリープさせないことだけを行います。予約は`pmset -g sched`で確認できます。
 - macOSで止めるのは、操作が無いことで眠るのだけです。蓋を閉じたときと、メニューからスリープしたときは眠ります。
 - 休止状態とシャットダウンからは起こせません。外から視聴することも、スリープを解きません。外からいつも観るなら、OSをスリープしない設定にしてください。
 - タイムシフトを有効にしたサービスがあると、ずっとスリープしません。
@@ -494,7 +494,7 @@ WindowsとmacOSで`kotatsu all`を動かすと、録画、ライブ視聴、エ�
 
 1. 録画の既定値の画面（`/admin/recording`）の「字幕の自動生成のモデル」で、書き起こしのモデルを選び、「ダウンロードする」を押します。
    日本語には、最初に選ばれている[kotoba-whisper v2.0](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-ggml)（約540 MB、Apache-2.0）を勧めます。
-   nekonoteがHugging Faceからダウンロードし、大きさとSHA-256を確かめてから、データディレクトリの`whisper/ggml-model.bin`に置きます。
+   nekonoteがHugging Faceからダウンロードし、大きさとSHA-256を確認してから、データディレクトリの`whisper/ggml-model.bin`に置きます。
    ダウンロードしている間は、進み具合が出て、取りやめることもできます。
 2. （任意）同じ欄で、声のある区間のモデル（Silero VAD、約0.9 MB、MIT）もダウンロードします。
    置かなくても動きますが、台詞の前後の無音や音楽の分だけ、字幕が早く出ることがあります。
@@ -580,7 +580,7 @@ EPGStationからは、`kotatsu import epgstation`で移行できます。
 - 取り込んだルールと予約の作成者には、`--user ユーザー名`で指定したユーザーを記録します。
 - `--dry-run`を付けると、取り込む件数だけを表示します。
 
-取り込んだ録画は、nekonoteがTSを読み直して索引とドロップの集計を作り、続けてサムネイルを作ります。
+取り込んだ録画は、nekonoteがTSを読み直してインデックスとドロップの集計を作り、続けてサムネイルを作ります。
 
 ## EDCBから移行する
 
