@@ -51,8 +51,14 @@ func newServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, func()
 	}
 }
 
+// newClient は、server に問い合わせる Client を返す。
+// 通信には server ごとの Transport を使う。httptest.Server の Close は http.DefaultTransport の待機中の接続を閉じるので、
+// 並列のテストで DefaultTransport を共有すると、ほかのテストの Close で問い合わせが切れることがある。
 func newClient(server *httptest.Server) *tmdb.Client {
-	return tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(nil), URL: server.URL, Interval: time.Millisecond})
+	httpClient := tmdb.NewHTTPClient(nil)
+	httpClient.Transport = server.Client().Transport
+
+	return tmdb.NewClient(&tmdb.Options{HTTPClient: httpClient, URL: server.URL, Interval: time.Millisecond})
 }
 
 // TestClientRequests は、問い合わせの形と、応答の読み方を確認する。
