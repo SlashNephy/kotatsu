@@ -21,7 +21,7 @@ type LastKnownInstances struct {
 
 	mu    sync.Mutex
 	known map[string][]*registry.Instance
-	// unreachableAt は、最後に DB に届かずに覚えた一覧を返した時刻。DB に届くようになった直後の扱いに使う。
+	// unreachableAt は、最後に DB に届かずにキャッシュした一覧を返した時刻。DB に届くようになった直後の扱いに使う。
 	unreachableAt time.Time
 	degraded      bool
 

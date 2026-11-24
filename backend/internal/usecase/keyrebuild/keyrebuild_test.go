@@ -39,7 +39,7 @@ func TestRunRebuildsHistoryTitleKeys(t *testing.T) {
 
 	db := newDB(t)
 	start := time.Date(2026, time.November, 1, 21, 0, 0, 0, time.UTC)
-	// 直す前の TitleKey は、[4K] と ⚿ を印とみなさず、キーに残していた (#1977)。
+	// 直す前の TitleKey は、[4K] と ⚿ をマークとみなさず、キーに残していた (#1977)。
 	rows := []struct{ name, stored, want string }{
 		{name: "[4K]番組名 #1", stored: "[4K]番組名 #1", want: "番組名 #1"},
 		{name: "⚿番組名 #2", stored: "[鍵]番組名 #2", want: "番組名 #2"},
@@ -70,7 +70,7 @@ func TestRunRebuildsSyobocalTitleKeys(t *testing.T) {
 	t.Parallel()
 
 	db := newDB(t)
-	// 直す前の鍵は、波ダッシュを ~ にそろえていなかった。
+	// 直す前のキーは、波ダッシュを ~ にそろえていなかった。
 	rows := []struct {
 		tid                 int32
 		title, stored, want string
@@ -120,7 +120,7 @@ func TestRunRebuildsDramaTitleKeys(t *testing.T) {
 			VALUES ($1, $2, $3, $4, now(), now())`, serviceID, at, p.eventID, p.stored)
 		require.NoError(t, err)
 	}
-	// 前の鍵の上書きと、season 2 の今の鍵に管理者が付けた上書き、変わらない鍵の上書き。
+	// 前のキーの上書きと、season 2 の今のキーに管理者が付けた上書き、変わらないキーの上書き。
 	season1, season2 := drama.TitleKeyOf(programs[0].name), drama.TitleKeyOf(programs[1].name)
 	require.NotEqual(t, season1, season2)
 	for key, series := range map[string]int{oldKey: 100, season2: 200, programs[2].stored: 300} {
@@ -142,7 +142,7 @@ func TestRunRebuildsDramaTitleKeys(t *testing.T) {
 			overrides[key] = series
 		}
 		require.NoError(t, rows.Err())
-		// 前の鍵の上書きは season 1 に写り、season 2 は管理者の上書きを残す。前の鍵の上書きは、使う結びつきがないので消える。
+		// 前のキーの上書きは season 1 に移り、season 2 は管理者の上書きを残す。前のキーの上書きは、使う結びつきがないので消える。
 		assert.Equal(t, map[string]int{season1: 100, season2: 200, programs[2].stored: 300}, overrides)
 
 		for i, want := range []struct {

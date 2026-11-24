@@ -75,7 +75,7 @@ func TestRelaySharesOneUpstream(t *testing.T) {
 	first := relay.Subscribe(t.Context(), "jk1")
 	t.Cleanup(first.Close)
 	waitConnected(t, first)
-	// あとから来た視聴者にも、今の状態を知らせる。
+	// あとから来た視聴者にも、今の状態を通知する。
 	second := relay.Subscribe(t.Context(), "jk1")
 	t.Cleanup(second.Close)
 	waitConnected(t, second)
