@@ -54,10 +54,16 @@ DELETE FROM anime_following_fetches WHERE COALESCE(fetched_at, checked_at) < @be
 
 -- name: GetAnimeFollowingAvatarURL :one
 -- ユーザーが取り込んだ、フォロー中のユーザーのアバターの URL を返す。保持する期間を過ぎたものは返さない。
--- 同じ人が複数の作品に出るので、最も新しく取り込んだ URL を使う。
-SELECT v.avatar_url FROM anime_following_viewings v
-JOIN anime_following_fetches f USING (user_id, destination, syobocal_tid)
-WHERE v.user_id = @user_id AND v.destination = @destination AND v.username = @username AND v.avatar_url IS NOT NULL
-  AND f.fetched_at >= @fetched_after::timestamptz
-ORDER BY f.fetched_at DESC
+-- 同じ人が複数の作品に出るので、最も新しく取り込んだ URL を使う。作品ごとの視聴状況 (#1372) と、見ている作品 (#1968) の両方から探す。
+SELECT avatar_url::text FROM (
+  SELECT v.avatar_url, f.fetched_at FROM anime_following_viewings v
+  JOIN anime_following_fetches f USING (user_id, destination, syobocal_tid)
+  WHERE v.user_id = @user_id AND v.destination = @destination AND v.username = @username AND v.avatar_url IS NOT NULL
+    AND f.fetched_at >= @fetched_after::timestamptz
+  UNION ALL
+  SELECT w.avatar_url, w.fetched_at FROM anime_following_watching w
+  WHERE w.user_id = @user_id AND w.destination = @destination AND w.username = @username AND w.avatar_url IS NOT NULL
+    AND w.fetched_at >= @fetched_after::timestamptz
+) AS avatars
+ORDER BY fetched_at DESC
 LIMIT 1;

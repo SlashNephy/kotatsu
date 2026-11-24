@@ -57,7 +57,7 @@ func (f *commentsFixture) setMix(t *testing.T, enabled bool) {
 	require.NoError(t, err)
 }
 
-// TestOtherCommentsHandler は、同じ話の別の放送の過去ログを、その放送の始まりからの秒で返すことを確かめる。
+// TestOtherCommentsHandler は、同じ話の別の放送の過去ログを、その放送の始まりからの秒で返すことを確認する。
 // 録画と同じチャンネルの放送、ほかの話、まだ終わっていない放送は返さない。
 func TestOtherCommentsHandler(t *testing.T) {
 	t.Parallel()
@@ -86,7 +86,7 @@ func TestOtherCommentsHandler(t *testing.T) {
 	assert.Equal(t, "private, max-age=600", rec.Header().Get("Cache-Control"))
 }
 
-// TestOtherCommentsHandlerNotApplicable は、混ぜない設定や、1 話に結びつかない録画では、過去ログ API に問い合わせないことを確かめる。
+// TestOtherCommentsHandlerNotApplicable は、混ぜない設定や、1 話に結びつかない録画では、過去ログ API に問い合わせないことを確認する。
 func TestOtherCommentsHandlerNotApplicable(t *testing.T) {
 	t.Parallel()
 

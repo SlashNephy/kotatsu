@@ -265,7 +265,7 @@ type GetOAuthAccessTokenRow struct {
 	Role       domain.Role
 }
 
-// アクセストークンから、連携と、そのユーザーを引く。期限を過ぎたものと、無効にしたユーザーのものは返さない。
+// アクセストークンから、連携と、そのユーザーを検索する。期限を過ぎたものと、無効にしたユーザーのものは返さない。
 func (q *Queries) GetOAuthAccessToken(ctx context.Context, arg GetOAuthAccessTokenParams) (GetOAuthAccessTokenRow, error) {
 	row := q.db.QueryRow(ctx, getOAuthAccessToken, arg.TokenHash, arg.Now)
 	var i GetOAuthAccessTokenRow
@@ -299,7 +299,7 @@ type GetOAuthTokenForRevocationRow struct {
 	GrantID uuid.UUID
 }
 
-// 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
+// 失効させるトークンの種類と連携を検索する。ほかのクライアントのトークンは返さない。
 func (q *Queries) GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error) {
 	row := q.db.QueryRow(ctx, getOAuthTokenForRevocation, arg.TokenHash, arg.ClientID)
 	var i GetOAuthTokenForRevocationRow

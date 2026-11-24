@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 
 import { useAutoplayBlocked } from './useAutoplayBlocked';
+import { mediaOf } from './playerMedia';
 
 // fakeVideo は、play() の結果を差し替えられる video の要素。
 function fakeVideo(play: () => Promise<void>, { paused = true, readyState = 0 } = {}) {
@@ -28,7 +29,7 @@ const notAllowed = () => Promise.reject(new DOMException('blocked', 'NotAllowedE
 describe('useAutoplayBlocked', () => {
   test('再生できるようになっても、ブラウザに再生を断られたら、断られたと返す', async () => {
     const { video, setReadyState } = fakeVideo(notAllowed);
-    const { result } = renderHook(() => useAutoplayBlocked(video));
+    const { result } = renderHook(() => useAutoplayBlocked(mediaOf(video)));
     expect(result.current.blocked).toBe(false);
 
     setReadyState(3);
@@ -40,7 +41,7 @@ describe('useAutoplayBlocked', () => {
 
   test('開いたときにすでに再生できる状態なら、すぐに確かめる', async () => {
     const { video } = fakeVideo(notAllowed, { readyState: 4 });
-    const { result } = renderHook(() => useAutoplayBlocked(video));
+    const { result } = renderHook(() => useAutoplayBlocked(mediaOf(video)));
     await act(async () => {});
     expect(result.current.blocked).toBe(true);
   });
@@ -49,14 +50,14 @@ describe('useAutoplayBlocked', () => {
     const { video } = fakeVideo(() => Promise.reject(new DOMException('aborted', 'AbortError')), {
       readyState: 4,
     });
-    const { result } = renderHook(() => useAutoplayBlocked(video));
+    const { result } = renderHook(() => useAutoplayBlocked(mediaOf(video)));
     await act(async () => {});
     expect(result.current.blocked).toBe(false);
   });
 
   test('再生が始まったら、断られた状態を解き、その後は再生を試さない', async () => {
     const { video, play, setPaused } = fakeVideo(notAllowed, { readyState: 4 });
-    const { result } = renderHook(() => useAutoplayBlocked(video));
+    const { result } = renderHook(() => useAutoplayBlocked(mediaOf(video)));
     await act(async () => {});
     expect(result.current.blocked).toBe(true);
 
@@ -77,7 +78,7 @@ describe('useAutoplayBlocked', () => {
 
   test('play で、ボタンから再生を始める', async () => {
     const { video, play, setPaused } = fakeVideo(notAllowed, { readyState: 4 });
-    const { result } = renderHook(() => useAutoplayBlocked(video));
+    const { result } = renderHook(() => useAutoplayBlocked(mediaOf(video)));
     await act(async () => {});
 
     play.mockImplementation(() => {

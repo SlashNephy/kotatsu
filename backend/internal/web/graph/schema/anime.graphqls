@@ -28,7 +28,7 @@ enum AnimeImportSource {
   SAYA_DEFINITIONS
   "しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応"
   ARM
-  "しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う"
+  "しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を検索するのに使う"
   SYOBOCAL_TITLES
   "Annict と AniList から作った、しょぼいカレンダーの TID と作品 ID の対応 (#1223)。arm の対応より優先する"
   ANNICT_WORKS
@@ -111,11 +111,11 @@ type AnimeEpisode {
   countStart: Float
   countEnd: Float
   subtitle: String
-  "しょぼいカレンダーの [新] の印。"
+  "しょぼいカレンダーの [新] のマーク。"
   first: Boolean!
-  "しょぼいカレンダーの [終] の印。"
+  "しょぼいカレンダーの [終] のマーク。"
   last: Boolean!
-  "再放送かどうか (#1233)。しょぼいカレンダーの再放送の印か、番組名の解析では番組名の [再] の印。"
+  "再放送かどうか (#1233)。しょぼいカレンダーの再放送のマークか、番組名の解析では番組名の [再] のマーク。"
   rerun: Boolean!
   "TID に対応する作品。対応がなければ空。"
   works: [AnimeWork!]!
@@ -127,7 +127,7 @@ extend type Program {
 }
 
 extend type Recording {
-  "結びついた話 (設計書 3.8)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。"
+  "結びついた話 (設計書 3.8)。録画を始めたときの番組の結びつきをコピーしたもの。録画の詳細で使い、一覧では引かない。"
   animeEpisodes: [AnimeEpisode!]!
 }
 

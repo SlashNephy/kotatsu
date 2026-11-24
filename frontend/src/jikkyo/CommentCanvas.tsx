@@ -42,7 +42,7 @@ export function CommentCanvas({
   retainSeconds,
   ref,
 }: Props) {
-  // 小さなプレイヤー (#1602) では、コメントを流さない。受け取ったコメントは捨てず、大きく戻したら流し直す。
+  // 小さなプレイヤー (#1602) では、コメントを流さない。受け取ったコメントは破棄せず、大きく戻したら流し直す。
   const mini = useWatchMini();
   const drawing = drawingProp && !mini;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -55,7 +55,7 @@ export function CommentCanvas({
   const clockRef = useRef(clock);
   clockRef.current = clock;
   // 描画を作り直すのは、描き方とミュートが変わったときだけにする。不透明度は canvas の style で変える。
-  // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、中身で比べる。
+  // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、内容で比較する。
   const { speed, scale, showAll, mutedKeywords, mutedUsers, mutedCommands } = settings;
   const muteKey = JSON.stringify([mutedKeywords, mutedUsers, mutedCommands]);
   const view = useMemo(() => {
@@ -164,7 +164,7 @@ export function CommentCanvas({
     return () => cancelAnimationFrame(frame);
   }, [drawing]);
 
-  // data-overlay は、キャプチャで写す canvas の印。
+  // data-overlay は、キャプチャに含める canvas のマーク。
   return (
     <canvas
       ref={canvasRef}

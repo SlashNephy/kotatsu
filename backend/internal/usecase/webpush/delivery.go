@@ -33,7 +33,7 @@ const (
 	requestTimeout = 10 * time.Second
 	// messageTTL は、端末がオフラインのとき、プッシュサービスが通知を預かる時間。
 	messageTTL = 24 * time.Hour
-	// maxResponseBytes は、応答の本文を読み捨てる量の上限。
+	// maxResponseBytes は、応答の本文を読み飛ばす量の上限。
 	maxResponseBytes = 64 << 10
 	// title は、通知の見出し。
 	title = "Kotatsu"
@@ -61,7 +61,7 @@ type Inserter interface {
 	InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
 }
 
-// Enqueuer は、配るイベントごとに、そのイベントの種類を Web Push で受け取る購読への配信のジョブを投入する。
+// Enqueuer は、配信するイベントごとに、そのイベントの種類を Web Push で受け取る購読への配信のジョブを投入する。
 type Enqueuer struct {
 	inserter Inserter
 }
@@ -153,7 +153,7 @@ func (w *DeliverWorker) Work(ctx context.Context, job *river.Job[DeliverArgs]) e
 	if err != nil {
 		return fmt.Errorf("failed to get the notification event: %w", err)
 	}
-	// 宛先を確かめるのは積むときだけなので、送るまでの間に状況が変わったら送らない (#1435)。
+	// 宛先を確認するのは積むときだけなので、送るまでの間に状況が変わったら送らない (#1435)。
 	// ログアウトせずに別のユーザーが同じ endpoint で購読し直すと、upsert で行の持ち主が替わる。前の持ち主あての文を、新しいユーザーに見せない。
 	if job.Args.UserID != uuid.Nil() && subscription.UserID != job.Args.UserID {
 		return river.JobCancel(errRecipientChanged)
@@ -210,7 +210,7 @@ func (w *DeliverWorker) send(ctx context.Context, subscription *sqlc.WebPushSubs
 	if err != nil {
 		return river.JobCancel(err)
 	}
-	// 購読の送り先は、それ自体が送るための鍵になる URL (capability URL) なので、エラーに残すのはホストまでにする。
+	// 購読の送り先は、それ自体が送るための権限になる URL (capability URL) なので、エラーに残すのはホストまでにする。
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, subscription.Endpoint, bytes.NewReader(body))
 	if err != nil {
 		return river.JobCancel(fmt.Errorf("failed to build the web push request: %w", redact.URLError(err)))
@@ -231,7 +231,7 @@ func (w *DeliverWorker) send(ctx context.Context, subscription *sqlc.WebPushSubs
 		return fmt.Errorf("failed to send the web push: %w", err)
 	}
 	defer resp.Body.Close()
-	// 接続を使い回せるよう、応答の本文は上限まで読み捨てる。
+	// 接続を使い回せるよう、応答の本文は上限まで読み飛ばす。
 	if _, err := io.Copy(io.Discard, io.LimitReader(resp.Body, maxResponseBytes)); err != nil {
 		return fmt.Errorf("failed to read the web push response: %w", err)
 	}
@@ -245,7 +245,7 @@ func (w *DeliverWorker) handle(ctx context.Context, subscription *sqlc.WebPushSu
 	case resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices:
 		return nil
 	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
-		// 購読が失効した。送った後に同じ端末が購読し直していたら、新しい鍵の購読は残す。
+		// 購読が失効した。送った後に同じ端末が購読し直していたら、新しい公開鍵や認証用の秘密の購読は残す。
 		err := sqlc.New(w.db).DeleteExpiredWebPushSubscription(ctx, sqlc.DeleteExpiredWebPushSubscriptionParams{
 			ID: subscription.ID, P256DH: subscription.P256DH, Auth: subscription.Auth,
 		})
@@ -262,7 +262,7 @@ func (w *DeliverWorker) handle(ctx context.Context, subscription *sqlc.WebPushSu
 	}
 }
 
-// urgency は、イベントの種類ごとの、プッシュサービスへの緊急度 (RFC 8030 5.3)。録画の失敗のように、すぐ知らせたいものは high にする。
+// urgency は、イベントの種類ごとの、プッシュサービスへの緊急度 (RFC 8030 5.3)。録画の失敗のように、すぐ通知したいものは high にする。
 func urgency(kind domain.NotificationKind) string {
 	switch kind {
 	case domain.NotificationKindRecordingFailed, domain.NotificationKindStorageLow, domain.NotificationKindTunerServerUnreachable:
@@ -286,8 +286,8 @@ var (
 )
 
 // NewHTTPClient は、プッシュサービスに送る HTTP クライアントを返す。
-// 購読の送り先はユーザーが渡すので、LAN の中のサーバーに送らせないよう、接続するときに、グローバルなアドレスかを確かめる。
-// 名前を引いた後のアドレスで確かめるので、DNS の応答を後から変えられても、LAN の中には送らない。
+// 購読の送り先はユーザーが渡すので、LAN の中のサーバーに送らせないよう、接続するときに、グローバルなアドレスかを確認する。
+// 名前を引いた後のアドレスで確認するので、DNS の応答を後から変えられても、LAN の中には送らない。
 // 同じ理由で、環境変数のプロキシは使わず、リダイレクトにも従わない。
 func NewHTTPClient(recorder *netactivity.Recorder) *http.Client {
 	dialer := &net.Dialer{Timeout: requestTimeout, Control: publicnet.Control}

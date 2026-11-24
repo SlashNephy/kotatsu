@@ -12,7 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 )
 
-// TestUpdateChannel は、管理者の上書きを項目ごとに取り込んだ対応に重ね、取り込み直しても残すことを確かめる。
+// TestUpdateChannel は、管理者の上書きを項目ごとに取り込んだ対応に重ね、取り込み直しても残すことを確認する。
 // 上書きを消すと取り込んだ対応に戻り、変えたことは監査ログに残す。
 func TestUpdateChannel(t *testing.T) {
 	t.Parallel()
@@ -77,7 +77,7 @@ func TestUpdateChannel(t *testing.T) {
 	assert.Equal(t, 3, audited)
 }
 
-// TestUpdateChannelRejects は、正しくない上書きと、ないサービスを拒むことを確かめる。
+// TestUpdateChannelRejects は、正しくない上書きと、ないサービスを拒むことを確認する。
 func TestUpdateChannelRejects(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +113,7 @@ func TestUpdateChannelRejects(t *testing.T) {
 	}
 }
 
-// TestListChannelsTerrestrial は、地上波のサービスに、取り込んだ対応を当てる規則を確かめる (#1566)。
+// TestListChannelsTerrestrial は、地上波のサービスに、取り込んだ対応を当てる規則を確認する (#1566)。
 // 種別が地上波でない (他の地域を受ける EXT などの) 地上波のサービスには、NHK と独立局の対応だけを当て、系列局には当てない。
 // サブチャンネルにはメインの対応を当て、しょぼいカレンダーで別のチャンネルを持つサブチャンネルには、そのチャンネルを当てる。
 func TestListChannelsTerrestrial(t *testing.T) {

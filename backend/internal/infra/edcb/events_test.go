@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 )
 
-// notification は、GET_STATUS_NOTIFY2 の応答 (版と NOTIFY_SRV_INFO) を組む。
+// notification は、GET_STATUS_NOTIFY2 の応答 (バージョンと NOTIFY_SRV_INFO) を組む。
 func notification(id, count uint32) reply {
 	body := payload{}.u32(id)
 	for _, v := range []uint16{2026, 11, 5, 13, 21, 0, 0, 0} {

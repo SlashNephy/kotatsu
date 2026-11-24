@@ -1,7 +1,7 @@
 // Package secretbox は、アプリの秘密キーで、DB に保存する秘密情報を暗号化する (設計書 8.4)。
 //
-// 用途ごとに、アプリの秘密キーから HKDF-SHA256 で別の鍵を導出し、AES-256-GCM で暗号化する。
-// 暗号文の先頭には形式の版を 1 バイト付け、後から方式を変えられるようにする。
+// 用途ごとに、アプリの秘密キーから HKDF-SHA256 で別の暗号鍵を導出し、AES-256-GCM で暗号化する。
+// 暗号文の先頭には形式のバージョンを 1 バイト付け、後から方式を変えられるようにする。
 package secretbox
 
 import (
@@ -14,14 +14,14 @@ import (
 	"fmt"
 )
 
-// version1 は、AES-256-GCM で、版、nonce、暗号文の順に並べる形式。
+// version1 は、AES-256-GCM で、バージョン、nonce、暗号文の順に並べる形式。
 const version1 byte = 1
 
-// keyLength は AES-256 の鍵の長さ。
+// keyLength は AES-256 の暗号鍵の長さ。
 const keyLength = 32
 
 var (
-	// ErrDecrypt は、暗号文が壊れている、別の鍵で暗号化された、別の用途のもの、のどれかを表す。
+	// ErrDecrypt は、暗号文が壊れている、別の暗号鍵で暗号化された、別の用途のもの、のどれかを表す。
 	ErrDecrypt = errors.New("failed to decrypt the secret")
 	// ErrNoKey は、アプリの秘密キーがないことを表す。
 	ErrNoKey = errors.New("the application secret key is not configured")
@@ -34,8 +34,8 @@ type Box struct {
 	purpose []byte
 }
 
-// New は、アプリの秘密キー secret から purpose 用の鍵を導出して Box を返す。
-// purpose には "kotatsu/totp/v1" のように、用途と版を表す文字列を渡す。
+// New は、アプリの秘密キー secret から purpose 用の暗号鍵を導出して Box を返す。
+// purpose には "kotatsu/totp/v1" のように、用途とバージョンを表す文字列を渡す。
 func New(secret, purpose string) (*Box, error) {
 	if secret == "" {
 		return nil, ErrNoKey

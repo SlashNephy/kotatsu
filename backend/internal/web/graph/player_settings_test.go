@@ -15,7 +15,7 @@ type playerSettings struct {
 	CaptionsEnabled bool `json:"captionsEnabled"`
 }
 
-// TestPlayerSettings は、プレイヤーの設定を、省いた項目を変えずに変えられ、ほかの端末に知らせることを確かめる。
+// TestPlayerSettings は、プレイヤーの設定を、省いた項目を変えずに変えられ、ほかの端末に通知することを確認する。
 func TestPlayerSettings(t *testing.T) {
 	t.Parallel()
 
@@ -63,7 +63,7 @@ func TestPlayerSettings(t *testing.T) {
 		before := version()
 		assert.Equal(t, tt.want, update(tt.input), tt.name)
 		assert.Equal(t, tt.want, get(), tt.name)
-		// ほかの端末に viewerSettingsChanged で知らせるよう、設定の版数を上げる。
+		// ほかの端末に viewerSettingsChanged で通知するよう、設定のバージョンを上げる。
 		assert.Greater(t, version(), before, tt.name)
 	}
 }
@@ -86,7 +86,7 @@ type commentSettings struct {
 
 const commentSettingsFields = `comments { opacity speed scale showAll mutedKeywords { text match } mutedUsers mutedCommands mixOtherBroadcasts }`
 
-// TestCommentSettings は、実況のコメントの設定を、既定値から置き換えられ、ほかの項目を変えず、範囲の外は断ることを確かめる (#488)。
+// TestCommentSettings は、実況のコメントの設定を、既定値から置き換えられ、ほかの項目を変えず、範囲の外は断ることを確認する (#488)。
 func TestCommentSettings(t *testing.T) {
 	t.Parallel()
 
@@ -164,7 +164,7 @@ type captionSettings struct {
 
 const captionSettingsFields = `captions { superimposeLive superimposeRecorded stroke backgroundOpacity }`
 
-// TestCaptionSettings は、字幕の設定を、既定値から変えて残し、範囲の外の値を断ることを確かめる (#491)。
+// TestCaptionSettings は、字幕の設定を、既定値から変えて残し、範囲の外の値を断ることを確認する (#491)。
 func TestCaptionSettings(t *testing.T) {
 	t.Parallel()
 
@@ -209,4 +209,69 @@ func TestCaptionSettings(t *testing.T) {
 		assert.Equal(t, []string{codeBadUserInput}, f.query(t, mutation, map[string]any{varInput: map[string]any{"captions": invalid}}, &ignored), tt.name)
 	}
 	assert.Equal(t, valid, get(), "rejected changes are not saved")
+}
+
+type preference struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// TestPreferences は、端末をまたいで同期する設定 (#1862) を、渡したキーだけ置き換えて消せ、許していないキーと長すぎる値を断ることを確認する。
+func TestPreferences(t *testing.T) {
+	t.Parallel()
+
+	const keymap, cmAutoSkip, enabled = "kotatsu.player.keymap", "kotatsu.player.cmAutoSkip", "true"
+	pref := func(key string, value any) map[string]any { return map[string]any{"key": key, "value": value} }
+	f := newFixture(t, nil)
+	update := func(input []map[string]any) ([]preference, []string) {
+		var got struct {
+			UpdatePlayerSettings struct {
+				Preferences []preference `json:"preferences"`
+			} `json:"updatePlayerSettings"`
+		}
+		errs := f.query(t, `mutation($input: PlayerSettingsInput!) {
+			updatePlayerSettings(input: $input) { preferences { key value } }
+		}`, map[string]any{varInput: map[string]any{"preferences": input}}, &got)
+
+		return got.UpdatePlayerSettings.Preferences, errs
+	}
+	get := func() []preference {
+		var got struct {
+			PlayerSettings struct {
+				Preferences []preference `json:"preferences"`
+			} `json:"playerSettings"`
+		}
+		require.Empty(t, f.query(t, `{ playerSettings { preferences { key value } } }`, nil, &got))
+
+		return got.PlayerSettings.Preferences
+	}
+
+	assert.Empty(t, get())
+	got, errs := update([]map[string]any{pref(keymap, `{"play":"k"}`), pref(cmAutoSkip, enabled)})
+	require.Empty(t, errs)
+	assert.Equal(t, []preference{{Key: cmAutoSkip, Value: enabled}, {Key: keymap, Value: `{"play":"k"}`}}, got)
+
+	// 渡さなかったキーは変えず、null を渡したキーは消す。
+	got, errs = update([]map[string]any{pref(keymap, nil)})
+	require.Empty(t, errs)
+	assert.Equal(t, []preference{{Key: cmAutoSkip, Value: enabled}}, got)
+	assert.Equal(t, got, get())
+
+	tests := []struct {
+		name  string
+		input map[string]any
+	}{
+		{name: "同期しないキー", input: pref("kotatsu.player.volume", "0.5")},
+		{name: "長すぎる値", input: pref(keymap, strings.Repeat("a", 16385))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// 断る変更は、どれも DB を変えないので、並べて流してもよい。
+			_, errs := update([]map[string]any{tt.input})
+			assert.NotEmpty(t, errs)
+			assert.Equal(t, []preference{{Key: cmAutoSkip, Value: enabled}}, get())
+		})
+	}
 }

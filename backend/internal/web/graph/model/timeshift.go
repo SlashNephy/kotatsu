@@ -8,7 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 )
 
-// TimeshiftChannel は、タイムシフトで録るチャンネル。サービスは、リゾルバが dataloader で引く。
+// TimeshiftChannel は、タイムシフトで録るチャンネル。サービスは、リゾルバが dataloader で取得する。
 type TimeshiftChannel struct {
 	RetentionSeconds int        `json:"retentionSeconds"`
 	BufferedFrom     *time.Time `json:"bufferedFrom,omitempty"`
@@ -18,7 +18,7 @@ type TimeshiftChannel struct {
 	ServiceKey int64 `json:"-"`
 }
 
-// TimeshiftProgram は、タイムシフトのバッファから再生できる番組。サービスは、リゾルバが dataloader で引く。
+// TimeshiftProgram は、タイムシフトのバッファから再生できる番組。サービスは、リゾルバが dataloader で取得する。
 type TimeshiftProgram struct {
 	EventID      int             `json:"eventId"`
 	Name         string          `json:"name"`

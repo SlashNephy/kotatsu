@@ -1,6 +1,7 @@
 // 番組の条件の入力と、tenban の番組の条件 (ProgramConditions と ProgramConditionsInput) を行き来させる。
 // 番組の検索とルールの編集で、同じ入力を使う。
 
+import type { HighlightKeyword } from '../futon/highlight';
 import { splitProgramMarks } from '../futon/programMarks';
 
 export type KeywordField = 'NAME' | 'DESCRIPTION' | 'EXTENDED';
@@ -43,7 +44,7 @@ export type ConditionsForm = {
   minDurationSeconds: number | null;
   maxDurationSeconds: number | null;
   freeOnly: boolean;
-  // marks は、番組名の囲み文字の中身 (「新」や「字」など。括弧で書いた [新] なども同じとみなす)。どれか 1 つを持つ番組を対象にする。
+  // marks は、番組名の囲み文字の内容 (「新」や「字」など。括弧で書いた [新] なども同じとみなす)。どれか 1 つを持つ番組を対象にする。
   marks: string[];
   // excludeMarks は、どれか 1 つを持つ番組を除外する囲み文字。
   excludeMarks: string[];
@@ -119,19 +120,39 @@ const copyGenre = (genre: { lv1: number; lv2?: number | null }): Genre => ({
   lv2: genre.lv2 ?? null,
 });
 
+// promoWords は、宣伝やダイジェストの番組の番組名にある語と、それを見つける形 (#2041)。
+// 照合はキーワードを NFKC で正規化して探すので、全角の「ＰＲ」も「PR」で除外できる。PR は、英字の語の一部 (PRIDE、Spring) を
+// 宣伝とみなさないよう、前後が英字でないときだけ宣伝のマークとみなし、除外も大文字と小文字を区別する。
+const promoWords: readonly { text: string; pattern: RegExp; caseSensitive: boolean }[] = [
+  {
+    text: 'PR',
+    pattern: /(?<![A-Za-zＡ-Ｚａ-ｚ])(?:PR|ＰＲ)(?![A-Za-zＡ-Ｚａ-ｚ])/u,
+    caseSensitive: true,
+  },
+  { text: 'ダイジェスト', pattern: /ダイジェスト/u, caseSensitive: false },
+];
+
 // conditionsFromProgram は、番組から、ルールを作るときの条件の初期値を作る (設計書 10.3)。
 // tenban が番組名から読んだ作品名 (ruleKeyword。話数やサブタイトルを除いたもの。#1240) があればそれを、なければ
 // 番組名 (囲み文字を外したもの) をキーワードに、番組のサービスをチャンネルにする。
+// 作品名だけをキーワードにすると、宣伝やダイジェストの番組から作ったルールは本編にも当たるが、宣伝の番組そのものも録る。
+// 宣伝の番組からルールを作るのは本編を録りたいときなので、番組名に宣伝の語があれば、その語を除外するキーワードに入れる (#2041)。
+// 作品名がその語を含むときは、本編まで除外してしまうので入れない。
 export function conditionsFromProgram(
   name: string,
   serviceId: string,
   ruleKeyword?: string,
 ): ConditionsForm {
   const title = ruleKeyword?.trim() || splitProgramMarks(name).name;
+  const normalizedTitle = title.normalize('NFKC');
+  const excludeKeywords = promoWords
+    .filter((word) => word.pattern.test(name) && !normalizedTitle.includes(word.text))
+    .map((word) => ({ ...emptyKeyword(), text: word.text, caseSensitive: word.caseSensitive }));
 
   return {
     ...emptyConditions(),
     keywords: title === '' ? [] : [{ ...emptyKeyword(), text: title }],
+    excludeKeywords,
     services: [serviceId],
   };
 }
@@ -161,8 +182,29 @@ export function fromConditions(c: ConditionsData): ConditionsForm {
   };
 }
 
+// KeywordInputLike は、tenban に送ったキーワード (KeywordInput)。
+type KeywordInputLike = {
+  readonly text: string;
+  readonly regexp?: boolean | null;
+  readonly caseSensitive?: boolean | null;
+  readonly fields: readonly string[];
+};
+
+// nameHighlights は、tenban に送った含めるキーワードのうち、番組名を見るものを、番組名にマークを付けるキーワードにする (#966)。
+export function nameHighlights(
+  keywords: readonly KeywordInputLike[] | null | undefined,
+): HighlightKeyword[] {
+  return (keywords ?? [])
+    .filter((keyword) => keyword.text.trim() !== '' && keyword.fields.includes('NAME'))
+    .map((keyword) => ({
+      text: keyword.text,
+      regexp: keyword.regexp === true,
+      caseSensitive: keyword.caseSensitive === true,
+    }));
+}
+
 // toConditionsInput は、入力を、tenban の ProgramConditionsInput にする。
-// 中身のないキーワードの行と、曜日のない時間帯の行は、編集の途中とみなして送らない。
+// 内容のないキーワードの行と、曜日のない時間帯の行は、編集の途中とみなして送らない。
 export function toConditionsInput(form: ConditionsForm) {
   const keywords = (rows: KeywordRow[]) =>
     rows

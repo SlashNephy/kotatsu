@@ -2,7 +2,7 @@
 //
 // つなぐのは 2 つのジョブに分ける。
 // JoinWorker は、つないだものを一時ファイルに書き、DB のファイルの記録を置き換えて、FinalizeWorker のジョブを同じトランザクションで投入する。
-// FinalizeWorker は、一時ファイルを最初のセグメントの名前に置き換え、つないだ元のファイルを消して、索引を作り直させる。
+// FinalizeWorker は、一時ファイルを最初のセグメントの名前に置き換え、つないだ元のファイルを消して、インデックスを作り直させる。
 // どちらで止まっても、ジョブをやり直せば同じ結果になる。
 package segjoin
 
@@ -78,7 +78,7 @@ func (JoinArgs) Kind() string { return "recording_join" }
 
 func (JoinArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
-		// 索引やサムネイルのジョブと同じキューで、1 つずつ動かす。録画のファイルを読み書きするのが重いため。
+		// インデックスやサムネイルのジョブと同じキューで、1 つずつ動かす。録画のファイルを読み書きするのが重いため。
 		Queue:       jobs.QueueMedia,
 		MaxAttempts: maxAttempts,
 		UniqueOpts:  river.UniqueOpts{ByArgs: true},
@@ -88,9 +88,9 @@ func (JoinArgs) InsertOpts() river.InsertOpts {
 // FinalizeArgs は、つないだファイルを最初のセグメントの名前に置き換え、つないだ元のファイルを消すジョブの引数。
 type FinalizeArgs struct {
 	RecordingID uuid.UUID `json:"recordingId"`
-	// FileID は、つないだファイル (最初のセグメント) の recording_files.id。置き換えたら古くなる索引を消すのに使う。
+	// FileID は、つないだファイル (最初のセグメント) の recording_files.id。置き換えたら古くなるインデックスを消すのに使う。
 	FileID uuid.UUID `json:"fileId"`
-	// PoolID と Path は、つないだファイルの置き場所 (最初のセグメントの置き場所)。一時ファイルは Path に tempSuffix を付けたもの。
+	// PoolID と Path は、つないだファイルの保存先 (最初のセグメントの保存先)。一時ファイルは Path に tempSuffix を付けたもの。
 	PoolID string `json:"poolId"`
 	Path   string `json:"path"`
 	// Removed は、消す、つないだ元のセグメント。生成物のディレクトリも一緒に消す。
@@ -112,8 +112,8 @@ func (FinalizeArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{Queue: jobs.QueueMedia, MaxAttempts: finalizeMaxAttempts}
 }
 
-// Enqueuer は、録画の完了のイベントを配るときに、録画のファイルを 1 つにつなぐジョブか、画像を作るジョブを投入する。
-// つなぐときは、つないだあとで索引と画像を作り直すので、画像のジョブはここでは投入しない。
+// Enqueuer は、録画の完了のイベントを配信するときに、録画のファイルを 1 つにつなぐジョブか、画像を作るジョブを投入する。
+// つなぐときは、つないだあとでインデックスと画像を作り直すので、画像のジョブはここでは投入しない。
 type Enqueuer struct {
 	inserter Inserter
 }
@@ -131,7 +131,7 @@ func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.E
 	}
 	recordingID, ok := recordingIDOf(event.Payload)
 	if !ok {
-		// 録画の ID のないイベントでは、何もできない。ほかの通知は配りたいので、失敗にはしない。
+		// 録画の ID のないイベントでは、何もできない。ほかの通知は配信したいので、失敗にはしない。
 		return nil
 	}
 	var args river.JobArgs = thumbnail.GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: false}
@@ -330,7 +330,7 @@ func (w *JoinWorker) commit(
 		if err != nil {
 			return fmt.Errorf("failed to update the joined segment: %w", err)
 		}
-		// つないでいる間に録画が消された。外部キーの違反にはならないので、行の数で確かめる (#514)。
+		// つないでいる間に録画が消された。外部キーの違反にはならないので、行の数で確認する (#514)。
 		if n == 0 {
 			return errRecordingNotFound
 		}
@@ -361,10 +361,10 @@ func (w *JoinWorker) commit(
 	return nil
 }
 
-// recoverCommit は、つないだ結果を確定するトランザクションが失敗したときに、確定したかどうかを DB で確かめる。
+// recoverCommit は、つないだ結果を確定するトランザクションが失敗したときに、確定したかどうかを DB で確認する。
 // コミットの結果があいまい (実際には確定したのに、エラーが返った) なら、置き換えのジョブも確定しているので、
 // つないだファイルを残す。消すと、置き換えで元のセグメントを消して、録画の後半を失う (#514)。
-// 確定していなければ、つないだファイルを消して、やり直す。確かめられなければ、残してやり直す。
+// 確定していなければ、つないだファイルを消して、やり直す。確認できなければ、残してやり直す。
 func (w *JoinWorker) recoverCommit(ctx context.Context, logger *slog.Logger, cause error, recordingID, firstID uuid.UUID, size int64, outPath string) error {
 	if pgErr := (*pgconn.PgError)(nil); errors.As(cause, &pgErr) {
 		// PostgreSQL が返したエラーなら、確定していない。
@@ -481,7 +481,7 @@ type rowQuerier interface {
 
 // FinalizePending は、録画 recordingID の、つないだファイルへの置き換えが終わっていないかを返す。
 // 終わっていなければ、DB の記録はつないだ後の 1 本でも、ディスクの最初のセグメントはまだつなぐ前のままである。
-// 録画のファイルを読むジョブは、録画ごとのロックを取ったあとでこれを確かめ、終わっていなければ後でやり直す (#1719)。
+// 録画のファイルを読むジョブは、録画ごとのロックを取ったあとでこれを確認し、終わっていなければ後でやり直す (#1719)。
 func FinalizePending(ctx context.Context, db rowQuerier, recordingID uuid.UUID) (bool, error) {
 	// River のテーブルは sqlc のスキーマにないので、直接引く。
 	var pending bool
@@ -496,7 +496,7 @@ func FinalizePending(ctx context.Context, db rowQuerier, recordingID uuid.UUID) 
 	return pending, nil
 }
 
-// FinalizeWorker は、つないだファイルを最初のセグメントの名前に置き換え、つないだ元のファイルを消して、索引を作り直させる。
+// FinalizeWorker は、つないだファイルを最初のセグメントの名前に置き換え、つないだ元のファイルを消して、インデックスを作り直させる。
 type FinalizeWorker struct {
 	river.WorkerDefaults[FinalizeArgs]
 
@@ -518,7 +518,7 @@ func NewFinalizeWorker(db interface {
 }
 
 // Work は、録画ごとの advisory lock を取ってから、つないだファイルに置き換える。
-// 録画のファイルを読むジョブ (変換、CM の見分け、解析) が読んでいる間に、ファイルを置き換えたり索引を消したりしないよう、
+// 録画のファイルを読むジョブ (変換、CM の見分け、解析) が読んでいる間に、ファイルを置き換えたりインデックスを消したりしないよう、
 // ロックが取れなければ、後でやり直す (#1719)。
 func (w *FinalizeWorker) Work(ctx context.Context, job *river.Job[FinalizeArgs]) error {
 	conn, err := w.conns.Acquire(ctx)
@@ -562,7 +562,7 @@ func (w *FinalizeWorker) work(ctx context.Context, job *river.Job[FinalizeArgs])
 		// つないだファイルと元のセグメントを消す。置き換えると、消した録画のファイルを作り直してしまう (#514)。
 		return w.removeAll(&job.Args, path)
 	}
-	// 最初のセグメントの索引は、置き換えると合わなくなるので、先に消す。解析のジョブが作り直す。
+	// 最初のセグメントのインデックスは、置き換えると合わなくなるので、先に消す。解析のジョブが作り直す。
 	index := kago.IndexLocation(job.Args.FileID)
 	if indexPath, err := w.store.Path(index.PoolID, index.Path); err != nil {
 		return fmt.Errorf("failed to locate the index of the joined file: %w", err)
@@ -579,7 +579,7 @@ func (w *FinalizeWorker) work(ctx context.Context, job *river.Job[FinalizeArgs])
 		}
 	}
 
-	// つないだファイルの索引と集計、画像を作り直す。解析のジョブが、終わったら画像のジョブを投入する。
+	// つないだファイルのインデックスと集計、画像を作り直す。解析のジョブが、終わったら画像のジョブを投入する。
 	return pgx.BeginFunc(ctx, w.pool, func(tx pgx.Tx) error {
 		// 新しく録った録画なので、取り込んだ録画の解析より先に回す。解析の後の画像も、同じ優先度で作る。
 		params := []river.InsertManyParams{{

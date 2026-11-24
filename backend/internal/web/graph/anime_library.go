@@ -124,7 +124,7 @@ func libraryWorkModel(work *animerecord.LibraryWork, programs map[string]*model.
 	return result
 }
 
-// libraryWorkKey は、作品を見分ける ID の中身。TID があれば TID を、なければ記録先の作品を使う。
+// libraryWorkKey は、作品を見分ける ID の内容。TID があれば TID を、なければ記録先の作品を使う。
 func libraryWorkKey(work *animerecord.LibraryWork) string {
 	if work.TID != nil {
 		return "tid:" + strconv.Itoa(int(*work.TID))
@@ -134,7 +134,7 @@ func libraryWorkKey(work *animerecord.LibraryWork) string {
 	return source.Destination + ":" + strconv.Itoa(int(source.WorkID))
 }
 
-// libraryPrograms は、作品の放送の番組を、番組表と同じ形で引く。
+// libraryPrograms は、作品の放送の番組を、番組表と同じ形で取得する。
 func (r *Resolver) libraryPrograms(ctx context.Context, works []*animerecord.LibraryWork) (map[string]*model.Program, error) {
 	serviceIDs, eventIDs := []int64{}, []int64{}
 	for _, work := range works {
@@ -146,7 +146,7 @@ func (r *Resolver) libraryPrograms(ctx context.Context, works []*animerecord.Lib
 	return r.programsByKeys(ctx, serviceIDs, eventIDs)
 }
 
-// libraryRecordings は、作品の録画を、録画の一覧と同じ形で引く。
+// libraryRecordings は、作品の録画を、録画の一覧と同じ形で取得する。
 func (r *Resolver) libraryRecordings(ctx context.Context, works []*animerecord.LibraryWork) (map[uuid.UUID]*model.Recording, error) {
 	ids := []uuid.UUID{}
 	for _, work := range works {
@@ -158,7 +158,7 @@ func (r *Resolver) libraryRecordings(ctx context.Context, works []*animerecord.L
 	return r.recordingsByIDs(ctx, ids)
 }
 
-// programsByKeys は、番組 (サービス, eventId) を、番組表と同じ形で引く。
+// programsByKeys は、番組 (サービス, eventId) を、番組表と同じ形で取得する。
 func (r *Resolver) programsByKeys(ctx context.Context, serviceIDs, eventIDs []int64) (map[string]*model.Program, error) {
 	programs := map[string]*model.Program{}
 	if len(serviceIDs) == 0 {

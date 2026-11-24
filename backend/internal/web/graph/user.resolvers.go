@@ -25,7 +25,7 @@ func (r *userResolver) AvatarURL(ctx context.Context, obj *model.User) (*string,
 	case err != nil:
 		return nil, fmt.Errorf("failed to get the avatar: %w", err)
 	default:
-		// 画像は、ブラウザに IdP から読ませず、tenban が中継する。
+		// 画像は、ブラウザに IdP から読ませず、tenban がプロキシする。
 		avatar = new("/internal/media/users/" + userID.String() + "/avatar")
 	}
 

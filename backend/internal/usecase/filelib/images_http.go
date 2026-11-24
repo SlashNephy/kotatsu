@@ -31,7 +31,7 @@ func NewImageHandler(source *Source, indexer *Indexer, logger *slog.Logger) *Ima
 }
 
 func (h *ImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 見つからないなどの失敗の応答は、覚えさせない。返せたときは、下で上書きする。
+	// 見つからないなどの失敗の応答は、キャッシュさせない。返せたときは、下で上書きする。
 	w.Header().Set("Cache-Control", "no-store")
 	ref, ok := DecodeRef(r.PathValue("id"))
 	if !ok {

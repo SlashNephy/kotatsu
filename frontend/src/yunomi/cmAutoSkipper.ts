@@ -3,7 +3,7 @@ import { cmLookahead, cmSectionAt, shouldAutoSkip, type CmSection } from './cmSk
 // uncoverFrames は、飛んだあと、飛び先以上のコマがこの数だけ続いて映ったら蓋を外す、その数 (#1512)。
 // requestVideoFrameCallback が来るのは、コマを描画の側へ渡した時点で、画面に出るのはその後になる。
 // Windows の Chrome や Edge は、映像を DOM とは別の面に出すので、蓋を外す変更のほうが映像より先に画面へ出ることがある。
-// そのため、1 コマでは外さない。実機で測っていない初期値 (設計書 付録 A)。
+// そのため、1 コマでは外さない。実機で計測していない初期値 (設計書 付録 A)。
 export const uncoverFrames = 3;
 
 // coverTimeoutMs は、蓋を出してから、外す条件を満たさなくても外すまでの時間 (#1512)。外し忘れて映像が止まって見えるのを防ぐ。
@@ -13,7 +13,7 @@ export const coverTimeoutMs = 5_000;
 // landingTolerance は、飛び先に着いたとみなす、コマの位置の誤差 (秒)。位置の計算の丸めの分だけ許す。
 const landingTolerance = 0.001;
 
-// CoverKind は、蓋の種類。still は、映っていた本編のコマを写したもの。black は、プレイヤーの枠全体を覆う黒。
+// CoverKind は、蓋の種類。still は、映っていた本編のコマをコピーしたもの。black は、プレイヤーの枠全体を覆う黒。
 export type CoverKind = 'still' | 'black';
 
 // SkipperFrame は、映ったコマ 1 つ分の様子。
@@ -44,7 +44,7 @@ export type SkipperHost = {
   uncover: () => void;
   // jump は、target へ移り、実際に移った先を返す (録画の外へは移らない)。利用者のシークとして数えない。
   jump: (target: number) => number;
-  // notify は、CM を飛ばしたことを知らせる。
+  // notify は、CM を飛ばしたことを通知する。
   notify: () => void;
   setTimer: (callback: () => void, ms: number) => () => void;
 };
@@ -100,7 +100,7 @@ export class CmAutoSkipper {
     if (!shouldAutoSkip(section, true, true, host.lastSeek())) {
       return;
     }
-    // CM の中で写すと、蓋そのものが CM のコマになるので、いまのコマが本編のときだけ写す。
+    // CM の中でコピーすると、蓋そのものが CM のコマになるので、いまのコマが本編のときだけコピーする。
     const inCm = cmSectionAt(sections, frame.position) !== null;
     this.#hold(inCm ? 'black' : 'still', () => host.jump(section!.to));
     host.notify();

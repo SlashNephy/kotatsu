@@ -16,7 +16,7 @@ const (
 	// bsNetworkID と bsServiceID は、faketuner.DefaultOptions の BS のサービス (こたつ BS)。
 	bsNetworkID = 4
 	bsServiceID = 101
-	// episodeName は、同じ回を束ねるテストの番組名。
+	// episodeName は、同じ回をまとめるテストの番組名。
 	episodeName = "灯台の地図 #3「霧笛」"
 )
 
@@ -72,14 +72,14 @@ func (f *engineFixture) reservedEpisodes(t *testing.T) map[int64]bool {
 	return reserved
 }
 
-// TestEngineBundlesSameEpisodes は、同じ回を束ねるルールが、局をまたいだ同じ回のうち、最初の放送だけを予約することを確かめる (#1498)。
+// TestEngineBundlesSameEpisodes は、同じ回をまとめるルールが、局をまたいだ同じ回のうち、最初の放送だけを予約することを確認する (#1498)。
 func TestEngineBundlesSameEpisodes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name   string
 		bundle bool
-		// otherRule は、同じ回を束ねないルールにも、BS の放送を一致させるかどうか。
+		// otherRule は、同じ回をまとめないルールにも、BS の放送を一致させるかどうか。
 		otherRule bool
 		want      map[int64]bool
 	}{
@@ -103,7 +103,7 @@ func TestEngineBundlesSameEpisodes(t *testing.T) {
 	}
 }
 
-// TestEngineSkipsRecordedEpisodes は、同じ回を「録った回を見る期間」の内に録っていれば、どの放送も予約しないことを確かめる (#1498)。
+// TestEngineSkipsRecordedEpisodes は、同じ回を「録った回を見る期間」の内に録っていれば、どの放送も予約しないことを確認する (#1498)。
 // 録画履歴は、自分で録ったものを期間で切り、ほかの録画ソフトから引き継いだものは切らない。録画中の録画も数える。
 func TestEngineSkipsRecordedEpisodes(t *testing.T) {
 	t.Parallel()
@@ -128,7 +128,7 @@ func TestEngineSkipsRecordedEpisodes(t *testing.T) {
 
 			f := newEngineFixture(t, earlyAndLateEpisodes()...)
 			start := testNow().Add(tt.started)
-			// 録った回は、別の局で、副題を書かずに流れた同じ回とする。
+			// 録った回は、別の局で、サブタイトルを書かずに流れた同じ回とする。
 			const recordedName = "灯台の地図 #3"
 			var err error
 			if tt.recording {
@@ -151,7 +151,7 @@ func TestEngineSkipsRecordedEpisodes(t *testing.T) {
 	}
 }
 
-// TestEngineKeepsNextEpisodeWhenConflicting は、選んだ放送が割り当てで競合なら、それも予約したまま、次の放送も予約することを確かめる (#1498)。
+// TestEngineKeepsNextEpisodeWhenConflicting は、選んだ放送が割り当てで競合なら、それも予約したまま、次の放送も予約することを確認する (#1498)。
 // 競合の結果は前回の割り当てで決まるので、次の放送が予約されるのは次の照合からである。
 func TestEngineKeepsNextEpisodeWhenConflicting(t *testing.T) {
 	t.Parallel()
@@ -168,7 +168,7 @@ func TestEngineKeepsNextEpisodeWhenConflicting(t *testing.T) {
 	assert.Equal(t, map[int64]bool{300: true, 400: true}, f.reservedEpisodes(t))
 }
 
-// TestEngineSkipsCancelledEpisodeInBundle は、人が取り消した最初の放送を束ねる前に外し、次の放送を予約することを確かめる (#1498、#1504)。
+// TestEngineSkipsCancelledEpisodeInBundle は、人が取り消した最初の放送をまとめる前に外し、次の放送を予約することを確認する (#1498、#1504)。
 // 取り消した放送を選ぶと、無効の予約のまま、ほかの放送も外してしまい、同じ回をどこでも録らなくなる。
 func TestEngineSkipsCancelledEpisodeInBundle(t *testing.T) {
 	t.Parallel()
@@ -183,28 +183,23 @@ func TestEngineSkipsCancelledEpisodeInBundle(t *testing.T) {
 }
 
 // TestEngineRemovesBundledReservations は、予約した後に同じ回の早い放送が番組表に入ったときと、同じ回を録り終えたときに、
-// 外れた予約を引っ込めることを確かめる (#1498)。別の放送で録るので外れた予約は、番組表の変化で外れたので猶予の内なら残し、
-// 録り終えて外れた予約は、猶予の内でもすぐ消す (#1501)。
+// 外れた予約を引っ込めることを確認する (#1498)。
 func TestEngineRemovesBundledReservations(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
-		grace    int
 		recorded bool
 		want     map[int64]bool
 	}{
-		{name: "早い放送が入れば、遅い放送の予約を消す", grace: 0, recorded: false, want: map[int64]bool{300: true}},
-		{name: "猶予の内なら、遅い放送の予約も残す", grace: 24 * 60, recorded: false, want: map[int64]bool{300: true, 400: true}},
-		{name: "録り終えたら、猶予の内でも消す", grace: 24 * 60, recorded: true, want: map[int64]bool{}},
+		{name: "早い放送が入れば、遅い放送の予約を消す", recorded: false, want: map[int64]bool{300: true}},
+		{name: "録り終えたら消す", recorded: true, want: map[int64]bool{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// 猶予の上限 (1 日) の内に始まるよう、BS の放送を 20 時間後にする。
 			f := newEngineFixture(t, episodeProgram(bsNetworkID, bsServiceID, 400, 20*time.Hour, "灯台の地図 #3"))
-			f.setGrace(t, tt.grace)
 			f.createEpisodeRule(t, true)
 			f.run(t)
 			require.Equal(t, map[int64]bool{400: true}, f.reservedEpisodes(t))
@@ -226,7 +221,7 @@ func TestEngineRemovesBundledReservations(t *testing.T) {
 	}
 }
 
-// TestFindSkippedEpisodes は、同じ回の束ねで予約しなかった番組を、理由と一緒に返すことを確かめる (#1498)。
+// TestFindSkippedEpisodes は、同じ回のまとめで予約しなかった番組を、理由と一緒に返すことを確認する (#1498)。
 func TestFindSkippedEpisodes(t *testing.T) {
 	t.Parallel()
 
@@ -277,7 +272,7 @@ func TestFindSkippedEpisodes(t *testing.T) {
 	t.Run("同じ回を複数録画済みなら、終わりが新しい録画を引く", func(t *testing.T) {
 		t.Parallel()
 
-		// 入れた順に返ると古い録画を引くので、古い録画を先に入れる (#1985)。
+		// 入れた順に返ると古い録画を選ぶので、古い録画を先に入れる (#1985)。
 		f := newEngineFixture(t, earlyAndLateEpisodes()...)
 		older := testNow().Add(-3 * time.Hour).UTC()
 		newer := testNow().Add(-time.Hour).UTC()
@@ -299,8 +294,8 @@ func TestFindSkippedEpisodes(t *testing.T) {
 	})
 }
 
-// TestEngineBundlesAnimeEpisodes は、番組名の書き方が揃わなくても、しょぼいカレンダーの同じ話に結びついた放送を束ね、
-// 同じ話に結びついた録画中の録画があれば、どれも予約しないことを確かめる (#1498、設計書 3.8)。
+// TestEngineBundlesAnimeEpisodes は、番組名の書き方が揃わなくても、しょぼいカレンダーの同じ話に結びついた放送をまとめ、
+// 同じ話に結びついた録画中の録画があれば、どれも予約しないことを確認する (#1498、設計書 3.8)。
 func TestEngineBundlesAnimeEpisodes(t *testing.T) {
 	t.Parallel()
 

@@ -1,8 +1,8 @@
 // 待機文書の見分け方 (#717)。
 //
 // テレビ朝日の /61/0000/stream.bml や、フジテレビの /40/0100/startup.bml は、見える文書だが、映像と音声のほかに何も描かず、
-// d ボタンを受け取ってから中身のある文書へ移る。見えた時点で d ボタンを押すのをやめると、ここで止まる。
-// 文書の名前では、中身のある文書と見分けられないので、描いているものと、d ボタンを待っているかで見分ける。
+// d ボタンを受け取ってから内容のある文書へ移る。見えた時点で d ボタンを押すのをやめると、ここで止まる。
+// 文書の名前では、内容のある文書と見分けられないので、描いているものと、d ボタンを待っているかで見分ける。
 
 // mediaType は、映像と音声の object の arib-type。中の要素も含めて、描いているものに数えない。
 const mediaType = /^(video|audio)\//i;
@@ -61,7 +61,7 @@ function transparent(color: string): boolean {
 }
 
 // renderedRoot は、BMLBrowser の今の文書の、描いた要素の根を返す。
-// web-bml の BML の DOM は、スタイルを読めないので、元の要素 (公開していない node) を読む。web-bml を上げたら確かめ直す。
+// web-bml の BML の DOM は、スタイルを読めないので、元の要素 (公開していない node) を読む。web-bml を上げたら確認し直す。
 export function renderedRoot(
   content: { bmlDocument?: { documentElement?: unknown } } | undefined,
 ): Element | null {

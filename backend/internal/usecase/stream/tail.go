@@ -12,7 +12,7 @@ const (
 	// tailWindow は、セグメントの終わりで途中で切れた PES を探す範囲。終わりの手前をこれだけ読む。
 	// 音声と字幕の PES は数 KB なので、PES の始まりは、この範囲に必ず入る。
 	tailWindow = 2048 * ts.PacketSize
-	// headWindow は、セグメントの頭で、前から続く PES の残りのパケットを落とす範囲。頭からこれだけ読む。
+	// headWindow は、セグメントの先頭で、前から続く PES の残りのパケットを落とす範囲。頭からこれだけ読む。
 	headWindow = 2048 * ts.PacketSize
 )
 

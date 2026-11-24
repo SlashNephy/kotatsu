@@ -1,6 +1,6 @@
 import { deinterlacerCanvas } from './deinterlacer';
 
-// SavedStyle は、インラインのスタイルを変える前の要素と、その style 属性の中身。
+// SavedStyle は、インラインのスタイルを変える前の要素と、その style 属性の内容。
 export type SavedStyle = readonly [HTMLElement, string];
 
 // fitMedia は、nodes とその中の要素を、移した先の枠いっぱいに広げ、変える前のインラインのスタイルを返す。

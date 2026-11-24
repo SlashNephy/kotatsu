@@ -55,7 +55,7 @@ func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
 	return cliSealedStores, nil
 }
 
-// newKyusuParts は、kyusu のライブ視聴と録画の仮想 HLS のセッションと、tenban からのリクエストを確かめるトークンを作る。
+// newKyusuParts は、kyusu のライブ視聴と録画の仮想 HLS のセッションと、tenban からのリクエストを確認するトークンを作る。
 // トークンと、構成によってないことがあるストリームを開く先とトランスコーダーは、newKyusu が先に決めて渡す。
 func newKyusuParts(deps *Deps, logger *slog.Logger, token *kyusu.Token, opener kyusu.ServiceOpener, transcoder *kyusu.Transcoder) (*kyusuParts, error) {
 	cliKyusuLogger := kyusuLoggerOf(logger)
@@ -75,7 +75,7 @@ func newKyusuParts(deps *Deps, logger *slog.Logger, token *kyusu.Token, opener k
 	return cliKyusuParts, nil
 }
 
-// newAccountParts は、ユーザーのアカウントとログインを扱う部品を作る。アプリの秘密キーがあるかは、newAPI が先に確かめる。
+// newAccountParts は、ユーザーのアカウントとログインを扱う部品を作る。アプリの秘密キーがあるかは、newAPI が先に確認する。
 func newAccountParts(deps *Deps, logger *slog.Logger) (*accountParts, error) {
 	clock := clockOf(deps)
 	sessions := newSessions(clock, logger)
@@ -106,7 +106,7 @@ func newAccountParts(deps *Deps, logger *slog.Logger) (*accountParts, error) {
 	return cliAccountParts, nil
 }
 
-// newAccessParts は、セッションの Cookie 以外で認可するのに使う部品を作る。アプリの秘密キーがあるかは、newAPI が先に確かめる。
+// newAccessParts は、セッションの Cookie 以外で認可するのに使う部品を作る。アプリの秘密キーがあるかは、newAPI が先に確認する。
 func newAccessParts(deps *Deps, logger *slog.Logger) (*accessParts, error) {
 	pool := poolOf(deps)
 	clock := clockOf(deps)
@@ -158,7 +158,7 @@ func newStreamParts(deps *Deps) *streamParts {
 	return cliStreamParts
 }
 
-// newNotificationParts は、nekonote で通知を配る部品を作る。inserter は、配るときにジョブを入れる River のクライアント。
+// newNotificationParts は、nekonote で通知を配信する部品を作る。inserter は、配信するときにジョブを入れる River のクライアント。
 func newNotificationParts(deps *Deps, inserter *jobs.Client) (*notificationParts, error) {
 	pool := poolOf(deps)
 	clock := clockOf(deps)
@@ -295,7 +295,7 @@ func newStorageJobParts(deps *Deps, logger *slog.Logger) (*storageJobParts, erro
 }
 
 // newMediaHandlers は、画像とファイル (/internal/media/*) のハンドラーのうち、Deps と互いだけで組めるものを作る。
-// urlGate は、録画のダウンロードを有効にしているかを確かめる部品で、newAPI が作って渡す。
+// urlGate は、録画のダウンロードを有効にしているかを確認する部品で、newAPI が作って渡す。
 func newMediaHandlers(deps *Deps, logger *slog.Logger, urlGate *settings.URLGate) *mediaHandlers {
 	pool := poolOf(deps)
 	handler := newAvatarHandler(deps, pool, logger)

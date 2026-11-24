@@ -1,6 +1,6 @@
 package ts
 
-// PID の種類 (#473)。PMT に書かれたストリームは、映像、音声、そのほか。PSI と SI は、PAT、PMT と、決まった PID の表。
+// PID の種類 (#473)。PMT に書かれたストリームは、映像、音声、そのほか。PSI と SI は、PAT、PMT、PMT の CA 記述子が指す ECM と、決まった PID のテーブル。
 const (
 	PIDKindVideo   = "video"
 	PIDKindAudio   = "audio"
@@ -33,6 +33,10 @@ func PIDQualities(stats *Stats, pids []*PIDStats) []PIDQuality {
 	streams := map[uint16]*Stream{}
 	for _, program := range stats.Programs {
 		kinds[program.PMTPID] = PIDKindPSI
+		// CA 記述子が指す ECM は、ES ではなくセクションで送るテーブルなので、番組情報とみなす。
+		for _, pid := range program.ECMPIDs {
+			kinds[pid] = PIDKindPSI
+		}
 		for _, stream := range program.Streams {
 			streams[stream.PID] = stream
 			switch stream.Kind {
@@ -71,7 +75,31 @@ func PIDQualities(stats *Stats, pids []*PIDStats) []PIDQuality {
 	return result
 }
 
-// isSIPID は、pid が、ARIB で決まった PID で送る PSI と SI の表 (PAT、CAT、NIT、SDT/BAT、EIT、RST、TDT/TOT、SDTT、BIT、CDT など) かどうかを返す。
+// JudgedDrops は、PID ごとの統計 pids のドロップのうち、録画の状態と重複の回避の判定に数えるものの合計を返す (設計書 5.3)。
+// stats の PMT で映像か音声とされた PID のドロップだけを数える。字幕・データ、番組情報、PMT に載っていない PID のドロップは、
+// 見たときの乱れにならないので数えない。BS4K の録画では、番組の境目で字幕の MMT パケットの通し番号が飛び、TS に変換したときに
+// 字幕の PID の continuity counter も飛ぶ。受信で本当に欠けると、映像と音声の PID にもドロップが出る。
+// PMT を読めていなければ、どれが映像と音声か分からないので、すべての PID のドロップを数える。
+func JudgedDrops(stats *Stats, pids []*PIDStats) int64 {
+	media := map[uint16]bool{}
+	for _, program := range stats.Programs {
+		for _, stream := range program.Streams {
+			if stream.Kind == StreamKindVideo || stream.Kind == StreamKindAudio {
+				media[stream.PID] = true
+			}
+		}
+	}
+	var total int64
+	for _, pid := range pids {
+		if len(media) == 0 || media[pid.PID] {
+			total += pid.Drops
+		}
+	}
+
+	return total
+}
+
+// isSIPID は、pid が、ARIB で決まった PID で送る PSI と SI のテーブル (PAT、CAT、NIT、SDT/BAT、EIT、RST、TDT/TOT、SDTT、BIT、CDT など) かどうかを返す。
 func isSIPID(pid uint16) bool {
 	switch pid {
 	case 0x0000, 0x0001, 0x0010, 0x0011, 0x0012, 0x0013, 0x0014, 0x0023, 0x0024, 0x0026, 0x0027, 0x0028, 0x0029:

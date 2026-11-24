@@ -30,7 +30,7 @@ import {
   useDocumentTitle,
   useNow,
 } from '../../futon';
-import { loadExtendedHours, saveExtendedHours } from '../../guide/hourNotation';
+import { useExtendedHours } from '../../guide/hourNotation';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
 import { broadcastDay, dateOf, receivedUntil } from '../../guide/layout';
@@ -58,7 +58,7 @@ type GuideSearch = {
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 // isCalendarDate は、YYYY-MM-DD の形で、暦にある日付かどうかを返す。
-// Date.parse は 2 月 30 日を 3 月 1 日に繰り越し、13 月は NaN にするので、作り直した日付と比べる (#1430)。
+// Date.parse は 2 月 30 日を 3 月 1 日に繰り越し、13 月は NaN にするので、作り直した日付と比較する (#1430)。
 function isCalendarDate(date: string): boolean {
   if (!datePattern.test(date)) {
     return false;
@@ -74,7 +74,7 @@ const pinnedTab = 'pinned';
 // 放送の EPG (EIT) は、今日の 0 時から 8 日分が届く。放送日は 4 時に切り替わるので、8 日目の放送日も 4 時から 24 時までは番組がある。
 const guideDays = 8;
 
-// guideChannels は、番組表に関わるデータの種類。番組と、番組に付ける予約の印。
+// guideChannels は、番組表に関わるデータの種類。番組と、番組に付ける予約のマーク。
 // 番組表ビューは、ログイン中のユーザーの設定なので、ほかの端末で保存したら読み直す。
 const guideChannels: readonly ChangeChannel[] = ['EPG', 'RESERVATIONS', 'VIEWER_SETTINGS'];
 // jumpHours は、番組表で移れる時間帯の始まり (時)。放送日は 4 時に始まるので、24 時以降は翌日の深夜を表す。
@@ -91,7 +91,7 @@ export const Route = createFileRoute('/guide/')({
     const reservation = text('reservation');
 
     return {
-      // 形が違う値と、暦にない日付 (URL の手入力や壊れたリンク) は捨てる。
+      // 形が違う値と、暦にない日付 (URL の手入力や壊れたリンク) は破棄する。
       ...(date !== undefined && isCalendarDate(date) ? { date } : {}),
       ...(type !== undefined ? { type } : {}),
       ...(program !== undefined ? { program } : {}),
@@ -104,7 +104,7 @@ export const Route = createFileRoute('/guide/')({
 });
 
 // dayFrom は、URL の日付 (なければ今日) の放送日の始まりを返す。暦にない日付も、今日にする。
-// validateSearch で捨てても、Route.useSearch() には、親のルートが検証せずに渡した URL の値が残るので、ここでも確かめる (#1430)。
+// validateSearch で破棄しても、Route.useSearch() には、親のルートが検証せずに渡した URL の値が残るので、ここでも確認する (#1430)。
 function dayFrom(date: string | undefined, todayFrom: number): number {
   // その日の正午 (表示のタイムゾーン) を含む放送日にする。
   return date === undefined || !isCalendarDate(date)
@@ -162,7 +162,7 @@ function Guide() {
   const search = Route.useSearch();
   // now は、画面を開いた (「現在時刻」を押した) 時刻。日付の移動とスクロールの基準に使う。
   const [now, setNow] = useState(() => Date.now());
-  // lineNow は、いまの時刻の線を引く時刻。開いたままでも線が進むよう、1 分ごとに進める (#866)。
+  // lineNow は、いまの時刻の線を描く時刻。開いたままでも線が進むよう、1 分ごとに進める (#866)。
   const lineNow = useNow(60_000);
   const today = broadcastDay(now);
   // 日付やビューを変えても、新しい番組表を読み終えるまでは前の番組表を出したままにし、番組表の上に読み込み中を出す。
@@ -174,9 +174,9 @@ function Guide() {
   const windowFrom = dayFrom(date, today.from);
   const window = { from: windowFrom, to: windowFrom + day };
   const selectedFrom = dayFrom(search.date, today.from);
-  // fetchKey は、番組表ビューを保存したときに、番組表とビューの一覧を取り直すための合図。
+  // fetchKey は、番組表ビューを保存したときに、番組表とビューの一覧を再取得するための合図。
   const [fetchKey, setFetchKey] = useState(0);
-  // changes は、番組表と予約が、EPG の同期やほかの端末で変わるたびに変わる (#503)。変わったら取り直す。
+  // changes は、番組表と予約が、EPG の同期やほかの端末で変わるたびに変わる (#503)。変わったら再取得する。
   const changes = useDataChanges(guideChannels);
   // editing は、編集中の番組表ビュー。
   const [editing, setEditing] = useState<EditableGuideView | null>(null);
@@ -256,9 +256,9 @@ function Guide() {
       to: new Date(window.to).toISOString(),
       view: view ?? null,
     },
-    // store-or-network は、fetchKey を変えても、ストアにある番組表を取り直さない (#614)。保存した後は、
-    // ストアの値を出しながら取り直す。ストアに残るほかの日の番組表も、保存する前の条件で絞ったものなので、
-    // その日へ移ったときにも取り直す。
+    // store-or-network は、fetchKey を変えても、ストアにある番組表を再取得しない (#614)。保存した後は、
+    // ストアの値を出しながら再取得する。ストアに残るほかの日の番組表も、保存する前の条件で絞ったものなので、
+    // その日へ移ったときにも再取得する。
     {
       fetchKey: `${fetchKey}:${changes}`,
       fetchPolicy: fetchKey === 0 && changes === 0 ? 'store-or-network' : 'store-and-network',
@@ -277,7 +277,7 @@ function Guide() {
     types.some((channelType) => channelType.type === search.type)
       ? search.type
       : types[0]?.type;
-  // サブチャンネルは、元のサービスと違う番組を流す時間がある日だけ列を出し、同じ番組の枠は薄くする。
+  // サブチャンネルは、元のサービスと違う番組を流す時間がある日だけカラムを出し、同じ番組の枠は薄くする。
   const columns: GuideColumn[] = (
     type === pinnedTab
       ? // ピン留めのタブでは、ピン留めしたサービスを、ピン留めした順にそのまま並べる。
@@ -347,7 +347,7 @@ function Guide() {
   const [scrollKey, setScrollKey] = useState(0);
   // jumpHour は、時間帯のメニューで選んだ時刻 (時)。選んでいなければ null。日付を移ったら取り消す。
   // extendedHours は、深夜を 24 時以降 (28 時間表記) で表すかどうか。
-  const [extendedHours, setExtendedHours] = useState(loadExtendedHours);
+  const [extendedHours, setExtendedHours] = useExtendedHours();
   const [jumpHour, setJumpHour] = useState<number | null>(null);
   const moveTo = (days: number, keep: boolean) => {
     setJumpHour(null);
@@ -356,7 +356,7 @@ function Guide() {
       search: (prev) => ({ ...prev, date: dateOf(today.from + days * day), program: undefined }),
     });
   };
-  // moveToNow は、いまの時刻を取り直し、今日のいまの時刻へ移る。すでに今日なら、日付は変わらないので、スクロールだけし直す。
+  // moveToNow は、いまの時刻を再取得し、今日のいまの時刻へ移る。すでに今日なら、日付は変わらないので、スクロールだけし直す。
   const moveToNow = () => {
     setJumpHour(null);
     const time = Date.now();
@@ -472,14 +472,13 @@ function Guide() {
                 </Menu.Item>
               ))}
               <Menu.Divider />
-              {/* 深夜を 24 時以降で表すかどうか。端末ごとに覚える (#486)。 */}
+              {/* 深夜を 24 時以降で表すかどうか。端末ごとに保存する (#486)。 */}
               <Menu.Label>
                 <Checkbox
                   size="xs"
                   label={t('guide.extendedHours')}
                   checked={extendedHours}
                   onChange={(event) => {
-                    saveExtendedHours(event.currentTarget.checked);
                     setExtendedHours(event.currentTarget.checked);
                   }}
                 />

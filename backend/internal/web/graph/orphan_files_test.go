@@ -23,7 +23,7 @@ const (
 	varFiles             = "files"
 )
 
-// TestOrphanFiles は、管理者が、DB にないファイルを探して消せ、録画のファイルは消さず、ほかのロールは使えないことを確かめる。
+// TestOrphanFiles は、管理者が、DB にないファイルを探して消せ、録画のファイルは消さず、ほかのロールは使えないことを確認する。
 func TestOrphanFiles(t *testing.T) {
 	t.Parallel()
 

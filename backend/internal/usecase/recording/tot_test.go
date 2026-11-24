@@ -11,7 +11,7 @@ import (
 )
 
 // TestBroadcastClockSkew は、録画している TS の TOT が示す放送の時刻と、届いた時点の OS の時計の差を、
-// 書いているセグメントの様子と一緒に、チューナーサーバーの状態に書くことを確かめる (#1309)。測り直していなければ書き直さない。
+// 書いているセグメントの様子と一緒に、チューナーサーバーの状態に書くことを確認する (#1309)。計測し直していなければ書き直さない。
 func TestBroadcastClockSkew(t *testing.T) {
 	t.Parallel()
 
@@ -45,7 +45,7 @@ func TestBroadcastClockSkew(t *testing.T) {
 	require.NotNil(t, checked)
 	assert.True(t, f.clock.Now().Equal(*checked), checked)
 
-	// 別のセグメントは、同じ測った値を書き直さない。
+	// 別のセグメントは、同じ計測した値を書き直さない。
 	_, err := f.pool.Exec(t.Context(), "UPDATE tuner_server_status SET broadcast_clock_skew_ms = NULL")
 	require.NoError(t, err)
 	recording.WriteBroadcastSkew(t.Context(), recorder)

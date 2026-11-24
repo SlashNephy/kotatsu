@@ -9,7 +9,7 @@ import (
 )
 
 // markPattern は、番組名に付く放送の種類の記号 ([新]、【再】、(字) など)。
-// 括弧の中が、囲み文字の表の中身 (domain.BracketMarkWords) と (他) に限って取り除く。番組名の一部の括弧は残す。
+// 括弧の中が、囲み文字のテーブルの内容 (domain.BracketMarkWords) と (他) に限って取り除く。番組名の一部の括弧は残す。
 // [前] と [後] (前編と後編) や [劇場版] は、別の番組を見分ける語なので取り除かない。
 var markPattern = regexp.MustCompile(`[\[【(（](?:` + domain.BracketMarkWords() + `|他)[\]】)）]`)
 
@@ -34,7 +34,7 @@ func TitleKey(name string) string {
 }
 
 // isEnclosedMark は、ARIB の囲み文字 (Enclosed Alphanumeric Supplement と Enclosed Ideographic Supplement の文字と、
-// 表にある ⚿ のようなほかの範囲の文字) かどうかを返す。
+// テーブルにある ⚿ のようなほかの範囲の文字) かどうかを返す。
 func isEnclosedMark(r rune) bool {
 	return (r >= 0x1F100 && r <= 0x1F2FF) || domain.IsEnclosedCharacter(r)
 }

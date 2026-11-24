@@ -283,7 +283,7 @@ func TestMatch(t *testing.T) {
 	}
 }
 
-// TestMatchFoldsCase は、正規表現でないキーワードを文字列で探すときも、大文字と小文字の扱いが正規表現の (?i) と同じであることを確かめる (#530)。
+// TestMatchFoldsCase は、正規表現でないキーワードを文字列で探すときも、大文字と小文字の扱いが正規表現の (?i) と同じであることを確認する (#530)。
 func TestMatchFoldsCase(t *testing.T) {
 	t.Parallel()
 
@@ -329,7 +329,7 @@ func TestMatchFoldsCase(t *testing.T) {
 	}
 }
 
-// TestMatchMarks は、番組名の囲み文字 (括弧で書いたものを含む) での照合を確かめる。
+// TestMatchMarks は、番組名の囲み文字 (括弧で書いたものを含む) での照合を確認する。
 func TestMatchMarks(t *testing.T) {
 	t.Parallel()
 
@@ -403,7 +403,7 @@ func TestMatchMarks(t *testing.T) {
 }
 
 // TestMatchRegexpAgreesWithRegexp は、正規表現のキーワードを前段の絞り込みで先に落としても、
-// 正規表現だけで照合したときと同じ結果になることを確かめる (#852)。
+// 正規表現だけで照合したときと同じ結果になることを確認する (#852)。
 func TestMatchRegexpAgreesWithRegexp(t *testing.T) {
 	t.Parallel()
 

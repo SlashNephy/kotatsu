@@ -1,6 +1,6 @@
 package ts
 
-// PAT は、Program Association Table の中身。
+// PAT は、Program Association Table の内容。
 type PAT struct {
 	// TransportStreamID は transport_stream_id。
 	TransportStreamID uint16
@@ -8,7 +8,7 @@ type PAT struct {
 	Programs []uint16
 }
 
-// PATWatcher は、TS を流しながら、PAT を読むたびに知らせる (#1534)。
+// PATWatcher は、TS を流しながら、PAT を読むたびに通知する (#1534)。
 // EDCB の NetworkTV は、EDCB の予約にチューナーを取られると、接続を保ったまま別の局の TS を送るので、PAT の変化で気づく。
 type PATWatcher struct {
 	onPAT     func(*PAT)
@@ -23,7 +23,7 @@ func NewPATWatcher(onPAT func(*PAT)) *PATWatcher {
 }
 
 // Write は、TS を読む。パケットの区切りは、同期バイトで合わせ直す。読み始めがパケットの途中でも、
-// 小さな塊に分けて渡されても、届いた順につないでから区切る。エラーは返さない。
+// 小さなチャンクに分けて渡されても、届いた順につないでから区切る。エラーは返さない。
 func (w *PATWatcher) Write(p []byte) (int, error) {
 	w.rest = append(w.rest, p...)
 	buf := w.rest

@@ -18,12 +18,12 @@ const (
 
 // psiPrelude は、ファイルの offset より手前で最後に送られた PAT と、その PAT が指す PMT のパケットを返す。
 //
-// TS を途中から流すと、プレイヤーは PAT と PMT を受け取るまで、映像のパケットを捨てる。
+// TS を途中から流すと、プレイヤーは PAT と PMT を受け取るまで、映像のパケットを破棄する。
 // 開始位置の I フレームの手前に PAT と PMT を足せば、最初の GOP から再生できる。
 // 1 パケットに収まらない PAT と PMT は足さない。見つからなければ、何も足さない。
 func psiPrelude(r io.ReaderAt, offset int64) ([]byte, error) {
 	from := max(offset-psiWindow, 0)
-	// offset は、索引が指すパケットの境目なので、そこからパケットの大きさずつ戻れば、パケットの境目にそろう。
+	// offset は、インデックスが指すパケットの境目なので、そこからパケットの大きさずつ戻れば、パケットの境目にそろう。
 	from = offset - (offset-from)/ts.PacketSize*ts.PacketSize
 	window := make([]byte, offset-from)
 	if _, err := r.ReadAt(window, from); err != nil {

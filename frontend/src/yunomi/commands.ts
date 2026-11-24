@@ -39,11 +39,11 @@ export type PlayerCommandArgs = {
   // copyPositionUrl は、今の再生位置から始まる URL をクリップボードに入れる。
   copyPositionUrl: [];
   restart: [];
-  // audioDelayIncrease と audioDelayDecrease は、音ずれ補正 (#818) で、音を遅らせる長さを 1 刻み変える。
+  // audioDelayIncrease と audioDelayDecrease は、音ずれ補正 (#818) で、音を遅らせる長さを 1 単位変える。
   audioDelayIncrease: [];
   audioDelayDecrease: [];
   audioDelayReset: [];
-  // commentOffsetEarlier と commentOffsetLater は、録画の実況のコメントを流す位置 (#1357) を 1 刻み変える。
+  // commentOffsetEarlier と commentOffsetLater は、録画の実況のコメントを流す位置 (#1357) を 1 単位変える。
   commentOffsetEarlier: [];
   commentOffsetLater: [];
   commentOffsetReset: [];

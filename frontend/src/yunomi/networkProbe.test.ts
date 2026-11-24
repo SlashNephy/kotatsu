@@ -57,7 +57,7 @@ function stream(chunks: number[]): ReadableStream<Uint8Array> {
   });
 }
 
-// ticker は、呼ぶたびに 100 ミリ秒進む時計。取り始めが 0 で、塊を受け取るたびに 100 ミリ秒後になる。
+// ticker は、呼ぶたびに 100 ミリ秒進む時計。取り始めが 0 で、チャンクを受け取るたびに 100 ミリ秒後になる。
 function ticker(): () => number {
   let calls = 0;
 

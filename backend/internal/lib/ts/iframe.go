@@ -56,7 +56,7 @@ type iframeDetector struct {
 	// pesOffset は、今の PES の先頭パケットの位置。まだ PES の始まりを見ていなければ -1。
 	pesOffset int64
 	pesPTS    int64
-	// found は、今の PES で I フレームを見つけたかどうか。1 つの PES につき 1 件だけ索引に入れる。
+	// found は、今の PES で I フレームを見つけたかどうか。1 つの PES につき 1 件だけインデックスに入れる。
 	found bool
 
 	state scanState
@@ -88,7 +88,7 @@ func newIFrameDetector(pid uint16, streamType uint8) *iframeDetector {
 	}
 }
 
-// reset は、探索の途中の状態を捨てる。ドロップでパケットが欠けたときに呼ぶ。
+// reset は、探索の途中の状態を破棄する。ドロップでパケットが欠けたときに呼ぶ。
 func (d *iframeDetector) reset() {
 	d.pesOffset = -1
 	d.pesPTS = noPTS
@@ -103,7 +103,7 @@ func (d *iframeDetector) resetScan() {
 	d.sliceHeaderLen = 0
 }
 
-// feed は、映像の PID のパケットを受け取る。I フレームを見つけたら、その PES の索引を返す。
+// feed は、映像の PID のパケットを受け取る。I フレームを見つけたら、その PES のインデックスを返す。
 func (d *iframeDetector) feed(pkt *packet, offset int64) (IndexEntry, bool) {
 	payload := pkt.payload
 	if pkt.payloadUnitStart {

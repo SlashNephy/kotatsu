@@ -10,7 +10,7 @@ export const settleMs = 300;
 export type Settler<T> = {
   // set は、新しい値を受け取る。settleMs の間に変わらなければ、apply に渡す。反映した値に戻れば、待つのをやめる。
   set: (value: T) => void;
-  // now は、待たずにすぐ反映する。待っていた変化は捨てる。
+  // now は、待たずにすぐ反映する。待っていた変化は破棄する。
   now: (value: T) => void;
   cancel: () => void;
 };

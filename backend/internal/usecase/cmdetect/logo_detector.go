@@ -24,11 +24,11 @@ import (
 )
 
 const (
-	// LogoDetectorName と logoDetectorVersion は、LogoDetector の名前と版。規則や値を変えたら版を上げる。
-	// 版 3 で、縦が 1080 ラインより大きい映像 (BS4K、8K) も、縮めてロゴで見分けるようにした (#1505)。
-	// 版 4 で、隅を横切る帯 (番組の話題の帯) の端のアイコンを、局ロゴとして覚えないようにした (#1883)。
-	// 版 5 で、録画の途中の 60 秒を超える CM (通販の CM など) を CM にし、録画の端の近くの CM を端まで延ばした (#1958)。
-	// 版 6 で、番組の窓の端を、近くの無音の境目に寄せるようにした (#1506)。
+	// LogoDetectorName と logoDetectorVersion は、LogoDetector の名前とバージョン。規則や値を変えたらバージョンを上げる。
+	// バージョン 3 で、縦が 1080 ラインより大きい映像 (BS4K、8K) も、縮めてロゴで見分けるようにした (#1505)。
+	// バージョン 4 で、隅を横切る帯 (番組の話題の帯) の端のアイコンを、局ロゴとして学習しないようにした (#1883)。
+	// バージョン 5 で、録画の途中の 60 秒を超える CM (通販の CM など) を CM にし、録画の端の近くの CM を端まで延ばした (#1958)。
+	// バージョン 6 で、番組のウィンドウの端を、近くの無音の境目に寄せるようにした (#1506)。
 	LogoDetectorName    = "logo"
 	logoDetectorVersion = 6
 	// ffprobeCommand は、PATH から探す ffprobe のコマンドの名前。FFmpeg に付いてくる。
@@ -37,7 +37,7 @@ const (
 	rawReadBuffer = 1 << 20
 	// skipFrameOption は、デコードするコマを選ぶ FFmpeg の入力の引数。
 	skipFrameOption = "-skip_frame"
-	// maxCMRatio は、CM の割合の上限 (#1508)。これ以上を CM とした結果は使わない。ロゴでない縁を覚えたときや、
+	// maxCMRatio は、CM の割合の上限 (#1508)。これ以上を CM とした結果は使わない。ロゴでない縁を学習したときや、
 	// 型が番組のロゴと合わないときは、「先頭の数秒だけ本編」のような結果が出る。CM の自動スキップがそれを信じると本編を飛ばすので、
 	// CM が残るほうを選ぶ。普通の番組の CM は 2〜3 割ほどなので、それより上に置く (仮の値)。
 	maxCMRatio = 0.5
@@ -102,12 +102,12 @@ func (d *LogoDetector) DetectWithReport(ctx context.Context, input *Input) ([]Se
 	return sections, report, err
 }
 
-// maxLogoHeight は、局ロゴを縮めずに学習する映像の縦の上限 (ライン)。これより大きい映像は、縮めてから学習し測る (#1505)。
+// maxLogoHeight は、局ロゴを縮めずに学習する映像の縦の上限 (ライン)。これより大きい映像は、縮めてから学習し計測する (#1505)。
 // パラメーター (膨らませる半径、括る距離、ずらす量など) を画素で持ち、地上波の 1440×1080 に合わせてあるためである。
 // 2026 年 11 月に BS4K の録画で試したとき、4K のままでは、常に出ている局ロゴも学習できなかった。
 const maxLogoHeight = 1080
 
-// logoScale は、局ロゴを学習し測るときに、映像を縮める倍率を返す (#1505)。縦が maxLogoHeight 以下なら 1 (縮めない) で、
+// logoScale は、局ロゴを学習し計測するときに、映像を縮める倍率を返す (#1505)。縦が maxLogoHeight 以下なら 1 (縮めない) で、
 // 4K (2160 ライン) なら 2、8K (4320 ライン) なら 4。整数にするのは、縮めたコマの枠を、元のコマの枠に倍率を掛けるだけで移せるようにして、
 // 学習 (縮めてから帯を切り出す) と全コマの読み出し (枠を切り出してから縮める) で、同じ画素になるようにするためである。
 func logoScale(height int) int {
@@ -146,7 +146,7 @@ func (d *LogoDetector) DetectWithMaterial(ctx context.Context, input *Input) ([]
 	if material != nil && material.bounds != nil && input.Program != nil {
 		sections = programEdges(sections, material.bounds, material.boundsDuration, input.Program, material.offset)
 	}
-	// 長さが分からなければ (ffprobe が長さを返さない TS)、割合を確かめられないので、今の見分け方の結果をそのまま使う。
+	// 長さが分からなければ (ffprobe が長さを返さない TS)、割合を確認できないので、今の見分け方の結果をそのまま使う。
 	// 今の見分け方を選んだときと同じ結果になる。
 	if duration > 0 {
 		if ratio := cmRatio(sections, []Section{}, duration); ratio >= maxCMRatio {
@@ -187,9 +187,9 @@ func (d *LogoDetector) decide(material *Material, program *Program, report *Repo
 	return nil, result.duration, fmt.Errorf("%w: %.0f%% of the recording was detected as CM (%s)", errLogoUnusable, ratio*100, result.detail(d.params))
 }
 
-// playbackShift は、最初のコマからの時間に足すと、再生の時間 (録画の索引の最初の I フレームを 0 にした時間) になる量 (秒) を返す (#1811)。
-// 今の見分け方の基準 (sig.origin) は、索引と同じ探し方の最初の I フレームなので、最初のコマの、今の見分け方の基準での時刻になる。
-// 録画の頭の I フレームの前で PMT が届いた録画では、FFmpeg がデコードする最初のコマ (ffprobe でも同じ) は、索引の最初の I フレームより
+// playbackShift は、最初のコマからの時間に足すと、再生の時間 (録画のインデックスの最初の I フレームを 0 にした時間) になる量 (秒) を返す (#1811)。
+// 今の見分け方の基準 (sig.origin) は、インデックスと同じ探し方の最初の I フレームなので、最初のコマの、今の見分け方の基準での時刻になる。
+// 録画の先頭の I フレームの前で PMT が届いた録画では、FFmpeg がデコードする最初のコマ (ffprobe でも同じ) は、インデックスの最初の I フレームより
 // 前にある (本番の録画で 0.5 秒)。今の見分け方の材料を読めなかった回は、基準が分からないので 0 にする。
 func (m *Material) playbackShift() float64 {
 	if m.bounds == nil {
@@ -199,7 +199,7 @@ func (m *Material) playbackShift() float64 {
 	return m.Times[0] + m.offset
 }
 
-// shiftSections は、区間を shift 秒ずらす。0 より前は切り、長さがなくなった区間は捨てる。
+// shiftSections は、区間を shift 秒ずらす。0 より前は切り、長さがなくなった区間は破棄する。
 func shiftSections(sections []Section, shift float64) []Section {
 	out := make([]Section, 0, len(sections))
 	d := seconds(shift)
@@ -223,7 +223,7 @@ func totalLength(sections []Section) time.Duration {
 }
 
 // trimMissing は、CM の端にかかった映像の欠けを、CM から切り落とす (#1508)。始まりが欠けの中なら欠けの終わりまで、
-// 終わりが欠けの中なら欠けの始まりまでずらし、長さが 0 以下になった区間は捨てる。CM の内側の欠けは、CM のまま残す。
+// 終わりが欠けの中なら欠けの始まりまでずらし、長さが 0 以下になった区間は破棄する。CM の内側の欠けは、CM のまま残す。
 // 外すと、映像が何度も途切れる所で、CM が細かく分かれてしまうためである。
 func trimMissing(sections, missing []Section) []Section {
 	out := make([]Section, 0, len(sections))
@@ -251,13 +251,13 @@ type logoResult struct {
 	missing []Section
 	// duration は、最初のコマから最後のコマの終わりまでの長さ。
 	duration time.Duration
-	// scope は、CM の割合を数える範囲 (最初のコマからの時間)。番組の窓を置いたら窓、置かなければ録画全体 (#1506)。
-	// 窓の外は前後の番組なので、CM にするのは当然で、割合に数えると、遅れて始まった放送で上限を超えてしまう。
+	// scope は、CM の割合を数える範囲 (最初のコマからの時間)。番組のウィンドウを置いたらウィンドウ、置かなければ録画全体 (#1506)。
+	// ウィンドウの外は前後の番組なので、CM にするのは当然で、割合に数えると、遅れて始まった放送で上限を超えてしまう。
 	scope Section
 	// edgeMissing は、ファイルの始まりから最初のコマまでと、最後のコマの終わりからファイルの終わりまでの欠けの長さ (#1508)。
 	// それぞれ missingGap 以上のときだけ数える。区間の時刻は最初のコマから数えるので、missing には入れない。
 	edgeMissing time.Duration
-	// 以下は、ロゴの結果を捨てたときに、理由の詳細に書くもの (#1508)。
+	// 以下は、ロゴの結果を破棄したときに、理由の詳細に書くもの (#1508)。
 	corner    logo.Corner
 	box       logo.Box
 	measures  []logo.Measure
@@ -269,7 +269,7 @@ type logoResult struct {
 // maxDetailSections は、理由の詳細に書く CM の区間の数の上限。理由の文が長くなりすぎないようにする。
 const maxDetailSections = 10
 
-// detail は、ロゴの結果を捨てた理由の詳細を返す (#1508)。当てた型の在り処と大きさ、ロゴが出ていたとしたコマの割合、
+// detail は、ロゴの結果を破棄した理由の詳細を返す (#1508)。当てた型の在り処と大きさ、ロゴが出ていたとしたコマの割合、
 // 点数の分布、ロゴで CM とした区間とその中の点数の中央値。本編なのに CM とした区間の点数が、続いているとみなす点数に近ければ、
 // ロゴは写っていたのに届かなかったことが、0 に近ければ、型と番組のロゴが合っていないことが分かる。
 func (r *logoResult) detail(p *logo.Params) string {
@@ -364,7 +364,7 @@ func cmRatio(sections, missing []Section, duration time.Duration) float64 {
 	return float64(cm) / float64(total)
 }
 
-// clipSections は、区間を scope に収める。scope の外の部分は切り、長さがなくなった区間は捨てる。
+// clipSections は、区間を scope に収める。scope の外の部分は切り、長さがなくなった区間は破棄する。
 func clipSections(sections []Section, scope Section) []Section {
 	out := make([]Section, 0, len(sections))
 	for _, s := range sections {
@@ -397,7 +397,7 @@ type Material struct {
 	// Corner と Box は、当てた型の隅と枠。理由の詳細に書く。
 	Corner logo.Corner
 	Box    logo.Box
-	// Times は、コマごとの時刻 (秒)。Measures は、コマごとの測り。同じ数だけある。
+	// Times は、コマごとの時刻 (秒)。Measures は、コマごとの計測値。同じ数だけある。
 	Times    []float64
 	Measures []logo.Measure
 	// bounds は、今の見分け方の材料から作った境目の候補 (#1506)。boundsDuration は、その基準での録画の長さ。
@@ -407,8 +407,8 @@ type Material struct {
 	offset         float64
 }
 
-// measure は、ロゴを学習し、全コマを測って、材料を返す。ロゴを学習できなければ、errLogoUnusable を包んで返す。
-// 縦が maxLogoHeight より大きい映像は、logoScale の倍率で縮めて学習し測る (#1505)。枠や型は、縮めたコマの座標で持つ。
+// measure は、ロゴを学習し、全コマを計測して、材料を返す。ロゴを学習できなければ、errLogoUnusable を包んで返す。
+// 縦が maxLogoHeight より大きい映像は、logoScale の倍率で縮めて学習し計測する (#1505)。枠や型は、縮めたコマの座標で持つ。
 func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoInfo) (*Material, error) {
 	p := d.params
 	scale := logoScale(video.height)
@@ -448,7 +448,7 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 			sig, sigErr = d.signalsOf(signalsCtx, &quiet)
 		})
 	}
-	// 全コマのロゴの枠を切り出して測る。切り出しは exact=1 にする。付けないと、yuv420p で奇数の位置が丸められ、細い縁の一致が崩れる。
+	// 全コマのロゴの枠を切り出して計測する。切り出しは exact=1 にする。付けないと、yuv420p で奇数の位置が丸められ、細い縁の一致が崩れる。
 	pre, filter := cropFilter(template.Crop, scale)
 	c := template.Crop
 	measures := []logo.Measure{}
@@ -462,15 +462,15 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 		return nil, err
 	}
 	wg.Wait()
-	// コマと時刻は順番で突き合わせるので、数が合わなければ、対応がずれている (#1505 の H)。
+	// コマと時刻は順番で照合するので、数が合わなければ、対応がずれている (#1505 の H)。
 	if len(times) != len(measures) {
 		return nil, fmt.Errorf("%w: %d frames but %d timestamps", errLogoUnusable, len(measures), len(times))
 	}
 	if len(times) == 0 {
 		return nil, ErrNoVideo
 	}
-	// 縮める映像では、参照されないコマをデコードしないので、測ったコマの速さは映像の速さと違う。区間を出すときの窓やならしは、
-	// コマの数で数えるので、測ったコマの速さを使う。
+	// 縮める映像では、参照されないコマをデコードしないので、計測したコマの速さは映像の速さと違う。区間を出すときのウィンドウやならしは、
+	// コマの数で数えるので、計測したコマの速さを使う。
 	fps := video.fps
 	if scale > 1 {
 		fps = measuredRate(times, video.fps)
@@ -527,9 +527,9 @@ func (d *LogoDetector) learnBands(ctx context.Context, input *Input, video *vide
 	return read(keyframes, fmt.Sprintf("fps=1/%f,%s,%s", interval, shrink, bands))
 }
 
-// keyframeThinning は、キーフレームを、前に残したものから interval 秒以上空いたものだけ残し、ほかのパケットを捨てる
-// FFmpeg のビットストリームフィルター (noise の drop) を返す (#1505)。捨てたパケットはデコードしない。
-// PTS が戻ったら (33 ビットの一周など)、そこから数え直す。PTS のないパケット (式では NaN) は、覚えた PTS を壊さないよう捨てる。
+// keyframeThinning は、キーフレームを、前に残したものから interval 秒以上空いたものだけ残し、ほかのパケットを破棄する
+// FFmpeg のビットストリームフィルター (noise の drop) を返す (#1505)。破棄したパケットはデコードしない。
+// PTS が戻ったら (33 ビットの一周など)、そこから数え直す。PTS のないパケット (式では NaN) は、保存した PTS を壊さないよう破棄する。
 // 式の中の「,」は、フィルターの並びの区切りと見分けるため「\,」と書く。
 func keyframeThinning(interval float64) string {
 	return fmt.Sprintf(`noise=drop=if(key*not(isnan(pts))*(eq(ld(1)\,0)+gte((pts-ld(0))*tb\,%f)+lt(pts\,ld(0)))\,0*st(1\,1)*st(0\,pts)\,1)`, interval)
@@ -538,7 +538,7 @@ func keyframeThinning(interval float64) string {
 // cropFilter は、全コマから、ロゴの枠 c (縮めたコマの座標) を切り出す FFmpeg の入力の前の引数とフィルターを返す。
 // scale が 1 より大きければ、元のコマから枠に倍率を掛けた範囲を切り出してから、枠の大きさに縮める。倍率が整数で、
 // 縮め方 (area) は画素を平均するだけなので、学習で縮めてから切り出したコマと、同じ画素になる。
-// 縮める映像では、参照されないコマ (4K の HEVC では半分) をデコードしない (-skip_frame noref)。測るコマは 30 コマ/秒ほどになり、
+// 縮める映像では、参照されないコマ (4K の HEVC では半分) をデコードしない (-skip_frame noref)。計測するコマは 30 コマ/秒ほどになり、
 // 地上波の 1080i とそろう。
 func cropFilter(c logo.Box, scale int) ([]string, string) {
 	if scale == 1 {
@@ -549,7 +549,7 @@ func cropFilter(c logo.Box, scale int) ([]string, string) {
 		c.W*scale, c.H*scale, c.X*scale, c.Y*scale, c.W, c.H)
 }
 
-// measuredRate は、コマごとの時刻 times (秒) から、測ったコマの速さ (コマ/秒) を返す。映像の欠け (missingGap 以上の空き) は数えない。
+// measuredRate は、コマごとの時刻 times (秒) から、計測したコマの速さ (コマ/秒) を返す。映像の欠け (missingGap 以上の空き) は数えない。
 // 求められなければ fallback を返す。
 func measuredRate(times []float64, fallback float64) float64 {
 	var span float64
@@ -568,7 +568,7 @@ func measuredRate(times []float64, fallback float64) float64 {
 }
 
 // evaluate は、材料から、ロゴの出ていた区間を出し、その外を CM にする。ロゴの出ていた区間が 1 つもなければ、errLogoUnusable を包んで返す。
-// 番組の時刻 program が分かれば、番組の尺の窓を置き、窓の外のロゴを前後の番組のものとして捨てる (#1506 の手順 1)。
+// 番組の時刻 program が分かれば、番組の尺のウィンドウを置き、ウィンドウの外のロゴを前後の番組のものとして破棄する (#1506 の手順 1)。
 func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, error) {
 	intervals := logo.Intervals(m.Measures, m.Fps, d.params)
 	if len(intervals) == 0 {
@@ -578,7 +578,7 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
 	scope := Section{Start: 0, End: duration}
 	if w, ok := programWindow(intervals, m.Times, m.Fps, program); ok {
-		// 無音の材料を読めた回は、窓の端を無音の境目に寄せる。番組の切り替わりは、ふつう無音を挟むからである。
+		// 無音の材料を読めた回は、ウィンドウの端を無音の境目に寄せる。番組の切り替わりは、ふつう無音を挟むからである。
 		if m.bounds != nil {
 			w = snapWindow(w, m.bounds, m.boundsDuration, m.Times[0], m.offset)
 		}
@@ -628,7 +628,7 @@ func edgeMissing(times []float64, video *videoInfo) time.Duration {
 }
 
 // signalOffset は、局ロゴの見分け方のコマの時刻に足すと、今の見分け方の基準 (origin の PTS を 0 にした秒) になる量を返す。
-// first は最初のコマの PTS、origin は今の見分け方の時刻の 0 の PTS (どちらも PTS の刻み)、firstTime は最初のコマの、コマの時刻。
+// first は最初のコマの PTS、origin は今の見分け方の時刻の 0 の PTS (どちらも PTS の単位)、firstTime は最初のコマの、コマの時刻。
 // どちらも最初の I フレームなので、ふつうは差がないが、I フレームの探し方を知らない映像では、origin は最初の映像の PES になる。
 // コマの時刻の 0 (FFmpeg がパイプの入力の始まりとしたもの) は、ffprobe で読むファイルの始まりと 0.3 秒ほどずれることがあるので、
 // 最初のコマの PTS どうしでそろえる。PTS は 33 ビットで一周するので、差は一周を考えて求める。
@@ -637,12 +637,12 @@ func signalOffset(first, origin int64, firstTime float64) float64 {
 }
 
 // maxLogoInCMChains は、無音の境目が 15 秒の倍数で続く並び (今の見分け方が CM とするもの) のうち、ロゴが出ていた秒の割合の上限。
-// これを超えれば、局ロゴでないもの (CM の間も出し続ける時刻の表示など) を覚えたとみなし、ロゴを使わずに見分け直す (#1506、#1508)。
-// CM の割合の上限 (maxCMRatio) は、CM が多すぎる結果を捨てるが、ロゴが CM の間も出続けて CM を見落とす結果は捨てられない。
+// これを超えれば、局ロゴでないもの (CM の間も出し続ける時刻の表示など) を学習したとみなし、ロゴを使わずに見分け直す (#1506、#1508)。
+// CM の割合の上限 (maxCMRatio) は、CM が多すぎる結果を破棄するが、ロゴが CM の間も出続けて CM を見落とす結果は破棄されない。
 const maxLogoInCMChains = 0.8
 
 // logoInCMChains は、無音の境目が 15 秒の倍数で続く並びのうち、ロゴが出ていた秒の割合を返す。並びの長さの合計が、
-// 15 秒の CM 2 本分に満たなければ、確かめられないので ok を false にする。割合が上限を超えたときだけ ok を true にする。
+// 15 秒の CM 2 本分に満たなければ、確認できないので ok を false にする。割合が上限を超えたときだけ ok を true にする。
 func (m *Material) logoInCMChains(intervals []logo.Interval) (float64, bool) {
 	shown := m.signalSpans(intervals)
 	var total, covered float64
@@ -794,8 +794,8 @@ var showinfoFrame = regexp.MustCompile(`n:\s*(\d+)\s+pts:\s*\S+\s+pts_time:(-?[0
 
 // parseFrameLog は、FFmpeg の標準エラー出力から、showinfo のコマの時刻と、-progress のまとまりを読む。
 //
-// FFmpeg は、ログの頭 ([Parsed_showinfo_N @ 0x...]) と本文を別々に書くので、その間に -progress のまとまりが入ることがある。
-// そのときは、時刻の入った本文が progress=continue の行の後ろにつながる。行の頭で見分けると、その時刻を落とし、
+// FFmpeg は、ログの先頭 ([Parsed_showinfo_N @ 0x...]) と本文を別々に書くので、その間に -progress のまとまりが入ることがある。
+// そのときは、時刻の入った本文が progress=continue の行の後ろにつながる。行の先頭で見分けると、その時刻を落とし、
 // コマと時刻の数が合わなくなる (#1800)。そこで、行のどこにあってもコマの番号と時刻の組を拾い、コマの番号で並べる。
 // 組を取り除いた残りは、-progress の行やほかのログとして読む。
 func parseFrameLog(r io.Reader, onBlock func(*ffprogress.Block)) *frameLog {
@@ -850,7 +850,7 @@ type videoInfo struct {
 	height   int
 	fps      float64
 	duration time.Duration
-	// firstFrame は、ffprobe で読んだ最初のコマの PTS (90kHz の刻み)。今の見分け方の材料と、時刻の基準をそろえるのに使う (#1506)。
+	// firstFrame は、ffprobe で読んだ最初のコマの PTS (90kHz の単位)。今の見分け方の材料と、時刻の基準をそろえるのに使う (#1506)。
 	// 分からなければ -1。
 	firstFrame int64
 }
@@ -898,7 +898,7 @@ func probeVideo(ctx context.Context, input *Input) (*videoInfo, error) {
 	}, nil
 }
 
-// probeBytes は、パイプで ffprobe に渡す、ファイルの頭の大きさ。映像の大きさと速さ、最初のコマを読むには足りる。
+// probeBytes は、パイプで ffprobe に渡す、ファイルの先頭の大きさ。映像の大きさと速さ、最初のコマを読むには足りる。
 const probeBytes = 32 << 20
 
 // probeSource は、ffprobe に読ませる入力。Open で渡すファイルは、パイプで渡す。
@@ -928,7 +928,7 @@ func runProbe(cmd *exec.Cmd, input *Input) ([]byte, error) {
 	return out, nil
 }
 
-// probeFirstFrame は、ffprobe で、path の最初の映像の、最初にデコードできたコマの PTS (90kHz の刻み) を読む。
+// probeFirstFrame は、ffprobe で、path の最初の映像の、最初にデコードできたコマの PTS (90kHz の単位) を読む。
 // 読めなければ (止められた、PTS が N/A など)、-1 を返し、今の見分け方の材料と組み合わせない。
 // 頭の 2 秒だけを読む。最初の I フレームより前の PES はデコードできないので、最初のコマは、局ロゴの見分け方の最初のコマと同じになる。
 func probeFirstFrame(ctx context.Context, input *Input) int64 {

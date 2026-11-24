@@ -386,7 +386,7 @@ func TestServerEvents(t *testing.T) {
 }
 
 // TestServerEventsSendsEPGChangedAsServiceEvent は、番組表の全体が変わったかもしれない知らせ (EDCB の EPG の読み込み直し) を、
-// Mirakurun にない種類なので、サービスのイベントとして送ることを確かめる (#2035)。
+// Mirakurun にない種類なので、サービスのイベントとして送ることを確認する (#2035)。
 func TestServerEventsSendsEPGChangedAsServiceEvent(t *testing.T) {
 	t.Parallel()
 
@@ -400,11 +400,11 @@ func TestServerEventsSendsEPGChangedAsServiceEvent(t *testing.T) {
 	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}, got)
 }
 
-// nabeVersionPath は、nabe の下の、版を返すパス。
+// nabeVersionPath は、nabe の下の、バージョンを返すパス。
 const nabeVersionPath = "/internal/nabe/api/version"
 
-// TestNabeHandlerRoutes は、http.ServeMux で受けていたときと同じく、トークンをルートより先に確かめ、
-// 1 つの区切りにだけ当たる名前の部分でルートを引くことを確かめる (#2016)。
+// TestNabeHandlerRoutes は、http.ServeMux で受けていたときと同じく、トークンをルートより先に確認し、
+// 1 つの区切りにだけ当たる名前の部分でルートを選ぶことを確認する (#2016)。
 func TestNabeHandlerRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -458,7 +458,7 @@ func (a *authorizing) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 // TestNabeThroughAPIRouter は、API の待ち受けの一番外側のルーターに載せた nabe から、ストリームとイベントを
-// 読み切れることを確かめる (#2016)。どちらも、echo のルーターを 2 段通って、書くたびに届く。
+// 読み切れることを確認する (#2016)。どちらも、echo のルーターを 2 層通って、書くたびに届く。
 func TestNabeThroughAPIRouter(t *testing.T) {
 	t.Parallel()
 

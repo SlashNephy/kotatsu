@@ -23,22 +23,22 @@ const databaseTimeout = 2 * time.Second
 // pendingWrites は、DB に届かずに記録できなかったチャンクと番組の書き込みを、順に持つ (#1073)。
 // 読み込みのループは DB を待てないので、届くようになったら、見張りの goroutine が順に書く。
 // 1 つでも残っている間は、後の書き込みも順を守って積む。チャンクを閉じる記録が、作った記録より先に書かれないようにするため。
-// 積むのと残りを確かめるのは mu で守り、書くのは mu の外で行う。DB が詰まっても、読み込みのループを mu で待たせない。
+// 積むのと残りを確認するのは mu で守り、書くのは mu の外で行う。DB が詰まっても、読み込みのループを mu で待たせない。
 type pendingWrites struct {
 	mu     sync.Mutex
 	writes []pendingWrite
 	// flushing は、書いているところを 1 つにする。同じ書き込みを、2 つの goroutine で重ねて書かない。
 	flushing sync.Mutex
-	// assignment は、録っている割り振り。書く前に、ほかの mikan が取っていないかを、世代番号で確かめる。
+	// assignment は、録っている割り振り。書く前に、ほかの mikan が取っていないかを、世代番号で確認する。
 	assignment *recording.Assignment
-	// unreachable は、割り振りを確かめようとして DB に届かなかったかどうか。ログを、届かなくなったときと戻ったときに 1 度ずつ出す。
+	// unreachable は、割り振りを確認しようとして DB に届かなかったかどうか。ログを、届かなくなったときと戻ったときに 1 度ずつ出す。
 	unreachable atomic.Bool
 }
 
 // pendingWrite は、積んだ書き込み。
 type pendingWrite struct {
 	write func(ctx context.Context, q *sqlc.Queries) error
-	// discard は、書かずに捨てるときの後片付け。チャンクを作った記録なら、DB に記録のないチャンクのファイルと索引を消す (#1722)。
+	// discard は、書かずに破棄するときの後片付け。チャンクを作った記録なら、DB に記録のないチャンクのファイルとインデックスを消す (#1722)。
 	// 後片付けがなければ nil。
 	discard func()
 }
@@ -48,7 +48,7 @@ func newPendingWrites(assignment *recording.Assignment) *pendingWrites {
 	return &pendingWrites{mu: sync.Mutex{}, writes: nil, flushing: sync.Mutex{}, assignment: assignment, unreachable: atomic.Bool{}}
 }
 
-// discard は、積んだ書き込みを捨て、捨てた数を返す。捨てた書き込みの後片付けもする。
+// discard は、積んだ書き込みを破棄し、破棄した数を返す。破棄した書き込みの後片付けもする。
 func (p *pendingWrites) discard() int {
 	p.mu.Lock()
 	writes := slices.Clone(p.writes)
@@ -119,7 +119,7 @@ func (p *pendingWrites) flush(ctx context.Context, pool *pgxpool.Pool) (int, err
 
 // writeOrDefer は、write を DB に書く。DB に届かなければ、pending に積んで nil を返す。届かない間に積んだものが残っていれば、
 // 順を守るため、書かずに積む。DB への接続が応答のないまま詰まっても、読み込みのループを長く止めないよう、databaseTimeout で打ち切る。
-// discard は、積んだ書き込みを書かずに捨てるときの後片付けで、なければ nil。
+// discard は、積んだ書き込みを書かずに破棄するときの後片付けで、なければ nil。
 func (r *Recorder) writeOrDefer(
 	ctx context.Context, logger *slog.Logger, pending *pendingWrites, write func(ctx context.Context, q *sqlc.Queries) error, discard func(),
 ) error {
@@ -140,8 +140,8 @@ func (r *Recorder) writeOrDefer(
 }
 
 // flushPending は、積んだ書き込みを書く。書き終えたら、そのことをログに残す。
-// 書く前に、割り振りがまだこの mikan のものかを確かめる。DB が戻った直後にほかの mikan が取っていたら、
-// その mikan の記録を古い記録で上書きしないよう、書かずに捨てる (#1073)。
+// 書く前に、割り振りがまだこの mikan のものかを確認する。DB が戻った直後にほかの mikan が取っていたら、
+// その mikan の記録を古い記録で上書きしないよう、書かずに破棄する (#1073)。
 func (r *Recorder) flushPending(ctx context.Context, logger *slog.Logger, pending *pendingWrites) {
 	if !pending.waiting() {
 		return
@@ -151,7 +151,7 @@ func (r *Recorder) flushPending(ctx context.Context, logger *slog.Logger, pendin
 	stream, err := sqlc.New(r.pool).GetTimeshiftAssignmentStream(checkCtx, pending.assignment.ID)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows) || (err == nil && stream.Generation != pending.assignment.Generation):
-		// 作ったチャンクの記録を捨てるときは、DB に記録のないチャンクのファイルと索引も消す。破棄のジョブも、DB にないファイルの探索も、
+		// 作ったチャンクの記録を破棄するときは、DB に記録のないチャンクのファイルとインデックスも消す。破棄のジョブも、DB にないファイルの探索も、
 		// タイムシフトのディレクトリを見ないので、残すと誰にも消されない (#1722)。
 		n := pending.discard()
 		logger.WarnContext(ctx, "the timeshift assignment was taken or stopped; discarding the records deferred while the database was unreachable",

@@ -12,7 +12,7 @@ import (
 // errSecondFactorsUnavailable は、第二要素を扱う設定 (アプリの秘密キー) がないことを表す。
 var errSecondFactorsUnavailable = errors.New("second factors are not configured")
 
-// recentlyAuthenticated は、ログイン中のユーザーが直近 10 分以内に認証したことを確かめ、操作者を返す。
+// recentlyAuthenticated は、ログイン中のユーザーが直近 10 分以内に認証したことを確認し、操作者を返す。
 // 第二要素を変える前に、もう一度認証してもらう (設計書 9.5)。
 func (r *Resolver) recentlyAuthenticated(ctx context.Context) (*auth.Principal, *audit.Actor, error) {
 	principal, err := viewer(ctx)

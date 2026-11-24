@@ -43,7 +43,7 @@ export function UserMenu() {
     `,
     {},
   );
-  // 新しい版は、管理者にだけ届く (#506)。
+  // 新しいバージョンは、管理者にだけ届く (#506)。
   const latest = data.version.latestRelease;
   const environment = useRelayEnvironment();
   // 端末に保存した録画があるときに、消すかどうかを尋ねるダイアログ (#1365)。
@@ -117,7 +117,7 @@ export function UserMenu() {
               // スマートフォンの幅では、表示名を隠してアイコンだけにし、ヘッダーを画面に収める (#1879)。
               // 隠しても読み上げられるよう、表示名をボタンの名前にする。
               aria-label={data.viewer.displayName}
-              // ユーザーのアイコン (#778)。IdP の picture を tenban が中継する。画像がないか、読めなければ、
+              // ユーザーのアイコン (#778)。IdP の picture を tenban がプロキシする。画像がないか、読めなければ、
               // 表示名の頭文字を、名前ごとに決まる色で出す。
               leftSection={
                 <Avatar

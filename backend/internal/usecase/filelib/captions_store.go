@@ -31,7 +31,7 @@ type CaptionCue struct {
 	Text  string        `json:"text"`
 }
 
-// Captions は、ref の置き場に、ファイルの ID が fileID のファイルから作った字幕があれば返す。
+// Captions は、ref の保存先に、ファイルの ID が fileID のファイルから作った字幕があれば返す。
 func (x *Indexer) Captions(ref Ref, fileID string) (*CaptionsResult, bool) {
 	data, err := sharedfile.ReadFile(filepath.Join(x.dir(ref), captionsName))
 	if err != nil {
@@ -45,7 +45,7 @@ func (x *Indexer) Captions(ref Ref, fileID string) (*CaptionsResult, bool) {
 	return &result, true
 }
 
-// WriteCaptions は、ref の置き場に、自動生成した字幕を書く。前の字幕は置き換える。
+// WriteCaptions は、ref の保存先に、自動生成した字幕を書く。前の字幕は置き換える。
 func (x *Indexer) WriteCaptions(ref Ref, result *CaptionsResult) error {
 	dir, err := x.ImageDir(ref)
 	if err != nil {

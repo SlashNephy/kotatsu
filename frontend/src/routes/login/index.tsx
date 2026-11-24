@@ -27,12 +27,12 @@ export const Route = createFileRoute('/login/')({
       ? { error: search['error'] }
       : {}),
   }),
-  // OIDC のボタンを出すかを確かめる。確かめられなくても、パスワードとパスキーではログインできる。
+  // OIDC のボタンを出すかを確認する。確認できなくても、パスワードとパスキーではログインできる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: Login,
 });
 
-// Login は、ユーザー名とパスワードを確かめる画面。続けて、第二要素を確かめるか、登録する (設計書 9.3)。
+// Login は、ユーザー名とパスワードを検証する画面。続けて、第二要素を検証するか、登録する (設計書 9.3)。
 function Login() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -70,14 +70,14 @@ function Login() {
     }
   };
 
-  // パスキーは、端末を持っていることと、生体認証か PIN の両方を確かめるので、それだけでログインできる (設計書 9.3)。
+  // パスキーは、端末を持っていることと、生体認証か PIN の両方を検証するので、それだけでログインできる (設計書 9.3)。
   const loginWithPasskey = async () => {
     setSubmitting(true);
     setError(null);
     setPasskeyError(null);
     try {
       await verifyWithPasskey(authApi.beginPasskeyLogin, authApi.confirmPasskeyLogin);
-      // セッションの Cookie が入ったので、画面を読み直して、ログイン後のデータを取り直す。
+      // セッションの Cookie が入ったので、画面を読み直して、ログイン後のデータを再取得する。
       window.location.assign(afterLoginURL());
     } catch (caught) {
       setPasskeyError(authErrorMessage(t, caught));

@@ -119,7 +119,7 @@ describe('useControlsVisibility', () => {
 
   test('設定や選択肢を開いている間は隠さない', () => {
     const { rerender } = render(<Harness playing menuOpened />);
-    // 開いた印がボタンから外れても、メニューがあれば開いているとみなす。
+    // 開いていることを示す属性 (aria-expanded) がボタンから外れても、メニューがあれば開いているとみなす。
     screen.getByRole('button', { name: 'settings' }).removeAttribute('aria-expanded');
     fireEvent.pointerMove(screen.getByTestId('video'), { pointerType: 'mouse' });
     advance(controlsHideDelayMs * 2);

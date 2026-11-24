@@ -4,6 +4,7 @@ import { toHalfWidth } from '../futon/halfWidth';
 import { splitProgramMarks } from '../futon/programMarks';
 import { cropSource, isCropped, noCrop, type Crop } from './crop';
 import { withPNGText, type PNGText } from './pngText';
+import type { PlayerMedia } from './playerMedia';
 
 // captureSize は、画像の大きさ。放送の映像の表示の比率 (16:9) にそろえる。
 const captureSize = { width: 1920, height: 1080 };
@@ -28,14 +29,18 @@ export function fitContain(
   };
 }
 
-// captureFrame は、video の今の場面を PNG にする。overlays を渡せば、字幕とコメントの canvas を、枠いっぱいに重ねる。
+// captureFrame は、media の今の場面を PNG にする。overlays を渡せば、字幕とコメントの canvas を、枠いっぱいに重ねる。
 // 字幕とコメントの canvas は、どちらも映像の枠 (16:9) に合わせて描いている。
-// crop で切り抜いているときは、画面と同じく、映像と字幕だけを切り抜いた範囲で写し、コメントは切り抜かずに重ねる (#496)。
+// crop で切り抜いているときは、画面と同じく、映像と字幕だけを切り抜いた範囲でコピーし、コメントは切り抜かずに重ねる (#496)。
 export async function captureFrame(
-  video: HTMLVideoElement,
+  media: Pick<PlayerMedia, 'frame' | 'videoWidth' | 'videoHeight'>,
   overlays: HTMLCanvasElement[],
   crop: Crop = noCrop,
 ): Promise<Blob> {
+  const { frame } = media;
+  if (frame === null) {
+    throw new Error('the current frame is not available');
+  }
   const canvas = document.createElement('canvas');
   canvas.width = captureSize.width;
   canvas.height = captureSize.height;
@@ -46,16 +51,16 @@ export async function captureFrame(
   context.fillStyle = 'black';
   context.fillRect(0, 0, canvas.width, canvas.height);
   // 画面と同じく、枠に収めて描く。videoWidth と videoHeight は、画素の比率 (1440x1080 の放送の 4:3 の画素など) を当てた後の大きさ。
-  const shown = fitContain(video.videoWidth, video.videoHeight, canvas.width, canvas.height);
+  const shown = fitContain(media.videoWidth, media.videoHeight, canvas.width, canvas.height);
   const captions = overlays.filter((overlay) => overlay.dataset['overlay'] === 'captions');
   const others = overlays.filter((overlay) => overlay.dataset['overlay'] !== 'captions');
   if (!isCropped(crop)) {
-    context.drawImage(video, shown.x, shown.y, shown.width, shown.height);
+    context.drawImage(frame, shown.x, shown.y, shown.width, shown.height);
     for (const overlay of captions) {
       context.drawImage(overlay, 0, 0, canvas.width, canvas.height);
     }
   } else {
-    // 映像と字幕を枠いっぱいに描いてから、切り抜いた範囲を拡大して写す。
+    // 映像と字幕を枠いっぱいに描いてから、切り抜いた範囲を拡大してコピーする。
     const full = document.createElement('canvas');
     full.width = canvas.width;
     full.height = canvas.height;
@@ -63,7 +68,7 @@ export async function captureFrame(
     if (fullContext === null) {
       throw new Error('2D canvas is not available');
     }
-    fullContext.drawImage(video, shown.x, shown.y, shown.width, shown.height);
+    fullContext.drawImage(frame, shown.x, shown.y, shown.width, shown.height);
     for (const overlay of captions) {
       fullContext.drawImage(overlay, 0, 0, full.width, full.height);
     }
@@ -93,7 +98,7 @@ export async function captureFrame(
 }
 
 // overlayCanvases は、映像の枠の中にある、字幕とコメントの canvas のうち、出しているものを返す。
-// どちらも data-overlay の印を付けている。yadif が映像の上に重ねる canvas は、映像そのものなので、印がない。
+// どちらも data-overlay のマークを付けている。yadif が映像の上に重ねる canvas は、映像そのものなので、マークがない。
 export function overlayCanvases(frame: HTMLElement): HTMLCanvasElement[] {
   return [...frame.querySelectorAll<HTMLCanvasElement>('canvas[data-overlay]')].filter(
     (canvas) => canvas.style.visibility !== 'hidden',
@@ -122,7 +127,7 @@ export const captureFileNameItems = [
   '{{.StartAt.Format "05"}}',
 ] as const;
 
-// captureFileNameMacros は、前の版の書き方 (#500)。TVTest と同じ書き方 (#814) なので、
+// captureFileNameMacros は、前のバージョンの書き方 (#500)。TVTest と同じ書き方 (#814) なので、
 // TVTest から移ってくる人のために、Go のテンプレートの書き方と並べて受け付け続ける。
 export const captureFileNameMacros = [
   '%date%',
@@ -189,12 +194,12 @@ export function formatGoLayout(date: Date, layout: string): string {
   return layout.replace(goLayoutTokens, (token) => values[token] ?? token);
 }
 
-// goAction は、{{ と }} の中身のうち、受け付ける形。
+// goAction は、{{ と }} の内容のうち、受け付ける形。
 // .Name、.ServiceName、half .Name、half .ServiceName、weekdayJa .StartAt、.StartAt.Format "layout" (` で囲んでもよい)。
 const goAction =
   /^(?:(?<field>\.Name|\.ServiceName)|half\s+(?<halfField>\.Name|\.ServiceName)|weekdayJa\s+\.StartAt|\.StartAt\.Format\s+(?:"(?<layout>[^"\\]*)"|`(?<rawLayout>[^`]*)`))$/;
 
-// expandGoAction は、{{ と }} の中身 body を当てはめる。受け付けない形なら null を返す。
+// expandGoAction は、{{ と }} の内容 body を当てはめる。受け付けない形なら null を返す。
 function expandGoAction(body: string, date: Date, serviceName: string, program: string) {
   const match = goAction.exec(body);
   if (match === null) {

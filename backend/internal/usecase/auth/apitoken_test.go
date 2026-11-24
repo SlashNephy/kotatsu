@@ -17,7 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
-// TestAPITokens は、API トークンを発行し、そのユーザーのロールのまま認証し、取り消したら使えなくなることを確かめる (#431)。
+// TestAPITokens は、API トークンを発行し、そのユーザーのロールのまま認証し、取り消したら使えなくなることを確認する (#431)。
 func TestAPITokens(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func TestAPITokens(t *testing.T) {
 	assert.Equal(t, 2, events)
 }
 
-// TestAPITokenRejects は、名前の長さと、使えないトークンを確かめる。
+// TestAPITokenRejects は、名前の長さと、使えないトークンを確認する。
 func TestAPITokenRejects(t *testing.T) {
 	t.Parallel()
 
@@ -124,7 +124,7 @@ func TestAPITokenRejects(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrUnauthenticated)
 }
 
-// TestAPITokenBearerMiddleware は、Bearer のトークンでログインしたことにし、違うトークンは 401 で断ることを確かめる。
+// TestAPITokenBearerMiddleware は、Bearer のトークンでログインしたことにし、違うトークンは 401 で断ることを確認する。
 func TestAPITokenBearerMiddleware(t *testing.T) {
 	t.Parallel()
 

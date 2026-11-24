@@ -36,13 +36,13 @@ type LibraryEntry {
   playable: Boolean!
 }
 
-"ライブラリのディレクトリの中身。"
+"ライブラリのディレクトリの内容。"
 type LibraryDirectory {
   library: Library!
   "ライブラリの中の / 区切りの相対パス。根元は空。"
   path: String!
   """
-  パスの段ごとの、画面に出す名前。パンくずに使う。フォルダのライブラリでは段そのもの、Google Drive ではフォルダの名前
+  パスの階層ごとの、画面に出す名前。パンくずに使う。フォルダのライブラリでは階層そのもの、Google Drive ではフォルダの名前
   (マイドライブの根元は "My Drive")。根元なら空。
   """
   names: [String!]!
@@ -53,20 +53,20 @@ type LibraryDirectory {
   entries: [LibraryEntry!]!
 }
 
-"ライブラリのファイルのシークの索引の進み具合 (設計書 5.8)。"
+"ライブラリのファイルのシークのインデックスの進み具合 (設計書 5.8)。"
 type LibraryFileIndex {
-  "索引を作り終えたかどうか。作り終えるまでは、読み直して進み具合を確かめる。"
+  "インデックスを作り終えたかどうか。作り終えるまでは、読み直して進み具合を確認する。"
   complete: Boolean!
   """
-  ファイルを書いている途中とみなして、索引を作らないかどうか (最後に書いてから 1 分たっていないファイル)。
-  索引がなければ、頭から再生できるだけで、シークできない。
+  ファイルを書いている途中とみなして、インデックスを作らないかどうか (最後に書いてから 1 分たっていないファイル)。
+  インデックスがなければ、頭から再生できるだけで、シークできない。
   """
   writing: Boolean!
-  "シークできる所 (索引のできた最後の I フレームの位置。ファイルの始まりからの秒)。索引がまだなければ 0。"
+  "シークできる所 (インデックスのできた最後の I フレームの位置。ファイルの始まりからの秒)。インデックスがまだなければ 0。"
   seekableSeconds: Float!
   """
-  再生の時間 (秒)。作り終えていれば索引から求め、作っている途中なら、できた所までのバイト数と時間の比から見込む。
-  索引がまだなければ null。
+  再生の時間 (秒)。作り終えていればインデックスから求め、作っている途中なら、できた所までのバイト数と時間の比から見込む。
+  インデックスがまだなければ null。
   """
   durationSeconds: Float
 }
@@ -86,7 +86,7 @@ type LibraryFile {
   name: String!
   size: Int64!
   modifiedAt: Time!
-  "ファイルの頭から読んだ映像の種類。読めなければ HD とみなす。"
+  "ファイルの先頭から読んだ映像の種類。読めなければ HD とみなす。"
   videoFormat: VideoFormat!
   index: LibraryFileIndex!
   "ログイン中のユーザーが保存した再生位置 (ミリ秒)。ファイルを書き換えたら、前の位置は使わない。"
@@ -94,13 +94,13 @@ type LibraryFile {
   "ファイルの TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
   streamUrl: String!
   """
-  TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報 (局、放送の時刻、番組)。索引を作り始めるときに読む。
+  TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報 (局、放送の時刻、番組)。インデックスを作り始めるときに読む。
   まだ読んでいないか、読めなければ null。
   """
   broadcast: LibraryBroadcast
-  "放送中だった番組の音声の構成。索引を作り終えるまでと、読めなければ空。"
+  "放送中だった番組の音声の構成。インデックスを作り終えるまでと、読めなければ空。"
   audios: [ProgramAudio!]!
-  "ドロップなどの集計。索引を作り終えるまでは null。"
+  "ドロップなどの集計。インデックスを作り終えるまでは null。"
   quality: LibraryFileQuality
   """
   ファイルの時間帯の実況の過去ログの URL のパス (設計書 7.4)。局と時間帯は broadcast のものを使う。
@@ -108,13 +108,13 @@ type LibraryFile {
   """
   jikkyoCommentsUrl: String!
   """
-  代表画像の URL のパス。索引を作り終えた後に、nekonote のジョブで作る (設計書 5.8)。まだなければ null で、開くとジョブを入れる。
+  代表画像の URL のパス。インデックスを作り終えた後に、nekonote のジョブで作る (設計書 5.8)。まだなければ null で、開くとジョブを入れる。
   """
   thumbnailUrl: String
   "シークバー用のプレビュー画像の URL のパス。代表画像と一緒に作る。まだないか、作らない設定なら null。"
   previewUrl: String
   """
-  CM とみなした区間 (設計書 5.8)。索引を作り終えた後に、nekonote のジョブで、録画と同じ見分け方で見分ける。
+  CM とみなした区間 (設計書 5.8)。インデックスを作り終えた後に、nekonote のジョブで、録画と同じ見分け方で見分ける。
   まだ見分けていなければ null で、開くとジョブを入れる。見つからなければ空のリスト。
   """
   cmSections: [LibraryCMSection!]
@@ -180,12 +180,12 @@ extend type Query {
   "このインスタンスから読めるライブラリを、保存先プール (設定の順)、フォルダ (名前の順) の順に返す。"
   libraries: [Library!]!
   """
-  ライブラリ library の、ディレクトリ path (根元は空) の中身を返す。
+  ライブラリ library の、ディレクトリ path (根元は空) の内容を返す。
   ライブラリかディレクトリがなければ NOT_FOUND を、パスがライブラリの外を指すなら BAD_USER_INPUT を返す。
   """
   libraryDirectory(library: String!, path: String!): LibraryDirectory!
   """
-  ライブラリ library の、再生できるファイル path を返す。シークの索引を作り終えていなければ、裏で作り始める。
+  ライブラリ library の、再生できるファイル path を返す。シークのインデックスを作り終えていなければ、裏で作り始める。
   ファイルがないか再生できるファイルでなければ NOT_FOUND を、Blu-ray の 192 バイトのパケットの .m2ts のように TS でなければ BAD_USER_INPUT を返す。
   """
   libraryFile(library: String!, path: String!): LibraryFile!
@@ -209,8 +209,8 @@ type LibrarySearchResult {
 type LibrarySearchHit {
   entry: LibraryEntry!
   """
-  ファイルのあるフォルダの、根元からの段ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
-  Google Drive では、フォルダの名前 (パスの段は ID)。
+  ファイルのあるフォルダの、根元からの階層ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
+  Google Drive では、フォルダの名前 (パスの階層は ID)。
   """
   folderNames: [String!]!
 }
@@ -224,12 +224,12 @@ extend type Mutation {
   """
   ライブラリのファイル id (LibraryFile.id) の音声から字幕を自動生成するジョブを入れる (設計書 5.8)。視聴者は使えない。
   録画と同じく、前に生成した字幕は、生成し終えたら置き換える。同じファイルのジョブを待っていれば、重ねて入れない。
-  id を引いた後にファイルを書き換えていたら CONFLICT にする。書いている途中か、音声を引くサービスが分からないファイルも CONFLICT にする。
+  id を取得した後にファイルを書き換えていたら CONFLICT にする。書いている途中か、音声を取得するサービスが分からないファイルも CONFLICT にする。
   """
   generateLibraryCaptions(id: ID!): LibraryFile!
 }
 
-"ライブラリのファイルの、CM とみなした区間。時刻は、再生の 0 秒 (索引の最初の I フレーム) からの秒。"
+"ライブラリのファイルの、CM とみなした区間。時刻は、再生の 0 秒 (インデックスの最初の I フレーム) からの秒。"
 type LibraryCMSection {
   startSeconds: Float!
   endSeconds: Float!

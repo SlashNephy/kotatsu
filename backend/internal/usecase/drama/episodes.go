@@ -26,7 +26,7 @@ type LinkedEpisode struct {
 	EpisodeNumber *int32
 	// EpisodeName は、話の名前。
 	EpisodeName *string
-	// SeriesSource と EpisodeSource は、作品と話を決めた出どころ。EpisodeSource は、話を決められなければ空。
+	// SeriesSource と EpisodeSource は、作品と話を決めた根拠。EpisodeSource は、話を決められなければ空。
 	SeriesSource  string
 	EpisodeSource string
 }
@@ -44,7 +44,7 @@ func ProgramEpisode(ctx context.Context, db sqlc.DBTX, serviceID int64, startAt 
 	return linked(ctx, db, row.TmdbSeriesID, row.SeasonNumber, row.EpisodeNumber, row.SeriesSource, row.EpisodeSource)
 }
 
-// RecordingEpisode は、録画 recordingID に結びついた作品と話を返す。写していないか、作品に結びつかなければ、found が false。
+// RecordingEpisode は、録画 recordingID に結びついた作品と話を返す。コピーしていないか、作品に結びつかなければ、found が false。
 func RecordingEpisode(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*LinkedEpisode, bool, error) {
 	row, err := sqlc.New(db).GetRecordingDramaMatch(ctx, recordingID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -57,7 +57,7 @@ func RecordingEpisode(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) 
 	return linked(ctx, db, row.TmdbSeriesID, row.SeasonNumber, row.EpisodeNumber, row.SeriesSource, row.EpisodeSource)
 }
 
-// linked は、結びつきの列から LinkedEpisode を作る。作品に結びつかなければ、found が false。
+// linked は、結びつきのカラムから LinkedEpisode を作る。作品に結びつかなければ、found が false。
 func linked(
 	ctx context.Context, db sqlc.DBTX, seriesID, seasonNumber, episodeNumber *int32, seriesSource, episodeSource *string,
 ) (*LinkedEpisode, bool, error) {

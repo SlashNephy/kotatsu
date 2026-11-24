@@ -53,7 +53,7 @@ function serve(recipients: string[], latestRun: Run | null, frozen = false) {
 }
 
 describe('バックアップの設定 (#1926)', () => {
-  test('最後の書き出しが失敗していれば、理由を出す', async () => {
+  test('最後のバックアップが失敗していれば、理由を出す', async () => {
     const { environment } = serve([keyA], {
       manual: false,
       startedAt: '2026-11-17T03:00:00Z',
@@ -64,16 +64,16 @@ describe('バックアップの設定 (#1926)', () => {
     });
     await renderRoute(Route, '/admin/backup', '/admin/backup', environment);
 
-    expect(await screen.findByText(/書き出せませんでした（定期）/)).toBeDefined();
+    expect(await screen.findByText(/バックアップできませんでした（定期）/)).toBeDefined();
     expect(screen.getByText(/backup\.dir\) is not configured/)).toBeDefined();
   });
 
-  test('公開鍵がなければ、今すぐ書き出すボタンを押せない', async () => {
+  test('公開鍵がなければ、今すぐバックアップするボタンを押せない', async () => {
     const { environment } = serve([], null);
     await renderRoute(Route, '/admin/backup', '/admin/backup', environment);
 
-    expect(await screen.findByText('まだ書き出していません')).toBeDefined();
-    const run = screen.getByRole('button', { name: '今すぐ書き出す' });
+    expect(await screen.findByText('まだバックアップしていません')).toBeDefined();
+    const run = screen.getByRole('button', { name: '今すぐバックアップする' });
     expect(run.hasAttribute('disabled') || run.getAttribute('data-disabled') === 'true').toBe(true);
   });
 
@@ -95,15 +95,15 @@ describe('バックアップの設定 (#1926)', () => {
     expect(sent[1]!.variables).toEqual({ input: { recipients: [keyB] } });
   });
 
-  test('今すぐ書き出すと、頼んだことを出す', async () => {
+  test('今すぐバックアップすると、頼んだことを出す', async () => {
     const { environment, sent } = serve([keyA], null);
     await renderRoute(Route, '/admin/backup', '/admin/backup', environment);
 
     await act(async () =>
-      fireEvent.click(await screen.findByRole('button', { name: '今すぐ書き出す' })),
+      fireEvent.click(await screen.findByRole('button', { name: '今すぐバックアップする' })),
     );
     await waitFor(() => expect(sent.map((s) => s.name)).toEqual(['backupRunMutation']));
-    expect(await screen.findByText(/書き出しを頼みました/)).toBeDefined();
+    expect(await screen.findByText(/バックアップを頼みました/)).toBeDefined();
   });
 
   test('保存した公開鍵の一覧を読み直すまで、続けて消せない', async () => {
@@ -131,7 +131,7 @@ describe('バックアップの設定 (#1926)', () => {
 
     // ほかの管理者が、keyB だけの一覧にした。読み直したら、また消せる。
     replace([keyB]);
-    const interval = screen.getByRole('textbox', { name: '書き出す間隔（時間）' });
+    const interval = screen.getByRole('textbox', { name: 'バックアップの間隔（時間）' });
     fireEvent.change(interval, { target: { value: '12' } });
     await act(async () => fireEvent.blur(interval));
     await waitFor(() => expect(screen.queryByText(keyA)).toBeNull());

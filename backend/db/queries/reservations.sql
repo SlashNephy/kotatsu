@@ -33,7 +33,7 @@ SELECT * FROM reservations WHERE id = @id;
 SELECT * FROM reservations WHERE service_id = @service_id AND event_id = @event_id;
 
 -- name: UpdateReservation :execrows
--- 有効に戻すときは、Kotatsu が無効にした理由を消す。同じ回と分かって無効にした予約を戻したら、録り始めに確かめ直さない (#1500)。
+-- 有効に戻すときは、Kotatsu が無効にした理由を消す。同じ回と分かって無効にした予約を戻したら、録り始めに確認し直さない (#1500)。
 UPDATE reservations SET
   start_at = @start_at,
   end_at = @end_at,

@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 )
 
-// TestMergeSpans は、見た区間を重ねずにまとめ、送り直しや順番の入れ替わり、複数のタブで多く数えないことを確かめる (#927)。
+// TestMergeSpans は、見た区間を重ねずにまとめ、送り直しや順番の入れ替わり、複数のタブで多く数えないことを確認する (#927)。
 func TestMergeSpans(t *testing.T) {
 	t.Parallel()
 
@@ -37,7 +37,7 @@ func TestMergeSpans(t *testing.T) {
 	}
 }
 
-// TestReachedThreshold は、番組の長さのうち決めた割合を見たら、記録することを確かめる。境目のちょうどの長さも含める。
+// TestReachedThreshold は、番組の長さのうち決めた割合を見たら、記録することを確認する。境目のちょうどの長さも含める。
 func TestReachedThreshold(t *testing.T) {
 	t.Parallel()
 
@@ -62,7 +62,7 @@ func TestReachedThreshold(t *testing.T) {
 	assert.False(t, animerecord.ReachedThreshold(1000, 0, 20), "a program without a length is never recorded")
 }
 
-// TestNextStatus は、作品の状態を変える条件が、TVTestAnnictRecorder と同じであることを確かめる。
+// TestNextStatus は、作品の状態を変える条件が、TVTestAnnictRecorder と同じであることを確認する。
 func TestNextStatus(t *testing.T) {
 	t.Parallel()
 
@@ -94,8 +94,8 @@ func TestNextStatus(t *testing.T) {
 	}
 }
 
-// TestAnnictRecordEpisode は、Annict のエピソードを、話数、話数の文字列、サブタイトルの順で照らし合わせて記録し、
-// エピソードのない作品は作品を「見た」にすることを確かめる (#927)。
+// TestAnnictRecordEpisode は、Annict のエピソードを、話数、話数の文字列、サブタイトルの順で照合して記録し、
+// エピソードのない作品は作品を「見た」にすることを確認する (#927)。
 func TestAnnictRecordEpisode(t *testing.T) {
 	t.Parallel()
 
@@ -174,7 +174,7 @@ func TestAnnictRecordEpisode(t *testing.T) {
 	}
 }
 
-// TestAniListRecordEpisode は、AniList の何話まで見たか (progress) を、今の値より大きいときだけ進め、見直しで巻き戻さないことを確かめる (#927)。
+// TestAniListRecordEpisode は、AniList の何話まで見たか (progress) を、今の値より大きいときだけ進め、見直しで巻き戻さないことを確認する (#927)。
 func TestAniListRecordEpisode(t *testing.T) {
 	t.Parallel()
 
@@ -248,7 +248,7 @@ func TestAniListRecordEpisode(t *testing.T) {
 	}
 }
 
-// TestGraphQLErrors は、記録先のエラーを、送り直すものと送り直さないものに分け、エラーにトークンを入れないことを確かめる。
+// TestGraphQLErrors は、記録先のエラーを、送り直すものと送り直さないものに分け、エラーにトークンを入れないことを確認する。
 func TestGraphQLErrors(t *testing.T) {
 	t.Parallel()
 
@@ -270,7 +270,7 @@ func TestGraphQLErrors(t *testing.T) {
 	assert.Equal(t, "annict-user", name)
 }
 
-// TestNormalizeSpans は、報告された区間の端を秒にそろえ、1 秒に満たない区間を捨てることを確かめる。
+// TestNormalizeSpans は、報告された区間の端を秒にそろえ、1 秒に満たない区間を破棄することを確認する。
 // 細かくばらけた区間をたくさん送られても、DB に置く区間が増えすぎないようにするため。
 func TestNormalizeSpans(t *testing.T) {
 	t.Parallel()
@@ -291,7 +291,7 @@ func TestNormalizeSpans(t *testing.T) {
 	}
 }
 
-// TestMergeSpansCap は、まとめた区間の数を上限までに抑えることを確かめる。
+// TestMergeSpansCap は、まとめた区間の数を上限までに抑えることを確認する。
 func TestMergeSpansCap(t *testing.T) {
 	t.Parallel()
 

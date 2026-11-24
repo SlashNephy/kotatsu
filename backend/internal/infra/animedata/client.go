@@ -2,7 +2,7 @@
 //
 // サービスとしょぼいカレンダー、Annict のチャンネルの対応は、バイナリに埋め込んだ定義 (channels.json) を返す (#1589)。
 // しょぼいカレンダーの TID と Annict、AniList、MyAnimeList の作品 ID の対応は、arm を GitHub から取得する。
-// どれも 1 日ごとに問い合わせ直すので、ETag を比べ、変わっていなければ読み直さない。
+// どれも 1 日ごとに問い合わせ直すので、ETag を比較し、変わっていなければ読み直さない。
 package animedata
 
 import (
@@ -90,7 +90,7 @@ func NewClient(opts *Options) *Client {
 	return c
 }
 
-// ChannelDefinitions は、埋め込んだチャンネルの定義の一覧と、その ETag (中身のハッシュ) を返す。
+// ChannelDefinitions は、埋め込んだチャンネルの定義の一覧と、その ETag (内容のハッシュ) を返す。
 // etag が前に返した ETag と同じなら、ErrNotModified を返す。Kotatsu を更新して定義が変わったときだけ、取り込み直させる。
 func (c *Client) ChannelDefinitions(_ context.Context, etag string) ([]*Channel, string, error) {
 	return parseChannelDefinitions(channelDefinitions, etag)

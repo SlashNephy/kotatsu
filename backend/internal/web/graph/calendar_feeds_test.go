@@ -34,7 +34,7 @@ func (f *fixture) calendarFeed(t *testing.T) *calendarFeed {
 	return got.CalendarFeed
 }
 
-// TestManageCalendarFeed は、ログイン中のユーザーが、予約の購読用の URL を発行し、発行し直し、取り消せることを確かめる (#1255)。
+// TestManageCalendarFeed は、ログイン中のユーザーが、予約の購読用の URL を発行し、発行し直し、取り消せることを確認する (#1255)。
 func TestManageCalendarFeed(t *testing.T) {
 	t.Parallel()
 
@@ -72,7 +72,7 @@ func TestManageCalendarFeed(t *testing.T) {
 	assert.Equal(t, []string{codeNotFound}, f.query(t, deleteFeedMutation, nil, nil), "nothing to revoke")
 }
 
-// TestCreateCalendarFeedRequiresRecentAuthentication は、発行に直近の認証が要ることを確かめる (#1255)。
+// TestCreateCalendarFeedRequiresRecentAuthentication は、発行に直近の認証が要ることを確認する (#1255)。
 func TestCreateCalendarFeedRequiresRecentAuthentication(t *testing.T) {
 	t.Parallel()
 

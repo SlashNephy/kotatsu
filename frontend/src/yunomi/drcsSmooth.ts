@@ -1,7 +1,7 @@
 // 置き換えられない字幕の外字 (DRCS) を、なめらかな形にする (#1518、設計書 7.4)。
 // 放送の外字は 16〜36 画素四方ほどの画像で、字の枠いっぱいに引き伸ばすと、1 点が 4x4 ほどの階段になる。
 // ここでは、水増しを畳み、Scale2x (EPX) で拡大して角を丸め、二値に戻して、輪郭の path にする。
-// 描画器には依存しない。描画器は、この path を、字の枠に縮めて塗る。
+// レンダラーには依存しない。レンダラーは、この path を、字の枠に縮めて塗る。
 
 // DRCSImage は、外字の画像を、1 画素 1 バイトの濃さ (0〜255) に開いたもの。左上から行の順に並べる。
 export type DRCSImage = {
@@ -70,7 +70,7 @@ export function openDRCS(glyph: {
 }
 
 // foldDRCS は、縦か横に整数倍して送られた外字を、元の大きさに畳む (手順 2)。畳めなくなるまで繰り返す。
-// 畳まないと、2x2 の塊は斜めに接する点を持たないので、Scale2x がほとんど丸めない。
+// 畳まないと、2x2 のブロックは斜めに接する点を持たないので、Scale2x がほとんど丸めない。
 export function foldDRCS(image: DRCSImage): DRCSImage {
   let current = image;
   for (;;) {
@@ -79,7 +79,7 @@ export function foldDRCS(image: DRCSImage): DRCSImage {
     if (!columns && !rows) {
       return current;
     }
-    // 列と行は、同じ回で別々に判定してから畳む。
+    // カラムと行は、同じ回で別々に判定してから畳む。
     const width = columns ? current.width / 2 : current.width;
     const height = rows ? current.height / 2 : current.height;
     const pixels = new Uint8Array(width * height);

@@ -16,7 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
-// TestTenbanServesIPTV は、tenban が、echo のルーターで IPTV の M3U と XMLTV を返すことを確かめる (#1606)。
+// TestTenbanServesIPTV は、tenban が、echo のルーターで IPTV の M3U と XMLTV を返すことを確認する (#1606)。
 // http.ServeMux の GET のパターンは HEAD にも答えたので、HEAD にも答える。
 func TestTenbanServesIPTV(t *testing.T) {
 	t.Parallel()

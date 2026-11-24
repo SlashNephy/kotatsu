@@ -18,7 +18,7 @@ var (
 	_ Node = new(Reservation)
 )
 
-// Service はサービス。チャンネル種別は、リゾルバが dataloader で引く。
+// Service はサービス。チャンネル種別は、リゾルバが dataloader で取得する。
 type Service struct {
 	ID                 string `json:"id"`
 	NetworkID          int    `json:"networkId"`
@@ -62,7 +62,7 @@ func (s Service) MirakurunID() int64 {
 // mirakurunServiceIDBase は、Mirakurun のサービス ID の、ネットワーク ID の桁の重み (network_id * 100000 + service_id)。
 const mirakurunServiceIDBase = 100000
 
-// Program は番組。サービスは、リゾルバが dataloader で引く。
+// Program は番組。サービスは、リゾルバが dataloader で取得する。
 type Program struct {
 	ID           string          `json:"id"`
 	EventID      int             `json:"eventId"`
@@ -84,29 +84,23 @@ type Program struct {
 
 func (Program) IsNode() {}
 
-// RuleKeyword は、番組からルールを作るときに、番組名のキーワードにする作品名 (#1240)。gqlgen が Program.ruleKeyword に使う。
-// IsNode と同じく値のレシーバーにする (ポインタと混ぜると recvcheck に当たる)。
-func (p Program) RuleKeyword() string {
-	return domain.RuleKeyword(p.Name)
-}
-
 // WorkTitle は、外部のサービスで作品を探すのに使う作品名 (#1650)。gqlgen が Program.workTitle に使う。
 func (p Program) WorkTitle() string {
 	return domain.WorkTitle(p.Name)
 }
 
-// DramaTitleKey は、TMDB で作品を探す作品名の鍵 (#1651)。gqlgen が Program.dramaTitleKey に使う。
+// DramaTitleKey は、TMDB で作品を探す作品名のキー (#1651)。gqlgen が Program.dramaTitleKey に使う。
 func (p Program) DramaTitleKey() string {
 	return drama.TitleKeyOf(p.Name)
 }
 
-// GuideRow は、番組表の 1 列。
+// GuideRow は、番組表の 1 カラム。
 type GuideRow struct {
 	Service  *Service   `json:"service"`
 	Programs []*Program `json:"programs"`
 }
 
-// GuideView は番組表ビュー。サービスは、リゾルバが dataloader で引く。
+// GuideView は番組表ビュー。サービスは、リゾルバが dataloader で取得する。
 type GuideView struct {
 	ID                 string            `json:"id"`
 	Name               string            `json:"name"`
@@ -121,7 +115,7 @@ type GuideView struct {
 
 func (GuideView) IsNode() {}
 
-// ProgramConditions は番組の条件。サービスは、リゾルバが dataloader で引く。
+// ProgramConditions は番組の条件。サービスは、リゾルバが dataloader で取得する。
 type ProgramConditions struct {
 	Keywords           []*Keyword         `json:"keywords"`
 	KeywordMatch       match.KeywordMatch `json:"keywordMatch"`
@@ -162,13 +156,13 @@ type Rule struct {
 	UpdatedBy           *User                       `json:"updatedBy,omitempty"`
 	// Key は、ルールの ID。スキーマには出さない。
 	Key uuid.UUID `json:"-"`
-	// GroupKey は、ルールが入るグループの ID。グループはリゾルバが dataloader で引く。スキーマには出さない。
+	// GroupKey は、ルールが入るグループの ID。グループはリゾルバが dataloader で取得する。スキーマには出さない。
 	GroupKey *uuid.UUID `json:"-"`
 }
 
 func (Rule) IsNode() {}
 
-// Reservation は予約。サービスと一致したルールは、リゾルバが dataloader で引く。
+// Reservation は予約。サービスと一致したルールは、リゾルバが dataloader で取得する。
 type Reservation struct {
 	ID               string                            `json:"id"`
 	Kind             domain.ReservationKind            `json:"kind"`
@@ -197,7 +191,7 @@ type Reservation struct {
 func (Reservation) IsNode() {}
 
 // ReservationAssignment は、予約のチューナーの割り当ての結果。neko が計算し直すたびに変わる。
-// チューナーを取り合っている相手の予約は、リゾルバが dataloader で引く。
+// チューナーを取り合っている相手の予約は、リゾルバが dataloader で取得する。
 type ReservationAssignment struct {
 	State domain.AssignmentState `json:"state"`
 	// 割り当てたチューナーの番号。割り当てていなければ null。

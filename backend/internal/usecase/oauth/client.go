@@ -1,6 +1,6 @@
 // Package oauth は、MCP のクライアントにトークンを発行する、OAuth の認可サーバーの部品 (#429、#963)。
 // クライアントの登録は Client ID Metadata Documents (CIMD) だけで受け付ける。client_id はクライアントのメタデータの URL で、
-// Kotatsu がその URL を取りに行き、リダイレクト URI などを確かめる。
+// Kotatsu がその URL を取りに行き、リダイレクト URI などを確認する。
 package oauth
 
 import (
@@ -29,7 +29,7 @@ var (
 	ErrInvalidClientMetadata = errors.New("invalid client metadata")
 )
 
-// ParseClientID は、client_id が CIMD の URL の決まりに合うかを確かめて、URL を返す。
+// ParseClientID は、client_id が CIMD の URL の決まりに合うかを確認して、URL を返す。
 // https で、パスを持ち、`.` と `..` のセグメント、フラグメント、ユーザー情報を含まないものだけを受け付ける。
 func ParseClientID(raw string) (*url.URL, error) {
 	if raw == "" || len(raw) > maxClientIDLength {
@@ -51,7 +51,7 @@ func ParseClientID(raw string) (*url.URL, error) {
 	case u.EscapedPath() == "" || u.EscapedPath() == "/":
 		return nil, fmt.Errorf("%w: the path is missing", ErrInvalidClientID)
 	}
-	// %2e のように符号化した `.` も、取りに行く先のサーバーが `.` と解釈するので、復号したパスで確かめる。
+	// %2e のように符号化した `.` も、取りに行く先のサーバーが `.` と解釈するので、復号したパスで確認する。
 	for segment := range strings.SplitSeq(u.Path, "/") {
 		if segment == "." || segment == ".." {
 			return nil, fmt.Errorf("%w: must not contain dot segments", ErrInvalidClientID)
@@ -76,15 +76,15 @@ type ClientMetadata struct {
 	// TokenEndpointAuthMethods は、クライアントが使える認証の方法。ChatGPT は、好む方法 (private_key_jwt) とは別に、
 	// 使える方法として none も載せ、認可サーバーが受け付ける方法の中から選ぶ。
 	TokenEndpointAuthMethods []string `json:"token_endpoint_auth_methods_supported"`
-	// ClientSecret は、文書に秘密が載っていないことを確かめるためだけに読む。CIMD は誰でも読めるので、秘密を載せてはならない。
+	// ClientSecret は、文書に秘密が載っていないことを確認するためだけに読む。CIMD は誰でも読めるので、秘密を載せてはならない。
 	ClientSecret *string `json:"client_secret"`
 }
 
-// validate は、clientID の URL から取ってきたメタデータを、Kotatsu で使えるかどうか確かめる。
+// validate は、clientID の URL から取ってきたメタデータを、Kotatsu で使えるかどうか確認する。
 func (m *ClientMetadata) validate(clientID string) error {
 	switch {
 	case m.ClientID != clientID:
-		// 正規化せず、文字列として比べる (draft-ietf-oauth-client-id-metadata-document 4.1)。
+		// 正規化せず、文字列として比較する (draft-ietf-oauth-client-id-metadata-document 4.1)。
 		return fmt.Errorf("%w: client_id does not match the document URL", ErrInvalidClientMetadata)
 	case strings.TrimSpace(m.ClientName) == "":
 		return fmt.Errorf("%w: client_name is missing", ErrInvalidClientMetadata)

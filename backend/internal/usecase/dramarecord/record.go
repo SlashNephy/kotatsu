@@ -333,7 +333,7 @@ func (s *Service) finish(ctx context.Context, db sqlc.DBTX, row *sqlc.DramaRecor
 	return nil
 }
 
-// failureReason は、記録できなかった理由を、通知に出す文にする。トークンなどの中身は、もともとエラーに入れない。
+// failureReason は、記録できなかった理由を、通知に出す文にする。トークンなどの内容は、もともとエラーに入れない。
 func failureReason(err error) string {
 	switch {
 	case errors.Is(err, ErrNotConnected):

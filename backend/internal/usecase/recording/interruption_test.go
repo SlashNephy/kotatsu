@@ -11,7 +11,7 @@ import (
 )
 
 // TestRecorderFollowsInterruption は、録画中の番組 (eventId 6) が臨時ニュースなど別の番組 (eventId 65522) に割り込まれ、
-// 同じ eventId で再開する場合に、再開の前に止まらないことを確かめる (#636)。
+// 同じ eventId で再開する場合に、再開の前に止まらないことを確認する (#636)。
 func TestRecorderFollowsInterruption(t *testing.T) {
 	t.Parallel()
 

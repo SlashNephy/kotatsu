@@ -52,7 +52,7 @@ const (
 	foreignKeyViolation = "23503"
 	// generateKey は、録画の完了のイベントの、字幕を生成するかどうかのキー。
 	generateKey = "generateCaptions"
-	// GeneratorVersion は、生成の仕方の版。音声の取り出し方や、時刻のそろえ方を変えたら上げる。
+	// GeneratorVersion は、生成の仕方のバージョン。音声の取り出し方や、時刻のそろえ方を変えたら上げる。
 	GeneratorVersion = 2
 )
 
@@ -99,7 +99,7 @@ type Inserter interface {
 
 // Enqueue は、録画 recordingID の字幕を生成するジョブを投入する。録画の詳細から頼まれたときに使う (設計書 6.1)。
 // 全体や予約の設定にかかわらず生成する。生成し終えた録画も生成し直せ、前の字幕は置き換える。同じ録画のジョブを待っていれば、入れずに false を返す。
-// 入れたら、録画の詳細が生成を待っていると出せるよう、録画の変更を知らせる。
+// 入れたら、録画の詳細が生成を待っていると出せるよう、録画の変更を通知する。
 func Enqueue(ctx context.Context, db Beginner, inserter Inserter, clk clock.Clock, recordingID uuid.UUID) (bool, error) {
 	inserted := false
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
@@ -115,7 +115,7 @@ func Enqueue(ctx context.Context, db Beginner, inserter Inserter, clk clock.Cloc
 	return inserted, nil
 }
 
-// insert は、tx の中でジョブを入れ、入れたら録画の変更を知らせる。待っているジョブがあれば、入れずに false を返す。
+// insert は、tx の中でジョブを入れ、入れたら録画の変更を通知する。待っているジョブがあれば、入れずに false を返す。
 func insert(ctx context.Context, tx pgx.Tx, inserter Inserter, clk clock.Clock, recordingID uuid.UUID) (bool, error) {
 	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: Args{RecordingID: recordingID}, InsertOpts: nil}})
 	if err != nil {
@@ -131,7 +131,7 @@ func insert(ctx context.Context, tx pgx.Tx, inserter Inserter, clk clock.Clock, 
 	return true, nil
 }
 
-// Enqueuer は、録画の完了のイベントを配るときに、字幕を生成するジョブを投入する。
+// Enqueuer は、録画の完了のイベントを配信するときに、字幕を生成するジョブを投入する。
 type Enqueuer struct {
 	inserter Inserter
 	clock    clock.Clock
@@ -150,7 +150,7 @@ func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.E
 	}
 	recordingID, ok := recordingIDOf(event.Payload)
 	if !ok || !shouldGenerate(event.Payload) {
-		// 録画の ID のないイベントでは、何もできない。ほかの通知は配りたいので、失敗にはしない。
+		// 録画の ID のないイベントでは、何もできない。ほかの通知は配信したいので、失敗にはしない。
 		return nil
 	}
 	if _, err := insert(ctx, tx, e.inserter, e.clock, recordingID); err != nil {
@@ -163,7 +163,7 @@ func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.E
 // shouldGenerate は、録画の完了のイベントの材料 payload から、字幕を生成するかどうかを決める。
 // 生成するかどうかは、ここだけで決める。録画の設定の generateCaptions は、録画を終えるときに、全体の既定値に、ルールと予約の上書きを重ねて求めてある
 // (CM の区間の見分けと同じ、設計書 4.7)。TS のセグメントを書いた録画のうち、generateCaptions が true のものだけを生成する。
-// generateCaptions のないイベント (足す前の版の mikan が出したもの) は、既定に合わせて生成しない。
+// generateCaptions のないイベント (足す前のバージョンの mikan が出したもの) は、既定に合わせて生成しない。
 func shouldGenerate(payload map[string]any) bool {
 	generate, _ := payload[generateKey].(bool)
 
@@ -235,7 +235,7 @@ func (w *Worker) Timeout(*river.Job[Args]) time.Duration {
 // segment は、字幕を作るセグメントのファイル。
 type segment struct {
 	path string
-	// key は、音声を取り出した後にセグメントが変わっていないかを確かめる、保存先プールとパスと大きさ。
+	// key は、音声を取り出した後にセグメントが変わっていないかを確認する、保存先プールとパスと大きさ。
 	key       string
 	startedAt time.Time
 }
@@ -252,7 +252,7 @@ type extracted struct {
 
 // Work は、録画ごとの advisory lock を持つ間に音声を取り出し、ロックを外してから字幕を作る。
 // 字幕を作るのは録画の尺の数割の時間がかかるので、その間、セグメントをつなぐジョブや名前の付け直しを待たせない。
-// 書く前に、セグメントが変わっていないかを確かめ、変わっていればやり直す。
+// 書く前に、セグメントが変わっていないかを確認し、変わっていればやり直す。
 func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 	transcriber, err := w.newTranscriber(ctx)
 	if errors.Is(err, ErrNotConfigured) {
@@ -412,7 +412,7 @@ func (w *Worker) transcribe(ctx context.Context, job *river.Job[Args], transcrib
 		for _, c := range found {
 			start, end := max(base+c.Start, 0), base+c.End
 			if end <= start {
-				// 最初の I フレームより前 (再生に入らない所) で終わる字幕は捨てる。
+				// 最初の I フレームより前 (再生に入らない所) で終わる字幕は破棄する。
 				continue
 			}
 			cues = append(cues, Cue{Start: start, End: end, Text: c.Text})
@@ -490,7 +490,7 @@ func (w *Worker) record(ctx context.Context, recordingID uuid.UUID, model string
 	return err
 }
 
-// ensureUnchanged は、録画のセグメントが、音声を取り出したときから変わっていないことを確かめる。
+// ensureUnchanged は、録画のセグメントが、音声を取り出したときから変わっていないことを確認する。
 // 音声のないセグメントは飛ばしたので、取り出したセグメントがどれも今のセグメントにあれば、変わっていないとみなす。
 func (w *Worker) ensureUnchanged(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID, audios []extracted) error {
 	files, err := sqlc.New(db).ListRecordingFiles(ctx, recordingID)

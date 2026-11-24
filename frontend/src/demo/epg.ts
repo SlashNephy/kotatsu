@@ -631,7 +631,8 @@ export type ProgramConditionsInput = {
   freeOnly?: boolean | null;
 };
 
-function matchesKeyword(program: DemoProgram, keyword: KeywordInput): boolean {
+// matchesKeyword は、番組が keyword に一致するかを返す。番組の検索のほか、録画の検索 (#966) でも使う。
+export function matchesKeyword(program: DemoProgram, keyword: KeywordInput): boolean {
   const texts = keyword.fields.map((field) =>
     field === 'NAME'
       ? program.name
@@ -679,7 +680,7 @@ function matchesTimeRange(program: DemoProgram, range: TimeRangeInput): boolean 
 }
 
 // matchProgram は、検索やルールの条件 (ProgramConditionsInput) に、番組が当てはまるかを返す。
-// tenban の照合 (設計書 3.5) を、デモで使う範囲だけ写したもの。マークの条件は扱わない。
+// tenban の照合 (設計書 3.5) を、デモで使う範囲だけコピーしたもの。マークの条件は扱わない。
 export function matchProgram(program: DemoProgram, conditions: ProgramConditionsInput): boolean {
   const keywords = conditions.keywords ?? [];
   if (keywords.length > 0) {

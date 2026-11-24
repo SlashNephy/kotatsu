@@ -1,12 +1,12 @@
 // 静的なデモ (#832) の映像 (demo/stream.m2ts) を、繰り返して 1 本の続いた放送のように流すための、TS の書き換え。
-// demo/stream-sw.js が使い、src/demo/streamLoop.test.ts で確かめる。
+// demo/stream-sw.js が使い、src/demo/streamLoop.test.ts で確認する。
 //
 // 映像は、映像と音声のフレームがちょうど収まる長さ (period) で作ってある (scripts/build-demo-stream.sh)。
 // 繰り返すたびに、PCR、PTS、DTS を period ずつ進め、連続性指標 (continuity_counter) も前の繰り返しの続きにする。
 // プレイヤーからは、時刻が戻らず、パケットも欠けない、途切れずに続く TS に見える。
 
 export const packetSize = 188;
-// clockHz は、PCR の基底、PTS、DTS の刻み。
+// clockHz は、PCR の基底、PTS、DTS の単位。
 export const clockHz = 90000;
 // wrap は、PCR の基底、PTS、DTS が一周する値 (33 ビット)。
 const wrap = 2 ** 33;
@@ -22,7 +22,7 @@ function readTimestamp(bytes, at) {
   );
 }
 
-// writeTimestamp は、PES の PTS か DTS を書く。頭の 4 ビット (PTS か DTS かの印) と、間の印のビットは残す。
+// writeTimestamp は、PES の PTS か DTS を書く。頭の 4 ビット (PTS か DTS かのマーク) と、間のマークのビットは残す。
 function writeTimestamp(bytes, at, value) {
   bytes[at] = (bytes[at] & 0xf1) | ((Math.floor(value / 2 ** 30) & 0x07) << 1);
   bytes[at + 1] = Math.floor(value / 2 ** 22) & 0xff;
@@ -51,8 +51,8 @@ function writePCR(bytes, at, value) {
   bytes[at + 4] = (bytes[at + 4] & 0x7f) | ((value & 0x01) << 7);
 }
 
-// indexStream は、TS (bytes) を読み、繰り返して流すのに要る位置を集める。period は、繰り返しの長さ (90 kHz の刻み)。
-// 返す time は、パケットごとの、映像の頭からの位置 (90 kHz の刻み)。PCR から、映像の頭の PTS との差を引いて数える。
+// indexStream は、TS (bytes) を読み、繰り返して流すのに要る位置を集める。period は、繰り返しの長さ (90 kHz の単位)。
+// 返す time は、パケットごとの、映像の先頭からの位置 (90 kHz の単位)。PCR から、映像の先頭の PTS との差を引いて数える。
 export function indexStream(bytes, period) {
   if (bytes.length % packetSize !== 0) {
     throw new Error('the stream is not a sequence of 188-byte packets');
@@ -66,11 +66,11 @@ export function indexStream(bytes, period) {
   const pcrs = new Float64Array(count).fill(Number.NaN);
   // increments は、PID ごとの、連続性指標が進むパケット (ペイロードのあるもの) の数。
   const increments = new Map();
-  // keys は、映像の I フレーム (ランダムアクセスの印のある、PES の頭) のパケットの位置と PTS。
+  // keys は、映像の I フレーム (ランダムアクセスのマークのある、PES の先頭) のパケットの位置と PTS。
   const keys = [];
-  // boundary は、そのパケットの手前で切っても、どのフレームも欠けないかどうか。映像の I フレームの PES の頭で、
+  // boundary は、そのパケットの手前で切っても、どのフレームも欠けないかどうか。映像の I フレームの PES の先頭で、
   // 長さの決まった PES (音声と字幕) を送り終えているところ。GOP は閉じてあるので、I フレームの手前までの映像は、
-  // そこまでで映し終わる。映像の PES は長さを書かない (0) ので、次の PES の頭か、TS の終わりで終わる。
+  // そこまでで映し終わる。映像の PES は長さを書かない (0) ので、次の PES の先頭か、TS の終わりで終わる。
   const boundary = new Uint8Array(count);
   // remaining は、PID ごとの、長さの決まった PES の、まだ送っていないバイト数。
   const remaining = new Map();
@@ -114,7 +114,7 @@ export function indexStream(bytes, period) {
     if (!unitStart && remaining.has(pid)) {
       remaining.set(pid, remaining.get(pid) - (packetSize - payload));
     }
-    // PES の頭なら、PTS と DTS の位置を覚える。PSI (PAT や PMT) は 00 00 01 で始まらない。
+    // PES の先頭なら、PTS と DTS の位置を保持する。PSI (PAT や PMT) は 00 00 01 で始まらない。
     if (
       !unitStart ||
       payload + 14 > packetSize ||
@@ -161,7 +161,7 @@ export function indexStream(bytes, period) {
   if (firstVideoPTS === null || Number.isNaN(pcrAtFirstVideo)) {
     throw new Error('the stream has no video PES with PCR');
   }
-  // PCR は、届く時刻なので、映される時刻 (PTS) より先を進む。映像の頭で揃え、パケットの位置を映される時刻で数える。
+  // PCR は、届く時刻なので、映される時刻 (PTS) より先を進む。映像の先頭で揃え、パケットの位置を映される時刻で数える。
   const lead = firstVideoPTS - pcrAtFirstVideo;
   const firstPCR = pcrs.find((pcr) => !Number.isNaN(pcr));
   const time = new Float64Array(count);
@@ -169,7 +169,7 @@ export function indexStream(bytes, period) {
     const pcr = Number.isNaN(pcrs[index]) ? firstPCR : pcrs[index];
     time[index] = pcr + lead - firstVideoPTS;
   }
-  // nextBoundary は、切れ目のパケットごとの、次の切れ目の位置 (90 kHz の刻み)。最後の切れ目の次は、次の繰り返しの最初の切れ目。
+  // nextBoundary は、切れ目のパケットごとの、次の切れ目の位置 (90 kHz の単位)。最後の切れ目の次は、次の繰り返しの最初の切れ目。
   const nextBoundary = new Float64Array(count);
   let next = Number.NaN;
   for (let index = count - 1; index >= 0; index--) {
@@ -202,7 +202,7 @@ export function indexStream(bytes, period) {
 }
 
 // StreamLooper は、繰り返した TS を、頭から順に切り出す。
-// start は、流し始める位置 (90 kHz の刻み、映像を繰り返した続きの中の位置)。その手前の I フレームから流す。
+// start は、流し始める位置 (90 kHz の単位、映像を繰り返した続きの中の位置)。その手前の I フレームから流す。
 // end は、流し終える位置。null なら終わらない。
 export class StreamLooper {
   constructor(index, { start = 0, end = null } = {}) {
@@ -213,13 +213,13 @@ export class StreamLooper {
     const key = index.keys.findLast((candidate) => candidate.position <= phase) ?? index.keys[0];
     this.loop = loop;
     this.packet = key.packet;
-    // started は、実際に流し始める位置 (90 kHz の刻み)。
+    // started は、実際に流し始める位置 (90 kHz の単位)。
     this.started = loop * index.period + key.position;
     // sentFrame は、切れ目を 1 つでも流したかどうか。終わりの間際から流し始めても、I フレームからの 1 区切りは流す。
     this.sentFrame = false;
   }
 
-  // position は、次に切り出すパケットの位置 (90 kHz の刻み、映像を繰り返した続きの中の位置)。
+  // position は、次に切り出すパケットの位置 (90 kHz の単位、映像を繰り返した続きの中の位置)。
   get position() {
     return this.loop * this.index.period + this.index.time[this.packet];
   }

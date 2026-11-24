@@ -3,8 +3,8 @@
 #
 #   jq --rawfile lock frontend/pnpm-lock.yaml -f .github/scan/pnpm-audit-sarif.jq audit.json
 #
-# 規則は勧告 (GHSA) ごと、結果は勧告に当たったパッケージの版ごとに作る。
-# 結果の位置は、frontend/pnpm-lock.yaml の packages の節で、その版を書いた行にする。見つからなければ 1 行目にする。
+# 規則は勧告 (GHSA) ごと、結果は勧告に当たったパッケージのバージョンごとに作る。
+# 結果の位置は、frontend/pnpm-lock.yaml の packages の節で、そのバージョンを書いた行にする。見つからなければ 1 行目にする。
 # packages の節は snapshots の節より前にあるので、最初に当たった行を使う。
 
 # score は、Code scanning が重大度の分類に使う security-severity。GitHub の区切り (9.0 以上が critical、7.0 以上が high、
@@ -72,7 +72,7 @@ def level:
                   }
                 }
               ],
-              # 同じ勧告に複数の版が当たっても、別のアラートとして残す。
+              # 同じ勧告に複数のバージョンが当たっても、別のアラートとして残す。
               partialFingerprints: {
                 package: "\($advisory.module_name)@\($finding.version)"
               }

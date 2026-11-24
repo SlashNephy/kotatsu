@@ -48,7 +48,7 @@ func (e *Engine) applyWishlistWatch(ctx context.Context, tx pgx.Tx, now time.Tim
 		}
 		var created int64
 		if len(serviceIDs) > 0 {
-			// 照合に時間がかかる間に、通知のジョブが通知していることがあるので、付ける直前の時刻で確かめる。
+			// 照合に時間がかかる間に、通知のジョブが通知していることがあるので、付ける直前の時刻で確認する。
 			created, err = q.InsertWishlistWatchReservations(ctx, sqlc.InsertWishlistWatchReservationsParams{
 				UserID: user.UserID, Now: e.clock.Now(), ServiceIds: serviceIDs, EventIds: eventIDs,
 			})

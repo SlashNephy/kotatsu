@@ -149,6 +149,7 @@ describe('shownFrameRate', () => {
     fieldRateDropped: false,
     interpolated: false,
     upscaled: null,
+    upscaledWithAnime4K: false,
     notUpscaled: null,
     hdr: false,
   };
@@ -331,6 +332,7 @@ describe('StreamMeter', () => {
       fieldRateDropped: false,
       interpolated: false,
       upscaled: null,
+      upscaledWithAnime4K: false,
       notUpscaled: null,
       hdr: false,
     },
@@ -353,10 +355,11 @@ describe('StreamMeter', () => {
       fieldRateDropped: false,
       interpolated: false,
       upscaled: null,
+      upscaledWithAnime4K: false,
       notUpscaled: null,
       hdr: false,
     });
-    // 画面の時刻を放送の時刻に直す起点も覚える (#1515)。
+    // 画面の時刻を放送の時刻に直す起点も保持する (#1515)。
     expect(meter.mediaOrigin).toBe(126_000);
   });
 
@@ -379,7 +382,7 @@ describe('StreamMeter', () => {
 
     expect(meter.encoded).toEqual(encoded);
     expect(meter.mediaOrigin).toBe(1_859_217_000);
-    // 録画の仮想 HLS のように起点が分からなければ、覚えていた起点を捨てる。
+    // 録画の仮想 HLS のように起点が分からなければ、保持していた起点を破棄する。
     meter.feedSegment(2_000, {
       bytes: 500_000,
       seconds: 2,

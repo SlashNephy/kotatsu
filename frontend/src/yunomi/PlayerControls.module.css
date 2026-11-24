@@ -98,7 +98,7 @@
   white-space: pre;
 }
 
-/* ライブの印。赤い点と「ライブ」の文字。 */
+/* ライブのマーク。赤い点と「ライブ」の文字。 */
 .live {
   display: inline-flex;
   gap: 6px;
@@ -124,7 +124,7 @@
   border: none;
 }
 
-/* 遅れている間は、印の点を灰色にし、放送中ではないことを示す。 */
+/* 遅れている間は、マークの点を灰色にし、放送中ではないことを示す。 */
 .behind::before {
   background-color: var(--mantine-color-gray-5);
 }

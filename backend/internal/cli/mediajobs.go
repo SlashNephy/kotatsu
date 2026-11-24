@@ -71,14 +71,14 @@ func newLiveThumbnailWorker(pool *pgxpool.Pool, inserter *jobs.Client, clk clock
 	return thumbnail.NewLiveWorker(pool, inserter, clk)
 }
 
-// newAnalyzeWorker は、取り込んだ録画のファイルを読み直して索引と集計を作り、画像を作るジョブに渡す Worker を作る (設計書 6.3)。
-// 索引が変わらず画像もあれば、画像を作り直さない (#2012)。プレビュー画像があるかは、作る設定のときだけ確かめる。
+// newAnalyzeWorker は、取り込んだ録画のファイルを読み直してインデックスと集計を作り、画像を作るジョブに渡す Worker を作る (設計書 6.3)。
+// インデックスが変わらず画像もあれば、画像を作り直さない (#2012)。プレビュー画像があるかは、作る設定のときだけ確認する。
 func newAnalyzeWorker(pool *pgxpool.Pool, store *kago.Store, clk clock.Clock, inserter *jobs.Client) *analysis.AnalyzeWorker {
 	return analysis.NewAnalyzeWorker(pool, store, clk, inserter, previewsEnabled(pool))
 }
 
 // newJoinWorker は、引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐ Worker を作る (設計書 5.4)。
-// つないだあとは、索引と集計を作り直すために、解析のジョブに渡す。管理者が有効にしていれば、TvtPlay のチャプターのファイルを、
+// つないだあとは、インデックスと集計を作り直すために、解析のジョブに渡す。管理者が有効にしていれば、TvtPlay のチャプターのファイルを、
 // つないだセグメントで書き直させる (#1737)。
 func newJoinWorker(pool *pgxpool.Pool, store *kago.Store, inserter *jobs.Client, logger *slog.Logger) *segjoin.JoinWorker {
 	return segjoin.NewJoinWorker(pool, store, inserter, logger.With(slog.String("component", "segjoin")), 0).WithJoinedHook(tvtplay.NewEnqueuer(inserter))

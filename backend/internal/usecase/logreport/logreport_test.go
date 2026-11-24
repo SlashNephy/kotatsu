@@ -177,7 +177,7 @@ func TestServiceReportFailsWithoutSecrets(t *testing.T) {
 		Secrets: func(context.Context) ([]string, error) { return nil, errSecrets },
 		Timeout: 0, Limit: 0, MaxLineLength: 0, Location: nil,
 	})
-	// 伏せる値を集められなければ、伏せていないログを返さない。
+	// マスクする値を集められなければ、マスクしていないログを返さない。
 	report, err := service.Report(t.Context(), "")
 	require.ErrorIs(t, err, errSecrets)
 	assert.Nil(t, report)

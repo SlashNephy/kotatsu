@@ -71,6 +71,17 @@ type AnimeFollowingViewing struct {
 	Notes         *string
 }
 
+type AnimeFollowingWatching struct {
+	UserID      uuid.UUID
+	Destination string
+	Username    string
+	Name        string
+	AvatarUrl   *string
+	WorkID      int32
+	Title       string
+	FetchedAt   time.Time
+}
+
 type AnimeImport struct {
 	Source     string
 	Etag       *string
@@ -292,6 +303,7 @@ type Capture struct {
 	ServiceNameNormalized string
 	ProgramNameNormalized string
 	Caption               *string
+	CaptionNormalized     *string
 	BroadcastAt           time.Time
 	TakenAt               time.Time
 	Size                  int64
@@ -676,6 +688,7 @@ type Program struct {
 	SeriesRepeat          pgtype.Bool
 	Series                *string
 	EpisodeNumber         *int32
+	SearchGrams           []string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
@@ -723,6 +736,7 @@ type ProgramArchive struct {
 	VideoResolution       *string
 	SeriesEpisode         *int32
 	SeriesRepeat          pgtype.Bool
+	SearchGrams           []string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	ArchivedAt            time.Time
@@ -740,16 +754,6 @@ type ProgramDramaMatch struct {
 	EpisodeSource *string
 	MatchedAt     time.Time
 	FinalizedAt   *time.Time
-}
-
-type ProgramRewrite struct {
-	ServiceID  int64
-	EventID    int64
-	StartAt    time.Time
-	Field      string
-	Before     string
-	After      string
-	ObservedAt time.Time
 }
 
 type Recording struct {
@@ -772,6 +776,7 @@ type Recording struct {
 	Drops                 int64
 	Errors                int64
 	Scrambled             int64
+	JudgedDrops           int64
 	ScrambledRatio        *float64
 	ScrambleWarning       bool
 	Gaps                  []byte
@@ -1128,7 +1133,7 @@ type SystemSetting struct {
 	DrcsReplacements                       []byte
 	TimeshiftWhileWatching                 bool
 	TimeshiftWhileWatchingRetentionSeconds int32
-	RuleUnmatchedGraceMinutes              int32
+	HistoryMaxDrops                        int32
 	AuditRetentionDays                     int32
 	AuditClientInfoRetentionDays           int32
 	HibpEnabled                            bool
@@ -1318,6 +1323,7 @@ type UserSetting struct {
 	WatchReminderMinutes int32
 	CommentSettings      []byte
 	CaptionSettings      []byte
+	Preferences          []byte
 	UpdatedAt            time.Time
 }
 

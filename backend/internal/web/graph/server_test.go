@@ -271,7 +271,7 @@ func TestHandler(t *testing.T) {
 			wantBody:   []string{unauthenticatedBody},
 		},
 		{
-			// テストのバイナリには版を埋め込まず、VCS の情報もないので dev になる。
+			// テストのバイナリにはバージョンを埋め込まず、VCS の情報もないので dev になる。
 			name:       "logged-in user gets the app version",
 			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ version { version revision modified } }"}`, loggedIn: true},
 			wantStatus: http.StatusOK,
@@ -291,7 +291,7 @@ func TestHandler(t *testing.T) {
 			wantBody:   []string{unauthenticatedBody},
 		},
 		{
-			// 一覧はビルドで書き出すので、テストのバイナリに含まれるとは限らない。ログインしたユーザーには、エラーにせず返すことだけを見る。
+			// 一覧はビルドで出力するので、テストのバイナリに含まれるとは限らない。ログインしたユーザーには、エラーにせず返すことだけを見る。
 			name:       "logged-in user gets the Go module licenses",
 			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ goModuleLicenses { path } }"}`, loggedIn: true},
 			wantStatus: http.StatusOK,
@@ -394,7 +394,7 @@ func TestHandler(t *testing.T) {
 	}
 }
 
-// TestSubscriptionOverSSE は、subscription が SSE で届くことを確かめる。
+// TestSubscriptionOverSSE は、subscription が SSE で届くことを確認する。
 func TestSubscriptionOverSSE(t *testing.T) {
 	t.Parallel()
 
@@ -424,7 +424,7 @@ func TestSubscriptionOverSSE(t *testing.T) {
 	assert.Equal(t, 2, events)
 }
 
-// TestSubscriptionEndsWhenSessionIsRevoked は、接続中の subscription (SSE) が、セッションを失効させたら切れることを確かめる。
+// TestSubscriptionEndsWhenSessionIsRevoked は、接続中の subscription (SSE) が、セッションを失効させたら切れることを確認する。
 func TestSubscriptionEndsWhenSessionIsRevoked(t *testing.T) {
 	t.Parallel()
 

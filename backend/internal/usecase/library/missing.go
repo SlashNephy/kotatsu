@@ -82,9 +82,9 @@ type CleanUpResult struct {
 	PrunedSegments int
 }
 
-// CleanUpMissing は、録画のセグメントのファイルを確かめ直し、見つからないものの記録を DB から消す。プールのファイルは触らない。
+// CleanUpMissing は、録画のセグメントのファイルを確認し直し、見つからないものの記録を DB から消す。プールのファイルは触らない。
 // セグメントが 1 つも見つからなければ録画を消し、一部だけなら、録画は残して、見つからないセグメントの記録だけを消す。
-// 記録を消したセグメントの、データディレクトリの生成物 (索引や画像) は、記録を消した後に消す。
+// 記録を消したセグメントの、データディレクトリの生成物 (インデックスや画像) は、記録を消した後に消す。
 // 録画中と保護した録画は消さない。監査ログに残す。
 func (l *Library) CleanUpMissing(ctx context.Context, db Database, actor *audit.Actor, recordingID uuid.UUID) (*CleanUpResult, error) {
 	result := &CleanUpResult{Deleted: false, PrunedSegments: 0}

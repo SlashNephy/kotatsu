@@ -135,7 +135,7 @@ extend type Mutation {
 input RecordAnimeEpisodesInput {
   "番組。番組に結びついた話を記録する (番組の詳細から)。"
   program: ID
-  "録画。録画に写した結びつきの話を記録する (録画の詳細から)。"
+  "録画。録画にコピーした結びつきの話を記録する (録画の詳細から)。"
   recording: ID
   "作品のしょぼいカレンダーの TID。episode の話を、番組によらず記録する (視聴管理の画面から)。"
   tid: Int

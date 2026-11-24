@@ -87,7 +87,7 @@ func TestParseSourceURL(t *testing.T) {
 	}
 }
 
-// TestParseSourceURLHidesMalformedURL は、URL を読めないとき、エラーにパスワードを含む URL を残さないことを確かめる (#1012)。
+// TestParseSourceURLHidesMalformedURL は、URL を読めないとき、エラーにパスワードを含む URL を残さないことを確認する (#1012)。
 // エラーは、CLI の終わりにログへ書かれる。
 func TestParseSourceURLHidesMalformedURL(t *testing.T) {
 	t.Parallel()
@@ -142,7 +142,7 @@ func TestOpenRejectsUnsupportedSchema(t *testing.T) {
 	}
 }
 
-// TestReadDoesNotWrite は、移行元の DB に書き込まないことを確かめる (設計書 6.3)。
+// TestReadDoesNotWrite は、移行元の DB に書き込まないことを確認する (設計書 6.3)。
 func TestReadDoesNotWrite(t *testing.T) {
 	t.Parallel()
 
@@ -171,7 +171,7 @@ func TestReadDoesNotWrite(t *testing.T) {
 }
 
 // TestReadLeavesSQLiteFileUntouched は、読んだあとも、SQLite の DB のファイルが書き換わったり、
-// ジャーナルのファイルが残ったりしていないことを確かめる。
+// ジャーナルのファイルが残ったりしていないことを確認する。
 func TestReadLeavesSQLiteFileUntouched(t *testing.T) {
 	t.Parallel()
 

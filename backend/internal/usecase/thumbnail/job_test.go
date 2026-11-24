@@ -35,7 +35,7 @@ const (
 	serviceID = 3273601024
 	// segmentName は、テストの録画の最初のセグメントの、プール内の相対パス。
 	segmentName = "録画.m2ts"
-	// indexName は、生成物のディレクトリの、索引のファイルの名前。
+	// indexName は、生成物のディレクトリの、インデックスのファイルの名前。
 	indexName = "index"
 	// kindSegment は、recording_files の、セグメントの種類。
 	kindSegment = "segment"
@@ -79,7 +79,7 @@ func newJobFixture(t *testing.T) *jobFixture {
 	}
 }
 
-// recording は、I フレームを 1 秒ごとに n 個持つセグメントと、その索引の録画を作る。
+// recording は、I フレームを 1 秒ごとに n 個持つセグメントと、そのインデックスの録画を作る。
 func (f *jobFixture) recording(t *testing.T, n int) uuid.UUID {
 	t.Helper()
 
@@ -95,7 +95,7 @@ func (f *jobFixture) recording(t *testing.T, n int) uuid.UUID {
 	return recordingID
 }
 
-// segment は、I フレームを n 個持つセグメント name の行と、データディレクトリの entries の索引を作り、セグメントのファイルの ID を返す。
+// segment は、I フレームを n 個持つセグメント name の行と、データディレクトリの entries のインデックスを作り、セグメントのファイルの ID を返す。
 func (f *jobFixture) segment(t *testing.T, recordingID uuid.UUID, name string, n int, entries []ts.IndexEntry) uuid.UUID {
 	t.Helper()
 
@@ -143,7 +143,7 @@ func fake() (thumbnail.Extractor, error) {
 }
 
 // TestGenerateWorker は、録画の最初のセグメントの生成物のディレクトリに、代表画像とプレビュー画像を置き、
-// DB には記録しないことを確かめる (設計書 5.6、6.1)。作り直しても、ファイルは増えない。
+// DB には記録しないことを確認する (設計書 5.6、6.1)。作り直しても、ファイルは増えない。
 func TestGenerateWorker(t *testing.T) {
 	t.Parallel()
 
@@ -191,15 +191,15 @@ func TestGenerateWorker(t *testing.T) {
 	}
 }
 
-// TestGenerateWorkerPairsIndexesByPath は、始まりが同じセグメントが 2 つあっても、それぞれのファイルの ID の生成物のディレクトリの索引を使うことを確かめる。
+// TestGenerateWorkerPairsIndexesByPath は、始まりが同じセグメントが 2 つあっても、それぞれのファイルの ID の生成物のディレクトリのインデックスを使うことを確認する。
 // EPGStation から取り込んだ録画では、どのファイルも番組の始まりを始まりとして記録する。
 func TestGenerateWorkerPairsIndexesByPath(t *testing.T) {
 	t.Parallel()
 
 	f := newJobFixture(t)
 	recordingID := f.recording(t, 30)
-	// 後から足す、0 秒と 30 秒の位置にだけ I フレームを索引したセグメント。始まりは最初のセグメントと同じにする。
-	// 最初のセグメントの I フレームは 0〜29 秒にあるので、このセグメントの索引を使ったときだけ、30 秒のコマができる。
+	// 後から足す、0 秒と 30 秒の位置にだけ I フレームをインデックスしたセグメント。始まりは最初のセグメントと同じにする。
+	// 最初のセグメントの I フレームは 0〜29 秒にあるので、このセグメントのインデックスを使ったときだけ、30 秒のコマができる。
 	const second = "録画-2.m2ts"
 	seg := segmentAt(t, filepath.Join(f.dir, second), 0, 31, time.Second, 100)
 	f.segment(t, recordingID, second, 31, []ts.IndexEntry{seg.Index[0], seg.Index[30]})
@@ -209,11 +209,11 @@ func TestGenerateWorkerPairsIndexesByPath(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(f.dataRoot, f.segmentID.String(), "preview.json"))
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(data, &manifest))
-	// それぞれのセグメントの索引から、10 秒ごとのコマを取り出す。
+	// それぞれのセグメントのインデックスから、10 秒ごとのコマを取り出す。
 	assert.Equal(t, []float64{0, 10, 20, 30}, manifest.Times)
 }
 
-// TestGenerateWorkerCancels は、FFmpeg がないか、録画が消されたか、画像を作れるセグメントがなければ、送り直さずに取りやめることを確かめる。
+// TestGenerateWorkerCancels は、FFmpeg がないか、録画が消されたか、画像を作れるセグメントがなければ、送り直さずに取りやめることを確認する。
 func TestGenerateWorkerCancels(t *testing.T) {
 	t.Parallel()
 
@@ -294,7 +294,7 @@ func (e *deletingExtractor) Extract(ctx context.Context, r io.Reader, size thumb
 	return e.fakeExtractor.Extract(ctx, r, size)
 }
 
-// TestGenerateWorkerRemovesImagesOfDeletedRecording は、画像を作っている間に録画が消されたら、書いた画像を消して取りやめることを確かめる。
+// TestGenerateWorkerRemovesImagesOfDeletedRecording は、画像を作っている間に録画が消されたら、書いた画像を消して取りやめることを確認する。
 // 録画の削除は、そのときにあったファイルしか消さないので、残すとデータディレクトリに持ち主のない画像が残る。
 func TestGenerateWorkerRemovesImagesOfDeletedRecording(t *testing.T) {
 	t.Parallel()
@@ -310,7 +310,7 @@ func TestGenerateWorkerRemovesImagesOfDeletedRecording(t *testing.T) {
 }
 
 // TestGenerateWorkerLive は、録画中の録画の代表画像 (#1236) を、書いている最中のセグメントから作り、プレビュー画像は作らず、
-// 録画を終えた録画では作らないことを確かめる。
+// 録画を終えた録画では作らないことを確認する。
 func TestGenerateWorkerLive(t *testing.T) {
 	t.Parallel()
 
@@ -353,7 +353,7 @@ func TestGenerateWorkerLive(t *testing.T) {
 	}
 }
 
-// fakeInserter は、入れたジョブを覚える。
+// fakeInserter は、入れたジョブを保存する。
 type fakeInserter struct {
 	args []river.JobArgs
 }
@@ -366,7 +366,7 @@ func (f *fakeInserter) InsertManyTx(_ context.Context, _ pgx.Tx, params []river.
 	return []*rivertype.JobInsertResult{}, nil
 }
 
-// TestLiveWorker は、録り始めてから LiveInterval たった録画中の録画だけに、今の様子の代表画像を作るジョブを入れることを確かめる (#1236)。
+// TestLiveWorker は、録り始めてから LiveInterval たった録画中の録画だけに、今の様子の代表画像を作るジョブを入れることを確認する (#1236)。
 func TestLiveWorker(t *testing.T) {
 	t.Parallel()
 	f := newJobFixture(t)
@@ -430,8 +430,8 @@ func (f *jobFixture) detect(ctx context.Context, t *testing.T, recordingID uuid.
 	}
 }
 
-// TestGenerateWorkerAvoidsCM は、最後に見分けた見分け方の CM の区間を避けて、代表画像を作ることを確かめる (#1810)。
-// 区間は録画を始めた日時からの時間なので、セグメントが録画を始めた日時より後に始まれば、その分ずらして比べる。
+// TestGenerateWorkerAvoidsCM は、最後に見分けた見分け方の CM の区間を避けて、代表画像を作ることを確認する (#1810)。
+// 区間は録画を始めた日時からの時間なので、セグメントが録画を始めた日時より後に始まれば、その分ずらして比較する。
 func TestGenerateWorkerAvoidsCM(t *testing.T) {
 	t.Parallel()
 
@@ -476,7 +476,7 @@ func TestGenerateWorkerAvoidsCM(t *testing.T) {
 }
 
 // TestGenerateWorkerThumbnailOnly は、代表画像だけを作り直すジョブ (#1810) が、見分けた CM の区間を避けて代表画像を選び直し、
-// 前に作ったプレビュー画像には触らないことを確かめる。
+// 前に作ったプレビュー画像には触らないことを確認する。
 func TestGenerateWorkerThumbnailOnly(t *testing.T) {
 	t.Parallel()
 
@@ -484,7 +484,7 @@ func TestGenerateWorkerThumbnailOnly(t *testing.T) {
 	recordingID := f.recording(t, 30)
 	require.NoError(t, f.generate(t, recordingID, true, fake))
 	require.Equal(t, 8, f.thumbnailMarker(t))
-	// 前に作ったプレビュー画像を、作り直せば必ず変わる中身にしておく。
+	// 前に作ったプレビュー画像を、作り直せば必ず変わる内容にしておく。
 	previewPath := filepath.Join(f.dataRoot, f.segmentID.String(), thumbnail.PreviewFileName)
 	previous := []byte("the previous preview")
 	require.NoError(t, os.WriteFile(previewPath, previous, 0o600))
@@ -520,7 +520,7 @@ func (e *detectingExtractor) Extract(ctx context.Context, r io.Reader, size thum
 }
 
 // TestGenerateWorkerReselectsAfterDetection は、画像を作っている間に CM の区間を見分け終えたら、書く前に、新しい区間で代表画像を
-// 選び直すことを確かめる (#1810)。見分けた後に入れた代表画像だけのジョブが先に書き終えても、古い区間の代表画像で上書きしない。
+// 選び直すことを確認する (#1810)。見分けた後に入れた代表画像だけのジョブが先に書き終えても、古い区間の代表画像で上書きしない。
 func TestGenerateWorkerReselectsAfterDetection(t *testing.T) {
 	t.Parallel()
 
@@ -531,7 +531,7 @@ func TestGenerateWorkerReselectsAfterDetection(t *testing.T) {
 	assert.Equal(t, 12, f.thumbnailMarker(t))
 }
 
-// TestCMEnqueuer は、CM の区間を見分け終えたら、代表画像だけを作り直すジョブを入れることを確かめる (#1810)。
+// TestCMEnqueuer は、CM の区間を見分け終えたら、代表画像だけを作り直すジョブを入れることを確認する (#1810)。
 func TestCMEnqueuer(t *testing.T) {
 	t.Parallel()
 

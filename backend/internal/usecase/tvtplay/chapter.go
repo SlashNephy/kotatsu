@@ -12,7 +12,7 @@ import (
 
 const (
 	// mergeGap は、続いた CM とみなす、前の区間の終わりと次の区間の始まりの隙間。web の再生画面が CM を自動で飛ばすときの幅 (cmMergeGap、#1512) と、
-	// 変換した MP4 のチャプターで捨てる短い区間 (#1510) に合わせる。これ以下の CM の区間も捨てる。
+	// 変換した MP4 のチャプターで破棄する短い区間 (#1510) に合わせる。これ以下の CM の区間も破棄する。
 	mergeGap = time.Second
 	// maxPosition は、TvtPlay が受け付けるチャプターの位置の上限 (99:59:59.999)。
 	maxPosition = 99*time.Hour + 59*time.Minute + 59*time.Second + 999*time.Millisecond
@@ -39,10 +39,10 @@ type span struct {
 	end   time.Duration
 }
 
-// Build は、CM の区間 sections (録画を始めた日時からの時間、始まりの順) から、TvtPlay の .chapter ファイルの中身を作る。
+// Build は、CM の区間 sections (録画を始めた日時からの時間、始まりの順) から、TvtPlay の .chapter ファイルの内容を作る。
 //
 // 区間は、web の再生画面と変換した MP4 のチャプター (設計書 7.5、#1510) と同じく、途切れた区間を詰めた再生の時間に直す。
-// 隙間が mergeGap 以下の区間は 1 つにまとめ、mergeGap 以下の区間は捨てる。区間ごとに、スキップの開始 (ix) と終了 (ox) のチャプターを置く。
+// 隙間が mergeGap 以下の区間は 1 つにまとめ、mergeGap 以下の区間は破棄する。区間ごとに、スキップの開始 (ix) と終了 (ox) のチャプターを置く。
 // 終わりがファイルの末尾から mergeGap 以内なら、終了は末尾 (TvtPlay の "e") にする。CM がなければ、チャプターのない "c-c" を返す。
 //
 // 書式は、TvtPlay の _chwrite_test.cpp のチャプターコマンドの仕様に従う。"c-" で始め、チャプターごとに "{ミリ秒}c{名前}-" を足し、"c" で終える。
@@ -70,7 +70,7 @@ func writeChapter(b *strings.Builder, position, name string) {
 	b.WriteByte('-')
 }
 
-// spans は、sections を TS のファイルの始まりからの時間に直し、まとめて、短いものを捨てる。
+// spans は、sections を TS のファイルの始まりからの時間に直し、まとめて、短いものを破棄する。
 func spans(sections []cmdetect.Section, tl *Timeline) []span {
 	position := func(offset time.Duration) time.Duration {
 		at := transcode.PlaybackPosition(tl.RecordedFrom, tl.Gaps, tl.RecordedFrom.Add(offset))

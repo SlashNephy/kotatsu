@@ -21,7 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 )
 
-// TestFormatTimeshiftID は、タイムシフトのバッファの仮想 HLS のパスの {id} を、サービス ID と起点の時刻に読み戻せることを確かめる。
+// TestFormatTimeshiftID は、タイムシフトのバッファの仮想 HLS のパスの {id} を、サービス ID と起点の時刻に読み戻せることを確認する。
 func TestFormatTimeshiftID(t *testing.T) {
 	t.Parallel()
 
@@ -39,7 +39,7 @@ func TestFormatTimeshiftID(t *testing.T) {
 	}
 }
 
-// bufferChunk は、data のチャンクと索引を置き、サービスをタイムシフトで録るチャンネルにする。チャンクは startedAt に始まり、書いている途中。
+// bufferChunk は、data のチャンクとインデックスを置き、サービスをタイムシフトで録るチャンネルにする。チャンクは startedAt に始まり、書いている途中。
 func (f *vodFixture) bufferChunk(t *testing.T, data []byte, startedAt time.Time) {
 	t.Helper()
 
@@ -79,8 +79,8 @@ func (f *vodFixture) getTimeshift(t *testing.T, timeshiftID, file string) (int, 
 	return resp.StatusCode, string(body)
 }
 
-// TestVODTimeshift は、タイムシフトのバッファを、起点からの仮想 HLS のプレイリストにすることを確かめる (設計書 5.7、7.3)。
-// バッファは伸び続けるので、EVENT にし、終わりの印を付けない。起点より前の I フレームは載せない。
+// TestVODTimeshift は、タイムシフトのバッファを、起点からの仮想 HLS のプレイリストにすることを確認する (設計書 5.7、7.3)。
+// バッファは伸び続けるので、EVENT にし、終わりのマークを付けない。起点より前の I フレームは載せない。
 func TestVODTimeshift(t *testing.T) {
 	t.Parallel()
 

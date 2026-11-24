@@ -37,7 +37,7 @@ type passkey struct {
 	LastUsedAt *time.Time `json:"lastUsedAt"`
 }
 
-// registerPasskey は、ログイン中のユーザーに、ソフトウェアの認証器のパスキーを登録する。
+// registerPasskey は、ログイン中のユーザーに、ソフトウェアのオーセンティケーターのパスキーを登録する。
 func (f *fixture) registerPasskey(t *testing.T) {
 	t.Helper()
 
@@ -63,7 +63,7 @@ func (f *fixture) listPasskeys(t *testing.T) []passkey {
 	return got.Passkeys
 }
 
-// TestManagePasskeys は、ログイン中のユーザーが、自分のパスキーを一覧し、名前を変え、消せることを確かめる。
+// TestManagePasskeys は、ログイン中のユーザーが、自分のパスキーを一覧し、名前を変え、消せることを確認する。
 func TestManagePasskeys(t *testing.T) {
 	t.Parallel()
 
@@ -89,7 +89,7 @@ func TestManagePasskeys(t *testing.T) {
 	assert.Equal(t, []passkey{listed[1]}, f.listPasskeys(t))
 }
 
-// TestManagePasskeysRejects は、パスキーの名前の変更と削除を、受け付けない場合を確かめる。
+// TestManagePasskeysRejects は、パスキーの名前の変更と削除を、受け付けない場合を確認する。
 func TestManagePasskeysRejects(t *testing.T) {
 	t.Parallel()
 
@@ -191,14 +191,14 @@ func (f *fixture) withoutPasskeys(t *testing.T) *fixture {
 	return &g
 }
 
-// TestPasskeysUnavailable は、パスキーを扱う設定がなければ、内部のエラーにすることを確かめる。
+// TestPasskeysUnavailable は、パスキーを扱う設定がなければ、内部のエラーにすることを確認する。
 func TestPasskeysUnavailable(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
 	f.registerPasskey(t)
 	id := f.listPasskeys(t)[0].ID
-	// 設定のない Resolver で、同じ DB を引く。
+	// 設定のない Resolver で、同じ DB を取得する。
 	g := f.withoutPasskeys(t)
 
 	tests := []struct {

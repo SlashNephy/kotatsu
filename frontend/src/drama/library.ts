@@ -17,7 +17,7 @@ export type DramaFilters = {
   readonly weekday: number | undefined;
 };
 
-// parseDramaSearch は、URL のクエリを読む。アニメの画面と同じく、知らない値は、絞り込まないものとして捨てる。
+// parseDramaSearch は、URL のクエリを読む。アニメの画面と同じく、知らない値は、絞り込まないものとして破棄する。
 export function parseDramaSearch(search: Record<string, unknown>): DramaSearch {
   const { status, period, weekday } = parseAnimeSearch(search);
 

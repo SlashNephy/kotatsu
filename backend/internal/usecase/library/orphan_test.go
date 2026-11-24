@@ -33,7 +33,7 @@ const (
 	removedByJoinSegmentDir = "0199f0a0-0000-7000-8000-00000000beef"
 )
 
-// orphanFixture は、録画 1 つと、DB にないファイル、使っているファイル、書いたばかりのファイル、調べないファイルを置いたプールを作る。
+// orphanFixture は、録画 1 つと、DB にないファイル、使っているファイル、書いたばかりのファイル、走査しないファイルを置いたプールを作る。
 func orphanFixture(t *testing.T) *fixture {
 	t.Helper()
 
@@ -92,7 +92,7 @@ func (f *fixture) orphans(t *testing.T) []orphan {
 
 // TestFindOrphans は、DB にないファイルと、持ち主のない生成物のディレクトリだけを返し、
 // 録画のファイルとその生成物、つないでいる途中のファイルとつなぐ元のファイルとその生成物、書いたばかりのファイル、
-// 隠しファイルと lost+found は返さないことを確かめる。データディレクトリにある、ID の名前でないものは、ファイルとして返す。
+// 隠しファイルと lost+found は返さないことを確認する。データディレクトリにある、ID の名前でないものは、ファイルとして返す。
 func TestFindOrphans(t *testing.T) {
 	t.Parallel()
 
@@ -105,7 +105,7 @@ func TestFindOrphans(t *testing.T) {
 }
 
 // TestFindOrphansSameFileWithAnotherName は、DB のパスと、走査して見つけた名前が、大文字と小文字や Unicode の正規化だけ違っていても、
-// ファイルシステムが同じファイルとみなすなら、DB にないファイルとしないことを確かめる (#1095)。
+// ファイルシステムが同じファイルとみなすなら、DB にないファイルとしないことを確認する (#1095)。
 // 大文字と小文字を区別する (NFD に変えない) ファイルシステムでは、NTFS や APFS、HFS+ の代わりに、同じファイルへのハードリンクを置く。
 func TestFindOrphansSameFileWithAnotherName(t *testing.T) {
 	t.Parallel()
@@ -157,8 +157,8 @@ func TestFindOrphansSameFileWithAnotherName(t *testing.T) {
 	}
 }
 
-// TestFindOrphansTimeshiftIndex は、データディレクトリにあるタイムシフトのチャンクの索引のディレクトリを、
-// チャンクの行がある間は返さず、行を消した後は返すことを確かめる。
+// TestFindOrphansTimeshiftIndex は、データディレクトリにあるタイムシフトのチャンクのインデックスのディレクトリを、
+// チャンクの行がある間は返さず、行を消した後は返すことを確認する。
 func TestFindOrphansTimeshiftIndex(t *testing.T) {
 	t.Parallel()
 
@@ -193,7 +193,7 @@ func TestFindOrphansTimeshiftIndex(t *testing.T) {
 }
 
 // TestFindOrphansCaptures は、データディレクトリにあるキャプチャの画像を、行がある間は返さず、
-// 行のない画像は、DB にないファイルとして返すことを確かめる (設計書 5.6、7.5)。
+// 行のない画像は、DB にないファイルとして返すことを確認する (設計書 5.6、7.5)。
 func TestFindOrphansCaptures(t *testing.T) {
 	t.Parallel()
 
@@ -217,7 +217,7 @@ func TestFindOrphansCaptures(t *testing.T) {
 }
 
 // TestFindOrphansCaptionModels は、データディレクトリの既定の場所に置いた字幕の自動生成のモデルを返さず、
-// ダウンロードの途中で止まった .part は、DB にないファイルとして返すことを確かめる (#1682)。
+// ダウンロードの途中で止まった .part は、DB にないファイルとして返すことを確認する (#1682)。
 func TestFindOrphansCaptionModels(t *testing.T) {
 	t.Parallel()
 
@@ -244,8 +244,8 @@ func TestFindOrphansCaptionModels(t *testing.T) {
 	}
 }
 
-// TestFindOrphansLibraryIndexes は、データディレクトリに置いたライブラリのファイルの索引 (#1734) を、DB に行がなくても返さないことを確かめる。
-// 名前が同じだけの、索引の置き場の外のファイルは返す。
+// TestFindOrphansLibraryIndexes は、データディレクトリに置いたライブラリのファイルのインデックス (#1734) を、DB に行がなくても返さないことを確認する。
+// 名前が同じだけの、インデックスの保存先の外のファイルは返す。
 func TestFindOrphansLibraryIndexes(t *testing.T) {
 	t.Parallel()
 
@@ -271,7 +271,7 @@ func TestFindOrphansLibraryIndexes(t *testing.T) {
 	}
 }
 
-// TestDeleteOrphans は、DB にないファイルを確かめ直して消し、監査ログに残すことと、使っているファイルやプールの外は消さないことを確かめる。
+// TestDeleteOrphans は、DB にないファイルを確認し直して消し、監査ログに残すことと、使っているファイルやプールの外は消さないことを確認する。
 func TestDeleteOrphans(t *testing.T) {
 	t.Parallel()
 

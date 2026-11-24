@@ -14,7 +14,7 @@ import (
 )
 
 // TestStreamURLsKeepStreamingURLs は、使われた日時を残し、期限を過ぎても流れ続けている URL の記録は消さずに一覧に出し、
-// 期限が過ぎて使われなくなった記録は、次に発行するときに消すことを確かめる (#1757)。
+// 期限が過ぎて使われなくなった記録は、次に発行するときに消すことを確認する (#1757)。
 func TestStreamURLsKeepStreamingURLs(t *testing.T) {
 	t.Parallel()
 
@@ -46,7 +46,7 @@ func TestStreamURLsKeepStreamingURLs(t *testing.T) {
 	assert.True(t, opened.Equal(*got[streaming].LastUsedAt))
 	assert.Nil(t, got[idle].LastUsedAt, "the idle URL is not opened")
 
-	// 期限 (1 時間) を過ぎても流れ続け、確かめ直すたびに、使われた日時を書き直す。
+	// 期限 (1 時間) を過ぎても流れ続け、再確認するたびに、使われた日時を書き直す。
 	f.clock.Advance(time.Hour + time.Minute)
 	_, err = users.Role(t.Context(), streaming, f.userID)
 	require.NoError(t, err)

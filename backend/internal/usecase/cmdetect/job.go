@@ -103,7 +103,7 @@ type Beginner interface {
 
 // Enqueue は、録画 recordingID の CM の区間を見分けるジョブを投入する。録画の詳細から頼まれたときに使う (設計書 6.1)。
 // 全体や予約の設定にかかわらず見分ける。見分け終えた録画も見分け直せ、前の区間は置き換える。同じ録画のジョブを待っていれば、入れずに false を返す。
-// 入れたら、録画の詳細が見分けを待っていると出せるよう、録画の変更を知らせる (#1571)。
+// 入れたら、録画の詳細が見分けを待っていると出せるよう、録画の変更を通知する (#1571)。
 func Enqueue(ctx context.Context, db Beginner, inserter Inserter, clk clock.Clock, recordingID uuid.UUID) (bool, error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -133,7 +133,7 @@ const enqueueBatch = 500
 
 // EnqueueMany は、録画 recordingIDs の CM の区間を見分けるジョブをまとめて投入し、入れた数を返す (#1814)。
 // 待っている録画には重ねて入れない。録画の詳細が見分けを待っていると出せるよう、入れたトランザクションごとに 1 度だけ、
-// 録画の変更を知らせる。途中で失敗したら、それまでに入れた数と一緒にエラーを返す。
+// 録画の変更を通知する。途中で失敗したら、それまでに入れた数と一緒にエラーを返す。
 func EnqueueMany(ctx context.Context, db Beginner, inserter Inserter, clk clock.Clock, recordingIDs []uuid.UUID) (int, error) {
 	inserted := 0
 	for start := 0; start < len(recordingIDs); start += enqueueBatch {
@@ -176,8 +176,8 @@ type Inserter interface {
 	InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
 }
 
-// Enqueuer は、録画の完了のイベントを配るときに、CM の区間を見分けるジョブを投入する。
-// 入れたら、録画の詳細が見分けを待っていると出せるよう、録画の変更を知らせる (#1571)。
+// Enqueuer は、録画の完了のイベントを配信するときに、CM の区間を見分けるジョブを投入する。
+// 入れたら、録画の詳細が見分けを待っていると出せるよう、録画の変更を通知する (#1571)。
 type Enqueuer struct {
 	inserter Inserter
 	clock    clock.Clock
@@ -196,7 +196,7 @@ func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.E
 	}
 	recordingID, ok := recordingIDOf(event.Payload)
 	if !ok || !shouldDetect(event.Payload) {
-		// 録画の ID のないイベントでは、何もできない。ほかの通知は配りたいので、失敗にはしない。
+		// 録画の ID のないイベントでは、何もできない。ほかの通知は配信したいので、失敗にはしない。
 		return nil
 	}
 	args := DetectArgs{RecordingID: recordingID, Detector: detectorOf(event.Payload)}
@@ -217,7 +217,7 @@ func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.E
 // shouldDetect は、録画の完了のイベントの材料 payload から、録画の CM の区間を見分けるかどうかを決める。
 // 見分けるかどうかは、ここだけで決める。録画の設定の detectCm (設計書 6.1) は、録画を終えるときに、全体の既定値に、
 // ルールと予約の上書きを重ねて求めてある (予約やルールで選んでいればその値、なければ録画を終えるときの全体の設定)。
-// TS のセグメントを書いた録画のうち、detectCm が true のものだけを見分ける。detectCm のないイベント (足す前の版の mikan が出したもの) は、既定に合わせて見分けない。
+// TS のセグメントを書いた録画のうち、detectCm が true のものだけを見分ける。detectCm のないイベント (足す前のバージョンの mikan が出したもの) は、既定に合わせて見分けない。
 func shouldDetect(payload map[string]any) bool {
 	detect, _ := payload[detectKey].(bool)
 
@@ -499,7 +499,7 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 	return nil
 }
 
-// programOf は、i 番目のセグメントに渡す、番組の時刻を返す (#1506)。番組の窓は録画全体の時間で置く必要があるので、
+// programOf は、i 番目のセグメントに渡す、番組の時刻を返す (#1506)。番組のウィンドウは録画全体の時間で置く必要があるので、
 // セグメントが 1 つの録画だけに渡し、分かれた録画では nil にする。番組が始まるはずの時刻は、番組の始まり (programStart) を、
 // セグメントを書き始めた日時からの時間にしたもの。尺は、番組表の終わり − 始まり。
 func programOf(recording *sqlc.Recording, segments []segment, i int) *Program {
@@ -540,7 +540,7 @@ func (w *DetectWorker) align(recordedFrom time.Time, segments []segment, found [
 }
 
 // redetect は、録画の材料が残っていて、どのセグメントも材料から決められれば、読み直さずに判定し直した区間を返す (#1507)。
-// 材料がない、形式の版が違う、壊れている、セグメントが変わった (つないだ、名前を変えた)、ロゴで決められないセグメントがある、
+// 材料がない、形式のバージョンが違う、壊れている、セグメントが変わった (つないだ、名前を変えた)、ロゴで決められないセグメントがある、
 // のどれかなら、ok を false にして、読み直させる。
 func (w *DetectWorker) redetect(ctx context.Context, detector Detector, recording *sqlc.Recording, segments []segment) ([][]Section, *Report, bool) {
 	md, ok := detector.(MaterialDetector)
@@ -686,7 +686,7 @@ func serviceID(sid int64) uint16 {
 // segment は、見分けるセグメントのファイル。
 type segment struct {
 	path string
-	// key は、材料 (#1507) と突き合わせる、セグメントのファイルの名前。保存先プールとパスと大きさで、つないだり名前を変えたりしたら変わる。
+	// key は、材料 (#1507) と照合する、セグメントのファイルの名前。保存先プールとパスと大きさで、つないだり名前を変えたりしたら変わる。
 	key       string
 	startedAt time.Time
 	// size は、ファイルの大きさ (バイト)。進み具合に使う。
@@ -794,9 +794,9 @@ func RecordingSections(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID)
 }
 
 // RecordingSectionsWithOrigin は、RecordingSections に、区間の時刻の基準を足して返す。
-// fromFirstPES は、区間の時刻が、セグメントの最初の映像の PES を 0 にしたものなら true (版 1 の今の見分け方、#1811)。
+// fromFirstPES は、区間の時刻が、セグメントの最初の映像の PES を 0 にしたものなら true (バージョン 1 の今の見分け方、#1811)。
 // それ以外は、セグメントの最初の I フレーム (再生の時間の 0) を 0 にしたもの。見分け直すまで、前の基準の区間が残る。
-// 局ロゴの見分け方 (今の見分け方に回った回を含む) は、この基準を入れたのと同じリリースで出したので、版 1 から最初の I フレームを 0 にする。
+// 局ロゴの見分け方 (今の見分け方に回った回を含む) は、この基準を入れたのと同じリリースで出したので、バージョン 1 から最初の I フレームを 0 にする。
 func RecordingSectionsWithOrigin(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) ([]Section, bool, error) {
 	q := sqlc.New(db)
 	latest, err := q.GetLatestRecordingCMDetection(ctx, recordingID)

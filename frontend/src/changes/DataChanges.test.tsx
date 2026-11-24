@@ -78,7 +78,7 @@ describe('useDataChanges', () => {
         <Probe channels={['VIEWER_SETTINGS']} />
       </DataChangesProvider>,
     );
-    // 購読を始めたときに届く今の版数では、読み直さない。
+    // 購読を始めたときに届く今のバージョンでは、読み直さない。
     send('VIEWER_SETTINGS', 7);
     wait(settleMs);
     expect(screen.getByTestId('key').textContent).toBe('0');

@@ -117,7 +117,7 @@ func (f *fixture) subscriptionExists(t *testing.T, subscriptionID uuid.UUID) boo
 	return true
 }
 
-// TestEnqueuerQueuesDeliveries は、イベントを配るとき、その種類を Web Push で受け取る、有効なユーザーの購読ごとに、配信のジョブを投入することを確かめる。
+// TestEnqueuerQueuesDeliveries は、イベントを配信するとき、その種類を Web Push で受け取る、有効なユーザーの購読ごとに、配信のジョブを投入することを確認する。
 func TestEnqueuerQueuesDeliveries(t *testing.T) {
 	t.Parallel()
 
@@ -152,12 +152,12 @@ func TestEnqueuerQueuesDeliveries(t *testing.T) {
 	}
 	got, err := pgx.CollectRows(rows, pgx.RowToStructByPos[queued])
 	require.NoError(t, err)
-	// 積んだときの購読の持ち主も持たせ、送るときに替わっていないかを確かめる (#1435)。
+	// 積んだときの購読の持ち主も持たせ、送るときに替わっていないかを確認する (#1435)。
 	assert.Equal(t, []queued{{SubscriptionID: target, EventID: eventID, UserID: f.ownerOf(t, target), MaxAttempts: 5}}, got)
 }
 
-// TestDeliverWorkerSendsEncryptedNotification は、通知の文を購読の鍵で暗号化し、VAPID で署名して送り、
-// ブラウザが復号できることを確かめる (設計書 6.2)。
+// TestDeliverWorkerSendsEncryptedNotification は、通知の文を購読の公開鍵で暗号化し、VAPID で署名して送り、
+// ブラウザが復号できることを確認する (設計書 6.2)。
 func TestDeliverWorkerSendsEncryptedNotification(t *testing.T) {
 	t.Parallel()
 
@@ -223,7 +223,7 @@ func TestDeliverWorkerSendsEncryptedNotification(t *testing.T) {
 	}
 }
 
-// TestDeliverWorkerResponses は、プッシュサービスの応答に応じて、配信を終えるか、購読を消すか、送り直すかを確かめる。
+// TestDeliverWorkerResponses は、プッシュサービスの応答に応じて、配信を終えるか、購読を消すか、送り直すかを確認する。
 func TestDeliverWorkerResponses(t *testing.T) {
 	t.Parallel()
 
@@ -259,7 +259,7 @@ func TestDeliverWorkerResponses(t *testing.T) {
 	}
 }
 
-// TestDeliverWorkerKeepsResubscription は、送っている間に、同じ端末が新しい鍵で購読し直したら、失効が返っても、新しい購読を消さないことを確かめる。
+// TestDeliverWorkerKeepsResubscription は、送っている間に、同じ端末が新しい公開鍵で購読し直したら、失効が返っても、新しい購読を消さないことを確認する。
 func TestDeliverWorkerKeepsResubscription(t *testing.T) {
 	t.Parallel()
 
@@ -285,7 +285,7 @@ func TestDeliverWorkerKeepsResubscription(t *testing.T) {
 }
 
 // TestDeliverWorkerRechecksRecipient は、配信のジョブを積んでから送るまでの間に宛先の条件が変わったら、
-// 送らずに取りやめることを確かめる (#1435)。
+// 送らずに取りやめることを確認する (#1435)。
 func TestDeliverWorkerRechecksRecipient(t *testing.T) {
 	t.Parallel()
 
@@ -349,7 +349,7 @@ func TestDeliverWorkerRechecksRecipient(t *testing.T) {
 	}
 }
 
-// TestDeliverWorkerCancelsWithoutTarget は、購読かイベントが消えていたら、送らずに取りやめることを確かめる。
+// TestDeliverWorkerCancelsWithoutTarget は、購読かイベントが消えていたら、送らずに取りやめることを確認する。
 func TestDeliverWorkerCancelsWithoutTarget(t *testing.T) {
 	t.Parallel()
 
@@ -364,7 +364,7 @@ func TestDeliverWorkerCancelsWithoutTarget(t *testing.T) {
 	assert.Empty(t, requests)
 }
 
-// TestDeliverWorkerCancelsNonPublicEndpoint は、LAN の中の送り先には送らず、送り直さずに取りやめることを確かめる。
+// TestDeliverWorkerCancelsNonPublicEndpoint は、LAN の中の送り先には送らず、送り直さずに取りやめることを確認する。
 func TestDeliverWorkerCancelsNonPublicEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -381,7 +381,7 @@ func TestDeliverWorkerCancelsNonPublicEndpoint(t *testing.T) {
 	assert.NotContains(t, err.Error(), "/send/mikan")
 }
 
-// TestNewHTTPClientRefusesNonPublicAddresses は、プッシュサービスに送るクライアントが、LAN の中のアドレスには接続しないことを確かめる。
+// TestNewHTTPClientRefusesNonPublicAddresses は、プッシュサービスに送るクライアントが、LAN の中のアドレスには接続しないことを確認する。
 func TestNewHTTPClientRefusesNonPublicAddresses(t *testing.T) {
 	t.Parallel()
 

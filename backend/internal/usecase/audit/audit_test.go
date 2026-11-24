@@ -215,14 +215,14 @@ func TestRecordFollowsTransaction(t *testing.T) {
 	assert.Empty(t, events, "a rolled back operation must not leave an audit event")
 	assert.Zero(t, auditVersion(t, pool), "a rolled back operation must not notify the change")
 
-	// コミットしたら、管理の画面に変更を知らせる (#869)。
+	// コミットしたら、管理の画面に変更を通知する (#869)。
 	require.NoError(t, pgx.BeginFunc(t.Context(), pool, func(tx pgx.Tx) error {
 		return recorder.Record(t.Context(), tx, &audit.Event{Actor: audit.System("neko"), Action: actionRuleCreate, TargetType: targetRule})
 	}))
 	assert.EqualValues(t, 1, auditVersion(t, pool))
 }
 
-// auditVersion は、監査ログの変更の通知の版数を返す。
+// auditVersion は、監査ログの変更の通知のバージョンを返す。
 func auditVersion(t *testing.T, pool *pgxpool.Pool) int64 {
 	t.Helper()
 
@@ -247,7 +247,7 @@ func TestPruneDeletesEventsPastRetention(t *testing.T) {
 	assert.Equal(t, []string{"recent"}, actions(t, pool))
 }
 
-// TestPruneDeletesInBatches は、保持期間を過ぎた記録が、1 回で消す件数の上限より多くても、すべて消すことを確かめる。
+// TestPruneDeletesInBatches は、保持期間を過ぎた記録が、1 回で消す件数の上限より多くても、すべて消すことを確認する。
 func TestPruneDeletesInBatches(t *testing.T) {
 	t.Parallel()
 
@@ -266,7 +266,7 @@ func TestPruneDeletesInBatches(t *testing.T) {
 	assert.Equal(t, []string{recentAction}, actions(t, pool))
 }
 
-// TestPruneClientInfoKeepsTheRecord は、保持期間を過ぎた記録の IP アドレスと User-Agent だけを空にし、操作の記録は残すことを確かめる (#1367)。
+// TestPruneClientInfoKeepsTheRecord は、保持期間を過ぎた記録の IP アドレスと User-Agent だけを空にし、操作の記録は残すことを確認する (#1367)。
 func TestPruneClientInfoKeepsTheRecord(t *testing.T) {
 	t.Parallel()
 

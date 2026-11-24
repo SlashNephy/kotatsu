@@ -11,7 +11,7 @@ type ServiceKey struct {
 	SID  uint16
 }
 
-// key は、EDCB がサービスを引くのに使う 64 ビットのキー (ONID << 32 | TSID << 16 | SID)。
+// key は、EDCB がサービスを検索するのに使う 64 ビットのキー (ONID << 32 | TSID << 16 | SID)。
 func (k ServiceKey) key() int64 {
 	return int64(k.ONID)<<32 | int64(k.TSID)<<16 | int64(k.SID)
 }
@@ -54,7 +54,7 @@ type Event struct {
 	Video *Component
 	// Audios は、音声のコンポーネント。
 	Audios []AudioComponent
-	// Group と Relay は、イベントグループ記述子のうち、共有 (1) と、リレー (2、4) の番組。移動 (3、5) は EDCB が捨てる。
+	// Group と Relay は、イベントグループ記述子のうち、共有 (1) と、リレー (2、4) の番組。移動 (3、5) は EDCB が破棄する。
 	Group *EventGroup
 	Relay *EventGroup
 	// Scrambled は、free_CA_mode が 1 (有料放送) かどうか。EDCB の freeCAFlag で、Mirakurun の isFree とは真偽が逆になる。

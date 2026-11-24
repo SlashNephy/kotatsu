@@ -26,7 +26,7 @@ const (
 	subPool  = "sub"
 )
 
-// newLibrary は、次の中身のライブラリを作る。
+// newLibrary は、次の内容のライブラリを作る。
 //
 //	a.ts, b.m2ts, notes.txt, .hidden.ts, lost+found/, show/ep1.ts
 //	inside.ts -> a.ts (中を指すリンク)、escape.ts -> 外のファイル、escape-dir -> 外のディレクトリ、dangling.ts -> ないファイル
@@ -92,7 +92,7 @@ func TestLocalList(t *testing.T) {
 }
 
 // TestLocalSearch は、名前の部分一致で、フォルダの下の再生できるファイルを探し、隠しファイル、再生できないファイル、
-// シンボリックリンク (ライブラリの外を指すものを含む) を返さないことを確かめる (#1902)。
+// シンボリックリンク (ライブラリの外を指すものを含む) を返さないことを確認する (#1902)。
 func TestLocalSearch(t *testing.T) {
 	t.Parallel()
 	library := newLibrary(t)

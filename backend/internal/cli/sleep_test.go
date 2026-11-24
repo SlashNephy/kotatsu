@@ -74,7 +74,7 @@ func (s *recordingSleepSystem) record(call string) {
 }
 
 // TestSleepControl は、all の構成のときだけ、OS のスリープを扱うことと、近くに始まる予約で、
-// スリープさせず起こす予約を置き、止めるときに外すことを確かめる (#1522、設計書 11.7)。
+// スリープさせず起こす予約を置き、止めるときに外すことを確認する (#1522、設計書 11.7)。
 func TestSleepControl(t *testing.T) {
 	t.Parallel()
 
@@ -157,7 +157,7 @@ func TestSleepControl(t *testing.T) {
 			wait := registered
 			switch {
 			case tt.disabled:
-				// 最初の判定を終えても、スリープを止めず、起こす予約も置かないことを確かめる。
+				// 最初の判定を終えても、スリープを止めず、起こす予約も置かないことを確認する。
 				require.Eventually(t, func() bool { return slices.Contains(system.Calls(), callCancel) }, 30*time.Second, 10*time.Millisecond)
 				require.Never(t, func() bool {
 					calls := system.Calls()

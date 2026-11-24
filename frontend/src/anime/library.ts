@@ -1,6 +1,6 @@
 import { broadcastDay, dateOf } from '../guide/layout';
 
-// 視聴管理の画面 (設計書 3.8、#1233) の、放送の時期のバッジと絞り込みの決まり。画面から切り離して確かめられるようにする。
+// 視聴管理の画面 (設計書 3.8、#1233) の、放送の時期のバッジと絞り込みの決まり。画面から切り離して確認できるようにする。
 
 // AnimeSeason は、作品の放送のシーズン。
 export type AnimeSeason = 'WINTER' | 'SPRING' | 'SUMMER' | 'AUTUMN';

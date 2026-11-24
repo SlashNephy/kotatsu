@@ -329,7 +329,7 @@ models:
         resolver: true
   SystemSettings:
     fields:
-      # 管理者の連絡先を含みうるので、リゾルバで管理者かを確かめる (#1869)。
+      # 管理者の連絡先を含みうるので、リゾルバで管理者かを確認する (#1869)。
       webPushSubject:
         resolver: true
   ChannelType:
@@ -374,6 +374,8 @@ models:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Program
     fields:
       service:
+        resolver: true
+      ruleKeyword:
         resolver: true
       sharedFrom:
         resolver: true

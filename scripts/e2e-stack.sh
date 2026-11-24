@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 偽のチューナーサーバー、偽の OIDC の IdP と Kotatsu (全ロール) を立て、frontend/e2e/stack の E2E テストを流す (#508、#1525、設計書 11.6)。
+# モックのチューナーサーバー、モックの OIDC の IdP と Kotatsu (全ロール) を立て、frontend/e2e/stack の E2E テストを流す (#508、#1525、設計書 11.6)。
 # Kotatsu は、ローカルのログインと OIDC を併用する。
 #
 # 使い方: KOTATSU_DATABASE_URL=postgres://.../空のDB scripts/e2e-stack.sh [playwright test の引数...]
@@ -31,7 +31,7 @@ go build -o "$work/faketuner" ./backend/internal/cmd/faketuner
 "$work/faketuner" -listen "127.0.0.1:$tuner_port" -ts backend/testdata/ts/test.ts >"$work/faketuner.log" 2>&1 &
 pids+=("$!")
 
-# 偽の IdP。グループは、自動で作るユーザーのロールを決めるのに使う。制御用のエンドポイントは、テストが次のユーザーを変えるのに使う。
+# モックの IdP。グループは、自動で作るユーザーのロールを決めるのに使う。制御用のエンドポイントは、テストが次のユーザーを変えるのに使う。
 oidc_secret="kotatsu-e2e-only-oidc-secret"
 go build -o "$work/fakeidp" ./backend/internal/cmd/fakeidp
 "$work/fakeidp" -listen "127.0.0.1:$idp_port" -control "127.0.0.1:$idp_control_port" \

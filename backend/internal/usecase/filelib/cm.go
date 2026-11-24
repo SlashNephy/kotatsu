@@ -23,7 +23,7 @@ const (
 	cmPriority = 3
 	// cmMaxAttempts は、見分けるジョブを試す回数の上限。録画と同じ。
 	cmMaxAttempts = 3
-	// cmSnooze は、索引を作り終えていないファイルを見分けるジョブを、待たせる時間。
+	// cmSnooze は、インデックスを作り終えていないファイルを見分けるジョブを、待たせる時間。
 	cmSnooze = 30 * time.Second
 )
 
@@ -56,7 +56,7 @@ func (CMArgs) InsertOpts() river.InsertOpts {
 }
 
 // CMWorker は、ライブラリのファイルの CM の区間を見分ける (設計書 5.8)。録画と同じ見分け方 (cmdetect) で、管理者が全体で選んだものを使い、
-// 結果を索引の置き場に置く。nekonote が、ライブラリとデータディレクトリをマウントして動かす。
+// 結果をインデックスの保存先に置く。nekonote が、ライブラリとデータディレクトリをマウントして動かす。
 type CMWorker struct {
 	river.WorkerDefaults[CMArgs]
 
@@ -68,7 +68,7 @@ type CMWorker struct {
 
 var _ river.Worker[CMArgs] = new(CMWorker)
 
-// NewCMWorker は CMWorker を返す。indexer は、索引を作らない (読むだけの) もの。lowerer は、FFmpeg を最低の優先度で動かす。
+// NewCMWorker は CMWorker を返す。indexer は、インデックスを作らない (読むだけの) もの。lowerer は、FFmpeg を最低の優先度で動かす。
 func NewCMWorker(libraries *medialib.Set, indexer *Indexer, db sqlc.DBTX, lowerer *procprio.Lowerer) *CMWorker {
 	return newCMWorker(libraries, indexer, func(ctx context.Context) (cmdetect.Detector, error) {
 		return cmdetect.NewSelectedDetector(ctx, db, lowerer)
@@ -82,7 +82,7 @@ func newCMWorker(libraries *medialib.Set, indexer *Indexer, newDetector func(ctx
 	}
 }
 
-// Timeout は、時間の上限の上限を返す。ファイルの長さに合わせた上限は、索引を読んでから Work で掛ける (録画と同じ。#1505)。
+// Timeout は、時間の上限の上限を返す。ファイルの長さに合わせた上限は、インデックスを読んでから Work で掛ける (録画と同じ。#1505)。
 func (w *CMWorker) Timeout(*river.Job[CMArgs]) time.Duration {
 	return cmdetect.MaxTimeLimit
 }
@@ -116,7 +116,7 @@ func (w *CMWorker) Work(ctx context.Context, job *river.Job[CMArgs]) error {
 	case !file.Index.Complete:
 		return river.JobSnooze(cmSnooze)
 	case file.Index.Broadcast == nil:
-		// 映像と音声を引くサービスが分からない。
+		// 映像と音声を取り出すサービスが分からない。
 		return river.JobCancel(errNoService)
 	}
 	_, duration, _ := file.Timeline()
@@ -146,7 +146,7 @@ func (w *CMWorker) Work(ctx context.Context, job *river.Job[CMArgs]) error {
 	return w.indexer.WriteCM(ref, result)
 }
 
-// cmProgram は、番組の窓 (#1506) に渡す、番組の時刻を返す。番組が始まるはずの時刻は、番組の始まりを、録り始め (再生の 0 秒) からの
+// cmProgram は、番組のウィンドウ (#1506) に渡す、番組の時刻を返す。番組が始まるはずの時刻は、番組の始まりを、録り始め (再生の 0 秒) からの
 // 時間にしたもの。番組の始まりと尺か、録り始めが分からなければ nil。
 func cmProgram(broadcast *Broadcast) *cmdetect.Program {
 	program := broadcast.Program
@@ -158,7 +158,7 @@ func cmProgram(broadcast *Broadcast) *cmdetect.Program {
 }
 
 // EnqueueCM は、ファイル file の CM の区間をまだ見分けていなければ、見分けるジョブを入れる。同じファイルのジョブが待っていれば、重ねない。
-// 索引を作り終えていないか、書いている途中か、サービスが分からないファイルには入れない。
+// インデックスを作り終えていないか、書いている途中か、サービスが分からないファイルには入れない。
 func EnqueueCM(ctx context.Context, inserter JobInserter, indexer *Indexer, file *File) error {
 	if !file.Index.Complete || file.Writing || file.Index.Broadcast == nil {
 		return nil

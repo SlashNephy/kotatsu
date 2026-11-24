@@ -8,7 +8,7 @@ type Props = {
 };
 
 // RecordingThumbnail は、録画の代表画像。画像をまだ作っていないか、読めなければ、代わりにテレビのアイコンを出す。
-// 置き場所の大きさに広がるので、AspectRatio などで 16:9 の枠を与えて使う。
+// 配置先の大きさに広がるので、AspectRatio などで 16:9 の枠を与えて使う。
 export function RecordingThumbnail({ url }: Props) {
   // failedURL は、読み込めなかった画像の URL。URL が変われば、読み直す。
   const [failedURL, setFailedURL] = useState<string | null>(null);

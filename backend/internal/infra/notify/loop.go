@@ -65,7 +65,7 @@ func Loop(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, opts *Lo
 				return <-watchErr
 			case <-time.After(opts.Debounce):
 			}
-			// 待つ間に来た変更は、これからの run で反映するので捨てる。
+			// 待つ間に来た変更は、これからの run で反映するので破棄する。
 			select {
 			case <-watcher.Changes():
 			default:

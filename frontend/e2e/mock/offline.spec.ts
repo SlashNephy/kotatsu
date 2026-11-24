@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 
 // 端末に保存した録画 (#480) は、サーバーにつながらなくても、一覧と再生の画面を開ける。
 // 保存の操作は tenban の録画を要るので、ここでは保存し終えた状態を OPFS に直に書き、
-// Service Worker がプリキャッシュした外枠と変換のプレイヤーだけで、オフラインで再生できることを確かめる。
+// Service Worker がプリキャッシュした外枠と変換のプレイヤーだけで、オフラインで再生できることを確認する。
 
 // stream は、静的なデモの合成の映像 (64.064 秒)。
 const stream = readFileSync(new URL('../../demo/stream.m2ts', import.meta.url));

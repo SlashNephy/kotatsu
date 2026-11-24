@@ -37,7 +37,7 @@ func TestHashAndVerify(t *testing.T) {
 	require.NoError(t, password.VerifyDummy(strongPhrase))
 }
 
-// TestVerifyOlderParameters は、古いパラメーターのハッシュも検証でき、作り直しを求めることを確かめる。
+// TestVerifyOlderParameters は、古いパラメーターのハッシュも検証でき、作り直しを求めることを確認する。
 func TestVerifyOlderParameters(t *testing.T) {
 	t.Parallel()
 

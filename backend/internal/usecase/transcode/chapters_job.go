@@ -31,7 +31,7 @@ import (
 const (
 	// chaptersMaxAttempts は、チャプターを書くジョブを試す回数の上限。
 	chaptersMaxAttempts = 3
-	// chaptersTimeout は、チャプターを書くジョブの時間の上限。再エンコードせずに写すだけなので、ディスクを読み書きする時間で済む。
+	// chaptersTimeout は、チャプターを書くジョブの時間の上限。再エンコードせずにコピーするだけなので、ディスクを読み書きする時間で済む。
 	chaptersTimeout = 30 * time.Minute
 	// headScanLimit は、最初のセグメントの最初の映像の PTS を探すのに読む長さの上限。PAT と PMT は 0.1 秒ごとに届くので、ずっと手前で見つかる。
 	headScanLimit = 32 << 20
@@ -50,12 +50,12 @@ func (ChaptersArgs) Kind() string { return "recording_chapters" }
 
 func (ChaptersArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
-		// 再エンコードせずに写し直すだけで軽いので、変換 (transcode) の後ろで待たせず、代表画像などと同じキューで動かす。
+		// 再エンコードせずにコピーし直すだけで軽いので、変換 (transcode) の後ろで待たせず、代表画像などと同じキューで動かす。
 		Queue:       jobs.QueueMedia,
 		MaxAttempts: chaptersMaxAttempts,
 		// 同じ録画のジョブは、待っている間に重ねて投入しない。River は running も含めることを求めるが、
 		// 投入するのは CM の区間を見分けるジョブと変換のジョブが録画ごとのロックを持っている間で、このジョブはそのロックを取ってから
-		// 区間とファイルを読むので、重ねずに捨てた投入の分も、動いているジョブが (ロックを取れずに後でやり直して) 新しい区間で書く。
+		// 区間とファイルを読むので、重ねずに破棄した投入の分も、動いているジョブが (ロックを取れずに後でやり直して) 新しい区間で書く。
 		UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{
 			rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRetryable,
 			rivertype.JobStateRunning, rivertype.JobStateScheduled,
@@ -120,7 +120,7 @@ func transcodedFiles(files []sqlc.RecordingFile) []sqlc.RecordingFile {
 }
 
 // ChaptersWorker は、録画を変換した MP4 に、CM の区間と本編を交互に並べたチャプターを書き直す (#1510)。
-// ファイルは切り詰めず、再エンコードもせずに写し直す。CM の区間がなければ、チャプターを外す。
+// ファイルは切り詰めず、再エンコードもせずにコピーし直す。CM の区間がなければ、チャプターを外す。
 type ChaptersWorker struct {
 	river.WorkerDefaults[ChaptersArgs]
 
@@ -128,7 +128,7 @@ type ChaptersWorker struct {
 	store  *kago.Store
 	clock  clock.Clock
 	source *stream.RecordingSource
-	// newChapterer は、写し直すのに使う Chapterer を作る。テストでは差し替える。
+	// newChapterer は、コピーし直すのに使う Chapterer を作る。テストでは差し替える。
 	newChapterer func() (Chapterer, error)
 }
 
@@ -224,7 +224,7 @@ func (w *ChaptersWorker) work(ctx context.Context, chapterer Chapterer, recordin
 		tl.head, tl.duration = lead-info.VideoStart, info.Duration
 		chapters := buildChapters(sections, tl)
 		if len(chapters) == 0 && info.Chapters == 0 {
-			// 外すチャプターもなければ、写し直さない。
+			// 外すチャプターもなければ、コピーし直さない。
 			continue
 		}
 		t, err := w.rewrite(ctx, chapterer, path, chapters)
@@ -243,11 +243,11 @@ func (w *ChaptersWorker) work(ctx context.Context, chapterer Chapterer, recordin
 // headLead は、CM の区間の時間軸のうち、変換が流し始める最初の I フレームより前にあって MP4 に入らない長さを返す。
 //
 // CM の区間は、セグメントごとに、そのファイルの最初の I フレーム (ts.CueScanner の FirstKeyframePTS) を、セグメントの始まりの日時に置いて数える。
-// 版 1 の今の見分け方の区間 (fromFirstPES) だけは、最初の映像の PES (FirstVideoPTS) を置いて数えている (#1811)。
-// 変換は、録画を最初の I フレームから流す (stream.Recording.Seek(0))。GOP の途中から録り始めたセグメントでは、それより前の映像と音声を捨てる。
+// バージョン 1 の今の見分け方の区間 (fromFirstPES) だけは、最初の映像の PES (FirstVideoPTS) を置いて数えている (#1811)。
+// 変換は、録画を最初の I フレームから流す (stream.Recording.Seek(0))。GOP の途中から録り始めたセグメントでは、それより前の映像と音声を破棄する。
 // MP4 の時間は、その I フレームを MP4 の最初の映像のコマ (MP4Info.VideoStart) に置いて数える。そこで、MP4 の時間は、
 // 再生の時間から、最初のセグメントの始まりの再生の時間を引き、VideoStart を足して求める。fromFirstPES なら、最初の映像から
-// 最初の I フレームまでの長さも引く。ここでは、VideoStart を足す前の分を返す。索引がなく、最初の I フレームが分からなければ、
+// 最初の I フレームまでの長さも引く。ここでは、VideoStart を足す前の分を返す。インデックスがなく、最初の I フレームが分からなければ、
 // 最初の映像から流したものとみなす。
 func (w *ChaptersWorker) headLead(
 	ctx context.Context, recordingID uuid.UUID, files []sqlc.RecordingFile, tl *chapterTimeline, fromFirstPES bool,
@@ -320,7 +320,7 @@ func firstVideoPTS(path string, sid int64) (int64, error) {
 	return -1, nil
 }
 
-// rewrite は、path の MP4 を、chapters に替えて、ジョブ固有の一時ファイルに写す。一時ファイルを作れたら、書けなくても返す (消すのは呼び手)。
+// rewrite は、path の MP4 を、chapters に替えて、ジョブ固有の一時ファイルにコピーする。一時ファイルを作れたら、書けなくても返す (消すのは呼び手)。
 func (w *ChaptersWorker) rewrite(ctx context.Context, chapterer Chapterer, path string, chapters []Chapter) (*target, error) {
 	dir, base := filepath.Dir(path), filepath.Base(path)
 	partialFile, err := os.CreateTemp(dir, base+".*"+partialSuffix)
@@ -349,7 +349,7 @@ func (w *ChaptersWorker) rewrite(ctx context.Context, chapterer Chapterer, path 
 	return t, chapterer.Rewrite(ctx, path, metadata, t.partial)
 }
 
-// replace は、書き終えた一時ファイルを元の名前に置き換え、大きさを記録し直す。写し直しても映像は変わらないので、コマ数 (#1509) は前の記録のままにする。
+// replace は、書き終えた一時ファイルを元の名前に置き換え、大きさを記録し直す。コピーし直しても映像は変わらないので、コマ数 (#1509) は前の記録のままにする。
 func (w *ChaptersWorker) replace(ctx context.Context, targets []*target) error {
 	for _, t := range targets {
 		if err := os.Rename(t.partial, t.path); err != nil {

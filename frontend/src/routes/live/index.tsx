@@ -30,7 +30,7 @@ export const Route = createFileRoute('/live/')({
 function LivePage() {
   const { t } = useTranslation();
   useDocumentTitle([t('live.title')]);
-  // 放送中の番組を出すので、画面を開いた時刻から 1 分間の時間帯を引く。
+  // 放送中の番組を出すので、画面を開いた時刻から 1 分間の時間帯を取得する。
   // 読み込みの間に子は描き直されて state を失うので、時間帯は、待たない親で決める。
   const [range, setRange] = useState(() => liveRange(Date.now()));
   // 放送中の番組が終わったら、時刻を決め直して読み直す (#866)。読み直す間も一覧を出したままにする。

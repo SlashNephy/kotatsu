@@ -91,7 +91,7 @@ describe('selectLogs', () => {
       ],
     };
     const header = '== Kotatsu (4 / 4) ==';
-    // 見出しと、省いた行数を知らせる行と、warn と error の 2 行だけが入る長さ。
+    // 見出しと、省いた行数を示す行と、warn と error の 2 行だけが入る長さ。
     const budget =
       encodedLength(
         '(URL の上限に入らない 9 行を省きました。全部入りの報告は「コピー」か「ダウンロード」で取れます)\n',

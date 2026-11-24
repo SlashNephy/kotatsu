@@ -27,8 +27,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
-// 同じ回かを確かめ直す (#1500) テストの番組。番組表 (数日前の EIT[schedule]) の番組名と概要には話数がなく、
-// 放送の直前の EIT[p/f] の概要にだけ話数と副題が載る局を真似る。
+// 同じ回かを確認し直す (#1500) テストの番組。番組表 (数日前の EIT[schedule]) の番組名と概要には話数がなく、
+// 放送の直前の EIT[p/f] の概要にだけ話数とサブタイトルが載る局を真似る。
 const (
 	recheckName        = "こたつ探偵"
 	recheckSynopsis    = "こたつから一歩も出ない探偵が、近所の謎を解きます。"
@@ -147,7 +147,7 @@ func loopablePF(t *testing.T, sid uint16, present, following pfEvent) []byte {
 }
 
 // reserveBundled は、地上波の service 番目のサービスの 13:30 の番組 (eventId 6) を、ルール予約にする。bundles の要素ごとに、
-// 予約に一致したルールを作り、要素が true なら、同じ回を束ねるルール (#1498) にする。番組表と予約の番組名と概要は、話数のないものにする。
+// 予約に一致したルールを作り、要素が true なら、同じ回をまとめるルール (#1498) にする。番組表と予約の番組名と概要は、話数のないものにする。
 func (f *fixture) reserveBundled(t *testing.T, service int, bundles ...bool) uuid.UUID {
 	t.Helper()
 
@@ -223,7 +223,7 @@ func (f *fixture) startedEvents(t *testing.T) int {
 	return n
 }
 
-// newFakeTunerStream は、どのサービスのストリームでも data を繰り返し流す、偽のチューナーサーバーを返す。
+// newFakeTunerStream は、どのサービスのストリームでも data を繰り返し流す、モックのチューナーサーバーを返す。
 func newFakeTunerStream(t *testing.T, data []byte) recording.StreamOpener {
 	t.Helper()
 
@@ -237,13 +237,13 @@ func newFakeTunerStream(t *testing.T, data []byte) recording.StreamOpener {
 	return client
 }
 
-// TestRecorderRechecksEpisodeFromPresentFollowing は、同じ回を束ねるルールの予約の録画で、録り始めに EIT[p/f] の概要にだけ載る話数を読み、
-// 先に録った同じ回があれば録画をやめ、無ければ録り続けることを確かめる (#1500)。偽のチューナーサーバーで、EIT[p/f] を流す。
+// TestRecorderRechecksEpisodeFromPresentFollowing は、同じ回をまとめるルールの予約の録画で、録り始めに EIT[p/f] の概要にだけ載る話数を読み、
+// 先に録った同じ回があれば録画をやめ、無ければ録り続けることを確認する (#1500)。モックのチューナーサーバーで、EIT[p/f] を流す。
 //   - やめた録画は、記録もファイルも消し、予約を理由と先に録った局を付けて無効にする。録画の開始は通知しない。
 //   - 録り続ける録画は、番組表の番組と録画の概要を EIT[p/f] のもので書き直し、待つ上限が来てから、録画の開始を通知する。
-//   - 同じ回を束ねないルールの予約は、確かめずに録り、すぐに録画の開始を通知する。
+//   - 同じ回をまとめないルールの予約は、確認せずに録り、すぐに録画の開始を通知する。
 //
-// 偽のチューナーサーバーは同じ TS を繰り返すので、予約した番組は次の番組のまま放送中にならない。録り続けるのを確かめたら、録画を止める。
+// モックのチューナーサーバーは同じ TS を繰り返すので、予約した番組は次の番組のまま放送中にならない。録り続けるのを確認したら、録画を止める。
 func TestRecorderRechecksEpisodeFromPresentFollowing(t *testing.T) {
 	t.Parallel()
 
@@ -251,7 +251,7 @@ func TestRecorderRechecksEpisodeFromPresentFollowing(t *testing.T) {
 		name string
 		// history は、別の局で 1 日前に録った回の概要。空なら録画履歴に入れない。
 		history string
-		// bundles は、予約に一致したルールが、同じ回を束ねるかどうか。
+		// bundles は、予約に一致したルールが、同じ回をまとめるかどうか。
 		bundles []bool
 		// wantStopped は、録画をやめるかどうか。
 		wantStopped bool
@@ -271,6 +271,9 @@ func TestRecorderRechecksEpisodeFromPresentFollowing(t *testing.T) {
 
 			f := newFixture(t)
 			reservationID := f.reserveBundled(t, 0, tt.bundles...)
+			// 番組の検索の gram (#966) に目印を置き、EIT[p/f] で概要を書き直したら空にすることを見る。
+			_, err := f.pool.Exec(t.Context(), "UPDATE programs SET search_grams = '{目印}' WHERE service_id = $1 AND event_id = 6", grService(0))
+			require.NoError(t, err)
 			if tt.history != "" {
 				f.recordHistory(t, 1, tt.history)
 			}
@@ -298,9 +301,11 @@ func TestRecorderRechecksEpisodeFromPresentFollowing(t *testing.T) {
 					return description == recheckDescription
 				}, waitTimeout, 10*time.Millisecond)
 				var programDescription string
-				require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT description FROM programs WHERE service_id = $1 AND event_id = 6", grService(0)).
-					Scan(&programDescription))
+				var grams []string
+				require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT description, search_grams FROM programs WHERE service_id = $1 AND event_id = 6", grService(0)).
+					Scan(&programDescription, &grams))
 				assert.Equal(t, recheckDescription, programDescription)
+				assert.Nil(t, grams, "the search grams are cleared to be rebuilt")
 				assert.Zero(t, f.startedEvents(t))
 				f.clock.Advance(recording.EpisodeRecheckTimeout)
 			}
@@ -318,7 +323,7 @@ func TestRecorderRechecksEpisodeFromPresentFollowing(t *testing.T) {
 }
 
 // TestRecorderKeepsRecordingWithoutPresentFollowing は、予約した番組が EIT[p/f] に出ないまま、待つ上限が過ぎたら、
-// 番組表の情報のまま録り続け、録画の開始を通知することを確かめる (#1500)。待っている間に書いた分も消さない。
+// 番組表の情報のまま録り続け、録画の開始を通知することを確認する (#1500)。待っている間に書いた分も消さない。
 func TestRecorderKeepsRecordingWithoutPresentFollowing(t *testing.T) {
 	t.Parallel()
 
@@ -352,8 +357,8 @@ func TestRecorderKeepsRecordingWithoutPresentFollowing(t *testing.T) {
 }
 
 // TestRecorderStopsOnlyLaterOfSimultaneousEpisodes は、同時刻に始まる 2 局の同じ回の録画が、両方は止まらず、
-// 後に録り始めた方だけが止まることを確かめる (#1500)。EIT[p/f] が届く順は、どちらが先でもよい。
-// 後の録画に先に届いたときは、先の録画がまだ書き直していないので、待つ上限まで確かめ直して止まる。
+// 後に録り始めた方だけが止まることを確認する (#1500)。EIT[p/f] が届く順は、どちらが先でもよい。
+// 後の録画に先に届いたときは、先の録画がまだ書き直していないので、待つ上限まで確認し直して止まる。
 func TestRecorderStopsOnlyLaterOfSimultaneousEpisodes(t *testing.T) {
 	t.Parallel()
 
@@ -410,7 +415,7 @@ func TestRecorderStopsOnlyLaterOfSimultaneousEpisodes(t *testing.T) {
 			assert.False(t, found, "the later recording stops")
 			assert.Equal(t, disabledState{enabled: false, reason: new("recorded_episode"), service: new(grService(0))}, f.disabledState(t, laterID))
 
-			// 先の録画は録り続ける。確かめたら、止める。
+			// 先の録画は録り続ける。確認したら、止める。
 			assert.Equal(t, 1, f.startedEvents(t))
 			stopEarlier(errStopForTest)
 			require.ErrorIs(t, wait(t, earlierDone), errStopForTest)
@@ -423,7 +428,7 @@ func TestRecorderStopsOnlyLaterOfSimultaneousEpisodes(t *testing.T) {
 }
 
 // TestStoppedReservationIsNotRecordedAgain は、同じ回と分かって録画をやめた予約を、スケジューラがもう一度録り始めないことと、
-// 人が有効に戻せば、理由を消し、もう確かめ直さずに録ることを確かめる (#1500)。
+// 人が有効に戻せば、理由を消し、もう確認し直さずに録ることを確認する (#1500)。
 func TestStoppedReservationIsNotRecordedAgain(t *testing.T) {
 	t.Parallel()
 
@@ -464,7 +469,7 @@ func TestStoppedReservationIsNotRecordedAgain(t *testing.T) {
 	f.schedule(t)
 	assert.NotContains(t, f.assigned(t), reservationID)
 
-	// 人が有効に戻すと、理由を消し、また割り振る。録り始めに確かめ直さないので、録画の開始をすぐに通知する。
+	// 人が有効に戻すと、理由を消し、また割り振る。録り始めに確認し直さないので、録画の開始をすぐに通知する。
 	_, err = f.reservations.Update(t.Context(), f.pool, audit.System("test"), reservationID, &reserve.Update{Enabled: new(true)})
 	require.NoError(t, err)
 	assert.Equal(t, disabledState{enabled: true, reason: nil, service: nil}, f.disabledState(t, reservationID))
@@ -483,7 +488,7 @@ func TestStoppedReservationIsNotRecordedAgain(t *testing.T) {
 }
 
 // TestRecorderRecordsHistoryFromRewrittenName は、EIT[p/f] で番組名を書き直した録画を録り終えたら、録画履歴の番組名のキーと、
-// 前の回を録らない (#1499) ときに引くシリーズ名を、書き直した後の番組名から作ることを確かめる (#1500)。
+// 前の回を録らない (#1499) ときに引くシリーズ名を、書き直した後の番組名から作ることを確認する (#1500)。
 // 数日前の番組表では、番組名が枠の名前だけの局を真似る。
 func TestRecorderRecordsHistoryFromRewrittenName(t *testing.T) {
 	t.Parallel()
@@ -501,7 +506,7 @@ func TestRecorderRecordsHistoryFromRewrittenName(t *testing.T) {
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 
-	// 予約した番組が放送中になり、EIT[p/f] に作品名が載る。待つ上限まで進めて、確かめ終える。
+	// 予約した番組が放送中になり、EIT[p/f] に作品名が載る。待つ上限まで進めて、確認し終える。
 	cc := byte(0)
 	stream.next(t, pfPackets(t, &cc, 0x0400, pfEvent{eventID: 6, name: recheckName, description: recheckDescription},
 		pfEvent{eventID: 7, name: "", description: ""}))
@@ -540,7 +545,7 @@ func (f *fixture) recordingName(t *testing.T, reservationID uuid.UUID) string {
 // castHeading は、番組の詳細の見出し。
 const castHeading = "出演者"
 
-// TestChangedExtended は、EIT[p/f] の番組の詳細で録画の詳細を書き直すのが、正規化して違うときだけであることを確かめる (#1646)。
+// TestChangedExtended は、EIT[p/f] の番組の詳細で録画の詳細を書き直すのが、正規化して違うときだけであることを確認する (#1646)。
 // 書き方の違い (全角と半角、波ダッシュ) だけでは書き直さず、EIT[p/f] に詳細がなければ前の値を残す。
 func TestChangedExtended(t *testing.T) {
 	t.Parallel()

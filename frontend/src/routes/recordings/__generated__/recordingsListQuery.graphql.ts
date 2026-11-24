@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<c77ede85c6f209b485d4fd2e46a8a0f5>>
+ * @generated SignedSource<<e54cc5e5a51e46a8083beb8e8165fc01>>
  * @lightSyntaxTransform
  */
 
@@ -8,17 +8,28 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added value";
+export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 export type RecordingOrder = "NEWEST_FIRST" | "OLDEST_FIRST" | "%future added value";
 export type RecordingState = "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED" | "PARTIAL" | "RECORDING" | "%future added value";
 export type RecordingFilter = {
+  excludeKeywords?: ReadonlyArray<KeywordInput> | null | undefined;
   genres?: ReadonlyArray<number> | null | undefined;
   keyword?: string | null | undefined;
+  keywordMatch?: KeywordMatch | null | undefined;
+  keywords?: ReadonlyArray<KeywordInput> | null | undefined;
   ruleId?: string | null | undefined;
   serviceIds?: ReadonlyArray<string> | null | undefined;
   since?: string | null | undefined;
   states?: ReadonlyArray<RecordingState> | null | undefined;
   tagIds?: ReadonlyArray<string> | null | undefined;
   until?: string | null | undefined;
+};
+export type KeywordInput = {
+  caseSensitive?: boolean;
+  fields: ReadonlyArray<KeywordField>;
+  regexp?: boolean;
+  text: string;
 };
 export type recordingsListQuery$variables = {
   after?: string | null | undefined;

@@ -19,13 +19,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 )
 
-// testWait と testTick は、偽の EpgTimerSrv が要求を受け取るのを待つ上限と間隔。
+// testWait と testTick は、モックの EpgTimerSrv が要求を受け取るのを待つ上限と間隔。
 const (
 	testWait = 5 * time.Second
 	testTick = 10 * time.Millisecond
 )
 
-// reply は、偽の EpgTimerSrv が 1 つのコマンドに返す応答。
+// reply は、モックの EpgTimerSrv が 1 つのコマンドに返す応答。
 type reply struct {
 	status  uint32
 	payload []byte
@@ -40,13 +40,13 @@ type reply struct {
 	feed <-chan []byte
 }
 
-// request は、偽の EpgTimerSrv が受け取った要求。
+// request は、モックの EpgTimerSrv が受け取った要求。
 type request struct {
 	command uint32
 	body    []byte
 }
 
-// fakeServer は、CtrlCmd を話す偽の EpgTimerSrv。コマンドごとに、決めた応答を返す。
+// fakeServer は、CtrlCmd を話すモックの EpgTimerSrv。コマンドごとに、決めた応答を返す。
 type fakeServer struct {
 	listener net.Listener
 	replies  map[uint32]reply
@@ -254,13 +254,13 @@ func fromHex(t *testing.T, s string) []byte {
 	return b
 }
 
-// 以下の要求の本文は、テストの材料を取ったときに、実際の EDCB に送ったもの。クライアントが同じバイト列を組むことを確かめる。
+// 以下の要求の本文は、テストの材料を取ったときに、実際の EDCB に送ったもの。クライアントが同じバイト列を組むことを確認する。
 const (
-	// eventsRequest は、NHK 総合 (32736, 32736, 1024) の、2026-11-13 22:00 から 24:00 (日本標準時) に始まる番組を引く要求。
+	// eventsRequest は、NHK 総合 (32736, 32736, 1024) の、2026-11-13 22:00 から 24:00 (日本標準時) に始まる番組を取得する要求。
 	eventsRequest = "280000000400000000000000000000000004e07fe07f000000f0ea53ba73dd0100c07317cb73dd01"
 	// openRequest は、NetworkTV の ID 900 で NHK Eテレ (32737, 32737, 1032) を開き、TS を TCP で送らせる要求。
 	openRequest = "1a00000001000000e17fe17f0804010000008403000002000000"
-	// checkRequest は、NetworkTV の ID 901 が開いているかを確かめる要求 (useSID=0)。
+	// checkRequest は、NetworkTV の ID 901 が開いているかを確認する要求 (useSID=0)。
 	checkRequest = "1a00000000000000000000000000010000008503000002000000"
 	// filesRequest は、LogoData.ini と ChSet5.txt をまとめて求める要求。
 	filesRequest = "050040000000020000001e0000004c006f0067006f0044006100740061002e0069006e00690000001a0000004300680053006500740035002e007400780074000000"
@@ -280,7 +280,7 @@ func TestServicesFromRealEDCB(t *testing.T) {
 		ONID: 32391, TSID: 32391, SID: 23608, Type: 1, PartialReception: false,
 		ProviderName: "", Name: "ＴＯＫＹＯ　ＭＸ１", NetworkName: "東京７", TSName: "ＴＯＫＹＯ　ＭＸ", RemoteControlKeyID: 9,
 	}, services[0])
-	// ワンセグのサービスは、部分受信の印が付く。
+	// ワンセグのサービスは、部分受信のマークが付く。
 	assert.Equal(t, &edcb.Service{
 		ONID: 32742, TSID: 32742, SID: 1456, Type: 0xC0, PartialReception: true,
 		ProviderName: "", Name: "テレ東携帯", NetworkName: "関東広域６", TSName: "テレビ東京", RemoteControlKeyID: 7,
@@ -291,7 +291,7 @@ func TestServicesFromRealEDCB(t *testing.T) {
 func TestEventsFromRealEDCB(t *testing.T) {
 	t.Parallel()
 
-	// 番組名、概要、詳細は、公開リポジトリに放送局の文章を置かないよう、同じ長さの伏せ字 (〇) に置き換えてある。
+	// 番組名、概要、詳細は、公開リポジトリに放送局の文章を置かないよう、同じ長さのマスク文字 (〇) に置き換えてある。
 	s := newFakeServer(t, map[uint32]reply{1029: {status: 1, payload: fixture(t, "enum_pg_info_ex.bin"), stream: nil, hold: false, drop: false}})
 	jst := time.FixedZone("JST", 9*60*60)
 	nhk := edcb.ServiceKey{ONID: 32736, TSID: 32736, SID: 1024}
@@ -352,7 +352,7 @@ func TestEventsRequest(t *testing.T) {
 		query *edcb.EventsQuery
 		want  string
 	}{
-		// 範囲を決めなければ、開始時刻が未定の番組も含めて、すべてを引く (EpgTimerSrv は 0 と最大の値を特別に扱う)。
+		// 範囲を決めなければ、開始時刻が未定の番組も含めて、すべてを取得する (EpgTimerSrv は 0 と最大の値を特別に扱う)。
 		{name: "everything", query: &edcb.EventsQuery{Services: nil, From: time.Time{}, To: time.Time{}}, want: all(0, 1<<63-1)},
 		{name: "nil query", query: nil, want: all(0, 1<<63-1)},
 		// 終わりだけを決めたときは、未定の番組を含めないよう、始まりを 1 にする。
@@ -423,7 +423,7 @@ func TestCloseNetworkTV(t *testing.T) {
 func TestRelayStream(t *testing.T) {
 	t.Parallel()
 
-	// 応答の後に、TS がそのまま続く。偽の TS は、同期バイトだけを置いた 2 パケット。
+	// 応答の後に、TS がそのまま続く。モックの TS は、同期バイトだけを置いた 2 パケット。
 	ts := make([]byte, 2*188)
 	ts[0], ts[188] = 0x47, 0x47
 	s := newFakeServer(t, map[uint32]reply{301: {status: 1, payload: nil, stream: ts, hold: false, drop: false}})
@@ -436,7 +436,7 @@ func TestRelayStream(t *testing.T) {
 	assert.Equal(t, []request{{command: 301, body: fromHex(t, "1b000000")}}, s.received())
 }
 
-// TestRelayStreamStalls は、接続を保ったまま TS が届かなくなったら、Read が tunerserver.ErrStreamStalled を返すことを確かめる (#1723)。
+// TestRelayStreamStalls は、接続を保ったまま TS が届かなくなったら、Read が tunerserver.ErrStreamStalled を返すことを確認する (#1723)。
 // 止まった Read が予定の終わりを過ぎても抜けず、録画が止まったままにならないようにする。
 func TestRelayStreamStalls(t *testing.T) {
 	t.Parallel()

@@ -21,7 +21,7 @@ const (
 	testDownloadID    = 0x0001
 )
 
-// cdtLogo は、ロゴを CDT で送るときの中身。
+// cdtLogo は、ロゴを CDT で送るときの内容。
 type cdtLogo struct {
 	dataType    byte
 	descriptors []byte
@@ -91,7 +91,7 @@ func withoutPalette(t *testing.T, data []byte) []byte {
 	return out
 }
 
-// TestAnalyzerLogo は、CDT のロゴを読み、OnLogo に渡すことを確かめる (#1308)。
+// TestAnalyzerLogo は、CDT のロゴを読み、OnLogo に渡すことを確認する (#1308)。
 func TestAnalyzerLogo(t *testing.T) {
 	t.Parallel()
 
@@ -112,7 +112,7 @@ func TestAnalyzerLogo(t *testing.T) {
 	assert.Equal(t, &ts.Logo{NetworkID: testLogoNetworkID, LogoID: 9, Type: 5, Version: 3, PNG: logo}, received[0])
 }
 
-// TestParseCDTLogo は、CDT のうちロゴのデータだけを読み、壊れたものは読まないことを確かめる (#1308)。
+// TestParseCDTLogo は、CDT のうちロゴのデータだけを読み、壊れたものは読まないことを確認する (#1308)。
 func TestParseCDTLogo(t *testing.T) {
 	t.Parallel()
 
@@ -153,7 +153,7 @@ func TestParseCDTLogo(t *testing.T) {
 	}
 }
 
-// TestLogoPNG は、パレットを持たない放送のロゴに、共通固定色のパレットを補うことを確かめる (#1308)。
+// TestLogoPNG は、パレットを持たない放送のロゴに、共通固定色のパレットを補うことを確認する (#1308)。
 func TestLogoPNG(t *testing.T) {
 	t.Parallel()
 

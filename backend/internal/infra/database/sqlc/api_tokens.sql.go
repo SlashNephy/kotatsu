@@ -68,7 +68,7 @@ type GetAPITokenUserRow struct {
 	Role       domain.Role
 }
 
-// トークンのハッシュから、発行したユーザーを引く。無効にしたユーザーのトークンは使えない。
+// トークンのハッシュから、発行したユーザーを検索する。無効にしたユーザーのトークンは使えない。
 func (q *Queries) GetAPITokenUser(ctx context.Context, tokenHash []byte) (GetAPITokenUserRow, error) {
 	row := q.db.QueryRow(ctx, getAPITokenUser, tokenHash)
 	var i GetAPITokenUserRow

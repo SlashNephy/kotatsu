@@ -21,7 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
-// TestTenbanServesGraphQL は、tenban が /graphql を公開し、他のロールは公開しないことを確かめる。
+// TestTenbanServesGraphQL は、tenban が /graphql を公開し、他のロールは公開しないことを確認する。
 func TestTenbanServesGraphQL(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +106,7 @@ const graphQLPath = "/internal/graphql"
 const jsonContentType = "application/json"
 
 // TestTenbanRoutesGraphQL は、tenban が、GraphQL (/internal/graphql) を echo のルーターで受け (#1606)、
-// mux のときと同じく、セッションの Cookie を読み、メソッドの扱いを GraphQL のハンドラーに任せることを確かめる。
+// mux のときと同じく、セッションの Cookie を読み、メソッドの扱いを GraphQL のハンドラーに任せることを確認する。
 
 func TestTenbanRoutesGraphQL(t *testing.T) {
 	t.Parallel()

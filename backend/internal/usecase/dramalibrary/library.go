@@ -74,7 +74,7 @@ type Broadcast struct {
 	Last  bool
 }
 
-// PastBroadcast は、作品の始まった放送。番組はアーカイブに移っていることがあるので、開始時刻と印だけを持つ。
+// PastBroadcast は、作品の始まった放送。番組はアーカイブに移っていることがあるので、開始時刻とマークだけを持つ。
 type PastBroadcast struct {
 	StartAt time.Time
 	// Last は、TMDB のシーズンの最後の話かどうか。
@@ -93,7 +93,7 @@ type RecordedEpisode struct {
 }
 
 // Library は、ユーザー userID の見ている作品と見たい作品を、作品ごとに、次の話と次の放送と録画と並べて返す (#1652)。
-// 放送は、今から Horizon の間に始まるもの (放送中を含む) を、番組の結びつき (設計書 3.9) で引く。録画は、録画に写した結びつきで引き、
+// 放送は、今から Horizon の間に始まるもの (放送中を含む) を、番組の結びつき (設計書 3.9) で検索する。録画は、録画にコピーした結びつきで検索し、
 // 録れなかった録画と、話のない録画は外す。TMDB には問い合わせず、キャッシュにある名前とシーズンの話を使う。
 func Library(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, now time.Time) ([]*Work, error) {
 	q := sqlc.New(db)
@@ -274,7 +274,7 @@ type arrangeInput struct {
 	recordings []sqlc.ListDramaLibraryRecordingsRow
 }
 
-// episodeKey は、作品の 1 話を見分ける鍵。
+// episodeKey は、作品の 1 話を見分けるキー。
 type episodeKey struct {
 	series int32
 	season int32

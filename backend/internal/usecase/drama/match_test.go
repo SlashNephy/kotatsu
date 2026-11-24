@@ -95,7 +95,7 @@ func newTokens(t *testing.T, clk *clocktest.Fake) *drama.Tokens {
 	return tokens
 }
 
-// newClient は、偽の TMDB に問い合わせる Client を返す。
+// newClient は、モックの TMDB に問い合わせる Client を返す。
 func newClient(t *testing.T, fake *fakeTMDB) *tmdb.Client {
 	t.Helper()
 
@@ -138,7 +138,7 @@ func insertRecording(t *testing.T, db *pgxpool.Pool, serviceID int64, start, end
 	return id
 }
 
-// fakeTMDB は、決めた検索の結果、作品、シーズンを返す偽の TMDB。受けた問い合わせの数を数える。
+// fakeTMDB は、決めた検索の結果、作品、シーズンを返すモックの TMDB。受けた問い合わせの数を数える。
 type fakeTMDB struct {
 	mu       sync.Mutex
 	searches map[string]string
@@ -207,7 +207,7 @@ func (f *fakeTMDB) setLimited(limited bool) {
 	f.limited = limited
 }
 
-// searchItem と seasonItem と episodeItem は、偽の TMDB の応答の JSON の形。
+// searchItem と seasonItem と episodeItem は、モックの TMDB の応答の JSON の形。
 type searchItem struct {
 	ID           int    `json:"id"`
 	Name         string `json:"name"`
@@ -237,7 +237,7 @@ type episodeItem struct {
 	Name          string `json:"name"`
 }
 
-// mustJSON は、v を JSON にする。テストの表を作るのに使うので、失敗したら止める。
+// mustJSON は、v を JSON にする。テストのテーブルを作るのに使うので、失敗したら止める。
 func mustJSON(v any) string {
 	encoded, err := json.Marshal(v)
 	if err != nil {
@@ -274,14 +274,14 @@ func episodesJSON(airDates ...string) string {
 	return strings.Join(list, ",")
 }
 
-// newFakeTMDB は、次の作品を持つ偽の TMDB を返す (作品と放送日は、2026 年 11 月の実際の TMDB の載り方に合わせた)。
+// newFakeTMDB は、次の作品を持つモックの TMDB を返す (作品と放送日は、2026 年 11 月の実際の TMDB の載り方に合わせた)。
 //   - もうパパ！：シーズン 1 の第 7 話が 11 月 15 日。
 //   - 晩酌の流儀：TMDB ではシーズン 7 が「晩酌の流儀5 秋冬篇」。第 7 話が 11 月 14 日、第 8 話が 11 月 21 日。
 //   - はぐれ刑事純情派：シーズンが 18 ある昔の作品。
 //   - スケバン刑事II 少女鉄仮面伝説：シーズンが 1 つだけの昔の作品。
 //   - 真田十勇士 SHADOWS OF THE TEN NINJA：作品名の一部 (真田十勇士) で探すと、アニメの BRAVE 10 と並んで出る。第 5 話が 11 月 20 日。
-//   - 南田南弁護士は天才肌：番組名には空白の後ろに副題が付き、そのままでは見つからない。第 5 話が 11 月 16 日。
-//   - 名探偵：番組名の頭と同じ名前の、昔の別の作品。11 月の放送日の話はない。
+//   - 南田南弁護士は天才肌：番組名には空白の後ろにサブタイトルが付き、そのままでは見つからない。第 5 話が 11 月 16 日。
+//   - 名探偵：番組名の先頭と同じ名前の、昔の別の作品。11 月の放送日の話はない。
 func newFakeTMDB() *fakeTMDB {
 	hagureSeasons := []string{}
 	for i := 1; i <= 18; i++ {
@@ -364,7 +364,7 @@ func seriesOnly(series int32) matchRow {
 	return matchRow{SeriesID: new(series), Season: nil, Episode: nil, SeriesSource: new(drama.SeriesSourceSearch), EpisodeSource: nil, Finalized: false}
 }
 
-// fixture は、照合のテストの DB と、偽の TMDB、Matcher。
+// fixture は、照合のテストの DB と、モックの TMDB、Matcher。
 type fixture struct {
 	db      *pgxpool.Pool
 	clk     *clocktest.Fake
@@ -372,7 +372,7 @@ type fixture struct {
 	matcher *drama.Matcher
 }
 
-// newFixture は、連携を有効にした DB に、2026 年 11 月 15 日から 1 週間のドラマの番組を置き、偽の TMDB を使う Matcher を用意する。
+// newFixture は、連携を有効にした DB に、2026 年 11 月 15 日から 1 週間のドラマの番組を置き、モックの TMDB を使う Matcher を用意する。
 func newFixture(t *testing.T, maxRequests int) *fixture {
 	t.Helper()
 
@@ -386,7 +386,7 @@ func newFixture(t *testing.T, maxRequests int) *fixture {
 	return &fixture{db: db, clk: clk, fake: fake, matcher: drama.NewMatcher(db, clk, newClient(t, fake), tokens, slog.New(slog.DiscardHandler), maxRequests)}
 }
 
-// TestMatchHorizon は、ドラマの番組を、TMDB の作品と話に結びつけることを確かめる (#1651)。
+// TestMatchHorizon は、ドラマの番組を、TMDB の作品と話に結びつけることを確認する (#1651)。
 func TestMatchHorizon(t *testing.T) {
 	t.Parallel()
 
@@ -434,7 +434,7 @@ func TestMatchHorizon(t *testing.T) {
 			want: new(linkedTo(sukeban, 1, 26, drama.EpisodeSourceTitle)),
 		},
 		{
-			// 再放送の印がなくても、今放送しているシーズンのない昔の作品は、再放送と同じく番組名の話数で選ぶ。
+			// 再放送のマークがなくても、今放送しているシーズンのない昔の作品は、再放送と同じく番組名の話数で選ぶ。
 			name: "unmarked rerun of an old series", serviceID: bsService, start: jst(17, 16, 0), end: jst(17, 17, 0),
 			title: "スケバン刑事Ⅱ　少女鉄仮面伝説　★第２７話", genres: genreDrama,
 			want: new(linkedTo(sukeban, 1, 27, drama.EpisodeSourceTitle)),
@@ -446,7 +446,7 @@ func TestMatchHorizon(t *testing.T) {
 			want: new(linkedTo(sanada, 1, 5, drama.EpisodeSourceAirDate)),
 		},
 		{
-			// 空白の後ろに副題が付いた番組名は、そのままでは見つからない。頭 (南田南弁護士は天才肌) で探し、放送日の話で確かめて結びつける。
+			// 空白の後ろにサブタイトルが付いた番組名は、そのままでは見つからない。先頭 (南田南弁護士は天才肌) で探し、放送日の話で確認して結びつける。
 			name: "subtitle after a space", serviceID: grService, start: jst(16, 22, 0), end: jst(16, 22, 54),
 			title: "南田南弁護士は天才肌　嘘をつくのは悪いことです！　＃０５🈑🈓", genres: genreDrama,
 			want: new(linkedTo(minamida, 1, 5, drama.EpisodeSourceAirDate)),
@@ -497,9 +497,9 @@ func TestMatchHorizon(t *testing.T) {
 	}
 	requests := f.fake.takeRequests()
 	assert.NotContains(t, requests, "/3/search/tv?夜ドラ", "promotions are not looked up")
-	assert.Contains(t, requests, "/3/search/tv?晩酌の流儀5〜秋冬篇〜", "the full title is tried first")
+	assert.Contains(t, requests, "/3/search/tv?晩酌の流儀5~秋冬篇~", "the full title is tried first")
 
-	// 録画にも、番組の結びつきを写す。
+	// 録画にも、番組の結びつきをコピーする。
 	episode, found, err := drama.RecordingEpisode(t.Context(), f.db, recordingID)
 	require.NoError(t, err)
 	require.True(t, found)
@@ -516,7 +516,7 @@ func TestMatchHorizon(t *testing.T) {
 	assert.Empty(t, f.fake.takeRequests())
 }
 
-// TestMatchStopsWhenRateLimited は、TMDB が 429 を返したら、残りの番組を書かずに次の機会に回すことを確かめる。
+// TestMatchStopsWhenRateLimited は、TMDB が 429 を返したら、残りの番組を書かずに次の機会に回すことを確認する。
 func TestMatchStopsWhenRateLimited(t *testing.T) {
 	t.Parallel()
 
@@ -552,7 +552,7 @@ func TestMatchStopsWhenRateLimited(t *testing.T) {
 	assert.Equal(t, linkedTo(moPapa, 1, 7, drama.EpisodeSourceAirDate), got)
 }
 
-// TestMatchRequestBudget は、1 回の照合で問い合わせる回数に上限があることを確かめる。
+// TestMatchRequestBudget は、1 回の照合で問い合わせる回数に上限があることを確認する。
 func TestMatchRequestBudget(t *testing.T) {
 	t.Parallel()
 
@@ -568,7 +568,7 @@ func TestMatchRequestBudget(t *testing.T) {
 	assert.Len(t, f.fake.takeRequests(), 2)
 }
 
-// TestOverride は、管理者の上書きで、作品名の番組を別の作品に結びつけたり、結びつけなかったりできることを確かめる。
+// TestOverride は、管理者の上書きで、作品名の番組を別の作品に結びつけたり、結びつけなかったりできることを確認する。
 func TestOverride(t *testing.T) {
 	t.Parallel()
 
@@ -609,7 +609,7 @@ func TestOverride(t *testing.T) {
 	}
 }
 
-// TestFinalize は、放送が終わった番組の結びつきを確定させ、それからは照合し直さないことを確かめる。
+// TestFinalize は、放送が終わった番組の結びつきを確定させ、それからは照合し直さないことを確認する。
 func TestFinalize(t *testing.T) {
 	t.Parallel()
 
@@ -628,7 +628,7 @@ func TestFinalize(t *testing.T) {
 	assert.Zero(t, result.Programs, "a finalized program is not matched again")
 }
 
-// TestMatchDisabled は、連携が無効なら TMDB に問い合わせないことを確かめる。
+// TestMatchDisabled は、連携が無効なら TMDB に問い合わせないことを確認する。
 func TestMatchDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -660,7 +660,7 @@ func TestMatchDisabled(t *testing.T) {
 }
 
 // TestMatchUnauthorized は、トークンが断られたら、続きとして照合し直さず、同じトークンでは 1 時間は問い合わせないことと、
-// 管理者がトークンを入れ直したら、1 時間を待たずに問い合わせることを確かめる。
+// 管理者がトークンを入れ直したら、1 時間を待たずに問い合わせることを確認する。
 func TestMatchUnauthorized(t *testing.T) {
 	t.Parallel()
 
@@ -702,7 +702,7 @@ func TestMatchUnauthorized(t *testing.T) {
 	assert.NotEmpty(t, fake.takeRequests())
 }
 
-// TestMatchChanges は、EPG の変更の記録を読んで、変わったサービスと時間帯の番組だけを照合し、読んだ版数を覚えることを確かめる。
+// TestMatchChanges は、EPG の変更の記録を読んで、変わったサービスと時間帯の番組だけを照合し、読んだバージョンを保存することを確認する。
 func TestMatchChanges(t *testing.T) {
 	t.Parallel()
 
@@ -710,7 +710,7 @@ func TestMatchChanges(t *testing.T) {
 	insertProgram(t, f.db, grService, 1, jst(15, 22, 15), jst(15, 23, 9), "もうパパ！　＃７", genreDrama)
 	insertProgram(t, f.db, bsService, 1, jst(17, 0, 0), jst(17, 0, 30), banshakuEpisode7, genreDrama)
 
-	// 初めて動いたときは、今の版数を覚えるだけにする。それまでの番組は、照合し直しが受け持つ。
+	// 初めて動いたときは、今のバージョンを保存するだけにする。それまでの番組は、照合し直しが受け持つ。
 	result, err := f.matcher.MatchChanges(t.Context())
 	require.NoError(t, err)
 	assert.Zero(t, result.Programs)
@@ -736,7 +736,7 @@ func TestMatchChanges(t *testing.T) {
 	assert.Zero(t, result.Programs, "the read changes are not read again")
 }
 
-// TestPruneCache は、TMDB から引いた情報を、引いてから 180 日で消すことを確かめる (TMDB の利用規約)。
+// TestPruneCache は、TMDB から引いた情報を、引いてから 180 日で消すことを確認する (TMDB の利用規約)。
 func TestPruneCache(t *testing.T) {
 	t.Parallel()
 

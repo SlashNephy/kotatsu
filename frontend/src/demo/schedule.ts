@@ -85,7 +85,7 @@ export function createScheduler(options: {
   programs: DemoProgram[];
   now: number;
   user: object;
-  // changed は、予約やルールを変えたことを、画面に知らせる。
+  // changed は、予約やルールを変えたことを、画面に通知する。
   changed: (channels: string[]) => void;
 }) {
   const { programs, now, user, changed } = options;
@@ -415,7 +415,7 @@ export function createScheduler(options: {
     },
   });
   // 地上波の「こたつ探偵」の 2 つ目の予約は、BS で先に録った同じ回と分かって、録り始めにやめたものとして見せる (#1500)。
-  // 一覧の先頭の行は、ほかの画面の確かめで無効にして使うので、避ける。
+  // 一覧の先頭の行は、ほかの画面の検証で無効にして使うので、避ける。
   const recordedOn = services.find((service) => service.serviceId === 181) ?? null;
   const stopped = [...reservations.values()]
     .filter((item) => item.name.includes('こたつ探偵') && item.service.channelType.type === 'GR')

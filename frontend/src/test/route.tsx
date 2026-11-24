@@ -113,14 +113,14 @@ export async function renderWithRouter(node: ReactNode, environment: Environment
 
 // renderRoute は、ファイルのルート route を、アプリの枠 (__root) を除いて、本物のルーターで url に描く。ルートを読み終えるまで待つ。
 // id は createFileRoute に渡したパス。routeTree.gen.ts と同じく、ルートの ID (Route.useParams などが引く) をそれにして、root の直下に付ける。
-// ID の末尾の _ は、親のレイアウトに入れないための印なので、パスからは除く。
+// ID の末尾の _ は、親のレイアウトに入れないためのマークなので、パスからは除く。
 export async function renderRoute(
   route: AnyRoute,
   id: string,
   url: string,
   environment: Environment,
 ) {
-  // 視聴の画面は、アプリと同じく、ルートの隣の置き場で描く (#1602)。
+  // 視聴の画面は、アプリと同じく、ルートの隣の別のコンテナーで描く (#1602)。
   const root = createRootRoute({
     component: () => (
       <WatchHostProvider>
@@ -159,7 +159,7 @@ async function mount(routeTree: AnyRoute, url: string, environment: Environment)
 }
 
 // createFailingEnvironment は、変数に failing を含む操作を失敗させ、ほかの操作は応答を返さず待たせる Relay の環境を作る。
-// エラーの後に別の対象へ移ったとき、エラーの表示を消して読み直すかを確かめるのに使う。requested は、送られた操作の変数 (JSON)。
+// エラーの後に別の対象へ移ったとき、エラーの表示を消して読み直すかを検証するのに使う。requested は、送られた操作の変数 (JSON)。
 export function createFailingEnvironment(failing: string) {
   const requested: string[] = [];
   const environment = createTestEnvironment((_, variables) => {

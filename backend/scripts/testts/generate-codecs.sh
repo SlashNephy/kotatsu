@@ -1,7 +1,7 @@
 #!/bin/sh
 # H.264 と HEVC のテスト用の TS を作る。コンテナの中で動かす (backend/scripts/generate-test-ts.sh を参照)。
 #
-# 8 ビットの H.264 と HEVC は、索引が I フレームを拾えるかを確かめるためのもの。どれも SI は差し替えない。
+# 8 ビットの H.264 と HEVC は、インデックスが I フレームを拾えるかを確認するためのもの。どれも SI は差し替えない。
 # 開いた GOP にして、IDR でない I フレーム (H.264 の I スライス、HEVC の CRA) も含める。
 set -eu
 
@@ -25,7 +25,7 @@ ffmpeg -hide_banner -loglevel error -y \
   "${out_dir}/test-hevc.ts"
 
 # BS4K に似せた、10 ビットで 59.94p のプログレッシブの HEVC と、ステレオの AAC の TS。kyusu が 10 ビットの入力を
-# ブラウザで再生できる 8 ビットの映像にするかを確かめる。色は BS4K の HLG (BT.2020) にする。
+# ブラウザで再生できる 8 ビットの映像にするかを確認する。色は BS4K の HLG (BT.2020) にする。
 ffmpeg -hide_banner -loglevel error -y \
   -f lavfi -i "testsrc2=size=320x180:rate=60000/1001" \
   -f lavfi -i "sine=frequency=1000:sample_rate=48000" \
@@ -40,7 +40,7 @@ ffmpeg -hide_banner -loglevel error -y \
   "${out_dir}/test-hevc-main10.ts"
 
 # 放送に似せた、1440x1080 のインターレースの MPEG-2 と H.264 の TS。映像の形式 (#1310) を、
-# MPEG-2 の sequence_extension と、H.264 の SPS (frame_mbs_only_flag とクロップ) から読めるかを確かめる。小さく保つため、短くする。
+# MPEG-2 の sequence_extension と、H.264 の SPS (frame_mbs_only_flag とクロップ) から読めるかを確認する。小さく保つため、短くする。
 ffmpeg -hide_banner -loglevel error -y \
   -f lavfi -i "testsrc2=size=1440x1080:rate=30000/1001" \
   -t 0.5 \

@@ -102,7 +102,7 @@ func TestScrambleDetector(t *testing.T) {
 			step: time.Millisecond, finish: false, want: ts.ScrambleVerdictUndecided,
 		},
 		{
-			// 窓 1 つが抑止時間を越えて埋まるビットレートの低い局。窓が続ける数に届くまで決めない。
+			// ウィンドウ 1 つが抑止時間を越えて埋まるビットレートの低い局。ウィンドウが続ける数に届くまで決めない。
 			name: "all scrambled past the hold but in fewer windows than required",
 			pkts: scrambleStream(scrambleWindow+scrambleWindow/2, always),
 			step: hold / scrambleWindow * 2, finish: false, want: ts.ScrambleVerdictUndecided,
@@ -208,13 +208,13 @@ func TestScrambleDetector(t *testing.T) {
 	}
 }
 
-// TestScrambleDetectorStreakStart は、続き始めの時刻を、閾値を超えた最初の窓が埋まった時刻ではなく、その 1 個目のパケットを数えた時刻にすることを確かめる。
+// TestScrambleDetectorStreakStart は、続き始めの時刻を、閾値を超えた最初のウィンドウが埋まった時刻ではなく、その 1 個目のパケットを数えた時刻にすることを確認する。
 func TestScrambleDetectorStreakStart(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name string
-		// gap は、最初の窓の 1 個目のパケットの後に空ける時間。
+		// gap は、最初のウィンドウの 1 個目のパケットの後に空ける時間。
 		gap  time.Duration
 		want ts.ScrambleVerdict
 	}{
@@ -234,14 +234,14 @@ func TestScrambleDetectorStreakStart(t *testing.T) {
 			header := len(pkts) - 2*scrambleWindow
 			require.NoError(t, feedDetector(d, &now, 0, pkts[:header+1]))
 			now = now.Add(tt.gap)
-			// 窓が埋まった時刻から数えると、抑止時間に届かない。
+			// ウィンドウが埋まった時刻から数えると、抑止時間に届かない。
 			_ = feedDetector(d, &now, 10*time.Millisecond, pkts[header+1:])
 			assert.Equal(t, tt.want, d.Verdict())
 		})
 	}
 }
 
-// TestScrambleDetectorChunkedWrites は、パケットの途中で区切った書き込みでも、同じように数えることを確かめる。
+// TestScrambleDetectorChunkedWrites は、パケットの途中で区切った書き込みでも、同じように数えることを確認する。
 func TestScrambleDetectorChunkedWrites(t *testing.T) {
 	t.Parallel()
 

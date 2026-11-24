@@ -32,7 +32,7 @@ WHERE service_id = ANY(@service_ids::bigint[]) AND end_at > @from_at AND start_a
 ORDER BY service_id, start_at, event_id;
 
 -- name: ListArchivedProgramsInRange :many
--- 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
+-- 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じカラムを返す。
 SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
   related_items
 FROM program_archives
@@ -71,7 +71,7 @@ FROM programs
 WHERE service_id = @service_id AND event_id = @event_id;
 
 -- name: ListGuideProgramsByKeys :many
--- 番組 (サービス, eventId) をまとめて引く。GetGuideProgram と同じ列を返す。ない番組は返さない。
+-- 番組 (サービス, eventId) をまとめて取得する。GetGuideProgram と同じカラムを返す。ない番組は返さない。
 SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
   related_items
 FROM programs

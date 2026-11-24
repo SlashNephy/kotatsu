@@ -23,7 +23,7 @@ import (
 )
 
 // TestLeaderSyncsEPGAndMatchesRules は、リーダーになった neko が、チューナーサーバーの EPG を DB に同期し、
-// ルールが作られると、その変更の通知を受けて予約を作ることを確かめる。
+// ルールが作られると、その変更の通知を受けて予約を作ることを確認する。
 func TestLeaderSyncsEPGAndMatchesRules(t *testing.T) {
 	t.Parallel()
 
@@ -85,7 +85,7 @@ func TestLeaderSyncsEPGAndMatchesRules(t *testing.T) {
 	assert.NoError(t, <-done)
 }
 
-// TestLeaderSyncsEPGFromEPGSource は、チューナーサーバーがなくても、EPG の上流 (EDCB) があれば、neko が EPG を同期することを確かめる (#1531)。
+// TestLeaderSyncsEPGFromEPGSource は、チューナーサーバーがなくても、EPG の上流 (EDCB) があれば、neko が EPG を同期することを確認する (#1531)。
 func TestLeaderSyncsEPGFromEPGSource(t *testing.T) {
 	t.Parallel()
 

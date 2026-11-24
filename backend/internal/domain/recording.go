@@ -18,7 +18,7 @@ type Recording struct {
 	// Extended は、番組の詳細を、番組表の JSON (見出しから本文への対応) のまま持つ (#1646)。
 	Extended []byte
 	// NameNormalized と DescriptionNormalized は、NFKC で正規化した番組名と概要 (設計書 3.5)。録画の検索に使う。
-	// 列を知らない古いバイナリが書いた録画では nil。
+	// カラムを知らない古いバイナリが書いた録画では nil。
 	NameNormalized        *string
 	DescriptionNormalized *string
 	StartAt               time.Time
@@ -31,9 +31,11 @@ type Recording struct {
 	Drops         int64
 	Errors        int64
 	Scrambled     int64
+	// JudgedDrops は、録画の状態と重複の回避の判定に数えるドロップ。映像と音声の PID のドロップだけを数える (設計書 5.3)。
+	JudgedDrops int64
 	// ScrambledRatio は、ES の PID だけで出した、スクランブルされていたパケットの割合 (#1517)。判定しなかった録画では nil。
 	ScrambledRatio *float64
-	// ScrambleWarning は、スクランブルされたまま録れたという警告の印 (設計書 5.5)。状態とは別に持つ。
+	// ScrambleWarning は、スクランブルされたまま録れたという警告のマーク (設計書 5.5)。状態とは別に持つ。
 	ScrambleWarning    bool
 	Gaps               []byte
 	Audios             []byte
@@ -128,6 +130,8 @@ type PlayerSettings struct {
 	CaptionsEnabled bool
 	CommentSettings []byte
 	CaptionSettings []byte
+	// Preferences は、端末をまたいで同期する画面の設定 (#1862)。キーから文字列への対応の JSON。
+	Preferences []byte
 }
 
 // ContinueWatching は、続きから見る録画。
@@ -175,7 +179,7 @@ func (a CommentSourceAccess) For(source string) JikkyoAccess {
 	return JikkyoAccess{SystemEnabled: slices.Contains(a.System, source), UserEnabled: slices.Contains(a.User, source)}
 }
 
-// RecordingJikkyoSource は、録画の実況のコメントを引くための、録画したサービスと時刻。
+// RecordingJikkyoSource は、録画の実況のコメントを取得するための、録画したサービスと時刻。
 type RecordingJikkyoSource struct {
 	RecordedFrom  time.Time
 	RecordedUntil *time.Time

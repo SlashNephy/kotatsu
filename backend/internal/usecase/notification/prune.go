@@ -18,7 +18,7 @@ const (
 	pruneBatchSize = 1000
 )
 
-// Prune は、配り終えた通知のイベントのうち、保持期間 retention を過ぎたものを、pruneBatchSize 件ずつ区切って消し、消した数を返す。
+// Prune は、配信し終えた通知のイベントのうち、保持期間 retention を過ぎたものを、pruneBatchSize 件ずつ区切って消し、消した数を返す。
 // ユーザーごとの通知も一緒に消える (既読か未読かにかかわらない)。retention が負なら、無期限として何も消さない (#551)。
 func Prune(ctx context.Context, db sqlc.DBTX, clk clock.Clock, retention time.Duration) (int64, error) {
 	if retention < 0 {

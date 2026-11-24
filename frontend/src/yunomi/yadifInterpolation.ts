@@ -5,7 +5,7 @@ import { createInterpolator, type Interpolator } from './interpolator';
 
 // yadif が解除したコマの間を補間する (#1655、設計書 7.2)。yadif は、補間するコマを 1 枚遅らせて出し、
 // その間の画面の書き換えごとに、自分の WebGL2 のコンテキストとテクスチャを渡してくる。
-// 補間の処理 (interpolator.ts) は、そのコンテキストのまま動かすので、GPU の外へ写さない。
+// 補間の処理 (interpolator.ts) は、そのコンテキストのまま動かすので、GPU の外へコピーしない。
 
 // interpolatedCadences は、補間するコマの出し方。24p (プルダウンを組み直したもの) と、コマごとの 29.97p だけにする。
 // フィールドごとの 59.94p は、放送そのもののなめらかさで、間を埋める画面の書き換えもほとんどない。
@@ -29,7 +29,7 @@ export function createYadifInterpolation({
   let interpolator: Interpolator | null = null;
   let broken = false;
   const pacer = createDrawPacer();
-  // yadif は、補間する間、画面の書き換えごとに draw を呼ぶので、その間隔から書き換えの間隔を測る。
+  // yadif は、補間する間、画面の書き換えごとに draw を呼ぶので、その間隔から書き換えの間隔を計測する。
   let refreshMs = 1_000 / 60;
   let lastCallAt: number | null = null;
 
@@ -70,7 +70,7 @@ export function createYadifInterpolation({
       const now = performance.now();
       if (lastCallAt !== null) {
         const step = now - lastCallAt;
-        // 測り始めの値より速い画面なら、すぐ合わせる。間に補間しなかった時間 (コマをそのまま出した書き換え、
+        // 計測し始めの値より速い画面なら、すぐ合わせる。間に補間しなかった時間 (コマをそのまま出した書き換え、
         // 一時停止) は、書き換えの間隔に数えない。
         if (step > 0 && step < refreshMs * 0.75) {
           refreshMs = step;

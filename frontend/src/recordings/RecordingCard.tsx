@@ -4,7 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ProgramTitle } from '../futon';
+import { ProgramTitle, type HighlightKeyword } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { RecordingThumbnail } from './RecordingThumbnail';
 import { framePosition, type FramePosition } from './previewFrame';
@@ -37,18 +37,18 @@ export type RecordingCardData = {
   drops?: unknown;
   errors?: unknown;
   scrambled?: unknown;
-  // scrambleWarning は、スクランブルされたまま録れたという警告の印 (#1517)。
+  // scrambleWarning は、スクランブルされたまま録れたという警告のマーク (#1517)。
   scrambleWarning?: boolean | null;
-  // cmDetectionNote は、CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。あれば印を出す。
+  // cmDetectionNote は、CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。あればマークを出す。
   cmDetectionNote?: string | null;
-  // cmVideoMissingSeconds は、CM の見分けで測った映像の欠けの長さの合計の秒 (#1508)。
+  // cmVideoMissingSeconds は、CM の見分けで計測した映像の欠けの長さの合計の秒 (#1508)。
   cmVideoMissingSeconds?: number | null;
   // tags は、録画の一覧でだけ渡す。
   tags?: readonly { id: string; name: string }[];
 };
 
-// listedVideoMissingSeconds は、録画の一覧で映像の欠けの印を出す長さ (秒、#1508)。
-// 短すぎると、ほとんど気付かない一瞬の欠けにも印が出すぎるので、録画の詳細 (1 秒) より長くする。
+// listedVideoMissingSeconds は、録画の一覧で映像の欠けのマークを出す長さ (秒、#1508)。
+// 短すぎると、ほとんど気付かない一瞬の欠けにもマークが出すぎるので、録画の詳細 (1 秒) より長くする。
 export const listedVideoMissingSeconds = 5;
 
 const dateTimeFormat = zonedFormat({
@@ -78,7 +78,14 @@ const timeFormat = zonedFormat({
 
 // RecordingCard は、サムネイル付きの録画のカード。押すと、録画の詳細を開く。ホームと録画の一覧で使う。
 // 行の間は、放送中の番組のカードと揃える (番組名と放送時間は 4px、サービスとの間は xs)。
-export function RecordingCard({ recording }: { recording: RecordingCardData }) {
+// highlights は、番組名にマークを付けるキーワード (#966)。録画の検索で絞ったときに渡す。
+export function RecordingCard({
+  recording,
+  highlights = [],
+}: {
+  recording: RecordingCardData;
+  highlights?: readonly HighlightKeyword[];
+}) {
   const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const slide = usePreviewSlideshow(recording.previewUrl, hovered);
@@ -161,7 +168,7 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
       <Stack gap={0} p="xs" flex={1}>
         {/* 番組名は 2 行までにし、1 行でも 2 行分の高さを取って、並んだカードの日時やサービスの行を揃える。 */}
         <Text size="sm" lineClamp={2} mih="2lh">
-          <ProgramTitle name={recording.name} />
+          <ProgramTitle name={recording.name} highlights={highlights} />
         </Text>
         <Box flex={1}>
           <Group gap={6} pt={4}>
@@ -171,7 +178,7 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
                 to: timeFormat.format(Date.parse(recording.endAt)),
               })}
             </Text>
-            {/* 受信に傷があれば、警告の印を、日時のすぐ右に出す。数は、ツールチップと読み上げで示す。 */}
+            {/* 受信に傷があれば、警告のマークを、日時のすぐ右に出す。数は、ツールチップと読み上げで示す。 */}
             {damaged && (
               <Tooltip label={t('recordings.qualityCounts', quality)}>
                 <TriangleAlert
@@ -183,13 +190,13 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
               </Tooltip>
             )}
             {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
-            {/* ドロップありは、警告の印で分かるので出さない。 */}
+            {/* ドロップありは、警告のマークで分かるので出さない。 */}
             {recording.state !== 'COMPLETED' &&
               !(recording.state === 'COMPLETED_WITH_ERRORS' && damaged) && (
                 <RecordingStateBadge state={recording.state} size="xs" />
               )}
             {recording.scrambleWarning === true && <ScrambleBadge size="xs" />}
-            {/* CM の見分けで、いつもの見分け方で決められなかったか、映像の欠けが長ければ、印を出す (#1508)。 */}
+            {/* CM の見分けで、いつもの見分け方で決められなかったか、映像の欠けが長ければ、マークを出す (#1508)。 */}
             {recording.cmDetectionNote != null && recording.cmDetectionNote !== '' && (
               <Tooltip
                 label={t('recordings.cm.note', { note: recording.cmDetectionNote })}

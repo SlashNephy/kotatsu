@@ -8,7 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// segment は、録画のセグメントと、その索引。
+// segment は、録画のセグメントと、そのインデックス。
 type segment struct {
 	id uuid.UUID
 	// poolID と path は、セグメントのファイルの、プール ID とプール内の相対パス。
@@ -25,7 +25,7 @@ type segment struct {
 	continues bool
 	// continued は、次のセグメントが、このセグメントの続き (continues) かどうか。続きがなければ、終わりで途中で切れた PES を流さない。
 	continued bool
-	// index は、セグメントの索引。索引がなければ空で、そのセグメントには始まりからしか入れない。
+	// index は、セグメントのインデックス。インデックスがなければ空で、そのセグメントには始まりからしか入れない。
 	index []ts.IndexEntry
 	// opener は、プールの外のファイル (ライブラリのファイル。#1734) を開く。nil なら、poolID と path でプールから開く。
 	opener func(ctx context.Context) (File, error)
@@ -60,7 +60,7 @@ func plan(segments []*segment, start time.Duration) ([]*piece, time.Duration) {
 	return pieces, at
 }
 
-// keyframes は、trim した範囲の I フレームの、録画の始まりからの再生の時間 (walk) を、順に返す。索引のないセグメントは、その始まりだけを含める。
+// keyframes は、trim した範囲の I フレームの、録画の始まりからの再生の時間 (walk) を、順に返す。インデックスのないセグメントは、その始まりだけを含める。
 func keyframes(segments []*segment) []time.Duration {
 	times := []time.Duration{}
 	walk(trim(segments), func(_ int, _ int64, at time.Duration, _ int64) {
@@ -73,7 +73,7 @@ func keyframes(segments []*segment) []time.Duration {
 // Keyframe は、流す I フレームの、録画の始まりからの再生の時間と、PTS。
 type Keyframe struct {
 	At time.Duration
-	// PTS は、放送局が付けた PTS (90 kHz)。索引のないセグメントの始まりでは、分からないので -1。
+	// PTS は、放送局が付けた PTS (90 kHz)。インデックスのないセグメントの始まりでは、分からないので -1。
 	PTS int64
 }
 
@@ -112,7 +112,7 @@ func trim(segments []*segment) []*piece {
 }
 
 // seek は、再生の時間で start の位置に最も近い手前の I フレームを探し、その範囲の添え字と、バイト位置と、時間を返す。
-// 配信しない範囲 (切り詰めた区間) の I フレームは使わない。索引のないセグメントには、始まりからしか入れない。
+// 配信しない範囲 (切り詰めた区間) の I フレームは使わない。インデックスのないセグメントには、始まりからしか入れない。
 func seek(pieces []*piece, start time.Duration) (int, int64, time.Duration) {
 	best, bestOffset := 0, pieces[0].from
 	var bestAt time.Duration
@@ -127,13 +127,13 @@ func seek(pieces []*piece, start time.Duration) (int, int64, time.Duration) {
 }
 
 // walk は、配信する I フレームを順にたどり、範囲の添え字と、バイト位置と、録画の始まりからの再生の時間と、PTS を fn に渡す。
-// 索引のないセグメントの始まりは、PTS が分からないので -1 を渡す。
+// インデックスのないセグメントの始まりは、PTS が分からないので -1 を渡す。
 //
 // 再生の時間は、途切れた区間を含めない (設計書 7.2)。録画の配信もトランスコードも、途切れた区間の前後をそのままつないで流すので、
 // プレイヤーとエンコーダーの時間も、途切れた区間を含まないからである。
 // 時間は、前の I フレームからの PTS の差を足して求める。差が ts.MaxKeyframeInterval を超えるか、PTS が戻ったら、間で途切れたので、
 // 直前の I フレームの間隔だけ進める。セグメントをつないだファイルの中の途切れも、同じく詰める。
-// 索引のないセグメントは、PTS が分からないので、前の I フレームの次の位置から始まり、書いていた時間だけ続くものとする。
+// インデックスのないセグメントは、PTS が分からないので、前の I フレームの次の位置から始まり、書いていた時間だけ続くものとする。
 func walk(pieces []*piece, fn func(i int, offset int64, at time.Duration, pts int64)) {
 	// next は、PTS でつながらないときに、次の I フレームに付ける時間。
 	var at, next time.Duration

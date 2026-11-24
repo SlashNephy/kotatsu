@@ -34,7 +34,7 @@ ON CONFLICT (id) DO NOTHING
 RETURNING id;
 
 -- name: AddEDCBNetworkTVHolder :exec
--- @instance_id を ID の持ち主に加え、最後の持ち主が外れた印を消す。
+-- @instance_id を ID の持ち主に加え、最後の持ち主が外れたマークを消す。
 WITH holder AS (
   INSERT INTO edcb_network_tv_holders (network_tv_id, instance_id, acquired_at)
   VALUES (@network_tv_id, @instance_id, @now)

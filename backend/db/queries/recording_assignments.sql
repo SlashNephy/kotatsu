@@ -47,7 +47,7 @@ WITH target AS (
   SELECT a.id, a.state AS previous_state, a.lease_expires_at AS previous_lease_expires_at FROM recording_assignments a
   WHERE ((a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= @now::timestamptz))
     OR (a.state = 'handover' AND a.holder IS DISTINCT FROM @holder::uuid))
-    -- 自分が録っている割り振りは取らない。DB が止まっていた間にリースの期限が切れても、取り直すと世代番号が進み、録画が止まる (#1073)。
+    -- 自分が録っている割り振りは取らない。DB が止まっていた間にリースの期限が切れても、取得し直すと世代番号が進み、録画が止まる (#1073)。
     AND NOT (a.id = ANY(@active::uuid[]))
   ORDER BY a.priority DESC, a.created_at, a.id
   LIMIT 1
@@ -70,7 +70,7 @@ WHERE id = @id AND generation = @generation AND holder = @holder AND state IN ('
 SELECT EXISTS (SELECT 1 FROM recording_assignments WHERE id = @id);
 
 -- name: MarkRecordingHandover :execrows
--- 止まる mikan が、割り振りに引き継ぎ待ちの印を付ける (設計書 5.4)。
+-- 止まる mikan が、割り振りに引き継ぎ待ちのマークを付ける (設計書 5.4)。
 UPDATE recording_assignments SET state = 'handover', updated_at = @now
 WHERE id = @id AND generation = @generation AND holder = @holder AND state = 'recording';
 
@@ -143,5 +143,5 @@ UPDATE recording_assignments SET state = 'waiting', holder = NULL, lease_expires
 WHERE id = @id AND generation = @generation AND holder = @holder AND state = 'recording';
 
 -- name: GetDatabaseNow :one
--- DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比べるのに使う (#526)。
+-- DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比較するのに使う (#526)。
 SELECT clock_timestamp()::timestamptz AS now;

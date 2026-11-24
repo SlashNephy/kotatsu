@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { useLibraryPositionSaver, useWatchPositionSaver } from './useWatchPositionSaver';
 
-// saved は、偽の mutation に渡った再生位置 (ミリ秒)。
+// saved は、モックの mutation に渡った再生位置 (ミリ秒)。
 const saved: number[] = [];
 
 vi.mock('react-relay', () => ({

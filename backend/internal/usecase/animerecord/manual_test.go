@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 )
 
-// TestRecordManually は、手で選んだ話の記録を、番組、録画、作品の話のどれからも作り、同じ話を二重に記録しないことを確かめる (#1232)。
+// TestRecordManually は、手で選んだ話の記録を、番組、録画、作品の話のどれからも作り、同じ話を二重に記録しないことを確認する (#1232)。
 func TestRecordManually(t *testing.T) {
 	t.Parallel()
 
@@ -66,7 +66,7 @@ func TestRecordManually(t *testing.T) {
 	}
 }
 
-// TestRecordManuallyRejects は、連携が無効なとき、連携していないとき、記録できる話がないときに、記録を作らないことを確かめる。
+// TestRecordManuallyRejects は、連携が無効なとき、連携していないとき、記録できる話がないときに、記録を作らないことを確認する。
 func TestRecordManuallyRejects(t *testing.T) {
 	t.Parallel()
 
@@ -112,7 +112,7 @@ func TestRecordManuallyRejects(t *testing.T) {
 	}
 }
 
-// TestRecordManuallySends は、作品の話を手で記録したら、プレイヤーで見たときと同じジョブで記録先に送ることを確かめる (#1232)。
+// TestRecordManuallySends は、作品の話を手で記録したら、プレイヤーで見たときと同じジョブで記録先に送ることを確認する (#1232)。
 func TestRecordManuallySends(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -129,7 +129,7 @@ func TestRecordManuallySends(t *testing.T) {
 	assert.Equal(t, []string{annictThirdRecorded}, pendingRecords(t, f, f.alice.UserID))
 }
 
-// TestRecordManuallyConcurrently は、同じ作品の話を同時に記録しても、1 回だけ記録することを確かめる (#1232)。
+// TestRecordManuallyConcurrently は、同じ作品の話を同時に記録しても、1 回だけ記録することを確認する (#1232)。
 func TestRecordManuallyConcurrently(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -159,7 +159,7 @@ func TestRecordManuallyConcurrently(t *testing.T) {
 	assert.Equal(t, []string{"annict:7:pending"}, pendingRecords(t, f, f.alice.UserID))
 }
 
-// TestRecordManuallyRecording は、録画から、録画に写した結びつきの話を記録することを確かめる (#1232)。
+// TestRecordManuallyRecording は、録画から、録画にコピーした結びつきの話を記録することを確認する (#1232)。
 func TestRecordManuallyRecording(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)

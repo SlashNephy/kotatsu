@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 )
 
-// 偽の API が答える操作と、変数の名前。
+// モックの API が答える操作と、変数の名前。
 const (
 	opCreateRecord = "createRecord"
 	opUpdateStatus = "updateStatus"
@@ -21,16 +22,21 @@ const (
 	keyProgress    = "progress"
 	keyStatus      = "status"
 	keyMediaID     = "mediaId"
-	// opAniListViewer は、AniList のトークンの持ち主を引く操作。Annict の viewer と大文字で分ける。
+	// opAniListViewer は、AniList のトークンの持ち主を取得する操作。Annict の viewer と大文字で分ける。
 	opAniListViewer = "Viewer"
 	opAnnictViewer  = "viewer"
-	// opLibrary と opMediaLists は、Annict と AniList の見たいリストを引く操作 (#928)。
+	// opLibrary と opMediaLists は、Annict と AniList の見たいリストを取得する操作 (#928)。
 	opLibrary    = "libraryEntries"
 	opMediaLists = "MediaListCollection"
-	// opFollowing と opFollowingList は、Annict と AniList のフォロー中のユーザーの視聴状況を引く操作 (#1372)。
+	// opFollowing と opFollowingList は、Annict と AniList のフォロー中のユーザーの視聴状況を取得する操作 (#1372)。
 	opFollowing     = "following"
 	opFollowingList = "mediaList"
-	// 偽のフォロー中のユーザーの視聴状況の、項目の名前。
+	// opFollowingWatching、opFollowingUsers、opWatchingList は、フォロー中のユーザーが見ている作品を取得する操作 (#1968)。
+	// Annict の viewer.following と、AniList の Page.following と Page.mediaList に、別名を付けて見分ける。
+	opFollowingWatching = "followingWatching"
+	opFollowingUsers    = "followingUsers"
+	opWatchingList      = "watchingList"
+	// モックのフォロー中のユーザーの視聴状況の、項目の名前。
 	keyName      = "name"
 	keyAnnictID  = "annictId"
 	keyEndCursor = "endCursor"
@@ -38,12 +44,18 @@ const (
 	keyUser      = "user"
 	keyHasNext   = "hasNextPage"
 	keyPageInfo  = "pageInfo"
-	// fakeAniListUserID は、偽の AniList のトークンの持ち主の ID。
+	// fakeAniListUserID は、モックの AniList のトークンの持ち主の ID。
 	fakeAniListUserID = 77
 	keyNodes          = "nodes"
+	keyUsername       = "username"
+	keyTitle          = "title"
+	keyLarge          = "large"
+	keyMedia          = "media"
+	keyRomaji         = "romaji"
+	keyPage           = "Page"
 )
 
-// fakeListEntry は、偽の見たいリストの作品。Status は、Annict なら WANNA_WATCH などの状態、AniList なら PLANNING などのリストの状態。
+// fakeListEntry は、モックの見たいリストの作品。Status は、Annict なら WANNA_WATCH などの状態、AniList なら PLANNING などのリストの状態。
 type fakeListEntry struct {
 	ID     int32
 	Title  string
@@ -68,7 +80,7 @@ func orNull[T comparable](value T) any {
 	return value
 }
 
-// fakeEpisode は、偽の Annict のエピソード。
+// fakeEpisode は、モックの Annict のエピソード。
 type fakeEpisode struct {
 	ID         string  `json:"id"`
 	AnnictID   int32   `json:"annictId"`
@@ -77,7 +89,7 @@ type fakeEpisode struct {
 	Title      *string `json:"title"`
 }
 
-// fakeWork は、偽の Annict の作品。
+// fakeWork は、モックの Annict の作品。
 type fakeWork struct {
 	AnnictID   int32
 	NoEpisodes bool
@@ -85,7 +97,7 @@ type fakeWork struct {
 	Episodes   []fakeEpisode
 }
 
-// fakeEntry は、偽の AniList のリストの項目。
+// fakeEntry は、モックの AniList のリストの項目。
 type fakeEntry struct {
 	Progress int
 	Status   *string
@@ -97,7 +109,7 @@ type fakeService struct {
 	server *httptest.Server
 
 	mu sync.Mutex
-	// codes は、受け付ける認可コードから、発行するトークンへの表。
+	// codes は、受け付ける認可コードから、発行するトークンへのテーブル。
 	codes map[string]string
 	// verifiers は、トークンの引き換えで受け取った code_verifier。
 	verifiers []string
@@ -109,7 +121,7 @@ type fakeService struct {
 	records []string
 	// statuses は、Annict で変えた作品の状態 (作品の ID: 状態)。
 	statuses []string
-	// media は、AniList の作品の ID から、話数への表。entries は、リストの項目。
+	// media は、AniList の作品の ID から、話数へのテーブル。entries は、リストの項目。
 	media   map[int32]*int
 	entries map[int32]*fakeEntry
 	// saves は、AniList に送った SaveMediaListEntry の変数。
@@ -136,7 +148,7 @@ type fakeService struct {
 	followingRequests int
 }
 
-// fakeFollowing は、偽のフォロー中のユーザーの、1 作品の状態。Status は、Annict なら WATCHING など、AniList なら CURRENT など。
+// fakeFollowing は、モックのフォロー中のユーザーの、1 作品の状態。Status は、Annict なら WATCHING など、AniList なら CURRENT など。
 type fakeFollowing struct {
 	Username string
 	Name     string
@@ -147,6 +159,8 @@ type fakeFollowing struct {
 	Score    float64
 	Notes    string
 	Episodes int
+	// Title は、作品名。フォロー中のユーザーが見ている作品 (#1968) で返す。
+	Title string
 }
 
 func newFakeService(t *testing.T) *fakeService {
@@ -223,7 +237,10 @@ func (f *fakeService) graphql(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	data := f.resolve(operation, req.Variables)
+	data, ok := f.resolveFollowingWatching(operation, req.Variables)
+	if !ok {
+		data = f.resolve(operation, req.Variables)
+	}
 	if hook, ok := f.hooks[operation]; ok {
 		hook()
 	}
@@ -252,10 +269,10 @@ func text(value any) string {
 	return s
 }
 
-// operationOf は、query から、偽の API が答える操作を決める。
+// operationOf は、query から、モックの API が答える操作を決める。
 func operationOf(query string) string {
 	for _, operation := range []string{
-		opLibrary, opMediaLists, opFollowing + "(", opFollowingList + "(", opCreateRecord, opUpdateStatus, opSaveEntry, opEpisodes + "(", opSearchWorks, opMedia + "(", opAniListViewer, opAnnictViewer,
+		opLibrary, opMediaLists, opFollowingWatching, opFollowingUsers, opWatchingList, opFollowing + "(", opFollowingList + "(", opCreateRecord, opUpdateStatus, opSaveEntry, opEpisodes + "(", opSearchWorks, opMedia + "(", opAniListViewer, opAnnictViewer,
 	} {
 		if strings.Contains(query, operation) {
 			return strings.TrimSuffix(operation, "(")
@@ -268,7 +285,7 @@ func operationOf(query string) string {
 func (f *fakeService) resolve(operation string, variables map[string]any) any {
 	switch operation {
 	case opAnnictViewer:
-		return map[string]any{opAnnictViewer: map[string]any{"username": "annict-user"}}
+		return map[string]any{opAnnictViewer: map[string]any{keyUsername: "annict-user"}}
 	case opAniListViewer:
 		return map[string]any{opAniListViewer: map[string]any{"id": fakeAniListUserID, "name": "anilist-user"}}
 	case opLibrary, opMediaLists:
@@ -340,7 +357,7 @@ func jsonID(id int32) string {
 	return strconv.FormatInt(int64(id), 10)
 }
 
-// snapshot は、記録した内容 (Annict の記録、作品の状態、AniList に送った変数) を、ロックを取ってから写す。
+// snapshot は、記録した内容 (Annict の記録、作品の状態、AniList に送った変数) を、ロックを取ってからコピーする。
 func (f *fakeService) snapshot() ([]string, []string, []map[string]any) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -348,7 +365,7 @@ func (f *fakeService) snapshot() ([]string, []string, []map[string]any) {
 	return append([]string{}, f.records...), append([]string{}, f.statuses...), append([]map[string]any{}, f.saves...)
 }
 
-// listPage は、見たいリストの 1 ページを返す。Annict は after の cursor (返した数) で、AniList は chunk の番号で続きを引く。
+// listPage は、見たいリストの 1 ページを返す。Annict は after の cursor (返した数) で、AniList は chunk の番号で続きを取得する。
 func (f *fakeService) listPage(operation string, variables map[string]any) any {
 	f.listRequests++
 	f.listVariables = append(f.listVariables, variables)
@@ -382,7 +399,7 @@ func (f *fakeService) listPage(operation string, variables map[string]any) any {
 			nodes = append(nodes, map[string]any{
 				"status": map[string]any{"state": entry.Status}, "nextEpisode": entry.Next,
 				"work": map[string]any{
-					"annictId": entry.ID, "title": entry.Title, "seasonYear": orNull(entry.SeasonYear), "seasonName": orNull(entry.Season),
+					"annictId": entry.ID, keyTitle: entry.Title, "seasonYear": orNull(entry.SeasonYear), "seasonName": orNull(entry.Season),
 					"episodesCount": entry.Episodes, "image": image,
 				},
 			})
@@ -396,11 +413,11 @@ func (f *fakeService) listPage(operation string, variables map[string]any) any {
 	for _, entry := range f.list[start:end] {
 		var cover any
 		if entry.Image != "" {
-			// AniList は、大きさの違う画像を返す。高画質の extraLarge を選ぶことを確かめるため、large は別の URL にする (#1315)。
-			cover = map[string]any{"extraLarge": entry.Image, "large": entry.Image + "?medium"}
+			// AniList は、大きさの違う画像を返す。高画質の extraLarge を選ぶことを確認するため、large は別の URL にする (#1315)。
+			cover = map[string]any{"extraLarge": entry.Image, keyLarge: entry.Image + "?medium"}
 		}
-		entries = append(entries, map[string]any{"status": entry.Status, "progress": entry.Progress, "media": map[string]any{
-			"id": entry.ID, "title": map[string]any{"native": entry.Title, "romaji": "romaji"},
+		entries = append(entries, map[string]any{"status": entry.Status, "progress": entry.Progress, keyMedia: map[string]any{
+			"id": entry.ID, keyTitle: map[string]any{"native": entry.Title, keyRomaji: keyRomaji},
 			"episodes": entry.Episodes, "season": orNull(entry.Season), "seasonYear": orNull(entry.SeasonYear), "coverImage": cover,
 		}})
 	}
@@ -479,7 +496,7 @@ func (f *fakeService) followingPage(variables map[string]any) any {
 	}
 	nodes := make([]any, 0, end-offset)
 	for _, user := range f.following[offset:end] {
-		node := map[string]any{keyName: user.Name, "username": user.Username, "avatarUrl": orNull(user.Avatar)}
+		node := map[string]any{keyName: user.Name, keyUsername: user.Username, "avatarUrl": orNull(user.Avatar)}
 		for alias, state := range map[string]string{
 			"watched": stateWatched, keyWatching: stateWatching, "onHold": "ON_HOLD", "stopWatching": "STOP_WATCHING", "wannaWatch": stateWannaWatch,
 		} {
@@ -515,10 +532,117 @@ func (f *fakeService) followingListPage(variables map[string]any) any {
 	for _, entry := range matched[offset:end] {
 		list = append(list, map[string]any{
 			keyStatus: entry.Status, keyProgress: entry.Progress, "notes": orNull(entry.Notes), "score": entry.Score,
-			keyUser: map[string]any{keyName: entry.Username, "avatar": map[string]any{"large": orNull(entry.Avatar)}},
-			"media": map[string]any{opEpisodes: orNull(entry.Episodes)},
+			keyUser:  map[string]any{keyName: entry.Username, "avatar": map[string]any{keyLarge: orNull(entry.Avatar)}},
+			keyMedia: map[string]any{opEpisodes: orNull(entry.Episodes)},
 		})
 	}
 
-	return map[string]any{"Page": map[string]any{opFollowingList: list, keyPageInfo: map[string]any{keyHasNext: hasNext}}}
+	return map[string]any{keyPage: map[string]any{opFollowingList: list, keyPageInfo: map[string]any{keyHasNext: hasNext}}}
+}
+
+// followingUsernames は、モックのフォロー中のユーザーの名前を、最初に出た順に返す。
+func (f *fakeService) followingUsernames() []string {
+	names := []string{}
+	for _, entry := range f.following {
+		if !slices.Contains(names, entry.Username) {
+			names = append(names, entry.Username)
+		}
+	}
+
+	return names
+}
+
+// fakeAniListFollowingID は、モックの AniList のフォロー中のユーザーの ID。名前の順の添字から作る。
+func fakeAniListFollowingID(index int) int {
+	return 1000 + index
+}
+
+// followingWatchingPage は、Annict の、フォロー中のユーザーと、その人が見ている作品の 1 ページを返す (#1968)。
+func (f *fakeService) followingWatchingPage(variables map[string]any) any {
+	f.followingRequests++
+	users := f.followingUsernames()
+	offset, _ := strconv.Atoi(text(variables["cursor"]))
+	end, hasNext := window(len(users), offset, f.followingPageSize)
+	nodes := make([]any, 0, end-offset)
+	for _, username := range users[offset:end] {
+		works := []any{}
+		node := map[string]any{keyUsername: username}
+		for _, entry := range f.following {
+			if entry.Username != username {
+				continue
+			}
+			node[keyName], node["avatarUrl"] = entry.Name, orNull(entry.Avatar)
+			if entry.Status == stateWatching && len(works) < int(number(variables["works"])) {
+				works = append(works, map[string]any{keyAnnictID: entry.WorkID, keyTitle: entry.Title})
+			}
+		}
+		node["watchingWorks"] = map[string]any{keyNodes: works}
+		nodes = append(nodes, node)
+	}
+
+	return map[string]any{opAnnictViewer: map[string]any{opFollowingWatching: map[string]any{
+		keyNodes: nodes, keyPageInfo: map[string]any{keyHasNext: hasNext, keyEndCursor: strconv.Itoa(end)},
+	}}}
+}
+
+// followingUsersPage は、AniList の Page.following の 1 ページを返す (#1968)。
+func (f *fakeService) followingUsersPage(variables map[string]any) any {
+	f.followingRequests++
+	users := f.followingUsernames()
+	offset := 0
+	if f.followingPageSize > 0 {
+		offset = (int(number(variables["page"])) - 1) * f.followingPageSize
+	}
+	end, hasNext := window(len(users), offset, f.followingPageSize)
+	list := make([]any, 0, end-offset)
+	for i := offset; i < end; i++ {
+		list = append(list, map[string]any{"id": fakeAniListFollowingID(i)})
+	}
+
+	return map[string]any{keyPage: map[string]any{opFollowingUsers: list, keyPageInfo: map[string]any{keyHasNext: hasNext}}}
+}
+
+// watchingListPage は、AniList の Page.mediaList (userId_in) の 1 ページを返す (#1968)。
+func (f *fakeService) watchingListPage(variables map[string]any) any {
+	f.followingRequests++
+	requested := map[int]bool{}
+	ids, _ := variables["userIds"].([]any)
+	for _, raw := range ids {
+		requested[int(number(raw))] = true
+	}
+	users := f.followingUsernames()
+	matched := []fakeFollowing{}
+	for _, entry := range f.following {
+		if entry.Status == "CURRENT" && requested[fakeAniListFollowingID(slices.Index(users, entry.Username))] {
+			matched = append(matched, entry)
+		}
+	}
+	offset := 0
+	if f.followingPageSize > 0 {
+		offset = (int(number(variables["page"])) - 1) * f.followingPageSize
+	}
+	end, hasNext := window(len(matched), offset, f.followingPageSize)
+	list := make([]any, 0, end-offset)
+	for _, entry := range matched[offset:end] {
+		list = append(list, map[string]any{
+			keyUser:  map[string]any{keyName: entry.Username, "avatar": map[string]any{keyLarge: orNull(entry.Avatar)}},
+			keyMedia: map[string]any{"id": entry.WorkID, keyTitle: map[string]any{"native": orNull(entry.Title), keyRomaji: nil}},
+		})
+	}
+
+	return map[string]any{keyPage: map[string]any{opWatchingList: list, keyPageInfo: map[string]any{keyHasNext: hasNext}}}
+}
+
+// resolveFollowingWatching は、フォロー中のユーザーが見ている作品を取得する操作に答える (#1968)。ほかの操作なら ok は false。
+func (f *fakeService) resolveFollowingWatching(operation string, variables map[string]any) (any, bool) {
+	switch operation {
+	case opFollowingWatching:
+		return f.followingWatchingPage(variables), true
+	case opFollowingUsers:
+		return f.followingUsersPage(variables), true
+	case opWatchingList:
+		return f.watchingListPage(variables), true
+	default:
+		return nil, false
+	}
 }

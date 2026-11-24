@@ -9,11 +9,11 @@ import (
 )
 
 // NewAPIRouter は、API の待ち受けの一番外側のルーターを返す (#2016)。
-//   - health は、ヘルスチェック (/healthz、/readyz) のハンドラーを、パスで引くもの。GET と HEAD に答える。
-//   - subtrees は、kyusu と nabe のように、パスの頭 ("/internal/kyusu/live/" など) の下を、どのメソッドも受け持つハンドラー。
+//   - health は、ヘルスチェック (/healthz、/readyz) のハンドラーを、パスで取得するもの。GET と HEAD に答える。
+//   - subtrees は、kyusu と nabe のように、パスのプレフィックス ("/internal/kyusu/live/" など) の下を、どのメソッドも受け持つハンドラー。
 //   - app は、tenban のハンドラー。どのルートにも当たらないリクエストを受ける。tenban のいないインスタンスでは nil を渡し、素の 404 を返す。
 //
-// http.ServeMux で受けていたときと同じく、ルートを探す前に崩れたパスを整え、subtrees の頭から末尾のスラッシュを除いたパスは、
+// http.ServeMux で受けていたときと同じく、ルートを探す前に崩れたパスを整え、subtrees のプレフィックスから末尾のスラッシュを除いたパスは、
 // スラッシュを付けた先へリダイレクトする。ヘルスチェックに別のメソッドで来たリクエストは、app があれば app に渡し
 // (ServeMux では、tenban を載せた「/」のパターンが受けていた)、なければ Allow を付けて 405 を返す。
 func NewAPIRouter(logger *slog.Logger, health, subtrees map[string]http.Handler, app http.Handler) *echo.Echo {

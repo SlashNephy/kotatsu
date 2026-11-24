@@ -5,7 +5,7 @@ export const languages = ['ja', 'en'] as const;
 export type Language = (typeof languages)[number];
 
 // detectLanguage は、ブラウザの言語の設定から、画面の言語を選ぶ。対応する言語がなければ英語にする。
-// 「ja-JP」や「en_GB」のような地域つきの名前は、言語の部分で比べる。
+// 「ja-JP」や「en_GB」のような地域つきの名前は、言語の部分で比較する。
 export function detectLanguage(preferred: readonly (string | undefined)[]): Language {
   for (const tag of preferred) {
     const language = tag?.toLowerCase().split(/[-_]/)[0];

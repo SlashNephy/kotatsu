@@ -26,7 +26,7 @@ import (
 
 const (
 	serviceID = 3273601024
-	// maxImageBytes は、テストで受け付ける画像の大きさの上限。大きすぎる画像を、20 MiB を作らずに確かめる。
+	// maxImageBytes は、テストで受け付ける画像の大きさの上限。大きすぎる画像を、20 MiB を作らずに確認する。
 	maxImageBytes = 64
 )
 
@@ -103,7 +103,7 @@ func (f *fixture) files(t *testing.T) []string {
 	return files
 }
 
-// TestSave は、画像をデータディレクトリの「captures/ユーザーの ID/キャプチャの ID.png」に書き、撮った場面の情報を残すことを確かめる。
+// TestSave は、画像をデータディレクトリの「captures/ユーザーの ID/キャプチャの ID.png」に書き、撮った場面の情報を残すことを確認する。
 func TestSave(t *testing.T) {
 	t.Parallel()
 
@@ -154,7 +154,7 @@ func TestSave(t *testing.T) {
 	}
 }
 
-// TestSaveRejects は、PNG でない画像、大きすぎる画像、足りない情報を受け付けず、画像も書かないことを確かめる。
+// TestSaveRejects は、PNG でない画像、大きすぎる画像、足りない情報を受け付けず、画像も書かないことを確認する。
 func TestSaveRejects(t *testing.T) {
 	t.Parallel()
 
@@ -198,7 +198,7 @@ func TestSaveRejects(t *testing.T) {
 	}
 }
 
-// TestUnavailableWithoutDataDir は、データディレクトリを設定していなければ、残すのも消すのも断ることを確かめる。
+// TestUnavailableWithoutDataDir は、データディレクトリを設定していなければ、残すのも消すのも断ることを確認する。
 func TestUnavailableWithoutDataDir(t *testing.T) {
 	t.Parallel()
 
@@ -210,7 +210,7 @@ func TestUnavailableWithoutDataDir(t *testing.T) {
 	require.ErrorIs(t, captures.Delete(t.Context(), f.pool, f.users["alice"], id.New()), capture.ErrUnavailable)
 }
 
-// TestDelete は、撮ったユーザーだけが、行と画像を消せることを確かめる。
+// TestDelete は、撮ったユーザーだけが、行と画像を消せることを確認する。
 func TestDelete(t *testing.T) {
 	t.Parallel()
 
@@ -230,7 +230,7 @@ func TestDelete(t *testing.T) {
 	require.ErrorIs(t, f.captures.Delete(t.Context(), f.pool, f.users["alice"], saved.ID), capture.ErrNotFound)
 }
 
-// TestPrepareUserErasure は、ユーザーを消すときに、そのユーザーのキャプチャの画像だけを消すことを確かめる (#1382)。
+// TestPrepareUserErasure は、ユーザーを消すときに、そのユーザーのキャプチャの画像だけを消すことを確認する (#1382)。
 func TestPrepareUserErasure(t *testing.T) {
 	t.Parallel()
 
@@ -250,7 +250,7 @@ func TestPrepareUserErasure(t *testing.T) {
 	assert.Equal(t, []string{kago.CaptureLocation(f.users["bob"], kept.ID).Path}, f.files(t))
 }
 
-// TestRecordingDeletionKeepsCapture は、録画を消しても、キャプチャと画像は残し、録画の参照だけを外すことを確かめる。
+// TestRecordingDeletionKeepsCapture は、録画を消しても、キャプチャと画像は残し、録画の参照だけを外すことを確認する。
 func TestRecordingDeletionKeepsCapture(t *testing.T) {
 	t.Parallel()
 
@@ -268,36 +268,45 @@ func TestRecordingDeletionKeepsCapture(t *testing.T) {
 	assert.Equal(t, []string{kago.CaptureLocation(f.users["alice"], saved.ID).Path}, f.files(t))
 }
 
-// TestListCaptures は、撮ったユーザーのキャプチャだけを、残した新しい順に返し、探す言葉で番組名とサービス名から絞ることを確かめる。
+// TestListCaptures は、撮ったユーザーのキャプチャだけを、残した新しい順に返し、探す言葉で番組名とサービス名から絞ることを確認する。
 func TestListCaptures(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	save := func(user, serviceName string, programName *string) uuid.UUID {
+	save := func(user, serviceName string, programName, caption *string) uuid.UUID {
 		upload := f.upload()
-		upload.ServiceName, upload.ProgramName = serviceName, programName
+		upload.ServiceName, upload.ProgramName, upload.Caption = serviceName, programName, caption
 		saved, err := f.captures.Save(t.Context(), f.pool, f.users[user], upload)
 		require.NoError(t, err)
 		f.clock.Advance(time.Second)
 
 		return saved.ID
 	}
-	news := save("alice", "ＮＨＫ総合", new("ニュース７"))
-	anime := save("alice", "こたつテスト1", new("アニメ 100%"))
-	unknown := save("alice", "こたつテスト1", nil)
-	_ = save("bob", "ＮＨＫ総合", new("ニュース７"))
+	news := save("alice", "ＮＨＫ総合", new("ニュース７"), new("ＫＯＴＡＴＳＵ山のふもとから、けさの様子をお伝えします"))
+	anime := save("alice", "こたつテスト1", new("アニメ 100%"), nil)
+	unknown := save("alice", "こたつテスト1", nil, nil)
+	_ = save("bob", "ＮＨＫ総合", new("ニュース７"), new("けさの様子"))
+	// 字幕の正規化したカラムがまだないキャプチャ (カラムを足す前に撮ったか、古いバイナリが書いたもの)。kotatsu migrate が埋めるまでは、字幕では探さない。
+	unfilled := save("alice", "こたつテスト2", new("ドキュメンタリー"), new("けさの様子"))
+	_, err := f.pool.Exec(t.Context(), "UPDATE captures SET caption_normalized = NULL WHERE id = $1", unfilled)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name    string
 		keyword string
 		want    []uuid.UUID
 	}{
-		{name: "絞らなければ、自分のものを新しい順に返す", keyword: "", want: []uuid.UUID{unknown, anime, news}},
+		{name: "絞らなければ、自分のものを新しい順に返す", keyword: "", want: []uuid.UUID{unfilled, unknown, anime, news}},
 		{name: "半角と小文字でも、全角のサービス名に当たる", keyword: "nhk", want: []uuid.UUID{news}},
 		{name: "空白で区切った語は、すべてを含むものだけ", keyword: "こたつ　アニメ", want: []uuid.UUID{anime}},
 		{name: "番組名とサービス名にまたがる語", keyword: "ニュース 総合", want: []uuid.UUID{news}},
 		{name: "LIKE の特別な文字は、文字そのものとして探す", keyword: "0%", want: []uuid.UUID{anime}},
+		{name: "撮ったときの字幕の文でも探す (#2084)", keyword: "けさの様子", want: []uuid.UUID{news}},
+		{name: "半角と小文字でも、全角の字幕の文に当たる", keyword: "kotatsu", want: []uuid.UUID{news}},
+		{name: "番組名と字幕の文にまたがる語", keyword: "ニュース ふもと", want: []uuid.UUID{news}},
 		{name: "合うものがない", keyword: "ドラマ", want: []uuid.UUID{}},
+		{name: "字幕の正規化した列がまだなければ、ほかの語に当たらない", keyword: "サッカー", want: []uuid.UUID{}},
+		{name: "字幕の正規化した列がまだなくても、番組名では探せる", keyword: "ドキュメンタリー", want: []uuid.UUID{unfilled}},
 	}
 	for _, tt := range tests {
 		got, err := query.New(f.pool).ListCaptures(t.Context(), f.users["alice"], &query.CaptureListQuery{Keyword: tt.keyword, Before: nil, Limit: 10})

@@ -60,10 +60,10 @@ type PresentFollowing struct {
 type eitTable struct {
 	events map[[2]uint16]*EventAudio
 	pf     map[uint16]*PresentFollowing
-	// descriptors は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の記述子の並び (#1500)。鍵はサービス ID と eventId。
+	// descriptors は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の記述子の並び (#1500)。キーはサービス ID と eventId。
 	// 文字列を読むのは重いので、EventInfo で引かれたときに読む。
 	descriptors map[[2]uint16][]byte
-	// times は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の開始と長さ (#1734)。鍵はサービス ID と eventId。
+	// times は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の開始と長さ (#1734)。キーはサービス ID と eventId。
 	times map[[2]uint16]*EventTime
 }
 
@@ -317,7 +317,7 @@ func PresentAudios(events []*EventAudio, serviceID uint16, eventID *uint16) []*A
 	return best.Audios
 }
 
-// audioJSON は、Mirakurun の番組の audios の要素と同じ形。録画の音声の構成は、EPG から写したものと同じ形で保存する。
+// audioJSON は、Mirakurun の番組の audios の要素と同じ形。録画の音声の構成は、EPG からコピーしたものと同じ形で保存する。
 type audioJSON struct {
 	ComponentType int      `json:"componentType"`
 	ComponentTag  int      `json:"componentTag"`

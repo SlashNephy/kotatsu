@@ -83,7 +83,7 @@ func stripMovedSettings(data []byte) ([]byte, []IgnoredSetting, error) {
 			ignored = append(ignored, IgnoredSetting{Key: strings.Join(moved.keys, "."), Env: "", Screen: moved.screen})
 		}
 	}
-	// 項目がなくても、空の節 (audit: だけの行) を取り除いているので、書き出し直す。
+	// 項目がなくても、空の節 (audit: だけの行) を取り除いているので、出力し直す。
 	stripped, err := yaml.Marshal(&doc)
 	if err != nil {
 		return nil, nil, err

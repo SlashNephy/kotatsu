@@ -14,6 +14,7 @@ import {
   prepareDRCS,
   recordDRCS,
 } from './drcs';
+import type { PlayerMedia } from './playerMedia';
 
 export { rendererColor, type CaptionStyle } from './captionStyle';
 
@@ -28,12 +29,12 @@ export type Captions = {
   setSuperimposeVisible: (visible: boolean) => void;
   // setStyle は、字幕と文字スーパーの見た目を変える (#491)。次に描くときから効く。
   setStyle: (style: CaptionStyle) => void;
-  // reset は、受け取った字幕を捨てる。読み直すと video の時刻の基準が変わるので、前の読み込みの字幕を出さないようにする。
+  // reset は、受け取った字幕を破棄する。読み直すと video の時刻の基準が変わるので、前の読み込みの字幕を出さないようにする。
   reset: () => void;
   destroy: () => void;
 };
 
-// RendererWithOption は、aribb24.js の描画器のうち、描くたびに読み直す設定。型の上では隠れているので、ここで名前を付ける。
+// RendererWithOption は、aribb24.js のレンダラーのうち、描くたびに読み直す設定。型の上では隠れているので、ここで名前を付ける。
 type RendererWithOption = {
   option: { color: { stroke: string | null; background: string | null } };
 };
@@ -44,14 +45,14 @@ type Layer = {
   controller: Controller;
   feeder: MPEGTSFeeder;
   renderer: CanvasMainThreadRenderer;
-  // text は、字幕の文を取り出す描画器。字幕の層にだけ付ける (#450)。
+  // text は、字幕の文を取り出すレンダラー。字幕の層にだけ付ける (#450)。
   text: TextRenderer | null;
 };
 
-// textRecorder は、aribb24.js の TextRenderer を広げ、字幕を描くたびに、その文を onText に渡す描画器を作る。
-// aribb24.js は、字幕の時刻 (PTS) に合わせて、付けた描画器すべての render を呼ぶので、時刻を自前で合わせなくてよい。
+// textRecorder は、aribb24.js の TextRenderer を広げ、字幕を描くたびに、その文を onText に渡すレンダラーを作る。
+// aribb24.js は、字幕の時刻 (PTS) に合わせて、付けたレンダラーすべての render を呼ぶので、時刻を自前で合わせなくてよい。
 // 消すとき (clear) は、空の文を渡す。今出ている字幕をキャプチャに書き込むときに、消えたことを知るためである (#458)。
-// 字幕に出た外字も覚え、表に無いものを管理者が登録できるようにする (#825)。
+// 字幕に出た外字も保持し、テーブルに無いものを管理者が登録できるようにする (#825)。
 function textRecorder(Base: typeof TextRenderer, onText: (text: string) => void): TextRenderer {
   class Recorder extends Base {
     override render(...args: Parameters<TextRenderer['render']>): void {
@@ -73,7 +74,7 @@ type Feed =
   | { kind: 'b24'; data: ArrayBuffer; pts: number }
   | { kind: 'id3'; data: Uint8Array; pts: number };
 
-// maxQueued は、aribb24.js を読み終えるまでに溜めておく字幕の数の上限。1 秒に数個しか届かないので、読み終えるまでには足りる。
+// maxQueued は、aribb24.js を読み終えるまでにバッファしておく字幕の数の上限。1 秒に数個しか届かないので、読み終えるまでには足りる。
 const maxQueued = 256;
 
 // captionFontFamily は、字幕を描くフォント (Rounded M+ 1m WadaLab mix) の名前。
@@ -130,7 +131,7 @@ function loadExtendedCaptionFont(text: string): Promise<void> {
 }
 
 // fontAwareRenderer は、aribb24.js の CanvasMainThreadRenderer を広げ、JIS X 0213 で足された漢字のある字幕を、
-// 後の面を読み終えてから描く描画器を作る (#1520)。待つ間に次の字幕が来るか、消えるか、描画器を捨てたら、古い字幕は描かない。
+// 後の面を読み終えてから描くレンダラーを作る (#1520)。待つ間に次の字幕が来るか、消えるか、レンダラーを破棄したら、古い字幕は描かない。
 // 外字 (DRCS) を JIS X 0213 の漢字に置き換えたものは、ここでは見分けない。後の面を読むまでは、ほかのフォントで描く。
 // 描く直前には、置き換えられない外字の、なめらかにした path を登録する (#1518)。待つ間に別の字幕を描くと、登録が変わりうるので、
 // 待った後にも登録し直す。
@@ -139,7 +140,7 @@ export function fontAwareRenderer(
   option: ConstructorParameters<typeof CanvasMainThreadRenderer>[0],
 ): CanvasMainThreadRenderer {
   class FontAware extends Base {
-    // generation は、render と clear のたびに進める。待った後に、まだ最新の字幕かを確かめるのに使う。
+    // generation は、render と clear のたびに進める。待った後に、まだ最新の字幕かを確認するのに使う。
     generation = 0;
 
     override render(...args: Parameters<CanvasMainThreadRenderer['render']>): void {
@@ -178,11 +179,12 @@ export function fontAwareRenderer(
 }
 
 // createCaptions は、video の上に字幕を描く。描画用の canvas は container に置くので、container は position: relative にする。
-// aribb24.js と字幕のフォントは大きいので、ここから読み始める。読み終えるまでに届いた字幕は溜めておき、読み終えたら描く。
+// aribb24.js と字幕のフォントは大きいので、ここから読み始める。読み終えるまでに届いた字幕はバッファしておき、読み終えたら描く。
 // 読めなかったときは、字幕なしで再生を続ける。
 // onText は、字幕 (文字スーパーは除く) が出るたびに、その文を受け取る (#450)。字幕が消えたら、空の文を受け取る。
+// media は、<video> か、ブラウザの中でデコードする経路の PlayerMedia (#1516)。
 export function createCaptions(
-  video: HTMLVideoElement,
+  media: HTMLVideoElement | PlayerMedia,
   container: HTMLElement,
   onText?: (text: string) => void,
 ): Captions {
@@ -191,7 +193,7 @@ export function createCaptions(
   let visible = true;
   let superimposeVisible = true;
   let style = defaultCaptionStyle;
-  // applyStyle は、描画器の色の設定を変える。aribb24.js は、描くたびに設定を読むので、作り直さなくてよい。
+  // applyStyle は、レンダラーの色の設定を変える。aribb24.js は、描くたびに設定を読むので、作り直さなくてよい。
   const applyStyle = () => {
     for (const { renderer } of layers ?? []) {
       Object.assign((renderer as unknown as RendererWithOption).option.color, rendererColor(style));
@@ -246,14 +248,14 @@ export function createCaptions(
         const controller = new ControllerClass();
         const feeder = new FeederClass({ receive: { type } });
         // 描画の領域を、映像の枠に合わせる。HTML や SVG で描く方法は、CSP で禁じたインラインの style を使うので選ばない。
-        // 外字は、共有の表で文字に置き換える (#825)。表は描くたびに読まれるので、入れ替えれば次の字幕から効く。
-        // 表に無い外字は、私用領域の文字に置き換え、なめらかにした path で描く (#1518)。
+        // 外字は、共有のテーブルで文字に置き換える (#825)。テーブルは描くたびに読まれるので、入れ替えれば次の字幕から効く。
+        // テーブルに無い外字は、私用領域の文字に置き換え、なめらかにした path で描く (#1518)。
         const renderer = fontAwareRenderer(RendererClass, {
           font: { normal: captionFont },
           replace: { drcs: drcsRenderReplacements, glyph: drcsGlyphs },
           resize: { target: 'container', objectFit: 'contain' },
         });
-        // キャプチャで写す canvas だと分かるよう、印を付ける。
+        // キャプチャでコピーする canvas だと分かるよう、マークを付ける。
         renderer.getPresentationCanvas().dataset.overlay = 'captions';
         controller.attachFeeder(feeder);
         controller.attachRenderer(renderer);
@@ -265,7 +267,9 @@ export function createCaptions(
         if (text !== null) {
           controller.attachRenderer(text);
         }
-        controller.attachMedia(video, container);
+        // aribb24.js は HTMLVideoElement を受け取る型だが、読むのは currentTime、videoWidth、videoHeight と、
+        // seeking、resize、play、pause のイベントだけなので、PlayerMedia も渡せる。
+        controller.attachMedia(media as HTMLVideoElement, container);
 
         return { type, controller, feeder, renderer, text };
       });

@@ -45,7 +45,7 @@ func corrupt(t *rapid.T, pkts [][]byte) [][]byte {
 	return out
 }
 
-// analyzeChunks は、chunks を順に書いた Analyzer の索引と統計を返す。
+// analyzeChunks は、chunks を順に書いた Analyzer のインデックスと統計を返す。
 func analyzeChunks(t require.TestingT, chunks [][]byte) ([]ts.IndexEntry, *ts.Stats) {
 	var buf bytes.Buffer
 	writer, err := ts.NewIndexWriter(&buf)
@@ -61,7 +61,7 @@ func analyzeChunks(t require.TestingT, chunks [][]byte) ([]ts.IndexEntry, *ts.St
 	return entries, analyzer.Stats()
 }
 
-// TestAnalyzerWriteBoundaries は、壊れた TS でも、書き込みの切れ目によらず、1 回で書いたときと同じに読むことを確かめる (#1986)。
+// TestAnalyzerWriteBoundaries は、壊れた TS でも、書き込みの切れ目によらず、1 回で書いたときと同じに読むことを確認する (#1986)。
 func TestAnalyzerWriteBoundaries(t *testing.T) {
 	t.Parallel()
 
@@ -79,7 +79,7 @@ func TestAnalyzerWriteBoundaries(t *testing.T) {
 	})
 }
 
-// TestAnalyzerResyncAtWriteEnd は、同期を失っている間に、書き込みの末尾の 0x47 を、次のパケットの頭を確かめずにパケットの先頭としないことを確かめる (#1986)。
+// TestAnalyzerResyncAtWriteEnd は、同期を失っている間に、書き込みの末尾の 0x47 を、次のパケットの先頭を確認せずにパケットの先頭としないことを確認する (#1986)。
 func TestAnalyzerResyncAtWriteEnd(t *testing.T) {
 	t.Parallel()
 
@@ -93,7 +93,7 @@ func TestAnalyzerResyncAtWriteEnd(t *testing.T) {
 	assert.Equal(t, int64(len(pkts)), got.Packets)
 }
 
-// TestPCRClockTruncatedPacket は、途中で切れたパケットの後に続く、正常なパケットの PCR を読むことを確かめる (#1986)。
+// TestPCRClockTruncatedPacket は、途中で切れたパケットの後に続く、正常なパケットの PCR を読むことを確認する (#1986)。
 func TestPCRClockTruncatedPacket(t *testing.T) {
 	t.Parallel()
 
@@ -125,7 +125,7 @@ func TestPCRClockTruncatedPacket(t *testing.T) {
 	}
 }
 
-// TestPCRClockWriteBoundaries は、整ったストリームなら、書き込みの切れ目によらず同じ組を選ぶことを確かめる (#1986)。
+// TestPCRClockWriteBoundaries は、整ったストリームなら、書き込みの切れ目によらず同じ組を選ぶことを確認する (#1986)。
 func TestPCRClockWriteBoundaries(t *testing.T) {
 	t.Parallel()
 
@@ -149,7 +149,7 @@ func TestPCRClockWriteBoundaries(t *testing.T) {
 	})
 }
 
-// TestScrambleDetectorResyncAtWriteEnd は、同期を失っている間に、書き込みの末尾の 0x47 を、次のパケットの頭を確かめずにパケットの先頭としないことを確かめる (#1986)。
+// TestScrambleDetectorResyncAtWriteEnd は、同期を失っている間に、書き込みの末尾の 0x47 を、次のパケットの先頭を確認せずにパケットの先頭としないことを確認する (#1986)。
 func TestScrambleDetectorResyncAtWriteEnd(t *testing.T) {
 	t.Parallel()
 
@@ -178,7 +178,7 @@ func TestScrambleDetectorResyncAtWriteEnd(t *testing.T) {
 	assert.Equal(t, ts.ScrambleVerdictScrambled, d.Verdict())
 }
 
-// TestScrambleDetectorWriteBoundaries は、整ったストリームなら、書き込みの切れ目によらず同じ判定になることを確かめる (#1986)。
+// TestScrambleDetectorWriteBoundaries は、整ったストリームなら、書き込みの切れ目によらず同じ判定になることを確認する (#1986)。
 func TestScrambleDetectorWriteBoundaries(t *testing.T) {
 	t.Parallel()
 
@@ -186,7 +186,7 @@ func TestScrambleDetectorWriteBoundaries(t *testing.T) {
 		flags := rapid.SliceOfN(rapid.Bool(), 1, 300).Draw(t, "scrambled")
 		input := join(scrambleStream(len(flags), func(i int) bool { return flags[i] }))
 		newDetector := func() *ts.ScrambleDetector {
-			// 時計を止め、抑止時間を越えないようにして、窓の割合だけで決まるようにする。
+			// 時計を止め、抑止時間を越えないようにして、ウィンドウの割合だけで決まるようにする。
 			return ts.NewScrambleDetector(ts.ScrambleDetectorOptions{
 				WindowPackets: 50, Windows: 0, Hold: 0, MinPartialPackets: 10,
 				Now:         func() time.Time { return time.Unix(1_763_000_000, 0) },
@@ -206,7 +206,7 @@ func TestScrambleDetectorWriteBoundaries(t *testing.T) {
 }
 
 // TestAnalyzerIndexH264OverlappingStartCode は、NAL ヘッダーの 0x00 が次の start code の先頭のゼロを兼ねても、
-// その start code を見落とさないことを確かめる (#1986)。
+// その start code を見落とさないことを確認する (#1986)。
 func TestAnalyzerIndexH264OverlappingStartCode(t *testing.T) {
 	t.Parallel()
 

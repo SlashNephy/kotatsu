@@ -12,7 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/calendarapi"
 )
 
-// TestCalendar は、予約を VEVENT にし、日時を UTC で書き、TEXT の値をエスケープすることを確かめる (#1255)。
+// TestCalendar は、予約を VEVENT にし、日時を UTC で書き、TEXT の値をエスケープすることを確認する (#1255)。
 func TestCalendar(t *testing.T) {
 	t.Parallel()
 
@@ -46,7 +46,7 @@ func TestCalendar(t *testing.T) {
 	}, "\r\n"), got)
 }
 
-// TestCalendarFolding は、75 オクテットを超える行を、文字の途中で切らずに折り返すことを確かめる (RFC 5545 3.1)。
+// TestCalendarFolding は、75 オクテットを超える行を、文字の途中で切らずに折り返すことを確認する (RFC 5545 3.1)。
 func TestCalendarFolding(t *testing.T) {
 	t.Parallel()
 

@@ -56,6 +56,13 @@ import type {
 import type { recordingsDeleteMutation } from './__generated__/recordingsDeleteMutation.graphql';
 import type { recordingsTagsQuery } from './__generated__/recordingsTagsQuery.graphql';
 import { renderServiceOption, serviceGroups } from '../../guide/serviceOption';
+import { KeywordRows } from '../../conditions/ConditionsFields';
+import {
+  nameHighlights,
+  type KeywordField,
+  type KeywordMatch,
+  type KeywordRow,
+} from '../../conditions/form';
 
 type RecordingsSearch = {
   // rule は、このルールで録った録画だけを出すときの、ルールの ID (#468)。
@@ -70,6 +77,21 @@ export const Route = createFileRoute('/recordings/')({
 
 // genreOptions は、絞り込みで選べるジャンルの大分類 (ニュース・報道〜福祉と、その他)。
 const genreOptions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15];
+
+// recordingKeywordFields は、録画の検索で選べるキーワードの項目。録画は詳細では探さない (設計書 3.5)。
+const recordingKeywordFields: readonly KeywordField[] = ['NAME', 'DESCRIPTION'];
+
+// recordingKeyword は、録画の検索のキーワードの行の初めの値。今までの「番組名」の欄と同じく、番組名と概要から探す。
+function recordingKeyword(): KeywordRow {
+  return { text: '', regexp: false, caseSensitive: false, fields: ['NAME', 'DESCRIPTION'] };
+}
+
+// keywordInputs は、内容のあるキーワードの行を、tenban に送る形にする。
+function keywordInputs(rows: readonly KeywordRow[]) {
+  return rows
+    .filter((row) => row.text.trim() !== '' && row.fields.length > 0)
+    .map((row) => ({ ...row, text: row.text.trim() }));
+}
 
 // pageSize は、1 回に取る録画の数。
 const pageSize = 48;
@@ -236,7 +258,7 @@ function Recordings({
           name
           recordings
         }
-        # 上流から消えたサービスの録画も残るので、絞り込みの選択肢には、消えたサービスも印を付けて出す (#1973)。
+        # 上流から消えたサービスの録画も残るので、絞り込みの選択肢には、消えたサービスもマークを付けて出す (#1973)。
         services(includeGone: true) {
           id
           name
@@ -257,7 +279,9 @@ function Recordings({
   const [version, setVersion] = useState(0);
   // deleted は、まとめて消した結果。読み直しても消えないよう、一覧の外に持つ。
   const [deleted, setDeleted] = useState<{ processed: number; skipped: number } | null>(null);
-  const [keyword, setKeyword] = useState('');
+  const [keywords, setKeywords] = useState<KeywordRow[]>([recordingKeyword()]);
+  const [keywordMatch, setKeywordMatch] = useState<KeywordMatch>('ALL');
+  const [excludeKeywords, setExcludeKeywords] = useState<KeywordRow[]>([]);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [serviceIds, setServiceIds] = useState<string[]>([]);
@@ -268,8 +292,12 @@ function Recordings({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    const included = keywordInputs(keywords);
+    const excluded = keywordInputs(excludeKeywords);
     onFilter({
-      ...(keyword.trim() !== '' ? { keyword: keyword.trim() } : {}),
+      ...(included.length > 0 || excluded.length > 0
+        ? { keywords: included, keywordMatch, excludeKeywords: excluded }
+        : {}),
       ...(tagIds.length > 0 ? { tagIds } : {}),
       ...(states.length > 0 ? { states: states as Filter['states'] } : {}),
       ...(serviceIds.length > 0 ? { serviceIds } : {}),
@@ -279,18 +307,41 @@ function Recordings({
     onFiltersClose();
   };
 
+  // keywordFields は、キーワードの欄 (#966)。番組の検索と同じ入力で、録画は詳細では探さないので、番組名と概要だけを選べる。
+  const keywordFields = (
+    <SimpleGrid cols={{ base: 1, sm: 2 }}>
+      <KeywordRows
+        label={t('recordings.keywords')}
+        description={
+          keywordMatch === 'ANY'
+            ? t('recordings.keywordsAnyDescription')
+            : t('recordings.keywordsDescription')
+        }
+        match={keywordMatch}
+        onMatchChange={setKeywordMatch}
+        icon={<Search size={16} aria-hidden />}
+        rows={keywords}
+        onChange={setKeywords}
+        fields={recordingKeywordFields}
+        newRow={recordingKeyword}
+      />
+      <KeywordRows
+        label={t('recordings.excludeKeywords')}
+        description={t('recordings.excludeKeywordsDescription')}
+        icon={<SearchX size={16} aria-hidden />}
+        rows={excludeKeywords}
+        onChange={setExcludeKeywords}
+        fields={recordingKeywordFields}
+        newRow={recordingKeyword}
+      />
+    </SimpleGrid>
+  );
+
   // fields は、絞り込みの欄。横に並べるときだけ、欄の幅を伸び縮みさせる。
   const fields = (inline: boolean) => {
     const style = inline ? { flex: '1 1 200px' } : undefined;
     return (
       <>
-        <TextInput
-          label={t('recordings.keyword')}
-          leftSection={<Search size={16} aria-hidden />}
-          value={keyword}
-          onChange={(e) => setKeyword(e.currentTarget.value)}
-          style={style}
-        />
         <MultiSelect
           label={t('recordings.tags')}
           leftSection={<Tag size={16} aria-hidden />}
@@ -361,9 +412,12 @@ function Recordings({
   return (
     <Stack>
       <Card withBorder component="form" onSubmit={submit} visibleFrom="sm">
-        <Group align="flex-end" wrap="wrap">
-          {fields(true)}
-        </Group>
+        <Stack>
+          {keywordFields}
+          <Group align="flex-end" wrap="wrap">
+            {fields(true)}
+          </Group>
+        </Stack>
       </Card>
       <Drawer
         opened={filtersOpened}
@@ -373,7 +427,7 @@ function Recordings({
         styles={{
           // 下から出るので、見出しはステータスバーに届かない (futon/global.css)。
           root: { '--drawer-safe-area-top': '0px' },
-          // シートの高さは中身に合わせ、一覧が後ろに見えるようにする。
+          // シートの高さは内容に合わせ、一覧が後ろに見えるようにする。
           content: {
             height: 'auto',
             maxHeight: '85dvh',
@@ -382,6 +436,7 @@ function Recordings({
         }}
       >
         <Stack component="form" onSubmit={submit}>
+          {keywordFields}
           {fields(false)}
         </Stack>
       </Drawer>
@@ -496,7 +551,7 @@ function RecordingGrid({
     { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
   // more は、続きの読み込みで足した録画と、その次のカーソル。changes は、読み込んだときの録画の変更の回数。
-  // 録画が変わって最初のページを読み直したら、続きは捨てて、最初のページから出し直す。
+  // 録画が変わって最初のページを読み直したら、続きは破棄して、最初のページから出し直す。
   // 続きを残すと、録画が増えて最初のページからこぼれた録画が、どちらにも出なくなる (#868)。
   const [loaded, setMore] = useState<{
     changes: number;
@@ -600,7 +655,10 @@ function RecordingGrid({
               <Box key={recording.id} pos="relative">
                 {/* 選んでいる間は、カードのリンクにキーボードでも移れないようにし、選ぶ操作だけを受ける。 */}
                 <Box inert={selecting}>
-                  <RecordingCard recording={recording} />
+                  <RecordingCard
+                    recording={recording}
+                    highlights={nameHighlights(filter.keywords)}
+                  />
                 </Box>
                 {selecting && (
                   <SelectionOverlay
@@ -656,7 +714,7 @@ function RecordingGrid({
   );
 }
 
-// SelectionOverlay は、録画を選ぶときに、カードの上に重ねる選択の印。カードを押しても、詳細へ移らずに選ぶ。
+// SelectionOverlay は、録画を選ぶときに、カードの上に重ねる選択のマーク。カードを押しても、詳細へ移らずに選ぶ。
 // 選べない録画は、理由を出して押せないようにする (#471)。
 function SelectionOverlay({
   label,
@@ -692,7 +750,7 @@ function SelectionOverlay({
           outline: checked ? '2px solid var(--mantine-primary-color-filled)' : undefined,
         }}
       >
-        {/* ボタンの中に入力欄を入れないよう、見た目だけの印にする。 */}
+        {/* ボタンの中に入力欄を入れないよう、見た目だけのマークにする。 */}
         <Checkbox.Indicator
           checked={checked}
           disabled={disabled}

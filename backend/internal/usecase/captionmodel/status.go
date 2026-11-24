@@ -73,7 +73,7 @@ type Status struct {
 
 // Statuses は、種類ごとのモデルの状態を、Whisper、VAD の順に返す。
 // 置いたモデルは、DB の記録と、データディレクトリ dataDir のファイルから決める。データディレクトリをマウントしていなければ (空なら)、
-// 記録だけで決める。ダウンロードは、River の表の、種類ごとの最後のジョブから決める。cfg は、モデルの場所を書いたかを見る設定。
+// 記録だけで決める。ダウンロードは、River のテーブルの、種類ごとの最後のジョブから決める。cfg は、モデルの場所を書いたかを見る設定。
 func Statuses(ctx context.Context, db sqlc.DBTX, dataDir string, cfg *config.Captions) ([]*Status, error) {
 	records, err := sqlc.New(db).ListCaptionModels(ctx)
 	if err != nil {
@@ -101,7 +101,7 @@ func Statuses(ctx context.Context, db sqlc.DBTX, dataDir string, cfg *config.Cap
 		}
 		if placedByAttempt(status.Installed, status.Download) {
 			// 置いて記録してから River がジョブを完了にするまでの間は、まだ動いているように見える。
-			// 置いたことを知らせた後に読み直した画面に、ダウンロードしているように出さないよう、今の試行で置いていれば終えたとする。
+			// 置いたことを通知した後に読み直した画面に、ダウンロードしているように出さないよう、今の試行で置いていれば終えたとする。
 			status.Download = nil
 		}
 		switch {
@@ -162,7 +162,7 @@ func installedOf(kind Kind, record *sqlc.CaptionModel, dataDir string) (*Install
 }
 
 // lastJobs は、種類ごとに、最後に入れたダウンロードのジョブのうち、終えていないものと失敗したものを返す。
-// 取りやめた (画面から取り消した) ジョブと、終えたジョブは返さない。River の表は sqlc のスキーマにないので、直接読む。
+// 取りやめた (画面から取り消した) ジョブと、終えたジョブは返さない。River のテーブルは sqlc のスキーマにないので、直接読む。
 func lastJobs(ctx context.Context, db sqlc.DBTX) (map[Kind]*Download, error) {
 	rows, err := db.Query(ctx, `SELECT DISTINCT ON (j.args->>'kind') j.id, j.args, j.state::text, j.attempted_at,
 			j.errors[array_length(j.errors, 1)]->>'error', p.ratio, p.remaining_ms, p.updated_at

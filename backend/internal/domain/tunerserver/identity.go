@@ -12,9 +12,9 @@ package tunerserver
 // )
 type Kind string
 
-// Identity は、チューナーサーバーの種類と版。システムの状態の画面に出す (#1538)。
+// Identity は、チューナーサーバーの種類とバージョン。システムの状態の画面に出す (#1538)。
 type Identity struct {
 	Kind Kind
-	// Version は、チューナーサーバーが名乗る版。名乗らなければ空。
+	// Version は、チューナーサーバーが名乗るバージョン。名乗らなければ空。
 	Version string
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGeneratedTS は、scripts/generate-test-ts.sh で作った TS に、録画やライブ視聴のテストで使う PID が揃っていることを確かめる。
+// TestGeneratedTS は、scripts/generate-test-ts.sh で作った TS に、録画やライブ視聴のテストで使う PID が揃っていることを確認する。
 func TestGeneratedTS(t *testing.T) {
 	t.Parallel()
 

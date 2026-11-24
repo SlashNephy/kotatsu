@@ -25,11 +25,11 @@ const (
 	// DefaultKakologURL は、過去ログを返すニコニコ実況 過去ログ API の URL (設計書 7.4)。
 	DefaultKakologURL = "https://jikkyo.tsukumijima.net"
 	// channelsTTL は、チャンネルの一覧を使い回す時間。一覧は、放送中のスレッドの勢いと視聴者数も持つので (#490)、
-	// 1 分で取り直す。取り直す間も前の一覧を返すので、待たせない。
+	// 1 分で再取得する。再取得する間も前の一覧を返すので、待たせない。
 	channelsTTL = time.Minute
-	// staleWait は、一覧が古くなっていたときに、取り直すのを待つ時間。NX-Jikkyo が応答しなくても、番組表や視聴の画面を長く待たせない。
+	// staleWait は、一覧が古くなっていたときに、再取得するのを待つ時間。NX-Jikkyo が応答しなくても、番組表や視聴の画面を長く待たせない。
 	staleWait = 500 * time.Millisecond
-	// channelsRetryAfter は、チャンネルの一覧を取れなかったときに、取り直すまで待つ時間。
+	// channelsRetryAfter は、チャンネルの一覧を取れなかったときに、再取得するまで待つ時間。
 	// 番組表を開くたびに、落ちている NX-Jikkyo に問い合わせないようにする。
 	channelsRetryAfter = time.Minute
 	// requestTimeout は、NX-Jikkyo と過去ログ API への 1 回の要求の時間の上限。過去ログ API は、長い時間帯で数秒かかる。
@@ -141,7 +141,7 @@ func NewClient(opts *ClientOptions) *Client {
 // Channel は、NX-Jikkyo が今扱っているチャンネルのうち、ID が id のものを返す。扱っていなければ nil を返す。
 // チャンネルの一覧は、しばらく使い回す。
 //
-// 一覧が古くなっていたら、取り直しを staleWait まで待ち、間に合わなければ前に取った一覧を返す。一覧を一度も取れていなければ、取れるまで待つ。
+// 一覧が古くなっていたら、再取得を staleWait まで待ち、間に合わなければ前に取った一覧を返す。一覧を一度も取れていなければ、取れるまで待つ。
 // 取得はロックの外で行い、同時の取得は 1 つにまとめる。NX-Jikkyo が応答しなくても、ほかの要求を止めない。
 func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
 	c.mu.Lock()
@@ -157,7 +157,7 @@ func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
 	}
 	if channels != nil {
 		if refreshed != nil {
-			// 勢いが古くならないよう、取り直しを少しだけ待つ。間に合わなければ、前に取った一覧を返す。
+			// 勢いが古くならないよう、再取得を少しだけ待つ。間に合わなければ、前に取った一覧を返す。
 			if fresh, ok := awaitRefresh(ctx, refreshed); ok {
 				return fresh[id], nil
 			}
@@ -182,7 +182,7 @@ func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
 	}
 }
 
-// awaitRefresh は、取り直した一覧を staleWait まで待つ。取り直せなかったか、間に合わなければ false を返す。
+// awaitRefresh は、再取得した一覧を staleWait まで待つ。再取得できなかったか、間に合わなければ false を返す。
 func awaitRefresh(ctx context.Context, refreshed <-chan singleflight.Result) (map[string]*Channel, bool) {
 	timer := time.NewTimer(staleWait)
 	defer timer.Stop()
@@ -241,7 +241,7 @@ func (c *Client) Comments(ctx context.Context, id string, from, to time.Time) ([
 	return comments, nil
 }
 
-// refreshChannels は、チャンネルの一覧を取り直し始め、その結果を受け取るチャネルを返す。取り直している最中なら、それに相乗りする。
+// refreshChannels は、チャンネルの一覧を再取得し始め、その結果を受け取るチャネルを返す。再取得している最中なら、それに相乗りする。
 // 取得は、呼び出した要求を取りやめても続ける。ほかの要求も、その結果を待っているからである。
 func (c *Client) refreshChannels(ctx context.Context, now time.Time) <-chan singleflight.Result {
 	return c.refreshes.DoChan("channels", func() (any, error) {

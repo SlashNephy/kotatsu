@@ -269,7 +269,7 @@ func TestAssign(t *testing.T) {
 	}
 }
 
-// TestAssignKeepsLongestCorePart は、負けた予約が、本編の残る区間のうち最も長いものを録ることを確かめる (#1718)。
+// TestAssignKeepsLongestCorePart は、負けた予約が、本編の残る区間のうち最も長いものを録ることを確認する (#1718)。
 func TestAssignKeepsLongestCorePart(t *testing.T) {
 	t.Parallel()
 
@@ -304,7 +304,7 @@ func TestAssignKeepsLongestCorePart(t *testing.T) {
 			},
 		},
 		{
-			// 負けた予約が捨てた側は、空いているので、さらに優先度の低い予約が録る。
+			// 負けた予約が破棄した側は、空いているので、さらに優先度の低い予約が録る。
 			name: "a lower one records the part given up by a cut one",
 			reservations: []*assign.Reservation{
 				withPriority(program(1, "27", 20, 10), 10),
@@ -406,7 +406,7 @@ func byID(assignments []*assign.Assignment) map[uuid.UUID]*assign.Assignment {
 	return result
 }
 
-// TestAssignProperties は、どんな入力でも成り立つべき性質を確かめる。
+// TestAssignProperties は、どんな入力でも成り立つべき性質を確認する。
 func TestAssignProperties(t *testing.T) {
 	t.Parallel()
 
@@ -430,7 +430,7 @@ func TestAssignProperties(t *testing.T) {
 	})
 }
 
-// checkAssignment は、予約 r の割り当てが、どんな入力でも成り立つべき性質を満たすかを確かめる。
+// checkAssignment は、予約 r の割り当てが、どんな入力でも成り立つべき性質を満たすかを確認する。
 func checkAssignment(t *rapid.T, r *assign.Reservation, got map[uuid.UUID]*assign.Assignment, reservations []*assign.Reservation, tuners []*assign.Tuner) {
 	a := got[r.ID]
 	// 録画が始まった予約は、そのチューナーから動かさず、削りもしない。
@@ -470,7 +470,7 @@ func checkAssignment(t *rapid.T, r *assign.Reservation, got map[uuid.UUID]*assig
 }
 
 // TestAssignDoesNotCutCoresForMarginsOnly は、本編どうしが重ならない予約が 1 本のチューナーに収まるとき、
-// マージンの重なりだけで本編を削らないことを確かめる。
+// マージンの重なりだけで本編を削らないことを確認する。
 func TestAssignDoesNotCutCoresForMarginsOnly(t *testing.T) {
 	t.Parallel()
 

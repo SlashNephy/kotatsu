@@ -2,8 +2,8 @@ package ts
 
 import "strings"
 
-// aribSymbolTable は、ARIB STD-B24 の漢字系集合の 85〜86 区 (追加漢字) と 90〜94 区 (追加記号) を、Unicode の文字にする表 (#1500)。
-// aribb24.js 2.0.34 (MIT License、Copyright (c) 2021 もにょ～ん) の src/lib/tokenizer/b24/jis8/ARIB/symbol-unicode.ts を写した。
+// aribSymbolTable は、ARIB STD-B24 の漢字系集合の 85〜86 区 (追加漢字) と 90〜94 区 (追加記号) を、Unicode の文字にするテーブル (#1500)。
+// aribb24.js 2.0.34 (MIT License、Copyright (c) 2021 もにょ～ん) の src/lib/tokenizer/b24/jis8/ARIB/symbol-unicode.ts をコピーした。
 // 1 行が 1 文字で、区と点の 2 バイト (0x21〜0x7E) をつないだ 16 進の 4 桁と、空白と、文字からなる。
 const aribSymbolTable = `
 7521 㐂
@@ -539,7 +539,7 @@ const aribSymbolTable = `
 7E7D ㉛
 `
 
-// aribSymbol は、区と点の 2 バイトをつないだ code の、追加漢字か追加記号の文字を返す。表になければ false を返す。
+// aribSymbol は、区と点の 2 バイトをつないだ code の、追加漢字か追加記号の文字を返す。テーブルになければ false を返す。
 func aribSymbol(code uint16) (string, bool) {
 	const hex = "0123456789ABCDEF"
 	key := []byte{'\n', hex[code>>12], hex[code>>8&0xF], hex[code>>4&0xF], hex[code&0xF], ' '}

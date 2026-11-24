@@ -26,15 +26,15 @@ import (
 )
 
 const (
-	// TOTPPurpose は、TOTP の秘密キーを暗号化する鍵を、アプリの秘密キーから導出するときの用途。
+	// TOTPPurpose は、TOTP の秘密キーを暗号化するキーを、アプリの秘密キーから導出するときの用途。
 	TOTPPurpose = "kotatsu/totp/v1"
-	// recoveryCodePurpose は、リカバリーコードのハッシュの鍵を、アプリの秘密キーから導出するときの用途 (#1011)。
+	// recoveryCodePurpose は、リカバリーコードのハッシュのキーを、アプリの秘密キーから導出するときの用途 (#1011)。
 	recoveryCodePurpose = "kotatsu/recovery-code/v1"
-	// recoveryCodeKeyLength は、リカバリーコードのハッシュの鍵の長さ。
+	// recoveryCodeKeyLength は、リカバリーコードのハッシュのキーの長さ。
 	recoveryCodeKeyLength = 32
 	// totpIssuer は、認証アプリに出す発行者の名前。
 	totpIssuer = "Kotatsu"
-	// enrollmentTTL は、TOTP の登録を始めてから、コードで確かめるまでに許す時間 (付録 A)。
+	// enrollmentTTL は、TOTP の登録を始めてから、コードで確認するまでに許す時間 (付録 A)。
 	enrollmentTTL = 10 * time.Minute
 	// RecoveryCodeCount は、一度に作るリカバリーコードの数 (付録 A)。
 	RecoveryCodeCount = 10
@@ -77,9 +77,9 @@ type TOTPEnrollment struct {
 type SecondFactors struct {
 	clock    clock.Clock
 	recorder audit.Recorder
-	// box は、TOTP の秘密キーを暗号化する。アプリの秘密キーから導出した鍵を使う (設計書 8.4)。
+	// box は、TOTP の秘密キーを暗号化する。アプリの秘密キーから導出したキーを使う (設計書 8.4)。
 	box *secretbox.Box
-	// recoveryCodeKey は、リカバリーコードのハッシュ (HMAC-SHA256) の鍵。アプリの秘密キーから導出する (設計書 8.4)。
+	// recoveryCodeKey は、リカバリーコードのハッシュ (HMAC-SHA256) のキー。アプリの秘密キーから導出する (設計書 8.4)。
 	recoveryCodeKey []byte
 }
 
@@ -141,8 +141,8 @@ func (s *SecondFactors) Status(ctx context.Context, db sqlc.DBTX, userID uuid.UU
 	return hasTOTP, int(codes), nil
 }
 
-// BeginTOTP は、TOTP の登録を始め、新しい秘密キーを返す。ConfirmTOTP でコードを確かめるまで、有効にはならない。
-// 登録済みの TOTP があっても、確かめるまでは古い TOTP がそのまま使える。
+// BeginTOTP は、TOTP の登録を始め、新しい秘密キーを返す。ConfirmTOTP でコードを確認するまで、有効にはならない。
+// 登録済みの TOTP があっても、確認するまでは古い TOTP がそのまま使える。
 func (s *SecondFactors) BeginTOTP(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, account string) (*TOTPEnrollment, error) {
 	secret, err := totp.NewSecret()
 	if err != nil {
@@ -164,7 +164,7 @@ func (s *SecondFactors) BeginTOTP(ctx context.Context, db sqlc.DBTX, userID uuid
 	return &TOTPEnrollment{Secret: totp.Encode(secret), URI: totp.URI(totpIssuer, account, secret), ExpiresAt: expiresAt}, nil
 }
 
-// ConfirmTOTP は、登録中の TOTP のコードを確かめて有効にし、新しいリカバリーコードを返す。
+// ConfirmTOTP は、登録中の TOTP のコードを確認して有効にし、新しいリカバリーコードを返す。
 // 既に TOTP があれば置き換え、古いリカバリーコードは使えなくする。1 つのトランザクションで行う。
 func (s *SecondFactors) ConfirmTOTP(ctx context.Context, db Beginner, actor *audit.Actor, userID uuid.UUID, code string) ([]string, error) {
 	var codes []string
@@ -178,7 +178,7 @@ func (s *SecondFactors) ConfirmTOTP(ctx context.Context, db Beginner, actor *aud
 	return codes, err
 }
 
-// VerifyTOTP は、TOTP のコードを確かめる。一度受け付けたコードは、二度と受け付けない。tx の中で呼ぶ。
+// VerifyTOTP は、TOTP のコードを確認する。一度受け付けたコードは、二度と受け付けない。tx の中で呼ぶ。
 func (s *SecondFactors) VerifyTOTP(ctx context.Context, tx pgx.Tx, userID uuid.UUID, code string) error {
 	q := sqlc.New(tx)
 	row, err := q.GetUserTOTPForUpdate(ctx, userID)
@@ -206,8 +206,8 @@ func (s *SecondFactors) VerifyTOTP(ctx context.Context, tx pgx.Tx, userID uuid.U
 	return nil
 }
 
-// UseRecoveryCode は、リカバリーコードを確かめ、使用済みにする。どのコードも 1 回だけ使える。
-// #1011 より前に作ったコードは、鍵のない SHA-256 で保存しているので、新しいハッシュで見つからなければ、古いハッシュでも探す。
+// UseRecoveryCode は、リカバリーコードを確認し、使用済みにする。どのコードも 1 回だけ使える。
+// #1011 より前に作ったコードは、キーのない SHA-256 で保存しているので、新しいハッシュで見つからなければ、古いハッシュでも探す。
 // 古いコードは、作り直すまで使える。
 func (s *SecondFactors) UseRecoveryCode(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, code string) error {
 	q := sqlc.New(db)
@@ -267,7 +267,7 @@ func (s *SecondFactors) replaceRecoveryCodes(ctx context.Context, q *sqlc.Querie
 	return codes, nil
 }
 
-// record は、第二要素の変更を監査ログに残し、同じユーザーのほかの端末に、設定が変わったことを知らせる。
+// record は、第二要素の変更を監査ログに残し、同じユーザーのほかの端末に、設定が変わったことを通知する。
 func (s *SecondFactors) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, action string, userID uuid.UUID) error {
 	if err := usersettings.Touch(ctx, tx, s.clock, userID); err != nil {
 		return err
@@ -297,7 +297,7 @@ func newRecoveryCode() (string, error) {
 }
 
 // hashRecoveryCode は、ユーザー userID のリカバリーコードのハッシュを返す。区切りの記号と大文字と小文字は区別しない。
-// コードは 50 ビットしかないので、DB が漏れても総当たりで戻せないよう、DB の外にあるアプリの秘密キーから導出した鍵で
+// コードは 50 ビットしかないので、DB が漏れても総当たりで戻せないよう、DB の外にあるアプリの秘密キーから導出したキーで
 // HMAC-SHA256 をかける (#1011)。ユーザーの ID も入れ、同じコードでもユーザーごとに別のハッシュにする。
 func (s *SecondFactors) hashRecoveryCode(userID uuid.UUID, code string) []byte {
 	mac := hmac.New(sha256.New, s.recoveryCodeKey)
@@ -307,7 +307,7 @@ func (s *SecondFactors) hashRecoveryCode(userID uuid.UUID, code string) []byte {
 	return mac.Sum(nil)
 }
 
-// legacyHashRecoveryCode は、#1011 より前のリカバリーコードのハッシュ (鍵のない SHA-256) を返す。照合にだけ使う。
+// legacyHashRecoveryCode は、#1011 より前のリカバリーコードのハッシュ (キーのない SHA-256) を返す。照合にだけ使う。
 func legacyHashRecoveryCode(code string) []byte {
 	sum := sha256.Sum256([]byte(normalizeRecoveryCode(code)))
 

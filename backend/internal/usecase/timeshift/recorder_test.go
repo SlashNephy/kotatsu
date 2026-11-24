@@ -34,13 +34,13 @@ import (
 
 const (
 	waitTimeout = 10 * time.Second
-	// testTick は、テストの Recorder が時計と割り振りを確かめる間隔。
+	// testTick は、テストの Recorder が時計と割り振りを確認する間隔。
 	testTick = 5 * time.Millisecond
 	// grSID は、地上波の 0 番目のサービスの、EIT[p/f] の service_id。
 	grSID = 0x0400
 )
 
-// fakeTuner は、開いたときの時計の時刻と、渡された StreamOptions を控える偽のチューナーサーバー。
+// fakeTuner は、開いたときの時計の時刻と、渡された StreamOptions を控えるモックのチューナーサーバー。
 // cutAtOnce なら、開いたストリームをすぐに切る。そうでなければ、next で送ったデータを 1 つずつ流す。
 type fakeTuner struct {
 	clk       *clocktest.Fake
@@ -195,7 +195,7 @@ func eitPFPackets(cc *byte, present, following uint16) []byte {
 	return out
 }
 
-// nullPackets は、中身のない TS のパケット (PID 0x1FFF) を n 個返す。
+// nullPackets は、内容のない TS のパケット (PID 0x1FFF) を n 個返す。
 func nullPackets(n int) []byte {
 	out := make([]byte, 0, n*188)
 	for range n {
@@ -344,7 +344,7 @@ func chunkPath(serviceID int64, startedAt time.Time) string {
 	return fmt.Sprintf("%d/%s.m2ts", serviceID, startedAt.UTC().Format("20060102T150405Z"))
 }
 
-// TestTimeshiftRecorderRotatesChunks は、ChunkDuration ごとにチャンクを閉じて次を始め、チャンクごとに索引を書くことを確かめる (設計書 5.7)。
+// TestTimeshiftRecorderRotatesChunks は、ChunkDuration ごとにチャンクを閉じて次を始め、チャンクごとにインデックスを書くことを確認する (設計書 5.7)。
 func TestTimeshiftRecorderRotatesChunks(t *testing.T) {
 	t.Parallel()
 
@@ -381,7 +381,7 @@ func TestTimeshiftRecorderRotatesChunks(t *testing.T) {
 		assert.Equal(t, info.Size(), c.size, "the size in the DB matches the file")
 		// TS パケットの区切りで閉じる。
 		assert.Zero(t, c.size%188)
-		// 索引は、データディレクトリの、チャンクの ID のディレクトリに置く。
+		// インデックスは、データディレクトリの、チャンクの ID のディレクトリに置く。
 		_, err = os.Stat(filepath.Join(e.dataDir, kago.IndexLocation(c.id).Path))
 		require.NoError(t, err)
 	}
@@ -398,7 +398,7 @@ func TestTimeshiftRecorderRotatesChunks(t *testing.T) {
 }
 
 // TestTimeshiftRecorderRotatesChunksWhileDatabaseIsUnreachable は、DB に届かない間も、ストリームを閉じずにチャンクを替えて書き続け、
-// DB が戻ったら、書けなかったチャンクを記録することを確かめる (#1073)。DB への問い合わせが詰まっても、読み込みを止めない。
+// DB が戻ったら、書けなかったチャンクを記録することを確認する (#1073)。DB への問い合わせが詰まっても、読み込みを止めない。
 func TestTimeshiftRecorderRotatesChunksWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -461,7 +461,7 @@ func TestTimeshiftRecorderRotatesChunksWhileDatabaseIsUnreachable(t *testing.T) 
 	}
 }
 
-// TestTimeshiftRecorderReconnectBackoff は、開いてすぐ切れ続けると、開き直す間隔を、Backoff の間隔で延ばしていくことを確かめる。
+// TestTimeshiftRecorderReconnectBackoff は、開いてすぐ切れ続けると、開き直す間隔を、Backoff の間隔で延ばしていくことを確認する。
 func TestTimeshiftRecorderReconnectBackoff(t *testing.T) {
 	t.Parallel()
 
@@ -490,7 +490,7 @@ func TestTimeshiftRecorderReconnectBackoff(t *testing.T) {
 	assert.Empty(t, chunks(t, e))
 }
 
-// TestTimeshiftRecorderRecordsPrograms は、EIT[p/f] の放送中の番組が替わった時刻を、timeshift_programs に記録することを確かめる。
+// TestTimeshiftRecorderRecordsPrograms は、EIT[p/f] の放送中の番組が替わった時刻を、timeshift_programs に記録することを確認する。
 // 番組名は programs から引き、なければ空にする。
 func TestTimeshiftRecorderRecordsPrograms(t *testing.T) {
 	t.Parallel()
@@ -558,8 +558,8 @@ func TestTimeshiftRecorderRecordsPrograms(t *testing.T) {
 	}
 }
 
-// TestTimeshiftRecorderDiscardsDeferredRecordsAfterTakeover は、DB に届かない間に覚えた記録を、DB が戻ったときに
-// ほかの mikan が割り振りを取っていたら書かないことを確かめる (#1073)。新しい mikan の記録を、古い記録で上書きしない。
+// TestTimeshiftRecorderDiscardsDeferredRecordsAfterTakeover は、DB に届かない間に持っていた記録を、DB が戻ったときに
+// ほかの mikan が割り振りを取っていたら書かないことを確認する (#1073)。新しい mikan の記録を、古い記録で上書きしない。
 func TestTimeshiftRecorderDiscardsDeferredRecordsAfterTakeover(t *testing.T) {
 	t.Parallel()
 
@@ -587,7 +587,7 @@ func TestTimeshiftRecorderDiscardsDeferredRecordsAfterTakeover(t *testing.T) {
 }
 
 // TestTimeshiftRecorderRemovesChunksWhoseRecordsAreDiscarded は、DB に届かない間に作ったチャンクの記録を、
-// DB が戻ったときに割り振りが消えていたので捨てたら、そのチャンクのファイルも消すことを確かめる (#1722)。
+// DB が戻ったときに割り振りが消えていたので破棄したら、そのチャンクのファイルも消すことを確認する (#1722)。
 // DB に記録のないチャンクは、破棄のジョブも、DB にないファイルの探索も見ないので、残すと誰にも消されない。
 func TestTimeshiftRecorderRemovesChunksWhoseRecordsAreDiscarded(t *testing.T) {
 	t.Parallel()
@@ -637,7 +637,7 @@ func chunkFiles(t *testing.T, e *recorderEnv) []string {
 	return files
 }
 
-// TestTimeshiftRecorderLogsUnreachableOnce は、DB に届かない間、割り振りを確かめられないことを、毎回ではなく 1 度だけログに残すことを確かめる (#1073)。
+// TestTimeshiftRecorderLogsUnreachableOnce は、DB に届かない間、割り振りを確認できないことを、毎回ではなく 1 度だけログに残すことを確認する (#1073)。
 func TestTimeshiftRecorderLogsUnreachableOnce(t *testing.T) {
 	t.Parallel()
 
@@ -687,7 +687,7 @@ func (h *countingHandler) count(message string) int {
 	return h.messages[message]
 }
 
-// TestTimeshiftRecorderClosesChunkOnStop は、Session を止めると、書きかけのチャンクを閉じて返ることを確かめる。
+// TestTimeshiftRecorderClosesChunkOnStop は、Session を止めると、書きかけのチャンクを閉じて返ることを確認する。
 // 止めても番組は放送中のままなので、番組は閉じない。
 func TestTimeshiftRecorderClosesChunkOnStop(t *testing.T) {
 	t.Parallel()
@@ -718,7 +718,7 @@ func TestTimeshiftRecorderClosesChunkOnStop(t *testing.T) {
 }
 
 // TestTimeshiftRecorderStopsWhenAssignmentDeleted は、neko が割り振りを消したら (チューナーを予約に渡すとき)、
-// ストリームを閉じ、チャンクと番組を閉じて返ることを確かめる (設計書 5.7)。
+// ストリームを閉じ、チャンクと番組を閉じて返ることを確認する (設計書 5.7)。
 func TestTimeshiftRecorderStopsWhenAssignmentDeleted(t *testing.T) {
 	t.Parallel()
 
@@ -745,7 +745,7 @@ func TestTimeshiftRecorderStopsWhenAssignmentDeleted(t *testing.T) {
 }
 
 // TestTimeshiftRecorderStopsWhenAssignmentDeletedWhileCut は、ストリームが切れて開き直せない間に割り振りが消えたら、
-// 放送中の番組を、今ではなく、録れていた最後の時刻 (最後のチャンクの終わり) で閉じることを確かめる (#1414)。
+// 放送中の番組を、今ではなく、録れていた最後の時刻 (最後のチャンクの終わり) で閉じることを確認する (#1414)。
 // 今で閉じると、録れていない時間まで番組に含め、再生の長さが延びる。
 func TestTimeshiftRecorderStopsWhenAssignmentDeletedWhileCut(t *testing.T) {
 	t.Parallel()
@@ -777,7 +777,7 @@ func TestTimeshiftRecorderStopsWhenAssignmentDeletedWhileCut(t *testing.T) {
 }
 
 // TestTimeshiftRecorderStopsWithoutChunks は、引き継いでからチャンクを書かないまま割り振りが消えたら、
-// 放送中の番組を、サービスのチャンクの最後の終わりで閉じることを確かめる (#1414)。
+// 放送中の番組を、サービスのチャンクの最後の終わりで閉じることを確認する (#1414)。
 func TestTimeshiftRecorderStopsWithoutChunks(t *testing.T) {
 	t.Parallel()
 
@@ -807,7 +807,7 @@ func TestTimeshiftRecorderStopsWithoutChunks(t *testing.T) {
 }
 
 // TestTimeshiftRecorderClosesStaleChunks は、割り振りを取ったときに、落ちた mikan が残した書きかけのチャンクを、ファイルの大きさと
-// 最後に書き込んだ時刻で閉じ、放送中のままの番組を、チャンクの最後の終わりで閉じることを確かめる。落ちてから今までは、バッファの穴になる。
+// 最後に書き込んだ時刻で閉じ、放送中のままの番組を、チャンクの最後の終わりで閉じることを確認する。落ちてから今までは、バッファの穴になる。
 // 止まる mikan から引き継いだときは、古い mikan がまだ書いているので、閉じない。
 func TestTimeshiftRecorderClosesStaleChunks(t *testing.T) {
 	t.Parallel()
@@ -886,7 +886,7 @@ func TestTimeshiftRecorderClosesStaleChunks(t *testing.T) {
 }
 
 // TestTimeshiftRecorderReleasesWhenUnwritable は、タイムシフトのディレクトリにチャンクを作れないとき、ほかに mikan がいれば、
-// 割り振りを手放すために ErrRecorderUnavailable を返し、いなければ、開き直してやり直すことを確かめる (#524)。
+// 割り振りを手放すために ErrRecorderUnavailable を返し、いなければ、開き直してやり直すことを確認する (#524)。
 func TestTimeshiftRecorderReleasesWhenUnwritable(t *testing.T) {
 	t.Parallel()
 
@@ -933,7 +933,7 @@ func TestTimeshiftRecorderReleasesWhenUnwritable(t *testing.T) {
 	}
 }
 
-// panicTuner は、ストリームを開くとき (atOpen) か、data を流した後の読み込みで panic する偽のチューナーサーバー。
+// panicTuner は、ストリームを開くとき (atOpen) か、data を流した後の読み込みで panic するモックのチューナーサーバー。
 type panicTuner struct {
 	atOpen bool
 	data   []byte
@@ -967,7 +967,7 @@ func (s *panicStream) Read(p []byte) (int, error) {
 func (s *panicStream) Close() error { return nil }
 
 // TestTimeshiftRecorderRecoversPanic は、タイムシフトの Session の中で panic しても、mikan を落とさず、
-// スタックをログに残して、エラーとして返ることを確かめる。書いていたチャンクは閉じる (#1055)。
+// スタックをログに残して、エラーとして返ることを確認する。書いていたチャンクは閉じる (#1055)。
 func TestTimeshiftRecorderRecoversPanic(t *testing.T) {
 	t.Parallel()
 

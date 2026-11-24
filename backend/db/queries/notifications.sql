@@ -3,7 +3,7 @@ INSERT INTO notification_events (id, kind, occurred_at, payload, dispatched_at, 
 VALUES (@id, @kind, @occurred_at, @payload, NULL, sqlc.narg(audience)::uuid[], @by_rule);
 
 -- name: ListPendingNotificationEvents :many
--- 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
+-- 配信していないイベントを、古い順に取得し、ロックする。ほかの nekonote が同じイベントを配信しないよう、ロック中の行は飛ばす。
 SELECT * FROM notification_events WHERE dispatched_at IS NULL
 ORDER BY occurred_at, id
 LIMIT @max_count
@@ -23,7 +23,7 @@ WHERE users.disabled_at IS NULL AND COALESCE(p.in_app, true)
 ORDER BY users.id;
 
 -- name: InsertNotifications :exec
--- イベント event_id を、ユーザー user_ids に配る。ids と user_ids は同じ順に並べる。
+-- イベント event_id を、ユーザー user_ids に配信する。ids と user_ids は同じ順に並べる。
 INSERT INTO notifications (id, user_id, event_id, created_at, read_at)
 SELECT unnest(@ids::uuid[]), unnest(@user_ids::uuid[]), @event_id, @now, NULL
 ON CONFLICT (user_id, event_id) DO NOTHING;
@@ -91,8 +91,8 @@ WHERE r.id = @id
 GROUP BY r.id;
 
 -- name: DeleteNotificationEventsBefore :execrows
--- 配り終えた通知のイベントのうち、before より前に起きたものを、max_count 件まで消す。ユーザーごとの通知も一緒に消える。
--- まだ配っていないイベントは消さない。
+-- 配信し終えた通知のイベントのうち、before より前に起きたものを、max_count 件まで消す。ユーザーごとの通知も一緒に消える。
+-- まだ配信していないイベントは消さない。
 DELETE FROM notification_events
 WHERE id IN (
   SELECT e.id FROM notification_events e

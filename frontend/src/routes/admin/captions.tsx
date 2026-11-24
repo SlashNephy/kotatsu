@@ -31,8 +31,8 @@ export const Route = createFileRoute('/admin/captions')({
   component: CaptionsPage,
 });
 
-// CaptionsPage は、字幕の外字 (DRCS) を文字に置き換える表を変える、管理者向けの画面 (#825、設計書 7.4、10.3)。
-// 外字は、字幕を見ている画面の字幕の履歴からも登録できる。ここでは、登録した表を見直し、直したり消したりする。
+// CaptionsPage は、字幕の外字 (DRCS) を文字に置き換えるテーブルを変える、管理者向けの画面 (#825、設計書 7.4、10.3)。
+// 外字は、字幕を見ている画面の字幕の履歴からも登録できる。ここでは、登録したテーブルを見直し、修正したり消したりする。
 function CaptionsPage() {
   const { t } = useTranslation();
 
@@ -57,9 +57,9 @@ const query = graphql`
 
 const md5Pattern = /^[0-9a-f]{32}$/i;
 
-// DRCSReplacements は、外字の置き換えの表。置き換える文字は欄を離れたときか Enter で、消すのと足すのは押したらすぐ、
-// その外字だけを保存する (#1740)。表を丸ごと送らないのは、ほかの画面 (字幕の履歴) や管理者が登録したものを、
-// 古い表で上書きして消さないためである。
+// DRCSReplacements は、外字の置き換えのテーブル。置き換える文字は欄を離れたときか Enter で、消すのと足すのは押したらすぐ、
+// その外字だけを保存する (#1740)。テーブルを丸ごと送らないのは、ほかの画面 (字幕の履歴) や管理者が登録したものを、
+// 古いテーブルで上書きして消さないためである。
 function DRCSReplacements() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();

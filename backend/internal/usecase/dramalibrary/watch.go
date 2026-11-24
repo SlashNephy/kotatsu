@@ -255,7 +255,7 @@ func Report(
 }
 
 // watchedPrograms は、見た区間 spans に重なる、TMDB の話に結びついた番組を返す。
-// ライブ視聴は、サービスの番組のうち区間に重なるものを、録画の再生は、録画した番組 (録画に写した結びつき) を返す。
+// ライブ視聴は、サービスの番組のうち区間に重なるものを、録画の再生は、録画した番組 (録画にコピーした結びつき) を返す。
 func watchedPrograms(ctx context.Context, db sqlc.DBTX, target *animerecord.Target, spans *animerecord.PlayedSpans) ([]*watchedProgram, error) {
 	q := sqlc.New(db)
 	programs := []*watchedProgram{}

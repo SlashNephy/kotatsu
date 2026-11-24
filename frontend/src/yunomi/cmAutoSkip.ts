@@ -1,10 +1,11 @@
 import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
-// storageKey は、録画の再生で CM の区間を自動で飛ばすかを覚えるキー (#1282)。ほかの端末とは同期しない。
+// storageKey は、録画の再生で CM の区間を自動で飛ばすかを保存するキー (#1282)。端末をまたいで同期する (#1862)。
 const storageKey = 'kotatsu.player.cmAutoSkip';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:cm-auto-skip';
 
 // loadCmAutoSkip は、CM の区間を自動で飛ばすかを読む。CM の見分けは間違えることがあるので、既定では飛ばさない。
@@ -40,6 +41,7 @@ export function useCmAutoSkip(): [boolean, (enabled: boolean) => void] {
     (next) => {
       try {
         browserStorage()?.setItem(storageKey, String(next));
+        preferenceChanged(storageKey);
       } catch {
         // 書けなければ、次に開いたときは既定に戻るだけ。
       }

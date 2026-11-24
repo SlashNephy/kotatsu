@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# イメージに入れた FFmpeg が、docker/ffmpeg/components の部品をすべて持っているかを確かめる (#2001)。
+# イメージに入れた FFmpeg が、docker/ffmpeg/components の部品をすべて持っているかを確認する (#2001)。
 # 依存が足りない部品は、configure が黙って外すので、部品が抜けたことに実行時まで気づけない。
 #
 #   check-components.sh <components> <アーキテクチャ>
@@ -8,7 +8,7 @@ set -euo pipefail
 components="$1"
 arch="$2"
 
-# 一覧の、区切り (---) より後の行から、1 列目の印が flag に合う行の 2 列目の名前を出す。
+# 一覧の、区切り (---) より後の行から、1 カラム目のマークが flag に合う行の 2 カラム目の名前を出す。
 list() {
   ffmpeg -hide_banner "$1" | awk -v flag="$2" '/^ *-+$/ { body = 1; next } body && $1 ~ flag { print $2 }'
 }

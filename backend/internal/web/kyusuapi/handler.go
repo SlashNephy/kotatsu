@@ -1,5 +1,5 @@
-// Package kyusuapi は、kyusu がトランスコードした HLS を配る端点 (/internal/kyusu/*) を、echo のルーターに登録する (設計書 7.3、#2016)。
-// tenban が、インスタンスの登録簿で kyusu を引いて中継する。
+// Package kyusuapi は、kyusu がトランスコードした HLS を配信する端点 (/internal/kyusu/*) を、echo のルーターに登録する (設計書 7.3、#2016)。
+// tenban が、インスタンスの登録簿で kyusu を引いてプロキシする。
 package kyusuapi
 
 import (
@@ -12,11 +12,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
-// hlsPath は、配信のパスの頭に続く、プレイリストかセグメントのパス。
+// hlsPath は、配信のパスのプレフィックスに続く、プレイリストかセグメントのパス。
 const hlsPath = ":preset/:audio/:file"
 
-// LiveHandler は、ライブ視聴の HLS を配る kyusu.LivePathPrefix の下のハンドラーを返す。token を付けたリクエストだけを受け付ける。
-// トークンは、ルートを探す前に確かめる。トークンのないリクエストには、パスに当たるかどうかによらず 401 を返す。
+// LiveHandler は、ライブ視聴の HLS を配信する kyusu.LivePathPrefix の下のハンドラーを返す。token を付けたリクエストだけを受け付ける。
+// トークンは、ルートを探す前に確認する。トークンのないリクエストには、パスに当たるかどうかによらず 401 を返す。
 func LiveHandler(logger *slog.Logger, live *kyusu.Live, token *kyusu.Token) http.Handler {
 	router := newRouter(logger)
 	httpserver.Handle(router, kyusu.LivePathPrefix+":service/"+hlsPath, map[string]http.Handler{http.MethodGet: live})
@@ -24,7 +24,7 @@ func LiveHandler(logger *slog.Logger, live *kyusu.Live, token *kyusu.Token) http
 	return token.Middleware(router)
 }
 
-// VODHandler は、録画、タイムシフトのバッファ、ライブラリのファイルの仮想 HLS を配るハンドラーを返す。
+// VODHandler は、録画、タイムシフトのバッファ、ライブラリのファイルの仮想 HLS を配信するハンドラーを返す。
 // kyusu.RecordingPathPrefix、kyusu.TimeshiftPathPrefix、kyusu.LibraryPathPrefix の下を受ける。トークンの扱いは LiveHandler と同じ。
 func VODHandler(logger *slog.Logger, vod *kyusu.VOD, token *kyusu.Token) http.Handler {
 	router := newRouter(logger)

@@ -21,17 +21,17 @@ WITH moved AS (
     ORDER BY p.end_at
     LIMIT $3::integer
   )
-  RETURNING service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios, video_resolution, series_episode, series_repeat, series, episode_number, created_at, updated_at
+  RETURNING service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios, video_resolution, series_episode, series_repeat, series, episode_number, search_grams, created_at, updated_at
 )
 INSERT INTO program_archives (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, series_episode, series_repeat, created_at, updated_at, archived_at
+  video_resolution, series_episode, series_repeat, search_grams, created_at, updated_at, archived_at
 )
 SELECT
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, series_episode, series_repeat, created_at, updated_at, $1
+  video_resolution, series_episode, series_repeat, search_grams, created_at, updated_at, $1
 FROM moved
 ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -50,6 +50,7 @@ ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   video_resolution = excluded.video_resolution,
   series_episode = excluded.series_episode,
   series_repeat = excluded.series_repeat,
+  search_grams = excluded.search_grams,
   updated_at = excluded.updated_at,
   archived_at = excluded.archived_at
 `
@@ -138,6 +139,53 @@ func (q *Queries) ListEPGChangesSince(ctx context.Context, version int64) ([]Lis
 			&i.ServiceID,
 			&i.StartAt,
 			&i.EndAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProgramArchivesWithoutSearchGrams = `-- name: ListProgramArchivesWithoutSearchGrams :many
+SELECT service_id, event_id, start_at, name_normalized, description_normalized, extended_normalized, extended
+FROM program_archives
+WHERE search_grams IS NULL
+ORDER BY service_id, event_id, start_at
+LIMIT $1::integer
+`
+
+type ListProgramArchivesWithoutSearchGramsRow struct {
+	ServiceID             int64
+	EventID               int64
+	StartAt               time.Time
+	NameNormalized        string
+	DescriptionNormalized string
+	ExtendedNormalized    *string
+	Extended              []byte
+}
+
+// 番組の検索の gram のカラム (#966) を埋めていないアーカイブを返す。カラムを足す前に移した番組。
+func (q *Queries) ListProgramArchivesWithoutSearchGrams(ctx context.Context, batchSize int32) ([]ListProgramArchivesWithoutSearchGramsRow, error) {
+	rows, err := q.db.Query(ctx, listProgramArchivesWithoutSearchGrams, batchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProgramArchivesWithoutSearchGramsRow{}
+	for rows.Next() {
+		var i ListProgramArchivesWithoutSearchGramsRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.NameNormalized,
+			&i.DescriptionNormalized,
+			&i.ExtendedNormalized,
+			&i.Extended,
 		); err != nil {
 			return nil, err
 		}
@@ -276,6 +324,51 @@ func (q *Queries) ListProgramsOfService(ctx context.Context, serviceID int64) ([
 	return items, nil
 }
 
+const listProgramsWithoutSearchGrams = `-- name: ListProgramsWithoutSearchGrams :many
+SELECT service_id, event_id, name_normalized, description_normalized, extended_normalized, extended
+FROM programs
+WHERE search_grams IS NULL
+ORDER BY service_id, event_id
+LIMIT $1::integer
+`
+
+type ListProgramsWithoutSearchGramsRow struct {
+	ServiceID             int64
+	EventID               int64
+	NameNormalized        string
+	DescriptionNormalized string
+	ExtendedNormalized    *string
+	Extended              []byte
+}
+
+// 番組の検索の gram のカラム (#966) を埋めていない番組を返す。カラムを足す前に書いた番組と、カラムを知らない古いバイナリが書いた番組。
+func (q *Queries) ListProgramsWithoutSearchGrams(ctx context.Context, batchSize int32) ([]ListProgramsWithoutSearchGramsRow, error) {
+	rows, err := q.db.Query(ctx, listProgramsWithoutSearchGrams, batchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProgramsWithoutSearchGramsRow{}
+	for rows.Next() {
+		var i ListProgramsWithoutSearchGramsRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.EventID,
+			&i.NameNormalized,
+			&i.DescriptionNormalized,
+			&i.ExtendedNormalized,
+			&i.Extended,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProgramsWithoutSeries = `-- name: ListProgramsWithoutSeries :many
 SELECT service_id, event_id, name, description_normalized, extended_normalized, series_episode
 FROM programs
@@ -293,7 +386,7 @@ type ListProgramsWithoutSeriesRow struct {
 	SeriesEpisode         *int32
 }
 
-// シリーズ名と話数の列 (#1564) を埋めていない番組を返す。列を足す前に書いた番組と、列を知らない古いバイナリが書いた番組。
+// シリーズ名と話数のカラム (#1564) を埋めていない番組を返す。カラムを足す前に書いた番組と、カラムを知らない古いバイナリが書いた番組。
 func (q *Queries) ListProgramsWithoutSeries(ctx context.Context, batchSize int32) ([]ListProgramsWithoutSeriesRow, error) {
 	rows, err := q.db.Query(ctx, listProgramsWithoutSeries, batchSize)
 	if err != nil {
@@ -314,6 +407,41 @@ func (q *Queries) ListProgramsWithoutSeries(ctx context.Context, batchSize int32
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServiceProgramNamesLike = `-- name: ListServiceProgramNamesLike :many
+SELECT name_normalized FROM programs
+WHERE service_id = $1 AND event_id <> $2 AND name_normalized LIKE $3
+ORDER BY start_at
+LIMIT 200
+`
+
+type ListServiceProgramNamesLikeParams struct {
+	ServiceID int64
+	EventID   int64
+	Pattern   string
+}
+
+// サービスの番組表の番組のうち、正規化した番組名が pattern (LIKE のパターン) に当たるものの、正規化した番組名 (#2041)。
+// 番組からルールを作るとき、同じ作品のほかの回を探して、回ごとに変わるサブタイトルをキーワードから除くのに使う。event_id の番組は除く。
+func (q *Queries) ListServiceProgramNamesLike(ctx context.Context, arg ListServiceProgramNamesLikeParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listServiceProgramNamesLike, arg.ServiceID, arg.EventID, arg.Pattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var name_normalized string
+		if err := rows.Scan(&name_normalized); err != nil {
+			return nil, err
+		}
+		items = append(items, name_normalized)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -405,18 +533,6 @@ func (q *Queries) PruneProgramArchives(ctx context.Context, arg PruneProgramArch
 	return result.RowsAffected(), nil
 }
 
-const pruneProgramRewrites = `-- name: PruneProgramRewrites :execrows
-DELETE FROM program_rewrites WHERE observed_at < $1
-`
-
-func (q *Queries) PruneProgramRewrites(ctx context.Context, before time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, pruneProgramRewrites, before)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const serviceExists = `-- name: ServiceExists :one
 SELECT EXISTS (SELECT 1 FROM services WHERE id = $1)
 `
@@ -439,7 +555,7 @@ type UpdateServicesPresenceParams struct {
 	Now     time.Time
 }
 
-// 上流のサービスの一覧 (present) と突き合わせ、上流に無いサービスに、無いと気づいた時刻を書き、戻ってきたサービスの時刻を消す (#1973)。
+// 上流のサービスの一覧 (present) と照合し、上流に無いサービスに、無いと気づいた時刻を書き、戻ってきたサービスの時刻を消す (#1973)。
 // 前から無いサービスの時刻は、初めて気づいた時刻のまま残す。変わった行の数を返す。
 func (q *Queries) UpdateServicesPresence(ctx context.Context, arg UpdateServicesPresenceParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateServicesPresence, arg.Present, arg.Now)
@@ -485,7 +601,7 @@ type UpsertServiceParams struct {
 	Now                time.Time
 }
 
-// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
+// 上流から来る項目だけを更新する。非表示のマークと並び順の上書きは、管理者のものなので触らない。
 func (q *Queries) UpsertService(ctx context.Context, arg UpsertServiceParams) error {
 	_, err := q.db.Exec(ctx, upsertService,
 		arg.ID,

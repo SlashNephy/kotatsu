@@ -10,7 +10,7 @@ index 598f3b6bfd381df49e6e2e7438451bf46e73273c..5572a98bd9ef0e4b501f1c81da51b819
 +    if (options.precomputedDictionary) {
 +      this.rankedDictionaries = options.precomputedDictionary.rankedDictionaries;
 +      this.rankedDictionariesMaxWordSize = options.precomputedDictionary.rankedDictionariesMaxWordSize;
-+      // kotatsu: 辞書の語に現れる 2 文字の組。辞書の照合で、窓の走査を打ち切るのに使う。
++      // kotatsu: 辞書の語に現れる 2 文字の組。辞書の照合で、ウィンドウの走査を打ち切るのに使う。
 +      if (options.precomputedDictionary.wordBigrams) {
 +        this.dictionaryBigrams = new Set(options.precomputedDictionary.wordBigrams);
 +      }
@@ -30,7 +30,7 @@ index 7a6cb4047d4c9c2d3426713f4d25fc29f5ec252e..b11ede27aebea8822476725cf66bb8a3
 +    if (options.precomputedDictionary) {
 +      this.rankedDictionaries = options.precomputedDictionary.rankedDictionaries;
 +      this.rankedDictionariesMaxWordSize = options.precomputedDictionary.rankedDictionariesMaxWordSize;
-+      // kotatsu: 辞書の語に現れる 2 文字の組。辞書の照合で、窓の走査を打ち切るのに使う。
++      // kotatsu: 辞書の語に現れる 2 文字の組。辞書の照合で、ウィンドウの走査を打ち切るのに使う。
 +      if (options.precomputedDictionary.wordBigrams) {
 +        this.dictionaryBigrams = new Set(options.precomputedDictionary.wordBigrams);
 +      }
@@ -57,9 +57,9 @@ index 04c3b081316b241dc1080be2d68a2f17700bc630..6435d21174b974d2bbc5330b212fba65
      } = this.getRangedDictionaries(userInputsOptions);
      const dictionaryNames = Object.keys(rankedDictionaries);
      const maxSearchWidth = Math.max(0, ...Object.values(rankedDictionariesMaxWordSize));
-+    // kotatsu: 辞書の語に現れる 2 文字の組を使い、窓の走査を打ち切る。窓にどの語にも現れない組があれば、
-+    // その窓と、それを含む長い窓は、どの語にも一致しない (結果は変わらない)。組は、ビルドのときに求めて渡す。
-+    // その場で足されるユーザーの入力の語の組も加える。レーベンシュタイン距離を調べる場合は、一致しない窓も見るので打ち切らない。
++    // kotatsu: 辞書の語に現れる 2 文字の組を使い、ウィンドウの走査を打ち切る。ウィンドウにどの語にも現れない組があれば、
++    // そのウィンドウと、それを含む長いウィンドウは、どの語にも一致しない (結果は変わらない)。組は、ビルドのときに求めて渡す。
++    // その場で足されるユーザーの入力の語の組も加える。レーベンシュタイン距離を計算する場合は、一致しないウィンドウも見るので打ち切らない。
 +    let wordBigrams;
 +    let userInputBigrams;
 +    if (this.options.dictionaryBigrams && !(this.options.useLevenshteinDistance && useLevenshtein)) {
@@ -71,7 +71,7 @@ index 04c3b081316b241dc1080be2d68a2f17700bc630..6435d21174b974d2bbc5330b212fba65
 +        }
 +      });
 +    }
-+    // kotatsu: l33t の候補では、読み替えた文字を含まない窓の一致は捨てられるので、走査しない (結果は変わらない)。
++    // kotatsu: l33t の候補では、読み替えた文字を含まないウィンドウの一致は破棄されるので、走査しない (結果は変わらない)。
 +    // changedBefore[k] は、k 文字目より前の読み替えた文字の数。
 +    let changedBefore;
 +    if (changes) {
@@ -105,7 +105,7 @@ index 04c3b081316b241dc1080be2d68a2f17700bc630..6435d21174b974d2bbc5330b212fba65
          const usedPassword = passwordLower.slice(i, j + 1);
 +        // kotatsu: l33t の候補の間で、同じ部分文字列の辞書の引き当てを使い回し、一致した辞書だけを見る。
 +        // 辞書の語の最大の長さは辞書の語から求めるので、一致した辞書の長さの上限を超えることはない。
-+        // レーベンシュタイン距離を調べる場合は、すべての辞書を見る必要があるので、使い回さない。
++        // レーベンシュタイン距離を計算する場合は、すべての辞書を見る必要があるので、使い回さない。
 +        if (rankCache && !(this.options.useLevenshteinDistance && isFullPassword && useLevenshtein)) {
 +          let hits = rankCache.get(usedPassword);
 +          if (hits === undefined) {
@@ -158,9 +158,9 @@ index 1c65989c60d213b014dea71eadcdb2091366a8aa..1842fa6c911946ec179c63dbc61f8e46
      } = this.getRangedDictionaries(userInputsOptions);
      const dictionaryNames = Object.keys(rankedDictionaries);
      const maxSearchWidth = Math.max(0, ...Object.values(rankedDictionariesMaxWordSize));
-+    // kotatsu: 辞書の語に現れる 2 文字の組を使い、窓の走査を打ち切る。窓にどの語にも現れない組があれば、
-+    // その窓と、それを含む長い窓は、どの語にも一致しない (結果は変わらない)。組は、ビルドのときに求めて渡す。
-+    // その場で足されるユーザーの入力の語の組も加える。レーベンシュタイン距離を調べる場合は、一致しない窓も見るので打ち切らない。
++    // kotatsu: 辞書の語に現れる 2 文字の組を使い、ウィンドウの走査を打ち切る。ウィンドウにどの語にも現れない組があれば、
++    // そのウィンドウと、それを含む長いウィンドウは、どの語にも一致しない (結果は変わらない)。組は、ビルドのときに求めて渡す。
++    // その場で足されるユーザーの入力の語の組も加える。レーベンシュタイン距離を計算する場合は、一致しないウィンドウも見るので打ち切らない。
 +    let wordBigrams;
 +    let userInputBigrams;
 +    if (this.options.dictionaryBigrams && !(this.options.useLevenshteinDistance && useLevenshtein)) {
@@ -172,7 +172,7 @@ index 1c65989c60d213b014dea71eadcdb2091366a8aa..1842fa6c911946ec179c63dbc61f8e46
 +        }
 +      });
 +    }
-+    // kotatsu: l33t の候補では、読み替えた文字を含まない窓の一致は捨てられるので、走査しない (結果は変わらない)。
++    // kotatsu: l33t の候補では、読み替えた文字を含まないウィンドウの一致は破棄されるので、走査しない (結果は変わらない)。
 +    // changedBefore[k] は、k 文字目より前の読み替えた文字の数。
 +    let changedBefore;
 +    if (changes) {
@@ -206,7 +206,7 @@ index 1c65989c60d213b014dea71eadcdb2091366a8aa..1842fa6c911946ec179c63dbc61f8e46
          const usedPassword = passwordLower.slice(i, j + 1);
 +        // kotatsu: l33t の候補の間で、同じ部分文字列の辞書の引き当てを使い回し、一致した辞書だけを見る。
 +        // 辞書の語の最大の長さは辞書の語から求めるので、一致した辞書の長さの上限を超えることはない。
-+        // レーベンシュタイン距離を調べる場合は、すべての辞書を見る必要があるので、使い回さない。
++        // レーベンシュタイン距離を計算する場合は、すべての辞書を見る必要があるので、使い回さない。
 +        if (rankCache && !(this.options.useLevenshteinDistance && isFullPassword && useLevenshtein)) {
 +          let hits = rankCache.get(usedPassword);
 +          if (hits === undefined) {

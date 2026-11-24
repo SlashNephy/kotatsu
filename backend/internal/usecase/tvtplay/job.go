@@ -75,7 +75,7 @@ func (WriteArgs) InsertOpts() river.InsertOpts {
 
 // Enqueuer は、CM の区間を見分け終えたとき、セグメントをつないだとき、録画のファイルの名前を付け直したときに、管理者が有効にしていれば、
 // チャプターのファイルを書くジョブを投入する。どれも、録画ごとのロックを持ったトランザクションの中で呼ばれるので、
-// 動いているジョブが古い記録を読んで書き終えた後に、このジョブが重複として捨てられることはない。
+// 動いているジョブが古い記録を読んで書き終えた後に、このジョブが重複として破棄されることはない。
 type Enqueuer struct {
 	inserter Inserter
 }
@@ -280,7 +280,7 @@ func chaptersEnabled(ctx context.Context, db sqlc.DBTX) (bool, error) {
 }
 
 // segmentSections は、CM の区間 sections (録画を始めた日時 recordedFrom からの時間) を、セグメント segment の始まりからの時間にずらす。
-// セグメントの外にはみ出た分は、Build がセグメントの長さで切り、外に出た区間は捨てる。
+// セグメントの外にはみ出た分は、Build がセグメントの長さで切り、外に出た区間は破棄する。
 func segmentSections(sections []cmdetect.Section, recordedFrom time.Time, segment *sqlc.RecordingFile) []cmdetect.Section {
 	shift := segment.StartedAt.Sub(recordedFrom)
 	out := make([]cmdetect.Section, 0, len(sections))

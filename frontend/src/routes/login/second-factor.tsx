@@ -13,7 +13,7 @@ import { passkeyAvailable, verifyWithPasskey } from '../../auth/passkey';
 const allMethods: readonly Method[] = ['totp', 'passkey', 'recovery_code'];
 
 type SecondFactorSearch = {
-  // methods は、ユーザーが登録した第二要素。パスワードを確かめた応答から受け取る。
+  // methods は、ユーザーが登録した第二要素。パスワードを検証した応答から受け取る。
   methods?: Method[];
 };
 
@@ -54,7 +54,7 @@ function SecondFactor() {
     setPasskeyError(null);
     try {
       await verify();
-      // セッションの Cookie が入ったので、画面を読み直して、ログイン後のデータを取り直す。
+      // セッションの Cookie が入ったので、画面を読み直して、ログイン後のデータを再取得する。
       window.location.assign(afterLoginURL());
     } catch (caught) {
       if (caught instanceof AuthError && caught.code === 'LOGIN_REQUIRED') {

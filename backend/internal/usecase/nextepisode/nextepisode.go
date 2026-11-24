@@ -36,7 +36,7 @@ type Broadcast struct {
 	Number float64
 }
 
-// Key は、続きの放送を探す鍵。強い順に、しょぼいカレンダーの TID と話数、番組名から読んだシリーズ名と話数、
+// Key は、続きの放送を探すキー。強い順に、しょぼいカレンダーの TID と話数、番組名から読んだシリーズ名と話数、
 // TMDB の作品とシーズンと話の番号の、どれか 1 つを使う。
 type Key struct {
 	// TID と Count は、録画が 1 つの話に結びついたときの、しょぼいカレンダーの作品と話数。結びついていなければ TID は 0。
@@ -56,13 +56,13 @@ type Drama struct {
 	Episode  int32
 }
 
-// KeyOf は、録画の回を読む元 src と、録画が結びついた TMDB の話 drama (なければ nil) から、続きの放送を探す鍵を返す。
+// KeyOf は、録画の回を読む元 src と、録画が結びついた TMDB の話 drama (なければ nil) から、続きの放送を探すキーを返す。
 // シリーズも話数も読めなければ (ニュースや帯番組など) nil を返す。
 //
 // 録画がしょぼいカレンダーの 1 つの話に結びついていれば、TID と話数で探す。番組名の話数と数え方が違うことがあるので、
-// しょぼいカレンダーの話数は、しょぼいカレンダーの話数とだけ比べる。結びついていなければ、シリーズ名の完全一致と話数で探す。
+// しょぼいカレンダーの話数は、しょぼいカレンダーの話数とだけ比較する。結びついていなければ、シリーズ名の完全一致と話数で探す。
 // シリーズ名は、前の回を録らない設定 (#1499) と同じく、SameSeries のように緩めない。局ごとの飾りの違いで、別の期や編の回を出さないためである。
-// 番組名からシリーズ名か話数を読めなければ、TMDB の作品とシーズンと話の番号で探す (ドラマ)。TMDB の話の番号は、TMDB の話の番号とだけ比べる。
+// 番組名からシリーズ名か話数を読めなければ、TMDB の作品とシーズンと話の番号で探す (ドラマ)。TMDB の話の番号は、TMDB の話の番号とだけ比較する。
 // 特別編 (シーズン 0) の話は、放送の順に番号が付いていないので、探さない。
 func KeyOf(src *episode.Source, drama *Drama) *Key {
 	if src.Anime != nil && src.Anime.TID > 0 && src.Anime.Count > 0 {
@@ -179,13 +179,13 @@ func Find(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID, now time.Tim
 	return Pick(candidates, reserved, recorded), nil
 }
 
-// findSeries は、シリーズ名で探す録画の続きの放送を返す。番組名に副題が入ってシリーズ名が回ごとに変わる作品は、
-// ホームの続きの放送 (FindForUser) と同じく、副題を除いた作品名のシリーズにまとめる (#2031)。
+// findSeries は、シリーズ名で探す録画の続きの放送を返す。番組名にサブタイトルが入ってシリーズ名が回ごとに変わる作品は、
+// ホームの続きの放送 (FindForUser) と同じく、サブタイトルを除いた作品名のシリーズにまとめる (#2031)。
 //
-//   - 副題のある回の録画 (「作品名 副題 #5」) は、話数の前の語を後ろから除いた作品名のうち、副題のない回が番組表か録画履歴にある、
+//   - サブタイトルのある回の録画 (「作品名 サブタイトル #5」) は、話数の前の語を後ろから除いた作品名のうち、サブタイトルのない回が番組表か録画履歴にある、
 //     最も長いものにまとめる。短い方から選ぶと、作品名の一部を除いた別の番組 (「ＭＵＳＩＣ #3」) に当たりうるからである。
-//     副題のない回がなければ、まとめない (枠の名前の後ろに作品名を書く番組など)。
-//   - 副題のない回の録画 (「作品名 #5」) は、録画そのものが副題のない回なので、そのシリーズ名を作品名として、副題のある回もまとめる。
+//     サブタイトルのない回がなければ、まとめない (枠の名前の後ろに作品名を書く番組など)。
+//   - サブタイトルのない回の録画 (「作品名 #5」) は、録画そのものがサブタイトルのない回なので、そのシリーズ名を作品名として、サブタイトルのある回もまとめる。
 func findSeries(ctx context.Context, q *sqlc.Queries, key *Key, name string, now time.Time) ([]*Broadcast, error) {
 	series := &watchedSeries{key: key, recordingID: uuid.Nil(), stem: "", family: true}
 	if stems := episode.Stems(name); len(stems) > 0 {
@@ -217,7 +217,7 @@ func findSeries(ctx context.Context, q *sqlc.Queries, key *Key, name string, now
 }
 
 // sourceOf は、録画の回を読む元を作る。記述子の話数は、アーカイブの番組を先に、なければ番組表の番組を使う。
-// 番組表の番組は (サービス, eventId) だけで引くので、eventId が使い回されると、後の別の番組に当たる。
+// 番組表の番組は (サービス, eventId) だけで検索するので、eventId が使い回されると、後の別の番組に当たる。
 // アーカイブは開始の時刻でも絞るので、録画の番組に確かに当たる。
 func sourceOf(row *sqlc.GetRecordingNextEpisodeSourceRow) *episode.Source {
 	extended := map[string]string{}
@@ -248,8 +248,8 @@ func dramaOf(row *sqlc.GetRecordingNextEpisodeSourceRow) *Drama {
 	return &Drama{SeriesID: *row.TmdbSeriesID, Season: *row.TmdbSeasonNumber, Episode: *row.TmdbEpisodeNumber}
 }
 
-// listCandidates は、TID か TMDB の作品で探す鍵 key の続きの放送の候補と、録画履歴にある録った回の話数を返す。
-// シリーズ名で探す鍵は、findSeries が引く。
+// listCandidates は、TID か TMDB の作品で探すキー key の続きの放送の候補と、録画履歴にある録った回の話数を返す。
+// シリーズ名で探すキーは、findSeries が引く。
 func listCandidates(ctx context.Context, q *sqlc.Queries, key *Key, now time.Time) ([]*Candidate, map[float64]bool, error) {
 	candidates := []*Candidate{}
 	recorded := map[float64]bool{}

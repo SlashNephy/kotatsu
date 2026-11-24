@@ -45,7 +45,7 @@ func noCaptureTime() EPGCaptureTime {
 	return EPGCaptureTime{Weekday: time.Sunday, Daily: false, Minute: 0}
 }
 
-// next は、now 以後で最も近い取得の時刻を返す。時刻は JST で数える。秒以下は切り捨てた分で比べる (ReserveManager.cpp の
+// next は、now 以後で最も近い取得の時刻を返す。時刻は JST で数える。秒以下は切り捨てた分で比較する (ReserveManager.cpp の
 // GetNextEpgCapTime と同じ)。
 func (t EPGCaptureTime) next(now time.Time) time.Time {
 	wall := now.In(jst()).Truncate(time.Minute)

@@ -14,10 +14,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/tmdb"
 )
 
-// testToken は、テストで使うトークン。エラーの文や URL に出ないことを確かめる。
+// testToken は、テストで使うトークン。エラーの文や URL に出ないことを確認する。
 const testToken = "test-read-access-token-0123456789"
 
-// request は、偽の TMDB が受けた問い合わせ 1 回。
+// request は、モックの TMDB が受けた問い合わせ 1 回。
 type request struct {
 	path          string
 	rawQuery      string
@@ -25,7 +25,7 @@ type request struct {
 	userAgent     string
 }
 
-// newServer は、handler で応える偽の TMDB を立て、受けた問い合わせを記録する。
+// newServer は、handler で応えるモックの TMDB を立て、受けた問い合わせを記録する。
 func newServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, func() []request) {
 	t.Helper()
 
@@ -55,7 +55,7 @@ func newClient(server *httptest.Server) *tmdb.Client {
 	return tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(nil), URL: server.URL, Interval: time.Millisecond})
 }
 
-// TestClientRequests は、問い合わせの形と、応答の読み方を確かめる。
+// TestClientRequests は、問い合わせの形と、応答の読み方を確認する。
 // トークンは Authorization ヘッダーで送り、URL には入れない。言語は日本語にし、User-Agent で Kotatsu だと分かるようにする。
 func TestClientRequests(t *testing.T) {
 	t.Parallel()
@@ -116,7 +116,7 @@ func TestClientRequests(t *testing.T) {
 	}
 }
 
-// TestClientErrors は、TMDB が断ったときのエラーを確かめる。エラーの文にはトークンを出さない。
+// TestClientErrors は、TMDB が断ったときのエラーを確認する。エラーの文にはトークンを出さない。
 func TestClientErrors(t *testing.T) {
 	t.Parallel()
 
@@ -190,7 +190,7 @@ func TestClientErrors(t *testing.T) {
 	}
 }
 
-// TestClientWithoutToken は、トークンが空なら問い合わせないことを確かめる。
+// TestClientWithoutToken は、トークンが空なら問い合わせないことを確認する。
 func TestClientWithoutToken(t *testing.T) {
 	t.Parallel()
 

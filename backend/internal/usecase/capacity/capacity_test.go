@@ -41,7 +41,7 @@ type fixture struct {
 	// dataRoot は、データディレクトリ。
 	dataRoot string
 	manager  *capacity.Manager
-	// segmentIDs は、recording で作ったセグメントのファイルの ID を、録画の名前で引く。
+	// segmentIDs は、recording で作ったセグメントのファイルの ID を、録画の名前で検索する。
 	segmentIDs map[string]uuid.UUID
 }
 
@@ -51,7 +51,7 @@ func newFixture(t *testing.T) *fixture {
 	return newFixtureWithFreeSpace(t, nil)
 }
 
-// newFixtureWithFreeSpace は、空き容量を freeSpace で測るフィクスチャを作る。nil なら、ディスクの大きさから録画ファイルの大きさを引く。
+// newFixtureWithFreeSpace は、空き容量を freeSpace で計測するフィクスチャを作る。nil なら、ディスクの大きさから録画ファイルの大きさを差し引く。
 func newFixtureWithFreeSpace(t *testing.T, freeSpace kago.FreeSpaceFunc) *fixture {
 	t.Helper()
 
@@ -67,7 +67,7 @@ func newFixtureWithFreeSpace(t *testing.T, freeSpace kago.FreeSpaceFunc) *fixtur
 	require.NoError(t, err)
 
 	dir := t.TempDir()
-	// 空き容量は、ディスクの大きさから、プールにある録画ファイルの大きさの合計を引いたものとする。索引は小さいので数えない。
+	// 空き容量は、ディスクの大きさから、プールにある録画ファイルの大きさの合計を引いたものとする。インデックスは小さいので数えない。
 	usedSpace := func(path string) (uint64, error) {
 		var used int64
 		err := filepath.WalkDir(path, func(name string, d fs.DirEntry, err error) error {
@@ -100,7 +100,7 @@ func newFixtureWithFreeSpace(t *testing.T, freeSpace kago.FreeSpaceFunc) *fixtur
 	}
 }
 
-// recording は、録画と、その録画ファイルと、データディレクトリの索引を作る。古い順に作るよう、作るたびに時計を進める。
+// recording は、録画と、その録画ファイルと、データディレクトリのインデックスを作る。古い順に作るよう、作るたびに時計を進める。
 func (f *fixture) recording(t *testing.T, name, state string, protected bool) uuid.UUID {
 	t.Helper()
 
@@ -133,13 +133,13 @@ func (f *fixture) setThreshold(t *testing.T, minFreeBytes int64) {
 	require.NoError(t, err)
 }
 
-// measured は、容量の管理が測って残したプールの値。測っていなければ、どれも nil。
+// measured は、容量の管理が計測して残したプールの値。計測していなければ、どれも nil。
 type measured struct {
 	total, free *int64
 	at          *time.Time
 }
 
-// measurement は、プール id の、容量の管理が測って残した値を返す (#957)。設定の行がなければ nil。
+// measurement は、プール id の、容量の管理が計測して残した値を返す (#957)。設定の行がなければ nil。
 func (f *fixture) measurement(t *testing.T, id string) *measured {
 	t.Helper()
 
@@ -153,7 +153,7 @@ func (f *fixture) measurement(t *testing.T, id string) *measured {
 	return &m
 }
 
-// assertMeasured は、プール id の容量が diskSize で、空き容量が free で、今の時刻に測ったと残っていることを確かめる。
+// assertMeasured は、プール id の容量が diskSize で、空き容量が free で、今の時刻に計測したと残っていることを確認する。
 func (f *fixture) assertMeasured(t *testing.T, id string, free int64) {
 	t.Helper()
 
@@ -197,7 +197,7 @@ func (f *fixture) runOnce(t *testing.T) []*capacity.PoolResult {
 }
 
 // TestRunOnceDeletesOldRecordings は、空き容量が閾値を下回ったら、保護されていない古い録画から、閾値を上回るまで消し、
-// 消したことを監査ログに残して、空き容量の不足を通知することを確かめる (設計書 6.1)。
+// 消したことを監査ログに残して、空き容量の不足を通知することを確認する (設計書 6.1)。
 func TestRunOnceDeletesOldRecordings(t *testing.T) {
 	t.Parallel()
 
@@ -214,7 +214,7 @@ func TestRunOnceDeletesOldRecordings(t *testing.T) {
 	require.Len(t, results, 1)
 	assert.Equal(t, &capacity.PoolResult{PoolID: poolID, FreeBytes: 7 << 20, Deleted: 2, Low: false}, results[0])
 	assert.Equal(t, []string{"保護した録画", "録画中の録画", "新しい録画"}, f.names(t))
-	// 測った値は、録画を消した後の空き容量を残す (#957)。
+	// 計測した値は、録画を消した後の空き容量を残す (#957)。
 	f.assertMeasured(t, poolID, 7<<20)
 	// 録画ファイルと、生成物のディレクトリを消す。
 	_, err := os.Stat(filepath.Join(f.dir, "最も古い録画.m2ts"))
@@ -235,7 +235,7 @@ func TestRunOnceDeletesOldRecordings(t *testing.T) {
 }
 
 // TestRunOnceKeepsRecordingsOfExternalFiles は、プールにあった TS を取り込んだファイル (external) しか持たない録画は、
-// 消しても空かないので消さず、次に古い録画を消すことを確かめる (#1734)。
+// 消しても空かないので消さず、次に古い録画を消すことを確認する (#1734)。
 func TestRunOnceKeepsRecordingsOfExternalFiles(t *testing.T) {
 	t.Parallel()
 
@@ -256,7 +256,7 @@ func TestRunOnceKeepsRecordingsOfExternalFiles(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestRunOnceSkipsPools は、閾値を設定していないプールと、空き容量が閾値以上のプールでは、何も消さず、通知しないことを確かめる。
+// TestRunOnceSkipsPools は、閾値を設定していないプールと、空き容量が閾値以上のプールでは、何も消さず、通知しないことを確認する。
 func TestRunOnceSkipsPools(t *testing.T) {
 	t.Parallel()
 
@@ -283,15 +283,15 @@ func TestRunOnceSkipsPools(t *testing.T) {
 			}
 			assert.Equal(t, []string{"録画"}, f.names(t))
 			assert.Empty(t, f.storageLowEvents(t))
-			// 閾値がなくても、容量と空き容量は測って残す。設定の行がなければ、既定値で作る (#957)。
+			// 閾値がなくても、容量と空き容量は計測して残す。設定の行がなければ、既定値で作る (#957)。
 			f.assertMeasured(t, poolID, diskSize-fileSize)
 		})
 	}
 }
 
-// TestRunOnceClearsMeasurementsOfUnmountedPools は、このインスタンスにマウントされていないプールの、前に測った値を消すことを確かめる (#957)。
+// TestRunOnceClearsMeasurementsOfUnmountedPools は、このインスタンスにマウントされていないプールの、前に計測した値を消すことを確認する (#957)。
 // nekonote はどれもすべてのプールをマウントするので、マウントされていないプールは、設定から外したもの。
-// 古い値を残すと、/metrics に、測った時刻が古いままのプールが出続ける。
+// 古い値を残すと、/metrics に、計測した時刻が古いままのプールが出続ける。
 func TestRunOnceClearsMeasurementsOfUnmountedPools(t *testing.T) {
 	t.Parallel()
 
@@ -309,7 +309,7 @@ func TestRunOnceClearsMeasurementsOfUnmountedPools(t *testing.T) {
 	f.assertMeasured(t, poolID, diskSize)
 }
 
-// TestRunOnceKeepsMeasurementWhenMeasuringFails は、空き容量を測れなければ、前に測った値と時刻を書き換えず、エラーを返すことを確かめる (#957)。
+// TestRunOnceKeepsMeasurementWhenMeasuringFails は、空き容量を測れなければ、前に計測した値と時刻を書き換えず、エラーを返すことを確認する (#957)。
 // 時刻が古いままになるので、/metrics から測れていないことが分かる。
 func TestRunOnceKeepsMeasurementWhenMeasuringFails(t *testing.T) {
 	t.Parallel()
@@ -330,7 +330,7 @@ func TestRunOnceKeepsMeasurementWhenMeasuringFails(t *testing.T) {
 	assert.True(t, m.at.Equal(before))
 }
 
-// TestRunOnceReportsLowStorageOnce は、消せる録画がなく、空き容量が閾値を下回ったままのときは、下回り始めたときだけ通知することを確かめる。
+// TestRunOnceReportsLowStorageOnce は、消せる録画がなく、空き容量が閾値を下回ったままのときは、下回り始めたときだけ通知することを確認する。
 func TestRunOnceReportsLowStorageOnce(t *testing.T) {
 	t.Parallel()
 
@@ -356,7 +356,7 @@ func TestRunOnceReportsLowStorageOnce(t *testing.T) {
 	assert.Len(t, f.storageLowEvents(t), 3)
 }
 
-// TestDeleteSkipsRecordingsProtectedMeanwhile は、消す候補に選んだ後に保護されたか、録画を始めた録画を、消さずに数えないことを確かめる。
+// TestDeleteSkipsRecordingsProtectedMeanwhile は、消す候補に選んだ後に保護されたか、録画を始めた録画を、消さずに数えないことを確認する。
 func TestDeleteSkipsRecordingsProtectedMeanwhile(t *testing.T) {
 	t.Parallel()
 
@@ -386,8 +386,8 @@ func TestDeleteSkipsRecordingsProtectedMeanwhile(t *testing.T) {
 	}
 }
 
-// TestRunOnceKeepsRecordingsWithoutFiles は、録画ファイルが見つからない録画を、消しても空きが増えないので消さないことを確かめる。
-// プールの実体がマウントされず、空のディレクトリを測っているときに、録画の記録を消し続けないようにする (#513)。
+// TestRunOnceKeepsRecordingsWithoutFiles は、録画ファイルが見つからない録画を、消しても空きが増えないので消さないことを確認する。
+// プールの実体がマウントされず、空のディレクトリを計測しているときに、録画の記録を消し続けないようにする (#513)。
 func TestRunOnceKeepsRecordingsWithoutFiles(t *testing.T) {
 	t.Parallel()
 
@@ -408,7 +408,7 @@ func TestRunOnceKeepsRecordingsWithoutFiles(t *testing.T) {
 	assert.Equal(t, []string{"古い録画", "後の録画"}, f.names(t))
 }
 
-// TestRunOnceStopsWhenFreeSpaceDoesNotGrow は、録画を消しても空き容量が増えなければ、その回は消すのをやめることを確かめる。
+// TestRunOnceStopsWhenFreeSpaceDoesNotGrow は、録画を消しても空き容量が増えなければ、その回は消すのをやめることを確認する。
 // スナップショットがあるときや、ファイルを開いたままの視聴者がいるときに、録画を次々に消さないようにする (#513)。
 func TestRunOnceStopsWhenFreeSpaceDoesNotGrow(t *testing.T) {
 	t.Parallel()
@@ -425,7 +425,7 @@ func TestRunOnceStopsWhenFreeSpaceDoesNotGrow(t *testing.T) {
 	assert.Equal(t, []string{"次の録画", "後の録画"}, f.names(t))
 }
 
-// TestRunOnceSkipsRecordingsWithoutFilesAndDeletesNext は、録画ファイルが見つからない録画を飛ばし、その次に古い録画から消すことを確かめる。
+// TestRunOnceSkipsRecordingsWithoutFilesAndDeletesNext は、録画ファイルが見つからない録画を飛ばし、その次に古い録画から消すことを確認する。
 // 取り込んだ MP4 のような「その他のファイル」も、録画ファイルとして数える。
 func TestRunOnceSkipsRecordingsWithoutFilesAndDeletesNext(t *testing.T) {
 	t.Parallel()

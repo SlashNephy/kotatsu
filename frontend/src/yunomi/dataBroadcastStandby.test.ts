@@ -2,9 +2,9 @@ import { describe, expect, test } from 'vitest';
 
 import { isStandbyDocument, renderedRoot } from './dataBroadcastStandby';
 
-// bml は、web-bml が描いた文書の根を、body の中身から作る。subscribe なら、d ボタンを待つ。
+// bml は、web-bml が描いた文書の根を、body の内容から作る。subscribe なら、d ボタンを待つ。
 function bml(body: string, subscribe = true): Element {
-  // HTML の構文解析では、要素の中の head と body を捨てるので、要素を作って組み立てる。
+  // HTML の構文解析では、要素の中の head と body を破棄するので、要素を作って組み立てる。
   const root = document.createElement('bml');
   const head = document.createElement('head');
   head.innerHTML = `<bevent><beitem type="DataButtonPressed" ${subscribe ? 'subscribe="subscribe"' : ''}></beitem></bevent>`;

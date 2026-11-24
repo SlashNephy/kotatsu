@@ -1,5 +1,5 @@
 """
-物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
+物理チャンネルの TS をまるごと数秒受け取って調査した結果 (#830)。
 """
 type ChannelInspection {
   "PAT の transport_stream_id。PAT を受け取れなければ null。"
@@ -15,7 +15,7 @@ type ChannelInspection {
 }
 
 """
-調べた TS の、番組 (サービス) 1 つの様子。
+調査した TS の、番組 (サービス) 1 つの様子。
 """
 type InspectedProgram {
   "program_number。ARIB ではサービス ID と同じ値になる。"
@@ -29,7 +29,7 @@ type InspectedProgram {
 }
 
 """
-調べた TS の、PID 1 つの様子。
+調査した TS の、PID 1 つの様子。
 """
 type InspectedStream {
   pid: Int!
@@ -44,9 +44,9 @@ type InspectedStream {
 
 extend type Mutation {
   """
-  物理チャンネル channelType/channel の TS を、まるごと数秒受け取って調べる (#830、設計書 10.3)。管理者だけが使える。
+  物理チャンネル channelType/channel の TS を、まるごと数秒受け取って調査する (#830、設計書 10.3)。管理者だけが使える。
   チューナーを奪わない優先度でチャンネルのストリームを開くので、空いたチューナーがなければ失敗する。
-  調べる間、チューナーを 1 本使う。
+  調査する間、チューナーを 1 本使う。
   """
   inspectChannel(channelType: String!, channel: String!): ChannelInspection!
 }

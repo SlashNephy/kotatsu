@@ -87,10 +87,10 @@ func TestTOTPEnrollment(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(enrollment.URI, "otpauth://totp/Kotatsu:Kotatsu?"))
 	assert.Equal(t, testNow().Add(10*time.Minute), enrollment.ExpiresAt)
-	// 確かめるまでは、有効にならない。
+	// 確認するまでは、有効にならない。
 	assert.Empty(t, f.methods(t))
 
-	// 違うコードでは確かめられない。
+	// 違うコードでは確認できない。
 	err = pgx.BeginFunc(t.Context(), f.db, func(tx pgx.Tx) error {
 		_, err := f.factors.ConfirmTOTP(t.Context(), tx, audit.User(f.user.ID), f.user.ID, "000000")
 
@@ -138,7 +138,7 @@ func TestTOTPEnrollmentExpires(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrNoTOTPEnrollment)
 }
 
-// TestVerifyTOTPRejectsReplay は、一度受け付けたコードを、二度と受け付けないことを確かめる。
+// TestVerifyTOTPRejectsReplay は、一度受け付けたコードを、二度と受け付けないことを確認する。
 func TestVerifyTOTPRejectsReplay(t *testing.T) {
 	t.Parallel()
 
@@ -154,7 +154,7 @@ func TestVerifyTOTPRejectsReplay(t *testing.T) {
 	require.ErrorIs(t, f.verify(t, "000000"), auth.ErrInvalidSecondFactor)
 }
 
-// TestRecoveryCodesAreSingleUse は、リカバリーコードが 1 回だけ使え、作り直すと古いコードが使えなくなることを確かめる。
+// TestRecoveryCodesAreSingleUse は、リカバリーコードが 1 回だけ使え、作り直すと古いコードが使えなくなることを確認する。
 func TestRecoveryCodesAreSingleUse(t *testing.T) {
 	t.Parallel()
 
@@ -177,8 +177,8 @@ func TestRecoveryCodesAreSingleUse(t *testing.T) {
 	require.NoError(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, regenerated[1]))
 }
 
-// TestRecoveryCodesResistDatabaseLeak は、リカバリーコードを、DB だけでは総当たりで戻せない形で保存することを確かめる (#1011)。
-// 50 ビットのコードは、鍵のないハッシュなら総当たりで戻せる。DB の外のアプリの秘密キーがなければ、照合できない。
+// TestRecoveryCodesResistDatabaseLeak は、リカバリーコードを、DB だけでは総当たりで戻せない形で保存することを確認する (#1011)。
+// 50 ビットのコードは、キーのないハッシュなら総当たりで戻せる。DB の外のアプリの秘密キーがなければ、照合できない。
 func TestRecoveryCodesResistDatabaseLeak(t *testing.T) {
 	t.Parallel()
 
@@ -202,7 +202,7 @@ func TestRecoveryCodesResistDatabaseLeak(t *testing.T) {
 	require.NoError(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, codes[0]))
 }
 
-// TestLegacyRecoveryCodes は、#1011 より前に作ったリカバリーコード (鍵のない SHA-256) も、作り直すまで 1 回だけ使えることを確かめる。
+// TestLegacyRecoveryCodes は、#1011 より前に作ったリカバリーコード (キーのない SHA-256) も、作り直すまで 1 回だけ使えることを確認する。
 func TestLegacyRecoveryCodes(t *testing.T) {
 	t.Parallel()
 
@@ -223,7 +223,7 @@ func TestLegacyRecoveryCodes(t *testing.T) {
 	require.ErrorIs(t, f.factors.UseRecoveryCode(t.Context(), f.db, other.ID, legacy), auth.ErrInvalidSecondFactor)
 }
 
-// TestDeleteTOTP は、TOTP を消すと、予備のリカバリーコードも消え、第二要素がなくなることを確かめる。
+// TestDeleteTOTP は、TOTP を消すと、予備のリカバリーコードも消え、第二要素がなくなることを確認する。
 func TestDeleteTOTP(t *testing.T) {
 	t.Parallel()
 
@@ -241,7 +241,7 @@ func TestDeleteTOTP(t *testing.T) {
 
 		return v
 	}
-	// 登録と削除のたびに、ほかの端末に知らせるため、設定の版数を上げる。
+	// 登録と削除のたびに、ほかの端末に通知するため、設定のバージョンを上げる。
 	assert.Equal(t, int64(1), version())
 	require.NoError(t, deleteTOTP())
 	assert.Equal(t, int64(2), version())
@@ -257,7 +257,7 @@ func TestDeleteTOTP(t *testing.T) {
 	assert.Equal(t, int64(2), version(), "failed changes do not bump the version")
 }
 
-// TestTOTPNeedsTheSameApplicationSecret は、アプリの秘密キーが変わると、保存した秘密キーを読めないことを確かめる。
+// TestTOTPNeedsTheSameApplicationSecret は、アプリの秘密キーが変わると、保存した秘密キーを読めないことを確認する。
 func TestTOTPNeedsTheSameApplicationSecret(t *testing.T) {
 	t.Parallel()
 

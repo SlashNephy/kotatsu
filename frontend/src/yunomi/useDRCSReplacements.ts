@@ -18,9 +18,9 @@ const query = graphql`
   }
 `;
 
-// useDRCSReplacements は、字幕の外字の置き換えの表を読み、字幕の描画器が共有する表に入れる (#825)。
-// 字幕を描く画面で呼ぶ。表は再生に欠かせないものではないので、読み終えるのを待たずに再生を始め、読めなくても失敗にしない。
-// 管理者が表を変えたら、読み直す。返す値は、外字を登録できる (管理者である) かどうか。
+// useDRCSReplacements は、字幕の外字の置き換えのテーブルを読み、字幕のレンダラーが共有するテーブルに入れる (#825)。
+// 字幕を描く画面で呼ぶ。テーブルは再生に欠かせないものではないので、読み終えるのを待たずに再生を始め、読めなくても失敗にしない。
+// 管理者がテーブルを変えたら、読み直す。返す値は、外字を登録できる (管理者である) かどうか。
 export function useDRCSReplacements(): { canRegister: boolean } {
   const environment = useRelayEnvironment();
   const adminChanges = useDataChanges(['ADMIN']);

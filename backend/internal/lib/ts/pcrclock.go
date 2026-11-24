@@ -2,7 +2,7 @@ package ts
 
 import "time"
 
-// PCR の時刻の扱い (#1515)。PCR は、基準部 (33 ビット、90 kHz) だけを使い、拡張部 (27 MHz の端数) は捨てる。
+// PCR の時刻の扱い (#1515)。PCR は、基準部 (33 ビット、90 kHz) だけを使い、拡張部 (27 MHz の端数) は破棄する。
 const (
 	// pcrBaseHz は、PCR の基準部の周波数。
 	pcrBaseHz = 90_000
@@ -14,14 +14,14 @@ const (
 )
 
 // DefaultPCRPairWindow は、最小の組を選び直す区切りの長さ。PCR の送出間隔の上限 (0.1 秒) より十分長くし、
-// PCR とサーバーの時計の水晶のずれが、区切り 2 つ分の間で、表示の刻みより十分小さくなる長さにする。
+// PCR とサーバーの時計の水晶のずれが、区切り 2 つ分の間で、表示の間隔より十分小さくなる長さにする。
 const DefaultPCRPairWindow = 30 * time.Second
 
 // PCRPair は、PCR と、その PCR を含む TS を受け取った時刻の組 (#1515)。
 type PCRPair struct {
 	// PCR は、PCR の基準部を秒にしたもの。
 	PCR float64
-	// ReceivedAt は、PCR を含む TS の塊を受け取った時点の、サーバーの時計。
+	// ReceivedAt は、PCR を含む TS のチャンクを受け取った時点の、サーバーの時計。
 	ReceivedAt time.Time
 }
 
@@ -35,7 +35,7 @@ func (p *PCRPair) lag() float64 {
 // 「受け取った時刻 − PCR」が最も小さい組を採る。遅れて読んだ組を採ると、遅れた分だけ「放送から」が小さく出るからである。
 // PCR とサーバーの時計は別の水晶でずれていくので、組は区切り (window) ごとに選び直し、今の区切りで最小の組と、
 // 1 つ前の区切りで最小の組のうち、小さい方を使う。区切ってすぐに、遅れた組しかないことがあっても困らないようにするためである。
-// PCR が pcrRewindLimit 以上戻るか、一周の半分より先へ進んだら、選局などで飛んだとみなし、持っている組を捨てて結び直す。
+// PCR が pcrRewindLimit 以上戻るか、一周の半分より先へ進んだら、選局などで飛んだとみなし、持っている組を破棄して結び直す。
 // 巻き戻りを足し込む作りにはしない。選局の直後の飛びを取り込み、時刻が何時間もずれるほうが危ないからである。
 type PCRClock struct {
 	serviceID uint16
@@ -45,8 +45,8 @@ type PCRClock struct {
 	pmt       *sectionAssembler
 	// pmtPID は、いま組み立てている PMT の PID。PAT を読むまでは 0。
 	pmtPID uint16
-	// framer は、塊をパケットに切り分ける。次のパケットの頭が届いていれば sync byte であることを確かめ、
-	// 届いていなければ確かめずに読む。PCR は、塊を受け取った時刻と組にするので、次の塊まで待たない。
+	// framer は、チャンクをパケットに切り分ける。次のパケットの先頭が届いていれば sync byte であることを確認し、
+	// 届いていなければ確認せずに読む。PCR は、チャンクを受け取った時刻と組にするので、次のチャンクまで待たない。
 	framer packetFramer
 	// windowStart は、今の区切りを始めた時刻。まだ始めていなければ零値。
 	windowStart time.Time
@@ -70,8 +70,8 @@ func NewPCRClock(serviceID uint16, window time.Duration) *PCRClock {
 	}
 }
 
-// Write は、receivedAt に受け取った TS の塊 chunk を読む。塊は、パケットの境目で切れていなくてよい。
-// 塊の中の PCR は、どれも receivedAt と組にする。塊の最後の PCR ほど「受け取った時刻 − PCR」が小さく出るので、自然に選ばれる。
+// Write は、receivedAt に受け取った TS のチャンク chunk を読む。チャンクは、パケットの境目で切れていなくてよい。
+// チャンクの中の PCR は、どれも receivedAt と組にする。チャンクの最後の PCR ほど「受け取った時刻 − PCR」が小さく出るので、自然に選ばれる。
 func (c *PCRClock) Write(chunk []byte, receivedAt time.Time) {
 	c.rotate(receivedAt)
 	c.framer.feed(chunk, 0, func(b []byte, _ int64) bool {

@@ -9,14 +9,33 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig, lazyPlugins, type Plugin } from 'vite-plus';
 
+import { demoStream } from './demo/plugin';
+
 // ビルドした SPA は、Go のバイナリに埋め込む (設計書 2.3)。backend/internal/web/webui/embed.go が、その dist/app を埋め込む。
 // dist 自体は、未ビルドでも go build が通るように、空の .gitkeep だけを置いてリポジトリに残す。
-// devAPI は、開発サーバーが API を中継する先。
+// devAPI は、開発サーバーが API をプロキシする先。
 // 開発用の Compose では、KOTATSU_DEV_API で Kotatsu のコンテナを指す。
-// Compose の外で mise run //frontend:dev を動かすときは、手元で起動した Kotatsu (既定は 127.0.0.1:8080) に中継する。
+// Compose の外で mise run //frontend:dev を動かすときは、手元で起動した Kotatsu (既定は 127.0.0.1:8080) にプロキシする。
 // 空の値は、渡していないものとして扱う。
 const devAPI =
   process.env.KOTATSU_DEV_API || `http://127.0.0.1:${process.env.KOTATSU_DEV_PORT || '8080'}`;
+
+// devHttps は、開発サーバーを https で配信するための証明書と秘密鍵 (#2121)。https のページでしか使えない機能
+// (Chrome がタブを切り替えたときに自動で開くピクチャーインピクチャーなど) を、開発中にも確認できるようにする。
+// mise run dev:cert が mkcert で作り、開発用の Compose と mise run //frontend:dev が KOTATSU_DEV_TLS_* で渡す。
+// 渡していなければ (テストや Storybook が設定を読むとき)、https にしない。
+function devHttps(): { cert: Buffer; key: Buffer } | undefined {
+  const cert = process.env.KOTATSU_DEV_TLS_CERT;
+  const key = process.env.KOTATSU_DEV_TLS_KEY;
+  if (!cert || !key) {
+    return undefined;
+  }
+
+  return { cert: readFileSync(cert), key: readFileSync(key) };
+}
+const devServerHttps = devHttps();
+// devForwarded は、プロキシに X-Forwarded-* を付けるか。https で配信するときだけ付け、tenban に https のオリジンを使わせる。
+const devForwarded = devServerHttps !== undefined;
 
 // inlineAppleTouchIcon は、index.html の apple-touch-icon を、public/icons の PNG の data: URL に置き換える (#582)。
 // iOS 27 の「ホーム画面に追加」は、URL で指したアイコンを読み込めず、タイトルの頭文字のタイルを出す。
@@ -121,7 +140,7 @@ function readPackage(dir: string): BundledPackage {
   };
 }
 
-// bundledLicenses は、画面に同梱するパッケージと、そのライセンスの文書の一覧を licenses.json に書き出す (設計書 付録 B、#1604)。
+// bundledLicenses は、画面に同梱するパッケージと、そのライセンスの文書の一覧を licenses.json に出力する (設計書 付録 B、#1604)。
 // 同梱するのは、dependencies とその依存 (pnpm licenses list --prod) と、dependencies に置いたワークスペースのパッケージ
 // (vendor/ の mpeg2toh264) である。Service Worker に入れる workbox も dependencies にあるので、ここに含まれる。
 // 一覧は、依存を上げるたびに変わるので、リポジトリには置かず、ビルドのたびに作る。/about の画面を開いたときだけ読む。
@@ -138,8 +157,8 @@ function bundledLicenses(): Plugin {
           encoding: 'utf8',
         }),
       ) as Record<string, { paths: string[] }[]>;
-      // paths には、版ごとのディレクトリと、依存の組み合わせごとに同じ版を別に置いたディレクトリが並ぶ。
-      // 同じパッケージの同じ版は 1 つにし、版が違えば、それぞれ同梱するので分けて並べる。
+      // paths には、バージョンごとのディレクトリと、依存の組み合わせごとに同じバージョンを別に置いたディレクトリが並ぶ。
+      // 同じパッケージの同じバージョンは 1 つにし、バージョンが違えば、それぞれ同梱するので分けて並べる。
       const dirs = Object.values(listed).flatMap((packages) =>
         packages.flatMap((pkg) => pkg.paths),
       );
@@ -158,47 +177,6 @@ function bundledLicenses(): Plugin {
         (a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version),
       );
       this.emitFile({ type: 'asset', fileName: 'licenses.json', source: JSON.stringify(packages) });
-    },
-  };
-}
-
-// mode が demo のときは、静的なデモ (#832) をビルドする。`vp build --mode demo` で使う。
-// demoStream は、静的なデモ (#832) のときだけ、合成の映像 (demo/stream.m2ts) と、
-// ライブ視聴と録画の再生で映像を繰り返して流す Service Worker (stream-sw.js と、それが読む demo/stream-loop.js) を出力に加える。
-// public に置くと、tenban に埋め込む通常のビルドにも入るので、ここで加える。
-// Service Worker は、デモの全体を受け持てるよう、base の直下に置く。
-function demoStream(): Plugin {
-  const files = [
-    { fileName: 'demo/stream.m2ts', source: './demo/stream.m2ts', type: 'video/mp2t' },
-    { fileName: 'stream-sw.js', source: './demo/stream-sw.js', type: 'text/javascript' },
-    { fileName: 'demo/stream-loop.js', source: './demo/stream-loop.js', type: 'text/javascript' },
-  ];
-
-  return {
-    name: 'kotatsu:demo-stream',
-    // 開発サーバー (vp dev --mode demo) でも、同じパスで配信する。
-    configureServer(server) {
-      const base = server.config.base;
-      server.middlewares.use((request, response, next) => {
-        const path = (request.url ?? '').split('?')[0];
-        const file = files.find((item) => path === `${base}${item.fileName}`);
-        if (file === undefined) {
-          next();
-
-          return;
-        }
-        response.setHeader('Content-Type', file.type);
-        response.end(readFileSync(new URL(file.source, import.meta.url)));
-      });
-    },
-    generateBundle() {
-      for (const file of files) {
-        this.emitFile({
-          type: 'asset',
-          fileName: file.fileName,
-          source: readFileSync(new URL(file.source, import.meta.url)),
-        });
-      }
     },
   };
 }
@@ -232,7 +210,9 @@ export default defineConfig(({ mode }) => ({
         // ブラウザの中での変換の WebAssembly (500 KB ほど) は、端末に保存した録画 (#480) をオフラインで再生するのに要るので含める。
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,wasm}'],
         // パスワードの強度の判定の辞書 (2 MB ほど) は、セットアップとパスワードの変更でしか使わないので含めない。
-        globIgnores: ['**/zxcvbn-*.js'],
+        // ブラウザ内でデコードする経路の WebAssembly (900 KB ほど、#1516) は、手で選んだときだけ使い、
+        // 端末に保存した録画ではまだ使わないので含めない。
+        globIgnores: ['**/zxcvbn-*.js', '**/ffmpeg/**'],
       },
       manifest: {
         name: 'Kotatsu',
@@ -269,22 +249,24 @@ export default defineConfig(({ mode }) => ({
     assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
   },
   server: {
-    // 開発中は、API を手元の tenban に中継する。compose.yaml と同じく、KOTATSU_DEV_PORT でポートを変えられる。
-    // Host は書き換えない。tenban は、Host から求めたオリジンと Origin を比べて /internal/auth/* の CSRF を防ぎ、
+    https: devServerHttps,
+    // 開発中は、API を手元の tenban にプロキシする。compose.yaml と同じく、KOTATSU_DEV_PORT でポートを変えられる。
+    // Host は書き換えない。tenban は、Host から求めたオリジンと Origin を比較して /internal/auth/* の CSRF を防ぎ、
     // OIDC のリダイレクト URI も Host から作る。文字列で書くと changeOrigin が有効になり、どちらも食い違う。
+    // https で配信するときは、X-Forwarded-Proto (xfwd) を付け、tenban に https のオリジンと Cookie の Secure を使わせる。
     proxy: {
-      // 画面がセッションの Cookie で使う端点 (GraphQL、ログイン、映像、画像、#1605) を中継する。
-      // 実況のコメントの中継 (/internal/media/jikkyo/*/ws) は WebSocket なので、ws も中継する。
-      // 映像、録画の画像、ロゴも中継し、開発サーバーだけで画面のすべてを確かめられるようにする。
-      '/internal/': { target: devAPI, changeOrigin: false, ws: true },
+      // 画面がセッションの Cookie で使う端点 (GraphQL、ログイン、映像、画像、#1605) をプロキシする。
+      // 実況のコメントのプロキシ (/internal/media/jikkyo/*/ws) は WebSocket なので、ws もプロキシする。
+      // 映像、録画の画像、ロゴもプロキシし、開発サーバーだけで画面のすべてを確認できるようにする。
+      '/internal/': { target: devAPI, changeOrigin: false, xfwd: devForwarded, ws: true },
       // ブラウザ以外から叩く端点 (EPGStation 互換の API、予約の iCalendar、IPTV、署名付き URL の配信、#1605) も、
-      // 開発サーバーから確かめられるようにする。
-      '/api': { target: devAPI, changeOrigin: false },
-      // MCP のクライアントにトークンを発行する認可サーバー (#963) も、開発サーバーから確かめられるようにする。
-      '/oauth': { target: devAPI, changeOrigin: false },
-      '/.well-known': { target: devAPI, changeOrigin: false },
-      // MCP サーバー (#964) も、開発サーバーから確かめられるようにする。
-      '/mcp': { target: devAPI, changeOrigin: false },
+      // 開発サーバーから確認できるようにする。
+      '/api': { target: devAPI, changeOrigin: false, xfwd: devForwarded },
+      // MCP のクライアントにトークンを発行する認可サーバー (#963) も、開発サーバーから確認できるようにする。
+      '/oauth': { target: devAPI, changeOrigin: false, xfwd: devForwarded },
+      '/.well-known': { target: devAPI, changeOrigin: false, xfwd: devForwarded },
+      // MCP サーバー (#964) も、開発サーバーから確認できるようにする。
+      '/mcp': { target: devAPI, changeOrigin: false, xfwd: devForwarded },
     },
   },
   fmt: {
@@ -292,7 +274,7 @@ export default defineConfig(({ mode }) => ({
     // vendor/ は、上流のソースからビルドした成果物なので、整形しない (scripts/build-mpeg2toh264.sh)。
     ignorePatterns: [
       'src/routeTree.gen.ts',
-      // internal/domain/printenclosed が書き出す (mise run //backend:generate)。
+      // internal/domain/printenclosed が出力する (mise run //backend:generate)。
       'src/futon/enclosedCharacters.gen.ts',
       'schema.graphql',
       '**/__generated__/**',

@@ -37,9 +37,10 @@ import { audioStep, type NetworkStatus } from './networkQuality';
 import { original } from './route';
 import type { NetworkQuality } from './useNetworkQuality';
 import classes from './StreamInfo.module.css';
+import type { PlayerMedia } from './playerMedia';
 
-// useStreamMeter は、再生している経路から届く様子を溜める StreamMeter を作る (#828)。
-// routeKey (画質の名前) が変わったら、前の経路の様子を捨てる。
+// useStreamMeter は、再生している経路から届く様子を蓄積する StreamMeter を作る (#828)。
+// routeKey (画質の名前) が変わったら、前の経路の様子を破棄する。
 export function useStreamMeter(routeKey: string | null) {
   const [meter] = useState(() => new StreamMeter());
   useEffect(() => {
@@ -60,7 +61,7 @@ export type StreamAudio = {
   readonly samplingRate: number;
 };
 
-// Snapshot は、1 秒ごとに読む、右の列に出す様子。
+// Snapshot は、1 秒ごとに読む、右のカラムに出す様子。
 type Snapshot = {
   rate: number | null;
   history: (number | null)[];
@@ -73,7 +74,7 @@ type Snapshot = {
   delay: number | null;
   // liveBuffer は、ライブの低遅延モードの制御の様子 (#1514)。制御していなければ null。
   liveBuffer: LiveBufferStatus | null;
-  // videoLag は、映像だけの遅れと飛び直しの様子 (#1513)。測っていなければ null。
+  // videoLag は、映像だけの遅れと飛び直しの様子 (#1513)。計測していなければ null。
   videoLag: VideoLagStatus | null;
   // network は、回線の側の判定の様子 (#1513)。判定していなければ null。
   network: NetworkStatus | null;
@@ -110,16 +111,16 @@ function audioLabel(t: TFunction, audio: StreamAudio): string {
 
 type Props = {
   meter: StreamMeter;
-  video: HTMLVideoElement | null;
+  media: PlayerMedia | null;
   // quality は、今の経路を表す画質の名前。
   quality: string | null;
   // kind は、再生している経路。ブラウザ内での変換 (convert) か、kyusu の HLS (kyusu) か。
   kind: 'convert' | 'kyusu' | null;
   // audios は、EPG から読んだ番組の音声。分からなければ null。
   audios: ReadonlyArray<StreamAudio> | null;
-  // average は、ブラウザ内での変換で、届いた TS から測らずに出す平均のビットレート (bps)。録画とタイムシフトのバッファの
+  // average は、ブラウザ内での変換で、届いた TS から計測せずに出す平均のビットレート (bps)。録画とタイムシフトのバッファの
   // 再生では、プレイヤーが変換よりずっと先まで読むので、読んだバイト数からは測れない。分からなければ null。
-  // 渡さなければ (ライブ)、届いた TS から測る。
+  // 渡さなければ (ライブ)、届いた TS から計測する。
   average?: number | null;
   // transport は、プレイヤーが数えた数の代わりに出す、TS のパケットの異常の数。録画では、録画しながらサーバーが数えた数を渡す。
   // プレイヤーは、録画のファイルを読み始めたところでも、ドロップとして数えることがある。
@@ -128,22 +129,22 @@ type Props = {
   serviceId?: string;
   // recordedKinds は、録画の、PID の種類ごとの平均のビットレート (#1156)。分からなければ null。
   recordedKinds?: KindBitrates | null;
-  // liveCatchUp は、ライブの低遅延モードの制御 (#1514)。渡せば、目標量と覚えた下限などを出し、下限を捨てるボタンを出す。
+  // liveCatchUp は、ライブの低遅延モードの制御 (#1514)。渡せば、目標量と保存した下限などを出し、下限を破棄するボタンを出す。
   liveCatchUp?: LiveCatchUp;
-  // videoLag は、映像だけの遅れの制御 (#1513)。渡せば、測った遅れと飛び直した回数を出す。
+  // videoLag は、映像だけの遅れの制御 (#1513)。渡せば、計測した遅れと飛び直した回数を出す。
   videoLag?: VideoLag;
-  // network は、回線の側の判定 (#1513)。渡せば、受け取りの速さと足りない兆し、試しのデータの速さを出す。
+  // network は、回線の側の判定 (#1513)。渡せば、受け取りの速さと足りない兆候、プローブのデータの速さを出す。
   network?: Pick<NetworkQuality, 'status'>;
   // height は、枠の高さ。CSS の長さで渡す。
   height?: string | number;
 };
 
-// StreamInfo は、右の列の「情報」(#828)。届いた映像のビットレートの推移と、放送の形式、再生の様子を出す。
+// StreamInfo は、右のカラムの「情報」(#828)。届いた映像のビットレートの推移と、放送の形式、再生の様子を出す。
 // ブラウザ内での変換では、届いた TS 全体のビットレートと、TS のパケットの異常の数を出す。kyusu の経路では、
 // エンコードした後のセグメントのビットレートと、hls.js が推定した帯域を出す。
 export function StreamInfo({
   meter,
-  video,
+  media,
   quality,
   kind,
   audios,
@@ -168,14 +169,14 @@ export function StreamInfo({
     const frames: FrameCount[] = [];
     const update = () => {
       const now = Date.now();
-      const quality = video?.getVideoPlaybackQuality?.();
-      if (video !== null && quality !== undefined && !video.paused) {
-        const next = { frames: quality.totalVideoFrames, time: video.currentTime };
+      const quality = media?.getVideoPlaybackQuality?.();
+      if (media !== null && quality !== undefined && !media.paused) {
+        const next = { frames: quality.totalVideoFrames, time: media.currentTime };
         const previous = frames.at(-1);
-        // シークや読み直しを挟んだら、その前の点を捨てる。
+        // シークや読み直しを挟んだら、その前の点を破棄する。
         if (
           previous !== undefined &&
-          !continuesFrames(previous, next, snapshotIntervalMs / 1_000, video.playbackRate)
+          !continuesFrames(previous, next, snapshotIntervalMs / 1_000, media.playbackRate)
         ) {
           frames.length = 0;
         }
@@ -192,9 +193,9 @@ export function StreamInfo({
         transport: meter.transport,
         source: meter.source,
         encoded: meter.encoded,
-        video: video === null ? null : readVideoStats(video),
+        video: media === null ? null : readVideoStats(media),
         fps: first === undefined || last === undefined ? null : frameRate(first, last),
-        delay: delayOf(video, meter.mediaOrigin, clock.current, now),
+        delay: delayOf(media, meter.mediaOrigin, clock.current, now),
         liveBuffer: readLiveBuffer(),
         videoLag: readVideoLag(),
         network: readNetwork(),
@@ -204,7 +205,7 @@ export function StreamInfo({
     const timer = setInterval(update, snapshotIntervalMs);
 
     return () => clearInterval(timer);
-  }, [meter, video]);
+  }, [meter, media]);
 
   // live は、tenban から届いた放送の内訳。購読していないか、まだ届いていなければ null。
   const [live, setLive] = useState<LiveRates | null>(null);
@@ -237,7 +238,7 @@ export function StreamInfo({
           }
         : (snapshot?.transport ?? null);
   const transportShown = kind === 'convert' || recordedTransport !== undefined || live !== null;
-  // averaged は、測った値でなく平均を出すかどうか。
+  // averaged は、計測した値でなく平均を出すかどうか。
   const averaged = kind === 'convert' && average !== undefined;
   const rate = averaged ? average : (snapshot?.rate ?? null);
   const fps = shownFrameRate(kind === 'convert' ? source : null, snapshot?.fps ?? null);
@@ -268,11 +269,16 @@ export function StreamInfo({
     // 拡大して描いているときは、描いている大きさを添える (#1654)。拡大を入れているのに、映す大きさが元の大きさ以下で
     // 拡大していないときは、映す大きさを添えて、拡大しない理由を示す。
     if (source.upscaled !== null) {
-      return t('player.streamInfo.upscaled', {
-        label: shown,
-        width: source.upscaled.width,
-        height: source.upscaled.height,
-      });
+      return t(
+        source.upscaledWithAnime4K
+          ? 'player.streamInfo.upscaledWithAnime4K'
+          : 'player.streamInfo.upscaled',
+        {
+          label: shown,
+          width: source.upscaled.width,
+          height: source.upscaled.height,
+        },
+      );
     }
 
     return source.notUpscaled === null
@@ -499,7 +505,7 @@ export function StreamInfo({
               <dd>
                 <Group gap="xs" wrap="nowrap">
                   {t('player.stats.seconds', { seconds: liveBuffer.floor.toFixed(1) })}
-                  {/* 回線を繋ぎ替えた直後に、前の経路の値のまま遅れるのを解くため、覚えた下限を捨てられるようにする。 */}
+                  {/* 回線を繋ぎ替えた直後に、前の経路の値のまま遅れるのを解くため、保存した下限を破棄できるようにする。 */}
                   {liveBuffer.learned && (
                     <Button
                       size="compact-xs"
@@ -670,15 +676,15 @@ function LiveRatesSubscriber({
 
 // delayOf は、映しているコマが放送から遅れている秒数を返す (#1515)。映像、画面の時刻の起点、放送の時計のどれかがなければ null。
 function delayOf(
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   mediaOrigin: number | null,
   clock: BroadcastClockSample | null,
   now: number,
 ): number | null {
-  if (video === null || mediaOrigin === null || clock === null) {
+  if (media === null || mediaOrigin === null || clock === null) {
     return null;
   }
-  const delay = broadcastDelaySeconds(video.currentTime, mediaOrigin, clock, now);
+  const delay = broadcastDelaySeconds(media.currentTime, mediaOrigin, clock, now);
 
   return Math.abs(delay) > maxDelaySeconds ? null : delay;
 }

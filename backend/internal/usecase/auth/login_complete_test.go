@@ -19,7 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
-// passwordStep は、パスワードを確かめ、第二要素の確認を待つトークンを返す。
+// passwordStep は、パスワードを確認し、第二要素の確認を待つトークンを返す。
 func (f *loginFixture) passwordStep(t *testing.T) string {
 	t.Helper()
 
@@ -53,7 +53,7 @@ func (f *loginFixture) totpCode(t *testing.T, secret []byte) string {
 	return code
 }
 
-// TestEnrollAtLogin は、第二要素のないユーザーが、パスワードの確認の後に TOTP を登録してログインできることを確かめる。
+// TestEnrollAtLogin は、第二要素のないユーザーが、パスワードの確認の後に TOTP を登録してログインできることを確認する。
 func TestEnrollAtLogin(t *testing.T) {
 	t.Parallel()
 
@@ -71,7 +71,7 @@ func TestEnrollAtLogin(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrSecondFactorEnrolled)
 }
 
-// TestLoginWithTOTP は、TOTP でログインを完了させ、失敗が多すぎたらパスワードの確認からやり直させることを確かめる。
+// TestLoginWithTOTP は、TOTP でログインを完了させ、失敗が多すぎたらパスワードの確認からやり直させることを確認する。
 func TestLoginWithTOTP(t *testing.T) {
 	t.Parallel()
 
@@ -99,7 +99,7 @@ func TestLoginWithTOTP(t *testing.T) {
 }
 
 // TestSecondFactorFailuresThrottle は、パスワードの確認からやり直しても、第二要素の失敗を数え続け、
-// 続けば待たせることを確かめる。パスワードを知っている人に、第二要素のコードを総当たりさせない。
+// 続けば待たせることを確認する。パスワードを知っている人に、第二要素のコードを総当たりさせない。
 func TestSecondFactorFailuresThrottle(t *testing.T) {
 	t.Parallel()
 
@@ -125,7 +125,7 @@ func TestSecondFactorFailuresThrottle(t *testing.T) {
 	_, _, err = f.logins.Password(t.Context(), f.db, loginName, loginPhrase, f.client)
 	require.ErrorIs(t, err, auth.ErrThrottled)
 
-	// 待ち時間が過ぎれば、第二要素まで確かめてログインでき、アカウントの失敗の回数は消える。
+	// 待ち時間が過ぎれば、第二要素まで確認してログインでき、アカウントの失敗の回数は消える。
 	f.clock.Advance(throttled.RetryAfter)
 	_, err = f.logins.CompleteWithTOTP(t.Context(), f.db, token, f.totpCode(t, secret), f.client)
 	require.NoError(t, err)
@@ -157,12 +157,12 @@ func TestLoginChallengeExpires(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrLoginChallengeInvalid)
 }
 
-// TestLoginHandlers は、Cookie を受け渡しながら、パスワード、TOTP の登録、確認の順にログインできることを確かめる。
+// TestLoginHandlers は、Cookie を受け渡しながら、パスワード、TOTP の登録、確認の順にログインできることを確認する。
 func TestLoginHandlers(t *testing.T) {
 	t.Parallel()
 
 	f := newLoginFixture(t)
-	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして捨てる。
+	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして破棄する。
 	f.clock.Advance(time.Since(f.clock.Now()))
 	client := func(*http.Request) *auth.ClientInfo { return f.client }
 	mux := http.NewServeMux()
@@ -236,7 +236,7 @@ func TestLoginHandlers(t *testing.T) {
 	assert.NotEmpty(t, cookie(auth.CookieName), "the session cookie must be set")
 	assert.Empty(t, cookie(auth.ChallengeCookieName), "the challenge cookie must be cleared")
 
-	// 2 回目からは、登録した TOTP で確かめる。
+	// 2 回目からは、登録した TOTP で確認する。
 	f.clock.Advance(totp.Period)
 	require.Equal(t, http.StatusOK, post("/internal/auth/login", `{"username":"Kotatsu","password":"`+loginPhrase+`"}`, &login))
 	assert.Equal(t, "second_factor", login.Next)

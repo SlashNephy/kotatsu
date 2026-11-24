@@ -24,7 +24,7 @@ func groupNames(groups []*rule.Group) []string {
 	return names
 }
 
-// TestCreateGroupValidatesName は、グループの名前の前後の空白を除き、空の名前、長すぎる名前、ほかのグループと同じ名前を拒むことを確かめる。
+// TestCreateGroupValidatesName は、グループの名前の前後の空白を除き、空の名前、長すぎる名前、ほかのグループと同じ名前を拒むことを確認する。
 func TestCreateGroupValidatesName(t *testing.T) {
 	t.Parallel()
 
@@ -63,7 +63,7 @@ func TestCreateGroupValidatesName(t *testing.T) {
 	}
 }
 
-// TestGroupsAreOrderedAndAudited は、グループを作った順に並べ、名前を変え、並べ直せて、そのたびに監査ログが残ることを確かめる。
+// TestGroupsAreOrderedAndAudited は、グループを作った順に並べ、名前を変え、並べ直せて、そのたびに監査ログが残ることを確認する。
 func TestGroupsAreOrderedAndAudited(t *testing.T) {
 	t.Parallel()
 
@@ -110,7 +110,7 @@ func TestGroupsAreOrderedAndAudited(t *testing.T) {
 	}
 }
 
-// TestReorderGroupsRequiresEveryGroup は、並べ直すときに、すべてのグループを 1 回ずつ渡さなければ拒み、並びを変えないことを確かめる。
+// TestReorderGroupsRequiresEveryGroup は、並べ直すときに、すべてのグループを 1 回ずつ渡さなければ拒み、並びを変えないことを確認する。
 func TestReorderGroupsRequiresEveryGroup(t *testing.T) {
 	t.Parallel()
 
@@ -146,8 +146,8 @@ func TestReorderGroupsRequiresEveryGroup(t *testing.T) {
 	}
 }
 
-// TestUpdateKeepsOrChangesGroup は、ルールを変えるときに、グループを残すか、変えるか、外すかを選べることを確かめる。
-// API でグループを省いた変更 (KeepGroup) が、黙ってグループを外さないことを確かめる (#1493)。
+// TestUpdateKeepsOrChangesGroup は、ルールを変えるときに、グループを残すか、変えるか、外すかを選べることを確認する。
+// API でグループを省いた変更 (KeepGroup) が、黙ってグループを外さないことを確認する (#1493)。
 func TestUpdateKeepsOrChangesGroup(t *testing.T) {
 	t.Parallel()
 
@@ -205,7 +205,7 @@ func TestUpdateKeepsOrChangesGroup(t *testing.T) {
 }
 
 // TestSetGroupMovesRulesWithoutTouchingUpdatedAt は、ルールをまとめてグループに移し、見つからないルールを飛ばして数え、
-// ルールの変えた日を変えないこと、ルールごとに監査ログを残すことを確かめる。
+// ルールの変えた日を変えないこと、ルールごとに監査ログを残すことを確認する。
 func TestSetGroupMovesRulesWithoutTouchingUpdatedAt(t *testing.T) {
 	t.Parallel()
 
@@ -248,7 +248,7 @@ func TestSetGroupMovesRulesWithoutTouchingUpdatedAt(t *testing.T) {
 }
 
 // TestDeleteGroupReturnsRulesToOthers は、グループを消しても中のルールは消さず、どのグループにも入らないルールに戻し、
-// 戻したルールの数を監査ログに残すことを確かめる。
+// 戻したルールの数を監査ログに残すことを確認する。
 func TestDeleteGroupReturnsRulesToOthers(t *testing.T) {
 	t.Parallel()
 

@@ -37,7 +37,7 @@ type Setup struct {
 	logger   *slog.Logger
 }
 
-// NewSetup は Setup を返す。policy で、管理者のパスワードの規定を確かめる。
+// NewSetup は Setup を返す。policy で、管理者のパスワードの規定を確認する。
 func NewSetup(clk clock.Clock, recorder audit.Recorder, policy *password.Policy, logger *slog.Logger) *Setup {
 	return &Setup{clock: clk, recorder: recorder, policy: policy, logger: logger}
 }
@@ -90,11 +90,11 @@ type NewAdmin struct {
 	Password    string
 }
 
-// CreateAdmin は、セットアップトークンを確かめて、最初の管理者を作る。作ったら、すべてのセットアップトークンを消す。
+// CreateAdmin は、セットアップトークンを確認して、最初の管理者を作る。作ったら、すべてのセットアップトークンを消す。
 // 管理者には、パスワードだけを設定する。第二要素は、最初にログインするときに登録する (設計書 9.3)。
 func (s *Setup) CreateAdmin(ctx context.Context, db Database, token string, admin *NewAdmin, client *ClientInfo) (*User, error) {
 	// パスワードの規定の確認とハッシュ化は時間がかかるので、トランザクションの外で行う。
-	// その前に、セットアップが済んでいないか、トークンが正しいかを安く確かめ、正しいトークンを持つ人にだけ時間を使う。
+	// その前に、セットアップが済んでいないか、トークンが正しいかを安く確認し、正しいトークンを持つ人にだけ時間を使う。
 	// パスワードの規定に当たったかどうかも、トークンを持たない人には見せない。
 	if err := s.requireNoAdmin(ctx, db); err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func (s *Setup) CreateAdmin(ctx context.Context, db Database, token string, admi
 		if err := q.LockSetup(ctx); err != nil {
 			return fmt.Errorf("failed to lock the setup: %w", err)
 		}
-		// ロックを取ってから、もう一度確かめる。同時に作られないようにするためである。
+		// ロックを取ってから、もう一度確認する。同時に作られないようにするためである。
 		if err := s.requireNoAdmin(ctx, tx); err != nil {
 			return err
 		}
@@ -192,7 +192,7 @@ func (s *Setup) StatusHandler(db sqlc.DBTX) http.Handler {
 	})
 }
 
-// CreateHandler は、セットアップトークンを確かめて、最初の管理者を作るハンドラーを返す (POST /internal/auth/setup)。
+// CreateHandler は、セットアップトークンを確認して、最初の管理者を作るハンドラーを返す (POST /internal/auth/setup)。
 func (s *Setup) CreateHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req setupRequest
@@ -251,7 +251,7 @@ func (s *Setup) requireToken(ctx context.Context, db sqlc.DBTX, token string) er
 		return fmt.Errorf("failed to find the setup token: %w", err)
 	}
 	if !exists {
-		// 管理者を作ると、トークンはすべて消える。管理者の有無を確かめてから、トークンを確かめるまでの間に、
+		// 管理者を作ると、トークンはすべて消える。管理者の有無を確認してから、トークンを確認するまでの間に、
 		// 別の人のセットアップが終わった場合は、トークンの誤りではなく、セットアップが済んだことを返す。
 		if err := s.requireNoAdmin(ctx, db); err != nil {
 			return err

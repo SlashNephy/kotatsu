@@ -18,7 +18,7 @@ import (
 const authSetupPath = "/internal/auth/setup"
 
 // TestTenbanServesAuth は、tenban が、ログインやログアウトなどの手続き (/internal/auth/*) を echo のルーターで受け (#1606)、
-// mux のときと同じく、セッションの Cookie を読み、状態を変える POST で Origin を確かめ、メソッドの違う要求に 405 を返すことを確かめる。
+// mux のときと同じく、セッションの Cookie を読み、状態を変える POST で Origin を確認し、メソッドの違う要求に 405 を返すことを確認する。
 func TestTenbanServesAuth(t *testing.T) {
 	t.Parallel()
 
@@ -64,7 +64,7 @@ func TestTenbanServesAuth(t *testing.T) {
 		{name: "unknown path", method: http.MethodGet, path: "/internal/auth/nope", session: session, origin: "", wantStatus: http.StatusNotFound, wantAllow: ""},
 	}
 	client := httpclienttest.New(t)
-	// 記録先から戻ってきた認可の 303 を、たどらずに確かめる。
+	// 記録先から戻ってきた認可の 303 を、たどらずに確認する。
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -28,7 +28,7 @@ const (
 	DefaultIdleTimeout = 10 * time.Second
 	// playlistTimeout は、エンコーダーを起動してから、最初のセグメントがプレイリストに載るのを待つ時間の上限。
 	playlistTimeout = 20 * time.Second
-	// pollInterval は、プレイリストができたかを確かめる間隔。
+	// pollInterval は、プレイリストができたかを確認する間隔。
 	pollInterval = 100 * time.Millisecond
 	// reapInterval は、使われていないセッションを探す間隔。
 	reapInterval = time.Second
@@ -327,8 +327,8 @@ func (l *Live) encode(ctx context.Context, s *session, preset *Preset) {
 	close(s.done)
 }
 
-// scrambleVerdict は、エンコーダーが止まった後に、スクランブルされたまま届いていたかを確かめ、そうなら ts.ErrScrambled を返す。
-// 最初のセグメントができる前にエンコーダーが降りたら、いちばん新しい窓だけで決める (設計書 7.1)。
+// scrambleVerdict は、エンコーダーが止まった後に、スクランブルされたまま届いていたかを確認し、そうなら ts.ErrScrambled を返す。
+// 最初のセグメントができる前にエンコーダーが降りたら、いちばん新しいウィンドウだけで決める (設計書 7.1)。
 // 原因はエンコーダーではないので、エンコードの方式を変えて起動し直すことはしない。そうでなければ err をそのまま返す。
 func (l *Live) scrambleVerdict(ctx context.Context, s *session, detector *ts.ScrambleDetector, err error) error {
 	if detector == nil || ctx.Err() != nil {

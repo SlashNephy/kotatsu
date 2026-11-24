@@ -15,11 +15,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
 )
 
-// leakedParts は、伏せ損ねたときに残る、秘密の一部 (そのまま、HTML のエスケープ、JSON のエスケープ)。
+// leakedParts は、マスクし損ねたときに残る、秘密の一部 (そのまま、HTML のエスケープ、JSON のエスケープ)。
 func leakedParts() []string { return []string{"ss<wo", `ss\u003cwo`, `pa\"ss`} }
 
 // TestReportRedactsFormattedSecrets は、slog の JSON で整形 (エスケープ) された秘密と、
-// 1 行の上限の切り口にまたがった秘密が、画面に送る行に残らないことを、本物の Handler と Buffer で確かめる。
+// 1 行の上限の切り口にまたがった秘密が、画面に送る行に残らないことを、本物の Handler と Buffer で確認する。
 func TestReportRedactsFormattedSecrets(t *testing.T) {
 	t.Parallel()
 
@@ -80,7 +80,7 @@ func TestReportRedactsFormattedSecrets(t *testing.T) {
 	}
 }
 
-// TestReportRedactsTunerLinesBeforeTruncating は、チューナーサーバーの行を、伏せてから切ることを確かめる。
+// TestReportRedactsTunerLinesBeforeTruncating は、チューナーサーバーの行を、マスクしてから切ることを確認する。
 func TestReportRedactsTunerLinesBeforeTruncating(t *testing.T) {
 	t.Parallel()
 

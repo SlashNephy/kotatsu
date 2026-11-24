@@ -81,7 +81,7 @@ func (s *Store) UpdateStoragePool(
 	return new(domain.StoragePool(updated)), nil
 }
 
-// poolPriority は、優先順位が範囲にあるかを確かめ、DB に保存する形にする。
+// poolPriority は、優先順位が範囲にあるかを確認し、DB に保存する形にする。
 func poolPriority(priority int) (int32, error) {
 	if priority < -maxPoolPriority || priority > maxPoolPriority {
 		return 0, fmt.Errorf("%w: priority must be between %d and %d", ErrInvalidSettings, -maxPoolPriority, maxPoolPriority)

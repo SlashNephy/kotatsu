@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// 偽のチューナーサーバーの、地上波 (こたつテスト1、こたつテスト3) と BS のネットワークとサービス。
+	// モックのチューナーサーバーの、地上波 (こたつテスト1、こたつテスト3) と BS のネットワークとサービス。
 	fakeGRNetwork  = 0x7FE0
 	fakeGRService  = 0x0400
 	fakeGR3Network = 0x7FE0 + 2
@@ -127,7 +127,7 @@ func eventIDs(broadcasts []*nextepisode.Broadcast) []int64 {
 }
 
 // TestFindBySeries は、しょぼいカレンダーに結びつかない録画の続きの放送を、EPG の同期で書いたシリーズ名と話数で引き、
-// 前の回、別の期、予約のある回、録った回、1 週間より先の回を外すことを確かめる (#1564)。
+// 前の回、別の期、予約のある回、録った回、1 週間より先の回を外すことを確認する (#1564)。
 func TestFindBySeries(t *testing.T) {
 	t.Parallel()
 
@@ -155,8 +155,8 @@ func TestFindBySeries(t *testing.T) {
 	assert.InDelta(t, 4, got[0].Number, 0)
 }
 
-// TestFindFillsProgramsWithoutSeries は、シリーズ名の列を足す前に書いた番組 (列が NULL) も、全量の突き合わせで埋まり、
-// 続きの放送に出ることを確かめる (#1564)。
+// TestFindFillsProgramsWithoutSeries は、シリーズ名のカラムを足す前に書いた番組 (カラムが NULL) も、全量の照合で埋まり、
+// 続きの放送に出ることを確認する (#1564)。
 func TestFindFillsProgramsWithoutSeries(t *testing.T) {
 	t.Parallel()
 
@@ -179,7 +179,7 @@ func TestFindFillsProgramsWithoutSeries(t *testing.T) {
 	assert.Zero(t, unfilled)
 }
 
-// TestFindByAnime は、しょぼいカレンダーの話に結びついた録画では、番組名でなく TID と話数で続きの放送を引くことを確かめる (#1564)。
+// TestFindByAnime は、しょぼいカレンダーの話に結びついた録画では、番組名でなく TID と話数で続きの放送を検索することを確認する (#1564)。
 func TestFindByAnime(t *testing.T) {
 	t.Parallel()
 
@@ -212,7 +212,7 @@ func TestFindByAnime(t *testing.T) {
 	assert.Equal(t, []int64{600, 603}, eventIDs(got))
 }
 
-// TestFindWithoutEpisode は、話数を読めない録画 (ニュースなど) と、ない録画では、続きの放送を探さないことを確かめる。
+// TestFindWithoutEpisode は、話数を読めない録画 (ニュースなど) と、ない録画では、続きの放送を探さないことを確認する。
 func TestFindWithoutEpisode(t *testing.T) {
 	t.Parallel()
 
@@ -236,7 +236,7 @@ func TestFindWithoutEpisode(t *testing.T) {
 }
 
 // TestFindReadsArchivedSeriesEpisode は、番組名に話数のない録画の話数を、録画の番組 (アーカイブ) の記述子の話数から読み、
-// eventId を使い回した番組表の後の番組の記述子の話数では読まないことを確かめる。
+// eventId を使い回した番組表の後の番組の記述子の話数では読まないことを確認する。
 func TestFindReadsArchivedSeriesEpisode(t *testing.T) {
 	t.Parallel()
 
@@ -288,7 +288,7 @@ func (f *findFixture) linkDrama(t *testing.T, recordingID uuid.UUID, seriesID, e
 }
 
 // TestFindByDrama は、番組名から話数を読めないドラマの録画では、TMDB の作品とシーズンと話の番号で続きの放送を引き、
-// 前の話、別のシーズン、別の作品、録った話、TMDB に結びつかない番組を外すことを確かめる (#1564)。
+// 前の話、別のシーズン、別の作品、録った話、TMDB に結びつかない番組を外すことを確認する (#1564)。
 func TestFindByDrama(t *testing.T) {
 	t.Parallel()
 
@@ -311,7 +311,7 @@ func TestFindByDrama(t *testing.T) {
 	recording := f.addRecording(t, "夜明けの診療所")
 	f.linkDrama(t, recording, dramaSeries, 3)
 
-	// 第 5 話を録り終えて録画履歴に書き、録画を消す。録画の結びつきは消えても、履歴に写した話で、録った話として外す。
+	// 第 5 話を録り終えて録画履歴に書き、録画を消す。録画の結びつきは消えても、履歴にコピーした話で、録った話として外す。
 	recorded := f.addRecording(t, "夜明けの診療所")
 	f.linkDrama(t, recorded, dramaSeries, 5)
 	q := sqlc.New(f.pool)
@@ -345,7 +345,7 @@ func (f *findFixture) addDramaHistory(t *testing.T, season, episode int32) {
 }
 
 // TestFindByDramaNextSeason は、TMDB の作品で探す録画で、今のシーズンの後の話がこれから放送されないときだけ、
-// 次のシーズンの第 1 話を続きの放送に出すことを確かめる (#1564)。録画は、シーズン 1 の第 10 話。
+// 次のシーズンの第 1 話を続きの放送に出すことを確認する (#1564)。録画は、シーズン 1 の第 10 話。
 func TestFindByDramaNextSeason(t *testing.T) {
 	t.Parallel()
 
@@ -414,18 +414,18 @@ func TestFindByDramaNextSeason(t *testing.T) {
 	}
 }
 
-// TestFindMergesSubtitledSeries は、録画の詳細の続きの放送でも、番組名に副題が入ってシリーズ名が回ごとに変わる作品を、
-// 副題を除いた作品名のシリーズにまとめることを確かめる (#2031)。副題のない回の録画では、録画そのものを副題のない回とみなす。
+// TestFindMergesSubtitledSeries は、録画の詳細の続きの放送でも、番組名にサブタイトルが入ってシリーズ名が回ごとに変わる作品を、
+// サブタイトルを除いた作品名のシリーズにまとめることを確認する (#2031)。サブタイトルのない回の録画では、録画そのものをサブタイトルのない回とみなす。
 func TestFindMergesSubtitledSeries(t *testing.T) {
 	t.Parallel()
 
 	programs := []*faketuner.Program{
-		// 第 5 話の再放送は、副題のない番組名で放送される。
+		// 第 5 話の再放送は、サブタイトルのない番組名で放送される。
 		fakeProgram(fakeGRNetwork, fakeGRService, 600, time.Hour, "港町の灯　＃０５🈞"),
 		fakeProgram(fakeGRNetwork, fakeGRService, 601, 5*time.Hour, "港町の灯　六つ目の嵐　＃０６🈑🈓"),
 		// シリーズ名が作品名で始まるだけの別の番組は、作品名を読み直して外す。
 		fakeProgram(fakeGRNetwork, fakeGRService, 602, 90*time.Minute, "港町の灯台　＃０９"),
-		// 枠の名前の後ろに作品名を書く番組は、副題のない回がなければまとめない。
+		// 枠の名前の後ろに作品名を書く番組は、サブタイトルのない回がなければまとめない。
 		fakeProgram(fakeGRNetwork, fakeGRService, 611, 3*time.Hour, "連続劇場　雪の峠　＃５"),
 		// 作品名の後ろの語が期 (数字) なら、まとめない。
 		fakeProgram(fakeGRNetwork, fakeGRService, 621, 6*time.Hour, "灯台守　４　＃１６"),
@@ -470,7 +470,7 @@ func TestFindMergesSubtitledSeries(t *testing.T) {
 		t.Parallel()
 
 		f := newFindFixture(t, append(slices.Clone(programs),
-			// 「港町の灯　嵐の夜」も、副題のない回を持つ作品。
+			// 「港町の灯　嵐の夜」も、サブタイトルのない回を持つ作品。
 			fakeProgram(fakeGRNetwork, fakeGRService, 630, 2*time.Hour, "港町の灯　嵐の夜　＃０７"),
 		))
 		recording := f.addRecording(t, "港町の灯　嵐の夜　その二　＃０５🈑🈓")

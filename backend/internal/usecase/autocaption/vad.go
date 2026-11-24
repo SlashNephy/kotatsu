@@ -26,7 +26,7 @@ const (
 	DefaultVADModelPath = "whisper/ggml-silero-vad.bin"
 	// vadMinSilenceMs は、VAD が声の区間を分ける、最短の無音の長さ (ミリ秒)。台詞の間の短い間で分けるよう、既定の 100 より長くする。
 	vadMinSilenceMs = 200
-	// vadPadMs は、VAD が声の区間の前後にのばす長さ (ミリ秒)。台詞の頭と尻の弱い音を切らないようにする。
+	// vadPadMs は、VAD が声の区間の前後にのばす長さ (ミリ秒)。台詞の先頭と尻の弱い音を切らないようにする。
 	vadPadMs = 100
 )
 

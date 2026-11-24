@@ -80,7 +80,7 @@ func (e *encoder) vector(n int, item func(*encoder, int)) {
 }
 
 // decoder は、CtrlCmd の本文を読む。読めなければ、それ以降の読み取りはゼロ値を返し、err に最初の誤りを残す。
-// 構造体と配列は、先頭の大きさまでで読み終えたことにする。新しい版の EpgTimerSrv が末尾に項目を足しても読めるようにするため。
+// 構造体と配列は、先頭の大きさまでで読み終えたことにする。新しいバージョンの EpgTimerSrv が末尾に項目を足しても読めるようにするため。
 type decoder struct {
 	b   []byte
 	pos int
@@ -97,7 +97,7 @@ func (d *decoder) failf(format string, args ...any) {
 	}
 }
 
-// remaining は、まだ読んでいないバイト数を返す。版によって後ろに項目が増える構造体で、項目があるかを確かめるのに使う。
+// remaining は、まだ読んでいないバイト数を返す。バージョンによって後ろに項目が増える構造体で、項目があるかを確認するのに使う。
 func (d *decoder) remaining() int {
 	if d.err != nil {
 		return 0
@@ -230,8 +230,8 @@ func (d *decoder) structure(body func(*decoder)) {
 	}
 }
 
-// optionalStructure は、構造体を読む。中身のない構造体 (大きさが 4) なら body を呼ばず、false を返す。
-// EPGDB_EVENT_INFO の基本情報や拡張情報などは、持たないときに中身のない構造体を置く。
+// optionalStructure は、構造体を読む。内容のない構造体 (大きさが 4) なら body を呼ばず、false を返す。
+// EPGDB_EVENT_INFO の基本情報や拡張情報などは、持たないときに内容のない構造体を置く。
 func (d *decoder) optionalStructure(body func(*decoder)) bool {
 	r := d.region(0)
 	if r.err != nil {

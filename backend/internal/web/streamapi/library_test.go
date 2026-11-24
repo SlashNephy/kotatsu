@@ -34,7 +34,7 @@ func loadLibraryTS(t *testing.T) []byte {
 	return data
 }
 
-// TestLibraryHandler は、ライブラリのファイルを、索引のできた後は指定した位置の手前の I フレームから流し、流し始めた位置を返すことを確かめる (#1734)。
+// TestLibraryHandler は、ライブラリのファイルを、インデックスのできた後は指定した位置の手前の I フレームから流し、流し始めた位置を返すことを確認する (#1734)。
 func TestLibraryHandler(t *testing.T) {
 	t.Parallel()
 
@@ -56,7 +56,7 @@ func TestLibraryHandler(t *testing.T) {
 	})
 	source := filelib.NewSource(libraries, indexer)
 	ref := filelib.Ref{Library: libraryName, Path: "show.ts"}
-	// 開くと索引を作り始めるので、作り終えるまで待つ。
+	// 開くとインデックスを作り始めるので、作り終えるまで待つ。
 	var file *filelib.File
 	require.Eventually(t, func() bool {
 		var err error
@@ -109,7 +109,7 @@ func TestLibraryHandler(t *testing.T) {
 
 				return
 			}
-			// 途中から流すときは、先に PAT と PMT を置くので、末尾が流し始めた位置からのファイルの中身と一致する。
+			// 途中から流すときは、先に PAT と PMT を置くので、末尾が流し始めた位置からのファイルの内容と一致する。
 			require.GreaterOrEqual(t, len(body), len(data)-int(tt.wantFrom))
 			assert.Equal(t, data[tt.wantFrom:], body[len(body)-(len(data)-int(tt.wantFrom)):])
 		})

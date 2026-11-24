@@ -37,7 +37,7 @@ type Props = {
   seek?: ReactNode;
   // start は、左に並べる操作 (再生と音量)。
   start: ReactNode;
-  // status は、真ん中に出す、再生位置やライブの印。
+  // status は、真ん中に出す、再生位置やライブのマーク。
   status: ReactNode;
   // end は、右に並べる操作 (字幕、実況、設定、キャプチャ、全画面など)。
   end: ReactNode;
@@ -151,7 +151,7 @@ export type HoldPressProps = {
 export function useHoldPress(onPress: () => void, onHold: ((held: boolean) => void) | undefined) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holding = useRef(false);
-  // swallowClick は、押し続けた後に届くクリックを、押したことにしないための印。
+  // swallowClick は、押し続けた後に届くクリックを、押したことにしないためのフラグ。
   const swallowClick = useRef(false);
   const onHoldRef = useRef(onHold);
   onHoldRef.current = onHold;
@@ -228,7 +228,7 @@ export function useHoldPress(onPress: () => void, onHold: ((held: boolean) => vo
 }
 
 // SeekStepButtons は、15 秒戻るボタンと進むボタン (#1572)。シークできる画面だけが、登録簿に操作を入れて渡す。
-// onFastForward を渡すと、進むボタンを押し続けている間を知らせる (早回し)。
+// onFastForward を渡すと、進むボタンを押し続けている間を通知する (早回し)。
 export function SeekStepButtons({
   commands,
   onFastForward,
@@ -334,7 +334,7 @@ export function PositionStatus({ position, rest }: { position: string; rest: str
   );
 }
 
-// LiveStatus は、ライブで再生していることの印。放送から遅れているときは、押すと放送中の位置へ戻るボタンにする (#449)。
+// LiveStatus は、ライブで再生していることのマーク。放送から遅れているときは、押すと放送中の位置へ戻るボタンにする (#449)。
 export function LiveStatus({ onCatchUp }: { onCatchUp?: (() => void) | undefined }) {
   const { t } = useTranslation();
 
@@ -441,7 +441,7 @@ export function PlayerNotice({
   );
 }
 
-// PlayerAlert は、切断や再生のエラーを、映像の真ん中に重ねて知らせる (#435)。全画面と別のウィンドウでは、映像の外の知らせが
+// PlayerAlert は、切断や再生のエラーを、映像の真ん中に重ねて通知する (#435)。全画面と別のウィンドウでは、映像の外の知らせが
 // 見えないので、そのときに使う。action を渡すと、その操作 (つなぎ直す、やり直す) のボタンを添える。
 export function PlayerAlert({
   title,

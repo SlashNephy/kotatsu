@@ -21,7 +21,7 @@ type Props = {
   previewUrl: string | null | undefined;
   onChange: (seconds: number) => void;
   onChangeEnd: (seconds: number) => void;
-  // bands は、シークバーに示す区間と印 (#479)。録画が途切れた位置などを示す。
+  // bands は、シークバーに示す区間とマーク (#479)。録画が途切れた位置などを示す。
   bands?: readonly SeekBand[];
 };
 
@@ -47,7 +47,7 @@ export function SeekBar({
   );
   // dragging は、つまみを動かしている間かどうか。その間は、カーソルがバーから外れても吹き出しを出し続ける。
   const dragging = useRef(false);
-  // pressX は、押した位置の x。動かさずに離したときだけ、番組の区切りの印へ移るのに使う。動かしたり、キーボードで操作したりすると null。
+  // pressX は、押した位置の x。動かさずに離したときだけ、番組の区切りのマークへ移るのに使う。動かしたり、キーボードで操作したりすると null。
   const pressX = useRef<number | null>(null);
   // loaded は、読んだ preview.json と、その録画のプレビュー画像の URL。録画が変わったら、前の録画のコマの並びを使わない。
   const [loaded, setLoaded] = useState<{ url: string; manifest: PreviewManifest | null } | null>(
@@ -99,7 +99,7 @@ export function SeekBar({
     }
   };
 
-  // 印には、バーの幅の 1% (少なくとも 2 秒) 以内に乗せれば当たったとみなす。細くて、ちょうどには乗せにくいため。
+  // マークには、バーの幅の 1% (少なくとも 2 秒) 以内に乗せれば当たったとみなす。細くて、ちょうどには乗せにくいため。
   const tolerance = Math.max(max * 0.01, 2);
   const band =
     hover === null
@@ -147,11 +147,11 @@ export function SeekBar({
           {band !== null && <span className={classes.label}>{band.label}</span>}
         </div>
       )}
-      {/* 区間と印は、バーの上に重ねる。操作は、下のスライダーに通す。 */}
+      {/* 区間とマークは、バーの上に重ねる。操作は、下のスライダーに通す。 */}
       <div className={classes.bands} aria-hidden>
         {bands.map((item, index) => (
           <div
-            // 同じ位置に印が重なることもあるので (冒頭の欠けと、始まってすぐの途切れなど)、並びの番号で見分ける。
+            // 同じ位置にマークが重なることもあるので (冒頭の欠けと、始まってすぐの途切れなど)、並びの番号で見分ける。
             key={index}
             className={
               item.to > item.from
@@ -193,7 +193,7 @@ export function SeekBar({
           // 動かし終えたら消す。カーソルがまだバーの上にあれば、次に動かしたときに出し直す。
           dragging.current = false;
           setHover(null);
-          // 動かさずに押した位置に番組の区切りの印があれば、その位置へ移る。
+          // 動かさずに押した位置に番組の区切りのマークがあれば、その位置へ移る。
           const pressed = pressX.current !== null;
           pressX.current = null;
           onChangeEnd((pressed ? partAt(bands, seconds, tolerance)?.from : undefined) ?? seconds);

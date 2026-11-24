@@ -18,7 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/power"
 )
 
-// TestWakeTaskXML は、Windows の起こすタスクの定義が、schtasks の読む UTF-16 (BOM 付き) で、時刻を UTC で書くことを確かめる。
+// TestWakeTaskXML は、Windows の起こすタスクの定義が、schtasks の読む UTF-16 (BOM 付き) で、時刻を UTC で書くことを確認する。
 func TestWakeTaskXML(t *testing.T) {
 	t.Parallel()
 
@@ -73,7 +73,7 @@ func TestWakeTaskXML(t *testing.T) {
 	}
 }
 
-// TestCFAbsoluteTime は、Unix 時刻を、2001-01-01 UTC からの秒にすることを確かめる。
+// TestCFAbsoluteTime は、Unix 時刻を、2001-01-01 UTC からの秒にすることを確認する。
 func TestCFAbsoluteTime(t *testing.T) {
 	t.Parallel()
 
@@ -94,7 +94,7 @@ func TestCFAbsoluteTime(t *testing.T) {
 	}
 }
 
-// TestWakeFile は、置いた予約の時刻を秒で書き、読み戻し、消せることを確かめる。データディレクトリがなければ、何もしない。
+// TestWakeFile は、置いた予約の時刻を秒で書き、読み戻し、消せることを確認する。データディレクトリがなければ、何もしない。
 func TestWakeFile(t *testing.T) {
 	t.Parallel()
 
@@ -132,7 +132,7 @@ func TestWakeFile(t *testing.T) {
 	}
 }
 
-// TestWakeFileBroken は、壊れたファイルを読めないときに、エラーにすることを確かめる。
+// TestWakeFileBroken は、壊れたファイルを読めないときに、エラーにすることを確認する。
 func TestWakeFileBroken(t *testing.T) {
 	t.Parallel()
 

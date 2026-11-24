@@ -68,7 +68,7 @@ func (f *fixture) programWatchReserved(t *testing.T, eventID int) bool {
 	return got.Node.WatchReserved
 }
 
-// TestWatchReservations は、視聴予約を付け外しでき、一覧に放送の早い順に出て、ほかの端末に知らせることを確かめる (設計書 4.8)。
+// TestWatchReservations は、視聴予約を付け外しでき、一覧に放送の早い順に出て、ほかの端末に通知することを確認する (設計書 4.8)。
 func TestWatchReservations(t *testing.T) {
 	t.Parallel()
 
@@ -116,7 +116,7 @@ func TestWatchReservations(t *testing.T) {
 	assert.Equal(t, 5, list[0].Program.EventID)
 }
 
-// TestSetWatchReservationRejects は、視聴予約を付けられない番組を BAD_USER_INPUT で拒むことを確かめる。
+// TestSetWatchReservationRejects は、視聴予約を付けられない番組を BAD_USER_INPUT で拒むことを確認する。
 func TestSetWatchReservationRejects(t *testing.T) {
 	t.Parallel()
 
@@ -142,7 +142,7 @@ func TestSetWatchReservationRejects(t *testing.T) {
 	}
 }
 
-// TestWatchReservationsForViewers は、閲覧だけのユーザーも、視聴予約を使えることを確かめる。録画の予約と違い、チューナーを使わないため。
+// TestWatchReservationsForViewers は、閲覧だけのユーザーも、視聴予約を使えることを確認する。録画の予約と違い、チューナーを使わないため。
 func TestWatchReservationsForViewers(t *testing.T) {
 	t.Parallel()
 
@@ -156,7 +156,7 @@ func TestWatchReservationsForViewers(t *testing.T) {
 	assert.Len(t, v.watchReservations(t), 1)
 }
 
-// TestWatchReminderSettings は、通知を放送の何分前に送るかを 0 から 60 分の範囲で変えられ、通知の時刻に反映されることを確かめる。
+// TestWatchReminderSettings は、通知を放送の何分前に送るかを 0 から 60 分の範囲で変えられ、通知の時刻に反映されることを確認する。
 func TestWatchReminderSettings(t *testing.T) {
 	t.Parallel()
 
@@ -198,7 +198,7 @@ func TestWatchReminderSettings(t *testing.T) {
 	}
 }
 
-// TestWatchReservedInGuide は、番組表で多くの番組をまとめて引いても、ログイン中のユーザーが視聴予約した番組だけが印付きになることを確かめる。
+// TestWatchReservedInGuide は、番組表で多くの番組をまとめて引いても、ログイン中のユーザーが視聴予約した番組だけがマーク付きになることを確認する。
 func TestWatchReservedInGuide(t *testing.T) {
 	t.Parallel()
 
@@ -208,7 +208,7 @@ func TestWatchReservedInGuide(t *testing.T) {
 		_, codes := f.setWatch(t, eventID, true)
 		require.Empty(t, codes)
 	}
-	// ほかのユーザーの視聴予約は、印にしない。
+	// ほかのユーザーの視聴予約は、マークにしない。
 	_, codes := f.as(t, "other", domain.RoleMember).setWatch(t, 6, true)
 	require.Empty(t, codes)
 

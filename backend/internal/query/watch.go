@@ -41,7 +41,7 @@ func (q *Queries) WatchReminderMinutes(ctx context.Context, userID uuid.UUID) (i
 	return int(minutes), nil
 }
 
-// UserSettingsVersion は、ユーザー userID の設定の版数を返す。一度も変えていなければ 0 を返す。
+// UserSettingsVersion は、ユーザー userID の設定のバージョンを返す。一度も変えていなければ 0 を返す。
 func (q *Queries) UserSettingsVersion(ctx context.Context, userID uuid.UUID) (int64, error) {
 	version, err := sqlc.New(q.pool).GetUserSettingsVersion(ctx, userID)
 	if err != nil {

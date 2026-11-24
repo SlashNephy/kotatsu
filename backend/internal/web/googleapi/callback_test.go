@@ -24,7 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/googleapi"
 )
 
-// TestCallbackHandler は、Google から戻ってきたリクエストを、連携の画面へ戻し、接続したことか、失敗の理由だけを伝えることを確かめる (#1902)。
+// TestCallbackHandler は、Google から戻ってきたリクエストを、連携の画面へ戻し、接続したことか、失敗の理由だけを伝えることを確認する (#1902)。
 func TestCallbackHandler(t *testing.T) {
 	t.Parallel()
 
@@ -51,7 +51,7 @@ func TestCallbackHandler(t *testing.T) {
 	require.NoError(t, service.UpdateApp(t.Context(), pool, audit.User(user.ID), &google.AppChanges{ClientID: "client", ClientSecret: new("secret")}))
 	handler := googleapi.CallbackHandler(service, pool, func(*http.Request) *auth.ClientInfo { return info }, slog.New(slog.DiscardHandler))
 
-	// authorize は、認可を始め、偽の Google で許して戻ってきたときのクエリを返す。
+	// authorize は、認可を始め、モックの Google で許して戻ってきたときのクエリを返す。
 	authorize := func(t *testing.T) string {
 		t.Helper()
 		authURL, err := service.BeginDrive(t.Context(), pool, principal, "http://kotatsu.test")

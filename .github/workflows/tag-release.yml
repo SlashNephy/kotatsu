@@ -1,12 +1,12 @@
 name: Tag a release
 
-# Actions の画面の Run workflow で、main の今のコミットに次の版のタグを打ち、リリースを始める (設計書 11.1、#699)。
-# 版は CalVer の YYYY.M.N (年.月.その月の何回目、0 から) にする。
+# Actions の画面の Run workflow で、main の今のコミットに次のバージョンのタグを打ち、リリースを始める (設計書 11.1、#699)。
+# バージョンは CalVer の YYYY.M.N (年.月.その月の何回目、0 から) にする。
 on:
   workflow_dispatch:
 
 concurrency:
-  # 同時に 2 つ走らせると、同じ版を 2 回決めてしまうので、1 つずつにする。
+  # 同時に 2 つ走らせると、同じバージョンを 2 回決めてしまうので、1 つずつにする。
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
@@ -25,14 +25,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
-          # 既にある版を数えるので、タグを含めて取得する。
+          # 既にあるバージョンを数えるので、タグを含めて取得する。
           fetch-depth: 0
           persist-credentials: false
       - id: version
         name: Decide the next version
         run: echo "version=$(git tag --list 'v*' | scripts/next-version.sh)" >> "$GITHUB_OUTPUT"
-      # 破壊的変更の見出しは書いた時点の次の版なので、月をまたぐと打つ版とずれる。ずれていたら、タグを打たずに止める。
-      # リリース済みの版の節が、リリースした後に変わっていても止める。
+      # 破壊的変更の見出しは書いた時点の次のバージョンなので、月をまたぐと打つバージョンとずれる。ずれていたら、タグを打たずに止める。
+      # リリース済みのバージョンの節が、リリースした後に変わっていても止める。
       - name: Check the version in the breaking changes
         env:
           VERSION: ${{ steps.version.outputs.version }}

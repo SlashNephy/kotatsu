@@ -16,7 +16,7 @@ export function normalizeCaption(text: string): string {
     .join('\n');
 }
 
-// appendLiveCaption は、ライブで出た字幕を末尾に足す。空の字幕と、直前と同じ文は足さない。上限を超えたら、古いものから捨てる。
+// appendLiveCaption は、ライブで出た字幕を末尾に足す。空の字幕と、直前と同じ文は足さない。上限を超えたら、古いものから破棄する。
 export function appendLiveCaption(
   list: readonly CaptionEntry[],
   at: number,
@@ -36,7 +36,7 @@ export function appendLiveCaption(
 const sameWindow = 2;
 
 // insertRecordedCaption は、録画で出た字幕を、位置の順に差し込む。空の字幕と、近い位置にある同じ文は足さない。
-// 上限を超えたら、差し込んだ位置から最も遠いものを捨てる。見ている辺りの字幕を残すためである。
+// 上限を超えたら、差し込んだ位置から最も遠いものを破棄する。見ている辺りの字幕を残すためである。
 export function insertRecordedCaption(
   list: readonly CaptionEntry[],
   at: number,

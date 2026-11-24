@@ -61,7 +61,7 @@ func alertEvents(t *testing.T, pool *pgxpool.Pool) [][]uuid.UUID {
 	return audiences
 }
 
-// TestAlert は、判定できた録画が続けてスクランブルされたままだったら、管理者にだけ、間隔を空けて知らせることを確かめる (設計書 6.2、#1517)。
+// TestAlert は、判定できた録画が続けてスクランブルされたままだったら、管理者にだけ、間隔を空けて通知することを確認する (設計書 6.2、#1517)。
 func TestAlert(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +76,7 @@ func TestAlert(t *testing.T) {
 	tests := []struct {
 		name  string
 		steps []step
-		// want は、知らせた数。
+		// want は、通知した数。
 		want int
 	}{
 		{name: "one scrambled recording", steps: []step{{scrambled, 0}}, want: 0},
@@ -121,7 +121,7 @@ func TestAlert(t *testing.T) {
 	}
 }
 
-// TestJudge は、セグメントの PID の集計から判定した結果を、録画に記録することを確かめる。
+// TestJudge は、セグメントの PID の集計から判定した結果を、録画に記録することを確認する。
 func TestJudge(t *testing.T) {
 	t.Parallel()
 

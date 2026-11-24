@@ -1,7 +1,7 @@
 // Package webhook は、管理者が設定する Webhook を扱う (設計書 6.2)。
 //
 // Webhook は、通知するイベントを、外部のサービスに送る。形式は、汎用の JSON、Discord、Slack の 3 つで、
-// どの形式でも、受信側が送信元を確かめられるよう、ペイロードに HMAC の署名を付ける。
+// どの形式でも、受信側が送信元を確認できるよう、ペイロードに HMAC の署名を付ける。
 // 署名用の秘密キーは、アプリの秘密キーで暗号化して保存する (設計書 8.4)。
 package webhook
 
@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	// SealPurpose は、署名用の秘密キーを暗号化する鍵の用途 (secretbox の purpose)。
+	// SealPurpose は、署名用の秘密キーを暗号化する暗号鍵の用途 (secretbox の purpose)。
 	SealPurpose = "kotatsu/webhook/v1"
 	// secretPrefix は、署名用の秘密キーの先頭に付ける文字列。ログや設定で見分けやすくする。
 	secretPrefix = "whsec_"
@@ -224,7 +224,7 @@ func (s *Store) Secret(ctx context.Context, db sqlc.DBTX, webhookID uuid.UUID) (
 	return s.open(row.SecretCiphertext)
 }
 
-// LogSecrets は、ログの報告から伏せる値として、Webhook の URL と署名用の秘密キーを返す (#1521)。
+// LogSecrets は、ログの報告からマスクする値として、Webhook の URL と署名用の秘密キーを返す (#1521)。
 // URL は、パスやクエリがトークンになるので、全体を秘密として扱う。
 func (s *Store) LogSecrets(ctx context.Context, db sqlc.DBTX) ([]string, error) {
 	rows, err := sqlc.New(db).ListWebhooks(ctx)
@@ -300,7 +300,7 @@ func apply(current *Webhook, changes *Changes) *Input {
 	return input
 }
 
-// normalize は、設定を確かめ、名前と URL の前後の空白を落とし、種類の重なりを除いて並べた設定を返す。
+// normalize は、設定を確認し、名前と URL の前後の空白を落とし、種類の重なりを除いて並べた設定を返す。
 func normalize(input *Input) (*Input, error) {
 	if input == nil {
 		return nil, fmt.Errorf("%w: input is nil", ErrInvalidWebhook)
@@ -339,7 +339,7 @@ func normalize(input *Input) (*Input, error) {
 	return &Input{Name: name, URL: rawURL, Format: input.Format, Kinds: kinds, Enabled: input.Enabled}, nil
 }
 
-// validateURL は、送り先の URL が、ホストを持つ http か https の URL であることを確かめる。
+// validateURL は、送り先の URL が、ホストを持つ http か https の URL であることを確認する。
 // 家庭内のサーバーに送ることもあるので、プライベートアドレスは拒まない。設定できるのは管理者だけである。
 func validateURL(rawURL string) error {
 	if rawURL == "" || len(rawURL) > maxURLLength {

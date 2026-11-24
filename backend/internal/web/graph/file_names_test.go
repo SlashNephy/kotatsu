@@ -15,7 +15,7 @@ const (
 	varTemplate          = "template"
 )
 
-// TestFileNameTemplateHelp は、書き方の表に、見本の番組を当てはめた例を付けて返すことを確かめる。
+// TestFileNameTemplateHelp は、書き方のテーブルに、見本の番組を当てはめた例を付けて返すことを確認する。
 func TestFileNameTemplateHelp(t *testing.T) {
 	t.Parallel()
 
@@ -41,7 +41,7 @@ func TestFileNameTemplateHelp(t *testing.T) {
 }
 
 // TestPreviewFileName は、テンプレートに番組か見本を当てはめ、録画と同じ整え方をしたファイル名を返し、
-// テンプレートの誤りは結果の error で返すことを確かめる。
+// テンプレートの誤りは結果の error で返すことを確認する。
 func TestPreviewFileName(t *testing.T) {
 	t.Parallel()
 
@@ -91,7 +91,7 @@ func TestPreviewFileName(t *testing.T) {
 	}
 }
 
-// TestPreviewFileNameForbiddenForViewers は、テンプレートを書けない閲覧者には、プレビューも使わせないことを確かめる。
+// TestPreviewFileNameForbiddenForViewers は、テンプレートを書けない閲覧者には、プレビューも使わせないことを確認する。
 func TestPreviewFileNameForbiddenForViewers(t *testing.T) {
 	t.Parallel()
 

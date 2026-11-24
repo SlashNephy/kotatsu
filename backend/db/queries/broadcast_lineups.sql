@@ -1,5 +1,5 @@
 -- name: UpsertBroadcastLineup :exec
--- ネットワークの構成を書く (#1519)。版が同じでも、読んだ時刻は書き換える。
+-- ネットワークの構成を書く (#1519)。バージョンが同じでも、読んだ時刻は書き換える。
 INSERT INTO broadcast_lineups (network_id, version, streams, observed_at)
 VALUES (@network_id, @version, @streams, @observed_at)
 ON CONFLICT (network_id) DO UPDATE SET

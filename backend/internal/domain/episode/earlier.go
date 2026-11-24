@@ -8,13 +8,13 @@ func SeriesOf(name string) string {
 	return Parse(&Source{Name: name, Description: "", Extended: "", SeriesEpisode: nil, Anime: nil}).Series
 }
 
-// Aired は、前の回を録らない (#1499) ときに比べる、始まりの時刻の付いた回 (放送、予約、録画)。
+// Aired は、前の回を録らない (#1499) ときに比較する、始まりの時刻の付いた回 (放送、予約、録画)。
 type Aired struct {
 	Episode *Episode
 	StartAt time.Time
 }
 
-// numbered は、シリーズ名と話数が読めたかどうかを返す。どちらかが読めない回は、外しもせず、比べる相手にもしない。
+// numbered は、シリーズ名と話数が読めたかどうかを返す。どちらかが読めない回は、外しもせず、比較する相手にもしない。
 func (a *Aired) numbered() bool {
 	return a.Episode.Series != "" && a.Episode.Number > 0
 }
@@ -22,7 +22,7 @@ func (a *Aired) numbered() bool {
 // LaterEpisode は、target より前に始まり、シリーズ名が完全に一致し、話数が target より大きい相手のうち、一番大きい話数を返す。
 // そうした相手が無いか、target のシリーズ名か話数が読めなければ 0 を返す (設計書 4.4、#1499)。
 //
-// シリーズ名は、局ごとの飾りの違いで別の期や編の回を前の回とみないよう、完全一致だけで比べる (SameSeries のように緩めない)。
+// シリーズ名は、局ごとの飾りの違いで別の期や編の回を前の回とみないよう、完全一致だけで比較する (SameSeries のように緩めない)。
 // 開始で絞るのは、番組表に並ぶ翌週の 6 話で、今週の 5 話を外さないためである。
 func LaterEpisode(target *Aired, opponents []*Aired) int {
 	if !target.numbered() {

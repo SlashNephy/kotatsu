@@ -15,15 +15,15 @@ import (
 )
 
 var (
-	// ErrNoDataDir は、データディレクトリを設定していないので、生成物の置き場がないことを表す。
+	// ErrNoDataDir は、データディレクトリを設定していないので、生成物の保存先がないことを表す。
 	ErrNoDataDir = errors.New("the data directory is not configured")
 	// ErrClearing は、ほかの片付けが終わっていないことを表す。
 	ErrClearing = errors.New("the library artifacts are being cleared")
 )
 
 const (
-	// detachedPrefix と detachedSuffix は、片付けるときに、生成物の置き場 (kago.LibraryIndexDir) を移す先の名前の前後。
-	// 「.」で始まる名前は、DB にないファイルの走査 (設計書 5.6) が調べないので、消しきれずに残っても一覧に出ない。次に片付けるときに一緒に消す。
+	// detachedPrefix と detachedSuffix は、片付けるときに、生成物の保存先 (kago.LibraryIndexDir) を移す先の名前の前後。
+	// 「.」で始まる名前は、DB にないファイルの走査 (設計書 5.6) が対象にしないので、消しきれずに残っても一覧に出ない。次に片付けるときに一緒に消す。
 	detachedPrefix = "." + kago.LibraryIndexDir + "-"
 	detachedSuffix = ".removing"
 )
@@ -36,7 +36,7 @@ type Usage struct {
 	Files int
 }
 
-// Artifacts は、データディレクトリの、ライブラリのファイルの生成物 (索引、画像、CM の区間、字幕) の量を返す。
+// Artifacts は、データディレクトリの、ライブラリのファイルの生成物 (インデックス、画像、CM の区間、字幕) の量を返す。
 // 前に片付けたときに消しきれずに残ったものも含める。
 func (x *Indexer) Artifacts() (*Usage, error) {
 	if x.dataDir == "" {
@@ -56,14 +56,14 @@ func (x *Indexer) Artifacts() (*Usage, error) {
 	return usage, nil
 }
 
-// ClearArtifacts は、データディレクトリの、ライブラリのファイルの生成物の置き場を、別の名前に移して使わないようにする (設計書 5.8、#1896)。
-// 移した置き場は、PurgeDetached で消す。消した後にファイルを開けば、索引と画像を作り直す。
+// ClearArtifacts は、データディレクトリの、ライブラリのファイルの生成物の保存先を、別の名前に移して使わないようにする (設計書 5.8、#1896)。
+// 移した保存先は、PurgeDetached で消す。消した後にファイルを開けば、インデックスと画像を作り直す。
 //
-// この tenban で作っている途中の索引は、取りやめて止まるのを待ってから移し、移し終えるまで作り始めない。record には、消す量を渡す。
+// この tenban で作っている途中のインデックスは、取りやめて止まるのを待ってから移し、移し終えるまで作り始めない。record には、消す量を渡す。
 // record が失敗すれば、移さない。監査ログを書けなければ消さないためである。消すファイルがなければ、record を呼ばずに、その量を返す。
 //
-// 置き場を消すのでなく移すのは、nekonote のジョブなどが書いている途中でも、記録 (source.json、images.json など) と中身のずれを
-// 残さないためである。移した後に書き続けたものは、移した先に入るか、置き場がなくて失敗するので、新しい置き場には残らない。
+// 保存先を消すのでなく移すのは、nekonote のジョブなどが書いている途中でも、記録 (source.json、images.json など) と内容のずれを
+// 残さないためである。移した後に書き続けたものは、移した先に入るか、保存先がなくて失敗するので、新しい保存先には残らない。
 func (x *Indexer) ClearArtifacts(ctx context.Context, record func(*Usage) error) (*Usage, error) {
 	if x.dataDir == "" {
 		return nil, ErrNoDataDir
@@ -86,12 +86,12 @@ func (x *Indexer) ClearArtifacts(ctx context.Context, record func(*Usage) error)
 	}
 	dir := filepath.Join(x.dataDir, kago.LibraryIndexDir)
 	if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
-		// 前に消しきれずに残った置き場だけなら、移すものはない。
+		// 前に消しきれずに残った保存先だけなら、移すものはない。
 		return usage, nil
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to read the library artifacts: %w", err)
 	}
-	// 前に移した置き場を消しきれずに残していても重ならないよう、時刻に乱数を添える。
+	// 前に移した保存先を消しきれずに残していても重ならないよう、時刻に乱数を添える。
 	to := filepath.Join(x.dataDir, detachedPrefix+strconv.FormatInt(x.clock.Now().UnixNano(), 10)+"-"+rand.Text()+detachedSuffix)
 	if err := os.Rename(dir, to); err != nil {
 		return nil, fmt.Errorf("failed to detach the library artifacts: %w", err)
@@ -100,7 +100,7 @@ func (x *Indexer) ClearArtifacts(ctx context.Context, record func(*Usage) error)
 	return usage, nil
 }
 
-// PurgeDetached は、ClearArtifacts が移した置き場を消す。消しきれなかったものは、次に片付けるときに消す。
+// PurgeDetached は、ClearArtifacts が移した保存先を消す。消しきれなかったものは、次に片付けるときに消す。
 func (x *Indexer) PurgeDetached() error {
 	if x.dataDir == "" {
 		return ErrNoDataDir
@@ -119,7 +119,7 @@ func (x *Indexer) PurgeDetached() error {
 	return errors.Join(errs...)
 }
 
-// stopBuilds は、この tenban で作っている途中の索引を取りやめて、止まるのを待つ。返した関数を呼ぶまで、索引を作り始めない。
+// stopBuilds は、この tenban で作っている途中のインデックスを取りやめて、止まるのを待つ。返した関数を呼ぶまで、インデックスを作り始めない。
 func (x *Indexer) stopBuilds(ctx context.Context) (func(), error) {
 	x.mu.Lock()
 	if x.clearing {
@@ -154,7 +154,7 @@ func (x *Indexer) stopBuilds(ctx context.Context) (func(), error) {
 	return resume, nil
 }
 
-// detachedDirs は、ClearArtifacts が移した置き場 (消しきれずに残ったものを含む) のパスを返す。
+// detachedDirs は、ClearArtifacts が移した保存先 (消しきれずに残ったものを含む) のパスを返す。
 func (x *Indexer) detachedDirs() ([]string, error) {
 	matches, err := filepath.Glob(filepath.Join(x.dataDir, detachedPrefix+"*"+detachedSuffix))
 	if err != nil {
@@ -199,12 +199,12 @@ func measure(dir string, usage *Usage) error {
 }
 
 // DeleteWaitingJobs は、ライブラリのファイルの画像、CM の区間、字幕の自動生成のジョブのうち、まだ動いていないものの行を消し、消した数を返す。
-// 生成物を片付けると索引がなくなり、画像と CM のジョブは、索引を作り直すまで待ち続け、字幕のジョブは失敗するためである。
+// 生成物を片付けるとインデックスがなくなり、画像と CM のジョブは、インデックスを作り直すまで待ち続け、字幕のジョブは失敗するためである。
 // 取りやめる (cancelled にする) と、画像と CM のジョブは、River が行を消すまで同じファイルのジョブを入れ直せないので、行を消す。
 // 消した後にファイルを開けば、画像と CM のジョブを入れ直す。動いているジョブは、そのまま終えさせる。
 func DeleteWaitingJobs(ctx context.Context, db sqlc.DBTX) (int64, error) {
 	kinds := []string{new(ImagesArgs).Kind(), new(CMArgs).Kind(), new(CaptionsArgs).Kind()}
-	// River の表は sqlc のスキーマにないので、直接書く。まだ動いていないジョブの状態だけを消す。
+	// River のテーブルは sqlc のスキーマにないので、直接書く。まだ動いていないジョブの状態だけを消す。
 	tag, err := db.Exec(ctx, `DELETE FROM river_job WHERE kind = ANY($1::text[]) AND state IN ('available', 'pending', 'retryable', 'scheduled')`, kinds)
 	if err != nil {
 		return 0, fmt.Errorf("failed to delete the waiting library jobs: %w", err)

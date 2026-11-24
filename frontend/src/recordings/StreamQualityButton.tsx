@@ -42,7 +42,7 @@ const bitrate = (packets: number, seconds: number) => {
 const hex = (n: number, digits: number) =>
   `0x${n.toString(16).toUpperCase().padStart(digits, '0')}`;
 
-// StreamQualityButton は、PID ごとのドロップ、エラー、スクランブルの表を開くボタン (#473)。
+// StreamQualityButton は、PID ごとのドロップ、エラー、スクランブルのテーブルを開くボタン (#473)。
 // 映像のドロップか、データ放送のような見なくてよい PID のドロップかを見分けるのに使う。集計がなければ出さない。
 // コーデックと component_tag、録画の長さ seconds (秒) で割った平均のビットレート、合計の行も出す (#827)。
 export function StreamQualityButton({
@@ -74,14 +74,14 @@ export function StreamQualityButton({
         opened={opened}
         onClose={() => setOpened(false)}
         title={t('recordings.streamQuality.title')}
-        // 列を折り返さずに並べられる幅にする。狭い画面では、表を横へスクロールさせる。
+        // カラムを折り返さずに並べられる幅にする。狭い画面では、テーブルを横へスクロールさせる。
         size={960}
       >
         <Text size="xs" c="dimmed" mb="xs">
           {t('recordings.streamQuality.description')}
         </Text>
         <Table.ScrollContainer minWidth={900}>
-          {/* 列が多いので、折り返さずに横へスクロールさせる。 */}
+          {/* カラムが多いので、折り返さずに横へスクロールさせる。 */}
           <Table fz="sm" verticalSpacing={4} striped style={{ whiteSpace: 'nowrap' }}>
             <Table.Thead>
               <Table.Tr>

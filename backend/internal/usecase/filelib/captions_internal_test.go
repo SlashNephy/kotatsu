@@ -57,7 +57,7 @@ func (a *fakeAudio) extract(_ context.Context, r io.Reader, serviceID uint16, wa
 }
 
 // TestCaptionsWorker は、ライブラリのファイルの音声を、ライブラリの口で読んで取り出して書き起こし、再生の 0 秒からの時間にそろえて置き、
-// 今のファイルから作った字幕だけを返すことを確かめる (#1734)。
+// 今のファイルから作った字幕だけを返すことを確認する (#1734)。
 func TestCaptionsWorker(t *testing.T) {
 	t.Parallel()
 
@@ -71,7 +71,7 @@ func TestCaptionsWorker(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, CaptionsArgs{Library: internalLibrary, Path: internalShowTS, FileID: file.ID()}, args)
 
-	// 音声は、最初の I フレームより 1 秒前から始まる。0.5 秒で終わる字幕は、再生に入らないので捨てる。
+	// 音声は、最初の I フレームより 1 秒前から始まる。0.5 秒で終わる字幕は、再生に入らないので破棄する。
 	audio := &fakeAudio{offset: -time.Second, err: nil, read: 0, serviceID: 0}
 	transcriber := &fakeTranscriber{cues: []autocaption.Cue{
 		{Start: 0, End: 500 * time.Millisecond, Text: "前の番組"},
@@ -109,12 +109,12 @@ func TestCaptionsWorker(t *testing.T) {
 	assert.ErrorIs(t, err, errFileChanged)
 }
 
-// TestCaptionsWorkerWriting は、書いている途中のファイルは、音声を取り出さずに取りやめることを確かめる。
+// TestCaptionsWorkerWriting は、書いている途中のファイルは、音声を取り出さずに取りやめることを確認する。
 func TestCaptionsWorkerWriting(t *testing.T) {
 	t.Parallel()
 
 	f := newImagesFixture(t)
-	// 索引の時計 (今の 1 時間後) から見て、書いたばかりのファイルにする。
+	// インデックスの時計 (今の 1 時間後) から見て、書いたばかりのファイルにする。
 	now := time.Now().Add(time.Hour)
 	require.NoError(t, os.Chtimes(filepath.Join(f.dir, internalShowTS), now, now))
 	file := f.open(t)
@@ -131,7 +131,7 @@ func TestCaptionsWorkerWriting(t *testing.T) {
 	assert.Zero(t, audio.read, "音声を取り出さない")
 }
 
-// TestCaptionsWorkerNotConfigured は、whisper-cli かモデルがなければ、やり直さずに取りやめ、理由を残すことを確かめる。
+// TestCaptionsWorkerNotConfigured は、whisper-cli かモデルがなければ、やり直さずに取りやめ、理由を残すことを確認する。
 func TestCaptionsWorkerNotConfigured(t *testing.T) {
 	t.Parallel()
 

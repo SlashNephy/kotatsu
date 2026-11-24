@@ -18,7 +18,7 @@ const (
 	liveTick    = 5 * time.Millisecond
 )
 
-// liveRecorder は、セッションから届いたものを覚える。
+// liveRecorder は、セッションから届いたものを記録する。
 type liveRecorder struct {
 	mu       sync.Mutex
 	comments []string
@@ -104,8 +104,8 @@ func TestLiveSessionReceivesCommentsAfterCaughtUp(t *testing.T) {
 	require.Eventually(t, func() bool { return nx.KeepSeats() > 0 && nx.Pongs() > 0 }, liveTimeout, liveTick)
 }
 
-// TestLiveSessionPostedAt は、コメントの書き込まれた時刻を、date と date_usec から読むことを確かめる (#1515)。
-// 時刻のないコメントも捨てず、零値の時刻で渡す。
+// TestLiveSessionPostedAt は、コメントの書き込まれた時刻を、date と date_usec から読むことを確認する (#1515)。
+// 時刻のないコメントも破棄せず、零値の時刻で渡す。
 func TestLiveSessionPostedAt(t *testing.T) {
 	t.Parallel()
 
@@ -122,7 +122,7 @@ func TestLiveSessionPostedAt(t *testing.T) {
 	assert.Equal(t, []time.Time{time.Unix(1794647289, 933208000), {}}, recorder.gotPosted())
 }
 
-// TestLiveSessionToleratesKeepInterval は、NX-Jikkyo が知らせる間隔がどんな値でも、落ちずにつながり続けることを確かめる。
+// TestLiveSessionToleratesKeepInterval は、NX-Jikkyo が通知する間隔がどんな値でも、落ちずにつながり続けることを確認する。
 func TestLiveSessionToleratesKeepInterval(t *testing.T) {
 	t.Parallel()
 
@@ -150,7 +150,7 @@ func TestLiveSessionToleratesKeepInterval(t *testing.T) {
 	}
 }
 
-// TestLiveSessionIgnoresAdvertisedMessageServer は、NX-Jikkyo が知らせた接続先を使わず、自分で組み立てた接続先につなぐことを確かめる。
+// TestLiveSessionIgnoresAdvertisedMessageServer は、NX-Jikkyo が通知した接続先を使わず、自分で組み立てた接続先につなぐことを確認する。
 func TestLiveSessionIgnoresAdvertisedMessageServer(t *testing.T) {
 	t.Parallel()
 

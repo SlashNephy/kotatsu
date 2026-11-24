@@ -1,13 +1,13 @@
 import type { EstimateTiming } from './benchmarkResults';
 import { createInterpolator } from './interpolator';
 
-// 「この端末で試す」(#1771) で、コマの補間が動きを推し量る処理の時間を測る。
-// 再生とは別の WebGL2 のコンテキストで、合成の 2 コマ (粗い模様と、それをずらしたもの) を推し量る。測り終えたら捨てる。
+// 「この端末で試す」(#1771) で、コマの補間が動きを推し量る処理の時間を計測する。
+// 再生とは別の WebGL2 のコンテキストで、合成の 2 コマ (粗い模様と、それをずらしたもの) を推し量る。計測し終えたら破棄する。
 
-// width と height は、測るコマの大きさ。放送の 1080i と同じ。
+// width と height は、計測するコマの大きさ。放送の 1080i と同じ。
 const width = 1440;
 const height = 1080;
-// repeats は、測る回数。GPU の時間は中央値を、読み戻しまでの時間は平均を使う。
+// repeats は、計測する回数。GPU の時間は中央値を、読み戻しまでの時間は平均を使う。
 const repeats = 20;
 // shift は、後のコマをずらす画素の数 (原寸)。
 const shift = { x: 6, y: 4 };
@@ -43,7 +43,7 @@ function upload(gl: WebGL2RenderingContext, pixels: Uint8Array<ArrayBuffer>): We
 
 const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-// measureEstimate は、推し量る処理の時間を測る。WebGL2 がないか、測れなければ null。signal で止めると投げる。
+// measureEstimate は、推し量る処理の時間を計測する。WebGL2 がないか、測れなければ null。signal で止めると投げる。
 export async function measureEstimate(signal?: AbortSignal): Promise<EstimateTiming | null> {
   try {
     return await measure(signal);
@@ -109,7 +109,7 @@ async function measure(signal?: AbortSignal): Promise<EstimateTiming | null> {
         return { ms: middle, method: 'gpu' };
       }
     }
-    // GPU の時間を測れない端末 (多くのスマートフォン) では、まとめて回し、1 画素を読み戻して終わりを待つまでの時間で測る。
+    // GPU の時間を測れない端末 (多くのスマートフォン) では、まとめて回し、1 画素を読み戻して終わりを待つまでの時間で計測する。
     const start = performance.now();
     for (let i = 0; i < repeats; i++) {
       interpolator.estimate(textures[0], textures[1], width, height);

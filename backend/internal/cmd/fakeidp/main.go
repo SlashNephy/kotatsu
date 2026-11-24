@@ -1,4 +1,4 @@
-// Command fakeidp は、E2E テストのための偽の OIDC の IdP を起動する (#1525、設計書 11.6)。
+// Command fakeidp は、E2E テストのためのモックの OIDC の IdP を起動する (#1525、設計書 11.6)。
 //
 // internal/testutil/oidctest の IdP を、決まったアドレスで待ち受けさせる。認可のエンドポイントは、人の操作をまねずに、
 // その場でコードを作って redirect_uri に戻す。制御用のエンドポイント (本物の IdP にはないもの) は、別のアドレスで待ち受け、
@@ -118,7 +118,7 @@ func (i *identity) apply(provider *oidctest.Provider) {
 }
 
 // controlHandler は、制御用のエンドポイントを返す。
-//   - POST /next: 本文の identity で、次に発行する ID トークンの中身を変える。
+//   - POST /next: 本文の identity で、次に発行する ID トークンの内容を変える。
 //   - POST /reset: 起動したときのユーザーに戻す。振る舞いを変えたテストは、終わりに呼ぶ。
 func controlHandler(provider *oidctest.Provider, defaults *identity) http.Handler {
 	mux := http.NewServeMux()

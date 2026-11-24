@@ -1,5 +1,5 @@
 // Package publicnet は、ユーザーが渡した URL へ接続するときに、LAN の中のアドレスへ接続させないための部品。
-// 名前を引いた後のアドレスで確かめるので、DNS の応答を後から変えられても、LAN の中には接続しない。
+// 名前を引いた後のアドレスで確認するので、DNS の応答を後から変えられても、LAN の中には接続しない。
 package publicnet
 
 import (
@@ -45,7 +45,7 @@ func nonPublicPrefixes() []netip.Prefix {
 }
 
 // IsPublic は、addr が、インターネットのグローバルなユニキャストのアドレスかどうかを返す。
-// IPv4 射影アドレス (::ffff:0:0/96) は、IPv4 アドレスとして確かめる。
+// IPv4 射影アドレス (::ffff:0:0/96) は、IPv4 アドレスとして確認する。
 func IsPublic(addr netip.Addr) bool {
 	addr = addr.Unmap()
 	if !addr.IsGlobalUnicast() || addr.IsPrivate() {

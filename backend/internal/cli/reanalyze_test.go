@@ -16,7 +16,7 @@ import (
 )
 
 // TestAdminReanalyze は、kotatsu admin reanalyze が、生成物のない録画の解析のジョブを投入し、
-// 待っているジョブの録画には重ねて投入しないことと、--dry-run では数えるだけのことを確かめる (#897)。
+// 待っているジョブの録画には重ねて投入しないことと、--dry-run では数えるだけのことを確認する (#897)。
 func TestAdminReanalyze(t *testing.T) {
 	t.Parallel()
 

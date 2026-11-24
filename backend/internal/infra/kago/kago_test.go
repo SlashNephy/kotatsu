@@ -116,7 +116,7 @@ func TestSelect(t *testing.T) {
 			got, err := store.Select(pools, tt.estimated)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
-				// 空き容量を調べられなかったプールの理由も含める。
+				// 空き容量を取得できなかったプールの理由も含める。
 				require.ErrorIs(t, err, errStatfs)
 
 				return
@@ -165,7 +165,7 @@ func TestPath(t *testing.T) {
 // segmentFile は、TestOpen でプールに置くファイルの名前。
 const segmentFile = "a.m2ts"
 
-// TestOpen は、プールの中のファイルだけを開き、シンボリックリンクでもプールの外を開かないことを確かめる。
+// TestOpen は、プールの中のファイルだけを開き、シンボリックリンクでもプールの外を開かないことを確認する。
 func TestOpen(t *testing.T) {
 	t.Parallel()
 
@@ -206,7 +206,7 @@ func TestOpen(t *testing.T) {
 	}
 }
 
-// TestCreateSegmentDir は、生成物のディレクトリを、データディレクトリの中に、セグメントのファイルの ID で作ることを確かめる。
+// TestCreateSegmentDir は、生成物のディレクトリを、データディレクトリの中に、セグメントのファイルの ID で作ることを確認する。
 func TestCreateSegmentDir(t *testing.T) {
 	t.Parallel()
 
@@ -259,7 +259,7 @@ func TestCreateSegmentDirRejectsFile(t *testing.T) {
 }
 
 // TestRemoveWithDataDir は、録画ファイルを消すと、そのファイルの ID の生成物のディレクトリも消し、
-// ほかのファイルの生成物のディレクトリは残すことを確かめる。
+// ほかのファイルの生成物のディレクトリは残すことを確認する。
 func TestRemoveWithDataDir(t *testing.T) {
 	t.Parallel()
 
@@ -311,7 +311,7 @@ func TestTotalSpace(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestSelectPrefersConfiguredOrder は、優先順位が同じプールを、設定に書いた順で選ぶことを確かめる。
+// TestSelectPrefersConfiguredOrder は、優先順位が同じプールを、設定に書いた順で選ぶことを確認する。
 func TestSelectPrefersConfiguredOrder(t *testing.T) {
 	t.Parallel()
 
@@ -349,7 +349,7 @@ func TestSelectPrefersConfiguredOrder(t *testing.T) {
 	}
 }
 
-// TestRenameKeepsSegmentDir は、録画ファイルの名前を変えても、ID で置いた生成物のディレクトリは動かさないことを確かめる。
+// TestRenameKeepsSegmentDir は、録画ファイルの名前を変えても、ID で置いた生成物のディレクトリは動かさないことを確認する。
 func TestRenameKeepsSegmentDir(t *testing.T) {
 	t.Parallel()
 
@@ -372,15 +372,15 @@ func TestRenameKeepsSegmentDir(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
-// TestSelectWithoutMeasurablePools は、空き容量を調べられたプールが 1 つもなければ、容量が足りない (ErrNoPoolFits) とせず、
-// ErrPoolUnavailable を返すことを確かめる (#526)。容量が足りないと記録すると、調べる方向を誤る。
+// TestSelectWithoutMeasurablePools は、空き容量を取得できたプールが 1 つもなければ、容量が足りない (ErrNoPoolFits) とせず、
+// ErrPoolUnavailable を返すことを確認する (#526)。容量が足りないと記録すると、調査する方向を誤る。
 func TestSelectWithoutMeasurablePools(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name   string
 		mounts map[string]string
-		// wantStatfs は、調べられなかった理由 (statfs の失敗) を返すかどうか。
+		// wantStatfs は、取得できなかった理由 (statfs の失敗) を返すかどうか。
 		wantStatfs bool
 	}{
 		{name: "statfs fails", mounts: map[string]string{poolBroken: "/mnt/broken"}, wantStatfs: true},
@@ -401,7 +401,7 @@ func TestSelectWithoutMeasurablePools(t *testing.T) {
 	}
 }
 
-// TestWithTimeshiftDir は、タイムシフトのディレクトリが、プールの一覧にも走査にも出ず、Path では引けることを確かめる。
+// TestWithTimeshiftDir は、タイムシフトのディレクトリが、プールの一覧にも走査にも出ず、Path では引けることを確認する。
 func TestWithTimeshiftDir(t *testing.T) {
 	t.Parallel()
 
@@ -449,7 +449,7 @@ func TestWithTimeshiftDir(t *testing.T) {
 	}
 }
 
-// TestWithTimeshiftDirKeepsOtherDirs は、タイムシフトのディレクトリを足しても、データディレクトリが残ることを確かめる。
+// TestWithTimeshiftDirKeepsOtherDirs は、タイムシフトのディレクトリを足しても、データディレクトリが残ることを確認する。
 func TestWithTimeshiftDirKeepsOtherDirs(t *testing.T) {
 	t.Parallel()
 

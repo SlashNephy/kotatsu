@@ -14,7 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 
-// TestLoaderFailsEveryKeyWhenTheQueryFails は、まとめて引くクエリが失敗したとき、まとめたすべてのキーにエラーを返すことを確かめる。
+// TestLoaderFailsEveryKeyWhenTheQueryFails は、まとめて引くクエリが失敗したとき、まとめたすべてのキーにエラーを返すことを確認する。
 func TestLoaderFailsEveryKeyWhenTheQueryFails(t *testing.T) {
 	t.Parallel()
 
@@ -29,7 +29,7 @@ func TestLoaderFailsEveryKeyWhenTheQueryFails(t *testing.T) {
 	assert.Len(t, users, 3)
 }
 
-// TestLoadServices は、loadServices が、見つからないサービスだけを飛ばし、クエリの失敗はエラーとして返すことを確かめる (#1474)。
+// TestLoadServices は、loadServices が、見つからないサービスだけを飛ばし、クエリの失敗はエラーとして返すことを確認する (#1474)。
 func TestLoadServices(t *testing.T) {
 	t.Parallel()
 

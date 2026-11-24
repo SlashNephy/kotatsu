@@ -55,7 +55,7 @@ type Group struct {
 	UpdatedBy *uuid.UUID
 }
 
-// normalizeGroupName は、グループの名前の前後の空白を除き、長さを確かめる。
+// normalizeGroupName は、グループの名前の前後の空白を除き、長さを確認する。
 func normalizeGroupName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || utf8.RuneCountInString(name) > maxGroupNameLength {
@@ -226,7 +226,7 @@ func (r *Rules) ReorderGroups(ctx context.Context, db Beginner, actor *audit.Act
 	return groups, nil
 }
 
-// samePermutation は、groupIDs が、current のグループを 1 回ずつ含むかどうかを確かめる。
+// samePermutation は、groupIDs が、current のグループを 1 回ずつ含むかどうかを確認する。
 func samePermutation(current []*Group, groupIDs []uuid.UUID) error {
 	if len(groupIDs) != len(current) {
 		return fmt.Errorf("%w: ids must contain every group exactly once", ErrInvalidGroup)

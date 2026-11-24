@@ -94,7 +94,7 @@ func readFile(t *testing.T, path string) string {
 }
 
 // TestWriteWorker は、CM の区間を、セグメントごとの始まりからの位置にずらして、セグメントの隣の chapters フォルダーに書き、
-// その他のファイルとして記録することを確かめる。前の名前のファイルは消し、記録のないファイルは上書きしない。
+// その他のファイルとして記録することを確認する。前の名前のファイルは消し、記録のないファイルは上書きしない。
 func TestWriteWorker(t *testing.T) {
 	t.Parallel()
 
@@ -121,7 +121,7 @@ func TestWriteWorker(t *testing.T) {
 }
 
 // TestWriteWorkerKeepsForeignFiles は、記録のないチャプターのファイル (comskip-tvtplay が書いたものなど) を上書きせず、
-// CM の区間がなくなったら、前に書いたファイルを消すことを確かめる。
+// CM の区間がなくなったら、前に書いたファイルを消すことを確認する。
 func TestWriteWorkerKeepsForeignFiles(t *testing.T) {
 	t.Parallel()
 
@@ -151,7 +151,7 @@ func TestWriteWorkerKeepsForeignFiles(t *testing.T) {
 	assert.Empty(t, f.otherFiles(t, noCM))
 }
 
-// TestWriteWorkerWhileDisabled は、管理者が無効にしていれば、書かず、前に書いたファイルも消さないことを確かめる。
+// TestWriteWorkerWhileDisabled は、管理者が無効にしていれば、書かず、前に書いたファイルも消さないことを確認する。
 func TestWriteWorkerWhileDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -168,7 +168,7 @@ func TestWriteWorkerWhileDisabled(t *testing.T) {
 	assert.Equal(t, []string{"chapters/old.chapter"}, f.otherFiles(t, recordingID))
 }
 
-// TestWriteWorkerSkipsGaps は、途切れた区間を挟むセグメント (つないだセグメント) では、ファイルにない区間の分を詰めた位置にすることを確かめる。
+// TestWriteWorkerSkipsGaps は、途切れた区間を挟むセグメント (つないだセグメント) では、ファイルにない区間の分を詰めた位置にすることを確認する。
 func TestWriteWorkerSkipsGaps(t *testing.T) {
 	t.Parallel()
 
@@ -185,7 +185,7 @@ func TestWriteWorkerSkipsGaps(t *testing.T) {
 	assert.Equal(t, "\xef\xbb\xbfc-570000cix-630000cox-1760000cix-0eox-c", readFile(t, filepath.Join(dir, "chapters", "a.chapter")))
 }
 
-// inserter は、投入したジョブの引数を覚える。
+// inserter は、投入したジョブの引数を保存する。
 type inserter struct {
 	args []river.JobArgs
 }
@@ -199,7 +199,7 @@ func (i *inserter) InsertManyTx(_ context.Context, _ pgx.Tx, params []river.Inse
 }
 
 // TestEnqueuer は、管理者が有効にしていれば、見分け終えたとき、つないだとき、名前を付け直したときにジョブを投入し、
-// 無効なら投入しないことを確かめる。
+// 無効なら投入しないことを確認する。
 func TestEnqueuer(t *testing.T) {
 	t.Parallel()
 

@@ -305,7 +305,7 @@ func TestCreateRejectsUnsanitizedName(t *testing.T) {
 	}
 }
 
-// TestCreateDoesNotEscapeThePool は、プールの中のシンボリックリンクをたどって、プールの外にディレクトリを作らないことを確かめる。
+// TestCreateDoesNotEscapeThePool は、プールの中のシンボリックリンクをたどって、プールの外にディレクトリを作らないことを確認する。
 func TestCreateDoesNotEscapeThePool(t *testing.T) {
 	t.Parallel()
 
@@ -320,7 +320,7 @@ func TestCreateDoesNotEscapeThePool(t *testing.T) {
 }
 
 // TestRemoveDeletesEmptyDirectories は、録画を消して空になったディレクトリを、プールの直下まで遡って消し、
-// 空でないディレクトリは残すことを確かめる。
+// 空でないディレクトリは残すことを確認する。
 func TestRemoveDeletesEmptyDirectories(t *testing.T) {
 	t.Parallel()
 
@@ -349,7 +349,7 @@ func TestRemoveDeletesEmptyDirectories(t *testing.T) {
 }
 
 // TestRemoveKeepsDirectoriesInTheSegmentDir は、生成物のディレクトリの中にディレクトリがあれば、
-// 生成物のディレクトリではないとみなし、中身ごと消さないことを確かめる。
+// 生成物のディレクトリではないとみなし、内容ごと消さないことを確認する。
 func TestRemoveKeepsDirectoriesInTheSegmentDir(t *testing.T) {
 	t.Parallel()
 
@@ -368,7 +368,7 @@ func TestRemoveKeepsDirectoriesInTheSegmentDir(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestRemoveDoesNotFollowSymlinksInTheSegmentDir は、生成物のディレクトリの中のシンボリックリンクをたどらず、リンクだけを消すことを確かめる。
+// TestRemoveDoesNotFollowSymlinksInTheSegmentDir は、生成物のディレクトリの中のシンボリックリンクをたどらず、リンクだけを消すことを確認する。
 func TestRemoveDoesNotFollowSymlinksInTheSegmentDir(t *testing.T) {
 	t.Parallel()
 
@@ -391,7 +391,7 @@ func TestRemoveDoesNotFollowSymlinksInTheSegmentDir(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-// TestRename は、録画ファイルを移し、移す先に同じ名前があれば連番を付け、元のディレクトリが空になれば消すことを確かめる。
+// TestRename は、録画ファイルを移し、移す先に同じ名前があれば連番を付け、元のディレクトリが空になれば消すことを確認する。
 func TestRename(t *testing.T) {
 	t.Parallel()
 
@@ -421,7 +421,7 @@ func TestRename(t *testing.T) {
 	require.ErrorIs(t, err, kago.ErrInvalidPath)
 }
 
-// TestRestore は、Rename で移したファイルを、元のパスへ戻すことを確かめる (#917)。
+// TestRestore は、Rename で移したファイルを、元のパスへ戻すことを確認する (#917)。
 // 元の名前は、今の整え方で使えない文字を含むことがあるので、整え直さずに戻す。
 func TestRestore(t *testing.T) {
 	t.Parallel()
@@ -486,7 +486,7 @@ func TestRestore(t *testing.T) {
 }
 
 // TestRestoreToTheSameFileWithAnotherName は、大文字と小文字や正規化だけを変えた付け直しを戻すとき、元のパスが自分自身として見つかっても、
-// ふさがっているとみなさずに戻すことを確かめる (#1095)。大文字と小文字を区別するファイルシステムでは、その代わりに、ハードリンクを置く。
+// ふさがっているとみなさずに戻すことを確認する (#1095)。大文字と小文字を区別するファイルシステムでは、その代わりに、ハードリンクを置く。
 func TestRestoreToTheSameFileWithAnotherName(t *testing.T) {
 	t.Parallel()
 

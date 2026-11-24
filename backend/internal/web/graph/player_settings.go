@@ -57,10 +57,18 @@ func (r *Resolver) playerSettings(ctx context.Context) (*model.PlayerSettings, e
 		return nil, err
 	}
 
-	return &model.PlayerSettings{JikkyoEnabled: row.JikkyoEnabled, CommentSources: commentSourcesOf(row.CommentSources), CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions}, nil
+	preferences, err := decodePreferences(row.Preferences)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.PlayerSettings{
+		JikkyoEnabled: row.JikkyoEnabled, CommentSources: commentSourcesOf(row.CommentSources), CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions,
+		Preferences: preferences,
+	}, nil
 }
 
-// updatePlayerSettings は、プレイヤーの設定を変え、同じユーザーのほかの端末に知らせる。
+// updatePlayerSettings は、プレイヤーの設定を変え、同じユーザーのほかの端末に通知する。
 func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.PlayerSettingsInput) (*model.PlayerSettings, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -77,8 +85,13 @@ func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.Player
 			return nil, err
 		}
 	}
+	setPreferences, unsetPreferences, err := preferencesInput(input.Preferences)
+	if err != nil {
+		return nil, err
+	}
 	row, err := usersettings.UpdatePlayerSettings(ctx, r.db, r.clock, principal.UserID, &usersettings.PlayerSettingsChange{
 		JikkyoEnabled: input.JikkyoEnabled, CommentSources: commentSourcesInput(input.CommentSources), CaptionsEnabled: input.CaptionsEnabled, CommentSettings: encoded, CaptionSettings: encodedCaptions,
+		SetPreferences: setPreferences, UnsetPreferences: unsetPreferences,
 	})
 	if err != nil {
 		return nil, err
@@ -92,11 +105,19 @@ func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.Player
 		return nil, err
 	}
 
-	return &model.PlayerSettings{JikkyoEnabled: row.JikkyoEnabled, CommentSources: commentSourcesOf(row.CommentSources), CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions}, nil
+	preferences, err := decodePreferences(row.Preferences)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.PlayerSettings{
+		JikkyoEnabled: row.JikkyoEnabled, CommentSources: commentSourcesOf(row.CommentSources), CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions,
+		Preferences: preferences,
+	}, nil
 }
 
-// encodeCommentSettings は、コメントの設定を確かめて、DB に書く JSON にする。
-// 正規表現は、画面 (JavaScript の RegExp) で使うので、ここでは長さだけを確かめる。
+// encodeCommentSettings は、コメントの設定を確認して、DB に書く JSON にする。
+// 正規表現は、画面 (JavaScript の RegExp) で使うので、ここでは長さだけを確認する。
 func encodeCommentSettings(input *model.CommentSettingsInput) ([]byte, error) {
 	switch {
 	case input.Opacity < minCommentOpacity || input.Opacity > maxCommentOpacity:
@@ -139,7 +160,7 @@ func encodeCommentSettings(input *model.CommentSettingsInput) ([]byte, error) {
 	return encoded, nil
 }
 
-// validateMutedCommands は、ミュートするコマンドの数と長さを確かめて返す。
+// validateMutedCommands は、ミュートするコマンドの数と長さを確認して返す。
 func validateMutedCommands(commands []string) ([]string, error) {
 	if len(commands) > maxMutedCommands {
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("mutedCommands must be at most %d", maxMutedCommands))
@@ -168,7 +189,7 @@ func decodeCommentSettings(raw []byte) (*model.CommentSettings, error) {
 	return settings, nil
 }
 
-// encodeCaptionSettings は、字幕の設定を確かめて、DB に書く JSON にする (#491)。
+// encodeCaptionSettings は、字幕の設定を確認して、DB に書く JSON にする (#491)。
 func encodeCaptionSettings(input *model.CaptionSettingsInput) ([]byte, error) {
 	if opacity := input.BackgroundOpacity; opacity != nil && (*opacity < 0 || *opacity > 1) {
 		return nil, NewError(CodeBadUserInput, "backgroundOpacity must be between 0 and 1")

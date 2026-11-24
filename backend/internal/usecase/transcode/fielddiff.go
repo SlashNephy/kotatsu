@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// fieldDiffGraph は、窓のフィールドどうしの輝度の差を出すフィルタ (#1509)。主映像に固定する ([0:v:0])。地上波の TS には
+// fieldDiffGraph は、ウィンドウのフィールドどうしの輝度の差を出すフィルタ (#1509)。主映像に固定する ([0:v:0])。地上波の TS には
 // ワンセグ (320×180 の H.264) が残っていて、指定しないとフィルタがそちらに当たることがあるため。
 // 1 本目は、上フィールドだけを並べ、前の上フィールドとの差を出す (1 秒に 30 個)。2 本目は、上下のフィールドを交互に並べ、
 // 隣との差を出す (1 秒に 60 個)。出力の区別は、フィルタに付けた名前 (metadata@top と metadata@fields) で行う。
@@ -21,16 +21,16 @@ const fieldDiffGraph = "[0:v:0]split[a][b];" +
 	"[b]separatefields,signalstats,metadata@fields=mode=print:key=lavfi.signalstats.YDIF[fields]"
 
 const (
-	// topLogPrefix と fieldsLogPrefix は、metadata のフィルタが標準エラー出力に書く行の頭。
+	// topLogPrefix と fieldsLogPrefix は、metadata のフィルタが標準エラー出力に書く行の先頭。
 	topLogPrefix    = "[metadata@top @ "
 	fieldsLogPrefix = "[metadata@fields @ "
-	// ydifKey は、metadata のフィルタが書く、輝度の差の値の頭。
+	// ydifKey は、metadata のフィルタが書く、輝度の差の値の先頭。
 	ydifKey = "lavfi.signalstats.YDIF="
 )
 
 var errNoFieldDiff = errors.New("FFmpeg reported no field difference")
 
-// MeasureFields は、TS のファイル path の、offset から length の間の、フィールドどうしの輝度の差を測る (#1509)。
+// MeasureFields は、TS のファイル path の、offset から length の間の、フィールドどうしの輝度の差を計測する (#1509)。
 // 入力の前の -ss で、ファイルを直接シークして読む。
 func (e *FFmpegEncoder) MeasureFields(ctx context.Context, path string, offset, length time.Duration) (*FieldDiffs, error) {
 	start, duration := formatSeconds(offset), formatSeconds(length)
@@ -76,7 +76,7 @@ func (p *fieldDiffParser) Write(b []byte) (int, error) {
 }
 
 // line は、標準エラー出力の 1 行を読む。値の行 (例: [metadata@top @ 0x55d0] lavfi.signalstats.YDIF=1.25) だけを拾い、
-// コマの行 (frame:0 pts:0 pts_time:0) は捨てる。
+// コマの行 (frame:0 pts:0 pts_time:0) は破棄する。
 func (p *fieldDiffParser) line(s string) {
 	var dest *[]float64
 	switch {
@@ -101,7 +101,7 @@ func (p *fieldDiffParser) line(s string) {
 	}
 }
 
-// diffs は、読んだ差を返す。どちらの列も、先頭の値は前がないので捨てる。
+// diffs は、読んだ差を返す。どちらの並びも、先頭の値は前がないので破棄する。
 func (p *fieldDiffParser) diffs() (*FieldDiffs, error) {
 	if len(p.top) == 0 || len(p.fields) == 0 {
 		return nil, fmt.Errorf("%w: %s", errNoFieldDiff, p.tail.String())

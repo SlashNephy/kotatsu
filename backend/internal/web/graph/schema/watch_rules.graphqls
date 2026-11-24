@@ -30,7 +30,7 @@ extend type Query {
 extend type Mutation {
   """
   ログイン中のユーザーの視聴ルールを作る。閲覧だけのユーザーも使える。
-  すでに 50 個あれば CONFLICT を返す。同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  すでに 50 個あれば CONFLICT を返す。同じユーザーのほかの端末に viewerSettingsChanged で通知する。
   """
   createWatchRule(input: WatchRuleInput!): WatchRule!
   "ログイン中のユーザーの視聴ルールの内容を input で置き換える。視聴ルールが付けた視聴予約のうち、一致しなくなったものは、次の照合で外す。"

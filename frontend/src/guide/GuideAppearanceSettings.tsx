@@ -1,5 +1,4 @@
 import {
-  Badge,
   Button,
   Card,
   ColorSwatch,
@@ -31,7 +30,7 @@ const swatch = (color: string) => `var(--mantine-color-${color}-light)`;
 export function GuideAppearanceSettings() {
   const { t } = useTranslation();
   const [appearance, setAppearance] = useGuideAppearance();
-  // 変えたら、ほかの設定と同じ通知で知らせる (#1740)。
+  // 変えたら、ほかの設定と同じ通知で伝える (#1740)。
   const save = useDeviceSave()(setAppearance);
   const colorOptions = genreColorChoices.map((color) => ({
     value: color,
@@ -46,9 +45,6 @@ export function GuideAppearanceSettings() {
             {t('settings.guide.title')}
           </Title>
           {/* アカウントの設定と並ぶので、この端末だけの設定であることを示す。 */}
-          <Badge size="sm" variant="light" color="gray" tt="none">
-            {t('settings.account.deviceOnly')}
-          </Badge>
         </Group>
         <Stack gap={4}>
           <Text size="sm" fw={500}>

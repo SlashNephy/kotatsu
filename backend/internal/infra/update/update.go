@@ -1,7 +1,7 @@
-// Package update は、GitHub のリリースを定期的に確かめ、動いている版より新しい版があるかを覚える (設計書 11.1、#506)。
+// Package update は、GitHub のリリースを定期的に確認し、動いているバージョンより新しいバージョンがあるかをキャッシュする (設計書 11.1、#506)。
 //
-// 外部への通信になるので、設定 (update_check.enabled) で入れたときだけ確かめる。
-// main のビルド (edge) と、版を埋め込まないビルド (dev) は、リリースと比べられないので確かめない。
+// 外部への通信になるので、設定 (update_check.enabled) で入れたときだけ確認する。
+// main のビルド (edge) と、バージョンを埋め込まないビルド (dev) は、リリースと比較できないので確認しない。
 package update
 
 import (
@@ -23,7 +23,7 @@ import (
 const (
 	// DefaultURL は、最新のリリースを返す GitHub の API。
 	DefaultURL = "https://api.github.com/repos/SlashNephy/kotatsu/releases/latest"
-	// DefaultInterval は、確かめる間隔。
+	// DefaultInterval は、確認する間隔。
 	DefaultInterval = 24 * time.Hour
 	// requestTimeout は、1 回の問い合わせの時間の上限。
 	requestTimeout = 30 * time.Second
@@ -35,13 +35,13 @@ const (
 
 // Release は、新しいリリース。
 type Release struct {
-	// Version は、v を除いたリリースの版 (1.2.3)。
+	// Version は、v を除いたリリースのバージョン (1.2.3)。
 	Version     string
 	URL         string
 	PublishedAt time.Time
 }
 
-// Checker は、最新のリリースを確かめる。
+// Checker は、最新のリリースを確認する。
 type Checker struct {
 	client   *http.Client
 	url      string
@@ -55,7 +55,7 @@ type Checker struct {
 
 // Options は Checker の設定。
 type Options struct {
-	// Current は、動いている版 (buildinfo の Version)。
+	// Current は、動いているバージョン (buildinfo の Version)。
 	Current string
 	// URL と Interval は、空か 0 なら既定値を使う。HTTPClient が nil なら、記録しない既定のクライアントを使う。
 	URL        string
@@ -83,13 +83,13 @@ func NewChecker(opts *Options) *Checker {
 	return c
 }
 
-// Comparable は、動いている版がリリースの版で、新しいリリースと比べられるかを返す。
+// Comparable は、動いているバージョンがリリースのバージョンで、新しいリリースと比較できるかを返す。
 func Comparable(current string) bool {
 	return semver.IsValid(canonical(current))
 }
 
-// Run は、すぐに確かめ、その後は間隔ごとに確かめる。ctx が終わるまで戻らない。比べられない版なら、確かめずにすぐ戻る。
-// 確かめられなくても、前に確かめた結果を残し、次の間隔でやり直す。
+// Run は、すぐに確認し、その後は間隔ごとに確認する。ctx が終わるまで戻らない。比較できないバージョンなら、確認せずにすぐ戻る。
+// 確認できなくても、前に確認した結果を残し、次の間隔でやり直す。
 func (c *Checker) Run(ctx context.Context) error {
 	if !Comparable(c.current) {
 		c.logger.InfoContext(ctx, "skipping the update check for a non-release build", slog.String("version", c.current))
@@ -110,7 +110,7 @@ func (c *Checker) Run(ctx context.Context) error {
 	}
 }
 
-// Check は、最新のリリースを 1 回確かめ、動いている版より新しければ覚える。
+// Check は、最新のリリースを 1 回確認し、動いているバージョンより新しければキャッシュする。
 func (c *Checker) Check(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
@@ -125,7 +125,7 @@ func (c *Checker) Check(ctx context.Context) error {
 		return fmt.Errorf("failed to get the latest release: %w", err)
 	}
 	defer res.Body.Close()
-	// リリースを 1 つも公開していなければ、404 が返る。新しい版はないものとする。
+	// リリースを 1 つも公開していなければ、404 が返る。新しいバージョンはないものとする。
 	if res.StatusCode == http.StatusNotFound {
 		c.mu.Lock()
 		c.latest = nil
@@ -160,7 +160,7 @@ func (c *Checker) Check(ctx context.Context) error {
 	return nil
 }
 
-// Latest は、動いている版より新しいリリースを返す。なければ (確かめていなければ) nil を返す。
+// Latest は、動いているバージョンより新しいリリースを返す。なければ (確認していなければ) nil を返す。
 func (c *Checker) Latest() *Release {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -168,7 +168,7 @@ func (c *Checker) Latest() *Release {
 	return c.latest
 }
 
-// canonical は、版に v を付けて、semver で比べられる形にする。
+// canonical は、バージョンに v を付けて、semver で比較できる形にする。
 func canonical(version string) string {
 	if strings.HasPrefix(version, "v") {
 		return version

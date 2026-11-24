@@ -1,8 +1,8 @@
 // Package analysis は、録画を終えた後に録画ファイルを解析するジョブを扱う (設計書 6.1、6.3)。
 //
-// EPGStation から取り込んだ録画には、Kotatsu が録画中に作る索引やドロップの集計がない。
-// このジョブは、取り込んだ TS を読み直して、セグメントの索引を作り、ドロップ、エラー、スクランブルを数え直す。
-// 代表画像かプレビュー画像がないか、索引より古ければ (索引が変わった)、代表画像とプレビュー画像を作るジョブを投入する (#2012)。
+// EPGStation から取り込んだ録画には、Kotatsu が録画中に作るインデックスやドロップの集計がない。
+// このジョブは、取り込んだ TS を読み直して、セグメントのインデックスを作り、ドロップ、エラー、スクランブルを数え直す。
+// 代表画像かプレビュー画像がないか、インデックスより古ければ (インデックスが変わった)、代表画像とプレビュー画像を作るジョブを投入する (#2012)。
 package analysis
 
 import (
@@ -38,7 +38,7 @@ import (
 const (
 	// kindSegment は、recording_files の、TS のセグメントの種類。
 	kindSegment = "segment"
-	// indexTempSuffix は、作り直している途中の索引の一時ファイルの接尾辞。
+	// indexTempSuffix は、作り直している途中のインデックスの一時ファイルの接尾辞。
 	indexTempSuffix = ".tmp"
 	// stateRecording は、録画中の録画の状態。
 	stateRecording = "recording"
@@ -99,8 +99,8 @@ type Database interface {
 	Acquire(ctx context.Context) (*pgxpool.Conn, error)
 }
 
-// AnalyzeWorker は、録画のセグメントを読み、索引を作り、ドロップ、エラー、スクランブルを数え直す。
-// 画像を作り直すときは、索引と集計を記録するトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
+// AnalyzeWorker は、録画のセグメントを読み、インデックスを作り、ドロップ、エラー、スクランブルを数え直す。
+// 画像を作り直すときは、インデックスと集計を記録するトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
 type AnalyzeWorker struct {
 	river.WorkerDefaults[AnalyzeArgs]
 
@@ -128,7 +128,7 @@ func (w *AnalyzeWorker) Timeout(*river.Job[AnalyzeArgs]) time.Duration {
 	return analyzeTimeout
 }
 
-// analyzed は、解析したセグメントと、その索引。
+// analyzed は、解析したセグメントと、そのインデックス。
 type analyzed struct {
 	segment *sqlc.RecordingFile
 	// pidStats は、PID ごとの品質の集計の JSON (#473)。
@@ -172,7 +172,7 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 	if err != nil {
 		return fmt.Errorf("failed to get the recording: %w", err)
 	}
-	// 録画中の録画は、録画が索引と集計を作っている。
+	// 録画中の録画は、録画がインデックスと集計を作っている。
 	if recording.State == stateRecording {
 		return river.JobCancel(errStillRecording)
 	}
@@ -187,6 +187,8 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 	}
 	results := make([]*analyzed, len(segments))
 	total := new(ts.PIDStats)
+	// judgedDrops は、判定に数えるドロップ。映像と音声の PID のドロップだけを数える (設計書 5.3)。
+	var judgedDrops int64
 	events := make([][]*ts.EventAudio, len(segments))
 	// 引き継ぎで重なった区間は、後のセグメントでも録っているので、前のセグメントの集計からは除く (#525)。
 	// 重なりの始まりは、後のセグメントの最初の I フレームの PTS で決めるので、後ろのセグメントから読む。
@@ -210,6 +212,7 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 		if result.pidStats, err = json.Marshal(ts.PIDQualities(stats, counted)); err != nil {
 			return fmt.Errorf("failed to encode the PID stats: %w", err)
 		}
+		judgedDrops += ts.JudgedDrops(stats, counted)
 		for _, pid := range counted {
 			total.Drops += pid.Drops
 			total.Errors += pid.Errors
@@ -231,14 +234,14 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 		return err
 	}
 
-	return w.record(ctx, job.Args.RecordingID, job.Priority, results, total, audios, regenerate)
+	return w.record(ctx, job.Args.RecordingID, job.Priority, results, total, judgedDrops, audios, regenerate)
 }
 
 // needsImages は、解析の後に、代表画像とプレビュー画像を作り直すかどうかを返す (#2012)。
-// 代表画像か、作る設定のときのプレビュー画像がデータディレクトリにないか、どれかのセグメントの索引より古ければ作る。
-// 画像は索引の I フレームの位置から作るので、索引が変わったら作り直す。索引は、中身が変わったときだけ置き換える (analyze) ので、
-// 索引が画像より新しいことが、画像を作った後に索引が変わったしるしになる。取り込んだ録画の最初の解析と、
-// セグメントをつないだ後の解析 (つなぐときに索引を消す) では、索引を新しく書くので、作り直す。
+// 代表画像か、作る設定のときのプレビュー画像がデータディレクトリにないか、どれかのセグメントのインデックスより古ければ作る。
+// 画像はインデックスの I フレームの位置から作るので、インデックスが変わったら作り直す。インデックスは、内容が変わったときだけ置き換える (analyze) ので、
+// インデックスが画像より新しいことが、画像を作った後にインデックスが変わったしるしになる。取り込んだ録画の最初の解析と、
+// セグメントをつないだ後の解析 (つなぐときにインデックスを消す) では、インデックスを新しく書くので、作り直す。
 // しるしをファイルの日時に置くので、画像を作るジョブを入れる前に解析が失敗しても、やり直したときに作り直す。
 func (w *AnalyzeWorker) needsImages(ctx context.Context, files []sqlc.RecordingFile, results []*analyzed) (bool, error) {
 	owner, ok := thumbnail.ImageSegment(files)
@@ -330,9 +333,9 @@ func overlaps(segment, next *sqlc.RecordingFile) bool {
 	return segment.EndedAt != nil && next.StartedAt.After(segment.StartedAt) && next.StartedAt.Before(*segment.EndedAt)
 }
 
-// analyze は、セグメントを読み通して、データディレクトリに索引を書き、統計を返す。
-// cutoff を渡せば、PTS がそこに届いたときの統計も返す。索引は作り直すたびに切り詰めて書くので、何度実行しても同じ索引になる。
-// 中身が前の索引と同じなら、前の索引を置き換えない (#2012)。
+// analyze は、セグメントを読み通して、データディレクトリにインデックスを書き、統計を返す。
+// cutoff を渡せば、PTS がそこに届いたときの統計も返す。インデックスは作り直すたびに切り詰めて書くので、何度実行しても同じインデックスになる。
+// 内容が前のインデックスと同じなら、前のインデックスを置き換えない (#2012)。
 func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile, cutoff *int64) (*analyzed, *ts.Stats, error) {
 	segmentPath, err := w.store.Path(segment.PoolID, segment.Path)
 	if err != nil {
@@ -353,7 +356,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	if err != nil {
 		return nil, nil, err
 	}
-	// 索引は一時ファイルに書き、読み終えてから置き換える。途中で止まっても、読む側に書きかけの索引を見せない。
+	// インデックスは一時ファイルに書き、読み終えてから置き換える。途中で止まっても、読む側に書きかけのインデックスを見せない。
 	tmpPath := indexPath + indexTempSuffix
 	output, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
@@ -382,14 +385,14 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 		return nil, nil, fmt.Errorf("failed to read the segment %s/%s: %w", segment.PoolID, segment.Path, err)
 	}
 	stats := analyzer.Stats()
-	// 解析器は、索引を書けなくても解析を続けるので、ここで確かめる。
+	// アナライザーは、インデックスを書けなくても解析を続けるので、ここで確認する。
 	if stats.IndexError != nil {
 		return nil, nil, fmt.Errorf("failed to write the index: %w", stats.IndexError)
 	}
 	if err := output.Close(); err != nil {
 		return nil, nil, fmt.Errorf("failed to close the index file: %w", err)
 	}
-	// 中身が変わらなければ、今の索引を残す。索引の日時で、画像を作った後に索引が変わったかを見分ける (needsImages)。
+	// 内容が変わらなければ、今のインデックスを残す。インデックスの日時で、画像を作った後にインデックスが変わったかを見分ける (needsImages)。
 	changed, err := indexChanged(indexPath, tmpPath)
 	if err != nil {
 		return nil, nil, err
@@ -403,8 +406,8 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	return &analyzed{segment: segment, pidStats: nil, video: stats.Video}, stats, nil
 }
 
-// indexChanged は、新しく書いた索引 tmpPath が、今の索引 indexPath と違うかを返す。今の索引がなければ true を返す。
-// 索引は、I フレームの位置と PTS を並べたもので、同じ TS からは同じ索引になるので、中身を比べる。
+// indexChanged は、新しく書いたインデックス tmpPath が、今のインデックス indexPath と違うかを返す。今のインデックスがなければ true を返す。
+// インデックスは、I フレームの位置と PTS を並べたもので、同じ TS からは同じインデックスになるので、内容を比較する。
 func indexChanged(indexPath, tmpPath string) (bool, error) {
 	current, err := os.ReadFile(indexPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -424,7 +427,7 @@ func indexChanged(indexPath, tmpPath string) (bool, error) {
 // record は、集計を記録し、regenerate なら、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
 // audios は、TS から読んだ音声の構成の JSON。読めなければ nil。
 func (w *AnalyzeWorker) record(
-	ctx context.Context, recordingID uuid.UUID, priority int, results []*analyzed, total *ts.PIDStats, audios []byte, regenerate bool,
+	ctx context.Context, recordingID uuid.UUID, priority int, results []*analyzed, total *ts.PIDStats, judgedDrops int64, audios []byte, regenerate bool,
 ) error {
 	now := w.clock.Now()
 	err := pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
@@ -438,17 +441,17 @@ func (w *AnalyzeWorker) record(
 			}
 		}
 		err := q.SetRecordingStats(ctx, sqlc.SetRecordingStatsParams{
-			Drops: total.Drops, Errors: total.Errors, Scrambled: total.Scrambled, Now: now, ID: recordingID,
+			Drops: total.Drops, JudgedDrops: judgedDrops, Errors: total.Errors, Scrambled: total.Scrambled, Now: now, ID: recordingID,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to record the stats: %w", err)
 		}
-		// 解析し直した内訳で、スクランブルされたまま録れたかも決め直す (#1517)。録画を終えたときに知らせたので、通知は送らず、
-		// 管理者に知らせるための、続いた録画の数も進めない。警告が変わったら、録画履歴も合わせて直す (設計書 4.4)。
+		// 解析し直した内訳で、スクランブルされたまま録れたかも決め直す (#1517)。録画を終えたときに通知したので、通知は送らず、
+		// 管理者に通知するための、続いた録画の数も進めない。警告が変わったら、録画履歴も合わせて直す (設計書 4.4)。
 		if err := rejudgeScramble(ctx, q, recordingID, now); err != nil {
 			return err
 		}
-		// 録画の一覧にドロップの数を出すので、録画の変更として知らせる (#868)。
+		// 録画の一覧にドロップの数を出すので、録画の変更として通知する (#868)。
 		if _, err := notify.Publish(ctx, tx, w.clock, notify.RecordingsChannel); err != nil {
 			return err
 		}

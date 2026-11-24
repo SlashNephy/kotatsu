@@ -63,6 +63,7 @@ import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDi
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { WatchReservationList } from '../watch/WatchReservationList';
 import { SkippedDuplicateList } from '../reservations/SkippedDuplicateList';
+import { AnimeFollowingWatchingList } from '../reservations/AnimeFollowingWatchingList';
 import { AnimeWishlistList } from '../reservations/AnimeWishlistList';
 import type { reservationsWishlistTabQuery } from './__generated__/reservationsWishlistTabQuery.graphql';
 import { TimeReservationDialog } from '../reservations/TimeReservationDialog';
@@ -136,6 +137,8 @@ type ReservationsSearch = {
   skipped?: boolean;
   // wishlist は、録画の予約の代わりに、見たいリストの作品の放送の候補を出すかどうか (設計書 3.8、#928)。
   wishlist?: boolean;
+  // following は、録画の予約の代わりに、フォロー中の人が見ている作品の放送の候補を出すかどうか (設計書 3.8、#1968)。
+  following?: boolean;
   // problems は、録画が欠ける見込みの予約だけを出すかどうか。
   problems?: boolean;
   // rule は、このルールに一致した予約だけを出すときの、ルールの ID (#468)。
@@ -147,6 +150,7 @@ export const Route = createFileRoute('/reservations')({
     ...(search['watch'] === true ? { watch: true } : {}),
     ...(search['skipped'] === true ? { skipped: true } : {}),
     ...(search['wishlist'] === true ? { wishlist: true } : {}),
+    ...(search['following'] === true ? { following: true } : {}),
     ...(search['problems'] === true ? { problems: true } : {}),
     ...(typeof search['rule'] === 'string' && search['rule'] !== ''
       ? { rule: search['rule'] }
@@ -213,7 +217,7 @@ function ReservationsPage() {
     };
   });
 
-  const { watch, skipped, wishlist } = Route.useSearch();
+  const { watch, skipped, wishlist, following } = Route.useSearch();
   const tab =
     watch === true
       ? 'watch'
@@ -221,7 +225,9 @@ function ReservationsPage() {
         ? 'skipped'
         : wishlist === true
           ? 'wishlist'
-          : 'recording';
+          : following === true
+            ? 'following'
+            : 'recording';
   const navigate = Route.useNavigate();
 
   return (
@@ -239,7 +245,9 @@ function ReservationsPage() {
                   ? { skipped: true }
                   : value === 'wishlist'
                     ? { wishlist: true }
-                    : {},
+                    : value === 'following'
+                      ? { following: true }
+                      : {},
           })
         }
       >
@@ -275,6 +283,8 @@ function ReservationsPage() {
             <SkippedDuplicateList />
           ) : tab === 'wishlist' ? (
             <AnimeWishlistList />
+          ) : tab === 'following' ? (
+            <AnimeFollowingWatchingList />
           ) : (
             <Reservations range={range} />
           )}
@@ -284,7 +294,8 @@ function ReservationsPage() {
   );
 }
 
-// WishlistTab は、見たいリストの作品の放送の候補のタブ (#928)。管理者がアニメの結びつきを無効にしていれば出さない。
+// WishlistTab は、見たいリストの作品の放送の候補のタブ (#928) と、フォロー中の人が見ている作品のタブ (#1968)。
+// 管理者がアニメの結びつきを無効にしていれば出さない。
 function WishlistTab() {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<reservationsWishlistTabQuery>(
@@ -302,14 +313,20 @@ function WishlistTab() {
     return null;
   }
 
-  return <Tabs.Tab value="wishlist">{t('reservations.wishlist.tab')}</Tabs.Tab>;
+  return (
+    <>
+      <Tabs.Tab value="wishlist">{t('reservations.wishlist.tab')}</Tabs.Tab>
+      {/* フォロー中の人が見ている作品も、見たいリストと一緒に取り込むので、同じときだけ出す (#1968)。 */}
+      <Tabs.Tab value="following">{t('reservations.following.tab')}</Tabs.Tab>
+    </>
+  );
 }
 
 function Reservations({ range }: { range: { now: number; from: string; to: string } }) {
   const { t } = useTranslation();
   const navigate = Route.useNavigate();
   const { problems = false, rule } = Route.useSearch();
-  // removed は、この画面で消した予約。一覧を取り直さずに反映し、読み込んだ続きを捨てない。
+  // removed は、この画面で消した予約。一覧を再取得せずに反映し、読み込んだ続きを破棄しない。
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const variables = {
     from: range.from,
@@ -321,7 +338,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
   };
   // changes は、予約、割り当て、競合が、ほかの端末や neko で変わるたびに変わる (#503)。変わったら読み直す。
   const changes = useDataChanges(reservationChannels);
-  // filterKey は、絞り込みの組。変わったら、読み込んだ続きを捨てる。データが変わったときも、続きは古くなるので捨てる。
+  // filterKey は、絞り込みの組。変わったら、読み込んだ続きを破棄する。データが変わったときも、続きは古くなるので破棄する。
   const filterKey = `${problems}:${rule ?? ''}:${changes}`;
   // fetchKey を変えると、読み直す。時刻予約を作った後に、一覧に足すのに使う。読み直す間も一覧を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
@@ -333,14 +350,14 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
     { fetchKey: `${fetchKey}:${changes}`, fetchPolicy: 'store-and-network' },
   );
   const environment = useRelayEnvironment();
-  // more は、続きの読み込みで足した予約と、その次のカーソル。絞り込みを変えたら捨てる。
+  // more は、続きの読み込みで足した予約と、その次のカーソル。絞り込みを変えたら破棄する。
   const [more, setMore] = useState<{ key: string; nodes: Node[]; next: string | null } | null>(
     null,
   );
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState(false);
   // reload は、一覧を読み直す。時刻予約を作ったり時刻を変えたりすると、並びと割り当てが変わる。
-  // 読み込んだ続きは、読み直しで並びが変わるので捨てる。
+  // 読み込んだ続きは、読み直しで並びが変わるので破棄する。
   const reload = () => {
     setMore(null);
     startTransition(() => setFetchKey((key) => key + 1));
@@ -348,7 +365,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
   const extra = more?.key === filterKey ? more : null;
   // setEnabled は、この画面で有効かどうかを切り替えた予約を、一覧に反映する。最初のページの予約は、切り替えの応答で
   // Relay のストアが変わるので、そのまま出る。続きで読んだ予約は、ストアから読まないので、ここで書き換える。
-  // 読み直した値より古い値を上から重ねないよう、別に覚えておかない (#1425)。
+  // 読み直した値より古い値を上から重ねないよう、別に保持しておかない (#1425)。
   const setEnabled = (id: string, enabled: boolean) =>
     setMore((current) =>
       current === null
@@ -641,7 +658,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
         />
       )}
       {reservations.length > 0 && (
-        // 行をまたいで列を揃えるため、見出しも行も 1 つのグリッドに並べる。
+        // 行をまたいでカラムを揃えるため、見出しも行も 1 つのグリッドに並べる。
         <Box className={classes.list}>
           {onAir.length > 0 && (
             <>
@@ -761,7 +778,7 @@ function ReservationRow({
       data-attention={attention || undefined}
       data-disabled={!reservation.enabled || undefined}
     >
-      {/* 選んでいる間は、種類の印の代わりに、選ぶ欄を出す。録画中の予約は、録画を止めないよう選べない (#471)。 */}
+      {/* 選んでいる間は、種類のマークの代わりに、選ぶ欄を出す。録画中の予約は、録画を止めないよう選べない (#471)。 */}
       {selection !== undefined ? (
         <Box className={`${classes.kind} ${classes.select}`}>
           <Tooltip label={t('reservations.selectRecording')} disabled={!recording}>
@@ -811,7 +828,7 @@ function ReservationRow({
           )}
         </Link>
       </Text>
-      {/* バッジのない行でも、サービスを同じ列に置くよう、空の枠を残す。 */}
+      {/* バッジのない行でも、サービスを同じカラムに置くよう、空の枠を残す。 */}
       <Group gap={4} wrap="nowrap" className={classes.badges}>
         {recording && <RecordingStateBadge state="RECORDING" size="xs" />}
         {!reservation.enabled ? (
@@ -947,7 +964,7 @@ type DeleteProps = {
   onDeleted: () => void;
 };
 
-// DeleteDialog は、番組予約や時刻予約を消す前に確かめる。ルール予約は、行のスイッチで無効にする。
+// DeleteDialog は、番組予約や時刻予約を消す前に確認する。ルール予約は、行のスイッチで無効にする。
 function DeleteDialog({ reservation, onClose, onDeleted }: DeleteProps) {
   const { t } = useTranslation();
   const [error, setError] = useState(false);

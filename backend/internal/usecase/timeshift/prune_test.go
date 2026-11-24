@@ -17,7 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 )
 
-// writeUnder は、root の下の rel に、中身のあるファイルを作る。
+// writeUnder は、root の下の rel に、内容のあるファイルを作る。
 func writeUnder(t *testing.T, root, rel string) {
 	t.Helper()
 
@@ -26,8 +26,8 @@ func writeUnder(t *testing.T, root, rel string) {
 	require.NoError(t, os.WriteFile(full, []byte("data"), 0o600))
 }
 
-// TestPrune は、保持時間を過ぎたチャンクの、ファイルと索引と行を消し、書きかけのチャンクと保持時間の内のチャンクは残すことを確かめる。
-// チャンネルの設定を消したサービスのチャンクは全部消え、ファイルのないチャンクも行は消え、古い番組の行も消えることも確かめる。
+// TestPrune は、保持時間を過ぎたチャンクの、ファイルとインデックスと行を消し、書きかけのチャンクと保持時間の内のチャンクは残すことを確認する。
+// チャンネルの設定を消したサービスのチャンクは全部消え、ファイルのないチャンクも行は消え、古い番組の行も消えることも確認する。
 func TestPrune(t *testing.T) {
 	t.Parallel()
 
@@ -119,7 +119,7 @@ func TestPrune(t *testing.T) {
 	assert.Equal(t, []int{120, 10}, left, "the programs that ended before the oldest chunk are removed, and the open one stays")
 }
 
-// TestPruneWithoutTimeshiftDir は、タイムシフトのディレクトリを設定していなければ、何も消さないことを確かめる。
+// TestPruneWithoutTimeshiftDir は、タイムシフトのディレクトリを設定していなければ、何も消さないことを確認する。
 func TestPruneWithoutTimeshiftDir(t *testing.T) {
 	t.Parallel()
 
@@ -140,7 +140,7 @@ func TestPruneWithoutTimeshiftDir(t *testing.T) {
 }
 
 // TestPruneClosesAbandonedChunks は、タイムシフトから外したチャンネルに、録る mikan のいない書きかけのチャンクと放送中のままの番組が
-// 残っていたら、閉じてから消すことを確かめる。割り振りのあるサービスは、mikan が書いているかもしれないので触らない (#1055)。
+// 残っていたら、閉じてから消すことを確認する。割り振りのあるサービスは、mikan が書いているかもしれないので触らない (#1055)。
 func TestPruneClosesAbandonedChunks(t *testing.T) {
 	t.Parallel()
 
@@ -220,8 +220,8 @@ func TestPruneClosesAbandonedChunks(t *testing.T) {
 	assert.Equal(t, 2, total)
 }
 
-// TestPruneProgramsOfServicesWithoutChunks は、チャンクの 1 つも残らない、外したチャンネルの終わった番組の行も消すことを確かめる。
-// 最後のチャンクを捨てたときに番組がまだ放送中だったり、番組の整理に一度失敗したりしても、行を残し続けない (#1055)。
+// TestPruneProgramsOfServicesWithoutChunks は、チャンクの 1 つも残らない、外したチャンネルの終わった番組の行も消すことを確認する。
+// 最後のチャンクを破棄したときに番組がまだ放送中だったり、番組の整理に一度失敗したりしても、行を残し続けない (#1055)。
 func TestPruneProgramsOfServicesWithoutChunks(t *testing.T) {
 	t.Parallel()
 
@@ -260,7 +260,7 @@ func TestPruneProgramsOfServicesWithoutChunks(t *testing.T) {
 }
 
 // TestPruneKeepsPromotedChunks は、録画に昇格している番組の範囲と重なるチャンクは、保持時間を過ぎても、
-// サービスをタイムシフトから外しても、書き出し終えるまで消さないことを確かめる (#1057)。
+// サービスをタイムシフトから外しても、書き込み終えるまで消さないことを確認する (#1057)。
 func TestPruneKeepsPromotedChunks(t *testing.T) {
 	t.Parallel()
 
@@ -300,7 +300,7 @@ func TestPruneKeepsPromotedChunks(t *testing.T) {
 	}
 	assert.Equal(t, ids[1:], kept)
 
-	// 書き出し終えて昇格の行を消したら、次の回で消す。
+	// 書き込み終えて昇格の行を消したら、次の回で消す。
 	_, err = e.q.DeleteTimeshiftPromotion(ctx, recordingID)
 	require.NoError(t, err)
 	pruned, err = worker.RunOnce(ctx)

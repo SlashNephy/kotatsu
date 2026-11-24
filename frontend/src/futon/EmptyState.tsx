@@ -10,7 +10,7 @@ type Props = {
   hint?: ReactNode;
 };
 
-// EmptyState は、一覧が空のときに出す表示。見出しと手がかりの 2 段にし、何の一覧かが分かるアイコンを添える。
+// EmptyState は、一覧が空のときに出す表示。見出しと手がかりの 2 行にし、何の一覧かが分かるアイコンを添える。
 export function EmptyState({ icon: Icon, title, hint }: Props) {
   return (
     <Alert color="gray" icon={<Icon size={20} aria-hidden />} title={title}>

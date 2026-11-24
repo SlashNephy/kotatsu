@@ -9,12 +9,12 @@
 #   引数に --all を渡すと、標準入力を読まずに、すべてを走らせる (main への push と手で動かしたとき)。
 set -euo pipefail
 
-go=false generate=false web=false deploy=false mpeg2toh264=false
+go=false generate=false web=false deploy=false mpeg2toh264=false ffmpeg=false
 image=false pnpm_audit=false kube_linter=false
 codeql_actions=false codeql_go=false codeql_js=false codeql_python=false codeql_cpp=false
 
 all() {
-  go=true generate=true web=true deploy=true mpeg2toh264=true
+  go=true generate=true web=true deploy=true mpeg2toh264=true ffmpeg=true
   image=true pnpm_audit=true kube_linter=true
   codeql_actions=true codeql_go=true codeql_js=true codeql_python=true codeql_cpp=true
 }
@@ -26,12 +26,12 @@ else
     [[ -z "$file" ]] && continue
 
     case "$file" in
-      # ツールの版と CI 自体の変更は、すべてのジョブに関わる。
+      # ツールのバージョンと CI 自体の変更は、すべてのジョブに関わる。
       mise.toml | mise.lock | .github/workflows/ci.yml | .github/workflows/image.yml | .github/actions/* | scripts/ci-changes.sh)
         all
         continue
         ;;
-      # Trivy と kube-linter の版は、イメージとマニフェストの検査に関わる。
+      # Trivy と kube-linter のバージョンは、イメージとマニフェストの検査に関わる。
       mise.scan.toml | mise.scan.lock)
         image=true kube_linter=true
         continue
@@ -49,7 +49,7 @@ else
       *) go=true ;;
     esac
 
-    # 生成物の確かめ。Go の生成に加え、zxcvbn のバンドルを画面の依存で作るので、その依存にも関わる。
+    # 生成物の確認。Go の生成に加え、zxcvbn のバンドルを画面の依存で作るので、その依存にも関わる。
     case "$file" in
       frontend/package.json | frontend/pnpm-lock.yaml | frontend/pnpm-workspace.yaml | frontend/patches/* | frontend/zxcvbn/* | frontend/schema.graphql | frontend/public/icons/* | frontend/mise.toml) generate=true ;;
       frontend/* | deploy/* | .github/*) ;;
@@ -73,6 +73,11 @@ else
     # mpeg2toh264 のプレイヤーのビルド。
     case "$file" in
       frontend/vendor/mpeg2toh264/* | frontend/public/mpeg2toh264/* | frontend/scripts/build-mpeg2toh264.sh | frontend/mise.mpeg2toh264.toml | frontend/mise.mpeg2toh264.lock) mpeg2toh264=true ;;
+    esac
+
+    # ブラウザ内でデコードする経路の WASM の FFmpeg のビルド。
+    case "$file" in
+      frontend/vendor/ffmpeg/* | frontend/public/ffmpeg/* | frontend/scripts/build-ffmpeg.sh) ffmpeg=true ;;
     esac
 
     # 画面の依存の脆弱性 (pnpm audit)。依存を変えたときだけ見る。新しく公表された勧告は、定期の検査が見つける。
@@ -111,6 +116,7 @@ echo "generate=$generate"
 echo "web=$web"
 echo "deploy=$deploy"
 echo "mpeg2toh264=$mpeg2toh264"
+echo "ffmpeg=$ffmpeg"
 echo "image=$image"
 echo "pnpm-audit=$pnpm_audit"
 echo "kube-linter=$kube_linter"

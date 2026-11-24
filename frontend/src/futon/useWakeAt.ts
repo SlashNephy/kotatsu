@@ -6,7 +6,7 @@ const minWakeDelayMs = 1000;
 const maxTimerMs = 2 ** 31 - 1;
 
 // useWakeAt は、at (エポックからのミリ秒) になったら onWake を 1 回呼ぶ。at が null なら呼ばない (#866)。
-// 端末がスリープしている間は setTimeout の時間が進まないことがあるので、画面が見えるようになったときにも時刻を確かめる。
+// 端末がスリープしている間は setTimeout の時間が進まないことがあるので、画面が見えるようになったときにも時刻を確認する。
 export function useWakeAt(at: number | null, onWake: () => void): void {
   const callback = useRef(onWake);
   useEffect(() => {
@@ -68,7 +68,7 @@ export function useNow(stepMs: number): number {
 }
 
 // nextWakeAt は、times (ISO 8601) のうち now より後で最も早い時刻を返す。maxWaitMs より先なら、now + maxWaitMs を返す。
-// 放送中の番組の終わりなど、画面の中身が変わる時刻を選ぶのに使う。番組表にない番組が始まるのにも気づけるよう、上限を付ける (#866)。
+// 放送中の番組の終わりなど、画面の内容が変わる時刻を選ぶのに使う。番組表にない番組が始まるのにも気づけるよう、上限を付ける (#866)。
 export function nextWakeAt(times: Iterable<string>, now: number, maxWaitMs: number): number {
   let next = now + maxWaitMs;
   for (const time of times) {

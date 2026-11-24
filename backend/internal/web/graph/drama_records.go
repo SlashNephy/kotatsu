@@ -108,7 +108,7 @@ func dramaRecordError(err error) error {
 	case errors.Is(err, dramarecord.ErrNotConnected):
 		return NewError(CodeNotFound, "the destination is not connected")
 	case errors.Is(err, secretbox.ErrDecrypt):
-		// アプリの秘密キーを変えると、保存したシークレットやトークンを読めなくなる。中身は返さない。
+		// アプリの秘密キーを変えると、保存したシークレットやトークンを読めなくなる。内容は返さない。
 		return NewError(CodeConflict, "the saved secret cannot be decrypted; register it again")
 	default:
 		return err

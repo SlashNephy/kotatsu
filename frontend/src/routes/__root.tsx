@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import type { Environment } from 'relay-runtime';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
+import { PreferencesSync } from '../settings/PreferencesSync';
 
 import { UserMenu } from '../auth/UserMenu';
 import UserMenuQueryNode from '../auth/__generated__/UserMenuQuery.graphql';
@@ -89,7 +90,7 @@ function RootLayout() {
     </Title>
   );
 
-  // データの変更は、ヘッダーで購読し、画面全体に配る (#503)。
+  // データの変更は、ヘッダーで購読し、画面全体に配信する (#503)。
   return (
     <DataChangesProvider>
       <WatchHostProvider>
@@ -141,6 +142,12 @@ function RootLayout() {
                 </Group>
                 <Group gap="md" wrap="nowrap" className={classes.headerEnd}>
                   <DataChangesSubscriber />
+                  {/* 端末をまたいで同期する設定を、サーバーと揃える (#1862)。読めなくても、ヘッダーは出す。 */}
+                  <ErrorBoundary fallback={() => null}>
+                    <Suspense fallback={null}>
+                      <PreferencesSync />
+                    </Suspense>
+                  </ErrorBoundary>
                   <ConnectionStatus />
                   <HeaderSearch />
                   <NotificationBell />
@@ -162,7 +169,7 @@ function RootLayout() {
           </AppShell.Navbar>
           <AppShell.Main className={classes.shellMain}>
             <div className={classes.content} data-fluid={fluid || undefined}>
-              {/* 衛星の局の顔ぶれの変化を、管理者に知らせる (#1519)。読めなくても、本文は出す。 */}
+              {/* 衛星の局の顔ぶれの変化を、管理者に通知する (#1519)。読めなくても、本文は出す。 */}
               <SignedIn fallback={null}>
                 <LineupBanner />
               </SignedIn>
@@ -203,7 +210,7 @@ const rootViewerQuery = graphql`
 `;
 
 // ViewerGate は、自分のユーザーを読めたときだけ children を出す。読めなければ、読み込みが例外を投げる。
-// 失敗した読み込みは Relay が覚えているので、ErrorBoundary が描き直すときに読み直す。読めた後は、ストアの値を使う。
+// 失敗した読み込みは Relay が保持しているので、ErrorBoundary が描き直すときに読み直す。読めた後は、ストアの値を使う。
 // ヘッダーが読むクエリは、自分のユーザーを読み終えてから送ると、その分だけ仮のヘッダーが長く出るので、同時に送り始める。
 function ViewerGate({ children }: { children: ReactNode }) {
   const environment = useRelayEnvironment();

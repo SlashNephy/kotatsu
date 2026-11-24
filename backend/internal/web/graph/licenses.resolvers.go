@@ -11,7 +11,7 @@ import (
 
 // GoModuleLicenses is the resolver for the goModuleLicenses field.
 func (r *queryResolver) GoModuleLicenses(ctx context.Context) ([]*licenses.Module, error) {
-	// 版は、古い版の脆弱性を狙う手がかりになるので、Version と同じく、ログインしたユーザーにだけ返す。
+	// バージョンは、古いバージョンの脆弱性を狙う手がかりになるので、Version と同じく、ログインしたユーザーにだけ返す。
 	if auth.PrincipalFrom(ctx) == nil {
 		return nil, NewError(CodeUnauthenticated, "login required")
 	}

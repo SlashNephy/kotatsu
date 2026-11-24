@@ -72,7 +72,7 @@ func linkWishlistProgram(t *testing.T, f *fixture, serviceID int64, start time.T
 }
 
 // connectWishlist は、ユーザー userID と Annict の連携と、見たいリストの作品 (Annict の作品 10) を DB に入れる。
-// 連携と取り込みは usecase のテストで確かめるので、ここでは行を直に書く。
+// 連携と取り込みは usecase のテストで確認するので、ここでは行を直に書く。
 func connectWishlist(t *testing.T, f *fixture, userID uuid.UUID) {
 	t.Helper()
 	_, err := f.pool.Exec(t.Context(), `INSERT INTO anime_record_connections (user_id, destination, access_token_encrypted, account_name, connected_at, wishlist_checked_at, wishlist_imported_at)
@@ -84,7 +84,7 @@ func connectWishlist(t *testing.T, f *fixture, userID uuid.UUID) {
 }
 
 // TestAnimeWishlist は、見たいリストの作品の放送の候補を、ユーザーごとに自分の分だけ返し、
-// 予約できるユーザーだけが、候補の作品からルールを作れることを確かめる (#928、設計書 9.7)。
+// 予約できるユーザーだけが、候補の作品からルールを作れることを確認する (#928、設計書 9.7)。
 func TestAnimeWishlist(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)

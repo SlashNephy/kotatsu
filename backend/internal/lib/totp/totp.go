@@ -82,7 +82,7 @@ func Code(secret []byte, step int64, digits int) (string, error) {
 	return fmt.Sprintf("%0*d", digits, value%modulo), nil
 }
 
-// Verify は、code が now のコードか、前後 skew ステップのコードかを確かめ、一致したステップを返す。
+// Verify は、code が now のコードか、前後 skew ステップのコードかを確認し、一致したステップを返す。
 // 一度使ったコードを使い回せないよう、lastUsedStep 以下のステップのコードは受け付けない。
 // 一致しなければ、ok を false にする。
 func Verify(secret []byte, code string, now time.Time, lastUsedStep int64) (int64, bool, error) {

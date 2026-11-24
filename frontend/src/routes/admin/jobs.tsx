@@ -52,7 +52,7 @@ const dateTimeFormat = zonedFormat({
   hourCycle: 'h23',
 });
 
-// JobsPage は、nekonote の River のジョブを、状態ごとに確かめる管理者向けの画面 (#1279、設計書 6.1)。
+// JobsPage は、nekonote の River のジョブを、状態ごとに確認する管理者向けの画面 (#1279、設計書 6.1)。
 // River UI の構成を模し、状態のタブと数、ジョブの一覧、ジョブを開いたときのエラーと操作を並べる。
 function JobsPage() {
   const { t } = useTranslation();

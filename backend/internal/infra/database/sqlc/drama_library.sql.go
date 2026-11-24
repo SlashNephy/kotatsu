@@ -136,7 +136,7 @@ type InsertDramaWatchedEpisodeParams struct {
 	Now           time.Time
 }
 
-// 見た話を足す。もう見た話なら、何もしない (見た日時と出どころは、最初に足したものを残す)。
+// 見た話を足す。もう見た話なら、何もしない (見た日時とソースは、最初に足したものを残す)。
 func (q *Queries) InsertDramaWatchedEpisode(ctx context.Context, arg InsertDramaWatchedEpisodeParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertDramaWatchedEpisode,
 		arg.UserID,

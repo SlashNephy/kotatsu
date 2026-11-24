@@ -177,7 +177,7 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 	} else if err != nil {
 		return fmt.Errorf("failed to get the recording: %w", err)
 	}
-	// 録画の一覧にサムネイルを出すので、録画の変更として知らせる (#868)。
+	// 録画の一覧にサムネイルを出すので、録画の変更として通知する (#868)。
 	if _, err := notify.Publish(ctx, w.db, w.clock, notify.RecordingsChannel); err != nil {
 		return err
 	}
@@ -185,7 +185,7 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 	return nil
 }
 
-// checkRecording は、録画がまだあるかを確かめ、録画を返す。録画中の録画の画像 (Live) なら、まだ録画中かも確かめる。
+// checkRecording は、録画がまだあるかを確認し、録画を返す。録画中の録画の画像 (Live) なら、まだ録画中かも確認する。
 // なければ、ジョブを取りやめるエラーを返す。
 func (w *GenerateWorker) checkRecording(ctx context.Context, q *sqlc.Queries, args *GenerateArgs) (*sqlc.Recording, error) {
 	recording, err := q.GetRecording(ctx, args.RecordingID)
@@ -251,7 +251,7 @@ func (w *GenerateWorker) reselect(
 }
 
 // cmSpans は、録画の CM の区間 (最後に見分けた見分け方のもの、設計書 6.1) を、代表画像に選ばない区間にして返す (#1810)。
-// CM の区間は録画を始めた日時からの時間なので、画像の時間 (使える最初のセグメントの始まりから) にするため、shift を引く。
+// CM の区間は録画を始めた日時からの時間なので、画像の時間 (使える最初のセグメントの始まりから) にするため、shift を差し引く。
 // 見分けていなければ空のスライスを返す。
 func cmSpans(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID, shift time.Duration) ([]Span, error) {
 	latest, err := q.GetLatestRecordingCMDetection(ctx, recordingID)
@@ -296,8 +296,8 @@ func HasContent(kind string, size int64, endedAt *time.Time) bool {
 	return kind == kindSegment && (size > 0 || endedAt == nil)
 }
 
-// segments は、録画のファイルから、索引のあるセグメントを、始まりの順に読む。このインスタンスにマウントされていないプールのものは使えない。
-// 索引は、データディレクトリの、セグメントのファイルの ID のディレクトリにあるものを、そのセグメントの索引とする。
+// segments は、録画のファイルから、インデックスのあるセグメントを、始まりの順に読む。このインスタンスにマウントされていないプールのものは使えない。
+// インデックスは、データディレクトリの、セグメントのファイルの ID のディレクトリにあるものを、そのセグメントのインデックスとする。
 // EPGStation から取り込んだ録画では、複数のセグメントの始まりが同じことがあるので、始まりでは対応付けない。
 // コマの時間は、使える最初のセグメントの始まりからの時間にする。その始まりの日時も返す。
 func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, time.Time, error) {
@@ -334,7 +334,7 @@ func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, time.T
 	return segments, *startedAt, nil
 }
 
-// readIndex は、索引を読む。なければ os.ErrNotExist を包んで返す。
+// readIndex は、インデックスを読む。なければ os.ErrNotExist を包んで返す。
 func readIndex(store *kago.Store, index *kago.Location) ([]ts.IndexEntry, error) {
 	indexPath, err := store.Path(index.PoolID, index.Path)
 	if err != nil {

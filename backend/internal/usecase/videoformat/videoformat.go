@@ -13,7 +13,7 @@ import (
 )
 
 // Save は、セグメント fileID (始まりが startedAt) の映像の形式 format を記録し、録画の映像の解像度を、映像から読んだ値にする。
-// 録画の解像度は、EPG から写した値より、映像から読んだ値を優先する。録画の最初の、形式を読めたセグメントの値を使う。
+// 録画の解像度は、EPG からコピーした値より、映像から読んだ値を優先する。録画の最初の、形式を読めたセグメントの値を使う。
 // format が nil (読めなかった) なら、何もしない。
 func Save(ctx context.Context, q *sqlc.Queries, recordingID, fileID uuid.UUID, startedAt time.Time, format *ts.VideoFormat) error {
 	if format == nil {

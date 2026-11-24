@@ -26,16 +26,16 @@ import (
 )
 
 // EpisodeRecheckTimeout は、録画の最初のデータが届いてから、予約のイベント ID が EIT[p/f] に出るまで待つ上限 (付録 A、#1500)。
-// 2026 年 11 月に実放送 (Mahiron) の無料の局で 120 回測ると、最初のデータから次の番組として出るまでは、地上波で最長 0.95 秒、
-// BS で最長 3.04 秒、BS4K で最長 0.71 秒だった。ARIB TR-B14 の送出間隔 (2 秒) の 5 倍で、測った最長の 3 倍を超え、
+// 2026 年 11 月に実放送 (Mahiron) の無料の局で 120 回計測すると、最初のデータから次の番組として出るまでは、地上波で最長 0.95 秒、
+// BS で最長 3.04 秒、BS4K で最長 0.71 秒だった。ARIB TR-B14 の送出間隔 (2 秒) の 5 倍で、計測した最長の 3 倍を超え、
 // 録画の開始マージンの既定 (15 秒) より短い 10 秒にする。
 const EpisodeRecheckTimeout = 10 * time.Second
 
-// terrestrialChannelType は、地上波のチャンネル種別。これ以外の局の放送を、同じ回の束ねでいう「衛星」とする。
+// terrestrialChannelType は、地上波のチャンネル種別。これ以外の局の放送を、同じ回のまとめでいう「衛星」とする。
 const terrestrialChannelType = "GR"
 
-// episodeRecheck は、ルール予約の録画の録り始めに、EIT[p/f] で番組情報を書き直し、同じ回をもう録画済みかを確かめ直す状態 (#1500)。
-// 予定の開始まで読み捨てる分も Write で受け取り、EIT[p/f] を読む。
+// episodeRecheck は、ルール予約の録画の録り始めに、EIT[p/f] で番組情報を書き直し、同じ回をもう録画済みかを確認し直す状態 (#1500)。
+// 予定の開始まで読み飛ばす分も Write で受け取り、EIT[p/f] を読む。
 type episodeRecheck struct {
 	recorder      *Recorder
 	tracker       *endTracker
@@ -44,7 +44,7 @@ type episodeRecheck struct {
 	channelType   string
 	serviceID16   uint16
 	eventID16     uint16
-	// early は、予定の開始まで読み捨てる分の解析器。
+	// early は、予定の開始まで読み飛ばす分のパーサー。
 	early *ts.Analyzer
 
 	mu sync.Mutex
@@ -52,7 +52,7 @@ type episodeRecheck struct {
 	firstData time.Time
 	// info は、最後に読んで書き直した、予約した番組の EIT[p/f] の情報。まだ読んでいなければ nil。
 	info *ts.EventInfo
-	// done は、確かめ終えたかどうか。matched は、同じ回を録画済みと分かったかどうかと、その録画のサービス (分からなければ nil)。
+	// done は、確認し終えたかどうか。matched は、同じ回を録画済みと分かったかどうかと、その録画のサービス (分からなければ nil)。
 	done           bool
 	matched        bool
 	matchedService *int64
@@ -62,8 +62,8 @@ type episodeRecheck struct {
 
 var _ interface{ Write(p []byte) (int, error) } = new(episodeRecheck)
 
-// newEpisodeRecheck は、予約 reservation の録画を、録り始めに同じ回かを確かめ直す対象なら、その状態を返す。対象でなければ nil を返す。
-// イベント ID の無い録画 (時刻予約など) と、DB に届かずに対象かを決められない録画は、確かめずに録る。
+// newEpisodeRecheck は、予約 reservation の録画を、録り始めに同じ回かを確認し直す対象なら、その状態を返す。対象でなければ nil を返す。
+// イベント ID の無い録画 (時刻予約など) と、DB に届かずに対象かを決められない録画は、確認せずに録る。
 func (r *Recorder) newEpisodeRecheck(ctx context.Context, logger *slog.Logger, reservation *sqlc.GetReservationForRecordingRow) *episodeRecheck {
 	sid, ok := ts.BroadcastServiceID(reservation.ServiceID)
 	if reservation.EventID == nil || !ok || *reservation.EventID < 0 || *reservation.EventID > 0xFFFF {
@@ -88,14 +88,14 @@ func (r *Recorder) newEpisodeRecheck(ctx context.Context, logger *slog.Logger, r
 	}
 }
 
-// Write は、予定の開始まで読み捨てる分を受け取り、EIT[p/f] を読む。最初に受け取った時刻から、待つ上限を数える。
+// Write は、予定の開始まで読み飛ばす分を受け取り、EIT[p/f] を読む。最初に受け取った時刻から、待つ上限を数える。
 func (c *episodeRecheck) Write(p []byte) (int, error) {
 	c.observeData(c.recorder.clock.Now())
 
 	return c.early.Write(p)
 }
 
-// observeData は、録画のデータが at に届いたことを覚える。最初に届いた時刻だけを残す。c が nil なら何もしない。
+// observeData は、録画のデータが at に届いたことを保存する。最初に届いた時刻だけを残す。c が nil なら何もしない。
 func (c *episodeRecheck) observeData(at time.Time) {
 	if c == nil {
 		return
@@ -107,7 +107,7 @@ func (c *episodeRecheck) observeData(at time.Time) {
 	}
 }
 
-// eventInfo は、予約した番組の、EIT[p/f] の放送中か次の番組として読んだ情報を返す。書いているセグメントの解析器で読んだものを先に使う。
+// eventInfo は、予約した番組の、EIT[p/f] の放送中か次の番組として読んだ情報を返す。書いているセグメントのパーサーで読んだものを先に使う。
 func (c *episodeRecheck) eventInfo() *ts.EventInfo {
 	for _, analyzer := range []*ts.Analyzer{c.tracker.analyzer.Load(), c.early} {
 		if analyzer == nil {
@@ -121,10 +121,10 @@ func (c *episodeRecheck) eventInfo() *ts.EventInfo {
 	return nil
 }
 
-// check は、録画をやめるかを確かめる。同じ回を録画済みと分かったら true を返す。c が nil か、確かめ終えていれば false を返す。
-//   - 予約のイベント ID が EIT[p/f] の放送中か次の番組に出たら、番組表の番組と録画を書き直し、同じ回を録画済みかを確かめる。
-//   - 録画済みでなくても、待つ上限まで確かめ直す。同時に録り始めた先の録画が、後から番組情報を書き直すことがあるからである。
-//   - 待つ上限が来たら、確かめ終え、録画の開始を通知する。EIT[p/f] が届かなければ、番組表の情報のまま録り続ける。
+// check は、録画をやめるかを確認する。同じ回を録画済みと分かったら true を返す。c が nil か、確認し終えていれば false を返す。
+//   - 予約のイベント ID が EIT[p/f] の放送中か次の番組に出たら、番組表の番組と録画を書き直し、同じ回を録画済みかを確認する。
+//   - 録画済みでなくても、待つ上限まで確認し直す。同時に録り始めた先の録画が、後から番組情報を書き直すことがあるからである。
+//   - 待つ上限が来たら、確認し終え、録画の開始を通知する。EIT[p/f] が届かなければ、番組表の情報のまま録り続ける。
 func (c *episodeRecheck) check(ctx context.Context, now time.Time) bool {
 	if c == nil {
 		return false
@@ -151,7 +151,7 @@ func (c *episodeRecheck) check(ctx context.Context, now time.Time) bool {
 		matched, service, err := c.judge(ctx)
 		switch {
 		case err != nil:
-			// 確かめられなければ、迷ったら録る。
+			// 確認できなければ、迷ったら録る。
 			logger.WarnContext(ctx, "failed to recheck the episode; keep recording", slog.Any("error", err))
 		case matched:
 			logger.InfoContext(ctx, "the same episode has already been recorded; stopping the recording")
@@ -264,7 +264,7 @@ func foldWaveDash(s string) string {
 }
 
 // rewriteProgram は、番組表の番組 (serviceID, eventID) を、EIT[p/f] の値で書き直す。変わったら、EPG の変更として記録して通知し、
-// ルールの照合をやり直させる。後から来る別の局の同じ回を、この録画と突き合わせられる。番組表に番組がなければ、何もしない。
+// ルールの照合をやり直させる。後から来る別の局の同じ回を、この録画と照合できる。番組表に番組がなければ、何もしない。
 func rewriteProgram(ctx context.Context, tx pgx.Tx, r *Recorder, info *ts.EventInfo, serviceID, eventID int64, now time.Time) error {
 	q := sqlc.New(tx)
 	current, err := q.GetProgramForRecheck(ctx, sqlc.GetProgramForRecheckParams{ServiceID: serviceID, EventID: eventID})
@@ -374,7 +374,7 @@ func changedExtended(items []*ts.ExtendedItem, current []byte) ([]byte, error) {
 	return extended, nil
 }
 
-// judge は、この録画を、同じ回を束ねる判定 (#1498) の候補 1 本として、先に録り始めた録画と、録画履歴と比べる。
+// judge は、この録画を、同じ回をまとめる判定 (#1498) の候補 1 本として、先に録り始めた録画と、録画履歴と比較する。
 // 同じ回を録画済みなら true と、その録画のサービスを返す。
 func (c *episodeRecheck) judge(ctx context.Context) (bool, *int64, error) {
 	r := c.recorder
@@ -408,7 +408,7 @@ func (c *episodeRecheck) judge(ctx context.Context) (bool, *int64, error) {
 		services[e] = row.ServiceID
 	}
 
-	// 回を読む項目は、EIT[p/f] の値が空でなければ、それを使う。書き直せなかったときも、読んだ値で比べる。
+	// 回を読む項目は、EIT[p/f] の値が空でなければ、それを使う。書き直せなかったときも、読んだ値で比較する。
 	name, description := recording.Name, recording.Description
 	if c.info.Name != "" {
 		name = c.info.Name
@@ -450,7 +450,7 @@ func (c *episodeRecheck) judge(ctx context.Context) (bool, *int64, error) {
 	return true, &service, nil
 }
 
-// notifyStarted は、確かめ直した録画の開始を、まだ通知していなければ通知する (設計書 6.2)。c が nil か、録画をやめたなら何もしない。
+// notifyStarted は、確認し直した録画の開始を、まだ通知していなければ通知する (設計書 6.2)。c が nil か、録画をやめたなら何もしない。
 func (c *episodeRecheck) notifyStarted(ctx context.Context) error {
 	if c == nil {
 		return nil

@@ -20,7 +20,7 @@ type animeChannel struct {
 	AnnictChannelID           *int   `json:"annictChannelId"`
 }
 
-// TestAnimeChannels は、管理者だけが、サービスとしょぼいカレンダー、Annict のチャンネルの対応を読み、上書きできることを確かめる (設計書 3.8)。
+// TestAnimeChannels は、管理者だけが、サービスとしょぼいカレンダー、Annict のチャンネルの対応を読み、上書きできることを確認する (設計書 3.8)。
 // 上書きは家族の中で完結するので、再認証は求めない (設計書 9.5)。
 func TestAnimeChannels(t *testing.T) {
 	t.Parallel()
@@ -74,7 +74,7 @@ func TestAnimeChannels(t *testing.T) {
 	assert.Nil(t, updated.UpdateAnimeChannel.SyobocalChannelID)
 }
 
-// TestAnimeEpisodes は、番組と録画に結びついた話を、TID に対応する作品のページへのリンクとともに返すことを確かめる (設計書 3.8)。
+// TestAnimeEpisodes は、番組と録画に結びついた話を、TID に対応する作品のページへのリンクとともに返すことを確認する (設計書 3.8)。
 func TestAnimeEpisodes(t *testing.T) {
 	t.Parallel()
 

@@ -80,7 +80,7 @@ func (h *Handler) Guide(c *echo.Context) error {
 	return c.Blob(http.StatusOK, "application/xml; charset=utf-8", body)
 }
 
-// Guide は、サービス services と番組 programs の XMLTV を、配信の URL の頭 base から作る。
+// Guide は、サービス services と番組 programs の XMLTV を、配信の URL の先頭 base から作る。
 // チャンネルの ID は、M3U の tvg-id と同じく、Kotatsu のサービス ID にする。時刻は UTC で書く。
 // 終了時刻が未定の番組は、終わりを書かない (XMLTV では省ける)。
 func Guide(base string, services []domain.Service, programs []domain.Program) ([]byte, error) {

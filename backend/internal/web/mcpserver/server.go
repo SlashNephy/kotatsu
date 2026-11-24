@@ -36,7 +36,7 @@ const (
 	methodToolsCall = "tools/call"
 )
 
-// Authenticator は、アクセストークンを確かめる。*oauth.Server が満たす。
+// Authenticator は、アクセストークンを確認する。*oauth.Server が満たす。
 type Authenticator interface {
 	Authenticate(ctx context.Context, token, resource string) (*auth.Principal, *oauth.Grant, error)
 	// Enabled は、管理者が MCP を有効にしているかどうかを返す。
@@ -89,7 +89,7 @@ func NewHandler(authenticator Authenticator, graphql http.Handler, schema *ast.S
 		h.byName[t.name] = registered
 	}
 	h.sdk = mcp.NewStreamableHTTPHandler(h.server, &mcp.StreamableHTTPOptions{
-		// 2026-07-28 版にはセッションがないので、どの tenban にリクエストが届いてもよい。
+		// 2026-07-28 バージョンにはセッションがないので、どの tenban にリクエストが届いてもよい。
 		Stateless: true, JSONResponse: true, Logger: logger, MaxRequestBodyBytes: maxRequestBytes,
 	})
 
@@ -221,7 +221,7 @@ func requestOrigin(r *http.Request) string {
 func (h *Handler) server(*http.Request) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "kotatsu", Title: "Kotatsu", Version: buildinfo.Get().Version, Icons: h.icons}, &mcp.ServerOptions{
 		Instructions: "Kotatsu は、テレビ番組を録画するサーバー。番組を探して予約し、録画のルールを作り、録画を探せる。" +
-			"サービスやジャンルを指定するときは、先に list_services と list_genres で ID と番号を確かめる。時刻は RFC 3339 で渡す。",
+			"サービスやジャンルを指定するときは、先に list_services と list_genres で ID と番号を確認する。時刻は RFC 3339 で渡す。",
 	})
 	for _, t := range h.tools {
 		server.AddTool(&mcp.Tool{
@@ -313,7 +313,7 @@ func (e *graphqlError) Error() string {
 }
 
 // execute は、ログイン中のユーザーとして、GraphQL の操作を実行し、data を返す。
-// 画面と同じハンドラーを通すので、入力の確かめ、権限、複雑度の上限、同時に照合する検索の数の上限も、画面と同じに効く。
+// 画面と同じハンドラーを通すので、入力の確認、権限、複雑度の上限、同時に照合する検索の数の上限も、画面と同じに効く。
 func (h *Handler) execute(ctx context.Context, query string, arguments json.RawMessage) (any, error) {
 	variables := json.RawMessage("{}")
 	if len(bytes.TrimSpace(arguments)) > 0 && !bytes.Equal(bytes.TrimSpace(arguments), []byte("null")) {

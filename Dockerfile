@@ -6,7 +6,7 @@
 #
 # docker buildx build --platform linux/amd64,linux/arm64 --target static . のようにビルドする。
 #
-# ソースからビルドするものは、ソースを取る段 (source-*) と、ビルドする段 (build-*) に分ける。C と C++ のビルドは QEMU では
+# ソースからビルドするものは、ソースを取るステージ (source-*) と、ビルドするステージ (build-*) に分ける。C と C++ のビルドは QEMU では
 # 遅いので、ビルドするマシンのアーキテクチャ ($BUILDPLATFORM) で、対象のアーキテクチャへクロスコンパイルする。
 
 # renovate: datasource=github-tags depName=xtne6f/tsreadex versioning=loose
@@ -18,14 +18,14 @@ ARG WHISPER_CPP_VERSION=v1.9.5
 ARG WHISPER_CPP_REPOSITORY=https://github.com/ggml-org/whisper.cpp.git
 
 # FFmpeg は、リリースの tarball からビルドする (#2001)。tarball は、リリースの署名鍵 (https://ffmpeg.org/download.html#releases) の
-# 署名を確かめてから使う。
+# 署名を確認してから使う。
 # renovate: datasource=github-tags depName=FFmpeg/FFmpeg versioning=loose extractVersion=^n(?<version>\d+\.\d+(?:\.\d+)?)$
 ARG FFMPEG_VERSION=9.1
 ARG FFMPEG_SIGNING_FINGERPRINT=FCF986EA15E6E293A5644F10B4322F04D67658D8
 ARG FFMPEG_DEPENDENCIES="libx264-dev libx265-dev libnuma-dev libva-dev libdrm-dev"
 ARG FFMPEG_DEPENDENCIES_AMD64="libvpl-dev"
 
-# NVENC と NVDEC を、実行時に読み込むためのヘッダー。版で、動く NVIDIA のドライバの下限が決まる (12.1 は Linux で 530.41.03 以降)。
+# NVENC と NVDEC を、実行時に読み込むためのヘッダー。バージョンで、動く NVIDIA のドライバの下限が決まる (12.1 は Linux で 530.41.03 以降)。
 # 下限を上げないよう、Renovate では 12.1 の中でだけ上げる (renovate.json5)。
 # renovate: datasource=github-tags depName=FFmpeg/nv-codec-headers versioning=loose extractVersion=^n(?<version>\d+\.\d+\.\d+\.\d+)$
 ARG NV_CODEC_HEADERS_VERSION=12.1.14.1
@@ -38,9 +38,9 @@ ARG NV_CODEC_HEADERS_REPOSITORY=https://github.com/FFmpeg/nv-codec-headers.git
 ARG RUNTIME_PACKAGES="ca-certificates libx264-164 libx265-215 libva2 libva-drm2 libdrm2 mesa-va-drivers"
 ARG RUNTIME_PACKAGES_AMD64="intel-media-va-driver-non-free libvpl2 libmfx-gen1.2"
 
-# Debian 13 の slim。対象のアーキテクチャで動かす段 (debian) と、ビルドするマシンで動かす段 (debian-build) の土台にする。
-# FROM --platform は、段の名前に付けても効かないので、イメージを 2 回書く。
-ARG DEBIAN_IMAGE=docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+# Debian 13 の slim。対象のアーキテクチャで動かすステージ (debian) と、ビルドするマシンで動かすステージ (debian-build) の土台にする。
+# FROM --platform は、ステージの名前に付けても効かないので、イメージを 2 回書く。
+ARG DEBIAN_IMAGE=docker.io/library/debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0
 
 FROM ${DEBIAN_IMAGE} AS debian
 SHELL ["/usr/bin/bash", "-euxo", "pipefail", "-c"]
@@ -48,7 +48,7 @@ SHELL ["/usr/bin/bash", "-euxo", "pipefail", "-c"]
 FROM --platform=$BUILDPLATFORM ${DEBIAN_IMAGE} AS debian-build
 SHELL ["/usr/bin/bash", "-euxo", "pipefail", "-c"]
 
-# クロスコンパイルに使う段。対象のアーキテクチャの GNU のツールチェーンを入れ、その三つ組を /triple に書いておく。
+# クロスコンパイルに使うステージ。対象のアーキテクチャの GNU のツールチェーンを入れ、その三つ組を /triple に書いておく。
 FROM debian-build AS cross
 ARG TARGETARCH
 RUN <<EOF
@@ -67,7 +67,7 @@ WORKDIR /build
 FROM --platform=$BUILDPLATFORM docker.io/library/node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS web
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
-# pnpm の版は package.json の packageManager に従う。Node.js 25 から corepack が同梱されないので、npm で入れる。
+# pnpm のバージョンは package.json の packageManager に従う。Node.js 25 から corepack が同梱されないので、npm で入れる。
 RUN npm install -g "$(node -p 'require("./package.json").packageManager')"
 # ワークスペースのパッケージ (ビルドした mpeg2toh264) も、依存を入れる前に置く。
 COPY frontend/vendor/ ./vendor/
@@ -79,15 +79,15 @@ COPY frontend/ ./
 RUN node scripts/fetch-caption-font.mjs
 # 字幕のフォントを、基本の字と JIS X 0213 で足された漢字の 2 つに分け、WOFF2 にする (#1520)。
 RUN node scripts/split-caption-font.mjs
-# 字幕の外字の既定の表は、frontend/vendor/libaribcaption/SOURCE で固定した commit の定義から作る。
+# 字幕の外字の既定のテーブルは、frontend/vendor/libaribcaption/SOURCE で固定した commit の定義から作る。
 RUN node scripts/fetch-libaribcaption-drcs.mjs
 RUN pnpm exec vp build
 
 # Go のバイナリは、ビルドするマシンのアーキテクチャのまま、対象のアーキテクチャへクロスコンパイルする。
-# Go の脆弱性の影響を受ける版かどうかがわかるよう、タグはパッチバージョンまで書く (mise.toml の go と合わせる)。
+# Go の脆弱性の影響を受けるバージョンかどうかがわかるよう、タグはパッチバージョンまで書く (mise.toml の go と合わせる)。
 FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.4-trixie@sha256:f18c3d73a184fb0582828510722e723b63a93f7188d11dd223d9be6f6880e65d AS build
 WORKDIR /src
-# go.work に足したモジュールの go.mod と go.sum も、ここで写す。
+# go.work に足したモジュールの go.mod と go.sum も、ここでコピーする。
 COPY go.work go.work.sum ./
 COPY backend/go.mod backend/go.sum ./backend/
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
@@ -95,10 +95,10 @@ COPY . .
 COPY --from=web /src/backend/internal/web/webui/dist/app ./backend/internal/web/webui/dist/app
 ARG TARGETOS
 ARG TARGETARCH
-# VERSION は、版とコミットを 1.2.3+<コミット> の形で渡す (internal/lib/buildinfo)。.git はイメージに入れないので、
+# VERSION は、バージョンとコミットを 1.2.3+<コミット> の形で渡す (internal/lib/buildinfo)。.git はイメージに入れないので、
 # 渡さなければ dev になる。
 ARG VERSION=""
-# 本体に組み込む Go のモジュールのライセンスの一覧を、ビルドの前に書き出して埋め込む (#1604)。
+# 本体に組み込む Go のモジュールのライセンスの一覧を、ビルドの前に出力して埋め込む (#1604)。
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     go -C backend run ./internal/web/licenses/printlicenses -o internal/web/licenses/dist/go.json
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
@@ -248,7 +248,7 @@ RUN <<EOF
   install -D -m 644 COPYING.GPLv2 /out/doc/FFmpeg.COPYING.GPLv2.txt
   install -D -m 644 LICENSE.md /out/doc/FFmpeg.LICENSE.md
   cp SOURCES /out/doc/SOURCES
-  # nv-codec-headers は、ヘッダーの頭にライセンスを書いている。
+  # nv-codec-headers は、ヘッダーの先頭にライセンスを書いている。
   for header in ../nv-codec-headers/include/ffnvcodec/*.h; do
     echo "== $(basename "$header")"
     sed -n '1,/\*\//p' "$header"
@@ -256,7 +256,7 @@ RUN <<EOF
   echo "nv-codec-headers ${NV_CODEC_HEADERS_REPOSITORY%.git} $(git -C ../nv-codec-headers rev-parse HEAD)" >> /out/doc/SOURCES
 EOF
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:aafe993665bf6200db38a02c11a9351e782a84b6a45e7f33b6695638c88e3931 AS static
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:8ce6dd87e9823c5b48dcfb2c8604714ccb351ce59607327bcc4957448da279b5 AS static
 COPY --from=build /out/kotatsu /usr/local/bin/kotatsu
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/kotatsu"]
@@ -279,7 +279,7 @@ RUN <<EOF
   rm -rf /var/lib/apt/lists/*
 EOF
 COPY --from=build-ffmpeg /usr/local/bin/ffmpeg /usr/local/bin/ffprobe /usr/local/bin/
-# 使う部品が、すべて組み込めたかを確かめる (#2001)。
+# 使う部品が、すべて組み込めたかを確認する (#2001)。
 RUN --mount=source=docker/ffmpeg,target=/tmp/ffmpeg /tmp/ffmpeg/check-components.sh /tmp/ffmpeg/components "$TARGETARCH"
 COPY --from=build-tsreadex /out/bin/ /usr/local/bin/
 # whisper.cpp のモデルは大きく、使う人も選ぶので、イメージに入れない。管理者が画面からダウンロードする (#1682)。
@@ -287,25 +287,25 @@ COPY --from=build-whisper-cpp /out/bin/ /usr/local/bin/
 COPY --from=build-ffmpeg /out/doc/FFmpeg.COPYING.GPLv2.txt /out/doc/FFmpeg.LICENSE.md /out/doc/nv-codec-headers.License.txt /usr/share/doc/kotatsu/third-party/
 COPY --from=build-tsreadex /out/doc/tsreadex.License.txt /usr/share/doc/kotatsu/third-party/
 COPY --from=build-whisper-cpp /out/doc/whisper.cpp.License.txt /usr/share/doc/kotatsu/third-party/
-# ビルドに使ったリポジトリとコミットの一覧 (付録 B) は、それぞれの段で書いたものをつなぐ。
+# ビルドに使ったリポジトリとコミットの一覧 (付録 B) は、それぞれのステージで書いたものをつなぐ。
 RUN --mount=from=build-ffmpeg,source=/out/doc/SOURCES,target=/tmp/sources/ffmpeg \
     --mount=from=build-tsreadex,source=/out/doc/SOURCES,target=/tmp/sources/tsreadex \
     --mount=from=build-whisper-cpp,source=/out/doc/SOURCES,target=/tmp/sources/whisper.cpp \
     cat /tmp/sources/ffmpeg /tmp/sources/tsreadex /tmp/sources/whisper.cpp > /usr/share/doc/kotatsu/third-party/SOURCES
-# 入れた Debian のパッケージとソースパッケージの一覧を、ソースの入手先とともに書き出す (付録 B)。
+# 入れた Debian のパッケージとソースパッケージの一覧を、ソースの入手先とともに出力する (付録 B)。
 RUN --mount=source=docker/debian/write-debian-sources.sh,target=/tmp/write-debian-sources.sh \
     sh /tmp/write-debian-sources.sh /usr/share/doc/kotatsu/third-party/debian-packages.tsv
 
 # 開発用のイメージ (compose.yaml、docs/development.md)。ソースはマウントして使い、Go と Node.js は mise で入れる。
 # ソースの変更を watchexec で見て、ビルドし直す。生成したファイルが手元のユーザーの持ち物になるよう、UID と GID をそろえる。
 FROM runtime AS dev
-# Node.js は libatomic を使う。runtime の段には入らないので、ここで入れる。
+# Node.js は libatomic を使う。runtime のステージには入らないので、ここで入れる。
 RUN <<EOF
   apt-get update
   apt-get install -y --no-install-recommends git libatomic1
   rm -rf /var/lib/apt/lists/*
 EOF
-COPY --from=docker.io/jdxcode/mise:2026.11.8@sha256:5c6e71a86c8c997c32d30a169b4269bec9d4681a804e29078bac8f44109f2edc /usr/local/bin/mise /usr/local/bin/mise
+COPY --from=docker.io/jdxcode/mise:2026.11.9@sha256:9a182adba2584a6f5b29ddc1f2c7651c93694a5f829d74452b90214616baacf4 /usr/local/bin/mise /usr/local/bin/mise
 ARG UID=1000
 ARG GID=1000
 # 名前付きボリュームは、最初にマウントしたときに、イメージのディレクトリの持ち主を引き継ぐ。

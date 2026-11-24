@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	// FollowingNotifyChannel は、フォロー中のユーザーの視聴状況を問い合わせ終えたことを知らせる変更通知のチャンネル (#1372)。
+	// FollowingNotifyChannel は、フォロー中のユーザーの視聴状況を問い合わせ終えたことを通知する変更通知のチャンネル (#1372)。
 	FollowingNotifyChannel = "anime_following"
 	// FollowingRefreshInterval は、取得した視聴状況を問い合わせ直すまでの間隔 (付録 A)。見たいリストの取り込みと同じ長さにする。
 	FollowingRefreshInterval = WishlistRefreshInterval
@@ -76,7 +76,7 @@ type FollowingViewing struct {
 // FollowingPage は、視聴状況の 1 ページ。
 type FollowingPage struct {
 	Viewings []*FollowingViewing
-	// Next は、続きを引くときに渡す cursor。続きがなければ空。
+	// Next は、続きを取得するときに渡す cursor。続きがなければ空。
 	Next string
 }
 
@@ -296,7 +296,7 @@ func (s *Service) ImportFollowing(ctx context.Context, db Database, userID uuid.
 	if !attempted {
 		return nil
 	}
-	// 失敗も画面に伝えるので、どちらでも知らせる。
+	// 失敗も画面に伝えるので、どちらでも通知する。
 	if _, err := notify.Publish(context.WithoutCancel(ctx), db, s.clock, FollowingNotifyChannel); err != nil {
 		return fmt.Errorf("failed to publish the following viewings change: %w", err)
 	}

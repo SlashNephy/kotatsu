@@ -82,7 +82,7 @@ function NetworkActivityPage() {
       <Text c="dimmed" size="sm">
         {t('networkActivity.description')}
       </Text>
-      <ErrorBoundary fallback={() => <Alert color="red">{t('networkActivity.title')}</Alert>}>
+      <ErrorBoundary fallback={() => <Alert color="red">{t('viewer.error')}</Alert>}>
         <Suspense fallback={<PageLoader />}>
           <NetworkActivityContent />
         </Suspense>

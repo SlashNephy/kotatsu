@@ -9,7 +9,7 @@ MISE_ENV=mpeg2toh264 mise run //frontend:mpeg2toh264
 ```
 
 ビルドには、`mise.mpeg2toh264.toml`で固定したRustとwasm-bindgenを使います。
-同じcommitと修正からは同じファイルができるので、CIは、ビルドし直したものとここのファイルに差分がないことを確かめます。
+同じcommitと修正からは同じファイルができるので、CIは、ビルドし直したものとここのファイルに差分がないことを確認します。
 
 `patches/`は、上流にまだ入っていない修正です。
 `SOURCE`のcommitを変えて修正が当たらなくなったら、そのcommitに合わせて作り直すか、上流に入っていれば消してください。

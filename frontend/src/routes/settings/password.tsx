@@ -28,7 +28,7 @@ const path = '/settings/password';
 export const Route = createFileRoute('/settings/password')({
   validateSearch: (search: Record<string, unknown>): PasswordSearch =>
     typeof search['error'] === 'string' && search['error'] !== '' ? { error: search['error'] } : {},
-  // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
+  // IdP での再認証を出すかを確認する。確認できなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: ChangePasswordPage,
 });
@@ -82,7 +82,7 @@ function ChangePassword() {
       }
     `,
     {},
-    // 再認証の後に、登録した第二要素が変わっていることがあるので、毎回取り直す。前に読んだものがあれば、それを出しながら取り直す。
+    // 再認証の後に、登録した第二要素が変わっていることがあるので、毎回再取得する。前に読んだものがあれば、それを出しながら再取得する。
     { fetchPolicy: 'store-and-network' },
   );
   const [commit, inFlight] = useMutation<passwordChangeMutation>(graphql`
@@ -95,12 +95,12 @@ function ChangePassword() {
     oidcError === undefined ? null : oidcErrorMessage(t, oidcError),
   );
   const [done, setDone] = useState(false);
-  // needsReauthentication は、直近の認証から時間が経っていて、もう一度確かめる必要があるかどうか。
+  // needsReauthentication は、直近の認証から時間が経っていて、もう一度確認する必要があるかどうか。
   const [needsReauthentication, setNeedsReauthentication] = useState(false);
   // ほかの重要な操作のある画面の SudoGate と同じく、開いたときに、必要なら再認証させる (#981)。
   // IdP で再認証すると、ページを離れ、入れたパスワードが消えるため。この画面は全体がカードなので、カードを重ねる
   // SudoGate ではなく、フォームの代わりに再認証の画面を出す。
-  // 確かめられなくても、入力は始めさせる。必要なら、変えるときに再認証を求められる。
+  // 確認できなくても、入力は始めさせる。必要なら、変えるときに再認証を求められる。
   useEffect(() => {
     let active = true;
     authApi.reauthenticationStatus().then(
@@ -162,7 +162,7 @@ function ChangePassword() {
             oidc,
           }}
           returnTo={path}
-          // 再認証を終えたら、入力済みのパスワードで、もう一度変更を試みる。入れる前に確かめたときは、入力に進む。
+          // 再認証を終えたら、入力済みのパスワードで、もう一度変更を試みる。入れる前に確認したときは、入力に進む。
           onDone={() => {
             setNeedsReauthentication(false);
             if (password !== '') {

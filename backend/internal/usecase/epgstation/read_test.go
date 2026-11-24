@@ -208,7 +208,7 @@ func expectedSnapshot() *epgstation.Snapshot {
 }
 
 // TestReadUsesSlashInFilePath は、Windows の EPGStation が \ で区切って記録した録画のファイルのパスを、
-// Kotatsu のプール内の相対パスと同じ / 区切りにして読むことを確かめる (#1098)。
+// Kotatsu のプール内の相対パスと同じ / 区切りにして読むことを確認する (#1098)。
 // EPGStation は、ファイル名の \ を ￥ に置き換えるので、\ は区切りだけに使われる。
 func TestReadUsesSlashInFilePath(t *testing.T) {
 	t.Parallel()

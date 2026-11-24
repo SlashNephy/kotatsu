@@ -1,6 +1,6 @@
 // Package mirakurunapi は、Kotatsu のチューナーサーバー (tunerserver.Client) を、Mirakurun 互換の API の一部として公開する (#1535)。
 //
-// nabe が、EDCB の NetworkTV の TS をほかのロールに配るのに使う。Kotatsu の Mirakurun のクライアント (infra/mirakurun) が
+// nabe が、EDCB の NetworkTV の TS をほかのロールに配信するのに使う。Kotatsu の Mirakurun のクライアント (infra/mirakurun) が
 // 使う API (バージョン、チャンネル、サービス、番組、チューナー、イベント、ロゴ、サービスとチャンネルのストリーム) だけを持つ。
 // mirakc の /events と /api/onair は持たないので、クライアントは Mirakurun として扱う。
 package mirakurunapi
@@ -39,7 +39,7 @@ type Server struct {
 
 var _ http.Handler = new(Server)
 
-// NewServer は、source を公開する Server を返す。version は /api/version で名乗る版。
+// NewServer は、source を公開する Server を返す。version は /api/version で名乗るバージョン。
 // ルートは echo で受ける (#2016)。http.ServeMux で受けていたときと同じく、崩れたパスはリダイレクトし、当たらないパスには素の 404 を返す。
 func NewServer(source tunerserver.Client, version string, logger *slog.Logger) *Server {
 	s := &Server{source: source, version: version, logger: logger, router: nil}
@@ -64,7 +64,7 @@ func NewServer(source tunerserver.Client, version string, logger *slog.Logger) *
 }
 
 // NabeHandler は、source を Mirakurun 互換の API として、nabe.PathPrefix の下に公開するハンドラーを返す (#1535)。
-// token を付けたリクエストだけ受け付ける。トークンは、ルートを探す前に確かめる。
+// token を付けたリクエストだけ受け付ける。トークンは、ルートを探す前に確認する。
 func NabeHandler(source tunerserver.Client, token *innertoken.Token, version string, logger *slog.Logger) http.Handler {
 	return token.Middleware(http.StripPrefix(strings.TrimSuffix(nabe.PathPrefix, "/"), NewServer(source, version, logger)))
 }
@@ -246,7 +246,7 @@ func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request) {
 
 // writeError は、エラーを Mirakurun と同じ形の応答にする。サービスかチャンネルがなければ 404 を、ほかは 503 を返す。
 // 503 は、クライアントが、チューナーが足りない (ストリーム) か、ロゴをまだ受信していない (ロゴ) と読み替える。
-// 一覧の API でも 503 にする。EDCB が EPG を読み込んでいる最中のように、少し後に取り直せばよいことが多いためである。
+// 一覧の API でも 503 にする。EDCB が EPG を読み込んでいる最中のように、少し後に再取得すればよいことが多いためである。
 // 空の一覧で返すと、受け手が DB のサービスや番組を消してしまう。
 func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	if r.Context().Err() != nil {

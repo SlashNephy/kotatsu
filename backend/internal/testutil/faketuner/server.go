@@ -43,7 +43,7 @@ type Options struct {
 	Clock clock.Clock
 }
 
-// Server は偽のチューナーサーバー。http.Handler として使う。
+// Server はモックのチューナーサーバー。http.Handler として使う。
 type Server struct {
 	mux   *http.ServeMux
 	ts    []byte
@@ -199,7 +199,7 @@ func (s *Server) AddProgram(program *Program) {
 
 	stored := *program
 	s.programs[program.ID] = &stored
-	// 送ったイベントの中身が、後の変更で書き換わらないよう、別の値を送る。
+	// 送ったイベントの内容が、後の変更で書き換わらないよう、別の値を送る。
 	event := stored
 	s.publishLocked("program", "create", &event)
 }
@@ -251,13 +251,6 @@ func (s *Server) ChangeProgramExtended(id int64, extended map[string]string) err
 func (s *Server) RenameProgram(id int64, name string) error {
 	return s.updateProgram(id, func(p *Program) {
 		p.Name = name
-	})
-}
-
-// ChangeProgramDescription は番組の概要を変え、program の update イベントを送る。
-func (s *Server) ChangeProgramDescription(id int64, description string) error {
-	return s.updateProgram(id, func(p *Program) {
-		p.Description = description
 	})
 }
 
@@ -770,8 +763,8 @@ func (s *Server) tsOf(id int64) []byte {
 	return s.ts
 }
 
-// Scramble は、TS ts のうち、PID が pids のパケットのペイロードをスクランブルされたものとして印を付けた複製を返す (#1517)。
-// transport_scrambling_control を 0b10 (偶数鍵) にするだけで、ペイロードは書き換えない。
+// Scramble は、TS ts のうち、PID が pids のパケットのペイロードをスクランブルされたものとしてマークを付けた複製を返す (#1517)。
+// transport_scrambling_control を 0b10 (偶数側の暗号鍵) にするだけで、ペイロードは書き換えない。
 // 合成した TS で、チューナーサーバーの B-CAS カードが読めていないときの TS を真似るのに使う。
 func Scramble(ts []byte, pids ...uint16) []byte {
 	scrambled := bytes.Clone(ts)
