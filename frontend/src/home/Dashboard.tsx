@@ -359,7 +359,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
                 <Text size="sm" truncate>
                   <ProgramTitle name={node.name} />
                 </Text>
-                {/* バッジがない行でも、サービスを右端の列に置くよう、空の枠を残す。 */}
+                {/* バッジがない行でも、サービスを右端のカラムに置くよう、空の枠を残す。 */}
                 <span>
                   {(node.assignment.state === 'CONFLICT' ||
                     node.assignment.state === 'PARTIAL') && (
@@ -372,7 +372,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
                     </Badge>
                   )}
                 </span>
-                {/* サービスの列は、長い名前でも番組名を潰さないよう、幅に上限を付けて省く。全部の名前は、ホバーで見せる。 */}
+                {/* サービスのカラムは、長い名前でも番組名を潰さないよう、幅に上限を付けて省く。全部の名前は、ホバーで見せる。 */}
                 <Text
                   size="xs"
                   c="dimmed"

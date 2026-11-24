@@ -112,7 +112,7 @@ export function TMDBAttribution() {
 // DramaEpisode は、番組と録画の詳細に、結びついた TMDB の作品とシーズン、話と、TMDB のページへのリンクを出す (#1651、設計書 3.9)。
 // 結びついていなければ、何も出さない。canOverride なら、管理者が作品を直す操作を置く (programName の作品名の上書き)。
 // ログイン中のユーザーの状態を引いていれば (#1652)、作品を見ている作品に足す操作と、話を見たことにする操作も置く。
-// 作品名とシーズンと話、操作、リンクの順に、1 ステップずつ並べる。
+// 作品名とシーズンと話、操作、リンクの順に、1 行ずつ並べる。
 export function DramaEpisode({
   episode,
   programName,

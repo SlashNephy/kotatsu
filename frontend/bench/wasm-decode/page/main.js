@@ -5,7 +5,7 @@ const append = (result) => {
   log.scrollTop = log.scrollHeight;
 };
 
-/** WASM でそのままデコードする方式を 1 回測る。checksum を付けると、先頭 60 コマの輝度の和も返す。 */
+/** WASM でそのままデコードする方式を 1 回計測する。checksum を付けると、先頭 60 コマの輝度の和も返す。 */
 const runDecode = (file, variant, checksum = false) =>
   new Promise((resolve) => {
     const worker = new Worker('./decode-worker.js', { type: 'module' });
@@ -24,7 +24,7 @@ const runDecode = (file, variant, checksum = false) =>
   });
 
 /**
- * mpeg2toh264 の変換だけを 1 回測る。sink を main にし、断片は MSE に入れずに受け取るだけにする。
+ * mpeg2toh264 の変換だけを 1 回計測する。sink を main にし、断片は MSE に入れずに受け取るだけにする。
  * オプションは Kotatsu と同じ既定値で、比較の条件を揃えるため pictureWorkers だけ 1 にする。
  * save を付けると、出力の MP4 をサーバの .work/save/ に書く。
  */

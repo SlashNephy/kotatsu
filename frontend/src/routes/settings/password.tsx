@@ -95,7 +95,7 @@ function ChangePassword() {
     oidcError === undefined ? null : oidcErrorMessage(t, oidcError),
   );
   const [done, setDone] = useState(false);
-  // needsReauthentication は、直近の認証から時間が経っていて、もう一度確かめる必要があるかどうか。
+  // needsReauthentication は、直近の認証から時間が経っていて、もう一度確認する必要があるかどうか。
   const [needsReauthentication, setNeedsReauthentication] = useState(false);
   // ほかの重要な操作のある画面の SudoGate と同じく、開いたときに、必要なら再認証させる (#981)。
   // IdP で再認証すると、ページを離れ、入れたパスワードが消えるため。この画面は全体がカードなので、カードを重ねる

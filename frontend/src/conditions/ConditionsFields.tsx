@@ -422,7 +422,7 @@ export function KeywordRows({
         </Text>
       </div>
       {rows.map((row, index) => (
-        // 狭い列にも収まるよう、1 段目に語と消すボタン、2 段目に照合のしかたを並べる。
+        // 狭い幅にも収まるよう、1 行目に語と消すボタン、2 行目に照合のしかたを並べる。
         <Stack key={index} gap={8}>
           <Group gap="xs" wrap="nowrap">
             <TextInput

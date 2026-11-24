@@ -586,7 +586,7 @@ function Live({
       .catch(() => {});
   };
 
-  // reconnectNow は、数え終わるのを待たずに、すぐにつなぎ直す。スクランブルされたまま届いて止めたときも、カードを修理した後に試せる。
+  // reconnectNow は、数え終わるのを待たずに、すぐにつなぎ直す。スクランブルされたまま届いて止めたときも、カードや契約を確認した後に試せる。
   const reconnectNow = () =>
     setDisconnection((prev) => (prev === null ? null : { ...prev, retryIn: 0, scrambled: false }));
 

@@ -4,7 +4,7 @@
 //
 //   node scripts/convert-anime4k.mjs <Anime4K_Upscale_CNN_x2_M.glsl>
 //
-// 畳み込みのステップ (//!SAVE で結果を名前を付けて残すステップ) だけを修正する。最後の Depth-to-Space のステップは、拡大と元の絵への足し込みを
+// 畳み込みのステップ (//!SAVE で結果を名前を付けて残すステップ) だけを変換する。最後の Depth-to-Space のステップは、拡大と元の絵への足し込みを
 // まとめて src/yunomi/anime4k.ts に書く。mpv の texOff と tex は、テクスチャの端で端の画素を読む (clamp) ので、同じく端に寄せて読む。
 // mpv は y を画像の下向きに数えるので、テクスチャの行の向き (uDown) を掛けて読む。
 import { execFileSync } from 'node:child_process';

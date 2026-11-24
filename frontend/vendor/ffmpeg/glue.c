@@ -102,7 +102,7 @@ EMSCRIPTEN_KEEPALIVE int dec_send(Dec *d, const uint8_t *buf, int size, double p
 // dec_receive は、デコードしたフレームを 1 つ受け取る。受け取れたら 0、まだなければ負の値 (AVERROR(EAGAIN) など)。
 EMSCRIPTEN_KEEPALIVE int dec_receive(Dec *d) { return avcodec_receive_frame(d->c, d->f); }
 
-// dec_flush は、デコーダと parser の中に残っているデータを捨てる。選局したときと、飛んだときに呼ぶ。
+// dec_flush は、デコーダと parser の中に残っているデータを破棄する。選局したときと、飛んだときに呼ぶ。
 EMSCRIPTEN_KEEPALIVE int dec_flush(Dec *d) {
   avcodec_flush_buffers(d->c);
   if (d->p) {

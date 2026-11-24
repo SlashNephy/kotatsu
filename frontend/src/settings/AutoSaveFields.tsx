@@ -125,7 +125,7 @@ type AutoSaveNumberInputProps = Omit<
   NumberInputProps,
   'value' | 'defaultValue' | 'onChange' | 'onBlur' | 'onKeyDown' | 'error' | 'clampBehavior'
 > & {
-  // validate は、範囲のほかに確かめることがあれば、理由を返す。
+  // validate は、範囲のほかに確認することがあれば、理由を返す。
   validate?: (value: number) => string | null;
 } & (
     | {
@@ -212,11 +212,11 @@ type AutoSaveTextInputProps = Omit<
   onSave: (value: string) => Promise<boolean>;
   // required は、空の欄を保存させないかどうか。
   required?: boolean;
-  // validate は、ほかに確かめることがあれば、理由を返す。
+  // validate は、ほかに確認することがあれば、理由を返す。
   validate?: (value: string) => string | null;
   // trim は、前後の空白を除いて保存するかどうか。
   trim?: boolean;
-  // normalize は、確かめた値を、保存する形 (郵便番号の数字だけなど) にする。保存してある値とは、この形で比べる。
+  // normalize は、確認した値を、保存する形 (郵便番号の数字だけなど) にする。保存してある値とは、この形で比較する。
   normalize?: (value: string) => string;
 };
 

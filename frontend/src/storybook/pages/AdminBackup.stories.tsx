@@ -39,7 +39,7 @@ const succeeded = {
   error: null,
 };
 
-// 公開鍵を登録しておらず、まだバックアップしていないとき (デモの既定)。「今すぐ書き出す」ボタンは押せない。
+// 公開鍵を登録しておらず、まだバックアップしていないとき (デモの既定)。「今すぐバックアップする」ボタンは押せない。
 export const Default: Story = {};
 
 export const Loading: Story = { args: { hold: holdAll } };

@@ -35,7 +35,7 @@ type Props = {
   onDone: () => void;
 };
 
-// Reauthenticate は、パスワードの変更のような重要な操作の前に、ログイン中のユーザーをもう一度確かめる (設計書 9.3)。
+// Reauthenticate は、パスワードの変更のような重要な操作の前に、ログイン中のユーザーをもう一度確認する (設計書 9.3)。
 // パスワードと第二要素、パスキー、IdP のうち、ユーザーが使えるものを出す。
 export function Reauthenticate({ methods, returnTo, description, onDone }: Props) {
   const { t } = useTranslation();

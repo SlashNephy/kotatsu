@@ -85,7 +85,7 @@ const goModuleLicenses = () => [
   },
 ];
 
-// 既定。ビルドがライセンスの一覧を出力していないので、フロントエンドとバックエンドの一覧は「書き出していない」と出す。
+// 既定。ビルドがライセンスの一覧を出力していないので、フロントエンドとバックエンドの一覧は、一覧が含まれていない旨の案内を出す。
 export const Default: Story = {};
 
 export const Loading: Story = { args: { hold: holdAll } };

@@ -175,7 +175,7 @@ function SystemStatus() {
                 </Text>
               )}
             </Group>
-            {/* 種類と版は、接続できない間も、最後に分かったものを出す (#1538)。 */}
+            {/* 種類とバージョンは、接続できない間も、最後に分かったものを出す (#1538)。 */}
             {status.tunerServer.kind != null && (
               <Text size="sm">
                 {status.tunerServer.version == null
@@ -193,7 +193,7 @@ function SystemStatus() {
                 {t('admin.system.lastError', { error: status.tunerServer.lastError })}
               </Text>
             )}
-            {/* EDCB は時計を返さないので、測れないことを示す (#1532)。放送の時刻とのずれは、録画で測る。 */}
+            {/* EDCB は時計を返さないので、計測できないことを示す (#1532)。放送の時刻とのずれは、録画で計測する。 */}
             {status.tunerServer.kind === 'EDCB' && status.tunerServer.clockSkewMs == null && (
               <Text size="sm">{t('admin.system.clockSkewUnavailable')}</Text>
             )}

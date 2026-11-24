@@ -229,7 +229,7 @@ function ServiceSettings() {
         <ScrollArea.Autosize mah={480}>
           <Stack gap="xs">
             {data.services.map((service) => (
-              // 番組表に出さない印と、並び順の上書き。並び順を空にすると、上書きを消して、リモコンのキーの順に戻す。
+              // 番組表に出さないマークと、並び順の上書き。並び順を空にすると、上書きを消して、リモコンのキーの順に戻す。
               <Group key={service.id} gap="xs" align="flex-end">
                 <ServiceName
                   name={service.name}

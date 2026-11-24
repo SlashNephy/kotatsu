@@ -343,7 +343,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           {!program.isFree && <Badge color="gray">{t('guide.detail.paid')}</Badge>}
         </Group>
       </Stack>
-      {/* 操作は 1 段にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
+      {/* 操作は 1 行にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
       {ended && (
         <Group gap="xs" wrap="nowrap">
           {recording !== undefined && (

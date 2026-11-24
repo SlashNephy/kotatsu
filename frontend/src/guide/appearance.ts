@@ -18,7 +18,7 @@ export const densities = {
 
 export type Density = keyof typeof densities;
 
-// genreColorChoices は、ジャンルに選べる色 (Mantine の色の名前)。どれも、淡いバージョンを背景にして、ライトでもダークでも文字が読める。
+// genreColorChoices は、ジャンルに選べる色 (Mantine の色の名前)。どれも、淡い色を背景にして、ライトでもダークでも文字が読める。
 export const genreColorChoices = [
   'blue',
   'cyan',

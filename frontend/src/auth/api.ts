@@ -133,7 +133,7 @@ export const authApi = {
   // OIDC でのログイン (設計書 9.4)。始めると、IdP の認可のエンドポイントを返すので、ブラウザーを送り出す。
   oidcStatus: () => get<OIDCStatus>('/internal/auth/oidc'),
   beginOIDC: () => post<{ authorizationUrl: string }>('/internal/auth/oidc', {}),
-  // ログイン中のセッションのまま、もう一度確かめる (設計書 9.3)。パスワードの変更などの前に求められる。
+  // ログイン中のセッションのまま、もう一度確認する (設計書 9.3)。パスワードの変更などの前に求められる。
   reauthenticate: (password: string, method: 'totp' | 'recovery_code', code: string) =>
     post<Reauthenticated>('/internal/auth/reauth', { password, method, code }),
   beginPasskeyReauthentication: () => post<PasskeyAssertion>('/internal/auth/reauth/passkey', {}),

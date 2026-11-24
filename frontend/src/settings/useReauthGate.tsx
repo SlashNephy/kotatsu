@@ -8,7 +8,7 @@ import { Reauthenticate, type ReauthenticationMethods } from '../auth/Reauthenti
 import { graphQLErrorDetails } from '../relay/environment';
 import { SaveCancelled } from './useAutoSave';
 
-// needsReauthentication は、直近の認証から時間が経っていて、もう一度確かめる必要があるというエラーかどうかを返す (設計書 9.5)。
+// needsReauthentication は、直近の認証から時間が経っていて、もう一度確認する必要があるというエラーかどうかを返す (設計書 9.5)。
 export function needsReauthentication(error: unknown): boolean {
   return (
     (error instanceof AuthError && error.code === 'REAUTHENTICATION_REQUIRED') ||

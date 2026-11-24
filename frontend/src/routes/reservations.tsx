@@ -828,7 +828,7 @@ function ReservationRow({
           )}
         </Link>
       </Text>
-      {/* バッジのない行でも、サービスを同じ列に置くよう、空の枠を残す。 */}
+      {/* バッジのない行でも、サービスを同じカラムに置くよう、空の枠を残す。 */}
       <Group gap={4} wrap="nowrap" className={classes.badges}>
         {recording && <RecordingStateBadge state="RECORDING" size="xs" />}
         {!reservation.enabled ? (

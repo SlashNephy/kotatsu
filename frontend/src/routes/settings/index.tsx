@@ -96,7 +96,7 @@ function SettingsPage() {
     <Stack gap="sm">
       <Title order={2}>{t('settings.title')}</Title>
       <Links links={links} />
-      {/* 管理者かどうかを確かめられなければ、管理者向けのリンクは出さない。画面を使えるかは、サーバーが確かめる。 */}
+      {/* 管理者かどうかを確認できなければ、管理者向けのリンクは出さない。画面を使えるかは、サーバーが確認する。 */}
       <ErrorBoundary fallback={() => null}>
         <Suspense fallback={null}>
           <AdminLinks />

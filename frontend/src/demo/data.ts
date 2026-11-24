@@ -198,7 +198,7 @@ export function createRootValue(
       followEventRelay: true,
       bundleSameEpisodes: true,
     },
-    // デモには tenban がないので、データ放送の文書の通信は中継しない (#501)。
+    // デモには tenban がないので、データ放送の文書の通信はプロキシしない (#501)。
     dataBroadcastIpEnabled: false,
     // デモでは、外部プレイヤーと IPTV のクライアントの URL を発行する操作も見せる (#1755)。
     externalPlayerUrlsEnabled: true,
@@ -1189,7 +1189,7 @@ export function createRootValue(
   };
 }
 
-// demoCaptionModels は、デモで見せる、字幕の自動生成のモデルの置き場所 (#1682)。どれも置いていない。
+// demoCaptionModels は、デモで見せる、字幕の自動生成のモデルの保存先 (#1682)。どれも置いていない。
 function demoCaptionModels() {
   const model = (
     id: string,

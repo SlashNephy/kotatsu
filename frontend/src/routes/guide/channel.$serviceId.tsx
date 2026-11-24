@@ -179,7 +179,7 @@ function ChannelGuide() {
         <GuideGrid
           window={today}
           columns={columns}
-          // 今日の列だけがいまの時刻を含むので、線は引かない。
+          // 今日のカラムだけがいまの時刻を含むので、線は引かない。
           now={0}
           scrollTime={now}
           extendedHours={extendedHours}

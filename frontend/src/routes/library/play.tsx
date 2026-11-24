@@ -1228,7 +1228,7 @@ function Player({
             {formatBytes(Number(file.size))}
           </Text>
           {/* 端末に保存 (設計書 7.8)。録画と同じく、配信の TS をそのまま書く。端末での再生は、録り始めと録り終わりの放送時刻で
-              時計と長さを出すので、TOT から読めたファイルだけで出す。書いている途中か、索引を作り終えていないファイルは、長さが決まらないので出さない。 */}
+              時計と長さを出すので、TOT から読めたファイルだけで出す。書いている途中か、インデックスを作り終えていないファイルは、長さが決まらないので出さない。 */}
           {file.index.complete &&
             !file.index.writing &&
             broadcast?.recordedFrom != null &&

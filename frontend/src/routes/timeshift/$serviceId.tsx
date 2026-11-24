@@ -144,7 +144,7 @@ function ProgramList({ serviceId }: { serviceId: string }) {
                       <ProgramTitle name={program.name} />
                     )}
                   </Text>
-                  {/* 番組の頭から録れていないときは、残っているところから再生する。 */}
+                  {/* 番組の先頭から録れていないときは、残っているところから再生する。 */}
                   {!program.fromStart && (
                     <Badge size="sm" variant="light" color="gray">
                       {t('timeshift.partial')}
@@ -185,7 +185,7 @@ function ProgramList({ serviceId }: { serviceId: string }) {
 }
 
 // PromoteButton は、番組を録画に昇格するボタン (設計書 5.7)。放送中の番組は番組予約を作り、放送の終わった番組は
-// バッファから録画にエクスポートする。昇格したら、ボタンの代わりに、予約したか、エクスポートしていることを出す。
+// バッファから録画として出力する。昇格したら、ボタンの代わりに、予約したか、出力していることを出す。
 function PromoteButton({
   serviceId,
   startAt,

@@ -38,7 +38,7 @@ const devServerHttps = devHttps();
 const devForwarded = devServerHttps !== undefined;
 
 // inlineAppleTouchIcon は、index.html の apple-touch-icon を、public/icons の PNG の data: URL に置き換える (#582)。
-// iOS 27 の「ホーム画面に追加」は、URL で指したアイコンを読み込めず、タイトルの頭文字のタイルを出す。
+// iOS 27 の「ホーム画面に追加」は、URL で指したアイコンを読み込めず、タイトルの先頭の文字のタイルを出す。
 // data: URL なら、別のリクエストなしにアイコンを渡せる。
 function inlineAppleTouchIcon(): Plugin {
   const placeholder = '__KOTATSU_APPLE_TOUCH_ICON__';
@@ -140,7 +140,7 @@ function readPackage(dir: string): BundledPackage {
   };
 }
 
-// bundledLicenses は、画面に同梱するパッケージと、そのライセンスの文書の一覧を licenses.json にエクスポートする (設計書 付録 B、#1604)。
+// bundledLicenses は、画面に同梱するパッケージと、そのライセンスの文書の一覧を licenses.json に出力する (設計書 付録 B、#1604)。
 // 同梱するのは、dependencies とその依存 (pnpm licenses list --prod) と、dependencies に置いたワークスペースのパッケージ
 // (vendor/ の mpeg2toh264) である。Service Worker に入れる workbox も dependencies にあるので、ここに含まれる。
 // 一覧は、依存を上げるたびに変わるので、リポジトリには置かず、ビルドのたびに作る。/about の画面を開いたときだけ読む。

@@ -169,7 +169,7 @@ function RootLayout() {
           </AppShell.Navbar>
           <AppShell.Main className={classes.shellMain}>
             <div className={classes.content} data-fluid={fluid || undefined}>
-              {/* 衛星の局の顔ぶれの変化を、管理者に知らせる (#1519)。読めなくても、本文は出す。 */}
+              {/* 衛星の局の顔ぶれの変化を、管理者に通知する (#1519)。読めなくても、本文は出す。 */}
               <SignedIn fallback={null}>
                 <LineupBanner />
               </SignedIn>

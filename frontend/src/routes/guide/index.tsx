@@ -472,7 +472,7 @@ function Guide() {
                 </Menu.Item>
               ))}
               <Menu.Divider />
-              {/* 深夜を 24 時以降で表すかどうか。端末ごとに覚える (#486)。 */}
+              {/* 深夜を 24 時以降で表すかどうか。端末ごとに保存する (#486)。 */}
               <Menu.Label>
                 <Checkbox
                   size="xs"
