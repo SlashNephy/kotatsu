@@ -15,7 +15,7 @@ require (
 	github.com/goforj/wire v1.3.1
 	github.com/graph-gophers/dataloader/v7 v7.2.0
 	github.com/jackc/pgx/v5 v5.13.0
-	github.com/labstack/echo/v5 v5.4.5
+	github.com/labstack/echo/v5 v5.4.6
 	github.com/lestrrat-go/jwx/v4 v4.6.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/pressly/goose/v3 v3.30.1
