@@ -84,7 +84,7 @@ func TestRecorded(t *testing.T) {
 		{name: "すべて", query: "", wantIDs: []int64{newest, middle, oldest}, wantTotal: 3},
 		{name: "区切る", query: "?offset=1&limit=1", wantIDs: []int64{middle}, wantTotal: 3},
 		{name: "番組名", query: "?keyword=こたつ", wantIDs: []int64{newest, oldest}, wantTotal: 2},
-		// 画面の検索と同じく、キーワードも番組名も正規化して比べる。% と _ は、文字そのものとして探す (#1726)。
+		// 画面の検索と同じく、キーワードも番組名も正規化して比較する。% と _ は、文字そのものとして探す (#1726)。
 		{name: "全角と半角", query: "?keyword=" + url.QueryEscape("番組2"), wantIDs: []int64{middle}, wantTotal: 1},
 		{name: "ワイルドカードの文字", query: "?keyword=" + url.QueryEscape("%"), wantIDs: []int64{}, wantTotal: 0},
 		{name: "1 文字のワイルドカードの文字", query: "?keyword=" + url.QueryEscape("こたつ_"), wantIDs: []int64{}, wantTotal: 0},
