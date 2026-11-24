@@ -121,7 +121,7 @@ func TestWorkerSchedule(t *testing.T) {
 	assert.Nil(t, latest.Error)
 }
 
-// TestWorkerFailure は、作成する先のディレクトリがなければ、失敗を結果に残し、間隔を待たずに 1 時間後に作り直すことを確認する (#1926)。
+// TestWorkerFailure は、出力する先のディレクトリがなければ、失敗を結果に残し、間隔を待たずに 1 時間後に作り直すことを確認する (#1926)。
 func TestWorkerFailure(t *testing.T) {
 	t.Parallel()
 

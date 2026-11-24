@@ -1,4 +1,4 @@
-// Package backup は、DB とキャプチャの画像を、age の公開鍵で暗号化した 1 つのファイルに作成し、空の DB に戻す (設計書 11.4、#1926)。
+// Package backup は、DB とキャプチャの画像を、age の公開鍵で暗号化した 1 つのファイルに出力し、空の DB に戻す (設計書 11.4、#1926)。
 //
 // ファイルは、age で暗号化した gzip の tar である。tar には、次の順にエントリーを置く。
 //
@@ -71,13 +71,13 @@ type Manifest struct {
 	SchemaVersion int64 `json:"schemaVersion"`
 	// CreatedAt は、作成した日時。
 	CreatedAt time.Time `json:"createdAt"`
-	// Tables は、作成したテーブルとカラム。戻すときは、この順に流し込む (外部キーで指されるテーブルが先)。
+	// Tables は、出力したテーブルとカラム。戻すときは、この順に流し込む (外部キーで指されるテーブルが先)。
 	Tables []*Table `json:"tables"`
 	// Captures は、キャプチャの行の数。データディレクトリに画像がなかったものも数える。
 	Captures int `json:"captures"`
 }
 
-// Table は、作成したテーブルと、COPY のカラムの並び。
+// Table は、出力したテーブルと、COPY のカラムの並び。
 type Table struct {
 	Name    string   `json:"name"`
 	Columns []string `json:"columns"`
@@ -87,6 +87,6 @@ type Table struct {
 type end struct {
 	// TableBytes は、テーブルごとの COPY の出力の大きさ。戻すときに読んだ大きさと比較する。
 	TableBytes map[string]int64 `json:"tableBytes"`
-	// Captures は、作成したキャプチャの画像の数。
+	// Captures は、出力したキャプチャの画像の数。
 	Captures int `json:"captures"`
 }

@@ -105,7 +105,7 @@ type aniListMedia struct {
 }
 
 // RecordEpisode は、何話まで見たか (progress) を、今の値より大きいときだけ更新する。見直しで巻き戻さないため。
-// 話数のない放送は、1 話だけの作品 (劇場バージョンなど) なら 1 話を見たことにし、ほかは記録できないものとする。
+// 話数のない放送は、1 話だけの作品 (映画など) なら 1 話を見たことにし、ほかは記録できないものとする。
 // 作品が複数あれば、最初の作品に記録する。
 func (a *AniList) RecordEpisode(ctx context.Context, token string, workIDs []int32, episode *Episode, rules *StatusRules) (*Recorded, error) {
 	if len(workIDs) == 0 {

@@ -40,7 +40,7 @@ type SegmentMaterial struct {
 	Material *Material
 }
 
-// materialHeader は、材料の先頭に置く JSON。数のカラムの並びは、segments の順に、コマどうしの時刻の差、点数、明るさ、肌理。
+// materialHeader は、材料の先頭に置く JSON。数の並びの順は、segments の順に、コマどうしの時刻の差、点数、明るさ、肌理。
 type materialHeader struct {
 	Version  int                   `json:"version"`
 	Segments []materialSegmentInfo `json:"segments"`
@@ -68,7 +68,7 @@ type materialBound struct {
 }
 
 // EncodeMaterials は、録画の材料を、DB に残すバイト列にする (#1507)。
-// 先頭に JSON の長さ (int32、リトルエンディアン)、続けて JSON、続けて数のカラムを並べ、全体を gzip で縮める。
+// 先頭に JSON の長さ (int32、リトルエンディアン)、続けて JSON、続けて数の並びを並べ、全体を gzip で縮める。
 // コマの時刻は、1 コマ目をマイクロ秒で JSON に書き、コマどうしの差を int32 のマイクロ秒で並べる。
 func EncodeMaterials(segments []SegmentMaterial) ([]byte, error) {
 	header := materialHeader{Version: materialFormatVersion, Segments: make([]materialSegmentInfo, 0, len(segments))}
@@ -201,7 +201,7 @@ func appendLE(buf *bytes.Buffer, v any) {
 	buf.Write(out)
 }
 
-// materialReader は、数のカラムを前から読む。足りなければ err を立て、0 を返す。
+// materialReader は、数の並びを前から読む。足りなければ err を立て、0 を返す。
 type materialReader struct {
 	data []byte
 	err  error

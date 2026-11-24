@@ -59,7 +59,7 @@ const (
 var (
 	// ErrInvalidSettings は、定期のバックアップの設定の値が正しくないことを表す。
 	ErrInvalidSettings = errors.New("invalid backup settings")
-	// ErrNoBackupDir は、作成する先のディレクトリ (backup.dir) を設定していないことを表す。
+	// ErrNoBackupDir は、出力する先のディレクトリ (backup.dir) を設定していないことを表す。
 	ErrNoBackupDir = errors.New("the backup directory (backup.dir) is not configured on nekonote")
 	// ErrNoRuns は、まだ一度も作成していないことを表す。
 	ErrNoRuns = errors.New("no backup has been written yet")
@@ -126,7 +126,7 @@ func ParseRecipients(keys []string) ([]age.Recipient, error) {
 	}
 	recipients := make([]age.Recipient, 0, len(keys))
 	for _, key := range keys {
-		// 1 行に 1 つのキーだけを受け付ける。コメント (#) や複数の行を渡されても、別のキーとして読まない。
+		// 1 行に 1 つの公開鍵だけを受け付ける。コメント (#) や複数の行を渡されても、別の公開鍵として読まない。
 		if strings.ContainsAny(key, "\n#") {
 			return nil, fmt.Errorf("%w: invalid age public key", ErrInvalidSettings)
 		}
@@ -224,7 +224,7 @@ type WorkerOptions struct {
 	Store *kago.Store
 	// SecretKey は、アプリの秘密キー。
 	SecretKey string
-	// Dir は、作成する先のディレクトリ (backup.dir)。空なら、作成できない。
+	// Dir は、出力する先のディレクトリ (backup.dir)。空なら、作成できない。
 	Dir    string
 	Clock  clock.Clock
 	Logger *slog.Logger
@@ -303,7 +303,7 @@ func (w *Worker) due(ctx context.Context, settings *Settings) (bool, error) {
 	return !w.opts.Clock.Now().Before(latest.StartedAt.Add(wait)), nil
 }
 
-// write は、作成する先のディレクトリに、時刻の名前のファイルを書く。書いたファイルの名前と大きさを返す。
+// write は、出力する先のディレクトリに、時刻の名前のファイルを書く。書いたファイルの名前と大きさを返す。
 func (w *Worker) write(ctx context.Context, settings *Settings, now time.Time) (string, int64, error) {
 	if w.opts.Dir == "" {
 		return "", 0, ErrNoBackupDir

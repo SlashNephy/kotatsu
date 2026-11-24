@@ -368,7 +368,7 @@ func TestRestoreRejects(t *testing.T) {
 	}
 }
 
-// TestWriteCaptures は、キャプチャの行があるのにデータディレクトリがなければ書き出さず、画像だけがなければ、行だけを出力して数えることを確認する。
+// TestWriteCaptures は、キャプチャの行があるのにデータディレクトリがなければ出力せず、画像だけがなければ、行だけを出力して数えることを確認する。
 func TestWriteCaptures(t *testing.T) {
 	t.Parallel()
 

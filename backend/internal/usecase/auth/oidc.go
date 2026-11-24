@@ -629,7 +629,7 @@ func (o *OIDC) loadProvider(ctx context.Context) (*oidc.Provider, error) {
 		return o.provider, nil
 	}
 	// IdP が応答しないときに、ロックを持ったまま待ち続けないよう、時間を区切る。
-	// go-oidc は、署名のキーを引き直すときには、この context ではなく、クライアントだけを使う。
+	// go-oidc は、署名鍵を再取得するときには、この context ではなく、クライアントだけを使う。
 	ctx, cancel := context.WithTimeout(ctx, oidcHTTPTimeout)
 	defer cancel()
 	provider, err := oidc.NewProvider(oidc.ClientContext(ctx, o.httpClient), o.settings.Issuer)

@@ -139,7 +139,7 @@ type annictEpisode struct {
 	Title      *string `json:"title"`
 }
 
-// RecordEpisode は、話を Annict に記録する。エピソードのない作品 (劇場バージョンなど) は、作品を「見た」にする。
+// RecordEpisode は、話を Annict に記録する。エピソードのない作品 (映画など) は、作品を「見た」にする。
 // エピソードは、ユーザーのトークンで引き、話数、話数の文字列 (第1話、#1)、サブタイトルの順で照合する。
 // 作品が複数あれば、エピソードが見つかった最初の作品に記録する。
 func (a *Annict) RecordEpisode(ctx context.Context, token string, workIDs []int32, episode *Episode, rules *StatusRules) (*Recorded, error) {

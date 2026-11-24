@@ -242,7 +242,7 @@ func TestPasskeyNeedsSecureContext(t *testing.T) {
 	}
 }
 
-// TestPasskeyLogin は、パスキーだけでログインでき、本人の確認や複製の疑いを確認することを確認する。
+// TestPasskeyLogin は、パスキーだけでログインでき、本人確認や複製の疑いの検証ができることを確認する。
 func TestPasskeyLogin(t *testing.T) {
 	t.Parallel()
 

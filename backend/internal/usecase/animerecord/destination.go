@@ -96,7 +96,7 @@ func NextStatus(rules *StatusRules, first, last bool, current WorkStatus) (WorkS
 
 // Episode は、記録する 1 話。
 type Episode struct {
-	// Number は話数。話数のない放送 (劇場バージョンなど) では nil。
+	// Number は話数。話数のない放送 (映画など) では nil。
 	Number *float64
 	// Subtitle は、しょぼいカレンダーのサブタイトル。
 	Subtitle *string

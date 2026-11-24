@@ -151,7 +151,7 @@ func liftTimeouts(ctx context.Context, tx pgx.Tx) error {
 	return nil
 }
 
-// readManifest は、スキーマのバージョンと、作成するテーブルとカラムを、トランザクションの時点で読む。テーブルは、外部キーで指されるテーブルが先になるよう並べる。
+// readManifest は、スキーマのバージョンと、出力するテーブルとカラムを、トランザクションの時点で読む。テーブルは、外部キーで指されるテーブルが先になるよう並べる。
 func readManifest(ctx context.Context, tx pgx.Tx, now time.Time) (*Manifest, error) {
 	var version int64
 	if err := tx.QueryRow(ctx, "SELECT COALESCE(max(version_id), 0) FROM goose_db_version WHERE is_applied").Scan(&version); err != nil {
@@ -268,7 +268,7 @@ ORDER BY c.relname, p.relname`)
 }
 
 // checkExcludedReferences は、入れるテーブルが、外すテーブルを指していないかを確認する。
-// 指していても、そのカラムを NULL にして作成する (nullColumns) なら許す。そうでなければ、戻すときに外部キーの制約で失敗する。
+// 指していても、そのカラムを NULL にして出力する (nullColumns) なら許す。そうでなければ、戻すときに外部キーの制約で失敗する。
 func checkExcludedReferences(keys []*foreignKey, included map[string]bool) error {
 	for _, key := range keys {
 		if !included[key.child] || included[key.parent] {

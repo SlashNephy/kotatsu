@@ -47,7 +47,7 @@ func (c Corner) String() string {
 var (
 	// ErrWeakCorner は、強い縁の閾値が、隅を採る揃い方の下限に届かなかったことを表す。
 	ErrWeakCorner = errors.New("the strong edges are too weak")
-	// ErrFlatCorner は、強い縁の閾値が、隅の揃い方の中央値に比較して目立たなかったことを表す。
+	// ErrFlatCorner は、強い縁の閾値が、隅の揃い方の中央値と比較して目立たなかったことを表す。
 	ErrFlatCorner = errors.New("the strong edges do not stand out from the corner")
 	// ErrNoCore は、核にできるチャンクがなかったことを表す。
 	ErrNoCore = errors.New("no blob is large enough for a logo")
