@@ -65,7 +65,7 @@ describe('withPNGText', () => {
       { keyword: 'Title', compressed: 0, text: 'ニュース７' },
       { keyword: 'Source', compressed: 0, text: 'NHK総合1・東京' },
     ]);
-    // 元の画像のチャンクは、中身を変えない。
+    // 元の画像のチャンクは、内容を変えない。
     expect(list.filter((chunk) => chunk.type !== 'iTXt')).toEqual(chunks(minimalPNG));
   });
 

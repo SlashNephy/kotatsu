@@ -54,7 +54,7 @@ type Collector = {
   // collecting は、計測するウィンドウの中かどうか。ウィンドウの中で受け取った fps だけを数える。
   collecting: boolean;
   // offscreen は、計測するウィンドウの中で、プレイヤーが画面から外れたことがあるか。
-  // 画面の外の canvas は合成されないので、GPU が追いつかなくても、コマの数に表れない (#1771)。
+  // 画面の外の canvas は合成されないので、GPU が追いつかなくても、コマの数に反映されない (#1771)。
   offscreen: boolean;
   fpsSamples: number[];
   loaded: (() => void) | null;
