@@ -47,7 +47,7 @@ func TestNewPrefilter(t *testing.T) {
 	}
 }
 
-// TestUnfilterableKeywords は、詳細まで探す正規表現のうち、前段で絞り込めないキーワードだけを返すことを確かめる (#904)。
+// TestUnfilterableKeywords は、詳細まで探す正規表現のうち、前段で絞り込めないキーワードだけを返すことを確認する (#904)。
 func TestUnfilterableKeywords(t *testing.T) {
 	t.Parallel()
 

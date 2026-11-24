@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { useVideoLoading, waitingDelayMs } from './useVideoLoading';
+import { mediaOf } from './playerMedia';
 
 // fakeVideo は、paused を差し替えられる video の要素。
 function fakeVideo() {
@@ -33,7 +34,7 @@ afterEach(() => {
 describe('useVideoLoading', () => {
   test('読み込みを始めてから、映像が動き出すまで出す', () => {
     const { video, setPaused, fire } = fakeVideo();
-    const { result } = renderHook(() => useVideoLoading(video));
+    const { result } = renderHook(() => useVideoLoading(mediaOf(video)));
     expect(result.current).toBe(true);
 
     setPaused(false);
@@ -49,7 +50,7 @@ describe('useVideoLoading', () => {
 
   test('再生の途中の待ちは、少し続いたときだけ出す', () => {
     const { video, setPaused, fire } = fakeVideo();
-    const { result } = renderHook(() => useVideoLoading(video));
+    const { result } = renderHook(() => useVideoLoading(mediaOf(video)));
     setPaused(false);
     fire('playing');
 
@@ -72,7 +73,7 @@ describe('useVideoLoading', () => {
 
   test('止めたままシークしたら、シークし終えたときに消す', () => {
     const { video, setPaused, fire } = fakeVideo();
-    const { result } = renderHook(() => useVideoLoading(video));
+    const { result } = renderHook(() => useVideoLoading(mediaOf(video)));
     setPaused(false);
     fire('playing');
 
@@ -86,7 +87,7 @@ describe('useVideoLoading', () => {
 
   test('止めたまま読み込み終えたら消す (自動再生を断られたときなど)', () => {
     const { video, fire } = fakeVideo();
-    const { result } = renderHook(() => useVideoLoading(video));
+    const { result } = renderHook(() => useVideoLoading(mediaOf(video)));
     expect(result.current).toBe(true);
     fire('canplay');
     expect(result.current).toBe(false);
@@ -94,7 +95,7 @@ describe('useVideoLoading', () => {
 
   test('読み込みに失敗したら消す', () => {
     const { video, fire } = fakeVideo();
-    const { result } = renderHook(() => useVideoLoading(video));
+    const { result } = renderHook(() => useVideoLoading(mediaOf(video)));
     fire('error');
     expect(result.current).toBe(false);
   });
@@ -102,7 +103,7 @@ describe('useVideoLoading', () => {
   test('読み込み終えて止まっている要素では、出さない', () => {
     const { video } = fakeVideo();
     Object.defineProperty(video, 'readyState', { configurable: true, get: () => 4 });
-    const { result } = renderHook(() => useVideoLoading(video));
+    const { result } = renderHook(() => useVideoLoading(mediaOf(video)));
     expect(result.current).toBe(false);
   });
 });

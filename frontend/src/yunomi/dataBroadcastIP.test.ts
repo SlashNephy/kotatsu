@@ -23,7 +23,7 @@ function fakeFetch(respond: () => Response | Promise<Response>): {
   return { fetcher, sent };
 }
 
-// text は、応答の本文を文字列にする。jsdom と Node.js で Uint8Array の realm が違うので、バイト列のまま比べない。
+// text は、応答の本文を文字列にする。jsdom と Node.js で Uint8Array の realm が違うので、バイト列のまま比較しない。
 function text(bytes: Uint8Array | undefined): string {
   return new TextDecoder().decode(bytes);
 }

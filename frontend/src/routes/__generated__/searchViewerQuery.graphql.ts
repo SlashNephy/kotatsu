@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<57ed6cb37e37a2458f20a691b2001f73>>
+ * @generated SignedSource<<85333665385bb8f4862dba8263428ea0>>
  * @lightSyntaxTransform
  */
 
@@ -13,6 +13,7 @@ export type searchViewerQuery$variables = Record<PropertyKey, never>;
 export type searchViewerQuery$data = {
   readonly channelTypes: ReadonlyArray<{
     readonly displayName: string;
+    readonly hasServices: boolean;
     readonly type: string;
   }>;
   readonly services: ReadonlyArray<{
@@ -63,7 +64,14 @@ v2 = {
       "name": "type",
       "storageKey": null
     },
-    (v1/*:: as any*/)
+    (v1/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "hasServices",
+      "storageKey": null
+    }
   ],
   "storageKey": null
 },
@@ -168,16 +176,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "4357e0e1b009a759f6c35873b2c49fea",
+    "cacheID": "a9adba040604763bb63da0da352a5464",
     "id": null,
     "metadata": {},
     "name": "searchViewerQuery",
     "operationKind": "query",
-    "text": "query searchViewerQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n}\n"
+    "text": "query searchViewerQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n    hasServices\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "14cecf14994d0aa0cda39f05cfda13d8";
+(node as any).hash = "1588f1454db0451978f41f4cf57714e1";
 
 export default node;

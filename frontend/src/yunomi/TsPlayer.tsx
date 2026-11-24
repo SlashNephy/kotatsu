@@ -22,24 +22,27 @@ import {
   useInterpolationRate,
 } from './frameInterpolation';
 import { advanceBeforeHandover } from './handoverAdvance';
+import { hdrOutputSupported, useHDRDisplay, useHDROutput } from './hdr';
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
 import {
   createYadifUpscaler,
   useSuperResolution,
+  useSuperResolutionMethod,
   useSuperResolutionStrength,
   type YadifUpscaler,
 } from './superResolution';
 import classes from './TsPlayer.module.css';
 import { createYadifInterpolation, type YadifInterpolation } from './yadifInterpolation';
+import { mediaOf, type PlayerMedia } from './playerMedia';
 
 // wasmURL は、変換に使う WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
 // ストリーミングコンパイルを効かせる (設計書 7.2)。
 const wasmURL = `${import.meta.env.BASE_URL}mpeg2toh264/mpeg2toh264_wasm_bg.wasm`;
 
 // stallTimeoutMs は、再生しているのに、映像がこれより長く進まなければ、配信が切れたとみなす時間 (#1083)。
-// 変換のプレイヤーは、読むのを止めている間に接続が切れると、エラーも終わりも知らせずに待ち続けるので、映像の進みで見張る。
+// 変換のプレイヤーは、読むのを止めている間に接続が切れると、エラーも終わりも通知せずに待ち続けるので、映像の進みで見張る。
 const stallTimeoutMs = 5_000;
 
 type Props = {
@@ -50,7 +53,8 @@ type Props = {
   // handoverScope は、裏で読み込んで切り替えてよい範囲。前の読み込みと範囲が違えば、handover でもすぐ読み直す (#1729)。
   // ライブ視聴で、タイムシフトのバッファとライブを行き来するのは、つなぎ直しではなくシークなので、範囲を分ける。
   handoverScope?: string;
-  videoRef: RefObject<HTMLVideoElement | null>;
+  // mediaRef には、映している経路を入れる。画質の切り替えなどで作り直すたびに入れ替える。
+  mediaRef: RefObject<PlayerMedia | null>;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
   // superimpose は、文字スーパーを出すかどうか (#491)。captions を切っていれば、出さない。
@@ -76,8 +80,8 @@ type Props = {
   overlay?: ReactNode;
   // controls は、映像の上に重ねる操作バー。重ねたもの (overlay) より上に置き、操作を受ける。
   controls?: ReactNode;
-  // onVideo は、video の要素を作ったときと、取り除いたとき (null) に呼ぶ。
-  onVideo?: (video: HTMLVideoElement | null) => void;
+  // onMedia は、映す経路を作ったときと、取り除いたとき (null) に呼ぶ。
+  onMedia?: (media: PlayerMedia | null) => void;
   // onAudio は、番組の音声と、今どれを聞いているかが分かったとき、変わったときに呼ぶ。
   onAudio?: (tracks: AudioTracks) => void;
   // audio は、聞く音声 (audioChoices の値)。null なら、プレイヤーに任せる。
@@ -89,7 +93,7 @@ type Props = {
   // settings は、端末ごとの設定 (フィールドごとの表示、コマの補間、補間したコマを出す回数の上限、映像の拡大) の代わりに使う値 (#1771)。
   // 「この端末で試す」が、利用者の設定を書き換えずに、経路ごとに表示を切り替えるために使う。省いた値は、設定から読む。
   settings?: PlayerSettingsOverride;
-  // onDeinterlaceStats は、yadif が統計を知らせるたびに、その統計と、フィールドごとの表示をやめたかを受け取る (#1771)。
+  // onDeinterlaceStats は、yadif が統計を通知するたびに、その統計と、フィールドごとの表示をやめたかを受け取る (#1771)。
   onDeinterlaceStats?: (stats: DeinterlaceStats, fieldRateDropped: boolean) => void;
 };
 
@@ -107,6 +111,7 @@ export type PlayerSettingsOverride = {
   interpolate?: boolean;
   interpolationRate?: InterpolationRate;
   superResolution?: boolean;
+  hdrOutput?: boolean;
 };
 
 // Slot は、映像を 1 本読み込むための、video と変換のプレイヤーと字幕の組。切り替えのときだけ、裏でもう 1 つ作る (#1083)。
@@ -119,7 +124,7 @@ type Slot = {
   player: Mpeg2TsPlayer | null;
   // load は、読み込みを見分ける番号。読み直すたびに変わる。
   load: number;
-  // stats は、この読み込みでプレイヤーが最後に知らせた統計。
+  // stats は、この読み込みでプレイヤーが最後に通知した統計。
   stats: Stats | null;
   // film は、yadif が 2:3 プルダウンを見つけ、24p で出していること (#1284)。
   film: boolean;
@@ -139,7 +144,7 @@ type Slot = {
   unfiltered: boolean;
   // bytesRead は、この読み込みで読んだバイト数。
   bytesRead: number;
-  // origin は、この読み込みで、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。まだ分からなければ null。
+  // origin は、この読み込みで、画面の時刻 0 に当たる放送の時刻 (90 kHz の単位、#1515)。まだ分からなければ null。
   origin: number | null;
   destroyed: boolean;
 };
@@ -159,7 +164,7 @@ function bufferedEnd(video: HTMLVideoElement): number {
   return buffered.length > 0 ? buffered.end(buffered.length - 1) : 0;
 }
 
-// sourcePicture は、今の位置で映している放送の映像の大きさと走査の方式を、yadif が持つ映像の切り替わりの表から読む。
+// sourcePicture は、今の位置で映している放送の映像の大きさと走査の方式を、yadif が持つ映像の切り替わりのテーブルから読む。
 function sourcePicture(
   player: Mpeg2TsPlayer,
   {
@@ -178,8 +183,8 @@ function sourcePicture(
     return null;
   }
 
-  // プログレッシブの区間では、yadif はコマをそのまま出し、統計も知らせないので、前の区間の値が残る。
-  // そこでは video の要素から測った値を使う。
+  // プログレッシブの区間では、yadif はコマをそのまま出し、統計も通知しないので、前の区間の値が残る。
+  // そこでは video の要素から計測した値を使う。
   const progressive = state.scan?.interlaced === false;
 
   return {
@@ -200,6 +205,10 @@ function sourcePicture(
         : !yadif.doubleRate && yadif.interpolator?.wants('frame') === true),
     // 拡大して描いている大きさ (#1654)。設定を切っている間と、元の大きさ以下に映している間は null。
     upscaled: yadif !== null && yadif.scaler === upscaler ? upscaler.output() : null,
+    // 拡大を、先に Anime4K で 2 倍にしてから行っていること (#1653)。
+    upscaledWithAnime4K: yadif !== null && yadif.scaler === upscaler && upscaler.anime4k(),
+    // 擬似 HDR で描いていること (#1656)。
+    hdr: yadif !== null && yadif.scaler === upscaler && upscaler.hdr(),
     // 拡大を入れているのに拡大していないとき (映す大きさが元の大きさ以下) は、映す大きさを添えて、理由を分かるようにする。
     notUpscaled:
       yadif !== null && yadif.scaler === upscaler && upscaler.output() === null
@@ -221,7 +230,7 @@ export function TsPlayer({
   url,
   handover = false,
   handoverScope = '',
-  videoRef,
+  mediaRef,
   captions,
   superimpose = true,
   captionStyle = defaultCaptionStyle,
@@ -233,7 +242,7 @@ export function TsPlayer({
   onLoaded,
   overlay,
   controls,
-  onVideo,
+  onMedia,
   onAudio,
   audio = null,
   onReading,
@@ -261,7 +270,7 @@ export function TsPlayer({
     onError,
     onLoaded,
     onAudio,
-    onVideo,
+    onMedia,
     onReading,
     onDeinterlaceStats,
     handoverTarget,
@@ -271,7 +280,7 @@ export function TsPlayer({
     onError,
     onLoaded,
     onAudio,
-    onVideo,
+    onMedia,
     onReading,
     onDeinterlaceStats,
     handoverTarget,
@@ -303,6 +312,17 @@ export function TsPlayer({
   const [superResolutionStrength] = useSuperResolutionStrength();
   const superResolutionStrengthRef = useRef(superResolutionStrength);
   superResolutionStrengthRef.current = superResolutionStrength;
+  // superResolutionMethod は、拡大の方式 (#1653)。描くたびに読むので、ref で渡す。
+  const [superResolutionMethod] = useSuperResolutionMethod();
+  const superResolutionMethodRef = useRef(superResolutionMethod);
+  superResolutionMethodRef.current = superResolutionMethod;
+  // hdrOutput は、解除したコマを擬似 HDR で描くか (#1656)。端末ごとの設定で入れていても、ブラウザが対応し、
+  // 画面が HDR を出せるときだけ描く。描くたびに読むので、ref で渡す。
+  const [savedHDROutput] = useHDROutput();
+  const hdrDisplay = useHDRDisplay();
+  const hdrOutput = (settings?.hdrOutput ?? savedHDROutput) && hdrDisplay && hdrOutputSupported();
+  const hdrOutputRef = useRef(hdrOutput);
+  hdrOutputRef.current = hdrOutput;
   // zoom は、切り抜き (#496) の拡大率。拡大する大きさを決めるたびに読むので、ref で渡す。
   const zoomRef = useRef(scales(crop));
   zoomRef.current = scales(crop);
@@ -315,7 +335,7 @@ export function TsPlayer({
   const loadedScope = useRef(handoverScope);
   // covered は、蓋を出しているかどうか。出している間は、CM の字幕を残さないよう、字幕を消す (#1512)。
   const covered = useRef(false);
-  const cover = usePlayerCover(videoRef, (shown) => {
+  const cover = usePlayerCover(mediaRef, (shown) => {
     covered.current = shown;
     for (const slot of [activeRef.current, pendingRef.current]) {
       slot?.captions.setVisible(showCaptions.current && !shown);
@@ -333,13 +353,14 @@ export function TsPlayer({
     };
   }, [coverRef, cover.cover]);
 
-  const mediaRef = useRef<HTMLDivElement | null>(null);
+  // boxRef は、組 (createSlot) を入れる要素。
+  const boxRef = useRef<HTMLDivElement | null>(null);
 
-  // createSlot は、組を作って media に入れる。hidden なら、切り替えるまで見せず、音も出さない。
+  // createSlot は、組を作って box に入れる。hidden なら、切り替えるまで見せず、音も出さない。
   // video の要素は、React に持たせずに作る。yadif は、video を別の要素で包んで動かすので、
   // React が持っていると、外すときに元の親から取り除こうとして失敗する。
   // 変換のプレイヤーのイベントは、映っている組のものだけを渡す。裏で読み込んでいる組の失敗は、load の失敗で受け取る。
-  const createSlot = (media: HTMLElement, hidden: boolean): Slot => {
+  const createSlot = (box: HTMLElement, hidden: boolean): Slot => {
     const container = document.createElement('div');
     container.className = classes.slot ?? '';
     // データ放送は、映像の要素を外の CSS が届かない所へ移すので、隠すのはインラインで指定する。
@@ -350,8 +371,8 @@ export function TsPlayer({
     video.autoplay = true;
     video.muted = hidden;
     container.append(video);
-    media.append(container);
-    // 字幕は、aribb24.js を読み終えるまで溜めておくので、プレイヤーより先に作る。
+    box.append(container);
+    // 字幕は、aribb24.js を読み終えるまでバッファしておくので、プレイヤーより先に作る。
     const renderer = createCaptions(video, container, (text) => {
       if (activeRef.current === slot) {
         captionText.current?.(text);
@@ -383,8 +404,17 @@ export function TsPlayer({
       upscaler: createYadifUpscaler({
         zoom: () => zoomRef.current,
         strength: () => superResolutionStrengthRef.current,
+        method: () => superResolutionMethodRef.current,
+        upscale: () => superResolutionRef.current,
+        hdr: () => hdrOutputRef.current,
         onUnavailable: (error) => {
           console.warn('upscaling is unavailable; showing the pictures as they are', error);
+        },
+        onHDRUnavailable: (error) => {
+          console.warn('HDR output is unavailable; showing the pictures in SDR', error);
+        },
+        onAnime4KUnavailable: (error) => {
+          console.warn('Anime4K is unavailable; upscaling with FSR only', error);
         },
       }),
       unfiltered: false,
@@ -393,7 +423,7 @@ export function TsPlayer({
       destroyed: false,
     };
     // 壊れた音声のフレームなどで、映像の要素が復号に失敗すると、ブラウザは再生を止める。止まると読み込みの止まりも
-    // 見張れないので、知らせて読み直させる。
+    // 見張れないので、通知して読み直させる。
     video.addEventListener('error', () => {
       if (!slot.destroyed && activeRef.current === slot && video.error !== null) {
         handlers.current.onError?.(new Error(video.error.message || 'the media element failed'));
@@ -412,19 +442,22 @@ export function TsPlayer({
     const isActive = () => activeRef.current === slot;
     const createYadif = (element: HTMLVideoElement) => {
       const lateWatch = createLateWatch();
-      // reported は、最後に知らせたときの、戻した印と、yadif がコマを出す時刻を決めていたか。
+      // reported は、最後に通知したときの、戻したフラグと、yadif がコマを出す時刻を決めていたか。
       // 戻したときと設定を切ったときは、24p でもなくなり、progress も来ない (読み込みを終えた録画) ことがあるので、
-      // 変わったことを見て知らせる。設定の切り替えは、組を直に書き換えるので、次の知らせでここが拾う。
+      // 変わったことを見て通知する。設定の切り替えは、組を直に書き換えるので、次の知らせでここが拾う。
       let reported = { dropped: false, scheduled: false };
       const deinterlacer: Deinterlacer = new Deinterlacer(element, {
         // 1080i を、フィールドごとに 1 コマにして 59.94p で出す (#1655)。放送そのものの動きのなめらかさになる。
         doubleRate: fieldRateRef.current,
         // 24p と 29.97p のコマの間を補間する (#1655)。補間するコマは、yadif が 1 枚遅らせて出す。
         interpolator: interpolateRef.current ? slot.interpolation : null,
-        // 解除したコマを、映像を描く矩形の端末の画素の大きさへ拡大して描く (#1654)。
-        scaler: superResolutionRef.current ? slot.upscaler : null,
+        // 解除したコマを、映像を描く矩形の端末の画素の大きさへ拡大して描く (#1654)。擬似 HDR (#1656) も、ここで描く。
+        scaler: superResolutionRef.current || hdrOutputRef.current ? slot.upscaler : null,
+        // 擬似 HDR (#1656) で描画先の形式を変えるには、alpha のあるコンテキストが要る。どのコマも不透明に描くので、
+        // 見え方は変わらない。WebGL の HDR の出力を持たないブラウザでは、今までどおり alpha なしで作る。
+        alpha: hdrOutputSupported(),
         // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
-        // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで知らせる。
+        // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで通知する。
         onStats: (stats) => {
           // 表示が追いつかない端末では、コマが間に合わずにかえってがたつくので、この組ではコマごとの表示に戻す。
           // 設定で切っている間は数えず、入れ直したら、そこから数え直す。
@@ -461,7 +494,7 @@ export function TsPlayer({
       // プルダウンでない映像は、これまでどおり yadif で解除する。浮動小数点の描画先を持たない GPU では使えないので、そのままにする。
       enableFilm(deinterlacer);
       // yadif は、解除した映像を描く canvas の位置と大きさを、video に合わせて自分で決める。
-      // データ放送の中へ映像を移すときに、この canvas の大きさを変えないよう印を付ける。
+      // データ放送の中へ映像を移すときに、この canvas の大きさを変えないようマークを付ける。
       deinterlacer.canvas.dataset[deinterlacerCanvas] = '';
 
       return deinterlacer;
@@ -473,7 +506,7 @@ export function TsPlayer({
       deinterlace: true,
       deinterlacer: (element) => {
         // WebGL2 がなければ yadif を作れない。投げるとプレイヤーがエラーとして知らせ、画面はつなぎ直しを繰り返すので、
-        // 解除せずに再生を続け、再生の情報で知らせる (#1617)。印は、次の読み込みの知らせ (progress) で画面に届く。
+        // 解除せずに再生を続け、再生の情報で通知する (#1617)。フラグは、次の読み込みの通知 (progress) で画面に届く。
         const created = createDeinterlacer(() => createYadif(element));
         slot.unfiltered = !created.available;
 
@@ -491,7 +524,7 @@ export function TsPlayer({
       }
     });
     // 読んだバイト数と、変換を終えたメディアの長さから、ビットレートを出す (#828)。
-    // 最初の progress までは、読んだバイト数が分からないので知らせない。
+    // 最初の progress までは、読んだバイト数が分からないので通知しない。
     const report = () => {
       if (isActive() && slot.bytesRead > 0) {
         handlers.current.onReading?.({
@@ -575,20 +608,31 @@ export function TsPlayer({
 
   // 拡大の設定も、読み直さずに切り替える (#1654)。切り抜きを変えたときは、映る大きさが変わるので、大きさを決め直させる。
   // yadif は、同じものを渡し直すと、大きさを決め直し、拡大していれば最後のコマを描き直す。
-  // 鮮鋭化の強さを変えたときも渡し直し、止めている間でも、今のコマを新しい強さで描き直させる。
+  // 鮮鋭化の強さと拡大の方式 (#1653) を変えたときも渡し直し、止めている間でも、今のコマを新しい設定で描き直させる。
+  // 擬似 HDR (#1656) の切り替えも同じ。擬似 HDR で描いていた間に拡大と擬似 HDR のどちらも切ったときは、拡大の処理を
+  // 外さずに渡し直し、描画先を SDR に戻して最後のコマを描き直させる。外すと、yadif は描き直さないので、止めている間は
+  // 伸ばしたコマが残る。外すのは、次に設定を変えたときになる。
   const { scale: cropScale, stretchX: cropStretchX } = crop;
   useEffect(() => {
     for (const slot of [activeRef.current, pendingRef.current]) {
       if (slot?.yadif != null) {
-        slot.yadif.scaler = superResolution ? slot.upscaler : null;
+        slot.yadif.scaler =
+          superResolution || hdrOutput || slot.upscaler.hdr() ? slot.upscaler : null;
       }
     }
-  }, [superResolution, superResolutionStrength, cropScale, cropStretchX]);
+  }, [
+    superResolution,
+    superResolutionStrength,
+    superResolutionMethod,
+    hdrOutput,
+    cropScale,
+    cropStretchX,
+  ]);
 
-  // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
+  // destroySlot は、組を破棄する。yadif が包んだ要素ごと取り除く。
   const destroySlot = (slot: Slot) => {
     slot.destroyed = true;
-    // 補間と拡大の GL の資源は、yadif がコンテキストを手放す (プレイヤーを捨てるとき) より先に片付ける。
+    // 補間と拡大の GL の資源は、yadif がコンテキストを手放す (プレイヤーを破棄するとき) より先に片付ける。
     slot.interpolation.destroy();
     slot.upscaler.destroy();
     slot.player?.destroy();
@@ -597,7 +641,7 @@ export function TsPlayer({
     slot.container.remove();
   };
 
-  // promote は、裏で読み込んだ組を映し、それまで映っていた組を捨てる。音量と再生の速さは、前の映像から引き継ぐ。
+  // promote は、裏で読み込んだ組を映し、それまで映っていた組を破棄する。音量と再生の速さは、前の映像から引き継ぐ。
   const promote = (slot: Slot) => {
     const previous = activeRef.current;
     if (previous !== null) {
@@ -609,14 +653,14 @@ export function TsPlayer({
     }
     slot.container.style.visibility = '';
     // データ放送が、映っていた組を自分の中へ移しているなら、新しい組を同じ所に置く。外の CSS が届かないので、大きさをインラインで整える。
-    if (previous !== null && previous.container.parentNode !== mediaRef.current) {
+    if (previous !== null && previous.container.parentNode !== boxRef.current) {
       fitMedia([slot.container]);
       previous.container.replaceWith(slot.container);
     }
     pendingRef.current = null;
     activeRef.current = slot;
-    videoRef.current = slot.video;
-    handlers.current.onVideo?.(slot.video);
+    mediaRef.current = mediaOf(slot.video);
+    handlers.current.onMedia?.(mediaRef.current);
     if (previous !== null) {
       destroySlot(previous);
     }
@@ -630,14 +674,14 @@ export function TsPlayer({
   };
 
   useEffect(() => {
-    const media = mediaRef.current;
-    if (media === null) {
+    const box = boxRef.current;
+    if (box === null) {
       return;
     }
-    const slot = createSlot(media, false);
+    const slot = createSlot(box, false);
     activeRef.current = slot;
-    videoRef.current = slot.video;
-    handlers.current.onVideo?.(slot.video);
+    mediaRef.current = mediaOf(slot.video);
+    handlers.current.onMedia?.(mediaRef.current);
     void attachPlayer(slot).then((player) => {
       if (player !== null) {
         setReady(true);
@@ -652,11 +696,11 @@ export function TsPlayer({
       }
       pendingRef.current = null;
       activeRef.current = null;
-      videoRef.current = null;
-      handlers.current.onVideo?.(null);
+      mediaRef.current = null;
+      handlers.current.onMedia?.(null);
       setReady(false);
     };
-  }, [videoRef]);
+  }, [mediaRef]);
 
   useEffect(() => {
     for (const slot of [activeRef.current, pendingRef.current]) {
@@ -690,8 +734,8 @@ export function TsPlayer({
   useEffect(() => {
     const active = activeRef.current;
     const player = active?.player ?? null;
-    const media = mediaRef.current;
-    if (!ready || active === null || player === null || media === null) {
+    const box = boxRef.current;
+    if (!ready || active === null || player === null || box === null) {
       return;
     }
     if (url === null) {
@@ -705,7 +749,7 @@ export function TsPlayer({
     const sameScope = loadedScope.current === scopeRef.current;
     loadedScope.current = scopeRef.current;
     if (handoverRef.current && sameScope && hasPicture(active.video)) {
-      const slot = createSlot(media, true);
+      const slot = createSlot(box, true);
       pendingRef.current = slot;
       void attachPlayer(slot)
         .then(async (next) => {
@@ -718,7 +762,7 @@ export function TsPlayer({
           slot.bytesRead = 0;
           slot.origin = null;
           await next.load(url);
-          // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として知らせる。
+          // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として通知する。
           await Promise.race([firstPicture(slot.video), failureBeforePicture(next)]);
           // 切り替える前に、今の映像が進んだ分だけ進める。進めないと、裏で読み込んでいた間の分だけ巻き戻る (#1728)。
           // 裏で読み込んだ映像が失敗するか流し終えたら、進める先を待たずに切り替える。
@@ -751,7 +795,7 @@ export function TsPlayer({
 
       return () => {
         cancelled = true;
-        // 切り替える前に URL が変わったら、裏で読み込んでいた組を捨てる。
+        // 切り替える前に URL が変わったら、裏で読み込んでいた組を破棄する。
         if (pendingRef.current === slot) {
           pendingRef.current = null;
           destroySlot(slot);
@@ -763,7 +807,7 @@ export function TsPlayer({
     active.load = ++loads;
     active.stats = null;
     active.bytesRead = 0;
-    // 新しい読み込みの起点が届くまで、前の読み込みの起点で放送からの遅れを測らない (#1733)。
+    // 新しい読み込みの起点が届くまで、前の読み込みの起点で放送からの遅れを計測しない (#1733)。
     active.origin = null;
     player.load(url).then(
       () => {
@@ -771,7 +815,7 @@ export function TsPlayer({
           handlers.current.onLoaded?.();
         }
       },
-      // 失敗は error のイベントでも届くので、ここでは捨てる。
+      // 失敗は error のイベントでも届くので、ここでは破棄する。
       () => {},
     );
 
@@ -786,7 +830,7 @@ export function TsPlayer({
     };
   }, [ready, url]);
 
-  // 再生しているのに映像が進まなければ、配信が切れたとみなして、エラーとして知らせる。利用者が止めたとき、シークしているとき、
+  // 再生しているのに映像が進まなければ、配信が切れたとみなして、エラーとして通知する。利用者が止めたとき、シークしているとき、
   // 終わりまで再生したときは見張らない。読み込んで映像が出るまでも見張らない。
   useEffect(() => {
     if (!ready || url === null) {
@@ -833,7 +877,7 @@ export function TsPlayer({
         data-fill={crop.fill === true && isCropped(crop) ? '' : undefined}
       >
         <div
-          ref={mediaRef}
+          ref={boxRef}
           className={classes.media}
           style={{ ...cropStyle(crop), ...brightnessStyle(brightness) }}
         />

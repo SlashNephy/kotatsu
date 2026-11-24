@@ -13,7 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 )
 
-// TestRecorderWarnsScrambledRecordings は、スクランブルされたまま録れた録画を、失敗にせず、警告の印を付けて完了の通知に添えることを確かめる (#1517)。
+// TestRecorderWarnsScrambledRecordings は、スクランブルされたまま録れた録画を、失敗にせず、警告のフラグを立てて完了の通知に添えることを確認する (#1517)。
 func TestRecorderWarnsScrambledRecordings(t *testing.T) {
 	t.Parallel()
 
@@ -74,7 +74,7 @@ func TestRecorderWarnsScrambledRecordings(t *testing.T) {
 }
 
 // continuousRepeat は、TS data を n 回つなぎ、continuity_counter を PID ごとに通し番号に振り直す。
-// つなぎ目でドロップを数えないようにし、ドロップのない録画として確かめるのに使う。
+// つなぎ目でドロップを数えないようにし、ドロップのない録画として確認するのに使う。
 func continuousRepeat(data []byte, n int) []byte {
 	repeated := bytes.Repeat(data, n)
 	counters := map[uint16]byte{}

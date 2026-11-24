@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,7 +45,7 @@ func noCaptureTime() EPGCaptureTime {
 	return EPGCaptureTime{Weekday: time.Sunday, Daily: false, Minute: 0}
 }
 
-// next は、now 以後で最も近い取得の時刻を返す。時刻は JST で数える。秒以下は切り捨てた分で比べる (ReserveManager.cpp の
+// next は、now 以後で最も近い取得の時刻を返す。時刻は JST で数える。秒以下は切り捨てた分で比較する (ReserveManager.cpp の
 // GetNextEpgCapTime と同じ)。
 func (t EPGCaptureTime) next(now time.Time) time.Time {
 	wall := now.In(jst()).Truncate(time.Minute)
@@ -168,12 +170,14 @@ func ParseTimerSettings(data []byte) *TimerSettings {
 	}
 	capture := sections["epg_cap"]
 	count, ok := atoi(capture["count"])
-	if !ok {
+	// EpgTimerSrv は、Count を既定値 INT_MAX で読み、INT_MAX なら未設定とみなす (EpgTimerSrvSetting.cpp)。
+	if !ok || count == math.MaxInt32 {
 		settings.EPGCaptureTimes = []EPGCaptureTime{{Weekday: time.Sunday, Daily: true, Minute: defaultEPGCaptureMinute}}
 
 		return settings
 	}
-	for i := range max(0, count) {
+	// 番号を 0 から Count まで数えず、節にある番号のキーだけを見る。大きな Count で、何億回も回らないためである (#1981)。
+	for _, i := range captureIndexes(capture, count) {
 		key := strconv.Itoa(i)
 		if selected, _ := atoi(capture[key+"select"]); selected == 0 {
 			continue
@@ -184,6 +188,22 @@ func ParseTimerSettings(data []byte) *TimerSettings {
 	}
 
 	return settings
+}
+
+// captureIndexes は、[EPG_CAP] にある時刻の番号のうち、Count より小さいものを小さい順に返す。
+func captureIndexes(capture map[string]string, count int) []int {
+	indexes := []int{}
+	for key := range capture {
+		i, err := strconv.Atoi(key)
+		// 「01」のような書き方は、EpgTimerSrv が読む「1」のキーとは別のキーなので数えない。
+		if err != nil || i < 0 || i >= count || strconv.Itoa(i) != key {
+			continue
+		}
+		indexes = append(indexes, i)
+	}
+	slices.Sort(indexes)
+
+	return indexes
 }
 
 // parseCaptureTime は、「23:00」や「4:30w1」の形の EPG の取得の時刻を読む。曜日は w1 が月曜、w7 が日曜。

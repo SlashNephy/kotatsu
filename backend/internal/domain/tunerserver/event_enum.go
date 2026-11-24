@@ -21,6 +21,8 @@ const (
 	EventTypeServiceChanged EventType = "service-changed"
 	// チューナーの状態か構成が変わったこと。
 	EventTypeTunerChanged EventType = "tuner-changed"
+	// 番組表の全体が変わったかもしれないこと。どのサービスの番組が変わったかは持たない。
+	EventTypeEPGChanged EventType = "epg-changed"
 )
 
 var ErrInvalidEventType = errors.New("not a valid EventType")
@@ -33,6 +35,7 @@ func EventTypeValues() []EventType {
 		EventTypeProgramRemoved,
 		EventTypeServiceChanged,
 		EventTypeTunerChanged,
+		EventTypeEPGChanged,
 	}
 }
 
@@ -54,6 +57,7 @@ var _EventTypeValue = map[string]EventType{
 	"program-removed": EventTypeProgramRemoved,
 	"service-changed": EventTypeServiceChanged,
 	"tuner-changed":   EventTypeTunerChanged,
+	"epg-changed":     EventTypeEPGChanged,
 }
 
 // ParseEventType attempts to convert a string to a EventType.

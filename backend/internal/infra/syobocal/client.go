@@ -39,7 +39,7 @@ const (
 	// FlagNew、FlagFinal、FlagRerun は、放送時間データのフラグ (https://docs.cal.syoboi.jp/spec/proginfo-flag/)。
 	FlagNew   = 0x2
 	FlagFinal = 0x4
-	// FlagRerun は、再放送の印 (#1233)。
+	// FlagRerun は、再放送のマーク (#1233)。
 	FlagRerun = 0x8
 	// MaxChannelsPerRequest は、1 回の ProgLookup に並べるチャンネルの数の上限。URL を長くしすぎず、5,000 件の上限にも当たらないようにする。
 	MaxChannelsPerRequest = 10
@@ -74,7 +74,7 @@ type Program struct {
 	Count string
 	// SubTitle は、放送時間データのサブタイトル。複数話をまとめて放送するときは "#1～#2" のように書かれる。
 	SubTitle string
-	// STSubTitle は、タイトルのサブタイトルの表から引いた、その話のサブタイトル (JOIN=SubTitles)。
+	// STSubTitle は、タイトルのサブタイトルのテーブルから引いた、その話のサブタイトル (JOIN=SubTitles)。
 	STSubTitle string
 	Flag       int32
 	Deleted    bool

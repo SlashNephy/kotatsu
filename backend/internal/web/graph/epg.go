@@ -47,7 +47,7 @@ func parseServiceGlobalID(globalID string) (int64, error) {
 	return parseServiceID(raw)
 }
 
-// parseServiceID は、Service の ID の中身から、Mirakurun のサービス ID を取り出す。
+// parseServiceID は、Service の ID の内容から、Mirakurun のサービス ID を取り出す。
 func parseServiceID(raw string) (int64, error) {
 	id, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
@@ -95,6 +95,7 @@ func toService(row *domain.Service) *model.Service {
 		RemoteControlKeyID: key,
 		Hidden:             row.Hidden,
 		SortOrder:          order,
+		Gone:               row.Gone,
 		// ロゴの番号は 0 もある (NHK など) ので、nil かどうかで見る。
 		HasLogo:        row.LogoID != nil,
 		ChannelTypeKey: row.ChannelType,
@@ -102,7 +103,8 @@ func toService(row *domain.Service) *model.Service {
 }
 
 func toChannelType(row *domain.ChannelType) *model.ChannelType {
-	return &model.ChannelType{Type: row.Type, DisplayName: row.DisplayName, SortOrder: int(row.SortOrder)}
+	// サービスを持つかどうかは、リゾルバが dataloader で取得する。
+	return &model.ChannelType{Type: row.Type, DisplayName: row.DisplayName, SortOrder: int(row.SortOrder), HasServices: false}
 }
 
 // toExtendedItems は、番組の詳細の JSON (見出しから本文への対応) を、見出しの順に並べる。

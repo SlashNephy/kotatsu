@@ -107,14 +107,14 @@ type Conditions struct {
 	MaxDurationSeconds *int `json:"maxDurationSeconds,omitempty"`
 	// FreeOnly は、無料放送に限るかどうか。
 	FreeOnly bool `json:"freeOnly"`
-	// Marks は、番組名の囲み文字 (中身で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。
+	// Marks は、番組名の囲み文字 (内容で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。
 	// ExcludeMarks は、どれか 1 つを持つ番組を除外する。
 	// 項目を足す前のバイナリも条件を読めるよう、空なら保存しない。
 	Marks        []string `json:"marks,omitempty"`
 	ExcludeMarks []string `json:"excludeMarks,omitempty"`
 }
 
-// Validate は、条件が正しいかを確かめる。正しくなければ、理由をすべてまとめた ErrInvalidConditions を返す。
+// Validate は、条件が正しいかを確認する。正しくなければ、理由をすべてまとめた ErrInvalidConditions を返す。
 func (c *Conditions) Validate() error {
 	if c == nil {
 		return invalid("conditions must not be null")
@@ -164,7 +164,7 @@ func (c *Conditions) Validate() error {
 
 // HasTarget は、番組を選ぶ条件 (含めるキーワード、チャンネル種別、サービス、ジャンル、含める囲み文字) があるかどうかを返す (#1501)。
 // 時間帯と曜日、番組の長さ、無料放送、除外の条件は、絞り込みとしてだけ効く。それだけの条件は、その時間の全局に一致する。
-// 番組の検索や視聴ルールでは、そうした条件も使えるので、Validate では断らない。録画のルールが、保存と照合のときに確かめる。
+// 番組の検索や視聴ルールでは、そうした条件も使えるので、Validate では断らない。録画のルールが、保存と照合のときに確認する。
 func (c *Conditions) HasTarget() bool {
 	if c == nil {
 		return false

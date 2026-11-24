@@ -77,7 +77,7 @@ func (f *fixture) groupOf(t *testing.T, ruleID string) string {
 	return got.Node.Group.Name
 }
 
-// TestUpdateRuleGroup は、updateRule で groupId を省くとグループを残し、null を送るとグループから外すことを確かめる (#1493)。
+// TestUpdateRuleGroup は、updateRule で groupId を省くとグループを残し、null を送るとグループから外すことを確認する (#1493)。
 func TestUpdateRuleGroup(t *testing.T) {
 	t.Parallel()
 
@@ -109,7 +109,7 @@ func TestUpdateRuleGroup(t *testing.T) {
 	}
 }
 
-// TestRuleGroups は、グループを作り、名前を変え、並べ直し、node で引き、消せることを確かめる。
+// TestRuleGroups は、グループを作り、名前を変え、並べ直し、node で引き、消せることを確認する。
 // グループを消すと、中のルールはどのグループにも入らないルールに戻る。
 func TestRuleGroups(t *testing.T) {
 	t.Parallel()
@@ -150,7 +150,7 @@ func TestRuleGroups(t *testing.T) {
 	assert.Empty(t, f.groupOf(t, ruleID))
 }
 
-// TestSetRulesGroup は、ルールをまとめてグループに移し、見つからないルールを飛ばして数えることを確かめる。
+// TestSetRulesGroup は、ルールをまとめてグループに移し、見つからないルールを飛ばして数えることを確認する。
 func TestSetRulesGroup(t *testing.T) {
 	t.Parallel()
 
@@ -180,7 +180,7 @@ func TestSetRulesGroup(t *testing.T) {
 	assert.Equal(t, animeLabel, f.groupOf(t, ids[1]))
 }
 
-// TestRuleGroupErrors は、視聴者がグループを変えられず、読めることと、正しくない入力のエラーコードを確かめる。
+// TestRuleGroupErrors は、視聴者がグループを変えられず、読めることと、正しくない入力のエラーコードを確認する。
 func TestRuleGroupErrors(t *testing.T) {
 	t.Parallel()
 

@@ -18,7 +18,7 @@ var (
 	ErrInvalidID = errors.New("invalid global ID")
 )
 
-// EncodeCursor は、一覧の位置を、クライアントが中身を解釈しないカーソル (Relay の Cursor Connections) にする。
+// EncodeCursor は、一覧の位置を、クライアントが内容を解釈しないカーソル (Relay の Cursor Connections) にする。
 // position には、並べ替えのキー (日時と ID など) を JSON にできる形で渡す。
 func EncodeCursor(position any) (string, error) {
 	b, err := json.Marshal(struct {

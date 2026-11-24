@@ -22,7 +22,7 @@ const (
 	annictAPIURL = "https://api.annict.com"
 	// annictEpisodesPage は、作品のエピソードを 1 回に引く数。
 	annictEpisodesPage = 100
-	// annictMaxEpisodePages は、エピソードを引くページの数の上限。長く続く作品でも、1,000 話までは引く。
+	// annictMaxEpisodePages は、エピソードを取得するページの数の上限。長く続く作品でも、1,000 話までは取得する。
 	annictMaxEpisodePages = 10
 	// annictWatching は、Annict の作品の状態の「見てる」。
 	annictWatching = "WATCHING"
@@ -139,8 +139,8 @@ type annictEpisode struct {
 	Title      *string `json:"title"`
 }
 
-// RecordEpisode は、話を Annict に記録する。エピソードのない作品 (劇場版など) は、作品を「見た」にする。
-// エピソードは、ユーザーのトークンで引き、話数、話数の文字列 (第1話、#1)、サブタイトルの順で照らし合わせる。
+// RecordEpisode は、話を Annict に記録する。エピソードのない作品 (映画など) は、作品を「見た」にする。
+// エピソードは、ユーザーのトークンで引き、話数、話数の文字列 (第1話、#1)、サブタイトルの順で照合する。
 // 作品が複数あれば、エピソードが見つかった最初の作品に記録する。
 func (a *Annict) RecordEpisode(ctx context.Context, token string, workIDs []int32, episode *Episode, rules *StatusRules) (*Recorded, error) {
 	if len(workIDs) == 0 {
@@ -495,7 +495,7 @@ func (a *Annict) episodes(ctx context.Context, token string, workID int32) ([]*a
 }
 
 // findAnnictEpisode は、Annict のエピソードから、話 episode に当たるものを探す。なければ nil を返す。
-// 話数、話数の文字列 (第1話、#1。Annict には、まれに number だけがないデータがある)、サブタイトルの順に照らし合わせる。
+// 話数、話数の文字列 (第1話、#1。Annict には、まれに number だけがないデータがある)、サブタイトルの順に照合する。
 func findAnnictEpisode(episodes []*annictEpisode, episode *Episode) *annictEpisode {
 	if episode.Number != nil {
 		number := *episode.Number

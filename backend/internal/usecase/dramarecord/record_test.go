@@ -19,8 +19,8 @@ const (
 	thirdPending  = "1:3:pending"
 )
 
-// TestRecord は、ドラマの番組を、見たと判定する割合まで見たら、結びついた話を Simkl の /sync/history に TMDb の ID で送り、
-// 結果を見たユーザーに通知することを確かめる (#1649)。
+// TestRecord は、ドラマの番組を、見たと判定する割合まで見たら、結びついた話を Simkl の /sync/history に TMDB の ID で送り、
+// 結果を見たユーザーに通知することを確認する (#1649)。
 func TestRecord(t *testing.T) {
 	t.Parallel()
 
@@ -88,15 +88,15 @@ func TestRecord(t *testing.T) {
 			f.simkl.Unlock()
 			require.Len(t, history, tt.wantHistory)
 			if tt.wantHistory > 0 {
-				assert.Equal(t, &simkltest.Watched{TMDbID: "9001", Season: 1, Episode: 3, WatchedAt: testNow().Format(time.RFC3339)}, history[0],
-					"the episode is sent by its TMDb ID, with the time it was judged as watched")
+				assert.Equal(t, &simkltest.Watched{TMDBID: "9001", Season: 1, Episode: 3, WatchedAt: testNow().Format(time.RFC3339)}, history[0],
+					"the episode is sent by its TMDB ID, with the time it was judged as watched")
 			}
 			assert.Equal(t, tt.wantNotified, f.notifications(t))
 		})
 	}
 }
 
-// TestRecordOnce は、同じユーザー、番組、話、記録先の組を 1 回だけ記録することを確かめる。見続けても、見直しても送り直さない。
+// TestRecordOnce は、同じユーザー、番組、話、記録先の組を 1 回だけ記録することを確認する。見続けても、見直しても送り直さない。
 // 連携していないユーザーの番組は、記録しない。
 func TestRecordOnce(t *testing.T) {
 	t.Parallel()
@@ -121,7 +121,7 @@ func TestRecordOnce(t *testing.T) {
 	assert.Equal(t, []string{thirdRecorded}, f.records(t, f.alice.UserID))
 }
 
-// TestRecordRefreshesTokens は、アクセストークンが切れていたら更新してから送り、断られたら更新して 1 回だけ送り直すことを確かめる。
+// TestRecordRefreshesTokens は、アクセストークンが切れていたら更新してから送り、断られたら更新して 1 回だけ送り直すことを確認する。
 // 更新のトークンが断られたら、連携し直すまで送らない。
 func TestRecordRefreshesTokens(t *testing.T) {
 	t.Parallel()
@@ -177,7 +177,7 @@ func TestRecordRefreshesTokens(t *testing.T) {
 }
 
 // TestRecordedSeriesIsNotImported は、Kotatsu から記録したことで Simkl が作品を「見ている」に入れても、次の取り込みで、
-// 見ただけの作品を見ている作品に足さないことを確かめる (設計書 3.9 の、見ている作品に入れていない作品の話も見た話にする決まり)。
+// 見ただけの作品を見ている作品に足さないことを確認する (設計書 3.9 の、見ている作品に入れていない作品の話も見た話にする決まり)。
 func TestRecordedSeriesIsNotImported(t *testing.T) {
 	t.Parallel()
 

@@ -19,7 +19,7 @@ import (
 // testTitle は、番組名の解析のテストに使う作品名。
 const testTitle = "テスト作品"
 
-// TestParseTitle は、番組名から作品名と話数を読み取ることを確かめる。
+// TestParseTitle は、番組名から作品名と話数を読み取ることを確認する。
 func TestParseTitle(t *testing.T) {
 	t.Parallel()
 
@@ -80,7 +80,7 @@ func TestParseTitle(t *testing.T) {
 	}
 }
 
-// TestTitleKey は、作品名を、全角と半角、空白、大文字と小文字によらずに引けるようにすることを確かめる。
+// TestTitleKey は、作品名を、全角と半角、空白、大文字と小文字によらずに引けるようにすることを確認する。
 func TestTitleKey(t *testing.T) {
 	t.Parallel()
 
@@ -88,7 +88,7 @@ func TestTitleKey(t *testing.T) {
 	assert.NotEqual(t, anime.TitleKey("リピート作品"), anime.TitleKey("リピート作品2"))
 }
 
-// TestImportTitles は、しょぼいカレンダーのタイトルの一覧を、2 回目からは前に取り込んだ後の更新だけ引くことを確かめる。
+// TestImportTitles は、しょぼいカレンダーのタイトルの一覧を、2 回目からは前に取り込んだ後の更新だけ引くことを確認する。
 func TestImportTitles(t *testing.T) {
 	t.Parallel()
 
@@ -96,7 +96,7 @@ func TestImportTitles(t *testing.T) {
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
 	titles := NewMockTitleFetcher(gomock.NewController(t))
-	// 1 回目はすべてのタイトルを引き、2 回目は前に取り込んだ後の更新だけを引く。
+	// 1 回目はすべてのタイトルを取得し、2 回目は前に取り込んだ後の更新だけを取得する。
 	previous := time.Date(2026, 9, 30, 1, 0, 0, 0, time.UTC)
 	gomock.InOrder(
 		titles.EXPECT().
@@ -113,7 +113,7 @@ func TestImportTitles(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestMatchTitleFallback は、しょぼいカレンダーで引けない番組を、番組名を解析して話に結びつけることを確かめる。
+// TestMatchTitleFallback は、しょぼいカレンダーで引けない番組を、番組名を解析して話に結びつけることを確認する。
 // ChID のないサービスの番組 (アニメ専門チャンネルのリピート放送など) も、しょぼいカレンダーに問い合わせずに結びつける。
 // 作品名が 1 つのタイトルだけに一致すれば TID を付け、複数に一致すれば付けない。
 func TestMatchTitleFallback(t *testing.T) {
@@ -122,7 +122,7 @@ func TestMatchTitleFallback(t *testing.T) {
 	db, _, client, matcher := newMatchFixture(t)
 	insertNamedProgram(t, db, csService, 1, jst(2, 3, 0), jst(2, 3, 30), "[字][再]リピート作品 #12「おわり」")
 	insertNamedProgram(t, db, grService, 9, jst(2, 4, 0), jst(2, 4, 30), "同名作品 #3")
-	// 囲み文字の 🈞 も、再放送の印として読む。
+	// 囲み文字の 🈞 も、再放送のマークとして読む。
 	insertNamedProgram(t, db, csService, 2, jst(2, 5, 0), jst(2, 5, 30), "🈞リピート作品 #13")
 	_, err := matcher.MatchHorizon(t.Context())
 	require.NoError(t, err)
@@ -144,8 +144,8 @@ func TestMatchTitleFallback(t *testing.T) {
 	assert.Equal(t, anime.SourceTitle, source)
 }
 
-// TestMatchSeriesFallback は、番組名に話数がなければ、シリーズの記述子の話数で話に結びつけることを確かめる (#1311)。
-// 記述子の再放送の印も読む。番組名に話数があれば、記述子の話数と食い違っても、番組名の話数を使う。
+// TestMatchSeriesFallback は、番組名に話数がなければ、シリーズの記述子の話数で話に結びつけることを確認する (#1311)。
+// 記述子の再放送のマークも読む。番組名に話数があれば、記述子の話数と食い違っても、番組名の話数を使う。
 func TestMatchSeriesFallback(t *testing.T) {
 	t.Parallel()
 
@@ -225,7 +225,7 @@ func recordingEpisodes(t *testing.T, db *pgxpool.Pool, recordingID uuid.UUID) []
 	return counts
 }
 
-// TestCopyToRecording は、録画を始めたときに番組の結びつきを写し、放送が終わった後の確定で直った結びつきも写し直すことを確かめる。
+// TestCopyToRecording は、録画を始めたときに番組の結びつきをコピーし、放送が終わった後の確定で直った結びつきもコピーし直すことを確認する。
 func TestCopyToRecording(t *testing.T) {
 	t.Parallel()
 
@@ -236,14 +236,14 @@ func TestCopyToRecording(t *testing.T) {
 	require.NoError(t, anime.CopyToRecording(t.Context(), db, recordingID, grService, jst(2, 0, 30), clk.Now()))
 	assert.Equal(t, []float64{1, 2}, recordingEpisodes(t, db, recordingID))
 
-	// 再放送の印も写す (#1233)。
+	// 再放送のマークもコピーする (#1233)。
 	rerun := insertRecording(t, db, bsService, jst(2, 22, 0), jst(2, 23, 0), false)
 	require.NoError(t, anime.CopyToRecording(t.Context(), db, rerun, bsService, jst(2, 22, 0), clk.Now()))
 	var copied bool
 	require.NoError(t, db.QueryRow(t.Context(), `SELECT bool_and(is_rerun) FROM recording_anime_episodes WHERE recording_id = $1`, rerun).Scan(&copied))
 	assert.True(t, copied)
 
-	// 照合していない番組の録画には、何も写さない。
+	// 照合していない番組の録画には、何もコピーしない。
 	other := insertRecording(t, db, grService, jst(2, 1, 30), jst(2, 2, 0), false)
 	require.NoError(t, anime.CopyToRecording(t.Context(), db, other, grService, jst(2, 1, 30), clk.Now()))
 	assert.Nil(t, recordingEpisodes(t, db, other))
@@ -258,8 +258,8 @@ func TestCopyToRecording(t *testing.T) {
 	assert.Equal(t, []float64{1, 3}, recordingEpisodes(t, db, recordingID), "the corrected link is copied again")
 }
 
-// TestMatchImported は、EPGStation から取り込んだ録画を、録画のサービスと開始時刻で照合し、照合した録画は照合し直さないことを確かめる。
-// 番組を照合していれば、しょぼいカレンダーに問い合わせずに写す。
+// TestMatchImported は、EPGStation から取り込んだ録画を、録画のサービスと開始時刻で照合し、照合した録画は照合し直さないことを確認する。
+// 番組を照合していれば、しょぼいカレンダーに問い合わせずにコピーする。
 func TestMatchImported(t *testing.T) {
 	t.Parallel()
 
@@ -271,7 +271,7 @@ func TestMatchImported(t *testing.T) {
 	// 番組を照合した録画と、番組表にない古い録画。
 	copied := insertRecording(t, db, grService, jst(2, 0, 0), jst(2, 0, 30), true)
 	old := insertRecording(t, db, bsService, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), true)
-	// 写しが入る前に Kotatsu で録った番組の録画も照合する (#1658)。時刻予約の録画 (event_id がない) は照合しない。
+	// コピーが入る前に Kotatsu で録った番組の録画も照合する (#1658)。時刻予約の録画 (event_id がない) は照合しない。
 	recorded := insertRecording(t, db, bsService, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), false)
 	_, err = db.Exec(t.Context(), `UPDATE recordings SET event_id = 1 WHERE id = $1`, recorded)
 	require.NoError(t, err)
@@ -298,7 +298,7 @@ func TestMatchImported(t *testing.T) {
 }
 
 // TestMatchImportedLongRecording は、それだけで問い合わせの上限 (14 の ChID と日の組) を超える、15 日以上にまたがる取り込み録画が
-// 古い順の先頭にあっても、後の録画の照合を続けることを確かめる (#1417)。そのような録画は、しょぼいカレンダーに問い合わせず、
+// 古い順の先頭にあっても、後の録画の照合を続けることを確認する (#1417)。そのような録画は、しょぼいカレンダーに問い合わせず、
 // 番組名の解析で照合する。終わりが遠い未来の録画でも、問い合わせる日を並べない。
 func TestMatchImportedLongRecording(t *testing.T) {
 	t.Parallel()

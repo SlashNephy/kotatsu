@@ -29,7 +29,7 @@ import (
 
 //go:generate go tool go-enum --values --nocomments
 
-// Dialect は、EPGStation が対応する DB の種類。値はすべて、テストで確かめる。
+// Dialect は、EPGStation が対応する DB の種類。値はすべて、テストで確認する。
 //
 // ENUM(SQLite = sqlite, MySQL = mysql, MariaDB = mariadb)
 type Dialect string

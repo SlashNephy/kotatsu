@@ -16,7 +16,7 @@ UPDATE system_settings SET recording_defaults = @recording_defaults, archive_ret
   iptv_feeds_enabled = @iptv_feeds_enabled, recording_downloads_enabled = @recording_downloads_enabled, tvtplay_chapters_enabled = @tvtplay_chapters_enabled, cm_detector = @cm_detector, epgstation_api_enabled = @epgstation_api_enabled, anime_linking_enabled = @anime_linking_enabled, drama_linking_enabled = @drama_linking_enabled, comment_sources = @comment_sources,
   drcs_replacements = @drcs_replacements, timeshift_while_watching = @timeshift_while_watching,
   timeshift_while_watching_retention_seconds = @timeshift_while_watching_retention_seconds,
-  rule_unmatched_grace_minutes = @rule_unmatched_grace_minutes, audit_retention_days = @audit_retention_days,
+  history_max_drops = @history_max_drops, audit_retention_days = @audit_retention_days,
   audit_client_info_retention_days = @audit_client_info_retention_days, hibp_enabled = @hibp_enabled, web_push_subject = @web_push_subject,
   thumbnail_previews_enabled = @thumbnail_previews_enabled, sleep_control_enabled = @sleep_control_enabled, caption_threads = @caption_threads,
   jikkyo_channels = @jikkyo_channels,
@@ -37,5 +37,5 @@ RETURNING *;
 SELECT id, hidden, sort_order FROM services WHERE id = @id FOR UPDATE;
 
 -- name: UpdateServiceDisplay :exec
--- 番組表に出さない印と、並び順の上書きを変える。EPG の同期は、この 2 つを上書きしない (設計書 8.2)。
+-- 番組表に出さないマークと、並び順の上書きを変える。EPG の同期は、この 2 つを上書きしない (設計書 8.2)。
 UPDATE services SET hidden = @hidden, sort_order = sqlc.narg(sort_order), updated_at = @now WHERE id = @id;

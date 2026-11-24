@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { fontAwareRenderer } from './captions';
 
-// FakeRenderer は、描いた字幕を覚えるだけの、aribb24.js の CanvasMainThreadRenderer の代わり。
+// FakeRenderer は、描いた字幕を記録するだけの、aribb24.js の CanvasMainThreadRenderer の代わり。
 class FakeRenderer {
   readonly rendered: string[] = [];
   render(_state: unknown, tokens: { tag: string; character?: string }[]): void {
@@ -14,7 +14,7 @@ class FakeRenderer {
 }
 
 const characters = (text: string) =>
-  [...text].map((character) => ({ tag: 'Character', character }));
+  Array.from(text, (character) => ({ tag: 'Character', character }));
 // extended は、JIS X 0213 で足された漢字 (後の面の字)。basic は、JIS X 0208 の字だけの文。
 const extended = '\u{3406}';
 const basic = '今日の天気';
@@ -78,7 +78,7 @@ describe('fontAwareRenderer', () => {
     render(renderer, extended);
     next(renderer);
     font.resolve();
-    // 待った後の描画が走る機会を与えてから確かめる。
+    // 待った後の描画が走る機会を与えてから確認する。
     await new Promise((done) => setTimeout(done, 0));
     expect(renderer.rendered).toEqual(want);
   });

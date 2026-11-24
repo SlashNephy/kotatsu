@@ -111,7 +111,7 @@ describe('visibleRules', () => {
       ['anime', 'news', 'ended', 'expired', 'notYet'],
     ],
     ['無効だけ', { state: 'disabled' }, ['disabled', 'expiredDisabled']],
-    // 一覧の「期間外」の印は、有効なルールにだけ出すので、無効で期間の切れたルールは含めない。
+    // 一覧の「期間外」のマークは、有効なルールにだけ出すので、無効で期間の切れたルールは含めない。
     [
       '期間外は、有効で、期間が切れたか、まだ始まっていないもの',
       { state: 'outOfValidity' },

@@ -13,7 +13,7 @@ import (
 )
 
 // retention は、書き直されなくなった進み具合を残す時間。River が完了したジョブを消す (既定は 24 時間) のに合わせる。
-// River の表には外部キーを張れないので、終えたジョブの行は、後のジョブが書き始めるときにまとめて消す。
+// River のテーブルには外部キーを張れないので、終えたジョブの行は、後のジョブが書き始めるときにまとめて消す。
 const retention = 24 * time.Hour
 
 // Saver は、River のジョブ jobID の試行 attempt の進み具合を書く ffprogress.SaveFunc を返す。

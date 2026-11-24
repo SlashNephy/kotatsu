@@ -51,7 +51,7 @@ type Props = {
 };
 
 // FileNameTemplateField は、ファイル名のテンプレートの入力欄 (設計書 4.7)。入力が止まったら、番組を当てはめたファイル名を
-// サーバーで求めて示し、Go のテンプレートを書かない利用者のために、使える書き方を表にして示す。
+// サーバーで求めて示し、Go のテンプレートを書かない利用者のために、使える書き方をテーブルにして示す。
 export function FileNameTemplateField({
   label,
   description,
@@ -253,7 +253,7 @@ function Preview({ template, program }: { template: string; program: string | nu
   );
 }
 
-// Help は、使える書き方の表と、よく使うテンプレートを示す。行を押すとカーソルの位置に差し込み、よく使うテンプレートを押すと置き換える。
+// Help は、使える書き方のテーブルと、よく使うテンプレートを示す。行を押すとカーソルの位置に差し込み、よく使うテンプレートを押すと置き換える。
 function Help({
   onInsert,
   onReplace,

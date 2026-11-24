@@ -9,11 +9,9 @@ import (
 )
 
 // markPattern は、番組名に付く放送の種類の記号 ([新]、【再】、(字) など)。
-// 括弧の中が、ARIB の記号に使われる語に限って取り除く。番組名の一部の括弧は残す。
+// 括弧の中が、囲み文字のテーブルの内容 (domain.BracketMarkWords) と (他) に限って取り除く。番組名の一部の括弧は残す。
 // [前] と [後] (前編と後編) や [劇場版] は、別の番組を見分ける語なので取り除かない。
-var markPattern = regexp.MustCompile(`[\[【(（]` +
-	`(?:新|再|字|終|二|多|解|デ|S|SS|無|映|双|天|生|吹|手|N|B|HV|SD|PPV|MV|料|初|販|他|吹替|字幕|5\.1|ﾃﾞ|無料)` +
-	`[\]】)）]`)
+var markPattern = regexp.MustCompile(`[\[【(（](?:` + domain.BracketMarkWords() + `|他)[\]】)）]`)
 
 // TitleKey は、重複の回避に使う番組名のキーを返す (設計書 4.4)。
 //
@@ -35,7 +33,8 @@ func TitleKey(name string) string {
 	return strings.Join(strings.FieldsFunc(name, unicode.IsSpace), " ")
 }
 
-// isEnclosedMark は、ARIB の囲み文字 (Enclosed Alphanumeric Supplement と Enclosed Ideographic Supplement) かどうかを返す。
+// isEnclosedMark は、ARIB の囲み文字 (Enclosed Alphanumeric Supplement と Enclosed Ideographic Supplement の文字と、
+// テーブルにある ⚿ のようなほかの範囲の文字) かどうかを返す。
 func isEnclosedMark(r rune) bool {
-	return (r >= 0x1F100 && r <= 0x1F1FF) || (r >= 0x1F200 && r <= 0x1F2FF)
+	return (r >= 0x1F100 && r <= 0x1F2FF) || domain.IsEnclosedCharacter(r)
 }

@@ -55,7 +55,7 @@ func dword(n int) uint32 {
 	return uint32(n)
 }
 
-// service は、EPGDB_SERVICE_INFO を組む。extra は、新しい版が末尾に足した項目を真似る。
+// service は、EPGDB_SERVICE_INFO を組む。extra は、新しいバージョンが末尾に足した項目を真似る。
 func service(name string, extra payload) payload {
 	body := payload{}.u16(1).u16(2).u16(3).u8(1).u8(0).str("").str(name).str("").str("").u8(5).append(extra)
 
@@ -90,7 +90,7 @@ func TestServiceNames(t *testing.T) {
 func TestServicesSkipUnknownTrailingFields(t *testing.T) {
 	t.Parallel()
 
-	// 新しい版の EpgTimerSrv が構造体の末尾に項目を足しても、知っている項目だけを読み、次の構造体から続けて読む。
+	// 新しいバージョンの EpgTimerSrv が構造体の末尾に項目を足しても、知っている項目だけを読み、次の構造体から続けて読む。
 	extra := payload{}.u32(0xDEADBEEF).str("unknown")
 	s := newFakeServer(t, map[uint32]reply{1021: {status: 1, payload: vector(service("A", extra), service("B", nil)), stream: nil, hold: false, drop: false}})
 	got, err := s.client(t).Services(t.Context())
@@ -115,7 +115,7 @@ func TestServicesRejectMalformed(t *testing.T) {
 		{name: "vector count beyond the payload", in: payload{}.u32(12).u32(1_000_000).u32(4)},
 		{name: "struct larger than the payload", in: vector(payload{}.u32(1000))},
 		{name: "string smaller than its own size", in: vector(sized(payload{}.u16(1).u16(2).u16(3).u8(1).u8(0).u32(3)))},
-		// 構造体の中身が、項目を読み終える前に尽きる。
+		// 構造体の内容が、項目を読み終える前に尽きる。
 		{name: "struct shorter than its fields", in: vector(sized(payload{}.u16(1)))},
 	}
 	for _, tt := range tests {

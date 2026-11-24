@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { emptyConditions, emptyKeyword } from '../conditions/form';
 
-// HeaderSearch は、ヘッダーに出す、番組検索の入り口 (#1627)。
+// HeaderSearch は、ヘッダーに出す、番組検索の入力欄 (#1627)。
 // 場所を取らないよう虫眼鏡のアイコンにし、押すと入力欄をポップオーバーで出す。Enter で、打った言葉を番組名のキーワードにして
 // 番組検索の画面へ移る。何も打たずに Enter を押したら、条件を入れずに番組検索の画面を開く。
 // 通知のベル (NotificationBell) と同じく、名前はツールチップと読み上げで補う。

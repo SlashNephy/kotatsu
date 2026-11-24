@@ -9,7 +9,7 @@ import { audioLanguages, useAudioLanguage, type AudioLanguage } from './audioLan
 import { audioDelayStepMs, maxAudioDelayMs, useAudioDelay, useResetAudioDelay } from './audioDelay';
 import { sleepMinuteChoices, type SleepChoice, type SleepTimer } from './sleepTimer';
 import { useVirtualSurroundSetting } from './useVirtualSurround';
-import { original, type KyusuAudio, type PlaybackRoute } from './route';
+import { decoded, original, type KyusuAudio, type PlaybackRoute } from './route';
 import { autoQuality } from './autoQuality';
 import { audioStep } from './networkQuality';
 
@@ -46,6 +46,9 @@ export function QualitySelect({
     if (name === original) {
       return t('player.original');
     }
+    if (name === decoded) {
+      return t('player.decoded');
+    }
     if (name === passthrough) {
       return t('player.passthrough');
     }
@@ -59,6 +62,9 @@ export function QualitySelect({
   const autoDetail = (name: string): string => {
     if (name === original) {
       return t('player.originalShort');
+    }
+    if (name === decoded) {
+      return t('player.decodedShort');
     }
     if (name === passthrough) {
       return 'HEVC 2160p';
@@ -336,7 +342,7 @@ export function RateSelect({
 }
 
 // CropSelect は、表示の比率を選ぶ (#496、#824)。L 字放送の切り抜きでは、拡大率と拡大の起点も選ぶ。
-// 4:3 の映像の左右の黒い縁を消す、横に伸ばす、のプリセットも選べる。切り抜きは、その場限りで覚えない。
+// 4:3 の映像の左右の黒い縁を消す、横に伸ばす、のプリセットも選べる。切り抜きは、その場限りで保存しない。
 export function CropSelect({ value, onChange }: { value: Crop; onChange: (crop: Crop) => void }) {
   const { t } = useTranslation();
   const mode = cropMode(value);

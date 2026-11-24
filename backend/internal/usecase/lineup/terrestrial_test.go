@@ -2,6 +2,7 @@ package lineup_test
 
 import (
 	"log/slog"
+	"strconv"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 const nhkNetwork = 32736
 
 // sdtSection は、地上波の SDT[actual] の 1 つのセクション。services のサービスを、サービス記述子付きで載せる。
+// サービス名は「テレビ」に service_id を続けたもの。
 func sdtSection(number, last uint8, services ...uint16) *ts.SDT {
 	sdt := &ts.SDT{
 		Actual: true, TransportStreamID: nhkNetwork, OriginalNetworkID: nhkNetwork, Version: 1,
@@ -28,7 +30,7 @@ func sdtSection(number, last uint8, services ...uint16) *ts.SDT {
 	}
 	for _, id := range services {
 		sdt.Services = append(sdt.Services, &ts.SDTService{
-			ServiceID: id, HasServiceDescriptor: true, ServiceType: 0x01, ProviderName: "", Name: "",
+			ServiceID: id, HasServiceDescriptor: true, ServiceType: 0x01, ProviderName: "", Name: "テレビ" + strconv.Itoa(int(id)),
 		})
 	}
 
@@ -43,7 +45,7 @@ func grTV(serviceID int) *tunerserver.Service {
 	}
 }
 
-// TestTerrestrialCollector は、地上波の SDT[actual] のセクションが揃ったら、サービス記述子のあるサービスを DB に書くことを確かめる。
+// TestTerrestrialCollector は、地上波の SDT[actual] のセクションが揃ったら、サービス記述子のあるサービスを DB に書くことを確認する。
 func TestTerrestrialCollector(t *testing.T) {
 	t.Parallel()
 
@@ -78,11 +80,14 @@ func TestTerrestrialCollector(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, uint16(nhkNetwork), got[0].NetworkID)
-	assert.Equal(t, []lineup.Service{{ServiceID: 1024, ServiceType: 0x01}, {ServiceID: 1025, ServiceType: 0x01}}, got[0].Services)
+	// SDT のサービス名も書き、読み直せる (#2034)。
+	assert.Equal(t, []lineup.Service{
+		{ServiceID: 1024, ServiceType: 0x01, Name: "テレビ1024"}, {ServiceID: 1025, ServiceType: 0x01, Name: "テレビ1025"},
+	}, got[0].Services)
 }
 
 // TestCheckerTerrestrial は、地上波のサービスがチューナーサーバーと食い違ったら、管理者に 1 回だけ知らせ、
-// 同じになったら忘れて、また食い違ったら知らせることを確かめる (#1519)。
+// 同じになったら忘れて、また食い違ったら通知することを確認する (#1519)。
 func TestCheckerTerrestrial(t *testing.T) {
 	t.Parallel()
 
@@ -99,12 +104,12 @@ func TestCheckerTerrestrial(t *testing.T) {
 	tuner := new(fakeServices)
 	checker := lineup.NewChecker(pool, tuner, clk, slog.New(slog.DiscardHandler), 0)
 
-	// チューナーサーバーにないネットワークは比べない。
+	// チューナーサーバーにないネットワークは比較しない。
 	tuner.set(bsTV(101))
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Empty(t, lineupNotifications(t, pool))
 
-	// 放送にあってチューナーサーバーにない局 (1025) があれば、知らせる。続いている間は繰り返さない。
+	// 放送にあってチューナーサーバーにない局 (1025) があれば、通知する。続いている間は繰り返さない。
 	tuner.set(grTV(1024))
 	require.NoError(t, checker.Check(t.Context()))
 	require.NoError(t, checker.Check(t.Context()))
@@ -112,9 +117,10 @@ func TestCheckerTerrestrial(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, map[string]any{
 		keyKind: "GR", "networkId": float64(nhkNetwork), "channel": "27", "added": float64(1), "removed": float64(0), "url": systemURL,
+		"addedServices": []any{"テレビ1025（サービス 1025）"}, "removedServices": []any{},
 	}, got[0])
 
-	// スキャンし直して同じになれば忘れ、また食い違ったら知らせる。
+	// スキャンし直して同じになれば忘れ、また食い違ったら通知する。
 	tuner.set(grTV(1024), grTV(1025))
 	require.NoError(t, checker.Check(t.Context()))
 	tuner.set(grTV(1024))

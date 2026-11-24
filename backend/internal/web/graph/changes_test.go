@@ -102,7 +102,7 @@ func (f *fixture) publish(t *testing.T, channel string) {
 	}))
 }
 
-// TestDataChanged は、購読を始めたときに今の版数が届き、ほかの tenban で起きた変更も届くことを確かめる (設計書 1.4、9.1)。
+// TestDataChanged は、購読を始めたときに今のバージョンが届き、ほかの tenban で起きた変更も届くことを確認する (設計書 1.4、9.1)。
 func TestDataChanged(t *testing.T) {
 	t.Parallel()
 
@@ -131,7 +131,7 @@ func TestDataChanged(t *testing.T) {
 	assert.JSONEq(t, `{"dataChanged":{"channel":"RECORDINGS","version":1}}`, string(next(t, events)))
 	f.publish(t, tunerstate.NotifyChannel)
 	f.publish(t, tunerstate.NotifyChannel)
-	// 立て続けの変更は 1 つにまとまることがあるので、最後の版数が届くまで読む。
+	// 立て続けの変更は 1 つにまとまることがあるので、最後のバージョンが届くまで読む。
 	for {
 		var got struct {
 			DataChanged struct {
@@ -162,7 +162,7 @@ func TestDataChangedRequiresLogin(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
-// TestDataChangedAdmin は、管理のデータの変更 (ADMIN) が、管理者にだけ届くことを確かめる (#869)。
+// TestDataChangedAdmin は、管理のデータの変更 (ADMIN) が、管理者にだけ届くことを確認する (#869)。
 func TestDataChangedAdmin(t *testing.T) {
 	t.Parallel()
 
@@ -219,7 +219,7 @@ func dataChannelNames(admin bool) []string {
 	return names
 }
 
-// TestUnreadNotificationCount は、通知が増えたときと、ほかの端末で既読にしたときに、未読の数が届くことを確かめる (設計書 6.2)。
+// TestUnreadNotificationCount は、通知が増えたときと、ほかの端末で既読にしたときに、未読の数が届くことを確認する (設計書 6.2)。
 func TestUnreadNotificationCount(t *testing.T) {
 	t.Parallel()
 
@@ -228,7 +228,7 @@ func TestUnreadNotificationCount(t *testing.T) {
 	events := f.subscribe(t, `subscription { unreadNotificationCount }`)
 	assert.JSONEq(t, `{"unreadNotificationCount":1}`, string(next(t, events)))
 
-	// nekonote が配った通知が届く。
+	// nekonote が配信した通知が届く。
 	f.notify(t, domain.NotificationKindRecordingCompleted, nil)
 	assert.JSONEq(t, `{"unreadNotificationCount":2}`, string(next(t, events)))
 
@@ -238,7 +238,7 @@ func TestUnreadNotificationCount(t *testing.T) {
 	assert.JSONEq(t, `{"unreadNotificationCount":0}`, string(next(t, events)))
 }
 
-// TestUnreadNotificationCountIsPerUser は、ほかのユーザーの既読では、自分の未読の数を送らないことを確かめる。
+// TestUnreadNotificationCountIsPerUser は、ほかのユーザーの既読では、自分の未読の数を送らないことを確認する。
 func TestUnreadNotificationCountIsPerUser(t *testing.T) {
 	t.Parallel()
 
@@ -255,7 +255,7 @@ func TestUnreadNotificationCountIsPerUser(t *testing.T) {
 	assert.JSONEq(t, `{"unreadNotificationCount":2}`, string(next(t, events)))
 }
 
-// TestViewerSettingsChanged は、ある端末で設定を変えると、同じユーザーのほかの端末にだけ届くことを確かめる (設計書 9.1)。
+// TestViewerSettingsChanged は、ある端末で設定を変えると、同じユーザーのほかの端末にだけ届くことを確認する (設計書 9.1)。
 func TestViewerSettingsChanged(t *testing.T) {
 	t.Parallel()
 
@@ -300,7 +300,7 @@ func TestViewerSettingsChanged(t *testing.T) {
 	assert.JSONEq(t, `{"viewerSettingsChanged":1}`, string(next(t, theirs)))
 }
 
-// TestViewerEvents は、データの変更、設定の版数、未読の通知の数が、1 つの購読にまとまって届くことを確かめる (設計書 9.1)。
+// TestViewerEvents は、データの変更、設定のバージョン、未読の通知の数が、1 つの購読にまとまって届くことを確認する (設計書 9.1)。
 func TestViewerEvents(t *testing.T) {
 	t.Parallel()
 
@@ -344,7 +344,7 @@ func (d *fakeDrain) Draining() <-chan struct{} {
 
 var _ graph.Drain = new(fakeDrain)
 
-// TestViewerEventsStreamsDraining は、tenban を止める前の知らせを始めたら、viewerEvents で一度だけ届くことを確かめる (#1085)。
+// TestViewerEventsStreamsDraining は、tenban を止める前の知らせを始めたら、viewerEvents で一度だけ届くことを確認する (#1085)。
 func TestViewerEventsStreamsDraining(t *testing.T) {
 	t.Parallel()
 

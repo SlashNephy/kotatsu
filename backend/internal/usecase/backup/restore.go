@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/usecase/keyrebuild"
 )
 
 // RestoreOptions は、Restore に渡す依存。
@@ -33,10 +34,10 @@ type RestoreOptions struct {
 	CheckSecretKey func(secretKey string) error
 }
 
-// Restore は、Write で書き出したバックアップを、identities の秘密鍵で読み、空の DB に戻す。
+// Restore は、Write で作成したバックアップを、identities の秘密鍵で読み、空の DB に戻す。
 //
-// 書き出したときのスキーマの版までマイグレーションを当て、1 つのトランザクションの中で表を流し込み、キャプチャの画像をデータディレクトリに書く。
-// 流し込み終えたら、最新の版までマイグレーションを当てる。戻す間は、マイグレーションのロックを持つ。
+// 作成したときのスキーマのバージョンまでマイグレーションを当て、1 つのトランザクションの中でテーブルを流し込み、キャプチャの画像をデータディレクトリに書く。
+// 流し込み終えたら、最新のバージョンまでマイグレーションを当てる。戻す間は、マイグレーションのロックを持つ。
 func Restore(ctx context.Context, opts *RestoreOptions, r io.Reader, identities []age.Identity) (*Manifest, error) {
 	decrypted, err := age.Decrypt(r, identities...)
 	if err != nil {
@@ -74,8 +75,12 @@ func Restore(ctx context.Context, opts *RestoreOptions, r io.Reader, identities 
 		if err := load(ctx, opts, archive, manifest); err != nil {
 			return err
 		}
-		// 戻した行を、最新のスキーマに合わせる。正規化した列を埋める処理も、ここで戻した行に効く。
+		// 戻した行を、最新のスキーマに合わせる。正規化したカラムを埋める処理も、ここで戻した行に効く。
 		if err := database.Migrate(ctx, opts.Logger, opts.DB); err != nil {
+			return err
+		}
+		// 戻した行のキーも、kotatsu migrate と同じく、今のバイナリの計算に合わせる。
+		if err := keyrebuild.Run(ctx, opts.Logger, opts.DB); err != nil {
 			return err
 		}
 
@@ -114,7 +119,7 @@ func readManifestEntry(archive *tar.Reader) (*Manifest, error) {
 	return &manifest, nil
 }
 
-// readEntry は、次のエントリーが name であることを確かめ、limit バイトまで読む。
+// readEntry は、次のエントリーが name であることを確認し、limit バイトまで読む。
 func readEntry(archive *tar.Reader, name string, limit int64) ([]byte, error) {
 	header, err := archive.Next()
 	if err != nil {
@@ -127,7 +132,7 @@ func readEntry(archive *tar.Reader, name string, limit int64) ([]byte, error) {
 	return readBounded(archive, header, limit)
 }
 
-// readBounded は、エントリーの中身を、limit バイトまで読む。大きすぎるエントリーは、読まずに誤りにする。
+// readBounded は、エントリーの内容を、limit バイトまで読む。大きすぎるエントリーは、読まずに誤りにする。
 func readBounded(archive *tar.Reader, header *tar.Header, limit int64) ([]byte, error) {
 	if header.Size < 0 || header.Size > limit {
 		return nil, fmt.Errorf("%w: %s is too large (%d bytes)", ErrInvalidBackup, header.Name, header.Size)
@@ -140,7 +145,7 @@ func readBounded(archive *tar.Reader, header *tar.Header, limit int64) ([]byte, 
 	return data, nil
 }
 
-// checkEmpty は、戻す先の DB (今のスキーマ) に表がないことを確かめる。kotatsu migrate のロックの表 (goose_lock) は除く。
+// checkEmpty は、戻す先の DB (今のスキーマ) にテーブルがないことを確認する。kotatsu migrate のロックのテーブル (goose_lock) は除く。
 func checkEmpty(ctx context.Context, db *pgxpool.Pool) error {
 	var tables []string
 	if err := db.QueryRow(ctx, `
@@ -159,7 +164,7 @@ WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND c.relname <> 
 	return nil
 }
 
-// load は、1 つのトランザクションの中で、表を流し込み、キャプチャの画像を書く。終わりのエントリーまで読めたときだけ確定する。
+// load は、1 つのトランザクションの中で、テーブルを流し込み、キャプチャの画像を書く。終わりのエントリーまで読めたときだけ確定する。
 func load(ctx context.Context, opts *RestoreOptions, archive *tar.Reader, manifest *Manifest) error {
 	tx, err := opts.DB.Begin(ctx)
 	if err != nil {
@@ -188,7 +193,7 @@ func load(ctx context.Context, opts *RestoreOptions, archive *tar.Reader, manife
 	return nil
 }
 
-// truncate は、流し込む表を空にする。マイグレーションが入れた行 (recording_failure_counts など) と、主キーがぶつからないようにする。
+// truncate は、流し込むテーブルを空にする。マイグレーションが入れた行 (recording_failure_counts など) と、主キーがぶつからないようにする。
 func truncate(ctx context.Context, tx pgx.Tx, tables []*Table) error {
 	names := make([]string, 0, len(tables))
 	for _, table := range tables {
@@ -209,7 +214,7 @@ type loader struct {
 	tx       pgx.Tx
 	store    *kago.Store
 	manifest *Manifest
-	// next は、次に流し込める表の manifest.Tables の位置。表は manifest の順にしか現れない。
+	// next は、次に流し込めるテーブルの manifest.Tables の位置。テーブルは manifest の順にしか現れない。
 	next       int
 	tableBytes map[string]int64
 	// captures は、戻したキャプチャの行。画像は、行のあるものだけを書く。最初の画像を読むときに引く。
@@ -253,7 +258,7 @@ func (l *loader) run(ctx context.Context, archive *tar.Reader) error {
 	return nil
 }
 
-// copyTable は、header から始まる 1 つの表のエントリーを、COPY FROM で流し込む。表の後の次のエントリーを返す。
+// copyTable は、header から始まる 1 つのテーブルのエントリーを、COPY FROM で流し込む。テーブルの後の次のエントリーを返す。
 func (l *loader) copyTable(ctx context.Context, archive *tar.Reader, header *tar.Header) (*tar.Header, error) {
 	name, seq, err := parseChunkName(header.Name)
 	if err != nil {
@@ -283,7 +288,7 @@ func (l *loader) copyTable(ctx context.Context, archive *tar.Reader, header *tar
 	return src.next, src.nextErr
 }
 
-// parseChunkName は、tables/<表>/<連番> の名前を読む。
+// parseChunkName は、tables/<テーブル>/<連番> の名前を読む。
 func parseChunkName(name string) (string, int, error) {
 	table, seq, ok := strings.Cut(strings.TrimPrefix(name, tablesPrefix), "/")
 	n, err := strconv.Atoi(seq)
@@ -294,13 +299,13 @@ func parseChunkName(name string) (string, int, error) {
 	return table, n, nil
 }
 
-// chunkReader は、1 つの表の連番のエントリーを、つないで読む。表の後のエントリーに来たら、そのヘッダーを next に残して終える。
+// chunkReader は、1 つのテーブルの連番のエントリーを、つないで読む。テーブルの後のエントリーに来たら、そのヘッダーを next に残して終える。
 type chunkReader struct {
 	archive *tar.Reader
 	table   string
 	header  *tar.Header
 	seq     int
-	// next と nextErr は、表の後の次のエントリーと、それを読んだときの誤り (終わりなら io.EOF)。
+	// next と nextErr は、テーブルの後の次のエントリーと、それを読んだときの誤り (終わりなら io.EOF)。
 	next    *tar.Header
 	nextErr error
 	total   int64
@@ -320,7 +325,7 @@ func (c *chunkReader) Read(p []byte) (int, error) {
 
 			return n, err
 		}
-		// このエントリーを読み終えたので、次のエントリーを見る。同じ表の続きなら読み続ける。
+		// このエントリーを読み終えたので、次のエントリーを見る。同じテーブルの続きなら読み続ける。
 		next, err := c.archive.Next()
 		if err != nil {
 			c.header, c.next, c.nextErr = nil, nil, err
@@ -392,7 +397,7 @@ func parseCaptureName(name string) (capture, error) {
 	return capture{userID: userID, id: captureID}, nil
 }
 
-// checkEnd は、終わりのエントリーの大きさと、読んだ大きさが合うかを確かめる。
+// checkEnd は、終わりのエントリーの大きさと、読んだ大きさが合うかを確認する。
 func (l *loader) checkEnd(archive *tar.Reader, header *tar.Header) error {
 	data, err := readBounded(archive, header, maxManifestSize)
 	if err != nil {
@@ -415,8 +420,8 @@ func (l *loader) checkEnd(archive *tar.Reader, header *tar.Header) error {
 	return nil
 }
 
-// resetIdentities は、戻した表の IDENTITY の列の連番を、戻した値の次から振るよう進める (recordings.api_id など)。
-// COPY FROM は列の値をそのまま書き、連番を進めないので、進めないと、次に足す行の値が戻した行とぶつかる。
+// resetIdentities は、戻したテーブルの IDENTITY のカラムの連番を、戻した値の次から振るよう進める (recordings.api_id など)。
+// COPY FROM はカラムの値をそのまま書き、連番を進めないので、進めないと、次に足す行の値が戻した行とぶつかる。
 func resetIdentities(ctx context.Context, tx pgx.Tx, tables []*Table) error {
 	rows, err := tx.Query(ctx, `
 SELECT c.relname, a.attname

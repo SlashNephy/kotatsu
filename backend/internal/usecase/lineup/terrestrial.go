@@ -43,7 +43,7 @@ type partialSDT struct {
 }
 
 // TerrestrialCollector は、録画とタイムシフトの TS の SDT[actual] から、地上波のネットワークのサービスを集め、DB に書く (#1519)。
-// 地上波の NIT には自分の TS のぶんしか載らず、チャンネルのサービスはチューナーサーバーが SDT から作るので、SDT で比べる。
+// 地上波の NIT には自分の TS のぶんしか載らず、チャンネルのサービスはチューナーサーバーが SDT から作るので、SDT で比較する。
 type TerrestrialCollector struct {
 	clock  clock.Clock
 	logger *slog.Logger
@@ -52,7 +52,7 @@ type TerrestrialCollector struct {
 	partial map[uint16]*partialSDT
 	// pending は、まだ書いていないサービス。
 	pending map[uint16]*TerrestrialObservation
-	// written は、書いたサービスの版と、書いた時刻。
+	// written は、書いたサービスのバージョンと、書いた時刻。
 	written map[uint16]written
 }
 
@@ -64,7 +64,7 @@ func NewTerrestrialCollector(clk clock.Clock, logger *slog.Logger) *TerrestrialC
 	}
 }
 
-// Observe は、解析器が読んだ SDT を受け取る。ts.AnalyzerOptions.OnSDT に渡す。解析器の中で呼ばれるので、DB には書かない。
+// Observe は、アナライザーが読んだ SDT を受け取る。ts.AnalyzerOptions.OnSDT に渡す。アナライザーの中で呼ばれるので、DB には書かない。
 // 地上波の SDT[actual] だけを使う。サービス記述子が 1 つもない SDT は使わない。ロゴの対応だけを載せた SDT が先にそろうと、
 // 局が全部消えたように見えるからである。
 func (c *TerrestrialCollector) Observe(sdt *ts.SDT) {
@@ -93,7 +93,7 @@ func (c *TerrestrialCollector) Observe(sdt *ts.SDT) {
 	for number := range int(part.last) + 1 {
 		for _, service := range part.sections[uint8(number)] {
 			if service.HasServiceDescriptor {
-				services = append(services, Service{ServiceID: service.ServiceID, ServiceType: service.ServiceType})
+				services = append(services, Service{ServiceID: service.ServiceID, ServiceType: service.ServiceType, Name: service.Name})
 			}
 		}
 	}
@@ -106,7 +106,7 @@ func (c *TerrestrialCollector) Observe(sdt *ts.SDT) {
 }
 
 // Flush は、組み上がったサービスを DB に書く。書けなかったものは、次の Flush で書き直す。
-// 知らせるためだけのものなので、書けなくても録画は止めない。エラーはログに残すだけにする。
+// 通知するためだけのものなので、書けなくても録画は止めない。エラーはログに残すだけにする。
 func (c *TerrestrialCollector) Flush(ctx context.Context, q *sqlc.Queries) {
 	c.mu.Lock()
 	pending := c.pending

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 	"uuid"
 
@@ -27,7 +28,9 @@ type Loaders struct {
 	Users        *dataloader.Loader[uuid.UUID, *domain.User]
 	Services     *dataloader.Loader[int64, *domain.Service]
 	ChannelTypes *dataloader.Loader[string, *domain.ChannelType]
-	Rules        *dataloader.Loader[uuid.UUID, *rule.Rule]
+	// ChannelTypeHasServices は、種別が、上流から消えていないサービスを持つかどうか (#1973)。
+	ChannelTypeHasServices *dataloader.Loader[string, bool]
+	Rules                  *dataloader.Loader[uuid.UUID, *rule.Rule]
 	// RuleGroups は、ID のルールのグループ (#1493)。見つからないグループでは nil にする。
 	RuleGroups *dataloader.Loader[uuid.UUID, *rule.Group]
 	// RuleIDs は、予約に一致したルールの ID。ルールに一致していない予約では空にする。
@@ -44,11 +47,11 @@ type Loaders struct {
 	ProgramRecorded *dataloader.Loader[query.ProgramSpan, bool]
 	// JikkyoAccess は、ユーザーが実況を使えるかどうか (設計書 7.4)。一覧のサービスごとに引かず、リクエストにつき 1 度だけ読む。
 	JikkyoAccess *dataloader.Loader[uuid.UUID, domain.JikkyoAccess]
-	// CMReports は、録画ごとの、最後に見分け終えた CM の見分けの添え書き (#1508)。録画の一覧の印に使う。見分けていなければ空。
+	// CMReports は、録画ごとの、最後に見分け終えた CM の見分けの添え書き (#1508)。録画の一覧のマークに使う。見分けていなければ空。
 	CMReports *dataloader.Loader[uuid.UUID, cmdetect.Report]
 }
 
-// watchReservedKey は、視聴予約を引くキー。ユーザーと番組の組。
+// watchReservedKey は、視聴予約を取得するキー。ユーザーと番組の組。
 type watchReservedKey struct {
 	UserID  uuid.UUID
 	Program domain.ProgramKey
@@ -72,7 +75,7 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 			return orderBy(ids, byID, "user")
 		}),
 		Services: newLoader(func(ctx context.Context, ids []int64) ([]*domain.Service, []error) {
-			rows, err := q.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: ids})
+			rows, err := q.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, IncludeGone: true, MediaServiceTypes: []int64{}, IDs: ids, Now: clk.Now()})
 			if err != nil {
 				return failAll[*domain.Service](len(ids), fmt.Errorf("failed to load services: %w", err))
 			}
@@ -95,6 +98,7 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 
 			return orderBy(types, byType, "channel type")
 		}),
+		ChannelTypeHasServices: newChannelTypeHasServicesLoader(q, clk),
 		Rules: newLoader(func(ctx context.Context, ids []uuid.UUID) ([]*rule.Rule, []error) {
 			byID, err := rules.ListByIDs(ctx, db, ids)
 			if err != nil {
@@ -289,6 +293,22 @@ func withLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rul
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), loadersKey{}, newLoaders(db, q, clk, rules))))
 		})
 	}
+}
+
+// newChannelTypeHasServicesLoader は、種別が、上流から消えていないサービスを持つかどうかを取得する dataloader を作る (#1973)。
+func newChannelTypeHasServicesLoader(q *query.Queries, clk clock.Clock) *dataloader.Loader[string, bool] {
+	return newLoader(func(ctx context.Context, types []string) ([]bool, []error) {
+		found, err := q.ListChannelTypesWithServices(ctx, types, clk.Now())
+		if err != nil {
+			return failAll[bool](len(types), fmt.Errorf("failed to load channel types with services: %w", err))
+		}
+		out := make([]bool, len(types))
+		for i, t := range types {
+			out[i] = slices.Contains(found, t)
+		}
+
+		return out, make([]error, len(types))
+	})
 }
 
 // loadersFrom は、context に入れた Loaders を返す。

@@ -9,7 +9,7 @@ import (
 )
 
 // TestEPGCaptureNeeds は、EDCB の EPG の取得のために空けておくチューナーを、EpgTimerSrv の判定 (GetEpgCapTunerList) に合わせて決めることを
-// 確かめる (#1856)。
+// 確認する (#1856)。
 func TestEPGCaptureNeeds(t *testing.T) {
 	t.Parallel()
 

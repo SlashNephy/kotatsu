@@ -97,7 +97,7 @@ func program() domain.Program {
 	}
 }
 
-// TestPlaylist は、サービスごとに、無変換の TS のストリームとロゴと、XMLTV のチャンネルの ID を書いた M3U を作ることを確かめる (#1324)。
+// TestPlaylist は、サービスごとに、無変換の TS のストリームとロゴと、XMLTV のチャンネルの ID を書いた M3U を作ることを確認する (#1324)。
 func TestPlaylist(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +113,7 @@ func TestPlaylist(t *testing.T) {
 	assert.Equal(t, want, iptvapi.Playlist(base, services()))
 }
 
-// TestGuide は、M3U と同じチャンネルの ID で、番組を UTC の時刻で書いた XMLTV を作ることを確かめる (#1324)。
+// TestGuide は、M3U と同じチャンネルの ID で、番組を UTC の時刻で書いた XMLTV を作ることを確認する (#1324)。
 func TestGuide(t *testing.T) {
 	t.Parallel()
 
@@ -161,7 +161,7 @@ func TestGuide(t *testing.T) {
 	assert.Nil(t, doc.Programmes[1].Desc)
 }
 
-// TestHandler は、パスの秘密の値で認証し、違えば 404 を返し、URL を途中のキャッシュに残させないことを確かめる (#1324)。
+// TestHandler は、パスの秘密の値で認証し、違えば 404 を返し、URL を途中のキャッシュに残させないことを確認する (#1324)。
 func TestHandler(t *testing.T) {
 	t.Parallel()
 
@@ -180,7 +180,7 @@ func TestHandler(t *testing.T) {
 		{name: "wrong value", gate: enabledGate, path: "/api/iptv/kotatsu_iptv_wrong/channels.m3u", wantStatus: http.StatusNotFound},
 		{name: "user who cannot watch", gate: enabledGate, path: "/api/iptv/" + unwatchableFeed + "/guide.xml", wantStatus: http.StatusNotFound},
 		{name: "authentication failure", gate: enabledGate, path: "/api/iptv/broken/guide.xml", wantStatus: http.StatusInternalServerError},
-		// 管理者が無効にしている間は、正しい秘密の値でも、URL があることを知らせないよう 404 を返す (#1755)。
+		// 管理者が無効にしている間は、正しい秘密の値でも、URL があることを明かさないよう 404 を返す (#1755)。
 		{name: "disabled by the administrator", gate: fakeGate{enabled: false, err: nil}, path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusNotFound},
 		{name: "setting unreadable", gate: fakeGate{enabled: false, err: errors.New("database is down")}, path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusInternalServerError},
 	}
@@ -211,7 +211,7 @@ func TestHandler(t *testing.T) {
 			assert.Equal(t, "private, no-store", resp.Header.Get("Cache-Control"))
 			assert.Contains(t, string(body), tt.contains)
 			if tt.name == "guide" {
-				// 放送中の番組と、これから 7 日の番組を引く。
+				// 放送中の番組と、これから 7 日の番組を取得する。
 				assert.Equal(t, testNow().Add(-time.Hour), queries.from)
 				assert.Equal(t, testNow().Add(7*24*time.Hour), queries.to)
 			}
@@ -229,7 +229,7 @@ func (g *switchGate) IPTVFeedsEnabled(context.Context) (bool, error) {
 }
 
 // TestStopWhenRevoked は、IPTV のストリームを流している間に、管理者が無効にしたら、流しているストリームも止め、
-// 使えるうちは止めないことを確かめる (#1755)。
+// 使えるうちは止めないことを確認する (#1755)。
 func TestStopWhenRevoked(t *testing.T) {
 	t.Parallel()
 
@@ -276,12 +276,12 @@ func TestStopWhenRevoked(t *testing.T) {
 			server := httptest.NewServer(mux)
 			t.Cleanup(server.Close)
 
-			// テストを終えたら、読み捨てている要求も終わらせる。
+			// テストを終えたら、読み飛ばしている要求も終わらせる。
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/api/iptv/"+validFeed+"/services/400141/stream.m2ts", nil)
 			require.NoError(t, err)
-			// 流し続けるので、要求して読み捨てるのは別の goroutine にする。
+			// 流し続けるので、要求して読み飛ばすのは別の goroutine にする。
 			client := server.Client()
 			go func() {
 				resp, err := client.Do(req)

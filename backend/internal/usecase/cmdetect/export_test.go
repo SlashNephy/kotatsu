@@ -136,7 +136,7 @@ func EdgeMissing(times []float64, fps float64, duration time.Duration) time.Dura
 	return edgeMissing(times, &videoInfo{width: 0, height: 0, fps: fps, duration: duration, firstFrame: -1})
 }
 
-// LogoDetail は、ロゴの結果を捨てた理由の詳細を、既定のパラメーターで返す。
+// LogoDetail は、ロゴの結果を破棄した理由の詳細を、既定のパラメーターで返す。
 func LogoDetail(corner logo.Corner, box logo.Box, measures []logo.Measure, intervals []logo.Interval, times []float64, fps float64) string {
 	r := &logoResult{
 		sections: []Section{}, missing: []Section{}, duration: 0, edgeMissing: 0,
@@ -263,4 +263,15 @@ func ToPlayback(firstTime, offset float64, withBounds bool, sections [][2]float6
 // ResolveDetector は、resolveDetector をテストから呼ぶ。
 func ResolveDetector(requested string, global func() (string, error)) (string, error) {
 	return resolveDetector(requested, global)
+}
+
+// SnapWindow は snapWindow。境目は、時刻と、切れ目があるかどうかの組で渡す。
+func SnapWindow(start, end float64, bounds [][2]float64, duration, origin, offset float64) (float64, float64) {
+	list := make([]boundary, 0, len(bounds))
+	for _, b := range bounds {
+		list = append(list, boundary{at: b[0], cut: b[1] != 0})
+	}
+	w := snapWindow(window{start: start, end: end}, list, duration, origin, offset)
+
+	return w.start, w.end
 }

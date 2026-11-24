@@ -60,10 +60,10 @@ type PresentFollowing struct {
 type eitTable struct {
 	events map[[2]uint16]*EventAudio
 	pf     map[uint16]*PresentFollowing
-	// descriptors は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の記述子の並び (#1500)。鍵はサービス ID と eventId。
+	// descriptors は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の記述子の並び (#1500)。キーはサービス ID と eventId。
 	// 文字列を読むのは重いので、EventInfo で引かれたときに読む。
 	descriptors map[[2]uint16][]byte
-	// times は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の開始と長さ (#1734)。鍵はサービス ID と eventId。
+	// times は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の開始と長さ (#1734)。キーはサービス ID と eventId。
 	times map[[2]uint16]*EventTime
 }
 
@@ -96,6 +96,36 @@ func parseEventTime(b []byte) *EventTime {
 	}
 
 	return et
+}
+
+// PresentFollowingSection は、EIT[p/f] (自 TS) の 1 つのセクションが示す、サービスの放送中か次の番組の有無 (#2034)。
+type PresentFollowingSection struct {
+	OriginalNetworkID uint16
+	TransportStreamID uint16
+	ServiceID         uint16
+	// Following は、次の番組のセクション (section_number 1) かどうか。false なら放送中の番組のセクション。
+	Following bool
+	// HasEvent は、セクションに番組が載っているかどうか。
+	HasEvent bool
+}
+
+// parsePresentFollowingSection は、EIT[p/f] (自 TS) のセクションから、サービスと番組の有無を読む。
+// EIT[p/f] でないか、壊れていれば false を返す。
+func parsePresentFollowingSection(section []byte) (*PresentFollowingSection, bool) {
+	header := parseSectionHeader(section)
+	if header == nil || header.tableID != tableIDEITPresentFollowingActual || !header.currentNext || section[6] > 1 ||
+		len(header.body) < eitEventsOffset {
+		return nil, false
+	}
+	body := header.body
+
+	return &PresentFollowingSection{
+		TransportStreamID: uint16(body[0])<<8 | uint16(body[1]),
+		OriginalNetworkID: uint16(body[2])<<8 | uint16(body[3]),
+		ServiceID:         header.tableIDExtension,
+		Following:         section[6] == 1,
+		HasEvent:          len(body) >= eitEventsOffset+eitEventHeaderLength,
+	}, true
 }
 
 // handle は、EIT[p/f] (自 TS) のセクションを読む。放送中 (section_number 0) と次 (1) の番組を追い、放送中の番組の音声の構成を集める。
@@ -287,7 +317,7 @@ func PresentAudios(events []*EventAudio, serviceID uint16, eventID *uint16) []*A
 	return best.Audios
 }
 
-// audioJSON は、Mirakurun の番組の audios の要素と同じ形。録画の音声の構成は、EPG から写したものと同じ形で保存する。
+// audioJSON は、Mirakurun の番組の audios の要素と同じ形。録画の音声の構成は、EPG からコピーしたものと同じ形で保存する。
 type audioJSON struct {
 	ComponentType int      `json:"componentType"`
 	ComponentTag  int      `json:"componentTag"`

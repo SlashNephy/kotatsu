@@ -40,7 +40,7 @@ func TestLastKnownInstances(t *testing.T) {
 	refused := &net.OpError{Op: "dial", Net: "tcp", Source: nil, Addr: nil, Err: syscall.ECONNREFUSED}
 	broken := errors.New("syntax error")
 
-	// step は、登録簿が返すものを変え、時計を進めてから、引いた結果を確かめる。
+	// step は、登録簿が返すものを変え、時計を進めてから、取得した結果を確認する。
 	type step struct {
 		instances []*registry.Instance
 		err       error

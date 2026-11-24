@@ -1,4 +1,4 @@
-// formatVersion は、版とコミットの先頭 7 文字を、1.2.3 (abcdef0) のように返す。kotatsu --version と同じ形にする。
+// formatVersion は、バージョンとコミットの先頭 7 文字を、1.2.3 (abcdef0) のように返す。kotatsu --version と同じ形にする。
 export function formatVersion(v: {
   version: string;
   revision: string | null | undefined;

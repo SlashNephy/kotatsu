@@ -14,7 +14,7 @@ import (
 )
 
 // TestTenbanServesMedia は、tenban が、画像と実況の過去ログ (/internal/media/*) を echo のルーターで受け (#1606)、
-// mux のときと同じく、セッションの Cookie で認可し、状態を変える POST と WebSocket の接続で Origin を確かめることを確かめる。
+// mux のときと同じく、セッションの Cookie で認可し、状態を変える POST と WebSocket の接続で Origin を確認することを確認する。
 func TestTenbanServesMedia(t *testing.T) {
 	t.Parallel()
 

@@ -110,7 +110,7 @@ const installedAtFormat = zonedFormat({
   hourCycle: 'h23',
 });
 
-// CaptionModels は、字幕の自動生成に使うモデルを、管理者が選んでダウンロードし、置いたものを確かめ、消す欄 (#1682、設計書 6.1)。
+// CaptionModels は、字幕の自動生成に使うモデルを、管理者が選んでダウンロードし、置いたものを確認し、消す欄 (#1682、設計書 6.1)。
 // ダウンロードは nekonote のジョブが行うので、している間は読み直して進み具合を出す。
 export function CaptionModels() {
   const { t } = useTranslation();
@@ -177,7 +177,7 @@ function CaptionModelSlot({ slot, onChanged }: { slot: Slot; onChanged: () => vo
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const kind: CaptionModelKind = slot.kind;
-  // 文を引く種類。新しい種類が足されたら、書き起こしのモデルの文で出す。
+  // 文を取得する種類。新しい種類が足されたら、書き起こしのモデルの文で出す。
   const textKind = kind === 'VAD' ? 'VAD' : 'WHISPER';
   const operate = (operation: () => Promise<unknown>) =>
     run(

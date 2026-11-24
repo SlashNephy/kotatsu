@@ -50,7 +50,7 @@ describe('liveResume', () => {
     storage.setItem('kotatsu.player.liveResume', raw);
 
     expect(loadLiveResume(storage, 'a')).toBeNull();
-    // 壊れた値は、次に覚えるときに置き換える。
+    // 壊れた値は、次に保持するときに置き換える。
     saveLiveResume(storage, 'a', 1_000, 2_000);
     expect(loadLiveResume(storage, 'a')).toBe(1_000);
   });

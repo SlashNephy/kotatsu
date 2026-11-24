@@ -2,20 +2,28 @@ import type Hls from 'hls.js';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { brightnessStyle } from './brightness';
-import { type Crop, cropStyle, isCropped, noCrop } from './crop';
+import { type Crop, cropStyle, isCropped, noCrop, scales } from './crop';
 import { catchUpRate } from './liveCatchUp';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { useInterpolation, useInterpolationRate } from './frameInterpolation';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { HlsSegment } from './streamMeter';
+import {
+  createYadifUpscaler,
+  useSuperResolution,
+  useSuperResolutionMethod,
+  useSuperResolutionStrength,
+} from './superResolution';
 import classes from './TsPlayer.module.css';
-import { attachVideoInterpolation, type VideoInterpolation } from './videoInterpolation';
+import { attachVideoOverlay, type VideoOverlay } from './videoOverlay';
+import { mediaOf, type PlayerMedia } from './playerMedia';
 
 type Props = {
   // url は、kyusu の HLS のプレイリストの URL。null なら、何も読まない。
   url: string | null;
-  videoRef: RefObject<HTMLVideoElement | null>;
+  // mediaRef には、映している経路を入れる。
+  mediaRef: RefObject<PlayerMedia | null>;
   // live は、ライブ視聴かどうか。ライブは最新の位置から、録画は startPosition から読む。
   live: boolean;
   // lowLatency は、ライブで、放送からの遅れが広がったら少し速く再生して追いつくかどうか (#495)。
@@ -41,8 +49,8 @@ type Props = {
   overlay?: ReactNode;
   // controls は、映像の上に重ねる操作バー。重ねたもの (overlay) より上に置き、操作を受ける。
   controls?: ReactNode;
-  // onVideo は、video の要素を作ったときと、取り除いたとき (null) に呼ぶ。
-  onVideo?: (video: HTMLVideoElement | null) => void;
+  // onMedia は、映す経路を作ったときと、取り除いたとき (null) に呼ぶ。
+  onMedia?: (media: PlayerMedia | null) => void;
   // onSegment は、映像のセグメントを読み終えるたびに、その大きさと長さと画質を受け取る (#828)。
   onSegment?: (segment: HlsSegment) => void;
   // coverRef は、映像の上に重ねる蓋 (#1512) を出し入れする口を受け取る。
@@ -73,7 +81,7 @@ function liveSyncConfig(lowLatency: boolean): {
 // iPhone の Safari では、ManagedMediaSource の上で hls.js が動く。
 export function HlsPlayer({
   url,
-  videoRef,
+  mediaRef,
   live,
   lowLatency = false,
   captions,
@@ -87,7 +95,7 @@ export function HlsPlayer({
   onLoaded,
   overlay,
   controls,
-  onVideo,
+  onMedia,
   onSegment,
   coverRef,
 }: Props) {
@@ -101,8 +109,8 @@ export function HlsPlayer({
       Object.assign(instance.config, liveSyncConfig(live && lowLatency));
     }
   }, [live, lowLatency]);
-  const handlers = useRef({ onError, onLoaded, onVideo, onSegment });
-  handlers.current = { onError, onLoaded, onVideo, onSegment };
+  const handlers = useRef({ onError, onLoaded, onMedia, onSegment });
+  handlers.current = { onError, onLoaded, onMedia, onSegment };
   // 読み始める位置は、読み直すときにだけ使う。位置が変わるたびに読み直さないよう、ref で渡す。
   const start = useRef(startPosition);
   start.current = startPosition;
@@ -120,7 +128,7 @@ export function HlsPlayer({
   styleRef.current = captionStyle;
   // covered は、蓋を出しているかどうか。出している間は、CM の字幕を残さないよう、字幕を消す (#1512)。
   const covered = useRef(false);
-  const cover = usePlayerCover(videoRef, (shown) => {
+  const cover = usePlayerCover(mediaRef, (shown) => {
     covered.current = shown;
     captionsRef.current?.setVisible(showCaptions.current && !shown);
   });
@@ -139,13 +147,30 @@ export function HlsPlayer({
   const [interpolate] = useInterpolation();
   const interpolateRef = useRef(interpolate);
   interpolateRef.current = interpolate;
-  const interpolationRef = useRef<VideoInterpolation | null>(null);
+  const overlayRef = useRef<VideoOverlay | null>(null);
   // interpolationRate は、補間したコマを出す回数の上限。描くたびに読むので、ref で渡す。
   const [interpolationRate] = useInterpolationRate();
   const interpolationRateRef = useRef(interpolationRate);
   interpolationRateRef.current = interpolationRate;
+  // superResolution は、video のコマを、映す大きさへ拡大して描くか (#1654、#2113)。補間と同じ canvas で描く。
+  const [superResolution] = useSuperResolution();
+  const superResolutionRef = useRef(superResolution);
+  superResolutionRef.current = superResolution;
+  // 鮮鋭化の強さと拡大の方式は、描くたびに読むので、ref で渡す。
+  const [superResolutionStrength] = useSuperResolutionStrength();
+  const superResolutionStrengthRef = useRef(superResolutionStrength);
+  superResolutionStrengthRef.current = superResolutionStrength;
+  const [superResolutionMethod] = useSuperResolutionMethod();
+  const superResolutionMethodRef = useRef(superResolutionMethod);
+  superResolutionMethodRef.current = superResolutionMethod;
+  // zoom は、切り抜き (#496) の拡大率。拡大する大きさを決めるたびに読むので、ref で渡す。
+  const zoomRef = useRef(scales(crop));
+  zoomRef.current = scales(crop);
   // generation を変えると、hls.js を作り直して読み直す。ライブを長く一時停止してから再開したときに使う。
   const [generation, setGeneration] = useState(0);
+  // keepPaused は、読み直す前に、利用者が一時停止していたかどうか。読み直しても、一時停止のまま待つ (#1969)。
+  // 配信が切れて今の位置から読み直すときや、画質を変えたときに、勝手に再生を始めない。
+  const keepPaused = useRef(false);
 
   // video の要素は、TsPlayer と同じく React に持たせずに作り、どちらの経路でも同じ見た目にする。
   useEffect(() => {
@@ -158,38 +183,55 @@ export function HlsPlayer({
     video.playsInline = true;
     video.autoplay = true;
     frame.append(video);
-    videoRef.current = video;
-    handlers.current.onVideo?.(video);
-    // 字幕は、aribb24.js を読み終えるまで溜めておくので、最初のセグメントの字幕も落とさない。
+    mediaRef.current = mediaOf(video);
+    handlers.current.onMedia?.(mediaRef.current);
+    // 字幕は、aribb24.js を読み終えるまでバッファしておくので、最初のセグメントの字幕も落とさない。
     const renderer = createCaptions(video, frame, (text) => captionText.current?.(text));
     renderer.setVisible(showCaptions.current && !covered.current);
     renderer.setSuperimposeVisible(superimposeRef.current);
     renderer.setStyle(styleRef.current);
-    // 補間の canvas は、video のすぐ後ろに入るので、字幕の canvas より下に重なる。
-    const interpolation = attachVideoInterpolation(video, {
+    // 補間と拡大の canvas は、video のすぐ後ろに入るので、字幕の canvas より下に重なる。
+    const overlay = attachVideoOverlay(video, {
       className: classes.video ?? '',
       maxRate: () => interpolationRateRef.current,
+      upscaler: createYadifUpscaler({
+        zoom: () => zoomRef.current,
+        strength: () => superResolutionStrengthRef.current,
+        method: () => superResolutionMethodRef.current,
+        onUnavailable: (error) => {
+          console.warn('super resolution is unavailable; showing the video as it is', error);
+        },
+        onAnime4KUnavailable: (error) => {
+          console.warn('Anime4K is unavailable; upscaling with FSR 1 alone', error);
+        },
+      }),
       onUnavailable: (error) => {
-        console.warn('frame interpolation is unavailable; showing the video as it is', error);
+        console.warn('the video overlay is unavailable; showing the video as it is', error);
       },
     });
-    interpolation.setEnabled(interpolateRef.current);
-    interpolationRef.current = interpolation;
+    overlay.setInterpolate(interpolateRef.current);
+    overlay.setUpscale(superResolutionRef.current);
+    overlayRef.current = overlay;
     captionsRef.current = renderer;
 
     return () => {
-      interpolation.destroy();
-      interpolationRef.current = null;
+      overlay.destroy();
+      overlayRef.current = null;
       captionsRef.current?.destroy();
       captionsRef.current = null;
-      videoRef.current = null;
-      handlers.current.onVideo?.(null);
+      mediaRef.current = null;
+      handlers.current.onMedia?.(null);
       frame.replaceChildren();
     };
-  }, [videoRef]);
+  }, [mediaRef]);
 
   useEffect(() => {
-    const video = videoRef.current;
+    // 前の読み込みから引き継いだ一時停止は、読まないときやライブに変えたときにも、ここで使い切る。残すと、後で別の録画やライブを
+    // 開いたときに、止まったまま始まる。
+    const stayPaused = !live && keepPaused.current;
+    keepPaused.current = false;
+    // hls.js に渡すのは <video> の要素。
+    const video = mediaRef.current?.video ?? null;
     if (video === null || url === null) {
       return;
     }
@@ -197,6 +239,8 @@ export function HlsPlayer({
     // parsed は、この hls.js がプレイリストを読み終えたかどうか。それまでの pause は、前の hls.js を video から外したときに
     // ブラウザが出すものなので、一時停止とみなさない。
     let parsed = false;
+    // autoplay のままだと、プレイリストを読み終えたときに、ブラウザが再生を始める。
+    video.autoplay = !stayPaused;
     void import('hls.js').then(({ default: HlsClass }) => {
       if (destroyed) {
         return;
@@ -259,7 +303,9 @@ export function HlsPlayer({
       instance.on(HlsClass.Events.MANIFEST_PARSED, () => {
         parsed = true;
         handlers.current.onLoaded?.();
-        void video.play().catch(() => {});
+        if (!stayPaused) {
+          void video.play().catch(() => {});
+        }
       });
       instance.on(HlsClass.Events.ERROR, (_event, data) => {
         // 致命的でないエラーは、hls.js が読み直して回復する。
@@ -267,7 +313,7 @@ export function HlsPlayer({
           handlers.current.onError?.(new Error(`${data.type}: ${data.details}`));
         }
       });
-      // ライブを読み直すと、video の時刻の基準が変わるので、前の字幕を捨てる。
+      // ライブを読み直すと、video の時刻の基準が変わるので、前の字幕を破棄する。
       captionsRef.current?.reset();
       instance.loadSource(url);
       instance.attachMedia(video);
@@ -304,14 +350,28 @@ export function HlsPlayer({
       destroyed = true;
       video.removeEventListener('pause', pause);
       video.removeEventListener('play', play);
+      // hls.js を外すと、ブラウザは video を止めるので、外す前に見る。終わりまで再生して止まったのは、一時停止とみなさない。
+      // プレイリストを読み終える前に読み直すなら、まだ video は止まったままなので、前から引き継いだ値をそのまま渡す。
+      // ライブは、止めたまま読み直すのがチャンネルか画質を変えたときだけなので、読み直したら再生する。次の読み込みで見る。
+      keepPaused.current = parsed ? video.paused && !video.ended : stayPaused;
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
-  }, [videoRef, url, live, generation]);
+  }, [mediaRef, url, live, generation]);
 
   useEffect(() => {
-    interpolationRef.current?.setEnabled(interpolate);
+    overlayRef.current?.setInterpolate(interpolate);
   }, [interpolate]);
+
+  useEffect(() => {
+    overlayRef.current?.setUpscale(superResolution);
+  }, [superResolution]);
+
+  // 切り抜きと、鮮鋭化の強さ、拡大の方式を変えたら、拡大する大きさを決め直し、止めている間のコマも描き直す。
+  const { scale: cropScale, stretchX: cropStretchX } = crop;
+  useEffect(() => {
+    overlayRef.current?.refresh();
+  }, [cropScale, cropStretchX, superResolutionStrength, superResolutionMethod]);
 
   useEffect(() => {
     captionsRef.current?.setVisible(captions && !covered.current);

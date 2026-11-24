@@ -49,7 +49,7 @@ func NewDataBroadcastFilter(serviceID uint16) *DataBroadcastFilter {
 	}
 }
 
-// Filter は、188 バイトのパケット b を読み、残すパケットと true を返す。捨てるなら false を返す。
+// Filter は、188 バイトのパケット b を読み、残すパケットと true を返す。破棄するなら false を返す。
 // 返すスライスは、b か、Filter の中のバッファを指すので、次に Filter を呼ぶまでしか使えない。
 func (f *DataBroadcastFilter) Filter(b []byte) ([]byte, bool) {
 	if len(b) != PacketSize || b[0] != syncByte {
@@ -89,7 +89,7 @@ func (f *DataBroadcastFilter) Filter(b []byte) ([]byte, bool) {
 	return nil, false
 }
 
-// readPAT は、PAT を読み、サービスの PMT の PID が変わったら、組み立て中の PMT を捨てる。
+// readPAT は、PAT を読み、サービスの PMT の PID が変わったら、組み立て中の PMT を破棄する。
 func (f *DataBroadcastFilter) readPAT(p *packet) {
 	f.pat.feed(p.payloadUnitStart, p.payload, f.table.handlePAT)
 	if pid := f.table.pmtPIDs[f.serviceID]; pid != f.pmtPID {

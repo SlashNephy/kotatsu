@@ -70,11 +70,11 @@ type AnimeEpisode struct {
 	CountStart *float64 `json:"countStart,omitempty"`
 	CountEnd   *float64 `json:"countEnd,omitempty"`
 	Subtitle   *string  `json:"subtitle,omitempty"`
-	// しょぼいカレンダーの [新] の印。
+	// しょぼいカレンダーの [新] のマーク。
 	First bool `json:"first"`
-	// しょぼいカレンダーの [終] の印。
+	// しょぼいカレンダーの [終] のマーク。
 	Last bool `json:"last"`
-	// 再放送かどうか (#1233)。しょぼいカレンダーの再放送の印か、番組名の解析では番組名の [再] の印。
+	// 再放送かどうか (#1233)。しょぼいカレンダーの再放送のマークか、番組名の解析では番組名の [再] のマーク。
 	Rerun bool `json:"rerun"`
 	// TID に対応する作品。対応がなければ空。
 	Works []*AnimeWork `json:"works"`
@@ -87,7 +87,7 @@ type AnimeFollowingViewing struct {
 	Username string `json:"username"`
 	// 画面に出す名前。
 	Name string `json:"name"`
-	// アバターを tenban が中継する URL のパス。アバターがなければ null。
+	// アバターを tenban がプロキシする URL のパス。アバターがなければ null。
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 	// 記録先のユーザーのページ。
 	ProfileURL string               `json:"profileUrl"`
@@ -112,6 +112,44 @@ type AnimeFollowingViewings struct {
 	Failed bool `json:"failed"`
 	// 状態の順 (見た、見てる、…) に、続けて名前の順に並べる。
 	Viewings []*AnimeFollowingViewing `json:"viewings"`
+}
+
+// フォロー中のユーザーのうち、作品を「見てる」にした人 (#1968)。
+type AnimeFollowingWatcher struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 記録先でのユーザー名。記録先の中で一意。
+	Username string `json:"username"`
+	// 画面に出す名前。
+	Name string `json:"name"`
+	// アバターを tenban がプロキシする URL のパス。アバターがなければ null。
+	AvatarURL *string `json:"avatarUrl,omitempty"`
+	// 記録先のユーザーのページ。
+	ProfileURL string `json:"profileUrl"`
+}
+
+// ログイン中のユーザーがフォローしている人が「見てる」にした作品の、これからの放送 (#1968)。結果は本人にだけ見せる。
+type AnimeFollowingWatching struct {
+	// 管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、works は空。
+	Enabled bool `json:"enabled"`
+	// これから 1 週間に放送がある作品。見ている人の多い順に、同じ数なら最初の放送の早い順に並べる。
+	Works []*AnimeFollowingWatchingWork `json:"works"`
+}
+
+// フォロー中のユーザーが「見てる」にした作品のうち、これから放送されるもの (#1968)。しょぼいカレンダーの TID ごとに 1 つにまとめる。
+// 放送、予約済みの判定、ルールの作り方は、見たいリストの候補 (AnimeWishlistWork) と同じにする。
+type AnimeFollowingWatchingWork struct {
+	// しょぼいカレンダーの TID。
+	Tid int `json:"tid"`
+	// 作品名。Annict の作品名を先に選ぶ。
+	Title string `json:"title"`
+	// 作品を見ている人。記録先、名前の順に並べる。
+	Watchers []*AnimeFollowingWatcher `json:"watchers"`
+	// 予約していない放送。放送の早い順に並べ、同じイベントを共有する放送は 1 つにする。
+	Broadcasts []*AnimeWishlistBroadcast `json:"broadcasts"`
+	// 予約のある放送の数。候補からは外している。
+	ReservedBroadcasts int `json:"reservedBroadcasts"`
+	// 予約済みかどうか。見たいリストの候補の covered と同じ決まりで決める。予約済みの作品からは、ルールを作れない。
+	Covered bool `json:"covered"`
 }
 
 // 連携先の情報を取り込んだ様子。取り込み元ごとに 1 つ。1 度も問い合わせていない取り込み元は返さない。
@@ -167,7 +205,7 @@ type AnimeLibraryEpisode struct {
 	Title *string `json:"title,omitempty"`
 }
 
-// 作品の始まった放送 (#1233)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+// 作品の始まった放送 (#1233)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻とマークだけを返す。
 type AnimeLibraryPastBroadcast struct {
 	StartAt time.Time `json:"startAt"`
 	// 再放送かどうか。
@@ -211,7 +249,7 @@ type AnimeLibraryWork struct {
 	Tid *int `json:"tid,omitempty"`
 	// 作品名。Annict の作品名を先に選ぶ。
 	Title string `json:"title"`
-	// 作品の画像 (#1235)。tenban が記録先の画像を中継する URL のパス。AniList の画像を先に選ぶ。画像がなければ null。
+	// 作品の画像 (#1235)。tenban が記録先の画像をプロキシする URL のパス。AniList の画像を先に選ぶ。画像がなければ null。
 	ImageURL *string `json:"imageUrl,omitempty"`
 	// どれかの記録先で「見てる」にしていれば WATCHING。
 	Status  AnimeWishlistStatus   `json:"status"`
@@ -383,16 +421,16 @@ type APIToken struct {
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
-// Kotatsu の版。
+// Kotatsu のバージョン。
 type AppVersion struct {
-	// リリースのタグの版 (1.2.3)。main のビルドなら edge、版を埋め込まないビルドなら dev。
+	// リリースのタグのバージョン (1.2.3)。main のビルドなら edge、バージョンを埋め込まないビルドなら dev。
 	Version string `json:"version"`
 	// ビルドしたコミット。分からなければ null。
 	Revision *string `json:"revision,omitempty"`
 	// コミットしていない変更を含むビルドかどうか。
 	Modified bool `json:"modified"`
-	// 動いている版より新しいリリース (#506)。管理者にだけ返す。新しいリリースを確かめる設定 (update_check.enabled) を入れていないか、
-	// 新しいリリースがないか、まだ確かめていなければ null。
+	// 動いているバージョンより新しいリリース (#506)。管理者にだけ返す。新しいリリースを確認する設定 (update_check.enabled) を入れていないか、
+	// 新しいリリースがないか、まだ確認していなければ null。
 	LatestRelease *Release `json:"latestRelease,omitempty"`
 }
 
@@ -457,27 +495,27 @@ type AuditEventFilter struct {
 	Until *time.Time `json:"until,omitempty"`
 }
 
-// バックアップの書き出しの結果 (#1926)。
+// バックアップの結果 (#1926)。
 type BackupRun struct {
 	// 管理者が画面から頼んだものかどうか。false なら、定期のもの。
 	Manual     bool      `json:"manual"`
 	StartedAt  time.Time `json:"startedAt"`
 	FinishedAt time.Time `json:"finishedAt"`
-	// 書き出したファイルの名前 (書き出す先のディレクトリの中)。失敗したら null。
+	// 出力したファイルの名前 (出力先のディレクトリの中)。失敗したら null。
 	FileName *string `json:"fileName,omitempty"`
-	// 書き出したファイルの大きさ (バイト)。失敗したら null。
+	// 出力したファイルの大きさ (バイト)。失敗したら null。
 	Size *int64 `json:"size,omitempty"`
 	// 失敗したときの理由。成功したら null。
 	Error *string `json:"error,omitempty"`
 }
 
-// 定期のバックアップの設定 (設計書 11.4、#1926)。書き出す先のディレクトリは、nekonote の設定ファイル (backup.dir) で決める。
+// 定期のバックアップの設定 (設計書 11.4、#1926)。出力先のディレクトリは、nekonote の設定ファイル (backup.dir) で決める。
 type BackupSettings struct {
 	// 暗号化する age の公開鍵 (age1...)。どれか 1 つの秘密鍵で読める。空なら、定期のバックアップをしない。
 	Recipients []string `json:"recipients"`
-	// 書き出す間隔 (時間)。
+	// バックアップする間隔 (時間)。
 	IntervalHours int `json:"intervalHours"`
-	// 残す世代の数。書き出し終えたら、これより古いファイルを消す。
+	// 残す世代の数。バックアップし終えたら、これより古いファイルを消す。
 	Generations int `json:"generations"`
 	// 最後に変えた日時。一度も変えていなければ null。
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
@@ -485,18 +523,18 @@ type BackupSettings struct {
 
 // 定期のバックアップの設定を変える (#1926)。省いた項目は変えない。
 type BackupSettingsInput struct {
-	// 暗号化する age の公開鍵。渡すと、登録してある鍵をすべて置き換える。
+	// 暗号化する age の公開鍵。渡すと、登録してある公開鍵をすべて置き換える。
 	Recipients []string `json:"recipients,omitempty"`
-	// 書き出す間隔 (1〜720 時間)。
+	// バックアップする間隔 (1〜720 時間)。
 	IntervalHours *int `json:"intervalHours,omitempty"`
 	// 残す世代の数 (1〜365)。
 	Generations *int `json:"generations,omitempty"`
 }
 
-// バックアップの設定と、最後の書き出しの結果 (設計書 11.4、#1926)。
+// バックアップの設定と、最後のバックアップの結果 (設計書 11.4、#1926)。
 type BackupStatus struct {
 	Settings *BackupSettings `json:"settings"`
-	// 最後の書き出しの結果。まだ書き出していなければ null。
+	// 最後のバックアップの結果。まだバックアップしていなければ null。
 	LatestRun *BackupRun `json:"latestRun,omitempty"`
 }
 
@@ -622,7 +660,7 @@ type CaptureEdge struct {
 	Node   *Capture `json:"node"`
 }
 
-// 物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
+// 物理チャンネルの TS をまるごと数秒受け取って調査した結果 (#830)。
 type ChannelInspection struct {
 	// PAT の transport_stream_id。PAT を受け取れなければ null。
 	TransportStreamID *int `json:"transportStreamId,omitempty"`
@@ -641,6 +679,8 @@ type ChannelType struct {
 	Type        string `json:"type"`
 	DisplayName string `json:"displayName"`
 	SortOrder   int    `json:"sortOrder"`
+	// 上流 (チューナーサーバー) から消えていないサービスを持つかどうか (#1973)。持たない種別は、選択肢に出さない。
+	HasServices bool `json:"hasServices"`
 }
 
 // チャンネル種別の表示の変える項目。省いた項目は変えない。
@@ -717,7 +757,7 @@ type CreateWebhookInput struct {
 
 type CreateWebhookPayload struct {
 	Webhook *Webhook `json:"webhook"`
-	// 署名用の秘密キー。受信側で署名を確かめるのに使う。ここでしか返さない。
+	// 署名用の秘密キー。受信側で署名を確認するのに使う。ここでしか返さない。
 	Secret string `json:"secret"`
 }
 
@@ -744,10 +784,10 @@ type CreatedIptvFeed struct {
 	IptvFeed  *IptvFeed `json:"iptvFeed"`
 }
 
-// データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
+// データの変更。何が変わったかだけを通知するので、クライアントは、そのデータを読み直す。
 type DataChange struct {
 	Channel DataChannel `json:"channel"`
-	// 変更の版数。変わるたびに大きくなる。
+	// 変更のバージョン。変わるたびに大きくなる。
 	Version int `json:"version"`
 }
 
@@ -755,7 +795,7 @@ type DataChange struct {
 type DeleteOrphanFilesPayload struct {
 	// 消したファイルとディレクトリの数。
 	Deleted int `json:"deleted"`
-	// 確かめ直すと、DB にあるか、使っているか、書いたばかりか、もうなかったので、消さなかった数。
+	// 確認し直すと、DB にあるか、使っているか、書いたばかりか、もうなかったので、消さなかった数。
 	Skipped int `json:"skipped"`
 }
 
@@ -767,18 +807,18 @@ type DeleteReservationPayload struct {
 	Reservation *Reservation `json:"reservation,omitempty"`
 }
 
-// 番組や録画に結びついた TMDb の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
+// 番組や録画に結びついた TMDB の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
 type DramaEpisode struct {
 	Series       *DramaSeries      `json:"series"`
 	SeriesSource DramaSeriesSource `json:"seriesSource"`
-	// TMDb のシーズンの番号。0 は特別編。話を決められなければ null。
+	// TMDB のシーズンの番号。0 は特別編。話を決められなければ null。
 	SeasonNumber *int `json:"seasonNumber,omitempty"`
 	// シーズンの中の話の番号。話を決められなければ null。
 	EpisodeNumber *int `json:"episodeNumber,omitempty"`
 	// 話の名前。キャッシュがなければ null。
 	EpisodeName   *string             `json:"episodeName,omitempty"`
 	EpisodeSource *DramaEpisodeSource `json:"episodeSource,omitempty"`
-	// TMDb の話のページ。話を決められなければ、作品のページ。
+	// TMDB の話のページ。話を決められなければ、作品のページ。
 	URL string `json:"url"`
 	// ログイン中のユーザーが、この話を見たかどうか (#1652)。話を決められなければ false。
 	Watched bool `json:"watched"`
@@ -786,7 +826,7 @@ type DramaEpisode struct {
 
 // ログイン中のユーザーが見ているドラマの作品を、作品ごとに並べたもの (ドラマの視聴管理の画面。#1652)。
 type DramaLibrary struct {
-	// 管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。
+	// 管理者が、TMDB との連携を有効にしているかどうか (設計書 3.9)。無効なら、作品は空。
 	Enabled bool `json:"enabled"`
 	// 見ている作品と見たい作品。次の放送の早い順に並べ、放送の予定のない作品は、作品名の順に後ろに回す。
 	Works []*DramaLibraryWork `json:"works"`
@@ -801,26 +841,26 @@ type DramaLibraryBroadcast struct {
 	EpisodeNumber *int `json:"episodeNumber,omitempty"`
 	// 再放送かどうか。
 	Rerun bool `json:"rerun"`
-	// TMDb のシーズンの最後の話かどうか。最後の話が分からなければ false。
+	// TMDB のシーズンの最後の話かどうか。最後の話が分からなければ false。
 	Last bool `json:"last"`
 }
 
 // ドラマの視聴管理の画面の、作品の 1 話 (#1652)。
 type DramaLibraryEpisode struct {
-	// TMDb のシーズンの番号。0 は特別編。
+	// TMDB のシーズンの番号。0 は特別編。
 	SeasonNumber int `json:"seasonNumber"`
 	// シーズンの中の話の番号。
 	EpisodeNumber int `json:"episodeNumber"`
-	// 話の名前。TMDb のキャッシュになければ null。
+	// 話の名前。TMDB のキャッシュになければ null。
 	Name *string `json:"name,omitempty"`
-	// TMDb の話のページ。
+	// TMDB の話のページ。
 	URL string `json:"url"`
 }
 
-// ドラマの作品の始まった放送 (#1652)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+// ドラマの作品の始まった放送 (#1652)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻とマークだけを返す。
 type DramaLibraryPastBroadcast struct {
 	StartAt time.Time `json:"startAt"`
-	// TMDb のシーズンの最後の話かどうか。
+	// TMDB のシーズンの最後の話かどうか。
 	Last bool `json:"last"`
 }
 
@@ -828,7 +868,7 @@ type DramaLibraryPastBroadcast struct {
 type DramaLibraryRecordedEpisode struct {
 	SeasonNumber  int `json:"seasonNumber"`
 	EpisodeNumber int `json:"episodeNumber"`
-	// 話の名前。TMDb のキャッシュになければ null。
+	// 話の名前。TMDB のキャッシュになければ null。
 	Name *string `json:"name,omitempty"`
 	// その話の録画のうち、最も新しく録ったもの。
 	Recording *Recording `json:"recording"`
@@ -862,9 +902,9 @@ type DramaLibraryWork struct {
 	RecordedEpisodes []*DramaLibraryRecordedEpisode `json:"recordedEpisodes"`
 }
 
-// TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
+// TMDB との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
 type DramaLinkingStatus struct {
-	// 管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。
+	// 管理者が TMDB のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。
 	TokenConfigured bool `json:"tokenConfigured"`
 	// 入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。
 	TokenHint *string `json:"tokenHint,omitempty"`
@@ -919,7 +959,7 @@ type DramaRecordDestinationStatus struct {
 
 // ログイン中のユーザーの、見たドラマの記録の様子 (#1649)。
 type DramaRecordSettings struct {
-	// 管理者が、TMDb との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。
+	// 管理者が、TMDB との連携を有効にしているかどうか (設計書 3.9)。無効なら、画面に設定を出さない。
 	Enabled bool `json:"enabled"`
 	// 番組の長さのうち、何 % を実際に再生したら、見たドラマの話にするか (1〜100)。見た話は、連携した Simkl にも記録する。
 	// 見たアニメを記録する割合とは別に持つ。
@@ -932,46 +972,46 @@ type DramaRecordSettingsInput struct {
 	ThresholdPercent int `json:"thresholdPercent"`
 }
 
-// TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
+// TMDB の作品 (TV) (#1651、設計書 3.9)。名前は TMDB から引いたキャッシュから読み、キャッシュがなければ null にする。
 type DramaSeries struct {
-	// TMDb の作品の ID。
+	// TMDB の作品の ID。
 	TmdbID int `json:"tmdbId"`
 	// 作品の名前 (日本語)。
 	Name *string `json:"name,omitempty"`
 	// 作品の元の言語の名前。
 	OriginalName *string `json:"originalName,omitempty"`
-	// TMDb の作品のページ。
+	// TMDB の作品のページ。
 	URL string `json:"url"`
 	// ログイン中のユーザーが、この作品を見ている作品に入れた状態 (#1652)。入れていなければ null。
 	WatchStatus *DramaWatchStatus `json:"watchStatus,omitempty"`
 }
 
-// 管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。
+// 管理者が、番組名から読んだ作品名ごとに決めた TMDB の作品 (#1651、設計書 3.9)。
 type DramaTitleOverride struct {
-	// 作品名の鍵 (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。
+	// 作品名のキー (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。
 	TitleKey string `json:"titleKey"`
-	// 結びつける TMDb の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。
+	// 結びつける TMDB の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。
 	TmdbSeriesID *int      `json:"tmdbSeriesId,omitempty"`
 	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // 作品名の上書きの変更 (#1651)。programName か titleKey のどちらか 1 つと、tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
 type DramaTitleOverrideInput struct {
-	// 上書きする作品名を読む番組名。照合と同じ読み方で、作品名の鍵にする。
+	// 上書きする作品名を読む番組名。照合と同じ読み方で、作品名のキーにする。
 	ProgramName *string `json:"programName,omitempty"`
-	// 上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。
+	// 上書きする作品名のキー (dramaTitleOverrides の titleKey)。一覧から消すときに使う。
 	TitleKey *string `json:"titleKey,omitempty"`
-	// 結びつける TMDb の作品の ID (1 以上)。
+	// 結びつける TMDB の作品の ID (1 以上)。
 	TmdbSeriesID *int `json:"tmdbSeriesId,omitempty"`
 	// この作品名の番組を、どの作品にも結びつけない。
 	Exclude bool `json:"exclude"`
-	// 上書きを消し、TMDb を探して作品を決めるのに戻す。
+	// 上書きを消し、TMDB を探して作品を決めるのに戻す。
 	Reset bool `json:"reset"`
 }
 
-// 字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
+// 字幕の外字 (DRCS) を文字に置き換えるテーブルの 1 行 (#825)。
 type DrcsReplacement struct {
-	// 外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使う鍵と同じ。
+	// 外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使うキーと同じ。
 	Md5 string `json:"md5"`
 	// 置き換える文字。1〜4 文字。外字の 1 文字の枠に縮めて描く。
 	Text string `json:"text"`
@@ -979,7 +1019,7 @@ type DrcsReplacement struct {
 
 type DrcsReplacementInput struct {
 	Md5 string `json:"md5"`
-	// 置き換える文字。null なら、この外字を表から消す。
+	// 置き換える文字。null なら、この外字をテーブルから消す。
 	Text *string `json:"text,omitempty"`
 }
 
@@ -997,7 +1037,7 @@ type FileNamePreview struct {
 	Error *string `json:"error,omitempty"`
 }
 
-// ファイル名のテンプレートの書き方。Go のテンプレートを書かない利用者向けに、画面で表にして示す。
+// ファイル名のテンプレートの書き方。Go のテンプレートを書かない利用者向けに、画面でテーブルにして示す。
 type FileNameTemplateHelp struct {
 	Items   []*FileNameTemplateItem   `json:"items"`
 	Presets []*FileNameTemplatePreset `json:"presets"`
@@ -1105,7 +1145,7 @@ type GuideViewInput struct {
 	FreeOnly           bool          `json:"freeOnly"`
 }
 
-// 調べた TS の、番組 (サービス) 1 つの様子。
+// 調査した TS の、番組 (サービス) 1 つの様子。
 type InspectedProgram struct {
 	// program_number。ARIB ではサービス ID と同じ値になる。
 	ServiceID int `json:"serviceId"`
@@ -1117,7 +1157,7 @@ type InspectedProgram struct {
 	Streams []*InspectedStream `json:"streams"`
 }
 
-// 調べた TS の、PID 1 つの様子。
+// 調査した TS の、PID 1 つの様子。
 type InspectedStream struct {
 	Pid  int        `json:"pid"`
 	Kind StreamKind `json:"kind"`
@@ -1269,7 +1309,7 @@ type Keyword struct {
 	Fields        []match.Field `json:"fields"`
 }
 
-// キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比べる。
+// キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比較する。
 type KeywordInput struct {
 	Text string `json:"text"`
 	// text を正規表現 (RE2) として扱うかどうか。
@@ -1299,7 +1339,7 @@ type Library struct {
 	Kind LibraryKind `json:"kind"`
 }
 
-// データディレクトリの、ライブラリのファイルの生成物 (索引、画像、CM の区間、自動生成した字幕) の量 (設計書 5.8)。
+// データディレクトリの、ライブラリのファイルの生成物 (インデックス、画像、CM の区間、自動生成した字幕) の量 (設計書 5.8)。
 type LibraryArtifacts struct {
 	// ファイルの大きさの合計 (バイト)。
 	Size int64 `json:"size"`
@@ -1336,18 +1376,18 @@ type LibraryBroadcast struct {
 	Program *LibraryProgram `json:"program,omitempty"`
 }
 
-// ライブラリのファイルの、CM とみなした区間。時刻は、再生の 0 秒 (索引の最初の I フレーム) からの秒。
+// ライブラリのファイルの、CM とみなした区間。時刻は、再生の 0 秒 (インデックスの最初の I フレーム) からの秒。
 type LibraryCMSection struct {
 	StartSeconds float64 `json:"startSeconds"`
 	EndSeconds   float64 `json:"endSeconds"`
 }
 
-// ライブラリのディレクトリの中身。
+// ライブラリのディレクトリの内容。
 type LibraryDirectory struct {
 	Library *Library `json:"library"`
 	// ライブラリの中の / 区切りの相対パス。根元は空。
 	Path string `json:"path"`
-	// パスの段ごとの、画面に出す名前。パンくずに使う。フォルダのライブラリでは段そのもの、Google Drive ではフォルダの名前
+	// パスの階層ごとの、画面に出す名前。パンくずに使う。フォルダのライブラリでは階層そのもの、Google Drive ではフォルダの名前
 	// (マイドライブの根元は "My Drive")。根元なら空。
 	Names []string `json:"names"`
 	// 中のディレクトリと、再生できるファイルを、ディレクトリ、ファイルの順に、それぞれ名前の順に返す。
@@ -1383,28 +1423,28 @@ type LibraryFile struct {
 	Name       string    `json:"name"`
 	Size       int64     `json:"size"`
 	ModifiedAt time.Time `json:"modifiedAt"`
-	// ファイルの頭から読んだ映像の種類。読めなければ HD とみなす。
+	// ファイルの先頭から読んだ映像の種類。読めなければ HD とみなす。
 	VideoFormat VideoFormat       `json:"videoFormat"`
 	Index       *LibraryFileIndex `json:"index"`
 	// ログイン中のユーザーが保存した再生位置 (ミリ秒)。ファイルを書き換えたら、前の位置は使わない。
 	WatchPositionMs *int64 `json:"watchPositionMs,omitempty"`
 	// ファイルの TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。
 	StreamURL string `json:"streamUrl"`
-	// TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報 (局、放送の時刻、番組)。索引を作り始めるときに読む。
+	// TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報 (局、放送の時刻、番組)。インデックスを作り始めるときに読む。
 	// まだ読んでいないか、読めなければ null。
 	Broadcast *LibraryBroadcast `json:"broadcast,omitempty"`
-	// 放送中だった番組の音声の構成。索引を作り終えるまでと、読めなければ空。
+	// 放送中だった番組の音声の構成。インデックスを作り終えるまでと、読めなければ空。
 	Audios []*ProgramAudio `json:"audios"`
-	// ドロップなどの集計。索引を作り終えるまでは null。
+	// ドロップなどの集計。インデックスを作り終えるまでは null。
 	Quality *LibraryFileQuality `json:"quality,omitempty"`
 	// ファイルの時間帯の実況の過去ログの URL のパス (設計書 7.4)。局と時間帯は broadcast のものを使う。
 	// コメントの時刻は、broadcast.recordedFrom からの秒。ログイン中のセッションで使う。
 	JikkyoCommentsURL string `json:"jikkyoCommentsUrl"`
-	// 代表画像の URL のパス。索引を作り終えた後に、nekonote のジョブで作る (設計書 5.8)。まだなければ null で、開くとジョブを入れる。
+	// 代表画像の URL のパス。インデックスを作り終えた後に、nekonote のジョブで作る (設計書 5.8)。まだなければ null で、開くとジョブを入れる。
 	ThumbnailURL *string `json:"thumbnailUrl,omitempty"`
 	// シークバー用のプレビュー画像の URL のパス。代表画像と一緒に作る。まだないか、作らない設定なら null。
 	PreviewURL *string `json:"previewUrl,omitempty"`
-	// CM とみなした区間 (設計書 5.8)。索引を作り終えた後に、nekonote のジョブで、録画と同じ見分け方で見分ける。
+	// CM とみなした区間 (設計書 5.8)。インデックスを作り終えた後に、nekonote のジョブで、録画と同じ見分け方で見分ける。
 	// まだ見分けていなければ null で、開くとジョブを入れる。見つからなければ空のリスト。
 	CMSections []*LibraryCMSection `json:"cmSections,omitempty"`
 	// 音声から自動生成した字幕 (設計書 5.8)。録画と同じく、頼まれたときだけ生成する。生成していなければ空。
@@ -1417,17 +1457,17 @@ type LibraryFile struct {
 	HlsURL string `json:"hlsUrl"`
 }
 
-// ライブラリのファイルのシークの索引の進み具合 (設計書 5.8)。
+// ライブラリのファイルのシークのインデックスの進み具合 (設計書 5.8)。
 type LibraryFileIndex struct {
-	// 索引を作り終えたかどうか。作り終えるまでは、読み直して進み具合を確かめる。
+	// インデックスを作り終えたかどうか。作り終えるまでは、読み直して進み具合を確認する。
 	Complete bool `json:"complete"`
-	// ファイルを書いている途中とみなして、索引を作らないかどうか (最後に書いてから 1 分たっていないファイル)。
-	// 索引がなければ、頭から再生できるだけで、シークできない。
+	// ファイルを書いている途中とみなして、インデックスを作らないかどうか (最後に書いてから 1 分たっていないファイル)。
+	// インデックスがなければ、頭から再生できるだけで、シークできない。
 	Writing bool `json:"writing"`
-	// シークできる所 (索引のできた最後の I フレームの位置。ファイルの始まりからの秒)。索引がまだなければ 0。
+	// シークできる所 (インデックスのできた最後の I フレームの位置。ファイルの始まりからの秒)。インデックスがまだなければ 0。
 	SeekableSeconds float64 `json:"seekableSeconds"`
-	// 再生の時間 (秒)。作り終えていれば索引から求め、作っている途中なら、できた所までのバイト数と時間の比から見込む。
-	// 索引がまだなければ null。
+	// 再生の時間 (秒)。作り終えていればインデックスから求め、作っている途中なら、できた所までのバイト数と時間の比から見込む。
+	// インデックスがまだなければ null。
 	DurationSeconds *float64 `json:"durationSeconds,omitempty"`
 }
 
@@ -1453,8 +1493,8 @@ type LibraryProgram struct {
 // ライブラリの名前の検索で見つけたファイル (#1902)。
 type LibrarySearchHit struct {
 	Entry *LibraryEntry `json:"entry"`
-	// ファイルのあるフォルダの、根元からの段ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
-	// Google Drive では、フォルダの名前 (パスの段は ID)。
+	// ファイルのあるフォルダの、根元からの階層ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
+	// Google Drive では、フォルダの名前 (パスの階層は ID)。
 	FolderNames []string `json:"folderNames"`
 }
 
@@ -1486,7 +1526,7 @@ type LiveStreamRates struct {
 	Scrambled int64 `json:"scrambled"`
 	// 放送の時計 (#1515)。まだ PCR を読めていなければ null。
 	BroadcastClock *BroadcastClock `json:"broadcastClock,omitempty"`
-	// 内訳を送る時点のサーバーの時計。画面は、端末の時計との差を、これで測る (#1515)。
+	// 内訳を送る時点のサーバーの時計。画面は、端末の時計との差を、これで計測する (#1515)。
 	ServerTime time.Time `json:"serverTime"`
 }
 
@@ -1498,7 +1538,7 @@ type LiveStreamScrambled struct {
 	DecidedAt time.Time `json:"decidedAt"`
 }
 
-// ログの 1 行。秘密の値は、サーバーが知っているものを伏せてある (1 段目)。
+// ログの 1 行。秘密の値は、サーバーが知っているものをマスクしてある (1 段階目)。
 type LogLine struct {
 	// epoch ミリ秒の時刻。
 	Time  int64    `json:"time"`
@@ -1511,7 +1551,7 @@ type LogLine struct {
 // 直近のログと、不具合の報告に要るもの (#1521、設計書 11.3)。
 type LogReport struct {
 	Sources []*LogSource `json:"sources"`
-	// 不具合の報告を作るときに、ブラウザで伏せるホスト名 (2 段目)。リクエストが来たホスト名と、チューナーサーバーと DB のホスト名。
+	// 不具合の報告を作るときに、ブラウザでマスクするホスト名 (2 段階目)。リクエストが来たホスト名と、チューナーサーバーと DB のホスト名。
 	RedactHosts []string `json:"redactHosts"`
 	// このリクエストに答えたインスタンスの ID。
 	InstanceID string `json:"instanceId"`
@@ -1519,20 +1559,20 @@ type LogReport struct {
 	Roles []string `json:"roles"`
 }
 
-// 1 つの出どころのログと環境。
+// 1 つのソースのログと環境。
 type LogSource struct {
 	Kind logreport.SourceKind `json:"kind"`
 	// 古い順の行。
 	Lines []*LogLine `json:"lines"`
-	// 出どころが持っていた行の数。lines は、このうち最後の保持行数まで。
+	// ソースが持っていた行の数。lines は、このうち最後の保持行数まで。
 	Total int `json:"total"`
 	// ログを取れなかった理由。取れたら null。
 	Failure *logreport.Failure `json:"failure,omitempty"`
-	// 版。分からなければ空。
+	// バージョン。分からなければ空。
 	Version string `json:"version"`
 	Os      string `json:"os"`
 	Arch    string `json:"arch"`
-	// Kotatsu では Go の版、チューナーサーバーではサーバーの種類 (分かるときだけ)。
+	// Kotatsu では Go のバージョン、チューナーサーバーではサーバーの種類 (分かるときだけ)。
 	Runtime string `json:"runtime"`
 }
 
@@ -1579,7 +1619,7 @@ type NetworkActivityEntry struct {
 	// 時間帯の始まり。
 	Hour    time.Time           `json:"hour"`
 	Purpose netactivity.Purpose `json:"purpose"`
-	// 接続先のホスト名。視聴の内容や設定の中身が分かるものは null。
+	// 接続先のホスト名。視聴の内容や設定の内容が分かるものは null。
 	Host          *string               `json:"host,omitempty"`
 	Initiator     netactivity.Initiator `json:"initiator"`
 	Success       bool                  `json:"success"`
@@ -1640,7 +1680,7 @@ type NotificationPreferenceInput struct {
 type OAuthAuthorization struct {
 	// クライアントの ID。クライアントのメタデータの URL (CIMD)。
 	ClientID string `json:"clientId"`
-	// クライアントの名前。クライアントが自分で名乗るもので、確かめていない。
+	// クライアントの名前。クライアントが自分で名乗るもので、確認していない。
 	ClientName string `json:"clientName"`
 	// クライアントのサイト。名乗っていなければ null。
 	ClientURI *string `json:"clientUri,omitempty"`
@@ -1652,9 +1692,9 @@ type OAuthAuthorization struct {
 	AllowedScopes []string `json:"allowedScopes"`
 }
 
-// 同意の画面に出す前に確かめた、認可のリクエスト。
+// 同意の画面に出す前に確認した、認可のリクエスト。
 type OAuthAuthorizationCheck struct {
-	// 確かめた認可のリクエスト。errorRedirectUrl があれば null。
+	// 確認した認可のリクエスト。errorRedirectUrl があれば null。
 	Authorization *OAuthAuthorization `json:"authorization,omitempty"`
 	// パラメーターが正しくないときに、エラーを付けてクライアントへ戻す URL。正しければ null。
 	ErrorRedirectURL *string `json:"errorRedirectUrl,omitempty"`
@@ -1696,7 +1736,7 @@ type OrphanFileInput struct {
 	SegmentDir bool    `json:"segmentDir"`
 }
 
-// 一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。
+// 一覧のページの情報 (Relay の Cursor Connections)。カーソルは内容を解釈せずに、そのまま次のリクエストに渡す。
 type PageInfo struct {
 	HasNextPage     bool    `json:"hasNextPage"`
 	HasPreviousPage bool    `json:"hasPreviousPage"`
@@ -1786,6 +1826,8 @@ type PlayerSettings struct {
 	Comments *CommentSettings `json:"comments"`
 	// 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。
 	Captions *CaptionSettings `json:"captions"`
+	// 画面が端末に保存していた設定のうち、端末をまたいで同期するもの (#1862)。キーの順に並べる。
+	Preferences []*Preference `json:"preferences"`
 }
 
 // プレイヤーの設定の変更。省いた項目は変えない。
@@ -1799,6 +1841,8 @@ type PlayerSettingsInput struct {
 	Comments *CommentSettingsInput `json:"comments,omitempty"`
 	// 渡したら、字幕の設定をまるごと置き換える。
 	Captions *CaptionSettingsInput `json:"captions,omitempty"`
+	// 渡したキーの設定を置き換える。value が null のキーは消す。渡さなかったキーは変えない。
+	Preferences []*PreferenceInput `json:"preferences,omitempty"`
 }
 
 // 再生中のプレイヤーの状態 (#459、設計書 7.7)。プレイヤーが送ったものを、そのまま返す。
@@ -1836,6 +1880,21 @@ type PlayerStateInput struct {
 	Audio         *string             `json:"audio,omitempty"`
 	DataBroadcast bool                `json:"dataBroadcast"`
 	KeyGroups     []string            `json:"keyGroups"`
+}
+
+// 端末をまたいで同期する、画面の設定の 1 つ (#1862)。
+type Preference struct {
+	// 画面の保存先のキー (kotatsu.player.keymap など)。
+	Key string `json:"key"`
+	// 保存した文字列。内容は画面が決める。
+	Value string `json:"value"`
+}
+
+type PreferenceInput struct {
+	// 同期を許したキーだけ。
+	Key string `json:"key"`
+	// 16,384 文字まで。null なら消す。
+	Value *string `json:"value,omitempty"`
 }
 
 // プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
@@ -1881,7 +1940,7 @@ type ProgramConditionsInput struct {
 	MinDurationSeconds *int              `json:"minDurationSeconds,omitempty"`
 	MaxDurationSeconds *int              `json:"maxDurationSeconds,omitempty"`
 	FreeOnly           *bool             `json:"freeOnly,omitempty"`
-	// 番組名の囲み文字 (中身で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。
+	// 番組名の囲み文字 (内容で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。
 	Marks []string `json:"marks,omitempty"`
 	// どれか 1 つの囲み文字を持つ番組を除外する。
 	ExcludeMarks []string `json:"excludeMarks,omitempty"`
@@ -1911,7 +1970,7 @@ type Query struct {
 type RecordAnimeEpisodesInput struct {
 	// 番組。番組に結びついた話を記録する (番組の詳細から)。
 	Program *string `json:"program,omitempty"`
-	// 録画。録画に写した結びつきの話を記録する (録画の詳細から)。
+	// 録画。録画にコピーした結びつきの話を記録する (録画の詳細から)。
 	Recording *string `json:"recording,omitempty"`
 	// 作品のしょぼいカレンダーの TID。episode の話を、番組によらず記録する (視聴管理の画面から)。
 	Tid *int `json:"tid,omitempty"`
@@ -1952,7 +2011,7 @@ type RecordingCMDetection struct {
 	Progress *JobProgress `json:"progress,omitempty"`
 	// 最後に見分け終えた見分けで、いつもの見分け方で決められなかった理由 (#1508)。局ロゴで決められず、今の見分け方で見分け直したときなどに返す。決められたか、見分けていなければ null。
 	Note *string `json:"note,omitempty"`
-	// 最後に見分け終えた見分けで測った、映像の欠け (映像をデコードできなかった所) の長さの合計の秒 (#1508)。測れない見分け方と、見分けていなければ 0。
+	// 最後に見分け終えた見分けで計測した、映像の欠け (映像をデコードできなかった所) の長さの合計の秒 (#1508)。測れない見分け方と、見分けていなければ 0。
 	VideoMissingSeconds float64 `json:"videoMissingSeconds"`
 }
 
@@ -2015,7 +2074,7 @@ type RecordingFileRename struct {
 	To string `json:"to"`
 }
 
-// セグメントを書いたストリームを受信していたチューナー (#1467)。録画したときの写しで、今のチューナーの構成とは違うことがある。
+// セグメントを書いたストリームを受信していたチューナー (#1467)。録画したときのコピーで、今のチューナーの構成とは違うことがある。
 type RecordingFileTuner struct {
 	// チューナーサーバーでのチューナーの番号。リモートのチューナーは負の数になることがある。
 	Index int    `json:"index"`
@@ -2028,8 +2087,15 @@ type RecordingFilter struct {
 	TagIds     []string                `json:"tagIds,omitempty"`
 	States     []domain.RecordingState `json:"states,omitempty"`
 	ServiceIds []string                `json:"serviceIds,omitempty"`
-	// 番組名に含む文字列。大文字と小文字を区別しない。
+	// 番組名か概要に含む文字列。大文字と小文字を区別しない。
 	Keyword *string `json:"keyword,omitempty"`
+	// 番組名と概要で探すキーワード (#966)。番組の検索と同じく照合する。録画は詳細では探さないので、EXTENDED は指定できない。
+	// keyword と一緒に指定すると、両方に一致する録画を返す。
+	Keywords []*KeywordInput `json:"keywords,omitempty"`
+	// keywords の照合のしかた。省くと、すべてに一致する録画を返す。
+	KeywordMatch *match.KeywordMatch `json:"keywordMatch,omitempty"`
+	// どれか 1 つに一致したら除外するキーワード。EXTENDED は指定できない。
+	ExcludeKeywords []*KeywordInput `json:"excludeKeywords,omitempty"`
 	// 放送の開始がこの日時以降の録画。
 	Since *time.Time `json:"since,omitempty"`
 	// 放送の開始がこの日時より前の録画。
@@ -2083,7 +2149,7 @@ type RecordingSettings struct {
 	GenerateCaptions bool `json:"generateCaptions"`
 	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
-	// 録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。
+	// 録画を変換するときに出すコマ数 (#1509)。auto (映像から計測して 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。
 	TranscodeFrameRate string `json:"transcodeFrameRate"`
 }
 
@@ -2136,7 +2202,7 @@ type RecoveryCodes struct {
 
 // Kotatsu のリリース。
 type Release struct {
-	// リリースの版 (1.2.3)。
+	// リリースのバージョン (1.2.3)。
 	Version string `json:"version"`
 	// GitHub のリリースのページの URL。
 	URL         string    `json:"url"`
@@ -2183,7 +2249,7 @@ type RuleDefaults struct {
 	DuplicateWindowDays *int `json:"duplicateWindowDays,omitempty"`
 	// イベントリレーで続く番組も予約するかどうか (設計書 4.6)。
 	FollowEventRelay bool `json:"followEventRelay"`
-	// 局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。
+	// 局をまたいで同じ回をまとめ、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。
 	BundleSameEpisodes bool `json:"bundleSameEpisodes"`
 }
 
@@ -2272,7 +2338,7 @@ type SeriesNextEpisode struct {
 
 // サービスの表示の変える項目。省いた項目は変えない。
 type ServiceInput struct {
-	// 番組表に出さない印
+	// 番組表に出さないマーク
 	Hidden *bool `json:"hidden,omitempty"`
 	// 並び順の上書き。小さいほど前に並ぶ。0〜10000。
 	SortOrder *int `json:"sortOrder,omitempty"`
@@ -2338,9 +2404,9 @@ type StoragePool struct {
 	Priority int `json:"priority"`
 	// 容量の閾値 (バイト)。空き容量がこれを下回ったら、保護されていない古い録画から消す。0 なら消さない。
 	MinFreeBytes int64 `json:"minFreeBytes"`
-	// このインスタンスから見た空き容量 (バイト)。調べられなければ null。
+	// このインスタンスから見た空き容量 (バイト)。取得できなければ null。
 	FreeBytes *int64 `json:"freeBytes,omitempty"`
-	// このインスタンスから見た、ファイルシステムの容量 (バイト)。root のために取っておく分も含む。調べられなければ null。
+	// このインスタンスから見た、ファイルシステムの容量 (バイト)。root のために取っておく分も含む。取得できなければ null。
 	TotalBytes *int64 `json:"totalBytes,omitempty"`
 }
 
@@ -2381,7 +2447,7 @@ type StreamQuality struct {
 }
 
 // 外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
-// URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。中身は TS をそのまま流す。
+// URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。内容は TS をそのまま流す。
 type StreamURL struct {
 	// パスとクエリ (例: /api/streams/services/3273601024?expires=...&sig=...&user=...)。オリジンは含まないので、ページのオリジンを補って使う。
 	// 録画の URL には、署名を変えずに start (録画の始まりからの秒) を足して、再生を始める位置を指定できる。
@@ -2399,7 +2465,7 @@ type SystemSettings struct {
 	RecordingDefaults *RecordingSettings `json:"recordingDefaults"`
 	// 過去の番組の保持期間 (日)。0 なら無期限。
 	ArchiveRetentionDays int `json:"archiveRetentionDays"`
-	// 配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。
+	// 配信し終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。
 	NotificationRetentionDays int `json:"notificationRetentionDays"`
 	// 録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限。
 	WatchProgressRetentionDays int `json:"watchProgressRetentionDays"`
@@ -2411,7 +2477,7 @@ type SystemSettings struct {
 	RuleDefaults *RuleDefaults `json:"ruleDefaults"`
 	// MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
 	McpEnabled bool `json:"mcpEnabled"`
-	// データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban が中継するかどうか (#501)。既定は false。
+	// データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban がプロキシするかどうか (#501)。既定は false。
 	// ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
 	DataBroadcastIPEnabled bool `json:"dataBroadcastIpEnabled"`
 	// 外部プレイヤー (VLC や mpv) 用の署名付きの映像の URL を、発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
@@ -2436,23 +2502,23 @@ type SystemSettings struct {
 	EpgstationAPIEnabled bool `json:"epgstationApiEnabled"`
 	// しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
 	AnimeLinkingEnabled bool `json:"animeLinkingEnabled"`
-	// TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。
+	// TMDB との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。
 	DramaLinkingEnabled bool `json:"dramaLinkingEnabled"`
 	// NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
 	// ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
 	JikkyoEnabled bool `json:"jikkyoEnabled"`
 	// 管理者がオプトインした実況のコメントのソース (#1405)。既定は空。ログインしていれば誰でも読める。
 	CommentSources []CommentSource `json:"commentSources"`
-	// 字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。
+	// 字幕の外字 (DRCS) を文字に置き換えるテーブル (#825)。MD5 の順に並べる。
 	DrcsReplacements []*DrcsReplacement `json:"drcsReplacements"`
 	// ライブ視聴しているサービスを、視聴している間だけタイムシフトで録るかどうか (設計書 5.7、#1408)。既定は false。
 	// ログインしていれば誰でも読め、ライブ視聴の画面が、バッファを読み直すかを決めるのに使う。
 	TimeshiftWhileWatching bool `json:"timeshiftWhileWatching"`
 	// 視聴している間だけ録るサービスの保持時間 (秒)。600〜86400。既定は 3600。
 	TimeshiftWhileWatchingRetentionSeconds int `json:"timeshiftWhileWatchingRetentionSeconds"`
-	// どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0〜1440。既定は 180。
-	// 番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
-	RuleUnmatchedGraceMinutes int `json:"ruleUnmatchedGraceMinutes"`
+	// 重複の回避で「録画済み」とみなす、映像と音声の PID のドロップの数の上限 (設計書 4.4)。0〜1000。既定は 0。
+	// 0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
+	HistoryMaxDrops int `json:"historyMaxDrops"`
 	// 監査ログの保持期間 (日。設計書 8.5)。1〜3650。既定は 365。
 	AuditRetentionDays int `json:"auditRetentionDays"`
 	// 監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。1〜3650。既定は 90。過ぎた記録は、この 2 つだけを空にする。
@@ -2500,19 +2566,19 @@ type SystemSettingsInput struct {
 	EpgstationAPIEnabled *bool `json:"epgstationApiEnabled,omitempty"`
 	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	AnimeLinkingEnabled *bool `json:"animeLinkingEnabled,omitempty"`
-	// TMDb との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+	// TMDB との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	DramaLinkingEnabled *bool `json:"dramaLinkingEnabled,omitempty"`
 	// 渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	CommentSources []CommentSource `json:"commentSources,omitempty"`
-	// 字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
-	// 表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
+	// 字幕の外字の置き換えのテーブルの変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。テーブルは 2000 件まで。
+	// テーブルを丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古いテーブルで上書きして消さないためである。
 	DrcsReplacements []*DrcsReplacementInput `json:"drcsReplacements,omitempty"`
 	// 有効にするには、この tenban にタイムシフトのディレクトリが要る。なければ CONFLICT を返す。
 	TimeshiftWhileWatching *bool `json:"timeshiftWhileWatching,omitempty"`
 	// 600〜86400 秒。
 	TimeshiftWhileWatchingRetentionSeconds *int `json:"timeshiftWhileWatchingRetentionSeconds,omitempty"`
-	// 0〜1440 分。
-	RuleUnmatchedGraceMinutes *int `json:"ruleUnmatchedGraceMinutes,omitempty"`
+	// 0〜1000 件。
+	HistoryMaxDrops *int `json:"historyMaxDrops,omitempty"`
 	// 1〜3650 日。
 	AuditRetentionDays *int `json:"auditRetentionDays,omitempty"`
 	// 1〜3650 日。
@@ -2533,7 +2599,7 @@ type SystemSettingsInput struct {
 type SystemStatus struct {
 	Instances []*Instance `json:"instances"`
 	Leases    []*Lease    `json:"leases"`
-	// チューナーサーバーの状態。まだ確かめていなければ null。
+	// チューナーサーバーの状態。まだ確認していなければ null。
 	TunerServer *TunerServerStatus `json:"tunerServer,omitempty"`
 	Tuners      []*Tuner           `json:"tuners"`
 	Pools       []*StoragePool     `json:"pools"`
@@ -2547,7 +2613,7 @@ type TOTPEnrollment struct {
 	Secret string `json:"secret"`
 	// 認証アプリが QR コードから読む otpauth URI。
 	URI string `json:"uri"`
-	// これまでに confirmTotpEnrollment でコードを確かめないと、登録は取り消される。
+	// これまでに confirmTotpEnrollment でコードを確認しないと、登録は取り消される。
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
@@ -2591,7 +2657,7 @@ type TimeReservationInput struct {
 
 // タイムシフトのバッファの番組を、録画に昇格した結果。recording と reservation のどちらか一方を持つ。
 type TimeshiftPromotion struct {
-	// 放送の終わった番組の、バッファから書き出す録画。書き出し終えるまでは録画中。
+	// 放送の終わった番組の、バッファから出力する録画。出力し終えるまでは録画中。
 	Recording *Recording `json:"recording,omitempty"`
 	// 放送中の番組の、続きを録る番組予約。
 	Reservation *Reservation `json:"reservation,omitempty"`
@@ -2619,7 +2685,7 @@ type Tuner struct {
 // チューナーサーバーにつながっているかどうか (設計書 3.7)。ログイン中の誰でも読め、画面に縮退中であることを示すのに使う。
 // 理由などの詳しいことは、管理者向けの systemStatus で返す。
 type TunerServerHealth struct {
-	// 接続できない縮退中かどうか。まだ確かめていなければ false。
+	// 接続できない縮退中かどうか。まだ確認していなければ false。
 	Degraded bool `json:"degraded"`
 	// 縮退が始まった日時。縮退中でなければ null。
 	DegradedSince *time.Time `json:"degradedSince,omitempty"`
@@ -2629,7 +2695,7 @@ type TunerServerHealth struct {
 	ClockSkewMs *int `json:"clockSkewMs,omitempty"`
 	// 録画している TS の TOT が示す放送の時刻との差が、警告する閾値を超えているかどうか (#1309)。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付ける。
 	BroadcastClockSkewed bool `json:"broadcastClockSkewed"`
-	// 録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ測っていなければ null。
+	// 録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ計測していなければ null。
 	BroadcastClockSkewMs *int `json:"broadcastClockSkewMs,omitempty"`
 }
 
@@ -2637,7 +2703,7 @@ type TunerServerHealth struct {
 type TunerServerStatus struct {
 	// チューナーサーバーの種類 (#1538)。まだ分からなければ null。接続できない間は、最後に分かったもの。
 	Kind *tunerserver.Kind `json:"kind,omitempty"`
-	// チューナーサーバーが名乗った版。まだ分からないか、名乗らなければ null。
+	// チューナーサーバーが名乗ったバージョン。まだ分からないか、名乗らなければ null。
 	Version *string `json:"version,omitempty"`
 	// 接続できない縮退中かどうか。
 	Degraded      bool       `json:"degraded"`
@@ -2651,11 +2717,11 @@ type TunerServerStatus struct {
 	// 時計の差を警告する閾値 (ミリ秒)。
 	ClockSkewThresholdMs int       `json:"clockSkewThresholdMs"`
 	CheckedAt            time.Time `json:"checkedAt"`
-	// 録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ測っていなければ null。
+	// 録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ計測していなければ null。
 	BroadcastClockSkewMs *int `json:"broadcastClockSkewMs,omitempty"`
 	// 放送の時刻との差が、警告する閾値 (clockSkewThresholdMs) を超えているかどうか。
 	BroadcastClockSkewed bool `json:"broadcastClockSkewed"`
-	// 放送の時刻との差を最後に測った日時。録画していない間は、最後に測ったときのまま。
+	// 放送の時刻との差を最後に計測した日時。録画していない間は、最後に計測したときのまま。
 	BroadcastClockCheckedAt *time.Time `json:"broadcastClockCheckedAt,omitempty"`
 }
 
@@ -2682,7 +2748,7 @@ type User struct {
 	// 無効にしたユーザーかどうか。無効にしたユーザーは、ログインできない。
 	Disabled  bool      `json:"disabled"`
 	CreatedAt time.Time `json:"createdAt"`
-	// アイコンの画像の URL (#778)。IdP の picture を中継する。IdP が picture を返さないユーザーは null。
+	// アイコンの画像の URL (#778)。IdP の picture をプロキシする。IdP が picture を返さないユーザーは null。
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 
@@ -2698,7 +2764,7 @@ type ViewerEvent struct {
 	// 届くときは常に true。届いてから一定の時間 (20 秒) が過ぎると、この tenban は、残ったストリームを打ち切る。
 	StreamsDraining *bool `json:"streamsDraining,omitempty"`
 	// ライブのサービスが、スクランブルされたまま届くと決めたという知らせ (設計書 7.1、#1517)。購読を始めた後に決めたものだけを送る。
-	// 決めるのは、ブラウザ内での変換のストリームを中継する tenban と、kyusu で、決めたらストリームを閉じる。どの tenban や kyusu で決めても届く。
+	// 決めるのは、ブラウザ内での変換のストリームを配信する tenban と、kyusu で、決めたらストリームを閉じる。どの tenban や kyusu で決めても届く。
 	// ライブを流しているプレイヤーは、自分のサービスなら、つなぎ直すのをやめて、理由を出す。接続を増やさないよう、ここに載せる。
 	LiveStreamScrambled *LiveStreamScrambled `json:"liveStreamScrambled,omitempty"`
 }
@@ -2908,7 +2974,7 @@ const (
 	AnimeImportSourceSayaDefinitions AnimeImportSource = "SAYA_DEFINITIONS"
 	// しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応
 	AnimeImportSourceArm AnimeImportSource = "ARM"
-	// しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う
+	// しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を検索するのに使う
 	AnimeImportSourceSyobocalTitles AnimeImportSource = "SYOBOCAL_TITLES"
 	// Annict と AniList から作った、しょぼいカレンダーの TID と作品 ID の対応 (#1223)。arm の対応より優先する
 	AnimeImportSourceAnnictWorks AnimeImportSource = "ANNICT_WORKS"
@@ -3254,7 +3320,7 @@ func (e CommentSource) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// 変更を知らせるデータの種類 (設計書 1.4、9.1)。
+// 変更を通知するデータの種類 (設計書 1.4、9.1)。
 type DataChannel string
 
 const (
@@ -3336,11 +3402,11 @@ func (e DataChannel) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// 番組や録画に結びついた TMDb の話を、どこから決めたか (#1651、設計書 3.9)。
+// 番組や録画に結びついた TMDB の話を、どこから決めたか (#1651、設計書 3.9)。
 type DramaEpisodeSource string
 
 const (
-	// TMDb の話の放送日と、番組の放送日が一致した
+	// TMDB の話の放送日と、番組の放送日が一致した
 	DramaEpisodeSourceAirDate DramaEpisodeSource = "AIR_DATE"
 	// 番組名の話数 (#7、第7話、(4)) で選んだ
 	DramaEpisodeSourceTitle DramaEpisodeSource = "TITLE"
@@ -3448,11 +3514,11 @@ func (e DramaRecordDestination) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// 番組や録画に結びついた TMDb の作品を、どこから決めたか (#1651、設計書 3.9)。
+// 番組や録画に結びついた TMDB の作品を、どこから決めたか (#1651、設計書 3.9)。
 type DramaSeriesSource string
 
 const (
-	// 番組名から読んだ作品名で、TMDb を探した
+	// 番組名から読んだ作品名で、TMDB を探した
 	DramaSeriesSourceSearch DramaSeriesSource = "SEARCH"
 	// 管理者が、作品名ごとに決めた (上書き)
 	DramaSeriesSourceOverride DramaSeriesSource = "OVERRIDE"
@@ -4120,7 +4186,7 @@ func (e RuleWarningKind) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// PID の種類。PMT に書かれたストリーム (映像、音声、そのほか) と、PSI と SI の表。PMT にも決まった PID にもなければ UNKNOWN。
+// PID の種類。PMT に書かれたストリーム (映像、音声、そのほか) と、PSI と SI のテーブル。PMT にも決まった PID にもなければ UNKNOWN。
 type StreamKind string
 
 const (

@@ -1,5 +1,5 @@
 name: 不具合の報告
-description: 期待どおりに動かないことを知らせる
+description: 期待どおりに動かないことを伝える
 labels: [bug]
 body:
   - type: textarea
@@ -21,7 +21,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: 版
+      label: バージョン
       description: Kotatsu のイメージのタグか、コミットを書いてください。
   - type: textarea
     id: environment
@@ -32,5 +32,5 @@ body:
     id: logs
     attributes:
       label: ログ
-      description: 関係するログがあれば貼ってください。秘密の値は伏せてください。
+      description: 関係するログがあれば貼ってください。秘密の値はマスクしてください。
       render: text

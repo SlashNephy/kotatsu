@@ -18,7 +18,7 @@ import {
 } from '../../futon';
 import { channelWeekColumns, channelWeekDays, type ChannelDay } from '../../guide/channelWeek';
 import { GuideGrid } from '../../guide/GuideGrid';
-import { loadExtendedHours } from '../../guide/hourNotation';
+import { useExtendedHours } from '../../guide/hourNotation';
 import { broadcastDay, dateOf } from '../../guide/layout';
 import { ProgramDetail } from '../../guide/ProgramDetail';
 import { ServiceLabel } from '../../guide/ServiceLabel';
@@ -42,12 +42,12 @@ export const Route = createFileRoute('/guide/channel/$serviceId')({
   staticData: { fluid: true },
 });
 
-// channelGuideChannels は、変わったら番組表を取り直すデータの種類。番組表の画面と同じにする。
+// channelGuideChannels は、変わったら番組表を再取得するデータの種類。番組表の画面と同じにする。
 const channelGuideChannels: readonly ChangeChannel[] = ['EPG', 'RESERVATIONS', 'VIEWER_SETTINGS'];
 
 const dayFormat = zonedFormat({ month: 'numeric', day: 'numeric', weekday: 'short' });
 
-// ChannelGuidePage は、1 つのチャンネルの 8 日分を、日付を列にして並べる番組表 (#482、設計書 10.3)。
+// ChannelGuidePage は、1 つのチャンネルの 8 日分を、日付をカラムにして並べる番組表 (#482、設計書 10.3)。
 function ChannelGuidePage() {
   const { t } = useTranslation();
   const { serviceId } = Route.useParams();
@@ -154,7 +154,7 @@ function ChannelGuide() {
             recorded: program.recorded,
           })),
         );
-  const [extendedHours] = useState(loadExtendedHours);
+  const [extendedHours] = useExtendedHours();
   useDocumentTitle(
     row === undefined ? [] : [toHalfWidth(row.service.name), t('guide.channel.title')],
   );
@@ -179,7 +179,7 @@ function ChannelGuide() {
         <GuideGrid
           window={today}
           columns={columns}
-          // 今日の列だけがいまの時刻を含むので、線は引かない。
+          // 今日のカラムだけがいまの時刻を含むので、線は引かない。
           now={0}
           scrollTime={now}
           extendedHours={extendedHours}

@@ -33,7 +33,7 @@ const dateTimeFormat = zonedFormat({
 const maxUpcoming = 5;
 const upcomingFetch = 20;
 
-// recentRecordings は、ホームのために読む最近の録画の数。並べる列の数によって、出す数を CSS で絞る (recentGrid)。
+// recentRecordings は、ホームのために読む最近の録画の数。並べるカラムの数によって、出す数を CSS で絞る (recentGrid)。
 const recentRecordings = 6;
 
 export type DashboardRange = { now: number; nowEnd: string; from: string; to: string };
@@ -51,7 +51,7 @@ const homeChannels: readonly ChangeChannel[] = [
 // maxWaitMs は、時刻で読み直すまでに待つ最大の時間。放送中の番組がないサービスで、番組が始まるのに気づくのに使う。
 const maxWaitMs = 10 * 60_000;
 
-// Dashboard は、ホームの中身。縮退と予約の競合の警告、これからの予約、続きから見る、続きの放送、最近の録画、
+// Dashboard は、ホームの内容。縮退と予約の競合の警告、これからの予約、続きから見る、続きの放送、最近の録画、
 // 放送中の番組を出す (設計書 10.3)。
 // range は、待たない親で決めた時刻。待つ間に決め直すと、読み込みが終わらなくなる。
 // onExpire は、放送中の番組が終わったり、予約が始まったりして、range を決め直す時刻になったら呼ぶ。
@@ -279,7 +279,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
               })}
         </Alert>
       )}
-      {/* チューナーサーバーの時計がずれていると、録画の開始と終了がずれる (#505)。縮退中は、時計のずれより縮退を知らせる。 */}
+      {/* チューナーサーバーの時計がずれていると、録画の開始と終了がずれる (#505)。縮退中は、時計のずれより縮退を通知する。 */}
       {!data.tunerServerHealth.degraded &&
         data.tunerServerHealth.clockSkewed &&
         data.tunerServerHealth.clockSkewMs != null && (
@@ -292,7 +292,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
             )}
           </Alert>
         )}
-      {/* チューナーサーバーと Kotatsu の時計が同じ向きにずれると、Date ヘッダーとの比較では気付けないので、放送の時刻 (TOT) とも比べる (#1309)。 */}
+      {/* チューナーサーバーと Kotatsu の時計が同じ向きにずれると、Date ヘッダーとの比較では気付けないので、放送の時刻 (TOT) とも比較する (#1309)。 */}
       {!data.tunerServerHealth.degraded &&
         !data.tunerServerHealth.clockSkewed &&
         data.tunerServerHealth.broadcastClockSkewed &&
@@ -359,7 +359,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
                 <Text size="sm" truncate>
                   <ProgramTitle name={node.name} />
                 </Text>
-                {/* バッジがない行でも、サービスを右端の列に置くよう、空の枠を残す。 */}
+                {/* バッジがない行でも、サービスを右端のカラムに置くよう、空の枠を残す。 */}
                 <span>
                   {(node.assignment.state === 'CONFLICT' ||
                     node.assignment.state === 'PARTIAL') && (
@@ -372,7 +372,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
                     </Badge>
                   )}
                 </span>
-                {/* サービスの列は、長い名前でも番組名を潰さないよう、幅に上限を付けて省く。全部の名前は、ホバーで見せる。 */}
+                {/* サービスのカラムは、長い名前でも番組名を潰さないよう、幅に上限を付けて省く。全部の名前は、ホバーで見せる。 */}
                 <Text
                   size="xs"
                   c="dimmed"

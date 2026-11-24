@@ -24,7 +24,7 @@ for values in "$dir"/tests/render/*.yaml; do
   case "$values" in *.expected.yaml) continue ;; esac
   template="$(basename "$values")"
   template="${template%%.*}"
-  # 描画が失敗したら、出力の途中までと比べずに落とす。末尾の空行も比べるよう、ファイルに書いてから比べる。
+  # 描画が失敗したら、出力の途中までと比較せずに落とす。末尾の空行も比較するよう、ファイルに書いてから比較する。
   if ! helm template kotatsu "$chart" -f "$values" --show-only "templates/$template.yaml" >"$rendered"; then
     echo "FAIL: failed to render: ${values#"$dir"/}"
     status=1

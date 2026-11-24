@@ -14,7 +14,7 @@ import (
 )
 
 // TestLoadReservationContext は、手動の予約は予約したユーザーに、ルール予約はルールを作ったユーザーに届け、
-// 分からなければ全員に届けることを確かめる。
+// 分からなければ全員に届けることを確認する。
 func TestLoadReservationContext(t *testing.T) {
 	t.Parallel()
 

@@ -19,7 +19,7 @@ import (
 type StreamKind string
 
 // StreamCounter は、このインスタンスで流している最中の応答を、種類ごとに数える (設計書 11.3)。
-// 見ている人の数ではない。録画の再生では、プレイヤーが Range で取り直すたびに、別の応答になる。
+// 見ている人の数ではない。録画の再生では、プレイヤーが Range で再取得するたびに、別の応答になる。
 type StreamCounter struct {
 	counts map[StreamKind]*atomic.Int64
 }

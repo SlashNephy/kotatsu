@@ -25,7 +25,7 @@ func TestTunerServerSharesNetworkTVIDWithOtherInstances(t *testing.T) {
 		// shared なら、ほかのインスタンスが開いている ID (2000) に加わる。holders は、ほかに残る持ち主の数。
 		shared  bool
 		holders int
-		// relayBusy は、中継に失敗する回数。加わった ID の中継に空きがなければ、自分で別の ID (1000) を取り直す。
+		// relayBusy は、中継に失敗する回数。加わった ID の中継に空きがなければ、自分で別の ID (1000) を取得し直す。
 		relayBusy int
 		// stopping なら、プロセスが止まり始めている。joined なら、引き継ぎを待つ間に、ほかのインスタンスが加わる。
 		stopping bool
@@ -40,7 +40,7 @@ func TestTunerServerSharesNetworkTVIDWithOtherInstances(t *testing.T) {
 		{name: "leave a shared ID", shared: true, holders: 1, wantExclusive: []bool{false}, wantCloses: 0, wantForgotten: []int32{}},
 		// 最後の持ち主なら、加わった ID でも閉じる。
 		{name: "close a shared ID as the last holder", shared: true, holders: 0, wantExclusive: []bool{false}, wantCloses: 1, wantForgotten: []int32{2000}},
-		// 加わった ID の中継に空きがなければ (EDCB は 3 つ目の中継を断る)、別の ID を取り直す。
+		// 加わった ID の中継に空きがなければ (EDCB は 3 つ目の中継を断る)、別の ID を取得し直す。
 		{
 			name: "relay of the shared ID is busy", shared: true, holders: 1, relayBusy: 25,
 			wantExclusive: []bool{false, true}, wantCloses: 0, wantForgotten: []int32{},

@@ -10,7 +10,7 @@ require (
 	github.com/dop251/goja v0.0.0-20261009133625-a4bedf5f6000
 	github.com/ebitengine/purego v0.11.3
 	github.com/fxamacker/cbor/v2 v2.10.0
-	github.com/go-sql-driver/mysql v1.10.1
+	github.com/go-sql-driver/mysql v1.10.2
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/goforj/wire v1.3.1
 	github.com/graph-gophers/dataloader/v7 v7.2.0

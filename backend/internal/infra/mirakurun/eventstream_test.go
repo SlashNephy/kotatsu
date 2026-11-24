@@ -211,7 +211,7 @@ func TestOpenEventsMirakurun(t *testing.T) {
 	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeProgramCreated, ServiceID: faketuner.ServiceItemID(0x7FE0, 0x0400)}, event)
 }
 
-// TestToEvent は、Mirakurun、Mahiron と mirakc のイベントを、何が変わったかの知らせに読み替えることを確かめる。
+// TestToEvent は、Mirakurun、Mahiron と mirakc のイベントを、何が変わったかの知らせに読み替えることを確認する。
 func TestToEvent(t *testing.T) {
 	t.Parallel()
 

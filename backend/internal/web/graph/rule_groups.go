@@ -47,7 +47,7 @@ func toRuleGroups(groups []*rule.Group) []*model.RuleGroup {
 	return models
 }
 
-// ruleGroup は、グループを引く。ルールと同じく、ログインしたユーザーなら誰でも読める。
+// ruleGroup は、グループを取得する。ルールと同じく、ログインしたユーザーなら誰でも読める。
 func (r *Resolver) ruleGroup(ctx context.Context, globalID string) (*model.RuleGroup, error) {
 	groupID, err := parseRuleGroupID(globalID)
 	if err != nil {
@@ -61,7 +61,7 @@ func (r *Resolver) ruleGroup(ctx context.Context, globalID string) (*model.RuleG
 	return toRuleGroup(found), nil
 }
 
-// ruleGroupOf は、ルールが入るグループを引く。どのグループにも入らなければ nil を返す。
+// ruleGroupOf は、ルールが入るグループを取得する。どのグループにも入らなければ nil を返す。
 func ruleGroupOf(ctx context.Context, obj *model.Rule) (*model.RuleGroup, error) {
 	var found *rule.Group
 	var err error

@@ -29,7 +29,7 @@ const (
 	FolderMIMEType = "application/vnd.google-apps.folder"
 	// MyDriveID は、マイドライブの根元を指す別名。
 	MyDriveID = "root"
-	// googleAppsPrefix は、Google ドキュメントなどの、中身をそのまま読めないファイルの MIME タイプの前置き。
+	// googleAppsPrefix は、Google ドキュメントなどの、内容をそのまま読めないファイルの MIME タイプの前置き。
 	googleAppsPrefix = "application/vnd.google-apps."
 	// pageSize は、一覧の 1 ページの件数。files.list の上限。
 	pageSize = 1000
@@ -41,7 +41,7 @@ const (
 	maxBackoff = 32 * time.Second
 	// maxRetryAfter は、Retry-After に従って待つ長さの上限。
 	maxRetryAfter = 30 * time.Second
-	// maxTotalWait は、1 回の呼び出しで、やり直すために待つ長さの合計の上限。索引を作っている tenban が、書きかけの索引を
+	// maxTotalWait は、1 回の呼び出しで、やり直すために待つ長さの合計の上限。インデックスを作っている tenban が、書きかけのインデックスを
 	// 伸ばさないまま、ほかの tenban に落ちたとみなされる時間 (1 分、設計書 付録 A) より短くする。
 	maxTotalWait = 45 * time.Second
 	// maxErrorBody は、エラーの応答の本文を読む大きさの上限。
@@ -77,7 +77,7 @@ var (
 type TokenSource interface {
 	// Token は、アクセストークンを返す。
 	Token(ctx context.Context) (string, error)
-	// Invalidate は、手元のアクセストークンを捨て、次の Token で作り直させる。401 が返ったときに呼ぶ。
+	// Invalidate は、手元のアクセストークンを破棄し、次の Token で作り直させる。401 が返ったときに呼ぶ。
 	Invalidate()
 }
 
@@ -119,7 +119,7 @@ func (f *File) Folder() bool {
 	return f.MIMEType == FolderMIMEType
 }
 
-// Blob は、中身をそのまま読めるファイル (フォルダでも Google ドキュメントなどでもないもの) かどうかを返す。
+// Blob は、内容をそのまま読めるファイル (フォルダでも Google ドキュメントなどでもないもの) かどうかを返す。
 func (f *File) Blob() bool {
 	return !strings.HasPrefix(f.MIMEType, googleAppsPrefix)
 }
@@ -220,12 +220,141 @@ func (c *Client) GetDrive(ctx context.Context, id string) (*Drive, error) {
 // Children は、フォルダ parentID の中の、ゴミ箱にないファイルとフォルダを、すべてのページを読んで返す。
 // driveID は、フォルダのある共有ドライブ。マイドライブなら空にする。
 func (c *Client) Children(ctx context.Context, parentID, driveID string) ([]*File, error) {
+	return c.listAll(ctx, fmt.Sprintf("'%s' in parents and trashed = false", escapeQuery(parentID)), driveID)
+}
+
+// NamedChildren は、フォルダの中の、名前が決まったファイルとフォルダのうち、ゴミ箱にないものを、1 つの問い合わせ
+// (('<親>' in parents and (name = '<名前>' or ...)) or ...) で、すべてのページを読んで返す。names は、親のフォルダの ID から名前への対応。
+// 大きなフォルダの内容をすべて読まずに、同じ名前が並んでいるかを確認するために使う。driveID は Children と同じ。
+// 問い合わせの長さには上限があるので、呼ぶ側で、名前を数十個ずつに分ける。
+func (c *Client) NamedChildren(ctx context.Context, names map[string][]string, driveID string) ([]*File, error) {
+	parents := make([]string, 0, len(names))
+	for parent := range names {
+		parents = append(parents, parent)
+	}
+	slices.Sort(parents)
+	terms := make([]string, 0, len(parents))
+	for _, parent := range parents {
+		if len(names[parent]) == 0 {
+			continue
+		}
+		equals := make([]string, 0, len(names[parent]))
+		for _, name := range names[parent] {
+			equals = append(equals, fmt.Sprintf("name = '%s'", escapeQuery(name)))
+		}
+		terms = append(terms, fmt.Sprintf("('%s' in parents and (%s))", escapeQuery(parent), strings.Join(equals, " or ")))
+	}
+	if len(terms) == 0 {
+		return []*File{}, nil
+	}
+
+	return c.listAll(ctx, "("+strings.Join(terms, " or ")+") and trashed = false", driveID)
+}
+
+// Folders は、共有ドライブ driveID (マイドライブなら空) の、ゴミ箱にないフォルダを、すべてのページを読んで返す。
+// マイドライブでは、共有アイテムのフォルダも返る。根元 (マイドライブと共有ドライブそのもの) は返らない。
+func (c *Client) Folders(ctx context.Context, driveID string) ([]*File, error) {
+	return c.listAll(ctx, fmt.Sprintf("mimeType = '%s' and trashed = false", FolderMIMEType), driveID)
+}
+
+// SearchFiles は、名前に name を含む、ゴミ箱にないファイル (フォルダを除く) を、1 ページずつ page に渡す。page が false を返すか、
+// maxPages ページ読んだら止める。driveID は、探す共有ドライブ。マイドライブなら空にする。Drive の q では、あるフォルダの子孫だけには
+// 絞れないので、呼ぶ側で、親をたどって絞る。戻り値は、ページが残っていて、読み切っていないかどうか。
+func (c *Client) SearchFiles(ctx context.Context, name, driveID string, maxPages int, page func([]*File) bool) (bool, error) {
+	token := ""
+	for range maxPages {
+		query := url.Values{
+			"q":           {fmt.Sprintf("name contains '%s' and mimeType != '%s' and trashed = false", escapeQuery(name), FolderMIMEType)},
+			paramFields:   {"nextPageToken,files(" + fileFields + ")"},
+			paramPageSize: {strconv.Itoa(pageSize)}, paramAllDrives: {valueTrue}, "includeItemsFromAllDrives": {valueTrue},
+		}
+		if driveID == "" {
+			query.Set("corpora", "user")
+		} else {
+			query.Set("corpora", "drive")
+			query.Set("driveId", driveID)
+		}
+		if token != "" {
+			query.Set("pageToken", token)
+		}
+		var body struct {
+			NextPageToken string     `json:"nextPageToken"`
+			Files         []fileJSON `json:"files"`
+		}
+		if err := c.getJSON(ctx, "/drive/v3/files", query, &body); err != nil {
+			return false, err
+		}
+		files := make([]*File, 0, len(body.Files))
+		for i := range body.Files {
+			if !body.Files[i].Trashed {
+				files = append(files, body.Files[i].file())
+			}
+		}
+		if !page(files) || body.NextPageToken == "" {
+			return body.NextPageToken != "", nil
+		}
+		token = body.NextPageToken
+	}
+
+	return true, nil
+}
+
+// Get は、ファイルかフォルダ id の情報を返す。ゴミ箱にあれば ErrNotFound を返す。
+func (c *Client) Get(ctx context.Context, id string) (*File, error) {
+	var body fileJSON
+	query := url.Values{paramFields: {fileFields}, paramAllDrives: {valueTrue}}
+	if err := c.getJSON(ctx, "/drive/v3/files/"+url.PathEscape(id), query, &body); err != nil {
+		return nil, err
+	}
+	if body.Trashed {
+		return nil, fmt.Errorf("%w: %s is in the trash", ErrNotFound, id)
+	}
+
+	return body.file(), nil
+}
+
+// Download は、ファイル id の内容を、offset バイト目から終わりまで読む本文を返す (alt=media と Range)。
+// 呼ぶ側は、読み終えたら閉じる。途中で切れたら、読めた所から呼び直す。
+func (c *Client) Download(ctx context.Context, id string, offset int64) (io.ReadCloser, error) {
+	query := url.Values{"alt": {"media"}, paramAllDrives: {valueTrue}}
+	res, err := c.do(ctx, "/drive/v3/files/"+url.PathEscape(id), query, func(req *http.Request) {
+		req.Header.Set("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
+	})
+	if err != nil {
+		return nil, err
+	}
+	switch res.StatusCode {
+	case http.StatusPartialContent:
+		start, ok := contentRangeStart(res.Header.Get("Content-Range"))
+		if !ok || start != offset {
+			_ = res.Body.Close()
+
+			return nil, fmt.Errorf("%w: asked for %d, got %q", ErrRangeIgnored, offset, res.Header.Get("Content-Range"))
+		}
+	case http.StatusOK:
+		// 範囲を無視して頭から返された。頭から読むのなら、そのまま使える。
+		if offset != 0 {
+			_ = res.Body.Close()
+
+			return nil, fmt.Errorf("%w: asked for %d, got the whole file", ErrRangeIgnored, offset)
+		}
+	default:
+		_ = res.Body.Close()
+
+		return nil, fmt.Errorf("unexpected status %d from the Drive API", res.StatusCode)
+	}
+
+	return res.Body, nil
+}
+
+// listAll は、files.list に q を渡し、ゴミ箱にないものを、すべてのページを読んで返す。driveID は、探す共有ドライブ。マイドライブなら空にする。
+func (c *Client) listAll(ctx context.Context, q, driveID string) ([]*File, error) {
 	files := []*File{}
 	seen := map[string]bool{}
 	token := ""
 	for {
 		query := url.Values{
-			"q":           {fmt.Sprintf("'%s' in parents and trashed = false", escapeQuery(parentID))},
+			"q":           {q},
 			paramFields:   {"nextPageToken,files(" + fileFields + ")"},
 			paramPageSize: {strconv.Itoa(pageSize)}, "orderBy": {"folder,name_natural,createdTime"},
 			paramAllDrives: {valueTrue}, "includeItemsFromAllDrives": {valueTrue},
@@ -258,96 +387,6 @@ func (c *Client) Children(ctx context.Context, parentID, driveID string) ([]*Fil
 		}
 		token = body.NextPageToken
 	}
-}
-
-// SearchFiles は、名前に name を含む、ゴミ箱にないファイル (フォルダを除く) を、最大 maxPages ページ読んで返す。
-// driveID は、探す共有ドライブ。マイドライブなら空にする。Drive の q では、あるフォルダの子孫だけには絞れないので、
-// 呼ぶ側で、親をたどって絞る。2 つ目の戻り値は、ページが残っていて、読み切っていないかどうか。
-func (c *Client) SearchFiles(ctx context.Context, name, driveID string, maxPages int) ([]*File, bool, error) {
-	files := []*File{}
-	token := ""
-	for range maxPages {
-		query := url.Values{
-			"q":           {fmt.Sprintf("name contains '%s' and mimeType != '%s' and trashed = false", escapeQuery(name), FolderMIMEType)},
-			paramFields:   {"nextPageToken,files(" + fileFields + ")"},
-			paramPageSize: {strconv.Itoa(pageSize)}, paramAllDrives: {valueTrue}, "includeItemsFromAllDrives": {valueTrue},
-		}
-		if driveID == "" {
-			query.Set("corpora", "user")
-		} else {
-			query.Set("corpora", "drive")
-			query.Set("driveId", driveID)
-		}
-		if token != "" {
-			query.Set("pageToken", token)
-		}
-		var body struct {
-			NextPageToken string     `json:"nextPageToken"`
-			Files         []fileJSON `json:"files"`
-		}
-		if err := c.getJSON(ctx, "/drive/v3/files", query, &body); err != nil {
-			return nil, false, err
-		}
-		for i := range body.Files {
-			if !body.Files[i].Trashed {
-				files = append(files, body.Files[i].file())
-			}
-		}
-		if body.NextPageToken == "" {
-			return files, false, nil
-		}
-		token = body.NextPageToken
-	}
-
-	return files, true, nil
-}
-
-// Get は、ファイルかフォルダ id の情報を返す。ゴミ箱にあれば ErrNotFound を返す。
-func (c *Client) Get(ctx context.Context, id string) (*File, error) {
-	var body fileJSON
-	query := url.Values{paramFields: {fileFields}, paramAllDrives: {valueTrue}}
-	if err := c.getJSON(ctx, "/drive/v3/files/"+url.PathEscape(id), query, &body); err != nil {
-		return nil, err
-	}
-	if body.Trashed {
-		return nil, fmt.Errorf("%w: %s is in the trash", ErrNotFound, id)
-	}
-
-	return body.file(), nil
-}
-
-// Download は、ファイル id の中身を、offset バイト目から終わりまで読む本文を返す (alt=media と Range)。
-// 呼ぶ側は、読み終えたら閉じる。途中で切れたら、読めた所から呼び直す。
-func (c *Client) Download(ctx context.Context, id string, offset int64) (io.ReadCloser, error) {
-	query := url.Values{"alt": {"media"}, paramAllDrives: {valueTrue}}
-	res, err := c.do(ctx, "/drive/v3/files/"+url.PathEscape(id), query, func(req *http.Request) {
-		req.Header.Set("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
-	})
-	if err != nil {
-		return nil, err
-	}
-	switch res.StatusCode {
-	case http.StatusPartialContent:
-		start, ok := contentRangeStart(res.Header.Get("Content-Range"))
-		if !ok || start != offset {
-			_ = res.Body.Close()
-
-			return nil, fmt.Errorf("%w: asked for %d, got %q", ErrRangeIgnored, offset, res.Header.Get("Content-Range"))
-		}
-	case http.StatusOK:
-		// 範囲を無視して頭から返された。頭から読むのなら、そのまま使える。
-		if offset != 0 {
-			_ = res.Body.Close()
-
-			return nil, fmt.Errorf("%w: asked for %d, got the whole file", ErrRangeIgnored, offset)
-		}
-	default:
-		_ = res.Body.Close()
-
-		return nil, fmt.Errorf("unexpected status %d from the Drive API", res.StatusCode)
-	}
-
-	return res.Body, nil
 }
 
 // contentRangeStart は、Content-Range (bytes 100-199/200) の始まりを返す。

@@ -6,15 +6,21 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
 
 // ListGuideServicesParams は、ListGuideServices の条件。
 type ListGuideServicesParams struct {
-	IncludeHidden     bool
+	IncludeHidden bool
+	// IncludeGone なら、上流から消えたサービスも返す (#1973)。ID から引くときや、管理の画面で使う。
+	IncludeGone       bool
 	MediaServiceTypes []int64
 	IDs               []int64
+	// Now は、上流から消えたかどうかを決める時刻。
+	Now time.Time
 }
 
 // GetGuideProgramParams は、GetGuideProgram の条件。
@@ -60,10 +66,12 @@ type SearchProgramCandidatesParams struct {
 	KeywordInName        []bool
 	KeywordCaseSensitive []bool
 	KeywordInDescription []bool
-	AfterStartAt         time.Time
-	AfterServiceID       int64
-	AfterEventID         int64
-	BatchSize            int32
+	// RequiredGrams は、キーワードが必ず含む gram (#966、match.RequiredGrams)。空でなければ、gram のインデックスで候補を絞る。
+	RequiredGrams  []string
+	AfterStartAt   time.Time
+	AfterServiceID int64
+	AfterEventID   int64
+	BatchSize      int32
 }
 
 // GetProgramForFileNameParams は、GetProgramForFileName の条件。
@@ -86,7 +94,13 @@ type GetPresentVideoResolutionParams struct {
 
 // ListGuideServices は、番組表に並べるサービスを返す。
 func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesParams) ([]domain.Service, error) {
-	result, err := sqlc.New(q.pool).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: arg.IncludeHidden, MediaServiceTypes: arg.MediaServiceTypes, Ids: arg.IDs})
+	result, err := sqlc.New(q.pool).ListGuideServices(ctx, sqlc.ListGuideServicesParams{
+		IncludeHidden:     arg.IncludeHidden,
+		IncludeGone:       arg.IncludeGone,
+		GoneBefore:        domain.ServiceGoneBefore(arg.Now),
+		MediaServiceTypes: arg.MediaServiceTypes,
+		Ids:               arg.IDs,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -124,6 +138,14 @@ func (q *Queries) ListChannelTypesByTypes(ctx context.Context, types []string) (
 	}
 
 	return out, nil
+}
+
+// ListChannelTypesWithServices は、types のうち、now の時点で上流から消えていないサービスを持つ種別を返す (#1973)。
+func (q *Queries) ListChannelTypesWithServices(ctx context.Context, types []string, now time.Time) ([]string, error) {
+	return sqlc.New(q.pool).ListChannelTypesWithServices(ctx, sqlc.ListChannelTypesWithServicesParams{
+		Types:      types,
+		GoneBefore: domain.ServiceGoneBefore(now),
+	})
 }
 
 // GetGuideProgram は、現役の番組を 1 つ返す。なければ pgx.ErrNoRows を返す。
@@ -210,7 +232,11 @@ func (q *Queries) ListGuideProgramsByKeys(ctx context.Context, arg ListGuideProg
 }
 
 // SearchProgramCandidates は、番組の検索の候補を、開始時刻、サービス、eventId の順に 1 回分返す。
+// キーワードが必ず含む gram (RequiredGrams) があれば、gram のインデックスで絞る SQL を使う (#966)。
 func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]domain.ProgramCandidate, error) {
+	if len(arg.RequiredGrams) > 0 {
+		return q.searchProgramCandidatesByGrams(ctx, arg)
+	}
 	result, err := sqlc.New(q.pool).SearchProgramCandidates(ctx, sqlc.SearchProgramCandidatesParams{MediaServiceTypes: arg.MediaServiceTypes, IncludeArchive: arg.IncludeArchive, ArchiveFrom: arg.ArchiveFrom, ArchiveTo: arg.ArchiveTo, Now: arg.Now, ChannelTypes: arg.ChannelTypes, ServiceIds: arg.ServiceIDs, ExcludedServiceIds: arg.ExcludedServiceIDs, GenreLv1s: arg.GenreLv1s, ExcludedGenreLv1s: arg.ExcludedGenreLv1s, FreeOnly: arg.FreeOnly, KeywordPatterns: arg.KeywordPatterns, KeywordInName: arg.KeywordInName, KeywordCaseSensitive: arg.KeywordCaseSensitive, KeywordInDescription: arg.KeywordInDescription, AfterStartAt: arg.AfterStartAt, AfterServiceID: arg.AfterServiceID, AfterEventID: arg.AfterEventID, BatchSize: arg.BatchSize})
 	if err != nil {
 		return nil, err
@@ -218,6 +244,34 @@ func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgram
 	out := make([]domain.ProgramCandidate, len(result))
 	for i := range result {
 		out[i] = domain.ProgramCandidate(result[i])
+	}
+
+	return out, nil
+}
+
+// searchProgramCandidatesByGrams は、gram のインデックスで絞って、番組の検索の候補を 1 回分返す (#966)。
+// 引数の値ごとに計画を作らせる (plan_cache_mode = force_custom_plan)。プリペアドステートメントの汎用の計画では、
+// アーカイブの期間の行の数を少なく見積もり、期間のインデックスで読んで gram を 1 件ずつ比較するので、30 日分で 1 秒近くかかる
+// (開発用の環境の約 20 万件のアーカイブで、値ごとの計画の 9 ms に対し 850 ms)。SET LOCAL はトランザクションの中だけに効く。
+func (q *Queries) searchProgramCandidatesByGrams(ctx context.Context, arg SearchProgramCandidatesParams) ([]domain.ProgramCandidate, error) {
+	var out []domain.ProgramCandidate
+	err := pgx.BeginFunc(ctx, q.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SET LOCAL plan_cache_mode = force_custom_plan"); err != nil {
+			return fmt.Errorf("failed to set the plan cache mode: %w", err)
+		}
+		result, err := sqlc.New(tx).SearchProgramCandidatesByGrams(ctx, sqlc.SearchProgramCandidatesByGramsParams{MediaServiceTypes: arg.MediaServiceTypes, IncludeArchive: arg.IncludeArchive, ArchiveFrom: arg.ArchiveFrom, ArchiveTo: arg.ArchiveTo, Now: arg.Now, ChannelTypes: arg.ChannelTypes, ServiceIds: arg.ServiceIDs, ExcludedServiceIds: arg.ExcludedServiceIDs, GenreLv1s: arg.GenreLv1s, ExcludedGenreLv1s: arg.ExcludedGenreLv1s, FreeOnly: arg.FreeOnly, KeywordPatterns: arg.KeywordPatterns, KeywordInName: arg.KeywordInName, KeywordCaseSensitive: arg.KeywordCaseSensitive, KeywordInDescription: arg.KeywordInDescription, RequiredGrams: arg.RequiredGrams, AfterStartAt: arg.AfterStartAt, AfterServiceID: arg.AfterServiceID, AfterEventID: arg.AfterEventID, BatchSize: arg.BatchSize})
+		if err != nil {
+			return err
+		}
+		out = make([]domain.ProgramCandidate, len(result))
+		for i := range result {
+			out[i] = domain.ProgramCandidate(result[i])
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return out, nil
@@ -309,7 +363,7 @@ type ProgramSpan struct {
 	EndAt     time.Time
 }
 
-// RecordedProgramKey は、RecordedPrograms が返す、録画のある番組を引くキー。時刻はミリ秒で持ち、タイムゾーンの違いで外さない。
+// RecordedProgramKey は、RecordedPrograms が返す、録画のある番組を検索するキー。時刻はミリ秒で持ち、タイムゾーンの違いで外さない。
 type RecordedProgramKey struct {
 	ServiceID   int64
 	EventID     int64
@@ -348,4 +402,12 @@ func (q *Queries) RecordedPrograms(ctx context.Context, programs []*ProgramSpan)
 	}
 
 	return recorded, nil
+}
+
+// ListServiceProgramNamesLike は、サービス serviceID の番組表の番組のうち、正規化した番組名が LIKE のパターン pattern に当たるものの、
+// 正規化した番組名を返す。eventID の番組は除く (#2041)。
+func (q *Queries) ListServiceProgramNamesLike(ctx context.Context, serviceID, eventID int64, pattern string) ([]string, error) {
+	return sqlc.New(q.pool).ListServiceProgramNamesLike(ctx, sqlc.ListServiceProgramNamesLikeParams{
+		ServiceID: serviceID, EventID: eventID, Pattern: pattern,
+	})
 }

@@ -123,7 +123,7 @@ type Version struct {
 type RawEvent struct {
 	Resource string
 	Type     string
-	// Data はイベントの中身。Resource と Type によって形が変わるので、受け取った JSON のまま持つ。
+	// Data はイベントの内容。Resource と Type によって形が変わるので、受け取った JSON のまま持つ。
 	Data json.RawMessage
 	Time time.Time
 }
@@ -334,10 +334,12 @@ func fromEvent(e *tunerserver.Event, at time.Time) *mirakurunEvent {
 			event.Type = "create"
 		case tunerserver.EventTypeProgramRemoved:
 			event.Type = "remove"
-		case tunerserver.EventTypeProgramUpdated, tunerserver.EventTypeServiceChanged, tunerserver.EventTypeTunerChanged:
+		case tunerserver.EventTypeProgramUpdated, tunerserver.EventTypeServiceChanged, tunerserver.EventTypeTunerChanged,
+			tunerserver.EventTypeEPGChanged:
 		}
 		event.Data = json.RawMessage(fmt.Sprintf(`{"networkId":%d,"serviceId":%d}`, e.ServiceID/serviceIDBase, e.ServiceID%serviceIDBase))
-	case tunerserver.EventTypeServiceChanged:
+	// Mirakurun には番組表の全体が変わったことを通知するイベントがないので、EPGChanged もサービスのイベントとして送る。
+	case tunerserver.EventTypeServiceChanged, tunerserver.EventTypeEPGChanged:
 		event.Resource = "service"
 	case tunerserver.EventTypeTunerChanged:
 		event.Resource = "tuner"

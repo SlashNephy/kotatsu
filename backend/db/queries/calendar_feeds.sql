@@ -10,7 +10,7 @@ SELECT * FROM calendar_feeds WHERE user_id = @user_id AND kind = @kind;
 DELETE FROM calendar_feeds WHERE user_id = @user_id AND kind = @kind;
 
 -- name: GetCalendarFeedUser :one
--- 種類 kind の秘密の値のハッシュから、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
+-- 種類 kind の秘密の値のハッシュから、発行したユーザーを検索する。無効にしたユーザーの URL は使えない。
 -- ほかの種類の値は、同じユーザーのものでも受け付けない。
 SELECT f.last_used_at, u.id AS user_id, u.role
 FROM calendar_feeds f

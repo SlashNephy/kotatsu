@@ -88,13 +88,13 @@ type Service struct {
 	logger *slog.Logger
 	// inserter は、連携したときに、見たいリストを取り込むジョブを入れる River のクライアント。nil なら入れない。
 	inserter anime.Inserter
-	// wishlistMu は、見たいリストを引く問い合わせを、このプロセスの中で 1 つずつにする。wishlistLast は、記録先ごとの前の問い合わせの時刻。
+	// wishlistMu は、見たいリストを取得する問い合わせを、このプロセスの中で 1 つずつにする。wishlistLast は、記録先ごとの前の問い合わせの時刻。
 	wishlistMu       sync.Mutex
 	wishlistLast     map[string]time.Time
 	wishlistInterval time.Duration
 	// followingLimited は、記録先ごとの、視聴状況を問い合わせない期限 (#1372)。429 を返されたら進める。wishlistMu で守る。
 	followingLimited map[string]time.Time
-	// artworks は、見たいリストの作品の高画質の画像を引く先 (#1315)。nil なら引かない。
+	// artworks は、見たいリストの作品の高画質の画像を取得する先 (#1315)。nil なら取得しない。
 	artworks ArtworkSource
 }
 
@@ -108,9 +108,9 @@ type Options struct {
 	Logger       *slog.Logger
 	// Inserter は、連携したときに、見たいリストを取り込むジョブを入れる River のクライアント (#928)。nil なら入れない。
 	Inserter anime.Inserter
-	// WishlistInterval は、見たいリストを引く問い合わせの間を空ける長さ (#928)。0 なら空けない。
+	// WishlistInterval は、見たいリストを取得する問い合わせの間を空ける長さ (#928)。0 なら空けない。
 	WishlistInterval time.Duration
-	// Artworks は、見たいリストの作品の高画質の画像を引く先 (#1315)。nil なら引かない。
+	// Artworks は、見たいリストの作品の高画質の画像を取得する先 (#1315)。nil なら取得しない。
 	Artworks ArtworkSource
 }
 
@@ -189,7 +189,7 @@ type AppChanges struct {
 }
 
 // UpdateApp は、記録先 name に登録したアプリを変える。クライアント ID を空にすると、登録を消す。
-// 利用者を記録先へ送り出す操作の元になる値なので、呼ぶ側で、直近の再認証を確かめる (設計書 9.5)。
+// 利用者を記録先へ送り出す操作の元になる値なので、呼ぶ側で、直近の再認証を確認する (設計書 9.5)。
 // 監査ログには、クライアントシークレットを変えたかどうかだけを残し、値は残さない。
 func (s *Service) UpdateApp(ctx context.Context, db Database, actor *audit.Actor, name string, changes *AppChanges) error {
 	if _, err := s.destination(name); err != nil {
@@ -255,7 +255,7 @@ func (s *Service) UpdateApp(ctx context.Context, db Database, actor *audit.Actor
 type Availability struct {
 	// LinkingEnabled は、管理者がしょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。
 	LinkingEnabled bool
-	// Configured は、記録先の名前から、管理者がアプリを登録したかどうかへの表。
+	// Configured は、記録先の名前から、管理者がアプリを登録したかどうかへのテーブル。
 	Configured map[string]bool
 }
 
@@ -315,7 +315,7 @@ type Database interface {
 }
 
 // Begin は、ログイン中のユーザー principal と記録先 name の連携を始め、利用者を送り出す認可のエンドポイントの URL を返す。
-// 戻ってきたときに、始めたセッションのまま戻ってきたことを確かめるので、ブラウザーのセッションでだけ始められる。
+// 戻ってきたときに、始めたセッションのまま戻ってきたことを確認するので、ブラウザーのセッションでだけ始められる。
 // origin は、接続したオリジン。リダイレクト URI にする。
 func (s *Service) Begin(ctx context.Context, db Database, principal *auth.Principal, name, origin string) (string, error) {
 	if principal.SessionID == uuid.Nil() {
@@ -357,7 +357,7 @@ func (s *Service) Begin(ctx context.Context, db Database, principal *auth.Princi
 	return destination.AuthCodeURL(app, redirectURI, state, verifier), nil
 }
 
-// Callback は、記録先から戻ってきたリクエストの中身。
+// Callback は、記録先から戻ってきたリクエストの内容。
 type Callback struct {
 	State string
 	Code  string
@@ -365,9 +365,9 @@ type Callback struct {
 	Error string
 }
 
-// Complete は、記録先 name から戻ってきた認可を確かめ、ログイン中のユーザー principal と連携する。
-// 途中の状態は、確かめられなくても使用済みにする。state は、SHA-256 で引くので、知らない値では何も引けない。
-// 始めたセッションと記録先が、戻ってきたリクエストと同じであることを確かめる。ほかの端末やアカウントで始めた認可を、
+// Complete は、記録先 name から戻ってきた認可を確認し、ログイン中のユーザー principal と連携する。
+// 途中の状態は、確認できなくても使用済みにする。state は、SHA-256 で検索するので、知らない値では何も見つからない。
+// 始めたセッションと記録先が、戻ってきたリクエストと同じであることを確認する。ほかの端末やアカウントで始めた認可を、
 // 別のユーザーに繋がせないため (CSRF とアカウントの取り違えを防ぐ)。
 func (s *Service) Complete(ctx context.Context, db Database, principal *auth.Principal, name string, callback *Callback, client *auth.ClientInfo) error {
 	destination, err := s.destination(name)

@@ -38,7 +38,7 @@ const (
 	libraryStreamPrefix = "/internal/streams/library/"
 )
 
-// requireWatch は、ログイン中のユーザーが、録画を見られる (家族全員) ことを確かめる。ライブラリは録画と同じ権限で使う (設計書 5.8)。
+// requireWatch は、ログイン中のユーザーが、録画を見られる (家族全員) ことを確認する。ライブラリは録画と同じ権限で使う (設計書 5.8)。
 func requireWatch(ctx context.Context) error {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -145,7 +145,7 @@ func (r *Resolver) libraryFile(ctx context.Context, name, path string) (*model.L
 	return r.openLibraryFile(ctx, filelib.Ref{Library: name, Path: path})
 }
 
-// openLibraryFile は、ファイル ref を開き、GraphQL の形にする。開くと、索引を作り終えていなければ作り始める。
+// openLibraryFile は、ファイル ref を開き、GraphQL の形にする。開くと、インデックスを作り終えていなければ作り始める。
 func (r *Resolver) openLibraryFile(ctx context.Context, ref filelib.Ref) (*model.LibraryFile, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -320,7 +320,7 @@ func (r *Resolver) libraryBroadcast(ctx context.Context, b *filelib.Broadcast) (
 	if b.NetworkID != nil {
 		out.NetworkID = new(int(*b.NetworkID))
 		rows, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{
-			IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: []int64{int64(*b.NetworkID)*serviceIDBase + int64(b.ServiceID)},
+			IncludeHidden: true, IncludeGone: true, MediaServiceTypes: []int64{}, IDs: []int64{int64(*b.NetworkID)*serviceIDBase + int64(b.ServiceID)}, Now: r.clock.Now(),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to look up the service of the library file: %w", err)
@@ -328,7 +328,7 @@ func (r *Resolver) libraryBroadcast(ctx context.Context, b *filelib.Broadcast) (
 		if len(rows) > 0 {
 			out.Service = toService(&rows[0])
 		}
-		// 実況のチャンネルは、Kotatsu のサービスがなくても、ネットワークとサービス ID で引く。
+		// 実況のチャンネルは、Kotatsu のサービスがなくても、ネットワークとサービス ID で取得する。
 		out.JikkyoChannelID = r.jikkyoChannelID(ctx, int64(*b.NetworkID), int64(b.ServiceID))
 	}
 	if p := b.Program; p != nil {
@@ -347,7 +347,7 @@ func (r *Resolver) libraryBroadcast(ctx context.Context, b *filelib.Broadcast) (
 	return out, nil
 }
 
-// probeLibraryVideo は、索引の記録にまだ映像の形式がなければ、ファイルの頭から読む。読めなければ filelib.ErrNoVideo を返す。
+// probeLibraryVideo は、インデックスの記録にまだ映像の形式がなければ、ファイルの先頭から読む。読めなければ filelib.ErrNoVideo を返す。
 func (r *Resolver) probeLibraryVideo(ctx context.Context, file *filelib.File) (*ts.VideoFormat, error) {
 	f, err := file.Library.Open(ctx, file.Ref.Path)
 	if err != nil {

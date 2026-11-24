@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d043b04386c2fb6cd2a9ec5e7c4f70a1>>
+ * @generated SignedSource<<ff18db4bbbd39e830d5eb48e04441f4b>>
  * @lightSyntaxTransform
  */
 
@@ -24,6 +24,7 @@ export type SystemSettingsInput = {
   epgstationApiEnabled?: boolean | null | undefined;
   externalPlayerUrlsEnabled?: boolean | null | undefined;
   hibpEnabled?: boolean | null | undefined;
+  historyMaxDrops?: number | null | undefined;
   iptvFeedsEnabled?: boolean | null | undefined;
   jikkyoChannels?: ReadonlyArray<JikkyoChannelOverrideInput> | null | undefined;
   mcpEnabled?: boolean | null | undefined;
@@ -33,7 +34,6 @@ export type SystemSettingsInput = {
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;
   recordingDownloadsEnabled?: boolean | null | undefined;
   ruleDefaults?: RuleDefaultsInput | null | undefined;
-  ruleUnmatchedGraceMinutes?: number | null | undefined;
   sleepControlEnabled?: boolean | null | undefined;
   thumbnailPreviewsEnabled?: boolean | null | undefined;
   timeshiftWhileWatching?: boolean | null | undefined;

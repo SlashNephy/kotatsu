@@ -72,7 +72,7 @@ func (f *engineFixture) reservedSeries(t *testing.T) map[int64]bool {
 }
 
 // TestEngineSkipsEarlierEpisodes は、前の回を録らないルールが、録った回、予約してある回、先に流れる放送より話数の小さい回を、
-// その放送より前に始まる相手とだけ比べて外すことを確かめる (#1499)。
+// その放送より前に始まる相手とだけ比較して外すことを確認する (#1499)。
 func TestEngineSkipsEarlierEpisodes(t *testing.T) {
 	t.Parallel()
 
@@ -181,7 +181,7 @@ func TestEngineSkipsEarlierEpisodes(t *testing.T) {
 }
 
 // TestEngineIgnoresRejectedLaterEpisodes は、競合の 6 話と、録画しない (無効にした) 6 話を、別の局の 5 話を外す相手にしないことを
-// 確かめる (#1499)。録れない見込みの 6 話を理由に、5 話を落とさないためである。
+// 確認する (#1499)。録れない見込みの 6 話を理由に、5 話を落とさないためである。
 func TestEngineIgnoresRejectedLaterEpisodes(t *testing.T) {
 	t.Parallel()
 
@@ -228,28 +228,23 @@ func TestEngineIgnoresRejectedLaterEpisodes(t *testing.T) {
 }
 
 // TestEngineRemovesEarlierEpisodeReservations は、予約した後に、より大きい話数が先に流れると分かったときと、より大きい話数を
-// 録り終えたときに、前の回の予約を引っ込めることを確かめる (#1499)。番組表の放送だけが理由なら、猶予の内は残し、
-// 録画が理由なら、猶予の内でもすぐ消す (#1501)。
+// 録り終えたときに、前の回の予約を引っ込めることを確認する (#1499)。
 func TestEngineRemovesEarlierEpisodeReservations(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
-		grace    int
 		recorded bool
 		want     map[int64]bool
 	}{
-		{name: "先に流れる 6 話が入れば、5 話の予約を消す", grace: 0, recorded: false, want: map[int64]bool{506: true}},
-		{name: "猶予の内なら、5 話の予約も残す", grace: 24 * 60, recorded: false, want: map[int64]bool{506: true, 605: true}},
-		{name: "6 話を録り終えたら、猶予の内でも消す", grace: 24 * 60, recorded: true, want: map[int64]bool{}},
+		{name: "先に流れる 6 話が入れば、5 話の予約を消す", recorded: false, want: map[int64]bool{506: true}},
+		{name: "6 話を録り終えたら、5 話の予約を消す", recorded: true, want: map[int64]bool{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// 猶予の上限 (1 日) の内に始まるよう、5 話を 20 時間後にする。
 			f := newEngineFixture(t, bsEpisode(605, 20*time.Hour, seriesName+" #5"))
-			f.setGrace(t, tt.grace)
 			f.createSeriesRule(t, true, false)
 			f.run(t)
 			require.Equal(t, map[int64]bool{605: true}, f.reservedSeries(t))
@@ -268,14 +263,13 @@ func TestEngineRemovesEarlierEpisodeReservations(t *testing.T) {
 	}
 }
 
-// TestEngineIgnoresReservationsRemovedInTheSameRun は、同じ照合で消えるルール予約を、前の回を比べる相手にしないことを確かめる (#1724)。
+// TestEngineIgnoresReservationsRemovedInTheSameRun は、同じ照合で消えるルール予約を、前の回を比較する相手にしないことを確認する (#1724)。
 // ルールの条件を変えて 6 話が外れたら、6 話の予約は消えるので、それを理由に 5 話を外さない。外すと、両方の予約が消える。
 func TestEngineIgnoresReservationsRemovedInTheSameRun(t *testing.T) {
 	t.Parallel()
 
-	// 6 話は、猶予 (0 分) の外の 20 時間後に、地上波で流れる。
+	// 6 話は、20 時間後に地上波で流れる。
 	f := newEngineFixture(t, grEpisode(506, 20*time.Hour, seriesName+" #6"))
-	f.setGrace(t, 0)
 	r := f.createSeriesRule(t, true, false)
 	f.run(t)
 	require.Equal(t, map[int64]bool{506: true}, f.reservedSeries(t))
@@ -300,14 +294,13 @@ func TestEngineIgnoresReservationsRemovedInTheSameRun(t *testing.T) {
 	assert.Equal(t, map[int64]bool{605: true}, f.reservedSeries(t))
 }
 
-// TestEngineIgnoresReservationsOfDisabledRules は、猶予の内でも、結び付いたルールを無効にして同じ照合で消えるルール予約は、
-// 前の回を比べる相手にしないことを確かめる (#1724)。apply は、無効にしたルールの予約を、猶予の内でも消す。
+// TestEngineIgnoresReservationsOfDisabledRules は、結び付いたルールを無効にして同じ照合で消えるルール予約は、
+// 前の回を比較する相手にしないことを確認する (#1724)。
 func TestEngineIgnoresReservationsOfDisabledRules(t *testing.T) {
 	t.Parallel()
 
-	// 6 話は猶予 (1 日) の内の 20 時間後に地上波で、5 話はその後の 30 時間後に BS で流れる。
+	// 6 話は 20 時間後に地上波で、5 話はその後の 30 時間後に BS で流れる。
 	f := newEngineFixture(t, grEpisode(506, 20*time.Hour, seriesName+" #6"), bsEpisode(605, 30*time.Hour, seriesName+" #5"))
-	f.setGrace(t, 24*60)
 	input := func(serviceID int64, skip, enabled bool) *rule.Input {
 		return &rule.Input{
 			Name: seriesName, Memo: "", Enabled: enabled,
@@ -337,7 +330,7 @@ func TestEngineIgnoresReservationsOfDisabledRules(t *testing.T) {
 }
 
 // TestFindSkippedEarlierEpisodes は、前の回を録らない設定で予約しなかった番組を、一番大きい話数と一緒に返し、
-// 同じ回の束ねにも当たる番組は、束ねた理由を優先して出すことを確かめる (#1499)。
+// 同じ回のまとめにも当たる番組は、まとめた理由を優先して出すことを確認する (#1499)。
 func TestFindSkippedEarlierEpisodes(t *testing.T) {
 	t.Parallel()
 
@@ -364,7 +357,7 @@ func TestFindSkippedEarlierEpisodes(t *testing.T) {
 	t.Run("同じ回の束ねにも当たれば、束ねた理由を出す", func(t *testing.T) {
 		t.Parallel()
 
-		// 3 話は、地上波で先に、BS で後に流れる。4 話は録画済み。地上波の 3 話は、前の回を録らない設定のない束ねるルールが予約する。
+		// 3 話は、地上波で先に、BS で後に流れる。4 話は録画済み。地上波の 3 話は、前の回を録らない設定のないまとめるルールが予約する。
 		f := newEngineFixture(t, grEpisode(503, 5*time.Hour, seriesName+" #3"), bsEpisode(603, 29*time.Hour, seriesName+" #3"))
 		f.addHistory(t, seriesName+" #4", -2*24*time.Hour)
 		bundleRule := f.createSeriesRule(t, false, true)
@@ -384,7 +377,7 @@ func TestFindSkippedEarlierEpisodes(t *testing.T) {
 }
 
 // TestEngineSkipsEpisodesBeforeReservedOrRecording は、候補の放送でも録画履歴でもない、手動で予約した回と録画中の録画も、
-// 比べる相手にすることを確かめる (#1499)。6 話は、ルールの対象でないサブチャンネルで、5 話より前に流れる。
+// 比較する相手にすることを確認する (#1499)。6 話は、ルールの対象でないサブチャンネルで、5 話より前に流れる。
 func TestEngineSkipsEpisodesBeforeReservedOrRecording(t *testing.T) {
 	t.Parallel()
 

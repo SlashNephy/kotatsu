@@ -109,6 +109,10 @@ env は、すべてのコンテナに渡す環境変数。
   value: "$(POD_IP)"
 - name: KOTATSU_METRICS_LISTEN
   value: ":9090"
+{{- if .Values.metrics.pprof }}
+- name: KOTATSU_METRICS_PPROF
+  value: "true"
+{{- end }}
 {{- with include "kotatsu.trustedProxies" . }}
 - name: KOTATSU_SERVER_TRUSTED_PROXIES
   value: {{ . | quote }}
@@ -180,7 +184,7 @@ configEnv は、values の config から作る環境変数 (KOTATSU_ の後ろ�
 {{/*
 volumeMounts は、コンテナにマウントするもの。ルートファイルシステムは読み取り専用なので、書く場所は emptyDir にする。
 引数は (dict "root" $ "pools" 真偽値 "backup" 真偽値)。pools が true なら、録画の保存先プールと、データとタイムシフトのディレクトリもマウントする。
-backup が true なら、定期のバックアップを書き出すディレクトリもマウントする (#1926)。
+backup が true なら、定期のバックアップを出力するディレクトリもマウントする (#1926)。
 volume の名前は、プール ID に使える _ を含められないので、プールの並びの番号にする。
 */}}
 {{- define "kotatsu.volumeMounts" -}}
@@ -240,7 +244,7 @@ volume の名前は、プール ID に使える _ を含められないので、
 {{- end -}}
 
 {{/*
-probe は、コンテナの liveness か readiness のプローブ。引数は (dict "root" $ "pod" 設定 "kind" "liveness" か "readiness" "path" 確かめるパス)。
+probe は、コンテナの liveness か readiness のプローブ。引数は (dict "root" $ "pod" 設定 "kind" "liveness" か "readiness" "path" 確認するパス)。
 values の probes に、ロール (all や roles の各ロール) の probes を重ねたものを、httpGet に足す。
 */}}
 {{- define "kotatsu.probe" -}}
@@ -280,7 +284,7 @@ Chart が付けるラベルは、selector や Service と食い違わないよ�
 {{/* deployment は、ロールの Deployment。引数は (dict "root" $ "component" 名前 "args" 引数 "pod" 設定 "replicas" 台数 "ffmpeg" 真偽値 "pools" 真偽値)。 */}}
 {{- define "kotatsu.deployment" -}}
 {{- $root := .root -}}
-{{- /* 定期のバックアップは nekonote が書き出すので、all と nekonote にだけ書き出す先を渡す (#1926)。 */ -}}
+{{- /* 定期のバックアップは nekonote が出力するので、all と nekonote にだけ出力先を渡す (#1926)。 */ -}}
 {{- $backup := and (not (empty $root.Values.backup.volume)) (has .component (list "all" "nekonote")) -}}
 {{- if and (not (empty $root.Values.backup.volume)) (hasKey $root.Values.config "BACKUP_DIR") }}
 {{- fail "set either backup.volume or config.BACKUP_DIR, not both" }}

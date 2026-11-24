@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e91a080223d047c404491201beff30b4>>
+ * @generated SignedSource<<41049aa0f038d609c376fe84841cca92>>
  * @lightSyntaxTransform
  */
 
@@ -29,7 +29,14 @@ export type RuleEditor_rule$data = {
     }>;
     readonly excludeMarks: ReadonlyArray<string>;
     readonly excludeServices: ReadonlyArray<{
+      readonly channelType: {
+        readonly displayName: string;
+      };
+      readonly gone: boolean;
       readonly id: string;
+      readonly logoUrl: string | null | undefined;
+      readonly name: string;
+      readonly serviceId: number;
     }>;
     readonly freeOnly: boolean;
     readonly genres: ReadonlyArray<{
@@ -47,7 +54,14 @@ export type RuleEditor_rule$data = {
     readonly maxDurationSeconds: number | null | undefined;
     readonly minDurationSeconds: number | null | undefined;
     readonly services: ReadonlyArray<{
+      readonly channelType: {
+        readonly displayName: string;
+      };
+      readonly gone: boolean;
       readonly id: string;
+      readonly logoUrl: string | null | undefined;
+      readonly name: string;
+      readonly serviceId: number;
     }>;
     readonly timeRanges: ReadonlyArray<{
       readonly durationMinutes: number;
@@ -112,7 +126,14 @@ v1 = [
     "storageKey": null
   }
 ],
-v2 = [
+v2 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "name",
+  "storageKey": null
+},
+v3 = [
   {
     "alias": null,
     "args": null,
@@ -142,10 +163,42 @@ v2 = [
     "storageKey": null
   }
 ],
-v3 = [
-  (v0/*:: as any*/)
-],
 v4 = [
+  (v0/*:: as any*/),
+  (v2/*:: as any*/),
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "logoUrl",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "serviceId",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "gone",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "ChannelType",
+    "kind": "LinkedField",
+    "name": "channelType",
+    "plural": false,
+    "selections": (v1/*:: as any*/),
+    "storageKey": null
+  }
+],
+v5 = [
   {
     "alias": null,
     "args": null,
@@ -202,13 +255,7 @@ return {
       "selections": (v1/*:: as any*/),
       "storageKey": null
     },
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "name",
-      "storageKey": null
-    },
+    (v2/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -238,7 +285,7 @@ return {
           "kind": "LinkedField",
           "name": "keywords",
           "plural": true,
-          "selections": (v2/*:: as any*/),
+          "selections": (v3/*:: as any*/),
           "storageKey": null
         },
         {
@@ -255,7 +302,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeKeywords",
           "plural": true,
-          "selections": (v2/*:: as any*/),
+          "selections": (v3/*:: as any*/),
           "storageKey": null
         },
         {
@@ -272,7 +319,7 @@ return {
           "kind": "LinkedField",
           "name": "services",
           "plural": true,
-          "selections": (v3/*:: as any*/),
+          "selections": (v4/*:: as any*/),
           "storageKey": null
         },
         {
@@ -282,7 +329,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeServices",
           "plural": true,
-          "selections": (v3/*:: as any*/),
+          "selections": (v4/*:: as any*/),
           "storageKey": null
         },
         {
@@ -292,7 +339,7 @@ return {
           "kind": "LinkedField",
           "name": "genres",
           "plural": true,
-          "selections": (v4/*:: as any*/),
+          "selections": (v5/*:: as any*/),
           "storageKey": null
         },
         {
@@ -302,7 +349,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeGenres",
           "plural": true,
-          "selections": (v4/*:: as any*/),
+          "selections": (v5/*:: as any*/),
           "storageKey": null
         },
         {
@@ -519,7 +566,9 @@ return {
       "kind": "LinkedField",
       "name": "group",
       "plural": false,
-      "selections": (v3/*:: as any*/),
+      "selections": [
+        (v0/*:: as any*/)
+      ],
       "storageKey": null
     }
   ],
@@ -528,6 +577,6 @@ return {
 };
 })();
 
-(node as any).hash = "36c2a0002133c4d545b0f55d389cd65e";
+(node as any).hash = "fee39715033d2fb890398a98bc34a894";
 
 export default node;

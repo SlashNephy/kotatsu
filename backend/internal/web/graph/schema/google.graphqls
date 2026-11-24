@@ -97,7 +97,7 @@ extend type Mutation {
   addGoogleDriveFolder(id: String!, libraryName: String!): GoogleIntegration!
   """
   Drive のフォルダ id のライブラリの名前を変える (#1902)。管理者だけが使える。見せるものは変わらないので、再認証は求めない。
-  再生位置と索引は、Drive のファイルの ID で引くので、名前を変えても引き継ぐ。名前が規則に合わないか重なれば BAD_USER_INPUT を返す。
+  再生位置とインデックスは、Drive のファイルの ID で取得するので、名前を変えても引き継ぐ。名前が規則に合わないか重なれば BAD_USER_INPUT を返す。
   """
   renameGoogleDriveFolder(id: String!, libraryName: String!): GoogleIntegration!
   "Drive のフォルダ id を、見せるフォルダから外す (#1902)。管理者だけが使える。"

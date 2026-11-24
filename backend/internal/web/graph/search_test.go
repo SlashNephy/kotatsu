@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 )
 
@@ -160,7 +162,7 @@ func TestSearchPrograms(t *testing.T) {
 	}
 }
 
-// TestSearchProgramsPagination は、カーソルで続きのページを取得できることを確かめる。
+// TestSearchProgramsPagination は、カーソルで続きのページを取得できることを確認する。
 func TestSearchProgramsPagination(t *testing.T) {
 	t.Parallel()
 
@@ -189,7 +191,7 @@ func TestSearchProgramsPagination(t *testing.T) {
 	assert.Equal(t, programName(14), pages[2][1])
 }
 
-// TestSearchArchivedPrograms は、過去の番組を、期間を指定したときだけ検索することを確かめる (設計書 3.4)。
+// TestSearchArchivedPrograms は、過去の番組を、期間を指定したときだけ検索することを確認する (設計書 3.4)。
 func TestSearchArchivedPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -241,8 +243,8 @@ func TestSearchArchivedPrograms(t *testing.T) {
 	}
 }
 
-// TestSearchArchivedProgramsByExtended は、アーカイブの番組の詳細を、正規化した列で探せることを確かめる。
-// 列を写す前に移したアーカイブ (列が NULL) は、上流の詳細から正規化して探す (#852)。
+// TestSearchArchivedProgramsByExtended は、アーカイブの番組の詳細を、正規化したカラムで探せることを確認する。
+// カラムをコピーする前に移したアーカイブ (カラムが NULL) は、上流の詳細から正規化して探す (#852)。
 func TestSearchArchivedProgramsByExtended(t *testing.T) {
 	t.Parallel()
 
@@ -267,7 +269,7 @@ func TestSearchArchivedProgramsByExtended(t *testing.T) {
 			FROM services WHERE name = 'こたつテスト1'`, start, start.Add(30*time.Minute), tt.extendedNormalized)
 			require.NoError(t, err)
 
-			conditions := conditionsInput{Keywords: []keywordInput{{Text: "abc太郎", Regexp: false, CaseSensitive: false, Fields: []string{"EXTENDED"}}}}
+			conditions := conditionsInput{Keywords: []keywordInput{{Text: actorKeyword, Regexp: false, CaseSensitive: false, Fields: []string{fieldExtended}}}}
 			var got searchResult
 			require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, &archiveInput{}, 50, nil), &got))
 			assert.Equal(t, []string{"過去の番組"}, got.names())
@@ -299,7 +301,7 @@ func TestSearchProgramsRejectsInvalidInput(t *testing.T) {
 }
 
 // TestSearchProgramsReadsAllCandidates は、一致する番組が少なくても、候補を最後まで照合して 1 回で返し、
-// 続きがないときは hasNextPage を false にすることを確かめる。
+// 続きがないときは hasNextPage を false にすることを確認する。
 func TestSearchProgramsReadsAllCandidates(t *testing.T) {
 	t.Parallel()
 
@@ -327,7 +329,7 @@ func TestSearchProgramsReadsAllCandidates(t *testing.T) {
 	}
 }
 
-// TestSearchProgramsByGenre は、ジャンルの包含と除外で絞り込めることを確かめる。
+// TestSearchProgramsByGenre は、ジャンルの包含と除外で絞り込めることを確認する。
 func TestSearchProgramsByGenre(t *testing.T) {
 	t.Parallel()
 
@@ -377,7 +379,7 @@ func TestSearchProgramsByGenre(t *testing.T) {
 	}
 }
 
-// TestSearchProgramsNarrowsKeywordsInSQL は、SQL でキーワードを粗く絞っても、照合関数と同じ番組が見つかることを確かめる。
+// TestSearchProgramsNarrowsKeywordsInSQL は、SQL でキーワードを粗く絞っても、照合関数と同じ番組が見つかることを確認する。
 // LIKE の記号は文字どおりに扱い、大文字と小文字は、区別するかどうかの指定に従う。
 func TestSearchProgramsNarrowsKeywordsInSQL(t *testing.T) {
 	t.Parallel()
@@ -386,7 +388,8 @@ func TestSearchProgramsNarrowsKeywordsInSQL(t *testing.T) {
 	f.syncEPG(t)
 	const name = `Kotatsu 100%_OFF \ 特番`
 	// まだ終わっていない番組の名前にする。いちばん遅く始まる番組を使う。
-	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET name = $1, name_normalized = $1
+	// 番組の検索の gram (#966) は、同期で作るものなので空にし、gram を埋める前の番組として、LIKE の絞り込みを確認する。
+	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET name = $1, name_normalized = $1, search_grams = NULL
 		WHERE (service_id, event_id) = (SELECT service_id, event_id FROM programs ORDER BY start_at DESC, service_id, event_id LIMIT 1)`, name)
 	require.NoError(t, err)
 
@@ -416,7 +419,7 @@ func TestSearchProgramsNarrowsKeywordsInSQL(t *testing.T) {
 }
 
 // TestSearchProgramsExcludesEndedPrograms は、アーカイブへ移す前の、放送の終わった番組を、
-// 過去の放送を含めないときは返さず、含めるときは期間で絞って返すことを確かめる。
+// 過去の放送を含めないときは返さず、含めるときは期間で絞って返すことを確認する。
 func TestSearchProgramsExcludesEndedPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -424,9 +427,10 @@ func TestSearchProgramsExcludesEndedPrograms(t *testing.T) {
 	f.syncEPG(t)
 	// 1 つの番組を、2 時間前に終わったことにする。まだ programs に残っている。
 	const name = "終わったばかりの番組"
-	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET name = $1, name_normalized = $1, start_at = $2, end_at = $3
+	// 番組の検索の gram (#966) は、書き換えた番組名に合わせて作り直す。
+	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET name = $1, name_normalized = $1, search_grams = $4, start_at = $2, end_at = $3
 		WHERE (service_id, event_id) = (SELECT service_id, event_id FROM programs ORDER BY start_at, service_id, event_id LIMIT 1)`,
-		name, testNow().Add(-3*time.Hour), testNow().Add(-2*time.Hour))
+		name, testNow().Add(-3*time.Hour), testNow().Add(-2*time.Hour), match.SearchGrams(name, "", ""))
 	require.NoError(t, err)
 	conditions := conditionsInput{Keywords: []keywordInput{keyword(name, false)}}
 
@@ -451,7 +455,7 @@ func TestSearchProgramsExcludesEndedPrograms(t *testing.T) {
 }
 
 // TestSearchProgramsSkipsNonMediaServices は、映像も音声も流さないサービス (データ放送など) の番組を返さず、
-// 映像のサービスの番組は返すことを確かめる。
+// 映像のサービスの番組は返すことを確認する。
 func TestSearchProgramsSkipsNonMediaServices(t *testing.T) {
 	t.Parallel()
 
@@ -493,7 +497,7 @@ func TestSearchProgramsSkipsNonMediaServices(t *testing.T) {
 }
 
 // TestSearchProgramsOmitsSharedEvents は、サブチャンネルが元のサービスと同じ番組を流している (イベント共有) とき、
-// 元の番組も一致していれば、サブチャンネルの番組を返さないことを確かめる。ページをまたいでも省く。
+// 元の番組も一致していれば、サブチャンネルの番組を返さないことを確認する。ページをまたいでも省く。
 func TestSearchProgramsOmitsSharedEvents(t *testing.T) {
 	t.Parallel()
 
@@ -558,13 +562,13 @@ func TestSearchProgramsOmitsSharedEvents(t *testing.T) {
 	}
 }
 
-// TestSearchProgramsKeywordMatch は、含めるキーワードを、すべてに一致か、いずれかに一致かで照合することを確かめる。
+// TestSearchProgramsKeywordMatch は、含めるキーワードを、すべてに一致か、いずれかに一致かで照合することを確認する。
 func TestSearchProgramsKeywordMatch(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
 	f.syncEPG(t)
-	// SQL で粗く絞るキーワード (正規表現でないもの) で確かめる。
+	// SQL で粗く絞るキーワード (正規表現でないもの) で確認する。
 	keywords := []keywordInput{keyword(programName(5), false), keyword(programName(6), false)}
 
 	tests := []struct {
@@ -583,6 +587,99 @@ func TestSearchProgramsKeywordMatch(t *testing.T) {
 			conditions := conditionsInput{Keywords: keywords, KeywordMatch: tt.keywordMatch, ChannelTypes: []string{"GR"}}
 			var got searchResult
 			require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, nil, 50, nil), &got))
+			assert.Equal(t, tt.want, got.names())
+		})
+	}
+}
+
+// fieldExtended は、キーワードで詳細を探す項目。actorKeyword は、出演者で探すキーワード。specialName と aibouName は、gram で探すテストの番組名。
+const (
+	fieldExtended = "EXTENDED"
+	actorKeyword  = "abc太郎"
+	specialName   = "ＮＨＫスペシャル　猫の島"
+	aibouName     = "相棒 season2"
+)
+
+// TestSearchProgramsByGrams は、番組の検索の gram (#966) で候補を絞っても、照合関数が一致とみなす番組を落とさないことを確認する。
+// gram を埋めていない番組 (NULL) も、候補に残して照合する。
+func TestSearchProgramsByGrams(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	start := testNow().Add(-5 * 24 * time.Hour)
+	archives := []struct {
+		eventID           int
+		name, description string
+		extended          string // 出演者
+		filled            bool
+	}{
+		{eventID: 9001, name: specialName, description: "島の猫を訪ねる", extended: "", filled: true},
+		{eventID: 9002, name: aibouName, description: "ＡＢＣ太郎が出演", extended: "ＸＹＺ花子", filled: true},
+		{eventID: 9003, name: "猫の旅", description: "", extended: "", filled: false},
+	}
+	for i, archive := range archives {
+		name, description := domain.Normalize(archive.name), domain.Normalize(archive.description)
+		var grams []string
+		if archive.filled {
+			grams = match.SearchGrams(name, description, "出演者\n"+domain.Normalize(archive.extended)+"\n")
+		}
+		at := start.Add(time.Duration(i) * time.Hour)
+		_, err := f.pool.Exec(t.Context(), `INSERT INTO program_archives (
+			service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
+			name_normalized, description_normalized, extended_normalized, extended, genres, related_items, search_grams, created_at, updated_at, archived_at
+		) SELECT id, $1, 0, $2, $3, false, true, $4, $5, $6, $7, $9, jsonb_build_object('出演者', $10::text), '[]', '[]', $8, $2, $2, $3
+		FROM services WHERE name = 'こたつテスト1'`, archive.eventID, at, at.Add(30*time.Minute), archive.name, archive.description, name, description, grams,
+			"出演者\n"+domain.Normalize(archive.extended)+"\n", archive.extended)
+		require.NoError(t, err)
+	}
+
+	nameOnly := []string{fieldName}
+	const fieldDescription = "DESCRIPTION"
+	nameAndDescription := []string{fieldName, fieldDescription}
+	tests := []struct {
+		name    string
+		keyword keywordInput
+		want    []string
+	}{
+		{
+			name:    "漢字 1 文字。gram を埋めていない番組も探す",
+			keyword: keywordInput{Text: "猫", Regexp: false, CaseSensitive: false, Fields: nameOnly},
+			want:    []string{specialName, "猫の旅"},
+		},
+		{
+			name:    "大文字と小文字、全角と半角の違い",
+			keyword: keywordInput{Text: "nhk", Regexp: false, CaseSensitive: false, Fields: nameOnly},
+			want:    []string{specialName},
+		},
+		{
+			name:    "概要だけに一致する",
+			keyword: keywordInput{Text: actorKeyword, Regexp: false, CaseSensitive: false, Fields: nameAndDescription},
+			want:    []string{aibouName},
+		},
+		{
+			name:    "番組名だけを見るときは、概要に一致しても返さない",
+			keyword: keywordInput{Text: actorKeyword, Regexp: false, CaseSensitive: false, Fields: nameOnly},
+			want:    []string{},
+		},
+		{
+			name:    "詳細だけに一致する",
+			keyword: keywordInput{Text: "xyz花子", Regexp: false, CaseSensitive: false, Fields: []string{fieldName, fieldExtended}},
+			want:    []string{aibouName},
+		},
+		{
+			name:    "正規表現",
+			keyword: keywordInput{Text: `season\d`, Regexp: true, CaseSensitive: false, Fields: nameOnly},
+			want:    []string{aibouName},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			conditions := conditionsInput{Keywords: []keywordInput{tt.keyword}}
+			var got searchResult
+			require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, &archiveInput{}, 50, nil), &got))
 			assert.Equal(t, tt.want, got.names())
 		})
 	}

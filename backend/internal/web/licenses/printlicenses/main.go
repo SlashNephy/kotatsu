@@ -1,4 +1,4 @@
-// printlicenses は、本体 (cmd/kotatsu) に組み込む Go のモジュールと、そのライセンスの文書の一覧を JSON で書き出す (#1604)。
+// printlicenses は、本体 (cmd/kotatsu) に組み込む Go のモジュールと、そのライセンスの文書の一覧を JSON で出力する (#1604)。
 // 本体をビルドする前に、backend/ で次のように動かし、licenses パッケージに埋め込ませる。
 //
 //	go run ./internal/web/licenses/printlicenses -o internal/web/licenses/dist/go.json

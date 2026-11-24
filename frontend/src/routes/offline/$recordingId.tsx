@@ -36,8 +36,9 @@ import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { WatchHeading, WatchLayout } from '../../yunomi/WatchLayout';
-import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
+import type { PlayerMedia } from '../../yunomi/playerMedia';
 
 export const Route = createFileRoute('/offline/$recordingId')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
@@ -47,14 +48,14 @@ export const Route = createFileRoute('/offline/$recordingId')({
 });
 
 // OfflinePlayPage は、端末に保存した録画を再生する画面 (#480、設計書 7.8)。サーバーにつながらなくても見られるよう、
-// GraphQL を読まず、保存した TS をブラウザの中で変換して流す (設計書 7.2)。画面は、アプリの根元の置き場で描く (#1602)。
+// GraphQL を読まず、保存した TS をブラウザの中で変換して流す (設計書 7.2)。画面は、アプリのルート要素に描く (#1602)。
 function OfflinePlayPage() {
   const { recordingId } = Route.useParams();
 
   return useHostedWatch(<OfflinePlayWatch recordingId={recordingId} />);
 }
 
-// OfflinePlayWatch は、端末に保存した録画 recordingId を再生する画面の中身。
+// OfflinePlayWatch は、端末に保存した録画 recordingId を再生する画面の内容。
 function OfflinePlayWatch({ recordingId }: { recordingId: string }) {
   const { t } = useTranslation();
   // 小さなプレイヤー (#1602) では、戻るリンクを出さず、映像だけにする。
@@ -128,12 +129,14 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   useDocumentTitle([toHalfWidth(meta.name)]);
   const videoURL = useObjectURL(files.video);
   const jikkyoURL = useObjectURL(files.jikkyo);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaRef = useRef<PlayerMedia | null>(null);
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
-  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
-  const videoState = useVideoState(video);
-  const autoplay = useAutoplayBlocked(video);
-  const videoLoading = useVideoLoading(video);
+  const [media, setMedia] = useState<PlayerMedia | null>(null);
+  // 小さなプレイヤーは、この経路で再生中かを確認し、再生と一時停止を操作する。
+  useWatchMedia(media);
+  const videoState = useVideoState(media);
+  const autoplay = useAutoplayBlocked(media);
+  const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
   useWakeLock(!videoState.paused);
@@ -144,8 +147,8 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   // loads は、読み直した回数。「やり直す」で、同じファイルを読み直させる。
   const [loads, setLoads] = useState(0);
 
-  // 保存した TS は、配信が切り詰めた 1 本のファイルなので、video の時刻が、そのまま録画の始まりからの位置になる。
-  // 長さは、プレイヤーがファイルから求めて video に渡す。分かるまでは、録画の時間帯から求める。
+  // 保存した TS は、配信が切り詰めた 1 本のファイルなので、media の時刻が、そのまま録画の始まりからの位置になる。
+  // 長さは、プレイヤーがファイルから求めて media に渡す。分かるまでは、録画の時間帯から求める。
   const fallbackDuration = recordingPosition(
     meta.recordedFrom,
     meta.gaps,
@@ -155,49 +158,49 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   const [duration, setDuration] = useState(fallbackDuration);
   const [seeking, setSeeking] = useState<number | null>(null);
   useEffect(() => {
-    if (video === null) {
+    if (media === null) {
       return;
     }
-    const update = () => setPosition(video.currentTime);
+    const update = () => setPosition(media.currentTime);
     const onDuration = () => {
-      if (Number.isFinite(video.duration) && video.duration > 0) {
-        setDuration(video.duration);
+      if (Number.isFinite(media.duration) && media.duration > 0) {
+        setDuration(media.duration);
       }
     };
-    video.addEventListener('timeupdate', update);
-    video.addEventListener('durationchange', onDuration);
+    media.addEventListener('timeupdate', update);
+    media.addEventListener('durationchange', onDuration);
     onDuration();
 
     return () => {
-      video.removeEventListener('timeupdate', update);
-      video.removeEventListener('durationchange', onDuration);
+      media.removeEventListener('timeupdate', update);
+      media.removeEventListener('durationchange', onDuration);
     };
-  }, [video]);
-  const currentPosition = () => videoRef.current?.currentTime ?? position;
+  }, [media]);
+  const currentPosition = () => mediaRef.current?.currentTime ?? position;
   const jikkyo = useRecordedJikkyo(jikkyoEnabled ? jikkyoURL : null, currentPosition, true);
 
   const seek = (target: number) => {
-    const element = videoRef.current;
-    if (element === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    element.currentTime = Math.min(Math.max(target, 0), duration);
-    setPosition(element.currentTime);
+    current.seek(Math.min(Math.max(target, 0), duration));
+    setPosition(current.currentTime);
   };
   const togglePlay = () => {
-    const element = videoRef.current;
-    if (element === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    if (element.paused) {
-      void element.play().catch(() => {});
+    if (current.paused) {
+      void current.play().catch(() => {});
     } else {
-      element.pause();
+      current.pause();
     }
   };
   const commands: PlayerCommands = {
-    play: () => void videoRef.current?.play().catch(() => {}),
-    pause: () => videoRef.current?.pause(),
+    play: () => void mediaRef.current?.play().catch(() => {}),
+    pause: () => mediaRef.current?.pause(),
     togglePlay,
     seekBackward: () => seek(currentPosition() - 10),
     seekForward: () => seek(currentPosition() + 10),
@@ -293,8 +296,8 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
           <TsPlayer
             // フラグメントは、読み直すためだけに付ける。blob: の URL でも、読むときには外される。
             url={videoURL === null ? null : `${videoURL}#${loads}`}
-            videoRef={videoRef}
-            onVideo={setVideo}
+            mediaRef={mediaRef}
+            onMedia={setMedia}
             controls={controlBar}
             captions={captions}
             onLoaded={() => setError(false)}

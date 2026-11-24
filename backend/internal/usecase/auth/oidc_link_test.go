@@ -81,7 +81,7 @@ func (f *oidcLinkFixture) linkedSubjects(t *testing.T) []string {
 	return subjects
 }
 
-// TestOIDCLinkFromSession は、ログイン中のユーザーが、IdP でログインして、自分を IdP のユーザーと紐付けられることを確かめる (設計書 9.4)。
+// TestOIDCLinkFromSession は、ログイン中のユーザーが、IdP でログインして、自分を IdP のユーザーと紐付けられることを確認する (設計書 9.4)。
 // 紐付けを始めたセッションのまま戻ってこなければ、紐付けない。
 func TestOIDCLinkFromSession(t *testing.T) {
 	t.Parallel()
@@ -175,7 +175,7 @@ func TestOIDCLinkFromSession(t *testing.T) {
 	}
 }
 
-// TestOIDCLinkIsNotALogin は、紐付けとして始めたものを、ログインとしては完了させないことを確かめる。
+// TestOIDCLinkIsNotALogin は、紐付けとして始めたものを、ログインとしては完了させないことを確認する。
 func TestOIDCLinkIsNotALogin(t *testing.T) {
 	t.Parallel()
 
@@ -187,7 +187,7 @@ func TestOIDCLinkIsNotALogin(t *testing.T) {
 	assert.Empty(t, f.linkedSubjects(t))
 }
 
-// TestBeginOIDCLinkRejects は、直前に認証していないセッション、既に紐付いたユーザー、ほかのサイトに戻させるパスを拒むことを確かめる。
+// TestBeginOIDCLinkRejects は、直前に認証していないセッション、既に紐付いたユーザー、ほかのサイトに戻させるパスを拒むことを確認する。
 func TestBeginOIDCLinkRejects(t *testing.T) {
 	t.Parallel()
 
@@ -227,12 +227,12 @@ func TestBeginOIDCLinkRejects(t *testing.T) {
 	}
 }
 
-// TestOIDCLinkHandlers は、画面からの紐付けの始まりから、IdP から戻って、始めたときのパスに戻るまでを、HTTP で確かめる。
+// TestOIDCLinkHandlers は、画面からの紐付けの始まりから、IdP から戻って、始めたときのパスに戻るまでを、HTTP で確認する。
 func TestOIDCLinkHandlers(t *testing.T) {
 	t.Parallel()
 
 	f := newOIDCLinkFixture(t)
-	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして捨てる。
+	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして破棄する。
 	f.clock.Advance(time.Since(f.clock.Now()))
 	// 時計を進めたので、直前に認証したセッションを作り直す。
 	token, _, err := auth.NewSessions(&auth.SessionsOptions{Clock: f.clock}).Create(t.Context(), f.db, f.user.ID, f.client)

@@ -3,9 +3,10 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { runCommand, type PlayerCommands, type SimpleCommandId } from './commands';
 import { onVideoSurface } from './useControlsVisibility';
 import { browserStorage } from './volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
 // マウスのホイールと中クリックでの、プレイヤーの操作 (#810、設計書 7.5)。TVTest から移ってくる人が
-// 同じ手つきで使えるよう、既定では TVTest に合わせて、映像の上のホイールで音量を変え、中クリックでミュートを切り替える。どちらも端末ごとに変えられる。
+// 同じ手つきで使えるよう、既定では TVTest に合わせて、映像の上のホイールで音量を変え、中クリックでミュートを切り替える。どちらも変えられ、端末をまたいで同期する (#1862)。
 
 // WheelAction は、ホイールで何をするか。volume は音量、seek は 10 秒のシーク、none は何もしない (ページを流す)。
 export type WheelAction = 'volume' | 'seek' | 'none';
@@ -25,10 +26,10 @@ export type MouseActions = { wheel: WheelAction; middleClick: MiddleClickAction 
 export const defaultMouseActions: MouseActions = { wheel: 'volume', middleClick: 'toggleMute' };
 
 // wheelStep は、1 回の操作に当たるホイールの量 (deltaY)。マウスの 1 目盛りはおおむね 100 で、
-// トラックパッドは細かく届くので、溜めてから 1 回にする。
+// トラックパッドは細かく届くので、蓄積してから 1 回にする。
 const wheelStep = 100;
 
-// wheelCommands は、溜めたホイールの量 accumulated から、呼ぶ操作と、残りの量を返す。
+// wheelCommands は、蓄積したホイールの量 accumulated から、呼ぶ操作と、残りの量を返す。
 // 上へ回す (負) と音量を上げるか戻り、下へ回す (正) と音量を下げるか進む。
 export function wheelCommands(
   action: WheelAction,
@@ -48,10 +49,10 @@ export function wheelCommands(
 }
 
 const storageKey = 'kotatsu.player.mouseActions';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:mouse-actions';
 
-// parseMouseActions は、覚えた設定を読む。読めない値は既定にする。
+// parseMouseActions は、保存した設定を読む。読めない値は既定にする。
 export function parseMouseActions(raw: string | null): MouseActions {
   if (raw === null) {
     return defaultMouseActions;
@@ -100,6 +101,7 @@ export function useMouseActions(): [MouseActions, (actions: MouseActions) => voi
     (actions) => {
       try {
         browserStorage()?.setItem(storageKey, JSON.stringify(actions));
+        preferenceChanged(storageKey);
       } catch {
         // 書けなければ、次に開いたときは既定に戻るだけ。
       }
@@ -109,7 +111,7 @@ export function useMouseActions(): [MouseActions, (actions: MouseActions) => voi
 }
 
 // usePlayerMouse は、プレイヤーを包む要素で、映像の上のホイールと中クリックを、設定の操作にする。返す ref を、その要素に渡す。
-// 要素は、別のウィンドウ (Document Picture-in-Picture) に移すと作り直されるので、ref で受けて、変わるたびに付け直す。
+// 要素が作り直されても付け直せるよう、ref で受けて、変わるたびに付け直す。
 // 操作バーの上では、ブラウザの動きのままにする。呼ぶ操作がないときも、ページのスクロールは止めない。
 export function usePlayerMouse(commands: PlayerCommands): (element: HTMLElement | null) => void {
   const [actions] = useMouseActions();

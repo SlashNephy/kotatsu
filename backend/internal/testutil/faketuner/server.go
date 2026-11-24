@@ -43,14 +43,16 @@ type Options struct {
 	Clock clock.Clock
 }
 
-// Server は偽のチューナーサーバー。http.Handler として使う。
+// Server はモックのチューナーサーバー。http.Handler として使う。
 type Server struct {
 	mux   *http.ServeMux
 	ts    []byte
 	clock clock.Clock
 
-	mu          sync.Mutex
-	channels    []*Channel
+	mu       sync.Mutex
+	channels []*Channel
+	// missing は、サービスの一覧から外しているサービスの ID (#1973)。
+	missing     map[int64]bool
 	programs    map[int64]*Program
 	tuners      []*tunerState
 	subscribers map[chan *Event]struct{}
@@ -89,6 +91,7 @@ func New(opts *Options) *Server {
 		clock:       clk,
 		mu:          sync.Mutex{},
 		channels:    opts.Channels,
+		missing:     map[int64]bool{},
 		programs:    map[int64]*Program{},
 		tuners:      make([]*tunerState, 0, len(opts.Tuners)),
 		subscribers: map[chan *Event]struct{}{},
@@ -151,6 +154,44 @@ func (s *Server) SetTuners(configs []*TunerConfig) {
 	}
 }
 
+// SetServiceMissing は、サービスを、サービスの一覧 (/api/services) から外すか、戻す。
+// チューナーサーバーの設定から局を外したときや、スキャンし直して局が消えたときを再現する (#1973)。
+func (s *Server) SetServiceMissing(id int64, missing bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if missing {
+		s.missing[id] = true
+	} else {
+		delete(s.missing, id)
+	}
+}
+
+// UpdateService は、サービスの名前を name に変え (空なら変えない)、service の update イベントを送る。
+// Mirakurun 互換のチューナーサーバーは、EPG の取得が進むたびにも、名前などを変えずに service の update を送る (#2035)。
+func (s *Server) UpdateService(id int64, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, channel := range s.channels {
+		for _, service := range channel.Services {
+			if service.ID != id {
+				continue
+			}
+			if name != "" {
+				service.Name = name
+			}
+			copied := *service
+			copied.Channel = &ChannelRef{Type: channel.Type, Channel: channel.Channel}
+			s.publishLocked("service", "update", &copied)
+
+			return nil
+		}
+	}
+
+	return fmt.Errorf("service %d not found", id)
+}
+
 // AddProgram は番組を足し、program の create イベントを送る。
 func (s *Server) AddProgram(program *Program) {
 	s.mu.Lock()
@@ -158,7 +199,7 @@ func (s *Server) AddProgram(program *Program) {
 
 	stored := *program
 	s.programs[program.ID] = &stored
-	// 送ったイベントの中身が、後の変更で書き換わらないよう、別の値を送る。
+	// 送ったイベントの内容が、後の変更で書き換わらないよう、別の値を送る。
 	event := stored
 	s.publishLocked("program", "create", &event)
 }
@@ -210,13 +251,6 @@ func (s *Server) ChangeProgramExtended(id int64, extended map[string]string) err
 func (s *Server) RenameProgram(id int64, name string) error {
 	return s.updateProgram(id, func(p *Program) {
 		p.Name = name
-	})
-}
-
-// ChangeProgramDescription は番組の概要を変え、program の update イベントを送る。
-func (s *Server) ChangeProgramDescription(id int64, description string) error {
-	return s.updateProgram(id, func(p *Program) {
-		p.Description = description
 	})
 }
 
@@ -357,6 +391,9 @@ func (s *Server) handleServices(w http.ResponseWriter, _ *http.Request) {
 	services := []*Service{}
 	for _, channel := range s.channels {
 		for _, service := range channel.Services {
+			if s.missing[service.ID] {
+				continue
+			}
 			copied := *service
 			copied.Channel = &ChannelRef{Type: channel.Type, Channel: channel.Channel}
 			services = append(services, &copied)
@@ -726,8 +763,8 @@ func (s *Server) tsOf(id int64) []byte {
 	return s.ts
 }
 
-// Scramble は、TS ts のうち、PID が pids のパケットのペイロードをスクランブルされたものとして印を付けた複製を返す (#1517)。
-// transport_scrambling_control を 0b10 (偶数鍵) にするだけで、ペイロードは書き換えない。
+// Scramble は、TS ts のうち、PID が pids のパケットのペイロードをスクランブルされたものとしてマークを付けた複製を返す (#1517)。
+// transport_scrambling_control を 0b10 (偶数側の暗号鍵) にするだけで、ペイロードは書き換えない。
 // 合成した TS で、チューナーサーバーの B-CAS カードが読めていないときの TS を真似るのに使う。
 func Scramble(ts []byte, pids ...uint16) []byte {
 	scrambled := bytes.Clone(ts)

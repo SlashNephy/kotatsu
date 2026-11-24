@@ -44,11 +44,11 @@ const (
 	segmentB = "b.m2ts"
 	// generateKey は、録画の完了のイベントの、字幕を生成するかどうかのキー。
 	generateKey = "generateCaptions"
-	// fakeModel は、偽の Transcriber のモデルの名前。
+	// fakeModel は、モックの Transcriber のモデルの名前。
 	fakeModel = "ggml-fake.bin"
 	// storedModel は、テストで DB に書く字幕のモデルの名前。
 	storedModel = "ggml-model.bin"
-	// recordingsVersion は、録画の変更を知らせるチャンネルの版数を読む SQL。
+	// recordingsVersion は、録画の変更を通知するチャンネルのバージョンを読む SQL。
 	recordingsVersion = "SELECT coalesce((SELECT version FROM change_versions WHERE channel = 'recordings'), 0)"
 )
 
@@ -162,7 +162,7 @@ func work(t *testing.T, worker *autocaption.Worker, recordingID uuid.UUID) error
 }
 
 // TestWorker は、セグメントごとの字幕を、セグメントを書き始めた時間と、WAV の始まりの位置だけずらして、録画を始めた日時からの時間にそろえて
-// 1 つにまとめて書くことを確かめる。最初の I フレームより前で終わる字幕は捨て、前で始まる字幕は 0 からにする。音声のないセグメントは飛ばす。
+// 1 つにまとめて書くことを確認する。最初の I フレームより前で終わる字幕は破棄し、前で始まる字幕は 0 からにする。音声のないセグメントは飛ばす。
 func TestWorker(t *testing.T) {
 	t.Parallel()
 
@@ -194,7 +194,7 @@ func TestWorker(t *testing.T) {
 	assert.Greater(t, f.version(t), before, "録画の詳細に読み直させる")
 }
 
-// TestWorkerReplaces は、生成し直したら、前の字幕を置き換えることを確かめる。
+// TestWorkerReplaces は、生成し直したら、前の字幕を置き換えることを確認する。
 func TestWorkerReplaces(t *testing.T) {
 	t.Parallel()
 
@@ -211,7 +211,7 @@ func TestWorkerReplaces(t *testing.T) {
 	assert.Equal(t, []autocaption.Cue{{Start: time.Second, End: 2 * time.Second, Text: "後"}}, cues)
 }
 
-// TestWorkerCancels は、生成できない録画と、whisper-cli かモデルのない nekonote では、試し直さずに取りやめることを確かめる。
+// TestWorkerCancels は、生成できない録画と、whisper-cli かモデルのない nekonote では、再試行せずに取りやめることを確認する。
 func TestWorkerCancels(t *testing.T) {
 	t.Parallel()
 
@@ -272,7 +272,7 @@ func TestWorkerCancels(t *testing.T) {
 	}
 }
 
-// TestWorkerRetriesWhenSegmentsChanged は、字幕を作っている間に、セグメントをつないだり名前を変えたりしたら、書かずにやり直すことを確かめる。
+// TestWorkerRetriesWhenSegmentsChanged は、字幕を作っている間に、セグメントをつないだり名前を変えたりしたら、書かずにやり直すことを確認する。
 // 字幕を作るのは長くかかるので、その間は録画ごとのロックを持たない。
 func TestWorkerRetriesWhenSegmentsChanged(t *testing.T) {
 	t.Parallel()
@@ -294,7 +294,7 @@ func TestWorkerRetriesWhenSegmentsChanged(t *testing.T) {
 	assert.Empty(t, cues)
 }
 
-// TestWorkerSnoozesWhileLocked は、ほかでセグメントをつないでいる (録画ごとのロックを持っている) 間は、読まずに後でやり直すことを確かめる。
+// TestWorkerSnoozesWhileLocked は、ほかでセグメントをつないでいる (録画ごとのロックを持っている) 間は、読まずに後でやり直すことを確認する。
 func TestWorkerSnoozesWhileLocked(t *testing.T) {
 	t.Parallel()
 
@@ -390,7 +390,7 @@ func (f *fixture) queued(t *testing.T) map[uuid.UUID]string {
 	return queued
 }
 
-// version は、録画の変更を知らせるチャンネルの版数を返す。
+// version は、録画の変更を通知するチャンネルのバージョンを返す。
 func (f *fixture) version(t *testing.T) int64 {
 	t.Helper()
 
@@ -400,7 +400,7 @@ func (f *fixture) version(t *testing.T) int64 {
 	return version
 }
 
-// TestEnqueue は、録画の詳細から頼まれたら、設定にかかわらずジョブを入れ、待っている間は重ねて入れないことを確かめる。
+// TestEnqueue は、録画の詳細から頼まれたら、設定にかかわらずジョブを入れ、待っている間は重ねて入れないことを確認する。
 func TestEnqueue(t *testing.T) {
 	t.Parallel()
 

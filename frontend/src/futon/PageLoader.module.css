@@ -1,10 +1,19 @@
 /* 読み込んでいる部分に、スピナーを出す。ヘッダーの下を覆う膜にすると、先に出ている題名やタブまで隠れて、ちらつく。 */
+/* 題名やタブより下の、画面に見えている残りの高さを取り、その縦横の中央に出す。 */
+/* 残りの高さは、PageLoader.tsx が、置かれた位置から --page-loader-top に入れる。 */
+/* 画面の下の端に近いところや、外に置かれたときは、残りが狭いので、最低の高さを取る。 */
 /* ふつうの読み込みでは出ないよう、0.5 秒待ってから出す。すぐ消える膜が出ると、点滅して見える。 */
 .root {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 50dvh;
+  min-height: max(
+    8rem,
+    calc(
+      100dvh - var(--page-loader-top, 50dvh) - var(--app-shell-footer-offset, 0rem) -
+        var(--app-shell-padding, 0rem) - env(safe-area-inset-bottom)
+    )
+  );
   animation: appear 0.2s ease-out 0.5s both;
 }
 

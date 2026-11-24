@@ -81,7 +81,7 @@ func eitPFPacketsFrom(cc *byte, sid, present, following uint16) []byte {
 }
 
 // TestRecorderMarksNotBroadcast は、予定の時間に、予約した番組 (eventId 6) が EIT[p/f] の放送中にも次の番組にも出てこなければ、
-// 予定の終わりで止め、録った TS は残して、放送されなかったことと、その時間に放送されていた番組を記録することを確かめる (#389)。
+// 予定の終わりで止め、録った TS は残して、放送されなかったことと、その時間に放送されていた番組を記録することを確認する (#389)。
 // 予定の終わりに DB に届かなくても、DB が戻ってから記録する (#1073)。
 func TestRecorderMarksNotBroadcast(t *testing.T) {
 	t.Parallel()
@@ -130,7 +130,7 @@ func TestRecorderMarksNotBroadcast(t *testing.T) {
 			assert.True(t, notBroadcast)
 			assert.Equal(t, new(int64(99)), aired)
 			assert.Len(t, f.files(t, reservationID), 1, "the recorded TS is kept")
-			// 完了の通知で、放送されなかったことを知らせる。
+			// 完了の通知で、放送されなかったことを通知する。
 			var flagged bool
 			var airedName *string
 			require.NoError(t, f.pool.QueryRow(t.Context(),
@@ -143,7 +143,7 @@ func TestRecorderMarksNotBroadcast(t *testing.T) {
 }
 
 // TestRecorderDoesNotChurnDelayedBroadcastWhileDatabaseIsUnreachable は、予約した番組が遅れているのに DB に届かないとき、
-// 前の番組のセグメントを消せないまま、開き直してセグメントを作り続けないことを確かめる (#1073)。DB が戻ってから待ち始める。
+// 前の番組のセグメントを消せないまま、開き直してセグメントを作り続けないことを確認する (#1073)。DB が戻ってから待ち始める。
 func TestRecorderDoesNotChurnDelayedBroadcastWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -168,7 +168,7 @@ func TestRecorderDoesNotChurnDelayedBroadcastWhileDatabaseIsUnreachable(t *testi
 }
 
 // TestRecorderMarksNotBroadcastWhenFollowingUntilLimit は、予約した番組 (eventId 6) が EIT[p/f] の次の番組のまま
-// 放送中にならなければ、延長の上限まで待って止め、放送されなかったことを記録することを確かめる (#640)。
+// 放送中にならなければ、延長の上限まで待って止め、放送されなかったことを記録することを確認する (#640)。
 // 野球中継の延長で大幅に繰り下がり、そのまま放送されなかった場合に当たる。
 // 遅れたとみなした時点で、前の番組しか入っていない TS は消すので、録画は番組が見つからなかったとして失敗にする (#1046)。
 func TestRecorderMarksNotBroadcastWhenFollowingUntilLimit(t *testing.T) {
@@ -208,8 +208,8 @@ func TestRecorderMarksNotBroadcastWhenFollowingUntilLimit(t *testing.T) {
 }
 
 // TestRecorderWaitsForDelayedBroadcast は、番組が始まるはずの時刻から猶予が過ぎても、予約した番組 (eventId 6) が
-// EIT[p/f] の次の番組のままなら、それまでに書いた前の番組の TS を消し、放送中になるまで待ってから書き始めることを確かめる (#1046)。
-// 前の番組 (野球中継) が延び、EPG が繰り下げを知らせないまま、予約した番組が遅れて始まった場合に当たる。
+// EIT[p/f] の次の番組のままなら、それまでに書いた前の番組の TS を消し、放送中になるまで待ってから書き始めることを確認する (#1046)。
+// 前の番組 (野球中継) が延び、EPG が繰り下げを通知しないまま、予約した番組が遅れて始まった場合に当たる。
 func TestRecorderWaitsForDelayedBroadcast(t *testing.T) {
 	t.Parallel()
 
@@ -239,14 +239,14 @@ func TestRecorderWaitsForDelayedBroadcast(t *testing.T) {
 	require.Eventually(t, func() bool { return len(f.files(t, reservationID)) == 0 }, waitTimeout, 10*time.Millisecond)
 
 	// 待っている間は、ストリームを読んでも書かない。読んだ分は 1 つずつ処理するので、次の分を読ませてから時計を進め、
-	// 待ち始めたときの EIT[p/f] を、進める前の時刻で溜めさせる。
+	// 待ち始めたときの EIT[p/f] を、進める前の時刻でバッファさせる。
 	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 99, 6))
 	stream.next(t, nullPacket())
 	f.clock.Advance(10 * time.Minute)
 	stream.next(t, nullPacket())
 	assert.Empty(t, f.files(t, reservationID))
 
-	// 予約した番組が放送中になったら、溜めた分から書き始める。
+	// 予約した番組が放送中になったら、バッファした分から書き始める。
 	startedAt := f.clock.Now()
 	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 6, 7))
 	require.Eventually(t, func() bool { return broadcastStarted() != nil }, waitTimeout, 10*time.Millisecond)
@@ -268,7 +268,7 @@ func TestRecorderWaitsForDelayedBroadcast(t *testing.T) {
 	assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 	files := f.files(t, reservationID)
 	require.Len(t, files, 1)
-	// 先に書くのは、溜めた分のうち開始マージン (15 秒) の間に読んだものだけ。待ち始めたときの EIT[p/f] は 10 分前に読んだので書かない。
+	// 先に書くのは、バッファした分のうち開始マージン (15 秒) の間に読んだものだけ。待ち始めたときの EIT[p/f] は 10 分前に読んだので書かない。
 	// EIT[p/f] のパケットは continuity_counter だけが違うので、セクションの部分で見分ける。
 	data, err := os.ReadFile(filepath.Join(dir, files[0].path))
 	require.NoError(t, err)
@@ -281,7 +281,7 @@ func TestRecorderWaitsForDelayedBroadcast(t *testing.T) {
 }
 
 // TestRecorderExtendsWhileOnAir は、予約した番組が EIT[p/f] の放送中になったら、その時刻を記録し、
-// 予定の終わりを過ぎても放送中のあいだは録り続けることを確かめる (#389)。
+// 予定の終わりを過ぎても放送中のあいだは録り続けることを確認する (#389)。
 func TestRecorderExtendsWhileOnAir(t *testing.T) {
 	t.Parallel()
 
@@ -411,7 +411,7 @@ func (s *steppedStream) online() {
 
 var _ recording.StreamOpener = new(steppedStream)
 
-// nullPacket は、中身のない TS のパケット (PID 0x1FFF) を返す。
+// nullPacket は、内容のない TS のパケット (PID 0x1FFF) を返す。
 func nullPacket() []byte {
 	packet := make([]byte, 188)
 	for i := range packet {
@@ -423,7 +423,7 @@ func nullPacket() []byte {
 }
 
 // TestRecorderFollowsBroadcastAcrossReconnect は、ストリームが切れている間に放送中の番組が変わっても、つなぎ直した後の
-// EIT[p/f] で正しく判断することを確かめる (#638)。つなぎ直すと解析器は作り直すが、放送の状態は引き継ぐ。
+// EIT[p/f] で正しく判断することを確認する (#638)。つなぎ直すとパーサーは作り直すが、放送の状態は引き継ぐ。
 func TestRecorderFollowsBroadcastAcrossReconnect(t *testing.T) {
 	t.Parallel()
 
@@ -526,9 +526,9 @@ func TestRecorderFollowsBroadcastAcrossReconnect(t *testing.T) {
 }
 
 // TestRecorderStopsWhenLeftAirWhileEndIsUndecided は、EPG で終了時刻が未定のままでも、EIT[p/f] の放送中が次の番組に
-// 切り替わったら、延長せずに後ろのマージンを録って止めることを確かめる。2026-10-16 の緊急地震速報で、放送局が放送中の番組の
+// 切り替わったら、延長せずに後ろのマージンを録って止めることを確認する。2026-10-16 の緊急地震速報で、放送局が放送中の番組の
 // 長さを未定に、次の番組を開始も長さも未定の臨時の番組 (eventId 65522) にした後、予定どおりに次の番組へ切り替えた事例を再現する。
-// 延長しないのに延長のログを出さないことも確かめる (#643)。
+// 延長しないのに延長のログを出さないことも確認する (#643)。
 func TestRecorderStopsWhenLeftAirWhileEndIsUndecided(t *testing.T) {
 	t.Parallel()
 
@@ -559,7 +559,7 @@ func TestRecorderStopsWhenLeftAirWhileEndIsUndecided(t *testing.T) {
 		return started != nil
 	}, waitTimeout, 10*time.Millisecond)
 
-	// 番組の途中で、終了時刻が未定になった。EPG にも、EIT[p/f] の次の番組にも表れる。
+	// 番組の途中で、終了時刻が未定になった。EPG にも、EIT[p/f] の次の番組にも現れる。
 	f.clock.Advance(programStart().Add(10 * time.Minute).Sub(f.clock.Now()))
 	_, err := f.pool.Exec(t.Context(), "UPDATE programs SET end_undecided = true WHERE service_id = $1 AND event_id = 6", grService(0))
 	require.NoError(t, err)
@@ -588,7 +588,7 @@ func TestRecorderStopsWhenLeftAirWhileEndIsUndecided(t *testing.T) {
 }
 
 // TestRecorderKeepsWaitingAcrossReconnect は、遅れた番組を待っている間にストリームが切れても、つなぎ直した後に
-// EIT[p/f] を読んでから決め、予約した番組が次の番組のままなら、書かずに待ち続けることを確かめる (#1046)。
+// EIT[p/f] を読んでから決め、予約した番組が次の番組のままなら、書かずに待ち続けることを確認する (#1046)。
 func TestRecorderKeepsWaitingAcrossReconnect(t *testing.T) {
 	t.Parallel()
 
@@ -625,7 +625,7 @@ func TestRecorderKeepsWaitingAcrossReconnect(t *testing.T) {
 }
 
 // TestRecorderWaitsWhenStartedLate は、番組が始まるはずの時刻から猶予が過ぎてから録画を始めたときも (チューナーの空きを待ったなど)、
-// 先に EIT[p/f] を読み、予約した番組が次の番組のままなら、前の番組を書かずに待つことを確かめる (#1046)。
+// 先に EIT[p/f] を読み、予約した番組が次の番組のままなら、前の番組を書かずに待つことを確認する (#1046)。
 func TestRecorderWaitsWhenStartedLate(t *testing.T) {
 	t.Parallel()
 

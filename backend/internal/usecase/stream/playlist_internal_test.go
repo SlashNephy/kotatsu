@@ -9,7 +9,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// TestKeyframesSkipGaps は、録画が途切れた区間を、I フレームの再生の時間に含めないことを確かめる (#754)。
+// TestKeyframesSkipGaps は、録画が途切れた区間を、I フレームの再生の時間に含めないことを確認する (#754)。
 // 配信もトランスコードも、途切れた区間の前後をつないで流すので、プレイヤーとエンコーダーの時間には、途切れた区間がない。
 func TestKeyframesSkipGaps(t *testing.T) {
 	t.Parallel()
@@ -17,7 +17,7 @@ func TestKeyframesSkipGaps(t *testing.T) {
 	// interval は、I フレームの間隔 (45045 / 90000 秒)。
 	const interval = 500500 * time.Microsecond
 	origin := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
-	// entries は、PTS が from から 45045 ずつ進む n 個の I フレームの索引を、offset から 1000 バイトおきに作る。
+	// entries は、PTS が from から 45045 ずつ進む n 個の I フレームのインデックスを、offset から 1000 バイトおきに作る。
 	entries := func(offset, from int64, n int) []ts.IndexEntry {
 		index := make([]ts.IndexEntry, 0, n)
 		for k := range int64(n) {
@@ -26,7 +26,7 @@ func TestKeyframesSkipGaps(t *testing.T) {
 
 		return index
 	}
-	// gap は、2 分の途切れの PTS の刻み。
+	// gap は、2 分の途切れの PTS の間隔。
 	const gap = 120 * ts.PTSClock
 	tests := []struct {
 		name     string
@@ -66,7 +66,7 @@ func TestKeyframesSkipGaps(t *testing.T) {
 			},
 			start: 30 * time.Second,
 			want:  []time.Duration{0, time.Minute, time.Minute + interval},
-			// 索引のないセグメントには、始まりからしか入れない。
+			// インデックスのないセグメントには、始まりからしか入れない。
 			wantPiece: 0, wantFrom: 0, wantAt: 0,
 		},
 	}

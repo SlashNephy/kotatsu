@@ -33,7 +33,7 @@ type fakeWorkIDs struct {
 	seasonal []*workids.AnnictWork
 	// pages は、すべての作品を cursor ごとに返すページ。
 	pages map[string]*workids.AnnictPage
-	// aniList は、MyAnimeList の ID から AniList の ID への表。
+	// aniList は、MyAnimeList の ID から AniList の ID へのテーブル。
 	aniList map[int32]int32
 	// fail なら、Annict への問い合わせに失敗する。
 	fail bool
@@ -128,7 +128,7 @@ func tokensReturning(t *testing.T, token string) *MockTokenSource {
 	return tokens
 }
 
-// TestImportAnnictWorksWithoutToken は、管理者が Annict のトークンを設定していなければ、Annict にも AniList にも問い合わせないことを確かめる。
+// TestImportAnnictWorksWithoutToken は、管理者が Annict のトークンを設定していなければ、Annict にも AniList にも問い合わせないことを確認する。
 func TestImportAnnictWorksWithoutToken(t *testing.T) {
 	t.Parallel()
 
@@ -146,7 +146,7 @@ func TestImportAnnictWorksWithoutToken(t *testing.T) {
 	assert.Zero(t, seasonal+full+aniList)
 }
 
-// TestImportAnnictWorks は、Annict と AniList から作った対応を、arm の対応より優先して使うことを確かめる (#1223)。
+// TestImportAnnictWorks は、Annict と AniList から作った対応を、arm の対応より優先して使うことを確認する (#1223)。
 // 今期と来期は 1 日に 1 回、すべての作品は引き終えてから 30 日後に引き直し、AniList の ID は 30 日たつまで引き直さない。
 func TestImportAnnictWorks(t *testing.T) {
 	t.Parallel()
@@ -209,7 +209,7 @@ func TestImportAnnictWorks(t *testing.T) {
 }
 
 // TestImportAnnictWorksFailure は、Annict に問い合わせられなければ、理由を残し、ほかの取り込み元は取り込み、
-// 1 時間後に問い合わせ直して対応を作ることを確かめる。
+// 1 時間後に問い合わせ直して対応を作ることを確認する。
 func TestImportAnnictWorksFailure(t *testing.T) {
 	t.Parallel()
 

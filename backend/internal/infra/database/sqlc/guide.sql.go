@@ -166,7 +166,7 @@ type ListArchivedProgramsInRangeRow struct {
 	RelatedItems []byte
 }
 
-// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
+// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じカラムを返す。
 func (q *Queries) ListArchivedProgramsInRange(ctx context.Context, arg ListArchivedProgramsInRangeParams) ([]ListArchivedProgramsInRangeRow, error) {
 	rows, err := q.db.Query(ctx, listArchivedProgramsInRange, arg.ServiceIds, arg.FromAt, arg.ToAt)
 	if err != nil {
@@ -248,6 +248,37 @@ func (q *Queries) ListChannelTypesByTypes(ctx context.Context, types []string) (
 	return items, nil
 }
 
+const listChannelTypesWithServices = `-- name: ListChannelTypesWithServices :many
+SELECT DISTINCT channel_type FROM services
+WHERE channel_type = ANY($1::text[]) AND (gone_at IS NULL OR gone_at >= $2::timestamptz)
+`
+
+type ListChannelTypesWithServicesParams struct {
+	Types      []string
+	GoneBefore time.Time
+}
+
+// types のうち、上流から消えていないサービスを持つ種別 (#1973)。持たない種別は、選択肢に出さない。
+func (q *Queries) ListChannelTypesWithServices(ctx context.Context, arg ListChannelTypesWithServicesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listChannelTypesWithServices, arg.Types, arg.GoneBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var channel_type string
+		if err := rows.Scan(&channel_type); err != nil {
+			return nil, err
+		}
+		items = append(items, channel_type)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGuideProgramsByKeys = `-- name: ListGuideProgramsByKeys :many
 SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
   related_items
@@ -275,7 +306,7 @@ type ListGuideProgramsByKeysRow struct {
 	RelatedItems []byte
 }
 
-// 番組 (サービス, eventId) をまとめて引く。GetGuideProgram と同じ列を返す。ない番組は返さない。
+// 番組 (サービス, eventId) をまとめて取得する。GetGuideProgram と同じカラムを返す。ない番組は返さない。
 func (q *Queries) ListGuideProgramsByKeys(ctx context.Context, arg ListGuideProgramsByKeysParams) ([]ListGuideProgramsByKeysRow, error) {
 	rows, err := q.db.Query(ctx, listGuideProgramsByKeys, arg.ServiceIds, arg.EventIds)
 	if err != nil {
@@ -310,17 +341,21 @@ func (q *Queries) ListGuideProgramsByKeys(ctx context.Context, arg ListGuideProg
 }
 
 const listGuideServices = `-- name: ListGuideServices :many
-SELECT s.id, s.network_id, s.sid, s.name, s.service_type, s.channel_type, s.channel, s.remote_control_key_id, s.logo_id, s.hidden, s.sort_order
+SELECT s.id, s.network_id, s.sid, s.name, s.service_type, s.channel_type, s.channel, s.remote_control_key_id, s.logo_id, s.hidden, s.sort_order,
+  (s.gone_at IS NOT NULL AND s.gone_at < $1::timestamptz)::boolean AS gone
 FROM services s
 JOIN channel_types ct ON ct.type = s.channel_type
-WHERE ($1::boolean OR NOT s.hidden)
-  AND (cardinality($2::bigint[]) = 0 OR s.service_type = ANY($2::bigint[]))
-  AND (cardinality($3::bigint[]) = 0 OR s.id = ANY($3::bigint[]))
+WHERE ($2::boolean OR NOT s.hidden)
+  AND ($3::boolean OR s.gone_at IS NULL OR s.gone_at >= $1::timestamptz)
+  AND (cardinality($4::bigint[]) = 0 OR s.service_type = ANY($4::bigint[]))
+  AND (cardinality($5::bigint[]) = 0 OR s.id = ANY($5::bigint[]))
 ORDER BY ct.sort_order, ct.type, s.sort_order NULLS LAST, s.remote_control_key_id NULLS LAST, s.id
 `
 
 type ListGuideServicesParams struct {
+	GoneBefore        time.Time
 	IncludeHidden     bool
+	IncludeGone       bool
 	MediaServiceTypes []int64
 	Ids               []int64
 }
@@ -337,12 +372,20 @@ type ListGuideServicesRow struct {
 	LogoID             *int64
 	Hidden             bool
 	SortOrder          *int32
+	Gone               bool
 }
 
 // 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。
 // media_service_types を渡すと、その種別 (映像か音声を流すサービス) だけを返す。空なら、種別で絞らない。
+// gone は、上流から消えたサービス (gone_at が gone_before より前) かどうか (#1973)。include_gone でなければ、消えたサービスを外す。
 func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesParams) ([]ListGuideServicesRow, error) {
-	rows, err := q.db.Query(ctx, listGuideServices, arg.IncludeHidden, arg.MediaServiceTypes, arg.Ids)
+	rows, err := q.db.Query(ctx, listGuideServices,
+		arg.GoneBefore,
+		arg.IncludeHidden,
+		arg.IncludeGone,
+		arg.MediaServiceTypes,
+		arg.Ids,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -362,6 +405,7 @@ func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesPa
 			&i.LogoID,
 			&i.Hidden,
 			&i.SortOrder,
+			&i.Gone,
 		); err != nil {
 			return nil, err
 		}
@@ -374,7 +418,7 @@ func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesPa
 }
 
 const listProgramRecordings = `-- name: ListProgramRecordings :many
-SELECT id, api_id, reservation_id, service_id, event_id, name, description, extended, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, extended, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, judged_drops, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings
 WHERE service_id = $1 AND event_id = $2 AND start_at < $3 AND end_at > $4
 ORDER BY start_at, id
 `
@@ -421,6 +465,7 @@ func (q *Queries) ListProgramRecordings(ctx context.Context, arg ListProgramReco
 			&i.Drops,
 			&i.Errors,
 			&i.Scrambled,
+			&i.JudgedDrops,
 			&i.ScrambledRatio,
 			&i.ScrambleWarning,
 			&i.Gaps,

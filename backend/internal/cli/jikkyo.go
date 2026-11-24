@@ -18,8 +18,8 @@ type jikkyoParts struct {
 	client *jikkyoclient.Client
 }
 
-// newJikkyoTable は、実況のチャンネルの対応表を作る。同梱の表に、管理者が画面で足した対応 (#1869) を重ねる。
-// 画面で足した対応は、全体の設定から読む。DB がなければ (テストで差し替えた構成)、同梱の表だけを使う。
+// newJikkyoTable は、実況のチャンネルの対応表を作る。同梱のテーブルに、管理者が画面で足した対応 (#1869) を重ねる。
+// 画面で足した対応は、全体の設定から読む。DB がなければ (テストで差し替えた構成)、同梱のテーブルだけを使う。
 func newJikkyoTable(deps *Deps, clk clock.Clock, logger *slog.Logger) (*jikkyo.Table, error) {
 	var overrides jikkyo.OverridesFunc
 	if deps.DB != nil {

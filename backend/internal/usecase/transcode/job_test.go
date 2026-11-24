@@ -85,7 +85,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 }
 
-// recording は、segmentName のセグメント (中身は content) を 1 つ持つ、録り終えた録画を作る。
+// recording は、segmentName のセグメント (内容は content) を 1 つ持つ、録り終えた録画を作る。
 func (f *fixture) recording(t *testing.T, content []byte) uuid.UUID {
 	t.Helper()
 
@@ -106,9 +106,9 @@ func (f *fixture) recording(t *testing.T, content []byte) uuid.UUID {
 	return recordingID
 }
 
-// copyEncoder は、読んだ TS をそのまま書く Encoder。渡された画質と、フィールドごとに 1 コマにするかを覚える。
+// copyEncoder は、読んだ TS をそのまま書く Encoder。渡された画質と、フィールドごとに 1 コマにするかを保存する。
 // 読み終えたら、progress を -progress の出力として書く。ProbeFrameRate は、rate を返す。
-// MeasureFields は、測った位置を覚え、diffs を返す。diffs が nil なら失敗する。
+// MeasureFields は、計測した位置を保存し、diffs を返す。diffs が nil なら失敗する。
 type copyEncoder struct {
 	presets  []string
 	fields   []bool
@@ -190,7 +190,7 @@ func workJob(ctx context.Context, f *fixture, encoder transcode.Encoder, row *ri
 	return worker.Work(ctx, &river.Job[transcode.Args]{JobRow: row, Args: args})
 }
 
-// index は、録画 recordingID のセグメントに、1 秒ごとの n 個の I フレームの索引と、フレームレートが rate の映像の形式を付ける。
+// index は、録画 recordingID のセグメントに、1 秒ごとの n 個の I フレームのインデックスと、フレームレートが rate の映像の形式を付ける。
 // 再生の時間は、最後の I フレームの後の 1 間隔を足して n 秒になるので、見込みのコマ数は n × rate。
 func (f *fixture) index(t *testing.T, recordingID uuid.UUID, n int64, rate float64) {
 	t.Helper()
@@ -236,7 +236,7 @@ func tsPackets(n int) []byte {
 	return bytes.Repeat(packet, n)
 }
 
-// TestWorker は、録画を 1 本の TS として読んで変換し、最初のセグメントの隣に MP4 を書き、その他のファイルとして記録することを確かめる (#1253)。
+// TestWorker は、録画を 1 本の TS として読んで変換し、最初のセグメントの隣に MP4 を書き、その他のファイルとして記録することを確認する (#1253)。
 // 変換し直したら、同じファイルの記録を書き直す。
 func TestWorker(t *testing.T) {
 	t.Parallel()
@@ -260,7 +260,7 @@ func TestWorker(t *testing.T) {
 	assert.Len(t, f.otherFiles(t, recordingID), 1)
 }
 
-// TestWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、変換せずに後でやり直すことを確かめる (#1719)。
+// TestWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、変換せずに後でやり直すことを確認する (#1719)。
 // 置き換えるまでは、DB の記録は 1 本でも、ディスクの最初のセグメントはまだつなぐ前のままである。
 func TestWorkerWaitsForJoinedFile(t *testing.T) {
 	t.Parallel()
@@ -297,7 +297,7 @@ func enqueueFinalize(t *testing.T, pool *pgxpool.Pool, inserter *jobs.Client, re
 	return results[0].Job.ID
 }
 
-// TestWorkerCancels は、変換できない録画では、やり直さずに取りやめることを確かめる (#1253)。
+// TestWorkerCancels は、変換できない録画では、やり直さずに取りやめることを確認する (#1253)。
 func TestWorkerCancels(t *testing.T) {
 	t.Parallel()
 
@@ -376,7 +376,7 @@ func TestWorkerCancels(t *testing.T) {
 	}
 }
 
-// TestEnqueuer は、変換の画質を選んだ録画を終えたときだけ、変換のジョブを入れることを確かめる (#1253)。
+// TestEnqueuer は、変換の画質を選んだ録画を終えたときだけ、変換のジョブを入れることを確認する (#1253)。
 func TestEnqueuer(t *testing.T) {
 	t.Parallel()
 
@@ -430,13 +430,13 @@ func TestEnqueuer(t *testing.T) {
 // quarterBlock は、1000 コマの見込みの 4 分の 1 をエンコードしたときの -progress のまとまり。
 const quarterBlock = "frame=250\nprogress=continue\n"
 
-// TestWorkerProgress は、変換の進み具合を、見込みのコマ数か入力の読み位置で割り、ジョブの試行と一緒に DB に書くことを確かめる (#1511)。
+// TestWorkerProgress は、変換の進み具合を、見込みのコマ数か入力の読み位置で割り、ジョブの試行と一緒に DB に書くことを確認する (#1511)。
 func TestWorkerProgress(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name string
-		// keyframes は、索引の I フレームの数 (1 秒ごと)。0 なら索引を作らない。
+		// keyframes は、インデックスの I フレームの数 (1 秒ごと)。0 ならインデックスを作らない。
 		keyframes int64
 		// video は、映像の形式のフレームレート。probe は、ffprobe で読むフレームレート。
 		video, probe float64
@@ -449,7 +449,7 @@ func TestWorkerProgress(t *testing.T) {
 		// HEVC は、映像の形式にフレームレートがないので、ffprobe で補う。
 		{name: "frame rate from ffprobe", keyframes: 100, video: 0, probe: 10, frameRate: domain.TranscodeFrameRate30, progress: quarterBlock, want: 0.25},
 		{name: "end", keyframes: 100, video: 10, probe: 0, frameRate: domain.TranscodeFrameRate30, progress: quarterBlock + "frame=990\nprogress=end\n", want: 1},
-		// 索引がなければ、見込みのコマ数を出せないので、流したバイト数で割る。読み終えていても、progress=end までは頭打ちで止める。
+		// インデックスがなければ、見込みのコマ数を出せないので、流したバイト数で割る。読み終えていても、progress=end までは頭打ちで止める。
 		{name: "read position without the index", keyframes: 0, video: 10, probe: 0, frameRate: domain.TranscodeFrameRate30, progress: quarterBlock, want: 0.99},
 		// フィールドごとに 1 コマにするなら、元のフレームレートによらず 59.94 コマで数える (#1509)。100 秒 × 59.94 のおよそ半分。
 		{name: "fields", keyframes: 100, video: 10, probe: 0, frameRate: domain.TranscodeFrameRate60, progress: "frame=2997\nprogress=continue\n", want: 0.5},
@@ -473,7 +473,7 @@ func TestWorkerProgress(t *testing.T) {
 	}
 }
 
-// fakeFFmpeg は、-progress の出力を模す偽の FFmpeg のシェルのスクリプト。10% を出したら go のファイルを、20% を出したら
+// fakeFFmpeg は、-progress の出力を模すモックの FFmpeg のシェルのスクリプト。10% を出したら go のファイルを、20% を出したら
 // stop のファイルを待つ。stop の後に、読み損ねた少ないコマ数と progress=end を出して終わる。出力はシェルが書くので、
 // FFmpeg (このテストのバイナリ) を止められても、シェルが終わるまで出力が届き続ける (止められてから終わるまで少し待つ FFmpeg を模す)。
 const fakeFFmpeg = `
@@ -486,7 +486,7 @@ printf 'frame=50\nprogress=continue\nframe=1000\nprogress=end\n'
 touch "$FAKE_FFMPEG_DIR/done"
 `
 
-// TestMain は、このテストのバイナリが ffmpeg の名前で起動されたら、偽の FFmpeg (fakeFFmpeg) として動く。
+// TestMain は、このテストのバイナリが ffmpeg の名前で起動されたら、モックの FFmpeg (fakeFFmpeg) として動く。
 func TestMain(m *testing.M) {
 	if filepath.Base(os.Args[0]) == "ffmpeg" {
 		cmd := exec.CommandContext(context.Background(), "sh", "-c", fakeFFmpeg)
@@ -501,13 +501,13 @@ func TestMain(m *testing.M) {
 }
 
 // TestWorkerStopKeepsProgress は、変換を止めてから FFmpeg が終わり、後片付けをするまでの間に、進み具合が戻らず、
-// 100% にもならないことを確かめる (#1511)。t.Setenv で PATH を変えるので、並べて走らせない。
+// 100% にもならないことを確認する (#1511)。t.Setenv で PATH を変えるので、並べて走らせない。
 func TestWorkerStopKeepsProgress(t *testing.T) {
 	f := newFixture(t)
 	recordingID := f.recording(t, tsPackets(100))
 	// 見込みのコマ数は 100 秒 × 10fps = 1000 コマ。
 	f.index(t, recordingID, 100, 10)
-	// 偽の FFmpeg は、このテストのバイナリを ffmpeg の名前で起動したもの (TestMain)。
+	// モックの FFmpeg は、このテストのバイナリを ffmpeg の名前で起動したもの (TestMain)。
 	bin, marks := t.TempDir(), t.TempDir()
 	self, err := os.Executable()
 	require.NoError(t, err)

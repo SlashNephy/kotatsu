@@ -37,7 +37,7 @@ func TestHandler(t *testing.T) {
 		app    fstest.MapFS
 		method string
 		path   string
-		// wantStatus と wantBody は応答の状態と本文。wantBody が空なら本文は確かめない。
+		// wantStatus と wantBody は応答の状態と本文。wantBody が空なら本文は確認しない。
 		wantStatus int
 		wantBody   string
 		// wantIndex は、index.html を返すかどうか。
@@ -100,7 +100,7 @@ func TestHandler(t *testing.T) {
 	}
 }
 
-// TestNonceChangesPerResponse は、index.html を返すたびに、別の nonce を使うことを確かめる。
+// TestNonceChangesPerResponse は、index.html を返すたびに、別の nonce を使うことを確認する。
 func TestNonceChangesPerResponse(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +115,7 @@ func TestNonceChangesPerResponse(t *testing.T) {
 	assert.Len(t, nonces, 3)
 }
 
-// TestContentSecurityPolicy は、明示的に許すのが WebAssembly の実行だけで、外部への接続を許さないことを確かめる (設計書 10.4)。
+// TestContentSecurityPolicy は、明示的に許すのが WebAssembly の実行だけで、外部への接続を許さないことを確認する (設計書 10.4)。
 func TestContentSecurityPolicy(t *testing.T) {
 	t.Parallel()
 

@@ -16,7 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 )
 
-// fakeCMDetector は、FFmpeg の代わりに、決めた区間を返す。受け取った入力と、Open で読んだ TS の大きさを覚える。
+// fakeCMDetector は、FFmpeg の代わりに、決めた区間を返す。受け取った入力と、Open で読んだ TS の大きさを保存する。
 type fakeCMDetector struct {
 	sections []cmdetect.Section
 	err      error
@@ -46,8 +46,8 @@ func (d *fakeCMDetector) Detect(_ context.Context, input *cmdetect.Input) ([]cmd
 	return d.sections, d.err
 }
 
-// TestCMWorker は、索引を作り終えたライブラリのファイルの CM の区間を、ライブラリの口でファイルを読んで見分け、
-// TS から読んだサービスと番組の時刻を渡し、今のファイルを見分けた結果だけを返すことを確かめる (#1734)。
+// TestCMWorker は、インデックスを作り終えたライブラリのファイルの CM の区間を、ライブラリの口でファイルを読んで見分け、
+// TS から読んだサービスと番組の時刻を渡し、今のファイルを見分けた結果だけを返すことを確認する (#1734)。
 func TestCMWorker(t *testing.T) {
 	t.Parallel()
 
@@ -98,7 +98,7 @@ func TestCMWorker(t *testing.T) {
 	assert.ErrorIs(t, err, errFileChanged)
 }
 
-// TestCMProgram は、番組の窓に渡す番組の時刻を、録り始め (再生の 0 秒) からの時間にし、分からなければ渡さないことを確かめる。
+// TestCMProgram は、番組のウィンドウに渡す番組の時刻を、録り始め (再生の 0 秒) からの時間にし、分からなければ渡さないことを確認する。
 func TestCMProgram(t *testing.T) {
 	t.Parallel()
 

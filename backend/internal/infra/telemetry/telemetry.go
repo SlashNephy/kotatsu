@@ -4,12 +4,10 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -33,17 +31,6 @@ func NewRegistry() *prometheus.Registry {
 	)
 
 	return registry
-}
-
-// NewMetricsHandler は、gatherer の内容を Prometheus 形式で返す /metrics を作る。
-// registry には、/metrics 自身のエラーの数などを登録する。
-func NewMetricsHandler(gatherer prometheus.Gatherer, registry *prometheus.Registry) http.Handler {
-	mux := http.NewServeMux()
-	mux.Handle("GET /metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
-		Registry: registry,
-	}))
-
-	return mux
 }
 
 // NewTracerProvider は、OTLP/HTTP でトレースを送る TracerProvider を返す。

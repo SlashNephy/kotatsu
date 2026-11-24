@@ -14,7 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/transcode"
 )
 
-// 合成の差の列の値。moving は、動いている絵の差。repeated は、3:2 テレシネで繰り返されたフィールドの差 (ほぼ同じ絵)。
+// 合成の差の並びの値。moving は、動いている絵の差。repeated は、3:2 テレシネで繰り返されたフィールドの差 (ほぼ同じ絵)。
 // sameFrame は、30p の同じコマの上と下の差 (行がずれた分だけが出る)。still は、静止した絵の上フィールドの差。
 // telecineName と interlacedName は、合成の素材の名前。
 const (
@@ -29,7 +29,7 @@ const (
 	still     = 0.02
 )
 
-// diffsOf は、seconds 秒の、上フィールドの差を top(i)、上下を交互に並べた差を fields(i) で作った差の列を返す。
+// diffsOf は、seconds 秒の、上フィールドの差を top(i)、上下を交互に並べた差を fields(i) で作った差の並びを返す。
 func diffsOf(seconds int, top, fields func(i int) float64) *transcode.FieldDiffs {
 	d := &transcode.FieldDiffs{Top: make([]float64, seconds*30), Fields: make([]float64, seconds*60)}
 	for i := range d.Top {
@@ -44,7 +44,7 @@ func diffsOf(seconds int, top, fields func(i int) float64) *transcode.FieldDiffs
 
 func constant(v float64) func(int) float64 { return func(int) float64 { return v } }
 
-// telecined は、10 秒の 3:2 テレシネの差の列を返す。上フィールドは、phase から数えて 5 つに 1 つが繰り返しになる。
+// telecined は、10 秒の 3:2 テレシネの差の並びを返す。上フィールドは、phase から数えて 5 つに 1 つが繰り返しになる。
 func telecined(phase int) *transcode.FieldDiffs {
 	return diffsOf(10, func(i int) float64 {
 		if (i+phase)%5 == 0 {
@@ -55,7 +55,7 @@ func telecined(phase int) *transcode.FieldDiffs {
 	}, constant(moving))
 }
 
-// progressive30 は、30p の差の列を返す。上下を交互に並べた差は、同じコマの上と下 (偶数番目) で小さい。
+// progressive30 は、30p の差の並びを返す。上下を交互に並べた差は、同じコマの上と下 (偶数番目) で小さい。
 func progressive30(seconds int) *transcode.FieldDiffs {
 	return diffsOf(seconds, constant(moving), func(i int) float64 {
 		if i%2 == 0 {
@@ -70,7 +70,7 @@ func interlaced60(seconds int) *transcode.FieldDiffs {
 	return diffsOf(seconds, constant(moving), constant(moving))
 }
 
-// TestClassify は、窓のフィールドどうしの差から、rep と wr を求め、24p 系、30p、60i、測れないに分けることを確かめる (#1509)。
+// TestClassify は、ウィンドウのフィールドどうしの差から、rep と wr を求め、24p 系、30p、60i、計測できないに分けることを確認する (#1509)。
 func TestClassify(t *testing.T) {
 	t.Parallel()
 
@@ -78,7 +78,7 @@ func TestClassify(t *testing.T) {
 		name  string
 		diffs *transcode.FieldDiffs
 		want  transcode.Cadence
-		// wantRep と wantWR は、rep と wr の中央値。負なら確かめない。
+		// wantRep と wantWR は、rep と wr の中央値。負なら確認しない。
 		wantRep, wantWR float64
 		wantSeconds     int
 	}{
@@ -92,7 +92,7 @@ func TestClassify(t *testing.T) {
 		{name: "too few moving seconds", diffs: interlaced60(4), want: transcode.CadenceUnknown, wantRep: 1, wantWR: 1, wantSeconds: 4},
 		// 1 秒に満たない端の差は数えない。
 		{name: "partial second", diffs: &transcode.FieldDiffs{Top: interlaced60(5).Top[:149], Fields: interlaced60(5).Fields[:299]}, want: transcode.CadenceUnknown, wantRep: 1, wantWR: 1, wantSeconds: 4},
-		// 動いている秒が半分でも、最小の秒数に足りれば、動いている秒だけで測る。
+		// 動いている秒が半分でも、最小の秒数に足りれば、動いている秒だけで計測する。
 		{
 			name: "moving half",
 			diffs: diffsOf(10, func(i int) float64 {
@@ -118,7 +118,7 @@ func TestClassify(t *testing.T) {
 	}
 }
 
-// TestClassifyWithoutFields は、上下を交互に並べた差が足りなければ、24p 系とは言えない窓を測れないとすることを確かめる (#1509)。
+// TestClassifyWithoutFields は、上下を交互に並べた差が足りなければ、24p 系とは言えないウィンドウを計測できないとすることを確認する (#1509)。
 func TestClassifyWithoutFields(t *testing.T) {
 	t.Parallel()
 
@@ -140,7 +140,7 @@ func TestClassifyWithoutFields(t *testing.T) {
 	}
 }
 
-// TestFieldOutput は、60i の窓の数が、24p 系と 30p の窓の数の合計以上なら 60 コマにすることを確かめる (#1509)。
+// TestFieldOutput は、60i のウィンドウの数が、24p 系と 30p のウィンドウの数の合計以上なら 60 コマにすることを確認する (#1509)。
 func TestFieldOutput(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +170,7 @@ func TestFieldOutput(t *testing.T) {
 	}
 }
 
-// TestWindowPositions は、(尺 − 窓の長さ) を等分した内側の点に窓を置き、重なる位置を 2 回測らないことを確かめる (#1509)。
+// TestWindowPositions は、(尺 − ウィンドウの長さ) を等分した内側の点にウィンドウを置き、重なる位置を 2 回計測しないことを確認する (#1509)。
 func TestWindowPositions(t *testing.T) {
 	t.Parallel()
 
@@ -193,8 +193,8 @@ func TestWindowPositions(t *testing.T) {
 	}
 }
 
-// TestParseFieldDiffs は、FFmpeg の標準エラー出力から、名前を付けた metadata のフィルタの値の行だけを拾い、先頭の値を捨てることを
-// 確かめる (#1509)。行は、書き込みの途中で切れて届くこともある。
+// TestParseFieldDiffs は、FFmpeg の標準エラー出力から、名前を付けた metadata のフィルタの値の行だけを拾い、先頭の値を破棄することを
+// 確認する (#1509)。行は、書き込みの途中で切れて届くこともある。
 func TestParseFieldDiffs(t *testing.T) {
 	t.Parallel()
 
@@ -232,8 +232,8 @@ func synthesize(t *testing.T, dir, name, source, filter string) string {
 	return out
 }
 
-// TestFFmpegEncoderMeasureFields は、本物の FFmpeg で、合成の映像のフィールドどうしの差を測り、24p を 3:2 テレシネで載せた 60i、
-// 30p、ふつうの 60i、黒を見分けることを確かめる (#1509)。窓は、テレシネの周期の途中に当たる位置から始める。FFmpeg のない環境では飛ばす。
+// TestFFmpegEncoderMeasureFields は、本物の FFmpeg で、合成の映像のフィールドどうしの差を計測し、24p を 3:2 テレシネで載せた 60i、
+// 30p、ふつうの 60i、黒を見分けることを確認する (#1509)。ウィンドウは、テレシネの周期の途中に当たる位置から始める。FFmpeg のない環境では飛ばす。
 func TestFFmpegEncoderMeasureFields(t *testing.T) {
 	t.Parallel()
 
@@ -260,11 +260,11 @@ func TestFFmpegEncoderMeasureFields(t *testing.T) {
 			path := synthesize(t, t.TempDir(), tt.name, tt.source, tt.filter)
 			diffs, err := encoder.MeasureFields(t.Context(), path, 1300*time.Millisecond, 8*time.Second)
 			require.NoError(t, err)
-			// 8 秒の窓から、先頭を捨てた差が、1 秒に 30 個と 60 個ずつ出る。
+			// 8 秒のウィンドウから、先頭を破棄した差が、1 秒に 30 個と 60 個ずつ出る。
 			assert.InDelta(t, 8*30, len(diffs.Top), 2)
 			assert.InDelta(t, 8*60, len(diffs.Fields), 3)
 			got := transcode.DefaultCadenceParams().Classify(diffs)
-			// 閾値を詰め直す材料にするため、測った値を出す。
+			// 閾値を詰め直す材料にするため、計測した値を出す。
 			t.Logf("rep %.3f (%d s), wr %.3f (%d s)", got.Rep, got.RepSeconds, got.WR, got.WRSeconds)
 			assert.Equal(t, tt.want, got.Cadence)
 		})

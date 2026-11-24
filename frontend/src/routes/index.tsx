@@ -11,7 +11,7 @@ import { ErrorBoundary, PageLoader } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
 
 export const Route = createFileRoute('/')({
-  // OIDC でログインすると、サーバーが最初の画面へ戻すので、ログインの前に覚えた画面があれば、そこへ移る (#965)。
+  // OIDC でログインすると、サーバーが最初の画面へ戻すので、ログインの前に保存した画面があれば、そこへ移る (#965)。
   beforeLoad: () => {
     const returnTo = consumeReturnTo();
     if (returnTo !== null) {
@@ -40,7 +40,7 @@ function Home() {
   // 時刻は、待たない親で決める。待つ子で決めると、待つたびに決め直して、読み込みが終わらなくなる。
   const [range, setRange] = useState(() => homeRange(Date.now()));
   // 放送中の番組が終わったり、予約が始まったりしたら、時刻を決め直して読み直す (#866)。
-  // 読み直す間も前の中身を出したままにするため、transition の中で変える。
+  // 読み直す間も前の内容を出したままにするため、transition の中で変える。
   const refresh = () => startTransition(() => setRange(homeRange(Date.now())));
 
   return (

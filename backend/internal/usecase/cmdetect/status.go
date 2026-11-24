@@ -18,7 +18,7 @@ import (
 //
 // ENUM(
 // not_detected // 見分けていず、見分けるジョブもないこと。
-// queued // 見分けるジョブが動くのを待っていること。試し直しを待っているときも含む。
+// queued // 見分けるジョブが動くのを待っていること。再試行を待っているときも含む。
 // running // 見分けていること。
 // detected // 見分け終えたこと。CM が見つからなくても、見分け終えたとする。
 // failed // 最後に入れた見分けのジョブが、試す回数を使い切ったか、取りやめたこと。
@@ -42,7 +42,7 @@ type Status struct {
 	Progress *Progress
 	// Note は、最後に見分け終えた見分けで、いつもの見分け方で決められなかった理由 (#1508)。決められたか、見分けていなければ空。
 	Note string
-	// VideoMissing は、最後に見分け終えた見分けで測った、映像の欠けの長さの合計 (#1508)。
+	// VideoMissing は、最後に見分け終えた見分けで計測した、映像の欠けの長さの合計 (#1508)。
 	VideoMissing time.Duration
 }
 
@@ -54,7 +54,7 @@ type latestJob struct {
 }
 
 // RecordingStatus は、録画 recordingID の CM の区間の見分けの状態を返す (#1571)。
-// 最後に入れた見分けのジョブ (River の表) と、見分けた記録 (recording_cm_detections) から決める。
+// 最後に入れた見分けのジョブ (River のテーブル) と、見分けた記録 (recording_cm_detections) から決める。
 // River は終えたジョブを消すので、ジョブがなければ、見分けた記録だけで決める。
 func RecordingStatus(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*Status, error) {
 	status := &Status{State: StateNotDetected, DetectedAt: nil, Progress: nil, Note: "", VideoMissing: 0}
@@ -82,7 +82,7 @@ func RecordingStatus(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (
 		status.State = StateQueued
 	case "running":
 		// 区間を書いてから River がジョブを完了にするまでの間は、まだ動いているように見える。
-		// 区間を書いたことを知らせた後に読み直した画面に、見分けているように出さないよう、今の試行で書いた記録があれば見分け終えたとする。
+		// 区間を書いたことを通知した後に読み直した画面に、見分けているように出さないよう、今の試行で書いた記録があれば見分け終えたとする。
 		if status.DetectedAt != nil && job.attemptedAt != nil && !status.DetectedAt.Before(*job.attemptedAt) {
 			return status, nil
 		}
@@ -96,7 +96,7 @@ func RecordingStatus(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (
 }
 
 // lastJob は、録画 recordingID の、最後に入れた見分けのジョブと、今の試行の進み具合を返す。ジョブがなければ false を返す。
-// River の表は sqlc のスキーマにないので、直接読む。
+// River のテーブルは sqlc のスキーマにないので、直接読む。
 func lastJob(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*latestJob, bool, error) {
 	var (
 		job         latestJob
@@ -126,7 +126,7 @@ func lastJob(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*latestJ
 	return &job, true, nil
 }
 
-// LatestReports は、録画 recordingIDs ごとの、最後に見分け終えた見分けの添え書きを、まとめて引く (#1508)。録画の一覧の印に使う。
+// LatestReports は、録画 recordingIDs ごとの、最後に見分け終えた見分けの添え書きを、まとめて引く (#1508)。録画の一覧のマークに使う。
 // 見分けていない録画は、結果に含めない。
 func LatestReports(ctx context.Context, db sqlc.DBTX, recordingIDs []uuid.UUID) (map[uuid.UUID]Report, error) {
 	rows, err := sqlc.New(db).ListLatestRecordingCMDetectionNotes(ctx, recordingIDs)

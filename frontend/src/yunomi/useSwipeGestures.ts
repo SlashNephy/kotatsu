@@ -10,7 +10,7 @@ export type SwipeGestureOptions = {
   controlsVisible: boolean;
   // volumeAvailable は、音量の帯を出すか。iOS では、ページから音量を変えられない。
   volumeAvailable: boolean;
-  // onStep は、帯 band を steps 段変える。上へ動かすと正。
+  // onStep は、帯 band を steps ステップ変える。上へ動かすと正。
   onStep: (band: SwipeBand, steps: number) => void;
   // onSwipeStart は、縦のスワイプと決めたときに呼ぶ。押したときに出した操作バーを隠し直すのに使う。
   onSwipeStart: () => void;

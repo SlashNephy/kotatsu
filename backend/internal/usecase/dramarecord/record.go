@@ -38,7 +38,7 @@ var errNoInserter = errors.New("no job inserter for drama records")
 // errEpisodeNotFound は、記録先が話を見つけられなかったことを表す。
 var errEpisodeNotFound = fmt.Errorf("%w: the episode was not found on the destination", ErrPermanent)
 
-// WatchedProgram は、見たと判定した、TMDb の話に結びついた番組。
+// WatchedProgram は、見たと判定した、TMDB の話に結びついた番組。
 type WatchedProgram struct {
 	ServiceID int64
 	StartAt   time.Time
@@ -333,7 +333,7 @@ func (s *Service) finish(ctx context.Context, db sqlc.DBTX, row *sqlc.DramaRecor
 	return nil
 }
 
-// failureReason は、記録できなかった理由を、通知に出す文にする。トークンなどの中身は、もともとエラーに入れない。
+// failureReason は、記録できなかった理由を、通知に出す文にする。トークンなどの内容は、もともとエラーに入れない。
 func failureReason(err error) string {
 	switch {
 	case errors.Is(err, ErrNotConnected):
@@ -379,7 +379,7 @@ func (s *Service) notify(ctx context.Context, db Database, args *RecordArgs, out
 }
 
 // recordPayload は、通知の材料を作る。番組名 (EPG の名前のまま。作品名は文を作るときに読む)、記録先、話 (「シーズン1 第3話」の形) を載せる。
-// TMDb から引いた作品名は、TMDb の利用規約の保持期間を超えて通知に残さないよう、載せない。
+// TMDB から引いた作品名は、TMDB の利用規約の保持期間を超えて通知に残さないよう、載せない。
 func recordPayload(args *RecordArgs, rows []*sqlc.DramaRecord) map[string]any {
 	episodes := make([]string, 0, len(rows))
 	for _, row := range rows {
@@ -398,7 +398,7 @@ func recordPayload(args *RecordArgs, rows []*sqlc.DramaRecord) map[string]any {
 	}
 }
 
-// EpisodeLabel は、TMDb のシーズンと話を、画面と同じ「シーズン7 第7話」の形にする。シーズン 0 は「特別編 第1話」にする。
+// EpisodeLabel は、TMDB のシーズンと話を、画面と同じ「シーズン7 第7話」の形にする。シーズン 0 は「特別編 第1話」にする。
 func EpisodeLabel(season, number int32) string {
 	if season == 0 {
 		return "特別編 第" + strconv.Itoa(int(number)) + "話"

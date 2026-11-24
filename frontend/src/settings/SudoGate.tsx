@@ -14,7 +14,7 @@ type Props = {
 };
 
 // SudoGate は、重要な操作のある画面 (か、その一部) を、開いたときに、必要なら本人確認してから出す (設計書 9.5、#981)。
-// 入力の途中で再認証を求めると、IdP での再認証はページを離れるので、入力が消えてしまう。開いたときに確かめておけば、
+// 入力の途中で再認証を求めると、IdP での再認証はページを離れるので、入力が消えてしまう。開いたときに確認しておけば、
 // 入力を始める前に済む。直近 10 分以内に認証していれば、そのまま出す。
 // 開いている間に期限が切れたときは、操作のときに useReauthGate が改めて再認証を求める。
 export function SudoGate({ methods, returnTo, children }: Props) {
@@ -29,7 +29,7 @@ export function SudoGate({ methods, returnTo, children }: Props) {
           setState(recent ? 'ready' : 'required');
         }
       },
-      // 確かめられなくても、中身は出す。必要なら、操作のときに再認証を求められる。
+      // 確認できなくても、内容は出す。必要なら、操作のときに再認証を求められる。
       () => {
         if (active) {
           setState('ready');

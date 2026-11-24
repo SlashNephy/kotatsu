@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { PlayerMedia } from './playerMedia';
 
 // HlsStream は、kyusu の仮想 HLS (録画やタイムシフトのバッファ) の、読み始める位置と再生位置の追い方 (設計書 7.3)。
 export type HlsStream = {
@@ -12,7 +13,7 @@ export type HlsStream = {
   positionRef: { current: number };
   // restartAt は、指定の位置から読み直す。
   restartAt: (seconds: number) => void;
-  // seekTo は、読み直さずに、video の時刻を移したときの位置を覚える。再生を始める前のシークも、位置と、次に読み始める位置に入れる。
+  // seekTo は、読み直さずに、video の時刻を移したときの位置を保持する。再生を始める前のシークも、位置と、次に読み始める位置に入れる。
   seekTo: (seconds: number) => void;
   // currentPosition は、video の時刻から求め直した今の再生位置。
   currentPosition: () => number;
@@ -22,17 +23,13 @@ export type HlsStream = {
 
 // useHlsStream は、仮想 HLS の再生位置を追う。initial は、最初に読み始める位置。enabled が false の間は、位置を動かさない。
 // 読み始める位置へ移るまで、video の時刻は 0 のことがあるので、再生を始めてから位置を動かす。
-export function useHlsStream(
-  video: HTMLVideoElement | null,
-  enabled: boolean,
-  initial = 0,
-): HlsStream {
+export function useHlsStream(media: PlayerMedia | null, enabled: boolean, initial = 0): HlsStream {
   const [load, setLoad] = useState({ start: initial, loads: 0 });
   const [position, setPosition] = useState(initial);
   const positionRef = useRef(initial);
   const playing = useRef(false);
   useEffect(() => {
-    if (video === null || !enabled) {
+    if (media === null || !enabled) {
       return;
     }
     playing.current = false;
@@ -41,18 +38,18 @@ export function useHlsStream(
     };
     const update = () => {
       if (playing.current) {
-        positionRef.current = video.currentTime;
-        setPosition(video.currentTime);
+        positionRef.current = media.currentTime;
+        setPosition(media.currentTime);
       }
     };
-    video.addEventListener('playing', onPlaying);
-    video.addEventListener('timeupdate', update);
+    media.addEventListener('playing', onPlaying);
+    media.addEventListener('timeupdate', update);
 
     return () => {
-      video.removeEventListener('playing', onPlaying);
-      video.removeEventListener('timeupdate', update);
+      media.removeEventListener('playing', onPlaying);
+      media.removeEventListener('timeupdate', update);
     };
-  }, [video, enabled, load]);
+  }, [media, enabled, load]);
 
   return {
     start: load.start,
@@ -72,7 +69,7 @@ export function useHlsStream(
       }
     },
     currentPosition: () =>
-      video === null || !playing.current ? positionRef.current : video.currentTime,
+      media === null || !playing.current ? positionRef.current : media.currentTime,
     framePosition: (t) => (playing.current ? t : null),
   };
 }

@@ -77,7 +77,7 @@ func (f *watchFixture) wishlistReserved(t *testing.T, userID uuid.UUID) []int64 
 }
 
 // TestEngineWishlistWatch は、見たいリストの作品の放送を通知するユーザーに、見終えた話より後の話ごとに最も早い本放送の視聴予約を付け、
-// 当たらなくなったら外すことを確かめる (#1234)。照合は 12:10 に行う。
+// 当たらなくなったら外すことを確認する (#1234)。照合は 12:10 に行う。
 func TestEngineWishlistWatch(t *testing.T) {
 	t.Parallel()
 
@@ -148,7 +148,7 @@ func TestEngineWishlistWatch(t *testing.T) {
 }
 
 // TestEngineWishlistWatchManual は、見たいリストの通知が付けた視聴予約に手で付け直したら、手で付けたものにし、
-// 通知をやめても消さないことを確かめる (#1234)。
+// 通知をやめても消さないことを確認する (#1234)。
 func TestEngineWishlistWatchManual(t *testing.T) {
 	t.Parallel()
 	f := newWatchFixture(t)

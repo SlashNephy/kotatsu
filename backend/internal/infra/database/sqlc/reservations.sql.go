@@ -669,7 +669,7 @@ type UpdateReservationParams struct {
 	ID               uuid.UUID
 }
 
-// 有効に戻すときは、Kotatsu が無効にした理由を消す。同じ回と分かって無効にした予約を戻したら、録り始めに確かめ直さない (#1500)。
+// 有効に戻すときは、Kotatsu が無効にした理由を消す。同じ回と分かって無効にした予約を戻したら、録り始めに確認し直さない (#1500)。
 func (q *Queries) UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateReservation,
 		arg.StartAt,

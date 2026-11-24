@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	// NotifyChannel は、予約が変わったことを知らせる変更通知のチャンネル。チューナーの割り当てを計算し直すきっかけになる。
+	// NotifyChannel は、予約が変わったことを通知する変更通知のチャンネル。チューナーの割り当てを計算し直すきっかけになる。
 	NotifyChannel = "reservations"
 	// auditTarget は、監査ログの対象の種類。
 	auditTarget = "reservation"
@@ -466,7 +466,7 @@ func summaryOf(r *domain.Reservation) map[string]any {
 }
 
 // UndecidedLength は、終了時刻が未定の番組から予約を作るときの、予約の長さ。終了時刻が決まったら、追従で直す (#521)。
-// 未定の長さを、Mahiron は 0、Mirakurun は 1 ミリ秒で返すので、そのまま写すと予約にならない。
+// 未定の長さを、Mahiron は 0、Mirakurun は 1 ミリ秒で返すので、そのままコピーすると予約にならない。
 const UndecidedLength = time.Hour
 
 // endOf は、番組から作る予約の終わりを返す。終了時刻が未定なら、始まりから UndecidedLength 後にする。

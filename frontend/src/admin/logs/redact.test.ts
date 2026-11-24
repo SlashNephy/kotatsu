@@ -4,7 +4,7 @@ import { isCardNumber, isProgramID, luhn, marks, redact } from './redact';
 
 const noOptions = { secrets: [], hosts: [] };
 
-// cases は、設計書 11.3 の 2 段目の表の行ごとの、伏せるべき例と伏せてはいけない例。どの例も、2 回かけても変わらないことを確かめる。
+// cases は、設計書 11.3 の 2 番目のステップのテーブルの行ごとの、マスクするべき例とマスクしてはいけない例。どの例も、2 回かけても変わらないことを確認する。
 const cases: { rule: string; input: string; want: string; secrets?: string[]; hosts?: string[] }[] =
   [
     // 1. サーバーから渡された秘密の値
@@ -73,6 +73,18 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       input: 'open https://github.com/SlashNephy/kotatsu',
       want: 'open https://github.com/SlashNephy/kotatsu',
     },
+    {
+      // エンコードせずに ? や # を書いたパスワードもマスクする。
+      rule: '4 ? と # を含むパスワードも伏せる',
+      input: 'dial postgres://kotatsu:pa?ss#word@db.home.arpa:5432/kotatsu',
+      want: `dial postgres://${marks.secret}@${marks.host}:5432/kotatsu`,
+    },
+    {
+      // 「ホスト:ポート」の直後のクエリの @ までを、資格とみなさない (#1983)。
+      rule: '4 ポートの直後のクエリの @ は資格の区切りにしない',
+      input: 'open http://example.com:8080?email=user@example.org',
+      want: `open http://${marks.host}:8080?email=${marks.email}`,
+    },
     // 5. Authorization などのヘッダー
     {
       rule: '5 ヘッダーの値を行の終わりまで伏せる',
@@ -129,7 +141,19 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       input: 'password=[REDACTED] token: [REDACTED_SECRET]',
       want: 'password=[REDACTED] token: [REDACTED_SECRET]',
     },
-    // 9. URL のクエリの鍵
+    {
+      // 値の先頭だけが前の規則でマークになっていても、後ろを残さない (#1983)。
+      rule: '8 値の先頭が印でも、値の全体を伏せる',
+      input: 'token=[REDACTED_SECRET]-suffix',
+      want: `token=${marks.secret}`,
+    },
+    {
+      // 値の途中が前の規則でマークになっていても、マークで値を切らない (#1983)。
+      rule: '8 値の途中に印があっても、値の全体を伏せる',
+      input: 'password=https://user:pass@nas.local:40772/api next',
+      want: `password=${marks.secret} next`,
+    },
+    // 9. URL のクエリのキー
     {
       rule: '9 クエリの鍵の値を伏せる',
       input:
@@ -151,6 +175,12 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       rule: '10 @ を含むだけのものは触らない',
       input: '@types/node v@1 user@localhost',
       want: '@types/node v@1 user@localhost',
+    },
+    {
+      // アドレスの直後に + で次のアドレスが続いても、どちらもマスクする (#1983)。+ は、後ろのアドレスのローカル部としてマスクする。
+      rule: '10 + でつながったメールアドレスをどちらも伏せる',
+      input: 'to a@b.com+c@d.com',
+      want: `to ${marks.email}${marks.email}`,
     },
     // 11. カード番号
     {
@@ -256,7 +286,7 @@ describe('redact', () => {
     const options = { secrets, hosts };
     const once = redact(input, options);
     expect(once).toBe(want);
-    // 印をさらに伏せないので、何度かけても変わらない。
+    // マークをさらにマスクしないので、何度かけても変わらない。
     expect(redact(once, options)).toBe(once);
   });
 

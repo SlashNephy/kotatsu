@@ -1,12 +1,12 @@
 import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from '../yunomi/volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
-// 番組表の見た目 (密度、通販番組のグレー、ジャンルの色) を、端末ごとに覚えておく (設計書 10.3、#483)。
-// 画面の大きさで見やすい密度が変わるので、アカウントには保存しない。
+// 番組表の見た目 (密度、通販番組のグレー、ジャンルの色) を保存しておく (設計書 10.3、#483)。端末をまたいで同期する (#1862)。
 
 const storageKey = 'kotatsu.guide.appearance';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:guide-appearance';
 
 // densities は、番組表の密度ごとの、チャンネルの幅 (px) と 1 分の高さ (px)。
@@ -18,7 +18,7 @@ export const densities = {
 
 export type Density = keyof typeof densities;
 
-// genreColorChoices は、ジャンルに選べる色 (Mantine の色の名前)。どれも、淡い版を背景にして、ライトでもダークでも文字が読める。
+// genreColorChoices は、ジャンルに選べる色 (Mantine の色の名前)。どれも、淡い色を背景にして、ライトでもダークでも文字が読める。
 export const genreColorChoices = [
   'blue',
   'cyan',
@@ -76,7 +76,7 @@ const isDensity = (value: unknown): value is Density =>
 const isGenreColor = (value: unknown): value is GenreColor =>
   genreColorChoices.some((color) => color === value);
 
-// parseGuideAppearance は、覚えた値を読む。壊れた項目や、知らない色は、既定に戻す。
+// parseGuideAppearance は、保存した値を読む。壊れた項目や、知らない色は、既定に戻す。
 export function parseGuideAppearance(raw: string | null): GuideAppearance {
   let value: unknown;
   try {
@@ -107,7 +107,7 @@ export function parseGuideAppearance(raw: string | null): GuideAppearance {
   };
 }
 
-// loadGuideAppearance は、覚えた設定を読む。読めなければ、既定を返す。
+// loadGuideAppearance は、保存した設定を読む。読めなければ、既定を返す。
 export function loadGuideAppearance(storage: Pick<Storage, 'getItem'> | null): GuideAppearance {
   try {
     return parseGuideAppearance(storage?.getItem(storageKey) ?? null);
@@ -116,13 +116,14 @@ export function loadGuideAppearance(storage: Pick<Storage, 'getItem'> | null): G
   }
 }
 
-// saveGuideAppearance は、設定を覚える。書けなくても、例外は投げない。
+// saveGuideAppearance は、設定を保存する。書けなくても、例外は投げない。
 export function saveGuideAppearance(
   storage: Pick<Storage, 'setItem'> | null,
   appearance: GuideAppearance,
 ): void {
   try {
     storage?.setItem(storageKey, JSON.stringify(appearance));
+    preferenceChanged(storageKey);
   } catch {
     // 書けなければ、次に開いたときは既定に戻るだけ。
   }

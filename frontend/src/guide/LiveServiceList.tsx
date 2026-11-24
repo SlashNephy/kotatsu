@@ -35,7 +35,7 @@ function liveRange(now: number): Range {
   return { now, from: new Date(now).toISOString(), to: new Date(now + 60_000).toISOString() };
 }
 
-// LiveServiceList は、ライブ視聴の画面の右の列に置く、サービスと放送中の番組の一覧 (設計書 10.3)。
+// LiveServiceList は、ライブ視聴の画面の右のカラムに置く、サービスと放送中の番組の一覧 (設計書 10.3)。
 // 押すと、そのサービスへ移る。YouTube の「次の動画」の代わりに、一覧に戻らずに選局できるようにする (#493)。
 // 読み込みの間に子は描き直されて state を失うので、時間帯は、待たない親で決める。一覧は読み込みを待たず、映像を先に出す。
 export function LiveServiceList({ serviceId }: { serviceId: string }) {

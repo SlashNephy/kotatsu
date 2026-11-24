@@ -47,7 +47,7 @@ func (a *tokenAuth) Authenticate(_ context.Context, token string) (*auth.Princip
 	return &auth.Principal{UserID: uuid.New(), Role: domain.RoleMember, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
 }
 
-// TestRequireEnabled は、管理者が EPGStation 互換の API を有効にしている間だけ答え、無効なら 404 を返すことを確かめる (#1769)。
+// TestRequireEnabled は、管理者が EPGStation 互換の API を有効にしている間だけ答え、無効なら 404 を返すことを確認する (#1769)。
 func TestRequireEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -79,7 +79,7 @@ func TestRequireEnabled(t *testing.T) {
 }
 
 // TestStopWhenRevoked は、ライブの TS を流している間に、管理者が API を無効にしたか、トークンを取り消したら、
-// 流しているストリームも止め、使えるうちは止めないことを確かめる (#1769)。
+// 流しているストリームも止め、使えるうちは止めないことを確認する (#1769)。
 func TestStopWhenRevoked(t *testing.T) {
 	t.Parallel()
 
@@ -127,7 +127,7 @@ func TestStopWhenRevoked(t *testing.T) {
 			require.NoError(t, err)
 			req.Header.Set("Authorization", "Bearer "+accepted)
 			client := server.Client()
-			// 流し続けるので、要求して読み捨てるのは別の goroutine にする。
+			// 流し続けるので、要求して読み飛ばすのは別の goroutine にする。
 			go func() {
 				res, err := client.Do(req)
 				if err != nil {

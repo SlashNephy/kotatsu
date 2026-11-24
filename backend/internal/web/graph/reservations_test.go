@@ -115,7 +115,7 @@ func (f *fixture) createProgramReservation(t *testing.T, eventID int) reservatio
 	return got.CreateProgramReservation
 }
 
-// TestReservations は、予約を作り、一覧で取得し、変え、消せることを確かめる。
+// TestReservations は、予約を作り、一覧で取得し、変え、消せることを確認する。
 func TestReservations(t *testing.T) {
 	t.Parallel()
 
@@ -218,7 +218,7 @@ func TestReservations(t *testing.T) {
 	assert.ElementsMatch(t, []string{"reservation.create", "reservation.create", "reservation.update", "reservation.delete"}, actions)
 }
 
-// TestRuleReservations は、ルール予約が一致したルールを持ち、消すと無効になることを確かめる。
+// TestRuleReservations は、ルール予約が一致したルールを持ち、消すと無効になることを確認する。
 func TestRuleReservations(t *testing.T) {
 	t.Parallel()
 
@@ -248,7 +248,7 @@ func TestRuleReservations(t *testing.T) {
 	require.NoError(t, err)
 	reservationID := graph.GlobalID("Reservation", reservation.ID.String())
 
-	// 競合している予約だけを引く。
+	// 競合している予約だけを取得する。
 	var listed reservationList
 	require.Empty(t, f.query(t, listReservations, map[string]any{
 		varFrom: noon, varTo: tomorrow, varStates: []string{"CONFLICT"}, varFirst: 10,
@@ -282,7 +282,7 @@ func TestRuleReservations(t *testing.T) {
 	assert.Equal(t, programName(5), peers.Node.Assignment.Peers[0].Name)
 	assert.Equal(t, "こたつテスト1", peers.Node.Assignment.Peers[0].Service.Name)
 
-	// ルールで絞ると、番組予約を除いて、ルールに一致した予約だけを引く。
+	// ルールで絞ると、番組予約を除いて、ルールに一致した予約だけを取得する。
 	var byRule reservationList
 	require.Empty(t, f.query(t, listReservations, map[string]any{
 		varFrom: noon, varTo: tomorrow, varRule: createdRule.CreateRule.ID, varFirst: 10,
@@ -389,7 +389,7 @@ func TestReservationErrors(t *testing.T) {
 }
 
 // TestBulkReservations は、予約をまとめて無効、有効にし、まとめて消せることと、録画中の予約は無効にも削除にもせず、
-// 見つからない予約と一緒に飛ばして数えることを確かめる (#471)。
+// 見つからない予約と一緒に飛ばして数えることを確認する (#471)。
 func TestBulkReservations(t *testing.T) {
 	t.Parallel()
 

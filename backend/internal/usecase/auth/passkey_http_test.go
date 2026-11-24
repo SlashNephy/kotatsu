@@ -34,7 +34,7 @@ type passkeyServer struct {
 func newPasskeyServer(t *testing.T, f *passkeyFixture) *passkeyServer {
 	t.Helper()
 
-	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして捨てる。
+	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして破棄する。
 	f.clock.Advance(time.Since(f.clock.Now()))
 	client := func(r *http.Request) *auth.ClientInfo {
 		info := *f.client
@@ -123,7 +123,7 @@ func credentialBody(t *testing.T, credential []byte, name string) map[string]any
 	return map[string]any{credentialKey: json.RawMessage(credential), nameText: name}
 }
 
-// TestPasskeyHandlers は、パスキーの登録、パスキーだけでのログイン、第二要素としての確認を、HTTP で通して確かめる。
+// TestPasskeyHandlers は、パスキーの登録、パスキーだけでのログイン、第二要素としての確認を、HTTP で通して確認する。
 func TestPasskeyHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -152,7 +152,7 @@ func TestPasskeyHandlers(t *testing.T) {
 	created, err := a.Create(&creation.Options)
 	require.NoError(t, err)
 
-	// 名前が違うだけなら、手続きは残り、直して送り直せる。
+	// 名前が違うだけなら、手続きは残り、修正して送り直せる。
 	assert.Equal(t, http.StatusBadRequest, s.post("/internal/auth/passkey/registration/confirm", credentialBody(t, created, " "), &failed))
 	assert.Equal(t, "INVALID_PASSKEY_NAME", failed.Error.Code)
 	var passkey struct {
@@ -184,7 +184,7 @@ func TestPasskeyHandlers(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, s.post("/internal/auth/passkey/login/confirm", credentialBody(t, signed, ""), &failed, testAuthHeader, "none"))
 	assert.Equal(t, "PASSKEY_CEREMONY_EXPIRED", failed.Error.Code)
 
-	// パスワードの後の第二要素として確かめる。
+	// パスワードの後の第二要素として確認する。
 	var login struct {
 		Next    string   `json:"next"`
 		Methods []string `json:"methods"`
@@ -209,7 +209,7 @@ func TestPasskeyHandlers(t *testing.T) {
 	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'user.login' AND summary->>'method' = 'passkey'"))
 }
 
-// TestPasskeyHandlersRejectMissingInput は、手続きのトークンや応答がなければ、受け付けないことを確かめる。
+// TestPasskeyHandlersRejectMissingInput は、手続きのトークンや応答がなければ、受け付けないことを確認する。
 func TestPasskeyHandlersRejectMissingInput(t *testing.T) {
 	t.Parallel()
 

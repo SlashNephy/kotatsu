@@ -1,6 +1,6 @@
 // Package licenses は、本体に組み込んだ Go のモジュールのライセンスの一覧を扱う (設計書 10.3、付録 B、#1604)。
 //
-// 一覧は、ビルドの前に printlicenses で dist/go.json に書き出し、本体に埋め込む。
+// 一覧は、ビルドの前に printlicenses で dist/go.json に出力し、本体に埋め込む。
 // 依存を上げるたびに変わるので、リポジトリには置かない。書き出さずにビルドしても go build が通るよう、
 // dist には空の .gitkeep だけを置いてリポジトリに残す。そのビルドでは、一覧がないことを返す。
 package licenses
@@ -47,14 +47,14 @@ var ErrNotGenerated = errors.New("the license list was not generated for this bu
 
 // Load は、埋め込んだ一覧を読み、動いているバイナリに組み込まれたモジュールだけを返す。
 // 一覧を書き出さずにビルドしたときは、ErrNotGenerated を返す。
-// 開くのは「このアプリについて」の画面だけなので、覚えずに毎回読む。
+// 開くのは「このアプリについて」の画面だけなので、キャッシュせずに毎回読む。
 func Load() (*List, error) {
 	return load(dist, deps())
 }
 
 // load は、fsys の dist/go.json を読み、linked に含まれるモジュールと標準ライブラリだけを返す。
 // linked が nil なら、絞らずに返す。
-// 一覧は、対象のすべての OS で組み込むモジュールを合わせて書き出すので、ここで、このバイナリのものに絞る。
+// 一覧は、対象のすべての OS で組み込むモジュールを合わせて出力するので、ここで、このバイナリのものに絞る。
 func load(fsys fs.FS, linked map[string]bool) (*List, error) {
 	raw, err := fs.ReadFile(fsys, "dist/"+FileName)
 	if errors.Is(err, fs.ErrNotExist) {

@@ -19,7 +19,7 @@ import (
 // ErrTimeshiftNotFound は、サービスをタイムシフトで録っていないことを表す。
 var ErrTimeshiftNotFound = errors.New("the service is not recorded for timeshift")
 
-// TimeshiftSource は、タイムシフトのバッファのチャンクを、録画のセグメントと同じく、索引を使って連結して流す (設計書 5.7、7.2)。
+// TimeshiftSource は、タイムシフトのバッファのチャンクを、録画のセグメントと同じく、インデックスを使って連結して流す (設計書 5.7、7.2)。
 // 同じストリームを区切っただけのチャンクは、バイトをそのままつなぎ、引き継ぎで重なったチャンクは切り詰める。
 // バッファは終わらないので、書いている途中のチャンクの末尾まで読んだら、伸びるのと、次のチャンクができるのを待ちながら流し続ける。
 type TimeshiftSource struct {
@@ -127,16 +127,16 @@ func (t *timeshiftTimeline) segmentClosed(ctx context.Context, segmentID uuid.UU
 }
 
 // TimeshiftRun は、バッファのうち、mikan が同じストリームを区切って書き続けた、続いたチャンクの並び (#826)。
-// 録画の開始が遅れたとき、mikan が、予定の開始からの分を、バッファから録画のセグメントに写すのに使う (設計書 5.7)。
+// 録画の開始が遅れたとき、mikan が、予定の開始からの分を、バッファから録画のセグメントにコピーするのに使う (設計書 5.7)。
 type TimeshiftRun struct {
-	// From は、写し始める時刻。並びの最初のチャンクの始まりか、OpenRuns に渡した from の遅いほう。
+	// From は、コピーし始める時刻。並びの最初のチャンクの始まりか、OpenRuns に渡した from の遅いほう。
 	From time.Time
-	// To は、並びの最後のチャンクの終わり。書いている途中なら nil で、開いた時点の大きさまで写す。
+	// To は、並びの最後のチャンクの終わり。書いている途中なら nil で、開いた時点の大きさまでコピーする。
 	To        *time.Time
 	recording *Recording
-	// limits は、書いている途中のチャンクの、開いた時点の大きさ。そこまでを写す。
+	// limits は、書いている途中のチャンクの、開いた時点の大きさ。そこまでをコピーする。
 	limits map[uuid.UUID]int64
-	// until は、写し終える時刻。ゼロなら、並びの終わりまで写す。
+	// until は、コピーし終える時刻。ゼロなら、並びの終わりまでコピーする。
 	until time.Time
 	// lastWrite は、最後のチャンクが書いている途中なら、開いた時点のファイルの更新時刻。mikan が落ちて閉じられずに残ったチャンクは、
 	// ここで書くのが止まっている。
@@ -145,7 +145,7 @@ type TimeshiftRun struct {
 
 // OpenRuns は、サービスのバッファのうち、from より後まで録ったチャンクを、続いたチャンクの並びごとに、始まりの順に開く。
 // 並びの間は、チューナーを予約に渡したり、mikan が録り直したりして途切れた区間なので、録画では別のセグメントにする。
-// 書いている途中のチャンクは、開いた時点の大きさまでを写し、伸びるのを待たない。録画の続きは、mikan がライブのストリームで書いているためである。
+// 書いている途中のチャンクは、開いた時点の大きさまでをコピーし、伸びるのを待たない。録画の続きは、mikan がライブのストリームで書いているためである。
 // タイムシフトのディレクトリがなければ ErrNotMounted、サービスを録っていなければ ErrTimeshiftNotFound を返す。
 func (s *TimeshiftSource) OpenRuns(ctx context.Context, serviceID int64, from time.Time) ([]*TimeshiftRun, error) {
 	if !s.streamer.store.HasTimeshiftDir() {
@@ -165,7 +165,7 @@ func (s *TimeshiftSource) OpenRuns(ctx context.Context, serviceID int64, from ti
 // OpenRange は、OpenRuns と同じく、サービスのバッファのうち from から to までを、続いたチャンクの並びごとに開く。
 // to より後に始まった並びは返さない。並びは、to の位置か、その後の最初の I フレームの手前で切る (#1057)。
 // 切った並びの To は to にする。放送が終わった番組を、バッファから録画に昇格するのに使う (設計書 5.7)。
-// 昇格している範囲のチャンクは、サービスをタイムシフトから外しても破棄しないので、録っているかは確かめない。
+// 昇格している範囲のチャンクは、サービスをタイムシフトから外しても破棄しないので、録っているかは確認しない。
 // タイムシフトのディレクトリがなければ ErrNotMounted を返す。
 func (s *TimeshiftSource) OpenRange(ctx context.Context, serviceID int64, from, to time.Time) ([]*TimeshiftRun, error) {
 	if !s.streamer.store.HasTimeshiftDir() {
@@ -196,7 +196,7 @@ func (s *TimeshiftSource) OpenRange(ctx context.Context, serviceID int64, from, 
 	return result, nil
 }
 
-// openRuns は、OpenRuns と同じく並びを開く。サービスをタイムシフトで録っているかは確かめない。
+// openRuns は、OpenRuns と同じく並びを開く。サービスをタイムシフトで録っているかは確認しない。
 func (s *TimeshiftSource) openRuns(ctx context.Context, serviceID int64, from time.Time) ([]*TimeshiftRun, error) {
 	segments, err := (&timeshiftTimeline{source: s, serviceID: serviceID, since: from}).load(ctx)
 	if err != nil {
@@ -219,11 +219,11 @@ func (s *TimeshiftSource) openRuns(ctx context.Context, serviceID int64, from ti
 	return runs, nil
 }
 
-// openRun は、続いたチャンクの並び segments を、from から写せるように開く。書いている途中のチャンクは、今の大きさを写す範囲の終わりにする。
+// openRun は、続いたチャンクの並び segments を、from からコピーできるように開く。書いている途中のチャンクは、今の大きさをコピーする範囲の終わりにする。
 func (s *TimeshiftSource) openRun(segments []*segment, from time.Time) (*TimeshiftRun, error) {
 	last := segments[len(segments)-1]
-	// 書いている途中のチャンクは、測った大きさで切るので、末尾の PES が途中で切れることがある。
-	// 録画の再生とセグメントをつなぐ処理は、ライブのセグメントとの重なりで切り詰めるので、そのまま写す。
+	// 書いている途中のチャンクは、計測した大きさで切るので、末尾の PES が途中で切れることがある。
+	// 録画の再生とセグメントをつなぐ処理は、ライブのセグメントとの重なりで切り詰めるので、そのままコピーする。
 	limits := map[uuid.UUID]int64{}
 	var lastWrite *time.Time
 	for _, seg := range segments {
@@ -256,8 +256,8 @@ func (s *TimeshiftSource) openRun(segments []*segment, from time.Time) (*Timeshi
 	return run, nil
 }
 
-// Write は、並びを From の手前の I フレームから w に写す。書いている途中のチャンクは、開いた時点の大きさまで写して終える。
-// 写し終える時刻があれば、その位置か、その後の最初の I フレームの手前で終える。
+// Write は、並びを From の手前の I フレームから w にコピーする。書いている途中のチャンクは、開いた時点の大きさまでコピーして終える。
+// コピーし終える時刻があれば、その位置か、その後の最初の I フレームの手前で終える。
 func (r *TimeshiftRun) Write(ctx context.Context, w io.Writer) error {
 	pos := r.recording.Seek(0)
 	for _, p := range pos.pieces {
@@ -274,7 +274,7 @@ func (r *TimeshiftRun) Write(ctx context.Context, w io.Writer) error {
 }
 
 // cutAt は、範囲の並び pieces を、最初の I フレームからの再生の時間 (walk) が length 以上になる最初の I フレームの手前で切る。
-// そのような I フレームがなければ、切らずに返す。索引のないセグメントは、その始まりでしか切れない。
+// そのような I フレームがなければ、切らずに返す。インデックスのないセグメントは、その始まりでしか切れない。
 func cutAt(pieces []*piece, length time.Duration) []*piece {
 	cut, offset := -1, int64(0)
 	walk(pieces, func(i int, o int64, at time.Duration, _ int64) {

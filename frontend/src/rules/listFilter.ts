@@ -4,7 +4,7 @@ import { outOfValidity } from './validity';
 // ルールの一覧 (設計書 10.3、#1493) を、画面の中で探し、絞り、並べ替える。
 // ルールは数百件までの見込みなので、すべてを読んでから画面で絞る。
 
-// RuleStateFilter は、ルールの状態での絞り込み。outOfValidity は、有効だが有効期間の外のルール (一覧の「期間外」の印と同じ、#464)。
+// RuleStateFilter は、ルールの状態での絞り込み。outOfValidity は、有効だが有効期間の外のルール (一覧の「期間外」のマークと同じ、#464)。
 export type RuleStateFilter = 'enabled' | 'disabled' | 'outOfValidity';
 
 // ruleStateFilters は、状態の絞り込みの並び。
@@ -19,7 +19,7 @@ export type RuleReservationFilter = 'some' | 'none';
 
 export const ruleReservationFilters: readonly RuleReservationFilter[] = ['some', 'none'];
 
-// RuleSortKey は、並べ替えの鍵。created (作った順) が既定で、これまでの一覧と同じ並び。
+// RuleSortKey は、並べ替えのキー。created (作った順) が既定で、これまでの一覧と同じ並び。
 export type RuleSortKey = 'created' | 'name' | 'updated' | 'reservations';
 
 export const ruleSortKeys: readonly RuleSortKey[] = ['created', 'name', 'updated', 'reservations'];
@@ -30,13 +30,13 @@ export type RuleListSearch = {
   q?: string;
   state?: RuleStateFilter;
   reservations?: RuleReservationFilter;
-  // sort は、並べ替えの鍵。既定 (created) は載せない。
+  // sort は、並べ替えのキー。既定 (created) は載せない。
   sort?: Exclude<RuleSortKey, 'created'>;
   // order は、並べ替えの向き。既定 (昇順) は載せない。
   order?: 'desc';
 };
 
-// parseRuleListSearch は、URL のクエリを読む。知らない値と、既定の値は捨てる。
+// parseRuleListSearch は、URL のクエリを読む。知らない値と、既定の値は破棄する。
 export function parseRuleListSearch(search: Record<string, unknown>): RuleListSearch {
   const rawQuery = search['q'];
   // 数字だけの語は、ルーターが数として読むので、文字列に戻す。
@@ -76,7 +76,7 @@ export type ListedRule = {
 
 const nameCollator = new Intl.Collator('ja', { numeric: true });
 
-// compareBy は、鍵ごとの、昇順の比べ方。
+// compareBy は、キーごとの、昇順の比較方法。
 const compareBy: Record<RuleSortKey, (a: ListedRule, b: ListedRule) => number> = {
   created: (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
   name: (a, b) => nameCollator.compare(a.name, b.name),
@@ -97,7 +97,7 @@ function matchesState(rule: ListedRule, state: RuleStateFilter, now: number): bo
 }
 
 // visibleRules は、rules を、search で探して絞り、並べ替えた一覧を返す。now は、有効期間の外かを決める時刻 (ミリ秒)。
-// rules は、サーバーの並び (作った順) で渡す。鍵が同じルールは、その並びのまま残す。
+// rules は、サーバーの並び (作った順) で渡す。キーが同じルールは、その並びのまま残す。
 export function visibleRules<R extends ListedRule>(
   rules: readonly R[],
   search: RuleListSearch,
@@ -121,7 +121,7 @@ export function visibleRules<R extends ListedRule>(
   const compare = compareBy[search.sort ?? 'created'];
   const sign = search.order === 'desc' ? -1 : 1;
 
-  // Array.prototype.sort は安定なので、鍵が同じルールは渡された並びのまま残る。
+  // Array.prototype.sort は安定なので、キーが同じルールは渡された並びのまま残る。
   return filtered.sort((a, b) => sign * compare(a, b));
 }
 
@@ -163,10 +163,10 @@ export function ruleSections<R extends GroupedRule, G extends ListedGroup>(
   return sections;
 }
 
-// othersSectionKey は、折りたたんだ見出しを覚えるときの、「その他」の見出しの鍵。グループの ID とは重ならない。
+// othersSectionKey は、折りたたんだ見出しを保存するときの、「その他」の見出しのキー。グループの ID とは重ならない。
 export const othersSectionKey = 'others';
 
-// sectionKey は、見出しを折りたたんだかを覚えるときの鍵。
+// sectionKey は、見出しを折りたたんだかを保存するときのキー。
 export function sectionKey(group: ListedGroup | null): string {
   return group === null ? othersSectionKey : group.id;
 }

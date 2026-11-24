@@ -70,7 +70,7 @@ type GetCalendarFeedUserRow struct {
 	Role       domain.Role
 }
 
-// 種類 kind の秘密の値のハッシュから、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
+// 種類 kind の秘密の値のハッシュから、発行したユーザーを検索する。無効にしたユーザーの URL は使えない。
 // ほかの種類の値は、同じユーザーのものでも受け付けない。
 func (q *Queries) GetCalendarFeedUser(ctx context.Context, arg GetCalendarFeedUserParams) (GetCalendarFeedUserRow, error) {
 	row := q.db.QueryRow(ctx, getCalendarFeedUser, arg.TokenHash, arg.Kind)

@@ -43,6 +43,7 @@ type fixture struct {
 	pool       *pgxpool.Pool
 	fake       *faketuner.Server
 	client     *mirakurun.Client
+	clock      *clocktest.Fake
 	reconciler *epg.Reconciler
 }
 
@@ -64,11 +65,14 @@ func newFixture(t *testing.T, guard epg.Guard) *fixture {
 		guard = func(context.Context, pgx.Tx) error { return nil }
 	}
 
+	clk := clocktest.NewFake(testNow())
+
 	return &fixture{
 		pool:       pool,
 		fake:       fake,
 		client:     client,
-		reconciler: epg.NewReconciler(pool, client, clocktest.NewFake(testNow()), guard),
+		clock:      clk,
+		reconciler: epg.NewReconciler(pool, client, clk, guard),
 	}
 }
 
@@ -108,7 +112,7 @@ func TestSyncAllInsertsEverythingFirst(t *testing.T) {
 	assert.Equal(t, fixturePrograms, f.count(t, "SELECT count(*) FROM programs"))
 	// 種別の既定値は、同期で見つけた種別についてだけ足す。
 	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM channel_types WHERE (type, display_name, sort_order) IN (('GR', '地上波', 10), ('BS', 'BS', 20))"))
-	// 検索用の列は NFKC で正規化する。
+	// 検索用のカラムは NFKC で正規化する。
 	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM services WHERE name_normalized = normalize(name, NFKC)"))
 	// 詳細も、照合のために正規化して持つ (#530)。
 	assert.Equal(t, fixturePrograms, f.count(t, "SELECT count(*) FROM programs WHERE extended_normalized IS NOT NULL"))
@@ -128,7 +132,7 @@ func TestSyncAllWithoutChangesDoesNotNotify(t *testing.T) {
 	assert.Equal(t, &epg.Result{ServicesUpserted: 0, ProgramsUpserted: 0, ProgramsDeleted: 0, Version: 0}, result)
 }
 
-// TestSyncAllReflectsChangesWithoutEvents は、イベントで届かない変更も、全量の突き合わせで反映することを確かめる (設計書 3.3)。
+// TestSyncAllReflectsChangesWithoutEvents は、イベントで届かない変更も、全量の照合で反映することを確認する (設計書 3.3)。
 func TestSyncAllReflectsChangesWithoutEvents(t *testing.T) {
 	t.Parallel()
 
@@ -212,7 +216,7 @@ func TestSyncAllReflectsChangesWithoutEvents(t *testing.T) {
 	}
 }
 
-// TestSyncAllStoresProgramAudios は、番組の音声の構成を保存し、変わらなければ書き直さないことを確かめる (#284)。
+// TestSyncAllStoresProgramAudios は、番組の音声の構成を保存し、変わらなければ書き直さないことを確認する (#284)。
 func TestSyncAllStoresProgramAudios(t *testing.T) {
 	t.Parallel()
 
@@ -239,7 +243,7 @@ func TestSyncAllStoresProgramAudios(t *testing.T) {
 	assert.Equal(t, &epg.Result{ServicesUpserted: 0, ProgramsUpserted: 0, ProgramsDeleted: 0, Version: 0}, result)
 }
 
-// TestSyncAllStoresProgramVideoResolution は、番組の映像の解像度を保存し、変わらなければ書き直さないことを確かめる (#806)。
+// TestSyncAllStoresProgramVideoResolution は、番組の映像の解像度を保存し、変わらなければ書き直さないことを確認する (#806)。
 // BS4K と 8K の番組を見分けるのに使う。
 func TestSyncAllStoresProgramVideoResolution(t *testing.T) {
 	t.Parallel()
@@ -275,7 +279,7 @@ func TestSyncAllStoresProgramVideoResolution(t *testing.T) {
 	assert.Nil(t, resolution())
 }
 
-// TestSyncAllStoresProgramSeries は、シリーズの記述子の話数と再放送の印を保存し、変わらなければ書き直さないことを確かめる (#1311)。
+// TestSyncAllStoresProgramSeries は、シリーズの記述子の話数と再放送のマークを保存し、変わらなければ書き直さないことを確認する (#1311)。
 // 話数が 0 の記述子 (どの値も 0 にして送る局がある) は、ないものとする。
 func TestSyncAllStoresProgramSeries(t *testing.T) {
 	t.Parallel()
@@ -313,7 +317,7 @@ func TestSyncAllStoresProgramSeries(t *testing.T) {
 	assert.Nil(t, repeat)
 }
 
-// TestSyncAllKeepsAdministratorSettings は、管理者が画面から変えた値を同期が上書きしないことを確かめる。
+// TestSyncAllKeepsAdministratorSettings は、管理者が画面から変えた値を同期が上書きしないことを確認する。
 func TestSyncAllKeepsAdministratorSettings(t *testing.T) {
 	t.Parallel()
 
@@ -327,7 +331,7 @@ func TestSyncAllKeepsAdministratorSettings(t *testing.T) {
 
 	result, err := f.reconciler.SyncAll(t.Context())
 	require.NoError(t, err)
-	// サービス名は上流の値に戻すが、非表示の印と並び順は残す。
+	// サービス名は上流の値に戻すが、非表示のマークと並び順は残す。
 	assert.Equal(t, 1, result.ServicesUpserted)
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM channel_types WHERE type = 'GR' AND display_name = 'テレビ' AND sort_order = 1"))
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM services WHERE id = $1 AND hidden AND sort_order = 5 AND name = 'こたつテスト1'", serviceID()))
@@ -345,7 +349,7 @@ func TestSyncServicesOnlyTouchesGivenServices(t *testing.T) {
 	require.NoError(t, f.fake.ForgetProgram(other))
 	require.NoError(t, f.fake.ExtendProgram(programID(4), 15*time.Minute))
 
-	// 同じサービスを重ねて指定しても、1 回だけ突き合わせる。DB に無いサービスは飛ばす。
+	// 同じサービスを重ねて指定しても、1 回だけ照合する。DB に無いサービスは飛ばす。
 	result, err := f.reconciler.SyncServices(t.Context(), []int64{serviceID(), faketuner.ServiceItemID(1, 1), serviceID()})
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.ProgramsUpserted)
@@ -354,7 +358,7 @@ func TestSyncServicesOnlyTouchesGivenServices(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE mirakurun_id = $1", other))
 }
 
-// TestSyncRejectsWritesFromOldLeader は、リーダーでなくなった neko の同期が DB を書き換えないことを確かめる (設計書 1.4)。
+// TestSyncRejectsWritesFromOldLeader は、リーダーでなくなった neko の同期が DB を書き換えないことを確認する (設計書 1.4)。
 func TestSyncRejectsWritesFromOldLeader(t *testing.T) {
 	t.Parallel()
 
@@ -384,7 +388,7 @@ func TestSyncRejectsWritesFromOldLeader(t *testing.T) {
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM services"))
 }
 
-// TestSyncAllMarksUndecidedEnd は、終了時刻が未定の番組を、上流ごとの表し方によらず未定として記録することを確かめる。
+// TestSyncAllMarksUndecidedEnd は、終了時刻が未定の番組を、上流ごとの表し方によらず未定として記録することを確認する。
 // 長さは、Mirakurun が 1 ミリ秒、Mahiron が 0 で返す (#23 の実測)。
 func TestSyncAllMarksUndecidedEnd(t *testing.T) {
 	t.Parallel()
@@ -419,7 +423,7 @@ func TestSyncAllMarksUndecidedEnd(t *testing.T) {
 }
 
 // TestSyncSkipsArchivablePrograms は、アーカイブへ移す時期を過ぎた番組を、上流が返しても programs に足さず、
-// programs に残っていても消さない (Archiver に移させる) ことを確かめる。
+// programs に残っていても消さない (Archiver に移させる) ことを確認する。
 func TestSyncSkipsArchivablePrograms(t *testing.T) {
 	t.Parallel()
 
@@ -465,8 +469,8 @@ func (u *onAirUpstream) OnAirPrograms(context.Context) ([]*tunerserver.OnAirProg
 	return u.onair, nil
 }
 
-// TestSyncReflectsOnAirPrograms は、番組表 (EIT[schedule]) に、放送中と次の番組 (EIT[p/f]) を重ねて反映することを確かめる (設計書 5.1)。
-// mirakc の /api/programs は、延長や繰り上げを、番組表を取り直すまで反映しない。
+// TestSyncReflectsOnAirPrograms は、番組表 (EIT[schedule]) に、放送中と次の番組 (EIT[p/f]) を重ねて反映することを確認する (設計書 5.1)。
+// mirakc の /api/programs は、延長や繰り上げを、番組表を再取得するまで反映しない。
 func TestSyncReflectsOnAirPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -480,7 +484,7 @@ func TestSyncReflectsOnAirPrograms(t *testing.T) {
 		StartAt: programStart(4).UnixMilli(), Duration: int64(5 * time.Minute / time.Millisecond), IsFree: true, Name: "差し込まれた番組",
 	}
 	// 同期しないサービス (別のチャンネル) の放送中の番組は、SyncServices では反映しない。
-	// 同じチャンネルのサービスは、イベント共有を補うためにまとめて突き合わせるので、別のチャンネルにする (#1024)。
+	// 同じチャンネルのサービスは、イベント共有を補うためにまとめて照合するので、別のチャンネルにする (#1024)。
 	otherService := faketuner.ServiceItemID(grNetworkID+1, 0x0408)
 	other := &tunerserver.Program{
 		ID: faketuner.ProgramID(grNetworkID+1, 0x0408, 901), EventID: 901, ServiceID: 0x0408, NetworkID: grNetworkID + 1,
@@ -552,7 +556,7 @@ func (u *dataServiceUpstream) Services(ctx context.Context) ([]*tunerserver.Serv
 }
 
 // TestSyncSkipsNonMediaServices は、映像も音声も流さないサービスとその番組を取り込まず、
-// すでに DB にあるそのようなサービスの番組も、消さずに残すことを確かめる。
+// すでに DB にあるそのようなサービスの番組も、消さずに残すことを確認する。
 func TestSyncSkipsNonMediaServices(t *testing.T) {
 	t.Parallel()
 
@@ -596,7 +600,7 @@ func TestSyncSkipsNonMediaServices(t *testing.T) {
 }
 
 // TestSyncAllKeepsProgramsWhenUpstreamReturnsNone は、上流がサービスの番組を 1 つも返さなかったときは、
-// そのサービスの番組を消さないことを確かめる (#518)。チューナーサーバーが一時的に空の一覧を返すと、未来の番組とルール予約が全部消えていた。
+// そのサービスの番組を消さないことを確認する (#518)。チューナーサーバーが一時的に空の一覧を返すと、未来の番組とルール予約が全部消えていた。
 func TestSyncAllKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
 	t.Parallel()
 
@@ -616,7 +620,7 @@ func TestSyncAllKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
 	assert.Equal(t, before, f.count(t, "SELECT count(*) FROM programs"))
 }
 
-// TestSyncAllDeletesSomeVanishedPrograms は、サービスの番組の一部だけが上流から消えたときは、今までどおり消すことを確かめる。
+// TestSyncAllDeletesSomeVanishedPrograms は、サービスの番組の一部だけが上流から消えたときは、今までどおり消すことを確認する。
 func TestSyncAllDeletesSomeVanishedPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -631,8 +635,8 @@ func TestSyncAllDeletesSomeVanishedPrograms(t *testing.T) {
 	assert.Equal(t, before-1, f.count(t, "SELECT count(*) FROM programs"))
 }
 
-// TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone は、イベントでサービスの番組を突き合わせるときも、
-// 上流がその番組を 1 つも返さなければ消さないことを確かめる (#518)。
+// TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone は、イベントでサービスの番組を照合するときも、
+// 上流がその番組を 1 つも返さなければ消さないことを確認する (#518)。
 func TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
 	t.Parallel()
 
@@ -655,8 +659,8 @@ func TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
 }
 
 // TestSyncInfersSharedEventsWithoutDescriptor は、同じ TS のサブチャンネルで、イベント共有の記述子がなくても、
-// 開始、長さ、番組名が同じ番組を、イベント共有として取り込むことを確かめる (#1024)。
-// 放送の EIT には、event_id が違い、event_group_descriptor もない同じ番組がある (2026 年 10 月に NHK 総合 1 と 2 で確かめた)。
+// 開始、長さ、番組名が同じ番組を、イベント共有として取り込むことを確認する (#1024)。
+// 放送の EIT には、event_id が違い、event_group_descriptor もない同じ番組がある (2026 年 10 月に NHK 総合 1 と 2 で確認した)。
 func TestSyncInfersSharedEventsWithoutDescriptor(t *testing.T) {
 	t.Parallel()
 
@@ -767,7 +771,7 @@ func TestSyncInfersSharedEventsWithoutDescriptor(t *testing.T) {
 }
 
 // TestSyncDoesNotInferSharedEventsAcrossChannels は、別のチャンネルの番組は、開始、長さ、番組名が同じでも、
-// イベント共有とみなさないことを確かめる (#1024)。同じネットワークの別のチャンネル (中継局など) も、同じ TS ではないのでまとめない。
+// イベント共有とみなさないことを確認する (#1024)。同じネットワークの別のチャンネル (中継局など) も、同じ TS ではないのでまとめない。
 func TestSyncDoesNotInferSharedEventsAcrossChannels(t *testing.T) {
 	t.Parallel()
 
@@ -808,7 +812,7 @@ func syncAll(t *testing.T, r *epg.Reconciler) {
 	require.NoError(t, err)
 }
 
-// TestSyncDoesNotInferSharedEventsOnSatellite は、BS と CS では、同じ TS のサービスの番組を、イベント共有とみなさないことを確かめる (#1024)。
+// TestSyncDoesNotInferSharedEventsOnSatellite は、BS と CS では、同じ TS のサービスの番組を、イベント共有とみなさないことを確認する (#1024)。
 // BS と CS は、1 つの TS に別の放送局のサービスが入り、「インフォメーション」のような番組名が同じ時間に重なる。
 func TestSyncDoesNotInferSharedEventsOnSatellite(t *testing.T) {
 	t.Parallel()
@@ -835,7 +839,7 @@ func TestSyncDoesNotInferSharedEventsOnSatellite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM programs WHERE name = 'インフォメーション' AND related_items = '[]'::jsonb"))
 
-	// BS と CS では、イベントで突き合わせるときも、同じ TS のほかのサービスまでは突き合わせない。
+	// BS と CS では、イベントで照合するときも、同じ TS のほかのサービスまでは照合しない。
 	otherProgram := faketuner.ProgramID(bsNetworkID, other.ServiceID, 2538)
 	require.NoError(t, f.fake.ExtendProgram(otherProgram, 15*time.Minute))
 	_, err = reconciler.SyncServices(t.Context(), []int64{bs.ID})
@@ -843,79 +847,97 @@ func TestSyncDoesNotInferSharedEventsOnSatellite(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE mirakurun_id = $1 AND end_at = $2", otherProgram, start.Add(30*time.Minute)))
 }
 
-// TestSyncAllRecordsProgramRewrites は、放送前の番組の、番組名と概要の書き換えを記録することを確かめる (#1558)。
-func TestSyncAllRecordsProgramRewrites(t *testing.T) {
+// goneAt は、サービスの gone_at を返す。上流にあるサービスなら nil。
+func (f *fixture) goneAt(t *testing.T, id int64) *time.Time {
+	t.Helper()
+
+	var at *time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT gone_at FROM services WHERE id = $1", id).Scan(&at))
+
+	return at
+}
+
+// TestSyncAllRecordsServicesMissingFromUpstream は、上流のサービスの一覧から消えたサービスに、初めて気づいた時刻を残し、
+// 戻ってきたら消すことを確認する (#1973)。行は、予約や録画から参照されうるので消さない。
+func TestSyncAllRecordsServicesMissingFromUpstream(t *testing.T) {
 	t.Parallel()
 
-	const original = "偽のチューナーサーバーが合成した番組です。"
-	tests := []struct {
-		name   string
-		change func(t *testing.T, fake *faketuner.Server)
-		// want は、記録に残る (event_id, field, before, after) の組。
-		want []string
-	}{
-		{
-			name: "放送前の番組の番組名の書き換えを記録する",
-			change: func(t *testing.T, fake *faketuner.Server) {
-				t.Helper()
-				require.NoError(t, fake.RenameProgram(programID(6), "新しい番組名"))
-			},
-			want: []string{"6 name こたつテスト1 テスト番組 6 → 新しい番組名"},
-		},
-		{
-			name: "放送前の番組の概要の書き換えを記録する",
-			change: func(t *testing.T, fake *faketuner.Server) {
-				t.Helper()
-				require.NoError(t, fake.ChangeProgramDescription(programID(4), "新しい概要"))
-			},
-			want: []string{"4 description " + original + " → 新しい概要"},
-		},
-		{
-			name: "放送中の番組の書き換えは記録しない",
-			change: func(t *testing.T, fake *faketuner.Server) {
-				t.Helper()
-				require.NoError(t, fake.RenameProgram(programID(3), "新しい番組名"))
-			},
-			want: []string{},
-		},
-		{
-			name: "番組名と概要以外の変更は記録しない",
-			change: func(t *testing.T, fake *faketuner.Server) {
-				t.Helper()
-				require.NoError(t, fake.RescheduleProgram(programID(6), testNow().Add(3*time.Hour), time.Hour))
-			},
-			want: []string{},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	require.Nil(t, f.goneAt(t, serviceID()))
 
-			f := newFixture(t, nil)
-			_, err := f.reconciler.SyncAll(t.Context())
-			require.NoError(t, err)
-			tt.change(t, f.fake)
-			_, err = f.reconciler.SyncAll(t.Context())
-			require.NoError(t, err)
+	// 消えたら、気づいた時刻を書き、番組表を読み直させるよう通知する。
+	f.fake.SetServiceMissing(serviceID(), true)
+	result, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ServicesPresenceChanged)
+	assert.Positive(t, result.Version)
+	require.NotNil(t, f.goneAt(t, serviceID()))
+	assert.True(t, f.goneAt(t, serviceID()).Equal(testNow()))
+	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM services"))
+	assert.Equal(t, fixtureServices-1, f.count(t, "SELECT count(*) FROM services WHERE gone_at IS NULL"))
 
-			rows, err := f.pool.Query(t.Context(),
-				"SELECT event_id, field, before, after, observed_at FROM program_rewrites WHERE service_id = $1 ORDER BY event_id, field",
-				serviceID())
-			require.NoError(t, err)
-			defer rows.Close()
-			got := []string{}
-			for rows.Next() {
-				var (
-					eventID           int64
-					field, before, to string
-					observedAt        time.Time
-				)
-				require.NoError(t, rows.Scan(&eventID, &field, &before, &to, &observedAt))
-				assert.True(t, observedAt.Equal(testNow()))
-				got = append(got, fmt.Sprintf("%d %s %s → %s", eventID, field, before, to))
-			}
-			require.NoError(t, rows.Err())
-			assert.Equal(t, tt.want, got)
-		})
+	// 消えたままなら、初めて気づいた時刻のまま残す。
+	f.clock.Advance(time.Hour)
+	result, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ServicesPresenceChanged)
+	assert.True(t, f.goneAt(t, serviceID()).Equal(testNow()))
+
+	// 戻ってきたら、時刻を消す。
+	f.fake.SetServiceMissing(serviceID(), false)
+	result, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ServicesPresenceChanged)
+	assert.Nil(t, f.goneAt(t, serviceID()))
+}
+
+// TestSyncAllKeepsServicesWhenUpstreamReturnsNone は、上流がサービスを 1 つも返さなかったときは、全部を消えた扱いにしないことを確認する (#1973)。
+func TestSyncAllKeepsServicesWhenUpstreamReturnsNone(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+
+	services, err := f.client.Services(t.Context())
+	require.NoError(t, err)
+	for _, service := range services {
+		f.fake.SetServiceMissing(service.ID, true)
 	}
+	result, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ServicesPresenceChanged)
+	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM services WHERE gone_at IS NULL"))
+}
+
+// TestSyncServiceListRecordsServicesMissingFromUpstream は、サービスの一覧だけを照合するときも、上流から消えたサービスに
+// 気づいた時刻を残し、上流が 1 つも返さなかったときは消えた扱いにせず、番組は照合しないことを確認する (#2035)。
+func TestSyncServiceListRecordsServicesMissingFromUpstream(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+
+	// 番組を照合するなら消える番組。
+	require.NoError(t, f.fake.ForgetProgram(programID(5)))
+	f.fake.SetServiceMissing(serviceID(), true)
+	result, changed, err := f.reconciler.SyncServiceList(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ServicesPresenceChanged)
+	assert.Empty(t, changed)
+	assert.True(t, f.goneAt(t, serviceID()).Equal(testNow()))
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 5", serviceID()))
+
+	services, err := f.client.Services(t.Context())
+	require.NoError(t, err)
+	for _, service := range services {
+		f.fake.SetServiceMissing(service.ID, true)
+	}
+	result, _, err = f.reconciler.SyncServiceList(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ServicesPresenceChanged)
+	assert.Equal(t, fixtureServices-1, f.count(t, "SELECT count(*) FROM services WHERE gone_at IS NULL"))
 }

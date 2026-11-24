@@ -1,6 +1,6 @@
 // Package fileimport は、保存先プールにある、Kotatsu が録っていない TS を、録画として取り込む (設計書 6.5、#1734)。
 //
-// 番組の情報は、ファイルの頭と終わりを読み、PAT と PMT、SDT、EIT[p/f]、TOT から求める。
+// 番組の情報は、ファイルの先頭と終わりを読み、PAT と PMT、SDT、EIT[p/f]、TOT から求める。
 // Kotatsu にあるサービスの TS だけを取り込み、ほかは理由を付けて飛ばす。
 package fileimport
 
@@ -19,7 +19,7 @@ const (
 	bdavPacketSize = 192
 	// syncByte は、TS のパケットの先頭のバイト。
 	syncByte = 0x47
-	// syncPackets は、パケットの大きさを見分けるのに、sync byte が続くことを確かめるパケットの数。
+	// syncPackets は、パケットの大きさを見分けるのに、sync byte が続くことを確認するパケットの数。
 	syncPackets = 8
 	// headLimit は、頭から読む量の上限。PAT、PMT、SDT、TOT、EIT[p/f] は数秒ごとに送られるので、揃えば、ここまで読まずにやめる。
 	headLimit = 32 << 20
@@ -30,13 +30,13 @@ const (
 )
 
 var (
-	// ErrBDAV は、192 バイトのパケットの Blu-ray (BDAV) の .m2ts であることを表す。Kotatsu の索引と配信は 188 バイトの TS を前提にする。
+	// ErrBDAV は、192 バイトのパケットの Blu-ray (BDAV) の .m2ts であることを表す。Kotatsu のインデックスと配信は 188 バイトの TS を前提にする。
 	ErrBDAV = errors.New("the file is a 192-byte-packet BDAV stream (Blu-ray .m2ts); only 188-byte-packet TS is supported")
 	// ErrNotTS は、MPEG-2 TS でないことを表す。
 	ErrNotTS = errors.New("the file is not an MPEG-2 TS")
 )
 
-// Probe は、TS の頭と終わりから読んだ、録画の情報。
+// Probe は、TS の先頭と終わりから読んだ、録画の情報。
 type Probe struct {
 	// NetworkID は、SDT[actual] の original_network_id。SDT を読めなければ nil。
 	NetworkID *uint16
@@ -67,7 +67,7 @@ type Event struct {
 	Duration *time.Duration
 }
 
-// ReadProbe は、大きさ size の TS r の頭と終わりを読み、録画の情報を返す。
+// ReadProbe は、大きさ size の TS r の先頭と終わりを読み、録画の情報を返す。
 // 192 バイトのパケットの BDAV なら ErrBDAV を、TS でなければ ErrNotTS を返す。
 func ReadProbe(r io.ReaderAt, size int64) (*Probe, error) {
 	if err := CheckPacketSize(r, size); err != nil {
@@ -78,7 +78,7 @@ func ReadProbe(r io.ReaderAt, size int64) (*Probe, error) {
 	names := map[uint16]string{}
 	var headLast *time.Time
 	head := ts.NewAnalyzer(&ts.AnalyzerOptions{
-		Index: nil, CutoffPTS: nil, OnLogo: nil, OnNIT: nil,
+		Index: nil, CutoffPTS: nil, OnLogo: nil, OnNIT: nil, OnPresentFollowing: nil,
 		OnTOT: func(at time.Time) {
 			if probe.RecordedFrom == nil {
 				probe.RecordedFrom = &at
@@ -106,7 +106,7 @@ func ReadProbe(r io.ReaderAt, size int64) (*Probe, error) {
 	probe.RecordedUntil = headLast
 	if headEnd < size {
 		tail := ts.NewAnalyzer(&ts.AnalyzerOptions{
-			Index: nil, CutoffPTS: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil,
+			Index: nil, CutoffPTS: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil, OnPresentFollowing: nil,
 			OnTOT: func(at time.Time) { probe.RecordedUntil = &at },
 		})
 		if _, err := feed(tail, r, max(headEnd, size-tailSize), size, nil); err != nil {
@@ -124,7 +124,7 @@ func ReadProbe(r io.ReaderAt, size int64) (*Probe, error) {
 	return probe, nil
 }
 
-// CheckPacketSize は、頭のパケットが 188 バイトごとに sync byte で始まるかを確かめる。
+// CheckPacketSize は、頭のパケットが 188 バイトごとに sync byte で始まるかを確認する。
 // 192 バイトごとなら BDAV とみなして ErrBDAV を返す。どちらでもなければ ErrNotTS を返す。ライブラリのファイルの再生 (#1734) でも使う。
 func CheckPacketSize(r io.ReaderAt, size int64) error {
 	buf := make([]byte, min(size, bdavPacketSize*(syncPackets+1)))

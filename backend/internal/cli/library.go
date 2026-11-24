@@ -24,7 +24,7 @@ type libraryParts struct {
 }
 
 // newLibraryParts は、設定の保存先プールとライブラリから、ライブラリを読む部品を返す。build が true なら (tenban)、
-// 開いたファイルの索引を、データディレクトリに作る。kyusu は読むだけにする。
+// 開いたファイルのインデックスを、データディレクトリに作る。kyusu は読むだけにする。
 func newLibraryParts(deps *Deps, logger *slog.Logger, build bool) *libraryParts {
 	storage := &deps.Config.Storage
 	libraries := medialib.NewSet(storage.Pools, storage.PoolOrder, storage.Libraries)
@@ -34,7 +34,7 @@ func newLibraryParts(deps *Deps, logger *slog.Logger, build bool) *libraryParts 
 		googleService = nil
 	}
 	if googleService != nil {
-		// Google Drive は、接続していなくても一覧に入れておき、接続しているかどうかは、読むたびに DB で確かめる。
+		// Google Drive は、接続していなくても一覧に入れておき、接続しているかどうかは、読むたびに DB で確認する。
 		tokens := googleService.DriveTokens(deps.DB)
 		libraries = libraries.WithProvider(medialib.NewDrive(googleService.DriveClient(tokens), tokens, deps.Clock.Now))
 	}
@@ -56,7 +56,7 @@ func newGoogleService(deps *Deps, logger *slog.Logger, reserved []string) (*goog
 }
 
 // libraryJobsOf は、ライブラリのファイルの画像、CM の区間、字幕の自動生成のジョブを入れる River のクライアントを返す。なければ nil を返す。
-// 型付きの nil を interface に入れると nil と比べられなくなるので、nil なら interface の nil を返す。
+// 型付きの nil を interface に入れると nil と比較できなくなるので、nil なら interface の nil を返す。
 func libraryJobsOf(deps *Deps) filelib.JobInserter {
 	if deps.Jobs == nil {
 		return nil

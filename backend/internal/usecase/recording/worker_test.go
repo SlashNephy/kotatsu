@@ -23,7 +23,7 @@ import (
 
 const waitTimeout = 10 * time.Second
 
-// shortHandoverTimeout は、引き継ぎを待ちきれないことを確かめるテストで使う、引き継ぎを待つ時間。
+// shortHandoverTimeout は、引き継ぎを待ちきれないことを確認するテストで使う、引き継ぎを待つ時間。
 const shortHandoverTimeout = 500 * time.Millisecond
 
 // startWorker は、session で録画する mikan を動かし、止める関数を返す。止める関数は、Run が返るのを待つ。
@@ -118,7 +118,7 @@ func (f *fixture) assignment(t *testing.T, reservationID uuid.UUID) assignmentRo
 	return row
 }
 
-// TestWorkersShareAssignment は、1 つの割り振りを、複数の mikan のうち 1 台だけが取り、録画を終えたら終わったことにすることを確かめる。
+// TestWorkersShareAssignment は、1 つの割り振りを、複数の mikan のうち 1 台だけが取り、録画を終えたら終わったことにすることを確認する。
 func TestWorkersShareAssignment(t *testing.T) {
 	t.Parallel()
 
@@ -169,7 +169,7 @@ func TestWorkersShareAssignment(t *testing.T) {
 }
 
 // TestWorkerStopsWhenLeaseIsLost は、ほかの mikan が世代を進めて割り振りを取ると、古い mikan が書き込みをやめ、
-// 割り振りを終わったことにしないことを確かめる。
+// 割り振りを終わったことにしないことを確認する。
 func TestWorkerStopsWhenLeaseIsLost(t *testing.T) {
 	t.Parallel()
 
@@ -233,7 +233,7 @@ func (l *flakyLeases) Renew(ctx context.Context, a *recording.Assignment, holder
 }
 
 // TestWorkerKeepsRecordingWhileDatabaseIsUnreachable は、DB に届かない間は、リースの期限が過ぎても録画を止めず、
-// ほかの mikan が取ったと分かったときだけ止めることを確かめる (#1073)。
+// ほかの mikan が取ったと分かったときだけ止めることを確認する (#1073)。
 func TestWorkerKeepsRecordingWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -340,7 +340,7 @@ func TestWorkerKeepsRecordingWhileDatabaseIsUnreachable(t *testing.T) {
 }
 
 // TestWorkerWaitsForSuccessorAfterOutage は、DB が戻った直後に、ほかの mikan が先にリースを取っていたら、
-// 新しい mikan がストリームを開くまで録り続けてから止めることを確かめる (#1073)。すぐに止めると、新しい mikan が書き始めるまで欠ける。
+// 新しい mikan がストリームを開くまで録り続けてから止めることを確認する (#1073)。すぐに止めると、新しい mikan が書き始めるまで欠ける。
 func TestWorkerWaitsForSuccessorAfterOutage(t *testing.T) {
 	t.Parallel()
 
@@ -383,7 +383,7 @@ func TestWorkerWaitsForSuccessorAfterOutage(t *testing.T) {
 }
 
 // TestWorkerReportsDatabaseUnreachable は、録っている割り振りのリースを延長できない間、DB に届かなくなってからの時間を返し、
-// 延長できるようになったら 0 に戻すことを確かめる (#1073)。メトリクスに出す。
+// 延長できるようになったら 0 に戻すことを確認する (#1073)。メトリクスに出す。
 func TestWorkerReportsDatabaseUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -412,7 +412,7 @@ func TestWorkerReportsDatabaseUnreachable(t *testing.T) {
 }
 
 // TestWorkerKeepsSessionWhenAssignmentDeleted は、録画中に予約が消され、割り振りも消えたとき、
-// ほかの mikan が取ったとは扱わず、録画を終えるのを Session に任せることを確かめる (#304)。
+// ほかの mikan が取ったとは扱わず、録画を終えるのを Session に任せることを確認する (#304)。
 func TestWorkerKeepsSessionWhenAssignmentDeleted(t *testing.T) {
 	t.Parallel()
 
@@ -444,7 +444,7 @@ func TestWorkerKeepsSessionWhenAssignmentDeleted(t *testing.T) {
 	close(release)
 }
 
-// TestWorkerTakesOverExpiredLease は、リースが切れたまま延長されない割り振りを、別の mikan が世代を進めて取ることを確かめる (設計書 1.5)。
+// TestWorkerTakesOverExpiredLease は、リースが切れたまま延長されない割り振りを、別の mikan が世代を進めて取ることを確認する (設計書 1.5)。
 func TestWorkerTakesOverExpiredLease(t *testing.T) {
 	t.Parallel()
 
@@ -494,7 +494,7 @@ func (f *fixture) streamOpened(ctx context.Context, t *testing.T, assignment *re
 }
 
 // TestWorkerHandsOver は、止まる mikan が、ほかの mikan がストリームを開くまで録り続けてから止まり、
-// 割り振りを終わったことにしないことを確かめる (設計書 5.4)。
+// 割り振りを終わったことにしないことを確認する (設計書 5.4)。
 func TestWorkerHandsOver(t *testing.T) {
 	t.Parallel()
 
@@ -561,7 +561,7 @@ func TestWorkerHandsOver(t *testing.T) {
 }
 
 // TestWorkerReleasesWithoutSuccessor は、引き継ぐ mikan がいないか、引き継ぎを待ちきれなければ、割り振りを手放して止まり、
-// 再起動した mikan が、リースが切れるのを待たずに続きを録れることを確かめる (設計書 5.4)。
+// 再起動した mikan が、リースが切れるのを待たずに続きを録れることを確認する (設計書 5.4)。
 func TestWorkerReleasesWithoutSuccessor(t *testing.T) {
 	t.Parallel()
 
@@ -617,8 +617,8 @@ func TestWorkerReleasesWithoutSuccessor(t *testing.T) {
 	}
 }
 
-// TestWorkerTreatsCrashDuringHandoverAsCrash は、引き継ぎ待ちの印を付けた mikan が、引き継ぎの最中に落ちてリースが切れたら、
-// 引き継ぎではなく、落ちた mikan の代わりとして取ることを確かめる。
+// TestWorkerTreatsCrashDuringHandoverAsCrash は、引き継ぎ待ちのフラグを付けた mikan が、引き継ぎの最中に落ちてリースが切れたら、
+// 引き継ぎではなく、落ちた mikan の代わりとして取ることを確認する。
 func TestWorkerTreatsCrashDuringHandoverAsCrash(t *testing.T) {
 	t.Parallel()
 
@@ -660,7 +660,7 @@ func TestWorkerTreatsCrashDuringHandoverAsCrash(t *testing.T) {
 }
 
 // TestWorkerFinishesDuringHandover は、引き継ぎを待つ間に予定の終わりが来て録画を終えたら、割り振りを終わったことにし、
-// 引き継ぎを待たずに止まることを確かめる。
+// 引き継ぎを待たずに止まることを確認する。
 func TestWorkerFinishesDuringHandover(t *testing.T) {
 	t.Parallel()
 
@@ -671,8 +671,8 @@ func TestWorkerFinishesDuringHandover(t *testing.T) {
 	f.register(t, id.New())
 	started := make(chan struct{})
 	finish := make(chan struct{})
-	// 引き継ぎを待つ時間を長くし、待ちきれずにやめたのではなく、録画を終えたからやめたことを確かめる。
-	// 短いと、引き継ぎ待ちの印がすぐに外れ、遅い環境では、印を見る前に外れることもある。
+	// 引き継ぎを待つ時間を長くし、待ちきれずにやめたのではなく、録画を終えたからやめたことを確認する。
+	// 短いと、引き継ぎ待ちのフラグがすぐに外れ、遅い環境では、フラグを見る前に外れることもある。
 	stop := f.startWorkerWithHandoverTimeout(t, holder, waitTimeout, func(ctx context.Context, assignment *recording.Assignment) error {
 		close(started)
 		select {
@@ -705,7 +705,7 @@ func TestWorkerFinishesDuringHandover(t *testing.T) {
 }
 
 // TestWorkerDeletesAssignmentsEndedWithoutRecording は、録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を、
-// 終わったことにせず消すことを確かめる (#523)。終わった割り振りが残ると、予約を有効に戻しても、割り振りを書き直せなかった。
+// 終わったことにせず消すことを確認する (#523)。終わった割り振りが残ると、予約を有効に戻しても、割り振りを書き直せなかった。
 func TestWorkerDeletesAssignmentsEndedWithoutRecording(t *testing.T) {
 	t.Parallel()
 
@@ -733,7 +733,7 @@ func TestWorkerDeletesAssignmentsEndedWithoutRecording(t *testing.T) {
 }
 
 // TestWorkerReleasesUnrecordableAssignment は、Session が ErrRecorderUnavailable を返したら、割り振りを手放して
-// しばらく取らず、ほかの mikan に録画させることを確かめる (#524)。手放さないと、録画できない mikan が割り振りを抱え込む。
+// しばらく取らず、ほかの mikan に録画させることを確認する (#524)。手放さないと、録画できない mikan が割り振りを抱え込む。
 func TestWorkerReleasesUnrecordableAssignment(t *testing.T) {
 	t.Parallel()
 
@@ -768,11 +768,11 @@ func TestWorkerReleasesUnrecordableAssignment(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return f.assignment(t, reservationID).state == string(domain.RecordingAssignmentStateFinished)
 	}, waitTimeout, 10*time.Millisecond)
-	// 手放した mikan は、しばらく取り直さない。
+	// 手放した mikan は、しばらく取得し直さない。
 	assert.Equal(t, int32(1), brokenSessions.Load())
 }
 
-// TestWorkerUsesDatabaseClockForLeases は、リースが切れたかを DB の時刻で決めることを確かめる (#526)。
+// TestWorkerUsesDatabaseClockForLeases は、リースが切れたかを DB の時刻で決めることを確認する (#526)。
 // mikan の時計で決めると、時計の進んだ mikan が、ほかの mikan の録画中の割り振りを、リースが切れたとみなして取る。
 func TestWorkerUsesDatabaseClockForLeases(t *testing.T) {
 	t.Parallel()

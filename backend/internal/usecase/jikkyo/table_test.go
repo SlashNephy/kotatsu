@@ -57,7 +57,7 @@ func TestTableLookup(t *testing.T) {
 			networkID: 0x7FE1, serviceID: 0x0400, wantID: jkNHK, wantOK: true,
 		},
 		{
-			// 保存するときに確かめているので、崩れた対応は、引くときに読み飛ばす。
+			// 保存するときに確認しているので、崩れた対応は、検索するときに読み飛ばす。
 			name: "崩れた対応は読み飛ばす", overrides: map[string]string{"4-101": jkOverride, "bs:101": jkOverride, "4:101": "101"},
 			networkID: 4, serviceID: 101, wantID: jkBS, wantOK: true,
 		},
@@ -75,7 +75,7 @@ func TestTableLookup(t *testing.T) {
 	}
 }
 
-// TestTableReadsOverridesAgain は、画面で足した対応を、少しの間は覚えて読み直さず、時間が経つか Invalidate で読み直すことを確かめる (#1869)。
+// TestTableReadsOverridesAgain は、画面で足した対応を、少しの間はキャッシュして読み直さず、時間が経つか Invalidate で読み直すことを確認する (#1869)。
 // 読めないときは、前に読んだものを使い続ける。
 func TestTableReadsOverridesAgain(t *testing.T) {
 	t.Parallel()
@@ -176,8 +176,8 @@ func TestIsChannelID(t *testing.T) {
 	}
 }
 
-// TestTableKeepsReadingAfterCanceledRequest は、取り消された要求で読めなかったときは、覚えた時刻を進めず、
-// 次の要求ですぐ読み直すことを確かめる (#1869)。
+// TestTableKeepsReadingAfterCanceledRequest は、取り消された要求で読めなかったときは、キャッシュした時刻を進めず、
+// 次の要求ですぐ読み直すことを確認する (#1869)。
 func TestTableKeepsReadingAfterCanceledRequest(t *testing.T) {
 	t.Parallel()
 

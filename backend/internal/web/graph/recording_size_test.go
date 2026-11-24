@@ -11,7 +11,7 @@ import (
 )
 
 // TestWritingFileSize は、書いている間のファイルは、DB の大きさでなくファイルの今の大きさを返し、
-// 書き終えたファイルは DB の大きさを返すことを確かめる (#736)。
+// 書き終えたファイルは DB の大きさを返すことを確認する (#736)。
 func TestWritingFileSize(t *testing.T) {
 	t.Parallel()
 

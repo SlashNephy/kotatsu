@@ -22,13 +22,13 @@ const (
 	maxRuleNameLength = 200
 	// minutesPerWeek は、1 週間の分の数。
 	minutesPerWeek = 7 * 24 * 60
-	// maxGenreLevel1 は、写すジャンルの大分類の上限。0x60〜0x7F は拡張ジャンル、0xFF はジャンル情報なし。
+	// maxGenreLevel1 は、変換するジャンルの大分類の上限。0x60〜0x7F は拡張ジャンル、0xFF はジャンル情報なし。
 	maxGenreLevel1 = 0xF
 	// anyGenreLevel2 は、中分類のすべてを表す値。
 	anyGenreLevel2 = 0xFF
 )
 
-// keyword は、AND キーワードの先頭の印を外した結果。
+// keyword は、AND キーワードの先頭のマークを外した結果。
 type keyword struct {
 	disabled      bool
 	caseSensitive bool
@@ -37,7 +37,7 @@ type keyword struct {
 	text                   string
 }
 
-// parseAndKey は、AND キーワードの先頭の印を外す。印は「^!{999}」(無効)、「C!{999}」(大小を区別)、
+// parseAndKey は、AND キーワードの先頭のマークを外す。マークは「^!{999}」(無効)、「C!{999}」(大小を区別)、
 // 「D!{1」と数字 8 桁と「}」(番組の長さ。最短と最長を 4 桁ずつの分とみる) の順に付く。
 func parseAndKey(s string) keyword {
 	k := keyword{disabled: false, caseSensitive: false, minMinutes: 0, maxMinutes: 0, text: s}
@@ -71,7 +71,7 @@ func parseNotKey(s string) string {
 	return ""
 }
 
-// unsupportedWordPrefixes は、語ごとの照合範囲や正規表現の印。Kotatsu の条件では表せない。
+// unsupportedWordPrefixes は、語ごとの照合範囲や正規表現のマーク。Kotatsu の条件では表せない。
 func unsupportedWordPrefixes() []string {
 	return []string{"::", ":title:", ":event:", ":genre:", ":video:", ":audio:"}
 }
@@ -236,7 +236,7 @@ func complementTimeRanges(dates []edcb.SearchDate) []*match.TimeRange {
 	return ranges
 }
 
-// ruleName は、ルールの名前を、印を外した AND キーワードから作る。空なら「EDCB #ID」にする。
+// ruleName は、ルールの名前を、マークを外した AND キーワードから作る。空なら「EDCB #ID」にする。
 func ruleName(text string, id uint32) string {
 	name := strings.Join(strings.Fields(text), " ")
 	if name == "" {

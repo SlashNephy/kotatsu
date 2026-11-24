@@ -65,7 +65,7 @@ DELETE FROM drama_record_connections WHERE user_id = @user_id AND destination = 
 RETURNING *;
 
 -- name: ListDramaRecordTokens :many
--- ログの報告から伏せるため、全ユーザーのドラマの記録先のトークンを返す (#1521)。
+-- ログの報告でマスクするため、全ユーザーのドラマの記録先のトークンを返す (#1521)。
 SELECT access_token_encrypted, refresh_token_encrypted FROM drama_record_connections ORDER BY user_id, destination;
 
 -- name: InsertDramaRecord :execrows
@@ -120,7 +120,7 @@ ON CONFLICT (user_id, destination, tmdb_series_id) DO UPDATE SET
   applied = EXCLUDED.applied, updated_at = EXCLUDED.updated_at;
 
 -- name: InsertDramaWatchlistImportIfAbsent :exec
--- Kotatsu から記録して、Simkl が作品をウォッチリストに入れたとき、その状態を読んだことにする (写したことにする)。
+-- Kotatsu から記録して、Simkl が作品をウォッチリストに入れたとき、その状態を読んだことにする (コピーしたことにする)。
 -- 次の取り込みで、見ただけの作品を、見ている作品に足さないため。
 INSERT INTO drama_watchlist_imports (user_id, destination, tmdb_series_id, simkl_id, status, applied, updated_at)
 VALUES (@user_id, @destination, @tmdb_series_id, NULL, @status, true, @now)
@@ -130,7 +130,7 @@ ON CONFLICT (user_id, destination, tmdb_series_id) DO NOTHING;
 DELETE FROM drama_watchlist_imports WHERE user_id = @user_id AND destination = @destination AND tmdb_series_id = @tmdb_series_id;
 
 -- name: ListPendingDramaWatchlistImports :many
--- まだ見ている作品に写していない作品を返す。番組か録画に結びついたかどうかも返す。
+-- まだ見ている作品にコピーしていない作品を返す。番組か録画に結びついたかどうかも返す。
 SELECT i.*, (EXISTS (SELECT 1 FROM program_drama_matches p WHERE p.tmdb_series_id = i.tmdb_series_id)
   OR EXISTS (SELECT 1 FROM recording_drama_matches r WHERE r.tmdb_series_id = i.tmdb_series_id))::boolean AS linked
 FROM drama_watchlist_imports i
@@ -142,5 +142,5 @@ UPDATE drama_watchlist_imports SET applied = true
 WHERE user_id = @user_id AND destination = @destination AND tmdb_series_id = @tmdb_series_id;
 
 -- name: DeleteDramaWatchlistEntryIfStatus :execrows
--- 見ている作品を、状態が status のままのときだけ外す。Simkl から写した後に、Kotatsu で状態を変えた作品は外さない。
+-- 見ている作品を、状態が status のままのときだけ外す。Simkl からコピーした後に、Kotatsu で状態を変えた作品は外さない。
 DELETE FROM drama_watchlist_entries WHERE user_id = @user_id AND tmdb_series_id = @tmdb_series_id AND status = @status;

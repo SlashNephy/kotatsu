@@ -79,7 +79,7 @@ func TestPolicy(t *testing.T) {
 	}
 }
 
-// TestPolicyHIBPEnabled は、Have I Been Pwned に照会するかを、確かめるたびに読み、切っているときと読めないときは照会しないことを確かめる (#1869)。
+// TestPolicyHIBPEnabled は、Have I Been Pwned に照会するかを、確認するたびに読み、切っているときと読めないときは照会しないことを確認する (#1869)。
 func TestPolicyHIBPEnabled(t *testing.T) {
 	t.Parallel()
 

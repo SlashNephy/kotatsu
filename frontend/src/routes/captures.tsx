@@ -135,7 +135,7 @@ function CaptureList({ keyword }: { keyword: string }) {
     fetchPolicy: 'store-and-network',
   });
   // more は、続きの読み込みで足したキャプチャと、その次のカーソル。key は、読み込んだときの探す言葉と消した回数。
-  // 探す言葉を変えるか消して、最初のページを読み直したら、続きは捨てる。
+  // 探す言葉を変えるか消して、最初のページを読み直したら、続きは破棄する。
   const key = `${deletions}:${keyword}`;
   const [loaded, setMore] = useState<{
     key: string;

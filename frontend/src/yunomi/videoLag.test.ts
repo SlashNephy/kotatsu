@@ -8,7 +8,7 @@ import {
   type VideoLagController,
 } from './videoLag';
 
-// started は、最初の 1 コマ (読み込み直後で測らない) を済ませた制御を作る。
+// started は、最初の 1 コマ (読み込み直後で計測しない) を済ませた制御を作る。
 function started(measurable = true): VideoLagController {
   const controller = createVideoLagController({ measurable });
   controller.frame(0, { lag: 0, ahead: 1 });
@@ -115,7 +115,7 @@ describe('飛び直し (遅れを測れない端末の詰まり)', () => {
 });
 
 describe('重さの判定', () => {
-  // jumpEvery は、interval ごとに count 回、測った遅れで飛んだことにする。
+  // jumpEvery は、interval ごとに count 回、計測した遅れで飛んだことにする。
   function jumpEvery(
     controller: VideoLagController,
     count: number,
@@ -169,7 +169,7 @@ describe('重さの判定', () => {
     expect(controller.heavy(10_000)).toBe(false);
   });
 
-  // feed は、1 秒おきに 30 コマ出し、そのうち ratio の割合を捨てたことにする。
+  // feed は、1 秒おきに 30 コマ出し、そのうち ratio の割合を破棄したことにする。
   function feed(controller: VideoLagController, untilMs: number, ratio: number) {
     for (let at = 0; at <= untilMs; at += 1_000) {
       const total = (at / 1_000) * 30;
@@ -211,7 +211,7 @@ describe('重さの判定', () => {
 
   test('窓より長く間が空いたら、その前の記録と比べない', () => {
     const controller = started();
-    // 空く前は捨てていない。空いた後の 9 秒に 300 コマ出し、すべて捨てた。
+    // 空く前は破棄していない。空いた後の 9 秒に 300 コマ出し、すべて破棄した。
     controller.quality(0, 0, 0);
     controller.quality(30_000, 300, 0);
     controller.quality(39_000, 600, 300);

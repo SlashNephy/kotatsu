@@ -42,7 +42,7 @@ type PlanOptions struct {
 	// nil でなければ、録られるチャンネルと種別を問わず、これを満たすように残す (keepsIdleTuners)。空なら残さない。
 	// EDCB の EPG の取得は、録っているチャンネルに相乗りせず、使っていないチューナーで、取得するチャンネルをすべて回る。
 	IdleNeeds []*tunerserver.EPGCaptureNeed
-	// TunerNames は、tuners の番号から、チューナーの名前 (EDCB では BonDriver) への対応。IdleNeeds と突き合わせる。
+	// TunerNames は、tuners の番号から、チューナーの名前 (EDCB では BonDriver) への対応。IdleNeeds と照合する。
 	TunerNames map[int]string
 	// OtherIdleTuners は、tuners のほかにある、使っていないチューナー (Kotatsu が使わないもの) の名前。IdleNeeds で数える。
 	OtherIdleTuners []string

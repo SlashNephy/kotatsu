@@ -41,10 +41,10 @@ type Model struct {
 	Recommended bool
 }
 
-// licenseMIT は、whisper.cpp の配るモデルと Silero VAD のライセンス。
+// licenseMIT は、whisper.cpp の配布するモデルと Silero VAD のライセンス。
 const licenseMIT = "MIT"
 
-// Catalog は、画面からダウンロードできるモデルの一覧を返す。URL、大きさ、SHA-256 は、2026 年 11 月にダウンロードして確かめた。
+// Catalog は、画面からダウンロードできるモデルの一覧を返す。URL、大きさ、SHA-256 は、2026 年 11 月にダウンロードして確認した。
 // 勧めるものを、種類ごとに先に並べる。
 func Catalog() []Model {
 	return []Model{

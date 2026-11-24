@@ -122,7 +122,7 @@ func TestParseSDT(t *testing.T) {
 	assert.False(t, other.Actual)
 }
 
-// TestParseNITSDTRejects は、ほかの表、CRC の誤り、長さが収まらないセクションを捨てることを確かめる。
+// TestParseNITSDTRejects は、ほかのテーブル、CRC の誤り、長さが収まらないセクションを破棄することを確認する。
 func TestParseNITSDTRejects(t *testing.T) {
 	t.Parallel()
 
@@ -164,7 +164,7 @@ func TestParseNITSDTRejects(t *testing.T) {
 	}
 }
 
-// TestAnalyzerNITSDT は、解析器が NIT と SDT のセクションを読み、OnNIT と OnSDT に渡すことを確かめる (#1519)。
+// TestAnalyzerNITSDT は、Analyzer が NIT と SDT のセクションを読み、OnNIT と OnSDT に渡すことを確認する (#1519)。
 // SDT の PID が運ぶ BAT は渡さない。
 func TestAnalyzerNITSDT(t *testing.T) {
 	t.Parallel()

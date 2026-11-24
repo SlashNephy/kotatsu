@@ -123,7 +123,7 @@ func autoCreateGroups() auth.OIDCAutoCreate {
 	}
 }
 
-// TestOIDCLogin は、事前に紐付けたユーザーでログインでき、紐付けていないユーザーは、自動作成の条件を満たすときだけ作ることを確かめる (設計書 9.4)。
+// TestOIDCLogin は、事前に紐付けたユーザーでログインでき、紐付けていないユーザーは、自動作成の条件を満たすときだけ作ることを確認する (設計書 9.4)。
 func TestOIDCLogin(t *testing.T) {
 	t.Parallel()
 
@@ -136,7 +136,7 @@ func TestOIDCLogin(t *testing.T) {
 		wantRole   domain.Role
 		// wantUsername は、ログインしたユーザーの名前。
 		wantUsername string
-		// wantDisplayName は、ログインしたユーザーの表示名。空なら確かめない。
+		// wantDisplayName は、ログインしたユーザーの表示名。空なら確認しない。
 		wantDisplayName string
 	}{
 		{
@@ -234,7 +234,7 @@ func TestOIDCLogin(t *testing.T) {
 	}
 }
 
-// TestOIDCLoginAuthenticatedAt は、OIDC でログインしたセッションの認証の日時を、IdP で認証した日時にすることを確かめる (#1013)。
+// TestOIDCLoginAuthenticatedAt は、OIDC でログインしたセッションの認証の日時を、IdP で認証した日時にすることを確認する (#1013)。
 // IdP の SSO のセッションで、資格情報を入れずにログインし直しても、重要な操作の前の再認証を済ませたことにしない。
 func TestOIDCLoginAuthenticatedAt(t *testing.T) {
 	t.Parallel()
@@ -289,7 +289,7 @@ func TestOIDCLoginAuthenticatedAt(t *testing.T) {
 	}
 }
 
-// TestOIDCPicture は、ログインのたびに、ID トークンの picture を、アイコンの URL として書き直すことを確かめる (#778)。
+// TestOIDCPicture は、ログインのたびに、ID トークンの picture を、アイコンの URL として書き直すことを確認する (#778)。
 // http か https の絶対 URL でなければ、ないものとして扱う。
 func TestOIDCPicture(t *testing.T) {
 	t.Parallel()
@@ -330,7 +330,7 @@ func TestOIDCPicture(t *testing.T) {
 	}
 }
 
-// TestOIDCRejectsTamperedLogin は、state、nonce、audience、PKCE が合わないログインや、使用済みの状態を拒むことを確かめる。
+// TestOIDCRejectsTamperedLogin は、state、nonce、audience、PKCE が合わないログインや、使用済みの状態を拒むことを確認する。
 func TestOIDCRejectsTamperedLogin(t *testing.T) {
 	t.Parallel()
 
@@ -378,7 +378,7 @@ func TestOIDCRejectsTamperedLogin(t *testing.T) {
 	}
 }
 
-// TestOIDCAuthorizationRequest は、認可のリクエストに、PKCE (S256)、state、nonce、スコープを付けることを確かめる。
+// TestOIDCAuthorizationRequest は、認可のリクエストに、PKCE (S256)、state、nonce、スコープを付けることを確認する。
 func TestOIDCAuthorizationRequest(t *testing.T) {
 	t.Parallel()
 
@@ -395,7 +395,7 @@ func TestOIDCAuthorizationRequest(t *testing.T) {
 	assert.Equal(t, testOrigin+auth.OIDCCallbackPath, got.Get("redirect_uri"))
 }
 
-// TestOIDCLoginExpires は、IdP から戻るのが遅すぎたログインを拒むことを確かめる。
+// TestOIDCLoginExpires は、IdP から戻るのが遅すぎたログインを拒むことを確認する。
 func TestOIDCLoginExpires(t *testing.T) {
 	t.Parallel()
 
@@ -407,7 +407,7 @@ func TestOIDCLoginExpires(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrOIDCLoginExpired)
 }
 
-// TestOIDCLoginPurgesExpiredLogins は、IdP から戻らなかったログインの状態を、次にログインを始めるときに消すことを確かめる。
+// TestOIDCLoginPurgesExpiredLogins は、IdP から戻らなかったログインの状態を、次にログインを始めるときに消すことを確認する。
 func TestOIDCLoginPurgesExpiredLogins(t *testing.T) {
 	t.Parallel()
 
@@ -420,7 +420,7 @@ func TestOIDCLoginPurgesExpiredLogins(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM oidc_logins"))
 }
 
-// TestOIDCLink は、紐付けの重なりを拒むことを確かめる。
+// TestOIDCLink は、紐付けの重なりを拒むことを確認する。
 func TestOIDCLink(t *testing.T) {
 	t.Parallel()
 
@@ -444,7 +444,7 @@ func TestOIDCLink(t *testing.T) {
 	}
 }
 
-// TestOIDCUnavailable は、設定がないときや、IdP に届かないときのエラーを確かめる。
+// TestOIDCUnavailable は、設定がないときや、IdP に届かないときのエラーを確認する。
 func TestOIDCUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -458,13 +458,13 @@ func TestOIDCUnavailable(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrOIDCUnavailable)
 }
 
-// TestOIDCHandlers は、ログインの開始から、IdP を経て、セッションの Cookie を受け取るまでを HTTP で確かめる。
+// TestOIDCHandlers は、ログインの開始から、IdP を経て、セッションの Cookie を受け取るまでを HTTP で確認する。
 func TestOIDCHandlers(t *testing.T) {
 	t.Parallel()
 
 	f := newOIDCFixture(t, auth.OIDCAutoCreate{})
 	f.linkedUser(t)
-	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして捨てる。
+	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして破棄する。
 	f.clock.Advance(time.Since(f.clock.Now()))
 	client := func(*http.Request) *auth.ClientInfo { return f.client }
 	mux := http.NewServeMux()
@@ -553,7 +553,7 @@ func TestOIDCHandlers(t *testing.T) {
 	assert.Equal(t, "/login?error=oidc_expired", resp.location)
 }
 
-// TestOIDCHandlersUnavailable は、OIDC を設定していないときや、IdP に届かないときの応答を確かめる。
+// TestOIDCHandlersUnavailable は、OIDC を設定していないときや、IdP に届かないときの応答を確認する。
 func TestOIDCHandlersUnavailable(t *testing.T) {
 	t.Parallel()
 

@@ -22,7 +22,7 @@ const outputs = {
 const font = await readFile(source);
 const kanji = JSON.parse(await readFile(join(import.meta.dirname, 'jisx0213-kanji.json'), 'utf8'));
 
-// 元のフォントと表が同じなら、作り直さない。
+// 元のフォントとテーブルが同じなら、作り直さない。
 const stamp = createHash('sha256').update(font).update(JSON.stringify(kanji)).digest('hex');
 if ((await readFile(outputs.stamp, 'utf8').catch(() => '')) === stamp) {
   process.exit(0);
@@ -45,7 +45,7 @@ const [baseSfnt, extendedSfnt] = await Promise.all([
   subsetFont(font, toText(extended), { targetFormat: 'sfnt' }),
 ]);
 
-// 2 つのファイルの字が重ならず、合わせると元のフォントの字と同じになることを確かめる。外れたら、配らずに止める。
+// 2 つのファイルの字が重ならず、合わせると元のフォントの字と同じになることを確認する。外れたら、配信せずに止める。
 const baseCodepoints = unicodesOf(baseSfnt);
 const extendedCodepoints = new Set(unicodesOf(extendedSfnt));
 const overlap = baseCodepoints.filter((codepoint) => extendedCodepoints.has(codepoint));

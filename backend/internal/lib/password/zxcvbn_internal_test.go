@@ -9,7 +9,7 @@ import (
 )
 
 // TestEstimateWaitsForSlot は、同時に動かす判定が上限に達している間は、枠が空くまで待ち、
-// 1 回の判定の時間の上限までに空かなければ、時間切れとすることを確かめる。
+// 1 回の判定の時間の上限までに空かなければ、時間切れとすることを確認する。
 func TestEstimateWaitsForSlot(t *testing.T) {
 	t.Parallel()
 

@@ -12,7 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// segmentBuffer は、Splitter が書いたセグメント。置いたか捨てたかも控える。
+// segmentBuffer は、Splitter が書いたセグメント。置いたか破棄したかも控える。
 type segmentBuffer struct {
 	bytes.Buffer
 
@@ -38,7 +38,7 @@ func (b *segmentBuffer) Abort() error {
 var _ ts.Segment = new(segmentBuffer)
 
 // TestSplitterCutsAtKeyframes は、Splitter が、区切りの PTS に届いた I フレームの PES の先頭でセグメントを切り、
-// 各セグメントの先頭に PAT と PMT を写すことを確かめる (#806)。
+// 各セグメントの先頭に PAT と PMT をコピーすることを確認する (#806)。
 // test-hevc-main10.ts の IRAP の PTS は、129003 から 45045 (0.5 秒) ごとに並ぶ。
 func TestSplitterCutsAtKeyframes(t *testing.T) {
 	t.Parallel()
@@ -52,7 +52,7 @@ func TestSplitterCutsAtKeyframes(t *testing.T) {
 		cuts []int64
 		// interval は、cuts を使い切った後に切る間隔。
 		interval time.Duration
-		// chunk は、Splitter に一度に書く大きさ。パケットの境界をまたいで書いても切れることを確かめる。
+		// chunk は、Splitter に一度に書く大きさ。パケットの境界をまたいで書いても切れることを確認する。
 		chunk int
 		// wantCuts は、セグメントを始めた区切りの添え字。
 		wantCuts []int
@@ -68,7 +68,7 @@ func TestSplitterCutsAtKeyframes(t *testing.T) {
 			wantPTS:  []int64{129003, 219093, 309183, 399273},
 		},
 		{
-			// 区切りが I フレームの間にあれば、その後の最初の I フレームで切る。最初の区切りより前は捨てる。
+			// 区切りが I フレームの間にあれば、その後の最初の I フレームで切る。最初の区切りより前は破棄する。
 			name:     "cuts between keyframes",
 			cuts:     []int64{150000, 250000},
 			interval: time.Hour,
@@ -116,7 +116,7 @@ func TestSplitterCutsAtKeyframes(t *testing.T) {
 			require.NoError(t, splitter.Close())
 
 			cuts, firstPTS := make([]int, 0, len(segments)), make([]int64, 0, len(segments))
-			// written は、セグメントの先頭に写した PAT と PMT を除いて、書いた大きさ。
+			// written は、セグメントの先頭にコピーした PAT と PMT を除いて、書いた大きさ。
 			written := 0
 			for _, segment := range segments {
 				assert.True(t, segment.closed)
@@ -144,7 +144,7 @@ func TestSplitterCutsAtKeyframes(t *testing.T) {
 }
 
 // TestSplitterReportsCreateFailure は、セグメントを開けなかったら、それまでに読んだバイト数とエラーを返し、
-// 以後も同じエラーを返すことを確かめる。
+// 以後も同じエラーを返すことを確認する。
 func TestSplitterReportsCreateFailure(t *testing.T) {
 	t.Parallel()
 
@@ -169,8 +169,8 @@ func TestSplitterReportsCreateFailure(t *testing.T) {
 	require.ErrorIs(t, splitter.Close(), errFull)
 }
 
-// TestSplitterAbortDiscardsTheCurrentSegment は、Abort が、書きかけのセグメントを置かずに捨て、
-// 書き終えたセグメントには触らないことを確かめる (#1094)。以後の Write と Close は ErrAborted を返す。
+// TestSplitterAbortDiscardsTheCurrentSegment は、Abort が、書きかけのセグメントを置かずに破棄し、
+// 書き終えたセグメントには触らないことを確認する (#1094)。以後の Write と Close は ErrAborted を返す。
 func TestSplitterAbortDiscardsTheCurrentSegment(t *testing.T) {
 	t.Parallel()
 
@@ -199,7 +199,7 @@ func TestSplitterAbortDiscardsTheCurrentSegment(t *testing.T) {
 }
 
 // TestSplitterAbortDiscardsTheSegmentThatFailedToClose は、セグメントを置くのに失敗したときも、
-// Abort がそのセグメントを捨てることを確かめる。置けなかった一時ファイルを残さないため。
+// Abort がそのセグメントを破棄することを確認する。置けなかった一時ファイルを残さないため。
 func TestSplitterAbortDiscardsTheSegmentThatFailedToClose(t *testing.T) {
 	t.Parallel()
 

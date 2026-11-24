@@ -1,4 +1,4 @@
-import { Group, ScrollArea, Stack, Text } from '@mantine/core';
+import { Badge, Group, ScrollArea, Stack, Text, Tooltip } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -56,7 +56,8 @@ const query = graphql`
       displayName
       sortOrder
     }
-    services(includeHidden: true) {
+    # 上流から消えたサービスも、マークを付けて出す。非表示のマークや並び順を修正できるようにしておく (#1973)。
+    services(includeHidden: true, includeGone: true) {
       id
       networkId
       serviceId
@@ -64,6 +65,7 @@ const query = graphql`
       logoUrl
       hidden
       sortOrder
+      gone
       channelType {
         displayName
       }
@@ -227,12 +229,13 @@ function ServiceSettings() {
         <ScrollArea.Autosize mah={480}>
           <Stack gap="xs">
             {data.services.map((service) => (
-              // 番組表に出さない印と、並び順の上書き。並び順を空にすると、上書きを消して、リモコンのキーの順に戻す。
+              // 番組表に出さないマークと、並び順の上書き。並び順を空にすると、上書きを消して、リモコンのキーの順に戻す。
               <Group key={service.id} gap="xs" align="flex-end">
                 <ServiceName
                   name={service.name}
                   logoUrl={service.logoUrl}
                   sub={service.channelType.displayName}
+                  gone={service.gone}
                 />
                 <AutoSaveSwitch
                   size="sm"
@@ -292,6 +295,7 @@ function ServiceSettings() {
                     name={service.name}
                     logoUrl={service.logoUrl}
                     sub={channel.definitionName ?? service.channelType.displayName}
+                    gone={service.gone}
                   />
                   <AutoSaveNumberInput
                     nullable
@@ -352,6 +356,7 @@ function ServiceSettings() {
                     name={service.name}
                     logoUrl={service.logoUrl}
                     sub={service.channelType.displayName}
+                    gone={service.gone}
                   />
                   <AutoSaveTextInput
                     size="xs"
@@ -382,23 +387,37 @@ function ServiceSettings() {
 const jikkyoChannelPattern = /^jk\d{1,6}$/;
 
 // ServiceName は、行の左に出す、サービスの名前とロゴ、その下の小さな説明 sub。
+// 上流から消えたサービス (gone) には、説明の横にマークを付ける (#1973)。
 function ServiceName({
   name,
   logoUrl,
   sub,
+  gone,
 }: {
   name: string;
   logoUrl: string | null | undefined;
   sub: string;
+  gone: boolean;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Stack gap={0} w={200} pb={4}>
       <Text size="sm" fw={600} truncate>
         <ServiceLabel name={name} logoUrl={logoUrl} />
       </Text>
-      <Text size="xs" c="dimmed" truncate>
-        {sub}
-      </Text>
+      <Group gap={4} wrap="nowrap">
+        <Text size="xs" c="dimmed" truncate>
+          {sub}
+        </Text>
+        {gone && (
+          <Tooltip label={t('admin.system.serviceGoneDescription')} multiline w={240}>
+            <Badge size="xs" variant="light" color="gray">
+              {t('admin.system.serviceGone')}
+            </Badge>
+          </Tooltip>
+        )}
+      </Group>
     </Stack>
   );
 }

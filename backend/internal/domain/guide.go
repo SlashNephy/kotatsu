@@ -18,6 +18,8 @@ type Service struct {
 	LogoID             *int64
 	Hidden             bool
 	SortOrder          *int32
+	// Gone は、上流 (チューナーサーバー) のサービスの一覧から消えて、ServiceGoneAfter がたったかどうか (#1973)。
+	Gone bool
 }
 
 // ChannelType は、チャンネルの種類と、画面での名前と並び順。
@@ -43,7 +45,7 @@ type Program struct {
 	RelatedItems []byte
 }
 
-// ProgramCandidate は、番組の検索の候補。照合に使う、正規化した列も持つ。
+// ProgramCandidate は、番組の検索の候補。照合に使う、正規化したカラムも持つ。
 type ProgramCandidate struct {
 	Archived              bool
 	ServiceID             int64

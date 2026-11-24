@@ -16,7 +16,7 @@ import (
 
 // BeginPasskeyLogin は、パスキーだけでのログインを始める (設計書 9.3)。
 //
-// どのユーザーかは、認証器が答える。パスキーは、端末を持っていることと、生体認証か PIN の両方を確かめるので、
+// どのユーザーかは、オーセンティケーターが答える。パスキーは、端末を持っていることと、生体認証か PIN の両方を確認するので、
 // 本人の確認 (user verification) を必須にし、それだけで二要素の認証とみなす。
 func (l *Logins) BeginPasskeyLogin(ctx context.Context, db Database, client *ClientInfo) (*PasskeyAssertion, error) {
 	rp, err := relyingParty(client)
@@ -44,8 +44,8 @@ func (l *Logins) BeginPasskeyLogin(ctx context.Context, db Database, client *Cli
 	return assertion, nil
 }
 
-// CompleteWithPasskey は、認証器の応答 (PublicKeyCredential の JSON) を確かめ、パスキーだけでのログインを完了させる。
-// 手続きは、確かめられなくても使用済みにする。確かめられなければ ErrInvalidPasskey を返す。
+// CompleteWithPasskey は、オーセンティケーターの応答 (PublicKeyCredential の JSON) を確認し、パスキーだけでのログインを完了させる。
+// 手続きは、確認できなくても使用済みにする。確認できなければ ErrInvalidPasskey を返す。
 func (l *Logins) CompleteWithPasskey(ctx context.Context, db Database, token string, response []byte, client *ClientInfo) (*LoginResult, error) {
 	rp, err := relyingParty(client)
 	if err != nil {
@@ -84,7 +84,7 @@ func (l *Logins) CompleteWithPasskey(ctx context.Context, db Database, token str
 	return result, nil
 }
 
-// verifyDiscoverablePasskey は、認証器が答えたパスキーを引き、応答を確かめる。
+// verifyDiscoverablePasskey は、オーセンティケーターが答えたパスキーを引き、応答を確認する。
 func (l *Logins) verifyDiscoverablePasskey(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -113,7 +113,7 @@ func (l *Logins) verifyDiscoverablePasskey(
 		if user.disabled {
 			return fmt.Errorf("%w: the user is disabled", ErrInvalidPasskey)
 		}
-		// 認証器が答えたユーザーハンドルが、パスキーの持ち主と同じかは、go-webauthn が確かめる。
+		// オーセンティケーターが答えたユーザーハンドルが、パスキーの持ち主と同じかは、go-webauthn が確認する。
 		_, credential, err := rp.ValidatePasskeyLogin(func(_, _ []byte) (webauthn.User, error) {
 			return user, nil
 		}, *session, parsed)
@@ -135,7 +135,7 @@ func (l *Logins) verifyDiscoverablePasskey(
 	return user, nil
 }
 
-// BeginPasskeySecondFactor は、パスワードを確かめた後の第二要素として、パスキーでの確認を始める。
+// BeginPasskeySecondFactor は、パスワードを確認した後の第二要素として、パスキーでの確認を始める。
 // 手続きの状態は、待っているログインに持たせる。
 func (l *Logins) BeginPasskeySecondFactor(ctx context.Context, db Database, token string, client *ClientInfo) (*PasskeyAssertion, error) {
 	rp, err := relyingParty(client)
@@ -174,7 +174,7 @@ func (l *Logins) BeginPasskeySecondFactor(ctx context.Context, db Database, toke
 	return assertion, nil
 }
 
-// CompleteWithPasskeySecondFactor は、パスキーの応答を確かめて、パスワードでのログインを完了させる。
+// CompleteWithPasskeySecondFactor は、パスキーの応答を確認して、パスワードでのログインを完了させる。
 // 失敗は、ほかの第二要素と同じく数え、上限に達したらパスワードの確認からやり直させる。
 func (l *Logins) CompleteWithPasskeySecondFactor(ctx context.Context, db Database, token string, response []byte, client *ClientInfo) (*LoginResult, error) {
 	rp, err := relyingParty(client)
@@ -218,7 +218,7 @@ func (l *Logins) CompleteWithPasskeySecondFactor(ctx context.Context, db Databas
 	})
 }
 
-// acceptPasskey は、確かめたパスキーの署名の回数を見て、複製の疑いがなければ、使ったことを残す。
+// acceptPasskey は、確認したパスキーの署名の回数を見て、複製の疑いがなければ、使ったことを残す。
 //
 // 同期するパスキーは署名の回数を 0 のままにするので、0 が続くことは疑わない。go-webauthn は、0 でない回数が
 // 増えていないときだけ、複製の疑いを立てる。
@@ -232,7 +232,7 @@ func (l *Logins) acceptPasskey(ctx context.Context, tx pgx.Tx, user *webauthnUse
 	return recordPasskeyUse(ctx, tx, user, credential, l.clock.Now())
 }
 
-// recordPasskeyFailure は、パスキーを確かめられなかったことを、action の操作として監査ログに残す。
+// recordPasskeyFailure は、パスキーを確認できなかったことを、action の操作として監査ログに残す。
 func (l *Logins) recordPasskeyFailure(ctx context.Context, tx pgx.Tx, user *webauthnUser, client *ClientInfo, action string) error {
 	return l.recorder.Record(ctx, tx, &audit.Event{
 		Actor:      audit.User(user.id),

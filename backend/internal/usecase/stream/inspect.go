@@ -13,13 +13,13 @@ import (
 )
 
 const (
-	// inspectPriority は、チャンネルの TS を調べるときの優先度 (#830)。負なので、ほかの利用者からチューナーを奪わない。
+	// inspectPriority は、チャンネルの TS を調査するときの優先度 (#830)。負なので、ほかの利用者からチューナーを奪わない。
 	inspectPriority = -1
-	// DefaultInspectDuration は、チャンネルの TS を調べる長さ。PAT と PMT は 0.1 秒ほどの間隔で届くので、数秒あれば揃う。
+	// DefaultInspectDuration は、チャンネルの TS を調査する長さ。PAT と PMT は 0.1 秒ほどの間隔で届くので、数秒あれば揃う。
 	DefaultInspectDuration = 5 * time.Second
 )
 
-// ErrInspectionInterrupted は、調べる長さより前に、チャンネルのストリームが終わったときのエラー。
+// ErrInspectionInterrupted は、調査する長さより前に、チャンネルのストリームが終わったときのエラー。
 var ErrInspectionInterrupted = errors.New("the channel stream ended before the inspection finished")
 
 // ChannelOpener は、チャンネルのストリームを開く。tunerserver.Client が満たす。
@@ -29,7 +29,7 @@ type ChannelOpener interface {
 
 var _ ChannelOpener = tunerserver.Client(nil)
 
-// InspectedStream は、調べた TS の、PID 1 つの様子。
+// InspectedStream は、調査した TS の、PID 1 つの様子。
 type InspectedStream struct {
 	PID uint16
 	// Kind は、PMT と決まった PID から分かる種類 (ts.PIDKind*)。
@@ -42,7 +42,7 @@ type InspectedStream struct {
 	Scrambled  int64
 }
 
-// InspectedProgram は、調べた TS の、番組 (サービス) 1 つの様子。
+// InspectedProgram は、調査した TS の、番組 (サービス) 1 つの様子。
 type InspectedProgram struct {
 	// Number は program_number (ARIB ではサービス ID)。
 	Number  uint16
@@ -50,7 +50,7 @@ type InspectedProgram struct {
 	Streams []InspectedStream
 }
 
-// ChannelInspection は、チャンネルの TS を数秒受け取って調べた結果 (#830)。
+// ChannelInspection は、チャンネルの TS を数秒受け取って調査した結果 (#830)。
 type ChannelInspection struct {
 	// TransportStreamID は、PAT の transport_stream_id。PAT を受け取れなければ nil。
 	TransportStreamID *uint16
@@ -62,8 +62,8 @@ type ChannelInspection struct {
 	Others []InspectedStream
 }
 
-// ChannelInspector は、物理チャンネルの TS をまるごと数秒受け取り、サービスごとの構成とビットレートを調べる (#830)。
-// 調べる間、チューナーを 1 本使うので、管理者が求めたときだけ使う。
+// ChannelInspector は、物理チャンネルの TS をまるごと数秒受け取り、サービスごとの構成とビットレートを調査する (#830)。
+// 調査する間、チューナーを 1 本使うので、管理者が求めたときだけ使う。
 type ChannelInspector struct {
 	opener ChannelOpener
 	clock  clock.Clock
@@ -74,7 +74,7 @@ func NewChannelInspector(opener ChannelOpener, clk clock.Clock) *ChannelInspecto
 	return &ChannelInspector{opener: opener, clock: clk}
 }
 
-// Inspect は、チャンネル channelType/channel の TS を duration だけ受け取って調べる。
+// Inspect は、チャンネル channelType/channel の TS を duration だけ受け取って調査する。
 func (i *ChannelInspector) Inspect(ctx context.Context, channelType, channel string, duration time.Duration) (*ChannelInspection, error) {
 	if i.opener == nil {
 		return nil, ErrNoTuner
@@ -86,7 +86,7 @@ func (i *ChannelInspector) Inspect(ctx context.Context, channelType, channel str
 	defer func() {
 		_ = upstream.Close()
 	}()
-	// 調べる長さは、開いてから数える。チューニングと応答を待つ時間で、受け取る長さを削らない。
+	// 調査する長さは、開いてから数える。チューニングと応答を待つ時間で、受け取る長さを削らない。
 	readCtx, cancel := context.WithTimeout(ctx, duration)
 	defer cancel()
 	// 長さを過ぎたら、ストリームを閉じて読み込みを終わらせる。

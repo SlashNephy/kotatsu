@@ -323,7 +323,7 @@ const (
 	serviceBS int64 = 4_00101
 )
 
-// singleTunerServer は、既定のチャンネルに地上波のチューナーを 1 本だけ持つ偽のチューナーサーバーを返す。
+// singleTunerServer は、既定のチャンネルに地上波のチューナーを 1 本だけ持つモックのチューナーサーバーを返す。
 func singleTunerServer(t *testing.T) (*faketuner.Server, *httptest.Server) {
 	t.Helper()
 
@@ -355,7 +355,7 @@ func openStream(t *testing.T, baseURL string, serviceID int64, priority int) *st
 	return &stream{StatusCode: res.StatusCode, Body: res.Body}
 }
 
-// readTS は、TS のパケットが届いていることを確かめる。
+// readTS は、TS のパケットが届いていることを確認する。
 func readTS(t *testing.T, body io.Reader) {
 	t.Helper()
 

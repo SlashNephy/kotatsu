@@ -1,4 +1,4 @@
-// Command faketuner は、開発とテストのための偽のチューナーサーバーを起動する。
+// Command faketuner は、開発とテストのためのモックのチューナーサーバーを起動する。
 //
 // Mirakurun 互換の API を持ち、合成した EPG とイベントを返し、testdata/ts/test.ts を繰り返し流す。
 // --demo-interval を指定すると、その間隔で放送中の番組を延長し、番組の update イベントを発生させる。

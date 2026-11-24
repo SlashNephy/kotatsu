@@ -100,7 +100,7 @@ export function usePlayerSettings(): Settings & {
   jikkyoAvailable: boolean;
   // availableCommentSources は、管理者がオプトインした実況のコメントのソース (#1405)。
   availableCommentSources: readonly CommentSource[];
-  // 設定を変える関数は、保存の結果を callbacks で知らせる。設定の画面で、保存の通知を出すのに使う (#1740)。
+  // 設定を変える関数は、保存の結果を callbacks で通知する。設定の画面で、保存の通知を出すのに使う (#1740)。
   setJikkyoEnabled: (enabled: boolean, callbacks?: SaveCallbacks) => void;
   // setCommentSources は、ユーザーがオプトインするソースを置き換える。
   setCommentSources: (sources: readonly CommentSource[], callbacks?: SaveCallbacks) => void;

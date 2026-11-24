@@ -47,7 +47,7 @@ type chunk struct {
 	end   *time.Time
 }
 
-// addChunk は、サービス serviceID のバッファに、data を書いたチャンクを、索引と一緒に置く。
+// addChunk は、サービス serviceID のバッファに、data を書いたチャンクを、インデックスと一緒に置く。
 func (f *fixture) addChunk(t *testing.T, store *timeshiftStore, serviceID int64, c chunk, data []byte) {
 	t.Helper()
 
@@ -58,7 +58,7 @@ func (f *fixture) addChunk(t *testing.T, store *timeshiftStore, serviceID int64,
 	defer root.Close()
 	require.NoError(t, root.MkdirAll(filepath.Dir(rel), 0o755))
 	require.NoError(t, root.WriteFile(rel, data, 0o600))
-	analyzer, index, err := recording.CreateIndex(store.store, chunkID, nil, nil, nil)
+	analyzer, index, err := recording.CreateIndex(store.store, chunkID, nil, nil, nil, nil)
 	require.NoError(t, err)
 	_, err = analyzer.Write(data)
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func (f *fixture) segmentSpans(t *testing.T, reservationID uuid.UUID) []chunk {
 }
 
 // TestRecorderBackfillsFromTimeshift は、録画を始めるのが予定の開始より遅れたとき、サービスをタイムシフトで録っていれば、
-// 予定の開始からの分をバッファから写し、写せなかった分だけを途切れた区間にすることを確かめる (#826、設計書 5.7)。
+// 予定の開始からの分をバッファからコピーし、コピーできなかった分だけを途切れた区間にすることを確認する (#826、設計書 5.7)。
 func TestRecorderBackfillsFromTimeshift(t *testing.T) {
 	t.Parallel()
 
@@ -154,7 +154,7 @@ func TestRecorderBackfillsFromTimeshift(t *testing.T) {
 				return f.segments(t, reservationID) >= 1
 			}, waitTimeout, 10*time.Millisecond)
 
-			// 書いている途中のチャンクが、ライブのストリームで書き始めた位置を越えるまで待ってから写す。
+			// 書いている途中のチャンクが、ライブのストリームで書き始めた位置を越えるまで待ってからコピーする。
 			f.clock.Advance(10 * time.Second)
 			if len(tt.wantStarts) > 1 {
 				require.Eventually(t, func() bool {

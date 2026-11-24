@@ -16,13 +16,13 @@ import (
 // programFile は、テストの録画ファイルのプール内のパス。
 const programFile = "番組/録画.m2ts"
 
-// indexBody は、テストの索引のファイルの中身。
+// indexBody は、テストのインデックスのファイルの内容。
 const indexBody = "index"
 
 // segmentDirID は、テストの生成物のディレクトリの持ち主の、セグメントのファイルの ID。
 const segmentDirID = "0199f0a0-0000-7000-8000-000000000001"
 
-// TestSegmentDirOwner は、データディレクトリの直下の、ID の名前のディレクトリから、持ち主の ID を求められることを確かめる。
+// TestSegmentDirOwner は、データディレクトリの直下の、ID の名前のディレクトリから、持ち主の ID を求められることを確認する。
 func TestSegmentDirOwner(t *testing.T) {
 	t.Parallel()
 
@@ -56,7 +56,7 @@ func TestSegmentDirOwner(t *testing.T) {
 }
 
 // TestScan は、ファイルと生成物のディレクトリを返し、隠しファイル、lost+found、シンボリックリンク、
-// 中にディレクトリのある生成物のディレクトリは返さないことを確かめる。ID の名前でないディレクトリの中は、ファイルとして返す。
+// 中にディレクトリのある生成物のディレクトリは返さないことを確認する。ID の名前でないディレクトリの中は、ファイルとして返す。
 func TestScan(t *testing.T) {
 	t.Parallel()
 
@@ -108,7 +108,7 @@ func TestScan(t *testing.T) {
 	}
 }
 
-// TestInspectChangedAt は、名前を変えたファイルは、更新日時が古くても、変えた日時が新しくなることを確かめる。
+// TestInspectChangedAt は、名前を変えたファイルは、更新日時が古くても、変えた日時が新しくなることを確認する。
 // 付け直している途中の録画ファイルを、DB にないとみなさないために使う。
 func TestInspectChangedAt(t *testing.T) {
 	t.Parallel()

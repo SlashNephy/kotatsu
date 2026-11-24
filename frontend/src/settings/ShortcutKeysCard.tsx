@@ -1,5 +1,4 @@
 import {
-  Badge,
   Button,
   Card,
   CloseButton,
@@ -34,7 +33,7 @@ import { keyLabels, splitKey } from '../yunomi/ShortcutsHelp';
 
 // ShortcutKeysCard は、プレイヤーのキーの割り当てを、この端末で変える設定 (#810、設計書 7.5)。
 // 「キーを足す」を押してから押したキーを、その操作に足す。ほかの操作に割り当てていたキーは、そちらから外す。
-// 割り当てを変えたら、ほかの設定と同じ通知で知らせる (#1740)。
+// 割り当てを変えたら、ほかの設定と同じ形式で通知する (#1740)。
 export function ShortcutKeysCard() {
   const { t } = useTranslation();
   const { saved } = useSaveNotice();
@@ -134,9 +133,6 @@ export function ShortcutKeysCard() {
             {t('settings.shortcutKeys.title')}
           </Title>
           {/* アカウントの設定と並ぶので、この端末だけの設定であることを示す。 */}
-          <Badge size="sm" variant="light" color="gray" tt="none">
-            {t('settings.account.deviceOnly')}
-          </Badge>
         </Group>
         <Text size="sm" c="dimmed">
           {t('settings.shortcutKeys.description')}

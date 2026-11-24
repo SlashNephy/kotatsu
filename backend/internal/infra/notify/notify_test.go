@@ -31,7 +31,7 @@ func TestWatcherReceivesChanges(t *testing.T) {
 		opts notify.WatcherOptions
 	}{
 		{
-			// ポーリングの間隔を十分に長くし、LISTEN の経路だけで届くことを確かめる。
+			// ポーリングの間隔を十分に長くし、LISTEN の経路だけで届くことを確認する。
 			name: "listen",
 			opts: notify.WatcherOptions{UseListen: true, PollInterval: time.Hour},
 		},
@@ -46,12 +46,12 @@ func TestWatcherReceivesChanges(t *testing.T) {
 			t.Parallel()
 
 			pool := migratedPool(t)
-			// Watcher を作る前の変更は、知らせる対象にしない。
+			// Watcher を作る前の変更は、通知する対象にしない。
 			publish(t, pool, channel)
 
 			watcher := startWatcher(t, pool, tt.opts)
 
-			// LISTEN の経路だけで届くことを確かめるため、LISTEN が始まってから Publish する。
+			// LISTEN の経路だけで届くことを確認するため、LISTEN が始まってから Publish する。
 			if tt.opts.UseListen {
 				waitListening(t, pool)
 			}
@@ -70,7 +70,7 @@ func TestWatcherCoalescesChanges(t *testing.T) {
 	pool := migratedPool(t)
 	watcher := startWatcher(t, pool, notify.WatcherOptions{UseListen: false, PollInterval: 100 * time.Millisecond})
 
-	// 受け取る前に何度変更があっても、まとめて 1 回だけ知らせる。
+	// 受け取る前に何度変更があっても、まとめて 1 回だけ通知する。
 	publish(t, pool, channel)
 	publish(t, pool, channel)
 	last := publish(t, pool, otherChannel)
@@ -176,7 +176,7 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// TestBroadcasterWakesEverySubscriber は、変更をすべての購読者に知らせ、遅れた購読者も版数で変更を取りこぼさないことを確かめる。
+// TestBroadcasterWakesEverySubscriber は、変更をすべての購読者に知らせ、遅れた購読者もバージョンで変更を取りこぼさないことを確認する。
 func TestBroadcasterWakesEverySubscriber(t *testing.T) {
 	t.Parallel()
 
@@ -209,7 +209,7 @@ func TestBroadcasterWakesEverySubscriber(t *testing.T) {
 
 	publish(t, pool, otherChannel)
 	waitWake(t, first)
-	// 2 回の変更の知らせは 1 回にまとまるが、どちらの版数も上がっている。
+	// 2 回の変更の知らせは 1 回にまとまるが、どちらのバージョンも上がっている。
 	waitWake(t, slow)
 	assert.Equal(t, int64(1), broadcaster.Version(channel))
 	assert.Equal(t, int64(1), broadcaster.Version(otherChannel))
@@ -218,7 +218,7 @@ func TestBroadcasterWakesEverySubscriber(t *testing.T) {
 		t.Fatal("the coalesced wake-up must be delivered only once")
 	default:
 	}
-	// 購読をやめた購読者には知らせない。
+	// 購読をやめた購読者には通知しない。
 	select {
 	case <-stopped:
 		t.Fatal("an unsubscribed subscriber must not be woken")
@@ -236,12 +236,12 @@ func waitWake(t *testing.T, wake <-chan struct{}) {
 	}
 }
 
-// TestLoopRetriesFirstPoll は、変更の知らせを見張り始めるときの最初の問い合わせが失敗しても、Loop を終えずにやり直すことを確かめる (#528)。
+// TestLoopRetriesFirstPoll は、変更の知らせを見張り始めるときの最初の問い合わせが失敗しても、Loop を終えずにやり直すことを確認する (#528)。
 // 終えると、neko のリーダーの処理がエラーで終わり、リーダーを降りることになる。
 func TestLoopRetriesFirstPoll(t *testing.T) {
 	t.Parallel()
 
-	// マイグレーションの前の DB では、版数の表がないので、最初の問い合わせが失敗する。
+	// マイグレーションの前の DB では、バージョンのテーブルがないので、最初の問い合わせが失敗する。
 	pool, err := database.Open(t.Context(), databasetest.New(t))
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)

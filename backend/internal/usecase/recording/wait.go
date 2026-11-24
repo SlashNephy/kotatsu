@@ -20,13 +20,13 @@ const (
 	// broadcastObserveTimeout は、遅れた番組を待つかを決めるために、EIT[p/f] を読むのを待つ時間 (#1046)。
 	// EIT[p/f] は数秒ごとに届くので、これだけ待っても読めない TS では待たずに書き始め、取りこぼさないようにする。
 	broadcastObserveTimeout = 10 * time.Second
-	// maxPrerollBytes は、遅れた番組を待つ間にメモリに溜める大きさの上限。MaxPreroll の間に、ビットレートの高い放送でも収まる。
+	// maxPrerollBytes は、遅れた番組を待つ間にメモリにバッファする大きさの上限。MaxPreroll の間に、ビットレートの高い放送でも収まる。
 	maxPrerollBytes = 128 << 20
 	// waitReadSize は、遅れた番組を待つ間に、ストリームを 1 回に読む大きさ。
 	waitReadSize = 64 * ts.PacketSize
 )
 
-// prerolledStream は、溜めた分を先に読ませるストリーム。閉じると、元のストリームを閉じる。
+// prerolledStream は、バッファした分を先に読ませるストリーム。閉じると、元のストリームを閉じる。
 type prerolledStream struct {
 	io.Reader
 	io.Closer
@@ -38,8 +38,8 @@ type prerollChunk struct {
 	data []byte
 }
 
-// preroll は、遅れた番組を待つ間に読んだ TS の、直近の window の分を溜める (#1046)。
-// 放送中になってから書き始めても、番組の前のマージンを残せるようにする。古いものから、パケットの区切りで捨てる。
+// preroll は、遅れた番組を待つ間に読んだ TS の、直近の window の分をバッファする (#1046)。
+// 放送中になってから書き始めても、番組の前のマージンを残せるようにする。古いものから、パケットの区切りで破棄する。
 type preroll struct {
 	window time.Duration
 	chunks []prerollChunk
@@ -52,7 +52,7 @@ func newPreroll(window time.Duration) *preroll {
 	return &preroll{window: window, chunks: []prerollChunk{}, size: 0, carry: []byte{}}
 }
 
-// add は、at に読んだ b を溜め、window より前に読んだ分と、maxPrerollBytes を超えた分を捨てる。
+// add は、at に読んだ b をバッファし、window より前に読んだ分と、maxPrerollBytes を超えた分を破棄する。
 func (p *preroll) add(at time.Time, b []byte) {
 	p.carry = append(p.carry, b...)
 	if whole := len(p.carry) - len(p.carry)%ts.PacketSize; whole > 0 {
@@ -66,7 +66,7 @@ func (p *preroll) add(at time.Time, b []byte) {
 	}
 }
 
-// startedAt は、溜めた分の最初を読んだ時刻を返す。何も溜めていなければ now を返す。
+// startedAt は、バッファした分の最初を読んだ時刻を返す。何もバッファしていなければ now を返す。
 func (p *preroll) startedAt(now time.Time) time.Time {
 	if len(p.chunks) == 0 {
 		return now
@@ -75,7 +75,7 @@ func (p *preroll) startedAt(now time.Time) time.Time {
 	return p.chunks[0].at
 }
 
-// bytes は、溜めた分を、読んだ順につないで返す。
+// bytes は、バッファした分を、読んだ順につないで返す。
 func (p *preroll) bytes() []byte {
 	out := make([]byte, 0, p.size+len(p.carry))
 	for _, chunk := range p.chunks {
@@ -87,7 +87,7 @@ func (p *preroll) bytes() []byte {
 
 // waitOutcome は、waitBeforeWriting の結果。
 type waitOutcome struct {
-	// stream と startedAt は、書くストリーム (溜めた分を先に読ませる) と、その最初のデータを読んだ時刻。
+	// stream と startedAt は、書くストリーム (バッファした分を先に読ませる) と、その最初のデータを読んだ時刻。
 	stream io.ReadCloser
 	// tuner は、ストリームを受信しているチューナー (#1467)。見つけられなければ nil。
 	tuner     *usedTuner
@@ -99,7 +99,7 @@ type waitOutcome struct {
 	err  error
 }
 
-// waitBeforeWriting は、遅れた番組を待つときは、放送中になるまで書かずに待つ (#1046)。待った後は、溜めた直近の分から書く。
+// waitBeforeWriting は、遅れた番組を待つときは、放送中になるまで書かずに待つ (#1046)。待った後は、バッファした直近の分から書く。
 // 待たないときは、stream をそのまま、今の時刻から書く。created は、録画の書いたものがあるセグメントの数。
 func (r *Recorder) waitBeforeWriting(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult,
@@ -153,8 +153,8 @@ type readResult struct {
 	err  error
 }
 
-// waitForBroadcast は、ストリームを書かずに読み、予約した番組が放送中になるまで待つ (#1046)。待っている間は、直近の分を溜める。
-// 次のときに待つのをやめ、溜めた分を返す。
+// waitForBroadcast は、ストリームを書かずに読み、予約した番組が放送中になるまで待つ (#1046)。待っている間は、直近の分をバッファする。
+// 次のときに待つのをやめ、バッファした分を返す。
 //   - 予約した番組が放送中になったとき
 //   - 予約した番組が、放送中にも次の番組にも出なくなったとき (eventId の差し替えなど)。取りこぼさないよう、その時点から書く
 //   - broadcastObserveTimeout の間、EIT[p/f] を読めないとき
@@ -168,7 +168,7 @@ func (r *Recorder) waitForBroadcast(
 	tracker.watch(analyzer)
 	since := r.clock.Now()
 
-	// 読むのを別のゴルーチンにして、読めない間も、予定の終わりと予約の無効を確かめる。
+	// 読むのを別のゴルーチンにして、読めない間も、予定の終わりと予約の無効を確認する。
 	// 1 回ずつ読ませるので、待つのをやめた後は、ストリームを読む者はいない。
 	requests := make(chan struct{})
 	results := make(chan readResult)
@@ -200,7 +200,7 @@ func (r *Recorder) waitForBroadcast(
 				return nil, end, nil
 			}
 			if r.stopWaiting(ctx, logger, tracker, since) {
-				// 読んでいる最中の分も溜めてから返す。
+				// 読んでいる最中の分もバッファしてから返す。
 				result := <-results
 				buffered.add(r.clock.Now(), result.data)
 

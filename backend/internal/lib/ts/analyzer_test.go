@@ -90,7 +90,7 @@ func TestAnalyzerMutations(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// mutate は、パケットの列を書き換える。
+		// mutate は、パケットの並びを書き換える。
 		mutate        func(t *testing.T, pkts [][]byte) [][]byte
 		wantVideo     ts.PIDStats
 		wantAudioDrop int64
@@ -378,7 +378,7 @@ func TestAnalyzerContinuityRules(t *testing.T) {
 	}
 }
 
-// TestAnalyzerCutoff は、PTS が CutoffPTS に届いた I フレームの時点の統計を控えることを確かめる (#525)。
+// TestAnalyzerCutoff は、PTS が CutoffPTS に届いた I フレームの時点の統計を控えることを確認する (#525)。
 // test.ts の I フレームの PTS は 129003 から 45045 ずつ増え、6 つ目 (354228) は映像の 2168 番目のパケットから始まる。
 func TestAnalyzerCutoff(t *testing.T) {
 	t.Parallel()

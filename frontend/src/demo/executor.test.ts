@@ -67,6 +67,19 @@ function newExecutor() {
   return { events, executor: createExecutor(createRootValue(events, now)) };
 }
 
+// subscribeChanges は、viewerEvents を購読し、購読を始めたときに届く今のバージョン (データの種類の数と設定の 1 つ) を読み終えて返す。
+async function subscribeChanges(executor: ReturnType<typeof newExecutor>['executor']) {
+  const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
+    Symbol.asyncIterator
+  ]();
+  const current: unknown[] = [];
+  for (let i = 0; i < 11; i++) {
+    current.push((await results.next()).value);
+  }
+
+  return { results, current };
+}
+
 function text(request: ConcreteRequest): string {
   return request.params.text ?? '';
 }
@@ -270,15 +283,32 @@ describe('demo executor answers the queries of the screens', () => {
 });
 
 describe('demo viewerEvents', () => {
+  it('sends the current versions first, as the server does', async () => {
+    const { executor } = newExecutor();
+    const { results, current } = await subscribeChanges(executor);
+
+    expect(current).toContainEqual({
+      data: {
+        viewerEvents: {
+          dataChange: { channel: 'RULES', version: 0 },
+          viewerSettingsVersion: null,
+          unreadNotificationCount: null,
+          streamsDraining: null,
+          liveStreamScrambled: null,
+        },
+      },
+    });
+    expect(current.at(-1)).toMatchObject({
+      data: { viewerEvents: { dataChange: null, viewerSettingsVersion: 0 } },
+    });
+    await results.return?.();
+  });
+
   it('delivers a published data change to the subscriber', async () => {
     const { events, executor } = newExecutor();
-    const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
-      Symbol.asyncIterator
-    ]();
+    const { results } = await subscribeChanges(executor);
 
     const next = results.next();
-    // 購読を始めてから流す。listen はジェネレーターなので、最初の next で購読が始まる。
-    await Promise.resolve();
     events.publish({
       dataChange: { channel: 'RESERVATIONS', version: 3 },
       viewerSettingsVersion: null,
@@ -304,9 +334,7 @@ describe('demo viewerEvents', () => {
 
   it('ends a pending wait when the subscriber stops', async () => {
     const { executor } = newExecutor();
-    const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
-      Symbol.asyncIterator
-    ]();
+    const { results } = await subscribeChanges(executor);
 
     const pending = results.next();
     await results.return?.();
@@ -452,9 +480,7 @@ describe('demo guide and search', () => {
 describe('demo watch reservation', () => {
   it('tells the other screens about the change', async () => {
     const { executor } = newExecutor();
-    const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
-      Symbol.asyncIterator
-    ]();
+    const { results } = await subscribeChanges(executor);
     const next = results.next();
 
     await executor.execute(text(WatchReserveButtonMutation), { program: upcoming, reserved: true });
@@ -516,5 +542,167 @@ describe('demo watch rules', () => {
     await executor.execute(text(WatchRuleEditorDeleteMutation), { id });
 
     expect(await reservedCount(executor)).toBe(0);
+  });
+});
+
+describe('demo system settings', () => {
+  const save = (executor: ReturnType<typeof newExecutor>['executor'], input: object) =>
+    executor.execute(
+      'mutation ($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { updatedAt } }',
+      { input },
+    );
+
+  it('derives jikkyoEnabled from the comment sources like the server', async () => {
+    const { executor } = newExecutor();
+
+    await save(executor, { commentSources: ['NICOLOG'] });
+    const result = await executor.execute(
+      '{ systemSettings { jikkyoEnabled commentSources } }',
+      {},
+    );
+
+    expect(result.data).toEqual({
+      systemSettings: { jikkyoEnabled: false, commentSources: ['NICOLOG'] },
+    });
+  });
+
+  it('applies the DRCS replacements as a patch, removing the ones whose text is null', async () => {
+    const { executor } = newExecutor();
+    const md5 = (digit: string) => digit.repeat(32);
+
+    await save(executor, {
+      drcsReplacements: [
+        { md5: md5('b'), text: '①' },
+        { md5: md5('a'), text: '②' },
+      ],
+    });
+    await save(executor, {
+      drcsReplacements: [
+        { md5: md5('a'), text: null },
+        { md5: md5('c'), text: '③' },
+      ],
+    });
+    const result = await executor.execute('{ drcsReplacements { md5 text } }', {});
+
+    expect(result.data).toEqual({
+      drcsReplacements: [
+        { md5: md5('b'), text: '①' },
+        { md5: md5('c'), text: '③' },
+      ],
+    });
+  });
+
+  it('applies the jikkyo channels as a patch, removing the ones whose channel is null', async () => {
+    const { executor } = newExecutor();
+
+    await save(executor, {
+      jikkyoChannels: [
+        { networkId: 4, serviceId: 101, channelId: 'jk101' },
+        { networkId: 32736, serviceId: 1024, channelId: 'jk1' },
+      ],
+    });
+    await save(executor, {
+      jikkyoChannels: [
+        { networkId: 4, serviceId: 101, channelId: null },
+        { networkId: 32736, serviceId: 1024, channelId: 'jk2' },
+      ],
+    });
+    const result = await executor.execute(
+      '{ systemSettings { jikkyoChannels { networkId serviceId channelId } } }',
+      {},
+    );
+
+    expect(result.data).toEqual({
+      systemSettings: {
+        jikkyoChannels: [{ networkId: 32736, serviceId: 1024, channelId: 'jk2' }],
+      },
+    });
+  });
+
+  it('keeps the saved settings when they are read again (#2073)', async () => {
+    const { executor } = newExecutor();
+
+    await executor.execute(
+      'mutation ($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { archiveRetentionDays } }',
+      { input: { archiveRetentionDays: 60, mcpEnabled: true } },
+    );
+    const result = await executor.execute(
+      '{ systemSettings { archiveRetentionDays mcpEnabled notificationRetentionDays updatedAt } }',
+      {},
+    );
+
+    expect(result).toMatchObject({
+      data: {
+        systemSettings: {
+          archiveRetentionDays: 60,
+          mcpEnabled: true,
+          notificationRetentionDays: 30,
+        },
+      },
+    });
+    expect(
+      (result.data as { systemSettings: { updatedAt: string | null } }).systemSettings.updatedAt,
+    ).not.toBeNull();
+  });
+});
+
+describe('demo notification preferences', () => {
+  it('keeps the saved preference of a kind and leaves the others enabled (#2073)', async () => {
+    const { executor } = newExecutor();
+
+    await executor.execute(
+      'mutation ($input: NotificationPreferenceInput!) { updateNotificationPreference(input: $input) { kind } }',
+      { input: { kind: 'RECORDING_STARTED', inApp: false, webPush: false } },
+    );
+    const result = await executor.execute(
+      '{ notificationPreferences { kind inApp webPush ruleReservations } }',
+      {},
+    );
+
+    const preferences = (
+      result.data as {
+        notificationPreferences: { kind: string; inApp: boolean; webPush: boolean }[];
+      }
+    ).notificationPreferences;
+    expect(preferences.find((p) => p.kind === 'RECORDING_STARTED')).toEqual({
+      kind: 'RECORDING_STARTED',
+      inApp: false,
+      webPush: false,
+      ruleReservations: true,
+    });
+    expect(preferences.find((p) => p.kind === 'RECORDING_FAILED')).toMatchObject({
+      inApp: true,
+      webPush: true,
+    });
+  });
+});
+
+describe('demo rule defaults', () => {
+  it('changes only the given rule defaults and clears the duplicate window (#2073)', async () => {
+    const { executor } = newExecutor();
+    const save = (ruleDefaults: object) =>
+      executor.execute(
+        'mutation ($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { archiveRetentionDays } }',
+        { input: { ruleDefaults } },
+      );
+    const read = async () =>
+      (
+        (
+          await executor.execute(
+            '{ systemSettings { ruleDefaults { avoidDuplicates duplicateWindowDays followEventRelay bundleSameEpisodes } } }',
+            {},
+          )
+        ).data as { systemSettings: { ruleDefaults: object } }
+      ).systemSettings.ruleDefaults;
+
+    await save({ avoidDuplicates: true, duplicateWindowDays: 30 });
+    expect(await read()).toEqual({
+      avoidDuplicates: true,
+      duplicateWindowDays: 30,
+      followEventRelay: true,
+      bundleSameEpisodes: true,
+    });
+    await save({ clearDuplicateWindowDays: true });
+    expect(await read()).toMatchObject({ avoidDuplicates: true, duplicateWindowDays: null });
   });
 });

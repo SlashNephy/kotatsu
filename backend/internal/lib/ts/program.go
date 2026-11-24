@@ -38,6 +38,9 @@ type Program struct {
 	Version uint8
 	// Streams は、PMT に書かれた順のエレメンタリーストリーム。
 	Streams []*Stream
+	// ECMPIDs は、PMT の CA 記述子 (program_info と ES_info) が指す ECM の PID。昇順で、重なりを除く。
+	// ECM は ES としては PMT に載らないが、番組の境目で CA 記述子が外れて送られなくなり、戻るときに continuity_counter を振り直す。
+	ECMPIDs []uint16
 }
 
 // Stream はエレメンタリーストリーム。
@@ -53,6 +56,24 @@ type Stream struct {
 
 // descriptorTagStreamIdentifier は、ストリーム識別記述子 (stream_identifier_descriptor) の記述子タグ。
 const descriptorTagStreamIdentifier = 0x52
+
+// descriptorTagCA は、限定受信方式記述子 (CA_descriptor) の記述子タグ。
+const descriptorTagCA = 0x09
+
+// caPIDs は、記述子の並びから、CA 記述子の CA_PID (ECM の PID) を集めて ecm に足す。
+func caPIDs(descriptors []byte, ecm map[uint16]bool) {
+	for len(descriptors) >= 2 {
+		tag, length := descriptors[0], int(descriptors[1])
+		if 2+length > len(descriptors) {
+			return
+		}
+		// CA_system_id (16 ビット) の後の 13 ビットが CA_PID。
+		if tag == descriptorTagCA && length >= 4 {
+			ecm[uint16(descriptors[4]&0x1F)<<8|uint16(descriptors[5])] = true
+		}
+		descriptors = descriptors[2+length:]
+	}
+}
 
 // componentTag は、PMT の ES_info の記述子の並びから、ストリーム識別記述子の component_tag を読む。なければ nil。
 func componentTag(descriptors []byte) *uint8 {
@@ -111,7 +132,7 @@ func (t *programTable) isPMTPID(pid uint16) bool {
 	return false
 }
 
-// handlePAT は PAT のセクションを読む。版が変わったら、PAT から消えた番組の構成も捨てる。
+// handlePAT は PAT のセクションを読む。バージョンが変わったら、PAT から消えた番組の構成も破棄する。
 func (t *programTable) handlePAT(section []byte) {
 	header := parseSectionHeader(section)
 	if header == nil || header.tableID != tableIDPAT || !header.currentNext {
@@ -148,7 +169,8 @@ func (t *programTable) handlePAT(section []byte) {
 }
 
 // handlePMT は PMT のセクションを読む。
-// 前に読んだ同じ番組の PMT と比べて、外れた ES と加わった ES の PID を返す。最初に読んだ PMT では空を返す。
+// 前に読んだ同じ番組の PMT と比較して、外れた ES と加わった ES の PID と、CA 記述子から外れた ECM と加わった ECM の PID を返す。
+// 最初に読んだ PMT では空を返す。
 func (t *programTable) handlePMT(pid uint16, section []byte) []uint16 {
 	header := parseSectionHeader(section)
 	if header == nil || header.tableID != tableIDPMT || !header.currentNext || len(header.body) < 4 {
@@ -158,7 +180,7 @@ func (t *programTable) handlePMT(pid uint16, section []byte) []uint16 {
 	if t.pmtPIDs[number] != pid {
 		return []uint16{}
 	}
-	// 同じ PID の同じ版は読み飛ばす。PAT で PID が移ったら、版が同じでも中身が違いうるので読む (#1428)。
+	// 同じ PID の同じバージョンは読み飛ばす。PAT で PID が移ったら、バージョンが同じでも内容が違いうるので読む (#1428)。
 	previous := t.programs[number]
 	if previous != nil && previous.Version == header.version && previous.PMTPID == pid {
 		return []uint16{}
@@ -171,17 +193,21 @@ func (t *programTable) handlePMT(pid uint16, section []byte) []uint16 {
 		PCRPID:  uint16(body[0]&0x1F)<<8 | uint16(body[1]),
 		Version: header.version,
 		Streams: []*Stream{},
+		ECMPIDs: []uint16{},
 	}
 	programInfoLength := int(body[2]&0x0F)<<8 | int(body[3])
 	if 4+programInfoLength > len(body) {
 		return []uint16{}
 	}
+	ecm := map[uint16]bool{}
+	caPIDs(body[4:4+programInfoLength], ecm)
 	for entry := body[4+programInfoLength:]; len(entry) >= 5; {
 		streamType := entry[0]
 		esInfoLength := int(entry[3]&0x0F)<<8 | int(entry[4])
 		var tag *uint8
 		if 5+esInfoLength <= len(entry) {
 			tag = componentTag(entry[5 : 5+esInfoLength])
+			caPIDs(entry[5:5+esInfoLength], ecm)
 		}
 		program.Streams = append(program.Streams, &Stream{
 			PID:          uint16(entry[1]&0x1F)<<8 | uint16(entry[2]),
@@ -194,13 +220,18 @@ func (t *programTable) handlePMT(pid uint16, section []byte) []uint16 {
 		}
 		entry = entry[5+esInfoLength:]
 	}
+	// slices.Sorted は、要素がなければ nil を返すので、ECM のない PMT では空のスライスのままにする。
+	if len(ecm) > 0 {
+		program.ECMPIDs = slices.Sorted(maps.Keys(ecm))
+	}
 	t.programs[number] = program
 	t.generation++
 
 	return changedStreamPIDs(previous, program)
 }
 
-// changedStreamPIDs は、previous と current の一方にだけ載っている ES の PID を、昇順に返す。previous が nil なら空を返す。
+// changedStreamPIDs は、previous と current の一方にだけ載っている ES の PID と、CA 記述子が指す ECM の PID を、昇順に返す。
+// previous が nil なら空を返す。
 func changedStreamPIDs(previous, current *Program) []uint16 {
 	if previous == nil {
 		return []uint16{}
@@ -209,8 +240,14 @@ func changedStreamPIDs(previous, current *Program) []uint16 {
 	for _, s := range previous.Streams {
 		pids[s.PID] |= 1
 	}
+	for _, pid := range previous.ECMPIDs {
+		pids[pid] |= 1
+	}
 	for _, s := range current.Streams {
 		pids[s.PID] |= 2
+	}
+	for _, pid := range current.ECMPIDs {
+		pids[pid] |= 2
 	}
 	changed := []uint16{}
 	for _, pid := range slices.Sorted(maps.Keys(pids)) {

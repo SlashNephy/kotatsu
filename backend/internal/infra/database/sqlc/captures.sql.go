@@ -13,7 +13,7 @@ import (
 )
 
 const deleteCapture = `-- name: DeleteCapture :one
-DELETE FROM captures WHERE id = $1 AND user_id = $2 RETURNING id, user_id, recording_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized, caption, broadcast_at, taken_at, size, created_at
+DELETE FROM captures WHERE id = $1 AND user_id = $2 RETURNING id, user_id, recording_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized, caption, caption_normalized, broadcast_at, taken_at, size, created_at
 `
 
 type DeleteCaptureParams struct {
@@ -35,6 +35,7 @@ func (q *Queries) DeleteCapture(ctx context.Context, arg DeleteCaptureParams) (C
 		&i.ServiceNameNormalized,
 		&i.ProgramNameNormalized,
 		&i.Caption,
+		&i.CaptionNormalized,
 		&i.BroadcastAt,
 		&i.TakenAt,
 		&i.Size,
@@ -44,7 +45,7 @@ func (q *Queries) DeleteCapture(ctx context.Context, arg DeleteCaptureParams) (C
 }
 
 const getCapture = `-- name: GetCapture :one
-SELECT id, user_id, recording_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized, caption, broadcast_at, taken_at, size, created_at FROM captures WHERE id = $1 AND user_id = $2
+SELECT id, user_id, recording_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized, caption, caption_normalized, broadcast_at, taken_at, size, created_at FROM captures WHERE id = $1 AND user_id = $2
 `
 
 type GetCaptureParams struct {
@@ -66,6 +67,7 @@ func (q *Queries) GetCapture(ctx context.Context, arg GetCaptureParams) (Capture
 		&i.ServiceNameNormalized,
 		&i.ProgramNameNormalized,
 		&i.Caption,
+		&i.CaptionNormalized,
 		&i.BroadcastAt,
 		&i.TakenAt,
 		&i.Size,
@@ -77,14 +79,14 @@ func (q *Queries) GetCapture(ctx context.Context, arg GetCaptureParams) (Capture
 const insertCapture = `-- name: InsertCapture :one
 INSERT INTO captures (
   id, user_id, recording_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized,
-  caption, broadcast_at, taken_at, size, created_at
+  caption, caption_normalized, broadcast_at, taken_at, size, created_at
 )
 SELECT $1, $2, r.id, CASE WHEN r.id IS NULL THEN NULL ELSE $3::bigint END,
   $4, $5, $6, $7,
-  $8, $9, $10, $11, $12
+  $8, $9, $10, $11, $12, $13
 FROM (SELECT 1) AS one
-LEFT JOIN recordings r ON r.id = $13::uuid
-RETURNING id, user_id, recording_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized, caption, broadcast_at, taken_at, size, created_at
+LEFT JOIN recordings r ON r.id = $14::uuid
+RETURNING id, user_id, recording_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized, caption, caption_normalized, broadcast_at, taken_at, size, created_at
 `
 
 type InsertCaptureParams struct {
@@ -96,6 +98,7 @@ type InsertCaptureParams struct {
 	ServiceNameNormalized string
 	ProgramNameNormalized string
 	Caption               *string
+	CaptionNormalized     *string
 	BroadcastAt           time.Time
 	TakenAt               time.Time
 	Size                  int64
@@ -114,6 +117,7 @@ func (q *Queries) InsertCapture(ctx context.Context, arg InsertCaptureParams) (C
 		arg.ServiceNameNormalized,
 		arg.ProgramNameNormalized,
 		arg.Caption,
+		arg.CaptionNormalized,
 		arg.BroadcastAt,
 		arg.TakenAt,
 		arg.Size,
@@ -131,6 +135,7 @@ func (q *Queries) InsertCapture(ctx context.Context, arg InsertCaptureParams) (C
 		&i.ServiceNameNormalized,
 		&i.ProgramNameNormalized,
 		&i.Caption,
+		&i.CaptionNormalized,
 		&i.BroadcastAt,
 		&i.TakenAt,
 		&i.Size,
@@ -195,11 +200,12 @@ func (q *Queries) ListCaptureLocations(ctx context.Context) ([]ListCaptureLocati
 }
 
 const listCaptures = `-- name: ListCaptures :many
-SELECT id, user_id, recording_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized, caption, broadcast_at, taken_at, size, created_at FROM captures c
+SELECT id, user_id, recording_id, position_ms, service_name, program_name, service_name_normalized, program_name_normalized, caption, caption_normalized, broadcast_at, taken_at, size, created_at FROM captures c
 WHERE c.user_id = $1
   AND NOT EXISTS (
     SELECT 1 FROM unnest($2::text[]) AS w (word)
-    WHERE NOT (c.program_name_normalized ILIKE '%' || w.word || '%' OR c.service_name_normalized ILIKE '%' || w.word || '%')
+    WHERE NOT (c.program_name_normalized ILIKE '%' || w.word || '%' OR c.service_name_normalized ILIKE '%' || w.word || '%'
+      OR coalesce(c.caption_normalized, '') ILIKE '%' || w.word || '%')
   )
   AND ($3::timestamptz IS NULL
     OR (c.created_at, c.id) < ($3::timestamptz, $4::uuid))
@@ -216,7 +222,9 @@ type ListCapturesParams struct {
 }
 
 // user_id のユーザーのキャプチャを、記録した新しい順に返す。
-// words は、NFKC で正規化して LIKE のために逃がした語。すべての語が、正規化した番組名かサービス名に含まれるものだけを返す。
+// words は、NFKC で正規化して LIKE のために逃がした語。すべての語が、正規化した番組名、サービス名、字幕の文のどれかに
+// 含まれるものだけを返す (#2084)。字幕の正規化したカラムがまだない (NULL の) キャプチャは、字幕では探さない。
+// NULL のまま比較すると、条件の全体が NULL になり、どの語にも当たってしまうので、空として比較する。
 // before_at と before_id より前 (古い) のキャプチャだけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 func (q *Queries) ListCaptures(ctx context.Context, arg ListCapturesParams) ([]Capture, error) {
 	rows, err := q.db.Query(ctx, listCaptures,
@@ -243,11 +251,45 @@ func (q *Queries) ListCaptures(ctx context.Context, arg ListCapturesParams) ([]C
 			&i.ServiceNameNormalized,
 			&i.ProgramNameNormalized,
 			&i.Caption,
+			&i.CaptionNormalized,
 			&i.BroadcastAt,
 			&i.TakenAt,
 			&i.Size,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCapturesWithoutNormalized = `-- name: ListCapturesWithoutNormalized :many
+SELECT id, caption FROM captures
+WHERE caption_normalized IS NULL
+ORDER BY id
+LIMIT $1
+`
+
+type ListCapturesWithoutNormalizedRow struct {
+	ID      uuid.UUID
+	Caption *string
+}
+
+// 正規化した字幕の文のカラムがまだないキャプチャを、ID の順に max_count 件返す (#2084)。kotatsu migrate が埋める。
+func (q *Queries) ListCapturesWithoutNormalized(ctx context.Context, maxCount int32) ([]ListCapturesWithoutNormalizedRow, error) {
+	rows, err := q.db.Query(ctx, listCapturesWithoutNormalized, maxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCapturesWithoutNormalizedRow{}
+	for rows.Next() {
+		var i ListCapturesWithoutNormalizedRow
+		if err := rows.Scan(&i.ID, &i.Caption); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

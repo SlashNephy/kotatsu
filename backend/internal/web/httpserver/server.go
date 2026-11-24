@@ -149,14 +149,14 @@ func Listen(ctx context.Context, addr string) (net.Listener, error) {
 	return ln, nil
 }
 
-// RevocationInterval は、StopWhenRevoked が、配信を続けてよいかを確かめ直す間隔。
+// RevocationInterval は、StopWhenRevoked が、配信を続けてよいかを確認し直す間隔。
 const RevocationInterval = 30 * time.Second
 
 // StopWhenRevoked は、next で配信している間、interval ごとに allowed を呼び、false を返したら、
 // リクエストの context を取りやめ、書き込みも打ち切って配信を終わらせる (#1755)。
-// 外部プレイヤーや IPTV のクライアントに渡した URL は、開くときにだけ確かめると、管理者が無効にしたり取り消したりした後も、
+// 外部プレイヤーや IPTV のクライアントに渡した URL は、開くときにだけ確認すると、管理者が無効にしたり取り消したりした後も、
 // 開いたままの配信が流れ続けるので、それを止めるのに使う。
-// allowed は、確かめられないとき (DB に届かないなど) は true を返し、配信を続けさせる。
+// allowed は、確認できないとき (DB に届かないなど) は true を返し、配信を続けさせる。
 // interval が 0 以下なら、RevocationInterval を使う。
 func StopWhenRevoked(w http.ResponseWriter, r *http.Request, next http.Handler, interval time.Duration, allowed func(ctx context.Context) bool) {
 	if interval <= 0 {

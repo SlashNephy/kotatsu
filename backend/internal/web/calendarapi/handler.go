@@ -15,7 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
-// PathPrefix は、予約の iCalendar のパスの頭。この後ろに秘密の値が続く (#1255)。
+// PathPrefix は、予約の iCalendar のパスのプレフィックス。この後ろに秘密の値が続く (#1255)。
 // 前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
 const PathPrefix = "/api/calendar/"
 
@@ -33,7 +33,7 @@ const (
 	calendarName = "Kotatsu の録画予約"
 )
 
-// Authenticator は、購読用の URL の秘密の値から、発行したユーザーを引く。*auth.Feeds が満たす。
+// Authenticator は、購読用の URL の秘密の値から、発行したユーザーを取得する。*auth.Feeds が満たす。
 type Authenticator interface {
 	Authenticate(ctx context.Context, token string) (*auth.Principal, error)
 }
@@ -132,7 +132,7 @@ func (h *Handler) serviceNames(ctx context.Context, reservations []*domain.Reser
 	if len(ids) == 0 {
 		return names, nil
 	}
-	services, err := h.queries.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: ids})
+	services, err := h.queries.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, IncludeGone: true, MediaServiceTypes: []int64{}, IDs: ids, Now: h.clock.Now()})
 	if err != nil {
 		return nil, err
 	}

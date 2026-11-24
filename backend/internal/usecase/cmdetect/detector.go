@@ -2,7 +2,7 @@
 //
 // 見分け方は Detector で差し替えられる。FFmpeg の無音の検出とシーンの切り替わりに、TS の中の手掛かりを合わせる FFmpegDetector (既定) と、
 // 録画ごとに局ロゴを学習し、ロゴの出ていない所を CM とみなす LogoDetector (#1505) がある。どちらも外部のツールを使わない。
-// 見分けた区間は、Detector の名前と版と一緒に DB に残すので、Detector を直したら、版を上げて録り直さずに見分け直せる。
+// 見分けた区間は、Detector の名前とバージョンと一緒に DB に残すので、Detector を修正したら、バージョンを上げて録り直さずに見分け直せる。
 package cmdetect
 
 import (
@@ -25,7 +25,7 @@ type Section struct {
 type Input struct {
 	// Path は、TS のファイルのパス。
 	Path string
-	// ServiceID は、録画したサービスの ID (program_number)。TS の PAT と PMT から、そのサービスの映像と音声の PID を引くのに使う。
+	// ServiceID は、録画したサービスの ID (program_number)。TS の PAT と PMT から、そのサービスの映像と音声の PID を取得するのに使う。
 	// 録画は、代表画像と同じく、録画したサービスだけの TS であることを前提にする。
 	ServiceID uint16
 	// Progress は、FFmpeg の -progress のまとまり b と、それまでにファイルから FFmpeg に流したバイト数 read を受け取る (#1511)。
@@ -36,7 +36,7 @@ type Input struct {
 	// Open は、TS のファイルを開く。nil なら Path を開く。ローカルのパスのないファイル (ライブラリのファイル。#1734) で使う。
 	// Path は、ログに出す名前にだけ使う。
 	Open func() (io.ReadSeekCloser, error)
-	// Duration は、TS の長さ。Open で渡すファイルは、ffprobe が終わりまで読めないので、索引から求めて渡す。Open が nil なら使わない。
+	// Duration は、TS の長さ。Open で渡すファイルは、ffprobe が終わりまで読めないので、インデックスから求めて渡す。Open が nil なら使わない。
 	Duration time.Duration
 }
 
@@ -86,7 +86,7 @@ func (in *Input) open() (io.ReadCloser, error) {
 type Detector interface {
 	// Name は、DB に残す、見分け方の名前。
 	Name() string
-	// Version は、見分け方の版。見分け方を変えたら上げる。
+	// Version は、見分け方のバージョン。見分け方を変えたら上げる。
 	Version() int32
 	// Detect は、input のファイルの CM の区間を、始まりの順に返す。見つからなければ空のスライスを返す。
 	Detect(ctx context.Context, input *Input) ([]Section, error)

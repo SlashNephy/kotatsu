@@ -1,4 +1,4 @@
-// Package logring は、プロセスのログの最後の行を、メモリのリングバッファに写して持つ (#1521、設計書 11.3)。
+// Package logring は、プロセスのログの最後の行を、メモリのリングバッファにコピーして持つ (#1521、設計書 11.3)。
 //
 // 管理の画面でログを読み、不具合の報告に添えるのに使う。ファイルにも DB にも書かないので、再起動すれば消える。
 package logring
@@ -14,9 +14,9 @@ import (
 const (
 	// DefaultCapacity は、プロセスごとにメモリに持つログの行数 (保持行数、設計書 付録 A)。
 	DefaultCapacity = 8000
-	// DefaultMaxLineLength は、溜めるときに 1 行を切る長さ (UTF-16 の単位、設計書 付録 A)。
+	// DefaultMaxLineLength は、バッファするときに 1 行を切る長さ (UTF-16 の単位、設計書 付録 A)。
 	DefaultMaxLineLength = 2000
-	// ellipsis は、切った行の末尾に付ける印。
+	// ellipsis は、切った行の末尾に付けるマーク。
 	ellipsis = "…"
 )
 
@@ -41,7 +41,7 @@ func LevelOf(level slog.Level) Level {
 	}
 }
 
-// Line は、溜めた 1 行。
+// Line は、バッファした 1 行。
 type Line struct {
 	// Time は、epoch ミリ秒の時刻。
 	Time  int64
@@ -63,7 +63,7 @@ func NewBuffer(capacity, maxLineLength int) *Buffer {
 	return &Buffer{mu: sync.Mutex{}, lines: make([]Line, max(capacity, 1)), next: 0, full: false, maxLineLength: maxLineLength}
 }
 
-// Add は、行を足す。本文は、壊れた UTF-8 を直し、1 行の上限で切る。
+// Add は、行を足す。本文は、壊れた UTF-8 を修正し、1 行の上限で切る。
 func (b *Buffer) Add(line Line) {
 	line.Text = Truncate(strings.ToValidUTF8(line.Text, "�"), b.maxLineLength)
 
@@ -78,7 +78,7 @@ func (b *Buffer) Add(line Line) {
 	}
 }
 
-// Lines は、溜めた行を古い順に返す。
+// Lines は、バッファした行を古い順に返す。
 func (b *Buffer) Lines() []Line {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -118,10 +118,10 @@ func Truncate(text string, maxLength int) string {
 	return text
 }
 
-// Handler は、包んだ slog.Handler に書いてから、同じ行を Buffer に写す slog.Handler。
+// Handler は、包んだ slog.Handler に書いてから、同じ行を Buffer にコピーする slog.Handler。
 type Handler struct {
 	inner slog.Handler
-	// mirror は、写しの属性を、標準出力と同じ JSON の形に整える。時刻、重さ、本文は Line に別に持つので出さない。
+	// mirror は、コピーの属性を、標準出力と同じ JSON の形に整える。時刻、重さ、本文は Line に別に持つので出さない。
 	mirror slog.Handler
 	state  *state
 }
@@ -139,7 +139,7 @@ func (s *state) Write(p []byte) (int, error) {
 	return s.out.Write(p)
 }
 
-// New は、inner に書いた後に、buffer に写す Handler を作る。
+// New は、inner に書いた後に、buffer にコピーする Handler を作る。
 func New(inner slog.Handler, buffer *Buffer) *Handler {
 	s := &state{mu: sync.Mutex{}, out: bytes.Buffer{}, buffer: buffer}
 	mirror := slog.NewJSONHandler(s, &slog.HandlerOptions{
@@ -157,8 +157,8 @@ func New(inner slog.Handler, buffer *Buffer) *Handler {
 	return &Handler{inner: inner, mirror: mirror, state: s}
 }
 
-// Install は、buffer に写すよう、handler を包んで返す。
-// 写しの仕組みは、プロセスで 1 回だけ組む。handler が既に Handler なら、二重に写さないよう、そのまま返す。
+// Install は、buffer にコピーするよう、handler を包んで返す。
+// コピーの仕組みは、プロセスで 1 回だけ組む。handler が既に Handler なら、二重にコピーしないよう、そのまま返す。
 func Install(handler slog.Handler, buffer *Buffer) slog.Handler {
 	if _, ok := handler.(*Handler); ok {
 		return handler
@@ -167,7 +167,7 @@ func Install(handler slog.Handler, buffer *Buffer) slog.Handler {
 	return New(handler, buffer)
 }
 
-// BufferOf は、handler が写している Buffer を返す。Handler でなければ nil を返す。
+// BufferOf は、handler がコピーしている Buffer を返す。Handler でなければ nil を返す。
 func BufferOf(handler slog.Handler) *Buffer {
 	if h, ok := handler.(*Handler); ok {
 		return h.state.buffer
@@ -180,7 +180,7 @@ func (h *Handler) Enabled(ctx context.Context, level slog.Level) bool {
 	return h.inner.Enabled(ctx, level)
 }
 
-// Handle は、本来の出力を先に行い、その後に写しを取る。写しに失敗しても、本来の出力の結果だけを返す。
+// Handle は、本来の出力を先に行い、その後にコピーを取る。コピーに失敗しても、本来の出力の結果だけを返す。
 func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 	err := h.inner.Handle(ctx, record)
 	h.copy(ctx, record)
@@ -199,7 +199,7 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 // copy は、record を 1 行に整えて Buffer に足す。属性は、標準出力と同じ JSON にして、本文の後ろに続ける。
 func (h *Handler) copy(ctx context.Context, record slog.Record) {
 	defer func() {
-		// 写しの失敗で、ログを出した処理を止めない。
+		// コピーの失敗で、ログを出した処理を止めない。
 		_ = recover()
 	}()
 

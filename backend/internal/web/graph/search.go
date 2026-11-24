@@ -150,7 +150,7 @@ func (r *Resolver) searchCandidates(ctx context.Context, params *query.SearchPro
 	return rows, nil
 }
 
-// primeSharedEvents は、カーソルと同じ開始時刻で、カーソルまで (前のページ) に一致した番組を、shared に覚えさせる。
+// primeSharedEvents は、カーソルと同じ開始時刻で、カーソルまで (前のページ) に一致した番組を、shared に記録させる。
 // 前のページで元の番組を返していれば、このページの同じ番組のサブチャンネルを省ける。
 func (r *Resolver) primeSharedEvents(
 	ctx context.Context,
@@ -188,7 +188,7 @@ func (r *Resolver) primeSharedEvents(
 	}
 }
 
-// sharedEvents は、同じ開始時刻に一致した番組のサービスを覚え、イベント共有でサブチャンネルが元のサービスと同じ番組を流しているのを見分ける。
+// sharedEvents は、同じ開始時刻に一致した番組のサービスを記録し、イベント共有でサブチャンネルが元のサービスと同じ番組を流しているのを見分ける。
 // 候補は開始時刻、サービスの順に並び、元のサービスは共有するサービスのうちサービス ID が最も小さいので、同じ開始時刻の中で先に来る。
 // 残すのは、ルールの照合 (rule.pickSharedEvents) と同じく、サービス ID の最も小さい番組になる。
 type sharedEvents struct {
@@ -196,7 +196,7 @@ type sharedEvents struct {
 	services map[int64]bool
 }
 
-// duplicate は、program が、すでに一致した元のサービスの番組と同じ番組かどうかを返す。そうでなければ、program を覚える。
+// duplicate は、program が、すでに一致した元のサービスの番組と同じ番組かどうかを返す。そうでなければ、program を記録する。
 // 元の番組が一致していない (条件で外れたなど) ときは、省くと見られなくなるので、false を返す。
 func (s *sharedEvents) duplicate(program *model.Program) bool {
 	if !program.StartAt.Equal(s.startAt) {
@@ -210,7 +210,7 @@ func (s *sharedEvents) duplicate(program *model.Program) bool {
 	return false
 }
 
-// archivedProgram は、ProgramArchive の ID の中身 (サービス ID.eventId.開始時刻の UNIX 時間) から、アーカイブの番組を引く。
+// archivedProgram は、ProgramArchive の ID の内容 (サービス ID.eventId.開始時刻の UNIX 時間) から、アーカイブの番組を取得する。
 func (r *Resolver) archivedProgram(ctx context.Context, raw string) (*model.Program, error) {
 	parts := strings.Split(raw, ".")
 	if len(parts) != 3 {
@@ -241,7 +241,7 @@ func (r *Resolver) archivedProgram(ctx context.Context, raw string) (*model.Prog
 	return program, nil
 }
 
-// searchParams は、候補を引くクエリの引数を作る。
+// searchParams は、候補を取得するクエリの引数を作る。
 func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.ArchiveRangeInput, after *string) (*query.SearchProgramCandidatesParams, error) {
 	params := &query.SearchProgramCandidatesParams{
 		IncludeArchive:     archive != nil,
@@ -260,6 +260,8 @@ func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.Arc
 		KeywordInName:        []bool{},
 		KeywordInDescription: []bool{},
 		KeywordCaseSensitive: []bool{},
+		// キーワードが必ず含む gram で、インデックスから候補を絞る (#966)。
+		RequiredGrams: match.RequiredGrams(conditions),
 		// カーソルが無ければ、最も古い位置から読む。
 		AfterStartAt:   time.Unix(0, 0).UTC(),
 		AfterServiceID: 0,
@@ -293,8 +295,8 @@ func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.Arc
 
 // setKeywordPatterns は、SQL で粗く絞るキーワードを、LIKE のパターンにして params に入れる。
 // SQL はすべてのパターンに一致する番組に絞るので、いずれかのキーワードに一致すればよいとき (KeywordMatchAny) は絞らない。
-// 正規表現のキーワードと、詳細も見るキーワードは、正規化した列がないので、Go の照合に任せる。
-// 照合関数と同じく NFKC で正規化した語を、正規化した列 (name_normalized、description_normalized) の部分一致で探す。
+// 正規表現のキーワードと、詳細も見るキーワードは、正規化したカラムがないので、Go の照合に任せる。
+// 照合関数と同じく NFKC で正規化した語を、正規化したカラム (name_normalized、description_normalized) の部分一致で探す。
 // 大文字と小文字を区別しないときの ILIKE は、Go の (?i) とほぼ同じ範囲を一致とみなす。
 func setKeywordPatterns(params *query.SearchProgramCandidatesParams, conditions *match.Conditions) {
 	if conditions.KeywordMatch == match.KeywordMatchAny {
@@ -352,7 +354,7 @@ func (r *Resolver) matchCandidate(
 	return &model.ProgramEdge{Cursor: cursor, Node: program}, true, nil
 }
 
-// toMatchCandidate は、候補を照合する形にする。ルールの照合 (rule.toMatchProgram) と同じく、同期で正規化して持った列を使う。
+// toMatchCandidate は、候補を照合する形にする。ルールの照合 (rule.toMatchProgram) と同じく、同期で正規化して持ったカラムを使う。
 // 候補ごとに NFKC で正規化し直すと、検索の時間の大半を占めるからである (#852)。
 func toMatchCandidate(row *domain.ProgramCandidate) (*match.Program, error) {
 	upstreamGenres := []*domain.Genre{}
@@ -365,7 +367,7 @@ func toMatchCandidate(row *domain.ProgramCandidate) (*match.Program, error) {
 	}
 	extended := row.ExtendedNormalized
 	if extended == nil {
-		// 列を足す前に書いた番組と、列を足す前にアーカイブへ移した番組は、上流の詳細から正規化する。
+		// カラムを足す前に書いた番組と、カラムを足す前にアーカイブへ移した番組は、上流の詳細から正規化する。
 		upstream := map[string]string{}
 		if err := json.Unmarshal(row.Extended, &upstream); err != nil {
 			return nil, fmt.Errorf("failed to decode the extended of program %d/%d: %w", row.ServiceID, row.EventID, err)

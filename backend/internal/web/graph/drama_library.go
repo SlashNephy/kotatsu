@@ -17,7 +17,7 @@ import (
 const dramaLibraryWorkType = "DramaLibraryWork"
 
 // dramaLibrary は、ログイン中のユーザーが見ているドラマの作品を、次の話と次の放送と録画と並べて返す (#1652)。
-// 管理者が TMDb との連携を無効にしていれば、何も引かずに、無効であることだけを返す。
+// 管理者が TMDB との連携を無効にしていれば、何も引かずに、無効であることだけを返す。
 func (r *Resolver) dramaLibrary(ctx context.Context) (*model.DramaLibrary, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -59,7 +59,7 @@ func (r *Resolver) dramaLibrary(ctx context.Context) (*model.DramaLibrary, error
 	return result, nil
 }
 
-// recordingsByIDs は、録画を、録画の一覧と同じ形で引く。
+// recordingsByIDs は、録画を、録画の一覧と同じ形で取得する。
 func (r *Resolver) recordingsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*model.Recording, error) {
 	result := map[uuid.UUID]*model.Recording{}
 	if len(ids) == 0 {
@@ -167,7 +167,7 @@ func dramaWatchStatusOf(status *model.DramaWatchStatus) string {
 	}
 }
 
-// dramaNumberOf は、GraphQL の Int を、TMDb のシーズンや話の番号にする。int32 に収まらなければ BAD_USER_INPUT を返す。
+// dramaNumberOf は、GraphQL の Int を、TMDB のシーズンや話の番号にする。int32 に収まらなければ BAD_USER_INPUT を返す。
 func dramaNumberOf(value int) (int32, error) {
 	if value < 0 || value > math.MaxInt32 {
 		return 0, NewError(CodeBadUserInput, "season and episode numbers must be non-negative")
@@ -182,7 +182,7 @@ func dramaLibraryError(err error) error {
 	case errors.Is(err, dramalibrary.ErrUnavailable):
 		return NewError(CodeConflict, "drama linking is not available; ask an administrator to enable it")
 	case errors.Is(err, dramalibrary.ErrNotLinked):
-		return NewError(CodeNotFound, "the TMDb series is not linked to any program or recording")
+		return NewError(CodeNotFound, "the TMDB series is not linked to any program or recording")
 	case errors.Is(err, dramalibrary.ErrInvalidEpisode), errors.Is(err, dramalibrary.ErrInvalidStatus):
 		return NewError(CodeBadUserInput, err.Error())
 	default:
@@ -190,7 +190,7 @@ func dramaLibraryError(err error) error {
 	}
 }
 
-// setDramaWatchStatus は、ログイン中のユーザーの見ている作品を変え、変えた後の作品を返す。名前は TMDb のキャッシュから引く。
+// setDramaWatchStatus は、ログイン中のユーザーの見ている作品を変え、変えた後の作品を返す。名前は TMDB のキャッシュから引く。
 func (r *Resolver) setDramaWatchStatus(ctx context.Context, seriesID int, status *model.DramaWatchStatus) (*model.DramaSeries, error) {
 	principal, err := viewer(ctx)
 	if err != nil {

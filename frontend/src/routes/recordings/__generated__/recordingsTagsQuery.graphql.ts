@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<c087eee9c454bd6fd57696f5726fd282>>
+ * @generated SignedSource<<da3368166503433604ed626df5d41846>>
  * @lightSyntaxTransform
  */
 
@@ -26,6 +26,7 @@ export type recordingsTagsQuery$data = {
     readonly channelType: {
       readonly displayName: string;
     };
+    readonly gone: boolean;
     readonly id: string;
     readonly logoUrl: string | null | undefined;
     readonly name: string;
@@ -122,7 +123,13 @@ v7 = {
 },
 v8 = {
   "alias": null,
-  "args": null,
+  "args": [
+    {
+      "kind": "Literal",
+      "name": "includeGone",
+      "value": true
+    }
+  ],
   "concreteType": "Service",
   "kind": "LinkedField",
   "name": "services",
@@ -135,6 +142,13 @@ v8 = {
       "args": null,
       "kind": "ScalarField",
       "name": "logoUrl",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "gone",
       "storageKey": null
     },
     {
@@ -156,7 +170,7 @@ v8 = {
       "storageKey": null
     }
   ],
-  "storageKey": null
+  "storageKey": "services(includeGone:true)"
 };
 return {
   "fragment": {
@@ -248,16 +262,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "376a85150ac3bd3d8d678a121deafb92",
+    "cacheID": "3fea5caa89e6774879bfd29932e63250",
     "id": null,
     "metadata": {},
     "name": "recordingsTagsQuery",
     "operationKind": "query",
-    "text": "query recordingsTagsQuery(\n  $ruleId: ID!\n  $withRule: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  tags {\n    id\n    name\n    recordings\n  }\n  services {\n    id\n    name\n    logoUrl\n    channelType {\n      displayName\n    }\n  }\n}\n"
+    "text": "query recordingsTagsQuery(\n  $ruleId: ID!\n  $withRule: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  tags {\n    id\n    name\n    recordings\n  }\n  services(includeGone: true) {\n    id\n    name\n    logoUrl\n    gone\n    channelType {\n      displayName\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f37a1956d6ee9803e233b8815773b3b9";
+(node as any).hash = "b451b40aaff55aba5d1b36843cb84004";
 
 export default node;

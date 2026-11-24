@@ -19,7 +19,7 @@ func roleNames(roles []*Role) []string {
 }
 
 // newLogReport は、管理の画面で直近のログを読む部品を作る (#1521、設計書 11.3)。
-// ログは、このプロセスのメモリのバッファと、チューナーサーバーの /api/log から集め、設定と DB の秘密を伏せてから返す。
+// ログは、このプロセスのメモリのバッファと、チューナーサーバーの /api/log から集め、設定と DB の秘密をマスクしてから返す。
 // tuner は、チューナーサーバーを設定していなければ nil。
 func newLogReport(deps *Deps, sealed *sealedStores, location *time.Location, tuner logreport.TunerServer) *logreport.Service {
 	lookupEnv := deps.LookupEnv
@@ -34,7 +34,7 @@ func newLogReport(deps *Deps, sealed *sealedStores, location *time.Location, tun
 	if sealed.dramaRecords != nil {
 		stored = append(stored, sealed.dramaRecords)
 	}
-	// nil の *animerecord.Service を interface に入れると nil と比べられなくなるので、あるときだけ足す。
+	// nil の *animerecord.Service を interface に入れると nil と比較できなくなるので、あるときだけ足す。
 	if sealed.animeRecords != nil {
 		stored = append(stored, sealed.animeRecords)
 	}

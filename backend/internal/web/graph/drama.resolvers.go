@@ -11,7 +11,7 @@ import (
 
 // UpdateDramaLinkingToken is the resolver for the updateDramaLinkingToken field.
 func (r *mutationResolver) UpdateDramaLinkingToken(ctx context.Context, token string) (*model.DramaLinkingStatus, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change the TMDb token")
+	_, actor, err := r.recentAdministrator(ctx, "only administrators can change the TMDB token")
 	if err != nil {
 		return nil, err
 	}

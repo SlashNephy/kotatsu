@@ -37,7 +37,7 @@ type ProgramConditions {
   minDurationSeconds: Int
   maxDurationSeconds: Int
   freeOnly: Boolean!
-  "番組名の囲み文字 (中身で表す。「新」や「字」など。括弧で書いた [新] なども同じとみなす)。どれか 1 つを持つ番組を対象にする。"
+  "番組名の囲み文字 (内容で表す。「新」や「字」など。括弧で書いた [新] なども同じとみなす)。どれか 1 つを持つ番組を対象にする。"
   marks: [String!]!
   "どれか 1 つを持つ番組を除外する囲み文字"
   excludeMarks: [String!]!
@@ -108,7 +108,7 @@ type Rule implements Node {
   duplicateWindowDays: Int
   "イベントリレーで引き継がれた番組を、引き継ぎ先でも予約するかどうか (設計書 4.6)。"
   followEventRelay: Boolean!
-  "局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
+  "局をまたいで同じ回をまとめ、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
   bundleSameEpisodes: Boolean!
   """
   追っているシリーズの前の回 (録った回、予約してある回、先に流れる放送より話数の小さい回) を予約しないかどうか (設計書 4.4、#1499)。
@@ -205,7 +205,7 @@ extend type Mutation {
   条件に、含めるキーワード、チャンネル種別、サービス、ジャンル、含める囲み文字のどれもなければ、BAD_USER_INPUT を返す (#1501)。
   """
   createRule(input: RuleInput!): Rule!
-  "ルールの内容を input で置き換える。視聴者は使えない。条件は createRule と同じく確かめる。"
+  "ルールの内容を input で置き換える。視聴者は使えない。条件は createRule と同じく確認する。"
   updateRule(id: ID!, input: RuleInput!): Rule!
   "ルールを有効または無効にする。視聴者は使えない。"
   setRuleEnabled(id: ID!, enabled: Boolean!): Rule!

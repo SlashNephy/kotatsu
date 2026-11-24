@@ -24,14 +24,14 @@ type CleanUpMissingRecordingsPayload {
 extend type Query {
   """
   セグメントのファイルが見つからない録画を、録画を始めた日時の新しい順に返す。管理者だけが使える。
-  このインスタンスにマウントしたプールのファイルだけを調べ、マウントしていないプールのファイルは見つからないとはみなさない。
+  このインスタンスにマウントしたプールのファイルだけを調査し、マウントしていないプールのファイルは見つからないとはみなさない。
   """
   missingRecordings: [MissingRecording!]!
 }
 
 extend type Mutation {
   """
-  録画 ids のセグメントのファイルを確かめ直し、見つからないものの記録を DB から消す。ファイルは触らない。管理者だけが使える。
+  録画 ids のセグメントのファイルを確認し直し、見つからないものの記録を DB から消す。ファイルは触らない。管理者だけが使える。
   セグメントが 1 つも見つからなければ録画を消し、一部だけなら、見つからないセグメントの記録だけを消す。監査ログに残す。
   """
   cleanUpMissingRecordings(ids: [ID!]!): CleanUpMissingRecordingsPayload!

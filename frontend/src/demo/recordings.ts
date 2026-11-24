@@ -1,5 +1,5 @@
 import { demoAnimeEpisodes } from './anime';
-import { demoStreamURL, type DemoProgram } from './epg';
+import { demoStreamURL, matchesKeyword, type DemoProgram, type KeywordInput } from './epg';
 import { demoCommentsPath } from './jikkyo';
 
 // デモの録画 (#857)。放送が終わった番組から、ルールに当てはまるものなどを録画済みとして置く。
@@ -38,6 +38,10 @@ export type RecordingFilter = {
   states?: string[] | null;
   serviceIds?: string[] | null;
   keyword?: string | null;
+  // keywords と keywordMatch、excludeKeywords は、番組の検索と同じキーワードの条件 (#966)。
+  keywords?: KeywordInput[] | null;
+  keywordMatch?: 'ALL' | 'ANY' | null;
+  excludeKeywords?: KeywordInput[] | null;
   since?: string | null;
   until?: string | null;
   ruleId?: string | null;
@@ -45,6 +49,20 @@ export type RecordingFilter = {
 };
 
 const tagId = (name: string) => `Tag:${encodeURIComponent(name)}`;
+
+// matchesKeywordConditions は、録画の番組が、キーワードの条件 (#966) に一致するかを返す。条件がなければ一致とみなす。
+function matchesKeywordConditions(program: DemoProgram, filter: RecordingFilter): boolean {
+  const keywords = filter.keywords ?? [];
+  const included =
+    keywords.length === 0 ||
+    (filter.keywordMatch === 'ANY'
+      ? keywords.some((keyword) => matchesKeyword(program, keyword))
+      : keywords.every((keyword) => matchesKeyword(program, keyword)));
+
+  return (
+    included && !(filter.excludeKeywords ?? []).some((keyword) => matchesKeyword(program, keyword))
+  );
+}
 
 // thumbnail は、番組名とジャンルの色で描いた、16:9 の代表画像を data: URL で返す。
 function thumbnail(program: DemoProgram): string {
@@ -69,7 +87,7 @@ export function createRecordings(options: {
   rules: RecordingRule[];
   // ruleView は、録画のルールを返す。ルールを消していれば null。
   ruleView: (id: string) => object | null;
-  // changed は、録画が変わったことを画面に知らせる。CM の区間を見分け終えたときに使う。
+  // changed は、録画が変わったことを画面に通知する。CM の区間を見分け終えたときに使う。
   changed?: (channels: string[]) => void;
 }) {
   const { programs, now, rules, ruleView, changed } = options;
@@ -301,6 +319,7 @@ export function createRecordings(options: {
       (filter.states == null || filter.states.includes(recording.state)) &&
       (filter.serviceIds == null || filter.serviceIds.includes(program.service.id)) &&
       (keyword == null || keyword === '' || program.name.toLowerCase().includes(keyword)) &&
+      matchesKeywordConditions(program, filter) &&
       (filter.since == null || program.start >= Date.parse(filter.since)) &&
       (filter.until == null || program.start < Date.parse(filter.until)) &&
       (filter.ruleId == null || recording.rule?.id === filter.ruleId) &&
@@ -387,7 +406,7 @@ export function createRecordings(options: {
       return { processed, skipped: ids.length - processed };
     },
     // detectCm は、CM の区間の見分けを頼む (#1571)。見分けを待っているか見分けている間は、重ねて頼まずに false を返す。
-    // 本物と同じく、頼んだときと見分け終えたときに、録画が変わったことを知らせる。
+    // 本物と同じく、頼んだときと見分け終えたときに、録画が変わったことを通知する。
     detectCm: (id: string) => {
       const recording = recordingOrThrow(id);
       if (recording.state === 'RECORDING') {

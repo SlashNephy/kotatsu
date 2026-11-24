@@ -12,7 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 )
 
-// TestPlayablePrograms は、バッファの番組ごとに、再生できる範囲の始まりと、チャンクの間の途切れた区間を求めることを確かめる (設計書 7.2)。
+// TestPlayablePrograms は、バッファの番組ごとに、再生できる範囲の始まりと、チャンクの間の途切れた区間を求めることを確認する (設計書 7.2)。
 func TestPlayablePrograms(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +170,7 @@ func TestPlayablePrograms(t *testing.T) {
 	}
 }
 
-// TestPlayableBuffer は、サービスのバッファの始まりと、今までの途切れた区間を求めることを確かめる (設計書 7.2)。
+// TestPlayableBuffer は、サービスのバッファの始まりと、今までの途切れた区間を求めることを確認する (設計書 7.2)。
 func TestPlayableBuffer(t *testing.T) {
 	t.Parallel()
 

@@ -84,7 +84,7 @@ func claudeCodeDocument(clientID string) any {
 	}
 }
 
-// TestFetcherFetch は、クライアントのメタデータを確かめ、Kotatsu で使えないものを断ることを確かめる。
+// TestFetcherFetch は、クライアントのメタデータを確認し、Kotatsu で使えないものを断ることを確認する。
 func TestFetcherFetch(t *testing.T) {
 	t.Parallel()
 
@@ -205,7 +205,7 @@ func TestFetcherFetch(t *testing.T) {
 	}
 }
 
-// TestFetcherFetchFailures は、取ってこられないときと、文書が大きすぎるときに断ることを確かめる。
+// TestFetcherFetchFailures は、取ってこられないときと、文書が大きすぎるときに断ることを確認する。
 func TestFetcherFetchFailures(t *testing.T) {
 	t.Parallel()
 
@@ -241,7 +241,7 @@ func TestFetcherFetchFailures(t *testing.T) {
 	}
 }
 
-// TestFetcherCache は、取ってきたメタデータを、Cache-Control に従って使い回すことを確かめる。
+// TestFetcherCache は、取ってきたメタデータを、Cache-Control に従って使い回すことを確認する。
 func TestFetcherCache(t *testing.T) {
 	t.Parallel()
 
@@ -275,7 +275,7 @@ func TestFetcherCache(t *testing.T) {
 	}
 }
 
-// TestFetcherDoesNotCacheErrors は、正しくない文書を覚えず、次の認可で取り直すことを確かめる。
+// TestFetcherDoesNotCacheErrors は、正しくない文書をキャッシュせず、次の認可で再取得することを確認する。
 func TestFetcherDoesNotCacheErrors(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +298,7 @@ func TestFetcherDoesNotCacheErrors(t *testing.T) {
 	assert.Equal(t, int32(2), requests.Load())
 }
 
-// TestFetcherFetchesOnceConcurrently は、同じクライアントの認可が重なっても、取りに行くのは 1 回であることを確かめる。
+// TestFetcherFetchesOnceConcurrently は、同じクライアントの認可が重なっても、取りに行くのは 1 回であることを確認する。
 func TestFetcherFetchesOnceConcurrently(t *testing.T) {
 	t.Parallel()
 
@@ -335,7 +335,7 @@ func TestFetcherFetchesOnceConcurrently(t *testing.T) {
 	assert.Equal(t, int32(1), requests.Load())
 }
 
-// TestFetcherRejectsNonPublicAddress は、LAN の中のサーバー (ここではループバック) には接続しないことを確かめる。
+// TestFetcherRejectsNonPublicAddress は、LAN の中のサーバー (ここではループバック) には接続しないことを確認する。
 func TestFetcherRejectsNonPublicAddress(t *testing.T) {
 	t.Parallel()
 
@@ -348,7 +348,7 @@ func TestFetcherRejectsNonPublicAddress(t *testing.T) {
 	assert.Zero(t, requests.Load())
 }
 
-// TestFreshness は、Cache-Control から、使い回す長さを 5 分から 24 時間の範囲で決めることを確かめる。
+// TestFreshness は、Cache-Control から、使い回す長さを 5 分から 24 時間の範囲で決めることを確認する。
 func TestFreshness(t *testing.T) {
 	t.Parallel()
 

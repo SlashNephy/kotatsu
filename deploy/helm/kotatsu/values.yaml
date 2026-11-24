@@ -110,8 +110,8 @@ config: {}
 #       persistentVolumeClaim:
 #         claimName: kotatsu-recordings
 # hostPath で渡すときは、ディスクのマウントポイントそのものでなく、その中のディレクトリを path にし、type: Directory にする (設計書 5.6)。
-# マウントされていないときに、空のマウントポイントを測ったり、そこに録画を書いたりしないためである。
-# storage.data は、録画の生成物 (索引、代表画像、プレビュー画像) を、セグメントのファイルの ID ごとに置く volume (設計書 5.6)。
+# マウントされていないときに、空のマウントポイントを計測したり、そこに録画を書いたりしないためである。
+# storage.data は、録画の生成物 (インデックス、代表画像、プレビュー画像) を、セグメントのファイルの ID ごとに置く volume (設計書 5.6)。
 # プールを設定するなら必ず要る。プールと同じロールにマウントする。
 # 例:
 #   volume:
@@ -128,9 +128,9 @@ storage:
   data: {}
   timeshift: {}
 
-# backup.volume は、nekonote が定期のバックアップを書き出す volume (設計書 11.4、#1926)。
+# backup.volume は、nekonote が定期のバックアップを出力する volume (設計書 11.4、#1926)。
 # 設定すると、all か nekonote にマウントし、KOTATSU_BACKUP_DIR を渡す。暗号化する公開鍵と間隔と残す世代の数は、管理者の画面で決める。
-# 書き出したファイルは、rclone などで外へ写す (docs/operations.md)。プールやデータディレクトリとは別の volume にする。
+# 出力したファイルは、rclone などで外へコピーする (docs/operations.md)。プールやデータディレクトリとは別の volume にする。
 # 例:
 #   volume:
 #     persistentVolumeClaim:
@@ -176,8 +176,8 @@ httpRoute:
   enabled: false
   annotations: {}
   # parentRefs は、ルートを付ける Gateway。必須。各項目の name は必須で、namespace、sectionName (リスナー名)、port は任意。
-  # group と kind は、省略すると gateway.networking.k8s.io と Gateway になる (書き出しは省略しない)。
-  # ホスト名の段数ごとにリスナーが分かれる構成では、sectionName ごとに項目を分けて書く。
+  # group と kind は、省略すると gateway.networking.k8s.io と Gateway になる (テンプレートの出力では省略しない)。
+  # ホスト名の階層数ごとにリスナーが分かれる構成では、sectionName ごとに項目を分けて書く。
   # 例: [{name: shared-gateway, namespace: gateway, sectionName: https}]
   parentRefs: []
   # hostnames が空なら、ingress.host を使う。
@@ -202,6 +202,9 @@ networkPolicy:
 
 # metrics は、/metrics の scrape の設定 (設計書 11.3)。どのロールの Pod も、metrics のポート (9090 番) で待ち受ける。
 metrics:
+  # pprof を true にすると、metrics のポートで /debug/pprof/ も返す (#1959)。プロセスの中を調査するときだけ有効にする。
+  # 認証をかけないので、metrics のポートを NetworkPolicy で絞っていない構成では有効にしない。
+  pprof: false
   # podMonitor は、Prometheus Operator の PodMonitor。CRD (monitoring.coreos.com/v1) のないクラスターでは作れないので、既定では作らない。
   # 全ロールの Pod を読み、Pod の component (all か、ロールの名前) を role のラベルにする。
   podMonitor:
@@ -220,7 +223,7 @@ metrics:
   # 例 (Mackerel に直接送る):
   #   otlp:
   #     endpoint: https://otlp.mackerelio.com:4317
-  #     headers: {name: mackerel, key: headers}   # 中身は Mackerel-Api-Key=<書き込みのできる API キー>
+  #     headers: {name: mackerel, key: headers}   # 内容は Mackerel-Api-Key=<書き込みのできる API キー>
   #     exclude: [go_*, process_*]                 # 系列を減らしたいときだけ
   otlp:
     endpoint: ""
@@ -383,7 +386,7 @@ roles:
     probes: {}
     terminationGracePeriodSeconds: 30
   nabe:
-    # nabe は、EDCB の NetworkTV の TS をサービスごとに 1 本開いて、tenban、mikan、kyusu に配る (設計書 3.1、#1535)。
+    # nabe は、EDCB の NetworkTV の TS をサービスごとに 1 本開いて、tenban、mikan、kyusu に配信する (設計書 3.1、#1535)。
     # EDCB を使う (config.TUNER_KIND が edcb の) ときだけ意味があり、Mirakurun 互換のチューナーサーバーでは何もしない。
     # 使うときは 2 にする (#1850)。2 台の nabe は、同じサービスに同じ NetworkTV の ID を使い、チューナーを増やさない。
     # 1 台が止まっても、受け手はもう 1 台につなぎ直し、同じチューナーの TS を受け取り続ける。1 でも動くが、止まると受け手が自分で開き直す。

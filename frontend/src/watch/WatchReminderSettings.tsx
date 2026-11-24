@@ -10,7 +10,7 @@ import type { WatchReminderSettingsMutation } from './__generated__/WatchReminde
 const maxMinutes = 60;
 
 // WatchReminderSettings は、視聴予約の通知を、放送の何分前に送るかの設定 (設計書 4.8)。
-// 入力欄を離れたときか Enter で保存し、ほかの設定と同じ通知で知らせる (#1740)。
+// 入力欄を離れたときか Enter で保存し、ほかの設定と同じ形式で通知する (#1740)。
 export function WatchReminderSettings({ minutesBefore }: { minutesBefore: number }) {
   const { t } = useTranslation();
   const { save } = useAutoSave();

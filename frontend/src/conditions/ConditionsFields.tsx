@@ -65,12 +65,15 @@ export type ServiceOption = {
   logoUrl: string | null | undefined;
   serviceId: number;
   channelType: { displayName: string };
+  // gone は、上流 (チューナーサーバー) から消えたサービスかどうか (#1973)。すでに選んでいるものだけを、マークを付けて選択肢に残す。
+  gone?: boolean;
 };
 
 type Props = {
   value: ConditionsForm;
   onChange: (patch: Partial<ConditionsForm>) => void;
-  channelTypes: readonly { type: string; displayName: string }[];
+  // hasServices が false の種別 (上流から消えていないサービスを持たない種別) は、選んでいるときだけ選択肢に残す (#1973)。
+  channelTypes: readonly { type: string; displayName: string; hasServices?: boolean }[];
   services: readonly ServiceOption[];
 };
 
@@ -121,7 +124,11 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
           <MultiSelect
             label={t('rules.channelTypes')}
             leftSection={<RadioTower size={16} aria-hidden />}
-            data={channelTypes.map((type) => ({ value: type.type, label: type.displayName }))}
+            data={channelTypes
+              .filter(
+                (type) => type.hasServices !== false || value.channelTypes.includes(type.type),
+              )
+              .map((type) => ({ value: type.type, label: type.displayName }))}
             value={value.channelTypes}
             onChange={(selected) => onChange({ channelTypes: selected })}
             clearable
@@ -219,9 +226,13 @@ type KeywordRowsProps = {
   icon: ReactNode;
   rows: KeywordRow[];
   onChange: (rows: KeywordRow[]) => void;
+  // fields は、選べる項目。録画は詳細では探さないので、録画の検索では番組名と概要だけにする (#966)。
+  fields?: readonly KeywordField[];
+  // newRow は、行を足したときの初めの値。
+  newRow?: () => KeywordRow;
 };
 
-// MarkChips は、番組名の囲み文字 (新、字など) を選ぶ欄。表の囲み文字をすべてチップで並べ、
+// MarkChips は、番組名の囲み文字 (新、字など) を選ぶ欄。テーブルの囲み文字をすべてチップで並べ、
 // 押すたびに、含める、除外する、選ばない、の順に切り替える。
 // 一覧にない囲み文字 (API で保存したもの) も、選んだまま残すために並べる。
 function MarkChips({
@@ -246,7 +257,7 @@ function MarkChips({
       ? [{ key: 'others', label: t('rules.markGroup.others'), items: others }]
       : []),
   ];
-  // 押した順でなく、表の順にそろえて持つ。
+  // 押した順でなく、テーブルの順にそろえて持つ。
   const order = [...known, ...others];
   const sorted = (list: string[]) => [...list].sort((a, b) => order.indexOf(a) - order.indexOf(b));
   const cycle = (mark: string) => {
@@ -347,16 +358,21 @@ function ServiceMultiSelect({
   value: string[];
   onChange: (selected: string[]) => void;
 }) {
+  const { t } = useTranslation();
+  // 上流から消えたサービスは、この欄で選んでいるときだけ出す。選択肢から外すと、保存のときに黙って外れたように見える (#1973)。
+  const options = services.filter((service) => service.gone !== true || value.includes(service.id));
+
   return (
     <MultiSelect
       label={label}
       description={description}
       leftSection={icon}
-      data={serviceGroups(
-        services,
-        (service) => `${service.name}（${service.channelType.displayName}・${service.serviceId}）`,
-      )}
-      renderOption={renderServiceOption(services)}
+      data={serviceGroups(options, (service) => {
+        const name = `${service.name}（${service.channelType.displayName}・${service.serviceId}）`;
+
+        return service.gone === true ? t('rules.goneService', { name }) : name;
+      })}
+      renderOption={renderServiceOption(options)}
       value={value}
       onChange={onChange}
       searchable
@@ -365,8 +381,8 @@ function ServiceMultiSelect({
   );
 }
 
-// KeywordRows は、キーワードの行を足し、変え、消す。
-function KeywordRows({
+// KeywordRows は、キーワードの行を足し、変え、消す。番組の検索とルールの編集のほか、録画の検索でも使う (#966)。
+export function KeywordRows({
   label,
   description,
   match,
@@ -374,6 +390,8 @@ function KeywordRows({
   icon,
   rows,
   onChange,
+  fields = keywordFields,
+  newRow = emptyKeyword,
 }: KeywordRowsProps) {
   const { t } = useTranslation();
   const change = (index: number, patch: Partial<KeywordRow>) =>
@@ -404,7 +422,7 @@ function KeywordRows({
         </Text>
       </div>
       {rows.map((row, index) => (
-        // 狭い列にも収まるよう、1 段目に語と消すボタン、2 段目に照合のしかたを並べる。
+        // 狭い幅にも収まるよう、1 行目に語と消すボタン、2 行目に照合のしかたを並べる。
         <Stack key={index} gap={8}>
           <Group gap="xs" wrap="nowrap">
             <TextInput
@@ -431,7 +449,7 @@ function KeywordRows({
               onChange={(fields) => change(index, { fields: fields as KeywordField[] })}
             >
               <Group gap={4}>
-                {keywordFields.map((field) => (
+                {fields.map((field) => (
                   <Chip key={field} value={field} size="xs">
                     {t(fieldKeys[field])}
                   </Chip>
@@ -461,7 +479,7 @@ function KeywordRows({
           variant="default"
           size="xs"
           leftSection={<Plus size={14} aria-hidden />}
-          onClick={() => onChange([...rows, emptyKeyword()])}
+          onClick={() => onChange([...rows, newRow()])}
         >
           {t('rules.addKeyword')}
         </Button>

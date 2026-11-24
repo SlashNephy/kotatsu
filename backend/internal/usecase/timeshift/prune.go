@@ -15,18 +15,18 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
-// PruneInterval は、保持時間を過ぎたチャンクを捨てる間隔 (付録 A)。
+// PruneInterval は、保持時間を過ぎたチャンクを破棄する間隔 (付録 A)。
 const PruneInterval = time.Minute
 
-// PruneArgs は、保持時間を過ぎたチャンクを捨てるジョブの引数。
+// PruneArgs は、保持時間を過ぎたチャンクを破棄するジョブの引数。
 type PruneArgs struct{}
 
 var _ river.JobArgs = new(PruneArgs)
 
 func (PruneArgs) Kind() string { return "timeshift_prune" }
 
-// PruneWorker は、保持時間を過ぎたチャンクを捨てるジョブを実行する。
-// チャンクのファイル、索引、DB の行の順に消し、再生できる範囲の外になった番組の行も消す。
+// PruneWorker は、保持時間を過ぎたチャンクを破棄するジョブを実行する。
+// チャンクのファイル、インデックス、DB の行の順に消し、再生できる範囲の外になった番組の行も消す。
 // タイムシフトから外したチャンネルに、録る mikan のいない書きかけのチャンクや放送中のままの番組が残っていれば、先に閉じる。
 type PruneWorker struct {
 	river.WorkerDefaults[PruneArgs]
@@ -53,7 +53,7 @@ func (w *PruneWorker) Work(ctx context.Context, _ *river.Job[PruneArgs]) error {
 	return err
 }
 
-// RunOnce は、保持時間を過ぎたチャンクを捨て、捨てたチャンクの数を返す。
+// RunOnce は、保持時間を過ぎたチャンクを破棄し、破棄したチャンクの数を返す。
 // タイムシフトのディレクトリを設定していなければ、何もしない。
 func (w *PruneWorker) RunOnce(ctx context.Context) (int, error) {
 	if !w.store.HasTimeshiftDir() {
@@ -62,7 +62,7 @@ func (w *PruneWorker) RunOnce(ctx context.Context) (int, error) {
 	now := w.clock.Now()
 	q := sqlc.New(w.pool)
 	errs := []error{}
-	// 外したチャンネルの、録る mikan のいない書きかけを先に閉じる。閉じたチャンクは、設定がないので、この回で捨てる。
+	// 外したチャンネルの、録る mikan のいない書きかけを先に閉じる。閉じたチャンクは、設定がないので、この回で破棄する。
 	abandoned, err := q.ListAbandonedTimeshiftServices(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list abandoned timeshift services: %w", err)
@@ -95,7 +95,7 @@ func (w *PruneWorker) RunOnce(ctx context.Context) (int, error) {
 		}
 		pruned++
 	}
-	// 番組の行は、チャンクを捨てた後に、全サービスでまとめて整理する。外したチャンネルの行も残さない。
+	// 番組の行は、チャンクを破棄した後に、全サービスでまとめて整理する。外したチャンネルの行も残さない。
 	if _, err := q.DeleteStaleTimeshiftPrograms(ctx, now); err != nil {
 		errs = append(errs, fmt.Errorf("failed to delete old timeshift programs: %w", err))
 	}
@@ -106,7 +106,7 @@ func (w *PruneWorker) RunOnce(ctx context.Context) (int, error) {
 	return pruned, errors.Join(errs...)
 }
 
-// PrunePeriodicJob は、保持時間を過ぎたチャンクを PruneInterval ごとに捨てる定期ジョブを返す。
+// PrunePeriodicJob は、保持時間を過ぎたチャンクを PruneInterval ごとに破棄する定期ジョブを返す。
 func PrunePeriodicJob() *river.PeriodicJob {
 	return river.NewPeriodicJob(
 		river.PeriodicInterval(PruneInterval),

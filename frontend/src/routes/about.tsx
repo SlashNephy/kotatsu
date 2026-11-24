@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 
 import { Disclaimer } from '../about/Disclaimer';
-import { TMDbAttribution } from '../drama/DramaEpisode';
+import { TMDBAttribution } from '../drama/DramaEpisode';
 import { LicenseList } from '../about/LicenseList';
 import {
   bundledData,
@@ -41,7 +41,7 @@ const query = graphql`
   }
 `;
 
-// AboutPage は、Kotatsu の版とライセンス、免責事項 (#1712)、同梱するソフトウェアとそのライセンスの文書を出す (設計書 10.3、付録 B、#1604)。
+// AboutPage は、Kotatsu のバージョンとライセンス、免責事項 (#1712)、同梱するソフトウェアとそのライセンスの文書を出す (設計書 10.3、付録 B、#1604)。
 function AboutPage() {
   const { t } = useTranslation();
   useDocumentTitle([t('about.title')]);
@@ -63,7 +63,7 @@ function AboutContent() {
   const data = useLazyLoadQuery<aboutQuery>(query, {});
   const revision = data.version.revision ?? null;
   const [filter, setFilter] = useState('');
-  // undefined は読んでいる途中、null は書き出していないビルド。
+  // undefined は読んでいる途中、null は出力していないビルド。
   const [bundled, setBundled] = useState<SoftwareEntry[] | null | undefined>(undefined);
   const [libaribcaptionNotice, setLibaribcaptionNotice] = useState<string | null>(null);
 
@@ -128,12 +128,12 @@ function AboutContent() {
         <Disclaimer />
       </Card>
 
-      {/* TMDb の API の利用規約は、このアプリについての画面に、帰属の表示 (ロゴと注記) を求める (#1651)。 */}
+      {/* TMDB の API の利用規約は、このアプリについての画面に、帰属の表示 (ロゴと注記) を求める (#1651)。 */}
       <Card withBorder>
         <Stack gap="xs">
           <Text fw={600}>{t('about.dataSources')}</Text>
           <Text size="sm">{t('about.tmdb')}</Text>
-          <TMDbAttribution />
+          <TMDBAttribution />
           <Anchor
             href="https://www.themoviedb.org/"
             target="_blank"

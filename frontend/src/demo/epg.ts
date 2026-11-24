@@ -9,11 +9,13 @@ export type DemoService = {
   networkId: number;
   serviceId: number;
   name: string;
-  channelType: { type: string; displayName: string; sortOrder: number };
+  channelType: { type: string; displayName: string; sortOrder: number; hasServices: boolean };
   channel: string;
   remoteControlKeyId: number | null;
   hidden: boolean;
   sortOrder: number | null;
+  // gone は、上流から消えたサービスかどうか。デモの局は、どれも消えていない。
+  gone: false;
   streamUrl: string;
   logoUrl: string | null;
   // jikkyo は、実況のチャンネル。NX-Jikkyo にはつながず、架空のコメントを流す (src/demo/jikkyo.ts)。
@@ -48,8 +50,8 @@ export type DemoProgram = {
 };
 
 export const channelTypes = [
-  { type: 'GR', displayName: '地上波', sortOrder: 0 },
-  { type: 'BS', displayName: 'BS', sortOrder: 1 },
+  { type: 'GR', displayName: '地上波', sortOrder: 0, hasServices: true },
+  { type: 'BS', displayName: 'BS', sortOrder: 1, hasServices: true },
 ];
 
 // demoStreamURL は、デモの映像 (64 秒の合成の映像) の URL。ライブ視聴と録画の再生で、どの局と録画もこれを流す。
@@ -185,6 +187,7 @@ export const services: DemoService[] = serviceSeeds.map((seed, index) => {
     remoteControlKeyId: seed.key,
     hidden: false,
     sortOrder: index,
+    gone: false,
     streamUrl: demoStreamURL,
     logoUrl: logo(seed.short, seed.color),
     jikkyoChannelId: `demo${seed.serviceId}`,
@@ -628,7 +631,8 @@ export type ProgramConditionsInput = {
   freeOnly?: boolean | null;
 };
 
-function matchesKeyword(program: DemoProgram, keyword: KeywordInput): boolean {
+// matchesKeyword は、番組が keyword に一致するかを返す。番組の検索のほか、録画の検索 (#966) でも使う。
+export function matchesKeyword(program: DemoProgram, keyword: KeywordInput): boolean {
   const texts = keyword.fields.map((field) =>
     field === 'NAME'
       ? program.name
@@ -676,7 +680,7 @@ function matchesTimeRange(program: DemoProgram, range: TimeRangeInput): boolean 
 }
 
 // matchProgram は、検索やルールの条件 (ProgramConditionsInput) に、番組が当てはまるかを返す。
-// tenban の照合 (設計書 3.5) を、デモで使う範囲だけ写したもの。マークの条件は扱わない。
+// tenban の照合 (設計書 3.5) を、デモで使う範囲だけコピーしたもの。マークの条件は扱わない。
 export function matchProgram(program: DemoProgram, conditions: ProgramConditionsInput): boolean {
   const keywords = conditions.keywords ?? [];
   if (keywords.length > 0) {

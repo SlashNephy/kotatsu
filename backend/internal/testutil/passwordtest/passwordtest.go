@@ -1,7 +1,7 @@
 // Package passwordtest は、パスワードの強度の判定をテストで差し替えるものを提供する。
 //
-// zxcvbn-ts は、-race では 1 回の判定に数十秒かかる。強度の判定そのものを確かめないテストでは、これを使う。
-// zxcvbn-ts での判定は、password パッケージのテストで確かめる。
+// zxcvbn-ts は、-race では 1 回の判定に数十秒かかる。強度の判定そのものを確認しないテストでは、これを使う。
+// zxcvbn-ts での判定は、password パッケージのテストで確認する。
 package passwordtest
 
 import (

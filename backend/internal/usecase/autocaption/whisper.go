@@ -175,7 +175,7 @@ func readStderr(r io.Reader, progress func(ratio float64)) []string {
 			tail = tail[1:]
 		}
 	}
-	// 読み残すと whisper-cli が書き込みで止まるので、読めなくなっても最後まで捨てる。
+	// 読み残すと whisper-cli が書き込みで止まるので、読めなくなっても最後まで読んで破棄する。
 	_, _ = io.Copy(io.Discard, r)
 
 	return tail

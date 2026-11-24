@@ -62,3 +62,61 @@ func TestRecordsFromRealEDCB(t *testing.T) {
 	assert.Equal(t, jstTime(2026, 11, 14, 1, 35, 7), f.Start)
 	assert.Equal(t, 60*time.Second, f.Duration)
 }
+
+// autoAddWithAV は、映像と音声の条件 (vector<WORD>) を持つ EPG_AUTO_ADD_DATA の一覧を組む。
+func autoAddWithAV(video, audio payload) payload {
+	searchKey := sized(payload{}.str("ニュース").str("").u32(0).u32(0).
+		append(vector()).append(vector()).append(vector()).
+		append(video).append(audio).
+		u8(0).u8(0).u8(0).u8(1))
+	recSetting := sized(payload{}.u8(1).u8(2).u8(0).u32(0).u8(0).str("").append(vector()).
+		u8(0).u8(0).u8(0).u32(0).u32(0))
+
+	return payload{}.u16(5).append(vector(sized(payload{}.u32(7).append(searchKey).append(recSetting))))
+}
+
+// wordVector は、WORD の配列を組む。
+func wordVector(items ...uint16) payload {
+	elems := make([]payload, 0, len(items))
+	for _, v := range items {
+		elems = append(elems, payload{}.u16(v))
+	}
+
+	return vector(elems...)
+}
+
+func TestAutoAddsWithVideoAndAudioConditions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		in      payload
+		wantErr bool
+	}{
+		{name: "no conditions", in: autoAddWithAV(wordVector(), wordVector()), wantErr: false},
+		// 映像と音声は WORD の配列で、1 要素 2 バイト。4 バイトの要素を前提に数を確認すると、1 件でも壊れた応答とみなしていた (#1980)。
+		{name: "one video condition", in: autoAddWithAV(wordVector(0x01), wordVector()), wantErr: false},
+		{name: "video and audio conditions", in: autoAddWithAV(wordVector(0x01, 0xB1, 0xB3), wordVector(0x0203, 0x0209)), wantErr: false},
+		// 数が残りのバイト数に収まらない WORD の配列は、壊れた応答とする。
+		{name: "word count beyond the payload", in: autoAddWithAV(payload{}.u32(10).u32(2).u16(1), wordVector()), wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := newFakeServer(t, map[uint32]reply{2131: {status: 1, payload: tt.in, stream: nil, hold: false, drop: false}})
+			got, err := s.client(t).AutoAdds(t.Context())
+			if tt.wantErr {
+				require.ErrorIs(t, err, edcb.ErrMalformed)
+
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, got, 1)
+			assert.Equal(t, uint32(7), got[0].ID)
+			assert.Equal(t, "ニュース", got[0].Search.AndKey)
+			assert.Equal(t, uint8(1), got[0].Search.FreeCA)
+			assert.Equal(t, edcb.RecSetting{RecMode: 1, Priority: 2}, got[0].RecSetting)
+		})
+	}
+}

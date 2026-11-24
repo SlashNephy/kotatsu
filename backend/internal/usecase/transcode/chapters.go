@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	// minChapter は、チャプターにしない短い区間の長さ (#1510)。これ以下の CM の区間は捨て、これ以下の本編は作らない。
-	// チャプター送りで一瞬で飛ぶだけの区間を作らない長さにする。区間を選び直す見分け方 (#1506) の「捨てる短い区間」が決まるまでは、
+	// minChapter は、チャプターにしない短い区間の長さ (#1510)。これ以下の CM の区間は破棄し、これ以下の本編は作らない。
+	// チャプター送りで一瞬で飛ぶだけの区間を作らない長さにする。区間を選び直す見分け方 (#1506) の「破棄する短い区間」が決まるまでは、
 	// 今の見分け方が、セグメントをまたいで続く CM の区間を 1 つにまとめる間隔 (1 秒、付録 A) に合わせる。
 	minChapter = time.Second
 	// chapterMain と chapterCM は、チャプターの名前。
@@ -36,14 +36,14 @@ type chapterTimeline struct {
 	// recordedFrom と gaps は、録画を始めた日時と、途切れた区間。
 	recordedFrom time.Time
 	gaps         []Gap
-	// head は、途切れた区間を詰めた再生の時間から、MP4 の時間を得るのに引く量。変換で先頭を捨てた長さ (headOffset)。
+	// head は、途切れた区間を詰めた再生の時間から、MP4 の時間を得るのに引く量。変換で先頭を破棄した長さ (headOffset)。
 	head time.Duration
 	// duration は、MP4 の長さ。
 	duration time.Duration
 }
 
 // PlaybackPosition は、日時 at に当たる、録画の始まりからの再生の時間を返す。途切れた区間の分の映像はファイルにないので、
-// それより前に終わった区間の長さを引く。区間の中の日時は、区間の始まりの位置にする。
+// それより前に終わった区間の長さを差し引く。区間の中の日時は、区間の始まりの位置にする。
 // recordedFrom より前の区間 (遅れて録り始めたときの、冒頭の欠け) は、位置の基準の前なので引かない。
 // web の再生画面が CM の区間を再生位置に直す recordingPosition (frontend/src/yunomi/position.ts、#1427) と同じ対応にし、
 // 画面で飛ばす位置と、MP4 のチャプターの位置をそろえる (設計書 7.2)。
@@ -70,8 +70,8 @@ func PlaybackPosition(recordedFrom time.Time, gaps []Gap, at time.Time) time.Dur
 // buildChapters は、録画の CM の区間 sections (録画を始めた日時からの時間、始まりの順) から、MP4 のチャプターを作る (#1510)。
 // CM の区間と、その裏返しの本編を、交互に並べる。CM がなければ空のスライスを返す (チャプターを外す)。
 //
-// 区間は、途切れた区間を詰めた再生の時間に直し、変換で先頭を捨てた分 (tl.head) だけ前に詰める。始まりが負になったら 0 にし、
-// 終わりは MP4 の長さまでにする。詰めて minChapter 以下になった CM の区間は捨てる。CM の間の本編が minChapter 以下なら、
+// 区間は、途切れた区間を詰めた再生の時間に直し、変換で先頭を破棄した分 (tl.head) だけ前に詰める。始まりが負になったら 0 にし、
+// 終わりは MP4 の長さまでにする。詰めて minChapter 以下になった CM の区間は破棄する。CM の間の本編が minChapter 以下なら、
 // 本編を作らずに前後の CM を 1 つにし、先頭か末尾の本編が minChapter 以下なら、CM を端まで延ばす。
 func buildChapters(sections []cmdetect.Section, tl *chapterTimeline) []Chapter {
 	toMP4 := func(offset time.Duration) time.Duration {

@@ -71,7 +71,7 @@ func ObserveTOT(r *Recorder, at time.Time) {
 	r.observeTOT(at)
 }
 
-// WriteBroadcastSkew は、テストから、書いているセグメントの様子と一緒に、TOT で測った時計の差を書くために公開する。
+// WriteBroadcastSkew は、テストから、書いているセグメントの様子と一緒に、TOT で計測した時計の差を書くために公開する。
 func WriteBroadcastSkew(ctx context.Context, r *Recorder) {
 	newLiveStatsWriter(r, new(atomic.Pointer[uuid.UUID])).writeBroadcastSkew(ctx)
 }

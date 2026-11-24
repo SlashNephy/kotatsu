@@ -32,7 +32,7 @@ import (
 const (
 	// DefaultChunkDuration は、タイムシフトのチャンクの長さ (付録 A)。
 	DefaultChunkDuration = 5 * time.Minute
-	// DefaultTick は、つなぎ直すまで待つ間に時計を確かめる間隔と、割り振りが消えていないかを確かめる間隔 (付録 A)。
+	// DefaultTick は、つなぎ直すまで待つ間に時計を確認する間隔と、割り振りが消えていないかを確認する間隔 (付録 A)。
 	DefaultTick = time.Second
 	// chunkTimeLayout は、チャンクのファイル名にする、チャンクの開始の UTC の書式。
 	chunkTimeLayout = "20060102T150405Z"
@@ -42,7 +42,7 @@ const (
 	readPackets = 256
 )
 
-// DefaultBackoff は、ストリームが切れたときに、開き直すまでの間隔を、切れるたびに延ばしていく列 (付録 A)。最後の間隔を繰り返す。
+// DefaultBackoff は、ストリームが切れたときに、開き直すまでの間隔を、切れるたびに延ばしていく並び (付録 A)。最後の間隔を繰り返す。
 func DefaultBackoff() []time.Duration {
 	return []time.Duration{5 * time.Second, 10 * time.Second, 20 * time.Second, 40 * time.Second, 60 * time.Second}
 }
@@ -50,9 +50,9 @@ func DefaultBackoff() []time.Duration {
 // RecorderOptions は Recorder の設定。0 の項目は既定値にする。
 type RecorderOptions struct {
 	ChunkDuration time.Duration
-	// Backoff は、開き直すまでの間隔の列。空なら DefaultBackoff にする。
+	// Backoff は、開き直すまでの間隔の並び。空なら DefaultBackoff にする。
 	Backoff []time.Duration
-	// Tick は、時計と割り振りを確かめる間隔。
+	// Tick は、時計と割り振りを確認する間隔。
 	Tick time.Duration
 	// Peers は、ほかに動いている mikan の数を返す。nil なら、ほかの mikan はいないとみなし、割り振りを手放さない。
 	Peers recording.PeersFunc
@@ -66,7 +66,7 @@ var (
 )
 
 // Recorder は、タイムシフトの割り振りのサービスを、ChunkDuration ごとのチャンクに分けて録り続ける Session を提供する (設計書 5.7)。
-// チャンクごとに、通常の録画と同じ索引を書き、EIT[p/f] で放送中の番組が替わった時刻を記録する。
+// チャンクごとに、通常の録画と同じインデックスを書き、EIT[p/f] で放送中の番組が替わった時刻を記録する。
 type Recorder struct {
 	pool   *pgxpool.Pool
 	clock  clock.Clock
@@ -80,6 +80,8 @@ type Recorder struct {
 	lineups *lineup.Collector
 	// terrestrial は、タイムシフトで録る TS の SDT[actual] から集める、地上波のネットワークのサービス (#1519)。
 	terrestrial *lineup.TerrestrialCollector
+	// activities は、タイムシフトで録る TS の EIT[p/f] から集める、衛星のサービスの番組の有無 (#2034)。
+	activities *lineup.ActivityCollector
 }
 
 // NewRecorder は Recorder を返す。store には、タイムシフトのディレクトリとデータディレクトリが要る。opts は nil でもよい。
@@ -98,7 +100,7 @@ func NewRecorder(pool *pgxpool.Pool, clk clock.Clock, tuner recording.StreamOpen
 		}
 	}
 
-	return &Recorder{pool: pool, clock: clk, tuner: tuner, store: store, logger: logger, opts: o, logos: servicelogo.NewCollector(clk, logger), lineups: lineup.NewCollector(clk, logger), terrestrial: lineup.NewTerrestrialCollector(clk, logger)}
+	return &Recorder{pool: pool, clock: clk, tuner: tuner, store: store, logger: logger, opts: o, logos: servicelogo.NewCollector(clk, logger), lineups: lineup.NewCollector(clk, logger), terrestrial: lineup.NewTerrestrialCollector(clk, logger), activities: lineup.NewActivityCollector(clk, logger)}
 }
 
 // Session は、Worker に渡す Session を返す。
@@ -202,7 +204,7 @@ func (r *Recorder) unavailable(ctx context.Context, state *sessionState, err err
 // closeStale は、落ちた mikan が残した、書きかけのチャンクと、放送中のままの番組を閉じる。
 // 落ちてから今までは録れていないので、バッファの穴にする (設計書 5.7)。チャンクは、ファイルの大きさと、最後に書き込んだ時刻で閉じる。
 // 番組は、サービスのチャンクの最後の終わりで閉じる。チャンクがなければ、番組の始まりで閉じる。
-// 落ちた mikan の割り振りを取った mikan と、録る mikan のいない、外したチャンネルのものを捨てる破棄のジョブが使う。
+// 落ちた mikan の割り振りを取った mikan と、録る mikan のいない、外したチャンネルのものを破棄するジョブが使う。
 func closeStale(ctx context.Context, q *sqlc.Queries, store *kago.Store, serviceID int64) error {
 	chunks, err := q.ListOpenTimeshiftChunks(ctx, serviceID)
 	if err != nil {
@@ -284,7 +286,7 @@ func (r *Recorder) waitUntil(
 	return false, nil
 }
 
-// deleted は、割り振りが DB から消えたかどうかを返す。確かめられなければ、消えていないとみなす。
+// deleted は、割り振りが DB から消えたかどうかを返す。確認できなければ、消えていないとみなす。
 // DB への問い合わせが詰まっても、見張りを止めないよう、databaseTimeout で打ち切る (#1073)。
 // DB に届かないことのログは、届かなくなったときに 1 度だけ出す。DB が止まっている間も録り続けるので、毎回出すとあふれる。
 func (r *Recorder) deleted(ctx context.Context, assignment *recording.Assignment, pending *pendingWrites) bool {
@@ -444,7 +446,7 @@ func (r *Recorder) writePackets(ctx context.Context, logger *slog.Logger, state 
 	return current, current.write(packets)
 }
 
-// chunk は、書いているチャンクのファイルと、その索引。
+// chunk は、書いているチャンクのファイルと、そのインデックス。
 type chunk struct {
 	id        uuid.UUID
 	rel       string
@@ -454,15 +456,15 @@ type chunk struct {
 	startedAt time.Time
 	size      int64
 
-	// mu は、closed と discarded を守る。チャンクを閉じるのは読み込みのループ、記録を捨てるのは見張りの goroutine である。
+	// mu は、closed と discarded を守る。チャンクを閉じるのは読み込みのループ、記録を破棄するのは見張りの goroutine である。
 	mu sync.Mutex
-	// closed は、ファイルと索引を閉じたかどうか。discarded は、作った記録を書かずに捨てたかどうか。
-	// 両方が立ったら、DB に記録のないチャンクのファイルと索引を消す。開いているうちに消すと、Windows では消せず、
-	// NFS では索引のディレクトリが消えないので、閉じてから消す (#1722)。
+	// closed は、ファイルとインデックスを閉じたかどうか。discarded は、作った記録を書かずに破棄したかどうか。
+	// 両方が立ったら、DB に記録のないチャンクのファイルとインデックスを消す。開いているうちに消すと、Windows では消せず、
+	// NFS ではインデックスのディレクトリが消えないので、閉じてから消す (#1722)。
 	closed, discarded bool
 }
 
-// markClosed は、ファイルと索引を閉じたことを記録し、作った記録を捨てていたら true を返す。
+// markClosed は、ファイルとインデックスを閉じたことを記録し、作った記録を破棄していたら true を返す。
 func (c *chunk) markClosed() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -471,7 +473,7 @@ func (c *chunk) markClosed() bool {
 	return c.discarded
 }
 
-// markDiscarded は、作った記録を捨てたことを記録し、もう閉じていたら true を返す。
+// markDiscarded は、作った記録を破棄したことを記録し、もう閉じていたら true を返す。
 func (c *chunk) markDiscarded() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -480,7 +482,7 @@ func (c *chunk) markDiscarded() bool {
 	return c.closed
 }
 
-// removeDiscarded は、記録を捨てたチャンクのファイルと索引を消す。DB に記録のないチャンクは、破棄のジョブも、
+// removeDiscarded は、記録を破棄したチャンクのファイルとインデックスを消す。DB に記録のないチャンクは、破棄のジョブも、
 // DB にないファイルの探索も見ないので、残すと誰にも消されない (#1722)。
 func (r *Recorder) removeDiscarded(ctx context.Context, logger *slog.Logger, c *chunk) {
 	if err := r.store.Remove(kago.TimeshiftPoolID, c.rel, c.id); err != nil {
@@ -488,7 +490,7 @@ func (r *Recorder) removeDiscarded(ctx context.Context, logger *slog.Logger, c *
 	}
 }
 
-// createChunk は、タイムシフトのディレクトリの、サービスのディレクトリにチャンクのファイルを作り、索引を作って、DB に記録する。
+// createChunk は、タイムシフトのディレクトリの、サービスのディレクトリにチャンクのファイルを作り、インデックスを作って、DB に記録する。
 // ファイル名は、チャンクの開始の UTC にする。
 // DB に届かなければ、ファイルは残して書き続け、記録は pending に積んで後から書く (#1073)。
 func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, pending *pendingWrites, serviceID int64, now time.Time) (*chunk, error) {
@@ -496,9 +498,11 @@ func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, pending
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errChunkStorage, err)
 	}
-	// 索引は、データディレクトリの、チャンクの ID のディレクトリに置く。作れなくても、録り続ける。
+	// インデックスは、データディレクトリの、チャンクの ID のディレクトリに置く。作れなくても、録り続ける。
 	chunkID := id.New()
-	analyzer, indexFile, indexErr := recording.CreateIndex(r.store, chunkID, r.logos.Observe, r.lineups.Observe, r.terrestrial.Observe)
+	analyzer, indexFile, indexErr := recording.CreateIndex(
+		r.store, chunkID, r.logos.Observe, r.lineups.Observe, r.terrestrial.Observe, r.activities.Observe,
+	)
 	if indexErr != nil {
 		logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
@@ -510,7 +514,7 @@ func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, pending
 	err = r.writeOrDefer(ctx, logger, pending, func(ctx context.Context, q *sqlc.Queries) error {
 		return q.InsertTimeshiftChunk(ctx, params)
 	}, func() {
-		// 記録を書かずに捨てたら、チャンクを閉じてから消す。もう閉じていれば、ここで消す (#1722)。
+		// 記録を書かずに破棄したら、チャンクを閉じてから消す。もう閉じていれば、ここで消す (#1722)。
 		if c.markDiscarded() {
 			r.removeDiscarded(ctx, logger, c)
 		}
@@ -531,22 +535,22 @@ func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, pending
 	return c, nil
 }
 
-// write は、チャンクのファイルと解析器に p を書く。
+// write は、チャンクのファイルとパーサーに p を書く。
 func (c *chunk) write(p []byte) error {
 	n, err := c.file.Write(p)
 	c.size += int64(n)
 	if err != nil {
 		return fmt.Errorf("failed to write the timeshift chunk: %w", err)
 	}
-	// 解析器は、エラーを返さない。索引の書き込みのエラーは、解析器の中に残る。
+	// パーサーは、エラーを返さない。インデックスの書き込みのエラーは、パーサーの中に残る。
 	_, _ = c.analyzer.Write(p)
 
 	return nil
 }
 
-// closeChunk は、チャンクのファイルと索引を書き終え、DB に大きさと終わりの時刻を記録する。
+// closeChunk は、チャンクのファイルとインデックスを書き終え、DB に大きさと終わりの時刻を記録する。
 // 閉じられなくても、次のチャンクに書き続けるので、ログに残すだけにする。
-// 作った記録を捨てていたチャンクは、記録せずにファイルと索引を消し、false を返す。録れた最後の時刻にはしない (#1722)。
+// 作った記録を破棄していたチャンクは、記録せずにファイルとインデックスを消し、false を返す。録れた最後の時刻にはしない (#1722)。
 func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending *pendingWrites, c *chunk, endedAt time.Time) bool {
 	errs := []error{}
 	if err := c.file.Sync(); err != nil {
@@ -577,12 +581,13 @@ func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending 
 	if err != nil {
 		errs = append(errs, fmt.Errorf("failed to save the timeshift chunk size: %w", err))
 	}
-	// DB に届かない間は、ロゴは書かずに溜めておく。
+	// DB に届かない間は、ロゴは書かずにバッファしておく。
 	if !pending.waiting() {
 		logoCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
 		r.logos.Flush(logoCtx, sqlc.New(r.pool))
 		r.lineups.Flush(logoCtx, sqlc.New(r.pool))
 		r.terrestrial.Flush(logoCtx, sqlc.New(r.pool))
+		r.activities.Flush(logoCtx, sqlc.New(r.pool))
 		cancel()
 	}
 	if err := errors.Join(errs...); err != nil {
@@ -593,7 +598,7 @@ func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending 
 }
 
 // programTracker は、EIT[p/f] の放送中の番組を追い、替わった時刻を timeshift_programs に記録する。
-// チャンクを替えるたびと、つなぎ直すたびに解析器は替わるので、放送中の番組は、ここで持ち続ける。
+// チャンクを替えるたびと、つなぎ直すたびにパーサーは替わるので、放送中の番組は、ここで持ち続ける。
 type programTracker struct {
 	recorder  *Recorder
 	logger    *slog.Logger
@@ -624,7 +629,7 @@ func (r *Recorder) newProgramTracker(ctx context.Context, logger *slog.Logger, s
 	return t, nil
 }
 
-// observe は、解析器の EIT[p/f] の放送中の番組が替わっていたら、前の番組を now で閉じ、新しい番組を now から始める。
+// observe は、パーサーの EIT[p/f] の放送中の番組が替わっていたら、前の番組を now で閉じ、新しい番組を now から始める。
 // 番組名は programs から引き、なければ空にする。記録できなくても、録り続ける。
 func (t *programTracker) observe(ctx context.Context, analyzer *ts.Analyzer, now time.Time) {
 	if !t.ok {

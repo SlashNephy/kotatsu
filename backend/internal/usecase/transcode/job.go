@@ -68,7 +68,7 @@ type Args struct {
 	// Preset は、変換の画質 (domain.TranscodePresets のどれか)。
 	Preset string `json:"preset"`
 	// FrameRate は、出すコマ数 (domain.TranscodeFrameRates のどれか、#1509)。空なら既定値 (domain.DefaultTranscodeFrameRate) にする。
-	// 足す前の版が入れたジョブと、足す前の版の mikan が出した録画の完了のイベントでは空になる。
+	// 足す前のバージョンが入れたジョブと、足す前のバージョンの mikan が出した録画の完了のイベントでは空になる。
 	FrameRate string `json:"frameRate,omitempty"`
 }
 
@@ -94,7 +94,7 @@ type Inserter interface {
 	InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
 }
 
-// Enqueuer は、録画の完了のイベントを配るときに、変換のジョブを投入する。
+// Enqueuer は、録画の完了のイベントを配信するときに、変換のジョブを投入する。
 type Enqueuer struct {
 	inserter Inserter
 }
@@ -108,7 +108,7 @@ func NewEnqueuer(inserter Inserter) *Enqueuer {
 
 // OnEvent は、録画の完了のイベントのうち、変換の画質を選んだ録画 (TS のセグメントを書いたもの) に、変換のジョブを投入する。
 // 変換するかどうかは、録画を終えるときに、全体の既定値に、ルールと予約の上書きを重ねて求めてある。
-// 画質のないイベント (足す前の版の mikan が出したもの) は、既定に合わせて変換しない。出すコマ数のないイベントは、既定値で出す。
+// 画質のないイベント (足す前のバージョンの mikan が出したもの) は、既定に合わせて変換しない。出すコマ数のないイベントは、既定値で出す。
 func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.Event) error {
 	if event.Kind != domain.NotificationKindRecordingCompleted {
 		return nil
@@ -167,7 +167,7 @@ type Worker struct {
 	logger   *slog.Logger
 	// progress は、進み具合の割合と残り時間の決め方。
 	progress *ffprogress.Config
-	// cadence は、出すコマ数を自動で選ぶときの、窓の取り方と閾値 (#1509)。
+	// cadence は、出すコマ数を自動で選ぶときの、ウィンドウの取り方と閾値 (#1509)。
 	cadence *CadenceParams
 	// newEncoder は、変換に使う Encoder を作る。テストでは差し替える。
 	newEncoder func() (Encoder, error)
@@ -345,7 +345,7 @@ func (w *Worker) enqueueChapters(ctx context.Context, tx pgx.Tx, recordingID uui
 }
 
 // estimate は、変換の進み具合の分母を求める (#1511)。見込みのコマ数は、最初の I フレームから流した再生の時間に、
-// 出すコマ数 rate (frameRatePlan.outputRate) を掛ける。変換は、最初の I フレームから流すので、それより前の映像 (先頭を捨てた分) は含めない。
+// 出すコマ数 rate (frameRatePlan.outputRate) を掛ける。変換は、最初の I フレームから流すので、それより前の映像 (先頭を破棄した分) は含めない。
 // フィールドごとに 1 コマにするなら 59.94、コマごとに解除するなら、最初のセグメントの映像のフレームレートになる (#1509)。
 // 見込みのコマ数が出せなければ、入力の大きさで割る。
 func estimate(ctx context.Context, recording *stream.Recording, rate float64) ffprogress.Estimate {
@@ -417,7 +417,7 @@ func (w *Worker) encode(ctx context.Context, encoder Encoder, recording *stream.
 	return nil
 }
 
-// checkOutput は、出力のパス (プール poolID の rel、ファイルシステムの out) に書いてよいかを確かめ、
+// checkOutput は、出力のパス (プール poolID の rel、ファイルシステムの out) に書いてよいかを確認し、
 // この録画を前に変換した MP4 のものかどうかを返す。ほかのファイルが使っていれば、取りやめる。
 func checkOutput(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID, poolID, rel, out string) (bool, error) {
 	owner, err := q.GetRecordingFileOwner(ctx, sqlc.GetRecordingFileOwnerParams{PoolID: poolID, Path: rel})

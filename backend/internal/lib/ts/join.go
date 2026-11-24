@@ -54,7 +54,7 @@ func (j *Joiner) Written() int64 {
 }
 
 // Append は、r のパケットを、そのまま後ろにつなぐ。最初のセグメントと、前のセグメントと時間が重ならないセグメントに使う。
-// 末尾の、パケットの大きさに満たない端は捨てる。
+// 末尾の、パケットの大きさに満たない端は破棄する。
 func (j *Joiner) Append(r io.Reader) error {
 	return j.copyPackets(r, nil)
 }
@@ -79,7 +79,7 @@ func (j *Joiner) AppendOverlapping(r io.Reader) error {
 	head = head[start:]
 
 	// 重なりは、head のうち、パケットとしてそろった部分で探す。
-	// 端の、パケットに満たない分は捨てずに、続きの読み込みにつなぐ。捨てると、それより後ろのパケットの位置がずれる。
+	// 端の、パケットに満たない分は破棄せずに、続きの読み込みにつなぐ。破棄すると、それより後ろのパケットの位置がずれる。
 	overlap, ok := findOverlap(tail, head[:len(head)/PacketSize*PacketSize])
 	if !ok {
 		return ErrNoOverlap
@@ -100,7 +100,7 @@ func (j *Joiner) tail() ([]byte, error) {
 }
 
 // findOverlap は、tail の末尾と同じパケットの並びで head が始まるとき、重なりのバイト数を返す。
-// PAT の continuity_counter は、クライアントごとに違うので比べない。
+// PAT の continuity_counter は、クライアントごとに違うので比較しない。
 func findOverlap(tail, head []byte) (int, bool) {
 	probeSize := joinProbePackets * PacketSize
 	if len(tail) < probeSize || len(head) < probeSize {
@@ -176,7 +176,7 @@ func (j *Joiner) copyPackets(r io.Reader, shift *patShift) error {
 	}
 }
 
-// adjustPAT は、chunk の PAT の continuity_counter をずらし、最後の値を覚える。continuity_counter は 4 ビットなので、下位 4 ビットで数える。
+// adjustPAT は、chunk の PAT の continuity_counter をずらし、最後の値を保持する。continuity_counter は 4 ビットなので、下位 4 ビットで数える。
 func (j *Joiner) adjustPAT(chunk []byte, shift *patShift) {
 	for i := 0; i+PacketSize <= len(chunk); i += PacketSize {
 		p := chunk[i : i+PacketSize]

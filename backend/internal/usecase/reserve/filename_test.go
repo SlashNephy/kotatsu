@@ -33,7 +33,7 @@ func TestWeekdayJa(t *testing.T) {
 	}
 }
 
-// TestFileNameTemplatePresets は、よく使うテンプレートが、どれも解釈でき、EPGStation と同じものは EPGStation と同じ名前になることを確かめる。
+// TestFileNameTemplatePresets は、よく使うテンプレートが、どれも解釈でき、EPGStation と同じものは EPGStation と同じ名前になることを確認する。
 func TestFileNameTemplatePresets(t *testing.T) {
 	t.Parallel()
 
@@ -62,7 +62,7 @@ func TestFileNameTemplatePresets(t *testing.T) {
 	}
 }
 
-// TestFileNameTemplateItems は、書き方の表のどれもが、テンプレートとして解釈できることを確かめる。
+// TestFileNameTemplateItems は、書き方のテーブルのどれもが、テンプレートとして解釈できることを確認する。
 func TestFileNameTemplateItems(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +76,7 @@ func TestFileNameTemplateItems(t *testing.T) {
 	}
 }
 
-// TestParseFileNameTemplateRejects は、当てはめる時間や結果の長さを際限なく延ばせる書き方を受け付けないことを確かめる。
+// TestParseFileNameTemplateRejects は、当てはめる時間や結果の長さを際限なく延ばせる書き方を受け付けないことを確認する。
 func TestParseFileNameTemplateRejects(t *testing.T) {
 	t.Parallel()
 
@@ -111,7 +111,7 @@ func TestParseFileNameTemplateRejects(t *testing.T) {
 }
 
 // TestRenderFileName は、テンプレートに書いた / だけをディレクトリの区切りにし、値に入っている / は、
-// half で半角になる全角のものも含めて取り除くことを確かめる。
+// half で半角になる全角のものも含めて取り除くことを確認する。
 func TestRenderFileName(t *testing.T) {
 	t.Parallel()
 
@@ -127,7 +127,7 @@ func TestRenderFileName(t *testing.T) {
 }
 
 // TestRenderFileNameRemovesWindowsUnsafeCharacters は、half で半角になった : や * も、
-// Windows で使えないので、ファイル名から取り除くことを確かめる (#881)。
+// Windows で使えないので、ファイル名から取り除くことを確認する (#881)。
 func TestRenderFileNameRemovesWindowsUnsafeCharacters(t *testing.T) {
 	t.Parallel()
 

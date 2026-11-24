@@ -18,19 +18,19 @@ const (
 	NotificationKindReservationConflict    NotificationKind = "reservation_conflict"
 	NotificationKindStorageLow             NotificationKind = "storage_low"
 	NotificationKindTunerServerUnreachable NotificationKind = "tuner_server_unreachable"
-	// 視聴予約した番組の放送が近いことを知らせる (設計書 4.8)。予約したユーザーだけに届け、Webhook では送らない。
+	// 視聴予約した番組の放送が近いことを通知する (設計書 4.8)。予約したユーザーだけに届け、Webhook では送らない。
 	NotificationKindWatchReminder NotificationKind = "watch_reminder"
-	// 見たアニメを Annict や AniList に記録したことを知らせる (#927)。見たユーザーだけに届け、Webhook では送らない。
+	// 見たアニメを Annict や AniList に記録したことを通知する (#927)。見たユーザーだけに届け、Webhook では送らない。
 	NotificationKindAnimeRecorded NotificationKind = "anime_recorded"
-	// 見たアニメを記録できなかったことを知らせる (#927)。見たユーザーだけに届け、Webhook では送らない。
+	// 見たアニメを記録できなかったことを通知する (#927)。見たユーザーだけに届け、Webhook では送らない。
 	NotificationKindAnimeRecordFailed NotificationKind = "anime_record_failed"
-	// 見たドラマを Simkl に記録したことを知らせる (#1649)。見たユーザーだけに届け、Webhook では送らない。
+	// 見たドラマを Simkl に記録したことを通知する (#1649)。見たユーザーだけに届け、Webhook では送らない。
 	NotificationKindDramaRecorded NotificationKind = "drama_recorded"
-	// 見たドラマを記録できなかったことを知らせる (#1649)。見たユーザーだけに届け、Webhook では送らない。
+	// 見たドラマを記録できなかったことを通知する (#1649)。見たユーザーだけに届け、Webhook では送らない。
 	NotificationKindDramaRecordFailed NotificationKind = "drama_record_failed"
-	// スクランブルされたまま録れた録画が続いたことを知らせる (#1517)。B-CAS カードを確かめられるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
+	// スクランブルされたまま録れた録画が続いたことを通知する (#1517)。B-CAS カードを確認できるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
 	NotificationKindScrambledRecordings NotificationKind = "scrambled_recordings"
-	// 放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる (#1519)。チューナーサーバーをスキャンし直せるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
+	// 放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを通知する (#1519)。チューナーサーバーをスキャンし直せるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
 	NotificationKindLineupChanged NotificationKind = "lineup_changed"
 )
 

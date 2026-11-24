@@ -25,7 +25,7 @@ describe('frameBefore', () => {
 });
 
 describe('previewFrame', () => {
-  // 10 列で 25 コマなら、3 行になる。
+  // 10 カラムで 25 コマなら、3 行になる。
   const manifest = {
     width: 160,
     height: 90,

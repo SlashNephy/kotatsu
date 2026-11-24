@@ -27,7 +27,7 @@ const (
 	imagesMaxAttempts = 3
 	// imagesTimeout は、画像を作るジョブの時間の上限。1 枚ずつ FFmpeg を動かすので、コマの数だけかかる。録画の画像と同じ。
 	imagesTimeout = 10 * time.Minute
-	// imagesSnooze は、索引を作り終えていないファイルの画像を作るジョブを、待たせる時間。
+	// imagesSnooze は、インデックスを作り終えていないファイルの画像を作るジョブを、待たせる時間。
 	imagesSnooze = 30 * time.Second
 )
 
@@ -64,7 +64,7 @@ func (ImagesArgs) InsertOpts() river.InsertOpts {
 }
 
 // ImagesWorker は、ライブラリのファイルの代表画像とプレビュー画像を作る (設計書 5.8)。録画と同じ部品 (thumbnail.Generator) で、
-// 索引の I フレームから作り、データディレクトリの索引の置き場に置く。nekonote が、ライブラリとデータディレクトリをマウントして動かす。
+// インデックスの I フレームから作り、データディレクトリのインデックスの保存先に置く。nekonote が、ライブラリとデータディレクトリをマウントして動かす。
 type ImagesWorker struct {
 	river.WorkerDefaults[ImagesArgs]
 
@@ -78,7 +78,7 @@ type ImagesWorker struct {
 
 var _ river.Worker[ImagesArgs] = new(ImagesWorker)
 
-// NewImagesWorker は ImagesWorker を返す。indexer は、索引を作らない (読むだけの) もの。preview が false を返せば、代表画像だけを作る。
+// NewImagesWorker は ImagesWorker を返す。indexer は、インデックスを作らない (読むだけの) もの。preview が false を返せば、代表画像だけを作る。
 func NewImagesWorker(libraries *medialib.Set, indexer *Indexer, preview func(ctx context.Context) (bool, error)) *ImagesWorker {
 	return newImagesWorker(libraries, indexer, preview, func() (thumbnail.Extractor, error) { return thumbnail.NewFFmpeg() })
 }
@@ -123,7 +123,7 @@ func (w *ImagesWorker) Work(ctx context.Context, job *river.Job[ImagesArgs]) err
 	case file.Writing:
 		return river.JobCancel(errFileWriting)
 	case !file.Index.Complete:
-		// 索引は tenban が作るので、作り終えるまで待つ。
+		// インデックスは tenban が作るので、作り終えるまで待つ。
 		return river.JobSnooze(imagesSnooze)
 	}
 	segments := []thumbnail.Segment{{
@@ -146,7 +146,7 @@ func (w *ImagesWorker) Work(ctx context.Context, job *river.Job[ImagesArgs]) err
 	return w.write(ref, job.Args.FileID, result)
 }
 
-// write は、画像を索引の置き場に書き、どのファイルから作ったかを記録する。
+// write は、画像をインデックスの保存先に書き、どのファイルから作ったかを記録する。
 func (w *ImagesWorker) write(ref Ref, fileID string, result *thumbnail.Result) error {
 	dir, err := w.indexer.ImageDir(ref)
 	if err != nil {
@@ -156,7 +156,7 @@ func (w *ImagesWorker) write(ref Ref, fileID string, result *thumbnail.Result) e
 		return err
 	}
 	if result.Preview == nil {
-		// 置き場はファイルのパスごとなので、プレビュー画像を作らない設定にした後で書き換えたファイルに、前のファイルのプレビュー画像を残さない。
+		// 保存先はファイルのパスごとなので、プレビュー画像を作らない設定にした後で書き換えたファイルに、前のファイルのプレビュー画像を残さない。
 		if err := removePreview(dir); err != nil {
 			return err
 		}
@@ -177,7 +177,7 @@ func (w *ImagesWorker) write(ref Ref, fileID string, result *thumbnail.Result) e
 	return w.indexer.MarkImages(ref, fileID)
 }
 
-// removePreview は、置き場 dir のプレビュー画像とその説明を消す。なければ何もしない。
+// removePreview は、保存先 dir のプレビュー画像とその説明を消す。なければ何もしない。
 func removePreview(dir string) error {
 	for _, name := range []string{PreviewFileName, ManifestFileName} {
 		if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -196,7 +196,7 @@ type JobInserter interface {
 var _ JobInserter = new(jobs.Client)
 
 // EnqueueImages は、ファイル file の画像がまだなければ、作るジョブを入れる。同じファイルのジョブが待っていれば、重ねない。
-// 索引を作り終えていないか、書いている途中のファイルには入れない。
+// インデックスを作り終えていないか、書いている途中のファイルには入れない。
 func EnqueueImages(ctx context.Context, inserter JobInserter, indexer *Indexer, file *File) error {
 	if !file.Index.Complete || file.Writing || indexer.HasImages(file.Ref, file.ID()) {
 		return nil

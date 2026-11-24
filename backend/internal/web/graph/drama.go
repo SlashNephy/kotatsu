@@ -11,10 +11,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
-// tmdbWebURL は、TMDb の作品のページのオリジン。
+// tmdbWebURL は、TMDB の作品のページのオリジン。
 const tmdbWebURL = "https://www.themoviedb.org"
 
-// dramaEpisodeOf は、結びついた TMDb の作品と話を GraphQL の形にする。
+// dramaEpisodeOf は、結びついた TMDB の作品と話を GraphQL の形にする。
 func dramaEpisodeOf(episode *drama.LinkedEpisode) *model.DramaEpisode {
 	seriesURL := fmt.Sprintf("%s/tv/%d", tmdbWebURL, episode.SeriesID)
 	result := &model.DramaEpisode{
@@ -62,22 +62,22 @@ func (r *Resolver) dramaTitleOverrides(ctx context.Context) ([]*model.DramaTitle
 	return result, nil
 }
 
-// tmdbSeriesIDOf は、GraphQL の Int を、TMDb の作品の ID にする。1 以上で、int32 に収まらなければ BAD_USER_INPUT を返す。
+// tmdbSeriesIDOf は、GraphQL の Int を、TMDB の作品の ID にする。1 以上で、int32 に収まらなければ BAD_USER_INPUT を返す。
 func tmdbSeriesIDOf(value int) (int32, error) {
 	if value <= 0 || value > math.MaxInt32 {
-		return 0, NewError(CodeBadUserInput, "tmdbSeriesId must be a positive TMDb series ID")
+		return 0, NewError(CodeBadUserInput, "tmdbSeriesId must be a positive TMDB series ID")
 	}
 
 	return int32(value), nil
 }
 
-// dramaTitleKeyOf は、上書きの変更の入力から、作品名の鍵を返す。番組名と鍵のどちらか 1 つだけを受け付ける。
+// dramaTitleKeyOf は、上書きの変更の入力から、作品名のキーを返す。番組名とキーのどちらか 1 つだけを受け付ける。
 func dramaTitleKeyOf(input *model.DramaTitleOverrideInput) (string, error) {
 	switch {
 	case input.ProgramName != nil && input.TitleKey == nil:
 		return drama.TitleKeyOf(*input.ProgramName), nil
 	case input.ProgramName == nil && input.TitleKey != nil:
-		// 一覧の鍵はもう鍵の形なので、そのまま同じ鍵になる。空白や記号だけの値は空になり、BAD_USER_INPUT にする。
+		// 一覧のキーはもうキーの形なので、そのまま同じキーになる。空白や記号だけの値は空になり、BAD_USER_INPUT にする。
 		return drama.TitleKey(*input.TitleKey), nil
 	default:
 		return "", NewError(CodeBadUserInput, "pass exactly one of programName and titleKey")
@@ -96,10 +96,10 @@ func dramaError(err error) error {
 	return err
 }
 
-// errNoDramaTokens は、TMDb のトークンを扱う部品を渡していないことを表す。
-var errNoDramaTokens = errors.New("the TMDb token store is not configured")
+// errNoDramaTokens は、TMDB のトークンを扱う部品を渡していないことを表す。
+var errNoDramaTokens = errors.New("the TMDB token store is not configured")
 
-// dramaTokenStore は、TMDb のトークンを扱う部品を返す。渡していなければ内部のエラーを返す。
+// dramaTokenStore は、TMDB のトークンを扱う部品を返す。渡していなければ内部のエラーを返す。
 func (r *Resolver) dramaTokenStore() (*drama.Tokens, error) {
 	if r.dramaTokens == nil {
 		return nil, errNoDramaTokens
@@ -108,7 +108,7 @@ func (r *Resolver) dramaTokenStore() (*drama.Tokens, error) {
 	return r.dramaTokens, nil
 }
 
-// dramaLinking は、TMDb との連携の様子を返す。トークンそのものは返さない。
+// dramaLinking は、TMDB との連携の様子を返す。トークンそのものは返さない。
 func (r *Resolver) dramaLinking(ctx context.Context) (*model.DramaLinkingStatus, error) {
 	tokens, err := r.dramaTokenStore()
 	if err != nil {

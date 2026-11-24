@@ -22,7 +22,7 @@ import (
 
 // newTestPolicy は、パスワードの規定を返す。強度の判定は、-race で遅い zxcvbn-ts の代わりに、
 // 決まったパスワード (kotatsukotatsu) と、ユーザー名を含むパスワードを弱いとみなすものに差し替える。
-// zxcvbn-ts での判定は、password パッケージのテストで確かめる。
+// zxcvbn-ts での判定は、password パッケージのテストで確認する。
 func newTestPolicy(t *testing.T) *password.Policy {
 	t.Helper()
 
@@ -50,11 +50,11 @@ func newDB(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// TestAuthorizationMatrix は、設計書 9.7 のロールと権限の表どおりに、ミドルウェアが通すか拒むかを確かめる。
+// TestAuthorizationMatrix は、設計書 9.7 のロールと権限のテーブルどおりに、ミドルウェアが通すか拒むかを確認する。
 func TestAuthorizationMatrix(t *testing.T) {
 	t.Parallel()
 
-	// 設計書 9.7 の表。行が操作、列が管理者、メンバー、視聴者。
+	// 設計書 9.7 のテーブル。行が操作、カラムが管理者、メンバー、視聴者。
 	table := []struct {
 		permission domain.Permission
 		admin      bool

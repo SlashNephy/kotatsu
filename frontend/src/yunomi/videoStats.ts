@@ -1,8 +1,10 @@
-// VideoStats は、右の列の「情報」(#828) に出す、映像の再生の様子 (#499)。
+import type { PlayerMedia } from './playerMedia';
+
+// VideoStats は、右のカラムの「情報」(#828) に出す、映像の再生の様子 (#499)。
 export type VideoStats = {
   width: number;
   height: number;
-  // dropped は捨てたフレームの数、total は受け取ったフレームの数 (捨てたものを含む)。数えられないブラウザでは null。
+  // dropped は破棄したフレームの数、total は受け取ったフレームの数 (破棄したものを含む)。数えられないブラウザでは null。
   dropped: number | null;
   total: number | null;
   // buffered は、今の位置から先に読み込んである秒数。
@@ -13,10 +15,14 @@ export type VideoStats = {
 // readVideoStats は、video から、再生の様子を読む。
 export function readVideoStats(
   video: Pick<
-    HTMLVideoElement,
-    'videoWidth' | 'videoHeight' | 'currentTime' | 'buffered' | 'playbackRate'
-  > &
-    Partial<Pick<HTMLVideoElement, 'getVideoPlaybackQuality'>>,
+    PlayerMedia,
+    | 'videoWidth'
+    | 'videoHeight'
+    | 'currentTime'
+    | 'buffered'
+    | 'playbackRate'
+    | 'getVideoPlaybackQuality'
+  >,
 ): VideoStats {
   let buffered = 0;
   for (let i = 0; i < video.buffered.length; i++) {

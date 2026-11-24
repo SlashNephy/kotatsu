@@ -1,5 +1,7 @@
 // /about の画面に並べる、Kotatsu が同梱するソフトウェアとデータの一覧 (設計書 10.3、付録 B、#1604)。
 
+import { anime4kLicenseText } from '../yunomi/anime4kShaders';
+
 // LicenseText は、ライセンスの文書のファイル 1 つ。
 export type LicenseText = { name: string; text: string };
 
@@ -13,7 +15,7 @@ export type SoftwareEntry = {
   note: string | null;
 };
 
-// BundledPackage は、ビルドで書き出す licenses.json の 1 件 (vite.config.ts の bundledLicenses)。
+// BundledPackage は、ビルドで出力する licenses.json の 1 件 (vite.config.ts の bundledLicenses)。
 type BundledPackage = {
   name: string;
   version: string;
@@ -31,7 +33,7 @@ export function sourceURL(path: string, revision: string | null): string {
   return `${repositoryURL}/blob/${revision || 'main'}/${path}`;
 }
 
-// fetchBundledPackages は、画面に同梱するパッケージの一覧を読む。開発サーバーのように書き出していなければ null を返す。
+// fetchBundledPackages は、画面に同梱するパッケージの一覧を読む。開発サーバーのように出力していなければ null を返す。
 export async function fetchBundledPackages(
   generatedNote: string,
   fetcher: typeof fetch = fetch,
@@ -121,8 +123,8 @@ export type DataEntryNotes = {
   inImage: string;
 };
 
-// bundledData は、パッケージの情報を持たない同梱物 (フォントとデータの表) を返す。設計書の付録 B の表と合わせる。
-// libaribcaption の表の著作権表示は、public/licenses/libaribcaption.txt に置いてあり、画面と同じオリジンから読む。
+// bundledData は、パッケージの情報を持たない同梱物 (フォントとデータのテーブル) を返す。設計書の付録 B のテーブルと合わせる。
+// libaribcaption のテーブルの著作権表示は、public/licenses/libaribcaption.txt に置いてあり、画面と同じオリジンから読む。
 export function bundledData(
   libaribcaptionNotice: string | null,
   revision: string | null,
@@ -146,6 +148,14 @@ export function bundledData(
         libaribcaptionNotice === null
           ? []
           : [{ name: 'libaribcaption.txt', text: libaribcaptionNotice }],
+      note: null,
+    },
+    {
+      name: 'Anime4K（映像の拡大の CNN のシェーダー）',
+      version: null,
+      license: 'MIT',
+      url: 'https://github.com/bloc97/Anime4K',
+      licenses: [{ name: 'LICENSE', text: anime4kLicenseText }],
       note: null,
     },
     {
@@ -191,6 +201,15 @@ export function imagePrograms(note: string): SoftwareEntry[] {
       version: null,
       license: 'GPL-2.0-or-later',
       url: 'https://ffmpeg.org/',
+      licenses: [],
+      note,
+    },
+    {
+      // FFmpeg のビルドに使い、NVENC と NVDEC を実行時に読み込む部分が FFmpeg に入る (#2001)。
+      name: 'nv-codec-headers',
+      version: null,
+      license: 'MIT',
+      url: 'https://github.com/FFmpeg/nv-codec-headers',
       licenses: [],
       note,
     },

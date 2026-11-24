@@ -16,7 +16,7 @@ import (
 )
 
 // newRedetectCMCommand は kotatsu admin redetect-cm を作る (#1814)。
-// 最後に見分けた CM の区間が、管理者が選んだ見分け方の今の版より古い録画を探し、見分け直すジョブをまとめて投入する。
+// 最後に見分けた CM の区間が、管理者が選んだ見分け方の今のバージョンより古い録画を探し、見分け直すジョブをまとめて投入する。
 // 材料が残っていれば、ジョブは録画を読み直さずに判定し直す。
 func newRedetectCMCommand(opts *Options, connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error)) *cobra.Command {
 	var allDetectors, dryRun bool
@@ -73,7 +73,7 @@ func newRedetectCMCommand(opts *Options, connect func(ctx context.Context) (*con
 }
 
 // printOutdatedCM は、見分け直す録画の数と一覧を out に書く (#1814)。
-// 1 行に 1 本ずつ、放送の開始、録画の ID、最後に見分けた見分け方と版、材料から判定し直せそうか (materials) 読み直すか (read)、番組名をタブで区切る。
+// 1 行に 1 本ずつ、放送の開始、録画の ID、最後に見分けた見分け方とバージョン、材料から判定し直せそうか (materials) 読み直すか (read)、番組名をタブで区切る。
 func printOutdatedCM(out io.Writer, detector string, version int32, recordings []cmdetect.OutdatedRecording, fromMaterials int) error {
 	_, err := fmt.Fprintf(out, "%d recordings would be redetected by %s version %d (%d from the materials, %d by reading the recordings)\n",
 		len(recordings), detector, version, fromMaterials, len(recordings)-fromMaterials)

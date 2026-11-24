@@ -3,7 +3,6 @@ import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, Share2 } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
@@ -26,6 +25,7 @@ import {
   normalizeCaption,
   type CaptionEntry,
 } from '../../yunomi/captionHistory';
+import { PipHost } from '../../yunomi/PipHost';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
@@ -110,8 +110,9 @@ import {
   timeshiftStartPosition,
 } from '../../yunomi/shareUrl';
 import type { ServiceIdPlayTimeshiftQuery } from './__generated__/ServiceIdPlayTimeshiftQuery.graphql';
-import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
 import { readableParams } from '../../futon/readableId';
+import type { PlayerMedia } from '../../yunomi/playerMedia';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -122,7 +123,7 @@ type PlaySearch = { program: string; t?: number };
 export const Route = createFileRoute('/timeshift/$serviceId_/play')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
   params: readableParams('serviceId', 'Service'),
-  // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
+  // 右のカラムを置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
   staticData: { fluid: true },
   validateSearch: (search: Record<string, unknown>): PlaySearch => {
     const t = parseStartSeconds(search.t);
@@ -136,7 +137,7 @@ export const Route = createFileRoute('/timeshift/$serviceId_/play')({
 });
 
 // PlayPage は、タイムシフトのバッファにある番組を、頭から再生する画面 (設計書 5.7)。
-// バッファは、ブラウザの中で変換する経路だけで再生する。画面は、アプリの根元の置き場で描く (#1602)。
+// バッファは、ブラウザの中で変換する経路だけで再生する。画面は、アプリのルート要素に描く (#1602)。
 function PlayPage() {
   const { serviceId } = Route.useParams();
   const { program, t: start } = Route.useSearch();
@@ -144,7 +145,7 @@ function PlayPage() {
   return useHostedWatch(<PlayWatch serviceId={serviceId} program={program} start={start} />);
 }
 
-// PlayWatch は、サービス serviceId の、program に始まった番組を、位置 start (秒) から再生する画面の中身。
+// PlayWatch は、サービス serviceId の、program に始まった番組を、位置 start (秒) から再生する画面の内容。
 function PlayWatch({
   serviceId,
   program,
@@ -256,21 +257,22 @@ function Player({
     playQuery,
     variables,
   );
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  // 別のウィンドウに移したり戻したりすると、プレイヤーを作り直すので、今の位置から読み直す。
-  const pip = useDocumentPictureInPicture(() => restartAt(positionRef.current));
+  const mediaRef = useRef<PlayerMedia | null>(null);
+  const pip = useDocumentPictureInPicture();
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
-  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
-  const videoState = useVideoState(video);
-  const autoplay = useAutoplayBlocked(video);
-  const videoLoading = useVideoLoading(video);
+  const [media, setMedia] = useState<PlayerMedia | null>(null);
+  // 小さなプレイヤーは、この経路で再生中かを確認し、再生と一時停止を操作する。
+  useWatchMedia(media);
+  const videoState = useVideoState(media);
+  const autoplay = useAutoplayBlocked(media);
+  const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
   const overlaid = fullscreen.active || pip.container !== null;
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
   useWakeLock(!videoState.paused);
   // 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する (設計書 7.1)。
-  // デコードが追いつかずにほかの画面で下げた段の上限は、段を下げる放送中の番組でだけ引き継ぐ (#1513)。
+  // デコードが追いつかずにほかの画面で下げた段階の上限は、段階を下げる放送中の番組でだけ引き継ぐ (#1513)。
   const playback = usePlaybackRoute(transcoding, toVideoFormat(program.service.videoFormat), {
     inheritCap: program.endAt == null,
   });
@@ -297,9 +299,9 @@ function Player({
     }, refreshMs);
 
     return () => clearInterval(timer);
-    // variables は描画ごとに作り直すが、中身は serviceId と startAt だけで決まる。
+    // variables は描画ごとに作り直すが、内容は serviceId と startAt だけで決まる。
   }, [environment, onAir, serviceId, startAt]);
-  // duration は、再生できる長さ (秒)。途切れた区間の分は、バッファに映像がないので引く。放送中は今まで伸ばす。
+  // duration は、再生できる長さ (秒)。途切れた区間の分は、バッファに映像がないので差し引く。放送中は今まで伸ばす。
   const duration = recordingPosition(
     program.playableFrom,
     program.gaps,
@@ -310,8 +312,8 @@ function Player({
     start === undefined ? 0 : Math.min(timeshiftStartPosition(program, start), duration),
   );
   // stream は、再生できる範囲の始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。kyusu の経路では、仮想 HLS を流す。
-  const stream = useSeekableStream(program.streamUrl, video, initialPosition, !hls);
-  const hlsStream = useHlsStream(video, hls, initialPosition);
+  const stream = useSeekableStream(program.streamUrl, media, initialPosition, !hls);
+  const hlsStream = useHlsStream(media, hls, initialPosition);
   const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
   const [seeking, setSeeking] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -321,10 +323,10 @@ function Player({
   // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
   const [handover, setHandover] = useState(false);
 
-  // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
+  // streamMeter は、右のカラムの「情報」に出す、届いた映像のビットレートと放送の形式を保持する (#828)。
   const streamMeter = useStreamMeter(playback.current);
-  useVolumeNormalizer(video);
-  useAudioDelayer(video);
+  useVolumeNormalizer(media);
+  useAudioDelayer(media);
   const [crop, setCrop] = useState<Crop>(noCrop);
   // shownCrop は、画面に映すときの切り抜き。画面いっぱいに広げるときは、全画面の画面の比率で拡大する (#1599)。
   const shownCrop = useScreenCrop(crop, fullscreen.active);
@@ -338,7 +340,7 @@ function Player({
     }
     stream.restartAt(seconds);
   };
-  // tenban が止まる前に知らせてきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。
+  // tenban が止まる前に通知してきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。
   // kyusu の経路は、セグメントごとに読み、次のセグメントは止まらない tenban に届くので、つなぎ直さない (設計書 11.4、#1727)。
   const drains = useStreamsDrains();
   const seenDrains = useRef(drains);
@@ -361,7 +363,7 @@ function Player({
   // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   const currentCaption = useRef<string | null>(null);
-  // 字幕の外字を置き換える表を読む (#825)。
+  // 字幕の外字を置き換えるテーブルを読む (#825)。
   const drcs = useDRCSReplacements();
   const onCaptionText = (text: string) => {
     const normalized = normalizeCaption(text);
@@ -373,9 +375,9 @@ function Player({
   // kyusu の仮想 HLS は、プレイリストの中を移るだけで、読み直さない。
   const seek = (target: number) => {
     const seconds = Math.min(Math.max(target, 0), duration);
-    const video = videoRef.current;
-    if (hls && video !== null) {
-      video.currentTime = seconds;
+    const current = mediaRef.current;
+    if (hls && current !== null) {
+      current.seek(seconds);
       hlsStream.seekTo(seconds);
 
       return;
@@ -387,10 +389,10 @@ function Player({
     restartAt(positionRef.current);
     setQuality(next);
   };
-  // 映像だけの遅れを飛び直しで直す (#1513)。デコードが追いつかなければ、画質が「自動」の間は段を下げ、それまでの位置から続ける。
-  // 段を下げるのは、放送中の番組 (追っかけと同じく、バッファの端が伸びている) でだけ。
+  // 映像だけの遅れを飛び直しで修正する (#1513)。デコードが追いつかなければ、画質が「自動」の間は段階を下げ、それまでの位置から続ける。
+  // 段階を下げるのは、放送中の番組 (追っかけと同じく、バッファの端が伸びている) でだけ。
   const adaptive = useAdaptiveQuality(
-    video,
+    media,
     {
       automatic: playback.automatic,
       lowerAvailable: playback.lowerAvailable,
@@ -409,7 +411,7 @@ function Player({
         playback.setNetworkStep(name);
       },
     },
-    // バッファは先に読むので、受け取りの速さで余裕を確かめて上げる。
+    // バッファは先に読むので、受け取りの速さで余裕を確認して上げる。
     {
       stepDown: onAir,
       pictureInPicture: pip.container !== null,
@@ -422,21 +424,21 @@ function Player({
   // 早回し (#1572) の間は、選んだ速さより速く再生する。放送中の番組では、バッファの端の手前で元の速さに戻す。
   const fastForward = useFastForward(rate, { growing: onAir, position, duration });
   useEffect(() => {
-    if (video !== null) {
-      video.defaultPlaybackRate = rate;
-      video.playbackRate = fastForward.playbackRate;
+    if (media !== null) {
+      media.defaultPlaybackRate = rate;
+      media.playbackRate = fastForward.playbackRate;
     }
-  }, [rate, fastForward.playbackRate, video, stream.url, hlsStream.loads]);
+  }, [rate, fastForward.playbackRate, media, stream.url, hlsStream.loads]);
 
   const togglePlay = () => {
-    const video = videoRef.current;
-    if (video === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    if (video.paused) {
-      void video.play().catch(() => {});
+    if (current.paused) {
+      void current.play().catch(() => {});
     } else {
-      video.pause();
+      current.pause();
     }
   };
   const skip = (seconds: number) => seek(currentPosition() + seconds);
@@ -448,7 +450,7 @@ function Player({
   const capture = useCapture({
     crop,
     frameRef: playerBoxRef,
-    videoRef,
+    media: () => mediaRef.current,
     serviceName: program.service.name,
     programName: program.name,
     captureTime: () => broadcastTime(program.playableFrom, program.gaps, currentPosition()),
@@ -467,11 +469,11 @@ function Player({
     }
   };
   const changeVolume = (delta: number) => {
-    const video = videoRef.current;
-    if (video === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    const next = stepVolume(currentVolume(video), delta);
+    const next = stepVolume(currentVolume(current), delta);
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };
@@ -483,8 +485,8 @@ function Player({
   );
   const commands: PlayerCommands = {
     ...audioDelayCommands,
-    play: () => void videoRef.current?.play().catch(() => {}),
-    pause: () => videoRef.current?.pause(),
+    play: () => void mediaRef.current?.play().catch(() => {}),
+    pause: () => mediaRef.current?.pause(),
     togglePlay,
     seekBackward: () => {
       skip(-10);
@@ -512,12 +514,12 @@ function Player({
     },
     toggleCaptions: () => setCaptions(!captions),
     toggleMute: () => {
-      const video = videoRef.current;
-      if (video === null) {
+      const current = mediaRef.current;
+      if (current === null) {
         return;
       }
       videoState.toggleMute();
-      showFlash(t(video.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
+      showFlash(t(current.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
     },
     toggleFullscreen: fullscreen.toggle,
     volumeUp: () => changeVolume(volumeStep),
@@ -559,7 +561,7 @@ function Player({
   const mouseRef = usePlayerMouse(commands);
   // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
   // 全画面で、映像の左右を縦にスワイプして、明るさと音量を変える (#1598)。端末の設定で入れたときだけ受け付ける。
-  // 明るさは、その場限りで覚えない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
+  // 明るさは、その場限りで保存しない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
   const [swipeControls] = useSwipeControlsSetting();
   const [volumeAvailable] = useState(volumeChangeable);
   const [brightness, setBrightness] = useState(1);
@@ -626,7 +628,7 @@ function Player({
   // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
     // 映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す。
-    if (videoRef.current?.error != null) {
+    if (mediaRef.current?.error != null) {
       const next = skipBrokenMedia(positionRef.current, lastBrokenSkip.current);
       if (next !== null) {
         lastBrokenSkip.current = next;
@@ -646,11 +648,11 @@ function Player({
   };
   // onConvertState は、配信が番組の終わりに届く前に終わったら、途中で切れたとみなして読み直す。
   const onConvertState = (state: PlayerState) => {
-    const video = videoRef.current;
-    if (state !== 'completed' || video === null) {
+    const current = mediaRef.current;
+    if (state !== 'completed' || current === null) {
       return;
     }
-    const { buffered } = video;
+    const { buffered } = current;
     const end =
       buffered.length === 0
         ? positionRef.current
@@ -661,15 +663,15 @@ function Player({
   };
   // 番組が終わった位置まで再生したら、次の番組に進まずに止める。
   useEffect(() => {
-    if (!onAir && position >= duration && video !== null && !video.paused) {
-      video.pause();
+    if (!onAir && position >= duration && media !== null && !media.paused) {
+      media.pause();
     }
-  }, [onAir, position, duration, video]);
+  }, [onAir, position, duration, media]);
   const errorAlert = overlaid && error !== null && (
     <PlayerAlert title={error} action={{ label: t('player.retry'), onClick: retry }} />
   );
   const shown = seeking ?? position;
-  // gapMarks は、バッファが途切れた位置の印。途切れた区間はシークバーの長さに含めないので、長さのない印にする。
+  // gapMarks は、バッファが途切れた位置のマーク。途切れた区間はシークバーの長さに含めないので、長さのないマークにする。
   const gapMarks = program.gaps.map((gap) => {
     const at = recordingPosition(program.playableFrom, program.gaps, Date.parse(gap.from));
     const length = Math.max((Date.parse(gap.to) - Date.parse(gap.from)) / 1000, 0);
@@ -782,8 +784,8 @@ function Player({
         <TsPlayer
           url={stream.url}
           handover={handover}
-          videoRef={videoRef}
-          onVideo={setVideo}
+          mediaRef={mediaRef}
+          onMedia={setMedia}
           controls={controlBar}
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
@@ -823,8 +825,8 @@ function Player({
         <HlsPlayer
           // 読み直すたびに URL を変え、hls.js を作り直す。fragment は、サーバーへは送られない。
           url={`${hlsURL(program.hlsUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`}
-          videoRef={videoRef}
-          onVideo={setVideo}
+          mediaRef={mediaRef}
+          onMedia={setMedia}
           onSegment={(segment) => {
             streamMeter.onSegment(segment);
             adaptive.network.onSegment(segment);
@@ -862,8 +864,11 @@ function Player({
       player={
         <Stack gap="xs">
           <PlaybackUnavailable route={route} />
-          <div>{pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}</div>
-          {pip.container !== null && createPortal(playerBox, pip.container)}
+          <div>
+            <PipHost container={pip.container} placeholder={<PipPlaceholder onBack={pip.close} />}>
+              {playerBox}
+            </PipHost>
+          </div>
         </Stack>
       }
       info={
@@ -929,7 +934,7 @@ function Player({
                   videoLag={adaptive.videoLag}
                   network={adaptive.network}
                   meter={streamMeter.meter}
-                  video={video}
+                  media={media}
                   quality={playback.current}
                   kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                   audios={null}

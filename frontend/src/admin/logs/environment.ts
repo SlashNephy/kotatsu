@@ -9,7 +9,7 @@ export function otherRoles(roles: readonly string[]): string[] {
 }
 
 export type EnvironmentSource = {
-  // kind は、出どころの種類 (KOTATSU か TUNER_SERVER)。
+  // kind は、ソースの種類 (KOTATSU か TUNER_SERVER)。
   kind: string;
   version: string;
   os: string;

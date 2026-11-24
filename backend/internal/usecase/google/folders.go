@@ -104,7 +104,7 @@ func (s *Service) BrowseDriveFolders(ctx context.Context, db sqlc.DBTX, parentID
 }
 
 // AddDriveFolder は、フォルダ folderID を、名前 libraryName のライブラリとして見せるフォルダに足す。マイドライブの根元 (root) や
-// 共有ドライブの根元も選べる。Drive のファイルを家族に見せ始める操作なので、呼ぶ側で、直近の再認証を確かめる (設計書 9.5)。
+// 共有ドライブの根元も選べる。Drive のファイルを家族に見せ始める操作なので、呼ぶ側で、直近の再認証を確認する (設計書 9.5)。
 // 名前が規則に合わないか、ほかのライブラリと重なれば、ErrInvalidLibraryName を返す。
 func (s *Service) AddDriveFolder(ctx context.Context, db Database, actor *audit.Actor, folderID, libraryName string) error {
 	libraryName = strings.TrimSpace(libraryName)
@@ -120,7 +120,7 @@ func (s *Service) AddDriveFolder(ctx context.Context, db Database, actor *audit.
 		return err
 	}
 	name := folder.Name
-	// 共有ドライブの根元は、files.get では決まった名前 (「ドライブ」など) が返るので、共有ドライブの名前を引く。
+	// 共有ドライブの根元は、files.get では決まった名前 (「ドライブ」など) が返るので、共有ドライブの名前を取得する。
 	if folder.DriveID != "" && folder.ID == folder.DriveID {
 		drive, err := client.GetDrive(ctx, folder.DriveID)
 		if err != nil {
@@ -157,7 +157,7 @@ func (s *Service) AddDriveFolder(ctx context.Context, db Database, actor *audit.
 }
 
 // RenameDriveFolder は、フォルダ folderID のライブラリの名前を libraryName に変える。見せるものは変わらないので、再認証は求めない。
-// 再生位置と索引は、Drive のファイルの ID で引くので、名前を変えても引き継ぐ。
+// 再生位置とインデックスは、Drive のファイルの ID で検索するので、名前を変えても引き継ぐ。
 func (s *Service) RenameDriveFolder(ctx context.Context, db Database, actor *audit.Actor, folderID, libraryName string) error {
 	libraryName = strings.TrimSpace(libraryName)
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
@@ -190,7 +190,7 @@ func (s *Service) RenameDriveFolder(ctx context.Context, db Database, actor *aud
 	return nil
 }
 
-// checkLibraryName は、名前 name を、フォルダ folderID のライブラリの名前にできるかを確かめる。保存先プールの ID と同じ規則
+// checkLibraryName は、名前 name を、フォルダ folderID のライブラリの名前にできるかを確認する。保存先プールの ID と同じ規則
 // (英小文字、数字、-、_) に合い、設定のライブラリ (プールとフォルダ) と、ほかのフォルダのライブラリと重ならないこと。
 func (s *Service) checkLibraryName(ctx context.Context, q *sqlc.Queries, folderID, name string) error {
 	if !config.IsValidPoolID(name) {

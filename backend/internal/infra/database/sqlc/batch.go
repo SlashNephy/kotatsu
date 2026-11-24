@@ -71,46 +71,36 @@ func (b *DeleteProgramsBatchResults) Close() error {
 	return b.br.Close()
 }
 
-const insertProgramRewrites = `-- name: InsertProgramRewrites :batchexec
-INSERT INTO program_rewrites (service_id, event_id, start_at, field, before, after, observed_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+const setCaptureNormalized = `-- name: SetCaptureNormalized :batchexec
+UPDATE captures SET caption_normalized = $1 WHERE id = $2
 `
 
-type InsertProgramRewritesBatchResults struct {
+type SetCaptureNormalizedBatchResults struct {
 	br     pgx.BatchResults
 	tot    int
 	closed bool
 }
 
-type InsertProgramRewritesParams struct {
-	ServiceID  int64
-	EventID    int64
-	StartAt    time.Time
-	Field      string
-	Before     string
-	After      string
-	ObservedAt time.Time
+type SetCaptureNormalizedParams struct {
+	CaptionNormalized *string
+	ID                uuid.UUID
 }
 
-func (q *Queries) InsertProgramRewrites(ctx context.Context, arg []InsertProgramRewritesParams) *InsertProgramRewritesBatchResults {
+// キャプチャの正規化した字幕の文を書く (#2084)。
+func (q *Queries) SetCaptureNormalized(ctx context.Context, arg []SetCaptureNormalizedParams) *SetCaptureNormalizedBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
 		vals := []interface{}{
-			a.ServiceID,
-			a.EventID,
-			a.StartAt,
-			a.Field,
-			a.Before,
-			a.After,
-			a.ObservedAt,
+			a.CaptionNormalized,
+			a.ID,
 		}
-		batch.Queue(insertProgramRewrites, vals...)
+		batch.Queue(setCaptureNormalized, vals...)
 	}
 	br := q.db.SendBatch(ctx, batch)
-	return &InsertProgramRewritesBatchResults{br, len(arg), false}
+	return &SetCaptureNormalizedBatchResults{br, len(arg), false}
 }
 
-func (b *InsertProgramRewritesBatchResults) Exec(f func(int, error)) {
+func (b *SetCaptureNormalizedBatchResults) Exec(f func(int, error)) {
 	defer b.br.Close()
 	for t := 0; t < b.tot; t++ {
 		if b.closed {
@@ -126,7 +116,115 @@ func (b *InsertProgramRewritesBatchResults) Exec(f func(int, error)) {
 	}
 }
 
-func (b *InsertProgramRewritesBatchResults) Close() error {
+func (b *SetCaptureNormalizedBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const setProgramArchiveSearchGrams = `-- name: SetProgramArchiveSearchGrams :batchexec
+UPDATE program_archives SET search_grams = $1::text[]
+WHERE service_id = $2 AND event_id = $3 AND start_at = $4
+`
+
+type SetProgramArchiveSearchGramsBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetProgramArchiveSearchGramsParams struct {
+	SearchGrams []string
+	ServiceID   int64
+	EventID     int64
+	StartAt     time.Time
+}
+
+// アーカイブの番組の検索の gram (#966) を書く。ほかのカラムは変えない。
+func (q *Queries) SetProgramArchiveSearchGrams(ctx context.Context, arg []SetProgramArchiveSearchGramsParams) *SetProgramArchiveSearchGramsBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.SearchGrams,
+			a.ServiceID,
+			a.EventID,
+			a.StartAt,
+		}
+		batch.Queue(setProgramArchiveSearchGrams, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetProgramArchiveSearchGramsBatchResults{br, len(arg), false}
+}
+
+func (b *SetProgramArchiveSearchGramsBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetProgramArchiveSearchGramsBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const setProgramSearchGrams = `-- name: SetProgramSearchGrams :batchexec
+UPDATE programs SET search_grams = $1::text[]
+WHERE service_id = $2 AND event_id = $3
+`
+
+type SetProgramSearchGramsBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetProgramSearchGramsParams struct {
+	SearchGrams []string
+	ServiceID   int64
+	EventID     int64
+}
+
+// 番組の検索の gram (#966) を書く。ほかのカラムと更新日時は変えない。
+func (q *Queries) SetProgramSearchGrams(ctx context.Context, arg []SetProgramSearchGramsParams) *SetProgramSearchGramsBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.SearchGrams,
+			a.ServiceID,
+			a.EventID,
+		}
+		batch.Queue(setProgramSearchGrams, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetProgramSearchGramsBatchResults{br, len(arg), false}
+}
+
+func (b *SetProgramSearchGramsBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetProgramSearchGramsBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }
@@ -149,7 +247,7 @@ type SetProgramSeriesParams struct {
 	EventID       int64
 }
 
-// 番組の、番組名から読んだシリーズ名と話数 (#1564) を書く。ほかの列と更新日時は変えない。
+// 番組の、番組名から読んだシリーズ名と話数 (#1564) を書く。ほかのカラムと更新日時は変えない。
 func (q *Queries) SetProgramSeries(ctx context.Context, arg []SetProgramSeriesParams) *SetProgramSeriesBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
@@ -236,6 +334,56 @@ func (b *SetRecordingHistorySeriesBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const setRecordingHistoryTitleKey = `-- name: SetRecordingHistoryTitleKey :batchexec
+UPDATE recording_history SET title_key = $1 WHERE id = $2
+`
+
+type SetRecordingHistoryTitleKeyBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetRecordingHistoryTitleKeyParams struct {
+	TitleKey string
+	ID       uuid.UUID
+}
+
+// 録画履歴のキーを書く (#1977)。
+func (q *Queries) SetRecordingHistoryTitleKey(ctx context.Context, arg []SetRecordingHistoryTitleKeyParams) *SetRecordingHistoryTitleKeyBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.TitleKey,
+			a.ID,
+		}
+		batch.Queue(setRecordingHistoryTitleKey, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetRecordingHistoryTitleKeyBatchResults{br, len(arg), false}
+}
+
+func (b *SetRecordingHistoryTitleKeyBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetRecordingHistoryTitleKeyBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const setRecordingNormalized = `-- name: SetRecordingNormalized :batchexec
 UPDATE recordings SET name_normalized = $1, description_normalized = $2 WHERE id = $3
 `
@@ -288,16 +436,67 @@ func (b *SetRecordingNormalizedBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const setSyobocalTitleKey = `-- name: SetSyobocalTitleKey :batchexec
+UPDATE syobocal_titles SET title_key = $1 WHERE tid = $2
+`
+
+type SetSyobocalTitleKeyBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetSyobocalTitleKeyParams struct {
+	TitleKey string
+	Tid      int32
+}
+
+// しょぼいカレンダーのタイトルのキーを書く (#2041)。
+func (q *Queries) SetSyobocalTitleKey(ctx context.Context, arg []SetSyobocalTitleKeyParams) *SetSyobocalTitleKeyBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.TitleKey,
+			a.Tid,
+		}
+		batch.Queue(setSyobocalTitleKey, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetSyobocalTitleKeyBatchResults{br, len(arg), false}
+}
+
+func (b *SetSyobocalTitleKeyBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetSyobocalTitleKeyBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const upsertPrograms = `-- name: UpsertPrograms :batchexec
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, series_episode, series_repeat, series, episode_number, created_at, updated_at
+  video_resolution, series_episode, series_repeat, series, episode_number, search_grams, created_at, updated_at
 )
 VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12, $13, $14, $15, $16,
-  $17, $18, $19, $20::text, $21::integer, $22, $22
+  $17, $18, $19, $20::text, $21::integer,
+  $22::text[], $23, $23
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -319,6 +518,8 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   series_repeat = excluded.series_repeat,
   series = excluded.series,
   episode_number = excluded.episode_number,
+  -- 番組名、概要、詳細が変わらない番組は、gram を NULL で送り、今の gram を残す (#966)。同じ配列を書き直すと、GIN のインデックスも書き直すからである。
+  search_grams = COALESCE(excluded.search_grams, programs.search_grams),
   updated_at = excluded.updated_at
 `
 
@@ -350,6 +551,7 @@ type UpsertProgramsParams struct {
 	SeriesRepeat          pgtype.Bool
 	Series                string
 	EpisodeNumber         *int32
+	SearchGrams           []string
 	Now                   time.Time
 }
 
@@ -378,6 +580,7 @@ func (q *Queries) UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams
 			a.SeriesRepeat,
 			a.Series,
 			a.EpisodeNumber,
+			a.SearchGrams,
 			a.Now,
 		}
 		batch.Queue(upsertPrograms, vals...)

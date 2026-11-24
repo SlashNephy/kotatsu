@@ -44,7 +44,7 @@ func nhk() edcb.ServiceKey {
 	return edcb.ServiceKey{ONID: 32736, TSID: 32736, SID: 1024}
 }
 
-// mustIDs は、1000 から count 個の ID を配る IDs を返す。
+// mustIDs は、1000 から count 個の ID を割り当てる IDs を返す。
 func mustIDs(t *testing.T, db *pgxpool.Pool, clk clock.Clock, owner uuid.UUID, count int) *networktv.IDs {
 	t.Helper()
 
@@ -88,7 +88,7 @@ func TestIDsExclusive(t *testing.T) {
 	a := mustIDs(t, pool, clk, id.New(), 2)
 	b := mustIDs(t, pool, clk, id.New(), 2)
 
-	// exclusive なら、同じサービスでも加わらず、空いている最も小さい ID を、インスタンスをまたいで重ならないように配る。
+	// exclusive なら、同じサービスでも加わらず、空いている最も小さい ID を、インスタンスをまたいで重ならないように割り当てる。
 	first, shared, err := a.Acquire(t.Context(), nhk(), true)
 	require.NoError(t, err)
 	assert.Equal(t, int32(1000), first)
@@ -107,7 +107,7 @@ func TestIDsExclusive(t *testing.T) {
 	last, err = a.Release(t.Context(), first, false)
 	require.NoError(t, err)
 	assert.True(t, last)
-	// 閉じ始めた ID は、消すまで配らない。
+	// 閉じ始めた ID は、消すまで割り当てない。
 	_, _, err = b.Acquire(t.Context(), nhk(), true)
 	require.ErrorIs(t, err, edcb.ErrNoNetworkTVID)
 	require.NoError(t, a.Forget(t.Context(), first))
@@ -220,7 +220,7 @@ func TestIDsConcurrent(t *testing.T) {
 		// wantPerID は、1 つの ID を持つインスタンスの数。
 		wantPerID int
 	}{
-		// 同時に取り合っても、同じ ID を 2 つのインスタンスに配らない。
+		// 同時に取り合っても、同じ ID を 2 つのインスタンスに割り当てない。
 		{name: "exclusive", exclusive: true, wantPerID: 1},
 		// 同時に同じサービスを開いても、2 つずつ同じ ID を持ち、別々の ID を取りすぎない (#1850)。
 		{name: "shared", exclusive: false, wantPerID: networktv.MaxHolders},
@@ -283,7 +283,7 @@ func (c *closer) take() []int32 {
 	return closed
 }
 
-// queryInt32s は、query が返す整数の列を返す。
+// queryInt32s は、query が返す整数の並びを返す。
 func queryInt32s(t *testing.T, pool *pgxpool.Pool, query string, args ...any) []int32 {
 	t.Helper()
 

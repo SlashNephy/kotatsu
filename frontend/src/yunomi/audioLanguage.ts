@@ -3,12 +3,13 @@ import { useSyncExternalStore } from 'react';
 import type { KyusuAudioChoice } from './audio';
 import type { KyusuAudio } from './route';
 import { browserStorage } from './volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
-// 音声の言語の優先順位 (#819、設計書 7.5)。二か国語の番組で、いつも英語を選ぶ、などを端末ごとに覚える。
+// 音声の言語の優先順位 (#819、設計書 7.5)。二か国語の番組で、いつも英語を選ぶ、などを保存する。端末をまたいで同期する (#1862)。
 // 利用者がメニューで音声を選ぶまでは、番組ごとに、優先する言語の音声を選ぶ。
 
 const storageKey = 'kotatsu.player.audioLanguage';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:audio-language';
 
 // audioLanguages は、優先する言語に選べる、記述子の言語のコード (ISO 639-2)。
@@ -75,8 +76,10 @@ export function useAudioLanguage(): [
       try {
         if (next === null) {
           browserStorage()?.removeItem(storageKey);
+          preferenceChanged(storageKey);
         } else {
           browserStorage()?.setItem(storageKey, next);
+          preferenceChanged(storageKey);
         }
       } catch {
         // 書けなければ、次に開いたときは既定に戻るだけ。

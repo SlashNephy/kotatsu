@@ -78,7 +78,7 @@ func (f *fixture) players(t *testing.T) []playerItem {
 	return got.Players
 }
 
-// TestPlayers は、プレイヤーを登録した端末と、同じユーザーのほかの端末だけが、プレイヤーを見られることを確かめる (#459)。
+// TestPlayers は、プレイヤーを登録した端末と、同じユーザーのほかの端末だけが、プレイヤーを見られることを確認する (#459)。
 func TestPlayers(t *testing.T) {
 	t.Parallel()
 
@@ -120,7 +120,7 @@ func TestPlayers(t *testing.T) {
 	assert.Empty(t, device.players(t))
 }
 
-// TestPlayerRejectsInvalidInput は、大きすぎる状態と、要る値のない操作を断ることを確かめる。
+// TestPlayerRejectsInvalidInput は、大きすぎる状態と、要る値のない操作を断ることを確認する。
 func TestPlayerRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
@@ -163,7 +163,7 @@ func TestPlayerRejectsInvalidInput(t *testing.T) {
 	}
 }
 
-// TestPlayerCommands は、同じユーザーのほかの端末から送った操作が、届いた順に、操作される端末にだけ届くことを確かめる。
+// TestPlayerCommands は、同じユーザーのほかの端末から送った操作が、届いた順に、操作される端末にだけ届くことを確認する。
 func TestPlayerCommands(t *testing.T) {
 	t.Parallel()
 
@@ -191,7 +191,7 @@ func TestPlayerCommands(t *testing.T) {
 	assert.JSONEq(t, `{"playerCommands":{"type":"SEEK","position":120.5,"volume":null}}`, string(next(t, commands)))
 	assert.JSONEq(t, `{"playerCommands":{"type":"SET_VOLUME","position":null,"volume":0.5}}`, string(next(t, commands)))
 
-	// 再生位置が進んだだけなら、一覧は読み直させない。状態が変わったときだけ知らせる。
+	// 再生位置が進んだだけなら、一覧は読み直させない。状態が変わったときだけ通知する。
 	require.Empty(t, f.query(t, updatePlayer, map[string]any{varID: playerID, varState: liveState(false), varAnnounce: false}, nil))
 	require.Empty(t, f.query(t, updatePlayer, map[string]any{varID: playerID, varState: liveState(true), varAnnounce: true}, nil))
 	assert.JSONEq(t, `{"playersChanged":2}`, string(next(t, changes)))
@@ -205,7 +205,7 @@ func TestPlayerCommands(t *testing.T) {
 	assert.Equal(t, []string{codeNotFound}, other.query(t, sendCommand, map[string]any{varID: playerID, varCommand: map[string]any{keyCommandType: "PLAY"}}, nil))
 }
 
-// TestPlayerCommandsReplay は、つなぎ直すときに、最後に受け取った操作より後に届いた操作を、すべての種類について取りこぼさないことを確かめる。
+// TestPlayerCommandsReplay は、つなぎ直すときに、最後に受け取った操作より後に届いた操作を、すべての種類について取りこぼさないことを確認する。
 func TestPlayerCommandsReplay(t *testing.T) {
 	t.Parallel()
 
@@ -233,7 +233,7 @@ func TestPlayerCommandsReplay(t *testing.T) {
 	assert.JSONEq(t, `{"playerCommands":{"id":"5","type":"SET_MUTED","audio":null,"key":null}}`, string(next(t, commands)))
 }
 
-// TestPlayerCommandOpen は、ほかの端末のプレイヤーに、サービスか録画を開かせる操作が届くことを確かめる (#802)。
+// TestPlayerCommandOpen は、ほかの端末のプレイヤーに、サービスか録画を開かせる操作が届くことを確認する (#802)。
 func TestPlayerCommandOpen(t *testing.T) {
 	t.Parallel()
 

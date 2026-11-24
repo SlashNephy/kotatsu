@@ -13,6 +13,23 @@ import (
 	"uuid"
 )
 
+const copyDramaTitleOverride = `-- name: CopyDramaTitleOverride :exec
+INSERT INTO drama_title_overrides (title_key, tmdb_series_id, updated_at)
+SELECT $1::text, src.tmdb_series_id, src.updated_at FROM drama_title_overrides src WHERE src.title_key = $2::text
+ON CONFLICT (title_key) DO NOTHING
+`
+
+type CopyDramaTitleOverrideParams struct {
+	ToKey   string
+	FromKey string
+}
+
+// 作品名のキー from_key の上書きを、キー to_key にコピーする (#1978)。to_key に上書きがあれば、そちらを残す。
+func (q *Queries) CopyDramaTitleOverride(ctx context.Context, arg CopyDramaTitleOverrideParams) error {
+	_, err := q.db.Exec(ctx, copyDramaTitleOverride, arg.ToKey, arg.FromKey)
+	return err
+}
+
 const copyProgramDramaMatchToRecording = `-- name: CopyProgramDramaMatchToRecording :execrows
 INSERT INTO recording_drama_matches (
   recording_id, tmdb_series_id, season_number, episode_number, series_source, episode_source, matched_at
@@ -31,7 +48,7 @@ type CopyProgramDramaMatchToRecordingParams struct {
 	StartAt     time.Time
 }
 
-// 番組 (service_id, start_at) の結びつきを、録画 recording_id に写す。番組をまだ照合していなければ、何もしない。
+// 番組 (service_id, start_at) の結びつきを、録画 recording_id にコピーする。番組をまだ照合していなければ、何もしない。
 func (q *Queries) CopyProgramDramaMatchToRecording(ctx context.Context, arg CopyProgramDramaMatchToRecordingParams) (int64, error) {
 	result, err := q.db.Exec(ctx, copyProgramDramaMatchToRecording,
 		arg.RecordingID,
@@ -77,16 +94,28 @@ func (q *Queries) DeleteMovedProgramDramaMatches(ctx context.Context, arg Delete
 	return err
 }
 
-const deleteTMDbToken = `-- name: DeleteTMDbToken :execrows
+const deleteTMDBToken = `-- name: DeleteTMDBToken :execrows
 DELETE FROM tmdb_tokens WHERE id = 1
 `
 
-func (q *Queries) DeleteTMDbToken(ctx context.Context) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteTMDbToken)
+func (q *Queries) DeleteTMDBToken(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTMDBToken)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteUnusedDramaTitleOverride = `-- name: DeleteUnusedDramaTitleOverride :exec
+DELETE FROM drama_title_overrides o
+WHERE o.title_key = $1::text
+  AND NOT EXISTS (SELECT 1 FROM program_drama_matches m WHERE m.title_key = o.title_key)
+`
+
+// 作品名のキー key の上書きを、そのキーの番組の結びつきがなければ消す (#1978)。
+func (q *Queries) DeleteUnusedDramaTitleOverride(ctx context.Context, key string) error {
+	_, err := q.db.Exec(ctx, deleteUnusedDramaTitleOverride, key)
+	return err
 }
 
 const getDramaMatchCursor = `-- name: GetDramaMatchCursor :one
@@ -158,28 +187,28 @@ func (q *Queries) GetRecordingDramaMatch(ctx context.Context, recordingID uuid.U
 	return i, err
 }
 
-const getTMDbSearch = `-- name: GetTMDbSearch :one
+const getTMDBSearch = `-- name: GetTMDBSearch :one
 SELECT query, results, fetched_at FROM tmdb_searches WHERE query = $1
 `
 
-func (q *Queries) GetTMDbSearch(ctx context.Context, query string) (TmdbSearch, error) {
-	row := q.db.QueryRow(ctx, getTMDbSearch, query)
+func (q *Queries) GetTMDBSearch(ctx context.Context, query string) (TmdbSearch, error) {
+	row := q.db.QueryRow(ctx, getTMDBSearch, query)
 	var i TmdbSearch
 	err := row.Scan(&i.Query, &i.Results, &i.FetchedAt)
 	return i, err
 }
 
-const getTMDbSeason = `-- name: GetTMDbSeason :one
+const getTMDBSeason = `-- name: GetTMDBSeason :one
 SELECT series_id, season_number, episodes, fetched_at FROM tmdb_seasons WHERE series_id = $1 AND season_number = $2
 `
 
-type GetTMDbSeasonParams struct {
+type GetTMDBSeasonParams struct {
 	SeriesID     int32
 	SeasonNumber int32
 }
 
-func (q *Queries) GetTMDbSeason(ctx context.Context, arg GetTMDbSeasonParams) (TmdbSeason, error) {
-	row := q.db.QueryRow(ctx, getTMDbSeason, arg.SeriesID, arg.SeasonNumber)
+func (q *Queries) GetTMDBSeason(ctx context.Context, arg GetTMDBSeasonParams) (TmdbSeason, error) {
+	row := q.db.QueryRow(ctx, getTMDBSeason, arg.SeriesID, arg.SeasonNumber)
 	var i TmdbSeason
 	err := row.Scan(
 		&i.SeriesID,
@@ -190,12 +219,12 @@ func (q *Queries) GetTMDbSeason(ctx context.Context, arg GetTMDbSeasonParams) (T
 	return i, err
 }
 
-const getTMDbSeries = `-- name: GetTMDbSeries :one
+const getTMDBSeries = `-- name: GetTMDBSeries :one
 SELECT id, name, original_name, first_air_date, seasons, fetched_at FROM tmdb_series WHERE id = $1
 `
 
-func (q *Queries) GetTMDbSeries(ctx context.Context, id int32) (TmdbSeries, error) {
-	row := q.db.QueryRow(ctx, getTMDbSeries, id)
+func (q *Queries) GetTMDBSeries(ctx context.Context, id int32) (TmdbSeries, error) {
+	row := q.db.QueryRow(ctx, getTMDBSeries, id)
 	var i TmdbSeries
 	err := row.Scan(
 		&i.ID,
@@ -208,12 +237,12 @@ func (q *Queries) GetTMDbSeries(ctx context.Context, id int32) (TmdbSeries, erro
 	return i, err
 }
 
-const getTMDbToken = `-- name: GetTMDbToken :one
+const getTMDBToken = `-- name: GetTMDBToken :one
 SELECT id, token_encrypted, updated_at FROM tmdb_tokens WHERE id = 1
 `
 
-func (q *Queries) GetTMDbToken(ctx context.Context) (TmdbToken, error) {
-	row := q.db.QueryRow(ctx, getTMDbToken)
+func (q *Queries) GetTMDBToken(ctx context.Context) (TmdbToken, error) {
+	row := q.db.QueryRow(ctx, getTMDBToken)
 	var i TmdbToken
 	err := row.Scan(&i.ID, &i.TokenEncrypted, &i.UpdatedAt)
 	return i, err
@@ -354,7 +383,58 @@ func (q *Queries) ListDramaTitleOverrides(ctx context.Context) ([]DramaTitleOver
 	return items, nil
 }
 
-const listStaleLinkedTMDbSeasons = `-- name: ListStaleLinkedTMDbSeasons :many
+const listProgramDramaMatchTitleKeys = `-- name: ListProgramDramaMatchTitleKeys :many
+SELECT m.service_id, m.start_at, m.title_key, COALESCE(p.name, a.name)::text AS name
+FROM program_drama_matches m
+LEFT JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
+LEFT JOIN program_archives a ON a.service_id = m.service_id AND a.event_id = m.event_id AND a.start_at = m.start_at
+WHERE (m.service_id, m.start_at) > ($1::bigint, $2::timestamptz)
+  AND COALESCE(p.name, a.name) IS NOT NULL
+ORDER BY m.service_id, m.start_at
+LIMIT $3
+`
+
+type ListProgramDramaMatchTitleKeysParams struct {
+	AfterServiceID int64
+	AfterStartAt   time.Time
+	MaxCount       int32
+}
+
+type ListProgramDramaMatchTitleKeysRow struct {
+	ServiceID int64
+	StartAt   time.Time
+	TitleKey  string
+	Name      string
+}
+
+// 番組の結びつきの作品名のキーと、番組表かアーカイブにある番組名を、(service_id, start_at) が after より後のものから順に max_count 件返す (#1978)。
+// kotatsu migrate がキーを作り直すのに使う。番組名のない結びつきは返さない。
+func (q *Queries) ListProgramDramaMatchTitleKeys(ctx context.Context, arg ListProgramDramaMatchTitleKeysParams) ([]ListProgramDramaMatchTitleKeysRow, error) {
+	rows, err := q.db.Query(ctx, listProgramDramaMatchTitleKeys, arg.AfterServiceID, arg.AfterStartAt, arg.MaxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProgramDramaMatchTitleKeysRow{}
+	for rows.Next() {
+		var i ListProgramDramaMatchTitleKeysRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.StartAt,
+			&i.TitleKey,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStaleLinkedTMDBSeasons = `-- name: ListStaleLinkedTMDBSeasons :many
 SELECT l.series_id::integer AS series_id, l.season_number::integer AS season_number FROM (
   SELECT tmdb_series_id AS series_id, season_number FROM program_drama_matches WHERE episode_number IS NOT NULL
   UNION
@@ -366,27 +446,27 @@ ORDER BY s.fetched_at NULLS FIRST, l.series_id, l.season_number
 LIMIT $2
 `
 
-type ListStaleLinkedTMDbSeasonsParams struct {
+type ListStaleLinkedTMDBSeasonsParams struct {
 	Before   time.Time
 	MaxCount int32
 }
 
-type ListStaleLinkedTMDbSeasonsRow struct {
+type ListStaleLinkedTMDBSeasonsRow struct {
 	SeriesID     int32
 	SeasonNumber int32
 }
 
 // 番組か録画に結びついた話のシーズンのうち、キャッシュが before より前に引いたものか、ないものを、古い順に limit 件まで返す。
-// ユーザーが手で見たことにした話 (#1652) のシーズンは、番号を利用者が決めるので (TMDb にないシーズンもありうる)、引き直さない。
-func (q *Queries) ListStaleLinkedTMDbSeasons(ctx context.Context, arg ListStaleLinkedTMDbSeasonsParams) ([]ListStaleLinkedTMDbSeasonsRow, error) {
-	rows, err := q.db.Query(ctx, listStaleLinkedTMDbSeasons, arg.Before, arg.MaxCount)
+// ユーザーが手で見たことにした話 (#1652) のシーズンは、番号を利用者が決めるので (TMDB にないシーズンもありうる)、引き直さない。
+func (q *Queries) ListStaleLinkedTMDBSeasons(ctx context.Context, arg ListStaleLinkedTMDBSeasonsParams) ([]ListStaleLinkedTMDBSeasonsRow, error) {
+	rows, err := q.db.Query(ctx, listStaleLinkedTMDBSeasons, arg.Before, arg.MaxCount)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListStaleLinkedTMDbSeasonsRow{}
+	items := []ListStaleLinkedTMDBSeasonsRow{}
 	for rows.Next() {
-		var i ListStaleLinkedTMDbSeasonsRow
+		var i ListStaleLinkedTMDBSeasonsRow
 		if err := rows.Scan(&i.SeriesID, &i.SeasonNumber); err != nil {
 			return nil, err
 		}
@@ -398,7 +478,7 @@ func (q *Queries) ListStaleLinkedTMDbSeasons(ctx context.Context, arg ListStaleL
 	return items, nil
 }
 
-const listStaleLinkedTMDbSeries = `-- name: ListStaleLinkedTMDbSeries :many
+const listStaleLinkedTMDBSeries = `-- name: ListStaleLinkedTMDBSeries :many
 SELECT l.id::integer AS id FROM (
   SELECT tmdb_series_id AS id FROM program_drama_matches WHERE tmdb_series_id IS NOT NULL
   UNION
@@ -414,16 +494,16 @@ ORDER BY s.fetched_at NULLS FIRST, l.id
 LIMIT $2
 `
 
-type ListStaleLinkedTMDbSeriesParams struct {
+type ListStaleLinkedTMDBSeriesParams struct {
 	Before   time.Time
 	MaxCount int32
 }
 
 // 番組か録画に結びついた作品と、ユーザーが見ている作品と見た話の作品 (#1652) のうち、キャッシュが before より前に引いたものか、
 // ないものを、古い順に limit 件まで返す。6 か月で消す前に引き直し、結びついた作品の名前を出し続ける。
-// 見ている作品と見た話には、番組か録画に結びついた作品だけを足せる (dramalibrary) ので、TMDb にない ID は入らない。
-func (q *Queries) ListStaleLinkedTMDbSeries(ctx context.Context, arg ListStaleLinkedTMDbSeriesParams) ([]int32, error) {
-	rows, err := q.db.Query(ctx, listStaleLinkedTMDbSeries, arg.Before, arg.MaxCount)
+// 見ている作品と見た話には、番組か録画に結びついた作品だけを足せる (dramalibrary) ので、TMDB にない ID は入らない。
+func (q *Queries) ListStaleLinkedTMDBSeries(ctx context.Context, arg ListStaleLinkedTMDBSeriesParams) ([]int32, error) {
+	rows, err := q.db.Query(ctx, listStaleLinkedTMDBSeries, arg.Before, arg.MaxCount)
 	if err != nil {
 		return nil, err
 	}
@@ -442,12 +522,12 @@ func (q *Queries) ListStaleLinkedTMDbSeries(ctx context.Context, arg ListStaleLi
 	return items, nil
 }
 
-const listTMDbSeries = `-- name: ListTMDbSeries :many
+const listTMDBSeries = `-- name: ListTMDBSeries :many
 SELECT id, name, original_name, first_air_date, seasons, fetched_at FROM tmdb_series WHERE id = ANY($1::integer[])
 `
 
-func (q *Queries) ListTMDbSeries(ctx context.Context, ids []int32) ([]TmdbSeries, error) {
-	rows, err := q.db.Query(ctx, listTMDbSeries, ids)
+func (q *Queries) ListTMDBSeries(ctx context.Context, ids []int32) ([]TmdbSeries, error) {
+	rows, err := q.db.Query(ctx, listTMDBSeries, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -489,40 +569,57 @@ func (q *Queries) PruneProgramDramaMatches(ctx context.Context, before time.Time
 	return result.RowsAffected(), nil
 }
 
-const pruneTMDbSearches = `-- name: PruneTMDbSearches :execrows
+const pruneTMDBSearches = `-- name: PruneTMDBSearches :execrows
 DELETE FROM tmdb_searches WHERE fetched_at < $1
 `
 
-func (q *Queries) PruneTMDbSearches(ctx context.Context, before time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, pruneTMDbSearches, before)
+func (q *Queries) PruneTMDBSearches(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, pruneTMDBSearches, before)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
-const pruneTMDbSeasons = `-- name: PruneTMDbSeasons :execrows
+const pruneTMDBSeasons = `-- name: PruneTMDBSeasons :execrows
 DELETE FROM tmdb_seasons WHERE fetched_at < $1
 `
 
-func (q *Queries) PruneTMDbSeasons(ctx context.Context, before time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, pruneTMDbSeasons, before)
+func (q *Queries) PruneTMDBSeasons(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, pruneTMDBSeasons, before)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
-const pruneTMDbSeries = `-- name: PruneTMDbSeries :execrows
+const pruneTMDBSeries = `-- name: PruneTMDBSeries :execrows
 DELETE FROM tmdb_series WHERE fetched_at < $1
 `
 
-func (q *Queries) PruneTMDbSeries(ctx context.Context, before time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, pruneTMDbSeries, before)
+func (q *Queries) PruneTMDBSeries(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, pruneTMDBSeries, before)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const rekeyProgramDramaMatch = `-- name: RekeyProgramDramaMatch :exec
+UPDATE program_drama_matches SET title_key = $1, finalized_at = NULL
+WHERE service_id = $2 AND start_at = $3
+`
+
+type RekeyProgramDramaMatchParams struct {
+	TitleKey  string
+	ServiceID int64
+	StartAt   time.Time
+}
+
+// 番組の結びつきの作品名のキーを書き直し、確定を外して、次の照合で照合し直させる (#1978)。
+func (q *Queries) RekeyProgramDramaMatch(ctx context.Context, arg RekeyProgramDramaMatchParams) error {
+	_, err := q.db.Exec(ctx, rekeyProgramDramaMatch, arg.TitleKey, arg.ServiceID, arg.StartAt)
+	return err
 }
 
 const saveDramaMatchCursor = `-- name: SaveDramaMatchCursor :exec
@@ -617,36 +714,36 @@ func (q *Queries) UpsertProgramDramaMatch(ctx context.Context, arg UpsertProgram
 	return err
 }
 
-const upsertTMDbSearch = `-- name: UpsertTMDbSearch :exec
+const upsertTMDBSearch = `-- name: UpsertTMDBSearch :exec
 INSERT INTO tmdb_searches (query, results, fetched_at) VALUES ($1, $2, $3)
 ON CONFLICT (query) DO UPDATE SET results = excluded.results, fetched_at = excluded.fetched_at
 `
 
-type UpsertTMDbSearchParams struct {
+type UpsertTMDBSearchParams struct {
 	Query   string
 	Results []byte
 	Now     time.Time
 }
 
-func (q *Queries) UpsertTMDbSearch(ctx context.Context, arg UpsertTMDbSearchParams) error {
-	_, err := q.db.Exec(ctx, upsertTMDbSearch, arg.Query, arg.Results, arg.Now)
+func (q *Queries) UpsertTMDBSearch(ctx context.Context, arg UpsertTMDBSearchParams) error {
+	_, err := q.db.Exec(ctx, upsertTMDBSearch, arg.Query, arg.Results, arg.Now)
 	return err
 }
 
-const upsertTMDbSeason = `-- name: UpsertTMDbSeason :exec
+const upsertTMDBSeason = `-- name: UpsertTMDBSeason :exec
 INSERT INTO tmdb_seasons (series_id, season_number, episodes, fetched_at) VALUES ($1, $2, $3, $4)
 ON CONFLICT (series_id, season_number) DO UPDATE SET episodes = excluded.episodes, fetched_at = excluded.fetched_at
 `
 
-type UpsertTMDbSeasonParams struct {
+type UpsertTMDBSeasonParams struct {
 	SeriesID     int32
 	SeasonNumber int32
 	Episodes     []byte
 	Now          time.Time
 }
 
-func (q *Queries) UpsertTMDbSeason(ctx context.Context, arg UpsertTMDbSeasonParams) error {
-	_, err := q.db.Exec(ctx, upsertTMDbSeason,
+func (q *Queries) UpsertTMDBSeason(ctx context.Context, arg UpsertTMDBSeasonParams) error {
+	_, err := q.db.Exec(ctx, upsertTMDBSeason,
 		arg.SeriesID,
 		arg.SeasonNumber,
 		arg.Episodes,
@@ -655,14 +752,14 @@ func (q *Queries) UpsertTMDbSeason(ctx context.Context, arg UpsertTMDbSeasonPara
 	return err
 }
 
-const upsertTMDbSeries = `-- name: UpsertTMDbSeries :exec
+const upsertTMDBSeries = `-- name: UpsertTMDBSeries :exec
 INSERT INTO tmdb_series (id, name, original_name, first_air_date, seasons, fetched_at)
 VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (id) DO UPDATE SET name = excluded.name, original_name = excluded.original_name,
   first_air_date = excluded.first_air_date, seasons = excluded.seasons, fetched_at = excluded.fetched_at
 `
 
-type UpsertTMDbSeriesParams struct {
+type UpsertTMDBSeriesParams struct {
 	ID           int32
 	Name         string
 	OriginalName string
@@ -671,8 +768,8 @@ type UpsertTMDbSeriesParams struct {
 	Now          time.Time
 }
 
-func (q *Queries) UpsertTMDbSeries(ctx context.Context, arg UpsertTMDbSeriesParams) error {
-	_, err := q.db.Exec(ctx, upsertTMDbSeries,
+func (q *Queries) UpsertTMDBSeries(ctx context.Context, arg UpsertTMDBSeriesParams) error {
+	_, err := q.db.Exec(ctx, upsertTMDBSeries,
 		arg.ID,
 		arg.Name,
 		arg.OriginalName,
@@ -683,17 +780,17 @@ func (q *Queries) UpsertTMDbSeries(ctx context.Context, arg UpsertTMDbSeriesPara
 	return err
 }
 
-const upsertTMDbToken = `-- name: UpsertTMDbToken :exec
+const upsertTMDBToken = `-- name: UpsertTMDBToken :exec
 INSERT INTO tmdb_tokens (id, token_encrypted, updated_at) VALUES (1, $1, $2)
 ON CONFLICT (id) DO UPDATE SET token_encrypted = EXCLUDED.token_encrypted, updated_at = EXCLUDED.updated_at
 `
 
-type UpsertTMDbTokenParams struct {
+type UpsertTMDBTokenParams struct {
 	TokenEncrypted []byte
 	Now            time.Time
 }
 
-func (q *Queries) UpsertTMDbToken(ctx context.Context, arg UpsertTMDbTokenParams) error {
-	_, err := q.db.Exec(ctx, upsertTMDbToken, arg.TokenEncrypted, arg.Now)
+func (q *Queries) UpsertTMDBToken(ctx context.Context, arg UpsertTMDBTokenParams) error {
+	_, err := q.db.Exec(ctx, upsertTMDBToken, arg.TokenEncrypted, arg.Now)
 	return err
 }

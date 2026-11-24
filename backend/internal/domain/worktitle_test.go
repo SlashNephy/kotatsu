@@ -8,6 +8,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
+// season2Period は、シーズンの番号の後にピリオドがある作品名。
+const season2Period = "作品名 season 2."
+
 func TestWorkTitle(t *testing.T) {
 	t.Parallel()
 
@@ -53,7 +56,12 @@ func TestWorkTitle(t *testing.T) {
 		{name: "spaced number with double spaces", in: "アニメ　作品名　　１５　サブタイトル", want: work},
 		{name: "lowercase word, number and period", in: "ホテル・インヒューマンズ　request　20.🈑", want: "ホテル・インヒューマンズ"},
 		{name: "lowercase word, number and period before a subtitle", in: "ホテル・インヒューマンズ request 20. サブタイトル", want: "ホテル・インヒューマンズ"},
-		{name: "lowercase season, number and period", in: "作品名 season 2.", want: "作品名 season 2."},
+		{name: "lowercase season, number and period", in: season2Period, want: season2Period},
+		{name: "episode after a season number with a period", in: "作品名 season 2. request 20. サブタイトル", want: season2Period},
+		{name: "episode after a part number with a period", in: "作品名 part 1. request 3. サブ", want: "作品名 part 1."},
+		{name: "numbered episode after a season number with a period", in: "作品名 season 2. 21. サブタイトル", want: season2Period},
+		{name: "season number with a period before a subtitle", in: "作品名 season 2. サブタイトル", want: "作品名 season 2. サブタイトル"},
+		{name: "episode count after a glued season number", in: "作品名 season2 score08", want: "作品名 season2"},
 		{name: "lowercase word glued to a number", in: "🈑アニメA・メダリスト　score08「西の強豪（前）」", want: "アニメA・メダリスト"},
 		{name: "two lowercase-word episodes", in: "アニメA・メダリスト score04、score05", want: "アニメA・メダリスト"},
 		{name: "operation number", in: "🈑アニメ　夜桜さんちの大作戦 第2期　作戦44　姉弟奪還作戦開始", want: "夜桜さんちの大作戦 第2期"},

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
-// recordingHandler は、ログの記録の属性を覚える。
+// recordingHandler は、ログの記録の属性を記録する。
 type recordingHandler struct {
 	mu    sync.Mutex
 	attrs []map[string]string
@@ -115,7 +116,7 @@ func TestHandle(t *testing.T) {
 	httpserver.Handle(router, both, map[string]http.Handler{http.MethodGet: ok(http.StatusOK), http.MethodPost: ok(http.StatusCreated)})
 	httpserver.Handle(router, "/post", map[string]http.Handler{http.MethodPost: ok(http.StatusCreated)})
 
-	// 移す前の http.ServeMux と同じ応答を返すことを確かめる。
+	// 移す前の http.ServeMux と同じ応答を返すことを確認する。
 	mux := http.NewServeMux()
 	mux.Handle("GET /both", ok(http.StatusOK))
 	mux.Handle("POST /both", ok(http.StatusCreated))
@@ -136,7 +137,7 @@ func TestHandle(t *testing.T) {
 		{name: "OPTIONS to POST only", method: http.MethodOptions, path: "/post", wantStatus: http.StatusMethodNotAllowed, wantAllow: "POST"},
 	}
 	for _, tt := range tests {
-		for name, handler := range map[string]http.Handler{"echo": router, "mux": mux} {
+		for name, handler := range map[string]http.Handler{echoName: router, muxName: mux} {
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, nil))
 			assert.Equal(t, tt.wantStatus, rec.Code, "%s: %s", name, tt.name)
@@ -146,7 +147,7 @@ func TestHandle(t *testing.T) {
 }
 
 // TestHandleWebSocket は、Handle で登録した net/http のハンドラーが、echo の応答を通して WebSocket の接続を受け入れられる
-// (Hijack できる) ことを確かめる。実況のコメントの中継 (/internal/media/jikkyo/:channel/ws) が使う。
+// (Hijack できる) ことを確認する。実況のコメントの中継 (/internal/media/jikkyo/:channel/ws) が使う。
 func TestHandleWebSocket(t *testing.T) {
 	t.Parallel()
 
@@ -178,7 +179,7 @@ func TestHandleWebSocket(t *testing.T) {
 }
 
 // TestCanonicalPath は、CanonicalPath を掛けた echo が、http.ServeMux と同じく、崩れたパスと配下を受けるパターンの
-// 末尾のスラッシュのないパスを、同じ先へリダイレクトすることを確かめる。
+// 末尾のスラッシュのないパスを、同じ先へリダイレクトすることを確認する。
 func TestCanonicalPath(t *testing.T) {
 	t.Parallel()
 
@@ -196,7 +197,7 @@ func TestCanonicalPath(t *testing.T) {
 		wantStatus   int
 		wantLocation string
 	}{
-		{name: "clean", method: http.MethodGet, target: "/guide", wantStatus: http.StatusOK, wantLocation: ""},
+		{name: "clean", method: http.MethodGet, target: guidePath, wantStatus: http.StatusOK, wantLocation: ""},
 		{name: "trailing slash is kept", method: http.MethodGet, target: "/guide/", wantStatus: http.StatusOK, wantLocation: ""},
 		{name: "double slash", method: http.MethodGet, target: "//guide//x", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/guide/x"},
 		{name: "dot segments with query", method: http.MethodPost, target: "/a/./b/../guide?x=1", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/a/guide?x=1"},
@@ -208,12 +209,113 @@ func TestCanonicalPath(t *testing.T) {
 		{name: "double slash before backslash", method: http.MethodGet, target: `//\evil.example/`, wantStatus: http.StatusTemporaryRedirect, wantLocation: "/%5Cevil.example/"},
 	}
 	for _, tt := range tests {
-		for name, handler := range map[string]http.Handler{"echo": router, "mux": mux} {
+		for name, handler := range map[string]http.Handler{echoName: router, muxName: mux} {
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, "http://example.com"+tt.target, nil)
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 			assert.Equal(t, tt.wantStatus, rec.Code, "%s: %s", name, tt.name)
 			assert.Equal(t, tt.wantLocation, rec.Header().Get("Location"), "%s: %s", name, tt.name)
 		}
+	}
+}
+
+// echoName は、http.ServeMux と並べて確認するときの、echo のルーターの名前。
+const echoName = "echo"
+
+// muxName は、並べて確認する http.ServeMux の名前。
+const muxName = "mux"
+
+// gotHeader は、ハンドラーが読んだ値を返すヘッダー。
+const gotHeader = "X-Got"
+
+// fallbackBody は、どのルートにも当たらないときの本文。
+const fallbackBody = "fallback\n"
+
+// TestRouterPathParams は、名前を付けたパスの部分を、echo が http.ServeMux と同じく読むことを確認する (#2016)。
+// echo は、末尾の名前の部分をスラッシュをまたいで当て、エスケープしたパスで当てた値を戻さないからである。
+func TestRouterPathParams(t *testing.T) {
+	t.Parallel()
+
+	notFound := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, strings.TrimSuffix(fallbackBody, "\n"), http.StatusNotFound)
+	})
+	params := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(gotHeader, r.PathValue("a")+"|"+r.PathValue("b"))
+	})
+	router := httpserver.NewRouter(slog.New(slog.DiscardHandler), notFound)
+	httpserver.Handle(router, "/p/:a/:b", map[string]http.Handler{http.MethodGet: params})
+	router.GET("/rest/*", echo.WrapHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(gotHeader, r.URL.Path)
+	})))
+	mux := http.NewServeMux()
+	mux.Handle("GET /p/{a}/{b}", params)
+	mux.Handle("/rest/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(gotHeader, r.URL.Path)
+	}))
+	mux.Handle("/", notFound)
+
+	tests := []struct {
+		name       string
+		method     string
+		target     string
+		wantStatus int
+		wantGot    string
+	}{
+		{name: "当たる", method: http.MethodGet, target: "/p/1/2", wantStatus: http.StatusOK, wantGot: "1|2"},
+		{name: "区切りが多いと当たらない", method: http.MethodGet, target: "/p/1/2/3", wantStatus: http.StatusNotFound, wantGot: ""},
+		{name: "区切りが多いとメソッドが違っても当たらない", method: http.MethodPost, target: "/p/1/2/3", wantStatus: http.StatusNotFound, wantGot: ""},
+		{name: "空の区切りには当たらない", method: http.MethodGet, target: "/p/1/", wantStatus: http.StatusNotFound, wantGot: ""},
+		{name: "エスケープした値を戻す", method: http.MethodGet, target: "/p/%31/a%20b", wantStatus: http.StatusOK, wantGot: "1|a b"},
+		{name: "エスケープしたパーセントは 1 度だけ戻す", method: http.MethodGet, target: "/p/a%25b/c", wantStatus: http.StatusOK, wantGot: "a%b|c"},
+		{name: "名前のない残りはスラッシュを含んでよい", method: http.MethodGet, target: "/rest/a/b/c", wantStatus: http.StatusOK, wantGot: "/rest/a/b/c"},
+	}
+	for _, tt := range tests {
+		for name, handler := range map[string]http.Handler{echoName: router, muxName: mux} {
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, "http://example.com"+tt.target, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			assert.Equal(t, tt.wantStatus, rec.Code, "%s: %s", name, tt.name)
+			assert.Equal(t, tt.wantGot, rec.Header().Get(gotHeader), "%s: %s", name, tt.name)
+		}
+	}
+}
+
+// TestRouterContextParam は、echo のハンドラーが c.Param で読む値も、戻した値になることを確認する (#2016)。
+// カレンダーと IPTV の端点は、秘密の値を c.Param で読む。
+func TestRouterContextParam(t *testing.T) {
+	t.Parallel()
+
+	router := httpserver.NewRouter(slog.New(slog.DiscardHandler), http.NotFoundHandler())
+	router.GET("/c/:token", func(c *echo.Context) error {
+		c.Response().Header().Set(gotHeader, c.Param("token"))
+
+		return c.NoContent(http.StatusNoContent)
+	})
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://example.com/c/a%2Db%7E", nil))
+	assert.Equal(t, http.StatusNoContent, rec.Code)
+	assert.Equal(t, "a-b~", rec.Header().Get(gotHeader))
+}
+
+// TestRouterRejectsPathLikeParams は、戻すと「/」を含むか、「.」か「..」になる名前の部分を、どのルートにも当たらなかったものとして
+// 扱うことを確認する (#2016)。ハンドラーが値をパスに組み直しても、ほかのパスを指させないためである。http.ServeMux はこれらを値として渡す。
+func TestRouterRejectsPathLikeParams(t *testing.T) {
+	t.Parallel()
+
+	notFound := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, strings.TrimSuffix(fallbackBody, "\n"), http.StatusNotFound)
+	})
+	router := httpserver.NewRouter(slog.New(slog.DiscardHandler), notFound)
+	httpserver.Handle(router, "/p/:a/:b", map[string]http.Handler{http.MethodGet: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(gotHeader, r.PathValue("a")+"|"+r.PathValue("b"))
+	})})
+
+	for _, target := range []string{"/p/1%2F2/3", "/p/1/..%2F..%2Fmetrics", "/p/%2E%2E/3", "/p/%2E/3", "/p/1/%2e%2e", "/p/./3", "/p/1/.."} {
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://example.com"+target, nil))
+		assert.Equal(t, http.StatusNotFound, rec.Code, target)
+		assert.Equal(t, fallbackBody, rec.Body.String(), target)
+		assert.Empty(t, rec.Header().Get(gotHeader), target)
 	}
 }

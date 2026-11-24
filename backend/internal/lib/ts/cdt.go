@@ -23,14 +23,14 @@ type Logo struct {
 	LogoID uint16
 	// Type は、ロゴの種類 (logo_type)。大きさを表す。
 	Type uint8
-	// Version は、ロゴの版 (logo_version)。
+	// Version は、ロゴのバージョン (logo_version)。
 	Version uint16
 	// PNG は、送られたままの PNG。パレットを持たないことがある (FixPalette)。
 	PNG []byte
 }
 
 // parseCDTLogo は、CDT のセクションから、ロゴのデータを読む。ロゴでなければ、壊れていれば false を返す。
-// セクションのバッファは使い回されるので、PNG は写して返す。
+// セクションのバッファは使い回されるので、PNG はコピーして返す。
 func parseCDTLogo(section []byte) (*Logo, bool) {
 	header := parseSectionHeader(section)
 	if header == nil || header.tableID != tableIDCDT || !header.currentNext {

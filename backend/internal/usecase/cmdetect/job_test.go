@@ -206,7 +206,7 @@ func (d *reportingDetector) DetectWithReport(ctx context.Context, input *cmdetec
 	return sections, d.reports[filepath.Base(input.Path)], err
 }
 
-// TestDetectWorkerReport は、見分け方の添え書きを、セグメントをまとめて記録することを確かめる (#1508)。
+// TestDetectWorkerReport は、見分け方の添え書きを、セグメントをまとめて記録することを確認する (#1508)。
 // 映像の欠けは足し合わせ、理由はセグメントの番号を付けて並べる。理由のないセグメントは並べない。
 func TestDetectWorkerReport(t *testing.T) {
 	t.Parallel()
@@ -272,8 +272,8 @@ func (d *materialDetector) Redetect(*cmdetect.Material, *cmdetect.Program) ([]cm
 	return d.redetected, &cmdetect.Report{Note: "", Missing: 0}, true
 }
 
-// TestDetectWorkerMaterials は、見分けた材料を残し、次に見分けるときは、読み直さずに材料から判定し直すことを確かめる (#1507)。
-// 材料だけで決められないか、セグメントが変わったか、形式の版が違えば、読み直す。
+// TestDetectWorkerMaterials は、見分けた材料を残し、次に見分けるときは、読み直さずに材料から判定し直すことを確認する (#1507)。
+// 材料だけで決められないか、セグメントが変わったか、形式のバージョンが違えば、読み直す。
 func TestDetectWorkerMaterials(t *testing.T) {
 	t.Parallel()
 
@@ -313,7 +313,7 @@ func TestDetectWorkerMaterials(t *testing.T) {
 	assert.Len(t, detector.inputs, 4)
 	assert.Equal(t, [][2]time.Duration{{time.Minute, 2 * time.Minute}}, f.sections(t, recordingID))
 
-	// 形式の版が違う材料は使わずに、読み直す。
+	// 形式のバージョンが違う材料は使わずに、読み直す。
 	detector.redetectable = true
 	_, err := f.pool.Exec(t.Context(), "UPDATE recording_cm_materials SET format_version = 0 WHERE recording_id = $1", recordingID)
 	require.NoError(t, err)
@@ -333,7 +333,7 @@ func TestDetectWorkerMaterials(t *testing.T) {
 	assert.Equal(t, 0, materials())
 }
 
-// TestDetectWorkerProgram は、セグメントが 1 つの録画にだけ、番組表の時刻を、セグメントを書き始めた日時からの時間で渡すことを確かめる (#1506)。
+// TestDetectWorkerProgram は、セグメントが 1 つの録画にだけ、番組表の時刻を、セグメントを書き始めた日時からの時間で渡すことを確認する (#1506)。
 func TestDetectWorkerProgram(t *testing.T) {
 	t.Parallel()
 
@@ -345,7 +345,7 @@ func TestDetectWorkerProgram(t *testing.T) {
 	require.Len(t, detector.inputs, 1)
 	assert.Equal(t, &cmdetect.Program{Start: -5 * time.Minute, Duration: 30 * time.Minute}, detector.inputs[0].Program)
 
-	// セグメントが分かれた録画には、番組の窓を録画全体の時間で置く必要があるので、渡さない。
+	// セグメントが分かれた録画には、番組のウィンドウを録画全体の時間で置く必要があるので、渡さない。
 	split := f.recording(t, "completed", segmentAt{name: "c.m2ts", start: 0}, segmentAt{name: "d.m2ts", start: 10 * time.Minute})
 	detector.sections["c.m2ts"], detector.sections["d.m2ts"] = []cmdetect.Section{}, []cmdetect.Section{}
 	detector.inputs = []cmdetect.Input{}
@@ -355,7 +355,7 @@ func TestDetectWorkerProgram(t *testing.T) {
 	assert.Nil(t, detector.inputs[1].Program)
 }
 
-// TestDetectWorkerProgramStart は、番組が遅れて始まった録画では、実際に放送中になった日時を番組の始まりにすることを確かめる (#1506)。
+// TestDetectWorkerProgramStart は、番組が遅れて始まった録画では、実際に放送中になった日時を番組の始まりにすることを確認する (#1506)。
 // 時刻どおりの放送と、録画を番組の途中から始めた録画では、番組表の始まりのままにする。
 func TestDetectWorkerProgramStart(t *testing.T) {
 	t.Parallel()
@@ -392,7 +392,7 @@ func TestDetectWorkerProgramStart(t *testing.T) {
 	}
 }
 
-// TestDetectWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、見分けずに後でやり直すことを確かめる (#1719)。
+// TestDetectWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、見分けずに後でやり直すことを確認する (#1719)。
 // 置き換えるまでは、DB の記録は 1 本でも、ディスクの最初のセグメントはまだつなぐ前のままである。
 func TestDetectWorkerWaitsForJoinedFile(t *testing.T) {
 	t.Parallel()
@@ -444,7 +444,7 @@ func (d *progressDetector) Detect(_ context.Context, input *cmdetect.Input) ([]c
 }
 
 // TestDetectWorkerProgress は、セグメントを順に見分ける進み具合を、読んだバイト数をセグメントの大きさの合計で割って書き、
-// 最後のセグメントの FFmpeg が書き終えたときだけ 1 にすることを確かめる (#1511)。セグメントは、どれも 2 バイト。
+// 最後のセグメントの FFmpeg が書き終えたときだけ 1 にすることを確認する (#1511)。セグメントは、どれも 2 バイト。
 func TestDetectWorkerProgress(t *testing.T) {
 	t.Parallel()
 
@@ -479,7 +479,7 @@ func TestDetectWorkerProgress(t *testing.T) {
 	}
 }
 
-// recordingHook は、見分け終えたことを受け取り、そのトランザクションから見えた区間の数を覚える DetectedHook。
+// recordingHook は、見分け終えたことを受け取り、そのトランザクションから見えた区間の数を保存する DetectedHook。
 type recordingHook struct {
 	err error
 	// seen は、受け取った録画ごとの、トランザクションから見えた区間の数。
@@ -498,7 +498,7 @@ func (h *recordingHook) OnDetected(ctx context.Context, tx pgx.Tx, recordingID u
 	return h.err
 }
 
-// TestDetectWorkerHook は、見分けた区間を書いたトランザクションの中で、見分け終えたことを渡すことを確かめる (#1510)。
+// TestDetectWorkerHook は、見分けた区間を書いたトランザクションの中で、見分け終えたことを渡すことを確認する (#1510)。
 // 受け取った側が失敗したら、区間も書かない。
 func TestDetectWorkerHook(t *testing.T) {
 	t.Parallel()
@@ -583,10 +583,10 @@ func TestRecordingSections(t *testing.T) {
 		// ffmpegAt と logoAt は、それぞれの見分け方で見分け終えた日時の、基準からのずれ。負なら見分けていない。
 		ffmpegAt time.Duration
 		logoAt   time.Duration
-		// ffmpegVersion は、今の見分け方の版。
+		// ffmpegVersion は、今の見分け方のバージョン。
 		ffmpegVersion int32
 		want          []cmdetect.Section
-		// wantFromFirstPES は、区間の時刻が、最初の映像の PES からのものか (版 1 の今の見分け方、#1811)。
+		// wantFromFirstPES は、区間の時刻が、最初の映像の PES からのものか (バージョン 1 の今の見分け方、#1811)。
 		wantFromFirstPES bool
 	}{
 		{name: "見分けていなければ空", ffmpegAt: -1, logoAt: -1, ffmpegVersion: 2, want: []cmdetect.Section{}, wantFromFirstPES: false},
@@ -701,7 +701,7 @@ func TestEnqueuer(t *testing.T) {
 				detectors = append(detectors, args.Detector)
 			}
 			require.NoError(t, rows.Err())
-			// 入れたら、録画の詳細が見分けを待っていると出せるよう、録画の変更を知らせる (#1571)。
+			// 入れたら、録画の詳細が見分けを待っていると出せるよう、録画の変更を通知する (#1571)。
 			var version int64
 			require.NoError(t, f.pool.QueryRow(t.Context(), recordingsVersion).Scan(&version))
 			if tt.want {
@@ -716,7 +716,7 @@ func TestEnqueuer(t *testing.T) {
 	}
 }
 
-// TestResolveDetector は、ジョブに載せた見分け方を使い、なければ全体の設定に従うことを確かめる (#1505)。
+// TestResolveDetector は、ジョブに載せた見分け方を使い、なければ全体の設定に従うことを確認する (#1505)。
 func TestResolveDetector(t *testing.T) {
 	t.Parallel()
 

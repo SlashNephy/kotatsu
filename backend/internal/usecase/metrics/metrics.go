@@ -28,7 +28,7 @@ const (
 	leaseName = "neko"
 )
 
-// FailureCountsCreated は、kotatsu_recording_failures_total の作成の時刻を返す。失敗の累計を数え始めた版の日付で、どのインスタンスでも変わらない。
+// FailureCountsCreated は、kotatsu_recording_failures_total の作成の時刻を返す。失敗の累計を数え始めたバージョンの日付で、どのインスタンスでも変わらない。
 // 管理者が累計を 0 に戻した理由は、戻した日時を作成の時刻にする (#1035)。
 // 値は DB に持つので、送るインスタンスが替わっても続く。作成の時刻も同じにして、OTLP の受け手がカウンターのリセットとみなさないようにする (#962)。
 func FailureCountsCreated() time.Time {
@@ -54,6 +54,7 @@ type DBCollector struct {
 	poolBytes        *prometheus.Desc
 	poolThreshold    *prometheus.Desc
 	poolMeasured     *prometheus.Desc
+	poolMeasuredAge  *prometheus.Desc
 	jobs             *prometheus.Desc
 	timeshiftBuffer  *prometheus.Desc
 	collectionErrors *prometheus.Desc
@@ -84,6 +85,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 		poolBytes:        desc("storage_pool_bytes", "Size and available space of the storage pools, as last measured by the capacity check.", "pool", "kind"),
 		poolThreshold:    desc("storage_pool_threshold_bytes", "Free space that the capacity check keeps in the storage pools by deleting old recordings. 0 means it deletes nothing.", "pool"),
 		poolMeasured:     desc("storage_pool_last_measured_timestamp_seconds", "Time when the capacity check last measured the storage pools.", "pool"),
+		poolMeasuredAge:  desc("storage_pool_measurement_age_seconds", "Seconds since the capacity check last measured the storage pools.", "pool"),
 		jobs:             desc("river_jobs", "Number of River jobs waiting or running, by queue and state.", "queue", "state"),
 		timeshiftBuffer:  desc("timeshift_buffer_seconds", "Length of the timeshift buffer, from the start of the oldest chunk to the end of the newest, by configured service. 0 if no chunk is buffered.", "service_id"),
 		collectionErrors: desc("metrics_collection_errors", "Number of metric groups that could not be read from the database in this scrape."),
@@ -93,7 +95,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 // Describe は、集めるメトリクスの説明を送る。
 func (c *DBCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
-		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.activeBitrate, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.timeshiftBuffer, c.collectionErrors,
+		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.activeBitrate, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.poolMeasuredAge, c.jobs, c.timeshiftBuffer, c.collectionErrors,
 	} {
 		ch <- d
 	}
@@ -155,8 +157,8 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 	for kind, value := range map[string]int64{"drop": packets.Drops, "error": packets.Errors, "scrambled": packets.Scrambled} {
 		ch <- prometheus.MustNewConstMetric(c.activePackets, prometheus.GaugeValue, float64(value), kind)
 	}
-	// 録画中の録画の直近のビットレートの合計 (#829)。書いたバイト数の合計は、録画を終えると減り、rate() が偽の増加を出すので、
-	// mikan が測ったビットレートを足して出す。
+	// 録画中の録画の直近のビットレートの合計 (#829)。書いたバイト数の合計は、録画を終えると減り、rate() が実際にはない増加を出すので、
+	// mikan が計測したビットレートを足して出す。
 	bitrate, err := q.SumActiveRecordingBitrate(ctx, c.clock.Now().Add(-liveStatsFreshness))
 	if err != nil {
 		return err
@@ -205,8 +207,9 @@ func (c *DBCollector) collectTuners(ctx context.Context, ch chan<- prometheus.Me
 	return nil
 }
 
-// collectStoragePools は、容量の管理が測って残した、保存先プールの容量と空き容量を送る (#957)。測っていないプールは送らない。
-// 測った時刻を送るので、容量の管理が止まって値が古くなったことが分かる。
+// collectStoragePools は、容量の管理が計測して残した、保存先プールの容量と空き容量を送る (#957)。計測していないプールは送らない。
+// 計測した時刻と、それから経った秒数を送るので、容量の管理が止まって値が古くなったことが分かる。
+// 経った秒数は、今の時刻を返す関数 (PromQL の time()) のない OTLP の送り先でも監視できるように送る (#2010)。
 func (c *DBCollector) collectStoragePools(ctx context.Context, ch chan<- prometheus.Metric) error {
 	rows, err := sqlc.New(c.pool).ListStoragePoolMeasurements(ctx)
 	if err != nil {
@@ -217,6 +220,7 @@ func (c *DBCollector) collectStoragePools(ctx context.Context, ch chan<- prometh
 		ch <- prometheus.MustNewConstMetric(c.poolBytes, prometheus.GaugeValue, float64(row.FreeBytes), row.ID, "available")
 		ch <- prometheus.MustNewConstMetric(c.poolThreshold, prometheus.GaugeValue, float64(row.MinFreeBytes), row.ID)
 		ch <- prometheus.MustNewConstMetric(c.poolMeasured, prometheus.GaugeValue, float64(row.MeasuredAt.Unix()), row.ID)
+		ch <- prometheus.MustNewConstMetric(c.poolMeasuredAge, prometheus.GaugeValue, max(c.clock.Now().Sub(row.MeasuredAt).Seconds(), 0), row.ID)
 	}
 
 	return nil

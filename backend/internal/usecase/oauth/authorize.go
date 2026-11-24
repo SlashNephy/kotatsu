@@ -26,7 +26,7 @@ const (
 
 var (
 	// ErrInvalidAuthorizationRequest は、認可のリクエストが正しくなく、しかもクライアントへ戻せないことを表す。
-	// client_id かリダイレクト URI を確かめられないときは、どこへ戻すかが分からないので、画面にエラーを出す (RFC 6749 4.1.2.1)。
+	// client_id かリダイレクト URI を確認できないときは、どこへ戻すかが分からないので、画面にエラーを出す (RFC 6749 4.1.2.1)。
 	ErrInvalidAuthorizationRequest = errors.New("invalid authorization request")
 	// ErrInvalidScopeChoice は、同意の画面で選んだスコープが、求められたものか、ロールに許すものでないことを表す。
 	ErrInvalidScopeChoice = errors.New("the chosen scopes are not requested or not allowed")
@@ -43,7 +43,7 @@ func (e *AuthorizationError) Error() string {
 	return fmt.Sprintf("authorization error %s: %s", e.Code, e.Description)
 }
 
-// AuthorizationRequest は、確かめた認可のリクエスト。
+// AuthorizationRequest は、確認した認可のリクエスト。
 type AuthorizationRequest struct {
 	Client      *ClientMetadata
 	RedirectURI string
@@ -56,8 +56,8 @@ type AuthorizationRequest struct {
 	Issuer string
 }
 
-// Prepare は、認可のエンドポイントに届いたクエリを確かめる。同意の画面を出す前と、同意したときに呼ぶ。
-// クエリは、ログインした後で確かめる。ログインしていない経路から、クライアントのメタデータの取得を起こさせないためである。
+// Prepare は、認可のエンドポイントに届いたクエリを確認する。同意の画面を出す前と、同意したときに呼ぶ。
+// クエリは、ログインした後で確認する。ログインしていない経路から、クライアントのメタデータの取得を起こさせないためである。
 // client_id かリダイレクト URI が正しくなければ ErrInvalidAuthorizationRequest を、
 // ほかのパラメーターが正しくなければ、クライアントへ戻す *AuthorizationError を返す。
 func (s *Server) Prepare(ctx context.Context, origin string, query url.Values) (*AuthorizationRequest, error) {
@@ -66,7 +66,7 @@ func (s *Server) Prepare(ctx context.Context, origin string, query url.Values) (
 	}
 	for key, values := range query {
 		if len(values) > 1 {
-			// 同じパラメーターを 2 回送ってはならない (RFC 6749 3.1)。どちらを使うかで、確かめた値と使う値が食い違わないようにする。
+			// 同じパラメーターを 2 回送ってはならない (RFC 6749 3.1)。どちらを使うかで、確認した値と使う値が食い違わないようにする。
 			return nil, fmt.Errorf("%w: duplicated parameter %s", ErrInvalidAuthorizationRequest, key)
 		}
 	}

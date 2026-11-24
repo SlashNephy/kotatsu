@@ -29,7 +29,7 @@ const (
 	maxRetryAfter = time.Hour
 	// watchlistTimeout は、ウォッチリストを取り込むジョブの時間の上限。
 	watchlistTimeout = 5 * time.Minute
-	// WatchlistNotifyChannel は、ウォッチリストを取り込んで、見ている作品が変わったことを知らせるチャンネル。
+	// WatchlistNotifyChannel は、ウォッチリストを取り込んで、見ている作品が変わったことを通知するチャンネル。
 	// ドラマの視聴管理の画面が、読み直すのに使う。
 	WatchlistNotifyChannel = "kotatsu_drama_watchlist"
 	// 見ている作品の状態 (drama_watchlist_entries の status。dramalibrary.StatusWatching と StatusWannaWatch と同じ)。
@@ -110,7 +110,7 @@ func EnqueueWatchlistImport(ctx context.Context, tx pgx.Tx, inserter anime.Inser
 // ドラマの視聴管理の画面を開いたときと、利用者が取り込み直しを押したとき (force) に呼ぶ。Simkl はタイマーで問い合わせ続けることを
 // 断っているので、定期のジョブでは取り込まない。force でなければ、前に問い合わせてから 30 分たった連携だけを取り込む。
 // 取り込めなかった連携は、force でも、問い合わせ直す日時 (429 の Retry-After を含む) まで待つ。ジョブを入れたら true を返す。
-// 管理者が TMDb との連携を無効にしていれば、何もしない。
+// 管理者が TMDB との連携を無効にしていれば、何もしない。
 func (s *Service) RequestWatchlistImport(ctx context.Context, db Database, inserter anime.Inserter, userID uuid.UUID, force bool) (bool, error) {
 	system, err := settings.Load(ctx, db)
 	if err != nil {
@@ -163,8 +163,8 @@ func watchlistDue(row *sqlc.DramaRecordConnection, now time.Time, force bool) bo
 	return now.Sub(*row.WatchlistCheckedAt) >= WatchlistRefreshInterval
 }
 
-// ImportWatchlist は、ユーザー userID の記録先 name のウォッチリストを取り込み、見ている作品に写す。
-// まず /sync/activities で、前に取り込んでから変わったかを確かめ、変わっていなければウォッチリストを引かない (Simkl の求める手順)。
+// ImportWatchlist は、ユーザー userID の記録先 name のウォッチリストを取り込み、見ている作品にコピーする。
+// まず /sync/activities で、前に取り込んでから変わったかを確認し、変わっていなければウォッチリストを取得しない (Simkl の求める手順)。
 // 初めてならすべてを、そうでなければ前に取り込んだ後に変わった作品だけを引き、作品を外したことが示されたら、すべての作品の ID を
 // 引いて、なくなった作品を見分ける。取り込めなかったら、前に取り込んだ状態を残し、理由と問い合わせ直す日時を連携に残す。
 func (s *Service) ImportWatchlist(ctx context.Context, db Database, userID uuid.UUID, name string) error {
@@ -268,7 +268,7 @@ func (s *Service) importWatchlist(ctx context.Context, db Database, row *sqlc.Dr
 	})
 }
 
-// mergeWatchlist は、引いた作品 items の状態を、取り込んだ状態 (drama_watchlist_imports) に写し、見ている作品から外すものを外す。
+// mergeWatchlist は、引いた作品 items の状態を、取り込んだ状態 (drama_watchlist_imports) にコピーし、見ている作品から外すものを外す。
 // current が nil でなければ、ウォッチリストにある作品の ID のすべてで、ない作品はウォッチリストから外したものとする。
 // 見ている作品に足すのは、applyWatchlist に任せる。見ている作品を変えた数を返す。
 func (s *Service) mergeWatchlist(ctx context.Context, tx pgx.Tx, row *sqlc.DramaRecordConnection, items []*WatchlistItem, current []int64) (int, error) {
@@ -281,18 +281,18 @@ func (s *Service) mergeWatchlist(ctx context.Context, tx pgx.Tx, row *sqlc.Drama
 	return changes + removed, err
 }
 
-// mergeItems は、引いた作品 items の状態を、取り込んだ状態に写す。変わった作品の、前に写した見ている作品を外し、外した数を返す。
+// mergeItems は、引いた作品 items の状態を、取り込んだ状態にコピーする。変わった作品の、前にコピーした見ている作品を外し、外した数を返す。
 func (s *Service) mergeItems(ctx context.Context, tx pgx.Tx, row *sqlc.DramaRecordConnection, items []*WatchlistItem) (int, error) {
 	q := sqlc.New(tx)
 	now := s.clock.Now()
 	changes := 0
 	for _, item := range items {
-		if item.TMDbID <= 0 {
-			// TMDb の ID のない作品は、Kotatsu の作品と結びつけられない。
+		if item.TMDBID <= 0 {
+			// TMDB の ID のない作品は、Kotatsu の作品と結びつけられない。
 			continue
 		}
 		previous, err := q.GetDramaWatchlistImport(ctx, sqlc.GetDramaWatchlistImportParams{
-			UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDbID,
+			UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDBID,
 		})
 		exists := err == nil
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -301,7 +301,7 @@ func (s *Service) mergeItems(ctx context.Context, tx pgx.Tx, row *sqlc.DramaReco
 		if exists && previous.Status == item.Status {
 			// 状態が変わっていなければ、見ている作品は変えない (Kotatsu で外した作品を足し直さない)。ID だけを埋める。
 			if err := q.UpsertDramaWatchlistImport(ctx, sqlc.UpsertDramaWatchlistImportParams{
-				UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDbID, SimklID: &item.SimklID,
+				UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDBID, SimklID: &item.SimklID,
 				Status: item.Status, Applied: previous.Applied, Now: now,
 			}); err != nil {
 				return 0, fmt.Errorf("failed to save the drama watchlist import: %w", err)
@@ -317,7 +317,7 @@ func (s *Service) mergeItems(ctx context.Context, tx pgx.Tx, row *sqlc.DramaReco
 			changes += n
 		}
 		if err := q.UpsertDramaWatchlistImport(ctx, sqlc.UpsertDramaWatchlistImportParams{
-			UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDbID, SimklID: &item.SimklID,
+			UserID: row.UserID, Destination: row.Destination, TmdbSeriesID: item.TMDBID, SimklID: &item.SimklID,
 			Status: item.Status, Applied: false, Now: now,
 		}); err != nil {
 			return 0, fmt.Errorf("failed to save the drama watchlist import: %w", err)
@@ -328,7 +328,7 @@ func (s *Service) mergeItems(ctx context.Context, tx pgx.Tx, row *sqlc.DramaReco
 }
 
 // mergeRemovals は、ウォッチリストにある作品の ID のすべて current にない作品を、ウォッチリストから外したものとし、取り込んだ状態を消す。
-// 前に写した見ている作品を外し、外した数を返す。
+// 前にコピーした見ている作品を外し、外した数を返す。
 func (s *Service) mergeRemovals(ctx context.Context, tx pgx.Tx, row *sqlc.DramaRecordConnection, current []int64) (int, error) {
 	q := sqlc.New(tx)
 	changes := 0
@@ -361,8 +361,8 @@ func (s *Service) mergeRemovals(ctx context.Context, tx pgx.Tx, row *sqlc.DramaR
 	return changes, nil
 }
 
-// releaseEntry は、取り込んだ状態 previous から写した見ている作品を、Simkl で状態が変わったか外したので、外す。
-// 写した後に Kotatsu で状態を変えた作品と、Kotatsu で先に足していた作品 (写していない作品) は外さない。外した数を返す。
+// releaseEntry は、取り込んだ状態 previous からコピーした見ている作品を、Simkl で状態が変わったか外したので、外す。
+// コピーした後に Kotatsu で状態を変えた作品と、Kotatsu で先に足していた作品 (コピーしていない作品) は外さない。外した数を返す。
 func (s *Service) releaseEntry(ctx context.Context, q *sqlc.Queries, userID uuid.UUID, previous *sqlc.DramaWatchlistImport) (int, error) {
 	status := entryStatus(previous.Status)
 	if !previous.Applied || status == "" {
@@ -378,9 +378,9 @@ func (s *Service) releaseEntry(ctx context.Context, q *sqlc.Queries, userID uuid
 	return int(n), nil
 }
 
-// applyWatchlist は、まだ写していない作品のうち、番組か録画に結びついた作品を、見ている作品に足すか、状態を変える。
-// 結びつきのない作品は、名前が分からず、放送も録画も並べられないので、結びつくまで写さない (次の取り込みで確かめ直す)。
-// 見ている作品にしない状態 (中断、見た、やめた) の作品は、写したことにする。足すか変えた数を返す。
+// applyWatchlist は、まだコピーしていない作品のうち、番組か録画に結びついた作品を、見ている作品に足すか、状態を変える。
+// 結びつきのない作品は、名前が分からず、放送も録画も並べられないので、結びつくまでコピーしない (次の取り込みで確認し直す)。
+// 見ている作品にしない状態 (中断、見た、やめた) の作品は、コピーしたことにする。足すか変えた数を返す。
 func (s *Service) applyWatchlist(ctx context.Context, tx pgx.Tx, userID uuid.UUID, name string) (int, error) {
 	q := sqlc.New(tx)
 	pending, err := q.ListPendingDramaWatchlistImports(ctx, sqlc.ListPendingDramaWatchlistImportsParams{UserID: userID, Destination: name})

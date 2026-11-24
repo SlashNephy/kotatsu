@@ -1,0 +1,9 @@
+# ブラウザ内でデコードする経路 (#1516、設計書 7.2) で使う、WASM の FFmpeg のバージョンと、組むのに使う emscripten のイメージ。
+# FFmpeg は、サーバの FFmpeg (Dockerfile の FFMPEG_VERSION) と同じバージョンにする。
+# 変えたら、mise run //frontend:ffmpeg で組み直す。測定の道具 (bench/wasm-decode) も、このバージョンで組む。
+# renovate: datasource=github-tags depName=FFmpeg/FFmpeg versioning=loose extractVersion=^n(?<version>\d+\.\d+(?:\.\d+)?)$
+ffmpeg=9.1
+# renovate: datasource=docker depName=docker.io/emscripten/emsdk
+emsdk=6.0.13@sha256:fb7864e398acfda863dfcea78b8bc8adad359fa60c6a0bbeb845931de64aa68a
+# FFmpeg のリリースの署名鍵 (https://ffmpeg.org/download.html#releases)。取得した tarball の署名をこの署名鍵で確認する。
+ffmpeg_signing_key=FCF986EA15E6E293A5644F10B4322F04D67658D8

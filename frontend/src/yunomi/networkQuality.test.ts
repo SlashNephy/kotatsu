@@ -15,7 +15,7 @@ import {
 
 const params = defaultNetworkParams;
 
-// ladder は、HD の番組の段の表。オリジナルのビットレートは分からない。kyusu の段は、映像のビットレートに音声の 128 kbps を足したもの。
+// ladder は、HD の番組の段階のテーブル。オリジナルのビットレートは分からない。kyusu の段階は、映像のビットレートに音声の 128 kbps を足したもの。
 const ladder: Step[] = [
   { name: 'original', bitrate: null },
   { name: '1080p', bitrate: 6_128_000 },
@@ -25,7 +25,7 @@ const ladder: Step[] = [
   { name: audioStep, bitrate: 128_000 },
 ];
 
-// healthy は、無事なときの測った値。
+// healthy は、無事なときの計測した値。
 const healthy: NetworkInput = {
   active: true,
   started: true,
@@ -40,7 +40,7 @@ const healthy: NetworkInput = {
 
 type Logged = { at: number; decision: NetworkDecision };
 
-// Sim は、刻みごとに測った値を渡し、決めたとおりに段を動かす。時刻は 0 から始める。
+// Sim は、判定のたびに計測した値を渡し、決めたとおりに段階を動かす。時刻は 0 から始める。
 class Sim {
   now = 0;
   current: string;
@@ -57,7 +57,7 @@ class Sim {
     this.controller = createNetworkController({ now: 0 });
   }
 
-  // run は、ms のあいだ刻む。input は、刻みの時刻を受けて、無事なときとの違いを返す。
+  // run は、ms のあいだ判定を繰り返す。input は、判定の時刻を受けて、無事なときとの違いを返す。
   run(ms: number, input: Partial<NetworkInput> | ((now: number) => Partial<NetworkInput>) = {}) {
     const end = this.now + ms;
     while (this.now + params.tickMs <= end) {
@@ -84,7 +84,7 @@ class Sim {
     return this;
   }
 
-  // steps は、段を動かした記録。
+  // steps は、段階を動かした記録。
   moves() {
     return this.log.flatMap(({ at, decision }) =>
       decision.kind === 'step'
@@ -100,7 +100,7 @@ class Sim {
   }
 }
 
-// need は、段の表のビットレートどおりに、段を流すのに要る速さを返す。オリジナルは既定値。
+// need は、段階のテーブルのビットレートどおりに、段階を流すのに要る速さを返す。オリジナルは既定値。
 const need = (step: Step) => step.bitrate ?? params.defaultTopBitrate;
 
 describe('chooseDown', () => {
@@ -155,7 +155,7 @@ describe('probeBytes', () => {
 });
 
 describe('足りない兆し', () => {
-  // 切り替え直後の無視時間がたってから兆しを出し、下げた時刻を確かめる。
+  // 切り替え直後の無視時間がたってから兆候を出し、下げた時刻を確認する。
   const start = params.ignoreAfterSwitchMs;
   test.each([
     {
@@ -182,21 +182,28 @@ describe('足りない兆し', () => {
     {
       name: 'コマの途絶とみなす時間に満たなければ数えない',
       mode: 'probe' as const,
-      input: { frameAgeMs: params.frameGapMs - 1 },
+      input: { frameAgeMs: params.frameGapMs - 1, ahead: params.frameGapAheadBelow - 0.1 },
       within: 5_000,
       want: false,
     },
     {
       name: 'コマの途絶とみなす時間たっても次のコマが来なければ数える',
       mode: 'probe' as const,
-      input: { frameAgeMs: params.frameGapMs },
+      input: { frameAgeMs: params.frameGapMs, ahead: params.frameGapAheadBelow - 0.1 },
       within: 500,
       want: true,
     },
     {
+      name: '先読みが十分にあれば、コマの途絶を数えない (変換か描画の側の途切れ、#2033)',
+      mode: 'rate' as const,
+      input: { frameAgeMs: params.frameGapMs * 2, ahead: params.frameGapAheadBelow },
+      within: 5_000,
+      want: false,
+    },
+    {
       name: '測らないとき (音声だけなど) のコマの途絶は数えない',
       mode: 'probe' as const,
-      input: { frameAgeMs: null },
+      input: { frameAgeMs: null, ahead: params.frameGapAheadBelow - 0.1 },
       within: 5_000,
       want: false,
     },
@@ -277,7 +284,7 @@ describe('足りない兆し', () => {
     expect(sim.moves().length > 0).toBe(want);
   });
 
-  // saw は、2 秒ごとに塊が届き、届くたびに 1 秒増え、次の塊まで 1 秒/秒で減るバッファ (kyusu のセグメント)。
+  // saw は、2 秒ごとにチャンクが届き、届くたびに 1 秒増え、次のチャンクまで 1 秒/秒で減るバッファ (kyusu のセグメント)。
   // perSecond は、底の下がり方。
   test.each([
     { name: '塊が届くたびの上下 (のこぎりの歯) だけなら数えない', perSecond: 0, want: false },
@@ -318,7 +325,7 @@ describe('足りない兆し', () => {
     const sim = new Sim('720p', mode).run(start);
     const begin = sim.now;
     sim.run(params.lagWindowMs + 2_000, (now) => ({
-      // キーフレームの塊で揺れても、区間の最小値で比べる。
+      // キーフレームのチャンクで揺れても、区間の最小値で比較する。
       broadcastLag:
         10 + ((now - begin) / 1_000) * perSecond + ((now / params.tickMs) % 4 === 0 ? 0.8 : 0),
     }));
@@ -458,13 +465,13 @@ describe('試しのデータで上げる (ライブ)', () => {
     expect(sim.controller.probing()).toBe(true);
     sim.controller.probed(sim.now, { kind: 'measured', bps: 3_000_000, alongsideBps: 2_128_000 });
     sim.run(500, { receiveRate: 2_128_000 });
-    // 試しの 3 Mbps + 試しの間に映像が受け取った 2.128 Mbps ≥ 3.628 Mbps × 1.3
+    // プローブの 3 Mbps + プローブの間に映像が受け取った 2.128 Mbps ≥ 3.628 Mbps × 1.3
     expect(sim.moves()).toEqual([
       { at: sim.now, to: '720p', direction: 'up', reason: 'recovered' },
     ]);
   });
 
-  // 回線が詰まっていると、試しの間は映像が細る。試しの前の受け取りの速さを足すと、同じ帯域を二重に数えて上げすぎる。
+  // 回線が詰まっていると、プローブの間は映像が細る。プローブの前の受け取りの速さを足すと、同じ帯域を二重に数えて上げすぎる。
   test.each([
     {
       name: '試しの間に映像が受け取れなければ、試しの前の受け取りの速さを足さずに比べる',
@@ -535,7 +542,7 @@ describe('試しのデータで上げる (ライブ)', () => {
     expect(sim.moves().map((move) => move.to)).toEqual(['360p']);
   });
 
-  // up は、540p から 720p へ上げ、上げた段が映り出したところまで進めた Sim を返す。
+  // up は、540p から 720p へ上げ、上げた段階が映り出したところまで進めた Sim を返す。
   const up = () => {
     const sim = new Sim('540p').run(start).run(params.probeAfterOkMs);
     sim.controller.probed(sim.now, { kind: 'measured', bps: 10_000_000 });
@@ -564,7 +571,7 @@ describe('試しのデータで上げる (ライブ)', () => {
   test('上げた段で見張り時間のあいだ問題なく続けば、待ちの倍率を初期値に戻す', () => {
     const sim = up();
     sim.run(params.holdAfterSwitchMs, { waiting: true });
-    // 戻した段 (540p) から、2 倍の待ちで試し、また上げる。
+    // 戻した段階 (540p) から、2 倍の待ちで試し、また上げる。
     sim.run(params.ignoreAfterSwitchMs + params.probeAfterOkMs * 2 + 500);
     sim.controller.probed(sim.now, { kind: 'measured', bps: 10_000_000 });
     sim.run(500);
@@ -721,7 +728,7 @@ describe('下げた段が映り出さないとき', () => {
       want: ['540p'],
     },
   ])('$name', ({ from, input, want }) => {
-    // 詰まりで 1 段下げた後、新しい段が映り出さない。
+    // 詰まりで 1 段階下げた後、新しい段階が映り出さない。
     const sim = new Sim(from).run(start).run(500, { waiting: true });
     sim.run(params.downToDisplayMs + 500, input);
     expect(sim.moves().map((move) => move.to)).toEqual(want);

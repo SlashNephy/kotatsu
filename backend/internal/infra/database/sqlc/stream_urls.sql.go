@@ -86,7 +86,7 @@ type GetStreamURLUserRow struct {
 	Role       domain.Role
 }
 
-// URL の記録から、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
+// URL の記録から、発行したユーザーを検索する。無効にしたユーザーの URL は使えない。
 func (q *Queries) GetStreamURLUser(ctx context.Context, id uuid.UUID) (GetStreamURLUserRow, error) {
 	row := q.db.QueryRow(ctx, getStreamURLUser, id)
 	var i GetStreamURLUserRow

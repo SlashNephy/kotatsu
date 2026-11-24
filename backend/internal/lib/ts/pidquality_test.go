@@ -8,7 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// TestPIDQualities は、PID ごとの統計に、PMT と決まった PID から分かる種類を添えることを確かめる (#473)。
+// TestPIDQualities は、PID ごとの統計に、PMT と決まった PID から分かる種類を添えることを確認する (#473)。
 func TestPIDQualities(t *testing.T) {
 	t.Parallel()
 
@@ -38,4 +38,70 @@ func TestPIDQualities(t *testing.T) {
 		{PID: 0x01F0, Kind: ts.PIDKindPSI, Packets: 10, Drops: 0, Errors: 0, Scrambled: 0, Payloads: new(int64(0)), ScrambledPayloads: new(int64(0))},
 		{PID: 0x0901, Kind: ts.PIDKindUnknown, Packets: 7, Drops: 2, Errors: 0, Scrambled: 0, Payloads: new(int64(0)), ScrambledPayloads: new(int64(0))},
 	}, ts.PIDQualities(stats, pids))
+}
+
+// TestJudgedDrops は、判定に数えるドロップを、映像と音声の PID のドロップだけにすることを確認する。
+func TestJudgedDrops(t *testing.T) {
+	t.Parallel()
+
+	programs := []*ts.Program{{Number: 101, PMTPID: 0x1000, PCRPID: 0x1FF, Version: 0, Streams: []*ts.Stream{
+		{PID: 0x100, StreamType: 0x24, Kind: ts.StreamKindVideo},
+		{PID: 0x110, StreamType: 0x0F, Kind: ts.StreamKindAudio},
+		{PID: 0x130, StreamType: 0x06, Kind: ts.StreamKindOther},
+		{PID: 0x138, StreamType: 0x06, Kind: ts.StreamKindOther},
+	}}}
+
+	tests := []struct {
+		name     string
+		programs []*ts.Program
+		pids     []*ts.PIDStats
+		want     int64
+	}{
+		{
+			name:     "字幕だけのドロップは数えない",
+			programs: programs,
+			pids:     []*ts.PIDStats{{PID: 0x100, Drops: 0}, {PID: 0x110, Drops: 0}, {PID: 0x130, Drops: 3}, {PID: 0x138, Drops: 1}},
+			want:     0,
+		},
+		{
+			name:     "映像と音声の PID のドロップだけを数える",
+			programs: programs,
+			pids:     []*ts.PIDStats{{PID: 0x0012, Drops: 1}, {PID: 0x100, Drops: 2}, {PID: 0x110, Drops: 4}, {PID: 0x130, Drops: 3}, {PID: 0x1FF, Drops: 8}},
+			want:     6,
+		},
+		{
+			// PMT に載っていない PID (CA 記述子が指す ECM の PID など) と番組情報の PID のドロップは数えない。
+			name:     "番組情報と PMT に載っていない PID だけのドロップは数えない",
+			programs: programs,
+			pids:     []*ts.PIDStats{{PID: 0x0000, Drops: 1}, {PID: 0x100, Drops: 0}, {PID: 0x110, Drops: 0}, {PID: 0x121, Drops: 1}},
+			want:     0,
+		},
+		{
+			name:     "PMT を読めていなければ、すべて数える",
+			programs: nil,
+			pids:     []*ts.PIDStats{{PID: 0x100, Drops: 2}, {PID: 0x130, Drops: 3}},
+			want:     5,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, ts.JudgedDrops(&ts.Stats{Programs: tt.programs}, tt.pids))
+		})
+	}
+}
+
+// TestPIDQualitiesECM は、PMT の CA 記述子が指す ECM の PID を、番組情報に分類することを確認する。
+func TestPIDQualitiesECM(t *testing.T) {
+	t.Parallel()
+
+	stats := &ts.Stats{
+		Programs: []*ts.Program{{Number: 1024, PMTPID: 0x1F0, PCRPID: 0x1FF, Version: 0, Streams: []*ts.Stream{
+			{PID: 0x100, StreamType: 0x02, Kind: ts.StreamKindVideo},
+		}, ECMPIDs: []uint16{0x121}}},
+	}
+	pids := []*ts.PIDStats{{PID: 0x0121, Packets: 4, Drops: 1, Errors: 0, Scrambled: 0}}
+
+	assert.Equal(t, ts.PIDKindPSI, ts.PIDQualities(stats, pids)[0].Kind)
 }

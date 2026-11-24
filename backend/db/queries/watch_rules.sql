@@ -74,7 +74,7 @@ WHERE user_id = @user_id AND watch_rule_id IS NOT NULL
   AND (service_id, event_id) IN (SELECT unnest(@service_ids::bigint[]), unnest(@event_ids::bigint[]));
 
 -- name: InsertWatchRuleDismissal :exec
--- ユーザーが手で外した視聴予約の番組を覚える。視聴ルールに一致しても、付け直さない。
+-- ユーザーが手で外した視聴予約の番組を保存する。視聴ルールに一致しても、付け直さない。
 INSERT INTO watch_rule_dismissals (user_id, service_id, event_id, created_at)
 VALUES (@user_id, @service_id, @event_id, @now)
 ON CONFLICT (user_id, service_id, event_id) DO NOTHING;

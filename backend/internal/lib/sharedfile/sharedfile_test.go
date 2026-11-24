@@ -12,7 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 )
 
-// TestOpenLetsOthersRemoveAndRename は、開いている間も、ほかの処理がファイルを消したり名前を変えたりできることを確かめる (#1096)。
+// TestOpenLetsOthersRemoveAndRename は、開いている間も、ほかの処理がファイルを消したり名前を変えたりできることを確認する (#1096)。
 // Windows の os.Open で開くと、どちらも共有違反で失敗する。
 func TestOpenLetsOthersRemoveAndRename(t *testing.T) {
 	t.Parallel()
@@ -43,7 +43,7 @@ func TestOpenLetsOthersRemoveAndRename(t *testing.T) {
 	}
 }
 
-// TestReadFile は、ReadFile がファイルの中身を返し、なければ os.ErrNotExist を返すことを確かめる。
+// TestReadFile は、ReadFile がファイルの内容を返し、なければ os.ErrNotExist を返すことを確認する。
 func TestReadFile(t *testing.T) {
 	t.Parallel()
 
@@ -58,7 +58,7 @@ func TestReadFile(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
-// TestRenameReplaces は、Rename が、移す先にあるファイルを置き換えることを確かめる。
+// TestRenameReplaces は、Rename が、移す先にあるファイルを置き換えることを確認する。
 func TestRenameReplaces(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +76,7 @@ func TestRenameReplaces(t *testing.T) {
 }
 
 // TestRenameReplacesAnOpenFile は、Open で開いている読み手がいても、Rename が移す先を置き換え、
-// 読み手は置き換える前の中身を読み続けられることを確かめる (#1096)。
+// 読み手は置き換える前の内容を読み続けられることを確認する (#1096)。
 // Windows では POSIX の意味の rename が要る。wine はこれに対応しないので、wine では失敗する。
 func TestRenameReplacesAnOpenFile(t *testing.T) {
 	t.Parallel()

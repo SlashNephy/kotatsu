@@ -251,7 +251,7 @@ func TestPlan(t *testing.T) {
 	}
 }
 
-// TestPlanEDCB は、EDCB の数え方 (#1856) を確かめる。相乗りの単位はサービスで、EPG の取得のためには、種別と録られるチャンネルを問わずに、
+// TestPlanEDCB は、EDCB の数え方 (#1856) を確認する。相乗りの単位はサービスで、EPG の取得のためには、種別と録られるチャンネルを問わずに、
 // 空けておくチューナー (IdleNeeds) を満たすように残す。
 func TestPlanEDCB(t *testing.T) {
 	t.Parallel()

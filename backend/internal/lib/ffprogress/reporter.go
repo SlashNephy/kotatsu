@@ -27,7 +27,7 @@ type SaveFunc func(ctx context.Context, s *Snapshot) error
 // Reporter は、まとまりを Tracker で進み具合にし、WriteInterval 以上空けて書き戻し、LogInterval ごとにログに出す。
 //
 // ctx が終わった (ジョブを止めた) 後に届いたまとまりは読まない。止めてから FFmpeg が終わるまでに届くまとまり
-// (止められた FFmpeg が書き出す progress=end など) で、止めたジョブの表示が 100% になったり戻ったりしないようにするためである。
+// (止められた FFmpeg が出力する progress=end など) で、止めたジョブの表示が 100% になったり戻ったりしないようにするためである。
 type Reporter struct {
 	tracker *Tracker
 	clock   clock.Clock
@@ -98,7 +98,7 @@ func (r *Reporter) flush(ctx context.Context, now time.Time) {
 	r.pending = false
 }
 
-// log は、コマ数 (済み/見込み)、読み位置、速さ、出力の大きさ、ビットレート、捨てたコマ数を出す。
+// log は、コマ数 (済み/見込み)、読み位置、速さ、出力の大きさ、ビットレート、破棄したコマ数を出す。
 // 割合には使わない読み位置も出すのは、詰まったときに、デマクサだけが先に進んでいるのか、本当に遅いのかを見分けるためである。
 func (r *Reporter) log(ctx context.Context, msg string) {
 	remaining := slog.String("remaining", "unknown")

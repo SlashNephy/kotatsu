@@ -40,7 +40,7 @@ func bdav(data []byte) []byte {
 	return out
 }
 
-// TestReadProbe は、TS の頭と終わりから、サービス、番組、録った時刻を読み、BDAV と TS でないファイルを見分けることを確かめる (#1734)。
+// TestReadProbe は、TS の先頭と終わりから、サービス、番組、録った時刻を読み、BDAV と TS でないファイルを見分けることを確認する (#1734)。
 func TestReadProbe(t *testing.T) {
 	t.Parallel()
 
@@ -84,7 +84,7 @@ func TestReadProbe(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			// 時刻は時間帯の表し方が違っても同じなら等しいとみなすため、文字列にして比べる。
+			// 時刻は時間帯の表し方が違っても同じなら等しいとみなすため、文字列にして比較する。
 			assert.Equal(t, tt.want.NetworkID, got.NetworkID)
 			assert.Equal(t, tt.want.RecordedFrom.String(), got.RecordedFrom.String())
 			assert.Equal(t, tt.want.RecordedUntil.String(), got.RecordedUntil.String())
@@ -93,7 +93,7 @@ func TestReadProbe(t *testing.T) {
 	}
 }
 
-// TestServiceProgram は、録った範囲に最も長く重なる番組を選ぶことを確かめる (#1734)。
+// TestServiceProgram は、録った範囲に最も長く重なる番組を選ぶことを確認する (#1734)。
 // 録画は番組の前にマージンを取って始まるので、頭で放送中の番組は、前の番組であることが多い。
 func TestServiceProgram(t *testing.T) {
 	t.Parallel()
@@ -130,7 +130,7 @@ func TestServiceProgram(t *testing.T) {
 	}
 }
 
-// TestReadProbeTail は、頭で読み切れない大きなファイルでは、終わりも読み、同じ番組を 1 つにまとめることを確かめる (#1734)。
+// TestReadProbeTail は、頭で読み切れない大きなファイルでは、終わりも読み、同じ番組を 1 つにまとめることを確認する (#1734)。
 func TestReadProbeTail(t *testing.T) {
 	t.Parallel()
 
@@ -149,7 +149,7 @@ func TestReadProbeTail(t *testing.T) {
 	require.NotNil(t, got.RecordedUntil)
 }
 
-// TestMergeEvent は、頭で読めなかった番組の項目を、終わりで読んだ同じ番組の項目で埋め、読めた項目は変えないことを確かめる (#1734)。
+// TestMergeEvent は、頭で読めなかった番組の項目を、終わりで読んだ同じ番組の項目で埋め、読めた項目は変えないことを確認する (#1734)。
 func TestMergeEvent(t *testing.T) {
 	t.Parallel()
 

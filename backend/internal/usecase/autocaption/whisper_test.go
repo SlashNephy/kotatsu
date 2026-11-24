@@ -16,13 +16,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 )
 
-// brokenModel は、偽の whisper-cli が、読めずに失敗するモデルのファイルの名前。
+// brokenModel は、モックの whisper-cli が、読めずに失敗するモデルのファイルの名前。
 const brokenModel = "broken.bin"
 
-// TestMain は、このテストのバイナリが whisper-cli の引数 (-ovtt) で起動されたら、偽の whisper-cli として動く。
-// 偽の whisper-cli は、受け取った引数を -of のディレクトリの args に書き、進み具合を標準エラー出力に出し、-of のパスに WebVTT を書く。
+// TestMain は、このテストのバイナリが whisper-cli の引数 (-ovtt) で起動されたら、モックの whisper-cli として動く。
+// モックの whisper-cli は、受け取った引数を -of のディレクトリの args に書き、進み具合を標準エラー出力に出し、-of のパスに WebVTT を書く。
 // モデルの名前が brokenModel なら、読めずに失敗する。
-// -vm で起動されたら、偽の whisper-vad-speech-segments として動き、1.5 秒から 2.1 秒を声の区間として書く。
+// -vm で起動されたら、モックの whisper-vad-speech-segments として動き、1.5 秒から 2.1 秒を声の区間として書く。
 func TestMain(m *testing.M) {
 	if slices.Contains(os.Args[1:], "-ovtt") {
 		os.Exit(fakeWhisper(os.Args[1:]))
@@ -52,7 +52,7 @@ func fakeWhisper(args []string) int {
 	fmt.Fprintln(os.Stderr, "whisper_init_from_file_with_params_no_state: loading model")
 	fmt.Fprintln(os.Stderr, "whisper_print_progress_callback: progress =  40%")
 	fmt.Fprintln(os.Stderr, "whisper_print_progress_callback: progress = 100%")
-	// 受け取った引数は、NOTE の塊に 1 行ずつ書く。WebVTT を読むときは読み飛ばす。
+	// 受け取った引数は、NOTE のチャンクに 1 行ずつ書く。WebVTT を読むときは読み飛ばす。
 	vtt := "WEBVTT\n\nNOTE\n" + strings.Join(args, "\n") + "\n\n00:00:01.000 --> 00:00:02.500\nこんにちは\n\n00:00:03.000 --> 00:00:04.000\n\n"
 	// 書くのは -of のディレクトリの中だけにする。
 	root, err := os.OpenRoot(filepath.Dir(out))
@@ -67,7 +67,7 @@ func fakeWhisper(args []string) int {
 	return 0
 }
 
-// selfCommand は、偽の whisper-cli として動く、このテストのバイナリのパスを返す。
+// selfCommand は、モックの whisper-cli として動く、このテストのバイナリのパスを返す。
 func selfCommand(t *testing.T) string {
 	t.Helper()
 
@@ -117,7 +117,7 @@ func TestNewWhisperNotConfigured(t *testing.T) {
 	}
 }
 
-// TestWhisperTranscribe は、whisper-cli に日本語と、設定のモデルとスレッドの数を渡し、出力した WebVTT の字幕と進み具合を返すことを確かめる。
+// TestWhisperTranscribe は、whisper-cli に日本語と、設定のモデルとスレッドの数を渡し、出力した WebVTT の字幕と進み具合を返すことを確認する。
 // モデルを省くと、データディレクトリの whisper/ggml-model.bin を使う。
 func TestWhisperTranscribe(t *testing.T) {
 	t.Parallel()
@@ -155,7 +155,7 @@ func TestWhisperTranscribe(t *testing.T) {
 			progress := []float64{}
 			cues, err := whisper.Transcribe(t.Context(), wav, func(ratio float64) { progress = append(progress, ratio) })
 			require.NoError(t, err)
-			// 本文の空の字幕は捨てる。
+			// 本文の空の字幕は破棄する。
 			// 字幕の終わりは、読む時間の見積もり (0.5 + 5 文字 × 0.15 = 1.25 秒) で切る。
 			assert.Equal(t, []autocaption.Cue{{Start: time.Second, End: 2250 * time.Millisecond, Text: "こんにちは"}}, cues)
 			assert.Equal(t, []float64{0.4, 1}, progress)
@@ -170,7 +170,7 @@ func TestWhisperTranscribe(t *testing.T) {
 	}
 }
 
-// TestWhisperTranscribeWithVAD は、VAD を置いていれば、字幕の時刻を声の区間に合わせることを確かめる。
+// TestWhisperTranscribeWithVAD は、VAD を置いていれば、字幕の時刻を声の区間に合わせることを確認する。
 func TestWhisperTranscribeWithVAD(t *testing.T) {
 	t.Parallel()
 
@@ -222,7 +222,7 @@ func TestNewVAD(t *testing.T) {
 	}
 }
 
-// TestWhisperTranscribeFails は、whisper-cli が失敗したら、標準エラー出力の末尾を添えて返すことを確かめる。
+// TestWhisperTranscribeFails は、whisper-cli が失敗したら、標準エラー出力の末尾を添えて返すことを確認する。
 func TestWhisperTranscribeFails(t *testing.T) {
 	t.Parallel()
 

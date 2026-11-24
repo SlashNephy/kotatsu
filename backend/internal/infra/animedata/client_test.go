@@ -62,7 +62,7 @@ func newServer(t *testing.T, bodies map[string]string, seen *agents) *animedata.
 	})
 }
 
-// TestArm は、arm の JSON を読み、ETag を返し、変わっていなければ ErrNotModified を返すことを確かめる。
+// TestArm は、arm の JSON を読み、ETag を返し、変わっていなければ ErrNotModified を返すことを確認する。
 // 問い合わせには、Kotatsu からの問い合わせだと分かる User-Agent を付ける。
 func TestArm(t *testing.T) {
 	t.Parallel()
@@ -89,7 +89,7 @@ func TestArm(t *testing.T) {
 	}
 }
 
-// TestChannelDefinitions は、埋め込んだ定義を読み、中身が変わらなければ ErrNotModified を返すことを確かめる。
+// TestChannelDefinitions は、埋め込んだ定義を読み、内容が変わらなければ ErrNotModified を返すことを確認する。
 // 地上波の系列局は、キー局ではなく、その局のしょぼいカレンダーの ChID と Annict のチャンネルを持つ (#1589)。
 func TestChannelDefinitions(t *testing.T) {
 	t.Parallel()
@@ -139,7 +139,7 @@ func TestChannelDefinitions(t *testing.T) {
 	}
 }
 
-// TestChannelDefinitionsDistinctIDs は、別の局に、同じしょぼいカレンダーの ChID や Annict のチャンネルを当てていないことを確かめる。
+// TestChannelDefinitionsDistinctIDs は、別の局に、同じしょぼいカレンダーの ChID や Annict のチャンネルを当てていないことを確認する。
 // saya-definitions は、BSよしもとに BS松竹東急の ChID (271) を当てていた。
 func TestChannelDefinitionsDistinctIDs(t *testing.T) {
 	t.Parallel()
@@ -174,7 +174,7 @@ func TestChannelDefinitionsDistinctIDs(t *testing.T) {
 	}
 }
 
-// TestParseChannelDefinitionsErrors は、読めない定義をエラーにすることを確かめる。
+// TestParseChannelDefinitionsErrors は、読めない定義をエラーにすることを確認する。
 func TestParseChannelDefinitionsErrors(t *testing.T) {
 	t.Parallel()
 
@@ -185,7 +185,7 @@ func TestParseChannelDefinitionsErrors(t *testing.T) {
 	}
 }
 
-// TestClientErrorsHideURL は、取得できなかったときのエラーに、資格情報を含みうる URL を書かないことを確かめる。
+// TestClientErrorsHideURL は、取得できなかったときのエラーに、資格情報を含みうる URL を書かないことを確認する。
 // エラーは、取り込めなかった理由として DB に残り、管理者の画面に出る。
 func TestClientErrorsHideURL(t *testing.T) {
 	t.Parallel()

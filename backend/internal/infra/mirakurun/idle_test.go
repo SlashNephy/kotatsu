@@ -21,7 +21,7 @@ func stallingStream(t *testing.T, chunks int, interval time.Duration) *httptest.
 		w.Header().Set("Content-Type", "video/MP2T")
 		w.WriteHeader(http.StatusOK)
 		flusher, _ := w.(http.Flusher)
-		// 応答の頭は、すぐに返す。
+		// 応答の先頭は、すぐに返す。
 		flusher.Flush()
 		packet := make([]byte, 188)
 		packet[0] = 0x47
@@ -63,7 +63,7 @@ func TestClientOpenServiceStreamIdle(t *testing.T) {
 			server := stallingStream(t, tt.chunks, tt.interval)
 			client, err := mirakurun.New(&mirakurun.Options{URL: server.URL, StreamIdleTimeout: idle})
 			require.NoError(t, err)
-			// 見張りは、ストリームを開いたときに始まるので、その前から測る。
+			// 見張りは、ストリームを開いたときに始まるので、その前から計測する。
 			started := time.Now()
 			stream, err := client.OpenServiceStream(t.Context(), 3273601024, nil)
 			require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestClientOpenServiceStreamOpenTimeout(t *testing.T) {
 	const openTimeout = 200 * time.Millisecond
 	tests := []struct {
 		name string
-		// delay は、チューナーサーバーが応答の頭を返すまでの時間。
+		// delay は、チューナーサーバーが応答の先頭を返すまでの時間。
 		delay   time.Duration
 		wantErr error
 	}{

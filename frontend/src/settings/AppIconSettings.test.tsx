@@ -90,7 +90,7 @@ describe('AppIconSettings', () => {
       expect(localStorage.getItem('kotatsu.appIcon')).toBeNull();
     } finally {
       setItem.mockRestore();
-      // 覚えられた組に戻し、このタブだけの組をほかのテストに残さない。
+      // 保存された組に戻し、このタブだけの組をほかのテストに残さない。
       saveAppIcon(localStorage, 'default');
     }
   });

@@ -54,7 +54,7 @@ const (
 	varInput   = "input"
 	varFirst   = "first"
 	varEnabled = "enabled"
-	// testUserAgent は、テストのリクエストの User-Agent。監査ログに残ることを確かめるのに使う。
+	// testUserAgent は、テストのリクエストの User-Agent。監査ログに残ることを確認するのに使う。
 	testUserAgent = "kotatsu-test/1.0"
 )
 
@@ -219,7 +219,7 @@ func TestGuide(t *testing.T) {
 		name      string
 		variables any
 		wantRows  []string
-		// wantPrograms は、最初の列の番組名。
+		// wantPrograms は、最初のカラムの番組名。
 		wantPrograms []string
 		wantCodes    []string
 	}{
@@ -345,7 +345,7 @@ func TestNode(t *testing.T) {
 		map[string]any{"id": "UHJvZ3JhbTozMjc2MzAxMDI0Ljk5OTk"}, nil))
 }
 
-// TestProgramAudios は、番組の音声の構成を、主音声を先にして返すことを確かめる (#284)。
+// TestProgramAudios は、番組の音声の構成を、主音声を先にして返すことを確認する (#284)。
 func TestProgramAudios(t *testing.T) {
 	t.Parallel()
 
@@ -537,6 +537,127 @@ func TestServicesExcludeNonMediaServices(t *testing.T) {
 	}
 }
 
+// TestServicesExcludeGoneServices は、上流から消えて 24 時間たったサービスを、一覧と番組表から外し、ID からは引けることを確認する (#1973)。
+// 消えた BS のサービスしか持たない BS の種別は、サービスを持たない種別にする。
+func TestServicesExcludeGoneServices(t *testing.T) {
+	t.Parallel()
+
+	const bsKey = 4*100000 + 101
+	bsID := graph.GlobalID("Service", strconv.FormatInt(bsKey, 10))
+	tests := []struct {
+		name string
+		// goneFor は、上流から消えたと気づいてからの時間。
+		goneFor   time.Duration
+		query     string
+		variables any
+		// want は、BS のサービスが返るかどうか。
+		want     bool
+		wantGone bool
+	}{
+		{name: "services without gone ones", goneFor: 25 * time.Hour, query: `{ services { id gone } }`, want: false},
+		{name: "services including hidden ones", goneFor: 25 * time.Hour, query: `{ services(includeHidden: true) { id gone } }`, want: false},
+		{name: "services including gone ones", goneFor: 25 * time.Hour, query: `{ services(includeHidden: true, includeGone: true) { id gone } }`, want: true, wantGone: true},
+		{name: "services within the grace", goneFor: 23 * time.Hour, query: `{ services { id gone } }`, want: true, wantGone: false},
+		{
+			name:    "guide",
+			goneFor: 25 * time.Hour,
+			query:   `query { services: guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T12:30:00Z") { service { id gone } } }`,
+			want:    false,
+		},
+		{
+			name:      "guide of the specified service",
+			goneFor:   25 * time.Hour,
+			query:     `query($ids: [ID!]) { services: guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T12:30:00Z", services: $ids) { service { id gone } } }`,
+			variables: map[string]any{"ids": []string{bsID}},
+			want:      false,
+		},
+		{
+			name:      "node",
+			goneFor:   25 * time.Hour,
+			query:     `query($id: ID!) { node(id: $id) { ... on Service { id gone } } }`,
+			variables: map[string]any{"id": bsID},
+			want:      true,
+			wantGone:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.syncEPG(t)
+			_, err := f.pool.Exec(t.Context(), `UPDATE services SET gone_at = $2 WHERE id = $1`, bsKey, testNow().Add(-tt.goneFor))
+			require.NoError(t, err)
+			var got struct {
+				Services []struct {
+					ID      string `json:"id"`
+					Gone    bool   `json:"gone"`
+					Service struct {
+						ID   string `json:"id"`
+						Gone bool   `json:"gone"`
+					} `json:"service"`
+				} `json:"services"`
+				Node *struct {
+					ID   string `json:"id"`
+					Gone bool   `json:"gone"`
+				} `json:"node"`
+			}
+			require.Empty(t, f.query(t, tt.query, tt.variables, &got))
+			found, gone := false, false
+			if got.Node != nil && got.Node.ID == bsID {
+				found, gone = true, got.Node.Gone
+			}
+			for _, s := range got.Services {
+				if s.ID == bsID {
+					found, gone = true, s.Gone
+				}
+				if s.Service.ID == bsID {
+					found, gone = true, s.Service.Gone
+				}
+			}
+			assert.Equal(t, tt.want, found)
+			assert.Equal(t, tt.wantGone, gone)
+		})
+	}
+}
+
+// TestChannelTypesHasServices は、上流から消えていないサービスを持たない種別を、サービスを持たないとすることを確認する (#1973)。
+func TestChannelTypesHasServices(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		goneFor time.Duration
+		wantBS  bool
+	}{
+		{name: "BS のサービスが消えて 24 時間たった", goneFor: 25 * time.Hour, wantBS: false},
+		{name: "BS のサービスが消えて 24 時間たっていない", goneFor: 23 * time.Hour, wantBS: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.syncEPG(t)
+			_, err := f.pool.Exec(t.Context(), `UPDATE services SET gone_at = $1 WHERE channel_type = 'BS'`, testNow().Add(-tt.goneFor))
+			require.NoError(t, err)
+			var got struct {
+				ChannelTypes []struct {
+					Type        string `json:"type"`
+					HasServices bool   `json:"hasServices"`
+				} `json:"channelTypes"`
+			}
+			require.Empty(t, f.query(t, `{ channelTypes { type hasServices } }`, nil, &got))
+			has := map[string]bool{}
+			for _, ct := range got.ChannelTypes {
+				has[ct.Type] = ct.HasServices
+			}
+			assert.True(t, has["GR"])
+			assert.Equal(t, tt.wantBS, has["BS"])
+		})
+	}
+}
+
 // bsServiceName は、偽チューナーの BS のサービスの名前。
 const bsServiceName = "こたつ BS"
 
@@ -556,7 +677,7 @@ const (
 	varPinned    = "pinned"
 )
 
-// TestPinnedServices は、サービスのピン留めを、ユーザーごとに、ピン留めした順に覚えることを確かめる (#485)。
+// TestPinnedServices は、サービスのピン留めを、ユーザーごとに、ピン留めした順に保存することを確認する (#485)。
 func TestPinnedServices(t *testing.T) {
 	t.Parallel()
 
@@ -606,7 +727,7 @@ func TestPinnedServices(t *testing.T) {
 }
 
 // TestGuideArchivedPrograms は、過去の時間帯の番組表に、放送が終わった番組 (過去の番組) も出し、
-// programs に残っている番組を二重に出さないことを確かめる (#1121、設計書 3.4)。
+// programs に残っている番組を二重に出さないことを確認する (#1121、設計書 3.4)。
 func TestGuideArchivedPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -695,7 +816,7 @@ func TestGuideArchivedPrograms(t *testing.T) {
 // inProgressState は、録画中の録画の状態。
 const inProgressState = "recording"
 
-// TestProgramRecorded は、番組表の番組に、録画があるかを返すことを確かめる (#1278)。
+// TestProgramRecorded は、番組表の番組に、録画があるかを返すことを確認する (#1278)。
 // 失敗した録画は数えず、eventId が同じでも放送時間の重ならない録画は数えない。
 func TestProgramRecorded(t *testing.T) {
 	t.Parallel()

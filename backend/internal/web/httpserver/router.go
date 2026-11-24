@@ -11,15 +11,54 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
-// NewRouter は、tenban の一番外側のルーターを返す (#1606)。echo のルートに当たらないリクエストは、fallback に渡す。
-// ルートは、まとまりごとに、http.ServeMux から echo のハンドラーへ移していく。移し終えていないものは、fallback の mux が受け持つ。
+// NewRouter は、http.ServeMux から移したルートを受ける echo のルーターを返す。tenban (#1606) や /metrics の待ち受け (#2008) で使う。
+// echo のルートに当たらないリクエストは、fallback に渡す。
 // logger は、リクエストのロガー (echo.Context.Logger) の元にする。
 func NewRouter(logger *slog.Logger, fallback http.Handler) *echo.Echo {
 	e := echo.New()
 	e.Logger = logger
 	e.RouteNotFound("/*", echo.WrapHandler(fallback))
+	e.Use(pathParams(fallback))
 
 	return e
+}
+
+// pathParams は、名前を付けたパスの部分 (:id) を、http.ServeMux の {id} と同じく読む echo のミドルウェア (#2016)。
+//   - echo は、末尾の名前の部分を、スラッシュをまたいで当てる (/a/:id が /a/b/c に当たり、id は b/c)。
+//     ServeMux の {id} は 1 つの区切りにしか当たらないので、スラッシュを含む値は、どのルートにも当たらなかったものとして fallback に渡す。
+//   - echo は、エスケープしたパス (URL.RawPath) で当てたときに、値を戻さない (%31 は %31 のまま)。ServeMux と同じく戻す。
+//   - 値が (戻した後も)「/」を含むか、「.」か「..」なら、どのルートにも当たらなかったものとして fallback に渡す。ServeMux は %2F を
+//     値の中の「/」として渡すが、ハンドラーは値をパスに組み直すことがある (kyusu の中継など) ので、ほかのパスを指させない。
+//     ルートの ID (UUID、数、base64url) は、どれも「/」と「.」だけの値を持たない。
+//
+// 名前のない残り (*) は、スラッシュを含んでよいので、そのままにする。
+func pathParams(fallback http.Handler) echo.MiddlewareFunc {
+	notFound := echo.WrapHandler(fallback)
+
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			// PathValues は、Context の持つ値をそのまま返すので、戻した値はその場で書き換える。
+			values := c.PathValues()
+			rawPath := c.Request().URL.RawPath != ""
+			for i, p := range values {
+				if p.Name == "*" {
+					continue
+				}
+				if strings.Contains(p.Value, "/") || p.Value == "." || p.Value == ".." {
+					return notFound(c)
+				}
+				if rawPath {
+					value, err := url.PathUnescape(p.Value)
+					if err != nil || strings.Contains(value, "/") || value == "." || value == ".." {
+						return notFound(c)
+					}
+					values[i].Value = value
+				}
+			}
+
+			return next(c)
+		}
+	}
 }
 
 // Component は、リクエストのロガーに、部品の名前 (component) を付ける echo のミドルウェア。

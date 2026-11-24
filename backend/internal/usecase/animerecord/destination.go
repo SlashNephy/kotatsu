@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	// DestinationAnnict と DestinationAniList は、記録先の名前。DB の destination の列と同じ。
+	// DestinationAnnict と DestinationAniList は、記録先の名前。DB の destination のカラムと同じ。
 	DestinationAnnict  = "annict"
 	DestinationAniList = "anilist"
 	// requestTimeout は、記録先への 1 回の問い合わせの時間の上限。
@@ -96,11 +96,11 @@ func NextStatus(rules *StatusRules, first, last bool, current WorkStatus) (WorkS
 
 // Episode は、記録する 1 話。
 type Episode struct {
-	// Number は話数。話数のない放送 (劇場版など) では nil。
+	// Number は話数。話数のない放送 (映画など) では nil。
 	Number *float64
 	// Subtitle は、しょぼいカレンダーのサブタイトル。
 	Subtitle *string
-	// First と Last は、[新] と [終] の印。
+	// First と Last は、[新] と [終] のマーク。
 	First bool
 	Last  bool
 }
@@ -137,6 +137,9 @@ type Destination interface {
 	// FollowingViewings は、トークンの持ち主がフォローしている人のうち、作品 workIDs に状態を付けた人の 1 ページを返す (#1372)。
 	// cursor が空なら、最初のページを返す。続きがなければ、FollowingPage.Next は空。問い合わせの間隔は、呼ぶ側で空ける。
 	FollowingViewings(ctx context.Context, token string, workIDs []int32, cursor string) (*FollowingPage, error)
+	// FollowingWatching は、トークンの持ち主がフォローしている人が「見てる」にした作品の 1 ページを返す (#1968)。
+	// cursor が空なら、最初のページを返す。続きがなければ、FollowingWatchingPage.Next は空。問い合わせの間隔は、呼ぶ側で空ける。
+	FollowingWatching(ctx context.Context, token, cursor string) (*FollowingWatchingPage, error)
 }
 
 // 見たいリストの作品の状態 (anime_wishlist_entries の status)。
@@ -211,7 +214,7 @@ func seasonName(name *string) string {
 // WishlistPage は、見たいリストの 1 ページ。
 type WishlistPage struct {
 	Entries []*WishlistEntry
-	// Next は、続きを引くときに渡す cursor。続きがなければ空。
+	// Next は、続きを取得するときに渡す cursor。続きがなければ空。
 	Next string
 }
 

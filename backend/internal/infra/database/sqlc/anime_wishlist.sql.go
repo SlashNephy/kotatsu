@@ -118,7 +118,7 @@ type GetAnimeWishlistImageURLParams struct {
 	WorkID      int32
 }
 
-// ユーザーの見たいリストの、記録先の作品の画像の URL を返す (#1235)。画像を中継するときに、ユーザーの見たいリストにある作品に限るため。
+// ユーザーの見たいリストの、記録先の作品の画像の URL を返す (#1235)。画像をプロキシするときに、ユーザーの見たいリストにある作品に限るため。
 func (q *Queries) GetAnimeWishlistImageURL(ctx context.Context, arg GetAnimeWishlistImageURLParams) (*string, error) {
 	row := q.db.QueryRow(ctx, getAnimeWishlistImageURL, arg.UserID, arg.Destination, arg.WorkID)
 	var image_url *string
@@ -259,7 +259,7 @@ type ListAnimeLibraryProgramsRow struct {
 // 視聴管理の画面 (#1231) の、TID に結びついた番組のうち、until より前に始まり、now より後に終わる番組を返す。放送中の番組も次の放送とする。
 // 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついたら、話数の範囲をまとめて 1 行にする。
 // 話数のない放送 (特番など) の話数は、-1 にする。
-// 再放送と最終話の印は、結びついた話のどれかに付いていれば付ける。
+// 再放送と最終話のマークは、結びついた話のどれかに付いていれば付ける。
 func (q *Queries) ListAnimeLibraryPrograms(ctx context.Context, arg ListAnimeLibraryProgramsParams) ([]ListAnimeLibraryProgramsRow, error) {
 	rows, err := q.db.Query(ctx, listAnimeLibraryPrograms, arg.SyobocalTids, arg.Now, arg.Until)
 	if err != nil {
@@ -311,7 +311,7 @@ type ListAnimeLibraryRecentBroadcastsRow struct {
 }
 
 // 視聴管理の画面 (#1233) の、TID ごとの、since から now までに始まった最も新しい放送を返す。「昨日」「終了」のバッジに使う。
-// 過去の番組は、放送が終わってしばらくするとアーカイブに移るので、番組ではなく、番組の結びつきの開始時刻と印だけを読む。
+// 過去の番組は、放送が終わってしばらくするとアーカイブに移るので、番組ではなく、番組の結びつきの開始時刻とマークだけを読む。
 // 再放送を除いて見るときのため、本放送の最も新しい放送も別に返す。
 func (q *Queries) ListAnimeLibraryRecentBroadcasts(ctx context.Context, arg ListAnimeLibraryRecentBroadcastsParams) ([]ListAnimeLibraryRecentBroadcastsRow, error) {
 	rows, err := q.db.Query(ctx, listAnimeLibraryRecentBroadcasts, arg.SyobocalTids, arg.Since, arg.Now)

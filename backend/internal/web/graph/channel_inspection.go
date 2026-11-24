@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
-// errChannelInspectionUnavailable は、チャンネルの TS を調べられない (チューナーサーバーを設定していない) ときのエラー。
+// errChannelInspectionUnavailable は、チャンネルの TS を調査できない (チューナーサーバーを設定していない) ときのエラー。
 var errChannelInspectionUnavailable = errors.New("channel inspection is unavailable")
 
 // inspectChannel は、物理チャンネルの TS を数秒受け取り、サービスごとの構成とビットレートを返す (#830)。管理者だけが使える。
@@ -33,8 +33,8 @@ func (r *Resolver) inspectChannel(ctx context.Context, channelType, channel stri
 
 		return nil, NewError(CodeConflict, "failed to inspect the channel; no tuner may be available")
 	}
-	// program_number (サービス ID) から、Kotatsu が知っている、そのチャンネルのサービスの名前を引く。
-	services, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: []int64{}})
+	// program_number (サービス ID) から、Kotatsu が知っている、そのチャンネルのサービスの名前を取得する。
+	services, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, IncludeGone: true, MediaServiceTypes: []int64{}, IDs: []int64{}, Now: r.clock.Now()})
 	if err != nil {
 		return nil, err
 	}

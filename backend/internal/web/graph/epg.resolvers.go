@@ -15,6 +15,16 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
+// HasServices is the resolver for the hasServices field.
+func (r *channelTypeResolver) HasServices(ctx context.Context, obj *model.ChannelType) (bool, error) {
+	has, err := loadersFrom(ctx).ChannelTypeHasServices.Load(ctx, obj.Type)()
+	if err != nil {
+		return false, fmt.Errorf("failed to load whether the channel type has services: %w", err)
+	}
+
+	return has, nil
+}
+
 // Service is the resolver for the service field.
 func (r *programResolver) Service(ctx context.Context, obj *model.Program) (*model.Service, error) {
 	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)()
@@ -23,6 +33,11 @@ func (r *programResolver) Service(ctx context.Context, obj *model.Program) (*mod
 	}
 
 	return toService(row), nil
+}
+
+// RuleKeyword is the resolver for the ruleKeyword field.
+func (r *programResolver) RuleKeyword(ctx context.Context, obj *model.Program) (string, error) {
+	return r.ruleKeyword(ctx, obj)
 }
 
 // SharedFrom is the resolver for the sharedFrom field.
@@ -134,7 +149,7 @@ func (r *queryResolver) ChannelTypes(ctx context.Context) ([]*model.ChannelType,
 }
 
 // Services is the resolver for the services field.
-func (r *queryResolver) Services(ctx context.Context, includeHidden bool) ([]*model.Service, error) {
+func (r *queryResolver) Services(ctx context.Context, includeHidden bool, includeGone bool) ([]*model.Service, error) {
 	// 番組表やライブ視聴に出す一覧では、ワンセグやデータ放送のサービスを外す。非表示を選ぶ管理の画面では、すべて返す。
 	mediaTypes := domain.MediaServiceTypes()
 	if includeHidden {
@@ -142,8 +157,10 @@ func (r *queryResolver) Services(ctx context.Context, includeHidden bool) ([]*mo
 	}
 	rows, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{
 		IncludeHidden:     includeHidden,
+		IncludeGone:       includeGone,
 		MediaServiceTypes: mediaTypes,
 		IDs:               []int64{},
+		Now:               r.clock.Now(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
@@ -187,10 +204,13 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 	if len(ids) > 0 {
 		mediaTypes = []int64{}
 	}
+	// 上流から消えたサービスは、番組が来ないので、指定されても並べない (#1973)。
 	serviceRows, err := q.ListGuideServices(ctx, query.ListGuideServicesParams{
 		IncludeHidden:     len(ids) > 0,
+		IncludeGone:       false,
 		MediaServiceTypes: mediaTypes,
 		IDs:               ids,
+		Now:               r.clock.Now(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
@@ -264,6 +284,9 @@ func (r *serviceResolver) VideoFormat(ctx context.Context, obj *model.Service) (
 	return r.serviceVideoFormat(ctx, obj)
 }
 
+// ChannelType returns generated.ChannelTypeResolver implementation.
+func (r *Resolver) ChannelType() generated.ChannelTypeResolver { return &channelTypeResolver{r} }
+
 // Program returns generated.ProgramResolver implementation.
 func (r *Resolver) Program() generated.ProgramResolver { return &programResolver{r} }
 
@@ -271,6 +294,7 @@ func (r *Resolver) Program() generated.ProgramResolver { return &programResolver
 func (r *Resolver) Service() generated.ServiceResolver { return &serviceResolver{r} }
 
 type (
-	programResolver struct{ *Resolver }
-	serviceResolver struct{ *Resolver }
+	channelTypeResolver struct{ *Resolver }
+	programResolver     struct{ *Resolver }
+	serviceResolver     struct{ *Resolver }
 )

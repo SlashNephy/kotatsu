@@ -14,7 +14,7 @@ import (
 )
 
 // TestConnect は、Simkl から戻ってきた認可を、始めたセッションのまま、Simkl の認可サーバーから戻ってきたときだけ受け付け、
-// トークンを暗号化して保存することを確かめる (#1649)。
+// トークンを暗号化して保存することを確認する (#1649)。
 func TestConnect(t *testing.T) {
 	t.Parallel()
 
@@ -94,7 +94,7 @@ func TestConnect(t *testing.T) {
 	}
 }
 
-// TestConnectRequiresDramaLinking は、管理者が TMDb との連携を無効にしているか、アプリを登録していなければ、連携を始められないことを確かめる。
+// TestConnectRequiresDramaLinking は、管理者が TMDB との連携を無効にしているか、アプリを登録していなければ、連携を始められないことを確認する。
 func TestConnectRequiresDramaLinking(t *testing.T) {
 	t.Parallel()
 
@@ -123,15 +123,15 @@ func TestConnectRequiresDramaLinking(t *testing.T) {
 	}
 }
 
-// TestDisconnect は、連携を外すと、Kotatsu からトークンを消し、Simkl で更新のトークンを取り消すことを確かめる。
-// 見ている作品に写した作品は、Kotatsu の作品の一覧として残す。
+// TestDisconnect は、連携を外すと、Kotatsu からトークンを消し、Simkl で更新のトークンを取り消すことを確認する。
+// 見ている作品にコピーした作品は、Kotatsu の作品の一覧として残す。
 func TestDisconnect(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
 	f.link(t, 12, 0, series, 3)
 	f.simkl.Lock()
-	f.simkl.Items = []*simklItem{{SimklID: 1, TMDbID: series, Status: dramarecord.StatusWatching, UpdatedAt: at(9, 0)}}
+	f.simkl.Items = []*simklItem{{SimklID: 1, TMDBID: series, Status: dramarecord.StatusWatching, UpdatedAt: at(9, 0)}}
 	f.simkl.Unlock()
 	f.connect(t, f.alice)
 	require.NoError(t, f.service.ImportWatchlist(t.Context(), f.pool, f.alice.UserID, dramarecord.DestinationSimkl))
@@ -155,7 +155,7 @@ func TestDisconnect(t *testing.T) {
 	require.ErrorIs(t, err, dramarecord.ErrNotConnected)
 }
 
-// TestLogSecrets は、ログの報告から伏せる値として、アプリのシークレットと、連携のアクセストークンと更新のトークンを返すことを確かめる (#1521)。
+// TestLogSecrets は、ログの報告からマスクする値として、アプリのシークレットと、連携のアクセストークンと更新のトークンを返すことを確認する (#1521)。
 func TestLogSecrets(t *testing.T) {
 	t.Parallel()
 

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { JikkyoSession, jikkyoSocketURL, type LiveComment, type SessionStatus } from './session';
 
-// FakeSocket は、送ったものを覚え、テストからイベントを起こせる WebSocket の代わり。
+// FakeSocket は、送ったものを保持し、テストからイベントを起こせる WebSocket の代わり。
 class FakeSocket {
   readonly url: string;
   readonly sent: unknown[] = [];
@@ -32,7 +32,7 @@ class FakeSocket {
   }
 }
 
-// setup は、偽の WebSocket とタイマーでセッションを作る。
+// setup は、モックの WebSocket とタイマーでセッションを作る。
 function setup() {
   const sockets: FakeSocket[] = [];
   const timers: { ms: number; callback: () => void; cancelled: boolean }[] = [];

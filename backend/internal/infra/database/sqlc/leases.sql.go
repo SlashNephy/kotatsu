@@ -127,7 +127,7 @@ type LockLeaseForWriteParams struct {
 	Now        time.Time
 }
 
-// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
+// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確認する。
 // FOR KEY SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない (取る前に FOR UPDATE で待つ)。
 // 延長 (RenewLease) の UPDATE とはぶつからないので、長い書き込みの間もリースを延ばせる (#729)。
 func (q *Queries) LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error) {

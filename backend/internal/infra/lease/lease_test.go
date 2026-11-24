@@ -129,7 +129,7 @@ func TestGuardRejectsWritesFromOldGeneration(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	// A が世代を確かめたトランザクションを開いている間に、A のリースの期限が切れる。
+	// A が世代を確認したトランザクションを開いている間に、A のリースの期限が切れる。
 	txA, err := pool.Begin(t.Context())
 	require.NoError(t, err)
 	require.NoError(t, a.Guard(t.Context(), txA, genA))
@@ -295,7 +295,7 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// TestElectorSurvivesLeaderErrors は、リーダーの処理がエラーを返しても、Run を終えずにリーダーを降り、取り直すことを確かめる (#528)。
+// TestElectorSurvivesLeaderErrors は、リーダーの処理がエラーを返しても、Run を終えずにリーダーを降り、取得し直すことを確認する (#528)。
 // 終えると、全ロールを 1 つのプロセスで動かす構成では、DB の瞬断などの一時的な失敗で、録画中の mikan ごと止まる。
 func TestElectorSurvivesLeaderErrors(t *testing.T) {
 	t.Parallel()
@@ -336,7 +336,7 @@ func TestElectorSurvivesLeaderErrors(t *testing.T) {
 }
 
 // TestTryAcquireGivesUpOnStuckLeader は、リーダーの書き込みのトランザクションが固まっていても、ほかのインスタンスが
-// リースを取ろうとして待ち続けず、短い時間であきらめて後でやり直すことを確かめる (#527)。
+// リースを取ろうとして待ち続けず、短い時間であきらめて後でやり直すことを確認する (#527)。
 func TestTryAcquireGivesUpOnStuckLeader(t *testing.T) {
 	t.Parallel()
 
@@ -365,8 +365,8 @@ func TestTryAcquireGivesUpOnStuckLeader(t *testing.T) {
 }
 
 // TestRenewDuringGuardedWrite は、リーダーの書き込みのトランザクションが長く続いても、その間にリースを延ばせ、
-// 延ばす前の期限を過ぎても、ほかのインスタンスに取られないことを確かめる (#729)。
-// 期限が切れた後に、書き込みが終わるまで取るのを待つことは、TestGuardRejectsWritesFromOldGeneration で確かめる。
+// 延ばす前の期限を過ぎても、ほかのインスタンスに取られないことを確認する (#729)。
+// 期限が切れた後に、書き込みが終わるまで取るのを待つことは、TestGuardRejectsWritesFromOldGeneration で確認する。
 func TestRenewDuringGuardedWrite(t *testing.T) {
 	t.Parallel()
 

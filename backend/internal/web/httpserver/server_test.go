@@ -39,8 +39,8 @@ func TestHealthEndpoints(t *testing.T) {
 		pingErr    error
 		wantStatus int
 	}{
-		{name: "healthz", path: "/healthz", wantStatus: http.StatusOK},
-		{name: "healthz ignores the database", path: "/healthz", pingErr: errors.New("down"), wantStatus: http.StatusOK},
+		{name: "healthz", path: healthzPath, wantStatus: http.StatusOK},
+		{name: "healthz ignores the database", path: healthzPath, pingErr: errors.New("down"), wantStatus: http.StatusOK},
 		{name: "readyz", path: "/readyz", wantStatus: http.StatusOK},
 		{name: "readyz without the database", path: "/readyz", pingErr: errors.New("down"), wantStatus: http.StatusServiceUnavailable},
 	}
@@ -48,8 +48,7 @@ func TestHealthEndpoints(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mux := http.NewServeMux()
-			httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), &fakePinger{err: tt.pingErr}, time.Minute)
+			mux := httpserver.NewAPIRouter(slog.New(slog.DiscardHandler), httpserver.HealthHandlers(slog.New(slog.DiscardHandler), &fakePinger{err: tt.pingErr}, time.Minute), nil, nil)
 
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, nil))
@@ -66,8 +65,7 @@ func TestReadyzWithRealDatabase(t *testing.T) {
 	pool, err := database.Open(t.Context(), databasetest.New(t))
 	require.NoError(t, err)
 
-	mux := http.NewServeMux()
-	httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), pool, 0)
+	mux := httpserver.NewAPIRouter(slog.New(slog.DiscardHandler), httpserver.HealthHandlers(slog.New(slog.DiscardHandler), pool, 0), nil, nil)
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
@@ -79,7 +77,7 @@ func TestReadyzWithRealDatabase(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
 
-// TestReadyzStaysReadyWithinGrace は、DB に一度接続できた後は、接続できなくなっても、grace の間は成功を返すことを確かめる (#1084)。
+// TestReadyzStaysReadyWithinGrace は、DB に一度接続できた後は、接続できなくなっても、grace の間は成功を返すことを確認する (#1084)。
 func TestReadyzStaysReadyWithinGrace(t *testing.T) {
 	t.Parallel()
 
@@ -96,8 +94,7 @@ func TestReadyzStaysReadyWithinGrace(t *testing.T) {
 			t.Parallel()
 
 			pinger := &fakePinger{err: nil}
-			mux := http.NewServeMux()
-			httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), pinger, tt.grace)
+			mux := httpserver.NewAPIRouter(slog.New(slog.DiscardHandler), httpserver.HealthHandlers(slog.New(slog.DiscardHandler), pinger, tt.grace), nil, nil)
 			readyz := func() int {
 				rec := httptest.NewRecorder()
 				mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
@@ -173,7 +170,7 @@ func TestServeWaitsForInFlightRequests(t *testing.T) {
 }
 
 // TestServeStopsStreamsOnShutdown は、停止を始めたら、StopOnShutdown で包んだ終わらないストリームを打ち切り、
-// ShutdownTimeout まで待たずに止まることを確かめる。
+// ShutdownTimeout まで待たずに止まることを確認する。
 func TestServeStopsStreamsOnShutdown(t *testing.T) {
 	t.Parallel()
 
@@ -240,7 +237,7 @@ func TestServeStopsStreamsOnShutdown(t *testing.T) {
 }
 
 // TestServeCutsStuckStreamsOnShutdown は、停止を始めても、クライアントが読まずに書き込みが止まっているストリームは、
-// 少し待ってから書き込みを打ち切り、ShutdownTimeout まで待たずに止まることを確かめる。
+// 少し待ってから書き込みを打ち切り、ShutdownTimeout まで待たずに止まることを確認する。
 func TestServeCutsStuckStreamsOnShutdown(t *testing.T) {
 	t.Parallel()
 

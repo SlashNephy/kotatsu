@@ -23,7 +23,7 @@ type DeleteExpiredWebPushSubscriptionParams struct {
 	Auth   []byte
 }
 
-// プッシュサービスが失効を返した購読を消す。送った後に、同じ端末が購読し直していたら (鍵が変わっていたら)、消さない。
+// プッシュサービスが失効を返した購読を消す。送った後に、同じ端末が購読し直していたら (キーが変わっていたら)、消さない。
 func (q *Queries) DeleteExpiredWebPushSubscription(ctx context.Context, arg DeleteExpiredWebPushSubscriptionParams) error {
 	_, err := q.db.Exec(ctx, deleteExpiredWebPushSubscription, arg.ID, arg.P256DH, arg.Auth)
 	return err
@@ -122,7 +122,7 @@ type InsertVAPIDKeysParams struct {
 	Now                  time.Time
 }
 
-// VAPID の鍵を保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。
+// VAPID のキーを保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。
 func (q *Queries) InsertVAPIDKeys(ctx context.Context, arg InsertVAPIDKeysParams) error {
 	_, err := q.db.Exec(ctx, insertVAPIDKeys, arg.PublicKey, arg.PrivateKeyCiphertext, arg.Now)
 	return err
@@ -137,7 +137,7 @@ type ListWebPushSecretsRow struct {
 	Auth     []byte
 }
 
-// ログの報告から伏せるため、全ユーザーの購読の送り先と秘密を返す (#1521)。
+// ログの報告でマスクするため、全ユーザーの購読の送り先と秘密を返す (#1521)。
 func (q *Queries) ListWebPushSecrets(ctx context.Context) ([]ListWebPushSecretsRow, error) {
 	rows, err := q.db.Query(ctx, listWebPushSecrets)
 	if err != nil {
@@ -287,7 +287,7 @@ type WebPushSubscriptionReceivesParams struct {
 	ByRule   bool
 }
 
-// 購読 id が、今もイベントの種類 kind を Web Push で受け取るかを返す。ListWebPushSubscriptionsForKind と同じ条件で確かめる。
+// 購読 id が、今もイベントの種類 kind を Web Push で受け取るかを返す。ListWebPushSubscriptionsForKind と同じ条件で確認する。
 // 配信のジョブを積んでから送るまでの間に、ユーザーを無効にしたり、設定を変えたりしたら、送らないために使う (#1435)。
 func (q *Queries) WebPushSubscriptionReceives(ctx context.Context, arg WebPushSubscriptionReceivesParams) (bool, error) {
 	row := q.db.QueryRow(ctx, webPushSubscriptionReceives,

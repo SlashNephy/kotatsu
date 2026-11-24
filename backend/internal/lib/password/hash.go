@@ -62,7 +62,7 @@ type Verification struct {
 	NeedsRehash bool
 }
 
-// maxKeyLength は、保存したハッシュの鍵の長さの上限。壊れた値で大きな計算をしないために設ける。
+// maxKeyLength は、保存したハッシュのキーの長さの上限。壊れた値で大きな計算をしないために設ける。
 const maxKeyLength = 1024
 
 // Verify は、パスワードがハッシュに一致するかを返す。

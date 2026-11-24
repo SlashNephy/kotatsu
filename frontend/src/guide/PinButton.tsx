@@ -17,7 +17,7 @@ type Props = {
 };
 
 // PinButton は、サービスをお気に入りに追加するか外す、星のボタン (#485)。画面では「お気に入り」と呼び、コードと API では pinned と呼ぶ。
-// お気に入りはユーザーごとに覚え、端末をまたいで同期する。
+// お気に入りはユーザーごとに保存し、端末をまたいで同期する。
 // 押した後は、ピン留めしたサービスの一覧 (pinnedServices) を、返ってきたものに置き換える。
 export function PinButton({ serviceId, serviceName, pinned, size = 'sm' }: Props) {
   const { t } = useTranslation();

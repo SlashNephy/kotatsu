@@ -1,9 +1,11 @@
 package episode_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain/episode"
 )
@@ -183,4 +185,76 @@ func TestCaptioned(t *testing.T) {
 			assert.Equal(t, tt.want, episode.Captioned(tt.in))
 		})
 	}
+}
+
+func TestParseDashVariants(t *testing.T) {
+	t.Parallel()
+
+	// hyphenated は、ハイフンマイナスで書いた番組名。ほかの書き方は、これに揃う。
+	const hyphenated = "灯台の地図-霧笛の夜-　＃３"
+
+	tests := []struct {
+		name  string
+		a, b  string
+		equal bool
+	}{
+		{name: "波ダッシュと全角チルダ", a: "灯台の地図〜霧笛の夜〜　＃３", b: "灯台の地図～霧笛の夜～　＃３", equal: true},
+		{name: "波ダッシュと半角チルダ", a: "灯台の地図〜霧笛の夜〜 #3", b: "灯台の地図~霧笛の夜~ #3", equal: true},
+		{name: "全角ハイフンマイナスとマイナス記号", a: "灯台の地図－霧笛の夜－　＃３", b: "灯台の地図－霧笛の夜−　＃３", equal: true},
+		{name: "全角ダッシュとハイフン", a: "灯台の地図—霧笛の夜—　＃３", b: hyphenated, equal: true},
+		{name: "ホリゾンタルバーとエンダッシュ", a: "灯台の地図―霧笛の夜―　＃３", b: "灯台の地図–霧笛の夜–　＃３", equal: true},
+		{name: "ハイフンとノンブレークハイフン", a: "灯台の地図‐霧笛の夜‐　＃３", b: "灯台の地図‑霧笛の夜‑　＃３", equal: true},
+		{name: "フィギュアダッシュとハイフンマイナス", a: "灯台の地図‒霧笛の夜‒　＃３", b: hyphenated, equal: true},
+		{name: "ダッシュの代わりに書いた長音符", a: "灯台の地図　ー霧笛の夜ー　＃３", b: "灯台の地図 -霧笛の夜-　＃３", equal: true},
+		{name: "長音符と全角ダッシュ", a: "灯台の地図ー霧笛の夜　＃３", b: "灯台の地図—霧笛の夜　＃３", equal: true},
+		{name: "ほかの語とは揃えない", a: "灯台の地図ー霧笛の夜　＃３", b: "灯台の地図~霧笛の夜　＃３", equal: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			a := episode.Parse(&episode.Source{Name: tt.a})
+			b := episode.Parse(&episode.Source{Name: tt.b})
+			assert.Equal(t, 3, a.Number)
+			assert.Equal(t, tt.equal, a.Series == b.Series, "%q and %q", a.Series, b.Series)
+			assert.Equal(t, tt.equal, a.Key == b.Key, "%q and %q", a.Key, b.Key)
+		})
+	}
+}
+
+func TestParseDashVariantsInSummary(t *testing.T) {
+	t.Parallel()
+
+	// 概要のサブタイトルと指紋も、波ダッシュとダッシュの書き方によらず一致する (#2039)。
+	const summary = "第３話「霧笛の夜〜港の灯—」主人公の少年は、古い灯台で見つけた地図を手がかりに、仲間と一緒に島の奥へ向かう。そこで待っていたのは、思いもよらない再会だった。"
+	tests := []struct {
+		name string
+		src  *episode.Source
+	}{
+		{name: "概要", src: &episode.Source{Name: work, Description: strings.NewReplacer("〜", "～", "—", "―").Replace(summary)}},
+		{name: "詳細", src: &episode.Source{Name: work, Extended: strings.NewReplacer("〜", "～", "—", "−").Replace(summary)}},
+	}
+	want := episode.Parse(&episode.Source{Name: work, Description: summary})
+	require.NotEmpty(t, want.Subtitle)
+	require.NotEmpty(t, want.Fingerprint)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := episode.Parse(tt.src)
+			assert.Equal(t, want.Subtitle, got.Subtitle)
+			if tt.src.Description != "" {
+				assert.Equal(t, want.Fingerprint, got.Fingerprint)
+			}
+		})
+	}
+}
+
+func TestParseSeasonWithLongVowel(t *testing.T) {
+	t.Parallel()
+
+	// 長音符は比較する値でだけ揃えるので、「シーズン」の期の表記は、揃える前の番組名から読む (#2039)。
+	ep := episode.Parse(&episode.Source{Name: "灯台の地図　第２シーズン　＃３"})
+	assert.True(t, ep.HasSeason)
+	assert.Equal(t, 3, ep.Number)
 }

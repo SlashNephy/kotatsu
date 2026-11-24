@@ -107,9 +107,9 @@ func receivedOther(outcomes []TuningOutcome, channelType, channel string, since 
 	return false
 }
 
-// checkTuning は、録画の結果から、続けて選局できないチャンネルを決め、チャンネル種別ごとに管理者に知らせる (#1519)。
+// checkTuning は、録画の結果から、続けて選局できないチャンネルを決め、チャンネル種別ごとに管理者に通知する (#1519)。
 // 続いている間は、同じチャンネルの組を繰り返し知らせず、なくなったら忘れる。
-// チューナーサーバーの一覧にないチャンネル (スキャンし直して消したものなど) は、知らせない。
+// チューナーサーバーの一覧にないチャンネル (スキャンし直して消したものなど) は、通知しない。
 func (c *Checker) checkTuning(ctx context.Context, q *sqlc.Queries, services []*tunerserver.Service) error {
 	rows, err := q.ListTuningOutcomes(ctx, c.clock.Now().Add(-tuningLookback))
 	if err != nil {

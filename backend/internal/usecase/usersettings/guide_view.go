@@ -36,7 +36,7 @@ type GuideView struct {
 	HideEmptyServices bool
 }
 
-// SaveGuideView は、ユーザー userID の番組表ビューを作るか、viewID のものを置き換え、同じユーザーのほかの端末に知らせる。
+// SaveGuideView は、ユーザー userID の番組表ビューを作るか、viewID のものを置き換え、同じユーザーのほかの端末に通知する。
 // viewID が nil なら作る。作るか置き換えた番組表ビューの ID を返す。
 // viewID の番組表ビューがなければ ErrGuideViewNotFound を、同じ名前のものがあれば ErrDuplicateGuideViewName を返す。
 func SaveGuideView(ctx context.Context, db Beginner, clk clock.Clock, userID uuid.UUID, viewID *uuid.UUID, view *GuideView) (uuid.UUID, error) {
@@ -80,7 +80,7 @@ func SaveGuideView(ctx context.Context, db Beginner, clk clock.Clock, userID uui
 	return saved, nil
 }
 
-// DeleteGuideView は、ユーザー userID の番組表ビュー viewID を消し、同じユーザーのほかの端末に知らせる。
+// DeleteGuideView は、ユーザー userID の番組表ビュー viewID を消し、同じユーザーのほかの端末に通知する。
 // なければ ErrGuideViewNotFound を返す。
 func DeleteGuideView(ctx context.Context, db Beginner, clk clock.Clock, userID, viewID uuid.UUID) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
@@ -96,7 +96,7 @@ func DeleteGuideView(ctx context.Context, db Beginner, clk clock.Clock, userID, 
 	})
 }
 
-// SetServicePinned は、ユーザー userID の、サービス serviceID のピン留めを付けるか外し、同じユーザーのほかの端末に知らせる。
+// SetServicePinned は、ユーザー userID の、サービス serviceID のピン留めを付けるか外し、同じユーザーのほかの端末に通知する。
 func SetServicePinned(ctx context.Context, db Beginner, clk clock.Clock, userID uuid.UUID, serviceID int64, pinned bool) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)

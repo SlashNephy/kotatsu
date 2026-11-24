@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	// NotifyChannel は、タイムシフトの割り振りが変わったことを mikan に知らせる変更通知のチャンネル。
+	// NotifyChannel は、タイムシフトの割り振りが変わったことを mikan に通知する変更通知のチャンネル。
 	NotifyChannel = "timeshift_assignments"
 	// DefaultInterval は、変化がなくても割り振りを見直す間隔。チャンネルの設定の変更や、予約の割り振りの時間に入ったことに気づくのに使う (付録 A)。
 	DefaultInterval = 10 * time.Second
@@ -30,7 +30,7 @@ const (
 	Priority = -1
 )
 
-// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
+// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確認する。
 type Guard func(ctx context.Context, tx pgx.Tx) error
 
 // SchedulerOptions は Scheduler の設定。0 の項目は既定値にする。
@@ -117,7 +117,7 @@ type ScheduleResult struct {
 	Deleted int
 }
 
-// RunOnce は、割り振りを 1 回見直す。割り振りが変わったら、mikan に知らせる。
+// RunOnce は、割り振りを 1 回見直す。割り振りが変わったら、mikan に通知する。
 func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 	result := &ScheduleResult{Created: 0, Deleted: 0}
 	now := s.clock.Now()
@@ -189,7 +189,7 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time, ca
 	for _, row := range channelRows {
 		channels = append(channels, &Channel{ServiceID: row.ServiceID, ChannelType: row.ChannelType, Channel: row.Channel})
 	}
-	multiplexRows, err := q.ListServiceChannels(ctx)
+	multiplexRows, err := q.ListServiceChannels(ctx, domain.ServiceGoneBefore(now))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list service channels: %w", err)
 	}

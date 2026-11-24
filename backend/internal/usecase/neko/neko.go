@@ -78,7 +78,7 @@ type Runner interface {
 	Run(ctx context.Context) error
 }
 
-// EPGSource は、EPG の同期に使う上流。サービスと番組を返し、変化をイベントで知らせる。
+// EPGSource は、EPG の同期に使う上流。サービスと番組を返し、変化をイベントで通知する。
 type EPGSource interface {
 	epg.Upstream
 	epg.EventSource
@@ -198,7 +198,7 @@ func goTunerServerTasks(ctx context.Context, eg *errgroup.Group, opts *Options, 
 
 		return
 	}
-	// 放送の衛星の構成を、チューナーサーバーのサービスの一覧と比べ、食い違いを管理者に知らせる (#1519)。
+	// 放送の衛星の構成を、チューナーサーバーのサービスの一覧と比較し、食い違いを管理者に通知する (#1519)。
 	checker := lineup.NewChecker(opts.DB, source, opts.Clock, logger.With(slog.String("component", "lineup")), 0)
 	eg.Go(func() error {
 		return checker.Run(ctx)

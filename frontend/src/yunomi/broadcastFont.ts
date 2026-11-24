@@ -8,7 +8,7 @@ import broadcastExtendedFontUrl from '../../vendor/caption-font/rounded-mplus-1m
 //   データ放送の文書 (BML) は EUC-JP の字と追加記号だけで書かれるので、これだけで足りる。
 // - broadcastExtendedFontUrl は、JIS X 0213 で足された漢字 (第 3・第 4 水準) のファイル (1 MB ほど)。
 //   字幕にめったに出ないので、その字が出たときだけ読む。
-// どちらも Vite が中身のハッシュを名前に入れて出す資産なので、URL がそのまま版になる。
+// どちらも Vite が内容のハッシュを名前に入れて出す資産なので、URL がそのままバージョンになる。
 export { broadcastFontUrl, broadcastExtendedFontUrl };
 
 // unicodeRangePattern は、CSS の unicode-range の書き方 (U+16進 か U+16進-16進 をカンマで並べたもの)。

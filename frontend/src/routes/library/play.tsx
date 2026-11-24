@@ -3,7 +3,6 @@ import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText, Share2 } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
@@ -46,6 +45,7 @@ import {
   normalizeCaption,
   type CaptionEntry,
 } from '../../yunomi/captionHistory';
+import { PipHost } from '../../yunomi/PipHost';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import { broadcastTime, formatClock, formatDuration } from '../../yunomi/position';
 import { useSeekableStream } from '../../yunomi/useSeekableStream';
@@ -143,7 +143,7 @@ import {
 } from '../../yunomi/reconnect';
 import { copyPositionUrl, parseStartSeconds } from '../../yunomi/shareUrl';
 import { useLibraryPositionSaver } from '../../yunomi/useWatchPositionSaver';
-import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
 import {
   clampSeek,
   fileDuration,
@@ -152,6 +152,7 @@ import {
   seekLimit,
 } from '../../library/library';
 import type { playLibraryFileQuery } from './__generated__/playLibraryFileQuery.graphql';
+import type { PlayerMedia } from '../../yunomi/playerMedia';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -163,7 +164,7 @@ const noGaps: readonly { from: string; to: string }[] = [];
 type PlaySearch = { library: string; path: string; t?: number };
 
 export const Route = createFileRoute('/library/play')({
-  // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
+  // 右のカラムを置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
   staticData: { fluid: true },
   validateSearch: (search: Record<string, unknown>): PlaySearch => {
     const t = parseStartSeconds(search.t);
@@ -178,7 +179,7 @@ export const Route = createFileRoute('/library/play')({
 });
 
 // PlayPage は、ライブラリのファイル (録画として登録していない TS) を再生する画面 (設計書 5.8、#1734)。
-// 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する。画面は、アプリの根元の置き場で描く (#1602)。
+// 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する。画面は、アプリのルート要素に描く (#1602)。
 function PlayPage() {
   const { library, path, t: start } = Route.useSearch();
 
@@ -250,7 +251,7 @@ function PlayWatch({
   );
 }
 
-// playQuery は、再生するファイル。シークの索引を作っている間は、進み具合を知るために読み直す。
+// playQuery は、再生するファイル。シークのインデックスを作っている間は、進み具合を知るために読み直す。
 const playQuery = graphql`
   query playLibraryFileQuery($library: String!, $path: String!) {
     libraryFile(library: $library, path: $path) {
@@ -340,14 +341,14 @@ const playQuery = graphql`
   }
 `;
 
-// refreshMs は、シークの索引を作っている間に、ファイルを読み直す間隔。
+// refreshMs は、シークのインデックスを作っている間に、ファイルを読み直す間隔。
 const refreshMs = 5_000;
 
-// probeRefreshMs は、索引を作り始めてから、放送の情報 (実況のチャンネルと時間帯) が分かるまで、ファイルを読み直す間隔。
-// 放送の情報は、ファイルの頭と終わりだけを読んで、索引を作り終えるよりずっと早く分かるので、過去ログを早く読み始めるために縮める (#1910)。
+// probeRefreshMs は、インデックスを作り始めてから、放送の情報 (実況のチャンネルと時間帯) が分かるまで、ファイルを読み直す間隔。
+// 放送の情報は、ファイルの先頭と終わりだけを読んで、インデックスを作り終えるよりずっと早く分かるので、過去ログを早く読み始めるために縮める (#1910)。
 const probeRefreshMs = 1_000;
 
-// imagesRefreshMs は、索引を作り終えた後、シークバーの画像 (nekonote のジョブで作る) が届くまで、ファイルを読み直す間隔。
+// imagesRefreshMs は、インデックスを作り終えた後、シークバーの画像 (nekonote のジョブで作る) が届くまで、ファイルを読み直す間隔。
 const imagesRefreshMs = 30_000;
 
 function Player({
@@ -367,14 +368,15 @@ function Player({
     transcoding,
     viewer,
   } = useLazyLoadQuery<playLibraryFileQuery>(playQuery, variables);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  // 別のウィンドウに移したり戻したりすると、プレイヤーを作り直すので、今の位置から読み直す。
-  const pip = useDocumentPictureInPicture(() => restartAt(positionRef.current));
+  const mediaRef = useRef<PlayerMedia | null>(null);
+  const pip = useDocumentPictureInPicture();
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
-  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
-  const videoState = useVideoState(video);
-  const autoplay = useAutoplayBlocked(video);
-  const videoLoading = useVideoLoading(video);
+  const [media, setMedia] = useState<PlayerMedia | null>(null);
+  // 小さなプレイヤーは、この経路で再生中かを確認し、再生と一時停止を操作する。
+  useWatchMedia(media);
+  const videoState = useVideoState(media);
+  const autoplay = useAutoplayBlocked(media);
+  const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
   const overlaid = fullscreen.active || pip.container !== null;
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -424,12 +426,12 @@ function Player({
     `,
   );
   const [captionsError, setCaptionsError] = useState(false);
-  // シークの索引を作り終えるまで、読み直して、シークできる所と長さを伸ばす (設計書 5.8)。
+  // シークのインデックスを作り終えるまで、読み直して、シークできる所と長さを伸ばす (設計書 5.8)。
   const environment = useRelayEnvironment();
-  // 書いている途中のファイルは、索引を作らないので、読み直さない (設計書 5.8)。
+  // 書いている途中のファイルは、インデックスを作らないので、読み直さない (設計書 5.8)。
   const indexing = !file.index.complete && !file.index.writing;
-  // 索引を作り終えた後も、シークバーの画像と CM の区間が届くまで、間を空けて読み直す。
-  // CM の区間は、映像と音声を引くサービスが TS から分かったファイルだけで見分ける。
+  // インデックスを作り終えた後も、シークバーの画像と CM の区間が届くまで、間を空けて読み直す。
+  // CM の区間は、映像と音声を取り出すサービスが TS から分かったファイルだけで見分ける。
   // 頼まれた字幕の自動生成も、待っているか生成している間は読み直す。
   const waitingJobs =
     (file.index.complete &&
@@ -455,9 +457,9 @@ function Player({
     }, interval);
 
     return () => clearInterval(timer);
-    // variables は描画ごとに作り直すが、中身は library と path だけで決まる。
+    // variables は描画ごとに作り直すが、内容は library と path だけで決まる。
   }, [environment, interval, library, path]);
-  // duration は、シークバーの長さ (秒)。索引を作っている途中は見込みの長さ。limit は、シークできる所。
+  // duration は、シークバーの長さ (秒)。インデックスを作っている途中は見込みの長さ。limit は、シークできる所。
   const duration = fileDuration(file.index);
   const limit = seekLimit(file.index);
   // cmPositions は、CM とみなした区間 (設計書 5.8)。再生の 0 秒からの秒で受け取る。まだ見分けていなければ空。
@@ -494,11 +496,11 @@ function Player({
   // 再生できない経路 (8K や kyusu のない UHD) では、配信に HEAD を送らない。
   const stream = useSeekableStream(
     file.streamUrl,
-    video,
+    media,
     initialPosition,
     route.kind === 'convert',
   );
-  const hlsStream = useHlsStream(video, hls, initialPosition);
+  const hlsStream = useHlsStream(media, hls, initialPosition);
   const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
   const [seeking, setSeeking] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -517,21 +519,21 @@ function Player({
     recordedFrom == null ? null : broadcastTime(recordedFrom, noGaps, seconds);
   const serviceName = broadcast?.service?.name ?? (broadcast?.serviceName || file.library.name);
   const program = broadcast?.program ?? null;
-  // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
+  // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で確認する。
   const frameRef = useRef<HTMLDivElement | null>(null);
   const visible = useVisible(frameRef) || pip.container !== null;
-  // channelId は、実況のチャンネルの ID。Kotatsu にない局でも、ネットワークとサービス ID で引く (設計書 7.4)。
+  // channelId は、実況のチャンネルの ID。Kotatsu にない局でも、ネットワークとサービス ID で検索する (設計書 7.4)。
   const channelId = broadcast?.jikkyoChannelId ?? null;
-  // spanKnown は、索引を作り終える前に、放送の情報から過去ログの時間帯が分かるかどうか (#1910)。
-  // 終わりの TOT が始まりの TOT より後なら分かる。短いファイルでは TOT を 1 度しか読めないので、索引から長さが分かるまで待つ。
+  // spanKnown は、インデックスを作り終える前に、放送の情報から過去ログの時間帯が分かるかどうか (#1910)。
+  // 終わりの TOT が始まりの TOT より後なら分かる。短いファイルでは TOT を 1 度しか読めないので、インデックスから長さが分かるまで待つ。
   const recordedUntil = broadcast?.recordedUntil ?? null;
   const spanKnown =
     recordedFrom != null &&
     recordedUntil != null &&
     new Date(recordedUntil).getTime() > new Date(recordedFrom).getTime();
   const jikkyo = useRecordedJikkyo(
-    // 過去ログは、時間帯が分かったら、索引を作り終える前でも読む。作っている途中は、終わりが索引の長さまで伸びうるので、
-    // 作り終えたら取り直して、足りなかったコメントを足す (設計書 5.8)。
+    // 過去ログは、時間帯が分かったら、インデックスを作り終える前でも読む。作っている途中は、終わりがインデックスの長さまで伸びうるので、
+    // 作り終えたら再取得して、足りなかったコメントを足す (設計書 5.8)。
     channelId !== null && jikkyoEnabled && (file.index.complete || spanKnown)
       ? file.jikkyoCommentsUrl
       : null,
@@ -546,7 +548,7 @@ function Player({
   // listedCount は、再生位置までに流れたコメントの数。一覧は、この数が変わったときだけ作り直す (JikkyoRows)。
   const listedCount =
     jikkyo.comments === null ? 0 : countUntil(jikkyo.comments, position - jikkyo.offset);
-  // partBands は、実況のコメントから見つけた番組の区切りの印 (#1358)。コメントの位置をずらしたら、印も同じだけ動かす。
+  // partBands は、実況のコメントから見つけた番組の区切りのマーク (#1358)。コメントの位置をずらしたら、マークも同じだけ動かす。
   const partBands = findPartMarkers(jikkyo.ownComments ?? []).map((marker) => {
     const at = Math.max(marker.time + jikkyo.offset, 0);
     const part = t(`player.partMarker.${marker.part}`);
@@ -573,12 +575,12 @@ function Player({
         });
 
   const streamMeter = useStreamMeter(quality);
-  useVolumeNormalizer(video);
-  useAudioDelayer(video);
+  useVolumeNormalizer(media);
+  useAudioDelayer(media);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
   const audios = file.audios.length === 0 ? null : file.audios;
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(audios);
-  useVirtualSurround(video, surroundAvailable);
+  useVirtualSurround(media, surroundAvailable);
   const [crop, setCrop] = useState<Crop>(noCrop);
   const shownCrop = useScreenCrop(crop, fullscreen.active);
   // restartAt は、指定の位置から読み直す。
@@ -591,7 +593,7 @@ function Player({
     }
     stream.restartAt(seconds);
   };
-  // tenban が止まる前に知らせてきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。
+  // tenban が止まる前に通知してきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。
   const drains = useStreamsDrains();
   const seenDrains = useRef(drains);
   useEffect(() => {
@@ -622,14 +624,14 @@ function Player({
   };
   // lastSeek は、利用者が最後にシークした位置 (#1282)。そこが CM の区間の中なら、自動では飛ばさない。
   const lastSeek = useRef<number | null>(start === undefined ? null : initialPosition);
-  // jumpTo は、指定の位置に移り、実際に移った先を返す。シークできる所 (索引のできた所) より先へは移らない。
+  // jumpTo は、指定の位置に移り、実際に移った先を返す。シークできる所 (インデックスのできた所) より先へは移らない。
   // 自動で CM を飛ぶときにも使うので、利用者のシークとしては数えない。
   // kyusu の仮想 HLS は、プレイリストの中を移るだけで、読み直さない。
   const jumpTo = (target: number) => {
     const seconds = clampSeek(target, file.index);
-    const video = videoRef.current;
-    if (hls && video !== null) {
-      video.currentTime = seconds;
+    const current = mediaRef.current;
+    if (hls && current !== null) {
+      current.seek(seconds);
       hlsStream.seekTo(seconds);
 
       return seconds;
@@ -646,26 +648,26 @@ function Player({
     restartAt(positionRef.current);
     setQuality(next);
   };
-  // 音声は、経路ごとのメニューで選ぶ。音声の構成は、索引を作るときに TS の EIT[p/f] から読む。読めなければプレイヤーに任せる。
+  // 音声は、経路ごとのメニューで選ぶ。音声の構成は、インデックスを作るときに TS の EIT[p/f] から読む。読めなければプレイヤーに任せる。
   const audio = usePlayerAudio(route, audios, () => restartAt(positionRef.current));
   const [rate, setRate] = useState(1);
   const fastForward = useFastForward(rate, { growing: false, position, duration });
   useEffect(() => {
-    if (video !== null) {
-      video.defaultPlaybackRate = rate;
-      video.playbackRate = fastForward.playbackRate;
+    if (media !== null) {
+      media.defaultPlaybackRate = rate;
+      media.playbackRate = fastForward.playbackRate;
     }
-  }, [rate, fastForward.playbackRate, video, stream.url, hlsStream.loads]);
+  }, [rate, fastForward.playbackRate, media, stream.url, hlsStream.loads]);
 
   const togglePlay = () => {
-    const video = videoRef.current;
-    if (video === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    if (video.paused) {
-      void video.play().catch(() => {});
+    if (current.paused) {
+      void current.play().catch(() => {});
     } else {
-      video.pause();
+      current.pause();
     }
   };
   const [flash, showFlash] = usePlayerFlash();
@@ -684,7 +686,7 @@ function Player({
       new CmAutoSkipper({
         enabled: () => live.current.cmAutoSkip,
         scrubbing: () => live.current.scrubbing,
-        paused: () => videoRef.current?.paused ?? true,
+        paused: () => mediaRef.current?.paused ?? true,
         lastSeek: () => lastSeek.current,
         sections: () => live.current.cmSpans,
         cover: (kind) => coverRef.current?.show(kind),
@@ -700,15 +702,15 @@ function Player({
   );
   useEffect(() => () => skipper.dispose(), [skipper]);
   // 判定は、映ったコマごとに、そのコマの時刻で行う。読み直していて位置を信じられない間は、位置を渡さない。
-  useVideoFrames(video, ({ mediaTime, presented }) => {
-    if (video === null) {
+  useVideoFrames(media, ({ mediaTime, presented }) => {
+    if (media === null) {
       return;
     }
-    const time = mediaTime ?? video.currentTime;
+    const time = mediaTime ?? media.currentTime;
     skipper.frame({
       position: hls ? hlsStream.framePosition(time) : stream.framePosition(time),
-      seeking: video.seeking,
-      paused: video.paused,
+      seeking: media.seeking,
+      paused: media.paused,
       presented,
     });
   });
@@ -716,7 +718,7 @@ function Player({
   // 続きから開いたときは、続きから始めたことだけを伝え、CM を飛ばした知らせは出さない。
   const openingHeld = useRef(false);
   useEffect(() => {
-    if (!opening.skipped || openingHeld.current || video === null) {
+    if (!opening.skipped || openingHeld.current || media === null) {
       return;
     }
     openingHeld.current = true;
@@ -724,7 +726,7 @@ function Player({
     if (!opening.resumed) {
       showFlash(t('player.flash.cmSkipped'));
     }
-  }, [video]);
+  }, [media]);
   // 自動で飛ばす設定を入れた瞬間に CM の中にいれば、その場で飛ぶ。設定を入れたことを、飛ばしたい意思として扱う (#1512)。
   const previousCmAutoSkip = useRef(cmAutoSkip);
   useEffect(() => {
@@ -750,7 +752,7 @@ function Player({
   const capture = useCapture({
     crop,
     frameRef: playerBoxRef,
-    videoRef,
+    media: () => mediaRef.current,
     serviceName,
     programName: program?.name ?? file.name,
     captureTime: () => clockAt(currentPosition()) ?? Date.now(),
@@ -769,11 +771,11 @@ function Player({
     showFlash(t(side === 'left' ? 'player.flash.seekBackward' : 'player.flash.seekForward'));
   });
   const changeVolume = (delta: number) => {
-    const video = videoRef.current;
-    if (video === null) {
+    const current = mediaRef.current;
+    if (current === null) {
       return;
     }
-    const next = stepVolume(currentVolume(video), delta);
+    const next = stepVolume(currentVolume(current), delta);
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };
@@ -795,8 +797,8 @@ function Player({
     ...(channelId === null || !jikkyoEnabled ? {} : commentOffsetCommands),
     ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
     capture: () => void saveCapture(),
-    play: () => void videoRef.current?.play().catch(() => {}),
-    pause: () => videoRef.current?.pause(),
+    play: () => void mediaRef.current?.play().catch(() => {}),
+    pause: () => mediaRef.current?.pause(),
     togglePlay,
     seekBackward: () => {
       skip(-10);
@@ -824,12 +826,12 @@ function Player({
     },
     toggleCaptions: () => setCaptions(!captions),
     toggleMute: () => {
-      const video = videoRef.current;
-      if (video === null) {
+      const current = mediaRef.current;
+      if (current === null) {
         return;
       }
       videoState.toggleMute();
-      showFlash(t(video.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
+      showFlash(t(current.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
     },
     toggleFullscreen: fullscreen.toggle,
     volumeUp: () => changeVolume(volumeStep),
@@ -927,7 +929,7 @@ function Player({
 
   // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
-    if (videoRef.current?.error != null) {
+    if (mediaRef.current?.error != null) {
       const next = skipBrokenMedia(positionRef.current, lastBrokenSkip.current);
       if (next !== null) {
         lastBrokenSkip.current = next;
@@ -946,13 +948,13 @@ function Player({
     restartAt(positionRef.current);
   };
   // onConvertState は、配信がファイルの終わりに届く前に終わったら、途中で切れたとみなして読み直す。
-  // 索引を作っている途中は、長さが見込みなので、終わりかどうかを決められない。読み直しを繰り返さないよう、見分けない。
+  // インデックスを作っている途中は、長さが見込みなので、終わりかどうかを決められない。読み直しを繰り返さないよう、見分けない。
   const onConvertState = (state: PlayerState) => {
-    const video = videoRef.current;
-    if (state !== 'completed' || video === null || indexing) {
+    const current = mediaRef.current;
+    if (state !== 'completed' || current === null || indexing) {
       return;
     }
-    const { buffered } = video;
+    const { buffered } = current;
     const end =
       buffered.length === 0
         ? positionRef.current
@@ -973,7 +975,7 @@ function Player({
     label: t('player.cmSection', { duration: formatDuration(Math.max(to - from, 0)) }),
     kind: 'cm' as const,
   }));
-  // bands は、CM の区間と、索引をまだ作っている所 (シークできないので帯で示す) と、実況のコメントから見つけた番組の区切りの印。
+  // bands は、CM の区間と、インデックスをまだ作っている所 (シークできないので帯で示す) と、実況のコメントから見つけた番組の区切りのマーク。
   const bands = [
     ...cmBands,
     ...(indexing && duration > limit
@@ -1130,8 +1132,8 @@ function Player({
         <TsPlayer
           url={stream.url}
           handover={handover}
-          videoRef={videoRef}
-          onVideo={setVideo}
+          mediaRef={mediaRef}
+          onMedia={setMedia}
           controls={controlBar}
           captions={captions && !autoCaptionsShown}
           superimpose={captionSettings.superimposeRecorded}
@@ -1156,14 +1158,14 @@ function Player({
       {route.kind === 'kyusu' && (
         <HlsPlayer
           // 読み直すたびに URL を変え、hls.js を作り直す。fragment は、サーバーへは送られない。
-          // kyusu は、索引の I フレームが 1 つもない間は、プレイリストを作れずに 503 を返す。索引ができ始めるまで読まない。
+          // kyusu は、インデックスの I フレームが 1 つもない間は、プレイリストを作れずに 503 を返す。インデックスができ始めるまで読まない。
           url={
             indexing && file.index.durationSeconds == null
               ? null
               : `${hlsURL(file.hlsUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`
           }
-          videoRef={videoRef}
-          onVideo={setVideo}
+          mediaRef={mediaRef}
+          onMedia={setMedia}
           onSegment={streamMeter.onSegment}
           controls={controlBar}
           captions={captions && !autoCaptionsShown}
@@ -1189,9 +1191,10 @@ function Player({
         <Stack gap="xs">
           <PlaybackUnavailable route={route} />
           <div ref={frameRef}>
-            {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
+            <PipHost container={pip.container} placeholder={<PipPlaceholder onBack={pip.close} />}>
+              {playerBox}
+            </PipHost>
           </div>
-          {pip.container !== null && createPortal(playerBox, pip.container)}
         </Stack>
       }
       info={
@@ -1225,7 +1228,7 @@ function Player({
             {formatBytes(Number(file.size))}
           </Text>
           {/* 端末に保存 (設計書 7.8)。録画と同じく、配信の TS をそのまま書く。端末での再生は、録り始めと録り終わりの放送時刻で
-              時計と長さを出すので、TOT から読めたファイルだけで出す。書いている途中か、索引を作り終えていないファイルは、長さが決まらないので出さない。 */}
+              時計と長さを出すので、TOT から読めたファイルだけで出す。書いている途中か、インデックスを作り終えていないファイルは、長さが決まらないので出さない。 */}
           {file.index.complete &&
             !file.index.writing &&
             broadcast?.recordedFrom != null &&
@@ -1250,7 +1253,7 @@ function Player({
                 }}
               />
             )}
-          {/* 字幕の自動生成 (設計書 5.8)。録画と同じく、頼まれたときに生成する。音声を引くサービスが分からないファイルには作れない。 */}
+          {/* 字幕の自動生成 (設計書 5.8)。録画と同じく、頼まれたときに生成する。音声を取り出すサービスが分からないファイルには作れない。 */}
           {broadcast !== null && (
             <Stack gap={4}>
               <Group gap="xs">
@@ -1325,7 +1328,7 @@ function Player({
         <WatchPanel
           label={t('player.sidePanel')}
           tabs={[
-            // 実況の過去ログがあれば、右の列で字幕の履歴と切り替えて出す。
+            // 実況の過去ログがあれば、右のカラムで字幕の履歴と切り替えて出す。
             ...(jikkyo.comments !== null && jikkyo.comments.length > 0
               ? [
                   {
@@ -1367,7 +1370,7 @@ function Player({
               content: (
                 <StreamInfo
                   meter={streamMeter.meter}
-                  video={video}
+                  media={media}
                   quality={quality}
                   kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                   audios={audios}
@@ -1393,7 +1396,7 @@ function Player({
 }
 
 // JikkyoRows は、実況の過去ログのうち、再生位置までに流れた count 件の一覧 (#489)。時刻は、録り始め (recordedFrom) からの放送時刻で出す。
-// 再生位置は 1 秒に何度も変わるので、流れたコメントの数が変わったときだけ作り直されるよう、部品に分けて React Compiler に覚えさせる。
+// 再生位置は 1 秒に何度も変わるので、流れたコメントの数が変わったときだけ作り直されるよう、部品に分けて React Compiler にメモ化させる。
 function JikkyoRows({
   comments,
   count,

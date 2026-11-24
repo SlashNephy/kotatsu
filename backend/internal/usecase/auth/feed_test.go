@@ -15,7 +15,7 @@ import (
 )
 
 // TestCalendarFeeds は、予約の購読用の URL の秘密の値を発行し、そのユーザーのロールのまま認証し、
-// 発行し直すと前の値が使えなくなり、取り消すと使えなくなることを確かめる (#1255)。
+// 発行し直すと前の値が使えなくなり、取り消すと使えなくなることを確認する (#1255)。
 func TestCalendarFeeds(t *testing.T) {
 	t.Parallel()
 
@@ -82,7 +82,7 @@ func TestCalendarFeeds(t *testing.T) {
 	require.ErrorIs(t, feeds.Delete(t.Context(), actor, member.ID), auth.ErrFeedNotFound)
 }
 
-// TestCalendarFeedsDisabledUser は、無効にしたユーザーの URL は使えないことを確かめる (#1255)。
+// TestCalendarFeedsDisabledUser は、無効にしたユーザーの URL は使えないことを確認する (#1255)。
 func TestCalendarFeedsDisabledUser(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +100,7 @@ func TestCalendarFeedsDisabledUser(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrUnauthenticated)
 }
 
-// TestFeedKinds は、予約の iCalendar と IPTV の配信で、秘密の値を分けることを確かめる (#1324)。
+// TestFeedKinds は、予約の iCalendar と IPTV の配信で、秘密の値を分けることを確認する (#1324)。
 // 一方の値で、もう一方を読めず、一方を取り消しても、もう一方は使える。
 func TestFeedKinds(t *testing.T) {
 	t.Parallel()
@@ -135,7 +135,7 @@ func TestFeedKinds(t *testing.T) {
 
 			return err
 		},
-		// 印を付け替えても、ほかの種類の値は受け付けない。
+		// マークを付け替えても、ほかの種類の値は受け付けない。
 		"calendar token with the IPTV mark": func() error {
 			_, err := iptv.Authenticate(t.Context(), "kotatsu_iptv_"+strings.TrimPrefix(calendarToken, "kotatsu_cal_"))
 

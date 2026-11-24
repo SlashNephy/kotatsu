@@ -14,7 +14,7 @@ export type AnimeRecordCallbackError = (typeof callbackErrors)[number];
 
 // animeRecordCallbackError は、記録先から戻ってきたときの error=<理由> を、画面に出す理由にする。
 // アニメの記録先 (anime_record_) とドラマの記録先 (drama_record_、#1649) の理由を、同じ文で出す。
-// 知らない理由は、失敗として扱う。理由には、トークンなどの中身は入らない。
+// 知らない理由は、失敗として扱う。理由には、トークンなどの内容は入らない。
 export function animeRecordCallbackError(reason: string): AnimeRecordCallbackError {
   const name = reason.replace(/^(?:anime|drama)_record_/, '');
 

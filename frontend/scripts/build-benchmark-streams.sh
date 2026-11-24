@@ -19,7 +19,7 @@
 # 符号化の誤差が乗り、yadif が同じとみなすブロック (違うのが 2 個まで) に収まらなかった。-q:v 3 (約 22 Mbps) にして、
 # 手元で同じ基準で数えると同じとみなせても、ブラウザの中では見つけられなかった。平らな色の面なら、13 Mbps でも見つけられる。
 # どちらも、放送と同じくらいの 13 Mbps で符号化する。
-# ffmpeg は、静的なデモの映像と同じ mise.demo-stream.toml の版を使い、-bitexact で同じファイルを作る。
+# ffmpeg は、静的なデモの映像と同じ mise.demo-stream.toml のバージョンを使い、-bitexact で同じファイルを作る。
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

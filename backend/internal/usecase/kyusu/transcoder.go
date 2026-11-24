@@ -63,14 +63,14 @@ func NewTranscoder(cfg *config.Kyusu) (*Transcoder, error) {
 type RunOptions struct {
 	// StartNumber は、最初に書くセグメントの番号 k。
 	StartNumber int
-	// Trim は、入力の始まり (流し始めた I フレーム) から、k 番目のセグメントの始まりまでの時間。デコードして捨てる。
+	// Trim は、入力の始まり (流し始めた I フレーム) から、k 番目のセグメントの始まりまでの時間。デコードして破棄する。
 	// 映像を変換しないプリセットでは使わない。
 	Trim time.Duration
 	// Cuts は、映像を変換しないプリセットで、k 番目から後のセグメントを始める I フレームの、出力での PTS (90 kHz) の並び (#806)。
 	// FFmpeg は、入力の PTS に Offset を足して書くので、放送の PTS に Offset を足した値にする。
 	Cuts []int64
 	// Offset は、映像を変換しないプリセットで、入力の PTS に足して出力の PTS にする量 (90 kHz)。9 の倍数にする。
-	// FFmpeg はマイクロ秒で受け取るので、9 の倍数なら、刻みの数がそのまま保たれる。
+	// FFmpeg はマイクロ秒で受け取るので、9 の倍数なら、ティックの数がそのまま保たれる。
 	Offset int64
 }
 
@@ -107,7 +107,7 @@ func (t *Transcoder) RunVOD(ctx context.Context, src io.Reader, preset *Preset, 
 	if err == nil {
 		err = splitter.Close()
 	}
-	// 止めたか失敗したときは、書きかけのセグメントを捨てる。開いたままにすると、ハンドルが漏れ、一時ファイルも残る (#1094)。
+	// 止めたか失敗したときは、書きかけのセグメントを破棄する。開いたままにすると、ハンドルが漏れ、一時ファイルも残る (#1094)。
 	if err != nil {
 		if abortErr := splitter.Abort(); abortErr != nil {
 			err = errors.Join(err, abortErr)
@@ -148,7 +148,7 @@ func (f *segmentFile) Close() error {
 
 // Abort は、書きかけのセグメントを閉じ、一時的な名前のファイルを消す。Close で閉じた後でも消す。
 func (f *segmentFile) Abort() error {
-	// 捨てるので、閉じるときのエラー (閉じ済みも含む) は気にしない。
+	// 破棄するので、閉じるときのエラー (閉じ済みも含む) は気にしない。
 	_ = f.File.Close()
 	if err := os.Remove(f.Name()); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to discard a segment: %w", err)
@@ -162,8 +162,8 @@ func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string, stdo
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	normalizer := exec.CommandContext(runCtx, t.tsreadex, tsreadexArgs()...) //nolint:gosec // G204: パスは PATH から引き、引数は固定の値から取る。
-	// FFmpeg のパスは PATH から引く。引数は、設定のエンコーダーと、固定の表の画質と、数値から組み立てる。
-	// 利用者の入力 (URL の画質や音声) は、表を引くのに使うだけで、そのまま渡さない。
+	// FFmpeg のパスは PATH から引く。引数は、設定のエンコーダーと、固定のテーブルの画質と、数値から組み立てる。
+	// 利用者の入力 (URL の画質や音声) は、テーブルを参照するのに使うだけで、そのまま渡さない。
 	// gosec の taint 解析は、入力を受け取った関数の戻り値をまとめて汚染されたものとみなすので、G204 と G702 をここで外す。
 	encoder := exec.CommandContext(runCtx, t.ffmpeg, args...) //nolint:gosec // G204 と G702 の誤検知。理由は上のとおり。
 	normalizerErr, encoderErr := newTailBuffer(stderrLimit), newTailBuffer(stderrLimit)
@@ -203,7 +203,7 @@ func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string, stdo
 	select {
 	case err := <-normalizerDone:
 		if err != nil {
-			// tsreadex が失敗したら、FFmpeg も止める。止めた FFmpeg のエラーは、tsreadex のエラーで知らせるので使わない。
+			// tsreadex が失敗したら、FFmpeg も止める。止めた FFmpeg のエラーは、tsreadex のエラーで通知するので使わない。
 			cancel()
 			stopped := <-encoderDone
 			_ = stopped
@@ -244,7 +244,7 @@ func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string, stdo
 //   - -x 18/38/39: EIT などの番組情報を取り除く。
 //   - -n -1: PAT の最初のサービスだけを選び、PID を固定する。
 //   - -a 13: 第 1 音声がなければ無音を補い、モノラルをステレオにし、デュアルモノを 2 つの音声に分ける。
-//   - -b 7: 第 2 音声がなければ第 1 音声を写し、モノラルをステレオにする。
+//   - -b 7: 第 2 音声がなければ第 1 音声をコピーし、モノラルをステレオにする。
 //   - -c 5 と -u 1: 字幕と文字スーパーがなくても PMT に載せ、字幕は 5 秒ごとに空のデータを補う。FFmpeg が字幕を待って止まらないようにする。
 //   - -d 9: 字幕と文字スーパーを、aribb24.js が読める ID3 timed metadata に変換し、PTS を単調増加にする。
 //     +4 (FFmpeg 4.4 のバグの回避) は、FFmpeg 6.1 で直ったので付けない。
@@ -260,11 +260,12 @@ func liveTimestampArgs() []string { return []string{"-copyts"} }
 
 func liveMuxArgs() []string { return []string{"-muxdelay", "0", "-muxpreload", "0"} }
 
-// ffmpegArgs は、FFmpeg の引数を返す。音声は、audio で選んだ tsreadex の出力の音声を 1 つだけ入れる。映像は、どのエンコーダーでも、CPU の bwdif でインターレースを解除してから縮める (設計書 7.3)。
-// bwdif は、インターレースの印のあるフレームだけを解除するので、BS4K のプログレッシブの映像は、そのまま通す。
+// ffmpegArgs は、FFmpeg の引数を返す。音声は、audio で選んだ tsreadex の出力の音声を 1 つだけ入れる。映像は、VAAPI と QSV のほかは、CPU の bwdif でインターレースを解除してから縮める (設計書 7.3)。
+// bwdif は、インターレースのマークのあるフレームだけを解除するので、BS4K のプログレッシブの映像は、そのまま通す。
 // 縮めた後は 8 ビットにする。BS4K の 10 ビットの映像 (HEVC Main10) をそのまま渡すと、x264 は High 10 で書き、
 // ブラウザで再生できない。NVENC は 10 ビットの入力を受け付けない (#806)。
-// VAAPI と QSV では、解除した後に GPU へ送って縮める。NVENC では、映像の復号を GPU (CUDA) でする。BS4K の 2160p の HEVC を CPU で復号すると重いため。
+// VAAPI と QSV では、復号から縮小までを GPU でする (VAAPIVideo と QSVVideo、#1970、#1999)。
+// NVENC では、映像の復号を GPU (CUDA) でする。BS4K の 2160p の HEVC を CPU で復号すると重いため。
 // vod が nil でなければ、録画の仮想 HLS のセグメントを書く。
 // 映像を変換しないプリセットは、passthroughArgs で組み立てる。
 func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod *RunOptions) []string {
@@ -288,19 +289,16 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 	options := []string{}
 	switch cfg.Encoder {
 	case config.EncoderVAAPI:
-		device = []string{"-vaapi_device", cfg.VAAPIDevice}
-		filter = deinterlace + ",format=nv12,hwupload,scale_vaapi=w=-2:h=" + height
+		device, filter = VAAPIVideo(cfg.VAAPIDevice, preset.Height, preset.Fields)
 		encoder = map[Codec]string{CodecH264: "h264_vaapi", CodecHEVC: "hevc_vaapi"}[preset.Codec]
 	case config.EncoderQSV:
-		device = []string{"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"}
-		// scale_qsv は、幅に -2 (比を保って偶数にそろえる) を受け付けず、-1 (比を保つ) までしか受け付けない (#509)。
-		filter = deinterlace + ",format=nv12,hwupload=extra_hw_frames=64,scale_qsv=w=-1:h=" + height
+		device, filter = QSVVideo(cfg.VAAPIDevice, preset.Height, preset.Fields)
 		encoder = map[Codec]string{CodecH264: "h264_qsv", CodecHEVC: "hevc_qsv"}[preset.Codec]
-		// scale_qsv の後のフレームは、時間の単位が変わるのに、長さが前の単位のまま残る。HLS の muxer は固定のフレームレートで書くので、
-		// FFmpeg が最初のフレームを数千枚複製し、映像が遅れる。フレームの PTS をそのまま渡し、複製させない (#1848)。
-		// また、QSV は、#1845 の NVENC と同じく、-force_key_frames で置いたキーフレームを、既定では IDR でない I フレームにすることがあり、
-		// HLS の muxer がそこで区切らない。
-		options = []string{"-fps_mode", "passthrough", "-forced_idr", "1"}
+		// QSV は、#1845 の NVENC と同じく、-force_key_frames で置いたキーフレームを、既定では IDR でない I フレームにすることがあり、
+		// HLS の muxer がそこで区切らない (#1848)。
+		// scale_qsv で縮めていたときは、縮めた後のフレームの長さが前の時間の単位のまま残り、HLS の muxer が最初のフレームを数千枚
+		// 複製したので、-fps_mode passthrough も渡していた (#1848)。scale_vaapi で縮めるようにしてからは起きないので、渡さない (#1999)。
+		options = []string{"-forced_idr", "1"}
 	case config.EncoderNVENC:
 		// 復号したフレームは CPU のメモリへ戻し、bwdif と縮小は CPU でする。
 		device = []string{"-hwaccel", "cuda"}
@@ -330,7 +328,7 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 		filepath.Join(dir, PlaylistName),
 	}
 	if vod != nil {
-		// 出力側の -ss は、デコードしてから捨てるので、k 番目のセグメントは、フレーム単位で k × セグメントの長さから始まる。
+		// 出力側の -ss は、デコードしてから破棄するので、k 番目のセグメントは、フレーム単位で k × セグメントの長さから始まる。
 		args = append(args,
 			"-ss", seconds(vod.Trim),
 			"-output_ts_offset", seconds(time.Duration(vod.StartNumber)*VODSegmentDuration),
@@ -358,6 +356,45 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 	args = append(args, "-f", "hls", "-hls_segment_type", "mpegts", "-hls_time", strconv.Itoa(segmentSeconds))
 
 	return append(args, hls...)
+}
+
+// VAAPIVideo は、VAAPI で映像を復号し、インターレースを解除して、height の高さの 8 ビット (nv12) に縮める FFmpeg の引数を返す (#1970)。
+// 返す値は、入力の前に置く引数と、-vf の値。録画の MP4 への変換 (transcode) も使う。
+//
+// 復号から縮小までを GPU のメモリのまま行う。BS4K の 2160p の HEVC Main10 を CPU で復号すると重く、ライブ視聴の変換が実時間に届かないため。
+// GPU が入力の形式を復号できなければ (Skylake 世代の Intel の GPU の HEVC 10 ビットなど)、FFmpeg は CPU で復号する。
+// そのときは、フレームが CPU のメモリに届くので、format で nv12 にしてから hwupload で GPU へ送る。GPU で復号したフレームは、
+// format が vaapi のまま通し、hwupload も何もせずに通す。どちらでも、インターレースの解除からは同じく GPU でする。
+//
+// deinterlace_vaapi は、auto=1 で、インターレースのマークのあるフレームだけを解除するので、BS4K のプログレッシブの映像は、そのまま通す。
+// fields なら、フィールドごとに 1 フレームにし (rate=field)、bwdif と同じく 59.94fps に固定する。
+// scale_vaapi の format=nv12 で、BS4K の 10 ビットの映像を 8 ビットにする。
+func VAAPIVideo(vaapiDevice string, height int, fields bool) ([]string, string) {
+	device := []string{
+		"-init_hw_device", "vaapi=va:" + vaapiDevice,
+		"-hwaccel", "vaapi", "-hwaccel_device", "va", "-hwaccel_output_format", "vaapi",
+		"-filter_hw_device", "va",
+	}
+	deinterlace := "deinterlace_vaapi=rate=frame:auto=1"
+	if fields {
+		deinterlace = "deinterlace_vaapi=rate=field:auto=1,fps=60000/1001"
+	}
+	filter := "format=nv12|vaapi,hwupload," + deinterlace + ",scale_vaapi=w=-2:h=" + strconv.Itoa(height) + ":format=nv12"
+
+	return device, filter
+}
+
+// QSVVideo は、QSV でエンコードするために、映像を復号し、インターレースを解除して、height の高さの 8 ビットに縮める FFmpeg の引数を返す (#1999)。
+// 返す値は、入力の前に置く引数と、-vf の値。録画の MP4 への変換 (transcode) も使う。
+//
+// 復号から縮小までは、VAAPIVideo と同じく VAAPI でし、縮めたフレームを hwmap で QSV のフレームにして、QSV のエンコーダーに渡す。
+// QSV のデコーダー (h264_qsv など) を使わないのは、GPU が復号できない形式 (10 ビットの H.264 など) を渡されると、
+// CPU の復号に戻らずに失敗するため。VAAPI の hwaccel なら、FFmpeg が CPU の復号に戻る。
+// QSV のデバイスは、VAAPI のデバイス (vaapiDevice) から hwmap が作るので、同じ GPU を使う。
+func QSVVideo(vaapiDevice string, height int, fields bool) ([]string, string) {
+	device, filter := VAAPIVideo(vaapiDevice, height, fields)
+
+	return device, filter + ",hwmap=derive_device=qsv,format=qsv"
 }
 
 // passthroughArgs は、映像を変換しないプリセットの FFmpeg の引数を返す (#806)。音声と字幕は、ほかのプリセットと同じく扱う。
@@ -417,8 +454,8 @@ func audioOnlyArgs(audio Audio, dir string) []string {
 	)
 }
 
-// ptsSeconds は、9 の倍数の PTS の刻み (90 kHz) を、FFmpeg の引数に渡す秒にする。
-// 刻みの 9 つは 100 マイクロ秒なので、マイクロ秒の整数で表せる。ナノ秒を経ないので、長い時間でも int64 を超えない。
+// ptsSeconds は、9 の倍数の PTS のティック (90 kHz) を、FFmpeg の引数に渡す秒にする。
+// ティックの 9 つは 100 マイクロ秒なので、マイクロ秒の整数で表せる。ナノ秒を経ないので、長い時間でも int64 を超えない。
 func ptsSeconds(ticks int64) string {
 	micros := ticks / 9 * 100
 	sign := ""

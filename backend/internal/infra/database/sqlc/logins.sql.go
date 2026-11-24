@@ -262,7 +262,7 @@ SELECT pg_try_advisory_xact_lock(hashtext('kotatsu.login'), hashtext($1::text)):
 `
 
 // 試行回数の制限のキーを、トランザクションの終わりまでロックする。ほかの試行がロックしていれば、待たずに false を返す。
-// 同じアカウントか IP の試行を 1 つずつ確かめ、同時に送った試行が、前の失敗を見ずに待ち時間を素通りしないようにする。
+// 同じアカウントか IP の試行を 1 つずつ確認し、同時に送った試行が、前の失敗を見ずに待ち時間を素通りしないようにする。
 func (q *Queries) TryLockLoginKey(ctx context.Context, key string) (bool, error) {
 	row := q.db.QueryRow(ctx, tryLockLoginKey, key)
 	var locked bool

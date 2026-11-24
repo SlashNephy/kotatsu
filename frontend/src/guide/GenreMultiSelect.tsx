@@ -5,7 +5,7 @@ import type { Genre } from './guideView';
 import { genreOptions } from './genreOptions';
 
 type Props = Omit<MultiSelectProps, 'data' | 'value' | 'onChange'> & {
-  // value は、選んでいるジャンルを encodeGenre で直した値。
+  // value は、選んでいるジャンルを encodeGenre で正規化した値。
   value: string[];
   onChange: (value: string[]) => void;
   // keep は、名前がなくても選択肢に残すジャンル。含めるジャンルと除外するジャンルの両方を渡す。

@@ -1,9 +1,9 @@
 // 静的なデモ (#832、#1050) の映像に、ARIB 字幕 (STD-B24) のストリームを足す。scripts/build-demo-stream.sh から呼ぶ。
 //
-//   node scripts/demo-stream-captions.mjs <ffmpeg で作った TS> <書き出す TS>
+//   node scripts/demo-stream-captions.mjs <ffmpeg で作った TS> <出力する TS>
 //
 // ffmpeg は ARIB 字幕を書けないので、字幕の PES を自前で作り、TS に差し込む。
-// 字幕の文は、aribb24.js (画面で字幕を描くのと同じライブラリ) の符号化器で、8 単位符号のデータグループにする。
+// 字幕の文は、aribb24.js (画面で字幕を描くのと同じライブラリ) のエンコーダーで、8 単位符号のデータグループにする。
 // 画面の変換 (mpeg2toh264) は、PMT で component_tag が 0x30 のストリームを字幕として読むので、PMT にこのストリームを足す。
 import { readFile, writeFile } from 'node:fs/promises';
 
@@ -24,7 +24,7 @@ import {
   muxIndependentPES,
 } from 'aribb24.js';
 
-// captions は、字幕の文と、出す時間 (映像の頭からの秒)。テロップ (scripts/demo-stream-scene.mjs) の上に出す。
+// captions は、字幕の文と、出す時間 (映像の先頭からの秒)。テロップ (scripts/demo-stream-scene.mjs) の上に出す。
 const captions = [
   { from: 1.0, to: 4.8, lines: ['こたつ山のふもとから', 'けさの様子をお伝えします'] },
   { from: 5.2, to: 9.4, lines: ['空気は冷たく', '畑には霜が降りました'] },
@@ -190,7 +190,7 @@ function pcr(packet) {
   );
 }
 
-// pesPTS は、PES の頭のパケットの PTS を返す。なければ null。
+// pesPTS は、PES の先頭のパケットの PTS を返す。なければ null。
 function pesPTS(packet) {
   const offset = payloadOffset(packet);
   if (offset === null || (packet[1] & 0x40) === 0) {

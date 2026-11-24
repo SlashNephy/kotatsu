@@ -113,8 +113,8 @@ FROM reservations r
 WHERE r.id = $1
 `
 
-// 録り始めに EIT[p/f] で同じ回かを確かめ直す (#1500、設計書 5.1)。
-// 予約の録画を、録り始めに同じ回かを確かめ直す対象かどうか。同じ回を束ねる設定 (#1498) を入れた有効なルールが作ったルール予約で、
+// 録り始めに EIT[p/f] で同じ回かを確認し直す (#1500、設計書 5.1)。
+// 予約の録画を、録り始めに同じ回かを確認し直す対象かどうか。同じ回をまとめる設定 (#1498) を入れた有効なルールが作ったルール予約で、
 // 結び付いた有効なルールのどれもがその設定を入れているものだけを対象にする。設定を入れていない有効なルールも一致していれば、
 // そのルールが受け持って録るので、見直さない。人が有効に戻した予約 (episode_recheck_waived) も見直さない。
 func (q *Queries) IsEpisodeRecheckTarget(ctx context.Context, id uuid.UUID) (bool, error) {
@@ -142,6 +142,7 @@ LEFT JOIN LATERAL (
 ) a ON true
 WHERE rec.state = 'recording' AND rec.api_id < $4 AND rec.start_at >= $1
   AND NOT (rec.service_id = $2 AND rec.event_id IS NOT DISTINCT FROM $3::bigint)
+ORDER BY service_id, name, description
 `
 
 type ListEarlierRecordedEpisodesParams struct {
@@ -160,11 +161,12 @@ type ListEarlierRecordedEpisodesRow struct {
 	AnimeCount    *float64
 }
 
-// 録り始めた録画 (api_id) と比べる「録った回」(#1500)。録画履歴のうち @since より後に始まったものと、ほかの録画ソフトから
+// 録り始めた録画 (api_id) と比較する「録った回」(#1500)。録画履歴のうち @since より後に始まったものと、ほかの録画ソフトから
 // 引き継いだもの (期間で切らない)、それに、この録画より先に作った録画中の録画。録画履歴は、正常に終了し、ドロップが閾値以下で、
 // スクランブルの警告のない録画だけを持つ (設計書 4.4)。同じ番組の録画 (取り消して戻した続きなど) は除く。
 // 先に作った録画に限るのは、同時に始まった同じ回の録画が、互いを録画済みとみなして両方やめないためである。api_id は録画を作るときに
 // 振る番号で、EPGStation から取り込んだ録画は取り込み元の ID を引き継ぐが、取り込むのは録り終えた録画だけなので、録画中の録画では作った順になる。
+// 同じ回の録画が複数あれば、最初に一致したものを取得するので、決まった順で返す (#1985)。
 func (q *Queries) ListEarlierRecordedEpisodes(ctx context.Context, arg ListEarlierRecordedEpisodesParams) ([]ListEarlierRecordedEpisodesRow, error) {
 	rows, err := q.db.Query(ctx, listEarlierRecordedEpisodes,
 		arg.Since,
@@ -209,6 +211,8 @@ UPDATE programs SET
   series_repeat = CASE WHEN $7::boolean THEN $9::boolean ELSE series_repeat END,
   series = NULL,
   episode_number = NULL,
+  search_grams = CASE WHEN $3::text IS NULL AND $4::text IS NULL
+    AND $6::text IS NULL THEN search_grams ELSE NULL END,
   updated_at = $10
 WHERE service_id = $11 AND event_id = $12
 `
@@ -230,7 +234,9 @@ type RewriteProgramInfoParams struct {
 
 // 番組表の番組を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。シリーズの記述子は、
 // EIT[p/f] が載せていたときだけ (series_set)、その値 (話数が 0 なら NULL) で書き直す。時刻は書かない。
-// 番組名から読むシリーズ名と話数 (#1564) は、Go で読むので空にし、次の全量の突き合わせで読み直させる。
+// 番組名から読むシリーズ名と話数 (#1564) は、Go で読むので空にし、次の全量の照合で読み直させる。
+// 番組の検索の gram (#966) も Go で作るので、番組名、概要、詳細のどれかを書き直したら空にし、次の全量の照合で作り直させる。
+// 空の間は、検索の候補に残す。古い gram を残すと、新しい番組名などに一致する番組を、検索で落とすからである。
 func (q *Queries) RewriteProgramInfo(ctx context.Context, arg RewriteProgramInfoParams) (int64, error) {
 	result, err := q.db.Exec(ctx, rewriteProgramInfo,
 		arg.Name,

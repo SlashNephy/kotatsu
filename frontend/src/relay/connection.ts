@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-// SubscriptionConnection は、1 本の subscription の接続の状態を、ConnectionTracker に知らせる。
+// SubscriptionConnection は、1 本の subscription の接続の状態を、ConnectionTracker に通知する。
 export type SubscriptionConnection = {
   // reconnecting は、切れた接続をつなぎ直し始めたときに呼ぶ。
   reconnecting: () => void;

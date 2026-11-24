@@ -10,7 +10,7 @@ export type ViewerEvent = {
 };
 
 // EventHub は、デモの中で起きた変更を、viewerEvents を購読している画面に届ける。
-// 画面は、dataChange の版で query を取り直すので (useDataChanges)、mutation の後にここへ流す。
+// 画面は、dataChange のバージョンで query を再取得するので (useDataChanges)、mutation の後にここへ流す。
 export type EventHub = {
   publish: (event: ViewerEvent) => void;
   // listen は、return を呼ぶまで、流れた出来事を map で変えて返し続ける。

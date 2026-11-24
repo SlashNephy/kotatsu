@@ -1,7 +1,7 @@
--- 録り始めに EIT[p/f] で同じ回かを確かめ直す (#1500、設計書 5.1)。
+-- 録り始めに EIT[p/f] で同じ回かを確認し直す (#1500、設計書 5.1)。
 
 -- name: IsEpisodeRecheckTarget :one
--- 予約の録画を、録り始めに同じ回かを確かめ直す対象かどうか。同じ回を束ねる設定 (#1498) を入れた有効なルールが作ったルール予約で、
+-- 予約の録画を、録り始めに同じ回かを確認し直す対象かどうか。同じ回をまとめる設定 (#1498) を入れた有効なルールが作ったルール予約で、
 -- 結び付いた有効なルールのどれもがその設定を入れているものだけを対象にする。設定を入れていない有効なルールも一致していれば、
 -- そのルールが受け持って録るので、見直さない。人が有効に戻した予約 (episode_recheck_waived) も見直さない。
 SELECT (r.kind = 'rule' AND r.event_id IS NOT NULL AND NOT r.episode_recheck_waived
@@ -17,11 +17,12 @@ FROM reservations r
 WHERE r.id = @id;
 
 -- name: ListEarlierRecordedEpisodes :many
--- 録り始めた録画 (api_id) と比べる「録った回」(#1500)。録画履歴のうち @since より後に始まったものと、ほかの録画ソフトから
+-- 録り始めた録画 (api_id) と比較する「録った回」(#1500)。録画履歴のうち @since より後に始まったものと、ほかの録画ソフトから
 -- 引き継いだもの (期間で切らない)、それに、この録画より先に作った録画中の録画。録画履歴は、正常に終了し、ドロップが閾値以下で、
 -- スクランブルの警告のない録画だけを持つ (設計書 4.4)。同じ番組の録画 (取り消して戻した続きなど) は除く。
 -- 先に作った録画に限るのは、同時に始まった同じ回の録画が、互いを録画済みとみなして両方やめないためである。api_id は録画を作るときに
 -- 振る番号で、EPGStation から取り込んだ録画は取り込み元の ID を引き継ぐが、取り込むのは録り終えた録画だけなので、録画中の録画では作った順になる。
+-- 同じ回の録画が複数あれば、最初に一致したものを取得するので、決まった順で返す (#1985)。
 SELECT h.service_id, h.name, h.description, h.series_episode, h.syobocal_tid, h.anime_count
 FROM recording_history h
 LEFT JOIN recordings hr ON hr.id = h.recording_id
@@ -38,7 +39,8 @@ LEFT JOIN LATERAL (
   HAVING count(*) = 1 AND min(e.count_start) = min(e.count_end)
 ) a ON true
 WHERE rec.state = 'recording' AND rec.api_id < @api_id AND rec.start_at >= @since
-  AND NOT (rec.service_id = @service_id AND rec.event_id IS NOT DISTINCT FROM sqlc.narg(event_id)::bigint);
+  AND NOT (rec.service_id = @service_id AND rec.event_id IS NOT DISTINCT FROM sqlc.narg(event_id)::bigint)
+ORDER BY service_id, name, description;
 
 -- name: GetRecordingEpisodeSource :one
 -- 録画の回を読むための、番組のシリーズの記述子の話数と、録画が 1 つの話に結びついたときの TID と話数。
@@ -71,7 +73,9 @@ WHERE service_id = @service_id AND event_id = @event_id;
 -- name: RewriteProgramInfo :execrows
 -- 番組表の番組を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。シリーズの記述子は、
 -- EIT[p/f] が載せていたときだけ (series_set)、その値 (話数が 0 なら NULL) で書き直す。時刻は書かない。
--- 番組名から読むシリーズ名と話数 (#1564) は、Go で読むので空にし、次の全量の突き合わせで読み直させる。
+-- 番組名から読むシリーズ名と話数 (#1564) は、Go で読むので空にし、次の全量の照合で読み直させる。
+-- 番組の検索の gram (#966) も Go で作るので、番組名、概要、詳細のどれかを書き直したら空にし、次の全量の照合で作り直させる。
+-- 空の間は、検索の候補に残す。古い gram を残すと、新しい番組名などに一致する番組を、検索で落とすからである。
 UPDATE programs SET
   name = coalesce(sqlc.narg(name)::text, name),
   description = coalesce(sqlc.narg(description)::text, description),
@@ -83,6 +87,8 @@ UPDATE programs SET
   series_repeat = CASE WHEN @series_set::boolean THEN sqlc.narg(series_repeat)::boolean ELSE series_repeat END,
   series = NULL,
   episode_number = NULL,
+  search_grams = CASE WHEN sqlc.narg(name_normalized)::text IS NULL AND sqlc.narg(description_normalized)::text IS NULL
+    AND sqlc.narg(extended_normalized)::text IS NULL THEN search_grams ELSE NULL END,
   updated_at = @now
 WHERE service_id = @service_id AND event_id = @event_id;
 

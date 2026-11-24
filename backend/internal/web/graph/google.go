@@ -68,7 +68,7 @@ func googleError(err error) error {
 	case errors.Is(err, google.ErrFolderNotSelected):
 		return NewError(CodeNotFound, "the folder is not selected")
 	case errors.Is(err, secretbox.ErrDecrypt):
-		// アプリの秘密キーを変えると、保存したシークレットやトークンを読めなくなる。中身は返さない。
+		// アプリの秘密キーを変えると、保存したシークレットやトークンを読めなくなる。内容は返さない。
 		return NewError(CodeConflict, "the saved secret cannot be decrypted; register it again")
 	default:
 		return err

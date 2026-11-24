@@ -64,7 +64,7 @@ SELECT
 FROM tuners;
 
 -- name: ListStoragePoolMeasurements :many
--- /metrics に出す、容量の管理が測った保存先プールの容量と空き容量、閾値 (#957)。測っていないプールは返さない。
+-- /metrics に出す、容量の管理が計測した保存先プールの容量と空き容量、閾値 (#957)。計測していないプールは返さない。
 SELECT id, min_free_bytes, total_bytes::bigint AS total_bytes, free_bytes::bigint AS free_bytes, measured_at::timestamptz AS measured_at
 FROM storage_pools WHERE measured_at IS NOT NULL ORDER BY id;
 

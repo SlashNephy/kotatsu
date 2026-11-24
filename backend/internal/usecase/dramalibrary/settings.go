@@ -34,7 +34,7 @@ func ThresholdPercent(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (int,
 }
 
 // SaveThresholdPercent は、ユーザー userID の見た話にする割合を percent (1〜100) に変え、変えた後の値を返す。
-// ほかの端末の設定の画面が読み直すよう、ユーザーの設定が変わったことを知らせる。
+// ほかの端末の設定の画面が読み直すよう、ユーザーの設定が変わったことを通知する。
 func SaveThresholdPercent(ctx context.Context, db Database, clk clock.Clock, userID uuid.UUID, percent int) (int, error) {
 	if percent < 1 || percent > 100 {
 		return 0, fmt.Errorf("%w: the threshold must be between 1 and 100", ErrInvalidSettings)

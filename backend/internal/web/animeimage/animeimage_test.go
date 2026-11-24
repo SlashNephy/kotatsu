@@ -37,7 +37,7 @@ func pngImage(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// TestHandler は、ログイン中のユーザーの見たいリストにある作品の画像だけを中継し、中身が画像でなければ断り、取ってきた画像を覚えることを確かめる (#1235)。
+// TestHandler は、ログイン中のユーザーの見たいリストにある作品の画像だけをプロキシし、内容が画像でなければ断り、取ってきた画像をキャッシュすることを確認する (#1235)。
 func TestHandler(t *testing.T) {
 	t.Parallel()
 
@@ -129,7 +129,8 @@ func TestHandler(t *testing.T) {
 	}
 }
 
-// TestServeFollowingAvatar は、ログイン中のユーザーが取り込んだ視聴状況にあるアバターだけを中継することを確かめる (#1372)。
+// TestServeFollowingAvatar は、ログイン中のユーザーが取り込んだ視聴状況にあるアバターだけをプロキシすることを確認する (#1372)。
+// フォロー中のユーザーが見ている作品 (#1968) に取り込んだアバターもプロキシする。
 func TestServeFollowingAvatar(t *testing.T) {
 	t.Parallel()
 
@@ -140,6 +141,7 @@ func TestServeFollowingAvatar(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "取り込んだ人のアバターを中継する", username: "someone", signedIn: true, wantStatus: http.StatusOK},
+		{name: "見ている作品に取り込んだ人のアバターを中継する", username: "watcher", signedIn: true, wantStatus: http.StatusOK},
 		{name: "取り込んでいない人のアバターは返さない", username: "stranger", signedIn: true, wantStatus: http.StatusNotFound},
 		{name: "保持する期間を過ぎたアバターは返さない", username: "expired", signedIn: true, wantStatus: http.StatusNotFound},
 		{name: "ログインしていなければ返さない", username: "someone", signedIn: false, wantStatus: http.StatusUnauthorized},
@@ -175,6 +177,9 @@ func TestServeFollowingAvatar(t *testing.T) {
 			_, err = pool.Exec(t.Context(), `INSERT INTO anime_following_viewings (user_id, destination, syobocal_tid, username, name, avatar_url, status)
 				VALUES ($1, 'annict', 2, 'expired', '人', $2, 'watching')`, user.ID, upstream.URL+imagePath)
 			require.NoError(t, err)
+			_, err = pool.Exec(t.Context(), `INSERT INTO anime_following_watching (user_id, destination, username, name, avatar_url, work_id, title, fetched_at)
+				VALUES ($1, 'annict', 'watcher', '人', $2, 10, '作品', now())`, user.ID, upstream.URL+imagePath)
+			require.NoError(t, err)
 			handler := animeimage.NewHandlerWithClient(pool, slog.New(slog.DiscardHandler), upstream.Client())
 			mux := http.NewServeMux()
 			mux.HandleFunc("GET /internal/media/anime-following/{destination}/{username}/avatar", handler.ServeFollowingAvatar)
@@ -192,7 +197,7 @@ func TestServeFollowingAvatar(t *testing.T) {
 	}
 }
 
-// TestPath は、画像の URL が変わったら、中継の URL も変わることを確かめる。
+// TestPath は、画像の URL が変わったら、中継の URL も変わることを確認する。
 func TestPath(t *testing.T) {
 	t.Parallel()
 	a := animeimage.Path("anilist", 10, "https://example.com/a.png")
@@ -201,7 +206,7 @@ func TestPath(t *testing.T) {
 	assert.Contains(t, a, "/internal/media/anime-works/anilist/10/image?v=")
 }
 
-// TestCache は、覚えた画像が上限を超えたら、古く覚えたものから忘れ、上限より大きい画像は覚えないことを確かめる。
+// TestCache は、キャッシュした画像が上限を超えたら、古くキャッシュしたものから忘れ、上限より大きい画像はキャッシュしないことを確認する。
 func TestCache(t *testing.T) {
 	t.Parallel()
 

@@ -76,10 +76,11 @@ type scheduleChannel struct {
 	Programs []*program `json:"programs"`
 }
 
-// services は、番組表に出すサービスを、番組表の並び順で返す。非表示のサービスと、映像も音声も流さないサービスは外す。
+// services は、番組表に出すサービスを、番組表の並び順で返す。非表示のサービスと、映像も音声も流さないサービスと、
+// 上流から消えたサービス (#1973) は外す。
 func (h *Handler) services(r *http.Request) ([]domain.Service, error) {
 	rows, err := h.queries.ListGuideServices(r.Context(), query.ListGuideServicesParams{
-		IncludeHidden: false, MediaServiceTypes: domain.MediaServiceTypes(), IDs: []int64{},
+		IncludeHidden: false, IncludeGone: false, MediaServiceTypes: domain.MediaServiceTypes(), IDs: []int64{}, Now: h.clock.Now(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the services: %w", err)

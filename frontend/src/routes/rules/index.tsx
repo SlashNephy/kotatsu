@@ -35,7 +35,7 @@ import { useDataChanges } from '../../changes/DataChanges';
 import type { DataChannel } from '../../changes/dataChanges';
 import { EmptyState, ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
-import { loadCollapsedGroups, saveCollapsedGroups } from '../../rules/collapsedGroups';
+import { useCollapsedGroups } from '../../rules/collapsedGroups';
 import {
   isFiltered,
   parseRuleListSearch,
@@ -202,8 +202,8 @@ function Rules() {
   // 絞り込んでいないときは、ルールのないグループの見出しも出す。
   const grouped = data.ruleGroups.length > 0;
   const sections = ruleSections(visible, data.ruleGroups, !isFiltered(search));
-  // collapsed は、折りたたんだ見出しの鍵。端末に覚え、ルールを開いてから戻っても保つ。
-  const [collapsed, setCollapsed] = useState(loadCollapsedGroups);
+  // collapsed は、折りたたんだ見出しのキー。端末に保存し、ルールを開いてから戻っても保つ。
+  const [collapsed, setCollapsed] = useCollapsedGroups();
   // 探す語や絞り込みがあるときは、当たったルールを隠さないよう、すべての見出しを開く。
   const collapsible = grouped && !isFiltered(search);
   const isCollapsed = (key: string) => collapsible && collapsed.has(key);
@@ -213,7 +213,6 @@ function Rules() {
       next.add(key);
     }
     setCollapsed(next);
-    saveCollapsedGroups(next);
   };
   // shown は、いま一覧に出しているルール。折りたたんだ見出しの下のルールは含めない。
   const shown = sections

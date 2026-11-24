@@ -53,8 +53,8 @@ func (p *frameRatePlan) recordedRate() *int32 {
 // planFrameRate は、録画設定の出すコマ数 setting と、録画のセグメント segments から、変換で出すコマ数を決める (#1509)。
 //   - 60 なら、フィールドごとに 1 コマにする。30 なら、コマごとに解除する。
 //   - 自動なら、最初のセグメントの映像の形式 (#1310) がプログレッシブであれば、フィールドを倍にする話にならないので、
-//     測らずに元のコマ数のまま出す (720p の局、BS4K の 59.94p)。インターレースか、形式が分からなければ、録画全体に散らした窓で
-//     フィールドどうしの差を測り、多数決で決める。
+//     計測せずに元のコマ数のまま出す (720p の局、BS4K の 59.94p)。インターレースか、形式が分からなければ、録画全体に散らしたウィンドウで
+//     フィールドどうしの差を計測し、多数決で決める。
 //
 // コマごとに解除するとき、プログレッシブの映像は、bwdif がそのまま通すので、元のコマ数のまま出る。
 func (w *Worker) planFrameRate(ctx context.Context, encoder Encoder, logger *slog.Logger, setting string, segments []sqlc.RecordingFile) (*frameRatePlan, error) {
@@ -111,8 +111,8 @@ func (w *Worker) sourceFormat(ctx context.Context, encoder Encoder, logger *slog
 	return format, max(rate, 0)
 }
 
-// measureFieldOutput は、録画全体に散らした窓で、フィールドどうしの差を測り、60 コマで出すかどうかを多数決で決める (#1509)。
-// 窓ごとの rep、wr、分類はログに出し、閾値を詰め直す材料にする。FFmpeg が失敗した窓は、測れなかった窓として数える。
+// measureFieldOutput は、録画全体に散らしたウィンドウで、フィールドどうしの差を計測し、60 コマで出すかどうかを多数決で決める (#1509)。
+// ウィンドウごとの rep、wr、分類はログに出し、閾値を詰め直す材料にする。FFmpeg が失敗したウィンドウは、計測できなかったウィンドウとして数える。
 func (w *Worker) measureFieldOutput(ctx context.Context, encoder Encoder, logger *slog.Logger, segments []sqlc.RecordingFile) (bool, error) {
 	params := w.cadence
 	spans := segmentSpans(segments)
@@ -174,7 +174,7 @@ func segmentSpans(segments []sqlc.RecordingFile) []segmentSpan {
 }
 
 // locateWindow は、セグメントを並べた録画の位置 at に当たるセグメントと、その中の位置を返す。
-// 窓がセグメントの終わりをはみ出すときは、セグメントの中に収まるよう前にずらす。
+// ウィンドウがセグメントの終わりをはみ出すときは、セグメントの中に収まるよう前にずらす。
 func locateWindow(spans []segmentSpan, at, window time.Duration) (*segmentSpan, time.Duration) {
 	for i := range spans {
 		span := &spans[i]

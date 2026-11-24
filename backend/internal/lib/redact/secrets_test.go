@@ -9,6 +9,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/redact"
 )
 
+// redactedTruncatedLine は、切った行の末尾の秘密をマスクした行。
+const redactedTruncatedLine = "log [REDACTED_SECRET]…"
+
 func TestSecrets(t *testing.T) {
 	t.Parallel()
 
@@ -60,6 +63,38 @@ func TestSecrets(t *testing.T) {
 			secrets: []string{"REDACTED", "_SECRET]", "hunter2-hunter2"},
 			text:    "[REDACTED_SECRET] hunter2-hunter2",
 			want:    "[REDACTED_SECRET] [REDACTED_SECRET]",
+		},
+		{
+			name:    "切った行の末尾に残った秘密の前半を伏せる",
+			secrets: []string{"xyz_abcd_short"},
+			text:    "log xyz_abcd…",
+			want:    redactedTruncatedLine,
+		},
+		{
+			// 長い秘密の前半 (abcd) が先に当たっても、別の秘密のもっと長い前半 (xyz_abcd) をマスクする (#1982)。
+			name:    "切った行の末尾は、最も長く一致する前半を伏せる",
+			secrets: []string{"abcd_very_long_secret", "xyz_abcd_short"},
+			text:    "log xyz_abcd…",
+			want:    redactedTruncatedLine,
+		},
+		{
+			// 先頭がマークの末尾と重なる秘密でも、マスクしたマークを崩さない (#1982)。
+			name:    "切った行の末尾の印を崩さない",
+			secrets: []string{"ret]123456", "mysecretvalue1"},
+			text:    "log mysecretvalue1…",
+			want:    redactedTruncatedLine,
+		},
+		{
+			name:    "切った行の末尾の設定の印を崩さない",
+			secrets: []string{"ted]123456"},
+			text:    "password=[REDACTED]…",
+			want:    "password=[REDACTED]…",
+		},
+		{
+			name:    "切った行の印の後に残った秘密の前半は伏せる",
+			secrets: []string{"ret]123456", "mysecretvalue1"},
+			text:    "log [REDACTED_SECRET] ret]12…",
+			want:    "log [REDACTED_SECRET] [REDACTED_SECRET]…",
 		},
 	}
 	for _, tt := range tests {

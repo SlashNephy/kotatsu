@@ -73,7 +73,7 @@ function isChannelType(tab: NowPlayingTab): boolean {
   return tab.value !== pinnedTab && tab.value !== forceTab;
 }
 
-// useNowPlayingTabs は、選んでいるタブを覚える。開いたときは、ピン留めのタブがあればそれを、なければ最初のチャンネル種別を選ぶ。
+// useNowPlayingTabs は、選んでいるタブを保持する。開いたときは、ピン留めのタブがあればそれを、なければ最初のチャンネル種別を選ぶ。
 // 選んでいるタブがなくなったら、最初のチャンネル種別に戻す。後でまたタブができても、そのタブへは戻さない。
 export function useNowPlayingTabs(tabs: readonly NowPlayingTab[]): NowPlayingTabsState {
   const [selected, setSelected] = useState(

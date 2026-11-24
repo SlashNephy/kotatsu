@@ -12,8 +12,8 @@ import (
 //go:embed all:dist
 var dist embed.FS
 
-// icons は、SPA を未ビルドでも使えるよう、frontend/public/icons から写したものを埋め込む。
-// 写すのは mise run //backend:generate で、CI で原本と食い違っていないかを確かめる。
+// icons は、SPA を未ビルドでも使えるよう、frontend/public/icons からコピーしたものを埋め込む。
+// コピーするのは mise run //backend:generate で、CI で原本と食い違っていないかを確認する。
 //
 //go:embed icons/icon.svg icons/icon-192.png
 var icons embed.FS
