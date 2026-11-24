@@ -26,12 +26,12 @@ else
     [[ -z "$file" ]] && continue
 
     case "$file" in
-      # ツールの版と CI 自体の変更は、すべてのジョブに関わる。
+      # ツールのバージョンと CI 自体の変更は、すべてのジョブに関わる。
       mise.toml | mise.lock | .github/workflows/ci.yml | .github/workflows/image.yml | .github/actions/* | scripts/ci-changes.sh)
         all
         continue
         ;;
-      # Trivy と kube-linter の版は、イメージとマニフェストの検査に関わる。
+      # Trivy と kube-linter のバージョンは、イメージとマニフェストの検査に関わる。
       mise.scan.toml | mise.scan.lock)
         image=true kube_linter=true
         continue
@@ -49,7 +49,7 @@ else
       *) go=true ;;
     esac
 
-    # 生成物の確かめ。Go の生成に加え、zxcvbn のバンドルを画面の依存で作るので、その依存にも関わる。
+    # 生成物の確認。Go の生成に加え、zxcvbn のバンドルを画面の依存で作るので、その依存にも関わる。
     case "$file" in
       frontend/package.json | frontend/pnpm-lock.yaml | frontend/pnpm-workspace.yaml | frontend/patches/* | frontend/zxcvbn/* | frontend/schema.graphql | frontend/public/icons/* | frontend/mise.toml) generate=true ;;
       frontend/* | deploy/* | .github/*) ;;
