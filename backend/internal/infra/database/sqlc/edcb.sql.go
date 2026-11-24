@@ -59,7 +59,7 @@ type AddEDCBNetworkTVHolderParams struct {
 	Now         time.Time
 }
 
-// @instance_id を ID の持ち主に加え、最後の持ち主が外れた印を消す。
+// @instance_id を ID の持ち主に加え、最後の持ち主が外れたマークを消す。
 func (q *Queries) AddEDCBNetworkTVHolder(ctx context.Context, arg AddEDCBNetworkTVHolderParams) error {
 	_, err := q.db.Exec(ctx, addEDCBNetworkTVHolder, arg.NetworkTVID, arg.InstanceID, arg.Now)
 	return err

@@ -1,7 +1,7 @@
-// Package googletest は、テストと検証のための偽の Google (OAuth 2.0 の認可とトークン、Drive API の読み取り) を提供する (#1902)。
+// Package googletest は、テストと検証のためのモックの Google (OAuth 2.0 の認可とトークン、Drive API の読み取り) を提供する (#1902)。
 //
 // 認可のエンドポイントは、人の操作をまねずに、その場でコードを作って redirect_uri に戻す。トークンの API は、クライアントの資格、
-// redirect_uri、PKCE (S256) の code_verifier を確かめる。Drive API は、Bearer のアクセストークンを確かめ、files.list、files.get、
+// redirect_uri、PKCE (S256) の code_verifier を確認する。Drive API は、Bearer のアクセストークンを確認し、files.list、files.get、
 // alt=media と Range による読み出し、drives.list、about.get を返す。上限に当たった応答 (429 と 403) を差し込める。
 package googletest
 
@@ -35,7 +35,7 @@ const (
 	keyName = "name"
 )
 
-// File は、偽の Drive のファイルかフォルダ。
+// File は、モックの Drive のファイルかフォルダ。
 type File struct {
 	ID       string
 	Name     string
@@ -47,7 +47,7 @@ type File struct {
 	Trashed      bool
 }
 
-// Drive は、偽の共有ドライブ。
+// Drive は、モックの共有ドライブ。
 type Drive struct {
 	ID   string
 	Name string
@@ -73,7 +73,7 @@ const (
 	FaultCut Fault = "cut"
 )
 
-// Server は、偽の Google。
+// Server は、モックの Google。
 type Server struct {
 	ClientID     string
 	ClientSecret string
@@ -108,7 +108,7 @@ type grant struct {
 	scope       string
 }
 
-// New は、クライアント clientID と clientSecret を登録した偽の Google を返す。
+// New は、クライアント clientID と clientSecret を登録したモックの Google を返す。
 func New(clientID, clientSecret string) *Server {
 	return &Server{
 		ClientID: clientID, ClientSecret: clientSecret, RedirectURIs: []string{}, Account: "admin@example.com",
@@ -207,7 +207,7 @@ func (s *Server) ExpireAccessTokens() {
 	clear(s.access)
 }
 
-// IssueAccessToken は、認可を経ずにアクセストークンを発行する。Drive API のクライアントだけを確かめるテストで使う。
+// IssueAccessToken は、認可を経ずにアクセストークンを発行する。Drive API のクライアントだけを確認するテストで使う。
 func (s *Server) IssueAccessToken() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -215,7 +215,7 @@ func (s *Server) IssueAccessToken() string {
 	return s.issueAccess()
 }
 
-// Handler は、偽の Google の HTTP ハンドラーを返す。
+// Handler は、モックの Google の HTTP ハンドラーを返す。
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /o/oauth2/v2/auth", s.authorize)
@@ -329,7 +329,7 @@ func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// drive は、Drive API のハンドラーに、アクセストークンの確かめと、差し込んだ失敗を付ける。
+// drive は、Drive API のハンドラーに、アクセストークンの確認と、差し込んだ失敗を付ける。
 func (s *Server) drive(next func(w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
@@ -368,7 +368,7 @@ func (s *Server) drive(next func(w http.ResponseWriter, r *http.Request)) http.H
 	}
 }
 
-// cutWriter は、決まった大きさを書いたら、それ以上を書かずに捨てる。本文の長さが足りなくなり、受け取る側では途中で切れる。
+// cutWriter は、決まった大きさを書いたら、それ以上を書かずに破棄する。本文の長さが足りなくなり、受け取る側では途中で切れる。
 type cutWriter struct {
 	http.ResponseWriter
 
@@ -500,7 +500,7 @@ func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 
 		return strings.Compare(a.ID, b.ID)
 	})
-	// 1 件ずつのページに分けて、ページをたどることを確かめられるようにする。
+	// 1 件ずつのページに分けて、ページをたどることを確認できるようにする。
 	start, _ := strconv.Atoi(q.Get("pageToken"))
 	page := map[string]any{"files": []any{}}
 	if start < len(children) {

@@ -199,7 +199,7 @@ type SetProgramArchiveSearchGramsParams struct {
 	StartAt     time.Time
 }
 
-// アーカイブの番組の検索の gram (#966) を書く。ほかの列は変えない。
+// アーカイブの番組の検索の gram (#966) を書く。ほかのカラムは変えない。
 func (q *Queries) SetProgramArchiveSearchGrams(ctx context.Context, arg []SetProgramArchiveSearchGramsParams) *SetProgramArchiveSearchGramsBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
@@ -253,7 +253,7 @@ type SetProgramSearchGramsParams struct {
 	EventID     int64
 }
 
-// 番組の検索の gram (#966) を書く。ほかの列と更新日時は変えない。
+// 番組の検索の gram (#966) を書く。ほかのカラムと更新日時は変えない。
 func (q *Queries) SetProgramSearchGrams(ctx context.Context, arg []SetProgramSearchGramsParams) *SetProgramSearchGramsBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
@@ -307,7 +307,7 @@ type SetProgramSeriesParams struct {
 	EventID       int64
 }
 
-// 番組の、番組名から読んだシリーズ名と話数 (#1564) を書く。ほかの列と更新日時は変えない。
+// 番組の、番組名から読んだシリーズ名と話数 (#1564) を書く。ほかのカラムと更新日時は変えない。
 func (q *Queries) SetProgramSeries(ctx context.Context, arg []SetProgramSeriesParams) *SetProgramSeriesBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
@@ -511,7 +511,7 @@ type SetSyobocalTitleKeyParams struct {
 	Tid      int32
 }
 
-// しょぼいカレンダーのタイトルの鍵を書く (#2041)。
+// しょぼいカレンダーのタイトルのキーを書く (#2041)。
 func (q *Queries) SetSyobocalTitleKey(ctx context.Context, arg []SetSyobocalTitleKeyParams) *SetSyobocalTitleKeyBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
@@ -578,7 +578,7 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   series_repeat = excluded.series_repeat,
   series = excluded.series,
   episode_number = excluded.episode_number,
-  -- 番組名、概要、詳細が変わらない番組は、gram を NULL で送り、今の gram を残す (#966)。同じ配列を書き直すと、GIN の索引も書き直すからである。
+  -- 番組名、概要、詳細が変わらない番組は、gram を NULL で送り、今の gram を残す (#966)。同じ配列を書き直すと、GIN のインデックスも書き直すからである。
   search_grams = COALESCE(excluded.search_grams, programs.search_grams),
   updated_at = excluded.updated_at
 `

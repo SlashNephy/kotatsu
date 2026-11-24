@@ -1,9 +1,9 @@
 -- name: StartRecording :one
 -- 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
--- 番組の音声の構成と映像の解像度は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
--- ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
--- 番組の詳細も予約から写す。予約を消しても、録画の画面で番組の詳細を出せるようにする (#1646)。
--- recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで捨てるので (#847)、now より後になることがある。
+-- 番組の音声の構成と映像の解像度は、始めたときの番組からコピーする。続けるときは、最初にコピーしたものを残す。
+-- ジャンルと、一致したルール (最も古いもの) とその名前も、予約からコピーする。予約やルールを消しても、録画を絞れるようにする (#468)。
+-- 番組の詳細も予約からコピーする。予約を消しても、録画の画面で番組の詳細を出せるようにする (#1646)。
+-- recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで破棄するので (#847)、now より後になることがある。
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
   start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, extended, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
 SELECT @id, @reservation_id, @service_id, @event_id, @name, @description, @name_normalized, @description_normalized,
@@ -77,10 +77,10 @@ VALUES (@id, @service_id, @title_key, @name, @series::text, true, @start_at, @en
 
 -- name: InsertRecordingHistoryFromRecording :exec
 -- 重複の回避に使う録画履歴を、録り終えた録画から記録する (設計書 4.4)。録画を削除しても残す。
--- 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
+-- 同じ回をまとめる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数もコピーする。
 -- 解析し直してスクランブルの警告が変わったときに直せるよう、録画も持つ (#1517)。
--- series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で引くのに使う。
--- ドラマの続きの放送 (#1564) で録った話を外せるよう、録画が結びついた TMDB の作品とシーズンと話の番号も写す。
+-- series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で検索するのに使う。
+-- ドラマの続きの放送 (#1564) で録った話を外せるよう、録画が結びついた TMDB の作品とシーズンと話の番号もコピーする。
 INSERT INTO recording_history (
   id, service_id, title_key, name, series, description, series_episode, syobocal_tid, anime_count,
   tmdb_series_id, tmdb_season_number, tmdb_episode_number, imported, start_at, end_at, created_at, recording_id
@@ -147,14 +147,14 @@ UPDATE recordings SET drops = @drops, judged_drops = @judged_drops, errors = @er
 WHERE id = @id;
 
 -- name: GetRecordingJikkyoSource :one
--- 実況の過去ログを引くための、録画した時間帯とサービス (設計書 7.4)。
+-- 実況の過去ログを取得するための、録画した時間帯とサービス (設計書 7.4)。
 SELECT r.recorded_from, r.recorded_until, s.network_id, s.sid
 FROM recordings r
 JOIN services s ON s.id = r.service_id
 WHERE r.id = @id;
 
 -- name: SetRecordingAudiosIfUnknown :exec
--- 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
+-- 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG からコピーしたものがあれば、それを残す。
 UPDATE recordings SET audios = @audios, updated_at = @now WHERE id = @id AND audios = '[]'::jsonb;
 
 -- name: SetJoinedRecordingFile :execrows
@@ -163,12 +163,12 @@ UPDATE recordings SET audios = @audios, updated_at = @now WHERE id = @id AND aud
 UPDATE recording_files SET size = @size, ended_at = @ended_at WHERE id = @id;
 
 -- name: CountRecordingSegments :one
--- 録画のセグメントの記録の数と、そのうち最初のもの first_id の大きさ。つないだ結果が確定したかを確かめるのに使う。
+-- 録画のセグメントの記録の数と、そのうち最初のもの first_id の大きさ。つないだ結果が確定したかを確認するのに使う。
 SELECT count(*) AS segments, coalesce(max(size) FILTER (WHERE id = @first_id), 0)::bigint AS first_size
 FROM recording_files WHERE recording_id = @recording_id AND kind = 'segment' AND size > 0;
 
 -- name: DeleteRecordingFiles :exec
--- 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
+-- 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントとインデックスの記録を消すのに使う。
 DELETE FROM recording_files WHERE recording_id = @recording_id AND id = ANY(@ids::uuid[]);
 
 -- name: SetRecordingFilePIDStats :exec
@@ -234,7 +234,7 @@ UPDATE recordings r SET recorded_from = @at, updated_at = @now
 WHERE r.id = @id AND NOT EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment');
 
 -- name: MoveRecordingRecordedFromBack :exec
--- 録画の開始が遅れて、予定の開始からの分をタイムシフトのバッファから写したとき、写した分の始まりを、録り始めた日時にする (#826)。
+-- 録画の開始が遅れて、予定の開始からの分をタイムシフトのバッファからコピーしたとき、コピーした分の始まりを、録り始めた日時にする (#826)。
 UPDATE recordings SET recorded_from = LEAST(recorded_from, @at::timestamptz), updated_at = @now WHERE id = @id;
 
 -- name: MarkRecordingNotBroadcast :exec
@@ -345,7 +345,7 @@ WHERE l.recording_id = @recording_id AND r.state = 'recording' AND l.updated_at 
 
 -- name: InsertPromotedRecording :one
 -- タイムシフトのバッファから昇格する、放送の終わった番組の録画を、録画中として記録する (#1057、設計書 5.7)。予約とは結び付けない。
--- nekonote のジョブが、バッファから書き出し終えたら完了にする。番組情報は、昇格したときの番組表から写す。
+-- nekonote のジョブが、バッファから出力し終えたら完了にする。番組情報は、昇格したときの番組表からコピーする。
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
   start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, extended, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
 VALUES (@id, NULL, @service_id, @event_id, @name, @description, @name_normalized, @description_normalized,
@@ -354,14 +354,14 @@ VALUES (@id, NULL, @service_id, @event_id, @name, @description, @name_normalized
 RETURNING *;
 
 -- name: ListRecordingsWithoutNormalized :many
--- 正規化した番組名と概要の列がまだない録画を、ID の順に max_count 件返す (#1044)。kotatsu migrate が埋める。
+-- 正規化した番組名と概要のカラムがまだない録画を、ID の順に max_count 件返す (#1044)。kotatsu migrate が埋める。
 SELECT id, name, description FROM recordings
 WHERE name_normalized IS NULL OR description_normalized IS NULL
 ORDER BY id
 LIMIT @max_count;
 
 -- name: ListRecordingHistoryWithoutSeries :many
--- シリーズ名の列がまだない録画履歴を、ID の順に max_count 件返す (#1499)。kotatsu migrate が埋める。
+-- シリーズ名のカラムがまだない録画履歴を、ID の順に max_count 件返す (#1499)。kotatsu migrate が埋める。
 SELECT id, name FROM recording_history
 WHERE series IS NULL
 ORDER BY id
@@ -380,7 +380,7 @@ UPDATE recordings SET name_normalized = @name_normalized, description_normalized
 SELECT s.sid FROM recordings r JOIN services s ON s.id = r.service_id WHERE r.id = @id;
 
 -- name: UpsertRecordingCMDetection :exec
--- 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、版と日時を置き換える。
+-- 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、バージョンと日時を置き換える。
 INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at, note, video_missing_ms)
 VALUES (@recording_id, @detector, @detector_version, @now, @note, @video_missing_ms)
 ON CONFLICT (recording_id, detector) DO UPDATE SET detector_version = EXCLUDED.detector_version, detected_at = EXCLUDED.detected_at,
@@ -401,18 +401,18 @@ WHERE recording_id = @recording_id AND detector = @detector
 ORDER BY start_offset_ms;
 
 -- name: GetLatestRecordingCMDetection :one
--- 録画の CM の区間を最後に見分け終えた見分け方と、その版と、日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
+-- 録画の CM の区間を最後に見分け終えた見分け方と、そのバージョンと、日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
 SELECT detector, detector_version, detected_at, note, video_missing_ms FROM recording_cm_detections WHERE recording_id = @recording_id ORDER BY detected_at DESC, detector LIMIT 1;
 
 -- name: ListLatestRecordingCMDetectionNotes :many
--- 録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返す (#1508)。録画の一覧の印に使う。見分けていない録画は返さない。
+-- 録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返す (#1508)。録画の一覧のマークに使う。見分けていない録画は返さない。
 SELECT DISTINCT ON (recording_id) recording_id, note, video_missing_ms
 FROM recording_cm_detections WHERE recording_id = ANY(@recording_ids::uuid[])
 ORDER BY recording_id, detected_at DESC, detector;
 
 -- name: ListOutdatedRecordingCMDetections :many
--- 最後に見分け終えた見分けが、見分け方 @detector の版 @detector_version より古い録画を、放送の古い順に返す (#1814)。
--- @include_other_detectors なら、ほかの見分け方で最後に見分けた録画も返す。has_material は、@detector の形式の版
+-- 最後に見分け終えた見分けが、見分け方 @detector のバージョン @detector_version より古い録画を、放送の古い順に返す (#1814)。
+-- @include_other_detectors なら、ほかの見分け方で最後に見分けた録画も返す。has_material は、@detector の形式のバージョン
 -- @material_format_version の材料が残っていて、録画を読み直さずに判定し直せそうかどうか。
 SELECT r.id AS recording_id, r.name, r.start_at, d.detector, d.detector_version,
   EXISTS (
@@ -452,7 +452,7 @@ SELECT format_version, data FROM recording_cm_materials WHERE recording_id = @re
 SELECT id FROM recordings WHERE state = 'recording' AND recorded_from <= @started_before ORDER BY recorded_from, id;
 
 -- name: GetRecordingFileOwner :one
--- プールの中のパスを使っている録画のファイルの、録画と種類を引く。録画を変換した MP4 を書く前に、ほかのファイルを上書きしないか確かめる (#1253)。
+-- プールの中のパスを使っている録画のファイルの、録画と種類を取得する。録画を変換した MP4 を書く前に、ほかのファイルを上書きしないか確認する (#1253)。
 SELECT recording_id, kind FROM recording_files WHERE pool_id = @pool_id AND path = @path;
 
 -- name: UpsertTranscodedRecordingFile :execrows
@@ -477,7 +477,7 @@ WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.k
 UPDATE recording_files SET video = @video WHERE id = @id;
 
 -- name: SetRecordingVideoResolutionFromFile :exec
--- 録画の映像の解像度を、映像から読んだ値にする (#1310)。EPG から写した値より、映像から読んだ値を優先する。
+-- 録画の映像の解像度を、映像から読んだ値にする (#1310)。EPG からコピーした値より、映像から読んだ値を優先する。
 -- 録画の最初の、映像の形式を読めたセグメントの値を使うので、それより前に読めたセグメントがあれば変えない。
 UPDATE recordings r SET video_resolution = @video_resolution
 WHERE r.id = @recording_id AND NOT EXISTS (
@@ -499,7 +499,7 @@ WHERE id = @id;
 
 -- name: AdvanceScrambleAlert :one
 -- 録画を終えたときの判定を、続けてスクランブルされたままだった録画の数に足す (設計書 6.2、#1517)。
--- scrambled なら 1 足し、そうでなければ 0 に戻す。行をロックするので、管理者に知らせるかは、同じトランザクションの中で決める。
+-- scrambled なら 1 足し、そうでなければ 0 に戻す。行をロックするので、管理者に通知するかは、同じトランザクションの中で決める。
 INSERT INTO scramble_alerts (id, consecutive, notified_at, updated_at)
 VALUES (true, CASE WHEN @scrambled::boolean THEN 1 ELSE 0 END, NULL, @now)
 ON CONFLICT (id) DO UPDATE SET
@@ -508,7 +508,7 @@ ON CONFLICT (id) DO UPDATE SET
 RETURNING consecutive, notified_at;
 
 -- name: MarkScrambleAlertNotified :exec
--- スクランブルされたまま録れた録画を、管理者に知らせた日時を記録する。
+-- スクランブルされたまま録れた録画を、管理者に通知した日時を記録する。
 UPDATE scramble_alerts SET notified_at = @now, updated_at = @now WHERE id;
 
 -- name: ListTuningOutcomes :many

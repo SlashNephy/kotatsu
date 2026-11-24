@@ -21,7 +21,7 @@ import (
 
 const adminUsername = "kotatsu"
 
-// TestUserSetPassword は、kotatsu user set-password が、標準入力のパスワードを規定に照らして設定することを確かめる。
+// TestUserSetPassword は、kotatsu user set-password が、標準入力のパスワードを規定に照らして設定することを確認する。
 func TestUserSetPassword(t *testing.T) {
 	t.Parallel()
 
@@ -88,7 +88,7 @@ func TestUserSetPassword(t *testing.T) {
 	}
 }
 
-// TestAdminSetupToken は、kotatsu admin setup-token が、管理者がいない間だけトークンを発行することを確かめる。
+// TestAdminSetupToken は、kotatsu admin setup-token が、管理者がいない間だけトークンを発行することを確認する。
 func TestAdminSetupToken(t *testing.T) {
 	t.Parallel()
 
@@ -137,7 +137,7 @@ func TestAdminSetupToken(t *testing.T) {
 	assert.Empty(t, logs.String())
 }
 
-// TestUserLinkOIDC は、kotatsu user link-oidc が、設定の IdP のユーザーとローカルのアカウントを紐付けることを確かめる。
+// TestUserLinkOIDC は、kotatsu user link-oidc が、設定の IdP のユーザーとローカルのアカウントを紐付けることを確認する。
 func TestUserLinkOIDC(t *testing.T) {
 	t.Parallel()
 

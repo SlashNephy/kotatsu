@@ -215,7 +215,7 @@ const listServiceIDs = `-- name: ListServiceIDs :many
 SELECT id FROM services ORDER BY id
 `
 
-// 取り込むデータが参照するサービスが、Kotatsu にあるかを確かめるのに使う。
+// 取り込むデータが参照するサービスが、Kotatsu にあるかを確認するのに使う。
 func (q *Queries) ListServiceIDs(ctx context.Context) ([]int64, error) {
 	rows, err := q.db.Query(ctx, listServiceIDs)
 	if err != nil {

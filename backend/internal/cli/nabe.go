@@ -18,7 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/mirakurunapi"
 )
 
-// runNabe は、nabe のロールの本体。TS を配るのは、インスタンスのサーバーに載せた API なので、ここでは終わりを待つだけにする。
+// runNabe は、nabe のロールの本体。TS を配信するのは、インスタンスのサーバーに載せた API なので、ここでは終わりを待つだけにする。
 func runNabe(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	logger.InfoContext(ctx, "role started")
 	defer logger.InfoContext(ctx, "role stopped")

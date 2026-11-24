@@ -89,7 +89,7 @@ SELECT pg_advisory_xact_lock(hashtext('kotatsu.anime_wishlist_rule'), @syobocal_
 -- 視聴管理の画面 (#1231) の、TID に結びついた番組のうち、until より前に始まり、now より後に終わる番組を返す。放送中の番組も次の放送とする。
 -- 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついたら、話数の範囲をまとめて 1 行にする。
 -- 話数のない放送 (特番など) の話数は、-1 にする。
--- 再放送と最終話の印は、結びついた話のどれかに付いていれば付ける。
+-- 再放送と最終話のマークは、結びついた話のどれかに付いていれば付ける。
 SELECT e.syobocal_tid::integer AS syobocal_tid, p.service_id, p.event_id, p.start_at,
   COALESCE(min(e.count_start), -1)::double precision AS count_start, COALESCE(max(e.count_end), -1)::double precision AS count_end,
   bool_or(e.is_rerun)::boolean AS is_rerun, bool_or(e.is_last)::boolean AS is_last
@@ -112,7 +112,7 @@ ORDER BY e.syobocal_tid, e.count_start, e.count_end, r.recorded_from DESC, r.id;
 
 -- name: ListAnimeLibraryRecentBroadcasts :many
 -- 視聴管理の画面 (#1233) の、TID ごとの、since から now までに始まった最も新しい放送を返す。「昨日」「終了」のバッジに使う。
--- 過去の番組は、放送が終わってしばらくするとアーカイブに移るので、番組ではなく、番組の結びつきの開始時刻と印だけを読む。
+-- 過去の番組は、放送が終わってしばらくするとアーカイブに移るので、番組ではなく、番組の結びつきの開始時刻とマークだけを読む。
 -- 再放送を除いて見るときのため、本放送の最も新しい放送も別に返す。
 SELECT DISTINCT ON (e.syobocal_tid, e.is_rerun)
   e.syobocal_tid::integer AS syobocal_tid, e.start_at, e.is_rerun, e.is_last
@@ -121,7 +121,7 @@ WHERE e.syobocal_tid = ANY(@syobocal_tids::integer[]) AND e.start_at >= @since A
 ORDER BY e.syobocal_tid, e.is_rerun, e.start_at DESC, e.position DESC;
 
 -- name: GetAnimeWishlistImageURL :one
--- ユーザーの見たいリストの、記録先の作品の画像の URL を返す (#1235)。画像を中継するときに、ユーザーの見たいリストにある作品に限るため。
+-- ユーザーの見たいリストの、記録先の作品の画像の URL を返す (#1235)。画像をプロキシするときに、ユーザーの見たいリストにある作品に限るため。
 SELECT image_url FROM anime_wishlist_entries
 WHERE user_id = @user_id AND destination = @destination AND work_id = @work_id AND image_url IS NOT NULL;
 

@@ -370,7 +370,7 @@ type TakeDueWatchReservationsRow struct {
 
 // 通知を送る時刻 (放送の開始からユーザーの設定の分だけ前) を過ぎ、放送が終わっていない視聴予約を消して返す。
 // 消した行を返すので、nekonote が何台あっても、同じ視聴予約を二度は通知しない。
-// 通知した番組は、手で外した番組と同じく覚え、視聴ルールが付け直さないようにする。放送が遅れたり、通知を何分前に送るかを
+// 通知した番組は、手で外した番組と同じく保存し、視聴ルールが付け直さないようにする。放送が遅れたり、通知を何分前に送るかを
 // 縮めたりして、通知の時刻がまた先になっても、二度は通知しない (#1093)。
 func (q *Queries) TakeDueWatchReservations(ctx context.Context, now time.Time) ([]TakeDueWatchReservationsRow, error) {
 	rows, err := q.db.Query(ctx, takeDueWatchReservations, now)

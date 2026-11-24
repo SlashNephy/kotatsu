@@ -21,7 +21,7 @@ INSERT INTO oauth_tokens (token_hash, grant_id, kind, created_at, expires_at, us
 VALUES (@token_hash, @grant_id, @kind, @now, @expires_at, NULL);
 
 -- name: GetOAuthAccessToken :one
--- アクセストークンから、連携と、そのユーザーを引く。期限を過ぎたものと、無効にしたユーザーのものは返さない。
+-- アクセストークンから、連携と、そのユーザーを検索する。期限を過ぎたものと、無効にしたユーザーのものは返さない。
 SELECT g.id AS grant_id, g.client_id, g.client_name, g.scopes, g.resource, g.last_used_at, u.id AS user_id, u.role
 FROM oauth_tokens t
 JOIN oauth_grants g ON g.id = t.grant_id
@@ -47,7 +47,7 @@ UPDATE oauth_grants SET last_used_at = @now WHERE id = @id;
 DELETE FROM oauth_grants WHERE id = @id;
 
 -- name: GetOAuthTokenForRevocation :one
--- 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
+-- 失効させるトークンの種類と連携を検索する。ほかのクライアントのトークンは返さない。
 SELECT t.kind, t.grant_id
 FROM oauth_tokens t
 JOIN oauth_grants g ON g.id = t.grant_id

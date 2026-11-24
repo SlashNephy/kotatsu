@@ -23,7 +23,7 @@ import (
 )
 
 // TestTenbanServesCalendar は、tenban が、echo のルーターで予約の iCalendar を返し (#1606)、
-// 崩れたパスは、これまでどおり、整えた先へリダイレクトすることを確かめる。
+// 崩れたパスは、これまでどおり、整えた先へリダイレクトすることを確認する。
 // textPlain は、見つからないときなどの、素の文の応答の Content-Type。
 const textPlain = "text/plain; charset=utf-8"
 

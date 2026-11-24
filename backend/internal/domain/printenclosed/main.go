@@ -1,6 +1,6 @@
-// printenclosed は、囲み文字の表 (domain.EnclosedCharacters) を TypeScript にして標準出力に書く。
-// 番組名から囲み文字を外して描く画面と、条件で囲み文字を選ぶ画面が、バックエンドと同じ表を使うよう、
-// mise run //backend:generate で frontend/src/futon/enclosedCharacters.gen.ts に書き出す。
+// printenclosed は、囲み文字のテーブル (domain.EnclosedCharacters) を TypeScript にして標準出力に書く。
+// 番組名から囲み文字を外して描く画面と、条件で囲み文字を選ぶ画面が、バックエンドと同じテーブルを使うよう、
+// mise run //backend:generate で frontend/src/futon/enclosedCharacters.gen.ts に出力する。
 package main
 
 import (

@@ -166,7 +166,7 @@ type ListArchivedProgramsInRangeRow struct {
 	RelatedItems []byte
 }
 
-// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
+// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じカラムを返す。
 func (q *Queries) ListArchivedProgramsInRange(ctx context.Context, arg ListArchivedProgramsInRangeParams) ([]ListArchivedProgramsInRangeRow, error) {
 	rows, err := q.db.Query(ctx, listArchivedProgramsInRange, arg.ServiceIds, arg.FromAt, arg.ToAt)
 	if err != nil {
@@ -306,7 +306,7 @@ type ListGuideProgramsByKeysRow struct {
 	RelatedItems []byte
 }
 
-// 番組 (サービス, eventId) をまとめて引く。GetGuideProgram と同じ列を返す。ない番組は返さない。
+// 番組 (サービス, eventId) をまとめて取得する。GetGuideProgram と同じカラムを返す。ない番組は返さない。
 func (q *Queries) ListGuideProgramsByKeys(ctx context.Context, arg ListGuideProgramsByKeysParams) ([]ListGuideProgramsByKeysRow, error) {
 	rows, err := q.db.Query(ctx, listGuideProgramsByKeys, arg.ServiceIds, arg.EventIds)
 	if err != nil {

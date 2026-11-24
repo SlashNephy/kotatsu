@@ -1,7 +1,7 @@
 -- name: ListMatchablePrograms :many
 -- ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 -- 映像か音声を流すサービス (media_service_types) の番組だけを対象にする。
--- 照合には正規化した列を使う。詳細の正規化した列がない (列を足す前に書いた) 番組だけ、上流の詳細を返す (#530)。
+-- 照合には正規化したカラムを使う。詳細の正規化したカラムがない (カラムを足す前に書いた) 番組だけ、上流の詳細を返す (#530)。
 SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.is_free, p.name, p.name_normalized, p.description_normalized,
   p.extended_normalized, (CASE WHEN p.extended_normalized IS NULL THEN p.extended ELSE '{}' END)::jsonb AS extended,
   p.genres, p.related_items, p.series_episode, s.channel_type, s.channel
@@ -28,7 +28,7 @@ WHERE title_key = ANY(@title_keys::text[])
 GROUP BY title_key, service_id;
 
 -- name: ListProgramAnimeEpisodesForBundling :many
--- 局をまたいで同じ回を束ねる (#1498) 番組のうち、1 つの話に結びついたものの、しょぼいカレンダーの TID と話数 (設計書 3.8)。
+-- 局をまたいで同じ回をまとめる (#1498) 番組のうち、1 つの話に結びついたものの、しょぼいカレンダーの TID と話数 (設計書 3.8)。
 -- 2 話連続の放送のように、複数の話に結びついた番組は返さない。
 SELECT e.service_id, e.start_at, min(e.syobocal_tid)::integer AS syobocal_tid, min(e.count_start)::double precision AS count
 FROM program_anime_episodes e
@@ -37,16 +37,16 @@ GROUP BY e.service_id, e.start_at
 HAVING count(*) = 1 AND min(e.syobocal_tid) IS NOT NULL AND min(e.count_start) IS NOT NULL AND min(e.count_start) = min(e.count_end);
 
 -- name: ListConflictingReservedPrograms :many
--- 割り当ての結果が競合の、これから放送する番組の予約 (設計書 4.5)。同じ回を束ねるときに、録れない見込みの放送として扱う (#1498)。
+-- 割り当ての結果が競合の、これから放送する番組の予約 (設計書 4.5)。同じ回をまとめるときに、録れない見込みの放送として扱う (#1498)。
 SELECT service_id, event_id::bigint AS event_id
 FROM reservations
 WHERE assignment_state = 'conflict' AND event_id IS NOT NULL AND start_at > @now;
 
 -- name: ListRecordedEpisodes :many
--- 局をまたいで同じ回を束ねる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
+-- 局をまたいで同じ回をまとめる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
 -- ほかの録画ソフトから引き継いだもの (期間で切らない)、それに録画中の録画。
 -- 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4)。消した録画も、履歴は残る。
--- 同じ回の録画が複数あれば、照合は最初に一致したものを引くので、終わりが新しい順に決まった順で返す (#1985)。
+-- 同じ回の録画が複数あれば、照合は最初に一致したものを取得するので、終わりが新しい順に決まった順で返す (#1985)。
 SELECT h.service_id, h.name, h.description, h.series_episode, h.syobocal_tid, h.anime_count, h.end_at
 FROM recording_history h
 WHERE h.imported OR h.start_at >= @since
@@ -66,8 +66,8 @@ ORDER BY end_at DESC, service_id, name, description;
 -- name: ListRecordedEpisodesBySeries :many
 -- 前の回を録らない (#1499) ときの「録った回」。録画履歴のうち、シリーズ名が @series のどれかのものの全部 (期間で切らない) と、録画中の録画。
 -- 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4) ので、失敗した録画は含まない。消した録画も、履歴は残る。
--- 引き継いだ履歴も、録画履歴に入っている。シリーズ名は Go で読み直して比べるので、ここでは候補を絞るだけに使う。
--- シリーズ名がまだ埋まっていない (列を知らない古いバイナリが書いた) 履歴は、読み落とさないよう、すべて返す。
+-- 引き継いだ履歴も、録画履歴に入っている。シリーズ名は Go で読み直して比較するので、ここでは候補を絞るだけに使う。
+-- シリーズ名がまだ埋まっていない (カラムを知らない古いバイナリが書いた) 履歴は、読み落とさないよう、すべて返す。
 SELECT h.service_id, h.name, h.description, h.series_episode, h.start_at
 FROM recording_history h
 WHERE h.series = ANY(@series::text[]) OR h.series IS NULL

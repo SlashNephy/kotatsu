@@ -13,7 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
-// kyusuParts は、kyusu のライブ視聴と録画の仮想 HLS のセッションと、tenban からのリクエストを確かめるトークン。
+// kyusuParts は、kyusu のライブ視聴と録画の仮想 HLS のセッションと、tenban からのリクエストを確認するトークン。
 type kyusuParts struct {
 	token *kyusu.Token
 	live  *kyusu.Live
@@ -62,7 +62,7 @@ func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live
 	return parts.live, parts.vod, parts.token, nil
 }
 
-// newKyusuToken は、tenban だけが付けて kyusu に中継する、アプリの秘密キーから導いたトークンを作る。
+// newKyusuToken は、tenban だけが付けて kyusu にプロキシする、アプリの秘密キーから導いたトークンを作る。
 func newKyusuToken(secret appSecret) (*kyusu.Token, error) {
 	token, err := kyusu.NewToken(string(secret))
 	if errors.Is(err, kyusu.ErrNoKey) {
@@ -77,7 +77,7 @@ func kyusuLoggerOf(logger *slog.Logger) kyusuLogger {
 }
 
 // newKyusuLive は、ライブ視聴の仮想 HLS のセッションを作る。トランスコーダーがなければ、エンコーダーを渡さない。
-// 型付きの nil を interface に入れると nil と比べられなくなるので、nil なら interface の nil を渡す。
+// 型付きの nil を interface に入れると nil と比較できなくなるので、nil なら interface の nil を渡す。
 func newKyusuLive(deps *Deps, logger kyusuLogger, opener kyusu.ServiceOpener, transcoder *kyusu.Transcoder) (*kyusu.Live, error) {
 	var encoder kyusu.Encoder
 	if transcoder != nil {
@@ -100,7 +100,7 @@ func newKyusuVOD(deps *Deps, logger kyusuLogger, transcoder *kyusu.Transcoder) (
 	return kyusu.NewVOD(&kyusu.VODOptions{
 		Opener:    stream.NewRecordingSource(deps.DB, storeOf(deps.Config), 0),
 		Timeshift: stream.NewTimeshiftSource(deps.DB, storeOf(deps.Config), 0),
-		// ライブラリのファイルの索引は、tenban が作る。kyusu は読むだけにする (設計書 5.8)。
+		// ライブラリのファイルのインデックスは、tenban が作る。kyusu は読むだけにする (設計書 5.8)。
 		Library: newLibraryParts(deps, (*slog.Logger)(logger), false).source,
 		Encoder: encoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: (*slog.Logger)(logger), IdleTimeout: 0, MaxSessions: 0,
 	})

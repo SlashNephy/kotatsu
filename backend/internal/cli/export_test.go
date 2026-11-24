@@ -25,7 +25,7 @@ func SourceWithPassword(source string, env map[string]string) (string, error) {
 	})
 }
 
-// ErrSourcePassword は、テストから errSourcePassword と比べるために公開する。
+// ErrSourcePassword は、テストから errSourcePassword と比較するために公開する。
 var ErrSourcePassword = errSourcePassword
 
 // Traceable は、テストから traceable を呼ぶために公開する。

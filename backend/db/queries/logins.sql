@@ -52,5 +52,5 @@ DELETE FROM login_challenges WHERE user_id = @user_id;
 
 -- name: TryLockLoginKey :one
 -- 試行回数の制限のキーを、トランザクションの終わりまでロックする。ほかの試行がロックしていれば、待たずに false を返す。
--- 同じアカウントか IP の試行を 1 つずつ確かめ、同時に送った試行が、前の失敗を見ずに待ち時間を素通りしないようにする。
+-- 同じアカウントか IP の試行を 1 つずつ確認し、同時に送った試行が、前の失敗を見ずに待ち時間を素通りしないようにする。
 SELECT pg_try_advisory_xact_lock(hashtext('kotatsu.login'), hashtext(@key::text))::boolean AS locked;

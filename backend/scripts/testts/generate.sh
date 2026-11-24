@@ -22,7 +22,7 @@ ffmpeg -hide_banner -loglevel error -y \
   -mpegts_pmt_start_pid 0x01F0 -mpegts_start_pid 0x0111 \
   "${raw}"
 
-# FFmpeg の SDT を捨て、ARIB の文字符号で書いた SDT、EIT[p/f]、TOT を差し込む。
+# FFmpeg の SDT を破棄し、ARIB の文字符号で書いた SDT、EIT[p/f]、TOT を差し込む。
 tsp \
   -I file "${raw}" \
   -P filter --negate --pid 0x11 \

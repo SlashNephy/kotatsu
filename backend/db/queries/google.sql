@@ -33,7 +33,7 @@ ON CONFLICT (id) DO UPDATE SET
   connected_at = EXCLUDED.connected_at, revoked_at = NULL;
 
 -- name: MarkGoogleDriveConnectionRevoked :execrows
--- 取り消されたと分かったリフレッシュトークンの接続にだけ印を付ける。接続し直した後の行には付けない。
+-- 取り消されたと分かったリフレッシュトークンの接続にだけマークを付ける。接続し直した後の行には付けない。
 UPDATE google_drive_connections SET revoked_at = @now
 WHERE id = 1 AND refresh_token_encrypted = @refresh_token_encrypted AND revoked_at IS NULL;
 

@@ -68,7 +68,7 @@ type UpsertJobProgressParams struct {
 	Now         time.Time
 }
 
-// 動いているジョブの進み具合を書く (#1511)。試し直したら、前の試行の値を置き換える。
+// 動いているジョブの進み具合を書く (#1511)。再試行したら、前の試行の値を置き換える。
 func (q *Queries) UpsertJobProgress(ctx context.Context, arg UpsertJobProgressParams) error {
 	_, err := q.db.Exec(ctx, upsertJobProgress,
 		arg.JobID,

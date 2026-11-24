@@ -45,7 +45,7 @@ type Program struct {
 	RelatedItems []byte
 }
 
-// ProgramCandidate は、番組の検索の候補。照合に使う、正規化した列も持つ。
+// ProgramCandidate は、番組の検索の候補。照合に使う、正規化したカラムも持つ。
 type ProgramCandidate struct {
 	Archived              bool
 	ServiceID             int64

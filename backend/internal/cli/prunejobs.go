@@ -39,7 +39,7 @@ func newAuditPruneWorker(pool *pgxpool.Pool, clk clock.Clock) *audit.PruneWorker
 	})
 }
 
-// newNotificationPruneWorker は、配り終えた通知を、画面から変えられる保持期間を過ぎたら消す Worker を作る (#551)。
+// newNotificationPruneWorker は、配信し終えた通知を、画面から変えられる保持期間を過ぎたら消す Worker を作る (#551)。
 func newNotificationPruneWorker(pool *pgxpool.Pool, clk clock.Clock) *notification.PruneWorker {
 	return notification.NewPruneWorker(pool, clk, func(ctx context.Context) (time.Duration, error) {
 		system, err := settings.Load(ctx, pool)

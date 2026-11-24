@@ -48,7 +48,7 @@ func (w *pingWorker) Work(context.Context, *river.Job[pingArgs]) error {
 	return nil
 }
 
-// TestNekonoteWorksJobs は、kotatsu nekonote が本物の DB で River のジョブを実行し、止まることを確かめる。
+// TestNekonoteWorksJobs は、kotatsu nekonote が本物の DB で River のジョブを実行し、止まることを確認する。
 func TestNekonoteWorksJobs(t *testing.T) {
 	t.Parallel()
 
@@ -107,7 +107,7 @@ func TestNekonoteWorksJobs(t *testing.T) {
 	assert.NoError(t, <-done)
 }
 
-// TestNekonotePrunesAuditEvents は、既定の nekonote が、保持期間を過ぎた監査ログを起動時に消すことを確かめる。
+// TestNekonotePrunesAuditEvents は、既定の nekonote が、保持期間を過ぎた監査ログを起動時に消すことを確認する。
 func TestNekonotePrunesAuditEvents(t *testing.T) {
 	t.Parallel()
 
@@ -174,7 +174,7 @@ func TestNekonotePrunesAuditEvents(t *testing.T) {
 	assert.NoError(t, <-done)
 }
 
-// TestNekonoteDispatchesNotifications は、既定の nekonote が、記録された通知するイベントを、ユーザーの画面内の通知に配ることを確かめる (設計書 6.2)。
+// TestNekonoteDispatchesNotifications は、既定の nekonote が、記録された通知するイベントを、ユーザーの画面内の通知に配信することを確認する (設計書 6.2)。
 func TestNekonoteDispatchesNotifications(t *testing.T) {
 	t.Parallel()
 
@@ -212,7 +212,7 @@ func TestNekonoteDispatchesNotifications(t *testing.T) {
 		done <- cmd.ExecuteContext(ctx)
 	}()
 
-	// 配りの定期ジョブは起動時にも走るので、イベントがユーザーの通知になるのを待つ。
+	// 配信の定期ジョブは起動時にも走るので、イベントがユーザーの通知になるのを待つ。
 	deadline := time.After(30 * time.Second)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()

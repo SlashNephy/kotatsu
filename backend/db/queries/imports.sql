@@ -7,7 +7,7 @@ INSERT INTO import_sources (source, kind, source_id, target_id, created_at)
 VALUES (@source, @kind, @source_id, @target_id, @now);
 
 -- name: ListServiceIDs :many
--- 取り込むデータが参照するサービスが、Kotatsu にあるかを確かめるのに使う。
+-- 取り込むデータが参照するサービスが、Kotatsu にあるかを確認するのに使う。
 SELECT id FROM services ORDER BY id;
 
 -- name: InsertImportedRecording :exec

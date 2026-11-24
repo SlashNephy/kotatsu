@@ -24,7 +24,7 @@ type CopyDramaTitleOverrideParams struct {
 	FromKey string
 }
 
-// 作品名の鍵 from_key の上書きを、鍵 to_key に写す (#1978)。to_key に上書きがあれば、そちらを残す。
+// 作品名のキー from_key の上書きを、キー to_key にコピーする (#1978)。to_key に上書きがあれば、そちらを残す。
 func (q *Queries) CopyDramaTitleOverride(ctx context.Context, arg CopyDramaTitleOverrideParams) error {
 	_, err := q.db.Exec(ctx, copyDramaTitleOverride, arg.ToKey, arg.FromKey)
 	return err
@@ -48,7 +48,7 @@ type CopyProgramDramaMatchToRecordingParams struct {
 	StartAt     time.Time
 }
 
-// 番組 (service_id, start_at) の結びつきを、録画 recording_id に写す。番組をまだ照合していなければ、何もしない。
+// 番組 (service_id, start_at) の結びつきを、録画 recording_id にコピーする。番組をまだ照合していなければ、何もしない。
 func (q *Queries) CopyProgramDramaMatchToRecording(ctx context.Context, arg CopyProgramDramaMatchToRecordingParams) (int64, error) {
 	result, err := q.db.Exec(ctx, copyProgramDramaMatchToRecording,
 		arg.RecordingID,
@@ -112,7 +112,7 @@ WHERE o.title_key = $1::text
   AND NOT EXISTS (SELECT 1 FROM program_drama_matches m WHERE m.title_key = o.title_key)
 `
 
-// 作品名の鍵 key の上書きを、その鍵の番組の結びつきがなければ消す (#1978)。
+// 作品名のキー key の上書きを、そのキーの番組の結びつきがなければ消す (#1978)。
 func (q *Queries) DeleteUnusedDramaTitleOverride(ctx context.Context, key string) error {
 	_, err := q.db.Exec(ctx, deleteUnusedDramaTitleOverride, key)
 	return err
@@ -407,8 +407,8 @@ type ListProgramDramaMatchTitleKeysRow struct {
 	Name      string
 }
 
-// 番組の結びつきの作品名の鍵と、番組表かアーカイブにある番組名を、(service_id, start_at) が after より後のものから順に max_count 件返す (#1978)。
-// kotatsu migrate が鍵を作り直すのに使う。番組名のない結びつきは返さない。
+// 番組の結びつきの作品名のキーと、番組表かアーカイブにある番組名を、(service_id, start_at) が after より後のものから順に max_count 件返す (#1978)。
+// kotatsu migrate がキーを作り直すのに使う。番組名のない結びつきは返さない。
 func (q *Queries) ListProgramDramaMatchTitleKeys(ctx context.Context, arg ListProgramDramaMatchTitleKeysParams) ([]ListProgramDramaMatchTitleKeysRow, error) {
 	rows, err := q.db.Query(ctx, listProgramDramaMatchTitleKeys, arg.AfterServiceID, arg.AfterStartAt, arg.MaxCount)
 	if err != nil {
@@ -616,7 +616,7 @@ type RekeyProgramDramaMatchParams struct {
 	StartAt   time.Time
 }
 
-// 番組の結びつきの作品名の鍵を書き直し、確定を外して、次の照合で照合し直させる (#1978)。
+// 番組の結びつきの作品名のキーを書き直し、確定を外して、次の照合で照合し直させる (#1978)。
 func (q *Queries) RekeyProgramDramaMatch(ctx context.Context, arg RekeyProgramDramaMatchParams) error {
 	_, err := q.db.Exec(ctx, rekeyProgramDramaMatch, arg.TitleKey, arg.ServiceID, arg.StartAt)
 	return err

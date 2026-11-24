@@ -4,11 +4,11 @@ import (
 	"slices"
 )
 
-// nameGramMark は、番組名から作った gram の頭に付ける印。番組名と概要の両方から作る gram と見分ける。
+// nameGramMark は、番組名から作った gram の先頭に付けるマーク。番組名と概要の両方から作る gram と見分ける。
 // 番組の文字列は NFKC で正規化してあり、制御文字は出てこないので、本文の gram と重ならない。
 const nameGramMark = "\x01"
 
-// SearchGrams は、番組の検索の索引に入れる gram を返す (#966)。番組名だけの gram (印を付ける) と、番組名と概要と詳細の gram を入れる。
+// SearchGrams は、番組の検索のインデックスに入れる gram を返す (#966)。番組名だけの gram (マークを付ける) と、番組名と概要と詳細の gram を入れる。
 // nameNormalized、descriptionNormalized、extendedNormalized は、正規化した番組名、概要、詳細 (domain.Normalize、domain.NormalizeExtended)。
 // 照合関数と同じく、大文字と小文字を畳んでから作る。
 // gram は、1 文字と、続く 2 文字。キーワードが番組の項目に含まれれば、キーワードの gram (KeywordGrams) は、その項目の gram にすべて含まれる。

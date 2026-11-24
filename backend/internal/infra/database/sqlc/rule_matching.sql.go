@@ -100,7 +100,7 @@ type ListConflictingReservedProgramsRow struct {
 	EventID   int64
 }
 
-// 割り当ての結果が競合の、これから放送する番組の予約 (設計書 4.5)。同じ回を束ねるときに、録れない見込みの放送として扱う (#1498)。
+// 割り当ての結果が競合の、これから放送する番組の予約 (設計書 4.5)。同じ回をまとめるときに、録れない見込みの放送として扱う (#1498)。
 func (q *Queries) ListConflictingReservedPrograms(ctx context.Context, now time.Time) ([]ListConflictingReservedProgramsRow, error) {
 	rows, err := q.db.Query(ctx, listConflictingReservedPrograms, now)
 	if err != nil {
@@ -291,7 +291,7 @@ type ListMatchableProgramsRow struct {
 
 // ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 // 映像か音声を流すサービス (media_service_types) の番組だけを対象にする。
-// 照合には正規化した列を使う。詳細の正規化した列がない (列を足す前に書いた) 番組だけ、上流の詳細を返す (#530)。
+// 照合には正規化したカラムを使う。詳細の正規化したカラムがない (カラムを足す前に書いた) 番組だけ、上流の詳細を返す (#530)。
 func (q *Queries) ListMatchablePrograms(ctx context.Context, arg ListMatchableProgramsParams) ([]ListMatchableProgramsRow, error) {
 	rows, err := q.db.Query(ctx, listMatchablePrograms, arg.Now, arg.MediaServiceTypes)
 	if err != nil {
@@ -348,7 +348,7 @@ type ListProgramAnimeEpisodesForBundlingRow struct {
 	Count       float64
 }
 
-// 局をまたいで同じ回を束ねる (#1498) 番組のうち、1 つの話に結びついたものの、しょぼいカレンダーの TID と話数 (設計書 3.8)。
+// 局をまたいで同じ回をまとめる (#1498) 番組のうち、1 つの話に結びついたものの、しょぼいカレンダーの TID と話数 (設計書 3.8)。
 // 2 話連続の放送のように、複数の話に結びついた番組は返さない。
 func (q *Queries) ListProgramAnimeEpisodesForBundling(ctx context.Context, arg ListProgramAnimeEpisodesForBundlingParams) ([]ListProgramAnimeEpisodesForBundlingRow, error) {
 	rows, err := q.db.Query(ctx, listProgramAnimeEpisodesForBundling, arg.ServiceIds, arg.StartAts)
@@ -403,10 +403,10 @@ type ListRecordedEpisodesRow struct {
 	EndAt         time.Time
 }
 
-// 局をまたいで同じ回を束ねる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
+// 局をまたいで同じ回をまとめる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
 // ほかの録画ソフトから引き継いだもの (期間で切らない)、それに録画中の録画。
 // 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4)。消した録画も、履歴は残る。
-// 同じ回の録画が複数あれば、照合は最初に一致したものを引くので、終わりが新しい順に決まった順で返す (#1985)。
+// 同じ回の録画が複数あれば、照合は最初に一致したものを取得するので、終わりが新しい順に決まった順で返す (#1985)。
 func (q *Queries) ListRecordedEpisodes(ctx context.Context, since time.Time) ([]ListRecordedEpisodesRow, error) {
 	rows, err := q.db.Query(ctx, listRecordedEpisodes, since)
 	if err != nil {
@@ -456,8 +456,8 @@ type ListRecordedEpisodesBySeriesRow struct {
 
 // 前の回を録らない (#1499) ときの「録った回」。録画履歴のうち、シリーズ名が @series のどれかのものの全部 (期間で切らない) と、録画中の録画。
 // 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4) ので、失敗した録画は含まない。消した録画も、履歴は残る。
-// 引き継いだ履歴も、録画履歴に入っている。シリーズ名は Go で読み直して比べるので、ここでは候補を絞るだけに使う。
-// シリーズ名がまだ埋まっていない (列を知らない古いバイナリが書いた) 履歴は、読み落とさないよう、すべて返す。
+// 引き継いだ履歴も、録画履歴に入っている。シリーズ名は Go で読み直して比較するので、ここでは候補を絞るだけに使う。
+// シリーズ名がまだ埋まっていない (カラムを知らない古いバイナリが書いた) 履歴は、読み落とさないよう、すべて返す。
 func (q *Queries) ListRecordedEpisodesBySeries(ctx context.Context, series []string) ([]ListRecordedEpisodesBySeriesRow, error) {
 	rows, err := q.db.Query(ctx, listRecordedEpisodesBySeries, series)
 	if err != nil {

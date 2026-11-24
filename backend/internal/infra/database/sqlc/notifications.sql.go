@@ -39,8 +39,8 @@ type DeleteNotificationEventsBeforeParams struct {
 	MaxCount int32
 }
 
-// 配り終えた通知のイベントのうち、before より前に起きたものを、max_count 件まで消す。ユーザーごとの通知も一緒に消える。
-// まだ配っていないイベントは消さない。
+// 配信し終えた通知のイベントのうち、before より前に起きたものを、max_count 件まで消す。ユーザーごとの通知も一緒に消える。
+// まだ配信していないイベントは消さない。
 func (q *Queries) DeleteNotificationEventsBefore(ctx context.Context, arg DeleteNotificationEventsBeforeParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteNotificationEventsBefore, arg.Before, arg.MaxCount)
 	if err != nil {
@@ -193,7 +193,7 @@ type InsertNotificationsParams struct {
 	Now     time.Time
 }
 
-// イベント event_id を、ユーザー user_ids に配る。ids と user_ids は同じ順に並べる。
+// イベント event_id を、ユーザー user_ids に配信する。ids と user_ids は同じ順に並べる。
 func (q *Queries) InsertNotifications(ctx context.Context, arg InsertNotificationsParams) error {
 	_, err := q.db.Exec(ctx, insertNotifications,
 		arg.Ids,
@@ -348,7 +348,7 @@ LIMIT $1
 FOR UPDATE SKIP LOCKED
 `
 
-// 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
+// 配信していないイベントを、古い順に取得し、ロックする。ほかの nekonote が同じイベントを配信しないよう、ロック中の行は飛ばす。
 func (q *Queries) ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error) {
 	rows, err := q.db.Query(ctx, listPendingNotificationEvents, maxCount)
 	if err != nil {

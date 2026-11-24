@@ -24,7 +24,7 @@ func SameSeries(a, b *Episode) bool {
 	return a.Work != "" && a.Work == b.Work && ((a.Arc == "" && !b.HasSeason) || (b.Arc == "" && !a.HasSeason))
 }
 
-// subtitlesConflict は、確かな副題どうしが食い違っているかどうかを返す。
+// subtitlesConflict は、確かなサブタイトルどうしが食い違っているかどうかを返す。
 func subtitlesConflict(a, b *Episode) bool {
 	return a.Subtitle != "" && b.Subtitle != "" && !a.UncertainSubtitle && !b.UncertainSubtitle && a.Subtitle != b.Subtitle
 }
@@ -60,8 +60,8 @@ func Same(a, b *Episode) bool {
 	if same, decided := sameAnime(a, b); decided {
 		return same
 	}
-	// 片方だけがしょぼいカレンダーの話に結びついたときは、番組名で回が分かる側どうしだけを比べる。
-	// 話数も副題も読めない側を番組名の規則で比べると、シリーズが同じだけで、どの回とも同じ回になる。
+	// 片方だけがしょぼいカレンダーの話に結びついたときは、番組名で回が分かる側どうしだけを比較する。
+	// 話数もサブタイトルも読めない側を番組名の規則で比較すると、シリーズが同じだけで、どの回とも同じ回になる。
 	if !a.knownByTitle() || !b.knownByTitle() {
 		return false
 	}
@@ -80,7 +80,7 @@ func Same(a, b *Episode) bool {
 		return true
 	}
 
-	// 副題が一致してシリーズ名が違うときは、片方の芯がもう片方のシリーズ名に含まれれば同じ回とする。
+	// サブタイトルが一致してシリーズ名が違うときは、片方の芯がもう片方のシリーズ名に含まれれば同じ回とする。
 	return coreContained(a, b) || coreContained(b, a)
 }
 
@@ -88,13 +88,13 @@ func coreContained(a, b *Episode) bool {
 	return utf8.RuneCountInString(a.Core) >= MinCoreLength && strings.Contains(b.Series, a.Core)
 }
 
-// certainlySame は、2 つの回が確かに同じ回かどうかを返す。束ね方の最初に、推移的につなぐのに使う。
+// certainlySame は、2 つの回が確かに同じ回かどうかを返す。まとめ方の最初に、推移的につなぐのに使う。
 func certainlySame(a, b *Episode) bool {
 	if same, decided := sameAnime(a, b); decided {
 		return same
 	}
-	// 片方だけがしょぼいカレンダーの話に結びついたときは、番組名で回が分かる側どうしだけを比べる。
-	// 話数も副題も読めない側を番組名の規則で比べると、シリーズが同じだけで、どの回とも同じ回になる。
+	// 片方だけがしょぼいカレンダーの話に結びついたときは、番組名で回が分かる側どうしだけを比較する。
+	// 話数もサブタイトルも読めない側を番組名の規則で比較すると、シリーズが同じだけで、どの回とも同じ回になる。
 	if !a.knownByTitle() || !b.knownByTitle() {
 		return false
 	}
@@ -121,7 +121,7 @@ func weeklyKey(fingerprint string) string {
 }
 
 // SuppressWeeklySummaries は、毎週同じ概要 (番組紹介) を、関わる回の概要の指紋から除く。
-// 同じ鍵の中で話数が 2 種類以上あれば、その概要は回を見分けないので使わない。episodes の指紋を書き換える。
+// 同じキーの中で話数が 2 種類以上あれば、その概要は回を見分けないので使わない。episodes の指紋を書き換える。
 func SuppressWeeklySummaries(episodes []*Episode) {
 	numbers := map[string]map[int]bool{}
 	for _, ep := range episodes {

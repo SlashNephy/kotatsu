@@ -10,7 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/cli"
 )
 
-// TestTraceable は、パスに秘密の値を含む予約の iCalendar (#1255) と IPTV の配信 (#1324) を、トレースに残さないことを確かめる。
+// TestTraceable は、パスに秘密の値を含む予約の iCalendar (#1255) と IPTV の配信 (#1324) を、トレースに残さないことを確認する。
 func TestTraceable(t *testing.T) {
 	t.Parallel()
 
