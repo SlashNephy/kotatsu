@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// DestinationSimkl は、記録先の名前。DB の destination の列と同じ。
+	// DestinationSimkl は、記録先の名前。DB の destination のカラムと同じ。
 	DestinationSimkl = "simkl"
 	// requestTimeout は、記録先への 1 回の問い合わせの時間の上限。
 	requestTimeout = 20 * time.Second
@@ -79,9 +79,9 @@ type Recorded struct {
 	Status string
 }
 
-// Activities は、ウォッチリストが変わったかを確かめる、記録先の最後に変わった日時。記録先が返した文字列のまま持つ。
+// Activities は、ウォッチリストが変わったかを確認する、記録先の最後に変わった日時。記録先が返した文字列のまま持つ。
 type Activities struct {
-	// All は、すべての変更のうち、最も新しいもの。差分を引くときの date_from に渡す。
+	// All は、すべての変更のうち、最も新しいもの。差分を取得するときの date_from に渡す。
 	All string
 	// RemovedFromList は、テレビの作品をウォッチリストから外した、最も新しい日時。
 	RemovedFromList string
@@ -110,13 +110,13 @@ const (
 type Destination interface {
 	// Name は、記録先の名前 (DestinationSimkl など)。
 	Name() string
-	// Issuer は、認可の応答の iss に入る、記録先の認可サーバーの識別子。別のサーバーの応答を取り違えないよう、戻ってきたときに比べる。
+	// Issuer は、認可の応答の iss に入る、記録先の認可サーバーの識別子。別のサーバーの応答を取り違えないよう、戻ってきたときに比較する。
 	Issuer() string
 	// AuthCodeURL は、利用者を送り出す、記録先の認可のエンドポイントの URL を返す。PKCE (S256) を使う。
 	AuthCodeURL(app *App, redirectURI, state, verifier string) string
 	// Exchange は、認可コードをトークンと引き換える。書き込める権限がなければ、ErrPermanent を包んで返す。
 	Exchange(ctx context.Context, app *App, redirectURI, code, verifier string) (*Token, error)
-	// Refresh は、更新のトークンで、新しいアクセストークンを引く。更新のトークンが断られたら ErrReauthorizationRequired を返す。
+	// Refresh は、更新のトークンで、新しいアクセストークンを取得する。更新のトークンが断られたら ErrReauthorizationRequired を返す。
 	Refresh(ctx context.Context, app *App, refreshToken string) (*Token, error)
 	// AccountName は、トークンの持ち主の、記録先でのアカウントの名前を返す。
 	AccountName(ctx context.Context, app *App, accessToken string) (string, error)

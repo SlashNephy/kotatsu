@@ -20,7 +20,7 @@ import (
 // driveFolder は、テストの Drive のフォルダの ID。
 const driveFolder = "folder-1"
 
-// driveTokens は、偽の Google が発行したアクセストークンを返す。
+// driveTokens は、モックの Google が発行したアクセストークンを返す。
 type driveTokens struct {
 	server *googletest.Server
 	token  string
@@ -36,8 +36,8 @@ func (t *driveTokens) Token(context.Context) (string, error) {
 
 func (t *driveTokens) Invalidate() { t.token = "" }
 
-// TestSourceGoogleDrive は、Google Drive のファイルを、ローカルのファイルと同じく開いて索引を作れることと、
-// ライブラリやパスが違っても、同じファイルなら索引とファイルの ID を分けないことを確かめる (#1902)。
+// TestSourceGoogleDrive は、Google Drive のファイルを、ローカルのファイルと同じく開いてインデックスを作れることと、
+// ライブラリやパスが違っても、同じファイルならインデックスとファイルの ID を分けないことを確認する (#1902)。
 func TestSourceGoogleDrive(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +76,7 @@ func TestSourceGoogleDrive(t *testing.T) {
 	assert.Equal(t, "mpeg2", file.Index.Video.Codec)
 	assert.Equal(t, showTS, file.Entry.Name)
 
-	// 別のライブラリから開いても、索引を使い回し、同じ ID にする。ライブラリの名前を変えたときと同じ。
+	// 別のライブラリから開いても、インデックスを使い回し、同じ ID にする。ライブラリの名前を変えたときと同じ。
 	other, err := source.Open(t.Context(), filelib.Ref{Library: animeLibrary, Path: showTS})
 	require.NoError(t, err)
 	assert.True(t, other.Index.Complete)

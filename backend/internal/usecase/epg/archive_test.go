@@ -18,7 +18,7 @@ import (
 
 func noGuard(context.Context, pgx.Tx) error { return nil }
 
-// TestArchiverMovesProgramsAfterGrace は、放送の終わりから猶予が過ぎた番組だけを program_archives へ移すことを確かめる。
+// TestArchiverMovesProgramsAfterGrace は、放送の終わりから猶予が過ぎた番組だけを program_archives へ移すことを確認する。
 // 同期した時点 (12:10) で、eventId 1 (11:00〜11:30) と 2 (11:30〜12:00) は放送が終わっている。
 func TestArchiverMovesProgramsAfterGrace(t *testing.T) {
 	t.Parallel()
@@ -48,9 +48,9 @@ func TestArchiverMovesProgramsAfterGrace(t *testing.T) {
 
 			assert.Equal(t, int64(tt.wantArchived), result.Archived)
 			assert.Equal(t, tt.wantArchived, f.count(t, "SELECT count(*) FROM program_archives"))
-			// 検索で正規化し直さないよう、詳細の正規化した列も移す (#852)。
+			// 検索で正規化し直さないよう、詳細の正規化したカラムも移す (#852)。
 			assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE extended_normalized IS NULL"))
-			// 番組の検索の gram (#966) も移す。移さないと、アーカイブで埋め直すまで、索引で絞れない。
+			// 番組の検索の gram (#966) も移す。移さないと、アーカイブで埋め直すまで、インデックスで絞れない。
 			assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE search_grams IS NULL"))
 			// 移した番組は programs に残らない。
 			assert.Equal(t, fixturePrograms-tt.wantArchived, f.count(t, "SELECT count(*) FROM programs"))
@@ -58,7 +58,7 @@ func TestArchiverMovesProgramsAfterGrace(t *testing.T) {
 	}
 }
 
-// TestArchiverSkipsProgramsRemovedBeforeBroadcast は、放送前に予定から消えた番組をアーカイブしないことを確かめる。
+// TestArchiverSkipsProgramsRemovedBeforeBroadcast は、放送前に予定から消えた番組をアーカイブしないことを確認する。
 func TestArchiverSkipsProgramsRemovedBeforeBroadcast(t *testing.T) {
 	t.Parallel()
 
@@ -78,7 +78,7 @@ func TestArchiverSkipsProgramsRemovedBeforeBroadcast(t *testing.T) {
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE service_id = $1 AND event_id = 5", serviceID()))
 }
 
-// TestArchiverArchivesProgramsWithUndecidedEnd は、終了時刻が未定のまま残った番組も、開始から猶予が過ぎたら移すことを確かめる。
+// TestArchiverArchivesProgramsWithUndecidedEnd は、終了時刻が未定のまま残った番組も、開始から猶予が過ぎたら移すことを確認する。
 func TestArchiverArchivesProgramsWithUndecidedEnd(t *testing.T) {
 	t.Parallel()
 
@@ -98,7 +98,7 @@ func TestArchiverArchivesProgramsWithUndecidedEnd(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM program_archives WHERE event_id = 200 AND end_undecided"))
 }
 
-// TestArchiverPrunesInBatches は、保持期間を過ぎたアーカイブを、少しずつ (BatchSize 件ずつ) すべて消すことを確かめる。
+// TestArchiverPrunesInBatches は、保持期間を過ぎたアーカイブを、少しずつ (BatchSize 件ずつ) すべて消すことを確認する。
 func TestArchiverPrunesInBatches(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +106,7 @@ func TestArchiverPrunesInBatches(t *testing.T) {
 		name      string
 		retention time.Duration
 		// fromFunc なら、保持期間を RetentionFunc から返し、Retention には残す期間 (7 日) を入れる。
-		// 画面から変えた保持期間が、起動時の値より優先されることを確かめる。
+		// 画面から変えた保持期間が、起動時の値より優先されることを確認する。
 		fromFunc   bool
 		wantPruned int
 	}{
@@ -125,7 +125,7 @@ func TestArchiverPrunesInBatches(t *testing.T) {
 			require.NoError(t, err)
 			opts := &epg.ArchiverOptions{
 				Retention: tt.retention,
-				// 番組の数より小さくして、何回かに分けて移し、消すことを確かめる。
+				// 番組の数より小さくして、何回かに分けて移し、消すことを確認する。
 				BatchSize: 7,
 			}
 			if tt.fromFunc {
@@ -143,7 +143,7 @@ func TestArchiverPrunesInBatches(t *testing.T) {
 	}
 }
 
-// TestArchiverRetentionError は、保持期間を引けなければ、アーカイブを消さずにエラーを返すことを確かめる。
+// TestArchiverRetentionError は、保持期間を引けなければ、アーカイブを消さずにエラーを返すことを確認する。
 func TestArchiverRetentionError(t *testing.T) {
 	t.Parallel()
 

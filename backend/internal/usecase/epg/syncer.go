@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	// DefaultFullSyncInterval は、全量を突き合わせる間隔 (設計書の付録 A の初期値)。
+	// DefaultFullSyncInterval は、全量を照合する間隔 (設計書の付録 A の初期値)。
 	DefaultFullSyncInterval = 30 * time.Minute
 	// 以下は、設計書 3.3 の「下限」「バックオフ」「1〜2 秒分をまとめる」を具体化した値で、付録 A には無い。
-	// DefaultMinFullSyncInterval は、全量の突き合わせの間隔の下限。再接続が続いても、これより短い間隔では突き合わせない。
+	// DefaultMinFullSyncInterval は、全量の照合の間隔の下限。再接続が続いても、これより短い間隔では照合しない。
 	DefaultMinFullSyncInterval = time.Minute
 	// DefaultBatchWindow は、イベントをまとめて反映するまでに待つ時間。
 	DefaultBatchWindow = 1500 * time.Millisecond
@@ -46,15 +46,15 @@ type SyncerOptions struct {
 	StableAfter         time.Duration
 	// OnTunerEvent は、チューナーのイベントが届いたときに呼ぶ。チューナーの構成を取得し直させるのに使う。nil なら呼ばない。
 	OnTunerEvent func()
-	// OnFullSync は、全量の突き合わせを終えたときに、終えた時刻を渡して呼ぶ。/metrics で同期の遅れを示すのに使う。nil なら呼ばない。
+	// OnFullSync は、全量の照合を終えたときに、終えた時刻を渡して呼ぶ。/metrics で同期の遅れを示すのに使う。nil なら呼ばない。
 	OnFullSync func(at time.Time)
 }
 
-// Syncer は、全量の突き合わせとイベントの購読を組み合わせて、EPG を同期し続ける (設計書 3.3)。
+// Syncer は、全量の照合とイベントの購読を組み合わせて、EPG を同期し続ける (設計書 3.3)。
 //
-// イベントは「変化があった」という合図として扱い、変化のあったサービスの番組を取得し直して突き合わせる。
+// イベントは「変化があった」という合図として扱い、変化のあったサービスの番組を取得し直して照合する。
 // Mirakurun のイベントは取りこぼしや遅れがあり、番組の削除も届かないことがあるので、
-// データの正しさは、接続したときと定期的に行う全量の突き合わせで保証する。
+// データの正しさは、接続したときと定期的に行う全量の照合で保証する。
 type Syncer struct {
 	reconciler *Reconciler
 	events     EventSource
@@ -100,7 +100,7 @@ func cmpOr(v, fallback time.Duration) time.Duration {
 }
 
 // Run は、ctx が終わるまで同期を続ける。
-// 接続したときに全量を突き合わせ、その後はイベントを反映しつつ、定期的に全量を突き合わせる。
+// 接続したときに全量を照合し、その後はイベントを反映しつつ、定期的に全量を照合する。
 // 失敗したら待ってから接続し直し、失敗が続くと待つ時間を延ばす。
 func (s *Syncer) Run(ctx context.Context) error {
 	backoff := s.opts.BackoffInitial
@@ -126,7 +126,7 @@ func (s *Syncer) Run(ctx context.Context) error {
 	}
 }
 
-// connect は、全量を突き合わせてからイベントを購読し、ストリームが切れるまで反映する。
+// connect は、全量を照合してからイベントを購読し、ストリームが切れるまで反映する。
 // ストリームが StableAfter より長く続いたら stable を true にして返す。
 func (s *Syncer) connect(ctx context.Context) (bool, error) {
 	if err := s.syncAllIfDue(ctx); err != nil {
@@ -146,7 +146,7 @@ func (s *Syncer) connect(ctx context.Context) (bool, error) {
 	return s.clock.Now().Sub(opened) >= s.opts.StableAfter, err
 }
 
-// syncAllIfDue は、前回から MinFullSyncInterval 以上たっていれば全量を突き合わせる。
+// syncAllIfDue は、前回から MinFullSyncInterval 以上たっていれば全量を照合する。
 func (s *Syncer) syncAllIfDue(ctx context.Context) error {
 	if !s.lastFullSync.IsZero() && s.clock.Now().Sub(s.lastFullSync) < s.opts.MinFullSyncInterval {
 		return nil
@@ -169,7 +169,7 @@ func (s *Syncer) syncAll(ctx context.Context) error {
 	return nil
 }
 
-// consume は、ストリームのイベントを BatchWindow ごとにまとめて反映する。全量の突き合わせも定期的に行う。
+// consume は、ストリームのイベントを BatchWindow ごとにまとめて反映する。全量の照合も定期的に行う。
 func (s *Syncer) consume(ctx context.Context, stream tunerserver.EventStream) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -206,8 +206,8 @@ func (s *Syncer) consume(ctx context.Context, stream tunerserver.EventStream) er
 			if err := s.syncAll(ctx); err != nil {
 				return err
 			}
-			// 溜まっていたイベントの変化は、今の全量の突き合わせで反映済みなので捨てる。
-			// チューナーの構成は全量の突き合わせの対象ではないので、チューナーのイベントだけは知らせる。
+			// 溜まっていたイベントの変化は、今の全量の照合で反映済みなので破棄する。
+			// チューナーの構成は全量の照合の対象ではないので、チューナーのイベントだけは通知する。
 			if batch.tuners && s.opts.OnTunerEvent != nil {
 				s.opts.OnTunerEvent()
 			}
@@ -218,8 +218,8 @@ func (s *Syncer) consume(ctx context.Context, stream tunerserver.EventStream) er
 }
 
 // apply は、まとめたイベントを反映する。番組表の全体が変わったかもしれないときは全量を、サービスが変わったときはサービスの一覧を、
-// 番組が変わったときはそのサービスを突き合わせる。サービスの一覧で、増えたか変わったサービスがあれば、そのサービスの番組も突き合わせる。
-// サービスのイベントでは、全量を突き合わせない (#2035)。番組の正しさは、定期的な全量の突き合わせで保つ。
+// 番組が変わったときはそのサービスを照合する。サービスの一覧で、増えたか変わったサービスがあれば、そのサービスの番組も照合する。
+// サービスのイベントでは、全量を照合しない (#2035)。番組の正しさは、定期的な全量の照合で保つ。
 func (s *Syncer) apply(ctx context.Context, batch *eventBatch) error {
 	if batch.tuners && s.opts.OnTunerEvent != nil {
 		s.opts.OnTunerEvent()
@@ -284,9 +284,9 @@ func readEvents(ctx context.Context, stream tunerserver.EventStream, events chan
 type eventBatch struct {
 	// serviceIDs は、番組が変わったサービス。
 	serviceIDs map[int64]struct{}
-	// services は、サービスが変わったかどうか。サービスの一覧を突き合わせる。
+	// services は、サービスが変わったかどうか。サービスの一覧を照合する。
 	services bool
-	// all は、番組表の全体が変わったかもしれないかどうか。全量を突き合わせる。
+	// all は、番組表の全体が変わったかもしれないかどうか。全量を照合する。
 	all bool
 	// tuners は、チューナーのイベントが届いたかどうか。
 	tuners bool

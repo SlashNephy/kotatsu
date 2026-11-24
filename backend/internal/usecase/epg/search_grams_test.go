@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 )
 
-// TestSyncAllStoresSearchGrams は、同期が番組の検索の gram (#966) を書き、番組名か概要が変わったときだけ作り直すことを確かめる。
+// TestSyncAllStoresSearchGrams は、同期が番組の検索の gram (#966) を書き、番組名か概要が変わったときだけ作り直すことを確認する。
 func TestSyncAllStoresSearchGrams(t *testing.T) {
 	t.Parallel()
 
@@ -60,7 +60,7 @@ func TestSyncAllStoresSearchGrams(t *testing.T) {
 	assert.Equal(t, match.SearchGrams("猫の島", description, "出演者\nこたつ太郎\n"), grams())
 }
 
-// TestSyncAllFillsSearchGrams は、gram を埋めていない番組とアーカイブ (列を足す前に書いたもの) を、全量の突き合わせが埋めることを確かめる (#966)。
+// TestSyncAllFillsSearchGrams は、gram を埋めていない番組とアーカイブ (カラムを足す前に書いたもの) を、全量の照合が埋めることを確認する (#966)。
 func TestSyncAllFillsSearchGrams(t *testing.T) {
 	t.Parallel()
 
@@ -81,12 +81,12 @@ func TestSyncAllFillsSearchGrams(t *testing.T) {
 
 	result, err := f.reconciler.SyncAll(t.Context())
 	require.NoError(t, err)
-	// 中身は変わらないので、番組を書き直したとは数えない。
+	// 内容は変わらないので、番組を書き直したとは数えない。
 	assert.Equal(t, 0, result.ProgramsUpserted)
 	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM programs WHERE search_grams IS NULL"))
 	var archived []string
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT search_grams FROM program_archives WHERE event_id = 9000").Scan(&archived))
-	// 詳細を正規化した列のない番組は、上流の詳細から正規化して作る。
+	// 詳細を正規化したカラムのない番組は、上流の詳細から正規化して作る。
 	assert.Equal(t, match.SearchGrams("過去の番組", "猫が出る", "出演者\nABC太郎\n"), archived)
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE search_grams IS NULL"))
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM program_archives WHERE event_id = 9001 AND search_grams = '{}'"))

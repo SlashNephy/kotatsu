@@ -21,7 +21,7 @@ type LastKnownInstances struct {
 
 	mu    sync.Mutex
 	known map[string][]*registry.Instance
-	// unreachableAt は、最後に DB に届かずに覚えた一覧を返した時刻。DB に届くようになった直後の扱いに使う。
+	// unreachableAt は、最後に DB に届かずにキャッシュした一覧を返した時刻。DB に届くようになった直後の扱いに使う。
 	unreachableAt time.Time
 	degraded      bool
 
@@ -39,7 +39,7 @@ func NewLastKnownInstances(instances Instances, clk clock.Clock, logger *slog.Lo
 	}
 }
 
-// ListAlive は、role のインスタンスを引く。DB に届かなければ、最後に引けた一覧を返す。
+// ListAlive は、role のインスタンスを取得する。DB に届かなければ、最後に取得できた一覧を返す。
 // DB に届くようになった直後は、止まっていた間にハートビートを書けなかったインスタンスが、まだ止まったように見える。
 // そこで、DB に届かなかったときから registry.AliveTTL の間は、引けた一覧が空なら、最後に引けた一覧を返す。
 func (l *LastKnownInstances) ListAlive(ctx context.Context, role string) ([]*registry.Instance, error) {

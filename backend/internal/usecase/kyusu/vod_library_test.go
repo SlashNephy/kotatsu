@@ -24,7 +24,7 @@ import (
 // libraryName は、テストのライブラリの名前。
 const libraryName = "lib"
 
-// runIndexer は、テストを終えるときに、索引を作る処理を止めてから一時ディレクトリを消させる。
+// runIndexer は、テストを終えるときに、インデックスを作る処理を止めてから一時ディレクトリを消させる。
 func runIndexer(t *testing.T, indexer *filelib.Indexer) {
 	t.Helper()
 
@@ -40,8 +40,8 @@ func runIndexer(t *testing.T, indexer *filelib.Indexer) {
 	})
 }
 
-// TestVODLibraryPlaylist は、ライブラリのファイルの仮想 HLS のプレイリストを、tenban が作った索引から作ることを確かめる (#1734)。
-// 索引がまだなければ 503 を返す。kyusu は索引を作らない。
+// TestVODLibraryPlaylist は、ライブラリのファイルの仮想 HLS のプレイリストを、tenban が作ったインデックスから作ることを確認する (#1734)。
+// インデックスがまだなければ 503 を返す。kyusu はインデックスを作らない。
 func TestVODLibraryPlaylist(t *testing.T) {
 	t.Parallel()
 
@@ -52,7 +52,7 @@ func TestVODLibraryPlaylist(t *testing.T) {
 	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
 	clk := clocktest.NewFake(time.Now().Add(time.Hour))
 	logger := slog.New(slog.DiscardHandler)
-	// tenban の Indexer で、show.ts の索引を作っておく。
+	// tenban の Indexer で、show.ts のインデックスを作っておく。
 	indexer := filelib.NewIndexer(dataDir, libraries, clk, logger, true)
 	runIndexer(t, indexer)
 	tenban := filelib.NewSource(libraries, indexer)

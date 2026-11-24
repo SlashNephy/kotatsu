@@ -204,7 +204,7 @@ func readRecordings(ctx context.Context, tx *sql.Tx) ([]*Recording, error) {
 		recording.Description = description.String
 		recording.Extended = extended.String
 		recording.Genres = genresOf([][2]sql.NullInt64{{genre1, subGenre1}, {genre2, subGenre2}, {genre3, subGenre3}})
-		// drop_log_file の 3 つの列は NOT NULL なので、どれかが NULL なら LEFT JOIN で行が無かったことになる。
+		// drop_log_file の 3 つのカラムは NOT NULL なので、どれかが NULL なら LEFT JOIN で行が無かったことになる。
 		if errorCount.Valid {
 			recording.Drop = &DropLog{
 				ErrorCount:      errorCount.Int64,
@@ -233,7 +233,7 @@ func readRecordings(ctx context.Context, tx *sql.Tx) ([]*Recording, error) {
 	return recordings, nil
 }
 
-// readVideoFiles は、録画のファイルを読んで、byID の録画に持たせる。録画が消えて残ったファイルの行は捨てる。
+// readVideoFiles は、録画のファイルを読んで、byID の録画に持たせる。録画が消えて残ったファイルの行は破棄する。
 func readVideoFiles(ctx context.Context, tx *sql.Tx, byID map[int64]*Recording) error {
 	type row struct {
 		recordedID int64
@@ -308,7 +308,7 @@ func ruleError(id int64, err error) error {
 	return fmt.Errorf("rule %d: %w", id, err)
 }
 
-// channelTypes は、チャンネル種別ごとの真偽値の列を、種別の集合にする。
+// channelTypes は、チャンネル種別ごとの真偽値の並びを、種別の集合にする。
 func channelTypes(gr, bs, cs, sky bool) []string {
 	types := []string{}
 	for _, t := range []struct {
@@ -323,7 +323,7 @@ func channelTypes(gr, bs, cs, sky bool) []string {
 	return types
 }
 
-// genresOf は、genre1〜3 と subGenre1〜3 の列を、ジャンルの一覧にする。大分類が NULL の組は捨てる。
+// genresOf は、genre1〜3 と subGenre1〜3 のカラムを、ジャンルの一覧にする。大分類が NULL の組は破棄する。
 func genresOf(pairs [][2]sql.NullInt64) []*Genre {
 	genres := []*Genre{}
 	for _, pair := range pairs {
@@ -336,7 +336,7 @@ func genresOf(pairs [][2]sql.NullInt64) []*Genre {
 	return genres
 }
 
-// decodeJSON は、JSON の配列を入れた列を読む。NULL なら空のスライスを返す。
+// decodeJSON は、JSON の配列を入れたカラムを読む。NULL なら空のスライスを返す。
 func decodeJSON[T any](column sql.NullString, name string) ([]T, error) {
 	items := []T{}
 	if !column.Valid || column.String == "" {
@@ -349,7 +349,7 @@ func decodeJSON[T any](column sql.NullString, name string) ([]T, error) {
 	return items, nil
 }
 
-// decodePeriods は、searchPeriods の列 ({startAt, endAt} のミリ秒の配列) を読む。
+// decodePeriods は、searchPeriods のカラム ({startAt, endAt} のミリ秒の配列) を読む。
 func decodePeriods(column sql.NullString) ([]*Period, error) {
 	raw, err := decodeJSON[struct {
 		StartAt int64 `json:"startAt"`

@@ -111,7 +111,7 @@ func (f *applyFixture) count(t *testing.T, query string) int {
 	return n
 }
 
-// TestApply は、プールのディレクトリの TS のうち、Kotatsu にあるサービスのものを取り込み、取り込めないものは理由を付けて飛ばすことを確かめる (#1734)。
+// TestApply は、プールのディレクトリの TS のうち、Kotatsu にあるサービスのものを取り込み、取り込めないものは理由を付けて飛ばすことを確認する (#1734)。
 func TestApply(t *testing.T) {
 	t.Parallel()
 
@@ -119,7 +119,7 @@ func TestApply(t *testing.T) {
 	tests := []struct {
 		name     string
 		services []int64
-		// files は、プールの中のパスから、中身と、最後に書いてからの時間への対応。
+		// files は、プールの中のパスから、内容と、最後に書いてからの時間への対応。
 		files        map[string]time.Duration
 		bdav         []string
 		wantImported []string
@@ -191,7 +191,7 @@ func TestApply(t *testing.T) {
 }
 
 // TestApplyRecording は、取り込んだ録画に、TS から読んだ番組と録った時刻を記録し、ファイルを Kotatsu が書いていないものとして記録し、
-// 解析するジョブを投入して、監査ログに残すことを確かめる (#1734)。
+// 解析するジョブを投入して、監査ログに残すことを確認する (#1734)。
 func TestApplyRecording(t *testing.T) {
 	t.Parallel()
 
@@ -238,7 +238,7 @@ func TestApplyRecording(t *testing.T) {
 	assert.Equal(t, f.userID, actorUserID)
 }
 
-// TestApplyIdempotent は、同じファイルを二重に取り込まず、Kotatsu が録った録画のファイルも取り込まないことを確かめる (#1734)。
+// TestApplyIdempotent は、同じファイルを二重に取り込まず、Kotatsu が録った録画のファイルも取り込まないことを確認する (#1734)。
 // 取り込んだ録画を消しても、取り込んだ記録が残るので、取り込み直さない。
 func TestApplyIdempotent(t *testing.T) {
 	t.Parallel()
@@ -272,7 +272,7 @@ func TestApplyIdempotent(t *testing.T) {
 	assert.Equal(t, 1, third.AlreadyImported)
 }
 
-// TestApplyDryRun は、dry run では取り込む計画を返し、DB に何も書かないことを確かめる (#1734)。
+// TestApplyDryRun は、dry run では取り込む計画を返し、DB に何も書かないことを確認する (#1734)。
 func TestApplyDryRun(t *testing.T) {
 	t.Parallel()
 
@@ -293,7 +293,7 @@ func TestApplyDryRun(t *testing.T) {
 	assert.Len(t, f.apply(t, false).Imported, 1)
 }
 
-// TestApplyInvalidDirectory は、プールの外を指すディレクトリを拒むことを確かめる (#1734)。
+// TestApplyInvalidDirectory は、プールの外を指すディレクトリを拒むことを確認する (#1734)。
 func TestApplyInvalidDirectory(t *testing.T) {
 	t.Parallel()
 

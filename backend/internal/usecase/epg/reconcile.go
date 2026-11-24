@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	// NotifyChannel は、EPG が変わったことを知らせる変更通知のチャンネル。
+	// NotifyChannel は、EPG が変わったことを通知する変更通知のチャンネル。
 	NotifyChannel = "epg"
 	// changeRetention は、EPG の変更の記録を残す期間。受け取る側は、これより長く止まっていたら全体を読み直す。
 	changeRetention = 24 * time.Hour
@@ -45,18 +45,18 @@ type Upstream interface {
 
 var _ Upstream = tunerserver.Client(nil)
 
-// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
-// リーダーでなくなっていればエラーを返し、トランザクションを捨てさせる (設計書 1.4)。
+// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確認する。
+// リーダーでなくなっていればエラーを返し、トランザクションを破棄させる (設計書 1.4)。
 type Guard func(ctx context.Context, tx pgx.Tx) error
 
 // Result は、1 回の反映の結果。
 type Result struct {
 	ServicesUpserted int
-	// ServicesPresenceChanged は、上流から消えたか、上流に戻ってきたとして、印を書き換えたサービスの数 (#1973)。
+	// ServicesPresenceChanged は、上流から消えたか、上流に戻ってきたとして、マークを書き換えたサービスの数 (#1973)。
 	ServicesPresenceChanged int
 	ProgramsUpserted        int
 	ProgramsDeleted         int
-	// Version は、変更を通知したときの版数。変更が無く、通知しなかったときは 0。
+	// Version は、変更を通知したときのバージョン。変更が無く、通知しなかったときは 0。
 	Version int64
 }
 
@@ -65,7 +65,7 @@ func (r *Result) changed() bool {
 	return r.ServicesUpserted > 0 || r.ServicesPresenceChanged > 0 || r.ProgramsUpserted > 0 || r.ProgramsDeleted > 0
 }
 
-// Reconciler は、チューナーサーバーの EPG を取得し、DB と差分で突き合わせて反映する (設計書 3.3)。
+// Reconciler は、チューナーサーバーの EPG を取得し、DB と差分で照合して反映する (設計書 3.3)。
 // 全件を削除して入れ直すことはせず、変わった行だけを書く。
 type Reconciler struct {
 	pool     *pgxpool.Pool
@@ -79,7 +79,7 @@ func NewReconciler(pool *pgxpool.Pool, upstream Upstream, clk clock.Clock, guard
 	return &Reconciler{pool: pool, upstream: upstream, clock: clk, guard: guard}
 }
 
-// SyncAll は、サービスと番組の全量を突き合わせる。
+// SyncAll は、サービスと番組の全量を照合する。
 // 上流から消えた未来の番組は削除する。上流から消えたサービスは、予約や録画から参照されうるので残す。
 func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 	upstreamServices, err := r.upstream.Services(ctx)
@@ -102,7 +102,7 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 	}
 
 	services := diffServices(upstreamServices, currentServices)
-	// 番組は、映像か音声を流すサービスの分だけ突き合わせる。
+	// 番組は、映像か音声を流すサービスの分だけ照合する。
 	// それ以外のサービスの番組は、上流が返しても足さず、DB に残っているものも消さない。
 	known := map[int64]bool{}
 	for _, service := range upstreamServices {
@@ -130,16 +130,16 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 		return nil, err
 	}
 	programs.deletes = keepSilentServices(programs.deletes, upstreamPrograms)
-	// 全量の突き合わせでは、シリーズ名と話数の列を埋めていない番組も埋める (#1564)。
+	// 全量の照合では、シリーズ名と話数のカラムを埋めていない番組も埋める (#1564)。
 	programs.fillSeries = true
 
 	return r.apply(ctx, services, programs)
 }
 
-// SyncServiceList は、サービスの一覧だけを突き合わせる。番組は突き合わせない (#2035)。
+// SyncServiceList は、サービスの一覧だけを照合する。番組は照合しない (#2035)。
 // サービスのイベントで使う。Mirakurun 互換のチューナーサーバーは、EPG の取得が進むたびにも service の update を送るので、
-// そのたびに全量を突き合わせると、全量の突き合わせの間隔によらず、数十秒ごとに全量を読むことになる。
-// 返す changed は、DB になかったか、DB の行と違っていたサービスの ID。呼ぶ側が、そのサービスの番組を突き合わせる。
+// そのたびに全量を照合すると、全量の照合の間隔によらず、数十秒ごとに全量を読むことになる。
+// 返す changed は、DB になかったか、DB の行と違っていたサービスの ID。呼ぶ側が、そのサービスの番組を照合する。
 func (r *Reconciler) SyncServiceList(ctx context.Context) (*Result, []int64, error) {
 	upstreamServices, err := r.upstream.Services(ctx)
 	if err != nil {
@@ -175,8 +175,8 @@ func keepSilentServices(deletes []*program, upstream []*tunerserver.Program) []*
 	return slices.DeleteFunc(deletes, func(p *program) bool { return !returned[p.key().serviceID] })
 }
 
-// SyncServices は、指定したサービスの番組だけを突き合わせる。イベントで変化が分かったサービスに使う。
-// DB に無いサービスは飛ばす。サービス自体は、全量の突き合わせか、サービスの一覧の突き合わせ (SyncServiceList) で足す。
+// SyncServices は、指定したサービスの番組だけを照合する。イベントで変化が分かったサービスに使う。
+// DB に無いサービスは飛ばす。サービス自体は、全量の照合か、サービスの一覧の照合 (SyncServiceList) で足す。
 func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Result, error) {
 	q := sqlc.New(r.pool)
 	upstreamPrograms := []*tunerserver.Program{}
@@ -187,14 +187,14 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
-	// 映像か音声を流すサービスだけを突き合わせる。
+	// 映像か音声を流すサービスだけを照合する。
 	media := map[int64]bool{}
 	for _, service := range services {
 		if domain.IsMediaService(service.ServiceType) {
 			media[service.ID] = true
 		}
 	}
-	// イベント共有を補うには同じ TS の番組を比べるので、同じ TS のサービスもまとめて突き合わせる (#1024)。
+	// イベント共有を補うには同じ TS の番組を比較するので、同じ TS のサービスもまとめて照合する (#1024)。
 	byService := streams{}
 	byService.addRows(services)
 	for _, serviceID := range byService.siblings(serviceIDs) {
@@ -237,7 +237,7 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 }
 
 // withOnAir は、上流の番組に、放送中と次の番組 (EIT[p/f]) の内容を重ねる (設計書 5.1)。
-// mirakc の /api/programs は EIT[schedule] から作るので、延長や繰り上げは、番組表を取り直すまで反映されない。
+// mirakc の /api/programs は EIT[schedule] から作るので、延長や繰り上げは、番組表を再取得するまで反映されない。
 // 重ねるのは、services に含まれるサービスの番組だけにする。番組表にない番組 (差し込まれた番組) は足す。
 func (r *Reconciler) withOnAir(ctx context.Context, programs []*tunerserver.Program, services map[int64]bool) ([]*tunerserver.Program, error) {
 	if len(services) == 0 {
@@ -283,7 +283,7 @@ func (r *Reconciler) withOnAir(ctx context.Context, programs []*tunerserver.Prog
 func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs *programDiff) (*Result, error) {
 	result := &Result{
 		ServicesUpserted: len(services.upserts),
-		// 印を書き換えた数は、書いてから数える。
+		// マークを書き換えた数は、書いてから数える。
 		ServicesPresenceChanged: 0,
 		ProgramsUpserted:        len(programs.upserts),
 		ProgramsDeleted:         0,
@@ -357,7 +357,7 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 }
 
 // serviceDiff は、書き込むサービス。
-// writeServiceDiff は、サービスを書き足すか書き換え、上流から消えたかどうかの印を書く。印を書き換えた行の数を返す。
+// writeServiceDiff は、サービスを書き足すか書き換え、上流から消えたかどうかのマークを書く。マークを書き換えた行の数を返す。
 func writeServiceDiff(ctx context.Context, q *sqlc.Queries, services *serviceDiff, now time.Time) (int, error) {
 	if err := writeServices(ctx, q, services.upserts, now); err != nil {
 		return 0, err
@@ -366,7 +366,7 @@ func writeServiceDiff(ctx context.Context, q *sqlc.Queries, services *serviceDif
 	return writePresence(ctx, q, services.present, now)
 }
 
-// writePresence は、上流にあるサービスの ID (present) と突き合わせ、上流から消えたサービスに気づいた時刻を書き、
+// writePresence は、上流にあるサービスの ID (present) と照合し、上流から消えたサービスに気づいた時刻を書き、
 // 戻ってきたサービスの時刻を消す (#1973)。present が nil なら何もしない。書き換えた行の数を返す。
 func writePresence(ctx context.Context, q *sqlc.Queries, present []int64, now time.Time) (int, error) {
 	if present == nil {
@@ -401,7 +401,7 @@ func diffServices(upstream []*tunerserver.Service, current []sqlc.ListServicesRo
 		}
 		present = append(present, service.ID)
 		row, ok := byID[service.ID]
-		// 行はポインタの列を持つので、== ではなく値で比べる。
+		// 行はポインタのカラムを持つので、== ではなく値で比較する。
 		if ok && reflect.DeepEqual(row, serviceRow(service)) {
 			continue
 		}
@@ -415,7 +415,7 @@ func diffServices(upstream []*tunerserver.Service, current []sqlc.ListServicesRo
 	return diff
 }
 
-// serviceRow は、上流のサービスを DB の行と比べられる形にする。
+// serviceRow は、上流のサービスを DB の行と比較できる形にする。
 func serviceRow(service *tunerserver.Service) sqlc.ListServicesRow {
 	return sqlc.ListServicesRow{
 		ID:                 service.ID,
@@ -465,7 +465,7 @@ func writeServices(ctx context.Context, q *sqlc.Queries, services []*tunerserver
 	return nil
 }
 
-// program は、番組を DB の行と比べられる形にしたもの。JSON の列は、読み解いた値で比べる。
+// program は、番組を DB の行と比較できる形にしたもの。JSON のカラムは、読み解いた値で比較する。
 type program struct {
 	ServiceID    int64
 	EventID      int64
@@ -553,7 +553,7 @@ func nullBool(value *bool) pgtype.Bool {
 }
 
 // seriesOf は、シリーズの記述子から、話数と再放送かどうかを返す (#1311)。
-// 局によっては、記述子を送っても、どの値も 0 にしている (2026 年 11 月に確かめた地上波の 1 局)。話数が 0 なら、どちらも nil にする。
+// 局によっては、記述子を送っても、どの値も 0 にしている (2026 年 11 月に確認した地上波の 1 局)。話数が 0 なら、どちらも nil にする。
 func seriesOf(series *tunerserver.Series) (*int32, *bool) {
 	if series == nil || series.Episode <= 0 || series.Episode > math.MaxInt32 {
 		return nil, nil
@@ -606,11 +606,11 @@ type programDiff struct {
 	deletes []*program
 	// previous は、upserts の番組の更新前の内容。追加した番組は含まない。変わった時間帯を求めるのに使う。
 	previous map[programKey]*program
-	// fillSeries は、シリーズ名と話数の列を埋めていない番組を埋めるかどうか (#1564)。全量の突き合わせのときだけ埋める。
+	// fillSeries は、シリーズ名と話数のカラムを埋めていない番組を埋めるかどうか (#1564)。全量の照合のときだけ埋める。
 	fillSeries bool
 }
 
-// archiveCutoff は、アーカイブへ移す番組の境の時刻。これより前に終わった番組は、突き合わせない。
+// archiveCutoff は、アーカイブへ移す番組の境の時刻。これより前に終わった番組は、照合しない。
 func (r *Reconciler) archiveCutoff() time.Time {
 	return r.clock.Now().Add(-DefaultArchiveGrace)
 }
@@ -624,8 +624,8 @@ func (p *program) archivable(cutoff time.Time) bool {
 	return !p.EndAt.After(cutoff)
 }
 
-// diffPrograms は、上流の番組と DB の番組を突き合わせる。current の範囲に無い番組は消さない。
-// アーカイブへ移す時期を過ぎた番組 (cutoff より前に終わった番組) は、突き合わせない。
+// diffPrograms は、上流の番組と DB の番組を照合する。current の範囲に無い番組は消さない。
+// アーカイブへ移す時期を過ぎた番組 (cutoff より前に終わった番組) は、照合しない。
 // 上流 (Mahiron など) は終わった番組をしばらく返し続けるので、足すと、移したそばから programs に戻ってしまう。
 // DB に残っている番組も、消さずに Archiver に移させる。
 func diffPrograms(upstream []*tunerserver.Program, current []sqlc.ListProgramsRow, cutoff time.Time) (*programDiff, error) {
@@ -765,7 +765,7 @@ func deletePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, n
 	return deleted, nil
 }
 
-// videoResolution は、映像の解像度を列の値にする。分からなければ NULL にする。
+// videoResolution は、映像の解像度をカラムの値にする。分からなければ NULL にする。
 func videoResolution(resolution string) *string {
 	if resolution == "" {
 		return nil
@@ -774,7 +774,7 @@ func videoResolution(resolution string) *string {
 	return &resolution
 }
 
-// jsonColumns は、番組の JSON の列。
+// jsonColumns は、番組の JSON のカラム。
 type jsonColumns struct {
 	extended, genres, related, audios []byte
 }
@@ -869,7 +869,7 @@ func rewritesOf(old, p *program) []programRewrite {
 }
 
 // recordRewrites は、放送前の番組の、番組名と概要の書き換えを記録する (#1558)。
-// 書き換えが放送開始のどれだけ前まで起きるかを測り、ルール予約の直前の猶予 (#1501) を決め直すのに使う。
+// 書き換えが放送開始のどれだけ前まで起きるかを計測し、ルール予約の直前の猶予 (#1501) を決め直すのに使う。
 // 放送が始まった番組の書き換えは、猶予に関わらないので残さない。
 func recordRewrites(ctx context.Context, q *sqlc.Queries, diff *programDiff, now time.Time) error {
 	params := []sqlc.InsertProgramRewritesParams{}

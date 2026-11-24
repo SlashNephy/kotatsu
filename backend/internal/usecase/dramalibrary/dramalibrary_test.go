@@ -160,7 +160,7 @@ func (f *fixture) cacheSeries(t *testing.T, episodes map[int32][]int32) {
 		series, encoded)
 }
 
-// watchedEpisodes は、ユーザー userID の見た話を、"シーズン:話:出どころ" の形で返す。
+// watchedEpisodes は、ユーザー userID の見た話を、"シーズン:話:ソース" の形で返す。
 func (f *fixture) watchedEpisodes(t *testing.T, userID uuid.UUID) []string {
 	t.Helper()
 
@@ -179,7 +179,7 @@ func (f *fixture) watchedEpisodes(t *testing.T, userID uuid.UUID) []string {
 	return got
 }
 
-// TestSetStatus は、見ている作品に、番組か録画に結びついた作品だけを足し、状態を変え、外せることを確かめる (#1652)。
+// TestSetStatus は、見ている作品に、番組か録画に結びついた作品だけを足し、状態を変え、外せることを確認する (#1652)。
 func TestSetStatus(t *testing.T) {
 	t.Parallel()
 
@@ -223,7 +223,7 @@ func TestSetStatus(t *testing.T) {
 	}
 }
 
-// TestSetWatched は、見た話を手で付けて外せること、付けた話を後からプレイヤーで見ても付け直さないことを確かめる (#1652)。
+// TestSetWatched は、見た話を手で付けて外せること、付けた話を後からプレイヤーで見ても付け直さないことを確認する (#1652)。
 func TestSetWatched(t *testing.T) {
 	t.Parallel()
 
@@ -265,7 +265,7 @@ func TestSetWatched(t *testing.T) {
 }
 
 // TestReport は、プレイヤーで見た区間が、番組の長さのうち決めた割合 (既定は 20%) に届いたら、番組に結びついた話を見た話にすることを
-// 確かめる (#1652)。アニメの連携がなくても、TMDB との連携が有効なら数える。割合は、見たアニメを記録する割合とは別のドラマの設定に従う (#1649)。
+// 確認する (#1652)。アニメの連携がなくても、TMDB との連携が有効なら数える。割合は、見たアニメを記録する割合とは別のドラマの設定に従う (#1649)。
 func TestReport(t *testing.T) {
 	t.Parallel()
 
@@ -337,7 +337,7 @@ func TestReport(t *testing.T) {
 	}
 }
 
-// TestLibrary は、見ている作品ごとに、最後に見た話、次に見る話、次の放送、録画のある話を求めることを確かめる (#1652)。
+// TestLibrary は、見ている作品ごとに、最後に見た話、次に見る話、次の放送、録画のある話を求めることを確認する (#1652)。
 func TestLibrary(t *testing.T) {
 	t.Parallel()
 
@@ -408,7 +408,7 @@ func TestLibrary(t *testing.T) {
 	}
 }
 
-// describe は、作品を比べやすい文字列にする。
+// describe は、作品を比較しやすい文字列にする。
 func describe(work *dramalibrary.Work) string {
 	episode := func(e *dramalibrary.LibraryEpisode, withName bool) string {
 		switch {
@@ -443,7 +443,7 @@ func describe(work *dramalibrary.Work) string {
 	}, "|")
 }
 
-// TestNextEpisode は、最後に見た話の次に見る話を、TMDB のキャッシュのシーズンと話から求めることを確かめる (#1652)。
+// TestNextEpisode は、最後に見た話の次に見る話を、TMDB のキャッシュのシーズンと話から求めることを確認する (#1652)。
 func TestNextEpisode(t *testing.T) {
 	t.Parallel()
 
@@ -476,7 +476,7 @@ func TestNextEpisode(t *testing.T) {
 	}
 }
 
-// TestThresholdPercent は、見たドラマの話にする割合を、既定の 20% から変えられ、1〜100 の外は断ることを確かめる (#1649)。
+// TestThresholdPercent は、見たドラマの話にする割合を、既定の 20% から変えられ、1〜100 の外は断ることを確認する (#1649)。
 func TestThresholdPercent(t *testing.T) {
 	t.Parallel()
 

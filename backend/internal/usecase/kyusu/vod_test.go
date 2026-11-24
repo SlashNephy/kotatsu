@@ -51,7 +51,7 @@ type vodFixture struct {
 	pool  *pgxpool.Pool
 	clock *clocktest.Fake
 	dir   string
-	// bufferDir は、タイムシフトのバッファを置くディレクトリ。索引は dir に置く。
+	// bufferDir は、タイムシフトのバッファを置くディレクトリ。インデックスは dir に置く。
 	bufferDir string
 	vod       *kyusu.VOD
 	server    *httptest.Server
@@ -101,7 +101,7 @@ func newVODFixture(t *testing.T, encoder kyusu.VODEncoder, modify ...func(opts *
 	return &vodFixture{pool: pool, clock: clk, dir: dir, bufferDir: bufferDir, vod: vod, server: server, token: token, workDir: workDir}
 }
 
-// recording は、data を 1 つのセグメントに持ち、ts.Analyzer で作った索引のある録画を作る。
+// recording は、data を 1 つのセグメントに持ち、ts.Analyzer で作ったインデックスのある録画を作る。
 func (f *vodFixture) recording(t *testing.T, state string, data []byte) uuid.UUID {
 	t.Helper()
 
@@ -139,8 +139,8 @@ func (f *vodFixture) recording(t *testing.T, state string, data []byte) uuid.UUI
 // 1 セグメント (I フレーム 4 つ) を大きくし、先読みの上限で流すのを止められるようにする。
 const keyframeBytes = 100 * ts.PacketSize
 
-// longRecording は、索引だけを作り込んだ、duration の長さの録画を作る。I フレームは 0.5 秒ごとにある。
-// 中身は TS として正しくないので、入力を読み捨てる偽のエンコーダーと使う。
+// longRecording は、インデックスだけを作り込んだ、duration の長さの録画を作る。I フレームは 0.5 秒ごとにある。
+// 内容は TS として正しくないので、入力を読んで破棄するモックのエンコーダーと使う。
 func (f *vodFixture) longRecording(t *testing.T, duration time.Duration) uuid.UUID {
 	t.Helper()
 
@@ -152,8 +152,8 @@ func (f *vodFixture) longRecording(t *testing.T, duration time.Duration) uuid.UU
 	return f.keyframedRecording(t, keyframes, duration, stateCompleted)
 }
 
-// keyframedRecording は、索引だけを作り込んだ、I フレームが keyframes の時間にある、duration の長さの、state の状態の録画を作る。
-// 中身は TS として正しくないので、入力を読み捨てる偽のエンコーダーと使う。
+// keyframedRecording は、インデックスだけを作り込んだ、I フレームが keyframes の時間にある、duration の長さの、state の状態の録画を作る。
+// 内容は TS として正しくないので、入力を読んで破棄するモックのエンコーダーと使う。
 func (f *vodFixture) keyframedRecording(t *testing.T, keyframes []time.Duration, duration time.Duration, state string) uuid.UUID {
 	t.Helper()
 
@@ -214,8 +214,8 @@ func (f *vodFixture) getPreset(t *testing.T, recordingID uuid.UUID, preset, file
 	return resp.StatusCode, body
 }
 
-// TestVODPlaylist は、索引から、2 秒ずつのセグメントの一覧を作ることを確かめる。
-// 録画を終えていれば、最後のセグメントを残りの長さにして終わりの印を付け、録画中なら、書き終えた区間だけを載せる。
+// TestVODPlaylist は、インデックスから、2 秒ずつのセグメントの一覧を作ることを確認する。
+// 録画を終えていれば、最後のセグメントを残りの長さにして終わりのマークを付け、録画中なら、書き終えた区間だけを載せる。
 func TestVODPlaylist(t *testing.T) {
 	t.Parallel()
 
@@ -254,7 +254,7 @@ func TestVODPlaylist(t *testing.T) {
 }
 
 // TestVODPassthroughPlaylist は、映像を変換しないプリセットでは、前のセグメントの始まりから 2 秒以上進んだ最初の I フレームで
-// 区切った、長さのそろわないセグメントの一覧を作ることを確かめる (#806)。
+// 区切った、長さのそろわないセグメントの一覧を作ることを確認する (#806)。
 func TestVODPassthroughPlaylist(t *testing.T) {
 	t.Parallel()
 
@@ -271,7 +271,7 @@ func TestVODPassthroughPlaylist(t *testing.T) {
 	status, _ = f.getPreset(t, recordingID, kyusu.PassthroughPreset, "segment00003.ts")
 	assert.Equal(t, http.StatusNotFound, status, "a segment out of the recording")
 
-	// 録画中は、最後のセグメント (4.4 秒から) は、次の始まりが索引に載るまで伸びるので載せず、終わりの印も付けない。
+	// 録画中は、最後のセグメント (4.4 秒から) は、次の始まりがインデックスに載るまで伸びるので載せず、終わりのマークも付けない。
 	recordingID = f.keyframedRecording(t, keyframes, 5*time.Second, stateRecording)
 	status, body = f.getPreset(t, recordingID, kyusu.PassthroughPreset, kyusu.PlaylistName)
 	assert.Equal(t, http.StatusOK, status)
@@ -280,8 +280,8 @@ func TestVODPassthroughPlaylist(t *testing.T) {
 }
 
 // TestVODPassthroughSegments は、映像を変換しないプリセットのセグメントが、プレイリストの区切りの I フレームから始まり、
-// その PTS が、録画の始まりからの時間に 10 秒 (出力の PTS の起点) を足したものになることを確かめる (#806)。
-// 後のセグメントから先に要求し、途中から起動したエンコーダーでも、区切りと時刻がずれないことを確かめる。
+// その PTS が、録画の始まりからの時間に 10 秒 (出力の PTS の起点) を足したものになることを確認する (#806)。
+// 後のセグメントから先に要求し、途中から起動したエンコーダーでも、区切りと時刻がずれないことを確認する。
 func TestVODPassthroughSegments(t *testing.T) {
 	t.Parallel()
 
@@ -323,7 +323,7 @@ func TestVODPassthroughSegments(t *testing.T) {
 	}
 }
 
-// fakeVODEncoder は、入力を読み捨てながら、StartNumber 番目から 20 ミリ秒ごとにセグメントを書き、止められるまで続ける。
+// fakeVODEncoder は、入力を読んで破棄しながら、StartNumber 番目から 20 ミリ秒ごとにセグメントを書き、止められるまで続ける。
 // 起動した番号と、動いている数を数える。startup を与えると、起動してから最初のセグメントを書くまで、その時間だけ待つ。
 // interval を与えると、20 ミリ秒の代わりに、その間隔で書く。
 // paced なら、時間でなく入力に合わせて、longRecording の 1 セグメントぶん (I フレーム 4 つ) を読むごとに書く。
@@ -389,7 +389,7 @@ func (e *fakeVODEncoder) RunVOD(ctx context.Context, src io.Reader, _ *kyusu.Pre
 var _ kyusu.VODEncoder = new(fakeVODEncoder)
 
 // TestVODRestartsEncoder は、まだ書いていないセグメントを要求されたら、動いているエンコーダーがすぐ後に書くものなら待ち、
-// 手前のものなら、その番号からエンコーダーを起動することを確かめる。後ろのエンコーダーが前のエンコーダーに追いついたら、後ろを止める。
+// 手前のものなら、その番号からエンコーダーを起動することを確認する。後ろのエンコーダーが前のエンコーダーに追いついたら、後ろを止める。
 // 録画の外のセグメントには、エンコーダーを起動し直さずに 404 を返す。
 func TestVODRestartsEncoder(t *testing.T) {
 	t.Parallel()
@@ -439,7 +439,7 @@ func TestVODRestartsEncoder(t *testing.T) {
 }
 
 // TestVODServesDistantViewers は、同じ録画を同じ画質と音声で、離れた位置で見る 2 人に、それぞれのエンコーダーで
-// セグメントを返すことを確かめる (#531)。1 つのエンコーダーを奪い合うと、互いに起動し直し合って、どちらも書き終わらない。
+// セグメントを返すことを確認する (#531)。1 つのエンコーダーを奪い合うと、互いに起動し直し合って、どちらも書き終わらない。
 func TestVODServesDistantViewers(t *testing.T) {
 	t.Parallel()
 
@@ -479,7 +479,7 @@ func TestVODServesDistantViewers(t *testing.T) {
 }
 
 // TestVODStopsAbandonedEncoder は、片方の視聴者が離れたら、ほかの視聴者がセッションを使い続けていても、
-// 離れた視聴者のエンコーダーを止めることを確かめる (#531)。
+// 離れた視聴者のエンコーダーを止めることを確認する (#531)。
 func TestVODStopsAbandonedEncoder(t *testing.T) {
 	t.Parallel()
 
@@ -504,7 +504,7 @@ func TestVODStopsAbandonedEncoder(t *testing.T) {
 }
 
 // TestVODKeepsEncoderWhileViewerPlaysWrittenSegments は、エンコーダーが先に書いたセグメントを視聴者が見ている間は、
-// そのエンコーダーを止めないことを確かめる (#531)。止めると、書いた分を見終えたところで起動し直し、再生が止まる。
+// そのエンコーダーを止めないことを確認する (#531)。止めると、書いた分を見終えたところで起動し直し、再生が止まる。
 func TestVODKeepsEncoderWhileViewerPlaysWrittenSegments(t *testing.T) {
 	t.Parallel()
 
@@ -531,7 +531,7 @@ func TestVODKeepsEncoderWhileViewerPlaysWrittenSegments(t *testing.T) {
 	assert.Equal(t, []int{0}, encoder.starts.Load())
 }
 
-// TestVODLimitsLookahead は、エンコーダーが、視聴者の要求したセグメントより先を書きすぎないことを確かめる (#532)。
+// TestVODLimitsLookahead は、エンコーダーが、視聴者の要求したセグメントより先を書きすぎないことを確認する (#532)。
 // 見ない部分のために、CPU を使ったり、作業ディレクトリにセグメントをためたりしない。
 func TestVODLimitsLookahead(t *testing.T) {
 	t.Parallel()
@@ -562,7 +562,7 @@ func TestVODLimitsLookahead(t *testing.T) {
 	assert.Equal(t, []int{0}, encoder.starts.Load())
 }
 
-// TestVODLimitsSessions は、セッションの数が上限に達したら、新しいセッションを作らずに 503 を返すことを確かめる (#532)。
+// TestVODLimitsSessions は、セッションの数が上限に達したら、新しいセッションを作らずに 503 を返すことを確認する (#532)。
 // 多くの録画や画質を開いても、CPU と作業ディレクトリを使い切らないようにする。
 func TestVODLimitsSessions(t *testing.T) {
 	t.Parallel()
@@ -585,7 +585,7 @@ func TestVODLimitsSessions(t *testing.T) {
 }
 
 // TestVODRemovesSegmentsFarBehind は、視聴者の位置から 150 セグメント (5 分) より前のセグメントを消し、
-// そこへ巻き戻したら書き直すことを確かめる (#532)。長い録画を見続けても、作業ディレクトリにセグメントをためない。
+// そこへ巻き戻したら書き直すことを確認する (#532)。長い録画を見続けても、作業ディレクトリにセグメントをためない。
 func TestVODRemovesSegmentsFarBehind(t *testing.T) {
 	t.Parallel()
 
@@ -616,7 +616,7 @@ func TestVODRemovesSegmentsFarBehind(t *testing.T) {
 	assert.Equal(t, []int{0, 10}, encoder.starts.Load())
 }
 
-// TestVODErrors は、配信できない理由に応じた状態を返すことを確かめる。
+// TestVODErrors は、配信できない理由に応じた状態を返すことを確認する。
 func TestVODErrors(t *testing.T) {
 	t.Parallel()
 
@@ -681,15 +681,15 @@ func videoPTS(t *testing.T, data []byte) []time.Duration {
 }
 
 // TestVODTranscodesSegments は、実際の tsreadex と FFmpeg で、要求されたセグメントから書き、
-// k 番目のセグメントが、k × 2 秒の時刻から始まることを確かめる。FFmpeg か tsreadex がなければ飛ばす。
-// 起動し直したエンコーダーが書いたセグメントと、前から書いていたエンコーダーのセグメントが、1 フレーム以内の差でつながることも確かめる。
+// k 番目のセグメントが、k × 2 秒の時刻から始まることを確認する。FFmpeg か tsreadex がなければ飛ばす。
+// 起動し直したエンコーダーが書いたセグメントと、前から書いていたエンコーダーのセグメントが、1 フレーム以内の差でつながることも確認する。
 func TestVODTranscodesSegments(t *testing.T) {
 	t.Parallel()
 
 	transcoder := newTranscoder(t)
 	f := newVODFixture(t, transcoder)
 	data := loadTestTS(t)
-	// 2 つの録画は同じ中身で、1 つ目は 1 番目のセグメントから、2 つ目は 2 番目のセグメントから書く。
+	// 2 つの録画は同じ内容で、1 つ目は 1 番目のセグメントから、2 つ目は 2 番目のセグメントから書く。
 	fromFirst := f.recording(t, "completed", data)
 	fromSecond := f.recording(t, "completed", data)
 

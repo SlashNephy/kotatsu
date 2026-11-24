@@ -39,7 +39,7 @@ type OrphanFile struct {
 	Entry  *kago.Entry
 }
 
-// FindOrphans は、このインスタンスにマウントしたプールと、データディレクトリを調べ、DB にないファイルを、プールとパスの順に返す。
+// FindOrphans は、このインスタンスにマウントしたプールと、データディレクトリを走査し、DB にないファイルを、プールとパスの順に返す。
 // 録画中のファイル、つないでいる途中のファイルとつなぐ元のファイル、書いたばかりのファイルは返さない。
 func (l *Library) FindOrphans(ctx context.Context, db sqlc.DBTX) ([]*OrphanFile, error) {
 	used, err := l.usedFiles(ctx, db)
@@ -76,11 +76,11 @@ type OrphanTarget struct {
 type DeleteOrphansResult struct {
 	// Deleted は、消したファイルとディレクトリの数。
 	Deleted int
-	// Skipped は、確かめ直すと、DB にあるか、使っているか、書いたばかりか、もうなかったので、消さなかった数。
+	// Skipped は、確認し直すと、DB にあるか、使っているか、書いたばかりか、もうなかったので、消さなかった数。
 	Skipped int
 }
 
-// DeleteOrphans は、FindOrphans が返したファイルか生成物のディレクトリを、確かめ直して消し、1 つずつ監査ログに残す。
+// DeleteOrphans は、FindOrphans が返したファイルか生成物のディレクトリを、確認し直して消し、1 つずつ監査ログに残す。
 func (l *Library) DeleteOrphans(ctx context.Context, db Database, actor *audit.Actor, targets []*OrphanTarget) (*DeleteOrphansResult, error) {
 	result := &DeleteOrphansResult{Deleted: 0, Skipped: 0}
 	used, err := l.usedFiles(ctx, db)
@@ -104,7 +104,7 @@ func (l *Library) DeleteOrphans(ctx context.Context, db Database, actor *audit.A
 	return result, nil
 }
 
-// deleteOrphan は、target を確かめ直して消す。DB にあるか、使っているか、書いたばかりなら ErrNotOrphan を、なければ ErrNotFound を返す。
+// deleteOrphan は、target を確認し直して消す。DB にあるか、使っているか、書いたばかりなら ErrNotOrphan を、なければ ErrNotFound を返す。
 func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Actor, used *usedFiles, checker *kago.Checker, target *OrphanTarget) error {
 	// 走査の対象でないもの (タイムシフトのバッファなど) は、DB にないのが正常なので、孤児として消さない。
 	if !slices.Contains(l.store.ScanPoolIDs(), target.PoolID) {
@@ -145,11 +145,11 @@ func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Ac
 	})
 }
 
-// usedFiles は、DB にある録画ファイルと、つなぐ処理が使っているファイルの置き場所と ID。
-// ID は、生成物のディレクトリの持ち主を確かめるのに使う。
+// usedFiles は、DB にある録画ファイルと、つなぐ処理が使っているファイルのパスと ID。
+// ID は、生成物のディレクトリの持ち主を確認するのに使う。
 type usedFiles struct {
 	locations map[kago.Location]struct{}
-	// folded は、パスを foldPath で揃えた置き場所から、DB の置き場所を引く。走査した名前が DB と一致しないときに、同じファイルの候補を探すのに使う。
+	// folded は、パスを foldPath で揃えた場所から、DB の場所を検索する。走査した名前が DB と一致しないときに、同じファイルの候補を探すのに使う。
 	folded map[kago.Location][]kago.Location
 	ids    map[uuid.UUID]struct{}
 }
@@ -164,14 +164,14 @@ func (u *usedFiles) add(id uuid.UUID, poolID, path string) {
 	}
 }
 
-// foldPath は、大文字と小文字と Unicode の正規化を揃えたパスを返す。同じファイルの候補を探すためのもので、同じファイルかは確かめない。
+// foldPath は、大文字と小文字と Unicode の正規化を揃えたパスを返す。同じファイルの候補を探すためのもので、同じファイルかは確認しない。
 func foldPath(path string) string {
 	return strings.ToLower(norm.NFC.String(path))
 }
 
 // uses は、location を使っているかを返す。DB のパスと名前が一致しなくても、大文字と小文字や正規化だけが違い、
 // ファイルシステムが同じファイルとみなすなら、使っているとする (#1095)。区別しないファイルシステムや HFS+ では、
-// 走査で見つかる名前が DB と違うことがある。調べられなければ、消さないよう、使っているとみなす。
+// 走査で見つかる名前が DB と違うことがある。確認できなければ、消さないよう、使っているとみなす。
 func (u *usedFiles) uses(checker *kago.Checker, location kago.Location) bool {
 	if _, ok := u.locations[location]; ok {
 		return true
@@ -197,8 +197,8 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, erro
 	for _, row := range rows {
 		used.add(row.ID, row.PoolID, row.Path)
 	}
-	// タイムシフトのチャンクの索引は、録画のセグメントと同じく、データディレクトリの「ID/」に置く。チャンクの行があるうちは使っているとみなす。
-	// チャンクのファイルはタイムシフトのディレクトリにあり、プールとして調べないので、置き場所は足さない。
+	// タイムシフトのチャンクのインデックスは、録画のセグメントと同じく、データディレクトリの「ID/」に置く。チャンクの行があるうちは使っているとみなす。
+	// チャンクのファイルはタイムシフトのディレクトリにあり、プールとして走査しないので、場所は足さない。
 	chunks, err := sqlc.New(db).ListTimeshiftChunkIDs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the timeshift chunks: %w", err)
@@ -256,7 +256,7 @@ func (u *usedFiles) orphan(checker *kago.Checker, poolID string, entry *kago.Ent
 	if now.Sub(entry.ChangedAt) < orphanGrace {
 		return false
 	}
-	// ライブラリのファイルの索引 (#1734) は、DB に行がないので、使っているとみなす。ファイルを書き換えたら、同じ場所に作り直す。
+	// ライブラリのファイルのインデックス (#1734) は、DB に行がないので、使っているとみなす。ファイルを書き換えたら、同じ場所に作り直す。
 	if poolID == kago.DataPoolID && strings.HasPrefix(entry.Path, kago.LibraryIndexDir+"/") {
 		return false
 	}

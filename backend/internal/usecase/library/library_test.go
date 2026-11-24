@@ -76,7 +76,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 }
 
-// recording は、録画と、その録画ファイルと索引を作る。
+// recording は、録画と、その録画ファイルとインデックスを作る。
 func (f *fixture) recording(t *testing.T, state string, protected bool) uuid.UUID {
 	t.Helper()
 
@@ -122,7 +122,7 @@ func (f *fixture) actions(t *testing.T, recordingID uuid.UUID) []string {
 	return actions
 }
 
-// recordingsVersion は、録画の変更の通知の版数を読む。
+// recordingsVersion は、録画の変更の通知のバージョンを読む。
 const recordingsVersion = "SELECT coalesce((SELECT version FROM change_versions WHERE channel = 'recordings'), 0)"
 
 func (f *fixture) count(t *testing.T, query string) int {
@@ -134,7 +134,7 @@ func (f *fixture) count(t *testing.T, query string) int {
 	return n
 }
 
-// TestDelete は、録画を消すと、録画ファイルと生成物が消え、録画履歴は残り、監査ログに残ることを確かめる (設計書 4.4、9.7)。
+// TestDelete は、録画を消すと、録画ファイルと生成物が消え、録画履歴は残り、監査ログに残ることを確認する (設計書 4.4、9.7)。
 // 保護した録画と、録画中の録画は消さない。
 func TestDelete(t *testing.T) {
 	t.Parallel()
@@ -190,7 +190,7 @@ func TestDelete(t *testing.T) {
 }
 
 // TestDeleteKeepsExternalFiles は、プールにあった TS を取り込んだファイル (external) は、録画を消しても残し、
-// 生成物と、Kotatsu が作ったほかのファイルは消すことを確かめる (#1734)。
+// 生成物と、Kotatsu が作ったほかのファイルは消すことを確認する (#1734)。
 func TestDeleteKeepsExternalFiles(t *testing.T) {
 	t.Parallel()
 
@@ -209,7 +209,7 @@ func TestDeleteKeepsExternalFiles(t *testing.T) {
 	}
 }
 
-// TestSetProtected は、保護の印を付け外しし、変えたときだけ監査ログに残すことを確かめる。
+// TestSetProtected は、保護のマークを付け外しし、変えたときだけ監査ログに残すことを確認する。
 func TestSetProtected(t *testing.T) {
 	t.Parallel()
 
@@ -220,12 +220,12 @@ func TestSetProtected(t *testing.T) {
 		assert.Equal(t, protected, f.count(t, "SELECT count(*) FROM recordings WHERE protected") == 1)
 	}
 	assert.Equal(t, []string{"recording.protected", "recording.unprotected"}, f.actions(t, recordingID))
-	// 変えたときだけ、録画の変更を知らせる (#868)。
+	// 変えたときだけ、録画の変更を通知する (#868)。
 	assert.Equal(t, 2, f.count(t, recordingsVersion))
 	require.ErrorIs(t, f.library.SetProtected(t.Context(), f.pool, audit.User(f.userID), id.New(), true), library.ErrNotFound)
 }
 
-// TestSetTags は、タグを置き換え、名前を整えて、監査ログに残すことを確かめる。
+// TestSetTags は、タグを置き換え、名前を整えて、監査ログに残すことを確認する。
 func TestSetTags(t *testing.T) {
 	t.Parallel()
 
@@ -279,7 +279,7 @@ func TestSetTags(t *testing.T) {
 	}
 }
 
-// TestClearProgress は、ユーザーの再生位置を消し、再生位置がなくても失敗しないことを確かめる (#1074)。
+// TestClearProgress は、ユーザーの再生位置を消し、再生位置がなくても失敗しないことを確認する (#1074)。
 func TestClearProgress(t *testing.T) {
 	t.Parallel()
 
@@ -308,7 +308,7 @@ func TestClearProgress(t *testing.T) {
 	}
 }
 
-// TestClearAllProgress は、自分の再生位置だけをすべて消すことを確かめる (#1366)。
+// TestClearAllProgress は、自分の再生位置だけをすべて消すことを確認する (#1366)。
 func TestClearAllProgress(t *testing.T) {
 	t.Parallel()
 
@@ -339,7 +339,7 @@ func TestClearAllProgress(t *testing.T) {
 	assert.Empty(t, f.actions(t, first), "再生位置は個人のものなので、監査ログに残さない")
 }
 
-// TestPruneProgress は、最後に更新してから保持期間を過ぎた再生位置だけを消し、無期限なら消さないことを確かめる (#1366)。
+// TestPruneProgress は、最後に更新してから保持期間を過ぎた再生位置だけを消し、無期限なら消さないことを確認する (#1366)。
 func TestPruneProgress(t *testing.T) {
 	t.Parallel()
 
@@ -379,7 +379,7 @@ func TestPruneProgress(t *testing.T) {
 // libraryFileID は、テストで再生位置を保存するライブラリのファイルの ID (filelib.FileID の形)。
 const libraryFileID = "0123456789abcdef0123456789abcdef"
 
-// TestSaveFileProgress は、ライブラリのファイルの再生位置を、ユーザーごとに保存し、上書きし、引けることを確かめる (#1734)。
+// TestSaveFileProgress は、ライブラリのファイルの再生位置を、ユーザーごとに保存し、上書きし、引けることを確認する (#1734)。
 func TestSaveFileProgress(t *testing.T) {
 	t.Parallel()
 
@@ -397,7 +397,7 @@ func TestSaveFileProgress(t *testing.T) {
 	require.ErrorIs(t, f.library.SaveFileProgress(t.Context(), f.pool, f.userID, libraryFileID, -time.Second), library.ErrInvalidPosition)
 }
 
-// TestSaveProgress は、ユーザーごとに再生位置を保存し、上書きすることを確かめる。
+// TestSaveProgress は、ユーザーごとに再生位置を保存し、上書きすることを確認する。
 func TestSaveProgress(t *testing.T) {
 	t.Parallel()
 

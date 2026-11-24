@@ -30,7 +30,7 @@ func (f *fixture) importOnce(t *testing.T) {
 	require.NoError(t, f.service.ImportWatchlist(t.Context(), f.pool, f.alice.UserID, dramarecord.DestinationSimkl))
 }
 
-// setItems は、偽の Simkl のウォッチリストを items にし、変わった日時を今にする。removed なら、作品を外したことにする。
+// setItems は、モックの Simkl のウォッチリストを items にし、変わった日時を今にする。removed なら、作品を外したことにする。
 func (f *fixture) setItems(items []*simklItem, removed bool) {
 	now := f.clock.Now()
 	f.simkl.Lock()
@@ -47,7 +47,7 @@ func (f *fixture) setItems(items []*simklItem, removed bool) {
 	}
 }
 
-// allItemsCalls は、偽の Simkl が受け取った /sync/all-items/shows の数を返す。
+// allItemsCalls は、モックの Simkl が受け取った /sync/all-items/shows の数を返す。
 func (f *fixture) allItemsCalls() int {
 	f.simkl.Lock()
 	defer f.simkl.Unlock()
@@ -55,8 +55,8 @@ func (f *fixture) allItemsCalls() int {
 	return len(slices.DeleteFunc(slices.Clone(f.simkl.Requests), func(r string) bool { return !strings.HasSuffix(r, "/sync/all-items/shows") }))
 }
 
-// TestImportWatchlist は、Simkl の「見ている」「見たい」の作品を、番組か録画に結びついたものだけ、見ている作品に写すことと、
-// Simkl で状態が変わったときだけ写し直すことを確かめる (#1649)。
+// TestImportWatchlist は、Simkl の「見ている」「見たい」の作品を、番組か録画に結びついたものだけ、見ている作品にコピーすることと、
+// Simkl で状態が変わったときだけコピーし直すことを確認する (#1649)。
 func TestImportWatchlist(t *testing.T) {
 	t.Parallel()
 
@@ -190,7 +190,7 @@ func TestImportWatchlist(t *testing.T) {
 	}
 }
 
-// TestImportWatchlistChecksActivities は、/sync/activities が変わっていなければ、ウォッチリストを引かないことを確かめる (Simkl の求め)。
+// TestImportWatchlistChecksActivities は、/sync/activities が変わっていなければ、ウォッチリストを取得しないことを確認する (Simkl の求め)。
 func TestImportWatchlistChecksActivities(t *testing.T) {
 	t.Parallel()
 
@@ -207,7 +207,7 @@ func TestImportWatchlistChecksActivities(t *testing.T) {
 	assert.Equal(t, 3, f.allItemsCalls(), "a removal reads the changes and every ID")
 }
 
-// TestImportWatchlistFailure は、取り込めなかったら、前に取り込んだ作品を残し、理由と問い合わせ直す日時を残すことを確かめる。
+// TestImportWatchlistFailure は、取り込めなかったら、前に取り込んだ作品を残し、理由と問い合わせ直す日時を残すことを確認する。
 // 429 なら Retry-After の長さだけ待つ。
 func TestImportWatchlistFailure(t *testing.T) {
 	t.Parallel()
@@ -248,7 +248,7 @@ func TestImportWatchlistFailure(t *testing.T) {
 }
 
 // TestRequestWatchlistImport は、画面を開いたときは、前に問い合わせてから 30 分たったときだけ取り込み、取り込み直しを押したときは
-// 待たずに取り込むことを確かめる。Simkl は、タイマーで問い合わせ続けることを断っている。
+// 待たずに取り込むことを確認する。Simkl は、タイマーで問い合わせ続けることを断っている。
 func TestRequestWatchlistImport(t *testing.T) {
 	t.Parallel()
 
