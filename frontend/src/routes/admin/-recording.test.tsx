@@ -250,7 +250,7 @@ describe('字幕の自動生成のスレッドの数 (#1869)', () => {
 });
 
 describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740)', () => {
-  test('同じ回の束ねを切ったら、その項目だけをすぐ保存する (#1498)', async () => {
+  test('同じ回をまとめる設定を切ったら、その項目だけをすぐ保存する (#1498)', async () => {
     const sent: unknown[] = [];
     const environment = respondWith((input) => {
       sent.push(input);
@@ -259,7 +259,7 @@ describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740
     });
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
     const bundle = await screen.findByRole('switch', {
-      name: '局をまたいで同じ回を束ね、最初の放送だけを予約する',
+      name: '局をまたいで同じ回をまとめ、最初の放送だけを予約する',
     });
     expect(bundle).toHaveProperty('checked', true);
 

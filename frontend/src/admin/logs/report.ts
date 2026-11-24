@@ -276,7 +276,7 @@ export function fullReport(fields: IssueFields): string {
   return [
     `# ${fields.title}`,
     '',
-    '## 版',
+    '## バージョン',
     fields.version,
     '',
     '## 環境',

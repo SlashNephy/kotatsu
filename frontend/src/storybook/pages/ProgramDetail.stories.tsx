@@ -173,7 +173,7 @@ export const WatchReserveError: Story = {
   args: { overrides: { setWatchReservation: failing() } },
   play: async () => {
     await userEvent.click(
-      await body.findByRole('button', { name: '視聴予約（放送の少し前に知らせます）' }),
+      await body.findByRole('button', { name: '視聴予約（放送の少し前に通知します）' }),
     );
   },
 };

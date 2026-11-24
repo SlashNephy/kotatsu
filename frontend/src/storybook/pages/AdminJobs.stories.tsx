@@ -171,7 +171,7 @@ export const RetryFailed: Story = {
   play: async ({ canvas }) => {
     await userEvent.click(await canvas.findByRole('tab', { name: /再試行を待つ/ }));
     await userEvent.click(await canvas.findByText('201'));
-    await userEvent.click(await canvas.findByRole('button', { name: 'すぐに試し直す' }));
+    await userEvent.click(await canvas.findByRole('button', { name: 'すぐに再試行する' }));
   },
 };
 
