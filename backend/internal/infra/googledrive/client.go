@@ -220,51 +220,47 @@ func (c *Client) GetDrive(ctx context.Context, id string) (*Drive, error) {
 // Children は、フォルダ parentID の中の、ゴミ箱にないファイルとフォルダを、すべてのページを読んで返す。
 // driveID は、フォルダのある共有ドライブ。マイドライブなら空にする。
 func (c *Client) Children(ctx context.Context, parentID, driveID string) ([]*File, error) {
-	files := []*File{}
-	seen := map[string]bool{}
-	token := ""
-	for {
-		query := url.Values{
-			"q":           {fmt.Sprintf("'%s' in parents and trashed = false", escapeQuery(parentID))},
-			paramFields:   {"nextPageToken,files(" + fileFields + ")"},
-			paramPageSize: {strconv.Itoa(pageSize)}, "orderBy": {"folder,name_natural,createdTime"},
-			paramAllDrives: {valueTrue}, "includeItemsFromAllDrives": {valueTrue},
-		}
-		if driveID == "" {
-			query.Set("corpora", "user")
-		} else {
-			query.Set("corpora", "drive")
-			query.Set("driveId", driveID)
-		}
-		if token != "" {
-			query.Set("pageToken", token)
-		}
-		var body struct {
-			NextPageToken string     `json:"nextPageToken"`
-			Files         []fileJSON `json:"files"`
-		}
-		if err := c.getJSON(ctx, "/drive/v3/files", query, &body); err != nil {
-			return nil, err
-		}
-		for i := range body.Files {
-			// 同じ名前が並ぶと、ページをまたいで同じものが返ることがあるので、ID で重ねない。
-			if !body.Files[i].Trashed && !seen[body.Files[i].ID] {
-				seen[body.Files[i].ID] = true
-				files = append(files, body.Files[i].file())
-			}
-		}
-		if body.NextPageToken == "" {
-			return files, nil
-		}
-		token = body.NextPageToken
-	}
+	return c.listAll(ctx, fmt.Sprintf("'%s' in parents and trashed = false", escapeQuery(parentID)), driveID)
 }
 
-// SearchFiles は、名前に name を含む、ゴミ箱にないファイル (フォルダを除く) を、最大 maxPages ページ読んで返す。
-// driveID は、探す共有ドライブ。マイドライブなら空にする。Drive の q では、あるフォルダの子孫だけには絞れないので、
-// 呼ぶ側で、親をたどって絞る。2 つ目の戻り値は、ページが残っていて、読み切っていないかどうか。
-func (c *Client) SearchFiles(ctx context.Context, name, driveID string, maxPages int) ([]*File, bool, error) {
-	files := []*File{}
+// NamedChildren は、フォルダの中の、名前が決まったファイルとフォルダのうち、ゴミ箱にないものを、1 つの問い合わせ
+// (('<親>' in parents and (name = '<名前>' or ...)) or ...) で、すべてのページを読んで返す。names は、親のフォルダの ID から名前への対応。
+// 大きなフォルダの内容をすべて読まずに、同じ名前が並んでいるかを確認するために使う。driveID は Children と同じ。
+// 問い合わせの長さには上限があるので、呼ぶ側で、名前を数十個ずつに分ける。
+func (c *Client) NamedChildren(ctx context.Context, names map[string][]string, driveID string) ([]*File, error) {
+	parents := make([]string, 0, len(names))
+	for parent := range names {
+		parents = append(parents, parent)
+	}
+	slices.Sort(parents)
+	terms := make([]string, 0, len(parents))
+	for _, parent := range parents {
+		if len(names[parent]) == 0 {
+			continue
+		}
+		equals := make([]string, 0, len(names[parent]))
+		for _, name := range names[parent] {
+			equals = append(equals, fmt.Sprintf("name = '%s'", escapeQuery(name)))
+		}
+		terms = append(terms, fmt.Sprintf("('%s' in parents and (%s))", escapeQuery(parent), strings.Join(equals, " or ")))
+	}
+	if len(terms) == 0 {
+		return []*File{}, nil
+	}
+
+	return c.listAll(ctx, "("+strings.Join(terms, " or ")+") and trashed = false", driveID)
+}
+
+// Folders は、共有ドライブ driveID (マイドライブなら空) の、ゴミ箱にないフォルダを、すべてのページを読んで返す。
+// マイドライブでは、共有アイテムのフォルダも返る。根元 (マイドライブと共有ドライブそのもの) は返らない。
+func (c *Client) Folders(ctx context.Context, driveID string) ([]*File, error) {
+	return c.listAll(ctx, fmt.Sprintf("mimeType = '%s' and trashed = false", FolderMIMEType), driveID)
+}
+
+// SearchFiles は、名前に name を含む、ゴミ箱にないファイル (フォルダを除く) を、1 ページずつ page に渡す。page が false を返すか、
+// maxPages ページ読んだら止める。driveID は、探す共有ドライブ。マイドライブなら空にする。Drive の q では、あるフォルダの子孫だけには
+// 絞れないので、呼ぶ側で、親をたどって絞る。戻り値は、ページが残っていて、読み切っていないかどうか。
+func (c *Client) SearchFiles(ctx context.Context, name, driveID string, maxPages int, page func([]*File) bool) (bool, error) {
 	token := ""
 	for range maxPages {
 		query := url.Values{
@@ -286,20 +282,21 @@ func (c *Client) SearchFiles(ctx context.Context, name, driveID string, maxPages
 			Files         []fileJSON `json:"files"`
 		}
 		if err := c.getJSON(ctx, "/drive/v3/files", query, &body); err != nil {
-			return nil, false, err
+			return false, err
 		}
+		files := make([]*File, 0, len(body.Files))
 		for i := range body.Files {
 			if !body.Files[i].Trashed {
 				files = append(files, body.Files[i].file())
 			}
 		}
-		if body.NextPageToken == "" {
-			return files, false, nil
+		if !page(files) || body.NextPageToken == "" {
+			return body.NextPageToken != "", nil
 		}
 		token = body.NextPageToken
 	}
 
-	return files, true, nil
+	return true, nil
 }
 
 // Get は、ファイルかフォルダ id の情報を返す。ゴミ箱にあれば ErrNotFound を返す。
@@ -348,6 +345,48 @@ func (c *Client) Download(ctx context.Context, id string, offset int64) (io.Read
 	}
 
 	return res.Body, nil
+}
+
+// listAll は、files.list に q を渡し、ゴミ箱にないものを、すべてのページを読んで返す。driveID は、探す共有ドライブ。マイドライブなら空にする。
+func (c *Client) listAll(ctx context.Context, q, driveID string) ([]*File, error) {
+	files := []*File{}
+	seen := map[string]bool{}
+	token := ""
+	for {
+		query := url.Values{
+			"q":           {q},
+			paramFields:   {"nextPageToken,files(" + fileFields + ")"},
+			paramPageSize: {strconv.Itoa(pageSize)}, "orderBy": {"folder,name_natural,createdTime"},
+			paramAllDrives: {valueTrue}, "includeItemsFromAllDrives": {valueTrue},
+		}
+		if driveID == "" {
+			query.Set("corpora", "user")
+		} else {
+			query.Set("corpora", "drive")
+			query.Set("driveId", driveID)
+		}
+		if token != "" {
+			query.Set("pageToken", token)
+		}
+		var body struct {
+			NextPageToken string     `json:"nextPageToken"`
+			Files         []fileJSON `json:"files"`
+		}
+		if err := c.getJSON(ctx, "/drive/v3/files", query, &body); err != nil {
+			return nil, err
+		}
+		for i := range body.Files {
+			// 同じ名前が並ぶと、ページをまたいで同じものが返ることがあるので、ID で重ねない。
+			if !body.Files[i].Trashed && !seen[body.Files[i].ID] {
+				seen[body.Files[i].ID] = true
+				files = append(files, body.Files[i].file())
+			}
+		}
+		if body.NextPageToken == "" {
+			return files, nil
+		}
+		token = body.NextPageToken
+	}
 }
 
 // contentRangeStart は、Content-Range (bytes 100-199/200) の始まりを返す。
