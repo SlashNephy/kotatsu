@@ -23,7 +23,7 @@ const kindOther = "other"
 // videoContentTypeOf は、拡張子 ext の動画の種類を返す。動画でなければ false を返す。
 // 動画だけを、その種類で返してブラウザで再生させる。HTML や SVG などをそのまま返すと、
 // Kotatsu と同じオリジンで表示され、中のスクリプトが動きうるので、動画以外はダウンロードさせる。
-// 拡張子から種類を引く mime.types はコンテナイメージにないので、種類は自分で持つ。
+// 拡張子から種類を検索する mime.types はコンテナイメージにないので、種類は自分で持つ。
 func videoContentTypeOf(ext string) (string, bool) {
 	switch strings.ToLower(ext) {
 	case ".mp4", ".m4v":

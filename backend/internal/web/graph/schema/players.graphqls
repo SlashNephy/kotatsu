@@ -136,7 +136,7 @@ extend type Mutation {
 }
 
 extend type Subscription {
-  "ログイン中のユーザーの、再生中のプレイヤーの一覧の版。変わったら、players を読み直す。"
+  "ログイン中のユーザーの、再生中のプレイヤーの一覧のバージョン。変わったら、players を読み直す。"
   playersChanged: Int!
   """
   このセッションのプレイヤーへの操作を、届いた順に送る。after を渡せば、その操作より後に届いたものから送る。

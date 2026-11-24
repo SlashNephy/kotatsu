@@ -34,7 +34,7 @@ func oauthQuery(ctx context.Context, raw string) (url.Values, string, error) {
 	return query, client.Origin(), nil
 }
 
-// oauthAuthorizationOf は、確かめた認可のリクエストを GraphQL の形にする。
+// oauthAuthorizationOf は、確認した認可のリクエストを GraphQL の形にする。
 func oauthAuthorizationOf(req *oauth.AuthorizationRequest, allowed []string) *model.OAuthAuthorization {
 	authorization := &model.OAuthAuthorization{
 		ClientID: req.Client.ClientID, ClientName: req.Client.ClientName, ClientURI: nil, RedirectURI: req.RedirectURI,
@@ -52,7 +52,7 @@ func oauthAuthorizationOf(req *oauth.AuthorizationRequest, allowed []string) *mo
 	return authorization
 }
 
-// oauthError は、認可のリクエストを確かめたときのエラーを、エラーコードにする。
+// oauthError は、認可のリクエストを確認したときのエラーを、エラーコードにする。
 // クライアントへ戻すエラー (*oauth.AuthorizationError) は、エラーにせず、呼び出し側が戻す URL として返す。
 func (r *Resolver) oauthError(ctx context.Context, err error) error {
 	switch {

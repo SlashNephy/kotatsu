@@ -109,9 +109,9 @@ func loadLibraryTS(t *testing.T) []byte {
 type libraryParts struct {
 	// dir は、ライブラリ anime のディレクトリ。
 	dir string
-	// images は、画像を作るジョブを入れる代わりに、入れたジョブを覚える。
+	// images は、画像を作るジョブを入れる代わりに、入れたジョブを記録する。
 	images *fakeImages
-	// indexer は、索引と画像の置き場を読み書きする。
+	// indexer は、インデックスと画像の保存先を読み書きする。
 	indexer *filelib.Indexer
 	// dataDir は、データディレクトリ。
 	dataDir string
@@ -140,7 +140,7 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 		WithProvider(disconnected)
 	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
 	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), true)
-	// テストを終えるときに、索引を作る処理を止めてから一時ディレクトリを消させる。
+	// テストを終えるときに、インデックスを作る処理を止めてから一時ディレクトリを消させる。
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -155,13 +155,13 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 	images := new(fakeImages)
 
 	f := newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer), LibraryJobs: images})
-	// 字幕の自動生成の状態は、River のジョブの表から読む。
+	// 字幕の自動生成の状態は、River のジョブのテーブルから読む。
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 
 	return f, &libraryParts{dir: libraryDir, images: images, indexer: indexer, dataDir: dataDir}
 }
 
-// TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの中身は、ディレクトリと再生できるファイルだけを返すことを確かめる (#1734)。
+// TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの内容は、ディレクトリと再生できるファイルだけを返すことを確認する (#1734)。
 func TestLibraries(t *testing.T) {
 	t.Parallel()
 
@@ -220,7 +220,7 @@ func TestLibraries(t *testing.T) {
 			if len(tt.wantCodes) == 0 {
 				assert.Equal(t, tt.path, got.LibraryDirectory.Path)
 				assert.Equal(t, tt.want, got.LibraryDirectory.Entries)
-				// フォルダのライブラリでは、パンくずの名前は、パスの段そのもの。
+				// フォルダのライブラリでは、パンくずの名前は、パスの階層そのもの。
 				wantNames := []string{}
 				if tt.path != "" {
 					wantNames = strings.Split(tt.path, "/")
@@ -231,7 +231,7 @@ func TestLibraries(t *testing.T) {
 	}
 }
 
-// TestLibrarySearch は、フォルダのライブラリで、名前の部分一致でディレクトリの下を探せることを確かめる (#1902)。
+// TestLibrarySearch は、フォルダのライブラリで、名前の部分一致でディレクトリの下を探せることを確認する (#1902)。
 func TestLibrarySearch(t *testing.T) {
 	t.Parallel()
 
@@ -280,7 +280,7 @@ func TestLibrarySearch(t *testing.T) {
 			for _, hit := range got.LibrarySearch.Hits {
 				paths = append(paths, hit.Entry.Path)
 				assert.True(t, hit.Entry.Playable)
-				// フォルダの名前は、パスの段そのもの。
+				// フォルダの名前は、パスの階層そのもの。
 				assert.Equal(t, []string{showDir}, hit.FolderNames)
 			}
 			assert.Equal(t, tt.wantPaths, paths)
@@ -298,7 +298,7 @@ func nonNil(codes []string) []string {
 	return codes
 }
 
-// TestLibraryFile は、ファイルを開くと索引を作り始め、作り終えたらシークできる所と長さを返し、再生位置をユーザーごとに保存することを確かめる (#1734)。
+// TestLibraryFile は、ファイルを開くとインデックスを作り始め、作り終えたらシークできる所と長さを返し、再生位置をユーザーごとに保存することを確認する (#1734)。
 func TestLibraryFile(t *testing.T) {
 	t.Parallel()
 
@@ -324,9 +324,9 @@ func TestLibraryFile(t *testing.T) {
 	require.NotNil(t, file.LibraryFile.Index.DurationSeconds)
 	assert.GreaterOrEqual(t, *file.LibraryFile.Index.DurationSeconds, file.LibraryFile.Index.SeekableSeconds)
 	assert.Nil(t, file.LibraryFile.WatchPositionMs)
-	// 放送の情報と実況の過去ログの URL (#1734 の 2 段目)。局は Kotatsu にないので、service は null で、SDT の名前を返す。
+	// 放送の情報と実況の過去ログの URL (#1734 の 2 段階目)。局は Kotatsu にないので、service は null で、SDT の名前を返す。
 	assert.Equal(t, "/internal/media/library/"+encoded+"/jikkyo.json", file.LibraryFile.JikkyoCommentsURL)
-	// 画像はまだないので null で、索引を作り終えたファイルを引くと、作るジョブを入れる。
+	// 画像はまだないので null で、インデックスを作り終えたファイルを取得すると、作るジョブを入れる。
 	assert.Nil(t, file.LibraryFile.ThumbnailURL)
 	assert.Nil(t, file.LibraryFile.PreviewURL)
 	assert.Contains(t, images.kinds(), "library_images_generate")
@@ -433,7 +433,7 @@ func TestLibraryFile(t *testing.T) {
 	}
 }
 
-// fakeImages は、ライブラリのファイルの画像や CM の区間のジョブを入れる代わりに、入れたジョブの種類を覚える。
+// fakeImages は、ライブラリのファイルの画像や CM の区間のジョブを入れる代わりに、入れたジョブの種類を記録する。
 type fakeImages struct {
 	mu   sync.Mutex
 	args []river.JobArgs

@@ -35,7 +35,7 @@ type animeFollowingResult struct {
 	}
 }
 
-// TestAnimeFollowingViewings は、取り込んだ視聴状況を、取り込んだ本人にだけ返すことを確かめる (#1372、設計書 3.8)。
+// TestAnimeFollowingViewings は、取り込んだ視聴状況を、取り込んだ本人にだけ返すことを確認する (#1372、設計書 3.8)。
 func TestAnimeFollowingViewings(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)

@@ -83,7 +83,7 @@ func (r *Resolver) removeTimeshiftChannel(ctx context.Context, serviceGlobalID s
 	return serviceGlobalID, nil
 }
 
-// timeshiftPrograms は、サービスのバッファから再生できる番組を返す。どのロールも視聴できるので、ログインだけを確かめる (設計書 9.7)。
+// timeshiftPrograms は、サービスのバッファから再生できる番組を返す。どのロールも視聴できるので、ログインだけを確認する (設計書 9.7)。
 // この tenban にタイムシフトのディレクトリがなければ、バッファを流せないので、空を返す。
 func (r *Resolver) timeshiftPrograms(ctx context.Context, serviceID int64) ([]*model.TimeshiftProgram, error) {
 	if _, err := viewer(ctx); err != nil {
@@ -105,7 +105,7 @@ func (r *Resolver) timeshiftPrograms(ctx context.Context, serviceID int64) ([]*m
 }
 
 // promoteTimeshiftProgram は、サービスのバッファの、startAt に始まった番組を、録画に昇格する (設計書 5.7)。
-// 放送中の番組は番組予約を作り、放送の終わった番組は、録画を作って、バッファから書き出すジョブを入れる。
+// 放送中の番組は番組予約を作り、放送の終わった番組は、録画を作って、バッファから出力するジョブを入れる。
 func (r *Resolver) promoteTimeshiftProgram(ctx context.Context, serviceGlobalID string, startAt time.Time) (*model.TimeshiftPromotion, error) {
 	actor, err := scheduler(ctx)
 	if err != nil {
@@ -143,7 +143,7 @@ func (r *Resolver) promoteTimeshiftProgram(ctx context.Context, serviceGlobalID 
 	return &model.TimeshiftPromotion{Recording: recording, Reservation: nil}, nil
 }
 
-// timeshiftBuffer は、サービスのバッファの再生できる範囲を返す。どのロールも視聴できるので、ログインだけを確かめる。
+// timeshiftBuffer は、サービスのバッファの再生できる範囲を返す。どのロールも視聴できるので、ログインだけを確認する。
 // 録っていないか、チャンクがないか、この tenban にタイムシフトのディレクトリがなければ、ok を false にする。
 func (r *Resolver) timeshiftBuffer(ctx context.Context, serviceID int64) (*model.TimeshiftBuffer, bool, error) {
 	if _, err := viewer(ctx); err != nil {

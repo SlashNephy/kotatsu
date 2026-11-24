@@ -27,7 +27,7 @@ func (h *Handler) Playlist(c *echo.Context) error {
 	return c.Blob(http.StatusOK, "audio/x-mpegurl; charset=utf-8", []byte(Playlist(h.base(c), services)))
 }
 
-// Playlist は、サービス services の M3U を、配信の URL の頭 base から作る。
+// Playlist は、サービス services の M3U を、配信の URL の先頭 base から作る。
 func Playlist(base string, services []domain.Service) string {
 	var b strings.Builder
 	b.WriteString(`#EXTM3U url-tvg="` + base + `/guide.xml" x-tvg-url="` + base + `/guide.xml"` + "\n")

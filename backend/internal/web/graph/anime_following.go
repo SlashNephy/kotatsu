@@ -10,7 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
-// followingTID は、GraphQL の tid を確かめて返す。
+// followingTID は、GraphQL の tid を確認して返す。
 func followingTID(tid int) (int32, error) {
 	if tid <= 0 || tid > math.MaxInt32 {
 		return 0, NewError(CodeBadUserInput, "invalid tid")

@@ -21,25 +21,25 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
-// Changes は、ロール間の変更の通知を、subscription の購読者に知らせる。*notify.Broadcaster が満たす。
+// Changes は、ロール間の変更の通知を、subscription の購読者に通知する。*notify.Broadcaster が満たす。
 type Changes interface {
 	// Subscribe は、変更があると値を受け取れるチャンネルと、購読をやめる関数を返す。
 	Subscribe() (<-chan struct{}, func())
-	// Version は、チャンネルの今の版数を返す。
+	// Version は、チャンネルの今のバージョンを返す。
 	Version(channel string) int64
 }
 
 // errChangesUnavailable は、変更の通知が設定されていないことを表す。
 var errChangesUnavailable = errors.New("change notifications are not configured")
 
-// dataChannel は、dataChanged で知らせるデータの種類と、変更の通知のチャンネルの対応。adminOnly のものは、管理者にだけ知らせる。
+// dataChannel は、dataChanged で通知するデータの種類と、変更の通知のチャンネルの対応。adminOnly のものは、管理者にだけ通知する。
 type dataChannel struct {
 	channel   model.DataChannel
 	notify    string
 	adminOnly bool
 }
 
-// dataChannels は、dataChanged で知らせるデータの種類の一覧。
+// dataChannels は、dataChanged で通知するデータの種類の一覧。
 func dataChannels() []dataChannel {
 	return []dataChannel{
 		{channel: model.DataChannelEpg, notify: epg.NotifyChannel, adminOnly: false},
@@ -55,7 +55,7 @@ func dataChannels() []dataChannel {
 	}
 }
 
-// WatchedChannels は、subscription で知らせるのに使う、変更の通知のチャンネルを返す。tenban は、これらを見張る。
+// WatchedChannels は、subscription で通知するのに使う、変更の通知のチャンネルを返す。tenban は、これらを見張る。
 func WatchedChannels() []string {
 	channels := make([]string, 0, len(dataChannels())+4)
 	for _, c := range dataChannels() {
@@ -65,7 +65,7 @@ func WatchedChannels() []string {
 	return append(channels, notification.NotifyChannel, usersettings.NotifyChannel, player.NotifyChannel, scramble.NotifyChannel)
 }
 
-// subscribeDataChanges は、購読を始めたときに今の版数を送り、その後は版数が上がったデータの種類を送る。
+// subscribeDataChanges は、購読を始めたときに今のバージョンを送り、その後はバージョンが上がったデータの種類を送る。
 func (r *Resolver) subscribeDataChanges(ctx context.Context) (<-chan *model.DataChange, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -78,7 +78,7 @@ func (r *Resolver) subscribeDataChanges(ctx context.Context) (<-chan *model.Data
 	if principal.Role != domain.RoleAdmin {
 		channels = slices.DeleteFunc(channels, func(c dataChannel) bool { return c.adminOnly })
 	}
-	// 版数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。
+	// バージョンを読む前に購読し、読んだ後の変更を取りこぼさないようにする。
 	wake, unsubscribe := r.changes.Subscribe()
 	last := map[model.DataChannel]int64{}
 	for _, c := range channels {
@@ -180,8 +180,8 @@ func (r *Resolver) subscribeUnreadNotificationCount(ctx context.Context) (<-chan
 	return out, nil
 }
 
-// subscribeViewerSettings は、購読を始めたときにログイン中のユーザーの設定の版数を送り、その後は版数が上がったときに送る。
-// ほかのユーザーが設定を変えたときは、版数を読み直すだけで、何も送らない。
+// subscribeViewerSettings は、購読を始めたときにログイン中のユーザーの設定のバージョンを送り、その後はバージョンが上がったときに送る。
+// ほかのユーザーが設定を変えたときは、バージョンを読み直すだけで、何も送らない。
 func (r *Resolver) subscribeViewerSettings(ctx context.Context) (<-chan int, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -190,7 +190,7 @@ func (r *Resolver) subscribeViewerSettings(ctx context.Context) (<-chan int, err
 	if r.changes == nil {
 		return nil, errChangesUnavailable
 	}
-	// 版数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。
+	// バージョンを読む前に購読し、読んだ後の変更を取りこぼさないようにする。
 	wake, unsubscribe := r.changes.Subscribe()
 	channelVersion := r.changes.Version(usersettings.NotifyChannel)
 	version, err := r.queries.UserSettingsVersion(ctx, principal.UserID)
@@ -218,7 +218,7 @@ func (r *Resolver) subscribeViewerSettings(ctx context.Context) (<-chan int, err
 			channelVersion = latest
 			current, err := r.queries.UserSettingsVersion(ctx, principal.UserID)
 			if err != nil {
-				// 読めなければ、購読を終える。クライアントは、購読し直して今の版数を受け取る。
+				// 読めなければ、購読を終える。クライアントは、購読し直して今のバージョンを受け取る。
 				return
 			}
 			if current <= version {
@@ -236,7 +236,7 @@ func (r *Resolver) subscribeViewerSettings(ctx context.Context) (<-chan int, err
 	return out, nil
 }
 
-// subscribeViewerEvents は、データの変更、設定の版数、未読の通知の数を、1 つの購読にまとめて送る。
+// subscribeViewerEvents は、データの変更、設定のバージョン、未読の通知の数を、1 つの購読にまとめて送る。
 // どれかの購読が終わったら、まとめた購読も終え、クライアントにつなぎ直させる。
 func (r *Resolver) subscribeViewerEvents(ctx context.Context) (<-chan *model.ViewerEvent, error) {
 	ctx, cancel := context.WithCancel(ctx)

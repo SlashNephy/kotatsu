@@ -8,13 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestTunerServerHealth は、管理者でなくても、チューナーサーバーにつながっているかを読めることを確かめる。
+// TestTunerServerHealth は、管理者でなくても、チューナーサーバーにつながっているかを読めることを確認する。
 func TestTunerServerHealth(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name string
-		// checked は、チューナーサーバーの状態を確かめたことがあるかどうか。connected は、そのときにつながったかどうか。
+		// checked は、チューナーサーバーの状態を確認したことがあるかどうか。connected は、そのときにつながったかどうか。
 		checked      bool
 		connected    bool
 		wantDegraded bool
@@ -55,7 +55,7 @@ func TestTunerServerHealth(t *testing.T) {
 }
 
 // TestTunerServerHealthClockSkew は、管理者でなくても、チューナーサーバーの時計が閾値 (10 秒) を超えてずれているかを読めることを
-// 確かめる (#505)。録画の開始と終了がずれうるので、ホームで全員に知らせるのに使う。
+// 確認する (#505)。録画の開始と終了がずれうるので、ホームで全員に通知するのに使う。
 func TestTunerServerHealthClockSkew(t *testing.T) {
 	t.Parallel()
 

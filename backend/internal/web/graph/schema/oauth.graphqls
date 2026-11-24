@@ -4,7 +4,7 @@ MCP のクライアントからの認可のリクエスト (#963、設計書 9.9
 type OAuthAuthorization {
   "クライアントの ID。クライアントのメタデータの URL (CIMD)。"
   clientId: String!
-  "クライアントの名前。クライアントが自分で名乗るもので、確かめていない。"
+  "クライアントの名前。クライアントが自分で名乗るもので、確認していない。"
   clientName: String!
   "クライアントのサイト。名乗っていなければ null。"
   clientUri: String
@@ -17,10 +17,10 @@ type OAuthAuthorization {
 }
 
 """
-同意の画面に出す前に確かめた、認可のリクエスト。
+同意の画面に出す前に確認した、認可のリクエスト。
 """
 type OAuthAuthorizationCheck {
-  "確かめた認可のリクエスト。errorRedirectUrl があれば null。"
+  "確認した認可のリクエスト。errorRedirectUrl があれば null。"
   authorization: OAuthAuthorization
   "パラメーターが正しくないときに、エラーを付けてクライアントへ戻す URL。正しければ null。"
   errorRedirectUrl: String
@@ -46,8 +46,8 @@ extend type Query {
   "ログイン中のユーザーが連携している MCP のクライアント。新しい順に並べる。MCP を無効にしていても返す。"
   oauthGrants: [OAuthGrant!]!
   """
-  認可のエンドポイントに届いたクエリ (先頭の ? を除く) を確かめる。クライアントのメタデータは、ここで取ってくる。
-  client_id かリダイレクト URI を確かめられなければ、どこへ戻すかが分からないので BAD_USER_INPUT を返す。
+  認可のエンドポイントに届いたクエリ (先頭の ? を除く) を確認する。クライアントのメタデータは、ここで取ってくる。
+  client_id かリダイレクト URI を確認できなければ、どこへ戻すかが分からないので BAD_USER_INPUT を返す。
   MCP が無効なら NOT_FOUND を返す。
   """
   oauthAuthorization(query: String!): OAuthAuthorizationCheck!

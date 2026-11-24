@@ -6,7 +6,7 @@ extend type Query {
 extend type Mutation {
   """
   サービスをピン留めするか、外す (#485)。ピン留めした後のサービスを、ピン留めした順に返す。
-  同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  同じユーザーのほかの端末に viewerSettingsChanged で通知する。
   """
   setServicePinned(id: ID!, pinned: Boolean!): [Service!]!
 }

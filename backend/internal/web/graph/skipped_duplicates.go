@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
-// skippedDuplicates は、重複の回避、同じ回の束ね、前の回を録らない設定で予約しなかった番組を返す。
+// skippedDuplicates は、重複の回避、同じ回のまとめ、前の回を録らない設定で予約しなかった番組を返す。
 func (r *Resolver) skippedDuplicates(ctx context.Context) ([]*model.SkippedDuplicate, error) {
 	if _, err := viewer(ctx); err != nil {
 		return nil, err

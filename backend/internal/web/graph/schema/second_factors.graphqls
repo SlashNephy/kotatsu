@@ -16,7 +16,7 @@ type TOTPEnrollment {
   secret: String!
   "認証アプリが QR コードから読む otpauth URI。"
   uri: String!
-  "これまでに confirmTotpEnrollment でコードを確かめないと、登録は取り消される。"
+  "これまでに confirmTotpEnrollment でコードを確認しないと、登録は取り消される。"
   expiresAt: Time!
 }
 
@@ -34,12 +34,12 @@ extend type Query {
 
 extend type Mutation {
   """
-  TOTP の登録を始める。登録済みの TOTP を置き換えるときも使う。confirmTotpEnrollment で確かめるまでは、今の TOTP がそのまま使える。
+  TOTP の登録を始める。登録済みの TOTP を置き換えるときも使う。confirmTotpEnrollment で確認するまでは、今の TOTP がそのまま使える。
   直近 10 分以内に認証していなければ、REAUTHENTICATION_REQUIRED を返す (設計書 9.5)。
   """
   beginTotpEnrollment: TOTPEnrollment!
   """
-  登録中の TOTP のコードを確かめて有効にし、新しいリカバリーコードを返す。古いリカバリーコードは使えなくなる。
+  登録中の TOTP のコードを確認して有効にし、新しいリカバリーコードを返す。古いリカバリーコードは使えなくなる。
   直近 10 分以内の認証が要る。
   """
   confirmTotpEnrollment(code: String!): RecoveryCodes!

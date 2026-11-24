@@ -30,7 +30,7 @@ const (
 	googleFolderChoices     = `{ googleDriveFolderChoices { id name } }`
 	// driveFolderID は、テストで選ぶ Drive のフォルダの ID。
 	driveFolderID = "videos"
-	// googleClientID は、偽の Google に登録したクライアント ID。
+	// googleClientID は、モックの Google に登録したクライアント ID。
 	googleClientID = "google-client"
 	// fieldClientID は、クライアント ID を渡す入力の項目の名前。
 	fieldClientID     = "clientId"
@@ -38,7 +38,7 @@ const (
 )
 
 // TestGoogleIntegration は、管理者だけが Google の OAuth クライアントを登録して Google Drive の接続を始められ、
-// シークレットを返さず、登録と接続を始めるときは直近の再認証を求めることを確かめる (#1902、設計書 9.5)。
+// シークレットを返さず、登録と接続を始めるときは直近の再認証を求めることを確認する (#1902、設計書 9.5)。
 func TestGoogleIntegration(t *testing.T) {
 	t.Parallel()
 	fake := googletest.New(googleClientID, "top-secret-value")

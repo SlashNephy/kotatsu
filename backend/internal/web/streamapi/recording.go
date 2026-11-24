@@ -21,7 +21,7 @@ import (
 // RecordingHandler は、録画を配信する (GET /internal/streams/recordings/{id}?start=秒)。download を付けると、録画ファイルの名前で保存させる。
 // 録画を終えた録画を start なしで要求されたら、長さを返し、HTTP の Range に答える。外部プレイヤーは Range でシークする。
 //
-// 索引を使って、録画の始まりから start 秒の位置を GOP の先頭のバイト位置に変換し、そこからセグメントを連結して流す。
+// インデックスを使って、録画の始まりから start 秒の位置を GOP の先頭のバイト位置に変換し、そこからセグメントを連結して流す。
 // 引き継ぎで重なった区間は切り詰める。録画中の録画は、ファイルの末尾まで読んだら、ファイルが伸びるのを待ちながら流し続ける。
 type RecordingHandler struct {
 	source *stream.RecordingSource
@@ -39,7 +39,7 @@ var _ DownloadGate = new(settings.URLGate)
 var _ http.Handler = new(RecordingHandler)
 
 // NewRecordingHandler は RecordingHandler を返す。store は、このインスタンスにマウントされたプール。
-// gate で、download を受け付けるかを確かめる。pollInterval が 0 なら 500 ミリ秒にする。
+// gate で、download を受け付けるかを確認する。pollInterval が 0 なら 500 ミリ秒にする。
 func NewRecordingHandler(pool *pgxpool.Pool, store *kago.Store, gate DownloadGate, logger *slog.Logger, pollInterval time.Duration) *RecordingHandler {
 	return &RecordingHandler{source: stream.NewRecordingSource(pool, store, pollInterval), gate: gate, logger: logger}
 }
@@ -98,7 +98,7 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 流し始めるのは、指定した位置の手前の I フレームから。実際に流し始めた位置を返し、画面はそれを再生位置の起点にする (#536)。
-	// 索引のないセグメントは、その始まりから流すので、指定した位置と大きくずれる。HEAD でも返すので、先に位置だけを引ける。
+	// インデックスのないセグメントは、その始まりから流すので、指定した位置と大きくずれる。HEAD でも返すので、先に位置だけを取得できる。
 	pos := recording.Seek(start)
 	w.Header().Set(StartHeader, strconv.FormatFloat(pos.At.Seconds(), 'f', 3, 64))
 	writeStreamHeader(w)
@@ -110,7 +110,7 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// downloadsEnabled は、管理者が録画のダウンロードを有効にしているかを確かめる。有効でなければ、応答を書いて false を返す。
+// downloadsEnabled は、管理者が録画のダウンロードを有効にしているかを確認する。有効でなければ、応答を書いて false を返す。
 func (h *RecordingHandler) downloadsEnabled(w http.ResponseWriter, r *http.Request) bool {
 	enabled, err := h.gate.RecordingDownloadsEnabled(r.Context())
 	switch {

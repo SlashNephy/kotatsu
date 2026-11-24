@@ -21,7 +21,7 @@ const (
 )
 
 // TestCreateStreamURL は、視聴者も、サービスと録画の署名付きの映像の URL を発行でき、
-// その URL が、発行したユーザーで、ライブなら 1 時間、録画なら録画の長さに 1 時間を足した時間だけ通ることを確かめる (設計書 7.6、9.6、#1756)。
+// その URL が、発行したユーザーで、ライブなら 1 時間、録画なら録画の長さに 1 時間を足した時間だけ通ることを確認する (設計書 7.6、9.6、#1756)。
 func TestCreateStreamURL(t *testing.T) {
 	t.Parallel()
 
@@ -74,7 +74,7 @@ func TestCreateStreamURL(t *testing.T) {
 	}
 }
 
-// TestCreateStreamURLRejectsTarget は、ないものと、サービスか録画でないものの URL を発行しないことを確かめる。
+// TestCreateStreamURLRejectsTarget は、ないものと、サービスか録画でないものの URL を発行しないことを確認する。
 func TestCreateStreamURLRejectsTarget(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +104,7 @@ func TestCreateStreamURLRejectsTarget(t *testing.T) {
 }
 
 // TestCreateStreamURLWhileDisabled は、管理者が外部プレイヤー用の URL を有効にしていなければ、
-// 管理者にも URL を発行しないことを確かめる (#1755)。既定では無効にする。
+// 管理者にも URL を発行しないことを確認する (#1755)。既定では無効にする。
 func TestCreateStreamURLWhileDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -130,7 +130,7 @@ func TestCreateStreamURLWhileDisabled(t *testing.T) {
 	}
 }
 
-// TestTranscoding は、生きている kyusu が登録簿にいるときだけ、サーバー側でのトランスコードを使えるとすることを確かめる。
+// TestTranscoding は、生きている kyusu が登録簿にいるときだけ、サーバー側でのトランスコードを使えるとすることを確認する。
 func TestTranscoding(t *testing.T) {
 	t.Parallel()
 

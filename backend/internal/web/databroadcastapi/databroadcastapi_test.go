@@ -25,7 +25,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/databroadcastapi"
 )
 
-// allowPort は、port への接続だけを、グローバルなアドレスとみなして通す Control を返す。ほかは publicnet.Control で確かめる。
+// allowPort は、port への接続だけを、グローバルなアドレスとみなして通す Control を返す。ほかは publicnet.Control で確認する。
 // httptest のサーバーは 127.0.0.1 で待ち受けるので、テストの上流を「インターネットのサーバー」に見立てるのに使う。
 func allowPort(port string) databroadcastapi.Control {
 	return func(network, address string, conn syscall.RawConn) error {
@@ -79,7 +79,7 @@ func viewer() *auth.Principal {
 	}
 }
 
-// TestRequestHandler は、文書のリクエストを中継し、グローバルでない宛先 (リダイレクトの先と、名前を引いた先を含む) を断ることを確かめる。
+// TestRequestHandler は、文書のリクエストをプロキシし、グローバルでない宛先 (リダイレクトの先と、名前を引いた先を含む) を断ることを確認する。
 func TestRequestHandler(t *testing.T) {
 	t.Parallel()
 
@@ -253,7 +253,7 @@ func TestRequestHandler(t *testing.T) {
 	}
 }
 
-// TestRequestHandlerAuthorization は、ログインしていないときと、管理者が中継を有効にしていないときに、中継しないことを確かめる。
+// TestRequestHandlerAuthorization は、ログインしていないときと、管理者が中継を有効にしていないときに、プロキシしないことを確認する。
 func TestRequestHandlerAuthorization(t *testing.T) {
 	t.Parallel()
 
@@ -284,7 +284,7 @@ func TestRequestHandlerAuthorization(t *testing.T) {
 	}
 }
 
-// TestConnectivityHandler は、接続を確かめる宛先も、グローバルでないアドレスなら接続しないことを確かめる。
+// TestConnectivityHandler は、接続を確認する宛先も、グローバルでないアドレスなら接続しないことを確認する。
 func TestConnectivityHandler(t *testing.T) {
 	t.Parallel()
 
@@ -318,7 +318,7 @@ func TestConnectivityHandler(t *testing.T) {
 	}
 }
 
-// TestConnectivityHandlerSuccess は、接続できた宛先の、接続したアドレスと、かかった時間を返すことを確かめる。
+// TestConnectivityHandlerSuccess は、接続できた宛先の、接続したアドレスと、かかった時間を返すことを確認する。
 func TestConnectivityHandlerSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -336,7 +336,7 @@ func TestConnectivityHandlerSuccess(t *testing.T) {
 	assert.NotNil(t, got.ResponseTimeMillis)
 }
 
-// TestRequestHandlerLogsHostOnly は、断ったリクエストのログに、宛先のパスとクエリを残さないことを確かめる。
+// TestRequestHandlerLogsHostOnly は、断ったリクエストのログに、宛先のパスとクエリを残さないことを確認する。
 // パスとクエリには、文書が入れた受信機の情報 (郵便番号など) が入ることがある。
 func TestRequestHandlerLogsHostOnly(t *testing.T) {
 	t.Parallel()

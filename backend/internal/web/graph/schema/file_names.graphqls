@@ -21,7 +21,7 @@ type FileNameTemplatePreset {
 }
 
 """
-ファイル名のテンプレートの書き方。Go のテンプレートを書かない利用者向けに、画面で表にして示す。
+ファイル名のテンプレートの書き方。Go のテンプレートを書かない利用者向けに、画面でテーブルにして示す。
 """
 type FileNameTemplateHelp {
   items: [FileNameTemplateItem!]!

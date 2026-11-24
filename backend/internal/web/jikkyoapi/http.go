@@ -30,7 +30,7 @@ const CommentsFileName = "jikkyo.json"
 // 少しの間だけ使い回させる。ログイン中のユーザーにだけ見せるので、共有のキャッシュには置かせない。
 const finishedCacheControl = "private, max-age=600"
 
-// CommentsHandler は、録画の時間帯の実況の過去ログを、過去ログ API から取って中継する
+// CommentsHandler は、録画の時間帯の実況の過去ログを、過去ログ API から取ってプロキシする
 // (GET /internal/media/recordings/{id}/jikkyo.json、設計書 7.4)。
 // 描画とミュートに使う項目だけを、録画の始まり (最初のセグメントを書き始めた時刻) からの秒とともに返す。
 // ユーザー ID は、過去ログ API が公開している匿名の ID で、ID でのミュートに使う (#488)。
@@ -115,7 +115,7 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.serve(w, r, &span{networkID: source.NetworkID, sid: source.Sid, from: from, until: source.RecordedUntil, final: source.RecordedUntil != nil}, slog.String("recording_id", recordingID.String()))
 }
 
-// span は、過去ログを引くサービスと時間帯。from はコメントの時刻の基準で、until は録り終えた時刻 (録画中なら nil)。
+// span は、過去ログを取得するサービスと時間帯。from はコメントの時刻の基準で、until は録り終えた時刻 (録画中なら nil)。
 type span struct {
 	networkID, sid int64
 	from           time.Time

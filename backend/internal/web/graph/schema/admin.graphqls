@@ -93,7 +93,7 @@ enum TunerServerKind {
   MIRAKURUN
   MIRAKC
   MAHIRON
-  "EDCB の EpgTimerSrv (#1532)。版を名乗らない"
+  "EDCB の EpgTimerSrv (#1532)。バージョンを名乗らない"
   EDCB
 }
 
@@ -103,7 +103,7 @@ enum TunerServerKind {
 type TunerServerStatus {
   "チューナーサーバーの種類 (#1538)。まだ分からなければ null。接続できない間は、最後に分かったもの。"
   kind: TunerServerKind
-  "チューナーサーバーが名乗った版。まだ分からないか、名乗らなければ null。"
+  "チューナーサーバーが名乗ったバージョン。まだ分からないか、名乗らなければ null。"
   version: String
   "接続できない縮退中かどうか。"
   degraded: Boolean!
@@ -117,11 +117,11 @@ type TunerServerStatus {
   "時計の差を警告する閾値 (ミリ秒)。"
   clockSkewThresholdMs: Int!
   checkedAt: Time!
-  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ測っていなければ null。"
+  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ計測していなければ null。"
   broadcastClockSkewMs: Int
   "放送の時刻との差が、警告する閾値 (clockSkewThresholdMs) を超えているかどうか。"
   broadcastClockSkewed: Boolean!
-  "放送の時刻との差を最後に測った日時。録画していない間は、最後に測ったときのまま。"
+  "放送の時刻との差を最後に計測した日時。録画していない間は、最後に計測したときのまま。"
   broadcastClockCheckedAt: Time
 }
 
@@ -149,9 +149,9 @@ type StoragePool {
   priority: Int!
   "容量の閾値 (バイト)。空き容量がこれを下回ったら、保護されていない古い録画から消す。0 なら消さない。"
   minFreeBytes: Int64!
-  "このインスタンスから見た空き容量 (バイト)。調べられなければ null。"
+  "このインスタンスから見た空き容量 (バイト)。取得できなければ null。"
   freeBytes: Int64
-  "このインスタンスから見た、ファイルシステムの容量 (バイト)。root のために取っておく分も含む。調べられなければ null。"
+  "このインスタンスから見た、ファイルシステムの容量 (バイト)。root のために取っておく分も含む。取得できなければ null。"
   totalBytes: Int64
 }
 
@@ -173,7 +173,7 @@ type RecordingFailureCount {
 type SystemStatus {
   instances: [Instance!]!
   leases: [Lease!]!
-  "チューナーサーバーの状態。まだ確かめていなければ null。"
+  "チューナーサーバーの状態。まだ確認していなければ null。"
   tunerServer: TunerServerStatus
   tuners: [Tuner!]!
   pools: [StoragePool!]!
@@ -184,7 +184,7 @@ type SystemStatus {
 extend type Mutation {
   """
   理由 reasons の、録画の失敗の累計を 0 に、最後に失敗した日時を空に戻し、戻した後の累計を返す (#1035)。
-  検証で失敗させた分や、直した障害の分を消すのに使う。理由ごとに監査ログに残す。管理者だけが使える (設計書 9.7)。
+  検証で失敗させた分や、修正した障害の分を消すのに使う。理由ごとに監査ログに残す。管理者だけが使える (設計書 9.7)。
   """
   resetRecordingFailureCounts(reasons: [RecordingFailureReason!]!): [RecordingFailureCount!]!
 }
@@ -201,7 +201,7 @@ extend type Query {
 理由などの詳しいことは、管理者向けの systemStatus で返す。
 """
 type TunerServerHealth {
-  "接続できない縮退中かどうか。まだ確かめていなければ false。"
+  "接続できない縮退中かどうか。まだ確認していなければ false。"
   degraded: Boolean!
   "縮退が始まった日時。縮退中でなければ null。"
   degradedSince: Time
@@ -211,7 +211,7 @@ type TunerServerHealth {
   clockSkewMs: Int
   "録画している TS の TOT が示す放送の時刻との差が、警告する閾値を超えているかどうか (#1309)。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付ける。"
   broadcastClockSkewed: Boolean!
-  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ測っていなければ null。"
+  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ計測していなければ null。"
   broadcastClockSkewMs: Int
 }
 

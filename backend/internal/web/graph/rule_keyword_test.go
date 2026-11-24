@@ -13,13 +13,13 @@ import (
 // lighthouse は、ルールのキーワードのテストで読む作品名。
 const lighthouse = "灯台の地図"
 
-// stormEpisode は、副題の付いた回の番組名。stormKeyword は、その番組名をほかの回と突き合わせずに読んだキーワード。
+// stormEpisode は、サブタイトルの付いた回の番組名。stormKeyword は、その番組名をほかの回と照合せずに読んだキーワード。
 const (
 	stormEpisode = "灯台の地図　嵐の夜　＃０５"
 	stormKeyword = "灯台の地図 嵐の夜"
 )
 
-// TestProgramRuleKeyword は、番組からルールを作るときのキーワードから、同じサービスのほかの回と突き合わせて、回ごとに変わる副題を除くことを確かめる (#2041)。
+// TestProgramRuleKeyword は、番組からルールを作るときのキーワードから、同じサービスのほかの回と照合して、回ごとに変わるサブタイトルを除くことを確認する (#2041)。
 func TestProgramRuleKeyword(t *testing.T) {
 	t.Parallel()
 

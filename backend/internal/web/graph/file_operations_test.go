@@ -25,7 +25,7 @@ type orphanFileInput struct {
 }
 
 // TestFileOperationsDoNotRequireRecentAuthentication は、録画やファイルを消したり動かしたりする管理者の操作が、
-// 第三者に影響しないので、直近の認証から時間が経っても再認証を求めないことを確かめる (設計書 9.5)。
+// 第三者に影響しないので、直近の認証から時間が経っても再認証を求めないことを確認する (設計書 9.5)。
 func TestFileOperationsDoNotRequireRecentAuthentication(t *testing.T) {
 	t.Parallel()
 

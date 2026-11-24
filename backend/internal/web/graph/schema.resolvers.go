@@ -26,7 +26,7 @@ func (r *queryResolver) Viewer(ctx context.Context) (*model.User, error) {
 
 // Version is the resolver for the version field.
 func (r *queryResolver) Version(ctx context.Context) (*model.AppVersion, error) {
-	// 版は、古い版の脆弱性を狙う手がかりになるので、Viewer と同じく、ログインしたユーザーにだけ返す。
+	// バージョンは、古いバージョンの脆弱性を狙う手がかりになるので、Viewer と同じく、ログインしたユーザーにだけ返す。
 	if auth.PrincipalFrom(ctx) == nil {
 		return nil, NewError(CodeUnauthenticated, "login required")
 	}

@@ -26,7 +26,7 @@ func CaptureID(captureID uuid.UUID) string {
 }
 
 // ParseRecordingID は、録画の GraphQL の ID を、録画の ID にする。録画の ID でなければエラーを返す。
-// 画面は録画を GraphQL の ID で持つので、キャプチャを受け取る API (captureapi) が、撮った録画を引くのに使う。
+// 画面は録画を GraphQL の ID で持つので、キャプチャを受け取る API (captureapi) が、撮った録画を取得するのに使う。
 func ParseRecordingID(globalID string) (uuid.UUID, error) {
 	return parseTypedID(globalID, recordingType, "invalid recording ID")
 }

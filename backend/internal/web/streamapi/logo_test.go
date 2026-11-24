@@ -119,7 +119,7 @@ func TestLogoHandler(t *testing.T) {
 	}
 }
 
-// TestLogoHandlerCollected は、チューナーサーバーがロゴを返さないときに、録画している TS から集めたロゴを返すことを確かめる (#1308)。
+// TestLogoHandlerCollected は、チューナーサーバーがロゴを返さないときに、録画している TS から集めたロゴを返すことを確認する (#1308)。
 // チューナーサーバーがロゴを返せば、そちらを先にする。
 func TestLogoHandlerCollected(t *testing.T) {
 	t.Parallel()
@@ -168,7 +168,7 @@ func TestLogoHandlerCollected(t *testing.T) {
 	}
 }
 
-// TestLogoHandlerNotModified は、ブラウザが持っているロゴと同じなら、本文を送らずに 304 を返すことを確かめる。
+// TestLogoHandlerNotModified は、ブラウザが持っているロゴと同じなら、本文を送らずに 304 を返すことを確認する。
 func TestLogoHandlerNotModified(t *testing.T) {
 	t.Parallel()
 
@@ -192,7 +192,7 @@ func TestLogoHandlerNotModified(t *testing.T) {
 	assert.Equal(t, http.StatusNotModified, second.StatusCode)
 }
 
-// TestLogoHandlerKeepsCacheControl は、手前で Cache-Control を決めていれば、上書きしないことを確かめる (#1324)。
+// TestLogoHandlerKeepsCacheControl は、手前で Cache-Control を決めていれば、上書きしないことを確認する (#1324)。
 // IPTV の配信は、URL に秘密の値を含むので、ロゴも途中のキャッシュに残させない。
 func TestLogoHandlerKeepsCacheControl(t *testing.T) {
 	t.Parallel()

@@ -71,7 +71,7 @@ func escapeText(s string) string {
 }
 
 // writeFolded は、content line を CRLF で終えて書く。75 オクテットを超える行は、文字の途中で切らないよう、
-// UTF-8 の文字の境目で折り返し、続きの行の頭に空白を 1 つ置く (RFC 5545 3.1)。
+// UTF-8 の文字の境目で折り返し、続きの行の先頭に空白を 1 つ置く (RFC 5545 3.1)。
 func writeFolded(b *strings.Builder, content string) {
 	limit := maxLineOctets
 	for len(content) > limit {

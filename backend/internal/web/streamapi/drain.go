@@ -10,11 +10,11 @@ const (
 	// DrainTimeout は、tenban を止める前に、視聴者がつなぎ直すのを待つ時間の上限 (設計書 11.4、#1085)。
 	// 過ぎたら、つなぎ直していない視聴者のストリームも、今までどおり打ち切る。
 	DrainTimeout = 20 * time.Second
-	// drainPollInterval は、つなぎ直しを待つ間に、流している最中の応答の数を確かめる間隔。
+	// drainPollInterval は、つなぎ直しを待つ間に、流している最中の応答の数を確認する間隔。
 	drainPollInterval = 200 * time.Millisecond
 )
 
-// Drainer は、tenban を止める前に、流している視聴者に、新しい接続を張ってから切り替えるよう知らせる (#1085)。
+// Drainer は、tenban を止める前に、流している視聴者に、新しい接続を張ってから切り替えるよう通知する (#1085)。
 // 知らせは、GraphQL の viewerEvents で、この tenban に購読している視聴者に届く。
 type Drainer struct {
 	streams  *StreamCounter

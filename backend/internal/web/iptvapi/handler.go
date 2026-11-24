@@ -19,7 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
-// PathPrefix は、ライブ視聴の M3U、番組表の XMLTV、配信、ロゴのパスの頭。この後ろに秘密の値が続く (#1324)。
+// PathPrefix は、ライブ視聴の M3U、番組表の XMLTV、配信、ロゴのパスのプレフィックス。この後ろに秘密の値が続く (#1324)。
 // 前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
 const PathPrefix = "/api/iptv/"
 
@@ -38,7 +38,7 @@ const (
 	guideFuture = 7 * 24 * time.Hour
 )
 
-// Authenticator は、配信の URL の秘密の値から、発行したユーザーを引く。*auth.Feeds が満たす。
+// Authenticator は、配信の URL の秘密の値から、発行したユーザーを取得する。*auth.Feeds が満たす。
 type Authenticator interface {
 	Authenticate(ctx context.Context, token string) (*auth.Principal, error)
 }
@@ -68,7 +68,7 @@ type Handler struct {
 	clock   clock.Clock
 	// origin は、リクエストが届いたオリジン (scheme://host)。M3U と XMLTV には、ストリームとロゴの絶対 URL を書く。
 	origin func(r *http.Request) string
-	// recheck は、ストリームを流している間に、続けてよいかを確かめ直す間隔。
+	// recheck は、ストリームを流している間に、続けてよいかを確認し直す間隔。
 	recheck time.Duration
 }
 
@@ -78,7 +78,7 @@ func NewHandler(authenticator Authenticator, gate URLGate, queries Queries, clk 
 }
 
 // Authenticate は、パスの秘密の値 (:token) で認証し、発行したユーザーとして next を呼ぶ echo のミドルウェア。
-// 秘密の値が違うか、ユーザーがライブ視聴を見られなければ、URL があることを知らせないよう 404 を返す。
+// 秘密の値が違うか、ユーザーがライブ視聴を見られなければ、URL があることを明かさないよう 404 を返す。
 // URL に秘密の値を含むので、途中のキャッシュに残させない。
 // エラーは echo に返さず、ここで応答を書く。echo の既定のエラーの応答 (JSON) にしないためである。
 func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
@@ -122,7 +122,7 @@ func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 
 // StopWhenRevoked は、ストリーム next を流している間、管理者が IPTV のクライアント用の URL を無効にしたか、
 // URL を取り消したか、発行したユーザーがライブ視聴を見られなくなったら、流しているストリームも止める (#1755)。
-// 秘密の値は、パスの :token から読む。確かめられないとき (DB に届かないなど) は、流し続ける。
+// 秘密の値は、パスの :token から読む。確認できないとき (DB に届かないなど) は、流し続ける。
 func (h *Handler) StopWhenRevoked(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
@@ -132,7 +132,7 @@ func (h *Handler) StopWhenRevoked(next http.Handler) http.Handler {
 	})
 }
 
-// stillAllowed は、秘密の値 token の URL で、ストリームを流し続けてよいかを返す。確かめられないときは true を返す。
+// stillAllowed は、秘密の値 token の URL で、ストリームを流し続けてよいかを返す。確認できないときは true を返す。
 func (h *Handler) stillAllowed(ctx context.Context, token string) bool {
 	enabled, err := h.gate.IPTVFeedsEnabled(ctx)
 	if err == nil && !enabled {
@@ -154,7 +154,7 @@ func (h *Handler) services(ctx context.Context) ([]domain.Service, error) {
 	})
 }
 
-// base は、秘密の値 token の配信の URL の頭 (scheme://host/api/iptv/<token>) を返す。
+// base は、秘密の値 token の配信の URL の先頭 (scheme://host/api/iptv/<token>) を返す。
 func (h *Handler) base(c *echo.Context) string {
 	return h.origin(c.Request()) + PathPrefix + c.Param("token")
 }
