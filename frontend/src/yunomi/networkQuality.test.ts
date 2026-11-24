@@ -29,6 +29,7 @@ const ladder: Step[] = [
 const healthy: NetworkInput = {
   active: true,
   started: true,
+  loadedToEnd: false,
   waiting: false,
   lowReadyState: false,
   frameAgeMs: 33,
@@ -778,5 +779,72 @@ describe('周期的に途切れる回線 (帯域は足りている)', () => {
       sim.log.some(({ decision }) => decision.kind === 'step' && decision.direction === 'down'),
     ).toBe(false);
     expect(sim.probes()).toHaveLength(want);
+  });
+});
+
+describe('終わりまで読み込んであるとき (録画の末尾、#2110)', () => {
+  const start = params.ignoreAfterSwitchMs;
+  // 残り 8 秒の所から、読み終えて終わりまで再生する。先読みは 1 秒に 1 秒ずつ減り、0 で終わる。
+  // 読み終えたあとの受け取りの速さは、変換の経路では 0 に、kyusu の経路では (読んでいるセグメントが無いので) 分からなくなる。
+  const toEnd = (begin: number, extra: Partial<NetworkInput>) => (now: number) => ({
+    ahead: Math.max(8 - (now - begin) / 1_000, 0),
+    receiveRate: 0,
+    ...extra,
+  });
+
+  test.each([
+    {
+      name: '読み込んでいなければ、末尾の先読みの減少と受け取りの速さで下げる (変換)',
+      receiveRate: 0,
+      loadedToEnd: false,
+      want: true,
+    },
+    {
+      name: '読み込んでいなければ、末尾の先読みの減少だけでも下げる (kyusu)',
+      receiveRate: null,
+      loadedToEnd: false,
+      want: true,
+    },
+    {
+      name: '終わりまで読み込んであれば、受け取りの速さが 0 でも下げない (変換)',
+      receiveRate: 0,
+      loadedToEnd: true,
+      want: false,
+    },
+    {
+      name: '終わりまで読み込んであれば、先読みが減っても下げない (kyusu)',
+      receiveRate: null,
+      loadedToEnd: true,
+      want: false,
+    },
+  ])('$name', ({ receiveRate, loadedToEnd, want }) => {
+    const sim = new Sim('1080p', 'rate').run(start, { receiveRate: 50_000_000 });
+    const begin = sim.now;
+    sim.run(8_000, toEnd(begin, { receiveRate, loadedToEnd }));
+    expect(sim.moves().length > 0).toBe(want);
+  });
+
+  test('手で選んだ画質でも、終わりまで読み込んであれば足りないとみなさない (「自動」を勧めない)', () => {
+    const sim = new Sim('1080p', 'rate');
+    sim.automatic = false;
+    sim.run(start, { receiveRate: 50_000_000 });
+    const begin = sim.now;
+    let short = false;
+    sim.run(8_000, (now) => {
+      short ||= sim.controller.short();
+
+      return toEnd(begin, { loadedToEnd: true, waiting: now - begin > 7_000 })(now);
+    });
+    short ||= sim.controller.short();
+    expect(short).toBe(false);
+  });
+
+  test('シークで戻って読み込みが終わりに届かなくなったら、また判定する', () => {
+    const sim = new Sim('1080p', 'rate').run(start, { receiveRate: 50_000_000 });
+    sim.run(5_000, { loadedToEnd: true, ahead: 3 });
+    sim.controller.restart(sim.now);
+    sim.run(start + 1_000, { receiveRate: 50_000_000 });
+    sim.run(params.stallMs + 1_000, { waiting: true });
+    expect(sim.moves().map((move) => move.to)).toEqual(['720p']);
   });
 });

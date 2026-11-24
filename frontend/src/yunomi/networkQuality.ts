@@ -157,6 +157,9 @@ export type NetworkInput = {
   active: boolean;
   // started は、今の段階で再生が始まったか。始まるまで (読み込みの最中) は、詰まりを数えない。
   started: boolean;
+  // loadedToEnd は、録画を終えた録画など終わりのある流れを、今の位置から終わりまで読み込んであるか。読み込んである間は判定しない。
+  // 読むものが残っておらず、先読みが減るのも受け取りの速さが落ちるのも、回線のせいではないため (#2110)。
+  loadedToEnd: boolean;
   // waiting は、waiting から playing までの間か。自分で起こした詰まり (飛び直し、低遅延モードの飛び) は除いて渡す。
   waiting: boolean;
   // lowReadyState は、readyState が HAVE_FUTURE_DATA 未満か。
@@ -590,12 +593,12 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         }
         downAt = null;
       }
-      if (!input.active || !input.started || now < ignoreUntil) {
+      if (!input.active || !input.started || input.loadedToEnd || now < ignoreUntil) {
         lastSignals = [];
         okSince = null;
         lowSince = null;
-        if (!input.active) {
-          // 止めていた間を挟んで、減り方や伸び方を比較しない。
+        if (!input.active || input.loadedToEnd) {
+          // 止めていた間や、終わりまで読み込んでいた間を挟んで、減り方や伸び方を比較しない。
           forgetHistory();
         }
 

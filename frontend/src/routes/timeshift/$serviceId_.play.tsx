@@ -415,7 +415,8 @@ function Player({
     {
       stepDown: onAir,
       pictureInPicture: pip.container !== null,
-      network: { mode: 'rate', convert: route.kind === 'convert', topBitrate: null },
+      // 放送中の番組は端に追いつくとバッファが伸びるのを待つので、終わりがない。
+      network: { mode: 'rate', convert: route.kind === 'convert', topBitrate: null, ends: !onAir },
     },
   );
   // 音声は、経路ごとのメニューで選ぶ。バッファの番組の音声の構成は分からないので、プレイヤーに任せる。

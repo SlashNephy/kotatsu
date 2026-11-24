@@ -507,6 +507,7 @@ function Live({
         mode: timeshift.behind ? 'rate' : 'probe',
         convert: route.kind === 'convert',
         topBitrate: null,
+        ends: false,
       },
       pictureInPicture: pip.container !== null,
     },
