@@ -29,8 +29,8 @@ export type AdaptiveOptions = {
   // stepDown は、デコードが追いつかない端末で段階を下げるか。ライブと追っかけだけ。
   stepDown: boolean;
   // network は、回線の側の判定の口。mode は上げ方 (ライブは probe、録画と追っかけは rate)。convert は、ブラウザ内で変換する経路か。
-  // topBitrate は、最高画質 (オリジナル) のビットレート (bps)。分からなければ null。
-  network: { mode: NetworkMode; convert: boolean; topBitrate: number | null };
+  // topBitrate は、最高画質 (オリジナル) のビットレート (bps)。分からなければ null。ends は、流れに終わりがあるか (録画を終えた録画など)。
+  network: { mode: NetworkMode; convert: boolean; topBitrate: number | null; ends: boolean };
   // pictureInPicture は、別のウィンドウに出しているか。
   pictureInPicture?: boolean;
 };

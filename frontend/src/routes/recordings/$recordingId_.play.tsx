@@ -800,6 +800,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         mode: 'rate',
         convert: route.kind === 'convert',
         topBitrate: recording === null ? null : averageBitrate(recording, Date.now()),
+        // 録画中の追っかけ再生は端に追いつくと録画が伸びるのを待つので、終わりがない。
+        ends: recording !== null && !stillRecording,
       },
     },
   );
