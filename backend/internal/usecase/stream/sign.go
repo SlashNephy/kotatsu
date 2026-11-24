@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// signPurpose は、アプリの秘密キーから、URL の署名のキーを導くときの用途。用途ごとに別のキーを使う。
+	// signPurpose は、アプリの秘密キーから、URL の署名鍵を導くときの用途。用途ごとに別の署名鍵を使う。
 	// v2 から、URL ごとの ID (#1757) も署名する。v1 の URL は、署名が合わなくなるので使えない。
 	signPurpose = "kotatsu/stream-url/v2"
 	// LiveURLLifetime は、ライブ視聴の署名付き URL の有効期限 (設計書 9.6、#1756)。
@@ -67,7 +67,7 @@ type Signer struct {
 	key []byte
 }
 
-// NewSigner は、アプリの秘密キー secret から署名のキーを導き、Signer を返す。
+// NewSigner は、アプリの秘密キー secret から署名鍵を導き、Signer を返す。
 func NewSigner(secret string) (*Signer, error) {
 	if secret == "" {
 		return nil, ErrNoKey
