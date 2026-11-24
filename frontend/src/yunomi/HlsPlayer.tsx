@@ -2,15 +2,21 @@ import type Hls from 'hls.js';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { brightnessStyle } from './brightness';
-import { type Crop, cropStyle, isCropped, noCrop } from './crop';
+import { type Crop, cropStyle, isCropped, noCrop, scales } from './crop';
 import { catchUpRate } from './liveCatchUp';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { useInterpolation, useInterpolationRate } from './frameInterpolation';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { HlsSegment } from './streamMeter';
+import {
+  createYadifUpscaler,
+  useSuperResolution,
+  useSuperResolutionMethod,
+  useSuperResolutionStrength,
+} from './superResolution';
 import classes from './TsPlayer.module.css';
-import { attachVideoInterpolation, type VideoInterpolation } from './videoInterpolation';
+import { attachVideoOverlay, type VideoOverlay } from './videoOverlay';
 import { mediaOf, type PlayerMedia } from './playerMedia';
 
 type Props = {
@@ -141,11 +147,25 @@ export function HlsPlayer({
   const [interpolate] = useInterpolation();
   const interpolateRef = useRef(interpolate);
   interpolateRef.current = interpolate;
-  const interpolationRef = useRef<VideoInterpolation | null>(null);
+  const overlayRef = useRef<VideoOverlay | null>(null);
   // interpolationRate は、補間したコマを出す回数の上限。描くたびに読むので、ref で渡す。
   const [interpolationRate] = useInterpolationRate();
   const interpolationRateRef = useRef(interpolationRate);
   interpolationRateRef.current = interpolationRate;
+  // superResolution は、video のコマを、映す大きさへ拡大して描くか (#1654、#2113)。補間と同じ canvas で描く。
+  const [superResolution] = useSuperResolution();
+  const superResolutionRef = useRef(superResolution);
+  superResolutionRef.current = superResolution;
+  // 鮮鋭化の強さと拡大の方式は、描くたびに読むので、ref で渡す。
+  const [superResolutionStrength] = useSuperResolutionStrength();
+  const superResolutionStrengthRef = useRef(superResolutionStrength);
+  superResolutionStrengthRef.current = superResolutionStrength;
+  const [superResolutionMethod] = useSuperResolutionMethod();
+  const superResolutionMethodRef = useRef(superResolutionMethod);
+  superResolutionMethodRef.current = superResolutionMethod;
+  // zoom は、切り抜き (#496) の拡大率。拡大する大きさを決めるたびに読むので、ref で渡す。
+  const zoomRef = useRef(scales(crop));
+  zoomRef.current = scales(crop);
   // generation を変えると、hls.js を作り直して読み直す。ライブを長く一時停止してから再開したときに使う。
   const [generation, setGeneration] = useState(0);
   // keepPaused は、読み直す前に、利用者が一時停止していたかどうか。読み直しても、一時停止のまま待つ (#1969)。
@@ -170,21 +190,33 @@ export function HlsPlayer({
     renderer.setVisible(showCaptions.current && !covered.current);
     renderer.setSuperimposeVisible(superimposeRef.current);
     renderer.setStyle(styleRef.current);
-    // 補間の canvas は、video のすぐ後ろに入るので、字幕の canvas より下に重なる。
-    const interpolation = attachVideoInterpolation(video, {
+    // 補間と拡大の canvas は、video のすぐ後ろに入るので、字幕の canvas より下に重なる。
+    const overlay = attachVideoOverlay(video, {
       className: classes.video ?? '',
       maxRate: () => interpolationRateRef.current,
+      upscaler: createYadifUpscaler({
+        zoom: () => zoomRef.current,
+        strength: () => superResolutionStrengthRef.current,
+        method: () => superResolutionMethodRef.current,
+        onUnavailable: (error) => {
+          console.warn('super resolution is unavailable; showing the video as it is', error);
+        },
+        onAnime4KUnavailable: (error) => {
+          console.warn('Anime4K is unavailable; upscaling with FSR 1 alone', error);
+        },
+      }),
       onUnavailable: (error) => {
-        console.warn('frame interpolation is unavailable; showing the video as it is', error);
+        console.warn('the video overlay is unavailable; showing the video as it is', error);
       },
     });
-    interpolation.setEnabled(interpolateRef.current);
-    interpolationRef.current = interpolation;
+    overlay.setInterpolate(interpolateRef.current);
+    overlay.setUpscale(superResolutionRef.current);
+    overlayRef.current = overlay;
     captionsRef.current = renderer;
 
     return () => {
-      interpolation.destroy();
-      interpolationRef.current = null;
+      overlay.destroy();
+      overlayRef.current = null;
       captionsRef.current?.destroy();
       captionsRef.current = null;
       mediaRef.current = null;
@@ -328,8 +360,18 @@ export function HlsPlayer({
   }, [mediaRef, url, live, generation]);
 
   useEffect(() => {
-    interpolationRef.current?.setEnabled(interpolate);
+    overlayRef.current?.setInterpolate(interpolate);
   }, [interpolate]);
+
+  useEffect(() => {
+    overlayRef.current?.setUpscale(superResolution);
+  }, [superResolution]);
+
+  // 切り抜きと、鮮鋭化の強さ、拡大の方式を変えたら、拡大する大きさを決め直し、止めている間のコマも描き直す。
+  const { scale: cropScale, stretchX: cropStretchX } = crop;
+  useEffect(() => {
+    overlayRef.current?.refresh();
+  }, [cropScale, cropStretchX, superResolutionStrength, superResolutionMethod]);
 
   useEffect(() => {
     captionsRef.current?.setVisible(captions && !covered.current);

@@ -150,6 +150,17 @@
       depTypeTemplate: 'oldest',
     },
     {
+      // CI の words のジョブが使う yomiyasu の lint。タグとコミットを合わせて上げる (#2131)。
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^scripts/yomiyasu\\.SOURCE$/',
+      ],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\ncommit=(?<currentDigest>[0-9a-f]{40})',
+      ],
+      autoReplaceStringTemplate: '# renovate: datasource={{{datasource}}} depName={{{depName}}} currentValue={{{newValue}}}\ncommit={{{newDigest}}}',
+    },
+    {
       // CI で確認する DB のバージョン。oldest と latest の 2 つのバージョンを、matrix の値として書いている。
       customType: 'regex',
       managerFilePatterns: [

@@ -402,7 +402,7 @@
       "fieldRate": "Show 1080i field by field",
       "fieldRateHelp": "Shows interlaced broadcasts at 59.94p, one picture per field, for smoother motion. Applies when the browser converts the stream itself. On devices that cannot keep up, playback falls back to one picture per frame (29.97p).",
       "superResolution": "Upscale the picture for sharper display",
-      "superResolutionHelp": "Upscales the broadcast picture to the size it is shown at with an edge-aware filter, then sharpens it. Looks less blurry on large or high-resolution displays. Applies when the browser converts the stream itself. Uses more GPU, and makes compression noise a little more visible.",
+      "superResolutionHelp": "Upscales the broadcast picture to the size it is shown at with an edge-aware filter, then sharpens it. Looks less blurry on large or high-resolution displays. Does not apply when this device decodes the stream itself, or to 4K pictures. Uses more GPU, and makes compression noise a little more visible.",
       "superResolutionMethod": "Upscaling method",
       "superResolutionMethodHelp": "When upscaling to at least twice the width and height, Anime4K first doubles the picture with a CNN, then upscales the rest with FSR. Edges and details look crisper, but it puts more load on the GPU, and integrated GPUs may not keep up with every frame.",
       "superResolutionMethods": {

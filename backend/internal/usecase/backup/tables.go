@@ -43,7 +43,6 @@ func includedTables() []string {
 		"terrestrial_lineups",
 		"broadcast_service_activities",
 		"service_logos",
-		"program_rewrites",
 		"program_archives",
 		"reservations",
 		"recording_assignments",

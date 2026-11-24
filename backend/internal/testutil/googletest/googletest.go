@@ -87,6 +87,10 @@ type Server struct {
 	OmitRefreshToken bool
 	// CutAfter は、FaultCut で本文を切る大きさ。
 	CutAfter int
+	// SearchPageSize は、名前で探すときの 1 ページの件数。0 なら 1 件ずつのページに分ける。
+	SearchPageSize int
+	// MaxQueryBytes は、files.list の q を URL に入れたときの長さの上限。超えたら、本物と同じく 400 を返す。0 なら上限を設けない。
+	MaxQueryBytes int
 
 	mu       sync.Mutex
 	codes    map[string]*grant
@@ -112,7 +116,7 @@ type grant struct {
 func New(clientID, clientSecret string) *Server {
 	return &Server{
 		ClientID: clientID, ClientSecret: clientSecret, RedirectURIs: []string{}, Account: "admin@example.com",
-		AccessTokenTTL: time.Hour, OmitRefreshToken: false, CutAfter: 1024,
+		AccessTokenTTL: time.Hour, OmitRefreshToken: false, CutAfter: 1024, SearchPageSize: 0, MaxQueryBytes: 0,
 		mu: sync.Mutex{}, codes: map[string]*grant{}, refresh: map[string]bool{}, access: map[string]time.Time{},
 		files: map[string]*File{
 			// マイドライブの根元は、本物と同じく、別名 root で引けるフォルダにする。
@@ -419,7 +423,46 @@ func (s *Server) getDrive(w http.ResponseWriter, r *http.Request) {
 }
 
 // parentsQuery は、files.list の q のうち、親を指定する部分。
-var parentsQuery = regexp.MustCompile(`^'([^']+)' in parents and trashed = false$`)
+// namedQuery と namedTerm と nameTerm は、親ごとに名前を指定する部分 (('<親>' in parents and (name = '<名前>' or ...)) or ...)。
+var (
+	parentsQuery = regexp.MustCompile(`^'([^']+)' in parents and trashed = false$`)
+	namedQuery   = regexp.MustCompile(`^\((.+)\) and trashed = false$`)
+	namedTerm    = regexp.MustCompile(`\('([^']+)' in parents and \(((?:name = '(?:[^'\\]|\\.)*'(?: or )?)+)\)\)`)
+	nameTerm     = regexp.MustCompile(`name = '((?:[^'\\]|\\.)*)'`)
+)
+
+// foldersQuery は、files.list の q のうち、フォルダをまとめて取得する部分。corporaUser は、マイドライブを探すときの corpora。
+const (
+	foldersQuery = "mimeType = '" + FolderMIMEType + "' and trashed = false"
+	corporaUser  = "user"
+)
+
+// queryNames は、親ごとに名前を指定する q から、親の ID と名前の組を返す。当たらなければ nil を返す。
+func queryNames(q string) map[string]map[string]bool {
+	match := namedQuery.FindStringSubmatch(q)
+	if match == nil {
+		return nil
+	}
+	names := map[string]map[string]bool{}
+	for _, term := range namedTerm.FindAllStringSubmatch(match[1], -1) {
+		if names[term[1]] == nil {
+			names[term[1]] = map[string]bool{}
+		}
+		for _, name := range nameTerm.FindAllStringSubmatch(term[2], -1) {
+			names[term[1]][unescapeQuery(name[1])] = true
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+
+	return names
+}
+
+// unescapeQuery は、q の文字列の中の \' と \\ を元に戻す。
+func unescapeQuery(s string) string {
+	return strings.NewReplacer(`\'`, `'`, `\\`, `\`).Replace(s)
+}
 
 // driveOf は、ファイル f のある共有ドライブの ID を返す。マイドライブなら空。s.mu を持って呼ぶ。
 func (s *Server) driveOf(f *File) string {
@@ -443,9 +486,9 @@ func (s *Server) driveOf(f *File) string {
 var searchQuery = regexp.MustCompile(`^name contains '((?:[^'\\]|\\.)*)' and mimeType != '` + regexp.QuoteMeta(FolderMIMEType) + `' and trashed = false$`)
 
 // searchFiles は、名前に語を含むファイルを、大文字と小文字を区別せずに探す。共有ドライブを指定されたら、その中だけを探す。
-// 1 件ずつのページに分ける。
+// SearchPageSize 件ずつのページに分ける。
 func (s *Server) searchFiles(w http.ResponseWriter, q url.Values, match []string) {
-	word := strings.ToLower(strings.NewReplacer(`\'`, `'`, `\\`, `\`).Replace(match[1]))
+	word := strings.ToLower(unescapeQuery(match[1]))
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	found := []*File{}
@@ -454,32 +497,61 @@ func (s *Server) searchFiles(w http.ResponseWriter, q url.Values, match []string
 			continue
 		}
 		drive := s.driveOf(f)
-		if (q.Get("corpora") == "drive" && drive != q.Get("driveId")) || (q.Get("corpora") == "user" && drive != "") {
+		if (q.Get("corpora") == "drive" && drive != q.Get("driveId")) || (q.Get("corpora") == corporaUser && drive != "") {
 			continue
 		}
 		found = append(found, f)
 	}
 	slices.SortFunc(found, func(a, b *File) int { return strings.Compare(a.ID, b.ID) })
+	size := max(s.SearchPageSize, 1)
 	start, _ := strconv.Atoi(q.Get("pageToken"))
-	page := map[string]any{"files": []any{}}
-	if start < len(found) {
-		page["files"] = []any{s.fileJSON(found[start])}
-		if start+1 < len(found) {
-			page["nextPageToken"] = strconv.Itoa(start + 1)
-		}
+	shown := found[min(start, len(found)):min(start+size, len(found))]
+	files := make([]any, 0, len(shown))
+	for _, f := range shown {
+		files = append(files, s.fileJSON(f))
+	}
+	page := map[string]any{"files": files}
+	if start+size < len(found) {
+		page["nextPageToken"] = strconv.Itoa(start + size)
 	}
 	writeJSON(w, page)
 }
 
+// listMatcher は、名前で探すもの以外の files.list の q から、返すファイルを選ぶ関数を返す。読めない q なら false を返す。
+// 返す関数は、s.mu を持って呼ぶ。
+func (s *Server) listMatcher(q url.Values) (func(f *File) bool, bool) {
+	if q.Get("q") == foldersQuery {
+		return func(f *File) bool {
+			drive := s.driveOf(f)
+			// 根元 (マイドライブと共有ドライブそのもの) は、本物と同じく返さない。
+			return f.MIMEType == FolderMIMEType && f.Parent != "" &&
+				((q.Get("corpora") == "drive" && drive == q.Get("driveId")) || (q.Get("corpora") == corporaUser && drive == ""))
+		}, true
+	}
+	if match := parentsQuery.FindStringSubmatch(q.Get("q")); match != nil {
+		return func(f *File) bool { return f.Parent == match[1] }, true
+	}
+	if named := queryNames(q.Get("q")); named != nil {
+		return func(f *File) bool { return named[f.Parent][f.Name] }, true
+	}
+
+	return nil, false
+}
+
 func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	if s.MaxQueryBytes > 0 && len(url.QueryEscape(q.Get("q"))) > s.MaxQueryBytes {
+		apiError(w, http.StatusBadRequest, "invalid")
+
+		return
+	}
 	if search := searchQuery.FindStringSubmatch(q.Get("q")); search != nil {
 		s.searchFiles(w, q, search)
 
 		return
 	}
-	match := parentsQuery.FindStringSubmatch(q.Get("q"))
-	if match == nil || q.Get("supportsAllDrives") != "true" || q.Get("includeItemsFromAllDrives") != "true" {
+	match, ok := s.listMatcher(q)
+	if !ok || q.Get("supportsAllDrives") != "true" || q.Get("includeItemsFromAllDrives") != "true" {
 		apiError(w, http.StatusBadRequest, "invalidQuery")
 
 		return
@@ -488,7 +560,7 @@ func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	children := []*File{}
 	for _, f := range s.files {
-		if f.Parent == match[1] && !f.Trashed {
+		if !f.Trashed && match(f) {
 			children = append(children, f)
 		}
 	}

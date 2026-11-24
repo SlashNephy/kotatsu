@@ -2,9 +2,11 @@ package medialib_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,6 +38,8 @@ const (
 	// folderID は、見せると選んだマイドライブの中のフォルダの ID。videosLibrary は、そのライブラリの名前。
 	folderID      = "folder-1"
 	videosLibrary = "videos"
+	// videosName は、見せると選んだマイドライブの中のフォルダの名前。
+	videosName = "videos"
 	// seasonID と seasonName は、選んだフォルダの中のフォルダ。
 	seasonID   = "folder-2"
 	seasonName = "season2"
@@ -58,6 +62,11 @@ const (
 	// episodeName と bigName は、選んだフォルダの直下のファイルの名前。
 	episodeName = "episode.ts"
 	bigName     = "big.ts"
+	// slashID と slashPath は、/ を含む名前のファイルの ID と、そのパス (/ を形の似た文字に置き換えたもの)。
+	slashID   = "slash"
+	slashPath = "a\u2215b.ts"
+	// episodeQuery は、名前で探すテストの語。
+	episodeQuery = "EPISODE"
 )
 
 // bigContent は、読み出しを確認する大きめのファイルの内容。
@@ -67,7 +76,8 @@ func bigContent() []byte {
 
 // newDriveWith は、次の内容のモックの Drive の、scope で選んだフォルダのライブラリを作る部品を返す。
 //
-//	マイドライブ: videos/ (episode.ts, big.ts, memo (Google ドキュメント), .dot.ts, dup.ts ×2, a/b.ts, season2/ (episode2.ts)),
+//	マイドライブ: videos/ (episode.ts, big.ts, memo (Google ドキュメント), .dot.ts, dup.ts ×2, a/b.ts, season2/ (episode2.ts),
+//	             .trash/ (episode-dot.ts)),
 //	             a.ts, secret/ (episode-secret.ts)
 //	共有ドライブ Archive: episode-b.ts, sub/ (episode-archive.ts)
 func newDriveWith(t *testing.T, scope medialib.DriveScope) (*medialib.Drive, *googletest.Server) {
@@ -76,16 +86,18 @@ func newDriveWith(t *testing.T, scope medialib.DriveScope) (*medialib.Drive, *go
 	server := googletest.New("client", "secret")
 	server.AddDrive(&googletest.Drive{ID: sharedID, Name: "Archive"})
 	for _, f := range []*googletest.File{
-		{ID: folderID, Name: "videos", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID},
+		{ID: folderID, Name: videosName, MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID},
 		{ID: "ep1", Name: episodeName, MIMEType: tsMime, Parent: folderID, Content: []byte("episode1")},
 		{ID: "big", Name: bigName, MIMEType: tsMime, Parent: folderID, Content: bigContent()},
 		{ID: "doc", Name: "memo", MIMEType: "application/vnd.google-apps.document", Parent: folderID},
 		{ID: "dot", Name: ".dot.ts", MIMEType: tsMime, Parent: folderID, Content: []byte("h")},
 		{ID: "dupaaaa111", Name: dupName, MIMEType: tsMime, Parent: folderID, Content: []byte("d1")},
 		{ID: "dupaaaa222", Name: dupName, MIMEType: tsMime, Parent: folderID, Content: []byte("d2")},
-		{ID: "slash", Name: slashName, MIMEType: tsMime, Parent: folderID, Content: []byte("s")},
+		{ID: slashID, Name: slashName, MIMEType: tsMime, Parent: folderID, Content: []byte("s")},
 		{ID: seasonID, Name: seasonName, MIMEType: googletest.FolderMIMEType, Parent: folderID},
 		{ID: "ep2", Name: episode2Name, MIMEType: tsMime, Parent: seasonID, Content: []byte("episode2")},
+		{ID: "dotdir", Name: ".trash", MIMEType: googletest.FolderMIMEType, Parent: folderID},
+		{ID: "ep-dot", Name: "episode-dot.ts", MIMEType: tsMime, Parent: "dotdir", Content: []byte("e")},
 		{ID: "a", Name: "a.ts", MIMEType: tsMime, Parent: googletest.MyDriveID, Content: []byte("a")},
 		{ID: secretID, Name: "private", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID},
 		{ID: "hidden-ep", Name: "episode-secret.ts", MIMEType: tsMime, Parent: secretID, Content: []byte("s")},
@@ -186,7 +198,7 @@ func TestDriveList(t *testing.T) {
 			// パスは名前でつなぐ。同じ名前が並ぶときだけ、~ と ID の先頭を付ける。/ は形の似た文字にする。
 			// Google ドキュメントと、. で始まる名前は出さない。
 			name: "selected folder", library: videosLibrary, dir: "",
-			wantPaths: []string{"a∕b.ts", bigName, dupName + "~dupaaaa1", dupName + "~dupaaaa2", episodeName, seasonName},
+			wantPaths: []string{slashPath, bigName, dupName + "~dupaaaa1", dupName + "~dupaaaa2", episodeName, seasonName},
 			wantNames: []string{slashName, bigName, dupName, dupName, episodeName, seasonName},
 		},
 		{name: "subfolder", library: videosLibrary, dir: seasonName, wantPaths: []string{seasonName + "/" + episode2Name}, wantNames: []string{episode2Name}},
@@ -256,7 +268,7 @@ func TestDriveStatAndIdentity(t *testing.T) {
 		{name: "nested", path: seasonName + "/" + episode2Name, wantID: "ep2", wantSize: 8},
 		{name: "duplicated name", path: dupName + "~dupaaaa2", wantID: "dupaaaa222", wantSize: 2},
 		{name: "duplicated name without the mark", path: dupName, wantErr: medialib.ErrNotFound},
-		{name: "slash in the name", path: "a∕b.ts", wantID: "slash", wantSize: 1},
+		{name: "slash in the name", path: slashPath, wantID: slashID, wantSize: 1},
 		{name: "absent", path: "absent.ts", wantErr: medialib.ErrNotFound},
 		{name: "google document", path: "memo", wantErr: medialib.ErrNotFound},
 	}
@@ -281,12 +293,12 @@ func TestDriveStatAndIdentity(t *testing.T) {
 	names, err := medialib.NamesOf(t.Context(), library, seasonName+"/episode2.ts")
 	require.NoError(t, err)
 	assert.Equal(t, []string{seasonName, episode2Name}, names)
-	names, err = medialib.NamesOf(t.Context(), library, "a∕b.ts")
+	names, err = medialib.NamesOf(t.Context(), library, slashPath)
 	require.NoError(t, err)
 	assert.Equal(t, []string{slashName}, names, "the names keep the slash")
 }
 
-// TestDriveSearch は、名前で探し、選んだフォルダ (と、探すフォルダ) の下にあるものだけを返すことを確認する。
+// TestDriveSearch は、名前で探し、選んだフォルダ (と、探すフォルダ) の下にあるものだけを、開けるパスで返すことを確認する。
 func TestDriveSearch(t *testing.T) {
 	t.Parallel()
 
@@ -294,19 +306,24 @@ func TestDriveSearch(t *testing.T) {
 		name          string
 		library       string
 		dir           string
+		query         string
 		limit         int
 		wantPaths     []string
 		wantTruncated bool
 	}{
 		{
-			// 選んでいないフォルダのものと、共有ドライブのものは返さない。
-			name: "selected folder", library: videosLibrary, dir: "", limit: 10,
+			// 選んでいないフォルダのもの、共有ドライブのもの、名前が . で始まるフォルダの下のものは返さない。
+			name: "selected folder", library: videosLibrary, dir: "", query: episodeQuery, limit: 10,
 			wantPaths: []string{episodeName, seasonName + "/" + episode2Name},
 		},
-		{name: "subfolder", library: videosLibrary, dir: seasonName, limit: 10, wantPaths: []string{seasonName + "/" + episode2Name}},
+		{name: "subfolder", library: videosLibrary, dir: seasonName, query: episodeQuery, limit: 10, wantPaths: []string{seasonName + "/" + episode2Name}},
 		// 共有ドライブの、選んだフォルダの外のもの (episode-b.ts) は返さない。
-		{name: "shared drive", library: archiveLibrary, dir: "", limit: 10, wantPaths: []string{archiveFile}},
-		{name: "limit", library: videosLibrary, dir: "", limit: 1, wantPaths: []string{episodeName}, wantTruncated: true},
+		{name: "shared drive", library: archiveLibrary, dir: "", query: episodeQuery, limit: 10, wantPaths: []string{archiveFile}},
+		{name: "limit", library: videosLibrary, dir: "", query: episodeQuery, limit: 1, wantPaths: []string{episodeName}, wantTruncated: true},
+		// 同じ名前が並ぶものは、一覧と同じく ID の先頭を付けたパスにする。
+		{name: "same names", library: videosLibrary, dir: "", query: "dup", limit: 10, wantPaths: []string{dupName + "~dupaaaa1", dupName + "~dupaaaa2"}},
+		// 名前の / は、一覧と同じく形の似た文字に置き換える。
+		{name: "slash", library: videosLibrary, dir: "", query: "b.ts", limit: 10, wantPaths: []string{slashPath}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -314,16 +331,172 @@ func TestDriveSearch(t *testing.T) {
 			library, _ := newDriveLibrary(t, tt.library)
 			searcher, ok := library.(medialib.Searcher)
 			require.True(t, ok)
-			entries, truncated, err := searcher.Search(t.Context(), tt.dir, "EPISODE", tt.limit)
+			entries, truncated, err := searcher.Search(t.Context(), tt.dir, tt.query, tt.limit)
 			require.NoError(t, err)
 			paths := []string{}
 			for _, entry := range entries {
 				paths = append(paths, entry.Path)
+				// 返したパスは、一覧からたどるのと同じパスで、そのまま開ける。
+				stat, err := library.Stat(t.Context(), entry.Path)
+				require.NoError(t, err)
+				assert.Equal(t, entry.Name, stat.Name)
 			}
 			assert.ElementsMatch(t, tt.wantPaths, paths)
 			assert.Equal(t, tt.wantTruncated, truncated)
 		})
 	}
+}
+
+// TestDriveSearchLongNames は、名前の長いファイルが多く見つかっても、同じ名前を確認する問い合わせを、Drive API が断らない長さに
+// 分けることを確認する。本物の Drive API は、q を URL に入れて 16 KB ほどになると 400 を返した。
+func TestDriveSearchLongNames(t *testing.T) {
+	t.Parallel()
+	server := googletest.New("client", "secret")
+	server.MaxQueryBytes = 12 << 10
+	server.SearchPageSize = 100
+	server.AddFile(&googletest.File{ID: folderID, Name: videosName, MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID})
+	want := make([]string, 0, 40)
+	for i := range 40 {
+		name := fmt.Sprintf("%02d %s.ts", i, strings.Repeat("番組", 40))
+		server.AddFile(&googletest.File{ID: fmt.Sprintf("ep-%02d", i), Name: name, MIMEType: tsMime, Parent: folderID, Content: []byte("e")})
+		want = append(want, name)
+	}
+	httpServer := httptest.NewServer(server.Handler())
+	t.Cleanup(httpServer.Close)
+	client := googledrive.NewClient(httpServer.Client(), httpServer.URL, &driveTokens{server: server, token: ""})
+	drive := medialib.NewDrive(client, googletest.NewScope(&medialib.DriveFolder{ID: folderID, DriveID: "", Library: videosLibrary}), time.Now)
+	library, ok := drive.Lookup(videosLibrary)
+	require.True(t, ok)
+	searcher, ok := library.(medialib.Searcher)
+	require.True(t, ok)
+
+	entries, _, err := searcher.Search(t.Context(), "", "番組", 100)
+	require.NoError(t, err)
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, entry.Path)
+	}
+	assert.ElementsMatch(t, want, paths)
+}
+
+// countingDriveAPI は、Drive API の呼び出しを数える。
+type countingDriveAPI struct {
+	medialib.DriveAPI
+
+	mu    sync.Mutex
+	calls map[string]int
+}
+
+func (a *countingDriveAPI) Children(ctx context.Context, parentID, driveID string) ([]*googledrive.File, error) {
+	a.count("Children")
+
+	return a.DriveAPI.Children(ctx, parentID, driveID)
+}
+
+func (a *countingDriveAPI) NamedChildren(ctx context.Context, names map[string][]string, driveID string) ([]*googledrive.File, error) {
+	a.count("NamedChildren")
+
+	return a.DriveAPI.NamedChildren(ctx, names, driveID)
+}
+
+func (a *countingDriveAPI) Folders(ctx context.Context, driveID string) ([]*googledrive.File, error) {
+	a.count("Folders")
+
+	return a.DriveAPI.Folders(ctx, driveID)
+}
+
+func (a *countingDriveAPI) count(name string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.calls[name]++
+}
+
+// TestDriveSearchCalls は、名前で探すときに、見つけたファイルの親のフォルダの内容をすべて取得せず、同じ名前のものだけをまとめて
+// 問い合わせることと、
+// フォルダの一覧を取得した後に作ったフォルダの下のものも見つけることを確認する (#2150)。
+func TestDriveSearchCalls(t *testing.T) {
+	t.Parallel()
+	server := googletest.New("client", "secret")
+	server.AddFile(&googletest.File{ID: folderID, Name: videosName, MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID})
+	for i := range 3 {
+		season := fmt.Sprintf("season-%d", i)
+		server.AddFile(&googletest.File{ID: season, Name: season, MIMEType: googletest.FolderMIMEType, Parent: folderID})
+		server.AddFile(&googletest.File{ID: season + "-ep", Name: season + " episode.ts", MIMEType: tsMime, Parent: season, Content: []byte("e")})
+	}
+	const otherID, newSeason = "other", "season-new"
+	server.AddFile(&googletest.File{ID: otherID, Name: otherID, MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID})
+	server.AddFile(&googletest.File{ID: "other-ep", Name: "other episode.ts", MIMEType: tsMime, Parent: otherID, Content: []byte("o")})
+	httpServer := httptest.NewServer(server.Handler())
+	t.Cleanup(httpServer.Close)
+	client := googledrive.NewClient(httpServer.Client(), httpServer.URL, &driveTokens{server: server, token: ""})
+	api := &countingDriveAPI{DriveAPI: client, mu: sync.Mutex{}, calls: map[string]int{}}
+	now := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	drive := medialib.NewDrive(api, googletest.NewScope(&medialib.DriveFolder{ID: folderID, DriveID: "", Library: videosLibrary}), func() time.Time { return now })
+	library, ok := drive.Lookup(videosLibrary)
+	require.True(t, ok)
+	searcher, ok := library.(medialib.Searcher)
+	require.True(t, ok)
+
+	entries, _, err := searcher.Search(t.Context(), "", "episode", 10)
+	require.NoError(t, err)
+	assert.Len(t, entries, 3)
+	assert.Equal(t, map[string]int{"Folders": 1, "NamedChildren": 1}, api.calls)
+
+	// フォルダの一覧はキャッシュしたまま (フォルダの内容のキャッシュは切れた後)、一覧にない新しいフォルダの下のものも見つける。
+	now = now.Add(time.Minute)
+	server.AddFile(&googletest.File{ID: newSeason, Name: newSeason, MIMEType: googletest.FolderMIMEType, Parent: folderID})
+	server.AddFile(&googletest.File{ID: "season-new-ep", Name: "season-new episode.ts", MIMEType: tsMime, Parent: newSeason, Content: []byte("n")})
+	entries, _, err = searcher.Search(t.Context(), "", "episode", 10)
+	require.NoError(t, err)
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, entry.Path)
+	}
+	assert.Contains(t, paths, "season-new/season-new episode.ts")
+	assert.Equal(t, 1, api.calls["Folders"])
+
+	// フォルダの一覧はキャッシュしたまま、選んだフォルダの外へ移したフォルダの下のものは返さない。
+	now = now.Add(time.Minute)
+	server.AddFile(&googletest.File{ID: "season-0", Name: "season-0", MIMEType: googletest.FolderMIMEType, Parent: otherID})
+	entries, _, err = searcher.Search(t.Context(), "", "episode", 10)
+	require.NoError(t, err)
+	paths = make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, entry.Path)
+	}
+	assert.NotContains(t, paths, "season-0/season-0 episode.ts")
+	assert.Equal(t, 1, api.calls["Folders"])
+}
+
+// TestDriveSearchSameFolderNames は、同じ名前のフォルダが並ぶとき、見つけたファイルのパスで、フォルダの名前に一覧と同じく ID の先頭を
+// 付けることを確認する。
+func TestDriveSearchSameFolderNames(t *testing.T) {
+	t.Parallel()
+	server := googletest.New("client", "secret")
+	server.AddFile(&googletest.File{ID: folderID, Name: videosName, MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID})
+	for _, id := range []string{"seasonaaa111", "seasonaaa222"} {
+		server.AddFile(&googletest.File{ID: id, Name: seasonName, MIMEType: googletest.FolderMIMEType, Parent: folderID})
+		server.AddFile(&googletest.File{ID: id + "-ep", Name: episodeName, MIMEType: tsMime, Parent: id, Content: []byte("e")})
+	}
+	httpServer := httptest.NewServer(server.Handler())
+	t.Cleanup(httpServer.Close)
+	client := googledrive.NewClient(httpServer.Client(), httpServer.URL, &driveTokens{server: server, token: ""})
+	drive := medialib.NewDrive(client, googletest.NewScope(&medialib.DriveFolder{ID: folderID, DriveID: "", Library: videosLibrary}), time.Now)
+	library, ok := drive.Lookup(videosLibrary)
+	require.True(t, ok)
+	searcher, ok := library.(medialib.Searcher)
+	require.True(t, ok)
+
+	entries, _, err := searcher.Search(t.Context(), "", "episode", 10)
+	require.NoError(t, err)
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, entry.Path)
+		stat, err := library.Stat(t.Context(), entry.Path)
+		require.NoError(t, err)
+		assert.Equal(t, entry.Name, stat.Name)
+	}
+	assert.ElementsMatch(t, []string{seasonName + "~seasonaaa1/" + episodeName, seasonName + "~seasonaaa2/" + episodeName}, paths)
 }
 
 // TestDriveRead は、ファイルを途中から読めることと、続きを読むなら開いた本文を使い回すことを確認する。

@@ -40,7 +40,7 @@ ARG RUNTIME_PACKAGES_AMD64="intel-media-va-driver-non-free libvpl2 libmfx-gen1.2
 
 # Debian 13 の slim。対象のアーキテクチャで動かすステージ (debian) と、ビルドするマシンで動かすステージ (debian-build) の土台にする。
 # FROM --platform は、ステージの名前に付けても効かないので、イメージを 2 回書く。
-ARG DEBIAN_IMAGE=docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+ARG DEBIAN_IMAGE=docker.io/library/debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0
 
 FROM ${DEBIAN_IMAGE} AS debian
 SHELL ["/usr/bin/bash", "-euxo", "pipefail", "-c"]

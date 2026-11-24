@@ -20,8 +20,15 @@ const (
 	folderID = "anime"
 	fileID   = "ep1"
 	driveID  = "shared"
-	// fileName は、テストのファイルの名前。
-	fileName = "ep1.ts"
+	// fileName は、テストのファイルの名前。folderName、ep2Name、notesName、backupName は、ほかのフォルダとファイルの名前。
+	fileName   = "ep1.ts"
+	folderName = "anime"
+	ep2Name    = "ep2.ts"
+	notesName  = "notes"
+	backupName = "backup.ts"
+	// myDriveCase と sharedDriveCase は、マイドライブと共有ドライブを読むテストの名前。
+	myDriveCase     = "my drive"
+	sharedDriveCase = "shared drive"
 	// tsMime は、TS の MIME タイプ。
 	tsMime = "video/mp2t"
 )
@@ -64,13 +71,13 @@ func (t *tokens) Invalidate() {
 func newClient(t *testing.T) *fixture {
 	t.Helper()
 	server := googletest.New("client", "secret")
-	server.AddFile(&googletest.File{ID: folderID, Name: "anime", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID, ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: folderID, Name: folderName, MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID, ModifiedTime: modified()})
 	server.AddFile(&googletest.File{ID: fileID, Name: fileName, MIMEType: tsMime, Parent: folderID, Content: []byte("0123456789"), ModifiedTime: modified()})
-	server.AddFile(&googletest.File{ID: "ep2", Name: "ep2.ts", MIMEType: tsMime, Parent: folderID, Content: []byte("ab"), ModifiedTime: modified()})
-	server.AddFile(&googletest.File{ID: "doc", Name: "notes", MIMEType: "application/vnd.google-apps.document", Parent: googletest.MyDriveID, ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: "ep2", Name: ep2Name, MIMEType: tsMime, Parent: folderID, Content: []byte("ab"), ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: "doc", Name: notesName, MIMEType: "application/vnd.google-apps.document", Parent: googletest.MyDriveID, ModifiedTime: modified()})
 	server.AddFile(&googletest.File{ID: "gone", Name: "trashed.ts", MIMEType: tsMime, Parent: googletest.MyDriveID, Content: []byte("x"), ModifiedTime: modified(), Trashed: true})
 	server.AddDrive(&googletest.Drive{ID: driveID, Name: "Backup"})
-	server.AddFile(&googletest.File{ID: "backup", Name: "backup.ts", MIMEType: tsMime, Parent: driveID, Content: []byte("backup"), ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: "backup", Name: backupName, MIMEType: tsMime, Parent: driveID, Content: []byte("backup"), ModifiedTime: modified()})
 	httpServer := httptest.NewServer(server.Handler())
 	t.Cleanup(httpServer.Close)
 	source := &tokens{server: server, mu: sync.Mutex{}, token: "", invalidated: 0}
@@ -106,9 +113,9 @@ func TestClientList(t *testing.T) {
 		wantNames []string
 	}{
 		// ゴミ箱にあるものは返さない。モックの Drive は 1 件ずつのページで返すので、ページをたどって集める。
-		{name: "my drive", parent: googledrive.MyDriveID, driveID: "", wantNames: []string{"anime", "notes"}},
-		{name: "folder", parent: folderID, driveID: "", wantNames: []string{fileName, "ep2.ts"}},
-		{name: "shared drive", parent: driveID, driveID: driveID, wantNames: []string{"backup.ts"}},
+		{name: myDriveCase, parent: googledrive.MyDriveID, driveID: "", wantNames: []string{folderName, notesName}},
+		{name: "folder", parent: folderID, driveID: "", wantNames: []string{fileName, ep2Name}},
+		{name: sharedDriveCase, parent: driveID, driveID: driveID, wantNames: []string{backupName}},
 		{name: "empty", parent: fileID, driveID: "", wantNames: []string{}},
 	}
 	for _, tt := range tests {
@@ -122,6 +129,98 @@ func TestClientList(t *testing.T) {
 				names = append(names, f.Name)
 			}
 			assert.Equal(t, tt.wantNames, names)
+		})
+	}
+}
+
+// TestClientNamedChildren は、フォルダの中の、名前が決まったものだけを 1 つの問い合わせで取得することを確認する。
+func TestClientNamedChildren(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		names   map[string][]string
+		driveID string
+		wantIDs []string
+	}{
+		// ゴミ箱にあるもの (trashed.ts) と、ほかのフォルダの同じ名前のものは返さない。
+		{
+			name: myDriveCase, names: map[string][]string{folderID: {fileName}, googledrive.MyDriveID: {notesName, "trashed.ts", fileName}}, driveID: "",
+			wantIDs: []string{"doc", fileID},
+		},
+		{name: sharedDriveCase, names: map[string][]string{driveID: {backupName}}, driveID: driveID, wantIDs: []string{"backup"}},
+		{name: "no names", names: map[string][]string{}, driveID: "", wantIDs: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			files, err := newClient(t).client.NamedChildren(t.Context(), tt.names, tt.driveID)
+			require.NoError(t, err)
+			ids := []string{}
+			for _, f := range files {
+				ids = append(ids, f.ID)
+			}
+			assert.ElementsMatch(t, tt.wantIDs, ids)
+		})
+	}
+}
+
+// TestClientSearchFiles は、ページごとに渡し、止められたら残りのページを読まないことを確認する。
+func TestClientSearchFiles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		maxPages      int
+		stopAfter     int
+		wantNames     []string
+		wantTruncated bool
+	}{
+		// モックの Drive は 1 件ずつのページで返す。フォルダとゴミ箱にあるものは返さない。
+		{name: "all pages", maxPages: 5, stopAfter: 0, wantNames: []string{fileName, ep2Name}, wantTruncated: false},
+		{name: "stopped", maxPages: 5, stopAfter: 1, wantNames: []string{fileName}, wantTruncated: true},
+		{name: "page limit", maxPages: 1, stopAfter: 0, wantNames: []string{fileName}, wantTruncated: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			names := []string{}
+			truncated, err := newClient(t).client.SearchFiles(t.Context(), "ep", "", tt.maxPages, func(files []*googledrive.File) bool {
+				for _, f := range files {
+					names = append(names, f.Name)
+				}
+
+				return tt.stopAfter == 0 || len(names) < tt.stopAfter
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantNames, names)
+			assert.Equal(t, tt.wantTruncated, truncated)
+		})
+	}
+}
+
+// TestClientFolders は、ドライブのフォルダだけを返し、根元とファイルは返さないことを確認する。
+func TestClientFolders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		driveID string
+		want    []string
+	}{
+		{name: myDriveCase, driveID: "", want: []string{folderID}},
+		{name: sharedDriveCase, driveID: driveID, want: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			folders, err := newClient(t).client.Folders(t.Context(), tt.driveID)
+			require.NoError(t, err)
+			ids := []string{}
+			for _, f := range folders {
+				ids = append(ids, f.ID)
+			}
+			assert.Equal(t, tt.want, ids)
 		})
 	}
 }

@@ -397,9 +397,6 @@ CREATE TABLE system_settings (
   timeshift_while_watching boolean NOT NULL DEFAULT false,
   -- 視聴している間だけ録るサービスの保持時間 (秒)。範囲は timeshift_channels の保持時間と同じ。
   timeshift_while_watching_retention_seconds integer NOT NULL DEFAULT 3600 CHECK (timeshift_while_watching_retention_seconds BETWEEN 600 AND 86400),
-  -- 使わない。かつて、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分) だった (#1501)。
-  -- ローリング更新の間は古いバイナリが読み書きするので、残す。次のバージョンで消す。
-  rule_unmatched_grace_minutes integer NOT NULL DEFAULT 180 CHECK (rule_unmatched_grace_minutes BETWEEN 0 AND 1440),
   -- 重複の回避で「録画済み」とみなす、判定に数えるドロップ (映像と音声の PID のもの) の数の上限 (設計書 4.4、付録 A)。
   -- 0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
   history_max_drops integer NOT NULL DEFAULT 0 CHECK (history_max_drops BETWEEN 0 AND 1000),
@@ -734,22 +731,6 @@ CREATE TABLE epg_changes (
 
 CREATE INDEX epg_changes_version_idx ON epg_changes (version);
 CREATE INDEX epg_changes_created_at_idx ON epg_changes (created_at);
-
--- 放送前の番組の、番組名と概要の書き換え (#1558)。書き換えが放送開始のどれだけ前まで起きるかを計測し、ルール予約の直前の猶予を決め直すのに使う。
--- 書き換えを見つけた時点で放送開始より後のものだけを残す。observed_at から保持期間が過ぎたら消す (設計書 3.3)。
-CREATE TABLE program_rewrites (
-  service_id bigint NOT NULL,
-  event_id bigint NOT NULL,
-  -- start_at は、書き換えた後の番組の開始時刻。
-  start_at timestamptz NOT NULL,
-  -- field は、書き換わった項目 (name か description)。
-  field text NOT NULL CHECK (field IN ('name', 'description')),
-  before text NOT NULL,
-  after text NOT NULL,
-  observed_at timestamptz NOT NULL
-);
-
-CREATE INDEX program_rewrites_observed_at_idx ON program_rewrites (observed_at);
 
 -- 放送が終わった番組 (設計書 3.4)。neko が、放送の終わりから猶予が過ぎた番組を programs から移す。
 -- EID は再利用されうるので、サービスと eventId に開始時刻を加えた組で一意にする (設計書 3.2)。
