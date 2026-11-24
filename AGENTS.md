@@ -40,6 +40,7 @@
 ## 日本語の文章
 
 - 日本語の文章の決まりは [docs/writing.md](docs/writing.md) にまとめています。画面の文言、ドキュメント、コードのコメント、コミット、Issue と PR を書く前に読みます。
+- 日本語の文章を書いたら、コミット、push、Issue と PR への投稿の前に、yomiyasu で推敲します。手順は [docs/writing.md](docs/writing.md) の「推敲」にあります。
 - [.yomiyasu-words/](.yomiyasu-words/) の一覧にある語は使いません。指摘が出たら、一覧のその語の注釈を読んで書き直します。
 
 ## コミットと PR
