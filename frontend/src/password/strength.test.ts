@@ -1,25 +1,19 @@
-import { Options, ZxcvbnFactory } from '@zxcvbn-ts/core';
+import { ZxcvbnFactory } from '@zxcvbn-ts/core';
 import { describe, expect, test } from 'vitest';
 
+import { precomputeDictionary, type PrecomputedDictionary } from '../../zxcvbn/precompute';
 import { zxcvbnDictionary } from './dictionary';
 import { checkStrengthWith, zxcvbnOptions } from './strength';
 
-// サーバー (goja) は、順位を付け終えた辞書を precomputedDictionary で渡す (zxcvbn/goja.ts)。
+// サーバー (goja) は、並べ終えた辞書のインデックスを precomputedDictionary で渡す (zxcvbn/goja.ts)。
 // クライアントのように辞書をそのまま渡した場合と、同じ判定になることを確認する。
 describe('precomputedDictionary', () => {
   const withDictionary = new ZxcvbnFactory({ ...zxcvbnOptions, dictionary: zxcvbnDictionary });
-  const options = new Options({ dictionary: zxcvbnDictionary });
   const precomputed = new ZxcvbnFactory({
     ...zxcvbnOptions,
     precomputedDictionary: JSON.parse(
-      JSON.stringify({
-        rankedDictionaries: options.rankedDictionaries,
-        rankedDictionariesMaxWordSize: options.rankedDictionariesMaxWordSize,
-      }),
-    ) as {
-      rankedDictionaries: Record<string, Record<string, number>>;
-      rankedDictionariesMaxWordSize: Record<string, number>;
-    },
+      JSON.stringify(precomputeDictionary(zxcvbnDictionary)),
+    ) as PrecomputedDictionary,
   });
 
   test.each([

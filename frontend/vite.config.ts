@@ -73,6 +73,7 @@ const licenseFile = /^(licen[cs]e|copying|notice)([.\-_].*)?$/i;
 // MIT の文に author を著作権者として入れて示す。ここにないパッケージで文書が見つからなければ、ビルドを止める。
 const packagesWithoutLicenseFile = new Set([
   '@nodable/entities',
+  '@zxcvbn-ts/core',
   'react-remove-scroll-bar',
   'tr46',
 ]);

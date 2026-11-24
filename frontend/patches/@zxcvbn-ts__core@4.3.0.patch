@@ -1,0 +1,106 @@
+diff --git a/dist/Options.cjs b/dist/Options.cjs
+index bcdbde904186f55209ff54cda4d428babea0cbd9..e24d8b77d5150b2c89bec72dc976e63ef903ca72 100644
+--- a/dist/Options.cjs
++++ b/dist/Options.cjs
+@@ -83,6 +83,11 @@ class Options {
+       this.dictionary = options.dictionary;
+       this.setWordIndex();
+     }
++    // kotatsu: 並べ終えた辞書のインデックスを受け取る (WordIndex.fromPrecomputed)。
++    if (options.precomputedDictionary) {
++      this.wordIndex = WordIndex.fromPrecomputed(options.precomputedDictionary.wordIndex);
++      this.dictionaryMaxWordSizes = options.precomputedDictionary.dictionaryMaxWordSizes;
++    }
+     if (options.translations) {
+       this.setTranslations(options.translations);
+     }
+diff --git a/dist/Options.mjs b/dist/Options.mjs
+index 760942289ce2efe83000bda9a138fcfca98c15b1..86d092f7b09ee7cd134855fb4923a265f75b364f 100644
+--- a/dist/Options.mjs
++++ b/dist/Options.mjs
+@@ -81,6 +81,11 @@ class Options {
+       this.dictionary = options.dictionary;
+       this.setWordIndex();
+     }
++    // kotatsu: 並べ終えた辞書のインデックスを受け取る (WordIndex.fromPrecomputed)。
++    if (options.precomputedDictionary) {
++      this.wordIndex = WordIndex.fromPrecomputed(options.precomputedDictionary.wordIndex);
++      this.dictionaryMaxWordSizes = options.precomputedDictionary.dictionaryMaxWordSizes;
++    }
+     if (options.translations) {
+       this.setTranslations(options.translations);
+     }
+diff --git a/dist/matcher/dictionary/WordIndex.cjs b/dist/matcher/dictionary/WordIndex.cjs
+index 3094ed1b47dd176f247a047f815980251c854ba7..324e2b78f3e343cfd4f3bd191586e353eccacd61 100644
+--- a/dist/matcher/dictionary/WordIndex.cjs
++++ b/dist/matcher/dictionary/WordIndex.cjs
+@@ -232,6 +232,21 @@ class WordIndex {
+     this.hitRank = hitRank.slice(0, hitCount);
+     this.firstCharacterStarts = this.getFirstCharacterStarts();
+   }
++  // kotatsu: 並べ終えたインデックスから作る。goja で辞書を並べ直す時間 (3 秒ほど) を省くため。
++  static fromPrecomputed(precomputed) {
++    const index = Object.create(WordIndex.prototype);
++    index.findRange = new Int32Array(2);
++    index.firstCharacters = new Map();
++    index.levenshteinDictionaries = [];
++    index.listSizes = precomputed.listSizes;
++    index.dictionaryNames = precomputed.dictionaryNames;
++    index.words = precomputed.words;
++    index.hitStart = Int32Array.from(precomputed.hitStart);
++    index.hitDictionary = precomputed.dictionaryNames.length <= 256 ? Uint8Array.from(precomputed.hitDictionary) : Uint16Array.from(precomputed.hitDictionary);
++    index.hitRank = Int32Array.from(precomputed.hitRank);
++    index.firstCharacterStarts = index.getFirstCharacterStarts();
++    return index;
++  }
+   // the words are sorted, so the ones with the same first character are
+   // next to each other
+   getFirstCharacterStarts() {
+diff --git a/dist/matcher/dictionary/WordIndex.mjs b/dist/matcher/dictionary/WordIndex.mjs
+index d789ee90773cc449dc0ef07e0a420368b99365c2..d276e3c1088c41677ac729146f7c77522ccfda67 100644
+--- a/dist/matcher/dictionary/WordIndex.mjs
++++ b/dist/matcher/dictionary/WordIndex.mjs
+@@ -230,6 +230,21 @@ class WordIndex {
+     this.hitRank = hitRank.slice(0, hitCount);
+     this.firstCharacterStarts = this.getFirstCharacterStarts();
+   }
++  // kotatsu: 並べ終えたインデックスから作る。goja で辞書を並べ直す時間 (3 秒ほど) を省くため。
++  static fromPrecomputed(precomputed) {
++    const index = Object.create(WordIndex.prototype);
++    index.findRange = new Int32Array(2);
++    index.firstCharacters = new Map();
++    index.levenshteinDictionaries = [];
++    index.listSizes = precomputed.listSizes;
++    index.dictionaryNames = precomputed.dictionaryNames;
++    index.words = precomputed.words;
++    index.hitStart = Int32Array.from(precomputed.hitStart);
++    index.hitDictionary = precomputed.dictionaryNames.length <= 256 ? Uint8Array.from(precomputed.hitDictionary) : Uint16Array.from(precomputed.hitDictionary);
++    index.hitRank = Int32Array.from(precomputed.hitRank);
++    index.firstCharacterStarts = index.getFirstCharacterStarts();
++    return index;
++  }
+   // the words are sorted, so the ones with the same first character are
+   // next to each other
+   getFirstCharacterStarts() {
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 66f9594b2233293b6d9567550b7a52761352e88f..7b998f173b097cde8b529c1780280ea65d0c129c 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -165,6 +165,17 @@ export interface OptionsType {
+      * @description Define dictionary that should be used to check against. The matcher will search the dictionaries for similar password with l33t speak and reversed words. The recommended sets are found in @zxcvbn-ts/language-common and @zxcvbn-ts/language-en.
+      */
+     dictionary?: OptionsDictionary;
++    precomputedDictionary?: {
++        wordIndex: {
++            dictionaryNames: string[];
++            listSizes: number[];
++            words: string[];
++            hitStart: number[];
++            hitDictionary: number[];
++            hitRank: number[];
++        };
++        dictionaryMaxWordSizes: Record<string, number>;
++    };
+     /**
+      * @description Defines if the levenshtein algorithm should be used. This will be only used on the complete password and not on parts of it. This will decrease the calcTime a bit but will significantly improve the password check. The recommended sets are found in @zxcvbn-ts/language-common and @zxcvbn-ts/language-en.
+      * @default false
