@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// 動いている秒が足りないか、FFmpeg が失敗して、測れなかったこと。
+	// 動いている秒が足りないか、FFmpeg が失敗して、計測できなかったこと。
 	CadenceUnknown Cadence = "unknown"
 	// 24p を 3:2 プルダウンで載せた映像 (アニメやフィルム)。5 フィールドに 1 回、同じフィールドが繰り返される。
 	Cadence24P Cadence = "24p"
