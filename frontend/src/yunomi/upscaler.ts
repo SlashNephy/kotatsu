@@ -26,8 +26,8 @@
 import { compileProgram, restoreState, saveState } from './glPass';
 import { expandHighlightsShader } from './hdr';
 
-// EASU。出力の画素の中心を元の画素の座標に写し、周りの 12 画素から縁の向きと強さを推し量り、
-// 縁に沿って伸ばした窓の Lanczos に近い重みで混ぜる。近い 4 画素の最小と最大に収め、縁の周りの輪を出さない。
+// EASU。出力の画素の中心を元の画素の座標に対応させ、周りの 12 画素から縁の向きと強さを推し量り、
+// 縁に沿って伸ばしたウィンドウの Lanczos に近い重みで混ぜる。近い 4 画素の最小と最大に収め、縁の周りの輪を出さない。
 // 座標は、行を下から数える (framebuffer と同じ向き)。uFlip のテクスチャは行を上から持つので、読むときに返す。
 const easuShader = `#version 300 es
 precision highp float;
@@ -217,8 +217,8 @@ void main() {
 // Upscaler は、yadif のコンテキストで、テクスチャを canvas へ拡大して描く処理。
 export type Upscaler = {
   // draw は、width × height の texture を、canvas (既定の framebuffer) の outputWidth × outputHeight へ拡大して描く。
-  // texture は行を下から持つ。flipped なら行を上から持つ (video を写したテクスチャ)。
-  // sharpnessStops は、RCAS の鮮鋭化を弱める段数。0 が最も強く、1 段ごとに半分になる。
+  // texture は行を下から持つ。flipped なら行を上から持つ (video をコピーしたテクスチャ)。
+  // sharpnessStops は、RCAS の鮮鋭化を弱めるステップ数。0 が最も強く、1 ステップごとに半分になる。
   // expand なら、擬似 HDR の出力 (#1656) のために、最後に明るい所を伸ばす。
   draw(
     texture: WebGLTexture,

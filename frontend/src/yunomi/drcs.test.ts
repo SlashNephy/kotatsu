@@ -65,7 +65,7 @@ describe('recordDRCS', () => {
       '55a54008ad1ba589aa210d2629c1df41',
     ]);
 
-    // 表に登録すると、一覧から消える。大文字の MD5 でも小文字にそろえて引く。
+    // テーブルに登録すると、一覧から消える。大文字の MD5 でも小文字にそろえて引く。
     act(() => setDRCSReplacements([{ md5: '55A54008AD1BA589AA210D2629C1DF41', text: '♪' }]));
     expect(drcsReplacements.get('55a54008ad1ba589aa210d2629c1df41')).toBe('♪');
     expect(result.current.map((item) => item.md5)).toEqual(['9e688c58a5487b8eaf69c9e1005ad0bf']);
@@ -73,7 +73,7 @@ describe('recordDRCS', () => {
 });
 
 describe('drcsReplacements', () => {
-  // aribb24.js が置き換えに引く鍵と、ここで求める MD5 が同じであることを、aribb24.js の置き換えで確かめる。
+  // aribb24.js が置き換えに使うキーと、ここで求める MD5 が同じであることを、aribb24.js の置き換えで確認する。
   test('replaces glyphs in aribb24.js by the MD5 we compute', () => {
     const binary = new Uint8Array(Array.from({ length: 72 }, (_, i) => (i * 37) & 0xff)).buffer;
     const token = { ...glyph([]), width: 16, height: 18, binary };
@@ -122,7 +122,7 @@ const enlarge = (source: string[], n: number): string[] =>
     return Array.from({ length: n }, () => wide);
   });
 
-// glyph18 は、18x18 の外字。斜めの線と、縦横の線と、塗りの塊を含める。
+// glyph18 は、18x18 の外字。斜めの線と、縦横の線と、塗りつぶした領域を含める。
 const glyph18 = Array.from({ length: 18 }, (_, y) =>
   Array.from({ length: 18 }, (_, x) =>
     x === y || x === 3 || y === 15 || (x >= 12 && y <= 4) ? '#' : '.',
@@ -137,7 +137,7 @@ describe('foldDRCS', () => {
       want: glyph18,
     },
     { name: '4 倍の 72x72 も、18x18 に畳む', source: enlarge(glyph18, 4), want: glyph18 },
-    // 列は 3 本で奇数なので畳まず、行だけを畳む。
+    // 横幅は 3 画素で奇数なので横方向は畳まず、縦方向だけを畳む。
     {
       name: '奇数の幅は、列を畳まない',
       source: ['##.', '##.', '..#', '..#'],
@@ -206,7 +206,7 @@ describe('drcsScale', () => {
 });
 
 describe('prepareDRCS', () => {
-  // unknown は、置き換え表に無い外字。36x36 で、1 画素あたり 1 ビット。
+  // unknown は、置き換えテーブルに無い外字。36x36 で、1 画素あたり 1 ビット。
   const unknown = {
     tag: 'DRCS',
     width: 36,
@@ -222,7 +222,7 @@ describe('prepareDRCS', () => {
     const key = result.current[0]!.md5;
     prepareDRCS([36, 36], [unknown]);
 
-    // 映像に重ねる描画器では、私用領域の文字にし、その path を登録する。
+    // 映像に重ねるレンダラーでは、私用領域の文字にし、その path を登録する。
     const [drawn] = replaceDRCS([unknown as never], drcsRenderReplacements);
     expect(drawn?.tag).toBe('Character');
     const character = (drawn as { character: string }).character;
@@ -230,7 +230,7 @@ describe('prepareDRCS', () => {
     expect(character.codePointAt(0)).toBeLessThanOrEqual(0xf8ff);
     expect(drcsGlyphs.get(character)?.path).not.toBe('');
 
-    // 字幕の文の表は変えないので、外字のまま (aribb24.js の TextRenderer は「〓」にする) で、一覧にも残る。
+    // 字幕の文のテーブルは変えないので、外字のまま (aribb24.js の TextRenderer は「〓」にする) で、一覧にも残る。
     expect(replaceDRCS([unknown as never], drcsReplacements)[0]?.tag).toBe('DRCS');
     expect(drcsReplacements.has(key)).toBe(false);
     expect(result.current.map((item) => item.md5)).toEqual([key]);
@@ -242,7 +242,7 @@ describe('prepareDRCS', () => {
 
   test.each([
     // aribb24.js は、viewBox を字の大きさ (fontsize) に縮めて描く。元の外字と同じ大きさに描けるよう、
-    // 字の大きさに対する外字の大きさの分だけ、viewBox を path より広げる。左上の 1 点だけを空けた外字で、path が占める広さを確かめる。
+    // 字の大きさに対する外字の大きさの分だけ、viewBox を path より広げる。左上の 1 点だけを空けた外字で、path が占める広さを確認する。
     // 一様に塗ると水増しとして畳まれるので、1 点を空ける。
     {
       name: '字の大きさと同じ外字は、字の枠いっぱいに描く',

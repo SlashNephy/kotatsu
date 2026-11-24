@@ -2,14 +2,14 @@ import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
 
-// データ放送を裏で受け取っておくか (プリロード) を、端末ごとに覚えておく (設計書 7.4)。
+// データ放送を裏で受け取っておくか (プリロード) を、端末ごとに保存しておく (設計書 7.4)。
 // 受け取る分の転送量は回線によって重さが違うので、アカウントには保存しない。データ放送を出すことは多くないので、既定では受け取らない。
 
 const storageKey = 'kotatsu.player.dataBroadcastPreload';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:data-broadcast-preload';
 
-// loadDataBroadcastPreload は、覚えた設定を読む。読めなければ、既定の false を返す。
+// loadDataBroadcastPreload は、保存した設定を読む。読めなければ、既定の false を返す。
 export function loadDataBroadcastPreload(storage: Pick<Storage, 'getItem'> | null): boolean {
   try {
     return storage?.getItem(storageKey) === 'true';
@@ -18,7 +18,7 @@ export function loadDataBroadcastPreload(storage: Pick<Storage, 'getItem'> | nul
   }
 }
 
-// saveDataBroadcastPreload は、設定を覚える。書けなくても、例外は投げない。
+// saveDataBroadcastPreload は、設定を保存する。書けなくても、例外は投げない。
 export function saveDataBroadcastPreload(
   storage: Pick<Storage, 'setItem'> | null,
   preload: boolean,

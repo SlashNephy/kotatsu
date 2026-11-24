@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 // スリープタイマー (#821、設計書 7.5)。選んだ時間が経つか、ライブ視聴で番組が終わったら、プレイヤーを止める。
-// ブラウザから OS を眠らせることはできないので、プレイヤーを閉じて、チューナーと帯域を手放す。選択は覚えない。
+// ブラウザから OS を眠らせることはできないので、プレイヤーを閉じて、チューナーと帯域を手放す。選択は保存しない。
 
 // SleepChoice は、設定のメニューの選択肢。分の数か、番組の終わり (programEnd) か、切る (off)。
 export type SleepChoice = 'off' | '15' | '30' | '60' | '90' | 'programEnd';
@@ -23,7 +23,7 @@ export function remainingMinutes(deadline: number, now: number): number {
   return Math.max(Math.ceil((deadline - now) / 60_000), 0);
 }
 
-// checkIntervalMs は、止める時刻を過ぎたかを確かめる間隔。
+// checkIntervalMs は、止める時刻を過ぎたかを確認する間隔。
 const checkIntervalMs = 1_000;
 
 export type SleepTimer = {

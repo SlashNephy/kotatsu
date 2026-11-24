@@ -10,7 +10,7 @@
   pointer-events: none;
 }
 
-/* 放送の字幕 (aribb24.js の枠) と見分けられるよう、半透明の黒い帯に、「自動生成」の印を添える。 */
+/* 放送の字幕 (aribb24.js の枠) と見分けられるよう、半透明の黒い帯に、「自動生成」のマークを添える。 */
 .box {
   display: flex;
   align-items: flex-start;

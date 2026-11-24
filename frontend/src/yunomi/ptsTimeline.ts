@@ -1,5 +1,5 @@
 // PTS (90kHz、33 ビット) は約 26.5 時間ごとに一周する (#1516)。ブラウザ内でデコードする経路では、映像、音、字幕の時刻を
-// 同じ物差しで比べるので、一周しても増え続ける数に伸ばしてから使う。
+// 同じ物差しで比較するので、一周しても増え続ける数に伸ばしてから使う。
 
 // ptsTicksPerSecond は、PTS の 1 秒。
 export const ptsTicksPerSecond = 90_000;
@@ -33,7 +33,7 @@ export class PtsTimeline {
     return extended;
   }
 
-  // reset は、覚えた位置を忘れる。選局したときに呼ぶ (局ごとに PTS はばらばらなので)。
+  // reset は、保持した位置を忘れる。選局したときに呼ぶ (局ごとに PTS はばらばらなので)。
   reset(): void {
     this.last = null;
   }

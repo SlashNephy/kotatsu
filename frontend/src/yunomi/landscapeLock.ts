@@ -3,14 +3,14 @@ import { useSyncExternalStore } from 'react';
 import { browserStorage } from './volume';
 
 // 全画面にしたら、端末を横向きに固定するか (#1599、設計書 7.5)。縦向きのまま全画面にすると映像が小さいので、
-// そのたびに端末を回すのを省く。端末ごとに覚える。既定では固定する。
+// そのたびに端末を回すのを省く。端末ごとに保存する。既定では固定する。
 // 固定は全画面の間しか効かず、iOS の Safari や PC のブラウザでは断られる。断られたら何もしない。
 
 const storageKey = 'kotatsu.player.fullscreenLandscape';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:fullscreen-landscape';
 
-// loadFullscreenLandscape は、覚えた設定を読む。覚えていないか、読めなければ、既定の true を返す。
+// loadFullscreenLandscape は、保存した設定を読む。保存していないか、読めなければ、既定の true を返す。
 export function loadFullscreenLandscape(storage: Pick<Storage, 'getItem'> | null): boolean {
   try {
     return storage?.getItem(storageKey) !== 'false';
@@ -19,7 +19,7 @@ export function loadFullscreenLandscape(storage: Pick<Storage, 'getItem'> | null
   }
 }
 
-// saveFullscreenLandscape は、設定を覚える。書けなくても、例外は投げない。
+// saveFullscreenLandscape は、設定を保存する。書けなくても、例外は投げない。
 export function saveFullscreenLandscape(
   storage: Pick<Storage, 'setItem'> | null,
   enabled: boolean,

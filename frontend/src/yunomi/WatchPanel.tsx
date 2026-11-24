@@ -1,7 +1,7 @@
 import { Box, Paper, SegmentedControl, Stack, Text } from '@mantine/core';
 import { useState, type ReactNode } from 'react';
 
-// WatchPanelTab は、右の列の枠で切り替える中身の 1 つ。
+// WatchPanelTab は、右のカラムの枠で切り替える内容の 1 つ。
 export type WatchPanelTab = {
   value: string;
   label: string;
@@ -10,10 +10,10 @@ export type WatchPanelTab = {
   footer?: ReactNode;
 };
 
-// WatchPanel は、視聴の画面の右の列に置く枠 (設計書 7.4)。実況のコメントの一覧と字幕の履歴と再生の情報を、見出しで切り替えて出す。
-// tabs の先頭を既定にする。選んだ中身がなくなったら (実況を切ったときなど)、先頭に戻る。
+// WatchPanel は、視聴の画面の右のカラムに置く枠 (設計書 7.4)。実況のコメントの一覧と字幕の履歴と再生の情報を、見出しで切り替えて出す。
+// tabs の先頭を既定にする。選んだ内容がなくなったら (実況を切ったときなど)、先頭に戻る。
 export function WatchPanel({ tabs, label }: { tabs: readonly WatchPanelTab[]; label: string }) {
-  // picked は、利用者が選んだ中身。選ぶまでは、先頭に従う。録画の実況の過去ログのように、後から先頭に足されたものに移れるようにする。
+  // picked は、利用者が選んだ内容。選ぶまでは、先頭に従う。録画の実況の過去ログのように、後から先頭に足されたものに移れるようにする。
   const [picked, setPicked] = useState<string | null>(null);
   const current = tabs.find((tab) => tab.value === picked) ?? tabs[0];
   if (current === undefined) {

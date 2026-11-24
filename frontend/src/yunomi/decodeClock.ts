@@ -14,7 +14,7 @@ export type DecodeClockParams = {
   blend: number;
 };
 
-// defaultDecodeClockParams は、測った揺れから決めた既定 (#1516 の測定)。
+// defaultDecodeClockParams は、計測した揺れから決めた既定 (#1516 の測定)。
 export const defaultDecodeClockParams: DecodeClockParams = {
   resync: 0.02 * ptsTicksPerSecond,
   blend: 0.1,

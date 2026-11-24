@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { AdtsSplitter } from './adtsFrames';
 
-// adts は、48kHz、2ch、payload の長さの中身を持つ ADTS のフレームを作る。blocks は raw_data_block の数。
+// adts は、48kHz、2ch、payload の長さの内容を持つ ADTS のフレームを作る。blocks は raw_data_block の数。
 function adts(payload: number, fill: number, blocks = 1): number[] {
   const length = 7 + payload;
   // profile AAC LC (1)、sampling_frequency_index 3 (48kHz)、channel_configuration 2。

@@ -1,11 +1,11 @@
 // Anime4K の CNN (x2、M) で、コマを縦横 2 倍に拡大する (#1653、設計書 7.2)。
-// 畳み込みの段は、Anime4K の mpv 向けのシェーダー (MIT) を scripts/convert-anime4k.mjs で WebGL2 に直したもの (anime4kShaders.ts)。
-// 最後の Depth-to-Space の段 (畳み込みの結果を 2×2 の画素に並べ、元のコマを線形に拡大したものに足す) は、ここに書く。
+// 畳み込みのステップは、Anime4K の mpv 向けのシェーダー (MIT) を scripts/convert-anime4k.mjs で WebGL2 に直したもの (anime4kShaders.ts)。
+// 最後の Depth-to-Space のステップ (畳み込みの結果を 2×2 の画素に並べ、元のコマを線形に拡大したものに足す) は、ここに書く。
 // 畳み込みの途中の値は負にもなるので、RGBA16F のテクスチャに置く。描けない (EXT_color_buffer_float がない) 端末では作れない。
 import { anime4kPasses } from './anime4kShaders';
 import { compileProgram, restoreState, saveState } from './glPass';
 
-// depthToSpaceShader は、畳み込みの最後の段の 4 つの値を、2×2 の画素に 1 つずつ割り当て、元のコマを線形に拡大した色に足す。
+// depthToSpaceShader は、畳み込みの最後のステップの 4 つの値を、2×2 の画素に 1 つずつ割り当て、元のコマを線形に拡大した色に足す。
 // 元のシェーダーと同じく、同じ値を RGB のどれにも足す (明るさの差分)。並べる順は、画像の左上、右上、左下、右下。
 const depthToSpaceShader = `#version 300 es
 precision highp float;

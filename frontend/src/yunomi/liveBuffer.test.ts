@@ -11,8 +11,8 @@ import {
   type RateMode,
 } from './liveBuffer';
 
-// arriveEvery は、from から to (ミリ秒) まで、interval ごとに塊が届いたことにする。届く直前のバッファは buffer 秒。
-// 決め直しの刻みも、届くたびに進める。
+// arriveEvery は、from から to (ミリ秒) まで、interval ごとにチャンクが届いたことにする。届く直前のバッファは buffer 秒。
+// 決め直しの間隔も、届くたびに進める。
 function arriveEvery(
   controller: LiveBufferController,
   from: number,
@@ -348,7 +348,7 @@ describe('decide', () => {
 
   test('届いた直後のバッファではなく、直近の低い所に届く間隔を足して比べる', () => {
     const { controller } = started();
-    // 届く直前は 0.6 秒しかない。届いた直後の 2 秒で比べると速めてしまう。
+    // 届く直前は 0.6 秒しかない。届いた直後の 2 秒で比較すると速めてしまう。
     controller.arrive(10_500, 0.6);
 
     expect(controller.decide(10_600, { ...input, buffer: 2 })).toEqual({ rate: 1, jump: false });

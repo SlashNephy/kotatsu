@@ -104,10 +104,10 @@ export function removeButton(map: GamepadMap, id: SimpleCommandId, button: numbe
 }
 
 const storageKey = 'kotatsu.player.gamepadMap';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:gamepad-map';
 
-// parseGamepadMap は、覚えた割り当てを読む。覚えていない操作は既定のボタンにするが、覚えた操作が使っているボタンは外す。
+// parseGamepadMap は、保存した割り当てを読む。保存していない操作は既定のボタンにするが、保存した操作が使っているボタンは外す。
 // 読めなければ既定を返す。
 export function parseGamepadMap(raw: string | null): GamepadMap {
   if (raw === null) {
@@ -209,7 +209,7 @@ export function useGamepadButtons(
       frame = null;
       const pads = connectedGamepads();
       const now = performance.now();
-      // 外れたゲームパッドの状態は捨てる。同じ番号でつなぎ直したときに、前に押していたボタンを、押したと数えられるようにする。
+      // 外れたゲームパッドの状態は破棄する。同じ番号でつなぎ直したときに、前に押していたボタンを、押したと数えられるようにする。
       const indices = new Set(pads.map((pad) => pad.index));
       for (const index of previous.keys()) {
         if (!indices.has(index)) {

@@ -8,7 +8,7 @@ import type { PlayerMedia } from './playerMedia';
 // WebAudio を通すので、iOS の Safari やバックグラウンドの再生で動きが変わるおそれがある。端末ごとに選び、既定では切る。
 
 const storageKey = 'kotatsu.player.normalizeVolume';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:normalize-volume';
 
 // loadNormalizeVolume は、設定を読む。読めなければ、既定の false を返す。

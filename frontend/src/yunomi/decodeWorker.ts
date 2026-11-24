@@ -24,7 +24,7 @@ const params = {
   maxDecoded: 8,
   // audioAhead は、鳴っている位置のこれだけ先まで、音をデコードして渡す量。
   audioAhead: 1 * ptsTicksPerSecond,
-  // maxCompressed は、デコードしていない映像の PES を持つ長さの上限。止めている間に溜め込まない。
+  // maxCompressed は、デコードしていない映像の PES を持つ長さの上限。止めている間にバッファし続けない。
   maxCompressed: 10 * ptsTicksPerSecond,
 };
 
@@ -55,9 +55,9 @@ type Loading = {
   presented: boolean;
   shape: string | null;
   bytesRead: number;
-  // waitKeyframe は、I フレームから始まる PES まで映像を捨てるか (読み始め、見えるようになった直後)。
+  // waitKeyframe は、I フレームから始まる PES まで映像を破棄するか (読み始め、見えるようになった直後)。
   waitKeyframe: boolean;
-  // audioPid は、鳴らす音声の ES の PID。PMT の最初の音声。ほかの音声の ES は捨てる。
+  // audioPid は、鳴らす音声の ES の PID。PMT の最初の音声。ほかの音声の ES は破棄する。
   audioPid: number | null;
   // audioStart は、時計が動く前に渡し始めた音の PTS。時計が動くまでは、ここから先読みの分だけ渡す。
   audioStart: number | null;
@@ -222,7 +222,7 @@ function stop(): void {
   decodeTimes.length = 0;
   if (engine !== null) {
     engine.queue.clear();
-    // 映さずに捨てた数は、読み込みごとに数え直す (getVideoPlaybackQuality と同じ)。
+    // 映さずに破棄した数は、読み込みごとに数え直す (getVideoPlaybackQuality と同じ)。
     engine.queue.dropped = 0;
     engine.module._dec_flush(engine.videoDecoder);
     engine.module._dec_flush(engine.audioDecoder);
@@ -283,7 +283,7 @@ function onPes(current: Loading, pes: TsPes): void {
   const pts = pes.pts === null ? null : current.timeline.extend(pes.pts);
   switch (pes.kind) {
     case 'video': {
-      // sequence_header は PES の頭に置かれるので、頭の方だけを探す。
+      // sequence_header は PES の先頭に置かれるので、先頭の方だけを探す。
       const keyframe = includes(pes.data.subarray(0, 512), sequenceHeader);
       if (current.waitKeyframe) {
         // I フレームが来るまで映像を渡さない。P や B を先に渡すと、灰色の映像が出る。
@@ -326,8 +326,8 @@ function onPes(current: Loading, pes: TsPes): void {
   }
 }
 
-// trimAudio は、時計が動く前 (鳴らし始める前) に、渡していない音が上限を超えたら、古い方から捨てる。
-// 音ありの自動再生を断られている間に、溜め込まないため。
+// trimAudio は、時計が動く前 (鳴らし始める前) に、渡していない音が上限を超えたら、古い方から破棄する。
+// 音ありの自動再生を断られている間に、バッファし続けないため。
 function trimAudio(current: Loading): void {
   if (clock.at(mainNow()) !== null) {
     return;
@@ -342,10 +342,10 @@ function trimAudio(current: Loading): void {
   }
 }
 
-// trimVideo は、デコードしていない映像が上限を超えたら、古い GOP から捨てる。見えていない間は、最新の GOP だけを残す。
+// trimVideo は、デコードしていない映像が上限を超えたら、古い GOP から破棄する。見えていない間は、最新の GOP だけを残す。
 function trimVideo(current: Loading): void {
   if (!visible) {
-    // 時刻を見ずに、最新の I フレームより前を捨てる (PTS のない PES があっても溜め続けない)。
+    // 時刻を見ずに、最新の I フレームより前を破棄する (PTS のない PES があってもバッファし続けない)。
     const keyframe = current.video.findLastIndex((item) => item.keyframe);
     if (keyframe > 0) {
       current.video.splice(0, keyframe);
@@ -454,7 +454,7 @@ function receivePictures(current: Loading): void {
     const colorSpace = module._frame_colorspace(videoDecoder);
     target.matrix =
       bt601ColorSpaces.has(colorSpace) || (colorSpace === 2 && height < 720) ? 'bt601' : 'bt709';
-    // 大きさが変わったときだけ知らせる (走査の方式は、プルダウンの素材ではコマごとに変わりうるので含めない)。
+    // 大きさが変わったときだけ通知する (走査の方式は、プルダウンの素材ではコマごとに変わりうるので含めない)。
     const shape = `${displayWidth}x${height}`;
     if (current.shape !== shape) {
       current.shape = shape;

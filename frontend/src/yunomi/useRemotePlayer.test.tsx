@@ -76,7 +76,7 @@ function handlers(): MockHandlers {
   };
 }
 
-// fakeApi は、サーバーの代わり。登録した ID を返し、送った状態と、購読の口を覚える。
+// fakeApi は、サーバーの代わり。登録した ID を返し、送った状態と、購読の口を記録する。
 function fakeApi() {
   const updates: Array<{ state: RemoteState; announce: boolean }> = [];
   const unregistered: string[] = [];
@@ -160,14 +160,14 @@ describe('useRemotePlayer', () => {
     });
     expect(fake.updates).toEqual([{ state: remoteState(state), announce: false }]);
 
-    // 再生位置が進んだだけなら、知らせない。
+    // 再生位置が進んだだけなら、通知しない。
     rerender({ current: { ...state, position: 12 } });
     act(() => {
       vi.advanceTimersByTime(announceDelayMs);
     });
     expect(fake.updates).toHaveLength(1);
 
-    // 一時停止したら、少し待ってから知らせる。
+    // 一時停止したら、少し待ってから通知する。
     const paused = { ...state, position: 12, paused: true };
     rerender({ current: paused });
     act(() => {

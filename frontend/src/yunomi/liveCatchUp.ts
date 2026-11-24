@@ -30,15 +30,15 @@ function bufferedTail(video: Pick<HTMLVideoElement, 'buffered'>): number {
   return buffered.length === 0 ? 0 : buffered.end(buffered.length - 1);
 }
 
-// LiveCatchUp は、再生の情報に出す制御の様子と、覚えた下限を捨てる操作。
+// LiveCatchUp は、再生の情報に出す制御の様子と、保存した下限を破棄する操作。
 export type LiveCatchUp = {
   // status は、制御の様子。制御していなければ null。
   status(): LiveBufferStatus | null;
-  // forgetFloor は、覚えた下限を捨て、目標量を初期の最小量まで詰めて、放送の今へ戻す。
+  // forgetFloor は、保存した下限を破棄し、目標量を初期の最小量まで詰めて、放送の今へ戻す。
   forgetFloor(): void;
 };
 
-// useLiveCatchUp は、enabled の間、video のバッファを測って目標量を決め、再生の速さで寄せる。
+// useLiveCatchUp は、enabled の間、video のバッファを計測して目標量を決め、再生の速さで寄せる。
 // 制御 (目標量と下限) は、画面を開いている間は、画質を変えたり、つなぎ直したりして video が変わっても引き継ぐ。
 // pictureInPicture は、別のウィンドウに出しているか。出している間は、タブが隠れても見えているとみなす。
 // videoLag は、映像だけの遅れの制御 (#1513)。映像だけ遅れている間は速めず、自分で飛び直して起きた詰まりは数えない。
@@ -86,7 +86,7 @@ export function useLiveCatchUp(
     controller.selfInflicted(performance.now());
     let lastTail = bufferedTail(video);
 
-    // observe は、末尾が伸びていれば塊が届いたとみなして知らせ、今のバッファを記録して返す。
+    // observe は、末尾が伸びていればチャンクが届いたとみなして知らせ、今のバッファを記録して返す。
     const observe = (now: number): number => {
       const tail = bufferedTail(video);
       const buffer = Math.max(tail - video.currentTime, 0);
@@ -194,7 +194,7 @@ export function useLiveCatchUp(
 }
 
 const storageKey = 'kotatsu.player.lowLatency';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:low-latency';
 
 // loadLowLatency は、低遅延モードの設定を読む。読めなければ、既定の false を返す。

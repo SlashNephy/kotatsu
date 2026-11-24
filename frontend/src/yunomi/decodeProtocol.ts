@@ -1,6 +1,6 @@
 // ブラウザ内でデコードする経路 (#1516) の、メインスレッドと worker の間のメッセージ。
 // 時刻は、どれも伸ばした PTS (ptsTimeline.ts、90kHz) で受け渡す。読み込みごとに番号 (load) を振り、
-// 古い読み込みのメッセージは、受け取った側で捨てる (選局したあとに、前の局の音や字幕が混ざらないように)。
+// 古い読み込みのメッセージは、受け取った側で破棄する (選局したあとに、前の局の音や字幕が混ざらないように)。
 
 import type { TsStream } from './tsDemux';
 
@@ -12,20 +12,20 @@ export type ToDecodeWorker =
   | { type: 'start'; canvas: OffscreenCanvas; wasmUrl: string; timeOrigin: number }
   // load は、url の TS を読み始める。前の読み込みは止める。serviceId は、選ぶ番組 (null なら最初の番組)。
   | { type: 'load'; load: number; url: string; serviceId: number | null }
-  // stop は、読み込みを止め、待っているものを捨てる。
+  // stop は、読み込みを止め、待っているものを破棄する。
   | { type: 'stop' }
   // clock は、いま耳に届いている音の PTS と、その時の performance の時刻の組。
   | { type: 'clock'; load: number; pts: number; perf: number }
-  // vsync は、映している窓の画面が切り替わった時刻 (requestAnimationFrame の時刻)。
+  // vsync は、映しているウィンドウの画面が切り替わった時刻 (requestAnimationFrame の時刻)。
   | { type: 'vsync'; time: number }
   // visible は、映像が見えているか。見えていない間は、映像をデコードしない。
   | { type: 'visible'; visible: boolean };
 
-// DecodeStats は、worker が 1 秒ごとに知らせる様子。
+// DecodeStats は、worker が 1 秒ごとに通知する様子。
 export type DecodeStats = {
   // decodeMs は、直近の 1 コマのデコードの時間の分位 (中央値と 95 パーセンタイル)。
   decodeMs: { median: number; p95: number } | null;
-  // presented は、映したフィールドの数の累計、dropped は、映さずに捨てたコマの数の累計。
+  // presented は、映したフィールドの数の累計、dropped は、映さずに破棄したコマの数の累計。
   presented: number;
   dropped: number;
   // bytesRead は、読んだ TS のバイト数の累計。

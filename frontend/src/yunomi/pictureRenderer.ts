@@ -1,7 +1,7 @@
 // ブラウザ内でデコードする経路 (#1516) の、worker の OffscreenCanvas に WebGL2 でコマを描く部分。
 // デコードしたコマの Y、U、V の 3 面を R8 のテクスチャ 3 枚に上げ (JS 側で複製せずに、WASM のメモリから直に)、
 // インタレースのコマはフィールドごとに描く。描くフィールドの行はそのまま使い、抜けた行は、もう片方のフィールドの値 o が
-// 上下の行 a、b の間からはみ出した量で、織り (o) と bob ((a+b)/2) をなだらかに混ぜる。はみ出しても、前のコマと比べて
+// 上下の行 a、b の間からはみ出した量で、織り (o) と bob ((a+b)/2) をなだらかに混ぜる。はみ出しても、前のコマと比較して
 // 止まっている画素は o を使う (縁取りのある字や細い横線が、フィールドごとに上下に揺れないように)。
 // 色差 (4:2:0) も同じ規則で埋め、止まっている度合いは輝度で決めたものを使う。
 
@@ -39,7 +39,7 @@ export type PlanePointer = { pointer: number; stride: number };
 // DrawRequest は、描くコマとフィールド。
 export type DrawRequest = {
   slot: PictureSlot;
-  // previous は、前に映したコマ。大きさが違えば比べない。
+  // previous は、前に映したコマ。大きさが違えば比較しない。
   previous: PictureSlot | null;
   interlaced: boolean;
   // parity は、描くフィールドが画像の上 (0) か下 (1) か。
@@ -105,7 +105,7 @@ void main() {
   } else {
     // m は、p と同じ 2 行の組の中で、このフィールドにない輝度の行。p がその行なら p 自身。
     // 色差の行は 2 行の輝度の組に 1 行で、輝度の行がこのフィールドにあっても、色差の行は抜けていることがある。
-    // そのときも、組の中の抜けた輝度の行で、動いているかを測る。
+    // そのときも、組の中の抜けた輝度の行で、動いているかを計測する。
     ivec2 m = ivec2(p.x, (p.y & ~1) | (1 - uField));
     float keep = keepAt(m);
     if ((p.y & 1) == uField) {
@@ -131,7 +131,7 @@ void main() {
   fragColor = vec4(clamp(uMatrix * yuv, 0.0, 1.0), 1.0);
 }`;
 
-// matrices は、YUV (Y、Cb、Cr) から RGB への変換。WebGL の mat3 は列ごとに並べる。
+// matrices は、YUV (Y、Cb、Cr) から RGB への変換。WebGL の mat3 はカラムごとに並べる。
 const matrices: Record<ColorMatrix, Float32Array> = {
   bt709: new Float32Array([1, 1, 1, 0, -0.1873, 1.8556, 1.5748, -0.4681, 0]),
   bt601: new Float32Array([1, 1, 1, 0, -0.3441, 1.772, 1.402, -0.7141, 0]),
@@ -274,7 +274,7 @@ export class PictureRenderer {
     bind(0, slot.y, uniforms.uY);
     bind(1, slot.u, uniforms.uU);
     bind(2, slot.v, uniforms.uV);
-    // 前のコマは、大きさが同じときだけ比べる (選局した直後と、大きさが変わった直後は、コマの中だけで決める)。
+    // 前のコマは、大きさが同じときだけ比較する (選局した直後と、大きさが変わった直後は、コマの中だけで決める)。
     const hasPrevious =
       previous !== null && previous.width === slot.width && previous.height === slot.height;
     bind(3, hasPrevious ? previous.y : slot.y, uniforms.uPrevY);

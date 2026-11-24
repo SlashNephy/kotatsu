@@ -5,8 +5,8 @@ import { sharedAudioContext } from './sharedAudioContext';
 // <video> を持たない。部品が <video> に直に触ると、その経路で動かせないので、部品はこの面を使う。
 //
 // 面の形は <video> に合わせてあるが、<video> の経路と canvas の経路で違うものは、次のように分けている。
-// - シーク: currentTime は読むだけにし、動かすときは seek を呼ぶ。どこまで動けるかは、読み込みごとに seekMode で確かめる。
-// - 音: <video> の音を WebAudio に繋ぐ (createMediaElementSource) 代わりに、audioPort で、音の出どころと行き先を受け取る。
+// - シーク: currentTime は読むだけにし、動かすときは seek を呼ぶ。どこまで動けるかは、読み込みごとに seekMode で確認する。
+// - 音: <video> の音を WebAudio に繋ぐ (createMediaElementSource) 代わりに、audioPort で、音のソースと行き先を受け取る。
 // - 画面: キャプチャ (drawImage) に渡すものと、DOM に置く要素は、<video> とは限らない。frame と element で受け取る。
 // - 作れない型: MediaError、TimeRanges、VideoPlaybackQuality は JS で作れないので、同じ形の型で受け取る。
 //
@@ -66,13 +66,13 @@ export type PlayerFrameMetadata = {
 
 export type PlayerFrameCallback = (now: DOMHighResTimeStamp, metadata: PlayerFrameMetadata) => void;
 
-// AudioPort は、経路の音を WebAudio に通すための口。source から sink までの間に、音量や補正の段を挟む。
+// AudioPort は、経路の音を WebAudio に通すための口。source から sink までの間に、音量や補正のステップを挟む。
 export type AudioPort = {
   // context は、source と sink のある AudioContext。sharedAudioContext と同じもの。
   readonly context: AudioContext;
   // source は、経路の音。
   readonly source: AudioNode;
-  // sink は、段を挟んだ後の音を繋ぐ先。
+  // sink は、ステップを挟んだ後の音を繋ぐ先。
   readonly sink: AudioNode;
 };
 
@@ -89,14 +89,14 @@ export interface PlayerMedia {
   readonly paused: boolean;
   readonly seeking: boolean;
   readonly ended: boolean;
-  // readyState は、HTMLMediaElement の readyState と同じ段を返す。
+  // readyState は、HTMLMediaElement の readyState と同じ段階を返す。
   readonly readyState: number;
   readonly error: PlayerMediaError | null;
   readonly buffered: PlayerMediaRanges;
   // videoWidth と videoHeight は、画素の縦横比を掛けた後の、映す大きさ (1440x1080 なら 1920x1080)。
   readonly videoWidth: number;
   readonly videoHeight: number;
-  // volume は、0 から 1。100% を超える分は、audioPort の先の段で上げる (volumeBoost)。
+  // volume は、0 から 1。100% を超える分は、audioPort の先のステップで上げる (volumeBoost)。
   volume: number;
   muted: boolean;
   playbackRate: number;
@@ -114,7 +114,7 @@ export interface PlayerMedia {
   // getVideoPlaybackQuality は、出したコマと落としたコマの数を返す。経路が対応していなければ無い。
   readonly getVideoPlaybackQuality?: () => PlayerMediaQuality;
   // audioPort は、音を WebAudio に通すための口を返す。初めて呼ぶと、経路の音は WebAudio を通るようになり、
-  // sink に繋ぐまで聞こえなくなる。音量の段 (volumeBoost) だけが呼ぶ。ほかから呼ぶと、volumeBoost が
+  // sink に繋ぐまで聞こえなくなる。音量のステップ (volumeBoost) だけが呼ぶ。ほかから呼ぶと、volumeBoost が
   // 繋いでいないと知らないまま、音が出なくなる。
   audioPort(): AudioPort;
   // frame は、今のコマを描いたもの。drawImage に渡す。すぐに描けない経路では null。
@@ -279,7 +279,7 @@ class VideoElementMedia implements PlayerMedia {
   }
 }
 
-// medias は、<video> ごとの PlayerMedia。同じ <video> には、同じものを返す (WeakMap の鍵や、React の依存で比べるため)。
+// medias は、<video> ごとの PlayerMedia。同じ <video> には、同じものを返す (WeakMap のキーや、React の依存で比較するため)。
 const medias = new WeakMap<HTMLVideoElement, PlayerMedia>();
 
 // mediaOf は、video の PlayerMedia を返す。

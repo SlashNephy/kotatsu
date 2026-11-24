@@ -24,9 +24,9 @@ export type TimeshiftMode = 'convert' | 'hls' | null;
 export const liveThresholdSeconds = 5;
 // resumeBehindMs は、ライブを一時停止してから、これより長く止めていたら、再開するときに止めた位置からバッファで続ける時間。
 export const resumeBehindMs = 3_000;
-// saveResumeIntervalMs は、バッファを見ている間に、見ている放送時刻を端末に覚え直す間隔 (#1600)。
+// saveResumeIntervalMs は、バッファを見ている間に、見ている放送時刻を端末に保存し直す間隔 (#1600)。
 export const saveResumeIntervalMs = 5_000;
-// reachedResumeMs は、覚えた位置から再開したとき、見ている放送時刻がこれより近ければ、移れたとみなす幅 (#1600)。
+// reachedResumeMs は、保存した位置から再開したとき、見ている放送時刻がこれより近ければ、移れたとみなす幅 (#1600)。
 const reachedResumeMs = 15_000;
 
 export type LiveTimeshift = {
@@ -66,7 +66,7 @@ export type LiveTimeshift = {
 // バッファへ移ったときのバッファの始まりを起点に持ち続け、古いチャンクが破棄されても、位置をずらさない。
 // mode が null (バッファを再生できない経路) なら、シークさせない。kyusu の経路 (hls) では、仮想 HLS の時刻をそのまま位置にする。
 //
-// service を渡せば、バッファを見ていた位置を端末に覚え、同じサービスのライブ視聴に戻ったときに、その位置から再開する (#1600)。
+// service を渡せば、バッファを見ていた位置を端末に保存し、同じサービスのライブ視聴に戻ったときに、その位置から再開する (#1600)。
 export function useLiveTimeshift(
   buffer: TimeshiftBuffer | null,
   media: PlayerMedia | null,
@@ -88,7 +88,7 @@ export function useLiveTimeshift(
   const clockAt = (seconds: number) =>
     frame === null ? Date.now() : broadcastTime(frame.from, frame.gaps, seconds);
   const edge = positionAt(now);
-  // pendingResume は、覚えていた位置から再開しようとしている放送時刻。移れるまでは、開いた直後の位置で上書きしないよう、覚えない。
+  // pendingResume は、保存していた位置から再開しようとしている放送時刻。移れるまでは、開いた直後の位置で上書きしないよう、保存しない。
   const pendingResume = useRef<number | null>(null);
   // restart は、今の起点での位置 seconds から、バッファを読み直す。読み直すたびに、起点を最新のバッファに移す。
   // 古いチャンクを破棄すると、配信は残ったチャンクから流すので、破棄した範囲の途切れた区間を、起点のバッファと数え違えるためである。
@@ -96,7 +96,7 @@ export function useLiveTimeshift(
     if (!available || buffer === null) {
       return;
     }
-    // 移る先を選び直したので、覚えていた位置への再開を待つのをやめる (#1600)。再開のときは、読み直した後で待ちを立て直す。
+    // 移る先を選び直したので、保存していた位置への再開を待つのをやめる (#1600)。再開のときは、読み直した後で待ちを立て直す。
     pendingResume.current = null;
     const at = clockAt(seconds);
     setPinned(buffer);
@@ -168,7 +168,7 @@ export function useLiveTimeshift(
   currentPositionRef.current = currentPosition;
   const clockAtRef = useRef(clockAt);
   clockAtRef.current = clockAt;
-  // 開いたときに、覚えていた位置がまだバッファに残っていれば、その位置から再開する。残っていなければ、ライブの端から始めて忘れる。
+  // 開いたときに、保存していた位置がまだバッファに残っていれば、その位置から再開する。残っていなければ、ライブの端から始めて忘れる。
   // 再開を試すのは、サービスごとに 1 回だけにする。
   const resumedService = useRef<string | null>(null);
   // bufferFromRef は、今のバッファの始まりの放送時刻 (Unix ミリ秒)。これより前は、もう残っていない。
@@ -198,7 +198,7 @@ export function useLiveTimeshift(
     restartRef.current(seconds);
     pendingResume.current = at;
   }, [service, available]);
-  // バッファを見ている間は、見ている放送時刻を覚え直す。ライブの端を見ているときは覚えない (戻ったときもライブの端でよい)。
+  // バッファを見ている間は、見ている放送時刻を保存し直す。ライブの端を見ているときは保存しない (戻ったときもライブの端でよい)。
   useEffect(() => {
     if (service === null || !behind) {
       return;
@@ -206,7 +206,7 @@ export function useLiveTimeshift(
     const timer = setInterval(() => {
       const storage = browserStorage();
       const seconds = currentPositionRef.current();
-      // バッファを再生したまま、ライブの端まで追いついたら、覚えずに忘れる。戻ったときもライブの端でよいからである。
+      // バッファを再生したまま、ライブの端まで追いついたら、保存せずに忘れる。戻ったときもライブの端でよいからである。
       if (seconds >= positionAtRef.current(Date.now()) - liveThresholdSeconds) {
         pendingResume.current = null;
         clearLiveResume(storage, service);
@@ -226,7 +226,7 @@ export function useLiveTimeshift(
 
     return () => clearInterval(timer);
   }, [service, behind]);
-  // バッファからライブに戻ったら、覚えていた位置を忘れる。画面を離れるときは、behind のまま外れるので、忘れない。
+  // バッファからライブに戻ったら、保存していた位置を忘れる。画面を離れるときは、behind のまま外れるので、忘れない。
   const wasBehind = useRef(behind);
   useEffect(() => {
     if (wasBehind.current && !behind && service !== null) {
@@ -238,7 +238,7 @@ export function useLiveTimeshift(
 
   const positionRef = hlsBehind ? hls.positionRef : stream.positionRef;
   const position = behind ? (hlsBehind ? hls.position : stream.position) : edge;
-  // 経路を替えた描画では、新しい経路の位置になるので、覚えるのは描画を終えた後にし、経路を替えたときの読み直しに前の位置を使う。
+  // 経路を替えた描画では、新しい経路の位置になるので、保存するのは描画を終えた後にし、経路を替えたときの読み直しに前の位置を使う。
   useEffect(() => {
     lastPosition.current = position;
   });

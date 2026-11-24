@@ -34,7 +34,7 @@ describe('データ放送の郵便番号 (#1740)', () => {
     const input = await render();
     fireEvent.change(input, { target: { value: '1000001' } });
     await act(async () => fireEvent.blur(input));
-    // 1 回目の知らせを消して、2 回目に知らせが出ないことを確かめる。
+    // 1 回目の知らせを消して、2 回目に知らせが出ないことを確認する。
     act(() => cleanNotifications());
 
     fireEvent.change(input, { target: { value: '100-0001' } });

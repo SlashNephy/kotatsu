@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-// FakeNode は、WebAudio のノードの代わり。どこへ繋いだかを覚える。
+// FakeNode は、WebAudio のノードの代わり。どこへ繋いだかを記録する。
 class FakeNode {
   readonly targets: FakeNode[] = [];
   readonly gain = { value: 1 };
@@ -72,7 +72,7 @@ afterEach(() => {
   vi.resetModules();
 });
 
-// RecordingContext は、作った元の音と DelayNode を覚える AudioContext。
+// RecordingContext は、作った元の音と DelayNode を記録する AudioContext。
 const recordingContext = () => {
   const sources: FakeNode[] = [];
   const delays: FakeNode[] = [];

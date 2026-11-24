@@ -7,10 +7,10 @@ import { preferenceChanged } from '../settings/syncedPreferences';
 // 空なら、既定の形 (日時 - サービス名 - 番組名) にする。
 
 const storageKey = 'kotatsu.capture.fileNameTemplate';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:capture-file-name-template';
 
-// loadCaptureFileNameTemplate は、覚えたテンプレートを読む。覚えていないか、読めなければ空を返す。
+// loadCaptureFileNameTemplate は、保存したテンプレートを読む。保存していないか、読めなければ空を返す。
 export function loadCaptureFileNameTemplate(storage: Pick<Storage, 'getItem'> | null): string {
   try {
     return storage?.getItem(storageKey) ?? '';

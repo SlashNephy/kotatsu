@@ -1,6 +1,6 @@
-// 受け取りの速さを測る (#1513)。届いた量を時刻とともに溜め、窓の中の速さを返す。
+// 受け取りの速さを計測する (#1513)。届いた量を時刻とともに記録し、ウィンドウの中の速さを返す。
 
-// Received は、届いた量。transferMs は、その塊を読むのにかかった時間 (HLS のセグメント)。分からなければ null。
+// Received は、届いた量。transferMs は、そのチャンクを読むのにかかった時間 (HLS のセグメント)。分からなければ null。
 type Received = { at: number; bytes: number; transferMs: number | null };
 
 // ReceiveMeter は、届いた量から、受け取りの速さ (bps) を出す。時刻はミリ秒。
@@ -9,7 +9,7 @@ export class ReceiveMeter {
   #startedAt: number | null = null;
   #limitedAt = -Infinity;
 
-  // add は、at に bytes が届いたことを知らせる。
+  // add は、at に bytes が届いたことを通知する。
   add(at: number, bytes: number, transferMs: number | null = null) {
     if (bytes <= 0) {
       return;
@@ -18,8 +18,8 @@ export class ReceiveMeter {
     this.#received.push({ at, bytes, transferMs });
   }
 
-  // limit は、at に、受け手が自分で読むのを絞っていた (先に十分読んである) ことを知らせる。
-  // 絞っている間の速さは、回線の速さではないので、窓がその時刻を含む間は delivered が null を返す。
+  // limit は、at に、受け手が自分で読むのを絞っていた (先に十分読んである) ことを通知する。
+  // 絞っている間の速さは、回線の速さではないので、ウィンドウがその時刻を含む間は delivered が null を返す。
   limit(at: number) {
     this.#limitedAt = at;
   }
@@ -36,8 +36,8 @@ export class ReceiveMeter {
     }
   }
 
-  // delivered は、now までの windowMs のあいだに届いた量を、窓の長さで割った速さ。測り始めてから窓の長さがたっていないか、
-  // 窓の中で読むのを絞っていたら null。
+  // delivered は、now までの windowMs のあいだに届いた量を、ウィンドウの長さで割った速さ。計測し始めてからウィンドウの長さがたっていないか、
+  // ウィンドウの中で読むのを絞っていたら null。
   delivered(now: number, windowMs: number): number | null {
     this.#prune(now, Math.max(windowMs, throughputSpanMs));
     if (this.#startedAt === null || now - this.#startedAt < windowMs) {
@@ -53,8 +53,8 @@ export class ReceiveMeter {
     return (bytes * 8 * 1_000) / windowMs;
   }
 
-  // receivedBetween は、from から to (ミリ秒) までに届いた量 (バイト)。読むのにかかった時間が分かる塊 (HLS のセグメント) は、
-  // 読んでいた間 (読み終えた時刻から、かかった時間だけ前まで) のうち、区間に重なる割合だけ数える。区間の前から読んでいた塊を、
+  // receivedBetween は、from から to (ミリ秒) までに届いた量 (バイト)。読むのにかかった時間が分かるチャンク (HLS のセグメント) は、
+  // 読んでいた間 (読み終えた時刻から、かかった時間だけ前まで) のうち、区間に重なる割合だけ数える。区間の前から読んでいたチャンクを、
   // 読み終えた時刻で丸ごと数えないため。
   receivedBetween(from: number, to: number): number {
     let bytes = 0;
@@ -75,8 +75,8 @@ export class ReceiveMeter {
     return bytes;
   }
 
-  // throughput は、now までの spanMs のあいだに読み終えた塊の量を、読むのにかかった時間の合計で割った速さ。
-  // 先に読む経路 (録画の HLS) で、読んでいない間を数えずに回線の速さを出す。読み終えた塊が無ければ null。
+  // throughput は、now までの spanMs のあいだに読み終えたチャンクの量を、読むのにかかった時間の合計で割った速さ。
+  // 先に読む経路 (録画の HLS) で、読んでいない間を数えずに回線の速さを出す。読み終えたチャンクが無ければ null。
   throughput(now: number, spanMs: number = throughputSpanMs): number | null {
     this.#prune(now, Math.max(spanMs, throughputSpanMs));
     let bytes = 0;

@@ -42,9 +42,9 @@ type WatchStore = {
   // close は、視聴の画面を閉じる。
   close: () => void;
   subscribe: (listener: () => void) => () => void;
-  // media は、視聴の画面が今映している経路。再生中かを、これで調べる。映していなければ null。
+  // media は、視聴の画面が今映している経路。再生中かを、これで確認する。映していなければ null。
   media: () => PlayerMedia | null;
-  // setMedia は、視聴の画面が今映している経路を覚える。
+  // setMedia は、視聴の画面が今映している経路を保持する。
   setMedia: (media: PlayerMedia | null) => void;
   subscribeMedia: (listener: () => void) => () => void;
 };
@@ -121,7 +121,7 @@ export function useWatchMini(): boolean {
   return useContext(WatchMiniContext);
 }
 
-// useCloseWatch は、視聴の画面 (小さなプレイヤーを含む) を閉じる関数を返す。置き場の外では何もしない。
+// useCloseWatch は、視聴の画面 (小さなプレイヤーを含む) を閉じる関数を返す。ホストの外では何もしない。
 // 「この端末で試す」(#1771) が、ほかの再生と重ならないように、試し始める前に閉じる。
 export function useCloseWatch(): () => void {
   const store = useContext(WatchStoreContext);
@@ -129,7 +129,7 @@ export function useCloseWatch(): () => void {
   return () => store?.close();
 }
 
-// WatchHostProvider は、視聴の画面の置き場を用意する。ルートの Outlet と WatchHost の両方を包む。
+// WatchHostProvider は、視聴の画面のホストを用意する。ルートの Outlet と WatchHost の両方を包む。
 export function WatchHostProvider({ children }: { children: ReactNode }) {
   const [store] = useState(createWatchStore);
 
@@ -247,7 +247,7 @@ function MiniPlayerBar({
 
 // useHostedWatch は、ルートの視聴の画面 element を、WatchHost で描かせる。ルートは、戻り値をそのまま返す。
 // 描くたびに渡し直す。ルートを離れたら、再生中なら小さなプレイヤーにし、そうでなければ閉じる。
-// 置き場がなければ (テストで WatchHostProvider を置かないときなど)、その場で描くよう element を返す。
+// ホストがなければ (テストで WatchHostProvider を置かないときなど)、その場で描くよう element を返す。
 //
 // ルートとは別の木で描くので、element の中では、ルートの Route.useParams のような、そのルートの文脈に頼る hook を使わない。
 // ルートで読んだ値を props で渡す。
@@ -266,16 +266,16 @@ export function useHostedWatch(element: ReactNode): ReactNode {
   return store === null ? element : null;
 }
 
-// useWatchMedia は、視聴の画面が今映している経路を、置き場に覚えさせる。小さなプレイヤーにするかを決めるときと、
+// useWatchMedia は、視聴の画面が今映している経路を、ホストに保持させる。小さなプレイヤーにするかを決めるときと、
 // 小さなプレイヤーの再生と一時停止に使う。視聴の画面の中 (useHostedWatch で渡した element の中) で呼ぶ。
-// 置き場の show と leave と同じく layout effect で覚えさせ、プレイヤーが映像を替えた直後に、前の経路を見ないようにする。
+// ホストの show と leave と同じく layout effect で保持させ、プレイヤーが映像を替えた直後に、前の経路を見ないようにする。
 export function useWatchMedia(media: PlayerMedia | null): void {
   const store = useContext(WatchStoreContext);
   useLayoutEffect(() => {
     store?.setMedia(media);
 
     return () => {
-      // 次の経路を覚えさせた後に、前の経路の片付けで消さないようにする。
+      // 次の経路を保持させた後に、前の経路の片付けで消さないようにする。
       if (store?.media() === media) {
         store.setMedia(null);
       }

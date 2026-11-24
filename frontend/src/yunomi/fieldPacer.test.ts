@@ -21,7 +21,7 @@ describe('FieldPacer', () => {
 
   test('切り替わりの時刻が揺れても、PTS は間隔の分ずつ進める', () => {
     const pacer = new FieldPacer();
-    // 先に、揺れのない切り替わりで間隔を覚える。
+    // 先に、揺れのない切り替わりで間隔を保持する。
     for (let i = 0; i < 30; i++) {
       pacer.onVsync(i * refresh, clockAt());
     }
@@ -32,7 +32,7 @@ describe('FieldPacer', () => {
       .map((value, i) => value! - pts[i]!)
       .map((step) => step / 90);
 
-    // 揺れ (最大 ±1.5ms) をそのまま映すと、刻みは 13〜19ms になる。均すので、間隔の近くにとどまる。
+    // 揺れ (最大 ±1.5ms) をそのまま映すと、切り替わりの間隔は 13〜19ms になる。均すので、間隔の近くにとどまる。
     for (const step of steps) {
       expect(Math.abs(step - refresh)).toBeLessThan(1);
     }

@@ -15,7 +15,7 @@ describe('splitVolume', () => {
 });
 
 describe('applyVolume', () => {
-  // jsdom には AudioContext がないので、GainNode を挟めないときと同じく、100% で鳴らして上げたい倍率を覚えておく。
+  // jsdom には AudioContext がないので、GainNode を挟めないときと同じく、100% で鳴らして上げたい倍率を保持しておく。
   test('WebAudio を使えないときは 100% で鳴らし、上げたい音量を覚えておく', () => {
     const video = document.createElement('video');
 

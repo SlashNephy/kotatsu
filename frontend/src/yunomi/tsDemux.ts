@@ -58,7 +58,7 @@ export type TsDemuxerOptions = {
   serviceId: number | null;
   onProgram: (program: TsProgram) => void;
   onPes: (pes: TsPes) => void;
-  // pendingLimit は、PMT を読むまでに取っておくパケットの数の上限。超えたら古いものから捨てる。
+  // pendingLimit は、PMT を読むまでに取っておくパケットの数の上限。超えたら古いものから破棄する。
   pendingLimit?: number;
 };
 
@@ -73,7 +73,7 @@ type PesBuffer = {
   kind: TsStreamKind;
   chunks: Uint8Array[];
   size: number;
-  // expected は、PES_packet_length から分かる PES の大きさ。0 (映像) なら null で、次の頭まで組み立てる。
+  // expected は、PES_packet_length から分かる PES の大きさ。0 (映像) なら null で、次の PES の先頭まで組み立てる。
   expected: number | null;
   discontinuous: boolean;
 };
@@ -120,7 +120,7 @@ export class TsDemuxer {
 
   // flush は、組み立て中の PES を渡す。読み終えたときに呼ぶ。
   flush(): void {
-    // Map は、回している間に消した鍵を飛ばすので、そのまま回して消してよい。
+    // Map は、回している間に消したキーを飛ばすので、そのまま回して消してよい。
     for (const pid of this.pes.keys()) {
       this.finishPes(pid);
     }
@@ -145,7 +145,7 @@ export class TsDemuxer {
     if (pid === 0x1fff) {
       return;
     }
-    // transport_error_indicator が立ったパケットは、中身を信じない。
+    // transport_error_indicator が立ったパケットは、内容を信じない。
     if (packet[1]! & 0x80) {
       this.markDiscontinuous(pid);
 
@@ -162,7 +162,7 @@ export class TsDemuxer {
       return;
     }
     if (this.program === null) {
-      // PMT を読む前のパケットは取っておき、読んだら番組の分を流す。捨てると、PMT の前から始まっていた
+      // PMT を読む前のパケットは取っておき、読んだら番組の分を流す。破棄すると、PMT の前から始まっていた
       // I フレームが失われ、次の GOP まで映らない (#1516)。
       this.pending.push(packet.slice());
       if (this.pending.length > this.options.pendingLimit) {
@@ -196,8 +196,8 @@ export class TsDemuxer {
     return packet.subarray(offset);
   }
 
-  // continuity は、continuity_counter から、続いているか、欠けたか、重複して送られたかを返し、覚え直す。
-  // ペイロードのあるパケットだけを数える。同じ値の繰り返しは、重複して送られたパケット (ISO/IEC 13818-1 2.4.3.3) で、捨てる。
+  // continuity は、continuity_counter から、続いているか、欠けたか、重複して送られたかを返し、保持し直す。
+  // ペイロードのあるパケットだけを数える。同じ値の繰り返しは、重複して送られたパケット (ISO/IEC 13818-1 2.4.3.3) で、破棄する。
   private continuityOf(pid: number, packet: Uint8Array): 'continuous' | 'lost' | 'duplicate' {
     const counter = packet[3]! & 0xf;
     const previous = this.continuity.get(pid);
@@ -359,7 +359,7 @@ export class TsDemuxer {
         kind: 'superimpose',
       });
     }
-    // 番組から外れた ES の、組み立て中の PES は捨てる。
+    // 番組から外れた ES の、組み立て中の PES は破棄する。
     for (const pid of this.pes.keys()) {
       if (!this.streamsByPid.has(pid)) {
         this.pes.delete(pid);
@@ -412,7 +412,7 @@ export class TsDemuxer {
     }
     const buffer = this.pes.get(pid);
     if (buffer === undefined) {
-      // PES の頭を逃したパケットは、組み立てられないので捨てる。
+      // PES の先頭を逃したパケットは、組み立てられないので破棄する。
       return;
     }
     if (continuity === 'lost') {
@@ -423,8 +423,8 @@ export class TsDemuxer {
     this.finishIfComplete(pid);
   }
 
-  // finishIfComplete は、PES_packet_length の分がそろった PES を、次の頭を待たずに渡す。
-  // 字幕と文字スーパーの PES は約 1 秒おきに届くので、次の頭を待つと、出すのがその分遅れる。
+  // finishIfComplete は、PES_packet_length の分がそろった PES を、次の PES の先頭を待たずに渡す。
+  // 字幕と文字スーパーの PES は約 1 秒おきに届くので、次の PES の先頭を待つと、出すのがその分遅れる。
   private finishIfComplete(pid: number): void {
     const buffer = this.pes.get(pid);
     if (buffer !== undefined && buffer.expected !== null && buffer.size >= buffer.expected) {
@@ -521,7 +521,7 @@ export function parsePes(
   return { pts, dts: dts ?? pts, data: packet.subarray(9 + headerLength) };
 }
 
-// crc32Table は、MPEG-2 の CRC-32 (多項式 0x04C11DB7、反転なし) の表。
+// crc32Table は、MPEG-2 の CRC-32 (多項式 0x04C11DB7、反転なし) のテーブル。
 const crc32Table = (() => {
   const table = new Uint32Array(256);
   for (let i = 0; i < 256; i++) {

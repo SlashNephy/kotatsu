@@ -1,6 +1,6 @@
 // sharedContext は、プレイヤーの音を通す AudioContext。画質を変えたり選局したりするたびに再生の要素は作り直されるが、
 // AudioContext は同時に作れる数に限りがあるので、1 つを使い回す。
-// 音量を 100% より上げる段 (volumeBoost) と、再生の経路 (PlayerMedia の audioPort) は、同じ AudioContext を使う。
+// 音量を 100% より上げるステップ (volumeBoost) と、再生の経路 (PlayerMedia の audioPort) は、同じ AudioContext を使う。
 // 別の AudioContext のノードどうしは繋げないため。
 let sharedContext: AudioContext | null = null;
 

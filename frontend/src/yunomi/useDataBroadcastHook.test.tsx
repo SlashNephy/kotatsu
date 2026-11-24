@@ -236,7 +236,7 @@ describe('useDataBroadcast', () => {
       if (browser !== undefined) {
         browser.content.bmlDocument.documentElement.node = standbyRoot();
       }
-      // 読んで 1 秒たったら確かめ、待機文書なら押す。
+      // 読んで 1 秒たったら確認し、待機文書なら押す。
       act(() => {
         vi.advanceTimersByTime(1100);
       });
@@ -247,7 +247,7 @@ describe('useDataBroadcast', () => {
       });
       expect(browser?.pressed).toEqual([RemoteKey.d, RemoteKey.d]);
 
-      // 中身のある文書へ移ったら、もう押さない。
+      // 内容のある文書へ移ったら、もう押さない。
       if (browser !== undefined) {
         browser.content.bmlDocument.documentElement.node = document.createElement('bml');
       }
@@ -474,7 +474,7 @@ describe('useDataBroadcast', () => {
       wantState: 'shown',
     },
     {
-      // web-bml は、読んだ文書が見えるかを load の直後に知らせる。隠れた文書なら、待たずに映像をプレイヤーへ戻す (#445)。
+      // web-bml は、読んだ文書が見えるかを load の直後に通知する。隠れた文書なら、待たずに映像をプレイヤーへ戻す (#445)。
       name: '読んだ直後に隠れた文書と分かったら、待たずに映像をプレイヤーへ戻す',
       steps: (browser: InstanceType<typeof fake.FakeBrowser>) => {
         browser.dispatchEvent(load);

@@ -19,7 +19,7 @@ export type VideoState = Volume & {
 
 // useVideoState は、media の再生と音量の状態を追い、操作バーから変える。
 // media は、画質を変えたときに作り直されるので、変わるたびに付け直す。
-// 音量は端末ごとに覚えておき、新しい要素にも当てる。
+// 音量は端末ごとに保存しておき、新しい要素にも当てる。
 export function useVideoState(media: PlayerMedia | null): VideoState {
   const [paused, setPaused] = useState(true);
   const [volume, setVolumeState] = useState(() => loadVolume(browserStorage()));
@@ -35,7 +35,7 @@ export function useVideoState(media: PlayerMedia | null): VideoState {
       setPaused(media.paused);
       setVolumeState({ volume: currentVolume(media), muted: media.muted });
     };
-    // キーボードの m や、OS のメディア操作で変えたときも、ここで拾って覚える。
+    // キーボードの m や、OS のメディア操作で変えたときも、ここで拾って保存する。
     // ほかの経路で 1 より下げたときは、100% を超えて上げていた分を戻す。
     const onVolume = () => {
       lowerBoost(media);
@@ -43,7 +43,7 @@ export function useVideoState(media: PlayerMedia | null): VideoState {
       setVolumeState(next);
       saveVolume(browserStorage(), next);
     };
-    // 100% を超える音量を覚えていても、ユーザーが操作するまでは WebAudio を動かせないので、最初の操作で上げる (#453)。
+    // 100% を超える音量を保存していても、ユーザーが操作するまでは WebAudio を動かせないので、最初の操作で上げる (#453)。
     const onActivate = () => resumePendingBoost(media);
     sync();
     media.addEventListener('play', sync);
@@ -85,7 +85,7 @@ export function useVideoState(media: PlayerMedia | null): VideoState {
       if (next > 0) {
         media.muted = false;
       }
-      // 100% を超えたところで変えても、media.volume は 1 のままで volumechange が届かないので、ここで覚える。
+      // 100% を超えたところで変えても、media.volume は 1 のままで volumechange が届かないので、ここで保存する。
       const state = { volume: currentVolume(media), muted: media.muted };
       setVolumeState(state);
       saveVolume(browserStorage(), state);

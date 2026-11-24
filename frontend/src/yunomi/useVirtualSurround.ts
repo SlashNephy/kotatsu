@@ -4,11 +4,11 @@ import { browserStorage } from './volume';
 import { setSurround } from './volumeBoost';
 import type { PlayerMedia } from './playerMedia';
 
-// 仮想サラウンド (#454) を使うかを、端末ごとに覚える。ヘッドホンで聞くかは端末ごとに違うので、アカウントには保存しない。
+// 仮想サラウンド (#454) を使うかを、端末ごとに保存する。ヘッドホンで聞くかは端末ごとに違うので、アカウントには保存しない。
 // WebAudio を通すので、音量の補正と同じく、既定では切る。
 
 const storageKey = 'kotatsu.player.virtualSurround';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:virtual-surround';
 
 // surroundComponentType は、5.1ch (3/2+LFE) の音声の component_type。

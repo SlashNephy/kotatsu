@@ -1,15 +1,15 @@
-// 試しのデータを取り、回線の速さを測る (#1513、設計書 7.3)。
+// プローブのデータを取り、回線の速さを計測する (#1513、設計書 7.3)。
 
 import type { ProbeOutcome } from './networkQuality';
 
-// probePath は、tenban の試しのデータの経路。
+// probePath は、tenban のプローブのデータの経路。
 export const probePath = '/internal/streams/probe';
 
-// Arrival は、届いた塊。at は届いた時刻 (ミリ秒)。
+// Arrival は、届いたチャンク。at は届いた時刻 (ミリ秒)。
 export type Arrival = { at: number; bytes: number };
 
-// probeRate は、試しのデータの速さ (bps) を返す。最初の塊が届いてから最後の塊までの間に届いたバイト数で割る。
-// 最初の塊までは往復の待ちで、回線の速さではないため。塊が 1 つしか来なければ、取り始め (startedAt) からで割る。
+// probeRate は、プローブのデータの速さ (bps) を返す。最初のチャンクが届いてから最後のチャンクまでの間に届いたバイト数で割る。
+// 最初のチャンクまでは往復の待ちで、回線の速さではないため。チャンクが 1 つしか来なければ、取り始め (startedAt) からで割る。
 // 何も届かなければ 0。
 export function probeRate(startedAt: number, arrivals: readonly Arrival[]): number {
   const first = arrivals[0];
@@ -44,17 +44,17 @@ export function retryAfterMs(value: string | null, now: number): number | null {
 
 export type ProbeOptions = {
   bytes: number;
-  // timeoutMs は、試しの打ち切り。打ち切ったら、そこまでに届いた量で割る。
+  // timeoutMs は、プローブの打ち切り。打ち切ったら、そこまでに届いた量で割る。
   timeoutMs: number;
-  // signal は、呼んだ側が打ち切るためのもの。打ち切ったら (足りない兆しが出た)、余裕が無かったとみなす。
+  // signal は、呼んだ側が打ち切るためのもの。打ち切ったら (足りない兆候が出た)、余裕が無かったとみなす。
   signal: AbortSignal;
   fetch?: typeof fetch;
   // now は、時刻 (ミリ秒) を返す。
   now?: () => number;
 };
 
-// measureProbe は、試しのデータを取って速さを測る。5xx と、呼んだ側の打ち切りと、通信の失敗は、余裕が無かったとみなす (failed)。
-// 429 は、Retry-After の間は測らないよう rateLimited を返す。
+// measureProbe は、プローブのデータを取って速さを計測する。5xx と、呼んだ側の打ち切りと、通信の失敗は、余裕が無かったとみなす (failed)。
+// 429 は、Retry-After の間は計測しないよう rateLimited を返す。
 export async function measureProbe(options: ProbeOptions): Promise<ProbeOutcome> {
   const fetchFn = options.fetch ?? fetch;
   const now = options.now ?? (() => performance.now());

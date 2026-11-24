@@ -42,7 +42,7 @@ import { mediaOf, type PlayerMedia } from './playerMedia';
 const wasmURL = `${import.meta.env.BASE_URL}mpeg2toh264/mpeg2toh264_wasm_bg.wasm`;
 
 // stallTimeoutMs は、再生しているのに、映像がこれより長く進まなければ、配信が切れたとみなす時間 (#1083)。
-// 変換のプレイヤーは、読むのを止めている間に接続が切れると、エラーも終わりも知らせずに待ち続けるので、映像の進みで見張る。
+// 変換のプレイヤーは、読むのを止めている間に接続が切れると、エラーも終わりも通知せずに待ち続けるので、映像の進みで見張る。
 const stallTimeoutMs = 5_000;
 
 type Props = {
@@ -93,7 +93,7 @@ type Props = {
   // settings は、端末ごとの設定 (フィールドごとの表示、コマの補間、補間したコマを出す回数の上限、映像の拡大) の代わりに使う値 (#1771)。
   // 「この端末で試す」が、利用者の設定を書き換えずに、経路ごとに表示を切り替えるために使う。省いた値は、設定から読む。
   settings?: PlayerSettingsOverride;
-  // onDeinterlaceStats は、yadif が統計を知らせるたびに、その統計と、フィールドごとの表示をやめたかを受け取る (#1771)。
+  // onDeinterlaceStats は、yadif が統計を通知するたびに、その統計と、フィールドごとの表示をやめたかを受け取る (#1771)。
   onDeinterlaceStats?: (stats: DeinterlaceStats, fieldRateDropped: boolean) => void;
 };
 
@@ -124,7 +124,7 @@ type Slot = {
   player: Mpeg2TsPlayer | null;
   // load は、読み込みを見分ける番号。読み直すたびに変わる。
   load: number;
-  // stats は、この読み込みでプレイヤーが最後に知らせた統計。
+  // stats は、この読み込みでプレイヤーが最後に通知した統計。
   stats: Stats | null;
   // film は、yadif が 2:3 プルダウンを見つけ、24p で出していること (#1284)。
   film: boolean;
@@ -144,7 +144,7 @@ type Slot = {
   unfiltered: boolean;
   // bytesRead は、この読み込みで読んだバイト数。
   bytesRead: number;
-  // origin は、この読み込みで、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。まだ分からなければ null。
+  // origin は、この読み込みで、画面の時刻 0 に当たる放送の時刻 (90 kHz の単位、#1515)。まだ分からなければ null。
   origin: number | null;
   destroyed: boolean;
 };
@@ -164,7 +164,7 @@ function bufferedEnd(video: HTMLVideoElement): number {
   return buffered.length > 0 ? buffered.end(buffered.length - 1) : 0;
 }
 
-// sourcePicture は、今の位置で映している放送の映像の大きさと走査の方式を、yadif が持つ映像の切り替わりの表から読む。
+// sourcePicture は、今の位置で映している放送の映像の大きさと走査の方式を、yadif が持つ映像の切り替わりのテーブルから読む。
 function sourcePicture(
   player: Mpeg2TsPlayer,
   {
@@ -183,8 +183,8 @@ function sourcePicture(
     return null;
   }
 
-  // プログレッシブの区間では、yadif はコマをそのまま出し、統計も知らせないので、前の区間の値が残る。
-  // そこでは video の要素から測った値を使う。
+  // プログレッシブの区間では、yadif はコマをそのまま出し、統計も通知しないので、前の区間の値が残る。
+  // そこでは video の要素から計測した値を使う。
   const progressive = state.scan?.interlaced === false;
 
   return {
@@ -372,7 +372,7 @@ export function TsPlayer({
     video.muted = hidden;
     container.append(video);
     box.append(container);
-    // 字幕は、aribb24.js を読み終えるまで溜めておくので、プレイヤーより先に作る。
+    // 字幕は、aribb24.js を読み終えるまでバッファしておくので、プレイヤーより先に作る。
     const renderer = createCaptions(video, container, (text) => {
       if (activeRef.current === slot) {
         captionText.current?.(text);
@@ -423,7 +423,7 @@ export function TsPlayer({
       destroyed: false,
     };
     // 壊れた音声のフレームなどで、映像の要素が復号に失敗すると、ブラウザは再生を止める。止まると読み込みの止まりも
-    // 見張れないので、知らせて読み直させる。
+    // 見張れないので、通知して読み直させる。
     video.addEventListener('error', () => {
       if (!slot.destroyed && activeRef.current === slot && video.error !== null) {
         handlers.current.onError?.(new Error(video.error.message || 'the media element failed'));
@@ -442,9 +442,9 @@ export function TsPlayer({
     const isActive = () => activeRef.current === slot;
     const createYadif = (element: HTMLVideoElement) => {
       const lateWatch = createLateWatch();
-      // reported は、最後に知らせたときの、戻した印と、yadif がコマを出す時刻を決めていたか。
+      // reported は、最後に通知したときの、戻したフラグと、yadif がコマを出す時刻を決めていたか。
       // 戻したときと設定を切ったときは、24p でもなくなり、progress も来ない (読み込みを終えた録画) ことがあるので、
-      // 変わったことを見て知らせる。設定の切り替えは、組を直に書き換えるので、次の知らせでここが拾う。
+      // 変わったことを見て通知する。設定の切り替えは、組を直に書き換えるので、次の知らせでここが拾う。
       let reported = { dropped: false, scheduled: false };
       const deinterlacer: Deinterlacer = new Deinterlacer(element, {
         // 1080i を、フィールドごとに 1 コマにして 59.94p で出す (#1655)。放送そのものの動きのなめらかさになる。
@@ -457,7 +457,7 @@ export function TsPlayer({
         // 見え方は変わらない。WebGL の HDR の出力を持たないブラウザでは、今までどおり alpha なしで作る。
         alpha: hdrOutputSupported(),
         // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
-        // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで知らせる。
+        // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで通知する。
         onStats: (stats) => {
           // 表示が追いつかない端末では、コマが間に合わずにかえってがたつくので、この組ではコマごとの表示に戻す。
           // 設定で切っている間は数えず、入れ直したら、そこから数え直す。
@@ -494,7 +494,7 @@ export function TsPlayer({
       // プルダウンでない映像は、これまでどおり yadif で解除する。浮動小数点の描画先を持たない GPU では使えないので、そのままにする。
       enableFilm(deinterlacer);
       // yadif は、解除した映像を描く canvas の位置と大きさを、video に合わせて自分で決める。
-      // データ放送の中へ映像を移すときに、この canvas の大きさを変えないよう印を付ける。
+      // データ放送の中へ映像を移すときに、この canvas の大きさを変えないようマークを付ける。
       deinterlacer.canvas.dataset[deinterlacerCanvas] = '';
 
       return deinterlacer;
@@ -506,7 +506,7 @@ export function TsPlayer({
       deinterlace: true,
       deinterlacer: (element) => {
         // WebGL2 がなければ yadif を作れない。投げるとプレイヤーがエラーとして知らせ、画面はつなぎ直しを繰り返すので、
-        // 解除せずに再生を続け、再生の情報で知らせる (#1617)。印は、次の読み込みの知らせ (progress) で画面に届く。
+        // 解除せずに再生を続け、再生の情報で通知する (#1617)。フラグは、次の読み込みの通知 (progress) で画面に届く。
         const created = createDeinterlacer(() => createYadif(element));
         slot.unfiltered = !created.available;
 
@@ -524,7 +524,7 @@ export function TsPlayer({
       }
     });
     // 読んだバイト数と、変換を終えたメディアの長さから、ビットレートを出す (#828)。
-    // 最初の progress までは、読んだバイト数が分からないので知らせない。
+    // 最初の progress までは、読んだバイト数が分からないので通知しない。
     const report = () => {
       if (isActive() && slot.bytesRead > 0) {
         handlers.current.onReading?.({
@@ -629,10 +629,10 @@ export function TsPlayer({
     cropStretchX,
   ]);
 
-  // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
+  // destroySlot は、組を破棄する。yadif が包んだ要素ごと取り除く。
   const destroySlot = (slot: Slot) => {
     slot.destroyed = true;
-    // 補間と拡大の GL の資源は、yadif がコンテキストを手放す (プレイヤーを捨てるとき) より先に片付ける。
+    // 補間と拡大の GL の資源は、yadif がコンテキストを手放す (プレイヤーを破棄するとき) より先に片付ける。
     slot.interpolation.destroy();
     slot.upscaler.destroy();
     slot.player?.destroy();
@@ -641,7 +641,7 @@ export function TsPlayer({
     slot.container.remove();
   };
 
-  // promote は、裏で読み込んだ組を映し、それまで映っていた組を捨てる。音量と再生の速さは、前の映像から引き継ぐ。
+  // promote は、裏で読み込んだ組を映し、それまで映っていた組を破棄する。音量と再生の速さは、前の映像から引き継ぐ。
   const promote = (slot: Slot) => {
     const previous = activeRef.current;
     if (previous !== null) {
@@ -762,7 +762,7 @@ export function TsPlayer({
           slot.bytesRead = 0;
           slot.origin = null;
           await next.load(url);
-          // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として知らせる。
+          // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として通知する。
           await Promise.race([firstPicture(slot.video), failureBeforePicture(next)]);
           // 切り替える前に、今の映像が進んだ分だけ進める。進めないと、裏で読み込んでいた間の分だけ巻き戻る (#1728)。
           // 裏で読み込んだ映像が失敗するか流し終えたら、進める先を待たずに切り替える。
@@ -795,7 +795,7 @@ export function TsPlayer({
 
       return () => {
         cancelled = true;
-        // 切り替える前に URL が変わったら、裏で読み込んでいた組を捨てる。
+        // 切り替える前に URL が変わったら、裏で読み込んでいた組を破棄する。
         if (pendingRef.current === slot) {
           pendingRef.current = null;
           destroySlot(slot);
@@ -807,7 +807,7 @@ export function TsPlayer({
     active.load = ++loads;
     active.stats = null;
     active.bytesRead = 0;
-    // 新しい読み込みの起点が届くまで、前の読み込みの起点で放送からの遅れを測らない (#1733)。
+    // 新しい読み込みの起点が届くまで、前の読み込みの起点で放送からの遅れを計測しない (#1733)。
     active.origin = null;
     player.load(url).then(
       () => {
@@ -815,7 +815,7 @@ export function TsPlayer({
           handlers.current.onLoaded?.();
         }
       },
-      // 失敗は error のイベントでも届くので、ここでは捨てる。
+      // 失敗は error のイベントでも届くので、ここでは破棄する。
       () => {},
     );
 
@@ -830,7 +830,7 @@ export function TsPlayer({
     };
   }, [ready, url]);
 
-  // 再生しているのに映像が進まなければ、配信が切れたとみなして、エラーとして知らせる。利用者が止めたとき、シークしているとき、
+  // 再生しているのに映像が進まなければ、配信が切れたとみなして、エラーとして通知する。利用者が止めたとき、シークしているとき、
   // 終わりまで再生したときは見張らない。読み込んで映像が出るまでも見張らない。
   useEffect(() => {
     if (!ready || url === null) {

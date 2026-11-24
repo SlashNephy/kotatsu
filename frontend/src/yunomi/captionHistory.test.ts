@@ -63,7 +63,7 @@ describe('insertRecordedCaption', () => {
     for (let i = 0; i < maxCaptions; i++) {
       list = insertRecordedCaption(list, i * 10, `字幕${i}`);
     }
-    // 先頭の近くに差し込んだので、最も遠い末尾を捨てる。
+    // 先頭の近くに差し込んだので、最も遠い末尾を破棄する。
     list = insertRecordedCaption(list, 5, '新しい字幕');
 
     expect(list).toHaveLength(maxCaptions);

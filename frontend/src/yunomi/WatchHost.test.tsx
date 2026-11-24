@@ -6,7 +6,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { saveMiniPlayer } from './miniPlayer';
 import { mediaOf } from './playerMedia';
 
-// 小さなプレイヤーを押したときの移り先を覚える。ルーターは立てない。
+// 小さなプレイヤーを押したときの移り先を記録する。ルーターは立てない。
 const navigated: unknown[] = [];
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => (options: unknown) => {
@@ -28,7 +28,7 @@ afterEach(() => {
   replaceVideo = () => {};
 });
 
-// Counter は、押した回数を覚える。置き場で描き直しても状態が残るかを確かめる。
+// Counter は、押した回数を保持する。ホストで描き直しても状態が残るかを確認する。
 function Counter({ label }: { label: string }) {
   const [count, setCount] = useState(0);
 
@@ -44,7 +44,7 @@ function Route({ label }: { label: string }) {
   return <div data-testid="route">{useHostedWatch(<Counter label={label} />)}</div>;
 }
 
-// App は、アプリの根元の代わり。ルートと置き場を並べる。
+// App は、アプリの根元の代わり。ルートとホストを並べる。
 function App({ route }: { route: ReactNode }) {
   return (
     <MantineProvider env="test">
@@ -62,7 +62,7 @@ function App({ route }: { route: ReactNode }) {
 let replaceVideo: (video: HTMLVideoElement) => void = () => {};
 
 // Player は、視聴の画面の代わり。再生中かを playing で決める映像と、小さく描いているかを出す。
-// 視聴の画面と同じく、映している映像の経路を置き場に覚えさせる。
+// 視聴の画面と同じく、映している映像の経路をホストに保持させる。
 function Player({ playing }: { playing: boolean }) {
   const mini = useWatchMini();
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -137,8 +137,8 @@ describe('小さなプレイヤー', () => {
     });
     expect(oldPause).toHaveBeenCalledOnce();
 
-    // プレイヤーがつなぎ直すと、裏で読み込んだ組の映像に替え、視聴の画面は新しい映像の経路を覚えさせ直す。
-    // 裏で読み込んでいる間は、プレイヤーは古い映像のまま知らせる (TsPlayer の onMedia)。
+    // プレイヤーがつなぎ直すと、裏で読み込んだ組の映像に替え、視聴の画面は新しい映像の経路を保持させ直す。
+    // 裏で読み込んでいる間は、プレイヤーは古い映像のまま通知する (TsPlayer の onMedia)。
     const next = document.createElement('video');
     Object.defineProperty(next, 'paused', { configurable: true, value: false });
     const pause = vi.fn();
