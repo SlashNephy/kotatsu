@@ -38,7 +38,7 @@ const devServerHttps = devHttps();
 const devForwarded = devServerHttps !== undefined;
 
 // inlineAppleTouchIcon は、index.html の apple-touch-icon を、public/icons の PNG の data: URL に置き換える (#582)。
-// iOS 27 の「ホーム画面に追加」は、URL で指したアイコンを読み込めず、タイトルの先頭の文字のタイルを出す。
+// iOS 27 の「ホーム画面に追加」は、URL で指したアイコンを読み込めず、タイトルの頭文字のタイルを出す。
 // data: URL なら、別のリクエストなしにアイコンを渡せる。
 function inlineAppleTouchIcon(): Plugin {
   const placeholder = '__KOTATSU_APPLE_TOUCH_ICON__';

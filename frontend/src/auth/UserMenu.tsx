@@ -118,7 +118,7 @@ export function UserMenu() {
               // 隠しても読み上げられるよう、表示名をボタンの名前にする。
               aria-label={data.viewer.displayName}
               // ユーザーのアイコン (#778)。IdP の picture を tenban がプロキシする。画像がないか、読めなければ、
-              // 表示名の先頭の文字を、名前ごとに決まる色で出す。
+              // 表示名の頭文字を、名前ごとに決まる色で出す。
               leftSection={
                 <Avatar
                   src={data.viewer.avatarUrl}
