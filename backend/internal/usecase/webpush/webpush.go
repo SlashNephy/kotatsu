@@ -33,7 +33,7 @@ const (
 	maxUserAgentLength = 512
 )
 
-// ErrInvalidSubscription は、購読の送り先か公開鍵が正しくないことを表す。
+// ErrInvalidSubscription は、購読の送り先、公開鍵、認証用の秘密のいずれかが正しくないことを表す。
 var ErrInvalidSubscription = errors.New("invalid web push subscription")
 
 // Subscription は、ブラウザの PushSubscription。

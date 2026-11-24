@@ -33,7 +33,7 @@ const (
 	// 短すぎると認可のたびに取りに行き、長すぎるとクライアントがリダイレクト URI を変えても反映されない。
 	minFreshness = 5 * time.Minute
 	maxFreshness = 24 * time.Hour
-	// maxCacheEntries は、使い回すために保存しておくメタデータの数の上限。
+	// maxCacheEntries は、使い回すためにキャッシュしておくメタデータの数の上限。
 	maxCacheEntries = 1024
 )
 
@@ -95,7 +95,7 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
-// Fetch は、clientID のクライアントのメタデータを返す。保存しているものがまだ新しければ、それを返す。
+// Fetch は、clientID のクライアントのメタデータを返す。キャッシュしているものがまだ新しければ、それを返す。
 // 返すメタデータは、ほかの呼び出しと共有するので、書き換えてはならない。
 // client_id が正しくなければ ErrInvalidClientID を、取ってこられなければ ErrClientMetadataUnavailable を、
 // 文書が正しくないか Kotatsu で使えなければ ErrInvalidClientMetadata を返す。
@@ -123,7 +123,7 @@ func (f *Fetcher) Fetch(ctx context.Context, clientID string) (*ClientMetadata, 
 	}
 }
 
-// cached は、保存しているメタデータがまだ新しければ返す。
+// cached は、キャッシュしているメタデータがまだ新しければ返す。
 func (f *Fetcher) cached(clientID string) *ClientMetadata {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -170,7 +170,7 @@ func (f *Fetcher) fetch(ctx context.Context, clientID string) (*ClientMetadata, 
 	return &metadata, nil
 }
 
-// store は、取ってきたメタデータを保存する。保存している数が上限に達していれば、古くなったものを破棄し、
+// store は、取ってきたメタデータをキャッシュする。キャッシュしている数が上限に達していれば、古くなったものを破棄し、
 // それでも空かなければ、最も前に取ってきたものを破棄する。
 func (f *Fetcher) store(clientID string, metadata *ClientMetadata, ttl time.Duration) {
 	f.mu.Lock()

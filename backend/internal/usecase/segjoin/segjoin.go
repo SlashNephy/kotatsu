@@ -90,7 +90,7 @@ type FinalizeArgs struct {
 	RecordingID uuid.UUID `json:"recordingId"`
 	// FileID は、つないだファイル (最初のセグメント) の recording_files.id。置き換えたら古くなるインデックスを消すのに使う。
 	FileID uuid.UUID `json:"fileId"`
-	// PoolID と Path は、つないだファイルの置き場所 (最初のセグメントの置き場所)。一時ファイルは Path に tempSuffix を付けたもの。
+	// PoolID と Path は、つないだファイルの保存先 (最初のセグメントの保存先)。一時ファイルは Path に tempSuffix を付けたもの。
 	PoolID string `json:"poolId"`
 	Path   string `json:"path"`
 	// Removed は、消す、つないだ元のセグメント。生成物のディレクトリも一緒に消す。

@@ -44,7 +44,7 @@ func TestEncryptRFC8291(t *testing.T) {
 	assert.Equal(t, append(header, ciphertext...), got)
 }
 
-// TestEncryptRejects は、長すぎる平文と、正しくない購読の公開鍵を拒むことを確認する。
+// TestEncryptRejects は、長すぎる平文と、正しくない購読の公開鍵や認証用の秘密を拒むことを確認する。
 func TestEncryptRejects(t *testing.T) {
 	t.Parallel()
 

@@ -43,7 +43,7 @@ var (
 	ErrInvalidSignature = errors.New("invalid or expired signature")
 )
 
-// SignedPathPrefix は、署名付き URL で配信するパスの先頭。前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
+// SignedPathPrefix は、署名付き URL で配信するパスのプレフィックス。前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
 const SignedPathPrefix = "/api/streams/"
 
 // RecordingURLLifetime は、長さ length の録画の署名付き URL の有効期限を返す (#1756)。

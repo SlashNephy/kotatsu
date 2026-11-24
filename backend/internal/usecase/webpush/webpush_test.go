@@ -65,7 +65,7 @@ func (f *fixture) user(t *testing.T, username string) uuid.UUID {
 	return userID
 }
 
-// browser は、購読するブラウザ。通知を復号する秘密鍵を持つ。
+// browser は、購読するブラウザ。通知を復号する秘密鍵と認証用の秘密を持つ。
 type browser struct {
 	private *ecdh.PrivateKey
 	auth    []byte

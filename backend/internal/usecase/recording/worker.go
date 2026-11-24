@@ -430,7 +430,7 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 	}
 	deleted, err := w.leases.DeleteUnrecorded(ctx, assignment, w.holder)
 	if err != nil {
-		// 終わったことにすると、予約を有効に戻しても書き直せないので、そのままにする。リースが切れれば、ほかの mikan が取得し直する。
+		// 終わったことにすると、予約を有効に戻しても書き直せないので、そのままにする。リースが切れれば、ほかの mikan が取得し直す。
 		logger.WarnContext(ctx, "failed to delete the unrecorded assignment", slog.Any("error", err))
 
 		return
@@ -451,7 +451,7 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 }
 
 // release は、録画できない理由がこの mikan にあるので、割り振りを手放し、しばらく割り振りを取らない (#524)。
-// ほかの mikan が取って録画する。ほかの mikan がいなければ、待った後に自分で取得し直する。
+// ほかの mikan が取って録画する。ほかの mikan がいなければ、待った後に自分で取得し直す。
 func (w *Worker) release(ctx context.Context, assignment *Assignment, logger *slog.Logger, cause error) {
 	logger.WarnContext(ctx, "released the assignment; this mikan is unable to record", slog.Any("error", cause))
 	w.cooldownMu.Lock()

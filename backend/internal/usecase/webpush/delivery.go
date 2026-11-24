@@ -245,7 +245,7 @@ func (w *DeliverWorker) handle(ctx context.Context, subscription *sqlc.WebPushSu
 	case resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices:
 		return nil
 	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
-		// 購読が失効した。送った後に同じ端末が購読し直していたら、新しい公開鍵の購読は残す。
+		// 購読が失効した。送った後に同じ端末が購読し直していたら、新しい公開鍵や認証用の秘密の購読は残す。
 		err := sqlc.New(w.db).DeleteExpiredWebPushSubscription(ctx, sqlc.DeleteExpiredWebPushSubscriptionParams{
 			ID: subscription.ID, P256DH: subscription.P256DH, Auth: subscription.Auth,
 		})

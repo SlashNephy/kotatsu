@@ -96,7 +96,7 @@ func TestFFmpegCodecs(t *testing.T) {
 	}
 }
 
-// TestFFmpegDeinterlace は、インターレースの映像から作る画像が、2 つのフィールドの混ざった二重写しにならないことを確認する。
+// TestFFmpegDeinterlace は、インターレースの映像から作る画像が、2 つのフィールドの混ざって二重にぶれて見えないことを確認する。
 // 映像は、黒地を幅 48 の白い棒がフィールドごとに 48 ずつ右へ動く、640×480 のインターレースの MPEG-2 で、次のように作った。
 //
 //	ffmpeg -f lavfi -i color=c=black:s=640x480:r=60000/1001:d=1 -f lavfi -i color=c=white:s=48x480:r=60000/1001:d=1 \
