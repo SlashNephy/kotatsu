@@ -160,8 +160,6 @@ func excludedTables() map[string]string {
 		"job_progress":     "holds IDs of River jobs, which are not backed up",
 		"goose_db_version": "the schema version is applied by kotatsu migrate",
 		"goose_lock":       "the lock of kotatsu migrate",
-		// 記録をやめたテーブル (#2129)。ローリング更新の間に古いバイナリが書き込むので、次のリリースでテーブルごと消すまで外しておく。
-		"program_rewrites": "no longer recorded; dropped in a later release",
 	}
 }
 

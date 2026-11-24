@@ -118,7 +118,7 @@ func TestTablesAreClassified(t *testing.T) {
 			excluded = append(excluded, name)
 		}
 	}
-	// 外すのは、番組表とその変更の記録、セッションとそれを指すテーブル、River のテーブルとジョブの進み具合、マイグレーションのテーブル、記録をやめて消すのを待つテーブルだけ。
+	// 外すのは、番組表とその変更の記録、セッションとそれを指すテーブル、River のテーブルとジョブの進み具合、マイグレーションのテーブルだけ。
 	for _, name := range excluded {
 		if strings.HasPrefix(name, "river_") {
 			continue
@@ -126,7 +126,7 @@ func TestTablesAreClassified(t *testing.T) {
 		assert.Contains(t, []string{
 			"programs", "epg_changes", "change_versions", "anime_match_cursor", "drama_match_cursor",
 			"sessions", "players", "player_commands", "oidc_logins", "anime_record_authorizations", "drama_record_authorizations", "google_authorizations",
-			"job_progress", "goose_db_version", "goose_lock", "program_rewrites",
+			"job_progress", "goose_db_version", "goose_lock",
 		}, name)
 	}
 	assert.Contains(t, written, "program_archives")

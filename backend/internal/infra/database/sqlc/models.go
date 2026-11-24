@@ -756,16 +756,6 @@ type ProgramDramaMatch struct {
 	FinalizedAt   *time.Time
 }
 
-type ProgramRewrite struct {
-	ServiceID  int64
-	EventID    int64
-	StartAt    time.Time
-	Field      string
-	Before     string
-	After      string
-	ObservedAt time.Time
-}
-
 type Recording struct {
 	ID                    uuid.UUID
 	APIID                 int64
