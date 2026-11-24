@@ -640,6 +640,32 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
         run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --merge
 
+  # PR で足した行に、使わない語の一覧 (.yomiyasu-words/) の語がないかを確認する (#2131、docs/writing.md)。
+  # yomiyasu の lint は、scripts/yomiyasu.SOURCE に固定した commit を取り出して使う。main への push では走らせない。
+  words:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # PR では、main とのマージコミットを取り出すので、1 つ前の親 (main) との差分が PR の変更になる。
+          fetch-depth: 2
+          persist-credentials: false
+      # 取り出すのは scripts/yomiyasu.SOURCE に固定した commit だけ。commit が 40 桁でなければ止める。
+      # actions/checkout に動的な ref を渡さず、git fetch で commit を指して取る (CodeQL の actions/untrusted-checkout)。
+      - run: |
+          commit=$(sed -n 's/^commit=//p' scripts/yomiyasu.SOURCE)
+          if ! printf '%s' "$commit" | grep -Eqx '[0-9a-f]{40}'; then
+            echo "::error file=scripts/yomiyasu.SOURCE::commit must be a 40-character SHA"
+            exit 1
+          fi
+          git init -q "$RUNNER_TEMP/yomiyasu"
+          git -C "$RUNNER_TEMP/yomiyasu" fetch -q --depth 1 https://github.com/nanaism/yomiyasu.git "$commit"
+          git -C "$RUNNER_TEMP/yomiyasu" checkout -q --detach FETCH_HEAD
+          python3 scripts/check-words.py "$RUNNER_TEMP/yomiyasu/skills/yomiyasu" HEAD^1
+
   # workflow が使う actions が、.github/workflows/actions.lock に固定した commit と合っているかを確認する (#790)。
   # actions は、uses: にタグで書き、commit はロックファイルで固定する。Renovate が actions を上げるときに、ロックファイルも作り直す。
   actions-lock:
@@ -681,6 +707,7 @@ jobs:
       - pnpm-audit
       - kube-linter
       - screenshots
+      - words
       - actions-lock
     runs-on: ubuntu-latest
     permissions: {}

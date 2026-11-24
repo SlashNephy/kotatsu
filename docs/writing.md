@@ -58,6 +58,20 @@ lintは行頭を4つ以上の空白かタブで字下げした行をMarkdownの�
 sed -E 's/^[[:space:]]+//' backend/internal/usecase/recording/recorder.go | python3 <yomiyasuのフォルダ>/scripts/yomiyasu_lint.py -
 ```
 
+### CIの検査
+
+PRではCIの`words`のジョブが、PRで足した行と書き換えた行に一覧の語がないかを確認し、あれば落とします（#2131）。
+検査するのは`scripts/check-words.py`で、yomiyasuは`scripts/yomiyasu.SOURCE`に固定したコミットを使います。
+生成物、英語の画面の文言、ライセンスの文書は見ません。
+
+手元でも、比較の元のコミットを渡して同じ検査を流せます。見るのはコミットした変更だけです。
+
+```bash
+python3 scripts/check-words.py <yomiyasuのスキルのフォルダ> origin/main
+```
+
+規格の番号（「表 2-22」）のように、一覧の語に当たっても書き換えられない語を含む行を変えたときは、その語を言い換えるか、PRで尋ねます。
+
 ### 指摘が出たときの書き直し方
 
 1. 指摘の出た語が使う語と同じものを指すなら、使う語に替えます。

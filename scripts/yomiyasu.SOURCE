@@ -1,0 +1,3 @@
+# CI の words のジョブ (scripts/check-words.py) が使う yomiyasu の lint。タグとコミットを合わせて上げる (#2131)。
+# renovate: datasource=github-tags depName=nanaism/yomiyasu currentValue=v3.3.0
+commit=8831b14a5c2c12d41096495f0b8fe52d46d390c6
