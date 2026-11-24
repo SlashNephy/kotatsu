@@ -62,7 +62,7 @@ func TestResolve(t *testing.T) {
 			want: []outcome{{instead: 1}, keep, keep},
 		},
 		{
-			// 書き方の違う 3 局 (編と副題、編だけ、どちらも無し) は、どの 2 つも互いに同じ回と判定されるので、1 つにまとめる。
+			// 書き方の違う 3 局 (編とサブタイトル、編だけ、どちらも無し) は、どの 2 つも互いに同じ回と判定されるので、1 つにまとめる。
 			name: "three stations writing differently",
 			broadcasts: []broadcast{
 				{name: work + " 霧の港編 #3「霧笛」", serviceID: 1, startHour: 0},
@@ -134,7 +134,7 @@ func TestResolve(t *testing.T) {
 			want: []outcome{{instead: 1}, keep},
 		},
 		{
-			// 時刻をまたいで束ねると、毎日のニュースが初回しか録れなくなる。
+			// 時刻をまたいでまとめると、毎日のニュースが初回しか録れなくなる。
 			name: "unknown episodes at different times",
 			broadcasts: []broadcast{
 				{name: news, serviceID: 1, startHour: 0},
@@ -143,7 +143,7 @@ func TestResolve(t *testing.T) {
 			want: []outcome{keep, keep},
 		},
 		{
-			// 間の放送を介してつながるだけで、重ならない放送どうしは同じ回と言えない。束ねずに、どれも録る。
+			// 間の放送を介してつながるだけで、重ならない放送どうしは同じ回と言えない。まとめずに、どれも録る。
 			name: "unknown episodes chained through an overlapping one",
 			broadcasts: []broadcast{
 				{name: news, serviceID: 1, startHour: 0},
