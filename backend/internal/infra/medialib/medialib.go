@@ -1,6 +1,6 @@
 // Package medialib は、録画として登録していない TS を再生するために、ファイルを読んでよいフォルダ (ライブラリ) を扱う (設計書 5.8、#1734)。
 //
-// ライブラリの中身は、一覧 (List)、情報 (Stat)、開く (Open) の 3 つの口だけで読む。ローカルのディレクトリ (Local) と、
+// ライブラリの内容は、一覧 (List)、情報 (Stat)、開く (Open) の 3 つの口だけで読む。ローカルのディレクトリ (Local) と、
 // 管理者が接続した Google Drive (Drive、#1902) を、この口に当てはめる。パスは、ライブラリの中の / 区切りの相対パスで表し、
 // ライブラリの外へは出られない。
 package medialib
@@ -58,7 +58,7 @@ type File interface {
 	Stat() (fs.FileInfo, error)
 }
 
-// Library は、ライブラリの中身を読む口。
+// Library は、ライブラリの内容を読む口。
 type Library interface {
 	// Name は、ライブラリの名前。
 	Name() string
@@ -80,7 +80,7 @@ type Identifier interface {
 	Identity(p string) (string, string)
 }
 
-// IdentityOf は、ライブラリ l のファイル p を見分ける値を、名前空間と、その中の値の組で返す。索引の置き場と、
+// IdentityOf は、ライブラリ l のファイル p を見分ける値を、名前空間と、その中の値の組で返す。インデックスの保存先と、
 // 再生位置を保存するファイルの ID に使う。
 func IdentityOf(l Library, p string) (string, string) {
 	if identifier, ok := l.(Identifier); ok {
@@ -94,17 +94,17 @@ func IdentityOf(l Library, p string) (string, string) {
 type LibraryProvider interface {
 	// Libraries は、今あるライブラリを返す。
 	Libraries(ctx context.Context) ([]Library, error)
-	// Lookup は、名前が name のライブラリを返す。ctx を受け取らないので、覚えたものから引く。
+	// Lookup は、名前が name のライブラリを返す。ctx を受け取らないので、キャッシュしたものから引く。
 	Lookup(name string) (Library, bool)
 }
 
-// Namer は、パスの段と、画面に出す名前が違うライブラリ。持たなければ、段をそのまま名前にする。
+// Namer は、パスのセグメントと、画面に出す名前が違うライブラリ。持たなければ、セグメントをそのまま名前にする。
 type Namer interface {
-	// Names は、パス p の段ごとの名前を返す。根元なら空を返す。
+	// Names は、パス p のセグメントごとの名前を返す。根元なら空を返す。
 	Names(ctx context.Context, p string) ([]string, error)
 }
 
-// NamesOf は、ライブラリ l のパス p の段ごとの、画面に出す名前を返す。
+// NamesOf は、ライブラリ l のパス p のセグメントごとの、画面に出す名前を返す。
 func NamesOf(ctx context.Context, l Library, p string) ([]string, error) {
 	if namer, ok := l.(Namer); ok {
 		return namer.Names(ctx, p)
@@ -168,7 +168,7 @@ func (s *Set) WithProvider(provider LibraryProvider) *Set {
 	return &Set{libraries: s.libraries, providers: append(slices.Clone(s.providers), provider)}
 }
 
-// Names は、設定のライブラリ (保存先プールとフォルダ) の名前を返す。実行中に足すライブラリの名前と重ならないように確かめるのに使う。
+// Names は、設定のライブラリ (保存先プールとフォルダ) の名前を返す。実行中に足すライブラリの名前と重ならないように確認するのに使う。
 func (s *Set) Names() []string {
 	names := make([]string, 0, len(s.libraries))
 	for _, l := range s.libraries {

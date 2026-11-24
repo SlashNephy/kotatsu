@@ -15,16 +15,16 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 )
 
-// cursorAfter は、続きを引くときに渡す cursor。
+// cursorAfter は、続きを取得するときに渡す cursor。
 const cursorAfter = "after"
 
-// graphQLRequest は、偽の API が受け取った GraphQL のリクエスト。
+// graphQLRequest は、モックの API が受け取った GraphQL のリクエスト。
 type graphQLRequest struct {
 	Query     string         `json:"query"`
 	Variables map[string]any `json:"variables"`
 }
 
-// newServer は、/graphql に status と body を返す偽の API を立て、受け取ったリクエストとヘッダーを記録する。
+// newServer は、/graphql に status と body を返すモックの API を立て、受け取ったリクエストとヘッダーを記録する。
 func newServer(t *testing.T, status int, header map[string]string, body string) (*httptest.Server, *graphQLRequest, *http.Header) {
 	t.Helper()
 
@@ -84,7 +84,7 @@ func TestAnnictWorksLastPage(t *testing.T) {
 	page, err := client.AnnictWorks(t.Context(), "secret", nil, "")
 	require.NoError(t, err)
 	assert.Equal(t, &workids.AnnictPage{Works: []*workids.AnnictWork{}, Next: ""}, page)
-	// 時期も cursor も渡さなければ、すべての作品の最初のページを引く。
+	// 時期も cursor も渡さなければ、すべての作品の最初のページを取得する。
 	assert.Equal(t, map[string]any{"seasons": nil, "first": float64(workids.AnnictPageSize), "after": nil}, received.Variables)
 }
 
@@ -147,7 +147,7 @@ func TestAniListIDsByMAL(t *testing.T) {
 	assert.Equal(t, []any{float64(318), float64(5114), float64(7)}, received.Variables["ids"])
 }
 
-// TestAniListIDsByMALPages は、対応する作品が 1 ページに収まらなければ、続きのページも引くことを確かめる。
+// TestAniListIDsByMALPages は、対応する作品が 1 ページに収まらなければ、続きのページも引くことを確認する。
 func TestAniListIDsByMALPages(t *testing.T) {
 	t.Parallel()
 

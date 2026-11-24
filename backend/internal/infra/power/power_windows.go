@@ -81,7 +81,7 @@ func (s *System) ScheduleWake(at time.Time) error {
 	})
 }
 
-// CancelWake は、起こすタスクを消す。消す前に、あるかを確かめ、なければ何もしない。
+// CancelWake は、起こすタスクを消す。消す前に、あるかを確認し、なければ何もしない。
 func (s *System) CancelWake() error {
 	if err := schtasks(func(ctx context.Context, name string) *exec.Cmd {
 		return exec.CommandContext(ctx, name, "/Query", "/TN", WakeTaskName)

@@ -70,7 +70,7 @@ func initiatorOf(p Purpose) Initiator {
 
 // visibleHost は、目的 p の通信の接続先 host を、記録に残してよければそのまま、残せなければ空で返す。
 //
-// 接続先から視聴の内容や設定の中身が分かるものは、ホスト名を残さない。決まった接続先の一覧にあるものだけを残すので、
+// 接続先から視聴の内容や設定の内容が分かるものは、ホスト名を残さない。決まった接続先の一覧にあるものだけを残すので、
 // 設定で別の接続先に向け直したときも、そのホスト名は残らない。
 func visibleHost(p Purpose, host string) string {
 	hosts, anyHost := knownHosts(p)
@@ -117,7 +117,7 @@ func knownHosts(p Purpose) ([]string, bool) {
 	case PurposeUpdateCheck:
 		return []string{"api.github.com"}, false
 	case PurposeGoogleDrive:
-		// ファイルの中身が転送される先 (googleusercontent.com など) は、決まった名前の一覧に入れず、残さない。
+		// ファイルの内容が転送される先 (googleusercontent.com など) は、決まった名前の一覧に入れず、残さない。
 		return []string{"www.googleapis.com", "oauth2.googleapis.com"}, false
 	case PurposeWebPush:
 		// 送り先は、購読したブラウザのベンダーのプッシュサービスで、視聴の内容は分からない。

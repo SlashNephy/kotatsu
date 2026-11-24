@@ -8,7 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// TestPIDQualities は、PID ごとの統計に、PMT と決まった PID から分かる種類を添えることを確かめる (#473)。
+// TestPIDQualities は、PID ごとの統計に、PMT と決まった PID から分かる種類を添えることを確認する (#473)。
 func TestPIDQualities(t *testing.T) {
 	t.Parallel()
 
@@ -40,7 +40,7 @@ func TestPIDQualities(t *testing.T) {
 	}, ts.PIDQualities(stats, pids))
 }
 
-// TestJudgedDrops は、判定に数えるドロップを、映像と音声の PID のドロップだけにすることを確かめる。
+// TestJudgedDrops は、判定に数えるドロップを、映像と音声の PID のドロップだけにすることを確認する。
 func TestJudgedDrops(t *testing.T) {
 	t.Parallel()
 
@@ -92,7 +92,7 @@ func TestJudgedDrops(t *testing.T) {
 	}
 }
 
-// TestPIDQualitiesECM は、PMT の CA 記述子が指す ECM の PID を、番組情報に分類することを確かめる。
+// TestPIDQualitiesECM は、PMT の CA 記述子が指す ECM の PID を、番組情報に分類することを確認する。
 func TestPIDQualitiesECM(t *testing.T) {
 	t.Parallel()
 

@@ -7,7 +7,7 @@ import (
 	"slices"
 )
 
-// maxProbeBytes は、映像の形式を読むのに溜めるエレメンタリーストリームの長さの上限。
+// maxProbeBytes は、映像の形式を読むのにバッファするエレメンタリーストリームの長さの上限。
 // 最初の I フレームの前には、シーケンスヘッダーか SPS が来るので、これだけあれば足りる。
 const maxProbeBytes = 512 << 10
 
@@ -39,7 +39,7 @@ var errBitstreamEnd = errors.New("unexpected end of the bitstream")
 // maxPOCCycle は、H.264 の num_ref_frames_in_pic_order_cnt_cycle の上限。
 const maxPOCCycle = 255
 
-// videoFormatProbe は、映像のエレメンタリーストリームの先頭を溜め、映像の形式を読む。
+// videoFormatProbe は、映像のエレメンタリーストリームの先頭をバッファし、映像の形式を読む。
 type videoFormatProbe struct {
 	codec  videoCodec
 	buf    []byte
@@ -52,7 +52,7 @@ func newVideoFormatProbe(codec videoCodec) *videoFormatProbe {
 }
 
 // feed は、映像のパケットのペイロードを足す。PES の始まりなら、ヘッダーを除く。
-// 形式を読めるか、上限まで溜めたら、それ以上は溜めない。
+// 形式を読めるか、上限までバッファしたら、それ以上はバッファしない。
 func (p *videoFormatProbe) feed(pkt *packet) {
 	if p.done {
 		return
@@ -68,8 +68,8 @@ func (p *videoFormatProbe) feed(pkt *packet) {
 		// PES の途中からは読まない。
 		return
 	}
-	// 前に溜めた末尾の 2 バイトと合わせて、新しい start code が届いたときだけ読み直す。
-	// パケットのたびに溜めた全体を読み直すと、映像の先頭を読むのに時間がかかる。
+	// 前にバッファした末尾の 2 バイトと合わせて、新しい start code が届いたときだけ読み直す。
+	// パケットのたびにバッファした全体を読み直すと、映像の先頭を読むのに時間がかかる。
 	tail := p.buf[max(len(p.buf)-2, 0):]
 	p.buf = append(p.buf, payload...)
 	if !bytes.Contains(append(slices.Clone(tail), payload...), []byte{0, 0, 1}) {
@@ -305,7 +305,7 @@ func parseH264SPS(sps []byte) (*VideoFormat, error) {
 	height := int(heightMapUnits+1) * 16 * int(2-frameMBsOnly)
 	if r.bit() == 1 { // frame_cropping_flag
 		left, right, top, bottom := r.ue(), r.ue(), r.ue(), r.ue()
-		// CropUnitX と CropUnitY は、色の形式の SubWidthC と SubHeightC から決める (ITU-T H.264 表 6-1、式 7-19 から 7-22)。
+		// CropUnitX と CropUnitY は、色の形式の SubWidthC と SubHeightC から決める (ITU-T H.264 テーブル 6-1、式 7-19 から 7-22)。
 		cropX, cropY := 2, 2*int(2-frameMBsOnly)
 		switch chromaFormat {
 		case 0, 3:

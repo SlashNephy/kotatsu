@@ -18,7 +18,7 @@ const testStrengthTimeout = 10 * time.Minute
 // warningUserInputs は、ユーザーの入力に似ているときの警告文。
 const warningUserInputs = "個人情報やページに関する情報は含めるべきではありません"
 
-// TestEstimateMatchesNode は、goja で動かした zxcvbn-ts が、Node.js で動かした同じバンドルと同じ結果を返すことを確かめる。
+// TestEstimateMatchesNode は、goja で動かした zxcvbn-ts が、Node.js で動かした同じバンドルと同じ結果を返すことを確認する。
 // 期待値は、frontend/zxcvbn/dist/zxcvbn.js を Node.js の vm で読み込んで得た (設計書 2.2)。
 func TestEstimateMatchesNode(t *testing.T) {
 	t.Parallel()

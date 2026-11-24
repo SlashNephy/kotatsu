@@ -1,7 +1,7 @@
 // Package registry は、各ロールのインスタンスの登録簿を扱う (設計書 1.4)。
 //
 // 各インスタンスは、自分のアドレスとハートビートを DB に書く。tenban は、この登録簿を引いて
-// kyusu のセッションへリクエストを中継する。
+// kyusu のセッションへリクエストをプロキシする。
 package registry
 
 import (
@@ -38,7 +38,7 @@ type Instance struct {
 	HeartbeatAt time.Time
 }
 
-// Registry は、このプロセスのインスタンスを登録簿に載せ、他のインスタンスを引く。
+// Registry は、このプロセスのインスタンスを登録簿に載せ、他のインスタンスを検索する。
 type Registry struct {
 	db    sqlc.DBTX
 	clock clock.Clock

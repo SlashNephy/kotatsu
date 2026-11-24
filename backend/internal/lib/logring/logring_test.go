@@ -208,7 +208,7 @@ func TestHandlerReturnsInnerError(t *testing.T) {
 	handler := logring.New(failingHandler{slog.NewJSONHandler(&bytes.Buffer{}, nil)}, buffer)
 	err := handler.Handle(t.Context(), slog.NewRecord(time.Now(), slog.LevelInfo, "x", 0))
 	require.ErrorIs(t, err, errWrite)
-	// 本来の出力に失敗しても、写しは取る。
+	// 本来の出力に失敗しても、コピーは取る。
 	assert.Len(t, buffer.Lines(), 1)
 }
 

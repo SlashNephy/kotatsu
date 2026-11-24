@@ -57,7 +57,7 @@ type Options struct {
 	DetectInterval time.Duration
 	// StreamIdleTimeout は、放送のストリームのデータが届かないまま待つ時間の上限。0 なら DefaultStreamIdleTimeout。イベントストリームには使わない。
 	StreamIdleTimeout time.Duration
-	// StreamOpenTimeout は、ストリームを開くときに、応答の頭を待つ時間の上限。0 なら DefaultStreamOpenTimeout。
+	// StreamOpenTimeout は、ストリームを開くときに、応答の先頭を待つ時間の上限。0 なら DefaultStreamOpenTimeout。
 	StreamOpenTimeout time.Duration
 	Clock             clock.Clock
 	// Authorize は、リクエストに認可の情報を付ける。nil なら付けない。Kotatsu の nabe に送るトークンに使う (#1535)。
@@ -229,7 +229,7 @@ func (c *Client) Version(ctx context.Context) (*Version, error) {
 }
 
 // ServerDate は、/api/version の応答の Date ヘッダーから、チューナーサーバーの時計の時刻を返す (設計書 3.7)。
-// Date ヘッダーは秒の精度なので、比べるときは 1 秒程度の誤差を見込む。
+// Date ヘッダーは秒の精度なので、比較するときは 1 秒程度の誤差を見込む。
 func (c *Client) ServerDate(ctx context.Context) (time.Time, error) {
 	var version Version
 	header, err := c.get(ctx, "api/version", nil, &version)
@@ -390,8 +390,8 @@ func (c *Client) ServiceLogo(ctx context.Context, serviceID int64) ([]byte, erro
 // openStream は、ストリームのリクエストを送り、2xx なら本文を返す。
 // 本文は、データが idleTimeout の間届かなければ閉じ、tunerserver.ErrStreamStalled を返す。接続を保ったまま送らなくなったことに気づくため (#537)。
 // idleTimeout が 0 なら見張らない。イベントストリームは、変化がなければ何分でも黙るので、黙っても止まったとはみなせない (#954)。
-// 応答の頭が openTimeout までに届かなければ、要求をやめて tunerserver.ErrStreamOpenTimeout を返す (#412)。
-// ストリームは何時間も続くので、要求全体には期限を付けず、応答の頭を待つ間だけ見張る。
+// 応答の先頭が openTimeout までに届かなければ、要求をやめて tunerserver.ErrStreamOpenTimeout を返す (#412)。
+// ストリームは何時間も続くので、要求全体には期限を付けず、応答の先頭を待つ間だけ見張る。
 // 2xx 以外の応答は、cause で状態の意味を読み替えた *APIError にする。
 func (c *Client) openStream(req *http.Request, idleTimeout time.Duration, cause causeOf) (io.ReadCloser, error) {
 	ctx, cancel := context.WithCancelCause(req.Context())

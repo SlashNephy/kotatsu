@@ -17,7 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/syobocal"
 )
 
-// progLookupXML は、2026 年 11 月に ProgLookup が返した応答を、項目を減らして写したもの。
+// progLookupXML は、2026 年 11 月に ProgLookup が返した応答を、項目を減らしてコピーしたもの。
 const progLookupXML = `<?xml version="1.0" encoding="UTF-8"?><ProgLookupResponse><ProgItems>` +
 	`<ProgItem id="717433"><LastUpdate>2026-09-10 01:58:11</LastUpdate><PID>717433</PID><TID>8018</TID>` +
 	`<StTime>2026-11-01 22:00:00</StTime><StOffset>0</StOffset><EdTime>2026-11-01 22:30:00</EdTime><Count>5</Count>` +
@@ -28,7 +28,7 @@ const progLookupXML = `<?xml version="1.0" encoding="UTF-8"?><ProgLookupResponse
 	`<SubTitle>#1～#2</SubTitle><Flag>6</Flag><Deleted>1</Deleted><ChID>19</ChID></ProgItem>` +
 	`</ProgItems><Result><Code>200</Code><Message></Message></Result></ProgLookupResponse>`
 
-// recorder は、サーバーが受け取ったリクエストの時刻とクエリを覚える。
+// recorder は、サーバーが受け取ったリクエストの時刻とクエリを記録する。
 type recorder struct {
 	mu       sync.Mutex
 	times    []time.Time
@@ -58,7 +58,7 @@ func newClient(t *testing.T, response string, interval time.Duration) (*syobocal
 	return syobocal.NewClient(&syobocal.Options{HTTPClient: server.Client(), URL: server.URL, Interval: interval}), rec
 }
 
-// TestProgLookup は、ChID と期間を日本時間で渡し、放送時間データを日本時間として読むことを確かめる。
+// TestProgLookup は、ChID と期間を日本時間で渡し、放送時間データを日本時間として読むことを確認する。
 // 問い合わせには、Kotatsu からの問い合わせだと分かる User-Agent を付ける。
 func TestProgLookup(t *testing.T) {
 	t.Parallel()
@@ -93,7 +93,7 @@ func TestProgLookup(t *testing.T) {
 	assert.True(t, strings.HasPrefix(rec.agents[0], "Kotatsu/"), rec.agents[0])
 }
 
-// TestClientInterval は、続けて問い合わせても、間隔を空けることを確かめる。
+// TestClientInterval は、続けて問い合わせても、間隔を空けることを確認する。
 func TestClientInterval(t *testing.T) {
 	t.Parallel()
 
@@ -110,7 +110,7 @@ func TestClientInterval(t *testing.T) {
 	}
 }
 
-// TestClientErrors は、しょぼいカレンダーが失敗を返したら、エラーにすることを確かめる。
+// TestClientErrors は、しょぼいカレンダーが失敗を返したら、エラーにすることを確認する。
 func TestClientErrors(t *testing.T) {
 	t.Parallel()
 
@@ -135,11 +135,11 @@ func TestClientErrors(t *testing.T) {
 	}
 }
 
-// notFoundXML は、条件に一致するデータがないときに db.php が返す応答 (2026 年 11 月に確かめたもの)。HTTP の状態は 200 で、Result の Code が 404 になる。
+// notFoundXML は、条件に一致するデータがないときに db.php が返す応答 (2026 年 11 月に確認したもの)。HTTP の状態は 200 で、Result の Code が 404 になる。
 const notFoundXML = `<?xml version="1.0" encoding="UTF-8"?><%[1]s><Result><Code>404</Code>` +
 	`<Message>条件に一致するデータは存在しません</Message></Result></%[1]s>`
 
-// TestNotFound は、条件に一致するデータがない (Code が 404) とき、失敗にせず、0 件の結果を返すことを確かめる (#1303)。
+// TestNotFound は、条件に一致するデータがない (Code が 404) とき、失敗にせず、0 件の結果を返すことを確認する (#1303)。
 func TestNotFound(t *testing.T) {
 	t.Parallel()
 
@@ -178,12 +178,12 @@ func TestNotFound(t *testing.T) {
 	}
 }
 
-// titleLookupXML は、TitleLookup が返す応答を、項目を減らして写したもの。
+// titleLookupXML は、TitleLookup が返す応答を、項目を減らしてコピーしたもの。
 const titleLookupXML = `<?xml version="1.0" encoding="UTF-8"?><TitleLookupResponse><Result><Code>200</Code><Message></Message></Result>` +
 	`<TitleItems><TitleItem id="8018"><TID>8018</TID><Title> 作品の名前 </Title><LastUpdate>2026-10-30 12:34:56</LastUpdate></TitleItem>` +
 	`<TitleItem id="2"><TID>2</TID><Title>別の作品</Title><LastUpdate></LastUpdate></TitleItem></TitleItems></TitleLookupResponse>`
 
-// TestTitleLookup は、TID とタイトル名を問い合わせ、since が零値でなければ、それより後に更新されたタイトルに絞ることを確かめる。
+// TestTitleLookup は、TID とタイトル名を問い合わせ、since が零値でなければ、それより後に更新されたタイトルに絞ることを確認する。
 // 更新日時が読めないタイトルは、零値の更新日時で返す。
 func TestTitleLookup(t *testing.T) {
 	t.Parallel()

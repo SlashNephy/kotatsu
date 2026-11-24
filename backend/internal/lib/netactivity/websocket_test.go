@@ -14,7 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
-// TestClientRecordsWebSocket は、実況のコメントで使う WebSocket の接続を、読み書きを妨げずに数えることを確かめる (#1369)。
+// TestClientRecordsWebSocket は、実況のコメントで使う WebSocket の接続を、読み書きを妨げずに数えることを確認する (#1369)。
 func TestClientRecordsWebSocket(t *testing.T) {
 	t.Parallel()
 

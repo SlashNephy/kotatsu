@@ -101,7 +101,7 @@ func TestRunRegistersAndDeregisters(t *testing.T) {
 	assert.Empty(t, addresses(t, r, roleKyusu))
 }
 
-// TestRunStopsWithoutErrorBeforeRegistered は、登録を終える前に止められても、正常な停止として扱うことを確かめる。
+// TestRunStopsWithoutErrorBeforeRegistered は、登録を終える前に止められても、正常な停止として扱うことを確認する。
 // 起動直後に終了のシグナルを受けると、登録の途中で ctx が終わる。
 func TestRunStopsWithoutErrorBeforeRegistered(t *testing.T) {
 	t.Parallel()

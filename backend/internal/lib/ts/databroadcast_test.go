@@ -83,10 +83,10 @@ func TestDataBroadcastFilter(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// before は、確かめるパケットの前に流すパケット。
+		// before は、確認するパケットの前に流すパケット。
 		before [][]byte
 		packet []byte
-		// want は残るパケット。nil なら捨てる。
+		// want は残るパケット。nil なら破棄する。
 		want []byte
 	}{
 		{

@@ -25,7 +25,7 @@ func TestParseLogoMap(t *testing.T) {
 // logoMapFile は、EDCB がサービスとロゴの ID の対応を書くファイル。
 const logoMapFile = "LogoData.ini"
 
-// files は、FILE_COPY2 の応答 (版と FILE_DATA の配列) を組む。
+// files は、FILE_COPY2 の応答 (バージョンと FILE_DATA の配列) を組む。
 func files(items ...[2]string) reply {
 	list := make([]payload, 0, len(items))
 	for _, item := range items {

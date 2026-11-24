@@ -14,7 +14,7 @@ func TestNewIsVersion7(t *testing.T) {
 	t.Parallel()
 
 	got := id.New()
-	// 版は 7 番目のバイトの上位 4 ビット、変種は 9 番目のバイトの上位 2 ビットにある (RFC 9562 4.1、4.2)。
+	// バージョンは 7 番目のバイトの上位 4 ビット、変種は 9 番目のバイトの上位 2 ビットにある (RFC 9562 4.1、4.2)。
 	assert.Equal(t, byte(7), got[6]>>4)
 	assert.Equal(t, byte(0b10), got[8]>>6)
 }
@@ -22,7 +22,7 @@ func TestNewIsVersion7(t *testing.T) {
 func TestNewIsOrderedByGeneration(t *testing.T) {
 	t.Parallel()
 
-	// 同じミリ秒の中で生成した ID も含めて、生成した順に並ぶことを確かめる。
+	// 同じミリ秒の中で生成した ID も含めて、生成した順に並ぶことを確認する。
 	const n = 10000
 	prev := id.New()
 	for range n {

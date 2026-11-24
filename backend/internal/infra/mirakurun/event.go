@@ -10,7 +10,7 @@ import (
 const serviceIDBase = 100_000
 
 // toEvent は、Mirakurun、Mahiron と mirakc のイベントを、何が変わったかの知らせに読み替える。
-// Kotatsu が使わないイベントと、形の分からないイベントでは false を返す。取りこぼしは全量の突き合わせで埋まる (設計書 3.3)。
+// Kotatsu が使わないイベントと、形の分からないイベントでは false を返す。取りこぼしは全量の照合で埋まる (設計書 3.3)。
 //
 // Mirakurun と Mahiron の program のイベントは、create と update では番組を、remove では番組の ID だけを送る。
 // mirakc の epg.programs-updated と onair.program-changed は、番組が変わったサービスの ID を送る。
@@ -56,7 +56,7 @@ func programEventType(eventType string) tunerserver.EventType {
 	}
 }
 
-// programServiceID は、Mirakurun の program のイベントの中身から、番組が変わったサービスの ID を求める。
+// programServiceID は、Mirakurun の program のイベントの内容から、番組が変わったサービスの ID を求める。
 func programServiceID(data json.RawMessage) (int64, bool) {
 	var program struct {
 		ID        int64 `json:"id"`

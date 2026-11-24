@@ -164,7 +164,7 @@ func TestJoiner(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			// 違いが出たときに巨大な出力にならないよう、長さと一致だけを比べる。
+			// 違いが出たときに巨大な出力にならないよう、長さと一致だけを比較する。
 			assert.Len(t, got, len(tt.want))
 			assert.True(t, bytes.Equal(tt.want, got), "the joined stream differs from the expected one")
 		})

@@ -120,7 +120,7 @@ func TestChannelType(t *testing.T) {
 	}
 }
 
-// edcbServer は、実際の EDCB から取った ChSet5、サービス、番組の応答を返す偽の EpgTimerSrv。
+// edcbServer は、実際の EDCB から取った ChSet5、サービス、番組の応答を返すモックの EpgTimerSrv。
 func edcbServer(t *testing.T) *fakeServer {
 	t.Helper()
 
@@ -172,7 +172,7 @@ func TestTunerServerPrograms(t *testing.T) {
 
 	require.Len(t, programs, 5)
 	p := programs[0]
-	// 番組名と概要は、テストの材料では伏せ字になっている。
+	// 番組名と概要は、テストの材料ではマスク文字になっている。
 	assert.Equal(t, int64(327360102413578), p.ID)
 	assert.Equal(t, 13578, p.EventID)
 	assert.Equal(t, 1024, p.ServiceID)
@@ -190,7 +190,7 @@ func TestTunerServerPrograms(t *testing.T) {
 		{Type: "shared", NetworkID: 0, ServiceID: 1025, EventID: 13578},
 	}, p.RelatedItems)
 	assert.Nil(t, p.Series)
-	// 全件を引くときは、すべてのサービスを引く要求を送る。
+	// 全件を取得するときは、すべてのサービスを取得する要求を送る。
 	assert.Equal(t, []uint32{1029}, commands(s.received()))
 }
 
@@ -204,7 +204,7 @@ func TestTunerServerProgramsOfService(t *testing.T) {
 	// 番組 ID は、要求ではなく、受け取った後で絞る。
 	require.Len(t, programs, 1)
 	assert.Equal(t, 13583, programs[0].EventID)
-	// サービスを絞るときは、チャンネルの設定から TSID を引いて、そのサービスだけを引く。
+	// サービスを絞るときは、チャンネルの設定から TSID を取得して、そのサービスだけを取得する。
 	received := s.received()
 	assert.Equal(t, []uint32{1060, 1029}, commands(received))
 	assert.Equal(t, fromHex(t, "28000000040000000000000000000000"+"0004e07fe07f0000"+"0000000000000000"+"ffffffffffffff7f"), received[1].body)

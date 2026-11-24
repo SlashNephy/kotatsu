@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// lostAndFound は、ext4 などがファイルシステムの直下に作るディレクトリ。ライブラリの中身ではないので出さない。
+// lostAndFound は、ext4 などがファイルシステムの直下に作るディレクトリ。ライブラリの内容ではないので出さない。
 const lostAndFound = "lost+found"
 
 // Local は、ローカルのディレクトリのライブラリ。os.Root で開くので、シンボリックリンクでもディレクトリの外は読まない。

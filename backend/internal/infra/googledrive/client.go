@@ -29,7 +29,7 @@ const (
 	FolderMIMEType = "application/vnd.google-apps.folder"
 	// MyDriveID は、マイドライブの根元を指す別名。
 	MyDriveID = "root"
-	// googleAppsPrefix は、Google ドキュメントなどの、中身をそのまま読めないファイルの MIME タイプの前置き。
+	// googleAppsPrefix は、Google ドキュメントなどの、内容をそのまま読めないファイルの MIME タイプの前置き。
 	googleAppsPrefix = "application/vnd.google-apps."
 	// pageSize は、一覧の 1 ページの件数。files.list の上限。
 	pageSize = 1000
@@ -41,7 +41,7 @@ const (
 	maxBackoff = 32 * time.Second
 	// maxRetryAfter は、Retry-After に従って待つ長さの上限。
 	maxRetryAfter = 30 * time.Second
-	// maxTotalWait は、1 回の呼び出しで、やり直すために待つ長さの合計の上限。索引を作っている tenban が、書きかけの索引を
+	// maxTotalWait は、1 回の呼び出しで、やり直すために待つ長さの合計の上限。インデックスを作っている tenban が、書きかけのインデックスを
 	// 伸ばさないまま、ほかの tenban に落ちたとみなされる時間 (1 分、設計書 付録 A) より短くする。
 	maxTotalWait = 45 * time.Second
 	// maxErrorBody は、エラーの応答の本文を読む大きさの上限。
@@ -77,7 +77,7 @@ var (
 type TokenSource interface {
 	// Token は、アクセストークンを返す。
 	Token(ctx context.Context) (string, error)
-	// Invalidate は、手元のアクセストークンを捨て、次の Token で作り直させる。401 が返ったときに呼ぶ。
+	// Invalidate は、手元のアクセストークンを破棄し、次の Token で作り直させる。401 が返ったときに呼ぶ。
 	Invalidate()
 }
 
@@ -119,7 +119,7 @@ func (f *File) Folder() bool {
 	return f.MIMEType == FolderMIMEType
 }
 
-// Blob は、中身をそのまま読めるファイル (フォルダでも Google ドキュメントなどでもないもの) かどうかを返す。
+// Blob は、内容をそのまま読めるファイル (フォルダでも Google ドキュメントなどでもないもの) かどうかを返す。
 func (f *File) Blob() bool {
 	return !strings.HasPrefix(f.MIMEType, googleAppsPrefix)
 }
@@ -316,7 +316,7 @@ func (c *Client) Get(ctx context.Context, id string) (*File, error) {
 	return body.file(), nil
 }
 
-// Download は、ファイル id の中身を、offset バイト目から終わりまで読む本文を返す (alt=media と Range)。
+// Download は、ファイル id の内容を、offset バイト目から終わりまで読む本文を返す (alt=media と Range)。
 // 呼ぶ側は、読み終えたら閉じる。途中で切れたら、読めた所から呼び直す。
 func (c *Client) Download(ctx context.Context, id string, offset int64) (io.ReadCloser, error) {
 	query := url.Values{"alt": {"media"}, paramAllDrives: {valueTrue}}

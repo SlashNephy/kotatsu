@@ -12,7 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 )
 
-// TestAniListCoversByMAL は、MyAnimeList の ID に対応する AniList の作品の高画質の画像を、extraLarge を先に選んで返すことを確かめる (#1315)。
+// TestAniListCoversByMAL は、MyAnimeList の ID に対応する AniList の作品の高画質の画像を、extraLarge を先に選んで返すことを確認する (#1315)。
 func TestAniListCoversByMAL(t *testing.T) {
 	t.Parallel()
 
@@ -41,7 +41,7 @@ func TestAniListCoversByMAL(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestJikanImage は、Jikan の作品の大きい画像を、JPEG を先に選んで返し、作品がなければ ErrNotFound を返すことを確かめる (#1315)。
+// TestJikanImage は、Jikan の作品の大きい画像を、JPEG を先に選んで返し、作品がなければ ErrNotFound を返すことを確認する (#1315)。
 func TestJikanImage(t *testing.T) {
 	t.Parallel()
 

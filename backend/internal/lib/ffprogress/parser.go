@@ -16,7 +16,7 @@ type Block struct {
 	Frame int64
 	// TotalSize は、書いた出力の大きさ (バイト)。分からなければ -1。
 	TotalSize int64
-	// DropFrames は、捨てたコマ数。分からなければ -1。
+	// DropFrames は、破棄したコマ数。分からなければ -1。
 	DropFrames int64
 	// Bitrate と Speed は、FFmpeg が出したままの文字列 (例: 2963.4kbits/s、1.02x)。ログに出すだけなので、読み替えない。
 	Bitrate string
@@ -39,7 +39,7 @@ type Parser struct {
 	block   Block
 }
 
-// NewParser は Parser を返す。onLine が nil なら、ほかの行は捨てる。
+// NewParser は Parser を返す。onLine が nil なら、ほかの行は破棄する。
 func NewParser(onBlock func(*Block), onLine func(string)) *Parser {
 	return &Parser{onBlock: onBlock, onLine: onLine, buf: []byte{}, block: emptyBlock()}
 }
