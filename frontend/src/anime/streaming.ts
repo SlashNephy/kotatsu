@@ -69,7 +69,7 @@ function parseStreamingServices(raw: string | null): StreamingService[] {
       return [...streamingServices];
     }
 
-    // 知らない値 (サービスを減らしたときの古い値) は捨て、並びはいつも同じにする。
+    // 知らない値 (サービスを減らしたときの古い値) は破棄し、並びはいつも同じにする。
     return streamingServices.filter((service) => parsed.includes(service));
   } catch {
     return [...streamingServices];

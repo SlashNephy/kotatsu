@@ -216,7 +216,7 @@ export function useRecordedJikkyo(
       return;
     }
     const cached = cache.current.get(url);
-    // refresh は、伸びる途中に取った過去ログを、伸び終えたので取り直すかどうか。取り直す間も、取ってあるコメントを流し続ける。
+    // refresh は、伸びる途中に取った過去ログを、伸び終えたので再取得するかどうか。再取得する間も、取ってあるコメントを流し続ける。
     const refresh = cached !== undefined && !growing && grown.current.has(url);
     if (cached !== undefined) {
       setState({ kind: 'loaded', count: cached.length });
@@ -239,7 +239,7 @@ export function useRecordedJikkyo(
       })
       .then((body) => {
         // 過去ログが届く前に、リアルタイムのコメントが届いていることがある。上書きせず、流す時刻の順に合わせる。
-        // 取り直したときは、取り直した過去ログで置き換える。伸びる途中の終わりは見込みなので、取り直すと縮むこともある。
+        // 再取得したときは、再取得した過去ログで置き換える。伸びる途中の終わりは見込みなので、再取得すると縮むこともある。
         // canvas には、まだ渡していないコメントだけを足す。渡したコメントは、canvas から消せないが、縮んだ分は再生の終わりより後なので流れない。
         const received = refresh ? [] : (cache.current.get(url) ?? []);
         const known = refresh ? new Set((cache.current.get(url) ?? []).map(commentKey)) : null;
@@ -262,7 +262,7 @@ export function useRecordedJikkyo(
         setComments(merged);
       })
       .catch(() => {
-        // 取り直しに失敗したら、取ってある過去ログを流し続ける。次に実況を入れ直したときに、また取り直す。
+        // 再取得に失敗したら、取ってある過去ログを流し続ける。次に実況を入れ直したときに、また再取得する。
         if (!controller.signal.aborted && !refresh) {
           setState({ kind: 'error' });
         }

@@ -91,7 +91,7 @@ export const Route = createFileRoute('/guide/')({
     const reservation = text('reservation');
 
     return {
-      // 形が違う値と、暦にない日付 (URL の手入力や壊れたリンク) は捨てる。
+      // 形が違う値と、暦にない日付 (URL の手入力や壊れたリンク) は破棄する。
       ...(date !== undefined && isCalendarDate(date) ? { date } : {}),
       ...(type !== undefined ? { type } : {}),
       ...(program !== undefined ? { program } : {}),

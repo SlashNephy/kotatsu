@@ -116,7 +116,7 @@ test('スマートフォンで、ユーザーのメニューを何度でも開�
     for (let i = 0; i < 3; i++) {
       await target.tap();
       await expect(menu).toBeVisible();
-      // 壊れていたときは、隠す・出すをフレームごとに繰り返したので、続くフレームのすべてで、画面に収まって見えていることを確かめる。
+      // 壊れていたときは、隠す・出すをフレームごとに繰り返したので、続くフレームのすべてで、画面に収まって見えていることを確認する。
       const frames = await mobile.evaluate(async () => {
         const results: boolean[] = [];
         for (let frame = 0; frame < 30; frame++) {

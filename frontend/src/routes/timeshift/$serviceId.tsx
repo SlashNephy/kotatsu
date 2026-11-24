@@ -243,7 +243,7 @@ function PromoteButton({
         }
         setResult(response.promoteTimeshiftProgram.reservation != null ? 'reserved' : 'promoting');
       },
-      // 同じ番組をほかで昇格していれば、書き出している途中として出す。
+      // 同じ番組をほかで昇格していれば、出力している途中として出す。
       onError: (error) =>
         setResult(graphQLErrorDetails(error).code === 'CONFLICT' ? 'promoting' : 'error'),
     });

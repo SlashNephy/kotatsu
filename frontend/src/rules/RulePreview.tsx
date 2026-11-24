@@ -115,7 +115,7 @@ export function RulePreview({ input, enabled, disabledHint, onPrograms }: Props)
               setPreview(data.previewRule);
               setWarnings({ items: data.ruleWarnings, input: variables.input });
               onProgramsRef.current?.(
-                // 同じ番組名の回を見分けられるよう、放送の日時も添える。選択肢の文字は印を描けないので、
+                // 同じ番組名の回を見分けられるよう、放送の日時も添える。選択肢の文字はマークを描けないので、
                 // 囲み文字を外し、全角の英数字は半角にする。
                 data.previewRule.edges.map(({ node }) => ({
                   id: node.id,

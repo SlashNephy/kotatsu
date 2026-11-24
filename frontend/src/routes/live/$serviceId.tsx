@@ -377,7 +377,7 @@ function Live({
           # 視聴している間だけ録るなら、バッファができるのを待って読み直す (#1408)。
           timeshiftWhileWatching
         }
-        # OS のメディア操作の前と次で移る局と、データ放送の選局で移る先を引く、番組表と同じ並びのサービス (#493、#440)。
+        # OS のメディア操作の前と次で移る局と、データ放送の選局で移る先を検索する、番組表と同じ並びのサービス (#493、#440)。
         services {
           id
           name
@@ -582,7 +582,7 @@ function Live({
         }
         setDisconnection((prev) => (prev?.at === at ? { ...prev, recordings } : prev));
       })
-      // 理由を調べられなくても、つなぎ直しは続ける。
+      // 理由を調査できなくても、つなぎ直しは続ける。
       .catch(() => {});
   };
 
@@ -797,7 +797,7 @@ function Live({
 
         return true;
       },
-      // 音声の切り替えは、確かめずに従う。
+      // 音声の切り替えは、確認せずに従う。
       onSelectAudio: audio.selectComponent,
     },
   );

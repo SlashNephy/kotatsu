@@ -33,7 +33,7 @@ export function loadManifest(previewUrl: string): Promise<PreviewManifest | null
     };
     manifest = fetch(manifestUrl(previewUrl), { credentials: 'same-origin' }).then((response) => {
       if (response.ok) {
-        // 中身が壊れていれば、読み直しても変わらないので、null を覚える。
+        // 内容が壊れていれば、読み直しても変わらないので、null を保持する。
         return (response.json() as Promise<PreviewManifest>).catch(() => null);
       }
 

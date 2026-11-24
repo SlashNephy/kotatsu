@@ -457,7 +457,7 @@ function Player({
     }, interval);
 
     return () => clearInterval(timer);
-    // variables は描画ごとに作り直すが、中身は library と path だけで決まる。
+    // variables は描画ごとに作り直すが、内容は library と path だけで決まる。
   }, [environment, interval, library, path]);
   // duration は、シークバーの長さ (秒)。インデックスを作っている途中は見込みの長さ。limit は、シークできる所。
   const duration = fileDuration(file.index);
@@ -1158,7 +1158,7 @@ function Player({
       {route.kind === 'kyusu' && (
         <HlsPlayer
           // 読み直すたびに URL を変え、hls.js を作り直す。fragment は、サーバーへは送られない。
-          // kyusu は、索引の I フレームが 1 つもない間は、プレイリストを作れずに 503 を返す。索引ができ始めるまで読まない。
+          // kyusu は、インデックスの I フレームが 1 つもない間は、プレイリストを作れずに 503 を返す。インデックスができ始めるまで読まない。
           url={
             indexing && file.index.durationSeconds == null
               ? null
@@ -1253,7 +1253,7 @@ function Player({
                 }}
               />
             )}
-          {/* 字幕の自動生成 (設計書 5.8)。録画と同じく、頼まれたときに生成する。音声を引くサービスが分からないファイルには作れない。 */}
+          {/* 字幕の自動生成 (設計書 5.8)。録画と同じく、頼まれたときに生成する。音声を取り出すサービスが分からないファイルには作れない。 */}
           {broadcast !== null && (
             <Stack gap={4}>
               <Group gap="xs">
@@ -1328,7 +1328,7 @@ function Player({
         <WatchPanel
           label={t('player.sidePanel')}
           tabs={[
-            // 実況の過去ログがあれば、右の列で字幕の履歴と切り替えて出す。
+            // 実況の過去ログがあれば、右のカラムで字幕の履歴と切り替えて出す。
             ...(jikkyo.comments !== null && jikkyo.comments.length > 0
               ? [
                   {

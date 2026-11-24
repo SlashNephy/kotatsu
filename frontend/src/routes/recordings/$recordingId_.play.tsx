@@ -795,7 +795,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     {
       stepDown: stillRecording,
       pictureInPicture: pip.container !== null,
-      // 録画は先に読むので、受け取りの速さで余裕を確かめて上げる。オリジナルのビットレートは、録画の平均で比べる。
+      // 録画は先に読むので、受け取りの速さで余裕を確認して上げる。オリジナルのビットレートは、録画の平均で比較する。
       network: {
         mode: 'rate',
         convert: route.kind === 'convert',

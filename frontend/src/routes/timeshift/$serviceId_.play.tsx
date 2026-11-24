@@ -299,7 +299,7 @@ function Player({
     }, refreshMs);
 
     return () => clearInterval(timer);
-    // variables は描画ごとに作り直すが、中身は serviceId と startAt だけで決まる。
+    // variables は描画ごとに作り直すが、内容は serviceId と startAt だけで決まる。
   }, [environment, onAir, serviceId, startAt]);
   // duration は、再生できる長さ (秒)。途切れた区間の分は、バッファに映像がないので差し引く。放送中は今まで伸ばす。
   const duration = recordingPosition(
@@ -411,7 +411,7 @@ function Player({
         playback.setNetworkStep(name);
       },
     },
-    // バッファは先に読むので、受け取りの速さで余裕を確かめて上げる。
+    // バッファは先に読むので、受け取りの速さで余裕を確認して上げる。
     {
       stepDown: onAir,
       pictureInPicture: pip.container !== null,

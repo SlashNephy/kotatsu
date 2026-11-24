@@ -178,7 +178,7 @@ export function RecordingCard({
                 to: timeFormat.format(Date.parse(recording.endAt)),
               })}
             </Text>
-            {/* 受信に傷があれば、警告の印を、日時のすぐ右に出す。数は、ツールチップと読み上げで示す。 */}
+            {/* 受信に傷があれば、警告のマークを、日時のすぐ右に出す。数は、ツールチップと読み上げで示す。 */}
             {damaged && (
               <Tooltip label={t('recordings.qualityCounts', quality)}>
                 <TriangleAlert
@@ -190,13 +190,13 @@ export function RecordingCard({
               </Tooltip>
             )}
             {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
-            {/* ドロップありは、警告の印で分かるので出さない。 */}
+            {/* ドロップありは、警告のマークで分かるので出さない。 */}
             {recording.state !== 'COMPLETED' &&
               !(recording.state === 'COMPLETED_WITH_ERRORS' && damaged) && (
                 <RecordingStateBadge state={recording.state} size="xs" />
               )}
             {recording.scrambleWarning === true && <ScrambleBadge size="xs" />}
-            {/* CM の見分けで、いつもの見分け方で決められなかったか、映像の欠けが長ければ、印を出す (#1508)。 */}
+            {/* CM の見分けで、いつもの見分け方で決められなかったか、映像の欠けが長ければ、マークを出す (#1508)。 */}
             {recording.cmDetectionNote != null && recording.cmDetectionNote !== '' && (
               <Tooltip
                 label={t('recordings.cm.note', { note: recording.cmDetectionNote })}

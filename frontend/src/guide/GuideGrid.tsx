@@ -335,7 +335,7 @@ export function GuideGrid({
           }
           const top = timeToY(window, Math.max(until, window.from));
 
-          // 列ごとに届いている時刻が違うとき (1 つのチャンネルの番組表で、日ごとの列) は、列ごとに塗る。
+          // カラムごとに届いている時刻が違うとき (1 つのチャンネルの番組表で、日ごとのカラム) は、カラムごとに塗る。
           return (
             <NotReceived
               key={`not-received-${item.key}`}
@@ -484,7 +484,7 @@ function GuideColumnView({
               width: laneWidth,
               height: box.height,
               overflow: 'hidden',
-              // ボタンは、中身を縦の中央に寄せるので、上に詰める。
+              // ボタンは、内容を縦の中央に寄せるので、上に詰める。
               display: 'flex',
               alignItems: 'flex-start',
               padding: '2px 6px',

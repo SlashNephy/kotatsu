@@ -258,7 +258,7 @@ function Recordings({
           name
           recordings
         }
-        # 上流から消えたサービスの録画も残るので、絞り込みの選択肢には、消えたサービスも印を付けて出す (#1973)。
+        # 上流から消えたサービスの録画も残るので、絞り込みの選択肢には、消えたサービスもマークを付けて出す (#1973)。
         services(includeGone: true) {
           id
           name

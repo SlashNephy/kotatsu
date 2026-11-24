@@ -25,7 +25,7 @@ describe('ProgramTitle', () => {
       />,
     );
 
-    // 囲み文字を外し、全角を半角にした番組名に印を付ける。
+    // 囲み文字を外し、全角を半角にした番組名にマークを付ける。
     expect([...container.querySelectorAll('mark')].map((mark) => mark.textContent)).toEqual([
       'NHK',
       '〜特集〜',

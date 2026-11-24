@@ -340,7 +340,7 @@ function Search() {
               <ProgramList
                 programs={page.results}
                 onSelect={setSelected}
-                // 印は、結果を読んだときの条件で付ける。打っている途中の条件では付けない。
+                // マークは、結果を読んだときの条件で付ける。打っている途中の条件では付けない。
                 highlights={nameHighlights(page.variables.conditions.keywords)}
               />
             )}

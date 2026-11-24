@@ -56,7 +56,7 @@ const query = graphql`
       displayName
       sortOrder
     }
-    # 上流から消えたサービスも、印を付けて出す。非表示の印や並び順を直せるようにしておく (#1973)。
+    # 上流から消えたサービスも、マークを付けて出す。非表示のマークや並び順を修正できるようにしておく (#1973)。
     services(includeHidden: true, includeGone: true) {
       id
       networkId

@@ -166,7 +166,7 @@ function Form({ id, onClose, onReserved }: Props) {
           transcodeFrameRate
           cmDetector
         }
-        # マージンが変わると、チューナーの割り当てが変わることがあるので、一覧の状態も取り直す。
+        # マージンが変わると、チューナーの割り当てが変わることがあるので、一覧の状態も再取得する。
         assignment {
           state
         }

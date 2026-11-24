@@ -131,7 +131,7 @@ function SystemStatus() {
         </Button>
       </Group>
 
-      {/* 新しいリリースを確かめる設定を入れていれば、新しい版を知らせる (#506)。 */}
+      {/* 新しいリリースを確認する設定を入れていれば、新しいバージョンを通知する (#506)。 */}
       {data.version.latestRelease != null && (
         <Alert
           color="teal"
@@ -217,7 +217,7 @@ function SystemStatus() {
             )}
             {status.tunerServer.broadcastClockSkewMs != null &&
               status.tunerServer.broadcastClockCheckedAt != null && (
-                // 録画している TS の TOT で測った、放送の時刻との差 (#1309)。Date ヘッダーとの差とは別に示す。
+                // 録画している TS の TOT で計測した、放送の時刻との差 (#1309)。Date ヘッダーとの差とは別に示す。
                 <Text
                   size="sm"
                   c={status.tunerServer.broadcastClockSkewed ? 'amber.8' : undefined}

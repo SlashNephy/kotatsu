@@ -62,7 +62,7 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
       element.scrollLeft = position.x;
       element.scrollTop = position.y;
     };
-    // finish は、ドラッグを終える。ドラッグしていたら、その後に届くクリックを捨てる。
+    // finish は、ドラッグを終える。ドラッグしていたら、その後に届くクリックを破棄する。
     const finish = () => {
       if (start === null) {
         return;
@@ -73,7 +73,7 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
       }
       element.style.cursor = '';
       element.style.userSelect = '';
-      // ドラッグを終えたときのクリックだけを捨てる。クリックが届かないこともあるので、次のタスクで取り下げる。
+      // ドラッグを終えたときのクリックだけを破棄する。クリックが届かないこともあるので、次のタスクで取り下げる。
       const swallow = (click: MouseEvent) => {
         click.preventDefault();
         click.stopPropagation();

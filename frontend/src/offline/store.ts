@@ -260,7 +260,7 @@ async function writeRecording(source: SaveSource, controller: AbortController): 
     // 字幕を描くフォントは大きいので、アプリの外枠と一緒にはキャッシュしない。Service Worker は、読んだフォントを
     // キャッシュに残すので (src/sw.ts)、オフラインでも字幕を描けるよう、ここで一度読んでおく。
     // JIS X 0213 で足された漢字のファイル (#1520) は、ふだんはその字が出たときに読むが、オフラインでは取りに行けないので、両方とも読む。
-    // 保存し終えたと知らせてすぐにタブを閉じても残るよう、読み終えるまで待つ。読めなくても、映像の保存は続ける。
+    // 保存し終えたと通知してすぐにタブを閉じても残るよう、読み終えるまで待つ。読めなくても、映像の保存は続ける。
     await Promise.all(
       [broadcastFontUrl, broadcastExtendedFontUrl].map((url) =>
         fetch(url)
