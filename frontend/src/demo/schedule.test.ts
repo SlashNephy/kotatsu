@@ -153,7 +153,7 @@ describe('demo rules and their reservations', () => {
       );
     }
 
-    // 同じ名前の番組がほかの局にもあるので、名前の一致する予約の数が変わらないことで、作り直していないことを確かめる。
+    // 同じ名前の番組がほかの局にもあるので、名前の一致する予約の数が変わらないことで、作り直していないことを確認する。
     const after = await reservations(executor);
     const sameName = (list: ReservationNode[]) => list.filter((item) => item.name === target.name);
     expect(sameName(after)).toHaveLength(sameName(before).length);
