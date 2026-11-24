@@ -76,13 +76,18 @@ function aheadOf(media: PlayerMedia): number {
 // 揃う前の HLS の長さはプレイリストの長さの和で、実際の端と少しずれる。セグメント (2 秒) よりは十分短くする。
 const endTolerance = 0.5;
 
-// loadedToEnd は、今の位置から長さの終わりまで、途切れずに読み込んであるか。長さが決まっていなければ (Infinity か NaN)、false。
+// loadedToEnd は、今の位置から長さの終わりまで、途切れずに読み込んであるか。長さが決まっていなければ (Infinity か NaN、0 以下)、false。
+// 今の位置が終わりの誤差の内なら、読み込んである範囲によらず true。映像の範囲は音声と重なる所だけなので、音声のほうが長いと、
+// 終わりの手前で今の位置が映像の範囲の端を越えるため。
 export function loadedToEnd(
   media: Pick<PlayerMedia, 'buffered' | 'currentTime' | 'duration'>,
 ): boolean {
   const { buffered, currentTime, duration } = media;
-  if (!Number.isFinite(duration)) {
+  if (!Number.isFinite(duration) || duration <= 0) {
     return false;
+  }
+  if (currentTime >= duration - endTolerance) {
+    return true;
   }
   for (let i = 0; i < buffered.length; i++) {
     if (buffered.start(i) <= currentTime && currentTime <= buffered.end(i)) {

@@ -44,6 +44,21 @@ describe('loadedToEnd', () => {
       want: false,
     },
     {
+      // 音声のほうが長く、映像の範囲の端を今の位置が越えたとき。
+      name: '今の位置が終わりの誤差の内なら、範囲の外でも読み込んである',
+      spans: [[0, 599.7]] as [number, number][],
+      currentTime: 599.8,
+      duration: 600,
+      want: true,
+    },
+    {
+      name: '長さが 0 なら、読み込んでいない',
+      spans: [[0, 0]] as [number, number][],
+      currentTime: 0,
+      duration: 0,
+      want: false,
+    },
+    {
       name: '長さが決まっていなければ (ライブ)、読み込んでいない',
       spans: [[0, 600]] as [number, number][],
       currentTime: 595,
