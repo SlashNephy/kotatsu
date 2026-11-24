@@ -156,7 +156,6 @@ export function attachVideoOverlay(
       const element = document.createElement('canvas');
       element.className = className;
       element.style.position = 'absolute';
-      element.style.inset = '0';
       element.style.pointerEvents = 'none';
       element.style.visibility = 'hidden';
       const context = element.getContext('webgl2', {
@@ -174,7 +173,8 @@ export function attachVideoOverlay(
         event.preventDefault();
         fail(new Error('the WebGL context was lost'));
       });
-      // 拡大する大きさは、canvas を映す大きさ (端末の画素) で決める。ブラウザの拡大率や画面を変えても追う。
+      // 拡大する大きさは、映像の枠 (video の矩形) の端末の画素での大きさで決める。ブラウザの拡大率や画面を変えても追う。
+      // canvas は、絵を収めた矩形に合わせて CSS の大きさを変えるので、canvas ではなく video を見る。
       resizes = new ResizeObserver(([entry]) => {
         if (entry === undefined) {
           return;
@@ -186,8 +186,14 @@ export function attachVideoOverlay(
         );
         fit();
       });
-      resizes.observe(element, { box: 'device-pixel-content-box' });
+      try {
+        resizes.observe(video, { box: 'device-pixel-content-box' });
+      } catch {
+        // Safari は端末の画素の大きさを通知しないので、CSS の大きさに画素の比率を掛ける (deviceBox)。
+        resizes.observe(video);
+      }
       video.addEventListener('seeking', onSeeking);
+      video.addEventListener('emptied', onSeeking);
       // 字幕の canvas より下に置くよう、video のすぐ後ろに入れる。
       video.after(element);
       canvas = element;
@@ -228,8 +234,45 @@ export function attachVideoOverlay(
     if (canvas.width !== target.width || canvas.height !== target.height) {
       canvas.width = target.width;
       canvas.height = target.height;
+      // 大きさを変えると描画が消えるので、補間したコマも、上限によらず次の書き換えで描き直す。
+      pacer.reset();
     }
     stale = true;
+  };
+
+  // place は、canvas を、video の枠の中で絵を収めた矩形 (object-fit: contain と同じ位置) に置く。
+  // 拡大して描く大きさは、片方の向きだけ拡大するときや、横に引き伸ばす切り抜き (#824) で、映像の比率と違う。
+  // canvas に object-fit: contain を任せると、描く大きさの比率で収めてしまい、絵が縦か横に縮むので、矩形は自分で決める。
+  // データ放送の文書へ移すとき (fitMedia) にインラインのスタイルを書き換えられても、描くたびに置き直す。
+  const place = () => {
+    if (canvas === null || size === null) {
+      return;
+    }
+    const frame = { width: video.clientWidth, height: video.clientHeight };
+    const shown = containSize(size, frame);
+    if (shown === null) {
+      return;
+    }
+    const width = `${(shown.width / frame.width) * 100}%`;
+    const height = `${(shown.height / frame.height) * 100}%`;
+    const left = `${((frame.width - shown.width) / 2 / frame.width) * 100}%`;
+    const top = `${((frame.height - shown.height) / 2 / frame.height) * 100}%`;
+    const style = canvas.style;
+    if (
+      style.width !== width ||
+      style.height !== height ||
+      style.left !== left ||
+      style.top !== top ||
+      style.objectFit !== 'fill'
+    ) {
+      style.width = width;
+      style.height = height;
+      style.left = left;
+      style.top = top;
+      style.right = 'auto';
+      style.bottom = 'auto';
+      style.objectFit = 'fill';
+    }
   };
 
   // resize は、映す大きさと届くコマの大きさが変わったら、テクスチャを作り直す。
@@ -319,11 +362,14 @@ export function attachVideoOverlay(
     return false;
   };
 
-  // onSeeking は、シークを始めたら、前の位置のコマを破棄する。シークした先のコマが届くまで、canvas を隠して video を見せる。
+  // onSeeking は、シークを始めたか、読み直して映像が空になったら、前のコマを破棄する。
+  // 次のコマが届くまで、canvas を隠して video を見せる。
   const onSeeking = () => {
     frames = [];
     estimated = null;
     times = [];
+    clock = null;
+    stale = true;
   };
 
   // onFrame は、video が新しいコマを出したときに、そのコマをコピーし、補間するなら前のコマとの動きを推し量る。
@@ -487,7 +533,13 @@ export function attachVideoOverlay(
     }
     try {
       // シークの間は、video が出す新しいコマを待つ。
-      const drawn = !video.seeking && (drawInterpolated(now) || drawUpscaled());
+      const drawn =
+        !video.seeking &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        (drawInterpolated(now) || drawUpscaled());
+      if (drawn) {
+        place();
+      }
       if (!drawn) {
         pacer.reset();
       }
@@ -502,8 +554,45 @@ export function attachVideoOverlay(
     loopHandle = requestAnimationFrame(loop);
   };
 
+  // copyPaused は、止めている間に入れたとき、映っているコマをすぐコピーする。
+  // 止めている間は requestVideoFrameCallback が呼ばれないので、待つと再生を始めるまで拡大して描けない。
+  // 届いたコマの大きさは通知されないので、前に届いたコマの大きさか、なければ映す大きさとみなす。
+  const copyPaused = () => {
+    if (
+      gl === null ||
+      frames.length > 0 ||
+      !video.paused ||
+      video.seeking ||
+      video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+      video.videoWidth <= 0 ||
+      video.videoHeight <= 0
+    ) {
+      return;
+    }
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    resize(width, height, frameSize?.width ?? width, frameSize?.height ?? height);
+    const texture = textures[0];
+    if (texture === undefined) {
+      return;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    frames = [{ slot: 0, mediaTime: video.currentTime }];
+    stale = true;
+  };
+
   const start = () => {
     if (!setup()) {
+      return;
+    }
+    try {
+      copyPaused();
+    } catch (error) {
+      fail(error);
+
       return;
     }
     fit();
@@ -566,6 +655,7 @@ export function attachVideoOverlay(
       stop();
       resizes?.disconnect();
       video.removeEventListener('seeking', onSeeking);
+      video.removeEventListener('emptied', onSeeking);
       upscaler?.destroy();
       interpolator?.destroy();
       freeComposed();
