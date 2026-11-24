@@ -29,8 +29,6 @@ const (
 	NotifyChannel = "epg"
 	// changeRetention は、EPG の変更の記録を残す期間。受け取る側は、これより長く止まっていたら全体を読み直す。
 	changeRetention = 24 * time.Hour
-	// rewriteRetention は、番組名と概要の書き換えの記録 (#1558) を残す期間。
-	rewriteRetention = 90 * 24 * time.Hour
 	// serviceIDBase は、Mirakurun のサービス ID と番組 ID を組み立てる基数 (networkId × 100000 + serviceId)。
 	serviceIDBase = 100_000
 )
@@ -309,9 +307,6 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 				return err
 			}
 		}
-		if err := recordRewrites(ctx, q, programs, now); err != nil {
-			return err
-		}
 		deleted, err := deletePrograms(ctx, q, programs.deletes, now)
 		if err != nil {
 			return err
@@ -342,9 +337,6 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 		}
 		if _, err := q.PruneEPGChanges(ctx, now.Add(-changeRetention)); err != nil {
 			return fmt.Errorf("failed to prune EPG changes: %w", err)
-		}
-		if _, err := q.PruneProgramRewrites(ctx, now.Add(-rewriteRetention)); err != nil {
-			return fmt.Errorf("failed to prune program rewrites: %w", err)
 		}
 
 		return nil
@@ -846,61 +838,6 @@ func int64Ptr(v *int) *int64 {
 	}
 
 	return new(int64(*v))
-}
-
-// programRewrite は、放送前の番組の、番組名か概要の書き換え (#1558)。
-type programRewrite struct {
-	field  string
-	before string
-	after  string
-}
-
-// rewritesOf は、番組 old から p への、番組名と概要の書き換えを返す。
-func rewritesOf(old, p *program) []programRewrite {
-	rewrites := []programRewrite{}
-	if old.Name != p.Name {
-		rewrites = append(rewrites, programRewrite{field: "name", before: old.Name, after: p.Name})
-	}
-	if old.Description != p.Description {
-		rewrites = append(rewrites, programRewrite{field: "description", before: old.Description, after: p.Description})
-	}
-
-	return rewrites
-}
-
-// recordRewrites は、放送前の番組の、番組名と概要の書き換えを記録する (#1558)。
-// 書き換えが放送開始のどれだけ前まで起きるかを計測し、ルール予約の直前の猶予 (#1501) を決め直すのに使う。
-// 放送が始まった番組の書き換えは、猶予に関わらないので残さない。
-func recordRewrites(ctx context.Context, q *sqlc.Queries, diff *programDiff, now time.Time) error {
-	params := []sqlc.InsertProgramRewritesParams{}
-	for _, p := range diff.upserts {
-		old, ok := diff.previous[p.key()]
-		if !ok || !p.StartAt.After(now) {
-			continue
-		}
-		for _, rewrite := range rewritesOf(old, p) {
-			params = append(params, sqlc.InsertProgramRewritesParams{
-				ServiceID:  p.ServiceID,
-				EventID:    p.EventID,
-				StartAt:    p.StartAt,
-				Field:      rewrite.field,
-				Before:     rewrite.before,
-				After:      rewrite.after,
-				ObservedAt: now,
-			})
-		}
-	}
-	if len(params) == 0 {
-		return nil
-	}
-	errs := []error{}
-	q.InsertProgramRewrites(ctx, params).Exec(func(i int, err error) {
-		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to record a rewrite of program %d/%d: %w", params[i].ServiceID, params[i].EventID, err))
-		}
-	})
-
-	return errors.Join(errs...)
 }
 
 // sameSearchText は、前の番組 old の正規化した番組名、概要、詳細が、新しいものと同じかどうかを返す (#966)。

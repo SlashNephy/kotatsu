@@ -140,13 +140,6 @@ DELETE FROM epg_changes WHERE created_at < @before;
 -- name: ListEPGChangesSince :many
 SELECT version, service_id, start_at, end_at FROM epg_changes WHERE version > @version ORDER BY version, service_id;
 
--- name: InsertProgramRewrites :batchexec
-INSERT INTO program_rewrites (service_id, event_id, start_at, field, before, after, observed_at)
-VALUES (@service_id, @event_id, @start_at, @field, @before, @after, @observed_at);
-
--- name: PruneProgramRewrites :execrows
-DELETE FROM program_rewrites WHERE observed_at < @before;
-
 -- name: ServiceExists :one
 SELECT EXISTS (SELECT 1 FROM services WHERE id = @id);
 

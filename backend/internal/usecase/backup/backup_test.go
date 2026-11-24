@@ -176,8 +176,10 @@ description_normalized, extended, genres, related_items, created_at, updated_at)
 VALUES (3273601024, 100, 1, $1, $2, false, true, 'ニュース', '', 'ニュース', '', '{}', '[]', '[]', $3, $3)`, []any{testNow().Add(time.Hour), testNow().Add(2 * time.Hour), testNow()}},
 		// COPY の出力を区切る大きさ (4 MiB) より大きくし、1 つのテーブルを複数のエントリーに分けて書き、つないで戻すことを確認する。
 		// 暗号化の 1 つのチャンク (64 KiB) よりも大きいので、途中で切れたファイルは、流し込みの途中で読めなくなる。
-		{`INSERT INTO program_rewrites (service_id, event_id, start_at, field, before, after, observed_at)
-SELECT 3273601024, n, $1, 'name', md5(n::text || 'before'), md5(n::text || 'after'), $1 FROM generate_series(1, 60000) AS n`, []any{testNow()}},
+		{`INSERT INTO program_archives (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
+name_normalized, description_normalized, extended, genres, related_items, created_at, updated_at, archived_at)
+SELECT 3273601024, n, 1000000 + n, $1, $2, false, true, md5(n::text || 'name'), md5(n::text || 'description'), md5(n::text || 'name'),
+md5(n::text || 'description'), '{}', '[]', '[]', $1, $1, $2 FROM generate_series(1, 60000) AS n`, []any{testNow().Add(-2 * time.Hour), testNow().Add(-time.Hour)}},
 		{"INSERT INTO anime_match_cursor (id, epg_version, updated_at) VALUES (1, 500, $1)", []any{testNow()}},
 		{"INSERT INTO epg_changes (version, service_id, start_at, end_at, created_at) VALUES (500, 3273601024, $1, $2, $1)", []any{testNow(), testNow().Add(time.Hour)}},
 	}

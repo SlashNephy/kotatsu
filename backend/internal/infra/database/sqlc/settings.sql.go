@@ -11,7 +11,7 @@ import (
 )
 
 const getSystemSettings = `-- name: GetSystemSettings :one
-SELECT id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, history_max_drops, audit_retention_days, audit_client_info_retention_days, hibp_enabled, web_push_subject, thumbnail_previews_enabled, sleep_control_enabled, caption_threads, jikkyo_channels, updated_at FROM system_settings WHERE id = 1
+SELECT id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, history_max_drops, audit_retention_days, audit_client_info_retention_days, hibp_enabled, web_push_subject, thumbnail_previews_enabled, sleep_control_enabled, caption_threads, jikkyo_channels, updated_at FROM system_settings WHERE id = 1
 `
 
 func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) {
@@ -41,7 +41,6 @@ func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) 
 		&i.DrcsReplacements,
 		&i.TimeshiftWhileWatching,
 		&i.TimeshiftWhileWatchingRetentionSeconds,
-		&i.RuleUnmatchedGraceMinutes,
 		&i.HistoryMaxDrops,
 		&i.AuditRetentionDays,
 		&i.AuditClientInfoRetentionDays,
@@ -90,7 +89,7 @@ const lockSystemSettings = `-- name: LockSystemSettings :one
 INSERT INTO system_settings (id, recording_defaults, archive_retention_days, updated_at)
 VALUES (1, '{}', $1, $2)
 ON CONFLICT (id) DO UPDATE SET id = system_settings.id
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, history_max_drops, audit_retention_days, audit_client_info_retention_days, hibp_enabled, web_push_subject, thumbnail_previews_enabled, sleep_control_enabled, caption_threads, jikkyo_channels, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, history_max_drops, audit_retention_days, audit_client_info_retention_days, hibp_enabled, web_push_subject, thumbnail_previews_enabled, sleep_control_enabled, caption_threads, jikkyo_channels, updated_at
 `
 
 type LockSystemSettingsParams struct {
@@ -126,7 +125,6 @@ func (q *Queries) LockSystemSettings(ctx context.Context, arg LockSystemSettings
 		&i.DrcsReplacements,
 		&i.TimeshiftWhileWatching,
 		&i.TimeshiftWhileWatchingRetentionSeconds,
-		&i.RuleUnmatchedGraceMinutes,
 		&i.HistoryMaxDrops,
 		&i.AuditRetentionDays,
 		&i.AuditClientInfoRetentionDays,
@@ -195,7 +193,7 @@ UPDATE system_settings SET recording_defaults = $1, archive_retention_days = $2,
   jikkyo_channels = $31,
   updated_at = $32
 WHERE id = 1
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, history_max_drops, audit_retention_days, audit_client_info_retention_days, hibp_enabled, web_push_subject, thumbnail_previews_enabled, sleep_control_enabled, caption_threads, jikkyo_channels, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, history_max_drops, audit_retention_days, audit_client_info_retention_days, hibp_enabled, web_push_subject, thumbnail_previews_enabled, sleep_control_enabled, caption_threads, jikkyo_channels, updated_at
 `
 
 type UpdateSystemSettingsParams struct {
@@ -293,7 +291,6 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		&i.DrcsReplacements,
 		&i.TimeshiftWhileWatching,
 		&i.TimeshiftWhileWatchingRetentionSeconds,
-		&i.RuleUnmatchedGraceMinutes,
 		&i.HistoryMaxDrops,
 		&i.AuditRetentionDays,
 		&i.AuditClientInfoRetentionDays,
