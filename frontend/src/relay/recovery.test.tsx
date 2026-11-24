@@ -74,7 +74,7 @@ function setup(errors: Error[]) {
     </RelayEnvironmentProvider>,
   );
 
-  // recover は、つなぎ直していた接続がつながったことにして、サーバーが戻ったと知らせる。
+  // recover は、つなぎ直していた接続がつながったことにして、サーバーが戻ったと通知する。
   const recover = () => {
     const connection = tracker.track();
     connection.reconnecting();
@@ -94,7 +94,7 @@ describe('サーバーが戻ったときの描き直し', () => {
     act(recover);
 
     expect(await screen.findByText('みかん')).toBeDefined();
-    // Relay は失敗を覚えているので、読み込みのキーを変えなければ、送り直さない。
+    // Relay は失敗を保持しているので、読み込みのキーを変えなければ、送り直さない。
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 

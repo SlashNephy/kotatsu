@@ -112,7 +112,7 @@ func (h *ChapterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(Build(sections, tl))
 }
 
-// downloadsEnabled は、管理者が録画のダウンロードを有効にしているかを確かめる。有効でなければ、応答を書いて false を返す。
+// downloadsEnabled は、管理者が録画のダウンロードを有効にしているかを確認する。有効でなければ、応答を書いて false を返す。
 func (h *ChapterHandler) downloadsEnabled(w http.ResponseWriter, r *http.Request) bool {
 	enabled, err := h.gate.RecordingDownloadsEnabled(r.Context())
 	switch {

@@ -13,7 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 )
 
-// TestReporter は、進み具合を、書き戻しの間隔を空けて書き、FFmpeg が終わったときは間を空けずに書くことを確かめる (#1511)。
+// TestReporter は、進み具合を、書き戻しの間隔を空けて書き、FFmpeg が終わったときは間を空けずに書くことを確認する (#1511)。
 // 止めた後に届いたまとまりは読まず、止める前に読んで書いていない値は、止めた後でも書く。
 func TestReporter(t *testing.T) {
 	t.Parallel()

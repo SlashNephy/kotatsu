@@ -1,15 +1,16 @@
 import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
+import { preferenceChanged } from '../settings/syncedPreferences';
 
 // 再生中に視聴の画面から別の画面へ移ったら、画面の隅の小さなプレイヤーで再生を続けるか (#1602、設計書 7.5)。
-// 画面の広さや使い方は端末ごとに違うので、端末ごとに覚える。既定では続ける。
+// 端末をまたいで同期する (#1862)。既定では続ける。
 
 const storageKey = 'kotatsu.player.miniPlayer';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:mini-player';
 
-// loadMiniPlayer は、覚えた設定を読む。読めなければ、既定の true を返す。
+// loadMiniPlayer は、保存した設定を読む。読めなければ、既定の true を返す。
 export function loadMiniPlayer(storage: Pick<Storage, 'getItem'> | null): boolean {
   try {
     return storage?.getItem(storageKey) !== 'false';
@@ -18,10 +19,11 @@ export function loadMiniPlayer(storage: Pick<Storage, 'getItem'> | null): boolea
   }
 }
 
-// saveMiniPlayer は、設定を覚える。書けなくても、例外は投げない。
+// saveMiniPlayer は、設定を保存する。書けなくても、例外は投げない。
 export function saveMiniPlayer(storage: Pick<Storage, 'setItem'> | null, enabled: boolean): void {
   try {
     storage?.setItem(storageKey, String(enabled));
+    preferenceChanged(storageKey);
   } catch {
     // 書けなければ、次に開いたときは既定に戻るだけ。
   }

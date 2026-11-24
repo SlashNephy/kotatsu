@@ -15,12 +15,12 @@ import (
 // IntegrationsPath は、接続を終えたときに戻す、管理者の連携の画面のパス。
 const IntegrationsPath = "/admin/integrations"
 
-// CallbackHandler は、Google から戻ってきた認可を確かめ、始めたときの目的 (Google Drive の接続など) に応じて接続するハンドラーを返す
+// CallbackHandler は、Google から戻ってきた認可を確認し、始めたときの目的 (Google Drive の接続など) に応じて接続するハンドラーを返す
 // (GET /internal/auth/google/callback)。リダイレクト URI は Google の連携で共有し、目的は認可の途中の状態から決める。
 //
-// Google からのリダイレクトなので、Origin を確かめられない。代わりに、state で認可の途中の状態を引き、始めたセッションのまま
-// 戻ってきたことを確かめる。結果は、連携の画面へのリダイレクトで伝える。接続したら connected=google-drive を、失敗したら
-// error=<理由> を付けて戻す。理由には、トークンなどの中身を入れない。
+// Google からのリダイレクトなので、Origin を確認できない。代わりに、state で認可の途中の状態を引き、始めたセッションのまま
+// 戻ってきたことを確認する。結果は、連携の画面へのリダイレクトで伝える。接続したら connected=google-drive を、失敗したら
+// error=<理由> を付けて戻す。理由には、トークンなどの内容を入れない。
 func CallbackHandler(service *google.Service, db google.Database, client func(*http.Request) *auth.ClientInfo, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()

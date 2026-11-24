@@ -2,15 +2,15 @@ import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from '../yunomi/volume';
 
-// RecordKind は、この端末で記録するかを分けて覚える記録の種類。見たアニメ (#1283) と、見たドラマ (#1649)。
+// RecordKind は、この端末で記録するかを分けて保存する記録の種類。見たアニメ (#1283) と、見たドラマ (#1649)。
 export type RecordKind = 'anime' | 'drama';
 
-// storageKeys は、この端末で記録するかを覚えるキー。ほかの端末とは同期しない。アニメのキーは、分ける前のものをそのまま使う。
+// storageKeys は、この端末で記録するかを保存するキー。ほかの端末とは同期しない。アニメのキーは、分ける前のものをそのまま使う。
 const storageKeys: Record<RecordKind, string> = {
   anime: 'kotatsu.animeRecords.recordOnDevice',
   drama: 'kotatsu.dramaRecords.recordOnDevice',
 };
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:anime-record-on-device';
 
 // loadRecordOnDevice は、この端末で見たアニメ (kind が drama なら、見たドラマ) を記録するかを読む。既定では記録する。

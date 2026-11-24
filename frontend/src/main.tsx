@@ -25,13 +25,13 @@ import { routeTree } from './routeTree.gen';
 
 // 開発サーバーでだけ、React Grab で画面の要素からコンポーネントとソースの位置を写せるようにする。
 // import.meta.env.DEV は本番のビルドで false になり、React Grab のコードを含まない。
-// telemetry を切り、react-grab.com への版の問い合わせを送らない。
+// telemetry を切り、react-grab.com へのバージョンの問い合わせを送らない。
 if (import.meta.env.DEV) {
   void import('react-grab/core').then(({ init }) => init({ telemetry: false }));
 }
 
 // Mantine の Modal と Drawer は、背景のスクロールを止める <style> を react-remove-scroll で差し込む。
-// react-remove-scroll は get-nonce から nonce を引くので、CSP の nonce を渡しておく (設計書 10.4)。
+// react-remove-scroll は get-nonce から nonce を取得するので、CSP の nonce を渡しておく (設計書 10.4)。
 setNonce(cspNonce());
 
 // basepath は、Vite の base に合わせる。tenban は / に置き、静的なデモはサブパスに置く (#832)。
@@ -41,7 +41,7 @@ const router = createRouter({ routeTree, basepath: import.meta.env.BASE_URL });
 const environment =
   import.meta.env.MODE === 'demo' ? (await import('./demo')).installDemo() : createEnvironment();
 
-// Service Worker を登録する。新しい版があれば、次に開いたときに切り替わる。
+// Service Worker を登録する。新しいバージョンがあれば、次に開いたときに切り替わる。
 // デモは、ライブ視聴の映像を流す Service Worker を別に登録するので、登録しない。
 if (import.meta.env.MODE !== 'demo') {
   void registerSW({ immediate: true });

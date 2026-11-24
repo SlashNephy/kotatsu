@@ -1,5 +1,5 @@
 // 認証の API (/auth/*) を呼ぶ。GraphQL の外にあるのは、ログインする前に使うからである (設計書 9.2、9.3)。
-// tenban は、CSRF を防ぐため、POST の JSON だけを受け付け、Origin を確かめる。fetch は同じオリジンの Origin を付ける。
+// tenban は、CSRF を防ぐため、POST の JSON だけを受け付け、Origin を確認する。fetch は同じオリジンの Origin を付ける。
 
 import type {
   AuthenticationResponseJSON,
@@ -122,18 +122,18 @@ export const authApi = {
   beginEnrollment: () => post<TOTPEnrollment>('/internal/auth/login/totp/enrollment', {}),
   confirmEnrollment: (code: string) =>
     post<Completed>('/internal/auth/login/totp/enrollment/confirm', { code }),
-  // パスキーだけでログインする。どのユーザーかは、認証器が答える。
+  // パスキーだけでログインする。どのユーザーかは、オーセンティケーターが答える。
   beginPasskeyLogin: () => post<PasskeyAssertion>('/internal/auth/passkey/login', {}),
   confirmPasskeyLogin: (credential: AuthenticationResponseJSON) =>
     post<Completed>('/internal/auth/passkey/login/confirm', { credential }),
-  // パスワードの後の第二要素として、パスキーで確かめる。
+  // パスワードの後の第二要素として、パスキーで確認する。
   beginPasskeySecondFactor: () => post<PasskeyAssertion>('/internal/auth/login/passkey', {}),
   confirmPasskeySecondFactor: (credential: AuthenticationResponseJSON) =>
     post<Completed>('/internal/auth/login/passkey/confirm', { credential }),
   // OIDC でのログイン (設計書 9.4)。始めると、IdP の認可のエンドポイントを返すので、ブラウザーを送り出す。
   oidcStatus: () => get<OIDCStatus>('/internal/auth/oidc'),
   beginOIDC: () => post<{ authorizationUrl: string }>('/internal/auth/oidc', {}),
-  // ログイン中のセッションのまま、もう一度確かめる (設計書 9.3)。パスワードの変更などの前に求められる。
+  // ログイン中のセッションのまま、もう一度確認する (設計書 9.3)。パスワードの変更などの前に求められる。
   reauthenticate: (password: string, method: 'totp' | 'recovery_code', code: string) =>
     post<Reauthenticated>('/internal/auth/reauth', { password, method, code }),
   beginPasskeyReauthentication: () => post<PasskeyAssertion>('/internal/auth/reauth/passkey', {}),
@@ -143,7 +143,7 @@ export const authApi = {
     post<RegisteredPasskey>('/internal/auth/passkey/registration/confirm', { credential, name }),
   confirmPasskeyReauthentication: (credential: AuthenticationResponseJSON) =>
     post<Reauthenticated>('/internal/auth/reauth/passkey/confirm', { credential }),
-  // 重要な操作ができるか。重要な操作のある画面は、開いたときに確かめ、必要なら先に再認証させる (#981)。
+  // 重要な操作ができるか。重要な操作のある画面は、開いたときに確認し、必要なら先に再認証させる (#981)。
   reauthenticationStatus: () => get<ReauthenticationStatus>('/internal/auth/reauth'),
   // IdP で再認証する。終えると、returnTo のパスに戻る。失敗したときは、returnTo に error=<理由> が付く。
   beginOIDCReauthentication: (returnTo: string) =>

@@ -124,7 +124,7 @@ func toReservation(r *domain.Reservation) (*model.Reservation, error) {
 }
 
 // disabledReason は、Kotatsu が予約を無効にした理由を、スキーマの値にする (#1500)。理由がないか、有効な予約なら nil。
-// この列を知らない古いバイナリが有効に戻すと理由が残るので、有効な予約では返さない。
+// このカラムを知らない古いバイナリが有効に戻すと理由が残るので、有効な予約では返さない。
 func disabledReason(r *domain.Reservation) *domain.ReservationDisabledReason {
 	if r.Enabled || r.DisabledReason == "" {
 		return nil
@@ -133,7 +133,7 @@ func disabledReason(r *domain.Reservation) *domain.ReservationDisabledReason {
 	return new(r.DisabledReason)
 }
 
-// reservation は、予約を引く。
+// reservation は、予約を取得する。
 func (r *Resolver) reservation(ctx context.Context, globalID string) (*model.Reservation, error) {
 	reservationID, err := parseReservationID(globalID)
 	if err != nil {

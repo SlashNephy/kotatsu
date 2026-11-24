@@ -11,7 +11,7 @@ import (
 )
 
 // BenchmarkReport は、バッファがいっぱい (8000 行) で、チューナーサーバーからも 8000 行を受け取り、
-// 50 個の秘密を伏せるときの、画面を開く 1 回の時間を測る。
+// 50 個の秘密をマスクするときの、画面を開く 1 回の時間を計測する。
 func BenchmarkReport(b *testing.B) {
 	buffer := logring.NewBuffer(logring.DefaultCapacity, logring.DefaultMaxLineLength)
 	for i := range logring.DefaultCapacity {

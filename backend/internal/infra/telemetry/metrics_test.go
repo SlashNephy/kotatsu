@@ -186,7 +186,7 @@ func newRegistries(t *testing.T) (prometheus.Gatherer, prometheus.Gatherer) {
 	return instance, cluster
 }
 
-// TestNewMeterProviders は、Prometheus のレジストリの内容を、OTLP で送ることを確かめる (#962)。
+// TestNewMeterProviders は、Prometheus のレジストリの内容を、OTLP で送ることを確認する (#962)。
 func TestNewMeterProviders(t *testing.T) {
 	t.Parallel()
 
@@ -231,7 +231,7 @@ func TestNewMeterProviders(t *testing.T) {
 				for _, res := range resources {
 					switch {
 					case slices.Contains(res.names, clusterMetric):
-						// クラスターの範囲には、インスタンスも版も付けない。リーダーが替わっても系列が続くようにする。
+						// クラスターの範囲には、インスタンスもバージョンも付けない。リーダーが替わっても系列が続くようにする。
 						assert.Equal(t, map[string]string{"service.name": "kotatsu"}, res.attributes)
 						assert.Equal(t, []string{clusterMetric}, res.names)
 					default:
@@ -301,7 +301,7 @@ func TestNewMeterProviders(t *testing.T) {
 	}
 }
 
-// TestNewMeterProvidersDisabled は、送信先を設定していなければ、何も送らないことを確かめる。
+// TestNewMeterProvidersDisabled は、送信先を設定していなければ、何も送らないことを確認する。
 func TestNewMeterProvidersDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -319,7 +319,7 @@ func TestNewMeterProvidersDisabled(t *testing.T) {
 	assert.Empty(t, drain(ch))
 }
 
-// TestNewMeterProvidersWithoutReceiver は、受け手につながらなくても作れ、止めるのに時間をかけすぎないことを確かめる。
+// TestNewMeterProvidersWithoutReceiver は、受け手につながらなくても作れ、止めるのに時間をかけすぎないことを確認する。
 // 送れなくても、ロールを止めない。
 func TestNewMeterProvidersWithoutReceiver(t *testing.T) {
 	t.Parallel()

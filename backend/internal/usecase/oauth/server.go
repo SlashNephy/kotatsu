@@ -31,7 +31,7 @@ const (
 	// ConsentPath は、同意の画面のパス。認可のエンドポイントは、受け取ったクエリをそのまま付けて、この画面に送る。
 	ConsentPath = "/authorize"
 
-	// accessMark、refreshMark、codeMark は、アクセストークン、リフレッシュトークン、認可コードの頭に付ける印。
+	// accessMark、refreshMark、codeMark は、アクセストークン、リフレッシュトークン、認可コードの先頭に付けるプレフィックス。
 	// 漏れたものを見つけやすくし、API トークン (kotatsu_) と見分けられるようにする。
 	accessMark  = "kotatsu_at_"
 	refreshMark = "kotatsu_rt_"
@@ -120,7 +120,7 @@ func sameResource(got, want string) bool {
 	return g == w
 }
 
-// newSecret は、印を付けたランダムなトークンを返す。
+// newSecret は、プレフィックスを付けたランダムなトークンを返す。
 func newSecret(mark string) (string, error) {
 	raw := make([]byte, secretBytes)
 	if _, err := rand.Read(raw); err != nil {

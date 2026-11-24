@@ -73,7 +73,7 @@ func readHeader(r io.Reader) (uint32, uint32, error) {
 	return binary.LittleEndian.Uint32(head), binary.LittleEndian.Uint32(head[4:]), nil
 }
 
-// decode は、本文を読み、形の誤りがあればエラーを返す。新しい版の EpgTimerSrv が末尾に足した項目は、読まずに捨てる。
+// decode は、本文を読み、形の誤りがあればエラーを返す。新しいバージョンの EpgTimerSrv が末尾に足した項目は、読まずに破棄する。
 func decode[T any](cmd uint32, payload []byte, read func(*decoder) T) (T, error) {
 	d := newDecoder(payload)
 	v := read(d)
@@ -86,8 +86,8 @@ func decode[T any](cmd uint32, payload []byte, read func(*decoder) T) (T, error)
 	return v, nil
 }
 
-// versioned は、「2」の付くコマンドの応答の先頭の版を読み、続きを read で読む。
-// 求めた版と違っても、読めるところまで読む (EpgTimerSrv は、要求した版で書く)。
+// versioned は、「2」の付くコマンドの応答の先頭のバージョンを読み、続きを read で読む。
+// 求めたバージョンと違っても、読めるところまで読む (EpgTimerSrv は、要求したバージョンで書く)。
 func versioned[T any](read func(*decoder) T) func(*decoder) T {
 	return func(d *decoder) T {
 		_ = d.u16()

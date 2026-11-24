@@ -62,7 +62,7 @@ const dateTimeFormat = zonedFormat({
   hourCycle: 'h23',
 });
 
-// MissingRecordings は、セグメントのファイルが見つからない録画を探し、確かめてから DB から消す (設計書 5.6)。
+// MissingRecordings は、セグメントのファイルが見つからない録画を探し、確認してから DB から消す (設計書 5.6)。
 // ファイルを Kotatsu を通さずに消すと、録画の一覧に残り続けるので、管理者が片付ける。
 export function MissingRecordings() {
   const { t } = useTranslation();

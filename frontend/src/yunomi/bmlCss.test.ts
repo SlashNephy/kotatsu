@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest';
 
 // web-bml は、BML の文書の CSS を css パッケージで読み直してから描く。css は pnpm の override で @adobe/css-tools に
 // 差し替え、宣言の前の ; を読み飛ばすパッチを当てている (pnpm-workspace.yaml、#1471)。web-bml の位置から解決し、
-// web-bml が実際に読むパーサーを確かめる。
+// web-bml が実際に読むパーサーを確認する。
 type CSSParser = {
   parse: (css: string) => unknown;
   stringify: (ast: unknown, options?: { compress?: boolean }) => string;

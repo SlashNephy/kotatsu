@@ -1,7 +1,7 @@
 // Package dramarecord は、Kotatsu で見たドラマを Simkl に記録し、Simkl のウォッチリストを取り込む (#1649、設計書 3.9)。
 //
 // アニメの記録 (animerecord) と同じく、管理者が記録先に登録したアプリで、利用者が自分のアカウントを OAuth で繋ぐ。
-// 作品と話は、番組と録画に結びついた TMDb の作品とシーズンと話 (#1651) で指す。アニメの記録先はしょぼいカレンダーの作品と話数で
+// 作品と話は、番組と録画に結びついた TMDB の作品とシーズンと話 (#1651) で指す。アニメの記録先はしょぼいカレンダーの作品と話数で
 // 記録するので、記録先の interface は分け、ドラマの記録先は Destination の裏に置く。
 package dramarecord
 
@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// DestinationSimkl は、記録先の名前。DB の destination の列と同じ。
+	// DestinationSimkl は、記録先の名前。DB の destination のカラムと同じ。
 	DestinationSimkl = "simkl"
 	// requestTimeout は、記録先への 1 回の問い合わせの時間の上限。
 	requestTimeout = 20 * time.Second
@@ -55,7 +55,7 @@ type Token struct {
 	ExpiresIn time.Duration
 }
 
-// Episode は、記録する 1 話。TMDb のシーズンと話の番号で指す。
+// Episode は、記録する 1 話。TMDB のシーズンと話の番号で指す。
 type Episode struct {
 	Season int32
 	Number int32
@@ -79,9 +79,9 @@ type Recorded struct {
 	Status string
 }
 
-// Activities は、ウォッチリストが変わったかを確かめる、記録先の最後に変わった日時。記録先が返した文字列のまま持つ。
+// Activities は、ウォッチリストが変わったかを確認する、記録先の最後に変わった日時。記録先が返した文字列のまま持つ。
 type Activities struct {
-	// All は、すべての変更のうち、最も新しいもの。差分を引くときの date_from に渡す。
+	// All は、すべての変更のうち、最も新しいもの。差分を取得するときの date_from に渡す。
 	All string
 	// RemovedFromList は、テレビの作品をウォッチリストから外した、最も新しい日時。
 	RemovedFromList string
@@ -91,8 +91,8 @@ type Activities struct {
 type WatchlistItem struct {
 	// SimklID は、記録先の作品 ID。
 	SimklID int64
-	// TMDbID は、TMDb の作品 ID。記録先が持っていなければ 0。
-	TMDbID int32
+	// TMDBID は、TMDB の作品 ID。記録先が持っていなければ 0。
+	TMDBID int32
 	// Status は、ウォッチリストの状態 (StatusWatching など)。
 	Status string
 }
@@ -110,19 +110,19 @@ const (
 type Destination interface {
 	// Name は、記録先の名前 (DestinationSimkl など)。
 	Name() string
-	// Issuer は、認可の応答の iss に入る、記録先の認可サーバーの識別子。別のサーバーの応答を取り違えないよう、戻ってきたときに比べる。
+	// Issuer は、認可の応答の iss に入る、記録先の認可サーバーの識別子。別のサーバーの応答を取り違えないよう、戻ってきたときに比較する。
 	Issuer() string
 	// AuthCodeURL は、利用者を送り出す、記録先の認可のエンドポイントの URL を返す。PKCE (S256) を使う。
 	AuthCodeURL(app *App, redirectURI, state, verifier string) string
 	// Exchange は、認可コードをトークンと引き換える。書き込める権限がなければ、ErrPermanent を包んで返す。
 	Exchange(ctx context.Context, app *App, redirectURI, code, verifier string) (*Token, error)
-	// Refresh は、更新のトークンで、新しいアクセストークンを引く。更新のトークンが断られたら ErrReauthorizationRequired を返す。
+	// Refresh は、更新のトークンで、新しいアクセストークンを取得する。更新のトークンが断られたら ErrReauthorizationRequired を返す。
 	Refresh(ctx context.Context, app *App, refreshToken string) (*Token, error)
 	// AccountName は、トークンの持ち主の、記録先でのアカウントの名前を返す。
 	AccountName(ctx context.Context, app *App, accessToken string) (string, error)
 	// Revoke は、トークンを無効にする。
 	Revoke(ctx context.Context, app *App, token string) error
-	// RecordEpisodes は、TMDb の作品 seriesID の話 episodes を見たことを、1 回の問い合わせで記録する。
+	// RecordEpisodes は、TMDB の作品 seriesID の話 episodes を見たことを、1 回の問い合わせで記録する。
 	RecordEpisodes(ctx context.Context, app *App, accessToken string, seriesID int32, episodes []*Episode) (*Recorded, error)
 	// Activities は、ウォッチリストが最後に変わった日時を返す。
 	Activities(ctx context.Context, app *App, accessToken string) (*Activities, error)

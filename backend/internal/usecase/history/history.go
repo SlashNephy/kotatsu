@@ -3,37 +3,53 @@ package history
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain/episode"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
-// MaxDrops は、重複の回避で「録画済み」とみなすドロップの数の上限 (付録 A、#1497)。
-// 本番の録画 (2026-10-12〜11-12 の 1,538 件) では、ドロップは 0 件が 95% で、BS4K は
-// 19 件すべてに 3〜4 件が出ていた。地上波と BS で 2〜4 件の録画は 3 件だけだった。
-// BS4K の録画も録画済みとみなせるよう、上限を 4 件にする。
-const MaxDrops = 4
-
 // Eligible は、録画 recording を「録画済み」とみなして録画履歴に記録するかを返す。
-// 正常に終わり (完了かエラーありの完了)、ドロップが MaxDrops 以下で、スクランブルの警告がない録画だけを記録する。
-// スクランブルされたまま録れた録画を録画済みとみなすと、カードを直した後の再放送を録らなくなるからである (#1517)。
-func Eligible(recording *sqlc.Recording) bool {
+// 正常に終わり (完了かエラーありの完了)、判定に数えるドロップ (映像と音声の PID のドロップ) が maxDrops 以下で、
+// スクランブルの警告がない録画だけを記録する。maxDrops は、全体の設定の上限 (settings.System.HistoryMaxDrops、付録 A)。
+// スクランブルされたまま録れた録画を録画済みとみなすと、カードの不具合を修正した後の再放送を録らなくなるからである (#1517)。
+func Eligible(recording *sqlc.Recording, maxDrops int) bool {
 	return (recording.State == "completed" || recording.State == "completed_with_errors") &&
-		recording.Drops <= MaxDrops && !recording.ScrambleWarning
+		recording.JudgedDrops <= int64(maxDrops) && !recording.ScrambleWarning
+}
+
+// maxDropsOf は、全体の設定から、録画済みとみなすドロップの数の上限を読む。設定の行がなければ既定値を返す。
+func maxDropsOf(ctx context.Context, q *sqlc.Queries) (int, error) {
+	row, err := q.GetSystemSettings(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return settings.DefaultHistoryMaxDrops, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("failed to get the system settings: %w", err)
+	}
+
+	return int(row.HistoryMaxDrops), nil
 }
 
 // Record は、録画 recording が Eligible なら、録画履歴に記録する。
 func Record(ctx context.Context, q *sqlc.Queries, recording *sqlc.Recording, now time.Time) error {
-	if !Eligible(recording) {
+	maxDrops, err := maxDropsOf(ctx, q)
+	if err != nil {
+		return err
+	}
+	if !Eligible(recording, maxDrops) {
 		return nil
 	}
-	// 同じ回を束ねる (#1498) ときに回を読めるよう、録画の概要や、番組の記述子の話数なども写す。
+	// 同じ回をまとめる (#1498) ときに回を読めるよう、録画の概要や、番組の記述子の話数などもコピーする。
 	// 前の回を録らない (#1499) ときにシリーズ名で引けるよう、番組名から読んだシリーズ名も書く。
-	err := q.InsertRecordingHistoryFromRecording(ctx, sqlc.InsertRecordingHistoryFromRecordingParams{
+	err = q.InsertRecordingHistoryFromRecording(ctx, sqlc.InsertRecordingHistoryFromRecordingParams{
 		ID: id.New(), TitleKey: rule.TitleKey(recording.Name), Series: episode.SeriesOf(recording.Name), Now: now, RecordingID: recording.ID,
 	})
 	if err != nil {

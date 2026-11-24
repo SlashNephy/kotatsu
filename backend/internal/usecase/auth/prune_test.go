@@ -10,7 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
-// TestPruneSessions は、失効させた、絶対的な期限を過ぎた、無操作の期限を過ぎたセッションを消し、使えるセッションは残すことを確かめる。
+// TestPruneSessions は、失効させた、絶対的な期限を過ぎた、無操作の期限を過ぎたセッションを消し、使えるセッションは残すことを確認する。
 func TestPruneSessions(t *testing.T) {
 	t.Parallel()
 

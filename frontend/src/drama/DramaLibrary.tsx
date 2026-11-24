@@ -27,7 +27,7 @@ import type {
 } from './__generated__/DramaLibraryQuery.graphql';
 import type { DramaLibraryImportMutation } from './__generated__/DramaLibraryImportMutation.graphql';
 import type { DramaLibraryReserveMutation } from './__generated__/DramaLibraryReserveMutation.graphql';
-import { episodeLabel, TMDbAttribution } from './DramaEpisode';
+import { episodeLabel } from './DramaEpisode';
 import { DramaWatchedButton, DramaWatchStatusMenu, watchStatusOf } from './DramaWatchControls';
 import { dramaPeriodOf, matchesDramaFilters, type DramaFilters } from './library';
 
@@ -204,7 +204,6 @@ export function DramaLibrary({ filters }: { filters: DramaFilters }) {
           ))}
         </SimpleGrid>
       )}
-      <TMDbAttribution />
     </Stack>
   );
 }

@@ -36,7 +36,7 @@ func (failingEncoder) Run(_ context.Context, src io.Reader, _ *kyusu.Preset, _ k
 	return io.ErrUnexpectedEOF
 }
 
-// recordingWatcher は、パケットを 1 つ数えるたびに時計を 100 ミリ秒進める判定器を作り、スクランブルされたままと記録したサービスを覚える。
+// recordingWatcher は、パケットを 1 つ数えるたびに時計を 100 ミリ秒進める判定器を作り、スクランブルされたままと記録したサービスを保存する。
 type recordingWatcher struct {
 	mu       sync.Mutex
 	now      time.Time
@@ -74,8 +74,8 @@ func (w *recordingWatcher) list() []int64 {
 
 var _ kyusu.ScrambleWatcher = new(recordingWatcher)
 
-// TestLiveReportsScrambledStreams は、エンコーダーに流す TS がスクランブルされたまま届いたら、理由を記録してからセッションを閉じることを確かめる (#1517)。
-// エンコーダーが判定の前に降りたら、いちばん新しい窓だけで決める。
+// TestLiveReportsScrambledStreams は、エンコーダーに流す TS がスクランブルされたまま届いたら、理由を記録してからセッションを閉じることを確認する (#1517)。
+// エンコーダーが判定の前に降りたら、いちばん新しいウィンドウだけで決める。
 func TestLiveReportsScrambledStreams(t *testing.T) {
 	t.Parallel()
 
@@ -89,7 +89,7 @@ func TestLiveReportsScrambledStreams(t *testing.T) {
 		want       []int64
 	}{
 		{name: "scrambled for windows past the hold", data: bytes.Repeat(scrambled, 2), wantStatus: http.StatusServiceUnavailable, want: []int64{3273601024}},
-		// 窓 1 つに満たないまま、エンコーダーが降りる。埋まりかけの窓で決める。
+		// ウィンドウ 1 つに満たないまま、エンコーダーが降りる。埋まりかけのウィンドウで決める。
 		{name: "the encoder exits before a window fills", data: scrambled[:400*ts.PacketSize], wantStatus: http.StatusServiceUnavailable, want: []int64{3273601024}},
 		{name: "decrypted", data: bytes.Repeat(data, 2), wantStatus: http.StatusBadGateway, want: []int64{}},
 		{name: "the encoder exits with too few packets to decide", data: scrambled[:100*ts.PacketSize], wantStatus: http.StatusBadGateway, want: []int64{}},

@@ -40,11 +40,11 @@ type TunerServerStatus struct {
 	LastError     string
 	ClockSkewMs   *int64
 	CheckedAt     time.Time
-	// BroadcastClockSkewMs と BroadcastClockCheckedAt は、録画している TS の TOT で測った、放送の時刻と OS の時計の差と、
-	// 測った日時 (#1309)。まだ測っていなければ nil。
+	// BroadcastClockSkewMs と BroadcastClockCheckedAt は、録画している TS の TOT で計測した、放送の時刻と OS の時計の差と、
+	// 計測した日時 (#1309)。まだ計測していなければ nil。
 	BroadcastClockSkewMs    *int64
 	BroadcastClockCheckedAt *time.Time
-	// ServerKind と ServerVersion は、チューナーサーバーの種類 (tunerserver.Kind の値) と版 (#1538)。まだ分からなければ nil。
+	// ServerKind と ServerVersion は、チューナーサーバーの種類 (tunerserver.Kind の値) とバージョン (#1538)。まだ分からなければ nil。
 	ServerKind    *string
 	ServerVersion *string
 }
@@ -56,7 +56,7 @@ type StoragePool struct {
 	MinFreeBytes int64
 	LowSince     *time.Time
 	UpdatedAt    time.Time
-	// TotalBytes、FreeBytes、MeasuredAt は、容量の管理が最後に測った容量と空き容量と、測った日時 (#957)。測っていなければ nil。
+	// TotalBytes、FreeBytes、MeasuredAt は、容量の管理が最後に計測した容量と空き容量と、計測した日時 (#957)。計測していなければ nil。
 	TotalBytes *int64
 	FreeBytes  *int64
 	MeasuredAt *time.Time

@@ -178,7 +178,7 @@ func parseSDT(section []byte) (*SDT, bool) {
 	return sdt, true
 }
 
-// parseServiceDescriptor は、サービス記述子の中身 (service_type の後) から、事業者名とサービス名を読む。
+// parseServiceDescriptor は、サービス記述子の内容 (service_type の後) から、事業者名とサービス名を読む。
 func parseServiceDescriptor(data []byte) (string, string, bool) {
 	if len(data) < 2 {
 		return "", "", false

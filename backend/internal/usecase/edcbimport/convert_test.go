@@ -43,7 +43,7 @@ func TestRuleInput(t *testing.T) {
 		wantSkip bool
 	}{
 		{
-			// 印を外し、無効と大小の区別と番組の長さを読む。
+			// マークを外し、無効と大小の区別と番組の長さを読む。
 			name: "marks",
 			edit: func(a *edcb.AutoAdd) { a.Search.AndKey = "^!{999}C!{999}D!{100150090}アニメ　再放送" },
 			check: func(t *testing.T, c *match.Conditions, enabled bool, name string) {

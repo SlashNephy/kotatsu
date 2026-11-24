@@ -1,6 +1,6 @@
 import type { BenchmarkClip } from './benchmarkStream';
 
-// 「この端末で試す」(#1771、設計書 7.5)。合成の映像を、表示の経路ごとに短く再生し、コマが間に合うかを測る。
+// 「この端末で試す」(#1771、設計書 7.5)。合成の映像を、表示の経路ごとに短く再生し、コマが間に合うかを計測する。
 // 利用者の設定は書き換えず、TsPlayer に経路ごとの設定を渡す。結果は画面に出すだけで、どこにも送らない。
 
 // BenchmarkScenario は、試す経路。
@@ -26,44 +26,44 @@ export const benchmarkScenarios: readonly BenchmarkScenario[] = [
   { id: 'filmInterpolated', clip: 'film', fieldRate: false, interpolate: true },
 ];
 
-// baselineOf は、補間ありの経路と比べる、補間なしの経路。
+// baselineOf は、補間ありの経路と比較する、補間なしの経路。
 export const baselineOf: Partial<Record<BenchmarkScenarioID, BenchmarkScenarioID>> = {
   framesInterpolated: 'frames',
   filmInterpolated: 'film',
 };
 
-// warmupMs は、再生を始めてから測り始めるまでの時間。読み込みと、プルダウンを見つけるまでを測らない。
+// warmupMs は、再生を始めてから計測し始めるまでの時間。読み込みと、プルダウンを見つけるまでを計測しない。
 export const warmupMs = 3_000;
-// measureMs は、1 回に測る時間。
+// measureMs は、1 回に計測する時間。
 export const measureMs = 5_000;
-// runs は、経路ごとに測る回数。結果は中央値を出す。
+// runs は、経路ごとに計測する回数。結果は中央値を出す。
 export const runs = 3;
-// streamSeconds は、1 回に流す映像の長さ。測り終えるまでに映像が終わらない長さにする。
+// streamSeconds は、1 回に流す映像の長さ。計測し終えるまでに映像が終わらない長さにする。
 export const streamSeconds = 16;
 
 // Counters は、ある時点での、累計の数。
 export type Counters = {
-  // time は、測った時刻 (ミリ秒、performance.now)。
+  // time は、計測した時刻 (ミリ秒、performance.now)。
   time: number;
   // late は、yadif が作ったのに、間に合わず出さなかった絵の累計。
   late: number;
-  // dropped は、ブラウザが復号して、出さずに捨てたコマの累計 (video の要素が数えるもの)。
+  // dropped は、ブラウザが復号して、出さずに破棄したコマの累計 (video の要素が数えるもの)。
   dropped: number;
 };
 
 // RunResult は、1 回の測定の結果。
 export type RunResult = {
-  // fps は、測った間に出した 1 秒あたりのコマの数 (yadif が知らせた値の平均。補間したコマも数える)。
+  // fps は、計測した間に出した 1 秒あたりのコマの数 (yadif が通知した値の平均。補間したコマも数える)。
   fps: number;
   // latePerSecond は、1 秒あたりの、間に合わなかった絵とコマの数 (late と dropped の和)。
   latePerSecond: number;
-  // film は、測った間に、2:3 プルダウンを見つけて 24p で出していたか。
+  // film は、計測した間に、2:3 プルダウンを見つけて 24p で出していたか。
   film: boolean;
   // fieldRateDropped は、追いつかずに、フィールドごとの表示をやめたか。
   fieldRateDropped: boolean;
 };
 
-// summarizeRun は、測り始めと測り終わりの累計と、その間に知らせた fps から、1 回の結果を出す。
+// summarizeRun は、計測し始めと計測し終わりの累計と、その間に通知した fps から、1 回の結果を出す。
 // fps を 1 つも受け取らなければ null。
 export function summarizeRun(
   start: Counters,
@@ -97,7 +97,7 @@ export function median(values: readonly number[]): number | null {
   return sorted.length % 2 === 0 ? (sorted[middle - 1]! + sorted[middle]!) / 2 : sorted[middle]!;
 }
 
-// ScenarioResult は、経路ごとに、測った回をまとめた結果。
+// ScenarioResult は、経路ごとに、計測した回をまとめた結果。
 export type ScenarioResult = {
   id: BenchmarkScenarioID;
   // fps と latePerSecond は、測れた回の中央値。1 回も測れなければ null。
@@ -130,19 +130,19 @@ export function summarizeScenario(
 
 // smoothRatio は、なめらかとみなす、出したコマの数の割合。目指すコマの数 (フィールドごとの表示は 59.94、
 // 補間は画面の書き換えの速さ) にこれを掛けた数より多く出せば、なめらかとみなす。
-// 60Hz の画面で、コマごとの表示の補間は、補間の推定を総当たりで探していた版 (#1815 の前) では、内蔵 GPU
-// (UHD Graphics 770) で 40.9〜42.6 fps、スマートフォン (Pixel 10 Pro XL) で 54.7〜54.9 fps、2 段で探す版では、
+// 60Hz の画面で、コマごとの表示の補間は、補間の推定を総当たりで探していたバージョン (#1815 の前) では、内蔵 GPU
+// (UHD Graphics 770) で 40.9〜42.6 fps、スマートフォン (Pixel 10 Pro XL) で 54.7〜54.9 fps、2 ステップで探すバージョンでは、
 // どちらも 60 fps だった。その間に置く。
 export const smoothRatio = 0.95;
 // lateMargin は、補間ありの経路で、補間なしの経路より増えてもよい、1 秒あたりの間に合わなかったコマの数。
-// 上と同じ測定で、総当たりの版は 0.4 から 7.0 増え、2 段の版は 0 から 0.4 増えた。2 段の版がぶれで落ちないよう広めに取る。
-// 総当たりの版の Pixel は、ここでは落ちないが、コマの数で落ちる。
+// 上と同じ測定で、総当たりのバージョンは 0.4 から 7.0 増え、2 ステップのバージョンは 0 から 0.4 増えた。2 ステップのバージョンがぶれで落ちないよう広めに取る。
+// 総当たりのバージョンの Pixel は、ここでは落ちないが、コマの数で落ちる。
 export const lateMargin = 1;
 // fieldRate は、フィールドごとの表示で目指す、1 秒あたりのコマの数。
 const fieldRate = 60_000 / 1_001;
 
 // judge は、経路がなめらかに表示できたかを決める。補間なしの経路 (目指す数が放送のコマの数そのもの) と、
-// 測れなかった経路は null。baseline は、補間ありの経路と比べる補間なしの経路の結果。
+// 測れなかった経路は null。baseline は、補間ありの経路と比較する補間なしの経路の結果。
 export function judge(
   scenario: ScenarioResult,
   baseline: ScenarioResult | undefined,
@@ -171,7 +171,7 @@ export function judge(
 export type EstimateTiming = {
   // ms は、1440×1080 の 2 コマで 1 回推し量る時間 (ミリ秒)。
   ms: number;
-  // method は、測り方。gpu は GPU の時間 (EXT_disjoint_timer_query_webgl2)。
+  // method は、計測方法。gpu は GPU の時間 (EXT_disjoint_timer_query_webgl2)。
   // readback は、まとめて回して 1 画素を読み戻すまでの時間で、GPU の時間より小さく出ることがある。
   method: 'gpu' | 'readback';
 };

@@ -96,7 +96,7 @@ const maxConcurrentEstimates = 2
 
 // Estimate は、パスワードの強度を判定する。
 //
-// VM を判定のたびに作って捨てる。VM を保持すると、ヒープを 37 MiB ほど使い続けるからである。
+// VM を判定のたびに作って破棄する。VM を保持すると、ヒープを 37 MiB ほど使い続けるからである。
 // 判定はパスワードの設定と変更のときにしか行わないので、毎回作る時間 (0.3 秒ほど) は許容する。
 // userInputs には、ユーザー名のように、パスワードに使われると推測しやすい語を渡す。
 func (e *Estimator) Estimate(ctx context.Context, password string, userInputs []string) (*Strength, error) {

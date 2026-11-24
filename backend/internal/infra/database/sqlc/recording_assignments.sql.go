@@ -18,7 +18,7 @@ WITH target AS (
   SELECT a.id, a.state AS previous_state, a.lease_expires_at AS previous_lease_expires_at FROM recording_assignments a
   WHERE ((a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= $3::timestamptz))
     OR (a.state = 'handover' AND a.holder IS DISTINCT FROM $1::uuid))
-    -- 自分が録っている割り振りは取らない。DB が止まっていた間にリースの期限が切れても、取り直すと世代番号が進み、録画が止まる (#1073)。
+    -- 自分が録っている割り振りは取らない。DB が止まっていた間にリースの期限が切れても、取得し直すと世代番号が進み、録画が止まる (#1073)。
     AND NOT (a.id = ANY($4::uuid[]))
   ORDER BY a.priority DESC, a.created_at, a.id
   LIMIT 1
@@ -149,7 +149,7 @@ const getDatabaseNow = `-- name: GetDatabaseNow :one
 SELECT clock_timestamp()::timestamptz AS now
 `
 
-// DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比べるのに使う (#526)。
+// DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比較するのに使う (#526)。
 func (q *Queries) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 	row := q.db.QueryRow(ctx, getDatabaseNow)
 	var now time.Time
@@ -461,7 +461,7 @@ type MarkRecordingHandoverParams struct {
 	Holder     *uuid.UUID
 }
 
-// 止まる mikan が、割り振りに引き継ぎ待ちの印を付ける (設計書 5.4)。
+// 止まる mikan が、割り振りに引き継ぎ待ちのマークを付ける (設計書 5.4)。
 func (q *Queries) MarkRecordingHandover(ctx context.Context, arg MarkRecordingHandoverParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markRecordingHandover,
 		arg.Now,

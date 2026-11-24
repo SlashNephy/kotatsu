@@ -73,8 +73,8 @@ func usersOf(fake *faketuner.Server) int {
 	return users
 }
 
-// TestLiveHandlerRelaysAndReleases は、スクランブルを解除したストリームを TS のまま中継し、
-// クライアントが切断すると、上流の接続も閉じてチューナーを解放することを確かめる (設計書 7.2)。
+// TestLiveHandlerRelaysAndReleases は、スクランブルを解除したストリームを TS のまま配信し、
+// クライアントが切断すると、上流の接続も閉じてチューナーを解放することを確認する (設計書 7.2)。
 func TestLiveHandlerRelaysAndReleases(t *testing.T) {
 	t.Parallel()
 
@@ -101,7 +101,7 @@ func TestLiveHandlerRelaysAndReleases(t *testing.T) {
 	assert.Eventually(t, func() bool { return usersOf(fake) == 0 }, 5*time.Second, 10*time.Millisecond, "the tuner is released")
 }
 
-// TestLiveHandlerHead は、HEAD ではヘッダーだけを返し、チューナーを確保しないことを確かめる。
+// TestLiveHandlerHead は、HEAD ではヘッダーだけを返し、チューナーを確保しないことを確認する。
 func TestLiveHandlerHead(t *testing.T) {
 	t.Parallel()
 
@@ -117,7 +117,7 @@ func TestLiveHandlerHead(t *testing.T) {
 	assert.Never(t, func() bool { return usersOf(fake) > 0 }, 200*time.Millisecond, 10*time.Millisecond, "no tuner is acquired")
 }
 
-// TestLiveHandlerErrors は、ストリームを開けない理由に応じた状態を返すことを確かめる。
+// TestLiveHandlerErrors は、ストリームを開けない理由に応じた状態を返すことを確認する。
 func TestLiveHandlerErrors(t *testing.T) {
 	t.Parallel()
 

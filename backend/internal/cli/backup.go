@@ -22,7 +22,7 @@ var errSecretKeyMismatch = errors.New("the backup was made with a different app 
 	"pass --secret-key-out to save the key of the backup, and set it as auth.secret_key before starting kotatsu")
 
 // newBackupCommand は kotatsu admin backup を作る (#1926、設計書 11.4)。
-// DB とキャプチャの画像を、age の公開鍵で暗号化した 1 つのファイルに書き出す。
+// DB とキャプチャの画像を、age の公開鍵で暗号化した 1 つのファイルに出力する。
 func newBackupCommand(opts *Options, connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error)) *cobra.Command {
 	var output, recipientsFile string
 	var recipientKeys []string
@@ -189,7 +189,7 @@ func createSecretKeyFile(path string) (*secretKeyFile, error) {
 	return out, nil
 }
 
-// check は、バックアップの秘密キーを確かめる関数を返す。ファイルに書き出さないなら、設定の秘密キー configured と同じでなければ戻さない。
+// check は、バックアップの秘密キーを確認する関数を返す。ファイルに出力しないなら、設定の秘密キー configured と同じでなければ戻さない。
 func (s *secretKeyFile) check(configured string) func(string) error {
 	return func(key string) error {
 		if s.f == nil && key != configured {

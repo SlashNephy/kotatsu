@@ -23,7 +23,7 @@ func TestMarks(t *testing.T) {
 		{name: "bracketed marks", in: "[再]番組名【字】（二）", want: []string{"再", "字", "二"}},
 		{name: "bracketed words are mapped to the enclosed labels", in: "番組名[字幕][吹替][無料]", want: []string{"字", "吹", "無"}},
 		{name: "bracketed alphanumeric marks", in: "[HV]番組名[4K][5.1]", want: []string{"HV", "4K", "5.1"}},
-		// 表の語は、どれも括弧で書いた囲み文字とみなす (#1984)。
+		// テーブルの語は、どれも括弧で書いた囲み文字とみなす (#1984)。
 		{
 			name: "bracketed marks of every label in the table",
 			in:   "番組名[演][W][P][60P][120P][Hi-Res][Lossless][HC][d][2ndScr][VOD][鍵]",

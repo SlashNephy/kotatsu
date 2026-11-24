@@ -11,7 +11,7 @@ import {
   StreamLooper,
 } from '../../demo/stream-loop.js';
 
-// period は、デモの映像の長さ (映像の 1920 フレーム、90 kHz の刻み)。scripts/build-demo-stream.sh で作る長さ。
+// period は、デモの映像の長さ (映像の 1920 フレーム、90 kHz の単位)。scripts/build-demo-stream.sh で作る長さ。
 const period = 1920 * 3003;
 const videoPID = 0x100;
 const audioPID = 0x101;
@@ -48,7 +48,7 @@ function parse(bytes: Uint8Array): Packet[] {
   return packets;
 }
 
-// pts は、PES の頭のパケットから PTS を読む。
+// pts は、PES の先頭のパケットから PTS を読む。
 function pts(payload: Uint8Array): number {
   return (
     ((payload[9]! >> 1) & 0x07) * 2 ** 30 +

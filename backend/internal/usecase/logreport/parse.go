@@ -25,7 +25,7 @@ var (
 )
 
 // ParseTunerLog は、チューナーサーバーの /api/log の本文を、古い順の行にする (#1521)。
-// 形式の違う行 (時刻の読めない行) は捨てる。重さが無ければ、本文の言葉から推し量り、Inferred を立てる。
+// 形式の違う行 (時刻の読めない行) は破棄する。重さが無ければ、本文の言葉から推し量り、Inferred を立てる。
 // 時刻にタイムゾーンが無ければ、location の時刻として読む。
 func ParseTunerLog(body string, location *time.Location) []Line {
 	lines := []Line{}

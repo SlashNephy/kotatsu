@@ -5,8 +5,8 @@
 
 ## 必要なもの
 
-- [mise](https://mise.jdx.dev/)：Go、Node.js、pnpmなどのツールを、決めた版で入れます。
-- Docker（Compose v2を含む）：PostgreSQL、偽のチューナーサーバー、Kotatsuを動かします。
+- [mise](https://mise.jdx.dev/)：Go、Node.js、pnpmなどのツールを、決めたバージョンで入れます。
+- Docker（Compose v2を含む）：PostgreSQL、モックのチューナーサーバー、Kotatsuを動かします。
 
 ツールは、リポジトリの直下で次のコマンドを実行して入れてください。
 `mise install`は、そのディレクトリの`mise.toml`のツールだけを入れるので、`backend/`のツール（golangci-lint、sqlc、atlas）は`backend/`で入れます。
@@ -16,11 +16,19 @@ mise install
 mise -C backend install
 ```
 
+開発用の環境は、画面をhttpsで配信します（#2121）。
+証明書は[mkcert](https://github.com/FiloSottile/mkcert)で作るので、ブラウザがその証明書を信頼するよう、初めに一度だけ、mkcertのCAを手元に入れてください。
+このコマンドは、OSとブラウザの信頼する証明書にCAを足すので、パスワードを求められることがあります。
+
+```bash
+mise exec -- mkcert -install
+```
+
 ## Docker Composeで動かす
 
 リポジトリの直下の[compose.yaml](../compose.yaml)は、開発のための構成です。
 手元のソースをコンテナにマウントし、Kotatsuと画面の開発サーバーを動かします。
-PostgreSQL、偽のチューナーサーバー、Dexも一緒に動かします。
+PostgreSQL、モックのチューナーサーバー、Dexも一緒に動かします。
 
 ```bash
 mise run dev
@@ -28,20 +36,21 @@ mise run dev
 
 `mise run dev`は、`docker compose up --build`に、手元のユーザーのUIDとGIDを渡して実行します。
 コンテナの中で作ったファイルを、手元のユーザーの持ち物にするためです。
+その前に、`mise run dev:cert`で、`localhost`の証明書を`docker/dev-certs/`に作ります（作ってあれば作り直しません）。
 
 | サービス | 内容 | 手元からの接続先 |
 | --- | --- | --- |
 | `postgres` | PostgreSQL 18 | `127.0.0.1:55432`（ユーザーとパスワードはどちらも`postgres`） |
 | `postgres-test` | DBを使うGoのテスト専用のPostgreSQL 18。`mise run dev`では起動しません（後述の「テストを流す」） | `127.0.0.1:55433`（ユーザーとパスワードはどちらも`postgres`） |
-| `faketuner` | 偽のチューナーサーバー（`backend/internal/cmd/faketuner`） | `127.0.0.1:40772` |
+| `faketuner` | モックのチューナーサーバー（`backend/internal/cmd/faketuner`） | `127.0.0.1:40772` |
 | `dex` | 開発用のOIDCのIdP（[Dex](https://dexidp.io/)） | `http://dex.localhost:5556/dex` |
-| `kotatsu` | 全ロールを1つのコンテナで動かします | なし（`web`が中継します） |
+| `kotatsu` | 全ロールを1つのコンテナで動かします | なし（`web`がプロキシします） |
 | `web-install` | 画面の依存を入れます | なし |
-| `web` | 画面の開発サーバー（Vite）。ブラウザはここを開きます | `http://localhost:8080` |
+| `web` | 画面の開発サーバー（Vite）。ブラウザはここを開きます。httpsで配信し、APIへは`X-Forwarded-Proto`を付けてプロキシします | `https://localhost:8080` |
 | `generate` | SQLとGraphQLのスキーマの変更から、生成物を作り直します | なし |
 | `relay` | 画面のクエリの変更から、Relayの生成物を作り直します | なし |
 
-偽のチューナーサーバーは、`backend/testdata/ts/test.ts`を、すべてのサービスのストリームとして流します。
+モックのチューナーサーバーは、`backend/testdata/ts/test.ts`を、すべてのサービスのストリームとして流します。
 番組表も、テスト用のものを返します。
 実際のチューナーサーバーにつなぐ方法は、後述の「実際のチューナーサーバーにつなぐ」を見てください。
 
@@ -64,7 +73,7 @@ KOTATSU_DEV_PORT=18080 mise run dev
 
 ### 実際のチューナーサーバーにつなぐ
 
-`KOTATSU_DEV_TUNER_URL`にチューナーサーバーのURLを渡すと、偽のチューナーサーバーの代わりにつなぎます。
+`KOTATSU_DEV_TUNER_URL`にチューナーサーバーのURLを渡すと、モックのチューナーサーバーの代わりにつなぎます。
 あわせて`KOTATSU_DEV_DB`に名前を渡し、DBと録画を別のボリュームに分けてください。
 
 ```bash
@@ -73,8 +82,8 @@ KOTATSU_DEV_TUNER_URL=http://192.0.2.10:40772/ KOTATSU_DEV_DB=real mise run dev
 
 `KOTATSU_DEV_DB=real`なら、DBは`kotatsu-dev_postgres-real`、録画は`kotatsu-dev_recordings-real`のボリュームに置きます。生成物とタイムシフトのバッファも、同じく名前を分けます。
 渡さなければ、`kotatsu-dev_postgres`と`kotatsu-dev_recordings`を使います。
-偽のチューナーサーバーの番組表と、実際の番組表が混ざらないようにするためです。
-偽のチューナーサーバーのサービスには、実際のサービスと同じIDのものもあります。
+モックのチューナーサーバーの番組表と、実際の番組表が混ざらないようにするためです。
+モックのチューナーサーバーのサービスには、実際のサービスと同じIDのものもあります。
 
 同じ名前を渡せば、前のデータの続きから使えます。
 ボリュームを分けても、ポートは同じなので、2つを同時には動かせません。
@@ -85,7 +94,7 @@ KOTATSU_DEV_TUNER_URL=http://192.0.2.10:40772/ KOTATSU_DEV_DB=real mise run dev
 
 ### ログインする
 
-`http://localhost:8080/login`を開き、「Dexでログイン」を押してください。
+`https://localhost:8080/login`を開き、「Dexでログイン」を押してください。
 Dexの画面で、次のどれかのユーザーでログインします。
 パスワードはどれも`password`です。
 
@@ -127,8 +136,8 @@ docker compose logs kotatsu | grep setup_token
 マイグレーションは自動では作りません。
 `backend/db/schema.sql`を変えたら、`mise run //backend:db:diff -- <名前>`でマイグレーションを作ってください。
 
-ビルドに失敗したときは、`docker compose logs -f kotatsu`でエラーを確かめてください。
-直して保存すると、またビルドします。
+ビルドに失敗したときは、`docker compose logs -f kotatsu`でエラーを確認してください。
+修正して保存すると、またビルドします。
 
 `frontend/pnpm-lock.yaml`を変えたときは、依存を入れ直してから、開発サーバーを起動し直してください。
 
@@ -140,17 +149,18 @@ docker compose restart web
 `Dockerfile`や、ルートと`backend/`と`frontend/`の`mise.toml`、`mise.dev.toml`を変えたときは、`mise run dev`を実行し直してください。
 開発用のイメージを作り直します。
 
-`mise run //frontend:dev`は、Composeの外で画面の開発サーバーを`http://localhost:5173`に起動します。
+`mise run //frontend:dev`は、Composeの外で画面の開発サーバーを`https://localhost:5173`に起動します。
 Composeを使わずに、手元でKotatsuを`127.0.0.1:8080`に起動しているときに使います。
+画面の開発サーバーは、Kotatsuへプロキシするときに`X-Forwarded-Proto`などを付けるので、手元のKotatsuには、`KOTATSU_SERVER_TRUSTED_PROXIES=127.0.0.1/32,::1/128`を渡して、画面の開発サーバーを信頼させてください。
 
 ### 画面の要素からソースを辿る
 
 画面の開発サーバーでは、[React Grab](https://github.com/aidenybai/react-grab)が動きます。
-画面の下のツールバーから選ぶモードに入り、要素をクリックすると、その要素のHTMLと、それを描いたコンポーネントとファイルの名前をクリップボードに写します。
+画面の下のツールバーから選ぶモードに入り、要素をクリックすると、その要素のHTMLと、それを描いたコンポーネントとファイルの名前をクリップボードにコピーします。
 コーディングエージェントに画面の場所を伝えるときに使います。
 
 本番のビルドと静的なデモには含めません。
-版の問い合わせ（`react-grab.com`）は切っています。
+バージョンの問い合わせ（`react-grab.com`）は切っています。
 ただし、React Grabの表示に使うフォントを、ブラウザが`fonts.googleapis.com`から読み込みます。
 
 ## テストを流す
@@ -172,7 +182,7 @@ mise run //backend:test:db
 `postgres-test`は、Composeのprofileの`test`に入れてあるので、`mise run dev`では起動しません。
 
 テストは、テストごとに一時的なDB（`kotatsu_test_*`）を作り、終わると消します。
-`postgres-test`は、データをメモリ（tmpfs）に置き、ディスクに書き出すのを待ちません。
+`postgres-test`は、データをメモリ（tmpfs）に置き、ディスクへの書き込みを待ちません。
 テストが途中で止まって`kotatsu_test_*`が残ったときは、次のコマンドで再起動すると消えます。
 
 ```bash
@@ -200,7 +210,7 @@ mise run //frontend:screenshots
 mainへのpushのたびにCIが撮り直し、差があれば、画像を差し替えるPRを自動で作ってマージします。
 手で撮った画像をコミットする必要はありません。
 GitHubのSocial previewに使う`docs/screenshots/social-preview.png`も、番組表とライブ視聴の画像からここで合成します。GitHubへの反映は自動ではないので、この画像が大きく変わったら、リポジトリのSettingsのSocial previewからアップロードし直します。
-手元ではフォントなどがCIと違うので、撮るとすべての画像が書き換わります。撮れるかどうかや、見た目を確かめるのに使い、書き換わった画像はコミットしないでください。
+手元ではフォントなどがCIと違うので、撮るとすべての画像が書き換わります。撮れるかどうかや、見た目を確認するのに使い、書き換わった画像はコミットしないでください。
 
 ## よく使うコマンド
 
@@ -215,5 +225,5 @@ GitHubのSocial previewに使う`docs/screenshots/social-preview.png`も、番�
 | `mise run //backend:lint` | golangci-lintを実行する |
 | `mise run //frontend:check` | 画面のlintと型を確認する |
 | `mise run //frontend:test` | 画面のテストを実行する |
-| `mise run //frontend:screenshots` | READMEのスクリーンショットをデモから撮り直し、`docs/screenshots`に書き出す |
+| `mise run //frontend:screenshots` | READMEのスクリーンショットをデモから撮り直し、`docs/screenshots`に出力する |
 | `mise run //backend:db:diff -- <名前>` | `backend/db/schema.sql`の変更からマイグレーションを作る |

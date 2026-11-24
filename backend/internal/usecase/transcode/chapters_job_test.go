@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	// stepTranscode と stepDetect は、TestChaptersOrder の段。変換を終えるか、CM の区間を見分け終える。
+	// stepTranscode と stepDetect は、TestChaptersOrder のステップ。変換を終えるか、CM の区間を見分け終える。
 	stepTranscode = "transcode"
 	stepDetect    = "detect"
 	// chaptersKind は、チャプターを書くジョブの種類。
@@ -41,9 +41,9 @@ const (
 	fakeDuration = 30 * time.Minute
 )
 
-// fakeChapterer は、MP4 の中身を、書いた ffmetadata の中身にする Chapterer。チャプターの数は、中身の [CHAPTER] の数。
+// fakeChapterer は、MP4 の内容を、書いた ffmetadata の内容にする Chapterer。チャプターの数は、内容の [CHAPTER] の数。
 type fakeChapterer struct {
-	// metadata は、Rewrite に渡された ffmetadata の中身。チャプターを外すときは空。
+	// metadata は、Rewrite に渡された ffmetadata の内容。チャプターを外すときは空。
 	metadata []string
 	// failOn は、何回目 (1 から) の Rewrite を失敗させるか。0 なら失敗させない。
 	failOn int
@@ -93,7 +93,7 @@ func (c *fakeChapterer) Rewrite(ctx context.Context, _, metadata, out string) er
 	return copyFile(metadata, out)
 }
 
-// copyFile は、src のファイルを dst に写す。
+// copyFile は、src のファイルを dst にコピーする。
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
@@ -119,7 +119,7 @@ func runChapters(ctx context.Context, f *fixture, chapterer transcode.Chapterer,
 	return worker.Work(ctx, &river.Job[transcode.ChaptersArgs]{JobRow: new(rivertype.JobRow), Args: transcode.ChaptersArgs{RecordingID: recordingID}})
 }
 
-// transcoded は、録画 recordingID の、name の変換した MP4 (中身は content) を、60 コマで変換したその他のファイルとして置く。
+// transcoded は、録画 recordingID の、name の変換した MP4 (内容は content) を、60 コマで変換したその他のファイルとして置く。
 func (f *fixture) transcoded(t *testing.T, recordingID uuid.UUID, name string, content []byte) {
 	t.Helper()
 
@@ -131,7 +131,7 @@ func (f *fixture) transcoded(t *testing.T, recordingID uuid.UUID, name string, c
 	require.NoError(t, err)
 }
 
-// detect は、CM の区間を見分けるジョブが書くのと同じく、録画の CM の区間 (今の版の FFmpegDetector のもの) を sections に置き換え、
+// detect は、CM の区間を見分けるジョブが書くのと同じく、録画の CM の区間 (今のバージョンの FFmpegDetector のもの) を sections に置き換え、
 // 同じトランザクションの中で、見分け終えたことを ChaptersEnqueuer に渡す。
 func (f *fixture) detect(t *testing.T, recordingID uuid.UUID, sections ...cmdetect.Section) {
 	t.Helper()
@@ -139,7 +139,7 @@ func (f *fixture) detect(t *testing.T, recordingID uuid.UUID, sections ...cmdete
 	f.detectVersion(t, recordingID, new(cmdetect.FFmpegDetector).Version(), sections...)
 }
 
-// detectVersion は、detect を、FFmpegDetector の版 version で見分けたものとして行う。
+// detectVersion は、detect を、FFmpegDetector のバージョン version で見分けたものとして行う。
 func (f *fixture) detectVersion(t *testing.T, recordingID uuid.UUID, version int32, sections ...cmdetect.Section) {
 	t.Helper()
 
@@ -216,7 +216,7 @@ func wantMetadata(cms ...cmdetect.Section) string {
 }
 
 // TestChaptersWorkerRedetect は、CM の区間を見分け直すたびに、変換した MP4 のチャプターを書き直し、
-// CM が見つからなくなったら外すことを確かめる (#1510)。外すチャプターもなければ、写し直さない。
+// CM が見つからなくなったら外すことを確認する (#1510)。外すチャプターもなければ、コピーし直さない。
 func TestChaptersWorkerRedetect(t *testing.T) {
 	t.Parallel()
 
@@ -230,7 +230,7 @@ func TestChaptersWorkerRedetect(t *testing.T) {
 	tests := []struct {
 		name     string
 		sections []cmdetect.Section
-		// want は、MP4 の中身 (fakeChapterer が書いた ffmetadata)。wantRewrites は、それまでに写し直した回数。
+		// want は、MP4 の内容 (fakeChapterer が書いた ffmetadata)。wantRewrites は、それまでにコピーし直した回数。
 		want         string
 		wantRewrites int
 	}{
@@ -246,7 +246,7 @@ func TestChaptersWorkerRedetect(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, tt.want, string(written), tt.name)
 		assert.Len(t, chapterer.metadata, tt.wantRewrites, tt.name)
-		// 書き直した大きさを記録し直す。映像は写すだけなので、コマ数 (#1509) は変えない。
+		// 書き直した大きさを記録し直す。映像はコピーするだけなので、コマ数 (#1509) は変えない。
 		assert.Equal(t, []otherFile{{path: outputName, size: int64(len(written))}}, f.otherFiles(t, recordingID), tt.name)
 		assert.Equal(t, new(int32(60)), f.transcodeFrameRate(t, recordingID), tt.name)
 		assert.Empty(t, leftovers(t, f.dir), tt.name)
@@ -254,7 +254,7 @@ func TestChaptersWorkerRedetect(t *testing.T) {
 }
 
 // TestChaptersOrder は、変換と CM の区間の見分けのどちらが先に終わっても、チャプターを書くジョブを 1 つだけ入れ、
-// 1 回だけ正しく書くことを確かめる (#1510)。ジョブは media のキューに入れる。
+// 1 回だけ正しく書くことを確認する (#1510)。ジョブは media のキューに入れる。
 func TestChaptersOrder(t *testing.T) {
 	t.Parallel()
 
@@ -262,7 +262,7 @@ func TestChaptersOrder(t *testing.T) {
 	tests := []struct {
 		name  string
 		steps []string
-		// wantAfter は、それぞれの段の後に投入されているジョブの数。
+		// wantAfter は、それぞれのステップの後に投入されているジョブの数。
 		wantAfter []int
 	}{
 		{name: "transcoded first", steps: []string{stepTranscode, stepDetect}, wantAfter: []int{0, 1}},
@@ -296,7 +296,7 @@ func TestChaptersOrder(t *testing.T) {
 	}
 }
 
-// TestChaptersWorkerFails は、書き直せないか中止されたら、一時ファイルを消し、元の MP4 をどれも置き換えないことを確かめる (#1510)。
+// TestChaptersWorkerFails は、書き直せないか中止されたら、一時ファイルを消し、元の MP4 をどれも置き換えないことを確認する (#1510)。
 // 複数の画質の MP4 があれば、全部を書き終えるまで、どれも置き換えない。
 func TestChaptersWorkerFails(t *testing.T) {
 	t.Parallel()
@@ -340,7 +340,7 @@ func TestChaptersWorkerFails(t *testing.T) {
 	}
 }
 
-// TestChaptersWorkerSkips は、Kotatsu が変換した MP4 のない録画では、何も写さずに終えることを確かめる (#1510)。
+// TestChaptersWorkerSkips は、Kotatsu が変換した MP4 のない録画では、何もコピーせずに終えることを確認する (#1510)。
 // EPGStation から取り込んだ MP4 のように、変換した名前でないその他のファイルは書き換えない。
 func TestChaptersWorkerSkips(t *testing.T) {
 	t.Parallel()
@@ -406,19 +406,19 @@ func ffprobeFirstPTS(t *testing.T, path string) (int64, int64) {
 }
 
 // TestChaptersEndToEnd は、本物の FFmpeg で、GOP の途中から録り始めた録画を変換し、チャプターを書いて、
-// チャプターの時刻が、変換で捨てた先頭と、MP4 で映像が音声より遅れて始まる分を詰めたものになることを確かめる (#1510)。
-// 区間の時刻の基準 (最初の I フレームか、版 1 の今の見分け方の最初の映像の PES か) ごとに確かめる (#1811)。
+// チャプターの時刻が、変換で破棄した先頭と、MP4 で映像が音声より遅れて始まる分を詰めたものになることを確認する (#1510)。
+// 区間の時刻の基準 (最初の I フレームか、バージョン 1 の今の見分け方の最初の映像の PES か) ごとに確認する (#1811)。
 // FFmpeg のない環境 (CI など) では飛ばす。
 func TestChaptersEndToEnd(t *testing.T) {
 	t.Parallel()
 
 	chapterer := newChapterer(t)
 	f := newFixture(t)
-	// セグメントの中身は、後で合成した TS の途中からに替える。
+	// セグメントの内容は、後で合成した TS の途中からに替える。
 	recordingID := f.recording(t, tsPackets(1))
 	var segmentID uuid.UUID
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM recording_files WHERE recording_id = $1 AND kind = 'segment'", recordingID).Scan(&segmentID))
-	// 最初の GOP の途中のパケットから録り始めたことにする。最初の I フレームまでの映像は、変換が捨てる。
+	// 最初の GOP の途中のパケットから録り始めたことにする。最初の I フレームまでの映像は、変換が破棄する。
 	src, err := os.Open(testTS)
 	require.NoError(t, err)
 	defer src.Close()
@@ -430,7 +430,7 @@ func TestChaptersEndToEnd(t *testing.T) {
 	var index bytes.Buffer
 	writer, err := ts.NewIndexWriter(&index)
 	require.NoError(t, err)
-	// 録画と同じく、書きながら解析して索引を作る。
+	// 録画と同じく、書きながら解析してインデックスを作る。
 	_, err = io.Copy(io.MultiWriter(segment, ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer})), io.NewSectionReader(src, offset, info.Size()-offset))
 	require.NoError(t, err)
 	require.NoError(t, segment.Close())
@@ -460,9 +460,9 @@ func TestChaptersEndToEnd(t *testing.T) {
 		// lead は、CM の区間の時刻のうち、最初の I フレームより前にあって MP4 に入らない長さ (ミリ秒)。
 		lead int64
 	}{
-		// 今の版の区間は、最初の I フレームからの時間 (#1811)。
+		// 今のバージョンの区間は、最初の I フレームからの時間 (#1811)。
 		{name: "sections from the first I frame", version: new(cmdetect.FFmpegDetector).Version(), lead: 0},
-		// 版 1 の区間は、ファイルの最初の映像の PES からの時間。
+		// バージョン 1 の区間は、ファイルの最初の映像の PES からの時間。
 		{name: "sections from the first video PES", version: 1, lead: skipped},
 	}
 	for _, tt := range tests {

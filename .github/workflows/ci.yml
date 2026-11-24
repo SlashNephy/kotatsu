@@ -1,7 +1,7 @@
 name: CI
 
 # PR と main への push で走るものを、この workflow にまとめる (#1939、設計書 11.6)。
-# テスト、lint、生成物の確かめ、E2E、イメージ (image.yml)、CodeQL、依存の脆弱性、マニフェストの設定、スクリーンショットを確かめる。
+# テスト、lint、生成物の確認、E2E、イメージ (image.yml)、CodeQL、依存の脆弱性、マニフェストの設定、スクリーンショットを確認する。
 # 走らせるかどうかは changes のジョブで決め、workflow の paths では絞らない。必須のチェックは、結果をまとめる ci のジョブだけにする。
 # 定期の検査 (公開済みのイメージ、毎日の依存とマニフェスト、毎週の CodeQL) は scan.yml、リリースは release.yml が動かす。
 on:
@@ -33,6 +33,7 @@ jobs:
       web: ${{ steps.changes.outputs.web }}
       deploy: ${{ steps.changes.outputs.deploy }}
       mpeg2toh264: ${{ steps.changes.outputs.mpeg2toh264 }}
+      ffmpeg: ${{ steps.changes.outputs.ffmpeg }}
       image: ${{ steps.changes.outputs.image }}
       pnpm-audit: ${{ steps.changes.outputs.pnpm-audit }}
       kube-linter: ${{ steps.changes.outputs.kube-linter }}
@@ -60,9 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # DB は、対応する最も古い版と最新の版の両方で確かめる。
-    # oldest は、古いバージョンのマネージド DB や EPGStation の利用者の DB で動くことを確かめる版で、メジャーバージョンは手で上げる (atlas.hcl と揃える)。
-    # latest は、Renovate が最新の版に上げる。
+    # DB は、対応する最も古いバージョンと最新のバージョンの両方で確認する。
+    # oldest は、古いバージョンのマネージド DB や EPGStation の利用者の DB で動くことを確認するバージョンで、メジャーバージョンは手で上げる (atlas.hcl と揃える)。
+    # latest は、Renovate が最新のバージョンに上げる。
     strategy:
       fail-fast: false
       matrix:
@@ -87,7 +88,7 @@ jobs:
           --health-interval 2s
           --health-timeout 5s
           --health-retries 30
-      # EPGStation からの移行で読む DB。EPGStation が対応する MySQL と MariaDB の両方で確かめる。
+      # EPGStation からの移行で読む DB。EPGStation が対応する MySQL と MariaDB の両方で確認する。
       mysql:
         image: ${{ matrix.mysql }}
         env:
@@ -117,7 +118,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       # mise install は、そのディレクトリの config root のツールだけを入れる。backend/ のツール (golangci-lint、sqlc、atlas) も入れるよう、backend/ で動かす。
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
         with:
           working_directory: backend
       - uses: $/.github/actions/go-cache
@@ -153,7 +154,7 @@ jobs:
         with:
           persist-credentials: false
       # テストには Go だけを使う。golangci-lint、sqlc、atlas は入れない。
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
         with:
           working_directory: backend
           install_args: go
@@ -173,7 +174,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
         with:
           working_directory: backend
       - uses: $/.github/actions/go-cache
@@ -187,7 +188,7 @@ jobs:
       - run: go mod tidy -diff
         working-directory: backend
 
-  # Helm Chart から生成したマニフェストと、リポジトリの内容に差分がないことを確かめる (設計書 11.1)。
+  # Helm Chart から生成したマニフェストと、リポジトリの内容に差分がないことを確認する (設計書 11.1)。
   deploy:
     needs: changes
     if: needs.changes.outputs.deploy == 'true'
@@ -198,15 +199,15 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
       - run: mise run deploy:manifests
       - run: mise run deploy:test
       - run: git diff --exit-code deploy/
-      # リリースで Chart を作るのと同じく、パッケージにできることを確かめる。
+      # リリースで Chart を作るのと同じく、パッケージにできることを確認する。
       - run: helm package deploy/helm/kotatsu --destination "$RUNNER_TEMP"
 
   # ブラウザ内での変換に使う mpeg2toh264 のプレイヤーを、固定した commit とツールチェーンでビルドし直し、
-  # リポジトリに置いたものと差分がないことを確かめる (設計書 7.2)。
+  # リポジトリに置いたものと差分がないことを確認する (設計書 7.2)。
   mpeg2toh264:
     needs: changes
     if: needs.changes.outputs.mpeg2toh264 == 'true'
@@ -219,11 +220,26 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
         with:
           working_directory: frontend
       - run: mise run //frontend:mpeg2toh264
       - run: git add -N frontend/vendor frontend/public && git diff --exit-code frontend/vendor frontend/public
+
+  # ブラウザ内でデコードする経路の WASM の FFmpeg を、固定したバージョンと emscripten のイメージで組み直し、
+  # リポジトリに置いたものと差分がないことを確認する (設計書 7.2、#1516)。組むのは Docker の中で行う。
+  ffmpeg:
+    needs: changes
+    if: needs.changes.outputs.ffmpeg == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: frontend/scripts/build-ffmpeg.sh
+      - run: git add -N frontend/vendor/ffmpeg frontend/public/ffmpeg && git diff --exit-code frontend/vendor/ffmpeg frontend/public/ffmpeg
 
   generate:
     needs: changes
@@ -233,7 +249,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
         with:
           working_directory: backend
       - uses: $/.github/actions/go-cache
@@ -245,7 +261,7 @@ jobs:
       - run: git add -N . && git diff --exit-code
 
   # フロントエンド (設計書 10.1)。整形、lint、型検査、Vitest、Storybook のビルド、E2E テストを行う。
-  # ルーティングと Relay の定義はビルドで生成するので、コミットしたものと食い違っていないかも確かめる。
+  # ルーティングと Relay の定義はビルドで生成するので、コミットしたものと食い違っていないかも確認する。
   web:
     needs: changes
     if: needs.changes.outputs.web == 'true'
@@ -254,21 +270,21 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
       - uses: $/.github/actions/pnpm-cache
       - run: mise run //frontend:check
       - run: mise run //frontend:test
       - run: mise run //frontend:storybook
       - run: mise run //frontend:build
-      # デモ (#832) も、スキーマや画面の変更でビルドが通らなくなっていないかを確かめる。
+      # デモ (#832) も、スキーマや画面の変更でビルドが通らなくなっていないかを確認する。
       - run: mise run //frontend:demo
       - run: git add -N . && git diff --exit-code
-      # Playwright のブラウザは、frontend/package.json で固定した @playwright/test の版に合わせて入れる。
+      # Playwright のブラウザは、frontend/package.json で固定した @playwright/test のバージョンに合わせて入れる。
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: frontend
       - run: mise run //frontend:e2e
 
-  # 偽のチューナーサーバーと Kotatsu を立てて、主な流れを E2E で確かめる (#508、設計書 11.6)。
+  # モックのチューナーサーバーと Kotatsu を立てて、主な流れを E2E で確認する (#508、設計書 11.6)。
   # 画面と Go のどちらが変わっても流す。web のジョブと並べて走らせ、CI の待ち時間を延ばさない。
   e2e-stack:
     needs: changes
@@ -293,13 +309,13 @@ jobs:
       KOTATSU_DATABASE_URL: postgres://postgres:postgres@localhost:5432/kotatsu?sslmode=disable
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
       - uses: $/.github/actions/pnpm-cache
       - uses: $/.github/actions/go-cache
         with:
           name: ${{ github.job }}
       - run: mise run //frontend:install
-      # Playwright のブラウザは、frontend/package.json で固定した @playwright/test の版に合わせて入れる。
+      # Playwright のブラウザは、frontend/package.json で固定した @playwright/test のバージョンに合わせて入れる。
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: frontend
       - run: mise run e2e:stack
@@ -310,12 +326,12 @@ jobs:
           path: frontend/test-results/
           retention-days: 7
 
-  # 配るアーカイブを、リリースと同じ組み方 (GoReleaser のスナップショット) で作る (#1523)。smoke-os が、Windows と macOS で開いて確かめる。
+  # 配布するアーカイブを、リリースと同じ組み方 (GoReleaser のスナップショット) で作る (#1523)。smoke-os が、Windows と macOS で開いて確認する。
   archives:
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
-    # 時間の上限は、測った時間 (アーカイブを作るのに 6 分ほど) にゆとりを足したもの。
+    # 時間の上限は、計測した時間 (アーカイブを作るのに 6 分ほど) にゆとりを足したもの。
     timeout-minutes: 20
     permissions:
       contents: read
@@ -323,9 +339,9 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
       - run: mise run release:snapshot
-      # 埋め込んだ画面の中で、返せることを確かめるファイル (字幕のフォントと、ブラウザ内での変換の WebAssembly) のパス。
+      # 埋め込んだ画面の中で、返せることを確認するファイル (字幕のフォントと、ブラウザ内での変換の WebAssembly) のパス。
       - name: List the embedded files to check
         run: |
           (cd backend/internal/web/webui/dist/app && find . -type f \( -name '*.wasm' -o -name 'rounded-mplus-1m-wadalab-mix*' \) | sed 's|^\.||' | sort) > dist/smoke-assets.txt
@@ -341,7 +357,7 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
-  # 配るアーカイブを Windows と macOS のランナーで開き、バイナリが起動して、画面と埋め込んだファイルを返すことを確かめる (#1523、設計書 11.6)。
+  # 配布するアーカイブを Windows と macOS のランナーで開き、バイナリが起動して、画面と埋め込んだファイルを返すことを確認する (#1523、設計書 11.6)。
   # macOS のランナーは混むと長く待たされ、空きがないと取り消されるので、まとめの ci の needs に入れず、PR を止めない。
   # 赤くなったら、その OS で壊れたということなので、見て直す。
   # macOS では、Go を変えたときに、DB を使わないテスト (test-os と同じもの) もこのジョブで流す (#1691)。
@@ -359,8 +375,8 @@ jobs:
             archive: darwin_arm64.tar.gz
             sleep: macos
     runs-on: ${{ matrix.os }}
-    # 時間の上限は、測った時間 (ジョブは 1 分半ほど、PostgreSQL の用意は 15 秒まで、起動の段は 20 秒ほど、macOS のテストは 3 分半ほど) に
-    # ゆとりを足したもの。固まった段で、ジョブ全体の上限を使い切らないよう、段ごとにも上限を設ける。
+    # 時間の上限は、計測した時間 (ジョブは 1 分半ほど、PostgreSQL の用意は 15 秒まで、起動のステップは 20 秒ほど、macOS のテストは 3 分半ほど) に
+    # ゆとりを足したもの。固まったステップで、ジョブ全体の上限を使い切らないよう、ステップごとにも上限を設ける。
     timeout-minutes: 30
     permissions:
       contents: read
@@ -371,8 +387,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      # 偽のチューナーサーバーを立てるのに、Go だけを使う。
-      - uses: jdx/mise-action@v5.2.8
+      # モックのチューナーサーバーを立てるのに、Go だけを使う。
+      - uses: jdx/mise-action@v5.2.9
         with:
           install_args: go
       - uses: actions/download-artifact@v8.0.2
@@ -402,8 +418,8 @@ jobs:
           "$pg_bin/createdb" -h 127.0.0.1 kotatsu_smoke
           echo "KOTATSU_DATABASE_URL=postgres://$(whoami)@127.0.0.1:5432/kotatsu_smoke?sslmode=disable" >>"$GITHUB_ENV"
           echo "KOTATSU_SMOKE_PSQL=$pg_bin/psql" >>"$GITHUB_ENV"
-      # スリープの抑止と起こす予約が OS に届き、外せることも確かめる (#1522、設計書 11.7)。Windows のランナーは管理者で動き、
-      # macOS では Kotatsu を sudo で動かす。どちらも、判定の間隔 (30 秒) の 3 回分まで待つ段が 4 つあるので、上限を延ばす。
+      # スリープの抑止と起こす予約が OS に届き、外せることも確認する (#1522、設計書 11.7)。Windows のランナーは管理者で動き、
+      # macOS では Kotatsu を sudo で動かす。どちらも、判定の間隔 (30 秒) の 3 回分まで待つステップが 4 つあるので、上限を延ばす。
       - name: Start the archive
         timeout-minutes: 10
         env:
@@ -415,8 +431,8 @@ jobs:
           EXPECTED_COMMIT: ${{ github.sha }}
         run: scripts/ci-smoke-archive.sh "$(ls "$ARCHIVES"/kotatsu_*_"$ARCHIVE")" "$ARCHIVES/smoke-assets.txt"
       # FFmpeg を入れ、Kotatsu が FFmpeg を使う経路 (代表画像、CM の区間の見分け、録画の変換、MP4 のチャプター) のテストを流す (#1523)。
-      # 配るアーカイブには FFmpeg を同梱しないので、利用者と同じく、OS のパッケージ管理で入れたものを使う。ほかのジョブには FFmpeg がなく、
-      # これらのテストは飛ぶので、ここが FFmpeg を使う経路を本物の FFmpeg で確かめる唯一の場になる。必須のチェックではないので、
+      # 配布するアーカイブには FFmpeg を同梱しないので、利用者と同じく、OS のパッケージ管理で入れたものを使う。ほかのジョブには FFmpeg がなく、
+      # これらのテストは飛ぶので、ここが FFmpeg を使う経路を本物の FFmpeg で確認する唯一の場になる。必須のチェックではないので、
       # 落ちても PR を止めない。DB を使うテストは、test-os と同じく飛ばす。
       - name: Install FFmpeg
         if: ${{ !cancelled() }}
@@ -437,13 +453,13 @@ jobs:
         run: |
           ffmpeg -hide_banner -version | head -n 1
           ffprobe -hide_banner -version | head -n 1
-          # 飛ばしたテストを数え、FFmpeg が見つからずに飛んだテストがあれば落とす。入れたつもりで確かめていない、を防ぐ。
+          # 飛ばしたテストを数え、FFmpeg が見つからずに飛んだテストがあれば落とす。入れたつもりで確認していない、を防ぐ。
           go test -v ./internal/usecase/thumbnail/... ./internal/usecase/transcode/... ./internal/usecase/cmdetect/... ./internal/usecase/autocaption/... | tee "$RUNNER_TEMP/ffmpeg-tests.log"
           if grep -n "FFmpeg is not installed" "$RUNNER_TEMP/ffmpeg-tests.log"; then
             echo "::error::FFmpeg was installed but the tests could not find it"
             exit 1
           fi
-      # macOS のテストは、起動を確かめた後に流す。起動を確かめるのに使った PostgreSQL は使わず、test-os と同じく DB を使うテストは飛ばす。
+      # macOS のテストは、起動を確認した後に流す。起動を確認するのに使った PostgreSQL は使わず、test-os と同じく DB を使うテストは飛ばす。
       - uses: $/.github/actions/go-cache
         if: ${{ !cancelled() && runner.os == 'macOS' && needs.changes.outputs.go == 'true' }}
         with:
@@ -458,7 +474,7 @@ jobs:
           KOTATSU_TEST_SKIP_DATABASE: "1"
         run: go test ./...
 
-  # Docker のイメージを作り、起動と脆弱性 (Trivy) を確かめる。main への push では ghcr.io に edge として公開する (image.yml)。
+  # Docker のイメージを作り、起動と脆弱性 (Trivy) を確認する。main への push では ghcr.io に edge として公開する (image.yml)。
   image:
     needs: changes
     if: needs.changes.outputs.image == 'true'
@@ -488,9 +504,9 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      # Go は、ビルドを見て解析する。go.mod より古い Go で autobuild が版を落としに行かないよう、mise で同じ版を入れる。
+      # Go は、ビルドを見て解析する。go.mod より古い Go で autobuild がバージョンを落としに行かないよう、mise で同じバージョンを入れる。
       - if: matrix.language == 'go'
-        uses: jdx/mise-action@v5.2.8
+        uses: jdx/mise-action@v5.2.9
         with:
           working_directory: backend
           install_args: go
@@ -500,7 +516,7 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
           matrix: ${{ toJSON(matrix) }}
 
-  # Go の依存と標準ライブラリの脆弱性を govulncheck で確かめ、呼び出している脆弱性があれば失敗にする (設計書 11.1、#1918)。
+  # Go の依存と標準ライブラリの脆弱性を govulncheck で確認し、呼び出している脆弱性があれば失敗にする (設計書 11.1、#1918)。
   # Code scanning には、定期の検査 (scan.yml) が main の結果を送る。
   govulncheck:
     needs: changes
@@ -515,7 +531,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
         with:
           working_directory: backend
           install_args: go
@@ -535,13 +551,13 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
         with:
           install_args: node pnpm
       - run: pnpm audit --audit-level high
         working-directory: frontend
 
-  # Helm Chart から生成したマニフェスト (all と split) の設定を kube-linter で確かめ、指摘があれば失敗にする (設計書 11.1、#1918)。
+  # Helm Chart から生成したマニフェスト (all と split) の設定を kube-linter で確認し、指摘があれば失敗にする (設計書 11.1、#1918)。
   kube-linter:
     needs: changes
     if: needs.changes.outputs.kube-linter == 'true'
@@ -554,14 +570,14 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
         with:
           install_args: aqua:stackrox/kube-linter
       - run: kube-linter lint deploy/kubernetes/all.yaml deploy/kubernetes/split.yaml
 
   # README のスクリーンショット (docs/screenshots) を、静的なデモから撮り直す (#621、設計書 11.6)。
-  # PR では、撮れることだけを確かめ、撮った画像を artifact に置く。
-  # 撮影は docs/screenshots と比べ、許容差を超えて変わった画像だけを書き換える (frontend/playwright.screenshots.config.ts)。
+  # PR では、撮れることだけを確認し、撮った画像を artifact に置く。
+  # 撮影は docs/screenshots と比較し、許容差を超えて変わった画像だけを書き換える (frontend/playwright.screenshots.config.ts)。
   # main への push では、docs/screenshots と差があれば、bot が画像を差し替える PR を作り (あれば更新し)、auto-merge を有効にする。
   # GITHUB_TOKEN で作った PR では、ほかの workflow が動かず、必須のチェックが付かない。そのため、PR は GitHub App のトークンで作る。
   screenshots:
@@ -574,12 +590,12 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v5.2.8
+      - uses: jdx/mise-action@v5.2.9
       - uses: $/.github/actions/pnpm-cache
       # 日本語のフォント。撮るたびに同じ PNG になるよう、ランナーに入れたものに揃える。
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
       - run: mise run //frontend:install
-      # Playwright のブラウザは、frontend/package.json で固定した @playwright/test の版に合わせて入れる。
+      # Playwright のブラウザは、frontend/package.json で固定した @playwright/test のバージョンに合わせて入れる。
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: frontend
       - run: mise run //frontend:screenshots
@@ -624,7 +640,33 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
         run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --merge
 
-  # workflow が使う actions が、.github/workflows/actions.lock に固定した commit と合っているかを確かめる (#790)。
+  # PR で足した行に、使わない語の一覧 (.yomiyasu-words/) の語がないかを確認する (#2131、docs/writing.md)。
+  # yomiyasu の lint は、scripts/yomiyasu.SOURCE に固定した commit を取り出して使う。main への push では走らせない。
+  words:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # PR では、main とのマージコミットを取り出すので、1 つ前の親 (main) との差分が PR の変更になる。
+          fetch-depth: 2
+          persist-credentials: false
+      # 取り出すのは scripts/yomiyasu.SOURCE に固定した commit だけ。commit が 40 桁でなければ止める。
+      # actions/checkout に動的な ref を渡さず、git fetch で commit を指して取る (CodeQL の actions/untrusted-checkout)。
+      - run: |
+          commit=$(sed -n 's/^commit=//p' scripts/yomiyasu.SOURCE)
+          if ! printf '%s' "$commit" | grep -Eqx '[0-9a-f]{40}'; then
+            echo "::error file=scripts/yomiyasu.SOURCE::commit must be a 40-character SHA"
+            exit 1
+          fi
+          git init -q "$RUNNER_TEMP/yomiyasu"
+          git -C "$RUNNER_TEMP/yomiyasu" fetch -q --depth 1 https://github.com/nanaism/yomiyasu.git "$commit"
+          git -C "$RUNNER_TEMP/yomiyasu" checkout -q --detach FETCH_HEAD
+          python3 scripts/check-words.py "$RUNNER_TEMP/yomiyasu/skills/yomiyasu" HEAD^1
+
+  # workflow が使う actions が、.github/workflows/actions.lock に固定した commit と合っているかを確認する (#790)。
   # actions は、uses: にタグで書き、commit はロックファイルで固定する。Renovate が actions を上げるときに、ロックファイルも作り直す。
   actions-lock:
     runs-on: ubuntu-latest
@@ -654,6 +696,7 @@ jobs:
       - lint
       - deploy
       - mpeg2toh264
+      - ffmpeg
       - generate
       - web
       - e2e-stack
@@ -664,6 +707,7 @@ jobs:
       - pnpm-audit
       - kube-linter
       - screenshots
+      - words
       - actions-lock
     runs-on: ubuntu-latest
     permissions: {}

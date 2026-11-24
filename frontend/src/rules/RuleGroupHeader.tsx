@@ -45,7 +45,7 @@ type HeaderProps = {
   // groups は、すべてのグループを並べる順に並べたもの。上と下へ移すときに使う。
   groups: readonly RuleGroup[];
   canEdit: boolean;
-  // onError は、グループの操作に失敗したことを知らせる。
+  // onError は、グループの操作に失敗したことを通知する。
   onError: () => void;
 };
 
@@ -98,7 +98,7 @@ export function RuleGroupHeader({
     [ids[index], ids[target]] = [ids[target]!, ids[index]!];
     reorder({
       variables: { ids },
-      // 並べ直したグループを、一覧の並び (ルートの ruleGroups) に写す。
+      // 並べ直したグループを、一覧の並び (ルートの ruleGroups) に反映する。
       updater: (store) => {
         const reordered = store.getPluralRootField('reorderRuleGroups');
         if (reordered != null) {

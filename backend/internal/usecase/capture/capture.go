@@ -123,6 +123,10 @@ func (c *Captures) Save(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, upl
 	if upload.ProgramName != nil {
 		programName = *upload.ProgramName
 	}
+	caption := ""
+	if upload.Caption != nil {
+		caption = *upload.Caption
+	}
 	row, err := sqlc.New(db).InsertCapture(ctx, sqlc.InsertCaptureParams{
 		ID:                    captureID,
 		UserID:                userID,
@@ -132,6 +136,7 @@ func (c *Captures) Save(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, upl
 		ServiceNameNormalized: domain.Normalize(upload.ServiceName),
 		ProgramNameNormalized: domain.Normalize(programName),
 		Caption:               upload.Caption,
+		CaptionNormalized:     new(domain.Normalize(caption)),
 		BroadcastAt:           upload.BroadcastAt,
 		TakenAt:               upload.TakenAt,
 		Size:                  int64(len(upload.Image)),
@@ -198,7 +203,7 @@ func (c *Captures) PrepareUserErasure(ctx context.Context, tx pgx.Tx, userID uui
 	}, nil
 }
 
-// validate は、残すキャプチャの情報と画像を確かめる。
+// validate は、残すキャプチャの情報と画像を確認する。
 func (c *Captures) validate(upload *Upload) error {
 	if len(upload.Image) > c.maxImageBytes {
 		return fmt.Errorf("%w: %d bytes (at most %d)", ErrTooLarge, len(upload.Image), c.maxImageBytes)

@@ -121,7 +121,7 @@ func (f *fixture) version(t *testing.T) int64 {
 	return version
 }
 
-// TestCheckFollowsTunerConfiguration は、チューナーの構成が変わると DB の状態も変わり、変更が通知されることを確かめる。
+// TestCheckFollowsTunerConfiguration は、チューナーの構成が変わると DB の状態も変わり、変更が通知されることを確認する。
 func TestCheckFollowsTunerConfiguration(t *testing.T) {
 	t.Parallel()
 
@@ -142,7 +142,7 @@ func TestCheckFollowsTunerConfiguration(t *testing.T) {
 	assert.Greater(t, f.version(t), first)
 }
 
-// TestRunRefreshesOnTrigger は、チューナーのイベントで Trigger されると、定期の取得を待たずに取得し直すことを確かめる。
+// TestRunRefreshesOnTrigger は、チューナーのイベントで Trigger されると、定期の取得を待たずに取得し直すことを確認する。
 func TestRunRefreshesOnTrigger(t *testing.T) {
 	t.Parallel()
 
@@ -163,7 +163,7 @@ func TestRunRefreshesOnTrigger(t *testing.T) {
 	require.Eventually(t, func() bool { return len(f.tuners(t)) == 1 }, 10*time.Second, 20*time.Millisecond)
 }
 
-// TestCheckWarnsClockSkew は、チューナーサーバーの時計のずれが閾値を超えると、警告をログに出し、ずれを状態に残すことを確かめる。
+// TestCheckWarnsClockSkew は、チューナーサーバーの時計のずれが閾値を超えると、警告をログに出し、ずれを状態に残すことを確認する。
 func TestCheckWarnsClockSkew(t *testing.T) {
 	t.Parallel()
 
@@ -195,7 +195,7 @@ func TestCheckWarnsClockSkew(t *testing.T) {
 	}
 }
 
-// TestCheckRecordsDegradedWhileUnreachable は、接続できない間は縮退中として記録し、接続が戻ったら解除することを確かめる。
+// TestCheckRecordsDegradedWhileUnreachable は、接続できない間は縮退中として記録し、接続が戻ったら解除することを確認する。
 func TestCheckRecordsDegradedWhileUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -247,8 +247,8 @@ func (d dateless) ServerDate(context.Context) (time.Time, error) {
 	return time.Time{}, d.err
 }
 
-// TestCheckRecordsTunersWithoutDate は、時計が取れなくても縮退にせず、チューナーの構成を記録することを確かめる。
-// 時計を返さない種類のサーバー (EDCB) では、確かめるたびに警告を出さない。
+// TestCheckRecordsTunersWithoutDate は、時計が取れなくても縮退にせず、チューナーの構成を記録することを確認する。
+// 時計を返さない種類のサーバー (EDCB) では、確認するたびに警告を出さない。
 func TestCheckRecordsTunersWithoutDate(t *testing.T) {
 	t.Parallel()
 
@@ -334,13 +334,13 @@ func (unidentified) Identify(context.Context) (*tunerserver.Identity, error) {
 	return nil, errors.New("the tuner server returned 500 for /api/version")
 }
 
-// TestCheckRecordsServerIdentity は、チューナーサーバーの種類と版を記録し、分からない間は最後に分かったものを残すことを確かめる (#1538)。
+// TestCheckRecordsServerIdentity は、チューナーサーバーの種類とバージョンを記録し、分からない間は最後に分かったものを残すことを確認する (#1538)。
 func TestCheckRecordsServerIdentity(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name string
-		// then は、一度記録した後に、もう一度確かめる前の変化。
+		// then は、一度記録した後に、もう一度確認する前の変化。
 		then func(t *testing.T, f *fixture) *tunerstate.Monitor
 	}{
 		{
@@ -414,7 +414,7 @@ func (o *occupying) set(occupancies []*tunerserver.TunerOccupancy, err error) {
 }
 
 // TestCheckRecordsTunerOccupancies は、チューナーサーバー自身の予約がチューナーを使う時間帯を DB に書き、変わったときだけ知らせ、
-// 読めないときは前に読んだものを残し、終わった時間帯は残さないことを確かめる (#1536)。
+// 読めないときは前に読んだものを残し、終わった時間帯は残さないことを確認する (#1536)。
 func TestCheckRecordsTunerOccupancies(t *testing.T) {
 	t.Parallel()
 
@@ -470,7 +470,7 @@ func TestCheckRecordsTunerOccupancies(t *testing.T) {
 			err:         nil, want: []string{}, notified: true,
 		},
 	}
-	// 段階は、前の段階の DB の状態の上に積むので、順に確かめる。
+	// 段階は、前の段階の DB の状態の上に積むので、順に確認する。
 	for _, tt := range tests {
 		before := f.version(t)
 		upstream.set(tt.occupancies, tt.err)

@@ -23,29 +23,29 @@ import (
 )
 
 const (
-	// indexName は、作り終えた索引のファイルの名前。
+	// indexName は、作り終えたインデックスのファイルの名前。
 	indexName = "index"
-	// partialIndexName は、作っている途中の索引のファイルの名前。I フレームを見つけるたびに追記するので、できた所まで読める。
+	// partialIndexName は、作っている途中のインデックスのファイルの名前。I フレームを見つけるたびに追記するので、できた所まで読める。
 	partialIndexName = "index.partial"
-	// sourceName は、索引を作った元のファイルの大きさと更新日時を記録するファイルの名前。
+	// sourceName は、インデックスを作った元のファイルの大きさと更新日時を記録するファイルの名前。
 	sourceName = "source.json"
-	// staleBuild は、作っている途中の索引が、これより長く伸びなければ、作っていたプロセスが落ちたとみなして作り直す時間。
-	// 別の tenban が作っている途中の索引は、作り直さずに使う。
+	// staleBuild は、作っている途中のインデックスが、これより長く伸びなければ、作っていたプロセスが落ちたとみなして作り直す時間。
+	// 別の tenban が作っている途中のインデックスは、作り直さずに使う。
 	staleBuild = time.Minute
-	// maxBuilds は、1 つの tenban で同時に作る索引の数。索引はファイルを読み通すので、ディスクを奪い合わないよう絞る。
+	// maxBuilds は、1 つの tenban で同時に作るインデックスの数。インデックスはファイルを読み通すので、ディスクを奪い合わないよう絞る。
 	maxBuilds = 2
-	// settleTime は、ファイルを最後に書いてから、索引を作り始めるまでに待つ時間。書いている途中のファイル (mikan が録っている
-	// プールの録画や、写している途中のファイル) は、作り終えるたびに大きさが変わり、作り直しを繰り返すので、索引を作らない。
+	// settleTime は、ファイルを最後に書いてから、インデックスを作り始めるまでに待つ時間。書いている途中のファイル (mikan が録っている
+	// プールの録画や、コピーしている途中のファイル) は、作り終えるたびに大きさが変わり、作り直しを繰り返すので、インデックスを作らない。
 	settleTime = time.Minute
-	// probeLimit は、映像の形式を読むときに、ファイルの頭から読む上限。
+	// probeLimit は、映像の形式を読むときに、ファイルの先頭から読む上限。
 	probeLimit = 16 << 20
 )
 
-// sourceVersion は、source.json の版。読み取る項目を足したら上げ、前の版の記録のファイルは、索引を作り直して埋める。
-// 2 で、放送の情報 (Broadcast)、音声の構成、ドロップの集計を足した (#1734 の 2 段目)。
+// sourceVersion は、source.json のバージョン。読み取る項目を足したら上げ、前のバージョンの記録のファイルは、インデックスを作り直して埋める。
+// 2 で、放送の情報 (Broadcast)、音声の構成、ドロップの集計を足した (#1734 の 2 つ目の段階)。
 const sourceVersion = 2
 
-// source は、索引を作った元のファイルの記録 (source.json)。
+// source は、インデックスを作った元のファイルの記録 (source.json)。
 type source struct {
 	Version int `json:"version"`
 	// Library と Path は、ファイルを見分ける値 (medialib.IdentityOf)。フォルダのライブラリではライブラリの名前とパス、
@@ -54,15 +54,15 @@ type source struct {
 	Path       string `json:"path"`
 	Size       int64  `json:"size"`
 	ModifiedAt int64  `json:"modifiedAt"`
-	// Complete は、索引を作り終えたかどうか。
+	// Complete は、インデックスを作り終えたかどうか。
 	Complete bool `json:"complete"`
 	// Video は、映像の形式。読めなければ nil。
 	Video *ts.VideoFormat `json:"video"`
-	// Broadcast は、TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報。読めなければ nil。索引を作り始める前に書く。
+	// Broadcast は、TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報。読めなければ nil。インデックスを作り始める前に書く。
 	Broadcast *Broadcast `json:"broadcast"`
-	// Audios は、放送中だった番組の音声の構成 (EPG と同じ形の JSON)。索引を作り終えたときに書く。読めなければ nil。
+	// Audios は、放送中だった番組の音声の構成 (EPG と同じ形の JSON)。インデックスを作り終えたときに書く。読めなければ nil。
 	Audios json.RawMessage `json:"audios,omitempty"`
-	// Quality は、ドロップなどの集計。索引を作り終えたときに書く。
+	// Quality は、ドロップなどの集計。インデックスを作り終えたときに書く。
 	Quality *Quality `json:"quality"`
 }
 
@@ -70,7 +70,7 @@ type source struct {
 type Broadcast struct {
 	// NetworkID は、SDT[actual] の original_network_id。読めなければ nil。
 	NetworkID *uint16 `json:"networkId"`
-	// ServiceID は、映像を持つ最初のサービスのサービス ID。索引と配信 (tsreadex の -n -1) も、このサービスを使う。
+	// ServiceID は、映像を持つ最初のサービスのサービス ID。インデックスと配信 (tsreadex の -n -1) も、このサービスを使う。
 	ServiceID uint16 `json:"serviceId"`
 	// ServiceName は、SDT[actual] のサービス名。読めなければ空。
 	ServiceName string `json:"serviceName"`
@@ -121,11 +121,11 @@ type Quality struct {
 	Scrambled int64 `json:"scrambled"`
 }
 
-// Index は、ライブラリのファイルの索引。
+// Index は、ライブラリのファイルのインデックス。
 type Index struct {
-	// Entries は、索引。まだなければ空。作っている途中なら、できた所まで。
+	// Entries は、インデックス。まだなければ空。作っている途中なら、できた所まで。
 	Entries []ts.IndexEntry
-	// Complete は、索引を作り終えたかどうか。
+	// Complete は、インデックスを作り終えたかどうか。
 	Complete bool
 	// Video は、映像の形式。まだ読んでいなければ nil。
 	Video *ts.VideoFormat
@@ -133,17 +133,17 @@ type Index struct {
 	Broadcast *Broadcast
 	// Audios は、音声の構成 (EPG と同じ形の JSON)。まだ読んでいないか、読めなければ nil。
 	Audios json.RawMessage
-	// Quality は、ドロップなどの集計。索引を作り終えるまでは nil。
+	// Quality は、ドロップなどの集計。インデックスを作り終えるまでは nil。
 	Quality *Quality
 }
 
-// Indexer は、ライブラリのファイルの索引を、データディレクトリの kago.LibraryIndexDir で読み書きする (設計書 5.8)。
-// 中に「ライブラリの名前とパスのハッシュ/」を作り、索引 (index か、作っている途中の index.partial) と、元のファイルの記録 (source.json) を置く。
+// Indexer は、ライブラリのファイルのインデックスを、データディレクトリの kago.LibraryIndexDir で読み書きする (設計書 5.8)。
+// 中に「ライブラリの名前とパスのハッシュ/」を作り、インデックス (index か、作っている途中の index.partial) と、元のファイルの記録 (source.json) を置く。
 //
-// 索引は、tenban が、ファイルを初めて開いたときに、裏で作る。nekonote のジョブにしないのは、次の理由による。
+// インデックスは、tenban が、ファイルを初めて開いたときに、裏で作る。nekonote のジョブにしないのは、次の理由による。
 //   - ファイラーで開いてすぐにシークしたいので、ほかのジョブの後に並ばせたくない。I フレームを見つけるたびに追記するので、作りながら使える。
-//   - 索引は配信の前に要るので、配信する tenban で作る。kyusu と nekonote (画像) は索引を読むだけにする。
-//   - 録画として登録しないので、ジョブの重複を防ぐ DB の行がない。同じ tenban の中では 1 つに束ね、別の tenban が作っている途中の索引は
+//   - インデックスは配信の前に要るので、配信する tenban で作る。kyusu と nekonote (画像) はインデックスを読むだけにする。
+//   - 録画として登録しないので、ジョブの重複を防ぐ DB の行がない。同じ tenban の中では 1 つにまとめ、別の tenban が作っている途中のインデックスは
 //     (伸び続けていれば) 使う。落ちた tenban の書きかけは、staleBuild 伸びなければ作り直す。
 //   - tenban を止めたら、作るのをやめる。次に開いたときに、始めから作り直す。
 type Indexer struct {
@@ -151,22 +151,22 @@ type Indexer struct {
 	libraries *medialib.Set
 	clock     clock.Clock
 	logger    *slog.Logger
-	// build は、索引を作るかどうか。kyusu は読むだけで作らない。
+	// build は、インデックスを作るかどうか。kyusu は読むだけで作らない。
 	build bool
 	slots chan struct{}
 
 	mu sync.Mutex
-	// building は、作っている途中の索引。片付ける (ClearArtifacts) ときに取りやめて、止まるのを待つ。
+	// building は、作っている途中のインデックス。片付ける (ClearArtifacts) ときに取りやめて、止まるのを待つ。
 	building map[string]*indexBuild
-	// clearing は、片付けている途中かどうか。その間は、索引を作り始めない。
+	// clearing は、片付けている途中かどうか。その間は、インデックスを作り始めない。
 	clearing bool
-	// stopped は、Run が終わるときに閉じる。索引を作る処理は、リクエストより長く、Run の間だけ動かす。
+	// stopped は、Run が終わるときに閉じる。インデックスを作る処理は、リクエストより長く、Run の間だけ動かす。
 	stopped  chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup
 }
 
-// NewIndexer は Indexer を返す。dataDir は、データディレクトリ。build が false なら、索引を読むだけで作らない。
+// NewIndexer は Indexer を返す。dataDir は、データディレクトリ。build が false なら、インデックスを読むだけで作らない。
 func NewIndexer(dataDir string, libraries *medialib.Set, clk clock.Clock, logger *slog.Logger, build bool) *Indexer {
 	return &Indexer{
 		dataDir: dataDir, libraries: libraries, clock: clk, logger: logger, build: build, slots: make(chan struct{}, maxBuilds),
@@ -174,7 +174,7 @@ func NewIndexer(dataDir string, libraries *medialib.Set, clk clock.Clock, logger
 	}
 }
 
-// Run は、ctx が終わるまで待ち、作っている途中の索引を止めて、止まるのを待つ。
+// Run は、ctx が終わるまで待ち、作っている途中のインデックスを止めて、止まるのを待つ。
 func (x *Indexer) Run(ctx context.Context) error {
 	<-ctx.Done()
 	x.mu.Lock()
@@ -185,7 +185,7 @@ func (x *Indexer) Run(ctx context.Context) error {
 	return nil
 }
 
-// Read は、大きさと更新日時が entry のファイル ref の索引を読む。索引がないか、ファイルが変わっていれば、空の索引を返す。
+// Read は、大きさと更新日時が entry のファイル ref のインデックスを読む。インデックスがないか、ファイルが変わっていれば、空のインデックスを返す。
 func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
 	empty := &Index{Entries: []ts.IndexEntry{}, Complete: false, Video: nil, Broadcast: nil, Audios: nil, Quality: nil}
 	src, err := x.readSource(ref)
@@ -202,11 +202,11 @@ func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
 	if src.Complete {
 		name = indexName
 	}
-	// 前の版の記録は、作り直して項目を埋めるまで、作り終えていないものとして返す。画面が読み直して、埋まった項目を受け取れるようにする。
+	// 前のバージョンの記録は、作り直して項目を埋めるまで、作り終えていないものとして返す。画面が読み直して、埋まった項目を受け取れるようにする。
 	complete := src.Complete && src.Version == sourceVersion
 	file, err := sharedfile.Open(filepath.Join(x.dir(ref), name))
 	if errors.Is(err, fs.ErrNotExist) && !complete {
-		// 書きかけの索引の名前を変えてから、作り終えたと記録するまでの間なら、作り終えた索引がある。索引ではシークできるが、
+		// 書きかけのインデックスの名前を変えてから、作り終えたと記録するまでの間なら、作り終えたインデックスがある。インデックスではシークできるが、
 		// ドロップなどの集計はまだ記録に書いていないので、作り終えていないものとして返す。画面が読み直して、集計を受け取る。
 		file, err = sharedfile.Open(filepath.Join(x.dir(ref), indexName))
 	}
@@ -230,8 +230,8 @@ func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
 	return src.index(entries, complete), nil
 }
 
-// Ensure は、ファイル ref (大きさと更新日時は entry) の索引を作り終えていなければ、裏で作り始める。
-// 同じ tenban で作っている途中か、別の tenban が作っている途中 (書きかけの索引が伸び続けている) なら、作り始めない。
+// Ensure は、ファイル ref (大きさと更新日時は entry) のインデックスを作り終えていなければ、裏で作り始める。
+// 同じ tenban で作っている途中か、別の tenban が作っている途中 (書きかけのインデックスが伸び続けている) なら、作り始めない。
 // 作る処理は、ctx (リクエスト) が終わっても、Run が終わるまで続ける。
 func (x *Indexer) Ensure(ctx context.Context, ref Ref, entry *medialib.Entry) {
 	if !x.build {
@@ -285,7 +285,7 @@ func (x *Indexer) Ensure(ctx context.Context, ref Ref, entry *medialib.Entry) {
 	})
 }
 
-// indexBuild は、作っている途中の索引。
+// indexBuild は、作っている途中のインデックス。
 type indexBuild struct {
 	// cancel は、作るのを取りやめる。
 	cancel context.CancelFunc
@@ -294,7 +294,7 @@ type indexBuild struct {
 }
 
 // Writing は、ファイル (大きさと更新日時は entry) を、書いている途中とみなすかを返す。最後に書いてから settleTime たっていなければ、
-// 書いている途中とみなし、索引を作らない。頭から再生することはできる。
+// 書いている途中とみなし、インデックスを作らない。頭から再生することはできる。
 func (x *Indexer) Writing(entry *medialib.Entry) bool {
 	return x.clock.Now().Sub(entry.ModifiedAt) < settleTime
 }
@@ -309,13 +309,13 @@ func (x *Indexer) isStopped() bool {
 	}
 }
 
-// dir は、ref の索引のディレクトリのパスを返す。
+// dir は、ref のインデックスのディレクトリのパスを返す。
 func (x *Indexer) dir(ref Ref) string {
 	return filepath.Join(x.dataDir, kago.LibraryIndexDir, indexKey(x.identify(ref)))
 }
 
 // identify は、ref を、ライブラリがファイルを見分ける値 (medialib.IdentityOf) に置き換える。Google Drive では、
-// フォルダをたどった道筋が違っても、同じファイルの索引を使い回す。
+// フォルダをたどった道筋が違っても、同じファイルのインデックスを使い回す。
 func (x *Indexer) identify(ref Ref) Ref {
 	library, ok := x.libraries.Get(ref.Library)
 	if !ok {
@@ -332,7 +332,7 @@ func (x *Indexer) matches(src *source, ref Ref, entry *medialib.Entry) bool {
 	return src.matches(Ref{Library: src.Library, Path: src.Path}, x.identify(ref), entry)
 }
 
-// buildIndex は、ファイルを読み通して、索引を作る。I フレームを見つけるたびに、書きかけの索引に追記する。
+// buildIndex は、ファイルを読み通して、インデックスを作る。I フレームを見つけるたびに、書きかけのインデックスに追記する。
 func (x *Indexer) buildIndex(ctx context.Context, ref Ref, entry *medialib.Entry) error {
 	library, ok := x.libraries.Get(ref.Library)
 	if !ok {
@@ -354,13 +354,13 @@ func (x *Indexer) buildIndex(ctx context.Context, ref Ref, entry *medialib.Entry
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create the index directory: %w", err)
 	}
-	// 記録には、ライブラリの名前とパスでなく、ファイルを見分ける値を置く。Google Drive のライブラリの名前を変えても、索引を使い回す。
+	// 記録には、ライブラリの名前とパスでなく、ファイルを見分ける値を置く。Google Drive のライブラリの名前を変えても、インデックスを使い回す。
 	identity := x.identify(ref)
 	src := &source{
 		Version: sourceVersion, Library: identity.Library, Path: identity.Path, Size: entry.Size, ModifiedAt: entry.ModifiedAt.UnixNano(), Complete: false,
 		Video: video, Broadcast: x.probeBroadcast(ctx, ref, file, entry.Size), Audios: nil, Quality: nil,
 	}
-	// 先に作り終えた索引を消してから、作っている途中だと記録する。読む側は、記録を見てから索引を選ぶ。
+	// 先に作り終えたインデックスを消してから、作っている途中だと記録する。読む側は、記録を見てからインデックスを選ぶ。
 	if err := os.Remove(filepath.Join(dir, indexName)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("failed to remove the old index: %w", err)
 	}
@@ -377,7 +377,9 @@ func (x *Indexer) buildIndex(ctx context.Context, ref Ref, entry *medialib.Entry
 	if err != nil {
 		return err
 	}
-	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil})
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{
+		Index: writer, CutoffPTS: nil, OnTOT: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil, OnPresentFollowing: nil,
+	})
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return fmt.Errorf("failed to seek the file: %w", err)
 	}
@@ -413,7 +415,7 @@ func (x *Indexer) buildIndex(ctx context.Context, ref Ref, entry *medialib.Entry
 	return x.writeSource(dir, src)
 }
 
-// count は、索引を作り終えたときの統計から、ドロップなどの集計と、放送中だった番組の音声の構成を記録に置く。
+// count は、インデックスを作り終えたときの統計から、ドロップなどの集計と、放送中だった番組の音声の構成を記録に置く。
 func (s *source) count(stats *ts.Stats) error {
 	s.Quality = &Quality{Drops: 0, Errors: 0, Scrambled: 0}
 	for _, pid := range stats.PIDs {
@@ -441,7 +443,7 @@ func (s *source) count(stats *ts.Stats) error {
 	return nil
 }
 
-// probeBroadcast は、ファイルの頭と終わりを読んで、放送の情報を返す。録画の取り込み (fileimport.ReadProbe) と同じく読み、
+// probeBroadcast は、ファイルの先頭と終わりを読んで、放送の情報を返す。録画の取り込み (fileimport.ReadProbe) と同じく読み、
 // 映像を持つ最初のサービスと、録った範囲に最も長く重なる番組を選ぶ。読めなければ nil を返す。
 func (x *Indexer) probeBroadcast(ctx context.Context, ref Ref, file io.ReaderAt, size int64) *Broadcast {
 	probe, err := fileimport.ReadProbe(file, size)
@@ -462,7 +464,7 @@ func (x *Indexer) probeBroadcast(ctx context.Context, ref Ref, file io.ReaderAt,
 	}
 }
 
-// readSource は、ref の索引の元のファイルの記録を読む。
+// readSource は、ref のインデックスの元のファイルの記録を読む。
 func (x *Indexer) readSource(ref Ref) (*source, error) {
 	data, err := sharedfile.ReadFile(filepath.Join(x.dir(ref), sourceName))
 	if err != nil {
@@ -486,17 +488,17 @@ func (x *Indexer) writeSource(dir string, src *source) error {
 	return WriteFile(dir, sourceName, data)
 }
 
-// WriteFile は、索引の置き場 dir に、name のファイルを、一時ファイルに書いてから置き換えて書く。読む側に書きかけのファイルを見せない。
-// 索引のほか、ライブラリのファイルの画像 (nekonote のジョブが作る) も、これで置く。
+// WriteFile は、インデックスの保存先 dir に、name のファイルを、一時ファイルに書いてから置き換えて書く。読む側に書きかけのファイルを見せない。
+// インデックスのほか、ライブラリのファイルの画像 (nekonote のジョブが作る) も、これで置く。
 func WriteFile(dir, name string, data []byte) error {
-	// 別の tenban が同じファイルの索引を作っていても、互いの一時ファイルを書き換えないよう、名前を重ねない。
+	// 別の tenban が同じファイルのインデックスを作っていても、互いの一時ファイルを書き換えないよう、名前を重ねない。
 	f, err := os.CreateTemp(dir, name+".*.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to write %s: %w", name, err)
 	}
 	tmp := f.Name()
 	defer func() { _ = os.Remove(tmp) }()
-	// 索引と同じく、kyusu (別のユーザーで動くこともある) からも読めるようにする。
+	// インデックスと同じく、kyusu (別のユーザーで動くこともある) からも読めるようにする。
 	err = f.Chmod(0o644)
 	if err == nil {
 		_, err = f.Write(data)
@@ -514,7 +516,7 @@ func WriteFile(dir, name string, data []byte) error {
 	return nil
 }
 
-// index は、記録と索引から Index を作る。
+// index は、記録とインデックスから Index を作る。
 func (s *source) index(entries []ts.IndexEntry, complete bool) *Index {
 	return &Index{Entries: entries, Complete: complete, Video: s.Video, Broadcast: s.Broadcast, Audios: s.Audios, Quality: s.Quality}
 }
@@ -524,10 +526,10 @@ func (s *source) matches(stored, ref Ref, entry *medialib.Entry) bool {
 	return stored == ref && s.Size == entry.Size && s.ModifiedAt == entry.ModifiedAt.UnixNano()
 }
 
-// ErrNoVideo は、ファイルの頭から、映像の形式を読めなかったことを表す。
+// ErrNoVideo は、ファイルの先頭から、映像の形式を読めなかったことを表す。
 var ErrNoVideo = errors.New("no video format was found at the head of the file")
 
-// ProbeVideo は、ファイルの頭を読んで、映像の形式を返す。読めなければ ErrNoVideo を返す。
+// ProbeVideo は、ファイルの先頭を読んで、映像の形式を返す。読めなければ ErrNoVideo を返す。
 // 192 バイトのパケットの Blu-ray の .m2ts なら fileimport.ErrBDAV を、TS でなければ fileimport.ErrNotTS を返す。
 func ProbeVideo(file io.ReaderAt, size int64) (*ts.VideoFormat, error) {
 	if err := fileimport.CheckPacketSize(file, size); err != nil {
@@ -538,7 +540,9 @@ func ProbeVideo(file io.ReaderAt, size int64) (*ts.VideoFormat, error) {
 }
 
 func probeVideo(file io.ReaderAt, size int64) (*ts.VideoFormat, error) {
-	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil})
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{
+		Index: nil, CutoffPTS: nil, OnTOT: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil, OnPresentFollowing: nil,
+	})
 	buf := make([]byte, ts.PacketSize*1024)
 	for offset := int64(0); offset < min(size, probeLimit); {
 		n, err := file.ReadAt(buf, offset)

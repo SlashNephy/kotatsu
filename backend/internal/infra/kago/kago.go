@@ -37,7 +37,7 @@ type Store struct {
 	// order は、設定に書いたプールの順。優先順位が同じプールは、この順に選ぶ。
 	order     []string
 	freeSpace FreeSpaceFunc
-	// totalSpace は、プールのファイルシステムの容量を調べる。
+	// totalSpace は、プールのファイルシステムの容量を取得する。
 	totalSpace TotalSpaceFunc
 	// dataDir は、データディレクトリ。
 	dataDir string
@@ -64,7 +64,7 @@ var (
 	ErrPoolNotMounted = errors.New("pool is not mounted on this instance")
 	// ErrNoPoolFits は、推定サイズを収められるプールがないことを表す。
 	ErrNoPoolFits = errors.New("no pool has enough free space")
-	// ErrPoolUnavailable は、空き容量を調べられたプールが 1 つもないことを表す (#526)。
+	// ErrPoolUnavailable は、空き容量を取得できたプールが 1 つもないことを表す (#526)。
 	ErrPoolUnavailable = errors.New("no pool could be measured")
 	// ErrInvalidPath は、プール内の相対パスとして使えないパスであることを表す。
 	ErrInvalidPath = errors.New("invalid path in a pool")
@@ -102,7 +102,7 @@ func NewOrdered(mounts map[string]string, order []string, freeSpace FreeSpaceFun
 	return &Store{mounts: cloned, order: ordered, freeSpace: freeSpace, totalSpace: TotalSpace, dataDir: "", timeshiftDir: ""}
 }
 
-// WithTotalSpace は、プールの容量を totalSpace で調べる Store を返す。totalSpace が nil なら、s をそのまま返す。
+// WithTotalSpace は、プールの容量を totalSpace で取得する Store を返す。totalSpace が nil なら、s をそのまま返す。
 func (s *Store) WithTotalSpace(totalSpace TotalSpaceFunc) *Store {
 	if totalSpace == nil {
 		return s
@@ -151,7 +151,7 @@ func DataLocation(fileID uuid.UUID, name string) *Location {
 	return &Location{PoolID: DataPoolID, Path: fileID.String() + "/" + name}
 }
 
-// IndexLocation は、セグメントのファイル fileID の索引の場所を返す。
+// IndexLocation は、セグメントのファイル fileID のインデックスの場所を返す。
 func IndexLocation(fileID uuid.UUID) *Location {
 	return DataLocation(fileID, IndexFileName)
 }
@@ -160,7 +160,7 @@ func IndexLocation(fileID uuid.UUID) *Location {
 // 中に「ユーザーの ID/キャプチャの ID.png」の形で置く。セグメントのファイルの ID の名前ではないので、生成物のディレクトリとはみなさない。
 const CapturesDir = "captures"
 
-// LibraryIndexDir は、データディレクトリの、ライブラリのファイル (録画として登録していない TS) の索引を置くディレクトリ (設計書 5.6、5.8)。
+// LibraryIndexDir は、データディレクトリの、ライブラリのファイル (録画として登録していない TS) のインデックスを置くディレクトリ (設計書 5.6、5.8)。
 // 中に「ライブラリの名前とパスのハッシュ/」の形で置く。ファイルが DB に行を持たないので、中のものは DB にないファイルとして出さない。
 const LibraryIndexDir = "libraries"
 
@@ -270,7 +270,7 @@ func (s *Store) Open(poolID, rel string) (*os.File, error) {
 	return os.OpenInRoot(mount, rel)
 }
 
-// Stat は、プール ID とプール内の相対パスのファイルの情報を返す。Open と同じく、プールのマウント先の中に限って調べる。
+// Stat は、プール ID とプール内の相対パスのファイルの情報を返す。Open と同じく、プールのマウント先の中に限って確認する。
 func (s *Store) Stat(poolID, rel string) (os.FileInfo, error) {
 	f, err := s.Open(poolID, rel)
 	if err != nil {
@@ -285,8 +285,8 @@ func (s *Store) Stat(poolID, rel string) (os.FileInfo, error) {
 // 優先順位が最も高いものを選ぶ。優先順位が同じなら、プールの順 (設定に書いた順) で先のものを選ぶ。
 // どのプールも閾値を下回るなら、推定サイズが入るプールのうち、優先順位が最も高いものを選ぶ。
 // 閾値は録画を始めるかどうかの条件ではなく、容量の管理が古い録画を消して保つ空き容量なので、録画を失敗させない (#511)。
-// このロールにマウントされていないプールと、空き容量を調べられなかったプールは選ばない。
-// どれも選べなければ ErrNoPoolFits を返す。空き容量を調べられたプールが 1 つもなければ、ErrPoolUnavailable を返す。
+// このロールにマウントされていないプールと、空き容量を取得できなかったプールは選ばない。
+// どれも選べなければ ErrNoPoolFits を返す。空き容量を取得できたプールが 1 つもなければ、ErrPoolUnavailable を返す。
 func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 	ordered := slices.Clone(pools)
 	slices.SortStableFunc(ordered, func(a, b *Pool) int {
@@ -321,7 +321,7 @@ func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 	if fallback != nil {
 		return fallback, nil
 	}
-	// 空き容量を調べられたプールがなければ、容量が足りないのではない。調べられなかった理由を返す (#526)。
+	// 空き容量を取得できたプールがなければ、容量が足りないのではない。取得できなかった理由を返す (#526)。
 	if measured == 0 {
 		return nil, errors.Join(append([]error{ErrPoolUnavailable}, errs...)...)
 	}
@@ -329,10 +329,10 @@ func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 	return nil, errors.Join(append([]error{fmt.Errorf("%w: estimated %d bytes", ErrNoPoolFits, estimated)}, errs...)...)
 }
 
-// IndexFileName は、生成物のディレクトリに置く、セグメントの索引のファイルの名前 (設計書 5.6)。
+// IndexFileName は、生成物のディレクトリに置く、セグメントのインデックスのファイルの名前 (設計書 5.6)。
 const IndexFileName = "index"
 
-// CreateSegmentDir は、セグメントのファイル fileID の生成物 (索引やサムネイル) を置くディレクトリを作り、その場所を返す。
+// CreateSegmentDir は、セグメントのファイル fileID の生成物 (インデックスやサムネイル) を置くディレクトリを作り、その場所を返す。
 // すでにあれば、そのまま使う。
 func (s *Store) CreateSegmentDir(fileID uuid.UUID) (*Location, error) {
 	target := SegmentDir(fileID)
@@ -421,7 +421,7 @@ func (s *Store) Remove(poolID, rel string, fileID uuid.UUID) error {
 }
 
 // Exists は、プールにファイル rel があるかを返す。プールがこのインスタンスにマウントされていなければ ErrPoolNotMounted を返す。
-// プールの中に限って調べるので、シンボリックリンクでもプールの外は調べない。続けて多くのファイルを調べるときは NewChecker を使う。
+// プールの中に限って確認するので、シンボリックリンクでもプールの外は確認しない。続けて多くのファイルを確認するときは NewChecker を使う。
 func (s *Store) Exists(poolID, rel string) (bool, error) {
 	checker := s.NewChecker()
 	defer checker.Close()
@@ -429,7 +429,7 @@ func (s *Store) Exists(poolID, rel string) (bool, error) {
 	return checker.Exists(poolID, rel)
 }
 
-// Checker は、プールを開き直さずに、ファイルの有無を続けて調べる。使い終わったら Close する。
+// Checker は、プールを開き直さずに、ファイルの有無を続けて確認する。使い終わったら Close する。
 type Checker struct {
 	store *Store
 	roots map[string]*os.Root
@@ -524,7 +524,7 @@ func removedEmptyDir(path string) bool {
 }
 
 // removeSegmentDir は、生成物のディレクトリ dir (プール内の相対パス) と、その中のファイルを消す。
-// 中にディレクトリがあれば、生成物のディレクトリではない (ほかの録画を置いたディレクトリと重なった) とみなし、中身ごとは消さない。
+// 中にディレクトリがあれば、生成物のディレクトリではない (ほかの録画を置いたディレクトリと重なった) とみなし、内容ごとは消さない。
 // プールの中に限って消すので、シンボリックリンクをたどってプールの外を消すことはない (リンクそのものは消す)。
 func (s *Store) removeSegmentDir(poolID, dir string) error {
 	mount, ok := s.mounts[poolID]

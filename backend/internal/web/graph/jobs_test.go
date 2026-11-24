@@ -65,7 +65,7 @@ const (
 	stateAvailable = "AVAILABLE"
 )
 
-// TestJobs は、管理者が、状態ごとにジョブを一覧し、対象の録画を引き、試し直し、取り消せることを確かめる (#1279)。
+// TestJobs は、管理者が、状態ごとにジョブを一覧し、対象の録画を引き、再試行し、取り消せることを確認する (#1279)。
 // 取り消すと録画を失いうるジョブ は取り消させず、管理者でなければ使えない。
 func TestJobs(t *testing.T) {
 	t.Parallel()
@@ -125,7 +125,7 @@ func TestJobs(t *testing.T) {
 	assert.Equal(t, 2, countOf[stateAvailable])
 	assert.Equal(t, 0, countOf["DISCARDED"], "states without jobs are counted as 0")
 
-	// 取り消すと、取り消した状態になる。取り消したジョブは、試し直せる。
+	// 取り消すと、取り消した状態になる。取り消したジョブは、再試行できる。
 	thumbID := byKind["thumbnail_generate"].ID
 	require.Empty(t, adminFixture.query(t, cancelJob, map[string]any{varID: thumbID}, nil))
 	cancelled := list(adminFixture, "CANCELLED")
@@ -151,8 +151,8 @@ func TestJobs(t *testing.T) {
 // jobStateRunning は、River の動いているジョブの状態。
 const jobStateRunning = "running"
 
-// TestJobProgress は、動いているジョブの進み具合を、今の試行で書いたものだけ返すことを確かめる (#1511)。
-// 試し直す前の試行の値や、終えたジョブに残った値は返さない。
+// TestJobProgress は、動いているジョブの進み具合を、今の試行で書いたものだけ返すことを確認する (#1511)。
+// 再試行する前の試行の値や、終えたジョブに残った値は返さない。
 func TestJobProgress(t *testing.T) {
 	t.Parallel()
 

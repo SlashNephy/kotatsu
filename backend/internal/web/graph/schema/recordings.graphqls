@@ -84,7 +84,7 @@ type RecordingFile {
 }
 
 """
-セグメントを書いたストリームを受信していたチューナー (#1467)。録画したときの写しで、今のチューナーの構成とは違うことがある。
+セグメントを書いたストリームを受信していたチューナー (#1467)。録画したときのコピーで、今のチューナーの構成とは違うことがある。
 """
 type RecordingFileTuner {
   "チューナーサーバーでのチューナーの番号。リモートのチューナーは負の数になることがある。"
@@ -128,7 +128,7 @@ type RecordingCMSection {
 enum RecordingCMDetectionState {
   "見分けていない。見分けるジョブもない。"
   NOT_DETECTED
-  "見分けるジョブが、動くのを待っている。試し直しを待っているときも含む。"
+  "見分けるジョブが、動くのを待っている。再試行を待っているときも含む。"
   QUEUED
   "見分けている。"
   RUNNING
@@ -149,7 +149,7 @@ type RecordingCMDetection {
   progress: JobProgress
   "最後に見分け終えた見分けで、いつもの見分け方で決められなかった理由 (#1508)。局ロゴで決められず、今の見分け方で見分け直したときなどに返す。決められたか、見分けていなければ null。"
   note: String
-  "最後に見分け終えた見分けで測った、映像の欠け (映像をデコードできなかった所) の長さの合計の秒 (#1508)。測れない見分け方と、見分けていなければ 0。"
+  "最後に見分け終えた見分けで計測した、映像の欠け (映像をデコードできなかった所) の長さの合計の秒 (#1508)。測れない見分け方と、見分けていなければ 0。"
   videoMissingSeconds: Float!
 }
 
@@ -170,7 +170,7 @@ type RecordingAutoCaption {
 enum RecordingAutoCaptionsState {
   "生成していない。生成するジョブもない。"
   NOT_GENERATED
-  "生成するジョブが、動くのを待っている。試し直しを待っているときも含む。"
+  "生成するジョブが、動くのを待っている。再試行を待っているときも含む。"
   QUEUED
   "生成している。"
   RUNNING
@@ -219,7 +219,7 @@ type Recording implements Node {
   "外部のサービス (Filmarks など) で作品を探すのに使う作品名 (#1650)。Program.workTitle と同じく、番組名から読む。"
   workTitle: String!
   description: String!
-  "番組の詳細。番組情報と同じく、録画を始めたときの予約から写し、放送後に確定したものに置き換える。見出しの順に並べる。"
+  "番組の詳細。番組情報と同じく、録画を始めたときの予約からコピーし、放送後に確定したものに置き換える。見出しの順に並べる。"
   extended: [ExtendedItem!]!
   "番組の放送の開始と終了。"
   startAt: Time!
@@ -232,15 +232,15 @@ type Recording implements Node {
   上流のチューナーのホスト名などを含むので、管理者にだけ返す。ほかのユーザーには null を返す。
   """
   failureDetail: String
-  "保護の印。保護した録画は、容量の管理でも、ユーザーの操作でも消さない。"
+  "保護のマーク。保護した録画は、容量の管理でも、ユーザーの操作でも消さない。"
   protected: Boolean!
   "全 PID のドロップ、エラー、スクランブルの数。"
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
   """
-  スクランブルされたまま録れたという警告の印 (設計書 5.5、#1517)。録画全体か、どれかのセグメントで、
-  ES のパケットのうちスクランブルされていたものの割合が閾値を超えたら立つ。状態とは別の印で、失敗にはしない。
+  スクランブルされたまま録れたという警告のマーク (設計書 5.5、#1517)。録画全体か、どれかのセグメントで、
+  ES のパケットのうちスクランブルされていたものの割合が閾値を超えたら立つ。状態とは別のマークで、失敗にはしない。
   """
   scrambleWarning: Boolean!
   "ES の PID だけで出した、スクランブルされていたパケットの割合 (0〜1、#1517)。ES のパケットが少なくて判定しなかった録画では null。"
@@ -255,9 +255,9 @@ type Recording implements Node {
   cmSections: [RecordingCMSection!]!
   "CM の区間の見分けの状態 (#1571)。見分けを待っているか、見分けているか、見分け終えたか、失敗したかを返す。"
   cmDetection: RecordingCMDetection!
-  "最後に見分け終えた CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。録画の一覧の印に使う。決められたか、見分けていなければ null。cmDetection.note と同じ値を、一覧の録画をまとめて引く。"
+  "最後に見分け終えた CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。録画の一覧のマークに使う。決められたか、見分けていなければ null。cmDetection.note と同じ値を、一覧の録画をまとめて引く。"
   cmDetectionNote: String
-  "最後に見分け終えた CM の見分けで測った、映像の欠けの長さの合計の秒 (#1508)。録画の一覧の印に使う。cmDetection.videoMissingSeconds と同じ値を、一覧の録画をまとめて引く。"
+  "最後に見分け終えた CM の見分けで計測した、映像の欠けの長さの合計の秒 (#1508)。録画の一覧のマークに使う。cmDetection.videoMissingSeconds と同じ値を、一覧の録画をまとめて引く。"
   cmVideoMissingSeconds: Float!
   "音声から自動生成した字幕を、始まりの順に並べる (#1682)。生成していないか、台詞がなければ空になる。"
   autoCaptions: [RecordingAutoCaption!]!
@@ -303,7 +303,7 @@ type Recording implements Node {
   """
   watchFrame: PreviewFrame
   """
-  録画の時間帯の実況の過去ログを返す URL のパス (設計書 7.4)。tenban が過去ログ API から取って中継する。
+  録画の時間帯の実況の過去ログを返す URL のパス (設計書 7.4)。tenban が過去ログ API から取ってプロキシする。
   録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
   """
   jikkyoCommentsUrl: String!
@@ -358,8 +358,17 @@ input RecordingFilter {
   tagIds: [ID!]
   states: [RecordingState!]
   serviceIds: [ID!]
-  "番組名に含む文字列。大文字と小文字を区別しない。"
+  "番組名か概要に含む文字列。大文字と小文字を区別しない。"
   keyword: String
+  """
+  番組名と概要で探すキーワード (#966)。番組の検索と同じく照合する。録画は詳細では探さないので、EXTENDED は指定できない。
+  keyword と一緒に指定すると、両方に一致する録画を返す。
+  """
+  keywords: [KeywordInput!]
+  "keywords の照合のしかた。省くと、すべてに一致する録画を返す。"
+  keywordMatch: KeywordMatch
+  "どれか 1 つに一致したら除外するキーワード。EXTENDED は指定できない。"
+  excludeKeywords: [KeywordInput!]
   "放送の開始がこの日時以降の録画。"
   since: Time
   "放送の開始がこの日時より前の録画。"
@@ -417,7 +426,7 @@ extend type Mutation {
   保護した録画、録画中の録画、見つからない録画は、消さずに飛ばした数に数える。一度に 500 件まで。
   """
   deleteRecordings(ids: [ID!]!): BulkOperationPayload!
-  "録画に保護の印を付けるか、外す。視聴者は使えない。"
+  "録画に保護のマークを付けるか、外す。視聴者は使えない。"
   setRecordingProtected(id: ID!, protected: Boolean!): Recording!
   "録画のタグを置き換える。ないタグは作る。視聴者は使えない。"
   setRecordingTags(id: ID!, tags: [String!]!): Recording!
@@ -433,7 +442,7 @@ extend type Mutation {
   """
   regenerateRecordingImages(id: ID!): Boolean!
   """
-  録画のファイルを読み直し、索引とドロップなどの集計を作り直すジョブを入れる (設計書 6.1、#476)。視聴者は使えない。
+  録画のファイルを読み直し、インデックスとドロップなどの集計を作り直すジョブを入れる (設計書 6.1、#476)。視聴者は使えない。
   終われば、代表画像とプレビュー画像も作り直す。録画中の録画は CONFLICT にする。
   同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
@@ -468,7 +477,7 @@ type PreviewFrame {
 }
 
 """
-PID の種類。PMT に書かれたストリーム (映像、音声、そのほか) と、PSI と SI の表。PMT にも決まった PID にもなければ UNKNOWN。
+PID の種類。PMT に書かれたストリーム (映像、音声、そのほか) と、PSI と SI のテーブル。PMT にも決まった PID にもなければ UNKNOWN。
 """
 enum StreamKind {
   VIDEO

@@ -213,8 +213,8 @@ func (im *Importer) Apply(ctx context.Context, db Database, snapshot *Snapshot, 
 
 	seen := map[historyKey]bool{}
 	for _, f := range snapshot.Recorded {
-		// 同じ鍵が一覧の中に 2 回出れば、録画の履歴にするもののうち、先のものだけを使う。下見と取り込みで件数が食い違わないようにするためである。
-		// 録れていない記録は、鍵をふさがない。先に失敗した記録があっても、後の正常に録れた記録を履歴にする (#1725)。
+		// 同じキーが一覧の中に 2 回出れば、録画の履歴にするもののうち、先のものだけを使う。下見と取り込みで件数が食い違わないようにするためである。
+		// 録れていない記録は、キーをふさがない。先に失敗した記録があっても、後の正常に録れた記録を履歴にする (#1725)。
 		key := keyOf(f)
 		if seen[key] {
 			continue
@@ -245,7 +245,7 @@ func (im *Importer) Apply(ctx context.Context, db Database, snapshot *Snapshot, 
 	return a.result, nil
 }
 
-// historyKey は、録画の履歴を二重に取り込まないための鍵。局と、予約したときの開始 (なければ開始)。
+// historyKey は、録画の履歴を二重に取り込まないためのキー。局と、予約したときの開始 (なければ開始)。
 type historyKey struct {
 	edcb.ServiceKey
 
@@ -395,7 +395,7 @@ func (a *applier) history(ctx context.Context, tx pgx.Tx, f *edcb.RecordedFile) 
 		return uuid.Nil(), skip("service %d is not in Kotatsu", serviceID)
 	}
 	historyID := id.New()
-	// ミリ秒は捨てる。
+	// ミリ秒は破棄する。
 	start := f.Start.Truncate(time.Second).UTC()
 	err := sqlc.New(tx).InsertRecordingHistory(ctx, sqlc.InsertRecordingHistoryParams{
 		ID: historyID, ServiceID: serviceID, TitleKey: rule.TitleKey(f.Title), Name: f.Title, Series: episode.SeriesOf(f.Title),

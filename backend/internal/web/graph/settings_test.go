@@ -22,11 +22,11 @@ const (
 	fieldNotificationDays = "notificationRetentionDays"
 	// fieldMCPEnabled は、MCP のクライアントに使わせるかどうかの項目 (#963)。
 	fieldMCPEnabled = "mcpEnabled"
-	// fieldDataBroadcastIPEnabled は、データ放送の通信を中継するかどうかの項目 (#501)。
+	// fieldDataBroadcastIPEnabled は、データ放送の通信をプロキシするかどうかの項目 (#501)。
 	fieldDataBroadcastIPEnabled = "dataBroadcastIpEnabled"
 	// fieldAnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携を使うかどうかの項目 (設計書 3.8)。
 	fieldAnimeLinkingEnabled = "animeLinkingEnabled"
-	// fieldDramaLinkingEnabled は、TMDb との連携を使うかどうかの項目 (#1651)。
+	// fieldDramaLinkingEnabled は、TMDB との連携を使うかどうかの項目 (#1651)。
 	fieldDramaLinkingEnabled = "dramaLinkingEnabled"
 	// fieldCommentSources は、オプトインする実況のコメントのソースの項目 (#1405、設計書 7.4)。
 	fieldCommentSources = "commentSources"
@@ -77,7 +77,7 @@ func defaultSystemSettings() systemSettings {
 	}
 }
 
-// TestSystemSettings は、誰でも全体の設定を読め、管理者だけが変えられることを確かめる (設計書 9.7、11.2)。
+// TestSystemSettings は、誰でも全体の設定を読め、管理者だけが変えられることを確認する (設計書 9.7、11.2)。
 func TestSystemSettings(t *testing.T) {
 	t.Parallel()
 
@@ -159,7 +159,7 @@ func TestSystemSettings(t *testing.T) {
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldAnimeLinkingEnabled: true}}, &partial))
 	want.AnimeLinkingEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
-	// TMDb との連携も、既定では使わず、管理者が有効にする (#1651)。
+	// TMDB との連携も、既定では使わず、管理者が有効にする (#1651)。
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDramaLinkingEnabled: true}}, &partial))
 	want.DramaLinkingEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
@@ -198,7 +198,7 @@ func TestSystemSettings(t *testing.T) {
 }
 
 // TestMovedSystemSettings は、設定ファイルから画面に移した項目 (#1869) を、管理者が変えられ、Web Push の送り手の連絡先は
-// 管理者だけが読め、Have I Been Pwned への照会を変えるには直前の再認証が要ることを確かめる (設計書 9.5、11.2)。
+// 管理者だけが読め、Have I Been Pwned への照会を変えるには直前の再認証が要ることを確認する (設計書 9.5、11.2)。
 func TestMovedSystemSettings(t *testing.T) {
 	t.Parallel()
 
@@ -310,8 +310,8 @@ type drcsReplacement struct {
 	Text string `json:"text"`
 }
 
-// TestDRCSReplacements は、管理者だけが字幕の外字の置き換えの表を変えられ、ログインしていれば誰でも読めることを確かめる (#825)。
-// 表は、書いた外字だけを変えるので、別々に送った登録を互いに消さない。
+// TestDRCSReplacements は、管理者だけが字幕の外字の置き換えのテーブルを変えられ、ログインしていれば誰でも読めることを確認する (#825)。
+// テーブルは、書いた外字だけを変えるので、別々に送った登録を互いに消さない。
 func TestDRCSReplacements(t *testing.T) {
 	t.Parallel()
 
@@ -321,14 +321,14 @@ func TestDRCSReplacements(t *testing.T) {
 		md5Lower = "0123456789abcdef0123456789abcdef"
 		md5Other = "ffffffffffffffffffffffffffffffff"
 		md5Third = "00000000000000000000000000000000"
-		// textJi は、字幕の「字」の印を置き換える文字。
+		// textJi は、字幕の「字」のマークを置き換える文字。
 		textJi = "[字]"
 		update = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { drcsReplacements { md5 text } } }`
 	)
 	type payload struct {
 		DRCSReplacements []drcsReplacement `json:"drcsReplacements"`
 	}
-	// input は、外字の表の変更。text が空なら、その外字を消す。
+	// input は、外字のテーブルの変更。text が空なら、その外字を消す。
 	input := func(rows ...drcsReplacement) map[string]any {
 		values := make([]map[string]any, 0, len(rows))
 		for _, row := range rows {
@@ -381,7 +381,7 @@ func TestDRCSReplacements(t *testing.T) {
 	require.Empty(t, viewerFixture.query(t, query, nil, &got))
 	assert.Equal(t, want, got.DRCSReplacements)
 
-	// 表を省けば変えず、text を null にした外字は消す。
+	// テーブルを省けば変えず、text を null にした外字は消す。
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDays: 30}}, nil))
 	require.Empty(t, viewerFixture.query(t, query, nil, &got))
 	assert.Equal(t, want, got.DRCSReplacements)
@@ -401,7 +401,7 @@ type channelType struct {
 	SortOrder   int    `json:"sortOrder"`
 }
 
-// TestUpdateChannelType は、管理者だけがチャンネル種別の表示名と並び順を変えられ、変えた順に並ぶことを確かめる (設計書 3.1、11.2)。
+// TestUpdateChannelType は、管理者だけがチャンネル種別の表示名と並び順を変えられ、変えた順に並ぶことを確認する (設計書 3.1、11.2)。
 func TestUpdateChannelType(t *testing.T) {
 	t.Parallel()
 
@@ -450,7 +450,7 @@ func TestUpdateChannelType(t *testing.T) {
 	assert.Empty(t, admin.query(t, updateChannelType, change, nil))
 }
 
-// TestUpdateChannelTypeRejectsInvalidInput は、正しくない値と、ない種別を拒み、保存しないことを確かめる。
+// TestUpdateChannelTypeRejectsInvalidInput は、正しくない値と、ない種別を拒み、保存しないことを確認する。
 func TestUpdateChannelTypeRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
@@ -512,14 +512,14 @@ type storagePool struct {
 	TotalBytes   *int   `json:"totalBytes"`
 }
 
-// TestUpdateStoragePool は、管理者だけが保存先プールの優先順位と容量の閾値を変えられ、システムの状態で読めることを確かめる (設計書 5.6、6.1)。
+// TestUpdateStoragePool は、管理者だけが保存先プールの優先順位と容量の閾値を変えられ、システムの状態で読めることを確認する (設計書 5.6、6.1)。
 func TestUpdateStoragePool(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, &graph.Options{
 		Pools:     map[string]string{poolMain: mountMain, poolSub: mountSub},
 		FreeSpace: func(path string) (uint64, error) { return map[string]uint64{mountMain: 100 << 30}[path], nil },
-		// sub の容量は調べられない。
+		// sub の容量は取得できない。
 		TotalSpace: func(path string) (uint64, error) {
 			if path != mountMain {
 				return 0, errors.ErrUnsupported
@@ -585,7 +585,7 @@ func TestUpdateStoragePool(t *testing.T) {
 	assert.Empty(t, admin.query(t, updateStoragePool, change, nil))
 }
 
-// fieldHidden は、ServiceInput の非表示の印。
+// fieldHidden は、ServiceInput の非表示のマーク。
 const fieldHidden = "hidden"
 
 const updateService = `mutation($id: ID!, $input: ServiceInput!) { updateService(id: $id, input: $input) { id name hidden sortOrder } }`
@@ -597,7 +597,7 @@ type serviceRow struct {
 	SortOrder *int   `json:"sortOrder"`
 }
 
-// TestUpdateService は、管理者だけがサービスの非表示の印と並び順の上書きを変えられ、EPG の同期で上書きされないことを確かめる (#309)。
+// TestUpdateService は、管理者だけがサービスの非表示のマークと並び順の上書きを変えられ、EPG の同期で上書きされないことを確認する (#309)。
 func TestUpdateService(t *testing.T) {
 	t.Parallel()
 
@@ -671,7 +671,7 @@ func TestUpdateService(t *testing.T) {
 	assert.Empty(t, admin.query(t, updateService, change, nil))
 }
 
-// TestUpdateServiceRejectsInvalidInput は、正しくない値と、ないサービスを拒み、保存しないことを確かめる。
+// TestUpdateServiceRejectsInvalidInput は、正しくない値と、ないサービスを拒み、保存しないことを確認する。
 func TestUpdateServiceRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 

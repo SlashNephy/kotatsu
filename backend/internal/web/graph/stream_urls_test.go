@@ -25,7 +25,7 @@ type issuedStreamURL struct {
 }
 
 // TestManageIssuedStreamURLs は、管理者が、発行された外部プレイヤー用の URL を一覧し、1 本ずつ取り消せ、
-// 管理者でなければ一覧も取り消しもできないことを確かめる (#1757)。
+// 管理者でなければ一覧も取り消しもできないことを確認する (#1757)。
 func TestManageIssuedStreamURLs(t *testing.T) {
 	t.Parallel()
 

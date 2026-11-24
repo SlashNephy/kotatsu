@@ -63,7 +63,7 @@ type Policy struct {
 	estimator StrengthEstimator
 	// hibp は、Have I Been Pwned への照会。nil なら照会しない。
 	hibp *HIBP
-	// hibpEnabled は、照会するかどうかを、確かめるたびに返す。nil なら、hibp があれば照会する。
+	// hibpEnabled は、照会するかどうかを、確認するたびに返す。nil なら、hibp があれば照会する。
 	hibpEnabled func(ctx context.Context) (bool, error)
 	logger      *slog.Logger
 }
@@ -72,13 +72,13 @@ type Policy struct {
 type PolicyOptions struct {
 	// HIBP は、Have I Been Pwned への照会。nil なら照会しない。
 	HIBP *HIBP
-	// HIBPEnabled は、Have I Been Pwned に照会するかどうかを返す。管理者が画面で切り替える (#1869) ので、確かめるたびに呼ぶ。
+	// HIBPEnabled は、Have I Been Pwned に照会するかどうかを返す。管理者が画面で切り替える (#1869) ので、確認するたびに呼ぶ。
 	// nil なら、HIBP があれば照会する。
 	HIBPEnabled func(ctx context.Context) (bool, error)
 	// StrengthTimeout は、zxcvbn-ts の 1 回の判定の時間の上限。0 なら DefaultStrengthTimeout にする。
 	StrengthTimeout time.Duration
 	// Estimator は、強度を判定するもの。nil なら zxcvbn-ts で判定する。
-	// zxcvbn-ts は -race で 1 回に数十秒かかるので、強度の判定そのものを確かめないテストで差し替える。
+	// zxcvbn-ts は -race で 1 回に数十秒かかるので、強度の判定そのものを確認しないテストで差し替える。
 	Estimator StrengthEstimator
 	Logger    *slog.Logger
 }
@@ -102,7 +102,7 @@ func NewPolicy(opts *PolicyOptions) (*Policy, error) {
 	return &Policy{blocklist: blocklist, estimator: estimator, hibp: opts.HIBP, hibpEnabled: opts.HIBPEnabled, logger: logger}, nil
 }
 
-// Check は、パスワードが規定を満たすかを確かめる。満たさなければ *RejectedError を返す。
+// Check は、パスワードが規定を満たすかを確認する。満たさなければ *RejectedError を返す。
 // userInputs には、ユーザー名や表示名のように、パスワードに使われると推測しやすい語を渡す。
 //
 // 判定は、安く済むものから順に行う: 長さ、同梱のブロックリスト、zxcvbn-ts、Have I Been Pwned。

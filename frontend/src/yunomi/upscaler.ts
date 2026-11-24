@@ -24,9 +24,10 @@
 // THE SOFTWARE.
 
 import { compileProgram, restoreState, saveState } from './glPass';
+import { expandHighlightsShader } from './hdr';
 
-// EASU。出力の画素の中心を元の画素の座標に写し、周りの 12 画素から縁の向きと強さを推し量り、
-// 縁に沿って伸ばした窓の Lanczos に近い重みで混ぜる。近い 4 画素の最小と最大に収め、縁の周りの輪を出さない。
+// EASU。出力の画素の中心を元の画素の座標に対応させ、周りの 12 画素から縁の向きと強さを推し量り、
+// 縁に沿って伸ばしたウィンドウの Lanczos に近い重みで混ぜる。近い 4 画素の最小と最大に収め、縁の周りの輪を出さない。
 // 座標は、行を下から数える (framebuffer と同じ向き)。uFlip のテクスチャは行を上から持つので、読むときに返す。
 const easuShader = `#version 300 es
 precision highp float;
@@ -162,12 +163,15 @@ void main() {
 
 // RCAS。十字の 5 画素から、0〜1 を外れない範囲で最も強い鮮鋭化を求め、uSharpness を掛けて掛ける。
 // 粒状のノイズらしい所 (中心だけが周りと違う所) は弱める (FSR の FSR_RCAS_DENOISE)。放送の映像は圧縮のノイズが多い。
+// uExpand なら、鮮鋭化した後に、擬似 HDR の出力 (#1656) のために明るい所を伸ばす。
 const rcasShader = `#version 300 es
 precision highp float;
 precision highp int;
 uniform sampler2D uSource;
 uniform float uSharpness;
+uniform bool uExpand;
 out vec4 color;
+${expandHighlightsShader}
 
 const float limit = 0.25 - 1.0 / 16.0;
 
@@ -205,15 +209,17 @@ void main() {
   vec3 lobeRGB = max(-hitMin, hitMax);
   float lobe = max(-limit, min(max(max(lobeRGB.r, lobeRGB.g), lobeRGB.b), 0.0)) * uSharpness;
   lobe *= nz;
-  color = vec4((lobe * (b + d + h + f) + e) / (4.0 * lobe + 1.0), 1.0);
+  vec3 sharpened = (lobe * (b + d + h + f) + e) / (4.0 * lobe + 1.0);
+  color = vec4(uExpand ? expandHighlights(sharpened) : sharpened, 1.0);
 }
 `;
 
 // Upscaler は、yadif のコンテキストで、テクスチャを canvas へ拡大して描く処理。
 export type Upscaler = {
   // draw は、width × height の texture を、canvas (既定の framebuffer) の outputWidth × outputHeight へ拡大して描く。
-  // texture は行を下から持つ。flipped なら行を上から持つ (video を写したテクスチャ)。
-  // sharpnessStops は、RCAS の鮮鋭化を弱める段数。0 が最も強く、1 段ごとに半分になる。
+  // texture は行を下から持つ。flipped なら行を上から持つ (video をコピーしたテクスチャ)。
+  // sharpnessStops は、RCAS の鮮鋭化を弱めるステップ数。0 が最も強く、1 ステップごとに半分になる。
+  // expand なら、擬似 HDR の出力 (#1656) のために、最後に明るい所を伸ばす。
   draw(
     texture: WebGLTexture,
     flipped: boolean,
@@ -222,12 +228,13 @@ export type Upscaler = {
     outputWidth: number,
     outputHeight: number,
     sharpnessStops: number,
+    expand: boolean,
   ): void;
   destroy(): void;
 };
 
 // createUpscaler は、gl に拡大のシェーダーを作る。作れなければ投げる。
-// EASU の結果は、出力の大きさの RGBA8 のテクスチャに置き、RCAS がそれを読んで canvas に描く。浮動小数点の描画先は使わない。
+// EASU の結果は、出力の大きさの RGBA8 のテクスチャに置き、RCAS がそれを読んで canvas に描く。中間の絵に浮動小数点の描画先は使わない。
 export function createUpscaler(gl: WebGL2RenderingContext): Upscaler {
   const easu = compileProgram(gl, easuShader);
   const rcas = compileProgram(gl, rcasShader);
@@ -238,6 +245,7 @@ export function createUpscaler(gl: WebGL2RenderingContext): Upscaler {
     offset: gl.getUniformLocation(easu, 'uOffset'),
     rcasSource: gl.getUniformLocation(rcas, 'uSource'),
     sharpness: gl.getUniformLocation(rcas, 'uSharpness'),
+    expand: gl.getUniformLocation(rcas, 'uExpand'),
   };
   const vertexArray = gl.createVertexArray();
   // middle は、EASU で拡大した絵を置く、出力の大きさのテクスチャ。
@@ -282,7 +290,7 @@ export function createUpscaler(gl: WebGL2RenderingContext): Upscaler {
   };
 
   return {
-    draw(texture, flipped, width, height, outputWidth, outputHeight, sharpnessStops) {
+    draw(texture, flipped, width, height, outputWidth, outputHeight, sharpnessStops, expand) {
       const state = saveState(gl, 1);
       try {
         gl.disable(gl.BLEND);
@@ -310,6 +318,7 @@ export function createUpscaler(gl: WebGL2RenderingContext): Upscaler {
         gl.bindTexture(gl.TEXTURE_2D, target.texture);
         gl.uniform1i(location.rcasSource, 0);
         gl.uniform1f(location.sharpness, 2 ** -sharpnessStops);
+        gl.uniform1i(location.expand, expand ? 1 : 0);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, outputWidth, outputHeight);
         gl.drawArrays(gl.TRIANGLES, 0, 3);

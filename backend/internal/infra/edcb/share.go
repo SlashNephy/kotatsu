@@ -8,30 +8,30 @@ import (
 )
 
 const (
-	// DefaultSubscriberBufferSize は、分け合うストリームの受け手ごとに溜められるバイト数の既定 (#1535)。
+	// DefaultSubscriberBufferSize は、分け合うストリームの受け手ごとにバッファできるバイト数の既定 (#1535)。
 	// BS4K (毎秒 4 MB ほど) を受け取る録画が、ディスクの書き込みで数秒詰まっても切られないよう、多めにする。
 	DefaultSubscriberBufferSize = 32 << 20
-	// tsPacketSize は、TS のパケットの大きさ。受け手に配るときは、途中から加わった受け手もパケットの区切りから読めるよう、
+	// tsPacketSize は、TS のパケットの大きさ。受け手に配信するときは、途中から加わった受け手もパケットの区切りから読めるよう、
 	// この大きさの倍数で区切る。
 	tsPacketSize = 188
 	// shareReadSize は、NetworkTV の TS を 1 回に読む大きさ。
 	shareReadSize = tsPacketSize * 348
 )
 
-// ErrSubscriberTooSlow は、分け合うストリームの受け手が読むのが遅く、溜められる上限を超えたので切ったことを表す (#1535)。
+// ErrSubscriberTooSlow は、分け合うストリームの受け手が読むのが遅く、バッファできる上限を超えたので切ったことを表す (#1535)。
 // ほかの受け手は待たせずに受け取り続ける。切られた受け手は、つなぎ直せる。
 var ErrSubscriberTooSlow = errors.New("the stream reader was too slow and was cut off")
 
 // errSubscriberClosed は、閉じた受け手を読んだことを表す。
 var errSubscriberClosed = errors.New("the shared stream is closed")
 
-// sharedStreams は、サービスごとに 1 本の NetworkTV を開き、TS をそのサービスの受け手に配る (#1535)。
+// sharedStreams は、サービスごとに 1 本の NetworkTV を開き、TS をそのサービスの受け手に配信する (#1535)。
 // EDCB は、同じ局でも NetworkTV ごとにチューナーを使い、1 本の TS を受け取れるのも 2 つまでなので、Kotatsu の中で分け合う。
 //   - 最初の受け手が来たら開き、最後の受け手が去ったら閉じる (NWTV_ID_CLOSE と ID の返却)。
 //   - 開いている途中に来た受け手は、その開きを待つ。閉じている途中に来た受け手は、閉じ終えるのを待ってから開き直す。
 //     同じサービスに 2 つの NetworkTV を開かない。
 //   - NetworkTV の TS は、受け手ではなく、ここが持つ context で開く。受け手の context が終わっても、その受け手が去るだけになる。
-//   - 局が変わったときの切断 (#1534) は、1 本の TS で 1 度だけ判定し、すべての受け手に同じエラーで知らせる。
+//   - 局が変わったときの切断 (#1534) は、1 本の TS で 1 度だけ判定し、すべての受け手に同じエラーで通知する。
 type sharedStreams struct {
 	server     *TunerServer
 	bufferSize int
@@ -129,7 +129,7 @@ func (s *sharedStreams) open(ctx context.Context, service ServiceKey) (io.ReadCl
 	return sub, nil
 }
 
-// start は、b の NetworkTV を開き、TS を受け手に配り始める。開いている間に受け手がいなくなったら、閉じる。
+// start は、b の NetworkTV を開き、TS を受け手に配信し始める。開いている間に受け手がいなくなったら、閉じる。
 // 開くのは受け手の context ではなく、b が持つ context で行う。最初の受け手が待ちきれずに去っても、ほかの受け手の開きを止めない。
 // 開く処理の時間は、CtrlCmd と中継のやり直しの上限 (RequestTimeout、relayRetryTimeout) で限られる。
 func (s *sharedStreams) start(base context.Context, b *broadcast) {
@@ -163,7 +163,7 @@ func (s *sharedStreams) start(base context.Context, b *broadcast) {
 	go s.pump(b)
 }
 
-// pump は、NetworkTV の TS を読み、パケットの区切りで受け手に配る。TS が終わるか切れたら、NetworkTV を閉じ、
+// pump は、NetworkTV の TS を読み、パケットの区切りで受け手に配信する。TS が終わるか切れたら、NetworkTV を閉じ、
 // 受け手に、受け取った分を読み終えた後で同じエラーを返させる。
 func (s *sharedStreams) pump(b *broadcast) {
 	buf := make([]byte, shareReadSize)
@@ -197,7 +197,7 @@ func (s *sharedStreams) pump(b *broadcast) {
 		}
 		b.subs = map[*subscriber]struct{}{}
 		s.mu.Unlock()
-		// 受け手がつなぎ直したときに、閉じていない NetworkTV と ID が残っていないよう、閉じてから知らせる。
+		// 受け手がつなぎ直したときに、閉じていない NetworkTV と ID が残っていないよう、閉じてから通知する。
 		_ = s.shutdown(b)
 		for _, sub := range subs {
 			sub.end(err)
@@ -207,7 +207,7 @@ func (s *sharedStreams) pump(b *broadcast) {
 	}
 }
 
-// publish は、chunk を b の受け手に配る。溜めた量が上限を超える受け手は、ほかの受け手を待たせないよう切る。
+// publish は、chunk を b の受け手に配信する。バッファした量が上限を超える受け手は、ほかの受け手を待たせないよう切る。
 func (s *sharedStreams) publish(b *broadcast, chunk []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -239,7 +239,7 @@ func (s *sharedStreams) leave(b *broadcast, sub *subscriber) error {
 	return s.shutdown(b)
 }
 
-// shutdown は、NetworkTV を閉じて ID を返し、閉じ終えたことを知らせる。閉じている間は b を一覧に残し、
+// shutdown は、NetworkTV を閉じて ID を返し、閉じ終えたことを通知する。閉じている間は b を一覧に残し、
 // その間に来た受け手には、閉じ終えるのを待たせる。待たせずに開くと、同じサービスに 2 つの NetworkTV を開いてしまう。
 func (s *sharedStreams) shutdown(b *broadcast) error {
 	err := b.upstream.Close()
@@ -254,20 +254,20 @@ func (s *sharedStreams) shutdown(b *broadcast) error {
 	return err
 }
 
-// subscriber は、分け合うストリームの 1 つの受け手。受け取った TS を、上限まで溜めて、Read で返す。
+// subscriber は、分け合うストリームの 1 つの受け手。受け取った TS を、上限までバッファして、Read で返す。
 type subscriber struct {
 	shared *sharedStreams
 	b      *broadcast
 	limit  int
 
 	mu sync.Mutex
-	// signal は、データが届いたか、終わったことを、待っている Read に知らせる。
+	// signal は、データが届いたか、終わったことを、待っている Read に通知する。
 	signal chan struct{}
 	queue  [][]byte
 	// head は、読みかけのチャンクの残り。
 	head   []byte
 	queued int
-	// err は、溜めた分を読み終えた後に返すエラー。
+	// err は、バッファした分を読み終えた後に返すエラー。
 	err    error
 	closed bool
 	// closeErr は、閉じた後の Read が返すエラー。
@@ -278,7 +278,7 @@ type subscriber struct {
 
 var _ io.ReadCloser = new(subscriber)
 
-// Read は、溜めた TS を読む。溜めた分がなければ、届くか終わるまで待つ。
+// Read は、バッファした TS を読む。バッファした分がなければ、届くか終わるまで待つ。
 func (r *subscriber) Read(p []byte) (int, error) {
 	for {
 		r.mu.Lock()
@@ -338,7 +338,7 @@ func (r *subscriber) closeWith(err error) error {
 	return r.shared.leave(r.b, r)
 }
 
-// push は、chunk を溜める。上限を超えるなら、溜めた分を捨てて ErrSubscriberTooSlow で終わらせ、false を返す。
+// push は、chunk をバッファする。上限を超えるなら、バッファした分を破棄して ErrSubscriberTooSlow で終わらせ、false を返す。
 func (r *subscriber) push(chunk []byte) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -358,7 +358,7 @@ func (r *subscriber) push(chunk []byte) bool {
 	return true
 }
 
-// end は、溜めた分を読み終えた後に err を返すようにする。
+// end は、バッファした分を読み終えた後に err を返すようにする。
 func (r *subscriber) end(err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

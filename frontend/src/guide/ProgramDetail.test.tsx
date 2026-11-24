@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
@@ -62,21 +62,88 @@ describe('ProgramDetail', () => {
     expect(screen.getByRole('button', { name: '録画予約済み' })).toBeTruthy();
   });
 
-  test('ドラマの番組には、作品名で Filmarks を探すリンクを出し、ほかのジャンルには出さない (#1650)', async () => {
+  test('ルールで入った予約は「ルール録画予約済み」とし、もとになったルールを ▾ のメニューから開ける', async () => {
+    // デモは、地上波の「縁側の午後」を録るルールを最初から持ち、ルール予約を入れている。
+    const program = generatePrograms(now).find(
+      (item) =>
+        item.name.includes('縁側の午後') &&
+        item.service.channelType.type === 'GR' &&
+        item.start > now,
+    )!;
+    const environment = createDemoEnvironment({}, { now });
+
+    await renderWithRouter(<Harness programId={program.id} />, environment);
+    expect(await screen.findByRole('button', { name: 'ルール録画予約済み' })).toBeTruthy();
+    expect(screen.queryByText(/ルールで予約/)).toBeNull();
+    await act(async () =>
+      fireEvent.click(screen.getByRole('button', { name: '録画予約のほかの操作' })),
+    );
+    expect(await screen.findByText('関連するルール')).toBeTruthy();
+    const item = screen.getByRole('menuitem', { name: '縁側の午後' });
+    expect(item.getAttribute('href')).toMatch(/^\/rules\/[^/]+$/);
+    // ルールが 1 件なら、どのルールの設定を使うかは明らかなので、注記を添えない。
+    expect(screen.queryByText('このルールが使用されています')).toBeNull();
+  });
+
+  test('複数のルールに一致した予約は、録画の設定に使う最も古いルールに「このルールが使用されています」と添える', async () => {
+    const program = generatePrograms(now).find(
+      (item) =>
+        item.name.includes('縁側の午後') &&
+        item.service.channelType.type === 'GR' &&
+        item.start > now,
+    )!;
+    const environment = createDemoEnvironment({}, { now });
+    // デモの「縁側の午後」のルールより後に、同じ番組に一致するルールを足す。
+    await new Promise<void>((resolve, reject) =>
+      environment
+        .getNetwork()
+        .execute(
+          {
+            id: null,
+            cacheID: 'ProgramDetailTestCreateRule',
+            name: 'ProgramDetailTestCreateRule',
+            operationKind: 'mutation',
+            text: 'mutation { createRule(input: { name: "縁側の午後 (全局)", conditions: { keywords: [{ text: "縁側の午後", fields: [NAME] }] } }) { id } }',
+            metadata: {},
+          },
+          {},
+          {},
+        )
+        .subscribe({ complete: resolve, error: reject }),
+    );
+
+    await renderWithRouter(<Harness programId={program.id} />, environment);
+    await act(async () =>
+      fireEvent.click(await screen.findByRole('button', { name: '録画予約のほかの操作' })),
+    );
+    const [oldest, newer] = await screen.findAllByRole('menuitem', { name: /^縁側の午後/ });
+    expect(within(oldest!).getByText('このルールが使用されています')).toBeTruthy();
+    expect(within(newer!).queryByText('このルールが使用されています')).toBeNull();
+  });
+
+  test('ドラマの番組には、番組名の横のメニューに、作品名で Filmarks を探すリンクを出し、ほかのジャンルには出さない (#1650)', async () => {
     const programs = generatePrograms(now);
     const drama = programs.find((item) => item.genres.some((genre) => genre.lv1 === 3))!;
     const news = programs.find((item) => item.genres.every((genre) => genre.lv1 === 0))!;
     const environment = createDemoEnvironment({}, { now });
 
     await renderWithRouter(<Harness programId={drama.id} />, environment);
-    const link = await screen.findByRole('link', { name: 'Filmarksで探す' });
-    expect(link.getAttribute('href')).toBe(
+    await act(async () =>
+      fireEvent.click(await screen.findByRole('button', { name: 'ほかのサイトで探す' })),
+    );
+    const item = await screen.findByRole('menuitem', { name: 'Filmarksで探す' });
+    expect(item.getAttribute('href')).toBe(
       `https://filmarks.com/search/dramas?q=${encodeURIComponent(drama.workTitle)}`,
     );
     cleanup();
 
     await renderWithRouter(<Harness programId={news.id} />, environment);
     await screen.findByText(news.name);
-    expect(screen.queryByRole('link', { name: 'Filmarksで探す' })).toBeNull();
+    // 地上波の局の番組なら、見逃し配信で探すリンクがあるので、メニューは出る。
+    const menu = screen.queryByRole('button', { name: 'ほかのサイトで探す' });
+    if (menu !== null) {
+      await act(async () => fireEvent.click(menu));
+    }
+    expect(screen.queryByRole('menuitem', { name: 'Filmarksで探す' })).toBeNull();
   });
 });

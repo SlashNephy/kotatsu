@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	// NotifyChannel は、割り当ての結果が変わったことを知らせる変更通知のチャンネル。
+	// NotifyChannel は、割り当ての結果が変わったことを通知する変更通知のチャンネル。
 	NotifyChannel = "assignments"
-	// ConflictChannel は、新たな競合が生じたことを知らせる変更通知のチャンネル (設計書 6.2)。
+	// ConflictChannel は、新たな競合が生じたことを通知する変更通知のチャンネル (設計書 6.2)。
 	// 通知の配信 (#40) は、これを受けて、競合した予約を読み直す。
 	ConflictChannel = "reservation_conflicts"
 	// DefaultDebounce は、変化を受けてから計算し直すまで待つ時間。立て続けの変化を 1 回にまとめる (設計書 4.5)。
@@ -33,7 +33,7 @@ const (
 	DefaultInterval = time.Minute
 )
 
-// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
+// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確認する。
 type Guard func(ctx context.Context, tx pgx.Tx) error
 
 // RunnerOptions は Runner の設定。0 の項目は既定値にする。

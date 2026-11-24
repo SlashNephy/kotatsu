@@ -5,7 +5,7 @@ import { zxcvbnDictionary } from './dictionary';
 import { checkStrengthWith, zxcvbnOptions } from './strength';
 
 // サーバー (goja) は、順位を付け終えた辞書を precomputedDictionary で渡す (zxcvbn/goja.ts)。
-// クライアントのように辞書をそのまま渡した場合と、同じ判定になることを確かめる。
+// クライアントのように辞書をそのまま渡した場合と、同じ判定になることを確認する。
 describe('precomputedDictionary', () => {
   const withDictionary = new ZxcvbnFactory({ ...zxcvbnOptions, dictionary: zxcvbnDictionary });
   const options = new Options({ dictionary: zxcvbnDictionary });

@@ -43,7 +43,7 @@ func (e *refusal) Error() string {
 	return e.msg
 }
 
-// Is は、ErrRefused に当たることを errors.Is に知らせる。
+// Is は、ErrRefused に当たることを errors.Is に伝える。
 func (e *refusal) Is(target error) bool {
 	return target == ErrRefused
 }

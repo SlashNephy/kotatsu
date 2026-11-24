@@ -28,7 +28,7 @@ type Webhook {
 
 type CreateWebhookPayload {
   webhook: Webhook!
-  "署名用の秘密キー。受信側で署名を確かめるのに使う。ここでしか返さない。"
+  "署名用の秘密キー。受信側で署名を確認するのに使う。ここでしか返さない。"
   secret: String!
 }
 

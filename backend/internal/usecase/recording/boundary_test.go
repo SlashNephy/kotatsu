@@ -45,7 +45,7 @@ func (f *fixture) broadcastTimes(t *testing.T, reservationID uuid.UUID) (*time.T
 }
 
 // TestRecorderConsecutiveReservations は、同じチャンネルで続く 2 つの番組 (eventId 6 と 7) を予約したとき、
-// EIT[p/f] で放送が切り替わる時刻が予定からずれても、どちらの録画も境界を取りこぼさないことを確かめる (#641)。
+// EIT[p/f] で放送が切り替わる時刻が予定からずれても、どちらの録画も境界を取りこぼさないことを確認する (#641)。
 func TestRecorderConsecutiveReservations(t *testing.T) {
 	t.Parallel()
 

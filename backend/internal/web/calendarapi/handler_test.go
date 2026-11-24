@@ -22,10 +22,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/calendarapi"
 )
 
-// validToken は、fakeAuthenticator が受け付ける値。値そのものに意味はないので、印に続けて作る。
+// validToken は、fakeAuthenticator が受け付ける値。値そのものに意味はないので、マークに続けて作る。
 const validToken = calendarMark + "valid"
 
-// calendarMark は、購読用の URL の秘密の値の印。
+// calendarMark は、購読用の URL の秘密の値のマーク。
 const calendarMark = "kotatsu_cal_"
 
 // fakeAuthenticator は、validToken だけを受け付ける。
@@ -41,7 +41,7 @@ func (f *fakeAuthenticator) Authenticate(_ context.Context, token string) (*auth
 	return &auth.Principal{UserID: uuid.New(), Role: f.role, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
 }
 
-// fakeQueries は、決まった予約とサービスを返し、引いた条件を覚える。
+// fakeQueries は、決まった予約とサービスを返し、取得した条件を記録する。
 type fakeQueries struct {
 	reservations []*domain.Reservation
 	listed       *query.ReservationListQuery
@@ -64,7 +64,7 @@ func (f *fakeQueries) ListGuideServices(_ context.Context, arg query.ListGuideSe
 	return services, nil
 }
 
-// TestHandler は、秘密の値が正しければ、有効な予約を iCalendar で返し、違えば 404 を返すことを確かめる (#1255)。
+// TestHandler は、秘密の値が正しければ、有効な予約を iCalendar で返し、違えば 404 を返すことを確認する (#1255)。
 func TestHandler(t *testing.T) {
 	t.Parallel()
 
@@ -116,7 +116,7 @@ func TestHandler(t *testing.T) {
 	}
 }
 
-// TestHandlerFailsWhenQueriesFail は、予約を読めなければ、500 を返し、理由をリクエストのロガーに書くことを確かめる (#1606)。
+// TestHandlerFailsWhenQueriesFail は、予約を読めなければ、500 を返し、理由をリクエストのロガーに書くことを確認する (#1606)。
 func TestHandlerFailsWhenQueriesFail(t *testing.T) {
 	t.Parallel()
 

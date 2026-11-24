@@ -52,7 +52,7 @@ type Rule struct {
 	IsTimeSpecification bool
 	Keyword             KeywordOption
 	IgnoreKeyword       KeywordOption
-	// ChannelTypes は、GR、BS、CS、SKY の真偽値の列を集合にしたもの。
+	// ChannelTypes は、GR、BS、CS、SKY の真偽値の並びを集合にしたもの。
 	ChannelTypes []string
 	ChannelIDs   []int64
 	Genres       []*Genre

@@ -30,7 +30,7 @@ const (
 	trimmedChars = " .\u3000"
 	// windowsUnsafeChars は、Windows でファイル名に使えないので、取り除く記号。
 	windowsUnsafeChars = `:*?"<>|`
-	// maxDirDepth は、ファイル名のテンプレートで掘れるディレクトリの深さの上限。これより深い分は捨てる。
+	// maxDirDepth は、ファイル名のテンプレートで掘れるディレクトリの深さの上限。これより深い分は破棄する。
 	maxDirDepth = 8
 )
 
@@ -38,7 +38,7 @@ const (
 // プール内の相対パスを返す。ext はドットを含めて渡す (例: ".m2ts")。
 //
 // 結果の / はディレクトリの区切りとして扱い (例: GR/2026-10/番組名.m2ts)、ディレクトリの名前の 1 つずつも、ファイル名と同じく整える。
-// 整えて空になった要素 (空の要素、.、..) は捨てるので、プールの外は指さない。maxDirDepth より深い分も捨てる。
+// 整えて空になった要素 (空の要素、.、..) は破棄するので、プールの外は指さない。maxDirDepth より深い分も破棄する。
 func RenderName(tmpl *template.Template, data any, ext string) (string, error) {
 	if len(ext) > maxExtBytes || !strings.HasPrefix(ext, ".") || ext[1:] != SanitizeName(ext[1:]) {
 		return "", fmt.Errorf("%w: invalid extension %q", ErrInvalidPath, ext)

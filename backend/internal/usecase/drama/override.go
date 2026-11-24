@@ -20,7 +20,7 @@ const overrideAuditTarget = "drama_title"
 // ErrInvalidOverride は、上書きの値が正しくないことを表す。
 var ErrInvalidOverride = errors.New("invalid drama title override")
 
-// Override は、管理者が作品名ごとに決めた TMDb の作品 (設計書 3.9)。SeriesID が nil なら、その作品名の番組を結びつけない。
+// Override は、管理者が作品名ごとに決めた TMDB の作品 (設計書 3.9)。SeriesID が nil なら、その作品名の番組を結びつけない。
 type Override struct {
 	TitleKey  string
 	SeriesID  *int32
@@ -35,7 +35,7 @@ type OverrideChange struct {
 	Reset    bool
 }
 
-// Overrides は、作品名ごとの上書きを変える。変えたことは監査ログに残す。TMDb には問い合わせず、照合し直すジョブを入れる。
+// Overrides は、作品名ごとの上書きを変える。変えたことは監査ログに残す。TMDB には問い合わせず、照合し直すジョブを入れる。
 type Overrides struct {
 	clock    clock.Clock
 	recorder audit.Recorder
@@ -48,7 +48,7 @@ func NewOverrides(clk clock.Clock, recorder audit.Recorder, inserter Inserter) *
 	return &Overrides{clock: clk, recorder: recorder, inserter: inserter}
 }
 
-// ListOverrides は、すべての上書きを、作品名の鍵の順に返す。
+// ListOverrides は、すべての上書きを、作品名のキーの順に返す。
 func ListOverrides(ctx context.Context, db sqlc.DBTX) ([]*Override, error) {
 	rows, err := sqlc.New(db).ListDramaTitleOverrides(ctx)
 	if err != nil {
@@ -62,12 +62,12 @@ func ListOverrides(ctx context.Context, db sqlc.DBTX) ([]*Override, error) {
 	return overrides, nil
 }
 
-// TitleKeyOf は、番組名 name から、上書きを引く作品名の鍵を返す。照合と同じ読み方をする。
+// TitleKeyOf は、番組名 name から、上書きを検索する作品名のキーを返す。照合と同じ読み方をする。
 func TitleKeyOf(name string) string {
 	return TitleKey(WorkTitle(name))
 }
 
-// Update は、作品名の鍵 titleKey の上書きを change で変える。作品名の番組表にある番組は、確定を外して照合し直す。
+// Update は、作品名のキー titleKey の上書きを change で変える。作品名の番組表にある番組は、確定を外して照合し直す。
 // 上書きを消したときは、照合し直すまで、前の上書きで結びつけた作品のままになる。
 func (o *Overrides) Update(ctx context.Context, db Database, actor *audit.Actor, titleKey string, change *OverrideChange) error {
 	if titleKey == "" || (change.Reset && (change.Exclude || change.SeriesID != nil)) ||

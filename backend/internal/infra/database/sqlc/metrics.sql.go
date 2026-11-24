@@ -220,7 +220,7 @@ type ListStoragePoolMeasurementsRow struct {
 	MeasuredAt   time.Time
 }
 
-// /metrics に出す、容量の管理が測った保存先プールの容量と空き容量、閾値 (#957)。測っていないプールは返さない。
+// /metrics に出す、容量の管理が計測した保存先プールの容量と空き容量、閾値 (#957)。計測していないプールは返さない。
 func (q *Queries) ListStoragePoolMeasurements(ctx context.Context) ([]ListStoragePoolMeasurementsRow, error) {
 	rows, err := q.db.Query(ctx, listStoragePoolMeasurements)
 	if err != nil {

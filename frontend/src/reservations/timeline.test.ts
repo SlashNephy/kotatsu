@@ -42,7 +42,7 @@ describe('needsAttention', () => {
     { state: 'PARTIAL', enabled: true, want: true },
     { state: 'OK', enabled: true, want: false },
     { state: 'PENDING', enabled: true, want: false },
-    // 無効にした予約は録画しないので、競合していても知らせない。
+    // 無効にした予約は録画しないので、競合していても通知しない。
     { state: 'CONFLICT', enabled: false, want: false },
   ])('$state (enabled=$enabled)', ({ state, enabled, want }) => {
     expect(needsAttention(state, enabled)).toBe(want);

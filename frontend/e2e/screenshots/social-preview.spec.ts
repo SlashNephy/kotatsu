@@ -39,7 +39,7 @@ test('Social preview', async ({ page }) => {
   });
   await page.goto(`${origin}/`);
 
-  // フォントの読み込みに失敗しても、代わりのフォントで撮れてしまうので、確かめる。
+  // フォントの読み込みに失敗しても、代わりのフォントで撮れてしまうので、確認する。
   const fontStatuses = await page.evaluate(async () => {
     await document.fonts.ready;
 

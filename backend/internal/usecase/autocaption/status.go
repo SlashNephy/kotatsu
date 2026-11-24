@@ -20,7 +20,7 @@ import (
 //
 // ENUM(
 // not_generated // 生成していず、生成するジョブもないこと。
-// queued // 生成するジョブが動くのを待っていること。試し直しを待っているときも含む。
+// queued // 生成するジョブが動くのを待っていること。再試行を待っているときも含む。
 // running // 生成していること。
 // generated // 生成し終えたこと。台詞がなく、字幕が 1 つもなくても、生成し終えたとする。
 // failed // 最後に入れた生成のジョブが、試す回数を使い切ったか、取りやめたこと。
@@ -59,7 +59,7 @@ type latestJob struct {
 }
 
 // RecordingStatus は、録画 recordingID の字幕の自動生成の状態を返す。
-// 最後に入れた生成のジョブ (River の表) と、生成した字幕 (recording_auto_captions) から決める。
+// 最後に入れた生成のジョブ (River のテーブル) と、生成した字幕 (recording_auto_captions) から決める。
 // River は終えたジョブを消すので、ジョブがなければ、生成した字幕だけで決める。
 func RecordingStatus(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*Status, error) {
 	status := &Status{State: StateNotGenerated, GeneratedAt: nil, Model: "", Cues: 0, Progress: nil}
@@ -113,7 +113,7 @@ func withJob(ctx context.Context, db sqlc.DBTX, kind string, match map[string]st
 		status.State = StateQueued
 	case "running":
 		// 字幕を書いてから River がジョブを完了にするまでの間は、まだ動いているように見える。
-		// 書いたことを知らせた後に読み直した画面に、生成しているように出さないよう、今の試行で書いた字幕があれば生成し終えたとする。
+		// 書いたことを通知した後に読み直した画面に、生成しているように出さないよう、今の試行で書いた字幕があれば生成し終えたとする。
 		if status.GeneratedAt != nil && job.attemptedAt != nil && !status.GeneratedAt.Before(*job.attemptedAt) {
 			return status, nil
 		}
@@ -130,7 +130,7 @@ func withJob(ctx context.Context, db sqlc.DBTX, kind string, match map[string]st
 }
 
 // lastJob は、kind のジョブのうち、引数が match を含む最後に入れたジョブと、今の試行の進み具合を返す。ジョブがなければ false を返す。
-// River の表は sqlc のスキーマにないので、直接読む。
+// River のテーブルは sqlc のスキーマにないので、直接読む。
 func lastJob(ctx context.Context, db sqlc.DBTX, kind string, match map[string]string) (*latestJob, bool, error) {
 	args, err := json.Marshal(match)
 	if err != nil {

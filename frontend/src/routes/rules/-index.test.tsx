@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 // setup は、デモのルール (こたつ探偵、縁側の午後) に、予約のないルールを 1 つ足した環境を作る。
-// executor は、操作の後のルールを、画面を通さずに確かめるのに使う。
+// executor は、操作の後のルールを、画面を通さずに確認するのに使う。
 async function setup() {
   const executor = createExecutor(createRootValue(createEventHub(), Date.now()));
   await executor.execute('mutation ($input: RuleInput!) { createRule(input: $input) { id } }', {

@@ -2,13 +2,13 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { createCaptions, rendererColor } from './captions';
 
-// fed は、偽の aribb24.js の feeder に渡ったもの。種類 (字幕か文字スーパーか) ごとに、渡った順に並べる。
+// fed は、モックの aribb24.js の feeder に渡ったもの。種類 (字幕か文字スーパーか) ごとに、渡った順に並べる。
 const fed: { type: string; kind: string; pts: number }[] = [];
-// texts は、偽の aribb24.js の Controller に付けた、字幕の文を取り出す描画器。
+// texts は、モックの aribb24.js の Controller に付けた、字幕の文を取り出すレンダラー。
 const texts: { render: () => void; clear: () => void }[] = [];
-// shown は、偽の aribb24.js の Controller ごとの、最後に出したか隠したか。種類 (字幕か文字スーパーか) で引く。
+// shown は、モックの aribb24.js の Controller ごとの、最後に出したか隠したか。種類 (字幕か文字スーパーか) で取得する。
 const shown = new Map<string, boolean>();
-// colors は、偽の描画器の色の設定。種類で引けないので、作った順に並べる (字幕、文字スーパーの順)。
+// colors は、モックのレンダラーの色の設定。種類で取得できないので、作った順に並べる (字幕、文字スーパーの順)。
 const colors: { stroke: string | null; background: string | null }[] = [];
 vi.mock('aribb24.js', () => {
   return {
@@ -56,7 +56,7 @@ vi.mock('aribb24.js', () => {
     },
     CanvasMainThreadRenderer: class {
       private readonly canvas = document.createElement('canvas');
-      // option は、aribb24.js の描画器が、描くたびに読む設定。
+      // option は、aribb24.js のレンダラーが、描くたびに読む設定。
       readonly option = { color: { stroke: null, background: null } };
       constructor() {
         colors.push(this.option.color);

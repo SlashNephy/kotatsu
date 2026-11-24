@@ -20,8 +20,8 @@ type key struct {
 	logoType  uint8
 }
 
-// Collector は、TS を読む解析器から受け取ったロゴを溜め、Flush で DB に書く。
-// ロゴは同じものが繰り返し送られるので、一度書いた版は、もう書かない。
+// Collector は、TS を読むパーサーから受け取ったロゴをバッファし、Flush で DB に書く。
+// ロゴは同じものが繰り返し送られるので、一度書いたバージョンは、もう書かない。
 type Collector struct {
 	clock  clock.Clock
 	logger *slog.Logger
@@ -29,7 +29,7 @@ type Collector struct {
 	mu sync.Mutex
 	// pending は、まだ書いていないロゴ。同じロゴは、新しく届いたほうで置き換える。
 	pending map[key]*ts.Logo
-	// saved は、書いたロゴの版。
+	// saved は、書いたロゴのバージョン。
 	saved map[key]uint16
 }
 
@@ -38,7 +38,7 @@ func NewCollector(clk clock.Clock, logger *slog.Logger) *Collector {
 	return &Collector{clock: clk, logger: logger, mu: sync.Mutex{}, pending: map[key]*ts.Logo{}, saved: map[key]uint16{}}
 }
 
-// Observe は、解析器が読んだロゴを受け取る。ts.AnalyzerOptions.OnLogo に渡す。解析器の中で呼ばれるので、DB には書かない。
+// Observe は、パーサーが読んだロゴを受け取る。ts.AnalyzerOptions.OnLogo に渡す。パーサーの中で呼ばれるので、DB には書かない。
 func (c *Collector) Observe(logo *ts.Logo) {
 	k := key{networkID: logo.NetworkID, logoID: logo.LogoID, logoType: logo.Type}
 	c.mu.Lock()
@@ -49,7 +49,7 @@ func (c *Collector) Observe(logo *ts.Logo) {
 	c.pending[k] = logo
 }
 
-// Flush は、溜めたロゴを DB に書く。書けなかったロゴは、次の Flush で書き直す。
+// Flush は、バッファしたロゴを DB に書く。書けなかったロゴは、次の Flush で書き直す。
 // 見るためだけのものなので、書けなくても録画は止めない。エラーはログに残すだけにする。
 func (c *Collector) Flush(ctx context.Context, q *sqlc.Queries) {
 	c.mu.Lock()
@@ -63,7 +63,7 @@ func (c *Collector) Flush(ctx context.Context, q *sqlc.Queries) {
 	c.mu.Unlock()
 
 	for k, logo := range pending {
-		// 読めないロゴは、同じ版が届き直しても読めないので、書き直さない。
+		// 読めないロゴは、同じバージョンが届き直しても読めないので、書き直さない。
 		data, err := ts.LogoPNG(logo.PNG)
 		if err == nil {
 			err = save(ctx, q, logo, data, c.clock)

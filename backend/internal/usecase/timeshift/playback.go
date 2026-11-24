@@ -22,14 +22,14 @@ type PlayableProgram struct {
 	// StartedAt は、mikan が番組の始まりに気づいた時刻。EndedAt は、終わりに気づいた時刻で、放送中なら nil。
 	StartedAt time.Time
 	EndedAt   *time.Time
-	// PlayableFrom は、再生できる範囲の始まり。番組の頭のチャンクを破棄したか、録れていなかったら、StartedAt より後になる。
+	// PlayableFrom は、再生できる範囲の始まり。番組の先頭のチャンクを破棄したか、録れていなかったら、StartedAt より後になる。
 	PlayableFrom time.Time
 	// Gaps は、PlayableFrom から番組の終わり (放送中なら今) までの、途切れた区間。始まりの順に並ぶ。
 	// チャンクの間の穴と、最後のチャンクの終わりから番組の終わりまでの録れていない部分を含む。
 	Gaps []Gap
-	// FromStart は、番組の頭から録れていて、頭から再生できるかどうか。
+	// FromStart は、番組の先頭から録れていて、頭から再生できるかどうか。
 	FromStart bool
-	// Promoting は、番組を録画に昇格して、バッファから書き出している途中かどうか (#1057)。
+	// Promoting は、番組を録画に昇格して、バッファから書き込んでいる途中かどうか (#1057)。
 	Promoting bool
 }
 
@@ -149,7 +149,7 @@ type span struct {
 // programs と spans は始まりの順に並ぶ。重なるチャンクがない番組は、再生できないので除く。
 //
 // 番組の始まりは、mikan が番組の替わりに気づいた時刻である。録り始めたときと、落ちた mikan の後を録り直したときは、
-// 放送中の番組を、その時刻から始まる行に記録するので、行の始まりは番組の頭ではない。番組の替わりに気づいたときは、
+// 放送中の番組を、その時刻から始まる行に記録するので、行の始まりは番組の先頭ではない。番組の替わりに気づいたときは、
 // 前の番組を閉じた時刻と同じ時刻で次の番組を始めるので、前の行の終わりと同じ時刻に始まった行だけを、頭から録れたものとする。
 func playable(programs []sqlc.TimeshiftProgram, spans []span, now time.Time) []*PlayableProgram {
 	result := []*PlayableProgram{}

@@ -1,7 +1,7 @@
 {{- /*
 Pod へ届く相手を絞る NetworkPolicy (#1526、設計書 11.1)。CNI が対応していないと効かないので、既定では作らない。
 Pod への Ingress を、許した相手からの、そのポートの TCP だけに絞る。Egress は絞らない。
-- http (8080): all と tenban は、httpFrom の相手 (空ならどこからでも) から受ける。kyusu は、セッションを中継する tenban の Pod からだけ受ける。
+- http (8080): all と tenban は、httpFrom の相手 (空ならどこからでも) から受ける。kyusu は、セッションをプロキシする tenban の Pod からだけ受ける。
   nabe は、EDCB の NetworkTV の TS を受け取る tenban、mikan、kyusu の Pod からだけ受ける (設計書 3.1)。
   ほかのロール (neko、mikan、nekonote) は、ほかのロールから HTTP を受けないので、誰からも受けない。
 - metrics (9090): どのロールも、metricsFrom の相手からだけ受ける。空なら誰からも受けない。

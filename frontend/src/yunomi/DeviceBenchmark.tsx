@@ -36,24 +36,25 @@ import {
 import { measureEstimate } from './estimateBenchmark';
 import { TsPlayer } from './TsPlayer';
 import { useCloseWatch } from './WatchHost';
+import type { PlayerMedia } from './playerMedia';
 
 // loadTimeoutMs は、再生を始めるまで待つ時間。これを過ぎたら、その回は測れなかったものとする。
 const loadTimeoutMs = 15_000;
-// refreshFrames は、画面の書き換えの間隔を測るときに数える書き換えの数。
+// refreshFrames は、画面の書き換えの間隔を計測するときに数える書き換えの数。
 const refreshFrames = 120;
 
-// Mounted は、測っている回に出しているプレイヤー。
+// Mounted は、計測している回に出しているプレイヤー。
 type Mounted = { key: number; scenario: BenchmarkScenario; url: string };
 
-// Collector は、測っている回で、プレイヤーから受け取った値。
+// Collector は、計測している回で、プレイヤーから受け取った値。
 type Collector = {
   stats: DeinterlaceStats | null;
   fieldRateDropped: boolean;
   film: boolean;
-  // collecting は、測る窓の中かどうか。窓の中で受け取った fps だけを数える。
+  // collecting は、計測するウィンドウの中かどうか。ウィンドウの中で受け取った fps だけを数える。
   collecting: boolean;
-  // offscreen は、測る窓の中で、プレイヤーが画面から外れたことがあるか。
-  // 画面の外の canvas は合成されないので、GPU が追いつかなくても、コマの数に表れない (#1771)。
+  // offscreen は、計測するウィンドウの中で、プレイヤーが画面から外れたことがあるか。
+  // 画面の外の canvas は合成されないので、GPU が追いつかなくても、コマの数に反映されない (#1771)。
   offscreen: boolean;
   fpsSamples: number[];
   loaded: (() => void) | null;
@@ -78,7 +79,7 @@ const sleep = (ms: number, signal: AbortSignal) =>
     signal.addEventListener('abort', onAbort, { once: true });
   });
 
-// measureRefreshInterval は、画面の書き換えの間隔の中央値 (ミリ秒) を測る。
+// measureRefreshInterval は、画面の書き換えの間隔の中央値 (ミリ秒) を計測する。
 function measureRefreshInterval(): Promise<number | null> {
   return new Promise((resolve) => {
     const times: number[] = [];
@@ -109,14 +110,14 @@ function rendererName(): string | null {
 }
 
 // DeviceBenchmark は、「この端末で試す」のカード (#1771、設計書 7.5)。
-// 合成の映像を、経路ごとに短く再生してコマが間に合うかを測り、結果の表と、報告に貼れるテキストを出す。
+// 合成の映像を、経路ごとに短く再生してコマが間に合うかを計測し、結果のテーブルと、報告に貼れるテキストを出す。
 export function DeviceBenchmark() {
   const { t } = useTranslation();
   const [mounted, setMounted] = useState<Mounted | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [report, setReport] = useState<BenchmarkReport | null>(null);
   const [failed, setFailed] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaRef = useRef<PlayerMedia | null>(null);
   const collector = useRef<Collector>({
     stats: null,
     fieldRateDropped: false,
@@ -151,7 +152,7 @@ export function DeviceBenchmark() {
   const abort = useRef<AbortController | null>(null);
   const closeWatch = useCloseWatch();
 
-  // 画面を離れたら、測るのをやめる。
+  // 画面を離れたら、計測するのをやめる。
   useEffect(() => () => abort.current?.abort(), []);
 
   const label = (id: BenchmarkScenarioID) => t(`settings.account.benchmark.scenarios.${id}`);
@@ -159,10 +160,10 @@ export function DeviceBenchmark() {
   const counters = (): Counters => ({
     time: performance.now(),
     late: collector.current.stats?.late ?? 0,
-    dropped: videoRef.current?.getVideoPlaybackQuality?.().droppedVideoFrames ?? 0,
+    dropped: mediaRef.current?.getVideoPlaybackQuality?.().droppedVideoFrames ?? 0,
   });
 
-  // runOnce は、経路を 1 回測る。測れなければ null。
+  // runOnce は、経路を 1 回計測する。測れなければ null。
   const runOnce = async (scenario: BenchmarkScenario, key: number, signal: AbortSignal) => {
     const url = await createBenchmarkStream(scenario.clip, streamSeconds, signal);
     try {
@@ -289,7 +290,7 @@ export function DeviceBenchmark() {
         >
           {t('settings.account.benchmark.start')}
         </Button>
-        {/* 測っている間は、プレイヤーをモーダルに出し、必ず画面に入れておく。画面の外では、描くのを間引かれる (#1771)。 */}
+        {/* 計測している間は、プレイヤーをモーダルに出し、必ず画面に入れておく。画面の外では、描くのを間引かれる (#1771)。 */}
         <Modal
           opened={progress !== null}
           onClose={() => abort.current?.abort()}
@@ -323,25 +324,27 @@ export function DeviceBenchmark() {
                   <TsPlayer
                     key={mounted.key}
                     url={mounted.url}
-                    videoRef={videoRef}
+                    mediaRef={mediaRef}
                     captions={false}
                     settings={{
                       fieldRate: mounted.scenario.fieldRate,
                       interpolate: mounted.scenario.interpolate,
-                      // 補間したコマは、利用者が決めた上限によらず、画面の書き換えごとに出し、書き換えの速さと比べる。
+                      // 補間したコマは、利用者が決めた上限によらず、画面の書き換えごとに出し、書き換えの速さと比較する。
                       interpolationRate: null,
-                      // 拡大 (#1654) は、測る経路の違いに混ぜないよう、利用者の設定によらず切る。
+                      // 拡大 (#1654) は、計測する経路の違いに混ぜないよう、利用者の設定によらず切る。
                       superResolution: false,
+                      // 擬似 HDR (#1656) も、同じく切る。
+                      hdrOutput: false,
                     }}
-                    onVideo={(video) => {
-                      if (video !== null) {
+                    onMedia={(media) => {
+                      if (media !== null) {
                         // 合成の映像に音はないが、念のため消音して流す。
-                        video.muted = true;
-                        video.volume = 0;
+                        media.muted = true;
+                        media.volume = 0;
                       }
                     }}
                     onLoaded={() => {
-                      void videoRef.current?.play().catch(() => undefined);
+                      void mediaRef.current?.play().catch(() => undefined);
                       collector.current.loaded?.();
                     }}
                     onDeinterlaceStats={(stats, fieldRateDropped) => {

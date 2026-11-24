@@ -1,8 +1,8 @@
-// 偽の OIDC の IdP (backend/internal/cmd/fakeidp) で、OIDC のログインを通しで確かめる (#1525、設計書 9.4、9.5、11.6)。
+// モックの OIDC の IdP (backend/internal/cmd/fakeidp) で、OIDC のログインを通しで確認する (#1525、設計書 9.4、9.5、11.6)。
 // scripts/e2e-stack.sh から流す。初回セットアップの管理者 (flows.spec.ts) がいる前提なので、stack の後に流す。
 //
-// ログインのボタンからの流れはブラウザで、断る場面は、素の HTTP のクライアントで確かめる。ログインの流れでは、
-// 何を送って何が返ったかが仕様そのものなので、リダイレクトを追わずに、そのまま確かめる。
+// ログインのボタンからの流れはブラウザで、断る場面は、素の HTTP のクライアントで確認する。ログインの流れでは、
+// 何を送って何が返ったかが仕様そのものなので、リダイレクトを追わずに、そのまま確認する。
 // Playwright の request は資格情報を自動で足すので、断る場面には使わない。
 import { expect, test } from '@playwright/test';
 
@@ -13,7 +13,7 @@ const controlURL = process.env['KOTATSU_E2E_IDP_CONTROL_URL'] ?? '';
 // 初回セットアップで作った管理者のユーザー名 (flows.spec.ts)。自動で作るユーザーと重なる場面に使う。
 const localAdminUsername = 'e2e-admin';
 
-// Identity は、偽の IdP が次に発行する ID トークンのユーザー。
+// Identity は、モックの IdP が次に発行する ID トークンのユーザー。
 type Identity = {
   subject: string;
   username: string;

@@ -5,7 +5,7 @@ export type PNGText = { keyword: string; text: string };
 
 const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-// crcTable は、PNG のチャンクの CRC-32 の表。
+// crcTable は、PNG のチャンクの CRC-32 のテーブル。
 const crcTable = (() => {
   const table = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {

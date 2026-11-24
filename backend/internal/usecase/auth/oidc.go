@@ -54,7 +54,7 @@ var (
 	ErrOIDCLoginExpired = errors.New("the OIDC login has expired or was not started")
 	// ErrOIDCStateMismatch は、IdP から戻ってきた state が、始めたログインと違うことを表す。
 	ErrOIDCStateMismatch = errors.New("the OIDC state does not match")
-	// ErrOIDCTokenInvalid は、認可コードを引き換えられなかったか、ID トークンを確かめられなかったことを表す。
+	// ErrOIDCTokenInvalid は、認可コードを引き換えられなかったか、ID トークンを確認できなかったことを表す。
 	// nonce が違うときも含む。
 	ErrOIDCTokenInvalid = errors.New("the OIDC ID token is invalid")
 	// ErrOIDCAccessDenied は、IdP がログインを拒んだか、Kotatsu のユーザーとしてログインさせないことを表す。
@@ -103,7 +103,7 @@ type OIDCOptions struct {
 // OIDC は、OpenID Connect の IdP でのログインを扱う (設計書 9.4)。
 //
 // 認可コードフローに、PKCE (S256)、state、nonce を組み合わせる。ユーザーは (issuer, subject) の組で特定する。
-// 多要素認証は IdP に任せるので、ID トークンを確かめたらセッションを作る。
+// 多要素認証は IdP に任せるので、ID トークンを確認したらセッションを作る。
 type OIDC struct {
 	settings   OIDCSettings
 	clock      clock.Clock
@@ -166,10 +166,10 @@ type OIDCCallback struct {
 	Error string
 }
 
-// Complete は、IdP から戻ってきたログインを確かめ、セッションを作る。
+// Complete は、IdP から戻ってきたログインを確認し、セッションを作る。
 //
-// ログインの途中の状態は、確かめられなくても使用済みにする。state、ID トークン、nonce を確かめた後、
-// (issuer, subject) で紐付けたユーザーを引く。いなければ、自動作成の条件を満たすときだけ作る。
+// ログインの途中の状態は、確認できなくても使用済みにする。state、ID トークン、nonce を確認した後、
+// (issuer, subject) で紐付けたユーザーを取得する。いなければ、自動作成の条件を満たすときだけ作る。
 // 再認証として始めたものは、ログインとしては完了させない。
 func (o *OIDC) Complete(ctx context.Context, db Database, token string, callback *OIDCCallback, client *ClientInfo) (*LoginResult, error) {
 	outcome, err := o.complete(ctx, db, token, callback, client, nil)
@@ -361,7 +361,7 @@ type oidcOutcome struct {
 	returnTo string
 }
 
-// complete は、IdP から戻ってきたログイン、再認証、紐付けを確かめる。principal は、戻ってきたリクエストのログイン中のユーザー。
+// complete は、IdP から戻ってきたログイン、再認証、紐付けを確認する。principal は、戻ってきたリクエストのログイン中のユーザー。
 // 再認証か紐付けに失敗しても、途中の状態を引けたら、戻すパスを入れた結果を、エラーと一緒に返す。
 func (o *OIDC) complete(
 	ctx context.Context, db Database, token string, callback *OIDCCallback, client *ClientInfo, principal *Principal,
@@ -432,7 +432,7 @@ func oidcAuthenticatedAt(claims map[string]any, now time.Time) time.Time {
 	return authTime
 }
 
-// login は、確かめた ID トークンのユーザーで、セッションを作る。
+// login は、確認した ID トークンのユーザーで、セッションを作る。
 func (o *OIDC) login(ctx context.Context, db Database, claims *oidcClaims, client *ClientInfo) (*LoginResult, error) {
 	var (
 		result  *LoginResult
@@ -472,7 +472,7 @@ func (o *OIDC) login(ctx context.Context, db Database, claims *oidcClaims, clien
 	return result, nil
 }
 
-// verify は、認可コードを ID トークンと引き換え、署名、issuer、audience、期限、nonce を確かめる。
+// verify は、認可コードを ID トークンと引き換え、署名、issuer、audience、期限、nonce を確認する。
 func (o *OIDC) verify(ctx context.Context, provider *oidc.Provider, row *sqlc.OidcLogin, code string) (*oidcClaims, error) {
 	ctx = oidc.ClientContext(ctx, o.httpClient)
 	token, err := o.oauth2Config(provider, row.RedirectUri).Exchange(ctx, code, oauth2.VerifierOption(row.CodeVerifier))
@@ -487,7 +487,7 @@ func (o *OIDC) verify(ctx context.Context, provider *oidc.Provider, row *sqlc.Oi
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrOIDCTokenInvalid, err)
 	}
-	// go-oidc は nonce を確かめないので、ここで確かめる。
+	// go-oidc は nonce を確認しないので、ここで確認する。
 	if subtle.ConstantTimeCompare([]byte(idToken.Nonce), []byte(row.Nonce)) != 1 {
 		return nil, fmt.Errorf("%w: the nonce does not match", ErrOIDCTokenInvalid)
 	}
@@ -618,7 +618,7 @@ func (o *OIDC) recordDenied(ctx context.Context, tx pgx.Tx, claims *oidcClaims, 
 	})
 }
 
-// loadProvider は、IdP の設定を引く。引けたら覚えておき、引けなければ次に使うときに引き直す。
+// loadProvider は、IdP の設定を取得する。取得できたらキャッシュしておき、取得できなければ次に使うときに再取得する。
 func (o *OIDC) loadProvider(ctx context.Context) (*oidc.Provider, error) {
 	if !o.Enabled() {
 		return nil, ErrOIDCDisabled
@@ -629,7 +629,7 @@ func (o *OIDC) loadProvider(ctx context.Context) (*oidc.Provider, error) {
 		return o.provider, nil
 	}
 	// IdP が応答しないときに、ロックを持ったまま待ち続けないよう、時間を区切る。
-	// go-oidc は、署名の鍵を引き直すときには、この context ではなく、クライアントだけを使う。
+	// go-oidc は、署名鍵を再取得するときには、この context ではなく、クライアントだけを使う。
 	ctx, cancel := context.WithTimeout(ctx, oidcHTTPTimeout)
 	defer cancel()
 	provider, err := oidc.NewProvider(oidc.ClientContext(ctx, o.httpClient), o.settings.Issuer)

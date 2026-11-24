@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
+import { mediaOf } from './playerMedia';
 import { applyVolume, currentVolume, lowerBoost, splitVolume } from './volumeBoost';
 
 describe('splitVolume', () => {
@@ -14,17 +15,17 @@ describe('splitVolume', () => {
 });
 
 describe('applyVolume', () => {
-  // jsdom には AudioContext がないので、GainNode を挟めないときと同じく、100% で鳴らして上げたい倍率を覚えておく。
+  // jsdom には AudioContext がないので、GainNode を挟めないときと同じく、100% で鳴らして上げたい倍率を保持しておく。
   test('WebAudio を使えないときは 100% で鳴らし、上げたい音量を覚えておく', () => {
     const video = document.createElement('video');
 
-    applyVolume(video, 1.5);
+    applyVolume(mediaOf(video), 1.5);
     expect(video.volume).toBe(1);
-    expect(currentVolume(video)).toBe(1.5);
+    expect(currentVolume(mediaOf(video))).toBe(1.5);
 
     // ほかの経路で 1 より下げたら、上げていた分を戻す。
     video.volume = 0.4;
-    lowerBoost(video);
-    expect(currentVolume(video)).toBe(0.4);
+    lowerBoost(mediaOf(video));
+    expect(currentVolume(mediaOf(video))).toBe(0.4);
   });
 });

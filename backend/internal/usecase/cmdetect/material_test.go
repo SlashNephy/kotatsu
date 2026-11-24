@@ -14,7 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
 
-// TestMaterialsRoundTrip は、材料を書いて読み戻すと、時刻はマイクロ秒、点数は 1e-4、明るさと肌理は 0.01 の刻みで一致することを確かめる (#1507)。
+// TestMaterialsRoundTrip は、材料を書いて読み戻すと、時刻はマイクロ秒、点数は 1e-4、明るさと肌理は 0.01 の粒度で一致することを確認する (#1507)。
 func TestMaterialsRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -66,7 +66,7 @@ func TestMaterialsRoundTrip(t *testing.T) {
 	}
 }
 
-// TestDecodeMaterialsRejects は、壊れた材料と、途中で切れた材料を、読み戻さずに読み直しに回すことを確かめる (#1507)。
+// TestDecodeMaterialsRejects は、壊れた材料と、途中で切れた材料を、読み戻さずに読み直しに回すことを確認する (#1507)。
 func TestDecodeMaterialsRejects(t *testing.T) {
 	t.Parallel()
 

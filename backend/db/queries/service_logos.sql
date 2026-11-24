@@ -1,5 +1,5 @@
 -- name: UpsertServiceLogo :execrows
--- 版か画像が変わったときだけ書き換える (#1308)。
+-- バージョンか画像が変わったときだけ書き換える (#1308)。
 INSERT INTO service_logos (network_id, logo_id, logo_type, version, data, updated_at)
 VALUES (@network_id, @logo_id, @logo_type, @version, @data, @now)
 ON CONFLICT (network_id, logo_id, logo_type) DO UPDATE SET

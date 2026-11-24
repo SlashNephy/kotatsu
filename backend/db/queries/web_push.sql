@@ -20,7 +20,7 @@ DELETE FROM web_push_subscriptions
 WHERE user_id = @user_id AND session_id IS NOT NULL AND (sqlc.narg(keep_id)::uuid IS NULL OR session_id <> sqlc.narg(keep_id)::uuid);
 
 -- name: DeleteExpiredWebPushSubscription :exec
--- プッシュサービスが失効を返した購読を消す。送った後に、同じ端末が購読し直していたら (鍵が変わっていたら)、消さない。
+-- プッシュサービスが失効を返した購読を消す。送った後に、同じ端末が購読し直していたら (キーが変わっていたら)、消さない。
 DELETE FROM web_push_subscriptions WHERE id = @id AND p256dh = @p256dh AND auth = @auth;
 
 -- name: GetWebPushSubscription :one
@@ -41,7 +41,7 @@ WHERE users.disabled_at IS NULL AND COALESCE(p.web_push, true)
 ORDER BY s.id;
 
 -- name: WebPushSubscriptionReceives :one
--- 購読 id が、今もイベントの種類 kind を Web Push で受け取るかを返す。ListWebPushSubscriptionsForKind と同じ条件で確かめる。
+-- 購読 id が、今もイベントの種類 kind を Web Push で受け取るかを返す。ListWebPushSubscriptionsForKind と同じ条件で確認する。
 -- 配信のジョブを積んでから送るまでの間に、ユーザーを無効にしたり、設定を変えたりしたら、送らないために使う (#1435)。
 SELECT EXISTS (
   SELECT 1 FROM web_push_subscriptions s
@@ -53,7 +53,7 @@ SELECT EXISTS (
 );
 
 -- name: InsertVAPIDKeys :exec
--- VAPID の鍵を保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。
+-- VAPID のキーを保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。
 INSERT INTO vapid_keys (id, public_key, private_key_ciphertext, created_at)
 VALUES (true, @public_key, @private_key_ciphertext, @now)
 ON CONFLICT (id) DO NOTHING;
@@ -62,5 +62,5 @@ ON CONFLICT (id) DO NOTHING;
 SELECT * FROM vapid_keys WHERE id;
 
 -- name: ListWebPushSecrets :many
--- ログの報告から伏せるため、全ユーザーの購読の送り先と秘密を返す (#1521)。
+-- ログの報告でマスクするため、全ユーザーの購読の送り先と秘密を返す (#1521)。
 SELECT endpoint, auth FROM web_push_subscriptions ORDER BY id;

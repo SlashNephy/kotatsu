@@ -4,7 +4,7 @@
 // ほかの要求 (端末への保存やダウンロード) には手を出さない。それらは、ファイルをそのまま読む。
 import { clockHz, indexStream, packetSize, StreamLooper } from './demo/stream-loop.js';
 
-// period は、デモの映像の長さ (映像の 1920 フレーム、90 kHz の刻み)。scripts/build-demo-stream.sh で作る長さ。
+// period は、デモの映像の長さ (映像の 1920 フレーム、90 kHz の単位)。scripts/build-demo-stream.sh で作る長さ。
 const period = 1920 * 3003;
 // leadSeconds は、ライブ視聴で、初めに一気に渡す分。プレイヤーが再生を始めるのに足りるだけ先に渡す。
 const leadSeconds = 2;

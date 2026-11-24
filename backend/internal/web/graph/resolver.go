@@ -75,11 +75,11 @@ type Resolver struct {
 	animeChannels *anime.Channels
 	// animeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録を扱わない。
 	animeRecords *animerecord.Service
-	// dramaOverrides は、ドラマの番組の作品名ごとに、TMDb の作品の上書きを変える (#1651、設計書 3.9)。
+	// dramaOverrides は、ドラマの番組の作品名ごとに、TMDB の作品の上書きを変える (#1651、設計書 3.9)。
 	dramaOverrides *drama.Overrides
 	// google は、Google の OAuth クライアントと Google Drive の接続を扱う (#1902)。nil なら、連携を扱わない。
 	google *google.Service
-	// dramaTokens は、管理者が入れる TMDb のトークン (#1651)。nil なら、トークンを扱わない。
+	// dramaTokens は、管理者が入れる TMDB のトークン (#1651)。nil なら、トークンを扱わない。
 	dramaTokens *drama.Tokens
 	// dramaRecords は、見たドラマを Simkl に記録する連携を扱う (#1649)。nil なら、連携の操作は内部のエラーにする。
 	dramaRecords *dramarecord.Service
@@ -91,7 +91,7 @@ type Resolver struct {
 	liveRates *stream.LiveRatesWatcher
 	// liveScramble は、ライブでスクランブルされたまま届くと決めたサービスを読む (#1517)。
 	liveScramble *scramble.Reporter
-	// channelInspector は、物理チャンネルの TS を調べる (#830)。
+	// channelInspector は、物理チャンネルの TS を調査する (#830)。
 	channelInspector *stream.ChannelInspector
 	jikkyoTable      *jikkyo.Table
 	jikkyoClient     *jikkyoclient.Client
@@ -106,18 +106,18 @@ type Resolver struct {
 	freeSpace kago.FreeSpaceFunc
 	// jobs は、ジョブを入れる River のクライアント。
 	jobs thumbnail.Inserter
-	// jobAdmin は、管理者向けに River のジョブを読み、試し直し、取り消す (#1279)。nil なら、ジョブの画面を使えない。
+	// jobAdmin は、管理者向けに River のジョブを読み、再試行し、取り消す (#1279)。nil なら、ジョブの画面を使えない。
 	jobAdmin JobAdmin
-	// totalSpace は、保存先プールのファイルシステムの容量を調べる。
+	// totalSpace は、保存先プールのファイルシステムの容量を取得する。
 	totalSpace kago.TotalSpaceFunc
-	// updates は、新しいリリースを確かめた結果。確かめない設定なら nil。
+	// updates は、新しいリリースを確認した結果。確認しない設定なら nil。
 	updates Updates
 	drain   Drain
 	// logs は、直近のログを集める (#1521)。nil なら、ログの画面を使えない。
 	logs *logreport.Service
-	// dataDir は、データディレクトリ。字幕の自動生成のモデルを置いたかを確かめ、消すのに使う (#1682)。空ならマウントしていない。
+	// dataDir は、データディレクトリ。字幕の自動生成のモデルを置いたかを確認し、消すのに使う (#1682)。空ならマウントしていない。
 	dataDir string
-	// libraries は、ファイラーで見せるライブラリ。librarySource は、そのファイルを開き、索引を作り始める (設計書 5.8)。
+	// libraries は、ファイラーで見せるライブラリ。librarySource は、そのファイルを開き、インデックスを作り始める (設計書 5.8)。
 	libraries     *medialib.Set
 	librarySource *filelib.Source
 	// libraryJobs は、ライブラリのファイルの画像を作るジョブと、CM の区間を見分けるジョブを入れる。nil なら入れない。

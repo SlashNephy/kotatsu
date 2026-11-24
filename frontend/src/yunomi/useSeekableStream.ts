@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { advanceTarget, parseStreamStart, playbackPosition, skipJump } from './position';
 import type { HandoverLoaded } from './TsPlayer';
+import type { PlayerMedia } from './playerMedia';
 
 // SeekableStream は、位置を指定して読み直す TS の配信 (録画やタイムシフトのバッファ) の、再生位置の追い方 (設計書 7.2)。
 export type SeekableStream = {
@@ -33,7 +34,7 @@ export type SeekableStream = {
 // enabled が false の間は、HEAD を送らず、位置も動かさない。
 export function useSeekableStream(
   streamUrl: string,
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   initial: number,
   enabled = true,
 ): SeekableStream {
@@ -79,7 +80,7 @@ export function useSeekableStream(
     return playbackPosition(handoverFrom.current ?? startedAt, base.current, current);
   };
   useEffect(() => {
-    if (video === null || !enabled) {
+    if (media === null || !enabled) {
       return;
     }
     const update = () => {
@@ -87,22 +88,22 @@ export function useSeekableStream(
         return;
       }
       if (phase.current === 'awaitingBase') {
-        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        if (media.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
           return;
         }
-        base.current = video.currentTime;
-        lastVideoTime.current = video.currentTime;
+        base.current = media.currentTime;
+        lastVideoTime.current = media.currentTime;
         phase.current = 'playing';
       }
-      const next = converted(video.currentTime);
+      const next = converted(media.currentTime);
       positionRef.current = next;
       setPosition(next);
     };
-    video.addEventListener('timeupdate', update);
+    media.addEventListener('timeupdate', update);
 
-    return () => video.removeEventListener('timeupdate', update);
+    return () => media.removeEventListener('timeupdate', update);
     // converted は startedAt で決まる。
-  }, [startedAt, video, enabled]);
+  }, [startedAt, media, enabled]);
 
   return {
     url: `${start}#${loads}`,
@@ -120,9 +121,9 @@ export function useSeekableStream(
       setLoads((n) => n + 1);
     },
     currentPosition: () =>
-      video === null || phase.current !== 'playing'
+      media === null || phase.current !== 'playing'
         ? positionRef.current
-        : converted(video.currentTime),
+        : converted(media.currentTime),
     positionOf: (t) => playbackPosition(startedAt, base.current, t),
     framePosition: (t) =>
       phase.current === 'playing'
@@ -142,8 +143,8 @@ export function useSeekableStream(
       phase.current = 'awaitingBase';
     },
     handoverTarget: (first) =>
-      handoverFrom.current === null || !settled || video === null
+      handoverFrom.current === null || !settled || media === null
         ? null
-        : advanceTarget(first, startedAt, converted(video.currentTime)),
+        : advanceTarget(first, startedAt, converted(media.currentTime)),
   };
 }

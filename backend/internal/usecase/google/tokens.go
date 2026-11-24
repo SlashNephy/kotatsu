@@ -89,7 +89,7 @@ func (t *DriveTokens) Folders(ctx context.Context) ([]*medialib.DriveFolder, err
 }
 
 // Token は、アクセストークンを返す。期限が近ければ、リフレッシュトークンで作り直す。リフレッシュトークンが使えなくなっていれば
-// (取り消された、同意の画面が「テスト中」で 7 日たったなど)、接続に印を付け、ErrNotConnected を返す。管理者は接続し直す。
+// (取り消された、同意の画面が「テスト中」で 7 日たったなど)、接続にマークを付け、ErrNotConnected を返す。管理者は接続し直す。
 func (t *DriveTokens) Token(ctx context.Context) (string, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -135,14 +135,14 @@ func (t *DriveTokens) Token(ctx context.Context) (string, error) {
 	return token.AccessToken, nil
 }
 
-// Invalidate は、手元のアクセストークンを捨てる。Drive API が 401 を返したときに呼ばれる。
+// Invalidate は、手元のアクセストークンを破棄する。Drive API が 401 を返したときに呼ばれる。
 func (t *DriveTokens) Invalidate() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.token, t.tokenFor = nil, nil
 }
 
-// forget は、覚えた接続を捨て、次に DB から読み直させる。
+// forget は、キャッシュした接続を破棄し、次に DB から読み直させる。
 func (t *DriveTokens) forget() {
 	t.mu.Lock()
 	defer t.mu.Unlock()

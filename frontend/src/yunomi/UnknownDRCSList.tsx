@@ -16,8 +16,8 @@ import {
 } from './drcs';
 import type { UnknownDRCSListMutation } from './__generated__/UnknownDRCSListMutation.graphql';
 
-// UnknownDRCSList は、字幕に出たが、置き換えの表に無い外字の一覧 (#825)。管理者だけに出す。
-// 外字の画像を見て、置き換える文字を書けば、その場で表に登録する。
+// UnknownDRCSList は、字幕に出たが、置き換えのテーブルに無い外字の一覧 (#825)。管理者だけに出す。
+// 外字の画像を見て、置き換える文字を書けば、その場でテーブルに登録する。
 export function UnknownDRCSList() {
   const { t } = useTranslation();
   const glyphs = useUnknownDRCS();
@@ -50,7 +50,7 @@ function UnknownDRCSRow({ glyph }: { glyph: DRCSGlyph }) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const valid = validDRCSText(text);
-  // 字幕が出るたびに描き直さないよう、画像は外字と色が変わったときだけ作る。React Compiler が覚える (#1684)。
+  // 字幕が出るたびに描き直さないよう、画像は外字と色が変わったときだけ作る。React Compiler がメモ化する (#1684)。
   const image = drcsImage(glyph, scheme === 'dark' ? '#fff' : '#000');
 
   const submit = (event: FormEvent) => {
@@ -58,7 +58,7 @@ function UnknownDRCSRow({ glyph }: { glyph: DRCSGlyph }) {
     setError(null);
     action.run(
       async () => {
-        // この外字だけを送る。サーバーが今の表に足すので、続けて登録しても、前の登録を消さない。
+        // この外字だけを送る。サーバーが今のテーブルに足すので、続けて登録しても、前の登録を消さない。
         const response = await mutate<UnknownDRCSListMutation>(
           environment,
           graphql`

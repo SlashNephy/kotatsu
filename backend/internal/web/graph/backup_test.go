@@ -34,8 +34,8 @@ type backupStatus struct {
 	} `json:"latestRun"`
 }
 
-// TestBackup は、管理者が、定期のバックアップの公開鍵と間隔と世代の数を変え、今すぐ書き出すよう頼めることと、
-// 読めない公開鍵や範囲の外の値を拒むこと、管理者でなければ使えないことを確かめる (#1926)。
+// TestBackup は、管理者が、定期のバックアップの公開鍵と間隔と世代の数を変え、今すぐバックアップするよう頼めることと、
+// 読めない公開鍵や範囲の外の値を拒むこと、管理者でなければ使えないことを確認する (#1926)。
 func TestBackup(t *testing.T) {
 	t.Parallel()
 
@@ -57,7 +57,7 @@ func TestBackup(t *testing.T) {
 		return got.Backup
 	}
 
-	// 一度も変えていなければ、既定値で、公開鍵はなく、まだ書き出していない。
+	// 一度も変えていなければ、既定値で、公開鍵はなく、まだバックアップしていない。
 	initial := status()
 	assert.Empty(t, initial.Settings.Recipients)
 	assert.Equal(t, 24, initial.Settings.IntervalHours)
@@ -65,7 +65,7 @@ func TestBackup(t *testing.T) {
 	assert.Nil(t, initial.Settings.UpdatedAt)
 	assert.Nil(t, initial.LatestRun)
 
-	// 公開鍵がなければ、今すぐ書き出すよう頼めない。
+	// 公開鍵がなければ、今すぐバックアップするよう頼めない。
 	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, runBackup, nil, nil))
 
 	identity, err := age.GenerateX25519Identity()
@@ -91,7 +91,7 @@ func TestBackup(t *testing.T) {
 	assert.Equal(t, 7, saved.Settings.Generations, "an omitted field is kept")
 	assert.NotNil(t, saved.Settings.UpdatedAt)
 
-	// 頼んだ書き出しは、待っている間は重ねて頼めない。
+	// 頼んだバックアップは、待っている間は重ねて頼めない。
 	require.Empty(t, admin.query(t, runBackup, nil, nil))
 	assert.Equal(t, []string{codeConflict}, admin.query(t, runBackup, nil, nil))
 

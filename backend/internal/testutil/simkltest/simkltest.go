@@ -1,4 +1,4 @@
-// Package simkltest は、テストで見たドラマの記録とウォッチリストの取り込みを確かめる、偽の Simkl を提供する (#1649)。
+// Package simkltest は、テストで見たドラマの記録とウォッチリストの取り込みを確認する、モックの Simkl を提供する (#1649)。
 //
 // Simkl の AUTH V2 (認可コードフローと PKCE、更新のトークン、取り消し) と、/users/settings、/sync/history、/sync/activities、
 // /sync/all-items/shows をまねる。本物と同じく、更新すると前のアクセストークンをすぐに無効にし、すべての問い合わせに client_id、
@@ -37,8 +37,8 @@ const AccessTokenTTL = 7 * 24 * time.Hour
 // Item は、ウォッチリストの 1 作品。
 type Item struct {
 	SimklID int64
-	// TMDbID は、作品の TMDb の ID。0 なら、ID を返さない。
-	TMDbID int32
+	// TMDBID は、作品の TMDB の ID。0 なら、ID を返さない。
+	TMDBID int32
 	Status string
 	// UpdatedAt は、ウォッチリストで最後に変わった日時。date_from で差分を返すのに使う。
 	UpdatedAt time.Time
@@ -46,13 +46,13 @@ type Item struct {
 
 // Watched は、/sync/history で受け取った 1 話。
 type Watched struct {
-	TMDbID    string
+	TMDBID    string
 	Season    int32
 	Episode   int32
 	WatchedAt string
 }
 
-// Server は、偽の Simkl。画面 (認可) と API を 1 つのオリジンで受ける。
+// Server は、モックの Simkl。画面 (認可) と API を 1 つのオリジンで受ける。
 type Server struct {
 	ClientID     string
 	ClientSecret string
@@ -67,7 +67,7 @@ type Server struct {
 	// Activity と RemovedActivity は、/sync/activities が返す all と tv_shows.removed_from_list。
 	Activity        string
 	RemovedActivity string
-	// UnknownSeries は、/sync/history で見つからないものとする TMDb の作品の ID。
+	// UnknownSeries は、/sync/history で見つからないものとする TMDB の作品の ID。
 	UnknownSeries []string
 	// UnknownEpisodes は、/sync/history で見つからないものとする話 ("S1E3" の形)。
 	UnknownEpisodes []string
@@ -105,7 +105,7 @@ type token struct {
 	expiresAt time.Time
 }
 
-// New は、偽の Simkl を空いているポートで起動して返す。Close で止める。redirectURIs は、アプリに登録したリダイレクト URI。
+// New は、モックの Simkl を空いているポートで起動して返す。Close で止める。redirectURIs は、アプリに登録したリダイレクト URI。
 func New(clientID, clientSecret string, redirectURIs ...string) *Server {
 	s := newServer(clientID, clientSecret, redirectURIs)
 	s.server = httptest.NewServer(s.Handler())
@@ -113,7 +113,7 @@ func New(clientID, clientSecret string, redirectURIs ...string) *Server {
 	return s
 }
 
-// NewOn は、偽の Simkl を listener で起動して返す。別のプロセスとして立てる偽の Simkl (internal/cmd/fakesimkl) が使う。
+// NewOn は、モックの Simkl を listener で起動して返す。別のプロセスとして立てるモックの Simkl (internal/cmd/fakesimkl) が使う。
 func NewOn(listener net.Listener, clientID, clientSecret string, redirectURIs ...string) *Server {
 	s := newServer(clientID, clientSecret, redirectURIs)
 	s.server = httptest.NewUnstartedServer(s.Handler())
@@ -133,10 +133,10 @@ func newServer(clientID, clientSecret string, redirectURIs []string) *Server {
 	}
 }
 
-// URL は、偽の Simkl のオリジン。
+// URL は、モックの Simkl のオリジン。
 func (s *Server) URL() string { return s.server.URL }
 
-// Close は、偽の Simkl を止める。
+// Close は、モックの Simkl を止める。
 func (s *Server) Close() { s.server.Close() }
 
 // SetNow は、トークンの期限を決める時刻を変える。
@@ -159,7 +159,7 @@ func (s *Server) ExpireAccessTokens() {
 	}
 }
 
-// Handler は、偽の Simkl のハンドラーを返す。
+// Handler は、モックの Simkl のハンドラーを返す。
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /oauth2/authorize", s.authorize)
@@ -285,7 +285,7 @@ func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// api は、API の問い合わせを、アプリの印 (client_id、app-name、app-version) とアクセストークンを確かめてから handler に渡す。
+// api は、API の問い合わせを、アプリの識別情報 (client_id、app-name、app-version) とアクセストークンを確認してから handler に渡す。
 func (s *Server) api(handler func(w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -363,16 +363,16 @@ func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 
 					continue
 				}
-				s.History = append(s.History, &Watched{TMDbID: tmdb, Season: season.Number, Episode: episode.Number, WatchedAt: episode.WatchedAt})
+				s.History = append(s.History, &Watched{TMDBID: tmdb, Season: season.Number, Episode: episode.Number, WatchedAt: episode.WatchedAt})
 				added++
 			}
 		}
 		// 本物と同じく、見た記録を付けた作品を「見ている」に入れる。
 		statuses = append(statuses, map[string]any{"request": show.IDs, "response": map[string]any{"status": "watching", "simkl_type": "tv"}})
 		var id int32
-		if _, err := fmt.Sscan(tmdb, &id); err == nil && added > 0 && !slices.ContainsFunc(s.Items, func(i *Item) bool { return i.TMDbID == id }) {
+		if _, err := fmt.Sscan(tmdb, &id); err == nil && added > 0 && !slices.ContainsFunc(s.Items, func(i *Item) bool { return i.TMDBID == id }) {
 			s.sequence++
-			s.Items = append(s.Items, &Item{SimklID: int64(100000 + s.sequence), TMDbID: id, Status: "watching", UpdatedAt: s.now()})
+			s.Items = append(s.Items, &Item{SimklID: int64(100000 + s.sequence), TMDBID: id, Status: "watching", UpdatedAt: s.now()})
 			s.Activity = s.now().UTC().Format(time.RFC3339)
 		}
 	}
@@ -416,8 +416,8 @@ func (s *Server) allItems(w http.ResponseWriter, r *http.Request) {
 
 			continue
 		}
-		if item.TMDbID > 0 {
-			ids["tmdb"] = strconv.Itoa(int(item.TMDbID))
+		if item.TMDBID > 0 {
+			ids["tmdb"] = strconv.Itoa(int(item.TMDBID))
 		}
 		shows = append(shows, map[string]any{"status": item.Status, keyShow: map[string]any{"title": keyShow, keyIDs: ids}})
 	}

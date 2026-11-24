@@ -4,7 +4,7 @@ import { isCardNumber, isProgramID, luhn, marks, redact } from './redact';
 
 const noOptions = { secrets: [], hosts: [] };
 
-// cases は、設計書 11.3 の 2 段目の表の行ごとの、伏せるべき例と伏せてはいけない例。どの例も、2 回かけても変わらないことを確かめる。
+// cases は、設計書 11.3 の 2 番目のステップのテーブルの行ごとの、マスクするべき例とマスクしてはいけない例。どの例も、2 回かけても変わらないことを確認する。
 const cases: { rule: string; input: string; want: string; secrets?: string[]; hosts?: string[] }[] =
   [
     // 1. サーバーから渡された秘密の値
@@ -74,7 +74,7 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       want: 'open https://github.com/SlashNephy/kotatsu',
     },
     {
-      // エンコードせずに ? や # を書いたパスワードも伏せる。
+      // エンコードせずに ? や # を書いたパスワードもマスクする。
       rule: '4 ? と # を含むパスワードも伏せる',
       input: 'dial postgres://kotatsu:pa?ss#word@db.home.arpa:5432/kotatsu',
       want: `dial postgres://${marks.secret}@${marks.host}:5432/kotatsu`,
@@ -142,18 +142,18 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       want: 'password=[REDACTED] token: [REDACTED_SECRET]',
     },
     {
-      // 値の先頭だけが前の規則で印になっていても、後ろを残さない (#1983)。
+      // 値の先頭だけが前の規則でマークになっていても、後ろを残さない (#1983)。
       rule: '8 値の先頭が印でも、値の全体を伏せる',
       input: 'token=[REDACTED_SECRET]-suffix',
       want: `token=${marks.secret}`,
     },
     {
-      // 値の途中が前の規則で印になっていても、印で値を切らない (#1983)。
+      // 値の途中が前の規則でマークになっていても、マークで値を切らない (#1983)。
       rule: '8 値の途中に印があっても、値の全体を伏せる',
       input: 'password=https://user:pass@nas.local:40772/api next',
       want: `password=${marks.secret} next`,
     },
-    // 9. URL のクエリの鍵
+    // 9. URL のクエリのキー
     {
       rule: '9 クエリの鍵の値を伏せる',
       input:
@@ -177,7 +177,7 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       want: '@types/node v@1 user@localhost',
     },
     {
-      // アドレスの直後に + で次のアドレスが続いても、どちらも伏せる (#1983)。+ は、後ろのアドレスのローカル部として伏せる。
+      // アドレスの直後に + で次のアドレスが続いても、どちらもマスクする (#1983)。+ は、後ろのアドレスのローカル部としてマスクする。
       rule: '10 + でつながったメールアドレスをどちらも伏せる',
       input: 'to a@b.com+c@d.com',
       want: `to ${marks.email}${marks.email}`,
@@ -286,7 +286,7 @@ describe('redact', () => {
     const options = { secrets, hosts };
     const once = redact(input, options);
     expect(once).toBe(want);
-    // 印をさらに伏せないので、何度かけても変わらない。
+    // マークをさらにマスクしないので、何度かけても変わらない。
     expect(redact(once, options)).toBe(once);
   });
 

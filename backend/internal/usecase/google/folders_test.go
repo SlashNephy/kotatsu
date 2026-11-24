@@ -24,7 +24,7 @@ const (
 	videosLibrary = "videos"
 )
 
-// connectedFixture は、偽の Drive にフォルダを置き、クライアントを登録して接続した fixture を返す。
+// connectedFixture は、モックの Drive にフォルダを置き、クライアントを登録して接続した fixture を返す。
 //
 //	マイドライブ: videos/、共有ドライブ Backup: archive/
 func connectedFixture(t *testing.T) *fixture {
@@ -41,7 +41,7 @@ func connectedFixture(t *testing.T) *fixture {
 }
 
 // TestDriveFolders は、管理者が見せるフォルダを選び、外せることと、接続を外すか別のアカウントで接続し直すと、
-// 選んだフォルダも外すことを確かめる (#1902)。
+// 選んだフォルダも外すことを確認する (#1902)。
 func TestDriveFolders(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -121,8 +121,8 @@ func TestDriveFolders(t *testing.T) {
 	assert.Empty(t, selected)
 }
 
-// TestDriveLibraryNames は、ライブラリの名前を、保存先プールの ID と同じ規則で確かめ、設定のライブラリやほかのフォルダの
-// ライブラリと重ねないことと、後で変えられることを確かめる (#1902)。
+// TestDriveLibraryNames は、ライブラリの名前を、保存先プールの ID と同じ規則で確認し、設定のライブラリやほかのフォルダの
+// ライブラリと重ねないことと、後で変えられることを確認する (#1902)。
 func TestDriveLibraryNames(t *testing.T) {
 	t.Parallel()
 

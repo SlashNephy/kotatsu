@@ -101,7 +101,7 @@ type DeleteDramaWatchlistEntryIfStatusParams struct {
 	Status       string
 }
 
-// 見ている作品を、状態が status のままのときだけ外す。Simkl から写した後に、Kotatsu で状態を変えた作品は外さない。
+// 見ている作品を、状態が status のままのときだけ外す。Simkl からコピーした後に、Kotatsu で状態を変えた作品は外さない。
 func (q *Queries) DeleteDramaWatchlistEntryIfStatus(ctx context.Context, arg DeleteDramaWatchlistEntryIfStatusParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteDramaWatchlistEntryIfStatus, arg.UserID, arg.TmdbSeriesID, arg.Status)
 	if err != nil {
@@ -372,7 +372,7 @@ type InsertDramaWatchlistImportIfAbsentParams struct {
 	Now          time.Time
 }
 
-// Kotatsu から記録して、Simkl が作品をウォッチリストに入れたとき、その状態を読んだことにする (写したことにする)。
+// Kotatsu から記録して、Simkl が作品をウォッチリストに入れたとき、その状態を読んだことにする (コピーしたことにする)。
 // 次の取り込みで、見ただけの作品を、見ている作品に足さないため。
 func (q *Queries) InsertDramaWatchlistImportIfAbsent(ctx context.Context, arg InsertDramaWatchlistImportIfAbsentParams) error {
 	_, err := q.db.Exec(ctx, insertDramaWatchlistImportIfAbsent,
@@ -462,7 +462,7 @@ type ListDramaRecordTokensRow struct {
 	RefreshTokenEncrypted []byte
 }
 
-// ログの報告から伏せるため、全ユーザーのドラマの記録先のトークンを返す (#1521)。
+// ログの報告でマスクするため、全ユーザーのドラマの記録先のトークンを返す (#1521)。
 func (q *Queries) ListDramaRecordTokens(ctx context.Context) ([]ListDramaRecordTokensRow, error) {
 	rows, err := q.db.Query(ctx, listDramaRecordTokens)
 	if err != nil {
@@ -596,7 +596,7 @@ type ListPendingDramaWatchlistImportsRow struct {
 	Linked       bool
 }
 
-// まだ見ている作品に写していない作品を返す。番組か録画に結びついたかどうかも返す。
+// まだ見ている作品にコピーしていない作品を返す。番組か録画に結びついたかどうかも返す。
 func (q *Queries) ListPendingDramaWatchlistImports(ctx context.Context, arg ListPendingDramaWatchlistImportsParams) ([]ListPendingDramaWatchlistImportsRow, error) {
 	rows, err := q.db.Query(ctx, listPendingDramaWatchlistImports, arg.UserID, arg.Destination)
 	if err != nil {

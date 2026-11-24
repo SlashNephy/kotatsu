@@ -29,7 +29,7 @@ export function serviceGroups<S extends ServiceLike>(
 }
 
 // renderServiceOption は、サービスを選ぶドロップダウンの選択肢を、ロゴを添えたサービス名で描く関数を返す。
-// 選択肢の value はサービスの ID、label は出す名前にする。services は、ID からロゴを引くのに使う。
+// 選択肢の value はサービスの ID、label は出す名前にする。services は、ID からロゴを取得するのに使う。
 export function renderServiceOption(
   services: readonly { id: string; logoUrl?: string | null }[],
 ): (input: ComboboxLikeRenderOptionInput<ComboboxItem>) => ReactNode {

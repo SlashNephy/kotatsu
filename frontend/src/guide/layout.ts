@@ -74,8 +74,8 @@ export function gridHeight(window: GuideWindow): number {
 }
 
 // timeScale は、短い番組がある時間だけ 1 分の高さを増やした目盛りを返す。短い番組 (一定の目盛りで minProgramHeight に
-// 満たないもの) がかかる分は、その番組が minProgramHeight に届くまで高くする。目盛りは、渡したすべての列で共通にするので、
-// 正時の線や、同じ時刻に始まる番組の位置は、列をまたいでも揃う。
+// 満たないもの) がかかる分は、その番組が minProgramHeight に届くまで高くする。目盛りは、渡したすべてのカラムで共通にするので、
+// 正時の線や、同じ時刻に始まる番組の位置は、カラムをまたいでも揃う。
 export function timeScale(
   window: GuideWindow,
   columns: readonly { programs: readonly ProgramTime[]; layout: ColumnLayout }[],
@@ -127,7 +127,7 @@ export function programBox(window: GuideWindow, program: ProgramTime, end: numbe
   return { top, height: Math.max(bottom - top, minProgramHeight) };
 }
 
-// ColumnLayout は、1 つの列の番組の配置。添字は、列の番組の添字と同じ。
+// ColumnLayout は、1 つのカラムの番組の配置。添字は、カラムの番組の添字と同じ。
 export type ColumnLayout = {
   // ends は、描く終わりの時刻。終了時刻が未定の番組は、次に始まる番組の開始まで伸ばす。
   ends: number[];
@@ -139,7 +139,7 @@ export type ColumnLayout = {
   laneCounts: number[];
 };
 
-// layoutColumn は、列の番組 (開始時刻の順) の配置を計算する。
+// layoutColumn は、カラムの番組 (開始時刻の順) の配置を計算する。
 // 同じサービスの番組は、ふつうは重ならない。ただし、スポーツ中継と、中止のときに放送する番組のように、
 // 放送局が重なる番組を送ることがあるので、重なる番組は横に並べる。
 export function layoutColumn(programs: readonly ProgramTime[]): ColumnLayout {
@@ -185,7 +185,7 @@ export function layoutColumn(programs: readonly ProgramTime[]): ColumnLayout {
   return { ends, maxEnds, lanes, laneCounts };
 }
 
-// stackedBoxes は、列の番組ごとの枠を返す。短い番組は、名前が読めるよう最小の高さまで伸ばす。
+// stackedBoxes は、カラムの番組ごとの枠を返す。短い番組は、名前が読めるよう最小の高さまで伸ばす。
 // 伸ばすときは、終わりの位置を保って上へ伸ばし、その分、同じレーンの前の番組の終わりを削る。正時の直前の短い番組
 // (気象情報など) が、正時の線をまたがないようにするため。番組表の上端で上へ伸ばせないときだけ、後ろの番組を下げる。
 // 1 分の番組が続くところでも、どの番組も読めて押せるようにする。
@@ -221,8 +221,8 @@ export function stackedBoxes(
   });
 }
 
-// visibleRange は、列の番組のうち、時刻 [from, to) に重なりうる番組の添字の範囲 [start, end) を返す。
-// 列の番組の数によらず速く求めるため、二分探索で探す。範囲の中には、重なる番組の都合で、見えない番組も含みうる。
+// visibleRange は、カラムの番組のうち、時刻 [from, to) に重なりうる番組の添字の範囲 [start, end) を返す。
+// カラムの番組の数によらず速く求めるため、二分探索で探す。範囲の中には、重なる番組の都合で、見えない番組も含みうる。
 export function visibleRange(
   programs: readonly ProgramTime[],
   layout: ColumnLayout,

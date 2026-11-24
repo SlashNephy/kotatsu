@@ -37,7 +37,7 @@ export const Route = createFileRoute('/settings/')({
 
 type SettingsLink = { to: string; title: string; body: string; icon: LucideIcon };
 
-// SettingsPage は、設定の入り口 (設計書 10.3)。管理者には、管理者向けの画面へのリンクも出す。
+// SettingsPage は、設定のメニュー (設計書 10.3)。管理者には、管理者向けの画面へのリンクも出す。
 function SettingsPage() {
   const { t } = useTranslation();
   useDocumentTitle([t('settings.title')]);
@@ -96,7 +96,7 @@ function SettingsPage() {
     <Stack gap="sm">
       <Title order={2}>{t('settings.title')}</Title>
       <Links links={links} />
-      {/* 管理者かどうかを確かめられなければ、管理者向けのリンクは出さない。画面を使えるかは、サーバーが確かめる。 */}
+      {/* 管理者かどうかを確認できなければ、管理者向けのリンクは出さない。画面を使えるかは、サーバーが確認する。 */}
       <ErrorBoundary fallback={() => null}>
         <Suspense fallback={null}>
           <AdminLinks />
@@ -122,7 +122,7 @@ function AdminLinks() {
     return null;
   }
 
-  // 管理者向けの画面は、録画にかかわるもの、人と外部のサービスにかかわるもの、状態を確かめるものに分ける (設計書 10.3)。
+  // 管理者向けの画面は、録画にかかわるもの、人と外部のサービスにかかわるもの、状態を確認するものに分ける (設計書 10.3)。
   const groups: { title: string; links: SettingsLink[] }[] = [
     {
       title: t('settings.adminGroups.recording'),

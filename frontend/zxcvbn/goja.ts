@@ -3,7 +3,7 @@ import rankedDictionary from 'virtual:zxcvbn-ranked-dictionary';
 
 import { checkStrengthWith, zxcvbnOptions } from '../src/password/strength';
 
-// goja から呼ぶ入口。Go は、入力を JSON の文字列で渡し、結果を JSON の文字列で受け取る。
+// goja から呼ぶエントリーポイント。Go は、入力を JSON の文字列で渡し、結果を JSON の文字列で受け取る。
 // goja のオブジェクトの受け渡しより、JSON の方が型の食い違いを起こしにくい。
 declare global {
   var kotatsuCheckStrength: (input: string) => string;

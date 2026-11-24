@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
+	"github.com/SlashNephy/kotatsu/internal/web/mirakurunapi"
 )
 
 // nabeKeyMaterial は、テストのアプリの秘密キー。
@@ -47,14 +48,14 @@ func (i nabeInstances) ListAlive(context.Context, string) ([]*registry.Instance,
 }
 
 // TestNabeSharesNetworkTVAcrossRoles は、ほかのロール (別のプロセス) が nabe から受け取るとき、
-// 同じサービスの受け手が何人いても、nabe が NetworkTV を 1 本だけ開くことを確かめる (#1535)。
+// 同じサービスの受け手が何人いても、nabe が NetworkTV を 1 本だけ開くことを確認する (#1535)。
 func TestNabeSharesNetworkTVAcrossRoles(t *testing.T) {
 	t.Parallel()
 
 	s, server, ids, feed := feedServer(t, 0, 0)
 	token, err := nabe.NewToken(nabeKeyMaterial)
 	require.NoError(t, err)
-	hub := httptest.NewServer(nabe.Handler(server, token, "test", slog.New(slog.DiscardHandler)))
+	hub := httptest.NewServer(mirakurunapi.NabeHandler(server, token, "test", slog.New(slog.DiscardHandler)))
 	t.Cleanup(hub.Close)
 	instances := nabeInstances{address: strings.TrimPrefix(hub.URL, "http://")}
 
@@ -85,14 +86,14 @@ func TestNabeSharesNetworkTVAcrossRoles(t *testing.T) {
 	assert.Equal(t, []int32{1000}, released)
 }
 
-// TestNabeClosesNetworkTVWhenRolesLeave は、ほかのロールの受け手が全員去ったら、nabe が NetworkTV を閉じることを確かめる。
+// TestNabeClosesNetworkTVWhenRolesLeave は、ほかのロールの受け手が全員去ったら、nabe が NetworkTV を閉じることを確認する。
 func TestNabeClosesNetworkTVWhenRolesLeave(t *testing.T) {
 	t.Parallel()
 
 	s, server, ids, feed := feedServer(t, 0, 0)
 	token, err := nabe.NewToken(nabeKeyMaterial)
 	require.NoError(t, err)
-	hub := httptest.NewServer(nabe.Handler(server, token, "test", slog.New(slog.DiscardHandler)))
+	hub := httptest.NewServer(mirakurunapi.NabeHandler(server, token, "test", slog.New(slog.DiscardHandler)))
 	t.Cleanup(hub.Close)
 	roleStreams := nabe.NewStreams(nabeInstances{address: strings.TrimPrefix(hub.URL, "http://")}, token, unusedOpener{},
 		new(clock.Real), slog.New(slog.DiscardHandler))

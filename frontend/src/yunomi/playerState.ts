@@ -5,7 +5,7 @@ import { splitProgramMarks } from '../futon/programMarks';
 
 // プレイヤーの状態とイベント (設計書 7.5、#811)。画面は、今の状態を PlayerSnapshot にまとめて、1 か所で作る。
 // タブの題名、OS のメディア操作、ほかの端末に送る状態は、どれもこれを読む。状態の変わり目に何かするもの
-// (ほかの端末に知らせる、番組が変わったら何かする) は、usePlayerEvents が配るイベントを購読する。
+// (ほかの端末に通知する、番組が変わったら何かする) は、usePlayerEvents が発行するイベントを購読する。
 
 // PlayerProgram は、見ている番組。録画では、録画そのもの。
 export type PlayerProgram = { id: string; name: string };
@@ -34,7 +34,7 @@ export type PlayerSnapshot = {
   keyGroups: ReadonlyArray<string>;
 };
 
-// PlayerEventMap は、イベントの種類と中身。再生位置と長さは、描くたびに変わるので、イベントにしない。
+// PlayerEventMap は、イベントの種類と内容。再生位置と長さは、描くたびに変わるので、イベントにしない。
 // 局を変えたときは、画面ごと作り直すので、イベントは出さない。見始めたときの処理は、購読する側が最初に描いたときに行う。
 export type PlayerEventMap = {
   // programChanged は、見ている番組が変わったとき。ライブで、番組が終わって次の番組になったときなど。
@@ -112,7 +112,7 @@ export function playerEvents(previous: PlayerSnapshot, current: PlayerSnapshot):
   return events;
 }
 
-// usePlayerEvents は、描くたびに状態を前の状態と比べ、変わったところのイベントを配る。返す口は、画面を離れるまで変わらない。
+// usePlayerEvents は、描くたびに状態を前の状態と比較し、変わったところのイベントを発行する。返す口は、画面を離れるまで変わらない。
 export function usePlayerEvents(state: PlayerSnapshot): PlayerEvents {
   const [listeners] = useState(() => new Map<PlayerEventType, Set<(payload: never) => void>>());
   const [events] = useState<PlayerEvents>(() => ({
@@ -149,7 +149,7 @@ export function usePlayerEvent<Type extends PlayerEventType>(
 ): void {
   const listenerRef = useRef(listener);
   listenerRef.current = listener;
-  // 描くたびに配列を作り直しても、購読し直さないよう、種類の並びを文字列にして比べる。
+  // 描くたびに配列を作り直しても、購読し直さないよう、種類の並びを文字列にして比較する。
   const key = (typeof types === 'string' ? [types] : types).join(',');
 
   useEffect(() => {
@@ -165,7 +165,7 @@ export function usePlayerEvent<Type extends PlayerEventType>(
   }, [events, key]);
 }
 
-// playerTitle は、タブの題名や OS のメディアの表示に出す番組名。印を描けないので囲み文字を外し、全角の英数字は半角にする。
+// playerTitle は、タブの題名や OS のメディアの表示に出す番組名。マークを描けないので囲み文字を外し、全角の英数字は半角にする。
 export function playerTitle(state: PlayerSnapshot): string | null {
   return state.program === null ? null : toHalfWidth(splitProgramMarks(state.program.name).name);
 }

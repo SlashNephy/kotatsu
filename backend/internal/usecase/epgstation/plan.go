@@ -115,7 +115,7 @@ func (p *planner) lookup(name string) *UnmappedDirectory {
 // addRule はルールを数える。ルールと予約でディレクトリの名前が空なら、EPGStation の既定の保存先を使うので、
 // 対応付けを求めない。
 func (p *planner) addRule(rule *Rule) {
-	// 取り込みの適用 (ruleInput) と同じ変換で確かめ、dry run と実際の取り込みをそろえる。
+	// 取り込みの適用 (ruleInput) と同じ変換で確認し、dry run と実際の取り込みをそろえる。
 	if conditions, _ := ruleConditions(rule); !conditions.HasTarget() {
 		p.plan.UnconditionedRules++
 

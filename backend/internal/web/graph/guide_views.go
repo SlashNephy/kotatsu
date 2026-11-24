@@ -135,7 +135,7 @@ func viewer(ctx context.Context) (*auth.Principal, error) {
 	return principal, nil
 }
 
-// guideView は、ログイン中のユーザーの番組表ビューを引く。他のユーザーのものは見つからないことにする。
+// guideView は、ログイン中のユーザーの番組表ビューを取得する。他のユーザーのものは見つからないことにする。
 func (r *Resolver) guideView(ctx context.Context, globalID string) (*domain.GuideView, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -171,7 +171,7 @@ func (r *Resolver) saveGuideView(ctx context.Context, viewID *uuid.UUID, in *mod
 		return nil, fmt.Errorf("failed to encode the guide view: %w", err)
 	}
 
-	// 番組表ビューは個人の設定なので、書いたら、同じユーザーのほかの端末に知らせる。
+	// 番組表ビューは個人の設定なので、書いたら、同じユーザーのほかの端末に通知する。
 	saved, err := usersettings.SaveGuideView(ctx, r.db, r.clock, principal.UserID, viewID, &usersettings.GuideView{
 		Name: in.Name, Settings: encoded, HideEmptyServices: in.HideEmptyServices,
 	})
@@ -259,7 +259,7 @@ func matchProgram(service *model.Service, p *model.Program) *match.Program {
 	})
 }
 
-// deleteGuideView は、ユーザーの番組表ビューを消し、同じユーザーのほかの端末に知らせる。
+// deleteGuideView は、ユーザーの番組表ビューを消し、同じユーザーのほかの端末に通知する。
 func (r *Resolver) deleteGuideView(ctx context.Context, userID, viewID uuid.UUID) error {
 	err := usersettings.DeleteGuideView(ctx, r.db, r.clock, userID, viewID)
 	if errors.Is(err, usersettings.ErrGuideViewNotFound) {

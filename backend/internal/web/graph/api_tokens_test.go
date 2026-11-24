@@ -37,7 +37,7 @@ func (f *fixture) listAPITokens(t *testing.T) []apiToken {
 	return got.APITokens
 }
 
-// TestManageAPITokens は、ログイン中のユーザーが、API トークンを発行し、一覧し、取り消せることを確かめる (#431)。
+// TestManageAPITokens は、ログイン中のユーザーが、API トークンを発行し、一覧し、取り消せることを確認する (#431)。
 // enableEPGStationAPI は、管理者が EPGStation 互換の API を有効にする (#1769)。
 func (f *fixture) enableEPGStationAPI(t *testing.T) {
 	t.Helper()
@@ -77,7 +77,7 @@ func TestManageAPITokens(t *testing.T) {
 	assert.Empty(t, f.listAPITokens(t))
 }
 
-// TestCreateAPITokenRejects は、発行に直近の認証と、正しい名前が要ることを確かめる。
+// TestCreateAPITokenRejects は、発行に直近の認証と、正しい名前が要ることを確認する。
 func TestCreateAPITokenRejects(t *testing.T) {
 	t.Parallel()
 

@@ -58,7 +58,7 @@ func saveCapture(t *testing.T, f *fixture, dataDir string, userID uuid.UUID, ser
 	return saved.ID
 }
 
-// TestCaptures は、ログイン中のユーザーのキャプチャだけを、新しい順にページを送って返し、探す言葉で絞ることを確かめる。
+// TestCaptures は、ログイン中のユーザーのキャプチャだけを、新しい順にページを送って返し、探す言葉で絞ることを確認する。
 func TestCaptures(t *testing.T) {
 	t.Parallel()
 
@@ -89,7 +89,7 @@ func TestCaptures(t *testing.T) {
 	assert.False(t, searched.Captures.PageInfo.HasNextPage, "the other user's capture is not listed")
 }
 
-// TestDeleteCapture は、撮ったユーザーだけが、キャプチャを画像ごと消せることを確かめる。
+// TestDeleteCapture は、撮ったユーザーだけが、キャプチャを画像ごと消せることを確認する。
 func TestDeleteCapture(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +113,7 @@ func TestDeleteCapture(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
-// TestCapturesAvailable は、データディレクトリを設定しているかで、キャプチャを残せるかを答えることを確かめる。
+// TestCapturesAvailable は、データディレクトリを設定しているかで、キャプチャを残せるかを答えることを確認する。
 func TestCapturesAvailable(t *testing.T) {
 	t.Parallel()
 

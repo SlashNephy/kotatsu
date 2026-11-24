@@ -34,7 +34,7 @@ func validRedirectURI(raw string) bool {
 }
 
 // MatchRedirectURI は、認可のリクエストの redirect_uri が、クライアントのメタデータの registered のどれかと合うかどうかを返す。
-// 文字列として完全に一致するものだけを受け付ける。ループバックの http だけは、ポートを無視して比べる (RFC 8252 7.3)。
+// 文字列として完全に一致するものだけを受け付ける。ループバックの http だけは、ポートを無視して比較する (RFC 8252 7.3)。
 // ネイティブのアプリは、空いているポートをその都度選んで待ち受けるからである。Claude Code は、ポートのない
 // http://localhost/callback を登録し、選んだポートを付けて要求してくる。
 func MatchRedirectURI(registered []string, requested string) bool {

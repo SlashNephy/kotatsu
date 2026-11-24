@@ -116,7 +116,7 @@ shape({ layer: 0, path: circle(1480, 250, 78), fill: color('#fff3b8'), tags: '\\
 
 // 雲。円を重ねて形を作り、ゆっくり右へ流す。
 // 映像を繰り返したときに雲が跳ばないよう、雲ごとに、映像の長さを 1 巡として、現れ、dx だけ流れ、消える。
-// 巡りの始まり (phase) を雲ごとにずらし、一度に全部が消えないようにする。巡りの途中で映像の頭に戻るので、2 つの行に分けて描く。
+// 巡りの始まり (phase) を雲ごとにずらし、一度に全部が消えないようにする。巡りの途中で映像の先頭に戻るので、2 つの行に分けて描く。
 const cloudFade = 5;
 const clouds = [
   { x: 180, y: 210, s: 1.0, dx: 420, phase: 0.35 },
@@ -134,7 +134,7 @@ for (const cloud of clouds) {
   // x は、巡りの中の位置 (0 から 1) での、雲の左端。
   const x = (progress) => Math.round(cloud.x + cloud.dx * progress);
   const split = duration * (1 - cloud.phase);
-  // 映像の頭から巡りの終わりまで。終わりに消える。
+  // 映像の先頭から巡りの終わりまで。終わりに消える。
   shape({
     layer: 1,
     path,

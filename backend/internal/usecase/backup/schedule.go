@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// DefaultIntervalHours は、定期のバックアップを書き出す間隔 (時間) の既定値 (付録 A)。
+	// DefaultIntervalHours は、定期のバックアップを作成する間隔 (時間) の既定値 (付録 A)。
 	DefaultIntervalHours = 24
 	// DefaultGenerations は、定期のバックアップを残す世代の数の既定値 (付録 A)。
 	DefaultGenerations = 7
@@ -36,20 +36,20 @@ const (
 	maxGenerations   = 365
 	// maxRecipients は、登録できる公開鍵の数の上限。
 	maxRecipients = 16
-	// keptRuns は、書き出しの結果を残す数。画面には最後の結果だけを出す。
+	// keptRuns は、バックアップの結果を残す数。画面には最後の結果だけを出す。
 	keptRuns = 20
-	// checkInterval は、書き出す時が来たかを確かめる間隔。間隔は画面で変えるので、定期ジョブは短い間隔で動かし、最後の結果から決める。
+	// checkInterval は、作成する時が来たかを確認する間隔。間隔は画面で変えるので、定期ジョブは短い間隔で動かし、最後の結果から決める。
 	checkInterval = 15 * time.Minute
-	// retryAfter は、失敗した後に、間隔を待たずに書き出し直すまでの時間。
+	// retryAfter は、失敗した後に、間隔を待たずに作り直すまでの時間。
 	retryAfter = time.Hour
-	// jobTimeout は、書き出しのジョブの時間の上限。DB が大きくても、数分で終わる見込み (開発用の DB で 3 秒)。
+	// jobTimeout は、バックアップのジョブの時間の上限。DB が大きくても、数分で終わる見込み (開発用の DB で 3 秒)。
 	jobTimeout = time.Hour
-	// recordTimeout は、時間の上限を過ぎて取りやめた書き出しの結果を残すのに使う時間。
+	// recordTimeout は、時間の上限を過ぎて取りやめたバックアップの結果を残すのに使う時間。
 	recordTimeout = 30 * time.Second
 	// FileNamePrefix と FileNameSuffix は、定期のバックアップのファイル名の前と後ろ。この形のファイルだけを、古い世代として消す。
 	FileNamePrefix = "kotatsu-backup-"
 	FileNameSuffix = ".age"
-	// fileNameTimeLayout は、ファイル名に入れる、書き出した時刻 (UTC) の形。名前の順が時刻の順になる。
+	// fileNameTimeLayout は、ファイル名に入れる、作成した時刻 (UTC) の形。名前の順が時刻の順になる。
 	fileNameTimeLayout = "20060102T150405Z"
 	// triggerSchedule と triggerManual は、backup_runs.trigger の値。
 	triggerSchedule = "schedule"
@@ -59,9 +59,9 @@ const (
 var (
 	// ErrInvalidSettings は、定期のバックアップの設定の値が正しくないことを表す。
 	ErrInvalidSettings = errors.New("invalid backup settings")
-	// ErrNoBackupDir は、書き出す先のディレクトリ (backup.dir) を設定していないことを表す。
+	// ErrNoBackupDir は、出力する先のディレクトリ (backup.dir) を設定していないことを表す。
 	ErrNoBackupDir = errors.New("the backup directory (backup.dir) is not configured on nekonote")
-	// ErrNoRuns は、まだ一度も書き出していないことを表す。
+	// ErrNoRuns は、まだ一度も作成していないことを表す。
 	ErrNoRuns = errors.New("no backup has been written yet")
 )
 
@@ -69,7 +69,7 @@ var (
 type Settings struct {
 	// Recipients は、暗号化する age の公開鍵。空なら、定期のバックアップをしない。
 	Recipients []string
-	// IntervalHours は、書き出す間隔 (時間)。
+	// IntervalHours は、作成する間隔 (時間)。
 	IntervalHours int
 	// Generations は、残す世代の数。
 	Generations int
@@ -90,7 +90,7 @@ func LoadSettings(ctx context.Context, db sqlc.DBTX) (*Settings, error) {
 	return &Settings{Recipients: row.Recipients, IntervalHours: int(row.IntervalHours), Generations: int(row.Generations), UpdatedAt: &row.UpdatedAt}, nil
 }
 
-// SaveSettings は、定期のバックアップの設定を確かめてから保存する。公開鍵は、前後の空白を除き、空の行と重なりを除いて持つ。
+// SaveSettings は、定期のバックアップの設定を確認してから保存する。公開鍵は、前後の空白を除き、空の行と重なりを除いて持つ。
 func SaveSettings(ctx context.Context, db sqlc.DBTX, now time.Time, s *Settings) error {
 	recipients := []string{}
 	for _, r := range s.Recipients {
@@ -126,7 +126,7 @@ func ParseRecipients(keys []string) ([]age.Recipient, error) {
 	}
 	recipients := make([]age.Recipient, 0, len(keys))
 	for _, key := range keys {
-		// 1 行に 1 つの鍵だけを受け付ける。コメント (#) や複数の行を渡されても、別の鍵として読まない。
+		// 1 行に 1 つの公開鍵だけを受け付ける。コメント (#) や複数の行を渡されても、別の公開鍵として読まない。
 		if strings.ContainsAny(key, "\n#") {
 			return nil, fmt.Errorf("%w: invalid age public key", ErrInvalidSettings)
 		}
@@ -140,21 +140,21 @@ func ParseRecipients(keys []string) ([]age.Recipient, error) {
 	return recipients, nil
 }
 
-// Run は、書き出しの結果。
+// Run は、バックアップの結果。
 type Run struct {
 	ID uuid.UUID
 	// Manual は、管理者が画面から頼んだものかどうか。
 	Manual     bool
 	StartedAt  time.Time
 	FinishedAt time.Time
-	// FileName と SizeBytes は、書き出したファイルの名前と大きさ。失敗したら nil。
+	// FileName と SizeBytes は、作成したファイルの名前と大きさ。失敗したら nil。
 	FileName  *string
 	SizeBytes *int64
 	// Error は、失敗したときの理由。成功したら nil。
 	Error *string
 }
 
-// LatestRun は、最後の書き出しの結果を返す。まだ書き出していなければ ErrNoRuns を返す。
+// LatestRun は、最後のバックアップの結果を返す。まだ作成していなければ ErrNoRuns を返す。
 func LatestRun(ctx context.Context, db sqlc.DBTX) (*Run, error) {
 	row, err := sqlc.New(db).GetLatestBackupRun(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -170,9 +170,9 @@ func LatestRun(ctx context.Context, db sqlc.DBTX) (*Run, error) {
 	}, nil
 }
 
-// RunArgs は、バックアップを書き出すジョブの引数。
+// RunArgs は、バックアップを作成するジョブの引数。
 type RunArgs struct {
-	// Manual は、管理者が画面から頼んだものかどうか。頼まれたものは、間隔を待たずに書き出す。
+	// Manual は、管理者が画面から頼んだものかどうか。頼まれたものは、間隔を待たずに作成する。
 	Manual bool `json:"manual" river:"unique"`
 }
 
@@ -183,7 +183,7 @@ func (RunArgs) Kind() string { return "backup" }
 func (RunArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue: jobs.QueueBackup,
-		// 失敗したら、次に確かめる時 (retryAfter の後) に書き出し直すので、River では試し直さない。
+		// 失敗したら、次に確認する時 (retryAfter の後) に作り直すので、River では再試行しない。
 		MaxAttempts: 1,
 		// 待っているか動いている間は、同じ種類 (定期か、頼まれたものか) を重ねて入れない。
 		UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{
@@ -193,7 +193,7 @@ func (RunArgs) InsertOpts() river.InsertOpts {
 	}
 }
 
-// PeriodicJob は、書き出す時が来たかを checkInterval ごとに確かめる定期ジョブを返す。nekonote が起動したときにも確かめる。
+// PeriodicJob は、作成する時が来たかを checkInterval ごとに確認する定期ジョブを返す。nekonote が起動したときにも確認する。
 func PeriodicJob() *river.PeriodicJob {
 	return river.NewPeriodicJob(
 		river.PeriodicInterval(checkInterval),
@@ -207,7 +207,7 @@ type Inserter interface {
 	InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
 }
 
-// EnqueueManualTx は、tx の中で、今すぐ書き出すジョブを入れる。頼まれたものを待っているか動かしていれば、入れずに false を返す。
+// EnqueueManualTx は、tx の中で、今すぐ作成するジョブを入れる。頼まれたものを待っているか動かしていれば、入れずに false を返す。
 func EnqueueManualTx(ctx context.Context, tx pgx.Tx, inserter Inserter) (bool, error) {
 	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: RunArgs{Manual: true}, InsertOpts: nil}})
 	if err != nil {
@@ -224,13 +224,13 @@ type WorkerOptions struct {
 	Store *kago.Store
 	// SecretKey は、アプリの秘密キー。
 	SecretKey string
-	// Dir は、書き出す先のディレクトリ (backup.dir)。空なら、書き出せない。
+	// Dir は、出力する先のディレクトリ (backup.dir)。空なら、作成できない。
 	Dir    string
 	Clock  clock.Clock
 	Logger *slog.Logger
 }
 
-// Worker は、定期と、頼まれたバックアップを、ディレクトリに書き出す。書き出し終えたら、残す世代の数より古いファイルを消す。
+// Worker は、定期と、頼まれたバックアップを、ディレクトリに作成する。作成し終えたら、残す世代の数より古いファイルを消す。
 type Worker struct {
 	river.WorkerDefaults[RunArgs]
 
@@ -248,7 +248,7 @@ func (w *Worker) Timeout(*river.Job[RunArgs]) time.Duration {
 	return jobTimeout
 }
 
-// Work は、書き出す時が来ていれば (頼まれたものなら、いつでも)、書き出して結果を残す。
+// Work は、作成する時が来ていれば (頼まれたものなら、いつでも)、作成して結果を残す。
 // 公開鍵を登録していなければ、定期のものは何もしない。
 func (w *Worker) Work(ctx context.Context, job *river.Job[RunArgs]) error {
 	settings, err := LoadSettings(ctx, w.opts.DB)
@@ -275,15 +275,15 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[RunArgs]) error {
 	}
 	w.opts.Logger.InfoContext(ctx, "backup written", slog.String("file", fileName), slog.Int64("bytes", size), slog.Bool("manual", job.Args.Manual))
 	if err := Prune(w.opts.Dir, settings.Generations); err != nil {
-		// 書き出しは済んだので、古いファイルを消せなくても失敗にせず、ログに出して次に消す。
+		// 作成は済んだので、古いファイルを消せなくても失敗にせず、ログに出して次に消す。
 		w.opts.Logger.WarnContext(ctx, "failed to remove old backups", slog.Any("error", err))
 	}
 
 	return nil
 }
 
-// due は、定期のバックアップを書き出す時が来たかを返す。公開鍵がなければ、来ていないとみなす。
-// 最後の書き出しが成功していれば間隔を、失敗していれば retryAfter (間隔より短ければ間隔) を待つ。
+// due は、定期のバックアップを作成する時が来たかを返す。公開鍵がなければ、来ていないとみなす。
+// 最後の作成が成功していれば間隔を、失敗していれば retryAfter (間隔より短ければ間隔) を待つ。
 func (w *Worker) due(ctx context.Context, settings *Settings) (bool, error) {
 	if len(settings.Recipients) == 0 {
 		return false, nil
@@ -303,7 +303,7 @@ func (w *Worker) due(ctx context.Context, settings *Settings) (bool, error) {
 	return !w.opts.Clock.Now().Before(latest.StartedAt.Add(wait)), nil
 }
 
-// write は、書き出す先のディレクトリに、時刻の名前のファイルを書く。書いたファイルの名前と大きさを返す。
+// write は、出力する先のディレクトリに、時刻の名前のファイルを書く。書いたファイルの名前と大きさを返す。
 func (w *Worker) write(ctx context.Context, settings *Settings, now time.Time) (string, int64, error) {
 	if w.opts.Dir == "" {
 		return "", 0, ErrNoBackupDir
@@ -323,7 +323,7 @@ func (w *Worker) write(ctx context.Context, settings *Settings, now time.Time) (
 	return name, result.Bytes, nil
 }
 
-// record は、書き出しの結果を残し、古い結果を消し、管理者の画面に変わったことを知らせる。
+// record は、バックアップの結果を残し、古い結果を消し、管理者の画面に変わったことを通知する。
 func (w *Worker) record(ctx context.Context, manual bool, started time.Time, fileName string, size int64, runErr error) error {
 	trigger := triggerSchedule
 	if manual {
@@ -365,7 +365,7 @@ func Prune(dir string, generations int) error {
 		if !strings.HasPrefix(name, FileNamePrefix) || !strings.HasSuffix(name, FileNameSuffix) {
 			continue
 		}
-		// ファイルシステムによっては、一覧で種類が分からないので (DT_UNKNOWN)、ファイルの情報で確かめる。
+		// ファイルシステムによっては、一覧で種類が分からないので (DT_UNKNOWN)、ファイルの情報で確認する。
 		info, err := entry.Info()
 		if err == nil && info.Mode().IsRegular() {
 			names = append(names, name)

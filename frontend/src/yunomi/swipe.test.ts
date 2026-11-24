@@ -27,7 +27,7 @@ describe('SwipeTracker (#1598)', () => {
     expect(tracker.move(900, 500 - swipeStep * 2)).toBe(2);
     expect(tracker.direction).toBe('vertical');
     expect(tracker.move(900, 500 - swipeStep * 3)).toBe(1);
-    // 下へ戻すと、戻した分だけ負の段を返す。
+    // 下へ戻すと、戻した分だけ負のステップを返す。
     expect(tracker.move(900, 500 + swipeStep)).toBe(-4);
   });
 

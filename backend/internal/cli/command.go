@@ -88,7 +88,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/iptvapi"
 	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
+	"github.com/SlashNephy/kotatsu/internal/web/kyusuapi"
 	"github.com/SlashNephy/kotatsu/internal/web/mcpserver"
+	"github.com/SlashNephy/kotatsu/internal/web/metricsapi"
 	"github.com/SlashNephy/kotatsu/internal/web/spa"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 	"github.com/SlashNephy/kotatsu/internal/web/webui"
@@ -97,7 +99,7 @@ import (
 const (
 	// displayNameAnnotation は、--help のコマンド一覧に Name の代わりに出す名前を持つ Annotation のキー。
 	displayNameAnnotation = "kotatsu.displayName"
-	// configPathEnv は、--config を省略したときに設定ファイルのパスを引く環境変数。
+	// configPathEnv は、--config を省略したときに設定ファイルのパスを取得する環境変数。
 	configPathEnv = "KOTATSU_CONFIG"
 )
 
@@ -109,7 +111,7 @@ type Options struct {
 	Clock     clock.Clock
 
 	OpenDatabase func(ctx context.Context, cfg *config.Database) (*pgxpool.Pool, error)
-	// CheckSchema は、ロールを起動する前に、DB のスキーマでこのバイナリが動けるかを確かめる。
+	// CheckSchema は、ロールを起動する前に、DB のスキーマでこのバイナリが動けるかを確認する。
 	CheckSchema func(ctx context.Context, pool *pgxpool.Pool) error
 	// Migrate は kotatsu migrate の本体。
 	Migrate func(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
@@ -118,7 +120,7 @@ type Options struct {
 	RunRegistry func(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error
 	// JobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。
 	JobWorkers func(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.PeriodicJob, error)
-	// WatchChanges は、tenban が subscription に知らせる変更の通知を見張るものを作る。
+	// WatchChanges は、tenban が subscription に通知する変更の通知を見張るものを作る。
 	WatchChanges func(ctx context.Context, logger *slog.Logger, deps *Deps) (ChangeFeed, error)
 	// LogSetupToken は、all の起動時に、管理者がいなければセットアップトークンを発行してログに出す (設計書 9.2)。
 	LogSetupToken func(ctx context.Context, logger *slog.Logger, clk clock.Clock, pool *pgxpool.Pool) error
@@ -148,7 +150,7 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		SleepSystem:  newSleepSystem,
 
 		LogSetupToken: logSetupToken,
-		// main で、ログを写すよう包んだ logger を渡す (#1521)。
+		// main で、ログをコピーするよう包んだ logger を渡す (#1521)。
 		Logs:                    logring.BufferOf(logger.Handler()),
 		PasswordStrengthTimeout: 0,
 	}
@@ -166,13 +168,13 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, prune.watchProgress)
 	river.AddWorker(workers, prune.networkActivity)
 
-	// Webhook の配信のジョブは、イベントを配るトランザクションの中で投入する。
+	// Webhook の配信のジョブは、イベントを配信するトランザクションの中で投入する。
 	// 投入に使う River のクライアントは、ここで作る Worker を必要とするので、投入だけを行うクライアントを別に作る。
 	inserter, err := jobs.NewClient(deps.DB, logger, &jobs.Options{PollOnly: deps.Config.Database.Pooler, Workers: nil, PeriodicJobs: nil})
 	if err != nil {
 		return nil, nil, err
 	}
-	// 通知を配り、Webhook と Web Push で送る。視聴予約は、放送の少し前に通知する (設計書 4.8)。組み方は notifications.go に置く。
+	// 通知を配信し、Webhook と Web Push で送る。視聴予約は、放送の少し前に通知する (設計書 4.8)。組み方は notifications.go に置く。
 	notifications, err := newNotificationParts(deps, inserter)
 	if err != nil {
 		return nil, nil, err
@@ -204,7 +206,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, media.tvtplay)
 	river.AddWorker(workers, media.chapters)
 	// ライブラリのファイルの代表画像とプレビュー画像と CM の区間 (設計書 5.8)。ライブラリとデータディレクトリをマウントした nekonote で作る。
-	// 索引は tenban が作るので、ここでは読むだけにする。
+	// インデックスは tenban が作るので、ここでは読むだけにする。
 	libraryParts := newLibraryParts(deps, logger, false)
 	river.AddWorker(workers, filelib.NewImagesWorker(libraryParts.libraries, libraryParts.indexer, func(ctx context.Context) (bool, error) {
 		// 録画の画像と同じく、管理者が画面で選んだプレビュー画像の設定に従う。
@@ -236,7 +238,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, animerecord.NewWishlistWorker(animeJobs.records, deps.DB))
 	// フォロー中のユーザーの視聴状況を、画面を開いたときに、記録の連携のトークンで取得する (#1372)。
 	river.AddWorker(workers, animerecord.NewFollowingWorker(animeJobs.records, deps.DB))
-	// 管理者が連携を有効にし、連携の画面で TMDb のトークンを入れていれば、ドラマの番組を TMDb の作品と話に結びつける (#1651、設計書 3.9)。
+	// 管理者が連携を有効にし、連携の画面で TMDB のトークンを入れていれば、ドラマの番組を TMDB の作品と話に結びつける (#1651、設計書 3.9)。
 	dramaMatcher, err := newDramaMatcher(deps, logger)
 	if err != nil {
 		return nil, nil, err
@@ -247,7 +249,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, dramarecord.NewRecordWorker(animeJobs.dramaRecords, deps.DB))
 	river.AddWorker(workers, dramarecord.NewWatchlistWorker(animeJobs.dramaRecords, deps.DB))
 	river.AddWorker(workers, dramarecord.NewPruneWorker(animeJobs.dramaRecords, deps.DB))
-	// 管理者が画面で公開鍵を登録していれば、DB とキャプチャを backup.dir に定期に書き出す (#1926、設計書 11.4)。
+	// 管理者が画面で公開鍵を登録していれば、DB とキャプチャを backup.dir に定期に出力する (#1926、設計書 11.4)。
 	river.AddWorker(workers, backup.NewWorker(&backup.WorkerOptions{
 		DB: poolOf(deps), Store: storeOf(deps.Config), SecretKey: deps.Config.Auth.SecretKey.Value(), Dir: deps.Config.Backup.Dir,
 		Clock: deps.Clock, Logger: logger.With(slog.String("component", "backup")),
@@ -327,7 +329,7 @@ func migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 }
 
 // migrateUpTo は、Kotatsu のスキーマを version まで上げ、River のテーブルを最新まで上げる (#1926)。
-// 正規化した列を埋める処理は、最新のスキーマの列を読み書きするので行わない。最新まで上げるときに、kotatsu migrate が行う。
+// 正規化したカラムを埋める処理は、最新のスキーマのカラムを読み書きするので行わない。最新まで上げるときに、kotatsu migrate が行う。
 func migrateUpTo(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, version int64) error {
 	return database.WithMigrationLock(ctx, logger, pool, func(ctx context.Context) error {
 		if err := database.MigrateTo(ctx, logger, pool, version); err != nil {
@@ -338,7 +340,7 @@ func migrateUpTo(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, v
 	})
 }
 
-// checkSchema は、Kotatsu のスキーマと River のテーブルで、このバイナリが動けるかを確かめる。
+// checkSchema は、Kotatsu のスキーマと River のテーブルで、このバイナリが動けるかを確認する。
 func checkSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	if err := database.CheckSchema(ctx, pool); err != nil {
 		return err
@@ -569,7 +571,7 @@ func newMeterProviders(ctx context.Context, logger *slog.Logger, deps *Deps, rol
 	if deps.Config.Telemetry.OTLPMetricsEndpoint == "" {
 		return func(context.Context) error { return nil }, nil
 	}
-	// トレースとメトリクスの exporter は、送れなかったことをここに知らせる。
+	// トレースとメトリクスの exporter は、送れなかったことをここに通知する。
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
 		logger.Warn("failed to export telemetry", slog.Any("error", err))
 	}))
@@ -633,9 +635,11 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		return err
 	}
 
-	mux := http.NewServeMux()
-	// DB が止まっても、覚えた結果で視聴を続けられる間は、Service から外さない (#1084)。
-	httpserver.RegisterHealth(mux, logger, deps.DB, database.FallbackTTL)
+	// DB が止まっても、キャッシュした結果で視聴を続けられる間は、Service から外さない (#1084)。
+	health := httpserver.HealthHandlers(logger, deps.DB, database.FallbackTTL)
+	// kyusu と nabe は、パスの先頭の下を受け持つ。
+	subtrees := map[string]http.Handler{}
+	var app http.Handler
 	var api *apiHandler
 	// API は tenban が受け持つ (設計書 1.2、9.1)。
 	if slices.ContainsFunc(roles, func(role *Role) bool { return role.Name == tenbanRoleName }) {
@@ -647,11 +651,11 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 			return err
 		}
 		// ヘルスチェックは、Kubernetes などがプライベートでないアドレスから叩くこともあるので、接続元の制限に含めない。
-		mux.Handle("/", api.handler)
+		app = api.handler
 	}
 	var live *kyusu.Live
 	var vod *kyusu.VOD
-	// サーバー側でのトランスコードは kyusu が受け持つ (設計書 7.3)。tenban が、インスタンスの登録簿で引いて中継する。
+	// サーバー側でのトランスコードは kyusu が受け持つ (設計書 7.3)。tenban が、インスタンスの登録簿で検索してプロキシする。
 	if slices.ContainsFunc(roles, func(role *Role) bool { return role.Name == kyusuRoleName }) {
 		var token *kyusu.Token
 		live, vod, token, err = newKyusu(ctx, logger, deps)
@@ -661,13 +665,14 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 
 			return err
 		}
-		mux.Handle(kyusu.LivePathPrefix, live.Handler(token))
-		vodHandler := vod.Handler(token)
-		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
-		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
-		mux.Handle(kyusu.LibraryPathPrefix, vodHandler)
+		kyusuLogger := logger.With(slog.String("component", "kyusu"))
+		subtrees[kyusu.LivePathPrefix] = kyusuapi.LiveHandler(kyusuLogger, live, token)
+		vodHandler := kyusuapi.VODHandler(kyusuLogger, vod, token)
+		subtrees[kyusu.RecordingPathPrefix] = vodHandler
+		subtrees[kyusu.TimeshiftPathPrefix] = vodHandler
+		subtrees[kyusu.LibraryPathPrefix] = vodHandler
 	}
-	// EDCB の NetworkTV の TS は nabe が配る (#1535)。ほかのロールが、インスタンスの登録簿で引いて受け取る。
+	// EDCB の NetworkTV の TS は nabe が配信する (#1535)。ほかのロールが、インスタンスの登録簿で検索して受け取る。
 	if serveNabe(deps, roles) {
 		nabeHandler, err := newNabeHandler(deps, logger)
 		if err != nil {
@@ -676,10 +681,12 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 
 			return err
 		}
-		mux.Handle(nabe.PathPrefix, nabeHandler)
+		subtrees[nabe.PathPrefix] = nabeHandler
 	}
-	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
-	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics, deps.Config.Metrics.Pprof)
+	router := httpserver.NewAPIRouter(logger.With(slog.String("server", "api")), health, subtrees, app)
+	handler := otelhttp.NewHandler(router, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
+	metricsLogger := logger.With(slog.String("server", "metrics"))
+	metricsHandler := metricsapi.NewHandler(metricsLogger, prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics, deps.Config.Metrics.Pprof)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -743,7 +750,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		return opts.RunRegistry(ctx, logger, deps, names, apiListener.Addr().String())
 	})
 	eg.Go(func() error {
-		return httpserver.Serve(ctx, logger.With(slog.String("server", "metrics")), metricsListener, metricsHandler)
+		return httpserver.Serve(ctx, metricsLogger, metricsListener, metricsHandler)
 	})
 	eg.Go(func() error {
 		runSleepControl(ctx, logger, opts, deps, all, api, live)
@@ -766,7 +773,7 @@ func registeredRoles(deps *Deps, roles []*Role, live *kyusu.Live) []string {
 		if role.Name == kyusuRoleName && (live == nil || !live.CanTranscode()) {
 			continue
 		}
-		// EDCB を使わない nabe は、配るものがないので、登録簿に載せない。
+		// EDCB を使わない nabe は、配信するものがないので、登録簿に載せない。
 		if role.Name == nabe.Role && !serveNabe(deps, roles) {
 			continue
 		}
@@ -778,10 +785,10 @@ func registeredRoles(deps *Deps, roles []*Role, live *kyusu.Live) []string {
 
 // newAPI は、tenban の API と SPA のハンドラーを返す。
 //
-// どのリクエストも、まず接続元を確かめる (設計書 9.5)。
+// どのリクエストも、まず接続元を確認する (設計書 9.5)。
 // API は、ログイン中のユーザーをサーバー側のセッションから引く。/internal/auth/* の状態を変えるリクエストは、Origin が同じでなければ拒否する。
 // SPA は、ログイン画面も含むので、セッションを引かずに配信する。
-// ChangeFeed は、変更の通知を見張り、subscription の購読者に知らせる。API を配信する間、Run で動かし続ける。
+// ChangeFeed は、変更の通知を見張り、subscription の購読者に通知する。API を配信する間、Run で動かし続ける。
 type ChangeFeed interface {
 	graph.Changes
 	Run(ctx context.Context) error
@@ -789,17 +796,17 @@ type ChangeFeed interface {
 
 var _ ChangeFeed = new(notify.Broadcaster)
 
-// apiHandler は、tenban の API のハンドラーと、subscription に変更を知らせる ChangeFeed。
+// apiHandler は、tenban の API のハンドラーと、subscription に変更を通知する ChangeFeed。
 type apiHandler struct {
 	handler http.Handler
 	changes ChangeFeed
-	// updates は、新しいリリースを確かめる。確かめない設定なら nil。
+	// updates は、新しいリリースを確認する。確認しない設定なら nil。
 	updates *update.Checker
 	// drainer は、tenban を止める前に、視聴者につなぎ直してもらう (#1085)。
 	drainer *streamapi.Drainer
 	// streams は、tenban が変換せずに流している配信を数える。
 	streams *streamapi.StreamCounter
-	// libraryIndexer は、ライブラリのファイルの索引を裏で作る (設計書 5.8)。tenban を止めたら、作るのをやめる。
+	// libraryIndexer は、ライブラリのファイルのインデックスを裏で作る (設計書 5.8)。tenban を止めたら、作るのをやめる。
 	libraryIndexer *filelib.Indexer
 }
 
@@ -807,8 +814,8 @@ var _ graph.Updates = new(update.Checker)
 
 var _ graph.Drain = new(streamapi.Drainer)
 
-// newUpdates は、新しいリリースを確かめる Checker と、GraphQL に渡すそれを返す。
-// 外部への通信になるので、設定で入れたときだけ確かめる (設計書 11.1、#506)。入れていなければ、どちらも nil。
+// newUpdates は、新しいリリースを確認する Checker と、GraphQL に渡すそれを返す。
+// 外部への通信になるので、設定で入れたときだけ確認する (設計書 11.1、#506)。入れていなければ、どちらも nil。
 // GraphQL には、nil の *update.Checker でなく nil のインターフェースを渡す。
 func newUpdates(logger *slog.Logger, deps *Deps) (*update.Checker, graph.Updates) {
 	if !deps.Config.UpdateCheck.Enabled {
@@ -822,7 +829,7 @@ func newUpdates(logger *slog.Logger, deps *Deps) (*update.Checker, graph.Updates
 	return checker, checker
 }
 
-// watchChanges は、subscription で知らせるデータの変更の通知を見張る。
+// watchChanges は、subscription で通知するデータの変更の通知を見張る。
 func watchChanges(ctx context.Context, logger *slog.Logger, deps *Deps) (ChangeFeed, error) {
 	watcher, err := notify.NewWatcher(ctx, deps.DB, logger.With(slog.String("component", "changes")), graph.WatchedChannels(), notify.WatcherOptions{
 		UseListen: !deps.Config.Database.Pooler, PollInterval: notify.DefaultPollInterval,
@@ -947,21 +954,21 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Sessions:      sessions,
 		SecondFactors: factors,
 		ChallengeTTL:  0,
-		// パスワードを同時に確かめる数は、CPU の数までにする (#542)。
+		// パスワードを同時に確認する数は、CPU の数までにする (#542)。
 		MaxConcurrentVerifications: 0,
 		VerificationWait:           0,
 	})
 	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
 	authRoutes.add(http.MethodGet, "/internal/auth/setup", setup.StatusHandler(deps.DB))
-	// 重要な操作ができるか。画面が、重要な操作の入力を始める前に確かめる (設計書 9.5)。
+	// 重要な操作ができるか。画面が、重要な操作の入力を始める前に確認する (設計書 9.5)。
 	authRoutes.add(http.MethodGet, "/internal/auth/reauth", auth.ReauthenticationStatusHandler(deps.Clock))
-	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
+	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確認せずに受け付ける。
 	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions, deps.Network)
 	authRoutes.add(http.MethodGet, "/internal/auth/oidc", oidc.StatusHandler(deps.DB))
 	authRoutes.add(http.MethodGet, auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
-	// Annict と AniList から戻ってくる認可 (#927)。記録先からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
+	// Annict と AniList から戻ってくる認可 (#927)。記録先からのリダイレクトは GET なので、Origin を確認せずに受け付ける。
 	addAnimeRecordCallbacks(authRoutes, deps, animeRecords, logger)
-	// Simkl から戻ってくる認可 (#1649)。アニメの記録先と同じく、Origin を確かめずに受け付ける。
+	// Simkl から戻ってくる認可 (#1649)。アニメの記録先と同じく、Origin を確認せずに受け付ける。
 	addDramaRecordCallbacks(authRoutes, deps, sealed.dramaRecords, logger)
 	// Google から戻ってくる認可 (#1902)。Google の連携で 1 つのリダイレクト URI を共有し、目的は認可の途中の状態から決める。
 	if libraries.google != nil {
@@ -1041,7 +1048,7 @@ func newRouter(logger *slog.Logger, notFound http.Handler, deps *Deps, calendarF
 	return router
 }
 
-// sessionRoutes は、echo のルーターに移す、画面がセッションの Cookie で使う端点 (/internal/*) のハンドラーを、パスとメソッドで引くもの。
+// sessionRoutes は、echo のルーターに移す、画面がセッションの Cookie で使う端点 (/internal/*) のハンドラーを、パスとメソッドで検索するもの。
 // パスは echo の書き方 (:id) で書く。
 type sessionRoutes map[string]map[string]http.Handler
 
@@ -1080,8 +1087,8 @@ func echoPattern(pattern string) string {
 var muxWildcardPattern = regexp.MustCompile(`\{(\w+)\}`)
 
 // handleAuth は、ログインやログアウトなどの手続き (/internal/auth/*) を、echo のルーターに登録する (設計書 9.1、#1606)。
-// mux のときと同じく、セッションの Cookie を読み、状態を変える POST では Origin を確かめる (設計書 9.5)。
-// GET は RequireSameOrigin を素通りするので、状態を返すものと IdP や記録先から戻るリダイレクトは、Origin を確かめずに受け付ける。
+// mux のときと同じく、セッションの Cookie を読み、状態を変える POST では Origin を確認する (設計書 9.5)。
+// GET は RequireSameOrigin を素通りするので、状態を返すものと IdP や記録先から戻るリダイレクトは、Origin を確認せずに受け付ける。
 func handleAuth(router *echo.Echo, session func(http.Handler) http.Handler, routes sessionRoutes) {
 	sameOrigin := func(next http.Handler) http.Handler { return session(httpserver.RequireSameOrigin(next)) }
 	handleSessionRoutes(router, sameOrigin, routes, "auth")
@@ -1136,11 +1143,11 @@ func newStreamRoutes(
 	}
 	routes.add(http.MethodGet, "/internal/streams/services/:id", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamKindLive,
-			// 画面のプレイヤーに流す中継では、スクランブルされたまま届いていないかを確かめる (設計書 7.1、#1517)。
+			// 画面のプレイヤーに流す中継では、スクランブルされたまま届いていないかを確認する (設計書 7.1、#1517)。
 			streamapi.NewLiveHandler(opener, streamLogger).WithScramble(scramble.NewReporter(deps.DB, deps.Clock, streamLogger)))))))
 	routes.add(http.MethodGet, "/internal/streams/services/:id/data-broadcast", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamKindDataBroadcast, streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
-	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
+	// サーバー側でのトランスコードは、インスタンスの登録簿で検索した kyusu にプロキシする (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
 		return nil, nil, err
@@ -1164,7 +1171,7 @@ func newStreamRoutes(
 	// タイムシフトのバッファは、このインスタンスにタイムシフトのディレクトリを設定したときだけ流せる (設計書 7.2)。
 	routes.add(http.MethodGet, "/internal/streams/timeshift/:id", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamKindTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
-	// 画質を上げる前に回線の余裕を確かめる、試しのデータ (設計書 7.3、#1513)。配信ではないので、streams に数えない。
+	// 画質を上げる前に回線の余裕を確認する、プローブのデータ (設計書 7.3、#1513)。配信ではないので、streams に数えない。
 	routes.add(http.MethodGet, streamapi.ProbePath, authorizer.Session(streamapi.NewProbeHandler(deps.Clock)))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	routes.add(http.MethodGet, "/internal/streams/recordings/:id/files/:file", httpserver.StopOnShutdown(authorizer.Session(
@@ -1192,7 +1199,7 @@ func handleSignedStreams(
 	}
 }
 
-// registerFallbacks は、tenban が DB に届かずに、覚えた結果を使った回数を、種類ごとに /metrics に出す (設計書 11.3、#1084)。
+// registerFallbacks は、tenban が DB に届かずに、キャッシュした結果を使った回数を、種類ごとに /metrics に出す (設計書 11.3、#1084)。
 func registerFallbacks(deps *Deps, used map[string]func() int64) {
 	for kind, count := range used {
 		deps.Metrics.MustRegister(prometheus.NewCounterFunc(prometheus.CounterOpts{
@@ -1213,14 +1220,14 @@ func newMediaRoutes(
 	streamLogger := logger.With(slog.String("component", "stream"))
 	// Deps と互いだけで組めるハンドラーは、wire で組む (#1607)。組み方は mediahandlers.go に置く。
 	handlers := newMediaHandlers(deps, logger, urlGate)
-	// サービスのロゴは、チューナーサーバーから取って中継する。
+	// サービスのロゴは、チューナーサーバーから取ってプロキシする。
 	routes.add(http.MethodGet, "/internal/media/services/:id/logo", authorizer.Session(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger)))
-	// ユーザーのアイコンは、IdP から取って中継する (#778)。
+	// ユーザーのアイコンは、IdP から取ってプロキシする (#778)。
 	routes.add(http.MethodGet, "/internal/media/users/:id/avatar",
 		authorizer.Session(handlers.avatars))
-	// 見たいリストの作品の画像は、記録先が示した URL から取って中継する (#1235)。
+	// 見たいリストの作品の画像は、記録先が示した URL から取ってプロキシする (#1235)。
 	routes.add(http.MethodGet, "/internal/media/anime-works/:destination/:workId/image", authorizer.Session(handlers.animeImages))
-	// フォロー中のユーザーのアバターも、記録先が示した URL から取って中継する (#1372)。
+	// フォロー中のユーザーのアバターも、記録先が示した URL から取ってプロキシする (#1372)。
 	routes.add(http.MethodGet, "/internal/media/anime-following/:destination/:username/avatar",
 		authorizer.Session(http.HandlerFunc(handlers.animeImages.ServeFollowingAvatar)))
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
@@ -1229,21 +1236,21 @@ func newMediaRoutes(
 	// 録画をダウンロードした TS と組で使う、TvtPlay の CM のチャプターのファイル (#1737)。
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+tvtplay.ChapterFileName,
 		authorizer.Session(handlers.tvtplay))
-	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
+	// 録画の時間帯の実況の過去ログは、過去ログ API から取ってプロキシする (設計書 7.4)。
 	jikkyoComments := jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+jikkyoapi.CommentsFileName, authorizer.Session(jikkyoComments))
-	// ライブラリのファイルの過去ログも、TS から読んだ局と時間帯で、同じく中継する (設計書 5.8)。
+	// ライブラリのファイルの過去ログも、TS から読んだ局と時間帯で、同じくプロキシする (設計書 5.8)。
 	routes.add(http.MethodGet, "/internal/media/library/:id/"+jikkyoapi.CommentsFileName,
 		authorizer.Session(jikkyoapi.NewLibraryCommentsHandler(jikkyoComments, libraries.source)))
 	// ライブラリのファイルの代表画像とプレビュー画像も、データディレクトリから配信する (設計書 5.8)。
 	routes.add(http.MethodGet, "/internal/media/library/:id/:file",
 		authorizer.Session(filelib.NewImageHandler(libraries.source, libraries.indexer, streamLogger)))
-	// 同じ話の別の放送の過去ログも、過去ログ API から取って中継する (#1361)。
-	// 上映会のコメント (NICOLOG) も、tenban が取得して中継する (#1363)。
+	// 同じ話の別の放送の過去ログも、過去ログ API から取ってプロキシする (#1361)。
+	// 上映会のコメント (NICOLOG) も、tenban が取得してプロキシする (#1363)。
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+jikkyoapi.NicologCommentsFileName, authorizer.Session(jikkyoapi.NewNicologCommentsHandler(jikkyoComments,
 		nicolog.NewClient(&nicolog.Options{HTTPClient: nicolog.NewHTTPClient(deps.Network), URL: ""}))))
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+jikkyoapi.OtherCommentsFileName, authorizer.Session(jikkyoapi.NewOtherCommentsHandler(jikkyoComments)))
-	// ライブの実況のコメントは、tenban が NX-Jikkyo との間を中継する (設計書 7.4)。視聴者の IP アドレスを第三者に渡さないためである。
+	// ライブの実況のコメントは、tenban が NX-Jikkyo との間をプロキシする (設計書 7.4)。視聴者の IP アドレスを第三者に渡さないためである。
 	routes.add(http.MethodGet, echoPattern(jikkyoapi.LivePath), httpserver.RequireSameOriginUpgrade(jikkyoapi.NewLiveHandler(&jikkyoapi.LiveOptions{
 		Pool: deps.DB, Table: jikkyoTable, Client: jikkyoClient, Relay: jikkyo.NewRelay(jikkyoClient),
 		Sessions: func(ctx context.Context, sessionID uuid.UUID) (bool, error) {
@@ -1251,7 +1258,7 @@ func newMediaRoutes(
 		},
 		Secret: deps.Config.Auth.SecretKey.Value(), Clock: deps.Clock, Logger: logger.With(slog.String("component", "jikkyo")), RevalidateInterval: 0,
 	})))
-	// データ放送の文書の双方向の通信は、管理者が有効にしたときだけ、tenban が中継する (#501、設計書 7.4)。
+	// データ放送の文書の双方向の通信は、管理者が有効にしたときだけ、tenban がプロキシする (#501、設計書 7.4)。
 	// 外部へ送るのは、ログイン中のユーザーの操作に限るので、セッションでだけ受け付け、ほかのオリジンからは受け付けない。
 	routes.add(http.MethodPost, databroadcastapi.RequestPath, httpserver.RequireSameOrigin(handlers.dataBroadcast.RequestHandler()))
 	routes.add(http.MethodPost, databroadcastapi.ConnectivityPath, httpserver.RequireSameOrigin(handlers.dataBroadcast.ConnectivityHandler()))
@@ -1307,22 +1314,22 @@ func newStreamCounter(deps *Deps) *streamapi.StreamCounter {
 }
 
 const (
-	// internalPathPrefix は、画面がセッションの Cookie で使う端点と、内部の通信の端点のパスの頭 (設計書 9.1、#1605)。
+	// internalPathPrefix は、画面がセッションの Cookie で使う端点と、内部の通信の端点のパスの先頭 (設計書 9.1、#1605)。
 	internalPathPrefix = "/internal/"
-	// apiPathPrefix は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点のパスの頭 (設計書 9.1、#1605)。
+	// apiPathPrefix は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点のパスの先頭 (設計書 9.1、#1605)。
 	apiPathPrefix = "/api/"
 	// epgstationPathPrefix は、EPGStation 互換の API のベース URL のパス。クライアントは、この後ろに /api/... を付けて呼ぶ (#431)。
 	epgstationPathPrefix = apiPathPrefix + "epgstation/"
-	// calendarPathPrefix は、予約の iCalendar のパスの頭。パスに購読用の URL の秘密の値を含む (#1255)。
+	// calendarPathPrefix は、予約の iCalendar のパスの先頭。パスに購読用の URL の秘密の値を含む (#1255)。
 	calendarPathPrefix = calendarapi.PathPrefix
-	// iptvPathPrefix は、ライブ視聴の M3U と番組表の XMLTV のパスの頭。パスに配信の URL の秘密の値を含む (#1324)。
+	// iptvPathPrefix は、ライブ視聴の M3U と番組表の XMLTV のパスの先頭。パスに配信の URL の秘密の値を含む (#1324)。
 	iptvPathPrefix = iptvapi.PathPrefix
 )
 
 // traceable は、リクエストをトレースに残してよいかを返す。予約の iCalendar と IPTV の配信はパスに秘密の値を含むので、
 // トレースの属性 (URL のパス) に残さないよう、トレースしない。
 // ServeMux は、整っていないパス (//api//calendar/... など) を、整えたパスへのリダイレクトで返すので、そのリクエストも外せるよう、
-// パスを整えてから比べる。
+// パスを整えてから比較する。
 func traceable(r *http.Request) bool {
 	cleaned := path.Clean("/"+r.URL.Path) + "/"
 
@@ -1330,7 +1337,7 @@ func traceable(r *http.Request) bool {
 }
 
 // jobAdminOf は、管理者向けのジョブの画面 (#1279) に使う River のクライアントを返す。なければ nil を返す。
-// nil のポインタを interface に入れると nil と比べられなくなるので、ここで分ける。
+// nil のポインタを interface に入れると nil と比較できなくなるので、ここで分ける。
 func jobAdminOf(deps *Deps) graph.JobAdmin {
 	if deps.Jobs == nil {
 		return nil
@@ -1350,13 +1357,13 @@ func handleCalendar(router *echo.Echo, deps *Deps, feeds *auth.Feeds) {
 }
 
 // tunerUses は、tenban がチューナーサーバーを使う先ごとの口。チューナーサーバーを設定していなければ、どれも nil。
-// nil のポインタを interface に入れると nil と比べられなくなるので、設定していなければ interface のまま nil にする。
+// nil のポインタを interface に入れると nil と比較できなくなるので、設定していなければ interface のまま nil にする。
 type tunerUses struct {
 	opener   streamapi.ServiceOpener
 	logos    streamapi.LogoFetcher
 	rates    stream.ServiceOpener
 	channels stream.ChannelOpener
-	// logs は、チューナーサーバーのログと版を読む (#1521)。チューナーサーバーを設定していなければ nil。
+	// logs は、チューナーサーバーのログとバージョンを読む (#1521)。チューナーサーバーを設定していなければ nil。
 	logs logreport.TunerServer
 }
 
@@ -1371,7 +1378,7 @@ func newTunerUses(ctx context.Context, deps *Deps, logger *slog.Logger) (*tunerU
 		return nil, err
 	}
 	uses.opener, uses.logos, uses.rates, uses.channels = client, client, client, client
-	// ログの画面で、チューナーサーバーのログと版を読む (#1521)。
+	// ログの画面で、チューナーサーバーのログとバージョンを読む (#1521)。
 	if logs, ok := client.(logreport.TunerServer); ok {
 		uses.logs = logs
 	}
@@ -1408,7 +1415,7 @@ func handleEPGStationAPI(
 	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
 ) {
 	h := epgstationapi.New(deps.DB, storeOf(deps.Config), deps.Clock, streamLogger)
-	// 管理者が有効にしている間だけ提供する (#1769)。無効の間は、API があることを知らせないよう、トークンを確かめる前に 404 を返す。
+	// 管理者が有効にしている間だけ提供する (#1769)。無効の間は、API があることを通知しないよう、トークンを確認する前に 404 を返す。
 	protect := func(next http.Handler) echo.HandlerFunc {
 		return echo.WrapHandler(epgstationapi.RequireEnabled(urlGate, tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(next))))
 	}

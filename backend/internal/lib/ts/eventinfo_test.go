@@ -70,7 +70,7 @@ func seriesDescriptor(repeat, episode byte) []byte {
 	return append([]byte{0xD5, lengthByte(len(body))}, body...)
 }
 
-// TestAnalyzerEventInfo は、EIT[p/f] の放送中と次の番組の、番組名、概要、詳細、シリーズの記述子を読むことを確かめる (#1500)。
+// TestAnalyzerEventInfo は、EIT[p/f] の放送中と次の番組の、番組名、概要、詳細、シリーズの記述子を読むことを確認する (#1500)。
 // 詳細の項目は、見出しのない項目で、記述子をまたいで続く。
 func TestAnalyzerEventInfo(t *testing.T) {
 	t.Parallel()
@@ -131,7 +131,7 @@ func TestAnalyzerEventInfo(t *testing.T) {
 	}
 }
 
-// TestAnalyzerEventTime は、EIT[p/f] の放送中と次の番組の、開始と長さを読むことを確かめる (#1734)。
+// TestAnalyzerEventTime は、EIT[p/f] の放送中と次の番組の、開始と長さを読むことを確認する (#1734)。
 // 未定の値 (すべてのビットが 1) は nil にする。
 func TestAnalyzerEventTime(t *testing.T) {
 	t.Parallel()

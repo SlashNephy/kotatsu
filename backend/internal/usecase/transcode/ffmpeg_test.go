@@ -14,7 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/transcode"
 )
 
-// TestTranscodePresets は、選べる画質が、kyusu のプリセットにあり、映像を変換して 30fps で書くものであることを確かめる (#1253)。
+// TestTranscodePresets は、選べる画質が、kyusu のプリセットにあり、映像を変換して 30fps で書くものであることを確認する (#1253)。
 // 60 コマで出すかは、画質ではなく、出すコマ数で選ぶ (#1509)。
 func TestTranscodePresets(t *testing.T) {
 	t.Parallel()
@@ -35,7 +35,7 @@ const (
 	bitrate720p = "3500k"
 )
 
-// TestFFmpegArgs は、エンコーダーの設定ごとに、映像のエンコーダーと、MP4 の書き方を確かめる (#1253)。
+// TestFFmpegArgs は、エンコーダーの設定ごとに、映像のエンコーダーと、MP4 の書き方を確認する (#1253)。
 // フィールドごとに 1 コマにするときは、bwdif をフィールド単位にして 59.94 コマに固定し、ビットレートを 1.4 倍にする (#1509)。
 func TestFFmpegArgs(t *testing.T) {
 	t.Parallel()
@@ -75,7 +75,7 @@ func TestFFmpegArgs(t *testing.T) {
 			vf := slices.Index(args, "-vf")
 			require.GreaterOrEqual(t, vf, 0)
 			assert.Equal(t, tt.wantVF, args[vf+1])
-			// 標準入力の TS を読み、索引を先頭に置いた MP4 を、最後の引数のパスに書く。
+			// 標準入力の TS を読み、インデックスを先頭に置いた MP4 を、最後の引数のパスに書く。
 			assert.Equal(t, "pipe:0", args[slices.Index(args, "-i")+1])
 			assert.Contains(t, strings.Join(args, " "), "-movflags +faststart -f mp4 /pool/a.720p.mp4")
 		})

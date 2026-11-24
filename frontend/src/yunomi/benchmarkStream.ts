@@ -1,7 +1,7 @@
 import { clockHz, indexStream, StreamLooper } from '../../demo/stream-loop.js';
 
 // 「この端末で試す」(#1771) で流す、合成の映像を繰り返した TS を作る。
-// 映像は短く作って配り (scripts/build-benchmark-streams.sh)、ブラウザの中で、時刻を進めながら必要な長さまで繰り返す。
+// 映像は短く作って配信し (scripts/build-benchmark-streams.sh)、ブラウザの中で、時刻を進めながら必要な長さまで繰り返す。
 // 繰り返しは、静的なデモ (#832) と同じ書き換え (demo/stream-loop.js) を使う。
 
 // benchmarkClips は、試す映像。どちらも 1440×1080 の 1080i (トップフィールドが先) で、30 コマ (1.001 秒)。
@@ -12,7 +12,7 @@ export const benchmarkClips = {
 } as const;
 export type BenchmarkClip = keyof typeof benchmarkClips;
 
-// clipPeriod は、映像の長さ (90 kHz の刻み)。29.97 fps の 30 コマ。プルダウンの 5 コマの周期と、GOP の 15 コマで割り切れる。
+// clipPeriod は、映像の長さ (90 kHz の単位)。29.97 fps の 30 コマ。プルダウンの 5 コマの周期と、GOP の 15 コマで割り切れる。
 export const clipPeriod = 30 * 3003;
 
 // loopClip は、TS の映像 bytes を、seconds 秒ぶん繰り返した TS にする。

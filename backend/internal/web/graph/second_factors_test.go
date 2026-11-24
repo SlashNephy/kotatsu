@@ -66,7 +66,7 @@ func (f *fixture) totpCode(t *testing.T, secret []byte) string {
 	return code
 }
 
-// TestManageTOTP は、ログイン中のユーザーが、TOTP を登録し、リカバリーコードを作り直し、TOTP を消せることを確かめる。
+// TestManageTOTP は、ログイン中のユーザーが、TOTP を登録し、リカバリーコードを作り直し、TOTP を消せることを確認する。
 func TestManageTOTP(t *testing.T) {
 	t.Parallel()
 
@@ -107,7 +107,7 @@ func TestManageTOTP(t *testing.T) {
 	assert.Equal(t, 3, audited)
 }
 
-// TestManageTOTPRequiresRecentAuthentication は、第二要素を変えるには、直近 10 分以内の認証が要ることを確かめる (設計書 9.5)。
+// TestManageTOTPRequiresRecentAuthentication は、第二要素を変えるには、直近 10 分以内の認証が要ることを確認する (設計書 9.5)。
 func TestManageTOTPRequiresRecentAuthentication(t *testing.T) {
 	t.Parallel()
 
@@ -129,7 +129,7 @@ func TestManageTOTPRequiresRecentAuthentication(t *testing.T) {
 	}
 }
 
-// TestViewerCanManageOwnTOTP は、視聴者も、自分の第二要素は扱えることを確かめる (設計書 9.7 の「自分の設定」)。
+// TestViewerCanManageOwnTOTP は、視聴者も、自分の第二要素は扱えることを確認する (設計書 9.7 の「自分の設定」)。
 func TestViewerCanManageOwnTOTP(t *testing.T) {
 	t.Parallel()
 
@@ -144,13 +144,13 @@ func TestViewerCanManageOwnTOTP(t *testing.T) {
 	assert.NotEmpty(t, got.BeginTotpEnrollment.Secret)
 }
 
-// TestReplaceTOTP は、登録済みの TOTP を置き換えるとき、新しい TOTP を確かめるまでは古い TOTP が残り、
-// 確かめると古いリカバリーコードが使えなくなることを確かめる。
+// TestReplaceTOTP は、登録済みの TOTP を置き換えるとき、新しい TOTP を確認するまでは古い TOTP が残り、
+// 確認すると古いリカバリーコードが使えなくなることを確認する。
 func TestReplaceTOTP(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	// 登録を始めていなければ、確かめられない。
+	// 登録を始めていなければ、確認できない。
 	assert.Equal(t, []string{codeBadUserInput}, f.query(t, confirmEnrollment, map[string]any{varCode: "000000"}, nil))
 
 	first := f.beginTOTP(t)
@@ -163,7 +163,7 @@ func TestReplaceTOTP(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT secret_encrypted FROM user_totps").Scan(&unchanged))
 	assert.Equal(t, firstSecret, unchanged, "the current TOTP must stay until the new one is confirmed")
 
-	// 前の登録で使ったステップのコードは使えないので、次のステップに進めてから確かめる。
+	// 前の登録で使ったステップのコードは使えないので、次のステップに進めてから確認する。
 	f.clock.Advance(totp.Period)
 	require.Empty(t, f.query(t, confirmEnrollment, map[string]any{varCode: f.totpCode(t, second)}, nil))
 	var replaced []byte

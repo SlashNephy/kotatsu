@@ -155,7 +155,7 @@ func rawCaptureID(t *testing.T, globalID string) string {
 	return string(raw)
 }
 
-// TestUploadAndServe は、受け取ったキャプチャの画像を、撮ったユーザーにだけ返すことを確かめる。
+// TestUploadAndServe は、受け取ったキャプチャの画像を、撮ったユーザーにだけ返すことを確認する。
 func TestUploadAndServe(t *testing.T) {
 	t.Parallel()
 
@@ -184,7 +184,7 @@ func TestUploadAndServe(t *testing.T) {
 	}
 }
 
-// TestUploadRejects は、足りない、または正しくないリクエストを断ることを確かめる。
+// TestUploadRejects は、足りない、または正しくないリクエストを断ることを確認する。
 func TestUploadRejects(t *testing.T) {
 	t.Parallel()
 
@@ -229,7 +229,7 @@ func TestUploadRejects(t *testing.T) {
 	}
 }
 
-// TestUploadWithoutDataDir は、データディレクトリを設定していなければ、503 で断ることを確かめる。
+// TestUploadWithoutDataDir は、データディレクトリを設定していなければ、503 で断ることを確認する。
 func TestUploadWithoutDataDir(t *testing.T) {
 	t.Parallel()
 

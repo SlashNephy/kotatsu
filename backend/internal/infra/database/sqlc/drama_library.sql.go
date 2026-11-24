@@ -136,7 +136,7 @@ type InsertDramaWatchedEpisodeParams struct {
 	Now           time.Time
 }
 
-// 見た話を足す。もう見た話なら、何もしない (見た日時と出どころは、最初に足したものを残す)。
+// 見た話を足す。もう見た話なら、何もしない (見た日時とソースは、最初に足したものを残す)。
 func (q *Queries) InsertDramaWatchedEpisode(ctx context.Context, arg InsertDramaWatchedEpisodeParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertDramaWatchedEpisode,
 		arg.UserID,
@@ -368,13 +368,13 @@ func (q *Queries) ListDramaWatchlistEntries(ctx context.Context, userID uuid.UUI
 	return items, nil
 }
 
-const listTMDbSeasonsOf = `-- name: ListTMDbSeasonsOf :many
+const listTMDBSeasonsOf = `-- name: ListTMDBSeasonsOf :many
 SELECT series_id, season_number, episodes, fetched_at FROM tmdb_seasons WHERE series_id = ANY($1::integer[]) ORDER BY series_id, season_number
 `
 
 // 作品 series_ids の、キャッシュにあるシーズンを返す。
-func (q *Queries) ListTMDbSeasonsOf(ctx context.Context, seriesIds []int32) ([]TmdbSeason, error) {
-	rows, err := q.db.Query(ctx, listTMDbSeasonsOf, seriesIds)
+func (q *Queries) ListTMDBSeasonsOf(ctx context.Context, seriesIds []int32) ([]TmdbSeason, error) {
+	rows, err := q.db.Query(ctx, listTMDBSeasonsOf, seriesIds)
 	if err != nil {
 		return nil, err
 	}

@@ -38,18 +38,18 @@ func newWebhookStore(clk clock.Clock, recorder audit.Recorder, secret appSecret)
 	return webhook.NewStore(clk, recorder, string(secret))
 }
 
-// newDramaTokens は、管理者が連携の画面で入れた TMDb のトークンを扱う部品を作る (#1651)。
+// newDramaTokens は、管理者が連携の画面で入れた TMDB のトークンを扱う部品を作る (#1651)。
 func newDramaTokens(clk clock.Clock, recorder audit.Recorder, secret appSecret) (*drama.Tokens, error) {
 	return drama.NewTokens(clk, recorder, string(secret))
 }
 
-// newWebPush は、Web Push の部品を作る。VAPID の鍵は、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。
+// newWebPush は、Web Push の部品を作る。VAPID のキーは、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。
 func newWebPush(clk clock.Clock, secret appSecret) (*webpush.Service, error) {
 	return webpush.NewService(clk, string(secret))
 }
 
 // jobInserterOf は、ジョブを入れる先を返す。ジョブを入れられないプロセスでは nil を返す。
-// 型付きの nil を interface に入れると nil と比べられなくなるので、Jobs が nil なら interface の nil を返す。
+// 型付きの nil を interface に入れると nil と比較できなくなるので、Jobs が nil なら interface の nil を返す。
 func jobInserterOf(deps *Deps) anime.Inserter {
 	if deps.Jobs == nil {
 		return nil

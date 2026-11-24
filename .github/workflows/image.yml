@@ -2,8 +2,8 @@ name: Image
 
 # 2 種類のイメージを amd64 と arm64 でビルドし、main とタグでは ghcr.io に公開する (設計書 2.4、11.1)。
 # CI (ci.yml) が PR と main への push で、Release (release.yml) がタグで呼ぶ。
-# 作ったイメージは、起動を確かめ、Trivy で脆弱性を調べる (#1918)。調べるのは公開した後なので、見つかっても edge の公開は止めない。
-# タグ (リリース) では調べない。公開したイメージは、定期の検査 (scan.yml) が毎日確かめる (#1922)。
+# 作ったイメージは、起動を確認し、Trivy で脆弱性を検査する (#1918)。検査するのは公開した後なので、見つかっても edge の公開は止めない。
+# タグ (リリース) では検査しない。公開したイメージは、定期の検査 (scan.yml) が毎日確認する (#1922)。
 on:
   workflow_call:
 
@@ -21,7 +21,7 @@ jobs:
       attestations: write
       artifact-metadata: write
     env:
-      # Trivy は、mise.scan.toml で版とチェックサムまで固定したものを使う (設計書 11.1)。
+      # Trivy は、mise.scan.toml でバージョンとチェックサムまで固定したものを使う (設計書 11.1)。
       MISE_ENV: scan
     strategy:
       fail-fast: false
@@ -48,16 +48,16 @@ jobs:
             type=semver,pattern={{version}}
             type=edge,branch=main
             type=ref,event=pr
-      # バイナリに埋め込む版。metadata-action の版には、イメージの種類の接尾辞 (-ffmpeg) が付くので、取り除く。
-      # 付いたままだと、-ffmpeg のイメージだけが 2026.10.1-ffmpeg と名乗り、新しいリリースの確かめで
+      # バイナリに埋め込むバージョン。metadata-action のバージョンには、イメージの種類の接尾辞 (-ffmpeg) が付くので、取り除く。
+      # 付いたままだと、-ffmpeg のイメージだけが 2026.10.1-ffmpeg と名乗り、新しいリリースの確認で
       # SemVer のプレリリースとして読まれる (#933)。
       - id: version
         env:
           META_VERSION: ${{ steps.meta.outputs.version }}
           SUFFIX: ${{ matrix.suffix }}
         run: echo "version=${META_VERSION%"$SUFFIX"}" >> "$GITHUB_OUTPUT"
-      # 公開する前に、amd64 のイメージを読み取り専用のルートファイルシステムで起動できるかを確かめる。
-      # このイメージを、後で Trivy でも調べる。アーキテクチャで入るパッケージは変わらないので、amd64 だけを見る。
+      # 公開する前に、amd64 のイメージを読み取り専用のルートファイルシステムで起動できるかを確認する。
+      # このイメージを、後で Trivy でも検査する。アーキテクチャで入るパッケージは変わらないので、amd64 だけを見る。
       - uses: docker/build-push-action@v7.4.0
         with:
           context: .
@@ -78,17 +78,19 @@ jobs:
           set -eux
           test "$(docker inspect kotatsu:smoke -f '{{.Config.User}}')" = 65532:65532
           docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges kotatsu:smoke --help
-          # 版とコミットを埋め込めているか。版には、イメージの種類の接尾辞を付けない (#933)。
+          # バージョンとコミットを埋め込めているか。バージョンには、イメージの種類の接尾辞を付けない (#933)。
           docker run --rm --read-only kotatsu:smoke --version | grep -F "kotatsu version $VERSION ($(echo "$GITHUB_SHA" | cut -c1-7))"
           if [ "$TARGET" = ffmpeg ]; then
             docker run --rm --read-only --entrypoint ffmpeg kotatsu:smoke -hide_banner -version
+            docker run --rm --read-only --entrypoint ffprobe kotatsu:smoke -hide_banner -version
             # tsreadex は、引数がないと使い方のエラーで終わる。起動できればよい。
             docker run --rm --read-only --entrypoint sh kotatsu:smoke -c 'tsreadex 2>&1 | grep -q arguments'
             # 字幕の自動生成に使う whisper.cpp (#1682)。静的にリンクしたものが、共有ライブラリなしで起動できればよい。
             docker run --rm --read-only --entrypoint whisper-cli kotatsu:smoke --help
             docker run --rm --read-only --entrypoint whisper-vad-speech-segments kotatsu:smoke --help
             # ライセンス文書とソースの入手先 (設計書の付録 B)。
-            for doc in debian-packages.tsv SOURCES tsreadex.License.txt whisper.cpp.License.txt; do
+            for doc in debian-packages.tsv SOURCES FFmpeg.COPYING.GPLv2.txt FFmpeg.LICENSE.md nv-codec-headers.License.txt \
+              tsreadex.License.txt whisper.cpp.License.txt; do
               docker run --rm --entrypoint test kotatsu:smoke -s "/usr/share/doc/kotatsu/third-party/$doc"
             done
           fi
@@ -113,17 +115,17 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,scope=${{ matrix.target }},mode=max
       # 公開したイメージに、このリポジトリのこの workflow で作ったことを示す証明 (Sigstore) を付ける (#1524、設計書 11.1)。
-      # タグは後で別の digest を指しうるので、名前ではなく digest に付ける。レジストリにも置き、oci:// で確かめられるようにする。
+      # タグは後で別の digest を指しうるので、名前ではなく digest に付ける。レジストリにも置き、oci:// で確認できるようにする。
       - if: github.event_name != 'pull_request' && steps.meta.outputs.tags != ''
         uses: actions/attest@v4.2.2
         with:
           subject-name: ghcr.io/slashnephy/kotatsu
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
-      # 起動を確かめた amd64 のイメージを Trivy で調べ、修正版のある、重さが HIGH 以上の脆弱性があれば失敗にする (#1918)。
-      # 修正版のない脆弱性は、対処のしようがないので除く (scan.yml と同じ)。
+      # 起動を確認した amd64 のイメージを Trivy で検査し、修正バージョンのある、重さが HIGH 以上の脆弱性があれば失敗にする (#1918)。
+      # 修正バージョンのない脆弱性は、対処のしようがないので除く (scan.yml と同じ)。
       - if: github.ref_type != 'tag'
-        uses: jdx/mise-action@v5.2.8
+        uses: jdx/mise-action@v5.2.9
         with:
           install_args: trivy
       - name: Scan the image

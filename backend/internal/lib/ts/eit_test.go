@@ -69,7 +69,7 @@ func eitSectionAt(sectionNumber byte, eventID uint16, times [8]byte, descriptors
 	return binary.BigEndian.AppendUint32(s, crcMPEG(s))
 }
 
-// TestAnalyzerEventAudios は、EIT[p/f] の放送中の番組の音声コンポーネント記述子から、音声の構成を読むことを確かめる (#311)。
+// TestAnalyzerEventAudios は、EIT[p/f] の放送中の番組の音声コンポーネント記述子から、音声の構成を読むことを確認する (#311)。
 func TestAnalyzerEventAudios(t *testing.T) {
 	t.Parallel()
 
@@ -137,7 +137,7 @@ func TestAnalyzerEventAudios(t *testing.T) {
 	}
 }
 
-// TestRecordingAudios は、録画した番組の音声の構成を選ぶことを確かめる。番組予約は eventId で、時刻予約は最も長く放送中だった番組で選ぶ。
+// TestRecordingAudios は、録画した番組の音声の構成を選ぶことを確認する。番組予約は eventId で、時刻予約は最も長く放送中だった番組で選ぶ。
 func TestRecordingAudios(t *testing.T) {
 	t.Parallel()
 
@@ -184,7 +184,7 @@ func TestRecordingAudios(t *testing.T) {
 	}
 }
 
-// TestMergeEvents は、セグメントごとに集めた番組をまとめ、放送中として読んだ回数を足すことを確かめる。
+// TestMergeEvents は、セグメントごとに集めた番組をまとめ、放送中として読んだ回数を足すことを確認する。
 func TestMergeEvents(t *testing.T) {
 	t.Parallel()
 
@@ -215,7 +215,7 @@ func eitEmptySection(sectionNumber byte) []byte {
 	return binary.BigEndian.AppendUint32(s, crcMPEG(s))
 }
 
-// TestAnalyzerPresentFollowing は、EIT[p/f] から、サービスの放送中と次の番組を、最後に読んだもので追うことを確かめる (#389)。
+// TestAnalyzerPresentFollowing は、EIT[p/f] から、サービスの放送中と次の番組を、最後に読んだもので追うことを確認する (#389)。
 func TestAnalyzerPresentFollowing(t *testing.T) {
 	t.Parallel()
 
@@ -254,4 +254,26 @@ func TestAnalyzerPresentFollowing(t *testing.T) {
 			assert.Equal(t, tt.want, analyzer.PresentFollowing(testServiceID))
 		})
 	}
+}
+
+// TestAnalyzerOnPresentFollowing は、EIT[p/f] (自 TS) のセクションごとに、サービスと番組の有無を渡すことを確認する (#2034)。
+// 番組のないセクションも渡す。サービスが放送されていないかを見分けるのに使うからである。
+func TestAnalyzerOnPresentFollowing(t *testing.T) {
+	t.Parallel()
+
+	got := []ts.PresentFollowingSection{}
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{
+		Index: nil, CutoffPTS: nil, OnTOT: nil, OnLogo: nil, OnNIT: nil, OnSDT: nil,
+		OnPresentFollowing: func(s *ts.PresentFollowingSection) { got = append(got, *s) },
+	})
+	cc := byte(0)
+	for _, p := range psiPackets(0x12, &cc, eitSection(0, 100), eitEmptySection(1)) {
+		_, err := analyzer.Write(p)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, []ts.PresentFollowingSection{
+		{OriginalNetworkID: 0x7FE0, TransportStreamID: 0x7FE0, ServiceID: testServiceID, Following: false, HasEvent: true},
+		{OriginalNetworkID: 0x7FE0, TransportStreamID: 0x7FE0, ServiceID: testServiceID, Following: true, HasEvent: false},
+	}, got)
 }

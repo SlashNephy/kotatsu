@@ -22,7 +22,7 @@ ORDER BY s.created_at DESC, s.id;
 DELETE FROM stream_urls WHERE id = @id RETURNING user_id, target_name;
 
 -- name: GetStreamURLUser :one
--- URL の記録から、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
+-- URL の記録から、発行したユーザーを検索する。無効にしたユーザーの URL は使えない。
 SELECT s.user_id, s.last_used_at, u.role
 FROM stream_urls s
 JOIN users u ON u.id = s.user_id

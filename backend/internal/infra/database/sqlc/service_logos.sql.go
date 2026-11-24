@@ -46,7 +46,7 @@ type UpsertServiceLogoParams struct {
 	Now       time.Time
 }
 
-// 版か画像が変わったときだけ書き換える (#1308)。
+// バージョンか画像が変わったときだけ書き換える (#1308)。
 func (q *Queries) UpsertServiceLogo(ctx context.Context, arg UpsertServiceLogoParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertServiceLogo,
 		arg.NetworkID,

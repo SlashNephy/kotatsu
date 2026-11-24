@@ -1,4 +1,4 @@
-// Package tmdb は、TMDb (The Movie Database) の API に問い合わせる (#1651、設計書 3.9)。
+// Package tmdb は、TMDB (The Movie Database) の API に問い合わせる (#1651、設計書 3.9)。
 //
 // 問い合わせには、管理者が連携の画面で入れた API の読み取りアクセストークン (API Read Access Token) を Authorization ヘッダーで付ける。
 // トークンは URL に入れず、エラーの文にも出さない。問い合わせ先は決まったホストだけなので、リダイレクトはたどらない
@@ -23,11 +23,11 @@ import (
 )
 
 const (
-	// DefaultURL は、TMDb の API のオリジン。
+	// DefaultURL は、TMDB の API のオリジン。
 	DefaultURL = "https://api.themoviedb.org"
-	// DefaultInterval は、問い合わせの間隔の下限 (付録 A)。TMDb は上限を公開していないが、控えめにする。
+	// DefaultInterval は、問い合わせの間隔の下限 (付録 A)。TMDB は上限を公開していないが、控えめにする。
 	DefaultInterval = 250 * time.Millisecond
-	// Language は、作品名と話の名前を引く言語。日本の放送の番組名と照らし合わせるので、日本語で引く。
+	// Language は、作品名と話の名前を取得する言語。日本の放送の番組名と照合するので、日本語で取得する。
 	Language = "ja-JP"
 	// requestTimeout は、1 回の問い合わせの時間の上限。
 	requestTimeout = 30 * time.Second
@@ -40,21 +40,21 @@ const (
 )
 
 var (
-	// ErrUnexpectedResponse は、TMDb が想定しない応答を返したことを表す。
-	ErrUnexpectedResponse = errors.New("unexpected response from TMDb")
-	// ErrNotFound は、作品やシーズンが TMDb にないことを表す。
-	ErrNotFound = errors.New("not found on TMDb")
+	// ErrUnexpectedResponse は、TMDB が想定しない応答を返したことを表す。
+	ErrUnexpectedResponse = errors.New("unexpected response from TMDB")
+	// ErrNotFound は、作品やシーズンが TMDB にないことを表す。
+	ErrNotFound = errors.New("not found on TMDB")
 	// ErrUnauthorized は、トークンが使えないことを表す。
-	ErrUnauthorized = errors.New("the TMDb token was rejected")
+	ErrUnauthorized = errors.New("the TMDB token was rejected")
 )
 
-// RateLimitedError は、TMDb が 429 を返したことを表す。RetryAfter だけ待ってから問い合わせ直す。
+// RateLimitedError は、TMDB が 429 を返したことを表す。RetryAfter だけ待ってから問い合わせ直す。
 type RateLimitedError struct {
 	RetryAfter time.Duration
 }
 
 func (e *RateLimitedError) Error() string {
-	return fmt.Sprintf("rate limited by TMDb; retry after %s", e.RetryAfter)
+	return fmt.Sprintf("rate limited by TMDB; retry after %s", e.RetryAfter)
 }
 
 // SearchResult は、作品の検索の結果の作品 1 つ。
@@ -99,7 +99,7 @@ type Options struct {
 	Interval time.Duration
 }
 
-// Client は、TMDb の API に問い合わせる。問い合わせは、同じ Client を使う間、Interval 以上の間隔を空ける。
+// Client は、TMDB の API に問い合わせる。問い合わせは、同じ Client を使う間、Interval 以上の間隔を空ける。
 // トークンは管理者が画面で入れ直せるので、Client には持たせず、問い合わせごとに渡す。
 type Client struct {
 	http     *http.Client
@@ -146,7 +146,7 @@ type searchResponse struct {
 	} `json:"results"`
 }
 
-// SearchTV は、作品 (TV) を名前で探し、1 ページ目 (20 件まで) の結果を、TMDb の並び順で返す。
+// SearchTV は、作品 (TV) を名前で探し、1 ページ目 (20 件まで) の結果を、TMDB の並び順で返す。
 func (c *Client) SearchTV(ctx context.Context, token, query string) ([]*SearchResult, error) {
 	var res searchResponse
 	if err := c.get(ctx, token, "/3/search/tv", url.Values{"query": {query}, "include_adult": {"false"}}, &res); err != nil {
@@ -258,7 +258,7 @@ func (c *Client) get(ctx context.Context, token, path string, query url.Values, 
 	res, err := c.http.Do(req)
 	if err != nil {
 		// url.Error は URL を含むが、トークンは URL に入れないので、そのまま返してよい。
-		return fmt.Errorf("failed to query TMDb: %w", err)
+		return fmt.Errorf("failed to query TMDB: %w", err)
 	}
 	defer res.Body.Close()
 	switch {
@@ -273,7 +273,7 @@ func (c *Client) get(ctx context.Context, token, path string, query url.Values, 
 	}
 	body, err := io.ReadAll(io.LimitReader(res.Body, maxResponseBytes+1))
 	if err != nil {
-		return fmt.Errorf("failed to read the response from TMDb: %w", err)
+		return fmt.Errorf("failed to read the response from TMDB: %w", err)
 	}
 	if len(body) > maxResponseBytes {
 		return fmt.Errorf("%w: the response is too large", ErrUnexpectedResponse)

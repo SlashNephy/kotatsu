@@ -35,7 +35,7 @@ func (f *fixture) feeds(t *testing.T) *feeds {
 	return &got
 }
 
-// TestManageIptvFeed は、ログイン中のユーザーが、IPTV の配信の URL を、予約の iCalendar と別に発行し、発行し直し、取り消せることを確かめる (#1324)。
+// TestManageIptvFeed は、ログイン中のユーザーが、IPTV の配信の URL を、予約の iCalendar と別に発行し、発行し直し、取り消せることを確認する (#1324)。
 func TestManageIptvFeed(t *testing.T) {
 	t.Parallel()
 
@@ -81,7 +81,7 @@ func TestManageIptvFeed(t *testing.T) {
 	assert.Equal(t, []string{codeNotFound}, f.query(t, deleteIptvFeedMutation, nil, nil), "nothing to revoke")
 }
 
-// TestCreateIptvFeedRequiresRecentAuthentication は、発行に直近の認証が要ることを確かめる (#1324)。
+// TestCreateIptvFeedRequiresRecentAuthentication は、発行に直近の認証が要ることを確認する (#1324)。
 func TestCreateIptvFeedRequiresRecentAuthentication(t *testing.T) {
 	t.Parallel()
 
@@ -93,7 +93,7 @@ func TestCreateIptvFeedRequiresRecentAuthentication(t *testing.T) {
 }
 
 // TestIptvFeedWhileDisabled は、管理者が IPTV のクライアント用の URL を有効にしていなければ発行せず、
-// 有効にしていた間に発行した URL は、無効の間も取り消せることを確かめる (#1755)。既定では無効にする。
+// 有効にしていた間に発行した URL は、無効の間も取り消せることを確認する (#1755)。既定では無効にする。
 func TestIptvFeedWhileDisabled(t *testing.T) {
 	t.Parallel()
 

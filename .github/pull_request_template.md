@@ -12,5 +12,6 @@
 ## チェックリスト
 
 - [ ] `mise run //backend:generate`の生成物の差分をコミットした
-- [ ] 振る舞い、仕様、既定値を変えたときは、設計書 (`docs/spec.v1.md`) も直した
+- [ ] 振る舞い、仕様、既定値を変えたときは、設計書 (`docs/spec.v1.md`) も修正した
 - [ ] 更新した利用者に対処が要るときは、破壊的変更 (`docs/breaking-changes.md`) に書いた
+- [ ] 日本語の文章 (画面の文言、ドキュメント、コメント、この PR の本文) を yomiyasu で推敲し、`.yomiyasu-words/` の語を使っていない (`docs/writing.md`)

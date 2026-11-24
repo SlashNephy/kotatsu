@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	// RulesNotifyChannel は、視聴ルールが変わったことを知らせる変更通知のチャンネル。ルールの照合を走らせるきっかけになる。
+	// RulesNotifyChannel は、視聴ルールが変わったことを通知する変更通知のチャンネル。ルールの照合を走らせるきっかけになる。
 	RulesNotifyChannel = "watch_rules"
 	// MaxRulesPerUser は、1 ユーザーが持てる視聴ルールの数の上限 (設計書 4.8)。照合は、ルールの数に比例して重くなる。
 	MaxRulesPerUser = 50
@@ -207,7 +207,7 @@ func ListRules(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) ([]*Rule, er
 	return rules, nil
 }
 
-// DecodeRule は、DB の視聴ルールを読む。条件を読めなければ (ローリング更新の途中で、新しい版が足した条件など) エラーを返す。
+// DecodeRule は、DB の視聴ルールを読む。条件を読めなければ (ローリング更新の途中で、新しいバージョンが足した条件など) エラーを返す。
 func DecodeRule(row sqlc.WatchRule) (*Rule, error) {
 	conditions, err := match.Decode(row.Conditions)
 	if err != nil {
@@ -232,7 +232,7 @@ func getRule(ctx context.Context, q *sqlc.Queries, userID, ruleID uuid.UUID) (*R
 	return DecodeRule(row)
 }
 
-// changeRules は、1 つのトランザクションで視聴ルールを change で変え、ルールの照合を走らせ、同じユーザーのほかの端末に知らせる。
+// changeRules は、1 つのトランザクションで視聴ルールを change で変え、ルールの照合を走らせ、同じユーザーのほかの端末に通知する。
 // 視聴ルールは個人のものなので、録画のルールと違って監査ログには残さない。
 func changeRules(ctx context.Context, db usersettings.Beginner, clk clock.Clock, userID uuid.UUID, change func(q *sqlc.Queries) error) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {

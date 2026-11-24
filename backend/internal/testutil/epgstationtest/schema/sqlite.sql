@@ -1,5 +1,5 @@
 -- EPGStation (https://github.com/l3tnun/EPGStation) の
--- src/db/migrations/sqlite/ にあるマイグレーションの up を、適用する順に書き出したもの。
+-- src/db/migrations/sqlite/ にあるマイグレーションの up を、適用する順に出力したもの。
 -- EPGStation のライセンス (MIT License) は、同じディレクトリの LICENSE.EPGStation にある。
 -- コミット 5cf2ea383d37937eacecf424820dbd7a278d577e から抽出した。
 -- 最後に、TypeORM が作る migrations テーブルに、適用済みのマイグレーションを記録する。

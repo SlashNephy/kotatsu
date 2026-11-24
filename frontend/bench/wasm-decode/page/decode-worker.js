@@ -121,7 +121,7 @@ onmessage = async ({ data: { file, variant, checksum } }) => {
       firstFrameMs,
       videoMs,
       audioMs,
-      // TS → PES と音のデコードまで含めた速さ。変換の方式も TS の読み解きと音を含むので、比べるのはこちら
+      // TS → PES と音のデコードまで含めた速さ。変換の方式も TS の読み解きと音を含むので、比較するのはこちら
       fps: frames / (totalMs / 1000),
       videoFps: frames / (videoMs / 1000),
       avgMs: times.reduce((a, b) => a + b, 0) / times.length,

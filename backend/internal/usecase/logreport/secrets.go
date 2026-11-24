@@ -8,12 +8,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/redact"
 )
 
-// ConfigSecrets は、設定の秘密 (docs/configuration.md で「秘密」とした項目) と、OTLP のヘッダーの環境変数から、伏せる値を返す。
+// ConfigSecrets は、設定の秘密 (docs/configuration.md で「秘密」とした項目) と、OTLP のヘッダーの環境変数から、マスクする値を返す。
 func ConfigSecrets(cfg *config.Config, lookupEnv config.LookupEnv) []string {
 	secrets := []string{cfg.Auth.SecretKey.Value(), cfg.Auth.OIDC.ClientSecret.Value()}
 	secrets = append(secrets, redact.URLSecrets(cfg.Database.URL.Value(), false)...)
 	secrets = append(secrets, redact.URLSecrets(cfg.Tuner.URL.Value(), false)...)
-	// arm の取り込み元は、URL そのものに秘密を含めうるので、全体を伏せる。
+	// arm の取り込み元は、URL そのものに秘密を含めうるので、全体をマスクする。
 	secrets = append(secrets, redact.URLSecrets(cfg.AnimeLinking.ArmURL.Value(), true)...)
 	secrets = append(secrets, redact.HeaderSecrets(cfg.Telemetry.OTLPMetricsHeaders.Value())...)
 	// OpenTelemetry の SDK が読む、OTLP の送り先に付けるヘッダーの環境変数。

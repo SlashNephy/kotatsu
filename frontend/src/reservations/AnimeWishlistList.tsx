@@ -1,6 +1,6 @@
-import { Alert, Anchor, Badge, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Stack, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
-import { CalendarCheck, ListChecks, ListPlus, RefreshCw, Star } from 'lucide-react';
+import { ListChecks, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useMutation } from 'react-relay';
@@ -8,9 +8,8 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { destinationNames, type AnimeRecordDestinationName } from '../animeRecords/destinations';
 import { useDataChanges } from '../changes/DataChanges';
-import { EmptyState, ProgramTitle, zonedFormat } from '../futon';
-import { broadcastDay, dateOf } from '../guide/layout';
-import { ServiceLabel } from '../guide/ServiceLabel';
+import { EmptyState, zonedFormat } from '../futon';
+import { AnimeCandidateCard } from './AnimeCandidateCard';
 import type { AnimeWishlistListCreateRuleMutation } from './__generated__/AnimeWishlistListCreateRuleMutation.graphql';
 import type { AnimeWishlistListQuery } from './__generated__/AnimeWishlistListQuery.graphql';
 import type { AnimeWishlistListRefreshMutation } from './__generated__/AnimeWishlistListRefreshMutation.graphql';
@@ -20,11 +19,6 @@ const dateTimeFormat = zonedFormat({
   month: 'numeric',
   day: 'numeric',
   weekday: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-});
-const timeFormat = zonedFormat({
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
@@ -280,142 +274,42 @@ export function AnimeWishlistList() {
         <EmptyState icon={ListChecks} title={t('reservations.wishlist.empty')} />
       ) : (
         wishlist.works.map((work) => (
-          <Card key={work.tid} component="section" withBorder padding="xs" aria-label={work.title}>
-            <Stack gap="xs">
-              <Group gap="sm" wrap="nowrap" justify="space-between" align="flex-start">
-                <Stack gap={4} style={{ minWidth: 0 }}>
-                  <Group gap="xs">
-                    <Title order={3} size="h5">
-                      {work.title}
-                    </Title>
-                    {/* 予約のある作品は、録る放送が決まっているので、予約済みと示し、ルールを作らせない (#928)。 */}
-                    {work.covered && (
-                      <Badge
-                        size="sm"
-                        color="teal"
-                        variant="light"
-                        tt="none"
-                        leftSection={<CalendarCheck size={12} aria-hidden />}
-                      >
-                        {t('reservations.wishlist.covered')}
-                      </Badge>
-                    )}
-                  </Group>
-                  <Group gap={4}>
-                    {work.sources.map((source) => (
-                      <Badge
-                        key={`${source.destination}:${source.workId}`}
-                        component="a"
-                        href={source.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        variant="light"
-                        size="sm"
-                        tt="none"
-                        style={{ cursor: 'pointer' }}
-                      >
-                        {t('reservations.wishlist.source', {
-                          destination:
-                            destinationNames[
-                              source.destination.toLowerCase() as AnimeRecordDestinationName
-                            ],
-                          status:
-                            source.status === 'WATCHING'
-                              ? t('reservations.wishlist.status.WATCHING')
-                              : t('reservations.wishlist.status.WANNA_WATCH'),
-                        })}
-                      </Badge>
-                    ))}
-                  </Group>
-                  {work.reservedBroadcasts > 0 && (
-                    <Text size="xs" c="dimmed">
-                      {t('reservations.wishlist.reserved', { count: work.reservedBroadcasts })}
-                    </Text>
-                  )}
-                </Stack>
-                {canEdit && !work.covered && (
-                  <Button
-                    size="xs"
-                    flex="none"
-                    leftSection={<ListPlus size={14} aria-hidden />}
-                    loading={busy === `rule:${work.tid}`}
-                    disabled={pending && busy !== `rule:${work.tid}`}
-                    onClick={() => onCreateRule(work.tid)}
-                  >
-                    {t('reservations.wishlist.createRule')}
-                  </Button>
-                )}
-              </Group>
-              <Stack gap={4}>
-                {work.broadcasts.map(({ preferred, program }) => {
-                  const start = Date.parse(program.startAt);
-
-                  return (
-                    <Group key={program.id} gap="sm" wrap="nowrap" justify="space-between">
-                      <Stack gap={0} style={{ minWidth: 0 }}>
-                        <Text size="sm" truncate>
-                          <Anchor
-                            inherit
-                            renderRoot={(props) => (
-                              <Link
-                                {...props}
-                                to="/guide"
-                                search={{
-                                  date: dateOf(broadcastDay(start).from),
-                                  type: program.service.channelType.type,
-                                  program: program.id,
-                                }}
-                              />
-                            )}
-                          >
-                            <ProgramTitle name={program.name} />
-                          </Anchor>
-                        </Text>
-                        <Group gap="xs">
-                          <Text size="xs" c="dimmed">
-                            {t('range', {
-                              from: dateTimeFormat.format(start),
-                              to: timeFormat.format(Date.parse(program.endAt)),
-                            })}
-                          </Text>
-                          <Text size="xs">
-                            <ServiceLabel
-                              name={program.service.name}
-                              logoUrl={program.service.logoUrl}
-                            />
-                          </Text>
-                          {preferred && (
-                            <Badge
-                              size="xs"
-                              color="teal"
-                              variant="light"
-                              tt="none"
-                              leftSection={<Star size={10} aria-hidden />}
-                              title={t('reservations.wishlist.preferredHelp')}
-                            >
-                              {t('reservations.wishlist.preferred')}
-                            </Badge>
-                          )}
-                        </Group>
-                      </Stack>
-                      {canEdit && (
-                        <Button
-                          size="xs"
-                          variant="default"
-                          flex="none"
-                          loading={busy === program.id}
-                          disabled={pending && busy !== program.id}
-                          onClick={() => onReserve(program.id)}
-                        >
-                          {t('reservations.wishlist.reserve')}
-                        </Button>
-                      )}
-                    </Group>
-                  );
-                })}
-              </Stack>
-            </Stack>
-          </Card>
+          <AnimeCandidateCard
+            key={work.tid}
+            work={work}
+            canEdit={canEdit}
+            busy={busy}
+            pending={pending}
+            onCreateRule={onCreateRule}
+            onReserve={onReserve}
+          >
+            <Group gap={4}>
+              {work.sources.map((source) => (
+                <Badge
+                  key={`${source.destination}:${source.workId}`}
+                  component="a"
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  variant="light"
+                  size="sm"
+                  tt="none"
+                  style={{ cursor: 'pointer' }}
+                >
+                  {t('reservations.wishlist.source', {
+                    destination:
+                      destinationNames[
+                        source.destination.toLowerCase() as AnimeRecordDestinationName
+                      ],
+                    status:
+                      source.status === 'WATCHING'
+                        ? t('reservations.wishlist.status.WATCHING')
+                        : t('reservations.wishlist.status.WANNA_WATCH'),
+                  })}
+                </Badge>
+              ))}
+            </Group>
+          </AnimeCandidateCard>
         ))
       )}
     </Stack>

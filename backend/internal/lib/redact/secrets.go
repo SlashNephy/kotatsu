@@ -12,31 +12,31 @@ import (
 )
 
 const (
-	// MinSecretLength は、伏せる秘密の値の最短の長さ (秘密の最短の長さ、設計書 付録 A)。
+	// MinSecretLength は、マスクする秘密の値の最短の長さ (秘密の最短の長さ、設計書 付録 A)。
 	// これより短い値は、ふつうの語や番組名の一部と区別が付かないので使わない。
 	MinSecretLength = 8
-	// SecretMark は、伏せた秘密の値の代わりに置く印。画面で伏せるもの (frontend の admin/logs/redact.ts) と同じ印にする。
+	// SecretMark は、マスクした秘密の値の代わりに置くマーク。画面でマスクするもの (frontend の admin/logs/redact.ts) と同じマークにする。
 	SecretMark = "[REDACTED_SECRET]"
-	// truncationMark は、1 行の上限で切った行の末尾の印 (logring.Truncate と同じ)。
+	// truncationMark は、1 行の上限で切った行の末尾のマーク (logring.Truncate と同じ)。
 	truncationMark = "…"
-	// minTailPrefix は、切った行の末尾に残った秘密の前半を伏せる、最短の長さ。これより短い前半は、秘密の手がかりにならない。
+	// minTailPrefix は、切った行の末尾に残った秘密の前半をマスクする、最短の長さ。これより短い前半は、秘密の手がかりにならない。
 	minTailPrefix = 4
 )
 
-// Secrets は、秘密の値を伏せる。値は MinSecretLength 以上のものだけを使い、大文字と小文字を区別せずに当てる。
+// Secrets は、秘密の値をマスクする。値は MinSecretLength 以上のものだけを使い、大文字と小文字を区別せずに当てる。
 // 短い秘密が長い秘密の一部だと、短い方を先に消したときに長い方が半端に残るので、長いものから順に置き換える。
 type Secrets struct {
 	patterns []*regexp.Regexp
-	// values は、伏せる値を小文字にして、長い順に並べたもの (エスケープした形を含む)。
+	// values は、マスクする値を小文字にして、長い順に並べたもの (エスケープした形を含む)。
 	values []string
 }
 
-// NewSecrets は、values を伏せる Secrets を作る。同じ値は 1 つにまとめる。
+// NewSecrets は、values をマスクする Secrets を作る。同じ値は 1 つにまとめる。
 func NewSecrets(values []string) *Secrets {
 	unique := map[string]struct{}{}
 	for _, value := range values {
 		value = strings.TrimSpace(value)
-		// 印そのものに含まれる値は、伏せた後の印を崩すので使わない。
+		// マークそのものに含まれる値は、マスクした後のマークを崩すので使わない。
 		if len(value) < MinSecretLength || strings.Contains(strings.ToLower(SecretMark), strings.ToLower(value)) {
 			continue
 		}
@@ -82,15 +82,15 @@ func unquote(quoted string) string {
 	return strings.TrimSuffix(strings.TrimPrefix(quoted, `"`), `"`)
 }
 
-// Len は、伏せる値の数を返す。
+// Len は、マスクする値の数を返す。
 func (s *Secrets) Len() int {
 	return len(s.patterns)
 }
 
 // Apply は、text の中の秘密の値を SecretMark にする。
-// 1 行の上限で切った行 (末尾が「…」) は、切り口にまたがった秘密の前半が末尾に残るので、それも伏せる。
+// 1 行の上限で切った行 (末尾が「…」) は、切り口にまたがった秘密の前半が末尾に残るので、それもマスクする。
 func (s *Secrets) Apply(text string) string {
-	// 行の数 × 秘密の数だけ正規表現をかけると遅い (8000 行の 2 つの出どころと 50 個の秘密で約 1.8 秒) ので、
+	// 行の数 × 秘密の数だけ正規表現をかけると遅い (8000 行の 2 つのソースと 50 個の秘密で約 1.8 秒) ので、
 	// 小文字にした行に値が含まれるときだけ置き換える。
 	lower := strings.ToLower(text)
 	for i, pattern := range s.patterns {
@@ -104,8 +104,8 @@ func (s *Secrets) Apply(text string) string {
 	if !truncated {
 		return text
 	}
-	// どの秘密の前半とも一致する、最も長い末尾を伏せる。先に見つかった秘密で決めると、別の秘密の、もっと長い前半が残る (#1982)。
-	// 印 ([REDACTED_SECRET] や設定の [REDACTED]) の中から始まる末尾は、秘密の前半ではないので見ない。印を崩さないためである。
+	// どの秘密の前半とも一致する、最も長い末尾をマスクする。先に見つかった秘密で決めると、別の秘密の、もっと長い前半が残る (#1982)。
+	// マーク ([REDACTED_SECRET] や設定の [REDACTED]) の中から始まる末尾は、秘密の前半ではないので見ない。マークを崩さないためである。
 	limit := len(body) - lastMarkEnd(body)
 	longest := 0
 	for _, value := range s.values {
@@ -124,10 +124,10 @@ func (s *Secrets) Apply(text string) string {
 	return body[:len(body)-longest] + SecretMark + truncationMark
 }
 
-// markPattern は、伏せた値の代わりに置く印 (SecretMark と、設定の秘密を表に出すときの [REDACTED])。
+// markPattern は、マスクした値の代わりに置くマーク (SecretMark と、設定の秘密を出力するときの [REDACTED])。
 var markPattern = regexp.MustCompile(`\[REDACTED(?:_[A-Z]+)?\]`)
 
-// lastMarkEnd は、text の最後の印の終わりの位置を返す。印がなければ 0 を返す。
+// lastMarkEnd は、text の最後のマークの終わりの位置を返す。マークがなければ 0 を返す。
 func lastMarkEnd(text string) int {
 	matches := markPattern.FindAllStringIndex(text, -1)
 	if len(matches) == 0 {
@@ -137,7 +137,7 @@ func lastMarkEnd(text string) int {
 	return matches[len(matches)-1][1]
 }
 
-// URLSecrets は、URL の文字列 raw のうち、秘密として伏せる部分を返す。
+// URLSecrets は、URL の文字列 raw のうち、秘密としてマスクする部分を返す。
 // 資格情報 (ユーザー:パスワード) は、そのままの形と、パーセントエンコードを解いた形の両方を返す。
 // whole なら、URL の全体も返す (Webhook の URL のように、URL そのものが秘密になるもの)。
 func URLSecrets(raw string, whole bool) []string {

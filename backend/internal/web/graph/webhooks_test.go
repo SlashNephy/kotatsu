@@ -45,7 +45,7 @@ func webhookInput() map[string]any {
 	}
 }
 
-// TestWebhooks は、管理者だけが Webhook を作り、変え、消せることを確かめる (設計書 6.2、9.7)。
+// TestWebhooks は、管理者だけが Webhook を作り、変え、消せることを確認する (設計書 6.2、9.7)。
 func TestWebhooks(t *testing.T) {
 	t.Parallel()
 

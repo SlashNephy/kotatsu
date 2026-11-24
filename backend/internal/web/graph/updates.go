@@ -8,7 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
-// latestRelease は、動いている版より新しいリリースを、管理者にだけ返す (#506)。
+// latestRelease は、動いているバージョンより新しいリリースを、管理者にだけ返す (#506)。
 func (r *Resolver) latestRelease(ctx context.Context) *model.Release {
 	principal := auth.PrincipalFrom(ctx)
 	if r.updates == nil || principal == nil || !principal.Role.Can(domain.PermissionAdminister) {

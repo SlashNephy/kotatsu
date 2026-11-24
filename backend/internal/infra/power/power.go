@@ -1,7 +1,7 @@
 // Package power は、OS のスリープの抑止と、スリープから起こす予約を OS に伝える (#1522、設計書 11.7)。
 //
 // Windows では kernel32 の SetThreadExecutionState とタスク スケジューラ (schtasks) を、
-// macOS では IOKit の電源管理の API を、cgo を使わずに purego で読み込んで呼ぶ。配るバイナリを CGO_ENABLED=0 でクロスコンパイルするためである。
+// macOS では IOKit の電源管理の API を、cgo を使わずに purego で読み込んで呼ぶ。配布するバイナリを CGO_ENABLED=0 でクロスコンパイルするためである。
 // ほかの OS では、New が ErrUnsupported を返す。
 package power
 
@@ -25,7 +25,7 @@ var ErrUnsupported = errors.New("sleep control is not supported on this OS")
 const Name = "Kotatsu recording"
 
 const (
-	// DefaultTaskTimeLimit は、Windows の起こすタスクの実行の上限 (付録 A)。中身は何もせずに終わるコマンドなので、短くする。
+	// DefaultTaskTimeLimit は、Windows の起こすタスクの実行の上限 (付録 A)。内容は何もせずに終わるコマンドなので、短くする。
 	DefaultTaskTimeLimit = time.Minute
 	// WakeTaskName は、Windows のタスク スケジューラに登録する、起こすタスクの名前。
 	WakeTaskName = `\Kotatsu\Wake`
@@ -49,7 +49,7 @@ func cfAbsoluteTime(t time.Time) float64 {
 	return float64(t.Unix() - cfAbsoluteTimeEpoch)
 }
 
-// wakeFile は、置いた予約の時刻を書くファイル。macOS の予約は OS が覚えていて、プロセスを起動し直しても残り、
+// wakeFile は、置いた予約の時刻を書くファイル。macOS の予約は OS が保持していて、プロセスを起動し直しても残り、
 // 置いたときと同じ時刻でないと取り消せないので、置いた時刻を残す。
 type wakeFile struct {
 	// path が空なら、読みも書きもしない。
@@ -108,7 +108,7 @@ func (f *wakeFile) remove() error {
 // wakeTaskXML は、at に「スリープを解除して実行」するタスクの定義を、schtasks /XML が読む UTF-16 (BOM 付き) で返す。
 //
 // 実行者は SYSTEM (S-1-5-18) にし、権限は最小にする。バッテリーでも止めず、多重起動は無視する。
-// 中身は、何もせずに終わるコマンドである。時刻は UTC で書く。
+// 内容は、何もせずに終わるコマンドである。時刻は UTC で書く。
 func wakeTaskXML(at time.Time, timeLimit time.Duration) []byte {
 	doc := `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">

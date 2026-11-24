@@ -36,7 +36,7 @@ const (
 	accountFreeFailures = 5
 	ipFreeFailures      = 20
 	throttleBase        = time.Second
-	// concurrentAttemptWait は、同じアカウントか IP の試行を確かめている間に来た試行を、待たせる時間。
+	// concurrentAttemptWait は、同じアカウントか IP の試行を確認している間に来た試行を、待たせる時間。
 	concurrentAttemptWait = time.Second
 	throttleMax           = 15 * time.Minute
 	// throttleReset は、最後の失敗からこれだけ経つと、失敗の回数を数え直す時間。
@@ -107,19 +107,19 @@ type LoginsOptions struct {
 	Clock    clock.Clock
 	Recorder audit.Recorder
 	Logger   *slog.Logger
-	// Sessions は、第二要素まで確かめたログインのセッションを作る。
+	// Sessions は、第二要素まで確認したログインのセッションを作る。
 	Sessions *Sessions
-	// SecondFactors は、第二要素を確かめる。
+	// SecondFactors は、第二要素を確認する。
 	SecondFactors *SecondFactors
 	// ChallengeTTL は、パスワードの確認から第二要素の確認までに許す時間。0 なら DefaultChallengeTTL にする。
 	ChallengeTTL time.Duration
-	// MaxConcurrentVerifications は、パスワードを同時に確かめる数の上限。0 なら CPU の数にする。
+	// MaxConcurrentVerifications は、パスワードを同時に確認する数の上限。0 なら CPU の数にする。
 	MaxConcurrentVerifications int
-	// VerificationWait は、確かめる順番を待つ時間の上限。過ぎたら試行を待たせる。0 なら DefaultVerificationWait にする。
+	// VerificationWait は、確認する順番を待つ時間の上限。過ぎたら試行を待たせる。0 なら DefaultVerificationWait にする。
 	VerificationWait time.Duration
 }
 
-// DefaultVerificationWait は、パスワードを確かめる順番を待つ時間の上限の既定値。
+// DefaultVerificationWait は、パスワードを確認する順番を待つ時間の上限の既定値。
 const DefaultVerificationWait = 3 * time.Second
 
 // Logins は、パスワードでのログインを扱う (設計書 9.3、9.5)。
@@ -130,7 +130,7 @@ type Logins struct {
 	sessions     *Sessions
 	factors      *SecondFactors
 	challengeTTL time.Duration
-	// verifications は、パスワードを確かめている数。Argon2id は 1 回で約 19 MiB のメモリと CPU を使うので、上限を設ける (#542)。
+	// verifications は、パスワードを確認している数。Argon2id は 1 回で約 19 MiB のメモリと CPU を使うので、上限を設ける (#542)。
 	verifications    chan struct{}
 	verificationWait time.Duration
 }
@@ -171,10 +171,10 @@ func throttleKeys(username string, sourceIP netip.Addr) []string {
 	return keys
 }
 
-// Password は、ユーザー名とパスワードを確かめる。
+// Password は、ユーザー名とパスワードを確認する。
 //
-// 確かめられても、セッションは作らない。パスワードでのログインには第二要素が必須なので (設計書 9.3)、
-// 第二要素の確認を待つ Challenge を作り、そのトークンを返す。第二要素を確かめるとセッションになる。
+// 確認できても、セッションは作らない。パスワードでのログインには第二要素が必須なので (設計書 9.3)、
+// 第二要素の確認を待つ Challenge を作り、そのトークンを返す。第二要素を確認するとセッションになる。
 //
 // 失敗は、アカウント単位と IP 単位で数え、続くと待ち時間を指数的に延ばす。
 // ユーザーがいなくても、パスワードの検証と同じだけ時間をかけ、ユーザー名が存在するかを推測させない。
@@ -243,10 +243,10 @@ func (l *Logins) Password(ctx context.Context, db Database, username, secret str
 	return token, challenge, nil
 }
 
-// verifyPassword は、パスワードがハッシュに一致するかを確かめる。encoded が nil なら、同じだけ時間をかけて一致しないとする。
-// 同時に確かめる数を抑え、順番を待ちきれなければ ThrottledError を返す (#542)。
+// verifyPassword は、パスワードがハッシュに一致するかを確認する。encoded が nil なら、同じだけ時間をかけて一致しないとする。
+// 同時に確認する数を抑え、順番を待ちきれなければ ThrottledError を返す (#542)。
 func (l *Logins) verifyPassword(ctx context.Context, secret string, encoded *string) (*password.Verification, error) {
-	// 空きがあると、select は取り消した要求でも順番を取りうるので、先に確かめる。
+	// 空きがあると、select は取り消した要求でも順番を取りうるので、先に確認する。
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("failed to wait for a password verification: %w", err)
 	}
@@ -353,7 +353,7 @@ func (l *Logins) recordFailure(
 }
 
 // succeed は、第二要素の確認を待つ Challenge を作る。
-// アカウント単位の失敗の回数は、第二要素まで確かめ終えてから消す (finish)。ここで消すと、パスワードの確認から
+// アカウント単位の失敗の回数は、第二要素まで確認し終えてから消す (finish)。ここで消すと、パスワードの確認から
 // やり直すたびに、第二要素を試せる回数が戻り、第二要素のコードを総当たりできてしまう。
 // rehashed が nil でなければ、今のパラメーターで作り直したハッシュに置き換える。
 func (l *Logins) succeed(

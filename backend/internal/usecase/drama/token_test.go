@@ -12,8 +12,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 )
 
-// TestTokens は、管理者が入れた TMDb のトークンを暗号化して保存し、照合とログの報告のために取り出せること、
-// 画面には末尾の数文字だけを出すこと、空にすれば消えること、監査ログに値を残さないことを確かめる (#1651)。
+// TestTokens は、管理者が入れた TMDB のトークンを暗号化して保存し、照合とログの報告のために取り出せること、
+// 画面には末尾の数文字だけを出すこと、空にすれば消えること、監査ログに値を残さないことを確認する (#1651)。
 func TestTokens(t *testing.T) {
 	t.Parallel()
 
@@ -70,14 +70,14 @@ func TestTokens(t *testing.T) {
 	}, actions, "deleting a missing token is not recorded")
 }
 
-// TestTokensInvalid は、Authorization ヘッダーに入れられないトークンと、長すぎるトークンを断り、前のトークンを残すことを確かめる。
+// TestTokensInvalid は、Authorization ヘッダーに入れられないトークンと、長すぎるトークンを断り、前のトークンを残すことを確認する。
 func TestTokensInvalid(t *testing.T) {
 	t.Parallel()
 
 	db := newDB(t)
 	clk := clocktest.NewFake(jst(15, 0, 0))
 	tokens := newTokens(t, clk)
-	setToken(t, db, tokens, testTMDbKey)
+	setToken(t, db, tokens, testTMDBKey)
 
 	tests := []struct {
 		name  string
@@ -96,7 +96,7 @@ func TestTokensInvalid(t *testing.T) {
 			require.ErrorIs(t, err, drama.ErrInvalidToken)
 			got, err := tokens.Token(t.Context(), db)
 			require.NoError(t, err)
-			assert.Equal(t, testTMDbKey, got, "the previous token is kept")
+			assert.Equal(t, testTMDBKey, got, "the previous token is kept")
 		})
 	}
 }

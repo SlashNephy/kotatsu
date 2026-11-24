@@ -55,7 +55,7 @@ const path = '/settings/security';
 export const Route = createFileRoute('/settings/security')({
   validateSearch: (search: Record<string, unknown>): SecuritySearch =>
     search['linked'] === 'oidc' ? { linked: 'oidc' } : {},
-  // IdP での再認証と紐付けを出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
+  // IdP での再認証と紐付けを出すかを確認する。確認できなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: SecurityPage,
 });
@@ -497,7 +497,7 @@ function Passkeys({
         onChanged();
       },
       (caught) => {
-        // 認証器の画面を閉じただけなら、何も示さない。
+        // オーセンティケーターの画面を閉じただけなら、何も示さない。
         if (!(caught instanceof PasskeyCancelledError)) {
           fail(caught);
         }

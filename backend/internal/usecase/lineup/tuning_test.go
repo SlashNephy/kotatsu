@@ -33,7 +33,7 @@ func received(channel string, at time.Duration) lineup.TuningOutcome {
 	return lineup.TuningOutcome{ChannelType: "GR", Channel: channel, At: tuningBase().Add(at), Received: true}
 }
 
-// TestUnreachable は、続けて選局できないチャンネルを決める規則を確かめる (#1519)。
+// TestUnreachable は、続けて選局できないチャンネルを決める規則を確認する (#1519)。
 func TestUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -139,7 +139,7 @@ func grChannelTV(networkID, serviceID int, channel string) *tunerserver.Service 
 	}
 }
 
-// TestCheckerTuning は、録画の結果から続けて選局できないチャンネルを決め、管理者に 1 回だけ知らせることを確かめる (#1519)。
+// TestCheckerTuning は、録画の結果から続けて選局できないチャンネルを決め、管理者に 1 回だけ通知することを確認する (#1519)。
 func TestCheckerTuning(t *testing.T) {
 	t.Parallel()
 
@@ -181,7 +181,7 @@ func TestCheckerTuning(t *testing.T) {
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Empty(t, lineupNotifications(t, pool))
 
-	// 3 回目で知らせる。続いている間は繰り返さない。
+	// 3 回目で通知する。続いている間は繰り返さない。
 	record(dead.ID, 6*time.Hour, domain.RecordingStateFailed, refusedReason)
 	require.NoError(t, checker.Check(t.Context()))
 	require.NoError(t, checker.Check(t.Context()))
@@ -190,14 +190,14 @@ func TestCheckerTuning(t *testing.T) {
 	assert.Equal(t, "GR", got[0][keyKind])
 	assert.Equal(t, []any{"22"}, got[0]["unreachable"])
 
-	// チューナーサーバーの一覧から消えたチャンネルは知らせず、忘れる。戻ったら、また知らせる。
+	// チューナーサーバーの一覧から消えたチャンネルは通知せず、忘れる。戻ったら、また通知する。
 	tuner.set(alive)
 	require.NoError(t, checker.Check(t.Context()))
 	tuner.set(dead, alive)
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 2)
 
-	// 受信できたら忘れ、また続けて断られたら知らせる。
+	// 受信できたら忘れ、また続けて断られたら通知する。
 	record(dead.ID, 8*time.Hour, domain.RecordingStatePartial, nil)
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 2)
@@ -208,7 +208,7 @@ func TestCheckerTuning(t *testing.T) {
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 3)
 
-	// 受信できた録画を消しても、録画履歴に残っていれば、受信できたものに数えて忘れる。続いて 3 回断られたら、また知らせる。
+	// 受信できた録画を消しても、録画履歴に残っていれば、受信できたものに数えて忘れる。続いて 3 回断られたら、また通知する。
 	_, err = pool.Exec(t.Context(), `INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
 VALUES ($1, $2, 'test', 'test', $3, $3, $3)`, uuid.New(), dead.ID, tuningBase().Add(14*time.Hour))
 	require.NoError(t, err)

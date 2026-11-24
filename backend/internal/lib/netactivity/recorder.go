@@ -56,7 +56,7 @@ type Recorder struct {
 	buckets map[Key]*Totals
 }
 
-// NewRecorder は Recorder を返す。Run が記録の有効を確かめるまでは、何も数えない。
+// NewRecorder は Recorder を返す。Run が記録の有効を確認するまでは、何も数えない。
 func NewRecorder(clk clock.Clock) *Recorder {
 	return &Recorder{clock: clk, enabled: atomic.Bool{}, mu: sync.Mutex{}, buckets: map[Key]*Totals{}}
 }
@@ -80,7 +80,7 @@ func (r *Recorder) Add(purpose Purpose, host string, success bool, delta Totals)
 	totals.ReceivedBytes += delta.ReceivedBytes
 }
 
-// Run は、ctx が終わるまで、記録の有効を確かめ、集計を定期的に store へ書く。終わるときに残りを書く。
+// Run は、ctx が終わるまで、記録の有効を確認し、集計を定期的に store へ書く。終わるときに残りを書く。
 func (r *Recorder) Run(ctx context.Context, store Store, logger *slog.Logger) {
 	r.flush(ctx, store, logger)
 	ticker := time.NewTicker(flushInterval)
@@ -114,7 +114,7 @@ func (r *Recorder) flush(ctx context.Context, store Store, logger *slog.Logger) 
 	pending := r.buckets
 	r.buckets = map[Key]*Totals{}
 	r.mu.Unlock()
-	// 無効に戻したら、それまでの集計は捨てる。
+	// 無効に戻したら、それまでの集計は破棄する。
 	if !enabled || len(pending) == 0 {
 		return
 	}

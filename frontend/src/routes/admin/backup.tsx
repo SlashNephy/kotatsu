@@ -32,8 +32,8 @@ export const Route = createFileRoute('/admin/backup')({
   component: BackupPage,
 });
 
-// BackupPage は、DB とキャプチャを定期に書き出すバックアップの、公開鍵と間隔と世代の数を変え、最後の結果を見る、
-// 管理者向けの画面 (設計書 10.3、11.4、#1926)。書き出す先のディレクトリは、設定ファイルで決める (設計書 11.2)。
+// BackupPage は、DB とキャプチャを定期にバックアップする機能の、公開鍵と間隔と世代の数を変え、最後の結果を見る、
+// 管理者向けの画面 (設計書 10.3、11.4、#1926)。出力先のディレクトリは、設定ファイルで決める (設計書 11.2)。
 function BackupPage() {
   const { t } = useTranslation();
 
@@ -74,14 +74,14 @@ const dateTimeFormat = zonedFormat({
   hourCycle: 'h23',
 });
 
-// agePublicKey は、age の公開鍵の形 (Bech32 の age1...)。最後の確かめはサーバーが行う。
+// agePublicKey は、age の公開鍵の形 (Bech32 の age1...)。最後の確認はサーバーが行う。
 const agePublicKey = /^age1[02-9ac-hj-np-z]+$/;
 
 function BackupSettings() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [fetchKey, setFetchKey] = useState(0);
-  // ほかの管理者が変えたときと、nekonote が書き出し終えたときに、読み直す (#869)。
+  // ほかの管理者が変えたときと、nekonote がバックアップを終えたときに、読み直す (#869)。
   const adminChanges = useDataChanges(['ADMIN']);
   const data = useLazyLoadQuery<backupQuery>(
     query,
@@ -96,13 +96,13 @@ function BackupSettings() {
   // 変わった後は、ほかの管理者が変えたときも含めて、読み直した一覧から続けられる。
   const currentRecipients = settings.recipients.join('\n');
   const [savedFrom, setSavedFrom] = useState<string | null>(null);
-  // 読み直した一覧が変わったら、覚えた一覧を捨てる。後でまた同じ一覧に戻っても、止めないようにする。
+  // 読み直した一覧が変わったら、保持した一覧を破棄する。後でまた同じ一覧に戻っても、止めないようにする。
   if (savedFrom !== null && savedFrom !== currentRecipients) {
     setSavedFrom(null);
   }
   const editingKeys = savedFrom !== null && savedFrom === currentRecipients;
-  // requestedAfter は、今すぐ書き出すよう頼んだときの、最後の結果の時刻。結果が変わるまで、頼んだことを出す。
-  // 頼んでいなければ undefined。まだ書き出したことがなければ null。
+  // requestedAfter は、今すぐバックアップするよう頼んだときの、最後の結果の時刻。結果が変わるまで、頼んだことを出す。
+  // 頼んでいなければ undefined。まだバックアップしたことがなければ null。
   const [requestedAfter, setRequestedAfter] = useState<string | null | undefined>(undefined);
   const lastFinishedAt = latestRun?.finishedAt ?? null;
   const requested = requestedAfter !== undefined && requestedAfter === lastFinishedAt;

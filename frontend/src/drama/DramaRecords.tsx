@@ -32,7 +32,7 @@ const dateFormat = zonedFormat({
 });
 
 // DramaRecords は、アカウントの連携の画面で、見たドラマを記録する Simkl との連携を扱う (#1649、設計書 3.9)。
-// 管理者が TMDb との連携を無効にしているときは、案内だけを出す。connected と error は、Simkl から戻ってきたときの結果で、
+// 管理者が TMDB との連携を無効にしているときは、案内だけを出す。connected と error は、Simkl から戻ってきたときの結果で、
 // アニメの記録先と同じ画面に戻るので、ドラマの記録先のもの (simkl、drama_record_) だけを出す。
 export function DramaRecords({
   connected,
@@ -260,7 +260,7 @@ export function DramaRecords({
 }
 
 // DramaRecordSettings は、見たドラマの話にする割合と、この端末で見たドラマを記録するかを変える (#1649)。見たアニメの設定とは別に持つ。
-// Simkl と連携していなくても、Kotatsu の中の見た話 (#1652) に効くので、TMDb との連携が有効なら出す。
+// Simkl と連携していなくても、Kotatsu の中の見た話 (#1652) に効くので、TMDB との連携が有効なら出す。
 // 割合は、アニメの記録の設定と同じく、欄を離れたときか Enter で、1〜100 に収まっていれば保存する (#1740)。
 function DramaRecordSettings({
   thresholdPercent,

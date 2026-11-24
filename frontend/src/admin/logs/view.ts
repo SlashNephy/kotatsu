@@ -6,7 +6,7 @@ import type { Level } from './report';
 export const pageSize = 100;
 
 export type ViewLine = {
-  // source は、出どころの番号 (sources の添え字)。
+  // source は、ソースの番号 (sources の添え字)。
   source: number;
   time: number;
   level: Level;
@@ -15,7 +15,7 @@ export type ViewLine = {
 };
 
 export type ViewFilter = {
-  // hidden は、表示を切った出どころの番号。
+  // hidden は、表示を切ったソースの番号。
   hidden: ReadonlySet<number>;
   // problemsOnly は、警告とエラーだけを出すかどうか。
   problemsOnly: boolean;
@@ -23,7 +23,7 @@ export type ViewFilter = {
   search: string;
 };
 
-// mergeLines は、出どころごとの古い順の行を、時刻の新しい順に混ぜて並べる。同じ時刻なら、出どころの中の順を保つ。
+// mergeLines は、ソースごとの古い順の行を、時刻の新しい順に混ぜて並べる。同じ時刻なら、ソースの中の順を保つ。
 export function mergeLines(
   sources: readonly { lines: readonly Omit<ViewLine, 'source'>[] }[],
 ): ViewLine[] {

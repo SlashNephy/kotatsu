@@ -24,7 +24,7 @@ export function groupByDay<T extends { startMs: number }>(items: readonly T[]): 
   return [...groups.values()].sort((a, b) => a.from - b.from);
 }
 
-// needsAttention は、録画が欠ける見込みで、利用者に知らせるべき状態かどうかを返す。
+// needsAttention は、録画が欠ける見込みで、利用者に通知すべき状態かどうかを返す。
 export function needsAttention(state: string, enabled: boolean): boolean {
   return enabled && (state === 'PARTIAL' || state === 'CONFLICT');
 }

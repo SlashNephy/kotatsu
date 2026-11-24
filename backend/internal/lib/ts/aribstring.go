@@ -175,7 +175,7 @@ func (d *aribDecoder) writeTwo(set int, c1, c2 byte) {
 		return
 	}
 	if set == aribSetJISKanji2 {
-		// JIS X 0213 の第 2 面は、表を持たないので読まない。
+		// JIS X 0213 の第 2 面は、テーブルを持たないので読まない。
 		return
 	}
 	if s, ok := jisOverride(uint16(c1)<<8 | uint16(c2)); ok {
@@ -190,10 +190,10 @@ func (d *aribDecoder) writeTwo(set int, c1, c2 byte) {
 	d.out.Write(decoded)
 }
 
-// jisOverride は、EUC-JP の復号器 (WHATWG の表) が JIS X 0208 の対応と違う文字にする符号を、JIS X 0208 の対応にそろえる。
+// jisOverride は、EUC-JP のデコーダー (WHATWG のテーブル) が JIS X 0208 の対応と違う文字にする符号を、JIS X 0208 の対応にそろえる。
 // チューナーサーバー (Mahiron) の番組情報は、地上波で 0x2141 を U+301C (〜) に、0x213D を U+2014 (—) にしている
-// (2026 年 11 月に実放送で確かめた)。ほかの符号も、Mirakurun (aribts) と同じく JIS X 0208 の対応にする。
-// 0x2141 と 0x213D のほかは、実放送ではまだ確かめていない。BS の一部の局と BS4K では、Mahiron の番組情報が U+FF5E (～) になる番組もあり、
+// (2026 年 11 月に実放送で確認した)。ほかの符号も、Mirakurun (aribts) と同じく JIS X 0208 の対応にする。
+// 0x2141 と 0x213D のほかは、実放送ではまだ確認していない。BS の一部の局と BS4K では、Mahiron の番組情報が U+FF5E (～) になる番組もあり、
 // どちらにもそろえることはできない。
 func jisOverride(code uint16) (string, bool) {
 	switch code {
@@ -217,7 +217,7 @@ func jisOverride(code uint16) (string, bool) {
 }
 
 // alphanumericFull は、英数の集合の 0x21〜0x7E を全角にしたもの。0x22 と 0x27 は右の引用符 (チューナーサーバーにそろえる。
-// 2026 年 11 月に実放送で確かめた)、0x5C は円記号、0x7E は波ダッシュ (aribb24.js にそろえる) にする。
+// 2026 年 11 月に実放送で確認した)、0x5C は円記号、0x7E は波ダッシュ (aribb24.js にそろえる) にする。
 const alphanumericFull = "！”＃＄％＆’（）＊＋，－．／０１２３４５６７８９：；＜＝＞？＠ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ［￥］＾＿｀ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ｛｜｝～"
 
 // alphanumeric は、英数の集合の文字を返す。中型なら半角にする。

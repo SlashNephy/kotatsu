@@ -36,8 +36,8 @@ func readTestTS(t *testing.T) []byte {
 	return data
 }
 
-// TestLibraryCommentsHandler は、ライブラリのファイルの過去ログを、TS から読んだ局と時間帯で引き、TOT で読んだ録り始めを基準にすることを確かめる (#1734)。
-// Kotatsu のサービスの行がなくても、ネットワークとサービス ID で実況のチャンネルを引く。
+// TestLibraryCommentsHandler は、ライブラリのファイルの過去ログを、TS から読んだ局と時間帯で引き、TOT で読んだ録り始めを基準にすることを確認する (#1734)。
+// Kotatsu のサービスの行がなくても、ネットワークとサービス ID で実況のチャンネルを検索する。
 func TestLibraryCommentsHandler(t *testing.T) {
 	t.Parallel()
 
@@ -89,7 +89,7 @@ func TestLibraryCommentsHandler(t *testing.T) {
 			if tt.wantStatus != http.StatusOK {
 				return
 			}
-			// 索引を作り終えた後は、時間帯が変わらないので、少しの間だけ使い回させる。
+			// インデックスを作り終えた後は、時間帯が変わらないので、少しの間だけ使い回させる。
 			assert.Equal(t, "private, max-age=600", rec.Header().Get("Cache-Control"))
 			var body commentsBody
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
@@ -102,8 +102,8 @@ func TestLibraryCommentsHandler(t *testing.T) {
 	}
 }
 
-// TestLibraryCommentsHandlerBeforeIndex は、索引を作り終える前は、局と時間帯が分からないのでチャンネルなしで返し、
-// 後で分かるので使い回させないことを確かめる。
+// TestLibraryCommentsHandlerBeforeIndex は、インデックスを作り終える前は、局と時間帯が分からないのでチャンネルなしで返し、
+// 後で分かるので使い回させないことを確認する。
 func TestLibraryCommentsHandlerBeforeIndex(t *testing.T) {
 	t.Parallel()
 
@@ -111,7 +111,7 @@ func TestLibraryCommentsHandlerBeforeIndex(t *testing.T) {
 	libraryDir, dataDir := t.TempDir(), t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, "show.ts"), readTestTS(t), 0o600))
 	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{testLibrary: libraryDir})
-	// 索引を作らない Indexer にして、作り終える前の状態を保つ。
+	// インデックスを作らない Indexer にして、作り終える前の状態を保つ。
 	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), false)
 	mux := http.NewServeMux()
 	mux.Handle("GET /internal/media/library/{id}/"+jikkyoapi.CommentsFileName, jikkyoapi.NewLibraryCommentsHandler(f.comments, filelib.NewSource(libraries, indexer)))

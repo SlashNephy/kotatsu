@@ -17,11 +17,11 @@ func frames(d time.Duration, fps float64) int {
 	return int(math.Round(d.Seconds() * fps))
 }
 
-// Intervals は、コマごとの測り measures から、ロゴが出ていた区間を返す (#1505 の E と F)。fps は、コマの速さ。
+// Intervals は、コマごとの計測値 measures から、ロゴが出ていた区間を返す (#1505 の E と F)。fps は、コマの速さ。
 //
 // 半透明の白いロゴは、白っぽい背景では点数が 0 近くまで落ちる。それを「消えた」と読むと、本編の明るい場面のたびに区間が切れるので、
-// 判断できない背景のコマでは、直前の判断を持ち越す。どの背景が判断できないかは、録画ごとに映像から 2 段で決める。
-// 1 段目は明るさの段ごとに、ロゴの出ているコマの近くで点数の上位が届くかを見る。2 段目は、1 回目の区間の中で、
+// 判断できない背景のコマでは、直前の判断を持ち越す。どの背景が判断できないかは、録画ごとに映像から 2 つのステップで決める。
+// 1 つ目のステップは明るさの段階ごとに、ロゴの出ているコマの近くで点数の上位が届くかを見る。2 つ目のステップは、1 回目の区間の中で、
 // 明るさと肌理の格子ごとに、続いているとみなす点数に届かないコマの割合を見る。
 func Intervals(measures []Measure, fps float64, p *Params) []Interval {
 	if len(measures) == 0 {
@@ -36,12 +36,12 @@ func Intervals(measures []Measure, fps float64, p *Params) []Interval {
 	return extract(measures, judge, fps, p)
 }
 
-// brightnessLevel は、m の明るさの段を返す。
+// brightnessLevel は、m の明るさの段階を返す。
 func brightnessLevel(m Measure, p *Params) int {
 	return min(int(m.Brightness/256*float64(p.BrightnessLevels)), p.BrightnessLevels-1)
 }
 
-// textureLevel は、m の肌理の段を返す。
+// textureLevel は、m の肌理の段階を返す。
 func textureLevel(m Measure, p *Params) int {
 	for i, edge := range p.TextureEdges {
 		if m.Texture < edge {
@@ -52,9 +52,9 @@ func textureLevel(m Measure, p *Params) int {
 	return len(p.TextureEdges)
 }
 
-// levelJudgement は、1 段目の判断を返す。点数が出たとみなす点数以上のコマの近くのコマだけで、明るさの段ごとに、
-// 段の分位の点数が出たとみなす点数に届くかを見る。CM の間しか出ない背景まで数えると、その段が判断できない段にされ、
-// CM の頭まで判断が持ち越されるからである。コマの足りない段は、確かめようがないので判断できるとする。
+// levelJudgement は、1 つ目のステップの判断を返す。点数が出たとみなす点数以上のコマの近くのコマだけで、明るさの段階ごとに、
+// 段階の分位の点数が出たとみなす点数に届くかを見る。CM の間しか出ない背景まで数えると、その段階が判断できない段階にされ、
+// CM の先頭まで判断が持ち越されるからである。コマの足りない段階は、確認しようがないので判断できるとする。
 func levelJudgement(measures []Measure, fps float64, p *Params) []bool {
 	reach := frames(p.NearWindow, fps)
 	near := make([]bool, len(measures))
@@ -103,8 +103,8 @@ func levelJudgement(measures []Measure, fps float64, p *Params) []bool {
 	return judge
 }
 
-// gridJudgement は、2 段目の判断を返す。1 回目の区間 intervals の中のコマを、明るさと肌理の格子ごとに数え、
-// 続いているとみなす点数に届かないコマの割合が許容割合以下の格子だけを判断できるとする。コマの足りない格子は、1 段目の判断 prev のままにする。
+// gridJudgement は、2 つ目のステップの判断を返す。1 回目の区間 intervals の中のコマを、明るさと肌理の格子ごとに数え、
+// 続いているとみなす点数に届かないコマの割合が許容割合以下の格子だけを判断できるとする。コマの足りない格子は、1 つ目のステップの判断 prev のままにする。
 func gridJudgement(measures []Measure, prev []bool, intervals []Interval, fps float64, p *Params) []bool {
 	cells := p.BrightnessLevels * (len(p.TextureEdges) + 1)
 	cell := func(m Measure) int { return brightnessLevel(m, p)*(len(p.TextureEdges)+1) + textureLevel(m, p) }
@@ -135,7 +135,7 @@ func gridJudgement(measures []Measure, prev []bool, intervals []Interval, fps fl
 }
 
 // flatten は、のっぺりしたコマ (肌理がのっぺりの肌理未満で、白飛びでないもの) を、いつも判断できるとする。
-// ロゴが乗っていれば必ず縁が立つからである。番組の切れ目の真っ黒を判断できない段にすると、番組の終わりのロゴが黒い間ずっと持ち越される。
+// ロゴが乗っていれば必ず縁が立つからである。番組の切れ目の真っ黒を判断できない段階にすると、番組の終わりのロゴが黒い間ずっと持ち越される。
 func flatten(judge []bool, measures []Measure, p *Params) {
 	for i, m := range measures {
 		if m.Texture < p.FlatTexture && m.Brightness < p.WhiteBrightness {
@@ -175,7 +175,7 @@ func extract(measures []Measure, judge []bool, fps float64, p *Params) []Interva
 	return out
 }
 
-// windowValues は、コマごとに、前後の窓の判断できるコマの中で、窓の順位番目に高い点数を返す。足りなければ NaN (不明)。
+// windowValues は、コマごとに、前後のウィンドウの判断できるコマの中で、ウィンドウの順位番目に高い点数を返す。足りなければ NaN (不明)。
 // 最高点でなく下の順位を見るのは、溶けかけたロゴでも、少し暗い所が横切るたびに点数が戻るからである。
 func windowValues(measures []Measure, judge []bool, fps float64, p *Params) []float64 {
 	half := frames(p.WindowHalf, fps)
@@ -220,8 +220,8 @@ func runs(on []bool) []Interval {
 	return out
 }
 
-// pullBack は、窓で外に膨らんだ境目を、点数を中央値でならした値で戻す。始まりは、ならした値が中間値未満の間、後ろへずらし、
-// 終わりは前へずらす。どちらも戻しの上限まで。始まりをずらし切っても中間値に届かず、上限にも達しなかった区間は捨てる。
+// pullBack は、ウィンドウで外に膨らんだ境目を、点数を中央値でならした値で戻す。始まりは、ならした値が中間値未満の間、後ろへずらし、
+// 終わりは前へずらす。どちらも戻しの上限まで。始まりをずらし切っても中間値に届かず、上限にも達しなかった区間は破棄する。
 func pullBack(intervals []Interval, measures []Measure, fps float64, p *Params) []Interval {
 	smoothed := median(measures, p.SmoothFrames)
 	mid := (p.AppearScore + p.ContinueScore) / 2

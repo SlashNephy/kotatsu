@@ -29,7 +29,7 @@ const (
 	readAccess  = "kotatsu_at_read"
 	writeAccess = "kotatsu_at_write"
 	otherAccess = "kotatsu_at_other"
-	// legacyVersion は、Stateless のままでもつながるかを確かめる、古い版。
+	// legacyVersion は、Stateless のままでもつながるかを確認する、古いバージョン。
 	legacyVersion = "2025-11-25"
 )
 
@@ -57,7 +57,7 @@ func (a *fakeAuthenticator) Authenticate(_ context.Context, token, resource stri
 	return principal, &oauth.Grant{ID: uuid.New(), ClientID: principal.OAuthClientID, ClientName: "Claude Code", Scopes: scopes}, nil
 }
 
-// fakeGraphQL は、受け取った操作を覚え、決まった応答を返す GraphQL のハンドラー。
+// fakeGraphQL は、受け取った操作を記録し、決まった応答を返す GraphQL のハンドラー。
 type fakeGraphQL struct {
 	mu        sync.Mutex
 	queries   []string
@@ -113,7 +113,7 @@ func (b bearer) RoundTrip(r *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(r)
 }
 
-// connect は、公式の SDK のクライアントで、token を持ってつなぐ。version が空なら、最新の版でつなぐ。
+// connect は、公式の SDK のクライアントで、token を持ってつなぐ。version が空なら、最新のバージョンでつなぐ。
 func (f *fixture) connect(t *testing.T, token, version string) *mcp.ClientSession {
 	t.Helper()
 
@@ -126,7 +126,7 @@ func (f *fixture) connect(t *testing.T, token, version string) *mcp.ClientSessio
 	return session
 }
 
-// TestListTools は、ツールを決まった順に返し、読むツールと消すツールに印を付けることを確かめる。
+// TestListTools は、ツールを決まった順に返し、読むツールと消すツールにマークを付けることを確認する。
 func TestListTools(t *testing.T) {
 	t.Parallel()
 
@@ -135,7 +135,7 @@ func TestListTools(t *testing.T) {
 		version string
 	}{
 		{name: "2026-07-28", version: ""},
-		// Stateless のままでも、古い版のクライアントがつながる。
+		// Stateless のままでも、古いバージョンのクライアントがつながる。
 		{name: legacyVersion, version: legacyVersion},
 	}
 	for _, tt := range tests {
@@ -176,7 +176,7 @@ func TestListTools(t *testing.T) {
 	}
 }
 
-// TestServerIcons は、serverInfo で、そのまま描ける Kotatsu のアイコンを data URI で返すことを確かめる。
+// TestServerIcons は、serverInfo で、そのまま描ける Kotatsu のアイコンを data URI で返すことを確認する。
 func TestServerIcons(t *testing.T) {
 	t.Parallel()
 
@@ -201,7 +201,7 @@ func TestServerIcons(t *testing.T) {
 				require.True(t, strings.HasPrefix(icon.Source, prefix), icon.MIMEType)
 				data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(icon.Source, prefix))
 				require.NoError(t, err)
-				// 中身が、名乗った MIME タイプの画像であることを確かめる。http.DetectContentType は SVG を見分けない。
+				// 内容が、名乗った MIME タイプの画像であることを確認する。http.DetectContentType は SVG を見分けない。
 				if icon.MIMEType == "image/svg+xml" {
 					assert.True(t, strings.HasPrefix(string(data), "<svg "))
 				} else {
@@ -214,7 +214,7 @@ func TestServerIcons(t *testing.T) {
 	}
 }
 
-// TestCallTool は、ツールを、トークンのユーザーとして GraphQL で実行し、data を返すことを確かめる。
+// TestCallTool は、ツールを、トークンのユーザーとして GraphQL で実行し、data を返すことを確認する。
 func TestCallTool(t *testing.T) {
 	t.Parallel()
 
@@ -239,7 +239,7 @@ func TestCallTool(t *testing.T) {
 	assert.Contains(t, string(mustMarshal(t, result.StructuredContent)), "アニメ・特撮")
 }
 
-// TestCallToolErrors は、GraphQL のエラーと、大きすぎる応答を、ツールのエラーとして返すことを確かめる。
+// TestCallToolErrors は、GraphQL のエラーと、大きすぎる応答を、ツールのエラーとして返すことを確認する。
 func TestCallToolErrors(t *testing.T) {
 	t.Parallel()
 
@@ -291,7 +291,7 @@ func (f *fixture) post(t *testing.T, token, body string, header map[string]strin
 }
 
 // TestAuthorization は、トークンがなければ 401、ほかの MCP サーバー宛てなら 401 (invalid_token)、
-// スコープが足りなければ 403 (insufficient_scope) を返すことを確かめる。Mcp-Name ヘッダーを偽っても、すり抜けられない。
+// スコープが足りなければ 403 (insufficient_scope) を返すことを確認する。Mcp-Name ヘッダーを偽っても、すり抜けられない。
 func TestAuthorization(t *testing.T) {
 	t.Parallel()
 
@@ -327,7 +327,7 @@ func TestAuthorization(t *testing.T) {
 	}
 }
 
-// TestDisabled は、管理者が MCP を有効にしていなければ、/mcp がないものとして 404 を返すことを確かめる。
+// TestDisabled は、管理者が MCP を有効にしていなければ、/mcp がないものとして 404 を返すことを確認する。
 func TestDisabled(t *testing.T) {
 	t.Parallel()
 

@@ -139,7 +139,7 @@ func TestEmit(t *testing.T) {
 	}
 }
 
-// TestDispatchOnce は、イベントを、設定で受け取るとした有効なユーザーにだけ、一度だけ配ることを確かめる。
+// TestDispatchOnce は、イベントを、設定で受け取るとした有効なユーザーにだけ、一度だけ配信することを確認する。
 func TestDispatchOnce(t *testing.T) {
 	t.Parallel()
 
@@ -157,7 +157,7 @@ func TestDispatchOnce(t *testing.T) {
 	f.clock.Advance(time.Second)
 	f.emit(t, domain.NotificationKindStorageLow)
 	assert.Equal(t, 2, f.dispatch(t))
-	// 配ったイベントは、もう一度は配らない。
+	// 配信したイベントは、もう一度は配信しない。
 	assert.Zero(t, f.dispatch(t))
 
 	all := &query.NotificationListQuery{UnreadOnly: false, Before: nil, Limit: 10}
@@ -175,14 +175,14 @@ func TestDispatchOnce(t *testing.T) {
 			t.Parallel()
 
 			got := f.list(t, tt.userID, all)
-			// 同時に配った通知は、作った日時が同じなので、順序は ID で決まる。種類の集合で比べる。
+			// 同時に配信した通知は、作った日時が同じなので、順序は ID で決まる。種類の集合で比較する。
 			assert.ElementsMatch(t, tt.want, kinds(got))
 		})
 	}
 }
 
-// TestDispatchOnceAudience は、受け取るユーザーを絞ったイベントは、その中のユーザーにだけ配り、
-// ルール予約の録画の通知は、受け取らない設定のユーザーには配らないことを確かめる。
+// TestDispatchOnceAudience は、受け取るユーザーを絞ったイベントは、その中のユーザーにだけ配信し、
+// ルール予約の録画の通知は、受け取らない設定のユーザーには配信しないことを確認する。
 func TestDispatchOnceAudience(t *testing.T) {
 	t.Parallel()
 
@@ -247,7 +247,7 @@ func TestDispatchOnceAudience(t *testing.T) {
 	}
 }
 
-// TestDispatchOnceBatches は、1 回のバッチに収まらない数のイベントも、すべて配ることを確かめる。
+// TestDispatchOnceBatches は、1 回のバッチに収まらない数のイベントも、すべて配信することを確認する。
 func TestDispatchOnceBatches(t *testing.T) {
 	t.Parallel()
 
@@ -264,14 +264,14 @@ func TestDispatchOnceBatches(t *testing.T) {
 	assert.Equal(t, events, n)
 }
 
-// TestInbox は、通知の一覧のページ送りと、既読にする操作を確かめる。
+// TestInbox は、通知の一覧のページ送りと、既読にする操作を確認する。
 func TestInbox(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
 	alice := f.user(t, "alice")
 	bob := f.user(t, "bob")
-	// 古い順に 3 件を、別々の時刻に配る。
+	// 古い順に 3 件を、別々の時刻に配信する。
 	for _, kind := range []domain.NotificationKind{domain.NotificationKindRecordingStarted, domain.NotificationKindRecordingCompleted, domain.NotificationKindRecordingFailed} {
 		f.emit(t, kind)
 		f.dispatch(t)
@@ -395,7 +395,7 @@ func (h *recordingHook) OnEvent(_ context.Context, _ pgx.Tx, event *notification
 }
 
 // TestDispatchOnceCallsHooks は、受け取るユーザーがいなくても、イベントごとにフックを呼び、
-// フックが失敗すれば、イベントを配らずに残すことを確かめる。
+// フックが失敗すれば、イベントを配信せずに残すことを確認する。
 func TestDispatchOnceCallsHooks(t *testing.T) {
 	t.Parallel()
 
@@ -416,7 +416,7 @@ func TestDispatchOnceCallsHooks(t *testing.T) {
 	assert.True(t, testNow().Equal(hook.events[0].OccurredAt))
 }
 
-// TestChangesArePublished は、通知を配ったときと、既読にしたときだけ、変更を通知することを確かめる。
+// TestChangesArePublished は、通知を配信したときと、既読にしたときだけ、変更を通知することを確認する。
 func TestChangesArePublished(t *testing.T) {
 	t.Parallel()
 
@@ -430,7 +430,7 @@ func TestChangesArePublished(t *testing.T) {
 		return v
 	}
 
-	// 配るイベントがなければ、通知しない。
+	// 配信するイベントがなければ、通知しない。
 	f.dispatch(t)
 	assert.Zero(t, version())
 	f.emit(t, domain.NotificationKindStorageLow)

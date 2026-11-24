@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 	"uuid"
@@ -26,7 +27,7 @@ import (
 )
 
 const (
-	// 偽のチューナーサーバーの、地上波 (こたつテスト1、こたつテスト3) と BS のネットワークとサービス。
+	// モックのチューナーサーバーの、地上波 (こたつテスト1、こたつテスト3) と BS のネットワークとサービス。
 	fakeGRNetwork  = 0x7FE0
 	fakeGRService  = 0x0400
 	fakeGR3Network = 0x7FE0 + 2
@@ -126,7 +127,7 @@ func eventIDs(broadcasts []*nextepisode.Broadcast) []int64 {
 }
 
 // TestFindBySeries は、しょぼいカレンダーに結びつかない録画の続きの放送を、EPG の同期で書いたシリーズ名と話数で引き、
-// 前の回、別の期、予約のある回、録った回、1 週間より先の回を外すことを確かめる (#1564)。
+// 前の回、別の期、予約のある回、録った回、1 週間より先の回を外すことを確認する (#1564)。
 func TestFindBySeries(t *testing.T) {
 	t.Parallel()
 
@@ -154,8 +155,8 @@ func TestFindBySeries(t *testing.T) {
 	assert.InDelta(t, 4, got[0].Number, 0)
 }
 
-// TestFindFillsProgramsWithoutSeries は、シリーズ名の列を足す前に書いた番組 (列が NULL) も、全量の突き合わせで埋まり、
-// 続きの放送に出ることを確かめる (#1564)。
+// TestFindFillsProgramsWithoutSeries は、シリーズ名のカラムを足す前に書いた番組 (カラムが NULL) も、全量の照合で埋まり、
+// 続きの放送に出ることを確認する (#1564)。
 func TestFindFillsProgramsWithoutSeries(t *testing.T) {
 	t.Parallel()
 
@@ -178,7 +179,7 @@ func TestFindFillsProgramsWithoutSeries(t *testing.T) {
 	assert.Zero(t, unfilled)
 }
 
-// TestFindByAnime は、しょぼいカレンダーの話に結びついた録画では、番組名でなく TID と話数で続きの放送を引くことを確かめる (#1564)。
+// TestFindByAnime は、しょぼいカレンダーの話に結びついた録画では、番組名でなく TID と話数で続きの放送を検索することを確認する (#1564)。
 func TestFindByAnime(t *testing.T) {
 	t.Parallel()
 
@@ -211,7 +212,7 @@ func TestFindByAnime(t *testing.T) {
 	assert.Equal(t, []int64{600, 603}, eventIDs(got))
 }
 
-// TestFindWithoutEpisode は、話数を読めない録画 (ニュースなど) と、ない録画では、続きの放送を探さないことを確かめる。
+// TestFindWithoutEpisode は、話数を読めない録画 (ニュースなど) と、ない録画では、続きの放送を探さないことを確認する。
 func TestFindWithoutEpisode(t *testing.T) {
 	t.Parallel()
 
@@ -235,7 +236,7 @@ func TestFindWithoutEpisode(t *testing.T) {
 }
 
 // TestFindReadsArchivedSeriesEpisode は、番組名に話数のない録画の話数を、録画の番組 (アーカイブ) の記述子の話数から読み、
-// eventId を使い回した番組表の後の番組の記述子の話数では読まないことを確かめる。
+// eventId を使い回した番組表の後の番組の記述子の話数では読まないことを確認する。
 func TestFindReadsArchivedSeriesEpisode(t *testing.T) {
 	t.Parallel()
 
@@ -262,13 +263,13 @@ func TestFindReadsArchivedSeriesEpisode(t *testing.T) {
 	assert.Equal(t, []int64{901, 902}, eventIDs(got))
 }
 
-// dramaSeries と otherDramaSeries は、TMDb の作品のテストの ID。
+// dramaSeries と otherDramaSeries は、TMDB の作品のテストの ID。
 const (
 	dramaSeries      = 9001
 	otherDramaSeries = 9002
 )
 
-// matchDrama は、地上波の番組 eventID を、TMDb の作品 seriesID のシーズン season の話 episode に結びつける。
+// matchDrama は、地上波の番組 eventID を、TMDB の作品 seriesID のシーズン season の話 episode に結びつける。
 func (f *findFixture) matchDrama(t *testing.T, eventID int, seriesID, season, episode int32) {
 	t.Helper()
 
@@ -278,7 +279,7 @@ func (f *findFixture) matchDrama(t *testing.T, eventID int, seriesID, season, ep
 		faketuner.ServiceItemID(fakeGRNetwork, fakeGRService), eventID, seriesID, season, episode, findNow())
 }
 
-// linkDrama は、録画 recordingID を、TMDb の作品 seriesID のシーズン 1 の話 episode に結びつける。
+// linkDrama は、録画 recordingID を、TMDB の作品 seriesID のシーズン 1 の話 episode に結びつける。
 func (f *findFixture) linkDrama(t *testing.T, recordingID uuid.UUID, seriesID, episode int32) {
 	t.Helper()
 
@@ -286,8 +287,8 @@ func (f *findFixture) linkDrama(t *testing.T, recordingID uuid.UUID, seriesID, e
 		matched_at) VALUES ($1, $2, 1, $3, 'search', 'air_date', $4)`, recordingID, seriesID, episode, findNow())
 }
 
-// TestFindByDrama は、番組名から話数を読めないドラマの録画では、TMDb の作品とシーズンと話の番号で続きの放送を引き、
-// 前の話、別のシーズン、別の作品、録った話、TMDb に結びつかない番組を外すことを確かめる (#1564)。
+// TestFindByDrama は、番組名から話数を読めないドラマの録画では、TMDB の作品とシーズンと話の番号で続きの放送を引き、
+// 前の話、別のシーズン、別の作品、録った話、TMDB に結びつかない番組を外すことを確認する (#1564)。
 func TestFindByDrama(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +299,7 @@ func TestFindByDrama(t *testing.T) {
 		fakeProgram(fakeGRNetwork, fakeGRService, 803, 5*time.Hour, "夜明けの診療所"),
 		fakeProgram(fakeGRNetwork, fakeGRService, 804, 6*time.Hour, "夜明けの診療所"),
 		fakeProgram(fakeGRNetwork, fakeGRService, 805, 7*time.Hour, "夜明けの診療所"),
-		// TMDb の話に結びつかない番組は、番組名が同じでも出さない。
+		// TMDB の話に結びつかない番組は、番組名が同じでも出さない。
 		fakeProgram(fakeGRNetwork, fakeGRService, 806, 8*time.Hour, "夜明けの診療所"),
 	})
 	f.matchDrama(t, 800, dramaSeries, 1, 4)
@@ -310,7 +311,7 @@ func TestFindByDrama(t *testing.T) {
 	recording := f.addRecording(t, "夜明けの診療所")
 	f.linkDrama(t, recording, dramaSeries, 3)
 
-	// 第 5 話を録り終えて録画履歴に書き、録画を消す。録画の結びつきは消えても、履歴に写した話で、録った話として外す。
+	// 第 5 話を録り終えて録画履歴に書き、録画を消す。録画の結びつきは消えても、履歴にコピーした話で、録った話として外す。
 	recorded := f.addRecording(t, "夜明けの診療所")
 	f.linkDrama(t, recorded, dramaSeries, 5)
 	q := sqlc.New(f.pool)
@@ -326,7 +327,7 @@ func TestFindByDrama(t *testing.T) {
 	assert.InDelta(t, 4, got[0].Number, 0)
 }
 
-// dramaBroadcast は、TMDb の話に結びつける地上波の放送。
+// dramaBroadcast は、TMDB の話に結びつける地上波の放送。
 type dramaBroadcast struct {
 	eventID int
 	offset  time.Duration
@@ -334,7 +335,7 @@ type dramaBroadcast struct {
 	episode int32
 }
 
-// addDramaHistory は、TMDb の作品 dramaSeries のシーズン season の話 episode を録った録画履歴を足す。
+// addDramaHistory は、TMDB の作品 dramaSeries のシーズン season の話 episode を録った録画履歴を足す。
 func (f *findFixture) addDramaHistory(t *testing.T, season, episode int32) {
 	t.Helper()
 
@@ -343,8 +344,8 @@ func (f *findFixture) addDramaHistory(t *testing.T, season, episode int32) {
 		id.New(), faketuner.ServiceItemID(fakeGRNetwork, fakeGRService), dramaSeries, season, episode, findNow().Add(-24*time.Hour))
 }
 
-// TestFindByDramaNextSeason は、TMDb の作品で探す録画で、今のシーズンの後の話がこれから放送されないときだけ、
-// 次のシーズンの第 1 話を続きの放送に出すことを確かめる (#1564)。録画は、シーズン 1 の第 10 話。
+// TestFindByDramaNextSeason は、TMDB の作品で探す録画で、今のシーズンの後の話がこれから放送されないときだけ、
+// 次のシーズンの第 1 話を続きの放送に出すことを確認する (#1564)。録画は、シーズン 1 の第 10 話。
 func TestFindByDramaNextSeason(t *testing.T) {
 	t.Parallel()
 
@@ -411,4 +412,82 @@ func TestFindByDramaNextSeason(t *testing.T) {
 			assert.Equal(t, tt.want, eventIDs(got))
 		})
 	}
+}
+
+// TestFindMergesSubtitledSeries は、録画の詳細の続きの放送でも、番組名にサブタイトルが入ってシリーズ名が回ごとに変わる作品を、
+// サブタイトルを除いた作品名のシリーズにまとめることを確認する (#2031)。サブタイトルのない回の録画では、録画そのものをサブタイトルのない回とみなす。
+func TestFindMergesSubtitledSeries(t *testing.T) {
+	t.Parallel()
+
+	programs := []*faketuner.Program{
+		// 第 5 話の再放送は、サブタイトルのない番組名で放送される。
+		fakeProgram(fakeGRNetwork, fakeGRService, 600, time.Hour, "港町の灯　＃０５🈞"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 601, 5*time.Hour, "港町の灯　六つ目の嵐　＃０６🈑🈓"),
+		// シリーズ名が作品名で始まるだけの別の番組は、作品名を読み直して外す。
+		fakeProgram(fakeGRNetwork, fakeGRService, 602, 90*time.Minute, "港町の灯台　＃０９"),
+		// 枠の名前の後ろに作品名を書く番組は、サブタイトルのない回がなければまとめない。
+		fakeProgram(fakeGRNetwork, fakeGRService, 611, 3*time.Hour, "連続劇場　雪の峠　＃５"),
+		// 作品名の後ろの語が期 (数字) なら、まとめない。
+		fakeProgram(fakeGRNetwork, fakeGRService, 621, 6*time.Hour, "灯台守　４　＃１６"),
+	}
+	tests := []struct {
+		name      string
+		recording string
+		want      []int64
+	}{
+		{name: "副題のある回の録画には、再放送を出さず、副題のある次の回を出す", recording: "港町の灯　五つ目の約束　＃０５🈑🈓", want: []int64{601}},
+		{name: "副題のない回の録画には、副題のある回も出す", recording: "港町の灯　＃０４🈑🈓", want: []int64{600, 601}},
+		{name: "副題に空白が入っても、副題のない回のシリーズまでたどってまとめる", recording: "港町の灯　嵐の夜　その二　＃０５🈑🈓", want: []int64{601}},
+		{name: "副題のない回がなければ、枠の名前の後ろの作品をまとめない", recording: "連続劇場　霧の駅　＃３", want: []int64{}},
+		{name: "期の表記の付いた番組を、期のないシリーズにまとめない", recording: "灯台守　＃１４", want: []int64{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFindFixture(t, programs)
+			recording := f.addRecording(t, tt.recording)
+
+			got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, eventIDs(got))
+		})
+	}
+	t.Run("副題のない回が録画履歴にだけあっても、まとめる", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, []*faketuner.Program{
+			fakeProgram(fakeGRNetwork, fakeGRService, 701, 5*time.Hour, "汐見の窓　六つ目の嵐　＃０６"),
+		})
+		f.addHistory(t, "汐見の窓　＃０１", "汐見の窓", nil, nil)
+		recording := f.addRecording(t, "汐見の窓　五つ目の約束　＃０５")
+
+		got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+		require.NoError(t, err)
+		assert.Equal(t, []int64{701}, eventIDs(got))
+	})
+	t.Run("副題のない回が長い作品名にも短い作品名にもあれば、長い方にまとめる", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, append(slices.Clone(programs),
+			// 「港町の灯　嵐の夜」も、サブタイトルのない回を持つ作品。
+			fakeProgram(fakeGRNetwork, fakeGRService, 630, 2*time.Hour, "港町の灯　嵐の夜　＃０７"),
+		))
+		recording := f.addRecording(t, "港町の灯　嵐の夜　その二　＃０５🈑🈓")
+
+		got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+		require.NoError(t, err)
+		assert.Equal(t, []int64{630}, eventIDs(got))
+	})
+	t.Run("副題のある回を録画済みなら出さない", func(t *testing.T) {
+		t.Parallel()
+
+		f := newFindFixture(t, programs)
+		f.addHistory(t, "港町の灯　六つ目の嵐　＃０６🈑🈓", "港町の灯六つ目の嵐", nil, nil)
+		recording := f.addRecording(t, "港町の灯　五つ目の約束　＃０５🈑🈓")
+
+		got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
 }

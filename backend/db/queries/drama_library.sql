@@ -20,7 +20,7 @@ SELECT (EXISTS (SELECT 1 FROM program_drama_matches p WHERE p.tmdb_series_id = @
   OR EXISTS (SELECT 1 FROM recording_drama_matches r WHERE r.tmdb_series_id = @series_id::integer))::boolean AS linked;
 
 -- name: InsertDramaWatchedEpisode :execrows
--- 見た話を足す。もう見た話なら、何もしない (見た日時と出どころは、最初に足したものを残す)。
+-- 見た話を足す。もう見た話なら、何もしない (見た日時とソースは、最初に足したものを残す)。
 INSERT INTO drama_watched_episodes (user_id, tmdb_series_id, season_number, episode_number, source, watched_at)
 VALUES (@user_id, @tmdb_series_id, @season_number, @episode_number, @source, @now)
 ON CONFLICT (user_id, tmdb_series_id, season_number, episode_number) DO NOTHING;
@@ -69,7 +69,7 @@ JOIN recordings r ON r.id = m.recording_id
 WHERE m.tmdb_series_id = ANY(@tmdb_series_ids::integer[]) AND m.episode_number IS NOT NULL AND r.state <> 'failed'
 ORDER BY m.tmdb_series_id, m.season_number, m.episode_number, r.recorded_from DESC, r.id;
 
--- name: ListTMDbSeasonsOf :many
+-- name: ListTMDBSeasonsOf :many
 -- 作品 series_ids の、キャッシュにあるシーズンを返す。
 SELECT * FROM tmdb_seasons WHERE series_id = ANY(@series_ids::integer[]) ORDER BY series_id, season_number;
 

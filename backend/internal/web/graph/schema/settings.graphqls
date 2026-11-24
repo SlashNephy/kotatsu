@@ -18,7 +18,7 @@ type RecordingSettings {
   generateCaptions: Boolean!
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。"
   transcodePreset: String
-  "録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。"
+  "録画を変換するときに出すコマ数 (#1509)。auto (映像から計測して 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。"
   transcodeFrameRate: String!
 }
 
@@ -32,7 +32,7 @@ type RuleDefaults {
   duplicateWindowDays: Int
   "イベントリレーで続く番組も予約するかどうか (設計書 4.6)。"
   followEventRelay: Boolean!
-  "局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
+  "局をまたいで同じ回をまとめ、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
   bundleSameEpisodes: Boolean!
 }
 
@@ -57,7 +57,7 @@ type SystemSettings {
   recordingDefaults: RecordingSettings!
   "過去の番組の保持期間 (日)。0 なら無期限。"
   archiveRetentionDays: Int!
-  "配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。"
+  "配信し終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。"
   notificationRetentionDays: Int!
   "録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限。"
   watchProgressRetentionDays: Int!
@@ -70,7 +70,7 @@ type SystemSettings {
   "MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。"
   mcpEnabled: Boolean!
   """
-  データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban が中継するかどうか (#501)。既定は false。
+  データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban がプロキシするかどうか (#501)。既定は false。
   ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
   """
   dataBroadcastIpEnabled: Boolean!
@@ -106,7 +106,7 @@ type SystemSettings {
   epgstationApiEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
-  "TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。"
+  "TMDB との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。"
   dramaLinkingEnabled: Boolean!
   """
   NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
@@ -115,7 +115,7 @@ type SystemSettings {
   jikkyoEnabled: Boolean!
   "管理者がオプトインした実況のコメントのソース (#1405)。既定は空。ログインしていれば誰でも読める。"
   commentSources: [CommentSource!]!
-  "字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。"
+  "字幕の外字 (DRCS) を文字に置き換えるテーブル (#825)。MD5 の順に並べる。"
   drcsReplacements: [DrcsReplacement!]!
   """
   ライブ視聴しているサービスを、視聴している間だけタイムシフトで録るかどうか (設計書 5.7、#1408)。既定は false。
@@ -125,10 +125,10 @@ type SystemSettings {
   "視聴している間だけ録るサービスの保持時間 (秒)。600〜86400。既定は 3600。"
   timeshiftWhileWatchingRetentionSeconds: Int!
   """
-  どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0〜1440。既定は 180。
-  番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
+  重複の回避で「録画済み」とみなす、映像と音声の PID のドロップの数の上限 (設計書 4.4)。0〜1000。既定は 0。
+  0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
   """
-  ruleUnmatchedGraceMinutes: Int!
+  historyMaxDrops: Int!
   "監査ログの保持期間 (日。設計書 8.5)。1〜3650。既定は 365。"
   auditRetentionDays: Int!
   "監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。1〜3650。既定は 90。過ぎた記録は、この 2 つだけを空にする。"
@@ -197,21 +197,21 @@ input SystemSettingsInput {
   epgstationApiEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
-  "TMDb との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
+  "TMDB との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   dramaLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   commentSources: [CommentSource!]
   """
-  字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
-  表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
+  字幕の外字の置き換えのテーブルの変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。テーブルは 2000 件まで。
+  テーブルを丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古いテーブルで上書きして消さないためである。
   """
   drcsReplacements: [DrcsReplacementInput!]
   "有効にするには、この tenban にタイムシフトのディレクトリが要る。なければ CONFLICT を返す。"
   timeshiftWhileWatching: Boolean
   "600〜86400 秒。"
   timeshiftWhileWatchingRetentionSeconds: Int
-  "0〜1440 分。"
-  ruleUnmatchedGraceMinutes: Int
+  "0〜1000 件。"
+  historyMaxDrops: Int
   "1〜3650 日。"
   auditRetentionDays: Int
   "1〜3650 日。"
@@ -231,10 +231,10 @@ input SystemSettingsInput {
 }
 
 """
-字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
+字幕の外字 (DRCS) を文字に置き換えるテーブルの 1 行 (#825)。
 """
 type DrcsReplacement {
-  "外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使う鍵と同じ。"
+  "外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使うキーと同じ。"
   md5: String!
   "置き換える文字。1〜4 文字。外字の 1 文字の枠に縮めて描く。"
   text: String!
@@ -242,12 +242,12 @@ type DrcsReplacement {
 
 input DrcsReplacementInput {
   md5: String!
-  "置き換える文字。null なら、この外字を表から消す。"
+  "置き換える文字。null なら、この外字をテーブルから消す。"
   text: String
 }
 
 extend type Query {
-  "字幕の外字の置き換えの表 (#825)。ログインしていれば、誰でも読める。字幕の履歴とコピー、映像に重ねる字幕で使う。"
+  "字幕の外字の置き換えのテーブル (#825)。ログインしていれば、誰でも読める。字幕の履歴とコピー、映像に重ねる字幕で使う。"
   drcsReplacements: [DrcsReplacement!]!
   "録画を終えた後の変換 (#1253) で選べる画質の名前。"
   transcodePresets: [String!]!
@@ -267,7 +267,7 @@ input ChannelTypeInput {
 サービスの表示の変える項目。省いた項目は変えない。
 """
 input ServiceInput {
-  "番組表に出さない印"
+  "番組表に出さないマーク"
   hidden: Boolean
   "並び順の上書き。小さいほど前に並ぶ。0〜10000。"
   sortOrder: Int
@@ -304,7 +304,7 @@ extend type Mutation {
   updateChannelType(type: String!, input: ChannelTypeInput!): ChannelType!
 
   """
-  サービス id の、番組表に出さない印と並び順の上書きを変える (設計書 8.2、10.3)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  サービス id の、番組表に出さないマークと並び順の上書きを変える (設計書 8.2、10.3)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
   サービスがなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
   """
   updateService(id: ID!, input: ServiceInput!): Service!

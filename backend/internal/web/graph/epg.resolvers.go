@@ -35,6 +35,11 @@ func (r *programResolver) Service(ctx context.Context, obj *model.Program) (*mod
 	return toService(row), nil
 }
 
+// RuleKeyword is the resolver for the ruleKeyword field.
+func (r *programResolver) RuleKeyword(ctx context.Context, obj *model.Program) (string, error) {
+	return r.ruleKeyword(ctx, obj)
+}
+
 // SharedFrom is the resolver for the sharedFrom field.
 func (r *programResolver) SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error) {
 	var row *domain.Service

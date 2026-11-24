@@ -25,7 +25,7 @@ const (
 // ErrUnsupportedSecondFactor は、パスワードと組み合わせる第二要素として、使えない種類を指定したことを表す。
 var ErrUnsupportedSecondFactor = errors.New("unsupported second factor; use totp or recovery_code, or a passkey alone")
 
-// Reauthenticate は、ログイン中のセッションのまま、パスワードと第二要素 (TOTP かリカバリーコード) を確かめ、
+// Reauthenticate は、ログイン中のセッションのまま、パスワードと第二要素 (TOTP かリカバリーコード) を確認し、
 // セッションの認証の日時を更新する (設計書 9.5)。更新した日時を返す。
 //
 // 失敗は、パスワードでのログインと同じく、アカウント単位と IP 単位で数えて待たせる。
@@ -50,7 +50,7 @@ func (l *Logins) Reauthenticate(
 	keys := throttleKeys(user.Username, client.SourceIP)
 
 	var verifyErr error
-	// パスワードでのログインと同じく、制限のキーをロックしてから、待ち時間を確かめて検証する (#542)。
+	// パスワードでのログインと同じく、制限のキーをロックしてから、待ち時間を確認して検証する (#542)。
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		if err := lockThrottleKeys(ctx, tx, keys); err != nil {
 			return err
@@ -134,8 +134,8 @@ func (l *Logins) BeginPasskeyReauthentication(ctx context.Context, db Database, 
 	return assertion, nil
 }
 
-// CompletePasskeyReauthentication は、パスキーの応答を確かめ、セッションの認証の日時を更新する。更新した日時を返す。
-// 手続きは、確かめられなくても使用済みにする。
+// CompletePasskeyReauthentication は、パスキーの応答を確認し、セッションの認証の日時を更新する。更新した日時を返す。
+// 手続きは、確認できなくても使用済みにする。
 func (l *Logins) CompletePasskeyReauthentication(
 	ctx context.Context,
 	db Database,
@@ -183,7 +183,7 @@ func (l *Logins) CompletePasskeyReauthentication(
 	return now, nil
 }
 
-// verifyPasskeyOf は、user のパスキーで署名した応答を確かめる。確かめられなければ ErrInvalidPasskey を返す。
+// verifyPasskeyOf は、user のパスキーで署名した応答を確認する。確認できなければ ErrInvalidPasskey を返す。
 func (l *Logins) verifyPasskeyOf(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -220,7 +220,7 @@ func markSessionReauthenticated(
 	if err != nil {
 		return fmt.Errorf("failed to update the session: %w", err)
 	}
-	// 確かめている間に、セッションを失効させられた。
+	// 確認している間に、セッションを失効させられた。
 	if n == 0 {
 		return ErrUnauthenticated
 	}

@@ -201,7 +201,7 @@ func (f *fakeFetcher) callsOf(source string) int {
 	return f.calls[source]
 }
 
-// TestImportDisabled は、連携を有効にしていなければ、外部へ問い合わせないことを確かめる (設計書 0.3)。
+// TestImportDisabled は、連携を有効にしていなければ、外部へ問い合わせないことを確認する (設計書 0.3)。
 func TestImportDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -215,8 +215,8 @@ func TestImportDisabled(t *testing.T) {
 	}
 }
 
-// TestImport は、取り込んだ対応から、サービスごとのチャンネルと、TID ごとの作品を引けることを確かめる。
-// 地上波は種別とサービス ID で、BS はネットワーク ID とサービス ID で照らし合わせる。
+// TestImport は、取り込んだ対応から、サービスごとのチャンネルと、TID ごとの作品を引けることを確認する。
+// 地上波は種別とサービス ID で、BS はネットワーク ID とサービス ID で照合する。
 func TestImport(t *testing.T) {
 	t.Parallel()
 
@@ -269,7 +269,7 @@ func TestImport(t *testing.T) {
 	}
 }
 
-// TestImportConcurrently は、取り込みのジョブが重なって、同じ取り込み元を同時に入れ替えても、取り込めなかったと記録しないことを確かめる。
+// TestImportConcurrently は、取り込みのジョブが重なって、同じ取り込み元を同時に入れ替えても、取り込めなかったと記録しないことを確認する。
 // 連携を有効にしたときのジョブと、定期ジョブが重なることがある。
 func TestImportConcurrently(t *testing.T) {
 	t.Parallel()
@@ -308,7 +308,7 @@ func TestImportConcurrently(t *testing.T) {
 	assert.Len(t, channels, 3)
 }
 
-// TestImportSchedule は、1 日たつまで問い合わせ直さず、変わっていなければ前の内容を残すことを確かめる。
+// TestImportSchedule は、1 日たつまで問い合わせ直さず、変わっていなければ前の内容を残すことを確認する。
 // 取り込めなかった取り込み元は、理由を残し、1 時間後に問い合わせ直す。ほかの取り込み元は取り込む。
 func TestImportSchedule(t *testing.T) {
 	t.Parallel()

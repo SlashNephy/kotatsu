@@ -88,7 +88,7 @@ func TestErrors(t *testing.T) {
 	}
 }
 
-// TestRedirectToAnotherHost は、ほかのホストへのリダイレクトに従わないことを確かめる。
+// TestRedirectToAnotherHost は、ほかのホストへのリダイレクトに従わないことを確認する。
 func TestRedirectToAnotherHost(t *testing.T) {
 	t.Parallel()
 

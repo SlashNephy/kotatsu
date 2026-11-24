@@ -12,7 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 )
 
-// recordingsVersion は、録画の変更を知らせるチャンネルの版数を読む SQL。
+// recordingsVersion は、録画の変更を通知するチャンネルのバージョンを読む SQL。
 const recordingsVersion = "SELECT coalesce((SELECT version FROM change_versions WHERE channel = 'recordings'), 0)"
 
 // job は、録画 recordingID の見分けのジョブを入れ、状態を state にして、ジョブの ID を返す。
@@ -241,8 +241,8 @@ func TestRecordingStatus(t *testing.T) {
 	}
 }
 
-// TestEnqueueNotifiesRecordings は、見分けのジョブを入れたら、録画の詳細が待っていると出せるよう、録画の変更を知らせることを確かめる (#1571)。
-// 同じ録画のジョブを待っていて入れなかったときは、知らせない。
+// TestEnqueueNotifiesRecordings は、見分けのジョブを入れたら、録画の詳細が待っていると出せるよう、録画の変更を通知することを確認する (#1571)。
+// 同じ録画のジョブを待っていて入れなかったときは、通知しない。
 func TestEnqueueNotifiesRecordings(t *testing.T) {
 	t.Parallel()
 
@@ -267,7 +267,7 @@ func TestEnqueueNotifiesRecordings(t *testing.T) {
 	assert.Equal(t, before+1, version())
 }
 
-// TestDetectWorkerNotifiesRecordings は、見分け終えたら、録画の詳細とプレイヤーが区間を読み直せるよう、録画の変更を知らせることを確かめる (#1571)。
+// TestDetectWorkerNotifiesRecordings は、見分け終えたら、録画の詳細とプレイヤーが区間を読み直せるよう、録画の変更を通知することを確認する (#1571)。
 func TestDetectWorkerNotifiesRecordings(t *testing.T) {
 	t.Parallel()
 

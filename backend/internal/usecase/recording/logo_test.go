@@ -60,7 +60,7 @@ func cdtPackets(t *testing.T, networkID, logoID uint16, logoType byte, data []by
 	return packets
 }
 
-// TestRecorderCollectsLogo は、録画している TS の CDT からロゴを集め、サービスのロゴとして返せるようにすることを確かめる (#1308)。
+// TestRecorderCollectsLogo は、録画している TS の CDT からロゴを集め、サービスのロゴとして返せるようにすることを確認する (#1308)。
 // 録画の様子を書く間隔より短い録画でも、セグメントを閉じるときに書く。
 func TestRecorderCollectsLogo(t *testing.T) {
 	t.Parallel()

@@ -23,7 +23,7 @@ type Service implements Node {
   "チャンネル (GR の物理チャンネルなど)"
   channel: String!
   remoteControlKeyId: Int
-  "番組表に出さない印"
+  "番組表に出さないマーク"
   hidden: Boolean!
   "並び順の上書き。小さいほど前に並ぶ。上書きしていなければ null で、リモコンのキーの順に並ぶ。"
   sortOrder: Int
@@ -102,7 +102,7 @@ type Program implements Node {
   isFree: Boolean!
   name: String!
   """
-  番組からルールを作るときに、番組名のキーワードにする作品名 (#1240)。番組名から、話数、サブタイトル、印、頭の飾りを除いたもの。
+  番組からルールを作るときに、番組名のキーワードにする作品名 (#1240)。番組名から、話数、サブタイトル、マーク、頭の飾りを除いたもの。
   話数まで入れると、その話にしか一致しないため。正規化した番組名のひと続きの部分なので、この番組自身にも一致する。
   """
   ruleKeyword: String!
@@ -124,7 +124,7 @@ type Program implements Node {
 }
 
 """
-番組表の 1 列 (1 つのサービスの番組)。
+番組表の 1 カラム (1 つのサービスの番組)。
 """
 type GuideRow {
   service: Service!
@@ -133,7 +133,7 @@ type GuideRow {
 }
 
 extend type Query {
-  "ID で引く (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。"
+  "ID で取得する (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。"
   node(id: ID!): Node
 
   "チャンネル種別を、並び順に並べたもの。"
@@ -168,6 +168,6 @@ extend type Query {
 extend type Program {
   "番組の録画のうち、番組の放送時間に重なるもの (#1121)。過去の番組の詳細から、録画を開くのに使う。"
   recordings: [Recording!]!
-  "番組の録画があるか (#1278)。失敗した録画は数えない。番組表で、録画した番組に印を出すのに使う。"
+  "番組の録画があるか (#1278)。失敗した録画は数えない。番組表で、録画した番組にマークを出すのに使う。"
   recorded: Boolean!
 }

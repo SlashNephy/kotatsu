@@ -20,7 +20,7 @@ import (
 )
 
 // TestDataBroadcastHandlerFiltersPackets は、データ放送用のエンドポイントが、サービスストリームから
-// PSI と、PCR だけにした映像のパケットを流し、音声と映像のペイロードを流さないことを確かめる (設計書 7.4)。
+// PSI と、PCR だけにした映像のパケットを流し、音声と映像のペイロードを流さないことを確認する (設計書 7.4)。
 // testdata/ts/test.ts は、PMT が 0x01F0、映像 (PCR を兼ねる) が 0x0111、音声が 0x0112 で、データカルーセルを持たない。
 func TestDataBroadcastHandlerFiltersPackets(t *testing.T) {
 	t.Parallel()

@@ -2,7 +2,7 @@
 //
 // 出力には同じ絵のコマが重なって入り、PTS も重なるので、PTS では合わせられない。
 // 出力を k コマ (0..MAX_SHIFT) ずらして元と並べた PSNR を ffmpeg で出し、元のコマごとに最も高い k の値を取る。
-// 輝度の面だけを取り出して比べる。そのまま psnr に渡すと、色の範囲の違いで片方が変換され、値が大きく下がる。
+// 輝度の面だけを取り出して比較する。そのまま psnr に渡すと、色の範囲の違いで片方が変換され、値が大きく下がる。
 // 使い方: node psnr.mjs 出力.mp4 元.ts
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';

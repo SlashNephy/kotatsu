@@ -34,10 +34,13 @@ import { useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMiniPlayer } from '../../yunomi/miniPlayer';
 import {
+  superResolutionMethods,
   superResolutionStrengths,
   useSuperResolution,
+  useSuperResolutionMethod,
   useSuperResolutionStrength,
 } from '../../yunomi/superResolution';
+import { hdrOutputSupported, useHDRDisplay, useHDROutput } from '../../yunomi/hdr';
 
 // captionBackgrounds は、字幕の背景の選択肢 (#491)。broadcast は放送の指定どおり、ほかは黒の不透明度。
 const captionBackgrounds = ['broadcast', '0', '0.25', '0.5', '0.75', '1'];
@@ -93,6 +96,11 @@ function PlayerSettings() {
   const [interpolationRate, setInterpolationRate] = useInterpolationRate();
   const [superResolution, setSuperResolution] = useSuperResolution();
   const [superResolutionStrength, setSuperResolutionStrength] = useSuperResolutionStrength();
+  const [superResolutionMethod, setSuperResolutionMethod] = useSuperResolutionMethod();
+  const [hdrOutput, setHDROutput] = useHDROutput();
+  // 擬似 HDR (#1656) は、WebGL の HDR の出力を持つブラウザでしか描けないので、持たなければ切り替えさせない。
+  const [hdrOutputAvailable] = useState(hdrOutputSupported);
+  const hdrDisplay = useHDRDisplay();
   const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
   const [miniPlayer, setMiniPlayer] = useMiniPlayer();
   // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
@@ -103,7 +111,7 @@ function PlayerSettings() {
   const [swipeControls, setSwipeControls] = useSwipeControlsSetting();
   // タッチで操作できない端末では、スワイプの設定の項目を出さない (#1598)。
   const [swipeControlsAvailable] = useState(touchSupported);
-  // 変えたら、保存の通知を出す (#1740)。この端末の設定は deviceSave で、アカウントの設定は saveCallbacks で知らせる。
+  // 変えたら、保存の通知を出す (#1740)。この端末の設定は deviceSave で、アカウントの設定は saveCallbacks で通知する。
   // 知らせはこの画面で出し、プレイヤーと共有するフックの中では出さない。
   const deviceSave = useDeviceSave();
   const notice = useSaveNotice();
@@ -235,16 +243,13 @@ function PlayerSettings() {
             label={
               <Group gap={6} component="span">
                 {t('settings.account.cmAutoSkip')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
               </Group>
             }
             description={t('settings.account.cmAutoSkipHelp')}
             checked={cmAutoSkip}
             onChange={(event) => deviceSave(setCmAutoSkip)(event.currentTarget.checked)}
           />
-          {/* 表示が追いつくかは端末によるので、端末ごとに覚える (#1655)。 */}
+          {/* 表示が追いつくかは端末によるので、端末ごとに保存する (#1655)。 */}
           <Switch
             label={
               <Group gap={6} component="span">
@@ -258,7 +263,7 @@ function PlayerSettings() {
             checked={fieldRate}
             onChange={(event) => deviceSave(setFieldRate)(event.currentTarget.checked)}
           />
-          {/* GPU の負荷と、拡大する大きさは端末の画面によるので、端末ごとに覚える (#1654)。 */}
+          {/* GPU の負荷と、拡大する大きさは端末の画面によるので、端末ごとに保存する (#1654)。 */}
           <Switch
             label={
               <Group gap={6} component="span">
@@ -272,7 +277,26 @@ function PlayerSettings() {
             checked={superResolution}
             onChange={(event) => deviceSave(setSuperResolution)(event.currentTarget.checked)}
           />
-          {/* 鮮鋭化の強さ。映像の質と画面によって好みが分かれるので、RTX Video Super Resolution の品質の段のように選ばせる (#1654)。 */}
+          {/* 拡大の方式。Anime4K は細部が増えるが GPU の負荷が大きいので、端末の GPU に合わせて選ばせる (#1653)。 */}
+          <Select
+            label={t('settings.account.superResolutionMethod')}
+            description={t('settings.account.superResolutionMethodHelp')}
+            disabled={!superResolution}
+            allowDeselect={false}
+            data={superResolutionMethods.map((method) => ({
+              value: method,
+              label: t(`settings.account.superResolutionMethods.${method}`),
+            }))}
+            value={superResolutionMethod}
+            onChange={(value) => {
+              const method = superResolutionMethods.find((m) => m === value);
+              if (method !== undefined) {
+                deviceSave(setSuperResolutionMethod)(method);
+              }
+            }}
+            maw={240}
+          />
+          {/* 鮮鋭化の強さ。映像の質と画面によって好みが分かれるので、RTX Video Super Resolution の品質の段階のように選ばせる (#1654)。 */}
           <Select
             label={t('settings.account.superResolutionStrength')}
             description={t('settings.account.superResolutionStrengthHelp')}
@@ -291,7 +315,28 @@ function PlayerSettings() {
             }}
             maw={240}
           />
-          {/* GPU の負荷と、作ったコマの崩れ方は端末と映像によるので、端末ごとに覚える (#1655)。 */}
+          {/* 画面が HDR を出せるかは端末によるので、端末ごとに保存する (#1656)。 */}
+          <Switch
+            label={
+              <Group gap={6} component="span">
+                {t('settings.account.hdrOutput')}
+                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                  {t('settings.account.deviceOnly')}
+                </Badge>
+              </Group>
+            }
+            description={
+              !hdrOutputAvailable
+                ? t('settings.account.hdrOutputUnsupported')
+                : hdrDisplay
+                  ? t('settings.account.hdrOutputHelp')
+                  : t('settings.account.hdrOutputNoDisplay')
+            }
+            disabled={!hdrOutputAvailable}
+            checked={hdrOutputAvailable && hdrOutput}
+            onChange={(event) => deviceSave(setHDROutput)(event.currentTarget.checked)}
+          />
+          {/* GPU の負荷と、作ったコマの崩れ方は端末と映像によるので、端末ごとに保存する (#1655)。 */}
           <Switch
             label={
               <Group gap={6} component="span">
@@ -305,7 +350,7 @@ function PlayerSettings() {
             checked={interpolation}
             onChange={(event) => deviceSave(setInterpolation)(event.currentTarget.checked)}
           />
-          {/* ブラウザは画面の書き換えの速さを教えないので、既定は、書き換えの間隔を測って合わせる (#1655)。 */}
+          {/* ブラウザは画面の書き換えの速さを教えないので、既定は、書き換えの間隔を計測して合わせる (#1655)。 */}
           <Stack gap="xs" pl="lg">
             <Select
               size="xs"
@@ -334,9 +379,6 @@ function PlayerSettings() {
             label={
               <Group gap={6} component="span">
                 {t('settings.account.captureFileName')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
               </Group>
             }
             description={t('settings.account.captureFileNameHelp', {
@@ -365,9 +407,6 @@ function PlayerSettings() {
             label={
               <Group gap={6} component="span">
                 {t('settings.account.miniPlayer')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
               </Group>
             }
             description={t('settings.account.miniPlayerHelp')}
@@ -379,9 +418,6 @@ function PlayerSettings() {
               label={
                 <Group gap={6} component="span">
                   {t('settings.account.autoPictureInPicture')}
-                  <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                    {t('settings.account.deviceOnly')}
-                  </Badge>
                 </Group>
               }
               description={t('settings.account.autoPictureInPictureHelp')}
@@ -409,9 +445,6 @@ function PlayerSettings() {
               label={
                 <Group gap={6} component="span">
                   {t('settings.account.swipeControls')}
-                  <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                    {t('settings.account.deviceOnly')}
-                  </Badge>
                 </Group>
               }
               description={t('settings.account.swipeControlsHelp')}

@@ -41,7 +41,7 @@ const (
 	deliveryMaxAttempts = 8
 	// requestTimeout は、1 回の送信の時間の上限。
 	requestTimeout = 10 * time.Second
-	// maxResponseBytes は、応答の本文を読み捨てる量の上限。
+	// maxResponseBytes は、応答の本文を読み飛ばす量の上限。
 	maxResponseBytes = 64 << 10
 	// userAgent は、送信に付ける User-Agent。
 	userAgent = "Kotatsu-Webhook/1"
@@ -66,7 +66,7 @@ type Inserter interface {
 	InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
 }
 
-// Enqueuer は、配るイベントごとに、そのイベントの種類を送る有効な Webhook への配信のジョブを投入する。
+// Enqueuer は、配信するイベントごとに、そのイベントの種類を送る有効な Webhook への配信のジョブを投入する。
 type Enqueuer struct {
 	inserter Inserter
 }
@@ -176,7 +176,7 @@ func (w *DeliverWorker) send(ctx context.Context, url, secret string, event *sql
 		return fmt.Errorf("failed to send the webhook: %w", redact.URLError(err))
 	}
 	defer resp.Body.Close()
-	// 接続を使い回せるよう、応答の本文は上限まで読み捨てる。
+	// 接続を使い回せるよう、応答の本文は上限まで読み飛ばす。
 	if _, err := io.Copy(io.Discard, io.LimitReader(resp.Body, maxResponseBytes)); err != nil {
 		return fmt.Errorf("failed to read the webhook response: %w", err)
 	}
@@ -225,7 +225,7 @@ type discordAllowedMentions struct {
 // escapeDiscord は、名前 text を、Discord の記法として効かない文字列にする。
 // 強調、コード、偽装リンク、`<@id>` のようなメンションを始める記号を、バックスラッシュで打ち消す。
 // Discord は、バックスラッシュに続く記号を、そのまま文字として表示する。番組名によく出る括弧などは、記法を始めないので打ち消さない。
-// 行の頭にだけ効く記法 (見出し、引用、箇条書き) が効かないよう、改行は空白にする。
+// 行の先頭にだけ効く記法 (見出し、引用、箇条書き) が効かないよう、改行は空白にする。
 func escapeDiscord(text string) string {
 	return strings.NewReplacer(
 		`\`, `\\`, "*", `\*`, "_", `\_`, "~", `\~`, "`", "\\`", "|", `\|`,

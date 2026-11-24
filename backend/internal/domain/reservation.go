@@ -162,7 +162,7 @@ func TranscodedPath(segment, preset string) string {
 }
 
 const (
-	// TranscodeFrameRateAuto は、録画の映像から 24p 系、30p、60i を測り、出すコマ数 (30 か 60) を選ぶこと (#1509)。
+	// TranscodeFrameRateAuto は、録画の映像から 24p 系、30p、60i を計測し、出すコマ数 (30 か 60) を選ぶこと (#1509)。
 	TranscodeFrameRateAuto = "auto"
 	// TranscodeFrameRate30 は、インターレースをコマごとに解除し、30 コマで出すこと。
 	TranscodeFrameRate30 = "30"

@@ -25,7 +25,7 @@ var (
 	ErrSecondFactorEnrolled = errors.New("a second factor is already enrolled")
 )
 
-// LoginResult は、第二要素まで確かめたログインの結果。Token はセッションの Cookie に入れる。
+// LoginResult は、第二要素まで確認したログインの結果。Token はセッションの Cookie に入れる。
 type LoginResult struct {
 	Token   string
 	Session *Session
@@ -81,21 +81,21 @@ func (l *Logins) SecondFactorMethods(ctx context.Context, db sqlc.DBTX, challeng
 	return l.factors.Methods(ctx, db, challenge.UserID)
 }
 
-// CompleteWithTOTP は、TOTP のコードを確かめて、ログインを完了させ、セッションを作る。
+// CompleteWithTOTP は、TOTP のコードを確認して、ログインを完了させ、セッションを作る。
 func (l *Logins) CompleteWithTOTP(ctx context.Context, db Database, token, code string, client *ClientInfo) (*LoginResult, error) {
 	return l.complete(ctx, db, token, SecondFactorTOTP, client, func(tx pgx.Tx, row *sqlc.LoginChallenge) error {
 		return l.factors.VerifyTOTP(ctx, tx, row.UserID, code)
 	})
 }
 
-// CompleteWithRecoveryCode は、リカバリーコードを確かめて、ログインを完了させ、セッションを作る。
+// CompleteWithRecoveryCode は、リカバリーコードを確認して、ログインを完了させ、セッションを作る。
 func (l *Logins) CompleteWithRecoveryCode(ctx context.Context, db Database, token, code string, client *ClientInfo) (*LoginResult, error) {
 	return l.complete(ctx, db, token, SecondFactorRecoveryCode, client, func(tx pgx.Tx, row *sqlc.LoginChallenge) error {
 		return l.factors.UseRecoveryCode(ctx, tx, row.UserID, code)
 	})
 }
 
-// complete は、verify で第二要素を確かめる。失敗したら回数を数え、上限に達したら、待っているログインを消す。
+// complete は、verify で第二要素を確認する。失敗したら回数を数え、上限に達したら、待っているログインを消す。
 func (l *Logins) complete(
 	ctx context.Context,
 	db Database,
@@ -238,7 +238,7 @@ func (l *Logins) BeginEnrollment(ctx context.Context, db Database, token string)
 	return enrollment, nil
 }
 
-// CompleteEnrollment は、ログインの途中で登録を始めた TOTP のコードを確かめて有効にし、ログインを完了させる。
+// CompleteEnrollment は、ログインの途中で登録を始めた TOTP のコードを確認して有効にし、ログインを完了させる。
 // リカバリーコードは、ここでしか見せない。
 func (l *Logins) CompleteEnrollment(ctx context.Context, db Database, token, code string, client *ClientInfo) (*LoginResult, error) {
 	var result *LoginResult

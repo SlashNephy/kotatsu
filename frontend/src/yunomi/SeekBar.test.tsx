@@ -28,7 +28,7 @@ afterEach(() => {
   cleanup();
 });
 
-// renderSeekBar は、幅 600px で左端が 0 の、長さ 600 秒のシークバーを描く。jsdom は大きさを持たないので、測った値を差し替える。
+// renderSeekBar は、幅 600px で左端が 0 の、長さ 600 秒のシークバーを描く。jsdom は大きさを持たないので、計測した値を差し替える。
 function renderSeekBar(bands: SeekBand[] = []) {
   const { container } = render(
     <MantineProvider>

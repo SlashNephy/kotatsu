@@ -106,8 +106,8 @@ function AuditLog() {
     { first: pageSize, after: null, filter },
     { fetchKey: adminChanges, fetchPolicy: 'store-and-network' },
   );
-  // more は、続きの読み込みで足した記録と、その次のカーソル。絞り込みを変えたら捨てる。
-  // 記録が増えて最初のページを読み直したときも捨てる。残すと、最初のページからこぼれた記録が、どちらにも出なくなる。
+  // more は、続きの読み込みで足した記録と、その次のカーソル。絞り込みを変えたら破棄する。
+  // 記録が増えて最初のページを読み直したときも破棄する。残すと、最初のページからこぼれた記録が、どちらにも出なくなる。
   const [more, setMore] = useState<{
     filter: AuditEventFilter;
     changes: number;

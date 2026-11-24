@@ -64,7 +64,7 @@ func (f *fixture) serviceIDs(t *testing.T) map[string]string {
 	return ids
 }
 
-// TestGuideViews は、番組表ビューを保存して取得でき、番組表に当てられることを確かめる。
+// TestGuideViews は、番組表ビューを保存して取得でき、番組表に当てられることを確認する。
 func TestGuideViews(t *testing.T) {
 	t.Parallel()
 
@@ -203,7 +203,7 @@ func TestGuideViewErrors(t *testing.T) {
 	}
 }
 
-// TestGuideViewFilters は、番組表ビューの除外するジャンルと番組の最短の長さで、番組表が絞り込まれることを確かめる。
+// TestGuideViewFilters は、番組表ビューの除外するジャンルと番組の最短の長さで、番組表が絞り込まれることを確認する。
 func TestGuideViewFilters(t *testing.T) {
 	t.Parallel()
 

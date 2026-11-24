@@ -75,7 +75,7 @@ func (s *otlpSink) snapshot() map[string]string {
 	return maps.Clone(s.roles)
 }
 
-// TestServeSendsMetricsOverOTLP は、送信先を設定すると、各ロールが /metrics と同じメトリクスを OTLP で送ることを確かめる (#962)。
+// TestServeSendsMetricsOverOTLP は、送信先を設定すると、各ロールが /metrics と同じメトリクスを OTLP で送ることを確認する (#962)。
 // このテストのロールは neko のリースを取らないので、クラスターの範囲 (DB から読む値) は送らない。
 func TestServeSendsMetricsOverOTLP(t *testing.T) {
 	t.Parallel()

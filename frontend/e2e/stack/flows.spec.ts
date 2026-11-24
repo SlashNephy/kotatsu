@@ -1,4 +1,4 @@
-// 偽のチューナーサーバーと Kotatsu を立てて、主な流れを順に確かめる (#508、設計書 11.6)。scripts/e2e-stack.sh から流す。
+// モックのチューナーサーバーと Kotatsu を立てて、主な流れを順に確認する (#508、設計書 11.6)。scripts/e2e-stack.sh から流す。
 // 初回セットアップで作った管理者でログインしたまま、1 つのページで順に進める。
 import { devices, expect, test, type Page } from '@playwright/test';
 
@@ -66,7 +66,7 @@ test('ルールを作り、一致する番組をプレビューで確かめる',
   await page.getByRole('button', { name: 'キーワードを追加' }).first().click();
   await page.getByRole('textbox', { name: '含めるキーワード' }).fill('こたつテスト1 テスト番組');
 
-  // 偽のチューナーサーバーの番組表から、一致する番組を出す。
+  // モックのチューナーサーバーの番組表から、一致する番組を出す。
   await expect(page.getByTestId('rule-preview')).toContainText('こたつテスト1 テスト番組');
 
   await page.getByRole('button', { name: '保存' }).click();
@@ -83,7 +83,7 @@ test('ライブ視聴を始めると、偽のチューナーサーバーの映�
     .click();
   await page.waitForURL(/\/live\/.+/);
 
-  // ブラウザの中で変換した映像が、進んでいくことを確かめる。
+  // ブラウザの中で変換した映像が、進んでいくことを確認する。
   await expect
     .poll(() => page.evaluate(() => document.querySelector('video')?.currentTime ?? 0), {
       timeout: 30_000,
@@ -108,7 +108,7 @@ test('スマートフォンで、ユーザーのメニューを何度でも開�
     await mobile.goto('/reservations');
     const target = mobile.getByRole('button', { name: admin.displayName });
     const menu = mobile.getByRole('menu');
-    // ボタンが右にはみ出していると、直す前でも開けてしまい、このテストで不具合を見分けられない。先に、収まっていることを確かめる。
+    // ボタンが右にはみ出していると、修正する前でも開けてしまい、このテストで不具合を見分けられない。先に、収まっていることを確認する。
     const box = await target.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x + box!.width).toBeLessThanOrEqual(mobile.viewportSize()!.width);
@@ -116,7 +116,7 @@ test('スマートフォンで、ユーザーのメニューを何度でも開�
     for (let i = 0; i < 3; i++) {
       await target.tap();
       await expect(menu).toBeVisible();
-      // 壊れていたときは、隠す・出すをフレームごとに繰り返したので、続くフレームのすべてで、画面に収まって見えていることを確かめる。
+      // 壊れていたときは、隠す・出すをフレームごとに繰り返したので、続くフレームのすべてで、画面に収まって見えていることを確認する。
       const frames = await mobile.evaluate(async () => {
         const results: boolean[] = [];
         for (let frame = 0; frame < 30; frame++) {
@@ -158,7 +158,7 @@ test('スマートフォンの幅で、ヘッダーと画面が横にはみ出�
     });
     try {
       const mobile = await context.newPage();
-      // 測る前に、画面の本文を読み終えるまで待つ。読み込み中のスピナーだけを測っても、はみ出しは分からない。
+      // 計測する前に、画面の本文を読み終えるまで待つ。読み込み中のスピナーだけを計測しても、はみ出しは分からない。
       const loaded = {
         '/': mobile.getByRole('heading', { name: '放送中の番組' }),
         '/live': mobile.getByRole('link', { name: /こたつテスト1/ }).first(),
@@ -201,7 +201,7 @@ test('ログの画面で、IP アドレスを伏せた不具合の報告を作�
   await page.route('https://github.com/**', (route) => route.abort());
   await page.goto('/admin/logs');
 
-  // 画面では、ホスト名や IP アドレスをそのまま出す。偽のチューナーサーバーのログには、Kotatsu の 127.0.0.1 が入る。
+  // 画面では、ホスト名や IP アドレスをそのまま出す。モックのチューナーサーバーのログには、Kotatsu の 127.0.0.1 が入る。
   await expect(page.getByTestId('log-lines')).toContainText('127.0.0.1');
 
   await page.getByRole('button', { name: 'Issue にする' }).click();

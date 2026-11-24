@@ -15,7 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
-// TestOpenFile は、ライブラリのファイルを、索引のできた所までの I フレームから流し、索引によらず末尾まで流すことを確かめる (#1734)。
+// TestOpenFile は、ライブラリのファイルを、インデックスのできた所までの I フレームから流し、インデックスによらず末尾まで流すことを確認する (#1734)。
 func TestOpenFile(t *testing.T) {
 	t.Parallel()
 
@@ -31,7 +31,7 @@ func TestOpenFile(t *testing.T) {
 	name := filepath.Join(t.TempDir(), "show.ts")
 	require.NoError(t, os.WriteFile(name, data, 0o600))
 	open := func(context.Context) (stream.File, error) { return os.Open(name) }
-	// 索引は、0.5005 秒ごとの I フレームが、0、5、10 番目のパケットにあるところまでできている。
+	// インデックスは、0.5005 秒ごとの I フレームが、0、5、10 番目のパケットにあるところまでできている。
 	index := []ts.IndexEntry{
 		{Offset: 0, PTS: 0},
 		{Offset: 5 * ts.PacketSize, PTS: 45045},
@@ -47,7 +47,7 @@ func TestOpenFile(t *testing.T) {
 	}{
 		{name: "from the beginning", indexing: true, start: 0, wantAt: 0, wantFirst: 0},
 		{name: "the keyframe before the position", indexing: true, start: 700 * time.Millisecond, wantAt: 500500 * time.Microsecond, wantFirst: 5},
-		// 索引のできた所より先を求めたら、最後の I フレームから流す。
+		// インデックスのできた所より先を求めたら、最後の I フレームから流す。
 		{name: "beyond the indexed part", indexing: true, start: time.Hour, wantAt: 1001 * time.Millisecond, wantFirst: 10},
 		{name: "indexed", indexing: false, start: 700 * time.Millisecond, wantAt: 500500 * time.Microsecond, wantFirst: 5},
 	}

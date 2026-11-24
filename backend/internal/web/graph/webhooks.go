@@ -16,7 +16,7 @@ const webhookType = "Webhook"
 // errWebhooksUnavailable は、Webhook の管理に使う部品が設定されていないことを表す。
 var errWebhooksUnavailable = errors.New("webhook management is not configured")
 
-// webhookAdministrator は、ログイン中のユーザーが管理者で、直近 10 分以内に認証したことを確かめ、操作者を返す (設計書 9.5、9.7)。
+// webhookAdministrator は、ログイン中のユーザーが管理者で、直近 10 分以内に認証したことを確認し、操作者を返す (設計書 9.5、9.7)。
 func (r *Resolver) webhookAdministrator(ctx context.Context) (*audit.Actor, error) {
 	if r.webhooks == nil {
 		return nil, errWebhooksUnavailable

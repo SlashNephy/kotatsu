@@ -27,12 +27,12 @@ type TxBeginner interface {
 // Candidate は、解析し直す候補の録画。
 type Candidate struct {
 	RecordingID uuid.UUID
-	// Missing は、書いたもののあるセグメントの索引か、代表画像がないかどうか。
+	// Missing は、書いたもののあるセグメントのインデックスか、代表画像がないかどうか。
 	Missing bool
 }
 
 // Candidates は、録画中でない、書いたもののあるセグメントを持つ録画を、録画を始めた日時の新しい順に返す (#897)。
-// 生成物 (索引と代表画像) がデータディレクトリにない録画は、Missing を true にする。
+// 生成物 (インデックスと代表画像) がデータディレクトリにない録画は、Missing を true にする。
 func Candidates(ctx context.Context, db sqlc.DBTX, store *kago.Store) ([]*Candidate, error) {
 	rows, err := sqlc.New(db).ListAnalyzableRecordingSegments(ctx)
 	if err != nil {

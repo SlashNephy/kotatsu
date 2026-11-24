@@ -80,7 +80,7 @@ func (a *Accumulator) Scale(k float64) {
 }
 
 // Coherence は、画素ごとの揃い方 √(Sx² + Sy²) / N (0〜1) を返す。ロゴの縁では、ロゴが出ていたコマの割合に近い値が残り、
-// 本編の中身の縁は向きが打ち消し合って 0 に近づく。N が 0 なら、どの画素も 0 にする。
+// 本編の内容の縁は向きが打ち消し合って 0 に近づく。N が 0 なら、どの画素も 0 にする。
 func (a *Accumulator) Coherence() []float64 {
 	out := make([]float64, len(a.Sx))
 	if a.N == 0 {

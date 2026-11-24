@@ -13,8 +13,9 @@ import {
 import { ReceiveMeter } from './receiveRate';
 import type { HlsSegment, TsPlayerReading } from './streamMeter';
 import type { VideoLag } from './useVideoLag';
+import type { PlayerMedia } from './playerMedia';
 
-// NetworkPlayback は、usePlaybackRoute のうち、回線のために段を動かすのに使う部分。
+// NetworkPlayback は、usePlaybackRoute のうち、回線のために段階を動かすのに使う部分。
 export type NetworkPlayback = {
   current: string | null;
   automatic: boolean;
@@ -22,13 +23,13 @@ export type NetworkPlayback = {
   setNetworkStep: (name: string) => void;
 };
 
-// NetworkStepEvent は、回線のために段を動かしたこと。
+// NetworkStepEvent は、回線のために段階を動かしたこと。
 export type NetworkStepEvent = { to: string; direction: 'down' | 'up'; reason: StepReason };
 
 export type NetworkQualityOptions = {
   // mode は、上げ方。ライブは probe、録画と追っかけは rate。
   mode: NetworkMode;
-  // convert は、ブラウザ内で変換する経路か。録画の再生では、プレイヤーが先に読みすぎないよう読むのを絞るので、その間は速さを測らない。
+  // convert は、ブラウザ内で変換する経路か。録画の再生では、プレイヤーが先に読みすぎないよう読むのを絞るので、その間は速さを計測しない。
   convert: boolean;
   // topBitrate は、最高画質 (オリジナル) のビットレート (bps)。録画の平均のビットレートなど。分からなければ null。
   topBitrate: number | null;
@@ -57,8 +58,8 @@ const haveFutureData = 3;
 const selfLimitAhead = 6;
 
 // aheadOf は、今の位置から先に読み込んである量 (秒)。
-function aheadOf(video: HTMLVideoElement): number {
-  const { buffered, currentTime } = video;
+function aheadOf(media: PlayerMedia): number {
+  const { buffered, currentTime } = media;
   for (let i = 0; i < buffered.length; i++) {
     if (buffered.start(i) <= currentTime && currentTime <= buffered.end(i)) {
       return buffered.end(i) - currentTime;
@@ -68,11 +69,11 @@ function aheadOf(video: HTMLVideoElement): number {
   return 0;
 }
 
-// useNetworkQuality は、回線の側の兆しを刻みごとに見て、画質の「自動」の段を下げ、余裕を確かめてから上げる (#1513、設計書 7.1、7.5)。
-// 決める部分は networkQuality.ts にあり、ここは video の要素とプレイヤーから測って渡し、決めたとおりに段を動かし、試しのデータを取る。
-// 制御は、画面を開いている間は、段を替えて video が変わっても引き継ぐ。
+// useNetworkQuality は、回線の側の兆候を判定のたびに見て、画質の「自動」の段階を下げ、余裕を確認してから上げる (#1513、設計書 7.1、7.5)。
+// 決める部分は networkQuality.ts にあり、ここは video の要素とプレイヤーから計測して渡し、決めたとおりに段階を動かし、プローブのデータを取る。
+// 制御は、画面を開いている間は、段階を替えて video が変わっても引き継ぐ。
 export function useNetworkQuality(
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   playback: NetworkPlayback,
   options: NetworkQualityOptions,
 ): NetworkQuality {
@@ -96,13 +97,13 @@ export function useNetworkQuality(
   const stepped = useEffectEvent((event: NetworkStepEvent) => options.onStep(event));
   const shortManual = useEffectEvent(() => options.onShortManual());
 
-  // started は、今の video で (段が変わったら、その段で) 再生が始まったか。始まるまでは判定しない。
+  // started は、今の video で (段階が変わったら、その段階で) 再生が始まったか。始まるまでは判定しない。
   // 読み込みに時間がかかっても、始まるまでの詰まりを「足りない」と取り違えないよう、切り替え直後の無視時間は始まってから数える。
-  // 段の切り替えは video を作り直さないこと (kyusu の段どうし) も、作り直すこと (変換と kyusu の間) もあるので、video の外で持つ。
+  // 段階の切り替えは video を作り直さないこと (kyusu の段階どうし) も、作り直すこと (変換と kyusu の間) もあるので、video の外で持つ。
   const started = useRef(false);
 
-  // 経路の種類 (ライブと追っかけ) や段が変わったら、届いた量を数え直し、新しい段が始まるのを待つ。
-  // 取っている試しのデータは打ち切る。前の段の受け取りと比べた結果を、新しい段に持ち込まないため。
+  // 経路の種類 (ライブと追っかけ) や段階が変わったら、届いた量を数え直し、新しい段階が始まるのを待つ。
+  // 取っているプローブのデータは打ち切る。前の段階の受け取りと比較した結果を、新しい段階に持ち込まないため。
   useEffect(() => {
     probeAbort.current?.abort();
     probeAbort.current = null;
@@ -112,13 +113,13 @@ export function useNetworkQuality(
   }, [meter, options.mode, playback.current]);
 
   useEffect(() => {
-    if (video === null) {
+    if (media === null) {
       return;
     }
     let waiting = false;
     let lastFrameAt = performance.now();
     started.current = false;
-    // start は、最初のコマが映るか再生が始まったら呼ぶ。上げた段なら、映り出したことを知らせる。
+    // start は、最初のコマが映るか再生が始まったら呼ぶ。上げた段階なら、映り出したことを通知する。
     const start = (now: number) => {
       lastFrameAt = now;
       if (!started.current) {
@@ -131,10 +132,10 @@ export function useNetworkQuality(
     let manualNoticeAt = -Infinity;
 
     // ライブでは、利用者はシークしない。シークは、プレイヤーが詰まりから戻ろうとして端へ移すものなので、詰まりとして数え続ける。
-    // 数え直すと、細い回線で数秒おきに端へ移る間、切り替え直後の無視時間が続き、兆しを一度も見られない。
+    // 数え直すと、細い回線で数秒おきに端へ移る間、切り替え直後の無視時間が続き、兆候を一度も見られない。
     const internalSeek = () => read().mode === 'probe';
     const onWaiting = () => {
-      if (!video.paused && (!video.seeking || internalSeek()) && !excused()) {
+      if (!media.paused && (!media.seeking || internalSeek()) && !excused()) {
         waiting = true;
       }
     };
@@ -153,29 +154,31 @@ export function useNetworkQuality(
       waiting = false;
       controller.restart(performance.now());
     };
-    video.addEventListener('waiting', onWaiting);
-    video.addEventListener('playing', onPlaying);
+    media.addEventListener('waiting', onWaiting);
+    media.addEventListener('playing', onPlaying);
     // 選局やつなぎ直しで読み込み直したら、新しい映像が映り出してから数え直す (ライブのシークでは数え直さないため)。
     const onLoadStart = () => {
       waiting = false;
       started.current = false;
     };
-    video.addEventListener('seeking', onSeeking);
-    video.addEventListener('loadstart', onLoadStart);
-    video.addEventListener('play', onResume);
+    media.addEventListener('seeking', onSeeking);
+    media.addEventListener('loadstart', onLoadStart);
+    media.addEventListener('play', onResume);
     document.addEventListener('visibilitychange', onResume);
 
     let frameRequest: number | null = null;
-    const frames = typeof video.requestVideoFrameCallback === 'function';
+    // 呼ぶときは media から呼ぶ (取り出して呼ぶと、メソッドの this が外れる)。止められないと困るので、両方あるときだけ使う。
+    const frames =
+      media.requestVideoFrameCallback !== undefined && media.cancelVideoFrameCallback !== undefined;
     const onFrame = () => {
       if (stopped) {
         return;
       }
       start(performance.now());
-      frameRequest = video.requestVideoFrameCallback(onFrame);
+      frameRequest = media.requestVideoFrameCallback?.(onFrame) ?? null;
     };
     if (frames) {
-      frameRequest = video.requestVideoFrameCallback(onFrame);
+      frameRequest = media.requestVideoFrameCallback?.(onFrame) ?? null;
     }
 
     const probe = (bytes: number) => {
@@ -191,7 +194,7 @@ export function useNetworkQuality(
           probeAbort.current = null;
         }
         const now = performance.now();
-        // 試しの間に映像が受け取った速さを添える。試しと映像は同じ回線を分け合う。
+        // プローブの間に映像が受け取った速さを添える。試しと映像は同じ回線を分け合う。
         controller.probed(
           now,
           outcome.kind === 'measured' && now > startedAt
@@ -211,21 +214,21 @@ export function useNetworkQuality(
       if (state.current === null) {
         return;
       }
-      const ahead = aheadOf(video);
+      const ahead = aheadOf(media);
       const active =
-        !video.paused &&
-        (!video.seeking || state.mode === 'probe') &&
-        !video.ended &&
+        !media.paused &&
+        (!media.seeking || state.mode === 'probe') &&
+        !media.ended &&
         (document.visibilityState === 'visible' ||
           state.pictureInPicture ||
-          document.pictureInPictureElement === video);
+          document.pictureInPictureElement === media.element);
       if (!active) {
         lastFrameAt = now;
       }
       if (state.convert && state.mode === 'rate' && ahead >= selfLimitAhead) {
         meter.limit(now);
       }
-      const { buffered } = video;
+      const { buffered } = media;
       const receiveRate =
         state.mode === 'rate' && !state.convert
           ? meter.throughput(now)
@@ -241,8 +244,8 @@ export function useNetworkQuality(
           active,
           started: started.current,
           waiting: waiting && !excused(),
-          lowReadyState: video.readyState < haveFutureData,
-          // 音声だけの段と、コマごとのコールバックが無い端末では、コマの途絶を測らない。
+          lowReadyState: media.readyState < haveFutureData,
+          // 音声だけの段階と、コマごとのコールバックが無い端末では、コマの途絶を計測しない。
           frameAgeMs: frames && state.current !== audioStep ? now - lastFrameAt : null,
           ahead,
           broadcastLag:
@@ -260,7 +263,7 @@ export function useNetworkQuality(
           mode: state.mode,
         },
       );
-      // 試しの最中に足りない兆しが出たら、再生中の映像を細らせないよう打ち切る (余裕が無かったとみなす)。
+      // プローブの最中に足りない兆候が出たら、再生中の映像を細らせないよう打ち切る (余裕が無かったとみなす)。
       if (controller.probing() && controller.short()) {
         probeAbort.current?.abort();
       }
@@ -284,18 +287,18 @@ export function useNetworkQuality(
       stopped = true;
       window.clearInterval(timer);
       if (frameRequest !== null) {
-        video.cancelVideoFrameCallback(frameRequest);
+        media.cancelVideoFrameCallback?.(frameRequest);
       }
-      video.removeEventListener('waiting', onWaiting);
-      video.removeEventListener('playing', onPlaying);
-      video.removeEventListener('seeking', onSeeking);
-      video.removeEventListener('loadstart', onLoadStart);
-      video.removeEventListener('play', onResume);
+      media.removeEventListener('waiting', onWaiting);
+      media.removeEventListener('playing', onPlaying);
+      media.removeEventListener('seeking', onSeeking);
+      media.removeEventListener('loadstart', onLoadStart);
+      media.removeEventListener('play', onResume);
       document.removeEventListener('visibilitychange', onResume);
     };
-  }, [video, controller, meter]);
+  }, [media, controller, meter]);
 
-  // 画面を閉じたら、取っている試しのデータを打ち切る。
+  // 画面を閉じたら、取っているプローブのデータを打ち切る。
   useEffect(
     () => () => {
       probeAbort.current?.abort();
@@ -304,7 +307,7 @@ export function useNetworkQuality(
   );
 
   return {
-    status: () => (video === null ? null : controller.status(performance.now())),
+    status: () => (media === null ? null : controller.status(performance.now())),
     onReading: (reading) => {
       const last = lastReading.current;
       if (reading.seeking) {

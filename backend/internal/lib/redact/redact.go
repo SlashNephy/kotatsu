@@ -10,7 +10,7 @@ import (
 // net/http と net/url のエラーは、文言に URL の全文を含む。Discord や Slack の Webhook、Web Push の送り先のように、
 // URL のパスやクエリ、ユーザー情報が秘密のトークンになるものは、ログやジョブの記録に残さない。
 // URL を読めなければ、URL を空にする。*url.Error がなければ、err をそのまま返す。
-// 原因 (url.Error.Err) は残すので、errors.Is や errors.As で原因を確かめられる。
+// 原因 (url.Error.Err) は残すので、errors.Is や errors.As で原因を確認できる。
 // fmt.Errorf は包むときに文言を作るので、ほかのエラーで包む前に呼ぶ。
 func URLError(err error) error {
 	var urlErr *url.Error

@@ -29,7 +29,7 @@ type segment struct {
 	exists bool
 }
 
-// segmented は、セグメント segments を持つ録画を作る。各セグメントには、データディレクトリに索引も置く。
+// segmented は、セグメント segments を持つ録画を作る。各セグメントには、データディレクトリにインデックスも置く。
 func (f *fixture) segmented(t *testing.T, ago time.Duration, protected bool, segments ...segment) uuid.UUID {
 	t.Helper()
 
@@ -67,7 +67,7 @@ func (f *fixture) files(t *testing.T, recordingID uuid.UUID) int {
 }
 
 // TestFindMissing は、セグメントのファイルが見つからない録画だけを、新しい順に返し、
-// マウントしていないプールのセグメントは見つからないとはみなさないことを確かめる。
+// マウントしていないプールのセグメントは見つからないとはみなさないことを確認する。
 func TestFindMissing(t *testing.T) {
 	t.Parallel()
 
@@ -88,8 +88,8 @@ func TestFindMissing(t *testing.T) {
 	assert.NotContains(t, []uuid.UUID{got[0].RecordingID, got[1].RecordingID}, unmounted)
 }
 
-// TestCleanUpMissing は、セグメントが 1 つも見つからない録画は消し、一部だけなら見つからないセグメントと索引の記録だけを消し、
-// 監査ログに残すことを確かめる。保護した録画は消さない。
+// TestCleanUpMissing は、セグメントが 1 つも見つからない録画は消し、一部だけなら見つからないセグメントとインデックスの記録だけを消し、
+// 監査ログに残すことを確認する。保護した録画は消さない。
 func TestCleanUpMissing(t *testing.T) {
 	t.Parallel()
 

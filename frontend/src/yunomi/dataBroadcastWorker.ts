@@ -12,7 +12,7 @@ export type DataBroadcastRequest = {
   serviceId: number;
 };
 
-// DataBroadcastEnd は、TS を読み終えたか、読めなかったことを、画面のスレッドに知らせるメッセージ。
+// DataBroadcastEnd は、TS を読み終えたか、読めなかったことを、画面のスレッドに通知するメッセージ。
 // status は、tenban が成功でない応答を返したときの HTTP のステータス。
 export type DataBroadcastEnd = { type: 'kotatsu:end'; error: boolean; status?: number };
 

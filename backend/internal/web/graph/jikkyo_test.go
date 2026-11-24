@@ -17,7 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 
-// TestServiceJikkyo は、サービスの実況のチャンネルを、対応表と NX-Jikkyo のチャンネルの一覧から返すことを確かめる。
+// TestServiceJikkyo は、サービスの実況のチャンネルを、対応表と NX-Jikkyo のチャンネルの一覧から返すことを確認する。
 func TestServiceJikkyo(t *testing.T) {
 	t.Parallel()
 
@@ -91,7 +91,7 @@ func enableJikkyo(t *testing.T, f *fixture) {
 }
 
 // TestServiceJikkyoOptIn は、全体の設定とユーザーの設定の両方で有効なときだけ NX-Jikkyo へ問い合わせ、
-// ID は全体の設定だけで決まることを確かめる (設計書 0.3、7.4)。
+// ID は全体の設定だけで決まることを確認する (設計書 0.3、7.4)。
 func TestServiceJikkyoOptIn(t *testing.T) {
 	t.Parallel()
 

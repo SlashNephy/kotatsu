@@ -44,32 +44,32 @@ type Config struct {
 	AnimeLinking AnimeLinking `yaml:"anime_linking"`
 	// AnimeRecords は、見たアニメを Annict と AniList に記録する設定 (#927)。
 	AnimeRecords AnimeRecords `yaml:"anime_records"`
-	// TMDb は、ドラマの番組を TMDb の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
-	TMDb TMDb `yaml:"tmdb"`
+	// TMDB は、ドラマの番組を TMDB の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
+	TMDB TMDB `yaml:"tmdb"`
 	// Simkl は、見たドラマを Simkl に記録する連携の設定 (#1649、設計書 3.9)。
 	Simkl Simkl `yaml:"simkl"`
 	// Google は、Google Drive をライブラリとして接続する連携の設定 (#1902、設計書 5.8)。
 	Google Google `yaml:"google"`
-	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
+	// UpdateCheck は、新しいリリースを確認するかどうかの設定 (#506)。
 	UpdateCheck UpdateCheck `yaml:"update_check"`
-	// Backup は、定期のバックアップを書き出す先 (#1926、設計書 11.4)。
+	// Backup は、定期のバックアップの出力先 (#1926、設計書 11.4)。
 	Backup Backup `yaml:"backup"`
 	// Ignored は、画面で設定するようになったので、読まずに無視した項目 (#1869)。起動するときに、ログで警告する。
 	Ignored []IgnoredSetting `yaml:"-"`
 }
 
-// Backup は、nekonote が定期のバックアップを書き出す先の設定 (#1926、設計書 11.4)。
+// Backup は、nekonote が定期のバックアップの出力先の設定 (#1926、設計書 11.4)。
 // 暗号化する公開鍵、間隔、残す世代の数は、管理者の画面で決める (設計書 11.2)。
 type Backup struct {
-	// Dir は、定期のバックアップを書き出すディレクトリ。絶対パスで書く。nekonote でマウントする。
+	// Dir は、定期のバックアップを出力するディレクトリ。絶対パスで書く。nekonote でマウントする。
 	// 空なら、画面で公開鍵を登録しても、定期のバックアップは書き出せず、失敗として画面に出す。
 	Dir string `yaml:"dir"`
 }
 
-// UpdateCheck は、新しいリリースを確かめる設定 (設計書 11.1)。
+// UpdateCheck は、新しいリリースを確認する設定 (設計書 11.1)。
 type UpdateCheck struct {
-	// Enabled は、tenban が GitHub のリリースを 1 日に 1 回確かめ、新しい版を管理者に知らせるかどうか。
-	// 外部への通信になるので、既定では確かめない。
+	// Enabled は、tenban が GitHub のリリースを 1 日に 1 回確認し、新しいバージョンを管理者に通知するかどうか。
+	// 外部への通信になるので、既定では確認しない。
 	Enabled bool `yaml:"enabled"`
 }
 
@@ -122,7 +122,7 @@ func DefaultPrivateNetworks() []string {
 type Metrics struct {
 	// Listen は /metrics の待ち受けアドレス。API とは別のアドレスで公開する。
 	Listen string `yaml:"listen"`
-	// Pprof なら、同じ待ち受けで /debug/pprof/ を返す (#1959)。プロセスの中を調べるときだけ有効にする。
+	// Pprof なら、同じ待ち受けで /debug/pprof/ を返す (#1959)。プロセスの中を調査するときだけ有効にする。
 	// 認証をかけないので、待ち受けを外に出している構成では有効にしない。
 	Pprof bool `yaml:"pprof"`
 }
@@ -178,7 +178,7 @@ type Storage struct {
 	// PoolOrder は、Pools を書いた順のプール ID。優先順位が同じプールは、この順に選ぶ (設計書 5.6)。
 	// 対応 (map) では順が失われるので、読み込むときに設定ファイルか環境変数から求める。
 	PoolOrder []string `yaml:"-"`
-	// DataDir は、録画の生成物 (索引、代表画像、プレビュー画像) を、セグメントのファイルの ID ごとに置くディレクトリ (設計書 5.6)。
+	// DataDir は、録画の生成物 (インデックス、代表画像、プレビュー画像) を、セグメントのファイルの ID ごとに置くディレクトリ (設計書 5.6)。
 	// プールを設定するロールでは必ず設定する。プールをマウントするロール (mikan、nekonote、tenban、kyusu) で、同じディレクトリをマウントする。
 	DataDir string `yaml:"data_dir"`
 	// TimeshiftDir は、タイムシフトのバッファ (放送を一定時間だけ残すチャンクのファイル) を置くディレクトリ。
@@ -187,7 +187,7 @@ type Storage struct {
 	// Libraries は、録画として登録していない TS を、ファイラーで選んで再生してよいフォルダ (ライブラリ) の、名前からディレクトリへの対応 (#1734)。
 	// 保存先プールは、ここに書かなくてもライブラリとして見せる。名前はプール ID と同じ規則で、プール ID と重ねられない。
 	// 環境変数では、KOTATSU_STORAGE_LIBRARIES=anime=/mnt/anime,backup=/mnt/backup のように「名前=パス」をカンマで区切って渡す。
-	// シークの索引をデータディレクトリに置くので、設定するなら DataDir も要る。
+	// シークのインデックスをデータディレクトリに置くので、設定するなら DataDir も要る。
 	Libraries map[string]string `yaml:"libraries"`
 }
 
@@ -336,10 +336,10 @@ type AnimeLinking struct {
 	ArmURL Secret `yaml:"arm_url"`
 }
 
-// TMDb は、ドラマの番組を TMDb の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
-// 連携するかどうかと、TMDb の API の読み取りアクセストークンは、管理者が連携の画面で決める。
-type TMDb struct {
-	// URL は、TMDb の API を向ける先のオリジン。空なら https://api.themoviedb.org にする。
+// TMDB は、ドラマの番組を TMDB の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
+// 連携するかどうかと、TMDB の API の読み取りアクセストークンは、管理者が連携の画面で決める。
+type TMDB struct {
+	// URL は、TMDB の API を向ける先のオリジン。空なら https://api.themoviedb.org にする。
 	// 本物の API の代わりに、検証用のサーバーへ向けるときだけ使う。
 	URL string `yaml:"url"`
 }
@@ -411,7 +411,7 @@ type Auth struct {
 
 // OIDC は、OpenID Connect の IdP でのログインの設定 (設計書 9.4)。Issuer が空なら、OIDC でのログインを受け付けない。
 type OIDC struct {
-	// Issuer は IdP の issuer の URL。/.well-known/openid-configuration から、エンドポイントを引く。
+	// Issuer は IdP の issuer の URL。/.well-known/openid-configuration から、エンドポイントを取得する。
 	Issuer       string `yaml:"issuer"`
 	ClientID     string `yaml:"client_id"`
 	ClientSecret Secret `yaml:"client_secret"`
@@ -526,7 +526,7 @@ func Default() *Config {
 		Kyusu:        Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
 		AnimeLinking: AnimeLinking{ArmURL: ""},
 		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: "", JikanURL: ""},
-		TMDb:         TMDb{URL: ""},
+		TMDB:         TMDB{URL: ""},
 		Simkl:        Simkl{URL: ""},
 		Google:       Google{URL: ""},
 	}
@@ -573,7 +573,7 @@ func (s *Server) validate() []error {
 
 // firstOutsideHome は、networks のうち、家の中のネットワーク (DefaultPrivateNetworks のどれか) に収まる (inside が true)、
 // または収まらない (inside が false) 最初の範囲を返す。家の中の範囲と同じアドレスから始まる、それより広い範囲は、収まらないとみなす。
-// networks は、validateNetworks で確かめた後に渡す。
+// networks は、validateNetworks で確認した後に渡す。
 func firstOutsideHome(networks []string, inside bool) (string, bool) {
 	prefixes, err := ParseNetworks(networks)
 	if err != nil {
@@ -624,7 +624,7 @@ func (c *Config) validate() error {
 	}
 	errs = append(errs, c.Auth.OIDC.validate()...)
 	errs = append(errs, c.AnimeRecords.validate()...)
-	if err := validateHTTPURL(c.TMDb.URL); err != nil {
+	if err := validateHTTPURL(c.TMDB.URL); err != nil {
 		errs = append(errs, fieldError("tmdb.url", err))
 	}
 	if err := validateHTTPURL(c.Simkl.URL); err != nil {
@@ -667,7 +667,7 @@ func (s *Storage) validate() []error {
 	return errs
 }
 
-// validateBackupDir は、定期のバックアップを書き出すディレクトリを検査する。空なら、定期のバックアップを書き出さないので何も求めない。
+// validateBackupDir は、定期のバックアップを出力するディレクトリを検査する。空なら、定期のバックアップを出力しないので何も求めない。
 // データディレクトリ、タイムシフトのディレクトリ、プールと重なると、DB にないファイルを探す機能や容量の管理がバックアップを触るので、重なりを拒む。
 func (c *Config) validateBackupDir() error {
 	dir := c.Backup.Dir
@@ -726,8 +726,8 @@ func (s *Storage) validateTimeshiftDir() error {
 
 // validateLibrary は、ライブラリ name を検査する (#1734)。名前はプール ID と同じ規則にし、プール ID と同じ名前は拒む。
 // プールは、そのままライブラリとして見せるので、同じ名前だとどちらを指すか分からないからである。
-// 索引をデータディレクトリに置くので、データディレクトリが要る。データディレクトリとタイムシフトのディレクトリと重なるものは拒む。
-// 索引やチャンクのファイルを、ファイラーから見せないためである。
+// インデックスをデータディレクトリに置くので、データディレクトリが要る。データディレクトリとタイムシフトのディレクトリと重なるものは拒む。
+// インデックスやチャンクのファイルを、ファイラーから見せないためである。
 func (s *Storage) validateLibrary(name string) error {
 	dir := s.Libraries[name]
 	_, pool := s.Pools[name]
@@ -762,8 +762,8 @@ func overlaps(a, b string) bool {
 
 // sameOrWithin は、child かその親のどれかが、ファイルシステムの上で parent と同じディレクトリかを返す。
 // 大文字と小文字を区別しないファイルシステム (NTFS、APFS の既定) や、シンボリックリンク、ジャンクションでは、
-// 名前の違うパスが同じディレクトリを指すので、名前だけでは重なりを見逃す (#1097)。まだないディレクトリは、あるところまで遡って比べる。
-// parent がなければ、名前で比べるほかないので、false を返す。
+// 名前の違うパスが同じディレクトリを指すので、名前だけでは重なりを見逃す (#1097)。まだないディレクトリは、あるところまで遡って比較する。
+// parent がなければ、名前で比較するほかないので、false を返す。
 func sameOrWithin(child, parent string) bool {
 	target, err := os.Stat(parent)
 	if err != nil {
@@ -852,7 +852,7 @@ func validateNetworks(networks []string) error {
 	return err
 }
 
-// validateSecretHTTPURL は、秘密情報として扱う URL が、空でなければ http:// か https:// の URL であることを確かめる。
+// validateSecretHTTPURL は、秘密情報として扱う URL が、空でなければ http:// か https:// の URL であることを確認する。
 func validateSecretHTTPURL(secret Secret) error {
 	if secret.Value() == "" {
 		return nil
@@ -870,8 +870,8 @@ func validateSecretHTTPURL(secret Secret) error {
 	return nil
 }
 
-// validateHTTPURL は、空でなければ http:// か https:// の URL であることを確かめる。
-// validateMetrics は、OTLP でメトリクスを送る設定を確かめる。
+// validateHTTPURL は、空でなければ http:// か https:// の URL であることを確認する。
+// validateMetrics は、OTLP でメトリクスを送る設定を確認する。
 func (t *Telemetry) validateMetrics() []error {
 	errs := []error{}
 	if err := validateHTTPURL(t.OTLPMetricsEndpoint); err != nil {

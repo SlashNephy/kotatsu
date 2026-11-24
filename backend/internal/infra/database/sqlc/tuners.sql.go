@@ -154,7 +154,7 @@ type SetBroadcastClockSkewParams struct {
 	SkewMs *int64
 }
 
-// 録画している TS の TOT で測った、放送の時刻と OS の時計の差を書く (#1309)。行がなければ作る。
+// 録画している TS の TOT で計測した、放送の時刻と OS の時計の差を書く (#1309)。行がなければ作る。
 func (q *Queries) SetBroadcastClockSkew(ctx context.Context, arg SetBroadcastClockSkewParams) error {
 	_, err := q.db.Exec(ctx, setBroadcastClockSkew, arg.Now, arg.SkewMs)
 	return err
@@ -181,7 +181,7 @@ type UpsertTunerServerStatusParams struct {
 	ServerVersion *string
 }
 
-// 種類と版が NULL なら (接続できない、判定に失敗した)、最後に分かったものを残す (#1538)。
+// 種類とバージョンが NULL なら (接続できない、判定に失敗した)、最後に分かったものを残す (#1538)。
 func (q *Queries) UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error {
 	_, err := q.db.Exec(ctx, upsertTunerServerStatus,
 		arg.DegradedSince,

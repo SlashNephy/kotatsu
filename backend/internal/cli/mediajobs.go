@@ -51,14 +51,19 @@ func newLowerer(logger *slog.Logger) *procprio.Lowerer {
 // newThumbnailWorker は、録画を終えたら、代表画像とプレビュー画像を作る Worker を作る (設計書 6.1)。
 // FFmpeg がなければ、ジョブが理由を残して取りやめる。プレビュー画像を作るかは、管理者が画面で切り替える (#1869) ので、ジョブごとに読む。
 func newThumbnailWorker(pool *pgxpool.Pool, store *kago.Store, clk clock.Clock) *thumbnail.GenerateWorker {
-	return thumbnail.NewGenerateWorker(pool, store, clk, func(ctx context.Context) (bool, error) {
+	return thumbnail.NewGenerateWorker(pool, store, clk, previewsEnabled(pool))
+}
+
+// previewsEnabled は、プレビュー画像を作るかどうかを、呼ぶたびに設定から読む関数を返す。
+func previewsEnabled(pool *pgxpool.Pool) func(ctx context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
 		system, err := settings.Load(ctx, pool)
 		if err != nil {
 			return false, err
 		}
 
 		return system.ThumbnailPreviewsEnabled, nil
-	})
+	}
 }
 
 // newLiveThumbnailWorker は、録画中の録画の代表画像を、一定の間隔で作り直す Worker を作る (#1236)。
@@ -66,13 +71,14 @@ func newLiveThumbnailWorker(pool *pgxpool.Pool, inserter *jobs.Client, clk clock
 	return thumbnail.NewLiveWorker(pool, inserter, clk)
 }
 
-// newAnalyzeWorker は、取り込んだ録画のファイルを読み直して索引と集計を作り、画像を作るジョブに渡す Worker を作る (設計書 6.3)。
+// newAnalyzeWorker は、取り込んだ録画のファイルを読み直してインデックスと集計を作り、画像を作るジョブに渡す Worker を作る (設計書 6.3)。
+// インデックスが変わらず画像もあれば、画像を作り直さない (#2012)。プレビュー画像があるかは、作る設定のときだけ確認する。
 func newAnalyzeWorker(pool *pgxpool.Pool, store *kago.Store, clk clock.Clock, inserter *jobs.Client) *analysis.AnalyzeWorker {
-	return analysis.NewAnalyzeWorker(pool, store, clk, inserter)
+	return analysis.NewAnalyzeWorker(pool, store, clk, inserter, previewsEnabled(pool))
 }
 
 // newJoinWorker は、引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐ Worker を作る (設計書 5.4)。
-// つないだあとは、索引と集計を作り直すために、解析のジョブに渡す。管理者が有効にしていれば、TvtPlay のチャプターのファイルを、
+// つないだあとは、インデックスと集計を作り直すために、解析のジョブに渡す。管理者が有効にしていれば、TvtPlay のチャプターのファイルを、
 // つないだセグメントで書き直させる (#1737)。
 func newJoinWorker(pool *pgxpool.Pool, store *kago.Store, inserter *jobs.Client, logger *slog.Logger) *segjoin.JoinWorker {
 	return segjoin.NewJoinWorker(pool, store, inserter, logger.With(slog.String("component", "segjoin")), 0).WithJoinedHook(tvtplay.NewEnqueuer(inserter))

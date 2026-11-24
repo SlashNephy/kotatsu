@@ -1,7 +1,7 @@
-// Package googletest は、テストと検証のための偽の Google (OAuth 2.0 の認可とトークン、Drive API の読み取り) を提供する (#1902)。
+// Package googletest は、テストと検証のためのモックの Google (OAuth 2.0 の認可とトークン、Drive API の読み取り) を提供する (#1902)。
 //
 // 認可のエンドポイントは、人の操作をまねずに、その場でコードを作って redirect_uri に戻す。トークンの API は、クライアントの資格、
-// redirect_uri、PKCE (S256) の code_verifier を確かめる。Drive API は、Bearer のアクセストークンを確かめ、files.list、files.get、
+// redirect_uri、PKCE (S256) の code_verifier を確認する。Drive API は、Bearer のアクセストークンを確認し、files.list、files.get、
 // alt=media と Range による読み出し、drives.list、about.get を返す。上限に当たった応答 (429 と 403) を差し込める。
 package googletest
 
@@ -35,7 +35,7 @@ const (
 	keyName = "name"
 )
 
-// File は、偽の Drive のファイルかフォルダ。
+// File は、モックの Drive のファイルかフォルダ。
 type File struct {
 	ID       string
 	Name     string
@@ -47,7 +47,7 @@ type File struct {
 	Trashed      bool
 }
 
-// Drive は、偽の共有ドライブ。
+// Drive は、モックの共有ドライブ。
 type Drive struct {
 	ID   string
 	Name string
@@ -73,7 +73,7 @@ const (
 	FaultCut Fault = "cut"
 )
 
-// Server は、偽の Google。
+// Server は、モックの Google。
 type Server struct {
 	ClientID     string
 	ClientSecret string
@@ -87,6 +87,10 @@ type Server struct {
 	OmitRefreshToken bool
 	// CutAfter は、FaultCut で本文を切る大きさ。
 	CutAfter int
+	// SearchPageSize は、名前で探すときの 1 ページの件数。0 なら 1 件ずつのページに分ける。
+	SearchPageSize int
+	// MaxQueryBytes は、files.list の q を URL に入れたときの長さの上限。超えたら、本物と同じく 400 を返す。0 なら上限を設けない。
+	MaxQueryBytes int
 
 	mu       sync.Mutex
 	codes    map[string]*grant
@@ -108,11 +112,11 @@ type grant struct {
 	scope       string
 }
 
-// New は、クライアント clientID と clientSecret を登録した偽の Google を返す。
+// New は、クライアント clientID と clientSecret を登録したモックの Google を返す。
 func New(clientID, clientSecret string) *Server {
 	return &Server{
 		ClientID: clientID, ClientSecret: clientSecret, RedirectURIs: []string{}, Account: "admin@example.com",
-		AccessTokenTTL: time.Hour, OmitRefreshToken: false, CutAfter: 1024,
+		AccessTokenTTL: time.Hour, OmitRefreshToken: false, CutAfter: 1024, SearchPageSize: 0, MaxQueryBytes: 0,
 		mu: sync.Mutex{}, codes: map[string]*grant{}, refresh: map[string]bool{}, access: map[string]time.Time{},
 		files: map[string]*File{
 			// マイドライブの根元は、本物と同じく、別名 root で引けるフォルダにする。
@@ -207,7 +211,7 @@ func (s *Server) ExpireAccessTokens() {
 	clear(s.access)
 }
 
-// IssueAccessToken は、認可を経ずにアクセストークンを発行する。Drive API のクライアントだけを確かめるテストで使う。
+// IssueAccessToken は、認可を経ずにアクセストークンを発行する。Drive API のクライアントだけを確認するテストで使う。
 func (s *Server) IssueAccessToken() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -215,7 +219,7 @@ func (s *Server) IssueAccessToken() string {
 	return s.issueAccess()
 }
 
-// Handler は、偽の Google の HTTP ハンドラーを返す。
+// Handler は、モックの Google の HTTP ハンドラーを返す。
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /o/oauth2/v2/auth", s.authorize)
@@ -329,7 +333,7 @@ func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// drive は、Drive API のハンドラーに、アクセストークンの確かめと、差し込んだ失敗を付ける。
+// drive は、Drive API のハンドラーに、アクセストークンの確認と、差し込んだ失敗を付ける。
 func (s *Server) drive(next func(w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
@@ -368,7 +372,7 @@ func (s *Server) drive(next func(w http.ResponseWriter, r *http.Request)) http.H
 	}
 }
 
-// cutWriter は、決まった大きさを書いたら、それ以上を書かずに捨てる。本文の長さが足りなくなり、受け取る側では途中で切れる。
+// cutWriter は、決まった大きさを書いたら、それ以上を書かずに破棄する。本文の長さが足りなくなり、受け取る側では途中で切れる。
 type cutWriter struct {
 	http.ResponseWriter
 
@@ -419,7 +423,46 @@ func (s *Server) getDrive(w http.ResponseWriter, r *http.Request) {
 }
 
 // parentsQuery は、files.list の q のうち、親を指定する部分。
-var parentsQuery = regexp.MustCompile(`^'([^']+)' in parents and trashed = false$`)
+// namedQuery と namedTerm と nameTerm は、親ごとに名前を指定する部分 (('<親>' in parents and (name = '<名前>' or ...)) or ...)。
+var (
+	parentsQuery = regexp.MustCompile(`^'([^']+)' in parents and trashed = false$`)
+	namedQuery   = regexp.MustCompile(`^\((.+)\) and trashed = false$`)
+	namedTerm    = regexp.MustCompile(`\('([^']+)' in parents and \(((?:name = '(?:[^'\\]|\\.)*'(?: or )?)+)\)\)`)
+	nameTerm     = regexp.MustCompile(`name = '((?:[^'\\]|\\.)*)'`)
+)
+
+// foldersQuery は、files.list の q のうち、フォルダをまとめて取得する部分。corporaUser は、マイドライブを探すときの corpora。
+const (
+	foldersQuery = "mimeType = '" + FolderMIMEType + "' and trashed = false"
+	corporaUser  = "user"
+)
+
+// queryNames は、親ごとに名前を指定する q から、親の ID と名前の組を返す。当たらなければ nil を返す。
+func queryNames(q string) map[string]map[string]bool {
+	match := namedQuery.FindStringSubmatch(q)
+	if match == nil {
+		return nil
+	}
+	names := map[string]map[string]bool{}
+	for _, term := range namedTerm.FindAllStringSubmatch(match[1], -1) {
+		if names[term[1]] == nil {
+			names[term[1]] = map[string]bool{}
+		}
+		for _, name := range nameTerm.FindAllStringSubmatch(term[2], -1) {
+			names[term[1]][unescapeQuery(name[1])] = true
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+
+	return names
+}
+
+// unescapeQuery は、q の文字列の中の \' と \\ を元に戻す。
+func unescapeQuery(s string) string {
+	return strings.NewReplacer(`\'`, `'`, `\\`, `\`).Replace(s)
+}
 
 // driveOf は、ファイル f のある共有ドライブの ID を返す。マイドライブなら空。s.mu を持って呼ぶ。
 func (s *Server) driveOf(f *File) string {
@@ -443,9 +486,9 @@ func (s *Server) driveOf(f *File) string {
 var searchQuery = regexp.MustCompile(`^name contains '((?:[^'\\]|\\.)*)' and mimeType != '` + regexp.QuoteMeta(FolderMIMEType) + `' and trashed = false$`)
 
 // searchFiles は、名前に語を含むファイルを、大文字と小文字を区別せずに探す。共有ドライブを指定されたら、その中だけを探す。
-// 1 件ずつのページに分ける。
+// SearchPageSize 件ずつのページに分ける。
 func (s *Server) searchFiles(w http.ResponseWriter, q url.Values, match []string) {
-	word := strings.ToLower(strings.NewReplacer(`\'`, `'`, `\\`, `\`).Replace(match[1]))
+	word := strings.ToLower(unescapeQuery(match[1]))
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	found := []*File{}
@@ -454,32 +497,61 @@ func (s *Server) searchFiles(w http.ResponseWriter, q url.Values, match []string
 			continue
 		}
 		drive := s.driveOf(f)
-		if (q.Get("corpora") == "drive" && drive != q.Get("driveId")) || (q.Get("corpora") == "user" && drive != "") {
+		if (q.Get("corpora") == "drive" && drive != q.Get("driveId")) || (q.Get("corpora") == corporaUser && drive != "") {
 			continue
 		}
 		found = append(found, f)
 	}
 	slices.SortFunc(found, func(a, b *File) int { return strings.Compare(a.ID, b.ID) })
+	size := max(s.SearchPageSize, 1)
 	start, _ := strconv.Atoi(q.Get("pageToken"))
-	page := map[string]any{"files": []any{}}
-	if start < len(found) {
-		page["files"] = []any{s.fileJSON(found[start])}
-		if start+1 < len(found) {
-			page["nextPageToken"] = strconv.Itoa(start + 1)
-		}
+	shown := found[min(start, len(found)):min(start+size, len(found))]
+	files := make([]any, 0, len(shown))
+	for _, f := range shown {
+		files = append(files, s.fileJSON(f))
+	}
+	page := map[string]any{"files": files}
+	if start+size < len(found) {
+		page["nextPageToken"] = strconv.Itoa(start + size)
 	}
 	writeJSON(w, page)
 }
 
+// listMatcher は、名前で探すもの以外の files.list の q から、返すファイルを選ぶ関数を返す。読めない q なら false を返す。
+// 返す関数は、s.mu を持って呼ぶ。
+func (s *Server) listMatcher(q url.Values) (func(f *File) bool, bool) {
+	if q.Get("q") == foldersQuery {
+		return func(f *File) bool {
+			drive := s.driveOf(f)
+			// 根元 (マイドライブと共有ドライブそのもの) は、本物と同じく返さない。
+			return f.MIMEType == FolderMIMEType && f.Parent != "" &&
+				((q.Get("corpora") == "drive" && drive == q.Get("driveId")) || (q.Get("corpora") == corporaUser && drive == ""))
+		}, true
+	}
+	if match := parentsQuery.FindStringSubmatch(q.Get("q")); match != nil {
+		return func(f *File) bool { return f.Parent == match[1] }, true
+	}
+	if named := queryNames(q.Get("q")); named != nil {
+		return func(f *File) bool { return named[f.Parent][f.Name] }, true
+	}
+
+	return nil, false
+}
+
 func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	if s.MaxQueryBytes > 0 && len(url.QueryEscape(q.Get("q"))) > s.MaxQueryBytes {
+		apiError(w, http.StatusBadRequest, "invalid")
+
+		return
+	}
 	if search := searchQuery.FindStringSubmatch(q.Get("q")); search != nil {
 		s.searchFiles(w, q, search)
 
 		return
 	}
-	match := parentsQuery.FindStringSubmatch(q.Get("q"))
-	if match == nil || q.Get("supportsAllDrives") != "true" || q.Get("includeItemsFromAllDrives") != "true" {
+	match, ok := s.listMatcher(q)
+	if !ok || q.Get("supportsAllDrives") != "true" || q.Get("includeItemsFromAllDrives") != "true" {
 		apiError(w, http.StatusBadRequest, "invalidQuery")
 
 		return
@@ -488,7 +560,7 @@ func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	children := []*File{}
 	for _, f := range s.files {
-		if f.Parent == match[1] && !f.Trashed {
+		if !f.Trashed && match(f) {
 			children = append(children, f)
 		}
 	}
@@ -500,7 +572,7 @@ func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 
 		return strings.Compare(a.ID, b.ID)
 	})
-	// 1 件ずつのページに分けて、ページをたどることを確かめられるようにする。
+	// 1 件ずつのページに分けて、ページをたどることを確認できるようにする。
 	start, _ := strconv.Atoi(q.Get("pageToken"))
 	page := map[string]any{"files": []any{}}
 	if start < len(children) {

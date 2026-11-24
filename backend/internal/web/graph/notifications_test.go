@@ -72,7 +72,7 @@ func (p *notificationPage) kinds() []string {
 	return kinds
 }
 
-// notify は、イベントを記録して、受け取るユーザーに配る。作った日時で並ぶよう、配るたびに時計を進める。
+// notify は、イベントを記録して、受け取るユーザーに配信する。作った日時で並ぶよう、配信するたびに時計を進める。
 func (f *fixture) notify(t *testing.T, kind domain.NotificationKind, payload map[string]any) {
 	t.Helper()
 
@@ -102,7 +102,7 @@ func (f *fixture) unreadCount(t *testing.T) int {
 	return got.UnreadNotificationCount
 }
 
-// TestNotificationsByKind は、通知を種類で絞って返すことを確かめる (画面の上のお知らせ、#1519)。
+// TestNotificationsByKind は、通知を種類で絞って返すことを確認する (画面の上のお知らせ、#1519)。
 func TestNotificationsByKind(t *testing.T) {
 	t.Parallel()
 
@@ -133,7 +133,7 @@ func TestNotificationsByKind(t *testing.T) {
 	}
 }
 
-// TestNotifications は、ログイン中のユーザーが自分の通知を読み、既読にできることを確かめる (設計書 6.2)。
+// TestNotifications は、ログイン中のユーザーが自分の通知を読み、既読にできることを確認する (設計書 6.2)。
 func TestNotifications(t *testing.T) {
 	t.Parallel()
 
@@ -200,7 +200,7 @@ func TestNotificationsRejectsInvalidInput(t *testing.T) {
 	}
 }
 
-// TestNotificationPreferences は、ユーザーが種類ごとの通知設定を変え、画面内の通知を切った種類は届かないことを確かめる。
+// TestNotificationPreferences は、ユーザーが種類ごとの通知設定を変え、画面内の通知を切った種類は届かないことを確認する。
 func TestNotificationPreferences(t *testing.T) {
 	t.Parallel()
 
@@ -261,7 +261,7 @@ func TestNotificationPreferences(t *testing.T) {
 	assert.Equal(t, []string{kindRecordingFailed}, f.notifications(t, 10, nil, false).kinds())
 }
 
-// TestNotificationMessage は、通知に、Web Push と同じ文を、表示のタイムゾーンで付けることを確かめる。
+// TestNotificationMessage は、通知に、Web Push と同じ文を、表示のタイムゾーンで付けることを確認する。
 func TestNotificationMessage(t *testing.T) {
 	t.Parallel()
 

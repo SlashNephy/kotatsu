@@ -11,10 +11,10 @@ import (
 	"uuid"
 )
 
-// lostAndFound は、ext4 などがファイルシステムの直下に作るディレクトリ。プールの中身ではないので調べない。
+// lostAndFound は、ext4 などがファイルシステムの直下に作るディレクトリ。プールの内容ではないので確認しない。
 const lostAndFound = "lost+found"
 
-// Entry は、プールを調べて見つけたファイルか、生成物のディレクトリ。
+// Entry は、プールを走査して見つけたファイルか、生成物のディレクトリ。
 type Entry struct {
 	// Path は、プール内の相対パス (/ 区切り)。
 	Path string
@@ -42,7 +42,7 @@ func latest(a, b time.Time) time.Time {
 	return a
 }
 
-// ScanPoolIDs は、Scan で調べるプールの ID を返す。設定の順のプールの後に、データディレクトリを続ける。
+// ScanPoolIDs は、Scan で走査するプールの ID を返す。設定の順のプールの後に、データディレクトリを続ける。
 func (s *Store) ScanPoolIDs() []string {
 	ids := s.PoolIDs()
 	if s.dataDir != "" {
@@ -181,7 +181,7 @@ func (s *Store) RemoveEntry(poolID, rel string, segmentDir bool) error {
 	return nil
 }
 
-// Inspect は、Scan が返すものと同じ形で、プールのファイルか生成物のディレクトリ rel を調べ直す。
+// Inspect は、Scan が返すものと同じ形で、プールのファイルか生成物のディレクトリ rel を確認し直す。
 // Scan が返さないもの (隠しファイル、lost+found、普通のファイルでないもの、segmentDir と種類の合わないもの) なら ErrInvalidPath を返す。
 // なければ os.ErrNotExist を包んで返す。
 func (s *Store) Inspect(poolID, rel string, segmentDir bool) (*Entry, error) {

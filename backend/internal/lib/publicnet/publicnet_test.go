@@ -9,7 +9,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 )
 
-// TestIsPublic は、接続してよい、インターネットのアドレスだけを受け付けることを確かめる。
+// TestIsPublic は、接続してよい、インターネットのアドレスだけを受け付けることを確認する。
 func TestIsPublic(t *testing.T) {
 	t.Parallel()
 

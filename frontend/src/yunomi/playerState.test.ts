@@ -135,7 +135,7 @@ describe('usePlayerEvents', () => {
     });
     expect(onPlayback.mock.calls).toEqual([[{ paused: true }], [{ volume: 0.5, muted: false }]]);
 
-    // 購読する関数を差し替えたら、前の関数には配らない。
+    // 購読する関数を差し替えたら、前の関数には発行しない。
     rerender({ current: state, subscribed: false });
     expect(onProgram).toHaveBeenCalledTimes(1);
   });

@@ -18,7 +18,7 @@ emconfigure "$src/configure" \
   --cc=emcc --cxx=em++ --ar=emar --ranlib=emranlib --nm=emnm \
   --disable-asm --disable-inline-asm --disable-x86asm --disable-pthreads --disable-w32threads --disable-os2threads \
   --disable-programs --disable-doc --disable-network --disable-autodetect --disable-debug --disable-runtime-cpudetect \
-  --disable-everything --disable-avdevice --disable-avformat --disable-avfilter --disable-swscale --disable-postproc \
+  --disable-everything --disable-avdevice --disable-avformat --disable-avfilter --disable-swscale \
   --enable-decoder=mpeg2video,aac,opus --enable-parser=mpegvideo --enable-swresample \
   --optflags="$cflags" --extra-cflags="$cflags" --extra-ldflags="$cflags" >"$out/configure.log"
 emmake make -j"$(nproc)" >"$out/make.log" 2>&1

@@ -35,7 +35,7 @@ func testNow() time.Time {
 	return time.Date(2026, 11, 17, 3, 0, 0, 0, time.UTC)
 }
 
-// newEmptyDB は、表のない空の DB を作る。
+// newEmptyDB は、テーブルのない空の DB を作る。
 func newEmptyDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
@@ -86,7 +86,7 @@ func restoreOptions(pool *pgxpool.Pool, store *kago.Store) *backup.RestoreOption
 	}
 }
 
-// listTables は、今のスキーマの表の名前を返す。
+// listTables は、今のスキーマのテーブルの名前を返す。
 func listTables(t *testing.T, pool *pgxpool.Pool) []string {
 	t.Helper()
 
@@ -98,8 +98,8 @@ func listTables(t *testing.T, pool *pgxpool.Pool) []string {
 	return names
 }
 
-// TestTablesAreClassified は、マイグレーションを当てた DB のどの表も、バックアップに入れるか外すかを決めてあり、
-// 書き出しが止まらないことを確かめる。表を足して分け忘れると、書き出しが ErrUnclassifiedTable で止まる。
+// TestTablesAreClassified は、マイグレーションを当てた DB のどのテーブルも、バックアップに入れるか外すかを決めてあり、
+// 作成が止まらないことを確認する。テーブルを足して分け忘れると、作成が ErrUnclassifiedTable で止まる。
 func TestTablesAreClassified(t *testing.T) {
 	t.Parallel()
 
@@ -118,7 +118,7 @@ func TestTablesAreClassified(t *testing.T) {
 			excluded = append(excluded, name)
 		}
 	}
-	// 外すのは、番組表とその変更の記録、セッションとそれを指す表、River の表とジョブの進み具合、マイグレーションの表だけ。
+	// 外すのは、番組表とその変更の記録、セッションとそれを指すテーブル、River のテーブルとジョブの進み具合、マイグレーションのテーブルだけ。
 	for _, name := range excluded {
 		if strings.HasPrefix(name, "river_") {
 			continue
@@ -134,7 +134,7 @@ func TestTablesAreClassified(t *testing.T) {
 	assert.Equal(t, database.LatestVersion(), result.Manifest.SchemaVersion)
 }
 
-// seed は、戻すことを確かめる行を入れる。
+// seed は、戻すことを確認する行を入れる。
 type seed struct {
 	userID, captureID, recordingID uuid.UUID
 	image                          []byte
@@ -164,9 +164,9 @@ VALUES ($1, 41, 3273601024, 99, 'きのうのニュース', '', 'きのうのニ
 		{`INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, created_at)
 VALUES ($1, $2, 'segment', 'main', 'news.m2ts', 1024, $3, $3)`, []any{uuid.New(), s.recordingID, testNow().Add(-2 * time.Hour)}},
 		{"INSERT INTO watch_progress (user_id, recording_id, position_ms, updated_at) VALUES ($1, $2, 60000, $3)", []any{s.userID, s.recordingID, testNow()}},
-		{`INSERT INTO captures (id, user_id, recording_id, position_ms, service_name, service_name_normalized, program_name_normalized, broadcast_at, taken_at, size, created_at)
-VALUES ($1, $2, $3, 1000, 'NHK', 'nhk', '', $4, $4, $5, $4)`, []any{s.captureID, s.userID, s.recordingID, testNow(), len(s.image)}},
-		// 外す表とそれを指す行。
+		{`INSERT INTO captures (id, user_id, recording_id, position_ms, service_name, service_name_normalized, program_name_normalized, caption_normalized, broadcast_at, taken_at, size, created_at)
+VALUES ($1, $2, $3, 1000, 'NHK', 'nhk', '', '', $4, $4, $5, $4)`, []any{s.captureID, s.userID, s.recordingID, testNow(), len(s.image)}},
+		// 外すテーブルとそれを指す行。
 		{`INSERT INTO sessions (id, token_hash, user_id, created_at, authenticated_at, last_seen_at, expires_at, user_agent)
 VALUES ($1, '\x01', $2, $3, $3, $3, $4, 'test')`, []any{sessionID, s.userID, testNow(), testNow().Add(24 * time.Hour)}},
 		{`INSERT INTO web_push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, created_at, updated_at, session_id)
@@ -174,10 +174,12 @@ VALUES ($1, $2, 'https://push.example/1', '\x02', '\x03', 'test', $3, $3, $4)`, 
 		{`INSERT INTO programs (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized,
 description_normalized, extended, genres, related_items, created_at, updated_at)
 VALUES (3273601024, 100, 1, $1, $2, false, true, 'ニュース', '', 'ニュース', '', '{}', '[]', '[]', $3, $3)`, []any{testNow().Add(time.Hour), testNow().Add(2 * time.Hour), testNow()}},
-		// COPY の出力を区切る大きさ (4 MiB) より大きくし、1 つの表を複数のエントリーに分けて書き、つないで戻すことを確かめる。
-		// 暗号化の 1 つの塊 (64 KiB) よりも大きいので、途中で切れたファイルは、流し込みの途中で読めなくなる。
-		{`INSERT INTO program_rewrites (service_id, event_id, start_at, field, before, after, observed_at)
-SELECT 3273601024, n, $1, 'name', md5(n::text || 'before'), md5(n::text || 'after'), $1 FROM generate_series(1, 60000) AS n`, []any{testNow()}},
+		// COPY の出力を区切る大きさ (4 MiB) より大きくし、1 つのテーブルを複数のエントリーに分けて書き、つないで戻すことを確認する。
+		// 暗号化の 1 つのチャンク (64 KiB) よりも大きいので、途中で切れたファイルは、流し込みの途中で読めなくなる。
+		{`INSERT INTO program_archives (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
+name_normalized, description_normalized, extended, genres, related_items, created_at, updated_at, archived_at)
+SELECT 3273601024, n, 1000000 + n, $1, $2, false, true, md5(n::text || 'name'), md5(n::text || 'description'), md5(n::text || 'name'),
+md5(n::text || 'description'), '{}', '[]', '[]', $1, $1, $2 FROM generate_series(1, 60000) AS n`, []any{testNow().Add(-2 * time.Hour), testNow().Add(-time.Hour)}},
 		{"INSERT INTO anime_match_cursor (id, epg_version, updated_at) VALUES (1, 500, $1)", []any{testNow()}},
 		{"INSERT INTO epg_changes (version, service_id, start_at, end_at, created_at) VALUES (500, 3273601024, $1, $2, $1)", []any{testNow(), testNow().Add(time.Hour)}},
 	}
@@ -196,7 +198,7 @@ SELECT 3273601024, n, $1, 'name', md5(n::text || 'before'), md5(n::text || 'afte
 	return s
 }
 
-// tableContents は、表のすべての行を JSON の文字列にし、並べ替えて返す。表どうしを比べるのに使う。
+// tableContents は、テーブルのすべての行を JSON の文字列にし、並べ替えて返す。テーブルどうしを比較するのに使う。
 func tableContents(t *testing.T, pool *pgxpool.Pool, table string) []string {
 	t.Helper()
 
@@ -218,8 +220,8 @@ func countRows(t *testing.T, pool *pgxpool.Pool, table string) int {
 	return n
 }
 
-// TestRestoreRoundTrip は、書き出したバックアップを空の DB に戻すと、予約、ルール、録画、視聴の記録、設定、キャプチャが戻り、
-// 外した表が空で作り直され、戻した DB でロールが起動できる (スキーマの確かめを通る) ことを確かめる。
+// TestRestoreRoundTrip は、作成したバックアップを空の DB に戻すと、予約、ルール、録画、視聴の記録、設定、キャプチャが戻り、
+// 外したテーブルが空で作り直され、戻した DB でロールが起動できる (スキーマの確認を通る) ことを確認する。
 func TestRestoreRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -234,7 +236,7 @@ func TestRestoreRoundTrip(t *testing.T) {
 	assert.Equal(t, 1, result.Manifest.Captures)
 	assert.Zero(t, result.MissingCaptures)
 	assert.Equal(t, int64(buf.Len()), result.Bytes)
-	// 暗号化しているので、行の中身がそのまま現れない。
+	// 暗号化しているので、行の内容がそのまま現れない。
 	assert.NotContains(t, buf.String(), "きのうのニュース")
 	assert.NotContains(t, buf.String(), testSecretKey)
 
@@ -248,7 +250,7 @@ func TestRestoreRoundTrip(t *testing.T) {
 	require.NoError(t, database.CheckSchema(t.Context(), target))
 	require.NoError(t, jobs.CheckSchema(t.Context(), target))
 
-	// 入れた表は、行がそのまま戻る。Web Push の購読は、セッションとの結びつきだけを外す。
+	// 入れたテーブルは、行がそのまま戻る。Web Push の購読は、セッションとの結びつきだけを外す。
 	for _, table := range manifest.Tables {
 		switch table.Name {
 		case "web_push_subscriptions", "schema_compatibility":
@@ -263,7 +265,7 @@ func TestRestoreRoundTrip(t *testing.T) {
 		assert.Equal(t, 1, countRows(t, target, table), table)
 	}
 
-	// 外した表は、空で作り直される。
+	// 外したテーブルは、空で作り直される。
 	for _, table := range []string{"sessions", "programs", "epg_changes", "change_versions", "anime_match_cursor"} {
 		assert.Zero(t, countRows(t, target, table), table)
 	}
@@ -280,7 +282,7 @@ func TestRestoreRoundTrip(t *testing.T) {
 VALUES ($1, 3273601024, 'new', '', $2, $3, 'completed', $2, $2, $2) RETURNING api_id`, uuid.New(), testNow(), testNow().Add(time.Minute)).Scan(&apiID))
 	assert.Equal(t, int64(42), apiID)
 
-	// 変更の通知の版数は 1 から数え直し、見張る側は、戻した後の最初の変更に気づく。
+	// 変更の通知のバージョンは 1 から数え直し、見張る側は、戻した後の最初の変更に気づく。
 	watcher, err := notify.NewWatcher(t.Context(), target, slog.New(slog.DiscardHandler), []string{epg.NotifyChannel}, notify.WatcherOptions{UseListen: false, PollInterval: 10 * time.Millisecond})
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -297,7 +299,7 @@ VALUES ($1, 3273601024, 'new', '', $2, $3, 'completed', $2, $2, $2) RETURNING ap
 	assert.Equal(t, int64(1), watcher.Version(epg.NotifyChannel))
 }
 
-// TestRestoreRejects は、戻せないバックアップや戻す先を、DB を変えずに拒むことを確かめる。
+// TestRestoreRejects は、戻せないバックアップや戻す先を、DB を変えずに拒むことを確認する。
 func TestRestoreRejects(t *testing.T) {
 	t.Parallel()
 
@@ -368,7 +370,7 @@ func TestRestoreRejects(t *testing.T) {
 	}
 }
 
-// TestWriteCaptures は、キャプチャの行があるのにデータディレクトリがなければ書き出さず、画像だけがなければ、行だけを書き出して数えることを確かめる。
+// TestWriteCaptures は、キャプチャの行があるのにデータディレクトリがなければ出力せず、画像だけがなければ、行だけを出力して数えることを確認する。
 func TestWriteCaptures(t *testing.T) {
 	t.Parallel()
 

@@ -9,7 +9,7 @@ import (
 )
 
 // BracketMarkWords は、括弧で書いたものを囲み文字とみなす語の、正規表現の選択肢 (新|再|...) を返す。
-// 表 (EnclosedCharacters) の中身に、括弧で書いたときに中身の代わりに使われる語 (吹替、字幕、無料。bracketMarkLabel で中身にそろえる) を足す。
+// テーブル (EnclosedCharacters) の内容に、括弧で書いたときに内容の代わりに使われる語 (吹替、字幕、無料。bracketMarkLabel で内容にそろえる) を足す。
 // [前] と [後] (前編と後編) は、別の番組を見分ける番組名の一部とみなすので除く。
 // ルールのキーワードの作品名の終わり (rulekeyword.go) と、重複の回避のキー (rule.TitleKey) も、これを使う。
 func BracketMarkWords() string {
@@ -27,10 +27,10 @@ func BracketMarkWords() string {
 
 // bracketMarkPattern は、番組名に括弧で書いた囲み文字 ([新]、【再】、(字) など)。NFKC で正規化した番組名から探す。
 // 局によっては、囲み文字の代わりに括弧で書くので、同じ囲み文字とみなす。
-// 括弧の中が、BracketMarkWords の語に限る。[劇場版] のような表にない語は、番組名の一部とみなす。
+// 括弧の中が、BracketMarkWords の語に限る。[劇場版] のようなテーブルにない語は、番組名の一部とみなす。
 var bracketMarkPattern = regexp.MustCompile(`[\[【(（](` + BracketMarkWords() + `)[\]】)）]`)
 
-// bracketMarkLabel は、括弧で書いた語を、囲み文字の中身にそろえる。
+// bracketMarkLabel は、括弧で書いた語を、囲み文字の内容にそろえる。
 func bracketMarkLabel(word string) string {
 	switch word {
 	case "吹替":
@@ -45,7 +45,7 @@ func bracketMarkLabel(word string) string {
 	return word
 }
 
-// replaceEnclosedMarks は、表の囲み文字を、EPGStation と同じく [字] のような括弧の書き方に置き換える。
+// replaceEnclosedMarks は、テーブルの囲み文字を、EPGStation と同じく [字] のような括弧の書き方に置き換える。
 func replaceEnclosedMarks(s string) string {
 	if !strings.ContainsFunc(s, mayBeEnclosed) {
 		return s
@@ -66,7 +66,7 @@ func replaceEnclosedMarks(s string) string {
 	return b.String()
 }
 
-// Marks は、正規化する前の番組名から、囲み文字の中身 (括弧で書いたものを含む) を取り出す (設計書 4.2)。
+// Marks は、正規化する前の番組名から、囲み文字の内容 (括弧で書いたものを含む) を取り出す (設計書 4.2)。
 // 番組名に出てきた順に、囲み文字を先に、重複を除いて並べる。
 // 囲み文字を括弧の書き方にする前に正規化した番組名では、囲み文字が「新」のような文字になり、番組名の文字と見分けられないので、
 // 正規化する前の番組名を使う。

@@ -105,7 +105,7 @@ type aniListMedia struct {
 }
 
 // RecordEpisode は、何話まで見たか (progress) を、今の値より大きいときだけ更新する。見直しで巻き戻さないため。
-// 話数のない放送は、1 話だけの作品 (劇場版など) なら 1 話を見たことにし、ほかは記録できないものとする。
+// 話数のない放送は、1 話だけの作品 (映画など) なら 1 話を見たことにし、ほかは記録できないものとする。
 // 作品が複数あれば、最初の作品に記録する。
 func (a *AniList) RecordEpisode(ctx context.Context, token string, workIDs []int32, episode *Episode, rules *StatusRules) (*Recorded, error) {
 	if len(workIDs) == 0 {
@@ -163,7 +163,7 @@ func (a *AniList) RecordEpisode(ctx context.Context, token string, workIDs []int
 const aniListWishlistChunk = 500
 
 // Wishlist は、AniList で PLANNING か CURRENT にした作品の 1 ページを返す (#928)。
-// MediaListCollection はユーザーを指して引くので、最初のページでは、先にトークンの持ち主の ID を引く。
+// MediaListCollection はユーザーを指して取得するので、最初のページでは、先にトークンの持ち主の ID を取得する。
 // cursor は「ユーザー ID:チャンクの番号」の形にする。
 func (a *AniList) Wishlist(ctx context.Context, token, cursor string) (*WishlistPage, error) {
 	userID, chunk, err := a.wishlistCursor(ctx, token, cursor)
@@ -402,7 +402,7 @@ func (a *AniList) FollowingViewings(ctx context.Context, token string, workIDs [
 	return page, nil
 }
 
-// wishlistCursor は、見たいリストの cursor から、ユーザー ID とチャンクの番号を返す。最初のページなら、トークンの持ち主の ID を引く。
+// wishlistCursor は、見たいリストの cursor から、ユーザー ID とチャンクの番号を返す。最初のページなら、トークンの持ち主の ID を取得する。
 func (a *AniList) wishlistCursor(ctx context.Context, token, cursor string) (int64, int, error) {
 	if cursor == "" {
 		var viewer struct {

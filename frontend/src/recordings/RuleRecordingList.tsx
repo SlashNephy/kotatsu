@@ -28,7 +28,7 @@ type Props = {
   recordingId: string;
 };
 
-// RuleRecordingList は、録画の再生の画面の右の列に置く、同じルールで録ったほかの録画の一覧 (設計書 10.3)。
+// RuleRecordingList は、録画の再生の画面の右のカラムに置く、同じルールで録ったほかの録画の一覧 (設計書 10.3)。
 // YouTube の「次の動画」と同じく、押すとその録画の再生へ移る。
 export function RuleRecordingList({ ruleId, ruleName, recordingId }: Props) {
   const { t } = useTranslation();

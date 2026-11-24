@@ -28,7 +28,7 @@ const (
 	DefaultIdleTimeout = 10 * time.Second
 	// playlistTimeout は、エンコーダーを起動してから、最初のセグメントがプレイリストに載るのを待つ時間の上限。
 	playlistTimeout = 20 * time.Second
-	// pollInterval は、プレイリストができたかを確かめる間隔。
+	// pollInterval は、プレイリストができたかを確認する間隔。
 	pollInterval = 100 * time.Millisecond
 	// reapInterval は、使われていないセッションを探す間隔。
 	reapInterval = time.Second
@@ -177,18 +177,44 @@ func (l *Live) Run(ctx context.Context) error {
 	}
 }
 
-// Handler は、ライブ視聴の HLS を配信するハンドラーを返す。token を付けたリクエストだけを受け付ける。
-func (l *Live) Handler(token *Token) http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET "+LivePathPrefix+"{service}/{preset}/{audio}/{file}", l.serveHTTP)
-
-	return token.Middleware(mux)
-}
-
 // CanTranscode は、エンコーダーがあり、トランスコードできるかどうかを返す。
 // FFmpeg か tsreadex がなければ、kyusu は起動しても、トランスコードの要求に 503 を返す。
 func (l *Live) CanTranscode() bool {
 	return l.encoder != nil
+}
+
+var _ http.Handler = new(Live)
+
+// ServeHTTP は、ライブ視聴の HLS のプレイリストかセグメントを返す。パスの service、preset、audio、file を r.PathValue で読む。
+// ルートは web の層 (web/kyusuapi) で登録する (#2016)。
+func (l *Live) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	serviceID, err := strconv.ParseInt(r.PathValue("service"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid service ID", http.StatusBadRequest)
+
+		return
+	}
+	preset, ok := PresetByName(r.PathValue("preset"))
+	if !ok {
+		http.Error(w, "unknown preset", http.StatusNotFound)
+
+		return
+	}
+	audio, err := ParseAudio(r.PathValue("audio"))
+	if err != nil {
+		http.Error(w, "unknown audio", http.StatusNotFound)
+
+		return
+	}
+	file := r.PathValue("file")
+	switch {
+	case file == PlaylistName:
+		l.servePlaylist(w, r, serviceID, preset, audio)
+	case segmentName.MatchString(file):
+		l.serveSegment(w, r, serviceID, preset, audio, file)
+	default:
+		http.NotFound(w, r)
+	}
 }
 
 // reap は、now の時点で、セグメントを idleTimeout より長く要求されていないセッションを止める。
@@ -301,8 +327,8 @@ func (l *Live) encode(ctx context.Context, s *session, preset *Preset) {
 	close(s.done)
 }
 
-// scrambleVerdict は、エンコーダーが止まった後に、スクランブルされたまま届いていたかを確かめ、そうなら ts.ErrScrambled を返す。
-// 最初のセグメントができる前にエンコーダーが降りたら、いちばん新しい窓だけで決める (設計書 7.1)。
+// scrambleVerdict は、エンコーダーが止まった後に、スクランブルされたまま届いていたかを確認し、そうなら ts.ErrScrambled を返す。
+// 最初のセグメントができる前にエンコーダーが降りたら、いちばん新しいウィンドウだけで決める (設計書 7.1)。
 // 原因はエンコーダーではないので、エンコードの方式を変えて起動し直すことはしない。そうでなければ err をそのまま返す。
 func (l *Live) scrambleVerdict(ctx context.Context, s *session, detector *ts.ScrambleDetector, err error) error {
 	if detector == nil || ctx.Err() != nil {
@@ -368,36 +394,6 @@ func (l *Live) segment(serviceID int64, preset *Preset, audio Audio, name string
 	s.lastAccess = l.clock.Now()
 
 	return filepath.Join(s.dir, name), true
-}
-
-func (l *Live) serveHTTP(w http.ResponseWriter, r *http.Request) {
-	serviceID, err := strconv.ParseInt(r.PathValue("service"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid service ID", http.StatusBadRequest)
-
-		return
-	}
-	preset, ok := PresetByName(r.PathValue("preset"))
-	if !ok {
-		http.Error(w, "unknown preset", http.StatusNotFound)
-
-		return
-	}
-	audio, err := ParseAudio(r.PathValue("audio"))
-	if err != nil {
-		http.Error(w, "unknown audio", http.StatusNotFound)
-
-		return
-	}
-	file := r.PathValue("file")
-	switch {
-	case file == PlaylistName:
-		l.servePlaylist(w, r, serviceID, preset, audio)
-	case segmentName.MatchString(file):
-		l.serveSegment(w, r, serviceID, preset, audio, file)
-	default:
-		http.NotFound(w, r)
-	}
 }
 
 func (l *Live) servePlaylist(w http.ResponseWriter, r *http.Request, serviceID int64, preset *Preset, audio Audio) {

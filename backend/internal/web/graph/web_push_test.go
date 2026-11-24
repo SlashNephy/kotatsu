@@ -56,7 +56,7 @@ func (f *fixture) webPushSubscriptions(t *testing.T) []webPushSubscriptionNode {
 	return got.WebPushSubscriptions
 }
 
-// TestWebPush は、どのロールのユーザーも、VAPID の公開鍵を得て、自分の端末で購読し、解除できることを確かめる (設計書 6.2)。
+// TestWebPush は、どのロールのユーザーも、VAPID の公開鍵を得て、自分の端末で購読し、解除できることを確認する (設計書 6.2)。
 func TestWebPush(t *testing.T) {
 	t.Parallel()
 
@@ -97,7 +97,7 @@ func TestWebPush(t *testing.T) {
 	assert.Empty(t, f.webPushSubscriptions(t))
 }
 
-// TestSubscribeWebPushRejectsInvalidInput は、正しくない購読を BAD_USER_INPUT で拒むことを確かめる。
+// TestSubscribeWebPushRejectsInvalidInput は、正しくない購読を BAD_USER_INPUT で拒むことを確認する。
 func TestSubscribeWebPushRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 

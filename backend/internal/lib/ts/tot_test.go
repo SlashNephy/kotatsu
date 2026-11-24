@@ -12,7 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// TestAnalyzerTOT は、TOT を読み、放送の現在の時刻を OnTOT に渡すことを確かめる (#1309)。
+// TestAnalyzerTOT は、TOT を読み、放送の現在の時刻を OnTOT に渡すことを確認する (#1309)。
 // OnTOT を渡さなければ、TOT を読まない。
 func TestAnalyzerTOT(t *testing.T) {
 	t.Parallel()
@@ -31,7 +31,7 @@ func TestAnalyzerTOT(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestParseTOT は、JST_time の MJD と BCD を読み、壊れた値は読まないことを確かめる (#1309)。
+// TestParseTOT は、JST_time の MJD と BCD を読み、壊れた値は読まないことを確認する (#1309)。
 func TestParseTOT(t *testing.T) {
 	t.Parallel()
 

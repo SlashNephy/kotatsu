@@ -1,23 +1,26 @@
-// 回線の側の兆しで画質の「自動」の段を下げ、試しのデータや受け取りの速さで余裕を確かめてから上げる (#1513、設計書 7.1、7.5)。
-// video の要素にも React にも触れず、時刻と測った値を渡されて決めるだけにする。要素を読んで渡すのは useNetworkQuality。
+// 回線の側の兆候で画質の「自動」の段階を下げ、プローブのデータや受け取りの速さで余裕を確認してから上げる (#1513、設計書 7.1、7.5)。
+// video の要素にも React にも触れず、時刻と計測した値を渡されて決めるだけにする。要素を読んで渡すのは useNetworkQuality。
 
 // NetworkParams は、制御の値。秒の値は秒、時間の値はミリ秒、速さは bps で持つ。既定値は設計書の付録 A。
 export type NetworkParams = {
-  // tickMs は、回線の側の兆しを見る間隔 (回線の判定の刻み)。
+  // tickMs は、回線の側の兆候を見る間隔 (回線の判定の間隔)。
   tickMs: number;
-  // ignoreAfterSwitchMs は、選局、シーク、段の切り替えの直後に数えない時間 (切り替え直後の無視時間)。
+  // ignoreAfterSwitchMs は、選局、シーク、段階の切り替えの直後に数えない時間 (切り替え直後の無視時間)。
   ignoreAfterSwitchMs: number;
   // stallMs は、readyState が HAVE_FUTURE_DATA 未満の状態を、詰まりとみなすまでの時間 (詰まりとみなす時間)。
   stallMs: number;
   // frameGapMs は、次のコマが来ないのを、映像だけ止まったとみなすまでの時間 (コマの途絶とみなす時間)。
   frameGapMs: number;
+  // frameGapAheadBelow は、コマの途絶を回線の兆候に数える、先に読み込んである量の上限 (秒、コマの途絶を数える先読みの上限)。
+  // 先読みが十分にあるのにコマが途切れるのは、回線ではなく、変換か描画の側で途切れたとみなす (#2033)。
+  frameGapAheadBelow: number;
   // drainBelow、drainDurationMs、drainRate は、バッファの減少を「足りない」とみなす、見るバッファの量 (秒)、減少の継続時間、
-  // 減少の速さの閾値 (1 秒あたりの秒)。drainEdgeMs は、減少の継続時間の窓の最初と最後の区間の長さ。区間の最小値どうしを比べる。
+  // 減少の速さの閾値 (1 秒あたりの秒)。drainEdgeMs は、減少の継続時間のウィンドウの最初と最後の区間の長さ。区間の最小値どうしを比較する。
   drainBelow: number;
   drainDurationMs: number;
   drainEdgeMs: number;
   drainRate: number;
-  // lagWindowMs、lagEdgeMs、lagGrowth、lagResetGrowth は、放送に対する遅れの伸びを見る窓、窓の端の区間、伸びの閾値 (秒)、
+  // lagWindowMs、lagEdgeMs、lagGrowth、lagResetGrowth は、放送に対する遅れの伸びを見るウィンドウ、ウィンドウの端の区間、伸びの閾値 (秒)、
   // 端が戻ったとみなす伸び (秒)。
   lagWindowMs: number;
   lagEdgeMs: number;
@@ -25,18 +28,18 @@ export type NetworkParams = {
   lagResetGrowth: number;
   // backlogDurationMs は、サーバのバックログが伸び続けたら足りないとみなす時間 (バックログの継続時間)。
   backlogDurationMs: number;
-  // margin は、受け取りの速さのうち、段に使ってよい割合 (余白の係数)。
+  // margin は、受け取りの速さのうち、段階に使ってよい割合 (余白の係数)。
   margin: number;
-  // rateWindowMs と rateShortWindows は、受け取りの速さの窓と、その不足が続いたら下げるまでの窓の数 (速さ不足の継続時間)。
+  // rateWindowMs と rateShortWindows は、受け取りの速さのウィンドウと、その不足が続いたら下げるまでのウィンドウの数 (速さ不足の継続時間)。
   rateWindowMs: number;
   rateShortWindows: number;
   // encodeSlowSpeed と encodeSlowDurationMs は、サーバのエンコードが追いつかないとみなす、エンコードの速さの閾値と継続時間。
   encodeSlowSpeed: number;
   encodeSlowDurationMs: number;
-  // unknownRateSteps は、受け取りの速さが分からないときに一度に下げる段の数 (速さが分からないときに下げる段数)。
+  // unknownRateSteps は、受け取りの速さが分からないときに一度に下げる段階の数 (速さが分からないときに下げる段階数)。
   unknownRateSteps: number;
-  // audioConsiderMs、audioWindowMs、audioRatio は、最も低い段に移ってから音声だけを考えるまでの時間、音声だけを判定する窓、
-  // その窓のうち「足りない」だった時間の割合 (音声だけにする割合)。
+  // audioConsiderMs、audioWindowMs、audioRatio は、最も低い段階に移ってから音声だけを考えるまでの時間、音声だけを判定するウィンドウ、
+  // そのウィンドウのうち「足りない」だった時間の割合 (音声だけにする割合)。
   audioConsiderMs: number;
   audioWindowMs: number;
   audioRatio: number;
@@ -46,31 +49,31 @@ export type NetworkParams = {
   // upHeadroom と upDurationMs は、受け取りの速さで上げる経路の、上げる余裕の倍率と、上げる余裕の継続時間。
   upHeadroom: number;
   upDurationMs: number;
-  // probeAfterOkMs は、試しのデータで上げる経路で、足りない兆しが無い状態がこれだけ続いたら試す時間 (試すまでの無事の時間)。
+  // probeAfterOkMs は、プローブのデータで上げる経路で、足りない兆候が無い状態がこれだけ続いたら試す時間 (試すまでの無事の時間)。
   probeAfterOkMs: number;
-  // probeHeadroom、probeSeconds、probeMinBytes、probeMaxBytes、probeTimeoutMs は、試しの余裕の倍率、試しの量の時間、
-  // 試しの量の下限と上限、試しの打ち切り。
+  // probeHeadroom、probeSeconds、probeMinBytes、probeMaxBytes、probeTimeoutMs は、プローブの余裕の倍率、プローブの量の時間、
+  // プローブの量の下限と上限、プローブの打ち切り。
   probeHeadroom: number;
   probeSeconds: number;
   probeMinBytes: number;
   probeMaxBytes: number;
   probeTimeoutMs: number;
-  // probeValidityMs は、試しで測った速さを使う期間 (測った値の有効期間)。
+  // probeValidityMs は、プローブで計測した速さを使う期間 (計測した値の有効期間)。
   probeValidityMs: number;
   // postUpWatchMs、backoffMultiplier、backoffMaxMs は、上げ直後の見張り時間、待ちの倍率、待ちの上限。
   postUpWatchMs: number;
   backoffMultiplier: number;
   backoffMaxMs: number;
-  // upToDisplayMs は、段を上げるよう求めてから、新しい段が映り出すのを待つ時間 (上げてから映るまでの上限)。
+  // upToDisplayMs は、段階を上げるよう求めてから、新しい段階が映り出すのを待つ時間 (上げてから映るまでの上限)。
   upToDisplayMs: number;
-  // downToDisplayMs は、段を下げてから、新しい段が映り出すのを待つ時間 (下げてから映るまでの上限)。過ぎたら、もう一段下げる。
-  // 下げた段も回線に収まらなければ、最初のセグメントが届かず、映り出さないまま待ち続けるため。
+  // downToDisplayMs は、段階を下げてから、新しい段階が映り出すのを待つ時間 (下げてから映るまでの上限)。過ぎたら、もう一段下げる。
+  // 下げた段階も回線に収まらなければ、最初のセグメントが届かず、映り出さないまま待ち続けるため。
   downToDisplayMs: number;
-  // defaultTopBitrate は、最高画質 (オリジナル) のビットレートが分からず、足りていた間の受け取りの速さも測っていないときに使う値。
+  // defaultTopBitrate は、最高画質 (オリジナル) のビットレートが分からず、足りていた間の受け取りの速さも計測していないときに使う値。
   defaultTopBitrate: number;
 };
 
-// defaultNetworkParams は、既定値。どれも初期値で、実機で測って決め直す (設計書の付録 A)。
+// defaultNetworkParams は、既定値。どれも初期値で、実機で計測して決め直す (設計書の付録 A)。
 export const defaultNetworkParams: NetworkParams = {
   tickMs: 500,
   // 低遅延モードの目標量 (初期 1 秒、上限 5 秒) を貯め、kyusu の経路で最初のセグメントが映るまでより長くする。
@@ -78,27 +81,29 @@ export const defaultNetworkParams: NetworkParams = {
   // 1 コマ (約 0.033 秒) と、変換の経路の断片の間隔 (約 0.5 秒) より十分長くする。
   stallMs: 1_000,
   frameGapMs: 1_500,
+  // 変換の経路の断片 (約 0.5 秒) の数個分より多くし、読み込みが追いつかずに途切れたときは数える。
+  frameGapAheadBelow: 2.5,
   drainBelow: 4,
-  // 塊が届くたびにバッファは増え、次の塊までは減る (kyusu のセグメントでは 2 秒ごと)。区間を塊の間隔より長くし、
-  // 区間の最小値 (塊が届く直前の底) どうしを比べて、のこぎりの歯の形の上下を「減り続け」と読まないようにする。
+  // チャンクが届くたびにバッファは増え、次のチャンクまでは減る (kyusu のセグメントでは 2 秒ごと)。区間をチャンクの間隔より長くし、
+  // 区間の最小値 (チャンクが届く直前の底) どうしを比較して、のこぎりの歯の形の上下を「減り続け」と読まないようにする。
   drainDurationMs: 8_000,
   drainEdgeMs: 2_500,
   // 低遅延モードで速めているときの減り方 (1.1 − 1 = 0.1) より大きくする。
   drainRate: 0.2,
-  // kyusu のセグメント (2 秒) の数倍にし、端の区間をセグメントより長く、窓の半分より短くする。
+  // kyusu のセグメント (2 秒) の数倍にし、端の区間をセグメントより長く、ウィンドウの半分より短くする。
   lagWindowMs: 20_000,
   lagEdgeMs: 5_000,
   lagGrowth: 1.5,
   lagResetGrowth: 5,
   backlogDurationMs: 3_000,
   margin: 0.8,
-  // 窓 × 数 (6 秒) を、録画の再生で先に溜める量 (変換の経路の maxAheadSeconds、8 秒) より短くする。
+  // ウィンドウ × 数 (6 秒) を、録画の再生で先にバッファする量 (変換の経路の maxAheadSeconds、8 秒) より短くする。
   rateWindowMs: 3_000,
   rateShortWindows: 2,
   encodeSlowSpeed: 0.9,
   encodeSlowDurationMs: 5_000,
-  // オリジナル (13〜24 Mbps) と kyusu の 1080p (約 6.1 Mbps) の差は、ほかの段どうしの差 (約 1.7〜2 倍) より大きいので、
-  // オリジナルからも 1 段で足りるとみなす。
+  // オリジナル (13〜24 Mbps) と kyusu の 1080p (約 6.1 Mbps) の差は、ほかの段階どうしの差 (約 1.7〜2 倍) より大きいので、
+  // オリジナルからも 1 段階で足りるとみなす。
   unknownRateSteps: 1,
   audioConsiderMs: 30_000,
   audioWindowMs: 60_000,
@@ -124,39 +129,39 @@ export const defaultNetworkParams: NetworkParams = {
   defaultTopBitrate: 20_000_000,
 };
 
-// audioStep は、段の表の、音声だけの段の名前。kyusu の映像を送らない画質の名前と同じ。
+// audioStep は、段階のテーブルの、音声だけの段階の名前。kyusu の映像を送らない画質の名前と同じ。
 export const audioStep = 'audio';
-// audioOnlyBitrate は、音声だけの段のビットレート (bps)。kyusu の音声の 128 kbps。
+// audioOnlyBitrate は、音声だけの段階のビットレート (bps)。kyusu の音声の 128 kbps。
 export const audioOnlyBitrate = 128_000;
 
-// Step は、段の表の 1 段。高い順に並べて渡す。bitrate は映像と音声を足した速さ (bps)。分からなければ (オリジナル) null。
+// Step は、段階のテーブルの 1 段階。高い順に並べて渡す。bitrate は映像と音声を足した速さ (bps)。分からなければ (オリジナル) null。
 export type Step = { name: string; bitrate: number | null };
 
-// NetworkMode は、上げ方。probe は試しのデータで (ライブ。実時間でしか届かず、受け取りの速さでは余裕が分からない)、
-// rate は受け取りの速さで (録画と追っかけ。先に読むので、受け取りの速さで余裕が分かる) 確かめる。
+// NetworkMode は、上げ方。probe はプローブのデータで (ライブ。実時間でしか届かず、受け取りの速さでは余裕が分からない)、
+// rate は受け取りの速さで (録画と追っかけ。先に読むので、受け取りの速さで余裕が分かる) 確認する。
 export type NetworkMode = 'probe' | 'rate';
 
-// ServerReport は、送り手が知らせる様子。今の tenban と kyusu は知らせないので、使っていない (設計書 7.5)。
+// ServerReport は、送り手が通知する様子。今の tenban と kyusu は通知しないので、使っていない (設計書 7.5)。
 export type ServerReport = {
   // backlogBytes は、送れずに溜まっている量。分からなければ null。
   backlogBytes: number | null;
-  // dropped は、サーバが塊を捨てたか。
+  // dropped は、サーバがチャンクを破棄したか。
   dropped: boolean;
   // encodeSpeed は、エンコードの速さ (出した映像の時刻の進み ÷ 実時間)。0 は測れていない。分からなければ null。
   encodeSpeed: number | null;
 };
 
-// NetworkInput は、刻みごとに渡す、測った値。
+// NetworkInput は、判定のたびに渡す、計測した値。
 export type NetworkInput = {
   // active は、判定してよいか。再生していて (一時停止、seek、終わりでなく)、タブが見えているとき。
   active: boolean;
-  // started は、今の段で再生が始まったか。始まるまで (読み込みの最中) は、詰まりを数えない。
+  // started は、今の段階で再生が始まったか。始まるまで (読み込みの最中) は、詰まりを数えない。
   started: boolean;
   // waiting は、waiting から playing までの間か。自分で起こした詰まり (飛び直し、低遅延モードの飛び) は除いて渡す。
   waiting: boolean;
   // lowReadyState は、readyState が HAVE_FUTURE_DATA 未満か。
   lowReadyState: boolean;
-  // frameAgeMs は、最後にコマが映ってからの時間。測らないとき (音声だけ、requestVideoFrameCallback が無い) は null。
+  // frameAgeMs は、最後にコマが映ってからの時間。計測しないとき (音声だけ、requestVideoFrameCallback が無い) は null。
   frameAgeMs: number | null;
   // ahead は、今の位置から先に読み込んである量 (秒)。
   ahead: number;
@@ -167,33 +172,33 @@ export type NetworkInput = {
   server: ServerReport | null;
 };
 
-// NetworkContext は、刻みごとに渡す、段の表と今の段。
+// NetworkContext は、判定のたびに渡す、段階のテーブルと今の段階。
 export type NetworkContext = {
-  // ladder は、動かしてよい段を高い順に並べたもの。端末のデコードが追いつかなかった段より上と、自動で選ぶ経路より上は除く。
-  // 音声だけの段を使ってよければ、最後に audioStep を置く。
+  // ladder は、動かしてよい段階を高い順に並べたもの。端末のデコードが追いつかなかった段階より上と、自動で選ぶ経路より上は除く。
+  // 音声だけの段階を使ってよければ、最後に audioStep を置く。
   ladder: readonly Step[];
-  // current は、今の段の名前。
+  // current は、今の段階の名前。
   current: string;
-  // automatic は、段を動かしてよいか (画質が「自動」か)。手で選んでいれば、判定だけをして動かさない。
+  // automatic は、段階を動かしてよいか (画質が「自動」か)。手で選んでいれば、判定だけをして動かさない。
   automatic: boolean;
   mode: NetworkMode;
 };
 
-// Signal は、「足りない」の兆し。
+// Signal は、「足りない」の兆候。
 export type Signal = 'stall' | 'frameGap' | 'drain' | 'lagGrowth' | 'backlog' | 'receiveRate';
 
-// StepReason は、段を動かした理由。bandwidth は帯域の不足、recovered は帯域の回復、upFailed は上げた段が持たなかったこと。
+// StepReason は、段階を動かした理由。bandwidth は帯域の不足、recovered は帯域の回復、upFailed は上げた段階が持たなかったこと。
 export type StepReason = 'bandwidth' | 'recovered' | 'upFailed';
 
-// NetworkDecision は、刻みで決めたこと。step は段を to へ動かす (呼んだ側がすぐに切り替える)。probe は bytes の試しのデータを取る。
+// NetworkDecision は、判定で決めたこと。step は段階を to へ動かす (呼んだ側がすぐに切り替える)。probe は bytes のプローブのデータを取る。
 export type NetworkDecision =
   | { kind: 'none' }
   | { kind: 'step'; to: string; direction: 'down' | 'up'; reason: StepReason }
   | { kind: 'probe'; bytes: number };
 
-// ProbeOutcome は、試しのデータを取った結果。measured は速さを測れた。failed は 5xx か打ち切り (足りない兆しが出た) で、
-// 余裕が無かったと測ったことにする。rateLimited は 429 で、retryAfterMs (無ければ null) の間は測らない。
-// alongsideBps は、試しの間に、再生中の映像が受け取った速さ (無ければ 0)。試しと映像は同じ回線を分け合うので、回線の速さは 2 つの和になる。
+// ProbeOutcome は、プローブのデータを取った結果。measured は速さを測れた。failed は 5xx か打ち切り (足りない兆候が出た) で、
+// 余裕が無かったと計測したことにする。rateLimited は 429 で、retryAfterMs (無ければ null) の間は計測しない。
+// alongsideBps は、プローブの間に、再生中の映像が受け取った速さ (無ければ 0)。試しと映像は同じ回線を分け合うので、回線の速さは 2 つの和になる。
 export type ProbeOutcome =
   | { kind: 'measured'; bps: number; alongsideBps?: number }
   | { kind: 'failed' }
@@ -201,39 +206,39 @@ export type ProbeOutcome =
 
 // NetworkStatus は、再生の情報に出す様子。
 export type NetworkStatus = {
-  // signals は、最後の刻みで立っていた兆し。
+  // signals は、最後の判定で立っていた兆候。
   signals: Signal[];
-  // receiveRate は、最後の刻みで受け取った速さ (bps)。
+  // receiveRate は、最後の判定で受け取った速さ (bps)。
   receiveRate: number | null;
-  // probe は、最後に試しで測った速さ (bps) と、測ってからの時間 (ミリ秒)。
+  // probe は、最後にプローブで計測した速さ (bps) と、計測してからの時間 (ミリ秒)。
   probe: { bps: number; ageMs: number } | null;
   // nextProbeIn は、次に試すまでの時間 (ミリ秒)。試す経路でなければ null。
   nextProbeIn: number | null;
   // encoderLagging は、サーバー側の変換が間に合っていないとみなしたか。
   encoderLagging: boolean;
-  // steps は、回線のために段を動かした回数。
+  // steps は、回線のために段階を動かした回数。
   steps: number;
-  // lastStep は、最後に段を動かした先と、そのときに立っていた兆し、動かしてからの時間 (ミリ秒)。
+  // lastStep は、最後に段階を動かした先と、そのときに立っていた兆候、動かしてからの時間 (ミリ秒)。
   lastStep: { to: string; signals: Signal[]; ageMs: number } | null;
 };
 
-// NetworkController は、回線の側の判定と、段の上げ下げを持つ。時刻 now は、どれもミリ秒。
+// NetworkController は、回線の側の判定と、段階の上げ下げを持つ。時刻 now は、どれもミリ秒。
 export type NetworkController = {
-  // tick は、刻みごとに呼び、決めたことを返す。
+  // tick は、判定のたびに呼び、決めたことを返す。
   tick(now: number, input: NetworkInput, context: NetworkContext): NetworkDecision;
-  // restart は、選局、シーク、経路の種類の切り替え (ライブと追っかけ) を知らせる。しばらく数えず、溜めた兆しを捨てる。
+  // restart は、選局、シーク、経路の種類の切り替え (ライブと追っかけ) を通知する。しばらく数えず、蓄積した兆候を破棄する。
   restart(now: number): void;
-  // switched は、段が変わったことを知らせる。自分で決めた切り替えのほか、手で選び直したときも呼ぶ。
+  // switched は、段階が変わったことを通知する。自分で決めた切り替えのほか、手で選び直したときも呼ぶ。
   switched(now: number, current: string): void;
-  // shown は、切り替えた段の最初のコマ (音声だけなら再生の始まり) が出たことを知らせる。
+  // shown は、切り替えた段階の最初のコマ (音声だけなら再生の始まり) が出たことを通知する。
   shown(now: number): void;
-  // probed は、試しのデータを取った結果を知らせる。
+  // probed は、プローブのデータを取った結果を通知する。
   probed(now: number, outcome: ProbeOutcome): void;
-  // noSlot は、サーバが枠の不足で段を下げられなかったことを知らせる。
+  // noSlot は、サーバが枠の不足で段階を下げられなかったことを通知する。
   noSlot(now: number): void;
-  // short は、最後の刻みで「足りない」とみなしたか。手で選んだ画質で、「自動」を勧めるのに使う。
+  // short は、最後の判定で「足りない」とみなしたか。手で選んだ画質で、「自動」を勧めるのに使う。
   short(): boolean;
-  // probing は、試しのデータを取っている最中か。
+  // probing は、プローブのデータを取っている最中か。
   probing(): boolean;
   status(now: number): NetworkStatus;
 };
@@ -244,20 +249,20 @@ const maxBackoff = 1_024;
 type TimedValue = { at: number; value: number };
 type TimedFlag = { at: number; short: boolean };
 
-// PendingUp は、上げた段の見張り。from は上げる前の段。
+// PendingUp は、上げた段階の見張り。from は上げる前の段階。
 type PendingUp = { from: string; to: string; requestedAt: number; shownAt: number | null };
 
-// stepIndex は、段の表の中の name の位置。無ければ -1。
+// stepIndex は、段階のテーブルの中の name の位置。無ければ -1。
 function stepIndex(ladder: readonly Step[], name: string): number {
   return ladder.findIndex((step) => step.name === name);
 }
 
-// videoSteps は、段の表のうち、映像のある段。
+// videoSteps は、段階のテーブルのうち、映像のある段階。
 function videoSteps(ladder: readonly Step[]): Step[] {
   return ladder.filter((step) => step.name !== audioStep);
 }
 
-// probeBytes は、次の段 need (bps) を試すのに取る量。(need × 試しの余裕の倍率 − 今の受け取りの速さ) で、試しの量の時間かかる量にし、
+// probeBytes は、次の段階 need (bps) を試すのに取る量。(need × プローブの余裕の倍率 − 今の受け取りの速さ) で、プローブの量の時間かかる量にし、
 // 下限と上限に丸める。
 export function probeBytes(
   need: number,
@@ -269,9 +274,9 @@ export function probeBytes(
   return Math.round(Math.min(Math.max(bits / 8, params.probeMinBytes), params.probeMaxBytes));
 }
 
-// chooseDown は、回線のために下げる先を返す。速さが分かれば、受け取りの速さ × 余白の係数に収まる最も高い段 (今より下)。
-// 収まる段が無ければ、映像のある最も低い段。速さが分からなければ、決めた段数だけ下げる。下げる段が無ければ null。
-// 音声だけの段へは、ここでは下げない (最も低い段で足りない状態が続いたときだけ、別に決める)。
+// chooseDown は、回線のために下げる先を返す。速さが分かれば、受け取りの速さ × 余白の係数に収まる最も高い段階 (今より下)。
+// 収まる段階が無ければ、映像のある最も低い段階。速さが分からなければ、決めた段階数だけ下げる。下げる段階が無ければ null。
+// 音声だけの段階へは、ここでは下げない (最も低い段階で足りない状態が続いたときだけ、別に決める)。
 export function chooseDown(
   ladder: readonly Step[],
   current: string,
@@ -306,7 +311,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
   let ignoreUntil = options.now + params.ignoreAfterSwitchMs;
   let holdUntil = -Infinity;
   let noSlotUntil = -Infinity;
-  // arrivedAt は、今の段に移った時刻。音声だけを考えるまでの時間に使う。
+  // arrivedAt は、今の段階に移った時刻。音声だけを考えるまでの時間に使う。
   let arrivedAt = options.now;
   let current: string | null = null;
   let lowSince: number | null = null;
@@ -316,22 +321,22 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
   let rateShortSince: number | null = null;
   let encodeSlowSince: number | null = null;
   let flags: TimedFlag[] = [];
-  // okSince は、足りない兆しが無い状態が始まった時刻。判定していない間 (一時停止など) は null。
+  // okSince は、足りない兆候が無い状態が始まった時刻。判定していない間 (一時停止など) は null。
   let okSince: number | null = null;
   let rateHeadroomSince: number | null = null;
-  // backoff は、次に上げるまでの待ちに掛ける倍率。上げた段が持たなければ増やし、持てば 1 に戻す。
+  // backoff は、次に上げるまでの待ちに掛ける倍率。上げた段階が持たなければ増やし、持てば 1 に戻す。
   let backoff = 1;
   let nextProbeAt = -Infinity;
   let inFlight = false;
   let lastProbe: { bps: number; at: number } | null = null;
-  // measuredProbe は、再生の情報に出す、最後に試しで測った速さ。上げるかを決めても捨てない。
+  // measuredProbe は、再生の情報に出す、最後にプローブで計測した速さ。上げるかを決めても破棄しない。
   let measuredProbe: { bps: number; at: number } | null = null;
   let pending: PendingUp | null = null;
-  // downAt は、段を下げて、まだ新しい段が映り出していない間の、下げた時刻。
+  // downAt は、段階を下げて、まだ新しい段階が映り出していない間の、下げた時刻。
   let downAt: number | null = null;
-  // probeAhead は、最後の刻みで、試しのデータで上げる段が上にあったか。無ければ、次に試すまでの時間を出さない。
+  // probeAhead は、最後の判定で、プローブのデータで上げる段階が上にあったか。無ければ、次に試すまでの時間を出さない。
   let probeAhead = false;
-  // sufficient は、段ごとの、足りていた間の受け取りの速さ。最高画質へ戻すときに比べる。
+  // sufficient は、段階ごとの、足りていた間の受け取りの速さ。最高画質へ戻すときに比較する。
   const sufficient = new Map<string, number>();
   let lastSignals: Signal[] = [];
   let lastRate: number | null = null;
@@ -349,7 +354,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     rateHeadroomSince = null;
   };
 
-  // need は、段を流すのに要る速さ。最高画質は、足りていた間に測った受け取りの速さ、無ければその段のビットレート、
+  // need は、段階を流すのに要る速さ。最高画質は、足りていた間に計測した受け取りの速さ、無ければその段階のビットレート、
   // それも分からなければ既定値。
   const need = (step: Step, index: number): number =>
     (index === 0 ? sufficient.get(step.name) : undefined) ??
@@ -357,7 +362,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     params.defaultTopBitrate;
 
   // draining は、バッファが見る量より少なく、減少の継続時間のあいだ減り続け、その間の平均の減り方が閾値以上か。
-  // 塊が届くたびに増えるので、窓の最初と最後の区間の、最小値 (底) どうしと最大値 (山) どうしを比べ、どちらも下がったことを
+  // チャンクが届くたびに増えるので、ウィンドウの最初と最後の区間の、最小値 (底) どうしと最大値 (山) どうしを比較し、どちらも下がったことを
   // 「減り続け」とみなす。減り方は、底どうしの差を、区間の始まりの差で割る。
   const draining = (now: number, ahead: number): boolean => {
     aheads.push({ at: now, value: ahead });
@@ -381,8 +386,8 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     return fall / ((span - params.drainEdgeMs) / 1_000) >= params.drainRate;
   };
 
-  // lagGrowing は、伸びを見る窓の、最初の区間の最小値と最後の区間の最小値を比べ、伸びの閾値以上伸びたか。
-  // 1 回の刻みで端が戻ったとみなす伸び以上伸びたら、別のストリームになったとみなして測り直す。
+  // lagGrowing は、伸びを見るウィンドウの、最初の区間の最小値と最後の区間の最小値を比較し、伸びの閾値以上伸びたか。
+  // 1 回の判定で端が戻ったとみなす伸び以上伸びたら、別のストリームになったとみなして計測し直す。
   const lagGrowing = (now: number, lag: number): boolean => {
     const last = lags.at(-1);
     if (last !== undefined && lag - last.value >= params.lagResetGrowth) {
@@ -421,7 +426,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     return now - backlogs[0]!.at >= params.backlogDurationMs;
   };
 
-  // judge は、今の刻みで立っている兆しを返す。
+  // judge は、今の判定で立っている兆候を返す。
   const judge = (now: number, input: NetworkInput, context: NetworkContext): Signal[] => {
     const signals: Signal[] = [];
     const speed = input.server?.encodeSpeed ?? null;
@@ -435,7 +440,11 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     if (!encodeSlow && (input.waiting || (lowSince !== null && now - lowSince >= params.stallMs))) {
       signals.push('stall');
     }
-    if (input.frameAgeMs !== null && input.frameAgeMs >= params.frameGapMs) {
+    if (
+      input.frameAgeMs !== null &&
+      input.frameAgeMs >= params.frameGapMs &&
+      input.ahead < params.frameGapAheadBelow
+    ) {
       signals.push('frameGap');
     }
     if (draining(now, input.ahead) && !encodeSlow) {
@@ -473,7 +482,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     return signals;
   };
 
-  // shortRatio は、直近の音声だけを判定する窓のうち、「足りない」だった刻みの割合。窓が埋まっていなければ 0。
+  // shortRatio は、直近の音声だけを判定するウィンドウのうち、「足りない」だった判定の割合。ウィンドウが埋まっていなければ 0。
   const shortRatio = (now: number): number => {
     flags = flags.filter((flag) => now - flag.at < params.audioWindowMs);
     const first = flags[0];
@@ -487,7 +496,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
   // upWait は、上げを試すまでの待ち (base) に、待ちの倍率を掛けたもの。待ちの上限を超えない。
   const upWait = (base: number): number => Math.min(base * backoff, params.backoffMaxMs);
 
-  // step は、段を to へ動かすと決め、切り替え後の据え置きを始める。
+  // step は、段階を to へ動かすと決め、切り替え後の据え置きを始める。
   const step = (
     now: number,
     from: string,
@@ -511,7 +520,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     return { kind: 'step', to, direction, reason };
   };
 
-  // failUp は、上げた段が持たなかったので、上げる前の段へ戻し、次に上げるまでの待ちを延ばす。
+  // failUp は、上げた段階が持たなかったので、上げる前の段階へ戻し、次に上げるまでの待ちを延ばす。
   const failUp = (now: number, up: PendingUp): NetworkDecision => {
     backoff = Math.min(backoff * params.backoffMultiplier, maxBackoff);
 
@@ -522,7 +531,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     tick(now, input, context) {
       probeAhead = false;
       if (context.mode !== lastMode) {
-        // 経路の種類が変わったら (ライブと追っかけ)、溜めた兆しを捨てる。前の経路で上げ下げした段の見張りも捨てる。
+        // 経路の種類が変わったら (ライブと追っかけ)、蓄積した兆候を破棄する。前の経路で上げ下げした段階の見張りも破棄する。
         if (lastMode !== null) {
           ignoreUntil = Math.max(ignoreUntil, now + params.ignoreAfterSwitchMs);
           forgetHistory();
@@ -545,7 +554,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         downAt = null;
       }
       lastRate = input.receiveRate;
-      // 上げた段が、上げてから映るまでの上限がたっても映り出さなければ、元の段へ戻す。足りない段では、最初のキーフレームが届かず、
+      // 上げた段階が、上げてから映るまでの上限がたっても映り出さなければ、元の段階へ戻す。足りない段階では、最初のキーフレームが届かず、
       // 再生が始まらないことがあるので、始まる前から見る。一時停止している間は見ない。
       if (
         input.active &&
@@ -556,7 +565,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
       ) {
         return failUp(now, pending);
       }
-      // 下げた段が、下げてから映るまでの上限がたっても映り出さなければ、受け取りの速さに収まる段か、最も低い段なら音声だけへ下げる。
+      // 下げた段階が、下げてから映るまでの上限がたっても映り出さなければ、受け取りの速さに収まる段階か、最も低い段階なら音声だけへ下げる。
       if (input.started) {
         downAt = null;
       } else if (
@@ -565,8 +574,8 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         downAt !== null &&
         now - downAt >= params.downToDisplayMs
       ) {
-        // 受け取りの速さが分からなければ (新しい段のセグメントが 1 つも届いていない)、1 段ずつではなく最も低い段へ下げる。
-        // 1 段ずつ待つと、オリジナルから最も低い段まで 1 分ほど映らないため。
+        // 受け取りの速さが分からなければ (新しい段階のセグメントが 1 つも届いていない)、1 段階ずつではなく最も低い段階へ下げる。
+        // 1 段階ずつ待つと、オリジナルから最も低い段階まで 1 分ほど映らないため。
         const lowest = videoSteps(context.ladder).at(-1)?.name;
         const lower =
           lowest !== undefined && context.current !== lowest && context.current !== audioStep
@@ -586,7 +595,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         okSince = null;
         lowSince = null;
         if (!input.active) {
-          // 止めていた間を挟んで、減り方や伸び方を比べない。
+          // 止めていた間を挟んで、減り方や伸び方を比較しない。
           forgetHistory();
         }
 
@@ -597,8 +606,8 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
       const short = signals.length > 0;
       flags.push({ at: now, short });
       const index = stepIndex(context.ladder, context.current);
-      // バッファの減少だけなら、試すまでの無事を途切れさせない (下げる兆しにだけ使う)。周期的に途切れる回線 (帯域は足りている) では、
-      // 途切れるたびにバッファの減少が立ち、無事が続かず、下げた段から上げられなくなるため。
+      // バッファの減少だけなら、試すまでの無事を途切れさせない (下げる兆候にだけ使う)。周期的に途切れる回線 (帯域は足りている) では、
+      // 途切れるたびにバッファの減少が立ち、無事が続かず、下げた段階から上げられなくなるため。
       const drainOnly = short && signals.every((signal) => signal === 'drain');
       if (short) {
         rateHeadroomSince = null;
@@ -615,7 +624,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         return { kind: 'none' };
       }
 
-      // 上げた段で、見張り時間のうちに足りなくなったら、元の段へ戻す。
+      // 上げた段階で、見張り時間のうちに足りなくなったら、元の段階へ戻す。
       if (pending !== null) {
         const up = pending;
         if (up.shownAt !== null && now - up.shownAt >= params.postUpWatchMs) {
@@ -637,7 +646,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         if (down !== null) {
           return step(now, context.current, down, 'down', 'bandwidth');
         }
-        // 最も低い段でも、直近の窓の決めた割合以上が「足りない」なら、音声だけにする。
+        // 最も低い段階でも、直近のウィンドウの決めた割合以上が「足りない」なら、音声だけにする。
         const lowest = videoSteps(context.ladder).at(-1);
         if (
           lowest?.name === context.current &&
@@ -651,7 +660,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         return { kind: 'none' };
       }
 
-      // 上げる。上げた段の見張りの間と、上の段が無いときは上げない。
+      // 上げる。上げた段階の見張りの間と、上の段階が無いときは上げない。
       if (pending !== null || index <= 0) {
         return { kind: 'none' };
       }
@@ -673,7 +682,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         return { kind: 'none' };
       }
       if (lastProbe !== null && now - lastProbe.at < params.probeValidityMs) {
-        // 試しの前に測った受け取りの速さは足さない。回線が詰まっていれば、試しの間は映像が細り、同じ帯域を二重に数えるため。
+        // プローブの前に計測した受け取りの速さは足さない。回線が詰まっていれば、プローブの間は映像が細り、同じ帯域を二重に数えるため。
         const measured = lastProbe.bps;
         lastProbe = null;
         if (measured >= needUpper * params.probeHeadroom) {
@@ -719,7 +728,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
           measuredProbe = { bps: outcome.bps, at: now };
           break;
         case 'failed':
-          // 測っていないことにすると、刻みごとに取りに行くので、余裕が無かったと測ったことにする。
+          // 計測していないことにすると、判定のたびに取りに行くので、余裕が無かったと計測したことにする。
           lastProbe = { bps: 0, at: now };
           measuredProbe = lastProbe;
           break;

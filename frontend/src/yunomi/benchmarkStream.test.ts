@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest';
 import { clockHz, indexStream, packetSize } from '../../demo/stream-loop.js';
 import { benchmarkClips, clipPeriod, loopClip } from './benchmarkStream';
 
-// readClip は、配っている試す映像を読む。テストは frontend をルートに動かす。
+// readClip は、配信している試す映像を読む。テストは frontend をルートに動かす。
 function readClip(path: string): Uint8Array {
   return new Uint8Array(readFileSync(join(process.cwd(), 'public', path)));
 }
@@ -25,7 +25,7 @@ describe('loopClip', () => {
       // I フレームの切れ目で止めるので、5 秒より少し短いところまで流す。
       expect(seconds).toBeGreaterThan(4);
       expect(seconds).toBeLessThanOrEqual(5);
-      // 繰り返した各回の頭の I フレームが、映像の長さずつ進む。
+      // 繰り返した各回の先頭の I フレームが、映像の長さずつ進む。
       const loopStarts = index.keys
         .map((key) => key.position)
         .filter((position) => position % clipPeriod === 0);

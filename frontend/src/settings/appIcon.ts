@@ -1,14 +1,15 @@
 import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from '../yunomi/volume';
+import { preferenceChanged } from './syncedPreferences';
 
-// ヘッダーのロゴに出すアイコンを、端末ごとに選ぶ (#1665)。
+// ヘッダーのロゴに出すアイコンを選ぶ (#1665)。端末をまたいで同期する (#1862)。
 // タブの favicon は、16px では柄の違いが見えないので、どの組でもみかんの favicon のままにする (#759)。
 // インストールしたアイコン (マニフェストの icons と apple-touch-icon) も変えない。
-// 絵は docs/icons の原本を frontend/public/icons に写したもので、同じオリジンの SVG として読む (CSP の img-src 'self')。
+// 絵は docs/icons の原本を frontend/public/icons にコピーしたもので、同じオリジンの SVG として読む (CSP の img-src 'self')。
 
-// appIconIds は、選べるアイコンの組。default は採用版 (main-v6.svg と favicon-mikan.svg) の三毛猫。
-// ほかの組は、採用版の構図のまま、猫の柄だけを変えたもの (docs/icons の coat-*.svg)。
+// appIconIds は、選べるアイコンの組。default は採用した絵 (main-v6.svg と favicon-mikan.svg) の三毛猫。
+// ほかの組は、採用した絵の構図のまま、猫の柄だけを変えたもの (docs/icons の coat-*.svg)。
 export const appIconIds = [
   'default',
   'chatora',
@@ -39,19 +40,19 @@ export function appIconUrl(id: AppIconId): string {
   return `${import.meta.env.BASE_URL}icons/${appIconFiles[id]}`;
 }
 
-// storageKey は、この端末で選んだアイコンを覚えるキー。ほかの端末とは同期しない。
+// storageKey は、選んだアイコンを保存するキー。端末をまたいで同期する (#1862)。
 const storageKey = 'kotatsu.appIcon';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:app-icon';
 
-// unsaved は、端末に覚えられなかったときに、このタブの中だけで使う組。覚えられたら、端末の値に戻す。
+// unsaved は、端末に保存できなかったときに、このタブの中だけで使う組。保存できたら、端末の値に戻す。
 let unsaved: AppIconId | null = null;
 
 function isAppIconId(value: string): value is AppIconId {
   return (appIconIds as readonly string[]).includes(value);
 }
 
-// loadAppIcon は、この端末で選んだアイコンを読む。覚えていないか、知らない値か、読めなければ既定の組を返す。
+// loadAppIcon は、この端末で選んだアイコンを読む。保存していないか、知らない値か、読めなければ既定の組を返す。
 export function loadAppIcon(storage: Pick<Storage, 'getItem'> | null): AppIconId {
   try {
     const stored = storage?.getItem(storageKey);
@@ -65,13 +66,14 @@ export function loadAppIcon(storage: Pick<Storage, 'getItem'> | null): AppIconId
   return defaultAppIcon;
 }
 
-// saveAppIcon は、選んだアイコンを覚え、同じタブの中の画面に知らせる。覚えられなくても、今の画面には効かせる。
+// saveAppIcon は、選んだアイコンを保存し、同じタブの中の画面に通知する。保存できなくても、今の画面には効かせる。
 export function saveAppIcon(storage: Pick<Storage, 'setItem'> | null, id: AppIconId): void {
-  // 覚えられなければ、このタブの中だけで使う。次に開いたときは、端末に覚えた組 (なければ既定) に戻る。
+  // 保存できなければ、このタブの中だけで使う。次に開いたときは、端末に保存した組 (なければ既定) に戻る。
   unsaved = id;
   try {
     if (storage !== null) {
       storage.setItem(storageKey, id);
+      preferenceChanged(storageKey);
       unsaved = null;
     }
   } catch {
@@ -95,7 +97,7 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-// currentAppIcon は、このタブで使う組。覚えられなかった組があれば、それを使う。
+// currentAppIcon は、このタブで使う組。保存できなかった組があれば、それを使う。
 export function currentAppIcon(): AppIconId {
   return unsaved ?? loadAppIcon(browserStorage());
 }

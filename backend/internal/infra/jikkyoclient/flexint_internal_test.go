@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestFlexIntUnmarshalJSON は、NX-Jikkyo が数でも文字列でも送る時刻を読み、読めない値でもコメントを捨てないことを確かめる (#1515)。
+// TestFlexIntUnmarshalJSON は、NX-Jikkyo が数でも文字列でも送る時刻を読み、読めない値でもコメントを破棄しないことを確認する (#1515)。
 func TestFlexIntUnmarshalJSON(t *testing.T) {
 	t.Parallel()
 

@@ -53,7 +53,7 @@ type tokenResponse struct {
 
 // TokenHandler は、トークンのエンドポイント (POST /oauth/token) のハンドラーを返す。
 // 認可コードとリフレッシュトークンを、アクセストークンとリフレッシュトークンに引き換える。
-// クライアントは公開クライアントなので、クライアントの認証はせず、client_id と PKCE で確かめる。
+// クライアントは公開クライアントなので、クライアントの認証はせず、client_id と PKCE で確認する。
 func (s *Server) TokenHandler(logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")

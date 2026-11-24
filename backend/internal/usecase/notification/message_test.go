@@ -28,6 +28,9 @@ const (
 	keyNetworkID  = "networkId"
 	keyAdded      = "added"
 	keyRemoved    = "removed"
+	// keyAddedServices と keyRemovedServices は、新しい局と終わった局の並びの項目 (#2034)。
+	keyAddedServices   = "addedServices"
+	keyRemovedServices = "removedServices"
 )
 
 // keyDestination と keyEpisodes は、見たアニメの記録の通知の項目 (#927)。
@@ -77,6 +80,42 @@ func TestMessage(t *testing.T) {
 			name: "局の顔ぶれの変化は、数が 0 の項目を書かない", kind: domain.NotificationKindLineupChanged, location: tokyo,
 			payload: map[string]any{keyLineupKind: "BS", keyNetworkID: 4, keyAdded: 3, keyRemoved: 0},
 			want:    "BS のチャンネルが放送で変わりました（新しい局 3）。チューナーサーバーのチャンネルをスキャンし直してください",
+		},
+		{
+			name: "局の並びがあれば、衛星の新しい局を中継器とサービスで書く", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			payload: map[string]any{
+				keyLineupKind: "BS", keyNetworkID: 4, keyAdded: 1, keyRemoved: 0,
+				keyAddedServices: []any{"BS15 のサービス 103"}, keyRemovedServices: []any{},
+			},
+			want: "BS のチャンネルが放送で変わりました（新しい局: BS15 のサービス 103）。チューナーサーバーのチャンネルをスキャンし直してください",
+		},
+		{
+			name: "新しい局と終わった局を並べるときは、項目を／でつなぎ、名前を半角にする", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			payload: map[string]any{
+				keyLineupKind: "CS", keyNetworkID: 6, keyAdded: 2, keyRemoved: 1,
+				keyAddedServices:   []string{"CS2 のサービス 55", "CS4 のサービス 56"},
+				keyRemovedServices: []string{"ＣＳこたつ（サービス 57）"},
+			},
+			want: "CS のチャンネルが放送で変わりました（新しい局: CS2 のサービス 55、CS4 のサービス 56／終わった局: CSこたつ（サービス 57））。" +
+				"チューナーサーバーのチャンネルをスキャンし直してください",
+		},
+		{
+			name: "並べる局が多ければ、残りの数をまとめる", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			payload: map[string]any{
+				keyLineupKind: "BS", keyNetworkID: 4, keyAdded: 7, keyRemoved: 0,
+				keyAddedServices: []string{"サービス 1", "サービス 2", "サービス 3", "サービス 4", "サービス 5", "サービス 6", "サービス 7"},
+			},
+			want: "BS のチャンネルが放送で変わりました（新しい局: サービス 1、サービス 2、サービス 3、サービス 4、サービス 5、ほか 2 局）。" +
+				"チューナーサーバーのチャンネルをスキャンし直してください",
+		},
+		{
+			name: "地上波は、新しい局を SDT の名前で書く", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			payload: map[string]any{
+				keyLineupKind: "GR", "channel": "27", keyNetworkID: 32736, keyAdded: 1, keyRemoved: 0,
+				keyAddedServices: []any{"こたつテレビ（サービス 1032）"},
+			},
+			want: "地上波の 27ch で受かる局が、チューナーサーバーの登録と食い違っています（新しい局: こたつテレビ（サービス 1032））。" +
+				"再スキャンすれば、新しい局を選べるようになります",
 		},
 		{
 			name: "地上波は、チャンネルで受かる局の食い違いを書く", kind: domain.NotificationKindLineupChanged, location: tokyo,
@@ -217,7 +256,7 @@ func TestMessage(t *testing.T) {
 	}
 }
 
-// TestMessageEscaped は、番組名、放送されていた番組名、サービス名を、escape で書き換えることを確かめる (#1010)。
+// TestMessageEscaped は、番組名、放送されていた番組名、サービス名を、escape で書き換えることを確認する (#1010)。
 func TestMessageEscaped(t *testing.T) {
 	t.Parallel()
 
@@ -248,6 +287,15 @@ func TestMessageEscaped(t *testing.T) {
 			name: "見たアニメの記録は、作品名にしてから書き換える", kind: domain.NotificationKindAnimeRecorded,
 			payload: map[string]any{keyName: "作品名 #6", keyDestination: annict, keyEpisodes: "#6"},
 			want:    "「<作品名>」の#6をAnnictに記録しました",
+		},
+		{
+			name: "局の顔ぶれの変化の局の名前", kind: domain.NotificationKindLineupChanged,
+			payload: map[string]any{
+				keyLineupKind: "BS", keyNetworkID: 4, keyAdded: 1, keyRemoved: 1,
+				keyAddedServices: []any{"BS15 のサービス 103"}, keyRemovedServices: []any{"*こたつ*（サービス 191）"},
+			},
+			want: "<BS> のチャンネルが放送で変わりました（新しい局: <BS15 のサービス 103>／終わった局: <*こたつ*（サービス 191）>）。" +
+				"チューナーサーバーのチャンネルをスキャンし直してください",
 		},
 		{name: "名前がなければ書き換えない", kind: domain.NotificationKindRecordingFailed, payload: map[string]any{}, want: "録画に失敗しました"},
 	}

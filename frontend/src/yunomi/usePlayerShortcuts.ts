@@ -5,7 +5,7 @@ import { shortcutFor, useKeymap } from './shortcuts';
 import { useWatchMini } from './WatchHost';
 
 // usePlayerShortcuts は、キーボードで、プレイヤーを操作できるようにする (設計書 7.5)。今使えない操作のキーは、何もしない。
-// キーは、この端末の割り当て (#810) で引く。小さなプレイヤー (#1602) で描いている間は、ほかの画面の操作に譲り、何もしない。
+// キーは、この端末の割り当て (#810) で検索する。小さなプレイヤー (#1602) で描いている間は、ほかの画面の操作に譲り、何もしない。
 export function usePlayerShortcuts(commands: PlayerCommands): void {
   const commandsRef = useRef(commands);
   commandsRef.current = commands;

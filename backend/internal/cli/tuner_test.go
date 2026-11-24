@@ -19,7 +19,7 @@ import (
 )
 
 // TestUnreachableTunerServerDoesNotAffectReadiness は、チューナーサーバーに接続できなくても、
-// neko は縮退中として動き続け、/healthz と /readyz は成功することを確かめる (設計書 3.7)。
+// neko は縮退中として動き続け、/healthz と /readyz は成功することを確認する (設計書 3.7)。
 func TestUnreachableTunerServerDoesNotAffectReadiness(t *testing.T) {
 	t.Parallel()
 

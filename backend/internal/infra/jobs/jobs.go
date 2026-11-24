@@ -40,7 +40,7 @@ const (
 	// QueueCaptions は、録画の音声から字幕を自動生成するジョブのキュー (#1682)。音声の認識は録画の尺の数割の時間がかかるので、1 つずつ実行し、
 	// CM の区間の見分け (QueueCM) や変換 (QueueTranscode) を待たせないよう、別のキューにする。
 	QueueCaptions = "captions"
-	// QueueBackup は、バックアップを書き出すジョブのキュー (#1926)。定期のものと頼まれたものを、1 つずつ書き出す。
+	// QueueBackup は、バックアップするジョブのキュー (#1926)。定期のものと頼まれたものを、1 つずつバックアップする。
 	QueueBackup = "backup"
 	// PriorityImported は、取り込んだ録画のためのジョブの優先度 (River の 1〜4 のうち、最も低い 4)。
 	// 大量に取り込んでも、新しく録った録画の解析やサムネイルが、取り込んだ分の後ろで待たないようにする (#551)。
@@ -110,7 +110,7 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 	return nil
 }
 
-// CheckSchema は、River のマイグレーションがすべて適用されているかを確かめる。
+// CheckSchema は、River のマイグレーションがすべて適用されているかを確認する。
 // 適用されていなければ database.ErrSchemaOutdated を返す。
 func CheckSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	migrator, err := newMigrator(pool, slog.New(slog.DiscardHandler))

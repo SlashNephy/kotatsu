@@ -141,7 +141,7 @@ type schedule struct {
 	Programs []program `json:"programs"`
 }
 
-// TestChannelsAndConfig は、番組表に出すサービスだけを、EPGStation の形で返すことを確かめる (#431)。
+// TestChannelsAndConfig は、番組表に出すサービスだけを、EPGStation の形で返すことを確認する (#431)。
 func TestChannelsAndConfig(t *testing.T) {
 	t.Parallel()
 
@@ -160,7 +160,7 @@ func TestChannelsAndConfig(t *testing.T) {
 	assert.Equal(t, map[string]bool{"GR": true, "BS": true, "CS": false, "SKY": false}, config.Broadcast)
 }
 
-// TestSchedules は、時間帯と放送波の種別で番組を絞り、時刻をミリ秒で返すことを確かめる。
+// TestSchedules は、時間帯と放送波の種別で番組を絞り、時刻をミリ秒で返すことを確認する。
 func TestSchedules(t *testing.T) {
 	t.Parallel()
 

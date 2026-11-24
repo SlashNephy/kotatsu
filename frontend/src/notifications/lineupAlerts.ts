@@ -17,7 +17,7 @@ const dismissed = new Set<string>();
 const listeners = new Set<() => void>();
 let version = 0;
 
-// dismissLineupAlerts は、知らせ ids を既読にしたことを覚え、お知らせから外す。
+// dismissLineupAlerts は、通知 ids を既読にしたことを保存し、お知らせから外す。
 export function dismissLineupAlerts(ids: readonly string[]) {
   for (const id of ids) {
     dismissed.add(id);

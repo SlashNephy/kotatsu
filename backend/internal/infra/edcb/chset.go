@@ -32,7 +32,7 @@ const utf8BOM = "\xEF\xBB\xBF"
 
 // ParseChannelSettings は、ChSet5.txt を読む。文字コードは、BOM 付きの UTF-8 か UTF-8 なら UTF-8、
 // そうでなければ Shift_JIS (古い Windows の EDCB) とみなす。
-// 列は、サービス名、ネットワーク名、ONID、TSID、SID、サービスの種類、部分受信、EPG の取得、検索の対象で、タブで区切る
+// カラムは、サービス名、ネットワーク名、ONID、TSID、SID、サービスの種類、部分受信、EPG の取得、検索の対象で、タブで区切る
 // (EDCB の Common/ParseTextInstances.cpp の CParseChText5)。タブを含まない行は読み飛ばし、同じサービスは後の行を使う。
 func ParseChannelSettings(data []byte) ([]*ChannelEntry, error) {
 	data = bytes.TrimPrefix(data, []byte(utf8BOM))
@@ -68,7 +68,7 @@ func ParseChannelSettings(data []byte) ([]*ChannelEntry, error) {
 
 func parseChannelLine(line string) (*ChannelEntry, error) {
 	fields := strings.Split(line, "\t")
-	// EDCB は、足りない列を 0 として読む。
+	// EDCB は、足りないカラムを 0 として読む。
 	for len(fields) < 9 {
 		fields = append(fields, "0")
 	}

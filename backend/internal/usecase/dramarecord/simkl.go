@@ -28,7 +28,7 @@ const (
 	simklAppName = "kotatsu"
 	// simklScope は、求める権限。見た話を記録するので、書き込みの権限 (media:write) が要る。
 	simklScope = "media:read media:write"
-	// simklWriteScope は、書き込みの権限。トークンの応答の scope に、これがあることを確かめる。
+	// simklWriteScope は、書き込みの権限。トークンの応答の scope に、これがあることを確認する。
 	simklWriteScope = "media:write"
 	// paramClientID は、アプリを示す client_id の名前。
 	paramClientID = "client_id"
@@ -252,7 +252,7 @@ type allItemsResponse struct {
 }
 
 func (s *Simkl) Watchlist(ctx context.Context, app *App, accessToken, dateFrom string) ([]*WatchlistItem, error) {
-	// 既定の形で引く。作品ごとの状態と、TMDb の ID を含む外部の ID を返す。
+	// 既定の形で取得する。作品ごとの状態と、TMDB の ID を含む外部の ID を返す。
 	query := url.Values{}
 	if dateFrom != "" {
 		query.Set("date_from", dateFrom)
@@ -270,9 +270,9 @@ func (s *Simkl) Watchlist(ctx context.Context, app *App, accessToken, dateFrom s
 		}
 		tmdb := intID(show.Show.IDs["tmdb"])
 		if tmdb > 0 && tmdb <= 1<<31-1 {
-			items = append(items, &WatchlistItem{SimklID: simklID, TMDbID: int32(tmdb), Status: status})
+			items = append(items, &WatchlistItem{SimklID: simklID, TMDBID: int32(tmdb), Status: status})
 		} else {
-			items = append(items, &WatchlistItem{SimklID: simklID, TMDbID: 0, Status: status})
+			items = append(items, &WatchlistItem{SimklID: simklID, TMDBID: 0, Status: status})
 		}
 	}
 
@@ -352,7 +352,7 @@ func (s *Simkl) token(ctx context.Context, app *App, form url.Values) (*Token, e
 	return &Token{AccessToken: decoded.AccessToken, RefreshToken: decoded.RefreshToken, ExpiresIn: expiresIn}, nil
 }
 
-// redirectURL は、TMDb の作品 ID tmdb の、Simkl の作品のページへ移るリンクを返す。Simkl の ID を引かずに、作品のページへのリンクを作る。
+// redirectURL は、TMDB の作品 ID tmdb の、Simkl の作品のページへ移るリンクを返す。Simkl の ID を引かずに、作品のページへのリンクを作る。
 func (s *Simkl) redirectURL(app *App, tmdb string) string {
 	query := url.Values{"to": {"simkl"}, "tmdb": {tmdb}, "type": {"tv"}, paramClientID: {app.ClientID}, "app-name": {simklAppName}, "app-version": {appVersion()}}
 

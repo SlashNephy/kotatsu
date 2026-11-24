@@ -2,21 +2,21 @@ package ts
 
 // packetFramer は、パケットの途中で区切られた書き込みを、188 バイトのパケットに切り分ける (#1986)。
 //
-// 書き込みの終わりで途切れたパケットの頭は carry に持ち越し、次の書き込みの頭とつないで 1 つのパケットにする。
-// 同期を失っている間は、sync byte に続く 188 バイト先も sync byte であることを確かめてから合わせ直す。
+// 書き込みの終わりで途切れたパケットの先頭は carry に持ち越し、次の書き込みの先頭とつないで 1 つのパケットにする。
+// 同期を失っている間は、sync byte に続く 188 バイト先も sync byte であることを確認してから合わせ直す。
 // ペイロードの中の 0x47 を、パケットの先頭と取り違えないためである。188 バイト先がまだ届いていなければ、
-// holdUnverified なら決めずに持ち越し、次の書き込みで確かめる。こうすると、書き込みの切れ目によらず、同じ所で同期する。
-// 持ち越した頭が、確かめてパケットの先頭でないと分かったら、捨てずに、その中の次の sync byte から探し直す。
+// holdUnverified なら決めずに持ち越し、次の書き込みで確認する。こうすると、書き込みの切れ目によらず、同じ所で同期する。
+// 持ち越した頭が、確認してパケットの先頭でないと分かったら、破棄せずに、その中の次の sync byte から探し直す。
 type packetFramer struct {
-	// carry は、前の書き込みの終わりで途切れたパケットの頭。carryLen が 0 でなければ、sync byte から始まる。
+	// carry は、前の書き込みの終わりで途切れたパケットの先頭。carryLen が 0 でなければ、sync byte から始まる。
 	carry    [PacketSize]byte
 	carryLen int
 	// synced は、パケットの境界に合っているかどうか。
 	synced bool
-	// verifySynced は、同期している間も、次のパケットの頭が届いていれば sync byte であることを確かめるかどうか。
+	// verifySynced は、同期している間も、次のパケットの先頭が届いていれば sync byte であることを確認するかどうか。
 	verifySynced bool
-	// holdUnverified は、同期を失っている間に、次のパケットの頭がまだ届いていないパケットを、確かめるまで持ち越すかどうか。
-	// false なら、確かめられないパケットはそのまま受け付ける。
+	// holdUnverified は、同期を失っている間に、次のパケットの先頭がまだ届いていないパケットを、確認するまで持ち越すかどうか。
+	// false なら、確認できないパケットはそのまま受け付ける。
 	holdUnverified bool
 	// syncLosses は、同期を失った回数。
 	syncLosses int64
@@ -53,7 +53,7 @@ func (f *packetFramer) accepts(next byte, hasNext bool) (bool, bool) {
 	return false, false
 }
 
-// feed は p を切り分け、パケットごとに emit を呼ぶ。base は、p の頭の、ストリームの先頭からの位置。
+// feed は p を切り分け、パケットごとに emit を呼ぶ。base は、p の先頭の、ストリームの先頭からの位置。
 // emit には、パケットと、その先頭の位置を渡す。emit が true を返したら、そこで止める。止めた後は、続けて読まない。
 func (f *packetFramer) feed(p []byte, base int64, emit func(b []byte, offset int64) bool) {
 	for f.carryLen > 0 {
@@ -119,7 +119,7 @@ func (f *packetFramer) feed(p []byte, base int64, emit func(b []byte, offset int
 	}
 }
 
-// dropCarryHead は、持ち越した頭の先頭のバイトを捨て、次の sync byte までを詰める。sync byte がなければ空にする。
+// dropCarryHead は、持ち越した頭の先頭のバイトを破棄し、次の sync byte までを詰める。sync byte がなければ空にする。
 func (f *packetFramer) dropCarryHead() {
 	for i := 1; i < f.carryLen; i++ {
 		if f.carry[i] == syncByte {

@@ -131,7 +131,7 @@ function SystemStatus() {
         </Button>
       </Group>
 
-      {/* 新しいリリースを確かめる設定を入れていれば、新しい版を知らせる (#506)。 */}
+      {/* 新しいリリースを確認する設定を入れていれば、新しいバージョンを通知する (#506)。 */}
       {data.version.latestRelease != null && (
         <Alert
           color="teal"
@@ -175,7 +175,7 @@ function SystemStatus() {
                 </Text>
               )}
             </Group>
-            {/* 種類と版は、接続できない間も、最後に分かったものを出す (#1538)。 */}
+            {/* 種類とバージョンは、接続できない間も、最後に分かったものを出す (#1538)。 */}
             {status.tunerServer.kind != null && (
               <Text size="sm">
                 {status.tunerServer.version == null
@@ -193,7 +193,7 @@ function SystemStatus() {
                 {t('admin.system.lastError', { error: status.tunerServer.lastError })}
               </Text>
             )}
-            {/* EDCB は時計を返さないので、測れないことを示す (#1532)。放送の時刻とのずれは、録画で測る。 */}
+            {/* EDCB は時計を返さないので、計測できないことを示す (#1532)。放送の時刻とのずれは、録画で計測する。 */}
             {status.tunerServer.kind === 'EDCB' && status.tunerServer.clockSkewMs == null && (
               <Text size="sm">{t('admin.system.clockSkewUnavailable')}</Text>
             )}
@@ -217,7 +217,7 @@ function SystemStatus() {
             )}
             {status.tunerServer.broadcastClockSkewMs != null &&
               status.tunerServer.broadcastClockCheckedAt != null && (
-                // 録画している TS の TOT で測った、放送の時刻との差 (#1309)。Date ヘッダーとの差とは別に示す。
+                // 録画している TS の TOT で計測した、放送の時刻との差 (#1309)。Date ヘッダーとの差とは別に示す。
                 <Text
                   size="sm"
                   c={status.tunerServer.broadcastClockSkewed ? 'amber.8' : undefined}
@@ -361,7 +361,7 @@ function SystemStatus() {
   );
 }
 
-// DataTable は、狭い画面では横にスクロールする表。
+// DataTable は、狭い画面では横にスクロールするテーブル。
 function DataTable({
   head,
   rows,

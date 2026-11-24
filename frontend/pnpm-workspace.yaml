@@ -1,7 +1,8 @@
 packages:
   - vendor/mpeg2toh264/*
+  - vendor/ffmpeg/decoder
 
-# Storybook が使う esbuild の postinstall は、バイナリを確かめるだけなので走らせない。
+# Storybook が使う esbuild の postinstall は、バイナリを確認するだけなので走らせない。
 # バイナリは、プラットフォームごとの optionalDependencies から入る。
 allowBuilds:
   esbuild: false
@@ -16,11 +17,11 @@ overrides:
   # パーサーの修正 (宣言の前の ; を読み飛ばす) だけをパッチで当てる。
   css: npm:@adobe/css-tools@5.0.0
   vite: npm:@voidzero-dev/vite-plus-core@1.6.0
-  vitest: 5.1.0
-  # 脆弱性 (GHSA-gh4j-gqv2-49f6、GHSA-474x-hrwr-fgx4) が直った版は 5.x にしかないが、web-bml は ^4 を指したまま更新が
+  vitest: 5.1.1
+  # 脆弱性 (GHSA-gh4j-gqv2-49f6、GHSA-474x-hrwr-fgx4) が直ったバージョンは 5.x にしかないが、web-bml は ^4 を指したまま更新が
   # 止まっている。web-bml が使う XMLParser と XMLBuilder の API と、渡す設定は 5.x でも変わらない。
   web-bml>fast-xml-parser: ^5.12.0
-  # 脆弱性 (GHSA-3g3m-2fjr-6pw4) が直った版は 14.0.2 からで、それより前の glob が使う minimatch の脆弱性
+  # 脆弱性 (GHSA-3g3m-2fjr-6pw4) が直ったバージョンは 14.0.2 からで、それより前の glob が使う minimatch の脆弱性
   # (GHSA-g3hv-75wg-m249) も、14.x が使う 11.x で直る。workbox-build の最新は ^11 を、Storybook (10.6.7) が使う
   # @joshwooding/vite-plugin-react-docgen-typescript の 0.7.x は ^13 を指したままなので、上書きする。
   workbox-build>glob: ^14.0.2
@@ -33,4 +34,8 @@ patchedDependencies:
   # また、goja で辞書に順位を付け直さずに済むよう、順位を付け終えた辞書を受け取れるようにする (設計書 2.2)。
   # 辞書の照合では、辞書の語に現れない 2 文字の組が出たところで、部分文字列を伸ばすのをやめる。組はビルドのときに求めて渡す。
   '@zxcvbn-ts/core@4.2.0': patches/@zxcvbn-ts__core@4.2.0.patch
+  # aribb24.js は、書き込む位置を表示領域の左上からの相対で持ち、表示位置 (SDP) を変えても直さないので、字幕の途中で SDP を
+  # 変えると、文字が領域の動いた分だけずれる。位置を決めた後の SDP では、画面の上の位置を保つ。そのとき位置が領域の外に出ることが
+  # あるので、折り返すのは、進む向きの端を越えたときだけにする (どちらも libaribcaption と同じ。設計書 7.4)。
+  aribb24.js@2.0.34: patches/aribb24.js@2.0.34.patch
   web-bml@1.0.1: patches/web-bml@1.0.1.patch

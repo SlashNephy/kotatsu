@@ -11,7 +11,7 @@ SELECT id, name, created_at, last_used_at FROM api_tokens WHERE user_id = @user_
 DELETE FROM api_tokens WHERE id = @id AND user_id = @user_id RETURNING name;
 
 -- name: GetAPITokenUser :one
--- トークンのハッシュから、発行したユーザーを引く。無効にしたユーザーのトークンは使えない。
+-- トークンのハッシュから、発行したユーザーを検索する。無効にしたユーザーのトークンは使えない。
 SELECT t.id, t.last_used_at, u.id AS user_id, u.role
 FROM api_tokens t
 JOIN users u ON u.id = t.user_id

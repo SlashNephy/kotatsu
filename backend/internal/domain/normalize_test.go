@@ -25,7 +25,7 @@ func TestNormalize(t *testing.T) {
 		{name: "enclosed alphabets", in: "番組名🅊🅂", want: "番組名[HV][S]"},
 		// 🈀 (ほか) は番組名の一部なので、括弧にしない。
 		{name: "hoka is part of the name", in: "出演者🈀", want: "出演者ほか"},
-		// 表にない囲み文字は、括弧にせず、NFKC で中の文字にする。
+		// テーブルにない囲み文字は、括弧にせず、NFKC で中の文字にする。
 		{name: "enclosed characters not in the table", in: "🄰🈲🈂", want: "A禁サ"},
 		// ㊙ は「㊙情報」のように言葉の一部として使われるので、括弧にしない。
 		{name: "maruhi is part of the name", in: "㊙情報", want: "秘情報"},
@@ -38,6 +38,10 @@ func TestNormalize(t *testing.T) {
 				"[3D][2ndScr][2K][4K][8K][5.1][7.1][22.2][60P][120P][d][HC][HDR][Hi-Res][Lossless][SHV][UHD][VOD]",
 		},
 		{name: "keeps letter case", in: "Ｎｅｗｓ", want: "News"},
+		// 波ダッシュと全角チルダ、ダッシュの類と全角のハイフンマイナスを、同じ文字にそろえる (#2041)。
+		{name: "wave dash and full-width tilde", in: "作品名〜副題〜／作品名～副題～", want: "作品名~副題~/作品名~副題~"},
+		{name: "dash variants", in: "A‐B‑C‒D–E—F―G−H－I", want: "A-B-C-D-E-F-G-H-I"},
+		{name: "keeps prolonged sound marks", in: "コーヒー　ｰ", want: "コーヒー ー"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

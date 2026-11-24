@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4879c27cdfb312078ab0bec36dcf9e76>>
+ * @generated SignedSource<<6407d888555c7351f17c3f61edc39925>>
  * @lightSyntaxTransform
  */
 
@@ -14,6 +14,7 @@ export type recordingQuery$data = {
   readonly systemSettings: {
     readonly captionThreads: number;
     readonly cmDetector: CMDetector;
+    readonly historyMaxDrops: number;
     readonly recordingDefaults: {
       readonly detectCm: boolean;
       readonly endMarginSeconds: number;
@@ -32,7 +33,6 @@ export type recordingQuery$data = {
       readonly duplicateWindowDays: number | null | undefined;
       readonly followEventRelay: boolean;
     };
-    readonly ruleUnmatchedGraceMinutes: number;
     readonly sleepControlEnabled: boolean;
     readonly thumbnailPreviewsEnabled: boolean;
     readonly tvtplayChaptersEnabled: boolean;
@@ -183,7 +183,7 @@ var v0 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "ruleUnmatchedGraceMinutes",
+        "name": "historyMaxDrops",
         "storageKey": null
       },
       {
@@ -279,16 +279,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "32da381fc586570a73d4d3592aa54887",
+    "cacheID": "cd2e900d669bd70178fb6365a31af7b9",
     "id": null,
     "metadata": {},
     "name": "recordingQuery",
     "operationKind": "query",
-    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      generateCaptions\n      transcodePreset\n      transcodeFrameRate\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    ruleUnmatchedGraceMinutes\n    tvtplayChaptersEnabled\n    cmDetector\n    thumbnailPreviewsEnabled\n    captionThreads\n    sleepControlEnabled\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
+    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      generateCaptions\n      transcodePreset\n      transcodeFrameRate\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    historyMaxDrops\n    tvtplayChaptersEnabled\n    cmDetector\n    thumbnailPreviewsEnabled\n    captionThreads\n    sleepControlEnabled\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "bedf0d15f68e6880ad8a222d0c3c64ae";
+(node as any).hash = "768825bc73838603ca22708654f7444a";
 
 export default node;

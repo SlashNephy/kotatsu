@@ -104,7 +104,7 @@ type getData struct {
 	RawURL string `json:"raw_url"`
 }
 
-// List は、フォルダ path の中身を返す。
+// List は、フォルダ path の内容を返す。
 func (c *Client) List(ctx context.Context, path string) ([]*Entry, error) {
 	var body apiResponse[listData]
 	if err := c.post(ctx, "/api/fs/list", map[string]any{"path": path, "page": 1, "per_page": 0}, &body); err != nil {

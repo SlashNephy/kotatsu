@@ -109,7 +109,7 @@ function RecordingPicker({ onOpen }: { onOpen: (target: RemoteOpenTarget) => voi
   const [results, setResults] = useState<Recordings | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  // latest は、最後に送った検索の番号。読み込み中も Enter で送れるので、前の検索の応答が遅れて届いたら捨てる (#1423)。
+  // latest は、最後に送った検索の番号。読み込み中も Enter で送れるので、前の検索の応答が遅れて届いたら破棄する (#1423)。
   const latest = useRef(0);
   const search = () => {
     const id = ++latest.current;

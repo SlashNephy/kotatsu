@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-// FakeNode は、WebAudio のノードの代わり。どこへ繋いだかを覚える。
+// FakeNode は、WebAudio のノードの代わり。どこへ繋いだかを記録する。
 class FakeNode {
   readonly targets: FakeNode[] = [];
   readonly gain = { value: 1 };
@@ -72,43 +72,59 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe('setNormalize', () => {
-  test('入れると、コンプレッサーを通し、切ると直に繋ぐ (#499)', async () => {
-    vi.stubGlobal('AudioContext', FakeAudioContext);
-    const sources: FakeNode[] = [];
-    const original = FakeAudioContext.prototype.createMediaElementSource;
-    FakeAudioContext.prototype.createMediaElementSource = function () {
-      const node = original.call(this);
+// RecordingContext は、作った元の音と DelayNode を記録する AudioContext。
+const recordingContext = () => {
+  const sources: FakeNode[] = [];
+  const delays: FakeNode[] = [];
+  class RecordingContext extends FakeAudioContext {
+    override createMediaElementSource() {
+      const node = super.createMediaElementSource();
       sources.push(node);
 
       return node;
-    };
+    }
+    override createDelay() {
+      const node = super.createDelay();
+      delays.push(node);
+
+      return node;
+    }
+  }
+
+  return { RecordingContext, sources, delays };
+};
+
+describe('setNormalize', () => {
+  test('入れると、コンプレッサーを通し、切ると直に繋ぐ (#499)', async () => {
+    const { RecordingContext, sources } = recordingContext();
+    vi.stubGlobal('AudioContext', RecordingContext);
     const { setNormalize, isNormalized } = await import('./volumeBoost');
+    const { mediaOf } = await import('./playerMedia');
     // AudioContext は、ユーザーが操作した後でないと動かせない。
     window.dispatchEvent(new Event('pointerdown'));
     const video = document.createElement('video');
 
-    setNormalize(video, true);
-    expect(isNormalized(video)).toBe(true);
+    setNormalize(mediaOf(video), true);
+    expect(isNormalized(mediaOf(video))).toBe(true);
     expect(path(sources[0]!)).toEqual(['source', 'compressor', 'gain', 'gain', 'destination']);
 
-    setNormalize(video, false);
-    expect(isNormalized(video)).toBe(false);
+    setNormalize(mediaOf(video), false);
+    expect(isNormalized(mediaOf(video))).toBe(false);
     expect(path(sources[0]!)).toEqual(['source', 'gain', 'destination']);
-    FakeAudioContext.prototype.createMediaElementSource = original;
   });
 
   test('操作の前に入れたら覚えておき、操作した後に入れる', async () => {
     vi.stubGlobal('AudioContext', FakeAudioContext);
     const { setNormalize, isNormalized, resumePendingBoost } = await import('./volumeBoost');
+    const { mediaOf } = await import('./playerMedia');
     const video = document.createElement('video');
 
-    setNormalize(video, true);
-    expect(isNormalized(video)).toBe(false);
+    setNormalize(mediaOf(video), true);
+    expect(isNormalized(mediaOf(video))).toBe(false);
 
     window.dispatchEvent(new Event('pointerdown'));
-    resumePendingBoost(video);
-    expect(isNormalized(video)).toBe(true);
+    resumePendingBoost(mediaOf(video));
+    expect(isNormalized(mediaOf(video))).toBe(true);
   });
 
   test('入れたときに、止まっている AudioContext を動かす', async () => {
@@ -122,15 +138,17 @@ describe('setNormalize', () => {
     }
     vi.stubGlobal('AudioContext', SuspendedContext);
     const { setNormalize } = await import('./volumeBoost');
+    const { mediaOf } = await import('./playerMedia');
     window.dispatchEvent(new Event('pointerdown'));
 
-    setNormalize(document.createElement('video'), true);
+    setNormalize(mediaOf(document.createElement('video')), true);
 
     expect(contexts[0]?.resumed).toBe(1);
   });
 
   test('仮想サラウンドを入れると、音量の補正の手前に挟む (#454)', async () => {
-    vi.stubGlobal('AudioContext', FakeAudioContext);
+    const { RecordingContext, sources } = recordingContext();
+    vi.stubGlobal('AudioContext', RecordingContext);
     vi.stubGlobal(
       'PannerNode',
       class extends FakeNode {
@@ -139,19 +157,12 @@ describe('setNormalize', () => {
         }
       },
     );
-    const sources: FakeNode[] = [];
-    const original = FakeAudioContext.prototype.createMediaElementSource;
-    FakeAudioContext.prototype.createMediaElementSource = function () {
-      const node = original.call(this);
-      sources.push(node);
-
-      return node;
-    };
     const { setNormalize, setSurround } = await import('./volumeBoost');
+    const { mediaOf } = await import('./playerMedia');
     window.dispatchEvent(new Event('pointerdown'));
     const video = document.createElement('video');
 
-    setSurround(video, true);
+    setSurround(mediaOf(video), true);
     // L のチャンネルは、倍率、HRTF の PannerNode、2ch に混ぜる GainNode を通って、音量の GainNode へ届く。
     expect(path(sources[0]!)).toEqual([
       'source',
@@ -163,7 +174,7 @@ describe('setNormalize', () => {
       'destination',
     ]);
 
-    setNormalize(video, true);
+    setNormalize(mediaOf(video), true);
     expect(path(sources[0]!)).toEqual([
       'source',
       'splitter',
@@ -176,44 +187,22 @@ describe('setNormalize', () => {
       'destination',
     ]);
 
-    setSurround(video, false);
+    setSurround(mediaOf(video), false);
     expect(path(sources[0]!)).toEqual(['source', 'compressor', 'gain', 'gain', 'destination']);
-    FakeAudioContext.prototype.createMediaElementSource = original;
   });
 });
 
 describe('setAudioDelay', () => {
-  // RecordingContext は、作った元の音と DelayNode を覚える AudioContext。
-  const recordingContext = () => {
-    const sources: FakeNode[] = [];
-    const delays: FakeNode[] = [];
-    class RecordingContext extends FakeAudioContext {
-      override createMediaElementSource() {
-        const node = super.createMediaElementSource();
-        sources.push(node);
-
-        return node;
-      }
-      override createDelay() {
-        const node = super.createDelay();
-        delays.push(node);
-
-        return node;
-      }
-    }
-
-    return { RecordingContext, sources, delays };
-  };
-
   test('遅らせると、最初の段に DelayNode を挟んで長さを当て、0 にすると外す (#818)', async () => {
     const { RecordingContext, sources, delays } = recordingContext();
     vi.stubGlobal('AudioContext', RecordingContext);
     const { setAudioDelay, setNormalize } = await import('./volumeBoost');
+    const { mediaOf } = await import('./playerMedia');
     window.dispatchEvent(new Event('pointerdown'));
     const video = document.createElement('video');
 
-    setNormalize(video, true);
-    setAudioDelay(video, 0.12);
+    setNormalize(mediaOf(video), true);
+    setAudioDelay(mediaOf(video), 0.12);
     expect(path(sources[0]!)).toEqual([
       'source',
       'delay',
@@ -225,10 +214,10 @@ describe('setAudioDelay', () => {
     expect(delays[0]?.delayTime.value).toBe(0.12);
 
     // 長さだけを変えたときも当てる。
-    setAudioDelay(video, 0.2);
+    setAudioDelay(mediaOf(video), 0.2);
     expect(delays[0]?.delayTime.value).toBe(0.2);
 
-    setAudioDelay(video, 0);
+    setAudioDelay(mediaOf(video), 0);
     expect(path(sources[0]!)).toEqual(['source', 'compressor', 'gain', 'gain', 'destination']);
   });
 
@@ -236,13 +225,14 @@ describe('setAudioDelay', () => {
     const { RecordingContext, delays } = recordingContext();
     vi.stubGlobal('AudioContext', RecordingContext);
     const { setAudioDelay, resumePendingBoost } = await import('./volumeBoost');
+    const { mediaOf } = await import('./playerMedia');
     const video = document.createElement('video');
 
-    setAudioDelay(video, 0.1);
+    setAudioDelay(mediaOf(video), 0.1);
     expect(delays).toHaveLength(0);
 
     window.dispatchEvent(new Event('pointerdown'));
-    resumePendingBoost(video);
+    resumePendingBoost(mediaOf(video));
     expect(delays[0]?.delayTime.value).toBe(0.1);
   });
 
@@ -251,14 +241,36 @@ describe('setAudioDelay', () => {
     vi.stubGlobal('AudioContext', RecordingContext);
     const { applyVolume, boostOf, setAudioDelay, resumePendingBoost } =
       await import('./volumeBoost');
+    const { mediaOf } = await import('./playerMedia');
     const video = document.createElement('video');
 
-    applyVolume(video, 1.5);
-    setAudioDelay(video, 0.1);
+    applyVolume(mediaOf(video), 1.5);
+    setAudioDelay(mediaOf(video), 0.1);
 
     window.dispatchEvent(new Event('pointerdown'));
-    resumePendingBoost(video);
+    resumePendingBoost(mediaOf(video));
     expect(delays[0]?.delayTime.value).toBe(0.1);
-    expect(boostOf(video)).toBe(1.5);
+    expect(boostOf(mediaOf(video))).toBe(1.5);
+  });
+});
+
+describe('releaseBoost', () => {
+  // 1 つの <video> からは、元の音 (MediaElementAudioSourceNode) を 1 度しか作れない。2 度目は例外になり、
+  // 100% までしか鳴らせなくなる。
+  test('外した後にまた上げても、元の音を作り直さず、同じ元の音から繋ぎ直す', async () => {
+    const { RecordingContext, sources } = recordingContext();
+    vi.stubGlobal('AudioContext', RecordingContext);
+    const { applyVolume, boostOf, releaseBoost } = await import('./volumeBoost');
+    const { mediaOf } = await import('./playerMedia');
+    window.dispatchEvent(new Event('pointerdown'));
+    const media = mediaOf(document.createElement('video'));
+
+    applyVolume(media, 1.5);
+    releaseBoost(media);
+    applyVolume(media, 1.8);
+
+    expect(sources).toHaveLength(1);
+    expect(path(sources[0]!)).toEqual(['source', 'gain', 'destination']);
+    expect(boostOf(media)).toBe(1.8);
   });
 });

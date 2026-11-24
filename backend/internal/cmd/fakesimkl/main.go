@@ -1,6 +1,6 @@
-// Command fakesimkl は、画面で Simkl との連携を確かめるための、偽の Simkl を起動する (#1649)。
+// Command fakesimkl は、画面で Simkl との連携を確認するための、モックの Simkl を起動する (#1649)。
 //
-// internal/testutil/simkltest の偽の Simkl を、決まったアドレスで待ち受けさせる。認可のエンドポイントは、人の操作をまねず、
+// internal/testutil/simkltest のモックの Simkl を、決まったアドレスで待ち受けさせる。認可のエンドポイントは、人の操作をまねず、
 // その場でコードを作って redirect_uri に戻す。Kotatsu は、設定の simkl.url (KOTATSU_SIMKL_URL) をこのアドレスに向ける。
 // 制御用のエンドポイント (本物の Simkl にはないもの) は、別のアドレスで待ち受け、ウォッチリストを変え、受け取った見た話を返す。
 // 制御用のアドレスは、検証の一式の外から届かないところにする。
@@ -69,7 +69,7 @@ func serve(ctx context.Context, logger *slog.Logger, listen, control, clientID, 
 type controlRequest struct {
 	Items []struct {
 		SimklID int64  `json:"simklId"`
-		TMDbID  int32  `json:"tmdbId"`
+		TMDBID  int32  `json:"tmdbId"`
 		Status  string `json:"status"`
 	} `json:"items"`
 	// Removed なら、作品を外したことにする (/sync/activities の removed_from_list を進める)。
@@ -89,7 +89,7 @@ func controlHandler(fake *simkltest.Server) http.Handler {
 		now := time.Now().UTC()
 		items := make([]*simkltest.Item, 0, len(body.Items))
 		for _, item := range body.Items {
-			items = append(items, &simkltest.Item{SimklID: item.SimklID, TMDbID: item.TMDbID, Status: item.Status, UpdatedAt: now})
+			items = append(items, &simkltest.Item{SimklID: item.SimklID, TMDBID: item.TMDBID, Status: item.Status, UpdatedAt: now})
 		}
 		fake.Lock()
 		fake.Items = items

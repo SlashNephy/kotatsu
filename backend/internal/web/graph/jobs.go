@@ -39,7 +39,7 @@ func uncancellableKinds() []string {
 // errJobsUnavailable は、ジョブを扱う設定がないことを表す。
 var errJobsUnavailable = errors.New("jobs are not configured")
 
-// JobAdmin は、River のジョブを読み、試し直し、取り消す。*jobs.Client (river.Client) が満たす。
+// JobAdmin は、River のジョブを読み、再試行し、取り消す。*jobs.Client (river.Client) が満たす。
 type JobAdmin interface {
 	JobList(ctx context.Context, params *river.JobListParams) (*river.JobListResult, error)
 	JobGet(ctx context.Context, id int64) (*rivertype.JobRow, error)
@@ -174,7 +174,7 @@ func (r *Resolver) changeJob(ctx context.Context, id, action string) (*model.Job
 	return jobs[0], nil
 }
 
-// retryable は、ジョブを画面から試し直せるかを返す。動いているジョブは試し直せない。
+// retryable は、ジョブを画面から再試行できるかを返す。動いているジョブは再試行できない。
 func retryable(job *rivertype.JobRow) bool {
 	return job.State != rivertype.JobStateRunning
 }
@@ -188,8 +188,8 @@ func cancellable(job *rivertype.JobRow) bool {
 	return !slices.Contains([]rivertype.JobState{rivertype.JobStateCompleted, rivertype.JobStateCancelled, rivertype.JobStateDiscarded}, job.State)
 }
 
-// jobModels は、River のジョブを GraphQL の形にする。引数の JSON は返さず、録画を対象にするジョブなら、その録画を引く。
-// 一覧は 5 秒ごとに読み直すので、録画はジョブごとに引かず、まとめて 1 回で引く。
+// jobModels は、River のジョブを GraphQL の形にする。引数の JSON は返さず、録画を対象にするジョブなら、その録画を取得する。
+// 一覧は 5 秒ごとに読み直すので、録画はジョブごとに取得せず、まとめて 1 回で取得する。
 func (r *Resolver) jobModels(ctx context.Context, rows []*rivertype.JobRow) ([]*model.Job, error) {
 	ids := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
@@ -232,7 +232,7 @@ func (r *Resolver) jobModels(ctx context.Context, rows []*rivertype.JobRow) ([]*
 }
 
 // jobProgress は、動いているジョブの進み具合を、ジョブの ID ごとにまとめて引く (#1511)。
-// 前の試行の行 (試し直す前に書いたもの) と、終えたジョブの行は返さない。
+// 前の試行の行 (再試行する前に書いたもの) と、終えたジョブの行は返さない。
 func (r *Resolver) jobProgress(ctx context.Context, rows []*rivertype.JobRow) (map[int64]*model.JobProgress, error) {
 	attempts := map[int64]int{}
 	ids := []int64{}

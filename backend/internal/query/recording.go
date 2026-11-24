@@ -210,7 +210,7 @@ func (q *Queries) CountAPIRecordings(ctx context.Context, keyword string) (int64
 }
 
 // ListAPIRecordings は、EPGStation 互換 API の録画を返す。
-// キーワードは、画面の録画の検索と同じく、正規化して、番組名の正規化した列から探す。% と _ は、文字そのものとして探す (#1726)。
+// キーワードは、画面の録画の検索と同じく、正規化して、番組名の正規化したカラムから探す。% と _ は、文字そのものとして探す (#1726)。
 func (q *Queries) ListAPIRecordings(ctx context.Context, arg ListAPIRecordingsParams) ([]domain.APIRecording, error) {
 	params := sqlc.ListAPIRecordingsParams(arg)
 	params.Keyword = apiKeyword(arg.Keyword)
@@ -269,7 +269,7 @@ func (q *Queries) ListWatchProgress(ctx context.Context, arg ListWatchProgressPa
 	return out, nil
 }
 
-// GetRecordingJikkyoSource は、録画の実況のコメントを引くための、録画したサービスと時刻を返す。なければ pgx.ErrNoRows を返す。
+// GetRecordingJikkyoSource は、録画の実況のコメントを取得するための、録画したサービスと時刻を返す。なければ pgx.ErrNoRows を返す。
 func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (domain.RecordingJikkyoSource, error) {
 	result, err := sqlc.New(q.pool).GetRecordingJikkyoSource(ctx, id)
 	if err != nil {
@@ -341,7 +341,7 @@ func (q *Queries) GetRecordingNicologPath(ctx context.Context, recordingID uuid.
 	return *path, nil
 }
 
-// apiKeyword は、EPGStation 互換 API の録画のキーワードを、正規化した列に当てる LIKE のパターンにする。空なら空を返す。
+// apiKeyword は、EPGStation 互換 API の録画のキーワードを、正規化したカラムに当てる LIKE のパターンにする。空なら空を返す。
 func apiKeyword(keyword string) string {
 	return escapeLike(domain.Normalize(strings.TrimSpace(keyword)))
 }

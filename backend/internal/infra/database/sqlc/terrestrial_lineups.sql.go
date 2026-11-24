@@ -61,7 +61,7 @@ type UpsertTerrestrialLineupParams struct {
 	ObservedAt        time.Time
 }
 
-// 地上波のネットワークのサービスを書く (#1519)。版が同じでも、読んだ時刻は書き換える。
+// 地上波のネットワークのサービスを書く (#1519)。バージョンが同じでも、読んだ時刻は書き換える。
 func (q *Queries) UpsertTerrestrialLineup(ctx context.Context, arg UpsertTerrestrialLineupParams) error {
 	_, err := q.db.Exec(ctx, upsertTerrestrialLineup,
 		arg.NetworkID,
