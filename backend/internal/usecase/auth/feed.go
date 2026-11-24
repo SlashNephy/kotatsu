@@ -38,7 +38,7 @@ type Feed struct {
 	LastUsedAt *time.Time
 }
 
-// Feeds は、Cookie もヘッダーも送れないアプリに配信する URL を発行し、確かめる (設計書 9.8)。
+// Feeds は、Cookie もヘッダーも送れないアプリに配信する URL を発行し、確認する (設計書 9.8)。
 // 予約の iCalendar (#1255) と、ライブ視聴の M3U と番組表の XMLTV (#1324) で、別々の秘密の値を使う。
 // アプリは Cookie もヘッダーも送れないので、URL に秘密の値を入れて認証する。
 // 秘密の値は発行したときにだけ返し、DB には SHA-256 だけを保存する。ユーザーと種類ごとに 1 つだけ持ち、発行し直すと前の URL は使えなくなる。
@@ -46,7 +46,7 @@ type Feeds struct {
 	pool     *pgxpool.Pool
 	clock    clock.Clock
 	recorder audit.Recorder
-	// kind は、DB に持つ種類。mark は、秘密の値の頭に付ける印で、API トークンやほかの種類と見分け、漏れたときに見つけやすくする。
+	// kind は、DB に持つ種類。mark は、秘密の値の先頭に付けるマークで、API トークンやほかの種類と見分け、漏れたときに見つけやすくする。
 	kind string
 	mark string
 }

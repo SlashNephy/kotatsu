@@ -32,11 +32,11 @@ const (
 	WebAuthnCookieName = "kotatsu_webauthn"
 	// MaxPasskeys は、1 人が登録できるパスキーの数 (付録 A)。
 	MaxPasskeys = 20
-	// PasskeyCeremonyTTL は、パスキーの手続きを始めてから、認証器の応答を受け取るまでに許す時間 (付録 A)。
+	// PasskeyCeremonyTTL は、パスキーの手続きを始めてから、オーセンティケーターの応答を受け取るまでに許す時間 (付録 A)。
 	PasskeyCeremonyTTL = 5 * time.Minute
 	// maxPasskeyNameLength は、パスキーの名前の長さの上限 (文字数)。
 	maxPasskeyNameLength = 64
-	// rpDisplayName は、認証器に出す、Kotatsu の名前。
+	// rpDisplayName は、オーセンティケーターに出す、Kotatsu の名前。
 	rpDisplayName = "Kotatsu"
 
 	ceremonyRegistration = "registration"
@@ -47,7 +47,7 @@ var (
 	// ErrPasskeyUnavailable は、Secure Context (HTTPS か localhost) でないか、IP アドレスで接続しているので、
 	// パスキーを使えないことを表す。WebAuthn は、ドメイン名の Secure Context でしか使えない。
 	ErrPasskeyUnavailable = errors.New("passkeys require HTTPS (or localhost) and a domain name, not an IP address")
-	// ErrInvalidPasskey は、認証器の応答を確かめられなかったことを表す。
+	// ErrInvalidPasskey は、オーセンティケーターの応答を確認できなかったことを表す。
 	ErrInvalidPasskey = errors.New("invalid passkey")
 	// ErrWebAuthnCeremonyInvalid は、パスキーの手続きを始めていないか、期限が切れたか、使用済みであることを表す。
 	ErrWebAuthnCeremonyInvalid = errors.New("the passkey ceremony has expired or was not started")
@@ -115,7 +115,7 @@ func NewPasskeys(opts *PasskeysOptions) *Passkeys {
 
 // BeginRegistration は、ログイン中のユーザーにパスキーの登録を始めさせる。
 //
-// パスキーだけでもログインできるよう、認証器に保存するパスキー (discoverable credential) を求め、
+// パスキーだけでもログインできるよう、オーセンティケーターに保存するパスキー (discoverable credential) を求め、
 // 生体認証か PIN での本人の確認 (user verification) を必須にする。
 func (p *Passkeys) BeginRegistration(ctx context.Context, db Database, userID uuid.UUID, client *ClientInfo) (*PasskeyCreation, error) {
 	rp, err := relyingParty(client)
@@ -131,7 +131,7 @@ func (p *Passkeys) BeginRegistration(ctx context.Context, db Database, userID uu
 		if user.total >= MaxPasskeys {
 			return ErrTooManyPasskeys
 		}
-		// 登録済みの認証器に、同じユーザーのパスキーを重ねて作らせない。
+		// 登録済みのオーセンティケーターに、同じユーザーのパスキーを重ねて作らせない。
 		exclusions := make([]protocol.CredentialDescriptor, 0, len(user.credentials))
 		for i := range user.credentials {
 			exclusions = append(exclusions, user.credentials[i].Descriptor())
@@ -155,8 +155,8 @@ func (p *Passkeys) BeginRegistration(ctx context.Context, db Database, userID uu
 	return creation, nil
 }
 
-// FinishRegistration は、認証器の応答 (PublicKeyCredential の JSON) を確かめ、パスキーを name の名前で登録する。
-// 手続きは、確かめられなくても使用済みにする。
+// FinishRegistration は、オーセンティケーターの応答 (PublicKeyCredential の JSON) を確認し、パスキーを name の名前で登録する。
+// 手続きは、確認できなくても使用済みにする。
 func (p *Passkeys) FinishRegistration(
 	ctx context.Context,
 	db Database,
@@ -196,7 +196,7 @@ func (p *Passkeys) FinishRegistration(
 			return verifyErr
 		}
 
-		// 確かめられなくても、手続きを使用済みにしたことは残す。
+		// 確認できなくても、手続きを使用済みにしたことは残す。
 		return nil
 	})
 	if err != nil {
@@ -265,7 +265,7 @@ func (p *Passkeys) register(
 	}
 
 	q := sqlc.New(tx)
-	// 別のユーザーが登録した認証器の ID と重なれば、受け付けない。
+	// 別のユーザーが登録したオーセンティケーターの ID と重なれば、受け付けない。
 	if _, err := q.GetPasskeyByCredentialID(ctx, credential.ID); err == nil {
 		return nil, fmt.Errorf("%w: the credential is already registered", ErrInvalidPasskey)
 	} else if !errors.Is(err, pgx.ErrNoRows) {
@@ -286,7 +286,7 @@ func (p *Passkeys) register(
 	return passkey, p.record(ctx, tx, actor, "user.passkey_registered", userID, passkey)
 }
 
-// record は、パスキーの変更を監査ログに残し、同じユーザーのほかの端末に、設定が変わったことを知らせる。
+// record は、パスキーの変更を監査ログに残し、同じユーザーのほかの端末に、設定が変わったことを通知する。
 func (p *Passkeys) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, action string, userID uuid.UUID, passkey *Passkey) error {
 	if err := usersettings.Touch(ctx, tx, p.clock, userID); err != nil {
 		return err
@@ -386,10 +386,10 @@ func (u *webauthnUser) WebAuthnCredentials() []webauthn.Credential {
 	return u.credentials
 }
 
-// loadWebAuthnUser は、ユーザーと、RP ID が rpID のパスキーを引く。
+// loadWebAuthnUser は、ユーザーと、RP ID が rpID のパスキーを取得する。
 //
 // ほかのホスト名で登録したパスキーは、ブラウザーが使わせないので、ログインの候補にも登録の除外にも入れない。
-// 認証器が答えても、候補にないパスキーは go-webauthn が受け付けない。
+// オーセンティケーターが答えても、候補にないパスキーは go-webauthn が受け付けない。
 func loadWebAuthnUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, rpID string) (*webauthnUser, error) {
 	q := sqlc.New(db)
 	user, err := q.GetUser(ctx, userID)

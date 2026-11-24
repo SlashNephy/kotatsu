@@ -22,11 +22,11 @@ import (
 const (
 	// ffmpegCommand は、PATH から探す FFmpeg のコマンドの名前。FFmpeg の入ったイメージ (-ffmpeg) には入っている。
 	ffmpegCommand = "ffmpeg"
-	// FFmpegDetectorName と ffmpegDetectorVersion は、FFmpegDetector の名前と版。規則や値を変えたら版を上げる。
-	// 版 2 で、区間の時刻の基準を、最初の映像の PES から、最初の I フレームに移した (#1811)。
+	// FFmpegDetectorName と ffmpegDetectorVersion は、FFmpegDetector の名前とバージョン。規則や値を変えたらバージョンを上げる。
+	// バージョン 2 で、区間の時刻の基準を、最初の映像の PES から、最初の I フレームに移した (#1811)。
 	FFmpegDetectorName    = "ffmpeg"
 	ffmpegDetectorVersion = 2
-	// firstKeyframeFFmpegVersion は、区間の時刻の基準を最初の I フレームにした、FFmpegDetector の最初の版。
+	// firstKeyframeFFmpegVersion は、区間の時刻の基準を最初の I フレームにした、FFmpegDetector の最初のバージョン。
 	firstKeyframeFFmpegVersion = 2
 	// silenceNoise は、無音とみなす音量の上限。CM の境目は、デジタルの無音 (0) になる。
 	// 本編の台詞の間は、BGM や環境音が小さく残ることが多いので、ずっと小さい音までを無音とみなさない。
@@ -47,7 +47,7 @@ var ErrNoVideo = errors.New("the file has no video of the service")
 
 // FFmpegDetector は、FFmpeg を子プロセスとして動かし、無音の区間とシーンの切り替わりから CM の区間を見分ける。
 // 本体とはリンクしない (設計書 付録 B)。FFmpeg に流すのと同じ TS を ts.CueScanner にも読ませ、音声の構成の変化を手掛かりに足す。
-// 映像は I フレームだけをデコードし、縮めてから比べるので、30 分の録画で CPU を 30 秒ほどしか使わない。
+// 映像は I フレームだけをデコードし、縮めてから比較するので、30 分の録画で CPU を 30 秒ほどしか使わない。
 // 録画の後処理なので、OS の最低の優先度で動かし、ライブ視聴の変換 (kyusu) に CPU を譲る (#1511)。
 type FFmpegDetector struct {
 	lowerer *procprio.Lowerer
@@ -96,7 +96,7 @@ func (d *FFmpegDetector) signals(ctx context.Context, input *Input) (*signals, e
 	defer func() { _ = file.Close() }()
 
 	scanner := ts.NewCueScanner(input.ServiceID)
-	// 時刻を PTS のまま出させ (-copyts)、ts.CueScanner の時刻と比べられるようにする。I フレームだけをデコードする。
+	// 時刻を PTS のまま出させ (-copyts)、ts.CueScanner の時刻と比較できるようにする。I フレームだけをデコードする。
 	// CM の境目の判断には、0.5 秒ごとの絵で足りる。シーンの切り替わりは標準出力に、無音の区間はログ (標準エラー出力) に出る。
 	// 進み具合 (#1511) の -progress のまとまりは、標準出力をシーンの切り替わりに使っているので、標準エラー出力に混ぜて出させ、
 	// 行の形で見分ける。fd 3 に出させる (ExtraFiles) 方法は、Windows で使えない。
@@ -150,7 +150,7 @@ func parseStdout(r io.Reader) *ffmpegOutput {
 			}
 		}
 	}
-	// 読み残すと FFmpeg が書き込みで止まるので、読めなくなっても最後まで捨てる。
+	// 読み残すと FFmpeg が書き込みで止まるので、読めなくなっても最後まで破棄する。
 	_, _ = io.Copy(io.Discard, r)
 
 	return out
@@ -163,7 +163,7 @@ type ffmpegLog struct {
 }
 
 // parseStderr は、silencedetect フィルターが出す silence_start と silence_end の行を読む。
-// -progress のまとまりの行は、onBlock に渡し、ログの末尾には残さない。onBlock が nil なら捨てる。
+// -progress のまとまりの行は、onBlock に渡し、ログの末尾には残さない。onBlock が nil なら破棄する。
 func parseStderr(r io.Reader, onBlock func(*ffprogress.Block)) *ffmpegLog {
 	log := &ffmpegLog{silences: []span{}, tail: []string{}}
 	start := math.NaN()
@@ -213,7 +213,7 @@ func (c *countingReader) Read(p []byte) (int, error) {
 }
 
 // newSignals は、PTS のままの時刻を、ファイルの最初の I フレームからの秒にそろえる。PTS が一周していても、差が半周より短ければ正しく求まる。
-// 再生の時間は、録画の索引の最初の I フレームを 0 にするので、それとそろえる (#1811)。録画の頭の、最初の I フレームより前の PES は、
+// 再生の時間は、録画のインデックスの最初の I フレームを 0 にするので、それとそろえる (#1811)。録画の先頭の、最初の I フレームより前の PES は、
 // デコードできず、再生にも入らない。本番の録画では 0.3〜0.5 秒あり、最初の映像の PES を 0 にすると、CM の区間がその分遅れた。
 // I フレームの探し方を知らない映像で、最初の I フレームが分からなければ、最初の映像の PES を 0 にする。
 func newSignals(cues *ts.Cues, scenes []float64, silences []span) (*signals, error) {

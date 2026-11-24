@@ -33,8 +33,8 @@ const timingSeparator = "-->"
 var tagPattern = regexp.MustCompile(`<[^>]*>`)
 
 // ParseVTT は、WebVTT を読み、本文のある字幕を、出てくる順に返す。
-// 時刻は、時の欄のある形 (00:01:02.345) とない形 (01:02.345) のどちらも読む。字幕の ID の行、時刻の後の設定、NOTE と STYLE の塊は読み飛ばす。
-// 本文が空の字幕 (whisper が無音の区間に出すもの) と、終わりが始まりより後でない字幕は捨てる。本文の改行は残す。
+// 時刻は、時の欄のある形 (00:01:02.345) とない形 (01:02.345) のどちらも読む。字幕の ID の行、時刻の後の設定、NOTE と STYLE のチャンクは読み飛ばす。
+// 本文が空の字幕 (whisper が無音の区間に出すもの) と、終わりが始まりより後でない字幕は破棄する。本文の改行は残す。
 func ParseVTT(r io.Reader) ([]Cue, error) {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -76,7 +76,7 @@ func ParseVTT(r io.Reader) ([]Cue, error) {
 
 			continue
 		}
-		// 時刻の行より前の行は、字幕の ID か、NOTE や STYLE の塊。時刻の行でなければ読み飛ばす。
+		// 時刻の行より前の行は、字幕の ID か、NOTE や STYLE のチャンク。時刻の行でなければ読み飛ばす。
 		if !strings.Contains(line, timingSeparator) {
 			continue
 		}
@@ -94,7 +94,7 @@ func ParseVTT(r io.Reader) ([]Cue, error) {
 	return cues, nil
 }
 
-// cueText は、字幕の本文の行から、タグを取り除き、前後の空白を落として、改行でつなぐ。空になった行は捨てる。
+// cueText は、字幕の本文の行から、タグを取り除き、前後の空白を落として、改行でつなぐ。空になった行は破棄する。
 func cueText(lines []string) string {
 	kept := make([]string, 0, len(lines))
 	for _, line := range lines {

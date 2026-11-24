@@ -83,7 +83,7 @@ func TestPeers(t *testing.T) {
 	}
 }
 
-// TestPeersIgnoresInputOrder は、相手の並びが、予約を渡す順に左右されないことを確かめる。
+// TestPeersIgnoresInputOrder は、相手の並びが、予約を渡す順に左右されないことを確認する。
 func TestPeersIgnoresInputOrder(t *testing.T) {
 	t.Parallel()
 

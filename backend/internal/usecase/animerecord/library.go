@@ -58,7 +58,7 @@ type LibraryImage struct {
 	URL         string
 }
 
-// LibraryPastBroadcast は、作品の始まった放送。番組はアーカイブに移っていることがあるので、開始時刻と印だけを持つ。
+// LibraryPastBroadcast は、作品の始まった放送。番組はアーカイブに移っていることがあるので、開始時刻とマークだけを持つ。
 type LibraryPastBroadcast struct {
 	StartAt time.Time
 	// Rerun は再放送かどうか、Last は最終話 ([終]) かどうか。
@@ -108,8 +108,8 @@ type LibraryRecordedEpisode struct {
 }
 
 // Library は、ユーザー userID の見たいリストの作品を、作品ごとに、次の話と次の放送と録画と並べて返す (#1231)。
-// 放送は、今から WishlistHorizon の間に始まるもの (放送中を含む) を、番組の結びつき (設計書 3.8) で引く。
-// 録画は、録画に写した結びつきで引き、録れなかった録画と、話数のない録画は外す。
+// 放送は、今から WishlistHorizon の間に始まるもの (放送中を含む) を、番組の結びつき (設計書 3.8) で検索する。
+// 録画は、録画にコピーした結びつきで検索し、録れなかった録画と、話数のない録画は外す。
 func (s *Service) Library(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (*Library, error) {
 	q := sqlc.New(db)
 	rows, err := q.ListAnimeWishlistEntries(ctx, userID)
@@ -241,7 +241,7 @@ func newLibraryWork(tid *int32) *LibraryWork {
 	}
 }
 
-// addLibrarySource は、見たいリストの作品 row を、作品 work の記録先に足し、記録先が示した作品の情報を、作品に写す。
+// addLibrarySource は、見たいリストの作品 row を、作品 work の記録先に足し、記録先が示した作品の情報を、作品にコピーする。
 func addLibrarySource(work *LibraryWork, row *sqlc.AnimeWishlistEntry) {
 	work.Sources = append(work.Sources, &LibrarySource{
 		Destination: row.Destination, WorkID: row.WorkID, Status: row.Status, Title: row.Title, Progress: row.Progress,

@@ -33,7 +33,7 @@ const (
 	WishlistRetryInterval = time.Hour
 	// WishlistHorizon は、候補にする放送の範囲 (付録 A)。今から、この期間に始まる番組を探す。
 	WishlistHorizon = 7 * 24 * time.Hour
-	// DefaultWishlistRequestInterval は、見たいリストを引く問い合わせの間を空ける既定の長さ (付録 A)。
+	// DefaultWishlistRequestInterval は、見たいリストを取得する問い合わせの間を空ける既定の長さ (付録 A)。
 	DefaultWishlistRequestInterval = time.Second
 	// maxWishlistPages と maxWishlistEntries は、記録先ごとに引くページの数と作品の数の上限。
 	// Annict は 1 ページ 100 件、AniList は 500 件なので、どちらも 2,000 件までは引く。
@@ -251,7 +251,7 @@ func (s *Service) fetchWishlist(ctx context.Context, destination Destination, to
 }
 
 // waitWishlistTurn は、記録先 name への前の問い合わせから、wishlistInterval が過ぎるまで待つ。wishlistMu を取ってから呼ぶ。
-// 間を空けるのは実際の時間なので、テストのための時計ではなく、壁の時計で測る。
+// 間を空けるのは実際の時間なので、テストのための時計ではなく、壁の時計で計測する。
 func (s *Service) waitWishlistTurn(ctx context.Context, name string) error {
 	last, ok := s.wishlistLast[name]
 	if !ok || s.wishlistInterval <= 0 {
@@ -567,14 +567,14 @@ func workTitle(sources []*WishlistSource, first *WishlistBroadcast) string {
 	return ruleKeyword(first.Name)
 }
 
-// bracketedMarks は、番組名の [新] や [字] のような印。
+// bracketedMarks は、番組名の [新] や [字] のようなマーク。
 var bracketedMarks = regexp.MustCompile(`\[[^\[\]]{1,3}\]`)
 
 // ruleKeyword は、ルールのキーワードにする作品名を、番組名から読む。話数の前を作品名にし (設計書 3.8 の番組名の解析)、
-// 話数が書かれていなければ、印を除いた番組名をそのまま使う。話数まで入れると、その話にしか一致しないので、話数は入れない。
+// 話数が書かれていなければ、マークを除いた番組名をそのまま使う。話数まで入れると、その話にしか一致しないので、話数は入れない。
 //
-// 印を除いた番組名が、正規化した番組名のひと続きの部分でなければ (途中に印がある、空白が続くなど)、元の番組に一致しないので、
-// 正規化した番組名を印で区切った、最初の空でない部分を使う (#1984)。ひと続きの部分になるときは、作ったルールとの突き合わせ
+// マークを除いた番組名が、正規化した番組名のひと続きの部分でなければ (途中にマークがある、空白が続くなど)、元の番組に一致しないので、
+// 正規化した番組名をマークで区切った、最初の空でない部分を使う (#1984)。ひと続きの部分になるときは、作ったルールとの照合
 // (ruleIdentity) を変えないよう、これまでと同じものを返す。
 func ruleKeyword(name string) string {
 	if parsed, ok := anime.ParseTitle(name); ok {
@@ -614,7 +614,7 @@ func ruleIdentity(keyword string, serviceIDs []int64) string {
 
 // existingRuleIdentities は、今あるルールの、キーワードごとの ruleIdentity を返す。無効なルールも含める。
 // 無効にしたルールは、家族が録らないと決めたものなので、見たいリストから同じルールを作り直させない。
-// 条件を読めないルール (新しい版が足した条件など) は、照合と同じく飛ばす。
+// 条件を読めないルール (新しいバージョンが足した条件など) は、照合と同じく飛ばす。
 func existingRuleIdentities(ctx context.Context, q *sqlc.Queries) (map[string]bool, error) {
 	rows, err := q.ListRules(ctx)
 	if err != nil {
@@ -695,7 +695,7 @@ func RuleCandidate(wishlist *Wishlist, tid int32) (*WishlistWork, error) {
 // WishlistRuleInput は、候補の作品 work を録るルールの入力を作る (#928)。条件は、最初の放送から決める。
 //
 // ルールは作品 (TID) では照合できない (ルールの条件は番組の項目だけを見る。設計書 4.2) ので、最初の放送の番組名から読んだ作品名を
-// 番組名のキーワードにし、最初の放送のサービスに限る。重複の回避、その期間、イベントリレーへの追従、同じ回を束ねるかどうかは、
+// 番組名のキーワードにし、最初の放送のサービスに限る。重複の回避、その期間、イベントリレーへの追従、同じ回をまとめるかどうかは、
 // ルールを作るときの既定値 (設計書 4.2) に従う。時間帯は、放送の延期や特番で外れると録り逃すので、条件に入れない。
 func WishlistRuleInput(work *WishlistWork, defaults *settings.RuleDefaults) *rule.Input {
 	first := work.Broadcasts[0]

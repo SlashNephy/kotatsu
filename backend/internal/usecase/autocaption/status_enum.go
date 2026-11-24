@@ -13,7 +13,7 @@ import (
 const (
 	// 生成していず、生成するジョブもないこと。
 	StateNotGenerated State = "not_generated"
-	// 生成するジョブが動くのを待っていること。試し直しを待っているときも含む。
+	// 生成するジョブが動くのを待っていること。再試行を待っているときも含む。
 	StateQueued State = "queued"
 	// 生成していること。
 	StateRunning State = "running"

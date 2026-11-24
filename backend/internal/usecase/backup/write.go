@@ -37,7 +37,7 @@ type WriteOptions struct {
 	Logger    *slog.Logger
 }
 
-// WriteResult は、書き出した結果。
+// WriteResult は、作成した結果。
 type WriteResult struct {
 	Manifest *Manifest
 	// Bytes は、書いた大きさ (暗号化した後)。
@@ -47,7 +47,7 @@ type WriteResult struct {
 }
 
 // Write は、DB とキャプチャの画像を、recipients の公開鍵で暗号化して w に書く。
-// DB は 1 つの読み取り専用のトランザクション (REPEATABLE READ) で読むので、書き出す間に変わっても、表どうしは同じ時点のものになる。
+// DB は 1 つの読み取り専用のトランザクション (REPEATABLE READ) で読むので、作成する間に変わっても、テーブルどうしは同じ時点のものになる。
 func Write(ctx context.Context, opts *WriteOptions, w io.Writer, recipients []age.Recipient) (*WriteResult, error) {
 	if len(recipients) == 0 {
 		return nil, ErrNoRecipients
@@ -140,7 +140,7 @@ func writeArchive(ctx context.Context, tx pgx.Tx, opts *WriteOptions, archive *t
 }
 
 // liftTimeouts は、トランザクションの中だけ、問い合わせとトランザクションの中で何もしない時間の上限を外す (設計書 1.4)。
-// 大きな表の COPY は、設定の上限より長くかかることがある。SET LOCAL はトランザクションの中だけに効くので、プーラーを経由しても残らない。
+// 大きなテーブルの COPY は、設定の上限より長くかかることがある。SET LOCAL はトランザクションの中だけに効くので、プーラーを経由しても残らない。
 func liftTimeouts(ctx context.Context, tx pgx.Tx) error {
 	for _, sql := range []string{"SET LOCAL statement_timeout = 0", "SET LOCAL idle_in_transaction_session_timeout = 0"} {
 		if _, err := tx.Exec(ctx, sql); err != nil {
@@ -151,7 +151,7 @@ func liftTimeouts(ctx context.Context, tx pgx.Tx) error {
 	return nil
 }
 
-// readManifest は、スキーマの版と、書き出す表と列を、トランザクションの時点で読む。表は、外部キーで指される表が先になるよう並べる。
+// readManifest は、スキーマのバージョンと、出力するテーブルとカラムを、トランザクションの時点で読む。テーブルは、外部キーで指されるテーブルが先になるよう並べる。
 func readManifest(ctx context.Context, tx pgx.Tx, now time.Time) (*Manifest, error) {
 	var version int64
 	if err := tx.QueryRow(ctx, "SELECT COALESCE(max(version_id), 0) FROM goose_db_version WHERE is_applied").Scan(&version); err != nil {
@@ -207,7 +207,7 @@ func readManifest(ctx context.Context, tx pgx.Tx, now time.Time) (*Manifest, err
 	}, nil
 }
 
-// readColumns は、今のスキーマの表ごとの列を、表の中の順に返す。生成列 (GENERATED ... STORED) は COPY FROM で書けないので除く。
+// readColumns は、今のスキーマのテーブルごとのカラムを、テーブルの中の順に返す。生成カラム (GENERATED ... STORED) は COPY FROM で書けないので除く。
 func readColumns(ctx context.Context, tx pgx.Tx) (map[string][]string, error) {
 	rows, err := tx.Query(ctx, `
 SELECT c.relname, a.attname
@@ -232,7 +232,7 @@ ORDER BY c.relname, a.attnum`)
 	return columns, nil
 }
 
-// foreignKey は、表 child の列 columns が、表 parent を指す外部キー。
+// foreignKey は、テーブル child のカラム columns が、テーブル parent を指す外部キー。
 type foreignKey struct {
 	child   string
 	parent  string
@@ -267,8 +267,8 @@ ORDER BY c.relname, p.relname`)
 	return keys, nil
 }
 
-// checkExcludedReferences は、入れる表が、外す表を指していないかを確かめる。
-// 指していても、その列を NULL にして書き出す (nullColumns) なら許す。そうでなければ、戻すときに外部キーの制約で失敗する。
+// checkExcludedReferences は、入れるテーブルが、外すテーブルを指していないかを確認する。
+// 指していても、そのカラムを NULL にして出力する (nullColumns) なら許す。そうでなければ、戻すときに外部キーの制約で失敗する。
 func checkExcludedReferences(keys []*foreignKey, included map[string]bool) error {
 	for _, key := range keys {
 		if !included[key.child] || included[key.parent] {
@@ -285,8 +285,8 @@ func checkExcludedReferences(keys []*foreignKey, included map[string]bool) error
 	return nil
 }
 
-// sortByReferences は、names を、外部キーで指される表が先になるよう並べる。順の決まらない表どうしは、名前の順にする。
-// 自分を指す外部キーは、1 つの COPY の中で確かめられるので、順に関わらない。表どうしで指し合っていれば、流し込めないので誤りにする。
+// sortByReferences は、names を、外部キーで指されるテーブルが先になるよう並べる。順の決まらないテーブルどうしは、名前の順にする。
+// 自分を指す外部キーは、1 つの COPY の中で確認できるので、順に関わらない。テーブルどうしで指し合っていれば、流し込めないので誤りにする。
 func sortByReferences(names []string, keys []*foreignKey) ([]string, error) {
 	parents := map[string]map[string]bool{}
 	for _, name := range names {
@@ -356,7 +356,7 @@ func listCaptures(ctx context.Context, tx pgx.Tx) ([]capture, error) {
 	return captures, nil
 }
 
-// copyTable は、表 table の行を COPY TO で読み、chunkSize ごとのエントリーにして書く。書いた大きさを返す。
+// copyTable は、テーブル table の行を COPY TO で読み、chunkSize ごとのエントリーにして書く。書いた大きさを返す。
 func copyTable(ctx context.Context, tx pgx.Tx, archive *tar.Writer, table *Table, modTime time.Time) (int64, error) {
 	nulled := nullColumns()[table.Name]
 	exprs := make([]string, 0, len(table.Columns))
@@ -408,7 +408,7 @@ func (c *chunkWriter) Write(p []byte) (int, error) {
 	return written, nil
 }
 
-// flush は、ためたものを 1 つのエントリーにして書く。空なら何もしない。行のない表は、エントリーを持たない。
+// flush は、ためたものを 1 つのエントリーにして書く。空なら何もしない。行のないテーブルは、エントリーを持たない。
 func (c *chunkWriter) flush() error {
 	if len(c.buf) == 0 {
 		return nil

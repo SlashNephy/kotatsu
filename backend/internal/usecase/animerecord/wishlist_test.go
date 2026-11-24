@@ -49,7 +49,7 @@ func broadcast(tid int32, serviceID, eventID int64, start time.Time, name, relat
 	}
 }
 
-// pickedBroadcast は、候補の放送を比べやすい形にしたもの。
+// pickedBroadcast は、候補の放送を比較しやすい形にしたもの。
 type pickedBroadcast struct {
 	ServiceID int64
 	EventID   int64
@@ -77,7 +77,7 @@ func picked(works []*animerecord.WishlistWork) []pickedWork {
 	return result
 }
 
-// TestPickWishlistWorks は、見たいリストの作品の放送から、候補を選ぶ規則を確かめる (#928)。
+// TestPickWishlistWorks は、見たいリストの作品の放送から、候補を選ぶ規則を確認する (#928)。
 // 予約のある放送を外し、同じイベントを共有する放送を 1 つにし、最初の放送のサービスを録るのに選ぶ。
 func TestPickWishlistWorks(t *testing.T) {
 	t.Parallel()
@@ -162,7 +162,7 @@ func TestPickWishlistWorks(t *testing.T) {
 				broadcast(1, serviceOther, 1, hour(20), "[新]作品A #2「話」", ""),
 				broadcast(1, serviceMain, 1, hour(22), "作品A #2「話」", ""),
 			},
-			// 全角で書いたキーワードも、照合と同じく正規化して比べる。
+			// 全角で書いたキーワードも、照合と同じく正規化して比較する。
 			rules: map[string][]int64{"作品Ａ": {serviceOther}},
 			want: []pickedWork{{TID: 1, Title: titleA, Reserved: 0, Covered: true, Broadcasts: []pickedBroadcast{
 				{ServiceID: serviceOther, EventID: 1, Preferred: false},
@@ -208,7 +208,7 @@ func TestPickWishlistWorks(t *testing.T) {
 	}
 }
 
-// TestWishlistRuleInput は、候補の作品から作るルールが、最初の放送の作品名とサービスで、ほかの話にも一致することを確かめる (#928)。
+// TestWishlistRuleInput は、候補の作品から作るルールが、最初の放送の作品名とサービスで、ほかの話にも一致することを確認する (#928)。
 // 番組名の話数までキーワードに入れると、その話にしか一致しないので、話数は入れない。
 func TestWishlistRuleInput(t *testing.T) {
 	t.Parallel()
@@ -244,7 +244,7 @@ func TestWishlistRuleInput(t *testing.T) {
 			matches:     []*match.Program{program(serviceMain, "劇場版 作品B")},
 			misses:      []*match.Program{program(serviceMain, titleB)},
 		},
-		// 印を空白に置き換えると、元の番組名に含まれないキーワードになるので、印の手前までにする (#1984)。
+		// マークを空白に置き換えると、元の番組名に含まれないキーワードになるので、マークの手前までにする (#1984)。
 		{
 			name:        "a name without an episode number, with a mark in the middle",
 			first:       "ＳＰＹ×ＦＡＭＩＬＹ🈑「合否の行方」",
@@ -323,7 +323,7 @@ func (f *recordFixture) importState(t *testing.T, userID uuid.UUID, name string)
 	return checked, imported, reason
 }
 
-// TestImportWishlist は、Annict と AniList の見たいリストを、ページをたどって取り込み、取り込み直すたびに入れ替えることを確かめる (#928)。
+// TestImportWishlist は、Annict と AniList の見たいリストを、ページをたどって取り込み、取り込み直すたびに入れ替えることを確認する (#928)。
 // 取り込めなければ、前に取り込んだ作品を残して、理由を残す。本物の Annict と AniList には問い合わせない。
 func TestImportWishlist(t *testing.T) {
 	t.Parallel()
@@ -331,7 +331,7 @@ func TestImportWishlist(t *testing.T) {
 	tests := []struct {
 		name        string
 		destination string
-		// prepare は、取り込む前に、偽の記録先を整える。
+		// prepare は、取り込む前に、モックの記録先を整える。
 		prepare      func(t *testing.T, f *recordFixture, fake *fakeService)
 		wantErr      error
 		wantRows     []string
@@ -429,7 +429,7 @@ func TestImportWishlist(t *testing.T) {
 	}
 }
 
-// TestImportWishlistDetails は、見たいリストの取り込みで、次に見る話、見終えた話数、全話数、放送の時期、画像も取り込むことを確かめる (#1230)。
+// TestImportWishlistDetails は、見たいリストの取り込みで、次に見る話、見終えた話数、全話数、放送の時期、画像も取り込むことを確認する (#1230)。
 func TestImportWishlistDetails(t *testing.T) {
 	t.Parallel()
 
@@ -510,7 +510,7 @@ func setLinking(t *testing.T, f *recordFixture, enabled bool) {
 	require.NoError(t, err)
 }
 
-// TestConnectEnqueuesWishlistImport は、連携したら、定期ジョブを待たずに、そのユーザーの見たいリストを取り込むジョブを入れることを確かめる (#928)。
+// TestConnectEnqueuesWishlistImport は、連携したら、定期ジョブを待たずに、そのユーザーの見たいリストを取り込むジョブを入れることを確認する (#928)。
 func TestConnectEnqueuesWishlistImport(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -523,7 +523,7 @@ func TestConnectEnqueuesWishlistImport(t *testing.T) {
 	assert.Equal(t, &f.alice.UserID, f.inserter.wishlists[0].UserID)
 }
 
-// TestImportDueWishlists は、取り込み直す時期が来た連携だけを取り込み、429 を返した記録先の残りの連携は次の機会に回すことを確かめる (#928)。
+// TestImportDueWishlists は、取り込み直す時期が来た連携だけを取り込み、429 を返した記録先の残りの連携は次の機会に回すことを確認する (#928)。
 func TestImportDueWishlists(t *testing.T) {
 	t.Parallel()
 
@@ -580,7 +580,7 @@ func TestImportDueWishlists(t *testing.T) {
 }
 
 // TestWishlistCandidates は、見たいリストの作品を、作品 ID の対応で TID に、番組の結びつきで番組に引いて、
-// これから放送される、予約のない番組を候補にすることを確かめる (#928)。候補は、ユーザー自身の見たいリストからだけ求める。
+// これから放送される、予約のない番組を候補にすることを確認する (#928)。候補は、ユーザー自身の見たいリストからだけ求める。
 func TestWishlistCandidates(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -679,7 +679,7 @@ func TestWishlistCandidates(t *testing.T) {
 	}})
 }
 
-// TestWishlistRetryAfter は、記録先が 429 で Retry-After を示したら、その長さ (1 時間まで) だけ待ってから問い合わせ直すことを確かめる (#928)。
+// TestWishlistRetryAfter は、記録先が 429 で Retry-After を示したら、その長さ (1 時間まで) だけ待ってから問い合わせ直すことを確認する (#928)。
 // Retry-After がなければ、1 時間待つ。
 func TestWishlistRetryAfter(t *testing.T) {
 	t.Parallel()
@@ -718,7 +718,7 @@ func TestWishlistRetryAfter(t *testing.T) {
 	}
 }
 
-// TestCreateWishlistRule は、候補の作品からルールを作るとき、同じ作品のルールを重ねて作らないことを確かめる (#928)。
+// TestCreateWishlistRule は、候補の作品からルールを作るとき、同じ作品のルールを重ねて作らないことを確認する (#928)。
 // ルールの照合が予約を作るのは後なので、予約だけでなく、同じキーワードとサービスのルールがあれば予約済みとして断る。
 func TestCreateWishlistRule(t *testing.T) {
 	t.Parallel()

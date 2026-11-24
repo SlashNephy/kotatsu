@@ -12,7 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 )
 
-// maxPasskeyBody は、認証器の応答を含むリクエストの本文の大きさの上限。attestation の証明書を含んでも収まる大きさにする。
+// maxPasskeyBody は、オーセンティケーターの応答を含むリクエストの本文の大きさの上限。attestation の証明書を含んでも収まる大きさにする。
 const maxPasskeyBody = 64 << 10
 
 // creationResponse は、パスキーの登録の開始の応答。Options を navigator.credentials.create の publicKey に渡す。
@@ -27,7 +27,7 @@ type assertionResponse struct {
 	ExpiresAt time.Time                                   `json:"expiresAt"`
 }
 
-// passkeyRequest は、認証器の応答 (PublicKeyCredential を JSON にしたもの) を送るリクエスト。
+// passkeyRequest は、オーセンティケーターの応答 (PublicKeyCredential を JSON にしたもの) を送るリクエスト。
 type passkeyRequest struct {
 	Credential json.RawMessage `json:"credential"`
 	// Name は、登録するパスキーの名前。登録のときだけ使う。
@@ -62,7 +62,7 @@ func (p *Passkeys) RegistrationHandler(db Database, client func(*http.Request) *
 	})
 }
 
-// RegistrationConfirmHandler は、認証器の応答を確かめ、パスキーを登録するハンドラーを返す
+// RegistrationConfirmHandler は、オーセンティケーターの応答を確認し、パスキーを登録するハンドラーを返す
 // (POST /internal/auth/passkey/registration/confirm)。
 func (p *Passkeys) RegistrationConfirmHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +146,7 @@ func (l *Logins) PasskeyLoginHandler(db Database, client func(*http.Request) *Cl
 	})
 }
 
-// PasskeyLoginConfirmHandler は、認証器の応答を確かめ、パスキーだけでのログインを完了させるハンドラーを返す
+// PasskeyLoginConfirmHandler は、オーセンティケーターの応答を確認し、パスキーだけでのログインを完了させるハンドラーを返す
 // (POST /internal/auth/passkey/login/confirm)。
 func (l *Logins) PasskeyLoginConfirmHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -159,7 +159,7 @@ func (l *Logins) PasskeyLoginConfirmHandler(db Database, client func(*http.Reque
 			return
 		}
 		result, err := l.CompleteWithPasskey(r.Context(), db, token, req.Credential, client(r))
-		// 手続きは、確かめられなくても使用済みになる。
+		// 手続きは、確認できなくても使用済みになる。
 		http.SetCookie(w, l.sessions.namedCookie(r, WebAuthnCookieName, challengeCookiePath, "", time.Unix(0, 0)))
 		if err != nil {
 			if !writePasskeyError(w, err) {
@@ -173,7 +173,7 @@ func (l *Logins) PasskeyLoginConfirmHandler(db Database, client func(*http.Reque
 	})
 }
 
-// PasskeySecondFactorHandler は、パスワードを確かめた後の第二要素として、パスキーでの確認を始めるハンドラーを返す
+// PasskeySecondFactorHandler は、パスワードを確認した後の第二要素として、パスキーでの確認を始めるハンドラーを返す
 // (POST /internal/auth/login/passkey)。
 func (l *Logins) PasskeySecondFactorHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -195,7 +195,7 @@ func (l *Logins) PasskeySecondFactorHandler(db Database, client func(*http.Reque
 	})
 }
 
-// PasskeySecondFactorConfirmHandler は、パスキーの応答を確かめ、パスワードでのログインを完了させるハンドラーを返す
+// PasskeySecondFactorConfirmHandler は、パスキーの応答を確認し、パスワードでのログインを完了させるハンドラーを返す
 // (POST /internal/auth/login/passkey/confirm)。
 func (l *Logins) PasskeySecondFactorConfirmHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -254,7 +254,7 @@ func ceremonyToken(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return cookie.Value, true
 }
 
-// decodePasskeyRequest は、認証器の応答を含むリクエストを読む。読めなければ、エラーを書いて false を返す。
+// decodePasskeyRequest は、オーセンティケーターの応答を含むリクエストを読む。読めなければ、エラーを書いて false を返す。
 func decodePasskeyRequest(w http.ResponseWriter, r *http.Request) (*passkeyRequest, bool) {
 	var req passkeyRequest
 	if !decodeJSONWithin(w, r, &req, maxPasskeyBody) {

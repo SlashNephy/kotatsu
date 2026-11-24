@@ -51,13 +51,13 @@ const (
 // duration は、その基準での録画の長さ。
 //
 // 境目の候補は、無音 (とシーンの切り替わり、音声の構成の変化) の境目と、録画の始まりと終わり。ロゴの端は候補にしない。
-// 本編の区間は、ロゴが見えた秒を足し、ロゴがなかった秒を引く。CM の区間は、15 秒の倍数への合い方で足し、ロゴが見えた秒を大きく引く。
-// 録画の端に接する CM は、前後の番組の CM が途中から入るので、長さを問わず、ロゴが見えた秒だけを引く。
+// 本編の区間は、ロゴが見えた秒を足し、ロゴがなかった秒を差し引く。CM の区間は、15 秒の倍数への合い方で足し、ロゴが見えた秒を大きく差し引く。
+// 録画の端に接する CM は、前後の番組の CM が途中から入るので、長さを問わず、ロゴが見えた秒だけを差し引く。
 // CM の最長を超える CM (通販の CM など) は、長い CM の最長まで、15 秒の倍数にほぼちょうど合うときだけ CM とみなす (#1958)。
 // 録画の端の近くの CM は、端まで延ばす (#1958)。
 // 本編の直後の 10 秒前後の区間で、次が CM か録画の終わりのものは、提供として本編の側に数え、加点する。
 // 5 秒か 10 秒の区間は、告知として、長さが合うほど足す。本編の直後の告知の後に、CM を挟まずに本編へ戻るときは、大きく引く。
-// 本編と CM の並びは、境目の候補を順にたどる動的計画法で選ぶ。番組の頭の切れ目、ロゴの点数の変化などの細かい規則は、まだ入れていない。
+// 本編と CM の並びは、境目の候補を順にたどる動的計画法で選ぶ。番組の先頭の切れ目、ロゴの点数の変化などの細かい規則は、まだ入れていない。
 func combineSections(bounds []boundary, duration float64, logo []span) []span {
 	points := make([]float64, 0, len(bounds)+2)
 	points = append(points, 0)
@@ -74,7 +74,7 @@ func combineSections(bounds []boundary, duration float64, logo []span) []span {
 }
 
 // extendToEdges は、録画の始まりか終わりから edgeExtension の内にある CM の区間を、その端まで延ばす (今の見分け方と同じ規則、#1958)。
-// 録画の前後のマージンには、前後の番組が入る。番組の窓を置けない録画 (マージンが短い録画など) では、次の番組の頭のロゴが見え、
+// 録画の前後のマージンには、前後の番組が入る。番組のウィンドウを置けない録画 (マージンが短い録画など) では、次の番組の先頭のロゴが見え、
 // 長い CM (#1958) の後の数秒を、本編として残してしまうためである。
 func extendToEdges(sections []span, duration float64) []span {
 	if len(sections) == 0 {
@@ -115,7 +115,7 @@ func (sc *combineScorer) shown(a, b float64) float64 {
 	return total
 }
 
-// program は、[a, b) を本編とみなした点。ロゴが見えた秒を足し、ロゴがなかった秒を引く。
+// program は、[a, b) を本編とみなした点。ロゴが見えた秒を足し、ロゴがなかった秒を差し引く。
 func (sc *combineScorer) program(a, b float64) float64 {
 	s := sc.shown(a, b)
 
@@ -123,7 +123,7 @@ func (sc *combineScorer) program(a, b float64) float64 {
 }
 
 // cm は、[a, b) を CM とみなした点。CM になりえなければ ok を false にする。
-// 録画の端に接する CM は、前後の番組の CM が途中から入るので、長さを問わず、ロゴが見えた秒だけを引く。
+// 録画の端に接する CM は、前後の番組の CM が途中から入るので、長さを問わず、ロゴが見えた秒だけを差し引く。
 func (sc *combineScorer) cm(a, b float64) (float64, bool) {
 	s := sc.shown(a, b)
 	if a <= 0 || b >= sc.duration {
@@ -162,7 +162,7 @@ func (sc *combineScorer) notice(a, b float64) (float64, bool) {
 // 提供は、ロゴの出ていた本編の直後に、ロゴを消して出す。区間の中でロゴが許すロゴの途切れより長く見えるもの (ロゴの出た本編の終わり) と、
 // 始まりの前の許すロゴの途切れの内にロゴが見えないもの (ロゴのない所の後の CM) は、提供にしない。
 func (sc *combineScorer) sponsor(a, b float64) (float64, bool) {
-	// 提供は本編の直後に出すので、録画の頭に接する区間は提供にしない (前の番組の CM が途中から入る所)。
+	// 提供は本編の直後に出すので、録画の先頭に接する区間は提供にしない (前の番組の CM が途中から入る所)。
 	if length := b - a; a <= 0 || length < combineSponsorMin || length > combineSponsorMax {
 		return 0, false
 	}
@@ -173,7 +173,7 @@ func (sc *combineScorer) sponsor(a, b float64) (float64, bool) {
 	return sc.program(a, b) + combineSponsorBonus, true
 }
 
-// combineTable は、動的計画法の表。best[j][k] は、j 番目の候補で、直前の区間が k で終わる並びの最高点。
+// combineTable は、動的計画法のテーブル。best[j][k] は、j 番目の候補で、直前の区間が k で終わる並びの最高点。
 // from[j][k] と prev[j][k] は、その区間の始まりの候補と、その候補で終わっていた区間の状態。
 type combineTable struct {
 	best [][stateCount]float64
@@ -181,7 +181,7 @@ type combineTable struct {
 	prev [][stateCount]int
 }
 
-// solve は、境目の候補 points を順にたどり、表を作る。
+// solve は、境目の候補 points を順にたどり、テーブルを作る。
 func (sc *combineScorer) solve(points []float64) *combineTable {
 	n := len(points)
 	t := &combineTable{best: make([][stateCount]float64, n), from: make([][stateCount]int, n), prev: make([][stateCount]int, n)}
@@ -200,7 +200,7 @@ func (sc *combineScorer) solve(points []float64) *combineTable {
 	return t
 }
 
-// relax は、i 番目から j 番目の候補までの区間を、本編、提供、告知、CM のそれぞれとみなして、表を更新する。
+// relax は、i 番目から j 番目の候補までの区間を、本編、提供、告知、CM のそれぞれとみなして、テーブルを更新する。
 // 提供の後は、CM か録画の終わりしか続けられない。提供と本編の直後の告知の前は、本編でなければならない。
 // 本編の直後の告知から、CM を挟まずに本編へ戻るときは、大きく引く。CM の後の告知だけを、CM の続きとして数える。
 func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
@@ -240,7 +240,7 @@ func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
 		// CM と提供の後の告知だけを、CM の続きとして数える。本編の直後の告知から告知で CM へ移ると、
 		// 告知から本編へ戻るときの減点を避けられてしまうため。提供の後に、見逃し配信の案内などを出してから CM に入る並びがある。
 		// ただし、提供と告知を合わせて 15 秒の倍数に合うときは、提供の後に続けない。本当の CM の途中に境目の候補があると、
-		// CM の頭を提供に、残りを告知に取れてしまうため。
+		// CM の先頭を提供に、残りを告知に取れてしまうため。
 		from := []int{stateCM}
 		if sp := t.from[i][stateSponsor]; !math.IsInf(t.best[i][stateSponsor], -1) && cmFit(b-points[sp]) == 0 {
 			from = append(from, stateSponsor)

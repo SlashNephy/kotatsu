@@ -45,7 +45,7 @@ const (
 	annictWorkID = 10
 	aniListID    = 600
 	origin       = "http://kotatsu.test"
-	// testCode は、偽の記録先が受け付ける認可コード。
+	// testCode は、モックの記録先が受け付ける認可コード。
 	testCode = "code"
 	// annictThirdPending は、Annict に第 3 話を送る前の記録。
 	annictThirdPending = "annict:3:pending"
@@ -72,7 +72,7 @@ func serviceID() int64 {
 	return faketuner.ServiceItemID(grNetworkID, grServiceID)
 }
 
-// fakeInserter は、入れたジョブを覚える。
+// fakeInserter は、入れたジョブを保存する。
 type fakeInserter struct {
 	mu   sync.Mutex
 	jobs []animerecord.RecordArgs
@@ -193,7 +193,7 @@ func (f *recordFixture) login(t *testing.T, name string, role domain.Role) *auth
 }
 
 // begin は、principal と記録先 name の連携を始め、記録先に送り出す URL の state を返す。
-// 偽の記録先は、認可コード code を、トークン token と引き換える。
+// モックの記録先は、認可コード code を、トークン token と引き換える。
 func (f *recordFixture) begin(t *testing.T, principal *auth.Principal, name, code, token string) string {
 	t.Helper()
 	fake := f.annict
@@ -224,7 +224,7 @@ func (f *recordFixture) connect(t *testing.T, principal *auth.Principal, name st
 }
 
 // TestConnect は、記録先から戻ってきた認可を、始めたセッションと記録先のまま戻ってきたときだけ受け付け、
-// トークンを暗号化して保存することを確かめる (#927)。ほかのセッションやユーザーで始めた認可を使わせないため (CSRF とアカウントの取り違え)。
+// トークンを暗号化して保存することを確認する (#927)。ほかのセッションやユーザーで始めた認可を使わせないため (CSRF とアカウントの取り違え)。
 func TestConnect(t *testing.T) {
 	t.Parallel()
 
@@ -356,7 +356,7 @@ func TestConnect(t *testing.T) {
 	}
 }
 
-// TestBeginRequiresSessionAndApp は、ブラウザーのセッションでないと連携を始められず、連携が無効なら始められないことを確かめる。
+// TestBeginRequiresSessionAndApp は、ブラウザーのセッションでないと連携を始められず、連携が無効なら始められないことを確認する。
 func TestBeginRequiresSessionAndApp(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -394,7 +394,7 @@ func pendingRecords(t *testing.T, f *recordFixture, userID uuid.UUID) []string {
 	return records
 }
 
-// TestReport は、プレイヤーが実際に再生した区間を足し、番組の長さの 20% (30 分の番組では 6 分) を見たら記録を作ることを確かめる (#927)。
+// TestReport は、プレイヤーが実際に再生した区間を足し、番組の長さの 20% (30 分の番組では 6 分) を見たら記録を作ることを確認する (#927)。
 // 同じ区間の送り直しや、複数のタブで重なった区間は多く数えず、見直しても記録もジョブも増えない。
 func TestReport(t *testing.T) {
 	t.Parallel()
@@ -458,7 +458,7 @@ func TestReport(t *testing.T) {
 }
 
 // TestReportEnqueuesRiverJob は、割合に届いたら、本物の River のクライアントで記録のジョブを入れ、
-// 報告を重ねても、終わるまでは同じ番組と記録先のジョブを 1 つにすることを確かめる。
+// 報告を重ねても、終わるまでは同じ番組と記録先のジョブを 1 つにすることを確認する。
 func TestReportEnqueuesRiverJob(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -480,7 +480,7 @@ func TestReportEnqueuesRiverJob(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
-// TestReportWithoutInserter は、ジョブを入れられなければ、記録の行も残さず、次の報告で作り直せることを確かめる。
+// TestReportWithoutInserter は、ジョブを入れられなければ、記録の行も残さず、次の報告で作り直せることを確認する。
 func TestReportWithoutInserter(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -495,7 +495,7 @@ func TestReportWithoutInserter(t *testing.T) {
 	assert.Len(t, f.inserter.taken(), 1)
 }
 
-// TestReportRecording は、録画の再生でも、録画した番組の結びつきで記録することを確かめる。ライブ視聴で見た区間と合わせて数える。
+// TestReportRecording は、録画の再生でも、録画した番組の結びつきで記録することを確認する。ライブ視聴で見た区間と合わせて数える。
 func TestReportRecording(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -525,7 +525,7 @@ func TestReportRecording(t *testing.T) {
 	assert.Equal(t, []string{annictThirdPending}, pendingRecords(t, f, f.alice.UserID), "the recording's episodes are recorded")
 }
 
-// TestRecord は、記録のジョブが、話を 1 話ずつ送り、送れた話は送り直さず、送れなかった話だけを再試行で送ることを確かめる (#927)。
+// TestRecord は、記録のジョブが、話を 1 話ずつ送り、送れた話は送り直さず、送れなかった話だけを再試行で送ることを確認する (#927)。
 func TestRecord(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -570,7 +570,7 @@ func TestRecord(t *testing.T) {
 	assert.Equal(t, []uuid.UUID{f.alice.UserID}, audience, "only the user who watched is notified")
 }
 
-// TestRecordGivesUp は、送り直しても記録できない話と、最後の試行でも送れなかった話を、記録できなかったと通知することを確かめる。
+// TestRecordGivesUp は、送り直しても記録できない話と、最後の試行でも送れなかった話を、記録できなかったと通知することを確認する。
 func TestRecordGivesUp(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -632,7 +632,7 @@ type failedRow struct{}
 func (failedRow) Scan(...any) error { return errInjected }
 
 // TestRecordLastAttemptDatabaseError は、最後の試行で、利用者の設定か作品の読み込みだけが DB エラーになったら、
-// 送れなかった話を記録できなかったことにすることを確かめる (#1416)。最後でなければ、再試行に回す。
+// 送れなかった話を記録できなかったことにすることを確認する (#1416)。最後でなければ、再試行に回す。
 func TestRecordLastAttemptDatabaseError(t *testing.T) {
 	t.Parallel()
 
@@ -671,7 +671,7 @@ func TestRecordLastAttemptDatabaseError(t *testing.T) {
 	}
 }
 
-// TestPrepareUserErasureRevokesTokens は、ユーザーを消すときに、連携のトークンを記録先で取り消すことを確かめる (#1382)。
+// TestPrepareUserErasureRevokesTokens は、ユーザーを消すときに、連携のトークンを記録先で取り消すことを確認する (#1382)。
 func TestPrepareUserErasureRevokesTokens(t *testing.T) {
 	t.Parallel()
 
@@ -712,7 +712,7 @@ func watchingOnEpisode(t *testing.T, f *recordFixture) {
 }
 
 // TestRecordStatusFailureDoesNotDuplicate は、記録を付けた後に作品の状態を変えられなくても、送り直しで記録を二重に付けず、
-// 記録できなかったとも知らせないことを確かめる。状態の変更は、記録とは別の、できたらよい操作にする。
+// 記録できなかったとも通知しないことを確認する。状態の変更は、記録とは別の、できたらよい操作にする。
 func TestRecordStatusFailureDoesNotDuplicate(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -733,7 +733,7 @@ func TestRecordStatusFailureDoesNotDuplicate(t *testing.T) {
 	assert.Zero(t, failed)
 }
 
-// TestRecordSurvivesCancelAfterCreate は、記録を付けた直後にジョブの期限が来ても、付けたことを残し、送り直しで二重に付けないことを確かめる。
+// TestRecordSurvivesCancelAfterCreate は、記録を付けた直後にジョブの期限が来ても、付けたことを残し、送り直しで二重に付けないことを確認する。
 func TestRecordSurvivesCancelAfterCreate(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -755,7 +755,7 @@ func TestRecordSurvivesCancelAfterCreate(t *testing.T) {
 	assert.Equal(t, []string{"E3", "E4"}, records, "the episode recorded before the deadline is not recorded again")
 }
 
-// TestRecordPicksUpRowsAddedWhileRunning は、ジョブが動いている間に増えた話 (照合し直しで話が結びついたときなど) も、同じジョブで送ることを確かめる。
+// TestRecordPicksUpRowsAddedWhileRunning は、ジョブが動いている間に増えた話 (照合し直しで話が結びついたときなど) も、同じジョブで送ることを確認する。
 // 動いている間は、同じ番組と記録先のジョブを重ねて入れないので、送らないと送られないまま残る。
 func TestRecordPicksUpRowsAddedWhileRunning(t *testing.T) {
 	t.Parallel()
@@ -782,7 +782,7 @@ func TestRecordPicksUpRowsAddedWhileRunning(t *testing.T) {
 	assert.Equal(t, []string{annictThirdRecorded, annictFourthRecorded, "annict:5:recorded"}, pendingRecords(t, f, f.alice.UserID))
 }
 
-// TestRecordAdvancesWishlist は、話を記録できたら、次に取り込むまで待たずに、見たいリストの進み具合をその話数まで進めることを確かめる (#1230)。
+// TestRecordAdvancesWishlist は、話を記録できたら、次に取り込むまで待たずに、見たいリストの進み具合をその話数まで進めることを確認する (#1230)。
 // 進み具合は戻さず、記録した話より前の「次に見る話」は消す。ほかの作品は変えない。
 func TestRecordAdvancesWishlist(t *testing.T) {
 	t.Parallel()
@@ -830,7 +830,7 @@ VALUES ($1, 'annict', $2, 'watching', 'title', $3, $4, $5, $6, now())`, f.alice.
 	}
 }
 
-// TestAdvanceWishlist は、記録先ごとに進み具合を進め、話数のない話と整数でない話数では進めないことを確かめる (#1230)。
+// TestAdvanceWishlist は、記録先ごとに進み具合を進め、話数のない話と整数でない話数では進めないことを確認する (#1230)。
 func TestAdvanceWishlist(t *testing.T) {
 	t.Parallel()
 	// annictUnchanged と aniListUnchanged は、進めなかった作品の様子。
@@ -882,7 +882,7 @@ FROM anime_wishlist_entries ORDER BY work_id`)
 	return result
 }
 
-// TestLogSecrets は、ログの報告から伏せる値として、アプリのシークレット、全ユーザーのトークン、取り込みのトークンを返すことを確かめる (#1521)。
+// TestLogSecrets は、ログの報告からマスクする値として、アプリのシークレット、全ユーザーのトークン、取り込みのトークンを返すことを確認する (#1521)。
 func TestLogSecrets(t *testing.T) {
 	t.Parallel()
 

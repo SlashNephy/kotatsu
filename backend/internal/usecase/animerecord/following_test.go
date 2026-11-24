@@ -22,7 +22,7 @@ const (
 	userOne     = "someone"
 )
 
-// followingRow は、視聴状況を比べやすい形にしたもの。
+// followingRow は、視聴状況を比較しやすい形にしたもの。
 type followingRow struct {
 	Username string
 	Name     string
@@ -46,7 +46,7 @@ func followingRows(viewings []*animerecord.FollowingViewing) []followingRow {
 	return rows
 }
 
-// TestImportFollowing は、記録先の視聴状況を、ページをたどって取得し、状態の順に、1 人 1 件で返すことを確かめる (#1372)。
+// TestImportFollowing は、記録先の視聴状況を、ページをたどって取得し、状態の順に、1 人 1 件で返すことを確認する (#1372)。
 func TestImportFollowing(t *testing.T) {
 	t.Parallel()
 
@@ -140,7 +140,7 @@ func TestImportFollowing(t *testing.T) {
 	}
 }
 
-// TestFollowingAvailability は、管理者が連携を無効にしたときと、作品を引けないときに、出さないことを確かめる (#1372)。
+// TestFollowingAvailability は、管理者が連携を無効にしたときと、作品を引けないときに、出さないことを確認する (#1372)。
 func TestFollowingAvailability(t *testing.T) {
 	t.Parallel()
 
@@ -173,7 +173,7 @@ func TestFollowingAvailability(t *testing.T) {
 	}
 }
 
-// TestRefreshFollowing は、問い合わせる時期が来たときだけジョブを入れることを確かめる (#1372)。
+// TestRefreshFollowing は、問い合わせる時期が来たときだけジョブを入れることを確認する (#1372)。
 func TestRefreshFollowing(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -198,7 +198,7 @@ func TestRefreshFollowing(t *testing.T) {
 	assert.True(t, enqueued)
 }
 
-// TestImportFollowingFailure は、取得できなければ、前の視聴状況を残し、問い合わせ直す日時まで待つことを確かめる (#1372)。
+// TestImportFollowingFailure は、取得できなければ、前の視聴状況を残し、問い合わせ直す日時まで待つことを確認する (#1372)。
 func TestImportFollowingFailure(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -231,7 +231,7 @@ func TestImportFollowingFailure(t *testing.T) {
 	assert.Empty(t, got.Viewings, "a successful fetch replaces the previous result")
 }
 
-// TestImportFollowingCanceled は、ジョブが取り消されたら失敗として残さず、次に問い合わせ直せることを確かめる (#1372)。
+// TestImportFollowingCanceled は、ジョブが取り消されたら失敗として残さず、次に問い合わせ直せることを確認する (#1372)。
 func TestImportFollowingCanceled(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -250,7 +250,7 @@ func TestImportFollowingCanceled(t *testing.T) {
 	assert.True(t, got.NeedsRefresh)
 }
 
-// TestImportFollowingSaveFailure は、取得できても保存できなければ、失敗として残し、すぐには問い合わせ直さないことを確かめる (#1372)。
+// TestImportFollowingSaveFailure は、取得できても保存できなければ、失敗として残し、すぐには問い合わせ直さないことを確認する (#1372)。
 func TestImportFollowingSaveFailure(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -266,7 +266,7 @@ func TestImportFollowingSaveFailure(t *testing.T) {
 	assert.False(t, got.NeedsRefresh)
 }
 
-// TestImportFollowingRateLimited は、429 を返した記録先には、示された長さの間、ほかのユーザーの分も問い合わせないことを確かめる (#1372)。
+// TestImportFollowingRateLimited は、429 を返した記録先には、示された長さの間、ほかのユーザーの分も問い合わせないことを確認する (#1372)。
 func TestImportFollowingRateLimited(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
@@ -286,7 +286,7 @@ func TestImportFollowingRateLimited(t *testing.T) {
 	assert.True(t, got.Failed)
 }
 
-// TestFollowingRetention は、保持する期間を過ぎた視聴状況を返さず消すことと、連携を外すと消えることを確かめる (#1372)。
+// TestFollowingRetention は、保持する期間を過ぎた視聴状況を返さず消すことと、連携を外すと消えることを確認する (#1372)。
 func TestFollowingRetention(t *testing.T) {
 	t.Parallel()
 

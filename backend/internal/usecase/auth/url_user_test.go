@@ -45,7 +45,7 @@ func TestURLUsersWhileDatabaseIsUnreachable(t *testing.T) {
 			beforeOutage: func(*testing.T, *sessionFixture, *auth.URLUsers, uuid.UUID) {},
 		},
 		{
-			// 同じ tenban でユーザーを無効にしたら、覚えた結果を忘れる。
+			// 同じ tenban でユーザーを無効にしたら、キャッシュした結果を忘れる。
 			name: "forgotten before the outage",
 			beforeOutage: func(t *testing.T, f *sessionFixture, users *auth.URLUsers, _ uuid.UUID) {
 				t.Helper()
@@ -55,7 +55,7 @@ func TestURLUsersWhileDatabaseIsUnreachable(t *testing.T) {
 			wantUnavailable: true,
 		},
 		{
-			// 同じ tenban で URL を取り消したら、覚えた結果を忘れる (#1757)。
+			// 同じ tenban で URL を取り消したら、キャッシュした結果を忘れる (#1757)。
 			name: "revoked before the outage",
 			beforeOutage: func(t *testing.T, f *sessionFixture, users *auth.URLUsers, urlID uuid.UUID) {
 				t.Helper()
@@ -90,7 +90,7 @@ func TestURLUsersWhileDatabaseIsUnreachable(t *testing.T) {
 	}
 }
 
-// TestURLUsersRejectsUnusableURLs は、ユーザーを無効にしたか、URL を取り消したか、記録と違うユーザーの URL を断ることを確かめる (#1757)。
+// TestURLUsersRejectsUnusableURLs は、ユーザーを無効にしたか、URL を取り消したか、記録と違うユーザーの URL を断ることを確認する (#1757)。
 func TestURLUsersRejectsUnusableURLs(t *testing.T) {
 	t.Parallel()
 
@@ -98,7 +98,7 @@ func TestURLUsersRejectsUnusableURLs(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// prepare は、URL の記録を作った後で行う操作。確かめる URL の記録の ID とユーザーを返す。
+		// prepare は、URL の記録を作った後で行う操作。確認する URL の記録の ID とユーザーを返す。
 		prepare func(t *testing.T, f *sessionFixture, urlID uuid.UUID) (uuid.UUID, uuid.UUID)
 	}{
 		{

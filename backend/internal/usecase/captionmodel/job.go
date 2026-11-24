@@ -36,7 +36,7 @@ const (
 	timeout = 2*time.Hour + 30*time.Minute
 	// partSuffix は、ダウンロードしている途中のファイルの名前の後ろに付けるもの。照合し終えてから、置き場所の名前に変える。
 	partSuffix = ".part"
-	// observeInterval は、進み具合を測る間隔。書き戻すのは ffprogress.WriteInterval ごと。
+	// observeInterval は、進み具合を計測する間隔。書き戻すのは ffprogress.WriteInterval ごと。
 	observeInterval = time.Second
 	// maxRedirects は、たどる転送の数の上限。
 	maxRedirects = 5
@@ -210,7 +210,7 @@ func (w *Worker) download(ctx context.Context, job *river.Job[DownloadArgs], mod
 	if err != nil {
 		return "", fmt.Errorf("failed to create the request: %w", err)
 	}
-	// 個人やこのサーバーの分かる値は送らない。版とプロジェクトの URL だけを名乗る。
+	// 個人やこのサーバーの分かる値は送らない。バージョンとプロジェクトの URL だけを名乗る。
 	req.Header.Set("User-Agent", buildinfo.UserAgent())
 	res, err := w.client.Do(req)
 	if err != nil {
@@ -260,7 +260,7 @@ func (c counter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// observe は、書いたバイト数 read を一定の間隔で測り、進み具合 (割合と残り時間) をジョブの画面と管理の画面に書き戻す。
+// observe は、書いたバイト数 read を一定の間隔で計測し、進み具合 (割合と残り時間) をジョブの画面と管理の画面に書き戻す。
 // 返す関数で止める。done が true なら、終えたとして 100% を書く。
 func (w *Worker) observe(ctx context.Context, job *river.Job[DownloadArgs], size int64, read func() int64) func(done bool) {
 	logger := w.logger.With(slog.Int64("job_id", job.ID), slog.String("model", job.Args.ModelID))

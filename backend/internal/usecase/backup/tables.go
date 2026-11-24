@@ -2,9 +2,9 @@ package backup
 
 import "strings"
 
-// includedTables は、バックアップに入れる表を返す (設計書 11.4、#1926)。
-// 表を足したら、ここか excludedTables のどちらかに足す。どちらにもない表があると、書き出しを止める。
-// 足し忘れは、マイグレーションを当てた DB から書き出すテストで見つける。
+// includedTables は、バックアップに入れるテーブルを返す (設計書 11.4、#1926)。
+// テーブルを足したら、ここか excludedTables のどちらかに足す。どちらにもないテーブルがあると、作成を止める。
+// 足し忘れは、マイグレーションを当てた DB から作成するテストで見つける。
 func includedTables() []string {
 	return []string{
 		"schema_compatibility",
@@ -135,18 +135,18 @@ func includedTables() []string {
 	}
 }
 
-// refersToSessions は、sessions を指すので外す表の理由。
+// refersToSessions は、sessions を指すので外すテーブルの理由。
 const refersToSessions = "refers to sessions"
 
-// excludedTables は、バックアップに入れない表と、その理由を返す (設計書 11.4、#1926)。
-// 戻した後は、マイグレーションが作った空の表 (と、マイグレーションが入れた行) のまま始める。
+// excludedTables は、バックアップに入れないテーブルと、その理由を返す (設計書 11.4、#1926)。
+// 戻した後は、マイグレーションが作った空のテーブル (と、マイグレーションが入れた行) のまま始める。
 func excludedTables() map[string]string {
 	return map[string]string{
 		"programs":        "the EPG is fetched again from the tuner server",
 		"epg_changes":     "the change log of programs; its versions start over with change_versions",
 		"change_versions": "the versions of change notifications start over after a restore",
-		// 照合のカーソルは epg_changes の版数を持つ。版数が 1 から数え直すので、残すと、照合が変更を読み飛ばす。
-		// 行がなければ、照合は今の版数から読み始め、それまでの番組は定期的な照合し直しが受け持つ (設計書 3.8、3.9)。
+		// 照合のカーソルは epg_changes のバージョンを持つ。バージョンが 1 から数え直すので、残すと、照合が変更を読み飛ばす。
+		// 行がなければ、照合は今のバージョンから読み始め、それまでの番組は定期的な照合し直しが受け持つ (設計書 3.8、3.9)。
 		"anime_match_cursor": "holds a version of epg_changes, which starts over after a restore",
 		"drama_match_cursor": "holds a version of epg_changes, which starts over after a restore",
 		"sessions":           "restoring sessions would revive old sign-ins; everyone signs in again",
@@ -157,26 +157,26 @@ func excludedTables() map[string]string {
 		"anime_record_authorizations": refersToSessions,
 		"drama_record_authorizations": refersToSessions,
 		"google_authorizations":       refersToSessions,
-		// River のジョブの ID を持つので、River の表と組で外す。残すと、戻した後のジョブが同じ ID の古い進み具合を読む。
+		// River のジョブの ID を持つので、River のテーブルと組で外す。残すと、戻した後のジョブが同じ ID の古い進み具合を読む。
 		"job_progress":     "holds IDs of River jobs, which are not backed up",
 		"goose_db_version": "the schema version is applied by kotatsu migrate",
 		"goose_lock":       "the lock of kotatsu migrate",
 	}
 }
 
-// nullColumns は、書き出すときに NULL にする列を返す。外した表を指す、NULL にできる列が当たる。
+// nullColumns は、作成するときに NULL にするカラムを返す。外したテーブルを指す、NULL にできるカラムが当たる。
 func nullColumns() map[string][]string {
 	return map[string][]string{
-		// Web Push の購読は残し、ログインしたセッションとの結びつきだけを外す。セッションを失効させたときに購読を止めるのに使う列である。
+		// Web Push の購読は残し、ログインしたセッションとの結びつきだけを外す。セッションを失効させたときに購読を止めるのに使うカラムである。
 		"web_push_subscriptions": {"session_id"},
 	}
 }
 
-// riverTablePrefix は、River の表の名前の接頭辞。River の表は River のマイグレーションが作り、ジョブは戻さない。
-// River の版によって表が増えるので、名前を並べずに接頭辞で外す。
+// riverTablePrefix は、River のテーブルの名前の接頭辞。River のテーブルは River のマイグレーションが作り、ジョブは戻さない。
+// River のバージョンによってテーブルが増えるので、名前を並べずに接頭辞で外す。
 const riverTablePrefix = "river_"
 
-// isExcluded は、表 name をバックアップに入れないかを返す。
+// isExcluded は、テーブル name をバックアップに入れないかを返す。
 func isExcluded(name string) bool {
 	_, ok := excludedTables()[name]
 

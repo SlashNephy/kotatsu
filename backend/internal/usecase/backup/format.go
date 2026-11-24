@@ -1,15 +1,15 @@
-// Package backup は、DB とキャプチャの画像を、age の公開鍵で暗号化した 1 つのファイルに書き出し、空の DB に戻す (設計書 11.4、#1926)。
+// Package backup は、DB とキャプチャの画像を、age の公開鍵で暗号化した 1 つのファイルに出力し、空の DB に戻す (設計書 11.4、#1926)。
 //
 // ファイルは、age で暗号化した gzip の tar である。tar には、次の順にエントリーを置く。
 //
-//   - manifest.json: 形式の版、書き出したときのスキーマの版 (goose の版)、表と列の並び
+//   - manifest.json: 形式のバージョン、作成したときのスキーマのバージョン (goose のバージョン)、テーブルとカラムの並び
 //   - secret_key: アプリの秘密キー。DB の中の暗号化した値を読むのに要る
-//   - tables/<表>/<連番>: 表ごとの COPY TO の出力 (テキスト形式) を、chunkSize ごとに区切ったもの。外部キーの順に並べる
+//   - tables/<テーブル>/<連番>: テーブルごとの COPY TO の出力 (テキスト形式) を、chunkSize ごとに区切ったもの。外部キーの順に並べる
 //   - captures/<ユーザーの ID>/<キャプチャの ID>.png: キャプチャの画像
-//   - end.json: 書き終えたことと、表ごとの大きさ。これがなければ、途中で切れたファイルとみなして戻さない
+//   - end.json: 書き終えたことと、テーブルごとの大きさ。これがなければ、途中で切れたファイルとみなして戻さない
 //
-// 書き出しは 1 つのトランザクション (REPEATABLE READ) の中で行うので、表どうしは同じ時点のものになる。
-// 戻すときは、書き出したときのスキーマの版まで kotatsu migrate で上げてから流し込み、最後に最新まで上げる。
+// 作成は 1 つのトランザクション (REPEATABLE READ) の中で行うので、テーブルどうしは同じ時点のものになる。
+// 戻すときは、作成したときのスキーマのバージョンまで kotatsu migrate で上げてから流し込み、最後に最新まで上げる。
 package backup
 
 import (
@@ -18,11 +18,11 @@ import (
 )
 
 const (
-	// formatVersion は、ファイルの形式の版。形を変えて、前の版のファイルを読めなくなるときに上げる。
+	// formatVersion は、ファイルの形式のバージョン。形を変えて、前のバージョンのファイルを読めなくなるときに上げる。
 	formatVersion = 1
-	// chunkSize は、表の COPY の出力を区切る大きさ。tar のエントリーは大きさを先に書くので、この大きさまでメモリにためてから書く。
+	// chunkSize は、テーブルの COPY の出力を区切る大きさ。tar のエントリーは大きさを先に書くので、この大きさまでメモリにためてから書く。
 	chunkSize = 4 << 20
-	// maxManifestSize は、manifest.json と end.json の大きさの上限。表の数と列の数で決まり、普通は数十 KB に収まる。
+	// maxManifestSize は、manifest.json と end.json の大きさの上限。テーブルの数とカラムの数で決まり、普通は数十 KB に収まる。
 	maxManifestSize = 4 << 20
 	// maxSecretKeySize は、アプリの秘密キーの大きさの上限。
 	maxSecretKeySize = 64 << 10
@@ -47,9 +47,9 @@ var (
 	ErrNoSecretKey = errors.New("the app secret key (auth.secret_key) is required to make a backup")
 	// ErrNoDataDir は、キャプチャがあるのに、データディレクトリを設定していないことを表す。
 	ErrNoDataDir = errors.New("the data directory (storage.data_dir) is required because the backup has captures")
-	// ErrSchemaNewer は、DB のスキーマがこのバイナリより新しいので、書き出せないことを表す。
+	// ErrSchemaNewer は、DB のスキーマがこのバイナリより新しいので、作成できないことを表す。
 	ErrSchemaNewer = errors.New("the database schema is newer than this binary; make the backup with the newer kotatsu")
-	// ErrUnclassifiedTable は、バックアップに入れるか決めていない表があることを表す。
+	// ErrUnclassifiedTable は、バックアップに入れるか決めていないテーブルがあることを表す。
 	ErrUnclassifiedTable = errors.New("a table is not classified for backups")
 	// ErrDatabaseNotEmpty は、戻す先の DB が空でないことを表す。
 	ErrDatabaseNotEmpty = errors.New("the database to restore into must be empty")
@@ -61,23 +61,23 @@ var (
 	ErrBackupNewer = errors.New("the backup was made with a newer schema than this binary; restore it with the newer kotatsu")
 )
 
-// Manifest は、バックアップの先頭に置く、中身の説明。
+// Manifest は、バックアップの先頭に置く、内容の説明。
 type Manifest struct {
-	// Format は、ファイルの形式の版 (formatVersion)。
+	// Format は、ファイルの形式のバージョン (formatVersion)。
 	Format int `json:"format"`
-	// KotatsuVersion は、書き出した Kotatsu の版。
+	// KotatsuVersion は、作成した Kotatsu のバージョン。
 	KotatsuVersion string `json:"kotatsuVersion"`
-	// SchemaVersion は、書き出したときのスキーマの版 (goose の版)。戻すときは、この版まで上げてから流し込む。
+	// SchemaVersion は、作成したときのスキーマのバージョン (goose のバージョン)。戻すときは、このバージョンまで上げてから流し込む。
 	SchemaVersion int64 `json:"schemaVersion"`
-	// CreatedAt は、書き出した日時。
+	// CreatedAt は、作成した日時。
 	CreatedAt time.Time `json:"createdAt"`
-	// Tables は、書き出した表と列。戻すときは、この順に流し込む (外部キーで指される表が先)。
+	// Tables は、出力したテーブルとカラム。戻すときは、この順に流し込む (外部キーで指されるテーブルが先)。
 	Tables []*Table `json:"tables"`
 	// Captures は、キャプチャの行の数。データディレクトリに画像がなかったものも数える。
 	Captures int `json:"captures"`
 }
 
-// Table は、書き出した表と、COPY の列の並び。
+// Table は、出力したテーブルと、COPY のカラムの並び。
 type Table struct {
 	Name    string   `json:"name"`
 	Columns []string `json:"columns"`
@@ -85,8 +85,8 @@ type Table struct {
 
 // end は、書き終えたことを表す、最後のエントリー。
 type end struct {
-	// TableBytes は、表ごとの COPY の出力の大きさ。戻すときに読んだ大きさと比べる。
+	// TableBytes は、テーブルごとの COPY の出力の大きさ。戻すときに読んだ大きさと比較する。
 	TableBytes map[string]int64 `json:"tableBytes"`
-	// Captures は、書き出したキャプチャの画像の数。
+	// Captures は、出力したキャプチャの画像の数。
 	Captures int `json:"captures"`
 }

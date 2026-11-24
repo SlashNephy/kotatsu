@@ -67,7 +67,7 @@ const (
 )
 
 // newArtworkFixture は、Annict の作品 3 つ (MyAnimeList の 100、200、300) と AniList の作品 1 つを見たいリストに持つフィクスチャと、
-// 高画質の画像を引く Service を返す。
+// 高画質の画像を取得する Service を返す。
 func newArtworkFixture(t *testing.T, artworks *fakeArtworks) (*recordFixture, *animerecord.Service) {
 	t.Helper()
 
@@ -122,7 +122,7 @@ func images(t *testing.T, f *recordFixture) map[string]string {
 	return result
 }
 
-// TestRefreshArtworks は、Annict の作品の画像を、AniList の高画質の画像か、なければ Jikan の画像にすることを確かめる (#1315)。
+// TestRefreshArtworks は、Annict の作品の画像を、AniList の高画質の画像か、なければ Jikan の画像にすることを確認する (#1315)。
 // どちらにもなければ Annict の画像のままにし、引いた作品は、引き直す時期まで問い合わせない。
 func TestRefreshArtworks(t *testing.T) {
 	t.Parallel()
@@ -163,7 +163,7 @@ func TestRefreshArtworks(t *testing.T) {
 	assert.Equal(t, [][]int32{{100, 200, 300}, {100}}, artworks.aniList)
 }
 
-// TestRefreshArtworksJikanUnavailable は、Jikan に届かなければ、AniList で見つけた画像だけを書き、残りは次の機会に引き直すことを確かめる (#1315)。
+// TestRefreshArtworksJikanUnavailable は、Jikan に届かなければ、AniList で見つけた画像だけを書き、残りは次の機会に引き直すことを確認する (#1315)。
 func TestRefreshArtworksJikanUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -187,7 +187,7 @@ func TestRefreshArtworksJikanUnavailable(t *testing.T) {
 	assert.Equal(t, jikanImage, images(t, f)["annict:11"])
 }
 
-// TestRefreshArtworksDisabled は、管理者がアニメの連携を無効にしていれば、画像を引かないことを確かめる (#1315)。
+// TestRefreshArtworksDisabled は、管理者がアニメの連携を無効にしていれば、画像を引かないことを確認する (#1315)。
 func TestRefreshArtworksDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -207,7 +207,7 @@ func TestRefreshArtworksDisabled(t *testing.T) {
 }
 
 // TestRefreshArtworksDuplicateWorks は、1 つの Annict の作品に作品 ID の対応が複数あっても、Annict が自前で作った対応を先にして、
-// いつも同じ画像を選ぶことを確かめる (#1315)。取り込み直しても、同じ画像を選ぶ。
+// いつも同じ画像を選ぶことを確認する (#1315)。取り込み直しても、同じ画像を選ぶ。
 func TestRefreshArtworksDuplicateWorks(t *testing.T) {
 	t.Parallel()
 
