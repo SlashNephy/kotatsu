@@ -40,6 +40,16 @@
       enabled: false,
     },
     {
+      // vite は、Vite+ が同梱する @voidzero-dev/vite-plus-core を指す別名で、vite-plus と同じバージョンでないと動かない
+      // (frontend/pnpm-workspace.yaml)。片方のバージョンの付け方が変わると、メジャーの更新として別の PR に分かれて、
+      // どちらの PR も CI が通らない (#1975、#1976)。メジャーの更新でも分けない。
+      matchPackageNames: [
+        'vite-plus',
+        '@voidzero-dev/vite-plus-core',
+      ],
+      separateMajorMinor: false,
+    },
+    {
       // nv-codec-headers のバージョンで、NVENC と NVDEC が動く NVIDIA のドライバの下限が決まる (Dockerfile の NV_CODEC_HEADERS_VERSION)。
       // 下限を上げると、古いドライバの利用者の NVENC が動かなくなるので、12.1 の中でだけ上げ、それより上は手で上げる。
       matchDepNames: [
