@@ -71,66 +71,6 @@ func (b *DeleteProgramsBatchResults) Close() error {
 	return b.br.Close()
 }
 
-const insertProgramRewrites = `-- name: InsertProgramRewrites :batchexec
-INSERT INTO program_rewrites (service_id, event_id, start_at, field, before, after, observed_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-`
-
-type InsertProgramRewritesBatchResults struct {
-	br     pgx.BatchResults
-	tot    int
-	closed bool
-}
-
-type InsertProgramRewritesParams struct {
-	ServiceID  int64
-	EventID    int64
-	StartAt    time.Time
-	Field      string
-	Before     string
-	After      string
-	ObservedAt time.Time
-}
-
-func (q *Queries) InsertProgramRewrites(ctx context.Context, arg []InsertProgramRewritesParams) *InsertProgramRewritesBatchResults {
-	batch := &pgx.Batch{}
-	for _, a := range arg {
-		vals := []interface{}{
-			a.ServiceID,
-			a.EventID,
-			a.StartAt,
-			a.Field,
-			a.Before,
-			a.After,
-			a.ObservedAt,
-		}
-		batch.Queue(insertProgramRewrites, vals...)
-	}
-	br := q.db.SendBatch(ctx, batch)
-	return &InsertProgramRewritesBatchResults{br, len(arg), false}
-}
-
-func (b *InsertProgramRewritesBatchResults) Exec(f func(int, error)) {
-	defer b.br.Close()
-	for t := 0; t < b.tot; t++ {
-		if b.closed {
-			if f != nil {
-				f(t, ErrBatchAlreadyClosed)
-			}
-			continue
-		}
-		_, err := b.br.Exec()
-		if f != nil {
-			f(t, err)
-		}
-	}
-}
-
-func (b *InsertProgramRewritesBatchResults) Close() error {
-	b.closed = true
-	return b.br.Close()
-}
-
 const setCaptureNormalized = `-- name: SetCaptureNormalized :batchexec
 UPDATE captures SET caption_normalized = $1 WHERE id = $2
 `
