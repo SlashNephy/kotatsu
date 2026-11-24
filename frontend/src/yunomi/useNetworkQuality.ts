@@ -33,6 +33,9 @@ export type NetworkQualityOptions = {
   convert: boolean;
   // topBitrate は、最高画質 (オリジナル) のビットレート (bps)。録画の平均のビットレートなど。分からなければ null。
   topBitrate: number | null;
+  // ends は、流れに終わりがあるか。録画を終えた録画と、放送を終えた番組のタイムシフトの再生。ライブと、録画中の追っかけ再生は終わりがない。
+  // 終わりがあれば、終わりまで読み込んだあとは判定しない。
+  ends: boolean;
   // videoLag は、映像だけの遅れの制御。自分で飛び直して起きた詰まりを、回線の詰まりとして数えない。
   videoLag?: Pick<VideoLag, 'excusesStall'>;
   // pictureInPicture は、別のウィンドウに出しているか。出している間は、タブが隠れても見えているとみなす。
@@ -69,6 +72,27 @@ function aheadOf(media: PlayerMedia): number {
   return 0;
 }
 
+// endTolerance は、読み込んである範囲の端を、流れの終わりとみなす誤差 (秒)。MSE の長さは、endOfStream() で読み込んだ端に揃うが、
+// 揃う前の HLS の長さはプレイリストの長さの和で、実際の端と少しずれる。セグメント (2 秒) よりは十分短くする。
+const endTolerance = 0.5;
+
+// loadedToEnd は、今の位置から長さの終わりまで、途切れずに読み込んであるか。長さが決まっていなければ (Infinity か NaN)、false。
+export function loadedToEnd(
+  media: Pick<PlayerMedia, 'buffered' | 'currentTime' | 'duration'>,
+): boolean {
+  const { buffered, currentTime, duration } = media;
+  if (!Number.isFinite(duration)) {
+    return false;
+  }
+  for (let i = 0; i < buffered.length; i++) {
+    if (buffered.start(i) <= currentTime && currentTime <= buffered.end(i)) {
+      return buffered.end(i) >= duration - endTolerance;
+    }
+  }
+
+  return false;
+}
+
 // useNetworkQuality は、回線の側の兆候を判定のたびに見て、画質の「自動」の段階を下げ、余裕を確認してから上げる (#1513、設計書 7.1、7.5)。
 // 決める部分は networkQuality.ts にあり、ここは video の要素とプレイヤーから計測して渡し、決めたとおりに段階を動かし、プローブのデータを取る。
 // 制御は、画面を開いている間は、段階を替えて video が変わっても引き継ぐ。
@@ -90,6 +114,7 @@ export function useNetworkQuality(
     mode: options.mode,
     convert: options.convert,
     topBitrate: options.topBitrate,
+    ends: options.ends,
     pictureInPicture: options.pictureInPicture,
   }));
   const excused = useEffectEvent(() => options.videoLag?.excusesStall() ?? false);
@@ -243,6 +268,7 @@ export function useNetworkQuality(
         {
           active,
           started: started.current,
+          loadedToEnd: state.ends && loadedToEnd(media),
           waiting: waiting && !excused(),
           lowReadyState: media.readyState < haveFutureData,
           // 音声だけの段階と、コマごとのコールバックが無い端末では、コマの途絶を計測しない。
