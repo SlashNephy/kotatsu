@@ -51,7 +51,7 @@ type Provider struct {
 	// WrongAudience なら、ほかのクライアントに向けた ID トークンを発行する。
 	WrongAudience bool
 	// AuthTimeNow なら、ID トークンに、発行した時刻を IdP で認証した時刻 (auth_time) として載せる。
-	// その場で資格情報を入れてログインした IdP をまねる。偽の IdP のプロセス (internal/cmd/fakeidp) が使う。
+	// その場で資格情報を入れてログインした IdP をまねる。モックの IdP のプロセス (internal/cmd/fakeidp) が使う。
 	AuthTimeNow bool
 	// Now は、ID トークンの発行と期限の時刻。nil なら time.Now。
 	Now func() time.Time

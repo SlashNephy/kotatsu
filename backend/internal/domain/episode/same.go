@@ -80,7 +80,7 @@ func Same(a, b *Episode) bool {
 		return true
 	}
 
-	// 副題が一致してシリーズ名が違うときは、片方の芯がもう片方のシリーズ名に含まれれば同じ回とする。
+	// サブタイトルが一致してシリーズ名が違うときは、片方の芯がもう片方のシリーズ名に含まれれば同じ回とする。
 	return coreContained(a, b) || coreContained(b, a)
 }
 

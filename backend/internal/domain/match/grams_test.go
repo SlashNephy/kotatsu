@@ -29,7 +29,7 @@ func TestRequiredGramsKeepsMatchingPrograms(t *testing.T) {
 		extended    map[string]string
 		keyword     *match.Keyword
 		wantMatch   bool
-		wantDropped bool // 一致しない番組を、索引で落とせるか
+		wantDropped bool // 一致しない番組を、インデックスで落とせるか
 	}{
 		{
 			name: "漢字 1 文字", program: [2]string{"猫の島", ""},

@@ -50,12 +50,12 @@ func TestAdminRedetectCM(t *testing.T) {
 	t.Cleanup(pool.Close)
 
 	base := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
-	// detection は、録画の CM の区間を見分けた見分け方と版。
+	// detection は、録画の CM の区間を見分けた見分け方とバージョン。
 	type detection struct {
 		detector string
 		version  int
 	}
-	// 録画ごとに、見分けた見分け方と版を、見分けた順に並べる。
+	// 録画ごとに、見分けた見分け方とバージョンを、見分けた順に並べる。
 	recordings := []struct {
 		name       string
 		detections []detection
@@ -64,7 +64,7 @@ func TestAdminRedetectCM(t *testing.T) {
 		{name: "古い版", detections: []detection{{detectorFFmpeg, 1}}, material: true},
 		{name: "今の版", detections: []detection{{detectorFFmpeg, 2}}},
 		{name: "ほかの見分け方", detections: []detection{{detectorLogo, 1}}},
-		// 古い版の後に、ほかの見分け方で見分け直した。最後の結果はほかの見分け方のもの。
+		// 古いバージョンの後に、ほかの見分け方で見分け直した。最後の結果はほかの見分け方のもの。
 		{name: "見分け方を替えた", detections: []detection{{detectorFFmpeg, 1}, {detectorLogo, 1}}},
 	}
 	ids := make([]string, len(recordings))
@@ -86,7 +86,7 @@ func TestAdminRedetectCM(t *testing.T) {
 			require.NoError(t, err)
 		}
 		if recording.material {
-			// 今の形式の版 (5) の材料。
+			// 今の形式のバージョン (5) の材料。
 			_, err := pool.Exec(t.Context(), `INSERT INTO recording_cm_materials (recording_id, detector, format_version, data, created_at)
 				VALUES ($1, 'ffmpeg', 5, '\x00', $2)`, recordingID, startAt)
 			require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestAdminRedetectCMWithLogo(t *testing.T) {
 		_, err := pool.Exec(t.Context(), sql)
 		require.NoError(t, err)
 	}
-	// 録画ごとに、ロゴで見分けた版と、残した材料の形式の版 (0 なら材料なし)。
+	// 録画ごとに、ロゴで見分けたバージョンと、残した材料の形式のバージョン (0 なら材料なし)。
 	recordings := []struct {
 		name           string
 		version        int

@@ -152,7 +152,7 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	logger.InfoContext(ctx, "role started")
 	defer logger.InfoContext(ctx, "role stopped")
 
-	// 設定していなければ、interface のまま nil にする。neko は nil と比べて、EPG の同期を止める。
+	// 設定していなければ、interface のまま nil にする。neko は nil と比較して、EPG の同期を止める。
 	var tuner tunerserver.Client
 	if deps.Config.Tuner.UsesTunerServer() {
 		var err error
@@ -181,7 +181,7 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		return err
 	}
 
-	// EPG の同期の遅れは、最後に全量を突き合わせた時刻と、それから経った秒数で示す (設計書 11.3)。リーダーでなくなった後は最後の値を残す。
+	// EPG の同期の遅れは、最後に全量を照合した時刻と、それから経った秒数で示す (設計書 11.3)。リーダーでなくなった後は最後の値を残す。
 	fullSync := metrics.NewFullSyncCollector(deps.Clock)
 	deps.ClusterMetrics.MustRegister(fullSync)
 
@@ -333,7 +333,7 @@ func newTunerClient(ctx context.Context, deps *Deps, logger *slog.Logger) (tuner
 		Authorize:         nil,
 	})
 	if err != nil {
-		// nil の *mirakurun.Client を interface に入れると nil と比べられなくなるので、interface のまま nil を返す。
+		// nil の *mirakurun.Client を interface に入れると nil と比較できなくなるので、interface のまま nil を返す。
 		return nil, err
 	}
 

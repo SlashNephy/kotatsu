@@ -35,7 +35,7 @@ func TestTenbanServesStreams(t *testing.T) {
 	const (
 		live      = "/internal/streams/services/3273601024"
 		recording = "/internal/streams/recordings/0199d000-0000-7000-8000-000000000999"
-		// timeshift は、kyusu へ中継する HLS のバッファの ID (<サービス>-<時刻>)。直に流すバッファは、サービスの ID と ?from= で選ぶ。
+		// timeshift は、kyusu へプロキシする HLS のバッファの ID (<サービス>-<時刻>)。直に流すバッファは、サービスの ID と ?from= で選ぶ。
 		timeshift = "/internal/streams/timeshift/3273601024-1763000000"
 	)
 

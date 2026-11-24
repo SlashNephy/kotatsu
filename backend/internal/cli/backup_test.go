@@ -76,7 +76,7 @@ func TestAdminBackupRestore(t *testing.T) {
 	target := newEnvOptions(targetEnv)
 	require.ErrorContains(t, runCommand(t, target, "admin", "restore", "--input", output, "--identity", identityFile), "--secret-key-out")
 
-	// 戻せなければ (表のある DB)、秘密キーのファイルを残さず、同じコマンドでやり直せる。
+	// 戻せなければ (テーブルのある DB)、秘密キーのファイルを残さず、同じコマンドでやり直せる。
 	secretKeyOut := filepath.Join(dir, "secret-key")
 	require.ErrorContains(t, runCommand(t, source, "admin", "restore", "--input", output, "--identity", identityFile, "--secret-key-out", secretKeyOut), "must be empty")
 	assert.NoFileExists(t, secretKeyOut)

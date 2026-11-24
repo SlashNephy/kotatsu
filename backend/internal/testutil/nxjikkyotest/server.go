@@ -41,13 +41,13 @@ type Server struct {
 	posts        []Post
 	keepSeats    int
 	pongs        int
-	// MessageServer は、空でなければ room で知らせるコメントセッションの接続先にする。
+	// MessageServer は、空でなければ room で通知するコメントセッションの接続先にする。
 	messageServer string
 	// PostError は、空でなければ投稿にこのエラーのコードを返す。
 	postError string
 	// backlog は、コメントセッションを開いたときに rf:0 より前に送るコメント。
 	backlog []string
-	// keepIntervalSec は、seat で知らせる keepSeat の間隔 (秒)。
+	// keepIntervalSec は、seat で通知する keepSeat の間隔 (秒)。
 	keepIntervalSec float64
 	server          *httptest.Server
 	closed          chan struct{}

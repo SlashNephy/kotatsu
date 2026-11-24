@@ -157,7 +157,7 @@ func TestSleepControl(t *testing.T) {
 			wait := registered
 			switch {
 			case tt.disabled:
-				// 最初の判定を終えても、スリープを止めず、起こす予約も置かないことを確かめる。
+				// 最初の判定を終えても、スリープを止めず、起こす予約も置かないことを確認する。
 				require.Eventually(t, func() bool { return slices.Contains(system.Calls(), callCancel) }, 30*time.Second, 10*time.Millisecond)
 				require.Never(t, func() bool {
 					calls := system.Calls()

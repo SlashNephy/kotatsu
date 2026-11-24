@@ -111,7 +111,7 @@ type Options struct {
 	Clock     clock.Clock
 
 	OpenDatabase func(ctx context.Context, cfg *config.Database) (*pgxpool.Pool, error)
-	// CheckSchema は、ロールを起動する前に、DB のスキーマでこのバイナリが動けるかを確かめる。
+	// CheckSchema は、ロールを起動する前に、DB のスキーマでこのバイナリが動けるかを確認する。
 	CheckSchema func(ctx context.Context, pool *pgxpool.Pool) error
 	// Migrate は kotatsu migrate の本体。
 	Migrate func(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
@@ -120,7 +120,7 @@ type Options struct {
 	RunRegistry func(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error
 	// JobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。
 	JobWorkers func(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.PeriodicJob, error)
-	// WatchChanges は、tenban が subscription に知らせる変更の通知を見張るものを作る。
+	// WatchChanges は、tenban が subscription に通知する変更の通知を見張るものを作る。
 	WatchChanges func(ctx context.Context, logger *slog.Logger, deps *Deps) (ChangeFeed, error)
 	// LogSetupToken は、all の起動時に、管理者がいなければセットアップトークンを発行してログに出す (設計書 9.2)。
 	LogSetupToken func(ctx context.Context, logger *slog.Logger, clk clock.Clock, pool *pgxpool.Pool) error
@@ -150,7 +150,7 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		SleepSystem:  newSleepSystem,
 
 		LogSetupToken: logSetupToken,
-		// main で、ログを写すよう包んだ logger を渡す (#1521)。
+		// main で、ログをコピーするよう包んだ logger を渡す (#1521)。
 		Logs:                    logring.BufferOf(logger.Handler()),
 		PasswordStrengthTimeout: 0,
 	}
@@ -168,13 +168,13 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, prune.watchProgress)
 	river.AddWorker(workers, prune.networkActivity)
 
-	// Webhook の配信のジョブは、イベントを配るトランザクションの中で投入する。
+	// Webhook の配信のジョブは、イベントを配信するトランザクションの中で投入する。
 	// 投入に使う River のクライアントは、ここで作る Worker を必要とするので、投入だけを行うクライアントを別に作る。
 	inserter, err := jobs.NewClient(deps.DB, logger, &jobs.Options{PollOnly: deps.Config.Database.Pooler, Workers: nil, PeriodicJobs: nil})
 	if err != nil {
 		return nil, nil, err
 	}
-	// 通知を配り、Webhook と Web Push で送る。視聴予約は、放送の少し前に通知する (設計書 4.8)。組み方は notifications.go に置く。
+	// 通知を配信し、Webhook と Web Push で送る。視聴予約は、放送の少し前に通知する (設計書 4.8)。組み方は notifications.go に置く。
 	notifications, err := newNotificationParts(deps, inserter)
 	if err != nil {
 		return nil, nil, err
@@ -206,7 +206,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, media.tvtplay)
 	river.AddWorker(workers, media.chapters)
 	// ライブラリのファイルの代表画像とプレビュー画像と CM の区間 (設計書 5.8)。ライブラリとデータディレクトリをマウントした nekonote で作る。
-	// 索引は tenban が作るので、ここでは読むだけにする。
+	// インデックスは tenban が作るので、ここでは読むだけにする。
 	libraryParts := newLibraryParts(deps, logger, false)
 	river.AddWorker(workers, filelib.NewImagesWorker(libraryParts.libraries, libraryParts.indexer, func(ctx context.Context) (bool, error) {
 		// 録画の画像と同じく、管理者が画面で選んだプレビュー画像の設定に従う。
@@ -249,7 +249,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, dramarecord.NewRecordWorker(animeJobs.dramaRecords, deps.DB))
 	river.AddWorker(workers, dramarecord.NewWatchlistWorker(animeJobs.dramaRecords, deps.DB))
 	river.AddWorker(workers, dramarecord.NewPruneWorker(animeJobs.dramaRecords, deps.DB))
-	// 管理者が画面で公開鍵を登録していれば、DB とキャプチャを backup.dir に定期に書き出す (#1926、設計書 11.4)。
+	// 管理者が画面で公開鍵を登録していれば、DB とキャプチャを backup.dir に定期に出力する (#1926、設計書 11.4)。
 	river.AddWorker(workers, backup.NewWorker(&backup.WorkerOptions{
 		DB: poolOf(deps), Store: storeOf(deps.Config), SecretKey: deps.Config.Auth.SecretKey.Value(), Dir: deps.Config.Backup.Dir,
 		Clock: deps.Clock, Logger: logger.With(slog.String("component", "backup")),
@@ -635,9 +635,9 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		return err
 	}
 
-	// DB が止まっても、覚えた結果で視聴を続けられる間は、Service から外さない (#1084)。
+	// DB が止まっても、キャッシュした結果で視聴を続けられる間は、Service から外さない (#1084)。
 	health := httpserver.HealthHandlers(logger, deps.DB, database.FallbackTTL)
-	// kyusu と nabe は、パスの頭の下を受け持つ。
+	// kyusu と nabe は、パスの先頭の下を受け持つ。
 	subtrees := map[string]http.Handler{}
 	var app http.Handler
 	var api *apiHandler
@@ -655,7 +655,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 	}
 	var live *kyusu.Live
 	var vod *kyusu.VOD
-	// サーバー側でのトランスコードは kyusu が受け持つ (設計書 7.3)。tenban が、インスタンスの登録簿で引いて中継する。
+	// サーバー側でのトランスコードは kyusu が受け持つ (設計書 7.3)。tenban が、インスタンスの登録簿で検索してプロキシする。
 	if slices.ContainsFunc(roles, func(role *Role) bool { return role.Name == kyusuRoleName }) {
 		var token *kyusu.Token
 		live, vod, token, err = newKyusu(ctx, logger, deps)
@@ -672,7 +672,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		subtrees[kyusu.TimeshiftPathPrefix] = vodHandler
 		subtrees[kyusu.LibraryPathPrefix] = vodHandler
 	}
-	// EDCB の NetworkTV の TS は nabe が配る (#1535)。ほかのロールが、インスタンスの登録簿で引いて受け取る。
+	// EDCB の NetworkTV の TS は nabe が配信する (#1535)。ほかのロールが、インスタンスの登録簿で検索して受け取る。
 	if serveNabe(deps, roles) {
 		nabeHandler, err := newNabeHandler(deps, logger)
 		if err != nil {
@@ -954,21 +954,21 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Sessions:      sessions,
 		SecondFactors: factors,
 		ChallengeTTL:  0,
-		// パスワードを同時に確かめる数は、CPU の数までにする (#542)。
+		// パスワードを同時に確認する数は、CPU の数までにする (#542)。
 		MaxConcurrentVerifications: 0,
 		VerificationWait:           0,
 	})
 	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
 	authRoutes.add(http.MethodGet, "/internal/auth/setup", setup.StatusHandler(deps.DB))
-	// 重要な操作ができるか。画面が、重要な操作の入力を始める前に確かめる (設計書 9.5)。
+	// 重要な操作ができるか。画面が、重要な操作の入力を始める前に確認する (設計書 9.5)。
 	authRoutes.add(http.MethodGet, "/internal/auth/reauth", auth.ReauthenticationStatusHandler(deps.Clock))
-	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
+	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確認せずに受け付ける。
 	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions, deps.Network)
 	authRoutes.add(http.MethodGet, "/internal/auth/oidc", oidc.StatusHandler(deps.DB))
 	authRoutes.add(http.MethodGet, auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
-	// Annict と AniList から戻ってくる認可 (#927)。記録先からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
+	// Annict と AniList から戻ってくる認可 (#927)。記録先からのリダイレクトは GET なので、Origin を確認せずに受け付ける。
 	addAnimeRecordCallbacks(authRoutes, deps, animeRecords, logger)
-	// Simkl から戻ってくる認可 (#1649)。アニメの記録先と同じく、Origin を確かめずに受け付ける。
+	// Simkl から戻ってくる認可 (#1649)。アニメの記録先と同じく、Origin を確認せずに受け付ける。
 	addDramaRecordCallbacks(authRoutes, deps, sealed.dramaRecords, logger)
 	// Google から戻ってくる認可 (#1902)。Google の連携で 1 つのリダイレクト URI を共有し、目的は認可の途中の状態から決める。
 	if libraries.google != nil {
@@ -1143,11 +1143,11 @@ func newStreamRoutes(
 	}
 	routes.add(http.MethodGet, "/internal/streams/services/:id", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamKindLive,
-			// 画面のプレイヤーに流す中継では、スクランブルされたまま届いていないかを確かめる (設計書 7.1、#1517)。
+			// 画面のプレイヤーに流す中継では、スクランブルされたまま届いていないかを確認する (設計書 7.1、#1517)。
 			streamapi.NewLiveHandler(opener, streamLogger).WithScramble(scramble.NewReporter(deps.DB, deps.Clock, streamLogger)))))))
 	routes.add(http.MethodGet, "/internal/streams/services/:id/data-broadcast", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamKindDataBroadcast, streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
-	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
+	// サーバー側でのトランスコードは、インスタンスの登録簿で検索した kyusu にプロキシする (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
 		return nil, nil, err
@@ -1171,7 +1171,7 @@ func newStreamRoutes(
 	// タイムシフトのバッファは、このインスタンスにタイムシフトのディレクトリを設定したときだけ流せる (設計書 7.2)。
 	routes.add(http.MethodGet, "/internal/streams/timeshift/:id", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamKindTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
-	// 画質を上げる前に回線の余裕を確かめる、試しのデータ (設計書 7.3、#1513)。配信ではないので、streams に数えない。
+	// 画質を上げる前に回線の余裕を確認する、プローブのデータ (設計書 7.3、#1513)。配信ではないので、streams に数えない。
 	routes.add(http.MethodGet, streamapi.ProbePath, authorizer.Session(streamapi.NewProbeHandler(deps.Clock)))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	routes.add(http.MethodGet, "/internal/streams/recordings/:id/files/:file", httpserver.StopOnShutdown(authorizer.Session(

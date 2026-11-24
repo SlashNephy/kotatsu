@@ -77,7 +77,7 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 			wantErr: `marks[0]: unknown enclosed character ""`,
 		},
 		{
-			// 🈲 (禁) は、表にない囲み文字。
+			// 🈲 (禁) は、テーブルにない囲み文字。
 			name:    "enclosed character not in the table",
 			modify:  func(c *match.Conditions) { c.ExcludeMarks[0] = "禁" },
 			wantErr: `excludeMarks[0]: unknown enclosed character "禁"`,

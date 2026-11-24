@@ -500,7 +500,7 @@ func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 
 		return strings.Compare(a.ID, b.ID)
 	})
-	// 1 件ずつのページに分けて、ページをたどることを確かめられるようにする。
+	// 1 件ずつのページに分けて、ページをたどることを確認できるようにする。
 	start, _ := strconv.Atoi(q.Get("pageToken"))
 	page := map[string]any{"files": []any{}}
 	if start < len(children) {

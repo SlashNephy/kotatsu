@@ -16,7 +16,7 @@ func TestFakeStopwatch(t *testing.T) {
 	start := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name string
-		// before は、Stopwatch を測り始める前の操作。after は、測り始めた後の操作。
+		// before は、Stopwatch を計測し始める前の操作。after は、計測し始めた後の操作。
 		before      func(f *clocktest.Fake)
 		after       func(f *clocktest.Fake)
 		wantElapsed time.Duration

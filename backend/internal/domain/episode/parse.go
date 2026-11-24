@@ -288,7 +288,7 @@ func parseTitle(name string) *title {
 	} else {
 		full = strings.TrimSpace(trailingFramesPattern.ReplaceAllString(rest, ""))
 		before = full
-		// 先頭の鍵括弧は作品名なので、副題にしない。
+		// 先頭のかぎ括弧は作品名なので、サブタイトルにしない。
 		if m := trailingQuotePattern.FindStringSubmatchIndex(full); m != nil && (quoted || m[0] > 0) {
 			t.subtitle = submatch(full, m, 1) + submatch(full, m, 2)
 			before = full[:m[0]]

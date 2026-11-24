@@ -212,7 +212,7 @@ func TestNekonoteDispatchesNotifications(t *testing.T) {
 		done <- cmd.ExecuteContext(ctx)
 	}()
 
-	// 配りの定期ジョブは起動時にも走るので、イベントがユーザーの通知になるのを待つ。
+	// 配信の定期ジョブは起動時にも走るので、イベントがユーザーの通知になるのを待つ。
 	deadline := time.After(30 * time.Second)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()

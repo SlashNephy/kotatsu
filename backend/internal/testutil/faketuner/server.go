@@ -199,7 +199,7 @@ func (s *Server) AddProgram(program *Program) {
 
 	stored := *program
 	s.programs[program.ID] = &stored
-	// 送ったイベントの中身が、後の変更で書き換わらないよう、別の値を送る。
+	// 送ったイベントの内容が、後の変更で書き換わらないよう、別の値を送る。
 	event := stored
 	s.publishLocked("program", "create", &event)
 }

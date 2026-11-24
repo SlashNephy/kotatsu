@@ -47,7 +47,7 @@ func enclosedTable() [enclosedCount]EnclosedCharacter {
 	}
 
 	// 出典は、Unicode の符号表が示す ARIB の規格 (設計書 4.2)。
-	// 鍵 (⚿) は Miscellaneous symbol from ARIB STD B24、漢字と仮名は Squared ideographs and kana from ARIB STD B24、
+	// キー (⚿) は Miscellaneous symbol from ARIB STD B24、漢字と仮名は Squared ideographs and kana from ARIB STD B24、
 	// 英字のうち B、N、P、S、W は各文字の注記に ARIB STD B24 とあり、HV、MV、SD、SS、PPV は放送の用語の注記がある。
 	// 2K や 4K などは Squared Latin letter sequences from ARIB STD B62。
 	return [enclosedCount]EnclosedCharacter{

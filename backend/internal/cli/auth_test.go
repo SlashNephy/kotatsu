@@ -64,7 +64,7 @@ func TestTenbanServesAuth(t *testing.T) {
 		{name: "unknown path", method: http.MethodGet, path: "/internal/auth/nope", session: session, origin: "", wantStatus: http.StatusNotFound, wantAllow: ""},
 	}
 	client := httpclienttest.New(t)
-	// 記録先から戻ってきた認可の 303 を、たどらずに確かめる。
+	// 記録先から戻ってきた認可の 303 を、たどらずに確認する。
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

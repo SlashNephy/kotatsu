@@ -205,6 +205,6 @@ func TestTenbanHidesEPGStationAPIWhileDisabled(t *testing.T) {
 		}
 		assert.Equal(t, tt.wantStatus, get(t, token), tt.name)
 	}
-	// 無効の間は、トークンを確かめる前に 404 を返すので、トークンがなくても 401 にしない。
+	// 無効の間は、トークンを確認する前に 404 を返すので、トークンがなくても 401 にしない。
 	assert.Equal(t, http.StatusNotFound, get(t, ""), "without a token while disabled")
 }
