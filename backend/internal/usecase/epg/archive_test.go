@@ -48,9 +48,9 @@ func TestArchiverMovesProgramsAfterGrace(t *testing.T) {
 
 			assert.Equal(t, int64(tt.wantArchived), result.Archived)
 			assert.Equal(t, tt.wantArchived, f.count(t, "SELECT count(*) FROM program_archives"))
-			// 検索で正規化し直さないよう、詳細の正規化した列も移す (#852)。
+			// 検索で正規化し直さないよう、詳細の正規化したカラムも移す (#852)。
 			assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE extended_normalized IS NULL"))
-			// 番組の検索の gram (#966) も移す。移さないと、アーカイブで埋め直すまで、索引で絞れない。
+			// 番組の検索の gram (#966) も移す。移さないと、アーカイブで埋め直すまで、インデックスで絞れない。
 			assert.Zero(t, f.count(t, "SELECT count(*) FROM program_archives WHERE search_grams IS NULL"))
 			// 移した番組は programs に残らない。
 			assert.Equal(t, fixturePrograms-tt.wantArchived, f.count(t, "SELECT count(*) FROM programs"))
@@ -106,7 +106,7 @@ func TestArchiverPrunesInBatches(t *testing.T) {
 		name      string
 		retention time.Duration
 		// fromFunc なら、保持期間を RetentionFunc から返し、Retention には残す期間 (7 日) を入れる。
-		// 画面から変えた保持期間が、起動時の値より優先されることを確かめる。
+		// 画面から変えた保持期間が、起動時の値より優先されることを確認する。
 		fromFunc   bool
 		wantPruned int
 	}{
@@ -125,7 +125,7 @@ func TestArchiverPrunesInBatches(t *testing.T) {
 			require.NoError(t, err)
 			opts := &epg.ArchiverOptions{
 				Retention: tt.retention,
-				// 番組の数より小さくして、何回かに分けて移し、消すことを確かめる。
+				// 番組の数より小さくして、何回かに分けて移し、消すことを確認する。
 				BatchSize: 7,
 			}
 			if tt.fromFunc {

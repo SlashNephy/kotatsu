@@ -89,7 +89,7 @@ func TestLiveReportsScrambledStreams(t *testing.T) {
 		want       []int64
 	}{
 		{name: "scrambled for windows past the hold", data: bytes.Repeat(scrambled, 2), wantStatus: http.StatusServiceUnavailable, want: []int64{3273601024}},
-		// 窓 1 つに満たないまま、エンコーダーが降りる。埋まりかけの窓で決める。
+		// ウィンドウ 1 つに満たないまま、エンコーダーが降りる。埋まりかけのウィンドウで決める。
 		{name: "the encoder exits before a window fills", data: scrambled[:400*ts.PacketSize], wantStatus: http.StatusServiceUnavailable, want: []int64{3273601024}},
 		{name: "decrypted", data: bytes.Repeat(data, 2), wantStatus: http.StatusBadGateway, want: []int64{}},
 		{name: "the encoder exits with too few packets to decide", data: scrambled[:100*ts.PacketSize], wantStatus: http.StatusBadGateway, want: []int64{}},

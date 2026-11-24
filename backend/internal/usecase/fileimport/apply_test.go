@@ -119,7 +119,7 @@ func TestApply(t *testing.T) {
 	tests := []struct {
 		name     string
 		services []int64
-		// files は、プールの中のパスから、中身と、最後に書いてからの時間への対応。
+		// files は、プールの中のパスから、内容と、最後に書いてからの時間への対応。
 		files        map[string]time.Duration
 		bdav         []string
 		wantImported []string

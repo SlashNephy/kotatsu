@@ -84,7 +84,7 @@ func TestReadProbe(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			// 時刻は時間帯の表し方が違っても同じなら等しいとみなすため、文字列にして比べる。
+			// 時刻は時間帯の表し方が違っても同じなら等しいとみなすため、文字列にして比較する。
 			assert.Equal(t, tt.want.NetworkID, got.NetworkID)
 			assert.Equal(t, tt.want.RecordedFrom.String(), got.RecordedFrom.String())
 			assert.Equal(t, tt.want.RecordedUntil.String(), got.RecordedUntil.String())

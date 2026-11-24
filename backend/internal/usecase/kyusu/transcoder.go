@@ -203,7 +203,7 @@ func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string, stdo
 	select {
 	case err := <-normalizerDone:
 		if err != nil {
-			// tsreadex が失敗したら、FFmpeg も止める。止めた FFmpeg のエラーは、tsreadex のエラーで知らせるので使わない。
+			// tsreadex が失敗したら、FFmpeg も止める。止めた FFmpeg のエラーは、tsreadex のエラーで通知するので使わない。
 			cancel()
 			stopped := <-encoderDone
 			_ = stopped
@@ -328,7 +328,7 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 		filepath.Join(dir, PlaylistName),
 	}
 	if vod != nil {
-		// 出力側の -ss は、デコードしてから捨てるので、k 番目のセグメントは、フレーム単位で k × セグメントの長さから始まる。
+		// 出力側の -ss は、デコードしてから破棄するので、k 番目のセグメントは、フレーム単位で k × セグメントの長さから始まる。
 		args = append(args,
 			"-ss", seconds(vod.Trim),
 			"-output_ts_offset", seconds(time.Duration(vod.StartNumber)*VODSegmentDuration),

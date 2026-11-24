@@ -52,7 +52,7 @@ func TestVODLibraryPlaylist(t *testing.T) {
 	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
 	clk := clocktest.NewFake(time.Now().Add(time.Hour))
 	logger := slog.New(slog.DiscardHandler)
-	// tenban の Indexer で、show.ts の索引を作っておく。
+	// tenban の Indexer で、show.ts のインデックスを作っておく。
 	indexer := filelib.NewIndexer(dataDir, libraries, clk, logger, true)
 	runIndexer(t, indexer)
 	tenban := filelib.NewSource(libraries, indexer)

@@ -166,7 +166,7 @@ func TestSourceIndexesOnOpen(t *testing.T) {
 	assert.Positive(t, seekable)
 	assert.Equal(t, seekable, duration)
 
-	// ファイルを書き換えたら、前の索引は使わず、作り直す。
+	// ファイルを書き換えたら、前のインデックスは使わず、作り直す。
 	path := filepath.Join(dir, showTS)
 	later := file.Entry.ModifiedAt.Add(time.Minute)
 	require.NoError(t, os.Chtimes(path, later, later))

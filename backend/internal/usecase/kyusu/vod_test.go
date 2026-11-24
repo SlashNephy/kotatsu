@@ -271,7 +271,7 @@ func TestVODPassthroughPlaylist(t *testing.T) {
 	status, _ = f.getPreset(t, recordingID, kyusu.PassthroughPreset, "segment00003.ts")
 	assert.Equal(t, http.StatusNotFound, status, "a segment out of the recording")
 
-	// 録画中は、最後のセグメント (4.4 秒から) は、次の始まりが索引に載るまで伸びるので載せず、終わりの印も付けない。
+	// 録画中は、最後のセグメント (4.4 秒から) は、次の始まりがインデックスに載るまで伸びるので載せず、終わりのマークも付けない。
 	recordingID = f.keyframedRecording(t, keyframes, 5*time.Second, stateRecording)
 	status, body = f.getPreset(t, recordingID, kyusu.PassthroughPreset, kyusu.PlaylistName)
 	assert.Equal(t, http.StatusOK, status)
@@ -689,7 +689,7 @@ func TestVODTranscodesSegments(t *testing.T) {
 	transcoder := newTranscoder(t)
 	f := newVODFixture(t, transcoder)
 	data := loadTestTS(t)
-	// 2 つの録画は同じ中身で、1 つ目は 1 番目のセグメントから、2 つ目は 2 番目のセグメントから書く。
+	// 2 つの録画は同じ内容で、1 つ目は 1 番目のセグメントから、2 つ目は 2 番目のセグメントから書く。
 	fromFirst := f.recording(t, "completed", data)
 	fromSecond := f.recording(t, "completed", data)
 

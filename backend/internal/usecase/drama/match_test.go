@@ -434,7 +434,7 @@ func TestMatchHorizon(t *testing.T) {
 			want: new(linkedTo(sukeban, 1, 26, drama.EpisodeSourceTitle)),
 		},
 		{
-			// 再放送の印がなくても、今放送しているシーズンのない昔の作品は、再放送と同じく番組名の話数で選ぶ。
+			// 再放送のマークがなくても、今放送しているシーズンのない昔の作品は、再放送と同じく番組名の話数で選ぶ。
 			name: "unmarked rerun of an old series", serviceID: bsService, start: jst(17, 16, 0), end: jst(17, 17, 0),
 			title: "スケバン刑事Ⅱ　少女鉄仮面伝説　★第２７話", genres: genreDrama,
 			want: new(linkedTo(sukeban, 1, 27, drama.EpisodeSourceTitle)),
@@ -446,7 +446,7 @@ func TestMatchHorizon(t *testing.T) {
 			want: new(linkedTo(sanada, 1, 5, drama.EpisodeSourceAirDate)),
 		},
 		{
-			// 空白の後ろに副題が付いた番組名は、そのままでは見つからない。頭 (南田南弁護士は天才肌) で探し、放送日の話で確かめて結びつける。
+			// 空白の後ろにサブタイトルが付いた番組名は、そのままでは見つからない。先頭 (南田南弁護士は天才肌) で探し、放送日の話で確認して結びつける。
 			name: "subtitle after a space", serviceID: grService, start: jst(16, 22, 0), end: jst(16, 22, 54),
 			title: "南田南弁護士は天才肌　嘘をつくのは悪いことです！　＃０５🈑🈓", genres: genreDrama,
 			want: new(linkedTo(minamida, 1, 5, drama.EpisodeSourceAirDate)),
@@ -499,7 +499,7 @@ func TestMatchHorizon(t *testing.T) {
 	assert.NotContains(t, requests, "/3/search/tv?夜ドラ", "promotions are not looked up")
 	assert.Contains(t, requests, "/3/search/tv?晩酌の流儀5~秋冬篇~", "the full title is tried first")
 
-	// 録画にも、番組の結びつきを写す。
+	// 録画にも、番組の結びつきをコピーする。
 	episode, found, err := drama.RecordingEpisode(t.Context(), f.db, recordingID)
 	require.NoError(t, err)
 	require.True(t, found)
@@ -710,7 +710,7 @@ func TestMatchChanges(t *testing.T) {
 	insertProgram(t, f.db, grService, 1, jst(15, 22, 15), jst(15, 23, 9), "もうパパ！　＃７", genreDrama)
 	insertProgram(t, f.db, bsService, 1, jst(17, 0, 0), jst(17, 0, 30), banshakuEpisode7, genreDrama)
 
-	// 初めて動いたときは、今の版数を覚えるだけにする。それまでの番組は、照合し直しが受け持つ。
+	// 初めて動いたときは、今のバージョンを保存するだけにする。それまでの番組は、照合し直しが受け持つ。
 	result, err := f.matcher.MatchChanges(t.Context())
 	require.NoError(t, err)
 	assert.Zero(t, result.Programs)

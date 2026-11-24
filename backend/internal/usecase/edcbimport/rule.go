@@ -87,7 +87,7 @@ func ruleInput(a *edcb.AutoAdd, services map[int64]bool) (*rule.Input, error) {
 		Conditions: conditions,
 		Overrides:  new(domain.RecordingOverrides),
 		ValidFrom:  nil, ValidUntil: nil,
-		// 録画済みかのチェックは、録画履歴による重複の回避と、同じ回の束ねにする (#1498)。期間は写さない。
+		// 録画済みかのチェックは、録画履歴による重複の回避と、同じ回のまとめにする (#1498)。期間はコピーしない。
 		AvoidDuplicates:     a.Search.CheckRecorded,
 		DuplicateWindowDays: nil,
 		FollowEventRelay:    false,

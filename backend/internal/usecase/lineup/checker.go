@@ -111,7 +111,7 @@ func (c *Checker) Check(ctx context.Context) error {
 	}
 	q := sqlc.New(c.pool)
 
-	// どれかが失敗しても、ほかの比べ方は進める。
+	// どれかが失敗しても、ほかの比較は進める。
 	return errors.Join(
 		c.checkSatellites(ctx, q, registeredTV(services), namesOf(services)),
 		c.checkTerrestrial(ctx, q, services),

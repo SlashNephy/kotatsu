@@ -29,7 +29,7 @@ func TestTransponder(t *testing.T) {
 		{name: "BS-17 (4K)", kind: lineup.KindBS, kHz: 12_034_360, want: 0, wantOK: false},
 		{name: "CS-2", kind: lineup.KindCS, kHz: 12_291_000, want: 2, wantOK: true},
 		{name: "CS-24", kind: lineup.KindCS, kHz: 12_731_000, want: 24, wantOK: true},
-		// 表に当てはまらない周波数。
+		// テーブルに当てはまらない周波数。
 		{name: "between transponders", kind: lineup.KindBS, kHz: 11_746_000, want: 0, wantOK: false},
 		{name: "below the first", kind: lineup.KindCS, kHz: 12_000_000, want: 0, wantOK: false},
 		{name: "above the last", kind: lineup.KindBS, kHz: 12_200_000, want: 0, wantOK: false},
@@ -59,7 +59,7 @@ func observation(version uint8, bs1 ...uint16) *lineup.Observation {
 		Streams: []lineup.Stream{
 			{TransportStreamID: 0x4010, FrequencyKHz: 11_727_480, Services: services},
 			{TransportStreamID: 0x4031, FrequencyKHz: 11_765_840, Services: []lineup.Service{{ServiceID: 141, ServiceType: 0x01}}},
-			// 4K の中継器のサービスは比べない。
+			// 4K の中継器のサービスは比較しない。
 			{TransportStreamID: 0x4671, FrequencyKHz: 11_842_560, Services: []lineup.Service{{ServiceID: 701, ServiceType: 0x01}}},
 		},
 	}
@@ -85,7 +85,7 @@ func TestComparer(t *testing.T) {
 		advance time.Duration
 		obs     *lineup.Observation
 		known   []lineup.Known
-		// want は知らせる食い違い。nil なら知らせない。
+		// want は通知する食い違い。nil なら通知しない。
 		want *lineup.Change
 	}
 	added := &lineup.Change{
@@ -105,7 +105,7 @@ func TestComparer(t *testing.T) {
 				{advance: 0, obs: observation(1, 101, 103), known: known(101, 102, 141), want: nil},
 				{advance: interval - time.Second, obs: observation(1, 101, 103), known: known(101, 102, 141), want: nil},
 				{advance: time.Second, obs: observation(1, 101, 103), known: known(101, 102, 141), want: added},
-				// 知らせた version は確かめ済みなので、二重に知らせない。
+				// 通知した version は確認済みなので、二重に通知しない。
 				{advance: interval, obs: observation(1, 101, 103), known: known(101, 102, 141), want: nil},
 			},
 		},
@@ -161,10 +161,10 @@ func TestComparerForget(t *testing.T) {
 
 	clk := clocktest.NewFake(time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC))
 	comparer := lineup.NewComparer(clk, interval)
-	// 合っていれば、version 1 を確かめ済みにする。
+	// 合っていれば、version 1 を確認済みにする。
 	_, ok := comparer.Observe(observation(1, 101), known(101, 141))
 	require.False(t, ok)
-	// 一覧が変わっても、確かめ済みの version は比べない。
+	// 一覧が変わっても、確認済みの version は比較しない。
 	_, ok = comparer.Observe(observation(1, 101), known(141))
 	require.False(t, ok)
 	clk.Advance(interval)
@@ -193,11 +193,11 @@ func TestComparerUnconfirm(t *testing.T) {
 	clk.Advance(interval)
 	_, ok = comparer.Observe(observation(1, 101), known(141))
 	require.True(t, ok)
-	// 知らせたら、同じ version は知らせない。
+	// 通知したら、同じ version は通知しない。
 	_, ok = comparer.Observe(observation(1, 101), known(141))
 	require.False(t, ok)
 
-	// 知らせたものとは違う version を戻しても、何も変わらない。
+	// 通知したものとは違う version を戻しても、何も変わらない。
 	comparer.Unconfirm(observation(2, 101))
 	_, ok = comparer.Observe(observation(1, 101), known(141))
 	require.False(t, ok)

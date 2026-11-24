@@ -112,7 +112,7 @@ func TestSyncAllInsertsEverythingFirst(t *testing.T) {
 	assert.Equal(t, fixturePrograms, f.count(t, "SELECT count(*) FROM programs"))
 	// 種別の既定値は、同期で見つけた種別についてだけ足す。
 	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM channel_types WHERE (type, display_name, sort_order) IN (('GR', '地上波', 10), ('BS', 'BS', 20))"))
-	// 検索用の列は NFKC で正規化する。
+	// 検索用のカラムは NFKC で正規化する。
 	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM services WHERE name_normalized = normalize(name, NFKC)"))
 	// 詳細も、照合のために正規化して持つ (#530)。
 	assert.Equal(t, fixturePrograms, f.count(t, "SELECT count(*) FROM programs WHERE extended_normalized IS NOT NULL"))
@@ -331,7 +331,7 @@ func TestSyncAllKeepsAdministratorSettings(t *testing.T) {
 
 	result, err := f.reconciler.SyncAll(t.Context())
 	require.NoError(t, err)
-	// サービス名は上流の値に戻すが、非表示の印と並び順は残す。
+	// サービス名は上流の値に戻すが、非表示のマークと並び順は残す。
 	assert.Equal(t, 1, result.ServicesUpserted)
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM channel_types WHERE type = 'GR' AND display_name = 'テレビ' AND sort_order = 1"))
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM services WHERE id = $1 AND hidden AND sort_order = 5 AND name = 'こたつテスト1'", serviceID()))
@@ -349,7 +349,7 @@ func TestSyncServicesOnlyTouchesGivenServices(t *testing.T) {
 	require.NoError(t, f.fake.ForgetProgram(other))
 	require.NoError(t, f.fake.ExtendProgram(programID(4), 15*time.Minute))
 
-	// 同じサービスを重ねて指定しても、1 回だけ突き合わせる。DB に無いサービスは飛ばす。
+	// 同じサービスを重ねて指定しても、1 回だけ照合する。DB に無いサービスは飛ばす。
 	result, err := f.reconciler.SyncServices(t.Context(), []int64{serviceID(), faketuner.ServiceItemID(1, 1), serviceID()})
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.ProgramsUpserted)
@@ -484,7 +484,7 @@ func TestSyncReflectsOnAirPrograms(t *testing.T) {
 		StartAt: programStart(4).UnixMilli(), Duration: int64(5 * time.Minute / time.Millisecond), IsFree: true, Name: "差し込まれた番組",
 	}
 	// 同期しないサービス (別のチャンネル) の放送中の番組は、SyncServices では反映しない。
-	// 同じチャンネルのサービスは、イベント共有を補うためにまとめて突き合わせるので、別のチャンネルにする (#1024)。
+	// 同じチャンネルのサービスは、イベント共有を補うためにまとめて照合するので、別のチャンネルにする (#1024)。
 	otherService := faketuner.ServiceItemID(grNetworkID+1, 0x0408)
 	other := &tunerserver.Program{
 		ID: faketuner.ProgramID(grNetworkID+1, 0x0408, 901), EventID: 901, ServiceID: 0x0408, NetworkID: grNetworkID + 1,
@@ -839,7 +839,7 @@ func TestSyncDoesNotInferSharedEventsOnSatellite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM programs WHERE name = 'インフォメーション' AND related_items = '[]'::jsonb"))
 
-	// BS と CS では、イベントで突き合わせるときも、同じ TS のほかのサービスまでは突き合わせない。
+	// BS と CS では、イベントで照合するときも、同じ TS のほかのサービスまでは照合しない。
 	otherProgram := faketuner.ProgramID(bsNetworkID, other.ServiceID, 2538)
 	require.NoError(t, f.fake.ExtendProgram(otherProgram, 15*time.Minute))
 	_, err = reconciler.SyncServices(t.Context(), []int64{bs.ID})
@@ -944,7 +944,7 @@ func TestSyncAllRecordsServicesMissingFromUpstream(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, f.goneAt(t, serviceID()))
 
-	// 消えたら、気づいた時刻を書き、番組表を読み直させるよう知らせる。
+	// 消えたら、気づいた時刻を書き、番組表を読み直させるよう通知する。
 	f.fake.SetServiceMissing(serviceID(), true)
 	result, err := f.reconciler.SyncAll(t.Context())
 	require.NoError(t, err)
@@ -998,7 +998,7 @@ func TestSyncServiceListRecordsServicesMissingFromUpstream(t *testing.T) {
 	_, err := f.reconciler.SyncAll(t.Context())
 	require.NoError(t, err)
 
-	// 番組を突き合わせるなら消える番組。
+	// 番組を照合するなら消える番組。
 	require.NoError(t, f.fake.ForgetProgram(programID(5)))
 	f.fake.SetServiceMissing(serviceID(), true)
 	result, changed, err := f.reconciler.SyncServiceList(t.Context())

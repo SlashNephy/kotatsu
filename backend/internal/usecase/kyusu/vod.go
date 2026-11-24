@@ -548,7 +548,7 @@ func vodSegments(keyframes []time.Duration, inProgress, passthrough bool) []vodS
 		if k+1 < len(starts) {
 			segments = append(segments, vodSegment{start: start, length: starts[k+1] - start})
 		} else if !inProgress {
-			// 録画中なら、最後のセグメントは、次の始まりが索引に載るまで伸びるので載せない。
+			// 録画中なら、最後のセグメントは、次の始まりがインデックスに載るまで伸びるので載せない。
 			segments = append(segments, vodSegment{start: start, length: duration - start})
 		}
 	}

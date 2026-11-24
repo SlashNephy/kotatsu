@@ -48,7 +48,7 @@ func TestSyncerAppliesEvents(t *testing.T) {
 
 	f := newFixture(t, nil)
 	syncer := epg.NewSyncer(f.reconciler, f.client, clocktest.NewFake(testNow()), slog.New(slog.DiscardHandler), &epg.SyncerOptions{
-		// 全量の突き合わせで反映されないよう、間隔を長くする。
+		// 全量の照合で反映されないよう、間隔を長くする。
 		FullSyncInterval: time.Hour,
 		BatchWindow:      50 * time.Millisecond,
 	})
@@ -267,7 +267,7 @@ func TestSyncerSyncsServicesOnServiceEvents(t *testing.T) {
 	upstream := &countingUpstream{Upstream: f.client}
 	reconciler := epg.NewReconciler(f.pool, upstream, f.clock, func(context.Context, pgx.Tx) error { return nil })
 	syncer := epg.NewSyncer(reconciler, f.client, clock.Real{}, slog.New(slog.DiscardHandler), &epg.SyncerOptions{
-		// 全量の突き合わせで反映されないよう、間隔を長くする。
+		// 全量の照合で反映されないよう、間隔を長くする。
 		FullSyncInterval: time.Hour,
 		BatchWindow:      50 * time.Millisecond,
 	})
@@ -277,12 +277,12 @@ func TestSyncerSyncsServicesOnServiceEvents(t *testing.T) {
 	}, waitFor, tick)
 	require.Equal(t, int32(1), upstream.fullFetches.Load())
 
-	// 全量を突き合わせれば消える番組を、イベントを送らずに消しておき、全量を突き合わせていないことを確かめる。
-	// 名前を変えるサービスの番組は突き合わせ直すので、別のサービスの番組を消す。
+	// 全量を照合すれば消える番組を、イベントを送らずに消しておき、全量を照合していないことを確認する。
+	// 名前を変えるサービスの番組は照合し直すので、別のサービスの番組を消す。
 	quiet := faketuner.ServiceItemID(grNetworkID+1, 0x0408)
 	require.NoError(t, f.fake.ForgetProgram(faketuner.ProgramID(grNetworkID+1, 0x0408, 5)))
 
-	// 名前などを変えない service の update (EPG の取得が進んだ知らせ) が続いても、全量を突き合わせない。
+	// 名前などを変えない service の update (EPG の取得が進んだ知らせ) が続いても、全量を照合しない。
 	for range 3 {
 		require.NoError(t, f.fake.UpdateService(serviceID(), ""))
 	}

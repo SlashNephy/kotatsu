@@ -452,7 +452,7 @@ func TestTranscoderRunVODDiscardsThePartialSegment(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the transcoder did not stop")
 	}
-	// 書き終えたセグメントは置いたまま残る。書きかけのものだけを捨てる。
+	// 書き終えたセグメントは置いたまま残る。書きかけのものだけを破棄する。
 	partial, err := filepath.Glob(filepath.Join(dir, "*.tmp"))
 	require.NoError(t, err)
 	assert.Empty(t, partial, "the temporary file of the partial segment is removed")
@@ -531,7 +531,7 @@ func TestTranscoderNVENCSplitsSegmentsEvery2s(t *testing.T) {
 			durations = append(durations, d)
 		}
 	}
-	// 最後のセグメントは、入力の終わりで短くなりうるので比べない。
+	// 最後のセグメントは、入力の終わりで短くなりうるので比較しない。
 	require.GreaterOrEqual(t, len(durations), 3, "segments: %v", durations)
 	for _, d := range durations[:len(durations)-1] {
 		assert.InDelta(t, 2.0, d, 0.1, "every segment is about 2 seconds: %v", durations)
@@ -589,7 +589,7 @@ func TestTranscoderQSVSplitsSegmentsEvery2s(t *testing.T) {
 					durations = append(durations, d)
 				}
 			}
-			// プレイリストには、最後の数本だけが残る。最後のセグメントは、入力の終わりで短くなりうるので比べない。
+			// プレイリストには、最後の数本だけが残る。最後のセグメントは、入力の終わりで短くなりうるので比較しない。
 			require.GreaterOrEqual(t, len(durations), 3, "segments: %v", durations)
 			// 最初のフレームを複製すると、映像が延びてセグメントが増える。30 秒の入力なら、セグメントは 15 本 (と端の 1 本) に収まる。
 			assert.LessOrEqual(t, sequence+len(durations), 16, "the video is not stretched: sequence %d, segments %v", sequence, durations)
@@ -635,7 +635,7 @@ func gpuDevice(t *testing.T, encoder string) string {
 func TestTranscoderHardwareDecode(t *testing.T) {
 	t.Parallel()
 
-	// 入力をつくる前に、使える GPU を確かめる。どちらも使えなければ (FFmpeg がないときを含む)、テストを飛ばす。
+	// 入力をつくる前に、使える GPU を確認する。どちらも使えなければ (FFmpeg がないときを含む)、テストを飛ばす。
 	devices := map[string]string{}
 	for _, encoder := range []string{config.EncoderVAAPI, config.EncoderQSV} {
 		if device := gpuDevice(t, encoder); device != "" {
@@ -746,7 +746,7 @@ func assertHardwareHLS(t *testing.T, dir string, tt *hardwareHLSCase) {
 			durations = append(durations, d)
 		}
 	}
-	// 最後のセグメントは、入力の終わりで短くなりうるので比べない。
+	// 最後のセグメントは、入力の終わりで短くなりうるので比較しない。
 	require.GreaterOrEqual(t, len(durations), 2, "segments: %v", durations)
 	for _, d := range durations[:len(durations)-1] {
 		assert.InDelta(t, 2.0, d, 0.1, "every segment is about 2 seconds: %v", durations)

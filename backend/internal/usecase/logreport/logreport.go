@@ -203,7 +203,7 @@ func (s *Service) tunerServer(ctx context.Context, secrets *redact.Secrets) *Sou
 	lines := ParseTunerLog(string(body), s.opts.Location)
 	source.Total = len(lines)
 	for _, line := range lastLines(lines, s.opts.Limit) {
-		// 切り口に秘密がまたがって前半が残らないよう、伏せてから切る。
+		// 切り口に秘密がまたがって前半が残らないよう、マスクしてから切る。
 		line.Text = logring.Truncate(secrets.Apply(line.Text), s.opts.MaxLineLength)
 		source.Lines = append(source.Lines, line)
 	}

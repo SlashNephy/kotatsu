@@ -625,7 +625,7 @@ func TestApplyRecordings(t *testing.T) {
 	assert.Equal(t, "service 3273601025 is not in Kotatsu", reasons[5])
 	assert.Contains(t, reasons[6], "duplicate key value violates unique constraint")
 
-	// TS のある録画だけ、索引と集計を作るジョブを、重いジョブのキューに投入する。飛ばした録画のジョブは、巻き戻して残さない。
+	// TS のある録画だけ、インデックスと集計を作るジョブを、重いジョブのキューに投入する。飛ばした録画のジョブは、巻き戻して残さない。
 	// 新しく録った録画のジョブより後に回すよう、優先度を下げる (#551)。
 	rows, err := f.pool.Query(t.Context(), "SELECT queue, priority, (args->>'recordingId')::uuid FROM river_job WHERE kind = 'recording_analyze'")
 	require.NoError(t, err)

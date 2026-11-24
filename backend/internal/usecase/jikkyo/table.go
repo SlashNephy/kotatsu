@@ -214,7 +214,7 @@ func (t *Table) overridesOf(ctx context.Context) map[serviceKey]string {
 	parsed := make(map[serviceKey]string, len(raw))
 	for key, id := range raw {
 		networkID, serviceID, ok := parseServiceKey(key)
-		// 保存するときに確かめているので、崩れた対応は、引くときに読み飛ばす。
+		// 保存するときに確認しているので、崩れた対応は、検索するときに読み飛ばす。
 		if !ok || !IsChannelID(id) {
 			continue
 		}

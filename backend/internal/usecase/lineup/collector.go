@@ -51,7 +51,7 @@ type Collector struct {
 	partial map[uint16]*partialNIT
 	// pending は、まだ書いていない構成。
 	pending map[uint16]*Observation
-	// written は、書いた構成の版と、書いた時刻。
+	// written は、書いた構成のバージョンと、書いた時刻。
 	written map[uint16]written
 }
 

@@ -76,7 +76,7 @@ func (f *indexFixture) place(t *testing.T, name string) {
 		Complete: false, Video: nil, Broadcast: nil, Audios: nil, Quality: nil,
 	}))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, name), f.index, 0o600))
-	// 書きかけの索引は、今 (時計の今) 伸びたものにする。
+	// 書きかけのインデックスは、今 (時計の今) 伸びたものにする。
 	require.NoError(t, os.Chtimes(filepath.Join(dir, name), f.clock.Now(), f.clock.Now()))
 }
 
@@ -138,7 +138,7 @@ func TestReadAfterRename(t *testing.T) {
 	assert.Nil(t, index.Quality)
 	assert.NotEmpty(t, index.Entries, "名前を変えた索引でシークできる")
 
-	// 集計を記録する前に tenban が止まっても、書きかけの索引がないので、開けば作り直して集計を記録する。
+	// 集計を記録する前に tenban が止まっても、書きかけのインデックスがないので、開けば作り直して集計を記録する。
 	f.indexer.Ensure(t.Context(), f.ref, f.entry)
 	require.Eventually(t, func() bool {
 		index, err := f.indexer.Read(f.ref, f.entry)

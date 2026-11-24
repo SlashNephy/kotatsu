@@ -71,7 +71,7 @@ func TestCaptionsWorker(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, CaptionsArgs{Library: internalLibrary, Path: internalShowTS, FileID: file.ID()}, args)
 
-	// 音声は、最初の I フレームより 1 秒前から始まる。0.5 秒で終わる字幕は、再生に入らないので捨てる。
+	// 音声は、最初の I フレームより 1 秒前から始まる。0.5 秒で終わる字幕は、再生に入らないので破棄する。
 	audio := &fakeAudio{offset: -time.Second, err: nil, read: 0, serviceID: 0}
 	transcriber := &fakeTranscriber{cues: []autocaption.Cue{
 		{Start: 0, End: 500 * time.Millisecond, Text: "前の番組"},
@@ -114,7 +114,7 @@ func TestCaptionsWorkerWriting(t *testing.T) {
 	t.Parallel()
 
 	f := newImagesFixture(t)
-	// 索引の時計 (今の 1 時間後) から見て、書いたばかりのファイルにする。
+	// インデックスの時計 (今の 1 時間後) から見て、書いたばかりのファイルにする。
 	now := time.Now().Add(time.Hour)
 	require.NoError(t, os.Chtimes(filepath.Join(f.dir, internalShowTS), now, now))
 	file := f.open(t)

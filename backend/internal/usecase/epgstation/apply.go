@@ -595,7 +595,7 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 		}
 	}
 
-	// TS のセグメントがあれば、nekonote が索引とドロップの集計を作り、続けて画像を作る (設計書 6.3)。
+	// TS のセグメントがあれば、nekonote がインデックスとドロップの集計を作り、続けて画像を作る (設計書 6.3)。
 	// エンコード済みのファイルしかない録画には、作るものがない。
 	if slices.ContainsFunc(files, func(f *mappedFile) bool { return f.file.Type == VideoFileTypeTS }) {
 		params := []river.InsertManyParams{{Args: analysis.AnalyzeArgs{RecordingID: recordingID}, InsertOpts: nil}}

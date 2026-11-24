@@ -228,7 +228,7 @@ func (m *Matcher) MatchChanges(ctx context.Context) (*MatchResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the drama match cursor: %w", err)
 	}
-	// 断られて控えている間は、版数を進めずに、控え終えてから読む。
+	// 断られて控えている間は、バージョンを進めずに、控え終えてから読む。
 	if m.paused(token) {
 		result.Paused = true
 
@@ -682,7 +682,7 @@ func (m *Matcher) findEpisode(ctx context.Context, r *run, seriesID int32, t *ta
 		}
 	}
 	if current == nil || current.AirDate < shiftDate(dates[0], -recentSeason) {
-		// 今放送しているシーズンがなければ、再放送の印のない再放送 (昔の作品や海外ドラマ) とみなし、再放送と同じく選ぶ。
+		// 今放送しているシーズンがなければ、再放送のマークのない再放送 (昔の作品や海外ドラマ) とみなし、再放送と同じく選ぶ。
 		if len(regular) == 1 {
 			return m.titleEpisode(ctx, r, seriesID, regular[0].SeasonNumber, number, "")
 		}

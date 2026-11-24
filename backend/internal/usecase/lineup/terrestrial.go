@@ -52,7 +52,7 @@ type TerrestrialCollector struct {
 	partial map[uint16]*partialSDT
 	// pending は、まだ書いていないサービス。
 	pending map[uint16]*TerrestrialObservation
-	// written は、書いたサービスの版と、書いた時刻。
+	// written は、書いたサービスのバージョンと、書いた時刻。
 	written map[uint16]written
 }
 

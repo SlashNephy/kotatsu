@@ -105,7 +105,7 @@ func (l *Library) Delete(ctx context.Context, db Database, actor *audit.Actor, r
 		return err
 	}
 	for i := range files {
-		// 索引や画像は、セグメントのファイルの ID の生成物のディレクトリにあり、録画ファイルと一緒に消す。
+		// インデックスや画像は、セグメントのファイルの ID の生成物のディレクトリにあり、録画ファイルと一緒に消す。
 		if files[i].Kind != segmentKind && files[i].Kind != otherKind {
 			continue
 		}

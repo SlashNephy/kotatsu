@@ -51,7 +51,7 @@ func TestCheckerIdleServices(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, idle)
 
-	// 103 は、NIT に載っているが、EIT[p/f] に番組がない。2 回読んでも知らせない。
+	// 103 は、NIT に載っているが、EIT[p/f] に番組がない。2 回読んでも通知しない。
 	observePresentFollowing(collector, 101, true)
 	observePresentFollowing(collector, 103, false)
 	collector.Flush(t.Context(), q)
@@ -64,7 +64,7 @@ func TestCheckerIdleServices(t *testing.T) {
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Empty(t, lineupNotifications(t, pool))
 
-	// 103 に番組が載ったら、NIT の version が同じでも比べ直し、2 回読んだら知らせる。
+	// 103 に番組が載ったら、NIT の version が同じでも比較し直し、2 回読んだら通知する。
 	observePresentFollowing(collector, 103, true)
 	collector.Flush(t.Context(), q)
 	writeLineup(t, q, start.Add(2*lineup.DefaultRecheckInterval), 101, 103)

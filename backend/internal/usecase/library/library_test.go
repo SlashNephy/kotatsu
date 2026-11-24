@@ -220,7 +220,7 @@ func TestSetProtected(t *testing.T) {
 		assert.Equal(t, protected, f.count(t, "SELECT count(*) FROM recordings WHERE protected") == 1)
 	}
 	assert.Equal(t, []string{"recording.protected", "recording.unprotected"}, f.actions(t, recordingID))
-	// 変えたときだけ、録画の変更を知らせる (#868)。
+	// 変えたときだけ、録画の変更を通知する (#868)。
 	assert.Equal(t, 2, f.count(t, recordingsVersion))
 	require.ErrorIs(t, f.library.SetProtected(t.Context(), f.pool, audit.User(f.userID), id.New(), true), library.ErrNotFound)
 }

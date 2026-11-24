@@ -156,11 +156,11 @@ type Indexer struct {
 	slots chan struct{}
 
 	mu sync.Mutex
-	// building は、作っている途中の索引。片付ける (ClearArtifacts) ときに取りやめて、止まるのを待つ。
+	// building は、作っている途中のインデックス。片付ける (ClearArtifacts) ときに取りやめて、止まるのを待つ。
 	building map[string]*indexBuild
-	// clearing は、片付けている途中かどうか。その間は、索引を作り始めない。
+	// clearing は、片付けている途中かどうか。その間は、インデックスを作り始めない。
 	clearing bool
-	// stopped は、Run が終わるときに閉じる。索引を作る処理は、リクエストより長く、Run の間だけ動かす。
+	// stopped は、Run が終わるときに閉じる。インデックスを作る処理は、リクエストより長く、Run の間だけ動かす。
 	stopped  chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup

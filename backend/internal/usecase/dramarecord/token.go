@@ -124,7 +124,7 @@ func (c *session) refresh(ctx context.Context, force bool) error {
 		return nil
 	})
 	if errors.Is(err, ErrReauthorizationRequired) {
-		// 印は、ロールバックしたトランザクションの外で付ける。
+		// マークは、ロールバックしたトランザクションの外で付ける。
 		if markErr := sqlc.New(c.db).RequireDramaRecordReauthorization(context.WithoutCancel(ctx), sqlc.RequireDramaRecordReauthorizationParams{
 			UserID: c.userID, Destination: c.name,
 		}); markErr != nil {

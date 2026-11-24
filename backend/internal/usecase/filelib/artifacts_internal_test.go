@@ -50,7 +50,7 @@ func TestClearArtifacts(t *testing.T) {
 			name: "clear",
 			artifacts: map[string]int{
 				"libraries/a/index": 100, "libraries/a/source.json": 10, "libraries/b/thumbnail.jpg": 1000,
-				// 前に片付けたときに消しきれずに残った置き場も、数えて消す。
+				// 前に片付けたときに消しきれずに残った保存先も、数えて消す。
 				".libraries-1.removing/c/index": 5,
 			},
 			wantUsage: &Usage{Size: 1115, Files: 4}, wantRecord: true,
@@ -60,7 +60,7 @@ func TestClearArtifacts(t *testing.T) {
 			wantUsage: &Usage{Size: 5, Files: 1}, wantRecord: true,
 		},
 		{name: "empty file", artifacts: map[string]int{"libraries/.keep": 0}, wantUsage: &Usage{Size: 0, Files: 1}, wantRecord: true},
-		// 空のディレクトリだけなら、消すものはないので、監査ログに残さない。PurgeDetached が、空の置き場を消す。
+		// 空のディレクトリだけなら、消すものはないので、監査ログに残さない。PurgeDetached が、空の保存先を消す。
 		{name: "empty directories", dirs: []string{"libraries/a", ".libraries-1.removing"}, wantUsage: &Usage{Size: 0, Files: 0}, wantRemain: true},
 		// 消すものがなければ、監査ログに残さない。
 		{name: "nothing", artifacts: map[string]int{}, wantUsage: &Usage{Size: 0, Files: 0}, wantRecord: false},
@@ -175,7 +175,7 @@ func TestClearArtifactsStopsBuilds(t *testing.T) {
 	f.indexer.mu.Lock()
 	require.NotNil(t, f.indexer.building[indexKey(f.ref)])
 	f.indexer.mu.Unlock()
-	// 作り始める前に置かれていた索引の置き場 (前のファイルのもの) を、消す対象にする。
+	// 作り始める前に置かれていたインデックスの保存先 (前のファイルのもの) を、消す対象にする。
 	writeArtifact(t, f.indexer.dataDir, kago.LibraryIndexDir+"/old/index", 10)
 
 	_, err := f.indexer.ClearArtifacts(t.Context(), func(*Usage) error {

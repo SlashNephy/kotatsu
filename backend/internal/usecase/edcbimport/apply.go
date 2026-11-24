@@ -213,8 +213,8 @@ func (im *Importer) Apply(ctx context.Context, db Database, snapshot *Snapshot, 
 
 	seen := map[historyKey]bool{}
 	for _, f := range snapshot.Recorded {
-		// 同じ鍵が一覧の中に 2 回出れば、録画の履歴にするもののうち、先のものだけを使う。下見と取り込みで件数が食い違わないようにするためである。
-		// 録れていない記録は、鍵をふさがない。先に失敗した記録があっても、後の正常に録れた記録を履歴にする (#1725)。
+		// 同じキーが一覧の中に 2 回出れば、録画の履歴にするもののうち、先のものだけを使う。下見と取り込みで件数が食い違わないようにするためである。
+		// 録れていない記録は、キーをふさがない。先に失敗した記録があっても、後の正常に録れた記録を履歴にする (#1725)。
 		key := keyOf(f)
 		if seen[key] {
 			continue

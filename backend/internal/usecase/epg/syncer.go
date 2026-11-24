@@ -206,8 +206,8 @@ func (s *Syncer) consume(ctx context.Context, stream tunerserver.EventStream) er
 			if err := s.syncAll(ctx); err != nil {
 				return err
 			}
-			// 溜まっていたイベントの変化は、今の全量の突き合わせで反映済みなので捨てる。
-			// チューナーの構成は全量の突き合わせの対象ではないので、チューナーのイベントだけは知らせる。
+			// 溜まっていたイベントの変化は、今の全量の照合で反映済みなので破棄する。
+			// チューナーの構成は全量の照合の対象ではないので、チューナーのイベントだけは通知する。
 			if batch.tuners && s.opts.OnTunerEvent != nil {
 				s.opts.OnTunerEvent()
 			}

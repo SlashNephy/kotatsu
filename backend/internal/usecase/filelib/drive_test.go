@@ -76,7 +76,7 @@ func TestSourceGoogleDrive(t *testing.T) {
 	assert.Equal(t, "mpeg2", file.Index.Video.Codec)
 	assert.Equal(t, showTS, file.Entry.Name)
 
-	// 別のライブラリから開いても、索引を使い回し、同じ ID にする。ライブラリの名前を変えたときと同じ。
+	// 別のライブラリから開いても、インデックスを使い回し、同じ ID にする。ライブラリの名前を変えたときと同じ。
 	other, err := source.Open(t.Context(), filelib.Ref{Library: animeLibrary, Path: showTS})
 	require.NoError(t, err)
 	assert.True(t, other.Index.Complete)

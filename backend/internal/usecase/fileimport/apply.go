@@ -264,7 +264,7 @@ func (a *applier) apply(ctx context.Context, entry *kago.Entry) error {
 		return nil
 	})
 	if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
-		// 調べてから書くまでの間に、ほかで取り込んだか記録した。
+		// 確認してから書くまでの間に、ほかで取り込んだか記録した。
 		a.result.AlreadyImported++
 
 		return nil

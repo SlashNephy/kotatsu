@@ -120,12 +120,12 @@ func TestChecker(t *testing.T) {
 	tuner := new(fakeServices)
 	checker := lineup.NewChecker(pool, tuner, clk, slog.New(slog.DiscardHandler), 0)
 
-	// チューナーサーバーが空の一覧を返したら、比べない。
+	// チューナーサーバーが空の一覧を返したら、比較しない。
 	writeLineup(t, q, start, 101, 103, 222)
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Empty(t, lineupNotifications(t, pool))
 
-	// 放送にあってチューナーサーバーにない局が 2 つ (103、222)、その逆が 1 つ (191)。1 回目は覚えるだけで、知らせない。
+	// 放送にあってチューナーサーバーにない局が 2 つ (103、222)、その逆が 1 つ (191)。1 回目は保存するだけで、通知しない。
 	tuner.set(bsTV(101), bsTV(191))
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Empty(t, lineupNotifications(t, pool))
@@ -134,7 +134,7 @@ func TestChecker(t *testing.T) {
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Empty(t, lineupNotifications(t, pool))
 
-	// 同じ version の食い違いを、読み直しの間隔をあけてもう一度読んだら、知らせる。
+	// 同じ version の食い違いを、読み直しの間隔をあけてもう一度読んだら、通知する。
 	writeLineup(t, q, start.Add(lineup.DefaultRecheckInterval), 101, 103, 222)
 	require.NoError(t, checker.Check(t.Context()))
 	got := lineupNotifications(t, pool)
@@ -149,7 +149,7 @@ func TestChecker(t *testing.T) {
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 1)
 
-	// チューナーサーバーをスキャンし直して一覧が変わったら、比べ直す。食い違いがなくなれば、知らせない。
+	// チューナーサーバーをスキャンし直して一覧が変わったら、比較し直す。食い違いがなくなれば、通知しない。
 	tuner.set(bsTV(101), bsTV(103), bsTV(222))
 	writeLineup(t, q, start.Add(3*lineup.DefaultRecheckInterval), 101, 103, 222)
 	require.NoError(t, checker.Check(t.Context()))

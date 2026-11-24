@@ -170,7 +170,7 @@ func TestConnectDrive(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, f.fake.Refreshes())
 
-	// Google でアクセスを取り消されたら、接続に印を付け、読まない。
+	// Google でアクセスを取り消されたら、接続にマークを付け、読まない。
 	f.fake.RevokeAll()
 	tokens.Invalidate()
 	_, err = client.Get(t.Context(), "a")
@@ -182,7 +182,7 @@ func TestConnectDrive(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, connected)
 
-	// 接続し直せば、印は消える。同じ部品の DriveTokens は、覚えた接続を待たずに読み直す。
+	// 接続し直せば、マークは消える。同じ部品の DriveTokens は、キャッシュした接続を待たずに読み直す。
 	_, err = f.complete(t, f.admin, f.authorize(t))
 	require.NoError(t, err)
 	drive, err = f.service.Drive(t.Context(), f.pool)

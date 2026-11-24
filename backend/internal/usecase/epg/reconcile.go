@@ -102,7 +102,7 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 	}
 
 	services := diffServices(upstreamServices, currentServices)
-	// 番組は、映像か音声を流すサービスの分だけ突き合わせる。
+	// 番組は、映像か音声を流すサービスの分だけ照合する。
 	// それ以外のサービスの番組は、上流が返しても足さず、DB に残っているものも消さない。
 	known := map[int64]bool{}
 	for _, service := range upstreamServices {
@@ -130,7 +130,7 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 		return nil, err
 	}
 	programs.deletes = keepSilentServices(programs.deletes, upstreamPrograms)
-	// 全量の突き合わせでは、シリーズ名と話数の列を埋めていない番組も埋める (#1564)。
+	// 全量の照合では、シリーズ名と話数のカラムを埋めていない番組も埋める (#1564)。
 	programs.fillSeries = true
 
 	return r.apply(ctx, services, programs)
@@ -401,7 +401,7 @@ func diffServices(upstream []*tunerserver.Service, current []sqlc.ListServicesRo
 		}
 		present = append(present, service.ID)
 		row, ok := byID[service.ID]
-		// 行はポインタの列を持つので、== ではなく値で比べる。
+		// 行はポインタのカラムを持つので、== ではなく値で比較する。
 		if ok && reflect.DeepEqual(row, serviceRow(service)) {
 			continue
 		}

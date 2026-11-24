@@ -104,12 +104,12 @@ func TestCheckerTerrestrial(t *testing.T) {
 	tuner := new(fakeServices)
 	checker := lineup.NewChecker(pool, tuner, clk, slog.New(slog.DiscardHandler), 0)
 
-	// チューナーサーバーにないネットワークは比べない。
+	// チューナーサーバーにないネットワークは比較しない。
 	tuner.set(bsTV(101))
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Empty(t, lineupNotifications(t, pool))
 
-	// 放送にあってチューナーサーバーにない局 (1025) があれば、知らせる。続いている間は繰り返さない。
+	// 放送にあってチューナーサーバーにない局 (1025) があれば、通知する。続いている間は繰り返さない。
 	tuner.set(grTV(1024))
 	require.NoError(t, checker.Check(t.Context()))
 	require.NoError(t, checker.Check(t.Context()))
@@ -120,7 +120,7 @@ func TestCheckerTerrestrial(t *testing.T) {
 		"addedServices": []any{"テレビ1025（サービス 1025）"}, "removedServices": []any{},
 	}, got[0])
 
-	// スキャンし直して同じになれば忘れ、また食い違ったら知らせる。
+	// スキャンし直して同じになれば忘れ、また食い違ったら通知する。
 	tuner.set(grTV(1024), grTV(1025))
 	require.NoError(t, checker.Check(t.Context()))
 	tuner.set(grTV(1024))

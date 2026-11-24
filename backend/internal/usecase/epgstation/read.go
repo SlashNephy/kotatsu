@@ -204,7 +204,7 @@ func readRecordings(ctx context.Context, tx *sql.Tx) ([]*Recording, error) {
 		recording.Description = description.String
 		recording.Extended = extended.String
 		recording.Genres = genresOf([][2]sql.NullInt64{{genre1, subGenre1}, {genre2, subGenre2}, {genre3, subGenre3}})
-		// drop_log_file の 3 つの列は NOT NULL なので、どれかが NULL なら LEFT JOIN で行が無かったことになる。
+		// drop_log_file の 3 つのカラムは NOT NULL なので、どれかが NULL なら LEFT JOIN で行が無かったことになる。
 		if errorCount.Valid {
 			recording.Drop = &DropLog{
 				ErrorCount:      errorCount.Int64,
