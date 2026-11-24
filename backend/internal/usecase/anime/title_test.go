@@ -96,7 +96,7 @@ func TestImportTitles(t *testing.T) {
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
 	titles := NewMockTitleFetcher(gomock.NewController(t))
-	// 1 回目はすべてのタイトルを引き、2 回目は前に取り込んだ後の更新だけを引く。
+	// 1 回目はすべてのタイトルを取得し、2 回目は前に取り込んだ後の更新だけを取得する。
 	previous := time.Date(2026, 9, 30, 1, 0, 0, 0, time.UTC)
 	gomock.InOrder(
 		titles.EXPECT().
@@ -243,7 +243,7 @@ func TestCopyToRecording(t *testing.T) {
 	require.NoError(t, db.QueryRow(t.Context(), `SELECT bool_and(is_rerun) FROM recording_anime_episodes WHERE recording_id = $1`, rerun).Scan(&copied))
 	assert.True(t, copied)
 
-	// 照合していない番組の録画には、何も写さない。
+	// 照合していない番組の録画には、何もコピーしない。
 	other := insertRecording(t, db, grService, jst(2, 1, 30), jst(2, 2, 0), false)
 	require.NoError(t, anime.CopyToRecording(t.Context(), db, other, grService, jst(2, 1, 30), clk.Now()))
 	assert.Nil(t, recordingEpisodes(t, db, other))
@@ -271,7 +271,7 @@ func TestMatchImported(t *testing.T) {
 	// 番組を照合した録画と、番組表にない古い録画。
 	copied := insertRecording(t, db, grService, jst(2, 0, 0), jst(2, 0, 30), true)
 	old := insertRecording(t, db, bsService, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), true)
-	// 写しが入る前に Kotatsu で録った番組の録画も照合する (#1658)。時刻予約の録画 (event_id がない) は照合しない。
+	// コピーが入る前に Kotatsu で録った番組の録画も照合する (#1658)。時刻予約の録画 (event_id がない) は照合しない。
 	recorded := insertRecording(t, db, bsService, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), false)
 	_, err = db.Exec(t.Context(), `UPDATE recordings SET event_id = 1 WHERE id = $1`, recorded)
 	require.NoError(t, err)

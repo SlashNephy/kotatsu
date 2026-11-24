@@ -94,7 +94,7 @@ func TestFollowingWatchingWorks(t *testing.T) {
 	// bob は取り込んでいないので、alice の取り込んだものは見えない。
 	check(t, true, []want{})
 
-	// 取り込んでから保持する期間 (24 時間) を過ぎたものは出さない。利用者の情報を、表示に要る範囲を超えて溜めないため。
+	// 取り込んでから保持する期間 (24 時間) を過ぎたものは出さない。利用者の情報を、表示に要る範囲を超えて蓄積しないため。
 	_, err = f.pool.Exec(t.Context(), `UPDATE anime_following_watching SET fetched_at = $1 WHERE user_id = $2`,
 		f.clock.Now().Add(-animerecord.FollowingRetention-time.Minute), f.alice.UserID)
 	require.NoError(t, err)

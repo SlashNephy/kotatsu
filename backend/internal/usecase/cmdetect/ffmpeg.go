@@ -96,7 +96,7 @@ func (d *FFmpegDetector) signals(ctx context.Context, input *Input) (*signals, e
 	defer func() { _ = file.Close() }()
 
 	scanner := ts.NewCueScanner(input.ServiceID)
-	// 時刻を PTS のまま出させ (-copyts)、ts.CueScanner の時刻と比べられるようにする。I フレームだけをデコードする。
+	// 時刻を PTS のまま出させ (-copyts)、ts.CueScanner の時刻と比較できるようにする。I フレームだけをデコードする。
 	// CM の境目の判断には、0.5 秒ごとの絵で足りる。シーンの切り替わりは標準出力に、無音の区間はログ (標準エラー出力) に出る。
 	// 進み具合 (#1511) の -progress のまとまりは、標準出力をシーンの切り替わりに使っているので、標準エラー出力に混ぜて出させ、
 	// 行の形で見分ける。fd 3 に出させる (ExtraFiles) 方法は、Windows で使えない。

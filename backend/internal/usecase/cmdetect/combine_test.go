@@ -271,7 +271,7 @@ func TestLogoInCMChains(t *testing.T) {
 		wantOK    bool
 	}{
 		{name: "the logo disappears in the CMs", intervals: []logo.Interval{{Start: 0, End: 100}, {Start: 160, End: 600}}, wantOK: false},
-		// CM の間も時刻の表示のように出続けるものを覚えた。
+		// CM の間も時刻の表示のように出続けるものを学習した。
 		{name: "the logo stays in the CMs", intervals: []logo.Interval{{Start: 0, End: 600}}, wantOK: true},
 	}
 	for _, tt := range tests {

@@ -675,7 +675,7 @@ func (m *Matcher) write(ctx context.Context, t *target, episodes []*Episode, fin
 		if err := replaceEpisodes(ctx, q, t.serviceID, t.startAt, episodes); err != nil {
 			return err
 		}
-		// 放送が終わるまでに照合し直した結びつきは、この番組の録画の写しにも反映する。
+		// 放送が終わるまでに照合し直した結びつきは、この番組の録画のコピーにも反映する。
 		recordings, err := q.ListProgramRecordingIDs(ctx, sqlc.ListProgramRecordingIDsParams{ServiceID: t.serviceID, StartAt: t.startAt})
 		if err != nil {
 			return fmt.Errorf("failed to list the recordings of the program: %w", err)

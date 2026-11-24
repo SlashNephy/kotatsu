@@ -105,7 +105,7 @@ func (i *Importer) importAnnictWorks(ctx context.Context, force bool, result *Im
 	if err != nil {
 		return i.recordAnnictWorksFailure(ctx, err, result)
 	}
-	// 前の取り込みが途中で失敗していれば、そこまでに取得した作品を、まだ対応に写していない。
+	// 前の取り込みが途中で失敗していれば、そこまでに取得した作品を、まだ対応にコピーしていない。
 	if !changed && found && previous.Error == nil && previous.ImportedAt != nil {
 		result.Unchanged = append(result.Unchanged, SourceAnnictWorks)
 		if err := sqlc.New(i.db).RecordAnimeImport(ctx, sqlc.RecordAnimeImportParams{

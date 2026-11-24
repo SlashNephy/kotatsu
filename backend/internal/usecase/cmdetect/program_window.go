@@ -58,7 +58,7 @@ func programWindow(intervals []logo.Interval, times []float64, fps float64, prog
 	if length >= total {
 		return none, false
 	}
-	// 番組が始まるはずの時刻を、最初のコマからの秒にする。ファイルの始まりから最初のコマまでの空きを引く。
+	// 番組が始まるはずの時刻を、最初のコマからの秒にする。ファイルの始まりから最初のコマまでの空きを差し引く。
 	expected := program.Start.Seconds() - origin
 	edge := windowEdgeExclusion.Seconds()
 	candidates := []float64{}
