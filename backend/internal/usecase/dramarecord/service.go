@@ -181,7 +181,7 @@ type Database interface {
 }
 
 // UpdateApp は、記録先 name に登録したアプリを変える。クライアント ID を空にすると、登録を消す。
-// 利用者を記録先へ送り出す操作の元になる値なので、呼ぶ側で、直近の再認証を確かめる (設計書 9.5)。
+// 利用者を記録先へ送り出す操作の元になる値なので、呼ぶ側で、直近の再認証を確認する (設計書 9.5)。
 // 監査ログには、クライアントシークレットを変えたかどうかだけを残し、値は残さない。
 func (s *Service) UpdateApp(ctx context.Context, db Database, actor *audit.Actor, name string, changes *AppChanges) error {
 	if _, err := s.destination(name); err != nil {
@@ -247,7 +247,7 @@ func (s *Service) UpdateApp(ctx context.Context, db Database, actor *audit.Actor
 type Availability struct {
 	// LinkingEnabled は、管理者が TMDB との連携を有効にしているかどうか (設計書 3.9)。
 	LinkingEnabled bool
-	// Configured は、記録先の名前から、管理者がアプリを登録したかどうかへの表。
+	// Configured は、記録先の名前から、管理者がアプリを登録したかどうかへのマップ。
 	Configured map[string]bool
 }
 
@@ -316,7 +316,7 @@ func (s *Service) Connections(ctx context.Context, db sqlc.DBTX, userID uuid.UUI
 }
 
 // Begin は、ログイン中のユーザー principal と記録先 name の連携を始め、利用者を送り出す認可のエンドポイントの URL を返す。
-// 戻ってきたときに、始めたセッションのまま戻ってきたことを確かめるので、ブラウザーのセッションでだけ始められる。
+// 戻ってきたときに、始めたセッションのまま戻ってきたことを確認するので、ブラウザーのセッションでだけ始められる。
 // origin は、接続したオリジン。リダイレクト URI にする。
 func (s *Service) Begin(ctx context.Context, db Database, principal *auth.Principal, name, origin string) (string, error) {
 	if principal.SessionID == uuid.Nil() {
@@ -358,19 +358,19 @@ func (s *Service) Begin(ctx context.Context, db Database, principal *auth.Princi
 	return destination.AuthCodeURL(app, redirectURI, state, verifier), nil
 }
 
-// Callback は、記録先から戻ってきたリクエストの中身。
+// Callback は、記録先から戻ってきたリクエストの内容。
 type Callback struct {
 	State string
 	Code  string
 	// Error は、記録先が返したエラー (access_denied など)。
 	Error string
-	// Issuer は、応答の iss。記録先の認可サーバーからの応答であることを確かめる (RFC 9207)。
+	// Issuer は、応答の iss。記録先の認可サーバーからの応答であることを確認する (RFC 9207)。
 	Issuer string
 }
 
-// Complete は、記録先 name から戻ってきた認可を確かめ、ログイン中のユーザー principal と連携する。
-// 途中の状態は、確かめられなくても使用済みにする。始めたセッションと記録先が、戻ってきたリクエストと同じであることと、
-// 応答の iss が記録先の認可サーバーであることを確かめる (CSRF、アカウントの取り違え、別の認可サーバーとの取り違えを防ぐ)。
+// Complete は、記録先 name から戻ってきた認可を確認し、ログイン中のユーザー principal と連携する。
+// 途中の状態は、確認できなくても使用済みにする。始めたセッションと記録先が、戻ってきたリクエストと同じであることと、
+// 応答の iss が記録先の認可サーバーであることを確認する (CSRF、アカウントの取り違え、別の認可サーバーとの取り違えを防ぐ)。
 func (s *Service) Complete(ctx context.Context, db Database, principal *auth.Principal, name string, callback *Callback, client *auth.ClientInfo) error {
 	destination, err := s.destination(name)
 	if err != nil {
@@ -446,7 +446,7 @@ func (s *Service) Complete(ctx context.Context, db Database, principal *auth.Pri
 }
 
 // Disconnect は、ユーザーと記録先 name の連携を外し、記録先でトークンを取り消す。取り消せなくても、Kotatsu からはトークンを消す。
-// 取り込んだウォッチリストの状態 (drama_watchlist_imports) は連携と一緒に消えるが、見ている作品に写した作品は、
+// 取り込んだウォッチリストの状態 (drama_watchlist_imports) は連携と一緒に消えるが、見ている作品にコピーした作品は、
 // Kotatsu の作品の一覧として残す。まだ送っていない記録は、ジョブが連携していないものとして諦める。
 func (s *Service) Disconnect(ctx context.Context, db Database, actor *audit.Actor, userID uuid.UUID, name string) error {
 	destination, err := s.destination(name)
@@ -539,7 +539,7 @@ func (s *Service) PrepareUserErasure(ctx context.Context, tx pgx.Tx, userID uuid
 	}, nil
 }
 
-// LogSecrets は、ログの報告から伏せる値として、記録先のアプリのクライアントシークレットと、全ユーザーのトークンを返す (#1521)。
+// LogSecrets は、ログの報告からマスクする値として、記録先のアプリのクライアントシークレットと、全ユーザーのトークンを返す (#1521)。
 func (s *Service) LogSecrets(ctx context.Context, db sqlc.DBTX) ([]string, error) {
 	q := sqlc.New(db)
 	secrets := []string{}

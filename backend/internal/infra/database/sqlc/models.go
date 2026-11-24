@@ -756,16 +756,6 @@ type ProgramDramaMatch struct {
 	FinalizedAt   *time.Time
 }
 
-type ProgramRewrite struct {
-	ServiceID  int64
-	EventID    int64
-	StartAt    time.Time
-	Field      string
-	Before     string
-	After      string
-	ObservedAt time.Time
-}
-
 type Recording struct {
 	ID                    uuid.UUID
 	APIID                 int64
@@ -1143,7 +1133,6 @@ type SystemSetting struct {
 	DrcsReplacements                       []byte
 	TimeshiftWhileWatching                 bool
 	TimeshiftWhileWatchingRetentionSeconds int32
-	RuleUnmatchedGraceMinutes              int32
 	HistoryMaxDrops                        int32
 	AuditRetentionDays                     int32
 	AuditClientInfoRetentionDays           int32

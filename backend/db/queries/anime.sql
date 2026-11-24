@@ -59,8 +59,8 @@ WHERE w.syobocal_tid = ANY(@syobocal_tids::integer[])
 ORDER BY w.syobocal_tid, w.position;
 
 -- name: ListAnimeChannelServices :many
--- サービスごとに、取り込んだ対応と照らし合わせるための ID と種別、管理者の上書きを返す (設計書 3.8)。
--- 取り込んだ対応との照らし合わせは、地上波の他の地域やサブチャンネルの規則があるので、呼ぶ側で行う。
+-- サービスごとに、取り込んだ対応と照合するための ID と種別、管理者の上書きを返す (設計書 3.8)。
+-- 取り込んだ対応との照合は、地上波の他の地域やサブチャンネルの規則があるので、呼ぶ側で行う。
 SELECT s.id AS service_id, s.network_id, s.sid, s.channel_type,
   o.syobocal_channel_id AS override_syobocal_channel_id,
   o.annict_channel_id AS override_annict_channel_id
@@ -88,7 +88,7 @@ ON CONFLICT (service_id) DO UPDATE SET
 DELETE FROM anime_channel_overrides WHERE service_id = @service_id;
 
 -- name: GetEPGChangeVersion :one
--- EPG の変更の通知の、今の版数を返す。一度も通知していなければ 0。
+-- EPG の変更の通知の、今のバージョンを返す。一度も通知していなければ 0。
 SELECT COALESCE((SELECT version FROM change_versions WHERE channel = 'epg'), 0)::bigint AS version;
 
 -- name: GetAnimeMatchCursor :one
@@ -217,7 +217,7 @@ INSERT INTO recording_anime_matches (recording_id, matched_at) VALUES (@recordin
 ON CONFLICT (recording_id) DO UPDATE SET matched_at = excluded.matched_at;
 
 -- name: CopyProgramAnimeEpisodesToRecording :execrows
--- 番組 (サービスと開始時刻の組) に結びついた話を、録画に写す。呼ぶ前に、録画の照合した記録を書き、前に写した話を消す。
+-- 番組 (サービスと開始時刻の組) に結びついた話を、録画にコピーする。呼ぶ前に、録画の照合した記録を書き、前にコピーした話を消す。
 INSERT INTO recording_anime_episodes (
   recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last, is_rerun
 )
@@ -290,7 +290,7 @@ ON CONFLICT (annict_id) DO UPDATE SET
   mal_anime_id = EXCLUDED.mal_anime_id;
 
 -- name: ListAnnictWorksToResolve :many
--- AniList の ID を引く (#1223) 作品を返す。一度も引いていない作品を先に、引いてから checked_before より前の作品を引き直す。
+-- AniList の ID を取得する (#1223) 作品を返す。一度も取得していない作品を先に、取得してから checked_before より前の作品を取得し直す。
 -- TID のない作品は、対応を作れないので引かない。
 SELECT annict_id, mal_anime_id::integer AS mal_anime_id FROM annict_works
 WHERE mal_anime_id IS NOT NULL AND syobocal_tid IS NOT NULL AND (anilist_checked_at IS NULL OR anilist_checked_at < @checked_before::timestamptz)
@@ -313,7 +313,7 @@ FROM annict_works w
 WHERE w.syobocal_tid IS NOT NULL;
 
 -- name: ListTitlesForBroadcastLookup :many
--- ほかの放送を引く TID を、引いていないものから順に返す。録画を終えてすぐの間は、後から放送されることがあるので、引き直す。
+-- ほかの放送を取得する TID を、取得していないものから順に返す。録画を終えてすぐの間は、後から放送されることがあるので、取得し直す。
 SELECT e.syobocal_tid::integer AS tid
 FROM recording_anime_episodes e
 JOIN recordings r ON r.id = e.recording_id
@@ -353,7 +353,7 @@ WHERE b.tid = @tid AND b.episode_count = @episode_count
 ORDER BY b.start_at + make_interval(secs => b.offset_seconds), b.pid, j.jikkyo_channel_id;
 
 -- name: ListRecordingsForNicolog :many
--- NICOLOG のファイルを探す録画 (#1363)。1 話だけに結びつき、CM の区間のある録画を対象にする。見つからなかった録画は、終えて間もない間だけ調べ直す。
+-- NICOLOG のファイルを探す録画 (#1363)。1 話だけに結びつき、CM の区間のある録画を対象にする。見つからなかった録画は、終えて間もない間だけ確認し直す。
 SELECT r.id, t.title, e.count_start::double precision AS episode_count
 FROM recordings r
 JOIN recording_anime_episodes e ON e.recording_id = r.id
@@ -374,12 +374,12 @@ ON CONFLICT (recording_id) DO UPDATE SET path = excluded.path, checked_at = excl
 SELECT path FROM recording_nicolog_files WHERE recording_id = @recording_id AND path IS NOT NULL;
 
 -- name: ListSyobocalTitleKeys :many
--- しょぼいカレンダーのタイトルと鍵を、TID が after より後のものから TID の順に max_count 件返す (#2041)。kotatsu migrate が鍵を作り直すのに使う。
+-- しょぼいカレンダーのタイトルとキーを、TID が after より後のものから TID の順に max_count 件返す (#2041)。kotatsu migrate がキーを作り直すのに使う。
 SELECT tid, title, title_key FROM syobocal_titles
 WHERE tid > @after::integer
 ORDER BY tid
 LIMIT @max_count;
 
 -- name: SetSyobocalTitleKey :batchexec
--- しょぼいカレンダーのタイトルの鍵を書く (#2041)。
+-- しょぼいカレンダーのタイトルのキーを書く (#2041)。
 UPDATE syobocal_titles SET title_key = @title_key WHERE tid = @tid;

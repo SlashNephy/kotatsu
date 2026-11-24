@@ -17,7 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 )
 
-// fakeIDs は、NetworkTV の ID を 1 つだけ配る。released には、消した (Forget) ID を記録する。
+// fakeIDs は、NetworkTV の ID を 1 つだけ割り当てる。released には、消した (Forget) ID を記録する。
 type fakeIDs struct {
 	mu       sync.Mutex
 	used     bool
@@ -97,7 +97,7 @@ func (f *fakeIDs) state() ([]edcb.ServiceKey, []int32) {
 	return append([]edcb.ServiceKey{}, f.acquired...), append([]int32{}, f.released...)
 }
 
-// streamServer は、ChSet5 と、NetworkTV を開いてプロセス 27 を返し、TS を中継する偽の EpgTimerSrv を返す。
+// streamServer は、ChSet5 と、NetworkTV を開いてプロセス 27 を返し、TS を配信するモックの EpgTimerSrv を返す。
 // 中継は、notReady 回だけ失敗してから成功する。
 func streamServer(t *testing.T, ts []byte, notReady int) *fakeServer {
 	t.Helper()
@@ -159,8 +159,8 @@ func TestTunerServerOpenServiceStream(t *testing.T) {
 			require.NoError(t, stream.Close())
 			_, released = ids.state()
 			assert.Equal(t, []int32{1000}, released)
-			// ライブ視聴 (優先度 0) なので、開く前に EPG の取得のためにチューナーを空けておくかを確かめる (#1536)。
-			// 偽の EpgTimerSrv は EpgTimerSrv.ini を返さないので、確かめられず、空けずに開く。
+			// ライブ視聴 (優先度 0) なので、開く前に EPG の取得のためにチューナーを空けておくかを確認する (#1536)。
+			// モックの EpgTimerSrv は EpgTimerSrv.ini を返さないので、確認できず、空けずに開く。
 			want := []uint32{1060, 2060, 1073}
 			for range tt.notReady + 1 {
 				want = append(want, 301)
@@ -337,7 +337,7 @@ func TestTunerServerStreamPATWithoutServiceAtStart(t *testing.T) {
 func TestTunerServerStreamPreemptedByCheck(t *testing.T) {
 	t.Parallel()
 
-	// NetworkTV がまだ開いているかを問い合わせて、閉じていたら、中継の接続を切って知らせる。
+	// NetworkTV がまだ開いているかを問い合わせて、閉じていたら、中継の接続を切って通知する。
 	s := streamServer(t, nil, 0)
 	s.replies[301] = reply{status: 1, payload: nil, stream: patPacket(32736, 1024), hold: true, drop: false}
 	s.queued[1073] = []reply{

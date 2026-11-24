@@ -43,7 +43,7 @@ type NetworkActivityEntry {
   "時間帯の始まり。"
   hour: Time!
   purpose: NetworkActivityPurpose!
-  "接続先のホスト名。視聴の内容や設定の中身が分かるものは null。"
+  "接続先のホスト名。視聴の内容や設定の内容が分かるものは null。"
   host: String
   initiator: NetworkActivityInitiator!
   success: Boolean!

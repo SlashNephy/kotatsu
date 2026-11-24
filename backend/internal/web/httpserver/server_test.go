@@ -77,7 +77,7 @@ func TestReadyzWithRealDatabase(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
 
-// TestReadyzStaysReadyWithinGrace は、DB に一度接続できた後は、接続できなくなっても、grace の間は成功を返すことを確かめる (#1084)。
+// TestReadyzStaysReadyWithinGrace は、DB に一度接続できた後は、接続できなくなっても、grace の間は成功を返すことを確認する (#1084)。
 func TestReadyzStaysReadyWithinGrace(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +170,7 @@ func TestServeWaitsForInFlightRequests(t *testing.T) {
 }
 
 // TestServeStopsStreamsOnShutdown は、停止を始めたら、StopOnShutdown で包んだ終わらないストリームを打ち切り、
-// ShutdownTimeout まで待たずに止まることを確かめる。
+// ShutdownTimeout まで待たずに止まることを確認する。
 func TestServeStopsStreamsOnShutdown(t *testing.T) {
 	t.Parallel()
 
@@ -237,7 +237,7 @@ func TestServeStopsStreamsOnShutdown(t *testing.T) {
 }
 
 // TestServeCutsStuckStreamsOnShutdown は、停止を始めても、クライアントが読まずに書き込みが止まっているストリームは、
-// 少し待ってから書き込みを打ち切り、ShutdownTimeout まで待たずに止まることを確かめる。
+// 少し待ってから書き込みを打ち切り、ShutdownTimeout まで待たずに止まることを確認する。
 func TestServeCutsStuckStreamsOnShutdown(t *testing.T) {
 	t.Parallel()
 

@@ -57,7 +57,7 @@ func newPool(t *testing.T, picture string) (*pgxpool.Pool, uuid.UUID) {
 	return pool, user.ID
 }
 
-// TestAvatarHandler は、IdP の画像を中継し、LAN の中の、IdP でないホストへは取りに行かないことを確かめる (#778)。
+// TestAvatarHandler は、IdP の画像をプロキシし、LAN の中の、IdP でないホストへは取りに行かないことを確認する (#778)。
 func TestAvatarHandler(t *testing.T) {
 	t.Parallel()
 

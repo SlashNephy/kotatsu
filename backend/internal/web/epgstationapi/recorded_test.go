@@ -64,7 +64,7 @@ func addRecording(
 	return id, apiID
 }
 
-// TestRecorded は、再生できる録画を、新しい順に、件数と番組名で区切って返すことを確かめる (#431)。
+// TestRecorded は、再生できる録画を、新しい順に、件数と番組名で区切って返すことを確認する (#431)。
 func TestRecorded(t *testing.T) {
 	t.Parallel()
 
@@ -84,7 +84,7 @@ func TestRecorded(t *testing.T) {
 		{name: "すべて", query: "", wantIDs: []int64{newest, middle, oldest}, wantTotal: 3},
 		{name: "区切る", query: "?offset=1&limit=1", wantIDs: []int64{middle}, wantTotal: 3},
 		{name: "番組名", query: "?keyword=こたつ", wantIDs: []int64{newest, oldest}, wantTotal: 2},
-		// 画面の検索と同じく、キーワードも番組名も正規化して比べる。% と _ は、文字そのものとして探す (#1726)。
+		// 画面の検索と同じく、キーワードも番組名も正規化して比較する。% と _ は、文字そのものとして探す (#1726)。
 		{name: "全角と半角", query: "?keyword=" + url.QueryEscape("番組2"), wantIDs: []int64{middle}, wantTotal: 1},
 		{name: "ワイルドカードの文字", query: "?keyword=" + url.QueryEscape("%"), wantIDs: []int64{}, wantTotal: 0},
 		{name: "1 文字のワイルドカードの文字", query: "?keyword=" + url.QueryEscape("こたつ_"), wantIDs: []int64{}, wantTotal: 0},
@@ -134,7 +134,7 @@ func getItem(t *testing.T, handler http.HandlerFunc, id int64, out any) int {
 	return get(t, mux.ServeHTTP, "/api/recorded/"+strconv.FormatInt(id, 10), out)
 }
 
-// TestWithRecording は、動画とサムネイルの ID を、Kotatsu の録画の ID に読み替えてつなぐことを確かめる。
+// TestWithRecording は、動画とサムネイルの ID を、Kotatsu の録画の ID に読み替えてつなぐことを確認する。
 func TestWithRecording(t *testing.T) {
 	t.Parallel()
 

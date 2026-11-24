@@ -106,9 +106,9 @@ function Sessions() {
     { fetchKey: `${fetchKey}:${viewerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const [error, setError] = useState<string | null>(null);
-  // revokedOthers は、ほかの端末をまとめてログアウトさせた数。終えたことを知らせるのに使う。
+  // revokedOthers は、ほかの端末をまとめてログアウトさせた数。終えたことを通知するのに使う。
   const [revokedOthers, setRevokedOthers] = useState<number | null>(null);
-  // confirming は、ほかの端末をまとめてログアウトさせる前に、確かめているかどうか。
+  // confirming は、ほかの端末をまとめてログアウトさせる前に、確認しているかどうか。
   const [confirming, setConfirming] = useState(false);
   const others = data.sessions.filter((session) => !session.current).length;
   // running は、ログアウトさせるか、連携を取り消している途中かどうか。続けて押されても、重ねて送らない。

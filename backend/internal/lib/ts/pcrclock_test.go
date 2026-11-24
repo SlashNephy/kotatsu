@@ -77,13 +77,13 @@ func TestPCRClock(t *testing.T) {
 			feeds:   []feed{{pcr: 10, receivedAt: 100}, {pcr: 80, receivedAt: 171}},
 			wantPCR: 80, wantReceivedAt: 171,
 		},
-		// 選局で PCR が戻ったら、前の組を捨てて結び直す。
+		// 選局で PCR が戻ったら、前の組を破棄して結び直す。
 		{
 			name:    "a rewind resyncs",
 			feeds:   []feed{{pcr: 1000, receivedAt: 100}, {pcr: 500, receivedAt: 101}},
 			wantPCR: 500, wantReceivedAt: 101,
 		},
-		// 一周の半分より先へ進んだら (選局で飛んだ)、前の組を捨てて結び直す。
+		// 一周の半分より先へ進んだら (選局で飛んだ)、前の組を破棄して結び直す。
 		{
 			name:    "a forward jump past half a cycle resyncs",
 			feeds:   []feed{{pcr: 10, receivedAt: 100}, {pcr: 60_000, receivedAt: 101}},
@@ -117,7 +117,7 @@ func TestPCRClock(t *testing.T) {
 	}
 }
 
-// TestPCRClockUsesPCRPIDAfterPMT は、PMT を読むまではどの PID の PCR も受け付け、読んだ後は PCR_PID の PCR だけを使うことを確かめる。
+// TestPCRClockUsesPCRPIDAfterPMT は、PMT を読むまではどの PID の PCR も受け付け、読んだ後は PCR_PID の PCR だけを使うことを確認する。
 func TestPCRClockUsesPCRPIDAfterPMT(t *testing.T) {
 	t.Parallel()
 
@@ -141,7 +141,7 @@ func TestPCRClockUsesPCRPIDAfterPMT(t *testing.T) {
 	assert.InDelta(t, 60, pair.PCR, 1e-6)
 }
 
-// TestPCRClockSplitChunks は、パケットの境目で切れていない塊でも、PCR を読めることを確かめる。
+// TestPCRClockSplitChunks は、パケットの境目で切れていないチャンクでも、PCR を読めることを確認する。
 func TestPCRClockSplitChunks(t *testing.T) {
 	t.Parallel()
 
@@ -154,12 +154,12 @@ func TestPCRClockSplitChunks(t *testing.T) {
 	clock.Write(stream[300:], at(100.2))
 	pair, ok := clock.Pair()
 	require.True(t, ok)
-	// 2 つ目の PCR は、最後の塊で読めたので、その塊の時刻と組にする。
+	// 2 つ目の PCR は、最後のチャンクで読めたので、そのチャンクの時刻と組にする。
 	assert.InDelta(t, 21, pair.PCR, 1e-6)
 	assert.True(t, at(100.2).Equal(pair.ReceivedAt))
 }
 
-// TestPCRClockResyncs は、パケットの境目でない所から始まる塊や、途中で切れたパケットがあっても、同期し直して PCR を読むことを確かめる。
+// TestPCRClockResyncs は、パケットの境目でない所から始まるチャンクや、途中で切れたパケットがあっても、同期し直して PCR を読むことを確認する。
 func TestPCRClockResyncs(t *testing.T) {
 	t.Parallel()
 
@@ -169,11 +169,11 @@ func TestPCRClockResyncs(t *testing.T) {
 		name   string
 		chunks [][]byte
 	}{
-		// 最初の塊が、パケットの途中から始まる。
+		// 最初のチャンクが、パケットの途中から始まる。
 		{name: "starts mid-packet", chunks: [][]byte{first[100:], second[:50], second[50:]}},
 		// 途中で切れたパケットの後に、次のパケットが続く。
 		{name: "a truncated packet", chunks: [][]byte{first[:120], second}},
-		// 1 バイトずれた塊が続く。
+		// 1 バイトずれたチャンクが続く。
 		{name: "shifted by one byte", chunks: [][]byte{{0x00}, first, second[:187], second[187:]}},
 	}
 	for _, tt := range tests {

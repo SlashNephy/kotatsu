@@ -35,7 +35,7 @@ const (
 var ErrPayloadTooLarge = errors.New("the web push payload is too large")
 
 // Encrypt は、平文 plaintext を、購読したブラウザの公開鍵 uaPublic と認証用の秘密 authSecret で、
-// RFC 8291 の aes128gcm の形式に暗号化する。送り手の鍵とソルトは、本文ごとに新しく作る。
+// RFC 8291 の aes128gcm の形式に暗号化する。送り手の秘密鍵とソルトは、本文ごとに新しく作る。
 func Encrypt(plaintext, uaPublic, authSecret []byte) ([]byte, error) {
 	asPrivate, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
@@ -49,7 +49,7 @@ func Encrypt(plaintext, uaPublic, authSecret []byte) ([]byte, error) {
 	return encrypt(plaintext, uaPublic, authSecret, asPrivate, salt)
 }
 
-// encrypt は、送り手の鍵 asPrivate とソルト salt を受け取って暗号化する。RFC 8291 の付録 A の値で確かめられるよう、分けている。
+// encrypt は、送り手の秘密鍵 asPrivate とソルト salt を受け取って暗号化する。RFC 8291 の付録 A の値で確認できるよう、分けている。
 func encrypt(plaintext, uaPublic, authSecret []byte, asPrivate *ecdh.PrivateKey, salt []byte) ([]byte, error) {
 	if len(plaintext) > MaxPayloadLength {
 		return nil, fmt.Errorf("%w: %d bytes", ErrPayloadTooLarge, len(plaintext))
@@ -67,7 +67,7 @@ func encrypt(plaintext, uaPublic, authSecret []byte, asPrivate *ecdh.PrivateKey,
 	}
 	asPublic := asPrivate.PublicKey().Bytes()
 
-	// 共有の秘密と認証用の秘密を組み合わせて、鍵の材料 (IKM) を作る (RFC 8291 3.4)。
+	// 共有の秘密と認証用の秘密を組み合わせて、暗号鍵の材料 (IKM) を作る (RFC 8291 3.4)。
 	keyInfo := make([]byte, 0, len("WebPush: info\x00")+2*publicKeyLength)
 	keyInfo = append(keyInfo, "WebPush: info\x00"...)
 	keyInfo = append(keyInfo, uaPublic...)
@@ -76,7 +76,7 @@ func encrypt(plaintext, uaPublic, authSecret []byte, asPrivate *ecdh.PrivateKey,
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive the input keying material: %w", err)
 	}
-	// 本文の鍵と nonce を作る (RFC 8188 2.2、2.3)。
+	// 本文の暗号鍵と nonce を作る (RFC 8188 2.2、2.3)。
 	cek, err := hkdf.Key(sha256.New, ikm, salt, "Content-Encoding: aes128gcm\x00", 16)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive the content encryption key: %w", err)

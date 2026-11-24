@@ -18,12 +18,12 @@ import (
 )
 
 const (
-	// signPurpose は、アプリの秘密キーから、URL の署名のキーを導くときの用途。用途ごとに別のキーを使う。
+	// signPurpose は、アプリの秘密キーから、URL の署名鍵を導くときの用途。用途ごとに別の署名鍵を使う。
 	// v2 から、URL ごとの ID (#1757) も署名する。v1 の URL は、署名が合わなくなるので使えない。
 	signPurpose = "kotatsu/stream-url/v2"
 	// LiveURLLifetime は、ライブ視聴の署名付き URL の有効期限 (設計書 9.6、#1756)。
 	// ライブは長さが決まらないので、漏れたときに使える時間を短くするため、発行から一律で 1 時間にする。
-	// 期限は開くときにだけ確かめるので、期限の前に開いたストリームは、期限を過ぎても流れ続ける。
+	// 期限は開くときにだけ確認するので、期限の前に開いたストリームは、期限を過ぎても流れ続ける。
 	LiveURLLifetime = time.Hour
 	// RecordingURLMargin は、録画の署名付き URL の有効期限に、録画の長さへ足す時間 (設計書 9.6、#1756)。
 	// 見ている途中で一時停止やシークをして開き直しても切れないよう、録画の長さより少し長くする。
@@ -43,7 +43,7 @@ var (
 	ErrInvalidSignature = errors.New("invalid or expired signature")
 )
 
-// SignedPathPrefix は、署名付き URL で配信するパスの頭。前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
+// SignedPathPrefix は、署名付き URL で配信するパスのプレフィックス。前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
 const SignedPathPrefix = "/api/streams/"
 
 // RecordingURLLifetime は、長さ length の録画の署名付き URL の有効期限を返す (#1756)。
@@ -62,12 +62,12 @@ func RecordingPath(recordingID uuid.UUID) string {
 	return SignedPathPrefix + "recordings/" + recordingID.String()
 }
 
-// Signer は、映像の URL に署名し、署名を確かめる。
+// Signer は、映像の URL に署名し、署名を確認する。
 type Signer struct {
 	key []byte
 }
 
-// NewSigner は、アプリの秘密キー secret から署名のキーを導き、Signer を返す。
+// NewSigner は、アプリの秘密キー secret から署名鍵を導き、Signer を返す。
 func NewSigner(secret string) (*Signer, error) {
 	if secret == "" {
 		return nil, ErrNoKey
@@ -101,15 +101,15 @@ func (s *Signer) Sign(resource string, userID, urlID uuid.UUID, expiresAt time.T
 	return &SignedURL{URL: resource + "?" + query.Encode(), ExpiresAt: time.Unix(expires, 0).UTC()}
 }
 
-// Verified は、署名を確かめた URL の、発行したユーザーと、URL の記録の ID。
+// Verified は、署名を確認した URL の、発行したユーザーと、URL の記録の ID。
 type Verified struct {
 	UserID uuid.UUID
 	URLID  uuid.UUID
 }
 
-// Verify は、resource へのリクエストのクエリ query の署名を確かめ、URL を発行したユーザーと、URL の記録の ID を返す。
+// Verify は、resource へのリクエストのクエリ query の署名を確認し、URL を発行したユーザーと、URL の記録の ID を返す。
 // 署名がないか、正しくないか、now の時点で期限が切れていれば、ErrInvalidSignature を返す。
-// 記録が残っているか (取り消していないか) は確かめないので、呼び出し側が確かめる。
+// 記録が残っているか (取り消していないか) は確認しないので、呼び出し側が確認する。
 func (s *Signer) Verify(resource string, query url.Values, now time.Time) (*Verified, error) {
 	userID, err := uuid.Parse(query.Get(userParam))
 	if err != nil {

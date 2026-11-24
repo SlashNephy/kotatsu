@@ -68,7 +68,7 @@ func (r *Resolver) playerSettings(ctx context.Context) (*model.PlayerSettings, e
 	}, nil
 }
 
-// updatePlayerSettings は、プレイヤーの設定を変え、同じユーザーのほかの端末に知らせる。
+// updatePlayerSettings は、プレイヤーの設定を変え、同じユーザーのほかの端末に通知する。
 func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.PlayerSettingsInput) (*model.PlayerSettings, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -116,8 +116,8 @@ func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.Player
 	}, nil
 }
 
-// encodeCommentSettings は、コメントの設定を確かめて、DB に書く JSON にする。
-// 正規表現は、画面 (JavaScript の RegExp) で使うので、ここでは長さだけを確かめる。
+// encodeCommentSettings は、コメントの設定を確認して、DB に書く JSON にする。
+// 正規表現は、画面 (JavaScript の RegExp) で使うので、ここでは長さだけを確認する。
 func encodeCommentSettings(input *model.CommentSettingsInput) ([]byte, error) {
 	switch {
 	case input.Opacity < minCommentOpacity || input.Opacity > maxCommentOpacity:
@@ -160,7 +160,7 @@ func encodeCommentSettings(input *model.CommentSettingsInput) ([]byte, error) {
 	return encoded, nil
 }
 
-// validateMutedCommands は、ミュートするコマンドの数と長さを確かめて返す。
+// validateMutedCommands は、ミュートするコマンドの数と長さを確認して返す。
 func validateMutedCommands(commands []string) ([]string, error) {
 	if len(commands) > maxMutedCommands {
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("mutedCommands must be at most %d", maxMutedCommands))
@@ -189,7 +189,7 @@ func decodeCommentSettings(raw []byte) (*model.CommentSettings, error) {
 	return settings, nil
 }
 
-// encodeCaptionSettings は、字幕の設定を確かめて、DB に書く JSON にする (#491)。
+// encodeCaptionSettings は、字幕の設定を確認して、DB に書く JSON にする (#491)。
 func encodeCaptionSettings(input *model.CaptionSettingsInput) ([]byte, error) {
 	if opacity := input.BackgroundOpacity; opacity != nil && (*opacity < 0 || *opacity > 1) {
 		return nil, NewError(CodeBadUserInput, "backgroundOpacity must be between 0 and 1")

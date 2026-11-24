@@ -5,16 +5,16 @@ import (
 )
 
 const (
-	// Cap は、progress=end が来るまでの割合の上限 (頭打ちの割合)。最後のコマの後にも、溜めたコマの書き出しと、
-	// mux の後処理 (MP4 の索引を先頭に移す faststart) が残るので、早く 100% を出すと止まって見える。
-	// 見込みのコマ数は、合成の録画 (2 分、29.97fps) で実際のコマ数と一致し (3596)、索引から求める尺のずれは最後の GOP の長さ
+	// Cap は、progress=end が来るまでの割合の上限 (頭打ちの割合)。最後のコマの後にも、バッファしたコマの出力と、
+	// mux の後処理 (MP4 のインデックスを先頭に移す faststart) が残るので、早く 100% を出すと止まって見える。
+	// 見込みのコマ数は、合成の録画 (2 分、29.97fps) で実際のコマ数と一致し (3596)、インデックスから求める尺のずれは最後の GOP の長さ
 	// (0.5 秒ほど、30 分の録画で 0.03%) なので、見込みが実際より大きくても、バーは 99% に届く前にほとんど止まらない。
 	Cap = 0.99
-	// Window は、残り時間の計算に使う直近の時間 (残り時間の窓)。低い優先度で動かすので、ライブ視聴の変換が始まると速さが変わる。
+	// Window は、残り時間の計算に使う直近の時間 (残り時間のウィンドウ)。低い優先度で動かすので、ライブ視聴の変換が始まると速さが変わる。
 	// 1 分なら、速さの変化に 1 分で追いつき、0.5 秒ごとのまとまりの揺れは 120 個で均される。
 	Window = time.Minute
-	// MinWindow は、残り時間を出すのに要る窓の幅 (残り時間の最短の窓)。-progress のまとまりの間隔 (0.5 秒) の 20 倍にし、
-	// 始まってすぐの、溜めたコマを出す前の速さで、桁違いの残り時間を出さないようにする。
+	// MinWindow は、残り時間を出すのに要るウィンドウの幅 (残り時間の最短のウィンドウ)。-progress のまとまりの間隔 (0.5 秒) の 20 倍にし、
+	// 始まってすぐの、バッファしたコマを出す前の速さで、桁違いの残り時間を出さないようにする。
 	MinWindow = 10 * time.Second
 )
 
@@ -24,7 +24,7 @@ type Config struct {
 	Cap float64
 	// Window は、残り時間の計算に使う直近の時間。
 	Window time.Duration
-	// MinWindow は、残り時間を出すのに要る窓の幅。Window より短くする。
+	// MinWindow は、残り時間を出すのに要るウィンドウの幅。Window より短くする。
 	MinWindow time.Duration
 }
 
@@ -49,7 +49,7 @@ type Snapshot struct {
 	Remaining *time.Duration
 }
 
-// source は、割合の出どころ。
+// source は、割合のソース。
 type source int
 
 const (
@@ -65,7 +65,7 @@ type sample struct {
 
 // Tracker は、-progress のまとまりから、割合と残り時間を求める。
 //
-// 出どころ (コマ数か読み位置) は、作ったときに 1 つに決め、途中で切り替えない。止まった数を動いている速さで割って、
+// ソース (コマ数か読み位置) は、作ったときに 1 つに決め、途中で切り替えない。止まった数を動いている速さで割って、
 // 桁違いに長い残り時間を出さないようにするためである。
 type Tracker struct {
 	cfg     *Config
@@ -98,7 +98,7 @@ func (t *Tracker) Observe(now time.Time, b *Block, read int64) Snapshot {
 		t.ratio = max(t.ratio, min(ratio, t.cfg.Cap))
 	}
 	t.samples = append(t.samples, sample{at: now, ratio: t.ratio})
-	// 窓より古い記録を捨てる。
+	// ウィンドウより古い記録を破棄する。
 	cutoff := now.Add(-t.cfg.Window)
 	drop := 0
 	for drop < len(t.samples)-1 && t.samples[drop].at.Before(cutoff) {
@@ -131,7 +131,7 @@ func (t *Tracker) measure(b *Block, read int64) (float64, bool) {
 	return 0, false
 }
 
-// remaining は、窓の中の割合の増え方から、残り時間を求める。窓の幅が MinWindow に満たないか、割合が増えていなければ、不明 (nil) にする。
+// remaining は、ウィンドウの中の割合の増え方から、残り時間を求める。ウィンドウの幅が MinWindow に満たないか、割合が増えていなければ、不明 (nil) にする。
 func (t *Tracker) remaining(now time.Time) *time.Duration {
 	if t.ratio >= 1 {
 		return new(time.Duration(0))

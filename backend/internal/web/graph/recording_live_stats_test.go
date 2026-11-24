@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestRecordingLiveStats は、録画中の録画だけが、書いているセグメントの様子を返すことを確かめる (#829)。
+// TestRecordingLiveStats は、録画中の録画だけが、書いているセグメントの様子を返すことを確認する (#829)。
 func TestRecordingLiveStats(t *testing.T) {
 	t.Parallel()
 

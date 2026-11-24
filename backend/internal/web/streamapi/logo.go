@@ -30,7 +30,7 @@ var (
 	_ LogoFetcher = new(servicelogo.Store)
 )
 
-// LogoHandler は、チューナーサーバーのサービスのロゴを中継する (GET /internal/media/services/{id}/logo)。
+// LogoHandler は、チューナーサーバーのサービスのロゴをプロキシする (GET /internal/media/services/{id}/logo)。
 // チューナーサーバーがロゴを返さなければ、録画している TS から集めたロゴを返す (#1308)。
 type LogoHandler struct {
 	// tuner は、チューナーサーバーのクライアント。設定していなければ nil。
@@ -62,7 +62,7 @@ func (h *LogoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	// 上流の Content-Type は信じず、中身から決める。画像でなければ、同じオリジンで返すと危ないので返さない。
+	// 上流の Content-Type は信じず、内容から決める。画像でなければ、同じオリジンで返すと危ないので返さない。
 	contentType := http.DetectContentType(data)
 	if !strings.HasPrefix(contentType, "image/") {
 		h.logger.WarnContext(r.Context(), "the service logo is not an image", slog.Int64("service_id", serviceID), slog.String("content_type", contentType))

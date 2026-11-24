@@ -2,11 +2,11 @@ import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
 
-// データ放送の受信機の郵便番号を、端末ごとに覚えておく (設計書 7.4、#442)。
+// データ放送の受信機の郵便番号を、端末ごとに保存しておく (設計書 7.4、#442)。
 // 天気やニュースには、郵便番号で地域を選ぶ文書がある。自宅の外から見ることもあるので、アカウントには保存しない。既定は空。
 
 const storageKey = 'kotatsu.player.dataBroadcastZipcode';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:data-broadcast-zipcode';
 
 // bmlStoragePrefix は、web-bml が localStorage に書くキーの prefix。Kotatsu 自身のキーと名前空間を分ける。
@@ -27,7 +27,7 @@ export function normalizeZipcode(input: string): string | null {
   return /^\d{7}$/.test(digits) ? digits : null;
 }
 
-// loadDataBroadcastZipcode は、覚えた郵便番号を読む。読めなければ、既定の空を返す。
+// loadDataBroadcastZipcode は、保存した郵便番号を読む。読めなければ、既定の空を返す。
 export function loadDataBroadcastZipcode(storage: Pick<Storage, 'getItem'> | null): string {
   try {
     return normalizeZipcode(storage?.getItem(storageKey) ?? '') ?? '';
@@ -36,7 +36,7 @@ export function loadDataBroadcastZipcode(storage: Pick<Storage, 'getItem'> | nul
   }
 }
 
-// saveDataBroadcastZipcode は、郵便番号を覚える。空なら忘れる。書けなくても、例外は投げない。
+// saveDataBroadcastZipcode は、郵便番号を保存する。空なら忘れる。書けなくても、例外は投げない。
 export function saveDataBroadcastZipcode(
   storage: Pick<Storage, 'setItem' | 'removeItem'> | null,
   zipcode: string,

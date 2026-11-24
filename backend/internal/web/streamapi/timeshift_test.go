@@ -35,7 +35,7 @@ const (
 
 type timeshiftFixture struct {
 	pool *pgxpool.Pool
-	// dataDir は索引を置くデータディレクトリ、bufferDir はチャンクを置くタイムシフトのディレクトリ。
+	// dataDir はインデックスを置くデータディレクトリ、bufferDir はチャンクを置くタイムシフトのディレクトリ。
 	dataDir   string
 	bufferDir string
 	server    *httptest.Server
@@ -74,14 +74,14 @@ func newTimeshiftFixture(t *testing.T, configured bool) *timeshiftFixture {
 	return f
 }
 
-// chunk は、data のチャンクと、ts.Analyzer で作った索引を置く。チャンクは origin から from 後に始まり、to 後に終わる。
+// chunk は、data のチャンクと、ts.Analyzer で作ったインデックスを置く。チャンクは origin から from 後に始まり、to 後に終わる。
 func (f *timeshiftFixture) chunk(t *testing.T, name string, data []byte, from, to time.Duration) {
 	t.Helper()
 
 	f.writeChunk(t, name, data, f.origin.Add(from), new(f.origin.Add(to)))
 }
 
-// writeChunk は、data のチャンクと索引を置き、startedAt に始まり endedAt に終わったチャンクとして記録する。endedAt が nil なら、書いている途中にする。
+// writeChunk は、data のチャンクとインデックスを置き、startedAt に始まり endedAt に終わったチャンクとして記録する。endedAt が nil なら、書いている途中にする。
 func (f *timeshiftFixture) writeChunk(t *testing.T, name string, data []byte, startedAt time.Time, endedAt *time.Time) uuid.UUID {
 	t.Helper()
 
@@ -126,7 +126,7 @@ func (f *timeshiftFixture) get(t *testing.T, from time.Time, query string) *fetc
 	return &fetched{status: resp.StatusCode, contentType: resp.Header.Get("Content-Type"), disposition: "", start: resp.Header.Get(streamapi.StartHeader), body: body}
 }
 
-// TestTimeshiftHandler は、タイムシフトのバッファを、起点からの位置の手前の I フレームから流し、チャンクをつないで流すことを確かめる。
+// TestTimeshiftHandler は、タイムシフトのバッファを、起点からの位置の手前の I フレームから流し、チャンクをつないで流すことを確認する。
 // mikan が区切ったチャンクは、バイトをそのままつなぎ、引き継ぎで重なったチャンクは切り詰める (設計書 5.7、7.2)。
 func TestTimeshiftHandler(t *testing.T) {
 	t.Parallel()
@@ -142,7 +142,7 @@ func TestTimeshiftHandler(t *testing.T) {
 		query     string
 		want      []int64
 		wantStart string
-		// wantSuffix は、流したバイト列の終わり。区切ったチャンクの始まりを落とさずにつないだことを確かめる。
+		// wantSuffix は、流したバイトカラムの終わり。区切ったチャンクの始まりを落とさずにつないだことを確認する。
 		wantSuffix []byte
 	}{
 		{
@@ -226,7 +226,7 @@ func TestTimeshiftHandler(t *testing.T) {
 }
 
 // TestTimeshiftHandlerFollowsChunks は、書いている途中のチャンクを流している間に、mikan がチャンクを区切ったら、
-// 次のチャンクを、始まりのバイトからつないで流し続けることを確かめる (設計書 5.7)。
+// 次のチャンクを、始まりのバイトからつないで流し続けることを確認する (設計書 5.7)。
 func TestTimeshiftHandlerFollowsChunks(t *testing.T) {
 	t.Parallel()
 
@@ -268,7 +268,7 @@ func TestTimeshiftHandlerFollowsChunks(t *testing.T) {
 	assert.Equal(t, wantIFramePTS(), iframes(t, body.Bytes()))
 }
 
-// TestTimeshiftHandlerRejects は、流せないリクエストを断ることを確かめる。
+// TestTimeshiftHandlerRejects は、流せないリクエストを断ることを確認する。
 func TestTimeshiftHandlerRejects(t *testing.T) {
 	t.Parallel()
 

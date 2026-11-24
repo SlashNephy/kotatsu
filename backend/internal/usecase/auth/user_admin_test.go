@@ -65,7 +65,7 @@ func (f *userAdminFixture) count(t *testing.T, query string, args ...any) int {
 	return n
 }
 
-// TestUserAdminCreate は、管理者がユーザーを作れ、パスワードは規定を満たすときだけ設定することを確かめる。
+// TestUserAdminCreate は、管理者がユーザーを作れ、パスワードは規定を満たすときだけ設定することを確認する。
 func TestUserAdminCreate(t *testing.T) {
 	t.Parallel()
 
@@ -114,7 +114,7 @@ func TestUserAdminCreate(t *testing.T) {
 	}
 }
 
-// TestUserAdminKeepsAnAdministrator は、有効な管理者が 1 人もいなくなる操作を拒むことを確かめる。
+// TestUserAdminKeepsAnAdministrator は、有効な管理者が 1 人もいなくなる操作を拒むことを確認する。
 func TestUserAdminKeepsAnAdministrator(t *testing.T) {
 	t.Parallel()
 
@@ -222,7 +222,7 @@ func TestUserAdminKeepsAnAdministrator(t *testing.T) {
 	}
 }
 
-// TestUserAdminUpdateAndEnable は、表示名とロールを変え、無効にしたユーザーを有効に戻せることを確かめる。
+// TestUserAdminUpdateAndEnable は、表示名とロールを変え、無効にしたユーザーを有効に戻せることを確認する。
 func TestUserAdminUpdateAndEnable(t *testing.T) {
 	t.Parallel()
 
@@ -267,7 +267,7 @@ func TestUserAdminUpdateAndEnable(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM users WHERE id = $1 AND password_hash IS NOT NULL", user.ID))
 }
 
-// TestUserAdminKeepsAnAdministratorConcurrently は、2 人の管理者を同時に外しても、1 人は管理者に残ることを確かめる。
+// TestUserAdminKeepsAnAdministratorConcurrently は、2 人の管理者を同時に外しても、1 人は管理者に残ることを確認する。
 func TestUserAdminKeepsAnAdministratorConcurrently(t *testing.T) {
 	t.Parallel()
 
@@ -294,7 +294,7 @@ func TestUserAdminKeepsAnAdministratorConcurrently(t *testing.T) {
 	assert.Equal(t, 1, succeeded)
 }
 
-// TestUserAdminDisableRevokesSessions は、無効にしたユーザーのセッションを失効させ、有効に戻しても使えないことを確かめる。
+// TestUserAdminDisableRevokesSessions は、無効にしたユーザーのセッションを失効させ、有効に戻しても使えないことを確認する。
 func TestUserAdminDisableRevokesSessions(t *testing.T) {
 	t.Parallel()
 
@@ -335,7 +335,7 @@ func (e *recordingEraser) PrepareUserErasure(_ context.Context, _ pgx.Tx, userID
 	}, nil
 }
 
-// TestUserAdminDeleteRemovesPersonalData は、ユーザーを消すと、個人のデータが消え、監査ログと、ほかのユーザーのデータは残ることを確かめる (#1382)。
+// TestUserAdminDeleteRemovesPersonalData は、ユーザーを消すと、個人のデータが消え、監査ログと、ほかのユーザーのデータは残ることを確認する (#1382)。
 func TestUserAdminDeleteRemovesPersonalData(t *testing.T) {
 	t.Parallel()
 
@@ -396,7 +396,7 @@ func TestUserAdminDeleteRemovesPersonalData(t *testing.T) {
 	}
 }
 
-// TestUserAdminDeleteRefuses は、消せないユーザーを断り、何も消さないことを確かめる (#1382)。
+// TestUserAdminDeleteRefuses は、消せないユーザーを断り、何も消さないことを確認する (#1382)。
 func TestUserAdminDeleteRefuses(t *testing.T) {
 	t.Parallel()
 
@@ -468,7 +468,7 @@ func TestUserAdminDeleteRefuses(t *testing.T) {
 	}
 }
 
-// TestUserAdminDeleteAllowsDisabledAdministrator は、有効な管理者が残るなら、無効にした管理者を消せることを確かめる (#1382)。
+// TestUserAdminDeleteAllowsDisabledAdministrator は、有効な管理者が残るなら、無効にした管理者を消せることを確認する (#1382)。
 func TestUserAdminDeleteAllowsDisabledAdministrator(t *testing.T) {
 	t.Parallel()
 
@@ -481,7 +481,7 @@ func TestUserAdminDeleteAllowsDisabledAdministrator(t *testing.T) {
 	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM users WHERE id = $1", disabled.ID))
 }
 
-// TestUserAdminDeleteUnknownUser は、いないユーザーを消そうとすると、ErrUserNotFound を返すことを確かめる (#1382)。
+// TestUserAdminDeleteUnknownUser は、いないユーザーを消そうとすると、ErrUserNotFound を返すことを確認する (#1382)。
 func TestUserAdminDeleteUnknownUser(t *testing.T) {
 	t.Parallel()
 

@@ -15,7 +15,7 @@ import (
 // tokenLifetime は、VAPID の JWT の有効期間。RFC 8292 は 24 時間以内を求める。
 const tokenLifetime = 12 * time.Hour
 
-// Keys は、Web Push の送り手を示す VAPID の鍵 (RFC 8292)。
+// Keys は、Web Push の送り手を示す VAPID の公開鍵と秘密鍵 (RFC 8292)。
 type Keys struct {
 	private *ecdsa.PrivateKey
 	// public は、非圧縮の 65 バイトの公開鍵。

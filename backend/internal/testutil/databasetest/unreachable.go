@@ -38,7 +38,7 @@ func NewSwitch(tb testing.TB, pool *pgxpool.Pool) *Switch {
 	cfg.BeforeConnect = func(ctx context.Context, _ *pgx.ConnConfig) error {
 		return s.check(ctx)
 	}
-	// 届かない間は、プールに残った接続も捨て、問い合わせを接続のエラーで失敗させる。
+	// 届かない間は、プールに残った接続も破棄し、問い合わせを接続のエラーで失敗させる。
 	cfg.PrepareConn = func(ctx context.Context, _ *pgx.Conn) (bool, error) {
 		if err := s.check(ctx); err != nil {
 			return false, err

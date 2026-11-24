@@ -26,8 +26,8 @@ func observePresentFollowing(collector *lineup.ActivityCollector, serviceID uint
 	}
 }
 
-// TestCheckerIdleServices は、EIT[p/f] で番組のないサービスを、NIT に載っていても新しい局と数えないことを確かめる (#2034)。
-// 番組が載ったら、新しい局と数えて知らせる。
+// TestCheckerIdleServices は、EIT[p/f] で番組のないサービスを、NIT に載っていても新しい局と数えないことを確認する (#2034)。
+// 番組が載ったら、新しい局と数えて通知する。
 func TestCheckerIdleServices(t *testing.T) {
 	t.Parallel()
 
@@ -51,7 +51,7 @@ func TestCheckerIdleServices(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, idle)
 
-	// 103 は、NIT に載っているが、EIT[p/f] に番組がない。2 回読んでも知らせない。
+	// 103 は、NIT に載っているが、EIT[p/f] に番組がない。2 回読んでも通知しない。
 	observePresentFollowing(collector, 101, true)
 	observePresentFollowing(collector, 103, false)
 	collector.Flush(t.Context(), q)
@@ -64,7 +64,7 @@ func TestCheckerIdleServices(t *testing.T) {
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Empty(t, lineupNotifications(t, pool))
 
-	// 103 に番組が載ったら、NIT の version が同じでも比べ直し、2 回読んだら知らせる。
+	// 103 に番組が載ったら、NIT の version が同じでも比較し直し、2 回読んだら通知する。
 	observePresentFollowing(collector, 103, true)
 	collector.Flush(t.Context(), q)
 	writeLineup(t, q, start.Add(2*lineup.DefaultRecheckInterval), 101, 103)
@@ -77,7 +77,7 @@ func TestCheckerIdleServices(t *testing.T) {
 	assert.Equal(t, []any{"BS1 のサービス 103"}, got[0]["addedServices"])
 }
 
-// TestCheckerIdleRegisteredService は、チューナーサーバーにあるサービスは、番組がなくても終わった局と数えないことを確かめる (#2034)。
+// TestCheckerIdleRegisteredService は、チューナーサーバーにあるサービスは、番組がなくても終わった局と数えないことを確認する (#2034)。
 func TestCheckerIdleRegisteredService(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +104,7 @@ func TestCheckerIdleRegisteredService(t *testing.T) {
 	assert.Empty(t, lineupNotifications(t, pool))
 }
 
-// TestActivityCollectorRevert は、書く前に番組の有無が書いた値に戻ったら、戻る前の値を書かないことを確かめる (#2034)。
+// TestActivityCollectorRevert は、書く前に番組の有無が書いた値に戻ったら、戻る前の値を書かないことを確認する (#2034)。
 func TestActivityCollectorRevert(t *testing.T) {
 	t.Parallel()
 

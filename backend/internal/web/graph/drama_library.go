@@ -59,7 +59,7 @@ func (r *Resolver) dramaLibrary(ctx context.Context) (*model.DramaLibrary, error
 	return result, nil
 }
 
-// recordingsByIDs は、録画を、録画の一覧と同じ形で引く。
+// recordingsByIDs は、録画を、録画の一覧と同じ形で取得する。
 func (r *Resolver) recordingsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*model.Recording, error) {
 	result := map[uuid.UUID]*model.Recording{}
 	if len(ids) == 0 {

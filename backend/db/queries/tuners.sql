@@ -19,7 +19,7 @@ ON CONFLICT DO NOTHING;
 SELECT degraded_since, last_error, clock_skew_ms, checked_at, broadcast_clock_skew_ms, broadcast_clock_checked_at, server_kind, server_version FROM tuner_server_status WHERE id;
 
 -- name: UpsertTunerServerStatus :exec
--- 種類と版が NULL なら (接続できない、判定に失敗した)、最後に分かったものを残す (#1538)。
+-- 種類とバージョンが NULL なら (接続できない、判定に失敗した)、最後に分かったものを残す (#1538)。
 INSERT INTO tuner_server_status (id, degraded_since, last_error, clock_skew_ms, checked_at, server_kind, server_version)
 VALUES (true, @degraded_since, @last_error, @clock_skew_ms, @checked_at, sqlc.narg(server_kind), sqlc.narg(server_version))
 ON CONFLICT (id) DO UPDATE SET
@@ -31,7 +31,7 @@ ON CONFLICT (id) DO UPDATE SET
   server_version = COALESCE(excluded.server_version, tuner_server_status.server_version);
 
 -- name: SetBroadcastClockSkew :exec
--- 録画している TS の TOT で測った、放送の時刻と OS の時計の差を書く (#1309)。行がなければ作る。
+-- 録画している TS の TOT で計測した、放送の時刻と OS の時計の差を書く (#1309)。行がなければ作る。
 INSERT INTO tuner_server_status (id, degraded_since, last_error, clock_skew_ms, checked_at, broadcast_clock_skew_ms, broadcast_clock_checked_at)
 VALUES (true, NULL, '', NULL, @now, @skew_ms, @now)
 ON CONFLICT (id) DO UPDATE SET broadcast_clock_skew_ms = excluded.broadcast_clock_skew_ms, broadcast_clock_checked_at = excluded.broadcast_clock_checked_at;

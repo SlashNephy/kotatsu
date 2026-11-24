@@ -10,7 +10,7 @@ export const saveNoticeId = 'settings-save';
 // savedAutoClose は、保存した知らせを閉じるまでの時間 (ミリ秒)。失敗の知らせは、読めるよう、閉じるまで残す。
 const savedAutoClose = 3_000;
 
-// sequence は、差し替えるたびに、閉じるまでの時間を 1 ミリ秒ずらすための数。Mantine の通知は、中身を差し替えても
+// sequence は、差し替えるたびに、閉じるまでの時間を 1 ミリ秒ずらすための数。Mantine の通知は、内容を差し替えても
 // 閉じるまでの時間を数え直さず、時間の値が変わったときだけ数え直すので、ずらして、差し替えた時から数え直させる。
 let sequence = 0;
 
@@ -35,19 +35,19 @@ function showSaveNotice(notice: { title?: string; message: string; ok: boolean }
   }
 }
 
-// notifySaved は、設定を保存したと知らせる。
+// notifySaved は、設定を保存したと通知する。
 export function notifySaved(message: string) {
   showSaveNotice({ message, ok: true });
 }
 
-// notifySaveFailed は、設定を保存できなかったと、理由 reason とともに知らせる。
+// notifySaveFailed は、設定を保存できなかったと、理由 reason とともに通知する。
 export function notifySaveFailed(title: string, reason: string) {
   showSaveNotice({ title, message: reason, ok: false });
 }
 
 // useSaveNotice は、設定の画面で、保存した知らせと、保存できなかった知らせを出す関数を返す。
 // 知らせは、利用者が設定の画面で変えたときにだけ出す。端末の設定のフックや、プレイヤーと共有するフックの中では出さない。
-// プレイヤーの画面での変更や、ほかのタブでの変更 (storage イベント) にまで知らせないため。
+// プレイヤーの画面での変更や、ほかのタブでの変更 (storage イベント) にまで通知しないため。
 export function useSaveNotice() {
   const { t } = useTranslation();
 

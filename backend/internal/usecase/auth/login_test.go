@@ -31,7 +31,7 @@ const (
 	browserUA = "Mozilla/5.0"
 	testHost  = "kotatsu.example"
 	otherName = "other"
-	// 表のケースの名前と、パスワードを表す文字列 (JSON のキー、監査ログの方式)。
+	// テーブルのケースの名前と、パスワードを表す文字列 (JSON のキー、監査ログの方式)。
 	caseWrongPassword = "wrong password"
 	caseNoUV          = "without user verification"
 	caseDisabledUser  = "disabled user"
@@ -50,7 +50,7 @@ const (
 	loginPhrase = "mikan-kotatsu-neko-2026!"
 )
 
-// loginFixture は、パスワードを設定したユーザーを 1 人持つ DB と、偽の時計で動く Logins。
+// loginFixture は、パスワードを設定したユーザーを 1 人持つ DB と、モックの時計で動く Logins。
 type loginFixture struct {
 	db       *pgxpool.Pool
 	clock    *clocktest.Fake
@@ -100,7 +100,7 @@ func (f *loginFixture) count(t *testing.T, query string, args ...any) int {
 	return n
 }
 
-// TestPasswordLogin は、パスワードを確かめても、セッションを作らずに、第二要素の確認を待つことを確かめる。
+// TestPasswordLogin は、パスワードを確認しても、セッションを作らずに、第二要素の確認を待つことを確認する。
 func TestPasswordLogin(t *testing.T) {
 	t.Parallel()
 
@@ -158,7 +158,7 @@ func TestPasswordLogin(t *testing.T) {
 	}
 }
 
-// TestPasswordLoginThrottles は、失敗が続くと待ち時間が倍々に延び、上限で止まり、成功すると数え直すことを確かめる。
+// TestPasswordLoginThrottles は、失敗が続くと待ち時間が倍々に延び、上限で止まり、成功すると数え直すことを確認する。
 func TestPasswordLoginThrottles(t *testing.T) {
 	t.Parallel()
 
@@ -190,7 +190,7 @@ func TestPasswordLoginThrottles(t *testing.T) {
 	}, waits)
 
 	// 待ち時間が過ぎれば、正しいパスワードで第二要素の確認に進める。
-	// アカウントの失敗の回数は、第二要素まで確かめ終えるまで消さないので、次の失敗でまた待たせる。
+	// アカウントの失敗の回数は、第二要素まで確認し終えるまで消さないので、次の失敗でまた待たせる。
 	_, _, err := f.logins.Password(t.Context(), f.db, loginName, loginPhrase, f.client)
 	require.NoError(t, err)
 	require.ErrorIs(t, wrong(), auth.ErrInvalidCredentials)
@@ -198,8 +198,8 @@ func TestPasswordLoginThrottles(t *testing.T) {
 	assert.True(t, throttled, "the account failures should not be reset by the password alone")
 }
 
-// TestConcurrentPasswordLoginsAreThrottled は、同時に送った試行も、試行回数の制限を素通りしないことを確かめる (#542)。
-// 同じアカウントか IP の試行は 1 つずつ確かめるので、パスワードを確かめるのは、待たせない回数と、待たせ始める 1 回までになる。
+// TestConcurrentPasswordLoginsAreThrottled は、同時に送った試行も、試行回数の制限を素通りしないことを確認する (#542)。
+// 同じアカウントか IP の試行は 1 つずつ確認するので、パスワードを確認するのは、待たせない回数と、待たせ始める 1 回までになる。
 func TestConcurrentPasswordLoginsAreThrottled(t *testing.T) {
 	t.Parallel()
 
@@ -233,8 +233,8 @@ func TestConcurrentPasswordLoginsAreThrottled(t *testing.T) {
 	assert.Equal(t, verified, f.count(t, `SELECT failures FROM login_throttles WHERE key = $1`, "account:kotatsu"))
 }
 
-// TestPasswordVerificationsAreLimited は、パスワードを同時に確かめる数に上限があり、順番を待ちきれない試行は、
-// 確かめずに待たせることを確かめる (#542)。順番が空けば、また確かめる。
+// TestPasswordVerificationsAreLimited は、パスワードを同時に確認する数に上限があり、順番を待ちきれない試行は、
+// 確認せずに待たせることを確認する (#542)。順番が空けば、また確認する。
 func TestPasswordVerificationsAreLimited(t *testing.T) {
 	t.Parallel()
 
@@ -247,7 +247,7 @@ func TestPasswordVerificationsAreLimited(t *testing.T) {
 	release := limited.OccupyVerifications(1)
 	_, _, err := limited.Password(t.Context(), f.db, loginName, "wrong-password", f.client)
 	require.ErrorIs(t, err, auth.ErrThrottled)
-	// 確かめていないので、失敗として数えない。
+	// 確認していないので、失敗として数えない。
 	assert.Zero(t, f.count(t, `SELECT count(*) FROM login_throttles`))
 
 	release()
@@ -255,7 +255,7 @@ func TestPasswordVerificationsAreLimited(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrInvalidCredentials)
 }
 
-// TestPasswordLoginThrottlesByIP は、ユーザー名を変えながら試しても、IP 単位で待たせることを確かめる。
+// TestPasswordLoginThrottlesByIP は、ユーザー名を変えながら試しても、IP 単位で待たせることを確認する。
 func TestPasswordLoginThrottlesByIP(t *testing.T) {
 	t.Parallel()
 
@@ -275,7 +275,7 @@ func TestPasswordLoginThrottlesByIP(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestStaleLoginThrottlesAreDeleted は、数え直す時間を過ぎた制限の行が、次の失敗のときに消えることを確かめる。
+// TestStaleLoginThrottlesAreDeleted は、数え直す時間を過ぎた制限の行が、次の失敗のときに消えることを確認する。
 // 存在しないユーザー名の行は、成功で消えることがないので、溜まり続けないようにする。
 func TestStaleLoginThrottlesAreDeleted(t *testing.T) {
 	t.Parallel()
@@ -292,7 +292,7 @@ func TestStaleLoginThrottlesAreDeleted(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT failures FROM login_throttles WHERE key = 'ip:192.168.1.10'"))
 }
 
-// TestPasswordLoginRehashes は、古いパラメーターのハッシュでログインすると、今のパラメーターで作り直すことを確かめる。
+// TestPasswordLoginRehashes は、古いパラメーターのハッシュでログインすると、今のパラメーターで作り直すことを確認する。
 func TestPasswordLoginRehashes(t *testing.T) {
 	t.Parallel()
 
@@ -425,7 +425,7 @@ func TestSetPassword(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrUserNotFound)
 }
 
-// TestSetPasswordRevokesSessions は、パスワードを設定したら、ほかのセッションを失効させることを確かめる。
+// TestSetPasswordRevokesSessions は、パスワードを設定したら、ほかのセッションを失効させることを確認する。
 // 本人が変えたときは、今のセッションだけを残す。漏れた先のセッションを切れるようにするためである。
 func TestSetPasswordRevokesSessions(t *testing.T) {
 	t.Parallel()
@@ -450,7 +450,7 @@ func TestSetPasswordRevokesSessions(t *testing.T) {
 
 	current, session := login()
 	other, _ := login()
-	// 前のパスワードで確かめ、第二要素の確認を待っているログイン。
+	// 前のパスワードで確認し、第二要素の確認を待っているログイン。
 	pending, _, err := f.logins.Password(t.Context(), f.db, loginName, loginPhrase, f.client)
 	require.NoError(t, err)
 	require.NoError(t, passwords.Set(t.Context(), f.db, audit.User(f.user.ID), f.user.ID, "neko-to-mikan-no-fuyu-2026", &session.ID))

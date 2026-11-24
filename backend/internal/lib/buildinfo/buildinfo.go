@@ -1,4 +1,4 @@
-// Package buildinfo は、動いている Kotatsu の版を返す。
+// Package buildinfo は、動いている Kotatsu のバージョンを返す。
 package buildinfo
 
 import (
@@ -8,13 +8,13 @@ import (
 )
 
 // version は、ビルドのときに ldflags の -X で埋め込む (Dockerfile、.goreleaser.yaml)。
-// SemVer のビルドメタデータの形で、版とコミットを 1.2.3+<コミット> のようにつなげる。
+// SemVer のビルドメタデータの形で、バージョンとコミットを 1.2.3+<コミット> のようにつなげる。
 var version string
 
-// develVersion は、版を埋め込まず、モジュールの版もないビルド (go run など) の版。
+// develVersion は、バージョンを埋め込まず、モジュールのバージョンもないビルド (go run など) のバージョン。
 const develVersion = "dev"
 
-// Info は、Kotatsu の版。
+// Info は、Kotatsu のバージョン。
 type Info struct {
 	// Version は、リリースのタグ (v1.2.3 なら 1.2.3)、main のビルドなら edge。
 	Version string
@@ -24,7 +24,7 @@ type Info struct {
 	Modified bool
 }
 
-// Get は、埋め込んだ版を返す。埋め込まれていない項目は、Go が埋め込む VCS の情報で補う。
+// Get は、埋め込んだバージョンを返す。埋め込まれていない項目は、Go が埋め込む VCS の情報で補う。
 func Get() *Info {
 	build, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -54,8 +54,8 @@ func resolve(embedded string, build *debug.BuildInfo) *Info {
 	}
 	if info.Version == "" {
 		info.Version = develVersion
-		// 手元でビルドしたときの Go の擬似版 (v0.0.0-<日時>-<コミット>) は、コミットと重なるので使わない。
-		// go install でモジュールの版から入れたときだけ使う。
+		// 手元でビルドしたときの Go の擬似バージョン (v0.0.0-<日時>-<コミット>) は、コミットと重なるので使わない。
+		// go install でモジュールのバージョンから入れたときだけ使う。
 		if m := build.Main.Version; !fromVCS && m != "" && m != "(devel)" {
 			info.Version = m
 		}
@@ -64,7 +64,7 @@ func resolve(embedded string, build *debug.BuildInfo) *Info {
 	return info
 }
 
-// String は、版とコミットの先頭 7 文字を、1.2.3 (abcdef0) のように返す。
+// String は、バージョンとコミットの先頭 7 文字を、1.2.3 (abcdef0) のように返す。
 func (i *Info) String() string {
 	if i.Revision == "" {
 		return i.Version
@@ -86,7 +86,7 @@ var _ fmt.Stringer = new(Info)
 const projectURL = "https://github.com/SlashNephy/kotatsu"
 
 // UserAgent は、外部のサービスに問い合わせるときに名乗る User-Agent を、Kotatsu/1.2.3 (+https://github.com/SlashNephy/kotatsu) のように返す。
-// しょぼいカレンダーなど、問い合わせ元を確かめたい運営者が、Kotatsu からの問い合わせだと分かるようにする (設計書 3.8)。
+// しょぼいカレンダーなど、問い合わせ元を確認したい運営者が、Kotatsu からの問い合わせだと分かるようにする (設計書 3.8)。
 func UserAgent() string {
 	return "Kotatsu/" + Get().Version + " (+" + projectURL + ")"
 }

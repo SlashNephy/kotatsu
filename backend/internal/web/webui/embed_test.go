@@ -10,7 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/webui"
 )
 
-// TestAppServes は、埋め込んだ SPA から、ビルドの有無にかかわらず SPA の配信を作れることを確かめる。
+// TestAppServes は、埋め込んだ SPA から、ビルドの有無にかかわらず SPA の配信を作れることを確認する。
 // CI の Go のジョブは SPA をビルドしないので、dist には .gitkeep だけがある。
 func TestAppServes(t *testing.T) {
 	t.Parallel()

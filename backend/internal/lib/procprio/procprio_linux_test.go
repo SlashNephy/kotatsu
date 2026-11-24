@@ -56,14 +56,14 @@ func TestLowererStart(t *testing.T) {
 	}
 }
 
-// TestLowerReportsExitedProcess は、優先度を下げる前にプロセスが終わっていたら、警告しない理由 (errProcessGone) を返すことを確かめる。
+// TestLowerReportsExitedProcess は、優先度を下げる前にプロセスが終わっていたら、警告しない理由 (errProcessGone) を返すことを確認する。
 func TestLowerReportsExitedProcess(t *testing.T) {
 	t.Parallel()
 
 	assert.True(t, procprio.IsProcessGone(procprio.Lower(math.MaxInt32)))
 }
 
-// TestLowererRun は、Run が、コマンドの終わりを待ち、その終わり方を返すことを確かめる。
+// TestLowererRun は、Run が、コマンドの終わりを待ち、その終わり方を返すことを確認する。
 func TestLowererRun(t *testing.T) {
 	t.Parallel()
 

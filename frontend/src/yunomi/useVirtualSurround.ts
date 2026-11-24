@@ -2,12 +2,13 @@ import { useEffect, useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
 import { setSurround } from './volumeBoost';
+import type { PlayerMedia } from './playerMedia';
 
-// 仮想サラウンド (#454) を使うかを、端末ごとに覚える。ヘッドホンで聞くかは端末ごとに違うので、アカウントには保存しない。
+// 仮想サラウンド (#454) を使うかを、端末ごとに保存する。ヘッドホンで聞くかは端末ごとに違うので、アカウントには保存しない。
 // WebAudio を通すので、音量の補正と同じく、既定では切る。
 
 const storageKey = 'kotatsu.player.virtualSurround';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:virtual-surround';
 
 // surroundComponentType は、5.1ch (3/2+LFE) の音声の component_type。
@@ -54,15 +55,15 @@ export function useVirtualSurroundSetting(): [boolean, (enabled: boolean) => voi
   ];
 }
 
-// useVirtualSurround は、available の間、設定に合わせて video の仮想サラウンドを入れるか切る。
+// useVirtualSurround は、available の間、設定に合わせて media の仮想サラウンドを入れるか切る。
 // available は、番組の音声が 5.1ch で、6ch のまま届く経路 (ブラウザの中での変換) で見ているとき。
 // kyusu は 2ch にしてから送るので、仮想サラウンドにできない。
-export function useVirtualSurround(video: HTMLVideoElement | null, available: boolean): void {
+export function useVirtualSurround(media: PlayerMedia | null, available: boolean): void {
   const [enabled] = useVirtualSurroundSetting();
   const active = enabled && available;
   useEffect(() => {
-    if (video !== null) {
-      setSurround(video, active);
+    if (media !== null) {
+      setSurround(media, active);
     }
-  }, [video, active]);
+  }, [media, active]);
 }

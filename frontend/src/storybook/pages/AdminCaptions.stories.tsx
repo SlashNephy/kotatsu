@@ -5,7 +5,7 @@ import type { DemoRoot } from '../../demo';
 import { asViewer, call, merge, minutesAgo } from '../conditions';
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';
 
-// 字幕の外字 (/admin/captions) の画面 (#2056)。置き換えの表の有無、入力の誤り、足している途中、保存の失敗を並べる。
+// 字幕の外字 (/admin/captions) の画面 (#2056)。置き換えのテーブルの有無、入力の誤り、足している途中、保存の失敗を並べる。
 // 字幕の自動生成のモデル (CaptionModels) は /admin/recording の画面にあるので、そちらの Story で見る。
 const meta = {
   title: 'ページ/管理/字幕',
@@ -18,7 +18,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-// withRows は、外字の置き換えの表を rows にする。ほかの全体の設定は、デモのものを使う。
+// withRows は、外字の置き換えのテーブルを rows にする。ほかの全体の設定は、デモのものを使う。
 const withRows = (rows: { md5: string; text: string }[]) => (root: DemoRoot) => ({
   systemSettings: () => ({
     ...call<object>(root, 'systemSettings'),
@@ -92,7 +92,7 @@ export const SaveFailed: Story = {
   },
 };
 
-// 管理者でないユーザーが開いたとき (サーバーが FORBIDDEN で断る)。全体の設定はナビゲーションも読むので、外字の表だけを断る。
+// 管理者でないユーザーが開いたとき (サーバーが FORBIDDEN で断る)。全体の設定はナビゲーションも読むので、外字のテーブルだけを断る。
 export const Forbidden: Story = {
   args: {
     overrides: merge(asViewer('MEMBER'), (root: DemoRoot) => ({

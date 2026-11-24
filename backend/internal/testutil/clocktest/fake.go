@@ -12,7 +12,7 @@ import (
 type Fake struct {
 	mu  sync.Mutex
 	now time.Time
-	// elapsed は、作ってから Advance で進めた時間の合計。Stopwatch はこれで測る。
+	// elapsed は、作ってから Advance で進めた時間の合計。Stopwatch はこれで計測する。
 	elapsed time.Duration
 }
 

@@ -122,7 +122,7 @@ func newImportCommand(
 	return importCmd
 }
 
-// newImportEDCBCommand は kotatsu import edcb を作る (#1503)。dry run でも、サービスと番組を引くので DB に接続する。
+// newImportEDCBCommand は kotatsu import edcb を作る (#1503)。dry run でも、サービスと番組を取得するので DB に接続する。
 // 書き込みは巻き戻すので、DB は変わらない。
 func newImportEDCBCommand(opts *Options, connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error)) *cobra.Command {
 	var (
@@ -183,7 +183,7 @@ func newImportEDCBCommand(opts *Options, connect func(ctx context.Context) (*con
 }
 
 // newImportFilesCommand は kotatsu import files を作る (#1734)。保存先プールにある TS を、録画として取り込む。
-// dry run でも、サービスと取り込んだ記録を引くので DB に接続する。書き込みは巻き戻すので、DB は変わらない。
+// dry run でも、サービスと取り込んだ記録を取得するので DB に接続する。書き込みは巻き戻すので、DB は変わらない。
 func newImportFilesCommand(opts *Options, connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error)) *cobra.Command {
 	var (
 		dryRun   bool
@@ -250,7 +250,7 @@ func newImportFilesCommand(opts *Options, connect func(ctx context.Context) (*co
 	return cmd
 }
 
-// printFilesImportResult は、プールの TS の取り込みの結果を表にして w に書く。
+// printFilesImportResult は、プールの TS の取り込みの結果をテーブルにして w に書く。
 func printFilesImportResult(w io.Writer, result *fileimport.Result, dryRun bool) error {
 	title, verb := "TS file import result", "Imported"
 	if dryRun {
@@ -289,7 +289,7 @@ func printFilesImportResult(w io.Writer, result *fileimport.Result, dryRun bool)
 	return nil
 }
 
-// printEDCBImportResult は、EDCB からの取り込みの結果を表にして w に書く。
+// printEDCBImportResult は、EDCB からの取り込みの結果をテーブルにして w に書く。
 func printEDCBImportResult(w io.Writer, result *edcbimport.Result, dryRun bool) error {
 	skipped := map[string]int{}
 	for _, s := range result.Skipped {
@@ -345,7 +345,7 @@ func sourceWithPassword(source string, lookupEnv config.LookupEnv) (string, erro
 	}
 	u, err := url.Parse(source)
 	if err != nil {
-		// url.Parse のエラーは、URL の全文や、読めなかったポートのような一部を含む。URL はパスワードを含みうるので、理由を伏せる。
+		// url.Parse のエラーは、URL の全文や、読めなかったポートのような一部を含む。URL はパスワードを含みうるので、理由をマスクする。
 		return "", fmt.Errorf("%w: the source URL is malformed", errSourcePassword)
 	}
 	if u.Scheme == "sqlite" {
@@ -424,7 +424,7 @@ func parsePoolMappings(values []string, configured map[string]string) (map[strin
 	return mappings, nil
 }
 
-// printImportPlan は、取り込みの計画を表にして w に書く。
+// printImportPlan は、取り込みの計画をテーブルにして w に書く。
 func printImportPlan(w io.Writer, plan *epgstation.Plan) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	lines := []string{
@@ -484,7 +484,7 @@ func importKinds() []struct {
 	}
 }
 
-// printImportResult は、取り込みの結果を表にして w に書く。
+// printImportResult は、取り込みの結果をテーブルにして w に書く。
 func printImportResult(w io.Writer, result *epgstation.Result) error {
 	skipped := map[epgstation.Kind]int{}
 	for _, s := range result.Skipped {

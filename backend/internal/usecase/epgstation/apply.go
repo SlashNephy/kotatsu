@@ -261,7 +261,7 @@ func (a *applier) rule(ctx context.Context, tx pgx.Tx, r *Rule) (uuid.UUID, erro
 }
 
 // ruleInput は、EPGStation のルールを Kotatsu のルールの内容に変換する。
-// Kotatsu で表せない項目は、捨てたことをメモに残す。
+// Kotatsu で表せない項目は、破棄したことをメモに残す。
 func (a *applier) ruleInput(r *Rule) *rule.Input {
 	conditions, notes := ruleConditions(r)
 
@@ -312,7 +312,7 @@ func (a *applier) ruleInput(r *Rule) *rule.Input {
 	}
 }
 
-// ruleConditions は、EPGStation のルールの条件を、Kotatsu のルールの条件に変換する。表せない項目は、捨てたことを notes に返す。
+// ruleConditions は、EPGStation のルールの条件を、Kotatsu のルールの条件に変換する。表せない項目は、破棄したことを notes に返す。
 func ruleConditions(r *Rule) (*match.Conditions, []string) {
 	notes := []string{}
 	conditions := &match.Conditions{
@@ -506,7 +506,7 @@ func (a *applier) createReservation(ctx context.Context, tx pgx.Tx, r *Reserve, 
 	return reservation, nil
 }
 
-// recordingAndPublish は、録画を取り込み、録画の変更を知らせる (#868)。
+// recordingAndPublish は、録画を取り込み、録画の変更を通知する (#868)。
 func (a *applier) recordingAndPublish(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.UUID, error) {
 	recordingID, err := a.recording(ctx, tx, r)
 	if err != nil || recordingID == uuid.Nil() {
@@ -595,7 +595,7 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 		}
 	}
 
-	// TS のセグメントがあれば、nekonote が索引とドロップの集計を作り、続けて画像を作る (設計書 6.3)。
+	// TS のセグメントがあれば、nekonote がインデックスとドロップの集計を作り、続けて画像を作る (設計書 6.3)。
 	// エンコード済みのファイルしかない録画には、作るものがない。
 	if slices.ContainsFunc(files, func(f *mappedFile) bool { return f.file.Type == VideoFileTypeTS }) {
 		params := []river.InsertManyParams{{Args: analysis.AnalyzeArgs{RecordingID: recordingID}, InsertOpts: nil}}

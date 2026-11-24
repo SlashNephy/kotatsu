@@ -19,7 +19,7 @@ import (
 // nhkSougou は、テストの ChSet5 にある NHK 総合 (東京) のサービス ID。
 const nhkSougou = 3273601024
 
-// feedServer は、NetworkTV を開き、TS を feed から少しずつ中継する偽の EpgTimerSrv と、TunerServer を返す。
+// feedServer は、NetworkTV を開き、TS を feed から少しずつ配信するモックの EpgTimerSrv と、TunerServer を返す。
 // 中継は、notReady 回だけ失敗してから成功する。feed はテストの終わりに閉じる。
 func feedServer(t *testing.T, notReady, bufferSize int) (*fakeServer, *edcb.TunerServer, *fakeIDs, chan<- []byte) {
 	t.Helper()
@@ -36,7 +36,7 @@ func feedServer(t *testing.T, notReady, bufferSize int) (*fakeServer, *edcb.Tune
 	return s, server, ids, feed
 }
 
-// countCommand は、偽の EpgTimerSrv が受け取った command の数を返す。
+// countCommand は、モックの EpgTimerSrv が受け取った command の数を返す。
 func countCommand(s *fakeServer, command uint32) int {
 	count := 0
 	for _, c := range commands(s.received()) {
@@ -144,7 +144,7 @@ func TestTunerServerSharedStreamLateSubscriber(t *testing.T) {
 func TestTunerServerSharedStreamCutsSlowSubscriber(t *testing.T) {
 	t.Parallel()
 
-	// 受け手ごとに 2 パケットまで溜められる。読まない受け手だけを切り、ほかの受け手は待たせない。
+	// 受け手ごとに 2 パケットまでバッファできる。読まない受け手だけを切り、ほかの受け手は待たせない。
 	s, server, ids, feed := feedServer(t, 0, 2*188)
 	fast, err := server.OpenServiceStream(t.Context(), nhkSougou, nil)
 	require.NoError(t, err)
@@ -297,7 +297,7 @@ func TestTunerServerSharedStreamWaitsForClose(t *testing.T) {
 		}
 		reopened <- err
 	}()
-	// ID を返し終えるまでは、開き直さない。fakeIDs は ID を 1 つしか配らないので、待たずに開くと、ID が足りずに失敗する。
+	// ID を返し終えるまでは、開き直さない。fakeIDs は ID を 1 つしか割り当てないので、待たずに開くと、ID が足りずに失敗する。
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, 1, countCommand(s, 1073))
 	close(ids.release)

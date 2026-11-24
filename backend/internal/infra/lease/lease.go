@@ -1,7 +1,7 @@
 // Package lease は、DB のリースによるリーダー選出を扱う (設計書 1.4)。
 //
 // リースの期限は、各インスタンスの Clock で決める。インスタンス間の時計のずれは NTP で抑えられている前提にする。
-// リースには世代番号があり、リースを取り直すたびに増える。リーダーの書き込みは Guard で世代番号を確かめ、
+// リースには世代番号があり、リースを取得し直すたびに増える。リーダーの書き込みは Guard で世代番号を確認し、
 // 古い世代のリーダーの書き込みを拒否する。
 package lease
 
@@ -120,11 +120,11 @@ func (m *Manager) Release(ctx context.Context, generation int64) error {
 	return nil
 }
 
-// Guard は、リーダーの書き込みのトランザクション tx の中で、まだ generation の世代のリースを持っていることを確かめる。
+// Guard は、リーダーの書き込みのトランザクション tx の中で、まだ generation の世代のリースを持っていることを確認する。
 // 持っていなければ ErrLost を返すので、呼び出し側はトランザクションをロールバックする。
 //
 // リースの行を FOR KEY SHARE でロックし、TryAcquire は取る前に FOR UPDATE で待つので、tx が終わるまで他のインスタンスはリースを取れない。
-// 確かめてからコミットするまでの間にリーダーが入れ替わり、古いリーダーの書き込みが通ってしまうことはない。
+// 確認してからコミットするまでの間にリーダーが入れ替わり、古いリーダーの書き込みが通ってしまうことはない。
 // 延長の UPDATE とはぶつからないので、長い書き込みの間もリースを延ばせる (#729)。
 func (m *Manager) Guard(ctx context.Context, tx pgx.Tx, generation int64) error {
 	_, err := sqlc.New(tx).LockLeaseForWrite(ctx, sqlc.LockLeaseForWriteParams{

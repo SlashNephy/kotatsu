@@ -4,7 +4,7 @@ import "io"
 
 //go:generate go tool go-enum --values --nocomments
 
-// EventType は、イベントが知らせる変化の種類。値は Mirakurun のイベントの名前。
+// EventType は、イベントが通知する変化の種類。値は Mirakurun のイベントの名前。
 //
 // ENUM(
 // ProgramCreated = program-created // 番組が作られたこと。Event の ServiceID に、番組が変わったサービスを持つ。

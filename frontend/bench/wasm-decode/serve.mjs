@@ -1,10 +1,10 @@
-// 測定のページを配る静的なサーバ。実機からも開けるよう、待ち受ける場所は引数で変えられる。
+// 測定のページを配信する静的なサーバ。実機からも開けるよう、待ち受ける場所は引数で変えられる。
 //
 //   /          page/ (測定のページ)
 //   /wasm/     .work/out/ (build.sh で組んだ WASM)
 //   /media/    .work/media/ (make-media.sh で作った TS)。Range に応える
 //   /m2h/      mpeg2toh264 の worker (/m2h/worker.js) と WASM (public/mpeg2toh264)
-//   PUT /save/<名前>  mpeg2toh264 の出力を .work/save/ に書く (PSNR とコマ数を測るため)
+//   PUT /save/<名前>  mpeg2toh264 の出力を .work/save/ に書く (PSNR とコマ数を計測するため)
 //
 // 使い方: node serve.mjs [ポート] [待ち受けるアドレス]
 import { createReadStream, createWriteStream } from 'node:fs';

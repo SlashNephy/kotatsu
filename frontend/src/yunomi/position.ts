@@ -24,7 +24,7 @@ export function skipJump(base: number, last: number, current: number): number {
 // advanceTarget は、読み直した配信の最初のコマが、求めた位置 (offset) より手前のとき、進める先の video の時刻を返す (#1512)。
 // 配信は、求めた位置の手前の I フレームから流れ、実際に流し始めた位置 (startedAt、X-Kotatsu-Start) を返す。
 // 位置は startedAt + (currentTime − base) なので、base + (offset − startedAt) へ進めれば、求めた位置になる。
-// 流し始めた位置が求めた位置より後ろなら (索引のないセグメントなど)、進めない。
+// 流し始めた位置が求めた位置より後ろなら (インデックスのないセグメントなど)、進めない。
 export function advanceTarget(base: number, startedAt: number, offset: number): number {
   return base + Math.max(offset - startedAt, 0);
 }
@@ -83,7 +83,7 @@ export function broadcastTime(recordedFrom: string, gaps: readonly Gap[], second
 }
 
 // recordingPosition は、放送時刻 at (Unix ミリ秒) に当たる、録画の始まりからの再生位置 (秒) を返す。broadcastTime の逆。
-// 途切れた区間の分の映像はファイルにないので、それより前に終わった区間の長さを引く。区間の中の時刻は、区間の始まりの位置にする。
+// 途切れた区間の分の映像はファイルにないので、それより前に終わった区間の長さを差し引く。区間の中の時刻は、区間の始まりの位置にする。
 // recordedFrom より前の区間 (遅れて録り始めたときの、冒頭の欠け) は、位置の基準の前なので引かない。
 export function recordingPosition(recordedFrom: string, gaps: readonly Gap[], at: number): number {
   const start = Date.parse(recordedFrom);

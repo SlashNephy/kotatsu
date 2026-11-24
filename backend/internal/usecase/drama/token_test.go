@@ -13,7 +13,7 @@ import (
 )
 
 // TestTokens は、管理者が入れた TMDB のトークンを暗号化して保存し、照合とログの報告のために取り出せること、
-// 画面には末尾の数文字だけを出すこと、空にすれば消えること、監査ログに値を残さないことを確かめる (#1651)。
+// 画面には末尾の数文字だけを出すこと、空にすれば消えること、監査ログに値を残さないことを確認する (#1651)。
 func TestTokens(t *testing.T) {
 	t.Parallel()
 
@@ -70,7 +70,7 @@ func TestTokens(t *testing.T) {
 	}, actions, "deleting a missing token is not recorded")
 }
 
-// TestTokensInvalid は、Authorization ヘッダーに入れられないトークンと、長すぎるトークンを断り、前のトークンを残すことを確かめる。
+// TestTokensInvalid は、Authorization ヘッダーに入れられないトークンと、長すぎるトークンを断り、前のトークンを残すことを確認する。
 func TestTokensInvalid(t *testing.T) {
 	t.Parallel()
 

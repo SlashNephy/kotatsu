@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { saveBlob } from '../../yunomi/capture';
 import { fitURL, fullReport, reportFileName, urlLimit, type IssueFields } from './report';
 
-// IssueDialog は、伏せた後の各欄をそのまま見せる確認の窓 (#1521)。利用者は、どの欄も書き換えたり消したりできる。
+// IssueDialog は、マスクした後の各欄をそのまま見せる確認のダイアログ (#1521)。利用者は、どの欄も書き換えたり消したりできる。
 // 「GitHub で開く」は、利用者のブラウザで Issue のフォームを開くだけで、サーバーからは何も送らない。
 // 「コピー」と「ダウンロード」は、ログを 1 行も削らない全部入りの報告にする。
 export function IssueDialog({

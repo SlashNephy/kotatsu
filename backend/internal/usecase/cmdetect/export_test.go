@@ -136,7 +136,7 @@ func EdgeMissing(times []float64, fps float64, duration time.Duration) time.Dura
 	return edgeMissing(times, &videoInfo{width: 0, height: 0, fps: fps, duration: duration, firstFrame: -1})
 }
 
-// LogoDetail は、ロゴの結果を捨てた理由の詳細を、既定のパラメーターで返す。
+// LogoDetail は、ロゴの結果を破棄した理由の詳細を、既定のパラメーターで返す。
 func LogoDetail(corner logo.Corner, box logo.Box, measures []logo.Measure, intervals []logo.Interval, times []float64, fps float64) string {
 	r := &logoResult{
 		sections: []Section{}, missing: []Section{}, duration: 0, edgeMissing: 0,

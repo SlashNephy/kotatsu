@@ -8,7 +8,7 @@ const hevcUhd = 'video/mp4; codecs="hvc1.2.4.L153.B0"';
 
 type MediaSourceLike = { isTypeSupported(type: string): boolean };
 
-// detectCapabilities は、この端末で使える再生の仕組みを調べる (設計書 7.1)。
+// detectCapabilities は、この端末で使える再生の仕組みを確認する (設計書 7.1)。
 export function detectCapabilities(scope: typeof globalThis = globalThis): Capabilities {
   const mediaSource = (scope as { MediaSource?: MediaSourceLike }).MediaSource;
   const managed = (scope as { ManagedMediaSource?: MediaSourceLike }).ManagedMediaSource;
@@ -22,7 +22,63 @@ export function detectCapabilities(scope: typeof globalThis = globalThis): Capab
     hls: anySource?.isTypeSupported(h264) ?? false,
     hevc: anySource?.isTypeSupported(hevc) ?? false,
     hevcUhd: anySource?.isTypeSupported(hevcUhd) ?? false,
+    decode: canDecode(scope),
   };
+}
+
+// simdModule は、v128 の命令を 1 つだけ持つ WebAssembly のモジュール。WASM の SIMD が使えるかを、これを検証して確認する。
+const simdModule = new Uint8Array([
+  0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15,
+  253, 98, 11,
+]);
+
+// canDecode は、ブラウザの中で MPEG-2 をデコードする経路 (#1516) を使えるかを返す。WASM の SIMD、worker へ渡せる
+// OffscreenCanvas、GPU で描く WebGL2、AudioContext の 4 つがそろっていればよい。GPU のない端末では、WebGL がソフトウェアで
+// 描くので (コマの持ち時間を超えるおそれがある)、使わない。
+// decodeResults は、端末ごと (scope ごと) に確認した結果。確認するたびに WebGL2 のコンテキストを作らないよう、1 度だけ確認する。
+const decodeResults = new WeakMap<object, boolean>();
+
+function canDecode(scope: typeof globalThis): boolean {
+  const known = decodeResults.get(scope);
+  if (known !== undefined) {
+    return known;
+  }
+  const result = probeDecode(scope);
+  decodeResults.set(scope, result);
+
+  return result;
+}
+
+function probeDecode(scope: typeof globalThis): boolean {
+  try {
+    if (
+      typeof scope.WebAssembly?.validate !== 'function' ||
+      !scope.WebAssembly.validate(simdModule) ||
+      typeof scope.OffscreenCanvas !== 'function' ||
+      typeof scope.AudioContext !== 'function' ||
+      // 時計に、鳴っている音の位置 (getOutputTimestamp) を使う。
+      typeof scope.AudioContext.prototype?.getOutputTimestamp !== 'function' ||
+      typeof scope.document?.createElement !== 'function'
+    ) {
+      return false;
+    }
+    const canvas = scope.document.createElement('canvas');
+    if (typeof canvas.transferControlToOffscreen !== 'function') {
+      return false;
+    }
+    // worker は OffscreenCanvas に WebGL2 で描くので、OffscreenCanvas で確認する (OffscreenCanvas では 2D しか使えないブラウザがある)。
+    const gl = new scope.OffscreenCanvas(1, 1).getContext('webgl2', {
+      failIfMajorPerformanceCaveat: true,
+    });
+    if (gl === null) {
+      return false;
+    }
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // prefersManagedMediaSource は、変換のプレイヤーに ManagedMediaSource を使わせるかを返す (#1256)。

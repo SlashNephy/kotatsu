@@ -1,6 +1,6 @@
 // Package workids は、作品 ID の対応を自前で作るために、Annict と AniList の GraphQL API に問い合わせる (#1223、設計書 3.8)。
-// Annict からは作品のしょぼいカレンダーの TID と MyAnimeList の ID を、AniList からは MyAnimeList の ID に対応する AniList の ID を引く。
-// 見たいリストの作品の高画質の画像 (#1315) も、AniList と Jikan から MyAnimeList の ID で引く。
+// Annict からは作品のしょぼいカレンダーの TID と MyAnimeList の ID を、AniList からは MyAnimeList の ID に対応する AniList の ID を取得する。
+// 見たいリストの作品の高画質の画像 (#1315) も、AniList と Jikan から MyAnimeList の ID で取得する。
 package workids
 
 import (
@@ -31,7 +31,7 @@ const (
 	AnnictPageSize = 50
 	// AniListBatchSize は、AniList に 1 回に問い合わせる MyAnimeList の ID の数。AniList の 1 ページの上限。
 	AniListBatchSize = 50
-	// maxAniListPages は、1 回の AniListIDsByMAL で引くページの数の上限。50 件の ID に 250 作品まで対応できる。
+	// maxAniListPages は、1 回の AniListIDsByMAL で取得するページの数の上限。50 件の ID に 250 作品まで対応できる。
 	maxAniListPages = 5
 )
 
@@ -66,7 +66,7 @@ type AnnictWork struct {
 // AnnictPage は、Annict の作品の 1 ページ。
 type AnnictPage struct {
 	Works []*AnnictWork
-	// Next は、続きを引くときに渡す cursor。続きがなければ空。
+	// Next は、続きを取得するときに渡す cursor。続きがなければ空。
 	Next string
 }
 
@@ -76,7 +76,7 @@ type Options struct {
 	// AnnictBaseURL と AniListBaseURL は、検証用に API を向け直すときの URL。GraphQL のエンドポイントは、その /graphql。
 	AnnictBaseURL  string
 	AniListBaseURL string
-	// JikanBaseURL は、検証用に Jikan を向け直すときの URL。作品は、その /anime/{id} で引く。
+	// JikanBaseURL は、検証用に Jikan を向け直すときの URL。作品は、その /anime/{id} で取得する。
 	JikanBaseURL string
 }
 

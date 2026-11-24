@@ -6,7 +6,7 @@ import {
   shouldHoldControls,
 } from './controlsVisibility';
 
-// controlsAttribute は、操作バーの要素に付ける印。タップが操作バーの中かどうかを見分けるのに使う。
+// controlsAttribute は、操作バーの要素に付けるマーク。タップが操作バーの中かどうかを見分けるのに使う。
 export const controlsAttribute = 'data-player-controls';
 
 const inControls = (target: EventTarget | null) =>
@@ -55,13 +55,13 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
   const container = useRef<HTMLElement | null>(null);
   const pointerOverControls = useRef(false);
   const pressingControls = useRef(false);
-  // pointerLeftRef は、pointerLeft を、隠す時間の判定から読むための写し。
+  // pointerLeftRef は、pointerLeft を、隠す時間の判定から読むためのコピー。
   const pointerLeftRef = useRef(false);
   pointerLeftRef.current = pointerLeft;
   const forceVisible = shouldForceControlsVisible({ playing, focusWithin });
 
   // 動いたときと、出し続ける条件が変わったときは、隠したことを取り消す。effect の中で毎回 setState すると
-  // 描画が連鎖するので、描画の中で前の値と比べて合わせる (React の推奨する、状態の調整)。
+  // 描画が連鎖するので、描画の中で前の値と比較して合わせる (React の推奨する、状態の調整)。
   const [resetKey, setResetKey] = useState({ generation, forceVisible });
   if (resetKey.generation !== generation || resetKey.forceVisible !== forceVisible) {
     setResetKey({ generation, forceVisible });

@@ -19,7 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 )
 
-// TestTouch は、ユーザーごとに設定の版数を上げ、変えるたびに変更を通知することを確かめる。
+// TestTouch は、ユーザーごとに設定のバージョンを上げ、変えるたびに変更を通知することを確認する。
 func TestTouch(t *testing.T) {
 	t.Parallel()
 

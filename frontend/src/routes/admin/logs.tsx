@@ -42,7 +42,7 @@ export const Route = createFileRoute('/admin/logs')({
   component: LogsPage,
 });
 
-// LogsPage は、直近のログを読み、秘密と家の構成を伏せた不具合の報告を作る、管理者向けの画面 (#1521、設計書 10.3、11.3)。
+// LogsPage は、直近のログを読み、秘密と家の構成をマスクした不具合の報告を作る、管理者向けの画面 (#1521、設計書 10.3、11.3)。
 // ログにはユーザー名や番組名が入るので、管理者だけが見られる。サーバーからは GitHub に何も送らない。
 function LogsPage() {
   const { t } = useTranslation();
@@ -90,10 +90,10 @@ const query = graphql`
 
 type Source = logsQuery$data['logReport']['sources'][number];
 
-// levelOf は、GraphQL の重さを、報告の重さにする。知らない重さ (新しい版のサーバー) は info として扱う。
+// levelOf は、GraphQL の重さを、報告の重さにする。知らない重さ (新しいバージョンのサーバー) は info として扱う。
 const levelOf = (level: string): Level => (level === 'ERROR' || level === 'WARN' ? level : 'INFO');
 
-// linesOf は、出どころの行を、画面と報告で使う形にする。
+// linesOf は、ソースの行を、画面と報告で使う形にする。
 const linesOf = (source: Source): ReportLine[] =>
   source.lines.map((line) => ({ ...line, level: levelOf(line.level) }));
 
@@ -181,7 +181,7 @@ function LogsView({ refresh }: { refresh: () => void }) {
     userAgent: navigator.userAgent,
   });
 
-  // openIssue は、伏せた後の欄で、確認の窓を開く。ホスト名は画面ではそのまま出し、報告にだけ伏せる (2 段目)。
+  // openIssue は、マスクした後の欄で、確認のダイアログを開く。ホスト名は画面ではそのまま出し、報告にだけマスクする (2 ステップ目)。
   const openIssue = () => {
     const options = { secrets: [], hosts: report.redactHosts };
     const sources: ReportSource[] = report.sources.map((source) => ({

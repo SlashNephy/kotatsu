@@ -18,7 +18,7 @@ func aired(name string, hours int) *episode.Aired {
 }
 
 // TestLaterEpisode は、前の回を録らない (#1499) ときに、放送より前に始まり、シリーズ名が完全に一致し、話数が大きい相手の
-// 一番大きい話数を返すことを確かめる。
+// 一番大きい話数を返すことを確認する。
 func TestLaterEpisode(t *testing.T) {
 	t.Parallel()
 
@@ -112,7 +112,7 @@ func TestLaterEpisode(t *testing.T) {
 	}
 }
 
-// TestSeriesOf は、番組名だけからシリーズ名を読むことを確かめる。録画履歴をシリーズ名で引くのに使う。
+// TestSeriesOf は、番組名だけからシリーズ名を読むことを確認する。録画履歴をシリーズ名で検索するのに使う。
 func TestSeriesOf(t *testing.T) {
 	t.Parallel()
 

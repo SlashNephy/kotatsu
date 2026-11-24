@@ -27,7 +27,7 @@ import {
 import { createRecordings, type RecordingFilter } from './recordings';
 import { createScheduler, type RuleInput, type SettingsInput } from './schedule';
 
-// demoDataChannels は、購読を始めたときに今の版数を送る、データの種類 (GraphQL の DataChannel)。
+// demoDataChannels は、購読を始めたときに今のバージョンを送る、データの種類 (GraphQL の DataChannel)。
 // デモのユーザーは管理者なので、管理者だけに送る種類 (ADMIN) も含める。
 const demoDataChannels = [
   'EPG',
@@ -155,7 +155,7 @@ export function createRootValue(
   let viewerSettingsVersion = 0;
   let minutesBefore = 5;
   const dataVersions = new Map<string, number>();
-  // dataChanged は、予約やルールを変えたことを、変わった種類ごとに版を上げて画面に知らせる。
+  // dataChanged は、予約やルールを変えたことを、変わった種類ごとにバージョンを上げて画面に通知する。
   const dataChanged = (channels: string[]) => {
     for (const channel of channels) {
       const version = (dataVersions.get(channel) ?? 0) + 1;
@@ -198,7 +198,7 @@ export function createRootValue(
       followEventRelay: true,
       bundleSameEpisodes: true,
     },
-    // デモには tenban がないので、データ放送の文書の通信は中継しない (#501)。
+    // デモには tenban がないので、データ放送の文書の通信はプロキシしない (#501)。
     dataBroadcastIpEnabled: false,
     // デモでは、外部プレイヤーと IPTV のクライアントの URL を発行する操作も見せる (#1755)。
     externalPlayerUrlsEnabled: true,
@@ -219,7 +219,6 @@ export function createRootValue(
     // デモにはタイムシフトのディレクトリがない。
     timeshiftWhileWatching: false,
     timeshiftWhileWatchingRetentionSeconds: 3600,
-    ruleUnmatchedGraceMinutes: 180,
     historyMaxDrops: 0,
     updatedAt: null,
     // 以下は、サーバーの既定値 (backend/internal/usecase/settings の DefaultXxx と defaultSettings) にそろえる (#2073)。
@@ -331,7 +330,7 @@ export function createRootValue(
   });
 
   // applyWatchRules は、ルールの照合 (設計書 4.8) を簡単にしたもの。有効な視聴ルールに一致したこれからの番組に視聴予約を付け、
-  // 視聴ルールが付けた視聴予約のうち、一致しなくなったものを外す。手で外した番組を覚えることは、デモでは省く。
+  // 視聴ルールが付けた視聴予約のうち、一致しなくなったものを外す。手で外した番組を保持することは、デモでは省く。
   const applyWatchRules = () => {
     const enabled = [...watchRules.values()].filter((rule) => rule.input.enabled !== false);
     const matched = new Set(
@@ -356,7 +355,7 @@ export function createRootValue(
     }
   };
 
-  // node は、node(id) で引く。ID の頭に型の名前を付けて、型をまたいで重ならないようにしている。
+  // node は、node(id) で取得する。ID のプレフィックスに型の名前を付けて、型をまたいで重ならないようにしている。
   const node = (id: string) => {
     const found = programsById.get(id);
     if (found !== undefined) {
@@ -378,7 +377,7 @@ export function createRootValue(
     return services.find((item) => item.id === id) ?? null;
   };
 
-  // viewerSettingsChanged は、ピン留め、番組表ビュー、視聴予約を変えたことを、画面に知らせる。
+  // viewerSettingsChanged は、ピン留め、番組表ビュー、視聴予約を変えたことを、画面に通知する。
   const viewerSettingsChanged = () => {
     viewerSettingsVersion += 1;
     events.publish({
@@ -415,7 +414,7 @@ export function createRootValue(
     drcsReplacements: () => systemSettings['drcsReplacements'],
     // デモは外部へ問い合わせないので、アニメの取り込みのトークンも登録していない。
     animeImportToken: () => ({ configured: false, updatedAt: null }),
-    // 通知の種類ごとの設定 (設計書 6.2)。サーバーと同じく、変えていない種類は、どれも有効にする。保存すれば覚える。
+    // 通知の種類ごとの設定 (設計書 6.2)。サーバーと同じく、変えていない種類は、どれも有効にする。保存すれば保持する。
     notificationPreferences: () =>
       notificationKinds.map(
         (kind) => notificationPreferences.get(kind) ?? defaultNotificationPreference(kind),
@@ -463,7 +462,7 @@ export function createRootValue(
     // 監査ログは記録しない。
     auditEvents: ({ first, after }: { first: number; after?: string | null }) =>
       paginate([], first, after),
-    // デモにはログを集めるサーバーがないので、出どころのないログの報告を返す。
+    // デモにはログを集めるサーバーがないので、ソースのないログの報告を返す。
     logReport: () => ({ sources: [], redactHosts: [], instanceId: 'demo', roles: [] }),
     // システムの状態 (設計書 11.3)。デモは 1 つのブラウザの中で全部のロールを動かすものとして、架空のチューナーと保存先を見せる。
     systemStatus: () => ({
@@ -627,7 +626,7 @@ export function createRootValue(
     unreadNotificationCount: () => 0,
     // デモは通知を持たないので、既読にする通知もない。本物のサーバーと同じく、既読にした数を返す。
     markNotificationsRead: () => 0,
-    // デモは、ほかの端末のプレイヤーを覚えないので、リモコンで操れるプレイヤーは出さない。
+    // デモは、ほかの端末のプレイヤーを保持しないので、リモコンで操れるプレイヤーは出さない。
     players: () => [],
     recordings: (args: {
       first: number;
@@ -753,7 +752,7 @@ export function createRootValue(
 
       return systemSettings;
     },
-    // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
+    // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを保持する。
     animeChannels: () => services.map((service) => animeChannel(service.id)),
     animeImports: () => [],
     // デモには TMDB のトークンも、作品の指定もない (#1651)。
@@ -841,7 +840,7 @@ export function createRootValue(
     runBackup: () => {
       throw new Error('backups are not available in the demo');
     },
-    // デモは作品の指定を覚えない (#1651)。
+    // デモは作品の指定を保持しない (#1651)。
     updateDramaTitleOverride: () => [],
     // デモは Annict と AniList に問い合わせないので、見たいリストを取り込めず、候補もない (#928)。
     refreshAnimeWishlist: () => {
@@ -877,7 +876,7 @@ export function createRootValue(
       return animeChannel(serviceId);
     },
     deleteCapture: ({ id }: { id: string }) => captures.remove(id),
-    // デモでは、見たアニメを記録しない (#927)。プレイヤーの報告は受け取って捨て、記録の対象でないと答える。
+    // デモでは、見たアニメを記録しない (#927)。プレイヤーの報告は受け取って破棄し、記録の対象でないと答える。
     reportAnimePlayback: () => false,
     updateAnimeRecordSettings: () => demoAnimeRecordSettings(),
     // デモでは Simkl と連携しない (#1649)。ウォッチリストの取り込みも頼まれても入れない。
@@ -889,7 +888,7 @@ export function createRootValue(
       recordings.setProtected(id, value),
     deleteRecording: ({ id }: { id: string }) => recordings.delete(id),
     deleteRecordings: ({ ids }: { ids: string[] }) => recordings.deleteMany(ids),
-    // 索引や画像を作り直すジョブは、デモでは何もせずに受け付ける。
+    // インデックスや画像を作り直すジョブは、デモでは何もせずに受け付ける。
     reanalyzeRecording: () => true,
     // CM を解析するジョブは、待って、進み具合を出して、終える様子を真似る。デモの映像は CM を含まないので、区間は見つからない。
     detectRecordingCm: ({ id }: { id: string }) => recordings.detectCm(id),
@@ -1147,10 +1146,10 @@ export function createRootValue(
     },
 
     // Subscription。graphql-js は、流れた値を rootValue にして選択集合を解くので、フィールド名で包む。
-    // 本物のサーバーと同じく、購読を始めたら、まず種類ごとの今の版数と設定の版数を送る (設計書 9.1)。
-    // 画面は最初に届いた版数を今の版数として覚えるだけなので、送らないと、最初の変更で読み直さない。
+    // 本物のサーバーと同じく、購読を始めたら、まず種類ごとの今のバージョンと設定のバージョンを送る (設計書 9.1)。
+    // 画面は最初に届いたバージョンを今のバージョンとして保持するだけなので、送らないと、最初の変更で読み直さない。
     viewerEvents: () => {
-      // 版数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。
+      // バージョンを読む前に購読し、読んだ後の変更を取りこぼさないようにする。
       const live = events.listen((event) => ({ viewerEvents: event }));
       const quiet = {
         unreadNotificationCount: null,
@@ -1168,7 +1167,7 @@ export function createRootValue(
         { viewerEvents: { ...quiet, dataChange: null, viewerSettingsVersion } },
       ];
       // ジェネレーターで書くと、待っている next を return で終わらせられない (events.ts の listen と同じ)。
-      // そこで、今の版数を送り終えたら、listen のイテレーターにそのまま任せる。
+      // そこで、今のバージョンを送り終えたら、listen のイテレーターにそのまま任せる。
       const iterator: AsyncIterableIterator<(typeof current)[number] | { viewerEvents: unknown }> =
         {
           next: async () => {
@@ -1190,7 +1189,7 @@ export function createRootValue(
   };
 }
 
-// demoCaptionModels は、デモで見せる、字幕の自動生成のモデルの置き場所 (#1682)。どれも置いていない。
+// demoCaptionModels は、デモで見せる、字幕の自動生成のモデルの保存先 (#1682)。どれも置いていない。
 function demoCaptionModels() {
   const model = (
     id: string,

@@ -166,7 +166,7 @@ func TestImportEPGStationRequiresUser(t *testing.T) {
 	require.EqualError(t, cmd.ExecuteContext(t.Context()), "--user is required to import; run with --dry-run to only see the plan")
 }
 
-// TestImportEPGStation は、取り込みの結果を表にして出し、2 度目の取り込みでは前に取り込んだものを飛ばすことを確かめる。
+// TestImportEPGStation は、取り込みの結果をテーブルにして出し、2 度目の取り込みでは前に取り込んだものを飛ばすことを確認する。
 func TestImportEPGStation(t *testing.T) {
 	t.Parallel()
 
@@ -366,7 +366,7 @@ func TestSourceWithPassword(t *testing.T) {
 	}
 }
 
-// TestImportFilesArguments は、kotatsu import files が、取り込むときに --user を求め、POOL:DIR の形でない引数を拒むことを確かめる (#1734)。
+// TestImportFilesArguments は、kotatsu import files が、取り込むときに --user を求め、POOL:DIR の形でない引数を拒むことを確認する (#1734)。
 func TestImportFilesArguments(t *testing.T) {
 	t.Parallel()
 

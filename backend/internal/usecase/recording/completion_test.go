@@ -17,8 +17,8 @@ import (
 )
 
 // TestRecorderResolvesDetectCM は、録画の完了のイベントに載せる、CM の区間を見分けるかどうか (設計書 6.1、#1209) を、
-// 予約やルールで選んでいればその値、なければ録画を終えるときの全体の設定から求めることを確かめる。
-// 全体の設定は、予約を作った後に変える。予約を作ったときではなく、録画を終えるときの値に従うことも確かめるため。
+// 予約やルールで選んでいればその値、なければ録画を終えるときの全体の設定から求めることを確認する。
+// 全体の設定は、予約を作った後に変える。予約を作ったときではなく、録画を終えるときの値に従うことも確認するため。
 func TestRecorderResolvesDetectCM(t *testing.T) {
 	t.Parallel()
 
@@ -93,7 +93,7 @@ func TestRecorderResolvesDetectCM(t *testing.T) {
 }
 
 // TestRecorderResolvesGenerateCaptions は、録画の完了のイベントに載せる、字幕を自動生成するかどうか (設計書 6.1、#1682) を、
-// CM の区間の見分けと同じく、予約やルールで選んでいればその値、なければ録画を終えるときの全体の設定から求めることを確かめる。
+// CM の区間の見分けと同じく、予約やルールで選んでいればその値、なければ録画を終えるときの全体の設定から求めることを確認する。
 func TestRecorderResolvesGenerateCaptions(t *testing.T) {
 	t.Parallel()
 
@@ -162,7 +162,7 @@ func TestRecorderResolvesGenerateCaptions(t *testing.T) {
 }
 
 // TestRecorderResolvesTranscodeFrameRate は、録画の完了のイベントに載せる、変換で出すコマ数 (#1509) を、予約で選んでいればその値、
-// なければ録画を終えるときの全体の設定から求め、全体を変えていなければ既定値 (自動) にすることを確かめる。
+// なければ録画を終えるときの全体の設定から求め、全体を変えていなければ既定値 (自動) にすることを確認する。
 func TestRecorderResolvesTranscodeFrameRate(t *testing.T) {
 	t.Parallel()
 
@@ -213,7 +213,7 @@ func TestRecorderResolvesTranscodeFrameRate(t *testing.T) {
 }
 
 // TestRecorderResolvesCMDetector は、録画の完了のイベントに載せる、CM の区間の見分け方 (#1505) を、
-// 予約やルールで選んでいればその値、なければ空 (見分けるときの全体の設定に従う) にすることを確かめる。
+// 予約やルールで選んでいればその値、なければ空 (見分けるときの全体の設定に従う) にすることを確認する。
 func TestRecorderResolvesCMDetector(t *testing.T) {
 	t.Parallel()
 

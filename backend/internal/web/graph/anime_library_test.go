@@ -59,7 +59,7 @@ type animeLibraryResult struct {
 	} `json:"animeLibrary"`
 }
 
-// TestAnimeLibrary は、視聴管理の画面の作品を、ユーザーごとに自分の分だけ、次の放送と録画のある話と返すことを確かめる (#1231)。
+// TestAnimeLibrary は、視聴管理の画面の作品を、ユーザーごとに自分の分だけ、次の放送と録画のある話と返すことを確認する (#1231)。
 func TestAnimeLibrary(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)

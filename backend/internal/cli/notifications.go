@@ -20,7 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 
-// notificationParts は、nekonote で、通知するイベントを配り、Webhook と Web Push で送るジョブの Worker (設計書 6.2)。
+// notificationParts は、nekonote で、通知するイベントを配信し、Webhook と Web Push で送るジョブの Worker (設計書 6.2)。
 // 視聴予約を、放送の少し前に通知するジョブの Worker も持つ (設計書 4.8)。
 type notificationParts struct {
 	dispatch        *notification.DispatchWorker
@@ -61,8 +61,8 @@ func newWatchNotifyWorker(pool *pgxpool.Pool, clk clock.Clock) *watch.NotifyWork
 	return watch.NewNotifyWorker(watch.NewNotifier(pool, clk, graph.ServiceLiveURL))
 }
 
-// newDispatcher は、通知するイベントを、ユーザーごとの画面内の通知に配る部品を作る。
-// 配るときに、Webhook と Web Push の配信、録画のファイルをつなぐジョブ、CM の区間を見分けるジョブ、字幕を自動生成するジョブ、変換のジョブを inserter で入れる。
+// newDispatcher は、通知するイベントを、ユーザーごとの画面内の通知に配信する部品を作る。
+// 配信するときに、Webhook と Web Push の配信、録画のファイルをつなぐジョブ、CM の区間を見分けるジョブ、字幕を自動生成するジョブ、変換のジョブを inserter で入れる。
 func newDispatcher(pool *pgxpool.Pool, clk clock.Clock, inserter *jobs.Client) *notification.Dispatcher {
 	return notification.NewDispatcher(pool, clk,
 		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), segjoin.NewEnqueuer(inserter),

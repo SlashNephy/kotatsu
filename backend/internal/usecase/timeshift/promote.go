@@ -26,8 +26,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
 
-// promoteDelay は、書き出す範囲の終わりから、書き出し始めるまで待つ時間。mikan はチャンクを 1 秒ごとに書き出すので、
-// 書いている途中のチャンクが、書き出す範囲の終わりを確かに越えるようにする。
+// promoteDelay は、書き込む範囲の終わりから、書き込み始めるまで待つ時間。mikan はチャンクを 1 秒ごとに書き込むので、
+// 書いている途中のチャンクが、書き込む範囲の終わりを確かに越えるようにする。
 const promoteDelay = 5 * time.Second
 
 // promoteAction は、バッファの番組を録画に昇格したことを残す、監査ログの操作の種類。
@@ -36,7 +36,7 @@ const promoteAction = "timeshift.promote"
 var (
 	// ErrProgramNotFound は、バッファに、昇格する番組がないことを表す。
 	ErrProgramNotFound = errors.New("timeshift program not found")
-	// ErrAlreadyPromoting は、同じ番組を、録画に書き出している途中であることを表す。
+	// ErrAlreadyPromoting は、同じ番組を、録画に書き込んでいる途中であることを表す。
 	ErrAlreadyPromoting = errors.New("the timeshift program is already being promoted")
 )
 
@@ -47,7 +47,7 @@ type Inserter interface {
 
 // Promotion は、バッファの番組を昇格した結果。放送の終わった番組は Recording、放送中の番組は Reservation のどちらかを持つ。
 type Promotion struct {
-	// RecordingID は、バッファから書き出す録画。nekonote のジョブが書き出し終えるまでは、録画中にする。
+	// RecordingID は、バッファから書き込む録画。nekonote のジョブが書き込み終えるまでは、録画中にする。
 	RecordingID *uuid.UUID
 	// Reservation は、放送中の番組の続きを録る番組予約。
 	Reservation *domain.Reservation
@@ -69,10 +69,10 @@ func NewPromoter(clk clock.Clock, recorder audit.Recorder, reservations *reserve
 
 // Promote は、サービス serviceID のバッファの、startAt に始まった番組 (PlayablePrograms の StartedAt) を、録画に昇格する。
 //
-// 放送中の番組は、番組予約を作って、続きを通常の録画として録る。録画の開始が遅れるので、mikan が番組の頭からの分を
-// バッファから写し、重なった区間を切り詰める (#826)。放送の終わった番組は、予約のない録画を録画中として記録し、
-// nekonote のジョブに、バッファの番組の始まりから終わり (前後のマージンを含む) までを書き出させる。
-// バッファにその番組がなければ ErrProgramNotFound、同じ番組を書き出している途中なら ErrAlreadyPromoting を返す。
+// 放送中の番組は、番組予約を作って、続きを通常の録画として録る。録画の開始が遅れるので、mikan が番組の先頭からの分を
+// バッファからコピーし、重なった区間を切り詰める (#826)。放送の終わった番組は、予約のない録画を録画中として記録し、
+// nekonote のジョブに、バッファの番組の始まりから終わり (前後のマージンを含む) までを書き込ませる。
+// バッファにその番組がなければ ErrProgramNotFound、同じ番組を書き込んでいる途中なら ErrAlreadyPromoting を返す。
 func (p *Promoter) Promote(ctx context.Context, db Database, actor *audit.Actor, serviceID int64, startAt time.Time) (*Promotion, error) {
 	now := p.clock.Now()
 	programs, err := PlayablePrograms(ctx, db, serviceID, now)
@@ -118,9 +118,9 @@ func (p *Promoter) reserve(ctx context.Context, db Database, actor *audit.Actor,
 	return &Promotion{RecordingID: nil, Reservation: reservation}, nil
 }
 
-// enqueue は、放送の終わった番組の録画を録画中として記録し、書き出すジョブを入れる。
-// 番組の情報と時間は番組表から写し、番組表になければ (古い番組を消した後など)、mikan が記録した番組の名前と時間を使う。
-// 書き出す範囲は、番組表の時間と mikan が気づいた時間を合わせた範囲に、録画設定の前後のマージンを足したもの。
+// enqueue は、放送の終わった番組の録画を録画中として記録し、書き込むジョブを入れる。
+// 番組の情報と時間は番組表からコピーし、番組表になければ (古い番組を消した後など)、mikan が記録した番組の名前と時間を使う。
+// 書き込む範囲は、番組表の時間と mikan が気づいた時間を合わせた範囲に、録画設定の前後のマージンを足したもの。
 // mikan は番組の替わりに少し遅れて気づき、番組表は延長を反映しないことがあるので、合わせた範囲で欠けないようにする。
 func (p *Promoter) enqueue(
 	ctx context.Context, db Database, actor *audit.Actor, serviceID int64, program *PlayableProgram, now time.Time,
@@ -154,7 +154,7 @@ func (p *Promoter) enqueue(
 
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
-		// 同じ番組を書き出している途中なら、重ねない。書き出す範囲はマージンで変わるので、イベント ID と番組の始まりでも確かめる。
+		// 同じ番組を書き込んでいる途中なら、重ねない。書き込む範囲はマージンで変わるので、イベント ID と番組の始まりでも確認する。
 		promotions, err := q.ListTimeshiftPromotions(ctx, serviceID)
 		if err != nil {
 			return fmt.Errorf("failed to list the timeshift promotions: %w", err)
@@ -166,7 +166,7 @@ func (p *Promoter) enqueue(
 		if err != nil {
 			return fmt.Errorf("failed to save the recording: %w", err)
 		}
-		// 予約の録画と同じく、番組とアニメの作品の結びつきを写す (設計書 3.8)。
+		// 予約の録画と同じく、番組とアニメの作品の結びつきをコピーする (設計書 3.8)。
 		if err := anime.CopyToRecording(ctx, tx, row.ID, row.ServiceID, row.StartAt, now); err != nil {
 			return err
 		}
@@ -182,7 +182,7 @@ func (p *Promoter) enqueue(
 		if inserted == 0 {
 			return ErrAlreadyPromoting
 		}
-		// 終わりのマージンを過ぎて、書いている途中のチャンクが書き出す範囲の終わりを越えるまで待ってから書き出す。
+		// 終わりのマージンを過ぎて、書いている途中のチャンクが書き込む範囲の終わりを越えるまで待ってから書き込む。
 		args := recording.PromoteArgs{RecordingID: row.ID}
 		opts := args.InsertOpts()
 		if ready := to.Add(promoteDelay); ready.After(now) {
@@ -208,9 +208,9 @@ func (p *Promoter) enqueue(
 	return &Promotion{RecordingID: &insert.ID, Reservation: nil}, nil
 }
 
-// promoting は、番組 program を、promotions のどれかで書き出している途中かどうかを返す。
-// 書き出す範囲は、番組の始まりより前のマージンから始まり、番組の始まりを含む。終わりのマージンが次の番組の始まりに
-// かかるので、イベント ID でも確かめる。
+// promoting は、番組 program を、promotions のどれかで書き込んでいる途中かどうかを返す。
+// 書き込む範囲は、番組の始まりより前のマージンから始まり、番組の始まりを含む。終わりのマージンが次の番組の始まりに
+// かかるので、イベント ID でも確認する。
 func promoting(promotions []sqlc.ListTimeshiftPromotionsRow, program *PlayableProgram) bool {
 	return slices.ContainsFunc(promotions, func(promotion sqlc.ListTimeshiftPromotionsRow) bool {
 		return promotion.EventID != nil && *promotion.EventID == program.EventID &&

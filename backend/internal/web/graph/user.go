@@ -24,7 +24,7 @@ func toUser(user *domain.User) *model.User {
 	}
 }
 
-// users は、ユーザーをまとめて引き、ID から引ける表にする。nil の ID は飛ばす。
+// users は、ユーザーをまとめて引き、ID から検索できるマップにする。nil の ID は飛ばす。
 // ユーザーを消すと、作成者などの参照は NULL になるので、見つからないユーザーはない。
 func users(ctx context.Context, ids ...*uuid.UUID) (map[uuid.UUID]*model.User, error) {
 	keys := make([]uuid.UUID, 0, len(ids))
@@ -45,7 +45,7 @@ func users(ctx context.Context, ids ...*uuid.UUID) (map[uuid.UUID]*model.User, e
 	return byID, nil
 }
 
-// userOf は、表から userID のユーザーを返す。userID が nil なら nil を返す。
+// userOf は、マップから userID のユーザーを返す。userID が nil なら nil を返す。
 func userOf(byID map[uuid.UUID]*model.User, userID *uuid.UUID) *model.User {
 	if userID == nil {
 		return nil

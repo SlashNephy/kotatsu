@@ -110,7 +110,7 @@ export const MoreError: Story = {
   }),
 };
 
-// 過去の放送も含めて探すとき (#1121)。探す日数の欄を出し、放送の終わった番組に印を付ける。
+// 過去の放送も含めて探すとき (#1121)。探す日数の欄を出し、放送の終わった番組にマークを付ける。
 export const IncludeArchive: Story = {
   play: searchAndThen('こたつ', async (canvasElement) => {
     await userEvent.click(

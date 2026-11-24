@@ -20,7 +20,7 @@ func packets(b byte, n int) []byte {
 	return out
 }
 
-// TestPreroll は、遅れた番組を待つ間に、直近の window の分だけを、TS のパケットの区切りで溜めることを確かめる (#1046)。
+// TestPreroll は、遅れた番組を待つ間に、直近の window の分だけを、TS のパケットの区切りでバッファすることを確認する (#1046)。
 func TestPreroll(t *testing.T) {
 	t.Parallel()
 

@@ -10,7 +10,7 @@ import (
 )
 
 // TestRecordingURLLifetime は、録画の署名付き URL の有効期限を、録画の長さに 1 時間を足した長さにし、
-// 長さが負なら 0 とみなすことを確かめる (#1756)。
+// 長さが負なら 0 とみなすことを確認する (#1756)。
 func TestRecordingURLLifetime(t *testing.T) {
 	t.Parallel()
 

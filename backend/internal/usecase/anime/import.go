@@ -58,7 +58,7 @@ type Importer struct {
 	db      Database
 	clock   clock.Clock
 	fetcher Fetcher
-	// titles は、しょぼいカレンダーのタイトルの一覧を引く。番組名の解析で、作品名から TID を引くのに使う。
+	// titles は、しょぼいカレンダーのタイトルの一覧を取得する。番組名の解析で、作品名から TID を検索するのに使う。
 	titles TitleFetcher
 	// inserter は、チャンネルの対応が変わったときに、番組を照合し直すジョブを入れる。nil なら入れない。
 	inserter Inserter
@@ -288,7 +288,7 @@ func channelDefinitionsOf(channels []*animedata.Channel) *sqlc.InsertAnimeChanne
 	return params
 }
 
-// workKey は、同じ作品の対応を二重に持たないための鍵。
+// workKey は、同じ作品の対応を二重に持たないためのキー。
 type workKey struct {
 	tid, annict, anilist, mal int32
 }

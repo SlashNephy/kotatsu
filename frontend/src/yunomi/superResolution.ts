@@ -9,9 +9,9 @@ import { browserStorage } from './volume';
 // 映像の拡大 (#1654、設計書 7.2、7.5)。yadif が解除したコマを、映像を描く矩形の端末の画素の大きさへ、
 // 縁を見て拡大し、鮮鋭化してから描く。ブラウザに引き伸ばさせるより、縁がぼやけない。
 
-// storageKey は、映像を拡大するかを覚えるキー。GPU の負荷は端末によるので、ほかの端末とは同期しない。
+// storageKey は、映像を拡大するかを保存するキー。GPU の負荷は端末によるので、ほかの端末とは同期しない。
 const storageKey = 'kotatsu.player.superResolution';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:super-resolution';
 
 // loadSuperResolution は、映像を拡大するかを読む。GPU の負荷が増え、鮮鋭化はノイズも目立たせるので、既定では拡大しない。
@@ -56,21 +56,21 @@ export function useSuperResolution(): [boolean, (enabled: boolean) => void] {
 }
 
 // superResolutionStrengths は、選べる鮮鋭化の強さ。1 が最も弱く、4 が最も強い。
-// RTX Video Super Resolution の品質の段と同じく、映像と画面に合わせて選べるようにする。
+// RTX Video Super Resolution の品質の段階と同じく、映像と画面に合わせて選べるようにする。
 export const superResolutionStrengths = [1, 2, 3, 4] as const;
 export type SuperResolutionStrength = (typeof superResolutionStrengths)[number];
 
-// defaultSuperResolutionStrength は、既定の強さ。FSR の例と同じ鮮鋭化 (0.2 段弱める) にする。
+// defaultSuperResolutionStrength は、既定の強さ。FSR の例と同じ鮮鋭化 (0.2 ステップ弱める) にする。
 export const defaultSuperResolutionStrength: SuperResolutionStrength = 3;
 
-// sharpnessStops は、強さごとの、RCAS の鮮鋭化を弱める段数。0 が最も強く、1 段ごとに半分になる。
-// 1 は 1/4、2 は 1/2、3 は FSR の例と同じ 0.2 段、4 は弱めない。
+// sharpnessStops は、強さごとの、RCAS の鮮鋭化を弱めるステップ数。0 が最も強く、1 ステップごとに半分になる。
+// 1 は 1/4、2 は 1/2、3 は FSR の例と同じ 0.2 ステップ、4 は弱めない。
 export const sharpnessStops: Record<SuperResolutionStrength, number> = { 1: 2, 2: 1, 3: 0.2, 4: 0 };
 
-// strengthKey は、鮮鋭化の強さを覚えるキー。画面と映像の見え方は端末によるので、ほかの端末とは同期しない。
+// strengthKey は、鮮鋭化の強さを保存するキー。画面と映像の見え方は端末によるので、ほかの端末とは同期しない。
 const strengthKey = 'kotatsu.player.superResolutionStrength';
 
-// loadSuperResolutionStrength は、鮮鋭化の強さを読む。覚えていないか、知らない値か、読めなければ既定の強さを返す。
+// loadSuperResolutionStrength は、鮮鋭化の強さを読む。保存していないか、知らない値か、読めなければ既定の強さを返す。
 export function loadSuperResolutionStrength(
   storage: Pick<Storage, 'getItem'> | null,
 ): SuperResolutionStrength {
@@ -116,10 +116,10 @@ export function useSuperResolutionStrength(): [
 export const superResolutionMethods = ['fsr', 'anime4k'] as const;
 export type SuperResolutionMethod = (typeof superResolutionMethods)[number];
 
-// methodKey は、拡大の方式を覚えるキー。GPU の負荷は端末によるので、ほかの端末とは同期しない。
+// methodKey は、拡大の方式を保存するキー。GPU の負荷は端末によるので、ほかの端末とは同期しない。
 const methodKey = 'kotatsu.player.superResolutionMethod';
 
-// loadSuperResolutionMethod は、拡大の方式を読む。覚えていないか、知らない値か、読めなければ、軽い fsr を返す。
+// loadSuperResolutionMethod は、拡大の方式を読む。保存していないか、知らない値か、読めなければ、軽い fsr を返す。
 export function loadSuperResolutionMethod(
   storage: Pick<Storage, 'getItem'> | null,
 ): SuperResolutionMethod {
@@ -202,7 +202,7 @@ function maxDimension(gl: WebGL2RenderingContext): number {
 }
 
 // YadifUpscaler は、yadif に渡す拡大と、今拡大している大きさを読む口と、片付ける口。
-// 擬似 HDR の出力 (#1656) も、yadif が canvas へ描く最後の段なので、ここで描く。拡大しないときは、元の大きさのまま写す。
+// 擬似 HDR の出力 (#1656) も、yadif が canvas へ描く最後のステップなので、ここで描く。拡大しないときは、元の大きさのままコピーする。
 export type YadifUpscaler = PictureScaler & {
   // output は、最後に拡大して描いた大きさ。拡大していなければ null。
   output(): Size | null;
@@ -307,7 +307,7 @@ export function createYadifUpscaler({
   // doubleWithAnime4K は、Anime4K で拡大するときに、コマを縦横 2 倍にしたテクスチャを返す。拡大しないときは null を返す。
   // Anime4K は 2 倍に決まっているので、縦横とも 2 倍以上に拡大するときだけ使い、残りは FSR 1 で拡大する。
   // 2 倍に満たない拡大 (1440×1080 を 1920×1080 に映すなど) で 2 倍にしてから縮めると、負荷に見合わないからである。
-  // 作れないか失敗したら、知らせて以後は使わない。そのコマは FSR 1 だけで拡大する。
+  // 作れないか失敗したら、通知して以後は使わない。そのコマは FSR 1 だけで拡大する。
   const doubleWithAnime4K = (
     gl: WebGL2RenderingContext,
     texture: WebGLTexture,
@@ -345,7 +345,7 @@ export function createYadifUpscaler({
 
   const fail = (error: unknown) => {
     broken = true;
-    // 以後は yadif がそのまま写す。描画先は浮動小数点のまま残りうるが、1 を超える値は書かないので、擬似 HDR ではない。
+    // 以後は yadif がそのままコピーする。描画先は浮動小数点のまま残りうるが、1 を超える値は書かないので、擬似 HDR ではない。
     hdrDrawn = false;
     output = null;
     release();
@@ -377,7 +377,7 @@ export function createYadifUpscaler({
         if (size === null) {
           output = null;
         }
-        // 拡大しなくても、擬似 HDR で描くなら、元の大きさのまま描く (yadif にそのまま写させない)。
+        // 拡大しなくても、擬似 HDR で描くなら、元の大きさのまま描く (yadif にそのままコピーさせない)。
         // 擬似 HDR を切った直後も、描画先を SDR に戻し、伸ばさずに描き直すため、一度は元の大きさで描かせる。
         // yadif は、大きさを返したときだけ最後のコマを描き直すので、止めている間も伸ばしたコマが残らない。
         if (size === null && (wantsHDR() || hdrDrawn)) {
@@ -402,7 +402,7 @@ export function createYadifUpscaler({
         }
         const expand = prepareDrawingBuffer(gl, outputWidth, outputHeight);
         if (outputWidth === width && outputHeight === height) {
-          // 拡大しない。擬似 HDR のために、元の大きさのまま写す。
+          // 拡大しない。擬似 HDR のために、元の大きさのままコピーする。
           copy ??= createCopy(gl);
           copy.draw(texture, flipped, width, height, expand);
           output = null;

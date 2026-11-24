@@ -11,12 +11,12 @@ import (
 const summaryNumber = `([0-9]+|[〇一二三四五六七八九十百]+)`
 
 var (
-	// quotedSummaryPattern は、概要の、鍵括弧の副題が付いた話数 (1 回目の読み方)。
+	// quotedSummaryPattern は、概要の、かぎ括弧のサブタイトルが付いた話数 (1 回目の読み方)。
 	quotedSummaryPattern = regexp.MustCompile(`(?i)(?:#` + summaryNumber + `|第` + summaryNumber + `[話回]|(?:chapter|episode|ep)\.?` + summaryNumber +
 		`)\s*(?:「([^「」]*)」|『([^『』]*)』)`)
-	// plainSummaryPattern は、概要の、副題の無い話数 (2 回目の読み方)。「第N回」は地の文に紛れやすいので読まない。
+	// plainSummaryPattern は、概要の、サブタイトルの無い話数 (2 回目の読み方)。「第N回」は地の文に紛れやすいので読まない。
 	plainSummaryPattern = regexp.MustCompile(`(?i)(?:#` + summaryNumber + `|第` + summaryNumber + `話|(?:chapter|episode|ep)\.?` + summaryNumber + `)`)
-	// referencePattern は、ほかの回を指す語。同じ文で、一致した位置より前にあれば、その一致は捨てる。
+	// referencePattern は、ほかの回を指す語。同じ文で、一致した位置より前にあれば、その一致は破棄する。
 	referencePattern = regexp.MustCompile(`前回|次回|予告`)
 )
 
@@ -25,9 +25,9 @@ const (
 	plainLeaders = "。!?⁉【[】>▼▽◆◇■□★☆"
 	// plainFollowers は、2 回目の読み方で、話数の直後に来てよい文字 (空白と行の終わりも可)。
 	plainFollowers = "「『:.、。)]】▼▽◆◇■□"
-	// plainSubtitleEnds は、2 回目の読み方で、副題の終わりとする記号。
+	// plainSubtitleEnds は、2 回目の読み方で、サブタイトルの終わりとする記号。
 	plainSubtitleEnds = "▼▽◆◇■□"
-	// plainSubtitleForbidden は、2 回目の読み方で、含めば副題とみない文字。地の文の可能性が高い。
+	// plainSubtitleForbidden は、2 回目の読み方で、含めばサブタイトルとみない文字。地の文の可能性が高い。
 	plainSubtitleForbidden = "。、,!?！？…"
 	// sentenceBreaks は、文の区切り。
 	sentenceBreaks = "。\n」』"
@@ -40,7 +40,7 @@ type summaryEpisode struct {
 	uncertain bool
 }
 
-// readSummary は、概要から回を読む。鍵括弧の副題が付いた話数を先に探し、見つからなければ副題の無い話数を探す。
+// readSummary は、概要から回を読む。かぎ括弧のサブタイトルが付いた話数を先に探し、見つからなければサブタイトルの無い話数を探す。
 func readSummary(text string) *summaryEpisode {
 	if s := readQuotedSummary(text); s != nil {
 		return s
@@ -128,7 +128,7 @@ func plainFollows(after string) bool {
 	return unicode.IsSpace(r) || strings.ContainsRune(plainFollowers, r)
 }
 
-// plainSubtitle は、話数の後ろの行の残りから、副題を読む。地の文らしければ空を返す。
+// plainSubtitle は、話数の後ろの行の残りから、サブタイトルを読む。地の文らしければ空を返す。
 func plainSubtitle(after string) string {
 	line, _, _ := strings.Cut(after, "\n")
 	if i := strings.IndexAny(line, plainSubtitleEnds); i >= 0 {
@@ -162,12 +162,12 @@ func applySummary(ep *Episode, s *summaryEpisode) {
 	case s == nil:
 		return
 	case ep.Number == 0 && ep.Subtitle == "":
-		// 番組名で話数を読めず、副題も無ければ、概要から読んだ話数と副題を使う。
+		// 番組名で話数を読めず、サブタイトルも無ければ、概要から読んだ話数とサブタイトルを使う。
 		ep.Number = s.number
 		ep.Subtitle = canon(s.subtitle)
 		ep.UncertainSubtitle = s.uncertain
 	case ep.Number > 0 && s.number == ep.Number && s.subtitle != "":
-		// 番組名で読んだ話数と同じなら、概要の副題に替える。番組名の副題が無いか、確かでないときだけここに来る。
+		// 番組名で読んだ話数と同じなら、概要のサブタイトルに替える。番組名のサブタイトルが無いか、確かでないときだけここに来る。
 		ep.Subtitle = canon(s.subtitle)
 		ep.UncertainSubtitle = true
 	}

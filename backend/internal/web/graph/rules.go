@@ -227,7 +227,7 @@ func toKeywordModels(keywords []*match.Keyword) []*model.Keyword {
 	return models
 }
 
-// rule は、ルールを引く。
+// rule は、ルールを取得する。
 func (r *Resolver) rule(ctx context.Context, globalID string) (*model.Rule, error) {
 	ruleID, err := parseRuleID(globalID)
 	if err != nil {
@@ -290,7 +290,7 @@ func (r *Resolver) deleteRules(ctx context.Context, ids []string) (*model.BulkOp
 	})
 }
 
-// recordingRule は、録画を始めたときに一致していたルールを引く。ルールを消していれば null を返す (#468)。
+// recordingRule は、録画を始めたときに一致していたルールを取得する。ルールを消していれば null を返す (#468)。
 func (r *Resolver) recordingRule(ctx context.Context, recording *model.Recording) (*model.Rule, error) {
 	var found *rule.Rule
 	var err error

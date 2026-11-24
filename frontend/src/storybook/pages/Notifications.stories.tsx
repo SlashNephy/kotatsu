@@ -18,7 +18,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const notifications = [
-  // 未読。番組名を、ほかの画面と同じく印付きで描く。録画の詳細へのリンク。
+  // 未読。番組名を、ほかの画面と同じくマーク付きで描く。録画の詳細へのリンク。
   {
     id: 'Notification:1',
     kind: 'RECORDING_COMPLETED',

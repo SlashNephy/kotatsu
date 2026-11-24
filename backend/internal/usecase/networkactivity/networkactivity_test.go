@@ -27,7 +27,7 @@ func bucket(host string, count int64) netactivity.Bucket {
 	}
 }
 
-// TestSaveAddsOnlyWhileEnabled は、同じ単位の集計を足し合わせ、記録が無効なら書かないことを確かめる (#1369)。
+// TestSaveAddsOnlyWhileEnabled は、同じ単位の集計を足し合わせ、記録が無効なら書かないことを確認する (#1369)。
 func TestSaveAddsOnlyWhileEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -71,7 +71,7 @@ func TestSaveAddsOnlyWhileEnabled(t *testing.T) {
 	}
 }
 
-// TestPruneWorkerDeletesPastRetention は、保持期間を過ぎた時間帯だけを消すことを確かめる。
+// TestPruneWorkerDeletesPastRetention は、保持期間を過ぎた時間帯だけを消すことを確認する。
 func TestPruneDeletesPastRetention(t *testing.T) {
 	t.Parallel()
 

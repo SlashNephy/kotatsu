@@ -99,7 +99,7 @@ func programInput() *reserve.ProgramInput {
 	return &reserve.ProgramInput{ServiceID: serviceID(), EventID: futureEvent, FollowEventRelay: true, Overrides: nil}
 }
 
-// TestCreateProgramKeepsOneReservationPerProgram は、同じ番組を同時に何度予約しても、予約は 1 件になることを確かめる。
+// TestCreateProgramKeepsOneReservationPerProgram は、同じ番組を同時に何度予約しても、予約は 1 件になることを確認する。
 func TestCreateProgramKeepsOneReservationPerProgram(t *testing.T) {
 	t.Parallel()
 
@@ -117,7 +117,7 @@ func TestCreateProgramKeepsOneReservationPerProgram(t *testing.T) {
 			reservation, ok, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, programInput())
 			mu.Lock()
 			defer mu.Unlock()
-			// require は別の goroutine から呼べないので、エラーは集めて、待ち合わせた後に確かめる。
+			// require は別の goroutine から呼べないので、エラーは集めて、待ち合わせた後に確認する。
 			if err != nil {
 				errs = append(errs, err)
 
@@ -138,7 +138,7 @@ func TestCreateProgramKeepsOneReservationPerProgram(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'reservation.create'"))
 }
 
-// TestProgramReservationKeepsCopyAfterEPGRemoval は、番組が EPG から消えても、予約の番組情報を取得できることを確かめる。
+// TestProgramReservationKeepsCopyAfterEPGRemoval は、番組が EPG から消えても、予約の番組情報を取得できることを確認する。
 func TestProgramReservationKeepsCopyAfterEPGRemoval(t *testing.T) {
 	t.Parallel()
 
@@ -169,7 +169,7 @@ func TestCreateProgramRejectsUnknownProgram(t *testing.T) {
 	require.ErrorIs(t, err, reserve.ErrProgramNotFound)
 }
 
-// TestOverridesApplyOnDefaults は、録画設定を、全体の既定値の上に予約ごとに上書きできることを確かめる。
+// TestOverridesApplyOnDefaults は、録画設定を、全体の既定値の上に予約ごとに上書きできることを確認する。
 func TestOverridesApplyOnDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -261,7 +261,7 @@ func TestCreateTimeValidatesSchedule(t *testing.T) {
 	}
 }
 
-// TestChangesAreAudited は、予約の作成、変更、削除が、操作者とともに監査ログに残ることを確かめる。
+// TestChangesAreAudited は、予約の作成、変更、削除が、操作者とともに監査ログに残ることを確認する。
 func TestChangesAreAudited(t *testing.T) {
 	t.Parallel()
 
@@ -301,7 +301,7 @@ func TestChangesAreAudited(t *testing.T) {
 		"SELECT count(*) FROM audit_events WHERE action = 'reservation.update' AND summary -> 'changed' = '[\"enabled\", \"settings\"]'::jsonb"))
 }
 
-// TestSystemActorLeavesCreatorEmpty は、neko のようなシステムが作った予約では、作成者を空にすることを確かめる。
+// TestSystemActorLeavesCreatorEmpty は、neko のようなシステムが作った予約では、作成者を空にすることを確認する。
 func TestSystemActorLeavesCreatorEmpty(t *testing.T) {
 	t.Parallel()
 

@@ -47,7 +47,7 @@ const mediaSessionCommands: readonly (readonly [
   ['nexttrack', 'nextChannel', (commands) => runCommand(commands, 'nextChannel')],
 ];
 
-// useMediaSession は、OS のメディア操作 (ロック画面やメディアキー) に、番組名、再生の状態と位置、操作を知らせる (設計書 7.5)。
+// useMediaSession は、OS のメディア操作 (ロック画面やメディアキー) に、番組名、再生の状態と位置、操作を通知する (設計書 7.5)。
 // 番組名の囲み文字は、OS の表示で潰れないよう外す。番組が分からなければ、局の名前を出す。autoPictureInPicture を入れると、
 // タブを切り替えたときに、ブラウザが pictureInPicture の操作を呼び、視聴画面を別のウィンドウに出す (#492)。
 export function useMediaSession(

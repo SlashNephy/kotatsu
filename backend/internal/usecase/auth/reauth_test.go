@@ -13,7 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
-// TestRequireRecentAuthentication は、重要な操作の前に、直近 10 分以内の認証を求めることを確かめる。
+// TestRequireRecentAuthentication は、重要な操作の前に、直近 10 分以内の認証を求めることを確認する。
 func TestRequireRecentAuthentication(t *testing.T) {
 	t.Parallel()
 
@@ -50,7 +50,7 @@ func TestRequireRecentAuthentication(t *testing.T) {
 	require.ErrorIs(t, auth.RequireRecentAuthentication(t.Context(), newSessionFixture(t, newDB(t)).clock), auth.ErrUnauthenticated)
 }
 
-// TestLogoutHandler は、ログアウトでセッションを失効させ、Cookie を消すことを確かめる。
+// TestLogoutHandler は、ログアウトでセッションを失効させ、Cookie を消すことを確認する。
 func TestLogoutHandler(t *testing.T) {
 	t.Parallel()
 
@@ -72,7 +72,7 @@ func TestLogoutHandler(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrSessionInvalid)
 }
 
-// TestReauthenticationStatusHandler は、ログイン中のセッションの認証の日時と、重要な操作ができるかを返すことを確かめる。
+// TestReauthenticationStatusHandler は、ログイン中のセッションの認証の日時と、重要な操作ができるかを返すことを確認する。
 // 入力を始める前に、IdP での再認証を求めるかを決めるのに使う (#916)。
 func TestReauthenticationStatusHandler(t *testing.T) {
 	t.Parallel()

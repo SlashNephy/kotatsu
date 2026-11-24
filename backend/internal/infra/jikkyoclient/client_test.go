@@ -83,7 +83,7 @@ func TestClientChannel(t *testing.T) {
 	assert.Nil(t, got)
 	assert.Equal(t, int32(1), fake.channelRequests.Load())
 
-	// 使い回す時間を過ぎたら取り直す。取り直す間と、取り直せなかったときは、前に取った一覧を使う。
+	// 使い回す時間を過ぎたら再取得する。再取得する間と、再取得できなかったときは、前に取った一覧を使う。
 	empty := ""
 	fake.channels.Store(&empty)
 	clk.Advance(time.Hour)
@@ -91,7 +91,7 @@ func TestClientChannel(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "NHK BS", got.Name)
 	assert.Eventually(t, func() bool { return fake.channelRequests.Load() == 2 }, time.Second, time.Millisecond)
-	// 取り直せなかった後は、しばらく問い合わせない。取り直している最中も、重ねて問い合わせない。
+	// 再取得できなかった後は、しばらく問い合わせない。再取得している最中も、重ねて問い合わせない。
 	_, err = client.Channel(t.Context(), jkBS)
 	require.NoError(t, err)
 	assert.Equal(t, int32(2), fake.channelRequests.Load())
@@ -103,7 +103,7 @@ func TestClientChannel(t *testing.T) {
 	}, time.Second, time.Millisecond)
 }
 
-// TestClientChannelActivity は、放送中のスレッドの勢いと視聴者数を返し、1 分で取り直すことを確かめる (#490)。
+// TestClientChannelActivity は、放送中のスレッドの勢いと視聴者数を返し、1 分で再取得することを確認する (#490)。
 func TestClientChannelActivity(t *testing.T) {
 	t.Parallel()
 
@@ -162,7 +162,7 @@ func TestClientChannelActivity(t *testing.T) {
 	}
 }
 
-// TestClientChannelRefreshesActivityEveryMinute は、勢いが古くならないよう、1 分で一覧を取り直し、取り直したものを返すことを確かめる。
+// TestClientChannelRefreshesActivityEveryMinute は、勢いが古くならないよう、1 分で一覧を再取得し、再取得したものを返すことを確認する。
 func TestClientChannelRefreshesActivityEveryMinute(t *testing.T) {
 	t.Parallel()
 
@@ -179,7 +179,7 @@ func TestClientChannelRefreshesActivityEveryMinute(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), fake.channelRequests.Load(), "the list is reused within a minute")
 
-	// 1 分を過ぎたら、取り直したものを待って返す。前に取った古い勢いは返さない。
+	// 1 分を過ぎたら、再取得したものを待って返す。前に取った古い勢いは返さない。
 	clk.Advance(time.Second)
 	got, err := client.Channel(t.Context(), jkNHK)
 	require.NoError(t, err)
@@ -187,7 +187,7 @@ func TestClientChannelRefreshesActivityEveryMinute(t *testing.T) {
 }
 
 // TestClientChannelDoesNotWaitForUnresponsiveServer は、NX-Jikkyo が応答しなくても、前に取った一覧を返して待たせず、
-// 一覧がまだなければ、同時の要求を 1 つの問い合わせにまとめることを確かめる。
+// 一覧がまだなければ、同時の要求を 1 つの問い合わせにまとめることを確認する。
 func TestClientChannelDoesNotWaitForUnresponsiveServer(t *testing.T) {
 	t.Parallel()
 
@@ -225,7 +225,7 @@ func TestClientChannelDoesNotWaitForUnresponsiveServer(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "NHK総合", got.Name)
 	}
-	// 取り直しは、裏で 1 つだけ問い合わせる。
+	// 再取得は、裏で 1 つだけ問い合わせる。
 	assert.Eventually(t, func() bool { return fake.channelRequests.Load() == 2 }, time.Second, time.Millisecond)
 	assert.Never(t, func() bool { return fake.channelRequests.Load() > 2 }, 50*time.Millisecond, time.Millisecond)
 }
@@ -237,7 +237,7 @@ func TestClientChannelRetriesAfterCanceledRequest(t *testing.T) {
 	clk := clocktest.NewFake(time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC))
 	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: clk})
 
-	// 取りやめた要求で取れなかったことは、NX-Jikkyo が落ちているとはみなさない。次の要求では、すぐに取り直す。
+	// 取りやめた要求で取れなかったことは、NX-Jikkyo が落ちているとはみなさない。次の要求では、すぐに再取得する。
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err := client.Channel(ctx, jkNHK)

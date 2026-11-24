@@ -57,7 +57,7 @@ func suggestionsOf(got []*nextepisode.Suggestion) []suggestion {
 }
 
 // TestFindForUser は、ユーザーが見たシリーズごとに、見た回の最大の話数より後の最も早い放送を 1 件ずつ、放送の早い順に返し、
-// 見た割合の足りない回、期間より前に見た回、話数を読めない回、録画中の回、ほかのユーザーが見た回を、見た回に数えないことを確かめる (#1564)。
+// 見た割合の足りない回、期間より前に見た回、話数を読めない回、録画中の回、ほかのユーザーが見た回を、見た回に数えないことを確認する (#1564)。
 func TestFindForUser(t *testing.T) {
 	t.Parallel()
 
@@ -118,7 +118,7 @@ func TestFindForUser(t *testing.T) {
 }
 
 // TestFindForUserByAnime は、しょぼいカレンダーの話に結びついた見た回では TID と話数で探し、同じ番組がシリーズ名で探した
-// 別のシリーズにも当たったら、1 行にすることを確かめる (#1564)。
+// 別のシリーズにも当たったら、1 行にすることを確認する (#1564)。
 func TestFindForUserByAnime(t *testing.T) {
 	t.Parallel()
 
@@ -155,7 +155,7 @@ func TestFindForUserByAnime(t *testing.T) {
 
 // TestFindForUserByDrama は、番組名から話数を読めないドラマの見た回では、TMDB の作品とシーズンと話の番号で探し、
 // 見た話の最大の番号より後の、録っていない話の放送を出すことと、同じ番組がシリーズ名で探したシリーズにも当たったら、
-// シリーズ名で探した方の 1 行にすることを確かめる (#1564)。
+// シリーズ名で探した方の 1 行にすることを確認する (#1564)。
 func TestFindForUserByDrama(t *testing.T) {
 	t.Parallel()
 
@@ -190,7 +190,7 @@ func TestFindForUserByDrama(t *testing.T) {
 }
 
 // TestFindForUserByDramaNextSeason は、ホームの続きの放送でも、TMDB の作品で探すシリーズの今のシーズンの後の話が
-// これから放送されないときだけ、次のシーズンの第 1 話を出すことを確かめる (#1564)。
+// これから放送されないときだけ、次のシーズンの第 1 話を出すことを確認する (#1564)。
 // 見た回は、作品 dramaSeries のシーズン 1 の第 10 話と、作品 otherDramaSeries のシーズン 1 の第 4 話。
 func TestFindForUserByDramaNextSeason(t *testing.T) {
 	t.Parallel()
@@ -263,20 +263,20 @@ func TestFindForUserByDramaNextSeason(t *testing.T) {
 	}
 }
 
-// TestFindForUserMergesSubtitledSeries は、番組名に副題が入ってシリーズ名が回ごとに変わる作品でも、副題のない回があれば
-// 1 つのシリーズにまとめ、見た回の再放送を出さず、次の回を出すことを確かめる (#2023)。
+// TestFindForUserMergesSubtitledSeries は、番組名にサブタイトルが入ってシリーズ名が回ごとに変わる作品でも、サブタイトルのない回があれば
+// 1 つのシリーズにまとめ、見た回の再放送を出さず、次の回を出すことを確認する (#2023)。
 func TestFindForUserMergesSubtitledSeries(t *testing.T) {
 	t.Parallel()
 
 	programs := []*faketuner.Program{
-		// 見た第 5 話の再放送は、副題のない番組名で、第 6 話より先に放送される。
+		// 見た第 5 話の再放送は、サブタイトルのない番組名で、第 6 話より先に放送される。
 		fakeProgram(fakeGRNetwork, fakeGRService, 600, time.Hour, "港町の灯　＃０５🈞"),
 		fakeProgram(fakeGRNetwork, fakeGRService, 601, 5*time.Hour, "港町の灯　六つ目の嵐　＃０６🈑🈓"),
 		// シリーズ名が作品名で始まるだけの別の番組は、作品名を読み直して外す。
 		fakeProgram(fakeGRNetwork, fakeGRService, 602, 90*time.Minute, "港町の灯台　＃０９"),
-		// 枠の名前の後ろに作品名を書く番組は、副題のない回がなければまとめない。見た「霧の駅」の続きに、別の作品を出さない。
+		// 枠の名前の後ろに作品名を書く番組は、サブタイトルのない回がなければまとめない。見た「霧の駅」の続きに、別の作品を出さない。
 		fakeProgram(fakeGRNetwork, fakeGRService, 611, 3*time.Hour, "連続劇場　雪の峠　＃５"),
-		// 作品名の後ろの語が期 (数字) なら、副題のない回があってもまとめない。
+		// 作品名の後ろの語が期 (数字) なら、サブタイトルのない回があってもまとめない。
 		fakeProgram(fakeGRNetwork, fakeGRService, 620, 4*time.Hour, "灯台守　＃３"),
 		fakeProgram(fakeGRNetwork, fakeGRService, 621, 6*time.Hour, "灯台守　４　＃１６"),
 	}

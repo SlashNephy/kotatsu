@@ -153,7 +153,7 @@ func noOverrides() *domain.RecordingOverrides {
 	return &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil}
 }
 
-// TestApplyRules は、EPGStation のルールの各項目を、Kotatsu のルールの対応する項目に変換することを確かめる。
+// TestApplyRules は、EPGStation のルールの各項目を、Kotatsu のルールの対応する項目に変換することを確認する。
 func TestApplyRules(t *testing.T) {
 	t.Parallel()
 
@@ -350,7 +350,7 @@ func TestApplyRules(t *testing.T) {
 	}
 }
 
-// TestApplyRuleSkipsInvalidRule は、Kotatsu で使えない正規表現のルールを飛ばし、残りのルールを取り込むことを確かめる。
+// TestApplyRuleSkipsInvalidRule は、Kotatsu で使えない正規表現のルールを飛ばし、残りのルールを取り込むことを確認する。
 func TestApplyRuleSkipsInvalidRule(t *testing.T) {
 	t.Parallel()
 
@@ -374,7 +374,7 @@ func TestApplyRuleSkipsInvalidRule(t *testing.T) {
 	assert.Equal(t, 1, rules)
 }
 
-// TestApplyRuleSkipsUnconditionedRule は、時間帯と曜日だけのルールを、取り込まずに理由を残すことを確かめる (#1501)。
+// TestApplyRuleSkipsUnconditionedRule は、時間帯と曜日だけのルールを、取り込まずに理由を残すことを確認する (#1501)。
 // 取り込むと、その時間の全局を録ってディスクを埋める。チャンネル種別だけのルールは取り込む。
 func TestApplyRuleSkipsUnconditionedRule(t *testing.T) {
 	t.Parallel()
@@ -399,7 +399,7 @@ func TestApplyRuleSkipsUnconditionedRule(t *testing.T) {
 	assert.Contains(t, result.Skipped[0].Reason, "conditions must include a keyword")
 }
 
-// TestApplyRuleIsMatched は、取り込んだルールが、Kotatsu のルールの照合で番組に一致し、ルール予約を作ることを確かめる。
+// TestApplyRuleIsMatched は、取り込んだルールが、Kotatsu のルールの照合で番組に一致し、ルール予約を作ることを確認する。
 func TestApplyRuleIsMatched(t *testing.T) {
 	t.Parallel()
 
@@ -441,7 +441,7 @@ type importedReservation struct {
 	Overrides        *domain.RecordingOverrides
 }
 
-// TestApplyReserves は、手動予約を番組予約か時刻予約として取り込み、取り込めないものを理由と一緒に飛ばすことを確かめる。
+// TestApplyReserves は、手動予約を番組予約か時刻予約として取り込み、取り込めないものを理由と一緒に飛ばすことを確認する。
 func TestApplyReserves(t *testing.T) {
 	t.Parallel()
 
@@ -562,7 +562,7 @@ type importedFile struct {
 	Size   int64
 }
 
-// TestApplyRecordings は、録画済みの番組を、プールを対応付けたディレクトリのファイルと一緒に取り込むことを確かめる。
+// TestApplyRecordings は、録画済みの番組を、プールを対応付けたディレクトリのファイルと一緒に取り込むことを確認する。
 func TestApplyRecordings(t *testing.T) {
 	t.Parallel()
 
@@ -625,7 +625,7 @@ func TestApplyRecordings(t *testing.T) {
 	assert.Equal(t, "service 3273601025 is not in Kotatsu", reasons[5])
 	assert.Contains(t, reasons[6], "duplicate key value violates unique constraint")
 
-	// TS のある録画だけ、索引と集計を作るジョブを、重いジョブのキューに投入する。飛ばした録画のジョブは、巻き戻して残さない。
+	// TS のある録画だけ、インデックスと集計を作るジョブを、重いジョブのキューに投入する。飛ばした録画のジョブは、巻き戻して残さない。
 	// 新しく録った録画のジョブより後に回すよう、優先度を下げる (#551)。
 	rows, err := f.pool.Query(t.Context(), "SELECT queue, priority, (args->>'recordingId')::uuid FROM river_job WHERE kind = 'recording_analyze'")
 	require.NoError(t, err)
@@ -727,7 +727,7 @@ func TestApplyRecordings(t *testing.T) {
 	}
 }
 
-// TestApplyHistories は、録画履歴を、正規化した番組名と一緒に取り込むことを確かめる。
+// TestApplyHistories は、録画履歴を、正規化した番組名と一緒に取り込むことを確認する。
 func TestApplyHistories(t *testing.T) {
 	t.Parallel()
 
@@ -764,7 +764,7 @@ func TestApplyHistories(t *testing.T) {
 	}, got)
 }
 
-// TestApplyIsIdempotent は、同じデータを 2 度取り込んでも、前に取り込んだものを作り直さないことを確かめる。
+// TestApplyIsIdempotent は、同じデータを 2 度取り込んでも、前に取り込んだものを作り直さないことを確認する。
 func TestApplyIsIdempotent(t *testing.T) {
 	t.Parallel()
 

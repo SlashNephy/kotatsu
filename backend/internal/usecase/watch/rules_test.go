@@ -22,7 +22,7 @@ func ruleInput(name string) *watch.RuleInput {
 	}
 }
 
-// TestCreateRuleValidates は、視聴ルールの名前と条件を、録画のルールと同じく検証することを確かめる。
+// TestCreateRuleValidates は、視聴ルールの名前と条件を、録画のルールと同じく検証することを確認する。
 func TestCreateRuleValidates(t *testing.T) {
 	t.Parallel()
 
@@ -56,7 +56,7 @@ func TestCreateRuleValidates(t *testing.T) {
 	}
 }
 
-// TestCreateRuleLimit は、1 ユーザーあたり MaxRulesPerUser 個までしか視聴ルールを作れず、上限はユーザーごとであることを確かめる。
+// TestCreateRuleLimit は、1 ユーザーあたり MaxRulesPerUser 個までしか視聴ルールを作れず、上限はユーザーごとであることを確認する。
 func TestCreateRuleLimit(t *testing.T) {
 	t.Parallel()
 
@@ -71,7 +71,7 @@ func TestCreateRuleLimit(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestRulesAreOwnedByUser は、ほかのユーザーの視聴ルールは、見つからないものとして扱い、読むことも変えることもできないことを確かめる。
+// TestRulesAreOwnedByUser は、ほかのユーザーの視聴ルールは、見つからないものとして扱い、読むことも変えることもできないことを確認する。
 func TestRulesAreOwnedByUser(t *testing.T) {
 	t.Parallel()
 

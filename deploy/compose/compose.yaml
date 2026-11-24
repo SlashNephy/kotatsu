@@ -8,7 +8,7 @@
 #   2. KOTATSU_TUNER_URL を、チューナーサーバー (Mirakurun、mirakc、Mahiron) の URL にする。
 #   3. docker compose up -d で起動し、http://localhost:8080/ を開く。
 #
-# 録画は ./recordings に、索引や代表画像などの生成物は ./data に、DB は ./postgres に置く。どれもバックアップの対象になる (設計書 11.4)。
+# 録画は ./recordings に、インデックスや代表画像などの生成物は ./data に、DB は ./postgres に置く。どれもバックアップの対象になる (設計書 11.4)。
 name: kotatsu
 
 services:
@@ -56,7 +56,7 @@ services:
       KOTATSU_TUNER_URL: http://mirakurun:40772/
       KOTATSU_STORAGE_POOLS: main=/recordings
       KOTATSU_STORAGE_DATA_DIR: /data
-      # 定期のバックアップを ./backups に書き出すなら、次の行と、volumes の ./backups の行のコメントを外し、
+      # 定期のバックアップを ./backups に出力するなら、次の行と、volumes の ./backups の行のコメントを外し、
       # 管理者の画面 (/admin/backup) で age の公開鍵を登録する (設計書 11.4)。./backups も UID 65532 が書けるようにしておく。
       # KOTATSU_BACKUP_DIR: /backups
       KOTATSU_SERVER_LISTEN: ":8080"

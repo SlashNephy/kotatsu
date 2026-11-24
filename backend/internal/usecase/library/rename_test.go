@@ -30,7 +30,7 @@ const (
 )
 
 // TestRename は、今のテンプレートで付け直すと名前が変わる録画を計画し、ファイルと記録のパスを付け直し、
-// 監査ログに残すことを確かめる。分かれた録画の 2 つ目以降のセグメントには連番を付ける。
+// 監査ログに残すことを確認する。分かれた録画の 2 つ目以降のセグメントには連番を付ける。
 func TestRename(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +76,7 @@ func TestRename(t *testing.T) {
 }
 
 // TestRenameSkipsExternalFiles は、プールにあった TS を取り込んだファイル (external) は、Kotatsu が名前を付けたものではないので、
-// 付け直さないことを確かめる (#1734)。
+// 付け直さないことを確認する (#1734)。
 func TestRenameSkipsExternalFiles(t *testing.T) {
 	t.Parallel()
 
@@ -91,7 +91,7 @@ func TestRenameSkipsExternalFiles(t *testing.T) {
 }
 
 // TestRenameMovesTranscodedFiles は、最初のセグメントを付け直すとき、その名前から作った名前の変換した MP4 も、
-// 付け直した名前に合わせて移すことを確かめる (#1720)。取り込んだ MP4 のような、ほかの名前のファイルは移さない。
+// 付け直した名前に合わせて移すことを確認する (#1720)。取り込んだ MP4 のような、ほかの名前のファイルは移さない。
 // 移す先がふさがっていれば、変換した MP4 は移さず、セグメントだけを付け直す。
 func TestRenameMovesTranscodedFiles(t *testing.T) {
 	t.Parallel()
@@ -148,7 +148,7 @@ func TestRenameMovesTranscodedFiles(t *testing.T) {
 }
 
 // TestRenameMovesTranscodedFileToTheSameFileWithAnotherName は、正規化だけが違う名前に付け直すとき、変換した MP4 の移す先が
-// 自分自身として見つかっても、ふさがっているとみなさずに、記録を付け直すことを確かめる (#1720、#1095)。
+// 自分自身として見つかっても、ふさがっているとみなさずに、記録を付け直すことを確認する (#1720、#1095)。
 // 正規化を区別するファイルシステムでは、HFS+ の代わりに、ハードリンクを置く。
 func TestRenameMovesTranscodedFileToTheSameFileWithAnotherName(t *testing.T) {
 	t.Parallel()
@@ -184,7 +184,7 @@ func TestRenameMovesTranscodedFileToTheSameFileWithAnotherName(t *testing.T) {
 	assert.ElementsMatch(t, []string{want, transcoded}, paths)
 }
 
-// TestRenameSkipsJoining は、セグメントをつないでいる途中の録画は付け直さないことを確かめる。
+// TestRenameSkipsJoining は、セグメントをつないでいる途中の録画は付け直さないことを確認する。
 func TestRenameSkipsJoining(t *testing.T) {
 	t.Parallel()
 
@@ -201,7 +201,7 @@ func TestRenameSkipsJoining(t *testing.T) {
 }
 
 // TestRenameSkipsWhileJoining は、セグメントをつないでいる間 (録画ごとのロックを持っている間) と、つないだ後、
-// つないだファイルに置き換えるまでの間は、付け直さないことを確かめる (#1721)。
+// つないだファイルに置き換えるまでの間は、付け直さないことを確認する (#1721)。
 // 最初のセグメントの名前が変わらず、2 つ目以降だけを移すときも、置き換えのジョブが消すはずの元のファイルを動かさない。
 func TestRenameSkipsWhileJoining(t *testing.T) {
 	t.Parallel()
@@ -255,7 +255,7 @@ func TestRenameSkipsWhileJoining(t *testing.T) {
 }
 
 // TestRenameAdvancesSequenceOnCollision は、移す先がふさがっているとき、分かれた録画の連番を (2) (2) のように重ねず、
-// 次の番号に進めることを確かめる。
+// 次の番号に進めることを確認する。
 func TestRenameAdvancesSequenceOnCollision(t *testing.T) {
 	t.Parallel()
 
@@ -276,7 +276,7 @@ func TestRenameAdvancesSequenceOnCollision(t *testing.T) {
 }
 
 // TestRenameToTheSameFileWithAnotherName は、大文字と小文字や正規化だけが違う名前に付け直すとき、移す先が自分自身として見つかっても、
-// ふさがっているとみなして連番を付けないことを確かめる (#1095)。正規化を区別するファイルシステムでは、HFS+ の代わりに、ハードリンクを置く。
+// ふさがっているとみなして連番を付けないことを確認する (#1095)。正規化を区別するファイルシステムでは、HFS+ の代わりに、ハードリンクを置く。
 func TestRenameToTheSameFileWithAnotherName(t *testing.T) {
 	t.Parallel()
 
@@ -306,7 +306,7 @@ func TestRenameToTheSameFileWithAnotherName(t *testing.T) {
 	assert.Equal(t, want, path)
 }
 
-// TestRenameSettles は、付け直しを最後まで実行した後は、計画に何も出てこないことを確かめる。
+// TestRenameSettles は、付け直しを最後まで実行した後は、計画に何も出てこないことを確認する。
 // ほかの録画が名前をふさいでいて連番が付いた録画は、付け直しても名前が変わらないので、計画に出さない。
 // 付け直した後は、DB の記録のパスにファイルがあり、プールのファイルの数は変わらない。
 func TestRenameSettles(t *testing.T) {
@@ -486,7 +486,7 @@ func (f *fixture) segmentedAt(t *testing.T, paths ...string) uuid.UUID {
 	return f.segmented(t, time.Hour, false, segments...)
 }
 
-// segmentPaths は、録画 recordingID のセグメントのパスを、始まりの順に返す。記録のパスにファイルがあることも確かめる。
+// segmentPaths は、録画 recordingID のセグメントのパスを、始まりの順に返す。記録のパスにファイルがあることも確認する。
 func (f *fixture) segmentPaths(t *testing.T, recordingID uuid.UUID) []string {
 	t.Helper()
 
@@ -522,7 +522,7 @@ func (f *fixture) poolFiles(t *testing.T) []string {
 }
 
 // TestRenameUndoesToUnsanitizedName は、付け直しの途中で失敗したとき、先に移したファイルを、
-// 今の整え方で使えない文字を含む元の名前にも戻し、記録と合わせることを確かめる (#917)。
+// 今の整え方で使えない文字を含む元の名前にも戻し、記録と合わせることを確認する (#917)。
 func TestRenameUndoesToUnsanitizedName(t *testing.T) {
 	t.Parallel()
 
@@ -545,7 +545,7 @@ func TestRenameUndoesToUnsanitizedName(t *testing.T) {
 	assert.Empty(t, f.actions(t, recordingID))
 }
 
-// segmentPathsUnchecked は、segmentPaths と同じく記録のパスを返すが、ファイルがあるかは確かめない。
+// segmentPathsUnchecked は、segmentPaths と同じく記録のパスを返すが、ファイルがあるかは確認しない。
 func (f *fixture) segmentPathsUnchecked(t *testing.T, recordingID uuid.UUID) []string {
 	t.Helper()
 

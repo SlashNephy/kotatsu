@@ -7,7 +7,7 @@ import { asViewer, merge, minutesAgo, withStorage } from '../conditions';
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';
 
 // ライブラリのファイルの再生 (/library/play) の画面 (#2056)。静的なデモと同じ Service Worker で、デモの映像を流す。
-// 番組の分かるファイルと分からないファイル、索引を作っている途中と書いている途中、続きからの再生、CM の区間、
+// 番組の分かるファイルと分からないファイル、インデックスを作っている途中と書いている途中、続きからの再生、CM の区間、
 // 字幕の自動生成の状態、ファイルがない・読めない・ほかで使っているとき、ログインしていないとき、再生の経路を並べる。
 const path = 'バラエティ/こたつの時間.m2ts';
 
@@ -99,7 +99,7 @@ export const GoogleDrive: Story = {
   args: { overrides: file({ library: { name: 'マイドライブ', kind: 'GOOGLE_DRIVE' } }) },
 };
 
-// シークの索引を作っている途中 (シークできる所までの印と、作っている知らせ)。
+// シークのインデックスを作っている途中 (シークできる所までのマークと、作っている通知)。
 export const Indexing: Story = {
   args: {
     overrides: file({

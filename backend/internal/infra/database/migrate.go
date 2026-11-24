@@ -24,15 +24,15 @@ import (
 )
 
 // CompatibleSince は、このバイナリの最新のスキーマで動かしてよいバイナリの下限。
-// バイナリが知っている最新のマイグレーションのバージョンで比べる。
+// バイナリが知っている最新のマイグレーションのバージョンで比較する。
 //
-// マイグレーションは、列を追加し、新しい列を使うように切り替え、古い列を削除する、という段階を踏んで
+// マイグレーションは、カラムを追加し、新しいカラムを使うように切り替え、古いカラムを削除する、という段階を踏んで
 // 古いバイナリとの互換性を保つ (設計書 11.4)。古いバイナリの読み書きを壊すマイグレーション
-// (古いバイナリがまだ使う列の削除など) を足したときは、その値をそのマイグレーションのバージョンに上げる。
+// (古いバイナリがまだ使うカラムの削除など) を足したときは、その値をそのマイグレーションのバージョンに上げる。
 //
-// 20261123010000: 照合の正規化で、波ダッシュとダッシュの類をそろえた (#2041)。古いバイナリは、そろえる前の書き方のキーワードで、
-// 書き直した列と照合して、一致しなくなったルール予約を消すので、動かさない。マイグレーションを伴わないので、最新のマイグレーションの版にする。
-const CompatibleSince int64 = 20261123010000
+// 20261124120830: 番組名と概要の書き換えの記録 (program_rewrites) のテーブルと、system_settings.rule_unmatched_grace_minutes を消した (#2129)。
+// 古いバイナリは、EPG の同期でこのテーブルに書き込み、その同期の書き込みがすべて失敗するので、動かさない。
+const CompatibleSince int64 = 20261124120830
 
 var (
 	// ErrSchemaOutdated は、DB のスキーマがこのバイナリより古いことを表す。
@@ -44,7 +44,7 @@ var (
 // Migrate は、埋め込んだマイグレーションのうち未適用のものを適用する。
 // 適用済みなら何もしない。
 func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
-	// マイグレーションは、大きな表の書き換えで長くかかることがあるので、問い合わせの時間の上限を外した接続で流す (#527)。
+	// マイグレーションは、大きなテーブルの書き換えで長くかかることがあるので、問い合わせの時間の上限を外した接続で流す (#527)。
 	migrationPool, err := withoutStatementTimeout(ctx, pool)
 	if err != nil {
 		return err
@@ -104,8 +104,8 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 var ErrUnknownVersion = errors.New("the schema version is not one of the migrations embedded in this binary")
 
 // MigrateTo は、埋め込んだマイグレーションのうち、version までの未適用のものを適用する (#1926)。
-// バックアップを戻すときに、書き出したときのスキーマに合わせてから行を流し込むのに使う。
-// Migrate と違い、正規化した列を埋める処理と、動かしてよいバイナリの下限の記録はしない。どちらも最新のスキーマの列を読み書きするからである。
+// バックアップを戻すときに、バックアップしたときのスキーマに合わせてから行を流し込むのに使う。
+// Migrate と違い、正規化したカラムを埋める処理と、動かしてよいバイナリの下限の記録はしない。どちらも最新のスキーマのカラムを読み書きするからである。
 // 戻し終えたら Migrate で最新まで上げ、その中で埋める。
 func MigrateTo(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, version int64) error {
 	if !slices.Contains(MigrationVersions(), version) {
@@ -143,12 +143,12 @@ func MigrateTo(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, ver
 	return nil
 }
 
-// fillBatchSize は、正規化した列を埋めるときに、1 回に読み書きする行の数。
+// fillBatchSize は、正規化したカラムを埋めるときに、1 回に読み書きする行の数。
 const fillBatchSize = 500
 
-// fillRecordingsNormalized は、正規化した番組名と概要の列がない録画の列を埋める (#1044、設計書 3.5)。
+// fillRecordingsNormalized は、正規化した番組名と概要のカラムがない録画のカラムを埋める (#1044、設計書 3.5)。
 // 正規化は囲み文字を括弧にしてから NFKC にするので (domain.Normalize)、SQL の normalize では書けず、Go で埋める。
-// 列を足す前の録画と、列を知らない古いバイナリがローリング更新の間に書いた録画を、次の kotatsu migrate で埋める。
+// カラムを足す前の録画と、カラムを知らない古いバイナリがローリング更新の間に書いた録画を、次の kotatsu migrate で埋める。
 func fillRecordingsNormalized(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
 	q := sqlc.New(pool)
 	filled := 0
@@ -186,9 +186,9 @@ func fillRecordingsNormalized(ctx context.Context, logger *slog.Logger, pool *pg
 	return nil
 }
 
-// fillCapturesNormalized は、正規化した字幕の文の列がないキャプチャの列を埋める (#2084、設計書 3.5)。
+// fillCapturesNormalized は、正規化した字幕の文のカラムがないキャプチャのカラムを埋める (#2084、設計書 3.5)。
 // 正規化は囲み文字を括弧にしてから NFKC にするので (domain.Normalize)、SQL の normalize では書けず、Go で埋める。
-// 列を足す前のキャプチャと、列を知らない古いバイナリがローリング更新の間に書いたキャプチャを、次の kotatsu migrate で埋める。
+// カラムを足す前のキャプチャと、カラムを知らない古いバイナリがローリング更新の間に書いたキャプチャを、次の kotatsu migrate で埋める。
 // 字幕が出ていなかったキャプチャには空を書き、次の migrate で読み直さないようにする。
 func fillCapturesNormalized(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
 	q := sqlc.New(pool)
@@ -230,9 +230,9 @@ func fillCapturesNormalized(ctx context.Context, logger *slog.Logger, pool *pgxp
 	return nil
 }
 
-// fillRecordingHistorySeries は、シリーズ名の列がない録画履歴の列を埋める (#1499、設計書 4.4)。
+// fillRecordingHistorySeries は、シリーズ名のカラムがない録画履歴のカラムを埋める (#1499、設計書 4.4)。
 // シリーズ名は Go の回の読み方 (episode.Parse) で読むので、SQL では書けず、Go で埋める。
-// 列を足す前の履歴と、列を知らない古いバイナリがローリング更新の間に書いた履歴を、次の kotatsu migrate で埋める。
+// カラムを足す前の履歴と、カラムを知らない古いバイナリがローリング更新の間に書いた履歴を、次の kotatsu migrate で埋める。
 // シリーズ名を読めない番組名の履歴には空を書き、次の migrate で読み直さないようにする。
 func fillRecordingHistorySeries(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
 	q := sqlc.New(pool)
@@ -273,13 +273,13 @@ const migrationLockID = lock.DefaultLockID
 // WithMigrationLock は、マイグレーションのロックを取ってから fn を実行し、終わったら手放す (設計書 11.4)。
 // kotatsu migrate を同時に実行しても、1 つずつ順に適用するので、どれも失敗しない。
 //
-// ロックは、PostgreSQL の advisory lock ではなく、表 (goose_lock) の行で取る。トランザクションプーリングを経由すると、
+// ロックは、PostgreSQL の advisory lock ではなく、テーブル (goose_lock) の行で取る。トランザクションプーリングを経由すると、
 // セッションの advisory lock は、取った接続と手放す接続が違うことがあり、手放せずに残るからである。
-// 行には期限があり、取った側が落ちても、期限が過ぎれば取り直せる。
+// 行には期限があり、取った側が落ちても、期限が過ぎれば取得し直せる。
 func WithMigrationLock(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, fn func(ctx context.Context) error) error {
 	locker, err := lock.NewPostgresTableLocker(
 		lock.WithTableLockID(migrationLockID),
-		// ほかの migrate が終わるのを、1 秒ごとに確かめ、5 分まで待つ。
+		// ほかの migrate が終わるのを、1 秒ごとに確認し、5 分まで待つ。
 		lock.WithTableLockTimeout(time.Second, 300),
 		lock.WithTableLogger(logger),
 	)
@@ -300,7 +300,7 @@ func WithMigrationLock(ctx context.Context, logger *slog.Logger, pool *pgxpool.P
 	return fnErr
 }
 
-// CheckSchema は、このバイナリが DB のスキーマで動けるかを確かめる。
+// CheckSchema は、このバイナリが DB のスキーマで動けるかを確認する。
 //
 // DB のスキーマがこのバイナリより古ければ ErrSchemaOutdated を返す。DB のスキーマのほうが新しいことは許す。
 // ローリング更新では、新しいバイナリが kotatsu migrate を実行したあとも、古いバイナリが動き続けるからである。

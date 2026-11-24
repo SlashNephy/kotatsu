@@ -101,7 +101,7 @@ func (s *Store) UpdateChannelType(
 	return new(domain.ChannelType(updated)), nil
 }
 
-// sortOrder は、並び順が範囲にあるかを確かめ、DB に保存する形にする。
+// sortOrder は、並び順が範囲にあるかを確認し、DB に保存する形にする。
 func sortOrder(order int) (int32, error) {
 	if order < 0 || order > maxSortOrder {
 		return 0, fmt.Errorf("%w: sortOrder must be between 0 and %d", ErrInvalidSettings, maxSortOrder)

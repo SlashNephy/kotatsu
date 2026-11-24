@@ -19,7 +19,7 @@ func baseTime() time.Time {
 	return time.Date(2026, 11, 12, 3, 0, 0, 0, time.UTC)
 }
 
-// TestDecide は、スリープさせないかと、起こす予約の時刻の判定を確かめる (#1522、設計書 11.7)。
+// TestDecide は、スリープさせないかと、起こす予約の時刻の判定を確認する (#1522、設計書 11.7)。
 func TestDecide(t *testing.T) {
 	t.Parallel()
 
@@ -151,7 +151,7 @@ func expectInOrder(m *MockSystem, calls []osCall, err error) {
 	gomock.InOrder(expected...)
 }
 
-// TestController は、状態が変わったときだけ OS に伝えることと、伝えられなければ次の判定でもう一度試すことを確かめる。
+// TestController は、状態が変わったときだけ OS に伝えることと、伝えられなければ次の判定でもう一度試すことを確認する。
 func TestController(t *testing.T) {
 	t.Parallel()
 

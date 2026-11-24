@@ -10,7 +10,7 @@ import (
 )
 
 // Program は、録画した番組の、番組表の時刻 (#1506)。録画の前後のマージンには前後の番組が入るので、
-// 番組の尺に収まる窓を置き、窓の外のロゴを前後の番組のものとして捨てるのに使う。
+// 番組の尺に収まるウィンドウを置き、ウィンドウの外のロゴを前後の番組のものとして破棄するのに使う。
 type Program struct {
 	// Start は、番組が始まるはずの時刻を、ファイルの始まりからの時間で表したもの。録画を番組より遅れて始めれば負になる。
 	Start time.Duration
@@ -19,16 +19,16 @@ type Program struct {
 }
 
 const (
-	// windowEdgeExclusion は、窓の置き場所の候補から除く、ファイルの始まりと終わりからの幅 (端の除外幅)。
-	// ファイルの始まりで始まるロゴの区間は、前の番組から続くロゴかもしれず、そこに窓の頭を合わせる理由にならない。
+	// windowEdgeExclusion は、ウィンドウの置き場所の候補から除く、ファイルの始まりと終わりからの幅 (端の除外幅)。
+	// ファイルの始まりで始まるロゴの区間は、前の番組から続くロゴかもしれず、そこにウィンドウの先頭を合わせる理由にならない。
 	windowEdgeExclusion = 2 * time.Second
-	// windowShiftWeight は、窓の置き場所が、番組が始まるはずの時刻からずれた 1 秒ごとに引く、ロゴの秒数 (窓のずれの重み)。
-	// 先頭のロゴを短くしか捉えられなかった録画で、末尾に入った次の番組のロゴに窓が引っ張られないようにする。
+	// windowShiftWeight は、ウィンドウの置き場所が、番組が始まるはずの時刻からずれた 1 秒ごとに引く、ロゴの秒数 (ウィンドウのずれの重み)。
+	// 先頭のロゴを短くしか捉えられなかった録画で、末尾に入った次の番組のロゴにウィンドウが引っ張られないようにする。
 	// 大きく遅れた放送は、ずらした分だけロゴが多く入るので、この減点を上回る。
 	windowShiftWeight = 0.5
 	// windowTie は、最高点からこの差の内の候補を同点とみなす幅 (秒)。同点なら、番組が始まるはずの時刻に近いものを採る。
 	windowTie = 1.0
-	// windowSnapDistance は、窓の端を無音の境目に寄せる距離 (#1506 の「窓の端を寄せる距離」)。番組表の始まりと実際の始まりのずれより
+	// windowSnapDistance は、ウィンドウの端を無音の境目に寄せる距離 (#1506 の「ウィンドウの端を寄せる距離」)。番組表の始まりと実際の始まりのずれより
 	// 広くする。開発用の環境の 5 本の録画では、実際に放送中になった日時は、番組表の始まりより 0.5〜2.6 秒遅れていた。
 	windowSnapDistance = 3.0
 	// windowSnapNoCut は、シーンの切り替わりも音声の構成の変化もない無音の境目を、この秒だけ遠いとみなす量 (「切れ目のない無音の割増し」)。
@@ -36,10 +36,10 @@ const (
 	windowSnapNoCut = 1.0
 )
 
-// programWindow は、番組の尺の窓を、ロゴの出ていた区間 intervals に合わせて置いて返す (#1506 の手順 1)。
+// programWindow は、番組の尺のウィンドウを、ロゴの出ていた区間 intervals に合わせて置いて返す (#1506 の手順 1)。
 // times はコマごとの時刻 (秒)、fps はコマの速さ、program は番組の時刻 (ファイルの始まりから)。
-// 番組の尺が録画より短いときだけ置き、置けなければ ok を false にする。ロゴから候補が 1 つも作れないときも、番組の頭を削らないよう置かない。
-// 窓の端を無音の境目に寄せるのは、置いた後に snapWindow で行う。
+// 番組の尺が録画より短いときだけ置き、置けなければ ok を false にする。ロゴから候補が 1 つも作れないときも、番組の先頭を削らないよう置かない。
+// ウィンドウの端を無音の境目に寄せるのは、置いた後に snapWindow で行う。
 func programWindow(intervals []logo.Interval, times []float64, fps float64, program *Program) (window, bool) {
 	none := window{start: 0, end: 0}
 	if program == nil || program.Duration <= 0 || len(times) == 0 {
@@ -58,7 +58,7 @@ func programWindow(intervals []logo.Interval, times []float64, fps float64, prog
 	if length >= total {
 		return none, false
 	}
-	// 番組が始まるはずの時刻を、最初のコマからの秒にする。ファイルの始まりから最初のコマまでの空きを引く。
+	// 番組が始まるはずの時刻を、最初のコマからの秒にする。ファイルの始まりから最初のコマまでの空きを差し引く。
 	expected := program.Start.Seconds() - origin
 	edge := windowEdgeExclusion.Seconds()
 	candidates := []float64{}
@@ -95,11 +95,11 @@ func programWindow(intervals []logo.Interval, times []float64, fps float64, prog
 	return window{start: chosen, end: chosen + length}, true
 }
 
-// snapWindow は、窓 w の両端を、windowSnapDistance 以内で最も近い無音の境目に寄せて返す (#1506 の手順 1)。
-// 切れ目のない境目は、windowSnapNoCut だけ遠いとみなす。寄せた結果、窓の始まりが終わりより後になる境目は使わない。
+// snapWindow は、ウィンドウ w の両端を、windowSnapDistance 以内で最も近い無音の境目に寄せて返す (#1506 の手順 1)。
+// 切れ目のない境目は、windowSnapNoCut だけ遠いとみなす。寄せた結果、ウィンドウの始まりが終わりより後になる境目は使わない。
 // bounds の時刻は、今の見分け方の基準 (コマの時刻に offset を足したもの)。duration は、その基準での録画の長さ。
 // combineSections と同じく、録画の端 (0 と duration) にある境目は、無音の境目ではないので使わない。
-// origin は最初のコマの時刻。窓は最初のコマからの秒。
+// origin は最初のコマの時刻。ウィンドウは最初のコマからの秒。
 func snapWindow(w window, bounds []boundary, duration, origin, offset float64) window {
 	snap := func(edge float64, valid func(float64) bool) float64 {
 		best, bestCost := edge, math.Inf(1)
@@ -129,15 +129,15 @@ func snapWindow(w window, bounds []boundary, duration, origin, offset float64) w
 	return window{start: start, end: end}
 }
 
-// window は、番組の窓。始まりと終わりは、最初のコマからの秒。
+// window は、番組のウィンドウ。始まりと終わりは、最初のコマからの秒。
 type window struct {
 	start, end float64
 }
 
-// clipIntervals は、ロゴの出ていた区間を、窓 [start, end) (最初のコマからの秒) に収める。窓の外のロゴは、前後の番組のものとして捨てる。
+// clipIntervals は、ロゴの出ていた区間を、ウィンドウ [start, end) (最初のコマからの秒) に収める。ウィンドウの外のロゴは、前後の番組のものとして破棄する。
 func clipIntervals(intervals []logo.Interval, times []float64, start, end float64) []logo.Interval {
 	origin := times[0]
-	// first は、窓の内に入る最初のコマ、last は、窓の外に出る最初のコマ。
+	// first は、ウィンドウの内に入る最初のコマ、last は、ウィンドウの外に出る最初のコマ。
 	first, last := len(times), len(times)
 	for i, t := range times {
 		if first == len(times) && t-origin >= start {
@@ -161,7 +161,7 @@ func clipIntervals(intervals []logo.Interval, times []float64, start, end float6
 }
 
 const (
-	// minCMSection は、ほかの CM に続かない区間を CM とみなす最短 (#1506 の「捨てる短い区間」)。CM は 15 秒の倍数なので、
+	// minCMSection は、ほかの CM に続かない区間を CM とみなす最短 (#1506 の「破棄する短い区間」)。CM は 15 秒の倍数なので、
 	// 許すずれ (1 秒) を引いた長さに届かない区間は、本当の CM になりえない。本番のアニメの録画では、明るい場面で局ロゴが見えにくくなり、
 	// 本編の中に 2〜11 秒の区間が 14 個出たが、どれも本編だった。
 	minCMSection = 14 * time.Second
@@ -170,7 +170,7 @@ const (
 )
 
 // dropShortSections は、CM の区間のうち、minCMSection より短く、ファイルの端 (0 と duration) に接しておらず、
-// ほかの残す区間から cmAdjacency の内にもないものを捨てる (#1506)。端の区間は、前後の番組の CM が途中から入るので、長さを問わない。
+// ほかの残す区間から cmAdjacency の内にもないものを破棄する (#1506)。端の区間は、前後の番組の CM が途中から入るので、長さを問わない。
 func dropShortSections(sections []Section, duration time.Duration) []Section {
 	keep := make([]bool, len(sections))
 	for i, s := range sections {

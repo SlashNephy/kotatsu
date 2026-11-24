@@ -20,8 +20,15 @@ const (
 	folderID = "anime"
 	fileID   = "ep1"
 	driveID  = "shared"
-	// fileName は、テストのファイルの名前。
-	fileName = "ep1.ts"
+	// fileName は、テストのファイルの名前。folderName、ep2Name、notesName、backupName は、ほかのフォルダとファイルの名前。
+	fileName   = "ep1.ts"
+	folderName = "anime"
+	ep2Name    = "ep2.ts"
+	notesName  = "notes"
+	backupName = "backup.ts"
+	// myDriveCase と sharedDriveCase は、マイドライブと共有ドライブを読むテストの名前。
+	myDriveCase     = "my drive"
+	sharedDriveCase = "shared drive"
 	// tsMime は、TS の MIME タイプ。
 	tsMime = "video/mp2t"
 )
@@ -31,7 +38,7 @@ func modified() time.Time {
 	return time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 }
 
-// tokens は、偽の Google が発行したアクセストークンを返し、捨てられたら発行し直す TokenSource。
+// tokens は、モックの Google が発行したアクセストークンを返し、破棄されたら発行し直す TokenSource。
 type tokens struct {
 	server *googletest.Server
 
@@ -57,20 +64,20 @@ func (t *tokens) Invalidate() {
 	t.invalidated++
 }
 
-// newClient は、次の中身の偽の Drive と、そこへ向けたクライアントを返す。やり直す前に待った長さを waits に残す。
+// newClient は、次の内容のモックの Drive と、そこへ向けたクライアントを返す。やり直す前に待った長さを waits に残す。
 //
 //	マイドライブ: anime/ (ep1.ts, ep2.ts), notes.gdoc, trashed.ts
 //	共有ドライブ shared (Backup): backup.ts
 func newClient(t *testing.T) *fixture {
 	t.Helper()
 	server := googletest.New("client", "secret")
-	server.AddFile(&googletest.File{ID: folderID, Name: "anime", MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID, ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: folderID, Name: folderName, MIMEType: googletest.FolderMIMEType, Parent: googletest.MyDriveID, ModifiedTime: modified()})
 	server.AddFile(&googletest.File{ID: fileID, Name: fileName, MIMEType: tsMime, Parent: folderID, Content: []byte("0123456789"), ModifiedTime: modified()})
-	server.AddFile(&googletest.File{ID: "ep2", Name: "ep2.ts", MIMEType: tsMime, Parent: folderID, Content: []byte("ab"), ModifiedTime: modified()})
-	server.AddFile(&googletest.File{ID: "doc", Name: "notes", MIMEType: "application/vnd.google-apps.document", Parent: googletest.MyDriveID, ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: "ep2", Name: ep2Name, MIMEType: tsMime, Parent: folderID, Content: []byte("ab"), ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: "doc", Name: notesName, MIMEType: "application/vnd.google-apps.document", Parent: googletest.MyDriveID, ModifiedTime: modified()})
 	server.AddFile(&googletest.File{ID: "gone", Name: "trashed.ts", MIMEType: tsMime, Parent: googletest.MyDriveID, Content: []byte("x"), ModifiedTime: modified(), Trashed: true})
 	server.AddDrive(&googletest.Drive{ID: driveID, Name: "Backup"})
-	server.AddFile(&googletest.File{ID: "backup", Name: "backup.ts", MIMEType: tsMime, Parent: driveID, Content: []byte("backup"), ModifiedTime: modified()})
+	server.AddFile(&googletest.File{ID: "backup", Name: backupName, MIMEType: tsMime, Parent: driveID, Content: []byte("backup"), ModifiedTime: modified()})
 	httpServer := httptest.NewServer(server.Handler())
 	t.Cleanup(httpServer.Close)
 	source := &tokens{server: server, mu: sync.Mutex{}, token: "", invalidated: 0}
@@ -88,7 +95,7 @@ func newClient(t *testing.T) *fixture {
 	return &fixture{client: client, server: server, tokens: source, waits: waits}
 }
 
-// fixture は、偽の Drive と、そこへ向けたクライアント。waits は、やり直す前に待った長さ。
+// fixture は、モックの Drive と、そこへ向けたクライアント。waits は、やり直す前に待った長さ。
 type fixture struct {
 	client *googledrive.Client
 	server *googletest.Server
@@ -105,10 +112,10 @@ func TestClientList(t *testing.T) {
 		driveID   string
 		wantNames []string
 	}{
-		// ゴミ箱にあるものは返さない。偽の Drive は 1 件ずつのページで返すので、ページをたどって集める。
-		{name: "my drive", parent: googledrive.MyDriveID, driveID: "", wantNames: []string{"anime", "notes"}},
-		{name: "folder", parent: folderID, driveID: "", wantNames: []string{fileName, "ep2.ts"}},
-		{name: "shared drive", parent: driveID, driveID: driveID, wantNames: []string{"backup.ts"}},
+		// ゴミ箱にあるものは返さない。モックの Drive は 1 件ずつのページで返すので、ページをたどって集める。
+		{name: myDriveCase, parent: googledrive.MyDriveID, driveID: "", wantNames: []string{folderName, notesName}},
+		{name: "folder", parent: folderID, driveID: "", wantNames: []string{fileName, ep2Name}},
+		{name: sharedDriveCase, parent: driveID, driveID: driveID, wantNames: []string{backupName}},
 		{name: "empty", parent: fileID, driveID: "", wantNames: []string{}},
 	}
 	for _, tt := range tests {
@@ -122,6 +129,98 @@ func TestClientList(t *testing.T) {
 				names = append(names, f.Name)
 			}
 			assert.Equal(t, tt.wantNames, names)
+		})
+	}
+}
+
+// TestClientNamedChildren は、フォルダの中の、名前が決まったものだけを 1 つの問い合わせで取得することを確認する。
+func TestClientNamedChildren(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		names   map[string][]string
+		driveID string
+		wantIDs []string
+	}{
+		// ゴミ箱にあるもの (trashed.ts) と、ほかのフォルダの同じ名前のものは返さない。
+		{
+			name: myDriveCase, names: map[string][]string{folderID: {fileName}, googledrive.MyDriveID: {notesName, "trashed.ts", fileName}}, driveID: "",
+			wantIDs: []string{"doc", fileID},
+		},
+		{name: sharedDriveCase, names: map[string][]string{driveID: {backupName}}, driveID: driveID, wantIDs: []string{"backup"}},
+		{name: "no names", names: map[string][]string{}, driveID: "", wantIDs: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			files, err := newClient(t).client.NamedChildren(t.Context(), tt.names, tt.driveID)
+			require.NoError(t, err)
+			ids := []string{}
+			for _, f := range files {
+				ids = append(ids, f.ID)
+			}
+			assert.ElementsMatch(t, tt.wantIDs, ids)
+		})
+	}
+}
+
+// TestClientSearchFiles は、ページごとに渡し、止められたら残りのページを読まないことを確認する。
+func TestClientSearchFiles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		maxPages      int
+		stopAfter     int
+		wantNames     []string
+		wantTruncated bool
+	}{
+		// モックの Drive は 1 件ずつのページで返す。フォルダとゴミ箱にあるものは返さない。
+		{name: "all pages", maxPages: 5, stopAfter: 0, wantNames: []string{fileName, ep2Name}, wantTruncated: false},
+		{name: "stopped", maxPages: 5, stopAfter: 1, wantNames: []string{fileName}, wantTruncated: true},
+		{name: "page limit", maxPages: 1, stopAfter: 0, wantNames: []string{fileName}, wantTruncated: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			names := []string{}
+			truncated, err := newClient(t).client.SearchFiles(t.Context(), "ep", "", tt.maxPages, func(files []*googledrive.File) bool {
+				for _, f := range files {
+					names = append(names, f.Name)
+				}
+
+				return tt.stopAfter == 0 || len(names) < tt.stopAfter
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantNames, names)
+			assert.Equal(t, tt.wantTruncated, truncated)
+		})
+	}
+}
+
+// TestClientFolders は、ドライブのフォルダだけを返し、根元とファイルは返さないことを確認する。
+func TestClientFolders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		driveID string
+		want    []string
+	}{
+		{name: myDriveCase, driveID: "", want: []string{folderID}},
+		{name: sharedDriveCase, driveID: driveID, want: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			folders, err := newClient(t).client.Folders(t.Context(), tt.driveID)
+			require.NoError(t, err)
+			ids := []string{}
+			for _, f := range folders {
+				ids = append(ids, f.ID)
+			}
+			assert.Equal(t, tt.want, ids)
 		})
 	}
 }
@@ -181,7 +280,7 @@ func TestClientDownload(t *testing.T) {
 }
 
 // TestClientRetry は、上限に当たったとき (429、403 の userRateLimitExceeded) と、トークンの期限が切れたとき (401) に、
-// やり直すことと、やり直してはならない失敗 (downloadQuotaExceeded) と、やり直しても当たり続けるときの扱いを確かめる。
+// やり直すことと、やり直してはならない失敗 (downloadQuotaExceeded) と、やり直しても当たり続けるときの扱いを確認する。
 func TestClientRetry(t *testing.T) {
 	t.Parallel()
 
@@ -223,7 +322,7 @@ func TestClientRetry(t *testing.T) {
 			wantErr: googledrive.ErrUnauthorized, wantCalls: 2, wantInvalidated: 1,
 		},
 		{
-			// 待つ長さの合計は、索引が作り直される時間より短く収める。Retry-After が長ければ、早めに諦める。
+			// 待つ長さの合計は、インデックスが作り直される時間より短く収める。Retry-After が長ければ、早めに諦める。
 			name: "long Retry-After", faults: []googletest.Fault{googletest.FaultLongRateLimit, googletest.FaultLongRateLimit},
 			wantErr: googledrive.ErrRateLimited, wantCalls: 2, wantWaits: 1,
 		},
@@ -257,7 +356,7 @@ func TestClientRetry(t *testing.T) {
 	}
 }
 
-// TestClientRangeIgnored は、範囲を無視して頭から返されたら、頭から読むときだけ使うことを確かめる。
+// TestClientRangeIgnored は、範囲を無視して頭から返されたら、頭から読むときだけ使うことを確認する。
 func TestClientRangeIgnored(t *testing.T) {
 	t.Parallel()
 
@@ -286,7 +385,7 @@ func TestClientRangeIgnored(t *testing.T) {
 	}
 }
 
-// TestClientRetryAfter は、429 の Retry-After に従って待つことを確かめる。
+// TestClientRetryAfter は、429 の Retry-After に従って待つことを確認する。
 func TestClientRetryAfter(t *testing.T) {
 	t.Parallel()
 	f := newClient(t)

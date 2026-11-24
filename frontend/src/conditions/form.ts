@@ -44,7 +44,7 @@ export type ConditionsForm = {
   minDurationSeconds: number | null;
   maxDurationSeconds: number | null;
   freeOnly: boolean;
-  // marks は、番組名の囲み文字の中身 (「新」や「字」など。括弧で書いた [新] なども同じとみなす)。どれか 1 つを持つ番組を対象にする。
+  // marks は、番組名の囲み文字の内容 (「新」や「字」など。括弧で書いた [新] なども同じとみなす)。どれか 1 つを持つ番組を対象にする。
   marks: string[];
   // excludeMarks は、どれか 1 つを持つ番組を除外する囲み文字。
   excludeMarks: string[];
@@ -122,7 +122,7 @@ const copyGenre = (genre: { lv1: number; lv2?: number | null }): Genre => ({
 
 // promoWords は、宣伝やダイジェストの番組の番組名にある語と、それを見つける形 (#2041)。
 // 照合はキーワードを NFKC で正規化して探すので、全角の「ＰＲ」も「PR」で除外できる。PR は、英字の語の一部 (PRIDE、Spring) を
-// 宣伝とみなさないよう、前後が英字でないときだけ宣伝の印とみなし、除外も大文字と小文字を区別する。
+// 宣伝とみなさないよう、前後が英字でないときだけ宣伝のマークとみなし、除外も大文字と小文字を区別する。
 const promoWords: readonly { text: string; pattern: RegExp; caseSensitive: boolean }[] = [
   {
     text: 'PR',
@@ -190,7 +190,7 @@ type KeywordInputLike = {
   readonly fields: readonly string[];
 };
 
-// nameHighlights は、tenban に送った含めるキーワードのうち、番組名を見るものを、番組名に印を付けるキーワードにする (#966)。
+// nameHighlights は、tenban に送った含めるキーワードのうち、番組名を見るものを、番組名にマークを付けるキーワードにする (#966)。
 export function nameHighlights(
   keywords: readonly KeywordInputLike[] | null | undefined,
 ): HighlightKeyword[] {
@@ -204,7 +204,7 @@ export function nameHighlights(
 }
 
 // toConditionsInput は、入力を、tenban の ProgramConditionsInput にする。
-// 中身のないキーワードの行と、曜日のない時間帯の行は、編集の途中とみなして送らない。
+// 内容のないキーワードの行と、曜日のない時間帯の行は、編集の途中とみなして送らない。
 export function toConditionsInput(form: ConditionsForm) {
   const keywords = (rows: KeywordRow[]) =>
     rows

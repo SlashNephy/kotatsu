@@ -12,6 +12,9 @@ export type Capabilities = {
   // hevcUhd は、BS4K の映像 (HEVC Main10、2160p) をそのまま再生できるかどうか (#806)。
   // できなければ、映像を変換しない画質を選ばせない。
   hevcUhd: boolean;
+  // decode は、ブラウザの中で MPEG-2 をデコードして再生できるかどうか (#1516)。WASM の SIMD、worker の OffscreenCanvas、
+  // GPU で描く WebGL2、AudioContext が要る。
+  decode: boolean;
 };
 
 // passthrough は、映像を変換しない (BS4K の HEVC をそのまま送る) 画質かどうか。
@@ -31,9 +34,18 @@ export function toVideoFormat(value: string): VideoFormat {
 
 // original は、ブラウザの中で変換する経路を表す画質の名前。
 export const original = 'original';
+// decoded は、ブラウザの中でデコードする経路 (#1516) を表す画質の名前。手で選んだときだけ使い、自動では選ばない。
+export const decoded = 'decoded';
+
+// RouteOptions は、画面ごとに選べる経路。
+export type RouteOptions = {
+  // decode は、ブラウザの中でデコードする経路を選ばせるか。今はライブ視聴だけ。
+  decode?: boolean;
+};
 
 export type PlaybackRoute =
   | { kind: 'convert' }
+  | { kind: 'decode' }
   | { kind: 'kyusu'; preset: string }
   // unavailable は、再生できないこと。reason は、利用者に示す理由。
   | { kind: 'unavailable'; reason: 'noTranscoder' | 'noPlayer' | 'uhdNoTranscoder' | 'shv' };
@@ -51,6 +63,7 @@ export function qualities(
   capabilities: Capabilities,
   transcoding: Transcoding,
   format: VideoFormat,
+  options: RouteOptions = {},
 ): string[] {
   const list: string[] = [];
   if (format === 'SHV') {
@@ -58,6 +71,9 @@ export function qualities(
   }
   if (format === 'HD' && capabilities.convert) {
     list.push(original);
+  }
+  if (format === 'HD' && capabilities.decode && options.decode === true) {
+    list.push(decoded);
   }
   if (transcoding.available && capabilities.hls) {
     for (const preset of transcoding.presets) {
@@ -84,13 +100,18 @@ export function chooseRoute(
   transcoding: Transcoding,
   requested: string | undefined,
   format: VideoFormat,
+  options: RouteOptions = {},
 ): PlaybackRoute {
   if (format === 'SHV') {
     return { kind: 'unavailable', reason: 'shv' };
   }
-  const choices = qualities(capabilities, transcoding, format);
+  const choices = qualities(capabilities, transcoding, format, options);
   if (requested !== undefined && choices.includes(requested)) {
-    return requested === original ? { kind: 'convert' } : { kind: 'kyusu', preset: requested };
+    if (requested === original) {
+      return { kind: 'convert' };
+    }
+
+    return requested === decoded ? { kind: 'decode' } : { kind: 'kyusu', preset: requested };
   }
   if (choices.includes(original)) {
     return { kind: 'convert' };
@@ -101,8 +122,10 @@ export function chooseRoute(
   if (passthrough !== undefined) {
     return { kind: 'kyusu', preset: passthrough.name };
   }
+  // ブラウザの中での変換とデコードは kyusu の画質でないので、kyusu の画質だけから選ぶ。デコードする経路は、選ばれたときにだけ使う。
+  const presets = choices.filter((choice) => choice !== original && choice !== decoded);
   const preferred = format === 'UHD' && capabilities.convert ? uhdDesktopPreset : defaultPreset;
-  const preset = choices.includes(preferred) ? preferred : choices[0];
+  const preset = presets.includes(preferred) ? preferred : presets[0];
   if (preset !== undefined) {
     return { kind: 'kyusu', preset };
   }

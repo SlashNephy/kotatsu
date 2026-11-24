@@ -72,8 +72,8 @@ func NewActivityCollector(clk clock.Clock, logger *slog.Logger) *ActivityCollect
 	}
 }
 
-// Observe は、解析器が読んだ EIT[p/f] のセクションを受け取る。ts.AnalyzerOptions.OnPresentFollowing に渡す。
-// 解析器の中で呼ばれるので、DB には書かない。衛星のネットワークのサービスだけを使う。
+// Observe は、アナライザーが読んだ EIT[p/f] のセクションを受け取る。ts.AnalyzerOptions.OnPresentFollowing に渡す。
+// アナライザーの中で呼ばれるので、DB には書かない。衛星のネットワークのサービスだけを使う。
 func (c *ActivityCollector) Observe(section *ts.PresentFollowingSection) {
 	if section == nil {
 		return
@@ -112,7 +112,7 @@ func (c *ActivityCollector) Observe(section *ts.PresentFollowingSection) {
 }
 
 // Flush は、集めた番組の有無を DB に書く。書けなかったものは、次の Flush で書き直す。
-// 知らせるためだけのものなので、書けなくても録画は止めない。エラーはログに残すだけにする。
+// 通知するためだけのものなので、書けなくても録画は止めない。エラーはログに残すだけにする。
 func (c *ActivityCollector) Flush(ctx context.Context, q *sqlc.Queries) {
 	c.mu.Lock()
 	pending := c.pending

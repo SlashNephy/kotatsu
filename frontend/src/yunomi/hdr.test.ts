@@ -25,7 +25,7 @@ describe('loadHDROutput', () => {
 const RGBA8 = 0x8058;
 const RGBA16F = 0x881a;
 
-// 描画先の形式と、それを変える口だけを持つ、偽のコンテキスト。
+// 描画先の形式と、それを変える口だけを持つ、モックのコンテキスト。
 function fakeContext({ format = RGBA8, floatColors = true } = {}) {
   const context = {
     RGBA8,

@@ -15,12 +15,12 @@ import (
 
 // skipEarlierEpisodes は、前の回を録らないルールに一致した放送のうち、追っているシリーズの前の回を外す (設計書 4.4、#1499)。
 //
-// 比べる相手は、録った回 (シリーズ名が一致する録画履歴の全部と、録画中の録画)、予約してある回、弾かれていない候補の放送である。
+// 比較する相手は、録った回 (シリーズ名が一致する録画履歴の全部と、録画中の録画)、予約してある回、弾かれていない候補の放送である。
 // 相手のうち、シリーズ名が完全に一致し、開始がその放送より前で、話数がその放送より大きいものが 1 つでもあれば外す。
 // 外した放送からは、この設定を入れたルールだけを外す。どのルールにも一致しなくなった放送は、予約すべき集合から除き、
-// skipped が nil でなければ、外したルールと理由と一緒に入れる。bundled にある (同じ回を束ねて一部のルールを外した) 放送は、
-// 束ねた理由を優先して出す。
-// removed は、この照合で消えるルール予約の番組。消える予約は、比べる相手にしない (#1724)。
+// skipped が nil でなければ、外したルールと理由と一緒に入れる。bundled にある (同じ回をまとめて一部のルールを外した) 放送は、
+// まとめた理由を優先して出す。
+// removed は、この照合で消えるルール予約の番組。消える予約は、比較する相手にしない (#1724)。
 func skipEarlierEpisodes(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped, bundled map[programKey]*skippedProgram,
 	removed map[programKey]bool,
@@ -34,7 +34,7 @@ func skipEarlierEpisodes(
 	if len(keys) == 0 {
 		return nil
 	}
-	// 人が取り消した (無効にした) 予約の番組は、外しもせず、比べる相手にもしない。外すと取り消しの記録 (無効の予約) を消してしまう。
+	// 人が取り消した (無効にした) 予約の番組は、外しもせず、比較する相手にもしない。外すと取り消しの記録 (無効の予約) を消してしまう。
 	cancelled, err := cancelledPrograms(ctx, tx, now)
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func skipEarlierEpisodes(
 		return nil
 	}
 
-	opponents, recorded, err := listEarlierOpponents(ctx, tx, now, candidates, slices.Sorted(maps.Keys(series)), removed)
+	opponents, err := listEarlierOpponents(ctx, tx, now, candidates, slices.Sorted(maps.Keys(series)), removed)
 	if err != nil {
 		return err
 	}
@@ -95,22 +95,22 @@ func skipEarlierEpisodes(
 		}
 		skipped[key] = &skippedProgram{
 			row: d.row, rules: removed, reason: SkipReasonEarlierEpisode, lastRecorded: nil, recorded: nil, instead: nil,
-			laterEpisode: later, byRecording: episode.LaterEpisode(target, recorded[target.Episode.Series]) > 0,
+			laterEpisode: later,
 		}
 	}
 
 	return nil
 }
 
-// listEarlierOpponents は、前の回かどうかを比べる相手を、シリーズ名ごとに返す。2 つ目の値は、そのうちの録った回 (録画) だけ。
+// listEarlierOpponents は、前の回かどうかを比較する相手を、シリーズ名ごとに返す。
 // 相手は、弾かれていない (競合でない) 候補の放送、シリーズ名が series のどれかの録った回、予約してある回である。
 func listEarlierOpponents(
 	ctx context.Context, tx pgx.Tx, now time.Time, candidates map[programKey]*episode.Aired, series []string,
 	removed map[programKey]bool,
-) (map[string][]*episode.Aired, map[string][]*episode.Aired, error) {
+) (map[string][]*episode.Aired, error) {
 	rejected, err := conflictingPrograms(ctx, tx, now)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	opponents := map[string][]*episode.Aired{}
 	add := func(to map[string][]*episode.Aired, a *episode.Aired) {
@@ -125,18 +125,15 @@ func listEarlierOpponents(
 	q := sqlc.New(tx)
 	recordedRows, err := q.ListRecordedEpisodesBySeries(ctx, series)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list the recorded episodes by series: %w", err)
+		return nil, fmt.Errorf("failed to list the recorded episodes by series: %w", err)
 	}
-	recorded := map[string][]*episode.Aired{}
 	for _, row := range recordedRows {
-		a := airedOf(row.Name, row.Description, row.SeriesEpisode, row.StartAt)
-		add(opponents, a)
-		add(recorded, a)
+		add(opponents, airedOf(row.Name, row.Description, row.SeriesEpisode, row.StartAt))
 	}
 
 	reservedRows, err := q.ListReservedEpisodes(ctx, now)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list the reserved episodes: %w", err)
+		return nil, fmt.Errorf("failed to list the reserved episodes: %w", err)
 	}
 	for _, row := range reservedRows {
 		if row.EventID != nil && removed[programKey{serviceID: row.ServiceID, eventID: *row.EventID}] {
@@ -145,7 +142,7 @@ func listEarlierOpponents(
 		add(opponents, airedOf(row.Name, row.Description, row.SeriesEpisode, row.StartAt))
 	}
 
-	return opponents, recorded, nil
+	return opponents, nil
 }
 
 // airedOf は、録画か予約の番組名、概要、記述子の話数から回を読む。

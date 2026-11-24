@@ -15,7 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/sleep"
 )
 
-// TestDBSource は、録っている割り振り、動いている後処理のジョブ、録画する予定の予約と次の予約の開始を、DB から読むことを確かめる。
+// TestDBSource は、録っている割り振り、動いている後処理のジョブ、録画する予定の予約と次の予約の開始を、DB から読むことを確認する。
 func TestDBSource(t *testing.T) {
 	t.Parallel()
 

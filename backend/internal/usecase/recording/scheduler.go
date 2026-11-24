@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	// NotifyChannel は、割り振りが変わったことを mikan に知らせる変更通知のチャンネル。
+	// NotifyChannel は、割り振りが変わったことを mikan に通知する変更通知のチャンネル。
 	NotifyChannel = "recording_assignments"
 	// DefaultLead は、録画の予定の開始の何分前に割り振りを書くか (付録 A)。
 	DefaultLead = 2 * time.Minute
@@ -40,7 +40,7 @@ const (
 	ConflictPriority = 1
 )
 
-// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
+// Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確認する。
 type Guard func(ctx context.Context, tx pgx.Tx) error
 
 // SchedulerOptions は Scheduler の設定。0 の項目は既定値にする。
@@ -120,7 +120,7 @@ type ScheduleResult struct {
 	Skipped int
 }
 
-// RunOnce は、割り振りを 1 回見直す。割り振りが変わったら、mikan に知らせる。
+// RunOnce は、割り振りを 1 回見直す。割り振りが変わったら、mikan に通知する。
 func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 	result := &ScheduleResult{Created: 0, Deleted: 0, Failed: 0, Missed: 0, Skipped: 0}
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {

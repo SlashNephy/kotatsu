@@ -225,7 +225,7 @@ func TestParseDashVariants(t *testing.T) {
 func TestParseDashVariantsInSummary(t *testing.T) {
 	t.Parallel()
 
-	// 概要の副題と指紋も、波ダッシュとダッシュの書き方によらず一致する (#2039)。
+	// 概要のサブタイトルと指紋も、波ダッシュとダッシュの書き方によらず一致する (#2039)。
 	const summary = "第３話「霧笛の夜〜港の灯—」主人公の少年は、古い灯台で見つけた地図を手がかりに、仲間と一緒に島の奥へ向かう。そこで待っていたのは、思いもよらない再会だった。"
 	tests := []struct {
 		name string
@@ -253,7 +253,7 @@ func TestParseDashVariantsInSummary(t *testing.T) {
 func TestParseSeasonWithLongVowel(t *testing.T) {
 	t.Parallel()
 
-	// 長音符は比べる値でだけ揃えるので、「シーズン」の期の表記は、揃える前の番組名から読む (#2039)。
+	// 長音符は比較する値でだけ揃えるので、「シーズン」の期の表記は、揃える前の番組名から読む (#2039)。
 	ep := episode.Parse(&episode.Source{Name: "灯台の地図　第２シーズン　＃３"})
 	assert.True(t, ep.HasSeason)
 	assert.Equal(t, 3, ep.Number)

@@ -16,7 +16,7 @@ export type ListedComment = {
   userId?: string;
 };
 
-// appendComment は、ライブで届いたコメントを一覧の末尾に足す。流さないコメントは足さない。上限を超えたら、古いものから捨てる。
+// appendComment は、ライブで届いたコメントを一覧の末尾に足す。流さないコメントは足さない。上限を超えたら、古いものから破棄する。
 export function appendComment(
   list: readonly ListedComment[],
   comment: { at: number; content: string; mail: string; userId?: string },

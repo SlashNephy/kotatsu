@@ -24,7 +24,7 @@ import (
 const (
 	// keyframeSize は、テストのセグメントで、I フレーム 1 つ分の大きさ。
 	keyframeSize = 1000
-	// redStep は、I フレームの番号ごとに変える、偽の画像の赤の値の幅。JPEG のずれより十分に大きくする。
+	// redStep は、I フレームの番号ごとに変える、モックの画像の赤の値の幅。JPEG のずれより十分に大きくする。
 	redStep = 20
 )
 
@@ -78,10 +78,10 @@ func segmentAt(t *testing.T, path string, start time.Duration, n int, step time.
 
 	data := make([]byte, n*keyframeSize)
 	index := make([]ts.IndexEntry, 0, n)
-	// PTS は 33 ビットで一周する。途中で一周させても、時間を正しく求めることを確かめる。
+	// PTS は 33 ビットで一周する。途中で一周させても、時間を正しく求めることを確認する。
 	base := int64(1<<33) - 2*ts.PTSClock
 	for i := range n {
-		// 通し番号は 1 バイトに収める。収まらない長い録画では、画像の色を確かめない。
+		// 通し番号は 1 バイトに収める。収まらない長い録画では、画像の色を確認しない。
 		if n := first + i + 1; n >= 0 && n <= math.MaxUint8 {
 			data[i*keyframeSize] = byte(n)
 		}
@@ -102,7 +102,7 @@ func decode(t *testing.T, data []byte) image.Image {
 	return img
 }
 
-// marker は、画像の (x, y) の赤の値から、偽の画像にした I フレームの通し番号を求める。
+// marker は、画像の (x, y) の赤の値から、モックの画像にした I フレームの通し番号を求める。
 func marker(img image.Image, x, y int) int {
 	rgba, ok := color.RGBAModel.Convert(img.At(x, y)).(color.RGBA)
 	if !ok {
@@ -126,7 +126,7 @@ func tileMarkers(t *testing.T, data []byte, count int) []int {
 	return markers
 }
 
-// TestGenerate は、索引の I フレームから、代表画像と、一定間隔のコマを並べたプレビュー画像を作ることを確かめる (設計書 6.1)。
+// TestGenerate は、インデックスの I フレームから、代表画像と、一定間隔のコマを並べたプレビュー画像を作ることを確認する (設計書 6.1)。
 func TestGenerate(t *testing.T) {
 	t.Parallel()
 
@@ -228,7 +228,7 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
-// TestGenerateCapsFrames は、長い録画では、コマの間隔を広げて、コマの数を MaxFrames に収めることを確かめる。
+// TestGenerateCapsFrames は、長い録画では、コマの間隔を広げて、コマの数を MaxFrames に収めることを確認する。
 func TestGenerateCapsFrames(t *testing.T) {
 	t.Parallel()
 
@@ -245,7 +245,7 @@ func TestGenerateCapsFrames(t *testing.T) {
 		decode(t, result.Preview).Bounds().Size())
 }
 
-// TestGenerateWithoutPreview は、プレビュー画像を無効にしたら、代表画像だけを作ることを確かめる。
+// TestGenerateWithoutPreview は、プレビュー画像を無効にしたら、代表画像だけを作ることを確認する。
 func TestGenerateWithoutPreview(t *testing.T) {
 	t.Parallel()
 
@@ -257,7 +257,7 @@ func TestGenerateWithoutPreview(t *testing.T) {
 	assert.Nil(t, result.Manifest)
 }
 
-// TestGenerateFails は、I フレームがないか、どの I フレームからも取り出せなければ、失敗することを確かめる。
+// TestGenerateFails は、I フレームがないか、どの I フレームからも取り出せなければ、失敗することを確認する。
 func TestGenerateFails(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +298,7 @@ func TestGenerateFails(t *testing.T) {
 	}
 }
 
-// TestGenerateLatest は、録画中の代表画像 (#1236) を、書いた終わりの少し前の I フレームから作り、取り出せなければ前で試し直すことを確かめる。
+// TestGenerateLatest は、録画中の代表画像 (#1236) を、書いた終わりの少し前の I フレームから作り、取り出せなければ前で再試行することを確認する。
 func TestGenerateLatest(t *testing.T) {
 	t.Parallel()
 
@@ -325,7 +325,7 @@ func TestGenerateLatest(t *testing.T) {
 }
 
 // TestGenerateAvoidsCM は、代表画像を、CM の区間 (前後に 1 秒の余白を足したもの) にかからない I フレームのうち、
-// ThumbnailPosition に最も近いものから作ることを確かめる (#1810)。
+// ThumbnailPosition に最も近いものから作ることを確認する (#1810)。
 func TestGenerateAvoidsCM(t *testing.T) {
 	t.Parallel()
 
@@ -343,7 +343,7 @@ func TestGenerateAvoidsCM(t *testing.T) {
 		// 余白を足した 4〜11 秒を避け、7.25 秒に近い 11 秒 (3 秒の I フレームより近い) を選ぶ。
 		{name: "CM の区間にかかれば外の近いものにずらす", avoid: []thumbnail.Span{{Start: 5 * time.Second, End: 10 * time.Second}}, broken: nil, latest: false, want: 12},
 		{name: "前の方が近ければ前にずらす", avoid: []thumbnail.Span{{Start: 7 * time.Second, End: 15 * time.Second}}, broken: nil, latest: false, want: 6},
-		// 余白を足した 6〜10 秒を避けて 5 秒を選び、取り出せなければ、後ろの 6〜9 秒を飛ばして 10 秒で試し直す。
+		// 余白を足した 6〜10 秒を避けて 5 秒を選び、取り出せなければ、後ろの 6〜9 秒を飛ばして 10 秒で再試行する。
 		{name: "試し直しも CM の区間を飛ばす", avoid: []thumbnail.Span{{Start: 7 * time.Second, End: 9 * time.Second}}, broken: map[byte]bool{6: true}, latest: false, want: 11},
 		{name: "全部が CM なら気にせずに選ぶ", avoid: []thumbnail.Span{{Start: 0, End: 30 * time.Second}}, broken: nil, latest: false, want: 8},
 		// 録画中は、終わりの 10 秒前 (19 秒、通し番号 20) から作り、CM の区間を使わない。通し番号 13 以上は色で見分けられないので、
@@ -361,7 +361,7 @@ func TestGenerateAvoidsCM(t *testing.T) {
 	}
 }
 
-// TestGenerateAvoidsCMAcrossGap は、CM の区間を、途切れた区間も含めて数えた時間 (CM の区間と同じ数え方) で比べることを確かめる (#1810)。
+// TestGenerateAvoidsCMAcrossGap は、CM の区間を、途切れた区間も含めて数えた時間 (CM の区間と同じ数え方) で比較することを確認する (#1810)。
 // 再生の時間は途切れた区間を詰めるので、途切れた後の I フレームは、再生の時間と数え方が食い違う。
 func TestGenerateAvoidsCMAcrossGap(t *testing.T) {
 	t.Parallel()

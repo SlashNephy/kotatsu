@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 
+import type { PlayerMedia } from './playerMedia';
+
 // liveReloadAfterMs は、ライブを一時停止してから、再開するときに放送中の位置から読み直すまでの時間。
-// ブラウザ内での変換では、止めている間もストリームを受け取って溜めるので、長く止めるほど放送から遅れる (#449)。
+// ブラウザ内での変換では、止めている間もストリームを受け取ってバッファするので、長く止めるほど放送から遅れる (#449)。
 export const liveReloadAfterMs = 10_000;
 
 // useLiveLag は、ライブの再生が放送から遅れているかを返す (設計書 7.2、7.3)。
 // 一時停止したら遅れているとみなし、読み直す (loadstart) まで続ける。
 // reloadOnResume なら、liveReloadAfterMs より長く止めていたとき、再開したところで onReload を呼び、放送中の位置から読み直させる。
 export function useLiveLag(
-  video: HTMLVideoElement | null,
+  media: PlayerMedia | null,
   { reloadOnResume, onReload }: { reloadOnResume: boolean; onReload: () => void },
 ): boolean {
   const [behind, setBehind] = useState(false);
@@ -16,13 +18,13 @@ export function useLiveLag(
   onReloadRef.current = onReload;
 
   useEffect(() => {
-    if (video === null) {
+    if (media === null) {
       return;
     }
     let pausedAt: number | null = null;
     const pause = () => {
       // 読み終えて止まったのは、一時停止ではない。
-      if (video.ended) {
+      if (media.ended) {
         return;
       }
       pausedAt = Date.now();
@@ -42,17 +44,17 @@ export function useLiveLag(
       pausedAt = null;
       setBehind(false);
     };
-    video.addEventListener('pause', pause);
-    video.addEventListener('play', play);
-    video.addEventListener('loadstart', loadStart);
+    media.addEventListener('pause', pause);
+    media.addEventListener('play', play);
+    media.addEventListener('loadstart', loadStart);
 
     return () => {
-      video.removeEventListener('pause', pause);
-      video.removeEventListener('play', play);
-      video.removeEventListener('loadstart', loadStart);
+      media.removeEventListener('pause', pause);
+      media.removeEventListener('play', play);
+      media.removeEventListener('loadstart', loadStart);
       setBehind(false);
     };
-  }, [video, reloadOnResume]);
+  }, [media, reloadOnResume]);
 
   return behind;
 }

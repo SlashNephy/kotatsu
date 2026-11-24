@@ -63,7 +63,7 @@ func (c *Client) Server(ctx context.Context) (*ServerInfo, error) {
 	return server, nil
 }
 
-// Identify は、チューナーサーバーの種類と版を返す (#1538)。判定の結果は、Server と同じく使い回す。
+// Identify は、チューナーサーバーの種類とバージョンを返す (#1538)。判定の結果は、Server と同じく使い回す。
 func (c *Client) Identify(ctx context.Context) (*tunerserver.Identity, error) {
 	server, err := c.Server(ctx)
 	if err != nil {
@@ -92,7 +92,7 @@ func identityKind(kind ServerKind) tunerserver.Kind {
 	return tunerserver.KindMirakurun
 }
 
-// Invalidate は、判定の結果を捨てる。次の Server の呼び出しで判定し直す。
+// Invalidate は、判定の結果を破棄する。次の Server の呼び出しで判定し直す。
 // チューナーサーバーに再接続するときに呼ぶ。サーバーが入れ替わっているかもしれないからである。
 func (c *Client) Invalidate() {
 	c.mu.Lock()
@@ -146,8 +146,8 @@ func (c *Client) Detect(ctx context.Context) (*ServerInfo, error) {
 	}, nil
 }
 
-// hasSSEEvents は、/events が SSE を返すかどうかを調べる。
-// 状態が 200 でも、SPA のフォールバックで HTML を返すサーバーがありうるので、Content-Type も確かめる。
+// hasSSEEvents は、/events が SSE を返すかどうかを確認する。
+// 状態が 200 でも、SPA のフォールバックで HTML を返すサーバーがありうるので、Content-Type も確認する。
 // 本文は読まずに接続を閉じる。
 func (c *Client) hasSSEEvents(ctx context.Context) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
@@ -175,7 +175,7 @@ func (c *Client) hasSSEEvents(ctx context.Context) (bool, error) {
 
 // OpenEvents は、サーバーの種類に合ったイベントストリームを開く。
 // Mirakurun と Mahiron では /api/events/stream を、mirakc では /events を読み、tunerserver.Event に読み替えて返す。
-// 開けなかったときは判定の結果を捨てるので、次に開くときはサーバーの種類から判定し直す。
+// 開けなかったときは判定の結果を破棄するので、次に開くときはサーバーの種類から判定し直す。
 func (c *Client) OpenEvents(ctx context.Context) (tunerserver.EventStream, error) {
 	server, err := c.Server(ctx)
 	if err != nil {

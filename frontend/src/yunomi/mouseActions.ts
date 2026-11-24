@@ -26,10 +26,10 @@ export type MouseActions = { wheel: WheelAction; middleClick: MiddleClickAction 
 export const defaultMouseActions: MouseActions = { wheel: 'volume', middleClick: 'toggleMute' };
 
 // wheelStep は、1 回の操作に当たるホイールの量 (deltaY)。マウスの 1 目盛りはおおむね 100 で、
-// トラックパッドは細かく届くので、溜めてから 1 回にする。
+// トラックパッドは細かく届くので、蓄積してから 1 回にする。
 const wheelStep = 100;
 
-// wheelCommands は、溜めたホイールの量 accumulated から、呼ぶ操作と、残りの量を返す。
+// wheelCommands は、蓄積したホイールの量 accumulated から、呼ぶ操作と、残りの量を返す。
 // 上へ回す (負) と音量を上げるか戻り、下へ回す (正) と音量を下げるか進む。
 export function wheelCommands(
   action: WheelAction,
@@ -49,10 +49,10 @@ export function wheelCommands(
 }
 
 const storageKey = 'kotatsu.player.mouseActions';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:mouse-actions';
 
-// parseMouseActions は、覚えた設定を読む。読めない値は既定にする。
+// parseMouseActions は、保存した設定を読む。読めない値は既定にする。
 export function parseMouseActions(raw: string | null): MouseActions {
   if (raw === null) {
     return defaultMouseActions;

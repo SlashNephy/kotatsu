@@ -16,7 +16,7 @@ interface Node {
 }
 
 """
-一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。
+一覧のページの情報 (Relay の Cursor Connections)。カーソルは内容を解釈せずに、そのまま次のリクエストに渡す。
 """
 type PageInfo {
   hasNextPage: Boolean!
@@ -31,7 +31,7 @@ type Query {
   """
   viewer: User!
   """
-  動いている Kotatsu の版。
+  動いている Kotatsu のバージョン。
   """
   version: AppVersion!
   """
@@ -41,11 +41,11 @@ type Query {
 }
 
 """
-Kotatsu の版。
+Kotatsu のバージョン。
 """
 type AppVersion {
   """
-  リリースのタグの版 (1.2.3)。main のビルドなら edge、版を埋め込まないビルドなら dev。
+  リリースのタグのバージョン (1.2.3)。main のビルドなら edge、バージョンを埋め込まないビルドなら dev。
   """
   version: String!
   """
@@ -57,8 +57,8 @@ type AppVersion {
   """
   modified: Boolean!
   """
-  動いている版より新しいリリース (#506)。管理者にだけ返す。新しいリリースを確かめる設定 (update_check.enabled) を入れていないか、
-  新しいリリースがないか、まだ確かめていなければ null。
+  動いているバージョンより新しいリリース (#506)。管理者にだけ返す。新しいリリースを確認する設定 (update_check.enabled) を入れていないか、
+  新しいリリースがないか、まだ確認していなければ null。
   """
   latestRelease: Release
 }
@@ -67,7 +67,7 @@ type AppVersion {
 Kotatsu のリリース。
 """
 type Release {
-  "リリースの版 (1.2.3)。"
+  "リリースのバージョン (1.2.3)。"
   version: String!
   "GitHub のリリースのページの URL。"
   url: String!

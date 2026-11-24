@@ -13,7 +13,7 @@ import "slices"
 // )
 type Role string
 
-// Permission は、ロールに許す操作のまとまり (設計書 9.7 の表の各行)。
+// Permission は、ロールに許す操作のまとまり (設計書 9.7 のテーブルの各行)。
 //
 // ENUM(
 // watch // ライブ視聴、録画の再生、自分の設定と再生位置の変更。

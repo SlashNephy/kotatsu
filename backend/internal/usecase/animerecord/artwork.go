@@ -15,13 +15,13 @@ import (
 const (
 	// ArtworkRefreshInterval は、高画質の画像を引き直すまでの長さ (#1315)。画像は、めったに変わらない。
 	ArtworkRefreshInterval = 30 * 24 * time.Hour
-	// maxArtworkTargets は、1 回に高画質の画像を引く作品の数の上限。AniList の 1 回の問い合わせに収まる数にする。
+	// maxArtworkTargets は、1 回に高画質の画像を取得する作品の数の上限。AniList の 1 回の問い合わせに収まる数にする。
 	maxArtworkTargets = workids.AniListBatchSize
 	// maxJikanRequests は、1 回に Jikan へ問い合わせる作品の数の上限。Jikan の公開の API は、1 分に 60 回までなので、控えめにする。
 	maxJikanRequests = 10
 )
 
-// ArtworkSource は、MyAnimeList の作品 ID から、作品の高画質の画像を引く (#1315)。*workids.Client が満たす。
+// ArtworkSource は、MyAnimeList の作品 ID から、作品の高画質の画像を取得する (#1315)。*workids.Client が満たす。
 type ArtworkSource interface {
 	AniListCoversByMAL(ctx context.Context, malIDs []int32) (map[int32]string, error)
 	JikanImage(ctx context.Context, malID int32) (string, error)
@@ -31,8 +31,8 @@ var _ ArtworkSource = new(workids.Client)
 
 // RefreshArtworks は、見たいリストの Annict の作品のうち、高画質の画像をまだ引いていない作品の画像を引き、見たいリストの画像にする (#1315)。
 // Annict の画像は、作品の公式サイトの小さな画像のことが多いので、AniList の coverImage.extraLarge を先に引き、
-// AniList にない作品は、Jikan (MyAnimeList) の大きい画像を引く。MyAnimeList の作品 ID は、作品 ID の対応 (anime_works) から引く。
-// 管理者が連携を無効にしているときと、画像を引く先がないときは、何もしない。引けなかった作品は、次の機会に引き直す。
+// AniList にない作品は、Jikan (MyAnimeList) の大きい画像を取得する。MyAnimeList の作品 ID は、作品 ID の対応 (anime_works) から取得する。
+// 管理者が連携を無効にしているときと、画像を取得する先がないときは、何もしない。取得できなかった作品は、次の機会に再取得する。
 func (s *Service) RefreshArtworks(ctx context.Context, db Database) error {
 	if s.artworks == nil {
 		return nil
@@ -91,7 +91,7 @@ type jikanTurns struct {
 	used int
 }
 
-// lookUpJikan は、Jikan から MyAnimeList の作品 malID の画像を引く。画像がないか、作品がなければ空を返す。
+// lookUpJikan は、Jikan から MyAnimeList の作品 malID の画像を取得する。画像がないか、作品がなければ空を返す。
 // 問い合わせられる数を使い切っていれば、引かずに false を返す。Jikan に届かないか断られたら、残りは次の機会に回し、false を返す。
 // 問い合わせの間は、見たいリストの問い合わせと同じだけ空ける。ctx が終わったときだけ、エラーを返す。
 func (s *Service) lookUpJikan(ctx context.Context, turns *jikanTurns, malID int32) (string, bool, error) {
@@ -121,7 +121,7 @@ func (s *Service) lookUpJikan(ctx context.Context, turns *jikanTurns, malID int3
 	}
 }
 
-// sleep は、ctx が終わるか、d が過ぎるまで待つ。間を空けるのは実際の時間なので、壁の時計で測る。
+// sleep は、ctx が終わるか、d が過ぎるまで待つ。間を空けるのは実際の時間なので、壁の時計で計測する。
 func sleep(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return nil

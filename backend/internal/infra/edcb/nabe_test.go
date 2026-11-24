@@ -48,7 +48,7 @@ func (i nabeInstances) ListAlive(context.Context, string) ([]*registry.Instance,
 }
 
 // TestNabeSharesNetworkTVAcrossRoles は、ほかのロール (別のプロセス) が nabe から受け取るとき、
-// 同じサービスの受け手が何人いても、nabe が NetworkTV を 1 本だけ開くことを確かめる (#1535)。
+// 同じサービスの受け手が何人いても、nabe が NetworkTV を 1 本だけ開くことを確認する (#1535)。
 func TestNabeSharesNetworkTVAcrossRoles(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func TestNabeSharesNetworkTVAcrossRoles(t *testing.T) {
 	assert.Equal(t, []int32{1000}, released)
 }
 
-// TestNabeClosesNetworkTVWhenRolesLeave は、ほかのロールの受け手が全員去ったら、nabe が NetworkTV を閉じることを確かめる。
+// TestNabeClosesNetworkTVWhenRolesLeave は、ほかのロールの受け手が全員去ったら、nabe が NetworkTV を閉じることを確認する。
 func TestNabeClosesNetworkTVWhenRolesLeave(t *testing.T) {
 	t.Parallel()
 

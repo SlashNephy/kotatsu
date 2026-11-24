@@ -24,10 +24,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
-// TestTenbanServesEPGStationAPI は、tenban が EPGStation 互換の API (/api/epgstation/api/*) を、API トークンでだけ受け付けることを確かめる
+// TestTenbanServesEPGStationAPI は、tenban が EPGStation 互換の API (/api/epgstation/api/*) を、API トークンでだけ受け付けることを確認する
 // (#431、設計書 9.8)。セッションの Cookie では受け付けない。チューナーサーバーを設定していないので、ロゴとライブ視聴は 503 になる。
-// あわせて、外部プレイヤー向けの /api/streams/* は署名だけで、画面の /internal/streams/* はセッションだけで認可することを確かめる (#1605)。
-// epgstationVersionPath は、EPGStation 互換の API の版を返す端点。
+// あわせて、外部プレイヤー向けの /api/streams/* は署名だけで、画面の /internal/streams/* はセッションだけで認可することを確認する (#1605)。
+// epgstationVersionPath は、EPGStation 互換の API のバージョンを返す端点。
 const epgstationVersionPath = "/api/epgstation/api/version"
 
 // 認可を通ったら、ない録画は 404 になるので、401 と分けて見られる。
@@ -163,7 +163,7 @@ func issueSigned(t *testing.T, pool *pgxpool.Pool, signer *stream.Signer, resour
 }
 
 // TestTenbanHidesEPGStationAPIWhileDisabled は、管理者が EPGStation 互換の API を有効にしていなければ、
-// 正しいトークンでも、API があることを知らせないよう 404 を返し、有効にしたら答えることを確かめる (#1769)。
+// 正しいトークンでも、API があることを通知しないよう 404 を返し、有効にしたら答えることを確認する (#1769)。
 func TestTenbanHidesEPGStationAPIWhileDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -205,6 +205,6 @@ func TestTenbanHidesEPGStationAPIWhileDisabled(t *testing.T) {
 		}
 		assert.Equal(t, tt.wantStatus, get(t, token), tt.name)
 	}
-	// 無効の間は、トークンを確かめる前に 404 を返すので、トークンがなくても 401 にしない。
+	// 無効の間は、トークンを確認する前に 404 を返すので、トークンがなくても 401 にしない。
 	assert.Equal(t, http.StatusNotFound, get(t, ""), "without a token while disabled")
 }

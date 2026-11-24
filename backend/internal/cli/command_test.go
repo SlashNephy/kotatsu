@@ -122,7 +122,7 @@ func TestRoleFailureStopsOtherRoles(t *testing.T) {
 	errBoom := errors.New("boom")
 	roles := cli.DefaultRoles()
 	// failed は、ロールが失敗した時点で閉じる。起動にかかる時間は、CI の負荷で大きく変わるので、
-	// ほかのロールが止まるまでの時間は、失敗した時点から測る。
+	// ほかのロールが止まるまでの時間は、失敗した時点から計測する。
 	failed := make(chan struct{})
 	for _, role := range roles[1:] {
 		role.Run = func(ctx context.Context, _ *slog.Logger, _ *cli.Deps) error {
@@ -170,7 +170,7 @@ func TestRoleLogsDisplayNameUntilCanceled(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cmd := cli.NewCommand(testOptions(logger, cli.DefaultRoles(), validEnv))
-	// DB を使わないロールで確かめる。
+	// DB を使わないロールで確認する。
 	cmd.SetArgs([]string{"recorder"})
 
 	done := make(chan error, 1)
@@ -229,7 +229,7 @@ func TestRoleDoesNotStartWithInvalidConfig(t *testing.T) {
 	assert.False(t, started.Load())
 }
 
-// TestRolesRequireSecretKey は、アプリの秘密キーがなければ、tenban、nekonote、kyusu と、EDCB を使う nabe を起動しないことを確かめる (設計書 8.4)。
+// TestRolesRequireSecretKey は、アプリの秘密キーがなければ、tenban、nekonote、kyusu と、EDCB を使う nabe を起動しないことを確認する (設計書 8.4)。
 func TestRolesRequireSecretKey(t *testing.T) {
 	t.Parallel()
 
@@ -368,7 +368,7 @@ func TestMigrateRunsMigrationWithoutStartingRoles(t *testing.T) {
 
 		return nil
 	}
-	// migrate はスキーマが古い DB に対して実行するものなので、スキーマを確かめてはならない。
+	// migrate はスキーマが古い DB に対して実行するものなので、スキーマを確認してはならない。
 	opts.CheckSchema = func(context.Context, *pgxpool.Pool) error {
 		checked.Store(true)
 
@@ -413,7 +413,7 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 	}
 }
 
-// idleChanges は、変更を知らせない ChangeFeed。DB に接続しないテストで使う。
+// idleChanges は、変更を通知しない ChangeFeed。DB に接続しないテストで使う。
 type idleChanges struct{}
 
 var _ cli.ChangeFeed = new(idleChanges)

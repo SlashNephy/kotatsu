@@ -60,10 +60,10 @@ func serviceID() int64 {
 	return faketuner.ServiceItemID(grNetworkID, grServiceID)
 }
 
-// simklItem は、偽の Simkl のウォッチリストの作品。
+// simklItem は、モックの Simkl のウォッチリストの作品。
 type simklItem = simkltest.Item
 
-// fakeInserter は、入れたジョブを覚える。
+// fakeInserter は、入れたジョブを保存する。
 type fakeInserter struct {
 	mu         sync.Mutex
 	records    []dramarecord.RecordArgs
@@ -171,7 +171,7 @@ func (f *fixture) link(t *testing.T, hour, minute int, seriesID, episode int32) 
 		serviceID(), at(hour, minute), seriesID, episode)
 }
 
-// authorize は、principal の連携を始め、偽の Simkl の認可のエンドポイントが戻すリダイレクト先の問い合わせを返す。
+// authorize は、principal の連携を始め、モックの Simkl の認可のエンドポイントが戻すリダイレクト先の問い合わせを返す。
 func (f *fixture) authorize(t *testing.T, principal *auth.Principal) url.Values {
 	t.Helper()
 	authorizationURL, err := f.service.Begin(t.Context(), f.pool, principal, dramarecord.DestinationSimkl, origin)

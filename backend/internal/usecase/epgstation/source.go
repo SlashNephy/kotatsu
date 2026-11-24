@@ -1,7 +1,7 @@
 // Package epgstation は、EPGStation の DB を読み取り専用で読む (設計書 6.3)。
 //
 // EPGStation は TypeORM で MySQL、MariaDB、SQLite のどれかにデータを置く。
-// テーブル名は snake_case、列名は camelCase で、どの DB でも識別子の大文字と小文字は区別されないので、
+// テーブル名は snake_case、カラム名は camelCase で、どの DB でも識別子の大文字と小文字は区別されないので、
 // クエリは識別子を引用符で囲まずに書き、方言ごとに書き分けない。
 package epgstation
 
@@ -18,8 +18,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// requiredMigration は、読み取りに使う列がそろっている、EPGStation の最後のマイグレーションの名前の接頭辞。
-// 末尾のタイムスタンプは DB の種類ごとに違うので、接頭辞で比べる。
+// requiredMigration は、読み取りに使うカラムがそろっている、EPGStation の最後のマイグレーションの名前の接頭辞。
+// 末尾のタイムスタンプは DB の種類ごとに違うので、接頭辞で比較する。
 const requiredMigration = "AddEventRelay"
 
 var (
@@ -76,7 +76,7 @@ func (s *Source) Close() error {
 func parseSourceURL(rawURL string) (string, string, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		// url.Parse のエラーは、URL の全文や、読めなかったポートのような一部を含む。URL はパスワードを含みうるので、理由を伏せる。
+		// url.Parse のエラーは、URL の全文や、読めなかったポートのような一部を含む。URL はパスワードを含みうるので、理由をマスクする。
 		return "", "", fmt.Errorf("%w: %w", ErrUnsupportedSource, errMalformedURL)
 	}
 
@@ -129,7 +129,7 @@ func sqliteDSN(u *url.URL) (string, string, error) {
 	return "sqlite", dsn.String(), nil
 }
 
-// checkSchema は、EPGStation の DB で、読み取りに使う列がそろうマイグレーションまで適用されているかを確かめる。
+// checkSchema は、EPGStation の DB で、読み取りに使うカラムがそろうマイグレーションまで適用されているかを確認する。
 func (s *Source) checkSchema(ctx context.Context) error {
 	return s.readOnly(ctx, func(tx *sql.Tx) error {
 		var n int
@@ -145,7 +145,7 @@ func (s *Source) checkSchema(ctx context.Context) error {
 	})
 }
 
-// readOnly は、読み取り専用のトランザクションで fn を実行する。トランザクションはコミットせずに捨てる。
+// readOnly は、読み取り専用のトランザクションで fn を実行する。トランザクションはコミットせずに破棄する。
 // MySQL と MariaDB では START TRANSACTION READ ONLY になるので、書き込みは DB に拒まれる。
 func (s *Source) readOnly(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault, ReadOnly: true})

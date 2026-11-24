@@ -52,7 +52,7 @@ export function useCreateSeriesRule() {
     });
 }
 
-// useReserveNextEpisode は、続きの放送を予約する。予約した放送は、読み直すとサーバーが外すので、画面を離れるまで覚える。
+// useReserveNextEpisode は、続きの放送を予約する。予約した放送は、読み直すとサーバーが外すので、画面を離れるまで保持する。
 export function useReserveNextEpisode() {
   const [commit, reserving] = useMutation<NextEpisodesReserveMutation>(graphql`
     mutation NextEpisodesReserveMutation($program: ID!) {
@@ -162,7 +162,7 @@ export function NextEpisodeItem({
   );
 }
 
-// NextEpisodesFailure は、予約できなかったことを知らせる。
+// NextEpisodesFailure は、予約できなかったことを通知する。
 export function NextEpisodesFailure({ reservation }: { reservation: NextEpisodeReserve }) {
   const { t } = useTranslation();
   if (!reservation.failed) {

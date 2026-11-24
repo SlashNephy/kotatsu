@@ -47,11 +47,11 @@ type Loaders struct {
 	ProgramRecorded *dataloader.Loader[query.ProgramSpan, bool]
 	// JikkyoAccess は、ユーザーが実況を使えるかどうか (設計書 7.4)。一覧のサービスごとに引かず、リクエストにつき 1 度だけ読む。
 	JikkyoAccess *dataloader.Loader[uuid.UUID, domain.JikkyoAccess]
-	// CMReports は、録画ごとの、最後に見分け終えた CM の見分けの添え書き (#1508)。録画の一覧の印に使う。見分けていなければ空。
+	// CMReports は、録画ごとの、最後に見分け終えた CM の見分けの添え書き (#1508)。録画の一覧のマークに使う。見分けていなければ空。
 	CMReports *dataloader.Loader[uuid.UUID, cmdetect.Report]
 }
 
-// watchReservedKey は、視聴予約を引くキー。ユーザーと番組の組。
+// watchReservedKey は、視聴予約を取得するキー。ユーザーと番組の組。
 type watchReservedKey struct {
 	UserID  uuid.UUID
 	Program domain.ProgramKey
@@ -295,7 +295,7 @@ func withLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rul
 	}
 }
 
-// newChannelTypeHasServicesLoader は、種別が、上流から消えていないサービスを持つかどうかを引く dataloader を作る (#1973)。
+// newChannelTypeHasServicesLoader は、種別が、上流から消えていないサービスを持つかどうかを取得する dataloader を作る (#1973)。
 func newChannelTypeHasServicesLoader(q *query.Queries, clk clock.Clock) *dataloader.Loader[string, bool] {
 	return newLoader(func(ctx context.Context, types []string) ([]bool, []error) {
 		found, err := q.ListChannelTypesWithServices(ctx, types, clk.Now())

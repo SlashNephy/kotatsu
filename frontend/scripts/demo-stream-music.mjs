@@ -1,20 +1,20 @@
-// 静的なデモ (#832、#1050) の映像の音声を合成し、WAV (48 kHz、ステレオ、32 ビット浮動小数点) で書き出す。
+// 静的なデモ (#832、#1050) の映像の音声を合成し、WAV (48 kHz、ステレオ、32 ビット浮動小数点) で出力する。
 // scripts/build-demo-stream.sh が、AAC にして映像と合わせる。
 //
-//   node scripts/demo-stream-music.mjs <書き出す WAV>
+//   node scripts/demo-stream-music.mjs <出力先の WAV>
 //
 // 朝の情報番組のライブカメラの BGM を、音源のファイルを使わずに、式だけで鳴らす (#1394)。
 // - 曲: ハ長調、約 90 BPM、4 分の 4 拍子の 24 小節 (A、B、A' の 8 小節ずつ)。最後の G7 から頭の C へ戻り、つなぎ目なく繰り返せる。
 // - 楽器: エレクトリックピアノ (FM 合成) の和音、ベース、チェレスタのような旋律、シェイカー。
 // - 環境音: 山のふもとの朝らしく、ときどき小鳥がさえずる。
 // - 響き: 簡単なリバーブ (くし形フィルターとオールパスフィルター) を薄く掛ける。
-// 乱数は種を固定した擬似乱数を使い、同じ版の Node.js からは同じ WAV ができるようにする。
+// 乱数は種を固定した擬似乱数を使い、同じバージョンの Node.js からは同じ WAV ができるようにする。
 //
 // 映像は、繰り返して流す (demo/stream-sw.js)。繰り返しのつなぎ目で音が途切れないよう、次のようにする。
 // - 長さ (period) は、映像の 1920 フレーム (29.97 fps) と、AAC の 3003 フレーム (1024 標本) のどちらでも割り切れる 64.064 秒にする。
 // - 曲を 3 回分鳴らし、2 回目を取り出す。終わりの響きが、頭に回り込む。
 // - 前後に、AAC の 1 フレーム分 (padding) ずつ、繰り返しの続きを付ける。build-demo-stream.sh は、
-//   符号化した AAC から、頭の 1 フレーム (符号化器の遅延の分) を除いた 3003 フレームを使う。
+//   符号化した AAC から、頭の 1 フレーム (エンコーダーの遅延の分) を除いた 3003 フレームを使う。
 //   そのフレームは、前の繰り返しの終わりと、頭のつながりを符号化したものになり、つなぎ目でもそのまま復号できる。
 import { writeFile } from 'node:fs/promises';
 
@@ -61,7 +61,7 @@ function frequency(note) {
   return 440 * 2 ** ((note - 69) / 12);
 }
 
-// add は、start 秒から seconds 秒の音を、pan (-1 が左、1 が右) の位置に足す。voice は、音の頭からの秒を受け取り、標本を返す。
+// add は、start 秒から seconds 秒の音を、pan (-1 が左、1 が右) の位置に足す。voice は、音の先頭からの秒を受け取り、標本を返す。
 function add(start, seconds, pan, voice) {
   const from = Math.round(start * sampleRate);
   const to = Math.min(length, from + Math.round(seconds * sampleRate));
@@ -75,7 +75,7 @@ function add(start, seconds, pan, voice) {
   }
 }
 
-// release は、鍵を離した (held 秒を過ぎた) あとに、音を tail 秒ほどで消していく係数を返す。
+// release は、キーを離した (held 秒を過ぎた) あとに、音を tail 秒ほどで消していく係数を返す。
 function release(t, held, tail) {
   return t < held ? 1 : Math.exp(-(t - held) / tail);
 }
@@ -192,7 +192,7 @@ const progression = [
   ['G7'],
 ];
 
-// melody は、旋律 (繰り返しの頭からの拍、MIDI のノート番号、長さの拍)。ハ長調の五音音階を中心にする。
+// melody は、旋律 (繰り返しの先頭からの拍、MIDI のノート番号、長さの拍)。ハ長調の五音音階を中心にする。
 const melody = [
   // A
   [0, 76, 1],
@@ -294,7 +294,7 @@ const melody = [
   [95, 79, 1],
 ];
 
-// birdCalls は、小鳥が鳴く時刻 (繰り返しの頭からの秒) と、左右の位置。曲の邪魔をしないよう、旋律の休みのあたりで鳴かせる。
+// birdCalls は、小鳥が鳴く時刻 (繰り返しの先頭からの秒) と、左右の位置。曲の邪魔をしないよう、旋律の休みのあたりで鳴かせる。
 const birdCalls = [
   [2.2, -0.7],
   [9.4, 0.6],
@@ -351,7 +351,7 @@ for (let loop = 0; loop < loops; loop++) {
     celesta(origin + at * beat, beats, note, variation(0.07));
   }
 
-  // シェイカーは 8 分音符で刻み、裏拍を強くする。
+  // シェイカーは 8 分音符で打ち、裏拍を強くする。
   for (let step = 0; step < bars * 8; step++) {
     shaker(origin + (step * beat) / 2, variation(step % 2 === 1 ? 0.035 : 0.018));
   }
@@ -397,7 +397,7 @@ function reverb(input, spread) {
 }
 
 // master は、全体の音量。放送の音量の基準 (ARIB TR-B32 の -24 LKFS) に合わせる。
-// 足す音を変えたら、ffmpeg の ebur128 フィルターで測り直して合わせる。
+// 足す音を変えたら、ffmpeg の ebur128 フィルターで計測し直して合わせる。
 const master = 0.74;
 
 const wetLeft = reverb(left, 0);

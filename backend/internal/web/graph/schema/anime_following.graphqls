@@ -21,7 +21,7 @@ type AnimeFollowingViewing {
   username: String!
   "画面に出す名前。"
   name: String!
-  "アバターを tenban が中継する URL のパス。アバターがなければ null。"
+  "アバターを tenban がプロキシする URL のパス。アバターがなければ null。"
   avatarUrl: String
   "記録先のユーザーのページ。"
   profileUrl: String!
@@ -56,7 +56,7 @@ extend type Query {
 extend type Mutation {
   """
   ログイン中のユーザーがフォローしている人の、作品 tid の視聴状況の取得を頼む (#1372)。取得はジョブで行うので、終わるのを待たない。
-  終わったら DataChannel の ANIME_FOLLOWING で知らせる。問い合わせる時期が来ていなければ、何もせずに false を返す。視聴者も使える。
+  終わったら DataChannel の ANIME_FOLLOWING で通知する。問い合わせる時期が来ていなければ、何もせずに false を返す。視聴者も使える。
   """
   refreshAnimeFollowingViewings(tid: Int!): Boolean!
 }

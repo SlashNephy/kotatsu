@@ -22,7 +22,7 @@ func TestFallback(t *testing.T) {
 	refused := &net.OpError{Op: "dial", Net: "tcp", Source: nil, Addr: nil, Err: syscall.ECONNREFUSED}
 	invalid := errors.New("session is invalid")
 
-	// step は、DB から読める値かエラーを決め、時計を進めてから読んだ結果を確かめる。
+	// step は、DB から読める値かエラーを決め、時計を進めてから読んだ結果を確認する。
 	type step struct {
 		value     string
 		err       error
@@ -52,7 +52,7 @@ func TestFallback(t *testing.T) {
 			},
 		},
 		{
-			// DB から使えないと分かったものは、DB が止まった後に覚えた結果で通さない。
+			// DB から使えないと分かったものは、DB が止まった後にキャッシュした結果で通さない。
 			name: "forgets the value that the database rejected",
 			steps: []step{
 				{value: "v1", want: "v1", wantLoaded: true},

@@ -22,7 +22,7 @@ describe('loadFieldRate', () => {
   });
 });
 
-// lateSequence は、1 秒ごとに deltas だけ late が増える累計の列を作る。
+// lateSequence は、1 秒ごとに deltas だけ late が増える累計の並びを作る。
 function lateSequence(deltas: number[]): number[] {
   let late = 0;
 

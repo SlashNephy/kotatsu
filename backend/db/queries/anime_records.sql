@@ -111,5 +111,5 @@ WHERE id = @id AND state = 'pending';
 SELECT pg_advisory_xact_lock(hashtext('kotatsu.anime_manual_record'), hashtext(@user_key::text));
 
 -- name: ListAnimeRecordAccessTokens :many
--- ログの報告から伏せるため、全ユーザーの記録先のアクセストークンを返す (#1521)。
+-- ログの報告でマスクするため、全ユーザーの記録先のアクセストークンを返す (#1521)。
 SELECT access_token_encrypted FROM anime_record_connections ORDER BY user_id, destination;

@@ -81,7 +81,7 @@ describe('withTransientRetry', () => {
     expect(fetchFn).toHaveBeenCalledTimes(3);
     expect(got).toEqual({ values: [ok], error: undefined, completed: true });
     expect(tracker.isReconnecting()).toBe(false);
-    // 送り直して通ったので、サーバーが戻ったと知らせる。
+    // 送り直して通ったので、サーバーが戻ったと通知する。
     expect(tracker.recoveries()).toBe(1);
   });
 

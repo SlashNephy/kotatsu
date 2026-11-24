@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 // useWakeLock は、active の間、Screen Wake Lock で画面を消さないようにする (設計書 7.5)。
 // 再生している間だけ取り、止めたときと画面を離れたときに手放す。
-// タブが隠れるとブラウザが手放すので、見えるようになったら取り直す。対応していないブラウザでは何もしない。
+// タブが隠れるとブラウザが手放すので、見えるようになったら再取得する。対応していないブラウザでは何もしない。
 export function useWakeLock(active: boolean): void {
   useEffect(() => {
     if (!active || !('wakeLock' in navigator)) {

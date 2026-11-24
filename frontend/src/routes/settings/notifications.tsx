@@ -105,10 +105,10 @@ function Settings() {
       unsubscribeWebPush(endpoint: $endpoint)
     }
   `);
-  // endpoint は、この端末の購読の送り先。購読していなければ null、まだ調べていなければ undefined。
+  // endpoint は、この端末の購読の送り先。購読していなければ null、まだ確認していなければ undefined。
   const [endpoint, setEndpoint] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  // 変えたら、ほかの設定と同じ通知で知らせる (#1740)。
+  // 変えたら、ほかの設定と同じ通知で伝える (#1740)。
   const notice = useSaveNotice();
   const supported = pushSupported();
   const refresh = () => setFetchKey((key) => key + 1);

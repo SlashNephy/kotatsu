@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	// issuedMark は、API トークンの頭に付ける印。漏れたトークンを、秘密の検出の仕組みで見つけやすくする。
+	// issuedMark は、API トークンの先頭に付けるマーク。漏れたトークンを、秘密の検出の仕組みで見つけやすくする。
 	issuedMark = "kotatsu_"
 	// summaryName は、監査ログの要約に残す、トークンの名前の項目。
 	summaryName = "name"
@@ -54,7 +54,7 @@ type APIToken struct {
 	LastUsedAt *time.Time
 }
 
-// APITokens は、読み取り専用の API トークン (#431、設計書 9.8) を発行し、確かめる。
+// APITokens は、読み取り専用の API トークン (#431、設計書 9.8) を発行し、確認する。
 // トークンは発行したときにだけ返し、DB には SHA-256 だけを保存する。トークンは、発行したユーザーのロールのまま動く。
 type APITokens struct {
 	pool     *pgxpool.Pool
@@ -156,8 +156,8 @@ func (a *APITokens) Authenticate(ctx context.Context, token string) (*Principal,
 	return &Principal{UserID: row.UserID, Role: role, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
 }
 
-// BearerMiddleware は、Authorization の Bearer の API トークンを確かめ、そのユーザーを context に持たせるミドルウェアを返す。
-// トークンがなければ、そのまま next を呼ぶ (権限は、後ろの RequirePermission が確かめる)。トークンが違えば 401 を返す。
+// BearerMiddleware は、Authorization の Bearer の API トークンを確認し、そのユーザーを context に持たせるミドルウェアを返す。
+// トークンがなければ、そのまま next を呼ぶ (権限は、後ろの RequirePermission が確認する)。トークンが違えば 401 を返す。
 func (a *APITokens) BearerMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")

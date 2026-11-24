@@ -28,7 +28,7 @@ const (
 	// CacheMaxAge は、しょぼいカレンダーの放送時間データを引き直すまでの間隔 (付録 A)。
 	// しょぼいカレンダーの登録は放送の直前まで変わる (延期、話数の訂正) ので、照合し直すたびに、これより古いものは引き直す。
 	CacheMaxAge = 6 * time.Hour
-	// SourceSyobocal は、しょぼいカレンダーの放送時間データで結びつけた話の出どころ。
+	// SourceSyobocal は、しょぼいカレンダーの放送時間データで結びつけた話のソース。
 	SourceSyobocal = "syobocal"
 	// cacheRetention は、放送が終わったしょぼいカレンダーの放送時間データを残す期間。アーカイブへ移す前に照合し直すのに足りるようにする。
 	cacheRetention = epg.DefaultArchiveGrace + 24*time.Hour
@@ -106,7 +106,7 @@ type target struct {
 
 // Episode は、番組に結びついた話 1 つ。
 type Episode struct {
-	// Source は、結びつけた出どころ (syobocal など)。
+	// Source は、結びつけたソース (syobocal など)。
 	Source string
 	// TID は、しょぼいカレンダーの作品の ID。PID は、放送時間データの ID。
 	TID *int32
@@ -116,16 +116,16 @@ type Episode struct {
 	CountEnd   *float64
 	// Subtitle は、その話のサブタイトル。
 	Subtitle *string
-	// First と Last は、しょぼいカレンダーの [新] と [終] の印。
+	// First と Last は、しょぼいカレンダーの [新] と [終] のマーク。
 	First bool
 	Last  bool
-	// Rerun は、再放送かどうか (#1233)。しょぼいカレンダーの再放送の印か、番組名の解析では番組名の [再] の印。
+	// Rerun は、再放送かどうか (#1233)。しょぼいカレンダーの再放送のマークか、番組名の解析では番組名の [再] のマーク。
 	Rerun bool
 }
 
 // MatchChanges は、EPG の同期が「EPG が変わった」と通知した (設計書 3.3) サービスと時間帯の番組を照合する。
-// 前に読んだ変更の記録 (epg_changes) の版数を覚え、その後の記録を読む。
-// 初めて動いたときと、無効の間は、今の版数を覚えるだけにする。それまでの番組は、定期的な照合し直しが受け持つ。
+// 前に読んだ変更の記録 (epg_changes) のバージョンを保存し、その後の記録を読む。
+// 初めて動いたときと、無効の間は、今のバージョンを保存するだけにする。それまでの番組は、定期的な照合し直しが受け持つ。
 func (m *Matcher) MatchChanges(ctx context.Context) (*MatchResult, error) {
 	result := new(MatchResult)
 	q := sqlc.New(m.db)
@@ -266,8 +266,8 @@ func (m *Matcher) Finalize(ctx context.Context) (*MatchResult, error) {
 }
 
 // MatchImported は、まだ照合していない録画を、古い順に照合する (設計書 3.8、6.3)。EPGStation から取り込んだ録画と、
-// 録画への写しが入る前 (v2026.11.0 より前) に Kotatsu で録った録画が対象 (#1658)。時刻予約の録画は、番組と対応しないので照合しない。
-// 番組を照合していればその結びつきを写し、なければ録画のサービスと開始時刻で照合する。
+// 録画へのコピーが入る前 (v2026.11.0 より前) に Kotatsu で録った録画が対象 (#1658)。時刻予約の録画は、番組と対応しないので照合しない。
+// 番組を照合していればその結びつきをコピーし、なければ録画のサービスと開始時刻で照合する。
 // 取り込んだ録画は何年分もあり、日がばらばらなので、1 回に問い合わせる ChID と日の数を maxImportedDays までに抑える。
 func (m *Matcher) MatchImported(ctx context.Context) (*MatchResult, error) {
 	result := new(MatchResult)
@@ -364,7 +364,7 @@ func (m *Matcher) channels(ctx context.Context) (map[int64]int32, error) {
 	return channels, nil
 }
 
-// copyImported は、取り込んだ録画と同じ番組を照合していれば、その結びつきを写し、true を返す。
+// copyImported は、取り込んだ録画と同じ番組を照合していれば、その結びつきをコピーし、true を返す。
 func (m *Matcher) copyImported(ctx context.Context, recordingID uuid.UUID, serviceID int64, startAt, now time.Time) (bool, error) {
 	matched, err := sqlc.New(m.db).ProgramAnimeMatchExists(ctx, sqlc.ProgramAnimeMatchExistsParams{ServiceID: serviceID, StartAt: startAt})
 	if err != nil {
@@ -520,7 +520,7 @@ func (m *Matcher) cachedPrograms(ctx context.Context, targets []*target) (map[in
 }
 
 // refresh は、required の日のうち、決めた日時より前に引いた (か、まだ引いていない) 放送時間データを引き直す。
-// ChID ごとに続いた日をまとめ、同じ期間を引く ChID をまとめて、1 回の問い合わせにする。引けなかった日を返す。
+// ChID ごとに続いた日をまとめ、同じ期間を取得する ChID をまとめて、1 回の問い合わせにする。取得できなかった日を返す。
 func (m *Matcher) refresh(ctx context.Context, required map[channelDay]time.Time, result *MatchResult) (map[channelDay]bool, error) {
 	stale, err := m.staleDays(ctx, required)
 	if err != nil {
@@ -586,7 +586,7 @@ func (m *Matcher) staleDays(ctx context.Context, required map[channelDay]time.Ti
 	return stale, nil
 }
 
-// spansOf は、ChID ごとの日を、続いた日の期間 (maxSpanDays 日まで) にまとめ、同じ期間を引く ChID をまとめる。
+// spansOf は、ChID ごとの日を、続いた日の期間 (maxSpanDays 日まで) にまとめ、同じ期間を取得する ChID をまとめる。
 // 期間を区切るのは、db.php が 1 回に 5,000 件までしか返さないからである。
 func spansOf(stale map[int32][]time.Time) map[span][]int32 {
 	groups := map[span][]int32{}
@@ -675,7 +675,7 @@ func (m *Matcher) write(ctx context.Context, t *target, episodes []*Episode, fin
 		if err := replaceEpisodes(ctx, q, t.serviceID, t.startAt, episodes); err != nil {
 			return err
 		}
-		// 放送が終わるまでに照合し直した結びつきは、この番組の録画の写しにも反映する。
+		// 放送が終わるまでに照合し直した結びつきは、この番組の録画のコピーにも反映する。
 		recordings, err := q.ListProgramRecordingIDs(ctx, sqlc.ListProgramRecordingIDsParams{ServiceID: t.serviceID, StartAt: t.startAt})
 		if err != nil {
 			return fmt.Errorf("failed to list the recordings of the program: %w", err)
@@ -715,8 +715,8 @@ func (m *Matcher) writeRecording(ctx context.Context, recordingID uuid.UUID, epi
 	})
 }
 
-// CopyToRecording は、tx の中で、番組 (serviceID, startAt) の結びつきを、録画 recordingID に写す (設計書 3.8)。
-// 解像度と同じく (設計書 3.3)、録画を始めたときに写す。番組をまだ照合していなければ、何もしない。
+// CopyToRecording は、tx の中で、番組 (serviceID, startAt) の結びつきを、録画 recordingID にコピーする (設計書 3.8)。
+// 解像度と同じく (設計書 3.3)、録画を始めたときにコピーする。番組をまだ照合していなければ、何もしない。
 func CopyToRecording(ctx context.Context, tx sqlc.DBTX, recordingID uuid.UUID, serviceID int64, startAt, now time.Time) error {
 	q := sqlc.New(tx)
 	matched, err := q.ProgramAnimeMatchExists(ctx, sqlc.ProgramAnimeMatchExistsParams{ServiceID: serviceID, StartAt: startAt})
@@ -854,7 +854,7 @@ func (m *Matcher) prune(ctx context.Context, now time.Time) (int64, error) {
 	return programs + lookups + matches, nil
 }
 
-// saveCursor は、読み終えた EPG の変更の記録の版数を覚える。
+// saveCursor は、読み終えた EPG の変更の記録のバージョンを保存する。
 func (m *Matcher) saveCursor(ctx context.Context, version int64) error {
 	if err := sqlc.New(m.db).SaveAnimeMatchCursor(ctx, sqlc.SaveAnimeMatchCursorParams{EpgVersion: version, Now: m.clock.Now()}); err != nil {
 		return fmt.Errorf("failed to save the anime match cursor: %w", err)
@@ -890,7 +890,7 @@ func dayCount(start, end time.Time) int {
 	return days
 }
 
-// startOfDay は、t を含む日本時間の日の始まりを、UTC で返す。表の鍵に使うので、タイムゾーンを UTC にそろえる。
+// startOfDay は、t を含む日本時間の日の始まりを、UTC で返す。テーブルのキーに使うので、タイムゾーンを UTC にそろえる。
 func startOfDay(t time.Time) time.Time {
 	local := t.In(syobocal.Tokyo())
 

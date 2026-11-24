@@ -16,7 +16,7 @@ import (
 func TestClientLog(t *testing.T) {
 	t.Parallel()
 
-	// 1 行 100 バイトで 3 万行 (約 3MB)。上限 (2MB) を超えるので、先頭が捨てられる。
+	// 1 行 100 バイトで 3 万行 (約 3MB)。上限 (2MB) を超えるので、先頭が破棄される。
 	var long strings.Builder
 	for i := range 30000 {
 		fmt.Fprintf(&long, "2026-11-12T00:00:00.000+09:00 info: line %05d %s\n", i, strings.Repeat("x", 59))
@@ -33,7 +33,7 @@ func TestClientLog(t *testing.T) {
 			name: "本文をそのまま返す", status: http.StatusOK, body: "a\nb\n",
 			wantFirst: "a", wantLast: "b", wantStatus: 0,
 		},
-		// 半端に切った行は捨てるので、最初の行も頭から始まる。
+		// 半端に切った行は破棄するので、最初の行も先頭から始まる。
 		{
 			name: "大きい本文は最後の部分だけを、行の頭から返す", status: http.StatusOK, body: long.String(),
 			wantFirst: "2026-11-12T00:00:00.000+09:00 info: line ", wantLast: "line 29999 ", wantStatus: 0,

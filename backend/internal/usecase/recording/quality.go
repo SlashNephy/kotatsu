@@ -9,7 +9,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// flushInterval は、書き込みのバッファを、たまっていなくても書き出す間隔 (#525)。
+// flushInterval は、書き込みのバッファを、たまっていなくてもフラッシュする間隔 (#525)。
 // ビットレートが低いと、バッファが埋まるまで数分かかり、録画ファイルの更新時刻が遅れる。
 // 遅れると、落ちた mikan のものとみなして早すぎる時刻で閉じ、実際にはない途切れを記録してしまう。
 const flushInterval = time.Second
@@ -86,7 +86,7 @@ func (s *qualitySamples) list() []qualitySample {
 
 var _ io.Writer = new(flushingWriter)
 
-// flushingWriter は、書き込みのバッファを、flushInterval ごとに書き出す。書き込みが途絶えても、flushIfStale で書き出す。
+// flushingWriter は、書き込みのバッファを、flushInterval ごとにフラッシュする。書き込みが途絶えても、flushIfStale でフラッシュする。
 type flushingWriter struct {
 	mu     sync.Mutex
 	buffer *bufio.Writer
@@ -104,7 +104,7 @@ func (w *flushingWriter) Write(p []byte) (int, error) {
 	return n, w.flushIfStaleLocked()
 }
 
-// flushIfStale は、前に書き出してから flushInterval が過ぎていれば、バッファを書き出す。
+// flushIfStale は、前にフラッシュしてから flushInterval が過ぎていれば、バッファをフラッシュする。
 func (w *flushingWriter) flushIfStale() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()

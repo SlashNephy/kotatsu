@@ -5,17 +5,17 @@ import { browserStorage } from '../yunomi/volume';
 import { preferenceChanged } from '../settings/syncedPreferences';
 
 // 実況のコメントの位置 (#1357、設計書 7.4)。録画の再生で、コメントを流す位置を前後にずらす。
-// 正の値で遅らせ、負の値で早める。投稿者がコメントを打つまでの時間があるので、コメントは映像より遅れて見えることが多い。1 つ覚え、端末をまたいで同期する (#1862)。
+// 正の値で遅らせ、負の値で早める。投稿者がコメントを打つまでの時間があるので、コメントは映像より遅れて見えることが多い。1 つ保存し、端末をまたいで同期する (#1862)。
 
 const offsetKey = 'kotatsu.player.commentOffsetMs';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:comment-offset';
 
 // maxCommentOffsetMs は、前後にずらせる上限 (ミリ秒)。commentOffsetStepMs は、キーとメニューで変える幅。
 export const maxCommentOffsetMs = 30_000;
 export const commentOffsetStepMs = 500;
 
-// clampCommentOffset は、ずらす量を、上限の範囲の、刻みにそろえた値にする。
+// clampCommentOffset は、ずらす量を、上限の範囲の、間隔にそろえた値にする。
 function clampCommentOffset(ms: number): number {
   const stepped = Math.round(ms / commentOffsetStepMs) * commentOffsetStepMs;
 
@@ -23,7 +23,7 @@ function clampCommentOffset(ms: number): number {
   return Math.min(Math.max(stepped, -maxCommentOffsetMs), maxCommentOffsetMs) + 0;
 }
 
-// loadCommentOffset は、覚えたずらす量 (ミリ秒) を読む。読めなければ 0 を返す。
+// loadCommentOffset は、保存したずらす量 (ミリ秒) を読む。読めなければ 0 を返す。
 export function loadCommentOffset(storage: Pick<Storage, 'getItem'> | null): number {
   try {
     const ms = Number(storage?.getItem(offsetKey) ?? 0);
@@ -34,7 +34,7 @@ export function loadCommentOffset(storage: Pick<Storage, 'getItem'> | null): num
   }
 }
 
-// stepCommentOffset は、ずらす量 ms を、direction の向きに 1 刻み変えた値を返す。
+// stepCommentOffset は、ずらす量 ms を、direction の向きに 1 間隔分変えた値を返す。
 export function stepCommentOffset(ms: number, direction: 1 | -1): number {
   return clampCommentOffset(ms + direction * commentOffsetStepMs);
 }

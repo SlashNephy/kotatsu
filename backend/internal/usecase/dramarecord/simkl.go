@@ -28,7 +28,7 @@ const (
 	simklAppName = "kotatsu"
 	// simklScope は、求める権限。見た話を記録するので、書き込みの権限 (media:write) が要る。
 	simklScope = "media:read media:write"
-	// simklWriteScope は、書き込みの権限。トークンの応答の scope に、これがあることを確かめる。
+	// simklWriteScope は、書き込みの権限。トークンの応答の scope に、これがあることを確認する。
 	simklWriteScope = "media:write"
 	// paramClientID は、アプリを示す client_id の名前。
 	paramClientID = "client_id"
@@ -252,7 +252,7 @@ type allItemsResponse struct {
 }
 
 func (s *Simkl) Watchlist(ctx context.Context, app *App, accessToken, dateFrom string) ([]*WatchlistItem, error) {
-	// 既定の形で引く。作品ごとの状態と、TMDB の ID を含む外部の ID を返す。
+	// 既定の形で取得する。作品ごとの状態と、TMDB の ID を含む外部の ID を返す。
 	query := url.Values{}
 	if dateFrom != "" {
 		query.Set("date_from", dateFrom)

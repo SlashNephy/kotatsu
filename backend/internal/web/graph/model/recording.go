@@ -52,7 +52,7 @@ type Recording struct {
 	// ImageSegmentID は、代表画像とプレビュー画像を置くセグメントのファイルの ID (thumbnail.ImageSegment)。なければ uuid.Nil()。
 	// スキーマには出さず、watchFrame のリゾルバーで preview.json を読むのに使う。
 	ImageSegmentID uuid.UUID `json:"-"`
-	// RuleKey は、録画を始めたときに一致していたルールの ID。スキーマには出さず、rule のリゾルバーで引く。
+	// RuleKey は、録画を始めたときに一致していたルールの ID。スキーマには出さず、rule のリゾルバーで取得する。
 	RuleKey *uuid.UUID `json:"-"`
 	// FailureDetailText は、失敗した理由に至ったエラーの本文 (#1467)。failureDetail のリゾルバーが、管理者にだけ返す。
 	FailureDetailText *string `json:"-"`
@@ -68,7 +68,7 @@ func (r Recording) WorkTitle() string {
 	return domain.WorkTitle(r.Name)
 }
 
-// DramaTitleKey は、TMDB で作品を探す作品名の鍵 (#1651)。gqlgen が Recording.dramaTitleKey に使う。
+// DramaTitleKey は、TMDB で作品を探す作品名のキー (#1651)。gqlgen が Recording.dramaTitleKey に使う。
 func (r Recording) DramaTitleKey() string {
 	return drama.TitleKeyOf(r.Name)
 }

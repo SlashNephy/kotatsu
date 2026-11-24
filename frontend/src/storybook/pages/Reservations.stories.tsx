@@ -125,7 +125,7 @@ function withOnAir(root: DemoRoot) {
   return {};
 }
 
-// rowOf は、種類 (label) の印の付いた、最初の予約の行を返す。
+// rowOf は、種類 (label) のマークの付いた、最初の予約の行を返す。
 async function rowOf(canvasElement: HTMLElement, label: string) {
   const [icon] = await within(canvasElement).findAllByRole('img', { name: label });
   const row = icon?.parentElement?.parentElement;
@@ -236,7 +236,7 @@ export const BulkError: Story = {
   },
 };
 
-// 選んだ予約をまとめて消す前の確かめ。
+// 選んだ予約をまとめて消す前の確認。
 export const BulkDeleteConfirm: Story = {
   play: async ({ canvas, canvasElement }) => {
     await selectFirst(canvasElement);
@@ -255,7 +255,7 @@ export const RuleMenu: Story = {
   play: async ({ canvasElement }) => openMenu(canvasElement, 'ルール予約'),
 };
 
-// 有効と無効を切り替えられなかったとき。行の下に知らせる。
+// 有効と無効を切り替えられなかったとき。行の下に通知する。
 export const ToggleError: Story = {
   args: { overrides: { updateReservation: failing() } },
   play: async ({ canvasElement }) => {
@@ -264,7 +264,7 @@ export const ToggleError: Story = {
   },
 };
 
-// 番組予約を消す前の確かめ。
+// 番組予約を消す前の確認。
 export const DeleteDialog: Story = {
   play: async ({ canvasElement }) => {
     await openMenu(canvasElement, '番組予約');
@@ -396,7 +396,7 @@ export const WatchReservations: Story = {
   args: { url: '/reservations?watch=true', overrides: withWatchReservations },
 };
 
-// 視聴予約を外せなかったとき。ベルのボタンに知らせる。
+// 視聴予約を外せなかったとき。ベルのボタンに通知する。
 export const WatchReservationError: Story = {
   args: {
     url: '/reservations?watch=true',

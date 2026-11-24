@@ -168,7 +168,7 @@ type ListProgramArchivesWithoutSearchGramsRow struct {
 	Extended              []byte
 }
 
-// 番組の検索の gram の列 (#966) を埋めていないアーカイブを返す。列を足す前に移した番組。
+// 番組の検索の gram のカラム (#966) を埋めていないアーカイブを返す。カラムを足す前に移した番組。
 func (q *Queries) ListProgramArchivesWithoutSearchGrams(ctx context.Context, batchSize int32) ([]ListProgramArchivesWithoutSearchGramsRow, error) {
 	rows, err := q.db.Query(ctx, listProgramArchivesWithoutSearchGrams, batchSize)
 	if err != nil {
@@ -341,7 +341,7 @@ type ListProgramsWithoutSearchGramsRow struct {
 	Extended              []byte
 }
 
-// 番組の検索の gram の列 (#966) を埋めていない番組を返す。列を足す前に書いた番組と、列を知らない古いバイナリが書いた番組。
+// 番組の検索の gram のカラム (#966) を埋めていない番組を返す。カラムを足す前に書いた番組と、カラムを知らない古いバイナリが書いた番組。
 func (q *Queries) ListProgramsWithoutSearchGrams(ctx context.Context, batchSize int32) ([]ListProgramsWithoutSearchGramsRow, error) {
 	rows, err := q.db.Query(ctx, listProgramsWithoutSearchGrams, batchSize)
 	if err != nil {
@@ -386,7 +386,7 @@ type ListProgramsWithoutSeriesRow struct {
 	SeriesEpisode         *int32
 }
 
-// シリーズ名と話数の列 (#1564) を埋めていない番組を返す。列を足す前に書いた番組と、列を知らない古いバイナリが書いた番組。
+// シリーズ名と話数のカラム (#1564) を埋めていない番組を返す。カラムを足す前に書いた番組と、カラムを知らない古いバイナリが書いた番組。
 func (q *Queries) ListProgramsWithoutSeries(ctx context.Context, batchSize int32) ([]ListProgramsWithoutSeriesRow, error) {
 	rows, err := q.db.Query(ctx, listProgramsWithoutSeries, batchSize)
 	if err != nil {
@@ -428,7 +428,7 @@ type ListServiceProgramNamesLikeParams struct {
 }
 
 // サービスの番組表の番組のうち、正規化した番組名が pattern (LIKE のパターン) に当たるものの、正規化した番組名 (#2041)。
-// 番組からルールを作るとき、同じ作品のほかの回を探して、回ごとに変わる副題をキーワードから除くのに使う。event_id の番組は除く。
+// 番組からルールを作るとき、同じ作品のほかの回を探して、回ごとに変わるサブタイトルをキーワードから除くのに使う。event_id の番組は除く。
 func (q *Queries) ListServiceProgramNamesLike(ctx context.Context, arg ListServiceProgramNamesLikeParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, listServiceProgramNamesLike, arg.ServiceID, arg.EventID, arg.Pattern)
 	if err != nil {
@@ -533,18 +533,6 @@ func (q *Queries) PruneProgramArchives(ctx context.Context, arg PruneProgramArch
 	return result.RowsAffected(), nil
 }
 
-const pruneProgramRewrites = `-- name: PruneProgramRewrites :execrows
-DELETE FROM program_rewrites WHERE observed_at < $1
-`
-
-func (q *Queries) PruneProgramRewrites(ctx context.Context, before time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, pruneProgramRewrites, before)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const serviceExists = `-- name: ServiceExists :one
 SELECT EXISTS (SELECT 1 FROM services WHERE id = $1)
 `
@@ -567,7 +555,7 @@ type UpdateServicesPresenceParams struct {
 	Now     time.Time
 }
 
-// 上流のサービスの一覧 (present) と突き合わせ、上流に無いサービスに、無いと気づいた時刻を書き、戻ってきたサービスの時刻を消す (#1973)。
+// 上流のサービスの一覧 (present) と照合し、上流に無いサービスに、無いと気づいた時刻を書き、戻ってきたサービスの時刻を消す (#1973)。
 // 前から無いサービスの時刻は、初めて気づいた時刻のまま残す。変わった行の数を返す。
 func (q *Queries) UpdateServicesPresence(ctx context.Context, arg UpdateServicesPresenceParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateServicesPresence, arg.Present, arg.Now)
@@ -613,7 +601,7 @@ type UpsertServiceParams struct {
 	Now                time.Time
 }
 
-// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
+// 上流から来る項目だけを更新する。非表示のマークと並び順の上書きは、管理者のものなので触らない。
 func (q *Queries) UpsertService(ctx context.Context, arg UpsertServiceParams) error {
 	_, err := q.db.Exec(ctx, upsertService,
 		arg.ID,

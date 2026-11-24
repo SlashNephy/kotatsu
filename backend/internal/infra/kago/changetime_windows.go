@@ -23,7 +23,7 @@ type fileBasicInfo struct {
 }
 
 // changeTime は、root の中のファイル rel の状態を最後に変えた日時 (NTFS の ChangeTime) を返す。名前を変えたときも新しくなる。
-// fs.FileInfo の Win32FileAttributeData には ChangeTime がないので、ファイルを開いて調べる。調べられなければ更新日時を返す。
+// fs.FileInfo の Win32FileAttributeData には ChangeTime がないので、ファイルを開いて取得する。取得できなければ更新日時を返す。
 func changeTime(root *os.Root, rel string, info fs.FileInfo) time.Time {
 	f, err := root.Open(rel)
 	if err != nil {

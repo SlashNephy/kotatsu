@@ -1,10 +1,10 @@
 // ライブのコメントを tenban から受け取り、投稿する (設計書 7.4)。
 // NX-Jikkyo には tenban がつなぐ。視聴者の IP アドレスと見ているチャンネルを、第三者に渡さないためである。
 
-// jikkyoSocketPath は、実況のコメントを中継する WebSocket のパスの前半。
+// jikkyoSocketPath は、実況のコメントをプロキシする WebSocket のパスの前半。
 export const jikkyoSocketPath = '/internal/media/jikkyo/';
 
-// jikkyoSocketURL は、実況のチャンネル channelId のコメントを中継する WebSocket の URL を返す。同じオリジンにつなぐ。
+// jikkyoSocketURL は、実況のチャンネル channelId のコメントをプロキシする WebSocket の URL を返す。同じオリジンにつなぐ。
 export function jikkyoSocketURL(channelId: string, location: Location = window.location): string {
   const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
 
@@ -133,7 +133,7 @@ export class JikkyoSession {
     switch (message.type) {
       case 'status':
         if (message.kind === 'disconnected') {
-          // tenban と NX-Jikkyo の間が切れた。つなぎ直すのは tenban なので、知らせるだけにする。
+          // tenban と NX-Jikkyo の間が切れた。つなぎ直すのは tenban なので、通知するだけにする。
           this.handlers.onStatus({
             kind: 'disconnected',
             reason: message.reason ?? 'DISCONNECTED',

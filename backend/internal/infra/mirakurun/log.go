@@ -8,7 +8,7 @@ import (
 	"io"
 )
 
-// maxLogSize は、/api/log から読む本文の上限 (バイト)。超えた分は先頭 (古い方) を捨てる。
+// maxLogSize は、/api/log から読む本文の上限 (バイト)。超えた分は先頭 (古い方) を破棄する。
 // Mirakurun は既定で最後の 1000 行を持つ (maxLogHistory)。1 行 1KB としても収まる大きさにする。
 const maxLogSize = 2 << 20
 
@@ -35,7 +35,7 @@ func (c *Client) Status(ctx context.Context) (*Status, error) {
 }
 
 // Log は /api/log の本文 (1 行に 1 つのログのテキスト) を返す (#1521)。Mirakurun と Mahiron が持つ。
-// 本文が maxLogSize を超えたら、最後の maxLogSize バイトだけを返す。先頭の半端な行は捨てる。
+// 本文が maxLogSize を超えたら、最後の maxLogSize バイトだけを返す。先頭の半端な行は破棄する。
 func (c *Client) Log(ctx context.Context) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
@@ -77,7 +77,7 @@ type tailWriter struct {
 
 func (w *tailWriter) Write(p []byte) (int, error) {
 	w.buf = append(w.buf, p...)
-	// 書くたびに詰め直すと遅いので、上限の 2 倍まで溜めてから詰める。
+	// 書くたびに詰め直すと遅いので、上限の 2 倍までバッファしてから詰める。
 	if len(w.buf) > 2*w.limit {
 		w.compact()
 	}

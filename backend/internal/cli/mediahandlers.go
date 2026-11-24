@@ -38,13 +38,13 @@ func captureLoggerOf(logger *slog.Logger) captureLogger {
 	return captureLogger{Logger: logger.With(slog.String("component", "capture"))}
 }
 
-// newAvatarHandler は、ユーザーのアイコンを IdP から取って中継するハンドラーを作る (#778)。
+// newAvatarHandler は、ユーザーのアイコンを IdP から取ってプロキシするハンドラーを作る (#778)。
 func newAvatarHandler(deps *Deps, pool *pgxpool.Pool, logger *slog.Logger) *avatar.Handler {
 	return avatar.NewHandler(pool, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")), deps.Network)
 }
 
 // newAnimeImageHandler は、見たいリストの作品の画像と、フォロー中のユーザーのアバターを、記録先が示した URL から取って
-// 中継するハンドラーを作る (#1235、#1372)。
+// プロキシするハンドラーを作る (#1235、#1372)。
 func newAnimeImageHandler(deps *Deps, pool *pgxpool.Pool, logger *slog.Logger) *animeimage.Handler {
 	return animeimage.NewHandler(pool, logger.With(slog.String("component", "anime_image")), deps.Network)
 }
@@ -60,7 +60,7 @@ func newTvtplayChapterHandler(pool *pgxpool.Pool, urlGate *settings.URLGate, log
 	return tvtplay.NewChapterHandler(pool, urlGate, logger.With(slog.String("component", "tvtplay")))
 }
 
-// newDataBroadcastRelay は、データ放送の文書の双方向の通信を中継する部品を作る (#501、設計書 7.4)。
+// newDataBroadcastRelay は、データ放送の文書の双方向の通信をプロキシする部品を作る (#501、設計書 7.4)。
 func newDataBroadcastRelay(deps *Deps, pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *databroadcastapi.Relay {
 	return databroadcastapi.New(pool, clk, logger.With(slog.String("component", "data_broadcast")), deps.Network)
 }

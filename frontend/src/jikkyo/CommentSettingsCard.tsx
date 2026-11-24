@@ -46,7 +46,7 @@ const suggestedCommands = [
   'black',
 ];
 
-// validRegExp は、正規表現として読めるかを返す。読めないものはミュートに使われないので、足す前に知らせる。
+// validRegExp は、正規表現として読めるかを返す。読めないものはミュートに使われないので、足す前に通知する。
 const validRegExp = (pattern: string) => {
   try {
     new RegExp(pattern, 'i');
@@ -93,7 +93,7 @@ export function CommentSettingsCard() {
     mutedCommands: [...comments.mutedCommands],
     mixOtherBroadcasts: comments.mixOtherBroadcasts,
   });
-  // save は、変えた設定を保存し、結果を設定の保存の通知で知らせる (#1740)。失敗したら、スライダーを保存してある値に戻す。
+  // save は、変えた設定を保存し、結果を設定の保存の通知で伝える (#1740)。失敗したら、スライダーを保存してある値に戻す。
   const save = (change: Partial<CommentSettingsInput>) => {
     setComments(
       { ...current(), ...change },

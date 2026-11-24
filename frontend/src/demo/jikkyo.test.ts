@@ -11,7 +11,7 @@ describe('FakeJikkyoSocket', () => {
     vi.useRealTimers();
   });
 
-  // 偽物の WebSocket が、画面の実況のセッションが求める手順に沿い、架空のコメントを流せるかを確かめる。
+  // モックの WebSocket が、画面の実況のセッションが求める手順に沿い、架空のコメントを流せるかを確認する。
   test('drives JikkyoSession to connected and streams comments', async () => {
     const sockets: FakeJikkyoSocket[] = [];
     const statuses: SessionStatus[] = [];

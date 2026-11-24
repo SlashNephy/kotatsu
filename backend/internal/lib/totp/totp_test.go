@@ -14,7 +14,7 @@ import (
 // rfcSecret は、RFC 6238 の付録 B の SHA-1 の秘密キー。
 const rfcSecret = "12345678901234567890"
 
-// TestCodeMatchesRFC6238 は、RFC 6238 の付録 B の SHA-1 のテストベクター (8 桁) と一致することを確かめる。
+// TestCodeMatchesRFC6238 は、RFC 6238 の付録 B の SHA-1 のテストベクター (8 桁) と一致することを確認する。
 func TestCodeMatchesRFC6238(t *testing.T) {
 	t.Parallel()
 

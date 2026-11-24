@@ -86,7 +86,7 @@ type ListAnimeFollowingWatchingRow struct {
 }
 
 // ユーザーの、フォローしている人が見ている作品を返す (#1968)。fetched_after より前に取り込んだものは返さない。
-// 作品ごとの視聴状況 (#1372) と同じく、利用者の情報を、表示に要る範囲を超えて溜めないため。
+// 作品ごとの視聴状況 (#1372) と同じく、利用者の情報を、表示に要る範囲を超えて蓄積しないため。
 func (q *Queries) ListAnimeFollowingWatching(ctx context.Context, arg ListAnimeFollowingWatchingParams) ([]ListAnimeFollowingWatchingRow, error) {
 	rows, err := q.db.Query(ctx, listAnimeFollowingWatching, arg.UserID, arg.FetchedAfter)
 	if err != nil {

@@ -1,4 +1,4 @@
-// streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を集める (#828)。
+// streamMeter は、右のカラムの「情報」に出す、届いた映像のビットレートと放送の形式を集める (#828)。
 
 import { recordingPosition } from './position';
 
@@ -148,7 +148,7 @@ export function frameRate(previous: FrameCount, next: FrameCount): number | null
   return Math.round((frames / time) * 100) / 100;
 }
 
-// shownFrameRate は、再生の情報に出すフレームレート。measured は video の要素のフレームの数から測った値で、
+// shownFrameRate は、再生の情報に出すフレームレート。measured は video の要素のフレームの数から計測した値で、
 // 24p に組み直す前、フィールドごとに分ける前の 30 コマのままなので、yadif がコマを出す時刻を決めている間
 // (24p で出すとき (#1284) と、フィールドごとに表示するとき (#1655)) は、yadif が実際に出したコマの数を返す。
 export function shownFrameRate(
@@ -241,16 +241,16 @@ export type EncodedStream = {
   bandwidth: number | null;
 };
 
-// TsPlayerReading は、ブラウザ内での変換のプレイヤーが知らせる、読み込みの様子。
+// TsPlayerReading は、ブラウザ内での変換のプレイヤーが通知する、読み込みの様子。
 export type TsPlayerReading = TsReading & {
   transport: TransportCounts | null;
   source: SourcePicture | null;
-  // mediaOrigin は、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。まだ分からなければ null。
+  // mediaOrigin は、画面の時刻 0 に当たる放送の時刻 (90 kHz の単位、#1515)。まだ分からなければ null。
   mediaOrigin: number | null;
 };
 
 // HlsSegment は、kyusu の経路で、hls.js が読み終えたセグメント。
-// mediaOrigin は、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。kyusu はライブのセグメントの PTS を放送の PTS のままにするので、
+// mediaOrigin は、画面の時刻 0 に当たる放送の時刻 (90 kHz の単位、#1515)。kyusu はライブのセグメントの PTS を放送の PTS のままにするので、
 // hls.js が画面の時刻 0 に置いた PTS (initPTS) がそれに当たる。まだ分からないか、録画の再生なら null。
 export type HlsSegment = {
   bytes: number;
@@ -261,13 +261,13 @@ export type HlsSegment = {
   mediaOrigin: number | null;
 };
 
-// StreamMeter は、再生している経路から届く様子を溜める。画面は、これを 1 秒ごとに読む。
+// StreamMeter は、再生している経路から届く様子を蓄積する。画面は、これを 1 秒ごとに読む。
 export class StreamMeter {
   readonly bitrate = new BitrateMeter();
   transport: TransportCounts | null = null;
   source: SourcePicture | null = null;
   encoded: EncodedStream | null = null;
-  // mediaOrigin は、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。分からなければ null。
+  // mediaOrigin は、画面の時刻 0 に当たる放送の時刻 (90 kHz の単位、#1515)。分からなければ null。
   mediaOrigin: number | null = null;
   #base: TsReading | null = null;
 
@@ -288,7 +288,7 @@ export class StreamMeter {
     this.mediaOrigin = segment.mediaOrigin;
   }
 
-  // reset は、経路を変えたときに、それまでの様子を捨てる。
+  // reset は、経路を変えたときに、それまでの様子を破棄する。
   reset() {
     this.bitrate.reset();
     this.transport = null;

@@ -40,9 +40,9 @@ type partialNIT struct {
 	sections map[uint8][]*ts.NITTransportStream
 }
 
-// Collector は、TS を読む解析器から受け取った、衛星のネットワークの NIT[actual] を組み上げ、Flush で DB に書く (#1519)。
-// NIT は複数のセクションに分かれることがあるので、同じ版の全部のセクションが揃ったら、1 つの構成にする。
-// 同じ版の構成は、rewriteMinGap に 1 回だけ書き直す (読んだ時刻を新しくする)。
+// Collector は、TS を読むアナライザーから受け取った、衛星のネットワークの NIT[actual] を組み上げ、Flush で DB に書く (#1519)。
+// NIT は複数のセクションに分かれることがあるので、同じバージョンの全部のセクションが揃ったら、1 つの構成にする。
+// 同じバージョンの構成は、rewriteMinGap に 1 回だけ書き直す (読んだ時刻を新しくする)。
 type Collector struct {
 	clock  clock.Clock
 	logger *slog.Logger
@@ -51,7 +51,7 @@ type Collector struct {
 	partial map[uint16]*partialNIT
 	// pending は、まだ書いていない構成。
 	pending map[uint16]*Observation
-	// written は、書いた構成の版と、書いた時刻。
+	// written は、書いた構成のバージョンと、書いた時刻。
 	written map[uint16]written
 }
 
@@ -68,7 +68,7 @@ func NewCollector(clk clock.Clock, logger *slog.Logger) *Collector {
 	}
 }
 
-// Observe は、解析器が読んだ NIT を受け取る。ts.AnalyzerOptions.OnNIT に渡す。解析器の中で呼ばれるので、DB には書かない。
+// Observe は、アナライザーが読んだ NIT を受け取る。ts.AnalyzerOptions.OnNIT に渡す。アナライザーの中で呼ばれるので、DB には書かない。
 // 衛星の NIT[actual] だけを使う。
 func (c *Collector) Observe(nit *ts.NIT) {
 	if nit == nil {
@@ -109,7 +109,7 @@ func (c *Collector) Observe(nit *ts.NIT) {
 }
 
 // Flush は、組み上がった構成を DB に書く。書けなかった構成は、次の Flush で書き直す。
-// 知らせるためだけのものなので、書けなくても録画は止めない。エラーはログに残すだけにする。
+// 通知するためだけのものなので、書けなくても録画は止めない。エラーはログに残すだけにする。
 func (c *Collector) Flush(ctx context.Context, q *sqlc.Queries) {
 	c.mu.Lock()
 	pending := c.pending

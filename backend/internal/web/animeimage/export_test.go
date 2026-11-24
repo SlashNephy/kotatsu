@@ -12,7 +12,7 @@ func NewHandlerWithClient(pool *pgxpool.Pool, logger *slog.Logger, client *http.
 	return newHandler(pool, logger, client)
 }
 
-// CacheKeys は、大きさの上限 maxBytes の cache に、大きさ sizes の画像を順に覚えさせ、覚えている画像の鍵を、覚えた順に返す。
+// CacheKeys は、大きさの上限 maxBytes の cache に、大きさ sizes の画像を順にキャッシュさせ、キャッシュしている画像のキーを、キャッシュした順に返す。
 func CacheKeys(maxBytes int, sizes []int) []string {
 	c := newCache(maxBytes)
 	for i, size := range sizes {

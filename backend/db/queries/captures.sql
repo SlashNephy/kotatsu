@@ -18,8 +18,8 @@ SELECT * FROM captures WHERE id = @id AND user_id = @user_id;
 -- name: ListCaptures :many
 -- user_id のユーザーのキャプチャを、記録した新しい順に返す。
 -- words は、NFKC で正規化して LIKE のために逃がした語。すべての語が、正規化した番組名、サービス名、字幕の文のどれかに
--- 含まれるものだけを返す (#2084)。字幕の正規化した列がまだない (NULL の) キャプチャは、字幕では探さない。
--- NULL のまま比べると、条件の全体が NULL になり、どの語にも当たってしまうので、空として比べる。
+-- 含まれるものだけを返す (#2084)。字幕の正規化したカラムがまだない (NULL の) キャプチャは、字幕では探さない。
+-- NULL のまま比較すると、条件の全体が NULL になり、どの語にも当たってしまうので、空として比較する。
 -- before_at と before_id より前 (古い) のキャプチャだけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 SELECT * FROM captures c
 WHERE c.user_id = @user_id
@@ -46,7 +46,7 @@ SELECT id FROM captures WHERE user_id = @user_id;
 SELECT id, user_id FROM captures;
 
 -- name: ListCapturesWithoutNormalized :many
--- 正規化した字幕の文の列がまだないキャプチャを、ID の順に max_count 件返す (#2084)。kotatsu migrate が埋める。
+-- 正規化した字幕の文のカラムがまだないキャプチャを、ID の順に max_count 件返す (#2084)。kotatsu migrate が埋める。
 SELECT id, caption FROM captures
 WHERE caption_normalized IS NULL
 ORDER BY id

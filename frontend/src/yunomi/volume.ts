@@ -1,4 +1,4 @@
-// プレイヤーの音量を、端末ごとに覚えておく。端末によって、ちょうどよい音量が違うので、アカウントには保存しない。
+// プレイヤーの音量を、端末ごとに保存しておく。端末によって、ちょうどよい音量が違うので、アカウントには保存しない。
 
 export type Volume = {
   // volume は、0 から maxVolume の音量。1 を超える分は、WebAudio で上げる (#453)。
@@ -14,12 +14,12 @@ export function stepVolume(volume: number, delta: number): number {
   return Math.min(maxVolume, Math.max(0, Math.round((volume + delta) * 100) / 100));
 }
 
-// defaultVolume は、覚えた音量がないときの音量。
+// defaultVolume は、保存した音量がないときの音量。
 export const defaultVolume: Volume = { volume: 1, muted: false };
 
 const storageKey = 'kotatsu.player.volume';
 
-// loadVolume は、覚えた音量を読む。読めないか、壊れていれば、既定の音量を返す。
+// loadVolume は、保存した音量を読む。読めないか、壊れていれば、既定の音量を返す。
 export function loadVolume(storage: Pick<Storage, 'getItem'> | null): Volume {
   try {
     const raw = storage?.getItem(storageKey);
@@ -45,7 +45,7 @@ export function loadVolume(storage: Pick<Storage, 'getItem'> | null): Volume {
   return defaultVolume;
 }
 
-// saveVolume は、音量を覚える。書けなくても、再生は続ける。
+// saveVolume は、音量を保存する。書けなくても、再生は続ける。
 export function saveVolume(storage: Pick<Storage, 'setItem'> | null, volume: Volume): void {
   try {
     storage?.setItem(storageKey, JSON.stringify(volume));

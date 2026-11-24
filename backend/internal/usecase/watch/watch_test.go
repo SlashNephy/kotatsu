@@ -136,7 +136,7 @@ func reminder(user string, eventID int) sentEvent {
 }
 
 // TestNotify は、視聴予約の通知を、通知を送る時刻を過ぎてから放送が終わるまでの間に一度だけ送り、
-// 放送が終わった番組と EPG から消えた番組の視聴予約は、送らずに片付けることを確かめる (設計書 4.8)。
+// 放送が終わった番組と EPG から消えた番組の視聴予約は、送らずに片付けることを確認する (設計書 4.8)。
 func TestNotify(t *testing.T) {
 	t.Parallel()
 
@@ -237,7 +237,7 @@ func TestNotify(t *testing.T) {
 	}
 }
 
-// TestReserve は、放送が始まった番組と EPG にない番組には、視聴予約を付けられないことを確かめる。
+// TestReserve は、放送が始まった番組と EPG にない番組には、視聴予約を付けられないことを確認する。
 func TestReserve(t *testing.T) {
 	t.Parallel()
 

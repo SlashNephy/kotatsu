@@ -23,6 +23,6 @@ Kotatsuは、[Contributor Covenant 2.1](https://www.contributor-covenant.org/ver
 
 ## 報告と対応
 
-規範に反する振る舞いを見かけたら、メンテナー ([@SlashNephy](https://github.com/SlashNephy)) に知らせてください。
-メンテナーは報告を確かめ、Contributor Covenantの指針に沿って、注意、一時的な参加の禁止、恒久的な参加の禁止などの対応を取ります。
+規範に反する振る舞いを見かけたら、メンテナー ([@SlashNephy](https://github.com/SlashNephy)) に伝えてください。
+メンテナーは報告を確認し、Contributor Covenantの指針に沿って、注意、一時的な参加の禁止、恒久的な参加の禁止などの対応を取ります。
 報告した人のプライバシーは守ります。

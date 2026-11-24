@@ -19,8 +19,8 @@ export type SaveCallbacks = {
   onFailed?: (error: unknown) => void;
 };
 
-// useAutoSave は、設定の画面で、変えた設定を保存し、結果を通知で知らせる (#1740)。
-// 保存は、受け取った順に 1 つずつ送る。欄を離れて保存している途中に切り替えを押しても、捨てたり押せなくしたりせず、
+// useAutoSave は、設定の画面で、変えた設定を保存し、結果を通知で伝える (#1740)。
+// 保存は、受け取った順に 1 つずつ送る。欄を離れて保存している途中に切り替えを押しても、破棄したり押せなくしたりせず、
 // 前の保存を待ってから送る。重ねて送ると、後から届いた古い値で上書きしかねないため。
 export function useAutoSave(): { save: AutoSave } {
   const notice = useSaveNotice();
@@ -50,8 +50,8 @@ export function useAutoSave(): { save: AutoSave } {
   return { save };
 }
 
-// useDeviceSave は、この端末だけに覚える設定 (localStorage) を変えたときに、保存した知らせを出す関数を返す (#1740)。
-// set を包み、変えたら同じ通知を出す。サーバーへの保存と違い、失敗しないので、すぐ知らせる。
+// useDeviceSave は、この端末だけに保存する設定 (localStorage) を変えたときに、保存した通知を出す関数を返す (#1740)。
+// set を包み、変えたら同じ通知を出す。サーバーへの保存と違い、失敗しないので、すぐ通知する。
 export function useDeviceSave() {
   const notice = useSaveNotice();
 

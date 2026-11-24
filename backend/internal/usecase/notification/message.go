@@ -168,7 +168,7 @@ func animeRecordMessage(kind domain.NotificationKind, payload map[string]any, es
 	if name := payloadText(payload, "name"); name != "" {
 		title := domain.WorkTitle(name)
 		if title == "" {
-			// 印だけの番組名のように、作品名が読めないときは、番組名のまま書く。
+			// 記号だけの番組名のように、作品名が読めないときは、番組名のまま書く。
 			title = name
 		}
 		subject = fmt.Sprintf("「%s」", escape(title))
@@ -191,7 +191,7 @@ func animeRecordMessage(kind domain.NotificationKind, payload map[string]any, es
 }
 
 // containsEpisodes は、作品名 title に、話数 episodes (「#1、#2」の形) のすべてが、#3、第3話、(3) のどれかの形で書かれているかを返す。
-// WorkTitle が話数を除けない番組名 (「アニメ #3」など) で、話数を重ねて書かないために使う。数で比べるので、#03 は #3 と同じとし、#12 は #1 と見なさない。
+// WorkTitle が話数を除けない番組名 (「アニメ #3」など) で、話数を重ねて書かないために使う。数で比較するので、#03 は #3 と同じとし、#12 は #1 と見なさない。
 func containsEpisodes(title, episodes string) bool {
 	if episodes == "" {
 		return false
@@ -230,7 +230,7 @@ func dramaRecordMessage(kind domain.NotificationKind, escape func(string) string
 	}
 	subject := "見たドラマ"
 	name := payloadText(payload, "name")
-	// 印だけの番組名など、作品名を読めなければ、番組名のまま書く (#1925 と同じ)。
+	// 記号だけの番組名など、作品名を読めなければ、番組名のまま書く (#1925 と同じ)。
 	title := domain.WorkTitle(name)
 	if title == "" {
 		title = name
@@ -255,12 +255,12 @@ func dramaRecordMessage(kind domain.NotificationKind, escape func(string) string
 // lineupServicesShown は、局の顔ぶれの知らせで、名前を並べる局の数の上限。超えた分は「ほか N 局」とまとめる。
 const lineupServicesShown = 5
 
-// lineupChangedMessage は、放送の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる文を作る (#1519)。
+// lineupChangedMessage は、放送の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを通知する文を作る (#1519)。
 // 衛星はネットワーク全体の変化を、地上波 (kind が GR) はチャンネル channel で受かる局の食い違いを書く。数が 0 の項目は書かない。
 // 新しい局と終わった局の並び (addedServices、removedServices) があれば局を書き、なければ数を書く (#2034)。
 // 並びを載せる前に届いた知らせも、数で読めるようにするためである。
 // 局の名前は放送局とチューナーサーバーが決めるので、escape で書き換える。
-// 続けて選局できないチャンネル (unreachable) があれば、それを知らせる文にする。
+// 続けて選局できないチャンネル (unreachable) があれば、それを通知する文にする。
 func lineupChangedMessage(kind, channel string, payload map[string]any, escape func(string) string) string {
 	if channels := texts(payload["unreachable"]); len(channels) > 0 {
 		return unreachableMessage(kind, channels)
@@ -311,7 +311,7 @@ func lineupServices(services []string, escape func(string) string) string {
 	return strings.Join(shown, "、")
 }
 
-// unreachableMessage は、チャンネル種別 kind のチャンネル channels の選局が続けて失敗していることを知らせる文を作る (#1519)。
+// unreachableMessage は、チャンネル種別 kind のチャンネル channels の選局が続けて失敗していることを通知する文を作る (#1519)。
 func unreachableMessage(kind string, channels []string) string {
 	if kind == "GR" {
 		names := make([]string, 0, len(channels))

@@ -29,7 +29,7 @@ import (
 const (
 	// origin は、テストで Kotatsu に接続したオリジン。
 	origin = "http://kotatsu.test"
-	// clientID と clientSecret は、偽の Google に登録したクライアント。
+	// clientID と clientSecret は、モックの Google に登録したクライアント。
 	clientID     = "client"
 	clientSecret = "secret"
 	// reservedPool は、設定の保存先プールの ID。Google Drive のライブラリの名前と重ねない。
@@ -90,7 +90,7 @@ func (f *fixture) registerApp(t *testing.T) {
 		&google.AppChanges{ClientID: clientID, ClientSecret: new(clientSecret)}))
 }
 
-// authorize は、管理者が認可を始め、偽の Google で許して戻ってきたときのクエリを返す。
+// authorize は、管理者が認可を始め、モックの Google で許して戻ってきたときのクエリを返す。
 func (f *fixture) authorize(t *testing.T) url.Values {
 	t.Helper()
 	authURL, err := f.service.BeginDrive(t.Context(), f.pool, f.admin, origin)
@@ -125,7 +125,7 @@ func (f *fixture) complete(t *testing.T, principal *auth.Principal, query url.Va
 }
 
 // TestConnectDrive は、管理者が登録したクライアントで Google Drive を接続し、リフレッシュトークンからアクセストークンを作って
-// Drive を読めることを確かめる。
+// Drive を読めることを確認する。
 func TestConnectDrive(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -170,7 +170,7 @@ func TestConnectDrive(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, f.fake.Refreshes())
 
-	// Google でアクセスを取り消されたら、接続に印を付け、読まない。
+	// Google でアクセスを取り消されたら、接続にマークを付け、読まない。
 	f.fake.RevokeAll()
 	tokens.Invalidate()
 	_, err = client.Get(t.Context(), "a")
@@ -182,7 +182,7 @@ func TestConnectDrive(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, connected)
 
-	// 接続し直せば、印は消える。同じ部品の DriveTokens は、覚えた接続を待たずに読み直す。
+	// 接続し直せば、マークは消える。同じ部品の DriveTokens は、キャッシュした接続を待たずに読み直す。
 	_, err = f.complete(t, f.admin, f.authorize(t))
 	require.NoError(t, err)
 	drive, err = f.service.Drive(t.Context(), f.pool)
@@ -201,7 +201,7 @@ func TestConnectDrive(t *testing.T) {
 	require.ErrorIs(t, f.service.DisconnectDrive(t.Context(), f.pool, audit.User(f.admin.UserID)), google.ErrNotConnected)
 }
 
-// TestCompleteRejects は、始めたセッションと違う、使い回した、断った、などの戻りを接続しないことを確かめる。
+// TestCompleteRejects は、始めたセッションと違う、使い回した、断った、などの戻りを接続しないことを確認する。
 func TestCompleteRejects(t *testing.T) {
 	t.Parallel()
 
@@ -281,7 +281,7 @@ func TestCompleteRejects(t *testing.T) {
 	require.ErrorIs(t, err, google.ErrSessionRequired)
 }
 
-// TestUpdateApp は、クライアントの登録と、消したときに Drive の接続も外すことを確かめる。
+// TestUpdateApp は、クライアントの登録と、消したときに Drive の接続も外すことを確認する。
 func TestUpdateApp(t *testing.T) {
 	t.Parallel()
 

@@ -66,7 +66,7 @@ type SearchProgramCandidatesParams struct {
 	KeywordInName        []bool
 	KeywordCaseSensitive []bool
 	KeywordInDescription []bool
-	// RequiredGrams は、キーワードが必ず含む gram (#966、match.RequiredGrams)。空でなければ、gram の索引で候補を絞る。
+	// RequiredGrams は、キーワードが必ず含む gram (#966、match.RequiredGrams)。空でなければ、gram のインデックスで候補を絞る。
 	RequiredGrams  []string
 	AfterStartAt   time.Time
 	AfterServiceID int64
@@ -232,7 +232,7 @@ func (q *Queries) ListGuideProgramsByKeys(ctx context.Context, arg ListGuideProg
 }
 
 // SearchProgramCandidates は、番組の検索の候補を、開始時刻、サービス、eventId の順に 1 回分返す。
-// キーワードが必ず含む gram (RequiredGrams) があれば、gram の索引で絞る SQL を使う (#966)。
+// キーワードが必ず含む gram (RequiredGrams) があれば、gram のインデックスで絞る SQL を使う (#966)。
 func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]domain.ProgramCandidate, error) {
 	if len(arg.RequiredGrams) > 0 {
 		return q.searchProgramCandidatesByGrams(ctx, arg)
@@ -249,9 +249,9 @@ func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgram
 	return out, nil
 }
 
-// searchProgramCandidatesByGrams は、gram の索引で絞って、番組の検索の候補を 1 回分返す (#966)。
+// searchProgramCandidatesByGrams は、gram のインデックスで絞って、番組の検索の候補を 1 回分返す (#966)。
 // 引数の値ごとに計画を作らせる (plan_cache_mode = force_custom_plan)。プリペアドステートメントの汎用の計画では、
-// アーカイブの期間の行の数を少なく見積もり、期間の索引で読んで gram を 1 件ずつ比べるので、30 日分で 1 秒近くかかる
+// アーカイブの期間の行の数を少なく見積もり、期間のインデックスで読んで gram を 1 件ずつ比較するので、30 日分で 1 秒近くかかる
 // (開発用の環境の約 20 万件のアーカイブで、値ごとの計画の 9 ms に対し 850 ms)。SET LOCAL はトランザクションの中だけに効く。
 func (q *Queries) searchProgramCandidatesByGrams(ctx context.Context, arg SearchProgramCandidatesParams) ([]domain.ProgramCandidate, error) {
 	var out []domain.ProgramCandidate
@@ -363,7 +363,7 @@ type ProgramSpan struct {
 	EndAt     time.Time
 }
 
-// RecordedProgramKey は、RecordedPrograms が返す、録画のある番組を引くキー。時刻はミリ秒で持ち、タイムゾーンの違いで外さない。
+// RecordedProgramKey は、RecordedPrograms が返す、録画のある番組を検索するキー。時刻はミリ秒で持ち、タイムゾーンの違いで外さない。
 type RecordedProgramKey struct {
 	ServiceID   int64
 	EventID     int64

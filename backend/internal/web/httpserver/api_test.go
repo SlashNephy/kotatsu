@@ -19,7 +19,7 @@ const (
 )
 
 // TestAPIRouter は、API の待ち受けの一番外側のルーターが、tenban、kyusu、ヘルスチェックを載せた http.ServeMux と同じく
-// 振り分けることを確かめる (#2016)。tenban のいるときといないときで、ヘルスチェックへの別のメソッドの行き先が変わる。
+// 振り分けることを確認する (#2016)。tenban のいるときといないときで、ヘルスチェックへの別のメソッドの行き先が変わる。
 func TestAPIRouter(t *testing.T) {
 	t.Parallel()
 

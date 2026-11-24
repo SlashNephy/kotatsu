@@ -29,17 +29,17 @@ const clearMutation = graphql`
 
 type Usage = { size: number; files: number };
 
-// formatSize は、生成物の大きさを表す。索引や字幕は小さく、MB では 0.0 MB と出てしまうので、1 MB より小さければ KB で表す。
+// formatSize は、生成物の大きさを表す。インデックスや字幕は小さく、MB では 0.0 MB と出てしまうので、1 MB より小さければ KB で表す。
 const formatSize = (bytes: number) =>
   bytes < 1e6 ? `${(bytes / 1e3).toFixed(1)} KB` : formatBytes(bytes);
 
-// LibraryArtifacts は、ライブラリのファイルの生成物 (索引、画像、CM の区間、自動生成した字幕) を、データディレクトリから丸ごと片付ける
-// (設計書 5.8、#1896)。生成物を選んで消すのではない。消す前に、消える量を数えて見せ、確かめてから消す。
+// LibraryArtifacts は、ライブラリのファイルの生成物 (インデックス、画像、CM の区間、自動生成した字幕) を、データディレクトリから丸ごと片付ける
+// (設計書 5.8、#1896)。生成物を選んで消すのではない。消す前に、消える量を数えて見せ、確認してから消す。
 // ファイルが多いと数えるのに時間がかかるので、画面を開いただけでは数えず、ボタンを押したときに数える。
 export function LibraryArtifacts() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
-  // measured は、確かめるために数えた量。null なら、確かめる画面を出さない。
+  // measured は、確認するために数えた量。null なら、確認する画面を出さない。
   const [measured, setMeasured] = useState<Usage | null>(null);
   const [measuring, setMeasuring] = useState(false);
   const [clearing, setClearing] = useState(false);

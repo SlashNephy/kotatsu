@@ -1,6 +1,6 @@
 package ts
 
-// PID の種類 (#473)。PMT に書かれたストリームは、映像、音声、そのほか。PSI と SI は、PAT、PMT、PMT の CA 記述子が指す ECM と、決まった PID の表。
+// PID の種類 (#473)。PMT に書かれたストリームは、映像、音声、そのほか。PSI と SI は、PAT、PMT、PMT の CA 記述子が指す ECM と、決まった PID のテーブル。
 const (
 	PIDKindVideo   = "video"
 	PIDKindAudio   = "audio"
@@ -33,7 +33,7 @@ func PIDQualities(stats *Stats, pids []*PIDStats) []PIDQuality {
 	streams := map[uint16]*Stream{}
 	for _, program := range stats.Programs {
 		kinds[program.PMTPID] = PIDKindPSI
-		// CA 記述子が指す ECM は、ES ではなくセクションで送る表なので、番組情報とみなす。
+		// CA 記述子が指す ECM は、ES ではなくセクションで送るテーブルなので、番組情報とみなす。
 		for _, pid := range program.ECMPIDs {
 			kinds[pid] = PIDKindPSI
 		}
@@ -99,7 +99,7 @@ func JudgedDrops(stats *Stats, pids []*PIDStats) int64 {
 	return total
 }
 
-// isSIPID は、pid が、ARIB で決まった PID で送る PSI と SI の表 (PAT、CAT、NIT、SDT/BAT、EIT、RST、TDT/TOT、SDTT、BIT、CDT など) かどうかを返す。
+// isSIPID は、pid が、ARIB で決まった PID で送る PSI と SI のテーブル (PAT、CAT、NIT、SDT/BAT、EIT、RST、TDT/TOT、SDTT、BIT、CDT など) かどうかを返す。
 func isSIPID(pid uint16) bool {
 	switch pid {
 	case 0x0000, 0x0001, 0x0010, 0x0011, 0x0012, 0x0013, 0x0014, 0x0023, 0x0024, 0x0026, 0x0027, 0x0028, 0x0029:

@@ -20,11 +20,11 @@ const (
 	StatementTimeout = "5min"
 )
 
-// Open は PostgreSQL に接続する。接続できることを確かめてから返す。
+// Open は PostgreSQL に接続する。接続できることを確認してから返す。
 func Open(ctx context.Context, cfg *config.Database) (*pgxpool.Pool, error) {
 	poolConfig, err := pgxpool.ParseConfig(cfg.URL.Value())
 	if err != nil {
-		// pgx のエラーは接続文字列のパスワードを伏せている。
+		// pgx のエラーは接続文字列のパスワードをマスクしている。
 		return nil, fmt.Errorf("failed to parse the database URL: %w", err)
 	}
 

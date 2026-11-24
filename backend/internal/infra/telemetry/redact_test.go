@@ -15,7 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/telemetry"
 )
 
-// TestRedactingExporter は、otelhttp が作る本物の span を通して、視聴者を識別できる属性と再生の ID が送られないことを確かめる (#1364)。
+// TestRedactingExporter は、otelhttp が作る本物の span を通して、視聴者を識別できる属性と再生の ID が送られないことを確認する (#1364)。
 func TestRedactingExporter(t *testing.T) {
 	t.Parallel()
 

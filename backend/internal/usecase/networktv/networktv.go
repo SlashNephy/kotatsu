@@ -1,4 +1,4 @@
-// Package networktv は、EDCB の NetworkTV の ID を、Kotatsu のインスタンスに配る (#1533、設計書 3.1)。
+// Package networktv は、EDCB の NetworkTV の ID を、Kotatsu のインスタンスに割り当てる (#1533、設計書 3.1)。
 //
 // NetworkTV の ID は EpgTimerSrv 全体で 1 つの名前空間で、持ち主の概念がない。tenban、mikan、kyusu、nabe が何台あっても
 // ぶつからないよう、DB の edcb_network_tvs に ID を、edcb_network_tv_holders にその持ち主のインスタンスを記録する。
@@ -27,7 +27,7 @@ const (
 	// DefaultSweepInterval は、持ち主のいない ID を探す間隔。
 	DefaultSweepInterval = time.Minute
 	// MaxHolders は、1 つの ID を持てるインスタンスの数。EDCB は、1 つの NetworkTV の TS を 2 つの中継 (RELAY_VIEW_STREAM) にまで送り、
-	// 3 つ目の中継は断る (2026年11月に、Linux の EDCB で確かめた。#1850)。
+	// 3 つ目の中継は断る (2026年11月に、Linux の EDCB で確認した。#1850)。
 	MaxHolders = 2
 	// closingRetryAfter は、閉じ始めたまま残った ID を、Sweeper が閉じ直すまでの時間。閉じる途中で止まったインスタンスの ID を閉じる。
 	// 閉じるのに掛ける時間の上限 (10 秒) より長くする。
@@ -40,7 +40,7 @@ type Database interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-// IDs は、設定した範囲の NetworkTV の ID を、インスタンス instanceID に配る。
+// IDs は、設定した範囲の NetworkTV の ID を、インスタンス instanceID に割り当てる。
 type IDs struct {
 	db         Database
 	clock      clock.Clock
@@ -189,7 +189,7 @@ func (i *IDs) free(ctx context.Context) (bool, error) {
 	return used < int64(i.count), nil
 }
 
-// closeIfUnheld は、行を押さえてから、ID に生きている持ち主がいないことを確かめ、閉じ始めたことを記録する。
+// closeIfUnheld は、行を押さえてから、ID に生きている持ち主がいないことを確認し、閉じ始めたことを記録する。
 // 押さえる前に、ほかのインスタンスが加わったか、閉じ始めていれば false を返す。行がなければ false を返す。
 // orphan なら、閉じ始めたまま残った ID も閉じ直し、最後の持ち主が外れた直後の ID は閉じない (Sweeper)。
 func closeIfUnheld(ctx context.Context, db Database, now time.Time, id int32, orphan bool) (bool, error) {

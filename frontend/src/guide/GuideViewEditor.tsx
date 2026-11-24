@@ -60,7 +60,7 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
   const [hideEmpty, setHideEmpty] = useState(view.hideEmptyServices);
   const [freeOnly, setFreeOnly] = useState(view.freeOnly);
   const [error, setError] = useState<string | null>(null);
-  // 作成と更新の応答で、ビューの全項目を返し、Relay のストアを新しくする。番組表を取り直す前に編集を開いても、保存した値で開く (#614)。
+  // 作成と更新の応答で、ビューの全項目を返し、Relay のストアを新しくする。番組表を再取得する前に編集を開いても、保存した値で開く (#614)。
   const [create, creating] = useMutation<GuideViewEditorCreateMutation>(graphql`
     mutation GuideViewEditorCreateMutation($input: GuideViewInput!) {
       createGuideView(input: $input) {

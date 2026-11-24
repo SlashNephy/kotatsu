@@ -1,4 +1,4 @@
-// パスキー (WebAuthn) で確かめる。WebAuthn は、Secure Context (HTTPS か localhost) でしか使えない (設計書 9.3)。
+// パスキー (WebAuthn) で確認する。WebAuthn は、Secure Context (HTTPS か localhost) でしか使えない (設計書 9.3)。
 import {
   browserSupportsWebAuthn,
   startAuthentication,
@@ -22,7 +22,7 @@ export function passkeyAvailable(): boolean {
   return window.isSecureContext && browserSupportsWebAuthn();
 }
 
-// verifyWithPasskey は、begin で確認を始め、認証器に署名させ、confirm で確かめる。
+// verifyWithPasskey は、begin で確認を始め、オーセンティケーターに署名させ、confirm で確認する。
 export async function verifyWithPasskey<T>(
   begin: () => Promise<PasskeyAssertion>,
   confirm: (credential: AuthenticationResponseJSON) => Promise<T>,

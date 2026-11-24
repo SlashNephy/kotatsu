@@ -9,7 +9,7 @@ import (
 // benchSearchPrograms は、放送前の番組と、過去の番組のそれぞれの件数。1 週間ぶんの EPG が約 2 万番組 (#530)。
 const benchSearchPrograms = 20000
 
-// BenchmarkSearchPrograms は、条件の組み合わせごとに、番組の検索 1 回 (50 件) にかかる時間を測る (#852)。
+// BenchmarkSearchPrograms は、条件の組み合わせごとに、番組の検索 1 回 (50 件) にかかる時間を計測する (#852)。
 // どの組み合わせも、ほとんどの番組に一致しないので、候補を最後まで照合する。SQL で粗く絞れない条件でも、遅くなりすぎないことを見る。
 func BenchmarkSearchPrograms(b *testing.B) {
 	allFields := []string{fieldName, "DESCRIPTION", fieldExtended}
@@ -91,7 +91,7 @@ func seedBenchSearchPrograms(b *testing.B, f *fixture) {
 		FROM generate_series(1, $2::int) AS i, LATERAL (SELECT $1::timestamptz - make_interval(mins => 30 * i + 60) AS start_at) t`,
 		testNow(), benchSearchPrograms)
 	require.NoError(b, err)
-	// 本番のように統計を取ってから測る。自動の ANALYZE を待つと、入れた直後の小さい表の統計で計画が決まる。
+	// 本番のように統計を取ってから計測する。自動の ANALYZE を待つと、入れた直後の小さいテーブルの統計で計画が決まる。
 	_, err = f.pool.Exec(b.Context(), "ANALYZE programs, program_archives")
 	require.NoError(b, err)
 }

@@ -60,7 +60,7 @@ type AdvanceScrambleAlertRow struct {
 }
 
 // 録画を終えたときの判定を、続けてスクランブルされたままだった録画の数に足す (設計書 6.2、#1517)。
-// scrambled なら 1 足し、そうでなければ 0 に戻す。行をロックするので、管理者に知らせるかは、同じトランザクションの中で決める。
+// scrambled なら 1 足し、そうでなければ 0 に戻す。行をロックするので、管理者に通知するかは、同じトランザクションの中で決める。
 func (q *Queries) AdvanceScrambleAlert(ctx context.Context, arg AdvanceScrambleAlertParams) (AdvanceScrambleAlertRow, error) {
 	row := q.db.QueryRow(ctx, advanceScrambleAlert, arg.Scrambled, arg.Now)
 	var i AdvanceScrambleAlertRow
@@ -126,7 +126,7 @@ type CountRecordingSegmentsRow struct {
 	FirstSize int64
 }
 
-// 録画のセグメントの記録の数と、そのうち最初のもの first_id の大きさ。つないだ結果が確定したかを確かめるのに使う。
+// 録画のセグメントの記録の数と、そのうち最初のもの first_id の大きさ。つないだ結果が確定したかを確認するのに使う。
 func (q *Queries) CountRecordingSegments(ctx context.Context, arg CountRecordingSegmentsParams) (CountRecordingSegmentsRow, error) {
 	row := q.db.QueryRow(ctx, countRecordingSegments, arg.FirstID, arg.RecordingID)
 	var i CountRecordingSegmentsRow
@@ -173,7 +173,7 @@ type DeleteRecordingFilesParams struct {
 	Ids         []uuid.UUID
 }
 
-// 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
+// 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントとインデックスの記録を消すのに使う。
 func (q *Queries) DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingFilesParams) error {
 	_, err := q.db.Exec(ctx, deleteRecordingFiles, arg.RecordingID, arg.Ids)
 	return err
@@ -376,7 +376,7 @@ type GetLatestRecordingCMDetectionRow struct {
 	VideoMissingMs  int64
 }
 
-// 録画の CM の区間を最後に見分け終えた見分け方と、その版と、日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
+// 録画の CM の区間を最後に見分け終えた見分け方と、そのバージョンと、日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
 func (q *Queries) GetLatestRecordingCMDetection(ctx context.Context, recordingID uuid.UUID) (GetLatestRecordingCMDetectionRow, error) {
 	row := q.db.QueryRow(ctx, getLatestRecordingCMDetection, recordingID)
 	var i GetLatestRecordingCMDetectionRow
@@ -498,7 +498,7 @@ type GetRecordingFileOwnerRow struct {
 	Kind        string
 }
 
-// プールの中のパスを使っている録画のファイルの、録画と種類を引く。録画を変換した MP4 を書く前に、ほかのファイルを上書きしないか確かめる (#1253)。
+// プールの中のパスを使っている録画のファイルの、録画と種類を取得する。録画を変換した MP4 を書く前に、ほかのファイルを上書きしないか確認する (#1253)。
 func (q *Queries) GetRecordingFileOwner(ctx context.Context, arg GetRecordingFileOwnerParams) (GetRecordingFileOwnerRow, error) {
 	row := q.db.QueryRow(ctx, getRecordingFileOwner, arg.PoolID, arg.Path)
 	var i GetRecordingFileOwnerRow
@@ -571,7 +571,7 @@ type GetRecordingJikkyoSourceRow struct {
 	Sid           int64
 }
 
-// 実況の過去ログを引くための、録画した時間帯とサービス (設計書 7.4)。
+// 実況の過去ログを取得するための、録画した時間帯とサービス (設計書 7.4)。
 func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (GetRecordingJikkyoSourceRow, error) {
 	row := q.db.QueryRow(ctx, getRecordingJikkyoSource, id)
 	var i GetRecordingJikkyoSourceRow
@@ -783,7 +783,7 @@ type InsertPromotedRecordingParams struct {
 }
 
 // タイムシフトのバッファから昇格する、放送の終わった番組の録画を、録画中として記録する (#1057、設計書 5.7)。予約とは結び付けない。
-// nekonote のジョブが、バッファから書き出し終えたら完了にする。番組情報は、昇格したときの番組表から写す。
+// nekonote のジョブが、バッファから出力し終えたら完了にする。番組情報は、昇格したときの番組表からコピーする。
 func (q *Queries) InsertPromotedRecording(ctx context.Context, arg InsertPromotedRecordingParams) (Recording, error) {
 	row := q.db.QueryRow(ctx, insertPromotedRecording,
 		arg.ID,
@@ -968,10 +968,10 @@ type InsertRecordingHistoryFromRecordingParams struct {
 }
 
 // 重複の回避に使う録画履歴を、録り終えた録画から記録する (設計書 4.4)。録画を削除しても残す。
-// 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
+// 同じ回をまとめる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数もコピーする。
 // 解析し直してスクランブルの警告が変わったときに直せるよう、録画も持つ (#1517)。
-// series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で引くのに使う。
-// ドラマの続きの放送 (#1564) で録った話を外せるよう、録画が結びついた TMDB の作品とシーズンと話の番号も写す。
+// series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で検索するのに使う。
+// ドラマの続きの放送 (#1564) で録った話を外せるよう、録画が結びついた TMDB の作品とシーズンと話の番号もコピーする。
 func (q *Queries) InsertRecordingHistoryFromRecording(ctx context.Context, arg InsertRecordingHistoryFromRecordingParams) error {
 	_, err := q.db.Exec(ctx, insertRecordingHistoryFromRecording,
 		arg.ID,
@@ -1069,7 +1069,7 @@ type ListLatestRecordingCMDetectionNotesRow struct {
 	VideoMissingMs int64
 }
 
-// 録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返す (#1508)。録画の一覧の印に使う。見分けていない録画は返さない。
+// 録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返す (#1508)。録画の一覧のマークに使う。見分けていない録画は返さない。
 func (q *Queries) ListLatestRecordingCMDetectionNotes(ctx context.Context, recordingIds []uuid.UUID) ([]ListLatestRecordingCMDetectionNotesRow, error) {
 	rows, err := q.db.Query(ctx, listLatestRecordingCMDetectionNotes, recordingIds)
 	if err != nil {
@@ -1193,8 +1193,8 @@ type ListOutdatedRecordingCMDetectionsRow struct {
 	HasMaterial     bool
 }
 
-// 最後に見分け終えた見分けが、見分け方 @detector の版 @detector_version より古い録画を、放送の古い順に返す (#1814)。
-// @include_other_detectors なら、ほかの見分け方で最後に見分けた録画も返す。has_material は、@detector の形式の版
+// 最後に見分け終えた見分けが、見分け方 @detector のバージョン @detector_version より古い録画を、放送の古い順に返す (#1814)。
+// @include_other_detectors なら、ほかの見分け方で最後に見分けた録画も返す。has_material は、@detector の形式のバージョン
 // @material_format_version の材料が残っていて、録画を読み直さずに判定し直せそうかどうか。
 func (q *Queries) ListOutdatedRecordingCMDetections(ctx context.Context, arg ListOutdatedRecordingCMDetectionsParams) ([]ListOutdatedRecordingCMDetectionsRow, error) {
 	rows, err := q.db.Query(ctx, listOutdatedRecordingCMDetections,
@@ -1387,7 +1387,7 @@ type ListRecordingHistoryWithoutSeriesRow struct {
 	Name string
 }
 
-// シリーズ名の列がまだない録画履歴を、ID の順に max_count 件返す (#1499)。kotatsu migrate が埋める。
+// シリーズ名のカラムがまだない録画履歴を、ID の順に max_count 件返す (#1499)。kotatsu migrate が埋める。
 func (q *Queries) ListRecordingHistoryWithoutSeries(ctx context.Context, maxCount int32) ([]ListRecordingHistoryWithoutSeriesRow, error) {
 	rows, err := q.db.Query(ctx, listRecordingHistoryWithoutSeries, maxCount)
 	if err != nil {
@@ -1539,7 +1539,7 @@ type ListRecordingsWithoutNormalizedRow struct {
 	Description string
 }
 
-// 正規化した番組名と概要の列がまだない録画を、ID の順に max_count 件返す (#1044)。kotatsu migrate が埋める。
+// 正規化した番組名と概要のカラムがまだない録画を、ID の順に max_count 件返す (#1044)。kotatsu migrate が埋める。
 func (q *Queries) ListRecordingsWithoutNormalized(ctx context.Context, maxCount int32) ([]ListRecordingsWithoutNormalizedRow, error) {
 	rows, err := q.db.Query(ctx, listRecordingsWithoutNormalized, maxCount)
 	if err != nil {
@@ -1667,7 +1667,7 @@ const markScrambleAlertNotified = `-- name: MarkScrambleAlertNotified :exec
 UPDATE scramble_alerts SET notified_at = $1, updated_at = $1 WHERE id
 `
 
-// スクランブルされたまま録れた録画を、管理者に知らせた日時を記録する。
+// スクランブルされたまま録れた録画を、管理者に通知した日時を記録する。
 func (q *Queries) MarkScrambleAlertNotified(ctx context.Context, now *time.Time) error {
 	_, err := q.db.Exec(ctx, markScrambleAlertNotified, now)
 	return err
@@ -1683,7 +1683,7 @@ type MoveRecordingRecordedFromBackParams struct {
 	ID  uuid.UUID
 }
 
-// 録画の開始が遅れて、予定の開始からの分をタイムシフトのバッファから写したとき、写した分の始まりを、録り始めた日時にする (#826)。
+// 録画の開始が遅れて、予定の開始からの分をタイムシフトのバッファからコピーしたとき、コピーした分の始まりを、録り始めた日時にする (#826)。
 func (q *Queries) MoveRecordingRecordedFromBack(ctx context.Context, arg MoveRecordingRecordedFromBackParams) error {
 	_, err := q.db.Exec(ctx, moveRecordingRecordedFromBack, arg.At, arg.Now, arg.ID)
 	return err
@@ -1735,7 +1735,7 @@ type SetRecordingAudiosIfUnknownParams struct {
 	ID     uuid.UUID
 }
 
-// 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
+// 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG からコピーしたものがあれば、それを残す。
 func (q *Queries) SetRecordingAudiosIfUnknown(ctx context.Context, arg SetRecordingAudiosIfUnknownParams) error {
 	_, err := q.db.Exec(ctx, setRecordingAudiosIfUnknown, arg.Audios, arg.Now, arg.ID)
 	return err
@@ -1940,7 +1940,7 @@ type SetRecordingVideoResolutionFromFileParams struct {
 	StartedAt       time.Time
 }
 
-// 録画の映像の解像度を、映像から読んだ値にする (#1310)。EPG から写した値より、映像から読んだ値を優先する。
+// 録画の映像の解像度を、映像から読んだ値にする (#1310)。EPG からコピーした値より、映像から読んだ値を優先する。
 // 録画の最初の、映像の形式を読めたセグメントの値を使うので、それより前に読めたセグメントがあれば変えない。
 func (q *Queries) SetRecordingVideoResolutionFromFile(ctx context.Context, arg SetRecordingVideoResolutionFromFileParams) error {
 	_, err := q.db.Exec(ctx, setRecordingVideoResolutionFromFile, arg.VideoResolution, arg.RecordingID, arg.StartedAt)
@@ -1991,10 +1991,10 @@ type StartRecordingRow struct {
 }
 
 // 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
-// 番組の音声の構成と映像の解像度は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
-// ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
-// 番組の詳細も予約から写す。予約を消しても、録画の画面で番組の詳細を出せるようにする (#1646)。
-// recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで捨てるので (#847)、now より後になることがある。
+// 番組の音声の構成と映像の解像度は、始めたときの番組からコピーする。続けるときは、最初にコピーしたものを残す。
+// ジャンルと、一致したルール (最も古いもの) とその名前も、予約からコピーする。予約やルールを消しても、録画を絞れるようにする (#468)。
+// 番組の詳細も予約からコピーする。予約を消しても、録画の画面で番組の詳細を出せるようにする (#1646)。
+// recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで破棄するので (#847)、now より後になることがある。
 func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error) {
 	row := q.db.QueryRow(ctx, startRecording,
 		arg.ID,
@@ -2107,7 +2107,7 @@ type UpsertRecordingCMDetectionParams struct {
 	VideoMissingMs  int64
 }
 
-// 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、版と日時を置き換える。
+// 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、バージョンと日時を置き換える。
 func (q *Queries) UpsertRecordingCMDetection(ctx context.Context, arg UpsertRecordingCMDetectionParams) error {
 	_, err := q.db.Exec(ctx, upsertRecordingCMDetection,
 		arg.RecordingID,

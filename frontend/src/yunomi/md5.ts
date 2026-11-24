@@ -1,5 +1,5 @@
 // md5 は、bytes の MD5 を小文字の 16 進で返す (RFC 1321)。
-// 字幕の外字 (DRCS) を見分ける鍵に使う (#825)。aribb24.js は、外字の画像の MD5 で置き換える文字を引くが、その関数を公開していない。
+// 字幕の外字 (DRCS) を見分けるキーに使う (#825)。aribb24.js は、外字の画像の MD5 で置き換える文字を検索するが、その関数を公開していない。
 // Web Crypto には MD5 が無いので、ここで計算する。外字は数百バイトなので、速さは気にしなくてよい。
 export function md5(bytes: ArrayBuffer | Uint8Array): string {
   const input = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);

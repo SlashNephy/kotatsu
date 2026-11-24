@@ -24,8 +24,8 @@ type Cues struct {
 	FirstVideoPTS *int64
 	LastVideoPTS  *int64
 	// FirstKeyframePTS は、サービスの映像の、最初の I フレームの PES の PTS。見つからなければ nil。
-	// 録画の索引 (Splitter) と同じ探し方なので、再生の時間の 0 (索引の最初の I フレーム) と同じ所になる (#1811)。
-	// 録画の頭の、最初の I フレームより前の PES は、デコードできず、再生にも入らない。
+	// 録画のインデックス (Splitter) と同じ探し方なので、再生の時間の 0 (インデックスの最初の I フレーム) と同じ所になる (#1811)。
+	// 録画の先頭の、最初の I フレームより前の PES は、デコードできず、再生にも入らない。
 	FirstKeyframePTS *int64
 	// FirstAudioPTS は、サービスの最初の音声の、最初の PES の PTS。音声がなければ nil。
 	// 音声から作った字幕 (#1682) の時刻を、再生の時間 (FirstKeyframePTS を 0 にしたもの) にそろえるのに使う。
@@ -231,7 +231,7 @@ func (s *CueScanner) handleAudio(pkt *packet) {
 // adtsChannels は、ES の先頭の ADTS のヘッダーから channel_configuration を読む。ADTS で始まっていなければ adtsChannelUnknown を返す。
 // ARIB のデュアルモノは channel_configuration が 0 (プログラムコンフィギュレーションエレメントで示す) になるので、ステレオと見分けられる。
 func adtsChannels(data []byte) int {
-	// 同期語 (12 ビット) と、0 に決まっている layer (2 ビット) を確かめる。
+	// 同期語 (12 ビット) と、0 に決まっている layer (2 ビット) を確認する。
 	if len(data) < 4 || data[0] != 0xFF || data[1]&0xF6 != 0xF0 {
 		return adtsChannelUnknown
 	}

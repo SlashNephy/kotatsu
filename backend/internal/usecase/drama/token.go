@@ -95,7 +95,7 @@ func (t *Tokens) Token(ctx context.Context, db sqlc.DBTX) (string, error) {
 }
 
 // Update は、トークンを token に変える。前後の空白は除き、空にすると消す。TMDB には問い合わせない。
-// サーバーが外部へ問い合わせるときに使う秘密情報なので、呼ぶ側で、直近の再認証を確かめる (設計書 9.5)。
+// サーバーが外部へ問い合わせるときに使う秘密情報なので、呼ぶ側で、直近の再認証を確認する (設計書 9.5)。
 // 監査ログには、変えたことだけを残し、値は残さない。
 func (t *Tokens) Update(ctx context.Context, db Database, actor *audit.Actor, token string) error {
 	token = strings.TrimSpace(token)
@@ -117,7 +117,7 @@ func (t *Tokens) Update(ctx context.Context, db Database, actor *audit.Actor, to
 	})
 }
 
-// LogSecrets は、ログの報告から伏せる値として、設定したトークンを返す (#1521)。連携を無効にしていても、保存してある値は返す。
+// LogSecrets は、ログの報告からマスクする値として、設定したトークンを返す (#1521)。連携を無効にしていても、保存してある値は返す。
 func (t *Tokens) LogSecrets(ctx context.Context, db sqlc.DBTX) ([]string, error) {
 	token, err := t.Token(ctx, db)
 	if err != nil {
@@ -154,7 +154,7 @@ func (t *Tokens) save(ctx context.Context, q *sqlc.Queries, token string) (strin
 	return "drama.tmdb_token_updated", nil
 }
 
-// validateToken は、トークンが長すぎず、Authorization ヘッダーに入れられない文字 (空白や制御文字、ASCII の外の文字) を含まないことを確かめる。
+// validateToken は、トークンが長すぎず、Authorization ヘッダーに入れられない文字 (空白や制御文字、ASCII の外の文字) を含まないことを確認する。
 func validateToken(token string) error {
 	if len(token) > maxTokenLength {
 		return fmt.Errorf("%w: the token must be at most %d characters", ErrInvalidToken, maxTokenLength)

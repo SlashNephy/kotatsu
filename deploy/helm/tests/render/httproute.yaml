@@ -1,4 +1,4 @@
-# HTTPRoute は、API サーバーが既定値を入れる group、kind、weight を、省略されても書き出す。
+# HTTPRoute は、API サーバーが既定値を入れる group、kind、weight を、省略されても出力する。
 ingress:
   host: kotatsu.example.com
   trustedProxies: ["10.244.0.0/16"]

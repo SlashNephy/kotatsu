@@ -20,7 +20,7 @@ runs:
   using: composite
   steps:
     # Code scanning の構成は、analysis_key (workflow のパスとジョブの id)、category、environment で分かれる。
-    # CI と定期の検査は別の workflow から送るので、そのままでは main に同じ category の構成が 2 つでき、直したアラートが
+    # CI と定期の検査は別の workflow から送るので、そのままでは main に同じ category の構成が 2 つでき、修正したアラートが
     # 両方で解析し直されるまで閉じない。そこで、analysis_key を、CodeQL を codeql.yml で動かしていたときの値に固定する (#1939)。
     # CODEQL_ACTION_ANALYSIS_KEY は、CodeQL の action が analysis_key を置く環境変数で、手で決めてもよいとされている
     # (codeql-action の src/environment.ts)。
@@ -32,7 +32,7 @@ runs:
         build-mode: ${{ inputs.build-mode }}
         queries: security-extended
         matrix: ${{ inputs.matrix }}
-    # Go は、ビルドを見て解析する。Go は、呼び出す側が mise で go.mod と同じ版を入れておく。
+    # Go は、ビルドを見て解析する。Go は、呼び出す側が mise で go.mod と同じバージョンを入れておく。
     - if: inputs.language == 'go'
       shell: bash
       working-directory: backend
@@ -44,7 +44,7 @@ runs:
         category: /language:${{ inputs.language }}
         matrix: ${{ inputs.matrix }}
         output: sarif
-        # 次の段で Code scanning のアラートを数えるので、送った SARIF の処理が終わるまで待つ (既定の値)。
+        # 次のステップで Code scanning のアラートを数えるので、送った SARIF の処理が終わるまで待つ (既定の値)。
         wait-for-processing: true
         upload: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'always' || 'never' }}
     # アップロードできたときは、Code scanning で開いているアラートを数える。dismiss したものは数えない。

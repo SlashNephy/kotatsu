@@ -26,7 +26,7 @@ UPDATE storage_pools SET total_bytes = NULL, free_bytes = NULL, measured_at = NU
 WHERE NOT (id = ANY($1::text[])) AND measured_at IS NOT NULL
 `
 
-// マウントされていないプール (設定から外したもの) の、前に測った値を消す。設定は残す。
+// マウントされていないプール (設定から外したもの) の、前に計測した値を消す。設定は残す。
 func (q *Queries) ClearUnmountedStoragePoolMeasurements(ctx context.Context, mounted []string) error {
 	_, err := q.db.Exec(ctx, clearUnmountedStoragePoolMeasurements, mounted)
 	return err
@@ -135,7 +135,7 @@ type LockDeletableRecordingRow struct {
 	Name string
 }
 
-// 消す直前に、録画をロックして、まだ消せることを確かめる。
+// 消す直前に、録画をロックして、まだ消せることを確認する。
 func (q *Queries) LockDeletableRecording(ctx context.Context, id uuid.UUID) (LockDeletableRecordingRow, error) {
 	row := q.db.QueryRow(ctx, lockDeletableRecording, id)
 	var i LockDeletableRecordingRow
@@ -203,7 +203,7 @@ type RecordStoragePoolMeasurementParams struct {
 	FreeBytes  int64
 }
 
-// 容量の管理が測った、プールの容量と空き容量を残す (#957)。設定の行がなければ、既定値で作る。設定を変えた日時 (updated_at) は変えない。
+// 容量の管理が計測した、プールの容量と空き容量を残す (#957)。設定の行がなければ、既定値で作る。設定を変えた日時 (updated_at) は変えない。
 func (q *Queries) RecordStoragePoolMeasurement(ctx context.Context, arg RecordStoragePoolMeasurementParams) error {
 	_, err := q.db.Exec(ctx, recordStoragePoolMeasurement,
 		arg.ID,

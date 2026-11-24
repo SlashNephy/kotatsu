@@ -10,7 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
-// TestOnAirPrograms は、/api/onair を mirakc からだけ読み、ほかのサーバーには問い合わせないことを確かめる。
+// TestOnAirPrograms は、/api/onair を mirakc からだけ読み、ほかのサーバーには問い合わせないことを確認する。
 // スタブは mirakc 以外の /api/onair に 404 を返すので、問い合わせれば失敗する。
 func TestOnAirPrograms(t *testing.T) {
 	t.Parallel()

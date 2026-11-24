@@ -2,12 +2,12 @@
 -- 番組の検索の候補。映像か音声を流すサービス (media_service_types) の番組だけを、チャンネル種別、サービス、ジャンルの大分類で絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
 -- ジャンルの中分類とキーワードは、ルールの照合と同じ照合関数で、Go で判定する (設計書 3.5)。
 -- include_archive なら、開始時刻が [archive_from, archive_to) の放送の終わった番組 (アーカイブと、まだ移していない番組) も含める。
--- キーワードのうち、正規表現でなく、番組名と概要だけを見るものは、正規化した列の LIKE で粗く絞る (keyword_*)。
+-- キーワードのうち、正規表現でなく、番組名と概要だけを見るものは、正規化したカラムの LIKE で粗く絞る (keyword_*)。
 -- 最終的な判定は Go の照合関数で行うので、ここでは一致しうる番組を落とさないことだけを守る。
--- 照合には、ルールの照合と同じく正規化した列を使い、候補ごとに正規化し直さない (#852)。
--- UNION ALL の枝は、絞り込みも結合も持たない 1 つの表にする。枝に WHERE や JOIN があると、PostgreSQL は枝を親に引き上げず、
+-- 照合には、ルールの照合と同じく正規化したカラムを使い、候補ごとに正規化し直さない (#852)。
+-- UNION ALL の各サブクエリは、絞り込みも結合も持たない 1 つのテーブルにする。サブクエリに WHERE や JOIN があると、PostgreSQL はサブクエリを親に引き上げず、
 -- 開始時刻のインデックスの順に読めないので、カーソルより後ろの候補をすべて読んで並べ替える。1 回に読む件数ずつ読むたびにそうなり、
--- 候補の数の 2 乗に比例して遅くなる (#852)。枝ごとの条件は、archived で分けて外に書く。
+-- 候補の数の 2 乗に比例して遅くなる (#852)。サブクエリごとの条件は、archived で分けて外に書く。
 SELECT c.archived, c.service_id, c.event_id, c.start_at, c.end_at, c.end_undecided, c.is_free,
   c.name, c.description, c.extended, c.genres, c.audios, c.related_items, s.channel_type,
   c.name_normalized, c.description_normalized, c.extended_normalized
@@ -61,8 +61,8 @@ LIMIT @batch_size::integer;
 
 -- name: SearchProgramCandidatesByGrams :many
 -- SearchProgramCandidates に、キーワードが必ず含む gram (#966、match.RequiredGrams) の絞り込みを足したもの。
--- 番組の検索の gram の GIN の索引で、キーワードを含みうる番組だけを読む。gram を埋めていない番組 (NULL) は、部分インデックスで引いて候補に残す。
--- キーワードのない検索では使わない。gram の配列が空だと、索引で絞れないうえ、1 件ごとに配列を読んで比べるので、
+-- 番組の検索の gram の GIN のインデックスで、キーワードを含みうる番組だけを読む。gram を埋めていない番組 (NULL) は、部分インデックスで検索して候補に残す。
+-- キーワードのない検索では使わない。gram の配列が空だと、インデックスで絞れないうえ、1 件ごとに配列を読んで比較するので、
 -- SearchProgramCandidates より大きく遅くなるからである。ほかの条件と並び、カーソルは SearchProgramCandidates と同じにする。
 SELECT c.archived, c.service_id, c.event_id, c.start_at, c.end_at, c.end_undecided, c.is_free,
   c.name, c.description, c.extended, c.genres, c.audios, c.related_items, s.channel_type,

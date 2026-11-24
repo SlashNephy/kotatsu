@@ -19,7 +19,7 @@ const (
 	fileSuffix = "_FILE"
 )
 
-// LookupEnv は環境変数を引く関数。os.LookupEnv と同じ形をとる。
+// LookupEnv は環境変数を取得する関数。os.LookupEnv と同じ形をとる。
 type LookupEnv func(key string) (string, bool)
 
 // Load は設定を読み込む。後のものほど優先する。
@@ -41,7 +41,7 @@ func Load(path string, lookupEnv LookupEnv) (*Config, error) {
 		}
 	}
 
-	// 前の版の server.allowed_networks は、家の中と外の 2 つの項目に分けた (#1759)。
+	// 前のバージョンの server.allowed_networks は、家の中と外の 2 つの項目に分けた (#1759)。
 	// 黙って無視すると、外から届かなくなった理由が分からないので、新しい名前を案内して起動しない。
 	if _, ok := lookupEnv(envName([]string{"server", "allowed_networks"})); ok {
 		return nil, errRenamedAllowedNetworks
@@ -93,12 +93,12 @@ func loadYAML(path string, cfg *Config) error {
 	return nil
 }
 
-// errRenamedAllowedNetworks は、前の版の server.allowed_networks が残っていることを表す (#1759)。
+// errRenamedAllowedNetworks は、前のバージョンの server.allowed_networks が残っていることを表す (#1759)。
 var errRenamedAllowedNetworks = errors.New("server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS) was split into " +
 	"server.allowed_private_networks (KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS) for the private networks of your home and " +
 	"server.allowed_external_networks (KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS) for the others; move each network to one of them")
 
-// hasRenamedAllowedNetworks は、設定ファイルに、前の版の server.allowed_networks が書いてあるかどうかを返す。
+// hasRenamedAllowedNetworks は、設定ファイルに、前のバージョンの server.allowed_networks が書いてあるかどうかを返す。
 // 値が空 (null) でも、キーがあれば書いてあるとみなす。
 func hasRenamedAllowedNetworks(data []byte) (bool, error) {
 	var doc struct {
@@ -135,7 +135,7 @@ func yamlPoolOrder(data []byte) ([]string, error) {
 	return order, nil
 }
 
-// applyEnv は構造体の各項目を、対応する環境変数で上書きし、必須の項目が埋まっているかを確かめる。
+// applyEnv は構造体の各項目を、対応する環境変数で上書きし、必須の項目が埋まっているかを確認する。
 func applyEnv(v reflect.Value, keys []string, lookupEnv LookupEnv) error {
 	errs := []error{}
 	for i := range v.NumField() {
@@ -193,7 +193,7 @@ func applyEnvToField(value reflect.Value, keys []string, lookupEnv LookupEnv) er
 }
 
 // setField は、hasValue なら、環境変数の値 raw を項目に入れる。
-// 対応していない型の項目を Config に足したときに黙って無視しないよう、環境変数の有無にかかわらず型を確かめる。
+// 対応していない型の項目を Config に足したときに黙って無視しないよう、環境変数の有無にかかわらず型を確認する。
 func setField(field any, raw string, hasValue bool) error {
 	switch ptr := field.(type) {
 	case *string:
@@ -239,7 +239,7 @@ func setField(field any, raw string, hasValue bool) error {
 	return nil
 }
 
-// parseList は、カンマで区切った文字列を読む。前後の空白は取り除き、空の要素は捨てる。空の文字列は空の一覧にする。
+// parseList は、カンマで区切った文字列を読む。前後の空白は取り除き、空の要素は破棄する。空の文字列は空の一覧にする。
 func parseList(raw string) []string {
 	list := []string{}
 	for item := range strings.SplitSeq(raw, ",") {

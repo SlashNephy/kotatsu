@@ -234,7 +234,7 @@ type MarkGoogleDriveConnectionRevokedParams struct {
 	RefreshTokenEncrypted []byte
 }
 
-// 取り消されたと分かったリフレッシュトークンの接続にだけ印を付ける。接続し直した後の行には付けない。
+// 取り消されたと分かったリフレッシュトークンの接続にだけマークを付ける。接続し直した後の行には付けない。
 func (q *Queries) MarkGoogleDriveConnectionRevoked(ctx context.Context, arg MarkGoogleDriveConnectionRevokedParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markGoogleDriveConnectionRevoked, arg.Now, arg.RefreshTokenEncrypted)
 	if err != nil {

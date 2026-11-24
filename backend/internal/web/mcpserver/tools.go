@@ -2,7 +2,7 @@ package mcpserver
 
 import "github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 
-// tool は、MCP のツール。中身は GraphQL の操作で、画面と同じ処理と権限の確認を通る (設計書 9.10)。
+// tool は、MCP のツール。内容は GraphQL の操作で、画面と同じ処理と権限の確認を通る (設計書 9.10)。
 // 入力の JSON Schema は、操作の変数の型から作る。
 type tool struct {
 	name        string
@@ -115,7 +115,7 @@ func toolList() []*tool {
 			"ルールを ID で返す。",
 			`query($id: ID!) { node(id: $id) { ... on Rule { `+ruleFields+` } } }`),
 		writeTool("create_rule", "ルールの作成",
-			"録画のルールを作る。条件は search_programs の conditions と同じ形で、作る前に search_programs で一致する番組を確かめるとよい。",
+			"録画のルールを作る。条件は search_programs の conditions と同じ形で、作る前に search_programs で一致する番組を確認するとよい。",
 			`mutation($input: RuleInput!) { createRule(input: $input) { `+ruleFields+` } }`),
 		writeTool("update_rule", "ルールの変更",
 			"ルールを変える。input には、変えない項目も含めたルールの全体を渡す。ただし groupId を省くと、グループは変えない。",

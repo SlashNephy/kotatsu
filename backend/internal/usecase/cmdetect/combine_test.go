@@ -10,7 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
 
-// TestCombineSections は、無音の境目の候補と局ロゴの区間から、本編と CM の並びを選ぶことを確かめる (#1506)。
+// TestCombineSections は、無音の境目の候補と局ロゴの区間から、本編と CM の並びを選ぶことを確認する (#1506)。
 // どの場合も、録画は 600 秒で、境目の候補は無音の真ん中にある。
 func TestCombineSections(t *testing.T) {
 	t.Parallel()
@@ -36,7 +36,7 @@ func TestCombineSections(t *testing.T) {
 			want:   [][2]float64{},
 		},
 		{
-			// 録画の頭の CM は、長さを問わず CM にする。ロゴのない 15 秒の CM が続いても、ひとまとめにする。
+			// 録画の先頭の CM は、長さを問わず CM にする。ロゴのない 15 秒の CM が続いても、ひとまとめにする。
 			name:   "the CMs at the start of the recording",
 			bounds: []float64{12, 56.8, 70.8},
 			shown:  [][2]float64{{71.5, 600}},
@@ -93,7 +93,7 @@ func TestCombineSections(t *testing.T) {
 			want:   [][2]float64{},
 		},
 		{
-			// 録画の終わりから 15.5 秒の内で終わる CM は、終わりまで延ばす。番組の窓を置けない録画で、次の番組の頭のロゴを本編にしない (#1958)。
+			// 録画の終わりから 15.5 秒の内で終わる CM は、終わりまで延ばす。番組のウィンドウを置けない録画で、次の番組の先頭のロゴを本編にしない (#1958)。
 			name:   "a CM that ends near the end of the recording is extended to the end",
 			bounds: []float64{470, 590},
 			shown:  [][2]float64{{0, 470}, {590, 600}},
@@ -109,7 +109,7 @@ func TestCombineSections(t *testing.T) {
 	}
 }
 
-// TestSignalOffset は、局ロゴの見分け方の時刻を今の見分け方の基準にそろえる量を、PTS が一周しても正しく求めることを確かめる (#1506)。
+// TestSignalOffset は、局ロゴの見分け方の時刻を今の見分け方の基準にそろえる量を、PTS が一周しても正しく求めることを確認する (#1506)。
 func TestSignalOffset(t *testing.T) {
 	t.Parallel()
 
@@ -135,7 +135,7 @@ func TestSignalOffset(t *testing.T) {
 	}
 }
 
-// TestToPlayback は、局ロゴの見分け方の区間 (最初のコマからの時間) を、再生の時間 (録画の索引の最初の I フレームが 0) に直すことを確かめる (#1811)。
+// TestToPlayback は、局ロゴの見分け方の区間 (最初のコマからの時間) を、再生の時間 (録画のインデックスの最初の I フレームが 0) に直すことを確認する (#1811)。
 func TestToPlayback(t *testing.T) {
 	t.Parallel()
 
@@ -148,8 +148,8 @@ func TestToPlayback(t *testing.T) {
 		want       [][2]float64
 	}{
 		{
-			// 本番の録画: FFmpeg がデコードした最初のコマは、索引の最初の I フレームより 0.5 秒前。
-			// コマの時刻は 0.1335 秒から始まり、今の見分け方の基準 (索引の最初の I フレーム) への差は -0.634 秒。
+			// 本番の録画: FFmpeg がデコードした最初のコマは、インデックスの最初の I フレームより 0.5 秒前。
+			// コマの時刻は 0.1335 秒から始まり、今の見分け方の基準 (インデックスの最初の I フレーム) への差は -0.634 秒。
 			name: "the first frame is before the first indexed I frame", firstTime: 0.1335, offset: -0.634, withBounds: true,
 			sections: [][2]float64{{0.2, 1}, {60, 75}},
 			want:     [][2]float64{{0, 0.4995}, {59.4995, 74.4995}},
@@ -180,7 +180,7 @@ func TestToPlayback(t *testing.T) {
 	}
 }
 
-// TestCombineSectionsNotice は、告知 (5 秒) を、その後に CM が続くときだけ CM の側に数えることを確かめる (#1506)。
+// TestCombineSectionsNotice は、告知 (5 秒) を、その後に CM が続くときだけ CM の側に数えることを確認する (#1506)。
 func TestCombineSectionsNotice(t *testing.T) {
 	t.Parallel()
 
@@ -259,7 +259,7 @@ func TestCombineSectionsNotice(t *testing.T) {
 	}
 }
 
-// TestLogoInCMChains は、無音の境目が 15 秒の倍数で続く並びの間もロゴが出続けていれば、ロゴでないものを覚えたとみなすことを確かめる (#1506)。
+// TestLogoInCMChains は、無音の境目が 15 秒の倍数で続く並びの間もロゴが出続けていれば、ロゴでないものを学習したとみなすことを確認する (#1506)。
 func TestLogoInCMChains(t *testing.T) {
 	t.Parallel()
 
@@ -271,7 +271,7 @@ func TestLogoInCMChains(t *testing.T) {
 		wantOK    bool
 	}{
 		{name: "the logo disappears in the CMs", intervals: []logo.Interval{{Start: 0, End: 100}, {Start: 160, End: 600}}, wantOK: false},
-		// CM の間も時刻の表示のように出続けるものを覚えた。
+		// CM の間も時刻の表示のように出続けるものを学習した。
 		{name: "the logo stays in the CMs", intervals: []logo.Interval{{Start: 0, End: 600}}, wantOK: true},
 	}
 	for _, tt := range tests {

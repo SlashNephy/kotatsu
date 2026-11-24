@@ -37,7 +37,7 @@ type packet struct {
 	malformed bool
 }
 
-// parsePacket は、188 バイトのパケットを読む。b の先頭が sync byte であることは、呼び出し側が確かめる。
+// parsePacket は、188 バイトのパケットを読む。b の先頭が sync byte であることは、呼び出し側が確認する。
 func parsePacket(b []byte) packet {
 	p := packet{
 		pid:               uint16(b[1]&0x1F)<<8 | uint16(b[2]),

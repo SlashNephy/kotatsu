@@ -2,12 +2,12 @@ import { defineConfig, devices } from '@playwright/test';
 
 // README のスクリーンショットを、静的なデモ (#832) から撮る (#621)。
 // 普段の E2E (playwright.config.ts) とは分け、mise run //frontend:screenshots で流す。
-// 撮った PNG は docs/screenshots に書き出す。main への push で CI が撮り直し、差があれば bot が PR を出す。
+// 撮った PNG は docs/screenshots に出力する。main への push で CI が撮り直し、差があれば bot が PR を出す。
 export default defineConfig({
   testDir: './e2e/screenshots',
   forbidOnly: process.env['CI'] !== undefined,
   reporter: 'list',
-  // 画像は toHaveScreenshot の比べる先として置き、許容差を超えて変わったものと、まだないものだけを書き換える。
+  // 画像は toHaveScreenshot の比較先として置き、許容差を超えて変わったものと、まだないものだけを書き換える。
   snapshotPathTemplate: '../docs/screenshots/{arg}{ext}',
   updateSnapshots: 'changed',
   // Social preview は README のスクリーンショットを素材にするので、撮り終えてから合成する。

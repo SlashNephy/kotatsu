@@ -12,7 +12,7 @@ import (
 // 放送のストリームには、PAT などが 1 秒に何度も入るので、これだけ届かなければ止まったとみなす。
 const DefaultStreamIdleTimeout = 10 * time.Second
 
-// DefaultStreamOpenTimeout は、ストリームを開くときに、応答の頭を待つ時間の上限 (#412)。
+// DefaultStreamOpenTimeout は、ストリームを開くときに、応答の先頭を待つ時間の上限 (#412)。
 // チューナーサーバーは、チューナーの空きを待つ間、応答を返さないことがある。待ち続けると、予定の終わりを過ぎても録画を抜けない。
 const DefaultStreamOpenTimeout = 30 * time.Second
 

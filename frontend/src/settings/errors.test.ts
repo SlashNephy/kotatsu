@@ -22,7 +22,7 @@ describe('settingsErrorMessage', () => {
     {
       name: '理由のない入力の誤り',
       error: mutationError('BAD_USER_INPUT'),
-      want: '入力した内容を受け付けられませんでした。値を確かめてください',
+      want: '入力した内容を受け付けられませんでした。値を確認してください',
     },
     {
       name: '管理者でない',

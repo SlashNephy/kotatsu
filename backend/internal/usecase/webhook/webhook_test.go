@@ -75,7 +75,7 @@ func (f *fixture) auditActions(t *testing.T, webhookID uuid.UUID) []string {
 	return actions
 }
 
-// TestCreate は、Webhook を作ると、署名用の秘密キーを一度だけ返し、暗号化して保存することを確かめる (設計書 8.4)。
+// TestCreate は、Webhook を作ると、署名用の秘密キーを一度だけ返し、暗号化して保存することを確認する (設計書 8.4)。
 func TestCreate(t *testing.T) {
 	t.Parallel()
 
@@ -156,7 +156,7 @@ func TestCreateRejectsInvalidInput(t *testing.T) {
 	assert.Empty(t, webhooks)
 }
 
-// TestUpdateAndDelete は、変えた項目だけを変え、消した Webhook は見つからなくなることを確かめる。
+// TestUpdateAndDelete は、変えた項目だけを変え、消した Webhook は見つからなくなることを確認する。
 func TestUpdateAndDelete(t *testing.T) {
 	t.Parallel()
 
@@ -221,7 +221,7 @@ func TestNewStoreRequiresAppSecret(t *testing.T) {
 	require.ErrorIs(t, err, secretbox.ErrNoKey)
 }
 
-// TestLogSecrets は、ログの報告から伏せる値として、Webhook の URL と署名用の秘密キーを返すことを確かめる (#1521)。
+// TestLogSecrets は、ログの報告からマスクする値として、Webhook の URL と署名用の秘密キーを返すことを確認する (#1521)。
 func TestLogSecrets(t *testing.T) {
 	t.Parallel()
 

@@ -29,7 +29,7 @@ import (
 const (
 	// DefaultArchiveRetentionDays は、過去の番組の保持期間の既定値 (付録 A)。
 	DefaultArchiveRetentionDays = 90
-	// DefaultNotificationRetentionDays は、配り終えた通知の保持期間の既定値 (付録 A、#551)。
+	// DefaultNotificationRetentionDays は、配信し終えた通知の保持期間の既定値 (付録 A、#551)。
 	DefaultNotificationRetentionDays = 90
 	// DefaultWatchProgressRetentionDays は、録画の再生位置の保持期間の既定値 (付録 A、#1366)。
 	DefaultWatchProgressRetentionDays = 365
@@ -40,10 +40,6 @@ const (
 	// minTimeshiftRetentionSeconds と maxTimeshiftRetentionSeconds は、タイムシフトの保持時間の下限と上限。DB の制約と同じ。
 	minTimeshiftRetentionSeconds = 600
 	maxTimeshiftRetentionSeconds = 86400
-	// DefaultRuleUnmatchedGraceMinutes は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分) の既定値 (付録 A、#1501)。
-	DefaultRuleUnmatchedGraceMinutes = 180
-	// maxRuleUnmatchedGraceMinutes は、その時間の上限 (1 日)。DB の制約と同じ。
-	maxRuleUnmatchedGraceMinutes = 1440
 	// DefaultHistoryMaxDrops は、重複の回避で「録画済み」とみなす、判定に数えるドロップの数の上限の既定値 (付録 A)。
 	// 判定に数えるのは映像と音声の PID のドロップだけなので、1 件でもあれば見たときに乱れる。既定では録画済みとみなさない。
 	DefaultHistoryMaxDrops = 0
@@ -84,7 +80,7 @@ type System struct {
 	RecordingOverrides *domain.RecordingOverrides
 	// ArchiveRetentionDays は、過去の番組の保持期間 (日)。0 なら無期限。
 	ArchiveRetentionDays int
-	// NotificationRetentionDays は、配り終えた通知の保持期間 (日)。既読か未読かにかかわらず消す。0 なら無期限。
+	// NotificationRetentionDays は、配信し終えた通知の保持期間 (日)。既読か未読かにかかわらず消す。0 なら無期限。
 	NotificationRetentionDays int
 	// WatchProgressRetentionDays は、録画の再生位置の保持期間 (日)。0 なら無期限 (#1366)。
 	WatchProgressRetentionDays int
@@ -98,8 +94,8 @@ type System struct {
 	Rule *RuleDefaults
 	// MCPEnabled は、MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
 	MCPEnabled bool
-	// DataBroadcastIPEnabled は、データ放送の文書の双方向の通信を、tenban が中継するかどうか (#501)。既定は false。
-	// 中継すると、文書が送る受信機の情報 (郵便番号など) が、放送局などの外部のサーバーに届く。
+	// DataBroadcastIPEnabled は、データ放送の文書の双方向の通信を、tenban がプロキシするかどうか (#501)。既定は false。
+	// プロキシすると、文書が送る受信機の情報 (郵便番号など) が、放送局などの外部のサーバーに届く。
 	DataBroadcastIPEnabled bool
 	// ExternalPlayerURLsEnabled は、外部プレイヤー用の署名付き URL を発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
 	// URL は期限まで誰が開いても使えるので、漏れたときの影響を小さくするため、管理者が有効にしたときだけ使わせる。
@@ -126,14 +122,12 @@ type System struct {
 	DramaLinkingEnabled bool
 	// CommentSources は、管理者がオプトインした実況のコメントのソース (#1405、設計書 7.4)。外部へ問い合わせるので、既定は空 (設計書 0.3)。
 	CommentSources []string
-	// DRCSReplacements は、字幕の外字 (DRCS) を文字に置き換える表 (#825)。外字の画像の MD5 (小文字の 16 進) から文字へ。
+	// DRCSReplacements は、字幕の外字 (DRCS) を文字に置き換えるマップ (#825)。外字の画像の MD5 (小文字の 16 進) から文字へ。
 	DRCSReplacements map[string]string
 	// TimeshiftWhileWatching は、ライブ視聴しているサービスを、視聴している間だけタイムシフトで録るかどうか (#1408)。ディスクを使うので、既定は false。
 	TimeshiftWhileWatching bool
 	// TimeshiftWhileWatchingRetentionSeconds は、視聴している間だけ録るサービスの保持時間 (秒)。
 	TimeshiftWhileWatchingRetentionSeconds int
-	// RuleUnmatchedGraceMinutes は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0 なら残さない。
-	RuleUnmatchedGraceMinutes int
 	// HistoryMaxDrops は、重複の回避で「録画済み」とみなす、判定に数えるドロップ (映像と音声の PID のもの) の数の上限 (設計書 4.4)。
 	HistoryMaxDrops int
 	// AuditRetentionDays は、監査ログの保持期間 (日。設計書 8.5)。1 以上。
@@ -196,18 +190,13 @@ func (s *System) WatchProgressRetention() time.Duration {
 	return time.Duration(s.WatchProgressRetentionDays) * 24 * time.Hour
 }
 
-// NotificationRetention は、配り終えた通知の保持期間を返す。無期限なら負の値を返す。
+// NotificationRetention は、配信し終えた通知の保持期間を返す。無期限なら負の値を返す。
 func (s *System) NotificationRetention() time.Duration {
 	if s.NotificationRetentionDays == 0 {
 		return -1
 	}
 
 	return time.Duration(s.NotificationRetentionDays) * 24 * time.Hour
-}
-
-// RuleUnmatchedGrace は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間を返す (#1501)。
-func (s *System) RuleUnmatchedGrace() time.Duration {
-	return time.Duration(s.RuleUnmatchedGraceMinutes) * time.Minute
 }
 
 // RuleDefaults は、ルールを作るときの既定値 (#470)。ルールは家族で共有するので、全体の設定に持つ。
@@ -218,7 +207,7 @@ type RuleDefaults struct {
 	DuplicateWindowDays *int
 	// FollowEventRelay は、イベントリレーで続く番組も予約するかどうか。既定は true。
 	FollowEventRelay bool
-	// BundleSameEpisodes は、局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。既定は true。
+	// BundleSameEpisodes は、局をまたいで同じ回をまとめ、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。既定は true。
 	BundleSameEpisodes bool
 }
 
@@ -241,7 +230,7 @@ type RuleChanges struct {
 }
 
 // defaultRuleDefaults は、ルールの既定値の既定値。ルールの入力の既定値 (設計書 4.2) と同じ。
-// 同じ回を束ねるかどうかは、ルールの入力の既定値 (false) と違い、画面で新しく作るルールでは入にする (#1498)。
+// 同じ回をまとめるかどうかは、ルールの入力の既定値 (false) と違い、画面で新しく作るルールでは入にする (#1498)。
 // 入力の既定値を false にしておくのは、設定を足す前からある API の呼び出しの動きを変えないためである。
 func defaultRuleDefaults() *RuleDefaults {
 	return &RuleDefaults{AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true, BundleSameEpisodes: true}
@@ -268,11 +257,10 @@ type Changes struct {
 	AnimeLinkingEnabled          *bool
 	DramaLinkingEnabled          *bool
 	CommentSources               *[]string
-	// DRCSReplacements は、外字の置き換えの表の変更 (#825)。MD5 から、置き換える文字 (nil なら消す) へ。書いていない外字は変えない。
+	// DRCSReplacements は、外字の置き換えのマップの変更 (#825)。MD5 から、置き換える文字 (nil なら消す) へ。書いていない外字は変えない。
 	DRCSReplacements                       map[string]*string
 	TimeshiftWhileWatching                 *bool
 	TimeshiftWhileWatchingRetentionSeconds *int
-	RuleUnmatchedGraceMinutes              *int
 	HistoryMaxDrops                        *int
 	AuditRetentionDays                     *int
 	AuditClientInfoRetentionDays           *int
@@ -343,8 +331,6 @@ type resolvedRetention struct {
 	archive, notification, watchProgress, networkActivity int32
 	// timeshiftWhileWatching は、視聴している間だけ録るタイムシフトの保持時間 (秒)。
 	timeshiftWhileWatching int32
-	// ruleUnmatchedGrace は、どのルールにも一致しなくなったルール予約を残す放送前の時間 (分)。
-	ruleUnmatchedGrace int32
 	// historyMaxDrops は、録画済みとみなすドロップの数の上限。
 	historyMaxDrops int32
 	// audit と auditClientInfo は、監査ログと、その送信元の情報の保持期間 (日)。
@@ -372,9 +358,6 @@ func resolveRetention(current *System, changes *Changes) (resolvedRetention, err
 	if result.timeshiftWhileWatching, err = timeshiftRetentionSeconds(valueOr(changes.TimeshiftWhileWatchingRetentionSeconds, current.TimeshiftWhileWatchingRetentionSeconds)); err != nil {
 		return result, err
 	}
-	if result.ruleUnmatchedGrace, err = ruleUnmatchedGraceMinutes(valueOr(changes.RuleUnmatchedGraceMinutes, current.RuleUnmatchedGraceMinutes)); err != nil {
-		return result, err
-	}
 	if result.historyMaxDrops, err = historyMaxDrops(valueOr(changes.HistoryMaxDrops, current.HistoryMaxDrops)); err != nil {
 		return result, err
 	}
@@ -391,7 +374,7 @@ func resolveRetention(current *System, changes *Changes) (resolvedRetention, err
 	return result, nil
 }
 
-// validateRetentionChanges は、変える保持期間を確かめる。
+// validateRetentionChanges は、変える保持期間を確認する。
 func validateRetentionChanges(changes *Changes) error {
 	for _, field := range []struct {
 		name string
@@ -419,11 +402,6 @@ func validateRetentionChanges(changes *Changes) error {
 			return err
 		}
 	}
-	if minutes := changes.RuleUnmatchedGraceMinutes; minutes != nil {
-		if _, err := ruleUnmatchedGraceMinutes(*minutes); err != nil {
-			return err
-		}
-	}
 	if drops := changes.HistoryMaxDrops; drops != nil {
 		if _, err := historyMaxDrops(*drops); err != nil {
 			return err
@@ -433,7 +411,7 @@ func validateRetentionChanges(changes *Changes) error {
 	return validateMovedChanges(changes)
 }
 
-// validateMovedChanges は、設定ファイルから画面に移した項目 (#1869) の変える値を確かめる。
+// validateMovedChanges は、設定ファイルから画面に移した項目 (#1869) の変える値を確認する。
 func validateMovedChanges(changes *Changes) error {
 	if days := changes.AuditRetentionDays; days != nil {
 		if _, err := auditRetentionDays("auditRetentionDays", *days); err != nil {
@@ -459,7 +437,7 @@ func validateMovedChanges(changes *Changes) error {
 	return nil
 }
 
-// validateWebPushSubject は、Web Push の送り手の連絡先が、空か、空白を含まない mailto: か https:// の URI かを確かめる (RFC 8292)。
+// validateWebPushSubject は、Web Push の送り手の連絡先が、空か、空白を含まない mailto: か https:// の URI かを確認する (RFC 8292)。
 func validateWebPushSubject(subject string) error {
 	if subject == "" {
 		return nil
@@ -468,7 +446,7 @@ func validateWebPushSubject(subject string) error {
 	if !ok {
 		rest, ok = strings.CutPrefix(subject, "https://")
 	}
-	// 接頭辞だけの URI は、プッシュサービスが送り手の連絡先として受け付けない。画面の確かめ方と同じにする。
+	// 接頭辞だけの URI は、プッシュサービスが送り手の連絡先として受け付けない。画面の確認方法と同じにする。
 	if !ok || rest == "" {
 		return fmt.Errorf("%w: webPushSubject must be a mailto: or https:// URI", ErrInvalidSettings)
 	}
@@ -479,7 +457,7 @@ func validateWebPushSubject(subject string) error {
 	return nil
 }
 
-// auditRetentionDays は、監査ログの保持期間 name の日数が範囲 (1〜3650) にあるかを確かめ、DB に保存する形にする。
+// auditRetentionDays は、監査ログの保持期間 name の日数が範囲 (1〜3650) にあるかを確認し、DB に保存する形にする。
 // 監査ログは、ほかの保持期間と違い、無期限 (0) にできない。設定ファイルで決めていたときと同じである。
 func auditRetentionDays(name string, days int) (int32, error) {
 	if days < 1 || days > maxArchiveRetentionDays {
@@ -489,7 +467,7 @@ func auditRetentionDays(name string, days int) (int32, error) {
 	return int32(days), nil
 }
 
-// captionThreads は、whisper-cli に使わせるスレッドの数を確かめ、DB に書く値にする。0 は、CPU の数から決める。
+// captionThreads は、whisper-cli に使わせるスレッドの数を確認し、DB に書く値にする。0 は、CPU の数から決める。
 func captionThreads(threads int) (int32, error) {
 	if threads < 0 || threads > maxCaptionThreads {
 		return 0, fmt.Errorf("%w: captionThreads must be between 0 and %d", ErrInvalidSettings, maxCaptionThreads)
@@ -572,7 +550,6 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			DrcsReplacements:                       replacementsEncoded,
 			TimeshiftWhileWatching:                 valueOr(changes.TimeshiftWhileWatching, current.TimeshiftWhileWatching),
 			TimeshiftWhileWatchingRetentionSeconds: retention.timeshiftWhileWatching,
-			RuleUnmatchedGraceMinutes:              retention.ruleUnmatchedGrace,
 			HistoryMaxDrops:                        retention.historyMaxDrops,
 			AuditRetentionDays:                     retention.audit,
 			AuditClientInfoRetentionDays:           retention.auditClientInfo,
@@ -615,11 +592,10 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"animeLinkingEnabled":          change(current.AnimeLinkingEnabled, updated.AnimeLinkingEnabled),
 				"dramaLinkingEnabled":          change(current.DramaLinkingEnabled, updated.DramaLinkingEnabled),
 				"commentSources":               change(current.CommentSources, updated.CommentSources),
-				// 表は大きくなりうるので、監査ログには、変えた外字だけを残す。
+				// マップは大きくなりうるので、監査ログには、変えた外字だけを残す。
 				"drcsReplacements":                       drcsChanges(current.DRCSReplacements, updated.DRCSReplacements, changes.DRCSReplacements),
 				"timeshiftWhileWatching":                 change(current.TimeshiftWhileWatching, updated.TimeshiftWhileWatching),
 				"timeshiftWhileWatchingRetentionSeconds": change(current.TimeshiftWhileWatchingRetentionSeconds, updated.TimeshiftWhileWatchingRetentionSeconds),
-				"ruleUnmatchedGraceMinutes":              change(current.RuleUnmatchedGraceMinutes, updated.RuleUnmatchedGraceMinutes),
 				"historyMaxDrops":                        change(current.HistoryMaxDrops, updated.HistoryMaxDrops),
 				"auditRetentionDays":                     change(current.AuditRetentionDays, updated.AuditRetentionDays),
 				"auditClientInfoRetentionDays":           change(current.AuditClientInfoRetentionDays, updated.AuditClientInfoRetentionDays),
@@ -648,17 +624,7 @@ func change(from, to any) map[string]any {
 	return map[string]any{"from": from, "to": to}
 }
 
-// retentionDays は、保持期間 name の日数が範囲にあるかを確かめ、DB に保存する形にする。
-// ruleUnmatchedGraceMinutes は、ルールから外れた予約を残す放送前の時間 (分) を確かめ、DB に書く値にする。
-func ruleUnmatchedGraceMinutes(minutes int) (int32, error) {
-	if minutes < 0 || minutes > maxRuleUnmatchedGraceMinutes {
-		return 0, fmt.Errorf("%w: ruleUnmatchedGraceMinutes must be between 0 and %d", ErrInvalidSettings, maxRuleUnmatchedGraceMinutes)
-	}
-
-	return int32(minutes), nil
-}
-
-// historyMaxDrops は、録画済みとみなすドロップの数の上限を確かめ、DB に書く値にする。
+// historyMaxDrops は、録画済みとみなすドロップの数の上限を確認し、DB に書く値にする。
 func historyMaxDrops(drops int) (int32, error) {
 	if drops < 0 || drops > maxHistoryMaxDrops {
 		return 0, fmt.Errorf("%w: historyMaxDrops must be between 0 and %d", ErrInvalidSettings, maxHistoryMaxDrops)
@@ -667,7 +633,7 @@ func historyMaxDrops(drops int) (int32, error) {
 	return int32(drops), nil
 }
 
-// timeshiftRetentionSeconds は、視聴している間だけ録るタイムシフトの保持時間 (秒) を確かめ、DB に書く値にする。
+// timeshiftRetentionSeconds は、視聴している間だけ録るタイムシフトの保持時間 (秒) を確認し、DB に書く値にする。
 func timeshiftRetentionSeconds(seconds int) (int32, error) {
 	if seconds < minTimeshiftRetentionSeconds || seconds > maxTimeshiftRetentionSeconds {
 		return 0, fmt.Errorf("%w: timeshiftWhileWatchingRetentionSeconds must be between %d and %d", ErrInvalidSettings, minTimeshiftRetentionSeconds, maxTimeshiftRetentionSeconds)
@@ -676,6 +642,7 @@ func timeshiftRetentionSeconds(seconds int) (int32, error) {
 	return int32(seconds), nil
 }
 
+// retentionDays は、保持期間 name の日数が範囲にあるかを確認し、DB に保存する形にする。
 func retentionDays(name string, days int) (int32, error) {
 	if days < 0 || days > maxArchiveRetentionDays {
 		return 0, fmt.Errorf("%w: %s must be between 0 and %d", ErrInvalidSettings, name, maxArchiveRetentionDays)
@@ -733,7 +700,7 @@ func merge(base, changes *domain.RecordingOverrides) *domain.RecordingOverrides 
 	return &merged
 }
 
-// validateRuleChanges は、ルールの既定値の変える項目が正しいかを確かめる。
+// validateRuleChanges は、ルールの既定値の変える項目が正しいかを確認する。
 func validateRuleChanges(changes *RuleChanges) error {
 	if changes == nil {
 		return nil
@@ -822,9 +789,8 @@ func defaults() *System {
 		CommentSources:            []string{},
 		DRCSReplacements:          map[string]string{},
 		TimeshiftWhileWatching:    false, TimeshiftWhileWatchingRetentionSeconds: DefaultTimeshiftWhileWatchingRetentionSeconds,
-		RuleUnmatchedGraceMinutes: DefaultRuleUnmatchedGraceMinutes,
-		HistoryMaxDrops:           DefaultHistoryMaxDrops,
-		AuditRetentionDays:        DefaultAuditRetentionDays, AuditClientInfoRetentionDays: DefaultAuditClientInfoRetentionDays,
+		HistoryMaxDrops:    DefaultHistoryMaxDrops,
+		AuditRetentionDays: DefaultAuditRetentionDays, AuditClientInfoRetentionDays: DefaultAuditClientInfoRetentionDays,
 		HIBPEnabled:              false,
 		WebPushSubject:           "",
 		ThumbnailPreviewsEnabled: true,
@@ -875,9 +841,8 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		DramaLinkingEnabled:       row.DramaLinkingEnabled,
 		CommentSources:            row.CommentSources,
 		TimeshiftWhileWatching:    row.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: int(row.TimeshiftWhileWatchingRetentionSeconds),
-		RuleUnmatchedGraceMinutes: int(row.RuleUnmatchedGraceMinutes),
-		HistoryMaxDrops:           int(row.HistoryMaxDrops),
-		AuditRetentionDays:        int(row.AuditRetentionDays), AuditClientInfoRetentionDays: int(row.AuditClientInfoRetentionDays),
+		HistoryMaxDrops:    int(row.HistoryMaxDrops),
+		AuditRetentionDays: int(row.AuditRetentionDays), AuditClientInfoRetentionDays: int(row.AuditClientInfoRetentionDays),
 		HIBPEnabled:              row.HibpEnabled,
 		WebPushSubject:           row.WebPushSubject,
 		ThumbnailPreviewsEnabled: row.ThumbnailPreviewsEnabled,
@@ -889,15 +854,15 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 }
 
 const (
-	// maxDRCSReplacements は、外字の置き換えの表に書ける数の上限 (#825)。
+	// maxDRCSReplacements は、外字の置き換えのマップに書ける数の上限 (#825)。
 	maxDRCSReplacements = 2000
 	// maxDRCSReplacementLength は、外字を置き換える文字の長さ (文字数) の上限。aribb24.js は、置き換えた文字を外字の 1 文字の枠に縮めて描くので、長いと読めない。
 	maxDRCSReplacementLength = 4
 )
 
-// encodeDRCSReplacements は、外字の置き換えの表に changes を当てたあとの、保存する JSON を返す。
-// changes は、MD5 から、置き換える文字 (nil なら表から消す) への表。書いていない外字は変えない。
-// 表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
+// encodeDRCSReplacements は、外字の置き換えのマップに changes を当てたあとの、保存する JSON を返す。
+// changes は、MD5 から、置き換える文字 (nil ならマップから消す) へのマップ。書いていない外字は変えない。
+// マップを丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古いマップで上書きして消さないためである。
 func encodeDRCSReplacements(current map[string]string, changes map[string]*string) ([]byte, error) {
 	replacements := maps.Clone(current)
 	if replacements == nil {
@@ -933,7 +898,7 @@ func encodeDRCSReplacements(current map[string]string, changes map[string]*strin
 const maxJikkyoChannels = 1000
 
 // encodeJikkyoChannels は、実況のチャンネルの対応に changes を当てたあとの、保存する JSON を返す (#1869)。
-// changes は、「ネットワーク ID:サービス ID」から、チャンネルの ID (nil なら対応から消す) への表。書いていないサービスは変えない。
+// changes は、「ネットワーク ID:サービス ID」から、チャンネルの ID (nil なら対応から消す) へのマップ。書いていないサービスは変えない。
 // 対応を丸ごと送らせないのは、別の管理者が同時に変えたものを、古い対応で上書きして消さないためである。
 func encodeJikkyoChannels(current map[string]string, changes map[string]*string) ([]byte, error) {
 	channels := maps.Clone(current)

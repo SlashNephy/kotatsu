@@ -99,13 +99,13 @@ export const ResettingPassword: Story = {
   },
 };
 
-// 削除を確かめているとき (ユーザー名を打つまで、削除のボタンを押せない)。
+// 削除を確認しているとき (ユーザー名を打つまで、削除のボタンを押せない)。
 export const Deleting: Story = {
   args: { overrides: users },
   play: async (context) => clickInRow(context, 'member', '削除'),
 };
 
-// 削除の確かめで、ユーザー名を打ち、削除のボタンを押せるようになったとき。
+// 削除の確認で、ユーザー名を打ち、削除のボタンを押せるようになったとき。
 export const DeleteConfirmed: Story = {
   args: { overrides: users },
   play: async (context) => {
@@ -156,12 +156,12 @@ export const Created: Story = {
   },
 };
 
-// 開いたときに、しばらく認証していないので、中身を出す前に本人確認を求めるとき (パスワードだけ)。
+// 開いたときに、しばらく認証していないので、内容を出す前に本人確認を求めるとき (パスワードだけ)。
 export const ReauthRequired: Story = {
   args: { overrides: users, auth: { '/internal/auth/reauth': { recent: false } } },
 };
 
-// 本人確認を求めるときに、認証アプリ、リカバリーコード、パスキー、IdP のどれでも確かめられるとき。
+// 本人確認を求めるときに、認証アプリ、リカバリーコード、パスキー、IdP のどれでも確認できるとき。
 export const ReauthRequiredAllMethods: Story = {
   args: {
     overrides: {

@@ -38,14 +38,14 @@ const DataChangesContext = createContext<Context>({
   setScrambled: () => {},
 });
 
-// DataChangesProvider は、データの変更を、画面に配る (#503)。購読は DataChangesSubscriber が行う。
+// DataChangesProvider は、データの変更を、画面に配信する (#503)。購読は DataChangesSubscriber が行う。
 // ログインしてから購読するので、購読とは分けて、画面全体を包む。
 export function DataChangesProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(applyChange, initialChangeState);
   const [unread, setUnread] = useState<number | null>(null);
   const [drains, setDrains] = useState(0);
   const [scrambled, setScrambled] = useState<LiveScrambled | null>(null);
-  // 購読を作り直さないよう、変わらない関数にする。React Compiler が覚えるので、useCallback は使わない (#1684)。
+  // 購読を作り直さないよう、変わらない関数にする。React Compiler がメモ化するので、useCallback は使わない (#1684)。
   const addDrain = () => setDrains((n) => n + 1);
   const value = { state, dispatch, unread, setUnread, drains, addDrain, scrambled, setScrambled };
 
@@ -74,13 +74,13 @@ export function useLiveScrambledDispatch(): Context['setScrambled'] {
 }
 
 // useLiveScrambledEvent は、最後に届いた、ライブのサービスがスクランブルされたまま届くと決めた知らせを返す (#1517)。
-// 知らせごとに新しい値になるので、プレイヤーは、変わったら自分のサービスかを確かめる。
+// 通知ごとに新しい値になるので、プレイヤーは、変わったら自分のサービスかを確認する。
 export function useLiveScrambledEvent(): LiveScrambled | null {
   return useContext(DataChangesContext).scrambled;
 }
 
 // DataChangesSubscriber は、ログイン中のユーザーへの知らせを購読し、DataChangesProvider に渡す。ログインしている間だけ置く。
-// データの変更、ログイン中のユーザーの設定 (通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッション) の版数、
+// データの変更、ログイン中のユーザーの設定 (通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッション) のバージョン、
 // 未読の通知の数、ライブのサービスがスクランブルされたまま届くと決めた知らせを、1 つの接続でまとめて受け取る。HTTP/1.1 では、ブラウザが同じホストに同時に開く接続は 6 本までなので、
 // 映像やデータ放送の接続のために、購読の接続の数を抑える。
 export function DataChangesSubscriber() {

@@ -21,7 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
-// promoted は、昇格した録画の、書き出した後の様子。
+// promoted は、昇格した録画の、書き込んだ後の様子。
 type promoted struct {
 	state         string
 	failureReason *string
@@ -70,9 +70,9 @@ func (f *fixture) promotedOf(t *testing.T, recordingID uuid.UUID) *promoted {
 	return got
 }
 
-// TestPromoteWorkerWritesTimeshiftBuffer は、放送の終わった番組を昇格すると、nekonote のジョブが、バッファの、書き出す範囲の
-// 分を、続いたチャンクの並びごとに録画のセグメントに書き出し、録画を完了にすることを確かめる (#1057、設計書 5.7)。
-// バッファの穴と、もうバッファにない番組の頭は、途切れた区間にする。
+// TestPromoteWorkerWritesTimeshiftBuffer は、放送の終わった番組を昇格すると、nekonote のジョブが、バッファの、書き込む範囲の
+// 分を、続いたチャンクの並びごとに録画のセグメントに書き込み、録画を完了にすることを確認する (#1057、設計書 5.7)。
+// バッファの穴と、もうバッファにない番組の先頭は、途切れた区間にする。
 func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 	t.Parallel()
 
@@ -83,7 +83,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 	tests := []struct {
 		name   string
 		chunks []chunk
-		// lastWrite は、最後のチャンクのファイルの更新時刻。ゼロなら、今 (書き出す範囲の終わりより後) のまま。
+		// lastWrite は、最後のチャンクのファイルの更新時刻。ゼロなら、今 (書き込む範囲の終わりより後) のまま。
 		lastWrite time.Time
 		// data は、チャンクに書く TS。nil なら testdata/ts/test.ts。
 		data []byte
@@ -216,7 +216,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 	}
 }
 
-// TestPromoteWorkerSkipsGonePromotion は、昇格の行がもうなければ (録画を消したか、ほかで書き出し終えた)、何もせずに終えることを確かめる。
+// TestPromoteWorkerSkipsGonePromotion は、昇格の行がもうなければ (録画を消したか、ほかで書き込み終えた)、何もせずに終えることを確認する。
 func TestPromoteWorkerSkipsGonePromotion(t *testing.T) {
 	t.Parallel()
 
@@ -228,7 +228,7 @@ func TestPromoteWorkerSkipsGonePromotion(t *testing.T) {
 }
 
 // TestReapPromotionsWorker は、終わっていない昇格のジョブがない昇格を、録画を失敗にして片付け、
-// ジョブが待っているか動いている昇格は触らないことを確かめる。最後に試している間に nekonote が落ちると、River はジョブを捨てるため。
+// ジョブが待っているか動いている昇格は触らないことを確認する。最後に試している間に nekonote が落ちると、River はジョブを破棄するため。
 func TestReapPromotionsWorker(t *testing.T) {
 	t.Parallel()
 

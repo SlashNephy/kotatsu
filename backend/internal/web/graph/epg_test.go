@@ -54,7 +54,7 @@ const (
 	varInput   = "input"
 	varFirst   = "first"
 	varEnabled = "enabled"
-	// testUserAgent は、テストのリクエストの User-Agent。監査ログに残ることを確かめるのに使う。
+	// testUserAgent は、テストのリクエストの User-Agent。監査ログに残ることを確認するのに使う。
 	testUserAgent = "kotatsu-test/1.0"
 )
 
@@ -219,7 +219,7 @@ func TestGuide(t *testing.T) {
 		name      string
 		variables any
 		wantRows  []string
-		// wantPrograms は、最初の列の番組名。
+		// wantPrograms は、最初のカラムの番組名。
 		wantPrograms []string
 		wantCodes    []string
 	}{
@@ -345,7 +345,7 @@ func TestNode(t *testing.T) {
 		map[string]any{"id": "UHJvZ3JhbTozMjc2MzAxMDI0Ljk5OTk"}, nil))
 }
 
-// TestProgramAudios は、番組の音声の構成を、主音声を先にして返すことを確かめる (#284)。
+// TestProgramAudios は、番組の音声の構成を、主音声を先にして返すことを確認する (#284)。
 func TestProgramAudios(t *testing.T) {
 	t.Parallel()
 
@@ -537,7 +537,7 @@ func TestServicesExcludeNonMediaServices(t *testing.T) {
 	}
 }
 
-// TestServicesExcludeGoneServices は、上流から消えて 24 時間たったサービスを、一覧と番組表から外し、ID からは引けることを確かめる (#1973)。
+// TestServicesExcludeGoneServices は、上流から消えて 24 時間たったサービスを、一覧と番組表から外し、ID からは引けることを確認する (#1973)。
 // 消えた BS のサービスしか持たない BS の種別は、サービスを持たない種別にする。
 func TestServicesExcludeGoneServices(t *testing.T) {
 	t.Parallel()
@@ -621,7 +621,7 @@ func TestServicesExcludeGoneServices(t *testing.T) {
 	}
 }
 
-// TestChannelTypesHasServices は、上流から消えていないサービスを持たない種別を、サービスを持たないとすることを確かめる (#1973)。
+// TestChannelTypesHasServices は、上流から消えていないサービスを持たない種別を、サービスを持たないとすることを確認する (#1973)。
 func TestChannelTypesHasServices(t *testing.T) {
 	t.Parallel()
 
@@ -677,7 +677,7 @@ const (
 	varPinned    = "pinned"
 )
 
-// TestPinnedServices は、サービスのピン留めを、ユーザーごとに、ピン留めした順に覚えることを確かめる (#485)。
+// TestPinnedServices は、サービスのピン留めを、ユーザーごとに、ピン留めした順に保存することを確認する (#485)。
 func TestPinnedServices(t *testing.T) {
 	t.Parallel()
 
@@ -727,7 +727,7 @@ func TestPinnedServices(t *testing.T) {
 }
 
 // TestGuideArchivedPrograms は、過去の時間帯の番組表に、放送が終わった番組 (過去の番組) も出し、
-// programs に残っている番組を二重に出さないことを確かめる (#1121、設計書 3.4)。
+// programs に残っている番組を二重に出さないことを確認する (#1121、設計書 3.4)。
 func TestGuideArchivedPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -816,7 +816,7 @@ func TestGuideArchivedPrograms(t *testing.T) {
 // inProgressState は、録画中の録画の状態。
 const inProgressState = "recording"
 
-// TestProgramRecorded は、番組表の番組に、録画があるかを返すことを確かめる (#1278)。
+// TestProgramRecorded は、番組表の番組に、録画があるかを返すことを確認する (#1278)。
 // 失敗した録画は数えず、eventId が同じでも放送時間の重ならない録画は数えない。
 func TestProgramRecorded(t *testing.T) {
 	t.Parallel()

@@ -16,14 +16,14 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// NotifyChannel は、ライブでスクランブルされたまま届くと決めたサービスが増えたことを知らせる変更通知のチャンネル (設計書 7.1、#1517)。
-// 決めるのは kyusu と、ブラウザ内での変換のストリームを中継する tenban で、プレイヤーの購読を受ける tenban とは限らないので、DB を通して知らせる。
+// NotifyChannel は、ライブでスクランブルされたまま届くと決めたサービスが増えたことを通知する変更通知のチャンネル (設計書 7.1、#1517)。
+// 決めるのは kyusu と、ブラウザ内での変換のストリームをプロキシする tenban で、プレイヤーの購読を受ける tenban とは限らないので、DB を通して通知する。
 const NotifyChannel = "live_scrambled"
 
 // reportTimeout は、決めたことを DB に書くのを待つ時間の上限。書けなくても、ストリームは閉じる。
 const reportTimeout = 5 * time.Second
 
-// Reporter は、ライブでスクランブルされたまま届くと決めたサービスを記録し、プレイヤーに知らせる (設計書 7.1)。
+// Reporter は、ライブでスクランブルされたまま届くと決めたサービスを記録し、プレイヤーに通知する (設計書 7.1)。
 type Reporter struct {
 	db     *pgxpool.Pool
 	clock  clock.Clock
@@ -35,7 +35,7 @@ func NewReporter(db *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *Report
 	return &Reporter{db: db, clock: clk, logger: logger}
 }
 
-// Report は、サービス serviceID がスクランブルされたまま届くと決めたことを記録し、版数を上げて知らせる。
+// Report は、サービス serviceID がスクランブルされたまま届くと決めたことを記録し、バージョンを上げて通知する。
 func (r *Reporter) Report(ctx context.Context, serviceID int64) error {
 	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
 		err := sqlc.New(tx).UpsertLiveScrambleVerdict(ctx, sqlc.UpsertLiveScrambleVerdictParams{ServiceID: serviceID, DecidedAt: r.clock.Now()})
@@ -69,7 +69,7 @@ func (r *Reporter) Verdicts(ctx context.Context) (map[int64]time.Time, error) {
 
 // Watch は、ライブで流す TS src を、スクランブルされたまま届いているかを判定しながら読む io.Reader にする (設計書 7.1)。
 // スクランブルされたままと決めたら、理由を画面に送るため Report で記録してから、読むのを ts.ErrScrambled で止める。
-// 返す ScrambleDetector の Finish で、ストリームが判定の前に終わったときに、いちばん新しい窓だけで決められる。
+// 返す ScrambleDetector の Finish で、ストリームが判定の前に終わったときに、いちばん新しいウィンドウだけで決められる。
 // r が nil なら、src をそのまま返し、ScrambleDetector も nil を返す。
 func (r *Reporter) Watch(ctx context.Context, serviceID int64, src io.Reader) (io.Reader, *ts.ScrambleDetector) {
 	if r == nil {

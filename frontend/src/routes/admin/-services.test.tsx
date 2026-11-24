@@ -7,7 +7,7 @@ import { Route } from './services';
 
 afterEach(cleanup);
 
-// servicesResponse は、サービスが 1 つの画面の応答を作る。hidden は、そのサービスの番組表に出さない印、sortOrder は並び順の上書き。
+// servicesResponse は、サービスが 1 つの画面の応答を作る。hidden は、そのサービスの番組表に出さないマーク、sortOrder は並び順の上書き。
 // jikkyoChannels は、画面で足した実況のチャンネルの対応 (#1869)。
 function servicesResponse(
   hidden: boolean,

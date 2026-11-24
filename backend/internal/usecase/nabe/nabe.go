@@ -1,8 +1,8 @@
-// Package nabe は、EDCB の NetworkTV の TS を、ほかのロールに配る役 (nabe) を扱う (#1535、設計書 1.1、3.1)。
+// Package nabe は、EDCB の NetworkTV の TS を、ほかのロールに配信する役 (nabe) を扱う (#1535、設計書 1.1、3.1)。
 //
 // EDCB は、同じ局でも NetworkTV ごとにチューナーを使い、1 本の TS を受け取れるのも 2 つまでである。ロールを分けた構成で、
 // mikan と tenban がそれぞれ NetworkTV を開くと、同じサービスでもチューナーを 2 本使う。そこで、nabe だけが NetworkTV を開き、
-// サービスごとに 1 本の TS を、Mirakurun 互換の API (web/mirakurunapi) でほかのロールに配る。
+// サービスごとに 1 本の TS を、Mirakurun 互換の API (web/mirakurunapi) でほかのロールに配信する。
 //
 // ほかのロールは、インスタンスの登録簿で nabe を引き、サービスのストリームだけを nabe から受け取る (Streams)。
 // サービスと番組、チューナー、イベント、ロゴは、今までどおり EDCB から直接読む。nabe がいないか、届かないときは、
@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	// Role は、nabe のロールの名前。インスタンスの登録簿で、nabe を引くのに使う。
+	// Role は、nabe のロールの名前。インスタンスの登録簿で、nabe を検索するのに使う。
 	Role = "nabe"
 	// PathPrefix は、nabe の Mirakurun 互換の API のパスの前置き。インスタンスのサーバーに載せる。
 	PathPrefix = "/internal/nabe/"
@@ -45,7 +45,7 @@ func NewToken(secret string) (*innertoken.Token, error) {
 	return innertoken.New(secret, derivePurpose)
 }
 
-// Instances は、ロールの動いているインスタンスを引く。*registry.Registry が満たす。
+// Instances は、ロールの動いているインスタンスを取得する。*registry.Registry が満たす。
 type Instances interface {
 	ListAlive(ctx context.Context, role string) ([]*registry.Instance, error)
 }
@@ -167,7 +167,7 @@ func (s *Streams) order(instances []*registry.Instance, key string) []*registry.
 	return append(healthy, failed...)
 }
 
-// fail は、instance に届かなかったことを覚える。
+// fail は、instance に届かなかったことを保存する。
 func (s *Streams) fail(instance *registry.Instance) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

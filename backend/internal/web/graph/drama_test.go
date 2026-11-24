@@ -23,7 +23,7 @@ type dramaTitleOverride struct {
 	TmdbSeriesID *int   `json:"tmdbSeriesId"`
 }
 
-// TestDramaTitleOverrides は、管理者だけが、ドラマの作品名ごとの TMDB の作品の上書きを読み、変えられることを確かめる (#1651)。
+// TestDramaTitleOverrides は、管理者だけが、ドラマの作品名ごとの TMDB の作品の上書きを読み、変えられることを確認する (#1651)。
 // 上書きは家族の中で完結するので、再認証は求めない (設計書 9.5)。
 func TestDramaTitleOverrides(t *testing.T) {
 	t.Parallel()
@@ -77,7 +77,7 @@ func TestDramaTitleOverrides(t *testing.T) {
 }
 
 // TestDramaLinkingToken は、管理者だけが TMDB のトークンを入れられ、トークンそのものは返さず末尾の数文字だけを返すこと、
-// 空にすれば消えること、変えるときは直近の再認証を求めることを確かめる (#1651、設計書 9.5)。
+// 空にすれば消えること、変えるときは直近の再認証を求めることを確認する (#1651、設計書 9.5)。
 func TestDramaLinkingToken(t *testing.T) {
 	t.Parallel()
 

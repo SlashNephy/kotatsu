@@ -16,7 +16,7 @@ import {
 } from 'aribb24.js';
 import { describe, expect, test } from 'vitest';
 
-// aribb24.js のパーサーに当てたパッチ (patches/aribb24.js@2.0.34.patch) の振る舞いを確かめる。
+// aribb24.js のパーサーに当てたパッチ (patches/aribb24.js@2.0.34.patch) の振る舞いを確認する。
 // 表示位置 (SDP) を変えても、書き込む位置は画面の上で動かない。折り返すのは、進む向きの端を越えたときだけにする。
 
 const chars = (text: string): ARIBB24Token[] =>
@@ -50,7 +50,7 @@ const at = (character: string, x: number, y: number) => ({ character, x, y });
 describe('ARIBB24Parser の表示位置 (SDP)', () => {
   test.each([
     {
-      // 放送の字幕から写した並び。カッコだけを広い領域に置き、本文の領域を狭めてから、カッコの続きに書く。
+      // 放送の字幕からコピーした並び。カッコだけを広い領域に置き、本文の領域を狭めてから、カッコの続きに書く。
       name: '書き込む位置を決めた後に変えても、文字は続きに並ぶ',
       tokens: [
         ...header,
@@ -134,7 +134,7 @@ describe('ARIBB24Parser の表示位置 (SDP)', () => {
       expected: [at('あ', 60, 89), at('い', 100, 89), at('う', 60, 149), at('え', 100, 89)],
     },
   ])('$name', ({ tokens, expected }) => {
-    // 拡大率は、ARIBB24Parser の既定 (2) と、放送の座標そのまま (1) の両方で確かめる。
+    // 拡大率は、ARIBB24Parser の既定 (2) と、放送の座標そのまま (1) の両方で確認する。
     for (const magnification of [1, 2]) {
       expect(placed(tokens, magnification)).toEqual(expected);
     }

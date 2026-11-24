@@ -2,7 +2,7 @@
 // (GET /internal/media/captures/{id}、設計書 7.5、#908)。
 //
 // キャプチャは撮ったユーザーだけのものなので、どちらもログイン中のセッションでだけ受け付け、署名付き URL では受け付けない。
-// ほかのユーザーのキャプチャは、あることも知らせないよう、見つからないものとして答える。
+// ほかのユーザーのキャプチャは、あることも明かさないよう、見つからないものとして答える。
 package captureapi
 
 import (
@@ -229,7 +229,7 @@ func NewImageHandler(db *pgxpool.Pool, store *kago.Store, logger *slog.Logger) *
 }
 
 func (h *ImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 見つからないなどの失敗の応答は覚えさせない。返せたときは、下で上書きする。
+	// 見つからないなどの失敗の応答はキャッシュさせない。返せたときは、下で上書きする。
 	w.Header().Set("Cache-Control", "no-store")
 	principal := auth.PrincipalFrom(r.Context())
 	if principal == nil {

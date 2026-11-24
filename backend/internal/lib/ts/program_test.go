@@ -88,7 +88,7 @@ func pmtSectionWithInfo(version byte, info []byte, streams ...esEntry) []byte {
 		body = binary.BigEndian.AppendUint16(body, 0xE000|s.pid)
 		body = binary.BigEndian.AppendUint16(body, 0xF000|uint16((len(s.descriptors)+s.infoLength)&0x0FFF))
 		body = append(body, s.descriptors...)
-		// 中身を読まない記述子の代わりに、0xFF で埋める。
+		// 内容を読まない記述子の代わりに、0xFF で埋める。
 		for range s.infoLength {
 			body = append(body, 0xFF)
 		}
@@ -285,7 +285,7 @@ func TestAnalyzerPrograms(t *testing.T) {
 	}
 }
 
-// TestAnalyzerProgramsComponentTag は、PMT のストリーム識別記述子から component_tag を読むことを確かめる (#827)。
+// TestAnalyzerProgramsComponentTag は、PMT のストリーム識別記述子から component_tag を読むことを確認する (#827)。
 func TestAnalyzerProgramsComponentTag(t *testing.T) {
 	t.Parallel()
 
@@ -319,7 +319,7 @@ func TestAnalyzerProgramsComponentTag(t *testing.T) {
 	}
 }
 
-// TestAnalyzerContinuityAcrossPMTChanges は、PMT から外れた ES が戻ったとき、continuity_counter を数え直すことを確かめる。
+// TestAnalyzerContinuityAcrossPMTChanges は、PMT から外れた ES が戻ったとき、continuity_counter を数え直すことを確認する。
 // 放送局は、番組の境目で解説放送の音声などを PMT から外し、戻すときに continuity_counter を 0 から始め直す。
 // discontinuity_indicator は立たないが、パケットは欠けていないので、ドロップと数えない。
 func TestAnalyzerContinuityAcrossPMTChanges(t *testing.T) {
@@ -404,7 +404,7 @@ func TestAnalyzerContinuityAcrossPMTChanges(t *testing.T) {
 	}
 }
 
-// TestAnalyzerContinuityAcrossECMChanges は、PMT の CA 記述子が外れて戻った ECM の PID の continuity_counter を数え直すことを確かめる。
+// TestAnalyzerContinuityAcrossECMChanges は、PMT の CA 記述子が外れて戻った ECM の PID の continuity_counter を数え直すことを確認する。
 // 番組の境目で CA 記述子が外れると ECM は送られなくなり、戻るときに continuity_counter を振り直す。パケットは欠けていない。
 func TestAnalyzerContinuityAcrossECMChanges(t *testing.T) {
 	t.Parallel()

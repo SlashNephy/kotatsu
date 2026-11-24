@@ -39,8 +39,8 @@ extend type Mutation {
   """
   サービス serviceId のバッファの、startAt に始まった番組 (TimeshiftProgram.startAt) を、通常の録画に昇格する (設計書 5.7)。視聴者は使えない。
   放送中の番組は、番組予約を作って続きを録り、録画が始まる前の部分をバッファから補う。作った予約を reservation で返す。
-  放送の終わった番組は、予約のない録画を録画中として作り、nekonote のジョブがバッファから書き出したら完了にする。作った録画を recording で返す。
-  番組を破棄したか、サービスをタイムシフトで録っていなければ NOT_FOUND を、同じ番組を書き出している途中なら CONFLICT を返す。
+  放送の終わった番組は、予約のない録画を録画中として作り、nekonote のジョブがバッファから出力したら完了にする。作った録画を recording で返す。
+  番組を破棄したか、サービスをタイムシフトで録っていなければ NOT_FOUND を、同じ番組を出力している途中なら CONFLICT を返す。
   """
   promoteTimeshiftProgram(serviceId: ID!, startAt: Time!): TimeshiftPromotion!
 }
@@ -49,7 +49,7 @@ extend type Mutation {
 タイムシフトのバッファの番組を、録画に昇格した結果。recording と reservation のどちらか一方を持つ。
 """
 type TimeshiftPromotion {
-  "放送の終わった番組の、バッファから書き出す録画。書き出し終えるまでは録画中。"
+  "放送の終わった番組の、バッファから出力する録画。出力し終えるまでは録画中。"
   recording: Recording
   "放送中の番組の、続きを録る番組予約。"
   reservation: Reservation
@@ -68,14 +68,14 @@ type TimeshiftProgram {
   startAt: Time!
   "mikan が番組の終わりに気づいた時刻。放送中なら null。"
   endAt: Time
-  "再生できる範囲の始まり。番組の頭のチャンクを破棄したか、録れていなかったら、startAt より後になる。再生位置は、ここからの秒で表す。"
+  "再生できる範囲の始まり。番組の先頭のチャンクを破棄したか、録れていなかったら、startAt より後になる。再生位置は、ここからの秒で表す。"
   playableFrom: Time!
   """
-  番組の頭から録れていて、頭から再生できるかどうか。mikan が番組の替わりに気づいて記録した番組だけが、頭から録れている。
+  番組の先頭から録れていて、頭から再生できるかどうか。mikan が番組の替わりに気づいて記録した番組だけが、頭から録れている。
   タイムシフトに足したときや、落ちた mikan の後を録り直したときに放送中だった番組は、途中から録っている。
   """
   fromStart: Boolean!
-  "番組を録画に昇格して、バッファから書き出している途中かどうか。"
+  "番組を録画に昇格して、バッファから出力している途中かどうか。"
   promoting: Boolean!
   "playableFrom から番組の終わり (放送中なら今) までの、途切れた区間。チャンクの間の穴と、最後のチャンクの終わりから番組の終わりまでの録れていない部分で、再生の時間に含めない。"
   gaps: [RecordingGap!]!

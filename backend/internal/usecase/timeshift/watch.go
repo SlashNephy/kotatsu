@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	// WatchNotifyChannel は、ライブ視聴が新しく始まったことを neko に知らせる変更通知のチャンネル。
+	// WatchNotifyChannel は、ライブ視聴が新しく始まったことを neko に通知する変更通知のチャンネル。
 	WatchNotifyChannel = "timeshift_watches"
 	// WatchLease は、視聴が続いているとみなす時間 (付録 A)。最後に配信を要求してからこの間は、録り続ける。
 	// kyusu の経路では、一時停止するとセグメントを読まなくなるので、一時停止の間も録れるよう、見直しの間隔より長くする。
@@ -30,7 +30,7 @@ const (
 	WatchKeep = 5 * time.Minute
 	// watchRefresh は、視聴が続いていることを DB に書く間隔。配信の要求が何度来ても、これより短い間隔では書かない。
 	watchRefresh = 15 * time.Second
-	// watchSweepSize は、最後に書いた時刻の記録がこの数に達したら、古い記録を捨てる数。サービスの数より十分に大きくする。
+	// watchSweepSize は、最後に書いた時刻の記録がこの数に達したら、古い記録を破棄する数。サービスの数より十分に大きくする。
 	watchSweepSize = 1024
 )
 
@@ -99,7 +99,7 @@ func (w *Watches) touch(ctx context.Context, serviceID int64) {
 
 		return
 	}
-	// パスの ID は DB で確かめる前のものなので、存在しない ID を並べられても増え続けないよう、間隔を過ぎた記録を捨てる。
+	// パスの ID は DB で確認する前のものなので、存在しない ID を並べられても増え続けないよう、間隔を過ぎた記録を破棄する。
 	if len(w.last) >= watchSweepSize {
 		maps.DeleteFunc(w.last, func(_ int64, at time.Time) bool { return now.Sub(at) >= w.refresh })
 	}
@@ -118,7 +118,7 @@ func (w *Watches) touch(ctx context.Context, serviceID int64) {
 	}()
 }
 
-// write は、視聴が続いていることを書き、視聴が新しく始まったら neko に知らせる。
+// write は、視聴が続いていることを書き、視聴が新しく始まったら neko に通知する。
 func (w *Watches) write(ctx context.Context, serviceID int64, now time.Time) error {
 	started, err := sqlc.New(w.pool).TouchTimeshiftWatch(ctx, sqlc.TouchTimeshiftWatchParams{ServiceID: serviceID, WatchingUntil: now.Add(WatchLease), Now: now})
 	if errors.Is(err, pgx.ErrNoRows) {

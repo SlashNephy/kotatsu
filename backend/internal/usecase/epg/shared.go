@@ -12,7 +12,7 @@ import (
 // relatedShared は、同じイベントを複数のサービスで放送する関係 (イベント共有)。
 const relatedShared = "shared"
 
-// stream は、同じ TS で同じ種別の番組を流すサービスのまとまり。イベント共有を補うときに、番組を比べる範囲にする。
+// stream は、同じ TS で同じ種別の番組を流すサービスのまとまり。イベント共有を補うときに、番組を比較する範囲にする。
 type stream struct {
 	networkID   int64
 	channelType string
@@ -20,10 +20,10 @@ type stream struct {
 	serviceType int64
 }
 
-// streams は、サービスの Mirakurun のサービス ID から、そのサービスの stream を引く表。
+// streams は、サービスの Mirakurun のサービス ID から、そのサービスの stream を検索するマップ。
 type streams map[int64]stream
 
-// addUpstream は、上流のサービスを表に足す。チャンネルを持たないサービスは足さない。
+// addUpstream は、上流のサービスをマップに足す。チャンネルを持たないサービスは足さない。
 func (s streams) addUpstream(services []*tunerserver.Service) {
 	for _, service := range services {
 		if service.Channel == nil {
@@ -38,7 +38,7 @@ func (s streams) addUpstream(services []*tunerserver.Service) {
 	}
 }
 
-// addRows は、DB のサービスを表に足す。上流に同じサービスがあれば、上流を優先する。
+// addRows は、DB のサービスをマップに足す。上流に同じサービスがあれば、上流を優先する。
 func (s streams) addRows(rows []sqlc.ListServicesRow) {
 	for _, row := range rows {
 		if _, ok := s[row.ID]; ok {
@@ -49,7 +49,7 @@ func (s streams) addRows(rows []sqlc.ListServicesRow) {
 }
 
 // siblings は、serviceIDs のサービスと同じ stream のサービスを、serviceIDs に足して返す。
-// イベント共有を補うのは地上波だけなので、BS と CS のサービスには足さない。1 つの TS に多くのサービスが入り、突き合わせが増えるだけになる。
+// イベント共有を補うのは地上波だけなので、BS と CS のサービスには足さない。1 つの TS に多くのサービスが入り、照合が増えるだけになる。
 func (s streams) siblings(serviceIDs []int64) []int64 {
 	wanted := map[stream]bool{}
 	for _, id := range serviceIDs {
@@ -67,7 +67,7 @@ func (s streams) siblings(serviceIDs []int64) []int64 {
 	return slices.Compact(slices.Sorted(slices.Values(result)))
 }
 
-// sameEvent は、イベント共有の記述子がない番組を、同じ番組とみなすときに比べる値。
+// sameEvent は、イベント共有の記述子がない番組を、同じ番組とみなすときに比較する値。
 type sameEvent struct {
 	stream   stream
 	startAt  int64
@@ -76,7 +76,7 @@ type sameEvent struct {
 }
 
 // inferSharedEvents は、地上波の同じ TS のサブチャンネルで、イベント共有の記述子がない同じ番組に、互いを指す shared の関連を足す (設計書 3.3、#1024)。
-// 放送の EIT には、event_id が違い、event_group_descriptor もない同じ番組がある (2026 年 10 月に NHK 総合 1 と 2 で確かめた)。
+// 放送の EIT には、event_id が違い、event_group_descriptor もない同じ番組がある (2026 年 10 月に NHK 総合 1 と 2 で確認した)。
 // 同じ stream で、開始、長さ、番組名が同じで、どちらも shared の関連を持たない番組を、同じ番組とみなす。
 // BS と CS は、1 つの TS に別の放送局のサービスが入り、「インフォメーション」のような番組名が重なるので、対象にしない。
 // 関連を足す番組は複製して返し、programs の要素は書き換えない。

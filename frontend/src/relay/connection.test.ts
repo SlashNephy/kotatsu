@@ -20,7 +20,7 @@ describe('createConnectionTracker', () => {
     expect(tracker.isReconnecting()).toBe(true);
     b.release();
     expect(tracker.isReconnecting()).toBe(false);
-    // 知らせるのは、つなぎ直しているかどうかが変わったとき (2 回) と、a がつなぎ直してつながったとき (1 回)。
+    // 通知するのは、つなぎ直しているかどうかが変わったとき (2 回) と、a がつなぎ直してつながったとき (1 回)。
     expect(notified).toBe(3);
   });
 
@@ -77,7 +77,7 @@ describe('createConnectionTracker の recoveries', () => {
     a.reconnecting();
     a.connected();
     expect(tracker.recoveries()).toBe(1);
-    // つなぎ直し始めたとき、戻ったとき、つなぎ直している接続がなくなったときに知らせる。
+    // つなぎ直し始めたとき、戻ったとき、つなぎ直している接続がなくなったときに通知する。
     expect(notified).toBe(3);
 
     // やめた接続は、つなぎ直していても数えない。

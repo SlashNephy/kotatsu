@@ -91,7 +91,7 @@ type UpsertBroadcastLineupParams struct {
 	ObservedAt time.Time
 }
 
-// ネットワークの構成を書く (#1519)。版が同じでも、読んだ時刻は書き換える。
+// ネットワークの構成を書く (#1519)。バージョンが同じでも、読んだ時刻は書き換える。
 func (q *Queries) UpsertBroadcastLineup(ctx context.Context, arg UpsertBroadcastLineupParams) error {
 	_, err := q.db.Exec(ctx, upsertBroadcastLineup,
 		arg.NetworkID,

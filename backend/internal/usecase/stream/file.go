@@ -8,11 +8,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// OpenFile は、録画として登録していないファイル 1 本 (ライブラリのファイル。#1734) を、索引 index を使って流すものとして開く。
+// OpenFile は、録画として登録していないファイル 1 本 (ライブラリのファイル。#1734) を、インデックス index を使って流すものとして開く。
 // 録画の再生と同じく、Seek で求めた位置の手前の I フレームから流す。open は、流すたびにファイルを開く。
 //
-// indexing は、索引をまだ作っている途中かどうか。途中なら InProgress を true にし、kyusu の仮想 HLS のプレイリストに終わりの印を付けない。
-// 索引のできた所より先は、最後の I フレームまでしかシークできない。ファイルはもう伸びないので、流すときは、索引によらず末尾まで流して終える。
+// indexing は、インデックスをまだ作っている途中かどうか。途中なら InProgress を true にし、kyusu の仮想 HLS のプレイリストに終わりのタグを付けない。
+// インデックスのできた所より先は、最後の I フレームまでしかシークできない。ファイルはもう伸びないので、流すときは、インデックスによらず末尾まで流して終える。
 func OpenFile(name string, open func(ctx context.Context) (File, error), index []ts.IndexEntry, indexing bool) *Recording {
 	seg := &segment{
 		id: uuid.Nil(), poolID: "", path: name, startedAt: time.Time{}, endedAt: nil, open: false,

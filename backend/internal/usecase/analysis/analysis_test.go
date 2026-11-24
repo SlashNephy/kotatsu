@@ -44,7 +44,7 @@ const (
 	completedWithErrors = "completed_with_errors"
 )
 
-// wantIFramePTS は、testdata/ts/test.ts の I フレームの PTS。internal/lib/ts の索引のテストと同じ値。
+// wantIFramePTS は、testdata/ts/test.ts の I フレームの PTS。internal/lib/ts のインデックスのテストと同じ値。
 func wantIFramePTS() []int64 {
 	return []int64{129003, 174048, 219093, 264138, 309183, 354228, 399273, 444318, 489363, 534408, 579453, 624498}
 }
@@ -102,7 +102,7 @@ func segmentNames() []string {
 	return []string{segmentName, "anime/録画-2.m2ts"}
 }
 
-// recording は、EPGStation から取り込んだときと同じく、索引のないセグメントの録画を作る。セグメントの中身は segments の順に置く。
+// recording は、EPGStation から取り込んだときと同じく、インデックスのないセグメントの録画を作る。セグメントの内容は segments の順に置く。
 // 録画の集計は、EPGStation から取り込んだ値 (ドロップ 2、エラー 1、スクランブル 3) にする。
 // EPGStation から取り込んだ録画では、どのセグメントも番組の始まりを始まりとして記録する。
 func (f *fixture) recording(t *testing.T, state string, segments ...[]byte) uuid.UUID {
@@ -158,7 +158,7 @@ func loadTestTS(t *testing.T) []byte {
 	return data
 }
 
-// singleTestTS は、テスト用の TS だけをセグメントに持つ録画の中身を返す。
+// singleTestTS は、テスト用の TS だけをセグメントに持つ録画の内容を返す。
 func singleTestTS(t *testing.T) [][]byte {
 	t.Helper()
 
@@ -207,7 +207,7 @@ func withCaptionStream(t *testing.T, packet []byte) []byte {
 
 	start := 5 + int(packet[4])
 	length := binary.BigEndian.Uint16(packet[start+1:start+3]) & 0x0FFF
-	// CRC の前までを写し、ES を足して、長さと CRC を書き直す。
+	// CRC の前までをコピーし、ES を足して、長さと CRC を書き直す。
 	section := bytes.Clone(packet[start : start+3+int(length)-4])
 	section = append(section, 0x06)
 	section = binary.BigEndian.AppendUint16(section, 0xE000|captionPID)
@@ -265,7 +265,7 @@ func withoutVideoPackets(t *testing.T, data []byte, ns ...int) []byte {
 	return out
 }
 
-// withFlaggedVideoPackets は、data の映像の n 番目 (0 から数える) のパケットに、flag で印を付けた TS を返す。
+// withFlaggedVideoPackets は、data の映像の n 番目 (0 から数える) のパケットに、flag でマークを付けた TS を返す。
 func withFlaggedVideoPackets(t *testing.T, data []byte, flag func(packet []byte), ns ...int) []byte {
 	t.Helper()
 
@@ -296,9 +296,9 @@ func transportError(packet []byte) { packet[1] |= 0x80 }
 // scrambled は、パケットの transport_scrambling_control を 0 以外にする。
 func scrambled(packet []byte) { packet[3] |= 0x80 }
 
-// TestAnalyzeWorker は、取り込んだ録画のセグメントを読み直し、生成物のディレクトリに索引を作り、
-// ドロップ、エラー、スクランブルを数え直して状態を決め直すことを確かめる (設計書 6.1)。
-// 何度実行しても、索引の行は増えない。
+// TestAnalyzeWorker は、取り込んだ録画のセグメントを読み直し、生成物のディレクトリにインデックスを作り、
+// ドロップ、エラー、スクランブルを数え直して状態を決め直すことを確認する (設計書 6.1)。
+// 何度実行しても、インデックスの行は増えない。
 func TestAnalyzeWorker(t *testing.T) {
 	t.Parallel()
 
@@ -381,7 +381,7 @@ func TestAnalyzeWorker(t *testing.T) {
 				Scan(&got.State, &got.Drops, &got.JudgedDrops, &got.Errors, &got.Scrambled))
 			assert.Equal(t, tt.want, got)
 
-			// 索引は、録画中に作るものと同じく、I フレームの位置と PTS を並べる。DB には記録せず、データディレクトリに置く。
+			// インデックスは、録画中に作るものと同じく、I フレームの位置と PTS を並べる。DB には記録せず、データディレクトリに置く。
 			for i := range segments {
 				name := segmentNames()[i]
 				index, err := os.ReadFile(filepath.Join(f.dataRoot, kago.IndexLocation(f.segmentID(t, recordingID, name)).Path))
@@ -409,7 +409,7 @@ func TestAnalyzeWorker(t *testing.T) {
 }
 
 // TestAnalyzeWorkerExcludesHandoverOverlap は、引き継ぎで重ねて録ったセグメントでは、重なった区間のドロップを、
-// 後のセグメントだけで数えることを確かめる (#525)。前のセグメントは test.ts の全体、後のセグメントは 6 つ目の I フレーム
+// 後のセグメントだけで数えることを確認する (#525)。前のセグメントは test.ts の全体、後のセグメントは 6 つ目の I フレーム
 // (映像の 2168 番目のパケット、PTS 354228) からで、前のセグメントの重なった区間のドロップは、後のセグメントでも録っている。
 func TestAnalyzeWorkerExcludesHandoverOverlap(t *testing.T) {
 	t.Parallel()
@@ -457,7 +457,7 @@ func TestAnalyzeWorkerExcludesHandoverOverlap(t *testing.T) {
 	}
 }
 
-// TestAnalyzeWorkerWaitsForJoin は、同じ録画のセグメントをほかでつないでいる間は、読まずに後でやり直すことを確かめる (#476)。
+// TestAnalyzeWorkerWaitsForJoin は、同じ録画のセグメントをほかでつないでいる間は、読まずに後でやり直すことを確認する (#476)。
 func TestAnalyzeWorkerWaitsForJoin(t *testing.T) {
 	t.Parallel()
 
@@ -485,7 +485,7 @@ func TestAnalyzeWorkerWaitsForJoin(t *testing.T) {
 	assert.Zero(t, drops)
 }
 
-// TestAnalyzeWorkerCancels は、録画が消されたか、録画中か、読めるセグメントがなければ、送り直さずに取りやめることを確かめる。
+// TestAnalyzeWorkerCancels は、録画が消されたか、録画中か、読めるセグメントがなければ、送り直さずに取りやめることを確認する。
 func TestAnalyzeWorkerCancels(t *testing.T) {
 	t.Parallel()
 
@@ -559,7 +559,7 @@ func TestAnalyzeWorkerCancels(t *testing.T) {
 	}
 }
 
-// TestAnalyzeWorkerStopsWhenCancelled は、nekonote を止めたら、取り込んだ集計を残したまま何も記録せず、送り直しに任せることを確かめる。
+// TestAnalyzeWorkerStopsWhenCancelled は、nekonote を止めたら、取り込んだ集計を残したまま何も記録せず、送り直しに任せることを確認する。
 func TestAnalyzeWorkerStopsWhenCancelled(t *testing.T) {
 	t.Parallel()
 
@@ -576,14 +576,14 @@ func TestAnalyzeWorkerStopsWhenCancelled(t *testing.T) {
 	var drops int64
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT drops FROM recordings WHERE id = $1", recordingID).Scan(&drops))
 	assert.Equal(t, int64(2), drops, "the imported stats are kept")
-	// 書きかけの索引は残さない。
+	// 書きかけのインデックスは残さない。
 	var segmentID uuid.UUID
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM recording_files WHERE recording_id = $1", recordingID).Scan(&segmentID))
 	assert.NoFileExists(t, filepath.Join(f.dataRoot, kago.IndexLocation(segmentID).Path))
 	assert.NoFileExists(t, filepath.Join(f.dataRoot, kago.IndexLocation(segmentID).Path+".tmp"))
 }
 
-// TestAnalyzeWorkerQueuesThumbnailAtJobPriority は、解析の後に作る画像を、解析のジョブと同じ優先度で投入することを確かめる。
+// TestAnalyzeWorkerQueuesThumbnailAtJobPriority は、解析の後に作る画像を、解析のジョブと同じ優先度で投入することを確認する。
 // 頼まれてやり直す録画と、セグメントをつないだ録画の画像は、取り込んだ録画の画像の後ろで待たせない。
 func TestAnalyzeWorkerQueuesThumbnailAtJobPriority(t *testing.T) {
 	t.Parallel()
@@ -610,8 +610,8 @@ func TestAnalyzeWorkerQueuesThumbnailAtJobPriority(t *testing.T) {
 	}
 }
 
-// TestAnalyzeWorkerJudgesScramble は、解析し直した内訳で、スクランブルされたまま録れたかを決め直すことを確かめる (#1517)。
-// 録画を終えたときに知らせたので、解析し直しても通知は送らない。
+// TestAnalyzeWorkerJudgesScramble は、解析し直した内訳で、スクランブルされたまま録れたかを決め直すことを確認する (#1517)。
+// 録画を終えたときに通知したので、解析し直しても通知は送らない。
 func TestAnalyzeWorkerJudgesScramble(t *testing.T) {
 	t.Parallel()
 
@@ -648,7 +648,7 @@ func TestAnalyzeWorkerJudgesScramble(t *testing.T) {
 	}
 }
 
-// TestAnalyzeWorkerResyncsHistory は、解析し直してスクランブルの警告が変わったら、録画履歴を合わせて直すことを確かめる (設計書 4.4、#1517)。
+// TestAnalyzeWorkerResyncsHistory は、解析し直してスクランブルの警告が変わったら、録画履歴を合わせて直すことを確認する (設計書 4.4、#1517)。
 // 警告が変わらなければ、取り込んだ録画のように終えたときに記録しなかった録画を、解析だけで記録し始めない。
 func TestAnalyzeWorkerResyncsHistory(t *testing.T) {
 	t.Parallel()
@@ -657,7 +657,7 @@ func TestAnalyzeWorkerResyncsHistory(t *testing.T) {
 	tests := []struct {
 		name string
 		data []byte
-		// warned は、解析し直す前の警告の印。linked は、解析し直す前に、この録画から記録した録画履歴があるか。
+		// warned は、解析し直す前の警告のマーク。linked は、解析し直す前に、この録画から記録した録画履歴があるか。
 		warned, linked bool
 		// wantLinked は、解析し直した後の、この録画から記録した録画履歴の数。
 		wantLinked int
@@ -713,8 +713,8 @@ func continuousRepeat(data []byte, n int) []byte {
 	return repeated
 }
 
-// TestAnalyzeWorkerRegeneratesImagesOnlyWhenNeeded は、解析し直した後、索引が前と変わったときか、
-// 画像がデータディレクトリにないときだけ、画像を作るジョブを投入することを確かめる (#2012)。
+// TestAnalyzeWorkerRegeneratesImagesOnlyWhenNeeded は、解析し直した後、インデックスが前と変わったときか、
+// 画像がデータディレクトリにないときだけ、画像を作るジョブを投入することを確認する (#2012)。
 func TestAnalyzeWorkerRegeneratesImagesOnlyWhenNeeded(t *testing.T) {
 	t.Parallel()
 
@@ -725,7 +725,7 @@ func TestAnalyzeWorkerRegeneratesImagesOnlyWhenNeeded(t *testing.T) {
 		preview bool
 		// images は、解析し直す前に、データディレクトリに置く画像。
 		images []string
-		// staleIndex なら、解析し直す前に、索引を前の版の中身 (違う索引) に置き換える。
+		// staleIndex なら、解析し直す前に、インデックスを前のバージョンの内容 (違うインデックス) に置き換える。
 		staleIndex bool
 		want       int
 	}{
@@ -763,8 +763,8 @@ func TestAnalyzeWorkerRegeneratesImagesOnlyWhenNeeded(t *testing.T) {
 	}
 }
 
-// TestAnalyzeWorkerRegeneratesImagesAfterRetry は、索引を置き換えた後に解析が失敗しても、やり直したときに画像を作ることを確かめる (#2012)。
-// 置き換えた索引は前の索引と同じ中身になるので、中身を比べるだけでは、画像が古いことを見落とす。
+// TestAnalyzeWorkerRegeneratesImagesAfterRetry は、インデックスを置き換えた後に解析が失敗しても、やり直したときに画像を作ることを確認する (#2012)。
+// 置き換えたインデックスは前のインデックスと同じ内容になるので、内容を比較するだけでは、画像が古いことを見落とす。
 func TestAnalyzeWorkerRegeneratesImagesAfterRetry(t *testing.T) {
 	t.Parallel()
 
@@ -795,7 +795,7 @@ func (failingInserter) InsertManyTx(context.Context, pgx.Tx, []river.InsertManyP
 }
 
 // analyzedRecording は、テスト用の TS を 1 度解析した録画を作り、録画とセグメントのファイルの ID を返す。
-// 最初の解析は、索引がないので画像を作るジョブを入れる。そのジョブは消しておく。
+// 最初の解析は、インデックスがないので画像を作るジョブを入れる。そのジョブは消しておく。
 func (f *fixture) analyzedRecording(t *testing.T) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 
@@ -808,7 +808,7 @@ func (f *fixture) analyzedRecording(t *testing.T) (uuid.UUID, uuid.UUID) {
 	return recordingID, f.segmentID(t, recordingID, segmentName)
 }
 
-// writeStaleIndex は、セグメント segmentID の索引を、前の版の中身 (違う索引) に置き換え、日時を 1 時間前にする。
+// writeStaleIndex は、セグメント segmentID のインデックスを、前のバージョンの内容 (違うインデックス) に置き換え、日時を 1 時間前にする。
 func (f *fixture) writeStaleIndex(t *testing.T, segmentID uuid.UUID) {
 	t.Helper()
 
@@ -818,7 +818,7 @@ func (f *fixture) writeStaleIndex(t *testing.T, segmentID uuid.UUID) {
 	require.NoError(t, os.Chtimes(path, past, past))
 }
 
-// writeImages は、セグメント segmentID のデータディレクトリに、画像 names を置く。画像は索引より後に作ったものとする。
+// writeImages は、セグメント segmentID のデータディレクトリに、画像 names を置く。画像はインデックスより後に作ったものとする。
 func (f *fixture) writeImages(t *testing.T, segmentID uuid.UUID, names ...string) {
 	t.Helper()
 

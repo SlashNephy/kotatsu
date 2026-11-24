@@ -35,7 +35,7 @@ func TestHandlerExposesRuntimeMetrics(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "process_start_time_seconds ")
 }
 
-// TestHandlerRoutes は、http.ServeMux で受けていたときと同じパス、メソッド、応答を返すことを確かめる (#1959、#2008)。
+// TestHandlerRoutes は、http.ServeMux で受けていたときと同じパス、メソッド、応答を返すことを確認する (#1959、#2008)。
 func TestHandlerRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -85,7 +85,7 @@ func TestHandlerRoutes(t *testing.T) {
 	}
 }
 
-// TestHandlerMergesGatherers は、/metrics が、インスタンスとクラスターのレジストリをまとめて返すことを確かめる (#962)。
+// TestHandlerMergesGatherers は、/metrics が、インスタンスとクラスターのレジストリをまとめて返すことを確認する (#962)。
 func TestHandlerMergesGatherers(t *testing.T) {
 	t.Parallel()
 

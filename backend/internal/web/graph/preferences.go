@@ -16,7 +16,7 @@ const (
 )
 
 // isSyncedPreference は、key が、端末をまたいで同期する画面の設定のキーかどうかを返す (#1862、設計書 9.1)。
-// 機器や回線によって変わる設定 (音量、画質、拡大など) は、端末ごとに覚えるので入れない。
+// 機器や回線によって変わる設定 (音量、画質、拡大など) は、端末ごとに保存するので入れない。
 // 画面の frontend/src/settings/syncedPreferences.ts と同じものにする。
 func isSyncedPreference(key string) bool {
 	switch key {
@@ -42,7 +42,7 @@ func isSyncedPreference(key string) bool {
 	return false
 }
 
-// preferencesInput は、同期する設定の変更を確かめて、置き換えるものと消すキーに分ける。許していないキーと、長すぎる値は断る。
+// preferencesInput は、同期する設定の変更を確認して、置き換えるものと消すキーに分ける。許していないキーと、長すぎる値は断る。
 func preferencesInput(input []*model.PreferenceInput) (map[string]string, []string, error) {
 	set, unset := map[string]string{}, []string{}
 	for _, preference := range input {

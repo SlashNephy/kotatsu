@@ -50,7 +50,7 @@ func constPreview(enabled bool) func(context.Context) (bool, error) {
 	return func(context.Context) (bool, error) { return enabled, nil }
 }
 
-// fakeInserter は、入れたジョブの引数を覚える。
+// fakeInserter は、入れたジョブの引数を保存する。
 type fakeInserter struct {
 	args []river.JobArgs
 }
@@ -61,7 +61,7 @@ func (i *fakeInserter) Insert(_ context.Context, args river.JobArgs, _ *river.In
 	return &rivertype.JobInsertResult{Job: nil, UniqueSkippedAsDuplicate: false}, nil
 }
 
-// imagesFixture は、索引を作り終えたライブラリのファイルと、画像を作る Worker を持つ。
+// imagesFixture は、インデックスを作り終えたライブラリのファイルと、画像を作る Worker を持つ。
 type imagesFixture struct {
 	dir       string
 	ref       Ref
@@ -116,8 +116,8 @@ func (f *imagesFixture) get(t *testing.T, name string) *httptest.ResponseRecorde
 	return rec
 }
 
-// TestImagesWorker は、索引を作り終えたファイルの代表画像とプレビュー画像を、ライブラリの口でファイルを読んで作り、
-// 今のファイルから作った画像だけを配信することを確かめる (#1734)。
+// TestImagesWorker は、インデックスを作り終えたファイルの代表画像とプレビュー画像を、ライブラリの口でファイルを読んで作り、
+// 今のファイルから作った画像だけを配信することを確認する (#1734)。
 func TestImagesWorker(t *testing.T) {
 	t.Parallel()
 
@@ -162,7 +162,7 @@ func TestImagesWorker(t *testing.T) {
 }
 
 // TestImagesWorkerWithoutPreview は、プレビュー画像を作らない設定では代表画像だけを作り、前のファイルから作ったプレビュー画像を残さず、
-// 配信もしないことを確かめる。置き場はファイルのパスごとなので、残すと、書き換えた後のファイルに前のファイルのプレビュー画像を出す。
+// 配信もしないことを確認する。保存先はファイルのパスごとなので、残すと、書き換えた後のファイルに前のファイルのプレビュー画像を出す。
 func TestImagesWorkerWithoutPreview(t *testing.T) {
 	t.Parallel()
 

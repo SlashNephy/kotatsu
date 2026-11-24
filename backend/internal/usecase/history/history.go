@@ -19,7 +19,7 @@ import (
 // Eligible は、録画 recording を「録画済み」とみなして録画履歴に記録するかを返す。
 // 正常に終わり (完了かエラーありの完了)、判定に数えるドロップ (映像と音声の PID のドロップ) が maxDrops 以下で、
 // スクランブルの警告がない録画だけを記録する。maxDrops は、全体の設定の上限 (settings.System.HistoryMaxDrops、付録 A)。
-// スクランブルされたまま録れた録画を録画済みとみなすと、カードを直した後の再放送を録らなくなるからである (#1517)。
+// スクランブルされたまま録れた録画を録画済みとみなすと、カードの不具合を修正した後の再放送を録らなくなるからである (#1517)。
 func Eligible(recording *sqlc.Recording, maxDrops int) bool {
 	return (recording.State == "completed" || recording.State == "completed_with_errors") &&
 		recording.JudgedDrops <= int64(maxDrops) && !recording.ScrambleWarning
@@ -47,7 +47,7 @@ func Record(ctx context.Context, q *sqlc.Queries, recording *sqlc.Recording, now
 	if !Eligible(recording, maxDrops) {
 		return nil
 	}
-	// 同じ回を束ねる (#1498) ときに回を読めるよう、録画の概要や、番組の記述子の話数なども写す。
+	// 同じ回をまとめる (#1498) ときに回を読めるよう、録画の概要や、番組の記述子の話数などもコピーする。
 	// 前の回を録らない (#1499) ときにシリーズ名で引けるよう、番組名から読んだシリーズ名も書く。
 	err = q.InsertRecordingHistoryFromRecording(ctx, sqlc.InsertRecordingHistoryFromRecordingParams{
 		ID: id.New(), TitleKey: rule.TitleKey(recording.Name), Series: episode.SeriesOf(recording.Name), Now: now, RecordingID: recording.ID,

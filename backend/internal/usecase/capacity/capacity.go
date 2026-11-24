@@ -1,6 +1,6 @@
 // Package capacity は、保存先プールの容量を管理する (設計書 6.1)。
 //
-// nekonote の定期ジョブが、各プールの容量と空き容量を測って DB に残す。空き容量が閾値を下回ったら、保護されていない古い録画から消し、
+// nekonote の定期ジョブが、各プールの容量と空き容量を計測して DB に残す。空き容量が閾値を下回ったら、保護されていない古い録画から消し、
 // 空き容量の不足を通知する。録画を消しても、重複の回避に使う録画履歴は残す。
 package capacity
 
@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	// CheckInterval は、空き容量を調べる間隔 (付録 A)。
+	// CheckInterval は、空き容量を確認する間隔 (付録 A)。
 	CheckInterval = 5 * time.Minute
 	// maxDeletionsPerPool は、1 回の確認で 1 つのプールから消す録画の数の上限。容量の計算を誤っても、録画を一度に消しすぎないようにする。
 	maxDeletionsPerPool = 50
@@ -65,8 +65,8 @@ type PoolResult struct {
 	Low bool
 }
 
-// RunOnce は、このインスタンスにマウントされたプールを、1 回ずつ確かめる。
-// どのプールも容量と空き容量を測って DB に残し (#957)、容量の閾値を設定したプールでは、下回っていれば古い録画を消す。
+// RunOnce は、このインスタンスにマウントされたプールを、1 回ずつ確認する。
+// どのプールも容量と空き容量を計測して DB に残し (#957)、容量の閾値を設定したプールでは、下回っていれば古い録画を消す。
 // 返すのは、閾値を設定したプールの結果。
 func (m *Manager) RunOnce(ctx context.Context) ([]*PoolResult, error) {
 	q := sqlc.New(m.pool)
@@ -82,7 +82,7 @@ func (m *Manager) RunOnce(ctx context.Context) ([]*PoolResult, error) {
 	results := []*PoolResult{}
 	errs := []error{}
 	// nekonote はどれもすべてのプールをマウントするので、マウントされていないプールは、設定から外したもの。
-	// 前に測った値を残すと、/metrics に古い値が出続けるので、消す。
+	// 前に計測した値を残すと、/metrics に古い値が出続けるので、消す。
 	if err := q.ClearUnmountedStoragePoolMeasurements(ctx, mounted); err != nil {
 		errs = append(errs, fmt.Errorf("failed to clear the measurements of unmounted storage pools: %w", err))
 	}
@@ -111,7 +111,7 @@ func (m *Manager) RunOnce(ctx context.Context) ([]*PoolResult, error) {
 	return results, errors.Join(errs...)
 }
 
-// record は、プールの容量と、空き容量 free を測った値として DB に残す。容量を測れなければ、前の値を残したままにする。
+// record は、プールの容量と、空き容量 free を計測した値として DB に残す。容量を測れなければ、前の値を残したままにする。
 func (m *Manager) record(ctx context.Context, poolID string, free uint64) error {
 	total, err := m.store.PoolTotalSpace(poolID)
 	if err != nil {
@@ -149,7 +149,7 @@ func (m *Manager) check(ctx context.Context, row *sqlc.StoragePool, mounted []st
 			break
 		}
 		// 録画ファイルが 1 つも見つからない録画は、消しても空きが増えない。プールの実体がマウントされず、
-		// 空のディレクトリを測っているときに、録画の記録を消し続けないよう、消さない (#513)。
+		// 空のディレクトリを計測しているときに、録画の記録を消し続けないよう、消さない (#513)。
 		// 続けて上限まで見つからなければ、マウントされていないとみなして、この回はやめる。
 		found, err := m.hasFiles(ctx, candidates[0].ID)
 		if err != nil {
@@ -204,7 +204,7 @@ func (m *Manager) delete(ctx context.Context, recordingID uuid.UUID, poolID stri
 }
 
 // report は、録画を消したか、消しても空き容量が閾値を下回ったままになったときに、空き容量の不足を通知する。
-// 下回ったままの間は、確かめるたびに通知しないよう、下回り始めたときだけ通知する。
+// 下回ったままの間は、確認するたびに通知しないよう、下回り始めたときだけ通知する。
 func (m *Manager) report(ctx context.Context, row *sqlc.StoragePool, result *PoolResult) error {
 	return pgx.BeginFunc(ctx, m.pool, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -229,14 +229,14 @@ func (m *Manager) report(ctx context.Context, row *sqlc.StoragePool, result *Poo
 	})
 }
 
-// CheckArgs は、空き容量を調べるジョブの引数。
+// CheckArgs は、空き容量を確認するジョブの引数。
 type CheckArgs struct{}
 
 var _ river.JobArgs = new(CheckArgs)
 
 func (CheckArgs) Kind() string { return "storage_capacity_check" }
 
-// CheckWorker は、空き容量を調べるジョブを実行する。
+// CheckWorker は、空き容量を確認するジョブを実行する。
 type CheckWorker struct {
 	river.WorkerDefaults[CheckArgs]
 
@@ -263,7 +263,7 @@ func (w *CheckWorker) Work(ctx context.Context, _ *river.Job[CheckArgs]) error {
 	return err
 }
 
-// CheckPeriodicJob は、空き容量を CheckInterval ごとに調べる定期ジョブを返す。
+// CheckPeriodicJob は、空き容量を CheckInterval ごとに確認する定期ジョブを返す。
 func CheckPeriodicJob() *river.PeriodicJob {
 	return river.NewPeriodicJob(
 		river.PeriodicInterval(CheckInterval),

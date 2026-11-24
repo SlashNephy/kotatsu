@@ -69,7 +69,7 @@ func (f *fixture) watchRules(t *testing.T) []watchRuleResult {
 }
 
 // TestWatchRules は、閲覧だけのユーザーも、自分の視聴ルールを作り、変え、消せることと、
-// 変えるたびに同じユーザーのほかの端末に知らせることを確かめる (設計書 4.8、9.7)。
+// 変えるたびに同じユーザーのほかの端末に通知することを確認する (設計書 4.8、9.7)。
 func TestWatchRules(t *testing.T) {
 	t.Parallel()
 
@@ -117,7 +117,7 @@ func TestWatchRules(t *testing.T) {
 	assert.Empty(t, f.watchRules(t))
 }
 
-// TestWatchRulesOfOtherUsers は、ほかのユーザーの視聴ルールを、一覧に出さず、読むことも変えることもできない (NOT_FOUND) ことを確かめる。
+// TestWatchRulesOfOtherUsers は、ほかのユーザーの視聴ルールを、一覧に出さず、読むことも変えることもできない (NOT_FOUND) ことを確認する。
 func TestWatchRulesOfOtherUsers(t *testing.T) {
 	t.Parallel()
 
@@ -147,7 +147,7 @@ func TestWatchRulesOfOtherUsers(t *testing.T) {
 	assert.Empty(t, other.watchRules(t))
 }
 
-// TestCreateWatchRuleRejects は、正しくない視聴ルールを BAD_USER_INPUT で、上限を超える視聴ルールを CONFLICT で拒むことを確かめる。
+// TestCreateWatchRuleRejects は、正しくない視聴ルールを BAD_USER_INPUT で、上限を超える視聴ルールを CONFLICT で拒むことを確認する。
 func TestCreateWatchRuleRejects(t *testing.T) {
 	t.Parallel()
 

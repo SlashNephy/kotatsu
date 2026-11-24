@@ -1,5 +1,5 @@
-// 字幕の外字を文字に置き換える既定の表を、vendor/libaribcaption/SOURCE で固定した commit の libaribcaption の定義から作り、
-// vendor/libaribcaption/drcs.json に置く。同じ commit から作った表が既にあれば、取得し直さない。
+// 字幕の外字を文字に置き換える既定のテーブルを、vendor/libaribcaption/SOURCE で固定した commit の libaribcaption の定義から作り、
+// vendor/libaribcaption/drcs.json に置く。同じ commit から作ったテーブルが既にあれば、取得し直さない。
 // 本番のイメージのビルド (Dockerfile) でも動くよう、Node.js の標準の機能だけを使う。
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -23,7 +23,7 @@ if (existing !== null && JSON.parse(existing).commit === source.commit) {
   process.exit(0);
 }
 
-// 上流の書き方が変わって表が空に近くなったら、黙って外字を置き換えなくなるのではなく、ビルドを失敗させる。
+// 上流の書き方が変わってテーブルが空に近くなったら、黙って外字を置き換えなくなるのではなく、ビルドを失敗させる。
 const minimumEntries = 100;
 
 const url = `https://raw.githubusercontent.com/${source.repository}/${source.commit}/${source.file}`;
@@ -39,7 +39,7 @@ const count = Object.keys(replacements).length;
 if (count < minimumEntries) {
   throw new Error(`only ${count} DRCS replacements were found in ${url}`);
 }
-// 途中で止まっても壊れた表が残らないよう、書き終えてから置き換える。
+// 途中で止まっても壊れたテーブルが残らないよう、書き終えてから置き換える。
 await writeFile(`${target}.tmp`, `${JSON.stringify({ commit: source.commit, replacements })}\n`);
 await rename(`${target}.tmp`, target);
 console.log(`generated ${count} DRCS replacements (${source.commit})`);

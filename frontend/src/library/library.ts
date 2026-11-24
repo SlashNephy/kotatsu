@@ -6,7 +6,7 @@ import { resumePosition } from '../yunomi/resume';
 // ファイラーでは、library を省くとライブラリの一覧を、path を省くとライブラリの根元を出す。q は、path の下を名前で探す語 (#1902)。
 export type LibrarySearch = { library?: string; path?: string; q?: string };
 
-// parseLibrarySearch は、URL のクエリを読む。文字列でない値は捨てる。
+// parseLibrarySearch は、URL のクエリを読む。文字列でない値は破棄する。
 export function parseLibrarySearch(search: Record<string, unknown>): LibrarySearch {
   const library =
     typeof search.library === 'string' && search.library !== '' ? search.library : undefined;
@@ -20,12 +20,12 @@ export function parseLibrarySearch(search: Record<string, unknown>): LibrarySear
   };
 }
 
-// Crumb は、パンくずの 1 段。path は、そのディレクトリのライブラリの中のパス (根元は空)。
+// Crumb は、パンくずの 1 階層。path は、そのディレクトリのライブラリの中のパス (根元は空)。
 export type Crumb = { name: string; path: string };
 
 // breadcrumbs は、ディレクトリ path (根元は空) の、根元から自分までのパンくずを返す。根元の名前はライブラリの名前にする。
-// names は、サーバーが返した段ごとの名前 (LibraryDirectory.names)。Google Drive ではパスの段が ID なので、名前はこれで出す。
-// 足りなければ、段をそのまま名前にする。
+// names は、サーバーが返した階層ごとの名前 (LibraryDirectory.names)。Google Drive ではパスの階層が ID なので、名前はこれで出す。
+// 足りなければ、階層をそのまま名前にする。
 export function breadcrumbs(library: string, path: string, names: readonly string[] = []): Crumb[] {
   const crumbs: Crumb[] = [{ name: library, path: '' }];
   const parts = path === '' ? [] : path.split('/');
@@ -40,7 +40,7 @@ export function breadcrumbs(library: string, path: string, names: readonly strin
 const libraryNamePattern = /^[a-z0-9][a-z0-9_-]{0,62}$/;
 
 // libraryNameProblem は、ライブラリの名前 name の問題を返す。規則に合わなければ 'format' を、taken (ほかのライブラリの名前) と
-// 重なれば 'taken' を、問題がなければ null を返す。保存先プールと重なるかは、サーバーが確かめる。
+// 重なれば 'taken' を、問題がなければ null を返す。保存先プールと重なるかは、サーバーが確認する。
 export function libraryNameProblem(
   name: string,
   taken: readonly string[],
@@ -72,20 +72,20 @@ export function parentPath(path: string): string {
   return at < 0 ? '' : path.slice(0, at);
 }
 
-// FileIndex は、ファイルのシークの索引の進み具合 (LibraryFile.index)。
+// FileIndex は、ファイルのシークのインデックスの進み具合 (LibraryFile.index)。
 export type FileIndex = {
   complete: boolean;
   seekableSeconds: number;
   durationSeconds: number | null | undefined;
 };
 
-// fileDuration は、シークバーに出す長さ (秒) を返す。索引がまだなければ、長さが分からないので 0。
+// fileDuration は、シークバーに出す長さ (秒) を返す。インデックスがまだなければ、長さが分からないので 0。
 export function fileDuration(index: FileIndex): number {
   return index.durationSeconds ?? 0;
 }
 
-// seekLimit は、シークできる所 (秒) を返す。索引を作り終えていれば長さまで、作っている途中なら、索引のできた最後の I フレームまで。
-// 配信は、求めた位置の手前の I フレームから流すので、索引のできた所より先を求めると、そこまで変換せずに読み進めることになる。
+// seekLimit は、シークできる所 (秒) を返す。インデックスを作り終えていれば長さまで、作っている途中なら、インデックスのできた最後の I フレームまで。
+// 配信は、求めた位置の手前の I フレームから流すので、インデックスのできた所より先を求めると、そこまで変換せずに読み進めることになる。
 export function seekLimit(index: FileIndex): number {
   return index.complete ? fileDuration(index) : index.seekableSeconds;
 }
@@ -96,7 +96,7 @@ export function clampSeek(target: number, index: FileIndex): number {
 }
 
 // libraryResumePosition は、保存した再生位置 savedMs (ミリ秒) から、再生を始める位置 (秒) を返す。録画と同じく少し戻して始め、
-// 終わりの近くまで見ていたら最初から再生する。索引がまだ届いていなければ、届いた所までにする。
+// 終わりの近くまで見ていたら最初から再生する。インデックスがまだ届いていなければ、届いた所までにする。
 export function libraryResumePosition(savedMs: number | null, index: FileIndex): number {
   const duration = fileDuration(index);
   if (duration <= 0) {

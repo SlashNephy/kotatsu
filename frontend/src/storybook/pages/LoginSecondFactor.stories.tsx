@@ -17,7 +17,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-// withMethods は、パスワードを確かめた応答が、登録した第二要素として methods を返したときの URL。
+// withMethods は、パスワードを検証した応答が、登録した第二要素として methods を返したときの URL。
 const withMethods = (...methods: string[]) =>
   `/login/second-factor?methods=${encodeURIComponent(JSON.stringify(methods))}`;
 
@@ -76,7 +76,7 @@ export const Loading: Story = { args: { hold: holdAll } };
 // パスキーだけを登録しているとき (コードの入力を出さない)。
 export const PasskeyOnly: Story = { args: { url: withMethods('passkey') } };
 
-// パスキーと認証アプリを登録しているとき (どちらでも確かめられる)。
+// パスキーと認証アプリを登録しているとき (どちらでも検証できる)。
 export const PasskeyAndCode: Story = {
   args: { url: withMethods('passkey', 'totp', 'recovery_code') },
 };

@@ -83,7 +83,7 @@ func (f *fixture) flush(ctx context.Context) {
 	f.collector.Flush(ctx, sqlc.New(f.pool))
 }
 
-// TestCollector は、集めたロゴを、パレットを補って書き、サービスのロゴとして返すことを確かめる (#1308)。
+// TestCollector は、集めたロゴを、パレットを補って書き、サービスのロゴとして返すことを確認する (#1308)。
 // 種類が複数あれば、HD の大きいロゴを返す。
 func TestCollector(t *testing.T) {
 	t.Parallel()
@@ -113,7 +113,7 @@ func TestCollector(t *testing.T) {
 	}
 }
 
-// TestCollectorVersion は、一度書いた版のロゴは書き直さず、版が替われば書き直すことを確かめる (#1308)。
+// TestCollectorVersion は、一度書いたバージョンのロゴは書き直さず、バージョンが替われば書き直すことを確認する (#1308)。
 func TestCollectorVersion(t *testing.T) {
 	t.Parallel()
 
@@ -132,7 +132,7 @@ func TestCollectorVersion(t *testing.T) {
 		return string(data)
 	}
 
-	// 同じ版は、繰り返し届いても書き直さない。
+	// 同じバージョンは、繰り返し届いても書き直さない。
 	f.collector.Observe(&ts.Logo{NetworkID: networkID, LogoID: logoID, Type: 5, Version: 1, PNG: data})
 	f.flush(t.Context())
 	assert.Equal(t, "written by the test", read())
@@ -144,7 +144,7 @@ func TestCollectorVersion(t *testing.T) {
 	assert.Equal(t, string(want), read())
 }
 
-// TestCollectorRetry は、DB に書けなかったロゴを、次の Flush で書き直すことを確かめる (#1308)。読めないロゴは書かない。
+// TestCollectorRetry は、DB に書けなかったロゴを、次の Flush で書き直すことを確認する (#1308)。読めないロゴは書かない。
 func TestCollectorRetry(t *testing.T) {
 	t.Parallel()
 

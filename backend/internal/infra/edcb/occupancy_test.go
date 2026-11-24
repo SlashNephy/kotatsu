@@ -20,7 +20,7 @@ func jstNovember(day, hour, minute, second int) time.Time {
 }
 
 // emptyFileCopy2 は、EpgTimerSrv が EpgTimerSrv.ini を返さないとき (互換動作を有効にしていない) の FILE_COPY2 の応答。
-// ファイルの名前だけがあり、中身は空になる。
+// ファイルの名前だけがあり、内容は空になる。
 func emptyFileCopy2() []byte {
 	name := utf16.Encode([]rune("EpgTimerSrv.ini"))
 	str := binary.LittleEndian.AppendUint32(nil, dword(4+2*len(name)+2))
@@ -28,7 +28,7 @@ func emptyFileCopy2() []byte {
 		str = binary.LittleEndian.AppendUint16(str, u)
 	}
 	str = binary.LittleEndian.AppendUint16(str, 0)
-	// FILE_DATA: 名前、大きさ (0)、予約の DWORD (0)、中身 (なし)。
+	// FILE_DATA: 名前、大きさ (0)、予約の DWORD (0)、内容 (なし)。
 	file := append(append([]byte{}, str...), make([]byte, 8)...)
 	file = append(binary.LittleEndian.AppendUint32(nil, dword(4+len(file))), file...)
 	items := append(binary.LittleEndian.AppendUint32(nil, 1), file...)
@@ -38,7 +38,7 @@ func emptyFileCopy2() []byte {
 }
 
 // TestTunerServerTunerOccupancies は、実際の EDCB の予約 (個別のマージン 30 秒と 20 秒の予約と、マージンを指定しない予約) から、
-// EDCB の予約がチューナーを使う時間帯を作ることを確かめる (#1536)。
+// EDCB の予約がチューナーを使う時間帯を作ることを確認する (#1536)。
 func TestTunerServerTunerOccupancies(t *testing.T) {
 	t.Parallel()
 
@@ -86,7 +86,7 @@ func TestTunerServerTunerOccupancies(t *testing.T) {
 	}
 }
 
-// TestOccupancies は、チューナーが足りない予約と無効にした予約を除き、負のマージンでも始まりと終わりを越えないことを確かめる。
+// TestOccupancies は、チューナーが足りない予約と無効にした予約を除き、負のマージンでも始まりと終わりを越えないことを確認する。
 func TestOccupancies(t *testing.T) {
 	t.Parallel()
 
@@ -248,7 +248,7 @@ func TestParseTimerSettings(t *testing.T) {
 	}
 }
 
-// TestKeepsTunerForEPG は、EPG の取得の前後と取得中に、ライブ視聴とタイムシフトに新しいチューナーを使わせないことを確かめる
+// TestKeepsTunerForEPG は、EPG の取得の前後と取得中に、ライブ視聴とタイムシフトに新しいチューナーを使わせないことを確認する
 // (#1536、#1873)。EpgTimerSrv は、新しい NetworkTV を、[TVTEST] に並べた BonDriver のチューナーのうち、ID の大きいものから試す。
 func TestKeepsTunerForEPG(t *testing.T) {
 	t.Parallel()
@@ -391,7 +391,7 @@ func TestKeepsTunerForEPG(t *testing.T) {
 }
 
 // TestTunerServerKeepsTunerForEPG は、ライブ視聴とタイムシフトが、EPG の取得の前に最後の空きチューナーで NetworkTV を開かず、
-// 録画と、開いている NetworkTV に加わる受け手は開けることを、偽の EpgTimerSrv で確かめる (#1536)。
+// 録画と、開いている NetworkTV に加わる受け手は開けることを、モックの EpgTimerSrv で確認する (#1536)。
 func TestTunerServerKeepsTunerForEPG(t *testing.T) {
 	t.Parallel()
 
@@ -449,7 +449,7 @@ func capturingProcesses(tunerIDs ...uint32) []byte {
 }
 
 // TestTunerServerKeepsTunerWhileCapturing は、EPG を取得している最中に、新しい NetworkTV が取得中のチューナーを選ぶなら、
-// ライブ視聴に開かず、空いているチューナーを選ぶなら開くことを確かめる (#1536)。EpgTimerSrv は、ID の大きいチューナーから試す。
+// ライブ視聴に開かず、空いているチューナーを選ぶなら開くことを確認する (#1536)。EpgTimerSrv は、ID の大きいチューナーから試す。
 // すでに開いている同じサービスの NetworkTV には、取得中でも加われる。
 func TestTunerServerKeepsTunerWhileCapturing(t *testing.T) {
 	t.Parallel()
@@ -501,7 +501,7 @@ func TestTunerServerKeepsTunerWhileCapturing(t *testing.T) {
 	}
 }
 
-// TestTunerServerEPGCapture は、EpgTimerSrv.ini から、EPG の取得のために空けておくチューナーを決める設定を作ることを確かめる (#1856)。
+// TestTunerServerEPGCapture は、EpgTimerSrv.ini から、EPG の取得のために空けておくチューナーを決める設定を作ることを確認する (#1856)。
 // 読み直せないときは、前に読んだ設定を使い続け、一度も読めていなければ、エラーにする。
 func TestTunerServerEPGCapture(t *testing.T) {
 	t.Parallel()

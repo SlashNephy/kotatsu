@@ -48,13 +48,13 @@ const (
 	// DefaultReleaseAfter は、チューナーサーバーにつながらないまま、割り振りを手放すまでの時間 (付録 A)。
 	// チューナーサーバーの再起動は、すべての mikan に同時に起きるので、一度つながらないだけでは手放さない。
 	DefaultReleaseAfter = 30 * time.Second
-	// successorWait と successorPoll は、引き継いで止める古い mikan が、新しい mikan のセグメントができるのを待つ時間と、確かめる間隔 (#525)。
+	// successorWait と successorPoll は、引き継いで止める古い mikan が、新しい mikan のセグメントができるのを待つ時間と、確認する間隔 (#525)。
 	successorWait = 5 * time.Second
 	successorPoll = 100 * time.Millisecond
 	// LateStartTolerance は、録画を始めるのが予定の開始より遅れても、冒頭が欠けたとはみなさない時間 (付録 A)。
 	// チューナーの確保やストリームを開くのにかかる時間の揺らぎを許す。
 	LateStartTolerance = 30 * time.Second
-	// DefaultTick は、予定の時刻が来たかを確かめる間隔。予約の予定の時刻も、この間隔で読み直す。
+	// DefaultTick は、予定の時刻が来たかを確認する間隔。予約の予定の時刻も、この間隔で読み直す。
 	DefaultTick = 500 * time.Millisecond
 	// DefaultRetryInterval は、ストリームを開けなかったときや、切れたときに、開き直すまで待つ時間。
 	DefaultRetryInterval = 2 * time.Second
@@ -67,7 +67,7 @@ const (
 	// 遅れたとはみなさない時間 (付録 A、#1046)。EIT[p/f] の切り替わりが番組の始まりより少し遅れて届いても、時間どおりの番組を待たない。
 	BroadcastStartGrace = 30 * time.Second
 	// MaxPreroll は、遅れた番組が放送中になるのを待った後、先に書く直近の分の長さの上限 (付録 A、#1046)。
-	// 開始マージンが長くても、メモリに溜めるのはこの長さまでにする。
+	// 開始マージンが長くても、メモリにバッファするのはこの長さまでにする。
 	MaxPreroll = 30 * time.Second
 	// writeBufferSize は、録画ファイルへの書き込みをまとめる大きさ (設計書 5.2)。
 	writeBufferSize = 4 << 20
@@ -124,9 +124,9 @@ type PeersFunc func(ctx context.Context) (int, error)
 var ErrRecorderUnavailable = errors.New("this mikan is unable to record")
 
 // Recorder は、割り振りの録画を行う Session を提供する (設計書 5.1、5.2、5.3)。
-// 予定の開始からチューニングにかかる時間を引いた時刻にサービスストリームを開き、予定の開始までに届いたデータは捨て (#847)、
+// 予定の開始からチューニングにかかる時間を差し引いた時刻にサービスストリームを開き、予定の開始までに届いたデータは読み飛ばし (#847)、
 // その後に届いたデータをすべて最終的な保存先に書き込む。
-// 書きながら TS を解析し、ドロップを数え、索引を作る。予定の終わりは、録画しながら予約を読み直して決める。
+// 書きながら TS を解析し、ドロップを数え、インデックスを作る。予定の終わりは、録画しながら予約を読み直して決める。
 type Recorder struct {
 	pool     *pgxpool.Pool
 	clock    clock.Clock
@@ -136,9 +136,9 @@ type Recorder struct {
 	location *time.Location
 	logger   *slog.Logger
 	opts     RecorderOptions
-	// broadcastSkew は、録画している TS の TOT で最後に測った、放送の時刻と OS の時計の差 (#1309)。まだ測っていなければ nil。
+	// broadcastSkew は、録画している TS の TOT で最後に計測した、放送の時刻と OS の時計の差 (#1309)。まだ計測していなければ nil。
 	broadcastSkew atomic.Pointer[broadcastSkew]
-	// savedBroadcastSkew は、broadcastSkew のうち、最後に DB に書いたもの。録画を並べても、測り直した値を一度だけ書く。
+	// savedBroadcastSkew は、broadcastSkew のうち、最後に DB に書いたもの。録画を並べても、計測し直した値を一度だけ書く。
 	savedBroadcastSkew atomic.Pointer[broadcastSkew]
 	// logos は、録画している TS の CDT から集めたロゴ (#1308)。書いているセグメントの様子と一緒に書く。
 	logos *servicelogo.Collector
@@ -150,7 +150,7 @@ type Recorder struct {
 	activities *lineup.ActivityCollector
 }
 
-// broadcastSkew は、TOT で測った時計の差と、測った時刻。
+// broadcastSkew は、TOT で計測した時計の差と、計測した時刻。
 type broadcastSkew struct {
 	skew time.Duration
 	at   time.Time
@@ -189,8 +189,8 @@ func (r *Recorder) Session() Session {
 	return r.record
 }
 
-// observeTOT は、録画している TS の TOT が示す放送の時刻 at と、届いた時点の OS の時計を比べて覚える (#1309)。
-// TS を書く途中で呼ぶので、DB には書かず、書いているセグメントの様子と一緒に書く。TOT は秒単位なので、1 秒ほどの差は測れない。
+// observeTOT は、録画している TS の TOT が示す放送の時刻 at と、届いた時点の OS の時計を比較して保存する (#1309)。
+// TS を書く途中で呼ぶので、DB には書かず、書いているセグメントの様子と一緒に書く。TOT は秒単位なので、1 秒ほどの差は計測できない。
 func (r *Recorder) observeTOT(at time.Time) {
 	now := r.clock.Now()
 	r.broadcastSkew.Store(&broadcastSkew{skew: now.Sub(at), at: now})
@@ -209,7 +209,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	logger := r.logger.With(slog.String("reservation_id", reservation.ID.String()), slog.String("name", reservation.Name))
 
 	startedAt := r.clock.Now()
-	// 録り始めに EIT[p/f] で同じ回かを確かめ直す録画では、録画の開始の通知を、確かめ終えてから送る (#1500)。
+	// 録り始めに EIT[p/f] で同じ回かを確認し直す録画では、録画の開始の通知を、確認し終えてから送る (#1500)。
 	recheck := r.newEpisodeRecheck(ctx, logger, &reservation)
 	// pendingStart は、DB に届かずに録画を記録できていないかどうか。届くようになったら記録する (#1073)。
 	recording, inserted, pendingStart, err := r.startOrDefer(ctx, logger, &reservation, startedAt, recheck != nil)
@@ -232,7 +232,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	}
 	tracker := newEndTracker(r, &recording, &reservation, startMargin, endMargin)
 	tracker.useRecheck(recheck, inserted, pendingStart, created)
-	// 録画を終えずにやめるとき (リースを失ったときなど) は、写すのもやめさせ、書きかけのセグメントを消させる。
+	// 録画を終えずにやめるとき (リースを失ったときなど) は、コピーするのもやめさせ、書きかけのセグメントを消させる。
 	defer func() { tracker.backfill.stop() }()
 	tracker.pending = &pendingSave{
 		recording: &recording, start: pendingStart, closeStale: false, startedAt: startedAt, handedOver: assignment.HandedOver,
@@ -263,7 +263,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 
 			continue
 		}
-		// 録画が予定の開始より遅れて始まったら、予定の開始からの分を、タイムシフトのバッファから写す (#826、設計書 5.7)。
+		// 録画が予定の開始より遅れて始まったら、予定の開始からの分を、タイムシフトのバッファからコピーする (#826、設計書 5.7)。
 		r.maybeStartBackfill(ctx, logger, assignment, tracker, &recording, &reservation, created, pendingStart, segment.startedAt)
 		created++
 		logger.InfoContext(ctx, "started recording", slog.String("pool_id", segment.poolID), slog.String("path", segment.path))
@@ -287,7 +287,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			return errors.Join(context.Cause(ctx), closeErr)
 		case end == endDelayed:
 			// 予約した番組が遅れて始まるので、前の番組しか入っていないセグメントを消し、開き直して放送中になるのを待つ (#1046)。
-			// バッファから写していれば、前の番組なので、写すのもやめさせる。
+			// バッファからコピーしていれば、前の番組なので、コピーするのもやめさせる。
 			tracker.backfill.stop()
 			tracker.backfill = nil
 			created = r.discardSegments(ctx, logger, &recording, tracker, created)
@@ -311,14 +311,14 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	}
 }
 
-// leftOverGrace は、前の mikan が残した録画を終える前に待つ、RetryInterval の回数。前の mikan が、覚えていた記録を書く間。
+// leftOverGrace は、前の mikan が残した録画を終える前に待つ、RetryInterval の回数。前の mikan が、持っていた記録を書く間。
 const leftOverGrace = 3
 
-// errInterruptedBeforeStart は、予定の開始まで読み捨てている間に、ストリームが切れたこと。
+// errInterruptedBeforeStart は、予定の開始まで読み飛ばしている間に、ストリームが切れたこと。
 var errInterruptedBeforeStart = errors.New("the stream was interrupted before the planned start")
 
-// openStream は、サービスストリームを開き、予定の開始まで読み捨てる。
-// チューニングのために早く開いたストリームを読み捨て、開始前のマージンを設定どおりにする (#847)。
+// openStream は、サービスストリームを開き、予定の開始まで読み飛ばす。
+// チューニングのために早く開いたストリームを読み飛ばし、開始前のマージンを設定どおりにする (#847)。
 func (r *Recorder) openStream(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, reservation *sqlc.GetReservationForRecordingRow, tracker *endTracker,
 ) (io.ReadCloser, *usedTuner, error) {
@@ -326,7 +326,7 @@ func (r *Recorder) openStream(
 	if err != nil {
 		return nil, nil, err
 	}
-	// ストリームを開いている間に、受信しているチューナーを探す。予定の開始まで読み捨てる前に探し、チューナーを手放した後にしない。
+	// ストリームを開いている間に、受信しているチューナーを探す。予定の開始まで読み飛ばす前に探し、チューナーを手放した後にしない。
 	tuner := r.findTuner(ctx, logger, stream)
 	// 引き継ぎ待ちの古い mikan は、ストリームを開いたことを見て、自分のストリームを閉じる (設計書 5.4)。
 	markCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
@@ -337,7 +337,7 @@ func (r *Recorder) openStream(
 	if err != nil {
 		logger.WarnContext(ctx, "failed to record that the stream was opened", slog.Any("error", err))
 	}
-	// 同じ回かを確かめ直す録画では、読み捨てる分の EIT[p/f] も読む。書き始める前に、やめるかを決められる (#1500)。
+	// 同じ回かを確認し直す録画では、読み飛ばす分の EIT[p/f] も読む。書き始める前に、やめるかを決められる (#1500)。
 	var tee io.Writer
 	if tracker.recheck != nil {
 		tee = tracker.recheck
@@ -352,7 +352,7 @@ func (r *Recorder) openStream(
 }
 
 // findTuner は、ストリームを受信しているチューナーを返す (#1467)。チューナーサーバーが返した利用者の ID を、チューナーの一覧の
-// 利用者と突き合わせる。見つけられなければ nil を返す。録画には要らないので、見つけられなくても録画は続ける。
+// 利用者と照合する。見つけられなければ nil を返す。録画には要らないので、見つけられなくても録画は続ける。
 func (r *Recorder) findTuner(ctx context.Context, logger *slog.Logger, stream io.ReadCloser) *usedTuner {
 	identified, ok := stream.(tunerserver.TunerUserIdentifier)
 	if !ok || identified.TunerUserID() == "" {
@@ -382,7 +382,7 @@ func (r *Recorder) findTuner(ctx context.Context, logger *slog.Logger, stream io
 
 // openForWriting は、ストリームを開き、書き始めるストリームと、その最初のデータを読んだ時刻を返す。
 // 開けなければ、開き直すか、録画を終えるか、割り振りを手放す (retryOpen)。
-// 遅れた番組を待つときは、放送中になるまで書かずに待ち、溜めた直近の分から書く (#1046)。
+// 遅れた番組を待つときは、放送中になるまで書かずに待ち、バッファした直近の分から書く (#1046)。
 func (r *Recorder) openForWriting(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow,
 	tracker *endTracker, result *sessionResult, created int, unreachableSince *time.Time,
@@ -394,7 +394,7 @@ func (r *Recorder) openForWriting(
 		return waitOutcome{stream: nil, tuner: nil, startedAt: time.Time{}, reopen: !done, done: done, err: err}
 	}
 	*unreachableSince = time.Time{}
-	// 読み捨てずに書き始めるときは、ここで最初のデータが届いたとみなし、EIT[p/f] を待つ上限を数え始める (#1500)。
+	// 読み飛ばさずに書き始めるときは、ここで最初のデータが届いたとみなし、EIT[p/f] を待つ上限を数え始める (#1500)。
 	tracker.recheck.observeData(r.clock.Now())
 	outcome := r.waitBeforeWriting(ctx, logger, assignment, recording, tracker, result, stream, created)
 	outcome.tuner = tuner
@@ -597,7 +597,7 @@ func (r *Recorder) waitToReopen(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult, d time.Duration,
 ) (bool, error) {
 	if d <= 0 {
-		// 予定の終わりに、チューナーサーバーがストリームを閉じることもあるので、開き直す前に、止めるときかを確かめる。
+		// 予定の終わりに、チューナーサーバーがストリームを閉じることもあるので、開き直す前に、止めるときかを確認する。
 		// 切れてすぐなので、途切れた区間は足さない。
 		end := tracker.check(ctx)
 		if end == endNone {
@@ -626,7 +626,7 @@ type sessionResult struct {
 	lastError string
 }
 
-// failed は、録画できなかった理由と、そのエラーを覚える。err が nil なら、本文は空にする。
+// failed は、録画できなかった理由と、そのエラーを保存する。err が nil なら、本文は空にする。
 // EDCB の予約にチューナーを取られたなら (#1534)、どこで気づいても、取られたことを理由にする。
 // 取られた後に、チューナーを確保できずにつなぎ直せないときも、取られたことを理由に残す。
 // 取られたチューナーが空かないことが、つなぎ直せない元だからである。このときは、エラーの本文も、取られたときのものを残す。後のチューナーを確保できなかった本文では、元が分からないからである。
@@ -697,7 +697,7 @@ func (r *Recorder) finish(
 	if end == endSameEpisode {
 		return r.abandon(ctx, logger, assignment, recording, tracker)
 	}
-	// バッファから写したセグメントも、録画の途切れた区間と、セグメントをつなぐ処理に入れるため、写し終えてから終える。
+	// バッファからコピーしたセグメントも、録画の途切れた区間と、セグメントをつなぐ処理に入れるため、コピーし終えてから終える。
 	tracker.backfill.wait()
 
 	return r.untilDatabase(ctx, logger, "finish the recording", func(ctx context.Context) error {
@@ -707,7 +707,7 @@ func (r *Recorder) finish(
 		if err := tracker.persist(ctx); err != nil {
 			return err
 		}
-		// 確かめ直している間に録画を終えるときも、完了か失敗の通知より先に、録画の開始を通知する (#1500)。
+		// 確認し直している間に録画を終えるときも、完了か失敗の通知より先に、録画の開始を通知する (#1500)。
 		if err := tracker.recheck.notifyStarted(ctx); err != nil {
 			return err
 		}
@@ -726,7 +726,7 @@ func (r *Recorder) finishOnce(
 
 		return r.fail(ctx, assignment, recording, domain.RecordingFailureReasonCancelled, "", now)
 	}
-	// 落ちた mikan が残した書きかけのファイルを閉じる。止まる mikan は、ストリームを開いたのを見てから、RenewInterval ごとに確かめて止まるので、
+	// 落ちた mikan が残した書きかけのファイルを閉じる。止まる mikan は、ストリームを開いたのを見てから、RenewInterval ごとに確認して止まるので、
 	// それより長く書き込みのないファイルは、落ちた mikan のものとする。
 	if err := r.closeStaleFiles(ctx, recording.ID, now.Add(-2*DefaultRenewInterval)); err != nil {
 		return err
@@ -789,7 +789,7 @@ type gap struct {
 }
 
 // plannedStart は、予約の予定の開始を返す。割り当てが消えていれば、番組の開始を返す。
-// 予約が消えていれば、冒頭の欠けは確かめないので、found を false にする。
+// 予約が消えていれば、冒頭の欠けは確認しないので、found を false にする。
 // 遅れた番組を待った録画では、放送の開始から、先に書く分の長さを引いた時刻にする。遅れた分は、欠けたのではない (#1046)。
 func (r *Recorder) plannedStart(ctx context.Context, assignment *Assignment, recordingID uuid.UUID) (time.Time, bool, error) {
 	q := sqlc.New(r.pool)
@@ -859,7 +859,7 @@ func gapsOf(files []sqlc.RecordingFile, plannedStart *time.Time, now time.Time, 
 	return gaps, true
 }
 
-// waitUntilOpen は、予定の開始からチューニングにかかる時間を引いた時刻まで待ち、そのときの予約を返す。
+// waitUntilOpen は、予定の開始からチューニングにかかる時間を差し引いた時刻まで待ち、そのときの予約を返す。
 // 待つ間に予約を無効にしたか、予定の終わりが過ぎたら、録画しないので false を返す。予約を読めなければ、読めるまでやり直す。
 func (r *Recorder) waitUntilOpen(ctx context.Context, assignment *Assignment) (sqlc.GetReservationForRecordingRow, *sessionCache, bool, error) {
 	ticker := time.NewTicker(r.opts.Tick)
@@ -914,7 +914,7 @@ func (r *Recorder) waitUntilOpen(ctx context.Context, assignment *Assignment) (s
 	}
 }
 
-// segment は、書いている録画ファイルと、その索引。
+// segment は、書いている録画ファイルと、そのインデックス。
 type segment struct {
 	poolID string
 	path   string
@@ -931,8 +931,8 @@ type segment struct {
 	excluded qualityCounts
 }
 
-// createSegment は、保存先を選んで録画ファイルと索引を作り、DB に記録する。失敗したら、録画の失敗の理由も返す。
-// startedAt は、セグメントの最初のデータを読んだ時刻。遅れた番組を待った後は、溜めた分を読み始めた時刻になる (#1046)。
+// createSegment は、保存先を選んで録画ファイルとインデックスを作り、DB に記録する。失敗したら、録画の失敗の理由も返す。
+// startedAt は、セグメントの最初のデータを読んだ時刻。遅れた番組を待った後は、バッファした分を読み始めた時刻になる (#1046)。
 func (r *Recorder) createSegment(
 	ctx context.Context, tracker *endTracker, reservation *sqlc.GetReservationForRecordingRow, startedAt time.Time, tuner *usedTuner,
 ) (*segment, domain.RecordingFailureReason, error) {
@@ -971,7 +971,7 @@ func (r *Recorder) createSegment(
 	return seg, "", nil
 }
 
-// newSegment は、推定サイズ estimated の入るプールを選んで、録画ファイルと索引を作る。DB には記録しない。
+// newSegment は、推定サイズ estimated の入るプールを選んで、録画ファイルとインデックスを作る。DB には記録しない。
 // 失敗したら、録画の失敗の理由も返す。
 func (r *Recorder) newSegment(
 	ctx context.Context, settings *domain.RecordingSettings, pools []*kago.Pool, reservation *sqlc.GetReservationForRecordingRow,
@@ -1002,7 +1002,7 @@ func (r *Recorder) newSegment(
 	if err != nil {
 		return nil, domain.RecordingFailureReasonStorageUnavailable, err
 	}
-	// 索引は、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。作れなくても、録画は続ける。
+	// インデックスは、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。作れなくても、録画は続ける。
 	fileID := id.New()
 	analyzer, indexFile, indexErr := createIndex(
 		r.store, fileID, r.observeTOT, r.logos.Observe, r.lineups.Observe, r.terrestrial.Observe, r.activities.Observe,
@@ -1019,7 +1019,7 @@ func (r *Recorder) newSegment(
 	return seg, "", nil
 }
 
-// closeFiles は、録画ファイルと索引を、書き出さずに閉じる。記録できなかったセグメントを捨てるときに使う。
+// closeFiles は、録画ファイルとインデックスを、書き込まずに閉じる。記録できなかったセグメントを破棄するときに使う。
 func (seg *segment) closeFiles() {
 	_ = seg.file.Close()
 	if seg.indexFile != nil {
@@ -1050,8 +1050,8 @@ func poolsFrom(rows []sqlc.StoragePool, mounted []string, poolID string) []*kago
 	return pools
 }
 
-// CreateIndex は、store のデータディレクトリの、ファイル fileID のディレクトリに索引を作り、索引を書く解析器を返す。
-// 索引を作れなければ、索引を書かない解析器と、そのエラーを返す。タイムシフトのチャンクも、同じ作りの索引を書く。
+// CreateIndex は、store のデータディレクトリの、ファイル fileID のディレクトリにインデックスを作り、インデックスを書くパーサーを返す。
+// インデックスを作れなければ、インデックスを書かないパーサーと、そのエラーを返す。タイムシフトのチャンクも、同じ作りのインデックスを書く。
 // onLogo は、CDT でロゴを読んだときに呼ぶ (#1308)。onNIT と onSDT は、NIT と SDT を読んだときに呼ぶ (#1519)。
 // onPresentFollowing は、EIT[p/f] のセクションを読んだときに呼ぶ (#2034)。nil なら呼ばない。
 func CreateIndex(
@@ -1061,12 +1061,12 @@ func CreateIndex(
 	return createIndex(store, fileID, nil, onLogo, onNIT, onSDT, onPresentFollowing)
 }
 
-// createIndex は、CreateIndex と同じく索引を書く解析器を返す。onTOT は、TOT を読んだときに呼ぶ (#1309)。nil なら呼ばない。
+// createIndex は、CreateIndex と同じくインデックスを書くパーサーを返す。onTOT は、TOT を読んだときに呼ぶ (#1309)。nil なら呼ばない。
 func createIndex(
 	store *kago.Store, fileID uuid.UUID, onTOT func(time.Time), onLogo func(*ts.Logo), onNIT func(*ts.NIT), onSDT func(*ts.SDT),
 	onPresentFollowing func(*ts.PresentFollowingSection),
 ) (*ts.Analyzer, *os.File, error) {
-	// 索引を作れなくても、TOT とロゴは読む。
+	// インデックスを作れなくても、TOT とロゴは読む。
 	noIndex := ts.NewAnalyzer(&ts.AnalyzerOptions{
 		Index: nil, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: onNIT, OnSDT: onSDT, OnPresentFollowing: onPresentFollowing,
 	})
@@ -1110,7 +1110,7 @@ const (
 	endSameEpisode
 )
 
-// copyUntilEnd は、予定の終わりが来るか、予約を無効にするまで、ストリームを録画ファイルと解析器に書き、止めた理由を返す。
+// copyUntilEnd は、予定の終わりが来るか、予約を無効にするまで、ストリームを録画ファイルとパーサーに書き、止めた理由を返す。
 // 予定の終わりは、予約を読み直して決める。その前にストリームが切れたら、エラーを返す。
 // errWrite は、録画ファイルへの書き込みに失敗したこと。ストリームの中断と分けて、失敗の理由を保存先にする (#519)。
 var errWrite = errors.New("failed to write the recording file")
@@ -1127,10 +1127,10 @@ func (w writeErrorWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// skipUntil は、clk の until まで stream を読み捨てる。until が過ぎていれば何もしない。
-// 読み捨てる長さは最初に決め、経過時間で測る。読み捨てている間に壁時計が戻っても、読み捨て続けて冒頭を失わないようにする。
-// 読み捨てた後に書くデータが TS パケットの途中から始まらないよう、パケットの区切りまで読み捨てる。
-// tee が nil でなければ、読み捨てる分を tee にも書く。
+// skipUntil は、clk の until まで stream を読み飛ばす。until が過ぎていれば何もしない。
+// 読み飛ばす長さは最初に決め、経過時間で計測する。読み飛ばしている間に壁時計が戻っても、読み飛ばし続けて冒頭を失わないようにする。
+// 読み飛ばした後に書くデータが TS パケットの途中から始まらないよう、パケットの区切りまで読み飛ばす。
+// tee が nil でなければ、読み飛ばす分を tee にも書く。
 func skipUntil(clk clock.Clock, stream io.Reader, until time.Time, tee io.Writer) error {
 	stopwatch := clk.StartStopwatch()
 	length := until.Sub(clk.Now())
@@ -1180,7 +1180,7 @@ func (r *Recorder) copyUntilEnd(ctx context.Context, tracker *endTracker, stream
 			stats := seg.analyzer.Stats()
 			seg.samples.add(r.clock.Now(), countsOf(stats))
 			live.maybeWrite(watchCtx, stats)
-			// 書き込みが途絶えても、書いた分をファイルに出す。書き出しのエラーは、閉じるときにも返る。
+			// 書き込みが途絶えても、書いた分をファイルに出す。書き込みのエラーは、閉じるときにも返る。
 			_ = writer.flushIfStale()
 			select {
 			case <-watchCtx.Done():
@@ -1192,7 +1192,7 @@ func (r *Recorder) copyUntilEnd(ctx context.Context, tracker *endTracker, stream
 	_, err := io.Copy(io.MultiWriter(writeErrorWriter{w: writer}, seg.analyzer), stream)
 	stopWatch()
 	<-watchDone
-	// セグメントを閉じるときにバッファを書き出すので、その前に、書き出すゴルーチンを止める。
+	// セグメントを閉じるときにバッファを書き込むので、その前に、書き込むゴルーチンを止める。
 	<-sampleDone
 	stats := seg.analyzer.Stats()
 	select {
@@ -1224,7 +1224,7 @@ type endTracker struct {
 	lost  bool
 	// broadcast は、録画中の TS の EIT[p/f] から、予約した番組が実際に放送されているかを追う。番組予約とルール予約だけ (#389)。
 	broadcast *broadcastTracker
-	// analyzer は、今書いているセグメントの解析器。EIT[p/f] を読む。セグメントを作り直すたびに替わる。
+	// analyzer は、今書いているセグメントのパーサー。EIT[p/f] を読む。セグメントを作り直すたびに替わる。
 	analyzer atomic.Pointer[ts.Analyzer]
 	// serviceID16 は、EIT[p/f] の service_id (サービスの ID の下 5 桁)。
 	serviceID16 uint16
@@ -1258,10 +1258,10 @@ type endTracker struct {
 	// savedRecordingID は、DB に記録した録画の ID。DB に届かずに仮の録画で始めた間は nil (#1073)。
 	// 書いているセグメントの様子 (#829) を書くゴルーチンが読むので、atomic で持つ。
 	savedRecordingID atomic.Pointer[uuid.UUID]
-	// backfill は、遅れて始めた録画に、予定の開始からの分をタイムシフトのバッファから写す処理 (#826)。写していなければ nil。
-	// 録画を終える前に、写し終えるのを待つ。
+	// backfill は、遅れて始めた録画に、予定の開始からの分をタイムシフトのバッファからコピーする処理 (#826)。コピーしていなければ nil。
+	// 録画を終える前に、コピーし終えるのを待つ。
 	backfill *backfill
-	// recheck は、録り始めに EIT[p/f] で同じ回かを確かめ直す状態 (#1500)。確かめ直さない録画では nil。
+	// recheck は、録り始めに EIT[p/f] で同じ回かを確認し直す状態 (#1500)。確認し直さない録画では nil。
 	recheck *episodeRecheck
 }
 
@@ -1290,7 +1290,7 @@ func newEndTracker(
 	return t
 }
 
-// watch は、EIT[p/f] を読む解析器を、今書いているセグメントのものにする。
+// watch は、EIT[p/f] を読むパーサーを、今書いているセグメントのものにする。
 func (t *endTracker) watch(analyzer *ts.Analyzer) {
 	t.analyzer.Store(analyzer)
 }
@@ -1388,7 +1388,7 @@ func (t *endTracker) reload(ctx context.Context) (sqlc.GetReservationForRecordin
 	return reservation, endNone, true
 }
 
-// check は、今が録画を止めるときかを確かめる。読めなければ、録画を続ける。
+// check は、今が録画を止めるときかを確認する。読めなければ、録画を続ける。
 func (t *endTracker) check(ctx context.Context) endReason {
 	r := t.recorder
 	// checkedAt は、DB を待つ前の時刻。DB に届かずに待たされたら、録画を止めた時刻は、これにする (#1073)。
@@ -1406,7 +1406,7 @@ func (t *endTracker) check(ctx context.Context) endReason {
 		return endCancelled
 	}
 	now := r.clock.Now()
-	// 録り始めに同じ回を録画済みと分かったら、録画をやめる (#1500)。DB に届かない間は確かめない。
+	// 録り始めに同じ回を録画済みと分かったら、録画をやめる (#1500)。DB に届かない間は確認しない。
 	if !t.unreachable && t.recheck.check(ctx, now) {
 		return endSameEpisode
 	}
@@ -1637,7 +1637,7 @@ func maxTime(a, b time.Time) time.Time {
 	return b
 }
 
-// closeSegment は、録画ファイルと索引を書き終え、DB に大きさと時間の範囲を記録し、ドロップを録画の集計に足す。
+// closeSegment は、録画ファイルとインデックスを書き終え、DB に大きさと時間の範囲を記録し、ドロップを録画の集計に足す。
 // ctx は Session の context。リースを失った後や止めるときも、1 度は記録を試す。now は、セグメントに書くのをやめた時刻。
 func (r *Recorder) closeSegment(
 	ctx context.Context, logger *slog.Logger, tracker *endTracker, recording *sqlc.Recording, seg *segment, stats *ts.Stats, now time.Time,
@@ -1669,8 +1669,8 @@ func (r *Recorder) closeSegment(
 	return errors.Join(errs...)
 }
 
-// syncAndClose は、録画ファイルと索引を書き出し、fsync してから閉じる (設計書 5.2)。録画ファイルを残せなかったエラーを返す。
-// 索引は、なくても再生できるので、書けなくてもエラーにしない。
+// syncAndClose は、録画ファイルとインデックスを書き込み、fsync してから閉じる (設計書 5.2)。録画ファイルを残せなかったエラーを返す。
+// インデックスは、なくても再生できるので、書けなくてもエラーにしない。
 func (seg *segment) syncAndClose(ctx context.Context, logger *slog.Logger) []error {
 	errs := []error{}
 	if err := seg.buffer.Flush(); err != nil {
@@ -1712,7 +1712,7 @@ func (r *Recorder) closeSegmentFile(logger *slog.Logger, recording *sqlc.Recordi
 		if err := q.CloseRecordingFile(ctx, sqlc.CloseRecordingFileParams{Size: stats.Bytes, EndedAt: &now, ID: seg.fileID}); err != nil {
 			return fmt.Errorf("failed to save the recording file size: %w", err)
 		}
-		// EPG から音声の構成を写せなかった録画 (時刻予約など) は、TS の EIT[p/f] から読んだもので埋める (設計書 5.3)。
+		// EPG から音声の構成をコピーできなかった録画 (時刻予約など) は、TS の EIT[p/f] から読んだもので埋める (設計書 5.3)。
 		if audios, ok, err := ts.RecordingAudios(stats.Events, recording.ServiceID, recording.EventID); err != nil {
 			logger.WarnContext(ctx, "failed to encode the audio components", slog.Any("error", err))
 		} else if ok {
@@ -1785,7 +1785,7 @@ func nonEmpty(s string) *string {
 
 // start は、予約の録画を始め、新しく始めたときは、録画の開始を通知する (設計書 6.2)。引き継ぎや再開で続きを録るときは通知しない。
 // at は、録画を始めた時刻。DB に届かずに記録が遅れても、この時刻で記録する (#1073)。
-// deferStarted なら、録画の開始は通知しない。録り始めに同じ回かを確かめ直してから通知する (#1500)。新しく始めたかどうかも返す。
+// deferStarted なら、録画の開始は通知しない。録り始めに同じ回かを確認し直してから通知する (#1500)。新しく始めたかどうかも返す。
 func (r *Recorder) start(
 	ctx context.Context, reservation *sqlc.GetReservationForRecordingRow, at time.Time, deferStarted bool,
 ) (sqlc.Recording, bool, error) {
@@ -1807,11 +1807,11 @@ func (r *Recorder) start(
 			return nil
 		}
 		inserted = true
-		// 解像度と同じく、録画を始めたときの番組とアニメの作品の結びつきを写す (設計書 3.8)。
+		// 解像度と同じく、録画を始めたときの番組とアニメの作品の結びつきをコピーする (設計書 3.8)。
 		if err := anime.CopyToRecording(ctx, tx, recording.ID, recording.ServiceID, recording.StartAt, at); err != nil {
 			return err
 		}
-		// ドラマの番組と TMDB の作品と話の結びつきも、同じく写す (#1651、設計書 3.9)。
+		// ドラマの番組と TMDB の作品と話の結びつきも、同じくコピーする (#1651、設計書 3.9)。
 		if err := drama.CopyToRecording(ctx, tx, recording.ID, recording.ServiceID, recording.StartAt, at); err != nil {
 			return err
 		}
@@ -1861,7 +1861,7 @@ func (r *Recorder) prepare(ctx context.Context, assignment *Assignment, recordin
 
 // finishLeftOver は、予定の終わりの後に割り振りを取ったとき、前の mikan が録画中のまま残した録画を、予定の終わりで終える (#1073)。
 // DB が予定の終わりをまたいで止まり、戻った直後にこの mikan が割り振りを取ると、録り終えた前の mikan は録画を完了にできない
-// (世代番号が進んでいるので)。前の mikan が、DB に届かずに覚えていた記録を書く間、少し待ってから終える。
+// (世代番号が進んでいるので)。前の mikan が、DB に届かずに持っていた記録を書く間、少し待ってから終える。
 // 落ちた mikan の代わりなら、録れなかった終わりの部分は、途切れた区間になる。
 func (r *Recorder) finishLeftOver(ctx context.Context, assignment *Assignment, reservation *sqlc.GetReservationForRecordingRow) error {
 	if !reservation.Enabled || reservation.PlannedStartAt == nil || reservation.PlannedEndAt == nil || r.clock.Now().Before(*reservation.PlannedEndAt) {
@@ -1891,7 +1891,7 @@ func (r *Recorder) finishLeftOver(ctx context.Context, assignment *Assignment, r
 }
 
 // startOrDefer は、録画を始めたことを記録し、新しく始めたかどうか (inserted) も返す。DB に届かなければ、仮の録画を返し、
-// 記録できていないことを pending で知らせる (#1073)。記録し直すときに、録画の開始を通知する。
+// 記録できていないことを pending で通知する (#1073)。記録し直すときに、録画の開始を通知する。
 // deferStarted なら、録画の開始は通知しない (#1500)。
 func (r *Recorder) startOrDefer(
 	ctx context.Context, logger *slog.Logger, reservation *sqlc.GetReservationForRecordingRow, startedAt time.Time, deferStarted bool,
@@ -2004,8 +2004,8 @@ func (r *Recorder) complete(
 	return nil
 }
 
-// judgeScramble は、スクランブルされたまま録れたかを判定して録画 (recording の警告の印も) に記録し、警告なら完了の通知の payload に添え、
-// 続けて起きたら管理者に知らせる (設計書 5.5、6.2、#1517)。スクランブルされたまま録れても、失敗にはしない。
+// judgeScramble は、スクランブルされたまま録れたかを判定して録画 (recording の警告のフラグも) に記録し、警告なら完了の通知の payload に添え、
+// 続けて起きたら管理者に通知する (設計書 5.5、6.2、#1517)。スクランブルされたまま録れても、失敗にはしない。
 func (r *Recorder) judgeScramble(
 	ctx context.Context, tx pgx.Tx, recording *sqlc.Recording, serviceName string, payload map[string]any, now time.Time,
 ) error {
@@ -2152,7 +2152,7 @@ func newLiveStatsWriter(r *Recorder, recordingID *atomic.Pointer[uuid.UUID]) *li
 	}
 }
 
-// maybeWrite は、前に書いてから liveStatsInterval が過ぎていれば、stats を書く。最初は、ビットレートを測るための区切りにする。
+// maybeWrite は、前に書いてから liveStatsInterval が過ぎていれば、stats を書く。最初は、ビットレートを計測するための区切りにする。
 func (w *liveStatsWriter) maybeWrite(ctx context.Context, stats *ts.Stats) {
 	now := w.stopwatch.Elapsed()
 	if w.lastAt < 0 {
@@ -2187,8 +2187,8 @@ func (w *liveStatsWriter) maybeWrite(ctx context.Context, stats *ts.Stats) {
 	w.recorder.activities.Flush(dbCtx, sqlc.New(w.recorder.pool))
 }
 
-// writeBroadcastSkew は、前に書いてから TOT で測り直していれば、放送の時刻と OS の時計の差を書く (#1309)。
-// 録画を並べていても、測り直した値は、最初に気づいたセグメントだけが書く。書けなければ、次の機会に書き直す。
+// writeBroadcastSkew は、前に書いてから TOT で計測し直していれば、放送の時刻と OS の時計の差を書く (#1309)。
+// 録画を並べていても、計測し直した値は、最初に気づいたセグメントだけが書く。書けなければ、次の機会に書き直す。
 // 差が閾値を超えていれば、ログにも残す。見るためだけなので、書けなくても録画を止めない。
 func (w *liveStatsWriter) writeBroadcastSkew(ctx context.Context) {
 	r := w.recorder
@@ -2211,9 +2211,9 @@ func (w *liveStatsWriter) writeBroadcastSkew(ctx context.Context) {
 	}
 }
 
-// useRecheck は、録り始めに同じ回かを確かめ直す状態 recheck を使う (#1500)。recheck が nil なら何もしない。
-// 確かめ直すのは、まだ何も書いていない録画 (created が 0) を、新しく始める (inserted) ときだけ。引き継ぎや再開で続きを録るときは、
-// もう読んであるので読まない。DB に届かずに録画を記録できていなければ (pendingStart)、確かめられないので、確かめずに録る。
+// useRecheck は、録り始めに同じ回かを確認し直す状態 recheck を使う (#1500)。recheck が nil なら何もしない。
+// 確認し直すのは、まだ何も書いていない録画 (created が 0) を、新しく始める (inserted) ときだけ。引き継ぎや再開で続きを録るときは、
+// もう読んであるので読まない。DB に届かずに録画を記録できていなければ (pendingStart)、確認できないので、確認せずに録る。
 func (t *endTracker) useRecheck(recheck *episodeRecheck, inserted, pendingStart bool, created int) {
 	if recheck == nil || !inserted || pendingStart || created != 0 {
 		return

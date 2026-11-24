@@ -10,10 +10,10 @@ import (
 	"github.com/riverqueue/river/rivertype"
 )
 
-// importCheckInterval は、取り込み直す時期が来たかを確かめる間隔。取り込めなかった取り込み元を、1 時間後に問い合わせ直すのにも使う。
+// importCheckInterval は、取り込み直す時期が来たかを確認する間隔。取り込めなかった取り込み元を、1 時間後に問い合わせ直すのにも使う。
 const importCheckInterval = time.Hour
 
-// importTimeout は、取り込みのジョブの時間の上限 (付録 A)。Annict と AniList から作品 ID を引くときは、
+// importTimeout は、取り込みのジョブの時間の上限 (付録 A)。Annict と AniList から作品 ID を取得するときは、
 // 間を空けて 1 つずつ、60 回ほど問い合わせるので、River の既定の 1 分では足りない。
 const importTimeout = 15 * time.Minute
 
@@ -70,7 +70,7 @@ func (w *ImportWorker) Work(ctx context.Context, job *river.Job[ImportArgs]) err
 	return nil
 }
 
-// ImportPeriodicJob は、取り込み直す時期が来たかを 1 時間ごとに確かめる定期ジョブを返す。
+// ImportPeriodicJob は、取り込み直す時期が来たかを 1 時間ごとに確認する定期ジョブを返す。
 // 取り込み直すのは、前に問い合わせてから 1 日 (取り込めなかったときは 1 時間) が過ぎた取り込み元だけである。
 func ImportPeriodicJob() *river.PeriodicJob {
 	return river.NewPeriodicJob(
@@ -102,7 +102,7 @@ const (
 	MatchModeHorizon = "horizon"
 	// MatchModeFinalize は、放送が終わった番組を照合し直し、結びつきを確定させる。
 	MatchModeFinalize = "finalize"
-	// MatchModeBroadcasts は、録画に結びついた作品の、ほかの放送を引く (#1361)。
+	// MatchModeBroadcasts は、録画に結びついた作品の、ほかの放送を取得する (#1361)。
 	MatchModeBroadcasts = "broadcasts"
 	// MatchModeImported は、EPGStation から取り込んだ録画を照合する。
 	MatchModeImported = "imported"
@@ -115,7 +115,7 @@ const (
 	matchHorizonInterval = 6 * time.Hour
 	// finalizeInterval は、放送が終わった番組の結びつきを確定させる間隔 (付録 A)。アーカイブへ移すまでの猶予 (24 時間) の間に、何度も機会がある。
 	finalizeInterval = time.Hour
-	// collectBroadcastsInterval は、録画に結びついた作品の、ほかの放送を引く間隔 (付録 A)。
+	// collectBroadcastsInterval は、録画に結びついた作品の、ほかの放送を取得する間隔 (付録 A)。
 	collectBroadcastsInterval = time.Hour
 	// matchImportedInterval は、EPGStation から取り込んだ録画を照合する間隔 (付録 A)。少しずつ照合し、しょぼいカレンダーへの問い合わせを散らす。
 	matchImportedInterval = 10 * time.Minute

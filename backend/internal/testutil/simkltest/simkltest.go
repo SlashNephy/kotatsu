@@ -1,4 +1,4 @@
-// Package simkltest は、テストで見たドラマの記録とウォッチリストの取り込みを確かめる、偽の Simkl を提供する (#1649)。
+// Package simkltest は、テストで見たドラマの記録とウォッチリストの取り込みを確認する、モックの Simkl を提供する (#1649)。
 //
 // Simkl の AUTH V2 (認可コードフローと PKCE、更新のトークン、取り消し) と、/users/settings、/sync/history、/sync/activities、
 // /sync/all-items/shows をまねる。本物と同じく、更新すると前のアクセストークンをすぐに無効にし、すべての問い合わせに client_id、
@@ -52,7 +52,7 @@ type Watched struct {
 	WatchedAt string
 }
 
-// Server は、偽の Simkl。画面 (認可) と API を 1 つのオリジンで受ける。
+// Server は、モックの Simkl。画面 (認可) と API を 1 つのオリジンで受ける。
 type Server struct {
 	ClientID     string
 	ClientSecret string
@@ -105,7 +105,7 @@ type token struct {
 	expiresAt time.Time
 }
 
-// New は、偽の Simkl を空いているポートで起動して返す。Close で止める。redirectURIs は、アプリに登録したリダイレクト URI。
+// New は、モックの Simkl を空いているポートで起動して返す。Close で止める。redirectURIs は、アプリに登録したリダイレクト URI。
 func New(clientID, clientSecret string, redirectURIs ...string) *Server {
 	s := newServer(clientID, clientSecret, redirectURIs)
 	s.server = httptest.NewServer(s.Handler())
@@ -113,7 +113,7 @@ func New(clientID, clientSecret string, redirectURIs ...string) *Server {
 	return s
 }
 
-// NewOn は、偽の Simkl を listener で起動して返す。別のプロセスとして立てる偽の Simkl (internal/cmd/fakesimkl) が使う。
+// NewOn は、モックの Simkl を listener で起動して返す。別のプロセスとして立てるモックの Simkl (internal/cmd/fakesimkl) が使う。
 func NewOn(listener net.Listener, clientID, clientSecret string, redirectURIs ...string) *Server {
 	s := newServer(clientID, clientSecret, redirectURIs)
 	s.server = httptest.NewUnstartedServer(s.Handler())
@@ -133,10 +133,10 @@ func newServer(clientID, clientSecret string, redirectURIs []string) *Server {
 	}
 }
 
-// URL は、偽の Simkl のオリジン。
+// URL は、モックの Simkl のオリジン。
 func (s *Server) URL() string { return s.server.URL }
 
-// Close は、偽の Simkl を止める。
+// Close は、モックの Simkl を止める。
 func (s *Server) Close() { s.server.Close() }
 
 // SetNow は、トークンの期限を決める時刻を変える。
@@ -159,7 +159,7 @@ func (s *Server) ExpireAccessTokens() {
 	}
 }
 
-// Handler は、偽の Simkl のハンドラーを返す。
+// Handler は、モックの Simkl のハンドラーを返す。
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /oauth2/authorize", s.authorize)
@@ -285,7 +285,7 @@ func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// api は、API の問い合わせを、アプリの印 (client_id、app-name、app-version) とアクセストークンを確かめてから handler に渡す。
+// api は、API の問い合わせを、アプリの識別情報 (client_id、app-name、app-version) とアクセストークンを確認してから handler に渡す。
 func (s *Server) api(handler func(w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()

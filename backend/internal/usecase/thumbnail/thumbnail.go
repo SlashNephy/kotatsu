@@ -1,4 +1,4 @@
-// Package thumbnail は、録画の索引から I フレームの位置を引き、代表画像と、シークバー用のプレビュー画像を作る (設計書 6.1)。
+// Package thumbnail は、録画のインデックスから I フレームの位置を引き、代表画像と、シークバー用のプレビュー画像を作る (設計書 6.1)。
 //
 // 画像は、I フレームから始まる TS の一部を FFmpeg に渡し、最初のフレームを 1 枚取り出して作る。
 // 録画全体をデコードしないので、長い録画でも速く作れる。プレビュー画像は、一定間隔のフレームを 1 枚のタイル画像にまとめる。
@@ -37,13 +37,13 @@ const (
 	// DefaultInterval は、プレビュー画像のコマの間隔の下限。
 	DefaultInterval = 10 * time.Second
 	// ThumbnailPosition は、代表画像にするフレームの位置 (録画の長さに対する割合)。
-	// 録画の頭は、前の番組の終わりや CM のことが多いので、少し入ったところにする。
+	// 録画の先頭は、前の番組の終わりや CM のことが多いので、少し入ったところにする。
 	ThumbnailPosition = 0.25
 	// chunkSize は、1 枚を取り出すのに FFmpeg へ渡す TS の大きさの上限。GOP 1 つ分 (地上波で 1 MiB ほど) より十分に大きくする。
 	chunkSize = 4 << 20
 	// jpegQuality は、プレビュー画像を JPEG にするときの品質。
 	jpegQuality = 80
-	// thumbnailAttempts は、代表画像を取り出せなかったときに、後ろの I フレームで試し直す回数。
+	// thumbnailAttempts は、代表画像を取り出せなかったときに、後ろの I フレームで再試行する回数。
 	thumbnailAttempts = 3
 	// avoidMargin は、代表画像に選ばない区間 (Options.Avoid) の前後に足す余白。CM の区間の境目は無音で決めるので、
 	// 境目のすぐ外の I フレームには、CM の絵が残っていることがある (#1810)。
@@ -54,7 +54,7 @@ const (
 )
 
 var (
-	// ErrNoKeyframe は、索引に I フレームがないので、画像を作れないことを表す。
+	// ErrNoKeyframe は、インデックスに I フレームがないので、画像を作れないことを表す。
 	ErrNoKeyframe = errors.New("the recording has no keyframe in its index")
 	// ErrNoFrame は、どの I フレームからも、画像を取り出せなかったことを表す。
 	ErrNoFrame = errors.New("failed to extract any frame from the recording")
@@ -75,7 +75,7 @@ type Extractor interface {
 	Extract(ctx context.Context, r io.Reader, size Size) ([]byte, error)
 }
 
-// Segment は、録画の 1 つのセグメントのファイルと、その索引。
+// Segment は、録画の 1 つのセグメントのファイルと、そのインデックス。
 type Segment struct {
 	// Path は、セグメントのファイルの絶対パス。
 	Path string
@@ -195,7 +195,7 @@ type keyframe struct {
 	wall time.Duration
 }
 
-// Generate は、セグメントの索引から I フレームを選び、代表画像と、設定していればプレビュー画像を作る。
+// Generate は、セグメントのインデックスから I フレームを選び、代表画像と、設定していればプレビュー画像を作る。
 func (g *Generator) Generate(ctx context.Context, segments []Segment) (*Result, error) {
 	keyframes := keyframesOf(segments)
 	if len(keyframes) == 0 {
@@ -219,8 +219,8 @@ func (g *Generator) Generate(ctx context.Context, segments []Segment) (*Result, 
 
 // thumbnail は、録画の ThumbnailPosition の位置に最も近い I フレームから、代表画像を作る。
 // Avoid の区間 (CM) にかかる I フレームは選ばず、区間の外で最も近いものにする (#1810)。
-// 取り出せなければ、後ろの I フレームで試し直す。Latest なら、書いた終わりの LiveThumbnailLag 前に最も近い I フレームから作り、
-// 取り出せなければ、前の I フレームで試し直す (後ろは、まだ書き終えていないことがあるため)。
+// 取り出せなければ、後ろの I フレームで再試行する。Latest なら、書いた終わりの LiveThumbnailLag 前に最も近い I フレームから作り、
+// 取り出せなければ、前の I フレームで再試行する (後ろは、まだ書き終えていないことがあるため)。
 func (g *Generator) thumbnail(ctx context.Context, segments []Segment, keyframes []keyframe) ([]byte, error) {
 	duration := keyframes[len(keyframes)-1].at
 	target, step := time.Duration(float64(duration)*ThumbnailPosition), 1
@@ -327,7 +327,7 @@ func (g *Generator) extract(ctx context.Context, segments []Segment, k keyframe,
 	return g.extractor.Extract(ctx, io.LimitReader(file, chunkSize), size)
 }
 
-// keyframesOf は、セグメントの索引を、録画の始まりからの時間の順に並べる。
+// keyframesOf は、セグメントのインデックスを、録画の始まりからの時間の順に並べる。
 // 放送の PTS が途中で飛んだり、セグメントの時間が重なったりしても、時間の順に並べ直す。
 // 時間は、再生と同じく、途切れた区間を含めない (設計書 7.2)。プレビュー画像のコマを、シークバーの位置に合わせるためである。
 // 並べた I フレームの間が ts.MaxKeyframeInterval より空いていたら、間で途切れたので、直前の I フレームの間隔だけ進める。

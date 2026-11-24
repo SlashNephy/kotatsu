@@ -13,7 +13,7 @@ afterEach(() => {
 const md5a = '0123456789abcdef0123456789abcdef';
 const md5b = 'fedcba9876543210fedcba9876543210';
 
-// serve は、サーバーの外字の表を持ち、保存されたら送った外字を当てる環境を作る。sent は、送った外字の変更。
+// serve は、サーバーの外字のテーブルを持ち、保存されたら送った外字を当てる環境を作る。sent は、送った外字の変更。
 function serve() {
   let table = [{ md5: md5a, text: 'あ' }];
   const sent: Variables[] = [];

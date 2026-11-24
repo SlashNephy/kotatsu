@@ -215,7 +215,7 @@ function AnimeRecords() {
       clearSearch();
       refresh();
     });
-  // save は、記録の設定を保存する (#1740)。結果は、設定の保存の通知で知らせる。
+  // save は、記録の設定を保存する (#1740)。結果は、設定の保存の通知で伝える。
   const save = (input: () => AnimeRecordSettingsInput) =>
     autoSave(async () => {
       await mutate<accountSettingsMutation>(
@@ -334,7 +334,7 @@ function AnimeRecords() {
 }
 
 // RecordOnDeviceSwitch は、この端末で見たアニメを記録するかを切り替える (#1283)。見たドラマは、ドラマの欄で別に切り替える (#1649)。
-// 端末ごとに覚え、ほかの端末と同期しない。変えたら、ほかの設定と同じ通知で知らせる (#1740)。
+// 端末ごとに保存し、ほかの端末と同期しない。変えたら、ほかの設定と同じ通知で伝える (#1740)。
 function RecordOnDeviceSwitch() {
   const { t } = useTranslation();
   const [enabled, setEnabled] = useRecordOnDevice('anime');

@@ -209,7 +209,7 @@ function retentionHours(seconds: number): number {
 }
 
 // TimeshiftServiceEditor は、タイムシフトで録るサービスの、録っているかとバッファの範囲を出し、保持時間を変えるか、外す行。
-// 保持時間は、欄を離れたときか Enter で保存する (#1740)。外すのは、録ったバッファを捨てるので、確かめてから行う。
+// 保持時間は、欄を離れたときか Enter で保存する (#1740)。外すのは、録ったバッファを破棄するので、確認してから行う。
 function TimeshiftServiceEditor({
   channel,
   onSave,

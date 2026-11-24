@@ -7,7 +7,7 @@ import { expect, type Page, test } from '@playwright/test';
 // 番組表に、夜の番組が並ぶ時刻にする。
 const fixedTime = new Date('2026-04-01T20:30:00+09:00');
 
-// 画像は toHaveScreenshot の比べる先 (docs/screenshots) として扱い、updateSnapshots: 'changed' で書き換える
+// 画像は toHaveScreenshot の比較する先 (docs/screenshots) として扱い、updateSnapshots: 'changed' で書き換える
 // (playwright.screenshots.config.ts)。同じ画面でも、ブラウザを起動するたびに、カードの角のアンチエイリアスが
 // 数ピクセルだけ変わる。許容差の中なら書き換えないので、画面が変わらない限り PNG は変わらない。
 async function capture(page: Page, name: string, scheme: string) {
@@ -34,16 +34,16 @@ for (const scheme of ['light', 'dark'] as const) {
     test('ライブ視聴', async ({ page }) => {
       await page.goto('/live/Service%3A1024');
       const video = page.locator('video');
-      // 再生が進んでから止め、決まった位置に戻して、毎回同じフレームを写す。
-      // デモの Service Worker は毎回映像の頭から流すので、位置とフレームの対応は揃う。
+      // 再生が進んでから止め、決まった位置に戻して、毎回同じフレームを撮る。
+      // デモの Service Worker は毎回映像の先頭から流すので、位置とフレームの対応は揃う。
       await expect
         .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime), {
           timeout: 30_000,
         })
         .toBeGreaterThan(2.5);
       // seeked の時点では、まだ止める前のフレームが表示されていることがある。
-      // 戻した位置のフレームが表示されたことを requestVideoFrameCallback で確かめる。
-      // 止める前に用意されていたフレームを先に知らせることがあるので、戻した位置のフレームが来るまで待ち続ける。
+      // 戻した位置のフレームが表示されたことを requestVideoFrameCallback で確認する。
+      // 止める前に用意されていたフレームを先に通知することがあるので、戻した位置のフレームが来るまで待ち続ける。
       await video.evaluate(async (element: HTMLVideoElement) => {
         element.pause();
         const shown = new Promise<number>((resolve) => {
@@ -62,7 +62,7 @@ for (const scheme of ['light', 'dark'] as const) {
       });
       // 字幕の一覧には、戻す前に出た最初の字幕 (1 秒から) が並ぶ。映像に重ねた字幕は、戻すと aribb24.js が消すので写らない。
       await expect(page.getByText('けさの様子をお伝えします').first()).toBeVisible();
-      // 表示を知らせた直後の撮影には、前のフレームが写ることがあるので、少し置く。
+      // 表示を通知した直後の撮影には、前のフレームが写ることがあるので、少し置く。
       await page.waitForTimeout(500);
       await capture(page, 'live', scheme);
     });

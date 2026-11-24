@@ -16,8 +16,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 )
 
-// TestImportToken は、作品 ID を引くための Annict のトークンを暗号化して保存し、取り出せること、
-// 空にすれば消えること、監査ログに値を残さないことを確かめる (#1223)。
+// TestImportToken は、作品 ID を取得するための Annict のトークンを暗号化して保存し、取り出せること、
+// 空にすれば消えること、監査ログに値を残さないことを確認する (#1223)。
 func TestImportToken(t *testing.T) {
 	t.Parallel()
 

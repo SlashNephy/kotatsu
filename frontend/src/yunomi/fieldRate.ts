@@ -5,9 +5,9 @@ import { browserStorage } from './volume';
 // フィールドごとの表示 (#1655、設計書 7.2)。1080i の 1 コマには、時刻の違う 2 つのフィールドが入っている。
 // yadif の doubleRate で、フィールドごとに 1 コマを作って 59.94p で出すと、放送そのままのなめらかさになる。
 
-// storageKey は、フィールドごとに表示するかを覚えるキー。表示が追いつくかは端末によるので、ほかの端末とは同期しない。
+// storageKey は、フィールドごとに表示するかを保存するキー。表示が追いつくかは端末によるので、ほかの端末とは同期しない。
 const storageKey = 'kotatsu.player.fieldRate';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:field-rate';
 
 // loadFieldRate は、フィールドごとに表示するかを読む。既定では表示する。読めなければ、既定の true を返す。
@@ -56,7 +56,7 @@ export const lateFieldsPerSecond = 6;
 // lateSeconds は、追いつかない秒がこれだけ続いたら、フィールドごとの表示をやめる秒数。
 export const lateSeconds = 5;
 
-// LateReport は、yadif が 1 秒ごとに知らせる統計のうち、追いつかないかを決めるのに使うもの。
+// LateReport は、yadif が 1 秒ごとに通知する統計のうち、追いつかないかを決めるのに使うもの。
 // late は読み込みの始まりからの累計で、読み直すと 0 に戻る。playbackRate は、そのときの再生の速さ。
 export type LateReport = {
   late: number;

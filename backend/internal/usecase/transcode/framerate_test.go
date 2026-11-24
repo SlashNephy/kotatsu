@@ -55,8 +55,8 @@ func (f *fixture) transcodeFrameRate(t *testing.T, recordingID uuid.UUID) *int32
 	return rate
 }
 
-// TestWorkerFrameRate は、出すコマ数の設定と、映像の形式、窓の測り方から、フィールドごとに 1 コマにするかを決め、
-// 変換した MP4 の記録にコマ数を残すことを確かめる (#1509)。
+// TestWorkerFrameRate は、出すコマ数の設定と、映像の形式、ウィンドウの計測方法から、フィールドごとに 1 コマにするかを決め、
+// 変換した MP4 の記録にコマ数を残すことを確認する (#1509)。
 func TestWorkerFrameRate(t *testing.T) {
 	t.Parallel()
 
@@ -65,12 +65,12 @@ func TestWorkerFrameRate(t *testing.T) {
 		name      string
 		frameRate string
 		video     *ts.VideoFormat
-		// probe は、ffprobe で読むフレームレート。diffs は、窓を測ったときの差の列 (nil なら測れない)。
+		// probe は、ffprobe で読むフレームレート。diffs は、ウィンドウを計測したときの差の並び (nil なら計測できない)。
 		probe      float64
 		diffs      *transcode.FieldDiffs
 		wantFields bool
 		wantRate   int32
-		// wantWindows は、測った窓の数。
+		// wantWindows は、計測したウィンドウの数。
 		wantWindows int
 	}{
 		{name: "fixed 30", frameRate: domain.TranscodeFrameRate30, video: interlaced, diffs: interlaced60(10), wantFields: false, wantRate: 30, wantWindows: 0},
@@ -78,13 +78,13 @@ func TestWorkerFrameRate(t *testing.T) {
 		{name: "auto telecine", frameRate: domain.TranscodeFrameRateAuto, video: interlaced, diffs: telecined(0), wantFields: false, wantRate: 30, wantWindows: 9},
 		{name: "auto 30p", frameRate: domain.TranscodeFrameRateAuto, video: interlaced, diffs: progressive30(10), wantFields: false, wantRate: 30, wantWindows: 9},
 		{name: "auto 60i", frameRate: domain.TranscodeFrameRateAuto, video: interlaced, diffs: interlaced60(10), wantFields: true, wantRate: 60, wantWindows: 9},
-		// 足す前の版が入れたジョブは、既定値 (自動) で出す。
+		// 足す前のバージョンが入れたジョブは、既定値 (自動) で出す。
 		{name: "older job", frameRate: "", video: interlaced, diffs: telecined(0), wantFields: false, wantRate: 30, wantWindows: 9},
-		// 測れた窓が 1 つもなければ、60 コマにする。
+		// 計測できたウィンドウが 1 つもなければ、60 コマにする。
 		{name: "auto unmeasured", frameRate: domain.TranscodeFrameRateAuto, video: interlaced, diffs: nil, wantFields: true, wantRate: 60, wantWindows: 9},
-		// 映像の形式が分からなければ、インターレースとみなして測る。
+		// 映像の形式が分からなければ、インターレースとみなして計測する。
 		{name: "auto without the video format", frameRate: domain.TranscodeFrameRateAuto, video: nil, diffs: telecined(0), wantFields: false, wantRate: 30, wantWindows: 9},
-		// プログレッシブの映像は、測らずに元のコマ数のまま出す。HEVC は、フレームレートを ffprobe で読む。
+		// プログレッシブの映像は、計測せずに元のコマ数のまま出す。HEVC は、フレームレートを ffprobe で読む。
 		{
 			name: "auto progressive", frameRate: domain.TranscodeFrameRateAuto,
 			video: &ts.VideoFormat{Codec: "h264", Width: 1280, Height: 720, Interlaced: false, FrameRate: 60000.0 / 1001},
@@ -115,8 +115,8 @@ func TestWorkerFrameRate(t *testing.T) {
 	}
 }
 
-// TestWorkerFrameRateWindows は、窓を、セグメントを並べた録画全体に散らして置き、位置ごとに当たるセグメントのファイルを、
-// その中の位置で測ることを確かめる (#1509)。セグメントの終わりをはみ出す窓は、セグメントの中に収まるよう前にずらす。
+// TestWorkerFrameRateWindows は、ウィンドウを、セグメントを並べた録画全体に散らして置き、位置ごとに当たるセグメントのファイルを、
+// その中の位置で計測することを確認する (#1509)。セグメントの終わりをはみ出すウィンドウは、セグメントの中に収まるよう前にずらす。
 func TestWorkerFrameRateWindows(t *testing.T) {
 	t.Parallel()
 
@@ -127,14 +127,14 @@ func TestWorkerFrameRateWindows(t *testing.T) {
 	args := transcode.Args{RecordingID: recordingID, Preset: preset720p, FrameRate: domain.TranscodeFrameRateAuto}
 	require.NoError(t, workJob(t.Context(), f, encoder, &rivertype.JobRow{ID: 1, Attempt: 1}, args))
 
-	// 60 分の録画に、20 秒の窓を 9 つ置くと、(3600 − 20) 秒を 10 等分した 358 秒ごとになる。
+	// 60 分の録画に、20 秒のウィンドウを 9 つ置くと、(3600 − 20) 秒を 10 等分した 358 秒ごとになる。
 	first, second := filepath.Base(segmentName), filepath.Base(secondSegmentName)
 	assert.Equal(t, []measurement{
 		{file: first, offset: 358 * time.Second},
 		{file: first, offset: 716 * time.Second},
 		{file: first, offset: 1074 * time.Second},
 		{file: first, offset: 1432 * time.Second},
-		// 1790 秒からの窓は、30 分のセグメントの終わりをはみ出すので、1780 秒からにする。
+		// 1790 秒からのウィンドウは、30 分のセグメントの終わりをはみ出すので、1780 秒からにする。
 		{file: first, offset: 1780 * time.Second},
 		{file: second, offset: (2148 - 1800) * time.Second},
 		{file: second, offset: (2506 - 1800) * time.Second},
@@ -144,7 +144,7 @@ func TestWorkerFrameRateWindows(t *testing.T) {
 	assert.Equal(t, []bool{false}, encoder.fields)
 }
 
-// TestWorkerUnknownFrameRate は、知らないコマ数の設定のジョブを、やり直さずに取りやめることを確かめる (#1509)。
+// TestWorkerUnknownFrameRate は、知らないコマ数の設定のジョブを、やり直さずに取りやめることを確認する (#1509)。
 func TestWorkerUnknownFrameRate(t *testing.T) {
 	t.Parallel()
 

@@ -42,7 +42,7 @@ function patchRule(patch: (rule: Node, root: DemoRoot) => Node, id = 'Rule:1') {
 }
 
 // richConditions は、条件の入力欄のすべての欄に値を入れたルール。照合のしかたは「どれか」、正規表現のキーワード、
-// 除外するキーワード、上流から消えたサービス (#1973)、選択肢にない種別、表にない囲み文字、時間帯と長さを含む。
+// 除外するキーワード、上流から消えたサービス (#1973)、選択肢にない種別、テーブルにない囲み文字、時間帯と長さを含む。
 const richConditions = patchRule((rule, root) => {
   const conditions = rule['conditions'] as Node;
   const services = call<Node[]>(root, 'services');
@@ -216,7 +216,7 @@ export const SaveError: Story = {
   },
 };
 
-// ルールを消す前の確かめ。
+// ルールを消す前の確認。
 export const DeleteConfirm: Story = {
   play: async ({ canvas }) => {
     await clickDelete(canvas);
@@ -234,7 +234,7 @@ export const DeleteError: Story = {
 };
 
 // captured は、Outdated の Story で作ったデモの既定の応答。play の中から、ほかの端末での変更を起こすのに使う。
-// StrictMode で環境が 2 度作られても届くよう、作ったものをすべて覚える。
+// StrictMode で環境が 2 度作られても届くよう、作ったものをすべて保持する。
 const captured: DemoRoot[] = [];
 
 // 入力を触った後に、ほかの端末でルールが変わったとき (#533)。入力を残し、読み直すボタンを出す。

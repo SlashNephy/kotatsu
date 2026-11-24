@@ -8,6 +8,7 @@ import {
   type TimeshiftMode,
 } from './useLiveTimeshift';
 import { loadLiveResume, saveLiveResume } from './liveResume';
+import { mediaOf } from './playerMedia';
 
 const origin = Date.parse('2026-10-29T08:00:00Z');
 // buffer は、10 分前から録っているバッファ。途切れた区間はない。
@@ -52,7 +53,7 @@ describe('useLiveTimeshift', () => {
     { name: '長く止めたら、止めた位置からバッファで続ける', pausedMs: 60_000, behind: true },
   ])('$name', ({ pausedMs, behind }) => {
     const video = document.createElement('video');
-    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'convert'));
+    const { result } = renderHook(() => useLiveTimeshift(buffer, mediaOf(video), 'convert'));
     fire(video, 'pause');
     act(() => {
       vi.advanceTimersByTime(pausedMs);
@@ -75,7 +76,7 @@ describe('useLiveTimeshift', () => {
     },
   ])('$name', ({ back, behind }) => {
     const video = document.createElement('video');
-    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'convert'));
+    const { result } = renderHook(() => useLiveTimeshift(buffer, mediaOf(video), 'convert'));
     act(() => {
       result.current.seekTo(result.current.edge - back);
     });
@@ -85,7 +86,7 @@ describe('useLiveTimeshift', () => {
 
   test('kyusu の経路では、仮想 HLS を起点からの位置で読み直す', () => {
     const video = document.createElement('video');
-    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls'));
+    const { result } = renderHook(() => useLiveTimeshift(buffer, mediaOf(video), 'hls'));
     act(() => {
       result.current.seekTo(120);
     });
@@ -100,9 +101,12 @@ describe('useLiveTimeshift', () => {
 
   test('バッファを再生している間に経路を替えたら、新しい経路でそれまでの位置から読み直す', () => {
     const video = document.createElement('video');
-    const { result, rerender } = renderHook(({ mode }) => useLiveTimeshift(buffer, video, mode), {
-      initialProps: { mode: 'convert' as TimeshiftMode },
-    });
+    const { result, rerender } = renderHook(
+      ({ mode }) => useLiveTimeshift(buffer, mediaOf(video), mode),
+      {
+        initialProps: { mode: 'convert' as TimeshiftMode },
+      },
+    );
     act(() => {
       result.current.seekTo(120);
     });
@@ -116,9 +120,12 @@ describe('useLiveTimeshift', () => {
 
   test('経路を替えてバッファを再生できなくなったら、ライブに戻ったものとして扱う', () => {
     const video = document.createElement('video');
-    const { result, rerender } = renderHook(({ mode }) => useLiveTimeshift(buffer, video, mode), {
-      initialProps: { mode: 'convert' as TimeshiftMode },
-    });
+    const { result, rerender } = renderHook(
+      ({ mode }) => useLiveTimeshift(buffer, mediaOf(video), mode),
+      {
+        initialProps: { mode: 'convert' as TimeshiftMode },
+      },
+    );
     act(() => {
       result.current.seekTo(60);
     });
@@ -135,7 +142,7 @@ describe('useLiveTimeshift の、見ていた位置の再開 (#1600)', () => {
 
   test('バッファを見ている間は、見ている放送時刻を覚え、ライブに戻ったら忘れる', () => {
     const video = document.createElement('video');
-    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+    const { result } = renderHook(() => useLiveTimeshift(buffer, mediaOf(video), 'hls', service));
     act(() => {
       result.current.seekTo(120);
     });
@@ -153,7 +160,7 @@ describe('useLiveTimeshift の、見ていた位置の再開 (#1600)', () => {
 
   test('ライブの端を見ている間は、覚えない', () => {
     const video = document.createElement('video');
-    renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+    renderHook(() => useLiveTimeshift(buffer, mediaOf(video), 'hls', service));
     act(() => {
       vi.advanceTimersByTime(30_000);
     });
@@ -173,12 +180,12 @@ describe('useLiveTimeshift の、見ていた位置の再開 (#1600)', () => {
   ])('$name', ({ ago, behind }) => {
     saveLiveResume(localStorage, service, origin - ago, origin - 1_000);
     const video = document.createElement('video');
-    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+    const { result } = renderHook(() => useLiveTimeshift(buffer, mediaOf(video), 'hls', service));
 
     expect(result.current.behind).toBe(behind);
     if (behind) {
       expect(result.current.hlsStart).toBeCloseTo((600_000 - ago) / 1000, 0);
-      // 移れたら、続けて見ている位置を覚え直す。
+      // 移れたら、続けて見ている位置を保持し直す。
       act(() => {
         vi.advanceTimersByTime(5_000);
       });
@@ -191,7 +198,7 @@ describe('useLiveTimeshift の、見ていた位置の再開 (#1600)', () => {
   test('再開した後に、ほかの位置へシークしたら、移った先を覚える', () => {
     saveLiveResume(localStorage, service, origin - 300_000, origin - 1_000);
     const video = document.createElement('video');
-    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+    const { result } = renderHook(() => useLiveTimeshift(buffer, mediaOf(video), 'hls', service));
     expect(result.current.behind).toBe(true);
 
     // 再開した位置 (バッファの始まりから 300 秒) より 15 秒以上離れた所へ移る。
@@ -207,7 +214,7 @@ describe('useLiveTimeshift の、見ていた位置の再開 (#1600)', () => {
   test('バッファを再生していても、ライブの端に近ければ、覚えずに忘れる', () => {
     saveLiveResume(localStorage, service, origin - 300_000, origin - 1_000);
     const video = document.createElement('video');
-    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+    const { result } = renderHook(() => useLiveTimeshift(buffer, mediaOf(video), 'hls', service));
     expect(result.current.behind).toBe(true);
     // 再開した位置から続けて再生し、ライブの端の 1 秒手前まで追いついた。
     Object.defineProperty(video, 'currentTime', {
@@ -225,7 +232,7 @@ describe('useLiveTimeshift の、見ていた位置の再開 (#1600)', () => {
   test('ほかのサービスで覚えた位置では、再開しない', () => {
     saveLiveResume(localStorage, 'other', origin - 300_000, origin);
     const video = document.createElement('video');
-    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+    const { result } = renderHook(() => useLiveTimeshift(buffer, mediaOf(video), 'hls', service));
 
     expect(result.current.behind).toBe(false);
     expect(loadLiveResume(localStorage, 'other')).toBe(origin - 300_000);

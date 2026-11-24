@@ -149,7 +149,7 @@ func (f *fixture) runOnce(t *testing.T) *assign.Result {
 	return result
 }
 
-// TestRunOnceStoresAssignments は、割り当ての結果を DB に書き、新たな競合だけを通知することを確かめる。
+// TestRunOnceStoresAssignments は、割り当ての結果を DB に書き、新たな競合だけを通知することを確認する。
 func TestRunOnceStoresAssignments(t *testing.T) {
 	t.Parallel()
 
@@ -195,7 +195,7 @@ func TestRunOnceStoresAssignments(t *testing.T) {
 }
 
 // TestRunOnceStoresPeers は、競合した予約に、チューナーを取り合っている相手の予約を残し、
-// 競合が解ければ空に戻すことを確かめる (#1502)。
+// 競合が解ければ空に戻すことを確認する (#1502)。
 func TestRunOnceStoresPeers(t *testing.T) {
 	t.Parallel()
 
@@ -216,7 +216,7 @@ func TestRunOnceStoresPeers(t *testing.T) {
 	assert.Equal(t, []uuid.UUID{}, f.peers(t, ids[0]))
 }
 
-// TestRunOnceNotifiesConflictOnce は、競合と競合でない状態を行き来しても、同じ予約の競合は 1 回だけ通知することを確かめる (#430)。
+// TestRunOnceNotifiesConflictOnce は、競合と競合でない状態を行き来しても、同じ予約の競合は 1 回だけ通知することを確認する (#430)。
 // チューナーの一覧が一時的に変わると、ちょうど足りるかどうかの境目の予約が行き来し、そのたびに通知していた。
 // 通知してから一定の時間 (conflictRenotifyAfter) が過ぎたか、予約を変えたら、また通知する。
 func TestRunOnceNotifiesConflictOnce(t *testing.T) {
@@ -261,7 +261,7 @@ func TestRunOnceNotifiesConflictOnce(t *testing.T) {
 	assert.Len(t, flap(), 3, "the conflict is notified again after the reservation changes")
 }
 
-// TestRunOnceUsesRecordingSettings は、録画設定のマージンを、全体の既定値に予約の上書きを重ねて使うことを確かめる。
+// TestRunOnceUsesRecordingSettings は、録画設定のマージンを、全体の既定値に予約の上書きを重ねて使うことを確認する。
 func TestRunOnceUsesRecordingSettings(t *testing.T) {
 	t.Parallel()
 
@@ -275,7 +275,7 @@ func TestRunOnceUsesRecordingSettings(t *testing.T) {
 	assert.Equal(t, start.Add(-time.Minute), f.stored(t, withOverride).plannedStart.UTC())
 }
 
-// TestRunOnceReadsDefaultsEachTime は、録画設定の全体の既定値を、割り当てのたびに引くことを確かめる。
+// TestRunOnceReadsDefaultsEachTime は、録画設定の全体の既定値を、割り当てのたびに引くことを確認する。
 // 画面で既定値を変えたら、次の割り当てから反映する (設計書 11.2)。
 func TestRunOnceReadsDefaultsEachTime(t *testing.T) {
 	t.Parallel()
@@ -308,7 +308,7 @@ func TestRunOnceReadsDefaultsEachTime(t *testing.T) {
 	assert.Equal(t, start.Add(-2*time.Minute), f.stored(t, reservationID).plannedStart.UTC())
 }
 
-// TestRunOnceKeepsRecordingReservations は、録画が始まった予約を、後から優先度の高い予約が来ても動かさないことを確かめる。
+// TestRunOnceKeepsRecordingReservations は、録画が始まった予約を、後から優先度の高い予約が来ても動かさないことを確認する。
 func TestRunOnceKeepsRecordingReservations(t *testing.T) {
 	t.Parallel()
 
@@ -329,7 +329,7 @@ func TestRunOnceKeepsRecordingReservations(t *testing.T) {
 	assert.Contains(t, others, result.NewConflicts[0])
 }
 
-// TestRunRecomputesOnReservationChanges は、予約が変わると、その通知を受けて計算し直すことを確かめる。
+// TestRunRecomputesOnReservationChanges は、予約が変わると、その通知を受けて計算し直すことを確認する。
 func TestRunRecomputesOnReservationChanges(t *testing.T) {
 	t.Parallel()
 
@@ -346,7 +346,7 @@ func TestRunRecomputesOnReservationChanges(t *testing.T) {
 		assert.NoError(t, <-done)
 	})
 
-	// 最初の予約が割り当てられるのを待ち、始めたときの計算が終わったことを確かめる。
+	// 最初の予約が割り当てられるのを待ち、始めたときの計算が終わったことを確認する。
 	first := f.reserve(t, 0, nil)
 	require.Eventually(t, func() bool {
 		return f.stored(t, first).state == string(domain.AssignmentStateOK)
@@ -359,7 +359,7 @@ func TestRunRecomputesOnReservationChanges(t *testing.T) {
 	}, 10*time.Second, 20*time.Millisecond)
 }
 
-// TestRunOnceEDCB は、EDCB の性質を渡した割り当てを、DB を通して確かめる (#1536)。地上波のチューナーは 2 本ある。
+// TestRunOnceEDCB は、EDCB の性質を渡した割り当てを、DB を通して確認する (#1536)。地上波のチューナーは 2 本ある。
 //   - 相乗りの単位がサービスなら、同じチャンネルの別のサービス (こたつテスト1 とサブ) は別のチューナーになる。
 //   - チューナーサーバー自身の予約がチューナーを使う時間帯 (tuner_occupancies) のチューナーは使わない。
 func TestRunOnceEDCB(t *testing.T) {

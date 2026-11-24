@@ -13,12 +13,12 @@ import (
 )
 
 // wantIFramePTS は、testdata/ts/test.ts の I フレームの PTS。
-// ffprobe -select_streams v:0 -show_entries frame=pict_type,pts で数えた値で、GOP は 15 フレーム (45045 刻み) ごと。
+// ffprobe -select_streams v:0 -show_entries frame=pict_type,pts で数えた値で、GOP は 15 フレーム (45045 ティック) ごと。
 func wantIFramePTS() []int64 {
 	return []int64{129003, 174048, 219093, 264138, 309183, 354228, 399273, 444318, 489363, 534408, 579453, 624498}
 }
 
-// analyzeWithIndex は、input を解析し、索引の中身と統計を返す。
+// analyzeWithIndex は、input を解析し、インデックスの内容と統計を返す。
 func analyzeWithIndex(t *testing.T, chunks ...[]byte) ([]ts.IndexEntry, *ts.Stats) {
 	t.Helper()
 
@@ -89,10 +89,10 @@ func TestAnalyzerIndex(t *testing.T) {
 				assert.NotZero(t, p[1]&0x40, "the offset must point to the start of a PES")
 			}
 
-			// 書き込みの区切り方によらず、同じ索引ができる。
+			// 書き込みの区切り方によらず、同じインデックスができる。
 			chunked, _ := analyzeWithIndex(t, slices.Collect(slices.Chunk(input, 1000))...)
 			assert.Equal(t, entries, chunked)
-			// start code が 1 バイトずつ分かれても、同じ索引ができる。
+			// start code が 1 バイトずつ分かれても、同じインデックスができる。
 			bytewise, _ := analyzeWithIndex(t, slices.Collect(slices.Chunk(input, 1))...)
 			assert.Equal(t, entries, bytewise)
 		})
@@ -195,7 +195,7 @@ func TestAnalyzerIndexWriteError(t *testing.T) {
 	require.NoError(t, err)
 	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer})
 
-	// 索引を書けなくても、録画の書き込みを止めないよう、Write はエラーを返さない。
+	// インデックスを書けなくても、録画の書き込みを止めないよう、Write はエラーを返さない。
 	input := loadTestTS(t)
 	n, err := analyzer.Write(input)
 	require.NoError(t, err)
@@ -334,7 +334,7 @@ func TestAnalyzerIndexIgnoresScrambledPESStart(t *testing.T) {
 		},
 		{
 			// PES の始まりが読めなければ、その PES の位置と PTS は分からない。
-			// 続きのパケットで I ピクチャを見つけても、前の PES の位置と PTS で索引に書いてはいけない。
+			// 続きのパケットで I ピクチャを見つけても、前の PES の位置と PTS でインデックスに書いてはいけない。
 			name: "the start of the I picture PES is scrambled",
 			video: func(cc *byte) [][]byte {
 				return [][]byte{

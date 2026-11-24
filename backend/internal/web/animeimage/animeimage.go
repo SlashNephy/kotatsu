@@ -1,4 +1,4 @@
-// Package animeimage は、見たいリストの作品の画像を、Annict と AniList から取って中継する (#1235、設計書 3.8)。
+// Package animeimage は、見たいリストの作品の画像を、Annict と AniList から取ってプロキシする (#1235、設計書 3.8)。
 // ブラウザに外部の画像を直に読ませると、CSP の img-src を作品の画像のホストごとに緩める必要があり、外部へ通信しない環境もあるので、
 // tenban が同じオリジンで返す。
 package animeimage
@@ -34,11 +34,11 @@ import (
 const (
 	// fetchTimeout は、画像を取ってくるのを待つ長さ。
 	fetchTimeout = 10 * time.Second
-	// maxImageBytes は、中継する画像の大きさの上限。作品の画像 (キービジュアル) は大きいことがあるので、アイコンより大きくする。
+	// maxImageBytes は、プロキシする画像の大きさの上限。作品の画像 (キービジュアル) は大きいことがあるので、アイコンより大きくする。
 	maxImageBytes = 4 << 20
-	// maxCacheBytes は、取ってきた画像を tenban のメモリに覚えておく量の上限。超えたら、古く覚えたものから忘れる。
+	// maxCacheBytes は、取ってきた画像を tenban のメモリにキャッシュしておく量の上限。超えたら、古くキャッシュしたものから忘れる。
 	maxCacheBytes = 64 << 20
-	// cacheControl は、ブラウザに画像を覚えさせる長さ。画像の URL が変われば、画面に出す URL も変わる (URL の版)。
+	// cacheControl は、ブラウザに画像をキャッシュさせる長さ。画像の URL が変われば、画面に出す URL も変わる (URL のバージョン)。
 	cacheControl = "private, max-age=86400"
 )
 
@@ -49,15 +49,15 @@ var (
 	errInvalidURL     = errors.New("the image URL is not an http or https URL")
 )
 
-// Path は、記録先 destination の作品 workID の画像を中継する URL のパスを返す。imageURL は、記録先が示した画像の URL で、
-// 変わったらブラウザに読み直させるため、その版をクエリに添える。
+// Path は、記録先 destination の作品 workID の画像をプロキシする URL のパスを返す。imageURL は、記録先が示した画像の URL で、
+// 変わったらブラウザに読み直させるため、そのバージョンをクエリに添える。
 func Path(destination string, workID int32, imageURL string) string {
 	sum := sha256.Sum256([]byte(imageURL))
 
 	return "/internal/media/anime-works/" + url.PathEscape(destination) + "/" + strconv.Itoa(int(workID)) + "/image?v=" + hex.EncodeToString(sum[:8])
 }
 
-// Handler は、見たいリストの作品の画像を中継する (GET /internal/media/anime-works/{destination}/{workId}/image)。
+// Handler は、見たいリストの作品の画像をプロキシする (GET /internal/media/anime-works/{destination}/{workId}/image)。
 //
 // 画像の URL は記録先が返すが、Annict の画像は作品の公式サイトなど、どのホストにもありうる。そのため、ログイン中のユーザーの
 // 見たいリストにある作品の画像に限り、http か https の、グローバルなアドレスにだけ接続する。リダイレクトは 3 回までたどり、
@@ -102,7 +102,7 @@ func newHandler(pool *pgxpool.Pool, logger *slog.Logger, client *http.Client) *H
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 失敗の応答は覚えさせない。画像を出せないときは、画面が録画の代表画像に切り替える。
+	// 失敗の応答はキャッシュさせない。画像を出せないときは、画面が録画の代表画像に切り替える。
 	w.Header().Set("Cache-Control", "no-store")
 	principal := auth.PrincipalFrom(r.Context())
 	if principal == nil {
@@ -120,15 +120,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.serve(w, r, imageURL, err)
 }
 
-// FollowingAvatarPath は、記録先 destination のユーザー username のアバターを中継する URL のパスを返す (#1372)。
-// avatarURL は、記録先が示したアバターの URL で、変わったらブラウザに読み直させるため、その版をクエリに添える。
+// FollowingAvatarPath は、記録先 destination のユーザー username のアバターをプロキシする URL のパスを返す (#1372)。
+// avatarURL は、記録先が示したアバターの URL で、変わったらブラウザに読み直させるため、そのバージョンをクエリに添える。
 func FollowingAvatarPath(destination, username, avatarURL string) string {
 	sum := sha256.Sum256([]byte(avatarURL))
 
 	return "/internal/media/anime-following/" + url.PathEscape(destination) + "/" + url.PathEscape(username) + "/avatar?v=" + hex.EncodeToString(sum[:8])
 }
 
-// ServeFollowingAvatar は、フォロー中のユーザーのアバターを中継する (GET /internal/media/anime-following/{destination}/{username}/avatar、#1372)。
+// ServeFollowingAvatar は、フォロー中のユーザーのアバターをプロキシする (GET /internal/media/anime-following/{destination}/{username}/avatar、#1372)。
 // ログイン中のユーザーが取り込んだ視聴状況にあるアバターだけを、作品の画像と同じく、グローバルなアドレスから取る。
 func (h *Handler) ServeFollowingAvatar(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
@@ -178,19 +178,19 @@ func (h *Handler) serve(w http.ResponseWriter, r *http.Request, imageURL string,
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(image.data))
 }
 
-// fetch は、画像を取ってきて、中身と、中身から決めた Content-Type を返す。
+// fetch は、画像を取ってきて、内容と、内容から決めた Content-Type を返す。
 func (h *Handler) fetch(ctx context.Context, imageURL string) (*image, error) {
 	u, err := url.Parse(imageURL)
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 		return nil, errInvalidURL
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody) //nolint:gosec // 作品の画像を中継するのが目的。接続先は、リダイレクトの先も含めて publicnet.Control で許したグローバルなアドレスに限る (#1235)。
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody) //nolint:gosec // 作品の画像をプロキシするのが目的。接続先は、リダイレクトの先も含めて publicnet.Control で許したグローバルなアドレスに限る (#1235)。
 	if err != nil {
 		return nil, fmt.Errorf("failed to build the request: %w", err)
 	}
 	req.Header.Set("Accept", "image/*")
 	req.Header.Set("User-Agent", buildinfo.UserAgent())
-	resp, err := h.client.Do(req) //nolint:gosec // 作品の画像を中継するのが目的。接続先は、リダイレクトの先も含めて publicnet.Control で許したグローバルなアドレスに限る (#1235)。
+	resp, err := h.client.Do(req) //nolint:gosec // 作品の画像をプロキシするのが目的。接続先は、リダイレクトの先も含めて publicnet.Control で許したグローバルなアドレスに限る (#1235)。
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the image: %w", err)
 	}
@@ -205,7 +205,7 @@ func (h *Handler) fetch(ctx context.Context, imageURL string) (*image, error) {
 	if len(data) > maxImageBytes {
 		return nil, errTooLarge
 	}
-	// 上流の Content-Type は信じず、中身から決める。SVG はスクリプトを含められるので、DetectContentType が画像とみなさないまま断る。
+	// 上流の Content-Type は信じず、内容から決める。SVG はスクリプトを含められるので、DetectContentType が画像とみなさないまま断る。
 	contentType := http.DetectContentType(data)
 	if !strings.HasPrefix(contentType, "image/") {
 		return nil, fmt.Errorf("%w: %s", errNotImage, contentType)
@@ -220,7 +220,7 @@ type image struct {
 	contentType string
 }
 
-// cache は、取ってきた画像を、画像の URL ごとに覚える。合わせて max バイトを超えたら、古く覚えたものから忘れる。
+// cache は、取ってきた画像を、画像の URL ごとにキャッシュする。合わせて max バイトを超えたら、古くキャッシュしたものから忘れる。
 type cache struct {
 	mu    sync.Mutex
 	max   int

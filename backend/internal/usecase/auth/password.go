@@ -29,12 +29,12 @@ type Passwords struct {
 	policy   *password.Policy
 }
 
-// NewPasswords は Passwords を返す。policy でパスワードの規定を確かめる。
+// NewPasswords は Passwords を返す。policy でパスワードの規定を確認する。
 func NewPasswords(clk clock.Clock, recorder audit.Recorder, policy *password.Policy) *Passwords {
 	return &Passwords{clock: clk, recorder: recorder, policy: policy}
 }
 
-// Set は、パスワードが規定を満たすかを確かめ、Argon2id でハッシュ化して保存する。
+// Set は、パスワードが規定を満たすかを確認し、Argon2id でハッシュ化して保存する。
 // 規定を満たさなければ、*password.RejectedError を返す。
 // ユーザー名と表示名は、パスワードに含まれると推測しやすい語として、強度の判定に渡す。
 //
@@ -82,7 +82,7 @@ func (p *Passwords) Set(ctx context.Context, db Database, actor *audit.Actor, us
 	})
 }
 
-// UserIDByUsername は、ユーザー名 (大文字と小文字を区別しない) からユーザーの ID を引く。
+// UserIDByUsername は、ユーザー名 (大文字と小文字を区別しない) からユーザーの ID を取得する。
 func UserIDByUsername(ctx context.Context, db sqlc.DBTX, username string) (uuid.UUID, error) {
 	user, err := sqlc.New(db).GetUserByUsername(ctx, username)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -97,7 +97,7 @@ func UserIDByUsername(ctx context.Context, db sqlc.DBTX, username string) (uuid.
 
 // revokeUserSessions は、ユーザーのセッションをまとめて失効させ、第二要素の確認を待つログインも消す。
 // keep が nil でなければ、そのセッションは残す。
-// 待っているログインを残すと、前のパスワードで確かめたログインを、第二要素を通して完了させられてしまう。
+// 待っているログインを残すと、前のパスワードで確認したログインを、第二要素を通して完了させられてしまう。
 func revokeUserSessions(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, keep *uuid.UUID, now time.Time) error {
 	q := sqlc.New(db)
 	if _, err := q.RevokeUserSessions(ctx, sqlc.RevokeUserSessionsParams{Now: now, UserID: userID, KeepID: keep}); err != nil {

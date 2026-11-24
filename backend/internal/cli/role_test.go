@@ -41,7 +41,7 @@ func fakeWorker(fails bool, err error, panics bool, started, returned chan struc
 	}
 }
 
-// TestRunAlongside は、mikan で録画の Worker の横で動かすタイムシフトの Worker が、エラーで止まるか panic しても、録画の Worker を止めないことを確かめる。
+// TestRunAlongside は、mikan で録画の Worker の横で動かすタイムシフトの Worker が、エラーで止まるか panic しても、録画の Worker を止めないことを確認する。
 // 録画の Worker が返るか、親の ctx が終われば、タイムシフトの Worker も止まる。
 func TestRunAlongside(t *testing.T) {
 	t.Parallel()

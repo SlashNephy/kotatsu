@@ -1,6 +1,6 @@
 [tools]
 golangci-lint = "2.15.0" # go より先に置かないと、go/bin/ のバイナリが優先されてしまう
-# ルートと同じ版。golangci-lint より後に置くため、ここでも書く。
+# ルートと同じバージョン。golangci-lint より後に置くため、ここでも書く。
 go = "1.27.4"
 atlas-community = "1.3.0"
 sqlc = "1.31.1"
@@ -38,11 +38,11 @@ run = [
   "go generate ./...",
   # gqlgen が書き換えたリゾルバの import を、リポジトリの形式にそろえる。
   "golangci-lint fmt",
-  # フロントエンドの Relay のコンパイラが読む、1 つにまとめたスキーマを書き出す。
+  # フロントエンドの Relay のコンパイラが読む、1 つにまとめたスキーマを出力する。
   "go run ./internal/web/graph/printschema > ../frontend/schema.graphql",
-  # 囲み文字の表 (internal/domain/enclosed.go) を、画面で使う TypeScript に書き出す。
+  # 囲み文字のテーブル (internal/domain/enclosed.go) を、画面で使う TypeScript に出力する。
   "go run ./internal/domain/printenclosed > ../frontend/src/futon/enclosedCharacters.gen.ts",
-  # MCP サーバーが SPA なしで返すアイコンを、画面の原本から写す。
+  # MCP サーバーが SPA なしで返すアイコンを、画面の原本からコピーする。
   "cp ../frontend/public/icons/icon.svg ../frontend/public/icons/icon-192.png internal/web/webui/icons/",
   # schema.sql とマイグレーションが食い違っていれば、ここで新しいマイグレーションが生成される。
   "atlas migrate diff --env local",

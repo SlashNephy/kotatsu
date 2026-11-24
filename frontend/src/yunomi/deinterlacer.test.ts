@@ -43,12 +43,12 @@ describe('createDeinterlacer', () => {
       throw new Error('this browser has no WebGL2');
     });
     expect(available).toBe(false);
-    // プレイヤーは、作った後に映像の表と有効かどうかを入れる。入れても解除は動かない。
+    // プレイヤーは、作った後に映像のテーブルと有効かどうかを入れる。入れても解除は動かない。
     deinterlacer.videoTimeline = timeline;
     deinterlacer.enabled = true;
     expect(deinterlacer.running).toBe(false);
     expect(deinterlacer.scan).toBeNull();
-    // 放送の映像の大きさは、この表から読むので、入れたものを返す。
+    // 放送の映像の大きさは、このテーブルから読むので、入れたものを返す。
     expect(deinterlacer.videoTimeline).toBe(timeline);
     expect(() => deinterlacer.destroy()).not.toThrow();
   });

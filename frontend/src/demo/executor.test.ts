@@ -67,7 +67,7 @@ function newExecutor() {
   return { events, executor: createExecutor(createRootValue(events, now)) };
 }
 
-// subscribeChanges は、viewerEvents を購読し、購読を始めたときに届く今の版数 (データの種類の数と設定の 1 つ) を読み終えて返す。
+// subscribeChanges は、viewerEvents を購読し、購読を始めたときに届く今のバージョン (データの種類の数と設定の 1 つ) を読み終えて返す。
 async function subscribeChanges(executor: ReturnType<typeof newExecutor>['executor']) {
   const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
     Symbol.asyncIterator

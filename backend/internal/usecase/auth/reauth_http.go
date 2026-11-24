@@ -87,7 +87,7 @@ func (l *Logins) PasskeyReauthenticationHandler(db Database, client func(*http.R
 	})
 }
 
-// PasskeyReauthenticationConfirmHandler は、パスキーの応答を確かめ、セッションの認証の日時を更新するハンドラーを返す
+// PasskeyReauthenticationConfirmHandler は、パスキーの応答を確認し、セッションの認証の日時を更新するハンドラーを返す
 // (POST /internal/auth/reauth/passkey/confirm)。
 func (l *Logins) PasskeyReauthenticationConfirmHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +104,7 @@ func (l *Logins) PasskeyReauthenticationConfirmHandler(db Database, client func(
 			return
 		}
 		authenticatedAt, err := l.CompletePasskeyReauthentication(r.Context(), db, principal, token, req.Credential, client(r))
-		// 手続きは、確かめられなくても使用済みになる。
+		// 手続きは、確認できなくても使用済みになる。
 		http.SetCookie(w, l.sessions.namedCookie(r, WebAuthnCookieName, challengeCookiePath, "", time.Unix(0, 0)))
 		switch {
 		case err == nil:
@@ -126,7 +126,7 @@ type reauthStatusResponse struct {
 }
 
 // ReauthenticationStatusHandler は、ログイン中のセッションの認証の日時と、重要な操作ができるかを返すハンドラーを返す
-// (GET /internal/auth/reauth)。画面は、重要な操作の入力を始める前にこれを確かめ、必要なら先に再認証させる (#916)。
+// (GET /internal/auth/reauth)。画面は、重要な操作の入力を始める前にこれを確認し、必要なら先に再認証させる (#916)。
 // IdP での再認証はページを離れるので、入力の途中で求めると、入力が消えてしまうため。
 // 端末の時計はずれていることがあるので、できるかどうかはサーバーの時計で決める。
 func ReauthenticationStatusHandler(clk clock.Clock) http.Handler {

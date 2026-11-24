@@ -5,7 +5,7 @@ import { asViewer, merge, minutesAgo } from '../conditions';
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';
 
 // ジョブ (/admin/jobs) の画面 (#2056)。状態のタブと数、ジョブの一覧 (録画、進み具合、エラーの有無)、ジョブを開いたときの
-// エラーと操作 (試し直す、取り消す、取り消せない)、操作の失敗を並べる。
+// エラーと操作 (再試行する、取り消す、取り消せない)、操作の失敗を並べる。
 const meta = {
   title: 'ページ/管理/ジョブ',
   component: PageStory,
@@ -78,7 +78,7 @@ const running = [
   job({ id: '104', kind: 'custom_future_kind', state: 'RUNNING', cancellable: false }),
 ];
 
-// retryable は、再試行を待つジョブ。すぐに試し直せる。
+// retryable は、再試行を待つジョブ。すぐに再試行できる。
 const retryable = [
   job({
     id: '201',
@@ -91,7 +91,7 @@ const retryable = [
   }),
 ];
 
-// completed は、終えたジョブ。取り消せず、試し直せる。
+// completed は、終えたジョブ。取り消せず、再試行できる。
 const completed = [
   job({
     id: '301',
@@ -147,7 +147,7 @@ export const OpenedUncancellable: Story = {
   },
 };
 
-// 再試行を待つジョブのタブ。開いて、すぐに試し直せる。
+// 再試行を待つジョブのタブ。開いて、すぐに再試行できる。
 export const Retryable: Story = {
   args: { overrides: jobs },
   play: async ({ canvas }) => {
@@ -165,13 +165,13 @@ export const Completed: Story = {
   },
 };
 
-// 試し直せなかったとき。
+// 再試行できなかったとき。
 export const RetryFailed: Story = {
   args: { overrides: { ...jobs, retryJob: failing() } },
   play: async ({ canvas }) => {
     await userEvent.click(await canvas.findByRole('tab', { name: /再試行を待つ/ }));
     await userEvent.click(await canvas.findByText('201'));
-    await userEvent.click(await canvas.findByRole('button', { name: 'すぐに試し直す' }));
+    await userEvent.click(await canvas.findByRole('button', { name: 'すぐに再試行する' }));
   },
 };
 

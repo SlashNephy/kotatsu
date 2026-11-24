@@ -1807,7 +1807,6 @@ type ComplexityRoot struct {
 		RecordingDefaults                      func(childComplexity int) int
 		RecordingDownloadsEnabled              func(childComplexity int) int
 		RuleDefaults                           func(childComplexity int) int
-		RuleUnmatchedGraceMinutes              func(childComplexity int) int
 		SleepControlEnabled                    func(childComplexity int) int
 		ThumbnailPreviewsEnabled               func(childComplexity int) int
 		TimeshiftWhileWatching                 func(childComplexity int) int
@@ -10268,12 +10267,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.RuleDefaults(childComplexity), true
-	case "SystemSettings.ruleUnmatchedGraceMinutes":
-		if e.ComplexityRoot.SystemSettings.RuleUnmatchedGraceMinutes == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SystemSettings.RuleUnmatchedGraceMinutes(childComplexity), true
 	case "SystemSettings.sleepControlEnabled":
 		if e.ComplexityRoot.SystemSettings.SleepControlEnabled == nil {
 			break
@@ -11167,7 +11160,7 @@ enum TunerServerKind {
   MIRAKURUN
   MIRAKC
   MAHIRON
-  "EDCB の EpgTimerSrv (#1532)。版を名乗らない"
+  "EDCB の EpgTimerSrv (#1532)。バージョンを名乗らない"
   EDCB
 }
 
@@ -11177,7 +11170,7 @@ enum TunerServerKind {
 type TunerServerStatus {
   "チューナーサーバーの種類 (#1538)。まだ分からなければ null。接続できない間は、最後に分かったもの。"
   kind: TunerServerKind
-  "チューナーサーバーが名乗った版。まだ分からないか、名乗らなければ null。"
+  "チューナーサーバーが名乗ったバージョン。まだ分からないか、名乗らなければ null。"
   version: String
   "接続できない縮退中かどうか。"
   degraded: Boolean!
@@ -11191,11 +11184,11 @@ type TunerServerStatus {
   "時計の差を警告する閾値 (ミリ秒)。"
   clockSkewThresholdMs: Int!
   checkedAt: Time!
-  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ測っていなければ null。"
+  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ計測していなければ null。"
   broadcastClockSkewMs: Int
   "放送の時刻との差が、警告する閾値 (clockSkewThresholdMs) を超えているかどうか。"
   broadcastClockSkewed: Boolean!
-  "放送の時刻との差を最後に測った日時。録画していない間は、最後に測ったときのまま。"
+  "放送の時刻との差を最後に計測した日時。録画していない間は、最後に計測したときのまま。"
   broadcastClockCheckedAt: Time
 }
 
@@ -11223,9 +11216,9 @@ type StoragePool {
   priority: Int!
   "容量の閾値 (バイト)。空き容量がこれを下回ったら、保護されていない古い録画から消す。0 なら消さない。"
   minFreeBytes: Int64!
-  "このインスタンスから見た空き容量 (バイト)。調べられなければ null。"
+  "このインスタンスから見た空き容量 (バイト)。取得できなければ null。"
   freeBytes: Int64
-  "このインスタンスから見た、ファイルシステムの容量 (バイト)。root のために取っておく分も含む。調べられなければ null。"
+  "このインスタンスから見た、ファイルシステムの容量 (バイト)。root のために取っておく分も含む。取得できなければ null。"
   totalBytes: Int64
 }
 
@@ -11247,7 +11240,7 @@ type RecordingFailureCount {
 type SystemStatus {
   instances: [Instance!]!
   leases: [Lease!]!
-  "チューナーサーバーの状態。まだ確かめていなければ null。"
+  "チューナーサーバーの状態。まだ確認していなければ null。"
   tunerServer: TunerServerStatus
   tuners: [Tuner!]!
   pools: [StoragePool!]!
@@ -11258,7 +11251,7 @@ type SystemStatus {
 extend type Mutation {
   """
   理由 reasons の、録画の失敗の累計を 0 に、最後に失敗した日時を空に戻し、戻した後の累計を返す (#1035)。
-  検証で失敗させた分や、直した障害の分を消すのに使う。理由ごとに監査ログに残す。管理者だけが使える (設計書 9.7)。
+  検証で失敗させた分や、修正した障害の分を消すのに使う。理由ごとに監査ログに残す。管理者だけが使える (設計書 9.7)。
   """
   resetRecordingFailureCounts(reasons: [RecordingFailureReason!]!): [RecordingFailureCount!]!
 }
@@ -11275,7 +11268,7 @@ extend type Query {
 理由などの詳しいことは、管理者向けの systemStatus で返す。
 """
 type TunerServerHealth {
-  "接続できない縮退中かどうか。まだ確かめていなければ false。"
+  "接続できない縮退中かどうか。まだ確認していなければ false。"
   degraded: Boolean!
   "縮退が始まった日時。縮退中でなければ null。"
   degradedSince: Time
@@ -11285,7 +11278,7 @@ type TunerServerHealth {
   clockSkewMs: Int
   "録画している TS の TOT が示す放送の時刻との差が、警告する閾値を超えているかどうか (#1309)。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付ける。"
   broadcastClockSkewed: Boolean!
-  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ測っていなければ null。"
+  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ計測していなければ null。"
   broadcastClockSkewMs: Int
 }
 
@@ -11332,7 +11325,7 @@ enum AnimeImportSource {
   SAYA_DEFINITIONS
   "しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応"
   ARM
-  "しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う"
+  "しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を検索するのに使う"
   SYOBOCAL_TITLES
   "Annict と AniList から作った、しょぼいカレンダーの TID と作品 ID の対応 (#1223)。arm の対応より優先する"
   ANNICT_WORKS
@@ -11415,11 +11408,11 @@ type AnimeEpisode {
   countStart: Float
   countEnd: Float
   subtitle: String
-  "しょぼいカレンダーの [新] の印。"
+  "しょぼいカレンダーの [新] のマーク。"
   first: Boolean!
-  "しょぼいカレンダーの [終] の印。"
+  "しょぼいカレンダーの [終] のマーク。"
   last: Boolean!
-  "再放送かどうか (#1233)。しょぼいカレンダーの再放送の印か、番組名の解析では番組名の [再] の印。"
+  "再放送かどうか (#1233)。しょぼいカレンダーの再放送のマークか、番組名の解析では番組名の [再] のマーク。"
   rerun: Boolean!
   "TID に対応する作品。対応がなければ空。"
   works: [AnimeWork!]!
@@ -11431,7 +11424,7 @@ extend type Program {
 }
 
 extend type Recording {
-  "結びついた話 (設計書 3.8)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。"
+  "結びついた話 (設計書 3.8)。録画を始めたときの番組の結びつきをコピーしたもの。録画の詳細で使い、一覧では引かない。"
   animeEpisodes: [AnimeEpisode!]!
 }
 
@@ -11481,7 +11474,7 @@ type AnimeFollowingViewing {
   username: String!
   "画面に出す名前。"
   name: String!
-  "アバターを tenban が中継する URL のパス。アバターがなければ null。"
+  "アバターを tenban がプロキシする URL のパス。アバターがなければ null。"
   avatarUrl: String
   "記録先のユーザーのページ。"
   profileUrl: String!
@@ -11516,7 +11509,7 @@ extend type Query {
 extend type Mutation {
   """
   ログイン中のユーザーがフォローしている人の、作品 tid の視聴状況の取得を頼む (#1372)。取得はジョブで行うので、終わるのを待たない。
-  終わったら DataChannel の ANIME_FOLLOWING で知らせる。問い合わせる時期が来ていなければ、何もせずに false を返す。視聴者も使える。
+  終わったら DataChannel の ANIME_FOLLOWING で通知する。問い合わせる時期が来ていなければ、何もせずに false を返す。視聴者も使える。
   """
   refreshAnimeFollowingViewings(tid: Int!): Boolean!
 }
@@ -11528,7 +11521,7 @@ type AnimeFollowingWatcher {
   username: String!
   "画面に出す名前。"
   name: String!
-  "アバターを tenban が中継する URL のパス。アバターがなければ null。"
+  "アバターを tenban がプロキシする URL のパス。アバターがなければ null。"
   avatarUrl: String
   "記録先のユーザーのページ。"
   profileUrl: String!
@@ -11628,7 +11621,7 @@ type AnimeLibraryBroadcast {
 }
 
 """
-作品の始まった放送 (#1233)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+作品の始まった放送 (#1233)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻とマークだけを返す。
 """
 type AnimeLibraryPastBroadcast {
   startAt: Time!
@@ -11666,7 +11659,7 @@ type AnimeLibraryWork {
   "作品名。Annict の作品名を先に選ぶ。"
   title: String!
   """
-  作品の画像 (#1235)。tenban が記録先の画像を中継する URL のパス。AniList の画像を先に選ぶ。画像がなければ null。
+  作品の画像 (#1235)。tenban が記録先の画像をプロキシする URL のパス。AniList の画像を先に選ぶ。画像がなければ null。
   """
   imageUrl: String
   "どれかの記録先で「見てる」にしていれば WATCHING。"
@@ -11849,7 +11842,7 @@ extend type Mutation {
 input RecordAnimeEpisodesInput {
   "番組。番組に結びついた話を記録する (番組の詳細から)。"
   program: ID
-  "録画。録画に写した結びつきの話を記録する (録画の詳細から)。"
+  "録画。録画にコピーした結びつきの話を記録する (録画の詳細から)。"
   recording: ID
   "作品のしょぼいカレンダーの TID。episode の話を、番組によらず記録する (視聴管理の画面から)。"
   tid: Int
@@ -12008,30 +12001,30 @@ extend type Mutation {
 }
 `, BuiltIn: false},
 	{Name: "../schema/backup.graphqls", Input: `"""
-定期のバックアップの設定 (設計書 11.4、#1926)。書き出す先のディレクトリは、nekonote の設定ファイル (backup.dir) で決める。
+定期のバックアップの設定 (設計書 11.4、#1926)。出力先のディレクトリは、nekonote の設定ファイル (backup.dir) で決める。
 """
 type BackupSettings {
   "暗号化する age の公開鍵 (age1...)。どれか 1 つの秘密鍵で読める。空なら、定期のバックアップをしない。"
   recipients: [String!]!
-  "書き出す間隔 (時間)。"
+  "バックアップする間隔 (時間)。"
   intervalHours: Int!
-  "残す世代の数。書き出し終えたら、これより古いファイルを消す。"
+  "残す世代の数。バックアップし終えたら、これより古いファイルを消す。"
   generations: Int!
   "最後に変えた日時。一度も変えていなければ null。"
   updatedAt: Time
 }
 
 """
-バックアップの書き出しの結果 (#1926)。
+バックアップの結果 (#1926)。
 """
 type BackupRun {
   "管理者が画面から頼んだものかどうか。false なら、定期のもの。"
   manual: Boolean!
   startedAt: Time!
   finishedAt: Time!
-  "書き出したファイルの名前 (書き出す先のディレクトリの中)。失敗したら null。"
+  "出力したファイルの名前 (出力先のディレクトリの中)。失敗したら null。"
   fileName: String
-  "書き出したファイルの大きさ (バイト)。失敗したら null。"
+  "出力したファイルの大きさ (バイト)。失敗したら null。"
   size: Int64
   "失敗したときの理由。成功したら null。"
   error: String
@@ -12041,25 +12034,25 @@ type BackupRun {
 定期のバックアップの設定を変える (#1926)。省いた項目は変えない。
 """
 input BackupSettingsInput {
-  "暗号化する age の公開鍵。渡すと、登録してある鍵をすべて置き換える。"
+  "暗号化する age の公開鍵。渡すと、登録してある公開鍵をすべて置き換える。"
   recipients: [String!]
-  "書き出す間隔 (1〜720 時間)。"
+  "バックアップする間隔 (1〜720 時間)。"
   intervalHours: Int
   "残す世代の数 (1〜365)。"
   generations: Int
 }
 
 """
-バックアップの設定と、最後の書き出しの結果 (設計書 11.4、#1926)。
+バックアップの設定と、最後のバックアップの結果 (設計書 11.4、#1926)。
 """
 type BackupStatus {
   settings: BackupSettings!
-  "最後の書き出しの結果。まだ書き出していなければ null。"
+  "最後のバックアップの結果。まだバックアップしていなければ null。"
   latestRun: BackupRun
 }
 
 extend type Query {
-  "定期のバックアップの設定と、最後の書き出しの結果を返す (設計書 11.4、#1926)。管理者だけが使える。"
+  "定期のバックアップの設定と、最後のバックアップの結果を返す (設計書 11.4、#1926)。管理者だけが使える。"
   backup: BackupStatus!
 }
 
@@ -12069,8 +12062,8 @@ extend type Mutation {
   """
   updateBackupSettings(input: BackupSettingsInput!): BackupStatus!
   """
-  今すぐバックアップを書き出すジョブを入れる (#1926)。管理者だけが使える。書き出しは nekonote が行う。
-  公開鍵を登録していなければ BAD_USER_INPUT に、頼んだ書き出しを待っているか動かしていれば CONFLICT にする。
+  今すぐバックアップを作成するジョブを入れる (#1926)。管理者だけが使える。バックアップは nekonote が行う。
+  公開鍵を登録していなければ BAD_USER_INPUT に、頼んだバックアップを待っているか動かしていれば CONFLICT にする。
   """
   runBackup: BackupStatus!
 }
@@ -12301,7 +12294,7 @@ extend type Mutation {
 }
 `, BuiltIn: false},
 	{Name: "../schema/changes.graphqls", Input: `"""
-変更を知らせるデータの種類 (設計書 1.4、9.1)。
+変更を通知するデータの種類 (設計書 1.4、9.1)。
 """
 enum DataChannel {
   "番組表と番組"
@@ -12327,11 +12320,11 @@ enum DataChannel {
 }
 
 """
-データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
+データの変更。何が変わったかだけを通知するので、クライアントは、そのデータを読み直す。
 """
 type DataChange {
   channel: DataChannel!
-  "変更の版数。変わるたびに大きくなる。"
+  "変更のバージョン。変わるたびに大きくなる。"
   version: Int!
 }
 
@@ -12350,7 +12343,7 @@ type ViewerEvent {
   streamsDraining: Boolean
   """
   ライブのサービスが、スクランブルされたまま届くと決めたという知らせ (設計書 7.1、#1517)。購読を始めた後に決めたものだけを送る。
-  決めるのは、ブラウザ内での変換のストリームを中継する tenban と、kyusu で、決めたらストリームを閉じる。どの tenban や kyusu で決めても届く。
+  決めるのは、ブラウザ内での変換のストリームを配信する tenban と、kyusu で、決めたらストリームを閉じる。どの tenban や kyusu で決めても届く。
   ライブを流しているプレイヤーは、自分のサービスなら、つなぎ直すのをやめて、理由を出す。接続を増やさないよう、ここに載せる。
   """
   liveStreamScrambled: LiveStreamScrambled
@@ -12363,7 +12356,7 @@ extend type Subscription {
   """
   viewerEvents: ViewerEvent!
   """
-  データの変更 (設計書 9.1)。購読を始めたときに、すべての種類の今の版数を送り、その後は版数が上がった種類を送る。
+  データの変更 (設計書 9.1)。購読を始めたときに、すべての種類の今のバージョンを送り、その後はバージョンが上がった種類を送る。
   どの tenban で起きた変更も届く。
   """
   dataChanged: DataChange!
@@ -12373,14 +12366,14 @@ extend type Subscription {
   """
   unreadNotificationCount: Int!
   """
-  ログイン中のユーザーの設定の版数 (設計書 9.1)。購読を始めたときに今の版数を送り、その後は、同じユーザーが、どの端末からでも設定を変えたときに送る。
+  ログイン中のユーザーの設定のバージョン (設計書 9.1)。購読を始めたときに今のバージョンを送り、その後は、同じユーザーが、どの端末からでも設定を変えたときに送る。
   クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、プレイヤーの設定、視聴予約とその通知の設定、第二要素、パスキー、セッションの失効。
   """
   viewerSettingsChanged: Int!
 }
 `, BuiltIn: false},
 	{Name: "../schema/channel_inspection.graphqls", Input: `"""
-物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
+物理チャンネルの TS をまるごと数秒受け取って調査した結果 (#830)。
 """
 type ChannelInspection {
   "PAT の transport_stream_id。PAT を受け取れなければ null。"
@@ -12396,7 +12389,7 @@ type ChannelInspection {
 }
 
 """
-調べた TS の、番組 (サービス) 1 つの様子。
+調査した TS の、番組 (サービス) 1 つの様子。
 """
 type InspectedProgram {
   "program_number。ARIB ではサービス ID と同じ値になる。"
@@ -12410,7 +12403,7 @@ type InspectedProgram {
 }
 
 """
-調べた TS の、PID 1 つの様子。
+調査した TS の、PID 1 つの様子。
 """
 type InspectedStream {
   pid: Int!
@@ -12425,9 +12418,9 @@ type InspectedStream {
 
 extend type Mutation {
   """
-  物理チャンネル channelType/channel の TS を、まるごと数秒受け取って調べる (#830、設計書 10.3)。管理者だけが使える。
+  物理チャンネル channelType/channel の TS を、まるごと数秒受け取って調査する (#830、設計書 10.3)。管理者だけが使える。
   チューナーを奪わない優先度でチャンネルのストリームを開くので、空いたチューナーがなければ失敗する。
-  調べる間、チューナーを 1 本使う。
+  調査する間、チューナーを 1 本使う。
   """
   inspectChannel(channelType: String!, channel: String!): ChannelInspection!
 }
@@ -12455,7 +12448,7 @@ enum KeywordField {
 }
 
 """
-キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比べる。
+キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比較する。
 """
 input KeywordInput {
   text: String!
@@ -12515,7 +12508,7 @@ input ProgramConditionsInput {
   minDurationSeconds: Int
   maxDurationSeconds: Int
   freeOnly: Boolean
-  "番組名の囲み文字 (中身で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。"
+  "番組名の囲み文字 (内容で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。"
   marks: [String!]
   "どれか 1 つの囲み文字を持つ番組を除外する。"
   excludeMarks: [String!]
@@ -12576,7 +12569,7 @@ type DramaEpisode {
 管理者が、番組名から読んだ作品名ごとに決めた TMDB の作品 (#1651、設計書 3.9)。
 """
 type DramaTitleOverride {
-  "作品名の鍵 (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。"
+  "作品名のキー (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。"
   titleKey: String!
   "結びつける TMDB の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。"
   tmdbSeriesId: Int
@@ -12599,9 +12592,9 @@ type DramaLinkingStatus {
 作品名の上書きの変更 (#1651)。programName か titleKey のどちらか 1 つと、tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
 """
 input DramaTitleOverrideInput {
-  "上書きする作品名を読む番組名。照合と同じ読み方で、作品名の鍵にする。"
+  "上書きする作品名を読む番組名。照合と同じ読み方で、作品名のキーにする。"
   programName: String
-  "上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。"
+  "上書きする作品名のキー (dramaTitleOverrides の titleKey)。一覧から消すときに使う。"
   titleKey: String
   "結びつける TMDB の作品の ID (1 以上)。"
   tmdbSeriesId: Int
@@ -12614,21 +12607,21 @@ input DramaTitleOverrideInput {
 extend type Program {
   "結びついた TMDB の作品と話 (#1651、設計書 3.9)。照合していないか、作品に結びつかなければ null。番組の詳細で使い、一覧では引かない。"
   dramaEpisode: DramaEpisode
-  "番組名から読んだ、TMDB で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
+  "番組名から読んだ、TMDB で作品を探す作品名のキー (#1651)。管理者が上書きするのに使う。"
   dramaTitleKey: String!
 }
 
 extend type Recording {
-  "結びついた TMDB の作品と話 (#1651、設計書 3.9)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。"
+  "結びついた TMDB の作品と話 (#1651、設計書 3.9)。録画を始めたときの番組の結びつきをコピーしたもの。録画の詳細で使い、一覧では引かない。"
   dramaEpisode: DramaEpisode
-  "番組名から読んだ、TMDB で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
+  "番組名から読んだ、TMDB で作品を探す作品名のキー (#1651)。管理者が上書きするのに使う。"
   dramaTitleKey: String!
 }
 
 extend type Query {
   "TMDB との連携の様子 (#1651)。管理者だけが使える。"
   dramaLinking: DramaLinkingStatus!
-  "作品名ごとの TMDB の作品の上書き (#1651)。作品名の鍵の順に並べる。管理者だけが使える。"
+  "作品名ごとの TMDB の作品の上書き (#1651)。作品名のキーの順に並べる。管理者だけが使える。"
   dramaTitleOverrides: [DramaTitleOverride!]!
 }
 
@@ -12688,7 +12681,7 @@ type DramaLibraryBroadcast {
 }
 
 """
-ドラマの作品の始まった放送 (#1652)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+ドラマの作品の始まった放送 (#1652)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻とマークだけを返す。
 """
 type DramaLibraryPastBroadcast {
   startAt: Time!
@@ -12885,13 +12878,13 @@ extend type Mutation {
   管理者が TMDB との連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
   """
   beginDramaRecordConnection(destination: DramaRecordDestination!): String!
-  "ログイン中のユーザーとドラマの記録先 destination の連携を外し、記録先でトークンを取り消す (#1649)。見ている作品に写した作品は残す。"
+  "ログイン中のユーザーとドラマの記録先 destination の連携を外し、記録先でトークンを取り消す (#1649)。見ている作品にコピーした作品は残す。"
   disconnectDramaRecord(destination: DramaRecordDestination!): DramaRecordSettings!
   """
   ログイン中のユーザーの、ドラマの記録先のウォッチリストを取り込むジョブを入れる (#1649)。ドラマの視聴管理の画面を開いたときと、
   取り込み直しを押したとき (force) に呼ぶ。force でなければ、前に問い合わせてから 30 分たった連携だけを取り込む。
   取り込めなかった連携は、問い合わせ直す日時まで取り込まない。ジョブを入れたら true を返す。
-  取り込み終えて見ている作品が変わったら、dataChanged の DRAMA_WATCHLIST で知らせる。
+  取り込み終えて見ている作品が変わったら、dataChanged の DRAMA_WATCHLIST で通知する。
   """
   importDramaWatchlist(force: Boolean! = false): Boolean!
   "ログイン中のユーザーの、見たドラマの記録の設定を変える (#1649)。視聴者も使える。割合が 1〜100 でなければ BAD_USER_INPUT を返す。"
@@ -12923,7 +12916,7 @@ type Service implements Node {
   "チャンネル (GR の物理チャンネルなど)"
   channel: String!
   remoteControlKeyId: Int
-  "番組表に出さない印"
+  "番組表に出さないマーク"
   hidden: Boolean!
   "並び順の上書き。小さいほど前に並ぶ。上書きしていなければ null で、リモコンのキーの順に並ぶ。"
   sortOrder: Int
@@ -13002,7 +12995,7 @@ type Program implements Node {
   isFree: Boolean!
   name: String!
   """
-  番組からルールを作るときに、番組名のキーワードにする作品名 (#1240)。番組名から、話数、サブタイトル、印、頭の飾りを除いたもの。
+  番組からルールを作るときに、番組名のキーワードにする作品名 (#1240)。番組名から、話数、サブタイトル、マーク、頭の飾りを除いたもの。
   話数まで入れると、その話にしか一致しないため。正規化した番組名のひと続きの部分なので、この番組自身にも一致する。
   """
   ruleKeyword: String!
@@ -13024,7 +13017,7 @@ type Program implements Node {
 }
 
 """
-番組表の 1 列 (1 つのサービスの番組)。
+番組表の 1 カラム (1 つのサービスの番組)。
 """
 type GuideRow {
   service: Service!
@@ -13033,7 +13026,7 @@ type GuideRow {
 }
 
 extend type Query {
-  "ID で引く (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。"
+  "ID で取得する (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。"
   node(id: ID!): Node
 
   "チャンネル種別を、並び順に並べたもの。"
@@ -13068,7 +13061,7 @@ extend type Query {
 extend type Program {
   "番組の録画のうち、番組の放送時間に重なるもの (#1121)。過去の番組の詳細から、録画を開くのに使う。"
   recordings: [Recording!]!
-  "番組の録画があるか (#1278)。失敗した録画は数えない。番組表で、録画した番組に印を出すのに使う。"
+  "番組の録画があるか (#1278)。失敗した録画は数えない。番組表で、録画した番組にマークを出すのに使う。"
   recorded: Boolean!
 }
 `, BuiltIn: false},
@@ -13095,7 +13088,7 @@ type FileNameTemplatePreset {
 }
 
 """
-ファイル名のテンプレートの書き方。Go のテンプレートを書かない利用者向けに、画面で表にして示す。
+ファイル名のテンプレートの書き方。Go のテンプレートを書かない利用者向けに、画面でテーブルにして示す。
 """
 type FileNameTemplateHelp {
   items: [FileNameTemplateItem!]!
@@ -13218,7 +13211,7 @@ extend type Mutation {
   addGoogleDriveFolder(id: String!, libraryName: String!): GoogleIntegration!
   """
   Drive のフォルダ id のライブラリの名前を変える (#1902)。管理者だけが使える。見せるものは変わらないので、再認証は求めない。
-  再生位置と索引は、Drive のファイルの ID で引くので、名前を変えても引き継ぐ。名前が規則に合わないか重なれば BAD_USER_INPUT を返す。
+  再生位置とインデックスは、Drive のファイルの ID で取得するので、名前を変えても引き継ぐ。名前が規則に合わないか重なれば BAD_USER_INPUT を返す。
   """
   renameGoogleDriveFolder(id: String!, libraryName: String!): GoogleIntegration!
   "Drive のフォルダ id を、見せるフォルダから外す (#1902)。管理者だけが使える。"
@@ -13354,9 +13347,9 @@ extend type Query {
 }
 
 extend type Mutation {
-  "ジョブを、すぐに試し直す (#1279)。管理者だけが使える。動いているジョブは試し直せない。監査ログに残す。"
+  "ジョブを、すぐに再試行する (#1279)。管理者だけが使える。動いているジョブは再試行できない。監査ログに残す。"
   retryJob(id: ID!): Job!
-  "ジョブを取り消す (#1279)。管理者だけが使える。動いているジョブには、止めるよう知らせる。監査ログに残す。"
+  "ジョブを取り消す (#1279)。管理者だけが使える。動いているジョブには、止めるよう通知する。監査ログに残す。"
   cancelJob(id: ID!): Job!
 }
 `, BuiltIn: false},
@@ -13398,13 +13391,13 @@ type LibraryEntry {
   playable: Boolean!
 }
 
-"ライブラリのディレクトリの中身。"
+"ライブラリのディレクトリの内容。"
 type LibraryDirectory {
   library: Library!
   "ライブラリの中の / 区切りの相対パス。根元は空。"
   path: String!
   """
-  パスの段ごとの、画面に出す名前。パンくずに使う。フォルダのライブラリでは段そのもの、Google Drive ではフォルダの名前
+  パスの階層ごとの、画面に出す名前。パンくずに使う。フォルダのライブラリでは階層そのもの、Google Drive ではフォルダの名前
   (マイドライブの根元は "My Drive")。根元なら空。
   """
   names: [String!]!
@@ -13415,20 +13408,20 @@ type LibraryDirectory {
   entries: [LibraryEntry!]!
 }
 
-"ライブラリのファイルのシークの索引の進み具合 (設計書 5.8)。"
+"ライブラリのファイルのシークのインデックスの進み具合 (設計書 5.8)。"
 type LibraryFileIndex {
-  "索引を作り終えたかどうか。作り終えるまでは、読み直して進み具合を確かめる。"
+  "インデックスを作り終えたかどうか。作り終えるまでは、読み直して進み具合を確認する。"
   complete: Boolean!
   """
-  ファイルを書いている途中とみなして、索引を作らないかどうか (最後に書いてから 1 分たっていないファイル)。
-  索引がなければ、頭から再生できるだけで、シークできない。
+  ファイルを書いている途中とみなして、インデックスを作らないかどうか (最後に書いてから 1 分たっていないファイル)。
+  インデックスがなければ、頭から再生できるだけで、シークできない。
   """
   writing: Boolean!
-  "シークできる所 (索引のできた最後の I フレームの位置。ファイルの始まりからの秒)。索引がまだなければ 0。"
+  "シークできる所 (インデックスのできた最後の I フレームの位置。ファイルの始まりからの秒)。インデックスがまだなければ 0。"
   seekableSeconds: Float!
   """
-  再生の時間 (秒)。作り終えていれば索引から求め、作っている途中なら、できた所までのバイト数と時間の比から見込む。
-  索引がまだなければ null。
+  再生の時間 (秒)。作り終えていればインデックスから求め、作っている途中なら、できた所までのバイト数と時間の比から見込む。
+  インデックスがまだなければ null。
   """
   durationSeconds: Float
 }
@@ -13448,7 +13441,7 @@ type LibraryFile {
   name: String!
   size: Int64!
   modifiedAt: Time!
-  "ファイルの頭から読んだ映像の種類。読めなければ HD とみなす。"
+  "ファイルの先頭から読んだ映像の種類。読めなければ HD とみなす。"
   videoFormat: VideoFormat!
   index: LibraryFileIndex!
   "ログイン中のユーザーが保存した再生位置 (ミリ秒)。ファイルを書き換えたら、前の位置は使わない。"
@@ -13456,13 +13449,13 @@ type LibraryFile {
   "ファイルの TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
   streamUrl: String!
   """
-  TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報 (局、放送の時刻、番組)。索引を作り始めるときに読む。
+  TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報 (局、放送の時刻、番組)。インデックスを作り始めるときに読む。
   まだ読んでいないか、読めなければ null。
   """
   broadcast: LibraryBroadcast
-  "放送中だった番組の音声の構成。索引を作り終えるまでと、読めなければ空。"
+  "放送中だった番組の音声の構成。インデックスを作り終えるまでと、読めなければ空。"
   audios: [ProgramAudio!]!
-  "ドロップなどの集計。索引を作り終えるまでは null。"
+  "ドロップなどの集計。インデックスを作り終えるまでは null。"
   quality: LibraryFileQuality
   """
   ファイルの時間帯の実況の過去ログの URL のパス (設計書 7.4)。局と時間帯は broadcast のものを使う。
@@ -13470,13 +13463,13 @@ type LibraryFile {
   """
   jikkyoCommentsUrl: String!
   """
-  代表画像の URL のパス。索引を作り終えた後に、nekonote のジョブで作る (設計書 5.8)。まだなければ null で、開くとジョブを入れる。
+  代表画像の URL のパス。インデックスを作り終えた後に、nekonote のジョブで作る (設計書 5.8)。まだなければ null で、開くとジョブを入れる。
   """
   thumbnailUrl: String
   "シークバー用のプレビュー画像の URL のパス。代表画像と一緒に作る。まだないか、作らない設定なら null。"
   previewUrl: String
   """
-  CM とみなした区間 (設計書 5.8)。索引を作り終えた後に、nekonote のジョブで、録画と同じ見分け方で見分ける。
+  CM とみなした区間 (設計書 5.8)。インデックスを作り終えた後に、nekonote のジョブで、録画と同じ見分け方で見分ける。
   まだ見分けていなければ null で、開くとジョブを入れる。見つからなければ空のリスト。
   """
   cmSections: [LibraryCMSection!]
@@ -13542,12 +13535,12 @@ extend type Query {
   "このインスタンスから読めるライブラリを、保存先プール (設定の順)、フォルダ (名前の順) の順に返す。"
   libraries: [Library!]!
   """
-  ライブラリ library の、ディレクトリ path (根元は空) の中身を返す。
+  ライブラリ library の、ディレクトリ path (根元は空) の内容を返す。
   ライブラリかディレクトリがなければ NOT_FOUND を、パスがライブラリの外を指すなら BAD_USER_INPUT を返す。
   """
   libraryDirectory(library: String!, path: String!): LibraryDirectory!
   """
-  ライブラリ library の、再生できるファイル path を返す。シークの索引を作り終えていなければ、裏で作り始める。
+  ライブラリ library の、再生できるファイル path を返す。シークのインデックスを作り終えていなければ、裏で作り始める。
   ファイルがないか再生できるファイルでなければ NOT_FOUND を、Blu-ray の 192 バイトのパケットの .m2ts のように TS でなければ BAD_USER_INPUT を返す。
   """
   libraryFile(library: String!, path: String!): LibraryFile!
@@ -13571,8 +13564,8 @@ type LibrarySearchResult {
 type LibrarySearchHit {
   entry: LibraryEntry!
   """
-  ファイルのあるフォルダの、根元からの段ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
-  Google Drive では、フォルダの名前 (パスの段は ID)。
+  ファイルのあるフォルダの、根元からの階層ごとの名前。同じ名前のファイルを見分けるのに使う。根元の直下なら空。
+  Google Drive では、フォルダの名前 (パスの階層は ID)。
   """
   folderNames: [String!]!
 }
@@ -13586,12 +13579,12 @@ extend type Mutation {
   """
   ライブラリのファイル id (LibraryFile.id) の音声から字幕を自動生成するジョブを入れる (設計書 5.8)。視聴者は使えない。
   録画と同じく、前に生成した字幕は、生成し終えたら置き換える。同じファイルのジョブを待っていれば、重ねて入れない。
-  id を引いた後にファイルを書き換えていたら CONFLICT にする。書いている途中か、音声を引くサービスが分からないファイルも CONFLICT にする。
+  id を取得した後にファイルを書き換えていたら CONFLICT にする。書いている途中か、音声を取得するサービスが分からないファイルも CONFLICT にする。
   """
   generateLibraryCaptions(id: ID!): LibraryFile!
 }
 
-"ライブラリのファイルの、CM とみなした区間。時刻は、再生の 0 秒 (索引の最初の I フレーム) からの秒。"
+"ライブラリのファイルの、CM とみなした区間。時刻は、再生の 0 秒 (インデックスの最初の I フレーム) からの秒。"
 type LibraryCMSection {
   startSeconds: Float!
   endSeconds: Float!
@@ -13606,7 +13599,7 @@ type LibraryAutoCaption {
 }
 `, BuiltIn: false},
 	{Name: "../schema/library_artifacts.graphqls", Input: `"""
-データディレクトリの、ライブラリのファイルの生成物 (索引、画像、CM の区間、自動生成した字幕) の量 (設計書 5.8)。
+データディレクトリの、ライブラリのファイルの生成物 (インデックス、画像、CM の区間、自動生成した字幕) の量 (設計書 5.8)。
 """
 type LibraryArtifacts {
   "ファイルの大きさの合計 (バイト)。"
@@ -13627,7 +13620,7 @@ extend type Mutation {
   """
   データディレクトリの、ライブラリのファイルの生成物を丸ごと消し、消した量を返す。管理者だけが使える。監査ログに残す。
   まだ動いていない、ライブラリのファイルの画像、CM の区間、字幕の自動生成のジョブも消す。ユーザーごとの再生位置は消さない。
-  消した後にファイルを開けば、索引と画像を作り直す。データディレクトリを設定していないか、ほかの片付けの途中なら CONFLICT を返す。
+  消した後にファイルを開けば、インデックスと画像を作り直す。データディレクトリを設定していないか、ほかの片付けの途中なら CONFLICT を返す。
   """
   clearLibraryArtifacts: LibraryArtifacts!
 }
@@ -13638,7 +13631,7 @@ extend type Mutation {
 type GoModuleLicense {
   "モジュールのパス。Go の標準ライブラリは std。"
   path: String!
-  "モジュールの版。Go の標準ライブラリは、ビルドに使った Go の版 (go1.27.3 など)。"
+  "モジュールのバージョン。Go の標準ライブラリは、ビルドに使った Go のバージョン (go1.27.3 など)。"
   version: String!
   "モジュールの直下にある、ライセンスの文書と NOTICE。"
   files: [LicenseFile!]!
@@ -13653,7 +13646,7 @@ type LicenseFile {
 extend type Query {
   """
   本体に組み込んだ Go のモジュールと、そのライセンスの文書。動いているバイナリに組み込まれたものだけを、パスの順に返す。
-  版は古い版の脆弱性を狙う手がかりになるので、ログインしたユーザーにだけ返す。一覧を書き出さずにビルドしたときは null。
+  バージョンは古いバージョンの脆弱性を狙う手がかりになるので、ログインしたユーザーにだけ返す。一覧を書き出さずにビルドしたときは null。
   """
   goModuleLicenses: [GoModuleLicense!]
 }
@@ -13665,7 +13658,7 @@ enum LogLevel {
   ERROR
 }
 
-"ログの出どころ (#1521)。"
+"ログのソース (#1521)。"
 enum LogSourceKind {
   "このリクエストに答えた Kotatsu のプロセス。"
   KOTATSU
@@ -13682,7 +13675,7 @@ enum LogSourceFailure {
   HTTP_ERROR
 }
 
-"ログの 1 行。秘密の値は、サーバーが知っているものを伏せてある (1 段目)。"
+"ログの 1 行。秘密の値は、サーバーが知っているものをマスクしてある (1 段階目)。"
 type LogLine {
   "epoch ミリ秒の時刻。"
   time: Int64!
@@ -13692,27 +13685,27 @@ type LogLine {
   text: String!
 }
 
-"1 つの出どころのログと環境。"
+"1 つのソースのログと環境。"
 type LogSource {
   kind: LogSourceKind!
   "古い順の行。"
   lines: [LogLine!]!
-  "出どころが持っていた行の数。lines は、このうち最後の保持行数まで。"
+  "ソースが持っていた行の数。lines は、このうち最後の保持行数まで。"
   total: Int!
   "ログを取れなかった理由。取れたら null。"
   failure: LogSourceFailure
-  "版。分からなければ空。"
+  "バージョン。分からなければ空。"
   version: String!
   os: String!
   arch: String!
-  "Kotatsu では Go の版、チューナーサーバーではサーバーの種類 (分かるときだけ)。"
+  "Kotatsu では Go のバージョン、チューナーサーバーではサーバーの種類 (分かるときだけ)。"
   runtime: String!
 }
 
 "直近のログと、不具合の報告に要るもの (#1521、設計書 11.3)。"
 type LogReport {
   sources: [LogSource!]!
-  "不具合の報告を作るときに、ブラウザで伏せるホスト名 (2 段目)。リクエストが来たホスト名と、チューナーサーバーと DB のホスト名。"
+  "不具合の報告を作るときに、ブラウザでマスクするホスト名 (2 段階目)。リクエストが来たホスト名と、チューナーサーバーと DB のホスト名。"
   redactHosts: [String!]!
   "このリクエストに答えたインスタンスの ID。"
   instanceId: String!
@@ -13751,14 +13744,14 @@ type CleanUpMissingRecordingsPayload {
 extend type Query {
   """
   セグメントのファイルが見つからない録画を、録画を始めた日時の新しい順に返す。管理者だけが使える。
-  このインスタンスにマウントしたプールのファイルだけを調べ、マウントしていないプールのファイルは見つからないとはみなさない。
+  このインスタンスにマウントしたプールのファイルだけを調査し、マウントしていないプールのファイルは見つからないとはみなさない。
   """
   missingRecordings: [MissingRecording!]!
 }
 
 extend type Mutation {
   """
-  録画 ids のセグメントのファイルを確かめ直し、見つからないものの記録を DB から消す。ファイルは触らない。管理者だけが使える。
+  録画 ids のセグメントのファイルを確認し直し、見つからないものの記録を DB から消す。ファイルは触らない。管理者だけが使える。
   セグメントが 1 つも見つからなければ録画を消し、一部だけなら、見つからないセグメントの記録だけを消す。監査ログに残す。
   """
   cleanUpMissingRecordings(ids: [ID!]!): CleanUpMissingRecordingsPayload!
@@ -13809,7 +13802,7 @@ type NetworkActivityEntry {
   "時間帯の始まり。"
   hour: Time!
   purpose: NetworkActivityPurpose!
-  "接続先のホスト名。視聴の内容や設定の中身が分かるものは null。"
+  "接続先のホスト名。視聴の内容や設定の内容が分かるものは null。"
   host: String
   initiator: NetworkActivityInitiator!
   success: Boolean!
@@ -13950,7 +13943,7 @@ MCP のクライアントからの認可のリクエスト (#963、設計書 9.9
 type OAuthAuthorization {
   "クライアントの ID。クライアントのメタデータの URL (CIMD)。"
   clientId: String!
-  "クライアントの名前。クライアントが自分で名乗るもので、確かめていない。"
+  "クライアントの名前。クライアントが自分で名乗るもので、確認していない。"
   clientName: String!
   "クライアントのサイト。名乗っていなければ null。"
   clientUri: String
@@ -13963,10 +13956,10 @@ type OAuthAuthorization {
 }
 
 """
-同意の画面に出す前に確かめた、認可のリクエスト。
+同意の画面に出す前に確認した、認可のリクエスト。
 """
 type OAuthAuthorizationCheck {
-  "確かめた認可のリクエスト。errorRedirectUrl があれば null。"
+  "確認した認可のリクエスト。errorRedirectUrl があれば null。"
   authorization: OAuthAuthorization
   "パラメーターが正しくないときに、エラーを付けてクライアントへ戻す URL。正しければ null。"
   errorRedirectUrl: String
@@ -13992,8 +13985,8 @@ extend type Query {
   "ログイン中のユーザーが連携している MCP のクライアント。新しい順に並べる。MCP を無効にしていても返す。"
   oauthGrants: [OAuthGrant!]!
   """
-  認可のエンドポイントに届いたクエリ (先頭の ? を除く) を確かめる。クライアントのメタデータは、ここで取ってくる。
-  client_id かリダイレクト URI を確かめられなければ、どこへ戻すかが分からないので BAD_USER_INPUT を返す。
+  認可のエンドポイントに届いたクエリ (先頭の ? を除く) を確認する。クライアントのメタデータは、ここで取ってくる。
+  client_id かリダイレクト URI を確認できなければ、どこへ戻すかが分からないので BAD_USER_INPUT を返す。
   MCP が無効なら NOT_FOUND を返す。
   """
   oauthAuthorization(query: String!): OAuthAuthorizationCheck!
@@ -14044,14 +14037,14 @@ DB にないファイルを消した結果。
 type DeleteOrphanFilesPayload {
   "消したファイルとディレクトリの数。"
   deleted: Int!
-  "確かめ直すと、DB にあるか、使っているか、書いたばかりか、もうなかったので、消さなかった数。"
+  "確認し直すと、DB にあるか、使っているか、書いたばかりか、もうなかったので、消さなかった数。"
   skipped: Int!
 }
 
 extend type Query {
   """
   DB にないファイルを、プールとパスの順に返す。管理者だけが使える。
-  このインスタンスにマウントしたプールと、データディレクトリだけを調べる。
+  このインスタンスにマウントしたプールと、データディレクトリだけを調査する。
   データディレクトリでは、持ち主のセグメントのファイルが DB にない生成物のディレクトリと、生成物のディレクトリでないファイルを返す。
   録画中のファイル、セグメントをつないでいる途中のファイルとつなぐ元のファイル、書くか名前を変えて 1 時間以内のファイル、隠しファイルと lost+found は返さない。
   """
@@ -14060,7 +14053,7 @@ extend type Query {
 
 extend type Mutation {
   """
-  DB にないファイルを確かめ直して消す。管理者だけが使える。監査ログに残す。
+  DB にないファイルを確認し直して消す。管理者だけが使える。監査ログに残す。
   """
   deleteOrphanFiles(files: [OrphanFileInput!]!): DeleteOrphanFilesPayload!
 }
@@ -14101,7 +14094,7 @@ extend type Mutation {
 extend type Mutation {
   """
   サービスをピン留めするか、外す (#485)。ピン留めした後のサービスを、ピン留めした順に返す。
-  同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  同じユーザーのほかの端末に viewerSettingsChanged で通知する。
   """
   setServicePinned(id: ID!, pinned: Boolean!): [Service!]!
 }
@@ -14120,7 +14113,7 @@ type PlayerSettings {
   comments: CommentSettings!
   "字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。"
   captions: CaptionSettings!
-  "画面が端末に覚えていた設定のうち、端末をまたいで同期するもの (#1862)。キーの順に並べる。"
+  "画面が端末に保存していた設定のうち、端末をまたいで同期するもの (#1862)。キーの順に並べる。"
   preferences: [Preference!]!
 }
 
@@ -14130,7 +14123,7 @@ type PlayerSettings {
 type Preference {
   "画面の保存先のキー (kotatsu.player.keymap など)。"
   key: String!
-  "保存した文字列。中身は画面が決める。"
+  "保存した文字列。内容は画面が決める。"
   value: String!
 }
 
@@ -14251,7 +14244,7 @@ extend type Query {
 }
 
 extend type Mutation {
-  "プレイヤーの設定を変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。"
+  "プレイヤーの設定を変え、同じユーザーのほかの端末に viewerSettingsChanged で通知する。"
   updatePlayerSettings(input: PlayerSettingsInput!): PlayerSettings!
 }
 `, BuiltIn: false},
@@ -14393,7 +14386,7 @@ extend type Mutation {
 }
 
 extend type Subscription {
-  "ログイン中のユーザーの、再生中のプレイヤーの一覧の版。変わったら、players を読み直す。"
+  "ログイン中のユーザーの、再生中のプレイヤーの一覧のバージョン。変わったら、players を読み直す。"
   playersChanged: Int!
   """
   このセッションのプレイヤーへの操作を、届いた順に送る。after を渡せば、その操作より後に届いたものから送る。
@@ -14534,7 +14527,7 @@ type RecordingFile {
 }
 
 """
-セグメントを書いたストリームを受信していたチューナー (#1467)。録画したときの写しで、今のチューナーの構成とは違うことがある。
+セグメントを書いたストリームを受信していたチューナー (#1467)。録画したときのコピーで、今のチューナーの構成とは違うことがある。
 """
 type RecordingFileTuner {
   "チューナーサーバーでのチューナーの番号。リモートのチューナーは負の数になることがある。"
@@ -14578,7 +14571,7 @@ type RecordingCMSection {
 enum RecordingCMDetectionState {
   "見分けていない。見分けるジョブもない。"
   NOT_DETECTED
-  "見分けるジョブが、動くのを待っている。試し直しを待っているときも含む。"
+  "見分けるジョブが、動くのを待っている。再試行を待っているときも含む。"
   QUEUED
   "見分けている。"
   RUNNING
@@ -14599,7 +14592,7 @@ type RecordingCMDetection {
   progress: JobProgress
   "最後に見分け終えた見分けで、いつもの見分け方で決められなかった理由 (#1508)。局ロゴで決められず、今の見分け方で見分け直したときなどに返す。決められたか、見分けていなければ null。"
   note: String
-  "最後に見分け終えた見分けで測った、映像の欠け (映像をデコードできなかった所) の長さの合計の秒 (#1508)。測れない見分け方と、見分けていなければ 0。"
+  "最後に見分け終えた見分けで計測した、映像の欠け (映像をデコードできなかった所) の長さの合計の秒 (#1508)。測れない見分け方と、見分けていなければ 0。"
   videoMissingSeconds: Float!
 }
 
@@ -14620,7 +14613,7 @@ type RecordingAutoCaption {
 enum RecordingAutoCaptionsState {
   "生成していない。生成するジョブもない。"
   NOT_GENERATED
-  "生成するジョブが、動くのを待っている。試し直しを待っているときも含む。"
+  "生成するジョブが、動くのを待っている。再試行を待っているときも含む。"
   QUEUED
   "生成している。"
   RUNNING
@@ -14669,7 +14662,7 @@ type Recording implements Node {
   "外部のサービス (Filmarks など) で作品を探すのに使う作品名 (#1650)。Program.workTitle と同じく、番組名から読む。"
   workTitle: String!
   description: String!
-  "番組の詳細。番組情報と同じく、録画を始めたときの予約から写し、放送後に確定したものに置き換える。見出しの順に並べる。"
+  "番組の詳細。番組情報と同じく、録画を始めたときの予約からコピーし、放送後に確定したものに置き換える。見出しの順に並べる。"
   extended: [ExtendedItem!]!
   "番組の放送の開始と終了。"
   startAt: Time!
@@ -14682,15 +14675,15 @@ type Recording implements Node {
   上流のチューナーのホスト名などを含むので、管理者にだけ返す。ほかのユーザーには null を返す。
   """
   failureDetail: String
-  "保護の印。保護した録画は、容量の管理でも、ユーザーの操作でも消さない。"
+  "保護のマーク。保護した録画は、容量の管理でも、ユーザーの操作でも消さない。"
   protected: Boolean!
   "全 PID のドロップ、エラー、スクランブルの数。"
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
   """
-  スクランブルされたまま録れたという警告の印 (設計書 5.5、#1517)。録画全体か、どれかのセグメントで、
-  ES のパケットのうちスクランブルされていたものの割合が閾値を超えたら立つ。状態とは別の印で、失敗にはしない。
+  スクランブルされたまま録れたという警告のマーク (設計書 5.5、#1517)。録画全体か、どれかのセグメントで、
+  ES のパケットのうちスクランブルされていたものの割合が閾値を超えたら立つ。状態とは別のマークで、失敗にはしない。
   """
   scrambleWarning: Boolean!
   "ES の PID だけで出した、スクランブルされていたパケットの割合 (0〜1、#1517)。ES のパケットが少なくて判定しなかった録画では null。"
@@ -14705,9 +14698,9 @@ type Recording implements Node {
   cmSections: [RecordingCMSection!]!
   "CM の区間の見分けの状態 (#1571)。見分けを待っているか、見分けているか、見分け終えたか、失敗したかを返す。"
   cmDetection: RecordingCMDetection!
-  "最後に見分け終えた CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。録画の一覧の印に使う。決められたか、見分けていなければ null。cmDetection.note と同じ値を、一覧の録画をまとめて引く。"
+  "最後に見分け終えた CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。録画の一覧のマークに使う。決められたか、見分けていなければ null。cmDetection.note と同じ値を、一覧の録画をまとめて引く。"
   cmDetectionNote: String
-  "最後に見分け終えた CM の見分けで測った、映像の欠けの長さの合計の秒 (#1508)。録画の一覧の印に使う。cmDetection.videoMissingSeconds と同じ値を、一覧の録画をまとめて引く。"
+  "最後に見分け終えた CM の見分けで計測した、映像の欠けの長さの合計の秒 (#1508)。録画の一覧のマークに使う。cmDetection.videoMissingSeconds と同じ値を、一覧の録画をまとめて引く。"
   cmVideoMissingSeconds: Float!
   "音声から自動生成した字幕を、始まりの順に並べる (#1682)。生成していないか、台詞がなければ空になる。"
   autoCaptions: [RecordingAutoCaption!]!
@@ -14753,7 +14746,7 @@ type Recording implements Node {
   """
   watchFrame: PreviewFrame
   """
-  録画の時間帯の実況の過去ログを返す URL のパス (設計書 7.4)。tenban が過去ログ API から取って中継する。
+  録画の時間帯の実況の過去ログを返す URL のパス (設計書 7.4)。tenban が過去ログ API から取ってプロキシする。
   録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
   """
   jikkyoCommentsUrl: String!
@@ -14876,7 +14869,7 @@ extend type Mutation {
   保護した録画、録画中の録画、見つからない録画は、消さずに飛ばした数に数える。一度に 500 件まで。
   """
   deleteRecordings(ids: [ID!]!): BulkOperationPayload!
-  "録画に保護の印を付けるか、外す。視聴者は使えない。"
+  "録画に保護のマークを付けるか、外す。視聴者は使えない。"
   setRecordingProtected(id: ID!, protected: Boolean!): Recording!
   "録画のタグを置き換える。ないタグは作る。視聴者は使えない。"
   setRecordingTags(id: ID!, tags: [String!]!): Recording!
@@ -14892,7 +14885,7 @@ extend type Mutation {
   """
   regenerateRecordingImages(id: ID!): Boolean!
   """
-  録画のファイルを読み直し、索引とドロップなどの集計を作り直すジョブを入れる (設計書 6.1、#476)。視聴者は使えない。
+  録画のファイルを読み直し、インデックスとドロップなどの集計を作り直すジョブを入れる (設計書 6.1、#476)。視聴者は使えない。
   終われば、代表画像とプレビュー画像も作り直す。録画中の録画は CONFLICT にする。
   同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
@@ -14927,7 +14920,7 @@ type PreviewFrame {
 }
 
 """
-PID の種類。PMT に書かれたストリーム (映像、音声、そのほか) と、PSI と SI の表。PMT にも決まった PID にもなければ UNKNOWN。
+PID の種類。PMT に書かれたストリーム (映像、音声、そのほか) と、PSI と SI のテーブル。PMT にも決まった PID にもなければ UNKNOWN。
 """
 enum StreamKind {
   VIDEO
@@ -15191,7 +15184,7 @@ type ProgramConditions {
   minDurationSeconds: Int
   maxDurationSeconds: Int
   freeOnly: Boolean!
-  "番組名の囲み文字 (中身で表す。「新」や「字」など。括弧で書いた [新] なども同じとみなす)。どれか 1 つを持つ番組を対象にする。"
+  "番組名の囲み文字 (内容で表す。「新」や「字」など。括弧で書いた [新] なども同じとみなす)。どれか 1 つを持つ番組を対象にする。"
   marks: [String!]!
   "どれか 1 つを持つ番組を除外する囲み文字"
   excludeMarks: [String!]!
@@ -15262,7 +15255,7 @@ type Rule implements Node {
   duplicateWindowDays: Int
   "イベントリレーで引き継がれた番組を、引き継ぎ先でも予約するかどうか (設計書 4.6)。"
   followEventRelay: Boolean!
-  "局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
+  "局をまたいで同じ回をまとめ、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
   bundleSameEpisodes: Boolean!
   """
   追っているシリーズの前の回 (録った回、予約してある回、先に流れる放送より話数の小さい回) を予約しないかどうか (設計書 4.4、#1499)。
@@ -15359,7 +15352,7 @@ extend type Mutation {
   条件に、含めるキーワード、チャンネル種別、サービス、ジャンル、含める囲み文字のどれもなければ、BAD_USER_INPUT を返す (#1501)。
   """
   createRule(input: RuleInput!): Rule!
-  "ルールの内容を input で置き換える。視聴者は使えない。条件は createRule と同じく確かめる。"
+  "ルールの内容を input で置き換える。視聴者は使えない。条件は createRule と同じく確認する。"
   updateRule(id: ID!, input: RuleInput!): Rule!
   "ルールを有効または無効にする。視聴者は使えない。"
   setRuleEnabled(id: ID!, enabled: Boolean!): Rule!
@@ -15409,7 +15402,7 @@ interface Node {
 }
 
 """
-一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。
+一覧のページの情報 (Relay の Cursor Connections)。カーソルは内容を解釈せずに、そのまま次のリクエストに渡す。
 """
 type PageInfo {
   hasNextPage: Boolean!
@@ -15424,7 +15417,7 @@ type Query {
   """
   viewer: User!
   """
-  動いている Kotatsu の版。
+  動いている Kotatsu のバージョン。
   """
   version: AppVersion!
   """
@@ -15434,11 +15427,11 @@ type Query {
 }
 
 """
-Kotatsu の版。
+Kotatsu のバージョン。
 """
 type AppVersion {
   """
-  リリースのタグの版 (1.2.3)。main のビルドなら edge、版を埋め込まないビルドなら dev。
+  リリースのタグのバージョン (1.2.3)。main のビルドなら edge、バージョンを埋め込まないビルドなら dev。
   """
   version: String!
   """
@@ -15450,8 +15443,8 @@ type AppVersion {
   """
   modified: Boolean!
   """
-  動いている版より新しいリリース (#506)。管理者にだけ返す。新しいリリースを確かめる設定 (update_check.enabled) を入れていないか、
-  新しいリリースがないか、まだ確かめていなければ null。
+  動いているバージョンより新しいリリース (#506)。管理者にだけ返す。新しいリリースを確認する設定 (update_check.enabled) を入れていないか、
+  新しいリリースがないか、まだ確認していなければ null。
   """
   latestRelease: Release
 }
@@ -15460,7 +15453,7 @@ type AppVersion {
 Kotatsu のリリース。
 """
 type Release {
-  "リリースの版 (1.2.3)。"
+  "リリースのバージョン (1.2.3)。"
   version: String!
   "GitHub のリリースのページの URL。"
   url: String!
@@ -15534,7 +15527,7 @@ type TOTPEnrollment {
   secret: String!
   "認証アプリが QR コードから読む otpauth URI。"
   uri: String!
-  "これまでに confirmTotpEnrollment でコードを確かめないと、登録は取り消される。"
+  "これまでに confirmTotpEnrollment でコードを確認しないと、登録は取り消される。"
   expiresAt: Time!
 }
 
@@ -15552,12 +15545,12 @@ extend type Query {
 
 extend type Mutation {
   """
-  TOTP の登録を始める。登録済みの TOTP を置き換えるときも使う。confirmTotpEnrollment で確かめるまでは、今の TOTP がそのまま使える。
+  TOTP の登録を始める。登録済みの TOTP を置き換えるときも使う。confirmTotpEnrollment で確認するまでは、今の TOTP がそのまま使える。
   直近 10 分以内に認証していなければ、REAUTHENTICATION_REQUIRED を返す (設計書 9.5)。
   """
   beginTotpEnrollment: TOTPEnrollment!
   """
-  登録中の TOTP のコードを確かめて有効にし、新しいリカバリーコードを返す。古いリカバリーコードは使えなくなる。
+  登録中の TOTP のコードを確認して有効にし、新しいリカバリーコードを返す。古いリカバリーコードは使えなくなる。
   直近 10 分以内の認証が要る。
   """
   confirmTotpEnrollment(code: String!): RecoveryCodes!
@@ -15590,7 +15583,7 @@ type RecordingSettings {
   generateCaptions: Boolean!
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。"
   transcodePreset: String
-  "録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。"
+  "録画を変換するときに出すコマ数 (#1509)。auto (映像から計測して 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。"
   transcodeFrameRate: String!
 }
 
@@ -15604,7 +15597,7 @@ type RuleDefaults {
   duplicateWindowDays: Int
   "イベントリレーで続く番組も予約するかどうか (設計書 4.6)。"
   followEventRelay: Boolean!
-  "局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
+  "局をまたいで同じ回をまとめ、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
   bundleSameEpisodes: Boolean!
 }
 
@@ -15629,7 +15622,7 @@ type SystemSettings {
   recordingDefaults: RecordingSettings!
   "過去の番組の保持期間 (日)。0 なら無期限。"
   archiveRetentionDays: Int!
-  "配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。"
+  "配信し終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。"
   notificationRetentionDays: Int!
   "録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限。"
   watchProgressRetentionDays: Int!
@@ -15642,7 +15635,7 @@ type SystemSettings {
   "MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。"
   mcpEnabled: Boolean!
   """
-  データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban が中継するかどうか (#501)。既定は false。
+  データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban がプロキシするかどうか (#501)。既定は false。
   ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
   """
   dataBroadcastIpEnabled: Boolean!
@@ -15687,7 +15680,7 @@ type SystemSettings {
   jikkyoEnabled: Boolean!
   "管理者がオプトインした実況のコメントのソース (#1405)。既定は空。ログインしていれば誰でも読める。"
   commentSources: [CommentSource!]!
-  "字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。"
+  "字幕の外字 (DRCS) を文字に置き換えるテーブル (#825)。MD5 の順に並べる。"
   drcsReplacements: [DrcsReplacement!]!
   """
   ライブ視聴しているサービスを、視聴している間だけタイムシフトで録るかどうか (設計書 5.7、#1408)。既定は false。
@@ -15696,11 +15689,6 @@ type SystemSettings {
   timeshiftWhileWatching: Boolean!
   "視聴している間だけ録るサービスの保持時間 (秒)。600〜86400。既定は 3600。"
   timeshiftWhileWatchingRetentionSeconds: Int!
-  """
-  どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0〜1440。既定は 180。
-  番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
-  """
-  ruleUnmatchedGraceMinutes: Int!
   """
   重複の回避で「録画済み」とみなす、映像と音声の PID のドロップの数の上限 (設計書 4.4)。0〜1000。既定は 0。
   0 なら、映像か音声に 1 件でもドロップのある録画は録画済みとみなさず、再放送で録り直す。
@@ -15779,16 +15767,14 @@ input SystemSettingsInput {
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   commentSources: [CommentSource!]
   """
-  字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
-  表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
+  字幕の外字の置き換えのテーブルの変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。テーブルは 2000 件まで。
+  テーブルを丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古いテーブルで上書きして消さないためである。
   """
   drcsReplacements: [DrcsReplacementInput!]
   "有効にするには、この tenban にタイムシフトのディレクトリが要る。なければ CONFLICT を返す。"
   timeshiftWhileWatching: Boolean
   "600〜86400 秒。"
   timeshiftWhileWatchingRetentionSeconds: Int
-  "0〜1440 分。"
-  ruleUnmatchedGraceMinutes: Int
   "0〜1000 件。"
   historyMaxDrops: Int
   "1〜3650 日。"
@@ -15810,10 +15796,10 @@ input SystemSettingsInput {
 }
 
 """
-字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
+字幕の外字 (DRCS) を文字に置き換えるテーブルの 1 行 (#825)。
 """
 type DrcsReplacement {
-  "外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使う鍵と同じ。"
+  "外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使うキーと同じ。"
   md5: String!
   "置き換える文字。1〜4 文字。外字の 1 文字の枠に縮めて描く。"
   text: String!
@@ -15821,12 +15807,12 @@ type DrcsReplacement {
 
 input DrcsReplacementInput {
   md5: String!
-  "置き換える文字。null なら、この外字を表から消す。"
+  "置き換える文字。null なら、この外字をテーブルから消す。"
   text: String
 }
 
 extend type Query {
-  "字幕の外字の置き換えの表 (#825)。ログインしていれば、誰でも読める。字幕の履歴とコピー、映像に重ねる字幕で使う。"
+  "字幕の外字の置き換えのテーブル (#825)。ログインしていれば、誰でも読める。字幕の履歴とコピー、映像に重ねる字幕で使う。"
   drcsReplacements: [DrcsReplacement!]!
   "録画を終えた後の変換 (#1253) で選べる画質の名前。"
   transcodePresets: [String!]!
@@ -15846,7 +15832,7 @@ input ChannelTypeInput {
 サービスの表示の変える項目。省いた項目は変えない。
 """
 input ServiceInput {
-  "番組表に出さない印"
+  "番組表に出さないマーク"
   hidden: Boolean
   "並び順の上書き。小さいほど前に並ぶ。0〜10000。"
   sortOrder: Int
@@ -15883,7 +15869,7 @@ extend type Mutation {
   updateChannelType(type: String!, input: ChannelTypeInput!): ChannelType!
 
   """
-  サービス id の、番組表に出さない印と並び順の上書きを変える (設計書 8.2、10.3)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  サービス id の、番組表に出さないマークと並び順の上書きを変える (設計書 8.2、10.3)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
   サービスがなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
   """
   updateService(id: ID!, input: ServiceInput!): Service!
@@ -15974,7 +15960,7 @@ type SkippedRule {
 
 extend type Query {
   """
-  重複の回避、同じ回の束ね、前の回を録らない設定で予約しなかった、これから放送する番組を、放送の早い順に返す。照合と同じ計算で、その場で求める。
+  重複の回避、同じ回のまとめ、前の回を録らない設定で予約しなかった、これから放送する番組を、放送の早い順に返す。照合と同じ計算で、その場で求める。
   予約のある番組 (手動で予約したものなど) は返さない。手動の予約は重複の回避の対象にならないので、手動で予約すれば録れる。
   """
   skippedDuplicates: [SkippedDuplicate!]!
@@ -15982,7 +15968,7 @@ extend type Query {
 `, BuiltIn: false},
 	{Name: "../schema/streams.graphqls", Input: `"""
 外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
-URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。中身は TS をそのまま流す。
+URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。内容は TS をそのまま流す。
 """
 type StreamURL {
   """
@@ -16080,7 +16066,7 @@ type LiveStreamRates {
   scrambled: Int64!
   "放送の時計 (#1515)。まだ PCR を読めていなければ null。"
   broadcastClock: BroadcastClock
-  "内訳を送る時点のサーバーの時計。画面は、端末の時計との差を、これで測る (#1515)。"
+  "内訳を送る時点のサーバーの時計。画面は、端末の時計との差を、これで計測する (#1515)。"
   serverTime: Time!
 }
 
@@ -16188,8 +16174,8 @@ extend type Mutation {
   """
   サービス serviceId のバッファの、startAt に始まった番組 (TimeshiftProgram.startAt) を、通常の録画に昇格する (設計書 5.7)。視聴者は使えない。
   放送中の番組は、番組予約を作って続きを録り、録画が始まる前の部分をバッファから補う。作った予約を reservation で返す。
-  放送の終わった番組は、予約のない録画を録画中として作り、nekonote のジョブがバッファから書き出したら完了にする。作った録画を recording で返す。
-  番組を破棄したか、サービスをタイムシフトで録っていなければ NOT_FOUND を、同じ番組を書き出している途中なら CONFLICT を返す。
+  放送の終わった番組は、予約のない録画を録画中として作り、nekonote のジョブがバッファから出力したら完了にする。作った録画を recording で返す。
+  番組を破棄したか、サービスをタイムシフトで録っていなければ NOT_FOUND を、同じ番組を出力している途中なら CONFLICT を返す。
   """
   promoteTimeshiftProgram(serviceId: ID!, startAt: Time!): TimeshiftPromotion!
 }
@@ -16198,7 +16184,7 @@ extend type Mutation {
 タイムシフトのバッファの番組を、録画に昇格した結果。recording と reservation のどちらか一方を持つ。
 """
 type TimeshiftPromotion {
-  "放送の終わった番組の、バッファから書き出す録画。書き出し終えるまでは録画中。"
+  "放送の終わった番組の、バッファから出力する録画。出力し終えるまでは録画中。"
   recording: Recording
   "放送中の番組の、続きを録る番組予約。"
   reservation: Reservation
@@ -16217,14 +16203,14 @@ type TimeshiftProgram {
   startAt: Time!
   "mikan が番組の終わりに気づいた時刻。放送中なら null。"
   endAt: Time
-  "再生できる範囲の始まり。番組の頭のチャンクを破棄したか、録れていなかったら、startAt より後になる。再生位置は、ここからの秒で表す。"
+  "再生できる範囲の始まり。番組の先頭のチャンクを破棄したか、録れていなかったら、startAt より後になる。再生位置は、ここからの秒で表す。"
   playableFrom: Time!
   """
-  番組の頭から録れていて、頭から再生できるかどうか。mikan が番組の替わりに気づいて記録した番組だけが、頭から録れている。
+  番組の先頭から録れていて、頭から再生できるかどうか。mikan が番組の替わりに気づいて記録した番組だけが、頭から録れている。
   タイムシフトに足したときや、落ちた mikan の後を録り直したときに放送中だった番組は、途中から録っている。
   """
   fromStart: Boolean!
-  "番組を録画に昇格して、バッファから書き出している途中かどうか。"
+  "番組を録画に昇格して、バッファから出力している途中かどうか。"
   promoting: Boolean!
   "playableFrom から番組の終わり (放送中なら今) までの、途切れた区間。チャンクの間の穴と、最後のチャンクの終わりから番組の終わりまでの録れていない部分で、再生の時間に含めない。"
   gaps: [RecordingGap!]!
@@ -16295,7 +16281,7 @@ type User implements Node {
   "無効にしたユーザーかどうか。無効にしたユーザーは、ログインできない。"
   disabled: Boolean!
   createdAt: Time!
-  "アイコンの画像の URL (#778)。IdP の picture を中継する。IdP が picture を返さないユーザーは null。"
+  "アイコンの画像の URL (#778)。IdP の picture をプロキシする。IdP が picture を返さないユーザーは null。"
   avatarUrl: String
 }
 `, BuiltIn: false},
@@ -16416,10 +16402,10 @@ extend type Mutation {
   """
   ログイン中のユーザーの、番組の視聴予約を付け外しする。付けてある番組に付けても、付けていない番組から外しても、そのまま返す。
   放送が始まった番組と、過去の番組には付けられない。閲覧だけのユーザーも使える。
-  同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  同じユーザーのほかの端末に viewerSettingsChanged で通知する。
   """
   setWatchReservation(program: ID!, reserved: Boolean!): Program!
-  "視聴予約の通知を、放送の何分前に送るかを変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。"
+  "視聴予約の通知を、放送の何分前に送るかを変え、同じユーザーのほかの端末に viewerSettingsChanged で通知する。"
   updateWatchReminderSettings(minutesBefore: Int!): WatchReminderSettings!
 }
 `, BuiltIn: false},
@@ -16455,7 +16441,7 @@ extend type Query {
 extend type Mutation {
   """
   ログイン中のユーザーの視聴ルールを作る。閲覧だけのユーザーも使える。
-  すでに 50 個あれば CONFLICT を返す。同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  すでに 50 個あれば CONFLICT を返す。同じユーザーのほかの端末に viewerSettingsChanged で通知する。
   """
   createWatchRule(input: WatchRuleInput!): WatchRule!
   "ログイン中のユーザーの視聴ルールの内容を input で置き換える。視聴ルールが付けた視聴予約のうち、一致しなくなったものは、次の照合で外す。"
@@ -16536,7 +16522,7 @@ type Webhook {
 
 type CreateWebhookPayload {
   webhook: Webhook!
-  "署名用の秘密キー。受信側で署名を確かめるのに使う。ここでしか返さない。"
+  "署名用の秘密キー。受信側で署名を確認するのに使う。ここでしか返さない。"
   secret: String!
 }
 
@@ -19608,8 +19594,6 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_timeshiftWhileWatching(ctx, field)
 	case "timeshiftWhileWatchingRetentionSeconds":
 		return ec.fieldContext_SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx, field)
-	case "ruleUnmatchedGraceMinutes":
-		return ec.fieldContext_SystemSettings_ruleUnmatchedGraceMinutes(ctx, field)
 	case "historyMaxDrops":
 		return ec.fieldContext_SystemSettings_historyMaxDrops(ctx, field)
 	case "auditRetentionDays":
@@ -54930,29 +54914,6 @@ func (ec *executionContext) fieldContext_SystemSettings_timeshiftWhileWatchingRe
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
 }
 
-func (ec *executionContext) _SystemSettings_ruleUnmatchedGraceMinutes(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SystemSettings_ruleUnmatchedGraceMinutes(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.RuleUnmatchedGraceMinutes, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt2int(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_SystemSettings_ruleUnmatchedGraceMinutes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
-}
-
 func (ec *executionContext) _SystemSettings_historyMaxDrops(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -61401,7 +61362,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "dramaLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes", "historyMaxDrops", "auditRetentionDays", "auditClientInfoRetentionDays", "hibpEnabled", "webPushSubject", "thumbnailPreviewsEnabled", "sleepControlEnabled", "captionThreads", "jikkyoChannels"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "dramaLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "historyMaxDrops", "auditRetentionDays", "auditClientInfoRetentionDays", "hibpEnabled", "webPushSubject", "thumbnailPreviewsEnabled", "sleepControlEnabled", "captionThreads", "jikkyoChannels"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -61555,13 +61516,6 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.TimeshiftWhileWatchingRetentionSeconds = data
-		case "ruleUnmatchedGraceMinutes":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ruleUnmatchedGraceMinutes"))
-			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.RuleUnmatchedGraceMinutes = data
 		case "historyMaxDrops":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("historyMaxDrops"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -73613,11 +73567,6 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "timeshiftWhileWatchingRetentionSeconds":
 			out.Values[i] = ec._SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "ruleUnmatchedGraceMinutes":
-			out.Values[i] = ec._SystemSettings_ruleUnmatchedGraceMinutes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

@@ -46,14 +46,14 @@ export const Loading: Story = { args: { hold: holdAll } };
 // 放送中の番組 (終わりの時刻がまだない)。
 export const OnAir: Story = { args: { overrides: program({ endAt: null }) } };
 
-// 録れていない区間 (チューナーを取られたなど) があるとき。シークバーに印を出す。
+// 録れていない区間 (チューナーを取られたなど) があるとき。シークバーにマークを出す。
 export const WithGaps: Story = {
   args: {
     overrides: program({ gaps: [{ from: minutesAgo(80), to: minutesAgo(75) }] }),
   },
 };
 
-// 番組の頭が録れておらず、途中から再生できるとき。
+// 番組の先頭が録れておらず、途中から再生できるとき。
 export const PlayableFromMiddle: Story = {
   args: { overrides: program({ playableFrom: minutesAgo(85) }) },
 };

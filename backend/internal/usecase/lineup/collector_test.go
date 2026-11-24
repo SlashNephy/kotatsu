@@ -27,7 +27,7 @@ func nitSection(version, number, last uint8, tsid, serviceID uint16) *ts.NIT {
 	}
 }
 
-// TestCollector は、NIT[actual] のセクションが揃ったら 1 つの構成にして DB に書き、読み直せることを確かめる (#1519)。
+// TestCollector は、NIT[actual] のセクションが揃ったら 1 つの構成にして DB に書き、読み直せることを確認する (#1519)。
 func TestCollector(t *testing.T) {
 	t.Parallel()
 
@@ -64,7 +64,7 @@ func TestCollector(t *testing.T) {
 		{TransportStreamID: 0x4011, FrequencyKHz: 11_727_480, Services: []lineup.Service{{ServiceID: 103, ServiceType: 1}}},
 	}, got[0].Streams)
 
-	// 同じ版は、少し後に読んでも書き直さない。間をあけたら、読んだ時刻を新しくする。
+	// 同じバージョンは、少し後に読んでも書き直さない。間をあけたら、読んだ時刻を新しくする。
 	firstObserved := got[0].ObservedAt
 	clk.Advance(time.Minute)
 	collector.Observe(nitSection(1, 0, 0, 0x4010, 101))
@@ -79,7 +79,7 @@ func TestCollector(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, clk.Now().Equal(got[0].ObservedAt))
 
-	// 版が変わったら、すぐに書く。
+	// バージョンが変わったら、すぐに書く。
 	clk.Advance(time.Second)
 	collector.Observe(nitSection(2, 0, 0, 0x4010, 105))
 	collector.Flush(t.Context(), q)
@@ -89,8 +89,8 @@ func TestCollector(t *testing.T) {
 	assert.Equal(t, uint16(105), got[0].Streams[0].Services[0].ServiceID)
 }
 
-// TestComparerUsesObservedAt は、DB から読み直した構成を比べるとき、読み直した時刻ではなく、放送から読んだ時刻で
-// 間隔をあけたかを決めることを確かめる。
+// TestComparerUsesObservedAt は、DB から読み直した構成を比較するとき、読み直した時刻ではなく、放送から読んだ時刻で
+// 間隔をあけたかを決めることを確認する。
 func TestComparerUsesObservedAt(t *testing.T) {
 	t.Parallel()
 
@@ -105,7 +105,7 @@ func TestComparerUsesObservedAt(t *testing.T) {
 	clk.Advance(2 * interval)
 	_, ok = comparer.Observe(obs, known(141))
 	require.False(t, ok)
-	// 放送から間隔をあけて読み直した行なら、知らせる。
+	// 放送から間隔をあけて読み直した行なら、通知する。
 	again := observation(1, 101)
 	again.ObservedAt = start.Add(interval)
 	_, ok = comparer.Observe(again, known(141))

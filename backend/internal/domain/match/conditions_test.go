@@ -77,7 +77,7 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 			wantErr: `marks[0]: unknown enclosed character ""`,
 		},
 		{
-			// 🈲 (禁) は、表にない囲み文字。
+			// 🈲 (禁) は、テーブルにない囲み文字。
 			name:    "enclosed character not in the table",
 			modify:  func(c *match.Conditions) { c.ExcludeMarks[0] = "禁" },
 			wantErr: `excludeMarks[0]: unknown enclosed character "禁"`,
@@ -162,7 +162,7 @@ func TestDecodeRejectsUnknownData(t *testing.T) {
 	}
 }
 
-// TestConditionsRoundTripThroughJSONB は、条件を JSONB に保存して読み戻しても、同じ条件になることを確かめる。
+// TestConditionsRoundTripThroughJSONB は、条件を JSONB に保存して読み戻しても、同じ条件になることを確認する。
 // PostgreSQL は JSONB を正規化して返す (キーの順や空白が変わる) ので、実際の DB を通す。
 func TestConditionsRoundTripThroughJSONB(t *testing.T) {
 	t.Parallel()
@@ -184,7 +184,7 @@ func TestConditionsRoundTripThroughJSONB(t *testing.T) {
 	assert.Equal(t, fullConditions(), decoded)
 }
 
-// TestHasTarget は、番組を選ぶ条件 (含めるキーワード、チャンネル種別、サービス、ジャンル、含める囲み文字) だけを、条件として数えることを確かめる (#1501)。
+// TestHasTarget は、番組を選ぶ条件 (含めるキーワード、チャンネル種別、サービス、ジャンル、含める囲み文字) だけを、条件として数えることを確認する (#1501)。
 func TestHasTarget(t *testing.T) {
 	t.Parallel()
 

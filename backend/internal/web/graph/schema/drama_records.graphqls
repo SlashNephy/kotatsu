@@ -98,13 +98,13 @@ extend type Mutation {
   管理者が TMDB との連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
   """
   beginDramaRecordConnection(destination: DramaRecordDestination!): String!
-  "ログイン中のユーザーとドラマの記録先 destination の連携を外し、記録先でトークンを取り消す (#1649)。見ている作品に写した作品は残す。"
+  "ログイン中のユーザーとドラマの記録先 destination の連携を外し、記録先でトークンを取り消す (#1649)。見ている作品にコピーした作品は残す。"
   disconnectDramaRecord(destination: DramaRecordDestination!): DramaRecordSettings!
   """
   ログイン中のユーザーの、ドラマの記録先のウォッチリストを取り込むジョブを入れる (#1649)。ドラマの視聴管理の画面を開いたときと、
   取り込み直しを押したとき (force) に呼ぶ。force でなければ、前に問い合わせてから 30 分たった連携だけを取り込む。
   取り込めなかった連携は、問い合わせ直す日時まで取り込まない。ジョブを入れたら true を返す。
-  取り込み終えて見ている作品が変わったら、dataChanged の DRAMA_WATCHLIST で知らせる。
+  取り込み終えて見ている作品が変わったら、dataChanged の DRAMA_WATCHLIST で通知する。
   """
   importDramaWatchlist(force: Boolean! = false): Boolean!
   "ログイン中のユーザーの、見たドラマの記録の設定を変える (#1649)。視聴者も使える。割合が 1〜100 でなければ BAD_USER_INPUT を返す。"

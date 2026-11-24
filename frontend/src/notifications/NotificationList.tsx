@@ -61,7 +61,7 @@ export function NotificationList({ first, onNavigate }: Props) {
       }
     `,
     { first },
-    // 開くたびに既読にするので、前に開いたときの一覧を使い回さず、取り直してから出す。
+    // 開くたびに既読にするので、前に開いたときの一覧を使い回さず、再取得してから出す。
     // 開いた後に読み直すときは、読み直す間も一覧を出したままにする。
     { fetchKey, fetchPolicy: fetchKey === 0 ? 'network-only' : 'store-and-network' },
   );
@@ -75,7 +75,7 @@ export function NotificationList({ first, onNavigate }: Props) {
   const marked = useRef(false);
   // 未読の数は、読み込んだ分だけでなく、すべての通知について数えたものを使う。
   const unread = data.unreadNotificationCount;
-  // newIds は、開いたときに未読だった通知。既読にすると、変更の通知で一覧が読み直され、readAt が埋まるので、最初の分を覚えておく。
+  // newIds は、開いたときに未読だった通知。既読にすると、変更の通知で一覧が読み直され、readAt が埋まるので、最初の分を保持しておく。
   const [newIds] = useState(
     () =>
       new Set(
@@ -151,7 +151,7 @@ export function NotificationList({ first, onNavigate }: Props) {
   );
 }
 
-// NotificationLink は、通知が示す画面 (視聴予約の通知では、そのサービスのライブ視聴) への入り口。示す画面がなければ出さない。
+// NotificationLink は、通知が示す画面 (視聴予約の通知では、そのサービスのライブ視聴) へのリンク。示す画面がなければ出さない。
 function NotificationLink({
   url,
   kind,
@@ -193,7 +193,7 @@ function NotificationLink({
   );
 }
 
-// ExternalLink は、通知が示す外部のページ (記録した Annict や AniList のページ、#927) への入り口。新しいタブで開く。
+// ExternalLink は、通知が示す外部のページ (記録した Annict や AniList のページ、#927) へのリンク。新しいタブで開く。
 function ExternalLink({ url }: { url: string }) {
   const { t } = useTranslation();
   if (!url.startsWith('https://')) {
@@ -207,10 +207,10 @@ function ExternalLink({ url }: { url: string }) {
   );
 }
 
-// NotificationMessage は、通知の文。番組名は、ほかの画面と同じく、囲み文字を印にして描く。
+// NotificationMessage は、通知の文。番組名は、ほかの画面と同じく、囲み文字をマークにして描く。
 function NotificationMessage({ message, payload }: { message: string; payload: string }) {
   const { before, name, after } = splitMessage(message, payload);
-  // 印の後ろに文が続く (「」の録画が…」など) ときは、詰まって見えないよう、印の左と同じだけ空ける。
+  // マークの後ろに文が続く (「」の録画が…」など) ときは、詰まって見えないよう、マークの左と同じだけ空ける。
   const spaced = name !== undefined && after !== '' && splitProgramMarks(name).marks.length > 0;
 
   return (

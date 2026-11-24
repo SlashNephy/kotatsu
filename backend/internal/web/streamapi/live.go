@@ -28,13 +28,13 @@ type ServiceOpener interface {
 
 var _ ServiceOpener = tunerserver.Client(nil)
 
-// ScrambleWatcher は、中継する TS が、スクランブルされたまま届いているかを判定する (設計書 7.1、#1517)。*scramble.Reporter が満たす。
+// ScrambleWatcher は、配信する TS が、スクランブルされたまま届いているかを判定する (設計書 7.1、#1517)。*scramble.Reporter が満たす。
 type ScrambleWatcher interface {
 	// Watch は、src を判定しながら読む io.Reader を返す。スクランブルされたままと決めたら、理由を記録してから ts.ErrScrambled で読むのを止める。
 	Watch(ctx context.Context, serviceID int64, src io.Reader) (io.Reader, *ts.ScrambleDetector)
 }
 
-// LiveHandler は、チューナーサーバーのサービスストリームを中継する (GET /internal/streams/services/{id})。
+// LiveHandler は、チューナーサーバーのサービスストリームを配信する (GET /internal/streams/services/{id})。
 type LiveHandler struct {
 	// tuner は、チューナーサーバーのクライアント。設定していなければ nil。
 	tuner ServiceOpener
@@ -59,7 +59,7 @@ func NewDataBroadcastHandler(tuner ServiceOpener, logger *slog.Logger) *LiveHand
 	return &LiveHandler{tuner: tuner, dataBroadcast: true, logger: logger, scramble: nil}
 }
 
-// WithScramble は、中継しながら、スクランブルされたまま届いているかを判定する LiveHandler を返す (設計書 7.1、#1517)。
+// WithScramble は、配信しながら、スクランブルされたまま届いているかを判定する LiveHandler を返す (設計書 7.1、#1517)。
 // スクランブルされたままと決めたら、理由をプレイヤーに届けるよう記録してから、ストリームを閉じる。
 // 判定は、画面のプレイヤーに流す映像の中継でだけ行う。データ放送と、外部のプレイヤーに流す中継では行わない。
 func (h *LiveHandler) WithScramble(watcher ScrambleWatcher) *LiveHandler {
@@ -93,7 +93,7 @@ func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	// GET のパターンは HEAD にも一致する。HEAD でストリームを開くと、本文を捨てながらチューナーを持ち続けるので、開かない。
+	// GET のパターンは HEAD にも一致する。HEAD でストリームを開くと、本文を破棄しながらチューナーを持ち続けるので、開かない。
 	if r.Method == http.MethodHead {
 		writeStreamHeader(w)
 

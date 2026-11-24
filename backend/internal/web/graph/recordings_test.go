@@ -155,7 +155,7 @@ func (f *fixture) recordings(t *testing.T, first int, after *string, filter map[
 	return &page
 }
 
-// TestRecordings は、録画を新しい順にページを送って読み、タグや条件で絞り込めることを確かめる (設計書 9.7)。
+// TestRecordings は、録画を新しい順にページを送って読み、タグや条件で絞り込めることを確認する (設計書 9.7)。
 func TestRecordings(t *testing.T) {
 	t.Parallel()
 
@@ -245,7 +245,7 @@ func TestRecordings(t *testing.T) {
 	assert.Equal(t, 1, tags.Tags[0].Recordings)
 
 	const filterKeyword = "keyword"
-	// 番組名と概要の正規化した列は、録画を書くときに Go で作る (設計書 3.5)。ほかの録画は、列を知らない古いバイナリが書いたものとして NULL のまま残す。
+	// 番組名と概要の正規化したカラムは、録画を書くときに Go で作る (設計書 3.5)。ほかの録画は、カラムを知らない古いバイナリが書いたものとして NULL のまま残す。
 	const travelogueDescription = "ＴＯＫＹＯ　ＭＸで放送"
 	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET description = $2, name_normalized = $3, description_normalized = $4 WHERE name = $1`,
 		travelogue, travelogueDescription, domain.Normalize(travelogue), domain.Normalize(travelogueDescription))
@@ -281,7 +281,7 @@ func TestRecordings(t *testing.T) {
 	assert.Equal(t, episode2, node.Node.Name)
 }
 
-// TestRecordingOperations は、録画の保護、削除と、ユーザーごとの再生位置を確かめる (設計書 9.7)。
+// TestRecordingOperations は、録画の保護、削除と、ユーザーごとの再生位置を確認する (設計書 9.7)。
 func TestRecordingOperations(t *testing.T) {
 	t.Parallel()
 
@@ -350,7 +350,7 @@ func (l *lateInserter) InsertManyTx(ctx context.Context, tx pgx.Tx, params []riv
 }
 
 // TestRegenerateRecordingImages は、録画の画像を作り直すジョブを入れ、待っているジョブには重ねず、
-// 終わったジョブがあっても、また入れられることを確かめる (#476)。
+// 終わったジョブがあっても、また入れられることを確認する (#476)。
 func TestRegenerateRecordingImages(t *testing.T) {
 	t.Parallel()
 
@@ -399,7 +399,7 @@ func TestRegenerateRecordingImages(t *testing.T) {
 }
 
 // TestRecordingsByRuleAndGenre は、録画を、録ったルールとジャンルで絞れることと、
-// ルールを消しても、録画にはルールの名前が残ることを確かめる (#468)。
+// ルールを消しても、録画にはルールの名前が残ることを確認する (#468)。
 func TestRecordingsByRuleAndGenre(t *testing.T) {
 	t.Parallel()
 
@@ -412,7 +412,7 @@ func TestRecordingsByRuleAndGenre(t *testing.T) {
 	f.addRecording(t, dir, "手動の録画", "completed", time.Hour)
 	_, rawID, err := graph.ParseGlobalID(byRule)
 	require.NoError(t, err)
-	// ルールで録った録画は、ルールとジャンル (アニメ・特撮、lv1 = 7) を写してある。
+	// ルールで録った録画は、ルールとジャンル (アニメ・特撮、lv1 = 7) をコピーしてある。
 	_, err = f.pool.Exec(t.Context(), `UPDATE recordings SET rule_id = $2, rule_name = 'アニメのルール', genres = '[{"lv1":7,"lv2":0}]' WHERE id = $1`,
 		rawID, ruleID)
 	require.NoError(t, err)
@@ -452,7 +452,7 @@ func TestRecordingsByRuleAndGenre(t *testing.T) {
 	assert.Equal(t, "アニメのルール", *got.Node.RuleName)
 }
 
-// TestReanalyzeRecording は、録画の解析をやり直すジョブを、視聴者でなければ入れられることを確かめる (#476)。
+// TestReanalyzeRecording は、録画の解析をやり直すジョブを、視聴者でなければ入れられることを確認する (#476)。
 // 取り込んだ録画の解析より先に回し、録画中の録画は断り、待っているジョブには重ねない。
 func TestReanalyzeRecording(t *testing.T) {
 	t.Parallel()
@@ -495,7 +495,7 @@ func TestReanalyzeRecording(t *testing.T) {
 	assert.Len(t, queued(), 1)
 }
 
-// TestDetectRecordingCM は、録画の CM の区間を見分けるジョブを、視聴者でなければ、全体の設定にかかわらず入れられることを確かめる (#1209)。
+// TestDetectRecordingCM は、録画の CM の区間を見分けるジョブを、視聴者でなければ、全体の設定にかかわらず入れられることを確認する (#1209)。
 // 録画中の録画と、TS のセグメントのない録画は断り、待っているジョブには重ねず、見分け終えた録画は見分け直せる。
 func TestDetectRecordingCM(t *testing.T) {
 	t.Parallel()
@@ -555,7 +555,7 @@ func TestDetectRecordingCM(t *testing.T) {
 	assert.Len(t, queued(), 2)
 }
 
-// TestRecordingCMDetection は、録画の CM の区間の見分けの状態を、見分けを頼む前、待っている間、見分けている間、失敗した後で返すことを確かめる (#1571)。
+// TestRecordingCMDetection は、録画の CM の区間の見分けの状態を、見分けを頼む前、待っている間、見分けている間、失敗した後で返すことを確認する (#1571)。
 // 視聴者も読め、失敗の理由は返さない。
 func TestRecordingCMDetection(t *testing.T) {
 	t.Parallel()
@@ -634,7 +634,7 @@ func TestRecordingCMDetection(t *testing.T) {
 	assert.True(t, testNow().Equal(*detected.DetectedAt))
 }
 
-// TestRecordingCMReport は、録画の一覧で、録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返すことを確かめる (#1508)。
+// TestRecordingCMReport は、録画の一覧で、録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返すことを確認する (#1508)。
 // 見分けていない録画と、理由のない録画は、理由を null にする。
 func TestRecordingCMReport(t *testing.T) {
 	t.Parallel()
@@ -642,7 +642,7 @@ func TestRecordingCMReport(t *testing.T) {
 	dir := t.TempDir()
 	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}})
 	f.syncEPG(t)
-	// 録画の詳細の見分けの状態は、River の表からジョブを引くので、表を作っておく。
+	// 録画の詳細の見分けの状態は、River のテーブルからジョブを取得するので、テーブルを作っておく。
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 	noted := f.addRecording(t, dir, "注記あり", "completed", 3*time.Hour)
 	clean := f.addRecording(t, dir, "注記なし", "completed", 2*time.Hour)
@@ -693,7 +693,7 @@ func TestRecordingCMReport(t *testing.T) {
 	assert.Zero(t, got.Recordings.Edges[byID[undetected]].Node.CMVideoMissingSeconds)
 }
 
-// TestDeleteRecordings は、録画をまとめて消し、保護した録画、録画中の録画、見つからない録画は飛ばして数えることを確かめる (#471)。
+// TestDeleteRecordings は、録画をまとめて消し、保護した録画、録画中の録画、見つからない録画は飛ばして数えることを確認する (#471)。
 func TestDeleteRecordings(t *testing.T) {
 	t.Parallel()
 
@@ -734,7 +734,7 @@ func TestDeleteRecordings(t *testing.T) {
 	assert.Equal(t, 2, audited, "each deletion is audited")
 }
 
-// TestRecordingWatchFrame は、前回見た位置に合うプレビュー画像のコマを返すことを確かめる。
+// TestRecordingWatchFrame は、前回見た位置に合うプレビュー画像のコマを返すことを確認する。
 func TestRecordingWatchFrame(t *testing.T) {
 	t.Parallel()
 
@@ -800,7 +800,7 @@ func TestRecordingWatchFrame(t *testing.T) {
 	assert.Nil(t, watchFrame(t))
 }
 
-// TestRecordingCMSections は、CM の区間を、録画を始めた日時に足した日時で、始まりの順に返すことを確かめる (#479)。
+// TestRecordingCMSections は、CM の区間を、録画を始めた日時に足した日時で、始まりの順に返すことを確認する (#479)。
 func TestRecordingCMSections(t *testing.T) {
 	t.Parallel()
 
@@ -850,7 +850,7 @@ func TestRecordingCMSections(t *testing.T) {
 	assert.True(t, recordedFrom.Add(690500*time.Millisecond).Equal(got[1].To))
 }
 
-// TestGenerateRecordingCaptions は、録画の字幕を自動生成するジョブを、視聴者でなければ、全体の設定にかかわらず入れられることを確かめる (#1682)。
+// TestGenerateRecordingCaptions は、録画の字幕を自動生成するジョブを、視聴者でなければ、全体の設定にかかわらず入れられることを確認する (#1682)。
 // 録画中の録画と、TS のセグメントのない録画は断り、待っているジョブには重ねない。入れたら、状態は待っているになる。
 func TestGenerateRecordingCaptions(t *testing.T) {
 	t.Parallel()
@@ -916,13 +916,13 @@ func TestGenerateRecordingCaptions(t *testing.T) {
 	assert.Len(t, queued(), 1)
 }
 
-// TestRecordingAutoCaptions は、自動生成した字幕を、録画を始めた日時に足した日時で、始まりの順に返し、状態に数とモデルを返すことを確かめる (#1682)。
+// TestRecordingAutoCaptions は、自動生成した字幕を、録画を始めた日時に足した日時で、始まりの順に返し、状態に数とモデルを返すことを確認する (#1682)。
 // 視聴者も読める。
 func TestRecordingAutoCaptions(t *testing.T) {
 	t.Parallel()
 
 	f, dir := newRecordingFixture(t)
-	// 状態は、River のジョブの表も読む。
+	// 状態は、River のジョブのテーブルも読む。
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 	f.addRecording(t, dir, episode1, "completed", time.Hour)
 	var rawID string
@@ -984,7 +984,7 @@ func TestRecordingAutoCaptions(t *testing.T) {
 }
 
 // TestRecordingFailureDetail は、失敗した理由に至ったエラーの本文を、管理者にだけ返し、
-// ほかのユーザーには null を返すことを確かめる (#1467)。本文は上流のチューナーのホスト名などを含む。
+// ほかのユーザーには null を返すことを確認する (#1467)。本文は上流のチューナーのホスト名などを含む。
 func TestRecordingFailureDetail(t *testing.T) {
 	t.Parallel()
 
@@ -1023,8 +1023,8 @@ func TestRecordingFailureDetail(t *testing.T) {
 	}
 }
 
-// TestRecordingExtended は、録画の番組の詳細を、見出しの順に並べて返すことを確かめる (#1646)。
-// 詳細を持たない録画 (列を足す前に取り込んだものなど) は、空の一覧を返す。
+// TestRecordingExtended は、録画の番組の詳細を、見出しの順に並べて返すことを確認する (#1646)。
+// 詳細を持たない録画 (カラムを足す前に取り込んだものなど) は、空の一覧を返す。
 func TestRecordingExtended(t *testing.T) {
 	t.Parallel()
 
@@ -1060,7 +1060,7 @@ func TestRecordingExtended(t *testing.T) {
 }
 
 // TestRecordingFileTuner は、セグメントを書いたストリームを受信していたチューナーを、管理者にだけ返し、
-// ほかのユーザーには null を返すことを確かめる (#1467)。名前は上流のチューナーのホスト名を含むことがある。
+// ほかのユーザーには null を返すことを確認する (#1467)。名前は上流のチューナーのホスト名を含むことがある。
 func TestRecordingFileTuner(t *testing.T) {
 	t.Parallel()
 
@@ -1106,7 +1106,7 @@ func TestRecordingFileTuner(t *testing.T) {
 }
 
 // TestRecordingFileTranscodeFrameRate は、Kotatsu が変換した MP4 の記録に残したコマ数を返し、セグメントでは null を返すことを
-// 確かめる (#1509)。
+// 確認する (#1509)。
 func TestRecordingFileTranscodeFrameRate(t *testing.T) {
 	t.Parallel()
 
@@ -1139,7 +1139,7 @@ func TestRecordingFileTranscodeFrameRate(t *testing.T) {
 	assert.Equal(t, map[string]*int{"SEGMENT": nil, "OTHER": new(60)}, rates)
 }
 
-// TestContinueWatching は、途中まで見た録画を、最後に見た新しい順に返し、少しだけ見た録画と見終えた録画を外すことを確かめる (#478、#1301)。
+// TestContinueWatching は、途中まで見た録画を、最後に見た新しい順に返し、少しだけ見た録画と見終えた録画を外すことを確認する (#478、#1301)。
 func TestContinueWatching(t *testing.T) {
 	t.Parallel()
 
@@ -1207,7 +1207,7 @@ func TestContinueWatching(t *testing.T) {
 }
 
 // TestRecordingsLiveThumbnail は、書いている最中のセグメント (大きさ 0、終わりが NULL) にある代表画像の URL を返し、
-// 閉じた空のセグメントの画像は返さないことを確かめる (録画中の代表画像。#1236)。
+// 閉じた空のセグメントの画像は返さないことを確認する (録画中の代表画像。#1236)。
 func TestRecordingsLiveThumbnail(t *testing.T) {
 	t.Parallel()
 
@@ -1250,7 +1250,7 @@ const (
 	lighthouse2        = "灯台の地図〜霧笛の夜〜 #2"
 )
 
-// TestRecordingsByKeywordConditions は、録画を、番組の検索と同じキーワードの条件で絞れることを確かめる (#966)。
+// TestRecordingsByKeywordConditions は、録画を、番組の検索と同じキーワードの条件で絞れることを確認する (#966)。
 func TestRecordingsByKeywordConditions(t *testing.T) {
 	t.Parallel()
 

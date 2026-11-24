@@ -44,7 +44,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id string, input mode
 	if err != nil {
 		return nil, err
 	}
-	// 直後に DB が止まっても、前のロールのまま認可しないよう、覚えた結果を忘れる (#1084)。
+	// 直後に DB が止まっても、前のロールのまま認可しないよう、キャッシュした結果を忘れる (#1084)。
 	r.forgetAuthorizations(userID, nil)
 
 	return userModel(updated), nil

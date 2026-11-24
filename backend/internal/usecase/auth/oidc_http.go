@@ -175,17 +175,17 @@ func (o *OIDC) LinkHandler(db Database, client func(*http.Request) *ClientInfo) 
 	})
 }
 
-// CallbackHandler は、IdP から戻ってきたログインを確かめ、セッションを作るハンドラーを返す (GET /internal/auth/oidc/callback)。
+// CallbackHandler は、IdP から戻ってきたログインを確認し、セッションを作るハンドラーを返す (GET /internal/auth/oidc/callback)。
 // 再認証として始めたものなら、ログイン中のセッションの認証の日時を更新し、始めたときに渡したパスに戻す。
 // 紐付けとして始めたものなら、ログイン中のユーザーを IdP のユーザーと紐付け、始めたときに渡したパスに linked=oidc を付けて戻す。
 //
-// IdP からのリダイレクトなので、Origin を確かめられない。代わりに、Cookie のトークンと state で、
-// この端末が始めたログインであることを確かめる。結果は、画面へのリダイレクトで伝える。
+// IdP からのリダイレクトなので、Origin を確認できない。代わりに、Cookie のトークンと state で、
+// この端末が始めたログインであることを確認する。結果は、画面へのリダイレクトで伝える。
 // ログインに失敗したときは /login?error=<理由> に、再認証か紐付けに失敗したときは、戻すパスに error=<理由> を付けて戻す。
-// 理由には、トークンなどの中身を入れない。
+// 理由には、トークンなどの内容を入れない。
 func (o *OIDC) CallbackHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// ログインの途中の状態は、確かめられなくても使用済みになる。
+		// ログインの途中の状態は、確認できなくても使用済みになる。
 		http.SetCookie(w, o.sessions.namedCookie(r, OIDCCookieName, challengeCookiePath, "", time.Unix(0, 0)))
 		cookie, err := r.Cookie(OIDCCookieName)
 		if err != nil || cookie.Value == "" {

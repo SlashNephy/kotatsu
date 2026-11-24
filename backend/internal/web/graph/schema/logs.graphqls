@@ -5,7 +5,7 @@ enum LogLevel {
   ERROR
 }
 
-"ログの出どころ (#1521)。"
+"ログのソース (#1521)。"
 enum LogSourceKind {
   "このリクエストに答えた Kotatsu のプロセス。"
   KOTATSU
@@ -22,7 +22,7 @@ enum LogSourceFailure {
   HTTP_ERROR
 }
 
-"ログの 1 行。秘密の値は、サーバーが知っているものを伏せてある (1 段目)。"
+"ログの 1 行。秘密の値は、サーバーが知っているものをマスクしてある (1 段階目)。"
 type LogLine {
   "epoch ミリ秒の時刻。"
   time: Int64!
@@ -32,27 +32,27 @@ type LogLine {
   text: String!
 }
 
-"1 つの出どころのログと環境。"
+"1 つのソースのログと環境。"
 type LogSource {
   kind: LogSourceKind!
   "古い順の行。"
   lines: [LogLine!]!
-  "出どころが持っていた行の数。lines は、このうち最後の保持行数まで。"
+  "ソースが持っていた行の数。lines は、このうち最後の保持行数まで。"
   total: Int!
   "ログを取れなかった理由。取れたら null。"
   failure: LogSourceFailure
-  "版。分からなければ空。"
+  "バージョン。分からなければ空。"
   version: String!
   os: String!
   arch: String!
-  "Kotatsu では Go の版、チューナーサーバーではサーバーの種類 (分かるときだけ)。"
+  "Kotatsu では Go のバージョン、チューナーサーバーではサーバーの種類 (分かるときだけ)。"
   runtime: String!
 }
 
 "直近のログと、不具合の報告に要るもの (#1521、設計書 11.3)。"
 type LogReport {
   sources: [LogSource!]!
-  "不具合の報告を作るときに、ブラウザで伏せるホスト名 (2 段目)。リクエストが来たホスト名と、チューナーサーバーと DB のホスト名。"
+  "不具合の報告を作るときに、ブラウザでマスクするホスト名 (2 段階目)。リクエストが来たホスト名と、チューナーサーバーと DB のホスト名。"
   redactHosts: [String!]!
   "このリクエストに答えたインスタンスの ID。"
   instanceId: String!

@@ -89,7 +89,7 @@ type Options struct {
 	Passwords *auth.Passwords
 	// Sessions は、ログイン中のユーザーのセッションの一覧と失効に使う。nil なら、内部のエラーにする。
 	Sessions *auth.Sessions
-	// URLUsers は、署名付き URL を発行したユーザーの、覚えた認可の結果を忘れるのに使う (#1084)。nil なら、何もしない。
+	// URLUsers は、署名付き URL を発行したユーザーの、キャッシュした認可の結果を忘れるのに使う (#1084)。nil なら、何もしない。
 	URLUsers *auth.URLUsers
 	// Settings は、全体の設定を変えるのに使う。nil なら、Recorder と Clock で作る。
 	Settings *settings.Store
@@ -101,12 +101,12 @@ type Options struct {
 	StreamSigner *stream.Signer
 	// LiveRates は、ライブのサービスの内訳を数える (#812)。nil なら、liveStreamRates は失敗する。
 	LiveRates *stream.LiveRatesWatcher
-	// ChannelInspector は、物理チャンネルの TS を調べる (#830)。nil なら、inspectChannel は失敗する。
+	// ChannelInspector は、物理チャンネルの TS を調査する (#830)。nil なら、inspectChannel は失敗する。
 	ChannelInspector *stream.ChannelInspector
-	// JikkyoTable と JikkyoClient は、サービスの実況のチャンネルを引くのに使う。どちらかが nil なら、実況のチャンネルは null にする。
+	// JikkyoTable と JikkyoClient は、サービスの実況のチャンネルを検索するのに使う。どちらかが nil なら、実況のチャンネルは null にする。
 	JikkyoTable  *jikkyo.Table
 	JikkyoClient *jikkyoclient.Client
-	// Changes は、ロール間の変更の通知を、subscription で知らせるのに使う。nil なら、変更の subscription は内部のエラーにする。
+	// Changes は、ロール間の変更の通知を、subscription で通知するのに使う。nil なら、変更の subscription は内部のエラーにする。
 	Changes Changes
 	// Pools は、保存先プールの ID からマウント先への対応。システムの状態で示す。
 	Pools map[string]string
@@ -114,7 +114,7 @@ type Options struct {
 	DataDir string
 	// Libraries は、ファイラーで見せるライブラリ (設計書 5.8)。nil なら、ライブラリはない。
 	Libraries *medialib.Set
-	// LibrarySource は、ライブラリのファイルを開き、索引を作り始める。nil なら、ライブラリのファイルは開けない。
+	// LibrarySource は、ライブラリのファイルを開き、インデックスを作り始める。nil なら、ライブラリのファイルは開けない。
 	LibrarySource *filelib.Source
 	// LibraryJobs は、ライブラリのファイルの画像を作るジョブと、CM の区間を見分けるジョブを入れる。nil なら、入れない。
 	LibraryJobs filelib.JobInserter
@@ -122,9 +122,9 @@ type Options struct {
 	TimeshiftDir string
 	// Captions は、字幕の自動生成の設定 (#1682)。モデルの場所を書いているかを、モデルの画面に出す。nil なら書いていないとみなす。
 	Captions *config.Captions
-	// FreeSpace は、保存先プールの空き容量を調べる。nil なら、ファイルシステムに問い合わせる。
+	// FreeSpace は、保存先プールの空き容量を取得する。nil なら、ファイルシステムに問い合わせる。
 	FreeSpace kago.FreeSpaceFunc
-	// AnimeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録の操作は内部のエラーにし、プレイヤーの報告は捨てる。
+	// AnimeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録の操作は内部のエラーにし、プレイヤーの報告は破棄する。
 	AnimeRecords *animerecord.Service
 	// Google は、Google の OAuth クライアントと Google Drive の接続を扱う (#1902)。nil なら、連携の操作は内部のエラーにする。
 	Google *google.Service
@@ -136,9 +136,9 @@ type Options struct {
 	DramaRecords *dramarecord.Service
 	// Jobs は、ジョブを入れる River のクライアント。録画の画像を作り直すのに使う。nil なら、作り直せない。
 	Jobs thumbnail.Inserter
-	// JobAdmin は、管理者向けにジョブを読み、試し直し、取り消す River のクライアント (#1279)。nil なら、ジョブの画面を使えない。
+	// JobAdmin は、管理者向けにジョブを読み、再試行し、取り消す River のクライアント (#1279)。nil なら、ジョブの画面を使えない。
 	JobAdmin JobAdmin
-	// TotalSpace は、保存先プールのファイルシステムの容量を調べる。nil なら、ファイルシステムに問い合わせる。
+	// TotalSpace は、保存先プールのファイルシステムの容量を取得する。nil なら、ファイルシステムに問い合わせる。
 	TotalSpace kago.TotalSpaceFunc
 	Clock      clock.Clock
 	Logger     *slog.Logger
@@ -147,9 +147,9 @@ type Options struct {
 	MaxDepth          int
 	MaxComplexity     int
 	HeartbeatInterval time.Duration
-	// Updates は、新しいリリースを確かめた結果 (#506)。確かめない設定なら nil。
+	// Updates は、新しいリリースを確認した結果 (#506)。確認しない設定なら nil。
 	Updates Updates
-	// Drain は、tenban を止める前に、視聴者につなぎ直してもらう知らせ (#1085)。nil なら、知らせない。
+	// Drain は、tenban を止める前に、視聴者につなぎ直してもらう通知 (#1085)。nil なら、通知しない。
 	Drain Drain
 	// Logs は、直近のログを集める (#1521)。nil なら、logReport は失敗する。
 	Logs *logreport.Service
@@ -167,7 +167,7 @@ func Schema() *ast.Schema {
 	return generated.NewExecutableSchema(config).Schema()
 }
 
-// Updates は、動いている版より新しいリリースを返す。
+// Updates は、動いているバージョンより新しいリリースを返す。
 type Updates interface {
 	Latest() *update.Release
 }
@@ -269,7 +269,7 @@ func NewHandler(opts *Options) http.Handler {
 		resolver.libraries = medialib.NewSet(map[string]string{}, []string{}, map[string]string{})
 	}
 	if resolver.librarySource == nil {
-		// ライブラリがないので、索引を作ることも読むこともない。
+		// ライブラリがないので、インデックスを作ることも読むこともない。
 		resolver.librarySource = filelib.NewSource(resolver.libraries, filelib.NewIndexer("", resolver.libraries, o.Clock, o.Logger, false))
 	}
 	if resolver.freeSpace == nil {
@@ -309,7 +309,7 @@ func NewHandler(opts *Options) http.Handler {
 	return guard(handler)
 }
 
-// revalidateSubscriptions は、接続中の subscription (SSE) のセッションを、interval ごとに確かめ直し、
+// revalidateSubscriptions は、接続中の subscription (SSE) のセッションを、interval ごとに確認し直し、
 // 使えなくなっていたら (失効させた、ユーザーを無効にした、など) 切る。
 // 接続を始めたときに一度確かめるだけだと、失効させた後も、接続が続く間は届き続けるからである。
 func revalidateSubscriptions(next http.Handler, sessions *auth.Sessions, db *pgxpool.Pool, interval time.Duration, logger *slog.Logger) http.Handler {
@@ -333,7 +333,7 @@ func revalidateSubscriptions(next http.Handler, sessions *auth.Sessions, db *pgx
 				}
 				usable, err := sessions.Usable(ctx, db, principal.SessionID)
 				if err != nil {
-					// 一時的に確かめられなくても、切らない。
+					// 一時的に確認できなくても、切らない。
 					if ctx.Err() == nil {
 						logger.WarnContext(ctx, "failed to revalidate the session of a subscription", slog.Any("error", err))
 					}

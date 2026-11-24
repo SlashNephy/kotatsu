@@ -59,7 +59,7 @@ func TestRuleKeyword(t *testing.T) {
 		{name: "a slot label before a TV anime prefix", in: "【新】華◆アニメ「漢化日記」＃１🈑　▼声の出演：チャオ・フェイフェイ", want: "漢化日記"},
 		{name: "a diamond after the episode", in: "FBI: 特別捜査班 シーズン5 #10🈔◆一挙放送", want: "FBI: 特別捜査班 シーズン5"},
 		{name: "a numbered installment", in: "ドキュメント７２時間　第５０回", want: "ドキュメント72時間"},
-		// #2041: 放送枠の名前を除き、かぎ括弧の中を作品名にする。括弧の中のダッシュで囲んだ副題も除く。
+		// #2041: 放送枠の名前を除き、かぎ括弧の中を作品名にする。括弧の中のダッシュで囲んだサブタイトルも除く。
 		{name: "a slot with a quoted title and a dashed subtitle", in: "木曜ドラマ「灯台の地図　ー霧笛の夜ー」第８話", want: lighthouse},
 		{name: "a dashed subtitle without a slot", in: "灯台の地図　ー霧笛の夜ー　第８話", want: lighthouse},
 		{name: "a dashed subtitle with a prolonged sound mark inside", in: "灯台の地図　ーヒーローの夜ー　第８話", want: lighthouse},
@@ -78,10 +78,10 @@ func TestRuleKeyword(t *testing.T) {
 		{name: "an episode with a colon", in: "Sample Show Episode: 5", want: "Sample Show"},
 		{name: "only enclosed marks", in: "🈑🈞", want: ""},
 		{name: "falls back to the whole name", in: "「名探偵コナン」", want: "「名探偵コナン」"},
-		// 作品名が読めないときは、印を空白に置き換えず、印で区切った最初の部分にする (#1984)。
+		// 作品名が読めないときは、マークを空白に置き換えず、マークで区切った最初の部分にする (#1984)。
 		{name: "falls back to the part before the mark", in: "<アニメイズム>🈟#3", want: "<アニメイズム>"},
 		{name: "falls back without collapsing spaces", in: "<アニメ　　イズム>🈟#3", want: "<アニメ  イズム>"},
-		// 表の囲み文字は、どれも作品名の終わりとする (#1984)。
+		// テーブルの囲み文字は、どれも作品名の終わりとする (#1984)。
 		{name: "a trailing performer mark", in: "作品名🈦　#2", want: work},
 		{name: "a trailing 120P mark", in: "作品名🆤", want: work},
 		{name: "a trailing parental lock mark", in: "作品名⚿　#2", want: work},
@@ -89,9 +89,9 @@ func TestRuleKeyword(t *testing.T) {
 		{name: "a trailing bracketed data mark", in: "作品名(d) #2", want: work},
 		// 前編と後編は、番組名の一部とする。
 		{name: "the first part is kept", in: "作品名[前]　#2", want: "作品名[前]"},
-		// 囲み文字の中身は、大文字と小文字を区別する。
+		// 囲み文字の内容は、大文字と小文字を区別する。
 		{name: "an uppercase D is not a mark", in: "作品名(D) #2", want: "作品名(D)"},
-		// 頭の印は、中身が表の語なら長さによらず除く (#1984)。
+		// 先頭のマークは、内容がテーブルの語なら長さによらず除く (#1984)。
 		{name: "a leading 120P mark", in: "[120P]作品名　#1", want: work},
 		{name: "a leading Hi-Res mark", in: "[Hi-Res]作品名　#1", want: work},
 		{name: "a leading second screen mark", in: "[2ndScr]作品名　#1", want: work},
@@ -140,7 +140,7 @@ func keywordMatches(t *testing.T, keyword, name string) bool {
 	}))
 }
 
-// TestRuleKeywordPrefixes は、キーワードを空白で区切った語の頭からの部分を、長い順に返し、1 文字のものは返さないことを確かめる (#2041)。
+// TestRuleKeywordPrefixes は、キーワードを空白で区切った語の先頭からの部分を、長い順に返し、1 文字のものは返さないことを確認する (#2041)。
 func TestRuleKeywordPrefixes(t *testing.T) {
 	t.Parallel()
 

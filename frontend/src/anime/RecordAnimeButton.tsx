@@ -13,7 +13,7 @@ import type {
 type Result = 'requested' | 'already' | 'notConnected' | 'failed';
 
 // RecordAnimeButton は、見たアニメを、連携した Annict と AniList に手で記録するボタン (設計書 3.8、#1232)。
-// 記録はジョブで送るので、頼んだことだけを示し、結果は、自動の記録と同じく通知で知らせる。視聴者も使える。
+// 記録はジョブで送るので、頼んだことだけを示し、結果は、自動の記録と同じく通知で伝える。視聴者も使える。
 export function RecordAnimeButton({
   input,
   label,

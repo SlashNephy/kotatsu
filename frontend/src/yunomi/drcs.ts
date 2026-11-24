@@ -4,15 +4,15 @@ import defaultTable from '../../vendor/libaribcaption/drcs.json';
 import { smoothDRCS, type DRCSShape } from './drcsSmooth';
 import { md5 } from './md5';
 
-// 字幕の外字 (DRCS) を文字に置き換える表と、置き換えられなかった外字の一覧 (#825、設計書 7.4)。
-// aribb24.js は、描くたびに、描画器に渡した Map を読むので、ページの中で 1 つの Map を共有し、中身だけを入れ替える。
-// こうすると、表を読み直したり外字を登録したりしても、字幕の描画器を作り直さずに、次の字幕から効く。
+// 字幕の外字 (DRCS) を文字に置き換えるテーブルと、置き換えられなかった外字の一覧 (#825、設計書 7.4)。
+// aribb24.js は、描くたびに、レンダラーに渡した Map を読むので、ページの中で 1 つの Map を共有し、内容だけを入れ替える。
+// こうすると、テーブルを読み直したり外字を登録したりしても、字幕のレンダラーを作り直さずに、次の字幕から効く。
 
-// defaultReplacements は、同梱の既定の表 (vendor/libaribcaption/SOURCE の commit から作る)。
+// defaultReplacements は、同梱の既定のテーブル (vendor/libaribcaption/SOURCE の commit から作る)。
 const defaultReplacements = Object.entries<string>(defaultTable.replacements);
 
-// drcsReplacements は、外字の画像の MD5 (小文字の 16 進) から、置き換える文字への表。字幕の描画器すべてに渡す。
-// 既定の表から始めるので、管理者の表を読めなくても、よく使う外字は置き換わる。
+// drcsReplacements は、外字の画像の MD5 (小文字の 16 進) から、置き換える文字へのテーブル。字幕のレンダラーすべてに渡す。
+// 既定のテーブルから始めるので、管理者のテーブルを読めなくても、よく使う外字は置き換わる。
 export const drcsReplacements = new Map<string, string>(defaultReplacements);
 
 // DRCSGlyph は、字幕に出た外字。画像は、1 画素あたり depth ビットで、左上から行の順に詰めてある。
@@ -24,13 +24,13 @@ export type DRCSGlyph = {
   binary: ArrayBuffer;
 };
 
-// maxUnknown は、覚えておく、置き換えられなかった外字の数の上限。番組をまたいで見続けても、膨らみすぎないようにする。
+// maxUnknown は、保持しておく、置き換えられなかった外字の数の上限。番組をまたいで見続けても、膨らみすぎないようにする。
 const maxUnknown = 100;
 
 // seen は、字幕に出た外字。MD5 で引き、新しく出たものほど後ろに置く。
 const seen = new Map<string, DRCSGlyph>();
 const listeners = new Set<() => void>();
-// unknownSnapshot は、seen のうち、表に無いもの。新しい順に並べる。変わるたびに作り直し、useSyncExternalStore に渡す。
+// unknownSnapshot は、seen のうち、テーブルに無いもの。新しい順に並べる。変わるたびに作り直し、useSyncExternalStore に渡す。
 let unknownSnapshot: readonly DRCSGlyph[] = [];
 
 const notify = () => {
@@ -53,7 +53,7 @@ export function validDRCSText(text: string): boolean {
   return length > 0 && length <= maxDRCSText;
 }
 
-// restoreDefaults は、表を既定の表だけに戻す。
+// restoreDefaults は、テーブルを既定のテーブルだけに戻す。
 function restoreDefaults() {
   drcsReplacements.clear();
   for (const [key, text] of defaultReplacements) {
@@ -61,7 +61,7 @@ function restoreDefaults() {
   }
 }
 
-// setDRCSReplacements は、外字の置き換えの表を、既定の表に管理者の登録 (rows) を重ねたものに入れ替える。登録を優先する。
+// setDRCSReplacements は、外字の置き換えのテーブルを、既定のテーブルに管理者の登録 (rows) を重ねたものに入れ替える。登録を優先する。
 export function setDRCSReplacements(rows: readonly { md5: string; text: string }[]) {
   restoreDefaults();
   for (const { md5: key, text } of rows) {
@@ -76,9 +76,9 @@ export function setDRCSReplacements(rows: readonly { md5: string; text: string }
   notify();
 }
 
-// 置き換えられない外字は、なめらかにした形で描く (#1518)。aribb24.js の canvas の描画器は、外字を文字に置き換えた後、
-// 文字を path に置き換える表 (replace.glyph) を引いてから描くので、外字に私用領域の 1 文字を割り当て、その文字の path を登録する。
-// 割り当ては、drcsReplacements に足さず、映像に重ねる描画器にだけ渡す。字幕の文 (TextRenderer) では「〓」のままにし、
+// 置き換えられない外字は、なめらかにした形で描く (#1518)。aribb24.js の canvas のレンダラーは、外字を文字に置き換えた後、
+// 文字を path に置き換えるテーブル (replace.glyph) を引いてから描くので、外字に私用領域の 1 文字を割り当て、その文字の path を登録する。
+// 割り当ては、drcsReplacements に足さず、映像に重ねるレンダラーにだけ渡す。字幕の文 (TextRenderer) では「〓」のままにし、
 // 置き換えられなかった外字の一覧にも残すためである。
 
 // GlyphPath は、aribb24.js の replace.glyph に登録する形。viewBox の広さが、字の枠 (fontsize) に縮めて描かれる。
@@ -88,23 +88,23 @@ type GlyphPath = { viewBox: [number, number, number, number]; path: string };
 // aribb24.js は、usePUA を付けると ARIB の追加記号を U+E0D8〜U+E39C に置くので、そこを避けて U+E400 から使う。
 const privateUseFirst = 0xe400;
 const privateUseLast = 0xf8ff;
-// maxSmoothed は、なめらかにした結果を覚えておく件数の上限。溢れたら、割り当てと登録した path ごと捨てて作り直す。
+// maxSmoothed は、なめらかにした結果を保持しておく件数の上限。溢れたら、割り当てと登録した path ごと破棄して作り直す。
 // 1 つの番組に出る置き換えられない外字は、多くても数十種類なので、番組をまたいでも作り直しはまれである。
 // path は 1 件あたり数 KB なので、上限まで溜まっても 1 MB ほどに収まる。
 const maxSmoothed = 256;
 
-// smoothed は、なめらかにした結果。鍵は、元の画像の MD5、幅と高さ、1 画素のビット数の組。MD5 は画素の並びしか見ないので、大きさも含める。
-// 読めない画像は null を覚え、手を加えずに描く。
+// smoothed は、なめらかにした結果。キーは、元の画像の MD5、幅と高さ、1 画素のビット数の組。MD5 は画素の並びしか見ないので、大きさも含める。
+// 読めない画像は null を保持し、手を加えずに描く。
 const smoothed = new Map<string, DRCSShape | null>();
-// privateUse は、外字の画像の MD5 から、割り当てた私用領域の文字への表。
+// privateUse は、外字の画像の MD5 から、割り当てた私用領域の文字へのテーブル。
 const privateUse = new Map<string, string>();
 let nextPrivateUse = privateUseFirst;
 
-// drcsGlyphs は、私用領域の文字から、なめらかにした外字の path への表。映像に重ねる描画器の replace.glyph に渡す。
+// drcsGlyphs は、私用領域の文字から、なめらかにした外字の path へのテーブル。映像に重ねるレンダラーの replace.glyph に渡す。
 export const drcsGlyphs = new Map<string, GlyphPath>();
 
-// RenderReplacements は、drcsReplacements と私用領域の割り当ての両方を引く表。aribb24.js は get だけを引くので、
-// get と has だけを重ねる。中身を並べる操作 (size や反復) は、空の表として振る舞う。
+// RenderReplacements は、drcsReplacements と私用領域の割り当ての両方を検索するテーブル。aribb24.js は get だけを呼ぶので、
+// get と has だけを重ねる。内容を並べる操作 (size や反復) は、空のテーブルとして振る舞う。
 class RenderReplacements extends Map<string, string> {
   override get(key: string): string | undefined {
     return drcsReplacements.get(key) ?? privateUse.get(key);
@@ -115,7 +115,7 @@ class RenderReplacements extends Map<string, string> {
   }
 }
 
-// drcsRenderReplacements は、映像に重ねる描画器に渡す外字の表。管理者の登録と既定の表を、割り当てより優先する。
+// drcsRenderReplacements は、映像に重ねるレンダラーに渡す外字のテーブル。管理者の登録と既定のテーブルを、割り当てより優先する。
 export const drcsRenderReplacements: Map<string, string> = new RenderReplacements();
 
 function forgetSmoothed() {
@@ -125,11 +125,11 @@ function forgetSmoothed() {
   nextPrivateUse = privateUseFirst;
 }
 
-// prepareDRCS は、描画器が描く直前に呼び、置き換えられない外字に私用領域の文字を割り当て、なめらかにした path を登録する。
-// fontsize は、描き始めの字の大きさ (aribb24.js の initialState の fontsize)。tokens は、描画器が受け取る部品の並び。
+// prepareDRCS は、レンダラーが描く直前に呼び、置き換えられない外字に私用領域の文字を割り当て、なめらかにした path を登録する。
+// fontsize は、描き始めの字の大きさ (aribb24.js の initialState の fontsize)。tokens は、レンダラーが受け取る部品の並び。
 // aribb24.js は、path を、元の画像の大きさではなく字の大きさに縮めて描くので、viewBox を広げて、元の外字と同じ大きさにする。
 export function prepareDRCS(fontsize: readonly [number, number], tokens: readonly unknown[]) {
-  // 描いている途中で捨てると、その字幕の外字が引けなくなるので、捨てるのは描き始める前にする。
+  // 描いている途中で破棄すると、その字幕の外字が引けなくなるので、破棄するのは描き始める前にする。
   if (smoothed.size >= maxSmoothed || nextPrivateUse > privateUseLast) {
     forgetSmoothed();
   }
@@ -143,7 +143,7 @@ export function prepareDRCS(fontsize: readonly [number, number], tokens: readonl
     if (!isDRCSToken(token)) {
       continue;
     }
-    // 置き換え表は、元の画像の MD5 で引く。
+    // 置き換えテーブルは、元の画像の MD5 で検索する。
     const key = md5(token.binary);
     if (drcsReplacements.has(key)) {
       continue;
@@ -175,7 +175,7 @@ export function prepareDRCS(fontsize: readonly [number, number], tokens: readonl
       path: shape.path,
     };
     drcsGlyphs.set(character, glyph);
-    // 結合する文字 (combining) があると、aribb24.js は、それを足した文字列で path を引く。
+    // 結合する文字 (combining) があると、aribb24.js は、それを足した文字列で path を検索する。
     // 外字の描画でも結合する文字は描かないので、同じ path を登録する。
     const combining = (token as { combining?: unknown }).combining;
     if (typeof combining === 'string' && combining !== '') {
@@ -194,8 +194,8 @@ function isCompositionToken(
   );
 }
 
-// recordDRCS は、字幕の部品のうち外字を、出たものとして覚える。表に無い外字は、管理者が登録できるよう一覧に出す。
-// tokens は、aribb24.js の描画器が受け取る部品の並び。外字のほかは読まない。
+// recordDRCS は、字幕の部品のうち外字を、出たものとして保持する。テーブルに無い外字は、管理者が登録できるよう一覧に出す。
+// tokens は、aribb24.js のレンダラーが受け取る部品の並び。外字のほかは読まない。
 export function recordDRCS(tokens: readonly unknown[]) {
   let changed = false;
   for (const token of tokens) {
@@ -237,7 +237,7 @@ function isDRCSToken(token: unknown): token is Omit<DRCSGlyph, 'md5'> {
   );
 }
 
-// useUnknownDRCS は、字幕に出たが表に無い外字を、新しい順に返す。
+// useUnknownDRCS は、字幕に出たがテーブルに無い外字を、新しい順に返す。
 export function useUnknownDRCS(): readonly DRCSGlyph[] {
   return useSyncExternalStore(
     (listener) => {
@@ -288,7 +288,7 @@ export function drcsImage(glyph: DRCSGlyph, color: string): string {
   return canvas.toDataURL();
 }
 
-// resetDRCSForTest は、覚えた外字を忘れ、表を既定の表に戻す。テストのためだけに使う。
+// resetDRCSForTest は、保持した外字を忘れ、テーブルを既定のテーブルに戻す。テストのためだけに使う。
 export function resetDRCSForTest() {
   seen.clear();
   restoreDefaults();

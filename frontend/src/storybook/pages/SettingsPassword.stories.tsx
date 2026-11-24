@@ -61,13 +61,13 @@ export const UnknownError: Story = {
   play: type('kotatsu-mikan-neko-2026', true),
 };
 
-// 開いたときに、しばらく再認証していなかったとき。確かめる方法 (第二要素、パスキー、IdP) ごとに、再認証の画面が変わる。
+// 開いたときに、しばらく再認証していなかったとき。確認する方法 (第二要素、パスキー、IdP) ごとに、再認証の画面が変わる。
 const stale = { '/internal/auth/reauth': { recent: false } };
 
-// 確かめる方法が 1 つも登録されていないとき。
+// 確認する方法が 1 つも登録されていないとき。
 export const ReauthNoMethod: Story = { args: { auth: stale } };
 
-// 認証アプリとリカバリーコードで確かめるとき。
+// 認証アプリとリカバリーコードで確認するとき。
 export const ReauthWithTotp: Story = {
   args: {
     auth: stale,
@@ -75,12 +75,12 @@ export const ReauthWithTotp: Story = {
   },
 };
 
-// パスキーで確かめるとき。
+// パスキーで確認するとき。
 export const ReauthWithPasskey: Story = {
   args: { auth: stale, overrides: { passkeys: () => [{ id: 'Passkey:1' }] } },
 };
 
-// IdP で確かめるとき。
+// IdP で確認するとき。
 export const ReauthWithOIDC: Story = {
   args: {
     auth: {

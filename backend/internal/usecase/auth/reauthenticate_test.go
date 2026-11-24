@@ -53,7 +53,7 @@ func (f *reauthFixture) authenticatedAt(t *testing.T) time.Time {
 	return at.UTC()
 }
 
-// TestReauthenticate は、ログイン中のセッションのまま、パスワードと第二要素で再認証できることを確かめる (設計書 9.5)。
+// TestReauthenticate は、ログイン中のセッションのまま、パスワードと第二要素で再認証できることを確認する (設計書 9.5)。
 func TestReauthenticate(t *testing.T) {
 	t.Parallel()
 
@@ -149,7 +149,7 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-// TestReauthenticateIsThrottled は、再認証の失敗も、ログインと同じく数えて待たせることを確かめる。
+// TestReauthenticateIsThrottled は、再認証の失敗も、ログインと同じく数えて待たせることを確認する。
 // パスワードを知っている人に、第二要素を総当たりで当てさせないためである。
 func TestReauthenticateIsThrottled(t *testing.T) {
 	t.Parallel()
@@ -169,7 +169,7 @@ func TestReauthenticateIsThrottled(t *testing.T) {
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM login_throttles WHERE key LIKE 'account:%'"))
 }
 
-// TestPasskeyReauthentication は、パスキーだけで再認証できることを確かめる。
+// TestPasskeyReauthentication は、パスキーだけで再認証できることを確認する。
 func TestPasskeyReauthentication(t *testing.T) {
 	t.Parallel()
 
@@ -235,7 +235,7 @@ func TestPasskeyReauthentication(t *testing.T) {
 	}
 }
 
-// TestPasskeyReauthenticationNeedsAPasskey は、パスキーのないユーザーには、パスキーでの再認証を始めさせないことを確かめる。
+// TestPasskeyReauthenticationNeedsAPasskey は、パスキーのないユーザーには、パスキーでの再認証を始めさせないことを確認する。
 func TestPasskeyReauthenticationNeedsAPasskey(t *testing.T) {
 	t.Parallel()
 
@@ -248,7 +248,7 @@ func TestPasskeyReauthenticationNeedsAPasskey(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrNoPasskey)
 }
 
-// TestReauthenticateHandler は、再認証の HTTP の応答を確かめる。
+// TestReauthenticateHandler は、再認証の HTTP の応答を確認する。
 func TestReauthenticateHandler(t *testing.T) {
 	t.Parallel()
 

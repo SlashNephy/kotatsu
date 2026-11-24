@@ -43,7 +43,7 @@ func (r *Resolver) serviceJikkyoChannelID(ctx context.Context, service *model.Se
 	return r.jikkyoChannelID(ctx, int64(service.NetworkID), int64(service.ServiceID))
 }
 
-// jikkyoChannelID は、ネットワークとサービス ID で、同梱の対応表から実況のチャンネルの ID を引く。Kotatsu のサービスの行は要らない。
+// jikkyoChannelID は、ネットワークとサービス ID で、同梱の対応表から実況のチャンネルの ID を検索する。Kotatsu のサービスの行は要らない。
 // 全体の設定で実況を切っていれば nil を返す。
 func (r *Resolver) jikkyoChannelID(ctx context.Context, networkID, serviceID int64) *string {
 	if r.jikkyoTable == nil || !r.jikkyoAccess(ctx).SystemEnabled {

@@ -17,7 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
-// recordingHandler は、ログの記録の属性を覚える。
+// recordingHandler は、ログの記録の属性を記録する。
 type recordingHandler struct {
 	mu    sync.Mutex
 	attrs []map[string]string
@@ -116,7 +116,7 @@ func TestHandle(t *testing.T) {
 	httpserver.Handle(router, both, map[string]http.Handler{http.MethodGet: ok(http.StatusOK), http.MethodPost: ok(http.StatusCreated)})
 	httpserver.Handle(router, "/post", map[string]http.Handler{http.MethodPost: ok(http.StatusCreated)})
 
-	// 移す前の http.ServeMux と同じ応答を返すことを確かめる。
+	// 移す前の http.ServeMux と同じ応答を返すことを確認する。
 	mux := http.NewServeMux()
 	mux.Handle("GET /both", ok(http.StatusOK))
 	mux.Handle("POST /both", ok(http.StatusCreated))
@@ -147,7 +147,7 @@ func TestHandle(t *testing.T) {
 }
 
 // TestHandleWebSocket は、Handle で登録した net/http のハンドラーが、echo の応答を通して WebSocket の接続を受け入れられる
-// (Hijack できる) ことを確かめる。実況のコメントの中継 (/internal/media/jikkyo/:channel/ws) が使う。
+// (Hijack できる) ことを確認する。実況のコメントの中継 (/internal/media/jikkyo/:channel/ws) が使う。
 func TestHandleWebSocket(t *testing.T) {
 	t.Parallel()
 
@@ -179,7 +179,7 @@ func TestHandleWebSocket(t *testing.T) {
 }
 
 // TestCanonicalPath は、CanonicalPath を掛けた echo が、http.ServeMux と同じく、崩れたパスと配下を受けるパターンの
-// 末尾のスラッシュのないパスを、同じ先へリダイレクトすることを確かめる。
+// 末尾のスラッシュのないパスを、同じ先へリダイレクトすることを確認する。
 func TestCanonicalPath(t *testing.T) {
 	t.Parallel()
 
@@ -219,10 +219,10 @@ func TestCanonicalPath(t *testing.T) {
 	}
 }
 
-// echoName は、http.ServeMux と並べて確かめるときの、echo のルーターの名前。
+// echoName は、http.ServeMux と並べて確認するときの、echo のルーターの名前。
 const echoName = "echo"
 
-// muxName は、並べて確かめる http.ServeMux の名前。
+// muxName は、並べて確認する http.ServeMux の名前。
 const muxName = "mux"
 
 // gotHeader は、ハンドラーが読んだ値を返すヘッダー。
@@ -231,7 +231,7 @@ const gotHeader = "X-Got"
 // fallbackBody は、どのルートにも当たらないときの本文。
 const fallbackBody = "fallback\n"
 
-// TestRouterPathParams は、名前を付けたパスの部分を、echo が http.ServeMux と同じく読むことを確かめる (#2016)。
+// TestRouterPathParams は、名前を付けたパスの部分を、echo が http.ServeMux と同じく読むことを確認する (#2016)。
 // echo は、末尾の名前の部分をスラッシュをまたいで当て、エスケープしたパスで当てた値を戻さないからである。
 func TestRouterPathParams(t *testing.T) {
 	t.Parallel()
@@ -280,7 +280,7 @@ func TestRouterPathParams(t *testing.T) {
 	}
 }
 
-// TestRouterContextParam は、echo のハンドラーが c.Param で読む値も、戻した値になることを確かめる (#2016)。
+// TestRouterContextParam は、echo のハンドラーが c.Param で読む値も、戻した値になることを確認する (#2016)。
 // カレンダーと IPTV の端点は、秘密の値を c.Param で読む。
 func TestRouterContextParam(t *testing.T) {
 	t.Parallel()
@@ -299,7 +299,7 @@ func TestRouterContextParam(t *testing.T) {
 }
 
 // TestRouterRejectsPathLikeParams は、戻すと「/」を含むか、「.」か「..」になる名前の部分を、どのルートにも当たらなかったものとして
-// 扱うことを確かめる (#2016)。ハンドラーが値をパスに組み直しても、ほかのパスを指させないためである。http.ServeMux はこれらを値として渡す。
+// 扱うことを確認する (#2016)。ハンドラーが値をパスに組み直しても、ほかのパスを指させないためである。http.ServeMux はこれらを値として渡す。
 func TestRouterRejectsPathLikeParams(t *testing.T) {
 	t.Parallel()
 

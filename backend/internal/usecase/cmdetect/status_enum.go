@@ -13,7 +13,7 @@ import (
 const (
 	// 見分けていず、見分けるジョブもないこと。
 	StateNotDetected State = "not_detected"
-	// 見分けるジョブが動くのを待っていること。試し直しを待っているときも含む。
+	// 見分けるジョブが動くのを待っていること。再試行を待っているときも含む。
 	StateQueued State = "queued"
 	// 見分けていること。
 	StateRunning State = "running"

@@ -5,7 +5,7 @@ import type { DemoRoot } from '../../demo';
 import { call } from '../conditions';
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';
 
-// 録画の設定 (/admin/recording) の画面 (#2056)。録画とルールの既定値と、字幕の自動生成のモデルの置き場所の状態を並べる。
+// 録画の設定 (/admin/recording) の画面 (#2056)。録画とルールの既定値と、字幕の自動生成のモデルの保存先の状態を並べる。
 const meta = {
   title: 'ページ/管理/録画',
   component: PageStory,
@@ -42,7 +42,7 @@ function withSettings(patch: (settings: Settings) => object) {
   });
 }
 
-// withSlots は、字幕の自動生成のモデルの置き場所を、種類 (WHISPER、VAD) ごとに patches で変える。
+// withSlots は、字幕の自動生成のモデルの保存先を、種類 (WHISPER、VAD) ごとに patches で変える。
 function withSlots(patches: Record<string, (slot: Slot) => object>) {
   return (root: DemoRoot) => ({
     ...pools,
@@ -61,8 +61,7 @@ export const Default: Story = { args: { overrides: pools } };
 export const Loading: Story = { args: { hold: holdAll } };
 
 // failingLeaf は、この画面だけが読む項目を fail で失敗させる。ヘッダーも読む全体の設定は、失敗させない。
-const failingLeaf = (fail: () => never) =>
-  withSettings(() => ({ ruleUnmatchedGraceMinutes: fail }));
+const failingLeaf = (fail: () => never) => withSettings(() => ({ historyMaxDrops: fail }));
 
 // 管理者でないとき (サーバーが FORBIDDEN で拒んだ)。
 export const Forbidden: Story = {
@@ -229,7 +228,7 @@ export const CaptionModelDownloadFailed: Story = {
   },
 };
 
-// 置いたモデルを消す前に確かめるとき。
+// 置いたモデルを消す前に確認するとき。
 export const CaptionModelDeleting: Story = {
   args: { overrides: CaptionModelPlaced.args?.overrides },
   play: async ({ canvas }) => {

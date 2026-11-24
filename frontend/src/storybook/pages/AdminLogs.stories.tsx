@@ -4,8 +4,8 @@ import { userEvent, within } from 'storybook/test';
 import { asViewer, merge, replaceProperty } from '../conditions';
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';
 
-// ログ (/admin/logs) の画面 (#2056)。出どころ (Kotatsu、チューナーサーバー) ごとの行と重さ、ロールを分けた構成の案内、
-// 取れなかった出どころ、絞り込み、「もっと見る」、不具合の報告の確認の窓を並べる。
+// ログ (/admin/logs) の画面 (#2056)。ソース (Kotatsu、チューナーサーバー) ごとの行と重さ、ロールを分けた構成の案内、
+// 取れなかったソース、絞り込み、「もっと見る」、不具合の報告の確認のダイアログを並べる。
 const meta = {
   title: 'ページ/管理/ログ',
   component: PageStory,
@@ -89,15 +89,15 @@ const many: Line[] = Array.from({ length: 160 }, (_, index) => ({
   text: `msg="segment written" index=${index} path=/recordings/demo/${index}.ts`,
 }));
 
-// デモの既定 (ログの出どころがなく、ロールも分からないので、ロールを分けた構成として案内する)。
+// デモの既定 (ログのソースがなく、ロールも分からないので、ロールを分けた構成として案内する)。
 export const Default: Story = {};
 
 export const Loading: Story = { args: { hold: holdAll } };
 
-// Kotatsu とチューナーサーバーの両方のログ。重さの印 (推定のものは枠だけ) と出どころの印を出す。
+// Kotatsu とチューナーサーバーの両方のログ。重さのマーク (推定のものは枠だけ) とソースのマークを出す。
 export const Sources: Story = { args: { overrides: both } };
 
-// Kotatsu のログだけのとき (出どころの印を出さない)。
+// Kotatsu のログだけのとき (ソースのマークを出さない)。
 export const KotatsuOnly: Story = {
   args: { overrides: withReport([source('KOTATSU', kotatsuLines)]) },
 };
@@ -112,7 +112,7 @@ export const Split: Story = {
   },
 };
 
-// 出どころのログを取れなかったとき (取れなかった理由ごと)。
+// ソースのログを取れなかったとき (取れなかった理由ごと)。
 export const SourceFailed: Story = {
   args: {
     overrides: withReport([
@@ -145,7 +145,7 @@ export const ProblemsOnly: Story = {
   },
 };
 
-// 出どころの 1 つを切り、検索に一致する行がないとき。
+// ソースの 1 つを切り、検索に一致する行がないとき。
 export const NoMatch: Story = {
   args: { overrides: both },
   play: async ({ canvas }) => {
@@ -157,7 +157,7 @@ export const NoMatch: Story = {
   },
 };
 
-// 不具合の報告の確認の窓を開いたとき。
+// 不具合の報告の確認のダイアログを開いたとき。
 export const Issue: Story = {
   args: { overrides: both },
   play: async ({ canvas }) => {

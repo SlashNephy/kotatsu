@@ -19,13 +19,13 @@ import (
 // reservation_conflict
 // storage_low
 // tuner_server_unreachable
-// watch_reminder // 視聴予約した番組の放送が近いことを知らせる (設計書 4.8)。予約したユーザーだけに届け、Webhook では送らない。
-// anime_recorded // 見たアニメを Annict や AniList に記録したことを知らせる (#927)。見たユーザーだけに届け、Webhook では送らない。
-// anime_record_failed // 見たアニメを記録できなかったことを知らせる (#927)。見たユーザーだけに届け、Webhook では送らない。
-// drama_recorded // 見たドラマを Simkl に記録したことを知らせる (#1649)。見たユーザーだけに届け、Webhook では送らない。
-// drama_record_failed // 見たドラマを記録できなかったことを知らせる (#1649)。見たユーザーだけに届け、Webhook では送らない。
-// scrambled_recordings // スクランブルされたまま録れた録画が続いたことを知らせる (#1517)。B-CAS カードを確かめられるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
-// lineup_changed // 放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる (#1519)。チューナーサーバーをスキャンし直せるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
+// watch_reminder // 視聴予約した番組の放送が近いことを通知する (設計書 4.8)。予約したユーザーだけに届け、Webhook では送らない。
+// anime_recorded // 見たアニメを Annict や AniList に記録したことを通知する (#927)。見たユーザーだけに届け、Webhook では送らない。
+// anime_record_failed // 見たアニメを記録できなかったことを通知する (#927)。見たユーザーだけに届け、Webhook では送らない。
+// drama_recorded // 見たドラマを Simkl に記録したことを通知する (#1649)。見たユーザーだけに届け、Webhook では送らない。
+// drama_record_failed // 見たドラマを記録できなかったことを通知する (#1649)。見たユーザーだけに届け、Webhook では送らない。
+// scrambled_recordings // スクランブルされたまま録れた録画が続いたことを通知する (#1517)。B-CAS カードを確認できるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
+// lineup_changed // 放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを通知する (#1519)。チューナーサーバーをスキャンし直せるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
 // )
 type NotificationKind string
 

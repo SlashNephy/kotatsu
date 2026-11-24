@@ -16,7 +16,7 @@ const maxLoginBody = 4 << 10
 
 // 次に求めるもの。
 const (
-	// nextSecondFactor は、登録済みの第二要素で確かめること。
+	// nextSecondFactor は、登録済みの第二要素で確認すること。
 	nextSecondFactor = "second_factor"
 	// nextEnrollSecondFactor は、第二要素がないので、TOTP を登録すること (設計書 9.3)。
 	nextEnrollSecondFactor = "enroll_second_factor"
@@ -27,7 +27,7 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
-// loginResponse は、パスワードを確かめた後の応答。next は、次に求めるもの。
+// loginResponse は、パスワードを確認した後の応答。next は、次に求めるもの。
 type loginResponse struct {
 	Next string `json:"next"`
 	// Methods は、使える第二要素の種類 (totp、passkey、recovery_code)。登録したものがなければ空。
@@ -61,8 +61,8 @@ type loginErrorBody struct {
 
 // PasswordHandler は、パスワードでのログインを受け付けるハンドラーを返す (POST /internal/auth/login)。
 //
-// パスワードを確かめると、第二要素の確認を待つトークンを Cookie (kotatsu_login) に入れて返す。
-// セッションは、第二要素を確かめるまで作らない。client は、リクエストから送信元を求める。
+// パスワードを確認すると、第二要素の確認を待つトークンを Cookie (kotatsu_login) に入れて返す。
+// セッションは、第二要素を確認するまで作らない。client は、リクエストから送信元を求める。
 func (l *Logins) PasswordHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req loginRequest
@@ -121,7 +121,7 @@ func (l *Logins) RecoveryCodeHandler(db Database, client func(*http.Request) *Cl
 	})
 }
 
-// EnrollmentConfirmHandler は、ログインの途中で登録する TOTP のコードを確かめ、ログインを完了させるハンドラーを返す
+// EnrollmentConfirmHandler は、ログインの途中で登録する TOTP のコードを確認し、ログインを完了させるハンドラーを返す
 // (POST /internal/auth/login/totp/enrollment/confirm)。リカバリーコードを、この応答でだけ返す。
 func (l *Logins) EnrollmentConfirmHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return l.completeHandler(func(r *http.Request, token, code string) (*LoginResult, error) {

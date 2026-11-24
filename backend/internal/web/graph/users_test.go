@@ -55,7 +55,7 @@ type userResult struct {
 	Disabled    bool   `json:"disabled"`
 }
 
-// TestUserManagementNeedsAnAdministrator は、管理者でないユーザーには、ユーザーの管理をさせないことを確かめる (設計書 9.7)。
+// TestUserManagementNeedsAnAdministrator は、管理者でないユーザーには、ユーザーの管理をさせないことを確認する (設計書 9.7)。
 func TestUserManagementNeedsAnAdministrator(t *testing.T) {
 	t.Parallel()
 
@@ -85,7 +85,7 @@ func TestUserManagementNeedsAnAdministrator(t *testing.T) {
 	assert.Equal(t, "member", role, "the user must not be promoted")
 }
 
-// TestManageUsers は、管理者が、ユーザーを作り、変え、無効にし、有効に戻し、パスワードを設定し直せることを確かめる。
+// TestManageUsers は、管理者が、ユーザーを作り、変え、無効にし、有効に戻し、パスワードを設定し直せることを確認する。
 func TestManageUsers(t *testing.T) {
 	t.Parallel()
 
@@ -167,7 +167,7 @@ func TestManageUsers(t *testing.T) {
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, disableQuery, map[string]any{varID: created.CreateUser.ID}, nil))
 }
 
-// TestChangePasswordAndSessions は、ログイン中のユーザーが、パスワードを変え、自分のセッションを失効させられることを確かめる。
+// TestChangePasswordAndSessions は、ログイン中のユーザーが、パスワードを変え、自分のセッションを失効させられることを確認する。
 func TestChangePasswordAndSessions(t *testing.T) {
 	t.Parallel()
 
@@ -228,7 +228,7 @@ func TestChangePasswordAndSessions(t *testing.T) {
 	assert.Equal(t, []string{codeReauthRequired}, f.query(t, changeQuery, map[string]any{varValue: strongPhrase + "!"}, nil))
 }
 
-// TestRevokeOtherSessions は、ログイン中のユーザーの、今のセッションのほかをまとめて失効させることを確かめる (設計書 9.5)。
+// TestRevokeOtherSessions は、ログイン中のユーザーの、今のセッションのほかをまとめて失効させることを確認する (設計書 9.5)。
 // 乗っ取られた後の被害を抑える操作なので、再認証を求めない。ほかのユーザーのセッションは失効させない。
 func TestRevokeOtherSessions(t *testing.T) {
 	t.Parallel()
@@ -236,7 +236,7 @@ func TestRevokeOtherSessions(t *testing.T) {
 	f := newFixture(t, nil)
 	others := []*fixture{f.withNewSession(t), f.withNewSession(t)}
 	mikan := f.as(t, mikanUser, domain.RoleMember)
-	// 再認証を求めないことを確かめるため、直近の認証の期限を過ぎてから操作する。
+	// 再認証を求めないことを確認するため、直近の認証の期限を過ぎてから操作する。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 
 	var revoked struct {
@@ -294,7 +294,7 @@ func (f *fixture) messages(t *testing.T, query string, variables any) []string {
 	return messages
 }
 
-// TestDeleteUser は、管理者がほかのユーザーを消せ、消したユーザーのセッションが使えなくなることを確かめる (#1382)。
+// TestDeleteUser は、管理者がほかのユーザーを消せ、消したユーザーのセッションが使えなくなることを確認する (#1382)。
 func TestDeleteUser(t *testing.T) {
 	t.Parallel()
 
@@ -317,7 +317,7 @@ func TestDeleteUser(t *testing.T) {
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, deleteUserQuery, map[string]any{varID: graph.GlobalID("User", other.userID.String())}, nil))
 }
 
-// TestDeleteAccount は、本人が自分のアカウントを消せ、直近の認証を求めることを確かめる (#1382)。
+// TestDeleteAccount は、本人が自分のアカウントを消せ、直近の認証を求めることを確認する (#1382)。
 func TestDeleteAccount(t *testing.T) {
 	t.Parallel()
 
@@ -338,7 +338,7 @@ func TestDeleteAccount(t *testing.T) {
 	assert.Equal(t, []string{codeReauthRequired}, f.query(t, deleteAccount, nil, nil))
 }
 
-// TestDeleteAccountRefusesLastAdministrator は、最後の有効な管理者は、自分のアカウントを消せないことを確かめる (#1382)。
+// TestDeleteAccountRefusesLastAdministrator は、最後の有効な管理者は、自分のアカウントを消せないことを確認する (#1382)。
 func TestDeleteAccountRefusesLastAdministrator(t *testing.T) {
 	t.Parallel()
 

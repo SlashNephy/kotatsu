@@ -42,7 +42,7 @@ const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: fals
 const path = '/admin/users';
 
 export const Route = createFileRoute('/admin/users')({
-  // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
+  // IdP での再認証を出すかを確認する。確認できなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: UsersPage,
 });
@@ -107,7 +107,7 @@ function Users() {
   const gate = useReauthGate(methods, path);
   const notice = useSaveNotice();
   const { save } = useAutoSave();
-  // fail と succeed は、ユーザーを作る、消すなどの操作の結果を、設定の保存と同じ通知で知らせる (#1740)。
+  // fail と succeed は、ユーザーを作る、消すなどの操作の結果を、設定の保存と同じ形式で通知する (#1740)。
   const fail = (caught: unknown) => notice.failed(caught);
   const succeed = (text: string) => {
     notifySaved(text);
@@ -276,7 +276,7 @@ function UserRow({
   const [mode, setMode] = useState<'view' | 'edit' | 'password' | 'delete'>('view');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
-  // close は、入力を捨てて、行を閉じる。やめたときと、保存したときに使う。
+  // close は、入力を破棄して、行を閉じる。やめたときと、保存したときに使う。
   const close = () => {
     setPassword('');
     setConfirmation('');

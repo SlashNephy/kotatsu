@@ -13,7 +13,7 @@ import (
 )
 
 // RecordedEpisodeWindow は、自分で録った録画を「録った回」として見る期間 (付録 A、#1498)。
-// 同じ回の再放送が来るまでの間隔の分布を、Kotatsu の番組表と録画で測る前に置いた初期値である。
+// 同じ回の再放送が来るまでの間隔の分布を、Kotatsu の番組表と録画で計測する前に置いた初期値である。
 // アニメやドラマの再放送は、数か月から 1 年ほど後に来ることが多いと見込んで 1 年にする。短すぎると、少し間を空けた再放送をもう一度録る。
 // 長すぎると、録画が増えるほど照合が重くなる。ほかの録画ソフトから引き継いだ履歴は、この期間で切らない。
 const RecordedEpisodeWindow = 365 * day
@@ -21,18 +21,18 @@ const RecordedEpisodeWindow = 365 * day
 // terrestrialChannelType は、地上波のチャンネル種別。これ以外の局の放送を、束から 1 本を選ぶときの「衛星」とする。
 const terrestrialChannelType = "GR"
 
-// recordedEpisode は、「録った回」の録画。束ねた放送を録画済みとして外した理由に添える。
+// recordedEpisode は、「録った回」の録画。まとめた放送を録画済みとして外した理由に添える。
 type recordedEpisode struct {
 	serviceID int64
 	name      string
 	endAt     time.Time
 }
 
-// bundleSameEpisodes は、同じ回を束ねるルールに一致した放送を、局をまたいで同じ回で束ね、束ごとに 1 本だけを残す (設計書 4.4、#1498)。
-// 束から外した放送からは、同じ回を束ねるルールだけを外す。どのルールにも一致しなくなった放送は、予約すべき集合から除き、
-// skipped が nil でなければ、外したルールと理由と一緒に入れる。手動の予約は、比べる相手に入れない。
+// bundleSameEpisodes は、同じ回をまとめるルールに一致した放送を、局をまたいで同じ回でまとめ、束ごとに 1 本だけを残す (設計書 4.4、#1498)。
+// 束から外した放送からは、同じ回をまとめるルールだけを外す。どのルールにも一致しなくなった放送は、予約すべき集合から除き、
+// skipped が nil でなければ、外したルールと理由と一緒に入れる。手動の予約は、比較する相手に入れない。
 // 別のルールが残った放送は、外したルールと理由を partial に入れる。後で前の回を録らない (#1499) 設定で外れたときに、
-// 束ねた理由を優先して出すためである。
+// まとめた理由を優先して出すためである。
 func bundleSameEpisodes(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram,
 	skipped, partial map[programKey]*skippedProgram,
@@ -46,7 +46,7 @@ func bundleSameEpisodes(
 	if len(keys) == 0 {
 		return nil
 	}
-	// 人が取り消した (無効にした) 予約の番組は、束ねる前に外す。選ぶと、無効の予約のまま、ほかの放送も外してしまう。
+	// 人が取り消した (無効にした) 予約の番組は、まとめる前に外す。選ぶと、無効の予約のまま、ほかの放送も外してしまう。
 	cancelled, err := cancelledPrograms(ctx, tx, now)
 	if err != nil {
 		return err
@@ -86,7 +86,7 @@ func bundleSameEpisodes(
 		})
 		s := &skippedProgram{
 			row: d.row, rules: removed, reason: SkipReasonOtherBroadcast, lastRecorded: nil, recorded: nil, instead: nil,
-			laterEpisode: 0, byRecording: false,
+			laterEpisode: 0,
 		}
 		if decision.Recorded != nil {
 			s.reason = SkipReasonRecordedEpisode
@@ -124,7 +124,7 @@ func cancelledPrograms(ctx context.Context, tx pgx.Tx, now time.Time) (map[progr
 	return cancelled, nil
 }
 
-// listBundledBroadcasts は、keys の番組を、束ねる候補の放送にする。返す値は keys と同じ並び。
+// listBundledBroadcasts は、keys の番組を、まとめる候補の放送にする。返す値は keys と同じ並び。
 func listBundledBroadcasts(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, keys []programKey,
 ) ([]*episode.Broadcast, error) {

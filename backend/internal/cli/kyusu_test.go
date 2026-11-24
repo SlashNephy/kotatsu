@@ -15,7 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
-// TestKyusuRegistersOnlyWhenItCanTranscode は、FFmpeg と tsreadex がないときは、kyusu を登録簿に載せないことを確かめる。
+// TestKyusuRegistersOnlyWhenItCanTranscode は、FFmpeg と tsreadex がないときは、kyusu を登録簿に載せないことを確認する。
 // 画面は、登録簿に kyusu がいるかで、サーバー側でのトランスコードを使えるかを判断する (設計書 7.1)。
 //
 // FFmpeg と tsreadex は PATH から探すので、PATH を差し替える。PATH はプロセスで共有するので、並行して動かさない。

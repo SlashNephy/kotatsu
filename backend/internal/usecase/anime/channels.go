@@ -84,8 +84,8 @@ const (
 )
 
 // subchannelSyobocalChannel は、しょぼいカレンダーで、メインと別のチャンネルを持つサブチャンネルの ChID を返す。
-// メインの ChID mainID と、サブチャンネルのサービス ID がメインからいくつ後か offset で引く。Eテレ2 と Eテレ3、TOKYO MX2。
-// サブチャンネルで放送する番組は、しょぼいカレンダーではこれらのチャンネルに登録されるので、メインの ChID で引くと、メインの別の番組に結びついてしまう。
+// メインの ChID mainID と、サブチャンネルのサービス ID がメインからいくつ後か offset で検索する。Eテレ2 と Eテレ3、TOKYO MX2。
+// サブチャンネルで放送する番組は、しょぼいカレンダーではこれらのチャンネルに登録されるので、メインの ChID で検索すると、メインの別の番組に結びついてしまう。
 func subchannelSyobocalChannel(mainID int32, offset int64) (int32, bool) {
 	switch {
 	case mainID == syobocalNHKETele && offset == 1:
@@ -102,7 +102,7 @@ func subchannelSyobocalChannel(mainID int32, offset int64) (int32, bool) {
 // maxSubchannelOffset は、地上波のサブチャンネルのサービス ID が、メインのサービス ID からいくつ後まであるか。
 const maxSubchannelOffset = 2
 
-// definitionKey は、取り込んだチャンネルの対応を引く鍵。地上波はネットワーク ID を 0 にする。
+// definitionKey は、取り込んだチャンネルの対応を検索するキー。地上波はネットワーク ID を 0 にする。
 type definitionKey struct {
 	channelType string
 	networkID   int64
@@ -133,7 +133,7 @@ func newChannelResolver(definitions []sqlc.ListAnimeChannelDefinitionsRow) *chan
 }
 
 // resolve は、サービスに対応させる、取り込んだチャンネルの対応を返す。対応がなければ nil を返す。
-//   - 種別が地上波なら種別とサービス ID で、BS と CS は種別とネットワーク ID とサービス ID で照らし合わせる。
+//   - 種別が地上波なら種別とサービス ID で、BS と CS は種別とネットワーク ID とサービス ID で照合する。
 //   - ネットワーク ID が地上波でも、Mirakurun の種別が地上波でないサービス (他の地域を受ける EXT などの種別) は、
 //     地上波の対応を使う。定義は系列局を局ごとに持つので (#1589)、どの地域で受けても、その局のチャンネルに当たる。
 //   - 地上波のサブチャンネル (サービス ID がメインの 1 つ後か 2 つ後) は、メインの対応を使う。メインで野球中継をし、
@@ -271,7 +271,7 @@ func (c *Channels) Update(ctx context.Context, db Database, actor *audit.Actor, 
 	})
 }
 
-// validateChannelChanges は、上書きの変える項目が正しいかを確かめる。
+// validateChannelChanges は、上書きの変える項目が正しいかを確認する。
 func validateChannelChanges(changes *ChannelChanges) error {
 	if changes == nil {
 		return fmt.Errorf("%w: changes is nil", ErrInvalidChannel)
@@ -291,7 +291,7 @@ func validateChannelChanges(changes *ChannelChanges) error {
 	return nil
 }
 
-// overrideOf は、今の上書き current に、変える値 change か、消す印 reset を重ねる。
+// overrideOf は、今の上書き current に、変える値 change か、消すマーク reset を重ねる。
 func overrideOf(current, change *int32, reset bool) *int32 {
 	switch {
 	case reset:
@@ -311,7 +311,7 @@ type Work struct {
 }
 
 // ListWorks は、TID ごとに、対応する作品を返す。
-// 対応のない TID は、返す表に含めない。
+// 対応のない TID は、返すテーブルに含めない。
 func ListWorks(ctx context.Context, db sqlc.DBTX, tids []int32) (map[int32][]*Work, error) {
 	works := map[int32][]*Work{}
 	if len(tids) == 0 {

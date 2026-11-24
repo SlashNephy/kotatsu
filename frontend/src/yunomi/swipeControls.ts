@@ -7,10 +7,10 @@ import { preferenceChanged } from '../settings/syncedPreferences';
 // 端末をまたいで同期する (#1862)。既定では切っておく。
 
 const storageKey = 'kotatsu.player.swipeControls';
-// changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
+// changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:swipe-controls';
 
-// loadSwipeControls は、覚えた設定を読む。覚えていないか、読めなければ、既定の false を返す。
+// loadSwipeControls は、保存した設定を読む。保存していないか、読めなければ、既定の false を返す。
 export function loadSwipeControls(storage: Pick<Storage, 'getItem'> | null): boolean {
   try {
     return storage?.getItem(storageKey) === 'true';
@@ -19,7 +19,7 @@ export function loadSwipeControls(storage: Pick<Storage, 'getItem'> | null): boo
   }
 }
 
-// saveSwipeControls は、設定を覚える。書けなくても、例外は投げない。
+// saveSwipeControls は、設定を保存する。書けなくても、例外は投げない。
 export function saveSwipeControls(
   storage: Pick<Storage, 'setItem'> | null,
   enabled: boolean,

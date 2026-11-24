@@ -94,7 +94,7 @@ func TestAutoAddsWithVideoAndAudioConditions(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "no conditions", in: autoAddWithAV(wordVector(), wordVector()), wantErr: false},
-		// 映像と音声は WORD の配列で、1 要素 2 バイト。4 バイトの要素を前提に数を確かめると、1 件でも壊れた応答とみなしていた (#1980)。
+		// 映像と音声は WORD の配列で、1 要素 2 バイト。4 バイトの要素を前提に数を確認すると、1 件でも壊れた応答とみなしていた (#1980)。
 		{name: "one video condition", in: autoAddWithAV(wordVector(0x01), wordVector()), wantErr: false},
 		{name: "video and audio conditions", in: autoAddWithAV(wordVector(0x01, 0xB1, 0xB3), wordVector(0x0203, 0x0209)), wantErr: false},
 		// 数が残りのバイト数に収まらない WORD の配列は、壊れた応答とする。

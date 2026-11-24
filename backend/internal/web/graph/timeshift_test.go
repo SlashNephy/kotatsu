@@ -66,7 +66,7 @@ func (f *fixture) lastTimeshiftAuditAction(t *testing.T) string {
 }
 
 // TestTimeshiftChannels は、管理者だけが、タイムシフトで録るチャンネルを読み、足し、保持時間を変え、外せることと、
-// バッファの範囲と録っているかを返すことを確かめる。
+// バッファの範囲と録っているかを返すことを確認する。
 func TestTimeshiftChannels(t *testing.T) {
 	t.Parallel()
 
@@ -145,7 +145,7 @@ func TestTimeshiftChannels(t *testing.T) {
 	assert.Empty(t, admin.query(t, removeTimeshiftChannel, set, nil))
 }
 
-// TestSetTimeshiftChannelRejectsInvalidInput は、範囲外の保持時間と、ないサービスを拒み、保存しないことを確かめる。
+// TestSetTimeshiftChannelRejectsInvalidInput は、範囲外の保持時間と、ないサービスを拒み、保存しないことを確認する。
 func TestSetTimeshiftChannelRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
@@ -182,7 +182,7 @@ func TestSetTimeshiftChannelRejectsInvalidInput(t *testing.T) {
 }
 
 // TestTimeshiftUnavailable は、タイムシフトのディレクトリを設定していない tenban では、使えないことを返し、
-// チャンネルを足させないことを確かめる。neko は、足されたチャンネルを割り振るので、ここで止める。
+// チャンネルを足させないことを確認する。neko は、足されたチャンネルを割り振るので、ここで止める。
 func TestTimeshiftUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -227,7 +227,7 @@ type timeshiftProgram struct {
 	HlsURL    string `json:"hlsUrl"`
 }
 
-// TestTimeshiftPrograms は、視聴者が、バッファから再生できる番組と、それを流す URL を読めることを確かめる (設計書 7.2)。
+// TestTimeshiftPrograms は、視聴者が、バッファから再生できる番組と、それを流す URL を読めることを確認する (設計書 7.2)。
 // タイムシフトのディレクトリがない tenban では、バッファを流せないので、番組を返さない。
 func TestTimeshiftPrograms(t *testing.T) {
 	t.Parallel()
@@ -257,7 +257,7 @@ func TestTimeshiftPrograms(t *testing.T) {
 				require.NoError(t, err)
 			}
 			exec(`INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at) VALUES ($1, 7200, $2, $2)`, timeshiftServiceKey, now)
-			// 番組の頭のチャンクは破棄した。2 つ目のチャンクの前に穴がある。
+			// 番組の先頭のチャンクは破棄した。2 つ目のチャンクの前に穴がある。
 			exec(`INSERT INTO timeshift_chunks (id, service_id, path, size, started_at, ended_at, created_at)
 				VALUES ($1, $2, 'a.m2ts', 1, $3, $4, $3), ($5, $2, 'b.m2ts', 1, $6, NULL, $6)`,
 				id.New(), timeshiftServiceKey, now.Add(-30*time.Minute), now.Add(-25*time.Minute), id.New(), now.Add(-20*time.Minute))
@@ -321,7 +321,7 @@ func TestTimeshiftPrograms(t *testing.T) {
 			assert.Equal(t, "/internal/streams/timeshift/3273601024?from="+url.QueryEscape(buffer.Node.TimeshiftBuffer.From.UTC().Format(time.RFC3339Nano)),
 				buffer.Node.TimeshiftBuffer.StreamURL)
 
-			// 始まりの時刻で 1 つの番組を引く。ない番組は NOT_FOUND。
+			// 始まりの時刻で 1 つの番組を取得する。ない番組は NOT_FOUND。
 			const one = `query($serviceId: ID!, $startAt: Time!) { timeshiftProgram(serviceId: $serviceId, startAt: $startAt) { eventId } }`
 			var single struct {
 				TimeshiftProgram struct {
@@ -336,7 +336,7 @@ func TestTimeshiftPrograms(t *testing.T) {
 }
 
 // TestPromoteTimeshiftProgram は、予約を作れるユーザーが、バッファにある放送の終わった番組を録画に昇格でき、
-// 録画中の録画を返して、書き出すジョブを入れることを確かめる (#1057、設計書 5.7)。
+// 録画中の録画を返して、出力するジョブを入れることを確認する (#1057、設計書 5.7)。
 func TestPromoteTimeshiftProgram(t *testing.T) {
 	t.Parallel()
 
@@ -387,7 +387,7 @@ func TestPromoteTimeshiftProgram(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM river_job WHERE kind = 'timeshift_promote'`).Scan(&queued))
 	assert.Equal(t, 1, queued)
 
-	// 番組の一覧には、書き出している途中であることを出す。
+	// 番組の一覧には、出力している途中であることを出す。
 	var programs struct {
 		Node struct {
 			TimeshiftPrograms []struct {
@@ -400,7 +400,7 @@ func TestPromoteTimeshiftProgram(t *testing.T) {
 	require.Len(t, programs.Node.TimeshiftPrograms, 1)
 	assert.True(t, programs.Node.TimeshiftPrograms[0].Promoting)
 
-	// 同じ番組を書き出している途中なら CONFLICT、バッファにない番組は NOT_FOUND。
+	// 同じ番組を出力している途中なら CONFLICT、バッファにない番組は NOT_FOUND。
 	assert.Equal(t, []string{codeConflict}, member.query(t, promote, vars, nil))
 	assert.Equal(t, []string{codeNotFound}, member.query(t, promote, map[string]any{varServiceID: timeshiftServiceID(), varStartAt: now}, nil))
 }

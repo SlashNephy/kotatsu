@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# 配るアーカイブを開き、中のバイナリが起動して、画面と埋め込んだファイルを返すことを確かめる (#1523、設計書 11.6)。
-# Windows と macOS のランナーで、Linux で作ったスナップショットのアーカイブを確かめるのに使う。手元の Linux でも流せる。
+# 配布するアーカイブを開き、中のバイナリが起動して、画面と埋め込んだファイルを返すことを確認する (#1523、設計書 11.6)。
+# Windows と macOS のランナーで、Linux で作ったスナップショットのアーカイブを確認するのに使う。手元の Linux でも流せる。
 #
-# 使い方: KOTATSU_DATABASE_URL=postgres://.../空のDB scripts/ci-smoke-archive.sh <アーカイブ> <確かめる資産のパスの一覧>
-#   アーカイブは、GoReleaser が作った kotatsu_<版>_<OS>_<アーキテクチャ>.tar.gz か .zip。
+# 使い方: KOTATSU_DATABASE_URL=postgres://.../空のDB scripts/ci-smoke-archive.sh <アーカイブ> <確認する資産のパスの一覧>
+#   アーカイブは、GoReleaser が作った kotatsu_<バージョン>_<OS>_<アーキテクチャ>.tar.gz か .zip。
 #   資産のパスの一覧は、/assets/... のように、埋め込んだ画面の中のパスを 1 行に 1 つ書いたファイル。
-#   EXPECTED_COMMIT を渡すと、--version がそのコミットを返すことも確かめる。
+#   EXPECTED_COMMIT を渡すと、--version がそのコミットを返すことも確認する。
 #   KOTATSU_SMOKE_START_TIMEOUT は、起動してからヘルスチェックが ok を返すまで待つ秒 (既定は 120)。
-#   KOTATSU_SMOKE_SLEEP に windows か macos を渡すと、スリープの抑止と起こす予約が OS に届き、外せることも確かめる (#1522、設計書 11.7)。
+#   KOTATSU_SMOKE_SLEEP に windows か macos を渡すと、スリープの抑止と起こす予約が OS に届き、外せることも確認する (#1522、設計書 11.7)。
 #     KOTATSU_SMOKE_PSQL に psql のパスを渡す。Windows は管理者で、macOS は sudo で Kotatsu を動かす (起こす予約に要る)。
-# 偽のチューナーサーバー (backend/internal/cmd/faketuner) を、同じマシンで Go から立てる。
+# モックのチューナーサーバー (backend/internal/cmd/faketuner) を、同じマシンで Go から立てる。
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -95,7 +95,7 @@ export KOTATSU_METRICS_LISTEN="127.0.0.1:0"
 export KOTATSU_KYUSU_WORK_DIR="$work/kyusu"
 "$kotatsu" migrate
 if [ -n "$as_root" ]; then
-  # sudo -E で、ここまでに export した設定を渡す。sudo は、同じプロセスグループから届いたシグナルを中継しないので、
+  # sudo -E で、ここまでに export した設定を渡す。sudo は、同じプロセスグループから届いたシグナルを転送しないので、
   # 止めるときは sudo でなく Kotatsu そのものに送る。exec で PID を引き継ぐので、シェルが書いた PID が Kotatsu の PID になる。
   # ログは root で書くので、リダイレクトも sudo の中で行う。
   sudo -E sh -c 'echo "$$" >"$1"; log="$2"; shift 2; exec "$@" >"$log" 2>&1' sh "$work/kotatsu.pid" "$work/kotatsu.log" "$kotatsu" all &
