@@ -257,7 +257,7 @@ func TestTimeshiftPrograms(t *testing.T) {
 				require.NoError(t, err)
 			}
 			exec(`INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at) VALUES ($1, 7200, $2, $2)`, timeshiftServiceKey, now)
-			// 番組の頭のチャンクは破棄した。2 つ目のチャンクの前に穴がある。
+			// 番組の先頭のチャンクは破棄した。2 つ目のチャンクの前に穴がある。
 			exec(`INSERT INTO timeshift_chunks (id, service_id, path, size, started_at, ended_at, created_at)
 				VALUES ($1, $2, 'a.m2ts', 1, $3, $4, $3), ($5, $2, 'b.m2ts', 1, $6, NULL, $6)`,
 				id.New(), timeshiftServiceKey, now.Add(-30*time.Minute), now.Add(-25*time.Minute), id.New(), now.Add(-20*time.Minute))
@@ -321,7 +321,7 @@ func TestTimeshiftPrograms(t *testing.T) {
 			assert.Equal(t, "/internal/streams/timeshift/3273601024?from="+url.QueryEscape(buffer.Node.TimeshiftBuffer.From.UTC().Format(time.RFC3339Nano)),
 				buffer.Node.TimeshiftBuffer.StreamURL)
 
-			// 始まりの時刻で 1 つの番組を引く。ない番組は NOT_FOUND。
+			// 始まりの時刻で 1 つの番組を取得する。ない番組は NOT_FOUND。
 			const one = `query($serviceId: ID!, $startAt: Time!) { timeshiftProgram(serviceId: $serviceId, startAt: $startAt) { eventId } }`
 			var single struct {
 				TimeshiftProgram struct {
@@ -387,7 +387,7 @@ func TestPromoteTimeshiftProgram(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM river_job WHERE kind = 'timeshift_promote'`).Scan(&queued))
 	assert.Equal(t, 1, queued)
 
-	// 番組の一覧には、書き出している途中であることを出す。
+	// 番組の一覧には、出力している途中であることを出す。
 	var programs struct {
 		Node struct {
 			TimeshiftPrograms []struct {
@@ -400,7 +400,7 @@ func TestPromoteTimeshiftProgram(t *testing.T) {
 	require.Len(t, programs.Node.TimeshiftPrograms, 1)
 	assert.True(t, programs.Node.TimeshiftPrograms[0].Promoting)
 
-	// 同じ番組を書き出している途中なら CONFLICT、バッファにない番組は NOT_FOUND。
+	// 同じ番組を出力している途中なら CONFLICT、バッファにない番組は NOT_FOUND。
 	assert.Equal(t, []string{codeConflict}, member.query(t, promote, vars, nil))
 	assert.Equal(t, []string{codeNotFound}, member.query(t, promote, map[string]any{varServiceID: timeshiftServiceID(), varStartAt: now}, nil))
 }

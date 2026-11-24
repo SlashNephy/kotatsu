@@ -33,7 +33,7 @@ func (r *Resolver) inspectChannel(ctx context.Context, channelType, channel stri
 
 		return nil, NewError(CodeConflict, "failed to inspect the channel; no tuner may be available")
 	}
-	// program_number (サービス ID) から、Kotatsu が知っている、そのチャンネルのサービスの名前を引く。
+	// program_number (サービス ID) から、Kotatsu が知っている、そのチャンネルのサービスの名前を取得する。
 	services, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, IncludeGone: true, MediaServiceTypes: []int64{}, IDs: []int64{}, Now: r.clock.Now()})
 	if err != nil {
 		return nil, err

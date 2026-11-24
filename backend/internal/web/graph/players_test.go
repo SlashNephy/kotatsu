@@ -191,7 +191,7 @@ func TestPlayerCommands(t *testing.T) {
 	assert.JSONEq(t, `{"playerCommands":{"type":"SEEK","position":120.5,"volume":null}}`, string(next(t, commands)))
 	assert.JSONEq(t, `{"playerCommands":{"type":"SET_VOLUME","position":null,"volume":0.5}}`, string(next(t, commands)))
 
-	// 再生位置が進んだだけなら、一覧は読み直させない。状態が変わったときだけ知らせる。
+	// 再生位置が進んだだけなら、一覧は読み直させない。状態が変わったときだけ通知する。
 	require.Empty(t, f.query(t, updatePlayer, map[string]any{varID: playerID, varState: liveState(false), varAnnounce: false}, nil))
 	require.Empty(t, f.query(t, updatePlayer, map[string]any{varID: playerID, varState: liveState(true), varAnnounce: true}, nil))
 	assert.JSONEq(t, `{"playersChanged":2}`, string(next(t, changes)))

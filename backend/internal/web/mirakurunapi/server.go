@@ -246,7 +246,7 @@ func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request) {
 
 // writeError は、エラーを Mirakurun と同じ形の応答にする。サービスかチャンネルがなければ 404 を、ほかは 503 を返す。
 // 503 は、クライアントが、チューナーが足りない (ストリーム) か、ロゴをまだ受信していない (ロゴ) と読み替える。
-// 一覧の API でも 503 にする。EDCB が EPG を読み込んでいる最中のように、少し後に再取得せばよいことが多いためである。
+// 一覧の API でも 503 にする。EDCB が EPG を読み込んでいる最中のように、少し後に再取得すればよいことが多いためである。
 // 空の一覧で返すと、受け手が DB のサービスや番組を消してしまう。
 func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	if r.Context().Err() != nil {

@@ -27,7 +27,7 @@ func siPacket(pid uint16, fill byte) []byte {
 func TestDataBroadcastWriterSplitsPackets(t *testing.T) {
 	t.Parallel()
 
-	// NIT (0x0010) と EIT (0x0012) は残り、PMT を読む前の 0x0111 は捨てられる。
+	// NIT (0x0010) と EIT (0x0012) は残り、PMT を読む前の 0x0111 は破棄される。
 	nit, eit, video := siPacket(0x0010, 0xA1), siPacket(0x0012, 0xA2), siPacket(0x0111, 0xA3)
 	stream := bytes.Join([][]byte{nit, video, eit, video, nit}, nil)
 	want := bytes.Join([][]byte{nit, eit, nit}, nil)

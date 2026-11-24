@@ -219,7 +219,7 @@ func TestGuide(t *testing.T) {
 		name      string
 		variables any
 		wantRows  []string
-		// wantPrograms は、最初の列の番組名。
+		// wantPrograms は、最初のカラムの番組名。
 		wantPrograms []string
 		wantCodes    []string
 	}{

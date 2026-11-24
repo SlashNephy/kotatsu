@@ -218,7 +218,7 @@ func (r *Resolver) subscribeViewerSettings(ctx context.Context) (<-chan int, err
 			channelVersion = latest
 			current, err := r.queries.UserSettingsVersion(ctx, principal.UserID)
 			if err != nil {
-				// 読めなければ、購読を終える。クライアントは、購読し直して今の版数を受け取る。
+				// 読めなければ、購読を終える。クライアントは、購読し直して今のバージョンを受け取る。
 				return
 			}
 			if current <= version {

@@ -105,7 +105,7 @@ func (p *AccessPolicy) Middleware(next http.Handler) http.Handler {
 		}
 
 		// 信頼済みのプロキシが X-Forwarded-Host に値を追記する構成 (Apache の mod_proxy の既定など) では、最左の値は送信元が書いた値になる。
-		// 送信元が許可済みのホスト名を書いても通らないよう、並んだ値をすべて確かめる (#1434)。オリジンには、これまでどおり最左の値を使う。
+		// 送信元が許可済みのホスト名を書いても通らないよう、並んだ値をすべて確認する (#1434)。オリジンには、これまでどおり最左の値を使う。
 		hosts := []string{client.Host}
 		if p.isTrusted(peer) {
 			if forwarded := allValues(r.Header.Values("X-Forwarded-Host")); len(forwarded) > 0 {

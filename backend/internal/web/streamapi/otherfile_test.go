@@ -56,7 +56,7 @@ func TestOtherFileHandler(t *testing.T) {
 		wantStatus int
 		wantType   string
 		wantBody   string
-		// wantDisposition は、Content-Disposition。空なら付けないことを確かめる。
+		// wantDisposition は、Content-Disposition。空なら付けないことを確認する。
 		wantDisposition string
 	}{
 		{name: "全体", pools: nil, fileID: mp4, rangeValue: "", wantStatus: http.StatusOK, wantType: "video/mp4", wantBody: "0123456789"},

@@ -417,7 +417,7 @@ func TestAuthorizerStopsOpenStreams(t *testing.T) {
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
 				server.URL+issue(t, pool, clk, signer, viewer.ID, clk.Now().Add(stream.LiveURLLifetime)), nil)
 			require.NoError(t, err)
-			// 流し続けるので、要求して読み捨てるのは別の goroutine にする。
+			// 流し続けるので、要求して読み飛ばすのは別の goroutine にする。
 			client := httpclienttest.New(t)
 			go func() {
 				res, err := client.Do(req)

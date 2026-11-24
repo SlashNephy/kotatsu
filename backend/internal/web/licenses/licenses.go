@@ -1,6 +1,6 @@
 // Package licenses は、本体に組み込んだ Go のモジュールのライセンスの一覧を扱う (設計書 10.3、付録 B、#1604)。
 //
-// 一覧は、ビルドの前に printlicenses で dist/go.json に出力、本体に埋め込む。
+// 一覧は、ビルドの前に printlicenses で dist/go.json に出力し、本体に埋め込む。
 // 依存を上げるたびに変わるので、リポジトリには置かない。書き出さずにビルドしても go build が通るよう、
 // dist には空の .gitkeep だけを置いてリポジトリに残す。そのビルドでは、一覧がないことを返す。
 package licenses

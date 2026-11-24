@@ -125,7 +125,7 @@ func TestJobs(t *testing.T) {
 	assert.Equal(t, 2, countOf[stateAvailable])
 	assert.Equal(t, 0, countOf["DISCARDED"], "states without jobs are counted as 0")
 
-	// 取り消すと、取り消した状態になる。取り消したジョブは、試し直せる。
+	// 取り消すと、取り消した状態になる。取り消したジョブは、再試行できる。
 	thumbID := byKind["thumbnail_generate"].ID
 	require.Empty(t, adminFixture.query(t, cancelJob, map[string]any{varID: thumbID}, nil))
 	cancelled := list(adminFixture, "CANCELLED")

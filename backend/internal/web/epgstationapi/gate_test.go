@@ -127,7 +127,7 @@ func TestStopWhenRevoked(t *testing.T) {
 			require.NoError(t, err)
 			req.Header.Set("Authorization", "Bearer "+accepted)
 			client := server.Client()
-			// 流し続けるので、要求して読み捨てるのは別の goroutine にする。
+			// 流し続けるので、要求して読み飛ばすのは別の goroutine にする。
 			go func() {
 				res, err := client.Do(req)
 				if err != nil {

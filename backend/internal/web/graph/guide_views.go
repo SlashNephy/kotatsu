@@ -171,7 +171,7 @@ func (r *Resolver) saveGuideView(ctx context.Context, viewID *uuid.UUID, in *mod
 		return nil, fmt.Errorf("failed to encode the guide view: %w", err)
 	}
 
-	// 番組表ビューは個人の設定なので、書いたら、同じユーザーのほかの端末に知らせる。
+	// 番組表ビューは個人の設定なので、書いたら、同じユーザーのほかの端末に通知する。
 	saved, err := usersettings.SaveGuideView(ctx, r.db, r.clock, principal.UserID, viewID, &usersettings.GuideView{
 		Name: in.Name, Settings: encoded, HideEmptyServices: in.HideEmptyServices,
 	})

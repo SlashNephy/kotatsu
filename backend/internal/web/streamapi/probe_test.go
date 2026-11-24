@@ -70,7 +70,7 @@ func TestProbeHandlerSize(t *testing.T) {
 			assert.Equal(t, strconv.Itoa(tt.wantBytes), w.Header().Get("Content-Length"))
 			assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
 			assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
-			// 前段で圧縮されて速さを測り違えないよう、圧縮しても縮まない中身にする。
+			// 前段で圧縮されて速さを計測を誤らないよう、圧縮しても縮まない内容にする。
 			var compressed bytes.Buffer
 			gz := gzip.NewWriter(&compressed)
 			_, err := gz.Write(w.Body.Bytes())

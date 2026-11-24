@@ -73,7 +73,7 @@ func watchLive(t *testing.T, server *httptest.Server, clk *clocktest.Fake, servi
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-	// faketuner は実時間で流すので、読む間に偽の時計を進め、抑止時間を越えさせる。
+	// faketuner は実時間で流すので、読む間にモックの時計を進め、抑止時間を越えさせる。
 	go func() {
 		ticker := time.NewTicker(10 * time.Millisecond)
 		defer ticker.Stop()
@@ -152,7 +152,7 @@ func TestLiveStreamScrambled(t *testing.T) {
 }
 
 // TestLiveStreamScrambledSkipsEarlierVerdicts は、購読を始める前に決めた判定を送らないことを確認する。
-// 前に見た人の判定で、カードを修正した後の視聴を止めないためである。
+// 前に見た人の判定で、カードの不具合を解消した後の視聴を止めないためである。
 func TestLiveStreamScrambledSkipsEarlierVerdicts(t *testing.T) {
 	t.Parallel()
 
@@ -161,7 +161,7 @@ func TestLiveStreamScrambledSkipsEarlierVerdicts(t *testing.T) {
 	reporter := scramble.NewReporter(f.pool, clk, slog.New(slog.DiscardHandler))
 	require.NoError(t, reporter.Report(t.Context(), 3273701032))
 	events := subscribeScrambled(t, f)
-	// ほかのサービスで決めると版数が上がるが、前に決めたサービスの判定は送らない。
+	// ほかのサービスで決めるとバージョンが上がるが、前に決めたサービスの判定は送らない。
 	require.NoError(t, reporter.Report(t.Context(), 3273601024))
 	assert.Equal(t, []string{graph.GlobalID("Service", clearService)}, scrambledServices(t, events, 1500*time.Millisecond))
 

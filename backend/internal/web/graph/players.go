@@ -197,7 +197,7 @@ func (r *Resolver) subscribePlayersChanged(ctx context.Context) (<-chan int, err
 				// 閉じれば、クライアントがつなぎ直す。
 				return
 			}
-			// ほかのユーザーのプレイヤーの変化や、操作では、版は上がらない。
+			// ほかのユーザーのプレイヤーの変化や、操作では、バージョンは上がらない。
 			if current <= version {
 				continue
 			}

@@ -116,7 +116,7 @@ func TestHandle(t *testing.T) {
 	httpserver.Handle(router, both, map[string]http.Handler{http.MethodGet: ok(http.StatusOK), http.MethodPost: ok(http.StatusCreated)})
 	httpserver.Handle(router, "/post", map[string]http.Handler{http.MethodPost: ok(http.StatusCreated)})
 
-	// 移す前の http.ServeMux と同じ応答を返すことを確かめる。
+	// 移す前の http.ServeMux と同じ応答を返すことを確認する。
 	mux := http.NewServeMux()
 	mux.Handle("GET /both", ok(http.StatusOK))
 	mux.Handle("POST /both", ok(http.StatusCreated))

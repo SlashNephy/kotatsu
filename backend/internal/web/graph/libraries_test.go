@@ -140,7 +140,7 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 		WithProvider(disconnected)
 	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
 	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), true)
-	// テストを終えるときに、索引を作る処理を止めてから一時ディレクトリを消させる。
+	// テストを終えるときに、インデックスを作る処理を止めてから一時ディレクトリを消させる。
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -155,7 +155,7 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 	images := new(fakeImages)
 
 	f := newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer), LibraryJobs: images})
-	// 字幕の自動生成の状態は、River のジョブの表から読む。
+	// 字幕の自動生成の状態は、River のジョブのテーブルから読む。
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 
 	return f, &libraryParts{dir: libraryDir, images: images, indexer: indexer, dataDir: dataDir}
@@ -220,7 +220,7 @@ func TestLibraries(t *testing.T) {
 			if len(tt.wantCodes) == 0 {
 				assert.Equal(t, tt.path, got.LibraryDirectory.Path)
 				assert.Equal(t, tt.want, got.LibraryDirectory.Entries)
-				// フォルダのライブラリでは、パンくずの名前は、パスの段そのもの。
+				// フォルダのライブラリでは、パンくずの名前は、パスの階層そのもの。
 				wantNames := []string{}
 				if tt.path != "" {
 					wantNames = strings.Split(tt.path, "/")
@@ -280,7 +280,7 @@ func TestLibrarySearch(t *testing.T) {
 			for _, hit := range got.LibrarySearch.Hits {
 				paths = append(paths, hit.Entry.Path)
 				assert.True(t, hit.Entry.Playable)
-				// フォルダの名前は、パスの段そのもの。
+				// フォルダの名前は、パスの階層そのもの。
 				assert.Equal(t, []string{showDir}, hit.FolderNames)
 			}
 			assert.Equal(t, tt.wantPaths, paths)
@@ -324,9 +324,9 @@ func TestLibraryFile(t *testing.T) {
 	require.NotNil(t, file.LibraryFile.Index.DurationSeconds)
 	assert.GreaterOrEqual(t, *file.LibraryFile.Index.DurationSeconds, file.LibraryFile.Index.SeekableSeconds)
 	assert.Nil(t, file.LibraryFile.WatchPositionMs)
-	// 放送の情報と実況の過去ログの URL (#1734 の 2 段目)。局は Kotatsu にないので、service は null で、SDT の名前を返す。
+	// 放送の情報と実況の過去ログの URL (#1734 の 2 段階目)。局は Kotatsu にないので、service は null で、SDT の名前を返す。
 	assert.Equal(t, "/internal/media/library/"+encoded+"/jikkyo.json", file.LibraryFile.JikkyoCommentsURL)
-	// 画像はまだないので null で、索引を作り終えたファイルを引くと、作るジョブを入れる。
+	// 画像はまだないので null で、インデックスを作り終えたファイルを取得すると、作るジョブを入れる。
 	assert.Nil(t, file.LibraryFile.ThumbnailURL)
 	assert.Nil(t, file.LibraryFile.PreviewURL)
 	assert.Contains(t, images.kinds(), "library_images_generate")

@@ -248,7 +248,7 @@ func TestRuleReservations(t *testing.T) {
 	require.NoError(t, err)
 	reservationID := graph.GlobalID("Reservation", reservation.ID.String())
 
-	// 競合している予約だけを引く。
+	// 競合している予約だけを取得する。
 	var listed reservationList
 	require.Empty(t, f.query(t, listReservations, map[string]any{
 		varFrom: noon, varTo: tomorrow, varStates: []string{"CONFLICT"}, varFirst: 10,
@@ -282,7 +282,7 @@ func TestRuleReservations(t *testing.T) {
 	assert.Equal(t, programName(5), peers.Node.Assignment.Peers[0].Name)
 	assert.Equal(t, "こたつテスト1", peers.Node.Assignment.Peers[0].Service.Name)
 
-	// ルールで絞ると、番組予約を除いて、ルールに一致した予約だけを引く。
+	// ルールで絞ると、番組予約を除いて、ルールに一致した予約だけを取得する。
 	var byRule reservationList
 	require.Empty(t, f.query(t, listReservations, map[string]any{
 		varFrom: noon, varTo: tomorrow, varRule: createdRule.CreateRule.ID, varFirst: 10,

@@ -587,7 +587,7 @@ func TestRecordingHandlerEndsWhenSegmentClosesShort(t *testing.T) {
 	f := newRecordingFixture(t, nil)
 	recordingID := f.recording(t, "recording")
 	segmentID := f.segment(t, recordingID, "a.m2ts", data, 0, true)
-	// 索引は 386340 バイト目の I フレームを指すが、ファイルはその手前までしか書いていない。
+	// インデックスは 386340 バイト目の I フレームを指すが、ファイルはその手前までしか書いていない。
 	require.NoError(t, os.Truncate(filepath.Join(f.dir, "a.m2ts"), int64(packetAligned(386340/2))))
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
@@ -698,7 +698,7 @@ func TestRecordingHandlerFollowsHandover(t *testing.T) {
 	_, err = io.CopyN(&body, resp.Body, int64(len(first)))
 	require.NoError(t, err)
 
-	// 新しい mikan が引き継ぎ、新しいセグメントを書き始める。流し始めたのを確かめてから、録画を終える。
+	// 新しい mikan が引き継ぎ、新しいセグメントを書き始める。流し始めたのを確認してから、録画を終える。
 	segmentID := f.segment(t, recordingID, "b.m2ts", second, time.Second, true)
 	_, err = io.CopyN(&body, resp.Body, ts.PacketSize)
 	require.NoError(t, err)
@@ -775,7 +775,7 @@ func TestRecordingHandlerTrimsOpenPredecessor(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-	// 後のセグメントを流し始めたのを確かめてから、引き継ぎと録画を終える。
+	// 後のセグメントを流し始めたのを確認してから、引き継ぎと録画を終える。
 	var body bytes.Buffer
 	_, err = io.CopyN(&body, resp.Body, 300000)
 	require.NoError(t, err)

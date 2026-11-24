@@ -52,7 +52,7 @@ func TestMissingRecordings(t *testing.T) {
 			Skipped           int `json:"skipped"`
 		} `json:"cleanUpMissingRecordings"`
 	}
-	// 見つかる録画を渡しても、確かめ直して消さない。
+	// 見つかる録画を渡しても、確認し直して消さない。
 	require.Empty(t, admin.query(t, cleanUpMissingMutation, map[string]any{varIDs: []string{gone, kept}}, &cleaned))
 	assert.Equal(t, 1, cleaned.CleanUpMissingRecordings.DeletedRecordings)
 	assert.Zero(t, cleaned.CleanUpMissingRecordings.PrunedSegments)

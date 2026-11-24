@@ -98,7 +98,7 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 流し始めるのは、指定した位置の手前の I フレームから。実際に流し始めた位置を返し、画面はそれを再生位置の起点にする (#536)。
-	// 索引のないセグメントは、その始まりから流すので、指定した位置と大きくずれる。HEAD でも返すので、先に位置だけを引ける。
+	// インデックスのないセグメントは、その始まりから流すので、指定した位置と大きくずれる。HEAD でも返すので、先に位置だけを取得できる。
 	pos := recording.Seek(start)
 	w.Header().Set(StartHeader, strconv.FormatFloat(pos.At.Seconds(), 'f', 3, 64))
 	writeStreamHeader(w)

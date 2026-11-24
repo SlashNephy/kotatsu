@@ -2764,7 +2764,7 @@ type ViewerEvent struct {
 	// 届くときは常に true。届いてから一定の時間 (20 秒) が過ぎると、この tenban は、残ったストリームを打ち切る。
 	StreamsDraining *bool `json:"streamsDraining,omitempty"`
 	// ライブのサービスが、スクランブルされたまま届くと決めたという知らせ (設計書 7.1、#1517)。購読を始めた後に決めたものだけを送る。
-	// 決めるのは、ブラウザ内での変換のストリームをプロキシする tenban と、kyusu で、決めたらストリームを閉じる。どの tenban や kyusu で決めても届く。
+	// 決めるのは、ブラウザ内での変換のストリームを配信する tenban と、kyusu で、決めたらストリームを閉じる。どの tenban や kyusu で決めても届く。
 	// ライブを流しているプレイヤーは、自分のサービスなら、つなぎ直すのをやめて、理由を出す。接続を増やさないよう、ここに載せる。
 	LiveStreamScrambled *LiveStreamScrambled `json:"liveStreamScrambled,omitempty"`
 }

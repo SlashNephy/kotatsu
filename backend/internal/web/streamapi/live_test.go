@@ -73,7 +73,7 @@ func usersOf(fake *faketuner.Server) int {
 	return users
 }
 
-// TestLiveHandlerRelaysAndReleases は、スクランブルを解除したストリームを TS のままプロキシし、
+// TestLiveHandlerRelaysAndReleases は、スクランブルを解除したストリームを TS のまま配信し、
 // クライアントが切断すると、上流の接続も閉じてチューナーを解放することを確認する (設計書 7.2)。
 func TestLiveHandlerRelaysAndReleases(t *testing.T) {
 	t.Parallel()

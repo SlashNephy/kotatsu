@@ -99,7 +99,7 @@ func TestLogReport(t *testing.T) {
 		tunerLog  http.HandlerFunc
 		timeout   time.Duration
 		wantCodes []string
-		// wantTuner は、チューナーサーバーの出どころ。nil なら、出どころは Kotatsu だけ。
+		// wantTuner は、チューナーサーバーのソース。nil なら、ソースは Kotatsu だけ。
 		wantTuner *logSource
 	}{
 		{name: "管理者でなければ読めない", member: true, wantCodes: []string{codeForbidden}},

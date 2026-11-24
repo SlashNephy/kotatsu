@@ -89,7 +89,7 @@ func TestLibraryCommentsHandler(t *testing.T) {
 			if tt.wantStatus != http.StatusOK {
 				return
 			}
-			// 索引を作り終えた後は、時間帯が変わらないので、少しの間だけ使い回させる。
+			// インデックスを作り終えた後は、時間帯が変わらないので、少しの間だけ使い回させる。
 			assert.Equal(t, "private, max-age=600", rec.Header().Get("Cache-Control"))
 			var body commentsBody
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
@@ -111,7 +111,7 @@ func TestLibraryCommentsHandlerBeforeIndex(t *testing.T) {
 	libraryDir, dataDir := t.TempDir(), t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, "show.ts"), readTestTS(t), 0o600))
 	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{testLibrary: libraryDir})
-	// 索引を作らない Indexer にして、作り終える前の状態を保つ。
+	// インデックスを作らない Indexer にして、作り終える前の状態を保つ。
 	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), false)
 	mux := http.NewServeMux()
 	mux.Handle("GET /internal/media/library/{id}/"+jikkyoapi.CommentsFileName, jikkyoapi.NewLibraryCommentsHandler(f.comments, filelib.NewSource(libraries, indexer)))

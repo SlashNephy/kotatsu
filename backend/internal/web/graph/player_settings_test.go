@@ -63,7 +63,7 @@ func TestPlayerSettings(t *testing.T) {
 		before := version()
 		assert.Equal(t, tt.want, update(tt.input), tt.name)
 		assert.Equal(t, tt.want, get(), tt.name)
-		// ほかの端末に viewerSettingsChanged で知らせるよう、設定の版数を上げる。
+		// ほかの端末に viewerSettingsChanged で通知するよう、設定のバージョンを上げる。
 		assert.Greater(t, version(), before, tt.name)
 	}
 }

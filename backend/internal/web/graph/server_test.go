@@ -271,7 +271,7 @@ func TestHandler(t *testing.T) {
 			wantBody:   []string{unauthenticatedBody},
 		},
 		{
-			// テストのバイナリには版を埋め込まず、VCS の情報もないので dev になる。
+			// テストのバイナリにはバージョンを埋め込まず、VCS の情報もないので dev になる。
 			name:       "logged-in user gets the app version",
 			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ version { version revision modified } }"}`, loggedIn: true},
 			wantStatus: http.StatusOK,
@@ -291,7 +291,7 @@ func TestHandler(t *testing.T) {
 			wantBody:   []string{unauthenticatedBody},
 		},
 		{
-			// 一覧はビルドで書き出すので、テストのバイナリに含まれるとは限らない。ログインしたユーザーには、エラーにせず返すことだけを見る。
+			// 一覧はビルドで出力するので、テストのバイナリに含まれるとは限らない。ログインしたユーザーには、エラーにせず返すことだけを見る。
 			name:       "logged-in user gets the Go module licenses",
 			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ goModuleLicenses { path } }"}`, loggedIn: true},
 			wantStatus: http.StatusOK,

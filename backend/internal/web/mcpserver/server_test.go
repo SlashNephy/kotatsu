@@ -135,7 +135,7 @@ func TestListTools(t *testing.T) {
 		version string
 	}{
 		{name: "2026-07-28", version: ""},
-		// Stateless のままでも、古い版のクライアントがつながる。
+		// Stateless のままでも、古いバージョンのクライアントがつながる。
 		{name: legacyVersion, version: legacyVersion},
 	}
 	for _, tt := range tests {
@@ -201,7 +201,7 @@ func TestServerIcons(t *testing.T) {
 				require.True(t, strings.HasPrefix(icon.Source, prefix), icon.MIMEType)
 				data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(icon.Source, prefix))
 				require.NoError(t, err)
-				// 中身が、名乗った MIME タイプの画像であることを確かめる。http.DetectContentType は SVG を見分けない。
+				// 内容が、名乗った MIME タイプの画像であることを確認する。http.DetectContentType は SVG を見分けない。
 				if icon.MIMEType == "image/svg+xml" {
 					assert.True(t, strings.HasPrefix(string(data), "<svg "))
 				} else {

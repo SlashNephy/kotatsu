@@ -14,7 +14,7 @@ func TestTunerServerHealth(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// checked は、チューナーサーバーの状態を確かめたことがあるかどうか。connected は、そのときにつながったかどうか。
+		// checked は、チューナーサーバーの状態を確認したことがあるかどうか。connected は、そのときにつながったかどうか。
 		checked      bool
 		connected    bool
 		wantDegraded bool

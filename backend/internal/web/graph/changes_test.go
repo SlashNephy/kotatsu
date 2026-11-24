@@ -131,7 +131,7 @@ func TestDataChanged(t *testing.T) {
 	assert.JSONEq(t, `{"dataChanged":{"channel":"RECORDINGS","version":1}}`, string(next(t, events)))
 	f.publish(t, tunerstate.NotifyChannel)
 	f.publish(t, tunerstate.NotifyChannel)
-	// 立て続けの変更は 1 つにまとまることがあるので、最後の版数が届くまで読む。
+	// 立て続けの変更は 1 つにまとまることがあるので、最後のバージョンが届くまで読む。
 	for {
 		var got struct {
 			DataChanged struct {
@@ -228,7 +228,7 @@ func TestUnreadNotificationCount(t *testing.T) {
 	events := f.subscribe(t, `subscription { unreadNotificationCount }`)
 	assert.JSONEq(t, `{"unreadNotificationCount":1}`, string(next(t, events)))
 
-	// nekonote が配った通知が届く。
+	// nekonote が配信した通知が届く。
 	f.notify(t, domain.NotificationKindRecordingCompleted, nil)
 	assert.JSONEq(t, `{"unreadNotificationCount":2}`, string(next(t, events)))
 

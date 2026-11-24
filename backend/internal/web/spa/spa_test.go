@@ -37,7 +37,7 @@ func TestHandler(t *testing.T) {
 		app    fstest.MapFS
 		method string
 		path   string
-		// wantStatus と wantBody は応答の状態と本文。wantBody が空なら本文は確かめない。
+		// wantStatus と wantBody は応答の状態と本文。wantBody が空なら本文は確認しない。
 		wantStatus int
 		wantBody   string
 		// wantIndex は、index.html を返すかどうか。

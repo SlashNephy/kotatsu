@@ -36,7 +36,7 @@ type ProbeHandler struct {
 	block    []byte
 
 	mu sync.Mutex
-	// last は、ユーザーの ID ごとの、最後に返した時刻。間隔より古いものは、次のリクエストで捨てる。
+	// last は、ユーザーの ID ごとの、最後に返した時刻。間隔より古いものは、次のリクエストで破棄する。
 	last map[string]time.Time
 }
 

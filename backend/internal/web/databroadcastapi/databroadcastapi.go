@@ -41,24 +41,24 @@ const (
 	// ConnectivityPath は、文書がインターネットへ接続できるかを確認する (confirmIPNetwork) エンドポイント。
 	ConnectivityPath = "/internal/media/data-broadcast/connectivity"
 
-	// requestTimeout は、中継するリクエストの 1 回を待つ長さ (リダイレクトを含む)。
+	// requestTimeout は、プロキシするリクエストの 1 回を待つ長さ (リダイレクトを含む)。
 	requestTimeout = 10 * time.Second
-	// maxRedirects は、中継するリクエストで追うリダイレクトの回数の上限。
+	// maxRedirects は、プロキシするリクエストで追うリダイレクトの回数の上限。
 	maxRedirects = 3
 	// maxBodyBytes は、文書が送る本文の大きさの上限。web-bml が送るのは、文書の文字列を符号化した Denbun の 1 つだけ。
 	maxBodyBytes = 64 << 10
 	// maxRequestBytes は、画面が送る JSON の大きさの上限。本文を Base64 にした分と、URL の分を見込む。
 	maxRequestBytes = 128 << 10
-	// maxResponseBytes は、中継する応答の本文の大きさの上限。文書と、文書が読む画像や音声に足りる大きさにする。
+	// maxResponseBytes は、プロキシする応答の本文の大きさの上限。文書と、文書が読む画像や音声に足りる大きさにする。
 	maxResponseBytes = 1 << 20
 
-	// defaultConfirmTimeout は、接続を確かめるときに、文書が待つ長さを指定しなかったときの長さ。web-bml の既定と同じ。
+	// defaultConfirmTimeout は、接続を確認するときに、文書が待つ長さを指定しなかったときの長さ。web-bml の既定と同じ。
 	defaultConfirmTimeout = 4 * time.Second
-	// maxConfirmTimeout は、接続を確かめるときに待つ長さの上限。
+	// maxConfirmTimeout は、接続を確認するときに待つ長さの上限。
 	maxConfirmTimeout = 10 * time.Second
-	// defaultConfirmPort は、接続を確かめるときに接続するポート。ICMP は特権が要るので、どちらを求められても TCP で 80 番に接続する。
+	// defaultConfirmPort は、接続を確認するときに接続するポート。ICMP は特権が要るので、どちらを求められても TCP で 80 番に接続する。
 	defaultConfirmPort = "80"
-	// maxHostnameLength は、接続を確かめる宛先の名前の長さの上限 (RFC 1035)。
+	// maxHostnameLength は、接続を確認する宛先の名前の長さの上限 (RFC 1035)。
 	maxHostnameLength = 253
 )
 

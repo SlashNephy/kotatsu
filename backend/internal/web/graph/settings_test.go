@@ -321,14 +321,14 @@ func TestDRCSReplacements(t *testing.T) {
 		md5Lower = "0123456789abcdef0123456789abcdef"
 		md5Other = "ffffffffffffffffffffffffffffffff"
 		md5Third = "00000000000000000000000000000000"
-		// textJi は、字幕の「字」の印を置き換える文字。
+		// textJi は、字幕の「字」のマークを置き換える文字。
 		textJi = "[字]"
 		update = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { drcsReplacements { md5 text } } }`
 	)
 	type payload struct {
 		DRCSReplacements []drcsReplacement `json:"drcsReplacements"`
 	}
-	// input は、外字の表の変更。text が空なら、その外字を消す。
+	// input は、外字のテーブルの変更。text が空なら、その外字を消す。
 	input := func(rows ...drcsReplacement) map[string]any {
 		values := make([]map[string]any, 0, len(rows))
 		for _, row := range rows {
@@ -381,7 +381,7 @@ func TestDRCSReplacements(t *testing.T) {
 	require.Empty(t, viewerFixture.query(t, query, nil, &got))
 	assert.Equal(t, want, got.DRCSReplacements)
 
-	// 表を省けば変えず、text を null にした外字は消す。
+	// テーブルを省けば変えず、text を null にした外字は消す。
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDays: 30}}, nil))
 	require.Empty(t, viewerFixture.query(t, query, nil, &got))
 	assert.Equal(t, want, got.DRCSReplacements)
@@ -519,7 +519,7 @@ func TestUpdateStoragePool(t *testing.T) {
 	f := newFixture(t, &graph.Options{
 		Pools:     map[string]string{poolMain: mountMain, poolSub: mountSub},
 		FreeSpace: func(path string) (uint64, error) { return map[string]uint64{mountMain: 100 << 30}[path], nil },
-		// sub の容量は調べられない。
+		// sub の容量は取得できない。
 		TotalSpace: func(path string) (uint64, error) {
 			if path != mountMain {
 				return 0, errors.ErrUnsupported

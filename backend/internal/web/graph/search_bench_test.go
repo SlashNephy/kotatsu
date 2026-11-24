@@ -91,7 +91,7 @@ func seedBenchSearchPrograms(b *testing.B, f *fixture) {
 		FROM generate_series(1, $2::int) AS i, LATERAL (SELECT $1::timestamptz - make_interval(mins => 30 * i + 60) AS start_at) t`,
 		testNow(), benchSearchPrograms)
 	require.NoError(b, err)
-	// 本番のように統計を取ってから測る。自動の ANALYZE を待つと、入れた直後の小さい表の統計で計画が決まる。
+	// 本番のように統計を取ってから計測する。自動の ANALYZE を待つと、入れた直後の小さいテーブルの統計で計画が決まる。
 	_, err = f.pool.Exec(b.Context(), "ANALYZE programs, program_archives")
 	require.NoError(b, err)
 }

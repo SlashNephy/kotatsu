@@ -83,7 +83,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		HistoryMaxDrops:    system.HistoryMaxDrops,
 		AuditRetentionDays: system.AuditRetentionDays, AuditClientInfoRetentionDays: system.AuditClientInfoRetentionDays,
 		HibpEnabled: system.HIBPEnabled,
-		// 管理者だけに返すので、リゾルバ (systemSettingsResolver.WebPushSubject) が確かめてから出す。
+		// 管理者だけに返すので、リゾルバ (systemSettingsResolver.WebPushSubject) が確認してから出す。
 		WebPushSubject:           new(system.WebPushSubject),
 		ThumbnailPreviewsEnabled: system.ThumbnailPreviewsEnabled,
 		SleepControlEnabled:      system.SleepControlEnabled,

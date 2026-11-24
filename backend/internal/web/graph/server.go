@@ -269,7 +269,7 @@ func NewHandler(opts *Options) http.Handler {
 		resolver.libraries = medialib.NewSet(map[string]string{}, []string{}, map[string]string{})
 	}
 	if resolver.librarySource == nil {
-		// ライブラリがないので、索引を作ることも読むこともない。
+		// ライブラリがないので、インデックスを作ることも読むこともない。
 		resolver.librarySource = filelib.NewSource(resolver.libraries, filelib.NewIndexer("", resolver.libraries, o.Clock, o.Logger, false))
 	}
 	if resolver.freeSpace == nil {
@@ -333,7 +333,7 @@ func revalidateSubscriptions(next http.Handler, sessions *auth.Sessions, db *pgx
 				}
 				usable, err := sessions.Usable(ctx, db, principal.SessionID)
 				if err != nil {
-					// 一時的に確かめられなくても、切らない。
+					// 一時的に確認できなくても、切らない。
 					if ctx.Err() == nil {
 						logger.WarnContext(ctx, "failed to revalidate the session of a subscription", slog.Any("error", err))
 					}

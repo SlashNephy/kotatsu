@@ -198,7 +198,7 @@ func TestPasskeysUnavailable(t *testing.T) {
 	f := newFixture(t, nil)
 	f.registerPasskey(t)
 	id := f.listPasskeys(t)[0].ID
-	// 設定のない Resolver で、同じ DB を引く。
+	// 設定のない Resolver で、同じ DB を取得する。
 	g := f.withoutPasskeys(t)
 
 	tests := []struct {

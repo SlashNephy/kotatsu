@@ -65,7 +65,7 @@ func TestClearLibraryArtifacts(t *testing.T) {
 		LibraryArtifacts libraryArtifactsResult `json:"libraryArtifacts"`
 	}
 	require.Empty(t, admin.query(t, libraryArtifactsQuery, nil, &measured))
-	// 索引 (index)、元のファイルの記録 (source.json)、字幕 (captions.json)。
+	// インデックス (index)、元のファイルの記録 (source.json)、字幕 (captions.json)。
 	assert.Equal(t, 3, measured.LibraryArtifacts.Files)
 	assert.Positive(t, measured.LibraryArtifacts.Size)
 
@@ -122,7 +122,7 @@ func TestClearLibraryArtifacts(t *testing.T) {
 	require.Empty(t, admin.query(t, auditEventsQuery, map[string]any{"first": 50}, &events))
 	assert.Equal(t, 1, countActions(events.actions(), actionArtifactsClear))
 
-	// 消した後にファイルを開けば、索引を作り直す。字幕は、頼むまで作らない。
+	// 消した後にファイルを開けば、インデックスを作り直す。字幕は、頼むまで作らない。
 	require.Empty(t, member.query(t, libraryFileQuery, variables, &file))
 	assert.Empty(t, file.LibraryFile.AutoCaptions)
 	require.Eventually(t, func() bool {

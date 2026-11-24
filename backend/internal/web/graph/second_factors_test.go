@@ -150,7 +150,7 @@ func TestReplaceTOTP(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	// 登録を始めていなければ、確かめられない。
+	// 登録を始めていなければ、確認できない。
 	assert.Equal(t, []string{codeBadUserInput}, f.query(t, confirmEnrollment, map[string]any{varCode: "000000"}, nil))
 
 	first := f.beginTOTP(t)
@@ -163,7 +163,7 @@ func TestReplaceTOTP(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT secret_encrypted FROM user_totps").Scan(&unchanged))
 	assert.Equal(t, firstSecret, unchanged, "the current TOTP must stay until the new one is confirmed")
 
-	// 前の登録で使ったステップのコードは使えないので、次のステップに進めてから確かめる。
+	// 前の登録で使ったステップのコードは使えないので、次のステップに進めてから確認する。
 	f.clock.Advance(totp.Period)
 	require.Empty(t, f.query(t, confirmEnrollment, map[string]any{varCode: f.totpCode(t, second)}, nil))
 	var replaced []byte

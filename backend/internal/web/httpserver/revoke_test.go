@@ -71,7 +71,7 @@ func TestStopWhenRevoked(t *testing.T) {
 			defer cancel()
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
 			require.NoError(t, err)
-			// 流し続けるので、要求して読み捨てるのは別の goroutine にする。
+			// 流し続けるので、要求して読み飛ばすのは別の goroutine にする。
 			client := httpclienttest.New(t)
 			go func() {
 				res, err := client.Do(req)

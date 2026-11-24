@@ -73,7 +73,7 @@ func (r *Resolver) clearLibraryArtifacts(ctx context.Context) (*model.LibraryArt
 	case err != nil:
 		return nil, err
 	}
-	// 置き場は移したので、使われない。消しきれなければ、次に片付けるときに消す。
+	// 保存先は移したので、使われない。消しきれなければ、次に片付けるときに消す。
 	if err := indexer.PurgeDetached(); err != nil {
 		r.logger.WarnContext(ctx, "failed to remove the detached library artifacts", slog.Any("error", err))
 	}

@@ -245,7 +245,7 @@ func TestRecordings(t *testing.T) {
 	assert.Equal(t, 1, tags.Tags[0].Recordings)
 
 	const filterKeyword = "keyword"
-	// 番組名と概要の正規化した列は、録画を書くときに Go で作る (設計書 3.5)。ほかの録画は、列を知らない古いバイナリが書いたものとして NULL のまま残す。
+	// 番組名と概要の正規化したカラムは、録画を書くときに Go で作る (設計書 3.5)。ほかの録画は、カラムを知らない古いバイナリが書いたものとして NULL のまま残す。
 	const travelogueDescription = "ＴＯＫＹＯ　ＭＸで放送"
 	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET description = $2, name_normalized = $3, description_normalized = $4 WHERE name = $1`,
 		travelogue, travelogueDescription, domain.Normalize(travelogue), domain.Normalize(travelogueDescription))
@@ -412,7 +412,7 @@ func TestRecordingsByRuleAndGenre(t *testing.T) {
 	f.addRecording(t, dir, "手動の録画", "completed", time.Hour)
 	_, rawID, err := graph.ParseGlobalID(byRule)
 	require.NoError(t, err)
-	// ルールで録った録画は、ルールとジャンル (アニメ・特撮、lv1 = 7) を写してある。
+	// ルールで録った録画は、ルールとジャンル (アニメ・特撮、lv1 = 7) をコピーしてある。
 	_, err = f.pool.Exec(t.Context(), `UPDATE recordings SET rule_id = $2, rule_name = 'アニメのルール', genres = '[{"lv1":7,"lv2":0}]' WHERE id = $1`,
 		rawID, ruleID)
 	require.NoError(t, err)
@@ -642,7 +642,7 @@ func TestRecordingCMReport(t *testing.T) {
 	dir := t.TempDir()
 	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}})
 	f.syncEPG(t)
-	// 録画の詳細の見分けの状態は、River の表からジョブを引くので、表を作っておく。
+	// 録画の詳細の見分けの状態は、River のテーブルからジョブを取得するので、テーブルを作っておく。
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 	noted := f.addRecording(t, dir, "注記あり", "completed", 3*time.Hour)
 	clean := f.addRecording(t, dir, "注記なし", "completed", 2*time.Hour)
@@ -922,7 +922,7 @@ func TestRecordingAutoCaptions(t *testing.T) {
 	t.Parallel()
 
 	f, dir := newRecordingFixture(t)
-	// 状態は、River のジョブの表も読む。
+	// 状態は、River のジョブのテーブルも読む。
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 	f.addRecording(t, dir, episode1, "completed", time.Hour)
 	var rawID string

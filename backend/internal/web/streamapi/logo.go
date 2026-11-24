@@ -62,7 +62,7 @@ func (h *LogoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	// 上流の Content-Type は信じず、中身から決める。画像でなければ、同じオリジンで返すと危ないので返さない。
+	// 上流の Content-Type は信じず、内容から決める。画像でなければ、同じオリジンで返すと危ないので返さない。
 	contentType := http.DetectContentType(data)
 	if !strings.HasPrefix(contentType, "image/") {
 		h.logger.WarnContext(r.Context(), "the service logo is not an image", slog.Int64("service_id", serviceID), slog.String("content_type", contentType))

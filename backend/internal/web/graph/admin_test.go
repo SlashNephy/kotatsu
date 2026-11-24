@@ -212,7 +212,7 @@ func TestSystemStatus(t *testing.T) {
 				// ClockSkewed と ClockSkewThresholdMs は、時計の差が閾値を超えたかと、その閾値 (#505)。
 				ClockSkewed          bool `json:"clockSkewed"`
 				ClockSkewThresholdMs int  `json:"clockSkewThresholdMs"`
-				// Kind と Version は、チューナーサーバーの種類と版 (#1538)。接続できない間も、最後に分かったものを返す。
+				// Kind と Version は、チューナーサーバーの種類とバージョン (#1538)。接続できない間も、最後に分かったものを返す。
 				Kind    *string `json:"kind"`
 				Version *string `json:"version"`
 			} `json:"tunerServer"`

@@ -208,7 +208,7 @@ func TestWatchReservedInGuide(t *testing.T) {
 		_, codes := f.setWatch(t, eventID, true)
 		require.Empty(t, codes)
 	}
-	// ほかのユーザーの視聴予約は、印にしない。
+	// ほかのユーザーの視聴予約は、マークにしない。
 	_, codes := f.as(t, "other", domain.RoleMember).setWatch(t, 6, true)
 	require.Empty(t, codes)
 

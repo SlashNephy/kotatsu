@@ -236,7 +236,7 @@ func TestRevokeOtherSessions(t *testing.T) {
 	f := newFixture(t, nil)
 	others := []*fixture{f.withNewSession(t), f.withNewSession(t)}
 	mikan := f.as(t, mikanUser, domain.RoleMember)
-	// 再認証を求めないことを確かめるため、直近の認証の期限を過ぎてから操作する。
+	// 再認証を求めないことを確認するため、直近の認証の期限を過ぎてから操作する。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 
 	var revoked struct {

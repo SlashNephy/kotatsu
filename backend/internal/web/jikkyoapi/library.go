@@ -50,7 +50,7 @@ func (h *LibraryCommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 	s, ok := librarySpan(file)
 	if !ok {
-		// 局か時間帯が分からなければ、チャンネルなしとして返す。索引を作り終えるまでは、後で分かるので使い回させない。
+		// 局か時間帯が分からなければ、チャンネルなしとして返す。インデックスを作り終えるまでは、後で分かるので使い回させない。
 		h.comments.write(w, r, &commentsResponse{Channel: nil, Origin: nil, Comments: []*commentJSON{}}, file.Index.Complete)
 
 		return
@@ -76,7 +76,7 @@ func librarySpan(file *filelib.File) (*span, bool) {
 		return nil, false
 	}
 
-	// 索引を作り終えるまでは、長さが伸びるので、使い回させない。
+	// インデックスを作り終えるまでは、長さが伸びるので、使い回させない。
 	return &span{
 		networkID: int64(*broadcast.NetworkID), sid: int64(broadcast.ServiceID), from: *broadcast.RecordedFrom, until: until, final: file.Index.Complete,
 	}, true

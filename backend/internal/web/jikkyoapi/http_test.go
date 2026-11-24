@@ -77,7 +77,7 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 	table, err := jikkyo.NewTable(nil, clock.Real{}, nil)
 	require.NoError(t, err)
 	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: nil})
-	// 今は、録画を始めて 40 分後。録画中の録画は、今までの過去ログを引く。
+	// 今は、録画を始めて 40 分後。録画中の録画は、今までの過去ログを取得する。
 	clk := clocktest.NewFake(recordedFrom().Add(40 * time.Minute))
 	handler := jikkyoapi.NewCommentsHandler(pool, table, client, clk, slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()

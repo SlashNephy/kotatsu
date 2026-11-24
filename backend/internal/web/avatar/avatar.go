@@ -80,7 +80,7 @@ func NewHandler(pool *pgxpool.Pool, issuer string, logger *slog.Logger, recorder
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 失敗の応答はキャッシュさせない。画像を出せないときは、画面が表示名の先頭文字を出す。
+	// 失敗の応答はキャッシュさせない。画像を出せないときは、画面が表示名の頭文字を出す。
 	w.Header().Set("Cache-Control", "no-store")
 	userID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {

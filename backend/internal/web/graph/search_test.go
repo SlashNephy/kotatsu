@@ -388,7 +388,7 @@ func TestSearchProgramsNarrowsKeywordsInSQL(t *testing.T) {
 	f.syncEPG(t)
 	const name = `Kotatsu 100%_OFF \ 特番`
 	// まだ終わっていない番組の名前にする。いちばん遅く始まる番組を使う。
-	// 番組の検索の gram (#966) は、同期で作るものなので空にし、gram を埋める前の番組として、LIKE の絞り込みを確かめる。
+	// 番組の検索の gram (#966) は、同期で作るものなので空にし、gram を埋める前の番組として、LIKE の絞り込みを確認する。
 	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET name = $1, name_normalized = $1, search_grams = NULL
 		WHERE (service_id, event_id) = (SELECT service_id, event_id FROM programs ORDER BY start_at DESC, service_id, event_id LIMIT 1)`, name)
 	require.NoError(t, err)
@@ -568,7 +568,7 @@ func TestSearchProgramsKeywordMatch(t *testing.T) {
 
 	f := newFixture(t, nil)
 	f.syncEPG(t)
-	// SQL で粗く絞るキーワード (正規表現でないもの) で確かめる。
+	// SQL で粗く絞るキーワード (正規表現でないもの) で確認する。
 	keywords := []keywordInput{keyword(programName(5), false), keyword(programName(6), false)}
 
 	tests := []struct {

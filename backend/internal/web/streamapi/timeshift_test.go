@@ -142,7 +142,7 @@ func TestTimeshiftHandler(t *testing.T) {
 		query     string
 		want      []int64
 		wantStart string
-		// wantSuffix は、流したバイト列の終わり。区切ったチャンクの始まりを落とさずにつないだことを確かめる。
+		// wantSuffix は、流したバイトカラムの終わり。区切ったチャンクの始まりを落とさずにつないだことを確認する。
 		wantSuffix []byte
 	}{
 		{

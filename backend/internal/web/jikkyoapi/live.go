@@ -32,13 +32,13 @@ const (
 	// maxPostRunes は、投稿できるコメントの長さの上限。画面の入力の上限と同じにする。
 	maxPostRunes = 75
 	// minPostInterval は、1 人のユーザーが続けて投稿するときの間隔の下限。
-	// NX-Jikkyo は 0.5 秒以内の連投を黙って捨て、続くと接続が切れるまで投稿を受け付けなくなるので、ここで止める。
+	// NX-Jikkyo は 0.5 秒以内の連投を黙って破棄し、続くと接続が切れるまで投稿を受け付けなくなるので、ここで止める。
 	minPostInterval = time.Second
 	// maxClientMessageBytes は、画面から受け取るメッセージの大きさの上限。
 	maxClientMessageBytes = 4 << 10
 	// clientWriteTimeout は、画面へメッセージを書くのを待つ時間の上限。
 	clientWriteTimeout = 10 * time.Second
-	// defaultRevalidateInterval は、接続中のセッションと実況の設定を確かめ直す間隔。
+	// defaultRevalidateInterval は、接続中のセッションと実況の設定を確認し直す間隔。
 	defaultRevalidateInterval = 15 * time.Second
 
 	postErrorInvalid = "COMMENT_INVALID"
@@ -136,7 +136,7 @@ func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	// 同じオリジンかどうかは、手前の RequireSameOriginUpgrade が、リバースプロキシを考えて確かめている。
+	// 同じオリジンかどうかは、手前の RequireSameOriginUpgrade が、リバースプロキシを考えて確認している。
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 	if err != nil {
 		h.opts.Logger.WarnContext(r.Context(), "failed to accept the jikkyo WebSocket", slog.Any("error", err))
