@@ -3,7 +3,7 @@
 // TS を読んで PES に分け (tsDemux)、映像と音声を WASM の FFmpeg でデコードし、映像は OffscreenCanvas に WebGL2 で描き
 // (pictureRenderer)、音声はメインスレッドへ渡す。時計は、メインスレッドが鳴らしている音 (decodeClock) で、
 // コマを出す間合いは、メインスレッドから届く画面の切り替わりの時刻で決める (fieldPacer)。
-// 間に合っているかは decodeJudge で判定し、少し遅れたら B フレームを省き、間に合わなければメインスレッドへ知らせる。
+// 間に合っているかは decodeJudge で判定し、少し遅れたら B フレームを省き、間に合わなければメインスレッドへ通知する。
 import createDecoderModule, { type DecoderModule } from '@kotatsu/ffmpeg-decoder';
 
 import { AdtsSplitter } from './adtsFrames';
@@ -676,7 +676,7 @@ function sendStats(current: Loading): void {
   post({ type: 'stats', load: current.load, stats });
 }
 
-// judgeTick は、判定に今の様子を渡し、B フレームを省くかを切り替え、間に合わなければメインスレッドへ知らせる。
+// judgeTick は、判定に今の様子を渡し、B フレームを省くかを切り替え、間に合わなければメインスレッドへ通知する。
 function judgeTick(current: Loading): void {
   if (loading !== current || engine === null) {
     return;

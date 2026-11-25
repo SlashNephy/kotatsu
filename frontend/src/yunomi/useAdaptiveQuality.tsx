@@ -51,7 +51,7 @@ export function useAdaptiveQuality(
   videoLag: VideoLag;
   network: NetworkQuality;
   notice: ReactNode;
-  // decodeFallback は、ブラウザの中でデコードする経路が間に合わないと知らせる口。ほかの経路へ移し、理由を出す。
+  // decodeFallback は、ブラウザの中でデコードする経路が間に合わないときに呼ぶ口。ほかの経路へ移し、理由を出す。
   decodeFallback: (reason: FallbackReason) => void;
 } {
   const { t } = useTranslation();
