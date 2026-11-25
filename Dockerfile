@@ -38,9 +38,9 @@ ARG NV_CODEC_HEADERS_REPOSITORY=https://github.com/FFmpeg/nv-codec-headers.git
 ARG RUNTIME_PACKAGES="ca-certificates libx264-164 libx265-215 libva2 libva-drm2 libdrm2 mesa-va-drivers"
 ARG RUNTIME_PACKAGES_AMD64="intel-media-va-driver-non-free libvpl2 libmfx-gen1.2"
 
-# Debian 13 の slim。対象のアーキテクチャで動かすステージ (debian) と、ビルドするマシンで動かすステージ (debian-build) の土台にする。
+# Debian の slim。対象のアーキテクチャで動かすステージ (debian) と、ビルドするマシンで動かすステージ (debian-build) のベースイメージにする。
 # FROM --platform は、ステージの名前に付けても効かないので、イメージを 2 回書く。
-ARG DEBIAN_IMAGE=docker.io/library/debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0
+ARG DEBIAN_IMAGE="debian:13.8-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0"
 
 FROM ${DEBIAN_IMAGE} AS debian
 SHELL ["/usr/bin/bash", "-euxo", "pipefail", "-c"]
@@ -64,7 +64,7 @@ EOF
 WORKDIR /build
 
 # SPA は、どのアーキテクチャでも同じものになるので、ビルドするマシンのアーキテクチャで 1 回だけビルドする。
-FROM --platform=$BUILDPLATFORM docker.io/library/node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS web
+FROM --platform=$BUILDPLATFORM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS web
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 # pnpm のバージョンは package.json の packageManager に従う。Node.js 25 から corepack が同梱されないので、npm で入れる。
@@ -85,7 +85,7 @@ RUN pnpm exec vp build
 
 # Go のバイナリは、ビルドするマシンのアーキテクチャのまま、対象のアーキテクチャへクロスコンパイルする。
 # Go の脆弱性の影響を受けるバージョンかどうかがわかるよう、タグはパッチバージョンまで書く (mise.toml の go と合わせる)。
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.4-trixie@sha256:f18c3d73a184fb0582828510722e723b63a93f7188d11dd223d9be6f6880e65d AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.4-trixie@sha256:f18c3d73a184fb0582828510722e723b63a93f7188d11dd223d9be6f6880e65d AS build
 WORKDIR /src
 # go.work に足したモジュールの go.mod と go.sum も、ここでコピーする。
 COPY go.work go.work.sum ./
