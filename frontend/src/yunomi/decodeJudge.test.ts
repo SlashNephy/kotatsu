@@ -117,7 +117,7 @@ describe('DecodeJudge', () => {
 
   test('データが来ない間と、来てからしばらくは数えない', () => {
     let { judge, now } = started();
-    judge.starve();
+    judge.starve(now);
     now += 1_000;
     judge.onPicture();
     expect(judge.tick(now, frameMs)).toEqual([]);
@@ -282,7 +282,7 @@ describe('DecodeJudge', () => {
 
   test('データが途切れて戻ったときも、音の途絶を数え直す', () => {
     let { judge, now } = started();
-    judge.starve();
+    judge.starve(now);
     now += 20_000;
     judge.onVideo(now);
 
@@ -299,5 +299,19 @@ describe('DecodeJudge', () => {
     }
 
     expect(verdicts).toEqual([]);
+  });
+
+  test('短い途切れから戻っても、数えない時間を始めない', () => {
+    let { judge, now } = started();
+    judge.starve(now);
+    // 0.1 秒で戻った。
+    judge.onVideo(now + 100);
+    now += 1_000;
+    feed(judge, now, { lagMs: 600 });
+    now += 1_000;
+    feed(judge, now, { lagMs: 600 });
+    now += 1_000;
+
+    expect(feed(judge, now, { lagMs: 600 })).toEqual([{ type: 'fallback', reason: 'slow' }]);
   });
 });

@@ -24,6 +24,9 @@ export type JudgeParams = {
   fallbackAfter: number;
   // ignoreMs は、タブが戻った直後、読み始めた直後、データが途切れて戻った直後に数えない時間。
   ignoreMs: number;
+  // starveMs は、データの途切れとみなす長さ。これより短い途切れは、戻っても数えない時間を始めない。
+  // worker がデコードでふさがったあとは、届いていたデータを読む前に映すコマが尽き、短い途切れに見えるため。
+  starveMs: number;
   // skipDropped と skipLagMs は、ウィンドウの中で破棄したコマがこの枚数以上か、遅れがこれ以上なら、B フレームを省き始める値。
   skipDropped: number;
   skipLagMs: number;
@@ -50,6 +53,7 @@ export const defaultJudgeParams: JudgeParams = {
   badDropRatio: 0.1,
   fallbackAfter: 3,
   ignoreMs: 3_000,
+  starveMs: 1_000,
   skipDropped: 5,
   skipLagMs: 200,
   skipInitialMs: 10_000,
@@ -59,6 +63,9 @@ export const defaultJudgeParams: JudgeParams = {
   audioGapMs: 15_000,
   audioFailures: 10,
 };
+
+// tickToleranceMs は、ウィンドウの終わりとみなす余裕。tick を呼ぶタイマーが少し早く届いても、次の tick まで延ばさない。
+const tickToleranceMs = 50;
 
 // FallbackReason は、ほかの経路へ移す理由。slow はデコードが間に合わない、audio は音が届かないかデコードできない。
 export type FallbackReason = 'slow' | 'audio';
@@ -77,6 +84,7 @@ export class DecodeJudge {
   private bad = 0;
   private ignoreUntil = -Infinity;
   private starved = false;
+  private starvedSince: number | null = null;
   private hidden = false;
   private skipping = false;
   private skipUntil = 0;
@@ -103,6 +111,7 @@ export class DecodeJudge {
     this.clearWindow();
     this.bad = 0;
     this.starved = false;
+    this.starvedSince = null;
     this.hidden = false;
     this.skipping = false;
     this.skipDuration = null;
@@ -114,7 +123,8 @@ export class DecodeJudge {
     this.ignoreUntil = now + this.params.ignoreMs;
   }
 
-  // resume は、タブが見えるようになったときと、再開したときに呼ぶ (I フレームまで飛んでデコードし直すため)。
+  // resume は、タブが見えるようになったとき、再開したとき (I フレームまで飛んでデコードし直すため)、
+  // 時計が動き出したとき (映す時刻が飛ぶため) に呼ぶ。
   // それまでに数えた悪いウィンドウの数は残す。
   resume(now: number): void {
     this.hidden = false;
@@ -128,8 +138,9 @@ export class DecodeJudge {
   }
 
   // starve は、デコードに回すデータが来ていない (回線が詰まった) ときに呼ぶ。来るまで数えない。
-  starve(): void {
+  starve(now: number): void {
     this.starved = true;
+    this.starvedSince ??= now;
     this.audioMissingSince = null;
   }
 
@@ -138,8 +149,12 @@ export class DecodeJudge {
     this.lastVideo = now;
     this.audioMissingSince ??= now;
     if (this.starved) {
+      const long = this.starvedSince !== null && now - this.starvedSince >= this.params.starveMs;
       this.starved = false;
-      this.resume(now);
+      this.starvedSince = null;
+      if (long) {
+        this.resume(now);
+      }
     }
   }
 
@@ -187,7 +202,7 @@ export class DecodeJudge {
     }
     if (this.windowStart === null) {
       this.restartWindow(now);
-    } else if (now - this.windowStart >= this.params.windowMs) {
+    } else if (now - this.windowStart >= this.params.windowMs - tickToleranceMs) {
       // 終わったウィンドウは、B フレームを省くのを戻す前に判定する (そのウィンドウの間の、省いていたかどうかで見る)。
       const fallback = this.closeWindow(now, frameMs, verdicts);
       if (fallback !== null) {

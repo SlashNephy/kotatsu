@@ -127,7 +127,13 @@ self.onmessage = (event: MessageEvent<ToDecodeWorker>) => {
       break;
     case 'clock':
       if (loading?.load === message.load) {
+        const started = clock.at(mainNow()) === null;
         clock.observe(message.pts, message.perf);
+        // 時計が動き出したときは、映す時刻が飛ぶ。追いつくまでの間は、間に合っているかを数えない。
+        // 合わせ直したときは数える。間に合わない端末では、音が途切れて合わせ直しが続き、数えないままになるため。
+        if (started) {
+          judge.resume(performance.now());
+        }
       }
       break;
     case 'vsync':
@@ -585,7 +591,7 @@ function onVsync(time: number): void {
   const hold = (engine.queue.frameDuration ?? 3003) * (judge.skippingB ? 3 : 1);
   // デコードに回すデータが無く、映すコマも尽きた (回線が詰まった)。データが来るまで判定で数えない。
   if (current.video.length === 0 && (engine.queue.newest ?? -Infinity) + hold < target) {
-    judge.starve();
+    judge.starve(performance.now());
   }
   decodeVideo(current, target);
   const choice = engine.queue.choose(target);
