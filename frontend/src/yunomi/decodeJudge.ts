@@ -6,7 +6,9 @@
 export type JudgeParams = {
   // windowMs は、判定のウィンドウの長さ。
   windowMs: number;
-  // minFrames は、ウィンドウを数えるのに要る、デコードしたコマの数。裏に回っていたウィンドウを数えないため。
+  // minFrames は、ウィンドウを数えるのに要る、デコードしたコマの数。数が少ないと分位と割合が意味を持たないため。
+  // B フレームを省くと、デコードするコマは 3 分の 1 (2 秒で約 20 コマ) になり、遅い端末ではさらに減るので、それより少なく置く。
+  // タブが見えていない間は、hide で数えない。
   minFrames: number;
   // decodeQuantile と decodeBudget は、1 コマのデコード時間のこの分位が、1 コマの長さ × decodeBudget を超えたら悪いとみなす値。
   decodeQuantile: number;
@@ -33,13 +35,13 @@ export type JudgeParams = {
   skipMaxMs: number;
   // audioGapMs は、映像は届いているのに音がこれだけ届かなければ、ほかの経路へ移す時間。
   audioGapMs: number;
-  // audioFailures は、AAC のデコードがこれだけ続けて失敗したら、ほかの経路へ移す回数。
+  // audioFailures は、AAC のデコードがこれを超えて続けて失敗したら、ほかの経路へ移す回数。
   audioFailures: number;
 };
 
 export const defaultJudgeParams: JudgeParams = {
   windowMs: 2_000,
-  minFrames: 30,
+  minFrames: 10,
   decodeQuantile: 0.95,
   decodeBudget: 0.7,
   skipBWiden: 3,
@@ -75,12 +77,14 @@ export class DecodeJudge {
   private bad = 0;
   private ignoreUntil = -Infinity;
   private starved = false;
+  private hidden = false;
   private skipping = false;
   private skipUntil = 0;
   private skipDuration: number | null = null;
   private revertedAt: number | null = null;
   private lastVideo: number | null = null;
-  private lastAudio: number | null = null;
+  // audioMissingSince は、映像が届いているのに音が届かなくなった時刻。音が届くか、映像も途切れたら null に戻す。
+  private audioMissingSince: number | null = null;
   private audioFailureRun = 0;
   private fallen = false;
 
@@ -99,11 +103,12 @@ export class DecodeJudge {
     this.clearWindow();
     this.bad = 0;
     this.starved = false;
+    this.hidden = false;
     this.skipping = false;
     this.skipDuration = null;
     this.revertedAt = null;
     this.lastVideo = null;
-    this.lastAudio = now;
+    this.audioMissingSince = null;
     this.audioFailureRun = 0;
     this.fallen = false;
     this.ignoreUntil = now + this.params.ignoreMs;
@@ -112,27 +117,35 @@ export class DecodeJudge {
   // resume は、タブが見えるようになったときと、再開したときに呼ぶ (I フレームまで飛んでデコードし直すため)。
   // それまでに数えた悪いウィンドウの数は残す。
   resume(now: number): void {
+    this.hidden = false;
     this.restartWindow(now);
     this.ignoreUntil = now + this.params.ignoreMs;
+  }
+
+  // hide は、タブが見えなくなったときに呼ぶ (映像をデコードしない)。resume まで数えない。
+  hide(): void {
+    this.hidden = true;
   }
 
   // starve は、デコードに回すデータが来ていない (回線が詰まった) ときに呼ぶ。来るまで数えない。
   starve(): void {
     this.starved = true;
+    this.audioMissingSince = null;
   }
 
   // onVideo は、映像のデータが届いたときに呼ぶ。詰まりから戻ったら、数えない時間を始める。
   onVideo(now: number): void {
     this.lastVideo = now;
+    this.audioMissingSince ??= now;
     if (this.starved) {
       this.starved = false;
       this.resume(now);
     }
   }
 
-  // onAudio は、鳴らす音声のデータが届いたときに呼ぶ。
-  onAudio(now: number): void {
-    this.lastAudio = now;
+  // onAudio は、鳴らす音声のフレームが届いたときに呼ぶ。
+  onAudio(): void {
+    this.audioMissingSince = null;
   }
 
   // onAudioDecoded は、AAC のフレームを 1 つデコードしたときに呼ぶ。ok は、デコードできたか。
@@ -172,22 +185,31 @@ export class DecodeJudge {
 
       return [audio];
     }
+    if (this.windowStart === null) {
+      this.restartWindow(now);
+    } else if (now - this.windowStart >= this.params.windowMs) {
+      // 終わったウィンドウは、B フレームを省くのを戻す前に判定する (そのウィンドウの間の、省いていたかどうかで見る)。
+      const fallback = this.closeWindow(now, frameMs, verdicts);
+      if (fallback !== null) {
+        return [fallback];
+      }
+    }
     if (this.skipping && now >= this.skipUntil) {
       this.skipping = false;
       this.revertedAt = now;
       verdicts.push({ type: 'skipB', on: false });
     }
-    if (this.windowStart === null) {
-      this.restartWindow(now);
 
-      return verdicts;
-    }
-    if (now - this.windowStart < this.params.windowMs) {
-      return verdicts;
-    }
+    return verdicts;
+  }
+
+  private closeWindow(now: number, frameMs: number | null, verdicts: Verdict[]): Verdict | null {
     // 数えない時間に少しでも掛かったウィンドウは数えない。
     const counted =
-      !this.starved && this.windowStart >= this.ignoreUntil && this.frames >= this.params.minFrames;
+      !this.starved &&
+      !this.hidden &&
+      this.windowStart! >= this.ignoreUntil &&
+      this.frames >= this.params.minFrames;
     if (counted) {
       if (this.isBad(frameMs)) {
         this.bad += 1;
@@ -198,7 +220,7 @@ export class DecodeJudge {
         this.fallen = true;
         this.clearWindow();
 
-        return [{ type: 'fallback', reason: 'slow' }];
+        return { type: 'fallback', reason: 'slow' };
       }
       if (!this.skipping && this.isLate()) {
         this.startSkipping(now);
@@ -207,17 +229,22 @@ export class DecodeJudge {
     }
     this.restartWindow(now);
 
-    return verdicts;
+    return null;
   }
 
   private audioVerdict(now: number): Verdict | null {
     if (this.audioFailureRun > this.params.audioFailures) {
       return { type: 'fallback', reason: 'audio' };
     }
-    // 映像が届いている (直近のウィンドウの中に届いた) のに、音が来ない。
+    // 映像が届いている (直近のウィンドウの中に届いた) のに、音が来ない。映像も途切れたら、数え直す。
     const videoFlowing =
       this.lastVideo !== null && now - this.lastVideo < this.params.windowMs && !this.starved;
-    if (videoFlowing && this.lastAudio !== null && now - this.lastAudio >= this.params.audioGapMs) {
+    if (!videoFlowing) {
+      this.audioMissingSince = null;
+    } else if (
+      this.audioMissingSince !== null &&
+      now - this.audioMissingSince >= this.params.audioGapMs
+    ) {
       return { type: 'fallback', reason: 'audio' };
     }
 

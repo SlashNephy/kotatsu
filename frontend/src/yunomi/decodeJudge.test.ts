@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { DecodeJudge, type JudgeParams } from './decodeJudge';
+import { DecodeJudge, defaultJudgeParams, type JudgeParams } from './decodeJudge';
 
 // 1 コマ (29.97 fps) の長さ。
 const frameMs = 1_000 / 29.97;
@@ -22,7 +22,7 @@ type Window = { decodeMs?: number; frames?: number; dropped?: number; lagMs?: nu
 function feed(judge: DecodeJudge, now: number, window: Window) {
   const { decodeMs = 10, frames = 30, dropped = 0, lagMs = 0 } = window;
   judge.onVideo(now);
-  judge.onAudio(now);
+  judge.onAudio();
   for (let i = 0; i < frames; i++) {
     judge.onDecode(decodeMs);
     judge.onPicture();
@@ -196,7 +196,7 @@ describe('DecodeJudge', () => {
   test('映像は届いているのに音が来なければ、ほかの経路へ移す', () => {
     let { judge, now } = started();
     const verdicts = [];
-    while (now < 12_000) {
+    while (now < 14_000) {
       now += 1_000;
       judge.onVideo(now);
       verdicts.push(...judge.tick(now, frameMs));
@@ -227,5 +227,77 @@ describe('DecodeJudge', () => {
     now += 1_000;
 
     expect(feed(judge, now, { decodeMs: 30 })).toEqual([]);
+  });
+
+  test('B フレームを省いてコマが 3 分の 1 になっても、既定の値でウィンドウを数える', () => {
+    const judge = new DecodeJudge();
+    judge.start(0);
+    let now = defaultJudgeParams.ignoreMs;
+    judge.tick(now, frameMs);
+    now += defaultJudgeParams.windowMs;
+    // 2 秒で 60 コマのうち、5 コマを破棄した。B フレームを省き始める。
+    expect(feed(judge, now, { frames: 60, dropped: 5 })).toEqual([{ type: 'skipB', on: true }]);
+    const verdicts = [];
+    // 省いている間は 2 秒で 20 コマ。それでも 1 コマに約 200 ms かかる。
+    for (let i = 0; i < 3; i++) {
+      now += defaultJudgeParams.windowMs;
+      verdicts.push(...feed(judge, now, { frames: 20, decodeMs: 200 }));
+    }
+
+    expect(verdicts).toEqual([{ type: 'fallback', reason: 'slow' }]);
+  });
+
+  test('省く期限とウィンドウの終わりが重なったら、そのウィンドウは省いていた許容で判定し、すぐには省き直さない', () => {
+    let { judge, now } = started();
+    now += 1_000;
+    feed(judge, now, { lagMs: 250 });
+    // 5 秒で期限。最後のウィンドウは、許容の 3 倍の内の重さで、遅れもある。
+    for (let i = 0; i < 4; i++) {
+      now += 1_000;
+      feed(judge, now, {});
+    }
+    now += 1_000;
+    expect(feed(judge, now, { decodeMs: 30, lagMs: 250 })).toEqual([{ type: 'skipB', on: false }]);
+    expect(judge.skippingB).toBe(false);
+    // 戻したあとの 2 ウィンドウが重くても、期限のウィンドウは悪いと数えていないので、まだ移さない。
+    const verdicts = [];
+    for (let i = 0; i < 2; i++) {
+      now += 1_000;
+      verdicts.push(...feed(judge, now, { decodeMs: 30 }));
+    }
+
+    expect(verdicts.filter((verdict) => verdict.type === 'fallback')).toEqual([]);
+  });
+
+  test('読み始めてから映像が届くまで 15 秒以上かかっても、音より先に映像が届いただけでは移さない', () => {
+    const judge = new DecodeJudge(params);
+    judge.start(0);
+    judge.onVideo(20_000);
+
+    expect(judge.tick(20_000, frameMs)).toEqual([]);
+    judge.onAudio();
+    judge.onVideo(30_000);
+    expect(judge.tick(30_000, frameMs)).toEqual([]);
+  });
+
+  test('データが途切れて戻ったときも、音の途絶を数え直す', () => {
+    let { judge, now } = started();
+    judge.starve();
+    now += 20_000;
+    judge.onVideo(now);
+
+    expect(judge.tick(now, frameMs)).toEqual([]);
+  });
+
+  test('タブが見えない間のウィンドウは数えない', () => {
+    let { judge, now } = started();
+    judge.hide();
+    const verdicts = [];
+    for (let i = 0; i < 3; i++) {
+      now += 1_000;
+      verdicts.push(...feed(judge, now, { lagMs: 600 }));
+    }
+
+    expect(verdicts).toEqual([]);
   });
 });

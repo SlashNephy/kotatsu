@@ -67,7 +67,7 @@ export function usePlaybackRoute(
   setNetworkStep: (name: string) => void;
   // abandonDecode は、ブラウザの中でデコードする経路が間に合わないときに、ほかの経路 (「自動」で選ぶ経路) へ移す。
   // その画面を開いている間は、この経路を選べなくする (戻しと打ち切りを繰り返すと、毎回映像が止まるため。#1516)。
-  // 今の経路がブラウザの中でデコードする経路でなければ、何もせずに false を返す。
+  // 今の経路がブラウザの中でデコードする経路でないか、移す先の経路が無ければ、何もせずに false を返す。
   abandonDecode: () => boolean;
 } {
   // 端末の能力は、画面を開いている間は変わらないので、最初に一度だけ確認する。
@@ -162,7 +162,7 @@ export function usePlaybackRoute(
       setNetworkCap(next);
     },
     abandonDecode: () => {
-      if (route.kind !== 'decode') {
+      if (route.kind !== 'decode' || base.kind === 'unavailable') {
         return false;
       }
       setDecodeAbandoned(true);

@@ -324,8 +324,9 @@ function onPes(current: Loading, pes: TsPes): void {
       if (pes.pid !== current.audioPid) {
         return;
       }
-      judge.onAudio(performance.now());
       for (const frame of current.adts.push(pes.data, pts)) {
+        // ADTS のフレームを切り出せたときだけ、音が届いたとみなす (ADTS でない内容なら、音が来ていない)。
+        judge.onAudio();
         current.audio.push({ pts: frame.pts, data: frame.data });
       }
       trimAudio(current);
@@ -580,8 +581,10 @@ function onVsync(time: number): void {
   if (target === null) {
     return;
   }
+  // hold は、デコードしたコマ 1 つを映し続ける長さ。B フレームを省いている間は、I と P だけ (3 コマに 1 つ) になる。
+  const hold = (engine.queue.frameDuration ?? 3003) * (judge.skippingB ? 3 : 1);
   // デコードに回すデータが無く、映すコマも尽きた (回線が詰まった)。データが来るまで判定で数えない。
-  if (current.video.length === 0 && (engine.queue.newest ?? -Infinity) < target) {
+  if (current.video.length === 0 && (engine.queue.newest ?? -Infinity) + hold < target) {
     judge.starve();
   }
   decodeVideo(current, target);
@@ -592,7 +595,7 @@ function onVsync(time: number): void {
   if (choice === null) {
     return;
   }
-  current.shownUntil = choice.picture.pts + (engine.queue.frameDuration ?? 3003);
+  current.shownUntil = choice.picture.pts + hold;
   engine.renderer.draw({
     slot: choice.picture.slot,
     previous: engine.queue.previous?.slot ?? null,
@@ -632,6 +635,8 @@ function setVisible(next: boolean): void {
   }
   if (!next) {
     // 見えていない間は映像をデコードしない。裏のタブでデコードし続けると、見ているタブが間に合わなくなる。
+    // 映像をデコードしないので、間に合っているかも数えない。
+    judge.hide();
     engine.queue.clear();
     trimVideo(current);
 
