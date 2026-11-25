@@ -16,6 +16,9 @@ type Program struct {
 	Start time.Duration
 	// Duration は、番組の尺 (番組表の終わり − 始まり)。
 	Duration time.Duration
+	// Fixed なら、ウィンドウを探さずに、Start から Duration の長さで置く。セグメントが分かれた録画で、録画全体で置いたウィンドウを
+	// セグメントごとに渡すのに使う (ProgramWindows)。ウィンドウはファイルの外にはみ出してよい。
+	Fixed bool
 }
 
 const (
@@ -39,47 +42,83 @@ const (
 // programWindow は、番組の尺のウィンドウを、ロゴの出ていた区間 intervals に合わせて置いて返す (#1506 の手順 1)。
 // times はコマごとの時刻 (秒)、fps はコマの速さ、program は番組の時刻 (ファイルの始まりから)。
 // 番組の尺が録画より短いときだけ置き、置けなければ ok を false にする。ロゴから候補が 1 つも作れないときも、番組の先頭を削らないよう置かない。
-// ウィンドウの端を無音の境目に寄せるのは、置いた後に snapWindow で行う。
+// program.Fixed なら、探さずに、program の時刻どおりに置く。ウィンドウの端を無音の境目に寄せるのは、置いた後に snapWindow で行う。
 func programWindow(intervals []logo.Interval, times []float64, fps float64, program *Program) (window, bool) {
 	none := window{start: 0, end: 0}
 	if program == nil || program.Duration <= 0 || len(times) == 0 {
 		return none, false
 	}
-	origin := times[0]
-	at := func(frame int) float64 {
-		if frame < len(times) {
-			return times[frame] - origin
-		}
-
-		return times[len(times)-1] - origin + 1/fps
-	}
-	total := at(len(times))
+	// 番組が始まるはずの時刻を、最初のコマからの秒にする。ファイルの始まりから最初のコマまでの空きを差し引く。
+	expected := program.Start.Seconds() - times[0]
 	length := program.Duration.Seconds()
-	if length >= total {
+	if program.Fixed {
+		return window{start: expected, end: expected + length}, true
+	}
+	shown := make([]span, 0, len(intervals))
+	for _, iv := range intervals {
+		shown = append(shown, span{start: frameTime(times, fps, iv.Start), end: frameTime(times, fps, iv.End)})
+	}
+	pos, ok := placeWindow(shown, []span{{start: 0, end: frameTime(times, fps, len(times))}}, length, expected)
+	if !ok {
 		return none, false
 	}
-	// 番組が始まるはずの時刻を、最初のコマからの秒にする。ファイルの始まりから最初のコマまでの空きを差し引く。
-	expected := program.Start.Seconds() - origin
+
+	return window{start: pos, end: pos + length}, true
+}
+
+// frameTime は、frame 番目のコマの、最初のコマからの秒を返す。最後のコマの後ろは、最後のコマの 1 コマ分 (速さ fps) 後とする。
+func frameTime(times []float64, fps float64, frame int) float64 {
+	if frame < len(times) {
+		return times[frame] - times[0]
+	}
+
+	return times[len(times)-1] - times[0] + 1/fps
+}
+
+// placeWindow は、長さ length のウィンドウの始まりを、ロゴの出ていた区間 shown (始まりの順で、重ならないもの) に合わせて選ぶ (#1506 の手順 1)。
+// files は、ファイルの映像のある範囲 (始まりの順)。時刻は、shown、files、番組が始まるはずの時刻 expected で、同じ基準の秒にする。
+// ウィンドウは最初のファイルの始まりから最後のファイルの終わりまでに収める。ロゴの区間の始まりにウィンドウの先頭を合わせる位置と、
+// 終わりにウィンドウの尻を合わせる位置を候補にし、ファイルの始まりと終わりから windowEdgeExclusion の内の端は候補にしない。
+// ファイルの始まりで始まるロゴは、前の番組か、前のファイルから続くロゴかもしれないからである。
+// 収まらないか、候補が 1 つもなければ、ok を false にする。
+func placeWindow(shown, files []span, length, expected float64) (float64, bool) {
+	if len(files) == 0 {
+		return 0, false
+	}
+	first := files[0].start
+	last := first
+	for _, f := range files {
+		last = max(last, f.end)
+	}
+	if length >= last-first {
+		return 0, false
+	}
 	edge := windowEdgeExclusion.Seconds()
+	nearStart := func(at float64) bool {
+		return slices.ContainsFunc(files, func(f span) bool { return at >= f.start && at <= f.start+edge })
+	}
+	nearEnd := func(at float64) bool {
+		return slices.ContainsFunc(files, func(f span) bool { return at <= f.end && at >= f.end-edge })
+	}
 	candidates := []float64{}
-	for _, iv := range intervals {
-		if s := at(iv.Start); s > edge && s <= total-length {
-			candidates = append(candidates, s)
+	for _, s := range shown {
+		if !nearStart(s.start) && s.start >= first && s.start <= last-length {
+			candidates = append(candidates, s.start)
 		}
-		if e := at(iv.End); e < total-edge && e-length >= 0 {
-			candidates = append(candidates, e-length)
+		if !nearEnd(s.end) && s.end <= last && s.end-length >= first {
+			candidates = append(candidates, s.end-length)
 		}
 	}
 	if len(candidates) == 0 {
-		return none, false
+		return 0, false
 	}
 	score := func(pos float64) float64 {
-		var shown float64
-		for _, iv := range intervals {
-			shown += max(0, min(at(iv.End), pos+length)-max(at(iv.Start), pos))
+		var total float64
+		for _, s := range shown {
+			total += max(0, min(s.end, pos+length)-max(s.start, pos))
 		}
 
-		return shown - windowShiftWeight*math.Abs(pos-expected)
+		return total - windowShiftWeight*math.Abs(pos-expected)
 	}
 	best := math.Inf(-1)
 	for _, pos := range candidates {
@@ -92,7 +131,7 @@ func programWindow(intervals []logo.Interval, times []float64, fps float64, prog
 		}
 	}
 
-	return window{start: chosen, end: chosen + length}, true
+	return chosen, true
 }
 
 // snapWindow は、ウィンドウ w の両端を、windowSnapDistance 以内で最も近い無音の境目に寄せて返す (#1506 の手順 1)。

@@ -113,3 +113,12 @@ type MaterialDetector interface {
 	// Redetect は、材料から判定し直す。program は、Input.Program と同じ番組の時刻。材料だけでは決められなければ、ok を false にする。
 	Redetect(material *Material, program *Program) (sections []Section, report *Report, ok bool)
 }
+
+// WindowDetector は、セグメントが分かれた録画に、録画全体で番組のウィンドウを置ける MaterialDetector (#1506)。
+// セグメントごとに見分けた後、材料からウィンドウを置き、セグメントごとの番組の時刻 (Program.Fixed) で判定し直す。
+type WindowDetector interface {
+	// ProgramWindows は、セグメントごとの材料 materials と、ファイルの始まりの時刻 starts から、録画全体で番組のウィンドウを置き、
+	// セグメントごとに Redetect に渡す番組の時刻を返す。starts と program.Start は、録画を始めた日時からの時間にする。
+	// 置けなければ ok を false にする。
+	ProgramWindows(materials []*Material, starts []time.Duration, program *Program) (programs []*Program, ok bool)
+}

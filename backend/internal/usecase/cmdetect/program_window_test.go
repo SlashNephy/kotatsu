@@ -57,6 +57,12 @@ func TestProgramWindow(t *testing.T) {
 			intervals: []logo.Interval{{Start: 12, End: 88}},
 			program:   nil, wantStart: 0, wantOK: false,
 		},
+		{
+			// 録画全体で置いたウィンドウは、ロゴの区間によらず、番組の時刻どおりに置く。ファイルの外にはみ出してもよい。
+			name:      "a fixed window is placed as given",
+			intervals: []logo.Interval{{Start: 12, End: 88}},
+			program:   &cmdetect.Program{Start: 50 * time.Second, Duration: 80 * time.Second, Fixed: true}, wantStart: 50, wantOK: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -67,6 +73,63 @@ func TestProgramWindow(t *testing.T) {
 			if ok {
 				assert.InDelta(t, tt.wantStart, start, 1e-9)
 				assert.InDelta(t, tt.wantStart+80, end, 1e-9)
+			}
+		})
+	}
+}
+
+// TestPlaceWindow は、ファイルが分かれていても、録画全体でロゴの区間に合わせてウィンドウを置くことを確認する (#1506 の手順 1)。
+// ファイルの始まりで始まるロゴと、終わりで終わるロゴは、前後のファイルから続くロゴかもしれないので、候補にしない。
+func TestPlaceWindow(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		shown     [][2]float64
+		files     [][2]float64
+		length    float64
+		expected  float64
+		wantStart float64
+		wantOK    bool
+	}{
+		{
+			// 2 つのファイルにまたがる番組。前のファイルの 24 秒からロゴが出て、後ろのファイルの 70 秒で消える。
+			name:  "a window over two files",
+			shown: [][2]float64{{24, 70}}, files: [][2]float64{{0, 40}, {40, 80}},
+			length: 44, expected: 25, wantStart: 24, wantOK: true,
+		},
+		{
+			// 後ろのファイルの始まりで始まるロゴ (40 秒) は、前のファイルから続くので、ウィンドウの先頭を合わせない。
+			// ロゴの終わり (70 秒) に尻を合わせる。
+			name:  "a logo at the start of a file is not a candidate for the window head",
+			shown: [][2]float64{{40, 70}}, files: [][2]float64{{0, 40}, {40, 80}},
+			length: 44, expected: 40, wantStart: 26, wantOK: true,
+		},
+		{
+			// 録画が途切れて、ファイルの間が空いている。ウィンドウは空いた所にかかってもよい。
+			name:  "a window over a gap between files",
+			shown: [][2]float64{{24, 40}, {50, 70}}, files: [][2]float64{{0, 40}, {50, 80}},
+			length: 44, expected: 25, wantStart: 24, wantOK: true,
+		},
+		{
+			name:  "no window when the program is as long as the recording",
+			shown: [][2]float64{{24, 70}}, files: [][2]float64{{0, 40}, {40, 80}},
+			length: 80, expected: 0, wantStart: 0, wantOK: false,
+		},
+		{
+			name:  "no window without candidates from the logo",
+			shown: [][2]float64{{0, 40}, {40, 80}}, files: [][2]float64{{0, 40}, {40, 80}},
+			length: 44, expected: 25, wantStart: 0, wantOK: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			start, ok := cmdetect.PlaceWindow(tt.shown, tt.files, tt.length, tt.expected)
+			assert.Equal(t, tt.wantOK, ok)
+			if ok {
+				assert.InDelta(t, tt.wantStart, start, 1e-9)
 			}
 		})
 	}

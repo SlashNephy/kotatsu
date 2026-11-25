@@ -355,6 +355,75 @@ func TestDetectWorkerProgram(t *testing.T) {
 	assert.Nil(t, detector.inputs[1].Program)
 }
 
+// windowDetector は、録画全体で番組のウィンドウを置ける materialDetector (#1506)。ProgramWindows に渡された値を残し、
+// Redetect では、ウィンドウを渡されたら windowed の区間を、渡されなければ materialDetector の区間を返す。
+type windowDetector struct {
+	materialDetector
+
+	windowed []cmdetect.Section
+	// starts と program は、ProgramWindows に渡された値。programs は、Redetect に渡された番組の時刻。
+	starts   []time.Duration
+	program  *cmdetect.Program
+	programs []*cmdetect.Program
+}
+
+var _ cmdetect.WindowDetector = new(windowDetector)
+
+func (d *windowDetector) ProgramWindows(materials []*cmdetect.Material, starts []time.Duration, program *cmdetect.Program) ([]*cmdetect.Program, bool) {
+	d.starts, d.program = starts, program
+	programs := make([]*cmdetect.Program, 0, len(materials))
+	for _, s := range starts {
+		programs = append(programs, &cmdetect.Program{Start: program.Start - s, Duration: program.Duration, Fixed: true})
+	}
+
+	return programs, true
+}
+
+func (d *windowDetector) Redetect(m *cmdetect.Material, program *cmdetect.Program) ([]cmdetect.Section, *cmdetect.Report, bool) {
+	d.programs = append(d.programs, program)
+	if program != nil && program.Fixed {
+		return d.windowed, &cmdetect.Report{Note: "", Missing: 0}, true
+	}
+
+	return d.materialDetector.Redetect(m, program)
+}
+
+// TestDetectWorkerSplitProgramWindow は、セグメントが分かれた録画では、見分けた後に、録画全体で番組のウィンドウを置き、
+// セグメントごとのウィンドウで材料から判定し直すことを確認する (#1506)。材料から判定し直すときも、同じウィンドウを置く。
+func TestDetectWorkerSplitProgramWindow(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	// 番組は録画を始めた日時から 30 分。セグメントは録画を始めて 1 分後と 20 分後に書き始めた。
+	recordingID := f.recording(t, "completed", segmentAt{name: segmentA, start: time.Minute}, segmentAt{name: segmentB, start: 20 * time.Minute})
+	detector := &windowDetector{
+		sections: map[string][]cmdetect.Section{segmentA: {{Start: 0, End: time.Minute}}, segmentB: {}}, inputs: []cmdetect.Input{},
+		redetected: []cmdetect.Section{}, redetectable: false, redetects: 0,
+		windowed: []cmdetect.Section{{Start: 0, End: 2 * time.Minute}},
+		starts:   nil, program: nil, programs: []*cmdetect.Program{},
+	}
+
+	// 読んだ回は、ウィンドウなしで見分けた後に録画全体で置いたウィンドウで判定し直す。
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 2)
+	assert.Nil(t, detector.inputs[0].Program)
+	assert.Equal(t, []time.Duration{time.Minute, 20 * time.Minute}, detector.starts)
+	assert.Equal(t, &cmdetect.Program{Start: 0, Duration: 30 * time.Minute, Fixed: false}, detector.program)
+	assert.Equal(t, []*cmdetect.Program{
+		{Start: -time.Minute, Duration: 30 * time.Minute, Fixed: true},
+		{Start: -20 * time.Minute, Duration: 30 * time.Minute, Fixed: true},
+	}, detector.programs)
+	assert.Equal(t, [][2]time.Duration{{time.Minute, 3 * time.Minute}, {20 * time.Minute, 22 * time.Minute}}, f.sections(t, recordingID))
+
+	// 材料から判定し直す回も同じウィンドウで判定する。読み直さない。
+	detector.programs = []*cmdetect.Program{}
+	detector.windowed = []cmdetect.Section{{Start: 0, End: 3 * time.Minute}}
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 2)
+	assert.Len(t, detector.programs, 2)
+	assert.Equal(t, [][2]time.Duration{{time.Minute, 4 * time.Minute}, {20 * time.Minute, 23 * time.Minute}}, f.sections(t, recordingID))
+}
+
 // TestDetectWorkerProgramStart は、番組が遅れて始まった録画では、実際に放送中になった日時を番組の始まりにすることを確認する (#1506)。
 // 時刻どおりの放送と、録画を番組の途中から始めた録画では、番組表の始まりのままにする。
 func TestDetectWorkerProgramStart(t *testing.T) {
