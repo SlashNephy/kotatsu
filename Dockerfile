@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+
 # Kotatsu のコンテナイメージ (設計書 2.4、11.1、付録 B)。
 #
 #   - static: distroless の static イメージ。tenban、neko、mikan 向け。
@@ -6,35 +7,36 @@
 #
 # docker buildx build --platform linux/amd64,linux/arm64 --target static . のようにビルドする。
 #
-# ソースからビルドするものは、ソースを取るステージ (source-*) と、ビルドするステージ (build-*) に分ける。C と C++ のビルドは QEMU では
-# 遅いので、ビルドするマシンのアーキテクチャ ($BUILDPLATFORM) で、対象のアーキテクチャへクロスコンパイルする。
+# ソースからビルドするものは、ソースを取得するステージ (source-*) と、ビルドするステージ (build-*) に分ける。
+# C と C++ のビルドは QEMU では遅いので、ビルドするマシンのアーキテクチャ ($BUILDPLATFORM) で、対象のアーキテクチャへクロスコンパイルする。
 
 # renovate: datasource=github-tags depName=xtne6f/tsreadex versioning=loose
-ARG TSREADEX_VERSION=master-260428
-ARG TSREADEX_REPOSITORY=https://github.com/xtne6f/tsreadex.git
+ARG TSREADEX_VERSION="master-260428"
+ARG TSREADEX_REPOSITORY="https://github.com/xtne6f/tsreadex.git"
 
 # renovate: datasource=github-releases depName=ggml-org/whisper.cpp
-ARG WHISPER_CPP_VERSION=v1.9.5
-ARG WHISPER_CPP_REPOSITORY=https://github.com/ggml-org/whisper.cpp.git
+ARG WHISPER_CPP_VERSION="v1.9.5"
+ARG WHISPER_CPP_REPOSITORY="https://github.com/ggml-org/whisper.cpp.git"
 
-# FFmpeg は、リリースの tarball からビルドする (#2001)。tarball は、リリースの署名鍵 (https://ffmpeg.org/download.html#releases) の
-# 署名を確認してから使う。
+# FFmpeg は、リリースの tarball からビルドする (#2001)。
+# tarball は、リリースの署名鍵 (https://ffmpeg.org/download.html#releases) の署名を確認してから使う。
 # renovate: datasource=github-tags depName=FFmpeg/FFmpeg versioning=loose extractVersion=^n(?<version>\d+\.\d+(?:\.\d+)?)$
-ARG FFMPEG_VERSION=9.1
-ARG FFMPEG_SIGNING_FINGERPRINT=FCF986EA15E6E293A5644F10B4322F04D67658D8
+ARG FFMPEG_VERSION="9.1"
+ARG FFMPEG_SIGNING_FINGERPRINT="FCF986EA15E6E293A5644F10B4322F04D67658D8"
 ARG FFMPEG_DEPENDENCIES="libx264-dev libx265-dev libnuma-dev libva-dev libdrm-dev"
 ARG FFMPEG_DEPENDENCIES_AMD64="libvpl-dev"
 
-# NVENC と NVDEC を、実行時に読み込むためのヘッダー。バージョンで、動く NVIDIA のドライバの下限が決まる (12.1 は Linux で 530.41.03 以降)。
+# NVENC と NVDEC を、実行時に読み込むためのヘッダー。バージョンで動作する NVIDIA のドライバの下限が決まる (12.1 は Linux で 530.41.03 以降)。
 # 下限を上げないよう、Renovate では 12.1 の中でだけ上げる (renovate.json5)。
 # renovate: datasource=github-tags depName=FFmpeg/nv-codec-headers versioning=loose extractVersion=^n(?<version>\d+\.\d+\.\d+\.\d+)$
-ARG NV_CODEC_HEADERS_VERSION=12.1.14.1
-ARG NV_CODEC_HEADERS_REPOSITORY=https://github.com/FFmpeg/nv-codec-headers.git
+ARG NV_CODEC_HEADERS_VERSION="12.1.14.1"
+ARG NV_CODEC_HEADERS_REPOSITORY="https://github.com/FFmpeg/nv-codec-headers.git"
 
 # ffmpeg のイメージに入れる Debian のパッケージ。FFmpeg がリンクする x264、x265、libva、libdrm と、VAAPI と QSV のドライバ。
-# VAAPI と QSV のドライバのうち、Intel のものは amd64 にしかない。Intel の VAAPI のドライバだけは、non-free の
-# intel-media-va-driver-non-free を入れる (#509)。main の intel-media-va-driver は、Gen11 以前の GPU で、縮小 (VPP) と
-# HEVC のエンコードができないため。ライセンスは Expat で再配布できるが、GPU のバイナリにソースがないので non-free にある (付録 B)。
+# VAAPI と QSV のドライバのうち、Intel のものは amd64 にしかない。
+# Intel の VAAPI のドライバだけは、non-free の intel-media-va-driver-non-free を入れる (#509)。
+# main の intel-media-va-driver は、Gen11 以前の GPU で、縮小 (VPP) と HEVC のエンコードができないため。
+# ライセンスは Expat で再配布できるが、GPU のバイナリにソースがないので non-free にある (付録 B)。
 ARG RUNTIME_PACKAGES="ca-certificates libx264-164 libx265-215 libva2 libva-drm2 libdrm2 mesa-va-drivers"
 ARG RUNTIME_PACKAGES_AMD64="intel-media-va-driver-non-free libvpl2 libmfx-gen1.2"
 
@@ -306,8 +308,8 @@ RUN <<EOF
   rm -rf /var/lib/apt/lists/*
 EOF
 COPY --from=docker.io/jdxcode/mise:2026.11.9@sha256:9a182adba2584a6f5b29ddc1f2c7651c93694a5f829d74452b90214616baacf4 /usr/local/bin/mise /usr/local/bin/mise
-ARG UID=1000
-ARG GID=1000
+ARG UID="1000"
+ARG GID="1000"
 # 名前付きボリュームは、最初にマウントしたときに、イメージのディレクトリの持ち主を引き継ぐ。
 # ソースのマウントの中にある frontend/node_modules も、先に作っておく。
 RUN <<EOF
@@ -317,18 +319,18 @@ RUN <<EOF
   chown -R "${UID}:${GID}" /mise /go /src /home/kotatsu
 EOF
 USER kotatsu
-ENV MISE_DATA_DIR=/mise \
-    MISE_CACHE_DIR=/mise/cache \
-    MISE_ENV=dev \
-    MISE_TRUSTED_CONFIG_PATHS=/src \
-    PATH=/mise/shims:$PATH \
-    GOMODCACHE=/go/pkg/mod \
-    GOCACHE=/go/cache
+ENV MISE_DATA_DIR="/mise" \
+    MISE_CACHE_DIR="/mise/cache" \
+    MISE_ENV="dev" \
+    MISE_TRUSTED_CONFIG_PATHS="/src" \
+    PATH="/mise/shims:$PATH" \
+    GOMODCACHE="/go/pkg/mod" \
+    GOCACHE="/go/cache"
 # 足りないツールをその場で入れて mise.lock を書き換えないよう、イメージに入れたツールだけを使う。
-ENV MISE_AUTO_INSTALL=false
+ENV MISE_AUTO_INSTALL="false"
 # pnpm のストアは、ハードリンクが効くよう、frontend/node_modules と同じボリュームに置く。
 # 置き場所を決めないと、マウントしたソースの直下に作ってしまう。
-ENV pnpm_config_store_dir=/src/frontend/node_modules/.pnpm-store
+ENV pnpm_config_store_dir="/src/frontend/node_modules/.pnpm-store"
 WORKDIR /src
 # 開発に使うツールだけを、イメージに入れておく。
 COPY --chown=${UID}:${GID} mise.toml mise.lock mise.dev.toml mise.dev.lock ./
