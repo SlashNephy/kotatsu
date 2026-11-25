@@ -170,7 +170,7 @@ func TestAdminRedetectCMWithLogo(t *testing.T) {
 	}{
 		{name: "今の形式の材料", version: 3, materialFormat: 5},
 		{name: "古い形式の材料", version: 3, materialFormat: 4},
-		{name: "今の版", version: 7, materialFormat: 5},
+		{name: "今のバージョン", version: 7, materialFormat: 5},
 	}
 	ids := make([]string, len(recordings))
 	for i, recording := range recordings {
