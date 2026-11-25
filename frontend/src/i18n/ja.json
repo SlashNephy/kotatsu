@@ -1695,6 +1695,8 @@
     "originalShort": "オリジナル",
     "decodedShort": "オリジナル（デコード）",
     "qualityStepDownDecode": "この端末の処理が追いつかないため、画質を{{name}}に下げました",
+    "qualityDecodeFallback": "この端末でのデコードが追いつかないため、再生の方式を切り替えました",
+    "qualityDecodeFallbackAudio": "この端末で音声を再生できないため、再生の方式を切り替えました",
     "qualityHeavyManual": "この端末の処理が追いついていません。画質を「自動」にすると、画質を下げて続けられます",
     "qualityStepDownNetwork": "回線の帯域が足りないため、画質を{{name}}に下げました",
     "qualityStepUpNetwork": "回線の帯域が戻ったため、画質を{{name}}に上げました",

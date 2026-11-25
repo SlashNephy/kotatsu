@@ -3,10 +3,12 @@
 // TS を読んで PES に分け (tsDemux)、映像と音声を WASM の FFmpeg でデコードし、映像は OffscreenCanvas に WebGL2 で描き
 // (pictureRenderer)、音声はメインスレッドへ渡す。時計は、メインスレッドが鳴らしている音 (decodeClock) で、
 // コマを出す間合いは、メインスレッドから届く画面の切り替わりの時刻で決める (fieldPacer)。
+// 間に合っているかは decodeJudge で判定し、少し遅れたら B フレームを省き、間に合わなければメインスレッドへ通知する。
 import createDecoderModule, { type DecoderModule } from '@kotatsu/ffmpeg-decoder';
 
 import { AdtsSplitter } from './adtsFrames';
 import { DecodeClock } from './decodeClock';
+import { DecodeJudge, type Verdict } from './decodeJudge';
 import type { DecodeStats, FromDecodeWorker, ToDecodeWorker } from './decodeProtocol';
 import { FieldPacer } from './fieldPacer';
 import { PictureQueue } from './pictureQueue';
@@ -65,6 +67,10 @@ type Loading = {
   lastVideoPts: number | null;
   // nextPts は、PTS のないコマに当てる時刻。
   nextPts: number | null;
+  // shownUntil は、最後に描いたコマの終わりの PTS。映すコマが時計からどれだけ遅れたかを出すのに使う。
+  shownUntil: number | null;
+  // droppedSeen は、判定へ渡し終えた、映さずに破棄したコマの数。
+  droppedSeen: number;
 };
 
 type Engine = {
@@ -94,6 +100,7 @@ const pacer = new FieldPacer();
 let visible = true;
 let presented = 0;
 const decodeTimes: number[] = [];
+const judge = new DecodeJudge();
 let statsTimer: ReturnType<typeof setInterval> | null = null;
 
 function post(message: FromDecodeWorker, transfer: Transferable[] = []): void {
@@ -120,7 +127,13 @@ self.onmessage = (event: MessageEvent<ToDecodeWorker>) => {
       break;
     case 'clock':
       if (loading?.load === message.load) {
+        const started = clock.at(mainNow()) === null;
         clock.observe(message.pts, message.perf);
+        // 時計が動き出したときは、映す時刻が飛ぶ。追いつくまでの間は、間に合っているかを数えない。
+        // 合わせ直したときは数える。間に合わない端末では、音が途切れて合わせ直しが続き、数えないままになるため。
+        if (started) {
+          judge.resume(performance.now());
+        }
       }
       break;
     case 'vsync':
@@ -180,6 +193,8 @@ function load(load: number, url: string, serviceId: number | null): void {
     bytesRead: 0,
     waitKeyframe: true,
     nextPts: null,
+    shownUntil: null,
+    droppedSeen: 0,
     audioPid: null,
     audioStart: null,
     lastVideoPts: null,
@@ -203,7 +218,11 @@ function load(load: number, url: string, serviceId: number | null): void {
     }),
   };
   loading = current;
-  statsTimer = setInterval(() => sendStats(current), 1_000);
+  judge.start(performance.now());
+  statsTimer = setInterval(() => {
+    sendStats(current);
+    judgeTick(current);
+  }, 1_000);
   void read(current, url);
 }
 
@@ -221,6 +240,9 @@ function stop(): void {
   presented = 0;
   decodeTimes.length = 0;
   if (engine !== null) {
+    if (judge.skippingB) {
+      engine.module._dec_skip_b(engine.videoDecoder, 0);
+    }
     engine.queue.clear();
     // 映さずに破棄した数は、読み込みごとに数え直す (getVideoPlaybackQuality と同じ)。
     engine.queue.dropped = 0;
@@ -295,6 +317,7 @@ function onPes(current: Loading, pes: TsPes): void {
       if (pts !== null) {
         current.lastVideoPts = pts;
       }
+      judge.onVideo(performance.now());
       current.video.push({ pts, data: pes.data, keyframe });
       trimVideo(current);
       // まだ時計がなければ、最初のコマを出すために、ここでデコードを進める。
@@ -308,6 +331,8 @@ function onPes(current: Loading, pes: TsPes): void {
         return;
       }
       for (const frame of current.adts.push(pes.data, pts)) {
+        // ADTS のフレームを切り出せたときだけ、音が届いたとみなす (ADTS でない内容なら、音が来ていない)。
+        judge.onAudio();
         current.audio.push({ pts: frame.pts, data: frame.data });
       }
       trimAudio(current);
@@ -423,7 +448,9 @@ function decodeVideo(current: Loading, target: number | null): void {
         receivePictures(current);
       }
     } while (offset < item.data.length);
-    decodeTimes.push(performance.now() - started);
+    const elapsed = performance.now() - started;
+    judge.onDecode(elapsed);
+    decodeTimes.push(elapsed);
     if (decodeTimes.length > 120) {
       decodeTimes.shift();
     }
@@ -482,6 +509,9 @@ function receivePictures(current: Loading): void {
       topFieldFirst: (flags & frameFlagTopFieldFirst) !== 0,
       slot,
     });
+    if (added) {
+      judge.onPicture();
+    }
     if (added && current.origin === null) {
       current.origin = pts;
       post({ type: 'origin', load: current.load, pts });
@@ -512,8 +542,10 @@ function feedAudio(current: Loading, now: number | null): void {
     const frame = current.audio.shift()!;
     const pointer = ensureInput(frame.data.length);
     module.HEAPU8.set(frame.data, pointer);
-    if (module._dec_send(audioDecoder, pointer, frame.data.length, frame.pts) < 0) {
-      // 壊れたフレームは飛ばす。
+    const sent = module._dec_send(audioDecoder, pointer, frame.data.length, frame.pts) >= 0;
+    judge.onAudioDecoded(sent);
+    if (!sent) {
+      // 壊れたフレームは飛ばす。続けて失敗したら、判定がほかの経路へ移す。
       continue;
     }
     while (module._dec_receive(audioDecoder) === 0) {
@@ -555,11 +587,21 @@ function onVsync(time: number): void {
   if (target === null) {
     return;
   }
+  // hold は、デコードしたコマ 1 つを映し続ける長さ。B フレームを省いている間は、I と P だけ (3 コマに 1 つ) になる。
+  const hold = (engine.queue.frameDuration ?? 3003) * (judge.skippingB ? 3 : 1);
+  // デコードに回すデータが無く、映すコマも尽きた (回線が詰まった)。データが来るまで判定で数えない。
+  if (current.video.length === 0 && (engine.queue.newest ?? -Infinity) + hold < target) {
+    judge.starve(performance.now());
+  }
   decodeVideo(current, target);
   const choice = engine.queue.choose(target);
+  if (current.shownUntil !== null) {
+    judge.onLag(Math.max(0, target - current.shownUntil) / 90);
+  }
   if (choice === null) {
     return;
   }
+  current.shownUntil = choice.picture.pts + hold;
   engine.renderer.draw({
     slot: choice.picture.slot,
     previous: engine.queue.previous?.slot ?? null,
@@ -599,6 +641,8 @@ function setVisible(next: boolean): void {
   }
   if (!next) {
     // 見えていない間は映像をデコードしない。裏のタブでデコードし続けると、見ているタブが間に合わなくなる。
+    // 映像をデコードしないので、間に合っているかも数えない。
+    judge.hide();
     engine.queue.clear();
     trimVideo(current);
 
@@ -616,7 +660,10 @@ function setVisible(next: boolean): void {
   }
   // デコーダを空にしたので、PTS のないコマの時刻も数え直す。
   current.nextPts = null;
+  current.shownUntil = null;
   pacer.reset();
+  // I フレームまで飛んでデコードし直す間は、間に合っているかを数えない。
+  judge.resume(performance.now());
 }
 
 function sendStats(current: Loading): void {
@@ -635,8 +682,39 @@ function sendStats(current: Loading): void {
     presented,
     dropped: engine.queue.dropped,
     bytesRead: current.bytesRead,
+    skippingB: judge.skippingB,
   };
   post({ type: 'stats', load: current.load, stats });
+}
+
+// judgeTick は、判定に今の様子を渡し、B フレームを省くかを切り替え、間に合わなければメインスレッドへ通知する。
+function judgeTick(current: Loading): void {
+  if (loading !== current || engine === null) {
+    return;
+  }
+  const { queue, module, videoDecoder } = engine;
+  judge.onDropped(queue.dropped - current.droppedSeen);
+  current.droppedSeen = queue.dropped;
+  const frameMs = queue.frameDuration === null ? null : queue.frameDuration / 90;
+  for (const verdict of judge.tick(performance.now(), frameMs)) {
+    applyVerdict(current, verdict, module, videoDecoder);
+  }
+}
+
+function applyVerdict(
+  current: Loading,
+  verdict: Verdict,
+  module: DecoderModule,
+  videoDecoder: number,
+): void {
+  switch (verdict.type) {
+    case 'skipB':
+      module._dec_skip_b(videoDecoder, verdict.on ? 1 : 0);
+      break;
+    case 'fallback':
+      post({ type: 'fallback', load: current.load, reason: verdict.reason });
+      break;
+  }
 }
 
 // includes は、data の中に pattern があるかを返す。

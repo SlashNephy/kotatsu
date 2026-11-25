@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { PlayerNotice } from './PlayerControls';
+import type { FallbackReason } from './decodeJudge';
 import { audioStep, type NetworkMode, type StepReason } from './networkQuality';
 import { original } from './route';
 import { useNetworkQuality, type NetworkPlayback, type NetworkQuality } from './useNetworkQuality';
@@ -17,12 +18,15 @@ type Notice =
   | { kind: 'down'; name: string; at: number }
   | { kind: 'manual'; at: number }
   | { kind: 'network'; name: string; direction: 'down' | 'up'; reason: StepReason; at: number }
-  | { kind: 'networkManual'; at: number };
+  | { kind: 'networkManual'; at: number }
+  | { kind: 'decodeFallback'; reason: FallbackReason; at: number };
 
 // Playback は、usePlaybackRoute のうち、段階を動かすのに使う部分。
 type Playback = NetworkPlayback & {
   lowerAvailable: boolean;
   stepDownForDecode: () => string | null;
+  // abandonDecode は、ブラウザの中でデコードする経路から、ほかの経路へ移す (usePlaybackRoute)。その経路を使う画面だけが渡す。
+  abandonDecode?: () => boolean;
 };
 
 export type AdaptiveOptions = {
@@ -43,7 +47,13 @@ export function useAdaptiveQuality(
   media: PlayerMedia | null,
   playback: Playback,
   { stepDown, network: networkOptions, pictureInPicture = false }: AdaptiveOptions,
-): { videoLag: VideoLag; network: NetworkQuality; notice: ReactNode } {
+): {
+  videoLag: VideoLag;
+  network: NetworkQuality;
+  notice: ReactNode;
+  // decodeFallback は、ブラウザの中でデコードする経路が間に合わないときに呼ぶ口。ほかの経路へ移し、理由を出す。
+  decodeFallback: (reason: FallbackReason) => void;
+} {
   const { t } = useTranslation();
   const [notice, setNotice] = useState<Notice | null>(null);
   // 映像だけの遅れの検出は、<video> の経路のための処理なので、<video> を渡す (playerMedia.ts の先頭)。
@@ -93,7 +103,9 @@ export function useAdaptiveQuality(
     }
     const timer = window.setTimeout(
       () => setNotice(null),
-      notice.kind === 'down' || notice.kind === 'network' ? reasonNoticeMs : hintClearMs,
+      notice.kind === 'down' || notice.kind === 'network' || notice.kind === 'decodeFallback'
+        ? reasonNoticeMs
+        : hintClearMs,
     );
 
     return () => window.clearTimeout(timer);
@@ -114,6 +126,10 @@ export function useAdaptiveQuality(
         return t('player.qualityHeavyManual');
       case 'networkManual':
         return t('player.qualityNetworkManual');
+      case 'decodeFallback':
+        return shown.reason === 'audio'
+          ? t('player.qualityDecodeFallbackAudio')
+          : t('player.qualityDecodeFallback');
       case 'network':
         if (shown.direction === 'up') {
           return t('player.qualityStepUpNetwork', { name: stepName(shown.name) });
@@ -132,5 +148,10 @@ export function useAdaptiveQuality(
     videoLag,
     network,
     notice: notice === null ? null : <PlayerNotice>{message(notice)}</PlayerNotice>,
+    decodeFallback: (reason) => {
+      if (playback.abandonDecode?.() === true) {
+        setNotice({ kind: 'decodeFallback', reason, at: Date.now() });
+      }
+    },
   };
 }

@@ -65,14 +65,21 @@ export function usePlaybackRoute(
   stepDownForDecode: () => string | null;
   // setNetworkStep は、回線のために、段階を name (networkLadder の名前) にする。手で選んでいるときは何もしない。
   setNetworkStep: (name: string) => void;
+  // abandonDecode は、ブラウザの中でデコードする経路が間に合わないときに、ほかの経路 (「自動」で選ぶ経路) へ移す。
+  // その画面を開いている間は、この経路を選べなくする (戻しと打ち切りを繰り返すと、毎回映像が止まるため。#1516)。
+  // 今の経路がブラウザの中でデコードする経路でないか、移す先の経路が無ければ、何もせずに false を返す。
+  abandonDecode: () => boolean;
 } {
   // 端末の能力は、画面を開いている間は変わらないので、最初に一度だけ確認する。
   const [capabilities] = useState(() => detectCapabilities());
   const [requested, setRequested] = useState(() => loadQuality(browserStorage()));
   const [cap, setCap] = useState(() => (inheritCap ? loadDecodeCap() : null));
   const [networkCap, setNetworkCap] = useState(() => loadNetworkCap());
+  // decodeAbandoned は、ブラウザの中でデコードする経路が間に合わず、ほかの経路へ移したか。保存はしない。
+  const [decodeAbandoned, setDecodeAbandoned] = useState(false);
   // decode は、ブラウザの中でデコードする経路 (#1516) を選ばせるか。選べる画面だけが true にする。
-  const options = { decode };
+  // 間に合わずに移したあとは選択肢から外すので、手で選んでいても「自動」で選ぶ経路になる。
+  const options = { decode: decode && !decodeAbandoned };
   const available = qualities(capabilities, transcoding, format, options);
   const rungs = ladder(available, transcoding.presets);
   const manual =
@@ -153,6 +160,14 @@ export function usePlaybackRoute(
       const next = ceiling !== null && height >= ceiling ? null : height;
       saveNetworkCap(next);
       setNetworkCap(next);
+    },
+    abandonDecode: () => {
+      if (route.kind !== 'decode' || base.kind === 'unavailable') {
+        return false;
+      }
+      setDecodeAbandoned(true);
+
+      return true;
     },
   };
 }

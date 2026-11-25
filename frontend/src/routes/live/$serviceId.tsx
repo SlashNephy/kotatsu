@@ -1288,6 +1288,7 @@ function Live({
           brightness={brightness}
           onCaptionText={onCaptionText}
           onLoaded={onLoaded}
+          onFallback={adaptive.decodeFallback}
           overlay={
             <>
               {dataBroadcast.layer}
