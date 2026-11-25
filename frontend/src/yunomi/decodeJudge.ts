@@ -11,6 +11,7 @@ export type JudgeParams = {
   // タブが見えていない間は、hide で数えない。
   minFrames: number;
   // decodeQuantile と decodeBudget は、1 コマのデコード時間のこの分位が、1 コマの長さ × decodeBudget を超えたら悪いとみなす値。
+  // 分位は中央値にする。95 パーセンタイルは I フレーム (15 コマに 1 枚) の時間で決まり、先読みで吸収できる重さでも悪いと数えるため。
   decodeQuantile: number;
   decodeBudget: number;
   // skipBWiden は、B フレームを省いている間に、デコード時間の許容を広げる倍率。
@@ -45,7 +46,7 @@ export type JudgeParams = {
 export const defaultJudgeParams: JudgeParams = {
   windowMs: 2_000,
   minFrames: 10,
-  decodeQuantile: 0.95,
+  decodeQuantile: 0.5,
   decodeBudget: 0.7,
   skipBWiden: 3,
   badLagMs: 500,
