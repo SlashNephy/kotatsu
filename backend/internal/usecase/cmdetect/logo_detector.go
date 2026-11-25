@@ -2,6 +2,7 @@ package cmdetect
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -29,8 +30,9 @@ const (
 	// バージョン 4 で、隅を横切る帯 (番組の話題の帯) の端のアイコンを、局ロゴとして学習しないようにした (#1883)。
 	// バージョン 5 で、録画の途中の 60 秒を超える CM (通販の CM など) を CM にし、録画の端の近くの CM を端まで延ばした (#1958)。
 	// バージョン 6 で、番組のウィンドウの端を、近くの無音の境目に寄せるようにした (#1506)。
+	// バージョン 7 で、セグメントが分かれた録画にも、録画全体で番組のウィンドウを置くようにした (#1506)。
 	LogoDetectorName    = "logo"
-	logoDetectorVersion = 6
+	logoDetectorVersion = 7
 	// ffprobeCommand は、PATH から探す ffprobe のコマンドの名前。FFmpeg に付いてくる。
 	ffprobeCommand = "ffprobe"
 	// rawReadBuffer は、FFmpeg が出す生のコマを読むバッファの大きさ。
@@ -68,6 +70,7 @@ var (
 	_ Detector         = new(LogoDetector)
 	_ Reporter         = new(LogoDetector)
 	_ MaterialDetector = new(LogoDetector)
+	_ WindowDetector   = new(LogoDetector)
 )
 
 // NewLogoDetector は、PATH にある FFmpeg と ffprobe を使う LogoDetector を返す。見つからなければ ErrFFmpegNotFound を返す。
@@ -169,6 +172,42 @@ func (d *LogoDetector) Redetect(material *Material, program *Program) ([]Section
 	}
 
 	return sections, report, true
+}
+
+// ProgramWindows は、セグメントが分かれた録画に、録画全体で番組の尺のウィンドウを置き、セグメントごとに渡す番組の時刻を返す (#1506 の手順 1)。
+// materials はセグメントごとの材料、starts はセグメントのファイルの始まりの時刻、program は番組の時刻で、starts と program.Start は
+// 同じ基準 (録画を始めた日時からの時間) にする。セグメントを書き始めた日時は、映像の時刻と少しずれうるが、ウィンドウの端は、
+// セグメントごとに無音の境目に寄せる。ウィンドウの置き方は、セグメントが 1 つの録画と同じで、ロゴの区間は、セグメントが重なれば
+// 重なりを 1 回だけ数える。材料のないセグメントがあるか、ウィンドウを置けなければ、ok を false にする。
+func (d *LogoDetector) ProgramWindows(materials []*Material, starts []time.Duration, program *Program) ([]*Program, bool) {
+	if program == nil || program.Duration <= 0 || len(materials) == 0 || len(materials) != len(starts) {
+		return nil, false
+	}
+	shown := []span{}
+	files := make([]span, 0, len(materials))
+	for i, m := range materials {
+		if m == nil || len(m.Times) == 0 {
+			return nil, false
+		}
+		// 時刻は、ファイルの始まりからの秒 (コマの時刻) にファイルの始まりの時刻を足したもの。
+		base := starts[i].Seconds() + m.Times[0]
+		files = append(files, span{start: base, end: base + frameTime(m.Times, m.Fps, len(m.Times))})
+		for _, iv := range logo.Intervals(m.Measures, m.Fps, d.params) {
+			shown = append(shown, span{start: base + frameTime(m.Times, m.Fps, iv.Start), end: base + frameTime(m.Times, m.Fps, iv.End)})
+		}
+	}
+	slices.SortFunc(shown, func(a, b span) int { return cmp.Compare(a.start, b.start) })
+	slices.SortFunc(files, func(a, b span) int { return cmp.Compare(a.start, b.start) })
+	pos, ok := placeWindow(mergeAdjacent(shown), files, program.Duration.Seconds(), program.Start.Seconds())
+	if !ok {
+		return nil, false
+	}
+	programs := make([]*Program, 0, len(materials))
+	for i := range materials {
+		programs = append(programs, &Program{Start: seconds(pos) - starts[i], Duration: program.Duration, Fixed: true})
+	}
+
+	return programs, true
 }
 
 // decide は、材料からロゴで決める。決められれば、区間を返し、report に映像の欠けの長さを書く。
@@ -571,22 +610,25 @@ func measuredRate(times []float64, fallback float64) float64 {
 // 番組の時刻 program が分かれば、番組の尺のウィンドウを置き、ウィンドウの外のロゴを前後の番組のものとして破棄する (#1506 の手順 1)。
 func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, error) {
 	intervals := logo.Intervals(m.Measures, m.Fps, d.params)
-	if len(intervals) == 0 {
-		return nil, fmt.Errorf("%w: no frame shows the logo", errLogoUnusable)
-	}
 	missing := missingSections(m.Times, m.Fps)
 	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
 	scope := Section{Start: 0, End: duration}
 	if w, ok := programWindow(intervals, m.Times, m.Fps, program); ok {
-		// 無音の材料を読めた回は、ウィンドウの端を無音の境目に寄せる。番組の切り替わりは、ふつう無音を挟むからである。
-		if m.bounds != nil {
-			w = snapWindow(w, m.bounds, m.boundsDuration, m.Times[0], m.offset)
-		}
+		w = m.snapProgramWindow(w, program.Fixed)
 		intervals = clipIntervals(intervals, m.Times, w.start, w.end)
+		scope = Section{Start: seconds(max(w.start, 0)), End: seconds(min(w.end, frameTime(m.Times, m.Fps, len(m.Times))))}
 		if len(intervals) == 0 {
+			// 録画全体で置いたウィンドウの外にあるセグメントは、前後の番組だけなので、まるごと CM にする。
+			if program.Fixed && scope.End <= scope.Start {
+				return outsideWindow(m, duration, missing), nil
+			}
+
 			return nil, fmt.Errorf("%w: no frame shows the logo in the program window", errLogoUnusable)
 		}
-		scope = Section{Start: seconds(w.start), End: seconds(w.end)}
+	}
+	// ロゴの区間がなくても、録画全体で置いたウィンドウの外にあるセグメントは、上でまるごと CM にしている。
+	if len(intervals) == 0 {
+		return nil, fmt.Errorf("%w: no frame shows the logo", errLogoUnusable)
 	}
 	sections := dropShortSections(trimMissing(complementSections(intervals, m.Times, m.Fps), missing), duration)
 	if m.bounds != nil {
@@ -604,6 +646,42 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration, firstFrame: -1}),
 		corner:      m.Corner, box: m.Box, measures: m.Measures, intervals: intervals, times: m.Times, fps: m.Fps,
 	}, nil
+}
+
+// snapProgramWindow は、無音の材料を読めた回に、ウィンドウ w の端を無音の境目に寄せる (#1506 の手順 1)。番組の切り替わりは、ふつう無音を挟むからである。
+// 録画全体で置いたウィンドウ (fixed) は、ファイルの中にある端だけを寄せる。ファイルの外の端は、それを含むほかのセグメントの側で寄せる。
+// ファイルの外の端を寄せると、隣のセグメントの境目に引かれて、ウィンドウの外のセグメントにウィンドウがかかってしまう。
+func (m *Material) snapProgramWindow(w window, fixed bool) window {
+	if m.bounds == nil {
+		return w
+	}
+	if !fixed {
+		return snapWindow(w, m.bounds, m.boundsDuration, m.Times[0], m.offset)
+	}
+	total := frameTime(m.Times, m.Fps, len(m.Times))
+	inside := func(at float64) bool { return at > 0 && at < total }
+	start, end := w.start, w.end
+	if inside(w.start) {
+		start = snapEdge(w.start, m.bounds, m.boundsDuration, m.Times[0], m.offset, func(at float64) bool { return at >= 0 && at < w.end })
+	}
+	if inside(w.end) {
+		end = snapEdge(w.end, m.bounds, m.boundsDuration, m.Times[0], m.offset, func(at float64) bool { return at > start })
+	}
+
+	return window{start: start, end: end}
+}
+
+// outsideWindow は、録画全体で置いた番組のウィンドウの外にあるセグメントの結果として、ファイルの全体を CM にしたものを返す (#1506)。
+// ウィンドウの内の時間がないので、CM の割合は数えない (scope を空にする)。
+func outsideWindow(m *Material, duration time.Duration, missing []Section) *logoResult {
+	return &logoResult{
+		sections:    trimMissing([]Section{{Start: 0, End: duration}}, missing),
+		missing:     missing,
+		duration:    duration,
+		scope:       Section{Start: 0, End: 0},
+		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration, firstFrame: -1}),
+		corner:      m.Corner, box: m.Box, measures: m.Measures, intervals: []logo.Interval{}, times: m.Times, fps: m.Fps,
+	}
 }
 
 // edgeMissing は、ファイルの始まりから最初のコマまでと、最後のコマの終わりからファイルの終わり (ffprobe の長さ) までのうち、

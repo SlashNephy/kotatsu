@@ -153,6 +153,18 @@ func ProgramWindow(intervals []logo.Interval, times []float64, fps float64, prog
 	return w.start, w.end, ok
 }
 
+// PlaceWindow は placeWindow。区間は始まりと終わりの秒の組で渡す。
+func PlaceWindow(shown, files [][2]float64, length, expected float64) (float64, bool) {
+	return placeWindow(spansOf(shown), spansOf(files), length, expected)
+}
+
+// SnapProgramWindow は、材料 m の snapProgramWindow。
+func SnapProgramWindow(m *Material, start, end float64, fixed bool) (float64, float64) {
+	w := m.snapProgramWindow(window{start: start, end: end}, fixed)
+
+	return w.start, w.end
+}
+
 // ClipIntervals は clipIntervals。
 func ClipIntervals(intervals []logo.Interval, times []float64, start, end float64) []logo.Interval {
 	return clipIntervals(intervals, times, start, end)

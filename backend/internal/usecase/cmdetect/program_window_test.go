@@ -57,6 +57,12 @@ func TestProgramWindow(t *testing.T) {
 			intervals: []logo.Interval{{Start: 12, End: 88}},
 			program:   nil, wantStart: 0, wantOK: false,
 		},
+		{
+			// 録画全体で置いたウィンドウは、ロゴの区間によらず、番組の時刻どおりに置く。ファイルの外にはみ出してもよい。
+			name:      "a fixed window is placed as given",
+			intervals: []logo.Interval{{Start: 12, End: 88}},
+			program:   &cmdetect.Program{Start: 50 * time.Second, Duration: 80 * time.Second, Fixed: true}, wantStart: 50, wantOK: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -68,6 +74,99 @@ func TestProgramWindow(t *testing.T) {
 				assert.InDelta(t, tt.wantStart, start, 1e-9)
 				assert.InDelta(t, tt.wantStart+80, end, 1e-9)
 			}
+		})
+	}
+}
+
+// TestPlaceWindow は、ファイルが分かれていても、録画全体でロゴの区間に合わせてウィンドウを置くことを確認する (#1506 の手順 1)。
+// ファイルの始まりで始まるロゴと、終わりで終わるロゴは、前後のファイルから続くロゴかもしれないので、候補にしない。
+func TestPlaceWindow(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		shown     [][2]float64
+		files     [][2]float64
+		length    float64
+		expected  float64
+		wantStart float64
+		wantOK    bool
+	}{
+		{
+			// 2 つのファイルにまたがる番組。前のファイルの 24 秒からロゴが出て、後ろのファイルの 70 秒で消える。
+			name:  "a window over two files",
+			shown: [][2]float64{{24, 70}}, files: [][2]float64{{0, 40}, {40, 80}},
+			length: 44, expected: 25, wantStart: 24, wantOK: true,
+		},
+		{
+			// 後ろのファイルの始まりで始まるロゴ (40 秒) は、前のファイルから続くので、ウィンドウの先頭を合わせない。
+			// ロゴの終わり (70 秒) に尻を合わせる。
+			name:  "a logo at the start of a file is not a candidate for the window head",
+			shown: [][2]float64{{40, 70}}, files: [][2]float64{{0, 40}, {40, 80}},
+			length: 44, expected: 40, wantStart: 26, wantOK: true,
+		},
+		{
+			// 録画が途切れて、ファイルの間が空いている。ウィンドウは空いた所にかかってもよい。
+			name:  "a window over a gap between files",
+			shown: [][2]float64{{24, 40}, {50, 70}}, files: [][2]float64{{0, 40}, {50, 80}},
+			length: 44, expected: 25, wantStart: 24, wantOK: true,
+		},
+		{
+			name:  "no window when the program is as long as the recording",
+			shown: [][2]float64{{24, 70}}, files: [][2]float64{{0, 40}, {40, 80}},
+			length: 80, expected: 0, wantStart: 0, wantOK: false,
+		},
+		{
+			name:  "no window without candidates from the logo",
+			shown: [][2]float64{{0, 40}, {40, 80}}, files: [][2]float64{{0, 40}, {40, 80}},
+			length: 44, expected: 25, wantStart: 0, wantOK: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			start, ok := cmdetect.PlaceWindow(tt.shown, tt.files, tt.length, tt.expected)
+			assert.Equal(t, tt.wantOK, ok)
+			if ok {
+				assert.InDelta(t, tt.wantStart, start, 1e-9)
+			}
+		})
+	}
+}
+
+// TestSnapProgramWindow は、録画全体で置いたウィンドウでは、ファイルの中にある端だけを無音の境目に寄せることを確認する (#1506)。
+// ファイルの外の端を寄せると、ウィンドウの外のセグメントに、ウィンドウがかかってしまう。
+func TestSnapProgramWindow(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		start, end, bound  float64
+		fixed              bool
+		wantStart, wantEnd float64
+	}{
+		{name: "an edge inside the file is snapped", start: 10, end: 30, bound: 11, fixed: false, wantStart: 11, wantEnd: 30},
+		{name: "a fixed window after the file is not pulled into it", start: 41, end: 85, bound: 39, fixed: true, wantStart: 41, wantEnd: 85},
+		{name: "a fixed window before the file is not pulled into it", start: -44.5, end: -0.5, bound: 1, fixed: true, wantStart: -44.5, wantEnd: -0.5},
+		{
+			// 寄せないファイルの外の始まりは、終わりを寄せる先を狭めない。
+			name: "an edge outside the file does not limit the other edge", start: -0.5, end: 1, bound: 0.8, fixed: true, wantStart: -0.5, wantEnd: 0.8,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// 1 コマ 1 秒で、40 秒のファイル。
+			m := &cmdetect.Material{Fps: 1, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: make([]float64, 40), Measures: []logo.Measure{}}
+			for i := range m.Times {
+				m.Times[i] = float64(i)
+			}
+			cmdetect.SetMaterialBounds(m, []float64{tt.bound}, 40, 0)
+			start, end := cmdetect.SnapProgramWindow(m, tt.start, tt.end, tt.fixed)
+			assert.InDelta(t, tt.wantStart, start, 1e-9)
+			assert.InDelta(t, tt.wantEnd, end, 1e-9)
 		})
 	}
 }

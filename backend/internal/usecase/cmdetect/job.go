@@ -466,7 +466,8 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 	// 最後の FFmpeg が終わったら、間を空けずに書き戻す。止めたり失敗したりした後も、止める前の値のまま書く。
 	defer progress.reporter.Finish(ctx)
 	found := make([][]Section, len(segments))
-	report := &Report{Note: "", Missing: 0}
+	reports := make([]*Report, len(segments))
+	segmentMaterials := make([]*Material, len(segments))
 	materials := make([]SegmentMaterial, 0, len(segments))
 	for i, segment := range segments {
 		sections, segmentReport, material, err := detectWithMaterial(ctx, detector,
@@ -478,13 +479,24 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 		if err != nil {
 			return err
 		}
-		report.add(segmentReport, i, len(segments))
-		found[i] = sections
+		found[i], reports[i], segmentMaterials[i] = sections, segmentReport, material
 		if material != nil {
 			materials = append(materials, SegmentMaterial{Path: segment.key, Material: material})
 		}
 	}
 	progress.reporter.Finish(ctx)
+	// 分かれた録画は、録画全体で番組のウィンドウを置き、材料から判定し直す (#1506)。決められないセグメントはウィンドウなしの結果のままにする。
+	if md, programs, ok := w.programWindows(detector, &recording, segments, segmentMaterials); ok {
+		for i := range segments {
+			if sections, segmentReport, ok := md.Redetect(segmentMaterials[i], programs[i]); ok {
+				found[i], reports[i] = sections, segmentReport
+			}
+		}
+	}
+	report := &Report{Note: "", Missing: 0}
+	for i, segmentReport := range reports {
+		report.add(segmentReport, i, len(segments))
+	}
 
 	if err := w.record(ctx, detector, recordingID, w.align(recording.RecordedFrom, segments, found), report); err != nil {
 		return err
@@ -500,14 +512,45 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 }
 
 // programOf は、i 番目のセグメントに渡す、番組の時刻を返す (#1506)。番組のウィンドウは録画全体の時間で置く必要があるので、
-// セグメントが 1 つの録画だけに渡し、分かれた録画では nil にする。番組が始まるはずの時刻は、番組の始まり (programStart) を、
-// セグメントを書き始めた日時からの時間にしたもの。尺は、番組表の終わり − 始まり。
+// セグメントが 1 つの録画だけに渡し、分かれた録画では nil にする (分かれた録画は、見分けた後に programWindows で置く)。
+// 番組が始まるはずの時刻は、番組の始まり (programStart) を、セグメントを書き始めた日時からの時間にしたもの。尺は、番組表の終わり − 始まり。
 func programOf(recording *sqlc.Recording, segments []segment, i int) *Program {
 	if len(segments) != 1 || !recording.EndAt.After(recording.StartAt) {
 		return nil
 	}
 
-	return &Program{Start: programStart(recording, segments[i].startedAt).Sub(segments[i].startedAt), Duration: recording.EndAt.Sub(recording.StartAt)}
+	return &Program{Start: programStart(recording, segments[i].startedAt).Sub(segments[i].startedAt), Duration: recording.EndAt.Sub(recording.StartAt), Fixed: false}
+}
+
+// programWindows は、セグメントが分かれた録画で、detector が録画全体で番組のウィンドウを置ければ (WindowDetector)、
+// セグメントごとに Redetect に渡す番組の時刻を返す (#1506)。セグメントの時刻は align と同じく、セグメントを書き始めた日時から求める。
+// セグメントが 1 つか、材料のないセグメント (映像のないもの、ロゴを学習できなかったもの) があるか、ウィンドウを置けなければ、ok を false にする。
+func (w *DetectWorker) programWindows(
+	detector Detector, recording *sqlc.Recording, segments []segment, materials []*Material,
+) (MaterialDetector, []*Program, bool) {
+	md, ok := detector.(MaterialDetector)
+	wd, windowed := detector.(WindowDetector)
+	if !ok || !windowed || len(segments) < 2 || len(materials) != len(segments) || !recording.EndAt.After(recording.StartAt) {
+		return nil, nil, false
+	}
+	if slices.Contains(materials, nil) {
+		return nil, nil, false
+	}
+	starts := make([]time.Duration, 0, len(segments))
+	for _, s := range segments {
+		starts = append(starts, s.startedAt.Sub(recording.RecordedFrom))
+	}
+	program := &Program{
+		Start:    programStart(recording, segments[0].startedAt).Sub(recording.RecordedFrom),
+		Duration: recording.EndAt.Sub(recording.StartAt),
+		Fixed:    false,
+	}
+	programs, ok := wd.ProgramWindows(materials, starts, program)
+	if !ok {
+		return nil, nil, false
+	}
+
+	return md, programs, true
 }
 
 // programStart は、番組が始まった日時を返す。番組が遅れて始まった録画 (前の番組の延長など) では、実際に放送中になった日時
@@ -555,13 +598,28 @@ func (w *DetectWorker) redetect(ctx context.Context, detector Detector, recordin
 	if err != nil || len(materials) != len(segments) {
 		return nil, nil, false
 	}
-	found := make([][]Section, len(segments))
-	report := &Report{Note: "", Missing: 0}
+	segmentMaterials := make([]*Material, 0, len(segments))
 	for i, segment := range segments {
 		if materials[i].Path != segment.key {
 			return nil, nil, false
 		}
-		sections, segmentReport, ok := md.Redetect(materials[i].Material, programOf(recording, segments, i))
+		segmentMaterials = append(segmentMaterials, materials[i].Material)
+	}
+	// 分かれた録画は、読み直したときと同じく、録画全体で置いたウィンドウで判定し、決められないセグメントはウィンドウなしで判定する (#1506)。
+	_, programs, windowed := w.programWindows(detector, recording, segments, segmentMaterials)
+	decide := func(i int) ([]Section, *Report, bool) {
+		if windowed {
+			if sections, segmentReport, ok := md.Redetect(segmentMaterials[i], programs[i]); ok {
+				return sections, segmentReport, true
+			}
+		}
+
+		return md.Redetect(segmentMaterials[i], programOf(recording, segments, i))
+	}
+	found := make([][]Section, len(segments))
+	report := &Report{Note: "", Missing: 0}
+	for i := range segments {
+		sections, segmentReport, ok := decide(i)
 		if !ok {
 			return nil, nil, false
 		}
