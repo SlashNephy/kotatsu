@@ -53,7 +53,11 @@ describe('DecodeJudge', () => {
     { name: '映像が遅れた', window: { lagMs: 600 }, fallback: true },
     { name: '破棄したコマが枚数と割合の両方を超える', window: { dropped: 12 }, fallback: true },
     { name: '破棄したコマが割合に届かない', window: { frames: 200, dropped: 12 }, fallback: false },
-    { name: 'コマが少ないウィンドウは数えない', window: { decodeMs: 30, frames: 10 }, fallback: false },
+    {
+      name: 'コマが少ないウィンドウは数えない',
+      window: { decodeMs: 30, frames: 10 },
+      fallback: false,
+    },
   ])('悪いウィンドウが 3 回続いたらほかの経路へ移す: $name', ({ window, fallback }) => {
     let { judge, now } = started();
     const verdicts = [];
