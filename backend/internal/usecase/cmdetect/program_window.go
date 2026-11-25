@@ -140,32 +140,35 @@ func placeWindow(shown, files []span, length, expected float64) (float64, bool) 
 // combineSections と同じく、録画の端 (0 と duration) にある境目は、無音の境目ではないので使わない。
 // origin は最初のコマの時刻。ウィンドウは最初のコマからの秒。
 func snapWindow(w window, bounds []boundary, duration, origin, offset float64) window {
-	snap := func(edge float64, valid func(float64) bool) float64 {
-		best, bestCost := edge, math.Inf(1)
-		for _, b := range bounds {
-			if b.at <= 0 || b.at >= duration {
-				continue
-			}
-			at := b.at - offset - origin
-			distance := math.Abs(at - edge)
-			if distance > windowSnapDistance || !valid(at) {
-				continue
-			}
-			cost := distance
-			if !b.cut {
-				cost += windowSnapNoCut
-			}
-			if cost < bestCost {
-				best, bestCost = at, cost
-			}
-		}
-
-		return best
-	}
-	start := snap(w.start, func(at float64) bool { return at >= 0 && at < w.end })
-	end := snap(w.end, func(at float64) bool { return at > start })
+	start := snapEdge(w.start, bounds, duration, origin, offset, func(at float64) bool { return at >= 0 && at < w.end })
+	end := snapEdge(w.end, bounds, duration, origin, offset, func(at float64) bool { return at > start })
 
 	return window{start: start, end: end}
+}
+
+// snapEdge は、ウィンドウの端 edge (最初のコマからの秒) を、windowSnapDistance 以内で最も近い無音の境目に寄せて返す。
+// valid が false を返す境目と、録画の端の境目は使わない。寄せる先がなければ edge のまま返す。引数は snapWindow と同じ。
+func snapEdge(edge float64, bounds []boundary, duration, origin, offset float64, valid func(float64) bool) float64 {
+	best, bestCost := edge, math.Inf(1)
+	for _, b := range bounds {
+		if b.at <= 0 || b.at >= duration {
+			continue
+		}
+		at := b.at - offset - origin
+		distance := math.Abs(at - edge)
+		if distance > windowSnapDistance || !valid(at) {
+			continue
+		}
+		cost := distance
+		if !b.cut {
+			cost += windowSnapNoCut
+		}
+		if cost < bestCost {
+			best, bestCost = at, cost
+		}
+	}
+
+	return best
 }
 
 // window は、番組のウィンドウ。始まりと終わりは、最初のコマからの秒。

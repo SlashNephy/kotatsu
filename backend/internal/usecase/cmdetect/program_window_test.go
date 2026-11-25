@@ -135,6 +135,42 @@ func TestPlaceWindow(t *testing.T) {
 	}
 }
 
+// TestSnapProgramWindow は、録画全体で置いたウィンドウでは、ファイルの中にある端だけを無音の境目に寄せることを確認する (#1506)。
+// ファイルの外の端を寄せると、ウィンドウの外のセグメントに、ウィンドウがかかってしまう。
+func TestSnapProgramWindow(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		start, end, bound  float64
+		fixed              bool
+		wantStart, wantEnd float64
+	}{
+		{name: "an edge inside the file is snapped", start: 10, end: 30, bound: 11, fixed: false, wantStart: 11, wantEnd: 30},
+		{name: "a fixed window after the file is not pulled into it", start: 41, end: 85, bound: 39, fixed: true, wantStart: 41, wantEnd: 85},
+		{name: "a fixed window before the file is not pulled into it", start: -44.5, end: -0.5, bound: 1, fixed: true, wantStart: -44.5, wantEnd: -0.5},
+		{
+			// 寄せないファイルの外の始まりは、終わりを寄せる先を狭めない。
+			name: "an edge outside the file does not limit the other edge", start: -0.5, end: 1, bound: 0.8, fixed: true, wantStart: -0.5, wantEnd: 0.8,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// 1 コマ 1 秒で、40 秒のファイル。
+			m := &cmdetect.Material{Fps: 1, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: make([]float64, 40), Measures: []logo.Measure{}}
+			for i := range m.Times {
+				m.Times[i] = float64(i)
+			}
+			cmdetect.SetMaterialBounds(m, []float64{tt.bound}, 40, 0)
+			start, end := cmdetect.SnapProgramWindow(m, tt.start, tt.end, tt.fixed)
+			assert.InDelta(t, tt.wantStart, start, 1e-9)
+			assert.InDelta(t, tt.wantEnd, end, 1e-9)
+		})
+	}
+}
+
 // TestClipIntervals は、ウィンドウの外のロゴを破棄し、ウィンドウにかかった区間をウィンドウの端で切ることを確認する (#1506 の手順 1)。
 func TestClipIntervals(t *testing.T) {
 	t.Parallel()

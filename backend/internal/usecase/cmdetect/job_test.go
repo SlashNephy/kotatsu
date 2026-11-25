@@ -400,7 +400,7 @@ func TestDetectWorkerSplitProgramWindow(t *testing.T) {
 		sections: map[string][]cmdetect.Section{segmentA: {{Start: 0, End: time.Minute}}, segmentB: {}}, inputs: []cmdetect.Input{},
 		redetected: []cmdetect.Section{}, redetectable: false, redetects: 0,
 		windowed: []cmdetect.Section{{Start: 0, End: 2 * time.Minute}},
-		starts:   nil, program: nil, programs: []*cmdetect.Program{},
+		starts:   []time.Duration{}, program: nil, programs: []*cmdetect.Program{},
 	}
 
 	// 読んだ回は、ウィンドウなしで見分けた後に録画全体で置いたウィンドウで判定し直す。

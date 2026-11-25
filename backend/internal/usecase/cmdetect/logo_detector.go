@@ -51,11 +51,6 @@ const (
 // errLogoUnusable は、その録画ではロゴを使えないことを表す。今の見分け方 (FFmpegDetector) で見分け直す。
 var errLogoUnusable = errors.New("the logo cannot be used for this recording")
 
-var (
-	_ MaterialDetector = new(LogoDetector)
-	_ WindowDetector   = new(LogoDetector)
-)
-
 // LogoDetector は、映像の隅の局ロゴが出ているかどうかで、CM の区間を見分ける (#1505、設計書 6.1)。今の見分け方より精度が高い代わりに、全コマを読むので、時間と CPU を多く使う。
 //
 // 録画のキーフレームの上下の帯から、ロゴの枠と型を学習し (logo.Learn、logo.NewTemplate)、全コマのロゴの枠を切り出して、
@@ -75,6 +70,7 @@ var (
 	_ Detector         = new(LogoDetector)
 	_ Reporter         = new(LogoDetector)
 	_ MaterialDetector = new(LogoDetector)
+	_ WindowDetector   = new(LogoDetector)
 )
 
 // NewLogoDetector は、PATH にある FFmpeg と ffprobe を使う LogoDetector を返す。見つからなければ ErrFFmpegNotFound を返す。
@@ -614,9 +610,6 @@ func measuredRate(times []float64, fallback float64) float64 {
 // 番組の時刻 program が分かれば、番組の尺のウィンドウを置き、ウィンドウの外のロゴを前後の番組のものとして破棄する (#1506 の手順 1)。
 func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, error) {
 	intervals := logo.Intervals(m.Measures, m.Fps, d.params)
-	if len(intervals) == 0 {
-		return nil, fmt.Errorf("%w: no frame shows the logo", errLogoUnusable)
-	}
 	missing := missingSections(m.Times, m.Fps)
 	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
 	scope := Section{Start: 0, End: duration}
@@ -632,6 +625,10 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 
 			return nil, fmt.Errorf("%w: no frame shows the logo in the program window", errLogoUnusable)
 		}
+	}
+	// ロゴの区間がなくても、録画全体で置いたウィンドウの外にあるセグメントは、上でまるごと CM にしている。
+	if len(intervals) == 0 {
+		return nil, fmt.Errorf("%w: no frame shows the logo", errLogoUnusable)
 	}
 	sections := dropShortSections(trimMissing(complementSections(intervals, m.Times, m.Fps), missing), duration)
 	if m.bounds != nil {
@@ -653,19 +650,25 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 
 // snapProgramWindow は、無音の材料を読めた回に、ウィンドウ w の端を無音の境目に寄せる (#1506 の手順 1)。番組の切り替わりは、ふつう無音を挟むからである。
 // 録画全体で置いたウィンドウ (fixed) は、ファイルの中にある端だけを寄せる。ファイルの外の端は、それを含むほかのセグメントの側で寄せる。
+// ファイルの外の端を寄せると、隣のセグメントの境目に引かれて、ウィンドウの外のセグメントにウィンドウがかかってしまう。
 func (m *Material) snapProgramWindow(w window, fixed bool) window {
 	if m.bounds == nil {
 		return w
 	}
-	snapped := snapWindow(w, m.bounds, m.boundsDuration, m.Times[0], m.offset)
-	if fixed && w.start <= 0 {
-		snapped.start = w.start
+	if !fixed {
+		return snapWindow(w, m.bounds, m.boundsDuration, m.Times[0], m.offset)
 	}
-	if fixed && w.end >= frameTime(m.Times, m.Fps, len(m.Times)) {
-		snapped.end = w.end
+	total := frameTime(m.Times, m.Fps, len(m.Times))
+	inside := func(at float64) bool { return at > 0 && at < total }
+	start, end := w.start, w.end
+	if inside(w.start) {
+		start = snapEdge(w.start, m.bounds, m.boundsDuration, m.Times[0], m.offset, func(at float64) bool { return at >= 0 && at < w.end })
+	}
+	if inside(w.end) {
+		end = snapEdge(w.end, m.bounds, m.boundsDuration, m.Times[0], m.offset, func(at float64) bool { return at > start })
 	}
 
-	return snapped
+	return window{start: start, end: end}
 }
 
 // outsideWindow は、録画全体で置いた番組のウィンドウの外にあるセグメントの結果として、ファイルの全体を CM にしたものを返す (#1506)。

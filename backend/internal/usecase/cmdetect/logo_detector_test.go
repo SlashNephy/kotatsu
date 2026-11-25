@@ -440,6 +440,30 @@ func TestLogoDetectorProgramWindows(t *testing.T) {
 	assert.InDelta(t, 40, got[2][0].End.Seconds(), 1)
 }
 
+// TestLogoDetectorOutsideWindowWithoutLogo は、ロゴの区間が 1 つもないセグメントでも、録画全体で置いたウィンドウの外にあれば、
+// ロゴを使えないとせずに、まるごと CM にすることを確認する (#1506)。
+func TestLogoDetectorOutsideWindowWithoutLogo(t *testing.T) {
+	t.Parallel()
+
+	fallback := NewMockDetector(gomock.NewController(t))
+	detector, err := cmdetect.NewLogoDetectorWith(fallback)
+	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
+		t.Skip("FFmpeg is not installed")
+	}
+	require.NoError(t, err)
+	// 1 コマ 1 秒で、ロゴが一度も見えない 40 秒のセグメント。
+	m := &cmdetect.Material{Fps: 1, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: make([]float64, 40), Measures: make([]logo.Measure, 40)}
+	for i := range m.Times {
+		m.Times[i] = float64(i)
+	}
+	_, _, ok := detector.Redetect(m, nil)
+	require.False(t, ok, "no logo without a window")
+
+	got, _, ok := detector.Redetect(m, &cmdetect.Program{Start: 60 * time.Second, Duration: 30 * time.Second, Fixed: true})
+	require.True(t, ok)
+	assert.Equal(t, []cmdetect.Section{{Start: 0, End: 40 * time.Second}}, got)
+}
+
 // TestLogoDetectorDropsTooMuchCM は、ロゴを使えずに見分け直した結果も、CM の割合が上限以上なら、CM なしにすることを確認する (#1508)。
 func TestLogoDetectorDropsTooMuchCM(t *testing.T) {
 	t.Parallel()
