@@ -3,6 +3,7 @@ import { type ReactNode, type RefObject, useEffect, useRef } from 'react';
 import { brightnessStyle } from './brightness';
 import { type CaptionStyle, type Captions, createCaptions } from './captions';
 import { type Crop, cropStyle, isCropped, noCrop } from './crop';
+import type { FallbackReason } from './decodeJudge';
 import { DecodeMedia } from './decodeMedia';
 import { dataBroadcastSource } from './route';
 import type { FromDecodeWorker, ToDecodeWorker } from './decodeProtocol';
@@ -31,6 +32,8 @@ type Props = {
   onError?: (error: Error) => void;
   // onLoaded は、最初のコマを映せるようになったときに呼ぶ。
   onLoaded?: () => void;
+  // onFallback は、この端末では間に合わない (または音を鳴らせない) と判定したときに呼ぶ。ほかの経路へ移すのは呼んだ側。
+  onFallback?: (reason: FallbackReason) => void;
   overlay?: ReactNode;
   controls?: ReactNode;
 };
@@ -51,12 +54,13 @@ export function DecodePlayer({
   onState,
   onError,
   onLoaded,
+  onFallback,
   overlay,
   controls,
 }: Props) {
   const boxRef = useRef<HTMLDivElement | null>(null);
-  const handlers = useRef({ onMedia, onState, onError, onLoaded, onCaptionText });
-  handlers.current = { onMedia, onState, onError, onLoaded, onCaptionText };
+  const handlers = useRef({ onMedia, onState, onError, onLoaded, onCaptionText, onFallback });
+  handlers.current = { onMedia, onState, onError, onLoaded, onCaptionText, onFallback };
   const engineRef = useRef<{ media: DecodeMedia; captions: Captions } | null>(null);
   // programNumber は、TS の中から選ぶ番組 (program_number)。分からなければ、最初の番組を選ぶ。
   const programNumber = url === null ? null : (dataBroadcastSource(url)?.serviceId ?? null);
@@ -115,6 +119,13 @@ export function DecodePlayer({
     };
     const onMessage = (event: MessageEvent<FromDecodeWorker>) => {
       const message = event.data;
+      if (message.type === 'fallback') {
+        if (message.load === media.currentLoad) {
+          handlers.current.onFallback?.(message.reason);
+        }
+
+        return;
+      }
       // worker の失敗は DecodeMedia が error として送るので、ここでは字幕と起点だけを扱う。
       // 選局した後に、前の局の字幕を出さないよう、今の読み込みのものだけを使う。
       if (

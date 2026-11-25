@@ -2,6 +2,7 @@
 // 時刻は、どれも伸ばした PTS (ptsTimeline.ts、90kHz) で受け渡す。読み込みごとに番号 (load) を振り、
 // 古い読み込みのメッセージは、受け取った側で破棄する (選局したあとに、前の局の音や字幕が混ざらないように)。
 
+import type { FallbackReason } from './decodeJudge';
 import type { TsStream } from './tsDemux';
 
 // ToDecodeWorker は、メインスレッドから worker へのメッセージ。
@@ -30,6 +31,8 @@ export type DecodeStats = {
   dropped: number;
   // bytesRead は、読んだ TS のバイト数の累計。
   bytesRead: number;
+  // skippingB は、間に合わないために B フレームのデコードを省いているか。
+  skippingB: boolean;
 };
 
 // FromDecodeWorker は、worker からメインスレッドへのメッセージ。
@@ -64,5 +67,7 @@ export type FromDecodeWorker =
   // ended は、TS を読み終えた (ライブでは、配信が切れた)。
   | { type: 'ended'; load: number }
   | { type: 'stats'; load: number; stats: DecodeStats }
+  // fallback は、この端末では間に合わない (slow) か、音が届かないかデコードできない (audio)。ほかの経路へ移してほしい。
+  | { type: 'fallback'; load: number; reason: FallbackReason }
   // error は、読み込みかデコードか描画が続けられなくなった。load がなければ、worker の用意で失敗した。
   | { type: 'error'; load: number | null; message: string };
