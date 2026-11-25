@@ -140,7 +140,7 @@ export class DecodeJudge {
     this.audioFailureRun = ok ? 0 : this.audioFailureRun + 1;
   }
 
-  // onDecode は、映像の PES を 1 つデコードしたときに、かかった時間 (テクスチャへの上げを含む) を渡す。
+  // onDecode は、映像の PES を 1 つデコードしたときに、かかった時間 (GPU へのアップロードを含む) を渡す。
   onDecode(ms: number): void {
     this.decodeTimes.push(ms);
   }
