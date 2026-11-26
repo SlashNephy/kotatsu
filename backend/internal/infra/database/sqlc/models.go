@@ -163,6 +163,12 @@ type AnimeRecordSetting struct {
 	UpdatedAt         time.Time
 }
 
+type AnimeTitleAlias struct {
+	TitleKey    string
+	SyobocalTid int32
+	CountOffset float64
+}
+
 type AnimeTitleBroadcastLookup struct {
 	Tid       int32
 	FetchedAt time.Time

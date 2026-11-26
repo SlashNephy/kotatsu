@@ -87,6 +87,15 @@ func (q *Queries) DeleteAnimeImportToken(ctx context.Context) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
+const deleteAnimeTitleAliases = `-- name: DeleteAnimeTitleAliases :exec
+DELETE FROM anime_title_aliases
+`
+
+func (q *Queries) DeleteAnimeTitleAliases(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteAnimeTitleAliases)
+	return err
+}
+
 const deleteAnimeWorks = `-- name: DeleteAnimeWorks :exec
 DELETE FROM anime_works WHERE source = $1
 `
@@ -319,6 +328,23 @@ func (q *Queries) InsertAnimeEpisodeBroadcast(ctx context.Context, arg InsertAni
 	return err
 }
 
+const insertAnimeTitleAliases = `-- name: InsertAnimeTitleAliases :exec
+INSERT INTO anime_title_aliases (title_key, syobocal_tid, count_offset)
+SELECT unnest($1::text[]), unnest($2::integer[]), unnest($3::double precision[])
+ON CONFLICT DO NOTHING
+`
+
+type InsertAnimeTitleAliasesParams struct {
+	TitleKeys    []string
+	SyobocalTids []int32
+	CountOffsets []float64
+}
+
+func (q *Queries) InsertAnimeTitleAliases(ctx context.Context, arg InsertAnimeTitleAliasesParams) error {
+	_, err := q.db.Exec(ctx, insertAnimeTitleAliases, arg.TitleKeys, arg.SyobocalTids, arg.CountOffsets)
+	return err
+}
+
 const insertAnimeWorks = `-- name: InsertAnimeWorks :exec
 INSERT INTO anime_works (source, syobocal_tid, position, annict_work_id, anilist_id, mal_id)
 SELECT $1, t.syobocal_tid, t.position, NULLIF(t.annict_work_id, 0), NULLIF(t.anilist_id, 0), NULLIF(t.mal_id, 0)
@@ -449,6 +475,59 @@ func (q *Queries) InsertRecordingAnimeEpisode(ctx context.Context, arg InsertRec
 		arg.IsFirst,
 		arg.IsLast,
 		arg.IsRerun,
+	)
+	return err
+}
+
+const linkProgramTitleEpisode = `-- name: LinkProgramTitleEpisode :exec
+UPDATE program_anime_episodes
+SET syobocal_tid = $1, count_start = $2, count_end = $3
+WHERE service_id = $4 AND start_at = $5 AND position = $6 AND source = 'title' AND syobocal_tid IS NULL
+`
+
+type LinkProgramTitleEpisodeParams struct {
+	SyobocalTid *int32
+	CountStart  *float64
+	CountEnd    *float64
+	ServiceID   int64
+	StartAt     time.Time
+	Position    int16
+}
+
+// 番組名の解析で結びつけた話に、TID と、ずらした話数を付ける。照合し直しと同時に書き換えないよう、TID がまだないときだけ書く。
+func (q *Queries) LinkProgramTitleEpisode(ctx context.Context, arg LinkProgramTitleEpisodeParams) error {
+	_, err := q.db.Exec(ctx, linkProgramTitleEpisode,
+		arg.SyobocalTid,
+		arg.CountStart,
+		arg.CountEnd,
+		arg.ServiceID,
+		arg.StartAt,
+		arg.Position,
+	)
+	return err
+}
+
+const linkRecordingTitleEpisode = `-- name: LinkRecordingTitleEpisode :exec
+UPDATE recording_anime_episodes
+SET syobocal_tid = $1, count_start = $2, count_end = $3
+WHERE recording_id = $4 AND position = $5 AND source = 'title' AND syobocal_tid IS NULL
+`
+
+type LinkRecordingTitleEpisodeParams struct {
+	SyobocalTid *int32
+	CountStart  *float64
+	CountEnd    *float64
+	RecordingID uuid.UUID
+	Position    int16
+}
+
+func (q *Queries) LinkRecordingTitleEpisode(ctx context.Context, arg LinkRecordingTitleEpisodeParams) error {
+	_, err := q.db.Exec(ctx, linkRecordingTitleEpisode,
+		arg.SyobocalTid,
+		arg.CountStart,
+		arg.CountEnd,
+		arg.RecordingID,
+		arg.Position,
 	)
 	return err
 }
@@ -670,6 +749,84 @@ func (q *Queries) ListAnimeProgramsToFinalize(ctx context.Context, arg ListAnime
 			&i.SeriesEpisode,
 			&i.SeriesRepeat,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAnimeTitleAliasSources = `-- name: ListAnimeTitleAliasSources :many
+SELECT e.syobocal_tid::integer AS syobocal_tid, e.count_start::double precision AS count_start,
+  coalesce(p.name, a.name)::text AS name, coalesce(p.series_episode, a.series_episode) AS series_episode
+FROM program_anime_episodes e
+LEFT JOIN programs p ON p.service_id = e.service_id AND p.start_at = e.start_at
+LEFT JOIN program_archives a ON a.service_id = e.service_id AND a.start_at = e.start_at
+WHERE e.source = 'syobocal' AND e.syobocal_tid IS NOT NULL AND e.count_start IS NOT NULL AND e.count_start = e.count_end
+  AND (p.name IS NOT NULL OR a.name IS NOT NULL)
+  AND NOT EXISTS (
+    SELECT 1 FROM program_anime_episodes o WHERE o.service_id = e.service_id AND o.start_at = e.start_at AND o.position <> e.position
+  )
+`
+
+type ListAnimeTitleAliasSourcesRow struct {
+	SyobocalTid   int32
+	CountStart    float64
+	Name          string
+	SeriesEpisode *int32
+}
+
+// 作品名の対応 (anime_title_aliases) を作るための、しょぼいカレンダーで 1 つの話だけに結びついた、番組表と過去の番組の番組を返す。
+// 2 話連続のような複数の話に結びついた番組は、番組名の話数と、どの話が対応するかを決められないので除く。
+func (q *Queries) ListAnimeTitleAliasSources(ctx context.Context) ([]ListAnimeTitleAliasSourcesRow, error) {
+	rows, err := q.db.Query(ctx, listAnimeTitleAliasSources)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnimeTitleAliasSourcesRow{}
+	for rows.Next() {
+		var i ListAnimeTitleAliasSourcesRow
+		if err := rows.Scan(
+			&i.SyobocalTid,
+			&i.CountStart,
+			&i.Name,
+			&i.SeriesEpisode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAnimeTitleAliases = `-- name: ListAnimeTitleAliases :many
+SELECT syobocal_tid, count_offset FROM anime_title_aliases WHERE title_key = $1
+ORDER BY syobocal_tid, count_offset LIMIT 2
+`
+
+type ListAnimeTitleAliasesRow struct {
+	SyobocalTid int32
+	CountOffset float64
+}
+
+// 作品名 title_key の対応を返す。2 つ以上あれば、どれか決められないので、呼ぶ側は 2 つまで読めばよい。
+func (q *Queries) ListAnimeTitleAliases(ctx context.Context, titleKey string) ([]ListAnimeTitleAliasesRow, error) {
+	rows, err := q.db.Query(ctx, listAnimeTitleAliases, titleKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnimeTitleAliasesRow{}
+	for rows.Next() {
+		var i ListAnimeTitleAliasesRow
+		if err := rows.Scan(&i.SyobocalTid, &i.CountOffset); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1230,6 +1387,95 @@ func (q *Queries) ListTitlesForBroadcastLookup(ctx context.Context, arg ListTitl
 			return nil, err
 		}
 		items = append(items, tid)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnlinkedProgramTitleEpisodes = `-- name: ListUnlinkedProgramTitleEpisodes :many
+SELECT e.service_id, e.start_at, e.position, e.count_start, e.count_end, coalesce(p.name, a.name)::text AS name
+FROM program_anime_episodes e
+LEFT JOIN programs p ON p.service_id = e.service_id AND p.start_at = e.start_at
+LEFT JOIN program_archives a ON a.service_id = e.service_id AND a.start_at = e.start_at
+WHERE e.source = 'title' AND e.syobocal_tid IS NULL AND (p.name IS NOT NULL OR a.name IS NOT NULL)
+ORDER BY e.service_id, e.start_at, e.position
+`
+
+type ListUnlinkedProgramTitleEpisodesRow struct {
+	ServiceID  int64
+	StartAt    time.Time
+	Position   int16
+	CountStart *float64
+	CountEnd   *float64
+	Name       string
+}
+
+// 番組名の解析で結びつけ、TID の付かなかった、番組表と過去の番組の番組の話を返す。
+func (q *Queries) ListUnlinkedProgramTitleEpisodes(ctx context.Context) ([]ListUnlinkedProgramTitleEpisodesRow, error) {
+	rows, err := q.db.Query(ctx, listUnlinkedProgramTitleEpisodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnlinkedProgramTitleEpisodesRow{}
+	for rows.Next() {
+		var i ListUnlinkedProgramTitleEpisodesRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.StartAt,
+			&i.Position,
+			&i.CountStart,
+			&i.CountEnd,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnlinkedRecordingTitleEpisodes = `-- name: ListUnlinkedRecordingTitleEpisodes :many
+SELECT e.recording_id, e.position, e.count_start, e.count_end, r.name
+FROM recording_anime_episodes e
+JOIN recordings r ON r.id = e.recording_id
+WHERE e.source = 'title' AND e.syobocal_tid IS NULL
+ORDER BY e.recording_id, e.position
+`
+
+type ListUnlinkedRecordingTitleEpisodesRow struct {
+	RecordingID uuid.UUID
+	Position    int16
+	CountStart  *float64
+	CountEnd    *float64
+	Name        string
+}
+
+// 番組名の解析で結びつけ、TID の付かなかった、録画の話を返す。
+func (q *Queries) ListUnlinkedRecordingTitleEpisodes(ctx context.Context) ([]ListUnlinkedRecordingTitleEpisodesRow, error) {
+	rows, err := q.db.Query(ctx, listUnlinkedRecordingTitleEpisodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnlinkedRecordingTitleEpisodesRow{}
+	for rows.Next() {
+		var i ListUnlinkedRecordingTitleEpisodesRow
+		if err := rows.Scan(
+			&i.RecordingID,
+			&i.Position,
+			&i.CountStart,
+			&i.CountEnd,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

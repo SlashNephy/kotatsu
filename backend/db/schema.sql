@@ -1517,6 +1517,18 @@ CREATE TABLE syobocal_titles (
 );
 CREATE INDEX syobocal_titles_title_key_idx ON syobocal_titles (title_key);
 
+-- 番組名の作品名と、作品 (TID) と話数のずれの対応 (設計書 3.8)。しょぼいカレンダーで結びついた番組の番組名から作り、
+-- しょぼいカレンダーで引けない番組 (アニメ専門チャンネルのリピート放送など) の番組名を解析するときに、TID と話数を決めるのに使う。
+-- nekonote が、番組の結びつきを確定させるたびに、残っている番組から作り直す。
+CREATE TABLE anime_title_aliases (
+  -- 番組名から読んだ作品名のキー (syobocal_titles の title_key と同じ正規化)。
+  title_key text NOT NULL,
+  syobocal_tid integer NOT NULL,
+  -- しょぼいカレンダーの話数から、番組名の話数を引いたもの。局が通しの話数で書く作品では 0 でない。
+  count_offset double precision NOT NULL,
+  PRIMARY KEY (title_key, syobocal_tid, count_offset)
+);
+
 -- アニメの番組と作品の結びつき (設計書 3.8)。saya-definitions から取り込んだ、放送のサービスと、
 -- しょぼいカレンダーのチャンネル (ChID)、Annict のチャンネルの対応。nekonote のジョブが 1 日ごとに取り込み直す。
 -- saya-definitions は地上波のネットワーク ID を持たない (地域で違う) ので、地上波の行は network_id を 0 にし、

@@ -84,6 +84,9 @@ type MatchResult struct {
 	Failed   int `json:"failed"`
 	// Pruned は、古くなって消したキャッシュと結びつきの数。
 	Pruned int64 `json:"pruned"`
+	// Aliases は、作り直した作品名の対応の数。Relinked は、番組名の解析で結びつけ、引き直して作品に結びつけた話の数。
+	Aliases  int `json:"aliases"`
+	Relinked int `json:"relinked"`
 }
 
 // target は、照合する番組。
@@ -259,6 +262,13 @@ func (m *Matcher) Finalize(ctx context.Context) (*MatchResult, error) {
 		})
 	}
 	if err := m.match(ctx, targets, true, result); err != nil {
+		return nil, err
+	}
+	// 確定させた本放送の結びつきから作品名の対応を作り直し、それで、TID の付かなかったリピート放送などを引き直す。
+	if result.Aliases, err = m.rebuildTitleAliases(ctx); err != nil {
+		return nil, err
+	}
+	if result.Relinked, err = m.relinkTitles(ctx); err != nil {
 		return nil, err
 	}
 
