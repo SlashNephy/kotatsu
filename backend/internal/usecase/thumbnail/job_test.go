@@ -47,6 +47,8 @@ const (
 	// detectorFFmpeg と detectorLogo は、CM の区間の見分け方の名前。
 	detectorFFmpeg = "ffmpeg"
 	detectorLogo   = "logo"
+	// recordingIDKey は、録画の開始のイベントの材料の、録画の ID の鍵。
+	recordingIDKey = "recordingId"
 )
 
 type jobFixture struct {
@@ -547,22 +549,48 @@ func TestCMEnqueuer(t *testing.T) {
 
 // TestGenerateWorkerLiveAt は、録画中の録画で日時を指定したら、書いた終わりの近くではなく、その日時に最も近い I フレームから
 // 代表画像を作ることを確認する。日時は、使える最初のセグメントの始まりから数える。
+// 録り始めてから LiveInterval たっていれば、LiveWorker の作り直しに任せ、作らずにジョブを取りやめる。
 func TestGenerateWorkerLiveAt(t *testing.T) {
 	t.Parallel()
-	f := newJobFixture(t)
-	recordingID := f.recording(t, 30)
-	_, err := f.pool.Exec(t.Context(), `UPDATE recording_files SET size = 0, ended_at = NULL WHERE id = $1`, f.segmentID)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(t.Context(), `UPDATE recordings SET state = $2 WHERE id = $1`, recordingID, stateRecording)
-	require.NoError(t, err)
-	// セグメントは f.clock.Now() に始まり、I フレームは 1 秒ごと。7 秒の I フレームは通し番号 8 (書いた終わりの 10 秒前なら 20)。
-	at := f.clock.Now().Add(7 * time.Second)
 
-	worker := thumbnail.NewGenerateWorkerWith(f.pool, f.store, f.clock, true, fake)
-	require.NoError(t, worker.Work(t.Context(), &river.Job[thumbnail.GenerateArgs]{
-		JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: true, ThumbnailOnly: false, At: &at},
-	}))
-	assert.Equal(t, 8, f.thumbnailMarker(t))
+	tests := []struct {
+		name string
+		// elapsed は、ジョブを動かす日時の、録り始めからの時間。
+		elapsed time.Duration
+		// want は、代表画像にした I フレームの通し番号。0 なら作らない。
+		want int
+	}{
+		// セグメントは録り始めに始まり、I フレームは 1 秒ごと。7 秒の I フレームは通し番号 8 (書いた終わりの 10 秒前なら 20)。
+		{name: "指定した日時から作る", elapsed: 17 * time.Second, want: 8},
+		{name: "録り始めから LiveInterval たっていれば作らない", elapsed: thumbnail.LiveInterval, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newJobFixture(t)
+			recordingID := f.recording(t, 30)
+			_, err := f.pool.Exec(t.Context(), `UPDATE recording_files SET size = 0, ended_at = NULL WHERE id = $1`, f.segmentID)
+			require.NoError(t, err)
+			_, err = f.pool.Exec(t.Context(), `UPDATE recordings SET state = $2 WHERE id = $1`, recordingID, stateRecording)
+			require.NoError(t, err)
+			at := f.clock.Now().Add(7 * time.Second)
+			f.clock.Advance(tt.elapsed)
+
+			worker := thumbnail.NewGenerateWorkerWith(f.pool, f.store, f.clock, true, fake)
+			err = worker.Work(t.Context(), &river.Job[thumbnail.GenerateArgs]{
+				JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: true, ThumbnailOnly: false, At: &at},
+			})
+			if tt.want == 0 {
+				var cancel *rivertype.JobCancelError
+				require.ErrorAs(t, err, &cancel)
+				assert.False(t, f.hasThumbnail(t))
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, f.thumbnailMarker(t))
+		})
+	}
 }
 
 // TestStartEnqueuer は、録画の開始のイベントで、番組の放送予定の始まりから StartThumbnailDelay 後の代表画像を作るジョブを、
@@ -578,26 +606,36 @@ func TestStartEnqueuer(t *testing.T) {
 		startAt, recordedFrom time.Duration
 		// want は、代表画像を作る日時の、f.clock.Now() からの時間。nil ならジョブを入れない。
 		want *time.Duration
+		// payload は、イベントの材料。nil なら、作った録画の ID を載せる。
+		payload map[string]any
 	}{
 		{
 			name: "開始マージンの後の番組の始まりから作る", kind: domain.NotificationKindRecordingStarted, state: stateRecording,
-			startAt: 5 * time.Second, recordedFrom: 0, want: new(10 * time.Second),
+			startAt: 5 * time.Second, recordedFrom: 0, want: new(10 * time.Second), payload: nil,
 		},
 		{
 			name: "番組の途中から録り始めたら録り始めから作る", kind: domain.NotificationKindRecordingStarted, state: stateRecording,
-			startAt: -time.Minute, recordedFrom: 0, want: new(5 * time.Second),
+			startAt: -time.Minute, recordedFrom: 0, want: new(5 * time.Second), payload: nil,
 		},
 		{
 			name: "開始の通知が遅れて LiveInterval たっていれば入れない", kind: domain.NotificationKindRecordingStarted, state: stateRecording,
-			startAt: -thumbnail.LiveInterval, recordedFrom: -thumbnail.LiveInterval, want: nil,
+			startAt: -thumbnail.LiveInterval, recordedFrom: -thumbnail.LiveInterval, want: nil, payload: nil,
 		},
 		{
 			name: "録画を終えていれば入れない", kind: domain.NotificationKindRecordingStarted, state: stateCompleted,
-			startAt: 0, recordedFrom: 0, want: nil,
+			startAt: 0, recordedFrom: 0, want: nil, payload: nil,
 		},
 		{
 			name: "ほかのイベントでは入れない", kind: domain.NotificationKindRecordingCompleted, state: stateRecording,
-			startAt: 0, recordedFrom: 0, want: nil,
+			startAt: 0, recordedFrom: 0, want: nil, payload: nil,
+		},
+		{
+			name: "録画の ID を読めなければ入れない", kind: domain.NotificationKindRecordingStarted, state: stateRecording,
+			startAt: 0, recordedFrom: 0, want: nil, payload: map[string]any{recordingIDKey: "x"},
+		},
+		{
+			name: "録画がなければ入れない", kind: domain.NotificationKindRecordingStarted, state: stateRecording,
+			startAt: 0, recordedFrom: 0, want: nil, payload: map[string]any{recordingIDKey: "01a21890-0000-7000-8000-000000000000"},
 		},
 	}
 	for _, tt := range tests {
@@ -616,8 +654,12 @@ func TestStartEnqueuer(t *testing.T) {
 			t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(t.Context())) })
 			inserter := new(fakeInserter)
 
+			payload := tt.payload
+			if payload == nil {
+				payload = map[string]any{recordingIDKey: recordingID.String()}
+			}
 			event := &notification.Event{
-				ID: id.New(), Kind: tt.kind, OccurredAt: now, Payload: map[string]any{"recordingId": recordingID.String()},
+				ID: id.New(), Kind: tt.kind, OccurredAt: now, Payload: payload,
 				Audience: notification.Audience{UserIDs: nil, ByRule: false},
 			}
 			require.NoError(t, thumbnail.NewStartEnqueuer(inserter, f.clock).OnEvent(t.Context(), tx, event))

@@ -47,6 +47,7 @@ var (
 	errRecordingNotFound = errors.New("the recording no longer exists")
 	errNoSegment         = errors.New("the recording has no segment with an index on the mounted pools")
 	errNotRecording      = errors.New("the recording is no longer being recorded")
+	errTakenOver         = errors.New("the live thumbnail jobs have taken over the thumbnail at the start of the recording")
 )
 
 // GenerateArgs は、録画の代表画像とプレビュー画像を作るジョブの引数。
@@ -161,10 +162,13 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 		return err
 	}
 	// 作っている間に録画を終えていたら、録画を終えたときのジョブが作る画像を、今の様子で上書きしない。
+	// 番組の始まりの代表画像なら、作っている間に LiveWorker の作り直しが始まっていても、古い場面で上書きしない。
 	// 録画が消されていたら、書いた後に、下で画像を消す。
 	if job.Args.Live {
-		if recording, err := q.GetRecording(ctx, job.Args.RecordingID); err == nil && recording.State != stateRecording {
-			return river.JobCancel(errNotRecording)
+		if recording, err := q.GetRecording(ctx, job.Args.RecordingID); err == nil {
+			if err := w.checkLive(&recording, &job.Args); err != nil {
+				return err
+			}
 		}
 	}
 	if err := w.write(owner, result); err != nil {
@@ -198,11 +202,27 @@ func (w *GenerateWorker) checkRecording(ctx context.Context, q *sqlc.Queries, ar
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the recording: %w", err)
 	}
-	if args.Live && recording.State != stateRecording {
-		return nil, river.JobCancel(errNotRecording)
+	if args.Live {
+		if err := w.checkLive(&recording, args); err != nil {
+			return nil, err
+		}
 	}
 
 	return &recording, nil
+}
+
+// checkLive は、録画中の録画の代表画像 (Live) を、まだ作ってよいかを確認する。録画を終えていれば、録画を終えたときのジョブに任せる。
+// 番組の始まりの代表画像 (At) は、録り始めてから LiveInterval たっていれば、LiveWorker の作り直しに任せる。
+// ジョブが遅れて動いたときに、LiveWorker が作った新しい代表画像を、古い場面で上書きしないため。作れなければ、ジョブを取りやめるエラーを返す。
+func (w *GenerateWorker) checkLive(recording *sqlc.Recording, args *GenerateArgs) error {
+	if recording.State != stateRecording {
+		return river.JobCancel(errNotRecording)
+	}
+	if args.At != nil && !w.clock.Now().Before(recording.RecordedFrom.Add(LiveInterval)) {
+		return river.JobCancel(errTakenOver)
+	}
+
+	return nil
 }
 
 // options は、ジョブの引数から、画像の作り方を決める。録画を終えた録画では、CM の区間を避けて代表画像を選ぶ (#1810)。
