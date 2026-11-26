@@ -7,27 +7,27 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, test } from 'vitest';
-
-import { useEntryState } from './useEntryState';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 afterEach(() => {
   cleanup();
 });
 
-// Counter は、押した回数を履歴の項目に残す画面。
-function Counter() {
-  const [count, setCount] = useEntryState('count', 0);
-
-  return (
-    <button type="button" onClick={() => setCount((value) => value + 1)}>
-      {`count ${count}`}
-    </button>
-  );
-}
-
 // mount は、数える画面 (/captures) と、ほかの画面 (/notifications) のルーターを描く。
+// 残した状態はモジュールに持つので、テストごとに読み直し、前のテストの状態を持ち込まない。
 async function mount() {
+  vi.resetModules();
+  const { useEntryState } = await import('./useEntryState');
+  // Counter は、押した回数を履歴の項目に残す画面。
+  function Counter() {
+    const [count, setCount] = useEntryState('count', 0);
+
+    return (
+      <button type="button" onClick={() => setCount((value) => value + 1)}>
+        {`count ${count}`}
+      </button>
+    );
+  }
   const root = createRootRoute({ component: Outlet });
   const router = createRouter({
     routeTree: root.addChildren([
@@ -81,5 +81,20 @@ describe('useEntryState (#2146)', () => {
     });
 
     expect((await screen.findByRole('button')).textContent).toBe('count 2');
+  });
+
+  test('同じ画面のまま新しく移ったら今の状態を引き継ぎ、ブラウザで戻ったらその項目の状態に戻す', async () => {
+    const router = await mount();
+    fireEvent.click(screen.getByRole('button'));
+
+    await act(() => router.navigate({ to: '/captures', search: { q: 'a' } }));
+    expect(screen.getByRole('button').textContent).toBe('count 1');
+    fireEvent.click(screen.getByRole('button'));
+
+    await act(async () => {
+      router.history.back();
+      await router.load();
+    });
+    expect(screen.getByRole('button').textContent).toBe('count 1');
   });
 });

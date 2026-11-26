@@ -204,9 +204,9 @@ function Search() {
     conditions: toConditionsInput(conditions),
     archiveDays: includeArchive ? archiveParam(archiveDays) : null,
   });
-  // restored は、開いたときに、履歴の項目に残した結果が今の条件のものかどうか。そうなら、最初の検索を飛ばし、
-  // 残した結果とスクロールの位置をそのまま出す。
-  const restored = useRef(page !== null && page.key === key);
+  // restoredKey は、開いたときに履歴の項目に残した結果の条件。今の条件と同じなら、検索を飛ばし、
+  // 残した結果とスクロールの位置をそのまま出す。条件を変えたら、もう使わない。
+  const restoredKey = useRef(page !== null && page.key === key ? key : null);
 
   // load は、variables で検索し、previous の後ろに足す。新しい検索では、previous を空にする。
   // 失敗したときは、表示している結果とカーソルの組を変えないので、続きを別の条件で読むことはない。
@@ -249,11 +249,6 @@ function Search() {
 
   // search は、いまの条件で、新しく検索する。過去の放送の期間は、検索するときの時刻から決める。
   const search = useEffectEvent(() => {
-    if (restored.current) {
-      restored.current = false;
-
-      return;
-    }
     const now = Date.now();
     void load(
       key,
@@ -275,6 +270,12 @@ function Search() {
 
   // 条件を変えたら、入力が止まるのを待ってから検索する。条件を消したら、結果と読み込み中の表示を消す。
   useEffect(() => {
+    if (!enabled || restoredKey.current !== key) {
+      restoredKey.current = null;
+    }
+    if (restoredKey.current === key) {
+      return;
+    }
     if (!enabled) {
       request.current++;
       setPage(null);

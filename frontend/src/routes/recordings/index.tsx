@@ -524,6 +524,8 @@ function RecordingGrid({
 
           return;
         }
+        // 消した録画を含む続きは、録画の変更の知らせを待たずに破棄する。
+        setMore(null);
         onDeleted(response.deleteRecordings);
       },
       onError: () => {
@@ -541,13 +543,16 @@ function RecordingGrid({
   // more は、続きの読み込みで足した録画と、その次のカーソル。changes は、読み込んだときの録画の変更の回数。
   // 録画が変わって最初のページを読み直したら、続きは破棄して、最初のページから出し直す。
   // 続きを残すと、録画が増えて最初のページからこぼれた録画が、どちらにも出なくなる (#868)。
-  // ほかの画面から戻ったときも同じ所まで出すよう、履歴の項目に残す (#2146)。
+  // ほかの画面から戻ったときも同じ所まで出すよう、履歴の項目に残す (#2146)。key は、読み込んだときの並び順と
+  // 絞り込みと、最初のページの終わりのカーソル。違う一覧の続きや、最初のページが変わった後の続きは使わない。
+  const key = `${order}:${JSON.stringify(filter)}:${data.recordings.pageInfo.endCursor ?? ''}`;
   const [loaded, setMore] = useEntryState<{
+    key: string;
     changes: number;
     recordings: Recording[];
     next: string | null;
   } | null>('more', null);
-  const more = loaded?.changes === changes ? loaded : null;
+  const more = loaded?.key === key && loaded.changes === changes ? loaded : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const recordings = [
@@ -573,6 +578,7 @@ function RecordingGrid({
       }).toPromise();
       if (page !== undefined) {
         setMore({
+          key,
           changes,
           recordings: [
             ...(more?.recordings ?? []),
