@@ -9,6 +9,22 @@ import {
 
 // ProgramSearchSearch は、番組検索の URL のクエリ (#2146)。番組の詳細から戻ったときや、共有やブックマークで開き直したときに、
 // 同じ条件で探す。ヘッダーの検索 (#1627) と、過去の番組の詳細から同じ番組名で探すとき (#1121) も、これで条件を渡す。
+declare module '@tanstack/react-router' {
+  interface HistoryState {
+    // searchSync は、番組検索の画面が、自分の入力から URL を書き換えた履歴の項目かどうか。
+    // 画面の外から移ってきた項目では、入力を URL の条件で始め直す。
+    searchSync?: true;
+    // searchStart は、画面の外から番組検索を始めた時刻。同じ URL で探し直したときも、ルーターは同じ URL と状態の遷移を
+    // 履歴に積まないので、時刻を変えて履歴の項目を分け、入力を始め直す。
+    searchStart?: number;
+  }
+}
+
+// startSearchState は、画面の外から番組検索を始めるときの、遷移の状態。
+export function startSearchState(): { searchStart: number } {
+  return { searchStart: Date.now() };
+}
+
 export type ProgramSearchSearch = {
   conditions?: ConditionsSearch;
   // archive は、過去の放送も含めて探すときの、さかのぼる日数。なければ、これから放送する番組だけを探す。
@@ -36,8 +52,11 @@ export function parseProgramSearch(search: Record<string, unknown>): ProgramSear
 
   return {
     ...(Object.keys(conditions).length > 0 ? { conditions } : {}),
-    ...(typeof archive === 'number' && Number.isFinite(archive)
-      ? { archive: archiveParam(archive) }
+    ...(typeof archive === 'number' &&
+    Number.isInteger(archive) &&
+    archive >= 1 &&
+    archive <= maxArchiveDays
+      ? { archive }
       : {}),
     ...(typeof program === 'string' && program !== '' ? { program } : {}),
   };

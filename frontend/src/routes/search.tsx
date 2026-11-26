@@ -11,7 +11,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useLocation } from '@tanstack/react-router';
 import { History, ListPlus, SearchX } from 'lucide-react';
 import { Suspense, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -166,16 +166,29 @@ function Search() {
   };
   const formKey = JSON.stringify(formSearch);
   const urlKey = JSON.stringify({ conditions: urlSearch.conditions, archive: urlSearch.archive });
-  // ヘッダーの検索 (#1627) や番組の詳細から探し直したときなど、入力の外で URL の条件が変わったら、入力をそれに合わせる。
-  const [syncedKey, setSyncedKey] = useState(urlKey);
-  if (urlKey !== syncedKey) {
-    setSyncedKey(urlKey);
-    if (urlKey !== formKey) {
-      setConditions(formFromSearch(urlSearch.conditions));
-      setIncludeArchive(urlSearch.archive !== undefined);
-      setArchiveDays(urlSearch.archive ?? defaultArchiveDays);
+  // ヘッダーの検索 (#1627) や番組の詳細から探し直したときなど、この画面の外から移ってきたら、入力を URL の条件で始め直す。
+  // 同じ条件で探し直したときも始め直すよう、条件ではなく履歴の項目が変わったかで決める。
+  // この画面が入力から書き換えた項目では、入力を残す。URL を書き換える間に打った語を、書き換える前の条件に戻さない。
+  const entry = useLocation({ select: (location) => location.state.__TSR_key });
+  const ownEntry = useLocation({ select: (location) => location.state.searchSync === true });
+  // 履歴の項目の key と同じ時に変わるよう、条件も location から読む (Route.useSearch は、key より後に変わる)。
+  const entrySearch = useLocation({ select: (location) => location.search });
+  const restart = useEffectEvent(() => {
+    if (!ownEntry) {
+      const next = parseProgramSearch(entrySearch);
+      setConditions(formFromSearch(next.conditions));
+      setIncludeArchive(next.archive !== undefined);
+      setArchiveDays(next.archive ?? defaultArchiveDays);
     }
-  }
+  });
+  const firstEntry = useRef(entry);
+  useEffect(() => {
+    // 開いたときは、入力を URL から作ったので、始め直さない。
+    if (entry !== firstEntry.current) {
+      firstEntry.current = undefined;
+      restart();
+    }
+  }, [entry]);
   const [page, setPage] = useState<Page | null>(null);
   // loading は、読み込み中の操作。新しい検索と、続きの読み込みで、表示を分ける。
   const [loading, setLoading] = useState<'search' | 'more' | null>(null);
@@ -186,7 +199,7 @@ function Search() {
   // 条件の内容が変わったときだけ検索し直す。
   const key = JSON.stringify({
     conditions: toConditionsInput(conditions),
-    archiveDays: includeArchive ? archiveDays : null,
+    archiveDays: includeArchive ? archiveParam(archiveDays) : null,
   });
 
   // load は、variables で検索し、previous の後ろに足す。新しい検索では、previous を空にする。
@@ -234,7 +247,7 @@ function Search() {
         conditions: toConditionsInput(conditions),
         archive: includeArchive
           ? {
-              from: new Date(now - archiveDays * day).toISOString(),
+              from: new Date(now - archiveParam(archiveDays) * day).toISOString(),
               to: new Date(now).toISOString(),
             }
           : null,
@@ -270,6 +283,7 @@ function Search() {
           ...formSearch,
           ...(prev.program === undefined ? {} : { program: prev.program }),
         }),
+        state: { searchSync: true },
       });
     }
   });
@@ -368,7 +382,9 @@ function Search() {
               <ProgramList
                 programs={page.results}
                 // 詳細は、入力の途中でも、いまの条件と一緒に URL に載せる。戻ったときに、詳細を開く前の条件に戻す。
-                onSelect={(program) => void navigate({ search: { ...formSearch, program } })}
+                onSelect={(program) =>
+                  void navigate({ search: { ...formSearch, program }, state: { searchSync: true } })
+                }
                 // マークは、結果を読んだときの条件で付ける。打っている途中の条件では付けない。
                 highlights={nameHighlights(page.variables.conditions.keywords)}
               />
@@ -391,7 +407,12 @@ function Search() {
       </div>
       <ProgramDetail
         programId={urlSearch.program}
-        onClose={() => void navigate({ search: (prev) => ({ ...prev, program: undefined }) })}
+        onClose={() =>
+          void navigate({
+            search: (prev) => ({ ...prev, program: undefined }),
+            state: { searchSync: true },
+          })
+        }
       />
     </div>
   );

@@ -89,8 +89,9 @@ export function parseDate(value: unknown): string | undefined {
 export type ConditionsSearch = Partial<ReturnType<typeof toConditionsInput>>;
 
 // conditionsSearch は、条件の入力を、URL のクエリに載せる形にする。編集の途中の行と、既定の値の項目は載せない。
+// クエリから読み直しても同じになるよう、クエリを読むときと同じ決まりで、形の違う値を破棄し、並びをそろえる。
 export function conditionsSearch(form: ConditionsForm): ConditionsSearch {
-  const input = toConditionsInput(form);
+  const input = toConditionsInput(conditionsFromSearch(toConditionsInput(form)));
   const search: ConditionsSearch = {};
   for (const [key, value] of Object.entries(input) as [keyof ConditionsSearch, unknown][]) {
     if (
@@ -145,6 +146,8 @@ function parseGenres(value: unknown): Genre[] {
     return [];
   }
 
+  const seen = new Set<string>();
+
   return value.flatMap((genre: unknown) => {
     if (typeof genre !== 'object' || genre === null) {
       return [];
@@ -153,8 +156,15 @@ function parseGenres(value: unknown): Genre[] {
     if (!isInteger(lv1, 0, 15)) {
       return [];
     }
+    const parsed = { lv1, lv2: isInteger(lv2, 0, 15) ? lv2 : null };
+    // 同じジャンルは 1 つにまとめる。
+    const key = `${parsed.lv1}:${parsed.lv2}`;
+    if (seen.has(key)) {
+      return [];
+    }
+    seen.add(key);
 
-    return [{ lv1, lv2: isInteger(lv2, 0, 15) ? lv2 : null }];
+    return [parsed];
   });
 }
 
@@ -182,7 +192,10 @@ function parseTimeRanges(value: unknown): TimeRangeRow[] {
   });
 }
 
+// maxInt は、GraphQL の Int の上限。
+const maxInt = 2 ** 31 - 1;
+
 // parseSeconds は、番組の長さ (秒) を読む。
 function parseSeconds(value: unknown): number | null {
-  return isInteger(value, 0, Number.MAX_SAFE_INTEGER) ? value : null;
+  return isInteger(value, 0, maxInt) ? value : null;
 }

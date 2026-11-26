@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'vitest';
 
-import { parseChoices, parseDate, parseKeywordRows, parseStrings } from './urlSearch';
+import { emptyConditions, emptyKeyword } from './form';
+import {
+  conditionsFromSearch,
+  conditionsSearch,
+  parseChoices,
+  parseDate,
+  parseKeywordRows,
+  parseStrings,
+} from './urlSearch';
 
 describe('parseKeywordRows', () => {
   test.each([
@@ -66,5 +74,85 @@ describe('parseDate', () => {
     { name: '文字列でなければ破棄する', value: 20261101, want: undefined },
   ])('$name', ({ value, want }) => {
     expect(parseDate(value)).toBe(want);
+  });
+});
+
+describe('conditionsSearch', () => {
+  test.each([
+    { name: '条件がなければ空', form: emptyConditions(), want: {} },
+    {
+      name: '編集の途中の行と既定の値は載せない',
+      form: {
+        ...emptyConditions(),
+        keywords: [{ ...emptyKeyword(), text: ' ニュース ' }, emptyKeyword()],
+        timeRanges: [{ weekdays: [], startMinute: 0, durationMinutes: 60 }],
+      },
+      want: { keywords: [{ ...emptyKeyword(), text: 'ニュース' }] },
+    },
+    {
+      name: '含めるキーワードがなければ、照合のしかたを載せない',
+      form: { ...emptyConditions(), keywordMatch: 'ANY' as const, freeOnly: true },
+      want: { freeOnly: true },
+    },
+    {
+      name: 'クエリを読むときと同じ決まりで、値をそろえる',
+      form: {
+        ...emptyConditions(),
+        // 選んだ順の項目は、項目の並びにそろえる。
+        keywords: [
+          { ...emptyKeyword(), fields: ['EXTENDED' as const, 'NAME' as const], text: 'a' },
+        ],
+        // 長さが 0 の時間帯は、クエリから読むときに破棄するので、載せない。
+        timeRanges: [{ weekdays: [1], startMinute: 0, durationMinutes: 0 }],
+        genres: [
+          { lv1: 7, lv2: null },
+          { lv1: 7, lv2: null },
+        ],
+      },
+      want: {
+        keywords: [{ ...emptyKeyword(), fields: ['NAME', 'EXTENDED'], text: 'a' }],
+        genres: [{ lv1: 7, lv2: null }],
+      },
+    },
+  ])('$name', ({ form, want }) => {
+    expect(conditionsSearch(form)).toEqual(want);
+  });
+
+  test('クエリから読み直しても同じ', () => {
+    const search = conditionsSearch({
+      ...emptyConditions(),
+      keywords: [{ ...emptyKeyword(), text: 'ニュース' }],
+      keywordMatch: 'ANY',
+      excludeKeywords: [{ ...emptyKeyword(), text: '再放送' }],
+      channelTypes: ['GR'],
+      services: ['U2VydmljZTox'],
+      excludeServices: ['U2VydmljZToy'],
+      genres: [{ lv1: 7, lv2: 0 }],
+      excludeGenres: [{ lv1: 0, lv2: null }],
+      timeRanges: [{ weekdays: [1, 2], startMinute: 1200, durationMinutes: 60 }],
+      minDurationSeconds: 600,
+      maxDurationSeconds: 3600,
+      freeOnly: true,
+      marks: ['新'],
+      excludeMarks: ['再'],
+    });
+
+    expect(conditionsSearch(conditionsFromSearch(search))).toEqual(search);
+  });
+});
+
+describe('conditionsFromSearch', () => {
+  test('形の違う値と範囲の外の値は破棄する', () => {
+    expect(
+      conditionsFromSearch({
+        keywordMatch: 'ANY',
+        channelTypes: 'GR',
+        genres: [{ lv1: 16 }, { lv1: 7, lv2: 99 }],
+        timeRanges: [{ weekdays: [7], startMinute: 0, durationMinutes: 60 }],
+        minDurationSeconds: -1,
+        maxDurationSeconds: 2 ** 31,
+        freeOnly: 'true',
+      }),
+    ).toEqual({ ...emptyConditions(), genres: [{ lv1: 7, lv2: null }] });
   });
 });

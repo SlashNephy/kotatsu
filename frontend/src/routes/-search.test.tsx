@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 
 import { emptyKeyword } from '../conditions/form';
 import { createDemoEnvironment, renderRoute } from '../test/route';
+import { startSearchState } from '../search/searchParams';
 import { Route } from './search';
 
 afterEach(() => {
@@ -95,5 +96,45 @@ describe('SearchPage', () => {
       'value',
       '直近7日',
     );
+  });
+
+  test('同じ条件で探し直したときも、打ちかけの入力を破棄して始め直す (#1627、#2146)', async () => {
+    const { router } = await renderRoute(Route, '/search', '/', createDemoEnvironment());
+    await act(() =>
+      router.navigate({ to: '/search', search: { conditions: keywordConditions('ニュース') } }),
+    );
+    fireEvent.change(await screen.findByDisplayValue('ニュース'), { target: { value: 'ドラマ' } });
+
+    // ヘッダーの検索と同じく、始めた時刻を状態に載せる。移る先の読み込みは待たない。
+    act(() => {
+      void router.navigate({
+        to: '/search',
+        search: { conditions: keywordConditions('ニュース') },
+        state: startSearchState(),
+      });
+    });
+
+    expect(await screen.findByDisplayValue('ニュース')).toBeTruthy();
+    expect(screen.queryByDisplayValue('ドラマ')).toBeNull();
+  });
+
+  test('URL を書き換えた後も、打ちかけの行を残す (#2146)', async () => {
+    const { router } = await renderRoute(Route, '/search', '/search', createDemoEnvironment());
+    fireEvent.change(await screen.findByRole('textbox', { name: '含めるキーワード' }), {
+      target: { value: 'ドラマ ' },
+    });
+    const [addKeyword] = screen.getAllByRole('button', { name: 'キーワードを追加' });
+    fireEvent.click(addKeyword!);
+
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual({ conditions: keywordConditions('ドラマ') }),
+    );
+
+    // 末尾の空白と、足した空の行は、URL には載せないが、入力には残す。
+    expect(
+      screen
+        .getAllByRole<HTMLInputElement>('textbox', { name: '含めるキーワード' })
+        .map((input) => input.value),
+    ).toEqual(['ドラマ ', '']);
   });
 });

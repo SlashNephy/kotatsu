@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { emptyKeyword } from '../conditions/form';
+import { startSearchState } from './searchParams';
 
 // HeaderSearch は、ヘッダーに出す、番組検索の入力欄 (#1627)。
 // 場所を取らないよう虫眼鏡のアイコンにし、押すと入力欄をポップオーバーで出す。Enter で、打った言葉を番組名のキーワードにして
@@ -23,6 +24,7 @@ export function HeaderSearch() {
     // 番組の詳細から同じ名前で探すときと違い、これから放送する番組を探すので、archive は渡さない。過去の放送は、画面で含められる。
     void navigate({
       to: '/search',
+      state: startSearchState(),
       search:
         keyword === '' ? {} : { conditions: { keywords: [{ ...emptyKeyword(), text: keyword }] } },
     });

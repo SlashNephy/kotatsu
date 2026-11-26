@@ -35,7 +35,7 @@ import { useDataChanges } from '../changes/DataChanges';
 import type { ChangeChannel } from '../changes/dataChanges';
 import { conditionsFromProgram } from '../conditions/form';
 import { conditionsSearch } from '../conditions/urlSearch';
-import { defaultArchiveDays } from '../search/searchParams';
+import { defaultArchiveDays, startSearchState } from '../search/searchParams';
 import { ErrorBoundary, LinkifiedText, ProgramTitle, toHalfWidth } from '../futon';
 import { programGenreLabels } from './genreOptions';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
@@ -300,6 +300,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   const searchSameName = () =>
     void navigate({
       to: '/search',
+      state: startSearchState(),
       search: {
         conditions: conditionsSearch({
           ...conditionsFromProgram(program.name, program.service.id),
