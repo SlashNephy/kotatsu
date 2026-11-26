@@ -51,6 +51,9 @@ const (
 	// LiveThumbnailLag は、録画中の録画の代表画像 (#1236) を、書いた終わりからどれだけ前の I フレームから作るか。
 	// 終わりの I フレームは、GOP の続きをまだ書いていないことがあるので、少し前にする。
 	LiveThumbnailLag = 10 * time.Second
+	// StartThumbnailDelay は、録画中の録画の最初の代表画像を、番組の放送予定の始まりからどれだけ後の I フレームから作るか。
+	// 録画は開始マージンの分だけ早く書き始めるので、録画の先頭は前の番組の終わりや CM のことが多い。番組に入ったところから作る。
+	StartThumbnailDelay = 5 * time.Second
 )
 
 var (
@@ -157,8 +160,11 @@ type Options struct {
 	// 録画中の録画の、今の様子を示すのに使う (#1236)。
 	Latest bool
 	// Avoid は、代表画像に選ばない区間 (CM の区間、#1810)。時間は、Segment.Start と同じく最初のセグメントの始まりからで、
-	// 途切れた区間も含めて数える。区間の外に I フレームがなければ、区間を気にせずに選ぶ。Latest では使わない。
+	// 途切れた区間も含めて数える。区間の外に I フレームがなければ、区間を気にせずに選ぶ。Latest と At では使わない。
 	Avoid []Span
+	// At は、代表画像を、この時間に最も近い I フレームから作るかどうか。時間は、Avoid と同じく最初のセグメントの始まりからで、
+	// 途切れた区間も含めて数える。録画中の録画の、番組の始まりの代表画像に使う。nil なら使わない。Latest より優先する。
+	At *time.Duration
 }
 
 // Span は、録画の始まりからの時間の区間 [Start, End)。
@@ -174,7 +180,7 @@ type Generator struct {
 
 // NewGenerator は Generator を返す。opts が nil なら、プレビュー画像も、既定の間隔で作る。
 func NewGenerator(extractor Extractor, opts *Options) *Generator {
-	o := Options{Preview: true, Interval: DefaultInterval, Latest: false, Avoid: nil}
+	o := Options{Preview: true, Interval: DefaultInterval, Latest: false, Avoid: nil, At: nil}
 	if opts != nil {
 		o = *opts
 	}
@@ -221,16 +227,25 @@ func (g *Generator) Generate(ctx context.Context, segments []Segment) (*Result, 
 // Avoid の区間 (CM) にかかる I フレームは選ばず、区間の外で最も近いものにする (#1810)。
 // 取り出せなければ、後ろの I フレームで再試行する。Latest なら、書いた終わりの LiveThumbnailLag 前に最も近い I フレームから作り、
 // 取り出せなければ、前の I フレームで再試行する (後ろは、まだ書き終えていないことがあるため)。
+// At なら、その時間 (途切れた区間も含めて数える) に最も近い I フレームから作り、取り出せなければ後ろの I フレームで再試行する
+// (前は、前の番組の終わりのことがあるため)。
 func (g *Generator) thumbnail(ctx context.Context, segments []Segment, keyframes []keyframe) ([]byte, error) {
 	duration := keyframes[len(keyframes)-1].at
 	target, step := time.Duration(float64(duration)*ThumbnailPosition), 1
 	usable := func(int) bool { return true }
-	if g.opts.Latest {
+	var start int
+	switch {
+	case g.opts.At != nil:
+		start = nearestWall(keyframes, *g.opts.At)
+	case g.opts.Latest:
 		target, step = max(duration-LiveThumbnailLag, 0), -1
-	} else if outside := g.outsideAvoid(keyframes); slices.Contains(outside, true) {
-		usable = func(i int) bool { return outside[i] }
+		start = nearest(keyframes, target, usable)
+	default:
+		if outside := g.outsideAvoid(keyframes); slices.Contains(outside, true) {
+			usable = func(i int) bool { return outside[i] }
+		}
+		start = nearest(keyframes, target, usable)
 	}
-	start := nearest(keyframes, target, usable)
 	errs := []error{}
 	for i, attempt := start, 0; i >= 0 && i < len(keyframes) && attempt < thumbnailAttempts; i += step {
 		if !usable(i) {
@@ -363,6 +378,19 @@ func nearest(keyframes []keyframe, target time.Duration, usable func(int) bool) 
 	best := -1
 	for i := range keyframes {
 		if usable(i) && (best < 0 || (keyframes[i].at-target).Abs() < (keyframes[best].at-target).Abs()) {
+			best = i
+		}
+	}
+
+	return best
+}
+
+// nearestWall は、途切れた区間も含めて数えた時間 (keyframe.wall) が target に最も近い I フレームの添え字を返す。
+// keyframes は空でないものを渡す。
+func nearestWall(keyframes []keyframe, target time.Duration) int {
+	best := 0
+	for i := range keyframes {
+		if (keyframes[i].wall - target).Abs() < (keyframes[best].wall - target).Abs() {
 			best = i
 		}
 	}

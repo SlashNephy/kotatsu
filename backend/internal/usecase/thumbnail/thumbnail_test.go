@@ -324,6 +324,51 @@ func TestGenerateLatest(t *testing.T) {
 	}
 }
 
+// TestGenerateAt は、番組の始まりの代表画像を、指定した時間に最も近い I フレームから作り、取り出せなければ後ろで再試行することを確認する。
+// 時間は、途切れた区間も含めて数える。
+func TestGenerateAt(t *testing.T) {
+	t.Parallel()
+
+	// span は、録画の始まりから start の位置で始まり、1 秒ごとの I フレームを n 個持つセグメント。
+	type span struct {
+		start time.Duration
+		n     int
+	}
+	tests := []struct {
+		name   string
+		spans  []span
+		at     time.Duration
+		broken map[byte]bool
+		// want は、代表画像にした I フレームの通し番号。
+		want int
+	}{
+		// 1 秒ごとの 30 個の I フレーム (0〜29 秒) の、7 秒の I フレームは通し番号 8。
+		{name: "指定した時間から作る", spans: []span{{start: 0, n: 30}}, at: 7 * time.Second, broken: nil, want: 8},
+		{name: "取り出せなければ後ろで再試行する", spans: []span{{start: 0, n: 30}}, at: 7 * time.Second, broken: map[byte]bool{8: true}, want: 9},
+		// 0〜4 秒のセグメントのあと、録画が途切れて 20 秒から次のセグメントが始まる。22 秒は、次のセグメントの 3 つめ (通し番号 8)。
+		{
+			name: "途切れた区間も含めて数える", spans: []span{{start: 0, n: 5}, {start: 20 * time.Second, n: 5}},
+			at: 22 * time.Second, broken: nil, want: 8,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			segments, first := []thumbnail.Segment{}, 0
+			for _, s := range tt.spans {
+				segments = append(segments, segment(t, s.start, s.n, time.Second, first))
+				first += s.n
+			}
+			at := tt.at
+			generator := thumbnail.NewGenerator(&fakeExtractor{broken: tt.broken},
+				&thumbnail.Options{Preview: false, Interval: 0, Latest: true, Avoid: nil, At: &at})
+			result, err := generator.Generate(t.Context(), segments)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, marker(decode(t, result.Thumbnail), thumbnail.ThumbnailWidth/2, thumbnail.ThumbnailHeight/2))
+		})
+	}
+}
+
 // TestGenerateAvoidsCM は、代表画像を、CM の区間 (前後に 1 秒の余白を足したもの) にかからない I フレームのうち、
 // ThumbnailPosition に最も近いものから作ることを確認する (#1810)。
 func TestGenerateAvoidsCM(t *testing.T) {

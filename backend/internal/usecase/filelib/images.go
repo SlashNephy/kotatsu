@@ -134,7 +134,7 @@ func (w *ImagesWorker) Work(ctx context.Context, job *river.Job[ImagesArgs]) err
 	if err != nil {
 		return err
 	}
-	opts := &thumbnail.Options{Preview: preview, Interval: 0, Latest: false, Avoid: nil}
+	opts := &thumbnail.Options{Preview: preview, Interval: 0, Latest: false, Avoid: nil, At: nil}
 	result, err := thumbnail.NewGenerator(extractor, opts).Generate(ctx, segments)
 	if errors.Is(err, thumbnail.ErrNoKeyframe) {
 		return river.JobCancel(err)
