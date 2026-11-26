@@ -1,6 +1,6 @@
 import type { ParsedLocation, RouterHistory } from '@tanstack/react-router';
 
-// HistoryAction は、履歴が知らせる遷移の種類 (PUSH、REPLACE、BACK、FORWARD、GO)。
+// HistoryAction は、履歴が購読者に通知する遷移の種類 (PUSH、REPLACE、BACK、FORWARD、GO)。
 type HistoryAction = Parameters<Parameters<RouterHistory['subscribe']>[0]>[0]['action']['type'];
 
 // ルーターのスクロールの復元を、どの遷移で働かせるか (#2146)。
