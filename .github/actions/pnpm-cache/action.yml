@@ -1,10 +1,19 @@
 name: pnpm cache
-description: pnpm のストアを、frontend/pnpm-lock.yaml ごとに復元し、ジョブの終わりに保存する。
+description: pnpm のストアを、frontend/pnpm-lock.yaml ごとに復元する。main の run だけ、ジョブの終わりに保存する。
 
+# PR とタグは復元だけにし、リポジトリのキャッシュの上限 (10 GB) を main のキャッシュに残す (go-cache と同じ)。
 runs:
   using: composite
   steps:
-    - uses: actions/cache@v6.1.0
+    - if: github.ref == 'refs/heads/main'
+      uses: actions/cache@v6.1.0
+      with:
+        path: ~/.local/share/pnpm/store
+        key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-${{ runner.os }}-
+    - if: github.ref != 'refs/heads/main'
+      uses: actions/cache/restore@v6.1.0
       with:
         path: ~/.local/share/pnpm/store
         key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}

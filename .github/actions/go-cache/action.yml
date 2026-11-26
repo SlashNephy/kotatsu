@@ -1,8 +1,10 @@
 name: Go cache
-description: Go のモジュールとビルドのキャッシュを、backend/go.sum ごとに復元し、ジョブの終わりに保存する。
+description: Go のモジュールとビルドのキャッシュを、backend/go.sum ごとに復元する。main の run だけ、ジョブの終わりに保存する。
 
 # 変わっていないパッケージは、ビルドもテストも、前の結果を使う。
 # backend/go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
+# キーにコミットを入れるので、保存するたびに項目が増える。PR でも保存すると、リポジトリのキャッシュの上限 (10 GB) を超え、
+# main のキャッシュが追い出されて、次の main の run が一から作り直す。保存は main の run だけにし、PR とタグは復元だけにする。
 inputs:
   name:
     description: キャッシュのキーの名前。ジョブ (と matrix) ごとに分ける。
@@ -15,7 +17,19 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/cache@v6.1.0
+    - if: github.ref == 'refs/heads/main'
+      uses: actions/cache@v6.1.0
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+          ${{ inputs.extra-paths }}
+        key: go-${{ inputs.name }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+        restore-keys: |
+          go-${{ inputs.name }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
+          go-${{ inputs.name }}-${{ runner.os }}-
+    - if: github.ref != 'refs/heads/main'
+      uses: actions/cache/restore@v6.1.0
       with:
         path: |
           ~/go/pkg/mod
