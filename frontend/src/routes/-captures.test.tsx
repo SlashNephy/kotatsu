@@ -23,11 +23,11 @@ describe('CapturesPage', () => {
   test('打った語で URL を置き換え、語を消したら URL から外す (#2146)', async () => {
     const { router } = await renderRoute(Route, '/captures', '/captures', createDemoEnvironment());
 
-    act(() => fireEvent.change(searchInput(), { target: { value: 'アニメ' } }));
+    fireEvent.change(searchInput(), { target: { value: 'アニメ' } });
     await act(() => router.load());
     expect(router.state.location.search).toEqual({ q: 'アニメ' });
 
-    act(() => fireEvent.change(searchInput(), { target: { value: ' ' } }));
+    fireEvent.change(searchInput(), { target: { value: ' ' } });
     await act(() => router.load());
     expect(router.state.location.search).toEqual({});
     // 空白を打った途中の値は、入力に残す。

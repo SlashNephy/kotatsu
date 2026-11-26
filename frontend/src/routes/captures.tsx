@@ -22,9 +22,11 @@ import {
   EmptyState,
   ErrorBoundary,
   PageLoader,
+  parseUrlText,
   ProgramTitle,
   toHalfWidth,
   useDocumentTitle,
+  useUrlText,
   zonedFormat,
 } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
@@ -44,11 +46,9 @@ type CapturesSearch = {
 
 export const Route = createFileRoute('/captures')({
   validateSearch: (search: Record<string, unknown>): CapturesSearch => {
-    const raw = search['q'];
-    // 数字だけの語は、ルーターが数として読むので、文字列に戻す。
-    const q = typeof raw === 'string' || typeof raw === 'number' ? String(raw) : undefined;
+    const q = parseUrlText(search['q']);
 
-    return q !== undefined && q.trim() !== '' ? { q } : {};
+    return q === undefined ? {} : { q };
   },
   component: CapturesPage,
 });
@@ -97,23 +97,12 @@ type Capture = capturesListQuery$data['captures']['edges'][number]['node'];
 function CapturesPage() {
   const { t } = useTranslation();
   useDocumentTitle([t('captures.title')]);
-  const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  // keyword は、探す語の入力。打つたびに URL を置き換えるが、空白を打った途中の値も残すよう、入力は手元に持つ。
-  const [keyword, setKeyword] = useState(search.q ?? '');
-  // 上のメニューから開き直すなど、入力の外で URL の語が変わったら、入力をそれに合わせる。
-  const [syncedQuery, setSyncedQuery] = useState(search.q);
-  if (search.q !== syncedQuery) {
-    setSyncedQuery(search.q);
-    if ((search.q ?? '') !== keyword && !(search.q === undefined && keyword.trim() === '')) {
-      setKeyword(search.q ?? '');
-    }
-  }
-  const changeKeyword = (value: string) => {
-    setKeyword(value);
-    // 履歴を積まず、URL を置き換える。語がなければ、URL から外す。
-    void navigate({ replace: true, search: value.trim() === '' ? {} : { q: value } });
-  };
+  // keyword は、探す語の入力。打つたびに、履歴を積まずにクエリを置き換える。
+  const [keyword, changeKeyword] = useUrlText(
+    Route.useSearch({ select: (search) => search.q }),
+    (q) => void navigate({ replace: true, search: q === undefined ? {} : { q } }),
+  );
   // 打っている間は、前の結果を出したまま探す。
   const deferred = useDeferredValue(keyword.trim());
 
