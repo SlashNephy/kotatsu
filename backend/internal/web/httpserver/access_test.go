@@ -90,6 +90,17 @@ func TestAccessPolicy(t *testing.T) {
 			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "https://" + proxiedHost,
 		},
 		{
+			// Traefik は WebSocket の接続を始める要求に、https ではなく wss を付ける。
+			name: "wss from a trusted proxy is https", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: "wss", headerXFH: proxiedHost},
+			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "https://" + proxiedHost,
+		},
+		{
+			name: "ws from a trusted proxy is http", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: "ws", headerXFH: proxiedHost},
+			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "http://" + proxiedHost,
+		},
+		{
 			name: "public client behind a trusted proxy is rejected", remoteAddr: trustedProxy,
 			headers:    map[string]string{headerXFF: publicAddr},
 			wantStatus: http.StatusForbidden, wantBody: publicRejected,
@@ -355,6 +366,11 @@ func TestRequireSameOriginUpgrade(t *testing.T) {
 		{
 			name: "same origin behind a trusted proxy", remoteAddr: trustedProxy,
 			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeHTTPS, headerXFH: proxiedHost, headerOrigin: "https://" + proxiedHost},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "same origin behind a proxy that sends wss", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: "wss", headerXFH: proxiedHost, headerOrigin: "https://" + proxiedHost},
 			wantStatus: http.StatusOK,
 		},
 	}
