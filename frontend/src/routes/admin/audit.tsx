@@ -12,7 +12,7 @@ import {
 } from '@mantine/core';
 import { ScrollText } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
-import { Fragment, useState, type FormEvent } from 'react';
+import { Fragment, useDeferredValue, useState, type FormEvent } from 'react';
 import { useDataChanges } from '../../changes/DataChanges';
 import { EmptyState, parseUrlText } from '../../futon';
 import { useTranslation } from 'react-i18next';
@@ -114,17 +114,20 @@ function AuditLog() {
   // 入力の途中では変えず、絞り込むボタンで、履歴を積まずにクエリを置き換える。
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  // 読み直す間も、いまの一覧を出したままにするよう、一覧には遅らせたクエリを使う。
+  const listSearch = useDeferredValue(search);
   const filter: AuditEventFilter = {
-    actionPrefix: search.action ?? null,
-    actorUserId: search.actor ?? null,
+    actionPrefix: listSearch.action ?? null,
+    actorUserId: listSearch.actor ?? null,
   };
   const filterKey = JSON.stringify(filter);
   const [actionPrefix, setActionPrefix] = useState(search.action ?? '');
   const [actor, setActor] = useState<string | null>(search.actor ?? null);
   // 上のメニューから開き直すなど、入力の外でクエリが変わったら、入力をそれに合わせる。
-  const [syncedKey, setSyncedKey] = useState(filterKey);
-  if (filterKey !== syncedKey) {
-    setSyncedKey(filterKey);
+  const searchKey = JSON.stringify([search.action, search.actor]);
+  const [syncedKey, setSyncedKey] = useState(searchKey);
+  if (searchKey !== syncedKey) {
+    setSyncedKey(searchKey);
     setActionPrefix(search.action ?? '');
     setActor(search.actor ?? null);
   }

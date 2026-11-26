@@ -4,8 +4,15 @@ import { useState } from 'react';
 
 // parseUrlText は、クエリの探す語を読む。空白だけの語は、探さないので破棄する。
 export function parseUrlText(value: unknown): string | undefined {
-  // 数字だけの語は、ルーターが数として読むので、文字列に戻す。
-  const text = typeof value === 'string' || typeof value === 'number' ? String(value) : undefined;
+  // ルーターはクエリの値を JSON として読むので、数字だけの語は数に、true、false、null の語は真偽値と null になる。
+  // それらも、打った語として文字列に戻す。
+  const text =
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    value === null
+      ? String(value)
+      : undefined;
 
   return text !== undefined && text.trim() !== '' ? text : undefined;
 }

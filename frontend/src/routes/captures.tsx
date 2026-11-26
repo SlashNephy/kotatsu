@@ -40,7 +40,7 @@ import type {
 import type { capturesDeleteMutation } from './__generated__/capturesDeleteMutation.graphql';
 
 type CapturesSearch = {
-  // q は、番組名とサービス名から探す語。戻ったときや開き直したときに保つよう、URL に持つ (#2146)。
+  // q は、番組名、サービス名、撮ったときの字幕の文から探す語。戻ったときや開き直したときに保つよう、URL に持つ (#2146)。
   q?: string;
 };
 
@@ -93,7 +93,7 @@ const query = graphql`
 type Capture = capturesListQuery$data['captures']['edges'][number]['node'];
 
 // CapturesPage は、サーバーに残したキャプチャの一覧 (#457、#908、設計書 7.5)。撮ったユーザーのものだけを出す。
-// 番組名とサービス名で探し、保存、コピー、削除と、録画で撮ったものは撮った場面からの再生ができる。
+// 番組名、サービス名、字幕で探し、保存、コピー、削除と、録画で撮ったものは撮った場面からの再生ができる。
 function CapturesPage() {
   const { t } = useTranslation();
   useDocumentTitle([t('captures.title')]);
