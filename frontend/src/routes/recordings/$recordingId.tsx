@@ -27,7 +27,7 @@ import {
   autoCaptionsActive,
   captionModelsAnchor,
 } from '../../recordings/AutoCaptions';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Captions,
   Download,
@@ -130,10 +130,15 @@ const percentFormat = new Intl.NumberFormat(undefined, {
 function RecordingPage() {
   const { t } = useTranslation();
   const { recordingId } = Route.useParams();
+  // 一覧から開いたときは、同じ絞り込みの一覧に戻る (#2146)。
+  const listSearch = useLocation({ select: (location) => location.state.recordingsSearch });
 
   return (
     <Stack gap="sm">
-      <Anchor component={Link} to="/recordings" size="sm">
+      <Anchor
+        size="sm"
+        renderRoot={(props) => <Link {...props} to="/recordings" search={listSearch ?? {}} />}
+      >
         {t('recordings.back')}
       </Anchor>
       {/* 履歴を飛ばして別の録画へ移ったときは、前の録画のエラーを残さず読み直す (#1422)。 */}
@@ -170,6 +175,7 @@ const recordingChannels: readonly ChangeChannel[] = ['RECORDINGS', 'RESERVATIONS
 function Recording({ recordingId }: { recordingId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const listSearch = useLocation({ select: (location) => location.state.recordingsSearch });
   // 録画を終えた、サムネイルができた、ほかの端末で保護やタグを変えたなど、録画が変わったら読み直す (#868)。
   const changes = useDataChanges(recordingChannels);
   // CM の区間を見分けるのを待っている間と、見分けている間は、進み具合と、終わったか失敗したかを追うため、読み直し続ける (#1571)。
@@ -565,7 +571,13 @@ function Recording({ recordingId }: { recordingId: string }) {
             <Button
               leftSection={<Play size={16} fill="currentColor" aria-hidden />}
               renderRoot={(props) => (
-                <Link {...props} to="/recordings/$recordingId/play" params={{ recordingId }} />
+                <Link
+                  {...props}
+                  to="/recordings/$recordingId/play"
+                  params={{ recordingId }}
+                  // 再生から詳細に戻っても、開いた一覧に戻れるよう、一覧のクエリを引き継ぐ (#2146)。
+                  state={listSearch === undefined ? undefined : { recordingsSearch: listSearch }}
+                />
               )}
             >
               {t('recordings.play')}
@@ -997,7 +1009,7 @@ function Recording({ recordingId }: { recordingId: string }) {
 
                         return;
                       }
-                      void navigate({ to: '/recordings' });
+                      void navigate({ to: '/recordings', search: listSearch ?? {} });
                     },
                     onError: () => {
                       setDeleting(false);

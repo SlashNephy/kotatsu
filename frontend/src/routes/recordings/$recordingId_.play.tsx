@@ -1,6 +1,7 @@
 import type { PlayerState } from '@mpeg2toh264/player';
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useListState } from '../../recordings/listSearch';
 import { Captions, Keyboard, MessageSquareText, Share2 } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useMergedRef } from '@mantine/hooks';
@@ -183,6 +184,8 @@ function PlayWatch({ recordingId, start }: { recordingId: string; start: number 
   const { t } = useTranslation();
   // 小さなプレイヤー (#1602) では、戻るリンクを出さず、映像だけにする。
   const mini = useWatchMini();
+  // 詳細に戻ったときに、開いた一覧に戻れるよう、一覧のクエリを引き継ぐ (#2146)。
+  const listState = useListState();
 
   return (
     <Stack gap="sm">
@@ -190,7 +193,12 @@ function PlayWatch({ recordingId, start }: { recordingId: string; start: number 
         <Anchor
           size="sm"
           renderRoot={(props) => (
-            <Link {...props} to="/recordings/$recordingId" params={{ recordingId }} />
+            <Link
+              {...props}
+              to="/recordings/$recordingId"
+              params={{ recordingId }}
+              state={listState}
+            />
           )}
         >
           {t('player.backToRecording')}
@@ -337,6 +345,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   useWatchMedia(media);
   const videoState = useVideoState(media);
   const navigate = useNavigate();
+  const listState = useListState();
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
   const autoplay = useAutoplayBlocked(media);
   const videoLoading = useVideoLoading(media);
@@ -971,7 +980,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       }
     },
     selectAudio: audio.remote.select,
-    stop: () => void navigate({ to: '/recordings/$recordingId', params: { recordingId } }),
+    stop: () =>
+      void navigate({ to: '/recordings/$recordingId', params: { recordingId }, state: listState }),
     ...(pip.supported
       ? {
           pictureInPicture: () => {

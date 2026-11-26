@@ -10,6 +10,7 @@ import { RecordingThumbnail } from './RecordingThumbnail';
 import { framePosition, type FramePosition } from './previewFrame';
 import { usePreviewSlideshow } from './usePreviewSlideshow';
 import { watchProgress } from './watchProgress';
+import type { RecordingListSearch } from './listSearch';
 import { RecordingStateBadge } from './RecordingStateBadge';
 import { ScrambleBadge } from './ScrambleBadge';
 import { recordingPosition, type Gap } from '../yunomi/position';
@@ -79,12 +80,15 @@ const timeFormat = zonedFormat({
 // RecordingCard は、サムネイル付きの録画のカード。押すと、録画の詳細を開く。ホームと録画の一覧で使う。
 // 行の間は、放送中の番組のカードと揃える (番組名と放送時間は 4px、サービスとの間は xs)。
 // highlights は、番組名にマークを付けるキーワード (#966)。録画の検索で絞ったときに渡す。
+// listSearch は、録画の一覧のクエリ。一覧から開いたときに渡し、詳細の「戻る」で同じ一覧に戻す (#2146)。
 export function RecordingCard({
   recording,
   highlights = [],
+  listSearch,
 }: {
   recording: RecordingCardData;
   highlights?: readonly HighlightKeyword[];
+  listSearch?: RecordingListSearch;
 }) {
   const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
@@ -122,7 +126,12 @@ export function RecordingCard({
       withBorder
       padding={0}
       renderRoot={(props) => (
-        <Link {...props} to="/recordings/$recordingId" params={{ recordingId: recording.id }} />
+        <Link
+          {...props}
+          to="/recordings/$recordingId"
+          params={{ recordingId: recording.id }}
+          state={listSearch === undefined ? undefined : { recordingsSearch: listSearch }}
+        />
       )}
     >
       <Box

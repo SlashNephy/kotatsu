@@ -353,7 +353,12 @@ function Rules() {
           <Anchor
             fw={700}
             renderRoot={(props) => (
-              <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />
+              <Link
+                {...props}
+                to="/rules/$ruleId"
+                params={{ ruleId: rule.id }}
+                state={{ rulesSearch: search }}
+              />
             )}
           >
             {rule.name}
@@ -435,7 +440,12 @@ function Rules() {
           <Button
             leftSection={<Plus size={16} aria-hidden />}
             renderRoot={(props) => (
-              <Link {...props} to="/rules/$ruleId" params={{ ruleId: 'new' }} />
+              <Link
+                {...props}
+                to="/rules/$ruleId"
+                params={{ ruleId: 'new' }}
+                state={{ rulesSearch: search }}
+              />
             )}
           >
             {t('rules.create')}

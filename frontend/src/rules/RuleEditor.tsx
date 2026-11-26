@@ -18,7 +18,7 @@ import {
 } from '@mantine/core';
 import { useTimeZoneLabel } from '../futon/timeZone';
 import { Save, Trash2 } from 'lucide-react';
-import { useNavigate } from '@tanstack/react-router';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useState, type ComponentProps, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useMutation } from 'react-relay';
@@ -184,6 +184,7 @@ export function RuleEditor({
   // zoneLabel は、有効期間を入れるタイムゾーンの呼び方。
   const zoneLabel = useTimeZoneLabel();
   const navigate = useNavigate();
+  const listSearch = useLocation({ select: (location) => location.state.rulesSearch });
   const { form, outdated, set: setFields, reload } = useSyncedForm(initial, sameRule);
   const [result, setResult] = useState<'saved' | 'error' | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -247,7 +248,12 @@ export function RuleEditor({
 
             return;
           }
-          void navigate({ to: '/rules/$ruleId', params: { ruleId: response.createRule.id } });
+          // 作ったルールの編集から戻っても、開いた一覧に戻れるよう、一覧のクエリを引き継ぐ (#2146)。
+          void navigate({
+            to: '/rules/$ruleId',
+            params: { ruleId: response.createRule.id },
+            state: listSearch === undefined ? undefined : { rulesSearch: listSearch },
+          });
         },
         onError,
       });
@@ -651,7 +657,7 @@ export function RuleEditor({
 
                         return;
                       }
-                      void navigate({ to: '/rules' });
+                      void navigate({ to: '/rules', search: listSearch ?? {} });
                     },
                     onError: () => {
                       setDeleting(false);
