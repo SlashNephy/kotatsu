@@ -42,7 +42,14 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
-import { EmptyState, ErrorBoundary, PageLoader, toHalfWidth, useDocumentTitle } from '../../futon';
+import {
+  EmptyState,
+  ErrorBoundary,
+  PageLoader,
+  toHalfWidth,
+  useDocumentTitle,
+  useEntryState,
+} from '../../futon';
 import { genreKey } from '../../guide/genres';
 import {
   formFromSearch,
@@ -534,11 +541,12 @@ function RecordingGrid({
   // more は、続きの読み込みで足した録画と、その次のカーソル。changes は、読み込んだときの録画の変更の回数。
   // 録画が変わって最初のページを読み直したら、続きは破棄して、最初のページから出し直す。
   // 続きを残すと、録画が増えて最初のページからこぼれた録画が、どちらにも出なくなる (#868)。
-  const [loaded, setMore] = useState<{
+  // ほかの画面から戻ったときも同じ所まで出すよう、履歴の項目に残す (#2146)。
+  const [loaded, setMore] = useEntryState<{
     changes: number;
     recordings: Recording[];
     next: string | null;
-  } | null>(null);
+  } | null>('more', null);
   const more = loaded?.changes === changes ? loaded : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);

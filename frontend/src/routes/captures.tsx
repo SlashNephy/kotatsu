@@ -26,6 +26,7 @@ import {
   ProgramTitle,
   toHalfWidth,
   useDocumentTitle,
+  useEntryState,
   useUrlText,
   zonedFormat,
 } from '../futon';
@@ -145,20 +146,22 @@ function CaptureList({ keyword }: { keyword: string }) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   // deletions は、消した回数。消したら、最初のページから読み直す。
-  const [deletions, setDeletions] = useState(0);
+  const [deletions, setDeletions] = useEntryState('deletions', 0);
   const variables = { first: pageSize, after: null, keyword: keyword === '' ? null : keyword };
   const data = useLazyLoadQuery<capturesListQuery>(query, variables, {
     fetchKey: deletions,
     fetchPolicy: 'store-and-network',
   });
-  // more は、続きの読み込みで足したキャプチャと、その次のカーソル。key は、読み込んだときの探す言葉と消した回数。
-  // 探す言葉を変えるか消して、最初のページを読み直したら、続きは破棄する。
-  const key = `${deletions}:${keyword}`;
-  const [loaded, setMore] = useState<{
+  // more は、続きの読み込みで足したキャプチャと、その次のカーソル。key は、読み込んだときの探す言葉と消した回数と、
+  // 最初のページの終わりのカーソル。探す言葉を変えるか消して、最初のページを読み直したら、続きは破棄する。
+  // ほかの画面から戻ったときも同じ所まで出すよう、履歴の項目に残す。その間にキャプチャが増えて最初のページが
+  // 変わったら、最初のページからこぼれたキャプチャがどちらにも出なくなるので、続きは破棄する (#2146)。
+  const key = `${deletions}:${keyword}:${data.captures.pageInfo.endCursor ?? ''}`;
+  const [loaded, setMore] = useEntryState<{
     key: string;
     captures: Capture[];
     next: string | null;
-  } | null>(null);
+  } | null>('more', null);
   const more = loaded?.key === key ? loaded : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);

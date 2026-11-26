@@ -20,6 +20,7 @@ export { splitProgramMarks, type ProgramMarks } from './programMarks';
 export { ProgramMarkBadges, ProgramTitle } from './ProgramMarks';
 export { highlightRanges, type HighlightKeyword, type HighlightRange } from './highlight';
 export { useDocumentTitle } from './useDocumentTitle';
+export { useEntryState } from './useEntryState';
 export { parseUrlText, useUrlText } from './useUrlText';
 export { nextWakeAt, useNow, useWakeAt } from './useWakeAt';
 export { useThemeColor } from './useThemeColor';

@@ -35,7 +35,13 @@ if (import.meta.env.DEV) {
 setNonce(cspNonce());
 
 // basepath は、Vite の base に合わせる。tenban は / に置き、静的なデモはサブパスに置く (#832)。
-const router = createRouter({ routeTree, basepath: import.meta.env.BASE_URL });
+// scrollRestoration は、ブラウザで戻ったときに、ページと、data-scroll-restoration-id を付けた要素のスクロールの位置を戻す。
+// 新しく移ったときは、先頭から出す (#2146)。
+const router = createRouter({
+  routeTree,
+  basepath: import.meta.env.BASE_URL,
+  scrollRestoration: true,
+});
 // 静的なデモ (#832) では、tenban の代わりに、ブラウザの中で応答を返す。
 // 条件は import.meta.env.MODE を直に書く。通常のビルドでは定数の比較として消え、デモのコードを含まない。
 const environment =

@@ -14,7 +14,7 @@ import { ScrollText } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { Fragment, useDeferredValue, useState, type FormEvent } from 'react';
 import { useDataChanges } from '../../changes/DataChanges';
-import { EmptyState, parseUrlText } from '../../futon';
+import { EmptyState, parseUrlText, useEntryState } from '../../futon';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -140,12 +140,13 @@ function AuditLog() {
   );
   // more は、続きの読み込みで足した記録と、その次のカーソル。絞り込みを変えたら破棄する。
   // 記録が増えて最初のページを読み直したときも破棄する。残すと、最初のページからこぼれた記録が、どちらにも出なくなる。
-  const [more, setMore] = useState<{
+  // ほかの画面から戻ったときも同じ所まで出すよう、履歴の項目に残す (#2146)。
+  const [more, setMore] = useEntryState<{
     filter: string;
     changes: number;
     nodes: AuditEvent[];
     next: string | null;
-  } | null>(null);
+  } | null>('more', null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState(false);
   const extra = more?.filter === filterKey && more.changes === adminChanges ? more : null;

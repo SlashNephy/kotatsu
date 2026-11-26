@@ -34,7 +34,7 @@ import {
   type ProgramSearchSearch,
 } from '../search/searchParams';
 import { ProgramList } from '../conditions/ProgramList';
-import { EmptyState, ErrorBoundary, PageLoader, useDocumentTitle } from '../futon';
+import { EmptyState, ErrorBoundary, PageLoader, useDocumentTitle, useEntryState } from '../futon';
 import { ProgramDetail } from '../guide/ProgramDetail';
 import { isUnauthenticated } from '../relay/environment';
 import type {
@@ -87,6 +87,8 @@ type Result = searchProgramsQuery$data['searchPrograms']['edges'][number]['node'
 
 // Page は、表示している検索の結果。続きは、同じ条件と、その条件で得たカーソルで読む。
 type Page = {
+  // key は、検索した条件と過去の放送の日数。
+  key: string;
   variables: searchProgramsQuery['variables'];
   results: Result[];
   // next は、続きのカーソル。続きがなければ null。
@@ -189,7 +191,8 @@ function Search() {
       restart();
     }
   }, [entry]);
-  const [page, setPage] = useState<Page | null>(null);
+  // page は、ほかの画面から戻ったときも、読んだ続きまで同じ結果を出すよう、履歴の項目に残す (#2146)。
+  const [page, setPage] = useEntryState<Page | null>('page', null);
   // loading は、読み込み中の操作。新しい検索と、続きの読み込みで、表示を分ける。
   const [loading, setLoading] = useState<'search' | 'more' | null>(null);
   const [error, setError] = useState(false);
@@ -201,10 +204,14 @@ function Search() {
     conditions: toConditionsInput(conditions),
     archiveDays: includeArchive ? archiveParam(archiveDays) : null,
   });
+  // restored は、開いたときに、履歴の項目に残した結果が今の条件のものかどうか。そうなら、最初の検索を飛ばし、
+  // 残した結果とスクロールの位置をそのまま出す。
+  const restored = useRef(page !== null && page.key === key);
 
   // load は、variables で検索し、previous の後ろに足す。新しい検索では、previous を空にする。
   // 失敗したときは、表示している結果とカーソルの組を変えないので、続きを別の条件で読むことはない。
   const load = async (
+    pageKey: string,
     variables: searchProgramsQuery['variables'],
     previous: Result[],
     kind: 'search' | 'more',
@@ -224,6 +231,7 @@ function Search() {
         throw new Error('no data');
       }
       setPage({
+        key: pageKey,
         variables,
         results: [...previous, ...result.edges.map((edge) => edge.node)],
         next: result.pageInfo.hasNextPage ? (result.pageInfo.endCursor ?? null) : null,
@@ -241,8 +249,14 @@ function Search() {
 
   // search は、いまの条件で、新しく検索する。過去の放送の期間は、検索するときの時刻から決める。
   const search = useEffectEvent(() => {
+    if (restored.current) {
+      restored.current = false;
+
+      return;
+    }
     const now = Date.now();
     void load(
+      key,
       {
         conditions: toConditionsInput(conditions),
         archive: includeArchive
@@ -364,7 +378,12 @@ function Search() {
               </Button>
             )}
           </Group>
-          <Stack gap="xs" className={classes.resultsBody}>
+          {/* 広い画面では、結果をこの中でスクロールするので、戻ったときに、この中の位置も戻す (#2146)。 */}
+          <Stack
+            gap="xs"
+            className={classes.resultsBody}
+            data-scroll-restoration-id="search-results"
+          >
             {!enabled && (
               <Text size="sm" c="dimmed">
                 {t('search.noConditions')}
@@ -396,7 +415,7 @@ function Search() {
                 // 新しい検索の最中は、前の検索の続きを読まない。
                 disabled={loading === 'search'}
                 onClick={() =>
-                  void load({ ...page.variables, after: page.next }, page.results, 'more')
+                  void load(page.key, { ...page.variables, after: page.next }, page.results, 'more')
                 }
               >
                 {t('search.more')}
