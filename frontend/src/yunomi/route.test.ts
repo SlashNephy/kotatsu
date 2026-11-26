@@ -336,6 +336,11 @@ describe('liveStreamEndpoint', () => {
       want: '/internal/streams/services/3273601024?session=1',
     },
     {
+      name: '問い合わせのないライブ視聴の TS も読む',
+      url: '/internal/streams/services/3273601024',
+      want: '/internal/streams/services/3273601024',
+    },
+    {
       name: 'ほかのホストは読まない',
       url: 'https://evil.example/internal/streams/services/1',
       want: null,
@@ -360,6 +365,11 @@ describe('liveStreamEndpoint', () => {
       name: 'デモの映像は、問い合わせを付けたまま読む',
       url: '/demo/stream.m2ts?session=1',
       want: '/demo/stream.m2ts?session=1',
+    },
+    {
+      name: '問い合わせのないデモの映像も読む',
+      url: '/demo/stream.m2ts',
+      want: '/demo/stream.m2ts',
     },
     {
       name: 'ライブ視聴の TS も読む',
