@@ -269,6 +269,9 @@ ARG TARGETARCH
 ARG RUNTIME_PACKAGES
 ARG RUNTIME_PACKAGES_AMD64
 # ベースイメージは、Debian のセキュリティの更新 (trixie-security) をすぐには取り込まないので、入っているパッケージも上げる。
+# ビルドのキャッシュがこの層を使い回すと、ベースイメージが変わるまで上げ直さない。
+# そこで CI (image.yml) はその日の日付を渡して、1 日に 1 回は上げ直す。
+ARG APT_UPGRADE_DATE=""
 RUN <<EOF
   packages="$RUNTIME_PACKAGES"
   if [ "$TARGETARCH" = amd64 ]; then

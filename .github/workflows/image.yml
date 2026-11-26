@@ -56,6 +56,11 @@ jobs:
           META_VERSION: ${{ steps.meta.outputs.version }}
           SUFFIX: ${{ matrix.suffix }}
         run: echo "version=${META_VERSION%"$SUFFIX"}" >> "$GITHUB_OUTPUT"
+      # Debian のパッケージを上げる層 (Dockerfile の runtime) を、1 日に 1 回は作り直すための日付。
+      # キャッシュから使い回すと、ベースイメージが変わるまでセキュリティの更新を取り込まない。
+      # 起動を確認するイメージと公開するイメージで同じ値を使うよう、ここで 1 回だけ決める。
+      - id: apt-upgrade
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
       # 公開する前に、amd64 のイメージを読み取り専用のルートファイルシステムで起動できるかを確認する。
       # このイメージを、後で Trivy でも検査する。アーキテクチャで入るパッケージは変わらないので、amd64 だけを見る。
       - uses: docker/build-push-action@v7.4.0
@@ -67,6 +72,7 @@ jobs:
           tags: kotatsu:smoke
           build-args: |
             VERSION=${{ steps.version.outputs.version }}+${{ github.sha }}
+            APT_UPGRADE_DATE=${{ steps.apt-upgrade.outputs.date }}
           # キャッシュは読むだけにする。amd64 だけのこのビルドが書くと、同じ scope の arm64 の層が消え、
           # 後の amd64 と arm64 のビルドで、QEMU で動く arm64 の層を毎回作り直すことになる。
           cache-from: type=gha,scope=${{ matrix.target }}
@@ -111,6 +117,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
             VERSION=${{ steps.version.outputs.version }}+${{ github.sha }}
+            APT_UPGRADE_DATE=${{ steps.apt-upgrade.outputs.date }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,scope=${{ matrix.target }},mode=max
