@@ -37,7 +37,19 @@ import type {
 } from './__generated__/capturesListQuery.graphql';
 import type { capturesDeleteMutation } from './__generated__/capturesDeleteMutation.graphql';
 
+type CapturesSearch = {
+  // q は、番組名とサービス名から探す語。戻ったときや開き直したときに保つよう、URL に持つ (#2146)。
+  q?: string;
+};
+
 export const Route = createFileRoute('/captures')({
+  validateSearch: (search: Record<string, unknown>): CapturesSearch => {
+    const raw = search['q'];
+    // 数字だけの語は、ルーターが数として読むので、文字列に戻す。
+    const q = typeof raw === 'string' || typeof raw === 'number' ? String(raw) : undefined;
+
+    return q !== undefined && q.trim() !== '' ? { q } : {};
+  },
   component: CapturesPage,
 });
 
@@ -85,7 +97,23 @@ type Capture = capturesListQuery$data['captures']['edges'][number]['node'];
 function CapturesPage() {
   const { t } = useTranslation();
   useDocumentTitle([t('captures.title')]);
-  const [keyword, setKeyword] = useState('');
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  // keyword は、探す語の入力。打つたびに URL を置き換えるが、空白を打った途中の値も残すよう、入力は手元に持つ。
+  const [keyword, setKeyword] = useState(search.q ?? '');
+  // 上のメニューから開き直すなど、入力の外で URL の語が変わったら、入力をそれに合わせる。
+  const [syncedQuery, setSyncedQuery] = useState(search.q);
+  if (search.q !== syncedQuery) {
+    setSyncedQuery(search.q);
+    if ((search.q ?? '') !== keyword && !(search.q === undefined && keyword.trim() === '')) {
+      setKeyword(search.q ?? '');
+    }
+  }
+  const changeKeyword = (value: string) => {
+    setKeyword(value);
+    // 履歴を積まず、URL を置き換える。語がなければ、URL から外す。
+    void navigate({ replace: true, search: value.trim() === '' ? {} : { q: value } });
+  };
   // 打っている間は、前の結果を出したまま探す。
   const deferred = useDeferredValue(keyword.trim());
 
@@ -100,7 +128,7 @@ function CapturesPage() {
         aria-label={t('captures.search')}
         placeholder={t('captures.search')}
         value={keyword}
-        onChange={(event) => setKeyword(event.currentTarget.value)}
+        onChange={(event) => changeKeyword(event.currentTarget.value)}
         maw={400}
       />
       <ErrorBoundary
