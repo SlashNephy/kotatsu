@@ -26,10 +26,12 @@ describe('HeaderSearch (#1627)', () => {
     const router = await search('  ニュース  ');
 
     expect(router.state.location.pathname).toBe('/search');
-    expect(router.state.location.state.searchArchive).toBe(false);
-    expect(router.state.location.state.searchConditions?.keywords).toEqual([
-      { text: 'ニュース', regexp: false, caseSensitive: false, fields: ['NAME'] },
-    ]);
+    // 過去の放送の日数 (archive) を渡さないので、過去の放送を含めずに探す。
+    expect(router.state.location.search).toEqual({
+      conditions: {
+        keywords: [{ text: 'ニュース', regexp: false, caseSensitive: false, fields: ['NAME'] }],
+      },
+    });
     // 移ったら、入力欄を閉じる。
     expect(screen.queryByRole('textbox', { name: '番組名で探す' })).toBeNull();
   });
@@ -38,7 +40,6 @@ describe('HeaderSearch (#1627)', () => {
     const router = await search(' ');
 
     expect(router.state.location.pathname).toBe('/search');
-    expect(router.state.location.state.searchConditions).toBeUndefined();
-    expect(router.state.location.state.searchArchive).toBeUndefined();
+    expect(router.state.location.search).toEqual({});
   });
 });

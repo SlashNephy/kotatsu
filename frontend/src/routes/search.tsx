@@ -11,7 +11,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { createFileRoute, Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { History, ListPlus, SearchX } from 'lucide-react';
 import { Suspense, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,13 +20,19 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { ConditionsFields } from '../conditions/ConditionsFields';
 import {
-  emptyConditions,
-  emptyKeyword,
   hasConditions,
   toConditionsInput,
   type ConditionsForm,
   nameHighlights,
 } from '../conditions/form';
+import { conditionsSearch } from '../conditions/urlSearch';
+import {
+  archiveParam,
+  defaultArchiveDays,
+  formFromSearch,
+  parseProgramSearch,
+  type ProgramSearchSearch,
+} from '../search/searchParams';
 import { ProgramList } from '../conditions/ProgramList';
 import { EmptyState, ErrorBoundary, PageLoader, useDocumentTitle } from '../futon';
 import { ProgramDetail } from '../guide/ProgramDetail';
@@ -38,18 +44,8 @@ import type {
 import type { searchViewerQuery } from './__generated__/searchViewerQuery.graphql';
 import classes from './search.module.css';
 
-declare module '@tanstack/react-router' {
-  interface HistoryState {
-    // searchConditions は、番組検索の条件の初期値。過去の番組の詳細から、同じ番組名で探すときに渡す (#1121)。
-    // 渡したときは、過去の放送も含めて探す。
-    searchConditions?: ConditionsForm;
-    // searchArchive は、過去の放送も含めて探すかどうか。渡さなければ、searchConditions を渡したときだけ含める。
-    // ヘッダーの検索 (#1627) は、これから放送する番組を探すので、含めない。
-    searchArchive?: boolean;
-  }
-}
-
 export const Route = createFileRoute('/search')({
+  validateSearch: parseProgramSearch,
   component: SearchPage,
 });
 
@@ -101,8 +97,6 @@ type Page = {
 // 条件の入力欄は、ルールの画面と同じものを使い、左に条件、右に結果を並べる。
 function SearchPage() {
   const { t } = useTranslation();
-  // entry は、履歴の項目ごとの key。条件は、画面を作るときにだけ履歴の状態から読むので、新しく開くたびに作り直す。
-  const entry = useLocation({ select: (location) => location.state.__TSR_key });
   useDocumentTitle([t('search.title')]);
 
   return (
@@ -122,8 +116,7 @@ function SearchPage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          {/* 番組検索の画面を開いたまま、ヘッダーの検索から探し直したら (#1627)、渡された条件で始め直す。 */}
-          <Search key={entry} />
+          <Search />
         </Suspense>
       </ErrorBoundary>
     </Stack>
@@ -133,7 +126,8 @@ function SearchPage() {
 function Search() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
-  const navigate = useNavigate();
+  const navigate = Route.useNavigate();
+  const urlSearch = Route.useSearch();
   const viewer = useLazyLoadQuery<searchViewerQuery>(
     graphql`
       query searchViewerQuery {
@@ -158,23 +152,36 @@ function Search() {
     `,
     {},
   );
-  // 番組の詳細から渡された条件があれば、それで始める。なければ、キーワードの行を 1 つ開けておき、すぐに打ち始められるようにする。
-  const initialConditions = useLocation({ select: (location) => location.state.searchConditions });
-  const [conditions, setConditions] = useState<ConditionsForm>(
-    () => initialConditions ?? { ...emptyConditions(), keywords: [emptyKeyword()] },
+  // 条件は、URL のクエリから始める。打っている途中の行も残すよう、入力は手元に持ち、入力が止まったら URL を置き換える。
+  const [conditions, setConditions] = useState<ConditionsForm>(() =>
+    formFromSearch(urlSearch.conditions),
   );
-  const initialArchive = useLocation({ select: (location) => location.state.searchArchive });
-  const [includeArchive, setIncludeArchive] = useState(
-    initialArchive ?? initialConditions !== undefined,
-  );
-  const [archiveDays, setArchiveDays] = useState(30);
+  const [includeArchive, setIncludeArchive] = useState(urlSearch.archive !== undefined);
+  const [archiveDays, setArchiveDays] = useState(urlSearch.archive ?? defaultArchiveDays);
+  // formSearch は、いまの入力を、URL のクエリに載せる形にしたもの。
+  const formConditions = conditionsSearch(conditions);
+  const formSearch: ProgramSearchSearch = {
+    ...(Object.keys(formConditions).length > 0 ? { conditions: formConditions } : {}),
+    ...(includeArchive ? { archive: archiveParam(archiveDays) } : {}),
+  };
+  const formKey = JSON.stringify(formSearch);
+  const urlKey = JSON.stringify({ conditions: urlSearch.conditions, archive: urlSearch.archive });
+  // ヘッダーの検索 (#1627) や番組の詳細から探し直したときなど、入力の外で URL の条件が変わったら、入力をそれに合わせる。
+  const [syncedKey, setSyncedKey] = useState(urlKey);
+  if (urlKey !== syncedKey) {
+    setSyncedKey(urlKey);
+    if (urlKey !== formKey) {
+      setConditions(formFromSearch(urlSearch.conditions));
+      setIncludeArchive(urlSearch.archive !== undefined);
+      setArchiveDays(urlSearch.archive ?? defaultArchiveDays);
+    }
+  }
   const [page, setPage] = useState<Page | null>(null);
   // loading は、読み込み中の操作。新しい検索と、続きの読み込みで、表示を分ける。
   const [loading, setLoading] = useState<'search' | 'more' | null>(null);
   const [error, setError] = useState(false);
   // request は、最後に始めた読み込みの番号。古い読み込みの応答は破棄する。
   const request = useRef(0);
-  const [selected, setSelected] = useState<string | undefined>(undefined);
   const enabled = hasConditions(conditions);
   // 条件の内容が変わったときだけ検索し直す。
   const key = JSON.stringify({
@@ -254,6 +261,25 @@ function Search() {
     return () => clearTimeout(timer);
   }, [key, enabled]);
 
+  // syncUrl は、いまの入力で URL のクエリを置き換える。履歴は積まない。開いている番組の詳細は残す。
+  const syncUrl = useEffectEvent(() => {
+    if (formKey !== urlKey) {
+      void navigate({
+        replace: true,
+        search: (prev) => ({
+          ...formSearch,
+          ...(prev.program === undefined ? {} : { program: prev.program }),
+        }),
+      });
+    }
+  });
+  // 打つたびに URL を置き換えないよう、入力が止まるのを待つ。
+  useEffect(() => {
+    const timer = setTimeout(syncUrl, debounceMs);
+
+    return () => clearTimeout(timer);
+  }, [formKey]);
+
   // createRule は、いまの条件を引き継いで、ルールの作成画面を開く。ルールの名前は、最初のキーワードにしておく。
   const createRule = () =>
     void navigate({
@@ -288,7 +314,9 @@ function Search() {
                   w={150}
                   leftSection={<History size={14} aria-hidden />}
                   value={archiveDays}
-                  onChange={(value) => setArchiveDays(typeof value === 'number' ? value : 30)}
+                  onChange={(value) =>
+                    setArchiveDays(typeof value === 'number' ? value : defaultArchiveDays)
+                  }
                   min={1}
                   max={3650}
                   allowDecimal={false}
@@ -339,7 +367,8 @@ function Search() {
             {enabled && page !== null && page.results.length > 0 && (
               <ProgramList
                 programs={page.results}
-                onSelect={setSelected}
+                // 詳細は、入力の途中でも、いまの条件と一緒に URL に載せる。戻ったときに、詳細を開く前の条件に戻す。
+                onSelect={(program) => void navigate({ search: { ...formSearch, program } })}
                 // マークは、結果を読んだときの条件で付ける。打っている途中の条件では付けない。
                 highlights={nameHighlights(page.variables.conditions.keywords)}
               />
@@ -360,7 +389,10 @@ function Search() {
           </Stack>
         </Card>
       </div>
-      <ProgramDetail programId={selected} onClose={() => setSelected(undefined)} />
+      <ProgramDetail
+        programId={urlSearch.program}
+        onClose={() => void navigate({ search: (prev) => ({ ...prev, program: undefined }) })}
+      />
     </div>
   );
 }
