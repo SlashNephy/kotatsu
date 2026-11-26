@@ -58,6 +58,9 @@ type GenerateArgs struct {
 	// ThumbnailOnly なら、代表画像だけを作り直し、プレビュー画像はそのままにする。CM の区間を見分け終えたときに、
 	// 代表画像を CM の区間から外すのに使う (#1810)。
 	ThumbnailOnly bool `json:"thumbnailOnly,omitempty"`
+	// At は、Live のとき、代表画像を、書いた終わりの近くではなく、この日時に最も近い I フレームから作る。
+	// 録画を始めたときに、番組の始まりの代表画像を作るのに使う (StartEnqueuer)。
+	At *time.Time `json:"at,omitempty"`
 }
 
 var _ river.JobArgsWithInsertOpts = new(GenerateArgs)
@@ -143,7 +146,7 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 		return river.JobCancel(errNoSegment)
 	}
 	shift := startedAt.Sub(recording.RecordedFrom)
-	opts, err := w.options(ctx, q, &job.Args, shift)
+	opts, err := w.options(ctx, q, &job.Args, startedAt, shift)
 	if err != nil {
 		return err
 	}
@@ -203,10 +206,17 @@ func (w *GenerateWorker) checkRecording(ctx context.Context, q *sqlc.Queries, ar
 }
 
 // options は、ジョブの引数から、画像の作り方を決める。録画を終えた録画では、CM の区間を避けて代表画像を選ぶ (#1810)。
-// shift は、使える最初のセグメントの始まりの、録画を始めた日時からの時間。
-func (w *GenerateWorker) options(ctx context.Context, q *sqlc.Queries, args *GenerateArgs, shift time.Duration) (*Options, error) {
-	opts := &Options{Preview: false, Interval: 0, Latest: args.Live, Avoid: nil}
+// startedAt は使える最初のセグメントの始まりの日時で、shift はその、録画を始めた日時からの時間。
+func (w *GenerateWorker) options(
+	ctx context.Context, q *sqlc.Queries, args *GenerateArgs, startedAt time.Time, shift time.Duration,
+) (*Options, error) {
+	opts := &Options{Preview: false, Interval: 0, Latest: args.Live, Avoid: nil, At: nil}
 	if args.Live {
+		if args.At != nil {
+			at := args.At.Sub(startedAt)
+			opts.At = &at
+		}
+
 		return opts, nil
 	}
 	if !args.ThumbnailOnly {
@@ -241,7 +251,7 @@ func (w *GenerateWorker) reselect(
 	if slices.Equal(avoid, used) {
 		return nil
 	}
-	again, err := NewGenerator(extractor, &Options{Preview: false, Interval: 0, Latest: false, Avoid: avoid}).Generate(ctx, segments)
+	again, err := NewGenerator(extractor, &Options{Preview: false, Interval: 0, Latest: false, Avoid: avoid, At: nil}).Generate(ctx, segments)
 	if err != nil {
 		return err
 	}
@@ -411,7 +421,7 @@ func EnqueueGenerate(ctx context.Context, db Beginner, inserter Inserter, record
 		return false, fmt.Errorf("failed to begin a transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: false}, InsertOpts: nil}})
+	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: false, At: nil}, InsertOpts: nil}})
 	if err != nil {
 		return false, fmt.Errorf("failed to insert the thumbnail job: %w", err)
 	}
@@ -436,7 +446,7 @@ func NewCMEnqueuer(inserter Inserter) *CMEnqueuer {
 
 // OnDetected は、録画 recordingID の代表画像だけを作り直すジョブを投入する。代表画像は 1 枚なので、選び直しても軽い。
 func (e *CMEnqueuer) OnDetected(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error {
-	args := GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: true}
+	args := GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: true, At: nil}
 	if _, err := e.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: args, InsertOpts: nil}}); err != nil {
 		return fmt.Errorf("failed to enqueue the thumbnail job: %w", err)
 	}

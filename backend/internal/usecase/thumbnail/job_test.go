@@ -21,12 +21,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 )
 
@@ -120,7 +122,7 @@ func (f *jobFixture) generate(t *testing.T, recordingID uuid.UUID, preview bool,
 	t.Helper()
 
 	worker := thumbnail.NewGenerateWorkerWith(f.pool, f.store, f.clock, preview, newExtractor)
-	job := &river.Job[thumbnail.GenerateArgs]{JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: false}}
+	job := &river.Job[thumbnail.GenerateArgs]{JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: false, At: nil}}
 
 	return worker.Work(t.Context(), job)
 }
@@ -336,7 +338,7 @@ func TestGenerateWorkerLive(t *testing.T) {
 
 			worker := thumbnail.NewGenerateWorkerWith(f.pool, f.store, f.clock, true, fake)
 			err = worker.Work(t.Context(), &river.Job[thumbnail.GenerateArgs]{
-				JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: true, ThumbnailOnly: false},
+				JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: true, ThumbnailOnly: false, At: nil},
 			})
 			if !tt.want {
 				var cancel *rivertype.JobCancelError
@@ -353,14 +355,16 @@ func TestGenerateWorkerLive(t *testing.T) {
 	}
 }
 
-// fakeInserter は、入れたジョブを保存する。
+// fakeInserter は、入れたジョブと、その投入の設定を保存する。
 type fakeInserter struct {
 	args []river.JobArgs
+	opts []*river.InsertOpts
 }
 
 func (f *fakeInserter) InsertManyTx(_ context.Context, _ pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
 	for _, param := range params {
 		f.args = append(f.args, param.Args)
+		f.opts = append(f.opts, param.InsertOpts)
 	}
 
 	return []*rivertype.JobInsertResult{}, nil
@@ -391,7 +395,7 @@ func TestLiveWorker(t *testing.T) {
 	inserter := new(fakeInserter)
 
 	require.NoError(t, thumbnail.NewLiveWorker(f.pool, inserter, f.clock).Work(t.Context(), &river.Job[thumbnail.LiveArgs]{JobRow: new(rivertype.JobRow), Args: thumbnail.LiveArgs{}}))
-	assert.Equal(t, []river.JobArgs{thumbnail.GenerateArgs{RecordingID: recordings["old"], Live: true, ThumbnailOnly: false}}, inserter.args)
+	assert.Equal(t, []river.JobArgs{thumbnail.GenerateArgs{RecordingID: recordings["old"], Live: true, ThumbnailOnly: false, At: nil}}, inserter.args)
 }
 
 // thumbnailMarker は、最初のセグメントのディレクトリの代表画像にした、I フレームの通し番号を返す。
@@ -492,7 +496,7 @@ func TestGenerateWorkerThumbnailOnly(t *testing.T) {
 	f.detect(t.Context(), t, recordingID, &cmDetection{detector: detectorFFmpeg, at: 0, sections: []cmSection{{start: 5, end: 10}}})
 	worker := thumbnail.NewGenerateWorkerWith(f.pool, f.store, f.clock, true, fake)
 	require.NoError(t, worker.Work(t.Context(), &river.Job[thumbnail.GenerateArgs]{
-		JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: true},
+		JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: true, At: nil},
 	}))
 	assert.Equal(t, 12, f.thumbnailMarker(t))
 	after, err := os.ReadFile(previewPath)
@@ -538,5 +542,94 @@ func TestCMEnqueuer(t *testing.T) {
 	inserter := new(fakeInserter)
 	recordingID := id.New()
 	require.NoError(t, thumbnail.NewCMEnqueuer(inserter).OnDetected(t.Context(), nil, recordingID))
-	assert.Equal(t, []river.JobArgs{thumbnail.GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: true}}, inserter.args)
+	assert.Equal(t, []river.JobArgs{thumbnail.GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: true, At: nil}}, inserter.args)
+}
+
+// TestGenerateWorkerLiveAt は、録画中の録画で日時を指定したら、書いた終わりの近くではなく、その日時に最も近い I フレームから
+// 代表画像を作ることを確認する。日時は、使える最初のセグメントの始まりから数える。
+func TestGenerateWorkerLiveAt(t *testing.T) {
+	t.Parallel()
+	f := newJobFixture(t)
+	recordingID := f.recording(t, 30)
+	_, err := f.pool.Exec(t.Context(), `UPDATE recording_files SET size = 0, ended_at = NULL WHERE id = $1`, f.segmentID)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `UPDATE recordings SET state = $2 WHERE id = $1`, recordingID, stateRecording)
+	require.NoError(t, err)
+	// セグメントは f.clock.Now() に始まり、I フレームは 1 秒ごと。7 秒の I フレームは通し番号 8 (書いた終わりの 10 秒前なら 20)。
+	at := f.clock.Now().Add(7 * time.Second)
+
+	worker := thumbnail.NewGenerateWorkerWith(f.pool, f.store, f.clock, true, fake)
+	require.NoError(t, worker.Work(t.Context(), &river.Job[thumbnail.GenerateArgs]{
+		JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: true, ThumbnailOnly: false, At: &at},
+	}))
+	assert.Equal(t, 8, f.thumbnailMarker(t))
+}
+
+// TestStartEnqueuer は、録画の開始のイベントで、番組の放送予定の始まりから StartThumbnailDelay 後の代表画像を作るジョブを、
+// その LiveThumbnailLag 後に予約することを確認する。番組の途中から録り始めたら、録り始めから数える。
+func TestStartEnqueuer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		kind  domain.NotificationKind
+		state string
+		// startAt と recordedFrom は、f.clock.Now() からの番組の放送予定の始まりと、録り始め。
+		startAt, recordedFrom time.Duration
+		// want は、代表画像を作る日時の、f.clock.Now() からの時間。nil ならジョブを入れない。
+		want *time.Duration
+	}{
+		{
+			name: "開始マージンの後の番組の始まりから作る", kind: domain.NotificationKindRecordingStarted, state: stateRecording,
+			startAt: 5 * time.Second, recordedFrom: 0, want: new(10 * time.Second),
+		},
+		{
+			name: "番組の途中から録り始めたら録り始めから作る", kind: domain.NotificationKindRecordingStarted, state: stateRecording,
+			startAt: -time.Minute, recordedFrom: 0, want: new(5 * time.Second),
+		},
+		{
+			name: "開始の通知が遅れて LiveInterval たっていれば入れない", kind: domain.NotificationKindRecordingStarted, state: stateRecording,
+			startAt: -thumbnail.LiveInterval, recordedFrom: -thumbnail.LiveInterval, want: nil,
+		},
+		{
+			name: "録画を終えていれば入れない", kind: domain.NotificationKindRecordingStarted, state: stateCompleted,
+			startAt: 0, recordedFrom: 0, want: nil,
+		},
+		{
+			name: "ほかのイベントでは入れない", kind: domain.NotificationKindRecordingCompleted, state: stateRecording,
+			startAt: 0, recordedFrom: 0, want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newJobFixture(t)
+			now := f.clock.Now()
+			recordingID := id.New()
+			_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+				state, protected, recorded_from, created_at, updated_at)
+				VALUES ($1, NULL, $2, NULL, '録画', '', $3, $3, $4, false, $5, $5, $5)`,
+				recordingID, serviceID, now.Add(tt.startAt), tt.state, now.Add(tt.recordedFrom))
+			require.NoError(t, err)
+			tx, err := f.pool.Begin(t.Context())
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(t.Context())) })
+			inserter := new(fakeInserter)
+
+			event := &notification.Event{
+				ID: id.New(), Kind: tt.kind, OccurredAt: now, Payload: map[string]any{"recordingId": recordingID.String()},
+				Audience: notification.Audience{UserIDs: nil, ByRule: false},
+			}
+			require.NoError(t, thumbnail.NewStartEnqueuer(inserter, f.clock).OnEvent(t.Context(), tx, event))
+			if tt.want == nil {
+				assert.Empty(t, inserter.args)
+
+				return
+			}
+			at := now.Add(*tt.want)
+			assert.Equal(t, []river.JobArgs{thumbnail.GenerateArgs{RecordingID: recordingID, Live: true, ThumbnailOnly: false, At: &at}}, inserter.args)
+			require.Len(t, inserter.opts, 1)
+			assert.Equal(t, at.Add(thumbnail.LiveThumbnailLag), inserter.opts[0].ScheduledAt)
+		})
+	}
 }
