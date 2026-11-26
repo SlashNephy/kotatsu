@@ -1,4 +1,5 @@
 // 再生の経路を選ぶ (設計書 7.1)。端末の能力と、サーバー側でのトランスコード (kyusu) の有無と、放送の映像の種類から決める。
+import { demoStreamURL } from '../demo/streamURL';
 
 // Capabilities は、端末で使える再生の仕組み。
 export type Capabilities = {
@@ -168,6 +169,31 @@ export function dataBroadcastSource(streamUrl: string): DataBroadcastSource | nu
   const url = `${path}/data-broadcast`;
 
   return { url: query === undefined ? url : `${url}?${query}`, serviceId: id % serviceIDBase };
+}
+
+// streamPath は、tenban のライブ視聴の TS (GET /internal/streams/services/{id}) の URL。
+const streamPath = /^\/internal\/streams\/services\/(\d+)(?:\?(.*))?$/;
+
+// liveStreamEndpoint は、url がライブ視聴の TS なら、読みに行く URL を返す。ほかの先なら null を返す。
+// ブラウザの中でデコードする経路の worker は、受け取った URL をそのまま読まずに、決まったパスへ組み直し、
+// ほかのホストやパスを読まないようにする。
+export function liveStreamEndpoint(url: string): string | null {
+  // 静的なデモ (#832) では、どの局もデモの映像を流すので、その URL も読む (#2157)。
+  // 条件は import.meta.env.MODE を直に書き、通常のビルドでは定数の比較として消す。
+  if (import.meta.env.MODE === 'demo') {
+    const separator = url.indexOf('?');
+    if ((separator === -1 ? url : url.slice(0, separator)) === demoStreamURL) {
+      return separator === -1 ? demoStreamURL : `${demoStreamURL}${url.slice(separator)}`;
+    }
+  }
+  const match = streamPath.exec(url);
+  if (match === null) {
+    return null;
+  }
+  const [, id = '', query] = match;
+  const path = `/internal/streams/services/${encodeURIComponent(id)}`;
+
+  return query === undefined ? path : `${path}?${query}`;
 }
 
 // dataBroadcastPath は、tenban のデータ放送用のエンドポイント (GET /internal/streams/services/{id}/data-broadcast) の URL。

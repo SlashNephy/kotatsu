@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import { demoStreamURL } from '../../demo/epg';
+import { demoStreamURL } from '../../demo/streamURL';
 import { GraphQLRequestError } from '../../relay/requestError';
 import { minutesAgo, withStorage } from '../conditions';
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';

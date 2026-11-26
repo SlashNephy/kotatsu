@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent } from 'storybook/test';
 
-import { demoStreamURL } from '../../demo/epg';
+import { demoStreamURL } from '../../demo/streamURL';
 import { GraphQLRequestError } from '../../relay/requestError';
 import { asViewer, merge, minutesAgo, withStorage } from '../conditions';
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';

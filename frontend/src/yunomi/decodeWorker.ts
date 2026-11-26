@@ -14,6 +14,7 @@ import { FieldPacer } from './fieldPacer';
 import { PictureQueue } from './pictureQueue';
 import { type ColorMatrix, type PictureSlot, PictureRenderer } from './pictureRenderer';
 import { PtsTimeline, ptsTicksPerSecond } from './ptsTimeline';
+import { liveStreamEndpoint } from './route';
 import { type TsPes, TsDemuxer } from './tsDemux';
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -251,25 +252,10 @@ function stop(): void {
   }
 }
 
-// streamPath は、tenban のライブ視聴の TS (GET /internal/streams/services/{id}) の URL。
-const streamPath = /^\/internal\/streams\/services\/(\d+)(?:\?(.*))?$/;
-
-// streamEndpoint は、url がライブ視聴の TS なら、読みに行く URL を返す。ほかの先なら null を返す。
-function streamEndpoint(url: string): string | null {
-  const match = streamPath.exec(url);
-  if (match === null) {
-    return null;
-  }
-  const [, id = '', query] = match;
-  const path = `/internal/streams/services/${encodeURIComponent(id)}`;
-
-  return query === undefined ? path : `${path}?${query}`;
-}
-
 async function read(current: Loading, url: string): Promise<void> {
   try {
     // 受け取った URL をそのまま読まずに、ライブ視聴の TS のパスへ組み直し、ほかのホストやパスを読まないようにする。
-    const endpoint = streamEndpoint(url);
+    const endpoint = liveStreamEndpoint(url);
     if (endpoint === null) {
       throw new Error('the stream is not a live stream of tenban');
     }
