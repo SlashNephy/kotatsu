@@ -11,7 +11,7 @@ describe('parseKeywordRows', () => {
       want: [{ text: 'ニュース', regexp: true, caseSensitive: true, fields: ['NAME'] }],
     },
     {
-      name: '真偽値でない印は、付けない',
+      name: '真偽値でない正規表現と大文字と小文字の区別は、オフとして読む',
       value: [{ text: 'ニュース', regexp: 'true', caseSensitive: 1, fields: ['NAME'] }],
       want: [{ text: 'ニュース', regexp: false, caseSensitive: false, fields: ['NAME'] }],
     },
