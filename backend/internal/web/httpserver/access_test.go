@@ -26,6 +26,7 @@ const (
 	headerXFH   = "X-Forwarded-Host"
 	headerXFP   = "X-Forwarded-Proto"
 	schemeHTTPS = "https"
+	schemeWSS   = "wss"
 	// proxiedHost は、リバースプロキシが受けたホスト名。
 	proxiedHost = "tv.example.com"
 	// publicRejected は、インターネットの送信元を拒否したときの応答。
@@ -92,7 +93,7 @@ func TestAccessPolicy(t *testing.T) {
 		{
 			// Traefik は WebSocket の接続を始める要求に、https ではなく wss を付ける。
 			name: "wss from a trusted proxy is https", remoteAddr: trustedProxy,
-			headers:    map[string]string{headerXFF: lanAddr, headerXFP: "wss", headerXFH: proxiedHost},
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeWSS, headerXFH: proxiedHost},
 			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "https://" + proxiedHost,
 		},
 		{
@@ -370,8 +371,18 @@ func TestRequireSameOriginUpgrade(t *testing.T) {
 		},
 		{
 			name: "same origin behind a proxy that sends wss", remoteAddr: trustedProxy,
-			headers:    map[string]string{headerXFF: lanAddr, headerXFP: "wss", headerXFH: proxiedHost, headerOrigin: "https://" + proxiedHost},
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeWSS, headerXFH: proxiedHost, headerOrigin: "https://" + proxiedHost},
 			wantStatus: http.StatusOK,
+		},
+		{
+			name: "http Origin behind a proxy that sends wss", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeWSS, headerXFH: proxiedHost, headerOrigin: "http://" + proxiedHost},
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name: "https Origin behind a proxy that sends ws", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: "ws", headerXFH: proxiedHost, headerOrigin: "https://" + proxiedHost},
+			wantStatus: http.StatusForbidden,
 		},
 	}
 	policy, err := httpserver.NewAccessPolicy(&config.Server{
