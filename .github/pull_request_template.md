@@ -1,17 +1,15 @@
-<!-- Issue を解決するときは、Close #番号 と書いてください。 -->
-
 ## 変更
 
-<!-- 何を、なぜ変えたか -->
+<!-- 変更をおこなった理由を簡潔に書いてください -->
 
-## 検証
+## 検証結果
 
-<!-- 流した確認 (mise run //backend:lint、mise run //backend:test、mise run //frontend:check など) と、その結果 -->
-<!-- 画面を変えたときは、変更の前と後のスクリーンショットを添えてください -->
+<!-- 実行した検証結果 (mise run //backend:lint、mise run //backend:test、mise run //frontend:check など) -->
+<!-- フロントエンドを変更した場合は、変更の前後のスクリーンショット -->
 
 ## チェックリスト
 
-- [ ] `mise run //backend:generate`の生成物の差分をコミットした
-- [ ] 振る舞い、仕様、既定値を変えたときは、設計書 (`docs/spec.v1.md`) も修正した
-- [ ] 更新した利用者に対処が要るときは、破壊的変更 (`docs/breaking-changes.md`) に書いた
-- [ ] 日本語の文章 (画面の文言、ドキュメント、コメント、この PR の本文) を yomiyasu で推敲し、`.yomiyasu-words/` の語を使っていない (`docs/writing.md`)
+- [ ] `mise run //backend:generate` の生成物の差分がコミットされている、または差分がない
+- [ ] 対応する設計書 (`docs/spec.v1.md`) のセクションを修正した、または既存の仕様・振る舞い・既定値の変更がない
+- [ ] 破壊的変更 (`docs/breaking-changes.md`) に追記した、または利用者に影響のある変更がない
+- [ ] `docs/writing.md` に沿って、日本語の文章 (フロントエンドのテキスト、ドキュメント、コード内のコメント、PR 本文) を推敲した、または AI エージェントを利用していない
