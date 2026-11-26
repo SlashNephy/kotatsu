@@ -333,6 +333,34 @@ func TestCombineSectionsPromo(t *testing.T) {
 			want:   [][2]float64{{315.5, 355.2}},
 		},
 		{
+			// 番宣の加点を取るために、ロゴの出た本編の中に、尺の合わない短い CM を作らない。
+			name:   "a promo does not make a short CM that does not fit inside the program",
+			bounds: []float64{300, 315, 315.2},
+			shown:  [][2]float64{{0, 600}},
+			want:   [][2]float64{},
+		},
+		{
+			// 番宣の後の CM に、許すロゴの途切れより短いアイキャッチを使わない。
+			name:   "a promo is not followed by a short eyecatch",
+			bounds: []float64{300, 315, 317.5},
+			shown:  [][2]float64{{0, 315}, {317.5, 600}},
+			want:   [][2]float64{},
+		},
+		{
+			// 録画の終わりの近くでも、番宣の後に、録画の終わりに接する短い CM を作らない。
+			name:   "a promo is not followed by a short CM at the end of the recording",
+			bounds: []float64{584, 599},
+			shown:  [][2]float64{{0, 600}},
+			want:   [][2]float64{},
+		},
+		{
+			// CM の並びの終わりの告知の後に境目があっても、CM のあいだの提供の加点を取るために、短い CM を作らない。
+			name:   "a sponsor card between CMs is not followed by a short CM",
+			bounds: []float64{200, 215, 230, 240, 240.2},
+			shown:  [][2]float64{{0, 200}, {240, 600}},
+			want:   [][2]float64{{200, 240}},
+		},
+		{
 			// 本編のロゴが、無音の境目の 4 秒前に消えても、その後の 10 秒は提供にする。
 			name:   "a sponsor card is found when the logo disappears 4 seconds before it",
 			bounds: []float64{180, 190.2, 205.2, 220.2},
@@ -375,6 +403,13 @@ func TestCombineSectionsHead(t *testing.T) {
 			want:   [][2]float64{{0, 71.4}},
 		},
 		{
+			// 録画の先頭の CM の後の告知 (5 秒) の後も、ロゴの出た 15 秒 (アバン) は番宣にしない。
+			name:   "a part with the logo after a notice after the CMs at the start of the recording is not a promo",
+			bounds: []float64{10, 15, 30},
+			shown:  [][2]float64{{15, 600}},
+			want:   [][2]float64{{0, 15}},
+		},
+		{
 			// 録画の途中の、15 秒の倍数に合わないロゴのない所は、今までどおり CM にする。
 			name:   "a logo-less part in the middle of the recording that does not fit 15 seconds is still a CM",
 			bounds: []float64{11.1, 300, 316.4},
@@ -389,6 +424,13 @@ func TestCombineSectionsHead(t *testing.T) {
 			assert.Equal(t, tt.want, cmdetect.CombineSectionsWithHead(tt.bounds, 600, tt.shown, 10))
 		})
 	}
+
+	// 番組がファイルの始まりに始まる (番組の始まりが 0 秒の) 録画でも、ロゴを消したオープニングを録画の先頭の CM にしない。
+	t.Run("the start of the program at the start of the file", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, [][2]float64{{36.1, 51.1}}, cmdetect.CombineSectionsWithHead([]float64{36.1, 51.1}, 600, [][2]float64{{51.4, 600}}, 0))
+	})
 }
 
 // TestLogoInCMChains は、無音の境目が 15 秒の倍数で続く並びの間もロゴが出続けていれば、ロゴでないものを学習したとみなすことを確認する (#1506)。

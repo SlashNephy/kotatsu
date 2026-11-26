@@ -519,7 +519,7 @@ func programOf(recording *sqlc.Recording, segments []segment, i int) *Program {
 		return nil
 	}
 
-	return &Program{Start: programStart(recording, segments[i].startedAt).Sub(segments[i].startedAt), Duration: recording.EndAt.Sub(recording.StartAt), Fixed: false}
+	return &Program{Start: programStart(recording, segments[i].startedAt).Sub(segments[i].startedAt), Duration: recording.EndAt.Sub(recording.StartAt), Fixed: false, Scheduled: 0}
 }
 
 // programWindows は、セグメントが分かれた録画で、detector が録画全体で番組のウィンドウを置ければ (WindowDetector)、
@@ -541,9 +541,10 @@ func (w *DetectWorker) programWindows(
 		starts = append(starts, s.startedAt.Sub(recording.RecordedFrom))
 	}
 	program := &Program{
-		Start:    programStart(recording, segments[0].startedAt).Sub(recording.RecordedFrom),
-		Duration: recording.EndAt.Sub(recording.StartAt),
-		Fixed:    false,
+		Start:     programStart(recording, segments[0].startedAt).Sub(recording.RecordedFrom),
+		Duration:  recording.EndAt.Sub(recording.StartAt),
+		Fixed:     false,
+		Scheduled: 0,
 	}
 	programs, ok := wd.ProgramWindows(materials, starts, program)
 	if !ok {

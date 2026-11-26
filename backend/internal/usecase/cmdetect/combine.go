@@ -92,7 +92,7 @@ const (
 // 5 秒か 10 秒の区間は、告知として、長さが合うほど足す。本編の直後の告知の後に、CM を挟まずに本編へ戻るときは、大きく引く。
 // CM の並びの途中のロゴのない 10 秒前後は、CM のあいだの提供として本編の側に数える。ロゴを出したまま 15 秒か 30 秒にほぼちょうど合う区間は、
 // CM の並びと長い本編のあいだにあれば、局の番宣として CM にする (#2168)。
-// 番組の始まりの時刻 head (分からなければ 0) が分かれば、録画の先頭の CM は番組の始まりの近くで終え、その近くの 15 秒の倍数に合わない
+// 番組の始まりの時刻 head (分からなければ NaN) が分かれば、録画の先頭の CM は番組の始まりの近くで終え、その近くの 15 秒の倍数に合わない
 // ロゴのない所は本編に残す (#2168)。
 // 本編と CM の並びは、境目の候補を順にたどる動的計画法で選ぶ。境目の減点の規則は、録画で比較して良くならなかったので入れない (#1506)。
 func combineSections(bounds []boundary, duration float64, logo []span, head float64) []span {
@@ -141,16 +141,31 @@ const (
 	statePromoHead
 	// statePromoTail は、CM の直後の番宣で終わった状態。次は長い本編か番宣にしなければならない。
 	statePromoTail
-	// stateHeadCM は、録画の先頭の CM で終わった状態。前の番組の CM で、CM の並びとは違うので、番宣を続けない。
+	// stateHeadCM は、録画の先頭の CM (と、その後の告知) で終わった状態。前の番組の CM で、CM の並びとは違うので、番宣を続けない。
 	stateHeadCM
+	// stateFitCM は、番宣の隣に置ける CM (fitCM) で終わった状態。stateCM と同じ点で、番宣の前に置けるかだけを分ける (#2168)。
+	stateFitCM
 	stateCount
 )
 
-// combineScorer は、区間に点数を付ける。head は、番組の始まりの時刻 (分からなければ 0)。
+// combineScorer は、区間に点数を付ける。head は、番組の始まりの時刻 (分からなければ NaN)。
 type combineScorer struct {
 	duration float64
 	logo     []span
 	head     float64
+}
+
+// knowsHead は、番組の始まりの時刻が分かっているかを返す。
+func (sc *combineScorer) knowsHead() bool {
+	return !math.IsNaN(sc.head)
+}
+
+// fitCM は、[a, b) が、番宣と CM のあいだの提供の隣に置ける CM かを返す (#2168)。許すロゴの途切れより長く、ロゴがそれまでしか
+// 見えない区間だけを置ける。番宣や提供の加点を取るために、本編の中に短い CM (無音の間の切れ端やアイキャッチ) や、ロゴの見える CM を
+// 作らせないためである。15 秒の倍数に合うことは求めない。番宣の後の CM の並びは、無音の境目が抜けると 25 秒のように分かれる
+// (遅れて始まった放送の録画で、番宣の後の CM の並びがそう分かれていた)。
+func (sc *combineScorer) fitCM(a, b float64) bool {
+	return b-a > combineLogoGap && sc.shown(a, b) <= combineLogoGap
 }
 
 // shown は、[a, b) のうち、ロゴが見えた秒を返す。
@@ -176,7 +191,7 @@ func (sc *combineScorer) program(a, b float64) float64 {
 // 番組の始まりの後に CM が続くなら、ふつうの CM の規則で数える。
 func (sc *combineScorer) cm(a, b float64) (float64, bool) {
 	s := sc.shown(a, b)
-	if a <= 0 && sc.head > 0 && b > sc.head+combineHeadGrace && b < sc.duration {
+	if a <= 0 && sc.knowsHead() && b > sc.head+combineHeadGrace && b < sc.duration {
 		return 0, false
 	}
 	if a <= 0 || b >= sc.duration {
@@ -196,7 +211,7 @@ func (sc *combineScorer) cm(a, b float64) (float64, bool) {
 
 	// 番組の始まりの近くで始まる、15 秒の倍数にまったく合わない CM は、ロゴのない本編より点を下げる (#2168)。
 	mismatch := combineMismatch * (1 - f)
-	if f == 0 && sc.head > 0 && a <= sc.head+combineHeadGrace {
+	if f == 0 && sc.knowsHead() && a <= sc.head+combineHeadGrace {
 		mismatch += combineHeadMismatchWeight * max(0, length-combineLogoGap)
 	}
 
@@ -219,7 +234,7 @@ func (sc *combineScorer) notice(a, b float64) (float64, bool) {
 
 // sponsor は、[a, b) を提供とみなした点。提供の長さの幅 (1 枚か 2 枚) でなければ ok を false にする。
 // 提供は、ロゴの出ていた本編の直後に、ロゴを消して出す。区間の中でロゴが許すロゴの途切れより長く見えるもの (ロゴの出た本編の終わり) と、
-// 始まりの前の許すロゴの途切れの内にロゴが見えないもの (ロゴのない所の後の CM) は、提供にしない。
+// 始まりの前の combineSponsorLookback の内にロゴが見えないもの (ロゴのない所の後の CM) は、提供にしない。
 func (sc *combineScorer) sponsor(a, b float64) (float64, bool) {
 	// 提供は本編の直後に出すので、録画の先頭に接する区間は提供にしない (前の番組の CM が途中から入る所)。
 	if length := b - a; a <= 0 || length < combineSponsorMin || length > combineSponsorMax {
@@ -317,19 +332,20 @@ func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
 	returning := [stateCount]float64{}
 	returning[stateNotice] = combineNoticeReturn
 
-	base, prev := best(returning, stateProgram, stateLongProgram, stateCM, stateHeadCM, stateNotice)
+	base, prev := best(returning, stateProgram, stateLongProgram, stateCM, stateFitCM, stateHeadCM, stateNotice)
 	update(stateProgram, base, prev, sc.program(a, b))
 	// 長い本編は、ほかの本編と同じ点で、番宣の後にも続けられる。CM の直後の番宣の後は、長い本編にしなければならない。
 	if b-a >= combinePromoProgram {
-		base, prev := best(returning, stateProgram, stateLongProgram, stateCM, stateHeadCM, stateNotice, statePromoTail)
+		base, prev := best(returning, stateProgram, stateLongProgram, stateCM, stateFitCM, stateHeadCM, stateNotice, statePromoTail)
 		update(stateLongProgram, base, prev, sc.program(a, b))
 	}
 	if v, ok := sc.promo(a, b); ok {
 		// 長い本編の直後の番宣は、次を CM にする。CM の直後の番宣は、次を長い本編にする。番宣が 2 本続いてもよい。
 		// 録画の先頭の CM (前の番組の分) の直後は、番組の先頭の本編 (アバンなど) なので、番宣にしない。
+		// 番宣の前の CM は、fitCM に限る。
 		base, prev := best(none, stateLongProgram, statePromoHead)
 		update(statePromoHead, base, prev, v)
-		base, prev = best(none, stateCM, statePromoTail)
+		base, prev = best(none, stateFitCM, statePromoTail)
 		update(statePromoTail, base, prev, v)
 	}
 	if v, ok := sc.sponsor(a, b); ok {
@@ -337,7 +353,7 @@ func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
 		update(stateSponsor, base, prev, v)
 	}
 	if v, ok := sc.midSponsor(a, b); ok {
-		base, prev := best(none, stateCM, stateHeadCM)
+		base, prev := best(none, stateCM, stateFitCM, stateHeadCM)
 		update(stateMidSponsor, base, prev, v)
 	}
 	if v, ok := sc.notice(a, b); ok {
@@ -347,24 +363,37 @@ func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
 		// 告知から本編へ戻るときの減点を避けられてしまうため。提供の後に、見逃し配信の案内などを出してから CM に入る並びがある。
 		// ただし、提供と告知を合わせて 15 秒の倍数に合うときは、提供の後に続けない。本当の CM の途中に境目の候補があると、
 		// CM の先頭を提供に、残りを告知に取れてしまうため。
-		from := []int{stateCM, stateHeadCM}
+		// 録画の先頭の CM の後の告知は、録画の先頭の CM の続きとして数え、番宣を続けない。
+		from := []int{stateCM, stateFitCM}
 		if sp := t.from[i][stateSponsor]; !math.IsInf(t.best[i][stateSponsor], -1) && cmFit(b-points[sp]) == 0 {
 			from = append(from, stateSponsor)
 		}
 		base, prev = best(none, from...)
 		update(stateCM, base, prev, v)
+		base, prev = best(none, stateHeadCM)
+		update(stateHeadCM, base, prev, v)
 	}
 	// 端に接しない CM は、長い CM の最長より遠くの候補からは始められない。
 	if a > 0 && b < sc.duration && b-a > combineMaxLongCM+combineLongTolerance {
 		return
 	}
 	if v, ok := sc.cm(a, b); ok {
-		base, prev := best(none, stateProgram, stateLongProgram, stateCM, stateHeadCM, stateSponsor, stateNotice, stateMidSponsor, statePromoHead)
-		k := stateCM
-		if a <= 0 {
-			k = stateHeadCM
+		// 番宣と CM のあいだの提供の後は、fitCM だけを続ける。
+		from := []int{stateProgram, stateLongProgram, stateCM, stateFitCM, stateHeadCM, stateSponsor, stateNotice}
+		fit := sc.fitCM(a, b)
+		if fit {
+			from = append(from, stateMidSponsor, statePromoHead)
 		}
-		update(k, base, prev, v)
+		base, prev := best(none, from...)
+		if a <= 0 {
+			update(stateHeadCM, base, prev, v)
+
+			return
+		}
+		update(stateCM, base, prev, v)
+		if fit {
+			update(stateFitCM, base, prev, v)
+		}
 	}
 }
 
@@ -373,7 +402,7 @@ func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
 func (t *combineTable) trace(points []float64) []span {
 	j := len(points) - 1
 	k := stateProgram
-	for _, c := range []int{stateCM, stateHeadCM, stateSponsor, stateNotice, stateLongProgram} {
+	for _, c := range []int{stateCM, stateFitCM, stateHeadCM, stateSponsor, stateNotice, stateLongProgram} {
 		if t.best[j][c] > t.best[j][k] {
 			k = c
 		}
@@ -381,7 +410,7 @@ func (t *combineTable) trace(points []float64) []span {
 	sections := []span{}
 	for j > 0 {
 		i := t.from[j][k]
-		if k == stateCM || k == stateHeadCM || k == stateNotice || k == statePromoHead || k == statePromoTail {
+		if k == stateCM || k == stateFitCM || k == stateHeadCM || k == stateNotice || k == statePromoHead || k == statePromoTail {
 			sections = append(sections, span{start: points[i], end: points[j]})
 		}
 		j, k = i, t.prev[j][k]

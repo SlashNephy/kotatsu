@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 
@@ -178,7 +179,7 @@ func DropShortSections(sections []Section, duration time.Duration) []Section {
 // CombineSections は、境目の候補の時刻 (秒) と、録画の長さ、ロゴの出ていた区間から、combineSections の CM の区間を秒の組で返す。
 // 番組の始まりは分からないものとする。
 func CombineSections(bounds []float64, duration float64, shown [][2]float64) [][2]float64 {
-	return CombineSectionsWithHead(bounds, duration, shown, 0)
+	return CombineSectionsWithHead(bounds, duration, shown, math.NaN())
 }
 
 // CombineSectionsWithHead は、CombineSections に番組の始まりの時刻 head (秒) を渡す (#2168)。

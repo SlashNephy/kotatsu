@@ -19,6 +19,9 @@ type Program struct {
 	// Fixed なら、ウィンドウを探さずに、Start から Duration の長さで置く。セグメントが分かれた録画で、録画全体で置いたウィンドウを
 	// セグメントごとに渡すのに使う (ProgramWindows)。ウィンドウはファイルの外にはみ出してよい。
 	Fixed bool
+	// Scheduled は、Fixed のときの、番組の時刻の始まり (ジョブが渡した番組の始まり) を、ファイルの始まりからの時間で表したもの (#2168)。
+	// Start はウィンドウの始まりなので、録画の先頭の CM を終える番組の始まりを、ウィンドウの始まりとの遅いほうにするのに使う。
+	Scheduled time.Duration
 }
 
 const (
