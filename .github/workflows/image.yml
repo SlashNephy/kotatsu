@@ -120,7 +120,7 @@ jobs:
             APT_UPGRADE_DATE=${{ steps.apt-upgrade.outputs.date }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.target }}
-          # PR では書かない。PR ごとに層を書くと、リポジトリのキャッシュの上限 (10 GB) を超え、main の層が追い出される。
+          # 書くのは main の run だけにし、PR とタグでは書かない。PR ごとに層を書くと、リポジトリのキャッシュの上限 (10 GB) を超え、main の層が追い出される。
           cache-to: ${{ github.ref == 'refs/heads/main' && format('type=gha,scope={0},mode=max', matrix.target) || '' }}
       # 公開したイメージに、このリポジトリのこの workflow で作ったことを示す証明 (Sigstore) を付ける (#1524、設計書 11.1)。
       # タグは後で別の digest を指しうるので、名前ではなく digest に付ける。レジストリにも置き、oci:// で確認できるようにする。
