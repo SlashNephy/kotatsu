@@ -1,5 +1,6 @@
 // デモの局と番組 (#832)。局名と番組名は、すべて架空のもの。
 // 番組は、開いた時刻を中心に、過去 3 日から先 8 日までを作る。乱数の種を日付から決めるので、同じ日に開けば同じ番組表になる。
+import { demoStreamURL } from './streamURL';
 
 export type Genre = { lv1: number; lv2: number };
 
@@ -53,9 +54,6 @@ export const channelTypes = [
   { type: 'GR', displayName: '地上波', sortOrder: 0, hasServices: true },
   { type: 'BS', displayName: 'BS', sortOrder: 1, hasServices: true },
 ];
-
-// demoStreamURL は、デモの映像 (64 秒の合成の映像) の URL。ライブ視聴と録画の再生で、どの局と録画もこれを流す。
-export const demoStreamURL = `${import.meta.env.BASE_URL}demo/stream.m2ts`;
 
 // logo は、局の頭文字を色の付いた四角に載せた、64×36 の SVG を data: URL で返す。
 function logo(text: string, color: string): string {

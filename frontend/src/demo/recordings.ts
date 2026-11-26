@@ -1,5 +1,6 @@
 import { demoAnimeEpisodes } from './anime';
-import { demoStreamURL, matchesKeyword, type DemoProgram, type KeywordInput } from './epg';
+import { matchesKeyword, type DemoProgram, type KeywordInput } from './epg';
+import { demoStreamURL } from './streamURL';
 import { demoCommentsPath } from './jikkyo';
 
 // デモの録画 (#857)。放送が終わった番組から、ルールに当てはまるものなどを録画済みとして置く。

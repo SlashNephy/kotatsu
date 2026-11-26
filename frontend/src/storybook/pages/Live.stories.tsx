@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
 
 import type { DemoRoot } from '../../demo';
-import { demoStreamURL } from '../../demo/epg';
+import { demoStreamURL } from '../../demo/streamURL';
 import { call, liveStreamScrambled, merge, nodeWith, withStorage } from '../conditions';
 import { holdAll, PageStory } from '../PageStory';
 

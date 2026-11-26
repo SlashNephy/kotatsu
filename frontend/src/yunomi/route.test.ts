@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import {
   chooseRoute,
@@ -6,6 +6,7 @@ import {
   dataBroadcastEndpoint,
   dataBroadcastSource,
   hlsURL,
+  liveStreamEndpoint,
   original,
   qualities,
   toVideoFormat,
@@ -320,6 +321,74 @@ describe('dataBroadcastEndpoint', () => {
     },
   ])('$name', ({ url, want }) => {
     expect(dataBroadcastEndpoint(url)).toBe(want);
+  });
+});
+
+describe('liveStreamEndpoint', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  test.each([
+    {
+      name: 'ライブ視聴の TS は、そのまま読む',
+      url: '/internal/streams/services/3273601024?session=1',
+      want: '/internal/streams/services/3273601024?session=1',
+    },
+    {
+      name: '問い合わせのないライブ視聴の TS も読む',
+      url: '/internal/streams/services/3273601024',
+      want: '/internal/streams/services/3273601024',
+    },
+    {
+      name: 'ほかのホストは読まない',
+      url: 'https://evil.example/internal/streams/services/1',
+      want: null,
+    },
+    {
+      name: 'ほかのパスは読まない',
+      url: '/internal/streams/services/1/../../../api',
+      want: null,
+    },
+    {
+      name: 'デモのビルドでなければ、デモの映像は読まない',
+      url: '/demo/stream.m2ts?session=1',
+      want: null,
+    },
+  ])('$name', ({ url, want }) => {
+    expect(liveStreamEndpoint(url)).toBe(want);
+  });
+
+  // 静的なデモ (#832) は、どの局もデモの映像を流す。ブラウザの中でデコードする経路でも読めるようにする (#2157)。
+  test.each([
+    {
+      name: 'デモの映像は、問い合わせを付けたまま読む',
+      url: '/demo/stream.m2ts?session=1',
+      want: '/demo/stream.m2ts?session=1',
+    },
+    {
+      name: '問い合わせのないデモの映像も読む',
+      url: '/demo/stream.m2ts',
+      want: '/demo/stream.m2ts',
+    },
+    {
+      name: 'ライブ視聴の TS も読む',
+      url: '/internal/streams/services/1?session=1',
+      want: '/internal/streams/services/1?session=1',
+    },
+    {
+      name: 'ほかのホストのデモの映像は読まない',
+      url: 'https://evil.example/demo/stream.m2ts?session=1',
+      want: null,
+    },
+    {
+      name: 'デモの映像の後ろにパスを足したものは読まない',
+      url: '/demo/stream.m2ts/../../api',
+      want: null,
+    },
+  ])('デモのビルドで、$name', ({ url, want }) => {
+    vi.stubEnv('MODE', 'demo');
+    expect(liveStreamEndpoint(url)).toBe(want);
   });
 });
 
