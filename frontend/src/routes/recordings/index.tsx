@@ -34,7 +34,7 @@ import {
   Trash2,
   Tv,
 } from 'lucide-react';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
@@ -42,9 +42,26 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
-import { EmptyState, ErrorBoundary, PageLoader, toHalfWidth, useDocumentTitle } from '../../futon';
+import {
+  EmptyState,
+  ErrorBoundary,
+  PageLoader,
+  toHalfWidth,
+  useDocumentTitle,
+  useEntryState,
+} from '../../futon';
 import { genreKey } from '../../guide/genres';
-import { broadcastRange } from '../../recordings/filterRange';
+import {
+  formFromSearch,
+  parseRecordingListSearch,
+  recordingFilter,
+  recordingGenres,
+  recordingKeyword,
+  recordingKeywordFields,
+  searchFromForm,
+  type RecordingFilterForm,
+  type RecordingListSearch,
+} from '../../recordings/listSearch';
 import { RecordingCard } from '../../recordings/RecordingCard';
 import { recordingStates, stateKey } from '../../recordings/states';
 import { isUnauthenticated } from '../../relay/environment';
@@ -57,41 +74,13 @@ import type { recordingsDeleteMutation } from './__generated__/recordingsDeleteM
 import type { recordingsTagsQuery } from './__generated__/recordingsTagsQuery.graphql';
 import { renderServiceOption, serviceGroups } from '../../guide/serviceOption';
 import { KeywordRows } from '../../conditions/ConditionsFields';
-import {
-  nameHighlights,
-  type KeywordField,
-  type KeywordMatch,
-  type KeywordRow,
-} from '../../conditions/form';
-
-type RecordingsSearch = {
-  // rule は、このルールで録った録画だけを出すときの、ルールの ID (#468)。
-  rule?: string;
-};
+import { nameHighlights } from '../../conditions/form';
 
 export const Route = createFileRoute('/recordings/')({
-  validateSearch: (search: Record<string, unknown>): RecordingsSearch =>
-    typeof search['rule'] === 'string' && search['rule'] !== '' ? { rule: search['rule'] } : {},
+  // 絞り込みと並び順は、詳細から戻ったときや開き直したときに保つよう、URL に持つ (#468、#2146)。
+  validateSearch: parseRecordingListSearch,
   component: RecordingsPage,
 });
-
-// genreOptions は、絞り込みで選べるジャンルの大分類 (ニュース・報道〜福祉と、その他)。
-const genreOptions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15];
-
-// recordingKeywordFields は、録画の検索で選べるキーワードの項目。録画は詳細では探さない (設計書 3.5)。
-const recordingKeywordFields: readonly KeywordField[] = ['NAME', 'DESCRIPTION'];
-
-// recordingKeyword は、録画の検索のキーワードの行の初めの値。今までの「番組名」の欄と同じく、番組名と概要から探す。
-function recordingKeyword(): KeywordRow {
-  return { text: '', regexp: false, caseSensitive: false, fields: ['NAME', 'DESCRIPTION'] };
-}
-
-// keywordInputs は、内容のあるキーワードの行を、tenban に送る形にする。
-function keywordInputs(rows: readonly KeywordRow[]) {
-  return rows
-    .filter((row) => row.text.trim() !== '' && row.fields.length > 0)
-    .map((row) => ({ ...row, text: row.text.trim() }));
-}
 
 // pageSize は、1 回に取る録画の数。
 const pageSize = 48;
@@ -158,18 +147,20 @@ type Recording = recordingsListQuery$data['recordings']['edges'][number]['node']
 type Filter = NonNullable<recordingsListQuery$variables['filter']>;
 type Order = recordingsListQuery$variables['order'];
 
+// update は、URL のクエリを変える。履歴を積まず、置き換える。
+type Update = (search: RecordingListSearch) => void;
+
 // RecordingsPage は、サムネイル付きの録画のグリッドの画面 (設計書 10.3)。タグと条件で絞り込める。
 // 狭い画面では、絞り込みのフォームを一覧の上に置かず、見出しの右のボタンから、下から出るシートで開く。
 function RecordingsPage() {
   const { t } = useTranslation();
   useDocumentTitle([t('recordings.title')]);
-  const { rule } = Route.useSearch();
-  // formFilter は、フォームで決めた絞り込み。最初は絞り込まずに、新しい録画から出す。
-  const [formFilter, setFilter] = useState<Filter>({});
-  // ルールでの絞り込みは URL の rule から決め、ルールの画面から来たときや、戻ったときにも、URL に合わせる (#468)。
-  const filter: Filter = rule === undefined ? formFilter : { ...formFilter, ruleId: rule };
-  // order は、並び順。絞り込みではないので、選んだらすぐに並べ替える。
-  const [order, setOrder] = useState<Order>('NEWEST_FIRST');
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  // 絞り込みと並び順は、URL のクエリから決める。最初は絞り込まずに、新しい録画から出す。
+  const filter: Filter = recordingFilter(search);
+  const order: Order = search.order === 'oldest' ? 'OLDEST_FIRST' : 'NEWEST_FIRST';
+  const update: Update = (next) => void navigate({ replace: true, search: next });
   const [filtersOpened, setFiltersOpened] = useState(false);
   // 閉じていても絞り込み中だと分かるよう、ボタンに、使っている条件の数を出す。
   const activeFilters = Object.keys(filter).length;
@@ -208,10 +199,10 @@ function RecordingsPage() {
       >
         <Suspense fallback={<PageLoader />}>
           <Recordings
+            search={search}
             filter={filter}
-            onFilter={setFilter}
+            onUpdate={update}
             order={order}
-            onOrder={setOrder}
             filtersOpened={filtersOpened}
             onFiltersClose={() => setFiltersOpened(false)}
           />
@@ -224,17 +215,17 @@ function RecordingsPage() {
 // Recordings は、絞り込みのフォーム。結果は、絞り込みを決めてから RecordingGrid で読む。
 // フォームは、広い画面では一覧の上のカードに、狭い画面では下から出るシートに出す。入力中の値は両方で共有する。
 function Recordings({
+  search,
   filter,
-  onFilter,
+  onUpdate,
   order,
-  onOrder,
   filtersOpened,
   onFiltersClose,
 }: {
+  search: RecordingListSearch;
   filter: Filter;
-  onFilter: (filter: Filter) => void;
+  onUpdate: Update;
   order: Order;
-  onOrder: (order: Order) => void;
   filtersOpened: boolean;
   onFiltersClose: () => void;
 }) {
@@ -273,37 +264,29 @@ function Recordings({
     { ruleId: filter.ruleId ?? '', withRule: filter.ruleId != null },
     { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
-  const navigate = useNavigate({ from: '/recordings/' });
   const ruleName = tags.ruleFilter?.__typename === 'Rule' ? tags.ruleFilter.name : null;
   // version を変えると、一覧を読み直す。まとめて消した後に使う (#471)。
   const [version, setVersion] = useState(0);
   // deleted は、まとめて消した結果。読み直しても消えないよう、一覧の外に持つ。
   const [deleted, setDeleted] = useState<{ processed: number; skipped: number } | null>(null);
-  const [keywords, setKeywords] = useState<KeywordRow[]>([recordingKeyword()]);
-  const [keywordMatch, setKeywordMatch] = useState<KeywordMatch>('ALL');
-  const [excludeKeywords, setExcludeKeywords] = useState<KeywordRow[]>([]);
-  const [tagIds, setTagIds] = useState<string[]>([]);
-  const [states, setStates] = useState<string[]>([]);
-  const [serviceIds, setServiceIds] = useState<string[]>([]);
-  const [genres, setGenres] = useState<string[]>([]);
-  // from と to は、放送日の期間 (YYYY-MM-DD)。両端を含む。
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // form は、絞り込みのフォームの入力。決めるまでは、URL を変えない。
+  const [form, setForm] = useState<RecordingFilterForm>(() => formFromSearch(search));
+  const patch = (changes: Partial<RecordingFilterForm>) =>
+    setForm((current) => ({ ...current, ...changes }));
+  // 上のメニューから開き直したときなど、フォームの外で URL の絞り込みが変わったら、入力をそれに合わせる。
+  // 並び順とルールはフォームの外なので、それだけが変わったときは、決める前の入力を残す。
+  const searchKey = JSON.stringify(formFromSearch(search));
+  const [syncedKey, setSyncedKey] = useState(searchKey);
+  if (searchKey !== syncedKey) {
+    setSyncedKey(searchKey);
+    setForm(formFromSearch(search));
+  }
+  const { keywords, keywordMatch, excludeKeywords, tags: tagIds, states, services, genres } = form;
+  const { from, to } = form;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const included = keywordInputs(keywords);
-    const excluded = keywordInputs(excludeKeywords);
-    onFilter({
-      ...(included.length > 0 || excluded.length > 0
-        ? { keywords: included, keywordMatch, excludeKeywords: excluded }
-        : {}),
-      ...(tagIds.length > 0 ? { tagIds } : {}),
-      ...(states.length > 0 ? { states: states as Filter['states'] } : {}),
-      ...(serviceIds.length > 0 ? { serviceIds } : {}),
-      ...(genres.length > 0 ? { genres: genres.map(Number) } : {}),
-      ...broadcastRange(from, to),
-    });
+    onUpdate(searchFromForm(form, search));
     onFiltersClose();
   };
 
@@ -318,10 +301,10 @@ function Recordings({
             : t('recordings.keywordsDescription')
         }
         match={keywordMatch}
-        onMatchChange={setKeywordMatch}
+        onMatchChange={(value) => patch({ keywordMatch: value })}
         icon={<Search size={16} aria-hidden />}
         rows={keywords}
-        onChange={setKeywords}
+        onChange={(rows) => patch({ keywords: rows })}
         fields={recordingKeywordFields}
         newRow={recordingKeyword}
       />
@@ -330,7 +313,7 @@ function Recordings({
         description={t('recordings.excludeKeywordsDescription')}
         icon={<SearchX size={16} aria-hidden />}
         rows={excludeKeywords}
-        onChange={setExcludeKeywords}
+        onChange={(rows) => patch({ excludeKeywords: rows })}
         fields={recordingKeywordFields}
         newRow={recordingKeyword}
       />
@@ -350,7 +333,7 @@ function Recordings({
             label: `${tag.name}（${tag.recordings}）`,
           }))}
           value={tagIds}
-          onChange={setTagIds}
+          onChange={(value) => patch({ tags: value })}
           searchable
           clearable
           style={style}
@@ -360,7 +343,7 @@ function Recordings({
           leftSection={<Info size={16} aria-hidden />}
           data={recordingStates.map((state) => ({ value: state, label: t(stateKey(state)) }))}
           value={states}
-          onChange={setStates}
+          onChange={(value) => patch({ states: value })}
           clearable
           style={style}
         />
@@ -371,8 +354,8 @@ function Recordings({
             service.gone ? t('rules.goneService', { name: service.name }) : service.name,
           )}
           renderOption={renderServiceOption(tags.services)}
-          value={serviceIds}
-          onChange={setServiceIds}
+          value={services}
+          onChange={(value) => patch({ services: value })}
           searchable
           clearable
           style={style}
@@ -380,9 +363,9 @@ function Recordings({
         <MultiSelect
           label={t('recordings.genres')}
           leftSection={<Shapes size={16} aria-hidden />}
-          data={genreOptions.map((lv1) => ({ value: String(lv1), label: t(genreKey(lv1)) }))}
+          data={recordingGenres.map((lv1) => ({ value: String(lv1), label: t(genreKey(lv1)) }))}
           value={genres}
-          onChange={setGenres}
+          onChange={(value) => patch({ genres: value })}
           clearable
           style={style}
         />
@@ -391,7 +374,7 @@ function Recordings({
           label={t('recordings.from')}
           leftSection={<CalendarDays size={16} aria-hidden />}
           value={from}
-          onChange={(e) => setFrom(e.currentTarget.value)}
+          onChange={(e) => patch({ from: e.currentTarget.value })}
           style={style}
         />
         <TextInput
@@ -399,7 +382,7 @@ function Recordings({
           label={t('recordings.to')}
           leftSection={<CalendarDays size={16} aria-hidden />}
           value={to}
-          onChange={(e) => setTo(e.currentTarget.value)}
+          onChange={(e) => patch({ to: e.currentTarget.value })}
           style={style}
         />
         <Button type="submit" leftSection={<ListFilter size={16} aria-hidden />}>
@@ -446,7 +429,7 @@ function Recordings({
           <Pill
             withRemoveButton
             removeButtonProps={{ 'aria-label': t('recordings.ruleFilterClear') }}
-            onRemove={() => void navigate({ search: {} })}
+            onRemove={() => onUpdate({ ...search, rule: undefined })}
           >
             {t('recordings.ruleFilter', { name: ruleName ?? t('recordings.deletedRule') })}
           </Pill>
@@ -455,7 +438,9 @@ function Recordings({
           aria-label={t('recordings.order')}
           size="xs"
           value={order}
-          onChange={(value) => onOrder(value as Order)}
+          onChange={(value) =>
+            onUpdate({ ...search, order: value === 'OLDEST_FIRST' ? 'oldest' : undefined })
+          }
           data={[
             { value: 'NEWEST_FIRST', label: t('recordings.newestFirst') },
             { value: 'OLDEST_FIRST', label: t('recordings.oldestFirst') },
@@ -477,6 +462,7 @@ function Recordings({
           key={`${order}:${JSON.stringify(filter)}:${version}`}
           filter={filter}
           order={order}
+          listSearch={search}
           canEdit={tags.viewer.role !== 'VIEWER'}
           onDeleted={(result) => {
             setDeleted(result);
@@ -495,11 +481,13 @@ const recordingChannels: readonly ChangeChannel[] = ['RECORDINGS'];
 function RecordingGrid({
   filter,
   order,
+  listSearch,
   canEdit,
   onDeleted,
 }: {
   filter: Filter;
   order: Order;
+  listSearch: RecordingListSearch;
   canEdit: boolean;
   onDeleted: (result: { processed: number; skipped: number }) => void;
 }) {
@@ -536,6 +524,8 @@ function RecordingGrid({
 
           return;
         }
+        // 消した録画を含む続きは、録画の変更の知らせを待たずに破棄する。
+        setMore(null);
         onDeleted(response.deleteRecordings);
       },
       onError: () => {
@@ -553,12 +543,16 @@ function RecordingGrid({
   // more は、続きの読み込みで足した録画と、その次のカーソル。changes は、読み込んだときの録画の変更の回数。
   // 録画が変わって最初のページを読み直したら、続きは破棄して、最初のページから出し直す。
   // 続きを残すと、録画が増えて最初のページからこぼれた録画が、どちらにも出なくなる (#868)。
-  const [loaded, setMore] = useState<{
+  // ほかの画面から戻ったときも同じ所まで出すよう、履歴の項目に残す (#2146)。key は、読み込んだときの並び順と
+  // 絞り込みと、最初のページの終わりのカーソル。違う一覧の続きや、最初のページが変わった後の続きは使わない。
+  const key = `${order}:${JSON.stringify(filter)}:${data.recordings.pageInfo.endCursor ?? ''}`;
+  const [loaded, setMore] = useEntryState<{
+    key: string;
     changes: number;
     recordings: Recording[];
     next: string | null;
-  } | null>(null);
-  const more = loaded?.changes === changes ? loaded : null;
+  } | null>('more', null);
+  const more = loaded?.key === key && loaded.changes === changes ? loaded : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const recordings = [
@@ -584,6 +578,7 @@ function RecordingGrid({
       }).toPromise();
       if (page !== undefined) {
         setMore({
+          key,
           changes,
           recordings: [
             ...(more?.recordings ?? []),
@@ -658,6 +653,7 @@ function RecordingGrid({
                   <RecordingCard
                     recording={recording}
                     highlights={nameHighlights(filter.keywords)}
+                    listSearch={listSearch}
                   />
                 </Box>
                 {selecting && (

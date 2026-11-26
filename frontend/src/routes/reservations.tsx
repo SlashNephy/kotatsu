@@ -46,6 +46,7 @@ import {
   ProgramTitle,
   toHalfWidth,
   useDocumentTitle,
+  useEntryState,
 } from '../futon';
 import { broadcastDay, dateOf } from '../guide/layout';
 import { isUnauthenticated } from '../relay/environment';
@@ -207,7 +208,8 @@ function ReservationsPage() {
   useDocumentTitle([t('reservations.title')]);
   // 画面を開いた時刻から数える。放送中の予約も、終わる前なので時間帯に重なって入る。
   // 読み込みの間に子は描き直されて state を失うので、時間帯は、待たない親で決める。
-  const [range] = useState(() => {
+  // ほかの画面から戻ったときは、読み込んだ続きと同じ時間帯で出すよう、履歴の項目に残した時間帯を使う (#2146)。
+  const [range] = useEntryState('range', () => {
     const now = Date.now();
 
     return {
@@ -351,9 +353,12 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
   );
   const environment = useRelayEnvironment();
   // more は、続きの読み込みで足した予約と、その次のカーソル。絞り込みを変えたら破棄する。
-  const [more, setMore] = useState<{ key: string; nodes: Node[]; next: string | null } | null>(
-    null,
-  );
+  // ほかの画面から戻ったときも同じ所まで出すよう、履歴の項目に残す (#2146)。
+  const [more, setMore] = useEntryState<{
+    key: string;
+    nodes: Node[];
+    next: string | null;
+  } | null>('more', null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState(false);
   // reload は、一覧を読み直す。時刻予約を作ったり時刻を変えたりすると、並びと割り当てが変わる。

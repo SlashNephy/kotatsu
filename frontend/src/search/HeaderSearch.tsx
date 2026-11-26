@@ -4,7 +4,8 @@ import { Search } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { emptyConditions, emptyKeyword } from '../conditions/form';
+import { emptyKeyword } from '../conditions/form';
+import { startSearchState } from './searchParams';
 
 // HeaderSearch は、ヘッダーに出す、番組検索の入力欄 (#1627)。
 // 場所を取らないよう虫眼鏡のアイコンにし、押すと入力欄をポップオーバーで出す。Enter で、打った言葉を番組名のキーワードにして
@@ -20,19 +21,12 @@ export function HeaderSearch() {
     const keyword = text.trim();
     setOpened(false);
     setText('');
+    // 番組の詳細から同じ名前で探すときと違い、これから放送する番組を探すので、archive は渡さない。過去の放送は、画面で含められる。
     void navigate({
       to: '/search',
-      state:
-        keyword === ''
-          ? {}
-          : {
-              searchConditions: {
-                ...emptyConditions(),
-                keywords: [{ ...emptyKeyword(), text: keyword }],
-              },
-              // 番組の詳細から同じ名前で探すときと違い、これから放送する番組を探す。過去の放送は、画面で含められる。
-              searchArchive: false,
-            },
+      state: startSearchState(),
+      search:
+        keyword === '' ? {} : { conditions: { keywords: [{ ...emptyKeyword(), text: keyword }] } },
     });
   };
 

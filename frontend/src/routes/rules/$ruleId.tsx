@@ -45,10 +45,15 @@ const newRuleId = 'new';
 function RulePage() {
   const { t } = useTranslation();
   const { ruleId } = Route.useParams();
+  // 一覧から開いたときは、同じ絞り込みの一覧に戻る (#2146)。
+  const listSearch = useLocation({ select: (location) => location.state.rulesSearch });
 
   return (
     <Stack gap="sm">
-      <Anchor component={Link} to="/rules" size="sm">
+      <Anchor
+        size="sm"
+        renderRoot={(props) => <Link {...props} to="/rules" search={listSearch ?? {}} />}
+      >
         {t('rules.back')}
       </Anchor>
       <Title order={2}>

@@ -22,9 +22,12 @@ import {
   EmptyState,
   ErrorBoundary,
   PageLoader,
+  parseUrlText,
   ProgramTitle,
   toHalfWidth,
   useDocumentTitle,
+  useEntryState,
+  useUrlText,
   zonedFormat,
 } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
@@ -37,7 +40,17 @@ import type {
 } from './__generated__/capturesListQuery.graphql';
 import type { capturesDeleteMutation } from './__generated__/capturesDeleteMutation.graphql';
 
+type CapturesSearch = {
+  // q は、番組名、サービス名、撮ったときの字幕の文から探す語。戻ったときや開き直したときに保つよう、URL に持つ (#2146)。
+  q?: string;
+};
+
 export const Route = createFileRoute('/captures')({
+  validateSearch: (search: Record<string, unknown>): CapturesSearch => {
+    const q = parseUrlText(search['q']);
+
+    return q === undefined ? {} : { q };
+  },
   component: CapturesPage,
 });
 
@@ -81,11 +94,16 @@ const query = graphql`
 type Capture = capturesListQuery$data['captures']['edges'][number]['node'];
 
 // CapturesPage は、サーバーに残したキャプチャの一覧 (#457、#908、設計書 7.5)。撮ったユーザーのものだけを出す。
-// 番組名とサービス名で探し、保存、コピー、削除と、録画で撮ったものは撮った場面からの再生ができる。
+// 番組名、サービス名、字幕で探し、保存、コピー、削除と、録画で撮ったものは撮った場面からの再生ができる。
 function CapturesPage() {
   const { t } = useTranslation();
   useDocumentTitle([t('captures.title')]);
-  const [keyword, setKeyword] = useState('');
+  const navigate = Route.useNavigate();
+  // keyword は、探す語の入力。打つたびに、履歴を積まずにクエリを置き換える。
+  const [keyword, changeKeyword] = useUrlText(
+    Route.useSearch({ select: (search) => search.q }),
+    (q) => void navigate({ replace: true, search: q === undefined ? {} : { q } }),
+  );
   // 打っている間は、前の結果を出したまま探す。
   const deferred = useDeferredValue(keyword.trim());
 
@@ -100,7 +118,7 @@ function CapturesPage() {
         aria-label={t('captures.search')}
         placeholder={t('captures.search')}
         value={keyword}
-        onChange={(event) => setKeyword(event.currentTarget.value)}
+        onChange={(event) => changeKeyword(event.currentTarget.value)}
         maw={400}
       />
       <ErrorBoundary
@@ -128,20 +146,22 @@ function CaptureList({ keyword }: { keyword: string }) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   // deletions は、消した回数。消したら、最初のページから読み直す。
-  const [deletions, setDeletions] = useState(0);
+  const [deletions, setDeletions] = useEntryState('deletions', 0);
   const variables = { first: pageSize, after: null, keyword: keyword === '' ? null : keyword };
   const data = useLazyLoadQuery<capturesListQuery>(query, variables, {
     fetchKey: deletions,
     fetchPolicy: 'store-and-network',
   });
-  // more は、続きの読み込みで足したキャプチャと、その次のカーソル。key は、読み込んだときの探す言葉と消した回数。
-  // 探す言葉を変えるか消して、最初のページを読み直したら、続きは破棄する。
-  const key = `${deletions}:${keyword}`;
-  const [loaded, setMore] = useState<{
+  // more は、続きの読み込みで足したキャプチャと、その次のカーソル。key は、読み込んだときの探す言葉と消した回数と、
+  // 最初のページの終わりのカーソル。探す言葉を変えるか消して、最初のページを読み直したら、続きは破棄する。
+  // ほかの画面から戻ったときも同じ所まで出すよう、履歴の項目に残す。その間にキャプチャが増えて最初のページが
+  // 変わったら、最初のページからこぼれたキャプチャがどちらにも出なくなるので、続きは破棄する (#2146)。
+  const key = `${deletions}:${keyword}:${data.captures.pageInfo.endCursor ?? ''}`;
+  const [loaded, setMore] = useEntryState<{
     key: string;
     captures: Capture[];
     next: string | null;
-  } | null>(null);
+  } | null>('more', null);
   const more = loaded?.key === key ? loaded : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);

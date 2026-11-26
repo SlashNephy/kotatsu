@@ -170,3 +170,10 @@ export const othersSectionKey = 'others';
 export function sectionKey(group: ListedGroup | null): string {
   return group === null ? othersSectionKey : group.id;
 }
+
+declare module '@tanstack/react-router' {
+  interface HistoryState {
+    // rulesSearch は、ルールの編集を開いた一覧のクエリ。編集の「戻る」で、同じ絞り込みの一覧に戻る (#2146)。
+    rulesSearch?: RuleListSearch;
+  }
+}

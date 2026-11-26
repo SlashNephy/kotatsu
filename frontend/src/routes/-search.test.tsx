@@ -1,17 +1,18 @@
-import { act, cleanup, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, test } from 'vitest';
 
-import { emptyConditions, emptyKeyword, type ConditionsForm } from '../conditions/form';
+import { emptyKeyword } from '../conditions/form';
 import { createDemoEnvironment, renderRoute } from '../test/route';
+import { startSearchState } from '../search/searchParams';
 import { Route } from './search';
 
 afterEach(() => {
   cleanup();
 });
 
-// keywordConditions は、番組名のキーワード text だけの条件。
-function keywordConditions(text: string): ConditionsForm {
-  return { ...emptyConditions(), keywords: [{ ...emptyKeyword(), text }] };
+// keywordConditions は、番組名のキーワード text だけの条件 (URL のクエリの形)。
+function keywordConditions(text: string) {
+  return { keywords: [{ ...emptyKeyword(), text }] };
 }
 
 // archiveSwitch は、「過去の放送を含める」のスイッチ。
@@ -23,10 +24,7 @@ describe('SearchPage', () => {
   test('ヘッダーの検索から開いたら、渡した言葉で、過去の放送を含めずに探す (#1627)', async () => {
     const { router } = await renderRoute(Route, '/search', '/', createDemoEnvironment());
     await act(() =>
-      router.navigate({
-        to: '/search',
-        state: { searchConditions: keywordConditions('ニュース'), searchArchive: false },
-      }),
+      router.navigate({ to: '/search', search: { conditions: keywordConditions('ニュース') } }),
     );
 
     expect(await screen.findByDisplayValue('ニュース')).toBeTruthy();
@@ -38,7 +36,7 @@ describe('SearchPage', () => {
     await act(() =>
       router.navigate({
         to: '/search',
-        state: { searchConditions: keywordConditions('ニュース') },
+        search: { conditions: keywordConditions('ニュース'), archive: 30 },
       }),
     );
 
@@ -51,21 +49,92 @@ describe('SearchPage', () => {
     await act(() =>
       router.navigate({
         to: '/search',
-        state: { searchConditions: keywordConditions('ニュース') },
+        search: { conditions: keywordConditions('ニュース'), archive: 30 },
       }),
     );
     expect(await screen.findByDisplayValue('ニュース')).toBeTruthy();
     expect(archiveSwitch().checked).toBe(true);
 
     await act(() =>
-      router.navigate({
-        to: '/search',
-        state: { searchConditions: keywordConditions('アニメ'), searchArchive: false },
-      }),
+      router.navigate({ to: '/search', search: { conditions: keywordConditions('アニメ') } }),
     );
 
     expect(await screen.findByDisplayValue('アニメ')).toBeTruthy();
     expect(screen.queryByDisplayValue('ニュース')).toBeNull();
     expect(archiveSwitch().checked).toBe(false);
+  });
+
+  test('打った条件で、URL を置き換える (#2146)', async () => {
+    const { router } = await renderRoute(Route, '/search', '/search', createDemoEnvironment());
+    const historyLength = router.history.length;
+
+    fireEvent.change(await screen.findByRole('textbox', { name: '含めるキーワード' }), {
+      target: { value: 'ドラマ' },
+    });
+
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual({ conditions: keywordConditions('ドラマ') }),
+    );
+    // 打つたびに履歴を積まない。
+    expect(router.history.length).toBe(historyLength);
+  });
+
+  test('URL の条件と過去の放送の日数で、探し始める (#2146)', async () => {
+    await renderRoute(
+      Route,
+      '/search',
+      `/search?${new URLSearchParams({
+        conditions: JSON.stringify(keywordConditions('ニュース')),
+        archive: '7',
+      })}`,
+      createDemoEnvironment(),
+    );
+
+    expect(await screen.findByDisplayValue('ニュース')).toBeTruthy();
+    expect(archiveSwitch().checked).toBe(true);
+    expect(screen.getByRole('textbox', { name: '過去の放送を探す日数' })).toHaveProperty(
+      'value',
+      '直近7日',
+    );
+  });
+
+  test('同じ条件で探し直したときも、打ちかけの入力を破棄して始め直す (#1627、#2146)', async () => {
+    const { router } = await renderRoute(Route, '/search', '/', createDemoEnvironment());
+    await act(() =>
+      router.navigate({ to: '/search', search: { conditions: keywordConditions('ニュース') } }),
+    );
+    fireEvent.change(await screen.findByDisplayValue('ニュース'), { target: { value: 'ドラマ' } });
+
+    // ヘッダーの検索と同じく、始めた時刻を状態に載せる。移る先の読み込みは待たない。
+    act(() => {
+      void router.navigate({
+        to: '/search',
+        search: { conditions: keywordConditions('ニュース') },
+        state: startSearchState(),
+      });
+    });
+
+    expect(await screen.findByDisplayValue('ニュース')).toBeTruthy();
+    expect(screen.queryByDisplayValue('ドラマ')).toBeNull();
+  });
+
+  test('URL を書き換えた後も、打ちかけの行を残す (#2146)', async () => {
+    const { router } = await renderRoute(Route, '/search', '/search', createDemoEnvironment());
+    fireEvent.change(await screen.findByRole('textbox', { name: '含めるキーワード' }), {
+      target: { value: 'ドラマ ' },
+    });
+    const [addKeyword] = screen.getAllByRole('button', { name: 'キーワードを追加' });
+    fireEvent.click(addKeyword!);
+
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual({ conditions: keywordConditions('ドラマ') }),
+    );
+
+    // 末尾の空白と、足した空の行は、URL には載せないが、入力には残す。
+    expect(
+      screen
+        .getAllByRole<HTMLInputElement>('textbox', { name: '含めるキーワード' })
+        .map((input) => input.value),
+    ).toEqual(['ドラマ ', '']);
   });
 });

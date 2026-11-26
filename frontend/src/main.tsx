@@ -19,6 +19,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { removeLegacyHistory } from './captures/upload';
 import { cspNonce, cssVariablesResolver, ErrorRecoveryContext, theme } from './futon';
 import { loadTimeZone } from './futon/timeZone';
+import { createScrollRestoration } from './futon/scrollRestoration';
 import { createEnvironment } from './relay/environment';
 import { errorRecovery } from './relay/recovery';
 import { routeTree } from './routeTree.gen';
@@ -35,7 +36,15 @@ if (import.meta.env.DEV) {
 setNonce(cspNonce());
 
 // basepath は、Vite の base に合わせる。tenban は / に置き、静的なデモはサブパスに置く (#832)。
-const router = createRouter({ routeTree, basepath: import.meta.env.BASE_URL });
+// scrollRestoration は、ブラウザで戻ったときに、ページと、data-scroll-restoration-id を付けた要素のスクロールの位置を戻す。
+// ほかの画面へ新しく移ったときは、先頭から出す。同じ画面のままクエリを変えたときは、位置を変えない (#2146)。
+const scroll = createScrollRestoration();
+const router = createRouter({
+  routeTree,
+  basepath: import.meta.env.BASE_URL,
+  scrollRestoration: scroll.shouldRestore,
+});
+scroll.track(router.history);
 // 静的なデモ (#832) では、tenban の代わりに、ブラウザの中で応答を返す。
 // 条件は import.meta.env.MODE を直に書く。通常のビルドでは定数の比較として消え、デモのコードを含まない。
 const environment =

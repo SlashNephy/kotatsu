@@ -16,11 +16,21 @@ import {
   sourceURL,
   type SoftwareEntry,
 } from '../about/licenses';
-import { ErrorBoundary, PageLoader, useDocumentTitle } from '../futon';
+import { ErrorBoundary, PageLoader, parseUrlText, useDocumentTitle, useUrlText } from '../futon';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import type { aboutQuery } from './__generated__/aboutQuery.graphql';
 
+type AboutSearch = {
+  // q は、ライセンスの一覧を絞り込む語 (#2146)。
+  q?: string;
+};
+
 export const Route = createFileRoute('/about')({
+  validateSearch: (search: Record<string, unknown>): AboutSearch => {
+    const q = parseUrlText(search['q']);
+
+    return q === undefined ? {} : { q };
+  },
   component: AboutPage,
 });
 
@@ -62,7 +72,12 @@ function AboutContent() {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<aboutQuery>(query, {});
   const revision = data.version.revision ?? null;
-  const [filter, setFilter] = useState('');
+  const navigate = Route.useNavigate();
+  // filter は、絞り込む語。打つたびに、履歴を積まずにクエリを置き換える。
+  const [filter, setFilter] = useUrlText(
+    Route.useSearch({ select: (search) => search.q }),
+    (q) => void navigate({ replace: true, search: q === undefined ? {} : { q } }),
+  );
   // undefined は読んでいる途中、null は出力していないビルド。
   const [bundled, setBundled] = useState<SoftwareEntry[] | null | undefined>(undefined);
   const [libaribcaptionNotice, setLibaribcaptionNotice] = useState<string | null>(null);
