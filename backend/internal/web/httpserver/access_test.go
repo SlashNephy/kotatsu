@@ -26,6 +26,7 @@ const (
 	headerXFH   = "X-Forwarded-Host"
 	headerXFP   = "X-Forwarded-Proto"
 	schemeHTTPS = "https"
+	schemeWSS   = "wss"
 	// proxiedHost は、リバースプロキシが受けたホスト名。
 	proxiedHost = "tv.example.com"
 	// publicRejected は、インターネットの送信元を拒否したときの応答。
@@ -88,6 +89,17 @@ func TestAccessPolicy(t *testing.T) {
 			name: "client behind a trusted proxy", remoteAddr: trustedProxy,
 			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeHTTPS, headerXFH: proxiedHost},
 			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "https://" + proxiedHost,
+		},
+		{
+			// WebSocket の接続を始める要求に、https ではなく wss を付けるリバースプロキシがある。
+			name: "wss from a trusted proxy is https", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeWSS, headerXFH: proxiedHost},
+			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "https://" + proxiedHost,
+		},
+		{
+			name: "ws from a trusted proxy is http", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: "ws", headerXFH: proxiedHost},
+			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "http://" + proxiedHost,
 		},
 		{
 			name: "public client behind a trusted proxy is rejected", remoteAddr: trustedProxy,
@@ -356,6 +368,21 @@ func TestRequireSameOriginUpgrade(t *testing.T) {
 			name: "same origin behind a trusted proxy", remoteAddr: trustedProxy,
 			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeHTTPS, headerXFH: proxiedHost, headerOrigin: "https://" + proxiedHost},
 			wantStatus: http.StatusOK,
+		},
+		{
+			name: "same origin behind a proxy that sends wss", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeWSS, headerXFH: proxiedHost, headerOrigin: "https://" + proxiedHost},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "http Origin behind a proxy that sends wss", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeWSS, headerXFH: proxiedHost, headerOrigin: "http://" + proxiedHost},
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name: "https Origin behind a proxy that sends ws", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: "ws", headerXFH: proxiedHost, headerOrigin: "https://" + proxiedHost},
+			wantStatus: http.StatusForbidden,
 		},
 	}
 	policy, err := httpserver.NewAccessPolicy(&config.Server{
