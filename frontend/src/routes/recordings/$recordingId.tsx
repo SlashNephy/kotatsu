@@ -28,6 +28,7 @@ import {
   captionModelsAnchor,
 } from '../../recordings/AutoCaptions';
 import { createFileRoute, Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { useListState } from '../../recordings/listSearch';
 import {
   Captions,
   Download,
@@ -175,7 +176,8 @@ const recordingChannels: readonly ChangeChannel[] = ['RECORDINGS', 'RESERVATIONS
 function Recording({ recordingId }: { recordingId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const listSearch = useLocation({ select: (location) => location.state.recordingsSearch });
+  const listState = useListState();
+  const listSearch = listState?.recordingsSearch;
   // 録画を終えた、サムネイルができた、ほかの端末で保護やタグを変えたなど、録画が変わったら読み直す (#868)。
   const changes = useDataChanges(recordingChannels);
   // CM の区間を見分けるのを待っている間と、見分けている間は、進み具合と、終わったか失敗したかを追うため、読み直し続ける (#1571)。
@@ -576,7 +578,7 @@ function Recording({ recordingId }: { recordingId: string }) {
                   to="/recordings/$recordingId/play"
                   params={{ recordingId }}
                   // 再生から詳細に戻っても、開いた一覧に戻れるよう、一覧のクエリを引き継ぐ (#2146)。
-                  state={listSearch === undefined ? undefined : { recordingsSearch: listSearch }}
+                  state={listState}
                 />
               )}
             >

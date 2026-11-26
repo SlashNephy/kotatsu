@@ -266,8 +266,9 @@ function Recordings({
   const [form, setForm] = useState<RecordingFilterForm>(() => formFromSearch(search));
   const patch = (changes: Partial<RecordingFilterForm>) =>
     setForm((current) => ({ ...current, ...changes }));
-  // 上のメニューから開き直したときや、ルールでの絞り込みを外したときなど、フォームの外で URL が変わったら、入力をそれに合わせる。
-  const searchKey = JSON.stringify(search);
+  // 上のメニューから開き直したときなど、フォームの外で URL の絞り込みが変わったら、入力をそれに合わせる。
+  // 並び順とルールはフォームの外なので、それだけが変わったときは、決める前の入力を残す。
+  const searchKey = JSON.stringify(formFromSearch(search));
   const [syncedKey, setSyncedKey] = useState(searchKey);
   if (searchKey !== syncedKey) {
     setSyncedKey(searchKey);
