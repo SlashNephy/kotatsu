@@ -86,7 +86,7 @@ func TestTitleAliases(t *testing.T) {
 		syobocalProgram(440, 44, grChannel, jst(7, 0, 0), jst(7, 0, 30), "3", "", "", 0),
 	}, false)
 	// 本放送 (しょぼいカレンダーで引けるもの)。
-	insertNamedProgram(t, db, grService, 11, jst(3, 0, 0), jst(3, 0, 30), "別名作品 【特別版】 #06")
+	insertNamedProgram(t, db, grService, 11, jst(3, 0, 0), jst(3, 0, 30), "別名作品 【特別編】 #06")
 	insertNamedProgram(t, db, grService, 12, jst(3, 1, 0), jst(3, 1, 30), "通し作品 #8")
 	insertNamedProgram(t, db, grService, 13, jst(3, 2, 0), jst(3, 2, 30), "ゆれる作品 #2")
 	insertNamedProgram(t, db, grService, 14, jst(3, 3, 0), jst(3, 3, 30), "ゆれる作品 #3")
@@ -98,7 +98,7 @@ func TestTitleAliases(t *testing.T) {
 	// まだ放送していない本放送。
 	insertNamedProgram(t, db, grService, 18, jst(7, 0, 0), jst(7, 0, 30), "未来作品 #3")
 	// ChID のないサービスのリピート放送。1 つ目は本放送より前に放送して確定させる。
-	insertNamedProgram(t, db, csService, 21, jst(2, 12, 0), jst(2, 12, 30), "別名作品 【特別版】 #05")
+	insertNamedProgram(t, db, csService, 21, jst(2, 12, 0), jst(2, 12, 30), "別名作品 【特別編】 #05")
 	insertNamedProgram(t, db, csService, 22, jst(4, 12, 0), jst(4, 12, 30), "通し作品 #8")
 	insertNamedProgram(t, db, csService, 23, jst(4, 13, 0), jst(4, 13, 30), "ゆれる作品 #2")
 	insertNamedProgram(t, db, csService, 25, jst(4, 14, 0), jst(4, 14, 30), "通し二期 #1")
@@ -111,7 +111,7 @@ func TestTitleAliases(t *testing.T) {
 	require.NoError(t, err)
 	unlinked := []linkedEpisode{{TID: nil, CountStart: new(5.0), CountEnd: new(5.0)}}
 	require.Equal(t, unlinked, linkedOfProgram(t, db, csService, jst(2, 12, 0)), "no alias exists before the original broadcast")
-	recording := insertNamedRecording(t, db, csService, jst(2, 12, 0), jst(2, 12, 30), "別名作品 【特別版】 #05")
+	recording := insertNamedRecording(t, db, csService, jst(2, 12, 0), jst(2, 12, 30), "別名作品 【特別編】 #05")
 	require.Equal(t, unlinked, linkedOfRecording(t, db, recording))
 
 	clk.Set(jst(5, 0, 0))
