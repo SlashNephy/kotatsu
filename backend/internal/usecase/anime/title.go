@@ -112,20 +112,18 @@ func seriesOf(episode *int32, repeat pgtype.Bool) *Series {
 	return &Series{Episode: *episode, Repeat: repeat.Valid && repeat.Bool}
 }
 
-// titleEpisodes は、番組名 name を解析した話を返す。作品名がしょぼいカレンダーのタイトル 1 つだけに一致すれば、その TID を付ける。
-// 番組名に話数が書かれていなければ、シリーズの記述子の話数 series を使い (#1311)、マークを除いた番組名を作品名とする。
-// 番組名の話数とシリーズの記述子の話数が食い違えば、番組名の話数を使う。番組名は人が書くので、記述子より誤りに気付かれやすい。
-// どちらにも話数がなければ、空の一覧を返す。
+// titleEpisodes は、番組名 name を解析した話を返す。作品名から作品 (TID) と話数のずれを決められれば (resolveTitle)、
+// その TID を付け、話数をずらす。番組名に話数が書かれていなければ、シリーズの記述子の話数 series を使い (#1311)、
+// マークを除いた番組名を作品名とする。番組名の話数とシリーズの記述子の話数が食い違えば、番組名の話数を使う。
+// 番組名は人が書くので、記述子より誤りに気付かれやすい。どちらにも話数がなければ、空の一覧を返す。
 func titleEpisodes(ctx context.Context, db sqlc.DBTX, name string, series *Series) ([]*Episode, error) {
-	parsed, ok := ParseTitle(name)
+	var seriesEpisode *int32
+	if series != nil {
+		seriesEpisode = &series.Episode
+	}
+	parsed, ok := titleOf(name, seriesEpisode)
 	if !ok {
-		if series == nil {
-			return []*Episode{}, nil
-		}
-		parsed = &ParsedTitle{Title: stripMarks(name), CountStart: float64(series.Episode), CountEnd: float64(series.Episode), Subtitle: ""}
-		if parsed.Title == "" {
-			return []*Episode{}, nil
-		}
+		return []*Episode{}, nil
 	}
 	rerun := slices.Contains(domain.Marks(name), "再") || (series != nil && series.Repeat)
 	episode := &Episode{
@@ -135,13 +133,16 @@ func titleEpisodes(ctx context.Context, db sqlc.DBTX, name string, series *Serie
 	if parsed.Subtitle != "" {
 		episode.Subtitle = new(parsed.Subtitle)
 	}
-	titles, err := sqlc.New(db).ListSyobocalTitlesByKey(ctx, TitleKey(parsed.Title))
+	link, ok, err := resolveTitle(ctx, sqlc.New(db), TitleKey(parsed.Title))
 	if err != nil {
-		return nil, fmt.Errorf("failed to look up the syobocal title: %w", err)
+		return nil, err
 	}
-	// 同じ作品名のタイトルが複数あれば、どれか決められないので、TID は付けない。
-	if len(titles) == 1 {
-		episode.TID = new(titles[0].Tid)
+	if !ok {
+		return []*Episode{episode}, nil
+	}
+	if start, end, ok := link.shift(episode.CountStart, episode.CountEnd); ok {
+		episode.TID = new(link.tid)
+		episode.CountStart, episode.CountEnd = start, end
 	}
 
 	return []*Episode{episode}, nil

@@ -203,6 +203,63 @@ SELECT last_update FROM syobocal_titles WHERE last_update IS NOT NULL ORDER BY l
 -- name: ListSyobocalTitlesByKey :many
 SELECT tid, title FROM syobocal_titles WHERE title_key = @title_key ORDER BY tid LIMIT 2;
 
+-- name: ListAnimeTitleAliasSources :many
+-- 作品名の対応 (anime_title_aliases) を作るための、しょぼいカレンダーで 1 つの話だけに結びついた、番組表と過去の番組の番組を返す。
+-- 2 話連続のような複数の話に結びついた番組は、番組名の話数と、どの話が対応するかを決められないので除く。
+-- しょぼいカレンダーの登録は放送の直前まで変わる (延期、話数の訂正) ので、結びつきを確定させた番組だけを使う。
+SELECT e.syobocal_tid::integer AS syobocal_tid, e.count_start::double precision AS count_start,
+  coalesce(p.name, a.name)::text AS name, coalesce(p.series_episode, a.series_episode) AS series_episode
+FROM program_anime_episodes e
+JOIN program_anime_matches m ON m.service_id = e.service_id AND m.start_at = e.start_at AND m.finalized_at IS NOT NULL
+LEFT JOIN programs p ON p.service_id = e.service_id AND p.start_at = e.start_at
+LEFT JOIN program_archives a ON a.service_id = e.service_id AND a.start_at = e.start_at
+WHERE e.source = 'syobocal' AND e.syobocal_tid IS NOT NULL AND e.count_start IS NOT NULL AND e.count_start = e.count_end
+  AND (p.name IS NOT NULL OR a.name IS NOT NULL)
+  AND NOT EXISTS (
+    SELECT 1 FROM program_anime_episodes o WHERE o.service_id = e.service_id AND o.start_at = e.start_at AND o.position <> e.position
+  );
+
+-- name: DeleteAnimeTitleAliases :exec
+DELETE FROM anime_title_aliases;
+
+-- name: InsertAnimeTitleAliases :exec
+INSERT INTO anime_title_aliases (title_key, syobocal_tid, count_offset)
+SELECT unnest(@title_keys::text[]), unnest(@syobocal_tids::integer[]), unnest(@count_offsets::double precision[])
+ON CONFLICT DO NOTHING;
+
+-- name: ListAnimeTitleAliases :many
+-- 作品名 title_key の対応を返す。2 つ以上あれば、どれか決められないので、呼ぶ側は 2 つまで読めばよい。
+SELECT syobocal_tid, count_offset FROM anime_title_aliases WHERE title_key = @title_key
+ORDER BY syobocal_tid, count_offset LIMIT 2;
+
+-- name: ListUnlinkedProgramTitleEpisodes :many
+-- 番組名の解析で結びつけ、TID の付かなかった、番組表と過去の番組の番組の話を返す。
+SELECT e.service_id, e.start_at, e.position, e.count_start, e.count_end, coalesce(p.name, a.name)::text AS name
+FROM program_anime_episodes e
+LEFT JOIN programs p ON p.service_id = e.service_id AND p.start_at = e.start_at
+LEFT JOIN program_archives a ON a.service_id = e.service_id AND a.start_at = e.start_at
+WHERE e.source = 'title' AND e.syobocal_tid IS NULL AND (p.name IS NOT NULL OR a.name IS NOT NULL)
+ORDER BY e.service_id, e.start_at, e.position;
+
+-- name: LinkProgramTitleEpisode :execrows
+-- 番組名の解析で結びつけた話に、TID と、ずらした話数を付ける。照合し直しと同時に書き換えないよう、TID がまだないときだけ書く。
+UPDATE program_anime_episodes
+SET syobocal_tid = @syobocal_tid, count_start = sqlc.narg(count_start), count_end = sqlc.narg(count_end)
+WHERE service_id = @service_id AND start_at = @start_at AND position = @position AND source = 'title' AND syobocal_tid IS NULL;
+
+-- name: ListUnlinkedRecordingTitleEpisodes :many
+-- 番組名の解析で結びつけ、TID の付かなかった、録画の話を返す。
+SELECT e.recording_id, e.position, e.count_start, e.count_end, r.name
+FROM recording_anime_episodes e
+JOIN recordings r ON r.id = e.recording_id
+WHERE e.source = 'title' AND e.syobocal_tid IS NULL
+ORDER BY e.recording_id, e.position;
+
+-- name: LinkRecordingTitleEpisode :execrows
+UPDATE recording_anime_episodes
+SET syobocal_tid = @syobocal_tid, count_start = sqlc.narg(count_start), count_end = sqlc.narg(count_end)
+WHERE recording_id = @recording_id AND position = @position AND source = 'title' AND syobocal_tid IS NULL;
+
 -- name: ListProgramRecordingIDs :many
 -- 番組 (サービスと開始時刻の組) を録った録画を返す。EPGStation から取り込んだ録画は、自分で照合するので除く。
 SELECT r.id FROM recordings r

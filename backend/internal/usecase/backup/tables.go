@@ -83,6 +83,7 @@ func includedTables() []string {
 		"timeshift_programs",
 		"timeshift_promotions",
 		"syobocal_titles",
+		"anime_title_aliases",
 		"anime_channel_definitions",
 		"anime_channel_overrides",
 		"anime_works",
