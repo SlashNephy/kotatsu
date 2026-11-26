@@ -91,7 +91,7 @@ jobs:
         run: gh release download "$REF_NAME" --pattern 'kotatsu-*.tgz' --dir "$RUNNER_TEMP/chart"
       # gh-pages ブランチには、GitHub App (kotatsu-artifacts) で書く (#1060)。API で作ったコミットは、App の名前で GitHub が署名する。
       - id: app-token
-        uses: actions/create-github-app-token@v3.3.0
+        uses: actions/create-github-app-token@v3.4.0
         with:
           client-id: ${{ vars.KOTATSU_BOT_CLIENT_ID }}
           private-key: ${{ secrets.KOTATSU_BOT_PRIVATE_KEY }}
