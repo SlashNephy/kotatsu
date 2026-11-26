@@ -47,7 +47,7 @@ const (
 	// detectorFFmpeg と detectorLogo は、CM の区間の見分け方の名前。
 	detectorFFmpeg = "ffmpeg"
 	detectorLogo   = "logo"
-	// recordingIDKey は、録画の開始のイベントの材料の、録画の ID の鍵。
+	// recordingIDKey は、録画の開始のイベントの材料の、録画の ID のキー。
 	recordingIDKey = "recordingId"
 )
 
