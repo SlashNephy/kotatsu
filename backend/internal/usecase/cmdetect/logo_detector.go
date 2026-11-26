@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -31,8 +32,9 @@ const (
 	// バージョン 5 で、録画の途中の 60 秒を超える CM (通販の CM など) を CM にし、録画の端の近くの CM を端まで延ばした (#1958)。
 	// バージョン 6 で、番組のウィンドウの端を、近くの無音の境目に寄せるようにした (#1506)。
 	// バージョン 7 で、セグメントが分かれた録画にも、録画全体で番組のウィンドウを置くようにした (#1506)。
+	// バージョン 8 で、ロゴを出したままの番宣、CM のあいだの提供、録画の先頭の CM と番組の始まりの規則を足した (#2168)。
 	LogoDetectorName    = "logo"
-	logoDetectorVersion = 7
+	logoDetectorVersion = 8
 	// ffprobeCommand は、PATH から探す ffprobe のコマンドの名前。FFmpeg に付いてくる。
 	ffprobeCommand = "ffprobe"
 	// rawReadBuffer は、FFmpeg が出す生のコマを読むバッファの大きさ。
@@ -204,7 +206,7 @@ func (d *LogoDetector) ProgramWindows(materials []*Material, starts []time.Durat
 	}
 	programs := make([]*Program, 0, len(materials))
 	for i := range materials {
-		programs = append(programs, &Program{Start: seconds(pos) - starts[i], Duration: program.Duration, Fixed: true})
+		programs = append(programs, &Program{Start: seconds(pos) - starts[i], Duration: program.Duration, Fixed: true, Scheduled: program.Start - starts[i]})
 	}
 
 	return programs, true
@@ -613,8 +615,26 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 	missing := missingSections(m.Times, m.Fps)
 	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
 	scope := Section{Start: 0, End: duration}
+	// head は、番組の始まりの、ファイルの始まりからの秒 (分からなければ NaN)。録画の先頭の CM を、番組の始まりで終えるのに使う (#2168)。
+	// 番組の時刻の始まりと、ウィンドウを置いた回はウィンドウの始まりの、遅いほうにする。ウィンドウは番組の終わりのロゴに合わせて
+	// 置くことがあり、遅れて始まった放送の録画では、前の番組の終わりのロゴを含めて、ウィンドウの始まりが番組の始まりより
+	// 90 秒ほど前に来た。そこで録画の先頭の CM を終えると、前の番組 (45 分) を本編にしてしまう。
+	// どちらも、ファイルの中にあるときだけ使う。番組がファイルより前に始まったセグメントには、録画の先頭の CM がない。
+	head := math.NaN()
+	if program != nil {
+		scheduled := program.Start
+		if program.Fixed {
+			scheduled = program.Scheduled
+		}
+		if scheduled >= 0 {
+			head = scheduled.Seconds()
+		}
+	}
 	if w, ok := programWindow(intervals, m.Times, m.Fps, program); ok {
 		w = m.snapProgramWindow(w, program.Fixed)
+		if at := w.start + m.Times[0]; w.start >= 0 && (math.IsNaN(head) || at > head) {
+			head = at
+		}
 		intervals = clipIntervals(intervals, m.Times, w.start, w.end)
 		scope = Section{Start: seconds(max(w.start, 0)), End: seconds(min(w.end, frameTime(m.Times, m.Fps, len(m.Times))))}
 		if len(intervals) == 0 {
@@ -635,7 +655,7 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 		if shown, ok := m.logoInCMChains(intervals); ok {
 			return nil, fmt.Errorf("%w: the logo stays in %.0f%% of the CMs found by the silences", errLogoUnusable, shown*100)
 		}
-		sections = trimMissing(m.combine(intervals), missing)
+		sections = trimMissing(m.combine(intervals, head), missing)
 	}
 
 	return &logoResult{
@@ -758,15 +778,17 @@ func (m *Material) signalSpans(intervals []logo.Interval) []span {
 }
 
 // combine は、ロゴの出ていた区間と、今の見分け方の境目の候補から、本編と CM の並びを選び、CM の区間を、
-// 最初のコマからの時間で返す (#1506)。
-func (m *Material) combine(intervals []logo.Interval) []Section {
+// 最初のコマからの時間で返す (#1506)。head は、番組の始まりの、ファイルの始まりからの秒 (分からなければ NaN)。
+func (m *Material) combine(intervals []logo.Interval, head float64) []Section {
 	// ロゴの区間を、今の見分け方の基準の秒にする。
 	shown := m.signalSpans(intervals)
 	// CM の区間を、最初のコマからの時間に戻す。最初のコマより前と、最後のコマの後ろは切る。
 	origin := m.Times[0] + m.offset
 	last := m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps
 	sections := []Section{}
-	for _, s := range combineSections(m.bounds, m.boundsDuration, shown) {
+	// NaN に足しても NaN のままなので、分からないことは変わらない。
+	head += m.offset
+	for _, s := range combineSections(m.bounds, m.boundsDuration, shown, head) {
 		start, end := max(s.start-origin, 0), min(s.end-origin, last)
 		if end > start {
 			sections = append(sections, Section{Start: seconds(start), End: seconds(end)})

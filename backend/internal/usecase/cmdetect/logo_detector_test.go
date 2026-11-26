@@ -684,3 +684,51 @@ func TestMeasuredRate(t *testing.T) {
 		})
 	}
 }
+
+// TestLogoDetectorHeadAfterEarlyWindow は、番組のウィンドウの始まりが番組の時刻の始まりより前に来ても、録画の先頭の CM を
+// 番組の時刻の始まりまで延ばせることを確認する (#2168)。遅れて始まった放送の録画では、ウィンドウを番組の終わりのロゴに合わせて置き、
+// 前の番組の終わりのロゴを含めて、ウィンドウの始まりが番組の始まりより前に来た。
+func TestLogoDetectorHeadAfterEarlyWindow(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		program *cmdetect.Program
+	}{
+		{
+			// 番組表の尺は 210 秒なので、ウィンドウは番組の終わりのロゴに合わせて 80〜290 秒に置かれる。
+			name:    "a window placed in the file",
+			program: &cmdetect.Program{Start: 120 * time.Second, Duration: 210 * time.Second, Fixed: false, Scheduled: 0},
+		},
+		{
+			// セグメントが分かれた録画で、録画全体で置いたウィンドウ (80〜290 秒) を渡されたセグメント。
+			name:    "a window placed over the segments",
+			program: &cmdetect.Program{Start: 80 * time.Second, Duration: 210 * time.Second, Fixed: true, Scheduled: 120 * time.Second},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fallback := NewMockDetector(gomock.NewController(t))
+			detector, err := cmdetect.NewLogoDetectorWith(fallback)
+			if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
+				t.Skip("FFmpeg is not installed")
+			}
+			require.NoError(t, err)
+			// 1 コマ 1 秒で、300 秒の録画。前の番組の終わりのロゴが 70〜90 秒に、番組のロゴが 120〜290 秒に出る。番組は 120 秒に始まる。
+			m := &cmdetect.Material{Fps: 1, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: make([]float64, 300), Measures: make([]logo.Measure, 300)}
+			for i := range m.Times {
+				m.Times[i] = float64(i)
+				if (i >= 70 && i < 90) || (i >= 120 && i < 290) {
+					m.Measures[i].Score = 0.7
+				}
+			}
+			cmdetect.SetMaterialBounds(m, []float64{120, 290}, 300, 0)
+			got, _, ok := detector.Redetect(m, tt.program)
+			require.True(t, ok)
+			require.NotEmpty(t, got)
+			assert.Equal(t, cmdetect.Section{Start: 0, End: 120 * time.Second}, got[0])
+		})
+	}
+}

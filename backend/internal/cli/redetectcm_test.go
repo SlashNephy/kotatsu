@@ -170,7 +170,7 @@ func TestAdminRedetectCMWithLogo(t *testing.T) {
 	}{
 		{name: "今の形式の材料", version: 3, materialFormat: 5},
 		{name: "古い形式の材料", version: 3, materialFormat: 4},
-		{name: "今のバージョン", version: 7, materialFormat: 5},
+		{name: "今のバージョン", version: 8, materialFormat: 5},
 	}
 	ids := make([]string, len(recordings))
 	for i, recording := range recordings {
@@ -196,7 +196,7 @@ func TestAdminRedetectCMWithLogo(t *testing.T) {
 	cmd.SetOut(&out)
 	require.NoError(t, cmd.ExecuteContext(t.Context()))
 	assert.Equal(t,
-		"2 recordings would be redetected by logo version 7 (1 from the materials, 1 by reading the recordings)\n"+
+		"2 recordings would be redetected by logo version 8 (1 from the materials, 1 by reading the recordings)\n"+
 			fmt.Sprintf("%s\t%s\tlogo v3\tmaterials\t今の形式の材料\n", base.Format(time.RFC3339), ids[0])+
 			fmt.Sprintf("%s\t%s\tlogo v3\tread\t古い形式の材料\n", base.Add(time.Hour).Format(time.RFC3339), ids[1]),
 		out.String())

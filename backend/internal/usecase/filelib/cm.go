@@ -154,7 +154,7 @@ func cmProgram(broadcast *Broadcast) *cmdetect.Program {
 		return nil
 	}
 
-	return &cmdetect.Program{Start: program.Start.Sub(*broadcast.RecordedFrom), Duration: *program.Duration, Fixed: false}
+	return &cmdetect.Program{Start: program.Start.Sub(*broadcast.RecordedFrom), Duration: *program.Duration, Fixed: false, Scheduled: 0}
 }
 
 // EnqueueCM は、ファイル file の CM の区間をまだ見分けていなければ、見分けるジョブを入れる。同じファイルのジョブが待っていれば、重ねない。
