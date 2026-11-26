@@ -176,7 +176,13 @@ func DropShortSections(sections []Section, duration time.Duration) []Section {
 }
 
 // CombineSections は、境目の候補の時刻 (秒) と、録画の長さ、ロゴの出ていた区間から、combineSections の CM の区間を秒の組で返す。
+// 番組の始まりは分からないものとする。
 func CombineSections(bounds []float64, duration float64, shown [][2]float64) [][2]float64 {
+	return CombineSectionsWithHead(bounds, duration, shown, 0)
+}
+
+// CombineSectionsWithHead は、CombineSections に番組の始まりの時刻 head (秒) を渡す (#2168)。
+func CombineSectionsWithHead(bounds []float64, duration float64, shown [][2]float64, head float64) [][2]float64 {
 	bs := make([]boundary, 0, len(bounds))
 	for _, at := range bounds {
 		bs = append(bs, boundary{at: at, cut: true})
@@ -185,7 +191,7 @@ func CombineSections(bounds []float64, duration float64, shown [][2]float64) [][
 	for _, s := range shown {
 		logoSpans = append(logoSpans, span{start: s[0], end: s[1]})
 	}
-	sections := combineSections(bs, duration, logoSpans)
+	sections := combineSections(bs, duration, logoSpans, head)
 	out := make([][2]float64, 0, len(sections))
 	for _, s := range sections {
 		out = append(out, [2]float64{s.start, s.end})

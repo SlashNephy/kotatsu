@@ -259,6 +259,138 @@ func TestCombineSectionsNotice(t *testing.T) {
 	}
 }
 
+// TestCombineSectionsPromo は、局ロゴを出したままの番宣とロゴのない提供の扱いを確認する (#2168)。
+func TestCombineSectionsPromo(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		bounds []float64
+		shown  [][2]float64
+		want   [][2]float64
+	}{
+		{
+			// CM の並びの後、長い本編に戻る前の、ロゴを出したままの 15 秒の番宣は、CM にする。
+			name:   "a promo with the logo after CMs and before a long program part is a CM",
+			bounds: []float64{200, 215, 230, 244.96},
+			shown:  [][2]float64{{0, 200}, {230, 600}},
+			want:   [][2]float64{{200, 244.96}},
+		},
+		{
+			// 長い本編の後、CM の並びの前の、ロゴを出したままの 30 秒の番宣は、CM にする。
+			name:   "a promo with the logo after a long program part and before CMs is a CM",
+			bounds: []float64{200, 230.03, 245, 260},
+			shown:  [][2]float64{{0, 230.03}, {260.3, 600}},
+			want:   [][2]float64{{200, 260}},
+		},
+		{
+			// 番組の終わりの次回予告 (ロゴあり、15 秒) は、CM と提供 (ロゴあり、10 秒) に挟まれ、隣が長い本編でないので、本編に残す。
+			name:   "a next-episode preview with the logo between CMs and a sponsor card stays in the program",
+			bounds: []float64{400, 415, 430, 444.97, 455.2, 470.2, 485.2},
+			shown:  [][2]float64{{0, 400}, {430, 455.2}, {485.5, 600}},
+			want:   [][2]float64{{400, 430}, {455.2, 485.2}},
+		},
+		{
+			// 15 秒の倍数から 0.1 秒より大きくずれた、ロゴの出た区間は、番宣にしない。
+			name:   "a part with the logo that does not fit 15 seconds closely is not a promo",
+			bounds: []float64{200, 215, 230, 245.3},
+			shown:  [][2]float64{{0, 200}, {230, 600}},
+			want:   [][2]float64{{200, 230}},
+		},
+		{
+			// 録画の先頭の CM (前の番組の分) の直後のロゴの出た 15 秒は、番組の先頭 (アバン) なので、番宣にしない。
+			name:   "a part with the logo right after the CMs at the start of the recording is not a promo",
+			bounds: []float64{10.8, 25.8},
+			shown:  [][2]float64{{10.8, 600}},
+			want:   [][2]float64{{0, 10.8}},
+		},
+		{
+			// ロゴの出た 60 秒の本編の区間は、30 秒を超えるので、15 秒の倍数にちょうど合っても番宣にしない。
+			name:   "a 60-second part with the logo is not a promo",
+			bounds: []float64{200, 215, 275.05},
+			shown:  [][2]float64{{0, 200}, {215, 600}},
+			want:   [][2]float64{{200, 215}},
+		},
+		{
+			// CM の並びの途中のロゴのない 10 秒は、提供として本編の側に数える。
+			name:   "a sponsor card without the logo between CMs is not a CM",
+			bounds: []float64{200, 215, 230, 240.1, 255.1, 270.1},
+			shown:  [][2]float64{{0, 200}, {270.4, 600}},
+			want:   [][2]float64{{200, 230}, {240.1, 270.1}},
+		},
+		{
+			// 録画の終わりの近く (次の番組の直前) の、CM の並びの途中のロゴのない 10 秒は、局の番宣として CM にする。
+			name:   "a 10-second part without the logo between CMs near the end of the recording is a CM",
+			bounds: []float64{500, 515, 530, 540, 555, 570},
+			shown:  [][2]float64{{0, 500}},
+			want:   [][2]float64{{500, 600}},
+		},
+		{
+			// 本編の直後の提供 2 枚の後の案内と番宣は、CM のあいだの提供にしない。前の 30 秒にロゴが見えるため。
+			name:   "a part right after two sponsor cards is not a sponsor card between CMs",
+			bounds: []float64{290, 300, 315.5, 325.2, 340.2, 355.2},
+			shown:  [][2]float64{{0, 299.8}, {355.5, 600}},
+			want:   [][2]float64{{315.5, 355.2}},
+		},
+		{
+			// 本編のロゴが、無音の境目の 4 秒前に消えても、その後の 10 秒は提供にする。
+			name:   "a sponsor card is found when the logo disappears 4 seconds before it",
+			bounds: []float64{180, 190.2, 205.2, 220.2},
+			shown:  [][2]float64{{0, 176}, {220.5, 600}},
+			want:   [][2]float64{{190.2, 220.2}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, cmdetect.CombineSections(tt.bounds, 600, tt.shown))
+		})
+	}
+}
+
+// TestCombineSectionsHead は、番組の始まりが分かれば、録画の先頭の CM を番組の始まりで終えることを確認する (#2168)。
+// どの場合も、番組の始まりは 10 秒。
+func TestCombineSectionsHead(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		bounds []float64
+		shown  [][2]float64
+		want   [][2]float64
+	}{
+		{
+			// 番組の始まりの後の、ロゴを消した 36 秒のオープニングは、15 秒の倍数に合わないので、録画の先頭の CM に含めない。
+			name:   "a logo-less opening after the start of the program stays in the program",
+			bounds: []float64{11.1, 47.2, 62.1, 77.1},
+			shown:  [][2]float64{{77.4, 600}},
+			want:   [][2]float64{{0, 11.1}, {47.2, 77.1}},
+		},
+		{
+			// 番組の始まりの後に 15 秒の倍数の CM が続けば、CM にする (アニメの枠など)。
+			name:   "15-second CMs after the start of the program are CMs",
+			bounds: []float64{11.7, 41.4, 56.4, 71.4},
+			shown:  [][2]float64{{71.6, 600}},
+			want:   [][2]float64{{0, 71.4}},
+		},
+		{
+			// 録画の途中の、15 秒の倍数に合わないロゴのない所は、今までどおり CM にする。
+			name:   "a logo-less part in the middle of the recording that does not fit 15 seconds is still a CM",
+			bounds: []float64{11.1, 300, 316.4},
+			shown:  [][2]float64{{11.1, 300}, {316.4, 600}},
+			want:   [][2]float64{{0, 11.1}, {300, 316.4}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, cmdetect.CombineSectionsWithHead(tt.bounds, 600, tt.shown, 10))
+		})
+	}
+}
+
 // TestLogoInCMChains は、無音の境目が 15 秒の倍数で続く並びの間もロゴが出続けていれば、ロゴでないものを学習したとみなすことを確認する (#1506)。
 func TestLogoInCMChains(t *testing.T) {
 	t.Parallel()
