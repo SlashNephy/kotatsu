@@ -479,7 +479,7 @@ func (q *Queries) InsertRecordingAnimeEpisode(ctx context.Context, arg InsertRec
 	return err
 }
 
-const linkProgramTitleEpisode = `-- name: LinkProgramTitleEpisode :exec
+const linkProgramTitleEpisode = `-- name: LinkProgramTitleEpisode :execrows
 UPDATE program_anime_episodes
 SET syobocal_tid = $1, count_start = $2, count_end = $3
 WHERE service_id = $4 AND start_at = $5 AND position = $6 AND source = 'title' AND syobocal_tid IS NULL
@@ -495,8 +495,8 @@ type LinkProgramTitleEpisodeParams struct {
 }
 
 // 番組名の解析で結びつけた話に、TID と、ずらした話数を付ける。照合し直しと同時に書き換えないよう、TID がまだないときだけ書く。
-func (q *Queries) LinkProgramTitleEpisode(ctx context.Context, arg LinkProgramTitleEpisodeParams) error {
-	_, err := q.db.Exec(ctx, linkProgramTitleEpisode,
+func (q *Queries) LinkProgramTitleEpisode(ctx context.Context, arg LinkProgramTitleEpisodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, linkProgramTitleEpisode,
 		arg.SyobocalTid,
 		arg.CountStart,
 		arg.CountEnd,
@@ -504,10 +504,13 @@ func (q *Queries) LinkProgramTitleEpisode(ctx context.Context, arg LinkProgramTi
 		arg.StartAt,
 		arg.Position,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-const linkRecordingTitleEpisode = `-- name: LinkRecordingTitleEpisode :exec
+const linkRecordingTitleEpisode = `-- name: LinkRecordingTitleEpisode :execrows
 UPDATE recording_anime_episodes
 SET syobocal_tid = $1, count_start = $2, count_end = $3
 WHERE recording_id = $4 AND position = $5 AND source = 'title' AND syobocal_tid IS NULL
@@ -521,15 +524,18 @@ type LinkRecordingTitleEpisodeParams struct {
 	Position    int16
 }
 
-func (q *Queries) LinkRecordingTitleEpisode(ctx context.Context, arg LinkRecordingTitleEpisodeParams) error {
-	_, err := q.db.Exec(ctx, linkRecordingTitleEpisode,
+func (q *Queries) LinkRecordingTitleEpisode(ctx context.Context, arg LinkRecordingTitleEpisodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, linkRecordingTitleEpisode,
 		arg.SyobocalTid,
 		arg.CountStart,
 		arg.CountEnd,
 		arg.RecordingID,
 		arg.Position,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const listAnimeChannelDefinitions = `-- name: ListAnimeChannelDefinitions :many
@@ -763,6 +769,7 @@ const listAnimeTitleAliasSources = `-- name: ListAnimeTitleAliasSources :many
 SELECT e.syobocal_tid::integer AS syobocal_tid, e.count_start::double precision AS count_start,
   coalesce(p.name, a.name)::text AS name, coalesce(p.series_episode, a.series_episode) AS series_episode
 FROM program_anime_episodes e
+JOIN program_anime_matches m ON m.service_id = e.service_id AND m.start_at = e.start_at AND m.finalized_at IS NOT NULL
 LEFT JOIN programs p ON p.service_id = e.service_id AND p.start_at = e.start_at
 LEFT JOIN program_archives a ON a.service_id = e.service_id AND a.start_at = e.start_at
 WHERE e.source = 'syobocal' AND e.syobocal_tid IS NOT NULL AND e.count_start IS NOT NULL AND e.count_start = e.count_end
@@ -781,6 +788,7 @@ type ListAnimeTitleAliasSourcesRow struct {
 
 // 作品名の対応 (anime_title_aliases) を作るための、しょぼいカレンダーで 1 つの話だけに結びついた、番組表と過去の番組の番組を返す。
 // 2 話連続のような複数の話に結びついた番組は、番組名の話数と、どの話が対応するかを決められないので除く。
+// しょぼいカレンダーの登録は放送の直前まで変わる (延期、話数の訂正) ので、結びつきを確定させた番組だけを使う。
 func (q *Queries) ListAnimeTitleAliasSources(ctx context.Context) ([]ListAnimeTitleAliasSourcesRow, error) {
 	rows, err := q.db.Query(ctx, listAnimeTitleAliasSources)
 	if err != nil {

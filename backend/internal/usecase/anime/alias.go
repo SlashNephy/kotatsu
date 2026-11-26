@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 
 	"github.com/jackc/pgx/v5"
@@ -83,13 +84,46 @@ func resolveTitle(ctx context.Context, q *sqlc.Queries, key string) (titleLink, 
 	return titleLink{tid: titles[0].Tid, offset: 0}, true, nil
 }
 
-// shiftCount は、話数 count を offset だけずらす。count が nil なら nil を返す。
-func shiftCount(count *float64, offset float64) *float64 {
-	if count == nil {
-		return nil
+// offsetPrecision は、話数のずれを丸める桁 (1/1000 話)。12.5 話のような小数の話数の引き算で出る誤差で、
+// 同じずれを別の対応として持ち、作品名を決められなくならないようにする。
+const offsetPrecision = 1000
+
+// countOffset は、しょぼいカレンダーの話数 syobocal と番組名の話数 parsed の差を、offsetPrecision の桁に丸めて返す。
+func countOffset(syobocal, parsed float64) float64 {
+	offset := math.Round((syobocal-parsed)*offsetPrecision) / offsetPrecision
+	if offset == 0 {
+		// -0 を 0 にそろえる。
+		return 0
 	}
 
-	return new(*count + offset)
+	return offset
+}
+
+// shift は、話数の範囲 start と end を、作品名の対応の話数のずれだけずらす。話数が nil なら nil のままにする。
+// ずらした話数が負になるとき、話数を前へずらす対応で 1 話より前になるときは、別の作品 (2 期を通しの話数で書いた局の
+// 対応に当たった 1 期の放送など) とみて、ok を false にする。
+func (l titleLink) shift(start, end *float64) (*float64, *float64, bool) {
+	shifted := func(count *float64) (*float64, bool) {
+		if count == nil {
+			return nil, true
+		}
+		value := *count + l.offset
+		if value < 0 || (l.offset < 0 && value < 1) {
+			return nil, false
+		}
+
+		return &value, true
+	}
+	shiftedStart, ok := shifted(start)
+	if !ok {
+		return nil, nil, false
+	}
+	shiftedEnd, ok := shifted(end)
+	if !ok {
+		return nil, nil, false
+	}
+
+	return shiftedStart, shiftedEnd, true
 }
 
 // rebuildTitleAliases は、作品名の対応 (anime_title_aliases) を、しょぼいカレンダーで 1 つの話だけに結びついた、
@@ -110,7 +144,7 @@ func (m *Matcher) rebuildTitleAliases(ctx context.Context) (int, error) {
 		if key == "" {
 			continue
 		}
-		found[titleAlias{key: key, tid: row.SyobocalTid, offset: row.CountStart - parsed.CountStart}] = true
+		found[titleAlias{key: key, tid: row.SyobocalTid, offset: countOffset(row.CountStart, parsed.CountStart)}] = true
 	}
 	aliases := slices.SortedFunc(maps.Keys(found), func(a, b titleAlias) int {
 		return cmp.Or(cmp.Compare(a.key, b.key), cmp.Compare(a.tid, b.tid), cmp.Compare(a.offset, b.offset))
@@ -177,13 +211,18 @@ func (m *Matcher) relinkTitles(ctx context.Context) (int, error) {
 		if link == nil {
 			continue
 		}
-		if err := q.LinkProgramTitleEpisode(ctx, sqlc.LinkProgramTitleEpisodeParams{
-			SyobocalTid: new(link.tid), CountStart: shiftCount(row.CountStart, link.offset), CountEnd: shiftCount(row.CountEnd, link.offset),
-			ServiceID: row.ServiceID, StartAt: row.StartAt, Position: row.Position,
-		}); err != nil {
+		start, end, ok := link.shift(row.CountStart, row.CountEnd)
+		if !ok {
+			continue
+		}
+		// 照合し直しで入れ替わった話は、更新されないので数えない。
+		updated, err := q.LinkProgramTitleEpisode(ctx, sqlc.LinkProgramTitleEpisodeParams{
+			SyobocalTid: new(link.tid), CountStart: start, CountEnd: end, ServiceID: row.ServiceID, StartAt: row.StartAt, Position: row.Position,
+		})
+		if err != nil {
 			return 0, fmt.Errorf("failed to link a program episode: %w", err)
 		}
-		relinked++
+		relinked += int(updated)
 	}
 	recordings, err := q.ListUnlinkedRecordingTitleEpisodes(ctx)
 	if err != nil {
@@ -197,13 +236,17 @@ func (m *Matcher) relinkTitles(ctx context.Context) (int, error) {
 		if link == nil {
 			continue
 		}
-		if err := q.LinkRecordingTitleEpisode(ctx, sqlc.LinkRecordingTitleEpisodeParams{
-			SyobocalTid: new(link.tid), CountStart: shiftCount(row.CountStart, link.offset), CountEnd: shiftCount(row.CountEnd, link.offset),
-			RecordingID: row.RecordingID, Position: row.Position,
-		}); err != nil {
+		start, end, ok := link.shift(row.CountStart, row.CountEnd)
+		if !ok {
+			continue
+		}
+		updated, err := q.LinkRecordingTitleEpisode(ctx, sqlc.LinkRecordingTitleEpisodeParams{
+			SyobocalTid: new(link.tid), CountStart: start, CountEnd: end, RecordingID: row.RecordingID, Position: row.Position,
+		})
+		if err != nil {
 			return 0, fmt.Errorf("failed to link a recording episode: %w", err)
 		}
-		relinked++
+		relinked += int(updated)
 	}
 
 	return relinked, nil

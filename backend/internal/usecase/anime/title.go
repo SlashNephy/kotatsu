@@ -137,9 +137,12 @@ func titleEpisodes(ctx context.Context, db sqlc.DBTX, name string, series *Serie
 	if err != nil {
 		return nil, err
 	}
-	if ok {
+	if !ok {
+		return []*Episode{episode}, nil
+	}
+	if start, end, ok := link.shift(episode.CountStart, episode.CountEnd); ok {
 		episode.TID = new(link.tid)
-		episode.CountStart, episode.CountEnd = shiftCount(episode.CountStart, link.offset), shiftCount(episode.CountEnd, link.offset)
+		episode.CountStart, episode.CountEnd = start, end
 	}
 
 	return []*Episode{episode}, nil

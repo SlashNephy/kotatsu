@@ -67,7 +67,9 @@ func linkedOfRecording(t *testing.T, db *pgxpool.Pool, recordingID uuid.UUID) []
 // (アニメ専門チャンネルのリピート放送など) の番組名の解析で、作品と話数を決めることを確認する (設計書 3.8)。
 //   - 作品名がタイトルの一覧のどのタイトルとも一致しなくても、同じ作品名の本放送の作品に結びつける。
 //   - 本放送の番組名の話数と、しょぼいカレンダーの話数がずれていれば、同じだけずらす。
-//   - 作品名の対応が 2 つ以上あれば (話数のずれが食い違うものを含む)、結びつけない。
+//   - 作品名の対応が 2 つ以上あれば (話数のずれが食い違うものを含む)、タイトルの一覧に一致しても結びつけない。
+//   - 話数を前へずらす対応で 1 話より前になる放送は、結びつけない。
+//   - 結びつきを確定させていない番組からは、対応を作らない。
 //   - 対応ができる前に確定させた番組と、その録画も、確定させるときに引き直す。
 func TestTitleAliases(t *testing.T) {
 	t.Parallel()
@@ -78,16 +80,31 @@ func TestTitleAliases(t *testing.T) {
 		syobocalProgram(410, 41, grChannel, jst(3, 1, 0), jst(3, 1, 30), "33", "", "", 0),
 		syobocalProgram(420, 42, grChannel, jst(3, 2, 0), jst(3, 2, 30), "2", "", "", 0),
 		syobocalProgram(421, 42, grChannel, jst(3, 3, 0), jst(3, 3, 30), "4", "", "", 0),
+		syobocalProgram(430, 43, grChannel, jst(3, 4, 0), jst(3, 4, 30), "1", "", "", 0),
+		syobocalProgram(500, 50, grChannel, jst(2, 6, 0), jst(2, 6, 30), "1", "", "", 0),
+		syobocalProgram(510, 51, grChannel, jst(2, 7, 0), jst(2, 7, 30), "2", "", "", 0),
+		syobocalProgram(440, 44, grChannel, jst(7, 0, 0), jst(7, 0, 30), "3", "", "", 0),
 	}, false)
 	// 本放送 (しょぼいカレンダーで引けるもの)。
 	insertNamedProgram(t, db, grService, 11, jst(3, 0, 0), jst(3, 0, 30), "別名作品 【特別版】 #06")
 	insertNamedProgram(t, db, grService, 12, jst(3, 1, 0), jst(3, 1, 30), "通し作品 #8")
 	insertNamedProgram(t, db, grService, 13, jst(3, 2, 0), jst(3, 2, 30), "ゆれる作品 #2")
 	insertNamedProgram(t, db, grService, 14, jst(3, 3, 0), jst(3, 3, 30), "ゆれる作品 #3")
+	// 2 期の第 1 話を、通しの話数で書いた本放送。
+	insertNamedProgram(t, db, grService, 15, jst(3, 4, 0), jst(3, 4, 30), "通し二期 #13")
+	// タイトルの一覧に 1 つだけあるタイトルと同じ作品名の、別の作品の本放送。1 回目の確定で確定させる。
+	insertNamedProgram(t, db, grService, 16, jst(2, 6, 0), jst(2, 6, 30), "リピート作品 #1")
+	insertNamedProgram(t, db, grService, 17, jst(2, 7, 0), jst(2, 7, 30), "リピート作品 #2")
+	// まだ放送していない本放送。
+	insertNamedProgram(t, db, grService, 18, jst(7, 0, 0), jst(7, 0, 30), "未来作品 #3")
 	// ChID のないサービスのリピート放送。1 つ目は本放送より前に放送して確定させる。
 	insertNamedProgram(t, db, csService, 21, jst(2, 12, 0), jst(2, 12, 30), "別名作品 【特別版】 #05")
 	insertNamedProgram(t, db, csService, 22, jst(4, 12, 0), jst(4, 12, 30), "通し作品 #8")
 	insertNamedProgram(t, db, csService, 23, jst(4, 13, 0), jst(4, 13, 30), "ゆれる作品 #2")
+	insertNamedProgram(t, db, csService, 25, jst(4, 14, 0), jst(4, 14, 30), "通し二期 #1")
+	insertNamedProgram(t, db, csService, 26, jst(4, 15, 0), jst(4, 15, 30), "通し二期 #14")
+	insertNamedProgram(t, db, csService, 27, jst(4, 16, 0), jst(4, 16, 30), "リピート作品 #3")
+	insertNamedProgram(t, db, csService, 28, jst(4, 17, 0), jst(4, 17, 30), "未来作品 #3")
 
 	clk.Set(jst(2, 13, 0))
 	_, err := matcher.Finalize(t.Context())
@@ -98,10 +115,14 @@ func TestTitleAliases(t *testing.T) {
 	require.Equal(t, unlinked, linkedOfRecording(t, db, recording))
 
 	clk.Set(jst(5, 0, 0))
+	_, err = matcher.MatchHorizon(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, []linkedEpisode{{TID: new(int32(44)), CountStart: new(3.0), CountEnd: new(3.0)}}, linkedOfProgram(t, db, grService, jst(7, 0, 0)),
+		"the upcoming original broadcast is linked but not finalized")
 	result, err := matcher.Finalize(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 4, result.Aliases)
-	assert.Equal(t, 3, result.Relinked, "the finalized repeat, its recording and the repeat finalized in this run are linked")
+	assert.Equal(t, 7, result.Aliases, "aliases are made only from finalized programs")
+	assert.Equal(t, 4, result.Relinked, "the finalized repeat, its recording and the repeats finalized in this run are linked")
 
 	tests := []struct {
 		name  string
@@ -119,6 +140,22 @@ func TestTitleAliases(t *testing.T) {
 		{
 			name: "aliases with different offsets are ambiguous", start: jst(4, 13, 0),
 			want: []linkedEpisode{{TID: nil, CountStart: new(2.0), CountEnd: new(2.0)}},
+		},
+		{
+			name: "a negative offset is applied", start: jst(4, 15, 0),
+			want: []linkedEpisode{{TID: new(int32(43)), CountStart: new(2.0), CountEnd: new(2.0)}},
+		},
+		{
+			name: "an episode shifted before the first episode is not linked", start: jst(4, 14, 0),
+			want: []linkedEpisode{{TID: nil, CountStart: new(1.0), CountEnd: new(1.0)}},
+		},
+		{
+			name: "ambiguous aliases do not fall back to the title list", start: jst(4, 16, 0),
+			want: []linkedEpisode{{TID: nil, CountStart: new(3.0), CountEnd: new(3.0)}},
+		},
+		{
+			name: "an unfinalized program makes no alias", start: jst(4, 17, 0),
+			want: []linkedEpisode{{TID: nil, CountStart: new(3.0), CountEnd: new(3.0)}},
 		},
 	}
 	for _, tt := range tests {
