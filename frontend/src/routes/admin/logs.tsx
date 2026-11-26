@@ -18,7 +18,7 @@ import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
 import { AdminPage } from '../../admin/AdminPage';
 import { Section } from '../../admin/Section';
-import { PageLoader } from '../../futon';
+import { PageLoader, parseUrlText, useUrlText } from '../../futon';
 import { environmentText, otherRoles } from '../../admin/logs/environment';
 import { IssueDialog } from '../../admin/logs/IssueDialog';
 import { redact } from '../../admin/logs/redact';
@@ -38,7 +38,28 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import type { logsQuery, logsQuery$data } from './__generated__/logsQuery.graphql';
 import classes from './logs.module.css';
 
+type LogsSearch = {
+  // q は、行を探す語。problems は、警告とエラーだけを出すかどうか。hide は、出さないソースの番号 (#2146)。
+  q?: string;
+  problems?: true;
+  hide?: number[];
+};
+
 export const Route = createFileRoute('/admin/logs')({
+  validateSearch: (search: Record<string, unknown>): LogsSearch => {
+    const q = parseUrlText(search['q']);
+    const hide = Array.isArray(search['hide'])
+      ? [...new Set(search['hide'])]
+          .filter((index): index is number => Number.isInteger(index) && index >= 0)
+          .sort((a, b) => a - b)
+      : [];
+
+    return {
+      ...(q === undefined ? {} : { q }),
+      ...(search['problems'] === true ? { problems: true as const } : {}),
+      ...(hide.length > 0 ? { hide } : {}),
+    };
+  },
   component: LogsPage,
 });
 
@@ -155,9 +176,14 @@ function LogsView({ refresh }: { refresh: () => void }) {
   const data = useLazyLoadQuery<logsQuery>(query, {}, { fetchPolicy: 'store-or-network' });
   const report = data.logReport;
 
-  const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set());
-  const [problemsOnly, setProblemsOnly] = useState(false);
-  const [search, setSearch] = useState('');
+  // 絞り方は、戻ったときや開き直したときに保つよう、URL のクエリに持つ。変えるたびに、履歴を積まずに置き換える。
+  const urlSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const update = (changes: Partial<LogsSearch>) =>
+    void navigate({ replace: true, search: (prev) => ({ ...prev, ...changes }) });
+  const hidden: ReadonlySet<number> = new Set(urlSearch.hide);
+  const problemsOnly = urlSearch.problems === true;
+  const [search, setSearch] = useUrlText(urlSearch.q, (q) => update({ q }));
   const deferredSearch = useDeferredValue(search);
   const [shown, setShown] = useState(pageSize);
   const [issue, setIssue] = useState<{ initial: IssueFields; full: IssueFields } | null>(null);
@@ -259,7 +285,7 @@ function LogsView({ refresh }: { refresh: () => void }) {
                     } else {
                       next.add(index);
                     }
-                    setHidden(next);
+                    update({ hide: next.size === 0 ? undefined : [...next].sort((a, b) => a - b) });
                   })
                 }
               >
@@ -276,7 +302,7 @@ function LogsView({ refresh }: { refresh: () => void }) {
               checked={problemsOnly}
               onChange={(event) => {
                 const checked = event.currentTarget.checked;
-                changeFilter(() => setProblemsOnly(checked));
+                changeFilter(() => update({ problems: checked ? true : undefined }));
               }}
             />
           </Group>

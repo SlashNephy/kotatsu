@@ -12,9 +12,9 @@ import {
 } from '@mantine/core';
 import { ScrollText } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
-import { Fragment, startTransition, useState, type FormEvent } from 'react';
+import { Fragment, useState, type FormEvent } from 'react';
 import { useDataChanges } from '../../changes/DataChanges';
-import { EmptyState } from '../../futon';
+import { EmptyState, parseUrlText } from '../../futon';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -27,7 +27,22 @@ import type {
 } from './__generated__/auditQuery.graphql';
 import { zonedFormat } from '../../futon';
 
+type AuditSearch = {
+  // action は、操作の名前の前方一致での絞り込み。actor は、操作したユーザーの ID での絞り込み (#2146)。
+  action?: string;
+  actor?: string;
+};
+
 export const Route = createFileRoute('/admin/audit')({
+  validateSearch: (search: Record<string, unknown>): AuditSearch => {
+    const action = parseUrlText(search['action'])?.trim();
+    const actor = search['actor'];
+
+    return {
+      ...(action === undefined ? {} : { action }),
+      ...(typeof actor === 'string' && actor !== '' ? { actor } : {}),
+    };
+  },
   component: AuditPage,
 });
 
@@ -95,10 +110,24 @@ type AuditEvent = auditQuery$data['auditEvents']['edges'][number]['node'];
 function AuditLog() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
-  // filter は、いま一覧に使っている絞り込み。入力の途中では変えず、絞り込むボタンで変える。
-  const [filter, setFilter] = useState<AuditEventFilter>({});
-  const [actionPrefix, setActionPrefix] = useState('');
-  const [actor, setActor] = useState<string | null>(null);
+  // filter は、いま一覧に使っている絞り込み。戻ったときや開き直したときに保つよう、URL のクエリから決める。
+  // 入力の途中では変えず、絞り込むボタンで、履歴を積まずにクエリを置き換える。
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const filter: AuditEventFilter = {
+    actionPrefix: search.action ?? null,
+    actorUserId: search.actor ?? null,
+  };
+  const filterKey = JSON.stringify(filter);
+  const [actionPrefix, setActionPrefix] = useState(search.action ?? '');
+  const [actor, setActor] = useState<string | null>(search.actor ?? null);
+  // 上のメニューから開き直すなど、入力の外でクエリが変わったら、入力をそれに合わせる。
+  const [syncedKey, setSyncedKey] = useState(filterKey);
+  if (filterKey !== syncedKey) {
+    setSyncedKey(filterKey);
+    setActionPrefix(search.action ?? '');
+    setActor(search.actor ?? null);
+  }
   // 監査ログに残る操作があったら、最初のページを読み直す (#869)。
   const adminChanges = useDataChanges(['ADMIN']);
   const data = useLazyLoadQuery<auditQuery>(
@@ -109,14 +138,14 @@ function AuditLog() {
   // more は、続きの読み込みで足した記録と、その次のカーソル。絞り込みを変えたら破棄する。
   // 記録が増えて最初のページを読み直したときも破棄する。残すと、最初のページからこぼれた記録が、どちらにも出なくなる。
   const [more, setMore] = useState<{
-    filter: AuditEventFilter;
+    filter: string;
     changes: number;
     nodes: AuditEvent[];
     next: string | null;
   } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState(false);
-  const extra = more?.filter === filter && more.changes === adminChanges ? more : null;
+  const extra = more?.filter === filterKey && more.changes === adminChanges ? more : null;
   const next = extra !== null ? extra.next : (data.auditEvents.pageInfo.endCursor ?? null);
   const hasMore = extra !== null ? extra.next !== null : data.auditEvents.pageInfo.hasNextPage;
   const events = [...data.auditEvents.edges.map((edge) => edge.node), ...(extra?.nodes ?? [])];
@@ -125,13 +154,13 @@ function AuditLog() {
   const apply = (event: FormEvent) => {
     event.preventDefault();
     const prefix = actionPrefix.trim();
-    // 読み直す間も、いまの一覧を出したままにする。
-    startTransition(() =>
-      setFilter({
-        actionPrefix: prefix === '' ? null : prefix,
-        actorUserId: actor,
-      }),
-    );
+    void navigate({
+      replace: true,
+      search: {
+        ...(prefix === '' ? {} : { action: prefix }),
+        ...(actor === null ? {} : { actor }),
+      },
+    });
   };
   const loadMore = async () => {
     setLoadingMore(true);
@@ -144,7 +173,7 @@ function AuditLog() {
       }).toPromise();
       if (page !== undefined) {
         setMore({
-          filter,
+          filter: filterKey,
           changes: adminChanges,
           nodes: [...(extra?.nodes ?? []), ...page.auditEvents.edges.map((edge) => edge.node)],
           next: page.auditEvents.pageInfo.hasNextPage
