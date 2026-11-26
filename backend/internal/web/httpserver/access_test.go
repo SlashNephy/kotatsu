@@ -91,7 +91,7 @@ func TestAccessPolicy(t *testing.T) {
 			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "https://" + proxiedHost,
 		},
 		{
-			// Traefik は WebSocket の接続を始める要求に、https ではなく wss を付ける。
+			// WebSocket の接続を始める要求に、https ではなく wss を付けるリバースプロキシがある。
 			name: "wss from a trusted proxy is https", remoteAddr: trustedProxy,
 			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeWSS, headerXFH: proxiedHost},
 			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "https://" + proxiedHost,

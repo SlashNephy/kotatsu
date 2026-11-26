@@ -220,7 +220,7 @@ func applyRealIP(client *clientinfo.Client, header http.Header) error {
 // applyForwardedOrigin は、信頼済みのプロキシが伝えた scheme とホストを client に反映する。
 func applyForwardedOrigin(client *clientinfo.Client, header http.Header) {
 	// 複数のプロキシを経由すると、プロキシごとの値がカンマで並ぶ。最初の値が、送信元に最も近いプロキシの見たものである。
-	// Traefik は WebSocket の接続を始める要求に、https と http ではなく wss と ws を付ける。
+	// リバースプロキシには WebSocket の接続を始める要求に、https と http ではなく wss と ws を付けるものがある。
 	if proto := firstValue(header.Get("X-Forwarded-Proto")); proto != "" {
 		client.Secure = strings.EqualFold(proto, "https") || strings.EqualFold(proto, "wss")
 	}
