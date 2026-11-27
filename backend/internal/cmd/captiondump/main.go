@@ -3,7 +3,7 @@
 //
 //	go run ./internal/cmd/captiondump -drcs ../frontend/vendor/libaribcaption/drcs.json 録画.m2ts
 //
-// 録画のパスに - を渡すと、標準入力から読む。-drcs には、外字の既定のテーブル (scripts/fetch-libaribcaption-drcs.mjs が作るもの) を渡す。省くと、外字はすべて「〓」にする。
+// 録画のパスに - を渡すと、標準入力から読む。-drcs には、外字の既定のテーブル (frontend/scripts/fetch-libaribcaption-drcs.mjs が作るもの) を渡す。省くと、外字はすべて「〓」にする。
 //
 // 開発と検証にだけ使うエントリーポイントなので、配布するものには入れない (設計書 11.5)。
 package main
@@ -68,12 +68,14 @@ func run() error {
 		return fmt.Errorf("failed to read the recording: %w", err)
 	}
 	out := bufio.NewWriter(os.Stdout)
-	defer out.Flush()
 	encoder := json.NewEncoder(out)
 	for _, caption := range scanner.Captions() {
 		if err := encoder.Encode(line{PTS: caption.PTS, Text: caption.Text, Cleared: caption.Cleared}); err != nil {
 			return fmt.Errorf("failed to write a caption: %w", err)
 		}
+	}
+	if err := out.Flush(); err != nil {
+		return fmt.Errorf("failed to write the captions: %w", err)
 	}
 
 	return nil

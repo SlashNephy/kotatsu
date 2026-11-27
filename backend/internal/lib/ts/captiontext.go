@@ -195,6 +195,8 @@ func (d *aribDecoder) captionC0(b []byte) (int, bool) {
 
 // defineDRCS は、外字のデータユニット (0x30 は 1 バイトの DRCS、0x31 は 2 バイトの DRCS) を読み、外字の画像の MD5 を保存する。
 // 画像の MD5 は、aribb24.js と同じく、送られた画素の並び (1 画素あたり、階調の数の 2 を底とする対数のビット) から取る。
+// 画素のビット数がバイトの区切りにそろわないとき、aribb24.js は端数のバイトを除いて MD5 を取るので、同じにする。
+// 管理者が登録する外字の MD5 は、ブラウザが取ったものだからである。次の外字は、端数のバイトの後から読む。
 // 圧縮した形 (幾何図形) の外字は読まない。
 func (d *aribDecoder) defineDRCS(b []byte, twoBytes bool) {
 	if len(b) < 1 {
@@ -218,12 +220,13 @@ func (d *aribDecoder) defineDRCS(b []byte, twoBytes bool) {
 			}
 			depth := int(b[offset+1]) + 2
 			width, height := int(b[offset+2]), int(b[offset+3])
-			length := width * height * bits.Len(uint(depth-1)) / 8
+			pixelBits := width * height * bits.Len(uint(depth-1))
+			length := (pixelBits + 7) / 8
 			offset += 4
 			if offset+length > len(b) {
 				return
 			}
-			digest := md5.Sum(b[offset : offset+length]) //nolint:gosec // G401: 理由は import のとおり。
+			digest := md5.Sum(b[offset : offset+pixelBits/8]) //nolint:gosec // G401: 理由は import のとおり。
 			offset += length
 			key := drcsKey{final: 0x40, code: characterCode & 0x7F7F}
 			if !twoBytes {

@@ -229,7 +229,7 @@ func (s *CaptionScanner) readDataGroup(data []byte, pts int64) {
 	s.readDataUnits(group[offset:offset+loopLength], pts)
 }
 
-// readDataUnits は、データユニットの並びを読む。外字を保存してから、本文を読む。
+// readDataUnits は、データユニットの並びを送られた順に読む (aribb24.js と同じ)。本文より後で定義した外字は、その本文では使わない。
 // aribb24.js と同じく、文字の指示と外字は字幕文ごとに初めの状態から読み、外字は同じ字幕文で送られたものだけを使う。
 func (s *CaptionScanner) readDataUnits(units []byte, pts int64) {
 	decoder := newCaptionDecoder(s.replaceDRCS)

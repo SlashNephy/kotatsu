@@ -92,10 +92,15 @@ func captionPESPackets(cc *byte, pts uint64, groupID byte, group []byte) [][]byt
 
 // captionStream は、字幕の ES (component_tag 0x30) を持つ番組の PAT と PMT を作る。
 func captionStream() [][]byte {
+	return captionStreamWithTag(0x30)
+}
+
+// captionStreamWithTag は、component_tag が tag の字幕の ES を持つ番組の PAT と PMT を作る。
+func captionStreamWithTag(tag byte) [][]byte {
 	var patCC, pmtCC byte
 	streams := []esEntry{
 		{streamType: 0x02, pid: videoPID, infoLength: 0, descriptors: nil},
-		{streamType: 0x06, pid: captionPID, infoLength: 0, descriptors: []byte{0x52, 0x01, 0x30}},
+		{streamType: 0x06, pid: captionPID, infoLength: 0, descriptors: []byte{0x52, 0x01, tag}},
 	}
 	pkts := psiPackets(0x0000, &patCC, patSection(0, map[uint16]uint16{programNum: pmtPID}))
 
@@ -110,6 +115,9 @@ func drcsUnit(code byte, width, height byte, pattern []byte) []byte {
 	return captionUnit(0x30, append(data, pattern...))
 }
 
+// unalignedPatternMD5 は、3 画素四方の 2 階調の外字の画像 (9 ビット、2 バイト) の、端数を除いた 1 バイト (0xAB) の MD5。
+const unalignedPatternMD5 = "2408ad11f9eb830da749e2a36a29eff7"
+
 // drcsPatternMD5 は、テストの外字の画像 (0xF0 0x0F) の MD5 を小文字の 16 進にしたもの。
 const drcsPatternMD5 = "1ff0f4acb6ef4d317a2eebf40ccb26ff"
 
@@ -123,8 +131,11 @@ func TestCaptionScanner(t *testing.T) {
 	// DRCS-1 を G1 に指示し (ESC 0x29 0x20 0x41)、呼び出して符号 0x21 を書く。
 	drcsCharacter := []byte{0x1B, 0x29, 0x20, 0x41, 0x0E, 0x21, 0x0F}
 	replace := func(md5 string) (string, bool) {
-		if md5 == drcsPatternMD5 {
+		switch md5 {
+		case drcsPatternMD5:
 			return "★", true
+		case unalignedPatternMD5:
+			return "◆", true
 		}
 
 		return "", false
@@ -216,6 +227,39 @@ func TestCaptionScanner(t *testing.T) {
 			},
 		},
 		{
+			// 3 画素四方の外字 (9 ビット) は 2 バイトで送られる。MD5 は aribb24.js と同じく端数を除いて取り、次の外字は 2 バイトの後から読む。
+			name: "画素のビット数がバイトにそろわない外字",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: captionStatementGroup(
+					captionUnit(0x30, []byte{
+						0x02,
+						0x41, 0x21, 0x01, 0x00, 0x00, 3, 3, 0xAB, 0x80,
+						0x41, 0x22, 0x01, 0x00, 0x00, 4, 4, 0xF0, 0x0F,
+					}),
+					captionUnit(0x20, []byte{0x1B, 0x29, 0x20, 0x41, 0x0E, 0x21, 0x22, 0x0F}),
+				)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "◆★", Cleared: false}},
+		},
+		{
+			// TMD が 01 の字幕文は、data_unit_loop_length の前に STM (5 バイト) を持つ。
+			name: "時刻を指定した字幕文",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: append([]byte{0x40, 0x00, 0x00, 0x00, 0x00, 0x00}, statement([]byte(hiraganaA))[1:]...)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ", Cleared: false}},
+		},
+		{
+			name: "グループ B の字幕文",
+			groups: []group{
+				{pts: 100, id: captionMgmtB, data: captionManagementGroup()},
+				{pts: 200, id: 0x21, data: statement([]byte(hiraganaA))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ", Cleared: false}},
+		},
+		{
 			// 既定のマクロ 0x61 は、G1 にカタカナを指示する。マクロの集合 (G3) は、SS3 で呼び出す。
 			name: "既定のマクロを読む",
 			groups: []group{
@@ -294,4 +338,33 @@ func TestCaptionScannerAssemblesPES(t *testing.T) {
 		data = data[n:]
 	}
 	assert.Equal(t, []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: want, Cleared: false}}, scanner.Captions())
+}
+
+// TestCaptionScannerComponentTagFallback は、component_tag 0x30 の字幕がなければ、0x31〜0x37 の最初の字幕を読み、
+// 字幕でない component_tag の ES は読まないことを確認する。
+func TestCaptionScannerComponentTagFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		tag  byte
+		want []ts.Caption
+	}{
+		{name: "0x31 の字幕", tag: 0x31, want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ", Cleared: false}}},
+		{name: "文字スーパー (0x38)", tag: 0x38, want: []ts.Caption{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var cc byte
+			pkts := captionStreamWithTag(tt.tag)
+			pkts = append(pkts, captionPESPackets(&cc, 100, captionMgmtA, captionManagementGroup())...)
+			pkts = append(pkts, captionPESPackets(&cc, 200, captionTextA, captionStatementGroup(captionUnit(0x20, []byte(hiraganaA))))...)
+			scanner := ts.NewCaptionScanner(programNum, nil)
+			_, err := scanner.Write(join(pkts))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, scanner.Captions())
+		})
+	}
 }
