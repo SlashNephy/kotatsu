@@ -208,6 +208,11 @@ func outdatedMikan(ctx context.Context, s *stack) error {
 		return err
 	}
 	// 古いバイナリの mikan は、録画を始めた後に加わる。録画中の更新では、新しいバイナリの mikan と古いバイナリの mikan が並ぶ。
+	// 新しいバイナリの CompatibleSince が最新のマイグレーションなら、kotatsu migrate が記録した下限で、古いバイナリは起動できない。
+	// 古いバイナリが動いていたところに更新が来た場面を作るため、下限を下げてから起動し、起動した後に上げる。
+	if err := s.exec(ctx, "UPDATE schema_compatibility SET min_binary_version = 0"); err != nil {
+		return err
+	}
 	outdated, err := s.start(ctx, s.opts.oldKotatsu, "mikan")
 	if err != nil {
 		return err
