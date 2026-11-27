@@ -16,6 +16,7 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
@@ -32,8 +33,18 @@ const (
 	// promoteTimeout は、昇格のジョブの時間の上限。バッファから数 GB を読み書きするので、長めにとる。
 	promoteTimeout = 2 * time.Hour
 	// promoteMaxAttempts は、昇格のジョブを試す回数。試し尽くしたら、録画を失敗にする。
+	// 待てば通る失敗 (DB のエラー、この nekonote に置き場がない、止めるとき) は、回数に数えない (#2198)。
 	promoteMaxAttempts = 5
+	// promoteSnooze は、待てば通る失敗のとき、昇格のジョブを試し直すまで待つ時間 (#2198)。
+	promoteSnooze = time.Minute
+	// promoteGiveUpAfter は、待てば通る失敗が続いても試し直す、ジョブを入れてからの時間の上限 (#2198)。
+	// バッファのチャンクが消えれば、その時点で program_not_found として失敗にする。
+	promoteGiveUpAfter = 6 * time.Hour
 )
+
+// errPromoteElsewhere は、昇格に要る置き場 (タイムシフトのディレクトリか、保存先プール) がこの nekonote にないことを表す。
+// ほかの nekonote が持っていれば、そちらで試し直せる。
+var errPromoteElsewhere = errors.New("this nekonote cannot promote the timeshift buffer")
 
 // errPromotionGone は、昇格の行が消えたことを表す。録画を消したか、ほかの nekonote が書き込み終えた。
 var errPromotionGone = errors.New("the timeshift promotion no longer exists")
@@ -89,6 +100,14 @@ func (w *PromoteWorker) Work(ctx context.Context, job *river.Job[PromoteArgs]) e
 		return nil
 	case err == nil:
 		return nil
+	case errors.Is(ctx.Err(), context.Canceled):
+		// nekonote を止めるので、回数に数えずに、次に動く nekonote に任せる (#2198)。
+		return river.JobSnooze(0)
+	case r.promoteLater(err) && r.clock.Now().Before(job.CreatedAt.Add(promoteGiveUpAfter)):
+		// 待てば通る失敗は、回数に数えずに試し直す (#2198)。回数を使い切ると、録画を失う。
+		logger.WarnContext(ctx, "failed to promote the timeshift buffer; trying again later", slog.Any("error", err))
+
+		return river.JobSnooze(promoteSnooze)
 	case job.Attempt < job.MaxAttempts:
 		return err
 	}
@@ -102,6 +121,11 @@ func (w *PromoteWorker) Work(ctx context.Context, job *river.Job[PromoteArgs]) e
 	}
 
 	return err
+}
+
+// promoteLater は、昇格の失敗 err が、待てば通るものかを返す (#2198)。DB のエラーと、この nekonote に置き場がないときである。
+func (r *Recorder) promoteLater(err error) bool {
+	return errors.Is(err, errPromoteElsewhere) || database.IsUnavailable(err) || isDatabaseError(err)
 }
 
 // ReapPromotionsInterval は、ジョブを失った昇格を片付ける間隔。
@@ -189,7 +213,7 @@ func ReapPromotionsPeriodicJob() *river.PeriodicJob {
 func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID uuid.UUID) (domain.RecordingFailureReason, error) {
 	// ほかの nekonote がタイムシフトのディレクトリをマウントしていれば、そちらでやり直せるよう、エラーにする。
 	if !r.store.HasTimeshiftDir() {
-		return domain.RecordingFailureReasonStorageUnavailable, errors.New("the timeshift directory is not configured on this instance")
+		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("%w: the timeshift directory is not configured on this instance", errPromoteElsewhere)
 	}
 	q := sqlc.New(r.pool)
 	row, err := q.GetTimeshiftPromotion(ctx, recordingID)
@@ -208,7 +232,7 @@ func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID
 		settings = domain.DefaultRecordingSettings()
 	}
 	if len(r.store.PoolIDs()) == 0 {
-		return domain.RecordingFailureReasonStorageUnavailable, errors.New("no storage pool is mounted on this instance")
+		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("%w: no storage pool is mounted on this instance", errPromoteElsewhere)
 	}
 	pools, err := q.ListStoragePools(ctx)
 	if err != nil {
