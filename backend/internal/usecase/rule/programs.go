@@ -75,7 +75,7 @@ func eachMatchableProgramBatch(
 		if err := each(batch); err != nil {
 			return err
 		}
-		// 一致した番組は each が値で写して持つので、スライスを使い回す。前の行の文字列などを GC に回すため、要素を消してから詰め直す。
+		// 一致した番組は each が値でコピーして持つので、スライスを使い回す。前の行の文字列などを GC に回すため、要素を消してから詰め直す。
 		clear(batch)
 		batch = batch[:0]
 	}
