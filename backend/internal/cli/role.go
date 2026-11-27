@@ -16,6 +16,7 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
@@ -486,5 +487,7 @@ func mikanWorkerOptions(deps *Deps) *recording.WorkerOptions {
 		// mikan を複数のマシンで動かしても、時計のずれでリースを取り違えないよう、DB の時刻で決める (#526)。
 		DatabaseClock: true,
 		PollOnly:      deps.Config.Database.Pooler, PollInterval: 0,
+		// ローリング更新で、DB のスキーマがこのバイナリより新しくなったら、新しい mikan に割り振りを任せる (#2195)。
+		DeferAcquire: recording.DeferToCompatiblePeers(deps.DB, deps.Clock, deps.InstanceID, database.LatestVersion()),
 	}
 }

@@ -116,7 +116,8 @@ func (q *Queries) ListInstances(ctx context.Context) ([]domain.Instance, error) 
 	}
 	out := make([]domain.Instance, len(result))
 	for i := range result {
-		out[i] = domain.Instance(result[i])
+		row := &result[i]
+		out[i] = domain.Instance{ID: row.ID, Role: row.Role, Address: row.Address, StartedAt: row.StartedAt, HeartbeatAt: row.HeartbeatAt}
 	}
 
 	return out, nil

@@ -1,8 +1,8 @@
 -- name: UpsertInstance :exec
-INSERT INTO instances (id, role, address, started_at, heartbeat_at)
-VALUES (@id, @role, @address, @now, @now)
+INSERT INTO instances (id, role, address, started_at, heartbeat_at, schema_version)
+VALUES (@id, @role, @address, @now, @now, @schema_version)
 ON CONFLICT (id, role) DO UPDATE
-SET address = EXCLUDED.address, heartbeat_at = EXCLUDED.heartbeat_at;
+SET address = EXCLUDED.address, heartbeat_at = EXCLUDED.heartbeat_at, schema_version = EXCLUDED.schema_version;
 
 -- name: HeartbeatInstance :execrows
 UPDATE instances SET heartbeat_at = @now WHERE id = @id AND role = @role;

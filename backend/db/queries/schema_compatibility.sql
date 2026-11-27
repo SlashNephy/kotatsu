@@ -9,3 +9,12 @@ ON CONFLICT (id) DO UPDATE
 SET
   min_binary_version = GREATEST(schema_compatibility.min_binary_version, EXCLUDED.min_binary_version),
   updated_at = EXCLUDED.updated_at;
+
+-- name: GetAcquireCompatibility :one
+-- 動かしてよいバイナリの下限と、下限を満たすバイナリで動いている、holder のほかの role のインスタンスの数を返す (#2195)。
+-- 下限より古い mikan は、下限を満たす mikan がほかにいれば、割り振りを取らずに任せる。
+SELECT c.min_binary_version, (
+  SELECT count(*) FROM instances i
+  WHERE i.role = @role AND i.heartbeat_at > @alive_since AND i.id <> @holder AND i.schema_version >= c.min_binary_version
+)::bigint AS compatible_peers
+FROM schema_compatibility c WHERE c.id;
