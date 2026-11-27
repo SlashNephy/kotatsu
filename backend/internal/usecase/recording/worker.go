@@ -42,8 +42,9 @@ var (
 	ErrHandedOver = errors.New("the recording was handed over to another mikan")
 	// ErrStopped は、mikan を止めるので、録画をやめたことを表す。引き継ぐ mikan がいなかったか、引き継ぎを待ちきれなかった。
 	ErrStopped = errors.New("the mikan is stopping")
-	// ErrResumeLater は、Session が予定の終わりの前に録画をやめたので、割り振りを終わったことにせず、続きを録らせることを表す (#2195)。
-	ErrResumeLater = errors.New("the recording stopped before the planned end; resume it later")
+	// ErrResumeLater は、Session が予定の終わりの前に録画をやめたか、録画を終えられなかったので、割り振りを終わったことにせず、
+	// 続きを録らせるか、録画を終えさせることを表す (#2195)。
+	ErrResumeLater = errors.New("the recording stopped before it was finished; resume it later")
 )
 
 // Assignment は、mikan が取った割り振り。
@@ -428,9 +429,9 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 
 		return
 	case errors.Is(err, ErrResumeLater):
-		// 予定の終わりの前に録画をやめたので、終わったことにせず、割り振りを手放して、ほかの mikan か、この mikan が続きを録る (#2195)。
-		// 終わったことにすると、録画は録画中のまま残り、neko が失敗にする。
-		logger.WarnContext(ctx, "recording session failed before the planned end; releasing the assignment to resume", slog.Any("error", err))
+		// 録画をやめたか、終えられなかったので、終わったことにせず、割り振りを手放して、ほかの mikan か、この mikan が続きを録るか、
+		// 録画を終える (#2195)。終わったことにすると、録画は録画中のまま残り、neko が失敗にする。
+		logger.WarnContext(ctx, "recording session failed before the recording was finished; releasing the assignment to resume", slog.Any("error", err))
 		if err := w.leases.Release(ctx, w.clock.Now(), assignment, w.holder); err != nil {
 			logger.WarnContext(ctx, "failed to release the assignment", slog.Any("error", err))
 		}

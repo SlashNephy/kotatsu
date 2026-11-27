@@ -98,3 +98,45 @@ func TestWorkerReleasesWhenSessionStopsBeforeEnd(t *testing.T) {
 	assert.Equal(t, string(domain.RecordingAssignmentStateRecording), got.state)
 	assert.Equal(t, int64(2), got.generation)
 }
+
+// TestRecorderResumesWhenFinishKeepsFailing は、予定の終わりの後に、DB のエラーで録画を終えられないままやり直しの上限を過ぎたら、
+// 予定の終わりから ResumeAfterEndLimit までは、割り振りを手放させて (ErrResumeLater)、ほかの mikan に録画を終えさせることを確認する (#2195)。
+// 上限を過ぎていれば、手放させずにエラーを返す。手放し続けると、録画が録画中のまま残る。
+func TestRecorderResumesWhenFinishKeepsFailing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// afterEnd は、予定の終わりから進める時間。
+		afterEnd   time.Duration
+		wantResume bool
+	}{
+		{name: "予定の終わりから上限までなら手放させる", afterEnd: time.Minute, wantResume: true},
+		{name: "上限を過ぎていれば手放させない", afterEnd: recording.ResumeAfterEndLimit + time.Minute, wantResume: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			data, err := os.ReadFile("../../../testdata/ts/test.ts")
+			require.NoError(t, err)
+			f := newFixture(t)
+			f.persistentErrorRetry = 200 * time.Millisecond
+			reservationID := f.reserve(t, 0)
+			stream := newDrainedStream(data)
+			recorder, _ := f.newRecorder(t, stream, nil)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			stream.wait(t)
+
+			var plannedEnd time.Time
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT planned_end_at FROM reservations WHERE id = $1", reservationID).Scan(&plannedEnd))
+			f.renameColumn(t, "recordings", "gaps", "gaps_renamed")
+			f.clock.Advance(plannedEnd.Add(tt.afterEnd).Sub(f.clock.Now()))
+
+			err = wait(t, done)
+			require.Error(t, err)
+			assert.Equal(t, tt.wantResume, errors.Is(err, recording.ErrResumeLater), err)
+		})
+	}
+}
