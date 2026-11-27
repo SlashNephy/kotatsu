@@ -237,7 +237,7 @@ func outdatedMikan(ctx context.Context, s *stack) error {
 	if err := s.waitForTakeOverBy(ctx, rec, upToDate, outdated); err != nil {
 		return err
 	}
-	// 引き継いだ後も、古いバイナリの mikan が取り直さないことを見る。
+	// 引き継いだ後も、古いバイナリの mikan が割り振りを取らないことを見る。
 	if err := s.ensureNotHeldBy(ctx, rec, outdated, 5*time.Second); err != nil {
 		return err
 	}
