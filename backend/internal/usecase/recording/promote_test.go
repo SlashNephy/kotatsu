@@ -109,7 +109,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 		},
 		{
 			// ローリング更新で、新しいスキーマが古いバイナリの読むカラムを消したときも、録画を失敗にしない (#2195)。
-			name: "録画設定を読めなくても、既定値で書き出して完了にする",
+			name: "録画設定を読めなくても、既定値で書き込んで完了にする",
 			chunks: []chunk{
 				{start: from.Add(-5 * time.Minute), end: new(from.Add(5 * time.Minute))},
 				{start: from.Add(5 * time.Minute), end: new(to.Add(5 * time.Minute))},
