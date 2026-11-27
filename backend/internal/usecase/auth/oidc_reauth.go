@@ -36,7 +36,7 @@ type OIDCReauthentication struct {
 	ReturnTo string
 }
 
-// BeginReauthentication は、ログイン中のユーザーに、IdP でもう一度認証させる再認証を始め、IdP の認可のエンドポイントの URL を返す
+// BeginReauthentication は、ログイン中のユーザーの、IdP での再認証を始め、IdP の認可のエンドポイントの URL を返す
 // (設計書 9.5)。パスワードもパスキーもない、OIDC だけでログインするユーザーが、重要な操作の前に再認証するのに使う。
 // returnTo は、再認証を終えたときに戻す、画面のパス。空なら / にする。
 func (o *OIDC) BeginReauthentication(
@@ -60,7 +60,7 @@ func (o *OIDC) BeginReauthentication(
 	return o.begin(ctx, db, client, &oidcSessionRequest{sessionID: principal.SessionID, returnTo: returnTo, link: false})
 }
 
-// reauthenticate は、IdP で認証し直したユーザーが、再認証を始めたセッションのユーザーであることを確認し、セッションの認証の日時を更新する。
+// reauthenticate は、IdP から戻ってきたユーザーが、再認証を始めたセッションのユーザーであることを確認し、セッションの認証の日時を更新する。
 func (o *OIDC) reauthenticate(
 	ctx context.Context, db Database, row *sqlc.OidcLogin, claims *oidcClaims, principal *Principal, client *ClientInfo,
 ) (*OIDCReauthentication, error) {
