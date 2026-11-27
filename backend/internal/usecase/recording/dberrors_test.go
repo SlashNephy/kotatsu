@@ -18,6 +18,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
+// recordingsTable と gapsColumn は、録画を終えるときに途切れた区間を書く、テーブルとカラム。
+const (
+	recordingsTable = "recordings"
+	gapsColumn      = "gaps"
+)
+
 // renameColumn は、テーブル table のカラム from を to に改名する。ローリング更新で、新しいスキーマが古いバイナリの読むカラムを消した間を作る (#2195)。
 func (f *fixture) renameColumn(t *testing.T, table, from, to string) {
 	t.Helper()
@@ -38,7 +44,7 @@ func TestRecorderWaitsThroughErrorsFromDatabase(t *testing.T) {
 		column string
 	}{
 		{name: "予約を読めない間に予定の終わりが来る", table: "reservations", column: "description"},
-		{name: "録画を終えるときに途切れた区間を書けない", table: "recordings", column: "gaps"},
+		{name: "録画を終えるときに途切れた区間を書けない", table: recordingsTable, column: gapsColumn},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -101,18 +107,32 @@ func TestWorkerReleasesWhenSessionStopsBeforeEnd(t *testing.T) {
 
 // TestRecorderResumesWhenFinishKeepsFailing は、予定の終わりの後に、DB のエラーで録画を終えられないままやり直しの上限を過ぎたら、
 // 予定の終わりから ResumeAfterEndLimit までは、割り振りを手放させて (ErrResumeLater)、ほかの mikan に録画を終えさせることを確認する (#2195)。
-// 上限を過ぎていれば、手放させずにエラーを返す。手放し続けると、録画が録画中のまま残る。
+// 上限を過ぎていれば、手放させずに、録画の状態だけを記録して終える (#2199)。終えずにいると、neko が録画を失敗にする。
 func TestRecorderResumesWhenFinishKeepsFailing(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name string
+		// table と column は、録画を終えるときに書けなくするカラム。
+		table, column string
 		// afterEnd は、予定の終わりから進める時間。
 		afterEnd   time.Duration
 		wantResume bool
+		// wantState は、手放させないときの録画の状態。
+		wantState domain.RecordingState
 	}{
-		{name: "予定の終わりから上限までなら手放させる", afterEnd: time.Minute, wantResume: true},
-		{name: "上限を過ぎていれば手放させない", afterEnd: recording.ResumeAfterEndLimit + time.Minute, wantResume: false},
+		{
+			name: "予定の終わりから上限までなら手放させる", table: recordingsTable, column: gapsColumn, afterEnd: time.Minute, wantResume: true,
+			wantState: domain.RecordingStateRecording,
+		},
+		{
+			name: "上限を過ぎていれば、状態だけを記録して終える", table: recordingsTable, column: gapsColumn, afterEnd: recording.ResumeAfterEndLimit + time.Minute,
+			wantResume: false, wantState: domain.RecordingStateCompleted,
+		},
+		{
+			name: "録画履歴を書けなくても、上限を過ぎていれば状態だけを記録して終える", table: "recording_history", column: "series",
+			afterEnd: recording.ResumeAfterEndLimit + time.Minute, wantResume: false, wantState: domain.RecordingStateCompleted,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -131,12 +151,17 @@ func TestRecorderResumesWhenFinishKeepsFailing(t *testing.T) {
 
 			var plannedEnd time.Time
 			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT planned_end_at FROM reservations WHERE id = $1", reservationID).Scan(&plannedEnd))
-			f.renameColumn(t, "recordings", "gaps", "gaps_renamed")
+			f.renameColumn(t, tt.table, tt.column, tt.column+"_renamed")
 			f.clock.Advance(plannedEnd.Add(tt.afterEnd).Sub(f.clock.Now()))
 
 			err = wait(t, done)
-			require.Error(t, err)
-			assert.Equal(t, tt.wantResume, errors.Is(err, recording.ErrResumeLater), err)
+			if tt.wantResume {
+				require.ErrorIs(t, err, recording.ErrResumeLater)
+			} else {
+				require.NoError(t, err)
+			}
+			got, _ := f.recording(t, reservationID)
+			assert.Equal(t, string(tt.wantState), got.state)
 		})
 	}
 }
