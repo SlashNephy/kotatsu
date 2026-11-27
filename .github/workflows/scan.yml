@@ -66,7 +66,7 @@ jobs:
             echo "$category ($tag): $(jq '[.runs[].results[]?] | length' "sarif/$category.sarif") results"
           done < sarif/targets
           rm sarif/targets
-      - uses: github/codeql-action/upload-sarif@v4.39.3
+      - uses: github/codeql-action/upload-sarif@v4.39.4
         with:
           sarif_file: sarif
 
@@ -94,7 +94,7 @@ jobs:
           jq '(.. | objects | select(.uriBaseId? == "%SRCROOT%") | .uri) |= "backend/" + .' ../govulncheck.sarif > ../govulncheck.tmp
           mv ../govulncheck.tmp ../govulncheck.sarif
           echo "$(jq '[.runs[].results[]?] | length' ../govulncheck.sarif) results"
-      - uses: github/codeql-action/upload-sarif@v4.39.3
+      - uses: github/codeql-action/upload-sarif@v4.39.4
         with:
           sarif_file: govulncheck.sarif
           category: govulncheck
@@ -131,7 +131,7 @@ jobs:
           fi
           jq --rawfile lock pnpm-lock.yaml -f ../.github/scan/pnpm-audit-sarif.jq ../pnpm-audit.json > ../pnpm-audit.sarif
           echo "$(jq '[.runs[].results[]?] | length' ../pnpm-audit.sarif) results"
-      - uses: github/codeql-action/upload-sarif@v4.39.3
+      - uses: github/codeql-action/upload-sarif@v4.39.4
         with:
           sarif_file: pnpm-audit.sarif
           category: pnpm-audit
@@ -167,7 +167,7 @@ jobs:
             exit 1
           fi
           echo "$(jq '[.runs[].results[]?] | length' kube-linter.sarif) results"
-      - uses: github/codeql-action/upload-sarif@v4.39.3
+      - uses: github/codeql-action/upload-sarif@v4.39.4
         with:
           sarif_file: kube-linter.sarif
           category: kube-linter
