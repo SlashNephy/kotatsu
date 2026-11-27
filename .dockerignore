@@ -11,3 +11,4 @@ frontend/dist
 frontend/vendor/caption-font/*.ttf
 # 字幕の外字の既定のテーブルも、イメージのビルドで作り直す。
 frontend/vendor/libaribcaption/drcs.json
+backend/internal/lib/drcstable/dist/drcs.json

@@ -1,0 +1,3 @@
+# frontend/scripts/fetch-libaribcaption-drcs.mjs が作る、字幕の外字の既定のテーブル。.gitkeep だけを残し、作らなくても go build が通るようにする。
+/dist/*
+!/dist/.gitkeep

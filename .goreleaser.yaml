@@ -10,6 +10,8 @@ before:
   hooks:
     # SPA を作り忘れたまま公開しないよう、埋め込む前に確認する。
     - test -f backend/internal/web/webui/dist/app/index.html
+    # 字幕の外字の既定のテーブル (#2216) も、mise run //frontend:build が作る。作り忘れると、サーバーが外字を置き換えなくなる。
+    - test -f backend/internal/lib/drcstable/dist/drcs.json
     # 本体に組み込む Go のモジュールのライセンスの一覧を出力して埋め込む (#1604)。配布するすべての OS の分を合わせて書き、
     # 動いているバイナリが、自分に組み込まれたものに絞る。
     - go -C backend run ./internal/web/licenses/printlicenses -o internal/web/licenses/dist/go.json
