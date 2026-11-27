@@ -213,7 +213,7 @@ func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID
 	pools, err := q.ListStoragePools(ctx)
 	if err != nil {
 		logger.WarnContext(ctx, "failed to list the storage pools; using the mounted pools with the default settings", slog.Any("error", err))
-		pools = nil
+		pools = []sqlc.StoragePool{}
 	}
 	runs, err := stream.NewTimeshiftSource(r.pool, r.store, 0).OpenRange(ctx, promotion.ServiceID, promotion.FromAt, promotion.ToAt)
 	if err != nil {
