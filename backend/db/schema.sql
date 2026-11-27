@@ -31,6 +31,9 @@ CREATE TABLE instances (
   address text NOT NULL,
   started_at timestamptz NOT NULL,
   heartbeat_at timestamptz NOT NULL,
+  -- このインスタンスのバイナリが知っている、最新のマイグレーションのバージョン (#2195)。DB のスキーマで動かしてよい mikan が
+  -- ほかにいるかを確認するのに使う。これを書く前のバイナリは NULL にする。
+  schema_version bigint,
   PRIMARY KEY (id, role)
 );
 

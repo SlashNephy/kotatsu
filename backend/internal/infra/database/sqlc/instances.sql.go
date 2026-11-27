@@ -57,7 +57,7 @@ func (q *Queries) HeartbeatInstance(ctx context.Context, arg HeartbeatInstancePa
 }
 
 const listAliveInstances = `-- name: ListAliveInstances :many
-SELECT id, role, address, started_at, heartbeat_at FROM instances
+SELECT id, role, address, started_at, heartbeat_at, schema_version FROM instances
 WHERE role = $1 AND heartbeat_at > $2
 ORDER BY started_at, id
 `
@@ -82,6 +82,7 @@ func (q *Queries) ListAliveInstances(ctx context.Context, arg ListAliveInstances
 			&i.Address,
 			&i.StartedAt,
 			&i.HeartbeatAt,
+			&i.SchemaVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -94,7 +95,7 @@ func (q *Queries) ListAliveInstances(ctx context.Context, arg ListAliveInstances
 }
 
 const listInstances = `-- name: ListInstances :many
-SELECT id, role, address, started_at, heartbeat_at FROM instances ORDER BY role, started_at, id
+SELECT id, role, address, started_at, heartbeat_at, schema_version FROM instances ORDER BY role, started_at, id
 `
 
 // 止まった直後の行も含めて、すべてのインスタンスを返す。システムの状態の画面で、止まったインスタンスも示すため。
@@ -113,6 +114,7 @@ func (q *Queries) ListInstances(ctx context.Context) ([]Instance, error) {
 			&i.Address,
 			&i.StartedAt,
 			&i.HeartbeatAt,
+			&i.SchemaVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -125,17 +127,18 @@ func (q *Queries) ListInstances(ctx context.Context) ([]Instance, error) {
 }
 
 const upsertInstance = `-- name: UpsertInstance :exec
-INSERT INTO instances (id, role, address, started_at, heartbeat_at)
-VALUES ($1, $2, $3, $4, $4)
+INSERT INTO instances (id, role, address, started_at, heartbeat_at, schema_version)
+VALUES ($1, $2, $3, $4, $4, $5)
 ON CONFLICT (id, role) DO UPDATE
-SET address = EXCLUDED.address, heartbeat_at = EXCLUDED.heartbeat_at
+SET address = EXCLUDED.address, heartbeat_at = EXCLUDED.heartbeat_at, schema_version = EXCLUDED.schema_version
 `
 
 type UpsertInstanceParams struct {
-	ID      uuid.UUID
-	Role    string
-	Address string
-	Now     time.Time
+	ID            uuid.UUID
+	Role          string
+	Address       string
+	Now           time.Time
+	SchemaVersion *int64
 }
 
 func (q *Queries) UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error {
@@ -144,6 +147,7 @@ func (q *Queries) UpsertInstance(ctx context.Context, arg UpsertInstanceParams) 
 		arg.Role,
 		arg.Address,
 		arg.Now,
+		arg.SchemaVersion,
 	)
 	return err
 }

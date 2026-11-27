@@ -1,4 +1,4 @@
-h1:fthLLcqtTC/grpZV4qQ1xnDagzV/OnQVbVpfSr5JFV4=
+h1:34yURo58GyPcrVQwpHl8ZWsJST+yMX88SfAJleptr68=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -157,3 +157,4 @@ h1:fthLLcqtTC/grpZV4qQ1xnDagzV/OnQVbVpfSr5JFV4=
 20261123010000_add_anime_following_watching.sql h1:+43seKXvC/06h3vjMBHiy+VmunJCvvidHO3rHKRmjPY=
 20261124120830_drop_unused_schema.sql h1:oIfLAMOblebZcZrzcQbXIIRg9LOovFWlRud2Np8FG7c=
 20261126121330_add_anime_title_aliases.sql h1:PM+H9I4B2ur4PYiiE+hYuyMGQku78NMsLtxKvNRL0pI=
+20261127002218_add_instances_schema_version.sql h1:BQUtYYMKGeXypdhO96S5Lgg3gSMp4yeJEXOQ13g4994=

@@ -10,6 +10,7 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
@@ -81,7 +82,12 @@ type WorkerOptions struct {
 	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
 	PollOnly     bool
 	PollInterval time.Duration
+	// DeferAcquire は、割り振りを取らずに、ほかの mikan に任せるかどうかを返す (#2195)。nil なら、いつも取る。
+	DeferAcquire DeferFunc
 }
+
+// DeferFunc は、割り振りを取らずに、ほかの mikan に任せるかどうかを返す。
+type DeferFunc func(ctx context.Context) (bool, error)
 
 // Worker は、mikan で、割り振りを取り、リースを延長しながら Session で録画する (設計書 1.5)。
 // 複数の mikan が動いていても、1 つの割り振りを取れるのは 1 台だけである。
@@ -101,6 +107,8 @@ type Worker struct {
 	// cooldownMu は、期限を確認して割り振りを取る間と、期限を決めて割り振りを手放す間を、互いに待たせる。
 	// 取る側が期限を確認した後に手放されると、手放したばかりの割り振りを、期限の前に取得し直してしまう。
 	cooldownMu sync.Mutex
+	// deferring は、DeferAcquire で、割り振りを取らずにいるかどうか。変わったときだけログに出す。
+	deferring atomic.Bool
 }
 
 // NewWorker は Worker を返す。holder は、この mikan のインスタンスの ID。opts は nil でもよい。
@@ -108,6 +116,7 @@ func NewWorker(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, logger *sl
 	o := WorkerOptions{
 		LeaseTTL: DefaultLeaseTTL, RenewInterval: DefaultRenewInterval, AcquireInterval: DefaultAcquireInterval,
 		HandoverTimeout: DefaultHandoverTimeout, ReleaseCooldown: DefaultReleaseCooldown, DatabaseClock: false, PollOnly: false, PollInterval: notify.DefaultPollInterval,
+		DeferAcquire: nil,
 	}
 	if opts != nil {
 		o = WorkerOptions{
@@ -119,12 +128,14 @@ func NewWorker(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, logger *sl
 			DatabaseClock:   opts.DatabaseClock,
 			PollOnly:        opts.PollOnly,
 			PollInterval:    orDefault(opts.PollInterval, o.PollInterval),
+			DeferAcquire:    opts.DeferAcquire,
 		}
 	}
 
 	return &Worker{
 		pool: pool, leases: leases, clock: clk, holder: holder, logger: logger, session: session, opts: o,
 		mu: sync.Mutex{}, active: map[uuid.UUID]*activeSession{}, cooldownUntil: atomic.Pointer[time.Time]{}, cooldownMu: sync.Mutex{},
+		deferring: atomic.Bool{},
 	}
 }
 
@@ -206,8 +217,37 @@ func (w *Worker) acquireUnlessCoolingDown(ctx context.Context) (*Assignment, boo
 	if until := w.cooldownUntil.Load(); until != nil && w.clock.Now().Before(*until) {
 		return nil, false, nil
 	}
+	if w.deferAcquire(ctx) {
+		return nil, false, nil
+	}
 
 	return w.acquire(ctx)
+}
+
+// deferAcquire は、DeferAcquire で、割り振りを取らずにほかの mikan に任せるかを決める (#2195)。
+// 決められなければ、取る。取らないと、どの mikan も録らないことがある。録っている割り振りは手放さない。
+func (w *Worker) deferAcquire(ctx context.Context) bool {
+	if w.opts.DeferAcquire == nil {
+		return false
+	}
+	deferring, err := w.opts.DeferAcquire(ctx)
+	switch {
+	case err != nil && ctx.Err() != nil:
+		// 止めるときは、取らない。取りに行っても、ctx が終わっているので取れない。
+		return true
+	case err != nil:
+		w.logger.WarnContext(ctx, "failed to check whether to leave the assignments to another mikan; acquiring them", slog.Any("error", err))
+		deferring = false
+	}
+	if w.deferring.Swap(deferring) != deferring {
+		if deferring {
+			w.logger.WarnContext(ctx, "the database schema is newer than this binary supports; leaving new assignments to an up-to-date mikan")
+		} else {
+			w.logger.InfoContext(ctx, "acquiring assignments again")
+		}
+	}
+
+	return deferring
 }
 
 // handOverAll は、録画しているすべての割り振りを、ほかの mikan に引き継ぐか、手放す。
@@ -235,6 +275,26 @@ func (w *Worker) handOverAll(ctx context.Context, wg *sync.WaitGroup) {
 // peers は、動いているほかの mikan の数を返す。
 func (w *Worker) peers(ctx context.Context) (int, error) {
 	return AlivePeers(w.pool, w.clock, w.holder)(ctx)
+}
+
+// DeferToCompatiblePeers は、このバイナリが知る最新のマイグレーションのバージョン latest が、DB に記録した動かしてよいバイナリの下限より古く、
+// 下限を満たすバイナリの mikan がほかに動いていれば、割り振りを取らずに任せる DeferFunc を返す (#2195、設計書 11.4)。
+// ローリング更新で、古いバイナリが新しいスキーマで録画を引き継ぐと、消えたカラムを読んで失敗することがある。
+// 下限を満たす mikan がいなければ、取る。任せる先がなければ、古いバイナリでも録るほうがよい。
+func DeferToCompatiblePeers(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, latest int64) DeferFunc {
+	return func(ctx context.Context) (bool, error) {
+		row, err := sqlc.New(pool).GetAcquireCompatibility(ctx, sqlc.GetAcquireCompatibilityParams{
+			Role: mikanRole, AliveSince: clk.Now().Add(-registry.AliveTTL), Holder: holder,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		if err != nil {
+			return false, fmt.Errorf("failed to get the schema compatibility: %w", err)
+		}
+
+		return latest < row.MinBinaryVersion && row.CompatiblePeers > 0, nil
+	}
 }
 
 // AlivePeers は、インスタンスの登録簿から、holder のほかに動いている mikan の数を返す PeersFunc を返す。

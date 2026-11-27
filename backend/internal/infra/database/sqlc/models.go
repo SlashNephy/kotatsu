@@ -504,11 +504,12 @@ type ImportSource struct {
 }
 
 type Instance struct {
-	ID          uuid.UUID
-	Role        string
-	Address     string
-	StartedAt   time.Time
-	HeartbeatAt time.Time
+	ID            uuid.UUID
+	Role          string
+	Address       string
+	StartedAt     time.Time
+	HeartbeatAt   time.Time
+	SchemaVersion *int64
 }
 
 type JobProgress struct {
