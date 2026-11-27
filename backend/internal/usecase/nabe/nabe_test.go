@@ -132,9 +132,9 @@ func TestStreams(t *testing.T) {
 		{name: "registry unavailable", nabe: true, listErr: errors.New("database is down"), want: fromLocal, wantRemote: 0, wantLocal: 1},
 		{name: "nabe unreachable", nabe: true, unreachable: true, want: fromLocal, wantRemote: 0, wantLocal: 1},
 		{name: "invalid address", nabe: true, address: "[::1", want: fromLocal, wantRemote: 0, wantLocal: 1},
-		// 秘密キーが違って断られても、自分で開く。
+		// 秘密キーが違って拒否されても、自分で開く。
 		{name: "wrong secret", nabe: true, nabeKey: keyMaterial + "-other", want: fromLocal, wantRemote: 0, wantLocal: 1},
-		// チューナーが足りないと断られたら、自分で開いても同じなので、そのまま返す。
+		// チューナーが足りないと拒否されたら、自分で開いても同じなので、そのまま返す。
 		{name: "no tuner on nabe", nabe: true, remoteErr: tunerserver.ErrTunerUnavailable, wantErr: tunerserver.ErrTunerUnavailable, wantRemote: 1, wantLocal: 0},
 	}
 	for _, tt := range tests {

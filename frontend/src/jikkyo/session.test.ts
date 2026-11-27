@@ -74,7 +74,7 @@ describe('jikkyoSocketURL', () => {
 });
 
 describe('JikkyoSession', () => {
-  test('tenban が知らせた状態とコメントを、画面に渡す', () => {
+  test('tenban が通知した状態とコメントを、画面に渡す', () => {
     const { sockets, comments, statuses } = setup();
     expect(sockets).toHaveLength(1);
     expect(sockets[0]!.url).toBe('ws://kotatsu.test/media/jikkyo/jk1/ws');

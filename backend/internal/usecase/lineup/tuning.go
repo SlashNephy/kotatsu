@@ -15,7 +15,7 @@ import (
 
 const (
 	// DefaultSameRoundInterval は、続けて選局できないチャンネルの判定で、前に数えた失敗からこの間に始めた失敗を、同じ 1 回と数える間隔
-	// (#1519、設計書 付録 A)。録画は、断られても予定の終わりまで開き直すので、1 つの失敗した録画が、1 回の周回に当たる。
+	// (#1519、設計書 付録 A)。録画は、拒否されても予定の終わりまで開き直すので、1 つの失敗した録画が、1 回の周回に当たる。
 	// 続けて並んだ番組 (30 分ごとなど) の録画を、別々の回に数えないよう、それより長くする。
 	DefaultSameRoundInterval = time.Hour
 	// DefaultUnreachableThreshold は、続けて選局できないと決める、続けて受信できなかった回数 (#1519、設計書 付録 A)。
@@ -31,7 +31,7 @@ type TuningOutcome struct {
 	Channel     string
 	// At は、選局を始めた時刻 (録画を始めた時刻)。
 	At time.Time
-	// Received は、受信できたか。false なら、チューナーサーバーに選局を断られた (tuning_refused)。
+	// Received は、受信できたか。false なら、チューナーサーバーに選局を拒否された (tuning_refused)。
 	Received bool
 }
 
@@ -53,7 +53,7 @@ type streak struct {
 }
 
 // Unreachable は、選局の結果 outcomes (始めた順) から、続けて選局できないチャンネルを、チャンネル種別ごとに、チャンネルの昇順で返す (#1519)。
-//   - 選局を断られた回を数え、受信できたら 0 に戻す。前に数えた失敗から SameRoundInterval の間の失敗は、同じ 1 回と数える。
+//   - 選局を拒否された回を数え、受信できたら 0 に戻す。前に数えた失敗から SameRoundInterval の間の失敗は、同じ 1 回と数える。
 //     受信できた後の最初の失敗は、間が短くても 1 回と数える。
 //   - Threshold 回続けて受信できず、かつ、続き始めてから、同じ種別のほかのチャンネルが 1 つでも受信できているときだけ、続けて選局できないと決める。
 //     その種別が全部だめなら、原因はチャンネルではなく、アンテナかチューナーにあるからである。
@@ -108,7 +108,7 @@ func receivedOther(outcomes []TuningOutcome, channelType, channel string, since 
 }
 
 // checkTuning は、録画の結果から、続けて選局できないチャンネルを決め、チャンネル種別ごとに管理者に通知する (#1519)。
-// 続いている間は、同じチャンネルの組を繰り返し知らせず、なくなったら忘れる。
+// 続いている間は、同じチャンネルの組を繰り返し通知せず、なくなったら忘れる。
 // チューナーサーバーの一覧にないチャンネル (スキャンし直して消したものなど) は、通知しない。
 func (c *Checker) checkTuning(ctx context.Context, q *sqlc.Queries, services []*tunerserver.Service) error {
 	rows, err := q.ListTuningOutcomes(ctx, c.clock.Now().Add(-tuningLookback))

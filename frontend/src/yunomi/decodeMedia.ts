@@ -19,7 +19,7 @@ import { sharedAudioContext } from './sharedAudioContext';
 // - シークできない (seekMode は none)。速さは等速だけ (playbackRate は 1 のまま)。
 // - ライブで止めてから再開すると、放送の今から読み直す (止めている間の音と映像を貯めないため)。読み直すと、
 //   <video> と同じく emptied と loadstart を送る。
-// - 音ありの自動再生を断られたら、<video> と同じく止まったままにし、play() を NotAllowedError で断る。
+// - 音ありの自動再生を拒否されたら、<video> と同じく止まったままにし、play() を NotAllowedError で拒否する。
 
 // readyStates は、HTMLMediaElement の readyState の段階。
 const readyStates = { nothing: 0, currentData: 2, enoughData: 4 } as const;
@@ -29,7 +29,7 @@ const startBuffer = 0.3 * ptsTicksPerSecond;
 // timeupdateInterval は、timeupdate を送る間隔 (ミリ秒)。<video> と同じく、4 回/秒ほどにする。
 const timeupdateInterval = 250;
 // staleStart は、鳴らし始める前にバッファした音が、これより古くなったら (ミリ秒)、鳴らし始めるときに放送の今から読み直す。
-// 音ありの自動再生を断られたまま待っていた間の音を、遅れて鳴らさないため。
+// 音ありの自動再生を拒否されたまま待っていた間の音を、遅れて鳴らさないため。
 const staleStart = 3_000;
 // resumeTimeout は、AudioContext を動かすのを待つ上限 (ミリ秒)。ユーザーの操作の前は、返らないブラウザがある。
 const resumeTimeout = 300;

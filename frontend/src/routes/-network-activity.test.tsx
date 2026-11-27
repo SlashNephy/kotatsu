@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe('NetworkActivityPage', () => {
-  test('通信の記録を読み込めなかったら、読み込めなかったと知らせる', async () => {
+  test('通信の記録を読み込めなかったら、読み込めなかったと伝える', async () => {
     const environment = createTestEnvironment((request) =>
       request.name === 'networkActivityQuery' ? new Error('failed') : undefined,
     );

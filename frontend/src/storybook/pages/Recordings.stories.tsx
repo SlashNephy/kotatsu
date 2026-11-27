@@ -111,7 +111,7 @@ export const Selecting: Story = {
   },
 };
 
-// まとめて消した後の知らせ。
+// まとめて消した後の通知。
 export const Deleted: Story = {
   play: async ({ canvas }) => {
     await userEvent.click(await canvas.findByRole('button', { name: '選ぶ' }));

@@ -620,7 +620,7 @@ export function createRootValue(
     continueWatching: ({ first }: { first: number }) => recordings.continueWatching(first),
     // デモの録画は番組表の番組と結び付けないので、続きの放送 (#1564) は出さない。
     nextEpisodes: () => [],
-    // デモには通知がない。通知の一覧と、局の構成の変化の知らせ (LineupBanner) は空にする。
+    // デモには通知がない。通知の一覧と、局の構成の変化の通知 (LineupBanner) は空にする。
     notifications: (args: { first: number; after?: string | null }) =>
       paginate([], args.first, args.after),
     unreadNotificationCount: () => 0,

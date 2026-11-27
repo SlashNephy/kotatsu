@@ -71,7 +71,7 @@ describe('RecordingPage', () => {
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(screen.getByText('解析を待っています')).toBeTruthy();
 
-    // 終わったことは、変更の知らせが届かなくても、読み直して出す。
+    // 終わったことは、変更の通知が届かなくても、読み直して出す。
     await act(() => vi.advanceTimersByTimeAsync(5_000));
     expect(screen.getByText('解析しています')).toBeTruthy();
     expect(screen.getByRole('progressbar', { name: '解析しています' })).toBeTruthy();

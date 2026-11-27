@@ -42,7 +42,7 @@ export type AdaptiveOptions = {
 // useAdaptiveQuality は、映像だけの遅れを飛び直しで修正し (どの画面でも)、stepDown なら、デコードが追いつかない端末で段階を下げる (#1513)。
 // どの画面でも、回線が足りなければ段階を下げ、余裕が戻れば上げる。
 // 画質が「自動」なら段階を動かして理由を出し、手で選んでいれば動かさずに「自動」を勧める。
-// notice は、映像の上に重ねる知らせ。network は、プレイヤーから届いた量を受け取る口と、再生の情報に出す様子。
+// notice は、映像の上に重ねる通知。network は、プレイヤーから届いた量を受け取る口と、再生の情報に出す様子。
 export function useAdaptiveQuality(
   media: PlayerMedia | null,
   playback: Playback,
@@ -96,7 +96,7 @@ export function useAdaptiveQuality(
     setNotice(null);
   }
 
-  // 同じ状態が続けば、知らせを出し直して、消すまでの時間を延ばす。
+  // 同じ状態が続けば、通知を出し直して、消すまでの時間を延ばす。
   useEffect(() => {
     if (notice === null) {
       return;
@@ -111,7 +111,7 @@ export function useAdaptiveQuality(
     return () => window.clearTimeout(timer);
   }, [notice]);
 
-  // stepName は、知らせに出す段階の名前。
+  // stepName は、通知に出す段階の名前。
   const stepName = (name: string): string =>
     name === original
       ? t('player.originalShort')

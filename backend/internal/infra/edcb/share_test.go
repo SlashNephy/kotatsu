@@ -173,7 +173,7 @@ func TestTunerServerSharedStreamCutsSlowSubscriber(t *testing.T) {
 func TestTunerServerSharedStreamPreemptedCutsAll(t *testing.T) {
 	t.Parallel()
 
-	// EDCB の予約にチューナーを取られて局が変わったら、すべての受け手に、自分の局の分を返してから同じエラーで知らせ、
+	// EDCB の予約にチューナーを取られて局が変わったら、すべての受け手に、自分の局の分を返してから同じエラーで通知し、
 	// NetworkTV を 1 度だけ閉じる。
 	s, server, ids, feed := feedServer(t, 0, 0)
 	streams := make([]io.ReadCloser, 0, 2)

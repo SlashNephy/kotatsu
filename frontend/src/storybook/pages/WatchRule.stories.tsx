@@ -170,7 +170,7 @@ export const Outdated: Story = {
         input: watchRuleInput('縁側の午後 (ほかの端末で変更)'),
       });
     }
-    // ほかの端末での変更の知らせを受けて、読み直すまで少しかかる。
+    // ほかの端末での変更の通知を受けて、読み直すまで少しかかる。
     await canvas.findByRole('button', { name: '最新の内容を読み込む' }, { timeout: 10_000 });
   },
 };

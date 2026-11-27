@@ -112,7 +112,7 @@ export function useSeekableStream(
     restartAt: (seconds, handover = false) => {
       // 映っている映像の位置を信じられるなら、裏で読み込んでいる間も、その映像で位置を進める。
       const tracking = handover && phase.current === 'playing';
-      // 裏で読み込んでいる間に、もう一度知らせが届いたら、映っている映像の起点のまま続ける。
+      // 裏で読み込んでいる間に、もう一度通知が届いたら、映っている映像の起点のまま続ける。
       handoverFrom.current = tracking ? (handoverFrom.current ?? startedAt) : null;
       phase.current = tracking ? 'playing' : 'loading';
       positionRef.current = seconds;

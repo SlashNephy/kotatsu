@@ -104,7 +104,7 @@ export const ServiceSelected: Story = {
   },
 };
 
-// サービスを足せなかったとき (失敗の知らせを出し、選んだサービスを残す)。
+// サービスを足せなかったとき (失敗の通知を出し、選んだサービスを残す)。
 export const AddFailed: Story = {
   args: { overrides: { ...available, setTimeshiftChannel: failing() } },
   play: async (context) => {

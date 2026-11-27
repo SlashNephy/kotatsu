@@ -40,7 +40,7 @@ export function useVideoLoading(media: PlayerMedia | null): boolean {
       }
     };
     const onCanPlay = () => {
-      // 止めたまま読み込み終えたら (自動再生を断られたときなど)、待っていることにはしない。
+      // 止めたまま読み込み終えたら (自動再生を拒否されたときなど)、待っていることにはしない。
       if (media.paused) {
         done();
       }
@@ -52,10 +52,10 @@ export function useVideoLoading(media: PlayerMedia | null): boolean {
     media.addEventListener('waiting', onWaiting);
     media.addEventListener('playing', done);
     media.addEventListener('seeked', onSeeked);
-    // 止めたら、待っていることにはしない。自動再生を断られて止まったときは、再生ボタンを出す。
+    // 止めたら、待っていることにはしない。自動再生を拒否されて止まったときは、再生ボタンを出す。
     media.addEventListener('pause', done);
     media.addEventListener('canplay', onCanPlay);
-    // 読み込みに失敗したら、エラーの知らせに任せて、出し続けない。
+    // 読み込みに失敗したら、エラーの通知に任せて、出し続けない。
     media.addEventListener('error', done);
 
     return () => {

@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe('useLiveScrambled', () => {
-  test('自分のサービスの知らせが届いたときだけ、届くたびに呼ぶ', () => {
+  test('自分のサービスの通知が届いたときだけ、届くたびに呼ぶ', () => {
     const onScrambled = vi.fn();
     render(
       <DataChangesProvider>
@@ -42,7 +42,7 @@ describe('useLiveScrambled', () => {
     expect(onScrambled).toHaveBeenCalledTimes(2);
   });
 
-  test('画面を開く前に届いた知らせでは呼ばない', () => {
+  test('画面を開く前に届いた通知では呼ばない', () => {
     const onScrambled = vi.fn();
     const { rerender } = render(
       <DataChangesProvider>

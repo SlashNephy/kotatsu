@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import type { RemoteTarget } from './useRemotePlayer';
 
 // useRemoteOpen は、ほかの端末から開かせられたもの (キャスト、#802) の画面へ移る関数を返す。
-// サービスならライブ視聴、録画なら録画の再生を開く。音ありの自動再生を断られたら、移った先のプレイヤーが再生のボタンを出す。
+// サービスならライブ視聴、録画なら録画の再生を開く。音ありの自動再生を拒否されたら、移った先のプレイヤーが再生のボタンを出す。
 export function useRemoteOpen(): (target: RemoteTarget) => void {
   const navigate = useNavigate();
 

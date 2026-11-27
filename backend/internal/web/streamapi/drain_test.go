@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
-// TestDrainer は、止める前の知らせを始めたら、ライブ視聴と録画のストリームがなくなるまで待ち、
+// TestDrainer は、止める前の通知を始めたら、ライブ視聴と録画のストリームがなくなるまで待ち、
 // なくならなければ上限の時間で諦めることを確認する (#1085)。データ放送のストリームは待たない。
 func TestDrainer(t *testing.T) {
 	t.Parallel()
@@ -19,7 +19,7 @@ func TestDrainer(t *testing.T) {
 	tests := []struct {
 		name string
 		kind streamapi.StreamKind
-		// closeAfter は、知らせを始めてから、ストリームを閉じるまでの時間。0 なら閉じない。
+		// closeAfter は、通知を始めてから、ストリームを閉じるまでの時間。0 なら閉じない。
 		closeAfter time.Duration
 		timeout    time.Duration
 		wantMin    time.Duration

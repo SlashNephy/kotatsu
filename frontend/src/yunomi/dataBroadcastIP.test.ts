@@ -68,7 +68,7 @@ describe('createDataBroadcastIP', () => {
         throw new TypeError('network error');
       },
     },
-  ])('$nameときは、送れなかったことを知らせる', async ({ respond }) => {
+  ])('$nameときは、送れなかったことを通知する', async ({ respond }) => {
     const { fetcher } = fakeFetch(respond);
     const ip = createDataBroadcastIP(fetcher);
 

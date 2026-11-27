@@ -140,7 +140,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	// ツールに要るスコープが足りなければ、SDK に渡す前に 403 で知らせ、クライアントに足りないスコープで認可し直してもらう。
+	// ツールに要るスコープが足りなければ、SDK に渡す前に 403 で通知し、クライアントに足りないスコープで認可し直してもらう。
 	// ツールを実行するときにも、もう一度確かめる。こちらの読み方と SDK の読み方が食い違っても、すり抜けられないようにする。
 	if missing := h.missingScope(w, r, grant); missing != "" {
 		w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer error="insufficient_scope", scope=%q, resource_metadata=%q`, missing, resourceMetadata))

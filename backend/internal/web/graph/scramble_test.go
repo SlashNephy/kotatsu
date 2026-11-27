@@ -89,7 +89,7 @@ func watchLive(t *testing.T, server *httptest.Server, clk *clocktest.Fake, servi
 	_, _ = io.Copy(io.Discard, resp.Body)
 }
 
-// subscribeScrambled は、viewerEvents を購読し、始めに届く今のバージョンの知らせを待ってから返す。
+// subscribeScrambled は、viewerEvents を購読し、始めに届く今のバージョンの通知を待ってから返す。
 // 応答の先頭が届いても、購読がサービスごとに最後に決めた日時を控え終えたとは限らない。控える前に決めた判定は送らないので、
 // 待たずに決めると、テストの判定が、控えた日時に紛れて届かないことがある。
 func subscribeScrambled(t *testing.T, f *fixture) <-chan json.RawMessage {
@@ -101,7 +101,7 @@ func subscribeScrambled(t *testing.T, f *fixture) <-chan json.RawMessage {
 	return events
 }
 
-// scrambledServices は、viewerEvents の知らせのうち、スクランブルされたまま届くと決めた知らせのサービスを、within の間に届いた順に返す。
+// scrambledServices は、viewerEvents の通知のうち、スクランブルされたまま届くと決めた通知のサービスを、within の間に届いた順に返す。
 func scrambledServices(t *testing.T, events <-chan json.RawMessage, within time.Duration) []string {
 	t.Helper()
 
@@ -138,13 +138,13 @@ func TestLiveStreamScrambled(t *testing.T) {
 	server := scrambleRelay(t, f, clk)
 	events := subscribeScrambled(t, f)
 
-	// 復号できている局は、閉じずに流し続け、知らせも届かない。
+	// 復号できている局は、閉じずに流し続け、通知も届かない。
 	const watch = 2 * time.Second
 	started := time.Now()
 	watchLive(t, server, clk, clearService, watch)
 	assert.GreaterOrEqual(t, time.Since(started), watch, "the decrypted stream must not be closed")
 
-	// スクランブルされたまま届く局は、抑止時間を越えたら閉じ、その局の知らせだけが届く。
+	// スクランブルされたまま届く局は、抑止時間を越えたら閉じ、その局の通知だけが届く。
 	started = time.Now()
 	watchLive(t, server, clk, scrambledService, 10*time.Second)
 	assert.Less(t, time.Since(started), 10*time.Second, "the scrambled stream must be closed")

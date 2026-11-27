@@ -2223,7 +2223,7 @@ CREATE TABLE drama_record_connections (
   -- 記録先のアカウントの名前。設定の画面に、どのアカウントと連携したかを出す。
   account_name text NOT NULL,
   connected_at timestamptz NOT NULL,
-  -- 更新のトークンが断られたかどうか。断られたら、記録も取り込みもせず、連携し直すよう画面で案内する。
+  -- 更新のトークンが拒否されたかどうか。拒否されたら、記録も取り込みもせず、連携し直すよう画面で案内する。
   reauthorization_required boolean NOT NULL DEFAULT false,
   -- ウォッチリストを取り込んだ様子。最後に取り込めたときの /sync/activities の all と tv_shows.removed_from_list を、
   -- Simkl が返した文字列のまま持つ。次の取り込みで、変わったかを比較し、date_from に渡す。一度も取り込めていなければ NULL。

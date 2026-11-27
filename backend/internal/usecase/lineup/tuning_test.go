@@ -23,7 +23,7 @@ func tuningBase() time.Time {
 	return time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC)
 }
 
-// refused は、地上波のチャンネル channel を、起点から at に選局して断られた結果。
+// refused は、地上波のチャンネル channel を、起点から at に選局して拒否された結果。
 func refused(channel string, at time.Duration) lineup.TuningOutcome {
 	return lineup.TuningOutcome{ChannelType: "GR", Channel: channel, At: tuningBase().Add(at), Received: false}
 }
@@ -197,7 +197,7 @@ func TestCheckerTuning(t *testing.T) {
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 2)
 
-	// 受信できたら忘れ、また続けて断られたら通知する。
+	// 受信できたら忘れ、また続けて拒否されたら通知する。
 	record(dead.ID, 8*time.Hour, domain.RecordingStatePartial, nil)
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 2)

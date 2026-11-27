@@ -104,7 +104,7 @@ func (l *recordingLeases) MarkHandover(ctx context.Context, clk clock.Clock, a *
 
 		return err
 	})
-	// 知らせられずにトランザクションを戻したら、フラグも立っていない。
+	// 通知できずにトランザクションを戻したら、フラグも立っていない。
 	if err != nil {
 		return false, err
 	}

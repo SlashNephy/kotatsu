@@ -2,7 +2,7 @@ import { List, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
 // Disclaimer は、免責事項を出す (#1712)。「このアプリについて」と初回セットアップの画面で、同じ文を出す。
-// 文は README の「免責事項」の節と同じにする。
+// 文は README の「免責事項」のセクションと同じにする。
 export function Disclaimer() {
   const { t } = useTranslation();
 

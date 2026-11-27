@@ -212,7 +212,7 @@ async function writeRecording(source: SaveSource, controller: AbortController): 
     }
     const total = expectedSize(response.headers.get('Content-Length'), source.files);
     // 書き始める前に、端末の空きを確認し、ブラウザに消されないよう、保存の永続化を求める。
-    // 永続化を断られても保存はできるので、断られたことは一覧に出すだけにする。
+    // 永続化を拒否されても保存はできるので、拒否されたことは一覧に出すだけにする。
     if (!hasRoom(await navigator.storage.estimate(), total)) {
       await response.body.cancel();
       throw new DOMException('not enough storage', 'QuotaExceededError');
@@ -310,7 +310,7 @@ export function cancelSave(id: string): void {
   controllers.get(id)?.abort();
 }
 
-// dismissSaveError は、保存できなかった知らせを消す。
+// dismissSaveError は、保存できなかった通知を消す。
 export function dismissSaveError(id: string): void {
   if (snapshot.states.get(id)?.kind === 'error') {
     setState(id, null);

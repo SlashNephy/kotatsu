@@ -24,19 +24,19 @@ describe('createConnectionTracker', () => {
     expect(notified).toBe(3);
   });
 
-  test('やめた後に届いた知らせは数えない', () => {
+  test('やめた後に届いた通知は数えない', () => {
     const tracker = createConnectionTracker();
     const a = tracker.track();
     a.reconnecting();
     a.release();
     a.connected();
     expect(tracker.isReconnecting()).toBe(false);
-    // やめた後に、つなぎ直しの知らせが遅れて届いても、つなぎ直している状態に戻さない。
+    // やめた後に、つなぎ直しの通知が遅れて届いても、つなぎ直している状態に戻さない。
     a.reconnecting();
     expect(tracker.isReconnecting()).toBe(false);
   });
 
-  test('知らせるのをやめた listener には知らせない', () => {
+  test('購読をやめた listener には通知しない', () => {
     const tracker = createConnectionTracker();
     let notified = 0;
     const unsubscribe = tracker.subscribe(() => {
@@ -62,7 +62,7 @@ describe('retryDelayMs', () => {
 });
 
 describe('createConnectionTracker の recoveries', () => {
-  test('つなぎ直していた接続がつながったときだけ数え、そのたびに知らせる', () => {
+  test('つなぎ直していた接続がつながったときだけ数え、そのたびに通知する', () => {
     const tracker = createConnectionTracker();
     let notified = 0;
     tracker.subscribe(() => {

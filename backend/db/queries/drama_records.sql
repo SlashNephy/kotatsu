@@ -56,7 +56,7 @@ UPDATE drama_record_connections SET
 WHERE user_id = @user_id AND destination = @destination;
 
 -- name: RequireDramaRecordReauthorization :exec
--- 更新のトークンが断られたら、連携し直すまで、記録も取り込みもしない。
+-- 更新のトークンが拒否されたら、連携し直すまで、記録も取り込みもしない。
 UPDATE drama_record_connections SET reauthorization_required = true
 WHERE user_id = @user_id AND destination = @destination;
 

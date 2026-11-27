@@ -15,7 +15,7 @@ const (
 )
 
 // Drainer は、tenban を止める前に、流している視聴者に、新しい接続を張ってから切り替えるよう通知する (#1085)。
-// 知らせは、GraphQL の viewerEvents で、この tenban に購読している視聴者に届く。
+// 通知は、GraphQL の viewerEvents で、この tenban に購読している視聴者に届く。
 type Drainer struct {
 	streams  *StreamCounter
 	draining chan struct{}
@@ -29,12 +29,12 @@ func NewDrainer(streams *StreamCounter) *Drainer {
 	return &Drainer{streams: streams, draining: draining, start: sync.OnceFunc(func() { close(draining) })}
 }
 
-// Draining は、止める前の知らせを始めたら閉じるチャネルを返す。
+// Draining は、止める前の通知を始めたら閉じるチャネルを返す。
 func (d *Drainer) Draining() <-chan struct{} {
 	return d.draining
 }
 
-// Drain は、知らせを始め、ライブ視聴と録画とタイムシフトのストリームがなくなるか、timeout が過ぎるか、ctx が終わるまで待つ。
+// Drain は、通知を始め、ライブ視聴と録画とタイムシフトのストリームがなくなるか、timeout が過ぎるか、ctx が終わるまで待つ。
 // データ放送のストリームは、ライブ視聴をつなぎ直しても張り直さないので、待たない。
 func (d *Drainer) Drain(ctx context.Context, timeout time.Duration) {
 	d.start()

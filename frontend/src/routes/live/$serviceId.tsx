@@ -267,7 +267,7 @@ type Disconnection = {
   scrambled: boolean;
 };
 
-// DisconnectionReason は、視聴が切れた理由と、つなぎ直すまでの秒を示す。ページの知らせと、映像に重ねる知らせで使う。
+// DisconnectionReason は、視聴が切れた理由と、つなぎ直すまでの秒を示す。ページの通知と、映像に重ねる通知で使う。
 function DisconnectionReason({ disconnection }: { disconnection: Disconnection }) {
   const { t } = useTranslation();
 
@@ -421,11 +421,11 @@ function Live({
   // 小さなプレイヤーは、この経路で再生中かを確認し、再生と一時停止を操作する。
   useWatchMedia(media);
   const videoState = useVideoState(media);
-  // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
+  // ブラウザに音ありの自動再生を拒否されたら、映像の真ん中に再生ボタンを出す。
   const autoplay = useAutoplayBlocked(media);
   const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
-  // overlaid は、プレイヤーだけを出していて、ページの知らせやリモコンが見えないかどうか。そのときは、映像に重ねて出す (#435)。
+  // overlaid は、プレイヤーだけを出していて、ページの通知やリモコンが見えないかどうか。そのときは、映像に重ねて出す (#435)。
   const overlaid = fullscreen.active || pip.container !== null;
   // shortcutsOpen は、キーボードショートカットの一覧を出しているかどうか。
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -529,13 +529,13 @@ function Live({
   // preempted は、録画のためにチューナーを使われて切れたかどうか。つなぎ直せない間の理由に使う。
   const preempted = useRef(false);
   const [disconnection, setDisconnection] = useState<Disconnection | null>(null);
-  // retryingImmediately は、知らせを出さずにすぐつなぎ直している最中かどうか。lastImmediateRetry は、その時刻 (#1083)。
+  // retryingImmediately は、通知を出さずにすぐつなぎ直している最中かどうか。lastImmediateRetry は、その時刻 (#1083)。
   const retryingImmediately = useRef(false);
   const lastImmediateRetry = useRef<number | null>(null);
   // lastBrokenSkip は、バッファの再生で、壊れた所を最後に飛び越えた先の位置。
   const lastBrokenSkip = useRef<number | null>(null);
 
-  // 視聴が切れたら、まず知らせを出さずにすぐつなぎ直す。tenban の入れ替えや回線の瞬断なら、これで戻る (#1083)。
+  // 視聴が切れたら、まず通知を出さずにすぐつなぎ直す。tenban の入れ替えや回線の瞬断なら、これで戻る (#1083)。
   // ブラウザ内での変換では、切れる前に受け取った映像を流したまま、裏でつなぎ直して切り替える。
   // すぐのつなぎ直しでも戻れなければ、理由を調査し、通知を出して、間隔を延ばしながらつなぎ直す。
   const disconnected = () => {
@@ -1028,7 +1028,7 @@ function Live({
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;
   }
-  // resumeBehind は、バッファの配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、ライブに戻る。
+  // resumeBehind は、バッファの配信が切れたら、通知を出さずに今の位置から読み直す (#1083)。続けて切れるなら、ライブに戻る。
   // 映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す。
   const resumeBehind = () => {
     const position = timeshift.positionRef.current;
@@ -1163,7 +1163,7 @@ function Live({
     />
   );
 
-  // overlays は、全画面と別のウィンドウで、映像に重ねる切断の知らせとデータ放送のリモコン (#435)。
+  // overlays は、全画面と別のウィンドウで、映像に重ねる切断の通知とデータ放送のリモコン (#435)。
   const overlays = overlaid && (
     <>
       {disconnection !== null && (

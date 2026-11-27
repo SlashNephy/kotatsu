@@ -559,7 +559,7 @@ export const Wishlist: Story = {
   args: { url: '/reservations?wishlist=true', overrides: wishlistWith(fullWishlist) },
 };
 
-// 見たいリストのタブを、視聴者から見たとき。ルールも予約も作れないと知らせ、ボタンを出さない。
+// 見たいリストのタブを、視聴者から見たとき。ルールも予約も作れないと伝え、ボタンを出さない。
 export const WishlistAsViewer: Story = {
   args: {
     url: '/reservations?wishlist=true',

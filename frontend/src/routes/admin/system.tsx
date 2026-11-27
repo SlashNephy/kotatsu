@@ -149,7 +149,7 @@ function SystemStatus() {
         </Alert>
       )}
 
-      {/* 衛星の局の顔ぶれが、チューナーサーバーと食い違ったという知らせ (#1519)。 */}
+      {/* 衛星の局のラインナップが、チューナーサーバーと食い違ったという通知 (#1519)。 */}
       <Suspense fallback={null}>
         <LineupChanges />
       </Suspense>

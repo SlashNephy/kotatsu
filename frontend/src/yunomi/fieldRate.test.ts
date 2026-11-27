@@ -98,8 +98,8 @@ describe('createLateWatch', () => {
       want: false,
     },
     {
-      // 最初の知らせは、それまでの累計なので、1 秒の数としては使わない。
-      name: '最初の知らせの累計は数えない',
+      // 最初の通知は、それまでの累計なので、1 秒の数としては使わない。
+      name: '最初の通知の累計は数えない',
       reports: [
         { late: slow * 100, film: false, playbackRate: 1 },
         ...lateSequence(Array<number>(lateSeconds - 1).fill(slow)).map((late) => ({
@@ -111,7 +111,7 @@ describe('createLateWatch', () => {
       want: false,
     },
     {
-      // 読み直すと累計が 0 に戻る。減った知らせを、大きな増えとして数えない。
+      // 読み直すと累計が 0 に戻る。減った通知を、大きな増えとして数えない。
       name: '累計が戻れば、そこから数え直す',
       reports: [
         ...lateSequence([0, ...Array<number>(lateSeconds - 1).fill(slow)]).map((late) => ({

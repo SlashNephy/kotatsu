@@ -83,7 +83,7 @@ export const ConfirmRevokeOthers: Story = {
   },
 };
 
-// ほかの端末をまとめて取り消した後の知らせ。
+// ほかの端末をまとめて取り消した後の通知。
 export const RevokedOthers: Story = {
   args: { overrides: base },
   play: async ({ canvas }) => {

@@ -346,11 +346,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const videoState = useVideoState(media);
   const navigate = useNavigate();
   const listState = useListState();
-  // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
+  // ブラウザに音ありの自動再生を拒否されたら、映像の真ん中に再生ボタンを出す。
   const autoplay = useAutoplayBlocked(media);
   const videoLoading = useVideoLoading(media);
   const fullscreen = useFullscreen(playerBoxRef);
-  // overlaid は、プレイヤーだけを出していて、ページの知らせが見えないかどうか。そのときは、映像に重ねて出す (#435)。
+  // overlaid は、プレイヤーだけを出していて、ページの通知が見えないかどうか。そのときは、映像に重ねて出す (#435)。
   const overlaid = fullscreen.active || pip.container !== null;
   // shortcutsOpen は、キーボードショートカットの一覧を出しているかどうか。
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -431,7 +431,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // Int64 は Relay の型では any になるので、数に直す。
   const savedMs = recording?.watchPositionMs == null ? null : Number(recording.watchPositionMs);
   // CM を自動で飛ばす設定で、URL で位置を渡されずに開いた位置が CM の中なら、最初から CM の終わりを求める (#1512)。
-  // 開いてから飛ぶと、頭の CM を飛んでから続きへ移ったり、読み直すたびに知らせが出たりする。CM の区間も開始位置も、
+  // 開いてから飛ぶと、頭の CM を飛んでから続きへ移ったり、読み直すたびに通知が出たりする。CM の区間も開始位置も、
   // 開いた時点で揃っているので、ここで一度だけ決める。URL で渡された位置は、自分でシークしたときと同じく飛ばさない。
   const [opening] = useState(() => {
     if (start !== undefined) {
@@ -491,7 +491,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const base = useRef(0);
   // lastVideoTime は、最後に見た video の時刻。変換した映像の時刻が、途切れた区間で飛んだのを見つけるのに使う。
   const lastVideoTime = useRef(0);
-  // handoverFrom は、tenban が止まる前の知らせで、裏で読み込んでいる間 (#1728) の、映っている映像の読み込みが流し始めた位置。
+  // handoverFrom は、tenban が止まる前の通知で、裏で読み込んでいる間 (#1728) の、映っている映像の読み込みが流し始めた位置。
   // 裏で読み込んでいる間も、映っている映像の時刻で位置を進める。新しい読み込みの起点は、切り替えるまで使わない。
   const handoverFrom = useRef<number | null>(null);
   // convertedPosition は、ブラウザの中で変換した映像の時刻 current から、再生位置を求める。途切れた区間で飛んだ分は数えない。
@@ -503,7 +503,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   };
   // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
   const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
-  // settleBase は、読み込んだ映像の最初のコマが出たら、その時刻を base にする。mediaTime は、コマごとの知らせのそのコマの時刻。
+  // settleBase は、読み込んだ映像の最初のコマが出たら、その時刻を base にする。mediaTime は、コマごとの通知の、そのコマの時刻。
   // timeupdate を待つと、その間に進んだ分だけ base が後ろへずれ、位置を少なく数える。
   const settleBase = (current: PlayerMedia, mediaTime: number | null) => {
     if (
@@ -564,12 +564,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const lastSeek = useRef<number | null>(start === undefined ? null : resumeAt);
   const [cmAutoSkip] = useCmAutoSkip();
   const [error, setError] = useState<string | null>(null);
-  // lastAutoRetry は、切れたときに、知らせを出さずに今の位置から読み直した時刻 (#1083)。
+  // lastAutoRetry は、切れたときに、通知を出さずに今の位置から読み直した時刻 (#1083)。
   const lastAutoRetry = useRef<number | null>(null);
   // lastBrokenSkip は、壊れた所を最後に飛び越えた先の位置。
   const lastBrokenSkip = useRef<number | null>(null);
   // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
-  // tenban が止まる前の知らせで読み直すときだけ使い、シークなどでは、すぐ読み直す。
+  // tenban が止まる前の通知で読み直すときだけ使い、シークなどでは、すぐ読み直す。
   const [handover, setHandover] = useState(false);
 
   // currentPosition は、今の再生位置 (録画の始まりからの秒) を返す。実況のコメントを、画面の更新ごとに描くのに使う。
@@ -719,7 +719,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     // エラーで止まっている間は、「やり直す」に任せる。
     if (!hls && error === null) {
       // 映っている映像の位置を信じられるなら、裏で読み込んでいる間も、その映像で位置を進める (#1728)。
-      // 裏で読み込んでいる間に、もう一度知らせが届いたら、映っている映像の起点のまま続ける。
+      // 裏で読み込んでいる間に、もう一度通知が届いたら、映っている映像の起点のまま続ける。
       const shown = handoverFrom.current;
       const tracking =
         phase.current === 'playing' && (shown !== null || reached.current === streamKey);
@@ -730,9 +730,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         phase.current = 'playing';
       }
     }
-    // startAt と positionRef は、描画ごとに作り直すが、読み直しの位置は ref から読むので、知らせが届いたときだけ動かす。
+    // startAt と positionRef は、描画ごとに作り直すが、読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
   }, [drains, hls, error]);
-  // retry は、今の位置から読み直す。エラーの知らせも消し、読み込めたら出さないままにする。
+  // retry は、今の位置から読み直す。エラーの通知も消し、読み込めたら出さないままにする。
   const retry = () => {
     setError(null);
     startAt(positionRef.current);
@@ -846,7 +846,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // 進む向きの相対の移動 (キー、ダブルタップ、15 秒のボタン。#1572) は、行き先を選んだシークではないので、CM を見たい意思と
   // みなさない (#1512)。CM を自動で飛ばす設定で、行き先が CM の中なら、CM の終わりへ飛ぶ。自分でシークして見ていた CM の中で
   // 動いたときは、そのまま移る。戻る向きは、CM の終わりへ押し戻すと CM より前へ戻れなくなるので、これまでどおりシークとして扱う。
-  // CM を飛んだら、CM を飛ばした知らせを出して true を返す。呼んだ側は、そのときシークの結果の知らせを出さない。
+  // CM を飛んだら、CM を飛ばした通知を出して true を返す。呼んだ側は、そのときシークの結果の通知を出さない。
   const skip = (seconds: number): boolean => {
     const target = currentPosition() + seconds;
     const watching = lastSeek.current;
@@ -1215,7 +1215,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   }
   // フラグメントはサーバーに送られないので、読み込みを始め直すためだけに使う。
   const url = `${recording.streamUrl}?start=${offset.toFixed(1)}#${loads}`;
-  // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。tenban の入れ替えや回線の瞬断なら、これで戻る。
+  // resumeAfterCut は、配信が切れたら、通知を出さずに今の位置から読み直す (#1083)。tenban の入れ替えや回線の瞬断なら、これで戻る。
   // 続けて切れるなら、読み直しを繰り返さずに、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
     // 放送の受信で壊れた音声のフレームなどで、映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す (#1131)。

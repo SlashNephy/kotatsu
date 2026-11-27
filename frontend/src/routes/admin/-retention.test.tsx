@@ -69,7 +69,7 @@ describe('保持期間 (#1452)', () => {
     expect(field(0)).toHaveProperty('value', '60');
   });
 
-  test('欄を離れたら、その欄だけを保存し、知らせる (#1740)', async () => {
+  test('欄を離れたら、その欄だけを保存し、通知する (#1740)', async () => {
     const sent: unknown[] = [];
     const environment = createTestEnvironment((request, variables) => {
       if (request.name === 'retentionMutation') {
@@ -91,7 +91,7 @@ describe('保持期間 (#1452)', () => {
     expect(sent).toEqual([{ notificationRetentionDays: 120 }]);
   });
 
-  test('値を変えずに欄を離れても、保存も知らせもしない (#1740)', async () => {
+  test('値を変えずに欄を離れても、保存も通知もしない (#1740)', async () => {
     const sent: unknown[] = [];
     const environment = createTestEnvironment((request, variables) => {
       if (request.name === 'retentionMutation') {

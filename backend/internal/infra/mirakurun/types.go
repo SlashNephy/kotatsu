@@ -248,7 +248,7 @@ func MarshalTuners(tuners []*tunerserver.Tuner) ([]byte, error) {
 	return json.Marshal(convert(tuners, fromTuner))
 }
 
-// MarshalEvent は、何が変わったかの知らせを、時刻 at の /api/events/stream の要素の JSON にする。
+// MarshalEvent は、何が変わったかの通知を、時刻 at の /api/events/stream の要素の JSON にする。
 func MarshalEvent(event *tunerserver.Event, at time.Time) ([]byte, error) {
 	return json.Marshal(fromEvent(event, at))
 }
@@ -322,7 +322,7 @@ func fromTunerUser(u *tunerserver.TunerUser) *tunerUser {
 	return &tunerUser{ID: u.ID, Priority: u.Priority, Agent: u.Agent}
 }
 
-// fromEvent は、何が変わったかの知らせを、Mirakurun のイベントの形にする。番組のイベントには、番組が変わったサービスの
+// fromEvent は、何が変わったかの通知を、Mirakurun のイベントの形にする。番組のイベントには、番組が変わったサービスの
 // ネットワーク ID とサービスの番号だけを載せる。Client は、それだけでサービスを求める (toEvent)。
 func fromEvent(e *tunerserver.Event, at time.Time) *mirakurunEvent {
 	event := &mirakurunEvent{Resource: "", Type: "update", Data: json.RawMessage("{}"), Time: at.UnixMilli()}

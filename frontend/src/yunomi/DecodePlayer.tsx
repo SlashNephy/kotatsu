@@ -183,7 +183,7 @@ export function DecodePlayer({
       return;
     }
     engine.media.open(url, programNumber);
-    // 自動再生を断られたら、止まったままにし、ユーザーの操作を待つ (useAutoplayBlocked が再生ボタンを出す)。
+    // 自動再生を拒否されたら、止まったままにし、ユーザーの操作を待つ (useAutoplayBlocked が再生ボタンを出す)。
     void engine.media.play().catch(() => {});
   }, [url, programNumber]);
 

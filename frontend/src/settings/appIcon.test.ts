@@ -40,7 +40,7 @@ describe('saveAppIcon', () => {
     expect(loadAppIcon(storage)).toBe('kijitora');
   });
 
-  test('書けなくても、同じタブの画面には知らせる', () => {
+  test('書けなくても、同じタブの画面には通知する', () => {
     let notified = 0;
     const onChange = () => {
       notified += 1;

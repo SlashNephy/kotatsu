@@ -3,7 +3,7 @@ import { userEvent } from 'storybook/test';
 
 import { failingWith, holdAll, PageStory } from '../PageStory';
 
-// パスワードの変更 (/settings/password) の画面 (#2056)。強さの表示、変えた後、断られた理由ごとの表示、再認証を並べる。
+// パスワードの変更 (/settings/password) の画面 (#2056)。強さの表示、変えた後、拒否された理由ごとの表示、再認証を並べる。
 const meta = {
   title: 'ページ/設定/パスワード',
   component: PageStory,
@@ -37,7 +37,7 @@ export const StrongPassword: Story = { play: type('kotatsu-mikan-neko-2026', fal
 // 変えたとき。
 export const Changed: Story = { play: type('kotatsu-mikan-neko-2026', true) };
 
-// 断られた理由ごとの表示。
+// 拒否された理由ごとの表示。
 const rejected = (reason: string): Story => ({
   args: { overrides: { changePassword: failingWith({ code: 'BAD_USER_INPUT', reason }) } },
   play: type('kotatsu-mikan-neko-2026', true),

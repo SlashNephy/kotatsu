@@ -85,7 +85,7 @@ describe('withTransientRetry', () => {
     expect(tracker.recoveries()).toBe(1);
   });
 
-  test('一度で通った query は、サーバーが戻ったとは知らせない', () => {
+  test('一度で通った query は、サーバーが戻ったとは通知しない', () => {
     const tracker = createConnectionTracker();
     const { got } = run(withTransientRetry(fetcher([ok]), { tracker }));
 

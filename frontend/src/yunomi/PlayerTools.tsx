@@ -20,7 +20,7 @@ import classes from './TsPlayer.module.css';
 import type { useDocumentPictureInPicture } from './useDocumentPictureInPicture';
 import type { PlayerMedia } from './playerMedia';
 
-// useNotice は、少しの間だけ出す知らせ。
+// useNotice は、少しの間だけ出す通知。
 function useNotice(): [string | null, (message: string) => void] {
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
@@ -57,7 +57,7 @@ type CaptureOptions = {
 // CaptureResult は、キャプチャの結果。映像がなければ null。
 export type CaptureResult = 'saved' | 'copied' | 'failed' | null;
 
-// Capture は、キャプチャの操作と、その設定と知らせ。メニュー (CaptureButton) とキー (s) で使う。
+// Capture は、キャプチャの操作と、その設定と通知。メニュー (CaptureButton) とキー (s) で使う。
 export type Capture = {
   overlays: boolean;
   setOverlays: (overlays: boolean) => void;
@@ -101,7 +101,7 @@ export function useCapture({
         blob,
         captureTexts(time, serviceName, programName, text),
       );
-      // uploadFailed は、サーバーに残せなかったか。先に失敗を通知していたら、コピーできた知らせで上書きしない。
+      // uploadFailed は、サーバーに残せなかったか。先に失敗を通知していたら、コピーできた通知で上書きしない。
       let uploadFailed = false;
       uploadCapture(named, {
         time,
@@ -138,7 +138,7 @@ export function useCapture({
 }
 
 // CaptureButton は、今の場面を画像に保存するか、コピーするメニュー (設計書 7.5)。
-// 別のウィンドウに移っても開けるよう、メニューと知らせはプレイヤーの中に描く。
+// 別のウィンドウに移っても開けるよう、メニューと通知はプレイヤーの中に描く。
 // optional は、狭い画面で外してよいかどうか。'compact' なら、さらに狭い画面 (幅 380px 以下のプレイヤー) でだけ外す。
 // 外しても、右クリック (Android では長押し) のメニューと s のキーで保存できる。
 export function CaptureButton({

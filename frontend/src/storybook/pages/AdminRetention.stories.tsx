@@ -65,7 +65,7 @@ export const OutOfRange: Story = {
   },
 };
 
-// 日数を保存できなかったとき (失敗の知らせを出す)。
+// 日数を保存できなかったとき (失敗の通知を出す)。
 export const SaveFailed: Story = {
   args: { overrides: { updateSystemSettings: failing() } },
   play: async ({ canvas }) => {

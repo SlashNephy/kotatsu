@@ -22,7 +22,7 @@ const (
 	evening         = "2026-10-10T12:00:00Z"
 )
 
-// keyAdded と keyRemoved は、局の顔ぶれの変化の数の項目 (#1519)。
+// keyAdded と keyRemoved は、局のラインナップの変化の数の項目 (#1519)。
 const (
 	keyLineupKind = "kind"
 	keyNetworkID  = "networkId"
@@ -77,7 +77,7 @@ func TestMessage(t *testing.T) {
 			want:    "スクランブルされたまま録れた録画が続いています。チューナーサーバーの B-CAS カードが読めていない可能性があります",
 		},
 		{
-			name: "局の顔ぶれの変化は、数が 0 の項目を書かない", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			name: "局のラインナップの変化は、数が 0 の項目を書かない", kind: domain.NotificationKindLineupChanged, location: tokyo,
 			payload: map[string]any{keyLineupKind: "BS", keyNetworkID: 4, keyAdded: 3, keyRemoved: 0},
 			want:    "BS のチャンネルが放送で変わりました（新しい局 3）。チューナーサーバーのチャンネルをスキャンし直してください",
 		},
@@ -133,7 +133,7 @@ func TestMessage(t *testing.T) {
 			want:    "BS の BS15_0 の選局が続けて失敗しています。放送で変わったのなら、チューナーサーバーのチャンネルをスキャンし直せば選局できるようになります",
 		},
 		{
-			name: "DB から読み直した局の顔ぶれの変化は、数が float64 で届く", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			name: "DB から読み直した局のラインナップの変化は、数が float64 で届く", kind: domain.NotificationKindLineupChanged, location: tokyo,
 			payload: map[string]any{keyLineupKind: "CS", keyNetworkID: float64(6), keyAdded: float64(1), keyRemoved: float64(2)},
 			want:    "CS のチャンネルが放送で変わりました（新しい局 1、終わった局 2）。チューナーサーバーのチャンネルをスキャンし直してください",
 		},
@@ -289,7 +289,7 @@ func TestMessageEscaped(t *testing.T) {
 			want:    "「<作品名>」の#6をAnnictに記録しました",
 		},
 		{
-			name: "局の顔ぶれの変化の局の名前", kind: domain.NotificationKindLineupChanged,
+			name: "局のラインナップの変化の局の名前", kind: domain.NotificationKindLineupChanged,
 			payload: map[string]any{
 				keyLineupKind: "BS", keyNetworkID: 4, keyAdded: 1, keyRemoved: 1,
 				keyAddedServices: []any{"BS15 のサービス 103"}, keyRemovedServices: []any{"*こたつ*（サービス 191）"},

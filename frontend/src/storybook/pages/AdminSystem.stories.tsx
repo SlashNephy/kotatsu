@@ -191,8 +191,8 @@ const inspection = {
   }),
 };
 
-// lineup は、チャンネルの変更の知らせ。まだ読んでいない知らせを含むので、開くと既読にする。
-// ヘッダーのお知らせ (unreadOnly) には、まだ読んでいない知らせだけを返す。
+// lineup は、チャンネルの変更の通知。まだ読んでいない通知を含むので、開くと既読にする。
+// ヘッダーのお知らせ (unreadOnly) には、まだ読んでいない通知だけを返す。
 const lineupEdges = [
   {
     cursor: '1',
@@ -201,7 +201,7 @@ const lineupEdges = [
       id: 'Notification:lineup-1',
       kind: 'LINEUP_CHANGED',
       message:
-        'BS の局の顔ぶれが変わりました。架空放送（サービス 999）がチューナーサーバーにありません',
+        'BS の局のラインナップが変わりました。架空放送（サービス 999）がチューナーサーバーにありません',
       occurredAt: minutesAgo(60),
       readAt: null,
     },
@@ -269,7 +269,7 @@ export const Notices: Story = {
   },
 };
 
-// チャンネルの変更の知らせを既読にできなかったとき。
+// チャンネルの変更の通知を既読にできなかったとき。
 export const LineupMarkFailed: Story = {
   args: {
     overrides: { ...withStatus(), ...lineup, markNotificationsRead: failing() },

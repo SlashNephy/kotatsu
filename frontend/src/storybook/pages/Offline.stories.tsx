@@ -4,7 +4,7 @@ import { cancelSave, refreshOfflineRecordings, saveRecording } from '../../offli
 import { replaceProperty } from '../conditions';
 import { holdAll, PageStory } from '../PageStory';
 
-// オフラインで見る録画 (/offline) の画面 (#2056)。端末に保存した録画の一覧、使っている量、保存の永続化を断られたとき、
+// オフラインで見る録画 (/offline) の画面 (#2056)。端末に保存した録画の一覧、使っている量、保存の永続化を拒否されたとき、
 // 保存している途中 (大きさが分かるか)、何も保存していないときの表示を並べる。既定は、Storybook を開いたブラウザに
 // 保存したものを読む。ほかの Story は、端末の保存先 (navigator.storage) を、メモリの上の偽物に差し替える。
 const meta = {

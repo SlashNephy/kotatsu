@@ -112,7 +112,7 @@ function PlayerSettings() {
   // タッチで操作できない端末では、スワイプの設定の項目を出さない (#1598)。
   const [swipeControlsAvailable] = useState(touchSupported);
   // 変えたら、保存の通知を出す (#1740)。この端末の設定は deviceSave で、アカウントの設定は saveCallbacks で通知する。
-  // 知らせはこの画面で出し、プレイヤーと共有するフックの中では出さない。
+  // 通知はこの画面で出し、プレイヤーと共有するフックの中では出さない。
   const deviceSave = useDeviceSave();
   const notice = useSaveNotice();
   const saveCallbacks = { onSaved: notice.saved, onFailed: notice.failed };

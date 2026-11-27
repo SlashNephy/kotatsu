@@ -5,7 +5,7 @@
 // ユーザーは、イベントの種類ごとに、どの通知先で受け取るかを設定できる。
 //
 // ロール間の変更の通知 (notify パッケージ) とは別のもので、こちらは人に届ける。
-// 画面内の通知が増えたことや既読にしたことは、notify の NotifyChannel で tenban に知らせ、subscription で届ける。
+// 画面内の通知が増えたことや既読にしたことは、notify の NotifyChannel で tenban に通知し、subscription で届ける。
 package notification
 
 import (

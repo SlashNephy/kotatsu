@@ -37,7 +37,7 @@ class FrameMedia extends EventTarget {
 }
 
 describe('useVideoFrames', () => {
-  test('呼び返しを this を保ったまま呼び、コマごとに知らせ、外したら止める', () => {
+  test('呼び返しを this を保ったまま呼び、コマごとに通知し、外したら止める', () => {
     const media = new FrameMedia();
     const onFrame = vi.fn();
 

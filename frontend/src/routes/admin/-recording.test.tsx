@@ -106,7 +106,7 @@ describe('録画の既定値 (#1420)', () => {
 });
 
 describe('数と文字の欄は、欄を離れたときか Enter で保存する (#1740)', () => {
-  test('打っている途中は保存せず、欄を離れたら、その欄だけを送って知らせる', async () => {
+  test('打っている途中は保存せず、欄を離れたら、その欄だけを送って通知する', async () => {
     const sent: unknown[] = [];
     const environment = respondWith((input) => {
       sent.push(input);
@@ -199,7 +199,7 @@ describe('数と文字の欄は、欄を離れたときか Enter で保存する
     expect(sent).toEqual([{ recordingDefaults: { priority: 3 } }]);
   });
 
-  test('保存に失敗したら、打った値を残して理由を知らせ、もう一度欄を離れれば保存し直す', async () => {
+  test('保存に失敗したら、打った値を残して理由を伝え、もう一度欄を離れれば保存し直す', async () => {
     let fail = true;
     const sent: unknown[] = [];
     const environment = respondWith((input) => {
@@ -311,7 +311,7 @@ describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740
     expect(screen.getByRole('textbox', { name: '優先度' })).toHaveProperty('value', '3');
   });
 
-  test('続けて変えたら、前の保存を待って順に送り、知らせは 1 つに差し替える', async () => {
+  test('続けて変えたら、前の保存を待って順に送り、通知は 1 つに差し替える', async () => {
     const sent: unknown[] = [];
     let release: () => void = () => {};
     const environment = respondWith((input) => {
@@ -374,7 +374,7 @@ describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740
     expect(sent).toEqual([want]);
   });
 
-  test('保存に失敗したら、理由を知らせ、変える前に戻す', async () => {
+  test('保存に失敗したら、理由を伝え、変える前に戻す', async () => {
     const environment = respondWith(() => new Error('unavailable'));
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
     const detectCm = await screen.findByRole('switch', {

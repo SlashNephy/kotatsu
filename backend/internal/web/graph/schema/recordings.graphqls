@@ -320,7 +320,7 @@ type Recording implements Node {
   jikkyoNicologCommentsUrl: String!
   """
   録画をダウンロードした TS と組で使う、TvtPlay の CM のチャプターのファイル (.chapter) を返す URL のパス (#1737)。
-  管理者が録画のダウンロードを有効にしていなければ、取りに行っても断られる。
+  管理者が録画のダウンロードを有効にしていなければ、取りに行っても拒否される。
   """
   tvtplayChapterUrl: String!
   """

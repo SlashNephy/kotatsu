@@ -155,7 +155,7 @@ type Options struct {
 	Logs *logreport.Service
 }
 
-// Drain は、tenban を止める前の知らせを始めたら閉じるチャネルを返す。*streamapi.Drainer が満たす。
+// Drain は、tenban を止める前の通知を始めたら閉じるチャネルを返す。*streamapi.Drainer が満たす。
 type Drain interface {
 	Draining() <-chan struct{}
 }

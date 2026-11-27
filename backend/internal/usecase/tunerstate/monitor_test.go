@@ -413,7 +413,7 @@ func (o *occupying) set(occupancies []*tunerserver.TunerOccupancy, err error) {
 	o.occupancies, o.err = occupancies, err
 }
 
-// TestCheckRecordsTunerOccupancies は、チューナーサーバー自身の予約がチューナーを使う時間帯を DB に書き、変わったときだけ知らせ、
+// TestCheckRecordsTunerOccupancies は、チューナーサーバー自身の予約がチューナーを使う時間帯を DB に書き、変わったときだけ通知し、
 // 読めないときは前に読んだものを残し、終わった時間帯は残さないことを確認する (#1536)。
 func TestCheckRecordsTunerOccupancies(t *testing.T) {
 	t.Parallel()

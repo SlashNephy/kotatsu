@@ -376,7 +376,7 @@ describe('TsDemuxer', () => {
     ).toEqual([{ length: 300, discontinuous: false }]);
   });
 
-  test('PMT の版が変わったら、番組を知らせ直す', () => {
+  test('PMT のバージョンが変わったら、番組を通知し直す', () => {
     const { demuxer, programs } = demux(1024);
     demuxer.push(
       concat([

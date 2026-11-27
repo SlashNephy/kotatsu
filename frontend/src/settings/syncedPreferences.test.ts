@@ -62,7 +62,7 @@ describe('端末をまたいで同期する設定 (#1862)', () => {
     expect(sent).toEqual([]);
   });
 
-  test('サーバーの値を写して知らせ、最初はサーバーにない端末の値を送って引き継ぐ', () => {
+  test('サーバーの値を書き込んで通知し、最初はサーバーにない端末の値を送って引き継ぐ', () => {
     const { sent } = uploads();
     localStorage.setItem(keymap, 'local');
     localStorage.setItem(cmAutoSkip, 'false');

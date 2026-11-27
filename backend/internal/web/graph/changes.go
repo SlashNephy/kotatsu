@@ -264,7 +264,7 @@ func (r *Resolver) subscribeViewerEvents(ctx context.Context) (<-chan *model.Vie
 
 		return nil, err
 	}
-	// draining は、この tenban を止める前の知らせ (#1085)。一度送ったら、もう待たない。
+	// draining は、この tenban を止める前の通知 (#1085)。一度送ったら、もう待たない。
 	var draining <-chan struct{}
 	if r.drain != nil {
 		draining = r.drain.Draining()

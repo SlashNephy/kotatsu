@@ -19,7 +19,7 @@ export type TransientRetryOptions = {
 // 送り直している間、Relay からは応答を待っているように見えるので、画面は読み込み中のままで、エラーを出さない。
 // 送り直している間は、tracker に通知し、ヘッダーにマークを出す。送り直して通ったら、tracker がサーバーが戻ったことを通知する。
 // mutation は、同じ操作を 2 回行うおそれがあるので、送り直さない。
-// 端末がオフラインのときも送り直さない。送り直しても届かず、画面がオフラインの知らせを出せないまま、読み込み中で止まるからである (#1200)。
+// 端末がオフラインのときも送り直さない。送り直しても届かず、画面がオフラインの通知を出せないまま、読み込み中で止まるからである (#1200)。
 export function withTransientRetry(
   fetchFn: FetchFunction,
   options: TransientRetryOptions = {},

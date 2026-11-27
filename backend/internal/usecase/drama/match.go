@@ -58,7 +58,7 @@ const (
 	recentSeason = 365 * 24 * time.Hour
 	// upcomingSeries は、作品の放送開始が番組の放送より後でも、候補に残す長さ (TMDB の放送開始日のずれを見込む)。
 	upcomingSeries = 30 * 24 * time.Hour
-	// unauthorizedPause は、トークンが断られた (401) とき、同じトークンで問い合わせを控える長さ。管理者が入れ直すまで断られ続けるので、
+	// unauthorizedPause は、トークンが拒否された (401) とき、同じトークンで問い合わせを控える長さ。管理者が入れ直すまで拒否され続けるので、
 	// 長く空ける。入れ直したトークンでは、すぐに問い合わせる。
 	unauthorizedPause = time.Hour
 	// continueAfter は、問い合わせの上限に達して照合しきれなかったとき、続きを照合するまで待つ長さ。
@@ -97,9 +97,9 @@ type TokenSource interface {
 var _ Client = new(tmdb.Client)
 
 var (
-	// errStop は、問い合わせの上限に達したか、TMDB に 429 で断られたので、残りの番組を、少し空けて続きとして照合することを表す。
+	// errStop は、問い合わせの上限に達したか、TMDB に 429 で拒否されたので、残りの番組を、少し空けて続きとして照合することを表す。
 	errStop = errors.New("stop matching for now")
-	// errUnauthorized は、トークンが断られたので、残りの番組を、次の定期の照合に回すことを表す。
+	// errUnauthorized は、トークンが拒否されたので、残りの番組を、次の定期の照合に回すことを表す。
 	errUnauthorized = errors.New("stop matching until the token is fixed")
 )
 
@@ -114,10 +114,10 @@ type Matcher struct {
 
 	// mu は、limitedUntil、rejectedToken、rejectedUntil を守る。
 	mu sync.Mutex
-	// limitedUntil は、TMDB に 429 で断られたので、問い合わせを控える期限 (Retry-After の後)。
+	// limitedUntil は、TMDB に 429 で拒否されたので、問い合わせを控える期限 (Retry-After の後)。
 	// このプロセスの照合のジョブすべてで共有し、どの照合も、期限までは問い合わせない。
 	limitedUntil time.Time
-	// rejectedToken は、TMDB に 401 で断られたトークン。rejectedUntil (unauthorizedPause の後) までは、このトークンで問い合わせない。
+	// rejectedToken は、TMDB に 401 で拒否されたトークン。rejectedUntil (unauthorizedPause の後) までは、このトークンで問い合わせない。
 	// 管理者がトークンを入れ直したら、新しいトークンで、すぐに問い合わせる。
 	rejectedToken string
 	rejectedUntil time.Time
@@ -153,12 +153,12 @@ type MatchResult struct {
 	Failed   int `json:"failed"`
 	// Pruned は、古くなって消したキャッシュと結びつきの数。
 	Pruned int64 `json:"pruned"`
-	// Stopped は、問い合わせの上限に達したか、TMDB に 429 で断られて、照合しきれなかった番組があるかどうか。
-	// ジョブは、ContinueAfter の後に、続きを照合し直す。トークンが断られた (401) ときは続けず、次の定期の照合に任せる。
+	// Stopped は、問い合わせの上限に達したか、TMDB に 429 で拒否されて、照合しきれなかった番組があるかどうか。
+	// ジョブは、ContinueAfter の後に、続きを照合し直す。トークンが拒否された (401) ときは続けず、次の定期の照合に任せる。
 	Stopped bool `json:"stopped"`
 	// ContinueAfter は、続きを照合するまで待つ長さ。TMDB が 429 で示した長さか、上限に達したときは continueAfter。
 	ContinueAfter time.Duration `json:"continueAfter"`
-	// Paused は、前に TMDB に断られて問い合わせを控えている間なので、何もしなかったかどうか。
+	// Paused は、前に TMDB に拒否されて問い合わせを控えている間なので、何もしなかったかどうか。
 	Paused bool `json:"paused"`
 }
 
@@ -228,7 +228,7 @@ func (m *Matcher) MatchChanges(ctx context.Context) (*MatchResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the drama match cursor: %w", err)
 	}
-	// 断られて控えている間は、バージョンを進めずに、控え終えてから読む。
+	// 拒否されて控えている間は、バージョンを進めずに、控え終えてから読む。
 	if m.paused(token) {
 		result.Paused = true
 
@@ -392,7 +392,7 @@ func (m *Matcher) programs(ctx context.Context, serviceIDs []int64, from, to tim
 }
 
 // match は、targets を照合し、結びつきを書く。finalize なら、照合した番組の結びつきを確定させる。
-// 問い合わせの上限に達したか、TMDB に断られたら、残りの番組を書かずに true を返す。
+// 問い合わせの上限に達したか、TMDB に拒否されたら、残りの番組を書かずに true を返す。
 func (m *Matcher) match(ctx context.Context, token string, targets []*target, finalize bool, result *MatchResult) (bool, error) {
 	if len(targets) == 0 {
 		return false, nil
@@ -795,14 +795,14 @@ func (m *Matcher) airedOn(ctx context.Context, r *run, seriesID int32, dates []s
 	return episode > 0, err
 }
 
-// limit は、TMDB に 429 で断られたので、どのトークンでも、問い合わせを d だけ控える。
+// limit は、TMDB に 429 で拒否されたので、どのトークンでも、問い合わせを d だけ控える。
 func (m *Matcher) limit(d time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.limitedUntil = maxTime(m.limitedUntil, m.clock.Now().Add(d))
 }
 
-// reject は、TMDB に 401 で断られたので、トークン token での問い合わせを unauthorizedPause だけ控える。
+// reject は、TMDB に 401 で拒否されたので、トークン token での問い合わせを unauthorizedPause だけ控える。
 func (m *Matcher) reject(token string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -828,7 +828,7 @@ func (m *Matcher) request(r *run) error {
 	return nil
 }
 
-// failed は、問い合わせの失敗を数える。断られた (429) なら errStop を、トークンが使えなければ errUnauthorized を返し、
+// failed は、問い合わせの失敗を数える。拒否された (429) なら errStop を、トークンが使えなければ errUnauthorized を返し、
 // 残りの番組も問い合わせないようにする。
 func (m *Matcher) failed(ctx context.Context, r *run, err error) error {
 	r.result.Failed++

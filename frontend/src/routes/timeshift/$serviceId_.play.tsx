@@ -354,7 +354,7 @@ function Player({
       stream.restartAt(positionRef.current, true);
       setHandover(true);
     }
-    // 読み直しの位置は ref から読むので、知らせが届いたときだけ動かす。
+    // 読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
   }, [drains, error, hls]);
   const retry = () => {
     setError(null);
@@ -626,7 +626,7 @@ function Player({
   useDocumentTitle(documentTitle(player), !watchMini);
   useMediaSession(player, commands, autoPictureInPicture);
 
-  // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
+  // resumeAfterCut は、配信が切れたら、通知を出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
     // 映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す。
     if (mediaRef.current?.error != null) {

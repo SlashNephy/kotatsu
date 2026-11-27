@@ -17,7 +17,7 @@ export type ConnectionTracker = {
   track: () => SubscriptionConnection;
   // isReconnecting は、つなぎ直している最中の接続が 1 本でもあれば true を返す。
   isReconnecting: () => boolean;
-  // recoveries は、つなぎ直していた接続が、つながった回数。サーバーが戻ったことの知らせに使う。
+  // recoveries は、つなぎ直していた接続が、つながった回数。サーバーが戻ったことの通知に使う。
   // つなぎ直している接続の数が 0 に戻るだけでは、諦めてやめたのと区別できないので、別に数える。
   recoveries: () => number;
   subscribe: (listener: () => void) => () => void;
@@ -47,7 +47,7 @@ export function createConnectionTracker(): ConnectionTracker {
   return {
     track: () => {
       const id = Symbol('subscription');
-      // released は、subscription をやめたかどうか。やめた後に届いた知らせで、つなぎ直している状態に戻さない。
+      // released は、subscription をやめたかどうか。やめた後に届いた通知で、つなぎ直している状態に戻さない。
       let released = false;
 
       return {

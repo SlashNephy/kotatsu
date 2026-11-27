@@ -262,7 +262,7 @@ function Integrations() {
     refresh();
   };
   // saveSettings は、全体の設定のうち、変えた項目だけを、変えたらすぐ保存する (#1740)。どれも再認証を求める (設計書 9.5)。
-  // 再認証をやめたら、保存できなかった知らせは出さず、切り替えを元に戻す。
+  // 再認証をやめたら、保存できなかった通知は出さず、切り替えを元に戻す。
   // input に関数を渡すと、送る直前に入力を作る。前の保存を待っている間に変えた分も含めて送るため。
   const saveSettings = (input: SystemSettingsInput | (() => SystemSettingsInput)) =>
     save(() =>

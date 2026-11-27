@@ -126,7 +126,7 @@ function NetworkActivityContent() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const [saving, setSaving] = useState(false);
-  // error は、記録の切り替えに失敗したときの知らせ。通信が切れたときやセッションが切れたときに出す (#1732)。
+  // error は、記録の切り替えに失敗したときの通知。通信が切れたときやセッションが切れたときに出す (#1732)。
   const [error, setError] = useState<string | null>(null);
   const activity = data.networkActivity;
 

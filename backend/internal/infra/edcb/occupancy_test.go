@@ -178,7 +178,7 @@ func TestParseTimerSettings(t *testing.T) {
 			},
 		},
 		{
-			// BonDriver の節の GetEpg と EPGCount を読む。名前は小文字にする。
+			// BonDriver のセクションの GetEpg と EPGCount を読む。名前は小文字にする。
 			name: "bon drivers",
 			data: []byte("[SET]\nNGEpgCapTime=0\n[BonDriver_PT-T.dll]\nCount=4\nGetEpg=1\nEPGCount=2\n[BonDriver_PT-S.dll]\nCount=4\nGetEpg=0\n" +
 				"[BonDriver_Mirakurun.dll]\nCount=2\n[TVTEST]\nNum=1\n0=BonDriver_PT-T.dll\n"),
@@ -213,7 +213,7 @@ func TestParseTimerSettings(t *testing.T) {
 			},
 		},
 		{
-			// 大きな Count でも、節にある番号だけを番号の順に読む (#1981)。Count 以上の番号と、「01」のような書き方は読まない。
+			// 大きな Count でも、セクションにある番号だけを番号の順に読む (#1981)。Count 以上の番号と、「01」のような書き方は読まない。
 			name: "huge count reads only listed times",
 			data: []byte("[EPG_CAP]\nCount=2147483646\n10=18:00\n10Select=1\n2=6:00\n2Select=1\n01=7:00\n01Select=1\n"),
 			want: &edcb.TimerSettings{
@@ -261,7 +261,7 @@ func TestKeepsTunerForEPG(t *testing.T) {
 	const (
 		terrestrial = "BonDriver_T.dll"
 		satellite   = "BonDriver_S.dll"
-		// terrestrialKey は、EpgTimerSrv.ini の節の名前 (小文字にしたもの)。
+		// terrestrialKey は、EpgTimerSrv.ini のセクションの名前 (小文字にしたもの)。
 		terrestrialKey = "bondriver_t.dll"
 	)
 	settings := func(anyBonDriver bool, bonDrivers map[string]tunerserver.EPGCaptureBonDriver) *edcb.TimerSettings {

@@ -2,12 +2,12 @@ import { useEffect, useRef } from 'react';
 
 import type { PlayerFrameMetadata, PlayerMedia } from './playerMedia';
 
-// VideoFrame は、映ったコマ 1 つ分の知らせ。
+// VideoFrame は、映ったコマ 1 つ分の通知。
 export type VideoFrame = {
   // mediaTime は、そのコマの時刻 (requestVideoFrameCallback の mediaTime)。
   // requestVideoFrameCallback のないブラウザと、timeupdate で呼んだときは null で、そのときは currentTime を使う。
   mediaTime: number | null;
-  // presented は、コマが映ったことの知らせかどうか。timeupdate で呼んだときは false で、映ったコマと結びつかない。
+  // presented は、コマが映ったことの通知かどうか。timeupdate で呼んだときは false で、映ったコマと結びつかない。
   presented: boolean;
 };
 

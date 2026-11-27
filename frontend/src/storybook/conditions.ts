@@ -180,8 +180,8 @@ export function nodeWith(id: string, patch: Record<string, unknown>) {
   });
 }
 
-// liveStreamScrambled は、afterMs 後に、サービス service がスクランブルされたまま届くと決めたという知らせを流す。
-// 知らせのほかは、デモの既定の知らせのまま流す。
+// liveStreamScrambled は、afterMs 後に、サービス service がスクランブルされたまま届くと決めたという通知を流す。
+// この通知のほかは、デモの既定の通知のまま流す。
 export function liveStreamScrambled(service: string, afterMs = 3_000) {
   return (root: DemoRoot) => ({
     viewerEvents: async function* () {

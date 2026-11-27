@@ -3,15 +3,15 @@ import { useEffect, useState } from 'react';
 import type { PlayerMedia } from './playerMedia';
 
 export type AutoplayBlocked = {
-  // blocked は、ブラウザに自動再生を断られて、止まったままかどうか。
+  // blocked は、ブラウザに自動再生を拒否されて、止まったままかどうか。
   blocked: boolean;
   // play は、ユーザーの操作から再生を始める。操作の中なら、ブラウザは音ありの再生を許す。
   play: () => void;
 };
 
-// useAutoplayBlocked は、音ありの自動再生をブラウザに断られたかを見分ける。
-// Chrome などは、ページを操作していないうちは、音ありの自動再生を断る (NotAllowedError)。断られると、映像は最初のコマで止まる。
-// video は autoplay で再生を始めるが、断られても知らせがないので、再生できるようになったら自分で play() を試して確認する。
+// useAutoplayBlocked は、音ありの自動再生をブラウザに拒否されたかを見分ける。
+// Chrome などは、ページを操作していないうちは、音ありの自動再生を拒否する (NotAllowedError)。拒否されると、映像は最初のコマで止まる。
+// video は autoplay で再生を始めるが、拒否されても通知がないので、再生できるようになったら自分で play() を試して確認する。
 // 一度再生が始まったら、それ以降は試さない。止めてからシークしたときに、勝手に再生し直さないようにする。
 export function useAutoplayBlocked(media: PlayerMedia | null): AutoplayBlocked {
   const [blocked, setBlocked] = useState(false);

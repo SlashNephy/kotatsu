@@ -144,7 +144,7 @@ afterEach(() => {
 });
 
 describe('useRemotePlayer', () => {
-  test('登録したら、10 秒ごとに状態を送り、再生位置のほかが変わったときだけ、ほかの端末に知らせる', async () => {
+  test('登録したら、10 秒ごとに状態を送り、再生位置のほかが変わったときだけ、ほかの端末に通知する', async () => {
     const fake = fakeApi();
     const { rerender } = renderHook(
       ({ current }) => useRemote(current, true, handlers(), fake.api),
@@ -176,7 +176,7 @@ describe('useRemotePlayer', () => {
     expect(fake.updates.at(-1)).toEqual({ state: remoteState(paused), announce: true });
   });
 
-  test('続けて変わったら、最後の変化から少し待って、まとめて 1 回だけ知らせる', async () => {
+  test('続けて変わったら、最後の変化から少し待って、まとめて 1 回だけ通知する', async () => {
     const fake = fakeApi();
     const { rerender } = renderHook(
       ({ current }) => useRemote(current, true, handlers(), fake.api),
@@ -199,7 +199,7 @@ describe('useRemotePlayer', () => {
     expect(fake.updates).toEqual([{ state: remoteState(last), announce: true }]);
   });
 
-  test('登録の返事を待つ間に状態が変わったら、返事が来たところで知らせる', async () => {
+  test('登録の返事を待つ間に状態が変わったら、返事が来たところで通知する', async () => {
     const fake = fakeApi();
     let resolve: (id: string) => void = () => {};
     fake.api.register = () =>
@@ -231,7 +231,7 @@ describe('useRemotePlayer', () => {
     expect(fake.updates).toEqual([{ state: remoteState(withAudios), announce: true }]);
   });
 
-  test('追っかけ再生で長さが延びただけなら、知らせない', async () => {
+  test('追っかけ再生で長さが延びただけなら、通知しない', async () => {
     const fake = fakeApi();
     const recording: RemotePlayerSnapshot = {
       ...state,

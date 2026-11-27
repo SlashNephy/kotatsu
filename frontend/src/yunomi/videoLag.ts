@@ -72,13 +72,13 @@ export type VideoLagStatus = {
 
 // VideoLagController は、遅れの記録と飛び直しの決まりを持つ。時刻 now は、どれもミリ秒。
 export type VideoLagController = {
-  // frame は、映ったコマの遅れを知らせ、飛び直すかを返す。飛んだら、呼んだ側が jumped を呼ぶ。
+  // frame は、映ったコマの遅れを通知し、飛び直すかを返す。飛んだら、呼んだ側が jumped を呼ぶ。
   frame(now: number, input: FrameInput): boolean;
   // seeking は、seek が始まったことを通知する。次の 1 コマは、飛ぶ前の時刻を持っていることがあるので計測しない。
   seeking(): void;
   // stall は、再生中に止まったことを通知する。遅れを測れない端末では、動き出したときに 1 回飛び直す。
   stall(): void;
-  // resumed は、止まった後に動き出したことを知らせ、飛び直すかを返す。
+  // resumed は、止まった後に動き出したことを通知し、飛び直すかを返す。
   resumed(now: number, ahead: number): boolean;
   // jumped は、飛び直したことを通知する。counted は、重さの判定に数えるか (倍速や早送りでなく、計測した遅れで飛んだとき)。
   jumped(now: number, cause: JumpCause, counted: boolean): void;

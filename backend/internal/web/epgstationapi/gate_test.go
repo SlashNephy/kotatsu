@@ -58,7 +58,7 @@ func TestRequireEnabled(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "有効", wantStatus: http.StatusNoContent},
-		{name: "無効なら、API があることを知らせない", disabled: true, wantStatus: http.StatusNotFound},
+		{name: "無効なら、API があることを伝えない", disabled: true, wantStatus: http.StatusNotFound},
 		{name: "DB に届かない", err: fmt.Errorf("lookup: %w", settings.ErrDatabaseUnavailable), wantStatus: http.StatusServiceUnavailable},
 		{name: "そのほかの誤り", err: errors.New("broken"), wantStatus: http.StatusInternalServerError},
 	}

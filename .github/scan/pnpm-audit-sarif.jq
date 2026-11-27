@@ -4,8 +4,8 @@
 #   jq --rawfile lock frontend/pnpm-lock.yaml -f .github/scan/pnpm-audit-sarif.jq audit.json
 #
 # 規則は勧告 (GHSA) ごと、結果は勧告に当たったパッケージのバージョンごとに作る。
-# 結果の位置は、frontend/pnpm-lock.yaml の packages の節で、そのバージョンを書いた行にする。見つからなければ 1 行目にする。
-# packages の節は snapshots の節より前にあるので、最初に当たった行を使う。
+# 結果の位置は、frontend/pnpm-lock.yaml の packages のセクションで、そのバージョンを書いた行にする。見つからなければ 1 行目にする。
+# packages のセクションは snapshots のセクションより前にあるので、最初に当たった行を使う。
 
 # score は、Code scanning が重大度の分類に使う security-severity。GitHub の区切り (9.0 以上が critical、7.0 以上が high、
 # 4.0 以上が medium) に収まる値にする。

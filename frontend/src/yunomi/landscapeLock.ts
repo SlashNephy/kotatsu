@@ -4,7 +4,7 @@ import { browserStorage } from './volume';
 
 // 全画面にしたら、端末を横向きに固定するか (#1599、設計書 7.5)。縦向きのまま全画面にすると映像が小さいので、
 // そのたびに端末を回すのを省く。端末ごとに保存する。既定では固定する。
-// 固定は全画面の間しか効かず、iOS の Safari や PC のブラウザでは断られる。断られたら何もしない。
+// 固定は全画面の間しか効かず、iOS の Safari や PC のブラウザでは拒否される。拒否されたら何もしない。
 
 const storageKey = 'kotatsu.player.fullscreenLandscape';
 // changeEvent は、同じタブの中で変えたことを通知するイベント。storage イベントは、ほかのタブにしか届かない。
@@ -68,12 +68,12 @@ function lockableOrientation(): LockableOrientation | null {
 }
 
 // fullscreenLandscapeSupported は、ブラウザが画面の向きの固定を持つかを返す。持っていても、全画面でないときや、
-// PC のブラウザでは断られることがある。
+// PC のブラウザでは拒否されることがある。
 export function fullscreenLandscapeSupported(): boolean {
   return lockableOrientation() !== null;
 }
 
-// lockLandscape は、画面を横向きに固定する。断られても、例外は投げない。
+// lockLandscape は、画面を横向きに固定する。拒否されても、例外は投げない。
 export function lockLandscape(): void {
   void lockableOrientation()
     ?.lock?.('landscape')

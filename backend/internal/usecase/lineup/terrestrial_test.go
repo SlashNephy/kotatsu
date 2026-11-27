@@ -86,7 +86,7 @@ func TestTerrestrialCollector(t *testing.T) {
 	}, got[0].Services)
 }
 
-// TestCheckerTerrestrial は、地上波のサービスがチューナーサーバーと食い違ったら、管理者に 1 回だけ知らせ、
+// TestCheckerTerrestrial は、地上波のサービスがチューナーサーバーと食い違ったら、管理者に 1 回だけ通知し、
 // 同じになったら忘れて、また食い違ったら通知することを確認する (#1519)。
 func TestCheckerTerrestrial(t *testing.T) {
 	t.Parallel()

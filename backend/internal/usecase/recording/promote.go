@@ -347,7 +347,7 @@ func (r *Recorder) finishPromotion(
 		}
 
 		return r.notifyPromotion(ctx, tx, recording.ID, func(payload map[string]any) error {
-			// スクランブルの警告は、予約の録画と同じく、完了の通知に添えて、管理者への知らせの数にも足す (#1517)。
+			// スクランブルの警告は、予約の録画と同じく、完了の通知に添えて、管理者への通知の数にも足す (#1517)。
 			alert := maps.Clone(payload)
 			payload["state"] = string(state)
 			scramble.AddToPayload(payload, scrambled)

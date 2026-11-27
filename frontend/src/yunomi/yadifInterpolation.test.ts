@@ -88,7 +88,7 @@ describe('createYadifInterpolation', () => {
         yadif.draw(gl, 0.5, 1440, 1080, null);
       },
     },
-  ])('$name、投げずに知らせ、以後は補間しない', ({ setup, act }) => {
+  ])('$name、投げずに通知し、以後は補間しない', ({ setup, act }) => {
     setup();
     const onUnavailable = vi.fn();
     const yadif = createYadifInterpolation({ onUnavailable });

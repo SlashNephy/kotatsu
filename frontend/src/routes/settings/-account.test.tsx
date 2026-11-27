@@ -168,7 +168,7 @@ describe('記録の設定を、変えたらすぐ保存する (#1740)', () => {
     ]);
   });
 
-  test('この端末で記録するかを変えても、同じ通知で知らせる', async () => {
+  test('この端末で記録するかを変えても、同じ通知で伝える', async () => {
     const { environment } = serve();
     await renderRoute(Route, '/settings/account', '/settings/account', environment);
 

@@ -20,7 +20,7 @@ async function render() {
 }
 
 describe('データ放送の郵便番号 (#1740)', () => {
-  test('ハイフンや全角の数字は、数字だけにして保存し、知らせる', async () => {
+  test('ハイフンや全角の数字は、数字だけにして保存し、通知する', async () => {
     const input = await render();
     fireEvent.change(input, { target: { value: '１００-０００１' } });
 
@@ -30,11 +30,11 @@ describe('データ放送の郵便番号 (#1740)', () => {
     expect((await screen.findByRole('status')).textContent).toContain('保存しました');
   });
 
-  test('保存してある番号と同じなら、書き方が違っても保存も知らせもしない', async () => {
+  test('保存してある番号と同じなら、書き方が違っても保存も通知もしない', async () => {
     const input = await render();
     fireEvent.change(input, { target: { value: '1000001' } });
     await act(async () => fireEvent.blur(input));
-    // 1 回目の知らせを消して、2 回目に知らせが出ないことを確認する。
+    // 1 回目の通知を消して、2 回目に通知が出ないことを確認する。
     act(() => cleanNotifications());
 
     fireEvent.change(input, { target: { value: '100-0001' } });

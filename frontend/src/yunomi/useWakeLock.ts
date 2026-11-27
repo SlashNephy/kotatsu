@@ -24,7 +24,7 @@ export function useWakeLock(active: boolean): void {
         }
         sentinel = acquired;
       } catch {
-        // 省電力モードなどで断られても、再生は続ける。
+        // 省電力モードなどで拒否されても、再生は続ける。
       }
     };
     const onVisibilityChange = () => void acquire();

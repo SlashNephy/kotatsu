@@ -11,7 +11,7 @@ sqlc = "1.31.1"
 run = "go test -race -p 4 ./..."
 
 # 開発用の Compose の postgres-test を起動し、DB を使うテストも含めて流す (docs/development.md)。
-# 開発用のスタックの postgres には向けない。接続の上限を使い切ると、スタックの接続まで断られるためである。
+# 開発用のスタックの postgres には向けない。接続の上限を使い切ると、スタックの接続まで拒否されるためである。
 # CI は、ジョブごとに立てた PostgreSQL に向けて test を流すので、これは使わない。
 [tasks."test:db"]
 env = { KOTATSU_TEST_DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:55433/postgres?sslmode=disable" }

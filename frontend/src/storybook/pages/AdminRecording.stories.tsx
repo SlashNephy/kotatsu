@@ -129,7 +129,7 @@ export const TemplateRequired: Story = {
   },
 };
 
-// 設定を保存できなかったとき (失敗の知らせを出す)。
+// 設定を保存できなかったとき (失敗の通知を出す)。
 export const SaveFailed: Story = {
   args: { overrides: { ...pools, updateSystemSettings: failing() } },
   play: async ({ canvas }) => {

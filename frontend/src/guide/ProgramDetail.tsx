@@ -650,7 +650,7 @@ function CancelDialog({ reservationId, byRule, programName, onClose }: CancelPro
             color="red"
             loading={inFlight}
             onClick={() => {
-              // 押し直したときは、前の失敗の知らせを消してから取り消す。
+              // 押し直したときは、前の失敗の通知を消してから取り消す。
               setError(false);
               commit({
                 variables: { id: reservationId },

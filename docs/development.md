@@ -178,7 +178,7 @@ mise run //backend:test:db
 開発用のスタックは起動しなくても構いません。
 
 `postgres-test`は、テスト専用のPostgreSQLです。
-開発用のスタックの`postgres`とは別に動くので、テストを並べて流しても、スタックの接続が断られません。
+開発用のスタックの`postgres`とは別に動くので、テストを並べて流しても、スタックの接続が拒否されません。
 `postgres-test`は、Composeのprofileの`test`に入れてあるので、`mise run dev`では起動しません。
 
 テストは、テストごとに一時的なDB（`kotatsu_test_*`）を作り、終わると消します。

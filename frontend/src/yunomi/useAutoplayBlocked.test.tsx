@@ -27,7 +27,7 @@ function fakeVideo(play: () => Promise<void>, { paused = true, readyState = 0 } 
 const notAllowed = () => Promise.reject(new DOMException('blocked', 'NotAllowedError'));
 
 describe('useAutoplayBlocked', () => {
-  test('再生できるようになっても、ブラウザに再生を断られたら、断られたと返す', async () => {
+  test('再生できるようになっても、ブラウザに再生を拒否されたら、拒否されたと返す', async () => {
     const { video, setReadyState } = fakeVideo(notAllowed);
     const { result } = renderHook(() => useAutoplayBlocked(mediaOf(video)));
     expect(result.current.blocked).toBe(false);
@@ -46,7 +46,7 @@ describe('useAutoplayBlocked', () => {
     expect(result.current.blocked).toBe(true);
   });
 
-  test('ほかの理由で再生に失敗したときは、断られたとしない', async () => {
+  test('ほかの理由で再生に失敗したときは、拒否されたとしない', async () => {
     const { video } = fakeVideo(() => Promise.reject(new DOMException('aborted', 'AbortError')), {
       readyState: 4,
     });
@@ -55,7 +55,7 @@ describe('useAutoplayBlocked', () => {
     expect(result.current.blocked).toBe(false);
   });
 
-  test('再生が始まったら、断られた状態を解き、その後は再生を試さない', async () => {
+  test('再生が始まったら、拒否された状態を解き、その後は再生を試さない', async () => {
     const { video, play, setPaused } = fakeVideo(notAllowed, { readyState: 4 });
     const { result } = renderHook(() => useAutoplayBlocked(mediaOf(video)));
     await act(async () => {});

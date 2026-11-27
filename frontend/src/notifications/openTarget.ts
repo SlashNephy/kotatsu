@@ -17,7 +17,7 @@ export type NotificationClients = {
 };
 
 // openNotificationTarget は、開いているアプリのタブで target へ移り、そのタブを前に出す。移れるタブがなければ、新しいタブで開く。
-// Service Worker の制御下にないタブ (初めて開いて、まだ読み直していないタブ) では、navigate が TypeError で断られるので、
+// Service Worker の制御下にないタブ (初めて開いて、まだ読み直していないタブ) では、navigate が TypeError で拒否されるので、
 // ほかのタブを試し、どれも移れなければ新しいタブで開く (#1431)。
 export async function openNotificationTarget(
   clients: NotificationClients,

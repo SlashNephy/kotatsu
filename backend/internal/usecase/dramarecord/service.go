@@ -284,7 +284,7 @@ type Connection struct {
 	Destination string
 	AccountName string
 	ConnectedAt time.Time
-	// ReauthorizationRequired は、更新のトークンが断られ、連携し直す必要があるかどうか。
+	// ReauthorizationRequired は、更新のトークンが拒否され、連携し直す必要があるかどうか。
 	ReauthorizationRequired bool
 	// WatchlistCheckedAt と WatchlistImportedAt は、ウォッチリストを最後に問い合わせた日時と、最後に取り込めた日時。
 	WatchlistCheckedAt  *time.Time

@@ -63,7 +63,7 @@ describe('fullscreenLandscape (#1599)', () => {
     expect(unlock).toHaveBeenCalledOnce();
   });
 
-  test('固定を断られても、例外を投げない', async () => {
+  test('固定を拒否されても、例外を投げない', async () => {
     const lock = vi.fn(() =>
       Promise.reject(new DOMException('not supported', 'NotSupportedError')),
     );

@@ -282,7 +282,7 @@ func TestSyncerSyncsServicesOnServiceEvents(t *testing.T) {
 	quiet := faketuner.ServiceItemID(grNetworkID+1, 0x0408)
 	require.NoError(t, f.fake.ForgetProgram(faketuner.ProgramID(grNetworkID+1, 0x0408, 5)))
 
-	// 名前などを変えない service の update (EPG の取得が進んだ知らせ) が続いても、全量を照合しない。
+	// 名前などを変えない service の update (EPG の取得が進んだ通知) が続いても、全量を照合しない。
 	for range 3 {
 		require.NoError(t, f.fake.UpdateService(serviceID(), ""))
 	}

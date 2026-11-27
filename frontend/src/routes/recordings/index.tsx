@@ -524,7 +524,7 @@ function RecordingGrid({
 
           return;
         }
-        // 消した録画を含む続きは、録画の変更の知らせを待たずに破棄する。
+        // 消した録画を含む続きは、録画の変更の通知を待たずに破棄する。
         setMore(null);
         onDeleted(response.deleteRecordings);
       },

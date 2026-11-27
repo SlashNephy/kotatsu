@@ -28,7 +28,7 @@ describe('useSyncedForm', () => {
     expect(result.current.outdated).toBe(false);
   });
 
-  test('触った後に違う値が届いたら、入力を残して知らせ、読み込み直せる', () => {
+  test('触った後に違う値が届いたら、入力を残して伝え、読み込み直せる', () => {
     const { result, rerender } = setup({ name: 'ルール', minutes: '' });
     act(() => result.current.set({ name: '変えた名前' }));
 

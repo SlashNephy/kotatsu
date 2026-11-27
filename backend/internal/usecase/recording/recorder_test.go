@@ -399,7 +399,7 @@ func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
 	tests := []struct {
 		name   string
 		outage func(db *databasetest.Switch)
-		// noticed は、DB に届かないことに、録画が気づいたか (問い合わせが断られたか、詰まって待ち始めたか) を返す。
+		// noticed は、DB に届かないことに、録画が気づいたか (問い合わせが拒否されたか、詰まって待ち始めたか) を返す。
 		noticed func(db *databasetest.Switch) bool
 	}{
 		{name: "connection refused", outage: (*databasetest.Switch).Down, noticed: func(db *databasetest.Switch) bool { return db.Refused() > 0 }},

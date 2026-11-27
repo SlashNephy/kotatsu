@@ -145,7 +145,7 @@ export type LiveBufferController = {
   pause(): void;
   // selfInflicted は、選局、飛び、MediaSource の作り直しを通知する。前の到着時刻を忘れ、しばらく詰まりを数えない。
   selfInflicted(now: number): void;
-  // stall は、止まったことを知らせ、数えたら目標量を決め直す。数えたかを返す。
+  // stall は、止まったことを通知し、数えたら目標量を決め直す。数えたかを返す。
   stall(now: number): boolean;
   // tick は、判断の間隔ごとに呼ぶ。決め直す間隔がたっていれば、目標量を決め直す。
   tick(now: number): void;
