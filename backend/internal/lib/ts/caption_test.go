@@ -140,11 +140,7 @@ func TestCaptionScanner(t *testing.T) {
 
 		return "", false
 	}
-	type group struct {
-		pts  uint64
-		id   byte
-		data []byte
-	}
+	type group = captionGroup
 	tests := []struct {
 		name   string
 		groups []group
@@ -196,51 +192,6 @@ func TestCaptionScanner(t *testing.T) {
 				)},
 			},
 			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "日本AＡﾊﾟ", Cleared: false}},
-		},
-		{
-			name: "字幕文の中で行が変わったら改行を入れる",
-			groups: []group{
-				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
-				{pts: 200, id: captionTextA, data: statement(
-					// APS で 1 行目に置いて書き、APR で次の行に移って書く。ACPS (CSI 220;509 0x20 0x61) で別の行に移って書く。
-					[]byte{0x1C, 0x41, 0x40, captionAPR}, []byte(hiraganaA), []byte{captionAPR}, []byte(nihon),
-					[]byte{0x9B, '2', '2', '0', ';', '5', '0', '9', 0x20, 0x61}, []byte(hiraganaA),
-				)},
-				{pts: 300, id: captionTextA, data: statement([]byte(hiraganaA))},
-			},
-			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ\n日本\nあ", Cleared: false}, {PTS: 300, Text: "あ", Cleared: false}},
-		},
-		{
-			// 放送にある、ルビの大きさ (SSZ) にしてから APS で位置を決め、字の間を空ける字幕。APS の行は、そのときの文字の大きさで
-			// 位置にするので、小型の 2 行目 (1) は、標準の大きさの 1 行目 (初めの位置) と同じ高さになり、改行を入れない。
-			name: "APS の行は、そのときの文字の大きさで位置にする",
-			groups: []group{
-				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
-				{pts: 200, id: captionTextA, data: statement(
-					[]byte(nihon), []byte{captionSSZ, 0x1C, 0x41, 0x48, captionMSZ, 0x20, captionSSZ, 0x1C, 0x41, 0x49, captionNSZ}, []byte(nihon),
-				)},
-			},
-			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "日本 日本", Cleared: false}},
-		},
-		{
-			// 表示領域 (SDF、CSI 80;360 0x20 0x56) を、標準の大きさの文字 2 つ分の幅にする。
-			name: "行の終わりで折り返したら改行を入れる",
-			groups: []group{
-				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
-				{pts: 200, id: captionTextA, data: statement(
-					[]byte{0x9B, '8', '0', ';', '3', '6', '0', 0x20, 0x56}, []byte(hiraganaA+hiraganaA+hiraganaA),
-				)},
-			},
-			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "ああ\nあ", Cleared: false}},
-		},
-		{
-			// aribb24.js は、画面を消しても、最後に書いた位置を忘れないので、別の行に書くと文の初めに改行が入る。
-			name: "画面を消した後も、最後に書いた縦の位置で改行を決める",
-			groups: []group{
-				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
-				{pts: 200, id: captionTextA, data: statement([]byte(hiraganaA), []byte{captionAPR, captionCS}, []byte(nihon))},
-			},
-			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "\n日本", Cleared: true}},
 		},
 		{
 			name: "外字は画像の MD5 で置き換え、引けなければ〓にする",
@@ -330,17 +281,168 @@ func TestCaptionScanner(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var cc byte
-			pkts := captionStream()
-			for _, g := range tt.groups {
-				pkts = append(pkts, captionPESPackets(&cc, g.pts, g.id, g.data)...)
-			}
-			scanner := ts.NewCaptionScanner(programNum, replace)
-			_, err := scanner.Write(join(pkts))
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, scanner.Captions())
+			assert.Equal(t, tt.want, scanCaptionGroups(t, tt.groups, replace))
 		})
 	}
+}
+
+// TestCaptionScannerNewlines は、字幕文の中で文字を書く縦の位置が変わったら改行を入れ、書く位置を aribb24.js と同じく
+// 画素で計算することを確認する。
+func TestCaptionScannerNewlines(t *testing.T) {
+	t.Parallel()
+
+	statement := func(body ...[]byte) []byte {
+		return captionStatementGroup(captionUnit(0x20, slices.Concat(body...)))
+	}
+	type group = captionGroup
+	tests := []struct {
+		name   string
+		groups []group
+		want   []ts.Caption
+	}{
+		{
+			name: "字幕文の中で行が変わったら改行を入れる",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					// APS で 1 行目に置いて書き、APR で次の行に移って書く。ACPS (CSI 220;509 0x20 0x61) で別の行に移って書く。
+					[]byte{0x1C, 0x41, 0x40, captionAPR}, []byte(hiraganaA), []byte{captionAPR}, []byte(nihon),
+					[]byte{0x9B, '2', '2', '0', ';', '5', '0', '9', 0x20, 0x61}, []byte(hiraganaA),
+				)},
+				{pts: 300, id: captionTextA, data: statement([]byte(hiraganaA))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ\n日本\nあ", Cleared: false}, {PTS: 300, Text: "あ", Cleared: false}},
+		},
+		{
+			// 放送にある、ルビの大きさ (SSZ) にしてから APS で位置を決め、字の間を空ける字幕。APS の行は、そのときの文字の大きさで
+			// 位置にするので、小型の 2 行目 (1) は、標準の大きさの 1 行目 (初めの位置) と同じ高さになり、改行を入れない。
+			name: "APS の行は、そのときの文字の大きさで位置にする",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					[]byte(nihon), []byte{captionSSZ, 0x1C, 0x41, 0x48, captionMSZ, 0x20, captionSSZ, 0x1C, 0x41, 0x49, captionNSZ}, []byte(nihon),
+				)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "日本 日本", Cleared: false}},
+		},
+		{
+			// 表示領域 (SDF、CSI 80;360 0x20 0x56) を、標準の大きさの文字 2 つ分の幅にする。
+			name: "行の終わりで折り返したら改行を入れる",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					[]byte{0x9B, '8', '0', ';', '3', '6', '0', 0x20, 0x56}, []byte(hiraganaA+hiraganaA+hiraganaA),
+				)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "ああ\nあ", Cleared: false}},
+		},
+		{
+			// 書く位置を決める前の SDP (CSI 100;100 0x20 0x5F) は、位置を動かさない。ACPS (CSI 0;159 0x20 0x61) は画面の上の
+			// 位置で決めるので、表示領域の中では表示領域の位置の分だけ上になり、初めの位置と同じ高さになる。
+			name: "ACPS は表示領域の位置からの位置にする",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					[]byte{0x9B, '1', '0', '0', ';', '1', '0', '0', 0x20, 0x5F}, []byte(hiraganaA),
+					[]byte{0x9B, '0', ';', '1', '5', '9', 0x20, 0x61}, []byte(nihon),
+				)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ日本", Cleared: false}},
+		},
+		{
+			// 書く位置を決めた後の SDP は、画面の上の位置を保つので、表示領域が動いた分だけ、表示領域の中の位置が変わる。
+			name: "書く位置を決めた後の SDP は、画面の上の位置を保つ",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					[]byte{0x9B, '1', '0', '0', ';', '1', '0', '0', 0x20, 0x5F}, []byte(hiraganaA),
+					[]byte{0x9B, '1', '0', '0', ';', '1', '3', '0', 0x20, 0x5F}, []byte(nihon),
+				)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ\n日本", Cleared: false}},
+		},
+		{
+			// 表示領域を標準の文字 2 つ分の幅にし、小型の文字を 2 つ書くと行の終わりに届く。
+			name: "ルビ (小型の文字) も書く位置を進める",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					[]byte{0x9B, '8', '0', ';', '3', '6', '0', 0x20, 0x56}, []byte(hiraganaA), []byte{captionSSZ}, []byte(hiraganaA+hiraganaA),
+					[]byte{captionNSZ}, []byte(hiraganaA),
+				)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ\nあ", Cleared: false}},
+		},
+		{
+			// 文字の大きさ (SSM、CSI 16;16 0x20 0x57) と字間 (SHS、CSI 4 0x20 0x58) で、1 行に 4 文字になる。
+			name: "文字の大きさと字間で折り返す位置が変わる",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					[]byte{0x9B, '8', '0', ';', '3', '6', '0', 0x20, 0x56}, []byte{0x9B, '1', '6', ';', '1', '6', 0x20, 0x57, 0x9B, '4', 0x20, 0x58},
+					[]byte(hiraganaA+hiraganaA+hiraganaA+hiraganaA+hiraganaA),
+				)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "ああああ\nあ", Cleared: false}},
+		},
+		{
+			// 行の初めで APB を 2 回送ると、前の行の終わりへ戻り、縦の位置が変わる。
+			name: "後ろへ動かして行の初めを越えたら前の行へ戻る",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement([]byte(hiraganaA), []byte{0x08, 0x08}, []byte(hiraganaA))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ\nあ", Cleared: false}},
+		},
+		{
+			// 特殊1 (SZX 0x6B) の大きさでは、aribb24.js と同じく、1 文字を書いて進めた後の位置が NaN になり、続く文字ごとに改行が入る。
+			name: "特殊な大きさの文字は、2 文字目から文字ごとに改行を入れる",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement([]byte(hiraganaA), []byte{0x8B, 0x6B}, []byte(hiraganaA+hiraganaA+hiraganaA))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "ああ\nあ\nあ", Cleared: false}},
+		},
+		{
+			// aribb24.js は、画面を消しても、最後に書いた位置を忘れないので、別の行に書くと文の初めに改行が入る。
+			name: "画面を消した後も、最後に書いた縦の位置で改行を決める",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement([]byte(hiraganaA), []byte{captionAPR, captionCS}, []byte(nihon))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "\n日本", Cleared: true}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, scanCaptionGroups(t, tt.groups, nil))
+		})
+	}
+}
+
+// captionGroup は、字幕の PES 1 つで送るデータグループ。
+type captionGroup struct {
+	pts  uint64
+	id   byte
+	data []byte
+}
+
+// scanCaptionGroups は、groups を字幕の PES にして読み、取り出した字幕文を返す。
+func scanCaptionGroups(t *testing.T, groups []captionGroup, replace func(md5 string) (string, bool)) []ts.Caption {
+	t.Helper()
+
+	var cc byte
+	pkts := captionStream()
+	for _, g := range groups {
+		pkts = append(pkts, captionPESPackets(&cc, g.pts, g.id, g.data)...)
+	}
+	scanner := ts.NewCaptionScanner(programNum, replace)
+	_, err := scanner.Write(join(pkts))
+	require.NoError(t, err)
+
+	return scanner.Captions()
 }
 
 // TestCaptionScannerAssemblesPES は、複数のパケットにまたがる字幕の PES を組み立て、パケットが欠けた PES は読まないことを確認する。

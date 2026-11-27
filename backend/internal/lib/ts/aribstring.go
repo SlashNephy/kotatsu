@@ -357,7 +357,7 @@ func (d *aribDecoder) c1(b []byte) int {
 
 		return len(b)
 	case aribCSI:
-		// 終端の文字 (0x40〜0x7E) まで飛ばす。字幕では、書く位置の指定 (ACPS) を読む。
+		// 終端の文字 (0x40〜0x7E) まで飛ばす。字幕では、書く位置の計算に使うもの (SDF、SDP、SSM、SHS、SVS、ACPS) を読む。
 		n := skipUntilFinal(b, 1, 0x40, 0x7E)
 		if d.caption != nil {
 			d.caption.csi(b[:n])
