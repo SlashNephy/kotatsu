@@ -538,12 +538,15 @@ func TestRecorderReopensWhileDatabaseIsUnreachable(t *testing.T) {
 func TestRecorderFailsWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
+	data, err := os.ReadFile("../../../testdata/ts/test.ts")
+	require.NoError(t, err)
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
 	db := databasetest.NewSwitch(t, f.pool)
 	full := func(string) (uint64, error) { return 0, nil }
 	logs := newMessageRecorder()
-	recorder, _ := f.newRecorderOn(t, db.Pool, f.tuner, full, nil, slog.New(logs))
+	// やり直すたびにストリームを開き直す。開き直しで失敗すると、最後の失敗の理由が変わるので、失敗しないメモリのストリームにする。
+	recorder, _ := f.newRecorderOn(t, db.Pool, onceStream{data: data}, full, nil, slog.New(logs))
 	_, done := f.session(t, recorder, reservationID)
 	waitForQueries(t, db)
 	db.Down()
@@ -559,7 +562,8 @@ func TestRecorderFailsWhileDatabaseIsUnreachable(t *testing.T) {
 	got, ok := f.recording(t, reservationID)
 	require.True(t, ok, "the recording is saved after the database is reachable")
 	assert.Equal(t, string(domain.RecordingStateFailed), got.state)
-	assert.Equal(t, new(string(domain.RecordingFailureReasonStorageFull)), got.failureReason)
+	require.NotNil(t, got.failureReason)
+	assert.Equal(t, string(domain.RecordingFailureReasonStorageFull), *got.failureReason)
 }
 
 // waitForQueries は、Recorder が、開始を待つ間に予約を何度か読み直すまで待つ。最初に予約と録画設定を読み終えたことになる。
