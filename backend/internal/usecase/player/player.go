@@ -87,7 +87,7 @@ func (s *Service) Register(ctx context.Context, userID, sessionID uuid.UUID, sta
 }
 
 // Update は、セッションのプレイヤーの状態を書き直し、閉じていないことを通知する。
-// announce なら、ほかの端末に、一覧を読み直させる。再生位置が進んだだけのときは、知らせなくてよい。
+// announce なら、ほかの端末に、一覧を読み直させる。再生位置が進んだだけのときは、通知しなくてよい。
 func (s *Service) Update(ctx context.Context, userID, sessionID, playerID uuid.UUID, state []byte, announce bool) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		rows, err := sqlc.New(tx).UpdatePlayer(ctx, sqlc.UpdatePlayerParams{

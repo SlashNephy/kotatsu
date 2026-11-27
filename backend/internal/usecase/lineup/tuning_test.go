@@ -208,7 +208,7 @@ func TestCheckerTuning(t *testing.T) {
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 3)
 
-	// 受信できた録画を消しても、録画履歴に残っていれば、受信できたものに数えて忘れる。続いて 3 回断られたら、また通知する。
+	// 受信できた録画を消しても、録画履歴に残っていれば、受信できたものに数えて忘れる。続いて 3 回拒否されたら、また通知する。
 	_, err = pool.Exec(t.Context(), `INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
 VALUES ($1, $2, 'test', 'test', $3, $3, $3)`, uuid.New(), dead.ID, tuningBase().Add(14*time.Hour))
 	require.NoError(t, err)
