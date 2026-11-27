@@ -185,7 +185,7 @@ func TestRecorderRechecksAfterRetryingFirstSegment(t *testing.T) {
 
 			f := newFixture(t)
 			reservationID := f.reserveBundled(t, 0, true)
-			f.recordHistory(t, 1, tt.history)
+			f.recordHistory(t, tt.history)
 			free := new(atomic.Uint64)
 			logs := newMessageRecorder()
 			recorder, dir := f.newRecorderWithLogger(t, newFakeTunerStream(t, recheckPF(t, 0x0400)), func(string) (uint64, error) { return free.Load(), nil },

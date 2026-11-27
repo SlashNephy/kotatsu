@@ -171,13 +171,13 @@ func (f *fixture) reserveBundled(t *testing.T, service int, bundles ...bool) uui
 	return reservationID
 }
 
-// recordHistory は、地上波の service 番目のサービスで、1 日前に録った回を、録画履歴に入れる。
-func (f *fixture) recordHistory(t *testing.T, service int, description string) {
+// recordHistory は、予約した局とは別の、地上波の 1 番目のサービスで、1 日前に録った回を、録画履歴に入れる。
+func (f *fixture) recordHistory(t *testing.T, description string) {
 	t.Helper()
 
 	start := programStart().Add(-24 * time.Hour)
 	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_history (id, service_id, title_key, name, description, start_at, end_at, created_at)
-		VALUES ($1, $2, $3, $3, $4, $5, $6, $6)`, id.New(), grService(service), recheckName, description, start, start.Add(30*time.Minute))
+		VALUES ($1, $2, $3, $3, $4, $5, $6, $6)`, id.New(), grService(1), recheckName, description, start, start.Add(30*time.Minute))
 	require.NoError(t, err)
 }
 
@@ -275,7 +275,7 @@ func TestRecorderRechecksEpisodeFromPresentFollowing(t *testing.T) {
 			_, err := f.pool.Exec(t.Context(), "UPDATE programs SET search_grams = '{目印}' WHERE service_id = $1 AND event_id = 6", grService(0))
 			require.NoError(t, err)
 			if tt.history != "" {
-				f.recordHistory(t, 1, tt.history)
+				f.recordHistory(t, tt.history)
 			}
 			recorder, dir := f.newRecorder(t, newFakeTunerStream(t, recheckPF(t, 0x0400)), nil)
 			cancel, done := f.session(t, recorder, reservationID)
@@ -329,7 +329,7 @@ func TestRecorderKeepsRecordingWithoutPresentFollowing(t *testing.T) {
 
 	f := newFixture(t)
 	reservationID := f.reserveBundled(t, 0, true)
-	f.recordHistory(t, 1, recheckDescription)
+	f.recordHistory(t, recheckDescription)
 	// EIT[p/f] には、予約した番組 (eventId 6) が出ない。
 	pf := loopablePF(t, 0x0400, pfEvent{eventID: 4, name: "", description: ""}, pfEvent{eventID: 5, name: recheckName, description: recheckDescription})
 	recorder, _ := f.newRecorder(t, newFakeTunerStream(t, pf), nil)
@@ -434,7 +434,7 @@ func TestStoppedReservationIsNotRecordedAgain(t *testing.T) {
 
 	f := newFixture(t)
 	reservationID := f.reserveBundled(t, 0, true)
-	f.recordHistory(t, 1, recheckDescription)
+	f.recordHistory(t, recheckDescription)
 	recorder, _ := f.newRecorder(t, newFakeTunerStream(t, recheckPF(t, 0x0400)), nil)
 	// 割り振りを書いて、録画を始める予定の時刻まで進める。
 	f.clock.Advance(plannedStart().Add(-time.Minute).Sub(f.clock.Now()))
