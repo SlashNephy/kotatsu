@@ -20,7 +20,7 @@ type Cue struct {
 //     つないで出すのと同じ文になる。始まりは最初の字幕文、終わりは次に画面を消した字幕文の時刻にする。
 //   - 最後まで画面を消さなかった字幕は、セグメントの最後の映像 (lastVideoPTS) まで出ていたものとする。最後の映像が分からなければ、
 //     最後の字幕文の時刻までにする。
-//   - 文の前後の空白と改行は除き、空になった字幕は残さない。
+//   - 文の前後の空白と改行は除き、空になった字幕は残さない。始まりは、空白でない文を書いた最初の字幕文の時刻にする。
 //
 // 時刻は、CM の区間と同じく、セグメントの最初の I フレームの PTS (base) を 0 にした再生の時間に、offset (録画を始めた日時からの
 // セグメントの始まり) を足したものにする (#1811)。PTS は一周するので、字幕文ごとに前の字幕文との差を足していく。
@@ -42,7 +42,9 @@ func buildCues(captions []ts.Caption, base int64, lastVideoPTS *int64, offset ti
 		if text == "" || e <= 0 {
 			return
 		}
-		cues = append(cues, Cue{Start: max(offset+start, 0), End: e, Text: text})
+		// 画面を消す字幕文の PTS が、前の字幕文より戻っていても、終わりは始まりより前にしない。
+		s := max(offset+start, 0)
+		cues = append(cues, Cue{Start: s, End: max(e, s), Text: text})
 	}
 	for _, c := range captions {
 		at += toDuration(ts.PTSDiff(prev, c.PTS))
@@ -53,7 +55,8 @@ func buildCues(captions []ts.Caption, base int64, lastVideoPTS *int64, offset ti
 		if c.Text == "" {
 			continue
 		}
-		if screen.Len() == 0 {
+		// 空白だけの字幕文の後に書いた文は、空白の時刻からではなく、文を書いた時刻から始める。
+		if strings.TrimSpace(screen.String()) == "" {
 			start = at
 		}
 		screen.WriteString(c.Text)

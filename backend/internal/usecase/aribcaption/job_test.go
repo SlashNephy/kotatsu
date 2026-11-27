@@ -26,6 +26,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/tstest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/aribcaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 )
 
 const (
@@ -356,4 +357,21 @@ func (f *fixture) queued(t *testing.T) map[uuid.UUID]string {
 	require.NoError(t, rows.Err())
 
 	return queued
+}
+
+// TestWorkerSnoozesWhileFinalizing は、つないだファイルへの置き換えが終わるまでは、ディスクのセグメントがつなぐ前のままなので、
+// 読まずに後でやり直すことを確認する (#1719)。
+func TestWorkerSnoozesWhileFinalizing(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID := f.recording(t, stateCompleted, segmentAt{name: segmentA, start: 0, data: captionSegment(100, 102)})
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO river_job (args, kind, max_attempts, queue, priority, state, scheduled_at)
+		VALUES (jsonb_build_object('recordingId', $1::text), $2, 3, 'media', 1, 'available', now())`,
+		recordingID.String(), new(segjoin.FinalizeArgs).Kind())
+	require.NoError(t, err)
+
+	err = work(t, f.worker(), recordingID)
+	var snooze *river.JobSnoozeError
+	require.ErrorAs(t, err, &snooze)
 }

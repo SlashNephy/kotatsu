@@ -96,6 +96,25 @@ func TestBuildCues(t *testing.T) {
 			},
 		},
 		{
+			name: "画面を消す字幕文の PTS が戻っても、終わりは始まりより前にしない",
+			captions: []ts.Caption{
+				{PTS: 20 * sec, Text: "未来", Cleared: true},
+				{PTS: 18 * sec, Text: "", Cleared: true},
+			},
+			base: 10 * sec,
+			want: []aribcaption.Cue{{Start: 10 * time.Second, End: 10 * time.Second, Text: "未来"}},
+		},
+		{
+			name: "空白だけの字幕文の後に書いた文は、文を書いた時刻から始める",
+			captions: []ts.Caption{
+				{PTS: 11 * sec, Text: "　", Cleared: true},
+				{PTS: 13 * sec, Text: "台詞", Cleared: false},
+				{PTS: 15 * sec, Text: "", Cleared: true},
+			},
+			base: 10 * sec,
+			want: []aribcaption.Cue{{Start: 3 * time.Second, End: 5 * time.Second, Text: "台詞"}},
+		},
+		{
 			name: "字幕文がなければ、区間もない",
 			base: 10 * sec,
 			want: []aribcaption.Cue{},

@@ -397,6 +397,12 @@ func (w *Worker) record(ctx context.Context, recordingID uuid.UUID, segments []s
 		return fmt.Errorf("failed to encode the captions: %w", err)
 	}
 	err = pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
+		// 読んでいる間に録画が消えたら、セグメントも消えて変わったように見えるので、先に録画があるかを確認し、やり直さずに取りやめる。
+		if _, err := sqlc.New(tx).GetRecording(ctx, recordingID); errors.Is(err, pgx.ErrNoRows) {
+			return river.JobCancel(errRecordingNotFound)
+		} else if err != nil {
+			return fmt.Errorf("failed to get the recording: %w", err)
+		}
 		if err := w.ensureUnchanged(ctx, tx, recordingID, segments); err != nil {
 			return err
 		}
