@@ -27,6 +27,16 @@ type Node interface {
 	IsNode()
 }
 
+// 既にある録画の ARIB 字幕の文を取り出す状況 (設計書 6.1、#2218)。
+type ARIBCaptionBackfill struct {
+	// 字幕の文を取り出していないか、取り出し方の古いバージョンで取り出した録画の数。録画中の録画と、TS のセグメントのない録画は数えない。
+	Pending int `json:"pending"`
+	// pending のうち、取り出すジョブを待っているか動かしている録画の数。
+	Queued int `json:"queued"`
+	// 取り出し方の今のバージョン。
+	ExtractorVersion int `json:"extractorVersion"`
+}
+
 // サービスと、しょぼいカレンダーのチャンネル (ChID)、Annict のチャンネルの対応 (設計書 3.8)。
 // チャンネルの定義 (#1589) から取り込んだ対応に、管理者の上書きを重ねる。
 type AnimeChannel struct {

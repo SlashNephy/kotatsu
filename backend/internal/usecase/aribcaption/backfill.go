@@ -85,3 +85,26 @@ func EnqueueMany(ctx context.Context, db Beginner, inserter Inserter, recordingI
 
 	return inserted, nil
 }
+
+// Queued は、録画 recordingIDs のうち、ARIB 字幕の文を取り出すジョブを待っているか動かしている録画の数を返す (#2218)。
+// 管理画面に、まとめて入れたジョブがまだ終わっていないことを出すのに使う。
+func Queued(ctx context.Context, db sqlc.DBTX, recordingIDs []uuid.UUID) (int, error) {
+	if len(recordingIDs) == 0 {
+		return 0, nil
+	}
+	ids := make([]string, 0, len(recordingIDs))
+	for _, id := range recordingIDs {
+		ids = append(ids, id.String())
+	}
+	// River のテーブルは sqlc のスキーマにないので、直接引く。
+	var queued int
+	err := db.QueryRow(ctx, `SELECT count(DISTINCT args->>'recordingId') FROM river_job
+		WHERE kind = $1 AND args->>'recordingId' = ANY($2::text[])
+			AND state IN ('available', 'pending', 'retryable', 'running', 'scheduled')`,
+		new(Args).Kind(), ids).Scan(&queued)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count the queued ARIB caption extraction jobs: %w", err)
+	}
+
+	return queued, nil
+}

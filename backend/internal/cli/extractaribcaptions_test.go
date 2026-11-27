@@ -51,11 +51,17 @@ func TestAdminExtractARIBCaptions(t *testing.T) {
 		VALUES (3273601024, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', $1, $1)`, base)
 	require.NoError(t, err)
 	// 録画ごとに、状態、TS のセグメントがあるか、前に取り出したときの取り出し方のバージョン (0 なら取り出していない)。
+	// fileOf は、録画のファイルの種類と大きさ。
+	type fileOf struct {
+		kind string
+		size int
+	}
 	recordings := []struct {
 		name    string
 		state   string
 		segment bool
 		version int
+		files   []fileOf
 	}{
 		{name: "取り出していない", state: stateCompleted, segment: true, version: 0},
 		{name: "古いバージョン", state: stateCompleted, segment: true, version: -1},
@@ -63,6 +69,9 @@ func TestAdminExtractARIBCaptions(t *testing.T) {
 		{name: "録画中", state: "recording", segment: true, version: 0},
 		{name: "セグメントがない", state: stateCompleted, segment: false, version: 0},
 		{name: "一部だけ録った", state: "partial", segment: true, version: 0},
+		// 大きさが 0 のセグメントと、セグメントでないファイルだけを持つ録画は、読むものがないので選ばない。
+		{name: "空のセグメントだけ", state: stateCompleted, segment: false, version: 0, files: []fileOf{{kind: "segment", size: 0}}},
+		{name: "セグメントでないファイルだけ", state: stateCompleted, segment: false, version: 0, files: []fileOf{{kind: "other", size: 188}}},
 	}
 	ids := make([]string, len(recordings))
 	for i, recording := range recordings {
@@ -75,6 +84,11 @@ func TestAdminExtractARIBCaptions(t *testing.T) {
 		if recording.segment {
 			_, err := pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 				VALUES ($1, $2, 'segment', 'main', $3, 188, $4, $4, $4)`, id.New(), recordingID, fmt.Sprintf("%d.m2ts", i), startAt)
+			require.NoError(t, err)
+		}
+		for j, file := range recording.files {
+			_, err := pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+				VALUES ($1, $2, $3, 'main', $4, $5, $6, $6, $6)`, id.New(), recordingID, file.kind, fmt.Sprintf("%d-%d.bin", i, j), file.size, startAt)
 			require.NoError(t, err)
 		}
 		if recording.version != 0 {

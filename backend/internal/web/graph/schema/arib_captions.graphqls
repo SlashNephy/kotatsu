@@ -1,0 +1,25 @@
+"""
+既にある録画の ARIB 字幕の文を取り出す状況 (設計書 6.1、#2218)。
+"""
+type ARIBCaptionBackfill {
+  "字幕の文を取り出していないか、取り出し方の古いバージョンで取り出した録画の数。録画中の録画と、TS のセグメントのない録画は数えない。"
+  pending: Int!
+  "pending のうち、取り出すジョブを待っているか動かしている録画の数。"
+  queued: Int!
+  "取り出し方の今のバージョン。"
+  extractorVersion: Int!
+}
+
+extend type Query {
+  "既にある録画の ARIB 字幕の文を取り出す状況を返す (#2218)。管理者だけが使える。"
+  aribCaptionBackfill: ARIBCaptionBackfill!
+}
+
+extend type Mutation {
+  """
+  字幕の文を取り出していないか、取り出し方の古いバージョンで取り出した録画の、取り出すジョブをまとめて入れ、入れた数を返す (#2218)。
+  管理者だけが使える。kotatsu admin extract-arib-captions と同じく、新しく録った録画のジョブを待たせないよう、優先度を下げて入れる。
+  待っている録画には重ねて入れない。
+  """
+  extractARIBCaptions: Int!
+}

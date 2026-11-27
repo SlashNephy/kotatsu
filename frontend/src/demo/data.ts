@@ -798,6 +798,8 @@ export function createRootValue(
     storagePoolNames: () => ['default'],
     // デモは外部へ問い合わせないので、字幕の自動生成のモデル (#1682) は置かず、選べるモデルだけを見せる。ダウンロードはしない。
     captionModels: () => demoCaptionModels(),
+    // デモの録画は放送の TS を持たないので、放送の字幕の文を取り出す録画はない (#2218)。
+    aribCaptionBackfill: () => ({ pending: 0, queued: 0, extractorVersion: 1 }),
     // デモは DB を書き出さないので、公開鍵のない既定の設定だけを見せる (#1926)。
     backup: () => ({
       settings: { recipients: [], intervalHours: 24, generations: 7, updatedAt: null },
@@ -833,6 +835,8 @@ export function createRootValue(
     },
 
     // Mutation
+    // デモの録画は放送の TS を持たないので、取り出すジョブは入れない (#2218)。
+    extractARIBCaptions: () => 0,
     // デモは DB を書き出さないので、バックアップの設定を変えさせない (#1926)。
     updateBackupSettings: () => {
       throw new Error('backups are not available in the demo');
