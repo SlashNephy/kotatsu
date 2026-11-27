@@ -16,7 +16,7 @@ import (
 
 // skippedProgram は、ルールに一致したが、重複の回避か、同じ回をまとめたか、前の回を録らない設定で予約しなかった番組。
 type skippedProgram struct {
-	row    sqlc.ListMatchableProgramsRow
+	row    matchableProgram
 	rules  []*compiledRule
 	reason SkipReason
 	// lastRecorded は、前に録った録画の終わり。別の放送で録るときは nil。
@@ -71,7 +71,7 @@ type SkippedRule struct {
 // FindSkippedDuplicates は、照合と同じ計算で、重複の回避と同じ回のまとめで予約しなかった番組を、放送の早い順に返す。DB には書かない。
 // すでに予約のある番組 (利用者が手動で予約したものなど) は返さない。
 func FindSkippedDuplicates(ctx context.Context, db Beginner, clk clock.Clock, location *time.Location) ([]*SkippedDuplicate, error) {
-	e := &Engine{pool: nil, clock: clk, location: location, guard: nil, reservations: nil}
+	e := &Engine{pool: nil, clock: clk, location: location, guard: nil, reservations: nil, batchSize: defaultMatchBatchSize}
 	result := []*SkippedDuplicate{}
 	// 番組、ルール、録画履歴、予約を同じ時点で読むよう、REPEATABLE READ の 1 つのトランザクションで読む。
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {

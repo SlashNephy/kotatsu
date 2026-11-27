@@ -175,7 +175,7 @@ func listBundledBroadcasts(
 }
 
 // programSource は、照合する番組から、回を読む元を作る。しょぼいカレンダーの話は入れない。
-func programSource(row *sqlc.ListMatchableProgramsRow) *episode.Source {
+func programSource(row *matchableProgram) *episode.Source {
 	extended := ""
 	if row.ExtendedNormalized != nil {
 		extended = *row.ExtendedNormalized
