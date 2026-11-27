@@ -66,6 +66,11 @@ export class AudioTimeline {
     return this.base.pts + (time - this.base.time) * ptsTicksPerSecond;
   }
 
+  // timeAt は、pts を鳴らす Web Audio の時刻を返す。まだ鳴らし始めていなければ null。
+  timeAt(pts: number): number | null {
+    return this.base === null ? null : this.timeOf(pts);
+  }
+
   // bufferedUntil は、予約した音の終わりの PTS。
   get bufferedUntil(): number | null {
     return this.end;

@@ -345,7 +345,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
         this.onAudio(message);
         break;
       case 'audioCut':
-        this.cutAudio();
+        this.cutAudio(message.cut);
         break;
       case 'stats':
         this.stats = message.stats;
@@ -445,7 +445,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
 
   // cutAudio は、鳴らす音声を選び直したので、少し先から後に予約した音を破棄し、どこから破棄したかを worker に返す (#2165)。
   // worker は、その位置から選び直した音声を渡し直すので、音は途切れずに替わる。鳴らし始める前なら、貯めた音をすべて破棄する。
-  private cutAudio(): void {
+  private cutAudio(cut: number): void {
     const playing = this.timeline.ptsAt(this.context.currentTime + cutLead);
     const end = this.timeline.bufferedUntil;
     const pts = playing === null || end === null ? null : Math.min(playing, end);
@@ -453,8 +453,17 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
       this.pending = [];
     } else {
       this.pending = this.pending.filter((chunk) => chunk.pts < pts);
+      const cutAt = this.timeline.timeAt(pts);
       for (const [source, start] of this.sources) {
         if (start < pts) {
+          // 切り替える位置をまたぐ音は、その位置で止め、選び直した音と重ならないようにする。
+          if (cutAt !== null && cutAt > this.context.currentTime) {
+            try {
+              source.stop(cutAt);
+            } catch {
+              // 鳴り終えた音は止められないが、重ならないので構わない。
+            }
+          }
           continue;
         }
         source.onended = null;
@@ -471,6 +480,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     this.worker.postMessage({
       type: 'audioFrom',
       load: this.load,
+      cut,
       pts,
     } satisfies ToDecodeWorker);
   }
