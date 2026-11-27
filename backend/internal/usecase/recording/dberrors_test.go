@@ -140,3 +140,46 @@ func TestRecorderResumesWhenFinishKeepsFailing(t *testing.T) {
 		})
 	}
 }
+
+// TestRecorderTakesOverWithoutListingFiles は、引き継いだ mikan が、録り始めに録画のファイルを読めなくても、DB を待たずに録り始めることを
+// 確認する (#2195)。止まる mikan が引き継ぎを待つのは 20 秒までなので、待つと録画が欠ける。
+func TestRecorderTakesOverWithoutListingFiles(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	oldRecorder, dir := f.newRecorder(t, onceStream{data: data}, nil)
+	assignmentID := id.New()
+	stopOld, oldDone := f.sessionWith(t, oldRecorder, &recording.Assignment{
+		ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 1, HandedOver: false, PreviousLeaseExpiresAt: nil,
+	})
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 1
+	}, waitTimeout, 10*time.Millisecond)
+
+	// 録画のファイルの一覧を読めなくする。セグメントを記録する問い合わせは、このカラムを使わないので通る。
+	f.renameColumn(t, "recording_files", "pid_stats", "pid_stats_renamed")
+	f.clock.Advance(time.Minute)
+	newRecorder, _ := f.newRecorderIn(t, dir, f.pool, onceStream{data: data}, nil, nil, slog.New(slog.DiscardHandler), nil)
+	_, newDone := f.sessionWith(t, newRecorder, &recording.Assignment{
+		ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 2, HandedOver: true, PreviousLeaseExpiresAt: nil,
+	})
+	require.Eventually(t, func() bool {
+		var n int
+		require.NoError(t, f.pool.QueryRow(t.Context(),
+			"SELECT count(*) FROM recording_files WHERE recording_id = (SELECT id FROM recordings WHERE reservation_id = $1)", reservationID).Scan(&n))
+
+		return n == 2
+	}, waitTimeout, 10*time.Millisecond, "the new mikan starts a segment of its own without waiting for the database")
+	f.renameColumn(t, "recording_files", "pid_stats_renamed", "pid_stats")
+	stopOld(recording.ErrHandedOver)
+	require.ErrorIs(t, wait(t, oldDone), recording.ErrHandedOver)
+
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, newDone))
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
+}
