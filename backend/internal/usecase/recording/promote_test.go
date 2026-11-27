@@ -1,6 +1,7 @@
 package recording_test
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -15,9 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
@@ -87,7 +90,9 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 		lastWrite time.Time
 		// data は、チャンクに書く TS。nil なら testdata/ts/test.ts。
 		data []byte
-		want func(userID uuid.UUID) *promoted
+		// defaults は、録画設定の全体の既定値を読む関数。nil なら Go の既定値に固定する。
+		defaults assign.DefaultsFunc
+		want     func(userID uuid.UUID) *promoted
 	}{
 		{
 			name: "書き出す範囲を通して録れていれば、1 つのセグメントに書き出して完了にし、録画履歴に記録する",
@@ -95,6 +100,21 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 				{start: from.Add(-5 * time.Minute), end: new(from.Add(5 * time.Minute))},
 				{start: from.Add(5 * time.Minute), end: new(to.Add(5 * time.Minute))},
 			},
+			want: func(userID uuid.UUID) *promoted {
+				return &promoted{
+					state: string(domain.RecordingStateCompleted), gaps: 0, starts: []time.Time{from}, ends: []time.Time{to}, recordedFrom: from,
+					history: 1, promotion: false, notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
+				}
+			},
+		},
+		{
+			// ローリング更新で、新しいスキーマが古いバイナリの読むカラムを消したときも、録画を失敗にしない (#2195)。
+			name: "録画設定を読めなくても、既定値で書き込んで完了にする",
+			chunks: []chunk{
+				{start: from.Add(-5 * time.Minute), end: new(from.Add(5 * time.Minute))},
+				{start: from.Add(5 * time.Minute), end: new(to.Add(5 * time.Minute))},
+			},
+			defaults: func(context.Context, sqlc.DBTX) (*domain.RecordingSettings, error) { return nil, errUndefinedColumn },
 			want: func(userID uuid.UUID) *promoted {
 				return &promoted{
 					state: string(domain.RecordingStateCompleted), gaps: 0, starts: []time.Time{from}, ends: []time.Time{to}, recordedFrom: from,
@@ -207,7 +227,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 				VALUES ($1, $2, $3, $4, $5, $6)`, recordingID, grService(0), from, to, userID, f.clock.Now())
 			require.NoError(t, err)
 
-			worker := recording.NewPromoteWorker(f.pool, f.clock, store.store, nil, tokyo, slog.New(slog.DiscardHandler))
+			worker := recording.NewPromoteWorker(f.pool, f.clock, store.store, tt.defaults, tokyo, slog.New(slog.DiscardHandler))
 			job := &river.Job[recording.PromoteArgs]{JobRow: &rivertype.JobRow{Attempt: 1, MaxAttempts: 5}, Args: recording.PromoteArgs{RecordingID: recordingID}}
 			require.NoError(t, worker.Work(ctx, job))
 
