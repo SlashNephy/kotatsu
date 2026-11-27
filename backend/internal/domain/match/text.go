@@ -45,7 +45,8 @@ func CompileText(keywords []*TextKeyword, keywordMatch KeywordMatch) (*TextMatch
 			return nil, err
 		}
 		m.keywords = append(m.keywords, compiled)
-		if keywordMatch == KeywordMatchAll {
+		// いずれかに一致を求めるときも、キーワードが 1 つなら、そのキーワードは必ず含む。
+		if keywordMatch == KeywordMatchAll || len(keywords) == 1 {
 			if literal, ok := compiledLiteral(compiled); ok {
 				for _, gram := range KeywordGrams(literal) {
 					required[gram] = struct{}{}

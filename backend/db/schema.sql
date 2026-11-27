@@ -1213,6 +1213,9 @@ CREATE TABLE recording_auto_captions (
 );
 
 CREATE INDEX recording_auto_captions_search_grams_idx ON recording_auto_captions USING gin (search_grams);
+-- gram が今の字幕のものでない字幕。検索で gram のインデックスと OR で合わせて読み、kotatsu migrate で作り直す字幕を探すのにも使う。
+CREATE INDEX recording_auto_captions_stale_search_grams_idx ON recording_auto_captions (recording_id)
+  WHERE search_grams_generated_at IS DISTINCT FROM generated_at;
 
 -- 字幕の自動生成に使うモデルのうち、管理者が画面からダウンロードして、データディレクトリの既定の場所に置いたもの (#1682、設計書 6.1)。
 -- 種類ごとに 1 つ。ダウンロードするジョブ (nekonote) が、ファイルを置き換えた後に書き、画面から消すと消す。

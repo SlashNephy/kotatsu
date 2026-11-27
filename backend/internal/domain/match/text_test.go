@@ -2,6 +2,7 @@ package match_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -117,6 +118,9 @@ func TestCompileTextRejectsInvalidKeywords(t *testing.T) {
 		{name: "キーワードがない", keywords: []*match.TextKeyword{}, keywordMatch: match.KeywordMatchAll},
 		{name: "空のキーワード", keywords: []*match.TextKeyword{{Text: "", Regexp: false, CaseSensitive: false}}, keywordMatch: match.KeywordMatchAll},
 		{name: "読めない正規表現", keywords: []*match.TextKeyword{{Text: "(", Regexp: true, CaseSensitive: false}}, keywordMatch: match.KeywordMatchAll},
+		{name: "null のキーワード", keywords: []*match.TextKeyword{nil}, keywordMatch: match.KeywordMatchAll},
+		{name: "キーワードが多すぎる", keywords: slices.Repeat([]*match.TextKeyword{{Text: "猫", Regexp: false, CaseSensitive: false}}, 33), keywordMatch: match.KeywordMatchAll},
+		{name: "長すぎるキーワード", keywords: []*match.TextKeyword{{Text: strings.Repeat("猫", 1001), Regexp: false, CaseSensitive: false}}, keywordMatch: match.KeywordMatchAll},
 		{name: "照合のしかたがない", keywords: []*match.TextKeyword{{Text: "猫", Regexp: false, CaseSensitive: false}}, keywordMatch: match.KeywordMatch("")},
 	}
 	for _, tt := range tests {

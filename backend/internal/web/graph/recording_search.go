@@ -60,6 +60,9 @@ func coarseRecordingKeyword(conditions *match.Conditions) *string {
 	return nil
 }
 
+// recordingCaptionChunkSize は、字幕の文で探すときに、候補の録画の字幕を 1 回に読む録画の数 (#2214)。
+const recordingCaptionChunkSize = 20
+
 // recordingCaptionMatchLimit は、録画 1 つについて返す、字幕の文で探したときに当たった字幕の数の上限 (#2214)。
 const recordingCaptionMatchLimit = 20
 
@@ -149,7 +152,8 @@ func (r *Resolver) collectRecordings(
 		if err != nil {
 			return nil, nil, false, tooLong(err)
 		}
-		batch, batchCaptions, err := r.matchRecordingBatch(ctx, search, rows)
+		// first + 1 件目まで見つかれば足りるので、字幕を読むのはそこまでにする。
+		batch, batchCaptions, err := r.matchRecordingBatch(ctx, search, rows, first+1-len(matched))
 		if err != nil {
 			return nil, nil, false, tooLong(err)
 		}
@@ -171,8 +175,9 @@ func (r *Resolver) collectRecordings(
 }
 
 // matchRecordingBatch は、候補の録画 rows のうち、条件に一致する録画を rows の順に返す。字幕の文で探したときは、当たった字幕も返す。
+// 字幕は録画ごとに数千件あり、読むのが重いので、字幕の文で探すときは recordingCaptionChunkSize 件ずつ読み、need 件見つかったらやめる。
 func (r *Resolver) matchRecordingBatch(
-	ctx context.Context, search *recordingSearch, rows []domain.Recording,
+	ctx context.Context, search *recordingSearch, rows []domain.Recording, need int,
 ) ([]domain.Recording, map[uuid.UUID][]*model.RecordingCaptionMatch, error) {
 	candidates := make([]domain.Recording, 0, len(rows))
 	for i := range rows {
@@ -183,14 +188,21 @@ func (r *Resolver) matchRecordingBatch(
 	if search.captions == nil {
 		return candidates, map[uuid.UUID][]*model.RecordingCaptionMatch{}, nil
 	}
-	captions, err := r.matchRecordingCaptions(ctx, search.captions, candidates)
-	if err != nil {
-		return nil, nil, err
-	}
-	matched := make([]domain.Recording, 0, len(captions))
-	for i := range candidates {
-		if _, ok := captions[candidates[i].ID]; ok {
-			matched = append(matched, candidates[i])
+	matched := []domain.Recording{}
+	captions := map[uuid.UUID][]*model.RecordingCaptionMatch{}
+	for chunk := range slices.Chunk(candidates, recordingCaptionChunkSize) {
+		if len(matched) >= need {
+			break
+		}
+		found, err := r.matchRecordingCaptions(ctx, search.captions, chunk)
+		if err != nil {
+			return nil, nil, err
+		}
+		for i := range chunk {
+			if matches, ok := found[chunk[i].ID]; ok {
+				matched = append(matched, chunk[i])
+				captions[chunk[i].ID] = matches
+			}
 		}
 	}
 
@@ -215,6 +227,9 @@ func (r *Resolver) matchRecordingCaptions(
 		return nil, err
 	}
 	for i := range recordings {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		cues, ok := cuesByRecording[recordings[i].ID]
 		if !ok {
 			continue

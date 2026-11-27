@@ -20,6 +20,12 @@ const listRecordingCaptionMatches = `query($first: Int!, $after: String, $filter
 		pageInfo { hasNextPage endCursor }
 	} }`
 
+const listRecordingCaptionMatchesInOrder = `query($first: Int!, $after: String, $filter: RecordingFilter, $order: RecordingOrder!) {
+	recordings(first: $first, after: $after, filter: $filter, order: $order) {
+		edges { node { name recordedFrom } captionMatches { source from to text } }
+		pageInfo { hasNextPage endCursor }
+	} }`
+
 type captionMatchPage struct {
 	Recordings struct {
 		Edges []struct {
@@ -82,6 +88,7 @@ const (
 	captionLighthouse  = "灯台の夜"
 	captionNone        = "字幕のない録画"
 	captionStale       = "古い gram の録画"
+	captionRewritten   = "書き直した字幕の録画"
 	cueShip            = "ＮＨＫの船が港に着きました"
 	cueGull            = "カモメが鳴いています"
 	cueLight           = "灯台の光が見えます"
@@ -91,6 +98,14 @@ const (
 // addAutoCaptions は、録画 globalID に自動生成の字幕 cues を書く。fresh なら、字幕を書くときと同じく gram も書き、
 // そうでなければ、カラムを知らない古いバイナリが書いた字幕と同じく gram を書かない。
 func (f *fixture) addAutoCaptions(t *testing.T, globalID string, cues []testCue, fresh bool) {
+	t.Helper()
+
+	f.addAutoCaptionsWithGrams(t, globalID, cues, fresh, nil)
+}
+
+// addAutoCaptionsWithGrams は、addAutoCaptions と同じく字幕を書く。staleGrams を渡すと、古いバイナリが字幕を書き直す前の、
+// 前の字幕から作った gram が残っている字幕にする。
+func (f *fixture) addAutoCaptionsWithGrams(t *testing.T, globalID string, cues []testCue, fresh bool, staleGrams []string) {
 	t.Helper()
 
 	_, rawID, err := graph.ParseGlobalID(globalID)
@@ -105,6 +120,9 @@ func (f *fixture) addAutoCaptions(t *testing.T, globalID string, cues []testCue,
 			texts = append(texts, domain.Normalize(c.Text))
 		}
 		grams, gramsAt = match.TextGrams(texts), new(testNow())
+	}
+	if staleGrams != nil {
+		grams, gramsAt = staleGrams, new(testNow().Add(-time.Hour))
 	}
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_auto_captions
 		(recording_id, model, generator_version, generated_at, cues, search_grams, search_grams_generated_at)
@@ -126,7 +144,7 @@ func TestRecordingsByCaptionKeywords(t *testing.T) {
 	t.Parallel()
 
 	f, dir := newRecordingFixture(t)
-	// 新しい順に、古い gram の録画、字幕のない録画、灯台の夜、港の朝。
+	// 新しい順に、古い gram の録画、字幕のない録画、灯台の夜、港の朝、書き直した字幕の録画。
 	harbor := f.addRecording(t, dir, captionHarbor, "completed", 4*time.Hour)
 	lighthouse := f.addRecording(t, dir, captionLighthouse, "completed", 3*time.Hour)
 	f.addRecording(t, dir, captionNone, "completed", 2*time.Hour)
@@ -140,6 +158,9 @@ func TestRecordingsByCaptionKeywords(t *testing.T) {
 		{StartMs: 7000, EndMs: 8000, Text: cuePreview},
 	}, true)
 	f.addAutoCaptions(t, stale, []testCue{{StartMs: 0, EndMs: 1000, Text: "港の灯台"}}, false)
+	// 古いバイナリが字幕を書き直し、前の字幕の gram (「霧」) が残っている。
+	rewritten := f.addRecording(t, dir, captionRewritten, "completed", 5*time.Hour)
+	f.addAutoCaptionsWithGrams(t, rewritten, []testCue{{StartMs: 0, EndMs: 1000, Text: "汽笛が聞こえる"}}, false, []string{"霧"})
 
 	literal := func(text string) captionKeywordVar {
 		return captionKeywordVar{Text: text, Regexp: false, CaseSensitive: false}
@@ -189,6 +210,11 @@ func TestRecordingsByCaptionKeywords(t *testing.T) {
 			want:   map[string][]string{captionStale: {"港の灯台"}, captionLighthouse: {cueLight}},
 		},
 		{
+			name:   "captions rewritten after the search grams",
+			filter: map[string]any{varCaptionKeywords: []captionKeywordVar{literal("汽笛")}},
+			want:   map[string][]string{captionRewritten: {"汽笛が聞こえる"}},
+		},
+		{
 			name: "with the name keywords",
 			filter: map[string]any{
 				varCaptionKeywords: []captionKeywordVar{literal("灯台")},
@@ -229,11 +255,26 @@ func TestRecordingsByCaptionKeywords(t *testing.T) {
 		assert.False(t, next.Recordings.PageInfo.HasNextPage)
 	})
 
+	t.Run("pages through the matched recordings from the oldest", func(t *testing.T) {
+		t.Parallel()
+
+		vars := map[string]any{varFirst: 1, varFilter: map[string]any{varCaptionKeywords: []captionKeywordVar{literal("灯台")}}, "order": "OLDEST_FIRST"}
+		var page captionMatchPage
+		require.Empty(t, f.query(t, listRecordingCaptionMatchesInOrder, vars, &page))
+		assert.Equal(t, []string{captionLighthouse}, page.names())
+		assert.True(t, page.Recordings.PageInfo.HasNextPage)
+		vars[varAfter] = page.Recordings.PageInfo.EndCursor
+		var next captionMatchPage
+		require.Empty(t, f.query(t, listRecordingCaptionMatchesInOrder, vars, &next))
+		assert.Equal(t, []string{captionStale}, next.names())
+		assert.False(t, next.Recordings.PageInfo.HasNextPage)
+	})
+
 	t.Run("returns no captions without the caption keywords", func(t *testing.T) {
 		t.Parallel()
 
 		page := f.captionMatches(t, 10, nil, nil)
-		require.Len(t, page.Recordings.Edges, 4)
+		require.Len(t, page.Recordings.Edges, 5)
 		for _, edge := range page.Recordings.Edges {
 			assert.Empty(t, edge.CaptionMatches)
 			assert.NotNil(t, edge.CaptionMatches)
