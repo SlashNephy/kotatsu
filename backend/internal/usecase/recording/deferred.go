@@ -101,7 +101,7 @@ func (r *Recorder) cachedPools(ctx context.Context, logger *slog.Logger, mounted
 		rows = cache.pools
 	default:
 		logger.WarnContext(ctx, "failed to list the storage pools; using the mounted pools with the default settings", slog.Any("error", err))
-		rows = nil
+		rows = []sqlc.StoragePool{}
 	}
 
 	return poolsFrom(rows, mounted, poolID)
