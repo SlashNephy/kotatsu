@@ -204,7 +204,8 @@ func (r *Recorder) observeTOT(at time.Time) {
 // record は、割り振りの予約を録画する。録画しなくてよくなったときと、録画を終えたときに nil を返す。
 // 録画の失敗は、録画の状態と理由に記録し、割り振りは終わったことにする。
 func (r *Recorder) record(ctx context.Context, assignment *Assignment) (err error) {
-	// plannedEnd は、録画の予定の終わり。その前に録画をやめたら、割り振りを手放させて、続きを録らせる (#2195)。
+	// plannedEnd は、録画の予定の終わり。その前に録画をやめたか、その後に録画を終えられなかったら、割り振りを手放させて、
+	// 続きを録らせるか、録画を終えさせる (#2195)。
 	var plannedEnd *time.Time
 	defer func() { err = r.resumable(ctx, err, plannedEnd) }()
 	reservation, cached, ok, err := r.waitUntilOpen(ctx, assignment)
@@ -323,11 +324,17 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) (err erro
 	}
 }
 
-// resumable は、予定の終わり plannedEnd の前に、録画のエラーで Session を終えるなら、err を ErrResumeLater で包む (#2195)。
-// Worker は、割り振りを終わったことにせず手放すので、ほかの mikan か、この mikan が続きを録る。止めるとき (ctx が終わった) と、
-// この mikan では録画できないとき (ErrRecorderUnavailable) は、包まない。
+// ResumeAfterEndLimit は、予定の終わりの後に録画を終えられなかったとき、割り振りを手放して、ほかの mikan に録画を終えさせる時間の上限 (#2195)。
+// ローリング更新で、古いバイナリが新しいスキーマで録画を終えようとして失敗しても、新しいバイナリの mikan が終えられる。
+// 上限を過ぎたら、割り振りを終わったことにし、neko が録画を失敗にする。手放し続けると、録画が録画中のまま残る。
+const ResumeAfterEndLimit = time.Hour
+
+// resumable は、録画のエラーで Session を終えるとき、予定の終わり plannedEnd の前か、予定の終わりから ResumeAfterEndLimit までなら、
+// err を ErrResumeLater で包む (#2195)。Worker は、割り振りを終わったことにせず手放すので、ほかの mikan か、この mikan が続きを録るか、
+// 録画を終える (finishLeftOver)。止めるとき (ctx が終わった) と、この mikan では録画できないとき (ErrRecorderUnavailable) は、包まない。
 func (r *Recorder) resumable(ctx context.Context, err error, plannedEnd *time.Time) error {
-	if err == nil || ctx.Err() != nil || errors.Is(err, ErrRecorderUnavailable) || plannedEnd == nil || !r.clock.Now().Before(*plannedEnd) {
+	if err == nil || ctx.Err() != nil || errors.Is(err, ErrRecorderUnavailable) || plannedEnd == nil ||
+		!r.clock.Now().Before(plannedEnd.Add(ResumeAfterEndLimit)) {
 		return err
 	}
 
