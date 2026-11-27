@@ -88,14 +88,8 @@ func requiredLiteral(keyword *Keyword) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	if compiled.pattern == nil {
-		return foldCase(compiled.literal), true
-	}
-	if compiled.prefilter == nil || len(compiled.prefilter.literals) != 1 {
-		return "", false
-	}
 
-	return foldCase(compiled.prefilter.literals[0]), true
+	return compiledLiteral(compiled)
 }
 
 // KeywordGrams は、畳んだ文字列 literal を含む文字列が必ず持つ gram を返す。1 文字ならその 1 文字、2 文字以上なら続く 2 文字のすべて。

@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/logattr"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
@@ -82,7 +81,7 @@ func (r *Resolver) listRecordings(
 		params.BeforeAt, params.BeforeID = &cursor.RecordedFrom, &cursor.ID
 	}
 
-	rows, hasNext, err := r.findRecordings(ctx, filter, params, order, first)
+	rows, captionMatches, hasNext, err := r.findRecordings(ctx, filter, params, order, first)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +95,11 @@ func (r *Resolver) listRecordings(
 		if err != nil {
 			return nil, err
 		}
-		edges = append(edges, &model.RecordingEdge{Cursor: cursor, Node: recordings[i]})
+		matches := captionMatches[rows[i].ID]
+		if matches == nil {
+			matches = []*model.RecordingCaptionMatch{}
+		}
+		edges = append(edges, &model.RecordingEdge{Cursor: cursor, Node: recordings[i], CaptionMatches: matches})
 	}
 	info := &model.PageInfo{HasNextPage: hasNext, HasPreviousPage: after != nil, StartCursor: nil, EndCursor: nil}
 	if len(edges) > 0 {
@@ -107,31 +110,24 @@ func (r *Resolver) listRecordings(
 }
 
 // findRecordings は、params の録画を order の順に first 件まで読み、続きがあるかも返す。
-// キーワードの条件 (#966) があれば、番組の検索と同じ照合で絞る。
+// キーワードの条件 (#966) があれば、番組の検索と同じ照合で絞る。字幕の文のキーワード (#2214) があれば、字幕の文で絞り、
+// 当たった字幕を録画ごとに返す。
 func (r *Resolver) findRecordings(
 	ctx context.Context, filter *model.RecordingFilter, params *query.SearchRecordingsParams, order model.RecordingOrder, first int,
-) ([]domain.Recording, bool, error) {
-	conditions, ok, err := recordingKeywordConditions(filter)
+) ([]domain.Recording, map[uuid.UUID][]*model.RecordingCaptionMatch, bool, error) {
+	search, ok, err := r.newRecordingSearch(filter, params)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
 	if ok {
-		matcher, err := match.Compile(conditions, r.location)
-		if err != nil {
-			return nil, false, NewError(CodeBadUserInput, err.Error())
-		}
-		if params.Keyword == nil {
-			params.Keyword = coarseRecordingKeyword(conditions)
-		}
-
-		return r.collectRecordings(ctx, matcher, params, order, first)
+		return r.collectRecordings(ctx, search, params, order, first)
 	}
 	rows, err := r.searchRecordingRows(ctx, params, order)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
 
-	return rows[:min(len(rows), first)], len(rows) > first, nil
+	return rows[:min(len(rows), first)], map[uuid.UUID][]*model.RecordingCaptionMatch{}, len(rows) > first, nil
 }
 
 const (
@@ -175,7 +171,7 @@ const maxGenreLv1 = 0xF
 // searchParams は、録画の絞り込みを、検索のクエリの引数にする。
 func searchParams(filter *model.RecordingFilter) (*query.SearchRecordingsParams, error) {
 	params := &query.SearchRecordingsParams{
-		States: []string{}, ServiceIDs: []int64{}, TagIDs: []uuid.UUID{}, Keyword: nil, Since: nil, Until: nil,
+		States: []string{}, ServiceIDs: []int64{}, TagIDs: []uuid.UUID{}, Keyword: nil, CaptionGrams: nil, Since: nil, Until: nil,
 		RuleID: nil, Genres: []int32{}, BeforeAt: nil, BeforeID: nil, MaxCount: 0,
 	}
 	if filter == nil {

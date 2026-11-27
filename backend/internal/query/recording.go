@@ -19,13 +19,15 @@ type SearchRecordingsParams struct {
 	ServiceIDs []int64
 	TagIDs     []uuid.UUID
 	Keyword    *string
-	RuleID     *uuid.UUID
-	Genres     []int32
-	Since      *time.Time
-	Until      *time.Time
-	BeforeAt   *time.Time
-	BeforeID   *uuid.UUID
-	MaxCount   int32
+	// CaptionGrams は、自動生成の字幕の gram で絞るときに、字幕が必ず含む gram (#2214)。nil なら絞らない。
+	CaptionGrams []string
+	RuleID       *uuid.UUID
+	Genres       []int32
+	Since        *time.Time
+	Until        *time.Time
+	BeforeAt     *time.Time
+	BeforeID     *uuid.UUID
+	MaxCount     int32
 }
 
 // SearchRecordingsOldestParams は、SearchRecordingsOldest の条件と、続きから読む位置。
@@ -34,13 +36,15 @@ type SearchRecordingsOldestParams struct {
 	ServiceIDs []int64
 	TagIDs     []uuid.UUID
 	Keyword    *string
-	RuleID     *uuid.UUID
-	Genres     []int32
-	Since      *time.Time
-	Until      *time.Time
-	AfterAt    *time.Time
-	AfterID    *uuid.UUID
-	MaxCount   int32
+	// CaptionGrams は、SearchRecordingsParams.CaptionGrams と同じ。
+	CaptionGrams []string
+	RuleID       *uuid.UUID
+	Genres       []int32
+	Since        *time.Time
+	Until        *time.Time
+	AfterAt      *time.Time
+	AfterID      *uuid.UUID
+	MaxCount     int32
 }
 
 // ListAPIRecordingsParams は、ListAPIRecordings の条件。
@@ -76,7 +80,7 @@ func (q *Queries) ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]d
 
 // SearchRecordings は、条件に合う録画を、新しい順に返す。
 func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]domain.Recording, error) {
-	result, err := sqlc.New(q.pool).SearchRecordings(ctx, sqlc.SearchRecordingsParams{States: arg.States, ServiceIds: arg.ServiceIDs, TagIds: arg.TagIDs, Keyword: arg.Keyword, RuleID: arg.RuleID, Genres: arg.Genres, Since: arg.Since, Until: arg.Until, BeforeAt: arg.BeforeAt, BeforeID: arg.BeforeID, MaxCount: arg.MaxCount})
+	result, err := sqlc.New(q.pool).SearchRecordings(ctx, sqlc.SearchRecordingsParams{States: arg.States, ServiceIds: arg.ServiceIDs, TagIds: arg.TagIDs, Keyword: arg.Keyword, CaptionGrams: arg.CaptionGrams, RuleID: arg.RuleID, Genres: arg.Genres, Since: arg.Since, Until: arg.Until, BeforeAt: arg.BeforeAt, BeforeID: arg.BeforeID, MaxCount: arg.MaxCount})
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +94,7 @@ func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsPara
 
 // SearchRecordingsOldest は、条件に合う録画を、古い順に返す。
 func (q *Queries) SearchRecordingsOldest(ctx context.Context, arg SearchRecordingsOldestParams) ([]domain.Recording, error) {
-	result, err := sqlc.New(q.pool).SearchRecordingsOldest(ctx, sqlc.SearchRecordingsOldestParams{States: arg.States, ServiceIds: arg.ServiceIDs, TagIds: arg.TagIDs, Keyword: arg.Keyword, RuleID: arg.RuleID, Genres: arg.Genres, Since: arg.Since, Until: arg.Until, AfterAt: arg.AfterAt, AfterID: arg.AfterID, MaxCount: arg.MaxCount})
+	result, err := sqlc.New(q.pool).SearchRecordingsOldest(ctx, sqlc.SearchRecordingsOldestParams{States: arg.States, ServiceIds: arg.ServiceIDs, TagIds: arg.TagIDs, Keyword: arg.Keyword, CaptionGrams: arg.CaptionGrams, RuleID: arg.RuleID, Genres: arg.Genres, Since: arg.Since, Until: arg.Until, AfterAt: arg.AfterAt, AfterID: arg.AfterID, MaxCount: arg.MaxCount})
 	if err != nil {
 		return nil, err
 	}

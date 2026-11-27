@@ -333,6 +333,42 @@ type Recording implements Node {
 type RecordingEdge {
   cursor: String!
   node: Recording!
+  """
+  絞り込みの captionKeywords に当たった字幕 (#2214)。どれかのキーワードを含む字幕を、始まりの順に最大 20 件返す。
+  captionKeywords で探していなければ空。
+  """
+  captionMatches: [RecordingCaptionMatch!]!
+}
+
+"""
+字幕の種類 (#2211)。
+"""
+enum CaptionSource {
+  "録画の音声から自動生成した字幕 (設計書 6.1、#1682)"
+  AUTO
+}
+
+"""
+字幕の文で探したときに当たった字幕の 1 つ (#2214)。
+"""
+type RecordingCaptionMatch {
+  source: CaptionSource!
+  "字幕を出す区間の始まりと終わり。RecordingAutoCaption と同じく録画の時間軸の日時で、再生の位置にするには途切れた分 (gaps) を詰める。"
+  from: Time!
+  to: Time!
+  "字幕の本文。複数の行は改行でつなぐ。"
+  text: String!
+}
+
+"""
+字幕の文で探すキーワード (#2214)。番組の検索のキーワード (KeywordInput) と同じく照合し、照合する項目はない。
+キーワードは字幕の 1 つずつに照らすので、2 つの字幕にまたがる語には一致しない。
+"""
+input CaptionKeywordInput {
+  text: String!
+  "text を正規表現 (RE2) として扱うかどうか。"
+  regexp: Boolean! = false
+  caseSensitive: Boolean! = false
 }
 
 type RecordingConnection {
@@ -369,6 +405,13 @@ input RecordingFilter {
   keywordMatch: KeywordMatch
   "どれか 1 つに一致したら除外するキーワード。EXTENDED は指定できない。"
   excludeKeywords: [KeywordInput!]
+  """
+  自動生成の字幕の文で探すキーワード (#2214)。字幕のない録画は返さない。
+  ほかの条件と一緒に指定すると、両方に一致する録画を返す。当たった字幕は RecordingEdge.captionMatches に返す。
+  """
+  captionKeywords: [CaptionKeywordInput!]
+  "captionKeywords の照合のしかた。省くと、すべてに一致する録画を返す。すべてに一致するときも、キーワードは別々の字幕にあってよい。"
+  captionKeywordMatch: KeywordMatch
   "放送の開始がこの日時以降の録画。"
   since: Time
   "放送の開始がこの日時より前の録画。"

@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -20,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/db"
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/episode"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
 
@@ -81,6 +83,9 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 		return err
 	}
 	if err := fillCapturesNormalized(ctx, logger, migrationPool); err != nil {
+		return err
+	}
+	if err := fillAutoCaptionSearchGrams(ctx, logger, migrationPool); err != nil {
 		return err
 	}
 
@@ -225,6 +230,60 @@ func fillCapturesNormalized(ctx context.Context, logger *slog.Logger, pool *pgxp
 	}
 	if filled > 0 {
 		logger.InfoContext(ctx, "captures normalized", slog.Int("count", filled))
+	}
+
+	return nil
+}
+
+// autoCaptionFillBatchSize は、自動生成の字幕の gram を埋めるときに、1 回に読み書きする字幕の数。
+// 字幕は録画ごとに数千件あり、1 行が大きいので、正規化したカラムを埋めるとき (fillBatchSize) より少なくする。
+const autoCaptionFillBatchSize = 50
+
+// fillAutoCaptionSearchGrams は、字幕の文で探すための gram (#2214、設計書 3.5) が今の字幕のものでない、自動生成の字幕の gram を作り直す。
+// gram は Go の正規化 (domain.Normalize) をした文から作るので、SQL では書けず、Go で埋める。
+// カラムを足す前の字幕と、カラムを知らない古いバイナリがローリング更新の間に書き直した字幕を、次の kotatsu migrate で埋める。
+// 埋めるまでの字幕の録画は検索の候補に残るので、検索の結果は変わらない。
+func fillAutoCaptionSearchGrams(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
+	q := sqlc.New(pool)
+	filled := 0
+	for {
+		rows, err := q.ListRecordingAutoCaptionsWithoutSearchGrams(ctx, autoCaptionFillBatchSize)
+		if err != nil {
+			return fmt.Errorf("failed to list the auto captions without search grams: %w", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		params := make([]sqlc.SetRecordingAutoCaptionsSearchGramsParams, 0, len(rows))
+		for _, row := range rows {
+			// 字幕の形は autocaption の storedCue。このパッケージは autocaption から使われるので、文だけを読む。
+			var cues []struct {
+				Text string `json:"text"`
+			}
+			if err := json.Unmarshal(row.Cues, &cues); err != nil {
+				return fmt.Errorf("failed to decode the auto captions of recording %s: %w", row.RecordingID, err)
+			}
+			texts := make([]string, 0, len(cues))
+			for _, c := range cues {
+				texts = append(texts, domain.Normalize(c.Text))
+			}
+			params = append(params, sqlc.SetRecordingAutoCaptionsSearchGramsParams{
+				SearchGrams: match.TextGrams(texts), RecordingID: row.RecordingID, GeneratedAt: row.GeneratedAt,
+			})
+		}
+		errs := []error{}
+		q.SetRecordingAutoCaptionsSearchGrams(ctx, params).Exec(func(i int, err error) {
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to set the search grams of the auto captions of recording %s: %w", params[i].RecordingID, err))
+			}
+		})
+		if err := errors.Join(errs...); err != nil {
+			return err
+		}
+		filled += len(rows)
+	}
+	if filled > 0 {
+		logger.InfoContext(ctx, "auto caption search grams filled", slog.Int("count", filled))
 	}
 
 	return nil

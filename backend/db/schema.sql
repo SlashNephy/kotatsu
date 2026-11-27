@@ -1196,6 +1196,7 @@ CREATE TABLE recording_cm_materials (
 -- 録画の音声から自動生成した字幕 (設計書 6.1、#1682)。録画ごとに最後に生成した 1 つだけを持つ。
 -- cues は、{startMs, endMs, text} の配列。時刻は、CM の区間と同じく、録画を始めた日時からの時間 (セグメントの最初の I フレームを 0 にしたもの)。
 -- 字幕は録画ごとに数千件になり、いつもまとめて読み書きするので、行に分けずに JSONB にする。
+-- 字幕の文で探すときも (#2214、設計書 3.5)、行に分けずに、録画ごとの gram (search_grams) で粗く絞り、当たった録画の cues を Go で照らす。
 CREATE TABLE recording_auto_captions (
   recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
   -- model は、生成に使ったモデルのファイルの名前。
@@ -1203,8 +1204,15 @@ CREATE TABLE recording_auto_captions (
   -- generator_version は、生成の仕方のバージョン。生成の仕方を変えたら上げる。
   generator_version integer NOT NULL,
   generated_at timestamptz NOT NULL,
-  cues jsonb NOT NULL
+  cues jsonb NOT NULL,
+  -- search_grams は、字幕の文を正規化して作った検索の gram (match.TextGrams)。
+  search_grams text[] NULL,
+  -- search_grams_generated_at は、search_grams を作った字幕の generated_at。generated_at と違えば、gram は今の字幕のものでない。
+  -- カラムを知らない古いバイナリが字幕を書き直すと、gram は古いまま残るので、この日時で見分け、検索の候補に残す。
+  search_grams_generated_at timestamptz NULL
 );
+
+CREATE INDEX recording_auto_captions_search_grams_idx ON recording_auto_captions USING gin (search_grams);
 
 -- 字幕の自動生成に使うモデルのうち、管理者が画面からダウンロードして、データディレクトリの既定の場所に置いたもの (#1682、設計書 6.1)。
 -- 種類ごとに 1 つ。ダウンロードするジョブ (nekonote) が、ファイルを置き換えた後に書き、画面から消すと消す。

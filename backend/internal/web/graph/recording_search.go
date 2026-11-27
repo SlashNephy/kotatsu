@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -58,12 +60,68 @@ func coarseRecordingKeyword(conditions *match.Conditions) *string {
 	return nil
 }
 
-// collectRecordings は、キーワードの条件に一致する録画を、order の順に first 件まで集める。続きがあるかも返す (#966)。
+// recordingCaptionMatchLimit は、録画 1 つについて返す、字幕の文で探したときに当たった字幕の数の上限 (#2214)。
+const recordingCaptionMatchLimit = 20
+
+// recordingSearch は、録画を候補から 1 件ずつ照らす条件。programs は番組名と概要のキーワード (#966)、
+// captions は字幕の文のキーワード (#2214)。使わない条件は nil にする。
+type recordingSearch struct {
+	programs *match.Matcher
+	captions *match.TextMatcher
+}
+
+// newRecordingSearch は、録画の絞り込みのキーワード (#966) と字幕の文のキーワード (#2214) を、録画を 1 件ずつ照らす条件にする。
+// SQL で粗く絞る条件は params に入れる。どちらのキーワードもなければ、ok に false を返す。
+func (r *Resolver) newRecordingSearch(filter *model.RecordingFilter, params *query.SearchRecordingsParams) (*recordingSearch, bool, error) {
+	search := &recordingSearch{programs: nil, captions: nil}
+	conditions, ok, err := recordingKeywordConditions(filter)
+	if err != nil {
+		return nil, false, err
+	}
+	if ok {
+		search.programs, err = match.Compile(conditions, r.location)
+		if err != nil {
+			return nil, false, NewError(CodeBadUserInput, err.Error())
+		}
+		if params.Keyword == nil {
+			params.Keyword = coarseRecordingKeyword(conditions)
+		}
+	}
+	if filter != nil && len(filter.CaptionKeywords) > 0 {
+		search.captions, err = recordingCaptionMatcher(filter)
+		if err != nil {
+			return nil, false, err
+		}
+		params.CaptionGrams = search.captions.RequiredGrams()
+	}
+
+	return search, search.programs != nil || search.captions != nil, nil
+}
+
+// recordingCaptionMatcher は、録画の絞り込みの字幕の文のキーワード (#2214) を、照合できる形にする。
+func recordingCaptionMatcher(filter *model.RecordingFilter) (*match.TextMatcher, error) {
+	keywordMatch := match.KeywordMatchAll
+	if filter.CaptionKeywordMatch != nil {
+		keywordMatch = *filter.CaptionKeywordMatch
+	}
+	keywords := make([]*match.TextKeyword, 0, len(filter.CaptionKeywords))
+	for _, k := range filter.CaptionKeywords {
+		keywords = append(keywords, &match.TextKeyword{Text: k.Text, Regexp: k.Regexp, CaseSensitive: k.CaseSensitive})
+	}
+	matcher, err := match.CompileText(keywords, keywordMatch)
+	if err != nil {
+		return nil, NewError(CodeBadUserInput, "invalid captionKeywords: "+err.Error())
+	}
+
+	return matcher, nil
+}
+
+// collectRecordings は、キーワードの条件に一致する録画を、order の順に first 件まで集める。続きがあるかと、当たった字幕も返す (#966、#2214)。
 // 番組の検索 (collect) と同じく、候補を順に読んで照合し、first + 1 件目が一致するかで続きの有無を決める。
 // searchTimeout を過ぎたら、条件を絞ってもらうエラーにする。照合は、番組の検索と同じ枠 (searchSlots) で数を抑える。
 func (r *Resolver) collectRecordings(
-	ctx context.Context, matcher *match.Matcher, params *query.SearchRecordingsParams, order model.RecordingOrder, first int,
-) ([]domain.Recording, bool, error) {
+	ctx context.Context, search *recordingSearch, params *query.SearchRecordingsParams, order model.RecordingOrder, first int,
+) ([]domain.Recording, map[uuid.UUID][]*model.RecordingCaptionMatch, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, searchTimeout)
 	defer cancel()
 	select {
@@ -71,37 +129,119 @@ func (r *Resolver) collectRecordings(
 		defer func() { <-r.searchSlots }()
 	case <-ctx.Done():
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, false, NewError(CodeBadUserInput, "too many searches are running; try again later")
+			return nil, nil, false, NewError(CodeBadUserInput, "too many searches are running; try again later")
 		}
 
-		return nil, false, ctx.Err()
+		return nil, nil, false, ctx.Err()
+	}
+	tooLong := func(err error) error {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return NewError(CodeBadUserInput, "the search took too long; narrow down the conditions")
+		}
+
+		return err
 	}
 	params.MaxCount = recordingSearchBatchSize
 	matched := []domain.Recording{}
+	captionMatches := map[uuid.UUID][]*model.RecordingCaptionMatch{}
 	for {
 		rows, err := r.searchRecordingRows(ctx, params, order)
 		if err != nil {
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return nil, false, NewError(CodeBadUserInput, "the search took too long; narrow down the conditions")
-			}
-
-			return nil, false, err
+			return nil, nil, false, tooLong(err)
 		}
-		for i := range rows {
-			if !matcher.Match(recordingMatchProgram(&rows[i])) {
-				continue
-			}
+		batch, batchCaptions, err := r.matchRecordingBatch(ctx, search, rows)
+		if err != nil {
+			return nil, nil, false, tooLong(err)
+		}
+		for i := range batch {
 			if len(matched) == first {
-				return matched, true, nil
+				return matched, captionMatches, true, nil
 			}
-			matched = append(matched, rows[i])
+			matched = append(matched, batch[i])
+			if found, ok := batchCaptions[batch[i].ID]; ok {
+				captionMatches[batch[i].ID] = found
+			}
 		}
 		if len(rows) < recordingSearchBatchSize {
-			return matched, false, nil
+			return matched, captionMatches, false, nil
 		}
 		last := rows[len(rows)-1]
 		params.BeforeAt, params.BeforeID = &last.RecordedFrom, &last.ID
 	}
+}
+
+// matchRecordingBatch は、候補の録画 rows のうち、条件に一致する録画を rows の順に返す。字幕の文で探したときは、当たった字幕も返す。
+func (r *Resolver) matchRecordingBatch(
+	ctx context.Context, search *recordingSearch, rows []domain.Recording,
+) ([]domain.Recording, map[uuid.UUID][]*model.RecordingCaptionMatch, error) {
+	candidates := make([]domain.Recording, 0, len(rows))
+	for i := range rows {
+		if search.programs == nil || search.programs.Match(recordingMatchProgram(&rows[i])) {
+			candidates = append(candidates, rows[i])
+		}
+	}
+	if search.captions == nil {
+		return candidates, map[uuid.UUID][]*model.RecordingCaptionMatch{}, nil
+	}
+	captions, err := r.matchRecordingCaptions(ctx, search.captions, candidates)
+	if err != nil {
+		return nil, nil, err
+	}
+	matched := make([]domain.Recording, 0, len(captions))
+	for i := range candidates {
+		if _, ok := captions[candidates[i].ID]; ok {
+			matched = append(matched, candidates[i])
+		}
+	}
+
+	return matched, captions, nil
+}
+
+// matchRecordingCaptions は、録画 recordings のうち、自動生成の字幕が字幕の文のキーワードに一致する録画の、当たった字幕を返す (#2214)。
+// 一致しない録画は返す map に含めない。
+func (r *Resolver) matchRecordingCaptions(
+	ctx context.Context, matcher *match.TextMatcher, recordings []domain.Recording,
+) (map[uuid.UUID][]*model.RecordingCaptionMatch, error) {
+	out := map[uuid.UUID][]*model.RecordingCaptionMatch{}
+	if len(recordings) == 0 {
+		return out, nil
+	}
+	ids := make([]uuid.UUID, 0, len(recordings))
+	for i := range recordings {
+		ids = append(ids, recordings[i].ID)
+	}
+	cuesByRecording, err := autocaption.RecordingsCues(ctx, r.db, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range recordings {
+		cues, ok := cuesByRecording[recordings[i].ID]
+		if !ok {
+			continue
+		}
+		texts := make([]string, 0, len(cues))
+		for _, c := range cues {
+			texts = append(texts, domain.Normalize(c.Text))
+		}
+		if !matcher.Match(texts) {
+			continue
+		}
+		found := []*model.RecordingCaptionMatch{}
+		for j, text := range texts {
+			if len(found) == recordingCaptionMatchLimit {
+				break
+			}
+			if matcher.Contains(text) {
+				found = append(found, &model.RecordingCaptionMatch{
+					Source: model.CaptionSourceAuto, From: recordings[i].RecordedFrom.Add(cues[j].Start),
+					To: recordings[i].RecordedFrom.Add(cues[j].End), Text: cues[j].Text,
+				})
+			}
+		}
+		out[recordings[i].ID] = found
+	}
+
+	return out, nil
 }
 
 // searchRecordingRows は、params の録画を、order の順に読む。
@@ -111,7 +251,7 @@ func (r *Resolver) searchRecordingRows(ctx context.Context, params *query.Search
 	if order == model.RecordingOrderOldestFirst {
 		rows, err = r.queries.SearchRecordingsOldest(ctx, query.SearchRecordingsOldestParams{
 			States: params.States, ServiceIDs: params.ServiceIDs, TagIDs: params.TagIDs, Keyword: params.Keyword,
-			Since: params.Since, Until: params.Until, RuleID: params.RuleID, Genres: params.Genres,
+			CaptionGrams: params.CaptionGrams, Since: params.Since, Until: params.Until, RuleID: params.RuleID, Genres: params.Genres,
 			AfterAt: params.BeforeAt, AfterID: params.BeforeID, MaxCount: params.MaxCount,
 		})
 	} else {

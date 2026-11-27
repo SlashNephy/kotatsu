@@ -838,11 +838,13 @@ type RecordingAssignment struct {
 }
 
 type RecordingAutoCaption struct {
-	RecordingID      uuid.UUID
-	Model            string
-	GeneratorVersion int32
-	GeneratedAt      time.Time
-	Cues             []byte
+	RecordingID            uuid.UUID
+	Model                  string
+	GeneratorVersion       int32
+	GeneratedAt            time.Time
+	Cues                   []byte
+	SearchGrams            []string
+	SearchGramsGeneratedAt *time.Time
 }
 
 type RecordingCmDetection struct {

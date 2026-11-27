@@ -284,6 +284,59 @@ func (b *SetProgramSeriesBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const setRecordingAutoCaptionsSearchGrams = `-- name: SetRecordingAutoCaptionsSearchGrams :batchexec
+UPDATE recording_auto_captions SET search_grams = $1::text[], search_grams_generated_at = generated_at
+WHERE recording_id = $2 AND generated_at = $3
+`
+
+type SetRecordingAutoCaptionsSearchGramsBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetRecordingAutoCaptionsSearchGramsParams struct {
+	SearchGrams []string
+	RecordingID uuid.UUID
+	GeneratedAt time.Time
+}
+
+// 字幕の gram を書く。読んだ後に字幕を書き直していたら、書かない (次の kotatsu migrate で作り直す)。
+func (q *Queries) SetRecordingAutoCaptionsSearchGrams(ctx context.Context, arg []SetRecordingAutoCaptionsSearchGramsParams) *SetRecordingAutoCaptionsSearchGramsBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.SearchGrams,
+			a.RecordingID,
+			a.GeneratedAt,
+		}
+		batch.Queue(setRecordingAutoCaptionsSearchGrams, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetRecordingAutoCaptionsSearchGramsBatchResults{br, len(arg), false}
+}
+
+func (b *SetRecordingAutoCaptionsSearchGramsBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetRecordingAutoCaptionsSearchGramsBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const setRecordingHistorySeries = `-- name: SetRecordingHistorySeries :batchexec
 UPDATE recording_history SET series = $1 WHERE id = $2
 `

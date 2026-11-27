@@ -98,11 +98,10 @@ func shortestLength(literals []string) int {
 	return shortest
 }
 
-// mayMatch は、項目 field の文字列が、正規表現に一致しうるかどうかを返す。
-func (f *prefilter) mayMatch(p *Program, field Field) bool {
-	text := p.text(field)
+// mayMatch は、文字列 text が、正規表現に一致しうるかどうかを返す。folded は、text を大文字と小文字を区別しない形に畳んで返す。
+func (f *prefilter) mayMatch(text string, folded func() string) bool {
 	if f.fold {
-		text = p.foldedText(field)
+		text = folded()
 	}
 
 	return slices.ContainsFunc(f.literals, func(literal string) bool { return strings.Contains(text, literal) })

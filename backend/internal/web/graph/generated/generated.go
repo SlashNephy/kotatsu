@@ -1484,14 +1484,22 @@ type ComplexityRoot struct {
 		To   func(childComplexity int) int
 	}
 
+	RecordingCaptionMatch struct {
+		From   func(childComplexity int) int
+		Source func(childComplexity int) int
+		Text   func(childComplexity int) int
+		To     func(childComplexity int) int
+	}
+
 	RecordingConnection struct {
 		Edges    func(childComplexity int) int
 		PageInfo func(childComplexity int) int
 	}
 
 	RecordingEdge struct {
-		Cursor func(childComplexity int) int
-		Node   func(childComplexity int) int
+		CaptionMatches func(childComplexity int) int
+		Cursor         func(childComplexity int) int
+		Node           func(childComplexity int) int
 	}
 
 	RecordingFailureCount struct {
@@ -8920,6 +8928,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.RecordingCMSection.To(childComplexity), true
 
+	case "RecordingCaptionMatch.from":
+		if e.ComplexityRoot.RecordingCaptionMatch.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCaptionMatch.From(childComplexity), true
+	case "RecordingCaptionMatch.source":
+		if e.ComplexityRoot.RecordingCaptionMatch.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCaptionMatch.Source(childComplexity), true
+	case "RecordingCaptionMatch.text":
+		if e.ComplexityRoot.RecordingCaptionMatch.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCaptionMatch.Text(childComplexity), true
+	case "RecordingCaptionMatch.to":
+		if e.ComplexityRoot.RecordingCaptionMatch.To == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCaptionMatch.To(childComplexity), true
+
 	case "RecordingConnection.edges":
 		if e.ComplexityRoot.RecordingConnection.Edges == nil {
 			break
@@ -8933,6 +8966,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.RecordingConnection.PageInfo(childComplexity), true
 
+	case "RecordingEdge.captionMatches":
+		if e.ComplexityRoot.RecordingEdge.CaptionMatches == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingEdge.CaptionMatches(childComplexity), true
 	case "RecordingEdge.cursor":
 		if e.ComplexityRoot.RecordingEdge.Cursor == nil {
 			break
@@ -10932,6 +10971,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("ArchiveRangeInput", ec.unmarshalInputArchiveRangeInput),
 			graphql.NewInputUnmarshaler("AuditEventFilter", ec.unmarshalInputAuditEventFilter),
 			graphql.NewInputUnmarshaler("BackupSettingsInput", ec.unmarshalInputBackupSettingsInput),
+			graphql.NewInputUnmarshaler("CaptionKeywordInput", ec.unmarshalInputCaptionKeywordInput),
 			graphql.NewInputUnmarshaler("CaptionSettingsInput", ec.unmarshalInputCaptionSettingsInput),
 			graphql.NewInputUnmarshaler("ChannelTypeInput", ec.unmarshalInputChannelTypeInput),
 			graphql.NewInputUnmarshaler("CommentSettingsInput", ec.unmarshalInputCommentSettingsInput),
@@ -14776,6 +14816,42 @@ type Recording implements Node {
 type RecordingEdge {
   cursor: String!
   node: Recording!
+  """
+  絞り込みの captionKeywords に当たった字幕 (#2214)。どれかのキーワードを含む字幕を、始まりの順に最大 20 件返す。
+  captionKeywords で探していなければ空。
+  """
+  captionMatches: [RecordingCaptionMatch!]!
+}
+
+"""
+字幕の種類 (#2211)。
+"""
+enum CaptionSource {
+  "録画の音声から自動生成した字幕 (設計書 6.1、#1682)"
+  AUTO
+}
+
+"""
+字幕の文で探したときに当たった字幕の 1 つ (#2214)。
+"""
+type RecordingCaptionMatch {
+  source: CaptionSource!
+  "字幕を出す区間の始まりと終わり。RecordingAutoCaption と同じく録画の時間軸の日時で、再生の位置にするには途切れた分 (gaps) を詰める。"
+  from: Time!
+  to: Time!
+  "字幕の本文。複数の行は改行でつなぐ。"
+  text: String!
+}
+
+"""
+字幕の文で探すキーワード (#2214)。番組の検索のキーワード (KeywordInput) と同じく照合し、照合する項目はない。
+キーワードは字幕の 1 つずつに照らすので、2 つの字幕にまたがる語には一致しない。
+"""
+input CaptionKeywordInput {
+  text: String!
+  "text を正規表現 (RE2) として扱うかどうか。"
+  regexp: Boolean! = false
+  caseSensitive: Boolean! = false
 }
 
 type RecordingConnection {
@@ -14812,6 +14888,13 @@ input RecordingFilter {
   keywordMatch: KeywordMatch
   "どれか 1 つに一致したら除外するキーワード。EXTENDED は指定できない。"
   excludeKeywords: [KeywordInput!]
+  """
+  自動生成の字幕の文で探すキーワード (#2214)。字幕のない録画は返さない。
+  ほかの条件と一緒に指定すると、両方に一致する録画を返す。当たった字幕は RecordingEdge.captionMatches に返す。
+  """
+  captionKeywords: [CaptionKeywordInput!]
+  "captionKeywords の照合のしかた。省くと、すべてに一致する録画を返す。すべてに一致するときも、キーワードは別々の字幕にあってよい。"
+  captionKeywordMatch: KeywordMatch
   "放送の開始がこの日時以降の録画。"
   since: Time
   "放送の開始がこの日時より前の録画。"
@@ -18974,6 +19057,20 @@ func (ec *executionContext) childFields_RecordingCMSection(ctx context.Context, 
 	return nil, fmt.Errorf("no field named %q was found under type RecordingCMSection", field.Name)
 }
 
+func (ec *executionContext) childFields_RecordingCaptionMatch(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "source":
+		return ec.fieldContext_RecordingCaptionMatch_source(ctx, field)
+	case "from":
+		return ec.fieldContext_RecordingCaptionMatch_from(ctx, field)
+	case "to":
+		return ec.fieldContext_RecordingCaptionMatch_to(ctx, field)
+	case "text":
+		return ec.fieldContext_RecordingCaptionMatch_text(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingCaptionMatch", field.Name)
+}
+
 func (ec *executionContext) childFields_RecordingConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "edges":
@@ -18990,6 +19087,8 @@ func (ec *executionContext) childFields_RecordingEdge(ctx context.Context, field
 		return ec.fieldContext_RecordingEdge_cursor(ctx, field)
 	case "node":
 		return ec.fieldContext_RecordingEdge_node(ctx, field)
+	case "captionMatches":
+		return ec.fieldContext_RecordingEdge_captionMatches(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingEdge", field.Name)
 }
@@ -49567,6 +49666,98 @@ func (ec *executionContext) fieldContext_RecordingCMSection_to(_ context.Context
 	return graphql.NewScalarFieldContext("RecordingCMSection", field, false, false, "Time")
 }
 
+func (ec *executionContext) _RecordingCaptionMatch_source(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCaptionMatch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCaptionMatch_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.CaptionSource) graphql.Marshaler {
+			return ec.marshalNCaptionSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionSource(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCaptionMatch_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCaptionMatch", field, false, false, "CaptionSource")
+}
+
+func (ec *executionContext) _RecordingCaptionMatch_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCaptionMatch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCaptionMatch_from(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCaptionMatch_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCaptionMatch", field, false, false, "Time")
+}
+
+func (ec *executionContext) _RecordingCaptionMatch_to(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCaptionMatch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCaptionMatch_to(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCaptionMatch_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCaptionMatch", field, false, false, "Time")
+}
+
+func (ec *executionContext) _RecordingCaptionMatch_text(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCaptionMatch) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCaptionMatch_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCaptionMatch_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCaptionMatch", field, false, false, "String")
+}
+
 func (ec *executionContext) _RecordingConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.RecordingConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -49681,6 +49872,38 @@ func (ec *executionContext) fieldContext_RecordingEdge_node(_ context.Context, f
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RecordingEdge_captionMatches(ctx context.Context, field graphql.CollectedField, obj *model.RecordingEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingEdge_captionMatches(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CaptionMatches, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RecordingCaptionMatch) graphql.Marshaler {
+			return ec.marshalNRecordingCaptionMatch2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCaptionMatchᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingEdge_captionMatches(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RecordingEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingCaptionMatch(ctx, field)
 		},
 	}
 	return fc, nil
@@ -58981,6 +59204,69 @@ func UnmarshalBackupSettingsInput(ctx context.Context, raw any) (model.BackupSet
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputCaptionKeywordInput(ctx context.Context, obj any) (model.CaptionKeywordInput, error) {
+	var it model.CaptionKeywordInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["regexp"]; !present {
+		asMap["regexp"] = false
+	}
+	if _, present := asMap["caseSensitive"]; !present {
+		asMap["caseSensitive"] = false
+	}
+
+	fieldsInOrder := [...]string{"text", "regexp", "caseSensitive"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "text":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("text"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Text = data
+		case "regexp":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("regexp"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Regexp = data
+		case "caseSensitive":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("caseSensitive"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CaseSensitive = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalCaptionKeywordInput unmarshals raw into the CaptionKeywordInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalCaptionKeywordInput(ctx context.Context, raw any) (model.CaptionKeywordInput, error) {
+	var out model.CaptionKeywordInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "CaptionKeywordInput", raw, &out)
+	return out, err
+}
+
 func (ec *executionContext) unmarshalInputCaptionSettingsInput(ctx context.Context, obj any) (model.CaptionSettingsInput, error) {
 	var it model.CaptionSettingsInput
 	if obj == nil {
@@ -60733,7 +61019,7 @@ func (ec *executionContext) unmarshalInputRecordingFilter(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"tagIds", "states", "serviceIds", "keyword", "keywords", "keywordMatch", "excludeKeywords", "since", "until", "ruleId", "genres"}
+	fieldsInOrder := [...]string{"tagIds", "states", "serviceIds", "keyword", "keywords", "keywordMatch", "excludeKeywords", "captionKeywords", "captionKeywordMatch", "since", "until", "ruleId", "genres"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -60789,6 +61075,20 @@ func (ec *executionContext) unmarshalInputRecordingFilter(ctx context.Context, o
 				return it, err
 			}
 			it.ExcludeKeywords = data
+		case "captionKeywords":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("captionKeywords"))
+			data, err := ec.unmarshalOCaptionKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionKeywordInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CaptionKeywords = data
+		case "captionKeywordMatch":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("captionKeywordMatch"))
+			data, err := ec.unmarshalOKeywordMatch2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CaptionKeywordMatch = data
 		case "since":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("since"))
 			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
@@ -71526,6 +71826,54 @@ func (ec *executionContext) _RecordingCMSection(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var recordingCaptionMatchImplementors = []string{"RecordingCaptionMatch"}
+
+func (ec *executionContext) _RecordingCaptionMatch(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingCaptionMatch) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingCaptionMatchImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingCaptionMatch")
+		case "source":
+			out.Values[i] = ec._RecordingCaptionMatch_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "from":
+			out.Values[i] = ec._RecordingCaptionMatch_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "to":
+			out.Values[i] = ec._RecordingCaptionMatch_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._RecordingCaptionMatch_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var recordingConnectionImplementors = []string{"RecordingConnection"}
 
 func (ec *executionContext) _RecordingConnection(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingConnection) graphql.Marshaler {
@@ -71582,6 +71930,11 @@ func (ec *executionContext) _RecordingEdge(ctx context.Context, sel ast.Selectio
 			}
 		case "node":
 			out.Values[i] = ec._RecordingEdge_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "captionMatches":
+			out.Values[i] = ec._RecordingEdge_captionMatches(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -75736,6 +76089,11 @@ func (ec *executionContext) marshalNCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋ
 	return ec._CalendarFeed(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNCaptionKeywordInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionKeywordInput(ctx context.Context, v any) (*model.CaptionKeywordInput, error) {
+	res, err := ec.unmarshalInputCaptionKeywordInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNCaptionModel2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CaptionModel) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -75846,6 +76204,16 @@ func (ec *executionContext) marshalNCaptionSettings2ᚖgithubᚗcomᚋSlashNephy
 		return graphql.Null
 	}
 	return ec._CaptionSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCaptionSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionSource(ctx context.Context, v any) (model.CaptionSource, error) {
+	var res model.CaptionSource
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCaptionSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionSource(ctx context.Context, sel ast.SelectionSet, v model.CaptionSource) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNCapture2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCapture(ctx context.Context, sel ast.SelectionSet, v *model.Capture) graphql.Marshaler {
@@ -78221,6 +78589,30 @@ func (ec *executionContext) marshalNRecordingCMSection2ᚖgithubᚗcomᚋSlashNe
 	return ec._RecordingCMSection(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNRecordingCaptionMatch2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCaptionMatchᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingCaptionMatch) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRecordingCaptionMatch2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCaptionMatch(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRecordingCaptionMatch2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCaptionMatch(ctx context.Context, sel ast.SelectionSet, v *model.RecordingCaptionMatch) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "RecordingCaptionMatch!")
+		return graphql.Null
+	}
+	return ec._RecordingCaptionMatch(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNRecordingConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingConnection(ctx context.Context, sel ast.SelectionSet, v *model.RecordingConnection) graphql.Marshaler {
 	if v == nil {
 		graphql.AddInvalidNullError(ctx, "RecordingConnection!")
@@ -79781,6 +80173,23 @@ func (ec *executionContext) marshalOCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋ
 		return graphql.Null
 	}
 	return ec._CalendarFeed(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOCaptionKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionKeywordInputᚄ(ctx context.Context, v any) ([]*model.CaptionKeywordInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.CaptionKeywordInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNCaptionKeywordInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionKeywordInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalOCaptionModel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModel(ctx context.Context, sel ast.SelectionSet, v *model.CaptionModel) graphql.Marshaler {

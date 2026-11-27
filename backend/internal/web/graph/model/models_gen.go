@@ -562,6 +562,15 @@ type CalendarFeed struct {
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
+// 字幕の文で探すキーワード (#2214)。番組の検索のキーワード (KeywordInput) と同じく照合し、照合する項目はない。
+// キーワードは字幕の 1 つずつに照らすので、2 つの字幕にまたがる語には一致しない。
+type CaptionKeywordInput struct {
+	Text string `json:"text"`
+	// text を正規表現 (RE2) として扱うかどうか。
+	Regexp        bool `json:"regexp"`
+	CaseSensitive bool `json:"caseSensitive"`
+}
+
 // 管理者が画面からダウンロードできる、字幕の自動生成のモデル (設計書 6.1、#1682)。入手先、大きさ、SHA-256 はコードに固定する。
 type CaptionModel struct {
 	// 一覧の中の ID。downloadCaptionModel に渡す。
@@ -2022,6 +2031,16 @@ type RecordingCMSection struct {
 	To   time.Time `json:"to"`
 }
 
+// 字幕の文で探したときに当たった字幕の 1 つ (#2214)。
+type RecordingCaptionMatch struct {
+	Source CaptionSource `json:"source"`
+	// 字幕を出す区間の始まりと終わり。RecordingAutoCaption と同じく録画の時間軸の日時で、再生の位置にするには途切れた分 (gaps) を詰める。
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+	// 字幕の本文。複数の行は改行でつなぐ。
+	Text string `json:"text"`
+}
+
 type RecordingConnection struct {
 	Edges    []*RecordingEdge `json:"edges"`
 	PageInfo *PageInfo        `json:"pageInfo"`
@@ -2030,6 +2049,9 @@ type RecordingConnection struct {
 type RecordingEdge struct {
 	Cursor string     `json:"cursor"`
 	Node   *Recording `json:"node"`
+	// 絞り込みの captionKeywords に当たった字幕 (#2214)。どれかのキーワードを含む字幕を、始まりの順に最大 20 件返す。
+	// captionKeywords で探していなければ空。
+	CaptionMatches []*RecordingCaptionMatch `json:"captionMatches"`
 }
 
 // 理由ごとの、録画の失敗の累計 (設計書 5.5)。録画を消しても減らない。
@@ -2096,6 +2118,11 @@ type RecordingFilter struct {
 	KeywordMatch *match.KeywordMatch `json:"keywordMatch,omitempty"`
 	// どれか 1 つに一致したら除外するキーワード。EXTENDED は指定できない。
 	ExcludeKeywords []*KeywordInput `json:"excludeKeywords,omitempty"`
+	// 自動生成の字幕の文で探すキーワード (#2214)。字幕のない録画は返さない。
+	// ほかの条件と一緒に指定すると、両方に一致する録画を返す。当たった字幕は RecordingEdge.captionMatches に返す。
+	CaptionKeywords []*CaptionKeywordInput `json:"captionKeywords,omitempty"`
+	// captionKeywords の照合のしかた。省くと、すべてに一致する録画を返す。すべてに一致するときも、キーワードは別々の字幕にあってよい。
+	CaptionKeywordMatch *match.KeywordMatch `json:"captionKeywordMatch,omitempty"`
 	// 放送の開始がこの日時以降の録画。
 	Since *time.Time `json:"since,omitempty"`
 	// 放送の開始がこの日時より前の録画。
@@ -3257,6 +3284,61 @@ func (e *CMDetector) UnmarshalJSON(b []byte) error {
 }
 
 func (e CMDetector) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 字幕の種類 (#2211)。
+type CaptionSource string
+
+const (
+	// 録画の音声から自動生成した字幕 (設計書 6.1、#1682)
+	CaptionSourceAuto CaptionSource = "AUTO"
+)
+
+var AllCaptionSource = []CaptionSource{
+	CaptionSourceAuto,
+}
+
+func (e CaptionSource) IsValid() bool {
+	switch e {
+	case CaptionSourceAuto:
+		return true
+	}
+	return false
+}
+
+func (e CaptionSource) String() string {
+	return string(e)
+}
+
+func (e *CaptionSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CaptionSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CaptionSource", str)
+	}
+	return nil
+}
+
+func (e CaptionSource) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *CaptionSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e CaptionSource) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -54,11 +54,77 @@ func (q *Queries) GetRecordingAutoCaptionsSummary(ctx context.Context, recording
 	return i, err
 }
 
+const listRecordingAutoCaptionCues = `-- name: ListRecordingAutoCaptionCues :many
+SELECT recording_id, cues FROM recording_auto_captions WHERE recording_id = ANY($1::uuid[])
+`
+
+type ListRecordingAutoCaptionCuesRow struct {
+	RecordingID uuid.UUID
+	Cues        []byte
+}
+
+// 録画の自動生成した字幕を、録画ごとに返す。字幕の文で探すとき (#2214) に、候補の録画の字幕をまとめて読む。
+func (q *Queries) ListRecordingAutoCaptionCues(ctx context.Context, recordingIds []uuid.UUID) ([]ListRecordingAutoCaptionCuesRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingAutoCaptionCues, recordingIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingAutoCaptionCuesRow{}
+	for rows.Next() {
+		var i ListRecordingAutoCaptionCuesRow
+		if err := rows.Scan(&i.RecordingID, &i.Cues); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordingAutoCaptionsWithoutSearchGrams = `-- name: ListRecordingAutoCaptionsWithoutSearchGrams :many
+SELECT recording_id, generated_at, cues FROM recording_auto_captions
+WHERE search_grams_generated_at IS DISTINCT FROM generated_at
+ORDER BY recording_id
+LIMIT $1
+`
+
+type ListRecordingAutoCaptionsWithoutSearchGramsRow struct {
+	RecordingID uuid.UUID
+	GeneratedAt time.Time
+	Cues        []byte
+}
+
+// 字幕の文で探すための gram (#2214) が、今の字幕から作ったものでない字幕を返す。
+// カラムを足す前に書いた字幕と、カラムを知らない古いバイナリが書き直した字幕である。
+func (q *Queries) ListRecordingAutoCaptionsWithoutSearchGrams(ctx context.Context, maxCount int32) ([]ListRecordingAutoCaptionsWithoutSearchGramsRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingAutoCaptionsWithoutSearchGrams, maxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingAutoCaptionsWithoutSearchGramsRow{}
+	for rows.Next() {
+		var i ListRecordingAutoCaptionsWithoutSearchGramsRow
+		if err := rows.Scan(&i.RecordingID, &i.GeneratedAt, &i.Cues); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertRecordingAutoCaptions = `-- name: UpsertRecordingAutoCaptions :exec
-INSERT INTO recording_auto_captions (recording_id, model, generator_version, generated_at, cues)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO recording_auto_captions (recording_id, model, generator_version, generated_at, cues, search_grams, search_grams_generated_at)
+VALUES ($1, $2, $3, $4, $5, $6::text[], $4)
 ON CONFLICT (recording_id) DO UPDATE SET model = EXCLUDED.model, generator_version = EXCLUDED.generator_version,
-  generated_at = EXCLUDED.generated_at, cues = EXCLUDED.cues
+  generated_at = EXCLUDED.generated_at, cues = EXCLUDED.cues,
+  search_grams = EXCLUDED.search_grams, search_grams_generated_at = EXCLUDED.search_grams_generated_at
 `
 
 type UpsertRecordingAutoCaptionsParams struct {
@@ -67,9 +133,11 @@ type UpsertRecordingAutoCaptionsParams struct {
 	GeneratorVersion int32
 	Now              time.Time
 	Cues             []byte
+	SearchGrams      []string
 }
 
 // 録画の音声から自動生成した字幕を書く (設計書 6.1、#1682)。生成し直したときは、前の字幕と置き換える。
+// 字幕の文で探すための gram (#2214) も、同じ字幕から作って書く。
 func (q *Queries) UpsertRecordingAutoCaptions(ctx context.Context, arg UpsertRecordingAutoCaptionsParams) error {
 	_, err := q.db.Exec(ctx, upsertRecordingAutoCaptions,
 		arg.RecordingID,
@@ -77,6 +145,7 @@ func (q *Queries) UpsertRecordingAutoCaptions(ctx context.Context, arg UpsertRec
 		arg.GeneratorVersion,
 		arg.Now,
 		arg.Cues,
+		arg.SearchGrams,
 	)
 	return err
 }
