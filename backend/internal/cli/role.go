@@ -423,7 +423,11 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			TuningTime: 0, Tick: 0, RetryInterval: 0, ReleaseAfter: 0,
 			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID), DatabaseTimeout: 0, PersistentErrorRetry: 0,
 		})
-	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), recording.NewRecordingLeases(deps.DB), mikanWorkerOptions(deps))
+	recordingOptions := mikanWorkerOptions(deps)
+	// 録画できずに手放したら、取らずにいる期限を登録簿に書き、古いバイナリの mikan が割り振りを任せずに取るようにする (#2200)。
+	// タイムシフトは録画とは別に手放すので、書かない。
+	recordingOptions.OnCooldown = recording.PauseAcquiring(deps.DB, deps.InstanceID)
+	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), recording.NewRecordingLeases(deps.DB), recordingOptions)
 	registerUnreachable(deps, "recording", worker)
 	if !store.HasTimeshiftDir() {
 		return worker.Run(ctx)
@@ -489,5 +493,6 @@ func mikanWorkerOptions(deps *Deps) *recording.WorkerOptions {
 		PollOnly:      deps.Config.Database.Pooler, PollInterval: 0,
 		// ローリング更新で、DB のスキーマがこのバイナリより新しくなったら、新しい mikan に割り振りを任せる (#2195)。
 		DeferAcquire: recording.DeferToCompatiblePeers(deps.DB, deps.Clock, deps.InstanceID, database.LatestVersion()),
+		OnCooldown:   nil,
 	}
 }

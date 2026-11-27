@@ -16,5 +16,7 @@ SET
 SELECT c.min_binary_version, (
   SELECT count(*) FROM instances i
   WHERE i.role = @role AND i.heartbeat_at > @alive_since AND i.id <> @holder AND i.schema_version >= c.min_binary_version
+    -- 割り振りを取らずにいる mikan は、任せる先に数えない (#2200)。
+    AND (i.acquire_paused_until IS NULL OR i.acquire_paused_until <= @now::timestamptz)
 )::bigint AS compatible_peers
 FROM schema_compatibility c WHERE c.id;

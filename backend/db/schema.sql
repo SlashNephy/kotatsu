@@ -34,6 +34,8 @@ CREATE TABLE instances (
   -- このインスタンスのバイナリが知っている、最新のマイグレーションのバージョン (#2195)。DB のスキーマで動かしてよい mikan が
   -- ほかにいるかを確認するのに使う。これを書く前のバイナリは NULL にする。
   schema_version bigint,
+  -- 録画できずに割り振りを手放した mikan が、割り振りを取らずにいる期限 (#2200)。ほかの mikan が、割り振りを任せる先に数えないのに使う。
+  acquire_paused_until timestamptz,
   PRIMARY KEY (id, role)
 );
 

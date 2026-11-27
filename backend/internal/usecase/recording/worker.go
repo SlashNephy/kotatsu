@@ -84,6 +84,9 @@ type WorkerOptions struct {
 	PollInterval time.Duration
 	// DeferAcquire は、割り振りを取らずに、ほかの mikan に任せるかどうかを返す (#2195)。nil なら、いつも取る。
 	DeferAcquire DeferFunc
+	// OnCooldown は、録画できずに割り振りを手放し、until まで割り振りを取らずにいるときに呼ぶ (#2200)。nil なら呼ばない。
+	// ほかの mikan が、取らずにいる mikan を、割り振りを任せる先に数えないよう、登録簿に書くのに使う。
+	OnCooldown func(ctx context.Context, until time.Time) error
 }
 
 // DeferFunc は、割り振りを取らずに、ほかの mikan に任せるかどうかを返す。
@@ -116,7 +119,7 @@ func NewWorker(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, logger *sl
 	o := WorkerOptions{
 		LeaseTTL: DefaultLeaseTTL, RenewInterval: DefaultRenewInterval, AcquireInterval: DefaultAcquireInterval,
 		HandoverTimeout: DefaultHandoverTimeout, ReleaseCooldown: DefaultReleaseCooldown, DatabaseClock: false, PollOnly: false, PollInterval: notify.DefaultPollInterval,
-		DeferAcquire: nil,
+		DeferAcquire: nil, OnCooldown: nil,
 	}
 	if opts != nil {
 		o = WorkerOptions{
@@ -129,6 +132,7 @@ func NewWorker(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, logger *sl
 			PollOnly:        opts.PollOnly,
 			PollInterval:    orDefault(opts.PollInterval, o.PollInterval),
 			DeferAcquire:    opts.DeferAcquire,
+			OnCooldown:      opts.OnCooldown,
 		}
 	}
 
@@ -281,10 +285,12 @@ func (w *Worker) peers(ctx context.Context) (int, error) {
 // 下限を満たすバイナリの mikan がほかに動いていれば、割り振りを取らずに任せる DeferFunc を返す (#2195、設計書 11.4)。
 // ローリング更新で、古いバイナリが新しいスキーマで録画を引き継ぐと、消えたカラムを読んで失敗することがある。
 // 下限を満たす mikan がいなければ、取る。任せる先がなければ、古いバイナリでも録るほうがよい。
+// 録画できずに割り振りを手放し、割り振りを取らずにいる mikan も、任せる先に数えない (#2200)。
 func DeferToCompatiblePeers(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, latest int64) DeferFunc {
 	return func(ctx context.Context) (bool, error) {
+		now := clk.Now()
 		row, err := sqlc.New(pool).GetAcquireCompatibility(ctx, sqlc.GetAcquireCompatibilityParams{
-			Role: mikanRole, AliveSince: clk.Now().Add(-registry.AliveTTL), Holder: holder,
+			Role: mikanRole, AliveSince: now.Add(-registry.AliveTTL), Holder: holder, Now: now,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return false, nil
@@ -294,6 +300,20 @@ func DeferToCompatiblePeers(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUI
 		}
 
 		return latest < row.MinBinaryVersion && row.CompatiblePeers > 0, nil
+	}
+}
+
+// PauseAcquiring は、mikan holder が until まで割り振りを取らずにいることを、登録簿に書く関数を返す (#2200)。
+// WorkerOptions.OnCooldown に渡す。
+func PauseAcquiring(pool *pgxpool.Pool, holder uuid.UUID) func(ctx context.Context, until time.Time) error {
+	return func(ctx context.Context, until time.Time) error {
+		if err := sqlc.New(pool).SetInstanceAcquirePausedUntil(ctx, sqlc.SetInstanceAcquirePausedUntilParams{
+			PausedUntil: &until, ID: holder, Role: mikanRole,
+		}); err != nil {
+			return fmt.Errorf("failed to record the acquire pause: %w", err)
+		}
+
+		return nil
 	}
 }
 
@@ -530,6 +550,12 @@ func (w *Worker) release(ctx context.Context, assignment *Assignment, logger *sl
 	defer w.cooldownMu.Unlock()
 	until := w.clock.Now().Add(w.opts.ReleaseCooldown)
 	w.cooldownUntil.Store(&until)
+	// 手放す前に、取らずにいる期限を書く。手放した割り振りを、古いバイナリの mikan がこの mikan に任せて取らずにいないようにする (#2200)。
+	if w.opts.OnCooldown != nil {
+		if err := w.opts.OnCooldown(ctx, until); err != nil {
+			logger.WarnContext(ctx, "failed to record that this mikan is not acquiring assignments", slog.Any("error", err))
+		}
+	}
 	err := w.leases.ReleaseUnrecordable(ctx, w.clock.Now(), assignment, w.holder)
 	if err != nil {
 		logger.WarnContext(ctx, "failed to release the assignment", slog.Any("error", err))

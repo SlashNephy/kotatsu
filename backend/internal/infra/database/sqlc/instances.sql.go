@@ -57,7 +57,7 @@ func (q *Queries) HeartbeatInstance(ctx context.Context, arg HeartbeatInstancePa
 }
 
 const listAliveInstances = `-- name: ListAliveInstances :many
-SELECT id, role, address, started_at, heartbeat_at, schema_version FROM instances
+SELECT id, role, address, started_at, heartbeat_at, schema_version, acquire_paused_until FROM instances
 WHERE role = $1 AND heartbeat_at > $2
 ORDER BY started_at, id
 `
@@ -83,6 +83,7 @@ func (q *Queries) ListAliveInstances(ctx context.Context, arg ListAliveInstances
 			&i.StartedAt,
 			&i.HeartbeatAt,
 			&i.SchemaVersion,
+			&i.AcquirePausedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -95,7 +96,7 @@ func (q *Queries) ListAliveInstances(ctx context.Context, arg ListAliveInstances
 }
 
 const listInstances = `-- name: ListInstances :many
-SELECT id, role, address, started_at, heartbeat_at, schema_version FROM instances ORDER BY role, started_at, id
+SELECT id, role, address, started_at, heartbeat_at, schema_version, acquire_paused_until FROM instances ORDER BY role, started_at, id
 `
 
 // 止まった直後の行も含めて、すべてのインスタンスを返す。システムの状態の画面で、止まったインスタンスも示すため。
@@ -115,6 +116,7 @@ func (q *Queries) ListInstances(ctx context.Context) ([]Instance, error) {
 			&i.StartedAt,
 			&i.HeartbeatAt,
 			&i.SchemaVersion,
+			&i.AcquirePausedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -124,6 +126,22 @@ func (q *Queries) ListInstances(ctx context.Context) ([]Instance, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setInstanceAcquirePausedUntil = `-- name: SetInstanceAcquirePausedUntil :exec
+UPDATE instances SET acquire_paused_until = $1 WHERE id = $2 AND role = $3
+`
+
+type SetInstanceAcquirePausedUntilParams struct {
+	PausedUntil *time.Time
+	ID          uuid.UUID
+	Role        string
+}
+
+// 録画できずに割り振りを手放した mikan が、割り振りを取らずにいる期限を書く (#2200)。
+func (q *Queries) SetInstanceAcquirePausedUntil(ctx context.Context, arg SetInstanceAcquirePausedUntilParams) error {
+	_, err := q.db.Exec(ctx, setInstanceAcquirePausedUntil, arg.PausedUntil, arg.ID, arg.Role)
+	return err
 }
 
 const upsertInstance = `-- name: UpsertInstance :exec
