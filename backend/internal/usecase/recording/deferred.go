@@ -42,10 +42,13 @@ func (c *sessionCache) refresh(ctx context.Context, r *Recorder, reservation *sq
 	}
 }
 
-// cachedSettings は、録画設定を読む。DB に届かなければ、cache に残る、前に読めた録画設定を返す。
+// cachedSettings は、録画設定を読む。読めなければ、cache に残る、前に読めた録画設定を返す (#1073)。
+// 前にも読めていなければ、Go の既定値に予約自体の上書きを重ねた設定を返す。録画設定を読めないのは、DB に届かないときに限らない。
+// ローリング更新で、新しいスキーマが古いバイナリの読むカラムを消したときも、読めない (#2195)。録画設定を読めないだけで録画を失わないよう、
+// どちらでも書き始める。
 func (r *Recorder) cachedSettings(
-	ctx context.Context, reservation *sqlc.GetReservationForRecordingRow, cache *sessionCache,
-) (*domain.RecordingSettings, error) {
+	ctx context.Context, logger *slog.Logger, reservation *sqlc.GetReservationForRecordingRow, cache *sessionCache,
+) *domain.RecordingSettings {
 	settings, err := r.settings(ctx, reservation)
 	switch {
 	case err == nil:
@@ -53,29 +56,55 @@ func (r *Recorder) cachedSettings(
 			cache.settings = settings
 		}
 
-		return settings, nil
-	case database.IsUnavailable(err) && cache != nil && cache.settings != nil:
-		return cache.settings, nil
+		return settings
+	case cache != nil && cache.settings != nil:
+		if !database.IsUnavailable(err) {
+			logger.WarnContext(ctx, "failed to read the recording settings; using the settings read before", slog.Any("error", err))
+		}
+
+		return cache.settings
 	default:
-		return nil, err
+		logger.WarnContext(ctx, "failed to read the recording settings; using the built-in defaults with the reservation's own settings", slog.Any("error", err))
+
+		return fallbackSettings(ctx, logger, reservation)
 	}
 }
 
-// cachedPools は、保存先プールの設定を読み、録画を書く候補のプールを返す。DB に届かなければ、cache に残る設定を使う。
-func (r *Recorder) cachedPools(ctx context.Context, mounted []string, poolID string, cache *sessionCache) ([]*kago.Pool, error) {
+// fallbackSettings は、録画設定を DB から読めないときに使う、Go の既定値に予約自体の上書きを重ねた設定を返す (#2195)。
+// 予約の上書きは予約の行にあるので、DB を読まずに重ねられる。読めなければ、Go の既定値だけにする。
+func fallbackSettings(ctx context.Context, logger *slog.Logger, reservation *sqlc.GetReservationForRecordingRow) *domain.RecordingSettings {
+	settings := domain.DefaultRecordingSettings()
+	overrides, err := domain.DecodeOverrides(reservation.Settings)
+	if err != nil {
+		logger.WarnContext(ctx, "failed to decode the reservation's own settings; using the built-in defaults", slog.Any("error", err))
+
+		return settings
+	}
+
+	return settings.Resolve(overrides)
+}
+
+// cachedPools は、保存先プールの設定を読み、録画を書く候補のプールを返す。読めなければ、cache に残る設定を使う (#1073)。
+// 前にも読めていなければ、マウントしているプールを、優先度と残す空きを既定値 (0) にして使う。録画設定と同じく、
+// DB に届かないときに限らず、プールの設定を読めないだけで録画を失わないようにする (#2195)。
+func (r *Recorder) cachedPools(ctx context.Context, logger *slog.Logger, mounted []string, poolID string, cache *sessionCache) []*kago.Pool {
 	rows, err := sqlc.New(r.pool).ListStoragePools(ctx)
 	switch {
 	case err == nil:
 		if cache != nil {
 			cache.pools = rows
 		}
-	case database.IsUnavailable(err) && cache != nil && cache.pools != nil:
+	case cache != nil && cache.pools != nil:
+		if !database.IsUnavailable(err) {
+			logger.WarnContext(ctx, "failed to list the storage pools; using the pool settings read before", slog.Any("error", err))
+		}
 		rows = cache.pools
 	default:
-		return nil, fmt.Errorf("failed to list storage pools: %w", err)
+		logger.WarnContext(ctx, "failed to list the storage pools; using the mounted pools with the default settings", slog.Any("error", err))
+		rows = []sqlc.StoragePool{}
 	}
 
-	return poolsFrom(rows, mounted, poolID), nil
+	return poolsFrom(rows, mounted, poolID)
 }
 
 // pendingWrite は、DB に届くようになってから書く、録画の記録。recordingID は、そのときの録画の ID。
