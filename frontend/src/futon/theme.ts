@@ -65,6 +65,9 @@ export const theme = createTheme({
   defaultRadius: 'lg',
   // OS で動きを減らす設定にしていれば、Mantine の部品の動きを止める (設計書 10.2)。
   respectReducedMotion: true,
+  // 押せる部品 (リンク、ボタン、チェックボックスなど) の上では、ポインターのカーソルにする。
+  // Mantine の既定は default なので、Anchor のリンクの上でも矢印のままになる。
+  cursorType: 'pointer',
   // 本文と見出しは、同梱した丸ゴシック体にする。本文の M PLUS Rounded 1c は、数字の幅が揃うので、日時の桁も揃う。
   fontFamily:
     '"M PLUS Rounded 1c", system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif',

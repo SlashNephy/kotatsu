@@ -81,7 +81,6 @@ func serve(ctx context.Context, logger *slog.Logger, opts *options) error {
 	}
 	defer provider.Close()
 	// 認可のエンドポイントで、その場でログインしたことにするので、認証した時刻は発行した時刻にする。
-	// 載せないと、Kotatsu はいつ認証したか分からず、直近に認証したものとして扱わない (#1013)。
 	provider.AuthTimeNow = true
 	defaults := &identity{Subject: "e2e-oidc", Username: "e2e-oidc", Name: "E2E の OIDC ユーザー", Groups: opts.groups, OmitGroups: false}
 	defaults.apply(provider)

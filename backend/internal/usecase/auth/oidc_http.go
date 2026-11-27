@@ -241,8 +241,6 @@ func oidcErrorReason(err error) string {
 		return "oidc_username_taken"
 	case errors.Is(err, ErrOIDCUnavailable), errors.Is(err, ErrOIDCDisabled):
 		return "oidc_unavailable"
-	case errors.Is(err, ErrOIDCStaleAuthentication):
-		return "oidc_reauth_stale"
 	case errors.Is(err, ErrOIDCReauthenticationMismatch):
 		return "oidc_reauth_mismatch"
 	case errors.Is(err, ErrOIDCIdentityLinked):

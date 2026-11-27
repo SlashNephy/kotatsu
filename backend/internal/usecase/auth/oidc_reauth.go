@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	// oidcAuthTimeLeeway は、IdP と Kotatsu の時計のずれとして、ID トークンの auth_time が、再認証を始めた日時より前でも許す幅。
-	oidcAuthTimeLeeway = time.Minute
 	// maxReturnToLength は、再認証を終えたときに戻すパスの長さの上限。
 	maxReturnToLength = 2048
 )
@@ -23,9 +21,6 @@ const (
 var (
 	// ErrOIDCNotLinked は、ログイン中のユーザーが、IdP のユーザーと紐付いていないので、IdP で再認証できないことを表す。
 	ErrOIDCNotLinked = errors.New("the user is not linked to the OIDC provider")
-	// ErrOIDCStaleAuthentication は、IdP が auth_time を返さないか、再認証を始めるより前の認証の日時を返したことを表す。
-	// IdP が、もう一度認証させずに、前のログインで ID トークンを発行したかもしれないので、再認証として扱わない。
-	ErrOIDCStaleAuthentication = errors.New("the OIDC provider did not authenticate the user again")
 	// ErrOIDCReauthenticationMismatch は、再認証を始めたセッションと、戻ってきたリクエストのセッションか、
 	// IdP で認証したユーザーと、ログイン中のユーザーが違うことを表す。
 	ErrOIDCReauthenticationMismatch = errors.New("the OIDC reauthentication does not match the session")
@@ -41,7 +36,7 @@ type OIDCReauthentication struct {
 	ReturnTo string
 }
 
-// BeginReauthentication は、ログイン中のユーザーに、IdP でもう一度認証させる再認証を始め、IdP の認可のエンドポイントの URL を返す
+// BeginReauthentication は、ログイン中のユーザーの、IdP での再認証を始め、IdP の認可のエンドポイントの URL を返す
 // (設計書 9.5)。パスワードもパスキーもない、OIDC だけでログインするユーザーが、重要な操作の前に再認証するのに使う。
 // returnTo は、再認証を終えたときに戻す、画面のパス。空なら / にする。
 func (o *OIDC) BeginReauthentication(
@@ -65,17 +60,13 @@ func (o *OIDC) BeginReauthentication(
 	return o.begin(ctx, db, client, &oidcSessionRequest{sessionID: principal.SessionID, returnTo: returnTo, link: false})
 }
 
-// reauthenticate は、IdP で認証し直したユーザーが、再認証を始めたセッションのユーザーであることを確認し、セッションの認証の日時を更新する。
+// reauthenticate は、IdP から戻ってきたユーザーが、再認証を始めたセッションのユーザーであることを確認し、セッションの認証の日時を更新する。
 func (o *OIDC) reauthenticate(
 	ctx context.Context, db Database, row *sqlc.OidcLogin, claims *oidcClaims, principal *Principal, client *ClientInfo,
 ) (*OIDCReauthentication, error) {
 	// 再認証を始めたセッションのまま戻ってきたかを確認する。ほかの端末やセッションで、途中の状態を使わせない。
 	if principal == nil || principal.SessionID != *row.SessionID {
 		return nil, ErrOIDCReauthenticationMismatch
-	}
-	authTime, ok := authTimeOf(claims.all)
-	if !ok || authTime.Before(row.CreatedAt.Add(-oidcAuthTimeLeeway)) {
-		return nil, ErrOIDCStaleAuthentication
 	}
 	now := o.clock.Now()
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
@@ -107,16 +98,6 @@ func (o *OIDC) reauthenticate(
 	}
 
 	return &OIDCReauthentication{AuthenticatedAt: now, ReturnTo: returnTo}, nil
-}
-
-// authTimeOf は、ID トークンの auth_time (ユーザーが IdP で認証した UNIX 時刻) を返す。なければ false を返す。
-func authTimeOf(claims map[string]any) (time.Time, bool) {
-	value, ok := claims["auth_time"].(float64)
-	if !ok || value <= 0 {
-		return time.Time{}, false
-	}
-
-	return time.Unix(int64(value), 0), true
 }
 
 // normalizeReturnTo は、再認証を終えたときに戻すパスを確認する。ほかのサイトに戻させないよう、同じオリジンの絶対パスに限る。

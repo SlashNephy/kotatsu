@@ -105,11 +105,6 @@ describe('oidcErrorMessage', () => {
       want: 'IdPに接続できませんでした。時間をおいてやり直してください',
     },
     {
-      name: 'IdP が、もう一度認証させなかった',
-      reason: 'oidc_reauth_stale',
-      want: 'IdPで、もう一度認証したことを確認できませんでした。IdPにもう一度ログインしてから、やり直してください',
-    },
-    {
       name: 'ログイン中のユーザーと違うアカウントでの再認証',
       reason: 'oidc_reauth_mismatch',
       want: 'ログイン中のユーザーとは違うアカウントで認証されました。同じアカウントで、やり直してください',

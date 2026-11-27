@@ -82,7 +82,8 @@ func (f *oidcReauthFixture) authenticatedAt(t *testing.T) time.Time {
 }
 
 // TestOIDCReauthentication は、OIDC で紐付けたユーザーが、ログイン中のセッションのまま、IdP でもう一度認証して、
-// セッションの認証の日時を更新できることを確認する (設計書 9.5)。IdP が認証し直したと言えないときは、再認証として扱わない。
+// セッションの認証の日時を更新できることを確認する (設計書 9.5)。IdP が資格情報を入れさせずに IdP のセッションのまま戻しても、
+// 再認証として受け入れる。認証し直させるかは IdP の設定に任せる。
 func TestOIDCReauthentication(t *testing.T) {
 	t.Parallel()
 
@@ -99,22 +100,14 @@ func TestOIDCReauthentication(t *testing.T) {
 			prepare: func(f *oidcReauthFixture) { f.idp.Claims = map[string]any{authTime: f.clock.Now().Unix()} },
 		},
 		{
-			name: "IdP と時計が少しずれている",
-			prepare: func(f *oidcReauthFixture) {
-				f.idp.Claims = map[string]any{authTime: f.clock.Now().Add(-30 * time.Second).Unix()}
-			},
-		},
-		{
 			name:    "IdP が auth_time を返さない",
 			prepare: func(f *oidcReauthFixture) { f.idp.Claims = map[string]any{} },
-			wantErr: auth.ErrOIDCStaleAuthentication,
 		},
 		{
-			name: "IdP が、前のログインの auth_time を返す",
+			name: "IdP が認証し直させずに、前のログインの auth_time を返す",
 			prepare: func(f *oidcReauthFixture) {
-				f.idp.Claims = map[string]any{authTime: f.clock.Now().Add(-5 * time.Minute).Unix()}
+				f.idp.Claims = map[string]any{authTime: f.clock.Now().Add(-time.Hour).Unix()}
 			},
-			wantErr: auth.ErrOIDCStaleAuthentication,
 		},
 		{
 			name: "IdP で、ほかのユーザーとして認証した",
@@ -160,7 +153,7 @@ func TestOIDCReauthentication(t *testing.T) {
 
 			result, returnTo, err := f.reauthenticate(t, principal)
 			assert.Equal(t, settingsPath, returnTo)
-			// IdP には、ログイン中でも、もう一度認証させる。
+			// IdP にはログイン中でももう一度認証するよう求める。
 			assert.Equal(t, "login", f.idp.LastAuthorization.Get("prompt"))
 			assert.Equal(t, "0", f.idp.LastAuthorization.Get("max_age"))
 			if tt.wantErr != nil {
@@ -296,15 +289,9 @@ func TestOIDCReauthenticationHandlers(t *testing.T) {
 		return server.URL + u.Path + "?" + u.RawQuery
 	}
 
-	// IdP が前のログインの auth_time を返したら、始めたときのパスに、理由を付けて戻す。
+	// IdP が認証し直させずに、前のログインの auth_time を返しても、セッションの認証の日時を更新し、始めたときのパスに戻す。
 	f.idp.Claims = map[string]any{authTime: f.clock.Now().Add(-time.Hour).Unix()}
 	status, location, _ := do(http.MethodGet, begin(), "")
-	assert.Equal(t, http.StatusSeeOther, status)
-	assert.Equal(t, "/settings/security?error=oidc_reauth_stale&tab=passkeys", location)
-
-	// IdP で認証し直したら、セッションの認証の日時を更新し、始めたときのパスに戻す。
-	f.idp.Claims = map[string]any{authTime: f.clock.Now().Unix()}
-	status, location, _ = do(http.MethodGet, begin(), "")
 	assert.Equal(t, http.StatusSeeOther, status)
 	assert.Equal(t, "/settings/security?tab=passkeys", location)
 	assert.WithinDuration(t, f.clock.Now(), f.authenticatedAt(t), time.Second)
