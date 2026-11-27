@@ -255,7 +255,7 @@ func dramaRecordMessage(kind domain.NotificationKind, escape func(string) string
 // lineupServicesShown は、局のラインナップの通知で、名前を並べる局の数の上限。超えた分は「ほか N 局」とまとめる。
 const lineupServicesShown = 5
 
-// lineupChangedMessage は、放送の局のラインナップが、チューナーサーバーのチャンネルと食い違ったことを通知する文を作る (#1519)。
+// lineupChangedMessage は、放送局のラインナップが、チューナーサーバーのチャンネルと食い違ったことを通知する文を作る (#1519)。
 // 衛星はネットワーク全体の変化を、地上波 (kind が GR) はチャンネル channel で受かる局の食い違いを書く。数が 0 の項目は書かない。
 // 新しい局と終わった局の並び (addedServices、removedServices) があれば局を書き、なければ数を書く (#2034)。
 // 並びを載せる前に届いた通知も、数で読めるようにするためである。
