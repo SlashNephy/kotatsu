@@ -7,6 +7,9 @@
 //     ローリング更新で新しいスキーマが古いバイナリの読むカラムを消したときと同じエラー (42703) を返させる。
 //   - outdated-mikan: 古いバイナリの mikan と、新しいスキーマの DB が重なる。古いバイナリ (最新のマイグレーションを知らない) の mikan は、
 //     新しいバイナリの mikan がいれば引き継ぎを受けず、新しいバイナリの mikan が引き継ぐ。
+//   - crashed-mikan: 録っている mikan が、引き継がずに落ちる (SIGKILL)。ほかの mikan が、リースが切れてから取り、続きを録る。
+//     落ちてから取るまでの間は、途切れた区間になる。
+//   - database-error-at-end: 予定の終わりをまたいで、録画を終える記録が DB のエラーで書けない。録画を失敗にせず、書けるようになってから終える。
 //
 // 開発と検証にだけ使うエントリーポイントなので、配布するものには入れない (設計書 11.5)。
 package main
@@ -70,7 +73,7 @@ func run() int {
 	flag.StringVar(&opts.oldKotatsu, "old-kotatsu", "", "kotatsu binary that does not know the latest migration (for outdated-mikan)")
 	flag.StringVar(&opts.databaseURL, "database-url", os.Getenv("KOTATSU_DATABASE_URL"), "PostgreSQL URL where the test may create databases")
 	flag.StringVar(&opts.tsPath, "ts", "backend/testdata/ts/test.ts", "TS file the fake tuner server streams")
-	flag.StringVar(&scenarios, "scenario", "unreadable-settings,outdated-mikan", "comma-separated scenarios to run")
+	flag.StringVar(&scenarios, "scenario", "unreadable-settings,outdated-mikan,crashed-mikan,database-error-at-end", "comma-separated scenarios to run")
 	flag.StringVar(&opts.work, "work", "", "directory for the logs and the recordings (a temporary directory when empty)")
 	flag.Parse()
 	opts.scenarios = strings.Split(scenarios, ",")
@@ -132,6 +135,10 @@ func scenarioOf(name string) (func(ctx context.Context, s *stack) error, bool) {
 		return unreadableSettings, true
 	case "outdated-mikan":
 		return outdatedMikan, true
+	case "crashed-mikan":
+		return crashedMikan, true
+	case "database-error-at-end":
+		return databaseErrorAtEnd, true
 	default:
 		return nil, false
 	}
@@ -251,6 +258,78 @@ func outdatedMikan(ctx context.Context, s *stack) error {
 	}
 
 	return s.waitForCompletion(ctx, rec)
+}
+
+// crashedMikan は、録っている mikan が引き継がずに落ちても、ほかの mikan がリースが切れてから取り、続きを録ることを確認する。
+// 落ちてから取るまでの間は途切れた区間になるので、録画は一部のみ (partial) になる。
+func crashedMikan(ctx context.Context, s *stack) error {
+	if err := s.migrate(ctx, s.opts.kotatsu); err != nil {
+		return err
+	}
+	if _, err := s.start(ctx, s.opts.kotatsu, "neko"); err != nil {
+		return err
+	}
+	first, err := s.start(ctx, s.opts.kotatsu, "mikan")
+	if err != nil {
+		return err
+	}
+	second, err := s.start(ctx, s.opts.kotatsu, "mikan")
+	if err != nil {
+		return err
+	}
+	rec, err := s.reserveAndRecord(ctx)
+	if err != nil {
+		return err
+	}
+	holder, other := first, second
+	if rec.holder == second.address {
+		holder, other = second, first
+	}
+	s.logger.InfoContext(ctx, "crashing the mikan that records", slog.String("mikan", holder.name))
+	if err := holder.crash(); err != nil {
+		return err
+	}
+	if err := s.waitForTakeOver(ctx, rec, other); err != nil {
+		return err
+	}
+
+	return s.waitForEnd(ctx, rec, []string{"partial"}, 2)
+}
+
+// databaseErrorAtEnd は、予定の終わりをまたいで、録画を終える記録が DB のエラーで書けなくても、録画を失敗にせず、
+// 書けるようになってから完了にすることを確認する。
+func databaseErrorAtEnd(ctx context.Context, s *stack) error {
+	if err := s.migrate(ctx, s.opts.kotatsu); err != nil {
+		return err
+	}
+	if _, err := s.start(ctx, s.opts.kotatsu, "neko"); err != nil {
+		return err
+	}
+	if _, err := s.start(ctx, s.opts.kotatsu, "mikan"); err != nil {
+		return err
+	}
+	rec, err := s.reserveAndRecord(ctx)
+	if err != nil {
+		return err
+	}
+	// 予定の終わり (終わりのマージンを含む) の前に、録画を終えるときに書く途切れた区間のカラムを改名する。
+	if err := sleep(ctx, time.Until(rec.endAt.Add(-5*time.Second))); err != nil {
+		return err
+	}
+	if err := s.exec(ctx, "ALTER TABLE recordings RENAME COLUMN gaps TO gaps_e2e"); err != nil {
+		return err
+	}
+	s.logger.InfoContext(ctx, "made the recordings unwritable across the planned end")
+	// 予定の終わりの後も、DB のエラーの間 (やり直しの上限は 5 分) は、録画を失敗にしない。
+	if err := sleep(ctx, time.Until(rec.endAt.Add(45*time.Second))); err != nil {
+		return err
+	}
+	if err := s.exec(ctx, "ALTER TABLE recordings RENAME COLUMN gaps_e2e TO gaps"); err != nil {
+		return err
+	}
+	s.logger.InfoContext(ctx, "made the recordings writable again")
+
+	return s.waitForEnd(ctx, rec, []string{"completed", "completed_with_errors"}, 1)
 }
 
 // stack は、1 つの場面の、DB、モックのチューナーサーバー、kotatsu のプロセス。
@@ -425,6 +504,15 @@ func freeAddress(ctx context.Context) (string, error) {
 func (p *process) terminate() error {
 	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
 		return fmt.Errorf("failed to stop %s: %w", p.name, err)
+	}
+
+	return nil
+}
+
+// crash は、プロセスを SIGKILL で止める。引き継ぎも登録簿から外れることもせずに、落ちたことにする。
+func (p *process) crash() error {
+	if err := p.cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		return fmt.Errorf("failed to kill %s: %w", p.name, err)
 	}
 
 	return nil
@@ -621,8 +709,14 @@ func (s *stack) ensureNotHeldBy(ctx context.Context, rec *recording, p *process,
 	return nil
 }
 
-// waitForCompletion は、予定の終わりの後に録画が終わるまで待ち、失敗になっていないこと、引き継いで分かれたセグメントがあることを確認する。
+// waitForCompletion は、予定の終わりの後に録画が終わるまで待ち、完了 (completed か completed_with_errors) になったこと、
+// 引き継いで分かれたセグメントがあることを確認する。
 func (s *stack) waitForCompletion(ctx context.Context, rec *recording) error {
+	return s.waitForEnd(ctx, rec, []string{"completed", "completed_with_errors"}, 2)
+}
+
+// waitForEnd は、予定の終わりの後に録画が終わるまで待ち、状態が states のどれかで、セグメントが minSegments 以上あることを確認する。
+func (s *stack) waitForEnd(ctx context.Context, rec *recording, states []string, minSegments int) error {
 	var final *recordingState
 	err := s.eventually(ctx, "the recording finishes", time.Until(rec.endAt)+stepTimeout, func(ctx context.Context) (bool, error) {
 		state, err := s.state(ctx, rec)
@@ -636,10 +730,10 @@ func (s *stack) waitForCompletion(ctx context.Context, rec *recording) error {
 	if err != nil {
 		return err
 	}
-	if !slices.Contains([]string{"completed", "completed_with_errors"}, final.state) {
+	if !slices.Contains(states, final.state) {
 		return fmt.Errorf("the recording ended as %s (%s)", final.state, final.failureReason)
 	}
-	if final.segments < 2 {
+	if final.segments < minSegments {
 		return fmt.Errorf("the recording has %d segments; the mikan that took over did not record", final.segments)
 	}
 	s.logger.InfoContext(ctx, "the recording finished", slog.String("state", final.state), slog.Int("segments", final.segments))
