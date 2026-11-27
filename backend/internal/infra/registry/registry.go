@@ -58,7 +58,7 @@ func (r *Registry) Register(ctx context.Context, role, address string) error {
 		Role:    role,
 		Address: address,
 		Now:     r.clock.Now(),
-		// DB のスキーマで動かしてよい mikan がほかにいるかを、ほかのインスタンスが確かめるのに使う (#2195)。
+		// DB のスキーマで動かしてよい mikan がほかにいるかを、ほかのインスタンスが確認するのに使う (#2195)。
 		SchemaVersion: new(database.LatestVersion()),
 	}); err != nil {
 		return fmt.Errorf("failed to register the %s instance: %w", role, err)
