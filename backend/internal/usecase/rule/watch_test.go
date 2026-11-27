@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 )
 
@@ -448,4 +449,60 @@ func TestEngineWatchRulesPruneDismissals(t *testing.T) {
 	remaining, err = pgx.CollectRows(rows, pgx.RowTo[int64])
 	require.NoError(t, err)
 	assert.Equal(t, []int64{4}, remaining)
+}
+
+// TestEngineMatchesProgramsInBatches は、照合の対象の番組を何件ずつまとめて照合しても、作る予約と視聴予約、外す視聴予約が変わらないことを確認する (#2226)。
+func TestEngineMatchesProgramsInBatches(t *testing.T) {
+	t.Parallel()
+
+	const programs = 50
+	start := testNow().Add(5 * time.Hour)
+	extra := make([]*faketuner.Program, 0, programs)
+	for i := range programs {
+		eventID := 1000 + i
+		extra = append(extra, &faketuner.Program{
+			ID: faketuner.ProgramID(grNetworkID, grServiceID, eventID), EventID: eventID, ServiceID: grServiceID, NetworkID: grNetworkID,
+			StartAt: start.Add(time.Duration(i) * time.Minute).UnixMilli(), Duration: time.Minute.Milliseconds(), IsFree: true,
+			Name: fmt.Sprintf("分けて読む番組 %d", i), Description: "",
+		})
+	}
+	wantReserved := map[int64]bool{}
+	wantWatch := map[int64]bool{4: true, 5: true}
+	for i := 0; i < programs; i += 7 {
+		wantReserved[int64(1000+i)] = true
+		wantWatch[int64(1000+i)] = true
+	}
+
+	tests := []struct {
+		name      string
+		batchSize int
+	}{
+		{name: "1 件ずつ", batchSize: 1},
+		{name: "割り切れない件数ずつ", batchSize: 7},
+		{name: "全部を一度に", batchSize: 10_000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newWatchFixture(t, extra...)
+			rule.SetMatchBatchSize(f.engine, tt.batchSize)
+			f.createRule(t, `^分けて読む番組 (0|7|14|21|28|35|42|49)$`, nil)
+			created := f.createWatchRule(t, f.alice, `(テスト番組 (4|5)|^分けて読む番組 (0|7|14|21|28|35|42|49))$`)
+
+			result := f.run(t)
+			assert.Equal(t, len(wantReserved), result.Created)
+			assert.Equal(t, wantReserved, f.reserved(t))
+			assert.Equal(t, len(wantWatch), result.WatchCreated)
+			assert.Equal(t, wantWatch, f.watchReserved(t, f.alice))
+
+			// 視聴ルールを無効にすると、どのまとまりで照合した番組の視聴予約も外す。
+			_, err := watch.SetRuleEnabled(t.Context(), f.pool, f.clock, f.alice, created.ID, false)
+			require.NoError(t, err)
+			result = f.run(t)
+			assert.Equal(t, len(wantWatch), result.WatchDeleted)
+			assert.Empty(t, f.watchReserved(t, f.alice))
+			assert.Equal(t, wantReserved, f.reserved(t))
+		})
+	}
 }

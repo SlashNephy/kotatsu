@@ -25,7 +25,7 @@ type compiledWatchRule struct {
 
 // watchProgram は、視聴ルールに一致した番組と、一致した視聴ルール。
 type watchProgram struct {
-	row   sqlc.ListMatchableProgramsRow
+	row   matchableProgram
 	rules []*compiledWatchRule
 }
 
@@ -68,12 +68,12 @@ func (e *Engine) enabledWatchRules(ctx context.Context, tx pgx.Tx, result *Resul
 //     手で付けた視聴予約と、視聴ルールを消して手で付けたものと同じになった視聴予約は消さない。
 //   - 視聴予約を付け外ししたユーザーには、ユーザーの設定の変更として、ほかの端末に通知する。
 //
-// rows は、照合の対象にした番組。
+// matchable は、照合の対象にした番組。
 func (e *Engine) applyWatch(
 	ctx context.Context,
 	tx pgx.Tx,
 	now time.Time,
-	rows []sqlc.ListMatchableProgramsRow,
+	matchable map[programKey]bool,
 	matched map[programKey]*watchProgram,
 	skippedUsers map[uuid.UUID]bool,
 	result *Result,
@@ -107,7 +107,7 @@ func (e *Engine) applyWatch(
 		}
 	}
 
-	deleted, err := e.removeUnmatchedWatch(ctx, q, now, rows, byUser, skippedUsers, result)
+	deleted, err := e.removeUnmatchedWatch(ctx, q, now, matchable, byUser, skippedUsers, result)
 	if err != nil {
 		return err
 	}
@@ -136,15 +136,11 @@ func (e *Engine) removeUnmatchedWatch(
 	ctx context.Context,
 	q *sqlc.Queries,
 	now time.Time,
-	rows []sqlc.ListMatchableProgramsRow,
+	matchable map[programKey]bool,
 	byUser map[uuid.UUID]map[programKey]*watchProgram,
 	skippedUsers map[uuid.UUID]bool,
 	result *Result,
 ) (map[uuid.UUID]bool, error) {
-	matchable := make(map[programKey]bool, len(rows))
-	for _, row := range rows {
-		matchable[programKey{serviceID: row.ServiceID, eventID: row.EventID}] = true
-	}
 	existing, err := q.ListRuleWatchReservations(ctx, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the watch reservations made by watch rules: %w", err)

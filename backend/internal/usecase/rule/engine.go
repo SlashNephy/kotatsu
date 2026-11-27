@@ -27,6 +27,8 @@ import (
 const (
 	// serviceIDBase は、Mirakurun のサービス ID を組み立てる基数 (networkId × 100000 + serviceId)。
 	serviceIDBase = 100_000
+	// defaultMatchBatchSize は、照合の対象の番組をまとめて照合する件数 (#2226)。
+	defaultMatchBatchSize = 5000
 	// relatedShared は、同じイベントを複数のサービスで放送する関係 (イベント共有)。
 	relatedShared = "shared"
 	day           = 24 * time.Hour
@@ -61,11 +63,13 @@ type Engine struct {
 	location     *time.Location
 	guard        Guard
 	reservations *reserve.Reservations
+	// batchSize は、照合の対象の番組をまとめて照合する件数。
+	batchSize int
 }
 
 // NewEngine は Engine を作る。location は、ルールの曜日と時間帯を判定するタイムゾーン。
 func NewEngine(pool *pgxpool.Pool, clk clock.Clock, location *time.Location, guard Guard, reservations *reserve.Reservations) *Engine {
-	return &Engine{pool: pool, clock: clk, location: location, guard: guard, reservations: reservations}
+	return &Engine{pool: pool, clock: clk, location: location, guard: guard, reservations: reservations, batchSize: defaultMatchBatchSize}
 }
 
 // Result は、1 回の照合の結果。
@@ -115,10 +119,6 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 			return err
 		}
 		now := e.clock.Now()
-		rows, err := listMatchablePrograms(ctx, tx, now)
-		if err != nil {
-			return err
-		}
 		rules, err := e.enabledRules(ctx, tx, result)
 		if err != nil {
 			return err
@@ -128,7 +128,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 			return err
 		}
 		// 番組を照合する形にするのは重いので、録画のルールと視聴ルールを、1 回の走査でまとめて照合する。
-		matched, watchMatched, err := matchPrograms(rows, rules, watchRules)
+		matched, watchMatched, matchable, err := e.matchAllPrograms(ctx, tx, now, rules, watchRules)
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 			return err
 		}
 
-		return e.applyWatch(ctx, tx, now, rows, watchMatched, skippedUsers, result)
+		return e.applyWatch(ctx, tx, now, matchable, watchMatched, skippedUsers, result)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to match rules: %w", err)
@@ -164,12 +164,7 @@ func (e *Engine) desired(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := listMatchablePrograms(ctx, tx, now)
-	if err != nil {
-		return nil, err
-	}
-
-	matched, _, err := matchPrograms(rows, rules, []*compiledWatchRule{})
+	matched, _, _, err := e.matchAllPrograms(ctx, tx, now, rules, []*compiledWatchRule{})
 	if err != nil {
 		return nil, err
 	}
@@ -216,21 +211,39 @@ func (e *Engine) narrow(
 	return matched, nil
 }
 
-// listMatchablePrograms は、ルールの対象になる番組を返す。
-func listMatchablePrograms(ctx context.Context, tx pgx.Tx, now time.Time) ([]sqlc.ListMatchableProgramsRow, error) {
-	rows, err := sqlc.New(tx).ListMatchablePrograms(ctx, sqlc.ListMatchableProgramsParams{Now: now, MediaServiceTypes: domain.MediaServiceTypes()})
+// matchAllPrograms は、ルールの対象になる番組を 1 つのクエリで読みながら、batchSize 件ずつ照合する。一致した番組と一致した視聴ルールを集め、
+// 照合の対象にした番組の識別子もあわせて返す。全部の番組を一度に読まず、一致した番組の行だけを残す (#2226)。
+func (e *Engine) matchAllPrograms(
+	ctx context.Context, tx pgx.Tx, now time.Time, rules []*compiledRule, watchRules []*compiledWatchRule,
+) (map[programKey]*desiredProgram, map[programKey]*watchProgram, map[programKey]bool, error) {
+	matched := map[programKey]*desiredProgram{}
+	watchMatched := map[programKey]*watchProgram{}
+	matchable := map[programKey]bool{}
+	err := eachMatchableProgramBatch(ctx, tx, now, e.batchSize, func(programs []matchableProgram) error {
+		part, watchPart, err := matchPrograms(programs, rules, watchRules)
+		if err != nil {
+			return err
+		}
+		maps.Copy(matched, part)
+		maps.Copy(watchMatched, watchPart)
+		for _, p := range programs {
+			matchable[programKey{serviceID: p.ServiceID, eventID: p.EventID}] = true
+		}
+
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list programs: %w", err)
+		return nil, nil, nil, err
 	}
 
-	return rows, nil
+	return matched, watchMatched, matchable, nil
 }
 
 // matchPrograms は、番組ごとに、一致したルールを rules の順に、一致した視聴ルールを watchRules の順に集める。
 // 必ず含む文字列を決められない正規表現は、前段で絞り込めず、番組ごとに照合するので重い (#878)。
 // そこで、番組を GOMAXPROCS の数のまとまりに分け、並べて照合する。GOMAXPROCS は、コンテナの CPU の制限にも従う。
 func matchPrograms(
-	rows []sqlc.ListMatchableProgramsRow, rules []*compiledRule, watchRules []*compiledWatchRule,
+	rows []matchableProgram, rules []*compiledRule, watchRules []*compiledWatchRule,
 ) (map[programKey]*desiredProgram, map[programKey]*watchProgram, error) {
 	workers := max(1, min(runtime.GOMAXPROCS(0), len(rows)))
 	parts := make([]map[programKey]*desiredProgram, workers)
@@ -271,7 +284,7 @@ func matchPrograms(
 
 // matchProgram は、番組 row に一致したルールを part に、一致した視聴ルールを watchPart に足す。
 func matchProgram(
-	row sqlc.ListMatchableProgramsRow,
+	row matchableProgram,
 	rules []*compiledRule,
 	watchRules []*compiledWatchRule,
 	part map[programKey]*desiredProgram,
@@ -310,7 +323,7 @@ func matchProgram(
 
 // desiredProgram は、予約すべき番組と、一致したルール。
 type desiredProgram struct {
-	row   sqlc.ListMatchableProgramsRow
+	row   matchableProgram
 	rules []*compiledRule
 }
 
@@ -377,7 +390,7 @@ func (e *Engine) enabledRules(ctx context.Context, tx pgx.Tx, result *Result) ([
 }
 
 // toMatchProgram は、DB の番組を照合する形にする。
-func toMatchProgram(row sqlc.ListMatchableProgramsRow) (*match.Program, error) {
+func toMatchProgram(row matchableProgram) (*match.Program, error) {
 	upstreamGenres := []*domain.Genre{}
 	if err := json.Unmarshal(row.Genres, &upstreamGenres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres of program %d/%d: %w", row.ServiceID, row.EventID, err)
