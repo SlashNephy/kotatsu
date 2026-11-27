@@ -482,6 +482,8 @@ func TestClientProgramsBody(t *testing.T) {
 			wantNil:   []bool{false},
 		},
 		{name: "truncated", body: `[{"name":"e"},`, wantErr: true},
+		{name: "missing end", body: `[{"name":"e"}`, wantErr: true},
+		{name: "empty body", body: ``, wantErr: true},
 		{name: "object", body: `{"name":"f"}`, wantErr: true},
 	}
 	for _, tt := range tests {

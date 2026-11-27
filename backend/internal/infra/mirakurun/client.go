@@ -280,11 +280,6 @@ func (c *Client) Programs(ctx context.Context, query *tunerserver.ProgramsQuery)
 	// 全量の同期では数万件になるので、配列を 1 件ずつ読み、読んだそばから変換する (#2226)。
 	programs := []*tunerserver.Program{}
 	err := getJSONArray(ctx, c, "api/programs", values, func(p *program) {
-		if p == nil {
-			programs = append(programs, nil)
-
-			return
-		}
 		programs = append(programs, p.toTunerServer())
 	})
 	if err != nil {
