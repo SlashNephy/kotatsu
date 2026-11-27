@@ -60,3 +60,8 @@ run = "goreleaser release --snapshot --clean"
 # 画面を埋め込むので、Kotatsu は //frontend:build の後にビルドする。depends に並べると、同時に走ってしまう。
 depends = ["//frontend:build"]
 run = ["go -C backend run ./internal/web/licenses/printlicenses -o internal/web/licenses/dist/go.json", "go build -trimpath -o ./bin/ ./backend/cmd/kotatsu", "scripts/e2e-stack.sh"]
+
+# 録画中に mikan を入れ替える場面を、neko と複数の mikan を別のプロセスで立てて E2E で確認する (#2195)。
+# KOTATSU_DATABASE_URL に、DB を作り直せるユーザーの接続を渡す。画面は使わないので、画面を埋め込まずにビルドする。
+[tasks."e2e:recording"]
+run = ["go build -trimpath -o ./bin/ ./backend/cmd/kotatsu", "scripts/e2e-recording.sh"]

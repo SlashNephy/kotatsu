@@ -326,6 +326,36 @@ jobs:
           path: frontend/test-results/
           retention-days: 7
 
+  # 録画中に mikan を入れ替える場面を、neko と複数の mikan を別のプロセスで立てて確認する (#2195、設計書 11.6)。
+  # 画面は使わないので、Go が変わったときだけ流す。
+  e2e-recording:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42 # renovate: latest
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      KOTATSU_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v5.2.10
+      - uses: $/.github/actions/go-cache
+        with:
+          name: ${{ github.job }}
+      - run: mise run e2e:recording
+
   # 配布するアーカイブを、リリースと同じ組み方 (GoReleaser のスナップショット) で作る (#1523)。smoke-os が、Windows と macOS で開いて確認する。
   archives:
     needs: changes
@@ -700,6 +730,7 @@ jobs:
       - generate
       - web
       - e2e-stack
+      - e2e-recording
       - archives
       - image
       - codeql
