@@ -17,7 +17,7 @@ export { toHalfWidth } from './halfWidth';
 export { containsAllWords, normalizeForSearch, searchWords } from './searchText';
 export { LinkifiedText } from './LinkifiedText';
 export { splitProgramMarks, type ProgramMarks } from './programMarks';
-export { ProgramMarkBadges, ProgramTitle } from './ProgramMarks';
+export { HighlightedText, ProgramMarkBadges, ProgramTitle } from './ProgramMarks';
 export { highlightRanges, type HighlightKeyword, type HighlightRange } from './highlight';
 export { useDocumentTitle } from './useDocumentTitle';
 export { useEntryState } from './useEntryState';

@@ -1291,6 +1291,16 @@
     "keywordsAnyDescription": "番組名と概要から探し、いずれかのキーワードに一致する録画を出します（OR検索）。",
     "excludeKeywords": "除外するキーワード",
     "excludeKeywordsDescription": "いずれかのキーワードに一致する録画を除きます（OR検索）。",
+    "captionKeywords": "字幕の文",
+    "captionKeywordsDescription": "放送の字幕と自動生成の字幕から探し、すべてのキーワードに一致する録画を出します（AND検索）。キーワードは別々の字幕にあってもかまいません。",
+    "captionKeywordsAnyDescription": "放送の字幕と自動生成の字幕から探し、いずれかのキーワードに一致する録画を出します（OR検索）。",
+    "captionSource": {
+      "ARIB": "字幕",
+      "AUTO": "自動生成"
+    },
+    "captionMatchPlay": "{{position}} から再生：{{text}}",
+    "captionMatchesMore": "ほかに {{count}} 件",
+    "captionMatchesLess": "たたむ",
     "tags": "タグ",
     "states": "状態",
     "services": "サービス",

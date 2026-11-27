@@ -1339,6 +1339,16 @@
     "keywordsAnyDescription": "Searches program names and descriptions, and shows recordings that match any of the keywords (OR search).",
     "excludeKeywords": "Keywords to exclude",
     "excludeKeywordsDescription": "Hides recordings that match any of the keywords (OR search).",
+    "captionKeywords": "Caption text",
+    "captionKeywordsDescription": "Searches broadcast captions and generated captions, and shows recordings that match all keywords (AND search). The keywords may be in different captions.",
+    "captionKeywordsAnyDescription": "Searches broadcast captions and generated captions, and shows recordings that match any of the keywords (OR search).",
+    "captionSource": {
+      "ARIB": "Captions",
+      "AUTO": "Generated"
+    },
+    "captionMatchPlay": "Play from {{position}}: {{text}}",
+    "captionMatchesMore": "{{count}} more",
+    "captionMatchesLess": "Show less",
     "tags": "Tags",
     "states": "States",
     "services": "Services",

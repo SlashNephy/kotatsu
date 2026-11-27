@@ -9,6 +9,7 @@ import {
 } from './listSearch';
 
 const keyword = (text: string) => ({ ...recordingKeyword(), text });
+const caption = (text: string) => ({ text, regexp: false, caseSensitive: false });
 
 describe('parseRecordingListSearch', () => {
   test.each([
@@ -66,6 +67,30 @@ describe('parseRecordingListSearch', () => {
       search: { keywordMatch: 'ANY', excludeKeywords: [keyword('再放送')] },
       want: { excludeKeywords: [keyword('再放送')] },
     },
+    {
+      name: '字幕のキーワードは、項目を持たずに読む',
+      search: {
+        captionKeywords: [
+          { text: ' 誰なの ', regexp: false, caseSensitive: false, fields: ['NAME'] },
+          { text: '\\d+度', regexp: true, caseSensitive: true },
+          { text: ' ' },
+          '北海道',
+        ],
+        captionKeywordMatch: 'ANY',
+      },
+      want: {
+        captionKeywords: [
+          { text: '誰なの', regexp: false, caseSensitive: false },
+          { text: '\\d+度', regexp: true, caseSensitive: true },
+        ],
+        captionKeywordMatch: 'ANY',
+      },
+    },
+    {
+      name: '字幕のキーワードがなければ、その照合のしかたを載せない',
+      search: { captionKeywords: [{ text: '' }], captionKeywordMatch: 'ANY' },
+      want: {},
+    },
   ])('$name', ({ search, want }) => {
     expect(parseRecordingListSearch(search)).toEqual(want);
   });
@@ -78,6 +103,16 @@ describe('recordingFilter', () => {
       name: 'キーワードには照合のしかたと除外を添える',
       search: { keywords: [keyword('ニュース')] },
       want: { keywords: [keyword('ニュース')], keywordMatch: 'ALL', excludeKeywords: [] },
+    },
+    {
+      name: '字幕の照合のしかたは、いずれかに一致するときだけ送る',
+      search: { captionKeywords: [caption('誰なの')] },
+      want: { captionKeywords: [caption('誰なの')] },
+    },
+    {
+      name: '字幕のいずれかに一致',
+      search: { captionKeywords: [caption('誰なの')], captionKeywordMatch: 'ANY' as const },
+      want: { captionKeywords: [caption('誰なの')], captionKeywordMatch: 'ANY' },
     },
     {
       name: 'クエリの名前を、tenban の項目の名前にする',
@@ -120,6 +155,8 @@ describe('searchFromForm', () => {
       keywords: [keyword('ニュース')],
       keywordMatch: 'ANY',
       excludeKeywords: [keyword('再放送')],
+      captionKeywords: [caption('誰なの'), { text: '寺田', regexp: true, caseSensitive: true }],
+      captionKeywordMatch: 'ANY',
       tags: ['VGFnOjE='],
       states: ['FAILED'],
       services: ['U2VydmljZTox'],

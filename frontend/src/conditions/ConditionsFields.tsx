@@ -227,6 +227,7 @@ type KeywordRowsProps = {
   rows: KeywordRow[];
   onChange: (rows: KeywordRow[]) => void;
   // fields は、選べる項目。録画は詳細では探さないので、録画の検索では番組名と概要だけにする (#966)。
+  // 空にすると、項目を選ぶ欄を出さない。字幕の文で探すキーワードに使う (#2215)。
   fields?: readonly KeywordField[];
   // newRow は、行を足したときの初めの値。
   newRow?: () => KeywordRow;
@@ -442,21 +443,24 @@ export function KeywordRows({
               <X size={16} aria-hidden />
             </ActionIcon>
           </Group>
-          <Group gap="sm" wrap="wrap" pl="sm">
-            <Chip.Group
-              multiple
-              value={row.fields}
-              onChange={(fields) => change(index, { fields: fields as KeywordField[] })}
-            >
-              <Group gap={4}>
-                {fields.map((field) => (
-                  <Chip key={field} value={field} size="xs">
-                    {t(fieldKeys[field])}
-                  </Chip>
-                ))}
-              </Group>
-            </Chip.Group>
-          </Group>
+          {/* 字幕の文のように、照合する項目のないキーワードでは項目を選ぶ欄を出さない (#2215)。 */}
+          {fields.length > 0 && (
+            <Group gap="sm" wrap="wrap" pl="sm">
+              <Chip.Group
+                multiple
+                value={row.fields}
+                onChange={(fields) => change(index, { fields: fields as KeywordField[] })}
+              >
+                <Group gap={4}>
+                  {fields.map((field) => (
+                    <Chip key={field} value={field} size="xs">
+                      {t(fieldKeys[field])}
+                    </Chip>
+                  ))}
+                </Group>
+              </Chip.Group>
+            </Group>
+          )}
           <Group gap="sm" wrap="wrap" pl="sm">
             <Checkbox
               size="xs"
