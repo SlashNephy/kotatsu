@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -160,6 +161,12 @@ func unreadableSettings(ctx context.Context, s *stack) error {
 	if err != nil {
 		return err
 	}
+	// 引き継ぐ mikan が登録簿に載ってから録り始める。載る前に止めると、引き継ぐ mikan がいないとみなされる。
+	for _, p := range []*process{first, second} {
+		if err := s.waitForAlive(ctx, p); err != nil {
+			return err
+		}
+	}
 	rec, err := s.reserveAndRecord(ctx)
 	if err != nil {
 		return err
@@ -177,11 +184,15 @@ func unreadableSettings(ctx context.Context, s *stack) error {
 	if err := s.exec(ctx, fmt.Sprintf("ALTER TABLE system_settings RENAME COLUMN %s TO %s_e2e", column, column)); err != nil {
 		return err
 	}
+	before, err := s.segments(ctx, rec)
+	if err != nil {
+		return err
+	}
 	s.logger.InfoContext(ctx, "made the recording settings unreadable; stopping the mikan that records", slog.String("mikan", holder.name))
 	if err := holder.terminate(); err != nil {
 		return err
 	}
-	if err := s.waitForTakeOver(ctx, rec, other); err != nil {
+	if err := s.waitForTakeOver(ctx, rec, before, other); err != nil {
 		return err
 	}
 	if err := s.exec(ctx, fmt.Sprintf("ALTER TABLE system_settings RENAME COLUMN %s_e2e TO %s", column, column)); err != nil {
@@ -242,11 +253,15 @@ func outdatedMikan(ctx context.Context, s *stack) error {
 	if err := s.waitForAlive(ctx, upToDate); err != nil {
 		return err
 	}
+	before, err := s.segments(ctx, rec)
+	if err != nil {
+		return err
+	}
 	s.logger.InfoContext(ctx, "stopping the mikan that records; the outdated mikan must not take over", slog.String("mikan", holder.name))
 	if err := holder.terminate(); err != nil {
 		return err
 	}
-	if err := s.waitForTakeOverBy(ctx, rec, upToDate, outdated); err != nil {
+	if err := s.waitForTakeOverBy(ctx, rec, before, upToDate, outdated); err != nil {
 		return err
 	}
 	// 引き継いだ後も、古いバイナリの mikan が割り振りを取らないことを見る。
@@ -277,6 +292,12 @@ func crashedMikan(ctx context.Context, s *stack) error {
 	if err != nil {
 		return err
 	}
+	// 引き継ぐ mikan が登録簿に載ってから録り始める。載る前に止めると、引き継ぐ mikan がいないとみなされる。
+	for _, p := range []*process{first, second} {
+		if err := s.waitForAlive(ctx, p); err != nil {
+			return err
+		}
+	}
 	rec, err := s.reserveAndRecord(ctx)
 	if err != nil {
 		return err
@@ -285,11 +306,15 @@ func crashedMikan(ctx context.Context, s *stack) error {
 	if rec.holder == second.address {
 		holder, other = second, first
 	}
+	before, err := s.segments(ctx, rec)
+	if err != nil {
+		return err
+	}
 	s.logger.InfoContext(ctx, "crashing the mikan that records", slog.String("mikan", holder.name))
 	if err := holder.crash(); err != nil {
 		return err
 	}
-	if err := s.waitForTakeOver(ctx, rec, other); err != nil {
+	if err := s.waitForTakeOver(ctx, rec, before, other); err != nil {
 		return err
 	}
 
@@ -352,11 +377,11 @@ func newStack(ctx context.Context, logger *slog.Logger, opts *options, name stri
 			return nil, fmt.Errorf("failed to create the directory: %w", err)
 		}
 	}
-	url, err := createDatabase(ctx, opts.databaseURL, "kotatsu_e2e_"+strings.ReplaceAll(name, "-", "_"))
+	dbURL, err := createDatabase(ctx, opts.databaseURL, "kotatsu_e2e_"+strings.ReplaceAll(name, "-", "_"))
 	if err != nil {
 		return nil, err
 	}
-	pool, err := pgxpool.New(ctx, url)
+	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to the database: %w", err)
 	}
@@ -368,7 +393,7 @@ func newStack(ctx context.Context, logger *slog.Logger, opts *options, name stri
 	}
 	tuner := httptest.NewServer(faketuner.New(faketuner.DefaultOptions(time.Now(), ts)))
 
-	return &stack{logger: logger, opts: opts, dir: dir, root: root, url: url, pool: pool, tuner: tuner, processes: []*process{}}, nil
+	return &stack{logger: logger, opts: opts, dir: dir, root: root, url: dbURL, pool: pool, tuner: tuner, processes: []*process{}}, nil
 }
 
 // createDatabase は、admin の PostgreSQL に、名前 name の空の DB を作り直し、その DB の URL を返す。
@@ -391,17 +416,14 @@ func createDatabase(ctx context.Context, admin, name string) (string, error) {
 
 // replaceDatabase は、URL admin の DB の名前を name にした URL を返す。
 func replaceDatabase(admin, name string) (string, error) {
-	before, query, _ := strings.Cut(admin, "?")
-	slash := strings.LastIndex(before, "/")
-	if slash < 0 || !strings.Contains(before, "://") {
+	u, err := url.Parse(admin)
+	if err != nil || u.Scheme == "" || u.Host == "" {
 		return "", fmt.Errorf("the database URL must be a URL: %q", admin)
 	}
-	url := before[:slash+1] + name
-	if query != "" {
-		url += "?" + query
-	}
+	u.Path = "/" + name
+	u.RawPath = ""
 
-	return url, nil
+	return u.String(), nil
 }
 
 func (s *stack) close(ctx context.Context) {
@@ -657,17 +679,23 @@ func (s *stack) waitForAlive(ctx context.Context, p *process) error {
 	})
 }
 
-// waitForTakeOver は、mikan to が録画を引き継ぎ、新しいセグメントを書き始めるまで待つ。その間に録画が失敗になったら、失敗にする。
-func (s *stack) waitForTakeOver(ctx context.Context, rec *recording, to *process) error {
-	return s.waitForTakeOverBy(ctx, rec, to, nil)
+// segments は、録画のセグメントの数を返す。録っている mikan を止める前に読み、引き継いだ mikan が書き始めたかの基準にする。
+func (s *stack) segments(ctx context.Context, rec *recording) (int, error) {
+	state, err := s.state(ctx, rec)
+	if err != nil {
+		return 0, err
+	}
+
+	return state.segments, nil
+}
+
+// waitForTakeOver は、mikan to が録画を引き継ぎ、セグメントが before より増えるまで待つ。その間に録画が失敗になったら、失敗にする。
+func (s *stack) waitForTakeOver(ctx context.Context, rec *recording, before int, to *process) error {
+	return s.waitForTakeOverBy(ctx, rec, before, to, nil)
 }
 
 // waitForTakeOverBy は、waitForTakeOver と同じく待つ。待つ間に、mikan not (nil でなければ) が割り振りを取ったら、失敗にする。
-func (s *stack) waitForTakeOverBy(ctx context.Context, rec *recording, to, not *process) error {
-	var before int
-	if state, err := s.state(ctx, rec); err == nil {
-		before = state.segments
-	}
+func (s *stack) waitForTakeOverBy(ctx context.Context, rec *recording, before int, to, not *process) error {
 	err := s.eventually(ctx, to.name+" takes over the recording", stepTimeout, func(ctx context.Context) (bool, error) {
 		state, err := s.state(ctx, rec)
 		if err != nil {
@@ -718,7 +746,7 @@ func (s *stack) waitForCompletion(ctx context.Context, rec *recording) error {
 // waitForEnd は、予定の終わりの後に録画が終わるまで待ち、状態が states のどれかで、セグメントが minSegments 以上あることを確認する。
 func (s *stack) waitForEnd(ctx context.Context, rec *recording, states []string, minSegments int) error {
 	var final *recordingState
-	err := s.eventually(ctx, "the recording finishes", time.Until(rec.endAt)+stepTimeout, func(ctx context.Context) (bool, error) {
+	err := s.eventually(ctx, "the recording finishes", max(time.Until(rec.endAt), 0)+stepTimeout, func(ctx context.Context) (bool, error) {
 		state, err := s.state(ctx, rec)
 		if err != nil {
 			return false, err
