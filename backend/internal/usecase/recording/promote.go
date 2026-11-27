@@ -33,17 +33,17 @@ const (
 	// promoteTimeout は、昇格のジョブの時間の上限。バッファから数 GB を読み書きするので、長めにとる。
 	promoteTimeout = 2 * time.Hour
 	// promoteMaxAttempts は、昇格のジョブを試す回数。試し尽くしたら、録画を失敗にする。
-	// 待てば通る失敗 (DB のエラー、この nekonote に置き場がない、止めるとき) は、回数に数えない (#2198)。
+	// 待てば通る失敗 (DB のエラー、この nekonote に保存先がない、止めるとき) は、回数に数えない (#2198)。
 	promoteMaxAttempts = 5
-	// promoteSnooze は、待てば通る失敗のとき、昇格のジョブを試し直すまで待つ時間 (#2198)。
+	// promoteSnooze は、待てば通る失敗のとき、昇格のジョブを再試行するまで待つ時間 (#2198)。
 	promoteSnooze = time.Minute
-	// promoteGiveUpAfter は、待てば通る失敗が続いても試し直す、ジョブを入れてからの時間の上限 (#2198)。
+	// promoteGiveUpAfter は、待てば通る失敗が続いても再試行する、ジョブを入れてからの時間の上限 (#2198)。
 	// バッファのチャンクが消えれば、その時点で program_not_found として失敗にする。
 	promoteGiveUpAfter = 6 * time.Hour
 )
 
-// errPromoteElsewhere は、昇格に要る置き場 (タイムシフトのディレクトリか、保存先プール) がこの nekonote にないことを表す。
-// ほかの nekonote が持っていれば、そちらで試し直せる。
+// errPromoteElsewhere は、昇格に要る保存先 (タイムシフトのディレクトリか、保存先プール) がこの nekonote にないことを表す。
+// ほかの nekonote が持っていれば、そちらで再試行できる。
 var errPromoteElsewhere = errors.New("this nekonote cannot promote the timeshift buffer")
 
 // errPromotionGone は、昇格の行が消えたことを表す。録画を消したか、ほかの nekonote が書き込み終えた。
@@ -104,7 +104,7 @@ func (w *PromoteWorker) Work(ctx context.Context, job *river.Job[PromoteArgs]) e
 		// nekonote を止めるので、回数に数えずに、次に動く nekonote に任せる (#2198)。
 		return river.JobSnooze(0)
 	case r.promoteLater(err) && r.clock.Now().Before(job.CreatedAt.Add(promoteGiveUpAfter)):
-		// 待てば通る失敗は、回数に数えずに試し直す (#2198)。回数を使い切ると、録画を失う。
+		// 待てば通る失敗は、回数に数えずに再試行する (#2198)。回数を使い切ると、録画を失う。
 		logger.WarnContext(ctx, "failed to promote the timeshift buffer; trying again later", slog.Any("error", err))
 
 		return river.JobSnooze(promoteSnooze)
@@ -123,7 +123,7 @@ func (w *PromoteWorker) Work(ctx context.Context, job *river.Job[PromoteArgs]) e
 	return err
 }
 
-// promoteLater は、昇格の失敗 err が、待てば通るものかを返す (#2198)。DB のエラーと、この nekonote に置き場がないときである。
+// promoteLater は、昇格の失敗 err が、待てば通るものかを返す (#2198)。DB のエラーと、この nekonote に保存先がないときである。
 func (r *Recorder) promoteLater(err error) bool {
 	return errors.Is(err, errPromoteElsewhere) || database.IsUnavailable(err) || isDatabaseError(err)
 }

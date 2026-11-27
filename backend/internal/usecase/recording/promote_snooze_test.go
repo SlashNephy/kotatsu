@@ -36,7 +36,7 @@ func (f *fixture) insertPromotion(t *testing.T) uuid.UUID {
 }
 
 // TestPromoteWorkerSnoozesRecoverableFailures は、昇格のジョブが、待てば通る失敗 (この nekonote にタイムシフトのディレクトリがない、
-// DB のエラー、止めるとき) では、試す回数を使わずに試し直し、ジョブを入れてから上限を過ぎて試し尽くしたら録画を失敗にすることを確認する (#2198)。
+// DB のエラー、止めるとき) では、試す回数を使わずに再試行し、ジョブを入れてから上限を過ぎて試し尽くしたら録画を失敗にすることを確認する (#2198)。
 func TestPromoteWorkerSnoozesRecoverableFailures(t *testing.T) {
 	t.Parallel()
 
@@ -47,12 +47,12 @@ func TestPromoteWorkerSnoozesRecoverableFailures(t *testing.T) {
 		// age は、ジョブを入れてからの時間。attempt は、何回目に試すか。
 		age     time.Duration
 		attempt int
-		// wantSnooze は、試し直すまで待つ時間。nil なら試し直さない。
+		// wantSnooze は、再試行するまで待つ時間。nil なら再試行しない。
 		wantSnooze *time.Duration
 		wantState  domain.RecordingState
 	}{
-		{name: "置き場がなければ、回数を使わずに試し直す", age: time.Minute, attempt: 5, wantSnooze: new(time.Minute), wantState: domain.RecordingStateRecording},
-		{name: "止めるときは、すぐに試し直す", cancel: true, age: time.Minute, attempt: 5, wantSnooze: new(time.Duration(0)), wantState: domain.RecordingStateRecording},
+		{name: "保存先がなければ、回数を使わずに再試行する", age: time.Minute, attempt: 5, wantSnooze: new(time.Minute), wantState: domain.RecordingStateRecording},
+		{name: "止めるときは、すぐに再試行する", cancel: true, age: time.Minute, attempt: 5, wantSnooze: new(time.Duration(0)), wantState: domain.RecordingStateRecording},
 		{name: "上限を過ぎて試し尽くしたら、失敗にする", age: 7 * time.Hour, attempt: 5, wantSnooze: nil, wantState: domain.RecordingStateFailed},
 	}
 	for _, tt := range tests {
@@ -92,7 +92,7 @@ func TestPromoteWorkerSnoozesRecoverableFailures(t *testing.T) {
 }
 
 // TestPromoteWorkerSnoozesOnDatabaseError は、昇格のジョブが、DB のエラー (ローリング更新で、新しいスキーマが古いバイナリの読むカラムを
-// 消したときなど) では、試す回数を使わずに試し直すことを確認する (#2198)。
+// 消したときなど) では、試す回数を使わずに再試行することを確認する (#2198)。
 func TestPromoteWorkerSnoozesOnDatabaseError(t *testing.T) {
 	t.Parallel()
 
