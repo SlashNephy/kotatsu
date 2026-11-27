@@ -436,6 +436,88 @@ func TestMigrateFillsCapturesNormalized(t *testing.T) {
 	}
 }
 
+// TestMigrateFillsAutoCaptionSearchGrams は、kotatsu migrate が、gram が今の字幕のものでない自動生成の字幕の gram を、
+// 正規化した字幕の文から作り直し、今の字幕から作った gram は書き換えないことを確認する (#2214)。
+func TestMigrateFillsAutoCaptionSearchGrams(t *testing.T) {
+	t.Parallel()
+
+	pool := open(t, databasetest.New(t))
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	now := time.Now().Truncate(time.Microsecond)
+	earlier := now.Add(-time.Hour)
+	_, err := pool.Exec(t.Context(), "INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
+	require.NoError(t, err)
+	_, err = pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+		VALUES (3273601024, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', $1, $1)`, now)
+	require.NoError(t, err)
+	// 1 回に埋める数より多い字幕も、すべて埋める。
+	_, err = pool.Exec(t.Context(), `WITH r AS (
+			INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+			SELECT gen_random_uuid(), 3273601024, '録画' || i, '', $1, $1, 'completed', $1, $1, $1 FROM generate_series(1, 51) AS i RETURNING id
+		)
+		INSERT INTO recording_auto_captions (recording_id, model, generator_version, generated_at, cues)
+		SELECT id, 'ggml-test.bin', 1, $1, '[{"startMs": 0, "endMs": 1000, "text": "ねこ"}]' FROM r`, now)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		cues        string
+		grams       []string
+		gramsAt     *time.Time
+		wantGrams   []string
+		wantGramsAt time.Time
+	}{
+		{
+			name: "字幕の文を正規化して作る", cues: `[{"startMs": 0, "endMs": 1000, "text": "ＡＢ"}, {"startMs": 1000, "endMs": 2000, "text": "猫"}]`,
+			grams: nil, gramsAt: nil, wantGrams: []string{"A", "AB", "B", "猫"}, wantGramsAt: now,
+		},
+		{
+			// カラムを知らない古いバイナリが字幕を書き直すと、gram は前の字幕のまま残る。
+			name: "前の字幕の gram を作り直す", cues: `[{"startMs": 0, "endMs": 1000, "text": "犬"}]`,
+			grams: []string{"猫"}, gramsAt: &earlier, wantGrams: []string{"犬"}, wantGramsAt: now,
+		},
+		{
+			name: "今の字幕の gram は書き換えない", cues: `[{"startMs": 0, "endMs": 1000, "text": "犬"}]`,
+			grams: []string{"作ってある"}, gramsAt: &now, wantGrams: []string{"作ってある"}, wantGramsAt: now,
+		},
+		{
+			name: "字幕がなければ空にする", cues: `[]`,
+			grams: nil, gramsAt: nil, wantGrams: []string{}, wantGramsAt: now,
+		},
+	}
+	ids := make([]uuid.UUID, len(tests))
+	for i, tt := range tests {
+		ids[i] = id.New()
+		_, err := pool.Exec(t.Context(), `INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+			VALUES ($1, 3273601024, $2, '', $3, $3, 'completed', $3, $3, $3)`, ids[i], tt.name, now)
+		require.NoError(t, err)
+		_, err = pool.Exec(t.Context(), `INSERT INTO recording_auto_captions
+			(recording_id, model, generator_version, generated_at, cues, search_grams, search_grams_generated_at)
+			VALUES ($1, 'ggml-test.bin', 1, $2, $3, $4, $5)`, ids[i], now, tt.cues, tt.grams, tt.gramsAt)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	var remaining int
+	require.NoError(t, pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM recording_auto_captions WHERE search_grams_generated_at IS DISTINCT FROM generated_at").Scan(&remaining))
+	assert.Zero(t, remaining)
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var grams []string
+			var gramsAt time.Time
+			require.NoError(t, pool.QueryRow(t.Context(),
+				"SELECT search_grams, search_grams_generated_at FROM recording_auto_captions WHERE recording_id = $1", ids[i]).Scan(&grams, &gramsAt))
+			assert.Equal(t, tt.wantGrams, grams)
+			assert.True(t, tt.wantGramsAt.Equal(gramsAt))
+		})
+	}
+}
+
 // TestMigrateFillsRecordingHistorySeries は、kotatsu migrate が、シリーズ名のカラムがない録画履歴のカラムを、番組名から読んで埋め、
 // 埋まっている履歴は書き換えないことを確認する (#1499)。
 func TestMigrateFillsRecordingHistorySeries(t *testing.T) {

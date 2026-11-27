@@ -192,6 +192,14 @@ func TestWorker(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &autocaption.Status{State: autocaption.StateGenerated, GeneratedAt: new(f.clock.Now()), Model: fakeModel, Cues: 3, Progress: nil}, status)
 	assert.Greater(t, f.version(t), before, "録画の詳細に読み直させる")
+	// 字幕の文で探すための gram も書いた字幕から作る (#2214)。
+	var grams []string
+	var fresh bool
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT search_grams, search_grams_generated_at = generated_at FROM recording_auto_captions WHERE recording_id = $1", recordingID).
+		Scan(&grams, &fresh))
+	assert.Equal(t, []string{"あ", "い", "が", "がる", "た", "たが", "ま", "また", "る"}, grams)
+	assert.True(t, fresh)
 }
 
 // TestWorkerReplaces は、生成し直したら、前の字幕を置き換えることを確認する。

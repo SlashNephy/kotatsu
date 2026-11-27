@@ -499,35 +499,41 @@ WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
   AND ($4::text IS NULL
     OR COALESCE(r.name_normalized, r.name) ILIKE '%' || $4::text || '%'
     OR COALESCE(r.description_normalized, r.description) ILIKE '%' || $4::text || '%')
-  AND ($5::uuid IS NULL OR r.rule_id = $5::uuid)
-  AND (cardinality($6::int[]) = 0 OR EXISTS (
-    SELECT 1 FROM jsonb_array_elements(r.genres) g WHERE (g ->> 'lv1')::int = ANY($6::int[])
+  AND ($5::text[] IS NULL OR EXISTS (
+    SELECT 1 FROM recording_auto_captions c WHERE c.recording_id = r.id
+      AND (c.search_grams @> $5::text[] OR c.search_grams_generated_at IS DISTINCT FROM c.generated_at)
   ))
-  AND ($7::timestamptz IS NULL OR r.start_at >= $7::timestamptz)
-  AND ($8::timestamptz IS NULL OR r.start_at < $8::timestamptz)
-  AND ($9::timestamptz IS NULL
-    OR (r.recorded_from, r.id) < ($9::timestamptz, $10::uuid))
+  AND ($6::uuid IS NULL OR r.rule_id = $6::uuid)
+  AND (cardinality($7::int[]) = 0 OR EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r.genres) g WHERE (g ->> 'lv1')::int = ANY($7::int[])
+  ))
+  AND ($8::timestamptz IS NULL OR r.start_at >= $8::timestamptz)
+  AND ($9::timestamptz IS NULL OR r.start_at < $9::timestamptz)
+  AND ($10::timestamptz IS NULL
+    OR (r.recorded_from, r.id) < ($10::timestamptz, $11::uuid))
 ORDER BY r.recorded_from DESC, r.id DESC
-LIMIT $11
+LIMIT $12
 `
 
 type SearchRecordingsParams struct {
-	States     []string
-	ServiceIds []int64
-	TagIds     []uuid.UUID
-	Keyword    *string
-	RuleID     *uuid.UUID
-	Genres     []int32
-	Since      *time.Time
-	Until      *time.Time
-	BeforeAt   *time.Time
-	BeforeID   *uuid.UUID
-	MaxCount   int32
+	States       []string
+	ServiceIds   []int64
+	TagIds       []uuid.UUID
+	Keyword      *string
+	CaptionGrams []string
+	RuleID       *uuid.UUID
+	Genres       []int32
+	Since        *time.Time
+	Until        *time.Time
+	BeforeAt     *time.Time
+	BeforeID     *uuid.UUID
+	MaxCount     int32
 }
 
 // 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
 // キーワードは、NFKC で正規化して LIKE のために逃がしたものを渡し、正規化した番組名か概要に当てる (設計書 3.5、#1044)。
 // ジャンルは、大分類 (lv1) のどれかに当たる録画を返す (#468)。
+// caption_grams を渡すと、自動生成の字幕があり、字幕の gram がそれをすべて含む録画に絞る (#2214)。gram が今の字幕のものでない録画は、候補に残す。
 // before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 // 並び順をパラメーターで切り替えると、インデックスの順に読めなくなるので、古い順は SearchRecordingsOldest に分ける。
 func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]Recording, error) {
@@ -536,6 +542,7 @@ func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsPara
 		arg.ServiceIds,
 		arg.TagIds,
 		arg.Keyword,
+		arg.CaptionGrams,
 		arg.RuleID,
 		arg.Genres,
 		arg.Since,
@@ -611,30 +618,35 @@ WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
   AND ($4::text IS NULL
     OR COALESCE(r.name_normalized, r.name) ILIKE '%' || $4::text || '%'
     OR COALESCE(r.description_normalized, r.description) ILIKE '%' || $4::text || '%')
-  AND ($5::uuid IS NULL OR r.rule_id = $5::uuid)
-  AND (cardinality($6::int[]) = 0 OR EXISTS (
-    SELECT 1 FROM jsonb_array_elements(r.genres) g WHERE (g ->> 'lv1')::int = ANY($6::int[])
+  AND ($5::text[] IS NULL OR EXISTS (
+    SELECT 1 FROM recording_auto_captions c WHERE c.recording_id = r.id
+      AND (c.search_grams @> $5::text[] OR c.search_grams_generated_at IS DISTINCT FROM c.generated_at)
   ))
-  AND ($7::timestamptz IS NULL OR r.start_at >= $7::timestamptz)
-  AND ($8::timestamptz IS NULL OR r.start_at < $8::timestamptz)
-  AND ($9::timestamptz IS NULL
-    OR (r.recorded_from, r.id) > ($9::timestamptz, $10::uuid))
+  AND ($6::uuid IS NULL OR r.rule_id = $6::uuid)
+  AND (cardinality($7::int[]) = 0 OR EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r.genres) g WHERE (g ->> 'lv1')::int = ANY($7::int[])
+  ))
+  AND ($8::timestamptz IS NULL OR r.start_at >= $8::timestamptz)
+  AND ($9::timestamptz IS NULL OR r.start_at < $9::timestamptz)
+  AND ($10::timestamptz IS NULL
+    OR (r.recorded_from, r.id) > ($10::timestamptz, $11::uuid))
 ORDER BY r.recorded_from ASC, r.id ASC
-LIMIT $11
+LIMIT $12
 `
 
 type SearchRecordingsOldestParams struct {
-	States     []string
-	ServiceIds []int64
-	TagIds     []uuid.UUID
-	Keyword    *string
-	RuleID     *uuid.UUID
-	Genres     []int32
-	Since      *time.Time
-	Until      *time.Time
-	AfterAt    *time.Time
-	AfterID    *uuid.UUID
-	MaxCount   int32
+	States       []string
+	ServiceIds   []int64
+	TagIds       []uuid.UUID
+	Keyword      *string
+	CaptionGrams []string
+	RuleID       *uuid.UUID
+	Genres       []int32
+	Since        *time.Time
+	Until        *time.Time
+	AfterAt      *time.Time
+	AfterID      *uuid.UUID
+	MaxCount     int32
 }
 
 // SearchRecordings の古い順。after_at と after_id より後 (新しい) の録画だけを返し、ページを送る。
@@ -644,6 +656,7 @@ func (q *Queries) SearchRecordingsOldest(ctx context.Context, arg SearchRecordin
 		arg.ServiceIds,
 		arg.TagIds,
 		arg.Keyword,
+		arg.CaptionGrams,
 		arg.RuleID,
 		arg.Genres,
 		arg.Since,
