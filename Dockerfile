@@ -95,6 +95,8 @@ COPY backend/go.mod backend/go.sum ./backend/
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 COPY --from=web /src/backend/internal/web/webui/dist/app ./backend/internal/web/webui/dist/app
+# 字幕の外字の既定のテーブルは、SPA のステージで作ったものを埋め込む (#2216)。
+COPY --from=web /src/backend/internal/lib/drcstable/dist/drcs.json ./backend/internal/lib/drcstable/dist/drcs.json
 ARG TARGETOS
 ARG TARGETARCH
 # VERSION は、バージョンとコミットを 1.2.3+<コミット> の形で渡す (internal/lib/buildinfo)。.git はイメージに入れないので、

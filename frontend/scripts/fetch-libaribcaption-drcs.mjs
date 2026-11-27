@@ -1,7 +1,9 @@
 // 字幕の外字を文字に置き換える既定のテーブルを、vendor/libaribcaption/SOURCE で固定した commit の libaribcaption の定義から作り、
-// vendor/libaribcaption/drcs.json に置く。同じ commit から作ったテーブルが既にあれば、取得し直さない。
+// vendor/libaribcaption/drcs.json に置く。サーバーも字幕の文を取り出すときに使うので (#2216)、同じものを
+// ../backend/internal/lib/drcstable/dist/drcs.json にも置き、本体に埋め込む。
+// 同じ commit から作ったテーブルが両方に既にあれば、取得し直さない。
 // 本番のイメージのビルド (Dockerfile) でも動くよう、Node.js の標準の機能だけを使う。
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { copyFile, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const dir = join(import.meta.dirname, '..', 'vendor', 'libaribcaption');
@@ -18,8 +20,16 @@ for (const key of ['repository', 'file', 'commit']) {
 }
 
 const target = join(dir, 'drcs.json');
-const existing = await readFile(target, 'utf8').catch(() => null);
-if (existing !== null && JSON.parse(existing).commit === source.commit) {
+const backendTarget = join(import.meta.dirname, '..', '..', 'backend', 'internal', 'lib', 'drcstable', 'dist', 'drcs.json');
+const generatedFrom = async (path) => {
+  const existing = await readFile(path, 'utf8').catch(() => null);
+  return existing === null ? null : JSON.parse(existing).commit;
+};
+if ((await generatedFrom(target)) === source.commit) {
+  if ((await generatedFrom(backendTarget)) !== source.commit) {
+    await copyFile(target, `${backendTarget}.tmp`);
+    await rename(`${backendTarget}.tmp`, backendTarget);
+  }
   process.exit(0);
 }
 
@@ -42,4 +52,6 @@ if (count < minimumEntries) {
 // 途中で止まっても壊れたテーブルが残らないよう、書き終えてから置き換える。
 await writeFile(`${target}.tmp`, `${JSON.stringify({ commit: source.commit, replacements })}\n`);
 await rename(`${target}.tmp`, target);
+await copyFile(target, `${backendTarget}.tmp`);
+await rename(`${backendTarget}.tmp`, backendTarget);
 console.log(`generated ${count} DRCS replacements (${source.commit})`);
