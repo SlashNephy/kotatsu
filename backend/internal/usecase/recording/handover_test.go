@@ -58,7 +58,7 @@ func TestRecorderContinuesHandoverWithoutSettings(t *testing.T) {
 			reservationID := f.reserve(t, 0)
 			_, err := f.pool.Exec(t.Context(), `UPDATE reservations SET settings = '{"fileNameTemplate": "予約のファイル名"}' WHERE id = $1`, reservationID)
 			require.NoError(t, err)
-			oldRecorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+			oldRecorder, dir := f.newRecorder(t, onceStream{data: data}, nil)
 			assignmentID := id.New()
 			stopOld, oldDone := f.sessionWith(t, oldRecorder, &recording.Assignment{
 				ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 1, HandedOver: false, PreviousLeaseExpiresAt: nil,
@@ -71,7 +71,8 @@ func TestRecorderContinuesHandoverWithoutSettings(t *testing.T) {
 			require.Equal(t, []bool{false}, closedSegments(f.files(t, reservationID)))
 
 			f.clock.Advance(time.Minute)
-			newRecorder, _ := f.newRecorderWithDefaults(t, f.pool, onceStream{data: data}, nil, nil, slog.New(slog.DiscardHandler), tt.defaults)
+			// 新旧の mikan は、同じプールに書く。
+			newRecorder, _ := f.newRecorderIn(t, dir, f.pool, onceStream{data: data}, nil, nil, slog.New(slog.DiscardHandler), tt.defaults)
 			_, newDone := f.sessionWith(t, newRecorder, &recording.Assignment{
 				ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 2, HandedOver: true, PreviousLeaseExpiresAt: nil,
 			})

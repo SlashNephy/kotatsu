@@ -76,7 +76,16 @@ func (f *fixture) newRecorderWithDefaults(t *testing.T, pool *pgxpool.Pool, tune
 ) (*recording.Recorder, string) {
 	t.Helper()
 
-	dir := t.TempDir()
+	return f.newRecorderIn(t, t.TempDir(), pool, tuner, freeSpace, peers, logger, defaults)
+}
+
+// newRecorderIn は、プール main をディレクトリ dir に置いた Recorder を作る。同じ dir を渡せば、ほかの Recorder とプールを共有する。
+// 引き継ぎのように、複数の mikan が同じプールに書く場面で使う。
+func (f *fixture) newRecorderIn(t *testing.T, dir string, pool *pgxpool.Pool, tuner recording.StreamOpener, freeSpace kago.FreeSpaceFunc,
+	peers recording.PeersFunc, logger *slog.Logger, defaults assign.DefaultsFunc,
+) (*recording.Recorder, string) {
+	t.Helper()
+
 	// 同じテストの Recorder は、データディレクトリを共有する (dataRootOf)。
 	require.NoError(t, os.MkdirAll(dataRootOf(dir), 0o755))
 	tokyo, err := time.LoadLocation("Asia/Tokyo")
