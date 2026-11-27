@@ -63,9 +63,9 @@
     "storybook": "10.6.8",
     "subset-font": "2.9.0",
     "typescript": "7.0.2",
-    "vite": "npm:@voidzero-dev/vite-plus-core@8.3.8000",
+    "vite": "npm:@voidzero-dev/vite-plus-core@8.3.8001",
     "vite-plugin-pwa": "2.0.0",
-    "vite-plus": "1.7.0",
+    "vite-plus": "1.8.0",
     "vitest": "5.1.1",
     "workbox-window": "7.4.1"
   },
