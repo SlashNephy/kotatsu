@@ -474,6 +474,7 @@ func (w *Worker) record(ctx context.Context, recordingID uuid.UUID, model string
 		}
 		err := q.UpsertRecordingAutoCaptions(ctx, sqlc.UpsertRecordingAutoCaptionsParams{
 			RecordingID: recordingID, Model: model, GeneratorVersion: GeneratorVersion, Now: w.clock.Now(), Cues: data,
+			SearchGrams: searchGrams(cues),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to record the captions: %w", err)

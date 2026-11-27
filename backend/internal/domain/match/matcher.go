@@ -313,21 +313,25 @@ func (m *Matcher) matchKeywords(p *Program) bool {
 
 func (k *compiledKeyword) match(p *Program) bool {
 	for _, field := range k.fields {
-		var found bool
-		switch {
-		case k.pattern != nil:
-			found = (k.prefilter == nil || k.prefilter.mayMatch(p, field)) && k.pattern.MatchString(p.text(field))
-		case k.fold:
-			found = strings.Contains(p.foldedText(field), k.literal)
-		default:
-			found = strings.Contains(p.text(field), k.literal)
-		}
-		if found {
+		if k.matchText(p.text(field), func() string { return p.foldedText(field) }) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// matchText は、正規化した文字列 text がキーワードを含むかどうかを返す。folded は、text を大文字と小文字を区別しない形に畳んで返す。
+// 畳むのは、畳んだ文字列が要るときだけにする。
+func (k *compiledKeyword) matchText(text string, folded func() string) bool {
+	switch {
+	case k.pattern != nil:
+		return (k.prefilter == nil || k.prefilter.mayMatch(text, folded)) && k.pattern.MatchString(text)
+	case k.fold:
+		return strings.Contains(folded(), k.literal)
+	default:
+		return strings.Contains(text, k.literal)
+	}
 }
 
 // anyGenre は、番組のジャンルのどれかが、条件のジャンルのどれかに当たるかどうかを返す。

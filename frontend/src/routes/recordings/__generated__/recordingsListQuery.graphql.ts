@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e54cc5e5a51e46a8083beb8e8165fc01>>
+ * @generated SignedSource<<df36b1c50d0a764f38cf9ae32e9008dd>>
  * @lightSyntaxTransform
  */
 
@@ -13,6 +13,8 @@ export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 export type RecordingOrder = "NEWEST_FIRST" | "OLDEST_FIRST" | "%future added value";
 export type RecordingState = "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED" | "PARTIAL" | "RECORDING" | "%future added value";
 export type RecordingFilter = {
+  captionKeywordMatch?: KeywordMatch | null | undefined;
+  captionKeywords?: ReadonlyArray<CaptionKeywordInput> | null | undefined;
   excludeKeywords?: ReadonlyArray<KeywordInput> | null | undefined;
   genres?: ReadonlyArray<number> | null | undefined;
   keyword?: string | null | undefined;
@@ -28,6 +30,11 @@ export type RecordingFilter = {
 export type KeywordInput = {
   caseSensitive?: boolean;
   fields: ReadonlyArray<KeywordField>;
+  regexp?: boolean;
+  text: string;
+};
+export type CaptionKeywordInput = {
+  caseSensitive?: boolean;
   regexp?: boolean;
   text: string;
 };
