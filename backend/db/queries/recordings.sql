@@ -513,7 +513,7 @@ UPDATE scramble_alerts SET notified_at = @now, updated_at = @now WHERE id;
 
 -- name: ListTuningOutcomes :many
 -- 続けて選局できないチャンネルの判定 (#1519) の材料に、since より後に始めた録画のうち、受信できたもの (完了、エラーあり完了、一部のみ) と、
--- 選局を断られて失敗したもの (tuning_refused) を、始めた順で返す。ほかの理由の失敗 (チューナーの空きがないなど) は数えない。
+-- 選局を拒否されて失敗したもの (tuning_refused) を、始めた順で返す。ほかの理由の失敗 (チューナーの空きがないなど) は数えない。
 -- 消した録画も、録画履歴 (設計書 4.4) に残っていれば、受信できたものに数える。消した録画を抜くと、その前後の失敗が続いて見えるため。
 SELECT outcomes.channel_type::text AS channel_type, outcomes.channel::text AS channel,
   outcomes.recorded_from::timestamptz AS recorded_from, outcomes.received::boolean AS received

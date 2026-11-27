@@ -23,7 +23,7 @@ export type SkipperFrame = {
   // seeking は、video が seek しているかどうか。
   seeking: boolean;
   paused: boolean;
-  // presented は、コマが映ったことの知らせかどうか。timeupdate から呼んだときは false にする。
+  // presented は、コマが映ったことの通知かどうか。timeupdate から呼んだときは false にする。
   // currentTime は、代入した時点で飛び先の値を返し、映っているコマより先へ進んでいることもあるので、蓋を外す数には入れない。
   presented: boolean;
 };
@@ -34,7 +34,7 @@ export type SkipperHost = {
   enabled: () => boolean;
   // scrubbing は、シークバーのつまみをつまんでいるかどうか。
   scrubbing: () => boolean;
-  // paused は、一時停止しているかどうか (自動再生を断られて止まっているときも含む)。
+  // paused は、一時停止しているかどうか (自動再生を拒否されて止まっているときも含む)。
   paused: () => boolean;
   // lastSeek は、利用者が最後にシークした位置。自動で飛んだ位置は含めない。
   lastSeek: () => number | null;
@@ -77,7 +77,7 @@ export class CmAutoSkipper {
         return;
       }
       // seek の途中のコマと、飛び先より手前のコマが来たら、数え直す。止めている間のコマも数えない。
-      // requestVideoFrameCallback のないブラウザは requestAnimationFrame で代えるので、止めている間も知らせが届くが、
+      // requestVideoFrameCallback のないブラウザは requestAnimationFrame で代えるので、止めている間も通知が届くが、
       // そのコマが画面に出たかは分からない (設計書 7.5)。
       const landed =
         !frame.paused &&

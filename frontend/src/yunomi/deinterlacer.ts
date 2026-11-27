@@ -15,7 +15,7 @@ export function enableFilm(deinterlacer: { film: boolean }): void {
 
 // createDeinterlacer は、create でデインタレーサーを作る。作れなければ (WebGL2 のないブラウザで、yadif は作るときに投げる)、
 // 解除せずに映像をそのまま見せるものを返し、available を false にする (#1617)。
-// 投げたままにすると、プレイヤーがエラーとして知らせ、画面はつなぎ直しを繰り返すだけで再生できない。
+// 投げたままにすると、プレイヤーがエラーとして通知し、画面はつなぎ直しを繰り返すだけで再生できない。
 // 返すものは、放送の映像の大きさを読むために、プレイヤーが入れる映像のテーブル (videoTimeline) を持つ。
 export function createDeinterlacer(create: () => PlayerDeinterlacer): {
   deinterlacer: PlayerDeinterlacer;

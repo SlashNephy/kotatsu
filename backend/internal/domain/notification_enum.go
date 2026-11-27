@@ -30,7 +30,7 @@ const (
 	NotificationKindDramaRecordFailed NotificationKind = "drama_record_failed"
 	// スクランブルされたまま録れた録画が続いたことを通知する (#1517)。B-CAS カードを確認できるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
 	NotificationKindScrambledRecordings NotificationKind = "scrambled_recordings"
-	// 放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを通知する (#1519)。チューナーサーバーをスキャンし直せるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
+	// 放送の衛星の局のラインナップが、チューナーサーバーのチャンネルと食い違ったことを通知する (#1519)。チューナーサーバーをスキャンし直せるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
 	NotificationKindLineupChanged NotificationKind = "lineup_changed"
 )
 

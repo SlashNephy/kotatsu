@@ -940,7 +940,7 @@ func TestEngineSkipsUnconditionedRules(t *testing.T) {
 	f.run(t)
 	require.Equal(t, map[int64]bool{5: true}, f.reserved(t))
 
-	// 保存では断るので、DB を直接書き換え、これからの全番組を含む時間帯だけのルールにする。
+	// 保存では拒否するので、DB を直接書き換え、これからの全番組を含む時間帯だけのルールにする。
 	_, err := f.pool.Exec(t.Context(), `UPDATE rules SET conditions = '{"version": 1, "conditions": {"keywords": [], "excludeKeywords": [],
 		"channelTypes": [], "serviceIds": [], "genres": [], "excludeGenres": [], "freeOnly": false,
 		"timeRanges": [{"weekdays": [0, 1, 2, 3, 4, 5, 6], "startMinute": 0, "durationMinutes": 1440}]}}' WHERE id = $1`, r.ID)

@@ -33,9 +33,9 @@ var (
 	ErrPermanent = errors.New("the request cannot be completed")
 	// ErrUnknownDestination は、知らない記録先であることを表す。
 	ErrUnknownDestination = errors.New("unknown destination")
-	// ErrUnauthorized は、記録先がアクセストークンを断った (401) ことを表す。トークンを更新してから送り直す。
+	// ErrUnauthorized は、記録先がアクセストークンを拒否した (401) ことを表す。トークンを更新してから送り直す。
 	ErrUnauthorized = errors.New("the destination rejected the access token")
-	// ErrReauthorizationRequired は、更新のトークンが断られ、利用者が連携し直すまで問い合わせられないことを表す。ErrPermanent を包む。
+	// ErrReauthorizationRequired は、更新のトークンが拒否され、利用者が連携し直すまで問い合わせられないことを表す。ErrPermanent を包む。
 	ErrReauthorizationRequired = fmt.Errorf("%w: the connection must be authorized again", ErrPermanent)
 	// ErrRateLimited は、記録先が問い合わせの多すぎること (429) を返したことを表す。
 	ErrRateLimited = errors.New("the destination is rate limiting the requests")
@@ -116,7 +116,7 @@ type Destination interface {
 	AuthCodeURL(app *App, redirectURI, state, verifier string) string
 	// Exchange は、認可コードをトークンと引き換える。書き込める権限がなければ、ErrPermanent を包んで返す。
 	Exchange(ctx context.Context, app *App, redirectURI, code, verifier string) (*Token, error)
-	// Refresh は、更新のトークンで、新しいアクセストークンを取得する。更新のトークンが断られたら ErrReauthorizationRequired を返す。
+	// Refresh は、更新のトークンで、新しいアクセストークンを取得する。更新のトークンが拒否されたら ErrReauthorizationRequired を返す。
 	Refresh(ctx context.Context, app *App, refreshToken string) (*Token, error)
 	// AccountName は、トークンの持ち主の、記録先でのアカウントの名前を返す。
 	AccountName(ctx context.Context, app *App, accessToken string) (string, error)

@@ -23,7 +23,7 @@ describe('recentLineupAlerts', () => {
 });
 
 describe('dismissLineupAlerts', () => {
-  test('既読にした知らせを覚え、変わったことを知らせる', () => {
+  test('既読にした通知を記録し、変わったことを listener に通知する', () => {
     let calls = 0;
     const unsubscribe = subscribeLineupDismissals(() => {
       calls += 1;

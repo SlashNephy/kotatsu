@@ -51,7 +51,7 @@ export function createSettler<T>(
 }
 
 // useSettledFalse は、value が false になるのを、settleMs だけ遅らせて返す。true になるのは、すぐに返す。
-// 「受信中」の知らせを、文書が移る途中で消えては出る、を繰り返さないようにする。
+// 「受信中」の通知を、文書が移る途中で消えては出る、を繰り返さないようにする。
 export function useSettledFalse(value: boolean, delay = settleMs): boolean {
   const [settled, setSettled] = useState(value);
   useEffect(() => {

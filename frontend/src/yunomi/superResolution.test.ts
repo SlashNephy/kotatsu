@@ -284,7 +284,7 @@ describe('createYadifUpscaler', () => {
         return made;
       },
     },
-  ])('$name、投げずに知らせ、以後は拡大しない', ({ create }) => {
+  ])('$name、投げずに通知し、以後は拡大しない', ({ create }) => {
     const onUnavailable = vi.fn();
     const upscaler = createYadifUpscaler({ create, onUnavailable });
     const gl = fakeContext();
@@ -387,7 +387,7 @@ describe('createYadifUpscaler', () => {
     expect(upscaler.size(gl, 1440, 1080, 1920, 1080)).toBeNull();
   });
 
-  test('描画先を浮動小数点にできなければ、知らせて SDR で描き、以後は擬似 HDR にしない', () => {
+  test('描画先を浮動小数点にできなければ、通知して SDR で描き、以後は擬似 HDR にしない', () => {
     const copy = fakeCopy();
     const onHDRUnavailable = vi.fn();
     const setDrawingBuffer = vi.fn((_gl: WebGL2RenderingContext, hdr: boolean) => {
@@ -456,7 +456,7 @@ describe('createYadifUpscaler', () => {
     expect(upscaler.anime4k()).toBe(want.anime4k);
   });
 
-  test('Anime4K が途中で失敗すれば、片付けて知らせ、そのコマから FSR だけで拡大する', () => {
+  test('Anime4K が途中で失敗すれば、片付けて通知し、そのコマから FSR だけで拡大する', () => {
     const made = fakeUpscaler();
     const anime4k = fakeAnime4K();
     anime4k.upscale.mockImplementation(() => {
@@ -480,7 +480,7 @@ describe('createYadifUpscaler', () => {
     expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 0.2, false);
   });
 
-  test('Anime4K を作れなければ、知らせて FSR だけで拡大し、以後は作り直さない', () => {
+  test('Anime4K を作れなければ、通知して FSR だけで拡大し、以後は作り直さない', () => {
     const made = fakeUpscaler();
     const createAnime4KUpscaler = vi.fn((): Anime4K => {
       throw new Error('no EXT_color_buffer_float');

@@ -40,7 +40,7 @@ func TestTunerServerSharesNetworkTVIDWithOtherInstances(t *testing.T) {
 		{name: "leave a shared ID", shared: true, holders: 1, wantExclusive: []bool{false}, wantCloses: 0, wantForgotten: []int32{}},
 		// 最後の持ち主なら、加わった ID でも閉じる。
 		{name: "close a shared ID as the last holder", shared: true, holders: 0, wantExclusive: []bool{false}, wantCloses: 1, wantForgotten: []int32{2000}},
-		// 加わった ID の中継に空きがなければ (EDCB は 3 つ目の中継を断る)、別の ID を取得し直す。
+		// 加わった ID の中継に空きがなければ (EDCB は 3 つ目の中継を拒否する)、別の ID を取得し直す。
 		{
 			name: "relay of the shared ID is busy", shared: true, holders: 1, relayBusy: 25,
 			wantExclusive: []bool{false, true}, wantCloses: 0, wantForgotten: []int32{},

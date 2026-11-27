@@ -938,7 +938,7 @@ type DramaRecordConnection struct {
 	// 記録先のアカウントの名前。
 	AccountName string    `json:"accountName"`
 	ConnectedAt time.Time `json:"connectedAt"`
-	// 記録先がトークンの更新を断ったので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。
+	// 記録先がトークンの更新を拒否したので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。
 	ReauthorizationRequired bool `json:"reauthorizationRequired"`
 	// ウォッチリストを最後に問い合わせた日時。問い合わせていなければ null。
 	WatchlistCheckedAt *time.Time `json:"watchlistCheckedAt,omitempty"`
@@ -2481,15 +2481,15 @@ type SystemSettings struct {
 	// ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
 	DataBroadcastIPEnabled bool `json:"dataBroadcastIpEnabled"`
 	// 外部プレイヤー (VLC や mpv) 用の署名付きの映像の URL を、発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
-	// 無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に断る。
+	// 無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に拒否する。
 	// ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
 	ExternalPlayerUrlsEnabled bool `json:"externalPlayerUrlsEnabled"`
 	// IPTV のクライアント (Kodi、Jellyfin、Plex など) 用の URL を、発行し、受け付けるかどうか (#1755、設計書 9.8)。既定は false。
-	// 無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も断る。取り消す (deleteIptvFeed) ことはできる。
+	// 無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も拒否する。取り消す (deleteIptvFeed) ことはできる。
 	// ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
 	IptvFeedsEnabled bool `json:"iptvFeedsEnabled"`
 	// 録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定は false。
-	// 無効の間は、録画の配信が download を断る。端末に保存 (設計書 7.8) は含めない。
+	// 無効の間は、録画の配信が download を拒否する。端末に保存 (設計書 7.8) は含めない。
 	// ログインしていれば誰でも読め、画面が、ダウンロードの操作を出すかを決めるのに使う。
 	RecordingDownloadsEnabled bool `json:"recordingDownloadsEnabled"`
 	// CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか (#1737、設計書 6.1)。既定は false。
@@ -2754,16 +2754,16 @@ type User struct {
 
 func (User) IsNode() {}
 
-// ヘッダーで購読する、ログイン中のユーザーへの知らせ (設計書 9.1)。1 つの知らせには、どれか 1 つだけが入る。
+// ヘッダーで購読する、ログイン中のユーザーへの通知 (設計書 9.1)。1 つの通知には、どれか 1 つだけが入る。
 // dataChanged、viewerSettingsChanged、unreadNotificationCount を、1 つの接続でまとめて送る。
 type ViewerEvent struct {
 	DataChange              *DataChange `json:"dataChange,omitempty"`
 	ViewerSettingsVersion   *int        `json:"viewerSettingsVersion,omitempty"`
 	UnreadNotificationCount *int        `json:"unreadNotificationCount,omitempty"`
-	// この tenban が止まる前に、流しているストリームを、新しい接続を張ってから切り替えてほしいという知らせ (設計書 7.2、#1085)。
+	// この tenban が止まる前に、流しているストリームを、新しい接続を張ってから切り替えてほしいという通知 (設計書 7.2、#1085)。
 	// 届くときは常に true。届いてから一定の時間 (20 秒) が過ぎると、この tenban は、残ったストリームを打ち切る。
 	StreamsDraining *bool `json:"streamsDraining,omitempty"`
-	// ライブのサービスが、スクランブルされたまま届くと決めたという知らせ (設計書 7.1、#1517)。購読を始めた後に決めたものだけを送る。
+	// ライブのサービスが、スクランブルされたまま届くと決めたという通知 (設計書 7.1、#1517)。購読を始めた後に決めたものだけを送る。
 	// 決めるのは、ブラウザ内での変換のストリームを配信する tenban と、kyusu で、決めたらストリームを閉じる。どの tenban や kyusu で決めても届く。
 	// ライブを流しているプレイヤーは、自分のサービスなら、つなぎ直すのをやめて、理由を出す。接続を増やさないよう、ここに載せる。
 	LiveStreamScrambled *LiveStreamScrambled `json:"liveStreamScrambled,omitempty"`

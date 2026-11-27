@@ -18,8 +18,8 @@ const dateTimeFormat = zonedFormat({
   hourCycle: 'h23',
 });
 
-// LineupChanges は、衛星の局の顔ぶれがチューナーサーバーと食い違ったという知らせ (チャンネルの変更、#1519) を、新しい順に並べる。
-// 開いたら、まだ読んでいない知らせを既読にし、画面の上のお知らせを消す。知らせがなければ、何も出さない。
+// LineupChanges は、衛星の局のラインナップがチューナーサーバーと食い違ったという通知 (チャンネルの変更、#1519) を、新しい順に並べる。
+// 開いたら、まだ読んでいない通知を既読にし、画面の上のお知らせを消す。通知がなければ、何も出さない。
 export function LineupChanges() {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<LineupChangesQuery>(

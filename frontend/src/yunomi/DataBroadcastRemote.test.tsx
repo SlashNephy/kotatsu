@@ -102,7 +102,7 @@ describe('DataBroadcastRemote', () => {
     expect(onPress).toHaveBeenCalledExactlyOnceWith(1);
   });
 
-  // 受け取っている間の知らせは、映像の右下に出すので、リモコンには出さない。
+  // 受け取っている間の通知は、映像の右下に出すので、リモコンには出さない。
   test('受け取っている間は、ボタンを押せない', () => {
     renderRemote('loading');
 

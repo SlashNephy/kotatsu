@@ -389,7 +389,7 @@ jobs:
 
   # 配布するアーカイブを Windows と macOS のランナーで開き、バイナリが起動して、画面と埋め込んだファイルを返すことを確認する (#1523、設計書 11.6)。
   # macOS のランナーは混むと長く待たされ、空きがないと取り消されるので、まとめの ci の needs に入れず、PR を止めない。
-  # 赤くなったら、その OS で壊れたということなので、見て直す。
+  # 失敗したら、その OS で壊れたということなので、見て直す。
   # macOS では、Go を変えたときに、DB を使わないテスト (test-os と同じもの) もこのジョブで流す (#1691)。
   smoke-os:
     needs: [changes, archives]
@@ -430,7 +430,7 @@ jobs:
         if: runner.os == 'Windows'
         timeout-minutes: 5
         run: |
-          # 管理者の権限で pg_ctl を動かすと断られることがあるので、入っているサービスとして起動する。
+          # 管理者の権限で pg_ctl を動かすと拒否されることがあるので、入っているサービスとして起動する。
           pwsh -NoProfile -Command 'Get-Service -Name "postgresql*" | Set-Service -StartupType Manual -PassThru | Start-Service'
           pg_bin="$(cygpath "$PGBIN")"
           for _ in $(seq 1 30); do "$pg_bin/pg_isready" -h 127.0.0.1 && break; sleep 1; done

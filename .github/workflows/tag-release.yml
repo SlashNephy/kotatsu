@@ -32,7 +32,7 @@ jobs:
         name: Decide the next version
         run: echo "version=$(git tag --list 'v*' | scripts/next-version.sh)" >> "$GITHUB_OUTPUT"
       # 破壊的変更の見出しは書いた時点の次のバージョンなので、月をまたぐと打つバージョンとずれる。ずれていたら、タグを打たずに止める。
-      # リリース済みのバージョンの節が、リリースした後に変わっていても止める。
+      # リリース済みのバージョンに書いた内容が、リリースした後に変わっていても止める。
       - name: Check the version in the breaking changes
         env:
           VERSION: ${{ steps.version.outputs.version }}

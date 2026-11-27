@@ -44,7 +44,7 @@ describe('ブラウザの中でデコードする経路 (#1516) を使えるか'
   // decodeScope は、WASM の SIMD、OffscreenCanvas、AudioContext、WebGL2 の有無を決めた端末の代わり。
   const decodeScope = ({ simd = true, webgl2 = true, offscreen = true } = {}) => ({
     WebAssembly: { validate: () => simd },
-    // GPU のない端末と、OffscreenCanvas では 2D しか使えない端末では、WebGL2 を断る。
+    // GPU のない端末と、OffscreenCanvas では 2D しか使えない端末では、WebGL2 を拒否する。
     OffscreenCanvas: class {
       getContext() {
         return webgl2 ? { getExtension: () => null } : null;

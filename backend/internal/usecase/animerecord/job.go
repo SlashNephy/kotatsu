@@ -111,7 +111,7 @@ func (s *Service) Record(ctx context.Context, db Database, args *RecordArgs, las
 			retry = err
 		}
 	}
-	// 通知は、ジョブの期限が来ても、送れた話を知らせられるよう、期限で取り消さない context で書く。
+	// 通知は、ジョブの期限が来ても、送れた話を通知できるよう、期限で取り消さない context で書く。
 	if err := s.notify(context.WithoutCancel(ctx), db, args, outcome); err != nil {
 		return err
 	}

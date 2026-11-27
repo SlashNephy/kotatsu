@@ -68,7 +68,7 @@ func hasEnv(lookupEnv LookupEnv, name string) bool {
 }
 
 // stripMovedSettings は、設定ファイルの YAML から、画面に移した項目を取り除き、取り除いた項目と、取り除いた後の YAML を返す。
-// 取り除いて空になった節 (audit: など) も取り除く。未知のキーを拒む読み込みで、消した節が誤りにならないようにするためである。
+// 取り除いて空になったセクション (audit: など) も取り除く。未知のキーを拒む読み込みで、消したセクションが誤りにならないようにするためである。
 func stripMovedSettings(data []byte) ([]byte, []IgnoredSetting, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
@@ -83,7 +83,7 @@ func stripMovedSettings(data []byte) ([]byte, []IgnoredSetting, error) {
 			ignored = append(ignored, IgnoredSetting{Key: strings.Join(moved.keys, "."), Env: "", Screen: moved.screen})
 		}
 	}
-	// 項目がなくても、空の節 (audit: だけの行) を取り除いているので、出力し直す。
+	// 項目がなくても、空のセクション (audit: だけの行) を取り除いているので、出力し直す。
 	stripped, err := yaml.Marshal(&doc)
 	if err != nil {
 		return nil, nil, err
@@ -93,7 +93,7 @@ func stripMovedSettings(data []byte) ([]byte, []IgnoredSetting, error) {
 }
 
 // removeKey は、対応のノード mapping から、keys の道筋の項目を取り除き、取り除いたかどうかを返す。
-// 途中の節が、取り除いた後に空になったか、もとから空 (null) なら、その節も取り除く。
+// 途中のセクションが、取り除いた後に空になったか、もとから空 (null) なら、そのセクションも取り除く。
 func removeKey(mapping *yaml.Node, keys []string) bool {
 	index := slices.IndexFunc(pairKeys(mapping), func(key *yaml.Node) bool { return key.Value == keys[0] })
 	if index < 0 {

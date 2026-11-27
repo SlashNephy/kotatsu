@@ -192,7 +192,7 @@ func TestDataChangedAdmin(t *testing.T) {
 			}
 			assert.Equal(t, dataChannelNames(tt.want), channels)
 
-			// 管理の変更と、ほかの変更を起こす。2 つの知らせは 1 つにまとまることがあり、届く順は決まらないので、
+			// 管理の変更と、ほかの変更を起こす。2 つの通知は 1 つにまとまることがあり、届く順は決まらないので、
 			// 届く数で、管理の変更が届いたかを見分ける。管理者でなければ、ほかの変更だけが届く。
 			f.publish(t, notify.AuditChannel)
 			f.publish(t, rule.NotifyChannel)
@@ -333,7 +333,7 @@ func TestViewerEvents(t *testing.T) {
 	assert.JSONEq(t, event("null", "1", "null"), string(next(t, events)))
 }
 
-// fakeDrain は、テストで、tenban を止める前の知らせを始める。
+// fakeDrain は、テストで、tenban を止める前の通知を始める。
 type fakeDrain struct {
 	draining chan struct{}
 }
@@ -344,7 +344,7 @@ func (d *fakeDrain) Draining() <-chan struct{} {
 
 var _ graph.Drain = new(fakeDrain)
 
-// TestViewerEventsStreamsDraining は、tenban を止める前の知らせを始めたら、viewerEvents で一度だけ届くことを確認する (#1085)。
+// TestViewerEventsStreamsDraining は、tenban を止める前の通知を始めたら、viewerEvents で一度だけ届くことを確認する (#1085)。
 func TestViewerEventsStreamsDraining(t *testing.T) {
 	t.Parallel()
 
@@ -358,7 +358,7 @@ func TestViewerEventsStreamsDraining(t *testing.T) {
 
 	close(drain.draining)
 	assert.JSONEq(t, `{"viewerEvents":{"viewerSettingsVersion":null,"unreadNotificationCount":null,"streamsDraining":true}}`, string(next(t, events)))
-	// 一度だけ届き、その後は、ほかの知らせが今までどおり届く。
+	// 一度だけ届き、その後は、ほかの通知が今までどおり届く。
 	f.notify(t, domain.NotificationKindRecordingStarted, nil)
 	assert.JSONEq(t, `{"viewerEvents":{"viewerSettingsVersion":null,"unreadNotificationCount":1,"streamsDraining":null}}`, string(next(t, events)))
 }

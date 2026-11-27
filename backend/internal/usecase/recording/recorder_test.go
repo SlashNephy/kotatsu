@@ -399,7 +399,7 @@ func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
 	tests := []struct {
 		name   string
 		outage func(db *databasetest.Switch)
-		// noticed は、DB に届かないことに、録画が気づいたか (問い合わせが断られたか、詰まって待ち始めたか) を返す。
+		// noticed は、DB に届かないことに、録画が気づいたか (問い合わせが拒否されたか、詰まって待ち始めたか) を返す。
 		noticed func(db *databasetest.Switch) bool
 	}{
 		{name: "connection refused", outage: (*databasetest.Switch).Down, noticed: func(db *databasetest.Switch) bool { return db.Refused() > 0 }},
@@ -824,7 +824,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			wantDetail: "no available tuners",
 		},
 		{
-			// リバースプロキシが 502 を返したなど、選局を断ったとは言えない応答。ストリームは一度も開いていないので、中断ではない。
+			// リバースプロキシが 502 を返したなど、選局を拒否したとは言えない応答。ストリームは一度も開いていないので、中断ではない。
 			name: "チューナーサーバーがエラーを返す",
 			tuner: func(*fixture) recording.StreamOpener {
 				return failingStream{err: fmt.Errorf("upstream: context deadline exceeded: %w", tunerserver.ErrRefused)}

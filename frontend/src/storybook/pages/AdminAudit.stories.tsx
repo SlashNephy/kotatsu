@@ -197,7 +197,7 @@ export const FilteredEmpty: Story = {
   },
 };
 
-// 管理者でないユーザーが開いたとき (サーバーが FORBIDDEN で断る)。
+// 管理者でないユーザーが開いたとき (サーバーが FORBIDDEN で拒否する)。
 export const Forbidden: Story = {
   args: {
     overrides: merge(asViewer('MEMBER'), () => ({
@@ -207,10 +207,10 @@ export const Forbidden: Story = {
   },
 };
 
-// ログインしていないとき (tenban が 401 で断る)。管理の画面の枠は、ログインの画面へのリンクを出す。
+// ログインしていないとき (tenban が 401 で拒否する)。管理の画面の枠は、ログインの画面へのリンクを出す。
 export const SignedOut: Story = {
   args: {
-    // 画面の問い合わせだけを断る。ヘッダーなどの問い合わせは、そのまま返す。
+    // 画面の問い合わせだけを拒否する。ヘッダーなどの問い合わせは、そのまま返す。
     hold: ({ name }) => {
       if (name === 'auditQuery') {
         throw new GraphQLRequestError('unauthenticated', 401, 'UNAUTHENTICATED');

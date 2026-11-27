@@ -113,7 +113,7 @@ const (
 	RecordingFailureReasonRecorderUnavailable RecordingFailureReason = "recorder_unavailable"
 	// 録画中に、チューナーサーバー (EDCB) の予約にチューナーを取られ、つなぎ直せなかったこと (#1534)。
 	RecordingFailureReasonTunerPreempted RecordingFailureReason = "tuner_preempted"
-	// チューナーサーバーが選局を断ったこと (サービスかチャンネルがない 404 か、選局に失敗した 500、#1519)。
+	// チューナーサーバーが選局を拒否したこと (サービスかチャンネルがない 404 か、選局に失敗した 500、#1519)。
 	RecordingFailureReasonTuningRefused RecordingFailureReason = "tuning_refused"
 )
 

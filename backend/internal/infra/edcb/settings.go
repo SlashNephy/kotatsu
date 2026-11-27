@@ -78,7 +78,7 @@ type TimerSettings struct {
 	// EPGCaptureAnyBonDriver は、[SET] の NGEpgCapTime が 0 かどうか (#1856)。0 なら、EpgTimerSrv は、取得に使う BonDriver の
 	// どれかに空きチューナーがあれば取得する。0 でなければ (既定は 20 分)、取得に使う BonDriver ごとに、EPGCount の数の空きチューナーが要る。
 	EPGCaptureAnyBonDriver bool
-	// EPGCaptureBonDrivers は、BonDriver の節 (小文字にした名前) ごとの、GetEpg と EPGCount (#1856)。
+	// EPGCaptureBonDrivers は、BonDriver のセクション (小文字にした名前) ごとの、GetEpg と EPGCount (#1856)。
 	EPGCaptureBonDrivers map[string]tunerserver.EPGCaptureBonDriver
 }
 
@@ -90,7 +90,7 @@ func defaultTimerSettings() *TimerSettings {
 	}
 }
 
-// isBonDriverSection は、EpgTimerSrv.ini の節 (小文字にした名前) が、BonDriver の節になりうるかを返す。
+// isBonDriverSection は、EpgTimerSrv.ini のセクション (小文字にした名前) が、BonDriver のセクションになりうるかを返す。
 func isBonDriverSection(name string) bool {
 	switch name {
 	case "set", "epg_cap", "tvtest":
@@ -135,7 +135,7 @@ func (s *TunerServer) timerSettings(ctx context.Context) (*TimerSettings, error)
 }
 
 // ParseTimerSettings は、EpgTimerSrv.ini の [SET] のマージンと NGEpgCapTime、[EPG_CAP] の EPG の取得の時刻、
-// BonDriver の節の GetEpg と EPGCount を読む (EpgTimerSrvSetting.cpp、ReserveManager.cpp)。
+// BonDriver のセクションの GetEpg と EPGCount を読む (EpgTimerSrvSetting.cpp、ReserveManager.cpp)。
 //   - [EPG_CAP] の Count がなければ、毎日 23:00 に取得する (EpgTimerSrv の既定)。
 //   - NGEpgCapTime の既定は 20 (分)。GetEpg の既定は 1 で、EPGCount の既定は 0 (その BonDriver のすべてのチューナー)。
 //   - 時刻は「時:分」で、曜日を指定するときは「w1」(月) 〜「w7」(日) を続ける。{n}Select が 0 なら無効。
@@ -176,7 +176,7 @@ func ParseTimerSettings(data []byte) *TimerSettings {
 
 		return settings
 	}
-	// 番号を 0 から Count まで数えず、節にある番号のキーだけを見る。大きな Count で、何億回も回らないためである (#1981)。
+	// 番号を 0 から Count まで数えず、セクションにある番号のキーだけを見る。大きな Count で、何億回も回らないためである (#1981)。
 	for _, i := range captureIndexes(capture, count) {
 		key := strconv.Itoa(i)
 		if selected, _ := atoi(capture[key+"select"]); selected == 0 {

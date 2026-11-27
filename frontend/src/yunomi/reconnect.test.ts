@@ -15,7 +15,7 @@ describe('canRetryImmediately', () => {
   test.each([
     { name: 'まだすぐつなぎ直していない', lastAt: null, want: true },
     { name: '30 秒より前にすぐつなぎ直した', lastAt: now - 30_000, want: true },
-    // つないではすぐ切れるなら、知らせを出して間隔を延ばす。
+    // つないではすぐ切れるなら、通知を出して間隔を延ばす。
     { name: '30 秒以内にすぐつなぎ直した', lastAt: now - 29_999, want: false },
   ])('$name', ({ lastAt, want }) => {
     expect(canRetryImmediately(lastAt, now)).toBe(want);

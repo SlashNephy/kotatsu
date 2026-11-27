@@ -9,7 +9,7 @@ import (
 // serviceIDBase は、Mirakurun のサービス ID と番組 ID を組み立てる基数 (networkId × 100000 + serviceId)。
 const serviceIDBase = 100_000
 
-// toEvent は、Mirakurun、Mahiron と mirakc のイベントを、何が変わったかの知らせに読み替える。
+// toEvent は、Mirakurun、Mahiron と mirakc のイベントを、何が変わったかの通知に読み替える。
 // Kotatsu が使わないイベントと、形の分からないイベントでは false を返す。取りこぼしは全量の照合で埋まる (設計書 3.3)。
 //
 // Mirakurun と Mahiron の program のイベントは、create と update では番組を、remove では番組の ID だけを送る。

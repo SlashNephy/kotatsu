@@ -167,7 +167,7 @@ func (s *Server) refresh(ctx context.Context, form url.Values, logger *slog.Logg
 			return &tokenError{code: errorInvalidTarget, description: "resource does not match the grant"}
 		}
 		// スコープを狭めて求められても、連携のスコープのまま発行する。広げることはできない。
-		// 書くスコープでは読むツールも使えるので、書くだけの連携に読むスコープを求められても断らない (#1415)。
+		// 書くスコープでは読むツールも使えるので、書くだけの連携に読むスコープを求められても拒否しない (#1415)。
 		for scope := range strings.FieldsSeq(form.Get("scope")) {
 			if !HasScope(row.Scopes, scope) {
 				return &tokenError{code: errorInvalidScope, description: "scope exceeds the grant"}
@@ -273,7 +273,7 @@ func (s *Server) revoke(ctx context.Context, token, clientID string) error {
 	return nil
 }
 
-// readForm は、本文の application/x-www-form-urlencoded を読む。同じパラメーターを 2 回送ったものは断る。
+// readForm は、本文の application/x-www-form-urlencoded を読む。同じパラメーターを 2 回送ったものは拒否する。
 func readForm(w http.ResponseWriter, r *http.Request) (url.Values, error) {
 	if ct, _, _ := strings.Cut(r.Header.Get("Content-Type"), ";"); !strings.EqualFold(strings.TrimSpace(ct), "application/x-www-form-urlencoded") {
 		return nil, errors.New("the content type must be application/x-www-form-urlencoded")

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// errUnreachable は、Switch で DB に届かないことにしている間の、接続のエラー。DB が止まって接続を断られたときと同じエラーにする。
+// errUnreachable は、Switch で DB に届かないことにしている間の、接続のエラー。DB が止まって接続を拒否されたときと同じエラーにする。
 var errUnreachable = &net.OpError{Op: "dial", Net: "tcp", Source: nil, Addr: nil, Err: syscall.ECONNREFUSED}
 
 // Switch は、DB に届くかどうかを切り替えられる接続プール。DB が止まった状態を作るのに使う。
@@ -55,7 +55,7 @@ func NewSwitch(tb testing.TB, pool *pgxpool.Pool) *Switch {
 	return s
 }
 
-// Down は、DB に届かない (接続を断られる) ことにする。
+// Down は、DB に届かない (接続を拒否される) ことにする。
 func (s *Switch) Down() {
 	s.down.Store(true)
 }

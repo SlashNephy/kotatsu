@@ -105,7 +105,7 @@ describe('GoogleDriveSettings (#1902)', () => {
     expect(screen.queryByRole('button', { name: 'フォルダを追加' })).toBeNull();
   });
 
-  test('Google で接続が切れたら、接続し直すよう知らせる', () => {
+  test('Google で接続が切れたら、接続し直すよう伝える', () => {
     renderSettings({
       ...connected,
       drive: { ...connected.drive!, revokedAt: '2026-11-18T03:00:00Z' },

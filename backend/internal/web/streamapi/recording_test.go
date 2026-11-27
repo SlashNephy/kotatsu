@@ -357,7 +357,7 @@ func TestRecordingHandlerDownloads(t *testing.T) {
 	}
 }
 
-// TestRecordingHandlerDownloadsWhileDisabled は、管理者が録画のダウンロードを有効にしていなければ、download を断り、
+// TestRecordingHandlerDownloadsWhileDisabled は、管理者が録画のダウンロードを有効にしていなければ、download を拒否し、
 // download を付けない配信 (ブラウザ内の再生と、端末に保存) は今までどおり流すことを確認する (#1762)。
 func TestRecordingHandlerDownloadsWhileDisabled(t *testing.T) {
 	t.Parallel()
@@ -373,7 +373,7 @@ func TestRecordingHandlerDownloadsWhileDisabled(t *testing.T) {
 		query      string
 		wantStatus int
 	}{
-		{name: "ダウンロードは断る", query: downloadQuery, wantStatus: http.StatusForbidden},
+		{name: "ダウンロードは拒否する", query: downloadQuery, wantStatus: http.StatusForbidden},
 		{name: "再生と端末に保存は流す", query: "", wantStatus: http.StatusOK},
 	}
 	for _, tt := range tests {
@@ -390,7 +390,7 @@ func TestRecordingHandlerDownloadsWhileDisabled(t *testing.T) {
 	}
 }
 
-// TestRecordingHandlerDownloadsWithoutSettings は、録画のダウンロードを有効にしているかを読めなければ、download を断ることを確認する (#1762)。
+// TestRecordingHandlerDownloadsWithoutSettings は、録画のダウンロードを有効にしているかを読めなければ、download を拒否することを確認する (#1762)。
 // DB に届かず、キャッシュした設定もなければ 503、そのほかの誤りなら 500 を返す。
 func TestRecordingHandlerDownloadsWithoutSettings(t *testing.T) {
 	t.Parallel()

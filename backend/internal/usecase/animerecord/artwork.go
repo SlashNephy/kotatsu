@@ -92,7 +92,7 @@ type jikanTurns struct {
 }
 
 // lookUpJikan は、Jikan から MyAnimeList の作品 malID の画像を取得する。画像がないか、作品がなければ空を返す。
-// 問い合わせられる数を使い切っていれば、引かずに false を返す。Jikan に届かないか断られたら、残りは次の機会に回し、false を返す。
+// 問い合わせられる数を使い切っていれば、引かずに false を返す。Jikan に届かないか拒否されたら、残りは次の機会に回し、false を返す。
 // 問い合わせの間は、見たいリストの問い合わせと同じだけ空ける。ctx が終わったときだけ、エラーを返す。
 func (s *Service) lookUpJikan(ctx context.Context, turns *jikanTurns, malID int32) (string, bool, error) {
 	if turns.left <= 0 {

@@ -71,11 +71,11 @@ type ButtonProps = {
   active?: boolean;
   // optional は、狭い画面で外してよいかどうか。
   optional?: boolean;
-  // notice は、名前の代わりに、しばらく出しておく知らせ (失敗したことなど)。
+  // notice は、名前の代わりに、しばらく出しておく通知 (失敗したことなど)。
   notice?: string | null;
   // badge は、アイコンの真ん中に重ねる短い文字 (15 秒のシークの「15」など)。
   badge?: string;
-  // pressProps は、押し続けを見分けるボタン (useHoldPress) が渡す、ポインターの知らせの受け口。onClick より優先する。
+  // pressProps は、押し続けを見分けるボタン (useHoldPress) が渡す、ポインターのイベントの受け口。onClick より優先する。
   pressProps?: HoldPressProps;
 };
 
@@ -202,7 +202,7 @@ export function useHoldPress(onPress: () => void, onHold: ((held: boolean) => vo
       if (onHoldRef.current === undefined || event.button !== 0) {
         return;
       }
-      // 指やカーソルが少しずれても、離すまでこのボタンの知らせを受ける。
+      // 指やカーソルが少しずれても、離すまでこのボタンがイベントを受ける。
       event.currentTarget.setPointerCapture(event.pointerId);
       release();
       swallowClick.current = false;
@@ -394,7 +394,7 @@ export function FullscreenButton({
   );
 }
 
-// BigPlayButton は、ブラウザに自動再生を断られたときに、映像の真ん中に出す再生ボタン。
+// BigPlayButton は、ブラウザに自動再生を拒否されたときに、映像の真ん中に出す再生ボタン。
 // 押すと、ユーザーの操作として再生を始めるので、ブラウザは音ありの再生を許す。
 export function BigPlayButton({ onPlay }: { onPlay: () => void }) {
   const { t } = useTranslation();
@@ -425,7 +425,7 @@ export function PlayerLoading() {
   );
 }
 
-// PlayerNotice は、映像の右下に出す知らせ。操作バーのボタンに重ならないよう、バーの上に置く。
+// PlayerNotice は、映像の右下に出す通知。操作バーのボタンに重ならないよう、バーの上に置く。
 export function PlayerNotice({
   children,
   loading = false,
@@ -441,7 +441,7 @@ export function PlayerNotice({
   );
 }
 
-// PlayerAlert は、切断や再生のエラーを、映像の真ん中に重ねて通知する (#435)。全画面と別のウィンドウでは、映像の外の知らせが
+// PlayerAlert は、切断や再生のエラーを、映像の真ん中に重ねて通知する (#435)。全画面と別のウィンドウでは、映像の外の通知が
 // 見えないので、そのときに使う。action を渡すと、その操作 (つなぎ直す、やり直す) のボタンを添える。
 export function PlayerAlert({
   title,

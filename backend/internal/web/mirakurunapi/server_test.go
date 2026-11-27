@@ -385,7 +385,7 @@ func TestServerEvents(t *testing.T) {
 	}
 }
 
-// TestServerEventsSendsEPGChangedAsServiceEvent は、番組表の全体が変わったかもしれない知らせ (EDCB の EPG の読み込み直し) を、
+// TestServerEventsSendsEPGChangedAsServiceEvent は、番組表の全体が変わったかもしれない通知 (EDCB の EPG の読み込み直し) を、
 // Mirakurun にない種類なので、サービスのイベントとして送ることを確認する (#2035)。
 func TestServerEventsSendsEPGChangedAsServiceEvent(t *testing.T) {
 	t.Parallel()

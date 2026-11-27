@@ -2237,7 +2237,7 @@ func streamFailure(err error) domain.RecordingFailureReason {
 	if errors.Is(err, tunerserver.ErrStreamOpenTimeout) {
 		return domain.RecordingFailureReasonTunerUnavailable
 	}
-	// チューナーサーバーが選局を断った (サービスかチャンネルがないか、選局に失敗した)。チューナーの空きがないときと分けて、
+	// チューナーサーバーが選局を拒否した (サービスかチャンネルがないか、選局に失敗した)。チューナーの空きがないときと分けて、
 	// 続けて選局できないチャンネルの判定に数える (#1519)。
 	if errors.Is(err, tunerserver.ErrNotFound) || errors.Is(err, tunerserver.ErrTuningFailed) {
 		return domain.RecordingFailureReasonTuningRefused

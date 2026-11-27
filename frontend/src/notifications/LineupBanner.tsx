@@ -19,8 +19,8 @@ import {
 // systemPath は、チャンネルの変更を確認するシステムの状態の画面。開くと、お知らせを既読にする。
 const systemPath = '/admin/system';
 
-// LineupBanner は、衛星の局の顔ぶれがチューナーサーバーと食い違ったこと (チャンネルの変更、#1519) を、画面の上の 1 行で通知する。
-// 知らせは管理者にだけ届くので、管理者のときだけ読む。システムの状態の画面を開くまで、出しておく長さの間だけ出す。
+// LineupBanner は、衛星の局のラインナップがチューナーサーバーと食い違ったこと (チャンネルの変更、#1519) を、画面の上の 1 行で通知する。
+// 通知は管理者にだけ届くので、管理者のときだけ読む。システムの状態の画面を開くまで、出しておく長さの間だけ出す。
 export function LineupBanner() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   // 自分のロールは、アプリの根元で読んだものを使い、問い合わせない。
@@ -36,7 +36,7 @@ export function LineupBanner() {
     { fetchPolicy: 'store-or-network' },
   );
   if (viewer.role !== 'ADMIN' || pathname === systemPath) {
-    // システムの状態の画面には、同じ知らせを出し、開いたら既読にする。
+    // システムの状態の画面には、同じ通知を出し、開いたら既読にする。
     return null;
   }
 
@@ -52,7 +52,7 @@ export function LineupBanner() {
 
 function LineupBannerContent() {
   const { t } = useTranslation();
-  // 未読の通知の数が変わったら (知らせが届いたか、既読にしたら)、読み直す。画面を移るだけでは読み直さない。
+  // 未読の通知の数が変わったら (通知が届いたか、既読にしたら)、読み直す。画面を移るだけでは読み直さない。
   const unread = useUnreadNotificationCount();
   const data = useLazyLoadQuery<LineupBannerQuery>(
     graphql`

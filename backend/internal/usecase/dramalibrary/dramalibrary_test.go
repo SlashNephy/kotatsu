@@ -476,7 +476,7 @@ func TestNextEpisode(t *testing.T) {
 	}
 }
 
-// TestThresholdPercent は、見たドラマの話にする割合を、既定の 20% から変えられ、1〜100 の外は断ることを確認する (#1649)。
+// TestThresholdPercent は、見たドラマの話にする割合を、既定の 20% から変えられ、1〜100 の外は拒否することを確認する (#1649)。
 func TestThresholdPercent(t *testing.T) {
 	t.Parallel()
 

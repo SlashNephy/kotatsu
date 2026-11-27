@@ -63,7 +63,7 @@ func (s *Service) open(ctx context.Context, db Database, userID uuid.UUID, name 
 
 // refresh は、アクセストークンを更新する。Simkl は、更新すると前のアクセストークンをすぐに無効にするので、連携の行をロックして
 // 読み直し、ほかのプロセスがもう更新していれば、そのトークンを使う。force でなければ、期限が近いときだけ更新する。
-// 更新のトークンが断られたら、連携し直すまで問い合わせないよう、連携にマークを付けて ErrReauthorizationRequired を返す。
+// 更新のトークンが拒否されたら、連携し直すまで問い合わせないよう、連携にマークを付けて ErrReauthorizationRequired を返す。
 func (c *session) refresh(ctx context.Context, force bool) error {
 	s := c.service
 	used := c.access
@@ -136,8 +136,8 @@ func (c *session) refresh(ctx context.Context, force bool) error {
 }
 
 // do は、アクセストークンで fn を呼ぶ。問い合わせは、このプロセスの中で 1 つずつ、間を空けて送る。
-// 記録先がトークンを断ったら (401)、更新して 1 回だけ送り直す。ほかのプロセスが先に更新していれば、更新せずにそのトークンを使う。
-// 送り直しても断られたら、ErrPermanent を包んで返す。
+// 記録先がトークンを拒否したら (401)、更新して 1 回だけ送り直す。ほかのプロセスが先に更新していれば、更新せずにそのトークンを使う。
+// 送り直しても拒否されたら、ErrPermanent を包んで返す。
 func (c *session) do(ctx context.Context, fn func(ctx context.Context, access string) error) error {
 	err := c.once(ctx, fn)
 	if !errors.Is(err, ErrUnauthorized) {

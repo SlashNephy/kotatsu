@@ -70,7 +70,7 @@ export const Default: Story = {};
 // GraphQL を読まない画面なので、デモの応答を待たせても変わらない。
 export const Loading: Story = { args: { hold: holdAll } };
 
-// 弱いパスワードを入れたとき (サーバーが断る強さで、修正方法の案内を出す)。
+// 弱いパスワードを入れたとき (サーバーが拒否する強さで、修正方法の案内を出す)。
 export const WeakPassword: Story = { play: fill('password', false) };
 
 // 強いパスワードを入れたとき。

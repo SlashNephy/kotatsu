@@ -2,7 +2,7 @@ import { useRef } from 'react';
 
 import { useSaveNotice } from './saveNotice';
 
-// SaveCancelled は、保存の前に求めた再認証を、利用者がやめたことを表す。保存できなかった知らせは出さない。
+// SaveCancelled は、保存の前に求めた再認証を、利用者がやめたことを表す。保存できなかった通知は出さない。
 export class SaveCancelled extends Error {
   constructor() {
     super('save cancelled');

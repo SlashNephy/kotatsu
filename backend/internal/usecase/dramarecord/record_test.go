@@ -121,8 +121,8 @@ func TestRecordOnce(t *testing.T) {
 	assert.Equal(t, []string{thirdRecorded}, f.records(t, f.alice.UserID))
 }
 
-// TestRecordRefreshesTokens は、アクセストークンが切れていたら更新してから送り、断られたら更新して 1 回だけ送り直すことを確認する。
-// 更新のトークンが断られたら、連携し直すまで送らない。
+// TestRecordRefreshesTokens は、アクセストークンが切れていたら更新してから送り、拒否されたら更新して 1 回だけ送り直すことを確認する。
+// 更新のトークンが拒否されたら、連携し直すまで送らない。
 func TestRecordRefreshesTokens(t *testing.T) {
 	t.Parallel()
 

@@ -223,7 +223,7 @@ export const DeleteConfirm: Story = {
   },
 };
 
-// ルールを消せなかったとき。ダイアログを閉じ、保存できなかった知らせを出す。
+// ルールを消せなかったとき。ダイアログを閉じ、保存できなかった通知を出す。
 export const DeleteError: Story = {
   args: { overrides: { deleteRule: failing() } },
   play: async ({ canvas }) => {
@@ -261,7 +261,7 @@ export const Outdated: Story = {
         },
       });
     }
-    // ほかの端末での変更の知らせを受けて、読み直すまで少しかかる。
+    // ほかの端末での変更の通知を受けて、読み直すまで少しかかる。
     await canvas.findByRole('button', { name: '最新の内容を読み込む' }, { timeout: 10_000 });
   },
 };

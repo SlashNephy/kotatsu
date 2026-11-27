@@ -46,7 +46,7 @@ export function timeshiftStartPosition(range: TimeshiftRange, seconds: number): 
 
 // copyPositionUrl は、今の画面の URL に位置を付けて、クリップボードに入れる。element は、プレイヤーの中の要素。
 // プレイヤーを別のウィンドウに出している間は、フォーカスがそのウィンドウにあるので、そのウィンドウのクリップボードを使う。
-// クリップボードを使えない (HTTP で開いているなど) か、ブラウザに断られたら、reject する。
+// クリップボードを使えない (HTTP で開いているなど) か、ブラウザに拒否されたら、reject する。
 export async function copyPositionUrl(seconds: number, element: Element | null): Promise<void> {
   const target = element?.ownerDocument.defaultView ?? window;
   await target.navigator.clipboard.writeText(positionUrl(window.location.href, seconds));

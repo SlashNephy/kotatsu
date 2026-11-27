@@ -2,7 +2,7 @@ import { cleanNotifications } from '@mantine/notifications';
 import { configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
-// 設定の保存の知らせ (#1740) などの通知は、モジュールのストアに残るので、テストごとに消す。
+// 設定を保存したときの通知 (#1740) などは、モジュールのストアに残るので、テストごとに消す。
 afterEach(() => cleanNotifications());
 
 // jsdom にない、Mantine が使うブラウザの API を補う (Mantine の Vitest の手順)。

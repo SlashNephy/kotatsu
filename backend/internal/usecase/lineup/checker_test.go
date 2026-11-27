@@ -23,13 +23,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/lineup"
 )
 
-// systemURL は、知らせの payload の、押したときに開くシステムの状態の画面のパス。
+// systemURL は、通知の payload の、押したときに開くシステムの状態の画面のパス。
 const systemURL = "/admin/system"
 
 // keyKind は、通知の payload の、種別のキー。
 const keyKind = "kind"
 
-// createAdmin は、知らせの宛先にする、有効な管理者を作る。
+// createAdmin は、通知の宛先にする、有効な管理者を作る。
 func createAdmin(t *testing.T, pool *pgxpool.Pool, clk clock.Clock) {
 	t.Helper()
 
@@ -144,7 +144,7 @@ func TestChecker(t *testing.T) {
 		"addedServices": []any{"BS1 のサービス 103", "BS1 のサービス 222"}, "removedServices": []any{"BS（サービス 191）"},
 	}, got[0])
 
-	// 続いている間は、同じ知らせを繰り返さない。
+	// 続いている間は、同じ通知を繰り返さない。
 	writeLineup(t, q, start.Add(2*lineup.DefaultRecheckInterval), 101, 103, 222)
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 1)

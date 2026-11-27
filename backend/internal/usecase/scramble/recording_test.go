@@ -48,7 +48,7 @@ func addUser(t *testing.T, pool *pgxpool.Pool, name, role string, disabled bool,
 	return userID
 }
 
-// alertEvents は、管理者への知らせのイベントの宛先を、記録した順に返す。
+// alertEvents は、管理者への通知のイベントの宛先を、記録した順に返す。
 func alertEvents(t *testing.T, pool *pgxpool.Pool) [][]uuid.UUID {
 	t.Helper()
 

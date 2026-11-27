@@ -140,7 +140,7 @@ export function usePlayerMouse(commands: PlayerCommands): (element: HTMLElement 
         return;
       }
       event.preventDefault();
-      // 行やページの単位で届いたとき (Firefox) は、1 回の知らせを 1 目盛りとみなす。
+      // 行やページの単位で届いたとき (Firefox) は、1 回のイベントを 1 目盛りとみなす。
       accumulated +=
         event.deltaMode === WheelEvent.DOM_DELTA_PIXEL
           ? event.deltaY

@@ -60,7 +60,7 @@ func IsPublic(addr netip.Addr) bool {
 	return true
 }
 
-// Control は、net.Dialer の Control に渡し、グローバルでないアドレスへの接続を ErrNonPublicAddress で断る。
+// Control は、net.Dialer の Control に渡し、グローバルでないアドレスへの接続を ErrNonPublicAddress で拒否する。
 func Control(_, address string, _ syscall.RawConn) error {
 	addrPort, err := netip.ParseAddrPort(address)
 	if err != nil {

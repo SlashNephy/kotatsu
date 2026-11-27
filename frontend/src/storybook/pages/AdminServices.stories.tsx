@@ -115,7 +115,7 @@ export const ChannelTypeNameRequired: Story = {
   },
 };
 
-// サービスの設定を保存できなかったとき (失敗の知らせを出す)。
+// サービスの設定を保存できなかったとき (失敗の通知を出す)。
 export const SaveFailed: Story = {
   args: { overrides: { updateService: failing() } },
   play: async ({ canvas }) => {

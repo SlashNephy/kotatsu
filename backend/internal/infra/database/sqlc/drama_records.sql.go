@@ -685,7 +685,7 @@ type RequireDramaRecordReauthorizationParams struct {
 	Destination string
 }
 
-// 更新のトークンが断られたら、連携し直すまで、記録も取り込みもしない。
+// 更新のトークンが拒否されたら、連携し直すまで、記録も取り込みもしない。
 func (q *Queries) RequireDramaRecordReauthorization(ctx context.Context, arg RequireDramaRecordReauthorizationParams) error {
 	_, err := q.db.Exec(ctx, requireDramaRecordReauthorization, arg.UserID, arg.Destination)
 	return err

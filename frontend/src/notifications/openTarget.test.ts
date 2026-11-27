@@ -16,7 +16,7 @@ function controlled(): NotificationWindow & { focus: ReturnType<typeof vi.fn> } 
   return window;
 }
 
-// uncontrolled は、制御下にないタブ。Chromium と同じく、navigate を TypeError で断る。
+// uncontrolled は、制御下にないタブ。Chromium と同じく、navigate を TypeError で拒否する。
 function uncontrolled(): NotificationWindow & { focus: ReturnType<typeof vi.fn> } {
   return {
     focus: vi.fn(() => Promise.resolve(null)),

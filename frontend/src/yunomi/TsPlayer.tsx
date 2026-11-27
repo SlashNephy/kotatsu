@@ -444,7 +444,7 @@ export function TsPlayer({
       const lateWatch = createLateWatch();
       // reported は、最後に通知したときの、戻したフラグと、yadif がコマを出す時刻を決めていたか。
       // 戻したときと設定を切ったときは、24p でもなくなり、progress も来ない (読み込みを終えた録画) ことがあるので、
-      // 変わったことを見て通知する。設定の切り替えは、組を直に書き換えるので、次の知らせでここが拾う。
+      // 変わったことを見て通知する。設定の切り替えは、組を直に書き換えるので、次の通知でここが拾う。
       let reported = { dropped: false, scheduled: false };
       const deinterlacer: Deinterlacer = new Deinterlacer(element, {
         // 1080i を、フィールドごとに 1 コマにして 59.94p で出す (#1655)。放送そのものの動きのなめらかさになる。
@@ -505,7 +505,7 @@ export function TsPlayer({
       preferManagedMediaSource: prefersManagedMediaSource(),
       deinterlace: true,
       deinterlacer: (element) => {
-        // WebGL2 がなければ yadif を作れない。投げるとプレイヤーがエラーとして知らせ、画面はつなぎ直しを繰り返すので、
+        // WebGL2 がなければ yadif を作れない。投げるとプレイヤーがエラーとして通知し、画面はつなぎ直しを繰り返すので、
         // 解除せずに再生を続け、再生の情報で通知する (#1617)。フラグは、次の読み込みの通知 (progress) で画面に届く。
         const created = createDeinterlacer(() => createYadif(element));
         slot.unfiltered = !created.available;
@@ -901,7 +901,7 @@ function hasPicture(video: HTMLVideoElement): boolean {
 const handoverTimeoutMs = 15_000;
 
 // failureBeforePicture は、裏で読み込んでいるプレイヤーが、失敗するか、流し終えるか、handoverTimeoutMs が過ぎたら、失敗で終わる。
-// 映像が出る前に終わったら、待ち続けずに、知らせを出して間隔を延ばすほうに回す。
+// 映像が出る前に終わったら、待ち続けずに、通知を出して間隔を延ばすほうに回す。
 function failureBeforePicture(player: Mpeg2TsPlayer): Promise<never> {
   return new Promise((_, reject) => {
     const timer = setTimeout(

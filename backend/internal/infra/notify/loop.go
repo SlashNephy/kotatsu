@@ -74,7 +74,7 @@ func Loop(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, opts *Lo
 	}
 }
 
-// watch は、変更の知らせを見張り始める。最初の問い合わせが失敗しても、ctx が終わるまで、間を空けてやり直す (#528)。
+// watch は、変更の通知を見張り始める。最初の問い合わせが失敗しても、ctx が終わるまで、間を空けてやり直す (#528)。
 // 見張り始める前に ctx が終わったら、false を返す。
 func watch(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, opts *LoopOptions) (*Watcher, bool) {
 	backoff := firstPollBackoff

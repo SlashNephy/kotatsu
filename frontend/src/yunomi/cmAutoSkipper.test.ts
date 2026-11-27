@@ -99,7 +99,7 @@ describe('CmAutoSkipper', () => {
     expect(events).toEqual([]);
   });
 
-  test('timeupdate からの知らせは、currentTime が先へ進んでいても、蓋を外す数に入れない', () => {
+  test('timeupdate からの通知は、currentTime が先へ進んでいても、蓋を外す数に入れない', () => {
     const { host, events } = fakeHost();
     const skipper = new CmAutoSkipper(host);
     skipper.frame(playing(610));
@@ -111,7 +111,7 @@ describe('CmAutoSkipper', () => {
   });
 
   test('止めている間に届いたコマは、飛び先以上でも、蓋を外す数に入れない', () => {
-    // requestVideoFrameCallback のないブラウザは、requestAnimationFrame で代えるので、止めている間もコマの知らせが届く。
+    // requestVideoFrameCallback のないブラウザは、requestAnimationFrame で代えるので、止めている間もコマの通知が届く。
     const { host, events } = fakeHost();
     const skipper = new CmAutoSkipper(host);
     skipper.frame(playing(610));

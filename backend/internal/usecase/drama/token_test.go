@@ -70,7 +70,7 @@ func TestTokens(t *testing.T) {
 	}, actions, "deleting a missing token is not recorded")
 }
 
-// TestTokensInvalid は、Authorization ヘッダーに入れられないトークンと、長すぎるトークンを断り、前のトークンを残すことを確認する。
+// TestTokensInvalid は、Authorization ヘッダーに入れられないトークンと、長すぎるトークンを拒否し、前のトークンを残すことを確認する。
 func TestTokensInvalid(t *testing.T) {
 	t.Parallel()
 

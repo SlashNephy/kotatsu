@@ -605,7 +605,7 @@ function Player({
       stream.restartAt(positionRef.current, true);
       setHandover(true);
     }
-    // 読み直しの位置は ref から読むので、知らせが届いたときだけ動かす。
+    // 読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
   }, [drains, error, hls]);
   const retry = () => {
     setError(null);
@@ -715,7 +715,7 @@ function Player({
     });
   });
   // 開いた位置が CM の中で、最初から CM の終わりを求めたときは、蓋で覆い、CM の終わり以上のコマが映るまで待つ。
-  // 続きから開いたときは、続きから始めたことだけを伝え、CM を飛ばした知らせは出さない。
+  // 続きから開いたときは、続きから始めたことだけを伝え、CM を飛ばした通知は出さない。
   const openingHeld = useRef(false);
   useEffect(() => {
     if (!opening.skipped || openingHeld.current || media === null) {
@@ -927,7 +927,7 @@ function Player({
   useDocumentTitle(documentTitle(player), !watchMini);
   useMediaSession(player, commands, autoPictureInPicture);
 
-  // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
+  // resumeAfterCut は、配信が切れたら、通知を出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
     if (mediaRef.current?.error != null) {
       const next = skipBrokenMedia(positionRef.current, lastBrokenSkip.current);

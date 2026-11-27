@@ -12,7 +12,7 @@ export function jikkyoSocketURL(channelId: string, location: Location = window.l
 }
 
 // LiveComment は、届いたコメント。at は、受け取った時刻 (ミリ秒、performance.now の時計)。
-// postedAt は、書き込まれた時刻 (Unix ミリ秒、#1515)。tenban が知らせなければない。
+// postedAt は、書き込まれた時刻 (Unix ミリ秒、#1515)。tenban が通知しなければない。
 export type LiveComment = {
   content: string;
   mail: string;

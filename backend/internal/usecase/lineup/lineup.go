@@ -1,4 +1,4 @@
-// Package lineup は、放送の NIT から局の顔ぶれの変化を見つけ、チューナーサーバーのスキャンし直しを促す (#1519)。
+// Package lineup は、放送の NIT から局のラインナップの変化を見つけ、チューナーサーバーのスキャンし直しを促す (#1519)。
 //
 // Kotatsu はチャンネルの設定を書き換えない。チャンネルの持ち主は、チューナーサーバーだからである。
 package lineup
@@ -209,7 +209,7 @@ func (c *Comparer) Observe(obs *Observation, known []Known) (*Change, bool) {
 }
 
 // Unconfirm は、Observe が通知すると決めた obs を、通知できなかったときに、まだ通知していないことに戻す。
-// 同じ version を次に読んだら、間隔を待たずに、もう一度知らせると決める。2 回読んで信じたことは変わらないからである。
+// 同じ version を次に読んだら、間隔を待たずに、もう一度通知すると決める。2 回読んで信じたことは変わらないからである。
 func (c *Comparer) Unconfirm(obs *Observation) {
 	if obs == nil {
 		return

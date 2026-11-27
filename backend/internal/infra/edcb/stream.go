@@ -22,7 +22,7 @@ const (
 	relayRetryInterval = 100 * time.Millisecond
 	relayRetryTimeout  = 10 * time.Second
 	// sharedRelayTimeout は、ほかのインスタンスが開いている NetworkTV に加わったときに、RELAY_VIEW_STREAM をやり直す上限 (#1850)。
-	// TS を送る FIFO はできているはずなので、これを過ぎても受け取れなければ、中継の空きがない (EDCB は 3 つ目の中継を断る) とみなす。
+	// TS を送る FIFO はできているはずなので、これを過ぎても受け取れなければ、中継の空きがない (EDCB は 3 つ目の中継を拒否する) とみなす。
 	// 開いた直後に加わったときに、FIFO ができるのを待てるよう、計測した時間 (0.2 秒) より長くする。
 	sharedRelayTimeout = 2 * time.Second
 	// DefaultReleaseRetryInterval は、ID の持ち主から外れられなかったときに、外れ直す既定の間隔 (#1850)。

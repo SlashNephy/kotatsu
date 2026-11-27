@@ -5,7 +5,7 @@
 // 管理者が全体の設定で有効にしたときだけ答え、無効なら 404 を返す。
 //
 // tenban が、文書の指す任意の宛先へ接続するので、LAN の中のサーバーへ接続させないよう、接続するときのアドレスで
-// グローバルでないもの (プライベート、ループバック、リンクローカルなど) を断る。名前を引いた後のアドレスで確認するので、
+// グローバルでないもの (プライベート、ループバック、リンクローカルなど) を拒否する。名前を引いた後のアドレスで確認するので、
 // DNS の応答を後から変えられたときや、リダイレクトの先にも効く。
 package databroadcastapi
 
@@ -164,7 +164,7 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 }
 
 // RequestHandler は、文書の HTTP のリクエストをプロキシする (POST RequestPath)。
-// 文書の GET も、画面からは POST で送らせる。どれも、ほかのオリジンからのリクエストを断る (RequireSameOrigin) ためである。
+// 文書の GET も、画面からは POST で送らせる。どれも、ほかのオリジンからのリクエストを拒否する (RequireSameOrigin) ためである。
 func (h *Relay) RequestHandler() http.Handler {
 	return http.HandlerFunc(h.serveRequest)
 }
@@ -263,7 +263,7 @@ func (h *Relay) authorize(w http.ResponseWriter, r *http.Request) *auth.Principa
 	return principal
 }
 
-// fail は、中継に失敗したことを答える。グローバルでない宛先を断ったときは 403、上流に届かなかったときは 502 にする。
+// fail は、中継に失敗したことを答える。グローバルでない宛先を拒否したときは 403、上流に届かなかったときは 502 にする。
 func fail(w http.ResponseWriter, r *http.Request, logger *slog.Logger, err error) {
 	if errors.Is(err, publicnet.ErrNonPublicAddress) {
 		logger.WarnContext(r.Context(), "refused a data broadcast request to a non-public address", slog.Any("error", err))

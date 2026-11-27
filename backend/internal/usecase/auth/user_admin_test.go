@@ -396,7 +396,7 @@ func TestUserAdminDeleteRemovesPersonalData(t *testing.T) {
 	}
 }
 
-// TestUserAdminDeleteRefuses は、消せないユーザーを断り、何も消さないことを確認する (#1382)。
+// TestUserAdminDeleteRefuses は、消せないユーザーの削除を拒否し、何も消さないことを確認する (#1382)。
 func TestUserAdminDeleteRefuses(t *testing.T) {
 	t.Parallel()
 

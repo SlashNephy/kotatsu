@@ -168,7 +168,7 @@ func (f *fixture) refreshWithScope(t *testing.T, refreshToken, scope string) (in
 }
 
 // TestRefreshScope は、トークンの更新で求められた scope を、スコープの包含関係で確認することを確認する (#1415)。
-// 書くスコープでは読むツールも使えるので、書くだけの連携に読むスコープを求めても断らない。広げることはできない。
+// 書くスコープでは読むツールも使えるので、書くだけの連携に読むスコープを求めても拒否しない。広げることはできない。
 func TestRefreshScope(t *testing.T) {
 	t.Parallel()
 
@@ -396,7 +396,7 @@ func TestPrepareErrors(t *testing.T) {
 	}
 }
 
-// TestTokenErrors は、トークンのエンドポイントが、正しくない引き換えを断り、認可コードを使えなくすることを確認する。
+// TestTokenErrors は、トークンのエンドポイントが、正しくない引き換えを拒否し、認可コードを使えなくすることを確認する。
 func TestTokenErrors(t *testing.T) {
 	t.Parallel()
 
@@ -468,7 +468,7 @@ func TestRevoke(t *testing.T) {
 	assert.Equal(t, http.StatusOK, revoke(newRefresh, f.clientID))
 	_, _, err = f.server.Authenticate(t.Context(), newAccess, testResource)
 	require.ErrorIs(t, err, auth.ErrUnauthenticated)
-	// 知らないトークンでも成功を返す。client_id がなければ断る。
+	// 知らないトークンでも成功を返す。client_id がなければ拒否する。
 	assert.Equal(t, http.StatusOK, revoke("kotatsu_rt_unknown", f.clientID))
 	assert.Equal(t, http.StatusBadRequest, revoke(access, ""))
 }

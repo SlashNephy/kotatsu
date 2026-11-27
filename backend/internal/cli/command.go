@@ -706,7 +706,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		})
 	}
 	// tenban は、止まる前に、流している視聴者に、新しい接続を張ってから切り替えてもらう (設計書 11.4、#1085)。
-	// 知らせは変更の購読 (SSE) で届けるので、HTTP サーバーと変更の購読は、視聴者がつなぎ直すまで止めない。
+	// 通知は変更の購読 (SSE) で届けるので、HTTP サーバーと変更の購読は、視聴者がつなぎ直すまで止めない。
 	apiCtx := ctx
 	if api != nil {
 		var stopAPI context.CancelFunc

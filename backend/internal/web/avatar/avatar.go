@@ -30,7 +30,7 @@ import (
 const (
 	// fetchTimeout は、IdP から画像を取ってくるのを待つ長さ。
 	fetchTimeout = 5 * time.Second
-	// maxImageBytes は、プロキシする画像の大きさの上限。アイコンなので、大きな画像は断る。
+	// maxImageBytes は、プロキシする画像の大きさの上限。アイコンなので、大きな画像は拒否する。
 	maxImageBytes = 1 << 20
 	// cacheControl は、ブラウザに画像をキャッシュさせる長さ。IdP で画像を変えても、1 時間で反映される。
 	cacheControl = "private, max-age=3600"
@@ -148,7 +148,7 @@ func (h *Handler) fetch(ctx context.Context, picture string) ([]byte, string, er
 	if len(data) > maxImageBytes {
 		return nil, "", errTooLarge
 	}
-	// 上流の Content-Type は信じず、内容から決める。SVG はスクリプトを含められるので、DetectContentType が画像とみなさないまま断る。
+	// 上流の Content-Type は信じず、内容から決める。SVG はスクリプトを含められるので、DetectContentType が画像とみなさないまま拒否する。
 	contentType := http.DetectContentType(data)
 	if !strings.HasPrefix(contentType, "image/") {
 		return nil, "", fmt.Errorf("%w: %s", errNotImage, contentType)

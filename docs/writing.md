@@ -35,7 +35,7 @@
 使わない語は[.yomiyasu-words/](../.yomiyasu-words/)の2つのファイルにまとめています。
 
 - [flag.txt](../.yomiyasu-words/flag.txt)：使わない語と、代わりに使う語の組
-- [flag-patterns.txt](../.yomiyasu-words/flag-patterns.txt)：漢字1字の語を、熟語を除いて当てる正規表現
+- [flag-patterns.txt](../.yomiyasu-words/flag-patterns.txt)：前後の字で当てる範囲を絞る語の正規表現（漢字1字の語や、熟語や活用を除きたい語）
 
 どちらのファイルでも、語の上の注釈に場面ごとの使い分けを書いています。
 使い分けは語のすぐそばに書き、このドキュメントには同じことを書きません。

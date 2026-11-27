@@ -108,7 +108,7 @@ func EnqueueWatchlistImport(ctx context.Context, tx pgx.Tx, inserter anime.Inser
 
 // RequestWatchlistImport は、ユーザー userID の連携のうち、問い合わせる時期が来たものの、ウォッチリストを取り込むジョブを入れる。
 // ドラマの視聴管理の画面を開いたときと、利用者が取り込み直しを押したとき (force) に呼ぶ。Simkl はタイマーで問い合わせ続けることを
-// 断っているので、定期のジョブでは取り込まない。force でなければ、前に問い合わせてから 30 分たった連携だけを取り込む。
+// 認めていないので、定期のジョブでは取り込まない。force でなければ、前に問い合わせてから 30 分たった連携だけを取り込む。
 // 取り込めなかった連携は、force でも、問い合わせ直す日時 (429 の Retry-After を含む) まで待つ。ジョブを入れたら true を返す。
 // 管理者が TMDB との連携を無効にしていれば、何もしない。
 func (s *Service) RequestWatchlistImport(ctx context.Context, db Database, inserter anime.Inserter, userID uuid.UUID, force bool) (bool, error) {

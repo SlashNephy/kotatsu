@@ -112,7 +112,7 @@ func (r *mutationResolver) DeleteAccount(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	// API トークンと OAuth のトークンには認証の日時がないので、ここで断られる。
+	// API トークンと OAuth のトークンには認証の日時がないので、ここで拒否される。
 	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {
 		return false, err
 	}

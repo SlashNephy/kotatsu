@@ -82,7 +82,7 @@ func (s *Simkl) Refresh(ctx context.Context, app *App, refreshToken string) (*To
 	token, err := s.token(ctx, app, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {refreshToken}})
 	if err != nil {
 		var status *statusError
-		// 更新のトークンが断られた (invalid_grant など) か、アプリのシークレットが断られたら、連携し直すまで変わらない。
+		// 更新のトークンが拒否された (invalid_grant など) か、アプリのシークレットが拒否されたら、連携し直すまで変わらない。
 		if errors.As(err, &status) && (status.code == http.StatusBadRequest || status.code == http.StatusUnauthorized) {
 			return nil, fmt.Errorf("%w: %w", ErrReauthorizationRequired, err)
 		}

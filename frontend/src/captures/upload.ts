@@ -18,7 +18,7 @@ export type CaptureInfo = {
 };
 
 // captureMetadata は、撮った場面の情報を、tenban に送る JSON の形にする。日時は RFC 3339 で送る。
-// 録画でなければ、再生位置は送らない (tenban は、録画のない再生位置を断る)。
+// 録画でなければ、再生位置は送らない (tenban は、録画のない再生位置を拒否する)。
 export function captureMetadata(info: CaptureInfo) {
   return {
     serviceName: info.serviceName,

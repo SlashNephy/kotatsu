@@ -175,7 +175,7 @@ export const RetryFailed: Story = {
   },
 };
 
-// 管理者でないユーザーが開いたとき (サーバーが FORBIDDEN で断る)。
+// 管理者でないユーザーが開いたとき (サーバーが FORBIDDEN で拒否する)。
 export const Forbidden: Story = {
   args: {
     overrides: merge(asViewer('MEMBER'), () => ({ jobCounts: failingWith({ code: 'FORBIDDEN' }) })),

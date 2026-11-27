@@ -312,7 +312,7 @@ func (s *Server) serveComment(w http.ResponseWriter, r *http.Request) {
 	}
 	// rf:0 を送る前に、開いているコメントセッションに数える (#1622)。クライアントは rf:0 を受けて接続を通知するので、
 	// 送った後に数えると、通知を受けたテストが CommentSessions を確認したり Chat を送ったりするのに、数えるのが間に合わないことがある。
-	// Chat を送るテストは、接続の知らせを待ってから送るので、Chat が rf:0 より先に届くことはない。
+	// Chat を送るテストは、接続の通知を待ってから送るので、Chat が rf:0 より先に届くことはない。
 	s.mu.Lock()
 	s.comments[conn] = struct{}{}
 	s.mu.Unlock()

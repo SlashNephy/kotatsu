@@ -115,13 +115,13 @@ export const DeleteConfirmed: Story = {
   },
 };
 
-// ユーザーを無効にし、保存した知らせを出したとき。
+// ユーザーを無効にし、保存した通知を出したとき。
 export const Disabled: Story = {
   args: { overrides: users },
   play: async (context) => clickInRow(context, 'member', '無効にする'),
 };
 
-// 操作に失敗したとき (失敗の知らせを出す)。
+// 操作に失敗したとき (失敗の通知を出す)。
 export const OperationFailed: Story = {
   args: { overrides: { ...users, disableUser: failing() } },
   play: Disabled.play,
@@ -147,7 +147,7 @@ export const CreatingWithPassword: Story = {
   },
 };
 
-// ユーザーを作り、作った知らせを出したとき。
+// ユーザーを作り、作った通知を出したとき。
 export const Created: Story = {
   args: { overrides: users },
   play: async ({ canvas }) => {

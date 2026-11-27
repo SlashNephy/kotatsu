@@ -261,7 +261,7 @@ for (const house of houses) {
   });
 }
 
-// 局のロゴ (右上)。放送の局のロゴのように、少し透かして重ねる。
+// 局のロゴ (右上)。放送局のロゴのように、少し透かして重ねる。
 shape({ layer: 20, path: roundRect(1636, 54, 64, 64, 12), fill: color('#e8590c'), alpha: '&H30&' });
 text({
   layer: 21,

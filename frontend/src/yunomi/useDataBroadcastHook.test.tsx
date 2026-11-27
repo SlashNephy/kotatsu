@@ -54,7 +54,7 @@ const fake = vi.hoisted(() => {
 
 vi.mock('web-bml', () => ({ BMLBrowser: fake.FakeBrowser }));
 
-// FakeWorker は、Web Worker の代わり。読み終えたことを、外から知らせられる。
+// FakeWorker は、Web Worker の代わり。読み終えたことを、外から通知できる。
 class FakeWorker extends EventTarget {
   static last: FakeWorker | null = null;
 
@@ -174,7 +174,7 @@ describe('useDataBroadcast', () => {
       act(() => {
         browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
       });
-      // 受信中の知らせは、消すのを少し遅らせる (#445)。
+      // 受信中の通知は、消すのを少し遅らせる (#445)。
       expect(getByTestId('receiving').textContent).toBe('true');
       act(() => {
         vi.advanceTimersByTime(settleMs);
@@ -185,7 +185,7 @@ describe('useDataBroadcast', () => {
     }
   });
 
-  test('データ放送を閉じたら、受信中の知らせをすぐに消す', () => {
+  test('データ放送を閉じたら、受信中の通知をすぐに消す', () => {
     const { getByTestId, rerender } = render(<Harness shown />);
     expect(getByTestId('receiving').textContent).toBe('true');
 

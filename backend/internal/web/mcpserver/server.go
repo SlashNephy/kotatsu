@@ -140,7 +140,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	// ツールに要るスコープが足りなければ、SDK に渡す前に 403 で知らせ、クライアントに足りないスコープで認可し直してもらう。
+	// ツールに要るスコープが足りなければ、SDK に渡す前に 403 で通知し、クライアントに足りないスコープで認可し直してもらう。
 	// ツールを実行するときにも、もう一度確かめる。こちらの読み方と SDK の読み方が食い違っても、すり抜けられないようにする。
 	if missing := h.missingScope(w, r, grant); missing != "" {
 		w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer error="insufficient_scope", scope=%q, resource_metadata=%q`, missing, resourceMetadata))
@@ -153,7 +153,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // missingScope は、ツールを呼ぶリクエストで、連携に足りないスコープを返す。足りていれば空を返す。
-// 本文は、SDK と同じ jsonrpc.DecodeMessage で読み、SDK のために元に戻す。読めなければ、SDK に断らせる。
+// 本文は、SDK と同じ jsonrpc.DecodeMessage で読み、SDK のために元に戻す。読めなければ、SDK に拒否させる。
 func (h *Handler) missingScope(w http.ResponseWriter, r *http.Request, grant *oauth.Grant) string {
 	body, err := readBody(w, r)
 	if err != nil {

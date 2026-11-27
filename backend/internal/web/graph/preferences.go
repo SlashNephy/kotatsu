@@ -42,7 +42,7 @@ func isSyncedPreference(key string) bool {
 	return false
 }
 
-// preferencesInput は、同期する設定の変更を確認して、置き換えるものと消すキーに分ける。許していないキーと、長すぎる値は断る。
+// preferencesInput は、同期する設定の変更を確認して、置き換えるものと消すキーに分ける。許していないキーと、長すぎる値は拒否する。
 func preferencesInput(input []*model.PreferenceInput) (map[string]string, []string, error) {
 	set, unset := map[string]string{}, []string{}
 	for _, preference := range input {

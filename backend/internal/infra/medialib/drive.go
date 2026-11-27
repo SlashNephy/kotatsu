@@ -37,7 +37,7 @@ const (
 	// 新しく作ったフォルダは古い一覧でも見つかる。
 	driveTreeTTL = 5 * time.Minute
 	// driveNameBatch と driveNameQueryBytes は、同じ名前が並んでいるかを確認するときに、1 つの問い合わせに入れる名前の数と、
-	// 名前を URL に入れたときの長さの合計の上限。q が長すぎると Drive API が 400 を返す (名前を URL に入れて 13 KB は通り、16 KB で断られた)。
+	// 名前を URL に入れたときの長さの合計の上限。q が長すぎると Drive API が 400 を返す (名前を URL に入れて 13 KB は通り、16 KB で拒否された)。
 	driveNameBatch      = 30
 	driveNameQueryBytes = 8 << 10
 	// driveSkipLimit は、読み出しの位置が少し先へ飛んだときに、新しく問い合わせずに読み飛ばして進める長さの上限。

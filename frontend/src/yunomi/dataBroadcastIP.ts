@@ -41,7 +41,7 @@ function decodeBase64(base64: string | null): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-// postJSON は、tenban に JSON を送り、成功すれば応答の JSON を返す。中継が無効、宛先を断った、届かなかったなどでは null を返す。
+// postJSON は、tenban に JSON を送り、成功すれば応答の JSON を返す。中継が無効、宛先を拒否した、届かなかったなどでは null を返す。
 async function postJSON<T>(fetcher: typeof fetch, path: string, body: unknown): Promise<T | null> {
   try {
     const response = await fetcher(path, {

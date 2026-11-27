@@ -34,13 +34,13 @@ const detectedAtFormat = zonedFormat({
 });
 
 // cmDetectionActive は、見分けを待っているか、見分けているかを返す。
-// 終わったことや失敗したことは、録画の変更の知らせ (DataChanges) では届かないことがあるので、この間は読み直し続ける。
+// 終わったことや失敗したことは、録画の変更の通知 (DataChanges) では届かないことがあるので、この間は読み直し続ける。
 export function cmDetectionActive(state: CmDetectionValue['state']): boolean {
   return state === 'QUEUED' || state === 'RUNNING';
 }
 
 // useCmDetectionPoll は、active の間、cmPollInterval ごとに増える数と、すぐに増やす関数を返す。
-// 数は query の fetchKey に混ぜて、読み直させる。見分けを頼んだ直後は、関数を呼んで、変更の知らせを待たずに読み直す。
+// 数は query の fetchKey に混ぜて、読み直させる。見分けを頼んだ直後は、関数を呼んで、変更の通知を待たずに読み直す。
 export function useCmDetectionPoll(active: boolean): [number, () => void] {
   const [poll, setPoll] = useState(0);
   const refresh = () => startTransition(() => setPoll((value) => value + 1));

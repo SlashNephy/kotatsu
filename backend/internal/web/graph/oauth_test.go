@@ -13,7 +13,7 @@ import (
 
 const approveMutation = `mutation($authorizationQuery: String!, $scopes: [String!]!) { approveOAuthAuthorization(query: $authorizationQuery, scopes: $scopes) }`
 
-// TestApproveOAuthAuthorizationRejects は、同意に直近の認証が要り、クエリが読めなければ断ることを確認する (#963)。
+// TestApproveOAuthAuthorizationRejects は、同意に直近の認証が要り、クエリが読めなければ拒否することを確認する (#963)。
 // 同意から認可コードの発行までは、internal/usecase/oauth のテストで確認する。
 func TestApproveOAuthAuthorizationRejects(t *testing.T) {
 	t.Parallel()
@@ -50,7 +50,7 @@ func TestOAuthAuthorizationHidesFetchError(t *testing.T) {
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldMCPEnabled: true}}, nil))
 	viewer := f.as(t, "guest", domain.RoleViewer)
 
-	// ループバックのアドレスには、取りに行く前に断る。断った理由には、そのアドレスが入る。
+	// ループバックのアドレスには、取りに行く前に拒否する。拒否した理由には、そのアドレスが入る。
 	const query = `query($q: String!) { oauthAuthorization(query: $q) { errorRedirectUrl } }`
 	variables := map[string]any{"q": "client_id=https%3A%2F%2F127.0.0.1%3A8443%2Fclient.json&redirect_uri=https%3A%2F%2Fa.example%2Fb"}
 

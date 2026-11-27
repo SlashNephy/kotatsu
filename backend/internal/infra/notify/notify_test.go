@@ -176,7 +176,7 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// TestBroadcasterWakesEverySubscriber は、変更をすべての購読者に知らせ、遅れた購読者もバージョンで変更を取りこぼさないことを確認する。
+// TestBroadcasterWakesEverySubscriber は、変更をすべての購読者に通知し、遅れた購読者もバージョンで変更を取りこぼさないことを確認する。
 func TestBroadcasterWakesEverySubscriber(t *testing.T) {
 	t.Parallel()
 
@@ -197,7 +197,7 @@ func TestBroadcasterWakesEverySubscriber(t *testing.T) {
 
 	first, unsubscribeFirst := broadcaster.Subscribe()
 	defer unsubscribeFirst()
-	// slow は、知らせを受け取らないまま、2 つのチャンネルの変更を待つ。
+	// slow は、通知を受け取らないまま、2 つのチャンネルの変更を待つ。
 	slow, unsubscribeSlow := broadcaster.Subscribe()
 	defer unsubscribeSlow()
 	stopped, unsubscribeStopped := broadcaster.Subscribe()
@@ -209,7 +209,7 @@ func TestBroadcasterWakesEverySubscriber(t *testing.T) {
 
 	publish(t, pool, otherChannel)
 	waitWake(t, first)
-	// 2 回の変更の知らせは 1 回にまとまるが、どちらのバージョンも上がっている。
+	// 2 回の変更の通知は 1 回にまとまるが、どちらのバージョンも上がっている。
 	waitWake(t, slow)
 	assert.Equal(t, int64(1), broadcaster.Version(channel))
 	assert.Equal(t, int64(1), broadcaster.Version(otherChannel))
@@ -236,7 +236,7 @@ func waitWake(t *testing.T, wake <-chan struct{}) {
 	}
 }
 
-// TestLoopRetriesFirstPoll は、変更の知らせを見張り始めるときの最初の問い合わせが失敗しても、Loop を終えずにやり直すことを確認する (#528)。
+// TestLoopRetriesFirstPoll は、変更の通知を見張り始めるときの最初の問い合わせが失敗しても、Loop を終えずにやり直すことを確認する (#528)。
 // 終えると、neko のリーダーの処理がエラーで終わり、リーダーを降りることになる。
 func TestLoopRetriesFirstPoll(t *testing.T) {
 	t.Parallel()

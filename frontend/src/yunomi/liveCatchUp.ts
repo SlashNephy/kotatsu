@@ -86,7 +86,7 @@ export function useLiveCatchUp(
     controller.selfInflicted(performance.now());
     let lastTail = bufferedTail(video);
 
-    // observe は、末尾が伸びていればチャンクが届いたとみなして知らせ、今のバッファを記録して返す。
+    // observe は、末尾が伸びていればチャンクが届いたとみなして通知し、今のバッファを記録して返す。
     const observe = (now: number): number => {
       const tail = bufferedTail(video);
       const buffer = Math.max(tail - video.currentTime, 0);

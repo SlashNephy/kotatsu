@@ -38,7 +38,7 @@ func probeRequest(t *testing.T, handler http.Handler, user, query string) *httpt
 	return w
 }
 
-// TestProbeHandlerSize は、求めた量だけ、キャッシュさせない乱数を返し、範囲の外の量は断ることを確認する (設計書 7.3、#1513)。
+// TestProbeHandlerSize は、求めた量だけ、キャッシュさせない乱数を返し、範囲の外の量は拒否することを確認する (設計書 7.3、#1513)。
 func TestProbeHandlerSize(t *testing.T) {
 	t.Parallel()
 
@@ -99,7 +99,7 @@ func TestProbeHandlerInterval(t *testing.T) {
 		steps []step
 	}{
 		{
-			name: "間隔の内は断り、残りの秒を切り上げて返す",
+			name: "間隔の内は拒否し、残りの秒を切り上げて返す",
 			steps: []step{
 				{advance: 0, user: probeUser, wantStatus: http.StatusOK, wantRetryAfter: ""},
 				{advance: 1500 * time.Millisecond, user: probeUser, wantStatus: http.StatusTooManyRequests, wantRetryAfter: "4"},
@@ -114,7 +114,7 @@ func TestProbeHandlerInterval(t *testing.T) {
 			},
 		},
 		{
-			name: "断ったリクエストは、間隔を延ばさない",
+			name: "拒否したリクエストは、間隔を延ばさない",
 			steps: []step{
 				{advance: 0, user: probeUser, wantStatus: http.StatusOK, wantRetryAfter: ""},
 				{advance: 4 * time.Second, user: probeUser, wantStatus: http.StatusTooManyRequests, wantRetryAfter: "1"},
@@ -137,7 +137,7 @@ func TestProbeHandlerInterval(t *testing.T) {
 			},
 		},
 		{
-			name: "ログインしていなければ断る",
+			name: "ログインしていなければ拒否する",
 			steps: []step{
 				{advance: 0, user: "", wantStatus: http.StatusUnauthorized, wantRetryAfter: ""},
 			},

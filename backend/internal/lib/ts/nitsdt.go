@@ -1,6 +1,6 @@
 package ts
 
-// NIT と SDT (ARIB STD-B10 5.2.4、5.2.6)。放送が送る局の顔ぶれ (ネットワーク、トランスポートストリーム、サービス) を読む (#1519)。
+// NIT と SDT (ARIB STD-B10 5.2.4、5.2.6)。放送が送る局のラインナップ (ネットワーク、トランスポートストリーム、サービス) を読む (#1519)。
 const (
 	tableIDNITActual = 0x40
 	tableIDNITOther  = 0x41

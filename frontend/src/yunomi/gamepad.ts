@@ -192,7 +192,7 @@ export function connectedGamepads(): Gamepad[] {
 }
 
 // useGamepadButtons は、ゲームパッドをつないでいる間、毎フレームボタンを読み、押したボタンと押し続けているボタンを渡す。
-// ゲームパッドの操作は、ボタンを押してから届くので (ブラウザは、押すまでゲームパッドを見せない)、つないだ知らせを待って読み始める。
+// ゲームパッドの操作は、ボタンを押してから届くので (ブラウザは、押すまでゲームパッドを見せない)、つないだ通知を待って読み始める。
 export function useGamepadButtons(
   onPress: (button: number) => void,
   onHold?: (button: number, heldSince: number, now: number) => void,

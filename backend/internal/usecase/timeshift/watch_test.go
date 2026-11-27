@@ -86,7 +86,7 @@ func TestSchedulerWatched(t *testing.T) {
 
 	started, err = e.watch(t, 2)
 	require.NoError(t, err)
-	assert.True(t, started, "残す時間の間に戻ったら、視聴が新しく始まったものとして知らせる")
+	assert.True(t, started, "残す時間の間に戻ったら、視聴が新しく始まったものとして通知する")
 	_, err = e.scheduler.RunOnce(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, []int64{grService(2)}, assignedServices(t, e.pool))
@@ -164,7 +164,7 @@ func TestWatchesTrack(t *testing.T) {
 			}
 			if tt.want {
 				assert.Eventually(t, watched, 5*time.Second, 10*time.Millisecond)
-				assert.Positive(t, notifyVersion(t, e, timeshift.WatchNotifyChannel), "視聴が新しく始まったら、neko に知らせる")
+				assert.Positive(t, notifyVersion(t, e, timeshift.WatchNotifyChannel), "視聴が新しく始まったら、neko に通知する")
 
 				return
 			}

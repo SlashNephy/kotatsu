@@ -1,4 +1,4 @@
-// lineupAlertWindowMs は、衛星の局の顔ぶれの変化 (チャンネルの変更、#1519) のお知らせを、画面の上に出しておく最長の長さ (設計書 付録 A)。
+// lineupAlertWindowMs は、衛星の局のラインナップの変化 (チャンネルの変更、#1519) のお知らせを、画面の上に出しておく最長の長さ (設計書 付録 A)。
 // 管理者がシステムの状態の画面を開くまで出し、開いたら消す。
 export const lineupAlertWindowMs = 7 * 24 * 60 * 60 * 1000;
 
@@ -12,7 +12,7 @@ export function recentLineupAlerts<T extends { readonly occurredAt: string }>(
   );
 }
 
-// dismissed は、システムの状態の画面で既読にした知らせ。読み直しを待たずに、画面の上のお知らせから外す。
+// dismissed は、システムの状態の画面で既読にした通知。読み直しを待たずに、画面の上のお知らせから外す。
 const dismissed = new Set<string>();
 const listeners = new Set<() => void>();
 let version = 0;
@@ -28,12 +28,12 @@ export function dismissLineupAlerts(ids: readonly string[]) {
   }
 }
 
-// isLineupAlertDismissed は、知らせ id を、システムの状態の画面で既読にしたか。
+// isLineupAlertDismissed は、通知 id を、システムの状態の画面で既読にしたか。
 export function isLineupAlertDismissed(id: string): boolean {
   return dismissed.has(id);
 }
 
-// subscribeLineupDismissals は、既読にした知らせが増えたら listener を呼ぶ。useSyncExternalStore に渡す。
+// subscribeLineupDismissals は、既読にした通知が増えたら listener を呼ぶ。useSyncExternalStore に渡す。
 export function subscribeLineupDismissals(listener: () => void): () => void {
   listeners.add(listener);
 
@@ -42,7 +42,7 @@ export function subscribeLineupDismissals(listener: () => void): () => void {
   };
 }
 
-// lineupDismissalsVersion は、既読にした知らせが増えるたびに変わる値。useSyncExternalStore に渡す。
+// lineupDismissalsVersion は、既読にした通知が増えるたびに変わる値。useSyncExternalStore に渡す。
 export function lineupDismissalsVersion(): number {
   return version;
 }

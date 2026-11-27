@@ -72,7 +72,7 @@ describe('続きの放送 (#1564)', () => {
   });
 
   test('予約できなければ、理由を出し、予約のボタンを残す', async () => {
-    // 番組がもう予約されているなどで、サーバーが断る。
+    // 番組がもう予約されているなどで、サーバーが拒否する。
     const environment = createTestEnvironment(() => ({
       data: { createProgramReservation: null },
       errors: [{ message: 'conflict' }],

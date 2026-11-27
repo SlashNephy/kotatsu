@@ -113,7 +113,7 @@ CREATE TABLE api_tokens (
 CREATE INDEX api_tokens_user_id_idx ON api_tokens (user_id);
 
 -- 発行した外部プレイヤー用の署名付き URL (#1757、設計書 7.6、9.6)。管理者が一覧して、1 本ずつ取り消せるようにする。
--- URL の署名には id を含め、行がなくなった (取り消した) URL は、期限の前でも断る。期限の過ぎた行は、次に発行するときに消す。
+-- URL の署名には id を含め、行がなくなった (取り消した) URL は、期限の前でも拒否する。期限の過ぎた行は、次に発行するときに消す。
 CREATE TABLE stream_urls (
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -2223,7 +2223,7 @@ CREATE TABLE drama_record_connections (
   -- 記録先のアカウントの名前。設定の画面に、どのアカウントと連携したかを出す。
   account_name text NOT NULL,
   connected_at timestamptz NOT NULL,
-  -- 更新のトークンが断られたかどうか。断られたら、記録も取り込みもせず、連携し直すよう画面で案内する。
+  -- 更新のトークンが拒否されたかどうか。拒否されたら、記録も取り込みもせず、連携し直すよう画面で案内する。
   reauthorization_required boolean NOT NULL DEFAULT false,
   -- ウォッチリストを取り込んだ様子。最後に取り込めたときの /sync/activities の all と tv_shows.removed_from_list を、
   -- Simkl が返した文字列のまま持つ。次の取り込みで、変わったかを比較し、date_from に渡す。一度も取り込めていなければ NULL。

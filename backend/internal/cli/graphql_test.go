@@ -132,7 +132,7 @@ func TestTenbanRoutesGraphQL(t *testing.T) {
 		wantStatus  int
 		wantBody    string
 	}{
-		// GET でのクエリと POST 以外は、echo ではなく GraphQL のハンドラーが断る (設計書 9.5)。
+		// GET でのクエリと POST 以外は、echo ではなく GraphQL のハンドラーが拒否する (設計書 9.5)。
 		{name: "query", method: http.MethodPost, path: graphQLPath, session: session, contentType: jsonContentType, wantStatus: http.StatusOK, wantBody: `{"data":{"viewer":{"username":"graphql"}}}`},
 		{name: "query without session", method: http.MethodPost, path: graphQLPath, session: "", contentType: jsonContentType, wantStatus: http.StatusUnauthorized, wantBody: `{"errors":[{"message":"login required","extensions":{"code":"UNAUTHENTICATED"}}]}`},
 		{name: "query without JSON", method: http.MethodPost, path: graphQLPath, session: session, contentType: "text/plain", wantStatus: http.StatusUnsupportedMediaType, wantBody: `{"errors":[{"message":"Content-Type must be application/json","extensions":{"code":"BAD_USER_INPUT"}}]}`},

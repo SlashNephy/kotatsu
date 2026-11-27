@@ -23,7 +23,7 @@ import (
 // 通知するのは、同じ version の食い違いを DefaultRecheckInterval あけて 2 回読んだときなので、それより十分短くする。
 const DefaultCheckInterval = 10 * time.Minute
 
-// kindTerrestrial は、地上波の知らせの種別。
+// kindTerrestrial は、地上波の通知の種別。
 const kindTerrestrial = "GR"
 
 // payloadKind は、通知の payload の、種別 (BS、CS、GR などのチャンネル種別) のキー。
@@ -35,7 +35,7 @@ const (
 	payloadRemovedServices = "removedServices"
 )
 
-// systemStatusURL は、知らせを押したときに開く、システムの状態の画面のパス。
+// systemStatusURL は、通知を押したときに開く、システムの状態の画面のパス。
 const systemStatusURL = "/admin/system"
 
 // ServiceLister は、チューナーサーバーのサービスの一覧を返す。tunerserver.Client が満たす。
@@ -152,7 +152,7 @@ func (c *Checker) checkSatellites(ctx context.Context, q *sqlc.Queries, known []
 			payloadRemovedServices: registeredLabels(change.NetworkID, change.RemovedServiceIDs, names),
 		}
 		if err := c.notify(ctx, q, payload); err != nil {
-			// 知らせられなかったら、次の回にもう一度知らせる。
+			// 通知できなかったら、次の回にもう一度通知する。
 			c.comparer.Unconfirm(obs)
 
 			return err

@@ -3,9 +3,9 @@ export type ViewerEvent = {
   dataChange: { channel: string; version: number } | null;
   viewerSettingsVersion: number | null;
   unreadNotificationCount: number | null;
-  // streamsDraining は、tenban を止める前の知らせ。デモは止まらないので、いつも null。
+  // streamsDraining は、tenban を止める前の通知。デモは止まらないので、いつも null。
   streamsDraining: null;
-  // liveStreamScrambled は、ライブのサービスがスクランブルされたまま届くと決めた知らせ (#1517)。デモの局はどれも届くので、いつも null。
+  // liveStreamScrambled は、ライブのサービスがスクランブルされたまま届くと決めた通知 (#1517)。デモの局はどれも届くので、いつも null。
   liveStreamScrambled: null;
 };
 

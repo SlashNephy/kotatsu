@@ -659,7 +659,7 @@ func TestMatchDisabled(t *testing.T) {
 	}
 }
 
-// TestMatchUnauthorized は、トークンが断られたら、続きとして照合し直さず、同じトークンでは 1 時間は問い合わせないことと、
+// TestMatchUnauthorized は、トークンが拒否されたら、続きとして照合し直さず、同じトークンでは 1 時間は問い合わせないことと、
 // 管理者がトークンを入れ直したら、1 時間を待たずに問い合わせることを確認する。
 func TestMatchUnauthorized(t *testing.T) {
 	t.Parallel()
@@ -693,7 +693,7 @@ func TestMatchUnauthorized(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, fake.takeRequests(), 1, "queries again after an hour")
 
-	// 断られた直後でも、入れ直したトークンでは問い合わせる。
+	// 拒否された直後でも、入れ直したトークンでは問い合わせる。
 	setToken(t, db, tokens, testTMDBKey)
 	result, err = matcher.MatchHorizon(t.Context())
 	require.NoError(t, err)

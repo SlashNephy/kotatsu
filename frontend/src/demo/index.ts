@@ -66,7 +66,7 @@ export function interceptFetch(
       }
       if (url.pathname.startsWith('/internal/auth/')) {
         const replaced = current.auth[url.pathname];
-        // Error を渡したパスは、失敗の応答を返す (失敗の知らせを見るため)。
+        // Error を渡したパスは、失敗の応答を返す (失敗の通知を見るため)。
         if (replaced instanceof Error) {
           return new Response(JSON.stringify({ error: replaced.message }), {
             status: 500,

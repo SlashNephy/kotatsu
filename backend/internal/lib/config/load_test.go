@@ -1250,7 +1250,7 @@ func writeFile(t *testing.T, dir, name, content string) string {
 }
 
 // TestLoadIgnoresMovedSettings は、画面で設定するようになった項目 (#1869) を、設定ファイルや環境変数に書いてあっても、
-// 起動を止めずに読まず、無視した項目として挙げることを確認する。同じ節の、設定に残した項目は読む。
+// 起動を止めずに読まず、無視した項目として挙げることを確認する。同じセクションの、設定に残した項目は読む。
 func TestLoadIgnoresMovedSettings(t *testing.T) {
 	t.Parallel()
 
@@ -1260,7 +1260,7 @@ func TestLoadIgnoresMovedSettings(t *testing.T) {
 		env         map[string]string
 		wantIgnored []config.IgnoredSetting
 		wantErr     string
-		// wantWhisperCommand と wantHIBPURL は、移した項目と同じ節に残した項目の値。
+		// wantWhisperCommand と wantHIBPURL は、移した項目と同じセクションに残した項目の値。
 		wantWhisperCommand string
 		wantHIBPURL        string
 	}{
@@ -1312,14 +1312,14 @@ func TestLoadIgnoresMovedSettings(t *testing.T) {
 			},
 		},
 		{
-			// 値を書かずに節だけを残していても、起動を止めない。
+			// 値を書かずにセクションだけを残していても、起動を止めない。
 			name:        "an empty section in the config file",
 			yaml:        "audit:\n",
 			env:         map[string]string{envKeyURL: envURL},
 			wantIgnored: []config.IgnoredSetting{},
 		},
 		{
-			// 綴りを間違えたキーは、移した項目と同じ節にあっても、今までどおり拒む。
+			// 綴りを間違えたキーは、移した項目と同じセクションにあっても、今までどおり拒む。
 			name:    "a misspelled key in a moved section",
 			yaml:    "audit:\n  retention_dayz: 30\n",
 			env:     map[string]string{envKeyURL: envURL},

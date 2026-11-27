@@ -74,7 +74,7 @@ export const Loading: Story = { args: { hold: holdAll } };
 // 初回セットアップで管理者を作った直後。
 export const AfterSetup: Story = { args: { url: '/login?setup=true' } };
 
-// OIDC でのログインを、IdP で断って戻ってきたとき。
+// OIDC でのログインを、IdP で拒否して戻ってきたとき。
 export const OIDCDenied: Story = { args: { url: '/login?error=oidc_denied' } };
 
 // OIDC でのログインに、知らない理由で失敗して戻ってきたとき。

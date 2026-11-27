@@ -114,7 +114,7 @@ describe('useSeekableStream', () => {
     expect(result.current.position).toBeCloseTo(135);
   });
 
-  test('裏で読み込んでいる間に、もう一度知らせが届いても、映っている映像の起点で数え続ける', async () => {
+  test('裏で読み込んでいる間に、もう一度通知が届いても、映っている映像の起点で数え続ける', async () => {
     mockHead({ '100.0': 99, '130.0': 129.5, '133.0': 132.5 });
     const video = new FakeVideo();
     const { result } = await playFrom(video);

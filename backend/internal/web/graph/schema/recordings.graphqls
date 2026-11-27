@@ -36,7 +36,7 @@ enum RecordingFailureReason {
   RECORDER_UNAVAILABLE
   "録画中に、EDCB の予約にチューナーを取られ、つなぎ直せなかった (#1534)"
   TUNER_PREEMPTED
-  "チューナーサーバーが選局を断った。サービスかチャンネルがないか、選局に失敗した (#1519)"
+  "チューナーサーバーが選局を拒否した。サービスかチャンネルがないか、選局に失敗した (#1519)"
   TUNING_REFUSED
 }
 
@@ -320,7 +320,7 @@ type Recording implements Node {
   jikkyoNicologCommentsUrl: String!
   """
   録画をダウンロードした TS と組で使う、TvtPlay の CM のチャプターのファイル (.chapter) を返す URL のパス (#1737)。
-  管理者が録画のダウンロードを有効にしていなければ、取りに行っても断られる。
+  管理者が録画のダウンロードを有効にしていなければ、取りに行っても拒否される。
   """
   tvtplayChapterUrl: String!
   """

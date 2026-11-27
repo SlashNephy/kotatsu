@@ -520,7 +520,7 @@ function Recording({ recordingId }: { recordingId: string }) {
                         return;
                       }
                       setRegenerated(null);
-                      // 変更の知らせを待たずに読み直し、待っていることを CM の区間のカードに出す。
+                      // 変更の通知を待たずに読み直し、待っていることを CM の区間のカードに出す。
                       refreshCm();
                     },
                     onError: () => setError(t('recordings.actionError')),
@@ -545,7 +545,7 @@ function Recording({ recordingId }: { recordingId: string }) {
                         return;
                       }
                       setRegenerated(null);
-                      // 変更の知らせを待たずに読み直し、待っていることを字幕のカードに出す。
+                      // 変更の通知を待たずに読み直し、待っていることを字幕のカードに出す。
                       refreshCaptions();
                     },
                     onError: () => setError(t('recordings.actionError')),

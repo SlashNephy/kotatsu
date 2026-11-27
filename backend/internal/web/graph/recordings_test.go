@@ -453,7 +453,7 @@ func TestRecordingsByRuleAndGenre(t *testing.T) {
 }
 
 // TestReanalyzeRecording は、録画の解析をやり直すジョブを、視聴者でなければ入れられることを確認する (#476)。
-// 取り込んだ録画の解析より先に回し、録画中の録画は断り、待っているジョブには重ねない。
+// 取り込んだ録画の解析より先に回し、録画中の録画は拒否し、待っているジョブには重ねない。
 func TestReanalyzeRecording(t *testing.T) {
 	t.Parallel()
 
@@ -496,7 +496,7 @@ func TestReanalyzeRecording(t *testing.T) {
 }
 
 // TestDetectRecordingCM は、録画の CM の区間を見分けるジョブを、視聴者でなければ、全体の設定にかかわらず入れられることを確認する (#1209)。
-// 録画中の録画と、TS のセグメントのない録画は断り、待っているジョブには重ねず、見分け終えた録画は見分け直せる。
+// 録画中の録画と、TS のセグメントのない録画は拒否し、待っているジョブには重ねず、見分け終えた録画は見分け直せる。
 func TestDetectRecordingCM(t *testing.T) {
 	t.Parallel()
 
@@ -851,7 +851,7 @@ func TestRecordingCMSections(t *testing.T) {
 }
 
 // TestGenerateRecordingCaptions は、録画の字幕を自動生成するジョブを、視聴者でなければ、全体の設定にかかわらず入れられることを確認する (#1682)。
-// 録画中の録画と、TS のセグメントのない録画は断り、待っているジョブには重ねない。入れたら、状態は待っているになる。
+// 録画中の録画と、TS のセグメントのない録画は拒否し、待っているジョブには重ねない。入れたら、状態は待っているになる。
 func TestGenerateRecordingCaptions(t *testing.T) {
 	t.Parallel()
 

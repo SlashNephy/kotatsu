@@ -73,7 +73,7 @@ type Server struct {
 	UnknownEpisodes []string
 	// FailNext は、次の API の問い合わせ (認可とトークンを除く) に返す状態コード。0 なら返さない。1 回だけ使う。
 	FailNext int
-	// RejectRefresh なら、トークンの更新を invalid_grant で断る。
+	// RejectRefresh なら、トークンの更新を invalid_grant で拒否する。
 	RejectRefresh bool
 	// History は、受け取った見た話。
 	History []*Watched

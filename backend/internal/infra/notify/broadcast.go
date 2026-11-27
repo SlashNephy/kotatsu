@@ -9,7 +9,7 @@ import (
 // GraphQL の subscription のように、購読者が出入りするものに使う。購読者ごとに LISTEN の接続を持たずに済む。
 //
 // 通知するのは「どれかが変わったかもしれない」ことだけで、購読者は Version でバージョンを読み、自分が最後に見たバージョンと比較する。
-// バージョンは Watcher が持つので、購読者が遅れて、知らせが 1 回にまとまっても、変更を取りこぼさない。
+// バージョンは Watcher が持つので、購読者が遅れて、通知が 1 回にまとまっても、変更を取りこぼさない。
 type Broadcaster struct {
 	watcher *Watcher
 
@@ -63,7 +63,7 @@ func (b *Broadcaster) Version(channel string) int64 {
 	return b.watcher.Version(channel)
 }
 
-// wake は、購読者に通知する。遅い購読者を待たないよう、まだ受け取られていない知らせがあれば、それにまとめる。
+// wake は、購読者に通知する。遅い購読者を待たないよう、まだ受け取られていない通知があれば、それにまとめる。
 func (b *Broadcaster) wake() {
 	b.mu.Lock()
 	defer b.mu.Unlock()

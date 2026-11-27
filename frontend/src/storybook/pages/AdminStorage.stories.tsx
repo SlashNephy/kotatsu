@@ -193,7 +193,7 @@ export const ConfirmMinFree: Story = {
   },
 };
 
-// 保存先プールの設定を保存できなかったとき (失敗の知らせを出す)。
+// 保存先プールの設定を保存できなかったとき (失敗の通知を出す)。
 export const SaveFailed: Story = {
   args: { overrides: { ...pools, updateStoragePool: failing() } },
   play: async ({ canvas }) => {

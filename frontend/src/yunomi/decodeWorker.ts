@@ -338,7 +338,7 @@ function onPes(current: Loading, pes: TsPes): void {
 }
 
 // trimAudio は、時計が動く前 (鳴らし始める前) に、渡していない音が上限を超えたら、古い方から破棄する。
-// 音ありの自動再生を断られている間に、バッファし続けないため。
+// 音ありの自動再生を拒否されている間に、バッファし続けないため。
 function trimAudio(current: Loading): void {
   if (clock.at(mainNow()) !== null) {
     return;

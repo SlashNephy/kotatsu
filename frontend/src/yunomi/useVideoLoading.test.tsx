@@ -85,7 +85,7 @@ describe('useVideoLoading', () => {
     expect(result.current).toBe(false);
   });
 
-  test('止めたまま読み込み終えたら消す (自動再生を断られたときなど)', () => {
+  test('止めたまま読み込み終えたら消す (自動再生を拒否されたときなど)', () => {
     const { video, fire } = fakeVideo();
     const { result } = renderHook(() => useVideoLoading(mediaOf(video)));
     expect(result.current).toBe(true);

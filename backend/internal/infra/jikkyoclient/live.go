@@ -24,7 +24,7 @@ const (
 	liveWriteTimeout = 10 * time.Second
 	// livePostTimeout は、投稿の結果を待つ時間の上限。視聴セッションがつながるまでの時間を含む。
 	livePostTimeout = 10 * time.Second
-	// defaultKeepSeatInterval は、NX-Jikkyo が keepSeat の間隔を知らせなかったときの間隔。
+	// defaultKeepSeatInterval は、NX-Jikkyo が keepSeat の間隔を通知しなかったときの間隔。
 	defaultKeepSeatInterval = 30 * time.Second
 	// minKeepSeatInterval と maxKeepSeatInterval は、NX-Jikkyo が通知した keepSeat の間隔として受け入れる範囲。
 	minKeepSeatInterval = time.Second

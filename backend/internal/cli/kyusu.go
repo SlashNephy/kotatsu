@@ -24,7 +24,7 @@ type kyusuParts struct {
 type kyusuLogger *slog.Logger
 
 // newKyusu は、kyusu の部品を作り、セッションの数をメトリクスに登録する。
-// アプリの秘密キーがなければ、ほかの部品を作る前に断る。ライブ視聴のストリームを開く先は、チューナーサーバーを使う構成でだけ作る。FFmpeg か tsreadex がなければ、起動はするが、
+// アプリの秘密キーがなければ、ほかの部品を作る前に起動を拒否する。ライブ視聴のストリームを開く先は、チューナーサーバーを使う構成でだけ作る。FFmpeg か tsreadex がなければ、起動はするが、
 // トランスコードには理由を添えて 503 を返す。どちらも設定や環境で作るかが変わるので、wire の外で決めて渡す (#1607)。
 // 録画は、このインスタンスにマウントした保存先プールから読む。
 func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live, *kyusu.VOD, *kyusu.Token, error) {

@@ -268,7 +268,7 @@ func TestTimeshiftHandlerFollowsChunks(t *testing.T) {
 	assert.Equal(t, wantIFramePTS(), iframes(t, body.Bytes()))
 }
 
-// TestTimeshiftHandlerRejects は、流せないリクエストを断ることを確認する。
+// TestTimeshiftHandlerRejects は、流せないリクエストを拒否することを確認する。
 func TestTimeshiftHandlerRejects(t *testing.T) {
 	t.Parallel()
 

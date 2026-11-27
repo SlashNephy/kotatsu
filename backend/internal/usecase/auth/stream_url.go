@@ -114,7 +114,7 @@ func (s *StreamURLs) List(ctx context.Context) ([]*IssuedStreamURL, error) {
 }
 
 // Delete は、URL の記録を消して取り消し、監査ログに残す。記録がなければ ErrStreamURLNotFound を返す。
-// 消した URL は、次に開くときと、開いたままの配信を再確認するときに断られる。
+// 消した URL は、次に開くときと、開いたままの配信を再確認するときに拒否される。
 func (s *StreamURLs) Delete(ctx context.Context, actor *audit.Actor, urlID uuid.UUID) error {
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		row, err := sqlc.New(tx).DeleteStreamURL(ctx, urlID)

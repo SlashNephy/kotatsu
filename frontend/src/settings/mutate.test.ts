@@ -76,7 +76,7 @@ describe('needsReauthentication', () => {
       want: true,
     },
     {
-      name: '認証の API がほかの理由で断ったとき',
+      name: '認証の API がほかの理由で拒否したとき',
       error: new AuthError(401, 'INVALID_CREDENTIALS', undefined, undefined),
       want: false,
     },

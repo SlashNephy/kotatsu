@@ -20,7 +20,7 @@ const (
 	// AlertConsecutive は、判定できた録画がこの数だけ続けてスクランブルされたままだったら、管理者に通知する数 (設計書 6.2、付録 A)。
 	// 1 本だけなら、契約のない局を録った録画のこともあるので、2 本続いたら、カードが読めていない見込みが高いとみなす。実機で計測していない仮の値。
 	AlertConsecutive = 2
-	// AlertInterval は、管理者へ同じ知らせを送る最短の間隔 (設計書 6.2、付録 A)。
+	// AlertInterval は、管理者へ同じ通知を送る最短の間隔 (設計書 6.2、付録 A)。
 	// カードの問題を解消するまでは、録画のたびに続くので、1 日に 1 回までにする。解消した後にまた起きても、翌日には気付ける。
 	AlertInterval = 24 * time.Hour
 )
@@ -67,7 +67,7 @@ func AddToPayload(payload map[string]any, result ts.RecordingScramble) {
 
 // Alert は、録画を終えたときの判定 result を、続けてスクランブルされたままだった録画の数に足し、
 // AlertConsecutive に届いたら、AlertInterval に 1 回まで、管理者に通知する (設計書 6.2)。判定しなかった録画は数を変えない。
-// 録画を終える文と同じトランザクション db で呼ぶ。payload には、知らせのきっかけになった録画の材料 (録画の ID、番組名、サービス名) を渡す。
+// 録画を終える文と同じトランザクション db で呼ぶ。payload には、通知のきっかけになった録画の材料 (録画の ID、番組名、サービス名) を渡す。
 func Alert(ctx context.Context, db sqlc.DBTX, clk clock.Clock, result ts.RecordingScramble, payload map[string]any) error {
 	if !result.Judged {
 		return nil

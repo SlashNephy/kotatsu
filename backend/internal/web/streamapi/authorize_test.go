@@ -290,7 +290,7 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 }
 
 // TestAuthorizerFollowsExternalPlayerURLsSetting は、管理者が外部プレイヤー用の URL を有効にしている間だけ、
-// 署名付き URL で映像を見られることを確認する (#1755)。無効にしたら、期限の前に発行した URL も、その場で断る。
+// 署名付き URL で映像を見られることを確認する (#1755)。無効にしたら、期限の前に発行した URL も、その場で拒否する。
 func TestAuthorizerFollowsExternalPlayerURLsSetting(t *testing.T) {
 	t.Parallel()
 

@@ -8,7 +8,7 @@ import { playerTitle, type PlayerSnapshot } from './playerState';
 type PlaybackPosition = { duration: number; position: number; playbackRate: number };
 
 // positionState は、OS に渡す再生位置を返す。渡せない値 (長さが分からない、位置が範囲の外) は直すか、null にする。
-// 再生位置は秒の単位に丸める。OS は再生速度から位置を進めるので、細かく知らせ直さなくてよい。
+// 再生位置は秒の単位に丸める。OS は再生速度から位置を進めるので、細かく通知し直さなくてよい。
 export function positionState(position: PlaybackPosition | null): MediaPositionState | null {
   if (position === null || !Number.isFinite(position.duration) || position.duration <= 0) {
     return null;

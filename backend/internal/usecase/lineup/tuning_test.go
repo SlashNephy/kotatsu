@@ -23,7 +23,7 @@ func tuningBase() time.Time {
 	return time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC)
 }
 
-// refused は、地上波のチャンネル channel を、起点から at に選局して断られた結果。
+// refused は、地上波のチャンネル channel を、起点から at に選局して拒否された結果。
 func refused(channel string, at time.Duration) lineup.TuningOutcome {
 	return lineup.TuningOutcome{ChannelType: "GR", Channel: channel, At: tuningBase().Add(at), Received: false}
 }
@@ -197,7 +197,7 @@ func TestCheckerTuning(t *testing.T) {
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 2)
 
-	// 受信できたら忘れ、また続けて断られたら通知する。
+	// 受信できたら忘れ、また続けて拒否されたら通知する。
 	record(dead.ID, 8*time.Hour, domain.RecordingStatePartial, nil)
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 2)
@@ -208,7 +208,7 @@ func TestCheckerTuning(t *testing.T) {
 	require.NoError(t, checker.Check(t.Context()))
 	assert.Len(t, lineupNotifications(t, pool), 3)
 
-	// 受信できた録画を消しても、録画履歴に残っていれば、受信できたものに数えて忘れる。続いて 3 回断られたら、また通知する。
+	// 受信できた録画を消しても、録画履歴に残っていれば、受信できたものに数えて忘れる。続いて 3 回拒否されたら、また通知する。
 	_, err = pool.Exec(t.Context(), `INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
 VALUES ($1, $2, 'test', 'test', $3, $3, $3)`, uuid.New(), dead.ID, tuningBase().Add(14*time.Hour))
 	require.NoError(t, err)

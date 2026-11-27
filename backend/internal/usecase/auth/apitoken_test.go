@@ -124,7 +124,7 @@ func TestAPITokenRejects(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrUnauthenticated)
 }
 
-// TestAPITokenBearerMiddleware は、Bearer のトークンでログインしたことにし、違うトークンは 401 で断ることを確認する。
+// TestAPITokenBearerMiddleware は、Bearer のトークンでログインしたことにし、違うトークンは 401 で拒否することを確認する。
 func TestAPITokenBearerMiddleware(t *testing.T) {
 	t.Parallel()
 

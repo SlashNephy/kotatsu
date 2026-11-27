@@ -129,7 +129,7 @@ const frameAspect = 16 / 9;
 // screenCrop は、画面に映すときの切り抜きを返す (#1599)。画面いっぱいに広げる表示の比率 (fill) は、全画面のときだけ、
 // 16:9 の枠に収めた映像を、幅 width、高さ height の画面を覆うまで、中央を起点に拡大する。はみ出た分は切れる。
 // 全画面でなければ、枠と画面の比率は同じなので、拡大しない。縦向きの画面では、覆うと映像の大半が切れるので、拡大しない
-// (横向きの固定を断られた端末で、縦向きのまま全画面にしたとき)。fill でなければ、crop をそのまま返す。
+// (横向きの固定を拒否された端末で、縦向きのまま全画面にしたとき)。fill でなければ、crop をそのまま返す。
 export function screenCrop(crop: Crop, fullscreen: boolean, width: number, height: number): Crop {
   if (crop.fill !== true) {
     return crop;

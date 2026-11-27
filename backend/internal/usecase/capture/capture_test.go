@@ -198,7 +198,7 @@ func TestSaveRejects(t *testing.T) {
 	}
 }
 
-// TestUnavailableWithoutDataDir は、データディレクトリを設定していなければ、残すのも消すのも断ることを確認する。
+// TestUnavailableWithoutDataDir は、データディレクトリを設定していなければ、残すのも消すのも拒否することを確認する。
 func TestUnavailableWithoutDataDir(t *testing.T) {
 	t.Parallel()
 

@@ -199,7 +199,7 @@ export function AnimeLibrary({
       />
     );
   }
-  // 「見たいリスト」タブの候補にある作品だけ、ルールを作れる (候補にない作品は、サーバーが断る)。
+  // 「見たいリスト」タブの候補にある作品だけ、ルールを作れる (候補にない作品は、サーバーが拒否する)。
   const candidates = new Map(data.animeWishlist.works.map((work) => [work.tid, work.covered]));
   const works = sortWorks(
     library.works.filter((work) => matchesFilters(work, filters, now)),

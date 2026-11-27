@@ -29,7 +29,7 @@ spec:
       {{- include "kotatsu.selectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
   policyTypes:
     - Ingress
-  {{- /* 受ける規則がひとつもないロールでは、ingress を書かない (すべて断る)。空の ingress: は null になり、API に断られる。 */}}
+  {{- /* 受ける規則がひとつもないロールでは、ingress を書かない (すべて拒否する)。空の ingress: は null になり、API に拒否される。 */}}
   {{- if or (has $component (list "all" "tenban" "kyusu" "nabe")) $.Values.networkPolicy.metricsFrom }}
   ingress:
     {{- if has $component (list "all" "tenban") }}
