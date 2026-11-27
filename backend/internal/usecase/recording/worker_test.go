@@ -52,7 +52,7 @@ func (f *fixture) startWorkerWith(t *testing.T, holder uuid.UUID, leases recordi
 	return f.startWorkerWithOptions(t, holder, leases, &recording.WorkerOptions{
 		LeaseTTL: leaseTTL, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
 		HandoverTimeout: handoverTimeout, ReleaseCooldown: 0, DatabaseClock: false, PollOnly: true, PollInterval: 50 * time.Millisecond,
-		DeferAcquire: nil,
+		DeferAcquire: nil, OnCooldown: nil,
 	}, session)
 }
 
@@ -841,7 +841,7 @@ func TestWorkerUsesDatabaseClockForLeases(t *testing.T) {
 			}, recording.NewRecordingLeases(f.pool), &recording.WorkerOptions{
 				LeaseTTL: 10 * time.Second, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
 				HandoverTimeout: shortHandoverTimeout, ReleaseCooldown: 0, DatabaseClock: tt.databaseClock, PollOnly: true, PollInterval: 50 * time.Millisecond,
-				DeferAcquire: nil,
+				DeferAcquire: nil, OnCooldown: nil,
 			})
 			ctx, cancel := context.WithCancel(t.Context())
 			done := make(chan error, 1)

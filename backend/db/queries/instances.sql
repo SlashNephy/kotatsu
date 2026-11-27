@@ -21,3 +21,7 @@ DELETE FROM instances WHERE heartbeat_at < @before;
 -- name: ListInstances :many
 -- 止まった直後の行も含めて、すべてのインスタンスを返す。システムの状態の画面で、止まったインスタンスも示すため。
 SELECT * FROM instances ORDER BY role, started_at, id;
+
+-- name: SetInstanceAcquirePausedUntil :exec
+-- 録画できずに割り振りを手放した mikan が、割り振りを取らずにいる期限を書く (#2200)。
+UPDATE instances SET acquire_paused_until = @paused_until WHERE id = @id AND role = @role;
