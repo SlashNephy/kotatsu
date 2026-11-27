@@ -165,3 +165,53 @@ func TestRecorderReleasesHandoverOnUnmountedPool(t *testing.T) {
 	})
 	require.ErrorIs(t, wait(t, newDone), recording.ErrRecorderUnavailable)
 }
+
+// TestRecorderRechecksAfterRetryingFirstSegment は、録り始めに同じ回かを確認し直す録画 (#1500) でも、最初のセグメントを作れずに
+// やり直した後に、確認し直すことを確認する (#2195)。同じ回なら録画をやめ、別の回なら録り続ける。
+func TestRecorderRechecksAfterRetryingFirstSegment(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		history     string
+		wantStopped bool
+	}{
+		{name: "先に録った同じ回があれば、やり直した後にやめる", history: recheckDescription, wantStopped: true},
+		{name: "先に録った回が別の回なら、やり直した後に録る", history: recheckOther, wantStopped: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserveBundled(t, 0, true)
+			f.recordHistory(t, 1, tt.history)
+			free := new(atomic.Uint64)
+			logs := newMessageRecorder()
+			recorder, dir := f.newRecorderWithLogger(t, newFakeTunerStream(t, recheckPF(t, 0x0400)), func(string) (uint64, error) { return free.Load(), nil },
+				nil, slog.New(logs))
+			cancel, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			// 最初のセグメントを作れずにやり直してから、作れるようにする。
+			logs.waitForMessage(t, "failed to create a recording file"+retrying)
+			free.Store(1 << 40)
+
+			if tt.wantStopped {
+				require.NoError(t, wait(t, done))
+				_, found := f.recording(t, reservationID)
+				assert.False(t, found, "the recording is deleted")
+				assert.Empty(t, segmentFiles(t, dir), "the segments are removed")
+
+				return
+			}
+			require.Eventually(t, func() bool { return f.segments(t, reservationID) == 1 }, waitTimeout, 10*time.Millisecond)
+			f.clock.Advance(recording.EpisodeRecheckTimeout)
+			require.Eventually(t, func() bool { return f.startedEvents(t) == 1 }, waitTimeout, 10*time.Millisecond)
+			cancel(errStopForTest)
+			require.ErrorIs(t, wait(t, done), errStopForTest)
+			got, found := f.recording(t, reservationID)
+			require.True(t, found)
+			assert.Equal(t, string(domain.RecordingStateRecording), got.state)
+		})
+	}
+}
