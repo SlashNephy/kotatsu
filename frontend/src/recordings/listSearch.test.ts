@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  activeFilterCount,
   formFromSearch,
   parseRecordingListSearch,
   recordingFilter,
@@ -166,5 +167,28 @@ describe('searchFromForm', () => {
     });
 
     expect(searchFromForm(formFromSearch(search), search)).toEqual(search);
+  });
+});
+
+describe('activeFilterCount', () => {
+  test.each([
+    { name: '絞り込まない', search: {}, want: 0 },
+    {
+      name: '照合のしかたと空の除外は数えない',
+      search: { keywords: [keyword('ニュース')], keywordMatch: 'ANY' as const },
+      want: 1,
+    },
+    {
+      name: '字幕のいずれかに一致は、字幕の条件の 1 つと数える',
+      search: { captionKeywords: [caption('誰なの')], captionKeywordMatch: 'ANY' as const },
+      want: 1,
+    },
+    {
+      name: '除外だけのキーワード',
+      search: { excludeKeywords: [keyword('再放送')], tags: ['VGFnOjE='] },
+      want: 2,
+    },
+  ])('$name', ({ search, want }) => {
+    expect(activeFilterCount(recordingFilter(search))).toBe(want);
   });
 });

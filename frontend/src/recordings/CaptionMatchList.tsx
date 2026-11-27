@@ -92,7 +92,7 @@ export function CaptionMatchList({
           </Anchor>
         );
       })}
-      {(hidden > 0 || expanded) && matches.length > collapsedMatches && (
+      {matches.length > collapsedMatches && (
         <Group>
           <Button size="compact-xs" variant="subtle" onClick={() => setExpanded(!expanded)}>
             {expanded

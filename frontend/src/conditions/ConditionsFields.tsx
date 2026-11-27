@@ -408,7 +408,8 @@ export function KeywordRows({
           {match !== undefined && onMatchChange !== undefined && (
             <SegmentedControl
               size="xs"
-              aria-label={t('rules.keywordMatch.label')}
+              // 録画の検索では番組名と字幕の文で 2 つ並ぶので、欄の見出しで区別する (#2215)。
+              aria-label={t('rules.keywordMatch.label', { label })}
               value={match}
               onChange={(next) => onMatchChange(next === 'ANY' ? 'ANY' : 'ALL')}
               data={[

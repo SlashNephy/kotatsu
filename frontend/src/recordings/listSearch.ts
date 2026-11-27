@@ -120,7 +120,7 @@ export function recordingFilter(search: RecordingListSearch): RecordingFilterInp
     ...(keywords.length > 0 || excludeKeywords.length > 0
       ? { keywords, keywordMatch: search.keywordMatch ?? 'ALL', excludeKeywords }
       : {}),
-    // 字幕の照合のしかたは、省くと ALL になるので、ANY のときだけ送る。絞り込みの数にも数えない。
+    // 字幕の照合のしかたは、省くと ALL になるので、ANY のときだけ送る。
     ...(search.captionKeywords === undefined
       ? {}
       : {
@@ -136,6 +136,17 @@ export function recordingFilter(search: RecordingListSearch): RecordingFilterInp
     ...broadcastRange(search.from ?? '', search.to ?? ''),
     ...(search.rule === undefined ? {} : { ruleId: search.rule }),
   };
+}
+
+// activeFilterCount は、使っている絞り込みの条件の数。閉じた絞り込みのボタンに出す。
+// 照合のしかたは条件に添えるものなので数えず、空の配列 (除外するキーワードのない行など) も数えない。
+export function activeFilterCount(filter: object): number {
+  return Object.entries(filter).filter(
+    ([key, value]) =>
+      key !== 'keywordMatch' &&
+      key !== 'captionKeywordMatch' &&
+      !(Array.isArray(value) && value.length === 0),
+  ).length;
 }
 
 // RecordingFilterForm は、絞り込みのフォームの入力。決めるまでは、クエリを変えない。
@@ -171,9 +182,9 @@ export function formFromSearch(search: RecordingListSearch): RecordingFilterForm
     keywords: search.keywords ?? [recordingKeyword()],
     keywordMatch: search.keywordMatch ?? 'ALL',
     excludeKeywords: search.excludeKeywords ?? [],
-    captionKeywords: (
-      search.captionKeywords ?? [{ text: '', regexp: false, caseSensitive: false }]
-    ).map((keyword) => ({ ...keyword, fields: [] })),
+    captionKeywords: search.captionKeywords?.map((keyword) => ({ ...keyword, fields: [] })) ?? [
+      captionKeyword(),
+    ],
     captionKeywordMatch: search.captionKeywordMatch ?? 'ALL',
     tags: search.tags ?? [],
     states: search.states ?? [],

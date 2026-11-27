@@ -54,6 +54,7 @@ import {
 import { genreKey } from '../../guide/genres';
 import { CaptionMatchList } from '../../recordings/CaptionMatchList';
 import {
+  activeFilterCount,
   captionKeyword,
   formFromSearch,
   parseRecordingListSearch,
@@ -172,7 +173,7 @@ function RecordingsPage() {
   const update: Update = (next) => void navigate({ replace: true, search: next });
   const [filtersOpened, setFiltersOpened] = useState(false);
   // 閉じていても絞り込み中だと分かるよう、ボタンに、使っている条件の数を出す。
-  const activeFilters = Object.keys(filter).length;
+  const activeFilters = activeFilterCount(filter);
 
   return (
     <Stack gap="sm">
