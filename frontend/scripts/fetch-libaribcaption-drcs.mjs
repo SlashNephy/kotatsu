@@ -3,8 +3,8 @@
 // ../backend/internal/lib/drcstable/dist/drcs.json にも置き、本体に埋め込む。
 // 同じ commit から作ったテーブルが両方に既にあれば、取得し直さない。
 // 本番のイメージのビルド (Dockerfile) でも動くよう、Node.js の標準の機能だけを使う。
-import { copyFile, readFile, rename, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 const dir = join(import.meta.dirname, '..', 'vendor', 'libaribcaption');
 const source = Object.fromEntries(
@@ -21,9 +21,16 @@ for (const key of ['repository', 'file', 'commit']) {
 
 const target = join(dir, 'drcs.json');
 const backendTarget = join(import.meta.dirname, '..', '..', 'backend', 'internal', 'lib', 'drcstable', 'dist', 'drcs.json');
+// 本番のイメージのビルドでは、SPA のステージに backend/ がないので、置き場所から作る。
+await mkdir(dirname(backendTarget), { recursive: true });
+// 途中で壊れたテーブルは、作っていないものとして作り直す。
 const generatedFrom = async (path) => {
   const existing = await readFile(path, 'utf8').catch(() => null);
-  return existing === null ? null : JSON.parse(existing).commit;
+  try {
+    return existing === null ? null : JSON.parse(existing).commit;
+  } catch {
+    return null;
+  }
 };
 if ((await generatedFrom(target)) === source.commit) {
   if ((await generatedFrom(backendTarget)) !== source.commit) {
