@@ -224,12 +224,9 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		return err
 	}
 
-	startMargin := time.Duration(domain.DefaultMarginSeconds) * time.Second
-	endMargin := time.Duration(domain.DefaultMarginSeconds) * time.Second
-	if settings, err := r.cachedSettings(ctx, &reservation, cached); err == nil {
-		startMargin = time.Duration(settings.StartMarginSeconds) * time.Second
-		endMargin = time.Duration(settings.EndMarginSeconds) * time.Second
-	}
+	settings := r.cachedSettings(ctx, logger, &reservation, cached)
+	startMargin := time.Duration(settings.StartMarginSeconds) * time.Second
+	endMargin := time.Duration(settings.EndMarginSeconds) * time.Second
 	tracker := newEndTracker(r, &recording, &reservation, startMargin, endMargin)
 	tracker.useRecheck(recheck, inserted, pendingStart, created)
 	// 録画を終えずにやめるとき (リースを失ったときなど) は、コピーするのもやめさせ、書きかけのセグメントを消させる。
@@ -254,7 +251,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		}
 		stream := opened.stream
 
-		segment, reason, err := r.createSegment(ctx, tracker, &reservation, opened.startedAt, opened.tuner)
+		segment, reason, err := r.createSegment(ctx, logger, tracker, &reservation, opened.startedAt, opened.tuner)
 		if err != nil {
 			_ = stream.Close()
 			if done, err := r.retryCreate(ctx, logger, assignment, &recording, tracker, result, created, reason, err); done {
@@ -423,8 +420,9 @@ func (r *Recorder) retryOpen(
 	return r.waitToReopen(ctx, logger, assignment, recording, tracker, result, r.opts.RetryInterval)
 }
 
-// retryCreate は、セグメントを作れなかったときに、録画を失敗にするか、やり直すかを決める。録画を終えたら true を返す。
-// まだ何も作っていなければ失敗にする。録画の途中なら、それまでに録れた分を失敗にしないよう、作れるようになるまでやり直す (#519)。
+// retryCreate は、セグメントを作れなかったときに、割り振りを手放すか、やり直すかを決める。録画を終えたか手放したら true を返す。
+// まだ何も作っていなくても、その場では失敗にせず、作れるようになるまで、予定の終わりまでやり直す (#519、#2195)。
+// 引き継ぎの瞬間の一時的なエラーで、録画を失わないためである。予定の終わりまで何も録れなければ、finish が、最後に作れなかった理由で失敗にする。
 func (r *Recorder) retryCreate(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult,
 	created int, reason domain.RecordingFailureReason, err error,
@@ -432,30 +430,17 @@ func (r *Recorder) retryCreate(
 	if ctx.Err() != nil {
 		return true, context.Cause(ctx)
 	}
-	if created == 0 {
-		// プールがこの mikan にマウントされていなければ、ほかの mikan に録画させる (#524)。
-		if errors.Is(err, kago.ErrPoolNotMounted) && r.hasPeers(ctx) {
-			logger.WarnContext(ctx, "the storage pool is not mounted on this mikan; releasing the assignment", slog.Any("error", err))
+	// まだ何も録っていないのに、プールがこの mikan にマウントされていなければ、ほかの mikan に録画させる (#524)。
+	if created == 0 && errors.Is(err, kago.ErrPoolNotMounted) && r.hasPeers(ctx) {
+		logger.WarnContext(ctx, "the storage pool is not mounted on this mikan; releasing the assignment", slog.Any("error", err))
 
-			// DB に届かずに録画を記録できていなければ、届くのを待って記録してから、理由を残す (#1073)。
-			return true, r.untilDatabase(ctx, logger, "release the recording", func(ctx context.Context) error {
-				if err := tracker.pending.save(ctx, r, tracker); err != nil {
-					return err
-				}
-
-				return r.release(ctx, recording, reason, failureDetail(err))
-			})
-		}
-		logger.WarnContext(ctx, "failed to create a recording file", slog.Any("error", err))
-		// DB に届かずに録画を記録できていなければ、届くのを待って記録してから、失敗にする (#1073)。
-		at := r.clock.Now()
-
-		return true, r.untilDatabase(ctx, logger, "fail the recording", func(ctx context.Context) error {
+		// DB に届かずに録画を記録できていなければ、届くのを待って記録してから、理由を残す (#1073)。
+		return true, r.untilDatabase(ctx, logger, "release the recording", func(ctx context.Context) error {
 			if err := tracker.pending.save(ctx, r, tracker); err != nil {
 				return err
 			}
 
-			return r.fail(ctx, assignment, recording, reason, failureDetail(err), at)
+			return r.release(ctx, recording, reason, failureDetail(err))
 		})
 	}
 	logger.WarnContext(ctx, "failed to create a recording file; retrying", slog.Any("error", err))
@@ -556,7 +541,9 @@ func (r *Recorder) successorStart(ctx context.Context, recording *sqlc.Recording
 	return started, nil
 }
 
-// countSegments は、録画の、書いたものがあるセグメントの数を返す。
+// countSegments は、録画の、書いたものがあるセグメントと、書いている途中のセグメントの数を返す。
+// セグメントの大きさは閉じたときに書くので、止まる mikan が書いている途中のセグメントは、大きさが 0 のままである。
+// 引き継いだ mikan は、それも数えないと、まだ何も録っていないとみなしてしまう (#2195)。
 func (r *Recorder) countSegments(ctx context.Context, recordingID uuid.UUID) (int, error) {
 	files, err := sqlc.New(r.pool).ListRecordingFiles(ctx, recordingID)
 	if err != nil {
@@ -564,7 +551,7 @@ func (r *Recorder) countSegments(ctx context.Context, recordingID uuid.UUID) (in
 	}
 	n := 0
 	for i := range files {
-		if files[i].Kind == fileKindSegment && files[i].Size > 0 {
+		if files[i].Kind == fileKindSegment && (files[i].Size > 0 || files[i].EndedAt == nil) {
 			n++
 		}
 	}
@@ -934,22 +921,16 @@ type segment struct {
 // createSegment は、保存先を選んで録画ファイルとインデックスを作り、DB に記録する。失敗したら、録画の失敗の理由も返す。
 // startedAt は、セグメントの最初のデータを読んだ時刻。遅れた番組を待った後は、バッファした分を読み始めた時刻になる (#1046)。
 func (r *Recorder) createSegment(
-	ctx context.Context, tracker *endTracker, reservation *sqlc.GetReservationForRecordingRow, startedAt time.Time, tuner *usedTuner,
+	ctx context.Context, logger *slog.Logger, tracker *endTracker, reservation *sqlc.GetReservationForRecordingRow, startedAt time.Time, tuner *usedTuner,
 ) (*segment, domain.RecordingFailureReason, error) {
 	dbCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
 	defer cancel()
-	settings, err := r.cachedSettings(dbCtx, reservation, tracker.pending.cache)
-	if err != nil {
-		return nil, domain.RecordingFailureReasonStorageUnavailable, err
-	}
+	settings := r.cachedSettings(dbCtx, logger, reservation, tracker.pending.cache)
 	mounted := r.store.PoolIDs()
 	if (settings.PoolID != "" && !slices.Contains(mounted, settings.PoolID)) || len(mounted) == 0 {
 		return nil, domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("%w: %q", kago.ErrPoolNotMounted, settings.PoolID)
 	}
-	pools, err := r.cachedPools(dbCtx, mounted, settings.PoolID, tracker.pending.cache)
-	if err != nil {
-		return nil, domain.RecordingFailureReasonStorageUnavailable, err
-	}
+	pools := r.cachedPools(dbCtx, logger, mounted, settings.PoolID, tracker.pending.cache)
 	// 推定サイズは、これから録る残りの時間から求める。途中で開き直すときに、全長で選ぶと終盤ほど選べなくなる (#519)。
 	from := maxTime(r.clock.Now(), *reservation.PlannedStartAt)
 	estimated := uint64(max(reservation.PlannedEndAt.Sub(from), 0)/time.Second) * estimatedBytesPerSecond

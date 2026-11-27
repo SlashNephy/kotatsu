@@ -138,6 +138,23 @@ func (m *messageRecorder) list() []string {
 
 var _ slog.Handler = new(messageRecorder)
 
+// newMessageRecorder は、何も記録していない messageRecorder を返す。
+func newMessageRecorder() *messageRecorder {
+	return &messageRecorder{mu: sync.Mutex{}, messages: []string{}}
+}
+
+// waitForMessage は、message を含むログが書かれるまで待つ。
+func (m *messageRecorder) waitForMessage(t *testing.T, message string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		return slices.ContainsFunc(m.list(), func(got string) bool { return strings.Contains(got, message) })
+	}, waitTimeout, 10*time.Millisecond, "waiting for the log %q", message)
+}
+
+// retrying は、録画が、ストリームを開けないか、セグメントを作れずに、やり直すときのログ。
+const retrying = "; retrying"
+
 type recorded struct {
 	state         string
 	failureReason *string
@@ -516,13 +533,16 @@ func TestRecorderFailsWhileDatabaseIsUnreachable(t *testing.T) {
 	reservationID := f.reserve(t, 0)
 	db := databasetest.NewSwitch(t, f.pool)
 	full := func(string) (uint64, error) { return 0, nil }
-	recorder, _ := f.newRecorderOn(t, db.Pool, f.tuner, full, nil, slog.New(slog.DiscardHandler))
+	logs := newMessageRecorder()
+	recorder, _ := f.newRecorderOn(t, db.Pool, f.tuner, full, nil, slog.New(logs))
 	_, done := f.session(t, recorder, reservationID)
 	waitForQueries(t, db)
 	db.Down()
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
-	time.Sleep(300 * time.Millisecond)
+	// 保存先が一杯でも、その場では失敗にせず、予定の終わりまでやり直す (#2195)。
+	logs.waitForMessage(t, "failed to create a recording file"+retrying)
 	db.Up()
+	f.clock.Advance(time.Hour)
 	require.NoError(t, wait(t, done))
 
 	got, ok := f.recording(t, reservationID)
@@ -776,9 +796,6 @@ func TestRecorderRecordsFailures(t *testing.T) {
 		want      domain.RecordingFailureReason
 		// wantDetail は、録画に残すエラーの本文に含まれるはずの文字列 (#1467)。
 		wantDetail string
-		// retries は、予定の終わりまで開き直すかどうか。開き直すなら、開こうとしてから予定の終わりまで進める。
-		// 保存先がなければ、その場で失敗にする。時計を進めると、残りの時間の推定サイズが 0 になって入ってしまう。
-		retries bool
 	}{
 		{
 			name: "チューナーを確保できない",
@@ -788,7 +805,6 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			freeSpace:  nil,
 			want:       domain.RecordingFailureReasonTunerUnavailable,
 			wantDetail: "no available tuners",
-			retries:    true,
 		},
 		{
 			// リバースプロキシが 502 を返したなど、選局を断ったとは言えない応答。ストリームは一度も開いていないので、中断ではない。
@@ -799,7 +815,6 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			freeSpace:  nil,
 			want:       domain.RecordingFailureReasonTunerUnavailable,
 			wantDetail: "upstream: context deadline exceeded",
-			retries:    true,
 		},
 		{
 			// チューナーサーバーの設定にないチャンネル (404)。チューナーの空きがないときと分ける (#1519)。
@@ -810,7 +825,6 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			freeSpace:  nil,
 			want:       domain.RecordingFailureReasonTuningRefused,
 			wantDetail: "responded 404",
-			retries:    true,
 		},
 		{
 			// チューナーサーバーが選局に失敗し、500 を返した (#1519)。
@@ -821,7 +835,6 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			freeSpace:  nil,
 			want:       domain.RecordingFailureReasonTuningRefused,
 			wantDetail: "responded 500",
-			retries:    true,
 		},
 		{
 			// チューナーの空きを待って応答しないまま、開く時間の上限が過ぎた (#412)。
@@ -832,7 +845,6 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			freeSpace:  nil,
 			want:       domain.RecordingFailureReasonTunerUnavailable,
 			wantDetail: "failed to request",
-			retries:    true,
 		},
 		{
 			// 録画中に EDCB の予約にチューナーを取られ、その後もチューナーを確保できない (#1534)。
@@ -841,7 +853,6 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			freeSpace:  nil,
 			want:       domain.RecordingFailureReasonTunerPreempted,
 			wantDetail: "took the tuner",
-			retries:    true,
 		},
 		{
 			name:       "チューナーサーバーに接続できない",
@@ -849,7 +860,6 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			freeSpace:  nil,
 			want:       domain.RecordingFailureReasonTunerServerUnreachable,
 			wantDetail: connectionRefused,
-			retries:    true,
 		},
 		{
 			name:       "保存先の容量が足りない",
@@ -857,7 +867,6 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			freeSpace:  func(string) (uint64, error) { return 1 << 20, nil },
 			want:       domain.RecordingFailureReasonStorageFull,
 			wantDetail: kago.ErrNoPoolFits.Error(),
-			retries:    false,
 		},
 	}
 	for _, tt := range tests {
@@ -866,15 +875,14 @@ func TestRecorderRecordsFailures(t *testing.T) {
 
 			f := newFixture(t)
 			reservationID := f.reserve(t, 0)
-			stream := newAttemptedStream(tt.tuner(f))
-			recorder, _ := f.newRecorder(t, stream, tt.freeSpace)
+			logs := newMessageRecorder()
+			recorder, _ := f.newRecorderWithLogger(t, tt.tuner(f), tt.freeSpace, nil, slog.New(logs))
 			_, done := f.session(t, recorder, reservationID)
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
-			// ストリームを開けないときは、予定の終わりまで開き直すので、録画が開こうとしてから、予定の終わりまで進める。
-			stream.wait(t)
-			if tt.retries {
-				f.clock.Advance(time.Hour)
-			}
+			// ストリームを開けないときも、保存先がないときも、その場では失敗にせず、予定の終わりまでやり直す (#2195)。
+			// やり直し始めてから、予定の終わりまで進める。先に進めると、保存先が一杯でも、残りの時間の推定サイズが 0 になって入ってしまう。
+			logs.waitForMessage(t, retrying)
+			f.clock.Advance(time.Hour)
 
 			require.NoError(t, wait(t, done))
 			got, ok := f.recording(t, reservationID)
@@ -1137,7 +1145,8 @@ func TestRecorderCancelsWhenDisabled(t *testing.T) {
 	}
 }
 
-// TestRecorderFailsOnUnmountedPool は、録画設定のプールがこのインスタンスにマウントされていなければ、保存先がないとして失敗にすることを確認する。
+// TestRecorderFailsOnUnmountedPool は、録画設定のプールがこのインスタンスにマウントされておらず、ほかに mikan もいなければ、
+// 予定の終わりまでやり直し、保存先がないとして失敗にすることを確認する。
 func TestRecorderFailsOnUnmountedPool(t *testing.T) {
 	t.Parallel()
 
@@ -1145,9 +1154,13 @@ func TestRecorderFailsOnUnmountedPool(t *testing.T) {
 	reservationID := f.reserve(t, 0)
 	_, err := f.pool.Exec(t.Context(), `UPDATE reservations SET settings = '{"poolId": "elsewhere"}' WHERE id = $1`, reservationID)
 	require.NoError(t, err)
-	recorder, _ := f.newRecorder(t, f.tuner, nil)
+	logs := newMessageRecorder()
+	recorder, _ := f.newRecorderWithLogger(t, f.tuner, nil, nil, slog.New(logs))
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	// ほかに mikan がいなければ、手放さずに、予定の終わりまでやり直す (#2195)。
+	logs.waitForMessage(t, retrying)
+	f.clock.Advance(time.Hour)
 
 	require.NoError(t, wait(t, done))
 	got, _ := f.recording(t, reservationID)
