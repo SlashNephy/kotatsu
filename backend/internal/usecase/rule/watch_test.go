@@ -480,6 +480,7 @@ func TestEngineMatchesProgramsInBatches(t *testing.T) {
 		{name: "1 件ずつ", batchSize: 1},
 		{name: "割り切れない件数ずつ", batchSize: 7},
 		{name: "全部を一度に", batchSize: 10_000},
+		{name: "0 なら既定の件数ずつ", batchSize: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -44,11 +44,15 @@ type matchableProgram struct {
 }
 
 // eachMatchableProgramBatch は、ルールの対象になる番組を 1 つのクエリで読みながら、batchSize 件ずつ each に渡す。
+// batchSize が 0 以下なら、defaultMatchBatchSize 件ずつ渡す。
 // 全部の番組を一度に読むと、番組の数だけメモリが跳ねる (#2226)。each が受け取ったスライスは、次の呼び出しでは使わない。
 // 読み終えるまで tx を使うので、each の中では tx を使わない。
 func eachMatchableProgramBatch(
 	ctx context.Context, tx pgx.Tx, now time.Time, batchSize int, each func(programs []matchableProgram) error,
 ) error {
+	if batchSize <= 0 {
+		batchSize = defaultMatchBatchSize
+	}
 	rows, err := tx.Query(ctx, listMatchableProgramsSQL, now, domain.MediaServiceTypes())
 	if err != nil {
 		return fmt.Errorf("failed to list programs: %w", err)
@@ -71,8 +75,9 @@ func eachMatchableProgramBatch(
 		if err := each(batch); err != nil {
 			return err
 		}
-		// 一致した番組は、each が値で写して持つので、スライスを新しく作り、前の行を GC に回す。
-		batch = make([]matchableProgram, 0, batchSize)
+		// 一致した番組は each が値で写して持つので、スライスを使い回す。前の行の文字列などを GC に回すため、要素を消してから詰め直す。
+		clear(batch)
+		batch = batch[:0]
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("failed to list programs: %w", err)
