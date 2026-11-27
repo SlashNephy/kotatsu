@@ -644,6 +644,8 @@ type recordingState struct {
 	state         string
 	failureReason string
 	segments      int
+	// drops と judgedDrops は、録画のドロップの数と、判定に数えるドロップ (映像と音声) の数。bytes は、セグメントの大きさの合計。
+	drops, judgedDrops, bytes int64
 	// holder は、割り振りを持つ mikan の登録簿のアドレス。誰も持っていなければ空。
 	holder string
 }
@@ -652,12 +654,14 @@ func (s *stack) state(ctx context.Context, rec *recording) (*recordingState, err
 	var state recordingState
 	err := s.pool.QueryRow(ctx, `SELECT r.state, coalesce(r.failure_reason, ''),
 		(SELECT count(*) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
+		r.drops, r.judged_drops,
+		(SELECT coalesce(sum(f.size), 0) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
 		coalesce((SELECT i.address FROM recording_assignments a JOIN instances i ON i.id = a.holder AND i.role = 'mikan'
 			WHERE a.reservation_id = r.reservation_id), '')
 		FROM recordings r WHERE r.reservation_id = $1`, rec.reservationID).
-		Scan(&state.state, &state.failureReason, &state.segments, &state.holder)
+		Scan(&state.state, &state.failureReason, &state.segments, &state.drops, &state.judgedDrops, &state.bytes, &state.holder)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return &recordingState{state: "", failureReason: "", segments: 0, holder: ""}, nil
+		return &recordingState{state: "", failureReason: "", segments: 0, drops: 0, judgedDrops: 0, bytes: 0, holder: ""}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the recording: %w", err)
@@ -764,7 +768,9 @@ func (s *stack) waitForEnd(ctx context.Context, rec *recording, states []string,
 	if final.segments < minSegments {
 		return fmt.Errorf("the recording has %d segments; the mikan that took over did not record", final.segments)
 	}
-	s.logger.InfoContext(ctx, "the recording finished", slog.String("state", final.state), slog.Int("segments", final.segments))
+	// モックのチューナーサーバーは同じ TS を繰り返して流すので、つなぎ目でドロップが出る。数を比べられるよう、ログに出す。
+	s.logger.InfoContext(ctx, "the recording finished", slog.String("state", final.state), slog.Int("segments", final.segments),
+		slog.Int64("drops", final.drops), slog.Int64("judged_drops", final.judgedDrops), slog.Int64("bytes", final.bytes))
 
 	return nil
 }
