@@ -63,6 +63,8 @@ const (
 type aribGraphicSet struct {
 	set   int
 	bytes int
+	// final は、DRCS の集合の終端の符号 (DRCS-0 は 0x40、DRCS-1〜15 は 0x41〜0x4F)。字幕の外字を引くのに使う。
+	final byte
 }
 
 // aribDecoder は、ARIB STD-B24 の 8 単位符号の文字列を読む状態。
@@ -74,7 +76,11 @@ type aribDecoder struct {
 	single int
 	// middle は、中型 (MSZ) の文字の大きさかどうか。英数を半角にする。
 	middle bool
-	out    strings.Builder
+	// small は、小型 (SSZ) の文字の大きさかどうか。字幕のルビを除くのに使う。
+	small bool
+	// caption は、字幕の文を読むときの状態 (#2216)。番組情報を読むときは nil。
+	caption *captionState
+	out     strings.Builder
 }
 
 // DecodeARIBString は、ARIB STD-B24 の 8 単位符号の文字列 (番組情報の番組名や概要など) を、UTF-8 の文字列にする (#1500)。
@@ -83,12 +89,12 @@ type aribDecoder struct {
 func DecodeARIBString(b []byte) string {
 	d := &aribDecoder{
 		g: [4]aribGraphicSet{
-			{set: aribSetKanji, bytes: 2},
-			{set: aribSetAlphanumeric, bytes: 1},
-			{set: aribSetHiragana, bytes: 1},
-			{set: aribSetKatakana, bytes: 1},
+			{set: aribSetKanji, bytes: 2, final: 0},
+			{set: aribSetAlphanumeric, bytes: 1, final: 0},
+			{set: aribSetHiragana, bytes: 1, final: 0},
+			{set: aribSetKatakana, bytes: 1, final: 0},
 		},
-		gl: 0, gr: 2, single: -1, middle: false, out: strings.Builder{},
+		gl: 0, gr: 2, single: -1, middle: false, small: false, caption: nil, out: strings.Builder{},
 	}
 	d.decode(b)
 
@@ -101,9 +107,9 @@ func (d *aribDecoder) decode(b []byte) {
 		switch {
 		case c == aribSP:
 			if d.middle {
-				d.out.WriteByte(' ')
+				d.write(" ")
 			} else {
-				d.out.WriteRune('　')
+				d.write("　")
 			}
 			i++
 		case c > aribSP && c < aribDEL:
@@ -133,6 +139,15 @@ func (d *aribDecoder) character(b []byte, gr bool) int {
 		return len(b)
 	}
 	c1 := b[0] & 0x7F
+	if d.caption != nil && (g.set == aribSetDRCS || g.set == aribSetMacro) {
+		code := uint16(c1)
+		if g.bytes == 2 {
+			code = code<<8 | uint16(b[1]&0x7F)
+		}
+		d.captionCharacter(g, code)
+
+		return g.bytes
+	}
 	if g.bytes == 1 {
 		d.writeOne(g.set, c1)
 
@@ -143,18 +158,31 @@ func (d *aribDecoder) character(b []byte, gr bool) int {
 	return 2
 }
 
+// write は、文字 s を書く。字幕の文を読むときは、字幕の決まり (captionState.write) に従う。
+func (d *aribDecoder) write(s string) {
+	if s == "" {
+		return
+	}
+	if d.caption != nil {
+		d.caption.write(d, s)
+
+		return
+	}
+	d.out.WriteString(s)
+}
+
 // writeOne は、1 バイトの集合の文字を書く。
 func (d *aribDecoder) writeOne(set int, c byte) {
 	switch set {
 	case aribSetAlphanumeric, aribSetPAlphanumeric:
-		d.out.WriteString(alphanumeric(c, d.middle))
+		d.write(alphanumeric(c, d.middle))
 	case aribSetHiragana, aribSetPHiragana:
-		d.out.WriteString(kana(c, 0x3041, 0x73))
+		d.write(kana(c, 0x3041, 0x73))
 	case aribSetKatakana, aribSetPKatakana:
-		d.out.WriteString(kana(c, 0x30A1, 0x76))
+		d.write(kana(c, 0x30A1, 0x76))
 	case aribSetJISX0201Katakana:
 		if c <= 0x5F {
-			d.out.WriteRune(rune(0xFF61 + int(c) - 0x21))
+			d.write(string(rune(0xFF61 + int(c) - 0x21)))
 		}
 	}
 }
@@ -169,7 +197,7 @@ func (d *aribDecoder) writeTwo(set int, c1, c2 byte) {
 	// 85 区から後ろは、ARIB の追加漢字と追加記号にする。
 	if c1 >= 0x75 {
 		if s, ok := aribSymbol(uint16(c1)<<8 | uint16(c2)); ok {
-			d.out.WriteString(s)
+			d.write(s)
 		}
 
 		return
@@ -179,7 +207,7 @@ func (d *aribDecoder) writeTwo(set int, c1, c2 byte) {
 		return
 	}
 	if s, ok := jisOverride(uint16(c1)<<8 | uint16(c2)); ok {
-		d.out.WriteString(s)
+		d.write(s)
 
 		return
 	}
@@ -187,7 +215,7 @@ func (d *aribDecoder) writeTwo(set int, c1, c2 byte) {
 	if err != nil || !utf8.Valid(decoded) || bytes.ContainsRune(decoded, utf8.RuneError) {
 		return
 	}
-	d.out.Write(decoded)
+	d.write(string(decoded))
 }
 
 // jisOverride は、EUC-JP のデコーダー (WHATWG のテーブル) が JIS X 0208 の対応と違う文字にする符号を、JIS X 0208 の対応にそろえる。
@@ -265,6 +293,11 @@ const kanaPunctuation = "ー。「」、・"
 
 // c0 は、C0 の制御符号を読み、読んだバイト数を返す。
 func (d *aribDecoder) c0(b []byte) int {
+	if d.caption != nil {
+		if n, ok := d.captionC0(b); ok {
+			return n
+		}
+	}
 	switch b[0] {
 	case aribAPR:
 		d.out.WriteByte('\n')
@@ -291,10 +324,19 @@ func (d *aribDecoder) c0(b []byte) int {
 func (d *aribDecoder) c1(b []byte) int {
 	switch b[0] {
 	case aribMSZ:
-		d.middle = true
-	case aribNSZ, aribSSZ:
-		d.middle = false
-	case aribSZX, aribFLC, aribPOL, aribWMM, aribHLC, aribRPC:
+		d.middle, d.small = true, false
+	case aribNSZ:
+		d.middle, d.small = false, false
+	case aribSSZ:
+		d.middle, d.small = false, true
+	case aribSZX:
+		// 番組情報では、大きさの指定を読まずに飛ばす (前の大きさのまま読む)。字幕では、中型でも小型でもない大きさにする。
+		if d.caption != nil {
+			d.middle, d.small = false, false
+		}
+
+		return min(2, len(b))
+	case aribFLC, aribPOL, aribWMM, aribHLC, aribRPC:
 		return min(2, len(b))
 	case aribCOL, aribCDC:
 		// パラメーターが 0x20 なら、もう 1 バイト続く。
@@ -399,7 +441,7 @@ func (d *aribDecoder) designate(b []byte, index, bytes int) int {
 		if b[1] == 0x40 {
 			bytes = 2
 		}
-		d.g[index] = aribGraphicSet{set: set, bytes: bytes}
+		d.g[index] = aribGraphicSet{set: set, bytes: bytes, final: b[1]}
 
 		return 2
 	}
@@ -413,7 +455,7 @@ func (d *aribDecoder) designate(b []byte, index, bytes int) int {
 	default:
 		set = aribSetUnknown
 	}
-	d.g[index] = aribGraphicSet{set: set, bytes: bytes}
+	d.g[index] = aribGraphicSet{set: set, bytes: bytes, final: 0}
 
 	return 1
 }
