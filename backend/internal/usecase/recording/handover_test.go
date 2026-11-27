@@ -135,3 +135,33 @@ func closedSegments(files []recordedFile) []bool {
 
 	return closed
 }
+
+// TestRecorderReleasesHandoverOnUnmountedPool は、引き継いだ mikan にも、録画設定のプールがマウントされておらず、ほかに mikan がいれば、
+// 止まる mikan のセグメントがあっても、割り振りを手放してほかの mikan に任せることを確認する (#524、#2195)。
+// 止まる mikan はもう止まるので、この mikan が録れなければ、録画が欠ける。
+func TestRecorderReleasesHandoverOnUnmountedPool(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	oldRecorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	assignmentID := id.New()
+	_, _ = f.sessionWith(t, oldRecorder, &recording.Assignment{
+		ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 1, HandedOver: false, PreviousLeaseExpiresAt: nil,
+	})
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 1
+	}, waitTimeout, 10*time.Millisecond)
+
+	// 引き継ぐ mikan には、録画設定のプールがない。
+	_, err = f.pool.Exec(t.Context(), `UPDATE reservations SET settings = '{"poolId": "elsewhere"}' WHERE id = $1`, reservationID)
+	require.NoError(t, err)
+	newRecorder, _ := f.newRecorderWithPeers(t, onceStream{data: data}, nil, func(context.Context) (int, error) { return 1, nil })
+	_, newDone := f.sessionWith(t, newRecorder, &recording.Assignment{
+		ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 2, HandedOver: true, PreviousLeaseExpiresAt: nil,
+	})
+	require.ErrorIs(t, wait(t, newDone), recording.ErrRecorderUnavailable)
+}

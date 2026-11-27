@@ -73,6 +73,8 @@ const (
 	writeBufferSize = 4 << 20
 	// estimatedBytesPerSecond は、保存先を選ぶときに見込む、録画の 1 秒あたりの大きさ。地上波の HD の TS (約 17 Mbps) に余裕を持たせる。
 	estimatedBytesPerSecond = 3_000_000
+	// minEstimatedDuration は、セグメントの推定サイズに見込む、録る残りの時間の下限 (#2195)。
+	minEstimatedDuration = time.Minute
 	// segmentExt は、録画ファイルの拡張子。
 	segmentExt = ".m2ts"
 	// fileKindSegment は、録画のファイルの種類 (recording_files.kind)。
@@ -224,7 +226,9 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		return err
 	}
 
-	settings := r.cachedSettings(ctx, logger, &reservation, cached)
+	settingsCtx, cancelSettings := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
+	settings := r.cachedSettings(settingsCtx, logger, &reservation, cached)
+	cancelSettings()
 	startMargin := time.Duration(settings.StartMarginSeconds) * time.Second
 	endMargin := time.Duration(settings.EndMarginSeconds) * time.Second
 	tracker := newEndTracker(r, &recording, &reservation, startMargin, endMargin)
@@ -239,10 +243,13 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		tracker.savedRecordingID.Store(new(recording.ID))
 	}
 	result := &sessionResult{lastFailure: "", lastError: ""}
+	// wrote は、この mikan が作ったセグメントの数。録画を手放すかは、録画のセグメントの数 (created) ではなく、これで決める (#524、#2195)。
+	// 引き継いだ録画には、止まる mikan のセグメントがあるが、この mikan に録れない理由があれば、ほかの mikan に任せたほうがよい。
+	wrote := 0
 	// unreachableSince は、チューナーサーバーにつながらなくなった時刻。つながればゼロ値に戻す。
 	var unreachableSince time.Time
 	for {
-		opened := r.openForWriting(ctx, logger, assignment, &recording, &reservation, tracker, result, created, &unreachableSince)
+		opened := r.openForWriting(ctx, logger, assignment, &recording, &reservation, tracker, result, created, wrote, &unreachableSince)
 		switch {
 		case opened.done:
 			return opened.err
@@ -254,7 +261,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		segment, reason, err := r.createSegment(ctx, logger, tracker, &reservation, opened.startedAt, opened.tuner)
 		if err != nil {
 			_ = stream.Close()
-			if done, err := r.retryCreate(ctx, logger, assignment, &recording, tracker, result, created, reason, err); done {
+			if done, err := r.retryCreate(ctx, logger, assignment, &recording, tracker, result, wrote, reason, err); done {
 				return err
 			}
 
@@ -263,6 +270,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		// 録画が予定の開始より遅れて始まったら、予定の開始からの分を、タイムシフトのバッファからコピーする (#826、設計書 5.7)。
 		r.maybeStartBackfill(ctx, logger, assignment, tracker, &recording, &reservation, created, pendingStart, segment.startedAt)
 		created++
+		wrote++
 		logger.InfoContext(ctx, "started recording", slog.String("pool_id", segment.poolID), slog.String("path", segment.path))
 		openedAt := r.clock.Now()
 
@@ -378,15 +386,15 @@ func (r *Recorder) findTuner(ctx context.Context, logger *slog.Logger, stream io
 }
 
 // openForWriting は、ストリームを開き、書き始めるストリームと、その最初のデータを読んだ時刻を返す。
-// 開けなければ、開き直すか、録画を終えるか、割り振りを手放す (retryOpen)。
+// 開けなければ、開き直すか、録画を終えるか、割り振りを手放す (retryOpen)。created は録画のセグメントの数、wrote はこの mikan が作った数。
 // 遅れた番組を待つときは、放送中になるまで書かずに待ち、バッファした直近の分から書く (#1046)。
 func (r *Recorder) openForWriting(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow,
-	tracker *endTracker, result *sessionResult, created int, unreachableSince *time.Time,
+	tracker *endTracker, result *sessionResult, created, wrote int, unreachableSince *time.Time,
 ) waitOutcome {
 	stream, tuner, err := r.openStream(ctx, logger, assignment, reservation, tracker)
 	if err != nil {
-		done, err := r.retryOpen(ctx, logger, assignment, recording, tracker, result, created, unreachableSince, err)
+		done, err := r.retryOpen(ctx, logger, assignment, recording, tracker, result, wrote, unreachableSince, err)
 
 		return waitOutcome{stream: nil, tuner: nil, startedAt: time.Time{}, reopen: !done, done: done, err: err}
 	}
@@ -400,17 +408,17 @@ func (r *Recorder) openForWriting(
 }
 
 // retryOpen は、ストリームを開けなかったときに、開き直すか、録画を終えるか、割り振りを手放すかを決める。録画を終えたか手放したら true を返す。
-// チューナーが空くか、チューナーサーバーにつながるまで、予定の終わりまで開き直す。まだ何も録っていないのに、
+// チューナーが空くか、チューナーサーバーにつながるまで、予定の終わりまで開き直す。この mikan がまだ何も書いていない (wrote が 0) のに、
 // チューナーサーバーにつながらないまま ReleaseAfter が過ぎ、ほかに mikan がいれば、割り振りを手放す (#524)。
 func (r *Recorder) retryOpen(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult,
-	created int, unreachableSince *time.Time, err error,
+	wrote int, unreachableSince *time.Time, err error,
 ) (bool, error) {
 	if ctx.Err() != nil {
 		return true, context.Cause(ctx)
 	}
 	result.failed(streamFailure(err), err)
-	if r.unreachableTooLong(ctx, result.lastFailure, created, unreachableSince) {
+	if r.unreachableTooLong(ctx, result.lastFailure, wrote, unreachableSince) {
 		logger.WarnContext(ctx, "the tuner server has been unreachable; releasing the assignment", slog.Any("error", err))
 
 		return true, r.release(ctx, recording, result.lastFailure, result.lastError)
@@ -425,13 +433,14 @@ func (r *Recorder) retryOpen(
 // 引き継ぎの瞬間の一時的なエラーで、録画を失わないためである。予定の終わりまで何も録れなければ、finish が、最後に作れなかった理由で失敗にする。
 func (r *Recorder) retryCreate(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult,
-	created int, reason domain.RecordingFailureReason, err error,
+	wrote int, reason domain.RecordingFailureReason, err error,
 ) (bool, error) {
 	if ctx.Err() != nil {
 		return true, context.Cause(ctx)
 	}
-	// まだ何も録っていないのに、プールがこの mikan にマウントされていなければ、ほかの mikan に録画させる (#524)。
-	if created == 0 && errors.Is(err, kago.ErrPoolNotMounted) && r.hasPeers(ctx) {
+	// この mikan がまだ何も書いていないのに、プールがこの mikan にマウントされていなければ、ほかの mikan に録画させる (#524)。
+	// 引き継いだ録画でも、止まる mikan のセグメントは数えない。止まる mikan はもう止まるので、この mikan が録れなければ、録画が欠ける。
+	if wrote == 0 && errors.Is(err, kago.ErrPoolNotMounted) && r.hasPeers(ctx) {
 		logger.WarnContext(ctx, "the storage pool is not mounted on this mikan; releasing the assignment", slog.Any("error", err))
 
 		// DB に届かずに録画を記録できていなければ、届くのを待って記録してから、理由を残す (#1073)。
@@ -464,10 +473,10 @@ func (r *Recorder) hasPeers(ctx context.Context) bool {
 	return n > 0
 }
 
-// unreachableTooLong は、まだ何も録っていないのに、チューナーサーバーにつながらないまま ReleaseAfter が過ぎ、
+// unreachableTooLong は、この mikan がまだ何も書いていない (wrote が 0) のに、チューナーサーバーにつながらないまま ReleaseAfter が過ぎ、
 // ほかに mikan がいるかを返す (#524)。チューナーサーバーの再起動はすべての mikan に同時に起きるので、一度つながらないだけでは手放さない。
-func (r *Recorder) unreachableTooLong(ctx context.Context, reason domain.RecordingFailureReason, created int, since *time.Time) bool {
-	if reason != domain.RecordingFailureReasonTunerServerUnreachable || created > 0 {
+func (r *Recorder) unreachableTooLong(ctx context.Context, reason domain.RecordingFailureReason, wrote int, since *time.Time) bool {
+	if reason != domain.RecordingFailureReasonTunerServerUnreachable || wrote > 0 {
 		*since = time.Time{}
 
 		return false
@@ -932,8 +941,9 @@ func (r *Recorder) createSegment(
 	}
 	pools := r.cachedPools(dbCtx, logger, mounted, settings.PoolID, tracker.pending.cache)
 	// 推定サイズは、これから録る残りの時間から求める。途中で開き直すときに、全長で選ぶと終盤ほど選べなくなる (#519)。
+	// 予定の終わりの間際に作り直すときも、minEstimatedDuration の分は見込む。0 に近づくと、空きのないプールにも入るとみなしてしまう (#2195)。
 	from := maxTime(r.clock.Now(), *reservation.PlannedStartAt)
-	estimated := uint64(max(reservation.PlannedEndAt.Sub(from), 0)/time.Second) * estimatedBytesPerSecond
+	estimated := uint64(max(reservation.PlannedEndAt.Sub(from), minEstimatedDuration)/time.Second) * estimatedBytesPerSecond
 	seg, reason, err := r.newSegment(ctx, settings, pools, reservation, startedAt, estimated)
 	if err != nil {
 		return nil, reason, err
@@ -944,7 +954,11 @@ func (r *Recorder) createSegment(
 	// 先に記録できていないものがあれば、順を守るため、これも後にする。
 	err = tracker.pending.writeOrDefer(ctx, r, insertSegment(seg))
 	if err != nil {
+		// 記録できなかったセグメントは録画に含まれないので、ファイルとインデックスも消す。作り直すたびに残さないようにする (#2195)。
 		seg.closeFiles()
+		if removeErr := r.store.Remove(seg.poolID, seg.path, seg.fileID); removeErr != nil {
+			logger.WarnContext(ctx, "failed to remove the unsaved recording file", slog.String("path", seg.path), slog.Any("error", removeErr))
+		}
 
 		return nil, domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to save the recording file: %w", err)
 	}
@@ -2003,10 +2017,12 @@ func (r *Recorder) judgeScramble(
 
 // completionSettings は、録画を終えた後の処理 (分かれたセグメントをつなぐか (設計書 5.4)、CM の区間を見分けるか (設計書 6.1)) に使う録画設定を、
 // 録画を終えるときの全体の既定値に、ルールと予約の上書きを重ねて求める。録画を終えるときに求めるので、予約の後で全体の既定値を変えても効く。
-// 予約が消えていれば、全体の既定値に従う。録画設定を読めなくても、録画の完了は止めず、Go の既定値 (つなぎ、CM は見分けない) にする。
+// 予約が消えていれば、全体の既定値に従う。録画設定を読めなくても、録画の完了は止めず、Go の既定値 (つなぎ、CM は見分けない) に、
+// 予約を読めていれば予約自体の上書きを重ねる (#2195)。
 func (r *Recorder) completionSettings(ctx context.Context, assignment *Assignment) *domain.RecordingSettings {
 	reservation, err := sqlc.New(r.pool).GetReservationForRecording(ctx, assignment.ReservationID)
-	if err == nil {
+	found := err == nil
+	if found {
 		settings, err := r.settings(ctx, &reservation)
 		if err == nil {
 			return settings
@@ -2015,11 +2031,18 @@ func (r *Recorder) completionSettings(ctx context.Context, assignment *Assignmen
 	settings, err := r.defaults(ctx, r.pool)
 	if err != nil {
 		r.logger.WarnContext(ctx, "failed to read the recording settings; using the built-in defaults after the recording", slog.Any("error", err))
-
-		return domain.DefaultRecordingSettings()
+		settings = domain.DefaultRecordingSettings()
+	}
+	// 予約を読めたなら、録り始めるときと同じく、予約自体の上書きを重ねる (#2195)。予約の上書きは予約の行にあるので、DB を読まずに重ねられる。
+	if !found {
+		return settings
+	}
+	overrides, err := domain.DecodeOverrides(reservation.Settings)
+	if err != nil {
+		return settings
 	}
 
-	return settings
+	return settings.Resolve(overrides)
 }
 
 // addNotBroadcast は、予約した番組が放送されなかったら、通知に、そのことと、その時間に放送されていた番組の名前を載せる (#389)。

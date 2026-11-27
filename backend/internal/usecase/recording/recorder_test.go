@@ -548,10 +548,12 @@ func TestRecorderFailsWhileDatabaseIsUnreachable(t *testing.T) {
 	waitForQueries(t, db)
 	db.Down()
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
-	// 保存先が一杯でも、その場では失敗にせず、予定の終わりまでやり直す (#2195)。
+	// 保存先が一杯でも、その場では失敗にせず、予定の終わりまでやり直す (#2195)。DB に届かないまま予定の終わりを過ぎ、
+	// 失敗にする記録を、DB に届くようになるまで持つ。
 	logs.waitForMessage(t, "failed to create a recording file"+retrying)
-	db.Up()
 	f.clock.Advance(time.Hour)
+	logs.waitForMessage(t, "the database is unreachable")
+	db.Up()
 	require.NoError(t, wait(t, done))
 
 	got, ok := f.recording(t, reservationID)
