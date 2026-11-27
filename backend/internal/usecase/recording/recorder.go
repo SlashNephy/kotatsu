@@ -229,7 +229,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) (err erro
 	logger = logger.With(slog.String("recording_id", recording.ID.String()))
 	// created は、録画のセグメントの数。前の mikan が録った分も数える。録画の途中で保存先に書けなくなっても、
 	// 録画を失敗にせず、やり直す (#519)。
-	created, err := r.prepare(ctx, logger, assignment, &recording, pendingStart)
+	created, closeLater, err := r.prepare(ctx, logger, assignment, &recording, pendingStart, inserted)
 	if err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) (err erro
 	// 録画を終えずにやめるとき (リースを失ったときなど) は、コピーするのもやめさせ、書きかけのセグメントを消させる。
 	defer func() { tracker.backfill.stop() }()
 	tracker.pending = &pendingSave{
-		recording: &recording, start: pendingStart, closeStale: false, startedAt: startedAt, handedOver: assignment.HandedOver,
+		recording: &recording, start: pendingStart, closeStale: closeLater, startedAt: startedAt, handedOver: assignment.HandedOver,
 		writes: []pendingWrite{}, cache: cached,
 	}
 	if !pendingStart {
@@ -1863,36 +1863,43 @@ func (r *Recorder) emitStarted(ctx context.Context, tx pgx.Tx, recording *sqlc.R
 // 落ちた mikan の代わりに取ったなら、書きかけのセグメントを、最後に書き込んだ時刻で閉じる (設計書 5.4)。
 // 止まる mikan から引き継いだなら、古い mikan がまだ書いているので、閉じない。
 // 録画を記録できていなければ (pendingStart)、DB に届くようになってから閉じ、セグメントはまだないものとする (#1073)。
-// DB を読めなければ、やり直す (untilDatabase)。それでも読めなければ、録画をやめずに、引き継いだなら止まる mikan が書いている 1 つ、
-// そうでなければ 0 つと数えて録り始める (#2195)。書きかけのセグメントは、録画を終えるときにも閉じる (finishOnce)。
-func (r *Recorder) prepare(ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, pendingStart bool) (int, error) {
+// DB を読めなければ、待たずに録り始める (#2195)。引き継ぎでは、止まる mikan が待つのは 20 秒までなので、待つと録画が欠ける。
+// 新しく始めた録画 (inserted) なら 0 つ、そうでなければ前の mikan のセグメントがあるとみて 1 つと数え、書きかけのセグメントは後で閉じる
+// (closeLater)。
+func (r *Recorder) prepare(
+	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, pendingStart, inserted bool,
+) (int, bool, error) {
 	if pendingStart {
-		return 0, nil
+		return 0, false, nil
 	}
-	now := r.clock.Now()
-	created := 0
-	err := r.untilDatabase(ctx, logger, "prepare the recording", func(ctx context.Context) error {
-		if !assignment.HandedOver {
-			if err := r.closeStaleFiles(ctx, recording.ID, now); err != nil {
-				return err
-			}
-		}
-		n, err := r.countSegments(ctx, recording.ID)
-		created = n
-
-		return err
-	})
+	dbCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
+	defer cancel()
+	created, err := r.closeAndCount(dbCtx, assignment, recording.ID)
 	switch {
 	case ctx.Err() != nil:
-		return 0, context.Cause(ctx)
+		return 0, false, context.Cause(ctx)
 	case err != nil:
-		if assignment.HandedOver {
-			created = 1
+		created = 1
+		if inserted {
+			created = 0
 		}
 		logger.WarnContext(ctx, "failed to count the recording segments; recording anyway", slog.Int("segments", created), slog.Any("error", err))
+
+		return created, !assignment.HandedOver, nil
 	}
 
-	return created, nil
+	return created, false, nil
+}
+
+// closeAndCount は、落ちた mikan の代わりなら書きかけのセグメントを閉じ、録画のセグメントの数を返す。
+func (r *Recorder) closeAndCount(ctx context.Context, assignment *Assignment, recordingID uuid.UUID) (int, error) {
+	if !assignment.HandedOver {
+		if err := r.closeStaleFiles(ctx, recordingID, r.clock.Now()); err != nil {
+			return 0, err
+		}
+	}
+
+	return r.countSegments(ctx, recordingID)
 }
 
 // finishLeftOver は、予定の終わりの後に割り振りを取ったとき、前の mikan が録画中のまま残した録画を、予定の終わりで終える (#1073)。

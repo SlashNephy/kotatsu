@@ -552,7 +552,7 @@ func TestRecorderFailsWhileDatabaseIsUnreachable(t *testing.T) {
 	// 失敗にする記録を、DB に届くようになるまで持つ。
 	logs.waitForMessage(t, "failed to create a recording file"+retrying)
 	f.clock.Advance(time.Hour)
-	logs.waitForMessage(t, "the database is unreachable")
+	logs.waitForMessage(t, "the database operation failed")
 	db.Up()
 	require.NoError(t, wait(t, done))
 
