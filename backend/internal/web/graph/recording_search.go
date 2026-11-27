@@ -277,15 +277,19 @@ func (r *Resolver) recordingCaptionSources(ctx context.Context, ids []uuid.UUID)
 	}
 	autoCues := make(map[uuid.UUID][]captionCue, len(auto))
 	for id, cues := range auto {
+		converted := make([]captionCue, 0, len(cues))
 		for _, c := range cues {
-			autoCues[id] = append(autoCues[id], captionCue{start: c.Start, end: c.End, text: c.Text})
+			converted = append(converted, captionCue{start: c.Start, end: c.End, text: c.Text})
 		}
+		autoCues[id] = converted
 	}
 	aribCues := make(map[uuid.UUID][]captionCue, len(arib))
 	for id, cues := range arib {
+		converted := make([]captionCue, 0, len(cues))
 		for _, c := range cues {
-			aribCues[id] = append(aribCues[id], captionCue{start: c.Start, end: c.End, text: c.Text})
+			converted = append(converted, captionCue{start: c.Start, end: c.End, text: c.Text})
 		}
+		aribCues[id] = converted
 	}
 
 	return []captionCues{{source: model.CaptionSourceAuto, cues: autoCues}, {source: model.CaptionSourceArib, cues: aribCues}}, nil

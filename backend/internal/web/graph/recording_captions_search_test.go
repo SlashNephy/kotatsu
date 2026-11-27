@@ -348,6 +348,8 @@ func TestRecordingsByARIBCaptionKeywords(t *testing.T) {
 		bothKinds = "両方の字幕がある録画"
 		cueBridge = "橋を渡ります"
 		cueRiver  = "川が流れています"
+		// cueOnBridge は、ARIB 字幕だけにある、「橋」を含む字幕。
+		cueOnBridge = "橋の上から"
 	)
 	f, dir := newRecordingFixture(t)
 	only := f.addRecording(t, dir, aribOnly, "completed", 2*time.Hour)
@@ -355,7 +357,7 @@ func TestRecordingsByARIBCaptionKeywords(t *testing.T) {
 	f.addARIBCaptions(t, only, []testCue{{StartMs: 2000, EndMs: 4000, Text: cueBridge}})
 	f.addAutoCaptions(t, both, []testCue{{StartMs: 5000, EndMs: 6000, Text: cueBridge}}, true)
 	f.addARIBCaptions(t, both, []testCue{
-		{StartMs: 1000, EndMs: 3000, Text: "橋の上から"},
+		{StartMs: 1000, EndMs: 3000, Text: cueOnBridge},
 		{StartMs: 8000, EndMs: 9000, Text: cueRiver},
 	})
 
@@ -376,7 +378,7 @@ func TestRecordingsByARIBCaptionKeywords(t *testing.T) {
 			name:     "両方の種類で一致したら、当たった字幕を始まりの順にまとめる",
 			keywords: []captionKeywordVar{literal("橋")},
 			want: map[string][]string{
-				bothKinds: {"ARIB:橋の上から", "AUTO:" + cueBridge},
+				bothKinds: {"ARIB:" + cueOnBridge, "AUTO:" + cueBridge},
 				aribOnly:  {"ARIB:" + cueBridge},
 			},
 		},
@@ -387,9 +389,15 @@ func TestRecordingsByARIBCaptionKeywords(t *testing.T) {
 			want:     map[string][]string{},
 		},
 		{
+			// ARIB 字幕は「橋」と「川」の両方に一致するが、自動生成の字幕は「橋」にしか一致しないので、自動生成の字幕は返さない。
+			name:     "一致しなかった種類の字幕は返さない",
+			keywords: []captionKeywordVar{literal("橋"), literal("川")},
+			want:     map[string][]string{bothKinds: {"ARIB:" + cueOnBridge, "ARIB:" + cueRiver}},
+		},
+		{
 			name:     "同じ種類の別々の字幕にあれば一致する",
 			keywords: []captionKeywordVar{literal("橋の上"), literal("川")},
-			want:     map[string][]string{bothKinds: {"ARIB:橋の上から", "ARIB:" + cueRiver}},
+			want:     map[string][]string{bothKinds: {"ARIB:" + cueOnBridge, "ARIB:" + cueRiver}},
 		},
 	}
 	for _, tt := range tests {
@@ -401,6 +409,16 @@ func TestRecordingsByARIBCaptionKeywords(t *testing.T) {
 		})
 	}
 
+	t.Run("pages through the recordings matched by the ARIB captions from the oldest", func(t *testing.T) {
+		t.Parallel()
+
+		vars := map[string]any{varFirst: 1, varFilter: map[string]any{varCaptionKeywords: []captionKeywordVar{literal("渡ります")}}, "order": "OLDEST_FIRST"}
+		var page captionMatchPage
+		require.Empty(t, f.query(t, listRecordingCaptionMatchesInOrder, vars, &page))
+		assert.Equal(t, map[string][]string{aribOnly: {"ARIB:" + cueBridge}}, page.captionSources())
+		assert.True(t, page.Recordings.PageInfo.HasNextPage)
+	})
+
 	t.Run("returns the time of the ARIB captions", func(t *testing.T) {
 		t.Parallel()
 
@@ -411,4 +429,28 @@ func TestRecordingsByARIBCaptionKeywords(t *testing.T) {
 		assert.True(t, edge.Node.RecordedFrom.Add(8*time.Second).Equal(edge.CaptionMatches[0].From))
 		assert.True(t, edge.Node.RecordedFrom.Add(9*time.Second).Equal(edge.CaptionMatches[0].To))
 	})
+}
+
+// TestRecordingCaptionMatchesAreLimitedAcrossSources は、両方の種類で一致したときも、当たった字幕を種類をまとめて始まりの順に
+// 20 件までにすることを確認する (#2217)。
+func TestRecordingCaptionMatchesAreLimitedAcrossSources(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	recording := f.addRecording(t, dir, captionHarbor, "completed", time.Hour)
+	auto := make([]testCue, 0, 15)
+	arib := make([]testCue, 0, 15)
+	for i := range 15 {
+		// 自動生成の字幕は偶数秒、ARIB 字幕は奇数秒に置き、交互に並ぶようにする。
+		auto = append(auto, testCue{StartMs: int64(2*i) * 1000, EndMs: int64(2*i)*1000 + 500, Text: fmt.Sprintf("カモメ A%d", i)})
+		arib = append(arib, testCue{StartMs: int64(2*i+1) * 1000, EndMs: int64(2*i+1)*1000 + 500, Text: fmt.Sprintf("カモメ B%d", i)})
+	}
+	f.addAutoCaptions(t, recording, auto, true)
+	f.addARIBCaptions(t, recording, arib)
+
+	page := f.captionMatches(t, 10, nil, map[string]any{varCaptionKeywords: []captionKeywordVar{{Text: "カモメ", Regexp: false, CaseSensitive: false}}})
+	found := page.captionSources()[captionHarbor]
+	require.Len(t, found, 20)
+	assert.Equal(t, []string{"AUTO:カモメ A0", "ARIB:カモメ B0", "AUTO:カモメ A1"}, found[:3])
+	assert.Equal(t, "ARIB:カモメ B9", found[19])
 }
