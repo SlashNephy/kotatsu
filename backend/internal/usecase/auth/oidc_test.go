@@ -234,37 +234,18 @@ func TestOIDCLogin(t *testing.T) {
 	}
 }
 
-// TestOIDCLoginAuthenticatedAt は、OIDC でログインしたセッションの認証の日時を、IdP で認証した日時にすることを確認する (#1013)。
-// IdP の SSO のセッションで、資格情報を入れずにログインし直しても、重要な操作の前の再認証を済ませたことにしない。
+// TestOIDCLoginAuthenticatedAt は、OIDC でログインしたセッションの認証の日時を、ログインした日時にすることを確認する (設計書 9.5)。
+// IdP が SSO のセッションのままログインさせても、ID トークンの auth_time にかかわらず、直近に認証したものとして扱う。
 func TestOIDCLoginAuthenticatedAt(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		authTime   func(now time.Time) any
-		wantAt     func(now time.Time) time.Time
-		wantRecent bool
+		name     string
+		authTime func(now time.Time) any
 	}{
-		{
-			name:     "IdP で今認証した",
-			authTime: func(now time.Time) any { return now.Unix() },
-			wantAt:   func(now time.Time) time.Time { return now }, wantRecent: true,
-		},
-		{
-			name:     "IdP の SSO で、1 時間前の認証のままログインした",
-			authTime: func(now time.Time) any { return now.Add(-time.Hour).Unix() },
-			wantAt:   func(now time.Time) time.Time { return now.Add(-time.Hour) }, wantRecent: false,
-		},
-		{
-			name:     "IdP の時計が進んでいる",
-			authTime: func(now time.Time) any { return now.Add(time.Minute).Unix() },
-			wantAt:   func(now time.Time) time.Time { return now }, wantRecent: true,
-		},
-		{
-			name:     "IdP が auth_time を返さない",
-			authTime: nil,
-			wantAt:   func(time.Time) time.Time { return time.Time{} }, wantRecent: false,
-		},
+		{name: "IdP で今認証した", authTime: func(now time.Time) any { return now.Unix() }},
+		{name: "IdP の SSO で、1 時間前の認証のままログインした", authTime: func(now time.Time) any { return now.Add(-time.Hour).Unix() }},
+		{name: "IdP が auth_time を返さない", authTime: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -281,10 +262,10 @@ func TestOIDCLoginAuthenticatedAt(t *testing.T) {
 			require.NoError(t, err)
 			var authenticatedAt time.Time
 			require.NoError(t, f.db.QueryRow(t.Context(), "SELECT authenticated_at FROM sessions WHERE id = $1", result.Session.ID).Scan(&authenticatedAt))
-			assert.True(t, tt.wantAt(now).Equal(authenticatedAt), "authenticated_at = %v", authenticatedAt)
+			assert.True(t, now.Equal(authenticatedAt), "authenticated_at = %v", authenticatedAt)
 			// 重要な操作は、セッションの認証の日時から、直近に認証したかを決める。
 			ctx := auth.WithPrincipal(t.Context(), &auth.Principal{UserID: result.Session.UserID, AuthenticatedAt: authenticatedAt})
-			assert.Equal(t, tt.wantRecent, auth.RequireRecentAuthentication(ctx, f.clock) == nil)
+			assert.NoError(t, auth.RequireRecentAuthentication(ctx, f.clock))
 		})
 	}
 }
