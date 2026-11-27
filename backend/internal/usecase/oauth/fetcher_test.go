@@ -84,7 +84,7 @@ func claudeCodeDocument(clientID string) any {
 	}
 }
 
-// TestFetcherFetch は、クライアントのメタデータを確認し、Kotatsu で使えないものを断ることを確認する。
+// TestFetcherFetch は、クライアントのメタデータを確認し、Kotatsu で使えないものを拒否することを確認する。
 func TestFetcherFetch(t *testing.T) {
 	t.Parallel()
 
@@ -205,7 +205,7 @@ func TestFetcherFetch(t *testing.T) {
 	}
 }
 
-// TestFetcherFetchFailures は、取ってこられないときと、文書が大きすぎるときに断ることを確認する。
+// TestFetcherFetchFailures は、取ってこられないときと、文書が大きすぎるときに拒否することを確認する。
 func TestFetcherFetchFailures(t *testing.T) {
 	t.Parallel()
 

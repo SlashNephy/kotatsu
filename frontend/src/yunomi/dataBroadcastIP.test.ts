@@ -61,7 +61,7 @@ describe('createDataBroadcastIP', () => {
 
   test.each([
     { name: '中継が無効な', respond: () => new Response('disabled', { status: 404 }) },
-    { name: 'LAN の中の宛先を断った', respond: () => new Response('refused', { status: 403 }) },
+    { name: 'LAN の中の宛先を拒否した', respond: () => new Response('refused', { status: 403 }) },
     {
       name: 'tenban に届かない',
       respond: (): Response => {

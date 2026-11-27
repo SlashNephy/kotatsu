@@ -90,7 +90,7 @@ func TestURLUsersWhileDatabaseIsUnreachable(t *testing.T) {
 	}
 }
 
-// TestURLUsersRejectsUnusableURLs は、ユーザーを無効にしたか、URL を取り消したか、記録と違うユーザーの URL を断ることを確認する (#1757)。
+// TestURLUsersRejectsUnusableURLs は、ユーザーを無効にしたか、URL を取り消したか、記録と違うユーザーの URL を拒否することを確認する (#1757)。
 func TestURLUsersRejectsUnusableURLs(t *testing.T) {
 	t.Parallel()
 

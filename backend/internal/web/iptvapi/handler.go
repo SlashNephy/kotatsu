@@ -85,7 +85,7 @@ func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		w, r := c.Response(), c.Request()
 		ctx := r.Context()
-		// 管理者が IPTV のクライアント用の URL を無効にしている間は、取り消していない URL も断る (#1755)。
+		// 管理者が IPTV のクライアント用の URL を無効にしている間は、取り消していない URL も拒否する (#1755)。
 		enabled, err := h.gate.IPTVFeedsEnabled(ctx)
 		if err != nil {
 			fail(ctx, c.Logger(), w, "failed to load whether IPTV feeds are enabled", err)

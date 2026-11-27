@@ -938,7 +938,7 @@ type DramaRecordConnection struct {
 	// 記録先のアカウントの名前。
 	AccountName string    `json:"accountName"`
 	ConnectedAt time.Time `json:"connectedAt"`
-	// 記録先がトークンの更新を断ったので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。
+	// 記録先がトークンの更新を拒否したので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。
 	ReauthorizationRequired bool `json:"reauthorizationRequired"`
 	// ウォッチリストを最後に問い合わせた日時。問い合わせていなければ null。
 	WatchlistCheckedAt *time.Time `json:"watchlistCheckedAt,omitempty"`
@@ -2481,15 +2481,15 @@ type SystemSettings struct {
 	// ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
 	DataBroadcastIPEnabled bool `json:"dataBroadcastIpEnabled"`
 	// 外部プレイヤー (VLC や mpv) 用の署名付きの映像の URL を、発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
-	// 無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に断る。
+	// 無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に拒否する。
 	// ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
 	ExternalPlayerUrlsEnabled bool `json:"externalPlayerUrlsEnabled"`
 	// IPTV のクライアント (Kodi、Jellyfin、Plex など) 用の URL を、発行し、受け付けるかどうか (#1755、設計書 9.8)。既定は false。
-	// 無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も断る。取り消す (deleteIptvFeed) ことはできる。
+	// 無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も拒否する。取り消す (deleteIptvFeed) ことはできる。
 	// ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
 	IptvFeedsEnabled bool `json:"iptvFeedsEnabled"`
 	// 録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定は false。
-	// 無効の間は、録画の配信が download を断る。端末に保存 (設計書 7.8) は含めない。
+	// 無効の間は、録画の配信が download を拒否する。端末に保存 (設計書 7.8) は含めない。
 	// ログインしていれば誰でも読め、画面が、ダウンロードの操作を出すかを決めるのに使う。
 	RecordingDownloadsEnabled bool `json:"recordingDownloadsEnabled"`
 	// CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか (#1737、設計書 6.1)。既定は false。

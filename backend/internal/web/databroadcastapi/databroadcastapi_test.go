@@ -79,7 +79,7 @@ func viewer() *auth.Principal {
 	}
 }
 
-// TestRequestHandler は、文書のリクエストをプロキシし、グローバルでない宛先 (リダイレクトの先と、名前を引いた先を含む) を断ることを確認する。
+// TestRequestHandler は、文書のリクエストをプロキシし、グローバルでない宛先 (リダイレクトの先と、名前を引いた先を含む) を拒否することを確認する。
 func TestRequestHandler(t *testing.T) {
 	t.Parallel()
 
@@ -270,7 +270,7 @@ func TestRequestHandlerAuthorization(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "無効なら、ないものとして答える", enabled: false, principal: viewer(), wantStatus: http.StatusNotFound},
-		{name: "ログインしていなければ断る", enabled: true, principal: nil, wantStatus: http.StatusUnauthorized},
+		{name: "ログインしていなければ拒否する", enabled: true, principal: nil, wantStatus: http.StatusUnauthorized},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -336,7 +336,7 @@ func TestConnectivityHandlerSuccess(t *testing.T) {
 	assert.NotNil(t, got.ResponseTimeMillis)
 }
 
-// TestRequestHandlerLogsHostOnly は、断ったリクエストのログに、宛先のパスとクエリを残さないことを確認する。
+// TestRequestHandlerLogsHostOnly は、拒否したリクエストのログに、宛先のパスとクエリを残さないことを確認する。
 // パスとクエリには、文書が入れた受信機の情報 (郵便番号など) が入ることがある。
 func TestRequestHandlerLogsHostOnly(t *testing.T) {
 	t.Parallel()

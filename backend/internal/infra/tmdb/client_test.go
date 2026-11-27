@@ -122,7 +122,7 @@ func TestClientRequests(t *testing.T) {
 	}
 }
 
-// TestClientErrors は、TMDB が断ったときのエラーを確認する。エラーの文にはトークンを出さない。
+// TestClientErrors は、TMDB が拒否したときのエラーを確認する。エラーの文にはトークンを出さない。
 func TestClientErrors(t *testing.T) {
 	t.Parallel()
 

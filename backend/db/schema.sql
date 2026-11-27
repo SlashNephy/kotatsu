@@ -113,7 +113,7 @@ CREATE TABLE api_tokens (
 CREATE INDEX api_tokens_user_id_idx ON api_tokens (user_id);
 
 -- 発行した外部プレイヤー用の署名付き URL (#1757、設計書 7.6、9.6)。管理者が一覧して、1 本ずつ取り消せるようにする。
--- URL の署名には id を含め、行がなくなった (取り消した) URL は、期限の前でも断る。期限の過ぎた行は、次に発行するときに消す。
+-- URL の署名には id を含め、行がなくなった (取り消した) URL は、期限の前でも拒否する。期限の過ぎた行は、次に発行するときに消す。
 CREATE TABLE stream_urls (
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,

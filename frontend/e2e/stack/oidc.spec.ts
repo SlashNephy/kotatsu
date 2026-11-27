@@ -1,9 +1,9 @@
 // モックの OIDC の IdP (backend/internal/cmd/fakeidp) で、OIDC のログインを通しで確認する (#1525、設計書 9.4、9.5、11.6)。
 // scripts/e2e-stack.sh から流す。初回セットアップの管理者 (flows.spec.ts) がいる前提なので、stack の後に流す。
 //
-// ログインのボタンからの流れはブラウザで、断る場面は、素の HTTP のクライアントで確認する。ログインの流れでは、
+// ログインのボタンからの流れはブラウザで、拒否する場面は、素の HTTP のクライアントで確認する。ログインの流れでは、
 // 何を送って何が返ったかが仕様そのものなので、リダイレクトを追わずに、そのまま確認する。
-// Playwright の request は資格情報を自動で足すので、断る場面には使わない。
+// Playwright の request は資格情報を自動で足すので、拒否する場面には使わない。
 import { expect, test } from '@playwright/test';
 
 import { totp } from './totp';
@@ -184,7 +184,7 @@ test('IdP から戻ると、セッションの Cookie を付けて / へ戻し�
   expect(viewer).toEqual({ username: 'e2e-oidc-member', role: 'MEMBER' });
 });
 
-test('state が違えば断り、セッションを作らずに途中の控えを消す', async () => {
+test('state が違えば拒否し、セッションを作らずに途中の控えを消す', async () => {
   const client = new Client();
   await nextIdentity({
     subject: 'e2e-oidc-state',
@@ -199,7 +199,7 @@ test('state が違えば断り、セッションを作らずに途中の控え�
   expect(client.cookies.has('kotatsu_oidc')).toBe(false);
 });
 
-test('途中の控えの Cookie がないまま戻ると、断る', async () => {
+test('途中の控えの Cookie がないまま戻ると、拒否する', async () => {
   const client = new Client();
   await nextIdentity({
     subject: 'e2e-oidc-nocookie',
@@ -227,7 +227,7 @@ test('自動で作るユーザーには、当たったグループのうち強�
   expect(viewer.role).toBe('ADMIN');
 });
 
-test('どのグループにも当たらなければ、自動で作らずに断る', async () => {
+test('どのグループにも当たらなければ、自動で作らずに拒否する', async () => {
   const client = new Client();
   expect(
     await login(client, {
@@ -240,7 +240,7 @@ test('どのグループにも当たらなければ、自動で作らずに断�
   expect(client.cookies.has('kotatsu_session')).toBe(false);
 });
 
-test('グループの claim がなければ、自動で作らずに断る', async () => {
+test('グループの claim がなければ、自動で作らずに拒否する', async () => {
   const client = new Client();
   expect(
     await login(client, {
@@ -252,7 +252,7 @@ test('グループの claim がなければ、自動で作らずに断る', asyn
   ).toBe('/login?error=oidc_denied');
 });
 
-test('自動で作るユーザーが、既存のユーザー名と重なれば、作らずに断る', async () => {
+test('自動で作るユーザーが、既存のユーザー名と重なれば、作らずに拒否する', async () => {
   const client = new Client();
   expect(
     await login(client, {
@@ -264,7 +264,7 @@ test('自動で作るユーザーが、既存のユーザー名と重なれば�
   ).toBe('/login?error=oidc_username_taken');
 });
 
-test('無効にしたユーザーは、IdP で通っても断る', async () => {
+test('無効にしたユーザーは、IdP で通っても拒否する', async () => {
   const target = {
     subject: 'e2e-oidc-disabled',
     username: 'e2e-oidc-disabled',
@@ -292,7 +292,7 @@ test('無効にしたユーザーは、IdP で通っても断る', async () => {
   expect(await login(new Client(), target)).toBe('/login?error=oidc_denied');
 });
 
-test('設定の画面からの紐付けは、ほかのユーザーと紐付いた subject を断り、紐付けたら linked=oidc を付けて戻す', async () => {
+test('設定の画面からの紐付けは、ほかのユーザーと紐付いた subject を拒否し、紐付けたら linked=oidc を付けて戻す', async () => {
   // OIDC と紐付いていないローカルのユーザーを、自動で作った管理者で作る。
   const admin = new Client();
   await login(admin, {
@@ -333,7 +333,7 @@ test('設定の画面からの紐付けは、ほかのユーザーと紐付い�
       .status,
   ).toBe(400);
 
-  // 既にほかのユーザー (自動で作った管理者) と紐付いた subject は断る。
+  // 既にほかのユーザー (自動で作った管理者) と紐付いた subject は拒否する。
   await nextIdentity({
     subject: 'e2e-oidc-admin',
     username: 'e2e-oidc-admin',
@@ -372,7 +372,7 @@ test('設定の画面からの紐付けは、ほかのユーザーと紐付い�
   expect(viewer.username).toBe('e2e-local');
 });
 
-test('状態を変える /internal/auth/* の POST は、ほかのオリジンと Origin のないものを断る', async () => {
+test('状態を変える /internal/auth/* の POST は、ほかのオリジンと Origin のないものを拒否する', async () => {
   const client = new Client();
   expect((await client.postJSON('/internal/auth/oidc', {}, 'http://evil.example')).status).toBe(
     403,

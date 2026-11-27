@@ -92,7 +92,7 @@ export const SaveFailed: Story = {
   },
 };
 
-// 管理者でないユーザーが開いたとき (サーバーが FORBIDDEN で断る)。全体の設定はナビゲーションも読むので、外字のテーブルだけを断る。
+// 管理者でないユーザーが開いたとき (サーバーが FORBIDDEN で拒否する)。全体の設定はナビゲーションも読むので、外字のテーブルだけを拒否する。
 export const Forbidden: Story = {
   args: {
     overrides: merge(asViewer('MEMBER'), (root: DemoRoot) => ({

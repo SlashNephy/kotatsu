@@ -68,7 +68,7 @@ func NewHTTPClient(recorder *netactivity.Recorder) *http.Client {
 	return netactivity.NewClient(recorder, netactivity.PurposeNicologComments, netactivity.ClientOptions{Transport: nil, Timeout: requestTimeout, CheckRedirect: checkRedirect})
 }
 
-// checkRedirect は、ほかのホストへのリダイレクトを断る。NICOLOG の応答に従って、内部のネットワークへ接続させないためである。
+// checkRedirect は、ほかのホストへのリダイレクトを拒否する。NICOLOG の応答に従って、内部のネットワークへ接続させないためである。
 func checkRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) > 0 && req.URL.Host != via[0].URL.Host {
 		return fmt.Errorf("%w: redirected to another host", ErrUnexpectedResponse)

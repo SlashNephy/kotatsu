@@ -86,7 +86,7 @@ type commentSettings struct {
 
 const commentSettingsFields = `comments { opacity speed scale showAll mutedKeywords { text match } mutedUsers mutedCommands mixOtherBroadcasts }`
 
-// TestCommentSettings は、実況のコメントの設定を、既定値から置き換えられ、ほかの項目を変えず、範囲の外は断ることを確認する (#488)。
+// TestCommentSettings は、実況のコメントの設定を、既定値から置き換えられ、ほかの項目を変えず、範囲の外は拒否することを確認する (#488)。
 func TestCommentSettings(t *testing.T) {
 	t.Parallel()
 
@@ -164,7 +164,7 @@ type captionSettings struct {
 
 const captionSettingsFields = `captions { superimposeLive superimposeRecorded stroke backgroundOpacity }`
 
-// TestCaptionSettings は、字幕の設定を、既定値から変えて残し、範囲の外の値を断ることを確認する (#491)。
+// TestCaptionSettings は、字幕の設定を、既定値から変えて残し、範囲の外の値を拒否することを確認する (#491)。
 func TestCaptionSettings(t *testing.T) {
 	t.Parallel()
 
@@ -216,7 +216,7 @@ type preference struct {
 	Value string `json:"value"`
 }
 
-// TestPreferences は、端末をまたいで同期する設定 (#1862) を、渡したキーだけ置き換えて消せ、許していないキーと長すぎる値を断ることを確認する。
+// TestPreferences は、端末をまたいで同期する設定 (#1862) を、渡したキーだけ置き換えて消せ、許していないキーと長すぎる値を拒否することを確認する。
 func TestPreferences(t *testing.T) {
 	t.Parallel()
 
@@ -268,7 +268,7 @@ func TestPreferences(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// 断る変更は、どれも DB を変えないので、並べて流してもよい。
+			// 拒否する変更は、どれも DB を変えないので、並べて流してもよい。
 			_, errs := update([]map[string]any{tt.input})
 			assert.NotEmpty(t, errs)
 			assert.Equal(t, []preference{{Key: cmAutoSkip, Value: enabled}}, get())

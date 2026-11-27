@@ -135,7 +135,7 @@ func TestJobs(t *testing.T) {
 	require.Empty(t, adminFixture.query(t, retryJob, map[string]any{varID: thumbID}, nil))
 	assert.Len(t, list(adminFixture, stateAvailable), 2)
 
-	// 取り消させないジョブと、管理者でない操作は断る。
+	// 取り消させないジョブと、管理者でない操作は拒否する。
 	assert.Equal(t, []string{codeBadUserInput}, adminFixture.query(t, cancelJob, map[string]any{varID: byKind["timeshift_promote"].ID}, nil))
 	assert.Equal(t, []string{codeNotFound}, adminFixture.query(t, cancelJob, map[string]any{varID: "999999"}, nil))
 	member := f.as(t, otherUser, domain.RoleMember)

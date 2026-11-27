@@ -248,7 +248,7 @@ func TestImportWatchlistFailure(t *testing.T) {
 }
 
 // TestRequestWatchlistImport は、画面を開いたときは、前に問い合わせてから 30 分たったときだけ取り込み、取り込み直しを押したときは
-// 待たずに取り込むことを確認する。Simkl は、タイマーで問い合わせ続けることを断っている。
+// 待たずに取り込むことを確認する。Simkl は、タイマーで問い合わせ続けることを認めていない。
 func TestRequestWatchlistImport(t *testing.T) {
 	t.Parallel()
 

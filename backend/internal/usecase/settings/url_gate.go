@@ -15,7 +15,7 @@ import (
 var ErrDatabaseUnavailable = errors.New("the database is unavailable")
 
 // URLGate は、外の道具に渡す URL (外部プレイヤー用の署名付き URL と、IPTV のクライアント用の URL) と、録画のダウンロード (#1762) を受け付けるかを、
-// 要求のたびに全体の設定から読む (#1755、設計書 7.6、9.8)。管理者が無効にしたら、どのレプリカでも、発行済みの URL をすぐに断るためである。
+// 要求のたびに全体の設定から読む (#1755、設計書 7.6、9.8)。管理者が無効にしたら、どのレプリカでも、発行済みの URL をすぐに拒否するためである。
 // DB に届かない間は、database.FallbackTTL の中で読めた設定を使う (#1084)。読めた設定がなければ、ErrDatabaseUnavailable を包んで返す。
 type URLGate struct {
 	db       sqlc.DBTX

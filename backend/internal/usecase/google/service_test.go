@@ -201,7 +201,7 @@ func TestConnectDrive(t *testing.T) {
 	require.ErrorIs(t, f.service.DisconnectDrive(t.Context(), f.pool, audit.User(f.admin.UserID)), google.ErrNotConnected)
 }
 
-// TestCompleteRejects は、始めたセッションと違う、使い回した、断った、などの戻りを接続しないことを確認する。
+// TestCompleteRejects は、始めたセッションと違う、使い回した、拒否した、などの戻りを接続しないことを確認する。
 func TestCompleteRejects(t *testing.T) {
 	t.Parallel()
 

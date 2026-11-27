@@ -416,7 +416,7 @@ func (v *VOD) servePlaylist(w http.ResponseWriter, r *http.Request, source vodSo
 		return
 	}
 	if preset.Passthrough && slices.ContainsFunc(recording.KeyframePoints(), func(point stream.Keyframe) bool { return point.PTS < 0 }) {
-		// セグメントを要求されても書けないので、プレイリストの時点で断る。
+		// セグメントを要求されても書けないので、プレイリストの時点で拒否する。
 		v.writeError(w, r, errNoPTS)
 
 		return

@@ -62,7 +62,7 @@ var (
 	ErrAuthorizationExpired = errors.New("the authorization has expired")
 	// ErrAuthorizationMismatch は、認可を始めたセッションや記録先と、戻ってきたリクエストが違うことを表す。
 	ErrAuthorizationMismatch = errors.New("the authorization does not match the session")
-	// ErrAccessDenied は、利用者が記録先で認可を断ったことを表す。
+	// ErrAccessDenied は、利用者が記録先で認可を拒否したことを表す。
 	ErrAccessDenied = errors.New("the authorization was denied")
 	// ErrNotConnected は、記録先と連携していないことを表す。
 	ErrNotConnected = errors.New("the destination is not connected")

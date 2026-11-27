@@ -21,7 +21,7 @@ type Settings = {
 };
 
 // serve は、記録の設定を返し、保存を受けたら送った値を保持して返す Relay の環境と、送った値の一覧を作る。
-// fails が true の間は、保存を断る。
+// fails が true の間は、保存を拒否する。
 function serve(fails = { value: false }) {
   let settings: Settings = {
     thresholdPercent: 80,

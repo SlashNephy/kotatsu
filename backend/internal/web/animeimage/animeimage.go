@@ -205,7 +205,7 @@ func (h *Handler) fetch(ctx context.Context, imageURL string) (*image, error) {
 	if len(data) > maxImageBytes {
 		return nil, errTooLarge
 	}
-	// 上流の Content-Type は信じず、内容から決める。SVG はスクリプトを含められるので、DetectContentType が画像とみなさないまま断る。
+	// 上流の Content-Type は信じず、内容から決める。SVG はスクリプトを含められるので、DetectContentType が画像とみなさないまま拒否する。
 	contentType := http.DetectContentType(data)
 	if !strings.HasPrefix(contentType, "image/") {
 		return nil, fmt.Errorf("%w: %s", errNotImage, contentType)

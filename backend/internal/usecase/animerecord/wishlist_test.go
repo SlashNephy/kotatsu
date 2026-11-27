@@ -719,7 +719,7 @@ func TestWishlistRetryAfter(t *testing.T) {
 }
 
 // TestCreateWishlistRule は、候補の作品からルールを作るとき、同じ作品のルールを重ねて作らないことを確認する (#928)。
-// ルールの照合が予約を作るのは後なので、予約だけでなく、同じキーワードとサービスのルールがあれば予約済みとして断る。
+// ルールの照合が予約を作るのは後なので、予約だけでなく、同じキーワードとサービスのルールがあれば予約済みとして拒否する。
 func TestCreateWishlistRule(t *testing.T) {
 	t.Parallel()
 

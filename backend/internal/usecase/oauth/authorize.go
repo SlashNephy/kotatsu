@@ -162,7 +162,7 @@ func (s *Server) Approve(
 	return successRedirect(req.RedirectURI, code, req.State, req.Issuer), nil
 }
 
-// Deny は、ログイン中のユーザーが断ったので、クライアントへ access_denied を戻す URL を返す。
+// Deny は、ログイン中のユーザーが拒否したので、クライアントへ access_denied を戻す URL を返す。
 func (s *Server) Deny(ctx context.Context, origin string, query url.Values) (string, error) {
 	req, err := s.Prepare(ctx, origin, query)
 	if err != nil {

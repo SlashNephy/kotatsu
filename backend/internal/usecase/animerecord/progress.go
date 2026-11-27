@@ -207,7 +207,7 @@ func validSpansAt(intervals []*Interval, now time.Time) ([]span, error) {
 	if len(intervals) > MaxReportedIntervals {
 		return nil, fmt.Errorf("%w: too many intervals", ErrInvalidReport)
 	}
-	// 端末の時計が進んでいると、ライブ視聴の区間が先の時刻になる。断ると端末が送り直し続けるので、今より先の分は切り捨てる。
+	// 端末の時計が進んでいると、ライブ視聴の区間が先の時刻になる。拒否すると端末が送り直し続けるので、今より先の分は切り捨てる。
 	limit := now.Add(maxFutureSkew).UnixMilli()
 	spans := make([]span, 0, len(intervals))
 	for _, interval := range intervals {

@@ -27,7 +27,7 @@ const (
 	// DefaultSweepInterval は、持ち主のいない ID を探す間隔。
 	DefaultSweepInterval = time.Minute
 	// MaxHolders は、1 つの ID を持てるインスタンスの数。EDCB は、1 つの NetworkTV の TS を 2 つの中継 (RELAY_VIEW_STREAM) にまで送り、
-	// 3 つ目の中継は断る (2026年11月に、Linux の EDCB で確認した。#1850)。
+	// 3 つ目の中継は拒否する (2026年11月に、Linux の EDCB で確認した。#1850)。
 	MaxHolders = 2
 	// closingRetryAfter は、閉じ始めたまま残った ID を、Sweeper が閉じ直すまでの時間。閉じる途中で止まったインスタンスの ID を閉じる。
 	// 閉じるのに掛ける時間の上限 (10 秒) より長くする。

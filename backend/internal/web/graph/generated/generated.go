@@ -12817,7 +12817,7 @@ type DramaRecordConnection {
   "記録先のアカウントの名前。"
   accountName: String!
   connectedAt: Time!
-  "記録先がトークンの更新を断ったので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。"
+  "記録先がトークンの更新を拒否したので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。"
   reauthorizationRequired: Boolean!
   "ウォッチリストを最後に問い合わせた日時。問い合わせていなければ null。"
   watchlistCheckedAt: Time
@@ -13999,7 +13999,7 @@ extend type Mutation {
   パラメーターが正しくなければ、エラーを付けてクライアントへ戻す URL を返す。
   """
   approveOAuthAuthorization(query: String!, scopes: [String!]!): String!
-  "認可のリクエストを断り、access_denied を付けてクライアントへ戻す URL を返す。"
+  "認可のリクエストを拒否し、access_denied を付けてクライアントへ戻す URL を返す。"
   denyOAuthAuthorization(query: String!): String!
   "MCP のクライアントとの連携を取り消し、取り消した連携の ID を返す。連携のトークンもまとめて使えなくなる。"
   deleteOAuthGrant(id: ID!): ID!
@@ -14479,7 +14479,7 @@ enum RecordingFailureReason {
   RECORDER_UNAVAILABLE
   "録画中に、EDCB の予約にチューナーを取られ、つなぎ直せなかった (#1534)"
   TUNER_PREEMPTED
-  "チューナーサーバーが選局を断った。サービスかチャンネルがないか、選局に失敗した (#1519)"
+  "チューナーサーバーが選局を拒否した。サービスかチャンネルがないか、選局に失敗した (#1519)"
   TUNING_REFUSED
 }
 
@@ -15641,19 +15641,19 @@ type SystemSettings {
   dataBroadcastIpEnabled: Boolean!
   """
   外部プレイヤー (VLC や mpv) 用の署名付きの映像の URL を、発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
-  無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に断る。
+  無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に拒否する。
   ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
   """
   externalPlayerUrlsEnabled: Boolean!
   """
   IPTV のクライアント (Kodi、Jellyfin、Plex など) 用の URL を、発行し、受け付けるかどうか (#1755、設計書 9.8)。既定は false。
-  無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も断る。取り消す (deleteIptvFeed) ことはできる。
+  無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も拒否する。取り消す (deleteIptvFeed) ことはできる。
   ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
   """
   iptvFeedsEnabled: Boolean!
   """
   録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定は false。
-  無効の間は、録画の配信が download を断る。端末に保存 (設計書 7.8) は含めない。
+  無効の間は、録画の配信が download を拒否する。端末に保存 (設計書 7.8) は含めない。
   ログインしていれば誰でも読め、画面が、ダウンロードの操作を出すかを決めるのに使う。
   """
   recordingDownloadsEnabled: Boolean!

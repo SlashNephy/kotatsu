@@ -29,7 +29,7 @@ const (
 	requestTimeout = 30 * time.Second
 	// maxResponseBytes は、読むレスポンスの大きさの上限。リリースのノートが長くても足りる。
 	maxResponseBytes = 1 << 20
-	// userAgent は、問い合わせに付ける User-Agent。GitHub の API は、User-Agent のない問い合わせを断る。
+	// userAgent は、問い合わせに付ける User-Agent。GitHub の API は、User-Agent のない問い合わせを拒否する。
 	userAgent = "Kotatsu-UpdateCheck/1"
 )
 

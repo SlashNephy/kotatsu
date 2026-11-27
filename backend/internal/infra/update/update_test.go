@@ -61,7 +61,7 @@ func TestCheck(t *testing.T) {
 			t.Parallel()
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// GitHub の API は、User-Agent のない問い合わせを断る。
+				// GitHub の API は、User-Agent のない問い合わせを拒否する。
 				if !strings.HasPrefix(r.Header.Get("User-Agent"), "Kotatsu") {
 					w.WriteHeader(http.StatusForbidden)
 

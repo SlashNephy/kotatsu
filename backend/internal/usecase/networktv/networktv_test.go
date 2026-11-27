@@ -137,7 +137,7 @@ func TestIDsShare(t *testing.T) {
 	n, shared = acquire(b, nhk())
 	assert.Equal(t, int32(1000), n)
 	assert.True(t, shared)
-	// EDCB は 3 つ目の中継を断るので、3 つ目のインスタンスは別の ID を取る。
+	// EDCB は 3 つ目の中継を拒否するので、3 つ目のインスタンスは別の ID を取る。
 	n, shared = acquire(c, nhk())
 	assert.Equal(t, int32(1001), n)
 	assert.False(t, shared)

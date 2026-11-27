@@ -219,7 +219,7 @@ export const Saved: Story = { beforeEach: () => withFakeStorage(recordings) };
 // 何も保存していないとき。
 export const Empty: Story = { beforeEach: () => withFakeStorage([]) };
 
-// ブラウザが保存の永続化を断ったとき (容量が足りなくなると消されうる)。
+// ブラウザが保存の永続化を拒否したとき (容量が足りなくなると消されうる)。
 export const NotPersisted: Story = { beforeEach: () => withFakeStorage(recordings, false) };
 
 // 保存している途中で、大きさが分かるとき (読み込んだ量と、全体の割合)。

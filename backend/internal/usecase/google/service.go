@@ -77,7 +77,7 @@ var (
 	ErrAuthorizationExpired = errors.New("the authorization has expired")
 	// ErrAuthorizationMismatch は、認可を始めたセッションと、戻ってきたリクエストが違うことを表す。
 	ErrAuthorizationMismatch = errors.New("the authorization does not match the session")
-	// ErrAccessDenied は、管理者が Google で認可を断ったか、求めたスコープを許さなかったことを表す。
+	// ErrAccessDenied は、管理者が Google で認可を拒否したか、求めたスコープを許さなかったことを表す。
 	ErrAccessDenied = errors.New("the authorization was denied")
 	// ErrNoRefreshToken は、Google がリフレッシュトークンを返さなかったことを表す。
 	ErrNoRefreshToken = errors.New("no refresh token was returned")

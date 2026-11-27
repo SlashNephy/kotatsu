@@ -33,7 +33,7 @@ var (
 	ErrPermanent = errors.New("the request cannot be completed")
 	// ErrUnknownDestination は、知らない記録先であることを表す。
 	ErrUnknownDestination = errors.New("unknown destination")
-	// ErrUnauthorized は、記録先がアクセストークンを断った (401) ことを表す。トークンを更新してから送り直す。
+	// ErrUnauthorized は、記録先がアクセストークンを拒否した (401) ことを表す。トークンを更新してから送り直す。
 	ErrUnauthorized = errors.New("the destination rejected the access token")
 	// ErrReauthorizationRequired は、更新のトークンが拒否され、利用者が連携し直すまで問い合わせられないことを表す。ErrPermanent を包む。
 	ErrReauthorizationRequired = fmt.Errorf("%w: the connection must be authorized again", ErrPermanent)

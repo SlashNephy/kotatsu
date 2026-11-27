@@ -37,7 +37,7 @@ func pngImage(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// TestHandler は、ログイン中のユーザーの見たいリストにある作品の画像だけをプロキシし、内容が画像でなければ断り、取ってきた画像をキャッシュすることを確認する (#1235)。
+// TestHandler は、ログイン中のユーザーの見たいリストにある作品の画像だけをプロキシし、内容が画像でなければ拒否し、取ってきた画像をキャッシュすることを確認する (#1235)。
 func TestHandler(t *testing.T) {
 	t.Parallel()
 
@@ -55,8 +55,8 @@ func TestHandler(t *testing.T) {
 		{name: "画像を中継し、2 回目は覚えた画像を返す", imagePath: imagePath, workID: "10", signedIn: true, wantStatus: http.StatusOK, wantFetches: 1},
 		{name: "リダイレクトをたどる", imagePath: "/moved", workID: "10", signedIn: true, wantStatus: http.StatusOK, wantFetches: 2},
 		{name: "見たいリストにない作品は返さない", imagePath: imagePath, workID: "11", signedIn: true, wantStatus: http.StatusNotFound, wantFetches: 0},
-		{name: "SVG は画像とみなさずに断る", imagePath: "/image.svg", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 2},
-		{name: "中身が画像でなければ断る", imagePath: "/page.html", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 2},
+		{name: "SVG は画像とみなさずに拒否する", imagePath: "/image.svg", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 2},
+		{name: "内容が画像でなければ拒否する", imagePath: "/page.html", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 2},
 		{name: "http でも https でもない URL は取りに行かない", imagePath: "", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 0},
 		{name: "ログインしていなければ返さない", imagePath: imagePath, workID: "10", signedIn: false, wantStatus: http.StatusUnauthorized, wantFetches: 0},
 	}

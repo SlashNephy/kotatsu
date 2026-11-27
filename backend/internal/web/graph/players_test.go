@@ -120,7 +120,7 @@ func TestPlayers(t *testing.T) {
 	assert.Empty(t, device.players(t))
 }
 
-// TestPlayerRejectsInvalidInput は、大きすぎる状態と、要る値のない操作を断ることを確認する。
+// TestPlayerRejectsInvalidInput は、大きすぎる状態と、要る値のない操作を拒否することを確認する。
 func TestPlayerRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 

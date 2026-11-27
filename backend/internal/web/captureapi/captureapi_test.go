@@ -184,7 +184,7 @@ func TestUploadAndServe(t *testing.T) {
 	}
 }
 
-// TestUploadRejects は、足りない、または正しくないリクエストを断ることを確認する。
+// TestUploadRejects は、足りない、または正しくないリクエストを拒否することを確認する。
 func TestUploadRejects(t *testing.T) {
 	t.Parallel()
 
@@ -229,7 +229,7 @@ func TestUploadRejects(t *testing.T) {
 	}
 }
 
-// TestUploadWithoutDataDir は、データディレクトリを設定していなければ、503 で断ることを確認する。
+// TestUploadWithoutDataDir は、データディレクトリを設定していなければ、503 で拒否することを確認する。
 func TestUploadWithoutDataDir(t *testing.T) {
 	t.Parallel()
 

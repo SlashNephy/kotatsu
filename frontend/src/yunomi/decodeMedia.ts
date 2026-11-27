@@ -231,14 +231,14 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
               new Promise((resolve) => setTimeout(resolve, resumeTimeout)),
             ]));
       } catch {
-        // 下で断る。
+        // 下で拒否する。
       }
     }
     if (this.disposed) {
       return;
     }
     if (this.context.state !== 'running') {
-      // ユーザーが操作するまで、音ありで鳴らせない。<video> と同じく断る。
+      // ユーザーが操作するまで、音ありで鳴らせない。<video> と同じく拒否する。
       throw new DOMException('the user has not interacted with the page yet', 'NotAllowedError');
     }
     if (!this.stateValue.paused) {

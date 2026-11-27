@@ -136,7 +136,7 @@ func (c *session) refresh(ctx context.Context, force bool) error {
 }
 
 // do は、アクセストークンで fn を呼ぶ。問い合わせは、このプロセスの中で 1 つずつ、間を空けて送る。
-// 記録先がトークンを断ったら (401)、更新して 1 回だけ送り直す。ほかのプロセスが先に更新していれば、更新せずにそのトークンを使う。
+// 記録先がトークンを拒否したら (401)、更新して 1 回だけ送り直す。ほかのプロセスが先に更新していれば、更新せずにそのトークンを使う。
 // 送り直しても拒否されたら、ErrPermanent を包んで返す。
 func (c *session) do(ctx context.Context, fn func(ctx context.Context, access string) error) error {
 	err := c.once(ctx, fn)

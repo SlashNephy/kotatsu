@@ -119,7 +119,7 @@ func (f *chapterFixture) get(t *testing.T, g tvtplay.DownloadGate, recordingID s
 	}
 }
 
-// TestChapterHandler は、録画の CM の区間を、ダウンロードした TS の名前の .chapter として返し、返せないときは断ることを確認する。
+// TestChapterHandler は、録画の CM の区間を、ダウンロードした TS の名前の .chapter として返し、返せないときは拒否することを確認する。
 func TestChapterHandler(t *testing.T) {
 	t.Parallel()
 
@@ -145,11 +145,11 @@ func TestChapterHandler(t *testing.T) {
 			wantStatus: http.StatusOK, wantBody: "\xef\xbb\xbfc-10000cix-40000cox-570000cix-630000cox-c",
 			wantDisposition: "attachment; filename*=utf-8''%E3%81%93%E3%81%9F%E3%81%A4%E7%89%B9%E9%9B%86.chapter",
 		},
-		{name: "録画中の録画は断る", gate: enabled, recordingID: recording.String(), wantStatus: http.StatusConflict},
+		{name: "録画中の録画は拒否する", gate: enabled, recordingID: recording.String(), wantStatus: http.StatusConflict},
 		{name: "セグメントのない録画は見つからない", gate: enabled, recordingID: noSegment.String(), wantStatus: http.StatusNotFound},
 		{name: "ない録画は見つからない", gate: enabled, recordingID: id.New().String(), wantStatus: http.StatusNotFound},
-		{name: "ID が読めなければ断る", gate: enabled, recordingID: "kotatsu", wantStatus: http.StatusBadRequest},
-		{name: "ダウンロードを有効にしていなければ断る", gate: gate{enabled: false, err: nil}, recordingID: finished.String(), wantStatus: http.StatusForbidden},
+		{name: "ID が読めなければ拒否する", gate: enabled, recordingID: "kotatsu", wantStatus: http.StatusBadRequest},
+		{name: "ダウンロードを有効にしていなければ拒否する", gate: gate{enabled: false, err: nil}, recordingID: finished.String(), wantStatus: http.StatusForbidden},
 		{
 			name: "設定を読めず、覚えた設定もなければ 503", gate: gate{enabled: false, err: settings.ErrDatabaseUnavailable},
 			recordingID: finished.String(), wantStatus: http.StatusServiceUnavailable,

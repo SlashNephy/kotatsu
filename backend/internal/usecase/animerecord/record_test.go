@@ -447,7 +447,7 @@ func TestReport(t *testing.T) {
 	// 壊れた区間は受け付けない。
 	_, err = f.service.Report(t.Context(), f.pool, f.inserter, f.alice.UserID, live, []*animerecord.Interval{interval(12, 6, 12, 5)})
 	require.ErrorIs(t, err, animerecord.ErrInvalidReport)
-	// 時計の進んだ端末から届いた、今より先の区間は、断らずに切り捨てる。断ると、端末が送り直し続ける。
+	// 時計の進んだ端末から届いた、今より先の区間は、拒否せずに切り捨てる。拒否すると、端末が送り直し続ける。
 	var before int64
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT played_ms FROM anime_watch_progress WHERE user_id = $1`, f.alice.UserID).Scan(&before))
 	_, err = f.service.Report(t.Context(), f.pool, f.inserter, f.alice.UserID, live, []*animerecord.Interval{interval(13, 0, 14, 0)})

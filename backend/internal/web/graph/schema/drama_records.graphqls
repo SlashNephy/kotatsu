@@ -37,7 +37,7 @@ type DramaRecordConnection {
   "記録先のアカウントの名前。"
   accountName: String!
   connectedAt: Time!
-  "記録先がトークンの更新を断ったので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。"
+  "記録先がトークンの更新を拒否したので、連携し直す必要があるかどうか。連携し直すまで、記録も取り込みもしない。"
   reauthorizationRequired: Boolean!
   "ウォッチリストを最後に問い合わせた日時。問い合わせていなければ null。"
   watchlistCheckedAt: Time

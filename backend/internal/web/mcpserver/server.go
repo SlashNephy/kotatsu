@@ -153,7 +153,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // missingScope は、ツールを呼ぶリクエストで、連携に足りないスコープを返す。足りていれば空を返す。
-// 本文は、SDK と同じ jsonrpc.DecodeMessage で読み、SDK のために元に戻す。読めなければ、SDK に断らせる。
+// 本文は、SDK と同じ jsonrpc.DecodeMessage で読み、SDK のために元に戻す。読めなければ、SDK に拒否させる。
 func (h *Handler) missingScope(w http.ResponseWriter, r *http.Request, grant *oauth.Grant) string {
 	body, err := readBody(w, r)
 	if err != nil {

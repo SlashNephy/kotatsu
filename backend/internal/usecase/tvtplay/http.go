@@ -36,7 +36,7 @@ var _ DownloadGate = new(settings.URLGate)
 // (GET /internal/media/recordings/{id}/tvtplay.chapter、#1737)。
 // 位置は、ダウンロードした 1 本の TS (セグメントをつなぎ、引き継ぎで重なった分を除いたもの、設計書 7.5) の始まりからの時間にする。
 // 名前は、ダウンロードした TS (最初のセグメントの名前) の拡張子を .chapter に替えたもので、TvtPlay は TS と同じフォルダーに置けば読む。
-// 録画のダウンロードと組で使うものなので、管理者がダウンロードを有効にしていなければ断る。
+// 録画のダウンロードと組で使うものなので、管理者がダウンロードを有効にしていなければ拒否する。
 type ChapterHandler struct {
 	db     sqlc.DBTX
 	gate   DownloadGate
@@ -73,7 +73,7 @@ func (h *ChapterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	// 録画中は、長さも CM の区間も決まらない。ダウンロードと同じく断る。
+	// 録画中は、長さも CM の区間も決まらない。ダウンロードと同じく拒否する。
 	if recording.RecordedUntil == nil {
 		http.Error(w, "the recording is still in progress; download it after it finishes", http.StatusConflict)
 

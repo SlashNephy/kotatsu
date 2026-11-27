@@ -60,7 +60,7 @@ extend type Mutation {
   パラメーターが正しくなければ、エラーを付けてクライアントへ戻す URL を返す。
   """
   approveOAuthAuthorization(query: String!, scopes: [String!]!): String!
-  "認可のリクエストを断り、access_denied を付けてクライアントへ戻す URL を返す。"
+  "認可のリクエストを拒否し、access_denied を付けてクライアントへ戻す URL を返す。"
   denyOAuthAuthorization(query: String!): String!
   "MCP のクライアントとの連携を取り消し、取り消した連携の ID を返す。連携のトークンもまとめて使えなくなる。"
   deleteOAuthGrant(id: ID!): ID!

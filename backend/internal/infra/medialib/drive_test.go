@@ -347,7 +347,7 @@ func TestDriveSearch(t *testing.T) {
 	}
 }
 
-// TestDriveSearchLongNames は、名前の長いファイルが多く見つかっても、同じ名前を確認する問い合わせを、Drive API が断らない長さに
+// TestDriveSearchLongNames は、名前の長いファイルが多く見つかっても、同じ名前を確認する問い合わせを、Drive API が拒否しない長さに
 // 分けることを確認する。本物の Drive API は、q を URL に入れて 16 KB ほどになると 400 を返した。
 func TestDriveSearchLongNames(t *testing.T) {
 	t.Parallel()

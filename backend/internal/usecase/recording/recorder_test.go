@@ -824,7 +824,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			wantDetail: "no available tuners",
 		},
 		{
-			// リバースプロキシが 502 を返したなど、選局を断ったとは言えない応答。ストリームは一度も開いていないので、中断ではない。
+			// リバースプロキシが 502 を返したなど、選局を拒否したとは言えない応答。ストリームは一度も開いていないので、中断ではない。
 			name: "チューナーサーバーがエラーを返す",
 			tuner: func(*fixture) recording.StreamOpener {
 				return failingStream{err: fmt.Errorf("upstream: context deadline exceeded: %w", tunerserver.ErrRefused)}

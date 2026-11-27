@@ -294,7 +294,7 @@ export const GoogleConnected: Story = {
   args: { url: '/admin/integrations?connected=google-drive', overrides: connected() },
 };
 
-// Drive の接続に失敗して戻ってきたとき (Google で断った)。
+// Drive の接続に失敗して戻ってきたとき (Google で拒否した)。
 export const GoogleCallbackError: Story = {
   args: {
     url: '/admin/integrations?error=google_denied',
@@ -424,7 +424,7 @@ export const WebhookCreated: Story = {
   },
 };
 
-// 管理者でないユーザーが開いたとき (サーバーが FORBIDDEN で断る)。全体の設定はナビゲーションも読むので、Webhook の一覧で断る。
+// 管理者でないユーザーが開いたとき (サーバーが FORBIDDEN で拒否する)。全体の設定はナビゲーションも読むので、Webhook の一覧で拒否する。
 export const Forbidden: Story = {
   args: {
     overrides: merge(asViewer('MEMBER'), () => ({ webhooks: failingWith({ code: 'FORBIDDEN' }) })),
