@@ -69,7 +69,7 @@ func TestWorkerDefersToCompatiblePeers(t *testing.T) {
 				return nil
 			})
 
-			// 取らないことは、取れる間隔の何回分か待って確かめる。
+			// 取らないことは、取れる間隔の何回分か待って確認する。
 			select {
 			case <-acquired:
 				assert.True(t, tt.wantAcquire, "the outdated mikan acquired the assignment")
