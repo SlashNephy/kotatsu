@@ -2132,6 +2132,7 @@
         "oauth_prune": "MCPのトークンの片付け",
         "recording_analyze": "録画の解析",
         "recording_chapters": "変換した録画のCMのチャプター",
+        "recording_arib_captions": "ARIB字幕の文の取り出し",
         "recording_auto_captions": "字幕の自動生成",
         "recording_cm_detect": "CMの区間",
         "recording_join": "セグメントをつなぐ",

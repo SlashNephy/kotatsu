@@ -192,7 +192,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, storage.timeshiftPrune)
 	river.AddWorker(workers, storage.promote)
 	river.AddWorker(workers, storage.reapPromotions)
-	// 録画の後処理 (代表画像、解析、セグメントのつなぎ、CM の区間の見分け、字幕の自動生成、変換、チャプター)。組み方は mediajobs.go に置く。
+	// 録画の後処理 (代表画像、解析、セグメントのつなぎ、CM の区間の見分け、字幕の自動生成、ARIB 字幕の文の取り出し、変換、チャプター)。組み方は mediajobs.go に置く。
 	media := newMediaJobParts(deps, logger, inserter)
 	river.AddWorker(workers, media.thumbnails)
 	river.AddWorker(workers, media.liveThumbnails)
@@ -201,6 +201,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, media.finalize)
 	river.AddWorker(workers, media.cmDetect)
 	river.AddWorker(workers, media.captions)
+	river.AddWorker(workers, media.aribCaptions)
 	river.AddWorker(workers, media.captionModels)
 	river.AddWorker(workers, media.transcode)
 	river.AddWorker(workers, media.tvtplay)

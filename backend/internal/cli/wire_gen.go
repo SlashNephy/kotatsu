@@ -252,6 +252,7 @@ func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *m
 	lowerer := newLowerer(logger)
 	detectWorker := newCMDetectWorker(pool, store, clock, lowerer, inserter, logger)
 	worker := newCaptionsWorker(deps, pool, store, clock, lowerer, logger)
+	aribcaptionWorker := newARIBCaptionsWorker(pool, store, clock, logger)
 	captionmodelWorker := newCaptionModelWorker(deps, pool, clock, logger)
 	transcodeWorker := newTranscodeWorker(deps, pool, store, clock, inserter, lowerer, logger)
 	writeWorker := newTvtplayWorker(pool, store, clock)
@@ -264,6 +265,7 @@ func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *m
 		finalize:       finalizeWorker,
 		cmDetect:       detectWorker,
 		captions:       worker,
+		aribCaptions:   aribcaptionWorker,
 		captionModels:  captionmodelWorker,
 		transcode:      transcodeWorker,
 		tvtplay:        writeWorker,

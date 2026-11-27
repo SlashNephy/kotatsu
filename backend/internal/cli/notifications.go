@@ -8,6 +8,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/usecase/aribcaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -63,11 +64,12 @@ func newWatchNotifyWorker(pool *pgxpool.Pool, clk clock.Clock) *watch.NotifyWork
 }
 
 // newDispatcher は、通知するイベントを、ユーザーごとの画面内の通知に配信する部品を作る。
-// 配信するときに、Webhook と Web Push の配信、録画のファイルをつなぐジョブ、CM の区間を見分けるジョブ、字幕を自動生成するジョブ、変換のジョブ、
+// 配信するときに、Webhook と Web Push の配信、録画のファイルをつなぐジョブ、CM の区間を見分けるジョブ、字幕を自動生成するジョブ、
+// ARIB 字幕の文を取り出すジョブ、変換のジョブ、
 // 録画を始めたときの代表画像のジョブを inserter で入れる。
 func newDispatcher(pool *pgxpool.Pool, clk clock.Clock, inserter *jobs.Client) *notification.Dispatcher {
 	return notification.NewDispatcher(pool, clk,
 		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), segjoin.NewEnqueuer(inserter),
-		cmdetect.NewEnqueuer(inserter, clk), autocaption.NewEnqueuer(inserter, clk), transcode.NewEnqueuer(inserter),
+		cmdetect.NewEnqueuer(inserter, clk), autocaption.NewEnqueuer(inserter, clk), aribcaption.NewEnqueuer(inserter), transcode.NewEnqueuer(inserter),
 		thumbnail.NewStartEnqueuer(inserter, clk))
 }
