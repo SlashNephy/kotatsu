@@ -15,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
@@ -36,7 +37,7 @@ func (f *fixture) insertPromotion(t *testing.T) uuid.UUID {
 }
 
 // TestPromoteWorkerSnoozesRecoverableFailures は、昇格のジョブが、待てば通る失敗 (この nekonote にタイムシフトのディレクトリがない、
-// DB のエラー、止めるとき) では、試す回数を使わずに再試行し、ジョブを入れてから上限を過ぎて試し尽くしたら録画を失敗にすることを確認する (#2198)。
+// 止めるとき) では、試す回数を使わずに再試行し、ジョブを入れてから上限を過ぎて試し尽くしたら録画を失敗にすることを確認する (#2198)。
 func TestPromoteWorkerSnoozesRecoverableFailures(t *testing.T) {
 	t.Parallel()
 
@@ -101,6 +102,27 @@ func TestPromoteWorkerSnoozesOnDatabaseError(t *testing.T) {
 	_, store := f.newRecorderWithTimeshift(t, nil)
 	f.renameColumn(t, "timeshift_promotions", "created_by", "created_by_renamed")
 	worker := recording.NewPromoteWorker(f.pool, f.clock, store.store, nil, time.UTC, slog.New(slog.DiscardHandler))
+	job := &river.Job[recording.PromoteArgs]{
+		JobRow: &rivertype.JobRow{Attempt: 5, MaxAttempts: 5, CreatedAt: f.clock.Now()},
+		Args:   recording.PromoteArgs{RecordingID: recordingID},
+	}
+
+	var snooze *rivertype.JobSnoozeError
+	require.ErrorAs(t, worker.Work(t.Context(), job), &snooze)
+	assert.Equal(t, time.Minute, snooze.Duration)
+}
+
+// TestPromoteWorkerSnoozesOnUnmountedPool は、録画設定のプールがこの nekonote にマウントされていなければ、昇格のジョブを、
+// 試す回数を使わずに再試行することを確認する (#2198)。マウントしている nekonote が書き込める。
+func TestPromoteWorkerSnoozesOnUnmountedPool(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID := f.insertPromotion(t)
+	_, store := f.newRecorderWithTimeshift(t, nil)
+	settings := domain.DefaultRecordingSettings()
+	settings.PoolID = "elsewhere"
+	worker := recording.NewPromoteWorker(f.pool, f.clock, store.store, assign.FixedDefaults(settings), time.UTC, slog.New(slog.DiscardHandler))
 	job := &river.Job[recording.PromoteArgs]{
 		JobRow: &rivertype.JobRow{Attempt: 5, MaxAttempts: 5, CreatedAt: f.clock.Now()},
 		Args:   recording.PromoteArgs{RecordingID: recordingID},

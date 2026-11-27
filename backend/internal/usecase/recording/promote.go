@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"slices"
 	"time"
 	"uuid"
 
@@ -231,8 +232,9 @@ func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID
 		logger.WarnContext(ctx, "failed to read the recording settings; promoting with the built-in defaults", slog.Any("error", err))
 		settings = domain.DefaultRecordingSettings()
 	}
-	if len(r.store.PoolIDs()) == 0 {
-		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("%w: no storage pool is mounted on this instance", errPromoteElsewhere)
+	if mounted := r.store.PoolIDs(); len(mounted) == 0 || (settings.PoolID != "" && !slices.Contains(mounted, settings.PoolID)) {
+		// 録画設定のプールがこの nekonote にマウントされていなければ、マウントしている nekonote で再試行させる (#2198)。
+		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("%w: the storage pool %q is not mounted on this instance", errPromoteElsewhere, settings.PoolID)
 	}
 	pools, err := q.ListStoragePools(ctx)
 	if err != nil {
