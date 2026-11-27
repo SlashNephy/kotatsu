@@ -20,7 +20,12 @@ for (const key of ['repository', 'file', 'commit']) {
 }
 
 const target = join(dir, 'drcs.json');
-const backendTarget = join(import.meta.dirname, '..', '..', 'backend/internal/lib/drcstable/dist/drcs.json');
+const backendTarget = join(
+  import.meta.dirname,
+  '..',
+  '..',
+  'backend/internal/lib/drcstable/dist/drcs.json',
+);
 // 本番のイメージのビルドでは、SPA のステージに backend/ がないので、置き場所から作る。
 await mkdir(dirname(backendTarget), { recursive: true });
 // 途中で壊れたテーブルは、作っていないものとして作り直す。
