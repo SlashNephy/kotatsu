@@ -8,7 +8,37 @@ package sqlc
 import (
 	"context"
 	"time"
+
+	"uuid"
 )
+
+const getAcquireCompatibility = `-- name: GetAcquireCompatibility :one
+SELECT c.min_binary_version, (
+  SELECT count(*) FROM instances i
+  WHERE i.role = $1 AND i.heartbeat_at > $2 AND i.id <> $3 AND i.schema_version >= c.min_binary_version
+)::bigint AS compatible_peers
+FROM schema_compatibility c WHERE c.id
+`
+
+type GetAcquireCompatibilityParams struct {
+	Role       string
+	AliveSince time.Time
+	Holder     uuid.UUID
+}
+
+type GetAcquireCompatibilityRow struct {
+	MinBinaryVersion int64
+	CompatiblePeers  int64
+}
+
+// 動かしてよいバイナリの下限と、下限を満たすバイナリで動いている、holder のほかの role のインスタンスの数を返す (#2195)。
+// 下限より古い mikan は、下限を満たす mikan がほかにいれば、割り振りを取らずに任せる。
+func (q *Queries) GetAcquireCompatibility(ctx context.Context, arg GetAcquireCompatibilityParams) (GetAcquireCompatibilityRow, error) {
+	row := q.db.QueryRow(ctx, getAcquireCompatibility, arg.Role, arg.AliveSince, arg.Holder)
+	var i GetAcquireCompatibilityRow
+	err := row.Scan(&i.MinBinaryVersion, &i.CompatiblePeers)
+	return i, err
+}
 
 const getMinBinaryVersion = `-- name: GetMinBinaryVersion :one
 SELECT min_binary_version FROM schema_compatibility WHERE id

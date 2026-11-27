@@ -49,10 +49,20 @@ func (f *fixture) startWorkerWith(t *testing.T, holder uuid.UUID, leases recordi
 ) (*recording.Worker, func()) {
 	t.Helper()
 
-	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, leases, &recording.WorkerOptions{
+	return f.startWorkerWithOptions(t, holder, leases, &recording.WorkerOptions{
 		LeaseTTL: leaseTTL, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
 		HandoverTimeout: handoverTimeout, ReleaseCooldown: 0, DatabaseClock: false, PollOnly: true, PollInterval: 50 * time.Millisecond,
-	})
+		DeferAcquire: nil,
+	}, session)
+}
+
+// startWorkerWithOptions は、割り振りを leases で読み書きし、設定を opts にして、mikan を動かす。
+func (f *fixture) startWorkerWithOptions(t *testing.T, holder uuid.UUID, leases recording.LeaseStore, opts *recording.WorkerOptions,
+	session recording.Session,
+) (*recording.Worker, func()) {
+	t.Helper()
+
+	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, leases, opts)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
@@ -831,6 +841,7 @@ func TestWorkerUsesDatabaseClockForLeases(t *testing.T) {
 			}, recording.NewRecordingLeases(f.pool), &recording.WorkerOptions{
 				LeaseTTL: 10 * time.Second, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
 				HandoverTimeout: shortHandoverTimeout, ReleaseCooldown: 0, DatabaseClock: tt.databaseClock, PollOnly: true, PollInterval: 50 * time.Millisecond,
+				DeferAcquire: nil,
 			})
 			ctx, cancel := context.WithCancel(t.Context())
 			done := make(chan error, 1)
