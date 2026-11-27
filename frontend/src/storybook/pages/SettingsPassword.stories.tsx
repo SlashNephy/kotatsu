@@ -106,7 +106,6 @@ export const OIDCInvalid = oidcError('oidc_invalid');
 export const OIDCDenied = oidcError('oidc_denied');
 export const OIDCUsernameTaken = oidcError('oidc_username_taken');
 export const OIDCUnavailable = oidcError('oidc_unavailable');
-export const OIDCReauthStale = oidcError('oidc_reauth_stale');
 export const OIDCReauthMismatch = oidcError('oidc_reauth_mismatch');
 export const OIDCLinkTaken = oidcError('oidc_link_taken');
 export const OIDCLinkAlready = oidcError('oidc_link_already');

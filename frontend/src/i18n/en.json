@@ -192,7 +192,6 @@
       "oidc_denied": "This account cannot log in to Kotatsu. Contact your administrator.",
       "oidc_username_taken": "Could not create the account because a user with the same username already exists. Contact your administrator.",
       "oidc_unavailable": "Could not connect to the IdP. Please try again later.",
-      "oidc_reauth_stale": "Could not confirm that you re-authenticated with the IdP. Log in to the IdP again, then try again.",
       "oidc_reauth_mismatch": "You authenticated with a different account from the logged-in user. Try again with the same account.",
       "oidc_link_taken": "This IdP account is linked to another user. Try again with a different account, or contact your administrator.",
       "oidc_link_already": "This user is already linked to an IdP account",

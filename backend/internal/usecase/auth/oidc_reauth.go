@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	// oidcAuthTimeLeeway は、IdP と Kotatsu の時計のずれとして、ID トークンの auth_time が、再認証を始めた日時より前でも許す幅。
-	oidcAuthTimeLeeway = time.Minute
 	// maxReturnToLength は、再認証を終えたときに戻すパスの長さの上限。
 	maxReturnToLength = 2048
 )
@@ -23,9 +21,6 @@ const (
 var (
 	// ErrOIDCNotLinked は、ログイン中のユーザーが、IdP のユーザーと紐付いていないので、IdP で再認証できないことを表す。
 	ErrOIDCNotLinked = errors.New("the user is not linked to the OIDC provider")
-	// ErrOIDCStaleAuthentication は、IdP が auth_time を返さないか、再認証を始めるより前の認証の日時を返したことを表す。
-	// IdP が、もう一度認証させずに、前のログインで ID トークンを発行したかもしれないので、再認証として扱わない。
-	ErrOIDCStaleAuthentication = errors.New("the OIDC provider did not authenticate the user again")
 	// ErrOIDCReauthenticationMismatch は、再認証を始めたセッションと、戻ってきたリクエストのセッションか、
 	// IdP で認証したユーザーと、ログイン中のユーザーが違うことを表す。
 	ErrOIDCReauthenticationMismatch = errors.New("the OIDC reauthentication does not match the session")
@@ -73,10 +68,6 @@ func (o *OIDC) reauthenticate(
 	if principal == nil || principal.SessionID != *row.SessionID {
 		return nil, ErrOIDCReauthenticationMismatch
 	}
-	authTime, ok := authTimeOf(claims.all)
-	if !ok || authTime.Before(row.CreatedAt.Add(-oidcAuthTimeLeeway)) {
-		return nil, ErrOIDCStaleAuthentication
-	}
 	now := o.clock.Now()
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -107,16 +98,6 @@ func (o *OIDC) reauthenticate(
 	}
 
 	return &OIDCReauthentication{AuthenticatedAt: now, ReturnTo: returnTo}, nil
-}
-
-// authTimeOf は、ID トークンの auth_time (ユーザーが IdP で認証した UNIX 時刻) を返す。なければ false を返す。
-func authTimeOf(claims map[string]any) (time.Time, bool) {
-	value, ok := claims["auth_time"].(float64)
-	if !ok || value <= 0 {
-		return time.Time{}, false
-	}
-
-	return time.Unix(int64(value), 0), true
 }
 
 // normalizeReturnTo は、再認証を終えたときに戻すパスを確認する。ほかのサイトに戻させないよう、同じオリジンの絶対パスに限る。

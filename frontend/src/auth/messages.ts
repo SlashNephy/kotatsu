@@ -57,7 +57,6 @@ const oidcReasons = [
   'oidc_denied',
   'oidc_username_taken',
   'oidc_unavailable',
-  'oidc_reauth_stale',
   'oidc_reauth_mismatch',
   'oidc_link_taken',
   'oidc_link_already',
