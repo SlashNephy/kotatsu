@@ -62,6 +62,12 @@ func TestExtractARIBCaptions(t *testing.T) {
 	require.Empty(t, adminFixture.query(t, aribCaptionBackfillQuery, nil, &backfill))
 	assert.Equal(t, 1, backfill.ARIBCaptionBackfill.Pending)
 	assert.Equal(t, 1, backfill.ARIBCaptionBackfill.Queued)
+	// 終えたジョブ (取り出せずに破棄したものなど) は、待っている録画として数えない。
+	_, err = f.pool.Exec(t.Context(), "UPDATE river_job SET state = 'discarded', finalized_at = now() WHERE kind = 'recording_arib_captions'")
+	require.NoError(t, err)
+	require.Empty(t, adminFixture.query(t, aribCaptionBackfillQuery, nil, &backfill))
+	assert.Equal(t, 1, backfill.ARIBCaptionBackfill.Pending)
+	assert.Equal(t, 0, backfill.ARIBCaptionBackfill.Queued)
 
 	// 管理者でなければ、見ることも操作もできない。
 	for _, role := range []domain.Role{domain.RoleMember, domain.RoleViewer} {

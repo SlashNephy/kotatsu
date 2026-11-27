@@ -12,7 +12,7 @@ import {
 } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { Trash2 } from 'lucide-react';
-import { startTransition, useState } from 'react';
+import { startTransition, useState, useTransition } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -73,6 +73,8 @@ function ARIBCaptionBackfill() {
   const { pending, queued } = data.aribCaptionBackfill;
   // queuing は、入れている途中かどうか。続けて押して、重ねて送らないようにする。
   const [queuing, setQueuing] = useState(false);
+  // refreshing は、入れた後に数を読み直している途中かどうか。読み直すまでは前の数が出ているので、押させない。
+  const [refreshing, startRefresh] = useTransition();
   // result は、最後に押した結果。入れた数か、失敗したときの文。
   const [result, setResult] = useState<{ queued: number } | { error: string } | null>(null);
 
@@ -91,8 +93,11 @@ function ARIBCaptionBackfill() {
       .then((response) => setResult({ queued: response.extractARIBCaptions }))
       .catch((error: unknown) => setResult({ error: settingsErrorMessage(t, error) }))
       .finally(() => {
-        setQueuing(false);
-        startTransition(() => setFetchKey((key) => key + 1));
+        // 読み直した数が出るまで、入れている途中のままにする。
+        startRefresh(() => {
+          setQueuing(false);
+          setFetchKey((key) => key + 1);
+        });
       });
   };
 
@@ -114,7 +119,7 @@ function ARIBCaptionBackfill() {
           <Button
             size="xs"
             variant="default"
-            disabled={pending - queued <= 0 || queuing}
+            disabled={pending - queued <= 0 || queuing || refreshing}
             onClick={extract}
           >
             {t('admin.captions.backfillRun')}

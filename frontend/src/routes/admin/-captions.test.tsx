@@ -16,10 +16,10 @@ const md5b = 'fedcba9876543210fedcba9876543210';
 // serve は、サーバーの外字のテーブルを持ち、保存されたら送った外字を当てる環境を作る。sent は、送った外字の変更。
 // 字幕の文を取り出していない録画は pending 本あり、取り出すジョブを入れると、入れた数を返し、どれもジョブを待つ録画になる。
 // ジョブは終わらないので、取り出していない録画の数は変わらない。extracted は、入れた回数。
-function serve(pending = 0) {
+function serve(pending = 0, options: { queued?: number; fail?: boolean } = {}) {
   let table = [{ md5: md5a, text: 'あ' }];
   const sent: Variables[] = [];
-  let remaining = pending;
+  let remaining = pending - (options.queued ?? 0);
   let extracted = 0;
   const environment = createTestEnvironment((request, variables) => {
     if (request.name === 'captionsBackfillQuery') {
@@ -27,6 +27,9 @@ function serve(pending = 0) {
     }
     if (request.name === 'captionsBackfillMutation') {
       extracted += 1;
+      if (options.fail === true) {
+        return new Error('failed');
+      }
       const queued = remaining;
       remaining = 0;
 
@@ -134,5 +137,29 @@ describe('放送の字幕の文の取り出し (#2218)', () => {
     expect(
       screen.getByRole('button', { name: '取り出すジョブを入れる' }).hasAttribute('disabled'),
     ).toBe(true);
+  });
+
+  test('一部の録画だけがジョブを待っていれば、残りを入れられる', async () => {
+    const { environment } = serve(3, { queued: 1 });
+    await renderRoute(Route, '/admin/captions', '/admin/captions', environment);
+    await screen.findByText(
+      '字幕の文を取り出していない録画: 3 本（うち 1 本はジョブを待っています）',
+    );
+
+    expect(
+      screen.getByRole('button', { name: '取り出すジョブを入れる' }).hasAttribute('disabled'),
+    ).toBe(false);
+  });
+
+  test('入れられなかったら、理由を出す', async () => {
+    const { environment } = serve(2, { fail: true });
+    await renderRoute(Route, '/admin/captions', '/admin/captions', environment);
+    await screen.findByText('字幕の文を取り出していない録画: 2 本');
+
+    await act(async () =>
+      fireEvent.click(screen.getByRole('button', { name: '取り出すジョブを入れる' })),
+    );
+
+    expect((await screen.findByRole('alert')).textContent).not.toBe('');
   });
 });
