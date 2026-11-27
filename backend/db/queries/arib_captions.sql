@@ -12,3 +12,15 @@ SELECT extractor_version, extracted_at, cues FROM recording_arib_captions WHERE 
 -- name: ListRecordingARIBCaptionCues :many
 -- 録画 recording_ids の ARIB 字幕の文を返す。字幕の文で探すとき (#2217) に、候補の録画の字幕をまとめて読む。
 SELECT recording_id, cues FROM recording_arib_captions WHERE recording_id = ANY(@recording_ids::uuid[]);
+
+-- name: ListRecordingsForARIBCaptionExtraction :many
+-- ARIB 字幕の文を取り出す録画を、放送の開始の順に返す (kotatsu admin extract-arib-captions、#2218)。
+-- 録画中でなく、TS のセグメントを書いた録画のうち、取り出していないか、取り出し方の古いバージョン (extractor_version) で取り出した録画を選ぶ。
+-- include_all なら、今のバージョンで取り出した録画も選ぶ。extractor_version は、取り出していなければ NULL。
+SELECT r.id AS recording_id, r.name, r.start_at, a.extractor_version
+FROM recordings r
+LEFT JOIN recording_arib_captions a ON a.recording_id = r.id
+WHERE r.state <> 'recording'
+  AND EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment' AND f.size > 0)
+  AND (@include_all::boolean OR a.recording_id IS NULL OR a.extractor_version < @extractor_version::integer)
+ORDER BY r.start_at, r.id;

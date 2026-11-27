@@ -60,6 +60,56 @@ func (q *Queries) ListRecordingARIBCaptionCues(ctx context.Context, recordingIds
 	return items, nil
 }
 
+const listRecordingsForARIBCaptionExtraction = `-- name: ListRecordingsForARIBCaptionExtraction :many
+SELECT r.id AS recording_id, r.name, r.start_at, a.extractor_version
+FROM recordings r
+LEFT JOIN recording_arib_captions a ON a.recording_id = r.id
+WHERE r.state <> 'recording'
+  AND EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment' AND f.size > 0)
+  AND ($1::boolean OR a.recording_id IS NULL OR a.extractor_version < $2::integer)
+ORDER BY r.start_at, r.id
+`
+
+type ListRecordingsForARIBCaptionExtractionParams struct {
+	IncludeAll       bool
+	ExtractorVersion int32
+}
+
+type ListRecordingsForARIBCaptionExtractionRow struct {
+	RecordingID      uuid.UUID
+	Name             string
+	StartAt          time.Time
+	ExtractorVersion *int32
+}
+
+// ARIB 字幕の文を取り出す録画を、放送の開始の順に返す (kotatsu admin extract-arib-captions、#2218)。
+// 録画中でなく、TS のセグメントを書いた録画のうち、取り出していないか、取り出し方の古いバージョン (extractor_version) で取り出した録画を選ぶ。
+// include_all なら、今のバージョンで取り出した録画も選ぶ。extractor_version は、取り出していなければ NULL。
+func (q *Queries) ListRecordingsForARIBCaptionExtraction(ctx context.Context, arg ListRecordingsForARIBCaptionExtractionParams) ([]ListRecordingsForARIBCaptionExtractionRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingsForARIBCaptionExtraction, arg.IncludeAll, arg.ExtractorVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingsForARIBCaptionExtractionRow{}
+	for rows.Next() {
+		var i ListRecordingsForARIBCaptionExtractionRow
+		if err := rows.Scan(
+			&i.RecordingID,
+			&i.Name,
+			&i.StartAt,
+			&i.ExtractorVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertRecordingARIBCaptions = `-- name: UpsertRecordingARIBCaptions :exec
 INSERT INTO recording_arib_captions (recording_id, extractor_version, extracted_at, cues, search_grams)
 VALUES ($1, $2, $3, $4, $5::text[])

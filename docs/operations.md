@@ -216,6 +216,22 @@ kubectl exec deploy/kotatsu-all -- kotatsu admin reanalyze
 
 ロールを分けているときは、`deploy/kotatsu-nekonote`のように、プールをマウントしたロールで実行してください。
 
+### 字幕の文を取り出す
+
+録画の字幕の文（放送のARIB字幕）は、録画を終えたときに取り出して、字幕の文で録画を探すのに使います。
+取り出すジョブを足す前に録った録画には、字幕の文がありません。
+それらの録画も探せるようにするには、`kotatsu admin extract-arib-captions`を実行します。
+字幕の文を取り出していない録画を探し、取り出すジョブをまとめて入れます。
+取り出し方を変えたバージョンに更新したときも、古いバージョンで取り出した録画を探して、取り出し直します。
+新しく録った録画のジョブより後に回すので、録画の処理は遅れません。
+
+```bash
+kubectl exec deploy/kotatsu-all -- kotatsu admin extract-arib-captions --dry-run
+kubectl exec deploy/kotatsu-all -- kotatsu admin extract-arib-captions
+```
+
+ジョブはnekonoteが動かすので、コマンドはDBにつながるどのロールで実行してもかまいません。
+
 ## 更新
 
 更新する前に、[破壊的変更](breaking-changes.md)で、今のバージョンより後のバージョンに書いたことを読み、書いてある対処を済ませてください。
