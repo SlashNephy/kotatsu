@@ -447,3 +447,77 @@ func TestClientOpenChannelStream(t *testing.T) {
 	assert.Equal(t, "1", req.URL.Query().Get("decode"))
 	assert.Equal(t, "-1", req.Header.Get(mirakurun.PriorityHeader))
 }
+
+// TestClientProgramsBody は、/api/programs の配列を 1 件ずつ読んでも、encoding/json (v1) と同じに解釈することを確認する (#2226)。
+func TestClientProgramsBody(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		body      string
+		wantNames []string
+		wantNil   []bool
+		wantErr   bool
+	}{
+		{name: "null", body: `null`, wantNames: []string{}, wantNil: []bool{}},
+		{name: "empty", body: ` [ ] `, wantNames: []string{}, wantNil: []bool{}},
+		{
+			name:      "programs and null",
+			body:      `[{"id":1,"eventId":1,"serviceId":2,"networkId":3,"name":"a"},null,{"id":2,"eventId":2,"name":"b"}]`,
+			wantNames: []string{"a", "", "b"},
+			wantNil:   []bool{false, true, false},
+		},
+		{
+			// encoding/json (v1) はフィールドの名前の大文字と小文字を区別しない。
+			name:      "case-insensitive field",
+			body:      `[{"EventId":7,"NAME":"c"}]`,
+			wantNames: []string{"c"},
+			wantNil:   []bool{false},
+		},
+		{
+			// encoding/json (v1) は不正な UTF-8 を U+FFFD に置き換えて読む。
+			name:      "invalid UTF-8",
+			body:      "[{\"name\":\"d\xff\"}]",
+			wantNames: []string{"d�"},
+			wantNil:   []bool{false},
+		},
+		{name: "truncated", body: `[{"name":"e"},`, wantErr: true},
+		{name: "missing end", body: `[{"name":"e"}`, wantErr: true},
+		{name: "empty body", body: ``, wantErr: true},
+		{name: "object", body: `{"name":"f"}`, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			t.Cleanup(server.Close)
+			client, err := mirakurun.New(&mirakurun.Options{URL: server.URL})
+			require.NoError(t, err)
+
+			programs, err := client.Programs(t.Context(), nil)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+			require.NoError(t, err)
+			names := make([]string, 0, len(programs))
+			nils := make([]bool, 0, len(programs))
+			for _, p := range programs {
+				nils = append(nils, p == nil)
+				if p == nil {
+					names = append(names, "")
+
+					continue
+				}
+				names = append(names, p.Name)
+			}
+			assert.Equal(t, tt.wantNames, names)
+			assert.Equal(t, tt.wantNil, nils)
+		})
+	}
+}

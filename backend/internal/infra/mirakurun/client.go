@@ -3,6 +3,8 @@ package mirakurun
 import (
 	"context"
 	"encoding/json"
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -221,7 +223,7 @@ func New(opts *Options) (*Client, error) {
 // Version は /api/version を取得する。
 func (c *Client) Version(ctx context.Context) (*Version, error) {
 	var version Version
-	if err := c.getJSON(ctx, "api/version", nil, &version); err != nil {
+	if err := c.getJSON(ctx, "api/version", &version); err != nil {
 		return nil, err
 	}
 
@@ -247,7 +249,7 @@ func (c *Client) ServerDate(ctx context.Context) (time.Time, error) {
 // Channels は /api/channels を取得する。
 func (c *Client) Channels(ctx context.Context) ([]*tunerserver.Channel, error) {
 	channels := []*channel{}
-	if err := c.getJSON(ctx, "api/channels", nil, &channels); err != nil {
+	if err := c.getJSON(ctx, "api/channels", &channels); err != nil {
 		return nil, err
 	}
 
@@ -257,7 +259,7 @@ func (c *Client) Channels(ctx context.Context) ([]*tunerserver.Channel, error) {
 // Services は /api/services を取得する。
 func (c *Client) Services(ctx context.Context) ([]*tunerserver.Service, error) {
 	services := []*service{}
-	if err := c.getJSON(ctx, "api/services", nil, &services); err != nil {
+	if err := c.getJSON(ctx, "api/services", &services); err != nil {
 		return nil, err
 	}
 
@@ -275,12 +277,16 @@ func (c *Client) Programs(ctx context.Context, query *tunerserver.ProgramsQuery)
 		}
 	}
 
-	programs := []*program{}
-	if err := c.getJSON(ctx, "api/programs", values, &programs); err != nil {
+	// 全量の同期では数万件になるので、配列を 1 件ずつ読み、読んだそばから変換する (#2226)。
+	programs := []*tunerserver.Program{}
+	err := getJSONArray(ctx, c, "api/programs", values, func(p *program) {
+		programs = append(programs, p.toTunerServer())
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	return convert(programs, (*program).toTunerServer), nil
+	return programs, nil
 }
 
 // OnAirPrograms は、mirakc の /api/onair を取得する (設計書 5.1)。
@@ -296,7 +302,7 @@ func (c *Client) OnAirPrograms(ctx context.Context) ([]*tunerserver.OnAirProgram
 	}
 
 	programs := []*onAirProgram{}
-	if err := c.getJSON(ctx, "api/onair", nil, &programs); err != nil {
+	if err := c.getJSON(ctx, "api/onair", &programs); err != nil {
 		return nil, err
 	}
 
@@ -306,7 +312,7 @@ func (c *Client) OnAirPrograms(ctx context.Context) ([]*tunerserver.OnAirProgram
 // Tuners は /api/tuners を取得する。
 func (c *Client) Tuners(ctx context.Context) ([]*tunerserver.Tuner, error) {
 	tuners := []*tuner{}
-	if err := c.getJSON(ctx, "api/tuners", nil, &tuners); err != nil {
+	if err := c.getJSON(ctx, "api/tuners", &tuners); err != nil {
 		return nil, err
 	}
 
@@ -472,14 +478,54 @@ func (b *releasingBody) Close() error {
 	return b.ReadCloser.Close()
 }
 
-func (c *Client) getJSON(ctx context.Context, path string, query url.Values, v any) error {
-	_, err := c.get(ctx, path, query, v)
+func (c *Client) getJSON(ctx context.Context, path string, v any) error {
+	_, err := c.get(ctx, path, nil, v)
 
 	return err
 }
 
 // get は JSON の API を呼び、応答を v に読み込んで、応答のヘッダーを返す。
 func (c *Client) get(ctx context.Context, path string, query url.Values, v any) (http.Header, error) {
+	return c.request(ctx, path, query, func(body io.Reader) error {
+		return json.NewDecoder(body).Decode(v)
+	})
+}
+
+// getJSONArray は、JSON の配列を返す API を呼び、要素を 1 件ずつ読んで each に渡す。null の要素は nil で渡す。
+// encoding/json の Decoder.Decode は、デコードする前に値の全体をバッファに読み込むので、大きな配列ではヒープがその大きさだけ増える。
+// ここでは要素ごとにデコードするので、バッファは要素 1 件ぶんで済む (#2226)。解釈は encoding/json (v1) に合わせる。
+func getJSONArray[T any](ctx context.Context, c *Client, path string, query url.Values, each func(*T)) error {
+	_, err := c.request(ctx, path, query, func(body io.Reader) error {
+		opts := json.DefaultOptionsV1()
+		dec := jsontext.NewDecoder(body, opts)
+		tok, err := dec.ReadToken()
+		if err != nil {
+			return err
+		}
+		if tok.Kind() == jsontext.KindNull {
+			// encoding/json (v1) は null を空の配列と同じに扱う。
+			return nil
+		}
+		if tok.Kind() != jsontext.KindBeginArray {
+			return fmt.Errorf("expected a JSON array, but got %v", tok.Kind())
+		}
+		for dec.PeekKind() != jsontext.KindEndArray {
+			var item *T
+			if err := jsonv2.UnmarshalDecode(dec, &item, opts); err != nil {
+				return err
+			}
+			each(item)
+		}
+		_, err = dec.ReadToken()
+
+		return err
+	})
+
+	return err
+}
+
+// request は JSON の API を呼び、応答の本文を decode で読んで、応答のヘッダーを返す。
+func (c *Client) request(ctx context.Context, path string, query url.Values, decode func(body io.Reader) error) (http.Header, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
 
@@ -498,7 +544,7 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, v any) 
 	if err := checkResponse(resp, nil); err != nil {
 		return nil, err
 	}
-	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+	if err := decode(resp.Body); err != nil {
 		return nil, fmt.Errorf("failed to decode the response of %s %s: %w", req.Method, req.URL.Redacted(), err)
 	}
 
