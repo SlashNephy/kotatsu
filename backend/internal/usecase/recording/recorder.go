@@ -204,15 +204,15 @@ func (r *Recorder) observeTOT(at time.Time) {
 // record は、割り振りの予約を録画する。録画しなくてよくなったときと、録画を終えたときに nil を返す。
 // 録画の失敗は、録画の状態と理由に記録し、割り振りは終わったことにする。
 func (r *Recorder) record(ctx context.Context, assignment *Assignment) (err error) {
-	// plannedEnd は、録画の予定の終わり。その前に録画をやめたか、その後に録画を終えられなかったら、割り振りを手放させて、
-	// 続きを録らせるか、録画を終えさせる (#2195)。
-	var plannedEnd *time.Time
-	defer func() { err = r.resumable(ctx, err, plannedEnd) }()
+	// plannedEnd は、録画の予定の終わりを返す。その前に録画をやめたか、その後に録画を終えられなかったら、割り振りを手放させて、
+	// 続きを録らせるか、録画を終えさせる (#2195)。録画中に予定の終わりが動けば、最後に読めた予約の終わりにする。
+	plannedEnd := func() *time.Time { return nil }
+	defer func() { err = r.resumable(ctx, err, plannedEnd()) }()
 	reservation, cached, ok, err := r.waitUntilOpen(ctx, assignment)
 	if err != nil {
 		return err
 	}
-	plannedEnd = reservation.PlannedEndAt
+	plannedEnd = func() *time.Time { return reservation.PlannedEndAt }
 	if !ok {
 		return r.finishLeftOver(ctx, assignment, &reservation)
 	}
@@ -240,6 +240,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) (err erro
 	startMargin := time.Duration(settings.StartMarginSeconds) * time.Second
 	endMargin := time.Duration(settings.EndMarginSeconds) * time.Second
 	tracker := newEndTracker(r, &recording, &reservation, startMargin, endMargin)
+	plannedEnd = func() *time.Time { return tracker.last.PlannedEndAt }
 	tracker.useRecheck(recheck, inserted, pendingStart, created)
 	// 録画を終えずにやめるとき (リースを失ったときなど) は、コピーするのもやめさせ、書きかけのセグメントを消させる。
 	defer func() { tracker.backfill.stop() }()
@@ -469,13 +470,14 @@ func (r *Recorder) retryCreate(
 		logger.WarnContext(ctx, "the storage pool is not mounted on this mikan; releasing the assignment", slog.Any("error", err))
 
 		// DB に届かずに録画を記録できていなければ、届くのを待って記録してから、理由を残す (#1073)。
-		return true, r.untilDatabase(ctx, logger, "release the recording", func(ctx context.Context) error {
-			if err := tracker.pending.save(ctx, r, tracker); err != nil {
-				return err
-			}
+		// 理由を残せなくても、割り振りは手放す。やり直すと、その間はどの mikan も録らない (#2195)。
+		if saveErr := r.untilDatabase(ctx, logger, "save the recording before releasing it", func(ctx context.Context) error {
+			return tracker.pending.save(ctx, r, tracker)
+		}); saveErr != nil {
+			return true, saveErr
+		}
 
-			return r.release(ctx, recording, reason, failureDetail(err))
-		})
+		return true, r.release(ctx, recording, reason, failureDetail(err))
 	}
 	logger.WarnContext(ctx, "failed to create a recording file; retrying", slog.Any("error", err))
 	result.failed(reason, err)
@@ -1497,8 +1499,8 @@ func (t *endTracker) program(ctx context.Context, q *sqlc.Queries) (sqlc.GetProg
 	switch {
 	case err == nil:
 		t.lastProgram = &program
-	case database.IsUnavailable(err) && t.lastProgram != nil:
-		// 予約を読み直した直後に DB に届かなくなっても、最後に読めた番組の終わりで延長を続ける。
+	case err != nil && !errors.Is(err, pgx.ErrNoRows) && t.lastProgram != nil:
+		// 予約を読み直した直後に DB に届かなくなるか、DB のエラーで読めなくなっても、最後に読めた番組の終わりで延長を続ける (#2195)。
 		return *t.lastProgram, nil
 	}
 
@@ -1555,8 +1557,8 @@ func (t *endTracker) markNotBroadcast(ctx context.Context) {
 	}
 	r := t.recorder
 	if err := t.saveNotBroadcast(ctx); err != nil {
-		// DB に届かなければ、録画を終えるときに記録し直す。
-		t.pendingNotBroadcast = database.IsUnavailable(err)
+		// DB に届かないか、DB のエラーなら、録画を終えるときに記録し直す (#2195)。
+		t.pendingNotBroadcast = database.IsUnavailable(err) || isDatabaseError(err)
 		r.logger.WarnContext(ctx, "failed to record that the program was not broadcast", slog.Any("error", err))
 
 		return
