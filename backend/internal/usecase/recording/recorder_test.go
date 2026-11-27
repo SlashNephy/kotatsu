@@ -541,7 +541,9 @@ func TestRecorderFailsWhileDatabaseIsUnreachable(t *testing.T) {
 	data, err := os.ReadFile("../../../testdata/ts/test.ts")
 	require.NoError(t, err)
 	f := newFixture(t)
-	reservationID := f.reserve(t, 0)
+	// 番組に結びつかない時刻予約で録る。番組の予約では、番組の始まりから 30 秒の後に開き直すと EIT[p/f] を読み、
+	// テストの TS には予約した番組が出ないので、遅れた番組として待ち、失敗の理由が変わる (#1046)。
+	reservationID := f.reserveTime(t, 0)
 	db := databasetest.NewSwitch(t, f.pool)
 	full := func(string) (uint64, error) { return 0, nil }
 	logs := newMessageRecorder()

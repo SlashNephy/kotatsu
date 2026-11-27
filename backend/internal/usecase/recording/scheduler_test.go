@@ -123,6 +123,21 @@ func (f *fixture) reserveEvent(t *testing.T, service int, eventID int64) uuid.UU
 	return reservation.ID
 }
 
+// reserveTime は、地上波の i 番目のサービスの、13:30 から 9 分の時刻予約を作り、チューナーを割り当てる。番組に結びつかないので、
+// 録画は EIT[p/f] で放送を確認しない。
+func (f *fixture) reserveTime(t *testing.T, service int) uuid.UUID {
+	t.Helper()
+
+	reservation, err := f.reservations.CreateTime(t.Context(), f.pool, audit.System("test"), &reserve.TimeInput{
+		ServiceID: grService(service), StartAt: programStart(), EndAt: programStart().Add(9 * time.Minute), Name: "", Overrides: nil,
+	})
+	require.NoError(t, err)
+	_, err = f.assigner.RunOnce(t.Context())
+	require.NoError(t, err)
+
+	return reservation.ID
+}
+
 func (f *fixture) schedule(t *testing.T) *recording.ScheduleResult {
 	t.Helper()
 
