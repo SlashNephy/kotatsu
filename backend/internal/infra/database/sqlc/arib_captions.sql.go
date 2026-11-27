@@ -30,6 +30,36 @@ func (q *Queries) GetRecordingARIBCaptions(ctx context.Context, recordingID uuid
 	return i, err
 }
 
+const listRecordingARIBCaptionCues = `-- name: ListRecordingARIBCaptionCues :many
+SELECT recording_id, cues FROM recording_arib_captions WHERE recording_id = ANY($1::uuid[])
+`
+
+type ListRecordingARIBCaptionCuesRow struct {
+	RecordingID uuid.UUID
+	Cues        []byte
+}
+
+// 録画 recording_ids の ARIB 字幕の文を返す。字幕の文で探すとき (#2217) に、候補の録画の字幕をまとめて読む。
+func (q *Queries) ListRecordingARIBCaptionCues(ctx context.Context, recordingIds []uuid.UUID) ([]ListRecordingARIBCaptionCuesRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingARIBCaptionCues, recordingIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingARIBCaptionCuesRow{}
+	for rows.Next() {
+		var i ListRecordingARIBCaptionCuesRow
+		if err := rows.Scan(&i.RecordingID, &i.Cues); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertRecordingARIBCaptions = `-- name: UpsertRecordingARIBCaptions :exec
 INSERT INTO recording_arib_captions (recording_id, extractor_version, extracted_at, cues, search_grams)
 VALUES ($1, $2, $3, $4, $5::text[])

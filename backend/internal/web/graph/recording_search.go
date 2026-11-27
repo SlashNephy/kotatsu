@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/aribcaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -209,7 +211,8 @@ func (r *Resolver) matchRecordingBatch(
 	return matched, captions, nil
 }
 
-// matchRecordingCaptions は、録画 recordings のうち、自動生成の字幕が字幕の文のキーワードに一致する録画の、当たった字幕を返す (#2214)。
+// matchRecordingCaptions は、録画 recordings のうち、字幕の文のキーワードに一致する録画の、当たった字幕を返す (#2214、#2217)。
+// 自動生成の字幕と ARIB 字幕は、種類ごとに照らす。どちらかの種類で一致したら、一致した種類の当たった字幕を、始まりの順に返す。
 // 一致しない録画は返す map に含めない。
 func (r *Resolver) matchRecordingCaptions(
 	ctx context.Context, matcher *match.TextMatcher, recordings []domain.Recording,
@@ -222,7 +225,7 @@ func (r *Resolver) matchRecordingCaptions(
 	for i := range recordings {
 		ids = append(ids, recordings[i].ID)
 	}
-	cuesByRecording, err := autocaption.RecordingsCues(ctx, r.db, ids)
+	sources, err := r.recordingCaptionSources(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -230,33 +233,92 @@ func (r *Resolver) matchRecordingCaptions(
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		cues, ok := cuesByRecording[recordings[i].ID]
-		if !ok {
+		found, matched := []*model.RecordingCaptionMatch{}, false
+		for _, source := range sources {
+			matches, ok := matchCaptionSource(matcher, &recordings[i], source.source, source.cues[recordings[i].ID])
+			if ok {
+				found, matched = append(found, matches...), true
+			}
+		}
+		if !matched {
 			continue
 		}
-		texts := make([]string, 0, len(cues))
-		for _, c := range cues {
-			texts = append(texts, domain.Normalize(c.Text))
-		}
-		if !matcher.Match(texts) {
-			continue
-		}
-		found := []*model.RecordingCaptionMatch{}
-		for j, text := range texts {
-			if len(found) == recordingCaptionMatchLimit {
-				break
-			}
-			if matcher.Contains(text) {
-				found = append(found, &model.RecordingCaptionMatch{
-					Source: model.CaptionSourceAuto, From: recordings[i].RecordedFrom.Add(cues[j].Start),
-					To: recordings[i].RecordedFrom.Add(cues[j].End), Text: cues[j].Text,
-				})
-			}
+		slices.SortStableFunc(found, func(a, b *model.RecordingCaptionMatch) int { return a.From.Compare(b.From) })
+		if len(found) > recordingCaptionMatchLimit {
+			found = found[:recordingCaptionMatchLimit]
 		}
 		out[recordings[i].ID] = found
 	}
 
 	return out, nil
+}
+
+// captionCues は、1 つの種類の字幕。字幕は録画の ID ごとに持つ。
+type captionCues struct {
+	source model.CaptionSource
+	cues   map[uuid.UUID][]captionCue
+}
+
+// captionCue は、照らす字幕 1 つ。時刻は録画を始めた日時からの時間。
+type captionCue struct {
+	start, end time.Duration
+	text       string
+}
+
+// recordingCaptionSources は、録画 ids の字幕を、種類ごとにまとめて読む。
+func (r *Resolver) recordingCaptionSources(ctx context.Context, ids []uuid.UUID) ([]captionCues, error) {
+	auto, err := autocaption.RecordingsCues(ctx, r.db, ids)
+	if err != nil {
+		return nil, err
+	}
+	arib, err := aribcaption.RecordingsCues(ctx, r.db, ids)
+	if err != nil {
+		return nil, err
+	}
+	autoCues := make(map[uuid.UUID][]captionCue, len(auto))
+	for id, cues := range auto {
+		for _, c := range cues {
+			autoCues[id] = append(autoCues[id], captionCue{start: c.Start, end: c.End, text: c.Text})
+		}
+	}
+	aribCues := make(map[uuid.UUID][]captionCue, len(arib))
+	for id, cues := range arib {
+		for _, c := range cues {
+			aribCues[id] = append(aribCues[id], captionCue{start: c.Start, end: c.End, text: c.Text})
+		}
+	}
+
+	return []captionCues{{source: model.CaptionSourceAuto, cues: autoCues}, {source: model.CaptionSourceArib, cues: aribCues}}, nil
+}
+
+// matchCaptionSource は、録画 recording の、1 つの種類の字幕 cues を照らし、一致したら、どれかのキーワードを含む字幕を始まりの順に
+// recordingCaptionMatchLimit 件まで返す。字幕がなければ一致しない。
+func matchCaptionSource(
+	matcher *match.TextMatcher, recording *domain.Recording, source model.CaptionSource, cues []captionCue,
+) ([]*model.RecordingCaptionMatch, bool) {
+	if len(cues) == 0 {
+		return nil, false
+	}
+	texts := make([]string, 0, len(cues))
+	for _, c := range cues {
+		texts = append(texts, domain.Normalize(c.text))
+	}
+	if !matcher.Match(texts) {
+		return nil, false
+	}
+	found := []*model.RecordingCaptionMatch{}
+	for j, text := range texts {
+		if len(found) == recordingCaptionMatchLimit {
+			break
+		}
+		if matcher.Contains(text) {
+			found = append(found, &model.RecordingCaptionMatch{
+				Source: source, From: recording.RecordedFrom.Add(cues[j].start), To: recording.RecordedFrom.Add(cues[j].end), Text: cues[j].text,
+			})
+		}
+	}
+
+	return found, true
 }
 
 // searchRecordingRows は、params の録画を、order の順に読む。

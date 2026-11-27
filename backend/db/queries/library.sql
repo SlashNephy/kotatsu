@@ -91,7 +91,8 @@ SELECT * FROM watch_progress WHERE user_id = @user_id AND recording_id = ANY(@re
 -- 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
 -- キーワードは、NFKC で正規化して LIKE のために逃がしたものを渡し、正規化した番組名か概要に当てる (設計書 3.5、#1044)。
 -- ジャンルは、大分類 (lv1) のどれかに当たる録画を返す (#468)。
--- caption_grams を渡すと、自動生成の字幕があり、字幕の gram がそれをすべて含む録画に絞る (#2214)。gram が今の字幕のものでない録画は、候補に残す。
+-- caption_grams を渡すと、自動生成の字幕か ARIB 字幕のどちらかがあり、その字幕の gram がそれをすべて含む録画に絞る (#2214、#2217)。
+-- 自動生成の字幕の gram が今の字幕のものでない録画は、候補に残す。
 -- before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 -- 並び順をパラメーターで切り替えると、インデックスの順に読めなくなるので、古い順は SearchRecordingsOldest に分ける。
 SELECT r.* FROM recordings r
@@ -106,6 +107,8 @@ WHERE (cardinality(@states::text[]) = 0 OR r.state = ANY(@states::text[]))
   AND (sqlc.narg(caption_grams)::text[] IS NULL OR EXISTS (
     SELECT 1 FROM recording_auto_captions c WHERE c.recording_id = r.id
       AND (c.search_grams @> sqlc.narg(caption_grams)::text[] OR c.search_grams_generated_at IS DISTINCT FROM c.generated_at)
+  ) OR EXISTS (
+    SELECT 1 FROM recording_arib_captions a WHERE a.recording_id = r.id AND a.search_grams @> sqlc.narg(caption_grams)::text[]
   ))
   AND (sqlc.narg(rule_id)::uuid IS NULL OR r.rule_id = sqlc.narg(rule_id)::uuid)
   AND (cardinality(@genres::int[]) = 0 OR EXISTS (
@@ -132,6 +135,8 @@ WHERE (cardinality(@states::text[]) = 0 OR r.state = ANY(@states::text[]))
   AND (sqlc.narg(caption_grams)::text[] IS NULL OR EXISTS (
     SELECT 1 FROM recording_auto_captions c WHERE c.recording_id = r.id
       AND (c.search_grams @> sqlc.narg(caption_grams)::text[] OR c.search_grams_generated_at IS DISTINCT FROM c.generated_at)
+  ) OR EXISTS (
+    SELECT 1 FROM recording_arib_captions a WHERE a.recording_id = r.id AND a.search_grams @> sqlc.narg(caption_grams)::text[]
   ))
   AND (sqlc.narg(rule_id)::uuid IS NULL OR r.rule_id = sqlc.narg(rule_id)::uuid)
   AND (cardinality(@genres::int[]) = 0 OR EXISTS (
