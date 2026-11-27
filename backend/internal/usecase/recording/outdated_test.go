@@ -114,5 +114,8 @@ func TestWorkerRecordsAcquirePause(t *testing.T) {
 
 		return pausedUntil != nil && pausedUntil.Equal(f.clock.Now().Add(time.Minute))
 	}, waitTimeout, 10*time.Millisecond)
-	assert.Nil(t, f.assignment(t, reservationID).holder)
+	// 期限を書いてから、割り振りを手放す。
+	require.Eventually(t, func() bool {
+		return f.assignment(t, reservationID).holder == nil
+	}, waitTimeout, 10*time.Millisecond)
 }
