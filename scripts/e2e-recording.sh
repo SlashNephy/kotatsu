@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 録画中に mikan を入れ替える場面を、neko と複数の mikan を別のプロセスで立てて確かめる (#2195、設計書 11.6)。
+# 録画中に mikan を入れ替える場面を、neko と複数の mikan を別のプロセスで立てて確認する (#2195、設計書 11.6)。
 # 引き継ぎの瞬間に録画設定を読めない場面と、古いバイナリの mikan と新しいスキーマの DB が重なる場面を流す。
 #
 # 使い方: KOTATSU_DATABASE_URL=postgres://.../postgres scripts/e2e-recording.sh [e2erecording の引数...]
@@ -18,7 +18,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# 作業フォルダの外では、mise が別の版の Go を選ぶので、古いバイナリも、リポジトリで選んだ Go で作る。
+# 作業フォルダの外では、mise が別のバージョンの Go を選ぶので、古いバイナリも、リポジトリで選んだ Go で作る。
 goroot="$(go env GOROOT)"
 
 # 古いバイナリは、HEAD のソースから、最新のマイグレーションを外して作る。最新のマイグレーションを知らないほかは、同じバイナリである。
