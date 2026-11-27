@@ -134,7 +134,7 @@ func (p *pendingSave) waiting() bool {
 }
 
 // writeOrDefer は、write を書く。記録できていないものが残っていれば、順を守るため、書かずに積む。
-// DB に届かなければ、積んで nil を返す。
+// やり直せば通るエラー (database.IsTransient) なら、積んで nil を返す。
 func (p *pendingSave) writeOrDefer(ctx context.Context, r *Recorder, write pendingWrite) error {
 	if p.waiting() {
 		p.writes = append(p.writes, write)
@@ -144,8 +144,10 @@ func (p *pendingSave) writeOrDefer(ctx context.Context, r *Recorder, write pendi
 	writeCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
 	defer cancel()
 	err := write(writeCtx, sqlc.New(r.pool), p.recording.ID)
-	if database.IsUnavailable(err) {
-		r.logger.WarnContext(ctx, "failed to save the recording file; keep recording and save it when the database is reachable", slog.Any("error", err))
+	// DB に届かないときのほか、ロックの待ちの打ち切りのように、やり直せば通るエラーでも、録画を止めずに、後で書き直す (#2195)。
+	// 制約に反したときのように、やり直しても通らないエラーは返す。積むと、後の記録がすべて書けなくなる。
+	if database.IsTransient(err) && ctx.Err() == nil {
+		r.logger.WarnContext(ctx, "failed to save the recording file; keep recording and save it later", slog.Any("error", err))
 		p.writes = append(p.writes, write)
 
 		return nil

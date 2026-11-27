@@ -59,6 +59,8 @@ type fixture struct {
 	reservations *reserve.Reservations
 	assigner     *assign.Runner
 	scheduler    *recording.Scheduler
+	// persistentErrorRetry は、作る Recorder が、DB のエラーをやり直す時間の上限。0 なら既定値にする。
+	persistentErrorRetry time.Duration
 }
 
 // newFixture は、偽チューナーサーバーの EPG とチューナーの構成を、12:10 の時点で取り込んだ DB を用意する。
@@ -83,12 +85,13 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, tunerstate.NewMonitor(pool, client, clk, noGuard, slog.New(slog.DiscardHandler), nil).Check(t.Context()))
 
 	return &fixture{
-		pool:         pool,
-		tuner:        client,
-		clock:        clk,
-		reservations: reserve.NewReservations(clk, audit.NewRecorder(clk)),
-		assigner:     assign.NewRunner(pool, clk, noGuard, slog.New(slog.DiscardHandler), nil, nil),
-		scheduler:    recording.NewScheduler(pool, clk, noGuard, slog.New(slog.DiscardHandler), nil),
+		pool:                 pool,
+		tuner:                client,
+		clock:                clk,
+		reservations:         reserve.NewReservations(clk, audit.NewRecorder(clk)),
+		assigner:             assign.NewRunner(pool, clk, noGuard, slog.New(slog.DiscardHandler), nil, nil),
+		scheduler:            recording.NewScheduler(pool, clk, noGuard, slog.New(slog.DiscardHandler), nil),
+		persistentErrorRetry: 0,
 	}
 }
 

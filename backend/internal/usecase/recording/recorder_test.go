@@ -96,7 +96,7 @@ func (f *fixture) newRecorderIn(t *testing.T, dir string, pool *pgxpool.Pool, tu
 	recorder := recording.NewRecorder(pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace).WithDataDir(dataRootOf(dir)), defaults, tokyo,
 		logger, &recording.RecorderOptions{
 			TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond, ReleaseAfter: 0, Peers: peers,
-			DatabaseTimeout: databaseTimeoutFor(f, pool),
+			DatabaseTimeout: databaseTimeoutFor(f, pool), PersistentErrorRetry: f.persistentErrorRetry,
 		})
 
 	return recorder, dir
@@ -557,7 +557,7 @@ func TestRecorderFailsWhileDatabaseIsUnreachable(t *testing.T) {
 	// 失敗にする記録を、DB に届くようになるまで持つ。
 	logs.waitForMessage(t, "failed to create a recording file"+retrying)
 	f.clock.Advance(time.Hour)
-	logs.waitForMessage(t, "the database is unreachable")
+	logs.waitForMessage(t, "the database operation failed")
 	db.Up()
 	require.NoError(t, wait(t, done))
 

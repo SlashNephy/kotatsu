@@ -208,8 +208,9 @@ type flakyLeases struct {
 	down    atomic.Bool
 	broken  atomic.Bool
 	blocked atomic.Bool
-	// renewed は、延長が通った回数。
+	// renewed は、延長が通った回数。failed は、broken で延長を失敗させた回数。
 	renewed atomic.Int64
+	failed  atomic.Int64
 }
 
 func (l *flakyLeases) Renew(ctx context.Context, a *recording.Assignment, holder uuid.UUID, now, expiresAt time.Time) (int64, error) {
@@ -222,6 +223,8 @@ func (l *flakyLeases) Renew(ctx context.Context, a *recording.Assignment, holder
 		return 0, &net.OpError{Op: "dial", Net: "tcp", Source: nil, Addr: nil, Err: syscall.ECONNREFUSED}
 	}
 	if l.broken.Load() {
+		l.failed.Add(1)
+
 		return 0, &pgconn.PgError{Code: "42501", Message: "permission denied for table recording_assignments"}
 	}
 	n, err := l.LeaseStore.Renew(ctx, a, holder, now, expiresAt)
@@ -232,8 +235,8 @@ func (l *flakyLeases) Renew(ctx context.Context, a *recording.Assignment, holder
 	return n, err
 }
 
-// TestWorkerKeepsRecordingWhileDatabaseIsUnreachable は、DB に届かない間は、リースの期限が過ぎても録画を止めず、
-// ほかの mikan が取ったと分かったときだけ止めることを確認する (#1073)。
+// TestWorkerKeepsRecordingWhileDatabaseIsUnreachable は、DB に届かないか、DB のエラーで延長できない間は、リースの期限が過ぎても
+// 録画を止めず、ほかの mikan が取ったと分かったときだけ止めることを確認する (#1073、#2195)。
 func TestWorkerKeepsRecordingWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -281,13 +284,32 @@ func TestWorkerKeepsRecordingWhileDatabaseIsUnreachable(t *testing.T) {
 			wantLost: true,
 		},
 		{
-			// DB に届いた後のエラー (権限など) は、DB が止まったのではないので、今までどおりリースの期限で止める。
+			// DB に届いた後のエラーでも、リースの期限で止めず、延長できるようになるまで録り続ける (#2195)。
+			// ローリング更新で、古いバイナリと新しいスキーマが重なる間などに起きる。
 			name: "renew fails with an error from the database",
 			outage: func(t *testing.T, f *fixture, leases *flakyLeases, _ uuid.UUID) {
 				t.Helper()
 
 				leases.broken.Store(true)
+				time.Sleep(500 * time.Millisecond)
 				f.clock.Advance(time.Minute)
+				time.Sleep(100 * time.Millisecond)
+				leases.broken.Store(false)
+			},
+			wantLost: false,
+		},
+		{
+			// 延長できない間に、ほかの mikan が取ったら、延長できるようになってから止める。
+			name: "successor took over while renew fails with an error from the database",
+			outage: func(t *testing.T, f *fixture, leases *flakyLeases, reservationID uuid.UUID) {
+				t.Helper()
+
+				leases.broken.Store(true)
+				_, err := f.pool.Exec(t.Context(), "UPDATE recording_assignments SET generation = 2, holder = $1 WHERE reservation_id = $2", id.New(), reservationID)
+				require.NoError(t, err)
+				// 延長が DB のエラーで失敗してから、延長できるようにする。
+				require.Eventually(t, func() bool { return leases.failed.Load() > 0 }, waitTimeout, 10*time.Millisecond)
+				leases.broken.Store(false)
 			},
 			wantLost: true,
 		},
