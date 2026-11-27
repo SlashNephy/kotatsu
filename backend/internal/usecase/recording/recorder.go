@@ -327,7 +327,8 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) (err erro
 
 // ResumeAfterEndLimit は、予定の終わりの後に録画を終えられなかったとき、割り振りを手放して、ほかの mikan に録画を終えさせる時間の上限 (#2195)。
 // ローリング更新で、古いバイナリが新しいスキーマで録画を終えようとして失敗しても、新しいバイナリの mikan が終えられる。
-// 上限を過ぎたら、割り振りを終わったことにし、neko が録画を失敗にする。手放し続けると、録画が録画中のまま残る。
+// 上限を過ぎたら、ほかの mikan に任せず、録画の状態だけを記録して終える (finishBare、#2199)。それもできなければ、割り振りを
+// 終わったことにし、neko が録画を失敗にする。手放し続けると、録画が録画中のまま残る。
 const ResumeAfterEndLimit = time.Hour
 
 // resumable は、録画のエラーで Session を終えるとき、予定の終わり plannedEnd の前か、予定の終わりから ResumeAfterEndLimit までなら、
@@ -723,7 +724,7 @@ func (r *Recorder) finish(
 	// バッファからコピーしたセグメントも、録画の途切れた区間と、セグメントをつなぐ処理に入れるため、コピーし終えてから終える。
 	tracker.backfill.wait()
 
-	return r.untilDatabase(ctx, logger, "finish the recording", func(ctx context.Context) error {
+	err := r.untilDatabase(ctx, logger, "finish the recording", func(ctx context.Context) error {
 		if err := tracker.pending.save(ctx, r, tracker); err != nil {
 			return err
 		}
@@ -736,6 +737,86 @@ func (r *Recorder) finish(
 		}
 
 		return r.finishOnce(ctx, logger, assignment, recording, end, result, disconnected, now)
+	})
+	// 予定の終わりから ResumeAfterEndLimit を過ぎても、DB のエラーで録画を終えられなければ、ほかの mikan に任せられないので、
+	// 録画の状態だけを記録して終える (#2199)。通知、録画履歴、スクランブルの判定は諦める。終えずにいると、neko が録画を失敗にする。
+	if err == nil || ctx.Err() != nil || tracker.pending.waiting() || !r.pastResumeLimit(tracker) || (!database.IsUnavailable(err) && !isDatabaseError(err)) {
+		return err
+	}
+	logger.ErrorContext(ctx, "failed to finish the recording with its records; recording its state only", slog.Any("error", err))
+
+	return r.finishBare(ctx, logger, assignment, recording, end, result, disconnected, now)
+}
+
+// pastResumeLimit は、ほかの mikan に録画を終えさせられないかどうかを返す (#2199)。最後に読めた予約の予定の終わりから
+// ResumeAfterEndLimit が過ぎたか、予定の終わりがない (割り当てを消された) ときである。どちらも、resumable が手放させない。
+func (r *Recorder) pastResumeLimit(tracker *endTracker) bool {
+	end := tracker.last.PlannedEndAt
+
+	return end == nil || !r.clock.Now().Before(end.Add(ResumeAfterEndLimit))
+}
+
+// finishBare は、録画の状態だけを記録して録画を終える (#2199)。録画のセグメントから、何か録れたか、途切れた区間があるかで状態を決める。
+// 途切れた区間の記録、通知、録画履歴、スクランブルの判定はしない。録画を終える記録がそのどれかで失敗し続けたときに使う。
+func (r *Recorder) finishBare(
+	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, end endReason, result *sessionResult, disconnected bool,
+	now time.Time,
+) error {
+	return r.untilDatabase(ctx, logger, "finish the recording with its state only", func(ctx context.Context) error {
+		state, reason, detail := domain.RecordingStateFailed, domain.RecordingFailureReasonCancelled, ""
+		if end != endCancelled {
+			// 落ちた mikan が残した書きかけのセグメントを閉じる。閉じられなくても、状態の記録は止めない。
+			if err := r.closeStaleFiles(ctx, recording.ID, now.Add(-2*DefaultRenewInterval)); err != nil {
+				logger.WarnContext(ctx, "failed to close the abandoned recording files", slog.Any("error", err))
+			}
+			files, err := sqlc.New(r.pool).ListRecordingFiles(ctx, recording.ID)
+			if err != nil {
+				return fmt.Errorf("failed to list the recording files: %w", err)
+			}
+			gaps, recorded := gapsOf(files, nil, now, disconnected)
+			switch {
+			case !recorded:
+				reason, detail = result.lastFailure, result.lastError
+				if reason == "" {
+					reason, detail = domain.RecordingFailureReasonStreamInterrupted, ""
+				}
+			case len(gaps) > 0:
+				state, reason = domain.RecordingStatePartial, ""
+			default:
+				state, reason = domain.RecordingStateCompleted, ""
+			}
+		}
+		err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+			q := sqlc.New(tx)
+			generation, err := q.LockRecordingAssignmentGeneration(ctx, assignment.ID)
+			switch {
+			case errors.Is(err, pgx.ErrNoRows):
+			case err != nil:
+				return fmt.Errorf("failed to lock the recording assignment: %w", err)
+			case generation != assignment.Generation:
+				return errSuperseded
+			}
+			var failure *domain.RecordingFailureReason
+			if reason != "" {
+				failure = new(reason)
+			}
+			if err := q.FinishRecording(ctx, sqlc.FinishRecordingParams{
+				State: state, FailureReason: failure, FailureDetail: nonEmpty(detail), Now: &now, ID: recording.ID,
+			}); err != nil {
+				return fmt.Errorf("failed to finish the recording: %w", err)
+			}
+			_, err = notify.Publish(ctx, tx, r.clock, notify.RecordingsChannel)
+
+			return err
+		})
+		if errors.Is(err, errSuperseded) {
+			return nil
+		}
+		if err == nil {
+			logger.WarnContext(ctx, "finished the recording with its state only", slog.String("state", string(state)))
+		}
+
+		return err
 	})
 }
 
