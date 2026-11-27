@@ -231,10 +231,12 @@ func (w *Worker) deferAcquire(ctx context.Context) bool {
 		return false
 	}
 	deferring, err := w.opts.DeferAcquire(ctx)
-	if err != nil {
-		if ctx.Err() == nil {
-			w.logger.WarnContext(ctx, "failed to check whether to leave the assignments to another mikan; acquiring them", slog.Any("error", err))
-		}
+	switch {
+	case err != nil && ctx.Err() != nil:
+		// 止めるときは、取らない。取りに行っても、ctx が終わっているので取れない。
+		return true
+	case err != nil:
+		w.logger.WarnContext(ctx, "failed to check whether to leave the assignments to another mikan; acquiring them", slog.Any("error", err))
 		deferring = false
 	}
 	if w.deferring.Swap(deferring) != deferring {
