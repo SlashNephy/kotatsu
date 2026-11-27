@@ -768,7 +768,7 @@ func (s *stack) waitForEnd(ctx context.Context, rec *recording, states []string,
 	if final.segments < minSegments {
 		return fmt.Errorf("the recording has %d segments; the mikan that took over did not record", final.segments)
 	}
-	// モックのチューナーサーバーは同じ TS を繰り返して流すので、つなぎ目でドロップが出る。数を比べられるよう、ログに出す。
+	// モックのチューナーサーバーは同じ TS を繰り返して流すので、つなぎ目でドロップが出る。周回の数と比較できるよう、ログに出す。
 	s.logger.InfoContext(ctx, "the recording finished", slog.String("state", final.state), slog.Int("segments", final.segments),
 		slog.Int64("drops", final.drops), slog.Int64("judged_drops", final.judgedDrops), slog.Int64("bytes", final.bytes))
 
