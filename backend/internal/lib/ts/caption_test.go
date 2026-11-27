@@ -211,6 +211,38 @@ func TestCaptionScanner(t *testing.T) {
 			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ\n日本\nあ", Cleared: false}, {PTS: 300, Text: "あ", Cleared: false}},
 		},
 		{
+			// 放送にある、ルビの大きさ (SSZ) にしてから APS で位置を決め、字の間を空ける字幕。APS の行は、そのときの文字の大きさで
+			// 位置にするので、小型の 2 行目 (1) は、標準の大きさの 1 行目 (初めの位置) と同じ高さになり、改行を入れない。
+			name: "APS の行は、そのときの文字の大きさで位置にする",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					[]byte(nihon), []byte{captionSSZ, 0x1C, 0x41, 0x48, captionMSZ, 0x20, captionSSZ, 0x1C, 0x41, 0x49, captionNSZ}, []byte(nihon),
+				)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "日本 日本", Cleared: false}},
+		},
+		{
+			// 表示領域 (SDF、CSI 80;360 0x20 0x56) を、標準の大きさの文字 2 つ分の幅にする。
+			name: "行の終わりで折り返したら改行を入れる",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					[]byte{0x9B, '8', '0', ';', '3', '6', '0', 0x20, 0x56}, []byte(hiraganaA+hiraganaA+hiraganaA),
+				)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "ああ\nあ", Cleared: false}},
+		},
+		{
+			// aribb24.js は、画面を消しても、最後に書いた位置を忘れないので、別の行に書くと文の初めに改行が入る。
+			name: "画面を消した後も、最後に書いた縦の位置で改行を決める",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement([]byte(hiraganaA), []byte{captionAPR, captionCS}, []byte(nihon))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "\n日本", Cleared: true}},
+		},
+		{
 			name: "外字は画像の MD5 で置き換え、引けなければ〓にする",
 			groups: []group{
 				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
@@ -317,7 +349,8 @@ func TestCaptionScannerAssemblesPES(t *testing.T) {
 
 	// 3 つ以上のパケットにまたがる長さの字幕文 (ひらがなの「あ」を 600 文字)。
 	long := slices.Repeat([]byte(hiraganaA), 600)
-	want := strings.Repeat("あ", 600)
+	// 既定の表示領域 (横 960 画素) と文字の大きさ (36 画素と字間 4 画素) では、24 文字で折り返すので、改行が入る。
+	want := strings.TrimSuffix(strings.Repeat(strings.Repeat("あ", 24)+"\n", 25), "\n")
 	var cc byte
 	pkts := captionStream()
 	pkts = append(pkts, captionPESPackets(&cc, 100, captionMgmtA, captionManagementGroup())...)

@@ -323,6 +323,7 @@ func (d *aribDecoder) c0(b []byte) int {
 
 // c1 は、C1 の制御符号を読み、読んだバイト数を返す。色や大きさなどの見た目は、大きさのほかは読まずに飛ばす。
 func (d *aribDecoder) c1(b []byte) int {
+	d.caption.sizeControl(b)
 	switch b[0] {
 	case aribMSZ:
 		d.middle, d.small = true, false
