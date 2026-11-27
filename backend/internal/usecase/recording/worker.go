@@ -42,6 +42,8 @@ var (
 	ErrHandedOver = errors.New("the recording was handed over to another mikan")
 	// ErrStopped は、mikan を止めるので、録画をやめたことを表す。引き継ぐ mikan がいなかったか、引き継ぎを待ちきれなかった。
 	ErrStopped = errors.New("the mikan is stopping")
+	// ErrResumeLater は、Session が予定の終わりの前に録画をやめたので、割り振りを終わったことにせず、続きを録らせることを表す (#2195)。
+	ErrResumeLater = errors.New("the recording stopped before the planned end; resume it later")
 )
 
 // Assignment は、mikan が取った割り振り。
@@ -425,6 +427,15 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 		w.release(ctx, assignment, logger, err)
 
 		return
+	case errors.Is(err, ErrResumeLater):
+		// 予定の終わりの前に録画をやめたので、終わったことにせず、割り振りを手放して、ほかの mikan か、この mikan が続きを録る (#2195)。
+		// 終わったことにすると、録画は録画中のまま残り、neko が失敗にする。
+		logger.WarnContext(ctx, "recording session failed before the planned end; releasing the assignment to resume", slog.Any("error", err))
+		if err := w.leases.Release(ctx, w.clock.Now(), assignment, w.holder); err != nil {
+			logger.WarnContext(ctx, "failed to release the assignment", slog.Any("error", err))
+		}
+
+		return
 	case err != nil:
 		logger.WarnContext(ctx, "recording session failed", slog.Any("error", err))
 	}
@@ -466,15 +477,15 @@ func (w *Worker) release(ctx context.Context, assignment *Assignment, logger *sl
 
 // renew は、ctx が終わるまで、RenewInterval ごとにリースを延長する。
 // ほかの mikan が取ったと分かったら、ErrLeaseLost で録画を止める。
-// DB に届かない間は、リースの期限が過ぎても録画を止めない。ほかの mikan が割り振りを取るにも DB が要り、取れば世代番号が進むので、
-// DB に届くようになってからの延長で、取られたかどうかが分かる (設計書 1.5、#1073)。
-// DB に届いた後のエラー (権限など) は、DB が止まったのではないので、今までどおりリースの期限で止める。
+// 延長できない間は、リースの期限が過ぎても録画を止めない。ほかの mikan が割り振りを取れば世代番号が進むので、
+// 延長できるようになってから、取られたかどうかが分かる (設計書 1.5、#1073)。DB に届いた後のエラー (ロックの待ちの打ち切り、
+// ローリング更新で古いバイナリと新しいスキーマが重なったときのエラーなど) でも同じにする (#2195)。期限で止めると、
+// ほかの mikan が取るまでの間が欠け、どの mikan も延長できなければ、録画を失う。
 func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.Logger) {
 	assignment, cancel := active.assignment, active.cancel
 	ticker := time.NewTicker(w.opts.RenewInterval)
 	defer ticker.Stop()
-	expiresAt := w.clock.Now().Add(w.opts.LeaseTTL)
-	// unreachableSince は、延長が DB に届かなくなった時刻。届いている間はゼロ値。
+	// unreachableSince は、延長できなくなった時刻。延長できている間はゼロ値。
 	var unreachableSince time.Time
 	for {
 		select {
@@ -488,24 +499,15 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 		switch {
 		case err != nil && ctx.Err() != nil:
 			return
-		case err != nil && database.IsUnavailable(err):
+		case err != nil:
 			if unreachableSince.IsZero() {
 				unreachableSince = now
 				since := unreachableSince
 				active.unreachableSince.Store(&since)
-				logger.WarnContext(ctx, "failed to renew the assignment lease; keep recording until the database is reachable", slog.Any("error", err))
+				logger.WarnContext(ctx, "failed to renew the assignment lease; keep recording until it can be renewed", slog.Any("error", err),
+					slog.Bool("database_unreachable", database.IsUnavailable(err)))
 			} else {
 				logger.DebugContext(ctx, "failed to renew the assignment lease", slog.Any("error", err))
-			}
-
-			continue
-		case err != nil:
-			logger.WarnContext(ctx, "failed to renew the assignment lease", slog.Any("error", err))
-			// 延長できないままリースが切れたら、ほかの mikan に任せる。
-			if !now.Before(expiresAt) {
-				cancel(ErrLeaseLost)
-
-				return
 			}
 
 			continue
@@ -527,7 +529,7 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 
 			return
 		case n == 0 && recovered:
-			// DB に届かない間に期限が切れ、戻った直後に、ほかの mikan が先に取った。この mikan は落ちていないので、
+			// 延長できない間に期限が切れ、延長できるようになった直後に、ほかの mikan が先に取った。この mikan は落ちていないので、
 			// 引き継ぎと同じく、新しい mikan がストリームを開くまで録り続けてから止め、欠けないようにする。
 			logger.InfoContext(ctx, "another mikan took the assignment while the database was unreachable; recording until it opens the stream")
 			w.waitForSuccessor(ctx, active)
@@ -538,8 +540,6 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 			cancel(ErrLeaseLost)
 
 			return
-		default:
-			expiresAt = now.Add(w.opts.LeaseTTL)
 		}
 	}
 }

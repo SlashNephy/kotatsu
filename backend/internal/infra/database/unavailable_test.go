@@ -42,3 +42,30 @@ func TestIsUnavailable(t *testing.T) {
 		})
 	}
 }
+
+func TestIsTransient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", err: nil, want: false},
+		{name: "connection lost in the middle", err: fmt.Errorf("failed to read: %w", io.ErrUnexpectedEOF), want: true},
+		{name: "serialization failure", err: fmt.Errorf("failed to save: %w", &pgconn.PgError{Code: "40001"}), want: true},
+		{name: "deadlock", err: &pgconn.PgError{Code: "40P01"}, want: true},
+		{name: "lock timeout", err: &pgconn.PgError{Code: "55P03"}, want: true},
+		{name: "statement timeout", err: &pgconn.PgError{Code: "57014"}, want: true},
+		{name: "unique violation", err: &pgconn.PgError{Code: "23505"}, want: false},
+		{name: "undefined column", err: &pgconn.PgError{Code: "42703"}, want: false},
+		{name: "unrelated error", err: errors.New("the pool is not mounted"), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, database.IsTransient(tt.err))
+		})
+	}
+}

@@ -232,8 +232,8 @@ func (l *flakyLeases) Renew(ctx context.Context, a *recording.Assignment, holder
 	return n, err
 }
 
-// TestWorkerKeepsRecordingWhileDatabaseIsUnreachable は、DB に届かない間は、リースの期限が過ぎても録画を止めず、
-// ほかの mikan が取ったと分かったときだけ止めることを確認する (#1073)。
+// TestWorkerKeepsRecordingWhileDatabaseIsUnreachable は、DB に届かないか、DB のエラーで延長できない間は、リースの期限が過ぎても
+// 録画を止めず、ほかの mikan が取ったと分かったときだけ止めることを確認する (#1073、#2195)。
 func TestWorkerKeepsRecordingWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
@@ -281,13 +281,30 @@ func TestWorkerKeepsRecordingWhileDatabaseIsUnreachable(t *testing.T) {
 			wantLost: true,
 		},
 		{
-			// DB に届いた後のエラー (権限など) は、DB が止まったのではないので、今までどおりリースの期限で止める。
+			// DB に届いた後のエラーでも、リースの期限で止めず、延長できるようになるまで録り続ける (#2195)。
+			// ローリング更新で、古いバイナリと新しいスキーマが重なる間などに起きる。
 			name: "renew fails with an error from the database",
 			outage: func(t *testing.T, f *fixture, leases *flakyLeases, _ uuid.UUID) {
 				t.Helper()
 
 				leases.broken.Store(true)
+				time.Sleep(500 * time.Millisecond)
 				f.clock.Advance(time.Minute)
+				time.Sleep(100 * time.Millisecond)
+				leases.broken.Store(false)
+			},
+			wantLost: false,
+		},
+		{
+			// 延長できない間に、ほかの mikan が取ったら、延長できるようになってから止める。
+			name: "successor took over while renew fails with an error from the database",
+			outage: func(t *testing.T, f *fixture, leases *flakyLeases, reservationID uuid.UUID) {
+				t.Helper()
+
+				leases.broken.Store(true)
+				_, err := f.pool.Exec(t.Context(), "UPDATE recording_assignments SET generation = 2, holder = $1 WHERE reservation_id = $2", id.New(), reservationID)
+				require.NoError(t, err)
+				leases.broken.Store(false)
 			},
 			wantLost: true,
 		},
