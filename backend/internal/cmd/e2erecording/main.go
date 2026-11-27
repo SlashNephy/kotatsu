@@ -1,4 +1,4 @@
-// Command e2erecording は、録画中に mikan を入れ替える場面を、本物のプロセスで立てて確かめる E2E テストを流す (#2195、設計書 11.6)。
+// Command e2erecording は、録画中に mikan を入れ替える場面を、本物のプロセスで立てて確認する E2E テストを流す (#2195、設計書 11.6)。
 //
 // PostgreSQL とモックのチューナーサーバーを使い、kotatsu の neko と複数の mikan を別のプロセスで動かす。録画中に録っている mikan に
 // SIGTERM を送り、ほかの mikan が引き継いで、録画が失敗にならず、続きが録れることを見る。場面は次のとおり。
@@ -137,7 +137,7 @@ func scenarioOf(name string) (func(ctx context.Context, s *stack) error, bool) {
 	}
 }
 
-// unreadableSettings は、引き継いだ mikan がセグメントを作る前に録画設定を読めなくても、録画を失敗にせず、続きを録ることを確かめる。
+// unreadableSettings は、引き継いだ mikan がセグメントを作る前に録画設定を読めなくても、録画を失敗にせず、続きを録ることを確認する。
 func unreadableSettings(ctx context.Context, s *stack) error {
 	if err := s.migrate(ctx, s.opts.kotatsu); err != nil {
 		return err
@@ -188,7 +188,7 @@ func unreadableSettings(ctx context.Context, s *stack) error {
 }
 
 // outdatedMikan は、古いバイナリの mikan と新しいスキーマの DB が重なっても、古いバイナリの mikan は引き継ぎを受けず、
-// 新しいバイナリの mikan が引き継いで、録画が失敗にならないことを確かめる。
+// 新しいバイナリの mikan が引き継いで、録画が失敗にならないことを確認する。
 func outdatedMikan(ctx context.Context, s *stack) error {
 	if s.opts.oldKotatsu == "" {
 		return errors.New("-old-kotatsu is required")
@@ -212,27 +212,33 @@ func outdatedMikan(ctx context.Context, s *stack) error {
 	if err != nil {
 		return err
 	}
-	// 新しいバイナリの kotatsu migrate が、古いバイナリの知らないマイグレーションを当て、動かしてよいバイナリの下限を上げたことにする。
-	if err := s.exec(ctx, "UPDATE schema_compatibility SET min_binary_version = $1", database.LatestVersion()); err != nil {
-		return err
-	}
 	if err := s.waitForAlive(ctx, outdated); err != nil {
 		return err
 	}
+	// 新しいバイナリの kotatsu migrate が、古いバイナリの知らないマイグレーションを当て、動かしてよいバイナリの下限を上げたことにする。
+	// 古いバイナリは、起動するときに下限を確認するので、起動した後に上げる。
+	if err := s.exec(ctx, "UPDATE schema_compatibility SET min_binary_version = $1", database.LatestVersion()); err != nil {
+		return err
+	}
 
-	s.logger.InfoContext(ctx, "stopping the mikan that records; the outdated mikan must not take over", slog.String("mikan", holder.name))
-	if err := holder.terminate(); err != nil {
-		return err
-	}
-	// 古いバイナリの mikan が取るなら、すぐに取る。少し待ってから、新しいバイナリの mikan を加える。
-	if err := s.ensureNotHeldBy(ctx, rec, outdated, 5*time.Second); err != nil {
-		return err
-	}
+	// Kubernetes のローリング更新と同じく、新しいバイナリの mikan が立ってから、録っている mikan を止める。
+	// 止まる mikan は、止まり始めたときに登録簿から外れるので、引き継ぎを任せられるのは、新しく立った mikan だけである。
 	upToDate, err := s.start(ctx, s.opts.kotatsu, "mikan")
 	if err != nil {
 		return err
 	}
-	if err := s.waitForTakeOver(ctx, rec, upToDate); err != nil {
+	if err := s.waitForAlive(ctx, upToDate); err != nil {
+		return err
+	}
+	s.logger.InfoContext(ctx, "stopping the mikan that records; the outdated mikan must not take over", slog.String("mikan", holder.name))
+	if err := holder.terminate(); err != nil {
+		return err
+	}
+	if err := s.waitForTakeOverBy(ctx, rec, upToDate, outdated); err != nil {
+		return err
+	}
+	// 引き継いだ後も、古いバイナリの mikan が取り直さないことを見る。
+	if err := s.ensureNotHeldBy(ctx, rec, outdated, 5*time.Second); err != nil {
 		return err
 	}
 	if err := holder.wait(stepTimeout); err != nil {
@@ -434,6 +440,18 @@ func (p *process) wait(timeout time.Duration) error {
 	}
 }
 
+// exited は、プロセスが終わったかどうかを返す。
+func (p *process) exited() bool {
+	select {
+	case err := <-p.done:
+		p.done <- err
+
+		return true
+	default:
+		return false
+	}
+}
+
 // kill は、まだ動いていれば、プロセスを止める。
 func (p *process) kill() error {
 	select {
@@ -536,6 +554,9 @@ func (s *stack) state(ctx context.Context, rec *recording) (*recordingState, err
 // waitForAlive は、mikan が登録簿に載るまで待つ。
 func (s *stack) waitForAlive(ctx context.Context, p *process) error {
 	return s.eventually(ctx, p.name+" is registered", stepTimeout, func(ctx context.Context) (bool, error) {
+		if p.exited() {
+			return false, fmt.Errorf("%s exited", p.name)
+		}
 		var n int
 		err := s.pool.QueryRow(ctx, "SELECT count(*) FROM instances WHERE role = 'mikan' AND address = $1", p.address).Scan(&n)
 
@@ -545,6 +566,11 @@ func (s *stack) waitForAlive(ctx context.Context, p *process) error {
 
 // waitForTakeOver は、mikan to が録画を引き継ぎ、新しいセグメントを書き始めるまで待つ。その間に録画が失敗になったら、失敗にする。
 func (s *stack) waitForTakeOver(ctx context.Context, rec *recording, to *process) error {
+	return s.waitForTakeOverBy(ctx, rec, to, nil)
+}
+
+// waitForTakeOverBy は、waitForTakeOver と同じく待つ。待つ間に、mikan not (nil でなければ) が割り振りを取ったら、失敗にする。
+func (s *stack) waitForTakeOverBy(ctx context.Context, rec *recording, to, not *process) error {
 	var before int
 	if state, err := s.state(ctx, rec); err == nil {
 		before = state.segments
@@ -557,6 +583,9 @@ func (s *stack) waitForTakeOver(ctx context.Context, rec *recording, to *process
 		if state.state == "failed" {
 			return false, fmt.Errorf("the recording failed during the handover: %s", state.failureReason)
 		}
+		if not != nil && state.holder == not.address {
+			return false, fmt.Errorf("%s took over the recording", not.name)
+		}
 
 		return state.holder == to.address && state.segments > before, nil
 	})
@@ -568,7 +597,7 @@ func (s *stack) waitForTakeOver(ctx context.Context, rec *recording, to *process
 	return nil
 }
 
-// ensureNotHeldBy は、d の間、mikan p が録画の割り振りを取らないことを確かめる。
+// ensureNotHeldBy は、d の間、mikan p が録画の割り振りを取らないことを確認する。
 func (s *stack) ensureNotHeldBy(ctx context.Context, rec *recording, p *process, d time.Duration) error {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
@@ -587,7 +616,7 @@ func (s *stack) ensureNotHeldBy(ctx context.Context, rec *recording, p *process,
 	return nil
 }
 
-// waitForCompletion は、予定の終わりの後に録画が終わるまで待ち、失敗になっていないこと、引き継いで分かれたセグメントがあることを確かめる。
+// waitForCompletion は、予定の終わりの後に録画が終わるまで待ち、失敗になっていないこと、引き継いで分かれたセグメントがあることを確認する。
 func (s *stack) waitForCompletion(ctx context.Context, rec *recording) error {
 	var final *recordingState
 	err := s.eventually(ctx, "the recording finishes", time.Until(rec.endAt)+stepTimeout, func(ctx context.Context) (bool, error) {
