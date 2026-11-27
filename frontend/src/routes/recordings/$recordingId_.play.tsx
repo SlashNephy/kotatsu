@@ -1471,7 +1471,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             streamMeter.onReading(reading);
             adaptive.network.onReading(reading);
           }}
-          audio={audio.convertAudio}
+          audio={audio.playerAudio}
           coverRef={coverRef}
         />
       )}

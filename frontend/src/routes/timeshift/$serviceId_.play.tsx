@@ -807,7 +807,7 @@ function Player({
             streamMeter.onReading(reading);
             adaptive.network.onReading(reading);
           }}
-          audio={audio.convertAudio}
+          audio={audio.playerAudio}
           overlay={
             <>
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}

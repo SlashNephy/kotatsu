@@ -183,11 +183,18 @@ export function languageName(t: TFunction, code: string): string {
   return known === undefined ? code : t(`player.languages.${known}`);
 }
 
+// dualMonoLabels は、デュアルモノの振り分けの名前の文言のキー。
+const dualMonoLabels = {
+  main: 'player.audioMain',
+  sub: 'player.audioSub',
+  both: 'player.audioBoth',
+} as const;
+
 // audioChoiceLabel は、ブラウザの中で変換する経路の音声の選択肢の名前。
 export function audioChoiceLabel(t: TFunction, choice: AudioChoice): string {
   const base =
     choice.kind === 'dualMono'
-      ? t(choice.sub ? 'player.audioSub' : 'player.audioMain')
+      ? t(dualMonoLabels[choice.channel])
       : t('player.audioStream', { number: choice.index + 1 });
 
   return choice.language === null ? base : `${base}（${languageName(t, choice.language)}）`;

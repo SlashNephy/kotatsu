@@ -1150,7 +1150,7 @@ function Player({
           onState={onConvertState}
           onAudio={audio.onAudio}
           onReading={streamMeter.onReading}
-          audio={audio.convertAudio}
+          audio={audio.playerAudio}
           overlay={overlay}
           coverRef={coverRef}
         />

@@ -7,6 +7,7 @@ import {
   choiceForComponent,
   choiceForSlot,
   currentAudioChoice,
+  decodedAudioTracks,
   kyusuAudioChoices,
 } from './audio';
 
@@ -195,5 +196,73 @@ describe('choiceForComponent', () => {
     },
   ])('$name', ({ tracks, componentTag, channelId, want }) => {
     expect(choiceForComponent(tracks as AudioTracks | null, componentTag, channelId)).toBe(want);
+  });
+});
+
+describe('decodedAudioTracks', () => {
+  test.each([
+    {
+      name: '音声の ES が 2 つ',
+      streams: [
+        { pid: 0x110, componentTag: 0x10, dualMono: false },
+        { pid: 0x111, componentTag: 0x11, dualMono: false },
+      ],
+      current: 0x111,
+      channel: 'main' as const,
+      want: ['stream:272', 'stream:273'],
+      selected: 'stream:273',
+    },
+    {
+      name: 'デュアルモノは、主と副の両方も選べる',
+      streams: [{ pid: 0x110, componentTag: 0x10, dualMono: true }],
+      current: 0x110,
+      channel: 'both' as const,
+      want: ['dualMono:main', 'dualMono:sub', 'dualMono:both'],
+      selected: 'dualMono:both',
+    },
+    {
+      name: 'デュアルモノの副音声',
+      streams: [{ pid: 0x110, componentTag: 0x10, dualMono: true }],
+      current: 0x110,
+      channel: 'sub' as const,
+      want: ['dualMono:main', 'dualMono:sub', 'dualMono:both'],
+      selected: 'dualMono:sub',
+    },
+    {
+      name: '選べる音声が 1 つ',
+      streams: [{ pid: 0x110, componentTag: 0x10, dualMono: false }],
+      current: 0x110,
+      channel: 'both' as const,
+      want: [],
+      selected: 'stream:272',
+    },
+  ])('$name', ({ streams, current, channel, want, selected }) => {
+    const tracks = decodedAudioTracks(streams, current, channel);
+
+    expect(audioChoices(tracks).map((choice) => choice.value)).toEqual(want);
+    expect(currentAudioChoice(tracks)).toBe(selected);
+  });
+
+  test('主と副の両方は、ほかの経路へ移ったら主音声にする', () => {
+    const choices = audioChoices(
+      decodedAudioTracks([{ pid: 0x110, componentTag: 0x10, dualMono: true }], 0x110, 'both'),
+    );
+    const both = choices.find((choice) => choice.value === 'dualMono:both')!;
+
+    expect(audioSlot(both)).toBe(1);
+    expect(choiceForSlot(choices, 1)).toBe('dualMono:main');
+  });
+
+  test('データ放送の文書が選んだ音声は、デコードする経路でも選べる', () => {
+    const tracks = decodedAudioTracks(
+      [
+        { pid: 0x110, componentTag: 0x10, dualMono: false },
+        { pid: 0x111, componentTag: 0x11, dualMono: false },
+      ],
+      0x110,
+      'main',
+    );
+
+    expect(choiceForComponent(tracks, 0x11)).toBe('stream:273');
   });
 });

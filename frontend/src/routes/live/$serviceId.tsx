@@ -1271,7 +1271,7 @@ function Live({
             streamMeter.onReading(reading);
             adaptive.network.onReading(reading);
           }}
-          audio={audio.convertAudio}
+          audio={audio.playerAudio}
         />
       )}
       {route.kind === 'decode' && (
@@ -1289,6 +1289,8 @@ function Live({
           onCaptionText={onCaptionText}
           onLoaded={onLoaded}
           onFallback={adaptive.decodeFallback}
+          onAudio={audio.onAudio}
+          audio={audio.playerAudio}
           overlay={
             <>
               {dataBroadcast.layer}

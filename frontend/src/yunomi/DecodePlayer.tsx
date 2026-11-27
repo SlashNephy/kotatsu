@@ -1,5 +1,6 @@
 import { type ReactNode, type RefObject, useEffect, useRef } from 'react';
 
+import { decodedAudioTracks, type PlayerAudioTracks } from './audio';
 import { brightnessStyle } from './brightness';
 import { type CaptionStyle, type Captions, createCaptions } from './captions';
 import { type Crop, cropStyle, isCropped, noCrop } from './crop';
@@ -34,6 +35,10 @@ type Props = {
   onLoaded?: () => void;
   // onFallback は、この端末では間に合わない (または音を鳴らせない) と判定したときに呼ぶ。ほかの経路へ移すのは呼んだ側。
   onFallback?: (reason: FallbackReason) => void;
+  // onAudio は、番組の音声と、聞いているものが変わったら呼ぶ (#2165)。
+  onAudio?: (tracks: PlayerAudioTracks | null) => void;
+  // audio は、聞く音声 (audioChoices の値)。null なら、選び直さない。
+  audio?: string | null;
   overlay?: ReactNode;
   controls?: ReactNode;
 };
@@ -55,13 +60,23 @@ export function DecodePlayer({
   onError,
   onLoaded,
   onFallback,
+  onAudio,
+  audio = null,
   overlay,
   controls,
 }: Props) {
   const boxRef = useRef<HTMLDivElement | null>(null);
-  const handlers = useRef({ onMedia, onState, onError, onLoaded, onCaptionText, onFallback });
-  handlers.current = { onMedia, onState, onError, onLoaded, onCaptionText, onFallback };
-  const engineRef = useRef<{ media: DecodeMedia; captions: Captions } | null>(null);
+  const handlers = useRef({
+    onMedia,
+    onState,
+    onError,
+    onLoaded,
+    onCaptionText,
+    onFallback,
+    onAudio,
+  });
+  handlers.current = { onMedia, onState, onError, onLoaded, onCaptionText, onFallback, onAudio };
+  const engineRef = useRef<{ media: DecodeMedia; captions: Captions; worker: Worker } | null>(null);
   // programNumber は、TS の中から選ぶ番組 (program_number)。分からなければ、最初の番組を選ぶ。
   const programNumber = url === null ? null : (dataBroadcastSource(url)?.serviceId ?? null);
 
@@ -126,6 +141,15 @@ export function DecodePlayer({
 
         return;
       }
+      if (message.type === 'audioTracks') {
+        if (message.load === media.currentLoad) {
+          handlers.current.onAudio?.(
+            decodedAudioTracks(message.streams, message.current, message.dualMono),
+          );
+        }
+
+        return;
+      }
       // worker の失敗は DecodeMedia が error として送るので、ここでは字幕と起点だけを扱う。
       // 選局した後に、前の局の字幕を出さないよう、今の読み込みのものだけを使う。
       if (
@@ -152,7 +176,7 @@ export function DecodePlayer({
     media.addEventListener('ended', onEnded);
     media.addEventListener('loadeddata', onLoadedData);
     media.addEventListener('loadstart', onLoadStart);
-    engineRef.current = { media, captions: renderer };
+    engineRef.current = { media, captions: renderer, worker };
     mediaRef.current = media;
     handlers.current.onMedia?.(media);
 
@@ -168,6 +192,7 @@ export function DecodePlayer({
       engineRef.current = null;
       mediaRef.current = null;
       handlers.current.onMedia?.(null);
+      handlers.current.onAudio?.(null);
       slot.remove();
     };
   }, [mediaRef]);
@@ -186,6 +211,14 @@ export function DecodePlayer({
     // 自動再生を拒否されたら、止まったままにし、ユーザーの操作を待つ (useAutoplayBlocked が再生ボタンを出す)。
     void engine.media.play().catch(() => {});
   }, [url, programNumber]);
+
+  // 聞く音声を worker に選ばせる (#2165)。worker は、読み込み直しても選んだものを保つ。
+  useEffect(() => {
+    const message = audioSelection(audio);
+    if (message !== null) {
+      engineRef.current?.worker.postMessage(message);
+    }
+  }, [audio]);
 
   useEffect(() => {
     engineRef.current?.captions.setVisible(captions);
@@ -217,4 +250,20 @@ export function DecodePlayer({
       {controls}
     </div>
   );
+}
+
+// audioSelection は、audioChoices の値を、worker に送る音声の選択にする。選び直さない値なら null を返す。
+function audioSelection(choice: string | null): ToDecodeWorker | null {
+  if (choice === null) {
+    return null;
+  }
+  const [kind, value] = choice.split(':');
+  if (kind === 'stream' && value !== undefined && /^\d+$/.test(value)) {
+    return { type: 'selectAudio', pid: Number(value) };
+  }
+  if (kind === 'dualMono' && (value === 'main' || value === 'sub' || value === 'both')) {
+    return { type: 'selectAudio', dualMono: value };
+  }
+
+  return null;
 }
