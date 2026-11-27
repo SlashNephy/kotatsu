@@ -327,7 +327,8 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) (err erro
 
 // ResumeAfterEndLimit は、予定の終わりの後に録画を終えられなかったとき、割り振りを手放して、ほかの mikan に録画を終えさせる時間の上限 (#2195)。
 // ローリング更新で、古いバイナリが新しいスキーマで録画を終えようとして失敗しても、新しいバイナリの mikan が終えられる。
-// 上限を過ぎたら、割り振りを終わったことにし、neko が録画を失敗にする。手放し続けると、録画が録画中のまま残る。
+// 上限を過ぎたら、ほかの mikan に任せず、録画の状態だけを記録して終える (finishBare、#2199)。それもできなければ、割り振りを
+// 終わったことにし、neko が録画を失敗にする。手放し続けると、録画が録画中のまま残る。
 const ResumeAfterEndLimit = time.Hour
 
 // resumable は、録画のエラーで Session を終えるとき、予定の終わり plannedEnd の前か、予定の終わりから ResumeAfterEndLimit までなら、
@@ -747,11 +748,12 @@ func (r *Recorder) finish(
 	return r.finishBare(ctx, logger, assignment, recording, end, result, disconnected, now)
 }
 
-// pastResumeLimit は、最後に読めた予約の予定の終わりから ResumeAfterEndLimit が過ぎたかどうかを返す (#2199)。
+// pastResumeLimit は、ほかの mikan に録画を終えさせられないかどうかを返す (#2199)。最後に読めた予約の予定の終わりから
+// ResumeAfterEndLimit が過ぎたか、予定の終わりがない (割り当てを消された) ときである。どちらも、resumable が手放させない。
 func (r *Recorder) pastResumeLimit(tracker *endTracker) bool {
 	end := tracker.last.PlannedEndAt
 
-	return end != nil && !r.clock.Now().Before(end.Add(ResumeAfterEndLimit))
+	return end == nil || !r.clock.Now().Before(end.Add(ResumeAfterEndLimit))
 }
 
 // finishBare は、録画の状態だけを記録して録画を終える (#2199)。録画のセグメントから、何か録れたか、途切れた区間があるかで状態を決める。
@@ -763,6 +765,10 @@ func (r *Recorder) finishBare(
 	return r.untilDatabase(ctx, logger, "finish the recording with its state only", func(ctx context.Context) error {
 		state, reason, detail := domain.RecordingStateFailed, domain.RecordingFailureReasonCancelled, ""
 		if end != endCancelled {
+			// 落ちた mikan が残した書きかけのセグメントを閉じる。閉じられなくても、状態の記録は止めない。
+			if err := r.closeStaleFiles(ctx, recording.ID, now.Add(-2*DefaultRenewInterval)); err != nil {
+				logger.WarnContext(ctx, "failed to close the abandoned recording files", slog.Any("error", err))
+			}
 			files, err := sqlc.New(r.pool).ListRecordingFiles(ctx, recording.ID)
 			if err != nil {
 				return fmt.Errorf("failed to list the recording files: %w", err)

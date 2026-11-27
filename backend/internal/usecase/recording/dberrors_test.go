@@ -118,7 +118,7 @@ func TestRecorderResumesWhenFinishKeepsFailing(t *testing.T) {
 		// afterEnd は、予定の終わりから進める時間。
 		afterEnd   time.Duration
 		wantResume bool
-		// wantState は、手放させないときの録画の状態。
+		// wantState は、Session が返った後の録画の状態。
 		wantState domain.RecordingState
 	}{
 		{
