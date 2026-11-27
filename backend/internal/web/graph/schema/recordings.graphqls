@@ -334,7 +334,7 @@ type RecordingEdge {
   cursor: String!
   node: Recording!
   """
-  絞り込みの captionKeywords に当たった字幕 (#2214)。どれかのキーワードを含む字幕を、始まりの順に最大 20 件返す。
+  絞り込みの captionKeywords に当たった字幕 (#2214)。一致した種類の字幕のうち、どれかのキーワードを含む字幕を、種類をまとめて始まりの順に最大 20 件返す。
   captionKeywords で探していなければ空。
   """
   captionMatches: [RecordingCaptionMatch!]!
@@ -346,6 +346,8 @@ type RecordingEdge {
 enum CaptionSource {
   "録画の音声から自動生成した字幕 (設計書 6.1、#1682)"
   AUTO
+  "録画の TS から取り出した、放送の ARIB 字幕 (設計書 6.1、#2217)"
+  ARIB
 }
 
 """
@@ -406,11 +408,14 @@ input RecordingFilter {
   "どれか 1 つに一致したら除外するキーワード。EXTENDED は指定できない。"
   excludeKeywords: [KeywordInput!]
   """
-  自動生成の字幕の文で探すキーワード (#2214)。字幕のない録画は返さない。
-  ほかの条件と一緒に指定すると、両方に一致する録画を返す。当たった字幕は RecordingEdge.captionMatches に返す。
+  字幕の文で探すキーワード (#2214、#2217)。自動生成の字幕と放送の ARIB 字幕を、字幕の種類ごとに照らし、どちらかで一致した録画を返す。
+  字幕のない録画は返さない。ほかの条件と一緒に指定すると、両方に一致する録画を返す。当たった字幕は RecordingEdge.captionMatches に返す。
   """
   captionKeywords: [CaptionKeywordInput!]
-  "captionKeywords の照合のしかた。省くと、すべてに一致する録画を返す。すべてに一致するときも、キーワードは別々の字幕にあってよい。"
+  """
+  captionKeywords の照合のしかた。省くと、すべてに一致する録画を返す。すべてに一致するときも、キーワードは同じ種類の別々の字幕にあってよい。
+  自動生成の字幕と ARIB 字幕にまたがっては一致しない。
+  """
   captionKeywordMatch: KeywordMatch
   "放送の開始がこの日時以降の録画。"
   since: Time

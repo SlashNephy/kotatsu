@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/power"
+	"github.com/SlashNephy/kotatsu/internal/usecase/aribcaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/captionmodel"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
@@ -35,13 +36,14 @@ func newSleepSystem(opts *power.Options) (SleepSystem, error) {
 }
 
 // sleepEncodeKinds は、スリープさせない理由にする、録画の後処理のジョブの種類 (設計書 6.1)。FFmpeg で録画を読み続けるものと、字幕の自動生成と、
-// そのモデルのダウンロード (#1682) を入れる。
+// そのモデルのダウンロード (#1682) と、録画を読み通す ARIB 字幕の文の取り出し (#2217) を入れる。
 func sleepEncodeKinds() []string {
 	return []string{
 		new(transcode.Args).Kind(),
 		new(transcode.ChaptersArgs).Kind(),
 		new(cmdetect.DetectArgs).Kind(),
 		new(autocaption.Args).Kind(),
+		new(aribcaption.Args).Kind(),
 		new(captionmodel.DownloadArgs).Kind(),
 	}
 }

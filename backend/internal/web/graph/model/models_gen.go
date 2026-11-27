@@ -27,6 +27,16 @@ type Node interface {
 	IsNode()
 }
 
+// 既にある録画の ARIB 字幕の文を取り出す状況 (設計書 6.1、#2218)。
+type ARIBCaptionBackfill struct {
+	// 字幕の文を取り出していないか、取り出し方の古いバージョンで取り出した録画の数。録画中の録画と、TS のセグメントのない録画は数えない。
+	Pending int `json:"pending"`
+	// pending のうち、取り出すジョブを待っているか動かしている録画の数。
+	Queued int `json:"queued"`
+	// 取り出し方の今のバージョン。
+	ExtractorVersion int `json:"extractorVersion"`
+}
+
 // サービスと、しょぼいカレンダーのチャンネル (ChID)、Annict のチャンネルの対応 (設計書 3.8)。
 // チャンネルの定義 (#1589) から取り込んだ対応に、管理者の上書きを重ねる。
 type AnimeChannel struct {
@@ -2049,7 +2059,7 @@ type RecordingConnection struct {
 type RecordingEdge struct {
 	Cursor string     `json:"cursor"`
 	Node   *Recording `json:"node"`
-	// 絞り込みの captionKeywords に当たった字幕 (#2214)。どれかのキーワードを含む字幕を、始まりの順に最大 20 件返す。
+	// 絞り込みの captionKeywords に当たった字幕 (#2214)。一致した種類の字幕のうち、どれかのキーワードを含む字幕を、種類をまとめて始まりの順に最大 20 件返す。
 	// captionKeywords で探していなければ空。
 	CaptionMatches []*RecordingCaptionMatch `json:"captionMatches"`
 }
@@ -2118,10 +2128,11 @@ type RecordingFilter struct {
 	KeywordMatch *match.KeywordMatch `json:"keywordMatch,omitempty"`
 	// どれか 1 つに一致したら除外するキーワード。EXTENDED は指定できない。
 	ExcludeKeywords []*KeywordInput `json:"excludeKeywords,omitempty"`
-	// 自動生成の字幕の文で探すキーワード (#2214)。字幕のない録画は返さない。
-	// ほかの条件と一緒に指定すると、両方に一致する録画を返す。当たった字幕は RecordingEdge.captionMatches に返す。
+	// 字幕の文で探すキーワード (#2214、#2217)。自動生成の字幕と放送の ARIB 字幕を、字幕の種類ごとに照らし、どちらかで一致した録画を返す。
+	// 字幕のない録画は返さない。ほかの条件と一緒に指定すると、両方に一致する録画を返す。当たった字幕は RecordingEdge.captionMatches に返す。
 	CaptionKeywords []*CaptionKeywordInput `json:"captionKeywords,omitempty"`
-	// captionKeywords の照合のしかた。省くと、すべてに一致する録画を返す。すべてに一致するときも、キーワードは別々の字幕にあってよい。
+	// captionKeywords の照合のしかた。省くと、すべてに一致する録画を返す。すべてに一致するときも、キーワードは同じ種類の別々の字幕にあってよい。
+	// 自動生成の字幕と ARIB 字幕にまたがっては一致しない。
 	CaptionKeywordMatch *match.KeywordMatch `json:"captionKeywordMatch,omitempty"`
 	// 放送の開始がこの日時以降の録画。
 	Since *time.Time `json:"since,omitempty"`
@@ -3295,15 +3306,18 @@ type CaptionSource string
 const (
 	// 録画の音声から自動生成した字幕 (設計書 6.1、#1682)
 	CaptionSourceAuto CaptionSource = "AUTO"
+	// 録画の TS から取り出した、放送の ARIB 字幕 (設計書 6.1、#2217)
+	CaptionSourceArib CaptionSource = "ARIB"
 )
 
 var AllCaptionSource = []CaptionSource{
 	CaptionSourceAuto,
+	CaptionSourceArib,
 }
 
 func (e CaptionSource) IsValid() bool {
 	switch e {
-	case CaptionSourceAuto:
+	case CaptionSourceAuto, CaptionSourceArib:
 		return true
 	}
 	return false

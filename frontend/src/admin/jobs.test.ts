@@ -23,7 +23,7 @@ describe('jobKindLabel', () => {
     for (const kind of Object.keys(kinds)) {
       expect(jobKindLabel(t, kind)).toBe(`admin.jobs.kinds.${kind}`);
     }
-    expect(Object.keys(kinds)).toHaveLength(30);
+    expect(Object.keys(kinds)).toHaveLength(31);
   });
 });
 

@@ -64,6 +64,12 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	ARIBCaptionBackfill struct {
+		ExtractorVersion func(childComplexity int) int
+		Pending          func(childComplexity int) int
+		Queued           func(childComplexity int) int
+	}
+
 	AnimeChannel struct {
 		AnnictChannelID           func(childComplexity int) int
 		AnnictChannelIDOverride   func(childComplexity int) int
@@ -1012,6 +1018,7 @@ type ComplexityRoot struct {
 		DisconnectGoogleDrive            func(childComplexity int) int
 		DownloadCaptionModel             func(childComplexity int, id string) int
 		EnableUser                       func(childComplexity int, id string) int
+		ExtractARIBCaptions              func(childComplexity int) int
 		GenerateLibraryCaptions          func(childComplexity int, id string) int
 		GenerateRecordingCaptions        func(childComplexity int, id string) int
 		ImportDramaWatchlist             func(childComplexity int, force bool) int
@@ -1321,6 +1328,7 @@ type ComplexityRoot struct {
 		AnimeRecordApps          func(childComplexity int) int
 		AnimeRecordSettings      func(childComplexity int) int
 		AnimeWishlist            func(childComplexity int) int
+		AribCaptionBackfill      func(childComplexity int) int
 		AuditEvents              func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
 		Backup                   func(childComplexity int) int
 		CalendarFeed             func(childComplexity int) int
@@ -2015,6 +2023,7 @@ type MutationResolver interface {
 	CreateAnimeWishlistRule(ctx context.Context, tid int) (*model.Rule, error)
 	CreateAPIToken(ctx context.Context, name string) (*model.CreatedAPIToken, error)
 	DeleteAPIToken(ctx context.Context, id string) (string, error)
+	ExtractARIBCaptions(ctx context.Context) (int, error)
 	UpdateBackupSettings(ctx context.Context, input model.BackupSettingsInput) (*model.BackupStatus, error)
 	RunBackup(ctx context.Context) (*model.BackupStatus, error)
 	CreateCalendarFeed(ctx context.Context) (*model.CreatedCalendarFeed, error)
@@ -2163,6 +2172,7 @@ type QueryResolver interface {
 	AnimeRecordSettings(ctx context.Context) (*model.AnimeRecordSettings, error)
 	AnimeWishlist(ctx context.Context) (*model.AnimeWishlist, error)
 	APITokens(ctx context.Context) ([]*model.APIToken, error)
+	AribCaptionBackfill(ctx context.Context) (*model.ARIBCaptionBackfill, error)
 	Backup(ctx context.Context) (*model.BackupStatus, error)
 	CalendarFeed(ctx context.Context) (*model.CalendarFeed, error)
 	IptvFeed(ctx context.Context) (*model.IptvFeed, error)
@@ -2325,6 +2335,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	ec := newExecutionContext(nil, e, nil)
 	_ = ec
 	switch typeName + "." + field {
+
+	case "ARIBCaptionBackfill.extractorVersion":
+		if e.ComplexityRoot.ARIBCaptionBackfill.ExtractorVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ARIBCaptionBackfill.ExtractorVersion(childComplexity), true
+	case "ARIBCaptionBackfill.pending":
+		if e.ComplexityRoot.ARIBCaptionBackfill.Pending == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ARIBCaptionBackfill.Pending(childComplexity), true
+	case "ARIBCaptionBackfill.queued":
+		if e.ComplexityRoot.ARIBCaptionBackfill.Queued == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ARIBCaptionBackfill.Queued(childComplexity), true
 
 	case "AnimeChannel.annictChannelId":
 		if e.ComplexityRoot.AnimeChannel.AnnictChannelID == nil {
@@ -6198,6 +6227,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.EnableUser(childComplexity, args["id"].(string)), true
+	case "Mutation.extractARIBCaptions":
+		if e.ComplexityRoot.Mutation.ExtractARIBCaptions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.ExtractARIBCaptions(childComplexity), true
 	case "Mutation.generateLibraryCaptions":
 		if e.ComplexityRoot.Mutation.GenerateLibraryCaptions == nil {
 			break
@@ -7945,6 +7980,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AnimeWishlist(childComplexity), true
+	case "Query.aribCaptionBackfill":
+		if e.ComplexityRoot.Query.AribCaptionBackfill == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.AribCaptionBackfill(childComplexity), true
 	case "Query.auditEvents":
 		if e.ComplexityRoot.Query.AuditEvents == nil {
 			break
@@ -12040,6 +12081,32 @@ extend type Mutation {
   deleteApiToken(id: ID!): ID!
 }
 `, BuiltIn: false},
+	{Name: "../schema/arib_captions.graphqls", Input: `"""
+既にある録画の ARIB 字幕の文を取り出す状況 (設計書 6.1、#2218)。
+"""
+type ARIBCaptionBackfill {
+  "字幕の文を取り出していないか、取り出し方の古いバージョンで取り出した録画の数。録画中の録画と、TS のセグメントのない録画は数えない。"
+  pending: Int!
+  "pending のうち、取り出すジョブを待っているか動かしている録画の数。"
+  queued: Int!
+  "取り出し方の今のバージョン。"
+  extractorVersion: Int!
+}
+
+extend type Query {
+  "既にある録画の ARIB 字幕の文を取り出す状況を返す (#2218)。管理者だけが使える。"
+  aribCaptionBackfill: ARIBCaptionBackfill!
+}
+
+extend type Mutation {
+  """
+  字幕の文を取り出していないか、取り出し方の古いバージョンで取り出した録画の、取り出すジョブをまとめて入れ、入れた数を返す (#2218)。
+  管理者だけが使える。kotatsu admin extract-arib-captions と同じく、新しく録った録画のジョブを待たせないよう、優先度を下げて入れる。
+  待っている録画には重ねて入れない。
+  """
+  extractARIBCaptions: Int!
+}
+`, BuiltIn: false},
 	{Name: "../schema/backup.graphqls", Input: `"""
 定期のバックアップの設定 (設計書 11.4、#1926)。出力先のディレクトリは、nekonote の設定ファイル (backup.dir) で決める。
 """
@@ -14817,7 +14884,7 @@ type RecordingEdge {
   cursor: String!
   node: Recording!
   """
-  絞り込みの captionKeywords に当たった字幕 (#2214)。どれかのキーワードを含む字幕を、始まりの順に最大 20 件返す。
+  絞り込みの captionKeywords に当たった字幕 (#2214)。一致した種類の字幕のうち、どれかのキーワードを含む字幕を、種類をまとめて始まりの順に最大 20 件返す。
   captionKeywords で探していなければ空。
   """
   captionMatches: [RecordingCaptionMatch!]!
@@ -14829,6 +14896,8 @@ type RecordingEdge {
 enum CaptionSource {
   "録画の音声から自動生成した字幕 (設計書 6.1、#1682)"
   AUTO
+  "録画の TS から取り出した、放送の ARIB 字幕 (設計書 6.1、#2217)"
+  ARIB
 }
 
 """
@@ -14889,11 +14958,14 @@ input RecordingFilter {
   "どれか 1 つに一致したら除外するキーワード。EXTENDED は指定できない。"
   excludeKeywords: [KeywordInput!]
   """
-  自動生成の字幕の文で探すキーワード (#2214)。字幕のない録画は返さない。
-  ほかの条件と一緒に指定すると、両方に一致する録画を返す。当たった字幕は RecordingEdge.captionMatches に返す。
+  字幕の文で探すキーワード (#2214、#2217)。自動生成の字幕と放送の ARIB 字幕を、字幕の種類ごとに照らし、どちらかで一致した録画を返す。
+  字幕のない録画は返さない。ほかの条件と一緒に指定すると、両方に一致する録画を返す。当たった字幕は RecordingEdge.captionMatches に返す。
   """
   captionKeywords: [CaptionKeywordInput!]
-  "captionKeywords の照合のしかた。省くと、すべてに一致する録画を返す。すべてに一致するときも、キーワードは別々の字幕にあってよい。"
+  """
+  captionKeywords の照合のしかた。省くと、すべてに一致する録画を返す。すべてに一致するときも、キーワードは同じ種類の別々の字幕にあってよい。
+  自動生成の字幕と ARIB 字幕にまたがっては一致しない。
+  """
   captionKeywordMatch: KeywordMatch
   "放送の開始がこの日時以降の録画。"
   since: Time
@@ -16660,6 +16732,18 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // childFields_* functions provide shared child field context lookups.
 // Each function is generated once per unique object type, deduplicating the
 // switch statements that were previously inlined in every fieldContext_* function.
+
+func (ec *executionContext) childFields_ARIBCaptionBackfill(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pending":
+		return ec.fieldContext_ARIBCaptionBackfill_pending(ctx, field)
+	case "queued":
+		return ec.fieldContext_ARIBCaptionBackfill_queued(ctx, field)
+	case "extractorVersion":
+		return ec.fieldContext_ARIBCaptionBackfill_extractorVersion(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ARIBCaptionBackfill", field.Name)
+}
 
 func (ec *executionContext) childFields_AnimeChannel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
@@ -22734,6 +22818,75 @@ func (ec *executionContext) field___Type_inputFields_args(ctx context.Context, r
 // endregion ***************************** args.gotpl *****************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _ARIBCaptionBackfill_pending(ctx context.Context, field graphql.CollectedField, obj *model.ARIBCaptionBackfill) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ARIBCaptionBackfill_pending(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Pending, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ARIBCaptionBackfill_pending(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ARIBCaptionBackfill", field, false, false, "Int")
+}
+
+func (ec *executionContext) _ARIBCaptionBackfill_queued(ctx context.Context, field graphql.CollectedField, obj *model.ARIBCaptionBackfill) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ARIBCaptionBackfill_queued(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Queued, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ARIBCaptionBackfill_queued(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ARIBCaptionBackfill", field, false, false, "Int")
+}
+
+func (ec *executionContext) _ARIBCaptionBackfill_extractorVersion(ctx context.Context, field graphql.CollectedField, obj *model.ARIBCaptionBackfill) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ARIBCaptionBackfill_extractorVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExtractorVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ARIBCaptionBackfill_extractorVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ARIBCaptionBackfill", field, false, false, "Int")
+}
 
 func (ec *executionContext) _AnimeChannel_serviceId(ctx context.Context, field graphql.CollectedField, obj *model.AnimeChannel) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
@@ -36542,6 +36695,29 @@ func (ec *executionContext) fieldContext_Mutation_deleteApiToken(ctx context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_extractARIBCaptions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_extractARIBCaptions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().ExtractARIBCaptions(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_extractARIBCaptions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, "Int")
+}
+
 func (ec *executionContext) _Mutation_updateBackupSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -45395,6 +45571,38 @@ func (ec *executionContext) fieldContext_Query_apiTokens(_ context.Context, fiel
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ApiToken(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_aribCaptionBackfill(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_aribCaptionBackfill(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().AribCaptionBackfill(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ARIBCaptionBackfill) graphql.Marshaler {
+			return ec.marshalNARIBCaptionBackfill2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐARIBCaptionBackfill(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_aribCaptionBackfill(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ARIBCaptionBackfill(ctx, field)
 		},
 	}
 	return fc, nil
@@ -62345,6 +62553,49 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 
 // region    **************************** object.gotpl ****************************
 
+var aRIBCaptionBackfillImplementors = []string{"ARIBCaptionBackfill"}
+
+func (ec *executionContext) _ARIBCaptionBackfill(ctx context.Context, sel ast.SelectionSet, obj *model.ARIBCaptionBackfill) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, aRIBCaptionBackfillImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ARIBCaptionBackfill")
+		case "pending":
+			out.Values[i] = ec._ARIBCaptionBackfill_pending(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queued":
+			out.Values[i] = ec._ARIBCaptionBackfill_queued(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "extractorVersion":
+			out.Values[i] = ec._ARIBCaptionBackfill_extractorVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var animeChannelImplementors = []string{"AnimeChannel"}
 
 func (ec *executionContext) _AnimeChannel(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeChannel) graphql.Marshaler {
@@ -68504,6 +68755,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "extractARIBCaptions":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_extractARIBCaptions(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updateBackupSettings":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateBackupSettings(ctx, field)
@@ -70872,6 +71130,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_apiTokens(ctx, field)
+				})
+		case "aribCaptionBackfill":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_aribCaptionBackfill(ctx, field)
 				})
 		case "backup":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -75372,6 +75636,14 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 // endregion **************************** object.gotpl ****************************
 
 // region    ***************************** type.gotpl *****************************
+
+func (ec *executionContext) marshalNARIBCaptionBackfill2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐARIBCaptionBackfill(ctx context.Context, sel ast.SelectionSet, v *model.ARIBCaptionBackfill) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "ARIBCaptionBackfill!")
+		return graphql.Null
+	}
+	return ec._ARIBCaptionBackfill(ctx, sel, v)
+}
 
 func (ec *executionContext) marshalNAnimeChannel2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeChannelᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeChannel) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {

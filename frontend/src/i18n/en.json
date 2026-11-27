@@ -2221,6 +2221,7 @@
         "oauth_prune": "Prune MCP tokens",
         "recording_analyze": "Analyze recording",
         "recording_chapters": "Commercial chapters in the transcoded recording",
+        "recording_arib_captions": "Extract ARIB captions",
         "recording_auto_captions": "Auto-generated captions",
         "recording_cm_detect": "Commercial sections",
         "recording_join": "Join segments",
@@ -2495,8 +2496,8 @@
       "summary": "Change storage pool priority and space thresholds, and clean up recordings with missing files and files not in the DB"
     },
     "captions": {
-      "title": "Caption DRCS glyphs",
-      "summary": "Change the table that replaces caption DRCS glyphs (characters made by broadcasters) with text",
+      "title": "Captions",
+      "summary": "Change the table that replaces caption DRCS glyphs (characters made by broadcasters) with text, and extract the broadcast captions of existing recordings",
       "drcs": "DRCS glyph replacements",
       "drcsHelp": "DRCS glyphs that appear in captions are looked up by the MD5 of their image and replaced with text. The replacement text is used in the caption history, copying, and captions overlaid on video. Administrators can also register unregistered DRCS glyphs on the spot from the caption history. Common glyphs are replaced using the bundled table (libaribcaption). Text registered here takes priority.",
       "empty": "Nothing registered yet",
@@ -2504,7 +2505,16 @@
       "text": "Replacement text",
       "add": "Add",
       "remove": "Remove",
-      "textInvalid": "Enter 1 to {{max}} characters"
+      "textInvalid": "Enter 1 to {{max}} characters",
+      "backfill": "Broadcast caption text",
+      "backfillHelp": "When a recording finishes, its broadcast caption text is extracted and used to search recordings by caption text. Recordings made before the extraction job was added, and recordings extracted before the extraction changed, can be extracted here. The jobs run after the jobs for new recordings.",
+      "backfillPending_one": "Recordings without extracted caption text: {{count}}",
+      "backfillPending_other": "Recordings without extracted caption text: {{count}}",
+      "backfillWaiting_one": " ({{count}} of them is waiting for its job)",
+      "backfillWaiting_other": " ({{count}} of them are waiting for their jobs)",
+      "backfillRun": "Queue extraction jobs",
+      "backfillQueued_one": "Queued the job for {{count}} recording",
+      "backfillQueued_other": "Queued the jobs for {{count}} recordings"
     },
     "retention": {
       "title": "Retention",

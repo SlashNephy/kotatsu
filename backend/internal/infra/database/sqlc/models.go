@@ -824,6 +824,14 @@ type RecordingAnimeMatch struct {
 	MatchedAt   time.Time
 }
 
+type RecordingAribCaption struct {
+	RecordingID      uuid.UUID
+	ExtractorVersion int32
+	ExtractedAt      time.Time
+	Cues             []byte
+	SearchGrams      []string
+}
+
 type RecordingAssignment struct {
 	ID               uuid.UUID
 	ReservationID    uuid.UUID

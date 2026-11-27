@@ -1217,6 +1217,21 @@ CREATE INDEX recording_auto_captions_search_grams_idx ON recording_auto_captions
 CREATE INDEX recording_auto_captions_stale_search_grams_idx ON recording_auto_captions (recording_id)
   WHERE search_grams_generated_at IS DISTINCT FROM generated_at;
 
+-- 録画の TS から取り出した ARIB 字幕の文 (設計書 6.1、7.4、#2217)。録画ごとに最後に取り出した 1 つだけを持つ。
+-- cues は、recording_auto_captions と同じく {startMs, endMs, text} の配列で、時刻は録画を始めた日時からの時間。
+-- 字幕のない録画も、取り出したことが分かるよう、空の配列で行を残す。
+CREATE TABLE recording_arib_captions (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  -- extractor_version は、取り出し方のバージョン。取り出し方を変えたら上げる。
+  extractor_version integer NOT NULL,
+  extracted_at timestamptz NOT NULL,
+  cues jsonb NOT NULL,
+  -- search_grams は、字幕の文を正規化して作った検索の gram (match.TextGrams)。cues と一緒に書くので、いつも今の cues のもの。
+  search_grams text[] NOT NULL
+);
+
+CREATE INDEX recording_arib_captions_search_grams_idx ON recording_arib_captions USING gin (search_grams);
+
 -- 字幕の自動生成に使うモデルのうち、管理者が画面からダウンロードして、データディレクトリの既定の場所に置いたもの (#1682、設計書 6.1)。
 -- 種類ごとに 1 つ。ダウンロードするジョブ (nekonote) が、ファイルを置き換えた後に書き、画面から消すと消す。
 -- 手で置いたファイルには行がないので、画面は、ファイルの大きさが行と違えば、手で置いたものとして出す。

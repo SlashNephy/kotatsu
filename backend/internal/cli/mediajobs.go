@@ -11,6 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
+	"github.com/SlashNephy/kotatsu/internal/usecase/aribcaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/captionmodel"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
@@ -22,7 +23,7 @@ import (
 )
 
 // mediaJobParts は、録画の後処理のジョブの Worker (#1607)。代表画像、解析、セグメントのつなぎ、CM の区間の見分け、字幕の自動生成とそのモデルのダウンロード、
-// 変換、チャプター。
+// ARIB 字幕の文の取り出し、変換、チャプター。
 type mediaJobParts struct {
 	thumbnails     *thumbnail.GenerateWorker
 	liveThumbnails *thumbnail.LiveWorker
@@ -31,6 +32,7 @@ type mediaJobParts struct {
 	finalize       *segjoin.FinalizeWorker
 	cmDetect       *cmdetect.DetectWorker
 	captions       *autocaption.Worker
+	aribCaptions   *aribcaption.Worker
 	captionModels  *captionmodel.Worker
 	transcode      *transcode.Worker
 	tvtplay        *tvtplay.WriteWorker
@@ -118,6 +120,11 @@ func newCaptionsWorker(
 		},
 		func() (autocaption.Extractor, error) { return autocaption.FFmpegExtractor(lowerer) },
 		deps.Config.Kyusu.WorkDir)
+}
+
+// newARIBCaptionsWorker は、録画を終えたら、録画の TS から ARIB 字幕の文を取り出す Worker を作る (設計書 6.1、#2217)。
+func newARIBCaptionsWorker(pool *pgxpool.Pool, store *kago.Store, clk clock.Clock, logger *slog.Logger) *aribcaption.Worker {
+	return aribcaption.NewWorker(pool, store, clk, logger.With(slog.String("component", "aribcaption")))
 }
 
 // newCaptionModelWorker は、管理者が画面から頼んだ、字幕の自動生成のモデルをダウンロードして置く Worker を作る (#1682)。

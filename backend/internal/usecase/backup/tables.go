@@ -64,6 +64,7 @@ func includedTables() []string {
 		"recording_cm_sections",
 		"recording_cm_materials",
 		"recording_auto_captions",
+		"recording_arib_captions",
 		"caption_models",
 		"tags",
 		"recording_tags",
