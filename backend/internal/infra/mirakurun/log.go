@@ -27,7 +27,7 @@ type StatusProcess struct {
 // Status は /api/status を取得する。
 func (c *Client) Status(ctx context.Context) (*Status, error) {
 	var status Status
-	if err := c.getJSON(ctx, "api/status", nil, &status); err != nil {
+	if err := c.getJSON(ctx, "api/status", &status); err != nil {
 		return nil, err
 	}
 
