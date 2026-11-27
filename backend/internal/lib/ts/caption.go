@@ -5,7 +5,8 @@ import "io"
 // 字幕の文を、録画の TS から取り出す (#2216、設計書 7.4)。
 //
 // 字幕は、PMT の stream_type 0x06 の ES のうち、component_tag が 0x30〜0x37 のもので送られる (ARIB STD-B24 第 1 編 第 3 部)。
-// PES (独立 PES、同期型) の中の、データグループの字幕文 (第 1 言語) を読む。字幕管理は読まない。
+// PES (独立 PES、同期型) の中の、データグループの字幕文 (第 1 言語) を読む。ブラウザの字幕 (aribb24.js) と同じく、
+// 字幕管理を読むまでの字幕文は読まず、字幕管理のグループ (A と B) が変わったら、画面を消す。
 // 時刻は、字幕文の PES の PTS のまま返す。録画の時間軸への換算と、字幕を出す区間 (次に画面を消すまで) は、使う側で決める。
 
 const (
@@ -18,8 +19,11 @@ const (
 	captionDataIdentifier = 0x80
 	// captionPrivateStreamID は、同期型 PES の private_stream_id。
 	captionPrivateStreamID = 0xFF
-	// captionStatementLanguage は、読む字幕文のデータグループ (data_group_id の下位 4 ビット)。第 1 言語。
+	// captionStatementLanguage は、読む字幕文のデータグループ (data_group_id の下位 4 ビット)。第 1 言語。0 は字幕管理。
 	captionStatementLanguage = 0x01
+	captionManagement        = 0x00
+	// captionGroupB は、data_group_id のうち、グループ B を表すビット。
+	captionGroupB = 0x20
 	// captionUnitSeparator は、データユニットの区切り (unit_separator)。
 	captionUnitSeparator = 0x1F
 	// データユニットの data_unit_parameter。
@@ -52,20 +56,23 @@ type CaptionScanner struct {
 	pes        []byte
 	assembling bool
 	continuity uint8
-	decoder    *aribDecoder
-	captions   []Caption
-	carry      [PacketSize]byte
-	carryLen   int
+	// replaceDRCS は、外字の画像の MD5 から置き換える文字を検索する。
+	replaceDRCS func(md5 string) (string, bool)
+	// managementGroup は、最後に読んだ字幕管理のグループ (0 か captionGroupB)。まだ読んでいなければ -1。
+	managementGroup int
+	captions        []Caption
+	carry           [PacketSize]byte
+	carryLen        int
 }
 
 // NewCaptionScanner は、サービス serviceID (program_number) の字幕文を集める CaptionScanner を返す。
 // serviceID が 0 か、PAT にないときは、映像のある番組のうち program_number が最も小さいものを読む (NewCueScanner と同じ)。
-// replaceDRCS は、外字の画像の MD5 (小文字の 16 進) から置き換える文字を引く。nil なら、外字はすべて「〓」にする。
+// replaceDRCS は、外字の画像の MD5 (小文字の 16 進) から置き換える文字を検索する。nil なら、外字はすべて「〓」にする。
 func NewCaptionScanner(serviceID uint16, replaceDRCS func(md5 string) (string, bool)) *CaptionScanner {
 	return &CaptionScanner{
 		serviceID: serviceID, programs: newProgramTable(), sections: map[uint16]*sectionAssembler{},
 		generation: -1, pid: NullPID, pes: []byte{}, assembling: false, continuity: 0,
-		decoder: newCaptionDecoder(replaceDRCS), captions: []Caption{},
+		replaceDRCS: replaceDRCS, managementGroup: -1, captions: []Caption{},
 		carry: [PacketSize]byte{}, carryLen: 0,
 	}
 }
@@ -187,7 +194,19 @@ func (s *CaptionScanner) readDataGroup(data []byte, pts int64) {
 	}
 	groupID := data[begin] >> 2
 	size := int(data[begin+3])<<8 | int(data[begin+4])
-	if begin+5+size > len(data) || groupID&0x0F != captionStatementLanguage {
+	if begin+5+size > len(data) || size == 0 {
+		return
+	}
+	if groupID&0x0F == captionManagement {
+		// 字幕管理は、同じグループで繰り返し送られる。グループが変わったら、aribb24.js と同じく画面を消す。
+		if group := int(groupID & captionGroupB); group != s.managementGroup {
+			s.managementGroup = group
+			s.captions = append(s.captions, Caption{PTS: pts, Text: "", Cleared: true})
+		}
+
+		return
+	}
+	if groupID&0x0F != captionStatementLanguage || s.managementGroup < 0 {
 		return
 	}
 	group := data[begin+5 : begin+5+size]
@@ -210,8 +229,10 @@ func (s *CaptionScanner) readDataGroup(data []byte, pts int64) {
 	s.readDataUnits(group[offset:offset+loopLength], pts)
 }
 
-// readDataUnits は、データユニットの並びを読む。外字を覚えてから、本文を読む。
+// readDataUnits は、データユニットの並びを読む。外字を保存してから、本文を読む。
+// aribb24.js と同じく、文字の指示と外字は字幕文ごとに初めの状態から読み、外字は同じ字幕文で送られたものだけを使う。
 func (s *CaptionScanner) readDataUnits(units []byte, pts int64) {
+	decoder := newCaptionDecoder(s.replaceDRCS)
 	caption := Caption{PTS: pts, Text: "", Cleared: false}
 	found := false
 	for offset := 0; offset+5 <= len(units); {
@@ -228,16 +249,16 @@ func (s *CaptionScanner) readDataUnits(units []byte, pts int64) {
 		offset += size
 		switch parameter {
 		case captionUnitStatement:
-			text, cleared := s.decoder.statement(body)
+			text, cleared := decoder.statement(body)
 			if cleared {
 				caption.Text, caption.Cleared = "", true
 			}
 			caption.Text += text
 			found = true
 		case captionUnitDRCS1:
-			s.decoder.defineDRCS(body, false)
+			decoder.defineDRCS(body, false)
 		case captionUnitDRCS2:
-			s.decoder.defineDRCS(body, true)
+			decoder.defineDRCS(body, true)
 		}
 	}
 	if found {

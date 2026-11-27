@@ -1,0 +1,297 @@
+package ts_test
+
+import (
+	"encoding/binary"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+)
+
+// captionPID は、合成した TS の、字幕の PID。
+const captionPID = 0x0130
+
+// 字幕の文の 8 単位符号 (ARIB STD-B24)。初めは GL が漢字、GR がひらがな、G1 が英数、G3 がマクロ。
+const (
+	// nihon は「日本」(漢字、GL)。
+	nihon = "\x46\x7C\x4B\x5C"
+	// hiraganaA は「あ」(ひらがな、GR)。
+	hiraganaA = "\xA2"
+	// alnumA は、G1 を GL に呼び出して (LS1) 書く「A」。GL を G0 に戻す (LS0)。
+	alnumA = "\x0E\x41\x0F"
+	// katakanaPa は、G1 にカタカナを指示し (ESC 0x29 0x31)、呼び出して書く「パ」。GL を G0 に戻す。
+	katakanaPa = "\x1B\x29\x31\x0E\x51\x0F"
+)
+
+const (
+	captionCS    = 0x0C
+	captionAPR   = 0x0D
+	captionSSZ   = 0x88
+	captionMSZ   = 0x89
+	captionNSZ   = 0x8A
+	captionMgmtA = 0x00
+	captionMgmtB = 0x20 // グループ B の字幕管理 (data_group_id 0x20)
+	captionTextA = 0x01 // グループ A の第 1 言語の字幕文
+)
+
+// captionUnit は、データユニットを作る。
+func captionUnit(parameter byte, data []byte) []byte {
+	unit := make([]byte, 0, 5+len(data))
+	unit = append(unit, 0x1F, parameter, byte(len(data)>>16&0xFF), byte(len(data)>>8&0xFF), byte(len(data)&0xFF))
+
+	return append(unit, data...)
+}
+
+// captionStatementGroup は、時刻の指定のない字幕文のデータグループの内容を作る。
+func captionStatementGroup(units ...[]byte) []byte {
+	loop := slices.Concat(units...)
+
+	return append([]byte{0x00, byte(len(loop) >> 16 & 0xFF), byte(len(loop) >> 8 & 0xFF), byte(len(loop) & 0xFF)}, loop...)
+}
+
+// captionManagementGroup は、日本語の 1 言語の字幕管理のデータグループの内容を作る。
+func captionManagementGroup() []byte {
+	return []byte{0x00, 0x01, 0x00, 'j', 'p', 'n', 0x00, 0x00, 0x00, 0x00}
+}
+
+// captionPESPackets は、data_group_id が groupID のデータグループを入れた字幕の PES を、184 バイトずつのパケットに分けて作る。
+func captionPESPackets(cc *byte, pts uint64, groupID byte, group []byte) [][]byte {
+	dataGroup := append([]byte{groupID << 2, 0x00, 0x00, byte(len(group) >> 8 & 0xFF), byte(len(group) & 0xFF)}, group...)
+	// CRC_16 は読まないので、0 で埋める。
+	dataGroup = append(dataGroup, 0x00, 0x00)
+	data := append([]byte{0x80, 0xFF, 0xF0}, dataGroup...)
+	header := append([]byte{0x80, 0x80, 0x05}, encodePTS(pts)...)
+	pes := []byte{0x00, 0x00, 0x01, 0xBD}
+	pes = binary.BigEndian.AppendUint16(pes, uint16((len(header)+len(data))&0xFFFF))
+	pes = append(append(pes, header...), data...)
+
+	pkts := [][]byte{}
+	for first := true; len(pes) > 0; first = false {
+		p := make([]byte, ts.PacketSize)
+		for i := range p {
+			p[i] = 0xFF
+		}
+		p[0] = 0x47
+		binary.BigEndian.PutUint16(p[1:3], captionPID)
+		if first {
+			p[1] |= 0x40
+		}
+		p[3] = 0x10 | *cc&0x0F
+		*cc++
+		n := copy(p[4:], pes)
+		pes = pes[n:]
+		pkts = append(pkts, p)
+	}
+
+	return pkts
+}
+
+// captionStream は、字幕の ES (component_tag 0x30) を持つ番組の PAT と PMT を作る。
+func captionStream() [][]byte {
+	var patCC, pmtCC byte
+	streams := []esEntry{
+		{streamType: 0x02, pid: videoPID, infoLength: 0, descriptors: nil},
+		{streamType: 0x06, pid: captionPID, infoLength: 0, descriptors: []byte{0x52, 0x01, 0x30}},
+	}
+	pkts := psiPackets(0x0000, &patCC, patSection(0, map[uint16]uint16{programNum: pmtPID}))
+
+	return append(pkts, psiPackets(pmtPID, &pmtCC, pmtSection(0, streams...))...)
+}
+
+// drcsUnit は、1 バイトの DRCS-1 (終端の符号 0x41) の符号 code に、2 階調で幅 width と高さ height の外字の画像 pattern を定義する。
+func drcsUnit(code byte, width, height byte, pattern []byte) []byte {
+	data := make([]byte, 0, 8+len(pattern))
+	data = append(data, 0x01, 0x41, code, 0x01, 0x00, 0x00, width, height)
+
+	return captionUnit(0x30, append(data, pattern...))
+}
+
+// drcsPatternMD5 は、テストの外字の画像 (0xF0 0x0F) の MD5 を小文字の 16 進にしたもの。
+const drcsPatternMD5 = "1ff0f4acb6ef4d317a2eebf40ccb26ff"
+
+func TestCaptionScanner(t *testing.T) {
+	t.Parallel()
+
+	statement := func(body ...[]byte) []byte {
+		return captionStatementGroup(captionUnit(0x20, slices.Concat(body...)))
+	}
+	pattern := []byte{0xF0, 0x0F}
+	// DRCS-1 を G1 に指示し (ESC 0x29 0x20 0x41)、呼び出して符号 0x21 を書く。
+	drcsCharacter := []byte{0x1B, 0x29, 0x20, 0x41, 0x0E, 0x21, 0x0F}
+	replace := func(md5 string) (string, bool) {
+		if md5 == drcsPatternMD5 {
+			return "★", true
+		}
+
+		return "", false
+	}
+	type group struct {
+		pts  uint64
+		id   byte
+		data []byte
+	}
+	tests := []struct {
+		name   string
+		groups []group
+		want   []ts.Caption
+	}{
+		{
+			name: "字幕管理を読むまでの字幕文は読まない",
+			groups: []group{
+				{pts: 100, id: captionTextA, data: statement([]byte(hiraganaA))},
+				{pts: 200, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 300, id: captionTextA, data: statement([]byte(hiraganaA))},
+			},
+			want: []ts.Caption{{PTS: 200, Text: "", Cleared: true}, {PTS: 300, Text: "あ", Cleared: false}},
+		},
+		{
+			name: "字幕管理は、グループが変わったときだけ画面を消す",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 300, id: captionMgmtB, data: captionManagementGroup()},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 300, Text: "", Cleared: true}},
+		},
+		{
+			name: "画面を消してから書いた文だけを返す",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement([]byte(hiraganaA), []byte{captionCS}, []byte(nihon))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "日本", Cleared: true}},
+		},
+		{
+			// 1 つ目の字幕文で G1 にカタカナを指示しても、2 つ目の字幕文の G1 は英数に戻る。
+			name: "文字の指示は字幕文ごとに初めの状態から読む",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement([]byte(katakanaPa))},
+				{pts: 300, id: captionTextA, data: statement([]byte(alnumA))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "パ", Cleared: false}, {PTS: 300, Text: "Ａ", Cleared: false}},
+		},
+		{
+			name: "小型の文字 (ルビ) は除き、中型の文字は半角にする",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					[]byte(nihon), []byte{captionSSZ}, []byte(hiraganaA), []byte{captionMSZ}, []byte(alnumA), []byte{captionNSZ}, []byte(alnumA),
+					[]byte{captionMSZ}, []byte(katakanaPa),
+				)},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "日本AＡﾊﾟ", Cleared: false}},
+		},
+		{
+			name: "字幕文の中で行が変わったら改行を入れる",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement(
+					// APS で 1 行目に置いて書き、APR で次の行に移って書く。ACPS (CSI 220;509 0x20 0x61) で別の行に移って書く。
+					[]byte{0x1C, 0x41, 0x40, captionAPR}, []byte(hiraganaA), []byte{captionAPR}, []byte(nihon),
+					[]byte{0x9B, '2', '2', '0', ';', '5', '0', '9', 0x20, 0x61}, []byte(hiraganaA),
+				)},
+				{pts: 300, id: captionTextA, data: statement([]byte(hiraganaA))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ\n日本\nあ", Cleared: false}, {PTS: 300, Text: "あ", Cleared: false}},
+		},
+		{
+			name: "外字は画像の MD5 で置き換え、引けなければ〓にする",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: captionStatementGroup(drcsUnit(0x21, 4, 4, pattern), captionUnit(0x20, drcsCharacter))},
+				{pts: 300, id: captionTextA, data: captionStatementGroup(drcsUnit(0x21, 4, 4, []byte{0x00, 0x00}), captionUnit(0x20, drcsCharacter))},
+				// 外字は、同じ字幕文で送られたものだけを使う。
+				{pts: 400, id: captionTextA, data: statement(drcsCharacter)},
+			},
+			want: []ts.Caption{
+				{PTS: 100, Text: "", Cleared: true},
+				{PTS: 200, Text: "★", Cleared: false},
+				{PTS: 300, Text: "〓", Cleared: false},
+				{PTS: 400, Text: "", Cleared: false},
+			},
+		},
+		{
+			// 既定のマクロ 0x61 は、G1 にカタカナを指示する。マクロの集合 (G3) は、SS3 で呼び出す。
+			name: "既定のマクロを読む",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement([]byte{0x1D, 0x61, 0x0E, 0x2B})},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "カ", Cleared: false}},
+		},
+		{
+			name: "待った後の画面の消去は、文を消さない",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement([]byte(hiraganaA), []byte{0x9D, 0x20, 0x45, captionCS}, []byte(nihon))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "あ日本", Cleared: false}},
+		},
+		{
+			// 番組情報では 0x2141 を U+301C にするが、字幕はブラウザの字幕と同じく EUC-JP のデコーダーの対応 (U+FF5E) にする。
+			name: "波ダッシュは EUC-JP のデコーダーの対応にする",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: captionTextA, data: statement([]byte{0x21, 0x41})},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: "～", Cleared: false}},
+		},
+		{
+			name: "第 2 言語の字幕文は読まない",
+			groups: []group{
+				{pts: 100, id: captionMgmtA, data: captionManagementGroup()},
+				{pts: 200, id: 0x02, data: statement([]byte(hiraganaA))},
+			},
+			want: []ts.Caption{{PTS: 100, Text: "", Cleared: true}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var cc byte
+			pkts := captionStream()
+			for _, g := range tt.groups {
+				pkts = append(pkts, captionPESPackets(&cc, g.pts, g.id, g.data)...)
+			}
+			scanner := ts.NewCaptionScanner(programNum, replace)
+			_, err := scanner.Write(join(pkts))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, scanner.Captions())
+		})
+	}
+}
+
+// TestCaptionScannerAssemblesPES は、複数のパケットにまたがる字幕の PES を組み立て、パケットが欠けた PES は読まないことを確認する。
+func TestCaptionScannerAssemblesPES(t *testing.T) {
+	t.Parallel()
+
+	// 3 つ以上のパケットにまたがる長さの字幕文 (ひらがなの「あ」を 600 文字)。
+	long := slices.Repeat([]byte(hiraganaA), 600)
+	want := strings.Repeat("あ", 600)
+	var cc byte
+	pkts := captionStream()
+	pkts = append(pkts, captionPESPackets(&cc, 100, captionMgmtA, captionManagementGroup())...)
+	pkts = append(pkts, captionPESPackets(&cc, 200, captionTextA, captionStatementGroup(captionUnit(0x20, long)))...)
+	broken := captionPESPackets(&cc, 300, captionTextA, captionStatementGroup(captionUnit(0x20, long)))
+	require.Greater(t, len(broken), 2)
+	// 2 つ目のパケットが欠けた PES。
+	pkts = append(pkts, broken[0])
+	pkts = append(pkts, broken[2:]...)
+
+	scanner := ts.NewCaptionScanner(programNum, nil)
+	// パケットの区切りとそろわない大きさで書いても、同じに読める。
+	data := join(pkts)
+	for len(data) > 0 {
+		n := min(len(data), 100)
+		_, err := scanner.Write(data[:n])
+		require.NoError(t, err)
+		data = data[n:]
+	}
+	assert.Equal(t, []ts.Caption{{PTS: 100, Text: "", Cleared: true}, {PTS: 200, Text: want, Cleared: false}}, scanner.Captions())
+}

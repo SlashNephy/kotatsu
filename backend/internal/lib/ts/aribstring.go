@@ -63,7 +63,7 @@ const (
 type aribGraphicSet struct {
 	set   int
 	bytes int
-	// final は、DRCS の集合の終端の符号 (DRCS-0 は 0x40、DRCS-1〜15 は 0x41〜0x4F)。字幕の外字を引くのに使う。
+	// final は、DRCS の集合の終端の符号 (DRCS-0 は 0x40、DRCS-1〜15 は 0x41〜0x4F)。字幕の外字を検索するのに使う。
 	final byte
 }
 
@@ -206,7 +206,8 @@ func (d *aribDecoder) writeTwo(set int, c1, c2 byte) {
 		// JIS X 0213 の第 2 面は、テーブルを持たないので読まない。
 		return
 	}
-	if s, ok := jisOverride(uint16(c1)<<8 | uint16(c2)); ok {
+	// 字幕は、ブラウザの字幕 (aribb24.js) と同じく、EUC-JP のデコーダーの対応のままにする。
+	if s, ok := jisOverride(uint16(c1)<<8 | uint16(c2)); ok && d.caption == nil {
 		d.write(s)
 
 		return
@@ -355,10 +356,20 @@ func (d *aribDecoder) c1(b []byte) int {
 
 		return len(b)
 	case aribCSI:
-		// 終端の文字 (0x40〜0x7E) まで飛ばす。
-		return skipUntilFinal(b, 1, 0x40, 0x7E)
+		// 終端の文字 (0x40〜0x7E) まで飛ばす。字幕では、書く位置の指定 (ACPS) を読む。
+		n := skipUntilFinal(b, 1, 0x40, 0x7E)
+		if d.caption != nil {
+			d.caption.csi(b[:n])
+		}
+
+		return n
 	case aribTIME:
 		if len(b) >= 2 && b[1] == aribSP {
+			// 待つ時間の指定 (TIME 0x20 P1)。
+			if d.caption != nil {
+				d.caption.waited = true
+			}
+
 			return min(3, len(b))
 		}
 
