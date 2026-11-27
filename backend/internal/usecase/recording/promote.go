@@ -200,16 +200,20 @@ func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID
 		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to get the timeshift promotion: %w", err)
 	}
 	promotion, recording := &row.TimeshiftPromotion, &row.Recording
+	// 録画設定と保存先プールの設定を読めなければ、予約の録画と同じく、既定値で書く (#2195)。ローリング更新で、新しいスキーマが
+	// 古いバイナリの読むカラムを消したときも読めない。ジョブをやり直し尽くすと録画を失敗にするので、設定を読めないだけで失わないようにする。
 	settings, err := r.defaults(ctx, r.pool)
 	if err != nil {
-		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to get the recording settings: %w", err)
+		logger.WarnContext(ctx, "failed to read the recording settings; promoting with the built-in defaults", slog.Any("error", err))
+		settings = domain.DefaultRecordingSettings()
 	}
 	if len(r.store.PoolIDs()) == 0 {
 		return domain.RecordingFailureReasonStorageUnavailable, errors.New("no storage pool is mounted on this instance")
 	}
 	pools, err := q.ListStoragePools(ctx)
 	if err != nil {
-		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to list storage pools: %w", err)
+		logger.WarnContext(ctx, "failed to list the storage pools; using the mounted pools with the default settings", slog.Any("error", err))
+		pools = nil
 	}
 	runs, err := stream.NewTimeshiftSource(r.pool, r.store, 0).OpenRange(ctx, promotion.ServiceID, promotion.FromAt, promotion.ToAt)
 	if err != nil {
