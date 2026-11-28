@@ -43,7 +43,7 @@ function advance(clock: Clock, pcr: number): Clock {
 // TsPacer は、届いた TS をためておき、release で渡した経過 (秒) に PCR が届くまでの分を push に渡す。
 // 経過は、読み始めた位置からの放送時刻の経過で数える。PCR も、途切れた区間の分を含めて進むので、同じ物差しになる。
 export class TsPacer {
-  // buffer の start から end までが、まだ渡していないバイト。届くたびに写し直さないよう、余裕を持って確保する。
+  // buffer の start から end までが、まだ渡していないバイト。届くたびにコピーし直さないよう、余裕を持って確保する。
   private buffer = new Uint8Array(64 * 1024);
   private start = 0;
   private end = 0;
