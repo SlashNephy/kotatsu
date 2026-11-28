@@ -1,7 +1,7 @@
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Share2 } from 'lucide-react';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../../relay/useLazyLoadQuery';
@@ -11,14 +11,7 @@ import { ErrorBoundary, PageLoader, ProgramTitle } from '../../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../../relay/environment';
 import { WatchPanel } from '../../../yunomi/WatchPanel';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../../yunomi/WatchLayout';
-import { CaptionHistory } from '../../../yunomi/CaptionHistory';
 import { StreamInfo, useStreamMeter } from '../../../yunomi/StreamInfo';
-import { useDRCSReplacements } from '../../../yunomi/useDRCSReplacements';
-import {
-  insertRecordedCaption,
-  normalizeCaption,
-  type CaptionEntry,
-} from '../../../yunomi/captionHistory';
 import {
   broadcastTime,
   recordingPosition,
@@ -71,6 +64,7 @@ import {
   usePlayerPresence,
   usePlayerShell,
 } from '../../../yunomi/playerShell';
+import { useRecordedCaptions } from '../../../yunomi/useRecordedCaptions';
 import { useVodTimeline } from '../../../yunomi/useVodTimeline';
 import { readableParams } from '../../../futon/readableId';
 
@@ -284,17 +278,9 @@ function Player({
 
   // streamMeter は、右のカラムの「情報」に出す、届いた映像のビットレートと放送の形式を保持する (#828)。
   const streamMeter = useStreamMeter(playback.current);
-  // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
-  const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
-  const currentCaption = useRef<string | null>(null);
-  // 字幕の外字を置き換えるテーブルを読む (#825)。
-  const drcs = useDRCSReplacements();
-  const onCaptionText = (text: string) => {
-    const normalized = normalizeCaption(text);
-    currentCaption.current = normalized === '' ? null : normalized;
-    const at = currentPosition();
-    setCaptionEntries((list) => insertRecordedCaption(list, at, text));
-  };
+  // captionHistory は、字幕の履歴 (#450) と、キャプチャに書き込む今の字幕の文 (#458)。
+  const captionHistory = useRecordedCaptions(currentPosition);
+  const { onCaptionText } = captionHistory;
   // seek は、指定の位置に移る。再生できる範囲の外へは移らない。
   // kyusu の仮想 HLS は、プレイリストの中を移るだけで、読み直さない。
   const seek = (target: number) => {
@@ -359,7 +345,7 @@ function Player({
     serviceName: program.service.name,
     programName: program.name,
     captureTime: () => broadcastTime(program.playableFrom, program.gaps, currentPosition()),
-    caption: () => currentCaption.current,
+    caption: captionHistory.currentCaption,
   });
   const saveCapture = async () => {
     if ((await capture.capture('save')) === 'saved') {
@@ -631,21 +617,10 @@ function Player({
         <WatchPanel
           label={t('player.sidePanel')}
           tabs={[
-            {
-              value: 'captions',
-              label: t('captionHistory.tab'),
-              content: (
-                <CaptionHistory
-                  entries={captionEntries}
-                  label={(entry) =>
-                    formatClock(broadcastTime(program.playableFrom, program.gaps, entry.at))
-                  }
-                  onSelect={(entry) => seek(entry.at)}
-                  canRegisterDRCS={drcs.canRegister}
-                  height={watchCommentsHeight}
-                />
-              ),
-            },
+            captionHistory.tab(
+              (entry) => formatClock(broadcastTime(program.playableFrom, program.gaps, entry.at)),
+              (entry) => seek(entry.at),
+            ),
             {
               value: 'info',
               label: t('player.streamInfo.tab'),

@@ -2,7 +2,7 @@ import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useListState } from '../../../recordings/listSearch';
 import { Captions, MessageSquareText, Share2 } from 'lucide-react';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../../relay/useLazyLoadQuery';
@@ -20,13 +20,6 @@ import {
   watchCommentsHeight,
 } from '../../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../../yunomi/useVirtualSurround';
-import { CaptionHistory } from '../../../yunomi/CaptionHistory';
-import { useDRCSReplacements } from '../../../yunomi/useDRCSReplacements';
-import {
-  insertRecordedCaption,
-  normalizeCaption,
-  type CaptionEntry,
-} from '../../../yunomi/captionHistory';
 import { CommentOffsetSetting } from '../../../jikkyo/CommentOffsetSetting';
 import { formatCommentOffset, useCommentOffsetCommands } from '../../../jikkyo/commentOffset';
 import { HlsPlayer } from '../../../yunomi/HlsPlayer';
@@ -94,6 +87,7 @@ import {
   usePlayerPresence,
   usePlayerShell,
 } from '../../../yunomi/playerShell';
+import { useRecordedCaptions } from '../../../yunomi/useRecordedCaptions';
 import { useVodTimeline } from '../../../yunomi/useVodTimeline';
 import { useCmSkip } from '../../../yunomi/useCmSkip';
 import {
@@ -463,18 +457,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   useVirtualSurround(media, surroundAvailable);
 
   // seek は、指定の位置に移る。kyusu の HLS は、プレイリストの中を移るだけで、読み直さない。
-  // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
-  const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
-  // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
-  const currentCaption = useRef<string | null>(null);
-  // 字幕の外字を置き換えるテーブルを読む (#825)。
-  const drcs = useDRCSReplacements();
-  const onCaptionText = (text: string) => {
-    const normalized = normalizeCaption(text);
-    currentCaption.current = normalized === '' ? null : normalized;
-    const at = currentPosition();
-    setCaptionEntries((list) => insertRecordedCaption(list, at, text));
-  };
+  // captionHistory は、字幕の履歴 (#450) と、キャプチャに書き込む今の字幕の文 (#458)。
+  const captionHistory = useRecordedCaptions(currentPosition);
+  const { onCaptionText } = captionHistory;
   // changeQuality は、画質を変え、それまでの位置から続ける。
   const changeQuality = (next: string) => {
     startAt(positionRef.current);
@@ -548,7 +533,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
     recordingId,
     position: currentPosition,
-    caption: () => currentCaption.current,
+    caption: captionHistory.currentCaption,
   });
   const saveCapture = async () => {
     if ((await capture.capture('save')) === 'saved') {
@@ -899,21 +884,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                     },
                   ]
                 : []),
-              {
-                value: 'captions',
-                label: t('captionHistory.tab'),
-                content: (
-                  <CaptionHistory
-                    entries={captionEntries}
-                    label={(entry) =>
-                      formatClock(broadcastTime(recording.recordedFrom, recording.gaps, entry.at))
-                    }
-                    onSelect={(entry) => seek(entry.at)}
-                    canRegisterDRCS={drcs.canRegister}
-                    height={watchCommentsHeight}
-                  />
-                ),
-              },
+              captionHistory.tab(
+                (entry) =>
+                  formatClock(broadcastTime(recording.recordedFrom, recording.gaps, entry.at)),
+                (entry) => seek(entry.at),
+              ),
               {
                 value: 'info',
                 label: t('player.streamInfo.tab'),

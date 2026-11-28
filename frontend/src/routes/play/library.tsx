@@ -1,7 +1,7 @@
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, MessageSquareText, Share2 } from 'lucide-react';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -20,14 +20,7 @@ import {
   WatchLayout,
   watchCommentsHeight,
 } from '../../yunomi/WatchLayout';
-import { CaptionHistory } from '../../yunomi/CaptionHistory';
 import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
-import { useDRCSReplacements } from '../../yunomi/useDRCSReplacements';
-import {
-  insertRecordedCaption,
-  normalizeCaption,
-  type CaptionEntry,
-} from '../../yunomi/captionHistory';
 import { broadcastTime, formatClock, formatDuration } from '../../yunomi/position';
 import { useFastForward } from '../../yunomi/fastForward';
 import {
@@ -95,6 +88,7 @@ import {
   usePlayerPresence,
   usePlayerShell,
 } from '../../yunomi/playerShell';
+import { useRecordedCaptions } from '../../yunomi/useRecordedCaptions';
 import { useVodTimeline } from '../../yunomi/useVodTimeline';
 import { useCmSkip } from '../../yunomi/useCmSkip';
 import {
@@ -498,17 +492,9 @@ function Player({
   const audios = file.audios.length === 0 ? null : file.audios;
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(audios);
   useVirtualSurround(media, surroundAvailable);
-  // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
-  const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
-  const drcs = useDRCSReplacements();
-  // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
-  const currentCaption = useRef<string | null>(null);
-  const onCaptionText = (text: string) => {
-    const normalized = normalizeCaption(text);
-    currentCaption.current = normalized === '' ? null : normalized;
-    const at = currentPosition();
-    setCaptionEntries((list) => insertRecordedCaption(list, at, text));
-  };
+  // captionHistory は、字幕の履歴 (#450) と、キャプチャに書き込む今の字幕の文 (#458)。
+  const captionHistory = useRecordedCaptions(currentPosition);
+  const { onCaptionText } = captionHistory;
   // cm は、CM とみなした区間 (設計書 5.8) の帯と、飛ばすボタンと、録画と同じく自動で飛ばす判定 (#1512)。
   const cm = useCmSkip({
     sections: cmPositions,
@@ -550,7 +536,7 @@ function Player({
     serviceName,
     programName: program?.name ?? file.name,
     captureTime: () => clockAt(currentPosition()) ?? Date.now(),
-    caption: () => currentCaption.current,
+    caption: captionHistory.currentCaption,
   });
   const saveCapture = async () => {
     if ((await capture.capture('save')) === 'saved') {
@@ -939,23 +925,14 @@ function Player({
                   },
                 ]
               : []),
-            {
-              value: 'captions',
-              label: t('captionHistory.tab'),
-              content: (
-                <CaptionHistory
-                  entries={captionEntries}
-                  label={(entry) => {
-                    const at = clockAt(entry.at);
+            captionHistory.tab(
+              (entry) => {
+                const at = clockAt(entry.at);
 
-                    return at === null ? formatDuration(entry.at) : formatClock(at);
-                  }}
-                  onSelect={(entry) => seek(entry.at)}
-                  canRegisterDRCS={drcs.canRegister}
-                  height={watchCommentsHeight}
-                />
-              ),
-            },
+                return at === null ? formatDuration(entry.at) : formatClock(at);
+              },
+              (entry) => seek(entry.at),
+            ),
             {
               value: 'info',
               label: t('player.streamInfo.tab'),
