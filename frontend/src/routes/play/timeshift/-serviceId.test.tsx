@@ -28,7 +28,9 @@ afterEach(() => {
 
 const startAt = '2026-11-11T00:00:00+09:00';
 
-describe('timeshift PlayPage', () => {
+// 画面はプレイヤー (VodPlayer) をまるごと描くので、CI のランナーでは 1 つのテストに 4〜5 秒かかり、
+// 既定の上限 (5 秒) を超えることがある。手元では 1 秒かからない。
+describe('timeshift PlayPage', { timeout: 15_000 }, () => {
   test('スリープタイマーの時間が来たら、プレイヤーを閉じてライブ視聴の画面へ戻る (#1426)', async () => {
     const environment = createDemoEnvironment({
       timeshiftProgram: () => ({

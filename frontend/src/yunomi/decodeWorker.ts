@@ -38,7 +38,7 @@ const params = {
   // audioKeep は、鳴っている位置より前の音声のフレームを残す長さ。選び直したら、鳴っている位置から渡し直すのに使う (#2165)。
   audioKeep: 0.5 * ptsTicksPerSecond,
   // readAhead は、映している位置より先に読んでおく映像の長さの上限。録画の配信は等速より速く届くので、
-  // これを超えたら、映して減るまで読むのを待つ (#2166)。maxCompressed より短くし、映す前のデータを捨てない。
+  // これを超えたら、映して減るまで読むのを待つ (#2166)。maxCompressed より短くし、映す前のデータを破棄しない。
   readAhead: 5 * ptsTicksPerSecond,
 };
 
@@ -368,7 +368,7 @@ function readAheadOf(current: Loading): number {
   return newest === null || now === null ? 0 : newest - now;
 }
 
-// wakeReader は、先読みが上限を超えて待っている読み込みを、もう一度確かめさせる。
+// wakeReader は、先読みが上限を超えて待っている読み込みに、先読みの長さを確認し直させる。
 function wakeReader(current: Loading): void {
   const drained = current.drained;
   current.drained = null;
@@ -848,7 +848,7 @@ function setVisible(next: boolean): void {
   if (current === null || engine === null) {
     return;
   }
-  // 見えていない間に捨てた分を読み直せるよう、待っている読み込みに確かめさせる。
+  // 見えていない間に破棄した分を読めるよう、待っている読み込みに、先読みの長さを確認し直させる。
   wakeReader(current);
   if (!next) {
     // 見えていない間は映像をデコードしない。裏のタブでデコードし続けると、見ているタブが間に合わなくなる。
