@@ -110,7 +110,8 @@ export type VodSource = {
   // opening は、開いた位置。initialSeek は、URL で位置を渡されて開いたときの、読み始めた位置。
   opening: CmOpening;
   initialSeek: number | null;
-  // initial は、最初に読み始める位置。clampSeek、restartFrom、endKnown は、useVodTimeline に渡す。
+  // initial は、最初に読み始める位置。clampSeek、restartFrom、endKnown は、useVodTimeline に渡す。clampSeek の既定は、
+  // 0 からシークできる所 (seekLimit) まで。
   initial: number;
   clampSeek?: (seconds: number) => number;
   restartFrom?: (seconds: number) => number;
@@ -147,7 +148,7 @@ export type VodSource = {
   autoCaptions: readonly AutoCaption[];
   // remote は、ほかの端末から操作させるか (#459)。
   remote: boolean;
-  // network は、画質を自動で上げるときに比較するオリジナルのビットレートと、再生元に終わりがあるか。
+  // topBitrate は、画質を自動で上げるときに比較する、オリジナルのビットレート。分からなければ null。
   topBitrate: number | null;
   // streamInfo は、右の欄の「情報」に添える、再生元ごとの値 (#828)。
   streamInfo: Pick<ComponentProps<typeof StreamInfo>, 'average' | 'recordedKinds' | 'transport'>;
@@ -203,7 +204,7 @@ export function VodPlayer({
     hls,
     initial: source.initial,
     duration,
-    ...(source.clampSeek === undefined ? {} : { clampSeek: source.clampSeek }),
+    clampSeek: source.clampSeek ?? ((seconds) => Math.min(Math.max(seconds, 0), source.seekLimit)),
     ...(source.restartFrom === undefined ? {} : { restartFrom: source.restartFrom }),
     ...(source.endKnown === undefined ? {} : { endKnown: source.endKnown }),
   });
