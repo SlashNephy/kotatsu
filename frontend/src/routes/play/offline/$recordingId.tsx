@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { PageLoader, ProgramTitle, toHalfWidth, useDocumentTitle } from '../../../futon';
+import { PageLoader, ProgramTitle } from '../../../futon';
 import { readableParams } from '../../../futon/readableId';
 import { setTimeZone } from '../../../futon/timeZone';
 import { openOfflineRecording, type OfflineFiles } from '../../../offline/store';
@@ -100,7 +100,6 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   const { meta } = files;
   // オフラインではサーバーのタイムゾーンを読めないので、保存したときのタイムゾーンで日時を書く。
   setTimeZone(meta.timeZone);
-  useDocumentTitle([toHalfWidth(meta.name)]);
   const videoURL = useObjectURL(files.video);
   const jikkyoURL = useObjectURL(files.jikkyo);
   // 保存した TS は、配信が切り詰めた 1 本のファイルなので、映像の時刻が、そのまま録画の始まりからの位置になる。

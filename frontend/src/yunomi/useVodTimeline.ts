@@ -115,7 +115,7 @@ export function useVodTimeline({
       setHandover(true);
     }
     // 読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
-  }, [drains, convert, error]);
+  }, [drains, convert, native, error]);
   const retry = () => {
     setError(null);
     restartAt(positionRef.current);
