@@ -35,6 +35,7 @@ func TestVODDataBroadcastHandler(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "start is required", query: "", wantStatus: http.StatusBadRequest},
+		{name: "empty start is rejected", query: "?start=", wantStatus: http.StatusBadRequest},
 		{name: "download is rejected", query: "?start=10&download=1", wantStatus: http.StatusBadRequest},
 		{name: "stream from start", query: "?start=10", wantStatus: http.StatusOK},
 	}
@@ -72,4 +73,19 @@ func TestVODDataBroadcastHandler(t *testing.T) {
 			assert.Zero(t, pids[0x0112], "audio")
 		})
 	}
+}
+
+// TestVODDataBroadcastHandlerPassesErrors は、映像の配信が成功でない応答を返したら、本文をフィルターに通さずに返すことを確認する。
+func TestVODDataBroadcastHandlerPassesErrors(t *testing.T) {
+	t.Parallel()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "recording not found", http.StatusNotFound)
+	})
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/internal/streams/recordings/x/data-broadcast?start=0", http.NoBody)
+	streamapi.NewVODDataBroadcastHandler(inner).ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusNotFound, recorder.Code)
+	assert.Equal(t, "recording not found\n", recorder.Body.String())
 }
