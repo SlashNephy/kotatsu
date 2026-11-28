@@ -269,7 +269,7 @@ export function usePlayerShell(): PlayerShell {
   };
 }
 
-// PlayerInputs は、usePlayerInputs が返す、プレイヤーへの入力の受け口。
+// PlayerInputs は、usePlayerInputs が返す、入力を受け付ける要素に渡す値と、入力で変わる状態。
 export type PlayerInputs = {
   // sleep は、スリープタイマー (#821)。時間になったら、commands.stop でプレイヤーを閉じる。
   sleep: SleepTimer;
@@ -388,7 +388,7 @@ export function PlayerBox({
 }
 
 // PlayerFeedback は、映像に重ねる、操作の結果と読み込みの様子。flash は、出す操作の結果 (早回しの速さなどに置き換えたもの)。
-// notice は、画質の自動の切り替えなどの知らせ。scrub は、滑らせている間の行き先の表示。error は、再生のエラーの文。
+// notice は、画質の自動の切り替えなどの通知。scrub は、滑らせている間の行き先の表示。error は、再生のエラーの文。
 export function PlayerFeedback({
   shell,
   flash,
@@ -468,7 +468,7 @@ export function PlayerToolButtons({
   );
 }
 
-// PlayerFrame は、視聴の画面のプレイヤーの欄。使えない経路の知らせと、別のウィンドウに移せるプレイヤーを並べる。
+// PlayerFrame は、視聴の画面のプレイヤーの欄。使えない経路の通知と、別のウィンドウに移せるプレイヤーを並べる。
 export function PlayerFrame({
   shell,
   route,
@@ -493,8 +493,8 @@ export function PlayerFrame({
   );
 }
 
-// usePlayerPresence は、プレイヤーの今の状態 (#811) を、タブの題名、OS のメディア操作、ほかの端末 (#459、設計書 7.7) に知らせる。
-// ready が false の間は、ほかの端末には知らせない。ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
+// usePlayerPresence は、プレイヤーの今の状態 (#811) を、タブの題名、OS のメディア操作、ほかの端末 (#459、設計書 7.7) に通知する。
+// ready が false の間は、ほかの端末には通知しない。ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
 export function usePlayerPresence(
   player: RemotePlayerSnapshot,
   commands: PlayerCommands,
