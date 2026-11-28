@@ -401,7 +401,7 @@
       "fieldRate": "Show 1080i field by field",
       "fieldRateHelp": "Shows interlaced broadcasts at 59.94p, one picture per field, for smoother motion. Applies when the browser converts the stream itself. On devices that cannot keep up, playback falls back to one picture per frame (29.97p).",
       "superResolution": "Upscale the picture for sharper display",
-      "superResolutionHelp": "Upscales the broadcast picture to the size it is shown at with an edge-aware filter, then sharpens it. Looks less blurry on large or high-resolution displays. Does not apply when this device decodes the stream itself, or to 4K pictures. Uses more GPU, and makes compression noise a little more visible.",
+      "superResolutionHelp": "Upscales the broadcast picture to the size it is shown at with an edge-aware filter, then sharpens it. Looks less blurry on large or high-resolution displays. Does not apply to 4K pictures. Uses more GPU, and makes compression noise a little more visible.",
       "superResolutionMethod": "Upscaling method",
       "superResolutionMethodHelp": "When upscaling to at least twice the width and height, Anime4K first doubles the picture with a CNN, then upscales the rest with FSR. Edges and details look crisper, but it puts more load on the GPU, and integrated GPUs may not keep up with every frame.",
       "superResolutionMethods": {
@@ -417,11 +417,11 @@
         "4": "4 (strong)"
       },
       "hdrOutput": "Show in pseudo-HDR",
-      "hdrOutputHelp": "Stretches the bright parts of the broadcast picture (SDR) beyond the display's white. This adds brightness that is not in the original picture, so it changes how the picture looks. Applies when the browser converts the stream itself.",
+      "hdrOutputHelp": "Stretches the bright parts of the broadcast picture (SDR) beyond the display's white. This adds brightness that is not in the original picture, so it changes how the picture looks. Applies when the browser converts the stream itself or this device decodes it.",
       "hdrOutputNoDisplay": "Stretches the bright parts of the broadcast picture (SDR) beyond the display's white. This display is not HDR, so the picture is shown as before even when this is on. It takes effect when the window moves to an HDR display.",
       "hdrOutputUnsupported": "Unavailable because this browser does not support HDR output from WebGL.",
       "interpolation": "Interpolate frames for smoother motion",
-      "interpolationHelp": "Inserts frames estimated from motion between the frames of 30 or 24 fps video, timed to your display's refresh. When the browser converts the stream, applies to 24p film rebuilt from pulldown and to 29.97p when 1080i is not shown field by field. The picture is delayed by one frame (about 0.03 to 0.04 seconds); if speech looks out of sync, delay the audio with the audio sync setting. Fast motion and scene changes may show artifacts.",
+      "interpolationHelp": "Inserts frames estimated from motion between the frames of 30 or 24 fps video, timed to your display's refresh. When the browser converts the stream, applies to 24p film rebuilt from pulldown and to 29.97p when 1080i is not shown field by field. When this device decodes the stream, applies to 24p film rebuilt from pulldown and to progressive 29.97p. When the browser converts the stream, the picture is delayed by one frame (about 0.03 to 0.04 seconds); if speech looks out of sync, delay the audio with the audio sync setting. Fast motion and scene changes may show artifacts.",
       "interpolationRate": "Maximum rate of interpolated frames",
       "interpolationRateHelp": "Choose this on fast displays to reduce the GPU load. Browsers do not tell the refresh rate, so by default it is measured from the refresh interval.",
       "interpolationRateDisplay": "Match the display's refresh",
