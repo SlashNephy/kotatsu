@@ -1144,7 +1144,7 @@ function interpolate(
     lastDrawn !== null &&
     !drawPacer.shouldDraw(now, display.maxRate, pacer.interval ?? 1_000 / 60)
   ) {
-    // 描かなくても、映しているコマとして覚え直す。前に描いたコマは、待ち行列が先に進むと返すので、描き直すのに使えない。
+    // 描かなくても、映しているコマを保持し直す。前に描いたコマは、待ち行列が先に進むと返すので、描き直すのに使えない。
     remember(target, picture.slot, request);
 
     return 'skipped';
