@@ -800,7 +800,6 @@ function Live({
     value >= timeshift.edge - liveThresholdSeconds
       ? t('player.live')
       : formatClock(timeshift.clockAt(value));
-  // sleep は、スリープタイマー (#821)。時間になるか、番組が終わったら、プレイヤーを閉じてチューナーを手放す。
   const inputs = usePlayerInputs(shell, commands, {
     slideSeek: {
       enabled: timeshift.available,
@@ -816,6 +815,7 @@ function Live({
       onCancel: () => setSeeking(null),
     },
   });
+  // sleep は、スリープタイマー (#821)。時間になるか、番組が終わったら、プレイヤーを閉じてチューナーを手放す。
   const { sleep, scrub } = inputs;
   // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
   const player = {
