@@ -45,6 +45,8 @@ import {
 import type { PlayerMedia } from './playerMedia';
 import type { PlayerSnapshot } from './playerState';
 import { useCapture } from './PlayerTools';
+import { defaultCaptionStyle } from './captionStyle';
+import { defaultCommentSettings } from '../jikkyo/comments';
 import { formatClock, formatDuration } from './position';
 import {
   AudioDelaySetting,
@@ -159,6 +161,9 @@ export type VodSource = {
   // info と side は、見出しの下と、右の欄の下に足す、再生元ごとの部品。
   info?: ReactNode;
   side?: ReactNode;
+  // local は、端末に保存した録画か (設計書 7.8)。サーバーを読まず、プレイヤーの設定はその場限りにする。
+  // 映像は、保存したファイルを Range で読むので、映像の要素が自分でシークする。
+  local?: boolean;
 };
 
 // VodPlayerApi は、再生元ごとの部品 (位置の保存など) に渡す、プレイヤーの今の様子。
@@ -168,15 +173,72 @@ export type VodPlayerApi = {
   paused: boolean;
 };
 
-// VodPlayer は、録画型の再生元を再生する。children は、再生元ごとの部品 (位置の保存など) を、プレイヤーの様子から描く。
-export function VodPlayer({
-  source,
-  children,
-}: {
+// VodSettings は、VodPlayer が使うプレイヤーの設定 (字幕と実況の出し入れ、実況のコメントの見た目、字幕の見た目)。
+// muteUser は、実況のコメントを書いたユーザーをミュートする。使えなければ null で、メニューに出さない。
+export type VodSettings = Pick<
+  ReturnType<typeof usePlayerSettings>,
+  | 'captionsEnabled'
+  | 'setCaptionsEnabled'
+  | 'jikkyoEnabled'
+  | 'setJikkyoEnabled'
+  | 'commentSources'
+  | 'comments'
+  | 'captions'
+> & { muteUser: ((userId: string) => void) | null };
+
+// VodPlayerProps は、VodPlayer が受け取るもの。children は、再生元ごとの部品 (位置の保存など) を、プレイヤーの様子から描く。
+type VodPlayerProps = {
   source: VodSource;
   children?: (api: VodPlayerApi) => ReactNode;
-}) {
+};
+
+// VodPlayer は、録画型の再生元を再生する。プレイヤーの設定は、端末をまたいで同期する設定 (設計書 9.1) を使う。
+// 端末に保存した録画では、サーバーを読まないので、その場限りの設定を使う。
+export function VodPlayer(props: VodPlayerProps) {
+  return props.source.local === true ? (
+    <LocalVodPlayer {...props} />
+  ) : (
+    <SyncedVodPlayer {...props} />
+  );
+}
+
+// SyncedVodPlayer は、端末をまたいで同期する設定で再生する。
+function SyncedVodPlayer(props: VodPlayerProps) {
+  const settings = usePlayerSettings();
+
+  return <VodPlayerBody {...props} settings={settings} />;
+}
+
+// localCaptionSettings は、その場限りの設定で使う字幕の見た目。文字スーパーを出し、放送の指定どおりに描く。
+const localCaptionSettings: VodSettings['captions'] = {
+  superimposeLive: true,
+  superimposeRecorded: true,
+  ...defaultCaptionStyle,
+};
+
+// LocalVodPlayer は、その場限りの設定で再生する。字幕と実況は出しておき、切り替えはこのページの間だけ保つ。
+function LocalVodPlayer(props: VodPlayerProps) {
+  const [captionsEnabled, setCaptionsEnabled] = useState(true);
+  const [jikkyoEnabled, setJikkyoEnabled] = useState(true);
+  const settings: VodSettings = {
+    captionsEnabled,
+    setCaptionsEnabled: (enabled) => setCaptionsEnabled(enabled),
+    jikkyoEnabled,
+    setJikkyoEnabled: (enabled) => setJikkyoEnabled(enabled),
+    commentSources: [],
+    comments: defaultCommentSettings,
+    // ミュートの一覧はサーバーに保存するので、使えない。
+    muteUser: null,
+    captions: localCaptionSettings,
+  };
+
+  return <VodPlayerBody {...props} settings={settings} />;
+}
+
+// VodPlayerBody は、受け取った設定で、録画型の再生元を再生する。
+function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settings: VodSettings }) {
   const { t } = useTranslation();
+  const local = source.local === true;
   // shell は、再生元によらないプレイヤーの外側。別のウィンドウに出している間は、このページが隠れても、実況のコメントなどを描き続ける (設計書 7.5)。
   const shell = usePlayerShell();
   const { mediaRef, media, setMedia, visible, fullscreen, controls, videoState, showFlash } = shell;
@@ -194,7 +256,7 @@ export function VodPlayer({
     comments: commentSettings,
     muteUser,
     captions: captionSettings,
-  } = usePlayerSettings();
+  } = settings;
   const { duration } = source;
   const timeline = useVodTimeline({
     streamUrl: source.streamUrl,
@@ -202,6 +264,7 @@ export function VodPlayer({
     mediaRef,
     convert: route.kind === 'convert',
     hls,
+    native: local,
     initial: source.initial,
     duration,
     clampSeek: source.clampSeek ?? ((seconds) => Math.min(Math.max(seconds, 0), source.seekLimit)),
@@ -225,7 +288,8 @@ export function VodPlayer({
     sections: source.cmSections ?? [],
     media,
     mediaRef,
-    framePosition: (time) => (hls ? hlsStream.framePosition(time) : stream.framePosition(time)),
+    framePosition: (time) =>
+      hls || local ? hlsStream.framePosition(time) : stream.framePosition(time),
     jumpTo,
     currentPosition,
     scrubbing: seeking !== null,
@@ -265,7 +329,7 @@ export function VodPlayer({
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(source.audios);
   useVirtualSurround(media, surroundAvailable);
   // captionHistory は、字幕の履歴 (#450) と、キャプチャに書き込む今の字幕の文 (#458)。
-  const captionHistory = useRecordedCaptions(currentPosition);
+  const captionHistory = useRecordedCaptions(currentPosition, !local);
   // changeQuality は、画質を変え、それまでの位置から続ける。
   const changeQuality = (next: string) => {
     restartAt(positionRef.current);
@@ -330,6 +394,7 @@ export function VodPlayer({
     recordingId: source.recordingId,
     ...(source.recordingId === null ? {} : { position: currentPosition }),
     caption: captionHistory.currentCaption,
+    upload: !local,
   });
   const saveCapture = async () => {
     if ((await capture.capture('save')) === 'saved') {
@@ -342,14 +407,17 @@ export function VodPlayer({
   );
   const shareSeconds = source.shareSeconds ?? ((seconds: number) => seconds);
   // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
+  const { copyPositionUrl, ...seekCommands } = shell.seekCommands({
+    skip,
+    seekTo: seek,
+    currentPosition: () => shareSeconds(currentPosition()),
+    retry,
+  });
   const commands: PlayerCommands = {
     ...shell.commands,
-    ...shell.seekCommands({
-      skip,
-      seekTo: seek,
-      currentPosition: () => shareSeconds(currentPosition()),
-      retry,
-    }),
+    ...seekCommands,
+    // 端末に保存した録画の位置は、ほかの端末では開けないので、共有しない。
+    ...(local ? {} : { copyPositionUrl }),
     ...(jikkyoOn ? commentOffsetCommands : {}),
     toggleCaptions: () => setCaptions(!captions),
     ...(jikkyoSource === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
@@ -523,8 +591,9 @@ export function VodPlayer({
     <PlayerBox shell={shell} inputs={inputs}>
       {route.kind === 'convert' && (
         <TsPlayer
-          url={stream.url}
-          handover={timeline.handover}
+          // 端末に保存した録画は、ファイルをそのまま読む。読み直すたびに fragment を変え、TsPlayer に読み直させる。
+          url={local ? `${source.streamUrl}#${hlsStream.loads}` : stream.url}
+          handover={!local && timeline.handover}
           mediaRef={mediaRef}
           onMedia={setMedia}
           controls={controlBar}
@@ -536,7 +605,7 @@ export function VodPlayer({
           brightness={inputs.brightness}
           onCaptionText={captionHistory.onCaptionText}
           onLoaded={timeline.onConvertLoaded}
-          handoverTarget={stream.handoverTarget}
+          {...(local ? {} : { handoverTarget: stream.handoverTarget })}
           onError={timeline.onError}
           onState={timeline.onConvertState}
           onAudio={audio.onAudio}
@@ -601,14 +670,16 @@ export function VodPlayer({
               serviceLogoUrl={source.serviceLogoUrl}
               time={source.time}
               actions={
-                <Button
-                  variant="default"
-                  size="compact-sm"
-                  leftSection={<Share2 size={14} aria-hidden />}
-                  onClick={commands.copyPositionUrl}
-                >
-                  {t('player.share')}
-                </Button>
+                commands.copyPositionUrl !== undefined && (
+                  <Button
+                    variant="default"
+                    size="compact-sm"
+                    leftSection={<Share2 size={14} aria-hidden />}
+                    onClick={commands.copyPositionUrl}
+                  >
+                    {t('player.share')}
+                  </Button>
+                )
               }
             />
             {source.description !== null && (
@@ -650,7 +721,7 @@ export function VodPlayer({
                             gaps={jikkyoSource?.gaps ?? []}
                             // 全画面の間は一覧が見えないので、コメントが届いても描き直さない。
                             frozen={fullscreen.active}
-                            onMuteUser={muteUser}
+                            {...(muteUser === null ? {} : { onMuteUser: muteUser })}
                           />
                         ),
                       },

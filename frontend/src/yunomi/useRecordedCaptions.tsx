@@ -23,12 +23,16 @@ export type RecordedCaptions = {
 };
 
 // useRecordedCaptions は、字幕の履歴を用意する。currentPosition は、字幕が出たときの再生位置を読む。
-export function useRecordedCaptions(currentPosition: () => number): RecordedCaptions {
+// server が false なら、字幕の外字の置き換えのテーブルをサーバーから読まない。
+export function useRecordedCaptions(
+  currentPosition: () => number,
+  server = true,
+): RecordedCaptions {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<readonly CaptionEntry[]>([]);
   const current = useRef<string | null>(null);
   // 字幕の外字を置き換えるテーブルを読む (#825)。
-  const drcs = useDRCSReplacements();
+  const drcs = useDRCSReplacements(server);
 
   return {
     onCaptionText: (text) => {

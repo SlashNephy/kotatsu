@@ -21,6 +21,9 @@ export type VodTimelineOptions = {
   // convert と hls は、今の経路がブラウザの中での変換か、kyusu の仮想 HLS か。どちらでもなければ、位置を動かさない。
   convert: boolean;
   hls: boolean;
+  // native は、変換の経路で、映像の要素が自分でシークするか。端末に保存した録画は、ファイルを Range で読むので、
+  // start=秒 を付けて読み直さずに、kyusu の経路と同じく映像の時刻を移す (設計書 7.8)。
+  native?: boolean;
   // initial は、最初に読み始める位置 (秒)。
   initial: number;
   // duration は、再生できる長さ (秒)。途中で切れたかを、読み込んだ範囲の終わりと比較して見分けるのに使う。
@@ -68,6 +71,7 @@ export function useVodTimeline({
   mediaRef,
   convert,
   hls,
+  native = false,
   initial,
   duration,
   clampSeek = (seconds) => Math.min(Math.max(seconds, 0), duration),
@@ -75,9 +79,11 @@ export function useVodTimeline({
   endKnown = true,
 }: VodTimelineOptions): VodTimeline {
   const { t } = useTranslation();
-  const stream = useSeekableStream(streamUrl, media, initial, convert);
-  const hlsStream = useHlsStream(media, hls, initial);
-  const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
+  // seeksItself は、映像の要素が自分でシークする経路か。位置は映像の時刻をそのまま使い、読み直すときは読み始める位置を渡す。
+  const seeksItself = hls || (convert && native);
+  const stream = useSeekableStream(streamUrl, media, initial, convert && !native);
+  const hlsStream = useHlsStream(media, seeksItself, initial);
+  const { position, positionRef, currentPosition } = seeksItself ? hlsStream : stream;
   const [error, setError] = useState<string | null>(null);
   // lastAutoRetry は、切れたときに、通知を出さずに今の位置から読み直した時刻 (#1083)。
   const lastAutoRetry = useRef<number | null>(null);
@@ -102,8 +108,8 @@ export function useVodTimeline({
       return;
     }
     seenDrains.current = drains;
-    // エラーで止まっている間は、「やり直す」に任せる。
-    if (convert && error === null) {
+    // エラーで止まっている間は、「やり直す」に任せる。端末に保存した録画は、tenban を通らない。
+    if (convert && !native && error === null) {
       // 映っている映像の位置を信じられるなら、裏で読み込んでいる間も、その映像で位置を進める (#1728)。
       stream.restartAt(restartFrom(positionRef.current), true);
       setHandover(true);
@@ -117,7 +123,7 @@ export function useVodTimeline({
   const jumpTo = (target: number) => {
     const seconds = clampSeek(target);
     const current = mediaRef.current;
-    if (hls && current !== null) {
+    if (seeksItself && current !== null) {
       current.seek(seconds);
       hlsStream.seekTo(seconds);
 
@@ -150,7 +156,8 @@ export function useVodTimeline({
   };
   const onConvertState = (state: PlayerState) => {
     const current = mediaRef.current;
-    if (state !== 'completed' || current === null || !endKnown) {
+    // 端末に保存した録画は、ファイルを読み終えても切れたのではないので、見分けない。
+    if (state !== 'completed' || current === null || !endKnown || native) {
       return;
     }
     const { buffered } = current;
@@ -177,9 +184,17 @@ export function useVodTimeline({
     onError,
     onConvertState,
     onConvertLoaded: (handed) => {
+      setError(null);
+      // 映像の要素が自分でシークする経路は、読み直したら、読み始める位置へ移る。
+      if (native) {
+        if (hlsStream.start > 0) {
+          mediaRef.current?.seek(hlsStream.start);
+        }
+
+        return;
+      }
       // 最初のコマが出たときの時刻を、位置の基準にする。裏で読み込んで切り替えたら、TsPlayer が渡す時刻にする (#1728)。
       stream.onLoaded(handed);
-      setError(null);
     },
     onHlsLoaded: () => setError(null),
   };

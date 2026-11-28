@@ -52,6 +52,8 @@ type CaptureOptions = {
   caption?: (() => string | null) | null;
   // crop は、今の切り抜き (#496)。キャプチャも、画面と同じ範囲を切り出す。
   crop?: Crop;
+  // upload は、撮った画像をサーバーのキャプチャの一覧にも送るか (#457)。端末に保存した録画の再生では送らない。
+  upload?: boolean;
 };
 
 // CaptureResult は、キャプチャの結果。映像がなければ null。
@@ -76,6 +78,7 @@ export function useCapture({
   position = null,
   caption = null,
   crop = noCrop,
+  upload = true,
 }: CaptureOptions): Capture {
   const { t } = useTranslation();
   // overlays は、キャプチャに、字幕とコメントを含めるかどうか。
@@ -103,18 +106,20 @@ export function useCapture({
       );
       // uploadFailed は、サーバーに残せなかったか。先に失敗を通知していたら、コピーできた通知で上書きしない。
       let uploadFailed = false;
-      uploadCapture(named, {
-        time,
-        takenAt,
-        serviceName,
-        programName,
-        recordingId,
-        position: at,
-        caption: text,
-      }).catch(() => {
-        uploadFailed = true;
-        notify(t('player.captureUploadError'));
-      });
+      if (upload) {
+        uploadCapture(named, {
+          time,
+          takenAt,
+          serviceName,
+          programName,
+          recordingId,
+          position: at,
+          caption: text,
+        }).catch(() => {
+          uploadFailed = true;
+          notify(t('player.captureUploadError'));
+        });
+      }
       if (action === 'save') {
         saveBlob(named, captureFileName(time, serviceName, programName, template));
 

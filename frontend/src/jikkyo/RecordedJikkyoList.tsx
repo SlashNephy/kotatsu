@@ -108,7 +108,8 @@ export function RecordedJikkyoList({
   gaps: readonly Gap[];
   // frozen は、全画面の間のように一覧が見えないときに、コメントが届いても描き直さないかどうか。
   frozen: boolean;
-  onMuteUser: (userId: string) => void;
+  // onMuteUser は、行から、そのコメントを書いたユーザーをミュートする (#767)。渡さなければ、メニューに出さない。
+  onMuteUser?: (userId: string) => void;
 }) {
   // 全画面の間は、一覧が描き直さないので、作らない。
   const rows = frozen
@@ -121,6 +122,11 @@ export function RecordedJikkyoList({
       }));
 
   return (
-    <CommentList rows={rows} frozen={frozen} onMuteUser={onMuteUser} height={watchCommentsHeight} />
+    <CommentList
+      rows={rows}
+      frozen={frozen}
+      {...(onMuteUser === undefined ? {} : { onMuteUser })}
+      height={watchCommentsHeight}
+    />
   );
 }
