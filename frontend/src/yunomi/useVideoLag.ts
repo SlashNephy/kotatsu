@@ -43,14 +43,17 @@ function aheadOf(video: HTMLVideoElement): number {
 // 飛ぶとデコーダは積み残しを破棄して出し直す。遅れを測れない端末 (Windows) では、詰まりのたびに 1 回飛び直す。
 // onHeavy を渡すと、その端末にはその段階が重いと判定したときに呼ぶ。呼んだら数えたものを破棄し、新しい証拠が溜まるまで呼ばない。
 // video が変わったら (画質の切り替え、つなぎ直し、MediaSource の作り直し)、数えたものを破棄する。
+// picturesOnCanvas が true を返す間 (コマを canvas に描き、<video> は音と時計だけの読み込み、#2287) は飛び直さない。
+// 映像と音の合わせ方は、その読み込みのプレイヤーが受け持つ。
 export function useVideoLag(
   video: HTMLVideoElement | null,
-  { onHeavy }: { onHeavy?: () => void } = {},
+  { onHeavy, picturesOnCanvas }: { onHeavy?: () => void; picturesOnCanvas?: () => boolean } = {},
 ): VideoLag {
   const controllerRef = useRef<VideoLagController | null>(null);
   const heavy = useEffectEvent(() => onHeavy?.());
   // 段階を下げてよいかが再生の途中で変わっても (追っかけ再生の録画を終えたなど)、制御を作り直さない。
   const judging = useEffectEvent(() => onHeavy !== undefined);
+  const onCanvas = useEffectEvent(() => picturesOnCanvas?.() === true);
 
   useEffect(() => {
     if (video === null) {
@@ -62,6 +65,9 @@ export function useVideoLag(
 
     // jump は、currentTime を飛び直しの幅だけ先へ進める。同じ値を代入し直しても飛んだことにならない。
     const jump = (now: number, cause: 'lag' | 'stall') => {
+      if (onCanvas()) {
+        return;
+      }
       video.currentTime += defaultVideoLagParams.jumpWidth;
       controller.jumped(now, cause, video.playbackRate <= countedRate);
     };

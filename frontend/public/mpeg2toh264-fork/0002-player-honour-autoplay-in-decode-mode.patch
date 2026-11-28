@@ -1,0 +1,56 @@
+diff --git a/packages/player/src/media-takeover.ts b/packages/player/src/media-takeover.ts
+index fb68b41..ab1904b 100644
+--- a/packages/player/src/media-takeover.ts
++++ b/packages/player/src/media-takeover.ts
+@@ -125,10 +125,19 @@ export class MediaTakeover {
+   #volume: number;
+   #muted: boolean;
+   #timeupdate: ReturnType<typeof setInterval> | null = null;
++  /**
++   * The element's autoplaying flag: set for a load of an element with
++   * `autoplay`, so that playback starts once it can, as a new source does on
++   * the element itself; a `pause()` clears it.
++   */
++  #autoplaying: boolean;
++  /** Counts the `pause()` calls, so that an autoplay waiting on sound can tell one came. */
++  #pauses = 0;
+ 
+   constructor(video: HTMLVideoElement, handlers: TakeoverHandlers) {
+     this.#video = video;
+     this.#handlers = handlers;
++    this.#autoplaying = video.autoplay;
+     // Whatever the page set on the element before the load carries on.
+     this.#rate = video.playbackRate;
+     this.#volume = video.volume;
+@@ -268,8 +277,21 @@ export class MediaTakeover {
+       this.#loadedData = true;
+       this.#fire("loadeddata");
+     }
+-    if (was < Ready.FutureData && state >= Ready.FutureData)
++    if (was < Ready.FutureData && state >= Ready.FutureData) {
+       this.#fire("canplay");
++      // A refused autoplay leaves the element paused without an error or a
++      // `play` and `pause` in between, as the element's own does: whether
++      // sound may start is asked first, so that a page that calls `play()`
++      // itself on `canplay` is the one told it may not.
++      if (this.#autoplaying && this.#paused) {
++        this.#autoplaying = false;
++        const pauses = this.#pauses;
++        void this.#handlers.resume().then((allowed) => {
++          if (!allowed || !this.#paused || pauses !== this.#pauses) return;
++          this.#play().catch(() => {});
++        });
++      }
++    }
+     if (was < Ready.EnoughData && state >= Ready.EnoughData)
+       this.#fire("canplaythrough");
+   }
+@@ -364,6 +386,8 @@ export class MediaTakeover {
+   }
+ 
+   #pause(): void {
++    this.#autoplaying = false;
++    this.#pauses++;
+     if (this.#paused) return;
+     this.#position = this.currentTime;
+     this.#running = false;

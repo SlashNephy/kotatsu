@@ -1898,6 +1898,7 @@ distrolessのイメージにはシェルがなく、マルチレプリカ構成�
 | ブラウザ内での変換（mpeg2toh264） | MSEかManagedMediaSourceが使えるブラウザ（iPhoneを含みます。#1256） | 中継だけ | 13〜24 Mbps |
 | サーバー側でのトランスコード（kyusu） | 変換が重い端末、帯域の細い回線 | エンコードあり | 画質に応じて選べます |
 | ブラウザ内でのデコード（WebAssemblyのFFmpeg。#1516） | ライブ視聴、録画の再生、端末に保存した録画の再生で、画質のメニューから選んだとき（WebAssemblyのSIMD、workerへ渡せるOffscreenCanvas、GPUで描くWebGL2、AudioContextがそろう端末） | 中継だけ | 13〜24 Mbps |
+| mpeg2toh264のフォークでのデコード（評価中。#2287） | ライブ視聴、録画の再生、端末に保存した録画の再生で、画質のメニューの「オリジナル（フォーク、評価中）」を選んだとき（ブラウザ内でのデコードの条件に加えて、安全な文脈でAudioWorkletを使える端末） | 中継だけ | 13〜24 Mbps |
 
 EDCBでは、どちらの経路でも、tenbanとkyusuは、NetworkTVのTSを同じプロセスの中で分け合うか、nabeから受け取ります（[3.1](#31-接続先)、#1535）。
 
@@ -2020,6 +2021,18 @@ commit SHAをRenovateで追跡できる形で固定し、Rustとwasm-bindgen-cli
 上流に入っていない修正は`frontend/vendor/mpeg2toh264/patches/`に置き、ビルドするときに当てます。
 WebAssemblyのファイルは明示的なURLで配信します。
 Viteがワーカーのチャンクにbase64で埋め込むと、ストリーミングコンパイルが効かなくなるからです。
+
+#### mpeg2toh264のフォークの評価
+
+評価期間として、otya128/mpeg2toh264と、そのフォークの[soraneoumi/mpeg2toh264](https://github.com/soraneoumi/mpeg2toh264)を並走させ、実際の視聴で品質を見比べます（#2287）。フォークの扱いは評価の結果を見て決めます。
+フォークはH.264への変換を持たず、MPEG-2とAAC-LCをworkerのWebAssembly（Rustで書いたデコーダ）でデコードし、映像はyadif、音はAudioWorkletで出します。`<video>`は音も映像も再生せず、再生の機能（`currentTime`、`paused`、`playbackRate`、`buffered`など）にはフォークが答えます。
+
+- otya128/mpeg2toh264は今までどおり`frontend/vendor/mpeg2toh264`（`@mpeg2toh264/*`）に置きます。画質の「オリジナル」と「自動」は、今までどおりotya128/mpeg2toh264で再生します。
+- フォークは`frontend/vendor/mpeg2toh264-fork`（`@mpeg2toh264-fork/*`）に置き、同じ名前のパッケージと並べられるよう、名前を替えます。ビルドの方法と、上流に入っていない修正を`patches/`に置くことは、otya128/mpeg2toh264と同じです。WebAssemblyは`frontend/public/mpeg2toh264-fork/`から配信します。
+- ライブ視聴、録画の再生、端末に保存した録画の再生の画質のメニューで「オリジナル（フォーク、評価中）」を選んだときだけ、フォークで再生します。自動では選びません。
+- AudioWorkletは安全な文脈（httpsかlocalhost）でしか使えないので、httpで開いた画面ではこの項目を出しません。
+- フォークでデコードしている間、`<video>`はコマを出さないので、キャプチャはyadifのcanvasのコマから取り、回線の判定と映像だけの遅れの飛び直しでは、コマの途絶を数えません。コマごとの呼び返し（CMを飛ばした後に覆いを外すかの判定など）は、画面の書き換えごとに今の位置で呼びます。CMを飛ばす間の覆いは、止めた絵を写せないので、黒で覆います。映像と音の合わせ方は、フォークが音の速さで受け持ちます。
+- フォークは音を自分のAudioContextで鳴らし、Kotatsuの音の処理（`PlayerMedia.audioPort`）を通りません。そのため、フォークで再生している間は、100%を超える音量、音量の補正、音ずれの補正、バーチャルサラウンドが効きません。バーチャルサラウンドは、切り替えも出しません。
 
 #### ブラウザ内でのデコード
 
@@ -3702,7 +3715,7 @@ Kotatsu本体はApache License 2.0で公開します。
 
 | ソフトウェア | ライセンス | 扱い |
 |---|---|---|
-| @mpeg2toh264/yadif | LGPL-2.1-or-later（FFmpeg由来） | フロントエンドに同梱します。差し替えられる形（独立したモジュール）で配信し、ソースの入手先と、上流に加えた修正のパッチを一緒に置きます。 |
+| @mpeg2toh264/yadif、@mpeg2toh264-fork/yadif（#2287） | LGPL-2.1-or-later（FFmpeg由来） | フロントエンドに同梱します。差し替えられる形（独立したモジュール）で配信し、ソースの入手先と、上流に加えた修正のパッチを一緒に置きます。 |
 | FFmpegのmpeg2videoとAACのデコーダ（WebAssembly。`frontend/vendor/ffmpeg`。#1516） | LGPL-2.1-or-later（`--enable-gpl`を付けずに構成します） | ブラウザ内でデコードする経路で使うため、フロントエンドに同梱します。リリースのtarball（署名を確認します）から、デコーダとparserだけに絞ってemscriptenで組み、`frontend/public/ffmpeg/decoder.wasm`として明示的なURLで配信します。差し替えられる形（WebAssemblyと、それを読み込むJSの独立したモジュール）で配布します。読み込むJSはWebAssemblyの関数を縮めた名前で呼び、画面のJSにバンドルするので、差し替えるときは、組み方のスクリプトで2つを組で組み直してから、画面を組み直します。WebAssemblyの隣には、ライセンス文書と、ソースの入手先、つなぐコード（`glue.c`）と組み方の在りかを置きます。組んだものはリポジトリに置き、CIが同じバージョンから組み直して差分がないことを確認します。 |
 | FFmpeg（リリースのtarballからビルド。#2001） | GPL-2.0-or-later（`--enable-gpl`で構成し、`--enable-nonfree`は付けません。イメージのビルドで、付いていないことを確認します） | `-ffmpeg`イメージにだけ同梱し、子プロセスとして実行します（サムネイル、CMの区間の見分け、トランスコードなど）。本体とはリンクしません。ライセンス文書とソースの入手先は、このテーブルの後で示す方法でイメージに含めます。 |
 | nv-codec-headers | MIT（各ヘッダーの先頭に書かれています） | FFmpegのビルドに使うヘッダーで、NVENCとNVDECを実行時に読み込む部分がFFmpegに入ります。ドライバのライブラリは同梱せず、NVIDIA Container Toolkitがホストから渡します。ライセンス文書は、FFmpegと同じくイメージに含めます。 |
@@ -3710,7 +3723,7 @@ Kotatsu本体はApache License 2.0で公開します。
 | whisper.cpp（`whisper-cli`、`whisper-vad-speech-segments`） | MIT | `-ffmpeg`イメージに同梱し、字幕の自動生成で子プロセスとして実行します（#1682）。本体とはリンクしません。ライセンス文書とソースの入手先は、tsreadexと同じくイメージに含めます。 |
 | Silero VAD（ggmlの形式。`ggml-org/whisper-vad`） | MIT | 同梱しません。管理者が画面からダウンロードするか、手で置いたものを、自動生成した字幕の時刻を声に合わせるのに使います（#1682）。 |
 | 字幕の自動生成のモデル（ggmlの形式） | モデルによります。画面で勧める[kotoba-whisper v2.0](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-ggml)はApache-2.0、OpenAIのWhisperのモデル（[ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp)が配布するもの）はMITです（2026年11月に確認しました） | 同梱しません。管理者が画面で選んでダウンロードするか、手で置きます。画面で選べるモデルの一覧に、ライセンスを添えます。 |
-| mpeg2toh264、aribb24.js、web-bml、niconicomments、hls.js、Mantine、Relay | MITまたはApache-2.0 | フロントエンドに同梱します。 |
+| mpeg2toh264（フォークを含みます。#2287）、aribb24.js、web-bml、niconicomments、hls.js、Mantine、Relay | MITまたはApache-2.0 | フロントエンドに同梱します。 |
 | Anime4K（`Anime4K_Upscale_CNN_x2_M.glsl`） | MIT | 映像の拡大の方式のひとつ（[7.2](#72-ブラウザ内での変換)、#1653）。mpv向けのシェーダーを`frontend/scripts/convert-anime4k.mjs`でWebGL2に直して、フロントエンドに同梱します。著作権表示とライセンスの本文を`frontend/src/yunomi/anime4kShaders.ts`の先頭に残します。 |
 | AMD FidelityFX Super Resolution 1（`ffx_fsr1.h`のEASUとRCAS） | MIT | 映像の拡大（[7.2](#72-ブラウザ内での変換)、#1654）のシェーダーを、WebGL2に書き直してフロントエンドに同梱します。著作権表示とライセンスの本文を`frontend/src/yunomi/upscaler.ts`の先頭に残します。 |
 | 見出し用のフォント | SIL Open Font License | フロントエンドに同梱します。 |
@@ -3736,7 +3749,7 @@ Kotatsu本体はApache License 2.0で公開します。
 
 同梱するソフトウェアとデータのライセンスの文書は、「このアプリについて」の画面（`/about`、[10.3](#103-画面の構成)、#1604）で示します。
 
-- 画面に同梱するパッケージ（`dependencies`とその依存、`vendor/`のmpeg2toh264）は、画面のビルドで`licenses.json`に出力します。ライセンスの文書がないパッケージがあれば、ビルドを止めます。文書を持たずに公開されているパッケージは、`vite.config.ts`で名前を挙げたものに限り、`package.json`が宣言するMITの文に著作者を入れて示します。
+- 画面に同梱するパッケージ（`dependencies`とその依存、`vendor/`のmpeg2toh264とそのフォーク）は、画面のビルドで`licenses.json`に出力します。ライセンスの文書がないパッケージがあれば、ビルドを止めます。文書を持たずに公開されているパッケージは、`vite.config.ts`で名前を挙げたものに限り、`package.json`が宣言するMITの文に著作者を入れて示します。
 - 本体に組み込むGoのモジュールとGoの標準ライブラリは、本体のビルドの前に`printlicenses`で出力し、本体に埋め込みます。配布するすべてのOSの分を合わせて出力し、動いているバイナリが、自分に組み込まれたモジュールに絞って返します。バージョンは古いバージョンの脆弱性を狙う手がかりになるので、GraphQLで、ログインしたユーザーにだけ返します。ライセンスの文書がないモジュールがあれば、出力を止めます。
 - どちらの一覧も、依存を上げるたびに変わるので、リポジトリには置かず、ビルドのたびに作ります。一覧を出力しないビルド（開発用のビルド）では、画面に「一覧が含まれていない」と出します。
 - フォントとデータのテーブル、`-ffmpeg`イメージに同梱するプログラムは、画面に並べる一覧を手で保ちます（`frontend/src/about/licenses.ts`）。このテーブルに行を足したときは、そちらにも足します。
@@ -3769,6 +3782,7 @@ Kotatsu本体はApache License 2.0で公開します。
 | [SlashNephy/annict-tracker](https://github.com/SlashNephy/annict-tracker) | MIT | [`ebe5075`](https://github.com/SlashNephy/annict-tracker/commit/ebe5075) | 見たいリストの作品を、次の話と次の放送とともにカードで並べる視聴管理の画面（#1229）、作品の高画質の画像をAniListの`extraLarge`とJikanから引く選び方（#1315）、放送の時期のバッジと絞り込み、配信サービスで作品を探すリンクのURLの形 |
 | [SlashNephy/saya-definitions](https://github.com/SlashNephy/saya-definitions) | MIT | [`00d8dab`](https://github.com/SlashNephy/saya-definitions/commit/00d8dab) | サービスと、しょぼいカレンダーのチャンネル、Annictのチャンネルの対応。`definitions.json`をもとにした定義を埋め込みます（#1589） |
 | [SlashNephy/TVTestAnnictRecorder](https://github.com/SlashNephy/TVTestAnnictRecorder) | MIT | [`e8c867b`](https://github.com/SlashNephy/TVTestAnnictRecorder/commit/e8c867b) | アニメの番組と作品の照合の流れ（しょぼいカレンダー → arm → Annict）、話数とサブタイトルによるエピソードの特定、`[新]`と`[終]`による作品の状態の変更、番組名からの作品名と話数の解析（[3.8](#38-アニメの番組と作品の結びつき)） |
+| [soraneoumi/mpeg2toh264](https://github.com/soraneoumi/mpeg2toh264) | MIT（`packages/yadif`はLGPL-2.1-or-later） | [`ee8e1da`](https://github.com/soraneoumi/mpeg2toh264/commit/ee8e1da) | 評価のために並べる、ブラウザ内でのMPEG-2とAACのデコード（#2287） |
 | [tsukumijima/jikkyo-api](https://github.com/tsukumijima/jikkyo-api) | MIT | [`bca86ff`](https://github.com/tsukumijima/jikkyo-api/commit/bca86ff) | ニコニコ実況とNX-Jikkyoの過去ログのAPI |
 | [tsukumijima/KonomiTV](https://github.com/tsukumijima/KonomiTV) | MIT | [`0775594`](https://github.com/tsukumijima/KonomiTV/commit/0775594) | tsreadexによる入力の正規化とID3による字幕の運搬、仮想HLSとオンデマンドのエンコード、機能ごとに分けたプレイヤーの構成、Document Picture-in-Picture |
 | [tsukumijima/NX-Jikkyo](https://github.com/tsukumijima/NX-Jikkyo) | MIT | [`f1f8594`](https://github.com/tsukumijima/NX-Jikkyo/commit/f1f8594) | ニコニコ実況のコメントのWebSocket API |

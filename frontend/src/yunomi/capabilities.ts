@@ -23,6 +23,11 @@ export function detectCapabilities(scope: typeof globalThis = globalThis): Capab
     hevc: anySource?.isTypeSupported(hevc) ?? false,
     hevcUhd: anySource?.isTypeSupported(hevcUhd) ?? false,
     decode: canDecode(scope),
+    // フォーク (#2287) は、音を AudioWorklet で鳴らすので、安全な文脈 (https か localhost) でだけ使える。
+    fork:
+      canDecode(scope) &&
+      scope.isSecureContext === true &&
+      typeof (scope as { AudioWorkletNode?: unknown }).AudioWorkletNode === 'function',
   };
 }
 

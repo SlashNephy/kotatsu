@@ -1,0 +1,7 @@
+@mpeg2toh264-fork/yadif (LGPL-2.1-or-later) is built from the following source,
+with the .patch files next to this file applied in name order.
+Its license is in yadif-LICENSE next to this file.
+
+repository: https://github.com/soraneoumi/mpeg2toh264
+commit: ee8e1da59d76f17fc540a9440ceb0e83bddfa02d
+directory: packages/yadif

@@ -35,11 +35,16 @@ import {
 } from './superResolution';
 import classes from './TsPlayer.module.css';
 import { createYadifInterpolation, type YadifInterpolation } from './yadifInterpolation';
-import { mediaOf, type PlayerMedia } from './playerMedia';
+import { mediaOf, type PlayerMedia, setCanvasPictures } from './playerMedia';
+
+// TsEngine は、TS を再生するプレイヤーの種類。otya128 は H.264 に変換する otya128/mpeg2toh264、fork はブラウザの中で
+// デコードするフォーク (soraneoumi/mpeg2toh264)。フォークは、評価のために並べて置き、画質のメニューで選んだときだけ使う (#2287)。
+export type TsEngine = 'otya128' | 'fork';
 
 // wasmURL は、変換に使う WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
 // ストリーミングコンパイルを効かせる (設計書 7.2)。
-const wasmURL = `${import.meta.env.BASE_URL}mpeg2toh264/mpeg2toh264_wasm_bg.wasm`;
+const wasmURL = (engine: TsEngine) =>
+  `${import.meta.env.BASE_URL}${engine === 'fork' ? 'mpeg2toh264-fork' : 'mpeg2toh264'}/mpeg2toh264_wasm_bg.wasm`;
 
 // stallTimeoutMs は、再生しているのに、映像がこれより長く進まなければ、配信が切れたとみなす時間 (#1083)。
 // 変換のプレイヤーは、読むのを止めている間に接続が切れると、エラーも終わりも通知せずに待ち続けるので、映像の進みで見張る。
@@ -48,6 +53,8 @@ const stallTimeoutMs = 5_000;
 type Props = {
   // url は、流す TS の URL。null なら、何も読まない。
   url: string | null;
+  // engine は、プレイヤーの種類。変えたら、部品ごと作り直す (key に渡す)。
+  engine?: TsEngine;
   // handover は、URL が変わったときに、今の映像を流したまま裏で読み込み、映像が出てから切り替えるかどうか (#1083)。
   handover?: boolean;
   // handoverScope は、裏で読み込んで切り替えてよい範囲。前の読み込みと範囲が違えば、handover でもすぐ読み直す (#1729)。
@@ -178,7 +185,14 @@ function sourcePicture(
 ): SourcePicture | null {
   const timeline = player.deinterlacer?.videoTimeline ?? [];
   const now = player.video.currentTime;
-  const state = timeline.findLast((entry) => entry.start <= now) ?? timeline[0];
+  // フォークのプレイヤーがデコードしている読み込み (#2287) では、<video> に映像がなく、切り替わりのテーブルも空なので、
+  // プレイヤーが受け取ったコマの大きさと、yadif が映しているコマの走査の方式を使う。
+  const fork = forkState(player);
+  const codedSize = fork.decoding ? (fork.codedSize ?? undefined) : undefined;
+  const state =
+    codedSize !== undefined
+      ? { start: 0, codedSize, scan: yadif?.scan ?? undefined }
+      : (timeline.findLast((entry) => entry.start <= now) ?? timeline[0]);
   if (state?.codedSize === undefined) {
     return null;
   }
@@ -218,8 +232,34 @@ function sourcePicture(
 }
 
 // loadModules は、変換のプレイヤーと yadif を読む。yadif は LGPL なので、別のチャンクとして読む。
-const loadModules = () =>
-  Promise.all([import('@mpeg2toh264/player'), import('@mpeg2toh264/yadif')] as const);
+// フォーク (#2287) のモジュールは、TsPlayer が使う範囲では otya128/mpeg2toh264 と同じ形なので、otya128/mpeg2toh264 の型で扱う。
+// フォークにだけあるもの (softwareDecoding、codedSize) は、forkState で読む。
+const loadModules = (engine: TsEngine) =>
+  engine === 'fork'
+    ? (Promise.all([
+        import('@mpeg2toh264-fork/player'),
+        import('@mpeg2toh264-fork/yadif'),
+      ]) as unknown as Promise<
+        readonly [typeof import('@mpeg2toh264/player'), typeof import('@mpeg2toh264/yadif')]
+      >)
+    : Promise.all([import('@mpeg2toh264/player'), import('@mpeg2toh264/yadif')] as const);
+
+// ForkDeinterlacer は、フォークの yadif。otya128/mpeg2toh264 の型に、フォークにだけある capture を足したもの。
+type ForkDeinterlacer = Deinterlacer & { capture(): Promise<ImageBitmap> };
+
+// forkState は、フォークのプレイヤーが、この読み込みでデコードしているか (softwareDecoding) と、デコードしたコマの大きさを返す。
+// otya128/mpeg2toh264 のプレイヤーは、どちらも持たないので、デコードしていないものとして返す。
+function forkState(player: Mpeg2TsPlayer): {
+  decoding: boolean;
+  codedSize: { width: number; height: number } | null;
+} {
+  const fork = player as Mpeg2TsPlayer & {
+    softwareDecoding?: boolean;
+    codedSize?: { width: number; height: number } | null;
+  };
+
+  return { decoding: fork.softwareDecoding === true, codedSize: fork.codedSize ?? null };
+}
 
 // TsPlayer は、MPEG-2 の TS をブラウザの中で H.264 に変換して再生する (設計書 7.2)。
 // 1080i のインターレースは、yadif で解除する。
@@ -228,6 +268,7 @@ const loadModules = () =>
 // つなぎ直しで、映像が途切れたり黒くなったりしないようにする。今の映像が出ていなければ (切れて空になったときなど)、すぐ読み直す。
 export function TsPlayer({
   url,
+  engine = 'otya128',
   handover = false,
   handoverScope = '',
   mediaRef,
@@ -435,7 +476,7 @@ export function TsPlayer({
 
   // attachPlayer は、組の変換のプレイヤーを作る。モジュールを読み終えるまで待つ。
   const attachPlayer = async (slot: Slot): Promise<Mpeg2TsPlayer | null> => {
-    const [{ Mpeg2TsPlayer: Player }, { Deinterlacer }] = await loadModules();
+    const [{ Mpeg2TsPlayer: Player }, { Deinterlacer }] = await loadModules(engine);
     if (slot.destroyed) {
       return null;
     }
@@ -455,6 +496,7 @@ export function TsPlayer({
         scaler: superResolutionRef.current || hdrOutputRef.current ? slot.upscaler : null,
         // 擬似 HDR (#1656) で描画先の形式を変えるには、alpha のあるコンテキストが要る。どのコマも不透明に描くので、
         // 見え方は変わらない。WebGL の HDR の出力を持たないブラウザでは、今までどおり alpha なしで作る。
+        // フォークの yadif は、この設定を持たず、常に alpha のあるコンテキストで描く。
         alpha: hdrOutputSupported(),
         // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
         // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで通知する。
@@ -500,7 +542,7 @@ export function TsPlayer({
       return deinterlacer;
     };
     const player = new Player(slot.video, {
-      wasmUrl: wasmURL,
+      wasmUrl: wasmURL(engine),
       // iPhone のように MediaSource がなく ManagedMediaSource だけがある端末では、ManagedMediaSource で再生する (#1256)。
       preferManagedMediaSource: prefersManagedMediaSource(),
       deinterlace: true,
@@ -513,7 +555,20 @@ export function TsPlayer({
         return created.deinterlacer;
       },
     });
+    // syncPictures は、この読み込みでコマを canvas に描いているか (フォークのデコード、#2287) を、<video> の PlayerMedia に伝える。
+    // 描いているなら、キャプチャは yadif のコマから取り、<video> のコマを待つ処理は止める。
+    const syncPictures = () => {
+      const yadif = slot.yadif;
+      setCanvasPictures(
+        slot.video,
+        forkState(player).decoding && yadif !== null
+          ? // フォークの yadif は、映しているコマを描き直して返す capture を持つ。
+            { capture: () => (yadif as ForkDeinterlacer).capture() }
+          : null,
+      );
+    };
     player.addEventListener('statechange', (event) => {
+      syncPictures();
       if (isActive()) {
         handlers.current.onState?.(event.detail.state);
       }
@@ -551,6 +606,7 @@ export function TsPlayer({
       report();
     });
     player.addEventListener('progress', (event) => {
+      syncPictures();
       slot.bytesRead = event.detail.bytesRead;
       report();
     });

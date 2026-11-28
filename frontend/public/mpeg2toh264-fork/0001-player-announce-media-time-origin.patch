@@ -1,0 +1,56 @@
+diff --git a/packages/player/src/player.ts b/packages/player/src/player.ts
+index b58a8da..085536f 100644
+--- a/packages/player/src/player.ts
++++ b/packages/player/src/player.ts
+@@ -277,6 +277,13 @@ export interface Mpeg2TsPlayerEventMap {
+    * element has only what has been converted so far to offer a viewer.
+    */
+   seekable: CustomEvent<{ duration: number }>;
++  /**
++   * The source timestamp, in 90 kHz ticks, that media time zero stands for:
++   * the element's `currentTime` is the seconds since this PTS, across wraps.
++   * Arrives once per load, when the first fragment fixes it; a new load (a
++   * reconnect, another channel) settles its own.
++   */
++  origin: CustomEvent<{ ticks: number }>;
+   /**
+    * A step of the load happened, and this is how long it took to get there.
+    * Every mark of one load is measured from the `load()` that started it, so
+@@ -1294,6 +1301,9 @@ export class Mpeg2TsPlayer extends EventTarget {
+       case "services":
+         this.#emit("services", notification.services);
+         break;
++      case "origin":
++        this.#emit("origin", { ticks: notification.ticks });
++        break;
+       case "audio":
+         this.#audio = notification.audio;
+         this.#emit("audio", notification.audio);
+diff --git a/packages/player/src/protocol.ts b/packages/player/src/protocol.ts
+index 32dd9e7..b9499f8 100644
+--- a/packages/player/src/protocol.ts
++++ b/packages/player/src/protocol.ts
+@@ -357,6 +357,11 @@ export type Notification =
+    * seek re-reads them.
+    */
+   | { type: "services"; id: number; services: Services }
++  /**
++   * The source timestamp, in 90 kHz ticks, that media time zero stands for.
++   * Sent once per load, when the first fragment fixes it.
++   */
++  | { type: "origin"; id: number; ticks: number }
+   /**
+    * What sound the programme is carrying and which of it is being taken. Sent
+    * once the program map has been read, and again whenever either changes --
+diff --git a/packages/player/src/worker.ts b/packages/player/src/worker.ts
+index 6eaf908..9630b0a 100644
+--- a/packages/player/src/worker.ts
++++ b/packages/player/src/worker.ts
+@@ -1090,6 +1090,7 @@ class Playback {
+     const origin = converter.originTicks;
+     if (origin === null) return;
+     this.#origin = origin;
++    post({ type: "origin", id: this.#command.id, ticks: origin });
+     this.#announceDuration();
+     for (const fragment of this.#private) this.#postPrivate(fragment);
+     this.#private = [];

@@ -12,28 +12,28 @@ describe('detectCapabilities', () => {
     {
       name: 'PC のブラウザは、MediaSource で変換もトランスコードも使える',
       scope: { MediaSource: source('avc1', 'hvc1') },
-      want: { convert: true, hls: true, hevc: true, hevcUhd: true, decode: false },
+      want: { convert: true, hls: true, hevc: true, hevcUhd: true, decode: false, fork: false },
     },
     {
       name: 'iPhone は ManagedMediaSource しかないが、変換もトランスコードも使える (#1256)',
       scope: { ManagedMediaSource: source('avc1', 'hvc1') },
-      want: { convert: true, hls: true, hevc: true, hevcUhd: true, decode: false },
+      want: { convert: true, hls: true, hevc: true, hevcUhd: true, decode: false, fork: false },
     },
     {
       name: 'HEVC を再生できないブラウザ',
       scope: { MediaSource: source('avc1') },
-      want: { convert: true, hls: true, hevc: false, hevcUhd: false, decode: false },
+      want: { convert: true, hls: true, hevc: false, hevcUhd: false, decode: false, fork: false },
     },
     {
       name: 'MediaSource のないブラウザ',
       scope: {},
-      want: { convert: false, hls: false, hevc: false, hevcUhd: false, decode: false },
+      want: { convert: false, hls: false, hevc: false, hevcUhd: false, decode: false, fork: false },
     },
     {
       // Linux の Chrome などは、HEVC の 1080p の 8 ビットは復号できても、BS4K の 2160p の 10 ビットは復号できないことがある。
       name: 'BS4K の映像を復号できないブラウザ',
       scope: { MediaSource: source('avc1', 'hvc1.1.') },
-      want: { convert: true, hls: true, hevc: true, hevcUhd: false, decode: false },
+      want: { convert: true, hls: true, hevc: true, hevcUhd: false, decode: false, fork: false },
     },
   ])('$name', ({ scope, want }) => {
     expect(detectCapabilities(scope as unknown as typeof globalThis)).toEqual(want);
@@ -77,6 +77,34 @@ describe('ブラウザの中でデコードする経路 (#1516) を使えるか'
     },
   ])('$name', ({ scope, want }) => {
     expect(detectCapabilities(scope as unknown as typeof globalThis).decode).toBe(want);
+  });
+
+  test.each([
+    {
+      name: '安全な文脈で AudioWorklet があれば、フォーク (#2287) も使える',
+      scope: {
+        ...decodeScope(),
+        isSecureContext: true,
+        AudioWorkletNode: function AudioWorkletNode() {},
+      },
+      want: true,
+    },
+    {
+      name: '安全な文脈でなければ、フォークは使えない',
+      scope: {
+        ...decodeScope(),
+        isSecureContext: false,
+        AudioWorkletNode: function AudioWorkletNode() {},
+      },
+      want: false,
+    },
+    {
+      name: 'AudioWorklet がなければ、フォークは使えない',
+      scope: { ...decodeScope(), isSecureContext: true },
+      want: false,
+    },
+  ])('$name', ({ scope, want }) => {
+    expect(detectCapabilities(scope as unknown as typeof globalThis).fork).toBe(want);
   });
 });
 

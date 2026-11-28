@@ -16,6 +16,9 @@ export type Capabilities = {
   // decode は、ブラウザの中で MPEG-2 をデコードして再生できるかどうか (#1516)。WASM の SIMD、worker の OffscreenCanvas、
   // GPU で描く WebGL2、AudioContext が要る。
   decode: boolean;
+  // fork は、評価のために並べるフォークのプレイヤー (#2287) でデコードして再生できるかどうか。decode の条件に加えて、
+  // 音を鳴らす AudioWorklet が要るので、安全な文脈 (https か localhost) でだけ使える。
+  fork?: boolean;
 };
 
 // passthrough は、映像を変換しない (BS4K の HEVC をそのまま送る) 画質かどうか。
@@ -37,6 +40,8 @@ export function toVideoFormat(value: string): VideoFormat {
 export const original = 'original';
 // decoded は、ブラウザの中でデコードする経路 (#1516) を表す画質の名前。手で選んだときだけ使い、自動では選ばない。
 export const decoded = 'decoded';
+// forked は、フォークのプレイヤーでデコードする経路 (#2287) を表す画質の名前。評価のために並べ、手で選んだときだけ使う。
+export const forked = 'forked';
 
 // RouteOptions は、画面ごとに選べる経路。
 export type RouteOptions = {
@@ -45,7 +50,8 @@ export type RouteOptions = {
 };
 
 export type PlaybackRoute =
-  | { kind: 'convert' }
+  // engine は、プレイヤーの種類。fork なら、評価のために並べるフォークで再生する (#2287)。省けば otya128/mpeg2toh264。
+  | { kind: 'convert'; engine?: 'fork' }
   | { kind: 'decode' }
   | { kind: 'kyusu'; preset: string }
   // unavailable は、再生できないこと。reason は、利用者に示す理由。
@@ -75,6 +81,9 @@ export function qualities(
   }
   if (format === 'HD' && capabilities.decode && options.decode === true) {
     list.push(decoded);
+  }
+  if (format === 'HD' && capabilities.fork === true && options.decode === true) {
+    list.push(forked);
   }
   if (transcoding.available && capabilities.hls) {
     for (const preset of transcoding.presets) {
@@ -112,6 +121,10 @@ export function chooseRoute(
       return { kind: 'convert' };
     }
 
+    if (requested === forked) {
+      return { kind: 'convert', engine: 'fork' };
+    }
+
     return requested === decoded ? { kind: 'decode' } : { kind: 'kyusu', preset: requested };
   }
   if (choices.includes(original)) {
@@ -124,7 +137,9 @@ export function chooseRoute(
     return { kind: 'kyusu', preset: passthrough.name };
   }
   // ブラウザの中での変換とデコードは kyusu の画質でないので、kyusu の画質だけから選ぶ。デコードする経路は、選ばれたときにだけ使う。
-  const presets = choices.filter((choice) => choice !== original && choice !== decoded);
+  const presets = choices.filter(
+    (choice) => choice !== original && choice !== decoded && choice !== forked,
+  );
   const preferred = format === 'UHD' && capabilities.convert ? uhdDesktopPreset : defaultPreset;
   const preset = presets.includes(preferred) ? preferred : presets[0];
   if (preset !== undefined) {

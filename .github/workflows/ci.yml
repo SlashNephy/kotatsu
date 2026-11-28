@@ -224,6 +224,8 @@ jobs:
         with:
           working_directory: frontend
       - run: mise run //frontend:mpeg2toh264
+      # 評価のために並べるフォーク (#2287) も、同じく確認する。
+      - run: mise run //frontend:mpeg2toh264-fork
       - run: git add -N frontend/vendor frontend/public && git diff --exit-code frontend/vendor frontend/public
 
   # ブラウザ内でデコードする経路の WASM の FFmpeg を、固定したバージョンと emscripten のイメージで組み直し、

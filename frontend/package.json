@@ -13,6 +13,8 @@
     "@mantine/core": "9.8.2",
     "@mantine/hooks": "9.8.2",
     "@mantine/notifications": "9.8.2",
+    "@mpeg2toh264-fork/player": "workspace:*",
+    "@mpeg2toh264-fork/yadif": "workspace:*",
     "@mpeg2toh264/player": "workspace:*",
     "@mpeg2toh264/yadif": "workspace:*",
     "@simplewebauthn/browser": "14.0.0",

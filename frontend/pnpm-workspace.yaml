@@ -1,5 +1,6 @@
 packages:
   - vendor/mpeg2toh264/*
+  - vendor/mpeg2toh264-fork/*
   - vendor/ffmpeg/decoder
 
 # Storybook が使う esbuild の postinstall は、バイナリを確認するだけなので走らせない。

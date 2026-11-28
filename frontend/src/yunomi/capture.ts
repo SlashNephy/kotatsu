@@ -33,11 +33,12 @@ export function fitContain(
 // 字幕とコメントの canvas は、どちらも映像の枠 (16:9) に合わせて描いている。
 // crop で切り抜いているときは、画面と同じく、映像と字幕だけを切り抜いた範囲でコピーし、コメントは切り抜かずに重ねる (#496)。
 export async function captureFrame(
-  media: Pick<PlayerMedia, 'frame' | 'videoWidth' | 'videoHeight'>,
+  media: Pick<PlayerMedia, 'frame' | 'videoWidth' | 'videoHeight' | 'canvasPictures'>,
   overlays: HTMLCanvasElement[],
   crop: Crop = noCrop,
 ): Promise<Blob> {
-  const { frame } = media;
+  // コマを canvas に描いている経路では、<video> に絵がないので、canvas のコマを描き直してもらう (#2287)。
+  const frame = media.canvasPictures ? await media.canvasPictures.capture() : media.frame;
   if (frame === null) {
     throw new Error('the current frame is not available');
   }

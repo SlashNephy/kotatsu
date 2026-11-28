@@ -360,7 +360,9 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
   // streamMeter は、右のカラムの「情報」に出す、届いた映像のビットレートと放送の形式をバッファに保持する (#828)。
   const streamMeter = useStreamMeter(playback.current);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
-  const surroundAvailable = route.kind === 'convert' && isSurroundAudio(source.audios);
+  // フォーク (#2287) は音を自分の AudioContext で鳴らし、音の処理 (PlayerMedia.audioPort) を通らないので、出さない。
+  const surroundAvailable =
+    route.kind === 'convert' && route.engine !== 'fork' && isSurroundAudio(source.audios);
   useVirtualSurround(media, surroundAvailable);
   // captionHistory は、字幕の履歴 (#450) と、キャプチャに書き込む今の字幕の文 (#458)。
   const captionHistory = useRecordedCaptions(currentPosition, !local);
@@ -715,6 +717,9 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
     >
       {route.kind === 'convert' && (
         <TsPlayer
+          // プレイヤーの種類を替えたら、部品ごと作り直す (#2287)。
+          key={route.engine ?? 'otya128'}
+          engine={route.engine ?? 'otya128'}
           // 端末に保存した録画は、ファイルをそのまま読む。読み直すたびに fragment を変え、TsPlayer に読み直させる。
           url={local ? `${source.streamUrl}#${hlsStream.loads}` : stream.url}
           handover={!local && timeline.handover}

@@ -119,6 +119,10 @@ export interface PlayerMedia {
   audioPort(): AudioPort;
   // frame は、今のコマを描いたもの。drawImage に渡す。すぐに描けない経路では null。
   readonly frame: CanvasImageSource | null;
+  // canvasPictures は、<video> が音と時計だけを受け持ち、コマを別の canvas に描いているときの、そのコマの取り方 (#2287)。
+  // このとき <video> はコマを出さないので、requestVideoFrameCallback は呼ばれず、frame の <video> には絵がない。
+  // コマを <video> が出しているなら、null か無い。
+  readonly canvasPictures?: CanvasPictures | null;
   // element は、映像を映している DOM の要素。
   readonly element: HTMLElement;
   addEventListener(
@@ -133,6 +137,12 @@ export interface PlayerMedia {
   ): void;
 }
 
+// CanvasPictures は、canvas に描いているコマの取り方。
+export type CanvasPictures = {
+  // capture は、今映しているコマを描き直して返す。
+  capture(): Promise<CanvasImageSource>;
+};
+
 // VideoElementMedia は、<video> で鳴らす経路の PlayerMedia。<video> の同じ名前のものに、そのまま渡す。
 // イベントも <video> に付けるので、受け取るイベントの target は <video> になる (部品は target を読まない)。
 // 同じ <video> に 2 つ作ると、音の口 (createMediaElementSource は 1 つの <video> に 1 度だけ) が分かれるので、
@@ -145,12 +155,19 @@ class VideoElementMedia implements PlayerMedia {
   declare readonly cancelVideoFrameCallback?: (handle: number) => void;
   declare readonly getVideoPlaybackQuality?: () => PlayerMediaQuality;
   private port: AudioPort | null = null;
+  // canvasPictures は、読み込みごとに、<video> を渡したプレイヤーが決める (#2287)。
+  canvasPictures: CanvasPictures | null = null;
+
+  // frameRequests は、requestVideoFrameCallback で渡した番号ごとの、待っている呼び返し。<video> のものか、
+  // canvas に描いている間 (#2287) の requestAnimationFrame のもの。どちらで待っていても、同じ番号で取り消せるようにする。
+  private readonly frameRequests = new Map<number, { video: number } | { animation: number }>();
+  private lastFrameRequest = 0;
 
   constructor(readonly video: HTMLVideoElement) {
     // 対応していないブラウザでは、メソッドを持たせない。部品は有無を見て、別の方法に切り替えるため。
     if (typeof video.requestVideoFrameCallback === 'function') {
-      this.requestVideoFrameCallback = (callback) => video.requestVideoFrameCallback(callback);
-      this.cancelVideoFrameCallback = (handle) => video.cancelVideoFrameCallback(handle);
+      this.requestVideoFrameCallback = (callback) => this.requestFrame(callback);
+      this.cancelVideoFrameCallback = (handle) => this.cancelFrame(handle);
     }
     if (typeof video.getVideoPlaybackQuality === 'function') {
       this.getVideoPlaybackQuality = () => video.getVideoPlaybackQuality();
@@ -229,8 +246,45 @@ class VideoElementMedia implements PlayerMedia {
     this.video.defaultPlaybackRate = value;
   }
 
-  get frame(): CanvasImageSource {
-    return this.video;
+  // canvas に描いている間 (#2287) は、<video> に絵がない。すぐに描けるものはないので null を返し、
+  // キャプチャは canvasPictures から取る。
+  get frame(): CanvasImageSource | null {
+    return this.canvasPictures === null ? this.video : null;
+  }
+
+  // requestFrame は、次のコマで callback を呼ぶ。canvas に描いている間 (#2287) は <video> がコマを出さず、
+  // requestVideoFrameCallback が呼ばれないので、画面の書き換えごとに、今の位置を mediaTime として呼ぶ。
+  private requestFrame(callback: PlayerFrameCallback): number {
+    const id = ++this.lastFrameRequest;
+    const done = () => this.frameRequests.delete(id);
+    if (this.canvasPictures === null) {
+      const video = this.video.requestVideoFrameCallback((now, metadata) => {
+        done();
+        callback(now, metadata);
+      });
+      this.frameRequests.set(id, { video });
+    } else {
+      const animation = requestAnimationFrame((now) => {
+        done();
+        callback(now, { mediaTime: this.video.currentTime });
+      });
+      this.frameRequests.set(id, { animation });
+    }
+
+    return id;
+  }
+
+  private cancelFrame(id: number): void {
+    const request = this.frameRequests.get(id);
+    if (request === undefined) {
+      return;
+    }
+    this.frameRequests.delete(id);
+    if ('video' in request) {
+      this.video.cancelVideoFrameCallback(request.video);
+    } else {
+      cancelAnimationFrame(request.animation);
+    }
   }
 
   get element(): HTMLElement {
@@ -281,6 +335,12 @@ class VideoElementMedia implements PlayerMedia {
 
 // medias は、<video> ごとの PlayerMedia。同じ <video> には、同じものを返す (WeakMap のキーや、React の依存で比較するため)。
 const medias = new WeakMap<HTMLVideoElement, PlayerMedia>();
+
+// setCanvasPictures は、video の PlayerMedia に、canvas に描いているコマの取り方を設定する (#2287)。
+// <video> がコマを出しているなら null を渡す。
+export function setCanvasPictures(video: HTMLVideoElement, pictures: CanvasPictures | null): void {
+  (mediaOf(video) as VideoElementMedia).canvasPictures = pictures;
+}
 
 // mediaOf は、video の PlayerMedia を返す。
 export function mediaOf(video: HTMLVideoElement): PlayerMedia {

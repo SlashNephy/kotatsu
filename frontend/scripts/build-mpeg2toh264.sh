@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
-# mpeg2toh264 のプレイヤーを、frontend/vendor/mpeg2toh264/SOURCE で固定した commit からビルドし、frontend に置く (設計書 7.2)。
+# mpeg2toh264 のプレイヤーを、frontend/vendor/<名前>/SOURCE で固定した commit からビルドし、frontend に置く (設計書 7.2)。
+# 名前は引数で渡す。既定は mpeg2toh264 (otya128/mpeg2toh264)。評価のために並べるフォークは mpeg2toh264-fork (#2287)。
+# パッケージは @<名前>/player と @<名前>/yadif の名前で置く。同じ名前の 2 つのパッケージは並べられないため。
 #
 # mpeg2toh264 のプレイヤーは npm に公開されていないので、ソースからビルドしたものをリポジトリに置く。
 # ビルドには、mise で固定した Rust と wasm-bindgen と Node.js を使う。
 # 同じ commit からは同じものができるよう、ビルドしたディレクトリの絶対パスを成果物に残さない。
 #
 # 置くもの:
-#   frontend/vendor/mpeg2toh264/player  @mpeg2toh264/player (MIT)。変換のワーカーを含む
-#   frontend/vendor/mpeg2toh264/yadif   @mpeg2toh264/yadif (LGPL-2.1-or-later)。差し替えられるよう、別のパッケージのままにする
-#   frontend/public/mpeg2toh264/        変換に使う WebAssembly と、yadif のライセンス文書とソースの入手先。明示的な URL で配信する
+#   frontend/vendor/<名前>/player  @<名前>/player (MIT)。変換のワーカーを含む
+#   frontend/vendor/<名前>/yadif   @<名前>/yadif (LGPL-2.1-or-later)。差し替えられるよう、別のパッケージのままにする
+#   frontend/public/<名前>/        変換に使う WebAssembly と、yadif のライセンス文書とソースの入手先。明示的な URL で配信する
 set -euo pipefail
 # 修正がすべて上流に入り、patches/ が空になっても動くようにする。
 shopt -s nullglob
 
 frontend="$(cd "$(dirname "$0")/.." && pwd)"
-vendor="$frontend/vendor/mpeg2toh264"
-public="$frontend/public/mpeg2toh264"
+name="${1:-mpeg2toh264}"
+vendor="$frontend/vendor/$name"
+public="$frontend/public/$name"
 # shellcheck source=/dev/null
 source <(grep -E '^(repository|commit)=' "$vendor/SOURCE")
 
@@ -58,8 +61,8 @@ unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 # copy_package は、ビルドしたパッケージの dist を置き、npm のパッケージとして使えるようにする。
 # ソースマップは、ビルドしたディレクトリのパスを含むので置かない。
 copy_package() {
-  local name="$1" license="$2"
-  local from="$src/packages/$name" to="$vendor/$name"
+  local package="$1" license="$2"
+  local from="$src/packages/$package" to="$vendor/$package"
   rm -rf "$to"
   mkdir -p "$to"
   # GNU と BSD のどちらの install と sed でも動くよう、-D と -i を使わない。
@@ -70,10 +73,10 @@ copy_package() {
   cp "$from/LICENSE" "$to/LICENSE"
   cat >"$to/package.json" <<EOF
 {
-  "name": "@mpeg2toh264/$name",
+  "name": "@$name/$package",
   "version": "0.0.0",
   "private": true,
-  "description": "$name of mpeg2toh264, built by scripts/build-mpeg2toh264.sh",
+  "description": "$package of $name, built by scripts/build-mpeg2toh264.sh",
   "type": "module",
   "license": "$license",
   "exports": {
@@ -99,7 +102,7 @@ for patch in "$vendor"/patches/*.patch; do
   cp "$patch" "$public/"
 done
 cat >"$public/yadif-SOURCE" <<EOF
-@mpeg2toh264/yadif (LGPL-2.1-or-later) is built from the following source,
+@$name/yadif (LGPL-2.1-or-later) is built from the following source,
 with the .patch files next to this file applied in name order.
 Its license is in yadif-LICENSE next to this file.
 
@@ -108,4 +111,4 @@ commit: $commit
 directory: packages/yadif
 EOF
 
-echo "built mpeg2toh264 $commit"
+echo "built $name $commit"

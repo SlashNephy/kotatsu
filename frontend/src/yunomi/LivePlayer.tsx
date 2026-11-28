@@ -523,7 +523,9 @@ export function LivePlayer({ source }: { source: LiveSource }) {
   };
   const audio = usePlayerAudio(route, program?.audios ?? null, restartBehind);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
-  const surroundAvailable = route.kind === 'convert' && isSurroundAudio(program?.audios ?? null);
+  // フォーク (#2287) は音を自分の AudioContext で鳴らし、音の処理 (PlayerMedia.audioPort) を通らないので、出さない。
+  const surroundAvailable =
+    route.kind === 'convert' && route.engine !== 'fork' && isSurroundAudio(program?.audios ?? null);
   useVirtualSurround(media, surroundAvailable);
   const programName = program?.name ?? null;
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
@@ -842,6 +844,9 @@ export function LivePlayer({ source }: { source: LiveSource }) {
     >
       {route.kind === 'convert' && (
         <TsPlayer
+          // プレイヤーの種類を替えたら、部品ごと作り直す (#2287)。
+          key={route.engine ?? 'otya128'}
+          engine={route.engine ?? 'otya128'}
           url={
             timeshift.behind
               ? timeshift.stream.url

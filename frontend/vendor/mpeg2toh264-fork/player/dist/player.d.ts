@@ -1,0 +1,349 @@
+import { type AudioTracks, type DecodedPicture, type PlayerState, type PrivateStream, type Progress, type Scan, type VideoState, type Services, type SinkKind, type Stats, type Timing } from "./protocol.js";
+/**
+ * Where a deinterlacer takes decoded pictures, which it then shows by the
+ * media element's clock. Every pushed buffer comes back through `onrelease`
+ * once, possibly as another ArrayBuffer object or detached.
+ */
+export interface PlayerDecodedVideo {
+    push(picture: DecodedPicture): void;
+    reset(): void;
+    finish(): void;
+    onrelease: ((data: ArrayBuffer) => void) | null;
+    /** The sound's lead over the picture on the screen, in seconds; see `DisplayLock`. */
+    avDifference(): number;
+    /** Playback starts: media time `media` is heard at `wall`; see `DecodedVideoInput.startsAt`. */
+    startsAt(media: number, wall: number): void;
+    /** Where the renderer stands; see `DecodedVideoInput.rendererStatus`. */
+    rendererStatus(): PlayerRendererStatus;
+    /** Called when `rendererStatus()` may have changed. */
+    onrendererstatus: (() => void) | null;
+}
+/** Where a deinterlacer's renderer stands; see `RendererStatus` in the yadif package. */
+export type PlayerRendererStatus = {
+    state: "preparing";
+} | {
+    state: "prepared";
+} | {
+    state: "failed";
+    reason: string;
+};
+/** A replaceable deinterlacer controlled by the source picture timeline. */
+export interface PlayerDeinterlacer {
+    /**
+     * Decoded pictures in. Where there is one the player decodes the video
+     * itself and the element plays the sound alone; see
+     * `Mpeg2TsPlayerOptions.softwareDecode`.
+     */
+    readonly decodedVideo?: PlayerDecodedVideo | null;
+    /** Whether the deinterlacer, rather than the element, is showing the picture. */
+    readonly running: boolean;
+    /** Field information selected for the picture most recently presented. */
+    readonly scan: Scan | null;
+    enabled: boolean;
+    videoTimeline: readonly VideoState[];
+    destroy(): void;
+}
+export type PlayerDeinterlacerFactory = (video: HTMLVideoElement) => PlayerDeinterlacer;
+export interface Mpeg2TsPlayerOptions {
+    /** Where the `.wasm` is. Defaults to the copy sitting beside the worker. */
+    wasmUrl?: string | URL;
+    /** Where the module Worker is. Defaults to the copy emitted beside this package. */
+    workerUrl?: string | URL;
+    /**
+     * Which side runs MediaSource. `'auto'` takes the worker wherever the
+     * browser has MSE in Workers, and the page otherwise.
+     */
+    mediaSource?: "auto" | "worker" | "main";
+    /**
+     * Open a Managed Media Source where the browser has both.
+     *
+     * An iPhone has only the managed one and gets it whatever this says -- that
+     * is what makes the player work there at all. Everywhere both exist the
+     * plain one is used by default; setting this asks for the managed one, which
+     * is how to see on a desktop what an iPhone will do with a stream.
+     */
+    preferManagedMediaSource?: boolean;
+    /**
+     * Number of MPEG-2 GOPs between recovery boundaries, a positive integer.
+     * 24 by default. What a boundary does is up to `openGopRecovery`.
+     */
+    recoveryInterval?: number;
+    /**
+     * What a recovery boundary does with the leading pictures of an open GOP.
+     * `recovery-point`, the default, keeps them; `discard` drops them and begins
+     * again at the boundary's intra picture. Passthrough marks the fragment at
+     * the boundary as a random access point either way; decoding sends the unit
+     * with its references cleared only for `discard`.
+     */
+    openGopRecovery?: "recovery-point" | "discard";
+    /**
+     * Give each field of a complementary pair its own MP4 sample. On by default,
+     * because both break where frame pictures give way to field pictures:
+     * Firefox on Windows freezes, and a pair sharing one sample decodes to an
+     * image of `CVFieldCount` 2 where a frame picture gives 1, which Safari fails
+     * on because WebKit reuses the format description it cached from the first
+     * decoded image. Only a sample boundary moves; the elementary stream is the
+     * same either way. It applies to `passthrough`, the one mode with a video
+     * track in the MP4.
+     */
+    splitFieldSamples?: boolean;
+    /**
+     * Raise the sound, in steps of 2^(1/4) -- about 1.5 dB -- so that 4 doubles
+     * it. A broadcast leaves more headroom than playback wants, and a player
+     * that re-encodes the sound can turn it up on the way; this does the same
+     * without re-encoding, by adding to each channel's AAC `global_gain`. Mono
+     * and dual mono count as stereo, since that is how they are played.
+     *
+     * Nothing limits what is raised past full scale: it clips where the sound
+     * is output, as it would after any plain gain. 0 by default.
+     */
+    audioGainSteps?: number;
+    /**
+     * The same for sound of more than two channels, which a stereo listener
+     * hears downmixed -- the centre and surrounds are added into the front pair,
+     * so the same step takes it further towards clipping. Takes
+     * `audioGainSteps` by default.
+     */
+    surroundAudioGainSteps?: number;
+    /**
+     * Carry the MPEG-2 video into the MP4 as it stands and let the browser
+     * decode it, for a browser whose decoder takes MPEG-2 -- Safari on Apple
+     * platforms is the one that does. The picture is the broadcast's own and the
+     * packaging costs almost nothing.
+     *
+     * This is what a load falls back to where it cannot decode the video itself;
+     * see `softwareDecode`. A browser without an MPEG-2 decoder plays none of it,
+     * and says so by failing the load rather than by showing anything, so this is
+     * worth checking with `supportsPassthrough()` before setting it.
+     */
+    passthrough?: boolean;
+    /**
+     * Which service to take, out of a transport stream carrying more than
+     * one. Left unset, the first that turns up with a picture in it. The
+     * `services` event says what a given input is offering.
+     */
+    serviceId?: number;
+    /** Pause conversion above this many bytes waiting to be appended. */
+    queueHighWaterMark?: number;
+    /** Pause conversion while the buffer already reaches this far past the playhead. */
+    maxAheadSeconds?: number;
+    /** Seconds of played media to keep behind the playhead when evicting. */
+    keepBehindSeconds?: number;
+    /**
+     * Whether to deinterlace what the element shows, and how. A transport stream
+     * off the air is interlaced and stays that way through the conversion, so
+     * without this the picture is combed wherever anything moved.
+     *
+     * The implementation is supplied separately through `deinterlacer`, so yadif,
+     * bob, or another implementation can be selected without changing player.
+     */
+    deinterlace?: boolean;
+    /** Construct the deinterlacer attached to this player's video element. */
+    deinterlacer?: PlayerDeinterlacerFactory;
+    /**
+     * Decode the MPEG-2 in the worker and hand the pictures to the
+     * deinterlacer, where it takes decoded pictures: the element then plays
+     * only the sound, and its `videoWidth` is 0 (see `videoSize`). On by
+     * default. A load decodes when a deinterlacer with a `decodedVideo` input
+     * was given, this is not false, and the stream has AAC sound, which keeps
+     * the clock. Otherwise it is carried as `passthrough` if that is set, and
+     * fails if it is not: `load()` rejects and `error` is raised, saying why.
+     */
+    softwareDecode?: boolean;
+}
+export interface Mpeg2TsPlayerEventMap {
+    statechange: CustomEvent<{
+        state: PlayerState;
+    }>;
+    progress: CustomEvent<Progress>;
+    stats: CustomEvent<Stats>;
+    /**
+     * What services the transport stream announced, and which of them is being
+     * played. A recording of one programme announces one and there is nothing
+     * to decide; one that carries a broadcaster's sub-channel as well leaves a
+     * choice, which `serviceId` makes on the next `load()`. See `Services`.
+     */
+    services: CustomEvent<Services>;
+    /**
+     * What sound the programme is carrying and which of it is being taken.
+     * Arrives once the program map has been read and again whenever either
+     * changes -- a programme boundary that offers different streams, a broadcast
+     * that turns dual mono on mid-programme, or a viewer's own choice taking
+     * effect. `selectAudio` and `selectDualMono` are what act on it. See
+     * `AudioTracks`.
+     */
+    audio: CustomEvent<AudioTracks>;
+    /** A private_stream_1 (stream_id 0xbd) PES payload from the selected service. */
+    private_stream_1: CustomEvent<PrivateStream>;
+    /** A private_stream_2 (stream_id 0xbf) PES payload from the selected service. */
+    private_stream_2: CustomEvent<PrivateStream>;
+    /**
+     * The input turned out to be one that can be seeked in, and this is how long
+     * it is. Until this arrives -- and for a live stream it never does -- the
+     * element has only what has been converted so far to offer a viewer.
+     */
+    seekable: CustomEvent<{
+        duration: number;
+    }>;
+    /**
+     * The source timestamp, in 90 kHz ticks, that media time zero stands for:
+     * the element's `currentTime` is the seconds since this PTS, across wraps.
+     * Arrives once per load, when the first fragment fixes it; a new load (a
+     * reconnect, another channel) settles its own.
+     */
+    origin: CustomEvent<{
+        ticks: number;
+    }>;
+    /**
+     * A step of the load happened, and this is how long it took to get there.
+     * Every mark of one load is measured from the `load()` that started it, so
+     * listening to this is enough to see where the time before the first frame
+     * went. See `TimingMark` for the steps.
+     */
+    timing: CustomEvent<Timing>;
+    /** Every failure, including the one that rejects a pending `load`. */
+    error: CustomEvent<{
+        error: Error;
+    }>;
+}
+/**
+ * Whether a worker can own the MediaSource.
+ *
+ * `canConstructInDedicatedWorker` is the feature detection the specification
+ * provides, and it ships alongside the `srcObject` support a transferred
+ * handle needs. Without it the page keeps the MediaSource, which is where
+ * Firefox and Safari are today.
+ *
+ * The two implementations are asked separately, since a browser may expose one
+ * to a worker and not the other: pass the same `preferManagedMediaSource` the
+ * player will be given, or the answer is about the wrong one.
+ */
+export declare function supportsWorkerMediaSource(preferManagedMediaSource?: boolean): boolean;
+/**
+ * Whether this browser decodes the MPEG-2 the `passthrough` option hands it.
+ *
+ * Passing the video through costs almost nothing and leaves the picture
+ * exactly as it was broadcast, but it is only playable where the browser has
+ * an MPEG-2 decoder, which is not something to assume: ask here first and
+ * decode in software wherever the answer is no.
+ *
+ * The two implementations of Media Source Extensions answer for themselves, so
+ * this takes the same `preferManagedMediaSource` the player will be given.
+ */
+export declare function supportsPassthrough(preferManagedMediaSource?: boolean): boolean;
+/**
+ * Plays an MPEG-2 transport stream in a `<video>`.
+ *
+ * ```ts
+ * const player = new Mpeg2TsPlayer(video, { passthrough: true });
+ * player.addEventListener('stats', (event) => show(event.detail.instantFps));
+ * await player.load('https://example.com/video.ts');
+ * ```
+ *
+ * `load` resolves once the source is attached and the first bytes are in, so
+ * the element is playable; the conversion runs on past that and reports itself
+ * through `progress`, `stats` and `statechange`. Failures always raise `error`,
+ * and additionally reject a `load` that has not resolved yet.
+ *
+ * The video is decoded in software where a `deinterlacer` with a
+ * `decodedVideo` input was given and the stream has AAC sound, and carried as
+ * `passthrough` where that option is set and decoding is not possible. A load
+ * that can do neither fails; see `softwareDecode`.
+ *
+ * Seeking looks after itself: where the input is a file whose length and whose
+ * middle a server will serve, the element gets a duration and the player
+ * answers a seek outside the buffer by reading the input again from there.
+ * Where it is not -- a live stream, a server that refuses byte ranges -- the
+ * viewer has what has been packaged so far.
+ */
+export declare class Mpeg2TsPlayer extends EventTarget {
+    #private;
+    readonly video: HTMLVideoElement;
+    constructor(video: HTMLVideoElement, options?: Mpeg2TsPlayerOptions);
+    get state(): PlayerState;
+    /**
+     * How long the input is, or null while it is a stream that plays as it
+     * arrives. The same number reaches the media element as its duration.
+     */
+    get duration(): number | null;
+    /**
+     * What sound the programme is carrying and which of it is being taken, or
+     * null before its program map has been read. See `AudioTracks`.
+     */
+    get audio(): AudioTracks | null;
+    /**
+     * Take the sound from another of the service's streams from here on.
+     *
+     * From here on, and no further back: the fragments already converted carry
+     * the sound they were made with and are in the buffer being played, so the
+     * change arrives when the playhead reaches what is being converted now --
+     * a few seconds on a live stream, and however far ahead the buffer has run
+     * on a recording. Emptying the buffer to make it immediate would take the
+     * picture with it.
+     *
+     * The PID is one of `audio.available`. One the program map has yet to name
+     * is remembered until it does, so a page restoring a viewer's choice may
+     * call this before the map arrives.
+     */
+    selectAudio(pid: number): void;
+    /**
+     * The same choice inside a dual-mono stream, where the two services are the
+     * two channels of one stream rather than two streams.
+     *
+     * A bilingual broadcast in Japan is carried either way, and which way is not
+     * the viewer's business: `audio.dualMono` says which control to offer. This
+     * one describes nothing anew, so the change costs no restart point.
+     */
+    selectDualMono(sub: boolean): void;
+    /** Which side of the wire ended up owning the MediaSource. */
+    get mediaSourceOwner(): SinkKind;
+    /**
+     * Whether the current load decodes the pictures in the worker and hands
+     * them to the deinterlacer. The element then has no video track.
+     */
+    get softwareDecoding(): boolean;
+    /**
+     * The coded size of the pictures decoded here, before the sample aspect
+     * ratio, or null before the first one and where the element decodes them.
+     */
+    get codedSize(): {
+        width: number;
+        height: number;
+    } | null;
+    /**
+     * The size the picture is shown at, after its sample aspect ratio, or
+     * null before the first one. Where the pictures are decoded here this is
+     * what `video.videoWidth` and `videoHeight` would say; otherwise it is
+     * them.
+     */
+    get videoSize(): {
+        width: number;
+        height: number;
+    } | null;
+    /**
+     * Whether the picture is being deinterlaced, which is not quite the same as
+     * having asked for it: a source that says it is progressive is left alone,
+     * and starts being filtered again the moment it says otherwise. Assigning
+     * turns it on or off where it stands, so the two can be compared on the
+     * frame; a browser that cannot run it stays false.
+     */
+    get deinterlace(): boolean;
+    /** Whether deinterlacing was asked for, whatever the source turned out to be. */
+    get deinterlaceWanted(): boolean;
+    /**
+     * The deinterlacer itself, once there has been one, for the settings that
+     * are its own -- the field order, and whether a picture goes up per field
+     * or per frame. Null until `deinterlace` has been turned on.
+     */
+    get deinterlacer(): PlayerDeinterlacer | null;
+    set deinterlace(enabled: boolean);
+    load(url: string | URL): Promise<void>;
+    /** Abandon the current load. The player stays usable. */
+    stop(): void;
+    /** Stop, and give up the worker. The player cannot be loaded again. */
+    destroy(): void;
+    addEventListener<K extends keyof Mpeg2TsPlayerEventMap>(type: K, listener: (event: Mpeg2TsPlayerEventMap[K]) => void, options?: boolean | AddEventListenerOptions): void;
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void;
+    removeEventListener<K extends keyof Mpeg2TsPlayerEventMap>(type: K, listener: (event: Mpeg2TsPlayerEventMap[K]) => void, options?: boolean | EventListenerOptions): void;
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void;
+}

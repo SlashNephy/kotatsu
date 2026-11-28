@@ -18,6 +18,11 @@ run = [
 [tasks.mpeg2toh264]
 run = "./scripts/build-mpeg2toh264.sh"
 
+# 評価のために並べるフォーク (soraneoumi/mpeg2toh264、#2287) を、vendor/mpeg2toh264-fork/SOURCE の commit からビルドし直す。
+# ツールチェーンは、otya128/mpeg2toh264 と同じく mise.mpeg2toh264.toml のものを使う。
+[tasks.mpeg2toh264-fork]
+run = "./scripts/build-mpeg2toh264.sh mpeg2toh264-fork"
+
 # ブラウザ内でデコードする経路の WASM の FFmpeg を、vendor/ffmpeg/SOURCE のバージョンから組み直す (設計書 7.2、#1516)。
 # 組むのは Docker の emscripten のイメージの中で行う。curl と gpg も使う。
 [tasks.ffmpeg]

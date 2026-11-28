@@ -1,0 +1,45 @@
+diff --git a/packages/player/src/player.ts b/packages/player/src/player.ts
+index 085536f..14a0751 100644
+--- a/packages/player/src/player.ts
++++ b/packages/player/src/player.ts
+@@ -427,6 +427,7 @@ export class Mpeg2TsPlayer extends EventTarget {
+   #placingAt: number | null = null;
+   #needs: ReturnType<typeof setInterval> | null = null;
+   #videoSize: { width: number; height: number } | null = null;
++  #codedSize: { width: number; height: number } | null = null;
+   /** Decode mode: the sound's way out, and the element's media interface. */
+   #sound: SoundOutput | null = null;
+   #takeover: MediaTakeover | null = null;
+@@ -565,6 +566,14 @@ export class Mpeg2TsPlayer extends EventTarget {
+     return this.#decoding;
+   }
+ 
++  /**
++   * The coded size of the pictures decoded here, before the sample aspect
++   * ratio, or null before the first one and where the element decodes them.
++   */
++  get codedSize(): { width: number; height: number } | null {
++    return this.#decoding ? this.#codedSize : null;
++  }
++
+   /**
+    * The size the picture is shown at, after its sample aspect ratio, or
+    * null before the first one. Where the pictures are decoded here this is
+@@ -755,6 +764,7 @@ export class Mpeg2TsPlayer extends EventTarget {
+       this.#applyDeinterlace();
+     }
+     this.#videoSize = null;
++    this.#codedSize = null;
+     this.#loadedAt = now();
+     this.#markedAt = this.#loadedAt;
+     const worker = this.#ensureWorker();
+@@ -1110,6 +1120,9 @@ export class Mpeg2TsPlayer extends EventTarget {
+       this.#recycle(picture.data);
+       return;
+     }
++    const coded = this.#codedSize;
++    if (coded?.width !== picture.width || coded?.height !== picture.height)
++      this.#codedSize = { width: picture.width, height: picture.height };
+     const size = this.#videoSize;
+     if (
+       size?.width !== picture.displayWidth ||

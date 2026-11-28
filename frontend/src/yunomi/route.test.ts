@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   chooseRoute,
   decoded,
+  forked,
   dataBroadcastEndpoint,
   dataBroadcastSource,
   hlsURL,
@@ -242,6 +243,39 @@ describe('ブラウザの中でデコードする経路 (#1516)', () => {
 
   test('選ばせない画面で覚えていたら、既定の経路に戻す', () => {
     expect(chooseRoute(pc, withKyusu, decoded, 'HD')).toEqual({ kind: 'convert' });
+  });
+});
+
+describe('フォークのプレイヤーの経路 (#2287)', () => {
+  // securePC は、安全な文脈 (https か localhost) で開いた、フォークでデコードできる PC。
+  const securePC: Capabilities = { ...pc, fork: true };
+
+  test('選ばせる画面で、HD の番組なら、デコードする経路の次に並べる', () => {
+    expect(qualities(securePC, withKyusu, 'HD', { decode: true }).slice(0, 3)).toEqual([
+      original,
+      decoded,
+      forked,
+    ]);
+  });
+
+  test('安全な文脈でない端末と、選ばせない画面と、BS4K の番組では並べない', () => {
+    expect(qualities(pc, withKyusu, 'HD', { decode: true })).not.toContain(forked);
+    expect(qualities(securePC, withKyusu, 'HD')).not.toContain(forked);
+    expect(qualities(securePC, withKyusu, 'UHD', { decode: true })).not.toContain(forked);
+  });
+
+  test('手で選んだときだけ、フォークで変換の経路を使い、自動では選ばない', () => {
+    expect(chooseRoute(securePC, withKyusu, forked, 'HD', { decode: true })).toEqual({
+      kind: 'convert',
+      engine: 'fork',
+    });
+    expect(chooseRoute(securePC, withKyusu, undefined, 'HD', { decode: true })).toEqual({
+      kind: 'convert',
+    });
+  });
+
+  test('安全な文脈でない端末で、保存した画質がフォークなら、既定の経路に戻す', () => {
+    expect(chooseRoute(pc, withKyusu, forked, 'HD', { decode: true })).toEqual({ kind: 'convert' });
   });
 });
 
