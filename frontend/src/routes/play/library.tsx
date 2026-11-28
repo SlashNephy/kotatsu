@@ -9,11 +9,7 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import { rememberReturnTo } from '../../auth/returnTo';
 import { ErrorBoundary, PageLoader, ProgramTitle, formatBytes } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
-import { CommentList } from '../../jikkyo/CommentList';
-import type { JikkyoComment } from '../../jikkyo/comments';
-import { countUntil, listedUntil } from '../../jikkyo/commentList';
 import { CommentOffsetSetting } from '../../jikkyo/CommentOffsetSetting';
-import { findPartMarkers } from '../../jikkyo/partMarkers';
 import { formatCommentOffset, useCommentOffsetCommands } from '../../jikkyo/commentOffset';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -101,6 +97,12 @@ import {
 } from '../../yunomi/playerShell';
 import { useVodTimeline } from '../../yunomi/useVodTimeline';
 import { useCmSkip } from '../../yunomi/useCmSkip';
+import {
+  jikkyoListedCount,
+  jikkyoPartBands,
+  RecordedJikkyoList,
+  recordedJikkyoLabel,
+} from '../../jikkyo/RecordedJikkyoList';
 
 // noGaps は、ライブラリのファイルの途切れた区間。ファイル 1 本を流すので、録画のセグメントの間のような区間はない。
 const noGaps: readonly { from: string; to: string }[] = [];
@@ -485,34 +487,11 @@ function Player({
     null,
     !file.index.complete,
   );
-  // listedCount は、再生位置までに流れたコメントの数。一覧は、この数が変わったときだけ作り直す (JikkyoRows)。
-  const listedCount =
-    jikkyo.comments === null ? 0 : countUntil(jikkyo.comments, position - jikkyo.offset);
+  // listedCount は、再生位置までに流れたコメントの数。一覧は、この数が変わったときだけ作り直す。
+  const listedCount = jikkyoListedCount(jikkyo.comments, position, jikkyo.offset);
   // partBands は、実況のコメントから見つけた番組の区切りのマーク (#1358)。コメントの位置をずらしたら、マークも同じだけ動かす。
-  const partBands = findPartMarkers(jikkyo.ownComments ?? []).map((marker) => {
-    const at = Math.max(marker.time + jikkyo.offset, 0);
-    const part = t(`player.partMarker.${marker.part}`);
-
-    return {
-      from: at,
-      to: at,
-      label: marker.noCmBefore ? t('player.partMarkerNoCm', { part }) : part,
-      kind: 'part' as const,
-    };
-  });
-  const jikkyoLabel =
-    jikkyo.state === null
-      ? t('jikkyo.toggle')
-      : t('jikkyo.toggleWith', {
-          state:
-            jikkyo.state.kind === 'loading'
-              ? t('jikkyo.kakologLoading')
-              : jikkyo.state.kind === 'error'
-                ? t('jikkyo.kakologError')
-                : jikkyo.state.count === 0
-                  ? t('jikkyo.kakologEmpty')
-                  : t('jikkyo.kakologLoaded', { count: jikkyo.state.count }),
-        });
+  const partBands = jikkyoPartBands(t, jikkyo.ownComments, jikkyo.offset);
+  const jikkyoLabel = recordedJikkyoLabel(t, jikkyo.state);
 
   const streamMeter = useStreamMeter(quality);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
@@ -947,11 +926,12 @@ function Player({
                     value: 'jikkyo',
                     label: t('jikkyo.toggle'),
                     content: (
-                      <JikkyoRows
+                      <RecordedJikkyoList
                         comments={jikkyo.comments}
                         count={listedCount}
                         offset={jikkyo.offset}
                         recordedFrom={recordedFrom}
+                        gaps={noGaps}
                         frozen={shell.fullscreen.active}
                         onMuteUser={muteUser}
                       />
@@ -1004,41 +984,5 @@ function Player({
         />
       }
     />
-  );
-}
-
-// JikkyoRows は、実況の過去ログのうち、再生位置までに流れた count 件の一覧 (#489)。時刻は、録り始め (recordedFrom) からの放送時刻で出す。
-// 再生位置は 1 秒に何度も変わるので、流れたコメントの数が変わったときだけ作り直されるよう、部品に分けて React Compiler にメモ化させる。
-function JikkyoRows({
-  comments,
-  count,
-  offset,
-  recordedFrom,
-  frozen,
-  onMuteUser,
-}: {
-  comments: readonly JikkyoComment[];
-  count: number;
-  offset: number;
-  recordedFrom: string | null;
-  frozen: boolean;
-  onMuteUser: (userId: string) => void;
-}) {
-  const rows = listedUntil(comments, count).map(({ index, comment }) => {
-    const seconds = comment.time + offset;
-
-    return {
-      key: index,
-      label:
-        recordedFrom == null
-          ? formatDuration(seconds)
-          : formatClock(broadcastTime(recordedFrom, noGaps, seconds)),
-      content: comment.content,
-      ...(comment.userId === undefined ? {} : { userId: comment.userId }),
-    };
-  });
-
-  return (
-    <CommentList rows={rows} frozen={frozen} onMuteUser={onMuteUser} height={watchCommentsHeight} />
   );
 }

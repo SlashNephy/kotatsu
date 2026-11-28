@@ -11,7 +11,6 @@ import { rememberReturnTo } from '../../../auth/returnTo';
 import { ErrorBoundary, PageLoader, ProgramTitle } from '../../../futon';
 import { useRecordedJikkyo } from '../../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../../relay/environment';
-import { CommentList } from '../../../jikkyo/CommentList';
 import { WatchPanel } from '../../../yunomi/WatchPanel';
 import { RuleRecordingList } from '../../../recordings/RuleRecordingList';
 import {
@@ -28,9 +27,7 @@ import {
   normalizeCaption,
   type CaptionEntry,
 } from '../../../yunomi/captionHistory';
-import { countUntil, listedUntil } from '../../../jikkyo/commentList';
 import { CommentOffsetSetting } from '../../../jikkyo/CommentOffsetSetting';
-import { findPartMarkers } from '../../../jikkyo/partMarkers';
 import { formatCommentOffset, useCommentOffsetCommands } from '../../../jikkyo/commentOffset';
 import { HlsPlayer } from '../../../yunomi/HlsPlayer';
 import {
@@ -99,6 +96,12 @@ import {
 } from '../../../yunomi/playerShell';
 import { useVodTimeline } from '../../../yunomi/useVodTimeline';
 import { useCmSkip } from '../../../yunomi/useCmSkip';
+import {
+  jikkyoListedCount,
+  jikkyoPartBands,
+  RecordedJikkyoList,
+  recordedJikkyoLabel,
+} from '../../../jikkyo/RecordedJikkyoList';
 
 // PlaySearch は、再生の画面の URL のクエリ。t は、再生を始める位置 (録画の始まりからの秒)。キャプチャの履歴から撮った場面を開くのと、今の位置の URL の共有に使う (#457)。
 type PlaySearch = { t?: number };
@@ -443,66 +446,15 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       ? { url: recording.jikkyoNicologCommentsUrl, cmSections: nicologCmSections }
       : null,
   );
-  // recordedRows は、コメントの一覧に出す、再生位置までに流れた過去ログ (#489)。再生位置は 1 秒に何度も変わるので、
-  // 流れたコメントの数が変わったときだけ作り直し、時刻の文字は、コメントごとに一度だけ作る。
-  const listedCount =
-    jikkyo.comments === null ? 0 : countUntil(jikkyo.comments, position - jikkyo.offset);
-  const commentLabels = useMemo(
-    () => new Map<number, string>(),
-    [jikkyo.comments, recording, jikkyo.offset],
-  );
-  const recordedRows = useMemo(() => {
-    if (jikkyo.comments === null || recording === null) {
-      return [];
-    }
-
-    return listedUntil(jikkyo.comments, listedCount).map(({ index, comment }) => {
-      let label = commentLabels.get(index);
-      if (label === undefined) {
-        label = formatClock(
-          broadcastTime(recording.recordedFrom, recording.gaps, comment.time + jikkyo.offset),
-        );
-        commentLabels.set(index, label);
-      }
-
-      return {
-        key: index,
-        label,
-        content: comment.content,
-        ...(comment.userId === undefined ? {} : { userId: comment.userId }),
-      };
-    });
-  }, [jikkyo.comments, jikkyo.offset, listedCount, recording, commentLabels]);
+  // listedCount は、再生位置までに流れた過去ログの数 (#489)。一覧は、この数が変わったときだけ作り直す。
+  const listedCount = jikkyoListedCount(jikkyo.comments, position, jikkyo.offset);
   // partBands は、実況のコメントから見つけた番組の区切りのマーク (#1358)。コメントの位置をずらしたら、マークも同じだけ動かす。
   const partBands = useMemo(
-    () =>
-      findPartMarkers(jikkyo.ownComments ?? []).map((marker) => {
-        const at = Math.max(marker.time + jikkyo.offset, 0);
-        const part = t(`player.partMarker.${marker.part}`);
-
-        return {
-          from: at,
-          to: at,
-          label: marker.noCmBefore ? t('player.partMarkerNoCm', { part }) : part,
-          kind: 'part' as const,
-        };
-      }),
+    () => jikkyoPartBands(t, jikkyo.ownComments, jikkyo.offset),
     [jikkyo.ownComments, jikkyo.offset, t],
   );
   // 実況の過去ログの読み込み具合は、実況のボタンのツールチップで示す。
-  const jikkyoLabel =
-    jikkyo.state === null
-      ? t('jikkyo.toggle')
-      : t('jikkyo.toggleWith', {
-          state:
-            jikkyo.state.kind === 'loading'
-              ? t('jikkyo.kakologLoading')
-              : jikkyo.state.kind === 'error'
-                ? t('jikkyo.kakologError')
-                : jikkyo.state.count === 0
-                  ? t('jikkyo.kakologEmpty')
-                  : t('jikkyo.kakologLoaded', { count: jikkyo.state.count }),
-        });
+  const jikkyoLabel = recordedJikkyoLabel(t, jikkyo.state);
 
   // streamMeter は、右のカラムの「情報」に出す、届いた映像のビットレートと放送の形式をバッファに保持する (#828)。
   const streamMeter = useStreamMeter(playback.current);
@@ -933,12 +885,15 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                       value: 'jikkyo',
                       label: t('jikkyo.toggle'),
                       content: (
-                        <CommentList
-                          rows={recordedRows}
+                        <RecordedJikkyoList
+                          comments={jikkyo.comments ?? []}
+                          count={listedCount}
+                          offset={jikkyo.offset}
+                          recordedFrom={recording.recordedFrom}
+                          gaps={recording.gaps}
                           // 全画面の間は一覧が見えないので、コメントが届いても描き直さない。
                           frozen={fullscreen.active}
                           onMuteUser={muteUser}
-                          height={watchCommentsHeight}
                         />
                       ),
                     },
