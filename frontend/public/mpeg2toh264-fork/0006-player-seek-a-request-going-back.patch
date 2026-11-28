@@ -12,7 +12,7 @@ index d7d25f4..9a6efdc 100644
  interface Entry<U> {
    readonly unit: U;
 diff --git a/packages/player/src/player.ts b/packages/player/src/player.ts
-index 14a0751..faf5994 100644
+index 14a0751..5d72908 100644
 --- a/packages/player/src/player.ts
 +++ b/packages/player/src/player.ts
 @@ -38,6 +38,7 @@ import {
@@ -48,26 +48,31 @@ index 14a0751..faf5994 100644
      this.#deinterlacer?.decodedVideo?.reset();
      this.#postNeed();
    }
-@@ -1102,6 +1107,18 @@ export class Mpeg2TsPlayer extends EventTarget {
+@@ -1102,6 +1107,23 @@ export class Mpeg2TsPlayer extends EventTarget {
    #postNeed = (): void => {
      if (!this.#decoding) return;
      const from = this.video.currentTime;
 +    // A request that goes back in the same epoch has the worker decode from
 +    // there again, and hand out pictures the deinterlacer has had already --
 +    // as when a start the browser refused leaves the position before them.
-+    // The deinterlacer takes pictures in order only, so it begins a new epoch.
++    // The deinterlacer takes pictures in order only, so the position is
++    // sought instead: the pictures and the sound both begin a new epoch there.
++    // (A new epoch for the pictures alone would leave the sound's reports,
++    // which carry the epoch it was started in, all thrown away.)
 +    if (
 +      this.#needFrom !== null &&
-+      from < this.#needFrom - BACKWARD_TOLERANCE_SECONDS
++      from < this.#needFrom - BACKWARD_TOLERANCE_SECONDS &&
++      this.#state !== "idle" &&
++      this.#state !== "error"
 +    ) {
-+      this.#epoch++;
-+      this.#deinterlacer?.decodedVideo?.reset();
++      this.#seekDecoded(from);
++      return;
 +    }
 +    this.#needFrom = from;
      const until =
        from + PICTURE_NEED_AHEAD_SECONDS * Math.max(1, this.video.playbackRate);
      this.#worker?.postMessage({
-@@ -1163,6 +1180,7 @@ export class Mpeg2TsPlayer extends EventTarget {
+@@ -1163,6 +1185,7 @@ export class Mpeg2TsPlayer extends EventTarget {
      const id = this.#generation;
      this.#generation++;
      this.#placingAt = null;
