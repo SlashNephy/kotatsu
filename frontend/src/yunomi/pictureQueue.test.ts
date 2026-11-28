@@ -82,6 +82,33 @@ describe('PictureQueue', () => {
     expect(queue.length).toBe(1);
   });
 
+  test('コマの長さを渡せば、隣り合うコマの時刻の差が短くても、その長さでフィールドを分ける', () => {
+    const { queue } = setup();
+    // 組み直した 24p のコマ (プログレッシブ) の 0.25 コマ後に、インタレースのコマが続く。
+    queue.push({ pts: 0, interlaced: false, topFieldFirst: true, slot: 's0' });
+    queue.push({ ...picture(frame / 4), duration: frame });
+
+    const choice = queue.choose(frame / 4 + 1000);
+
+    expect(choice === null ? null : [choice.picture.pts, choice.second]).toEqual([
+      frame / 4,
+      false,
+    ]);
+  });
+
+  test('following は、映しているコマの次のコマを返す', () => {
+    const { queue } = setup();
+    queue.push(picture(0));
+    queue.push(picture(frame));
+    queue.choose(0);
+
+    expect(queue.following?.pts).toBe(frame);
+
+    queue.choose(frame);
+
+    expect(queue.following).toBeNull();
+  });
+
   test('clear で、待っているコマと前のコマの slot を返す', () => {
     const { queue, released } = setup();
     queue.push(picture(0));
@@ -94,5 +121,18 @@ describe('PictureQueue', () => {
     expect(released.toSorted()).toEqual(['s0', `s${frame}`, `s${2 * frame}`].toSorted());
     expect(queue.length).toBe(0);
     expect(queue.newest).toBeNull();
+  });
+
+  test('clear で残すと言った slot は返さない (止めた後も、映していたコマを描き直せるように)', () => {
+    const { queue, released } = setup();
+    queue.push(picture(0));
+    queue.push(picture(frame));
+    queue.push(picture(2 * frame));
+    queue.choose(0);
+    queue.choose(frame);
+    queue.clear(`s${frame}`);
+
+    expect(released.toSorted()).toEqual(['s0', `s${2 * frame}`].toSorted());
+    expect(queue.length).toBe(0);
   });
 });

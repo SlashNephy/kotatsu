@@ -22,16 +22,16 @@ import {
   useInterpolationRate,
 } from './frameInterpolation';
 import { advanceBeforeHandover } from './handoverAdvance';
-import { hdrOutputSupported, useHDRDisplay, useHDROutput } from './hdr';
+import { useHDRDisplay, useHDROutput } from './hdr';
+import { hdrOutputSupported } from './hdrDrawing';
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
+import { createPictureUpscaler, type PictureUpscaler } from './pictureUpscaler';
 import {
-  createYadifUpscaler,
   useSuperResolution,
   useSuperResolutionMethod,
   useSuperResolutionStrength,
-  type YadifUpscaler,
 } from './superResolution';
 import classes from './TsPlayer.module.css';
 import { createYadifInterpolation, type YadifInterpolation } from './yadifInterpolation';
@@ -139,7 +139,7 @@ type Slot = {
   // interpolation は、yadif に渡すコマの補間 (#1655)。設定で切っている間は、yadif に渡さない。
   interpolation: YadifInterpolation;
   // upscaler は、yadif に渡す映像の拡大 (#1654)。設定で切っている間は、yadif に渡さない。
-  upscaler: YadifUpscaler;
+  upscaler: PictureUpscaler;
   // unfiltered は、yadif を作れず (WebGL2 がないなど)、インターレースを解除せずに出していること (#1617)。
   unfiltered: boolean;
   // bytesRead は、この読み込みで読んだバイト数。
@@ -401,7 +401,7 @@ export function TsPlayer({
           );
         },
       }),
-      upscaler: createYadifUpscaler({
+      upscaler: createPictureUpscaler({
         zoom: () => zoomRef.current,
         strength: () => superResolutionStrengthRef.current,
         method: () => superResolutionMethodRef.current,

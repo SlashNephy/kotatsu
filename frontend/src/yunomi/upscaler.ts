@@ -24,7 +24,7 @@
 // THE SOFTWARE.
 
 import { compileProgram, restoreState, saveState } from './glPass';
-import { expandHighlightsShader } from './hdr';
+import { expandHighlightsShader } from './hdrDrawing';
 
 // EASU。出力の画素の中心を元の画素の座標に対応させ、周りの 12 画素から縁の向きと強さを推し量り、
 // 縁に沿って伸ばしたウィンドウの Lanczos に近い重みで混ぜる。近い 4 画素の最小と最大に収め、縁の周りの輪を出さない。

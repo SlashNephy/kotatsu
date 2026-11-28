@@ -4,6 +4,18 @@
 // 上下の行 a、b の間からはみ出した量で、織り (o) と bob ((a+b)/2) をなだらかに混ぜる。はみ出しても、前のコマと比較して
 // 止まっている画素は o を使う (縁取りのある字や細い横線が、フィールドごとに上下に揺れないように)。
 // 色差 (4:2:0) も同じ規則で埋め、止まっている度合いは輝度で決めたものを使う。
+// 映像を拡大するとき (#1654、#2276) は、解除したコマを、元の (符号化された) 大きさのテクスチャに描き、拡大 (pictureUpscaler) に
+// 渡して canvas へ描かせる。拡大は、yadif に渡すときと同じ PictureScaler の約束で呼ぶ。擬似 HDR (#1656) も、同じ処理が
+// canvas へ描く最後のステップで描く。拡大せずに擬似 HDR で描くときは、映す大きさのテクスチャに描いて渡す。
+// どちらもしないときは、今までどおり canvas へ直に描く。
+// コマの補間 (#1655、#2276) は、前後の 2 コマを scaler に渡す大きさのテクスチャに描いてから、補間の処理 (interpolator) で
+// その間の時刻のコマを作る。拡大か擬似 HDR で描くなら、作ったコマを scaler に渡し、そうでなければ canvas へ直に描く。
+
+import type { PictureScaler } from '@mpeg2toh264/yadif';
+
+import { hdrOutputSupported } from './hdrDrawing';
+import { createInterpolator, type Interpolator } from './interpolator';
+import { maxDimension, type Size } from './pictureUpscaler';
 
 // RendererThresholds は、インタレ解除の閾値 (0〜1 の輝度)。織り < bob、静止 < 動き にする。
 export type RendererThresholds = {
@@ -39,6 +51,9 @@ export type PlanePointer = { pointer: number; stride: number };
 // DrawRequest は、描くコマとフィールド。
 export type DrawRequest = {
   slot: PictureSlot;
+  // bottom は、2:3 プルダウンから組み直したコマ (#2276) で、下のフィールドの行を取るコマ。上のフィールドの行は slot から取り、
+  // 解除せずにそのまま並べる。組み直したコマでなければ null。
+  bottom: PictureSlot | null;
   // previous は、前に映したコマ。大きさが違えば比較しない。
   previous: PictureSlot | null;
   interlaced: boolean;
@@ -61,6 +76,10 @@ uniform highp sampler2D uY;
 uniform highp sampler2D uU;
 uniform highp sampler2D uV;
 uniform highp sampler2D uPrevY;
+uniform highp sampler2D uBottomY;
+uniform highp sampler2D uBottomU;
+uniform highp sampler2D uBottomV;
+uniform int uWeave;
 uniform int uField;
 uniform int uInterlaced;
 uniform int uHasPrev;
@@ -75,6 +94,11 @@ float py(ivec2 p) { return texelFetch(uPrevY, clamp(p, ivec2(0), ivec2(uSource) 
 vec2 c(ivec2 p) {
   ivec2 q = clamp(p, ivec2(0), ivec2(uSource) / 2 - 1);
   return vec2(texelFetch(uU, q, 0).r, texelFetch(uV, q, 0).r);
+}
+float by(ivec2 p) { return texelFetch(uBottomY, clamp(p, ivec2(0), ivec2(uSource) - 1), 0).r; }
+vec2 bc(ivec2 p) {
+  ivec2 q = clamp(p, ivec2(0), ivec2(uSource) / 2 - 1);
+  return vec2(texelFetch(uBottomU, q, 0).r, texelFetch(uBottomV, q, 0).r);
 }
 
 // keepAt は、このフィールドにない輝度の行 m で、もう片方のフィールドの値をそのまま使う度合いを返す。
@@ -99,7 +123,12 @@ void main() {
   ivec2 q = ivec2(uv * uSource * 0.5);
   float luma;
   vec2 chroma;
-  if (uInterlaced == 0) {
+  if (uWeave == 1) {
+    // 組み直したコマ。上のフィールドの行 (偶数) は uY、下のフィールドの行 (奇数) は uBottomY から取る。
+    // 4:2:0 のインタレースでは、色差の行もフィールドごとに交互に並ぶ。
+    luma = (p.y & 1) == 0 ? y(p) : by(p);
+    chroma = (q.y & 1) == 0 ? c(q) : bc(q);
+  } else if (uInterlaced == 0) {
     luma = y(p);
     chroma = c(q);
   } else {
@@ -142,6 +171,10 @@ const uniformNames = [
   'uU',
   'uV',
   'uPrevY',
+  'uBottomY',
+  'uBottomU',
+  'uBottomV',
+  'uWeave',
   'uField',
   'uInterlaced',
   'uHasPrev',
@@ -153,6 +186,27 @@ const uniformNames = [
 
 type Uniforms = Record<(typeof uniformNames)[number], WebGLUniformLocation | null>;
 
+// keepAspect は、拡大して描く大きさ output を、映す大きさ picture の縦横比に広げて返す。広げると limit (GPU が描ける一辺の上限) を
+// 超えるなら、比率を保って縮める。拡大の処理は片方の向きだけ拡大するときや、横に引き伸ばす切り抜き (#824) で、映像と違う比率の
+// 大きさを返す。canvas は CSS (object-fit: contain) で枠に収めるので、比率が違うと絵が縦か横に縮む。データ放送へ移すときも
+// object-fit: contain で広げる (mediaFit.ts) ので、canvas を置き直すのではなく、描く大きさの比率を映像にそろえる。
+export function keepAspect(output: Size, picture: Size, limit: number): Size {
+  const aspect = picture.width / picture.height;
+  const width = Math.max(output.width, Math.round(output.height * aspect));
+  const height = Math.max(output.height, Math.round(output.width / aspect));
+  const fit = Math.min(1, limit / width, limit / height);
+
+  return { width: Math.floor(width * fit), height: Math.floor(height * fit) };
+}
+
+// Target は、拡大する前のコマを描くテクスチャと、それを描き先にする framebuffer。
+type Target = {
+  framebuffer: WebGLFramebuffer;
+  texture: WebGLTexture;
+  width: number;
+  height: number;
+};
+
 // PictureRenderer は、OffscreenCanvas に WebGL2 でコマを描く。
 export class PictureRenderer {
   private readonly gl: WebGL2RenderingContext;
@@ -160,13 +214,40 @@ export class PictureRenderer {
   private readonly uniforms: Uniforms;
   // free は、使い終えたテクスチャの組。大きさが同じなら使い回す。
   private readonly free: PictureSlot[] = [];
+  // picture は、映す大きさ (画素の縦横比を掛けた後)。拡大しないときは、canvas もこの大きさにする。
+  private picture: Size = { width: 0, height: 0 };
+  // frame は、コマの元の (符号化された) 大きさ。拡大するときはこの大きさで解除してから拡大する。
+  // 地上波の 1440×1080 を、映す大きさ (1920×1080) に伸ばしてから拡大すると、1080p の画面では拡大しなくなり、
+  // 大きな画面でも、最近傍で伸ばした画素を拡大することになる。
+  private frame: Size = { width: 0, height: 0 };
+  // scaler は、コマを拡大か擬似 HDR で描く処理。どちらもしなければ null。box は、絵を映す矩形の端末の画素での大きさ。
+  private scaler: PictureScaler | null = null;
+  private box: Size | null = null;
+  // upscale は、拡大するか。拡大するなら元の大きさ、擬似 HDR だけなら映す大きさのコマを scaler に渡す。
+  private upscale = false;
+  // source は、scaler に渡すコマの大きさ。
+  private source: Size = { width: 0, height: 0 };
+  // output は、拡大して描く大きさ (canvas の大きさ)。拡大しなければ null。
+  private output: Size | null = null;
+  // target は、拡大する前のコマを描く先。拡大するときだけ作る。
+  private target: Target | null = null;
+  // interpolator は、コマの補間の処理。最初に補間するときに作る。作れないか、途中で失敗したら、interpolationBroken にし、以後は補間しない。
+  private interpolator: Interpolator | null = null;
+  private interpolationBroken = false;
+  // pair は、補間する前後のコマと、それを描いたテクスチャ。前後のコマが同じなら、描き直さずに使う。
+  private pair: { previous: DrawRequest; next: DrawRequest; from: Target; to: Target } | null =
+    null;
+  // spare は、pair が使っていない、前後のコマを描くテクスチャ。
+  private spare: Target[] = [];
 
   constructor(
     private readonly canvas: OffscreenCanvas,
     private readonly thresholds: RendererThresholds = defaultRendererThresholds,
   ) {
     const gl = canvas.getContext('webgl2', {
-      alpha: false,
+      // 擬似 HDR (#1656) で描画先の形式を変えるには、alpha のあるコンテキストが要る。どのコマも不透明に描くので、
+      // 見え方は変わらない。WebGL の HDR の出力を持たないブラウザでは、今までどおり alpha なしで作る。
+      alpha: hdrOutputSupported(),
       antialias: false,
       depth: false,
       stencil: false,
@@ -184,15 +265,63 @@ export class PictureRenderer {
     ) as Uniforms;
   }
 
-  // resize は、描く先の大きさを、映す大きさ (画素の縦横比を掛けた後) にする。変えたら true を返す。
-  resize(width: number, height: number): boolean {
-    if (this.canvas.width === width && this.canvas.height === height) {
-      return false;
-    }
-    this.canvas.width = width;
-    this.canvas.height = height;
+  // resize は、映す大きさ picture (画素の縦横比を掛けた後) と、コマの元の大きさ frame を変え、描く先の大きさを決め直す。
+  resize(picture: Size, frame: Size): void {
+    this.picture = picture;
+    this.frame = frame;
+    this.layout();
+  }
 
-    return true;
+  // setScaler は、拡大か擬似 HDR で描く処理と、絵を映す矩形の端末の画素での大きさと、拡大するかを変え、描く先の大きさを
+  // 決め直す。大きさの決め方は設定にもよるので、設定を変えたときにも呼ぶ。描き直す必要があれば true を返す。
+  // canvas の大きさが変わると描いたものは消え、scaler で描いている間は鮮鋭化の強さなどを描くときに読むためである。
+  setScaler(scaler: PictureScaler | null, box: Size | null, upscale: boolean): boolean {
+    this.scaler = scaler;
+    this.box = box;
+    this.upscale = upscale;
+
+    return this.layout() || this.output !== null;
+  }
+
+  // layout は、拡大して描く大きさを拡大の処理に決めさせ、canvas をその大きさ (拡大しなければ映す大きさ) にする。
+  // 拡大しないなら、拡大する前のコマを描く先を片付ける。canvas の大きさか拡大して描く大きさを変えたら true を返す。
+  private layout(): boolean {
+    const { picture, frame, scaler, box, gl } = this;
+    const before = this.output;
+    let source = this.upscale ? frame : picture;
+    let size =
+      scaler === null || picture.width <= 0 || source.width <= 0 || (this.upscale && box === null)
+        ? null
+        : scaler.size(gl, source.width, source.height, box?.width ?? 0, box?.height ?? 0);
+    // 拡大しないが擬似 HDR で描くとき、scaler はコマの大きさをそのまま返す (拡大する大きさは、元の大きさより必ず大きい)。
+    // 元の大きさのまま映像の比率に広げると、拡大の処理を通ってしまうので、映す大きさのコマをそのままコピーさせる。
+    if (size !== null && size.width === source.width && size.height === source.height) {
+      source = picture;
+      size = picture;
+    }
+    this.source = source;
+    this.output = size === null ? null : keepAspect(size, picture, maxDimension(gl));
+    if (this.output === null) {
+      this.releaseTarget();
+    }
+    const canvas = this.output ?? picture;
+    const resized = this.canvas.width !== canvas.width || this.canvas.height !== canvas.height;
+    if (resized) {
+      this.canvas.width = canvas.width;
+      this.canvas.height = canvas.height;
+    }
+
+    return (
+      resized || before?.width !== this.output?.width || before?.height !== this.output?.height
+    );
+  }
+
+  // releaseTarget は、拡大する前のコマを描く先を消す。
+  private releaseTarget(): void {
+    if (this.target !== null) {
+      this.deleteTarget(this.target);
+      this.target = null;
+    }
   }
 
   // acquire は、width × height のコマを上げるテクスチャの組を返す。使い終えたら release に返す。
@@ -214,6 +343,10 @@ export class PictureRenderer {
 
   // release は、使い終えたテクスチャの組を返す。大きさの違うものが溜まらないよう、違う大きさの組は消す。
   release(slot: PictureSlot): void {
+    // 返した組は、次のコマに使い回すので、補間する前後のコマとして保持したものは破棄する。
+    if (this.pair !== null && [this.pair.previous, this.pair.next].some((r) => usesSlot(r, slot))) {
+      this.dropPair();
+    }
     for (const other of this.free.filter(
       (free) => free.width !== slot.width || free.height !== slot.height,
     )) {
@@ -260,11 +393,177 @@ export class PictureRenderer {
     gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
   }
 
-  // draw は、request のコマとフィールドを描く。
+  // draw は、request のコマとフィールドを描く。拡大か擬似 HDR で描くなら、元の大きさ (擬似 HDR だけなら映す大きさ) の
+  // テクスチャに描いてから、scaler に canvas へ描かせる。描けなければ (作れない、途中で失敗した)、PictureScaler の約束のとおり、
+  // 以後は scaler を使わずに映す大きさで描く。
   draw(request: DrawRequest): void {
+    const { gl, scaler, output } = this;
+    const { width, height } = this.source;
+    if (scaler === null || output === null) {
+      this.drawPicture(request, null, this.canvas.width, this.canvas.height);
+
+      return;
+    }
+    const target = this.ensureTarget(width, height);
+    this.drawPicture(request, target.framebuffer, width, height);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (scaler.draw(gl, target.texture, false, width, height, output.width, output.height)) {
+      return;
+    }
+    this.scaler = null;
+    this.layout();
+    this.drawPicture(request, null, this.canvas.width, this.canvas.height);
+  }
+
+  // canInterpolate は、補間できるか (作れなかったか、途中で失敗していないか)。
+  get canInterpolate(): boolean {
+    return !this.interpolationBroken;
+  }
+
+  // drawBetween は、previous と next の間の、時刻 t (0〜1) のコマを作って描く。描けなければ false を返す
+  // (呼ぶ側は previous をそのまま描く)。補間できなければ、onUnavailable を呼び、以後は補間しない。
+  drawBetween(
+    previous: DrawRequest,
+    next: DrawRequest,
+    t: number,
+    onUnavailable?: (error: unknown) => void,
+  ): boolean {
+    if (this.interpolationBroken) {
+      return false;
+    }
+    const { gl, scaler, output } = this;
+    const { width, height } = this.source;
+    try {
+      this.interpolator ??= createInterpolator(gl);
+      this.preparePair(previous, next, width, height);
+      if (scaler !== null && output !== null) {
+        const target = this.ensureTarget(width, height);
+        this.interpolator.compose(t, target.framebuffer, width, height);
+        if (scaler.draw(gl, target.texture, false, width, height, output.width, output.height)) {
+          return true;
+        }
+        this.scaler = null;
+        this.layout();
+      }
+      this.interpolator.compose(t, null, this.canvas.width, this.canvas.height);
+
+      return true;
+    } catch (error) {
+      // 以後は補間しないので、前後のコマを描くテクスチャも消す。
+      this.interpolationBroken = true;
+      this.dropPair();
+      try {
+        for (const target of this.spare.splice(0)) {
+          this.deleteTarget(target);
+        }
+        this.interpolator?.destroy();
+      } catch {
+        // コンテキストを失っていれば、片付けられなくてもよい。
+      }
+      this.interpolator = null;
+      onUnavailable?.(error);
+
+      return false;
+    }
+  }
+
+  // preparePair は、補間する前後のコマを width × height のテクスチャに描き、動きを推し量らせる。
+  // 前の組の後ろのコマが、今の組の前のコマなら、描いたテクスチャをそのまま使う。
+  private preparePair(
+    previous: DrawRequest,
+    next: DrawRequest,
+    width: number,
+    height: number,
+  ): void {
+    const current = this.pair;
+    if (
+      current !== null &&
+      sameFrame(current.previous, previous) &&
+      sameFrame(current.next, next) &&
+      current.from.width === width &&
+      current.from.height === height
+    ) {
+      return;
+    }
+    const reuse =
+      current !== null &&
+      sameFrame(current.next, previous) &&
+      current.to.width === width &&
+      current.to.height === height;
+    if (current !== null) {
+      this.spare.push(...(reuse ? [current.from] : [current.from, current.to]));
+      this.pair = null;
+    }
+    // 途中で投げても、取ったテクスチャを spare に戻し、消せるようにする。
+    const taken: Target[] = [];
+    try {
+      const from = reuse ? current.to : this.takeSpare(width, height);
+      taken.push(from);
+      if (!reuse) {
+        this.drawPicture({ ...previous, previous: null }, from.framebuffer, width, height);
+      }
+      const to = this.takeSpare(width, height);
+      taken.push(to);
+      this.drawPicture({ ...next, previous: null }, to.framebuffer, width, height);
+      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+      this.interpolator!.estimate(from.texture, to.texture, width, height);
+      this.pair = { previous, next, from, to };
+    } catch (error) {
+      this.spare.push(...taken);
+      throw error;
+    }
+  }
+
+  // takeSpare は、width × height の、前後のコマを描くテクスチャを返す。大きさの違うものは消す。
+  private takeSpare(width: number, height: number): Target {
+    const index = this.spare.findIndex((t) => t.width === width && t.height === height);
+    if (index >= 0) {
+      return this.spare.splice(index, 1)[0]!;
+    }
+    for (const other of this.spare.splice(0)) {
+      this.deleteTarget(other);
+    }
+
+    return createTarget(this.gl, width, height);
+  }
+
+  // dropPair は、補間する前後のコマを忘れ、テクスチャを spare に戻す。
+  private dropPair(): void {
+    if (this.pair !== null) {
+      this.spare.push(this.pair.from, this.pair.to);
+      this.pair = null;
+    }
+  }
+
+  private deleteTarget(target: Target): void {
+    this.gl.deleteFramebuffer(target.framebuffer);
+    this.gl.deleteTexture(target.texture);
+  }
+
+  // ensureTarget は、width × height の、拡大する前のコマを描く先を返す。大きさが変われば作り直す。
+  private ensureTarget(width: number, height: number): Target {
+    const current = this.target;
+    if (current !== null && current.width === width && current.height === height) {
+      return current;
+    }
+    this.releaseTarget();
+    this.target = createTarget(this.gl, width, height);
+
+    return this.target;
+  }
+
+  // drawPicture は、request のコマとフィールドを、framebuffer (null なら canvas) へ width × height で描く。
+  // 描く先の行は下から数える (framebuffer の向き) ので、拡大に渡すテクスチャも行を下から持つ。
+  private drawPicture(
+    request: DrawRequest,
+    framebuffer: WebGLFramebuffer | null,
+    width: number,
+    height: number,
+  ): void {
     const { gl, uniforms } = this;
     const { slot, previous } = request;
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.viewport(0, 0, width, height);
     gl.useProgram(this.program);
     const bind = (unit: number, target: WebGLTexture, location: WebGLUniformLocation | null) => {
       gl.activeTexture(gl.TEXTURE0 + unit);
@@ -278,11 +577,22 @@ export class PictureRenderer {
     const hasPrevious =
       previous !== null && previous.width === slot.width && previous.height === slot.height;
     bind(3, hasPrevious ? previous.y : slot.y, uniforms.uPrevY);
+    // 組み直したコマでなければ、使わない口にも同じコマを当てておく (どのテクスチャ単位も、何かを指すようにする)。
+    const bottom =
+      request.bottom !== null &&
+      request.bottom.width === slot.width &&
+      request.bottom.height === slot.height
+        ? request.bottom
+        : null;
+    bind(4, (bottom ?? slot).y, uniforms.uBottomY);
+    bind(5, (bottom ?? slot).u, uniforms.uBottomU);
+    bind(6, (bottom ?? slot).v, uniforms.uBottomV);
+    gl.uniform1i(uniforms.uWeave, bottom === null ? 0 : 1);
     gl.uniform1i(uniforms.uField, request.parity);
     gl.uniform1i(uniforms.uInterlaced, request.interlaced ? 1 : 0);
     gl.uniform1i(uniforms.uHasPrev, hasPrevious ? 1 : 0);
     gl.uniform2f(uniforms.uSource, slot.width, slot.height);
-    gl.uniform2f(uniforms.uOutput, this.canvas.width, this.canvas.height);
+    gl.uniform2f(uniforms.uOutput, width, height);
     const { weave, bob, still, motion } = this.thresholds;
     gl.uniform4f(uniforms.uThresholds, weave, bob, still, motion);
     gl.uniformMatrix3fv(uniforms.uMatrix, false, matrices[request.matrix]);
@@ -294,6 +604,17 @@ export class PictureRenderer {
     for (const slot of this.free.splice(0)) {
       this.destroy(slot);
     }
+    this.releaseTarget();
+    this.dropPair();
+    for (const target of this.spare.splice(0)) {
+      this.deleteTarget(target);
+    }
+    try {
+      this.interpolator?.destroy();
+    } catch {
+      // コンテキストを失っていれば、片付けられなくてもよい。
+    }
+    this.interpolator = null;
     this.gl.deleteProgram(this.program);
   }
 
@@ -302,6 +623,33 @@ export class PictureRenderer {
     this.gl.deleteTexture(slot.u);
     this.gl.deleteTexture(slot.v);
   }
+}
+
+// sameFrame は、2 つの描く求めが、同じコマ (同じテクスチャの組) を指すか。
+function sameFrame(a: DrawRequest, b: DrawRequest): boolean {
+  return a.slot === b.slot && a.bottom === b.bottom;
+}
+
+// usesSlot は、描く求め request が slot を使うか。
+function usesSlot(request: DrawRequest, slot: PictureSlot): boolean {
+  return request.slot === slot || request.bottom === slot;
+}
+
+// createTarget は、width × height の RGBA8 のテクスチャと、それを描き先にする framebuffer を作る。
+function createTarget(gl: WebGL2RenderingContext, width: number, height: number): Target {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const framebuffer = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  return { framebuffer, texture, width, height };
 }
 
 function texture(gl: WebGL2RenderingContext, width: number, height: number): WebGLTexture {

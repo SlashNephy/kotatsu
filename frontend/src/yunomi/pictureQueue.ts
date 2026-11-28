@@ -7,6 +7,9 @@
 export type QueuedPicture<Slot> = {
   // pts は、伸ばした PTS。
   pts: number;
+  // duration は、インタレースのコマの長さ (2 枚のフィールドを映す長さ)。省けば、隣り合うコマの PTS の差のうち、いちばん小さいものを使う。
+  // 2:3 プルダウンから組み直したコマ (#2276) を混ぜると、時刻の差が 1 コマより短くなることがあるので、呼ぶ側が渡す。
+  duration?: number;
   interlaced: boolean;
   topFieldFirst: boolean;
   slot: Slot;
@@ -78,25 +81,38 @@ export class PictureQueue<Slot> {
     }
     // 映していたコマは、待ち行列から外すとき (retire) に null に戻るので、ここで替わるのは新しいコマだけ。
     this.current = picture;
-    const fieldDuration = (this.frameDuration ?? 0) / 2;
+    const fieldDuration = (picture.duration ?? this.frameDuration ?? 0) / 2;
     const second = picture.interlaced && fieldDuration > 0 && target >= picture.pts + fieldDuration;
     const parity: 0 | 1 = picture.interlaced && second === picture.topFieldFirst ? 1 : 0;
 
     return { picture, second, parity };
   }
 
+  // following は、今映しているコマの次に映すコマ。choose の後に読む。なければ null。コマの間を補間するのに使う。
+  get following(): QueuedPicture<Slot> | null {
+    return this.current !== null && this.pictures[0] === this.current
+      ? (this.pictures[1] ?? null)
+      : null;
+  }
+
   // clear は、待っているコマをすべて破棄する (slot は release する)。選局したときと、飛んだときに呼ぶ。
-  clear(): void {
+  // keep の slot は release しない。呼んだ側が持ち続け、使い終えたら自分で返す。
+  clear(keep: Slot | null = null): void {
+    const release = (slot: Slot) => {
+      if (slot !== keep) {
+        this.release(slot);
+      }
+    };
     for (const picture of this.pictures.splice(0)) {
       if (picture !== this.current) {
-        this.release(picture.slot);
+        release(picture.slot);
       }
     }
     if (this.current !== null) {
-      this.release(this.current.slot);
+      release(this.current.slot);
     }
     if (this.previous !== null && this.previous !== this.current) {
-      this.release(this.previous.slot);
+      release(this.previous.slot);
     }
     this.current = null;
     this.previous = null;
