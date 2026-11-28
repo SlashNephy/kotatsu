@@ -88,6 +88,10 @@ WASM は組み方の名前 `product` で製品のもの（`vendor/ffmpeg/decoder
 
 ブラウザの自動操作で計測するときは、`window.runDecode(映像, 'product', false, { upload: 'offset', maxFrames: 300 })` を呼びます。
 
+「WASM の組み方を比較する」を押すか、URL に `?variants` を付けて開くと、`mandel_1440.ts` で、製品の WASM と `build.sh` の組み方 6 通りを、アップロードなしで交互に 2 回ずつ計測します。
+先に `build.sh` で全部の組み方を組んでおきます。結果は「切り分け」と同じく `.work/results.jsonl` に足します。
+`summarize.mjs` は、結果をブラウザと計測の手順（`split`、`variants`）ごとに分けてまとめます。
+
 ## mpeg2toh264 の出力を確認する
 
 `runConvert` に `{ save: true }` を渡すと、出力の MP4 を `.work/save/<映像>.mp4` に書きます。

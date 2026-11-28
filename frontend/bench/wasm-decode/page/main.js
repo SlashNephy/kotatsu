@@ -148,52 +148,71 @@ document.getElementById('run-decode').onclick = () => run({ decode: true, conver
 document.getElementById('run-convert').onclick = () => run({ decode: false, convert: true });
 document.getElementById('run-all').onclick = () => run({ decode: true, convert: true });
 
-// #2162 の切り分け。製品の WASM で、アップロードなしと 3 通りの上げ方を、交互に 2 回ずつ計測する。
-// 各回は 300 コマ (10 秒分) で打ち切り、遅い端末でも数分で終わるようにする。
-const splitFiles = ['mandel_1440.ts', 'testsrc2_1440.ts'];
-const splitModes = ['none', 'offset', 'subarray', 'copy'];
+// #2162 の計測の手順。どれも 1 回を 300 コマ (10 秒分) で打ち切り、遅い端末でも数分で終わるようにする。
+// split は、製品の WASM で、アップロードなしと 3 通りの上げ方を、映像 2 つで交互に 2 回ずつ計測する。
+// variants は、WASM の組み方 (build.sh の VARIANTS と製品) を、アップロードなしで交互に 2 回ずつ計測する。
+const plans = {
+  split: () =>
+    [0, 1].flatMap(() =>
+      ['mandel_1440.ts', 'testsrc2_1440.ts'].flatMap((file) =>
+        ['none', 'offset', 'subarray', 'copy'].map((upload) => ({
+          file,
+          variant: 'product',
+          upload,
+        })),
+      ),
+    ),
+  variants: () =>
+    [0, 1].flatMap(() =>
+      ['product', 'O3', 'O3-simd', 'O3-lto', 'O3-simd-lto', 'O2-simd-lto', 'Os-simd-lto'].map(
+        (variant) => ({ file: 'mandel_1440.ts', variant, upload: 'none' }),
+      ),
+    ),
+};
 const status = document.getElementById('split-status');
-const runSplit = async () => {
-  const button = document.getElementById('run-split');
-  button.disabled = true;
+const runPlan = async (plan) => {
+  const buttons = document.querySelectorAll('button[data-plan]');
+  for (const button of buttons) button.disabled = true;
   log.value = '';
   append({
     kind: 'env',
+    plan,
     userAgent: navigator.userAgent,
     crossOriginIsolated: self.crossOriginIsolated ?? null,
     hardwareConcurrency: navigator.hardwareConcurrency ?? null,
   });
-  const total = splitFiles.length * splitModes.length * 2;
+  const steps = plans[plan]();
+  const total = steps.length;
   let done = 0;
   // failed は、失敗した回と、WebGL のエラーが残った回の数。
   let failed = 0;
   try {
-    for (let round = 0; round < 2; round++) {
-      for (const file of splitFiles) {
-        for (const upload of splitModes) {
-          status.textContent = `計測中 ${done + 1} / ${total}（${file}、${upload}）`;
-          const result = await runDecode(file, 'product', false, { upload, maxFrames: 300 });
-          if (!result.ok || (result.glError ?? 0) !== 0) failed++;
-          done++;
-        }
-      }
+    for (const { file, variant, upload } of steps) {
+      status.textContent = `計測中 ${done + 1} / ${total}（${file}、${variant}、${upload}）`;
+      const result = await runDecode(file, variant, false, { upload, maxFrames: 300 });
+      if (!result.ok || (result.glError ?? 0) !== 0) failed++;
+      done++;
     }
-    append({ kind: 'done', total, failed });
+    append({ kind: 'done', plan, total, failed });
     status.textContent =
       failed === 0
         ? `終わりました（${total} 回）。結果はサーバーに送りました。`
         : `終わりました（${total} 回のうち ${failed} 回は失敗か WebGL のエラー）。結果はサーバーに送りました。`;
   } catch (error) {
-    append({ kind: 'done', total, failed, error: String(error) });
+    append({ kind: 'done', plan, total, failed, error: String(error) });
     status.textContent = `失敗しました: ${String(error)}`;
   } finally {
-    button.disabled = false;
+    for (const button of buttons) button.disabled = false;
   }
 };
-window.runSplit = runSplit;
-document.getElementById('run-split').onclick = runSplit;
-// URL に ?split を付けて開いたら、ボタンを押さなくても切り分けの計測を始める。音は鳴らさないので、操作がなくても動く。
-if (new URLSearchParams(location.search).has('split')) void runSplit();
+window.runPlan = runPlan;
+for (const button of document.querySelectorAll('button[data-plan]')) {
+  button.onclick = () => runPlan(button.dataset.plan);
+}
+// URL に ?split か ?variants を付けて開いたら、ボタンを押さなくてもその計測を始める。音は鳴らさないので、操作がなくても動く。
+const query = new URLSearchParams(location.search);
+const planFromUrl = Object.keys(plans).find((plan) => query.has(plan));
+if (planFromUrl) void runPlan(planFromUrl);
 document.getElementById('copy').onclick = async () => {
   try {
     await navigator.clipboard.writeText(log.value);

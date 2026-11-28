@@ -11,8 +11,17 @@ const rows = readFileSync(path, 'utf8')
   .filter((line) => line.trim() !== '')
   .map((line) => JSON.parse(line));
 
+// browserOf は、env の行の userAgent から、ブラウザの短い名前を返す。続く結果の行を、ブラウザと計測の手順ごとに分けるのに使う。
+const browserOf = (userAgent) => {
+  if (/Firefox\//.test(userAgent)) return 'Firefox';
+  if (/Chrome\//.test(userAgent)) return 'Chrome';
+  if (/Version\/.*Safari\//.test(userAgent)) return 'Safari';
+  return 'other';
+};
+let browser = '';
 const groups = new Map();
 for (const row of rows) {
+  if (row.kind === 'env') browser = `${browserOf(row.userAgent)}\t${row.plan ?? '-'}\t`;
   if (row.kind === 'env' || row.kind === 'done') {
     console.log(`${row.kind}:`, JSON.stringify(row));
     continue;
@@ -22,7 +31,7 @@ for (const row of rows) {
     continue;
   }
   const upload = row.upload && row.upload !== 'none' ? `\tupload=${row.upload}` : '';
-  const key = `${row.file}\t${row.kind}\t${row.variant ?? 'mpeg2toh264'}${upload}`;
+  const key = `${browser}${row.file}\t${row.kind}\t${row.variant ?? 'mpeg2toh264'}${upload}`;
   const values =
     row.kind === 'decode'
       ? {
