@@ -1,6 +1,6 @@
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Captions, MessageSquareText, Share2 } from 'lucide-react';
+import { Captions } from 'lucide-react';
 import { Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
@@ -8,57 +8,12 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { rememberReturnTo } from '../../auth/returnTo';
 import { ErrorBoundary, PageLoader, ProgramTitle, formatBytes } from '../../futon';
-import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
-import { CommentOffsetSetting } from '../../jikkyo/CommentOffsetSetting';
-import { formatCommentOffset, useCommentOffsetCommands } from '../../jikkyo/commentOffset';
-import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
-import { WatchPanel } from '../../yunomi/WatchPanel';
-import {
-  WatchDescription,
-  WatchHeading,
-  WatchLayout,
-  watchCommentsHeight,
-} from '../../yunomi/WatchLayout';
-import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
-import { broadcastTime, formatClock, formatDuration } from '../../yunomi/position';
-import { useFastForward } from '../../yunomi/fastForward';
-import {
-  RateSelect,
-  CropSelect,
-  AudioDelaySetting,
-  NormalizeVolumeToggle,
-  SleepTimerSelect,
-  QualitySelect,
-  VirtualSurroundToggle,
-} from '../../yunomi/QualitySelect';
-import { hlsURL, toVideoFormat } from '../../yunomi/route';
-import { HlsPlayer } from '../../yunomi/HlsPlayer';
-import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
-import { type PlayerSnapshot } from '../../yunomi/playerState';
-import { SeekBar } from '../../yunomi/SeekBar';
-import { TsPlayer } from '../../yunomi/TsPlayer';
-import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
-import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
-import type { PlayerCommands } from '../../yunomi/commands';
-import { useCapture } from '../../yunomi/PlayerTools';
-import {
-  CommandButton,
-  PlayButton,
-  PlayerControls,
-  PositionStatus,
-  SeekStepButtons,
-  SettingsButton,
-  VolumeControl,
-} from '../../yunomi/PlayerControls';
+import { broadcastTime, formatDuration } from '../../yunomi/position';
+import { toVideoFormat } from '../../yunomi/route';
 import { loadCmAutoSkip } from '../../yunomi/cmAutoSkip';
 import { cmMergeGap, cmSectionAt, mergeCmSections } from '../../yunomi/cmSkip';
 import { SaveOfflineButton } from '../../offline/SaveOfflineButton';
-import {
-  CaptionTrackSelect,
-  PositionedAutoCaptionOverlay,
-  type CaptionTrack,
-} from '../../yunomi/AutoCaptionOverlay';
 import {
   AutoCaptionsStatus,
   autoCaptionsActive,
@@ -78,25 +33,7 @@ import {
   seekLimit,
 } from '../../library/library';
 import type { libraryPlayFileQuery } from './__generated__/libraryPlayFileQuery.graphql';
-import {
-  PlayerBox,
-  PlayerErrorOverlay,
-  PlayerFeedback,
-  PlayerFrame,
-  PlayerToolButtons,
-  usePlayerInputs,
-  usePlayerPresence,
-  usePlayerShell,
-} from '../../yunomi/playerShell';
-import { useRecordedCaptions } from '../../yunomi/useRecordedCaptions';
-import { useVodTimeline } from '../../yunomi/useVodTimeline';
-import { useCmSkip } from '../../yunomi/useCmSkip';
-import {
-  jikkyoListedCount,
-  jikkyoPartBands,
-  RecordedJikkyoList,
-  recordedJikkyoLabel,
-} from '../../jikkyo/RecordedJikkyoList';
+import { VodPlayer } from '../../yunomi/VodPlayer';
 
 // noGaps は、ライブラリのファイルの途切れた区間。ファイル 1 本を流すので、録画のセグメントの間のような区間はない。
 const noGaps: readonly { from: string; to: string }[] = [];
@@ -309,33 +246,11 @@ function Player({
     transcoding,
     viewer,
   } = useLazyLoadQuery<libraryPlayFileQuery>(playQuery, variables);
-  // shell は、再生元によらないプレイヤーの外側 (#2244)。
-  const shell = usePlayerShell();
-  const { mediaRef, media, setMedia, visible, controls, videoState, showFlash } = shell;
-  // 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する (設計書 7.1)。
-  const { route, choices, quality, setQuality } = usePlaybackRoute(
-    transcoding,
-    toVideoFormat(file.videoFormat),
-  );
-  const hls = route.kind === 'kyusu';
-  const {
-    captionsEnabled: captions,
-    setCaptionsEnabled: setCaptions,
-    jikkyoEnabled,
-    setJikkyoEnabled,
-    comments: commentSettings,
-    muteUser,
-    captions: captionSettings,
-  } = usePlayerSettings();
-  // captionTrack は、出す字幕の種類 (#1682)。自動生成した字幕があるときだけ選べ、既定は放送の字幕にする。
-  const [captionTrack, setCaptionTrack] = useState<CaptionTrack>('broadcast');
   const autoCaptions = file.autoCaptions.map((caption) => ({
     from: caption.startSeconds,
     to: caption.endSeconds,
     text: caption.text,
   }));
-  const hasAutoCaptions = autoCaptions.length > 0;
-  const autoCaptionsShown = captions && hasAutoCaptions && captionTrack === 'auto';
   const [generateCaptions, generatingCaptions] = useMutation<libraryPlayGenerateCaptionsMutation>(
     graphql`
       mutation libraryPlayGenerateCaptionsMutation($id: ID!) {
@@ -422,34 +337,6 @@ function Player({
     };
   });
   const initialPosition = opening.at;
-  // timeline は、ファイルの始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。kyusu の経路では、仮想 HLS を流す。
-  // 再生できない経路 (8K や kyusu のない UHD) では、配信に HEAD を送らない。シークできる所 (インデックスのできた所) より
-  // 先へは移らない。インデックスを作っている途中は、長さが見込みなので、途中で切れたかを見分けない。
-  const timeline = useVodTimeline({
-    streamUrl: file.streamUrl,
-    media,
-    mediaRef,
-    convert: route.kind === 'convert',
-    hls,
-    initial: initialPosition,
-    duration,
-    clampSeek: (seconds) => clampSeek(seconds, file.index),
-    endKnown: !indexing,
-  });
-  const {
-    stream,
-    hlsStream,
-    position,
-    positionRef,
-    currentPosition,
-    restartAt,
-    jumpTo,
-    retry,
-    error,
-  } = timeline;
-  const [seeking, setSeeking] = useState<number | null>(null);
-  // 再生位置を、録画と同じく、ユーザーごとに保存する。
-  useLibraryPositionSaver(file.id, currentPosition, !videoState.paused);
   // broadcast は、TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報 (設計書 5.8)。再生の 0 秒を、録り始め (recordedFrom) の放送時刻とみなす。
   // ファイルは 1 本なので、途切れた区間は数えない。
   const broadcast = file.broadcast ?? null;
@@ -467,499 +354,201 @@ function Player({
     recordedFrom != null &&
     recordedUntil != null &&
     new Date(recordedUntil).getTime() > new Date(recordedFrom).getTime();
-  const jikkyo = useRecordedJikkyo(
-    // 過去ログは、時間帯が分かったら、インデックスを作り終える前でも読む。作っている途中は、終わりがインデックスの長さまで伸びうるので、
-    // 作り終えたら再取得して、足りなかったコメントを足す (設計書 5.8)。
-    channelId !== null && jikkyoEnabled && (file.index.complete || spanKnown)
-      ? file.jikkyoCommentsUrl
-      : null,
-    currentPosition,
-    visible,
-    null,
-    commentSettings,
-    null,
-    null,
-    !file.index.complete,
-  );
-  // listedCount は、再生位置までに流れたコメントの数。一覧は、この数が変わったときだけ作り直す。
-  const listedCount = jikkyoListedCount(jikkyo.comments, position, jikkyo.offset);
-  // partBands は、実況のコメントから見つけた番組の区切りのマーク (#1358)。コメントの位置をずらしたら、マークも同じだけ動かす。
-  const partBands = jikkyoPartBands(t, jikkyo.ownComments, jikkyo.offset);
-  const jikkyoLabel = recordedJikkyoLabel(t, jikkyo.state);
-
-  const streamMeter = useStreamMeter(quality);
-  // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
-  const audios = file.audios.length === 0 ? null : file.audios;
-  const surroundAvailable = route.kind === 'convert' && isSurroundAudio(audios);
-  useVirtualSurround(media, surroundAvailable);
-  // captionHistory は、字幕の履歴 (#450) と、キャプチャに書き込む今の字幕の文 (#458)。
-  const captionHistory = useRecordedCaptions(currentPosition);
-  const { onCaptionText } = captionHistory;
-  // cm は、CM とみなした区間 (設計書 5.8) の帯と、飛ばすボタンと、録画と同じく自動で飛ばす判定 (#1512)。
-  const cm = useCmSkip({
-    sections: cmPositions,
-    media,
-    mediaRef,
-    framePosition: (time) => (hls ? hlsStream.framePosition(time) : stream.framePosition(time)),
-    jumpTo,
-    currentPosition,
-    scrubbing: seeking !== null,
-    showFlash,
-    opening,
-    initialSeek: start === undefined ? null : initialPosition,
-  });
-  // seek は、利用者の操作で、指定の位置に移る。skip は、今の位置から相対に移り、CM を飛んだら true を返す。
-  const { seek, skip } = cm;
-  const changeQuality = (next: string) => {
-    restartAt(positionRef.current);
-    setQuality(next);
-  };
-  // 音声は、経路ごとのメニューで選ぶ。音声の構成は、インデックスを作るときに TS の EIT[p/f] から読む。読めなければプレイヤーに任せる。
-  const audio = usePlayerAudio(route, audios, () => restartAt(positionRef.current));
-  const [rate, setRate] = useState(1);
-  const fastForward = useFastForward(rate, { growing: false, position, duration });
-  useEffect(() => {
-    if (media !== null) {
-      media.defaultPlaybackRate = rate;
-      media.playbackRate = fastForward.playbackRate;
-    }
-  }, [rate, fastForward.playbackRate, media, stream.url, hlsStream.loads]);
-
-  const shownFlash = fastForward.active
-    ? t('player.flash.fastForward', { rate: fastForward.playbackRate })
-    : shell.flash;
-  // キャプチャ (#908)。放送時刻は、TS の TOT から読んだ録り始めから数える。分からなければ、撮った時刻にする。
-  const capture = useCapture({
-    crop: shell.crop,
-    frameRef: shell.playerBoxRef,
-    media: () => mediaRef.current,
-    serviceName,
-    programName: program?.name ?? file.name,
-    captureTime: () => clockAt(currentPosition()) ?? Date.now(),
-    caption: captionHistory.currentCaption,
-  });
-  const saveCapture = async () => {
-    if ((await capture.capture('save')) === 'saved') {
-      showFlash(t('player.flash.captured'));
-    }
-  };
   const backToFolder = () =>
     void navigate({
       to: '/library',
       search: { library, ...(parentPath(path) === '' ? {} : { path: parentPath(path) }) },
     });
-  // commentOffsetCommands は、実況のコメントの位置 (#1357) の操作。変えたら、ずらした量を映像の上に短く出す。
-  const commentOffsetCommands = useCommentOffsetCommands((ms) =>
-    showFlash(t('player.flash.commentOffset', { seconds: formatCommentOffset(ms) })),
-  );
-  const commands: PlayerCommands = {
-    ...shell.commands,
-    ...shell.seekCommands({ skip, seekTo: seek, currentPosition, retry }),
-    ...(channelId === null || !jikkyoEnabled ? {} : commentOffsetCommands),
-    ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
-    capture: () => void saveCapture(),
-    toggleCaptions: () => setCaptions(!captions),
-    // スリープタイマーと「再生をやめる」のキーは、プレイヤーを閉じて、ファイルのあったフォルダへ戻る (#1426)。
-    stop: backToFolder,
-  };
-  const seekLabel = (value: number) => {
-    const at = clockAt(value);
-
-    return at === null ? formatDuration(value) : `${formatDuration(value)} (${formatClock(at)})`;
-  };
-  const inputs = usePlayerInputs(shell, commands, {
-    // CM を飛んだら、CM を飛ばした通知を出したので、シークの結果は出さない。
-    onDoubleTap: (side) => {
-      if (!skip(side === 'left' ? -10 : 10)) {
-        showFlash(t(side === 'left' ? 'player.flash.seekBackward' : 'player.flash.seekForward'));
-      }
-    },
-    slideSeek: {
-      enabled: limit > 0,
-      range: () => ({ position: currentPosition(), duration }),
-      onScrub: (value) => setSeeking(value === null ? null : Math.min(value, limit)),
-      onCommit: (target) => {
-        setSeeking(null);
-        seek(target);
-      },
-      onCancel: () => setSeeking(null),
-    },
-  });
-  const { sleep, scrub } = inputs;
-  const player = {
-    kind: 'RECORDING',
-    target: file.id,
-    serviceName,
-    program: { id: file.id, name: program?.name ?? file.name },
-    artwork: null,
-    paused: videoState.paused,
-    position,
-    duration,
-    playbackRate: fastForward.playbackRate,
-    volume: videoState.volume,
-    muted: videoState.muted,
-    audios: audio.remote.choices,
-    audio: audio.remote.selected,
-    dataBroadcast: false,
-    keyGroups: [],
-  } satisfies PlayerSnapshot;
-  // ライブラリのファイルは、ほかの端末から操作させない。
-  usePlayerPresence(player, commands, null);
-
-  const shown = seeking ?? position;
-  const shownClock = clockAt(shown);
-  // bands は、CM の区間と、インデックスをまだ作っている所 (シークできないので帯で示す) と、実況のコメントから見つけた番組の区切りのマーク。
-  const bands = [
-    ...cm.bands,
-    ...(indexing && duration > limit
-      ? [{ from: limit, to: duration, label: t('library.indexing') }]
-      : []),
-    ...partBands,
-  ];
-  // skipButton は、いま再生している CM の中で出す、区間の終わりへ飛ばすボタン (#1300)。
-  const skipButton = seeking === null && cm.button(position, controls.visible);
-
-  const controlBar = (
-    <PlayerControls
-      visible={controls.visible}
-      seek={
-        <SeekBar
-          bands={bands}
-          duration={duration}
-          value={shown}
-          previewUrl={file.previewUrl}
-          label={seekLabel}
-          onChange={(value) => setSeeking(Math.min(value, limit))}
-          onChangeEnd={(value) => {
-            setSeeking(null);
-            seek(value);
-          }}
-        />
-      }
-      start={
-        <>
-          <PlayButton video={videoState} commands={commands} />
-          <SeekStepButtons commands={commands} onFastForward={fastForward.setHeld} />
-          <VolumeControl video={videoState} commands={commands} optional />
-        </>
-      }
-      status={
-        <PositionStatus
-          position={formatDuration(shown)}
-          rest={`${duration > 0 ? ` / ${formatDuration(duration)}` : ''}${
-            shownClock === null ? '' : ` · ${formatClock(shownClock)}`
-          }`}
-        />
-      }
-      end={
-        <>
-          <CommandButton
-            commands={commands}
-            command="toggleCaptions"
-            label={t('player.captions')}
-            icon={Captions}
-            active={captions}
-          />
-          {channelId !== null && (
-            <CommandButton
-              commands={commands}
-              command="toggleJikkyo"
-              label={jikkyoLabel}
-              icon={MessageSquareText}
-              active={jikkyoEnabled}
-            />
-          )}
-          <SettingsButton>
-            <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
-            {audio.menu}
-            <CaptionTrackSelect
-              available={hasAutoCaptions}
-              value={captionTrack}
-              onChange={setCaptionTrack}
-            />
-            <RateSelect value={rate} onChange={setRate} />
-            <CropSelect value={shell.crop} onChange={shell.setCrop} />
-            <NormalizeVolumeToggle />
-            <AudioDelaySetting />
-            {channelId !== null && jikkyoEnabled && <CommentOffsetSetting />}
-            <SleepTimerSelect timer={sleep} />
-            {surroundAvailable && <VirtualSurroundToggle />}
-          </SettingsButton>
-          <PlayerToolButtons shell={shell} commands={commands} capture={capture} />
-        </>
-      }
-    />
-  );
-  const overlay = (
+  // info は、見出しの下に出す、ファイルの場所と大きさ、端末への保存、字幕の自動生成、インデックスの様子。
+  const info = (
     <>
-      {autoCaptionsShown && (
-        <PositionedAutoCaptionOverlay captions={autoCaptions} clock={currentPosition} />
+      <Text size="sm" c="dimmed">
+        {/* Google Drive のパスは ID をつないだものなので、名前を出す (#1902)。 */}
+        {file.library.kind === 'GOOGLE_DRIVE' ? file.name : path} · {formatBytes(Number(file.size))}
+      </Text>
+      {/* 端末に保存 (設計書 7.8)。録画と同じく、配信の TS をそのまま書く。端末での再生は、録り始めと録り終わりの放送時刻で
+          時計と長さを出すので、TOT から読めたファイルだけで出す。書いている途中か、インデックスを作り終えていないファイルは、長さが決まらないので出さない。 */}
+      {file.index.complete &&
+        !file.index.writing &&
+        broadcast?.recordedFrom != null &&
+        broadcast.recordedUntil != null && (
+          <SaveOfflineButton
+            videoFormat={file.videoFormat}
+            source={{
+              // 端末に保存するときの名前。GraphQL の ID はパスを含んで長いので、パスを含まないファイルの ID を使う。
+              id: `library-${file.fileId}`,
+              name: program?.name ?? file.name,
+              serviceName,
+              startAt: program?.startAt ?? broadcast.recordedFrom,
+              endAt: program?.endAt ?? broadcast.recordedUntil,
+              recordedFrom: broadcast.recordedFrom,
+              recordedUntil: broadcast.recordedUntil,
+              gaps: noGaps,
+              streamUrl: file.streamUrl,
+              // 実況のチャンネルのない局では、過去ログを読まない (設計書 7.4)。
+              jikkyoCommentsUrl: channelId === null ? null : file.jikkyoCommentsUrl,
+              // 配信は Content-Length を返さないので、ファイルの大きさで空きを見積もる。
+              files: [{ kind: 'SEGMENT', size: file.size }],
+            }}
+          />
+        )}
+      {/* 字幕の自動生成 (設計書 5.8)。録画と同じく、頼まれたときに生成する。音声を取り出すサービスが分からないファイルには作れない。 */}
+      {broadcast !== null && (
+        <Stack gap={4}>
+          <Group gap="xs">
+            <Text size="sm" fw={600}>
+              {t('recordings.autoCaptions.title')}
+            </Text>
+            {viewer.role !== 'VIEWER' && (
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                leftSection={<Captions size={14} aria-hidden />}
+                loading={generatingCaptions}
+                onClick={() =>
+                  generateCaptions({
+                    variables: { id: file.id },
+                    onCompleted: (_response, errors) => setCaptionsError((errors ?? []).length > 0),
+                    onError: () => setCaptionsError(true),
+                  })
+                }
+              >
+                {t('recordings.generateCaptions')}
+              </Button>
+            )}
+          </Group>
+          <AutoCaptionsStatus
+            status={file.autoCaptionsStatus}
+            settingsLink={
+              // モデルを置けるのは管理者だけなので、録画の詳細と同じく、管理者にだけ、置く画面へのリンクを出す。
+              viewer.role === 'ADMIN' && (
+                <Anchor component={Link} to="/admin/recording" hash={captionModelsAnchor} size="sm">
+                  {t('recordings.autoCaptions.notConfiguredLink')}
+                </Anchor>
+              )
+            }
+          />
+          {captionsError && (
+            <Text size="sm" c="red" role="alert">
+              {t('recordings.actionError')}
+            </Text>
+          )}
+        </Stack>
       )}
-      {jikkyo.overlay}
-      <PlayerFeedback
-        shell={shell}
-        flash={shownFlash}
-        scrub={
-          scrub === null
-            ? null
-            : { seconds: scrub, label: seekLabel(scrub), previewUrl: file.previewUrl }
-        }
-        loadingHidden={error !== null}
-      />
-      {skipButton}
-      <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />
+      {indexing && (
+        <Text size="sm" c="dimmed" role="status">
+          {t('library.indexingStatus', { seconds: formatDuration(limit) })}
+        </Text>
+      )}
+      {file.index.writing && (
+        <Text size="sm" c="dimmed" role="status">
+          {t('library.writing')}
+        </Text>
+      )}
     </>
   );
 
-  const playerBox = (
-    <PlayerBox shell={shell} inputs={inputs}>
-      {route.kind === 'convert' && (
-        <TsPlayer
-          url={stream.url}
-          handover={timeline.handover}
-          mediaRef={mediaRef}
-          onMedia={setMedia}
-          controls={controlBar}
-          captions={captions && !autoCaptionsShown}
-          superimpose={captionSettings.superimposeRecorded}
-          captionStyle={captionSettings}
-          crop={shell.shownCrop}
-          brightness={inputs.brightness}
-          onCaptionText={onCaptionText}
-          onLoaded={timeline.onConvertLoaded}
-          handoverTarget={stream.handoverTarget}
-          onError={timeline.onError}
-          onState={timeline.onConvertState}
-          onAudio={audio.onAudio}
-          onReading={streamMeter.onReading}
-          audio={audio.playerAudio}
-          overlay={overlay}
-          coverRef={cm.coverRef}
-        />
-      )}
-      {route.kind === 'kyusu' && (
-        <HlsPlayer
-          // 読み直すたびに URL を変え、hls.js を作り直す。fragment は、サーバーへは送られない。
-          // kyusu は、インデックスの I フレームが 1 つもない間は、プレイリストを作れずに 503 を返す。インデックスができ始めるまで読まない。
-          url={
-            indexing && file.index.durationSeconds == null
-              ? null
-              : `${hlsURL(file.hlsUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`
-          }
-          mediaRef={mediaRef}
-          onMedia={setMedia}
-          onSegment={streamMeter.onSegment}
-          controls={controlBar}
-          captions={captions && !autoCaptionsShown}
-          superimpose={captionSettings.superimposeRecorded}
-          captionStyle={captionSettings}
-          crop={shell.shownCrop}
-          brightness={inputs.brightness}
-          onCaptionText={onCaptionText}
-          live={false}
-          startPosition={hlsStream.start}
-          overlay={overlay}
-          onLoaded={timeline.onHlsLoaded}
-          onError={timeline.onError}
-          coverRef={cm.coverRef}
-        />
-      )}
-    </PlayerBox>
-  );
-
   return (
-    <WatchLayout
-      player={
-        <PlayerFrame shell={shell} route={route}>
-          {playerBox}
-        </PlayerFrame>
-      }
-      info={
-        <>
-          <WatchHeading
-            title={program === null ? file.name : <ProgramTitle name={program.name} />}
-            serviceName={serviceName}
-            serviceLogoUrl={broadcast?.service?.logoUrl ?? null}
-            time={
-              program?.startAt != null && program.endAt != null
-                ? { startAt: program.startAt, endAt: program.endAt }
-                : null
-            }
-            actions={
-              <Button
-                variant="default"
-                size="compact-sm"
-                leftSection={<Share2 size={14} aria-hidden />}
-                onClick={commands.copyPositionUrl}
-              >
-                {t('player.share')}
-              </Button>
-            }
-          />
-          {program !== null && (
-            <WatchDescription text={program.description} extended={program.extended} />
-          )}
-          <Text size="sm" c="dimmed">
-            {/* Google Drive のパスは ID をつないだものなので、名前を出す (#1902)。 */}
-            {file.library.kind === 'GOOGLE_DRIVE' ? file.name : path} ·{' '}
-            {formatBytes(Number(file.size))}
-          </Text>
-          {/* 端末に保存 (設計書 7.8)。録画と同じく、配信の TS をそのまま書く。端末での再生は、録り始めと録り終わりの放送時刻で
-              時計と長さを出すので、TOT から読めたファイルだけで出す。書いている途中か、インデックスを作り終えていないファイルは、長さが決まらないので出さない。 */}
-          {file.index.complete &&
-            !file.index.writing &&
-            broadcast?.recordedFrom != null &&
-            broadcast.recordedUntil != null && (
-              <SaveOfflineButton
-                videoFormat={file.videoFormat}
-                source={{
-                  // 端末に保存するときの名前。GraphQL の ID はパスを含んで長いので、パスを含まないファイルの ID を使う。
-                  id: `library-${file.fileId}`,
-                  name: program?.name ?? file.name,
-                  serviceName,
-                  startAt: program?.startAt ?? broadcast.recordedFrom,
-                  endAt: program?.endAt ?? broadcast.recordedUntil,
-                  recordedFrom: broadcast.recordedFrom,
-                  recordedUntil: broadcast.recordedUntil,
-                  gaps: noGaps,
-                  streamUrl: file.streamUrl,
-                  // 実況のチャンネルのない局では、過去ログを読まない (設計書 7.4)。
-                  jikkyoCommentsUrl: channelId === null ? null : file.jikkyoCommentsUrl,
-                  // 配信は Content-Length を返さないので、ファイルの大きさで空きを見積もる。
-                  files: [{ kind: 'SEGMENT', size: file.size }],
-                }}
-              />
-            )}
-          {/* 字幕の自動生成 (設計書 5.8)。録画と同じく、頼まれたときに生成する。音声を取り出すサービスが分からないファイルには作れない。 */}
-          {broadcast !== null && (
-            <Stack gap={4}>
-              <Group gap="xs">
-                <Text size="sm" fw={600}>
-                  {t('recordings.autoCaptions.title')}
-                </Text>
-                {viewer.role !== 'VIEWER' && (
-                  <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    leftSection={<Captions size={14} aria-hidden />}
-                    loading={generatingCaptions}
-                    onClick={() =>
-                      generateCaptions({
-                        variables: { id: file.id },
-                        onCompleted: (_response, errors) =>
-                          setCaptionsError((errors ?? []).length > 0),
-                        onError: () => setCaptionsError(true),
-                      })
-                    }
-                  >
-                    {t('recordings.generateCaptions')}
-                  </Button>
-                )}
-              </Group>
-              <AutoCaptionsStatus
-                status={file.autoCaptionsStatus}
-                settingsLink={
-                  // モデルを置けるのは管理者だけなので、録画の詳細と同じく、管理者にだけ、置く画面へのリンクを出す。
-                  viewer.role === 'ADMIN' && (
-                    <Anchor
-                      component={Link}
-                      to="/admin/recording"
-                      hash={captionModelsAnchor}
-                      size="sm"
-                    >
-                      {t('recordings.autoCaptions.notConfiguredLink')}
-                    </Anchor>
-                  )
-                }
-              />
-              {captionsError && (
-                <Text size="sm" c="red" role="alert">
-                  {t('recordings.actionError')}
-                </Text>
-              )}
-            </Stack>
-          )}
-          {indexing && (
-            <Text size="sm" c="dimmed" role="status">
-              {t('library.indexingStatus', { seconds: formatDuration(limit) })}
-            </Text>
-          )}
-          {file.index.writing && (
-            <Text size="sm" c="dimmed" role="status">
-              {t('library.writing')}
-            </Text>
-          )}
-          {error !== null && (
-            <Alert color="red" role="alert">
-              <Group justify="space-between" gap="xs">
-                <Text size="sm">{error}</Text>
-                <Button size="compact-sm" variant="light" color="red" onClick={retry}>
-                  {t('player.retry')}
-                </Button>
-              </Group>
-            </Alert>
-          )}
-        </>
-      }
-      side={
-        <WatchPanel
-          label={t('player.sidePanel')}
-          tabs={[
-            // 実況の過去ログがあれば、右のカラムで字幕の履歴と切り替えて出す。
-            ...(jikkyo.comments !== null && jikkyo.comments.length > 0
-              ? [
-                  {
-                    value: 'jikkyo',
-                    label: t('jikkyo.toggle'),
-                    content: (
-                      <RecordedJikkyoList
-                        comments={jikkyo.comments}
-                        count={listedCount}
-                        offset={jikkyo.offset}
-                        recordedFrom={recordedFrom}
-                        gaps={noGaps}
-                        frozen={shell.fullscreen.active}
-                        onMuteUser={muteUser}
-                      />
-                    ),
-                  },
-                ]
-              : []),
-            captionHistory.tab(
-              (entry) => {
-                const at = clockAt(entry.at);
-
-                return at === null ? formatDuration(entry.at) : formatClock(at);
+    <VodPlayer
+      source={{
+        kind: 'RECORDING',
+        target: file.id,
+        program: { id: file.id, name: program?.name ?? file.name },
+        title: program === null ? file.name : <ProgramTitle name={program.name} />,
+        serviceName,
+        serviceLogoUrl: broadcast?.service?.logoUrl ?? null,
+        time:
+          program?.startAt != null && program.endAt != null
+            ? { startAt: program.startAt, endAt: program.endAt }
+            : null,
+        description:
+          program === null ? null : { text: program.description, extended: program.extended },
+        artwork: null,
+        previewUrl: file.previewUrl ?? null,
+        // 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する (設計書 7.1)。
+        transcoding,
+        videoFormat: toVideoFormat(file.videoFormat),
+        inheritCap: true,
+        streamUrl: file.streamUrl,
+        // kyusu は、インデックスの I フレームが 1 つもない間は、プレイリストを作れずに 503 を返す。インデックスができ始めるまで読まない。
+        hlsUrl: indexing && file.index.durationSeconds == null ? null : file.hlsUrl,
+        audios: file.audios.length === 0 ? null : file.audios,
+        duration,
+        seekLimit: limit,
+        opening,
+        initialSeek: start === undefined ? null : initialPosition,
+        initial: initialPosition,
+        // シークできる所 (インデックスのできた所) より先へは移らない。インデックスを作っている途中は、長さが見込みなので、
+        // 途中で切れたかを見分けない。
+        clampSeek: (seconds) => clampSeek(seconds, file.index),
+        endKnown: !indexing,
+        growing: false,
+        clockAt,
+        // bands は、インデックスをまだ作っている所。シークできないので帯で示す。
+        bands:
+          indexing && duration > limit
+            ? [{ from: limit, to: duration, label: t('library.indexing') }]
+            : [],
+        // cmSections は、CM とみなした区間 (設計書 5.8)。まだ見分けていなければ空。
+        cmSections: cmPositions,
+        jikkyo:
+          channelId === null
+            ? null
+            : {
+                // 過去ログは、時間帯が分かったら、インデックスを作り終える前でも読む。作っている途中は、終わりがインデックスの長さまで
+                // 伸びうるので、作り終えたら再取得して、足りなかったコメントを足す (設計書 5.8)。
+                url: file.index.complete || spanKnown ? file.jikkyoCommentsUrl : null,
+                live: null,
+                others: null,
+                nicolog: null,
+                growing: !file.index.complete,
+                recordedFrom,
+                gaps: noGaps,
               },
-              (entry) => seek(entry.at),
-            ),
-            {
-              value: 'info',
-              label: t('player.streamInfo.tab'),
-              content: (
-                <StreamInfo
-                  meter={streamMeter.meter}
-                  media={media}
-                  quality={quality}
-                  kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
-                  audios={audios}
-                  transport={
-                    file.quality == null
-                      ? null
-                      : {
-                          dropped: Number(file.quality.drops),
-                          errors: Number(file.quality.errors),
-                          scrambled: Number(file.quality.scrambled),
-                        }
-                  }
-                  average={null}
-                  height={watchCommentsHeight}
-                />
-              ),
-            },
-          ]}
+        autoCaptions,
+        // ライブラリのファイルは、ほかの端末から操作させない。
+        remote: false,
+        topBitrate: null,
+        streamInfo: {
+          average: null,
+          transport:
+            file.quality == null
+              ? null
+              : {
+                  dropped: Number(file.quality.drops),
+                  errors: Number(file.quality.errors),
+                  scrambled: Number(file.quality.scrambled),
+                },
+        },
+        recordingId: null,
+        // スリープタイマーと「再生をやめる」のキーは、プレイヤーを閉じて、ファイルのあったフォルダへ戻る (#1426)。
+        stop: backToFolder,
+        info,
+      }}
+    >
+      {/* 再生位置を、録画と同じく、ユーザーごとに保存する。 */}
+      {(api) => (
+        <LibraryPositionSaver
+          fileId={file.id}
+          currentPosition={api.currentPosition}
+          playing={!api.paused}
         />
-      }
-    />
+      )}
+    </VodPlayer>
   );
+}
+
+// LibraryPositionSaver は、ライブラリのファイルの再生位置を、ユーザーごとに保存する。
+function LibraryPositionSaver({
+  fileId,
+  currentPosition,
+  playing,
+}: {
+  fileId: string;
+  currentPosition: () => number;
+  playing: boolean;
+}) {
+  useLibraryPositionSaver(fileId, currentPosition, playing);
+
+  return null;
 }
