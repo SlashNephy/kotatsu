@@ -45,7 +45,7 @@
   "devDependencies": {
     "@playwright/test": "1.65.1",
     "@rolldown/plugin-babel": "0.3.1",
-    "@storybook/react-vite": "10.6.8",
+    "@storybook/react-vite": "10.6.9",
     "@tanstack/router-plugin": "1.169.0",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.13",
@@ -60,7 +60,7 @@
     "jsdom": "31.0.1",
     "react-grab": "0.2.0",
     "relay-compiler": "21.0.1",
-    "storybook": "10.6.8",
+    "storybook": "10.6.9",
     "subset-font": "2.9.0",
     "typescript": "7.0.2",
     "vite": "npm:@voidzero-dev/vite-plus-core@8.3.8001",
