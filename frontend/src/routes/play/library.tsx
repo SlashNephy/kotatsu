@@ -524,11 +524,8 @@ function Player({
   // restartAt は、指定の位置から読み直す。
   const restartAt = (seconds: number) => {
     setHandover(false);
-    if (hls) {
-      hlsStream.restartAt(seconds);
-
-      return;
-    }
+    // 画質を変えると、変換と kyusu の経路が入れ替わることがある。入れ替わった先の経路も、この位置から読み始める。
+    hlsStream.restartAt(seconds);
     stream.restartAt(seconds);
   };
   // tenban が止まる前に通知してきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。

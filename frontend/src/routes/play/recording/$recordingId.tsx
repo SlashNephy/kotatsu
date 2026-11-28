@@ -513,11 +513,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     // CM の区間が録画の終わりまで続く回で、CM を飛ばすと、ここに来る。
     const seconds = playableStart(target, duration);
     setHandover(false);
-    if (hls) {
-      hlsStream.restartAt(seconds);
-
-      return;
-    }
+    // 画質を変えると、変換と kyusu の経路が入れ替わることがある。入れ替わった先の経路も、この位置から読み始める。
+    hlsStream.restartAt(seconds);
     stream.restartAt(seconds);
   };
   // tenban が止まる前に通知してきたら、ブラウザの中で変換するときは、今の位置から、新しい接続を張ってから切り替える (#1085)。
@@ -532,7 +529,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     // エラーで止まっている間は、「やり直す」に任せる。
     if (!hls && error === null) {
       // 映っている映像の位置を信じられるなら、裏で読み込んでいる間も、その映像で位置を進める (#1728)。
-      stream.restartAt(positionRef.current, true);
+      // 終わりの直前から読むと、映像のコマが届かずに失敗するので、映像が入るだけ手前から読む (#1576)。
+      stream.restartAt(playableStart(positionRef.current, duration), true);
       setHandover(true);
     }
     // 読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
