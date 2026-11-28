@@ -4,6 +4,10 @@
 // 上下の行 a、b の間からはみ出した量で、織り (o) と bob ((a+b)/2) をなだらかに混ぜる。はみ出しても、前のコマと比較して
 // 止まっている画素は o を使う (縁取りのある字や細い横線が、フィールドごとに上下に揺れないように)。
 // 色差 (4:2:0) も同じ規則で埋め、止まっている度合いは輝度で決めたものを使う。
+// 映像を拡大するとき (#1654、#2276) は、解除したコマを映す大きさのテクスチャに描き、拡大 (pictureUpscaler) に渡して canvas へ描かせる。
+// 拡大は、yadif に渡すときと同じ PictureScaler の約束で呼ぶ。拡大しないときは、今までどおり canvas へ直に描く。
+
+import type { PictureScaler } from '@mpeg2toh264/yadif';
 
 // RendererThresholds は、インタレ解除の閾値 (0〜1 の輝度)。織り < bob、静止 < 動き にする。
 export type RendererThresholds = {
@@ -153,6 +157,17 @@ const uniformNames = [
 
 type Uniforms = Record<(typeof uniformNames)[number], WebGLUniformLocation | null>;
 
+// Size は、画素の幅と高さ。
+type Size = { width: number; height: number };
+
+// Target は、拡大する前のコマを描くテクスチャと、それを描き先にする framebuffer。
+type Target = {
+  framebuffer: WebGLFramebuffer;
+  texture: WebGLTexture;
+  width: number;
+  height: number;
+};
+
 // PictureRenderer は、OffscreenCanvas に WebGL2 でコマを描く。
 export class PictureRenderer {
   private readonly gl: WebGL2RenderingContext;
@@ -160,6 +175,15 @@ export class PictureRenderer {
   private readonly uniforms: Uniforms;
   // free は、使い終えたテクスチャの組。大きさが同じなら使い回す。
   private readonly free: PictureSlot[] = [];
+  // picture は、映す大きさ (画素の縦横比を掛けた後)。拡大しないときは、canvas もこの大きさにする。
+  private picture: Size = { width: 0, height: 0 };
+  // scaler は、コマを拡大して描く処理。拡大しなければ null。box は、絵を映す矩形の端末の画素での大きさ。
+  private scaler: PictureScaler | null = null;
+  private box: Size | null = null;
+  // output は、拡大して描く大きさ (canvas の大きさ)。拡大しなければ null。
+  private output: Size | null = null;
+  // target は、拡大する前のコマを描く先。拡大するときだけ作る。
+  private target: Target | null = null;
 
   constructor(
     private readonly canvas: OffscreenCanvas,
@@ -184,15 +208,33 @@ export class PictureRenderer {
     ) as Uniforms;
   }
 
-  // resize は、描く先の大きさを、映す大きさ (画素の縦横比を掛けた後) にする。変えたら true を返す。
-  resize(width: number, height: number): boolean {
-    if (this.canvas.width === width && this.canvas.height === height) {
-      return false;
-    }
-    this.canvas.width = width;
-    this.canvas.height = height;
+  // resize は、映す大きさ (画素の縦横比を掛けた後) を変え、描く先の大きさを決め直す。
+  resize(width: number, height: number): void {
+    this.picture = { width, height };
+    this.layout();
+  }
 
-    return true;
+  // setScaler は、拡大の処理と、絵を映す矩形の端末の画素での大きさを変え、描く先の大きさを決め直す。
+  // 大きさの決め方は、拡大の設定にもよるので、設定を変えたときにも呼ぶ。canvas の大きさが変わると描いたものは消えるので、
+  // 呼んだ側が描き直す。
+  setScaler(scaler: PictureScaler | null, box: Size | null): void {
+    this.scaler = scaler;
+    this.box = box;
+    this.layout();
+  }
+
+  // layout は、拡大して描く大きさを拡大の処理に決めさせ、canvas をその大きさ (拡大しなければ映す大きさ) にする。
+  private layout(): void {
+    const { picture, scaler, box } = this;
+    this.output =
+      scaler === null || box === null || picture.width <= 0 || picture.height <= 0
+        ? null
+        : scaler.size(this.gl, picture.width, picture.height, box.width, box.height);
+    const size = this.output ?? picture;
+    if (this.canvas.width !== size.width || this.canvas.height !== size.height) {
+      this.canvas.width = size.width;
+      this.canvas.height = size.height;
+    }
   }
 
   // acquire は、width × height のコマを上げるテクスチャの組を返す。使い終えたら release に返す。
@@ -260,11 +302,75 @@ export class PictureRenderer {
     gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
   }
 
-  // draw は、request のコマとフィールドを描く。
+  // draw は、request のコマとフィールドを描く。拡大するなら、映す大きさのテクスチャに描いてから、拡大して canvas へ描かせる。
+  // 拡大できなければ (作れない、途中で失敗した)、PictureScaler の約束のとおり、以後は拡大せずに映す大きさで描く。
   draw(request: DrawRequest): void {
+    const { gl, scaler, output, picture } = this;
+    if (scaler === null || output === null) {
+      this.drawPicture(request, null, this.canvas.width, this.canvas.height);
+
+      return;
+    }
+    const target = this.ensureTarget(picture.width, picture.height);
+    this.drawPicture(request, target.framebuffer, picture.width, picture.height);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (
+      scaler.draw(
+        gl,
+        target.texture,
+        false,
+        picture.width,
+        picture.height,
+        output.width,
+        output.height,
+      )
+    ) {
+      return;
+    }
+    this.scaler = null;
+    this.layout();
+    this.drawPicture(request, null, this.canvas.width, this.canvas.height);
+  }
+
+  // ensureTarget は、width × height の、拡大する前のコマを描く先を返す。大きさが変われば作り直す。
+  private ensureTarget(width: number, height: number): Target {
+    const current = this.target;
+    if (current !== null && current.width === width && current.height === height) {
+      return current;
+    }
+    const { gl } = this;
+    if (current !== null) {
+      gl.deleteFramebuffer(current.framebuffer);
+      gl.deleteTexture(current.texture);
+    }
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const framebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.target = { framebuffer, texture, width, height };
+
+    return this.target;
+  }
+
+  // drawPicture は、request のコマとフィールドを、framebuffer (null なら canvas) へ width × height で描く。
+  // 描く先の行は下から数える (framebuffer の向き) ので、拡大に渡すテクスチャも行を下から持つ。
+  private drawPicture(
+    request: DrawRequest,
+    framebuffer: WebGLFramebuffer | null,
+    width: number,
+    height: number,
+  ): void {
     const { gl, uniforms } = this;
     const { slot, previous } = request;
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.viewport(0, 0, width, height);
     gl.useProgram(this.program);
     const bind = (unit: number, target: WebGLTexture, location: WebGLUniformLocation | null) => {
       gl.activeTexture(gl.TEXTURE0 + unit);
@@ -282,7 +388,7 @@ export class PictureRenderer {
     gl.uniform1i(uniforms.uInterlaced, request.interlaced ? 1 : 0);
     gl.uniform1i(uniforms.uHasPrev, hasPrevious ? 1 : 0);
     gl.uniform2f(uniforms.uSource, slot.width, slot.height);
-    gl.uniform2f(uniforms.uOutput, this.canvas.width, this.canvas.height);
+    gl.uniform2f(uniforms.uOutput, width, height);
     const { weave, bob, still, motion } = this.thresholds;
     gl.uniform4f(uniforms.uThresholds, weave, bob, still, motion);
     gl.uniformMatrix3fv(uniforms.uMatrix, false, matrices[request.matrix]);
@@ -293,6 +399,11 @@ export class PictureRenderer {
   dispose(): void {
     for (const slot of this.free.splice(0)) {
       this.destroy(slot);
+    }
+    if (this.target !== null) {
+      this.gl.deleteFramebuffer(this.target.framebuffer);
+      this.gl.deleteTexture(this.target.texture);
+      this.target = null;
     }
     this.gl.deleteProgram(this.program);
   }

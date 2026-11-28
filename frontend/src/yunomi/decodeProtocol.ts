@@ -4,6 +4,7 @@
 
 import type { DualMonoChannel } from './decodeAudio';
 import type { FallbackReason } from './decodeJudge';
+import type { SuperResolutionMethod, SuperResolutionStrength } from './pictureUpscaler';
 
 // ToDecodeWorker は、メインスレッドから worker へのメッセージ。
 export type ToDecodeWorker =
@@ -27,7 +28,21 @@ export type ToDecodeWorker =
   // audioFrom は、audioCut への返事。pts から後に予約した音を破棄したので、pts から渡し直してほしい (#2165)。
   // pts が null なら、まだ鳴らし始めていないので、貯めた音をすべて破棄した。渡し始めた位置から渡し直してほしい。
   // cut は、audioCut の番号。続けて選び直したときに、前の切り替えの返事と見分ける。
-  | { type: 'audioFrom'; load: number; cut: number; pts: number | null };
+  | { type: 'audioFrom'; load: number; cut: number; pts: number | null }
+  // display は、コマを映す大きさと、映像の拡大 (#1654、#2276) の設定。大きさか設定が変わるたびに送る。
+  // worker は、画面の大きさも端末ごとの設定も読めないので、メインスレッドが計測して渡す。
+  | ({ type: 'display' } & DecodeDisplay);
+
+// DecodeDisplay は、コマを映す大きさと、映像の拡大の設定。
+export type DecodeDisplay = {
+  // box は、絵を枠に収めた (object-fit: contain) 矩形の、端末の画素での大きさ。計測できていなければ null。
+  box: { width: number; height: number } | null;
+  // zoom は、切り抜き (#496) で掛けている CSS の拡大率。
+  zoom: { x: number; y: number };
+  superResolution: boolean;
+  strength: SuperResolutionStrength;
+  method: SuperResolutionMethod;
+};
 
 // DecodeAudioStream は、番組の音声の ES。dualMono は、届いた ES がデュアルモノ (channel_configuration が 0) だったか。
 export type DecodeAudioStream = { pid: number; componentTag: number | null; dualMono: boolean };

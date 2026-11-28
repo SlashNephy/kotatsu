@@ -95,4 +95,17 @@ describe('PictureQueue', () => {
     expect(queue.length).toBe(0);
     expect(queue.newest).toBeNull();
   });
+
+  test('clear で残すと言った slot は返さない (止めた後も、映していたコマを描き直せるように)', () => {
+    const { queue, released } = setup();
+    queue.push(picture(0));
+    queue.push(picture(frame));
+    queue.push(picture(2 * frame));
+    queue.choose(0);
+    queue.choose(frame);
+    queue.clear(`s${frame}`);
+
+    expect(released.toSorted()).toEqual(['s0', `s${2 * frame}`].toSorted());
+    expect(queue.length).toBe(0);
+  });
 });

@@ -3,13 +3,19 @@ import { type ReactNode, type RefObject, useEffect, useRef } from 'react';
 import { decodedAudioTracks, type PlayerAudioTracks } from './audio';
 import { brightnessStyle } from './brightness';
 import { type CaptionStyle, type Captions, createCaptions } from './captions';
-import { type Crop, cropStyle, isCropped, noCrop } from './crop';
+import { type Crop, cropStyle, isCropped, noCrop, scales } from './crop';
 import type { FallbackReason } from './decodeJudge';
 import { DecodeMedia } from './decodeMedia';
 import { dataBroadcastSource } from './route';
-import type { FromDecodeWorker, ToDecodeWorker } from './decodeProtocol';
+import type { DecodeDisplay, FromDecodeWorker, ToDecodeWorker } from './decodeProtocol';
 import type { PlayerMedia } from './playerMedia';
 import type { PlayerState } from '@mpeg2toh264/player';
+import {
+  useSuperResolution,
+  useSuperResolutionMethod,
+  useSuperResolutionStrength,
+} from './superResolution';
+import { containSize, deviceBox } from './videoOverlay';
 import classes from './TsPlayer.module.css';
 
 // wasmURL は、デコーダの WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
@@ -90,7 +96,30 @@ export function DecodePlayer({
     onResume,
     onAudio,
   };
-  const engineRef = useRef<{ media: DecodeMedia; captions: Captions; worker: Worker } | null>(null);
+  // 映像の拡大 (#1654、#2276) は、変換の経路と同じ端末ごとの設定で決める。worker は設定を読めないので、送って渡す。
+  const [superResolution] = useSuperResolution();
+  const [superResolutionStrength] = useSuperResolutionStrength();
+  const [superResolutionMethod] = useSuperResolutionMethod();
+  const zoom = scales(crop);
+  const settingsRef = useRef<Omit<DecodeDisplay, 'box'>>({
+    zoom,
+    superResolution,
+    strength: superResolutionStrength,
+    method: superResolutionMethod,
+  });
+  settingsRef.current = {
+    zoom,
+    superResolution,
+    strength: superResolutionStrength,
+    method: superResolutionMethod,
+  };
+  const engineRef = useRef<{
+    media: DecodeMedia;
+    captions: Captions;
+    worker: Worker;
+    // sendDisplay は、今の大きさと設定を worker へ送る。
+    sendDisplay: () => void;
+  } | null>(null);
   // programNumber は、TS の中から選ぶ番組 (program_number)。分からなければ、最初の番組を選ぶ。
   const programNumber = url === null ? null : (dataBroadcastSource(url)?.serviceId ?? null);
 
@@ -192,6 +221,41 @@ export function DecodePlayer({
       flush();
     };
     worker.addEventListener('message', onMessage);
+    // 拡大する大きさは、絵を枠に収めた矩形の、端末の画素での大きさで決める (変換の経路と同じ)。
+    // canvas は枠いっぱいに置き、絵は CSS (object-fit: contain) で収めるので、枠の大きさを計測し、絵の比率で収める。
+    let frame: { width: number; height: number } | null = null;
+    let sent: string | null = null;
+    const sendDisplay = () => {
+      const picture = { width: media.videoWidth, height: media.videoHeight };
+      const message: ToDecodeWorker = {
+        type: 'display',
+        box: frame === null ? null : containSize(picture, frame),
+        ...settingsRef.current,
+      };
+      // 枠の大きさは、変わらなくても通知されることがあるので、同じものは送らない。
+      const key = JSON.stringify(message);
+      if (key !== sent) {
+        sent = key;
+        worker.postMessage(message);
+      }
+    };
+    const resizes = new ResizeObserver(([entry]) => {
+      if (entry === undefined) {
+        return;
+      }
+      frame = deviceBox(
+        { width: entry.contentRect.width, height: entry.contentRect.height },
+        entry.devicePixelContentBoxSize?.[0],
+        window.devicePixelRatio || 1,
+      );
+      sendDisplay();
+    });
+    try {
+      resizes.observe(canvas, { box: 'device-pixel-content-box' });
+    } catch {
+      // Safari は端末の画素の大きさを通知しないので、CSS の大きさに画素の比率を掛ける (deviceBox)。
+      resizes.observe(canvas);
+    }
     const onMediaError = () =>
       handlers.current.onError?.(new Error(media.error?.message ?? 'decoding failed'));
     const onEnded = () => handlers.current.onState?.('completed');
@@ -202,7 +266,9 @@ export function DecodePlayer({
     media.addEventListener('ended', onEnded);
     media.addEventListener('loadeddata', onLoadedData);
     media.addEventListener('loadstart', onLoadStart);
-    engineRef.current = { media, captions: renderer, worker };
+    // 映す大きさが変わると、絵を収めた矩形も変わる。
+    media.addEventListener('resize', sendDisplay);
+    engineRef.current = { media, captions: renderer, worker, sendDisplay };
     mediaRef.current = media;
     handlers.current.onMedia?.(media);
 
@@ -211,6 +277,8 @@ export function DecodePlayer({
       media.removeEventListener('ended', onEnded);
       media.removeEventListener('loadeddata', onLoadedData);
       media.removeEventListener('loadstart', onLoadStart);
+      media.removeEventListener('resize', sendDisplay);
+      resizes.disconnect();
       worker.removeEventListener('message', onMessage);
       renderer.destroy();
       media.dispose();
@@ -245,6 +313,10 @@ export function DecodePlayer({
       engineRef.current?.worker.postMessage(message);
     }
   }, [audio]);
+
+  useEffect(() => {
+    engineRef.current?.sendDisplay();
+  }, [superResolution, superResolutionStrength, superResolutionMethod, zoom.x, zoom.y]);
 
   useEffect(() => {
     engineRef.current?.captions.setVisible(captions);

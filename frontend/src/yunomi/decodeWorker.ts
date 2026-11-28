@@ -4,6 +4,7 @@
 // (pictureRenderer)、音声はメインスレッドへ渡す。時計は、メインスレッドが鳴らしている音 (decodeClock) で、
 // コマを出す間合いは、メインスレッドから届く画面の切り替わりの時刻で決める (fieldPacer)。
 // 間に合っているかは decodeJudge で判定し、少し遅れたら B フレームを省き、間に合わなければメインスレッドへ通知する。
+// 映像の拡大 (#1654、#2276) は、変換の経路と同じ処理 (pictureUpscaler) を、メインスレッドから届く設定と大きさで使う。
 import createDecoderModule, { type DecoderModule } from '@kotatsu/ffmpeg-decoder';
 
 import { AdtsSplitter } from './adtsFrames';
@@ -12,13 +13,24 @@ import { DecodeClock } from './decodeClock';
 import { DecodeJudge, type Verdict } from './decodeJudge';
 import type {
   DecodeAudioStream,
+  DecodeDisplay,
   DecodeStats,
   FromDecodeWorker,
   ToDecodeWorker,
 } from './decodeProtocol';
 import { FieldPacer } from './fieldPacer';
 import { PictureQueue } from './pictureQueue';
-import { type ColorMatrix, type PictureSlot, PictureRenderer } from './pictureRenderer';
+import {
+  type ColorMatrix,
+  type DrawRequest,
+  type PictureSlot,
+  PictureRenderer,
+} from './pictureRenderer';
+import {
+  createPictureUpscaler,
+  defaultSuperResolutionStrength,
+  type PictureUpscaler,
+} from './pictureUpscaler';
 import { PtsTimeline, ptsTicksPerSecond } from './ptsTimeline';
 import { decodeStreamEndpoint } from './route';
 import { type TsPes, TsDemuxer } from './tsDemux';
@@ -113,6 +125,8 @@ type Engine = {
   videoDecoder: number;
   audioDecoder: number;
   renderer: PictureRenderer;
+  // upscaler は、コマを拡大して描く処理 (#1654)。拡大を切っている間は、renderer に渡さない。
+  upscaler: PictureUpscaler;
   queue: PictureQueue<PictureSlot>;
   // input は、WASM へデータを渡す領域。
   input: { pointer: number; size: number };
@@ -122,6 +136,20 @@ type Engine = {
 };
 
 let engine: Engine | null = null;
+// display は、メインスレッドから届いた、コマを映す大きさと拡大の設定。届くまでは拡大しない。
+let display: DecodeDisplay = {
+  box: null,
+  zoom: { x: 1, y: 1 },
+  superResolution: false,
+  strength: defaultSuperResolutionStrength,
+  method: 'fsr',
+};
+// lastDrawn は、最後に描いたコマ。拡大の設定や大きさを変えて canvas が消えたときに、止めていても描き直すのに使う。
+// 待ち行列は、映しているコマを次のコマに替えるまで残すので、slot はそれまで使える。
+let lastDrawn: DrawRequest | null = null;
+// retained は、待ち行列を空にしても (録画を止めると、読み込みも止める)、描き直すために残した lastDrawn の slot。
+// 別のコマを描いたら、renderer に返す。
+let retained: PictureSlot | null = null;
 // mainOrigin は、メインスレッドの performance.timeOrigin。mainNow で、メインスレッドの performance の時刻にそろえる。
 let mainOrigin = performance.timeOrigin;
 
@@ -192,6 +220,12 @@ self.onmessage = (event: MessageEvent<ToDecodeWorker>) => {
         resumeAudio(loading, message.pts);
       }
       break;
+    case 'display': {
+      const { type: _, ...next } = message;
+      display = next;
+      applyDisplay();
+      break;
+    }
   }
 };
 
@@ -213,11 +247,25 @@ async function start(canvas: OffscreenCanvas, wasmUrl: string): Promise<void> {
       videoDecoder,
       audioDecoder,
       renderer,
+      upscaler: createPictureUpscaler({
+        zoom: () => display.zoom,
+        strength: () => display.strength,
+        method: () => display.method,
+        upscale: () => display.superResolution,
+        onUnavailable: (error) => {
+          console.warn('upscaling is unavailable; showing the pictures as they are', error);
+        },
+        onAnime4KUnavailable: (error) => {
+          console.warn('Anime4K is unavailable; upscaling with FSR only', error);
+        },
+      }),
       queue: new PictureQueue((slot) => renderer.release(slot)),
       input: { pointer: 0, size: 0 },
       flag,
       matrix: 'bt709',
     };
+    // 用意している間に届いた設定を当てる。
+    applyDisplay();
     post({ type: 'ready' });
   } catch (error) {
     console.error('failed to start the decoder', error);
@@ -307,7 +355,7 @@ function stop(): void {
     if (judge.skippingB) {
       engine.module._dec_skip_b(engine.videoDecoder, 0);
     }
-    engine.queue.clear();
+    clearQueue(engine);
     // 映さずに破棄した数は、読み込みごとに数え直す (getVideoPlaybackQuality と同じ)。
     engine.queue.dropped = 0;
     engine.module._dec_flush(engine.videoDecoder);
@@ -811,7 +859,7 @@ function onVsync(time: number): void {
     return;
   }
   current.shownUntil = choice.picture.pts + hold;
-  engine.renderer.draw({
+  draw(engine, {
     slot: choice.picture.slot,
     previous: engine.queue.previous?.slot ?? null,
     interlaced: choice.picture.interlaced,
@@ -831,7 +879,7 @@ function present(current: Loading, pts: number): void {
   if (engine === null || choice === null) {
     return;
   }
-  engine.renderer.draw({
+  draw(engine, {
     slot: choice.picture.slot,
     previous: null,
     interlaced: choice.picture.interlaced,
@@ -840,6 +888,41 @@ function present(current: Loading, pts: number): void {
   });
   current.presented = true;
   post({ type: 'presented', load: current.load });
+}
+
+// draw は、コマを描き、描き直せるよう保持する。残していたコマと別のコマを描いたら、残していたコマを返す。
+function draw(target: Engine, request: DrawRequest): void {
+  target.renderer.draw(request);
+  lastDrawn = request;
+  if (retained !== null && retained !== request.slot) {
+    target.renderer.release(retained);
+    retained = null;
+  }
+}
+
+// clearQueue は、待ち行列を空にする。映していたコマは、止めている間に描き直せるよう残す。
+// 前のコマは返すので、描き直すときは比較に使わない。
+function clearQueue(target: Engine): void {
+  const keep = lastDrawn?.slot ?? null;
+  target.queue.clear(keep);
+  if (retained !== null && retained !== keep) {
+    target.renderer.release(retained);
+  }
+  retained = keep;
+  lastDrawn = lastDrawn === null ? null : { ...lastDrawn, previous: null };
+}
+
+// applyDisplay は、届いた大きさと拡大の設定を renderer に当て、最後のコマを描き直す。
+// canvas の大きさが変わると描いたものは消え、鮮鋭化の強さなどは描くときに読むので、止めている間も新しい設定で映す
+// (止めている間は、画面の切り替わりで描き直さないことがある)。前のコマは、もう返しているかもしれないので、比較に使わない。
+function applyDisplay(): void {
+  if (engine === null) {
+    return;
+  }
+  engine.renderer.setScaler(display.superResolution ? engine.upscaler : null, display.box);
+  if (lastDrawn !== null) {
+    draw(engine, { ...lastDrawn, previous: null });
+  }
 }
 
 function setVisible(next: boolean): void {
@@ -854,7 +937,7 @@ function setVisible(next: boolean): void {
     // 見えていない間は映像をデコードしない。裏のタブでデコードし続けると、見ているタブが間に合わなくなる。
     // 映像をデコードしないので、間に合っているかも数えない。
     judge.hide();
-    engine.queue.clear();
+    clearQueue(engine);
     trimVideo(current);
 
     return;

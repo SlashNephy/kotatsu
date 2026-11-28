@@ -86,17 +86,23 @@ export class PictureQueue<Slot> {
   }
 
   // clear は、待っているコマをすべて破棄する (slot は release する)。選局したときと、飛んだときに呼ぶ。
-  clear(): void {
+  // keep の slot は release しない。呼んだ側が持ち続け、使い終えたら自分で返す。
+  clear(keep: Slot | null = null): void {
+    const release = (slot: Slot) => {
+      if (slot !== keep) {
+        this.release(slot);
+      }
+    };
     for (const picture of this.pictures.splice(0)) {
       if (picture !== this.current) {
-        this.release(picture.slot);
+        release(picture.slot);
       }
     }
     if (this.current !== null) {
-      this.release(this.current.slot);
+      release(this.current.slot);
     }
     if (this.previous !== null && this.previous !== this.current) {
-      this.release(this.previous.slot);
+      release(this.previous.slot);
     }
     this.current = null;
     this.previous = null;
