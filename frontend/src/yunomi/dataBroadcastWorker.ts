@@ -20,8 +20,14 @@ export type DataBroadcastRequest = {
 export type DataBroadcastElapsed = { type: 'kotatsu:elapsed'; elapsed: number };
 
 // DataBroadcastEnd は、TS を読み終えたか、読めなかったことを、画面のスレッドに通知するメッセージ。
-// status は、tenban が成功でない応答を返したときの HTTP のステータス。
-export type DataBroadcastEnd = { type: 'kotatsu:end'; error: boolean; status?: number };
+// status は、tenban が成功でない応答を返したときの HTTP のステータス。finished は、録画型の再生元の配信を終わりまで
+// 渡し終えたこと。つなぎ直しても同じなので、つなぎ直さない。
+export type DataBroadcastEnd = {
+  type: 'kotatsu:end';
+  error: boolean;
+  status?: number;
+  finished?: boolean;
+};
 
 // maxPendingBytes は、録画型の再生元で、渡さずにためておくバイトの上限。地上波のデータ放送 (約 1.8 Mbps) の 30 秒ほど。
 // 超えたら、経過が進んで減るまで、配信を読むのを待つ。
@@ -45,6 +51,7 @@ self.addEventListener(
     if (message.type === 'kotatsu:elapsed') {
       elapsed = message.elapsed;
       pacer?.release(elapsed);
+      // 上限を超えて待っている読み込みと、読み終えて渡し終わるのを待っている読み込みに、確認し直させる。
       if (drained !== null && (pacer?.pendingBytes ?? 0) <= maxPendingBytes) {
         const wake = drained;
         drained = null;
@@ -99,10 +106,22 @@ async function read({ url, serviceId, paced }: DataBroadcastRequest): Promise<vo
         current.release(elapsed);
       }
     }
-    // 録画型の再生元は、読み終えても、ためた分を経過に合わせて渡し続ける。
     if (current === null) {
       end(false);
+
+      return;
     }
+    // 録画型の再生元は、読み終えても、ためた分を経過に合わせて渡し続け、渡し終えたら終わりを通知する。
+    while (current.pendingBytes > 0) {
+      await new Promise<void>((resolve) => {
+        drained = resolve;
+      });
+    }
+    self.postMessage({
+      type: 'kotatsu:end',
+      error: false,
+      finished: true,
+    } satisfies DataBroadcastEnd);
   } catch {
     end(true);
   }

@@ -155,7 +155,6 @@ export function hlsURL(streamUrl: string, preset: string, audio: KyusuAudio): st
 // serviceIDBase は、Mirakurun のサービス ID を組み立てる基数 (networkId × 100000 + serviceId)。
 const serviceIDBase = 100_000;
 
-// DataBroadcastSource は、データ放送の TS を読む先と、その TS の中のサービスの program_number。
 // DataBroadcastSource は、データ放送の TS を流す配信。serviceId は、TS の program_number で、null なら PAT の最初の番組を選ぶ。
 // elapsed を渡したら、録画型の再生元の配信として、読み始めた位置からの放送時刻の経過 (秒) に届くまで、TS を web-bml に渡さない (#2270)。
 export type DataBroadcastSource = {

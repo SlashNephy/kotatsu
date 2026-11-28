@@ -414,30 +414,36 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
   );
   // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の音声を変えるときも、それまでの位置から続ける。
   const audio = usePlayerAudio(route, source.audios, () => restartAt(positionRef.current));
-  // dataStart は、データ放送の配信を読み始めた位置。シークして位置が飛んだら、その位置から読み直す (#2270)。
-  const [dataStart, setDataStart] = useState(source.initial);
+  // dataStart は、データ放送の配信を読み始めた位置と、読み直した回数。データ放送を受け取っていない間は、今の位置に
+  // 合わせておき、受け取り始めたら今の位置から読む。シークして位置が飛んだら、その位置から読み直す (#2270)。
+  // 読み直した回数を URL の fragment に入れ、同じ位置へ戻ったときも読み直させる。
+  const [dataStart, setDataStart] = useState({ at: source.initial, loads: 0 });
   const lastPosition = useRef(source.initial);
   useEffect(() => {
     const previous = lastPosition.current;
     lastPosition.current = position;
     if (position < previous - 1 || position > previous + dataJumpSeconds) {
-      setDataStart(position);
+      setDataStart((current) => ({ at: position, loads: current.loads + 1 }));
+    } else if (dataBroadcast.state === 'off') {
+      setDataStart((current) => ({ at: position, loads: current.loads }));
     }
   }, [position]);
   const dataBroadcastAvailable =
     source.dataBroadcast === true && !local && source.videoFormat === 'HD';
   // dataBroadcast は、データ放送 (設計書 7.4)。配信は等速より速く届くので、読み始めた位置からの放送時刻の経過に
-  // 合わせて文書に渡す。録画の文書は過ぎた放送のものなので、双方向の通信と選局はさせない。
+  // 合わせて文書に渡す。放送時刻が分からない再生元では、再生位置の差で数える。
+  // 録画の文書は過ぎた放送のものなので、双方向の通信と選局はさせない。
   const dataBroadcast = useDataBroadcastFeature({
     source: dataBroadcastAvailable
       ? {
-          url: vodDataBroadcastURL(source.streamUrl, dataStart),
+          url: `${vodDataBroadcastURL(source.streamUrl, dataStart.at)}#${dataStart.loads}`,
           serviceId: null,
           elapsed: () => {
-            const now = source.clockAt(currentPosition());
-            const from = source.clockAt(dataStart);
+            const position = currentPosition();
+            const now = source.clockAt(position);
+            const from = source.clockAt(dataStart.at);
 
-            return now === null || from === null ? null : (now - from) / 1000;
+            return now === null || from === null ? position - dataStart.at : (now - from) / 1000;
           },
         }
       : null,

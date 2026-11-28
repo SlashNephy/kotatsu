@@ -442,7 +442,11 @@ export function useDataBroadcast(
         setState('ended');
         // 映像は流れているのに、データ放送の接続だけが切れたら、映像と同じ間隔でつなぎ直す。
         // 4xx は、つなぎ直しても同じなので、やめる。つなぎ直したら、出していれば、文書を読んだところでまた d ボタンで入る。
-        if (message.status === undefined || message.status < 400 || message.status >= 500) {
+        // 録画型の再生元の配信を終わりまで渡し終えたときも、つなぎ直さない。
+        if (
+          message.finished !== true &&
+          (message.status === undefined || message.status < 400 || message.status >= 500)
+        ) {
           retryTimer = setTimeout(
             () => {
               attempt.current += 1;

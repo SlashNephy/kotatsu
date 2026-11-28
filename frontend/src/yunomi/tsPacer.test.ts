@@ -65,4 +65,36 @@ describe('TsPacer', () => {
     expect(pushed.reduce((sum, bytes) => sum + bytes.length, 0)).toBe(200 * 188);
     expect(pacer.pendingBytes).toBe(0);
   });
+
+  test('PCR が戻っても、進まなかったものとして数え、止まらない', () => {
+    const pushed: Uint8Array[] = [];
+    const pacer = new TsPacer((bytes) => pushed.push(bytes));
+    // 0 から 0.99 秒まで進んだあと、PCR が 100 秒戻ってから、また 0.01 秒ずつ進む。
+    pacer.feed(packets(100, 0.01, 1000));
+    pacer.feed(packets(100, 0.01, 900));
+
+    pacer.release(1.5);
+
+    // 戻った後の PCR は、0.99 秒から数え直すので、1.5 + 0.5 秒までの分を渡す。
+    expect(pushed.reduce((sum, bytes) => sum + bytes.length, 0)).toBe(200 * 188);
+  });
+
+  test('少しずつ届いても、ためた分を失わない', () => {
+    const pushed: Uint8Array[] = [];
+    const pacer = new TsPacer((bytes) => pushed.push(bytes));
+    const all = packets(2000, 0.01);
+    for (let i = 0; i < all.length; i += 1000) {
+      pacer.feed(all.subarray(i, i + 1000));
+      pacer.release(5);
+    }
+    pacer.flush();
+
+    const got = new Uint8Array(pushed.reduce((sum, bytes) => sum + bytes.length, 0));
+    let offset = 0;
+    for (const bytes of pushed) {
+      got.set(bytes, offset);
+      offset += bytes.length;
+    }
+    expect(got).toEqual(all);
+  });
 });
