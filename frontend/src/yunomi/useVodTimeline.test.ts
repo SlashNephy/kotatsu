@@ -131,4 +131,40 @@ describe('useVodTimeline', () => {
 
     expect(result.current.stream.url).toContain('start=598.0');
   });
+
+  test('映像が自分でシークする経路では、配信を読み直さずに映像の時刻を移す', () => {
+    const { result, media } = renderTimeline({ native: true });
+    const url = result.current.stream.url;
+
+    let moved = 0;
+    act(() => {
+      moved = result.current.jumpTo(250);
+    });
+
+    expect(moved).toBe(250);
+    expect(media.currentTime).toBe(250);
+    expect(result.current.stream.url).toBe(url);
+    expect(result.current.hlsStream.loads).toBe(0);
+  });
+
+  test('映像が自分でシークする経路で読み直したら、読み込んだあとに、読み直した位置へ移る', () => {
+    const { result, media } = renderTimeline({ native: true });
+
+    act(() => result.current.restartAt(320));
+    expect(result.current.hlsStream.loads).toBe(1);
+    media.currentTime = 0;
+    act(() => result.current.onConvertLoaded());
+
+    expect(media.currentTime).toBe(320);
+  });
+
+  test('映像が自分でシークする経路では、ファイルを読み終えても、切れたとみなさない', () => {
+    const { result, media } = renderTimeline({ native: true });
+    media.loadedTo = 10;
+
+    act(() => result.current.onConvertState('completed'));
+
+    expect(result.current.hlsStream.loads).toBe(0);
+    expect(result.current.error).toBeNull();
+  });
 });
