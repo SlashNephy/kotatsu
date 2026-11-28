@@ -715,6 +715,9 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
     >
       {route.kind === 'convert' && (
         <TsPlayer
+          // プレイヤーの種類を替えたら、部品ごと作り直す (#2287)。
+          key={route.engine ?? 'otya128'}
+          engine={route.engine ?? 'otya128'}
           // 端末に保存した録画は、ファイルをそのまま読む。読み直すたびに fragment を変え、TsPlayer に読み直させる。
           url={local ? `${source.streamUrl}#${hlsStream.loads}` : stream.url}
           handover={!local && timeline.handover}

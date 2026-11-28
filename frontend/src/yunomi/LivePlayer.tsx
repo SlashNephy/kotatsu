@@ -842,6 +842,9 @@ export function LivePlayer({ source }: { source: LiveSource }) {
     >
       {route.kind === 'convert' && (
         <TsPlayer
+          // プレイヤーの種類を替えたら、部品ごと作り直す (#2287)。
+          key={route.engine ?? 'otya128'}
+          engine={route.engine ?? 'otya128'}
           url={
             timeshift.behind
               ? timeshift.stream.url

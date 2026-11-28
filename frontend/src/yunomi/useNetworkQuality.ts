@@ -277,7 +277,11 @@ export function useNetworkQuality(
           waiting: waiting && !excused(),
           lowReadyState: media.readyState < haveFutureData,
           // 音声だけの段階と、コマごとのコールバックが無い端末では、コマの途絶を計測しない。
-          frameAgeMs: frames && state.current !== audioStep ? now - lastFrameAt : null,
+          // コマを canvas に描いている読み込み (#2287) も、<video> のコールバックが呼ばれないので計測しない。
+          frameAgeMs:
+            frames && state.current !== audioStep && !media.canvasPictures
+              ? now - lastFrameAt
+              : null,
           ahead,
           broadcastLag:
             state.mode === 'probe' && buffered.length > 0
