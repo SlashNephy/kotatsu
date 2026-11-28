@@ -9,11 +9,11 @@ import type { DataBroadcastSource } from './route';
 import { type DataBroadcastHandlers, RemoteKey, useDataBroadcast } from './useDataBroadcast';
 
 // データ放送 (設計書 7.4) を扱う機能の部品 (#2244)。出し入れ、プリロード、リモコンの操作、キーの受け付けをまとめる。
-// 再生元は、データ放送の TS の口と、今受け取ってよいか (映像が見えていて、視聴が切れていない) を渡す。
+// 再生元は、データ放送の TS を流す配信と、今受け取ってよいか (映像が見えていて、視聴が切れていない) を渡す。
 
 // DataBroadcastFeatureOptions は、再生元から受け取る、データ放送の扱い。
 export type DataBroadcastFeatureOptions = {
-  // source は、データ放送の TS の口。データ放送のない映像 (HD でないもの) では null。
+  // source は、データ放送の TS を流す配信。データ放送のない映像 (HD でないもの) では null。
   source: DataBroadcastSource | null;
   // receiving は、今データ放送の TS を受け取ってよいか。視聴が切れている間と、映像が見えていない間は受け取らない。
   receiving: boolean;
@@ -24,7 +24,7 @@ export type DataBroadcastFeatureOptions = {
   showFlash: (text: string) => void;
 };
 
-// DataBroadcastFeature は、useDataBroadcastFeature が返す、データ放送の口。
+// DataBroadcastFeature は、useDataBroadcastFeature が返す、データ放送の状態と操作。
 export type DataBroadcastFeature = ReturnType<typeof useDataBroadcast> & {
   // enabled は、データ放送を出しているかどうか。映像を覆うので、既定では出さない。
   enabled: boolean;
