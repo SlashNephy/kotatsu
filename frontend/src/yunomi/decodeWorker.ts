@@ -5,6 +5,7 @@
 // コマを出す間合いは、メインスレッドから届く画面の切り替わりの時刻で決める (fieldPacer)。
 // 間に合っているかは decodeJudge で判定し、少し遅れたら B フレームを省き、間に合わなければメインスレッドへ通知する。
 // 映像の拡大 (#1654、#2276) は、変換の経路と同じ処理 (pictureUpscaler) を、メインスレッドから届く設定と大きさで使う。
+// 2:3 プルダウンの放送 (#2276) は、フィールドの差から位相を決め (telecine)、同じコマのフィールドを組み合わせた 24p のコマを映す。
 import createDecoderModule, { type DecoderModule } from '@kotatsu/ffmpeg-decoder';
 
 import { AdtsSplitter } from './adtsFrames';
@@ -33,6 +34,7 @@ import {
 } from './pictureUpscaler';
 import { PtsTimeline, ptsTicksPerSecond } from './ptsTimeline';
 import { decodeStreamEndpoint } from './route';
+import { assembleFilm, type FieldFrame, FieldSampler, TelecineDetector } from './telecine';
 import { type TsPes, TsDemuxer } from './tsDemux';
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -77,6 +79,26 @@ type AudioEs = {
   dualMono: boolean;
 };
 
+// Holder は、デコードしたコマを上げたテクスチャと、それを使っているものの数。0 になったら renderer に返す。
+// 2:3 プルダウンから組み直したコマは、2 つのデコードしたコマのフィールドを使う。
+type Holder = { slot: PictureSlot; refs: number };
+
+// Shown は、待ち行列に入れる、映すコマ。上のフィールドの行は top から、下のフィールドの行は bottom から取る。
+// 組み直したコマでなければ、top と bottom は同じで、film は false。
+type Shown = { top: Holder; bottom: Holder; film: boolean };
+
+// Telecine は、2:3 プルダウンを見分けるための、読み込みごとの状態。
+type Telecine = {
+  detector: TelecineDetector;
+  sampler: FieldSampler;
+  // previous は、1 つ前にデコードしたコマ。組み直すときに、そのフィールドを使うので、参照を 1 つ持つ。
+  previous: FieldFrame<Holder> | null;
+  // duration は、デコードしたコマ 1 つの長さ (隣り合うコマの PTS の差のうち、いちばん小さいもの)。
+  duration: number | null;
+  // pushedUntil は、待ち行列に最後に入れたコマの PTS。組み直したコマと、そのままのコマを入れ替えるときに、時刻が戻らないようにする。
+  pushedUntil: number | null;
+};
+
 type Loading = {
   load: number;
   abort: AbortController;
@@ -109,6 +131,7 @@ type Loading = {
   lastVideoPts: number | null;
   // nextPts は、PTS のないコマに当てる時刻。
   nextPts: number | null;
+  telecine: Telecine;
   // shownUntil は、最後に描いたコマの終わりの PTS。映すコマが時計からどれだけ遅れたかを出すのに使う。
   shownUntil: number | null;
   // droppedSeen は、判定へ渡し終えた、映さずに破棄したコマの数。
@@ -127,7 +150,7 @@ type Engine = {
   renderer: PictureRenderer;
   // upscaler は、コマを拡大か擬似 HDR で描く処理 (#1654、#1656)。どちらも切っている間は、renderer に渡さない。
   upscaler: PictureUpscaler;
-  queue: PictureQueue<PictureSlot>;
+  queue: PictureQueue<Shown>;
   // input は、WASM へデータを渡す領域。
   input: { pointer: number; size: number };
   // flag は、dec_parse が「切り出せたか」を書く 4 バイト。
@@ -150,9 +173,11 @@ let display: DecodeDisplay = {
 let lastDrawn: DrawRequest | null = null;
 // hdrFailed は、擬似 HDR で描けなかったと upscaler が通知したこと。描いた後に、描く大きさを決め直す。
 let hdrFailed = false;
-// retained は、待ち行列を空にしても (録画を止めると、読み込みも止める)、描き直すために残した lastDrawn の slot。
-// 別のコマを描いたら、renderer に返す。
-let retained: PictureSlot | null = null;
+// lastShown は、lastDrawn で描いたコマ。
+let lastShown: Shown | null = null;
+// retained は、待ち行列を空にしても (録画を止めると、読み込みも止める)、描き直すために残した lastShown。
+// 別のコマを描いたら、返す。
+let retained: Shown | null = null;
 // mainOrigin は、メインスレッドの performance.timeOrigin。mainNow で、メインスレッドの performance の時刻にそろえる。
 let mainOrigin = performance.timeOrigin;
 
@@ -267,7 +292,7 @@ async function start(canvas: OffscreenCanvas, wasmUrl: string): Promise<void> {
           console.warn('Anime4K is unavailable; upscaling with FSR only', error);
         },
       }),
-      queue: new PictureQueue((slot) => renderer.release(slot)),
+      queue: new PictureQueue((shown) => releaseShown(renderer, shown)),
       input: { pointer: 0, size: 0 },
       flag,
       matrix: 'bt709',
@@ -301,6 +326,7 @@ function load(load: number, url: string, serviceId: number | null): void {
     bytesRead: 0,
     waitKeyframe: true,
     nextPts: null,
+    telecine: newTelecine(),
     shownUntil: null,
     droppedSeen: 0,
     drained: null,
@@ -353,6 +379,9 @@ function stop(): void {
   }
   if (loading !== null) {
     loading.abort.abort();
+    if (engine !== null) {
+      resetTelecine(engine, loading);
+    }
     loading = null;
   }
   clock.reset();
@@ -691,7 +720,17 @@ function receivePictures(current: Loading): void {
     } else {
       continue;
     }
-    current.nextPts = pts + (queue.frameDuration ?? 3003);
+    const telecine = current.telecine;
+    const last = telecine.previous?.pts ?? null;
+    if (last !== null && pts <= last) {
+      // 前より古い時刻のコマ。映さずに破棄する (待ち行列に入れたときと同じく、コマ落ちとして数える)。
+      queue.dropped += 1;
+      continue;
+    }
+    if (last !== null && (telecine.duration === null || pts - last < telecine.duration)) {
+      telecine.duration = pts - last;
+    }
+    current.nextPts = pts + (telecine.duration ?? 3003);
     const sarNum = module._frame_sar_num(videoDecoder);
     const sarDen = module._frame_sar_den(videoDecoder);
     const displayWidth = sarNum > 0 && sarDen > 0 ? Math.round((width * sarNum) / sarDen) : width;
@@ -706,8 +745,8 @@ function receivePictures(current: Loading): void {
       renderer.resize({ width: displayWidth, height }, { width, height });
       post({ type: 'picture', load: current.load, width: displayWidth, height, interlaced });
     }
-    const slot = renderer.acquire(width, height);
-    renderer.upload(slot, module.HEAPU8, [
+    const holder: Holder = { slot: renderer.acquire(width, height), refs: 0 };
+    renderer.upload(holder.slot, module.HEAPU8, [
       {
         pointer: module._frame_data(videoDecoder, 0),
         stride: module._frame_linesize(videoDecoder, 0),
@@ -721,23 +760,173 @@ function receivePictures(current: Loading): void {
         stride: module._frame_linesize(videoDecoder, 2),
       },
     ]);
-    const added = queue.push({
+    const topFieldFirst = (flags & frameFlagTopFieldFirst) !== 0;
+    const luma = {
+      pointer: module._frame_data(videoDecoder, 0),
+      stride: module._frame_linesize(videoDecoder, 0),
+    };
+    judge.onPicture();
+    for (const item of pulldown(target, current, holder, {
       pts,
       interlaced,
-      topFieldFirst: (flags & frameFlagTopFieldFirst) !== 0,
-      slot,
+      topFieldFirst,
+      luma,
+    })) {
+      if (current.origin === null) {
+        current.origin = item.pts;
+        post({ type: 'origin', load: current.load, pts: item.pts });
+      }
+      if (!current.presented && clock.at(mainNow()) === null) {
+        // 時計が動く前 (音を貯めている間) は、最初のコマを出して待つ。
+        present(current, item.pts);
+      }
+    }
+  }
+}
+
+// DecodedPicture は、デコードしたコマの、2:3 プルダウンの見分けに使う情報。
+type DecodedPicture = {
+  pts: number;
+  interlaced: boolean;
+  topFieldFirst: boolean;
+  // luma は、WASM のメモリの中の輝度の面。
+  luma: { pointer: number; stride: number };
+};
+
+// pulldown は、デコードしたコマを 2:3 プルダウンの見分けに渡し、待ち行列に入れたコマを返す。
+// 位相が決まっていれば、同じコマのフィールドを組み合わせた 24p のコマを入れ、決まっていなければ、デコードしたコマをそのまま入れる。
+// コマが欠けたとき (時刻が 1 コマ分より離れた、B フレームを省いている) と、インタレースでないコマは、見分けを数え直す。
+function pulldown(
+  target: Engine,
+  current: Loading,
+  holder: Holder,
+  picture: DecodedPicture,
+): { pts: number }[] {
+  const { renderer, module, queue } = target;
+  const telecine = current.telecine;
+  const previous = telecine.previous;
+  const duration = telecine.duration;
+  const contiguous =
+    picture.interlaced &&
+    !judge.skippingB &&
+    previous !== null &&
+    duration !== null &&
+    Math.abs(picture.pts - previous.pts - duration) < duration / 4;
+  if (!contiguous) {
+    telecine.detector.reset();
+    telecine.sampler.reset();
+  }
+  const frame: FieldFrame<Holder> = {
+    index: contiguous ? previous.index + 1 : 0,
+    pts: picture.pts,
+    topFieldFirst: picture.topFieldFirst,
+    source: holder,
+  };
+  if (picture.interlaced) {
+    const diffs = telecine.sampler.sample(
+      module.HEAPU8,
+      picture.luma.pointer,
+      picture.luma.stride,
+      holder.slot.width,
+      holder.slot.height,
+    );
+    if (diffs !== null) {
+      const [first, second] = picture.topFieldFirst
+        ? [diffs.top, diffs.bottom]
+        : [diffs.bottom, diffs.top];
+      telecine.detector.push(2 * frame.index, first);
+      telecine.detector.push(2 * frame.index + 1, second);
+    }
+  }
+  const phase = telecine.detector.phase;
+  const items: (Shown & { pts: number; interlaced: boolean; topFieldFirst: boolean })[] =
+    contiguous && phase !== null
+      ? assembleFilm(phase, frame, previous, duration).map((film) => ({
+          pts: film.pts,
+          interlaced: false,
+          topFieldFirst: true,
+          top: film.top,
+          bottom: film.bottom,
+          film: true,
+        }))
+      : [
+          {
+            pts: picture.pts,
+            interlaced: picture.interlaced,
+            topFieldFirst: picture.topFieldFirst,
+            top: holder,
+            bottom: holder,
+            film: false,
+          },
+        ];
+  const pushed: { pts: number }[] = [];
+  for (const item of items) {
+    // 組み直したコマとそのままのコマを入れ替えた直後は、もう入れた時刻より前のコマが出ることがある。破棄せずに飛ばす
+    // (待ち行列に入れると、コマ落ちとして数えてしまう)。
+    if (telecine.pushedUntil !== null && item.pts <= telecine.pushedUntil) {
+      continue;
+    }
+    const shown: Shown = { top: item.top, bottom: item.bottom, film: item.film };
+    retain(shown);
+    queue.push({
+      pts: item.pts,
+      interlaced: item.interlaced,
+      topFieldFirst: item.topFieldFirst,
+      slot: shown,
     });
-    if (added) {
-      judge.onPicture();
-    }
-    if (added && current.origin === null) {
-      current.origin = pts;
-      post({ type: 'origin', load: current.load, pts });
-    }
-    if (added && !current.presented && clock.at(mainNow()) === null) {
-      // 時計が動く前 (音を貯めている間) は、最初のコマを出して待つ。
-      present(current, pts);
-    }
+    telecine.pushedUntil = item.pts;
+    pushed.push(item);
+  }
+  // 次のコマを組み直すときに使うので、このコマを持ち、1 つ前のコマを放す。
+  holder.refs += 1;
+  if (previous !== null) {
+    release(renderer, previous.source);
+  }
+  telecine.previous = frame;
+
+  return pushed;
+}
+
+function newTelecine(): Telecine {
+  return {
+    detector: new TelecineDetector(),
+    sampler: new FieldSampler(),
+    previous: null,
+    duration: null,
+    pushedUntil: null,
+  };
+}
+
+// resetTelecine は、2:3 プルダウンの見分けを数え直し、持っていた 1 つ前のコマを放す。デコーダを空にしたときに呼ぶ。
+function resetTelecine(target: Engine, current: Loading): void {
+  const { previous } = current.telecine;
+  if (previous !== null) {
+    release(target.renderer, previous.source);
+  }
+  current.telecine = newTelecine();
+}
+
+// retain は、映すコマが使うテクスチャの参照を足す。
+function retain(shown: Shown): void {
+  shown.top.refs += 1;
+  if (shown.bottom !== shown.top) {
+    shown.bottom.refs += 1;
+  }
+}
+
+// releaseShown は、映すコマが使うテクスチャの参照を放す。
+function releaseShown(renderer: PictureRenderer, shown: Shown): void {
+  release(renderer, shown.top);
+  if (shown.bottom !== shown.top) {
+    release(renderer, shown.bottom);
+  }
+}
+
+// release は、テクスチャの参照を 1 つ放し、使うものがなくなったら renderer に返す。
+function release(renderer: PictureRenderer, holder: Holder): void {
+  holder.refs -= 1;
+  if (holder.refs === 0) {
+    renderer.release(holder.slot);
   }
 }
 
@@ -842,7 +1031,7 @@ function onVsync(time: number): void {
     return;
   }
   // hold は、デコードしたコマ 1 つを映し続ける長さ。B フレームを省いている間は、I と P だけ (3 コマに 1 つ) になる。
-  const hold = (engine.queue.frameDuration ?? 3003) * (judge.skippingB ? 3 : 1);
+  const hold = (current.telecine.duration ?? 3003) * (judge.skippingB ? 3 : 1);
   // デコードに回すデータが無く、映すコマも尽きた (回線が詰まった)。データが来るまで判定で数えない。
   // 配信を読み終えていれば、映し終えたので ended を送る。
   if (current.video.length === 0 && (engine.queue.newest ?? -Infinity) + hold < target) {
@@ -868,9 +1057,10 @@ function onVsync(time: number): void {
     return;
   }
   current.shownUntil = choice.picture.pts + hold;
-  draw(engine, {
-    slot: choice.picture.slot,
-    previous: engine.queue.previous?.slot ?? null,
+  draw(engine, choice.picture.slot, {
+    slot: choice.picture.slot.top.slot,
+    bottom: choice.picture.slot.film ? choice.picture.slot.bottom.slot : null,
+    previous: engine.queue.previous?.slot.top.slot ?? null,
     interlaced: choice.picture.interlaced,
     parity: choice.parity,
     matrix: engine.matrix,
@@ -888,8 +1078,9 @@ function present(current: Loading, pts: number): void {
   if (engine === null || choice === null) {
     return;
   }
-  draw(engine, {
-    slot: choice.picture.slot,
+  draw(engine, choice.picture.slot, {
+    slot: choice.picture.slot.top.slot,
+    bottom: choice.picture.slot.film ? choice.picture.slot.bottom.slot : null,
     previous: null,
     interlaced: choice.picture.interlaced,
     parity: choice.parity,
@@ -902,7 +1093,7 @@ function present(current: Loading, pts: number): void {
 // draw は、コマを描き、描き直せるよう保持する。残していたコマと別のコマを描いたら、残していたコマを返す。
 // 描いて擬似 HDR の状態が変わったら (切った後で SDR に戻して描いた、擬似 HDR で描けなかった)、描く大きさを決め直す。
 // 擬似 HDR のために upscaler を通していた分を、通さずに描けるようにする。
-function draw(target: Engine, request: DrawRequest): void {
+function draw(target: Engine, shown: Shown, request: DrawRequest): void {
   const hdr = target.upscaler.hdr();
   target.renderer.draw(request);
   if (hdrFailed || hdr !== target.upscaler.hdr()) {
@@ -914,8 +1105,9 @@ function draw(target: Engine, request: DrawRequest): void {
     );
   }
   lastDrawn = request;
-  if (retained !== null && retained !== request.slot) {
-    target.renderer.release(retained);
+  lastShown = shown;
+  if (retained !== null && retained !== shown) {
+    releaseShown(target.renderer, retained);
     retained = null;
   }
 }
@@ -923,10 +1115,10 @@ function draw(target: Engine, request: DrawRequest): void {
 // clearQueue は、待ち行列を空にする。映していたコマは、止めている間に描き直せるよう残す。
 // 前のコマは返すので、描き直すときは比較に使わない。
 function clearQueue(target: Engine): void {
-  const keep = lastDrawn?.slot ?? null;
+  const keep = lastShown;
   target.queue.clear(keep);
   if (retained !== null && retained !== keep) {
-    target.renderer.release(retained);
+    releaseShown(target.renderer, retained);
   }
   retained = keep;
   lastDrawn = lastDrawn === null ? null : { ...lastDrawn, previous: null };
@@ -944,8 +1136,8 @@ function applyDisplay(): void {
     display.box,
     display.superResolution,
   );
-  if (redraw && lastDrawn !== null) {
-    draw(engine, { ...lastDrawn, previous: null });
+  if (redraw && lastDrawn !== null && lastShown !== null) {
+    draw(engine, lastShown, { ...lastDrawn, previous: null });
   }
 }
 
@@ -982,8 +1174,9 @@ function setVisible(next: boolean): void {
     current.video.length = 0;
     current.waitKeyframe = true;
   }
-  // デコーダを空にしたので、PTS のないコマの時刻も数え直す。
+  // デコーダを空にしたので、PTS のないコマの時刻と、2:3 プルダウンの見分けも数え直す。
   current.nextPts = null;
+  resetTelecine(engine, current);
   current.shownUntil = null;
   pacer.reset();
   // I フレームまで飛んでデコードし直す間は、間に合っているかを数えない。
@@ -1019,7 +1212,9 @@ function judgeTick(current: Loading): void {
   const { queue, module, videoDecoder } = engine;
   judge.onDropped(queue.dropped - current.droppedSeen);
   current.droppedSeen = queue.dropped;
-  const frameMs = queue.frameDuration === null ? null : queue.frameDuration / 90;
+  // 1 コマの長さはデコードしたコマで数える (組み直した 24p のコマの間隔ではない)。
+  const duration = current.telecine.duration;
+  const frameMs = duration === null ? null : duration / 90;
   for (const verdict of judge.tick(performance.now(), frameMs)) {
     applyVerdict(current, verdict, module, videoDecoder);
   }

@@ -48,6 +48,9 @@ export type PlanePointer = { pointer: number; stride: number };
 // DrawRequest は、描くコマとフィールド。
 export type DrawRequest = {
   slot: PictureSlot;
+  // bottom は、2:3 プルダウンから組み直したコマ (#2276) で、下のフィールドの行を取るコマ。上のフィールドの行は slot から取り、
+  // 解除せずにそのまま並べる。組み直したコマでなければ null。
+  bottom: PictureSlot | null;
   // previous は、前に映したコマ。大きさが違えば比較しない。
   previous: PictureSlot | null;
   interlaced: boolean;
@@ -70,6 +73,10 @@ uniform highp sampler2D uY;
 uniform highp sampler2D uU;
 uniform highp sampler2D uV;
 uniform highp sampler2D uPrevY;
+uniform highp sampler2D uBottomY;
+uniform highp sampler2D uBottomU;
+uniform highp sampler2D uBottomV;
+uniform int uWeave;
 uniform int uField;
 uniform int uInterlaced;
 uniform int uHasPrev;
@@ -84,6 +91,11 @@ float py(ivec2 p) { return texelFetch(uPrevY, clamp(p, ivec2(0), ivec2(uSource) 
 vec2 c(ivec2 p) {
   ivec2 q = clamp(p, ivec2(0), ivec2(uSource) / 2 - 1);
   return vec2(texelFetch(uU, q, 0).r, texelFetch(uV, q, 0).r);
+}
+float by(ivec2 p) { return texelFetch(uBottomY, clamp(p, ivec2(0), ivec2(uSource) - 1), 0).r; }
+vec2 bc(ivec2 p) {
+  ivec2 q = clamp(p, ivec2(0), ivec2(uSource) / 2 - 1);
+  return vec2(texelFetch(uBottomU, q, 0).r, texelFetch(uBottomV, q, 0).r);
 }
 
 // keepAt は、このフィールドにない輝度の行 m で、もう片方のフィールドの値をそのまま使う度合いを返す。
@@ -108,7 +120,12 @@ void main() {
   ivec2 q = ivec2(uv * uSource * 0.5);
   float luma;
   vec2 chroma;
-  if (uInterlaced == 0) {
+  if (uWeave == 1) {
+    // 組み直したコマ。上のフィールドの行 (偶数) は uY、下のフィールドの行 (奇数) は uBottomY から取る。
+    // 4:2:0 のインタレースでは、色差の行もフィールドごとに交互に並ぶ。
+    luma = (p.y & 1) == 0 ? y(p) : by(p);
+    chroma = (q.y & 1) == 0 ? c(q) : bc(q);
+  } else if (uInterlaced == 0) {
     luma = y(p);
     chroma = c(q);
   } else {
@@ -151,6 +168,10 @@ const uniformNames = [
   'uU',
   'uV',
   'uPrevY',
+  'uBottomY',
+  'uBottomU',
+  'uBottomV',
+  'uWeave',
   'uField',
   'uInterlaced',
   'uHasPrev',
@@ -429,6 +450,17 @@ export class PictureRenderer {
     const hasPrevious =
       previous !== null && previous.width === slot.width && previous.height === slot.height;
     bind(3, hasPrevious ? previous.y : slot.y, uniforms.uPrevY);
+    // 組み直したコマでなければ、使わない口にも同じコマを当てておく (どのテクスチャ単位も、何かを指すようにする)。
+    const bottom =
+      request.bottom !== null &&
+      request.bottom.width === slot.width &&
+      request.bottom.height === slot.height
+        ? request.bottom
+        : null;
+    bind(4, (bottom ?? slot).y, uniforms.uBottomY);
+    bind(5, (bottom ?? slot).u, uniforms.uBottomU);
+    bind(6, (bottom ?? slot).v, uniforms.uBottomV);
+    gl.uniform1i(uniforms.uWeave, bottom === null ? 0 : 1);
     gl.uniform1i(uniforms.uField, request.parity);
     gl.uniform1i(uniforms.uInterlaced, request.interlaced ? 1 : 0);
     gl.uniform1i(uniforms.uHasPrev, hasPrevious ? 1 : 0);
