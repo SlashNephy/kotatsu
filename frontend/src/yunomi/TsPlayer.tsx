@@ -77,10 +77,10 @@ type Props = {
   onState?: (state: PlayerState) => void;
   onError?: (error: Error) => void;
   // onLoaded は、最初のデータが入り、再生を始められるようになったときに呼ぶ。
-  // 裏で読み込んで切り替えたときは、裏で読み込んだ映像の最初のコマの時刻 (base) と、切り替えたときの時刻 (current) を渡す (#1728)。
+  // 裏で読み込んで切り替えたときは、裏で読み込んだ映像の最初のフレームの時刻 (base) と、切り替えたときの時刻 (current) を渡す (#1728)。
   onLoaded?: (handover?: HandoverLoaded) => void;
   // handoverTarget は、裏で読み込んだ映像を、切り替える前に進める先の video の時刻を返す (#1728)。
-  // base は、裏で読み込んだ映像の最初のコマの時刻。今の映像が進んだ分だけ進め、切り替えで巻き戻らないようにする。
+  // base は、裏で読み込んだ映像の最初のフレームの時刻。今の映像が進んだ分だけ進め、切り替えで巻き戻らないようにする。
   // null なら進めない。
   handoverTarget?: (base: number) => number | null;
   // overlay は、映像の上に重ねるもの (実況のコメント)。
@@ -97,7 +97,7 @@ type Props = {
   onReading?: (reading: TsPlayerReading) => void;
   // coverRef は、映像の上に重ねる蓋 (#1512) を出し入れする口を受け取る。
   coverRef?: RefObject<PlayerCover | null>;
-  // settings は、端末ごとの設定 (フィールドごとの表示、コマの補間、補間したコマを出す回数の上限、映像の拡大) の代わりに使う値 (#1771)。
+  // settings は、端末ごとの設定 (フィールドごとの表示、フレームの補間、補間したフレームを出す回数の上限、映像の拡大) の代わりに使う値 (#1771)。
   // 「この端末で試す」が、利用者の設定を書き換えずに、経路ごとに表示を切り替えるために使う。省いた値は、設定から読む。
   settings?: PlayerSettingsOverride;
   // onDeinterlaceStats は、yadif が統計を通知するたびに、その統計と、フィールドごとの表示をやめたかを受け取る (#1771)。
@@ -106,7 +106,7 @@ type Props = {
 
 // HandoverLoaded は、裏で読み込んで切り替えたときに onLoaded へ渡す、切り替えた映像の時刻 (#1728)。
 export type HandoverLoaded = {
-  // base は、最初のコマの時刻。
+  // base は、最初のフレームの時刻。
   base: number;
   // current は、切り替えたときの時刻。切り替える前に進めていれば、base より後ろになる。
   current: number;
@@ -135,15 +135,15 @@ type Slot = {
   stats: Stats | null;
   // film は、yadif が 2:3 プルダウンを見つけ、24p で出していること (#1284)。
   film: boolean;
-  // shownFps は、yadif がコマを出す時刻を決めている間 (24p で出すときと、フィールドごとに表示するとき) に、
-  // 実際に出した 1 秒あたりのコマの数。video の要素が数えるコマの数と違うので、再生の情報にはこちらを出す。それ以外は null。
+  // shownFps は、yadif がフレームを出す時刻を決めている間 (24p で出すときと、フィールドごとに表示するとき) に、
+  // 実際に出したフレームレート。video の要素が数えるフレームの数と違うので、再生の情報にはこちらを出す。それ以外は null。
   shownFps: number | null;
   // yadif は、作ったデインタレーサー。作れなかったか、まだ作っていなければ null。
   yadif: Deinterlacer | null;
   // fieldRateDropped は、表示が追いつかないので、この組ではフィールドごとの表示をやめたこと (#1655)。
   // シークしても組は変わらないのでやめたままにし、つなぎ直しなどで組を作り直したら、もう一度試す。
   fieldRateDropped: boolean;
-  // interpolation は、yadif に渡すコマの補間 (#1655)。設定で切っている間は、yadif に渡さない。
+  // interpolation は、yadif に渡すフレームの補間 (#1655)。設定で切っている間は、yadif に渡さない。
   interpolation: YadifInterpolation;
   // upscaler は、yadif に渡す映像の拡大 (#1654)。設定で切っている間は、yadif に渡さない。
   upscaler: PictureUpscaler;
@@ -186,7 +186,7 @@ function sourcePicture(
   const timeline = player.deinterlacer?.videoTimeline ?? [];
   const now = player.video.currentTime;
   // フォークのプレイヤーがデコードしている読み込み (#2287) では、<video> に映像がなく、切り替わりのテーブルも空なので、
-  // プレイヤーが受け取ったコマの大きさと、yadif が映しているコマの走査の方式を使う。
+  // プレイヤーが受け取ったフレームの大きさと、yadif が映しているフレームの走査の方式を使う。
   const fork = forkState(player);
   const codedSize = fork.decoding ? (fork.codedSize ?? undefined) : undefined;
   const state =
@@ -197,7 +197,7 @@ function sourcePicture(
     return null;
   }
 
-  // プログレッシブの区間では、yadif はコマをそのまま出し、統計も通知しないので、前の区間の値が残る。
+  // プログレッシブの区間では、yadif はフレームをそのまま出し、統計も通知しないので、前の区間の値が残る。
   // そこでは video の要素から計測した値を使う。
   const progressive = state.scan?.interlaced === false;
 
@@ -209,7 +209,7 @@ function sourcePicture(
     shownFps: progressive ? null : shownFps,
     unfiltered,
     fieldRateDropped,
-    // yadif が補間するのは、24p で出すときと、コマごとに出すときだけ (#1655)。
+    // yadif が補間するのは、24p で出すときと、フレームごとに出すときだけ (#1655)。
     // 補間をやめた (作れなかった、失敗した) ときは、wants が false を返す。
     interpolated:
       !progressive &&
@@ -247,7 +247,7 @@ const loadModules = (engine: TsEngine) =>
 // ForkDeinterlacer は、フォークの yadif。otya128/mpeg2toh264 の型に、フォークにだけある capture を足したもの。
 type ForkDeinterlacer = Deinterlacer & { capture(): Promise<ImageBitmap> };
 
-// forkState は、フォークのプレイヤーが、この読み込みでデコードしているか (softwareDecoding) と、デコードしたコマの大きさを返す。
+// forkState は、フォークのプレイヤーが、この読み込みでデコードしているか (softwareDecoding) と、デコードしたフレームの大きさを返す。
 // otya128/mpeg2toh264 のプレイヤーは、どちらも持たないので、デコードしていないものとして返す。
 function forkState(player: Mpeg2TsPlayer): {
   decoding: boolean;
@@ -331,12 +331,12 @@ export function TsPlayer({
   // fieldRate は、1080i をフィールドごとに 59.94p で表示するか (#1655)。端末ごとの設定から読む。
   const [savedFieldRate] = useFieldRate();
   const fieldRate = settings?.fieldRate ?? savedFieldRate;
-  // interpolate は、24p と 29.97p のコマの間を補間するか (#1655)。端末ごとの設定から読む。
+  // interpolate は、24p と 29.97p のフレームの間を補間するか (#1655)。端末ごとの設定から読む。
   const [savedInterpolate] = useInterpolation();
   const interpolate = settings?.interpolate ?? savedInterpolate;
   const interpolateRef = useRef(interpolate);
   interpolateRef.current = interpolate;
-  // interpolationRate は、補間したコマを出す回数の上限。描くたびに読むので、ref で渡す。
+  // interpolationRate は、補間したフレームを出す回数の上限。描くたびに読むので、ref で渡す。
   const [savedInterpolationRate] = useInterpolationRate();
   const interpolationRate =
     settings?.interpolationRate === undefined ? savedInterpolationRate : settings.interpolationRate;
@@ -344,7 +344,7 @@ export function TsPlayer({
   interpolationRateRef.current = interpolationRate;
   const fieldRateRef = useRef(fieldRate);
   fieldRateRef.current = fieldRate;
-  // superResolution は、解除したコマを、描く大きさへ拡大して描くか (#1654)。端末ごとの設定から読む。
+  // superResolution は、解除したフレームを、描く大きさへ拡大して描くか (#1654)。端末ごとの設定から読む。
   const [savedSuperResolution] = useSuperResolution();
   const superResolution = settings?.superResolution ?? savedSuperResolution;
   const superResolutionRef = useRef(superResolution);
@@ -357,7 +357,7 @@ export function TsPlayer({
   const [superResolutionMethod] = useSuperResolutionMethod();
   const superResolutionMethodRef = useRef(superResolutionMethod);
   superResolutionMethodRef.current = superResolutionMethod;
-  // hdrOutput は、解除したコマを擬似 HDR で描くか (#1656)。端末ごとの設定で入れていても、ブラウザが対応し、
+  // hdrOutput は、解除したフレームを擬似 HDR で描くか (#1656)。端末ごとの設定で入れていても、ブラウザが対応し、
   // 画面が HDR を出せるときだけ描く。描くたびに読むので、ref で渡す。
   const [savedHDROutput] = useHDROutput();
   const hdrDisplay = useHDRDisplay();
@@ -483,25 +483,25 @@ export function TsPlayer({
     const isActive = () => activeRef.current === slot;
     const createYadif = (element: HTMLVideoElement) => {
       const lateWatch = createLateWatch();
-      // reported は、最後に通知したときの、戻したフラグと、yadif がコマを出す時刻を決めていたか。
+      // reported は、最後に通知したときの、戻したフラグと、yadif がフレームを出す時刻を決めていたか。
       // 戻したときと設定を切ったときは、24p でもなくなり、progress も来ない (読み込みを終えた録画) ことがあるので、
       // 変わったことを見て通知する。設定の切り替えは、組を直に書き換えるので、次の通知でここが拾う。
       let reported = { dropped: false, scheduled: false };
       const deinterlacer: Deinterlacer = new Deinterlacer(element, {
-        // 1080i を、フィールドごとに 1 コマにして 59.94p で出す (#1655)。放送そのものの動きのなめらかさになる。
+        // 1080i を、フィールドごとに 1 フレームにして 59.94p で出す (#1655)。放送そのものの動きのなめらかさになる。
         doubleRate: fieldRateRef.current,
-        // 24p と 29.97p のコマの間を補間する (#1655)。補間するコマは、yadif が 1 枚遅らせて出す。
+        // 24p と 29.97p のフレームの間を補間する (#1655)。補間するフレームは、yadif が 1 枚遅らせて出す。
         interpolator: interpolateRef.current ? slot.interpolation : null,
-        // 解除したコマを、映像を描く矩形の端末の画素の大きさへ拡大して描く (#1654)。擬似 HDR (#1656) も、ここで描く。
+        // 解除したフレームを、映像を描く矩形の端末の画素の大きさへ拡大して描く (#1654)。擬似 HDR (#1656) も、ここで描く。
         scaler: superResolutionRef.current || hdrOutputRef.current ? slot.upscaler : null,
-        // 擬似 HDR (#1656) で描画先の形式を変えるには、alpha のあるコンテキストが要る。どのコマも不透明に描くので、
+        // 擬似 HDR (#1656) で描画先の形式を変えるには、alpha のあるコンテキストが要る。どのフレームも不透明に描くので、
         // 見え方は変わらない。WebGL の HDR の出力を持たないブラウザでは、今までどおり alpha なしで作る。
         // フォークの yadif は、この設定を持たず、常に alpha のあるコンテキストで描く。
         alpha: hdrOutputSupported(),
         // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
-        // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで通知する。
+        // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がフレームを出す時刻を決めている間はここで通知する。
         onStats: (stats) => {
-          // 表示が追いつかない端末では、コマが間に合わずにかえってがたつくので、この組ではコマごとの表示に戻す。
+          // 表示が追いつかない端末では、フレームが間に合わずにかえってがたつくので、この組ではフレームごとの表示に戻す。
           // 設定で切っている間は数えず、入れ直したら、そこから数え直す。
           if (!deinterlacer.doubleRate) {
             lateWatch.reset();
@@ -510,7 +510,7 @@ export function TsPlayer({
             deinterlacer.doubleRate = false;
             slot.fieldRateDropped = true;
           }
-          // コマの間を補間している間 (#1655) も、yadif が出したコマの数は video の要素の数と違う。
+          // フレームの間を補間している間 (#1655) も、yadif が出したフレームの数は video の要素の数と違う。
           const scheduled =
             stats.film ||
             deinterlacer.doubleRate ||
@@ -531,8 +531,8 @@ export function TsPlayer({
         },
       });
       slot.yadif = deinterlacer;
-      // アニメのように 2:3 プルダウンで 24 コマを 60 フィールドに載せた映像は、プルダウンを見つけたら
-      // フィールドを組み直して 24p で出す (#1284)。縞が残らず、コマの間隔も元の映像どおりになる。
+      // アニメのように 2:3 プルダウンで 24 フレームを 60 フィールドに載せた映像は、プルダウンを見つけたら
+      // フィールドを組み直して 24p で出す (#1284)。縞が残らず、フレームの間隔も元の映像どおりになる。
       // プルダウンでない映像は、これまでどおり yadif で解除する。浮動小数点の描画先を持たない GPU では使えないので、そのままにする。
       enableFilm(deinterlacer);
       // yadif は、解除した映像を描く canvas の位置と大きさを、video に合わせて自分で決める。
@@ -555,14 +555,14 @@ export function TsPlayer({
         return created.deinterlacer;
       },
     });
-    // syncPictures は、この読み込みでコマを canvas に描いているか (フォークのデコード、#2287) を、<video> の PlayerMedia に伝える。
-    // 描いているなら、キャプチャは yadif のコマから取り、<video> のコマを待つ処理は止める。
+    // syncPictures は、この読み込みでフレームを canvas に描いているか (フォークのデコード、#2287) を、<video> の PlayerMedia に伝える。
+    // 描いているなら、キャプチャは yadif のフレームから取り、<video> のフレームを待つ処理は止める。
     const syncPictures = () => {
       const yadif = slot.yadif;
       setCanvasPictures(
         slot.video,
         forkState(player).decoding && yadif !== null
-          ? // フォークの yadif は、映しているコマを描き直して返す capture を持つ。
+          ? // フォークの yadif は、映しているフレームを描き直して返す capture を持つ。
             { capture: () => (yadif as ForkDeinterlacer).capture() }
           : null,
       );
@@ -663,11 +663,11 @@ export function TsPlayer({
   }, [interpolate]);
 
   // 拡大の設定も、読み直さずに切り替える (#1654)。切り抜きを変えたときは、映る大きさが変わるので、大きさを決め直させる。
-  // yadif は、同じものを渡し直すと、大きさを決め直し、拡大していれば最後のコマを描き直す。
-  // 鮮鋭化の強さと拡大の方式 (#1653) を変えたときも渡し直し、止めている間でも、今のコマを新しい設定で描き直させる。
+  // yadif は、同じものを渡し直すと、大きさを決め直し、拡大していれば最後のフレームを描き直す。
+  // 鮮鋭化の強さと拡大の方式 (#1653) を変えたときも渡し直し、止めている間でも、今のフレームを新しい設定で描き直させる。
   // 擬似 HDR (#1656) の切り替えも同じ。擬似 HDR で描いていた間に拡大と擬似 HDR のどちらも切ったときは、拡大の処理を
-  // 外さずに渡し直し、描画先を SDR に戻して最後のコマを描き直させる。外すと、yadif は描き直さないので、止めている間は
-  // 伸ばしたコマが残る。外すのは、次に設定を変えたときになる。
+  // 外さずに渡し直し、描画先を SDR に戻して最後のフレームを描き直させる。外すと、yadif は描き直さないので、止めている間は
+  // 伸ばしたフレームが残る。外すのは、次に設定を変えたときになる。
   const { scale: cropScale, stretchX: cropStretchX } = crop;
   useEffect(() => {
     for (const slot of [activeRef.current, pendingRef.current]) {

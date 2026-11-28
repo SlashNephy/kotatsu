@@ -21,14 +21,14 @@ export const sharpnessStops: Record<SuperResolutionStrength, number> = { 1: 2, 2
 
 // superResolutionMethods は、選べる拡大の方式 (#1653)。fsr は FSR 1 (EASU と RCAS) だけで拡大する。
 // anime4k は、縦横とも 2 倍以上に拡大するときに、先に Anime4K の CNN (x2、M) で 2 倍にし、残りを FSR 1 で拡大する。
-// Anime4K は縁を描き直すので細部が増えるが、GPU の負荷が大きく、内蔵の GPU では 59.94p のコマの間に収まらないこともある。
+// Anime4K は縁を描き直すので細部が増えるが、GPU の負荷が大きく、内蔵の GPU では 59.94p のフレームの間に収まらないこともある。
 export const superResolutionMethods = ['fsr', 'anime4k'] as const;
 export type SuperResolutionMethod = (typeof superResolutionMethods)[number];
 
 // Size は、画素の幅と高さ。
 export type Size = { width: number; height: number };
 
-// upscaleSize は、source の大きさのコマを、端末の画素で box の大きさに描くときに、拡大して描く大きさを返す。
+// upscaleSize は、source の大きさのフレームを、端末の画素で box の大きさに描くときに、拡大して描く大きさを返す。
 // zoom は、切り抜き (#496) で掛けている CSS の拡大率。box は拡大する前の大きさなので、掛けて実際に映る大きさにする。
 // 縦横のどちらも元の大きさ以下なら、拡大しないので null を返す (小さなプレイヤーや、縮めて映すとき)。
 // 片方だけが大きいとき (1440×1080 を 1920×1080 に映すなど) は、小さい方を元の大きさのままにし、その向きだけ拡大する。
@@ -70,7 +70,7 @@ export function maxDimension(gl: WebGL2RenderingContext): number {
   return Math.min(texture, viewport[0] ?? texture, viewport[1] ?? texture);
 }
 
-// PictureUpscaler は、コマを描く側 (yadif と、デコードの経路の pictureRenderer) に渡す拡大と、今拡大している大きさを読む口と、
+// PictureUpscaler は、フレームを描く側 (yadif と、デコードの経路の pictureRenderer) に渡す拡大と、今拡大している大きさを読む口と、
 // 片付ける口。描く側は yadif の PictureScaler の約束 (大きさを返したら描かせ、描けなかったら元の大きさに戻す) で呼ぶ。
 // 擬似 HDR の出力 (#1656) も、canvas へ描く最後のステップなので、ここで描く。拡大しないときは、元の大きさのままコピーする。
 export type PictureUpscaler = PictureScaler & {
@@ -79,15 +79,15 @@ export type PictureUpscaler = PictureScaler & {
   // shown は、最後に大きさを決めたときの、映す大きさ (端末の画素、切り抜きの拡大率を掛けたもの)。
   // 元の大きさ以下に映していて拡大しないときに、その理由として見せる。決めていなければ null。
   shown(): Size | null;
-  // hdr は、最後に描いたコマを、擬似 HDR で描いたか。
+  // hdr は、最後に描いたフレームを、擬似 HDR で描いたか。
   hdr(): boolean;
-  // anime4k は、最後に拡大して描いたコマを、Anime4K で 2 倍にしてから拡大したか。
+  // anime4k は、最後に拡大して描いたフレームを、Anime4K で 2 倍にしてから拡大したか。
   anime4k(): boolean;
   destroy(): void;
 };
 
 // createPictureUpscaler は、描く側に渡す拡大を作る。拡大の処理は、描く側が最初に描かせるときに、そのコンテキストで作る。
-// 作れないか、途中で失敗したら、onUnavailable を呼び、以後は拡大しない (描く側はコマをそのまま描く)。
+// 作れないか、途中で失敗したら、onUnavailable を呼び、以後は拡大しない (描く側はフレームをそのまま描く)。
 // yadif の描画の中で投げると、yadif のループが止まるので、ここで受け止める。
 // zoom は、切り抜きの拡大率を、大きさを決めるたびに読む。strength は、鮮鋭化の強さを、method は、拡大の方式を、描くたびに読む。
 // Anime4K を作れない (RGBA16F に描けないなど) か、途中で失敗したら、onAnime4KUnavailable を呼び、以後は FSR 1 だけで拡大する。
@@ -126,7 +126,7 @@ export function createPictureUpscaler({
   let anime4k: Anime4K | null = null;
   // anime4kBroken は、Anime4K を作れなかったか、途中で失敗したこと。以後は FSR 1 だけで拡大する。
   let anime4kBroken = false;
-  // anime4kUsed は、最後に描いたコマを、Anime4K で拡大したか。
+  // anime4kUsed は、最後に描いたフレームを、Anime4K で拡大したか。
   let anime4kUsed = false;
   let copy: HDRCopy | null = null;
   let broken = false;
@@ -174,10 +174,10 @@ export function createPictureUpscaler({
     return hdrDrawn;
   };
 
-  // doubleWithAnime4K は、Anime4K で拡大するときに、コマを縦横 2 倍にしたテクスチャを返す。拡大しないときは null を返す。
+  // doubleWithAnime4K は、Anime4K で拡大するときに、フレームを縦横 2 倍にしたテクスチャを返す。拡大しないときは null を返す。
   // Anime4K は 2 倍に決まっているので、縦横とも 2 倍以上に拡大するときだけ使い、残りは FSR 1 で拡大する。
   // 2 倍に満たない拡大 (1440×1080 を 1920×1080 に映すなど) で 2 倍にしてから縮めると、負荷に見合わないからである。
-  // 作れないか失敗したら、通知して以後は使わない。そのコマは FSR 1 だけで拡大する。
+  // 作れないか失敗したら、通知して以後は使わない。そのフレームは FSR 1 だけで拡大する。
   const doubleWithAnime4K = (
     gl: WebGL2RenderingContext,
     texture: WebGLTexture,
@@ -249,7 +249,7 @@ export function createPictureUpscaler({
         }
         // 拡大しなくても、擬似 HDR で描くなら、元の大きさのまま描く (yadif にそのままコピーさせない)。
         // 擬似 HDR を切った直後も、描画先を SDR に戻し、伸ばさずに描き直すため、一度は元の大きさで描かせる。
-        // yadif は、大きさを返したときだけ最後のコマを描き直すので、止めている間も伸ばしたコマが残らない。
+        // yadif は、大きさを返したときだけ最後のフレームを描き直すので、止めている間も伸ばしたフレームが残らない。
         if (size === null && (wantsHDR() || hdrDrawn)) {
           return { width, height };
         }

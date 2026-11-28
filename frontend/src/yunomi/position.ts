@@ -21,7 +21,7 @@ export function skipJump(base: number, last: number, current: number): number {
   return Math.abs(delta) > maxVideoJump ? base + delta : base;
 }
 
-// advanceTarget は、読み直した配信の最初のコマが、求めた位置 (offset) より手前のとき、進める先の video の時刻を返す (#1512)。
+// advanceTarget は、読み直した配信の最初のフレームが、求めた位置 (offset) より手前のとき、進める先の video の時刻を返す (#1512)。
 // 配信は、求めた位置の手前の I フレームから流れ、実際に流し始めた位置 (startedAt、X-Kotatsu-Start) を返す。
 // 位置は startedAt + (currentTime − base) なので、base + (offset − startedAt) へ進めれば、求めた位置になる。
 // 流し始めた位置が求めた位置より後ろなら (インデックスのないセグメントなど)、進めない。

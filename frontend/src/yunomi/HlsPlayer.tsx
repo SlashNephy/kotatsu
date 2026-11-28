@@ -143,16 +143,16 @@ export function HlsPlayer({
       coverRef.current = null;
     };
   }, [coverRef, cover.cover]);
-  // interpolation は、video に重ねた、コマの補間 (#1655)。端末ごとの設定で入れ切りする。
+  // interpolation は、video に重ねた、フレームの補間 (#1655)。端末ごとの設定で入れ切りする。
   const [interpolate] = useInterpolation();
   const interpolateRef = useRef(interpolate);
   interpolateRef.current = interpolate;
   const overlayRef = useRef<VideoOverlay | null>(null);
-  // interpolationRate は、補間したコマを出す回数の上限。描くたびに読むので、ref で渡す。
+  // interpolationRate は、補間したフレームを出す回数の上限。描くたびに読むので、ref で渡す。
   const [interpolationRate] = useInterpolationRate();
   const interpolationRateRef = useRef(interpolationRate);
   interpolationRateRef.current = interpolationRate;
-  // superResolution は、video のコマを、映す大きさへ拡大して描くか (#1654、#2113)。補間と同じ canvas で描く。
+  // superResolution は、video のフレームを、映す大きさへ拡大して描くか (#1654、#2113)。補間と同じ canvas で描く。
   const [superResolution] = useSuperResolution();
   const superResolutionRef = useRef(superResolution);
   superResolutionRef.current = superResolution;
@@ -367,7 +367,7 @@ export function HlsPlayer({
     overlayRef.current?.setUpscale(superResolution);
   }, [superResolution]);
 
-  // 切り抜きと、鮮鋭化の強さ、拡大の方式を変えたら、拡大する大きさを決め直し、止めている間のコマも描き直す。
+  // 切り抜きと、鮮鋭化の強さ、拡大の方式を変えたら、拡大する大きさを決め直し、止めている間のフレームも描き直す。
   const { scale: cropScale, stretchX: cropStretchX } = crop;
   useEffect(() => {
     overlayRef.current?.refresh();

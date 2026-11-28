@@ -225,7 +225,7 @@ describe('createPictureUpscaler', () => {
     const upscaler = createPictureUpscaler({ create, onUnavailable });
     const gl = fakeContext();
 
-    // yadif の描画の中で投げると、yadif のループが止まる。false を返せば、yadif はコマをそのまま描く。
+    // yadif の描画の中で投げると、yadif のループが止まる。false を返せば、yadif はフレームをそのまま描く。
     expect(upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160)).toBe(false);
     expect(onUnavailable).toHaveBeenCalledTimes(1);
     expect(upscaler.size(gl, 1440, 1080, 3840, 2160)).toBeNull();
@@ -392,7 +392,7 @@ describe('createPictureUpscaler', () => {
     expect(upscaler.anime4k()).toBe(want.anime4k);
   });
 
-  test('Anime4K が途中で失敗すれば、片付けて通知し、そのコマから FSR だけで拡大する', () => {
+  test('Anime4K が途中で失敗すれば、片付けて通知し、そのフレームから FSR だけで拡大する', () => {
     const made = fakeUpscaler();
     const anime4k = fakeAnime4K();
     anime4k.upscale.mockImplementation(() => {

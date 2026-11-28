@@ -13,7 +13,7 @@ import (
 const (
 	// 代表画像の大きさ (ThumbnailWidth × ThumbnailHeight)。
 	SizeThumbnail Size = iota
-	// プレビュー画像の 1 コマの大きさ (TileWidth × TileHeight)。
+	// プレビュー画像の 1 フレームの大きさ (TileWidth × TileHeight)。
 	SizeTile
 )
 

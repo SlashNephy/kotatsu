@@ -43,7 +43,7 @@ const (
 )
 
 // programWindow は、番組の尺のウィンドウを、ロゴの出ていた区間 intervals に合わせて置いて返す (#1506 の手順 1)。
-// times はコマごとの時刻 (秒)、fps はコマの速さ、program は番組の時刻 (ファイルの始まりから)。
+// times はフレームごとの時刻 (秒)、fps はフレームレート、program は番組の時刻 (ファイルの始まりから)。
 // 番組の尺が録画より短いときだけ置き、置けなければ ok を false にする。ロゴから候補が 1 つも作れないときも、番組の先頭を削らないよう置かない。
 // program.Fixed なら、探さずに、program の時刻どおりに置く。ウィンドウの端を無音の境目に寄せるのは、置いた後に snapWindow で行う。
 func programWindow(intervals []logo.Interval, times []float64, fps float64, program *Program) (window, bool) {
@@ -51,7 +51,7 @@ func programWindow(intervals []logo.Interval, times []float64, fps float64, prog
 	if program == nil || program.Duration <= 0 || len(times) == 0 {
 		return none, false
 	}
-	// 番組が始まるはずの時刻を、最初のコマからの秒にする。ファイルの始まりから最初のコマまでの空きを差し引く。
+	// 番組が始まるはずの時刻を、最初のフレームからの秒にする。ファイルの始まりから最初のフレームまでの空きを差し引く。
 	expected := program.Start.Seconds() - times[0]
 	length := program.Duration.Seconds()
 	if program.Fixed {
@@ -69,7 +69,7 @@ func programWindow(intervals []logo.Interval, times []float64, fps float64, prog
 	return window{start: pos, end: pos + length}, true
 }
 
-// frameTime は、frame 番目のコマの、最初のコマからの秒を返す。最後のコマの後ろは、最後のコマの 1 コマ分 (速さ fps) 後とする。
+// frameTime は、frame 番目のフレームの、最初のフレームからの秒を返す。最後のフレームより後ろは、最後のフレームの 1 フレーム分 (フレームレート fps) 後とする。
 func frameTime(times []float64, fps float64, frame int) float64 {
 	if frame < len(times) {
 		return times[frame] - times[0]
@@ -139,9 +139,9 @@ func placeWindow(shown, files []span, length, expected float64) (float64, bool) 
 
 // snapWindow は、ウィンドウ w の両端を、windowSnapDistance 以内で最も近い無音の境目に寄せて返す (#1506 の手順 1)。
 // 切れ目のない境目は、windowSnapNoCut だけ遠いとみなす。寄せた結果、ウィンドウの始まりが終わりより後になる境目は使わない。
-// bounds の時刻は、今の見分け方の基準 (コマの時刻に offset を足したもの)。duration は、その基準での録画の長さ。
+// bounds の時刻は、今の見分け方の基準 (フレームの時刻に offset を足したもの)。duration は、その基準での録画の長さ。
 // combineSections と同じく、録画の端 (0 と duration) にある境目は、無音の境目ではないので使わない。
-// origin は最初のコマの時刻。ウィンドウは最初のコマからの秒。
+// origin は最初のフレームの時刻。ウィンドウは最初のフレームからの秒。
 func snapWindow(w window, bounds []boundary, duration, origin, offset float64) window {
 	start := snapEdge(w.start, bounds, duration, origin, offset, func(at float64) bool { return at >= 0 && at < w.end })
 	end := snapEdge(w.end, bounds, duration, origin, offset, func(at float64) bool { return at > start })
@@ -149,7 +149,7 @@ func snapWindow(w window, bounds []boundary, duration, origin, offset float64) w
 	return window{start: start, end: end}
 }
 
-// snapEdge は、ウィンドウの端 edge (最初のコマからの秒) を、windowSnapDistance 以内で最も近い無音の境目に寄せて返す。
+// snapEdge は、ウィンドウの端 edge (最初のフレームからの秒) を、windowSnapDistance 以内で最も近い無音の境目に寄せて返す。
 // valid が false を返す境目と、録画の端の境目は使わない。寄せる先がなければ edge のまま返す。引数は snapWindow と同じ。
 func snapEdge(edge float64, bounds []boundary, duration, origin, offset float64, valid func(float64) bool) float64 {
 	best, bestCost := edge, math.Inf(1)
@@ -174,15 +174,15 @@ func snapEdge(edge float64, bounds []boundary, duration, origin, offset float64,
 	return best
 }
 
-// window は、番組のウィンドウ。始まりと終わりは、最初のコマからの秒。
+// window は、番組のウィンドウ。始まりと終わりは、最初のフレームからの秒。
 type window struct {
 	start, end float64
 }
 
-// clipIntervals は、ロゴの出ていた区間を、ウィンドウ [start, end) (最初のコマからの秒) に収める。ウィンドウの外のロゴは、前後の番組のものとして破棄する。
+// clipIntervals は、ロゴの出ていた区間を、ウィンドウ [start, end) (最初のフレームからの秒) に収める。ウィンドウの外のロゴは、前後の番組のものとして破棄する。
 func clipIntervals(intervals []logo.Interval, times []float64, start, end float64) []logo.Interval {
 	origin := times[0]
-	// first は、ウィンドウの内に入る最初のコマ、last は、ウィンドウの外に出る最初のコマ。
+	// first は、ウィンドウの内に入る最初のフレーム、last は、ウィンドウの外に出る最初のフレーム。
 	first, last := len(times), len(times)
 	for i, t := range times {
 		if first == len(times) && t-origin >= start {

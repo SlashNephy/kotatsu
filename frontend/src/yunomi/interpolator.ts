@@ -1,4 +1,4 @@
-// コマの補間 (#1655、設計書 7.5)。前後の 2 コマから、ブロックマッチングで動きを推し量り、その間の時刻のコマを作る。
+// フレームの補間 (#1655、設計書 7.5)。前後の 2 フレームから、ブロックマッチングで動きを推し量り、その間の時刻のフレームを作る。
 // WebGL2 のフラグメントシェーダーだけで書き、canvas もコンテキストも持たない。呼ぶ側が渡す gl とテクスチャで動くので、
 // kyusu の経路 (video をコピーしたテクスチャ) でも、yadif の中 (yadif が解除したテクスチャ) でも使える。
 // テクスチャは、どちらも行を下から持つ (framebuffer と同じ向き) ものとする。
@@ -22,11 +22,11 @@ export const coarsePad = 2;
 export const stillRatio = 0.85;
 export const stillMargin = 0.004;
 // mismatchThreshold は、見つけたブロックの 1 画素あたりの差 (0〜1) がこれを超えたら、動きを当てにしない値。
-// 場面の切り替わりや、隠れていたものが現れた所では、どこにも似た所がないので、補間せずに近い方のコマを出す。
+// 場面の切り替わりや、隠れていたものが現れた所では、どこにも似た所がないので、補間せずに近い方のフレームを出す。
 export const mismatchThreshold = 0.1;
-// sceneCutRatio は、動きを当てにしないブロックの割合がこれを超えたら、2 コマの間で場面が切り替わったとみなす値。
+// sceneCutRatio は、動きを当てにしないブロックの割合がこれを超えたら、2 フレームの間で場面が切り替わったとみなす値。
 // 切り替わりでも、前後の場面で偶然似たブロックは閾値を下回り、前の場面の断片を新しい場面に混ぜてしまう (#1655)。
-// 切り替わったとみなしたら、コマ全体を近い方のコマにする。
+// 切り替わったとみなしたら、フレーム全体を近い方のフレームにする。
 export const sceneCutRatio = 0.3;
 
 // 輝度を半分の解像度にする。元のテクスチャは 0〜1 の座標で読む。ブラウザが video をコピーする大きさ
@@ -54,7 +54,7 @@ void main() {
 `;
 
 // 動きは 2 ステップで探す。半分の解像度での総当たりは、内蔵 GPU (UHD Graphics 770) で 1 回 47ms かかり、
-// 24p の 1 コマの間にも終わらないため (#1655)。
+// 24p の 1 フレームの間にも終わらないため (#1655)。
 // まず 1/4 の解像度で、ブロックとその周り (coarsePad) を、範囲の全体で総当たりして比較する。画素が 1/4 なので軽い。
 // RGBA8 に、ずれ (dx, dy) に coarseRange を足したものを入れる。
 const coarseRange = searchRange / 2;
@@ -216,9 +216,9 @@ export const stillPreference = 0.1;
 export const stillMatchLow = 0.05;
 export const stillMatchHigh = 0.15;
 
-// 時刻 uT (0 なら前のコマ、1 なら後のコマ) のコマを作る。動きは、ブロックの間を線形に補う。
-// 動きを当てにできない所は、近い方のコマをそのまま出す。境目がくっきりしないよう、閾値の前後でなだらかに混ぜる。
-// 場面が切り替わったときは、コマ全体を近い方のコマにする。
+// 時刻 uT (0 なら前のフレーム、1 なら後のフレーム) のフレームを作る。動きは、ブロックの間を線形に補う。
+// 動きを当てにできない所は、近い方のフレームをそのまま出す。境目がくっきりしないよう、閾値の前後でなだらかに混ぜる。
+// 場面が切り替わったときは、フレーム全体を近い方のフレームにする。
 const composeShader = `#version 300 es
 precision highp float;
 uniform sampler2D uPrevious;
@@ -264,11 +264,11 @@ void main() {
 
 // Interpolator は、補間に使う GL の資源をまとめたもの。
 export type Interpolator = {
-  // estimate は、previous から next への動きを推し量り、次の compose で使う。2 コマが変わったときに 1 回だけ呼ぶ。
-  // width と height は、コマの大きさ。動きは、その半分の解像度で推し量る。
+  // estimate は、previous から next への動きを推し量り、次の compose で使う。2 フレームが変わったときに 1 回だけ呼ぶ。
+  // width と height は、フレームの大きさ。動きは、その半分の解像度で推し量る。
   estimate(previous: WebGLTexture, next: WebGLTexture, width: number, height: number): void;
-  // compose は、最後に estimate した 2 コマの間の、時刻 t (0〜1) のコマを、framebuffer (null なら canvas) に、
-  // width × height で描く。コマと大きさが違えば、引き伸ばして描く。
+  // compose は、最後に estimate した 2 フレームの間の、時刻 t (0〜1) のフレームを、framebuffer (null なら canvas) に、
+  // width × height で描く。フレームと大きさが違えば、引き伸ばして描く。
   compose(t: number, framebuffer: WebGLFramebuffer | null, width: number, height: number): void;
   destroy(): void;
 };
@@ -335,7 +335,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
   gl.samplerParameteri(linear, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.samplerParameteri(linear, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.samplerParameteri(linear, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  // sized は、今の資源を作った、元のコマの大きさ。
+  // sized は、今の資源を作った、元のフレームの大きさ。
   let sized: { width: number; height: number } | null = null;
   let previousLuma: Target | null = null;
   let nextLuma: Target | null = null;
@@ -344,7 +344,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
   let coarse: Target | null = null;
   let vectors: Target | null = null;
   let scene: Target | null = null;
-  // pair は、最後に estimate した 2 コマ。
+  // pair は、最後に estimate した 2 フレーム。
   let pair: { previous: WebGLTexture; next: WebGLTexture } | null = null;
 
   const release = () => {

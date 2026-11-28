@@ -6,19 +6,19 @@
 export type JudgeParams = {
   // windowMs は、判定のウィンドウの長さ。
   windowMs: number;
-  // minFrames は、ウィンドウを数えるのに要る、デコードしたコマの数。数が少ないと分位と割合が意味を持たないため。
-  // B フレームを省くと、デコードするコマは 3 分の 1 (2 秒で約 20 コマ) になり、遅い端末ではさらに減るので、それより少なく置く。
+  // minFrames は、ウィンドウを数えるのに要る、デコードしたフレームの数。数が少ないと分位と割合が意味を持たないため。
+  // B フレームを省くと、デコードするフレームは 3 分の 1 (2 秒で約 20 フレーム) になり、遅い端末ではさらに減るので、それより少なく置く。
   // タブが見えていない間は、hide で数えない。
   minFrames: number;
-  // decodeQuantile と decodeBudget は、1 コマのデコード時間のこの分位が、1 コマの長さ × decodeBudget を超えたら悪いとみなす値。
-  // 分位は中央値にする。95 パーセンタイルは I フレーム (15 コマに 1 枚) の時間で決まり、先読みで吸収できる重さでも悪いと数えるため。
+  // decodeQuantile と decodeBudget は、1 フレームのデコード時間のこの分位が、1 フレームの長さ × decodeBudget を超えたら悪いとみなす値。
+  // 分位は中央値にする。95 パーセンタイルは I フレーム (15 フレームに 1 枚) の時間で決まり、先読みで吸収できる重さでも悪いと数えるため。
   decodeQuantile: number;
   decodeBudget: number;
   // skipBWiden は、B フレームを省いている間に、デコード時間の許容を広げる倍率。
   skipBWiden: number;
   // badLagMs は、映像が時計からこれだけ遅れたら悪いとみなす遅れ。
   badLagMs: number;
-  // badDropped と badDropRatio は、破棄したコマがこの枚数以上で、かつウィンドウのコマ数のこの割合以上なら悪いとみなす値。
+  // badDropped と badDropRatio は、破棄したフレームがこの枚数以上で、かつウィンドウのフレーム数のこの割合以上なら悪いとみなす値。
   badDropped: number;
   badDropRatio: number;
   // fallbackAfter は、悪いウィンドウがこれだけ続いたら、ほかの経路へ移す回数。
@@ -26,9 +26,9 @@ export type JudgeParams = {
   // ignoreMs は、タブが戻った直後、読み始めた直後、データが途切れて戻った直後に数えない時間。
   ignoreMs: number;
   // starveMs は、データの途切れとみなす長さ。これより短い途切れは、戻っても数えない時間を始めない。
-  // worker がデコードでふさがったあとは、届いていたデータを読む前に映すコマが尽き、短い途切れに見えるため。
+  // worker がデコードでふさがったあとは、届いていたデータを読む前に映すフレームが尽き、短い途切れに見えるため。
   starveMs: number;
-  // skipDropped と skipLagMs は、ウィンドウの中で破棄したコマがこの枚数以上か、遅れがこれ以上なら、B フレームを省き始める値。
+  // skipDropped と skipLagMs は、ウィンドウの中で破棄したフレームがこの枚数以上か、遅れがこれ以上なら、B フレームを省き始める値。
   skipDropped: number;
   skipLagMs: number;
   // skipInitialMs は、B フレームを最初に省く長さ。過ぎたら戻してみる。
@@ -174,22 +174,22 @@ export class DecodeJudge {
     this.decodeTimes.push(ms);
   }
 
-  // onPicture は、デコードしたコマを待ち行列に足したときに呼ぶ。
+  // onPicture は、デコードしたフレームを待ち行列に足したときに呼ぶ。
   onPicture(): void {
     this.frames += 1;
   }
 
-  // onDropped は、映さずに破棄したコマの数を渡す。
+  // onDropped は、映さずに破棄したフレームの数を渡す。
   onDropped(count: number): void {
     this.dropped += count;
   }
 
-  // onLag は、映すコマが時計からどれだけ遅れているかを渡す。
+  // onLag は、映すフレームが時計からどれだけ遅れているかを渡す。
   onLag(ms: number): void {
     this.maxLagMs = Math.max(this.maxLagMs, ms);
   }
 
-  // tick は、定期的に呼び、worker がすることを返す。frameMs は 1 コマの長さ (分からなければ null)。
+  // tick は、定期的に呼び、worker がすることを返す。frameMs は 1 フレームの長さ (分からなければ null)。
   tick(now: number, frameMs: number | null): Verdict[] {
     if (this.fallen) {
       return [];

@@ -5,9 +5,9 @@
 
 測れるもの:
 
-- 同じ worker 1 本での速さ（コマ/秒）と、1 コマのデコード時間の分位
+- 同じ worker 1 本での速さ（fps）と、1 フレームのデコード時間の分位
 - mpeg2toh264 の出力のビットレートと、輝度の PSNR
-- パケットを落とした TS で、それぞれが出せるコマの数
+- パケットを落とした TS で、それぞれが出せるフレームの数
 - WASM の組み方（最適化の段階、SIMD、LTO）による速さと大きさ
 
 描画（WebGL2）と音の時計は、まだ入っていません。WASM の方式は、デコードまでを計測します。
@@ -77,12 +77,12 @@ node frontend/bench/wasm-decode/summarize.mjs results.jsonl
 
 ## デコードと GPU へのアップロードを分けて計測する
 
-#2162 の切り分けのために、製品の経路と同じく、デコードしたコマを WebGL2 の R8 のテクスチャ 3 枚へ上げて計測できます。
+#2162 の切り分けのために、製品の経路と同じく、デコードしたフレームを WebGL2 の R8 のテクスチャ 3 枚へ上げて計測できます。
 WASM は組み方の名前 `product` で製品のもの（`vendor/ffmpeg/decoder` と `public/ffmpeg/decoder.wasm`）を使うので、組まなくても計測できます。
 
 ページの「切り分けを計測する」を押すか、URL に `?split` を付けて開く（`http://<アドレス>:18516/?split`）と、`mandel_1440.ts` と `testsrc2_1440.ts` で、アップロードなしと次の 3 通りの上げ方を、交互に 2 回ずつ計測します。
 結果は 1 回ごとに配信しているサーバーへ送り、`.work/results.jsonl` に足していきます。実機の画面から結果をコピーする必要はありません。終わると `"kind":"done"` の行が入ります。
-1 回は 300 コマで打ち切ります。打ち切った回は音をデコードせず、`fps` は出しません（`null`）。映像だけの速さは `videoFps` で見ます。
+1 回は 300 フレームで打ち切ります。打ち切った回は音をデコードせず、`fps` は出しません（`null`）。映像だけの速さは `videoFps` で見ます。
 
 | 上げ方     | 渡すもの                                     |
 | ---------- | -------------------------------------------- |
@@ -113,10 +113,10 @@ WASM のループだけが遅ければ WASM の実行を、JavaScript も遅け�
 MISE_ENV=wasm-decode-bench mise exec -C frontend -- node bench/wasm-decode/psnr.mjs bench/wasm-decode/.work/save/testsrc2_1440.ts.mp4 bench/wasm-decode/.work/media/testsrc2_1440.ts
 ```
 
-出力には同じ絵のコマが重なって入り、PTS も重なります。そのため、PTS では元のコマと合わせられません。
-`psnr.mjs` は、出力を 0〜12 コマずらして並べ、元のコマごとに最も近い値を取ります。
+出力には同じ絵のフレームが重なって入り、PTS も重なります。そのため、PTS では元のフレームと合わせられません。
+`psnr.mjs` は、出力を 0〜12 フレームずらして並べ、元のフレームごとに最も近い値を取ります。
 
-出せたコマの数は、違う絵の枚数で数えます。重なったコマを数えないためです。
+出せたフレームの数は、違う絵の枚数で数えます。重なったフレームを数えないためです。
 
 ```bash
 MISE_ENV=wasm-decode-bench mise exec -C frontend -- sh -c 'ffmpeg -v error -i bench/wasm-decode/.work/save/loss_0.001.ts.mp4 -map 0:v -fps_mode passthrough -f framemd5 - | grep -v "^#" | cut -d, -f6 | sort -u | wc -l'

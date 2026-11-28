@@ -14,19 +14,19 @@ import (
 )
 
 const (
-	// fieldFrameRate は、フィールドごとに 1 コマにして出すときのコマ数 (59.94)。
+	// fieldFrameRate は、フィールドごとに 1 フレームにして出すときのフレームレート (59.94)。
 	fieldFrameRate = 60000.0 / 1001
-	// fieldBitrateNumerator と fieldBitrateDenominator は、60 コマで出すときに、画質のビットレートに掛ける比。
+	// fieldBitrateNumerator と fieldBitrateDenominator は、60 fps で出すときに、画質のビットレートに掛ける比。
 	// kyusu の 60fps の画質 (1080p60、720p60) と同じく、30fps のおよそ 1.4 倍にする。
 	fieldBitrateNumerator   = 7
 	fieldBitrateDenominator = 5
 )
 
-// frameRatePlan は、変換で出すコマ数の決め方 (#1509)。
+// frameRatePlan は、変換で出すフレームレートの決め方 (#1509)。
 type frameRatePlan struct {
-	// fields は、インターレースをフィールドごとに 1 コマにして、59.94 コマで出すかどうか。
+	// fields は、インターレースをフィールドごとに 1 フレームにして、59.94 fps で出すかどうか。
 	fields bool
-	// rate は、録画のファイルの記録に残す 1 秒あたりのコマ数。分からなければ 0 (記録しない)。
+	// rate は、録画のファイルの記録に残すフレームレート。分からなければ 0 (記録しない)。
 	rate int32
 	// sourceRate は、最初のセグメントの映像のフレームレート。分からなければ 0。進み具合の見込みに使う。
 	sourceRate float64
@@ -41,7 +41,7 @@ func (p *frameRatePlan) outputRate() float64 {
 	return p.sourceRate
 }
 
-// recordedRate は、録画のファイルの記録に残すコマ数を返す。分からなければ nil を返す。
+// recordedRate は、録画のファイルの記録に残すフレームレートを返す。分からなければ nil を返す。
 func (p *frameRatePlan) recordedRate() *int32 {
 	if p.rate <= 0 {
 		return nil
@@ -50,13 +50,13 @@ func (p *frameRatePlan) recordedRate() *int32 {
 	return new(p.rate)
 }
 
-// planFrameRate は、録画設定の出すコマ数 setting と、録画のセグメント segments から、変換で出すコマ数を決める (#1509)。
-//   - 60 なら、フィールドごとに 1 コマにする。30 なら、コマごとに解除する。
+// planFrameRate は、録画設定の出すフレームレート setting と、録画のセグメント segments から、変換で出すフレームレートを決める (#1509)。
+//   - 60 なら、フィールドごとに 1 フレームにする。30 なら、フレームごとに解除する。
 //   - 自動なら、最初のセグメントの映像の形式 (#1310) がプログレッシブであれば、フィールドを倍にする話にならないので、
-//     計測せずに元のコマ数のまま出す (720p の局、BS4K の 59.94p)。インターレースか、形式が分からなければ、録画全体に散らしたウィンドウで
+//     計測せずに元のフレームレートのまま出す (720p の局、BS4K の 59.94p)。インターレースか、形式が分からなければ、録画全体に散らしたウィンドウで
 //     フィールドどうしの差を計測し、多数決で決める。
 //
-// コマごとに解除するとき、プログレッシブの映像は、bwdif がそのまま通すので、元のコマ数のまま出る。
+// フレームごとに解除するとき、プログレッシブの映像は、bwdif がそのまま通すので、元のフレームレートのまま出る。
 func (w *Worker) planFrameRate(ctx context.Context, encoder Encoder, logger *slog.Logger, setting string, segments []sqlc.RecordingFile) (*frameRatePlan, error) {
 	format, rate := w.sourceFormat(ctx, encoder, logger, &segments[0])
 	progressive := format != nil && !format.Interlaced
@@ -111,7 +111,7 @@ func (w *Worker) sourceFormat(ctx context.Context, encoder Encoder, logger *slog
 	return format, max(rate, 0)
 }
 
-// measureFieldOutput は、録画全体に散らしたウィンドウで、フィールドどうしの差を計測し、60 コマで出すかどうかを多数決で決める (#1509)。
+// measureFieldOutput は、録画全体に散らしたウィンドウで、フィールドどうしの差を計測し、60 fps で出すかどうかを多数決で決める (#1509)。
 // ウィンドウごとの rep、wr、分類はログに出し、閾値を詰め直す材料にする。FFmpeg が失敗したウィンドウは、計測できなかったウィンドウとして数える。
 func (w *Worker) measureFieldOutput(ctx context.Context, encoder Encoder, logger *slog.Logger, segments []sqlc.RecordingFile) (bool, error) {
 	params := w.cadence

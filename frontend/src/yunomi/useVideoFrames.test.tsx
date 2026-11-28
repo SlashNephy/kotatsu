@@ -8,7 +8,7 @@ afterEach(() => {
   cleanup();
 });
 
-// FrameMedia は、コマごとの呼び返しを、this を使うメソッドで持つ経路の代わり。
+// FrameMedia は、フレームごとの呼び返しを、this を使うメソッドで持つ経路の代わり。
 // <video> 以外の経路 (#1516) は、こうした普通のメソッドで持ちうる。
 class FrameMedia extends EventTarget {
   readonly callbacks = new Map<number, PlayerFrameCallback>();
@@ -26,7 +26,7 @@ class FrameMedia extends EventTarget {
     this.callbacks.delete(id);
   }
 
-  // present は、コマを 1 つ出したことにして、待っている呼び返しを呼ぶ。
+  // present は、フレームを 1 つ出したことにして、待っている呼び返しを呼ぶ。
   present(mediaTime: number): void {
     const waiting = [...this.callbacks.values()];
     this.callbacks.clear();
@@ -37,7 +37,7 @@ class FrameMedia extends EventTarget {
 }
 
 describe('useVideoFrames', () => {
-  test('呼び返しを this を保ったまま呼び、コマごとに通知し、外したら止める', () => {
+  test('呼び返しを this を保ったまま呼び、フレームごとに通知し、外したら止める', () => {
     const media = new FrameMedia();
     const onFrame = vi.fn();
 

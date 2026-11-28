@@ -1,19 +1,19 @@
-// シークバー用のプレビュー画像 (preview.jpg) から、1 コマを切り出す。
-// コマの並びは、同じディレクトリの preview.json (tenban の thumbnail.Manifest) に書いてある。
-// 並べ方は、tenban の thumbnail.tile() と揃える (1 行に columns 個。コマが columns 個より少なければ、その数の幅)。
+// シークバー用のプレビュー画像 (preview.jpg) から、1 フレームを切り出す。
+// フレームの並びは、同じディレクトリの preview.json (tenban の thumbnail.Manifest) に書いてある。
+// 並べ方は、tenban の thumbnail.tile() と揃える (1 行に columns 個。フレームが columns 個より少なければ、その数の幅)。
 
 export type PreviewManifest = {
-  // width と height は、1 コマの大きさ。
+  // width と height は、1 フレームの大きさ。
   width: number;
   height: number;
-  // columns は、1 行のコマの数。コマは、左上から右へ、行が埋まったら次の行へ並ぶ。
+  // columns は、1 行のフレームの数。フレームは、左上から右へ、行が埋まったら次の行へ並ぶ。
   columns: number;
-  // times は、各コマの、録画の始まりからの時間 (秒)。
+  // times は、各フレームの、録画の始まりからの時間 (秒)。
   times: number[];
 };
 
 export type PreviewFrame = {
-  // backgroundSize と backgroundPosition は、preview.jpg を背景にして 1 コマだけを見せるための CSS の値。
+  // backgroundSize と backgroundPosition は、preview.jpg を背景にして 1 フレームだけを見せるための CSS の値。
   backgroundSize: string;
   backgroundPosition: string;
 };
@@ -24,7 +24,7 @@ export function manifestUrl(previewUrl: string): string {
   return previewUrl.replace(/preview\.jpg(\?|$)/, 'preview.json$1');
 }
 
-// previewFrame は、index 番目のコマを切り出す CSS の値を返す。そのコマがなければ null。
+// previewFrame は、index 番目のフレームを切り出す CSS の値を返す。そのフレームがなければ null。
 export function previewFrame(manifest: PreviewManifest, index: number): PreviewFrame | null {
   const count = manifest.times.length;
   if (manifest.columns <= 0 || !Number.isInteger(index) || index < 0 || index >= count) {
@@ -32,7 +32,7 @@ export function previewFrame(manifest: PreviewManifest, index: number): PreviewF
   }
   const columns = Math.min(manifest.columns, count);
   const rows = Math.ceil(count / manifest.columns);
-  // 背景を、コマの数の倍に広げる。位置の割合は、端のコマが 0% と 100% になる。
+  // 背景を、フレームの数の倍に広げる。位置の割合は、端のフレームが 0% と 100% になる。
   const percent = (n: number, size: number) => (size <= 1 ? 0 : (n / (size - 1)) * 100);
 
   return {
@@ -41,8 +41,8 @@ export function previewFrame(manifest: PreviewManifest, index: number): PreviewF
   };
 }
 
-// frameBefore は、録画の始まりから seconds 秒以前で、いちばん近いコマの番号を返す。それより前にコマがなければ null。
-// 後のコマは選ばないので、その位置より先の場面を見せない (tenban の thumbnail.Manifest.FrameBefore と同じ)。times は小さい順に並んでいる。
+// frameBefore は、録画の始まりから seconds 秒以前で、いちばん近いフレームの番号を返す。それより前にフレームがなければ null。
+// 後のフレームは選ばないので、その位置より先の場面を見せない (tenban の thumbnail.Manifest.FrameBefore と同じ)。times は小さい順に並んでいる。
 export function frameBefore(times: readonly number[], seconds: number): number | null {
   let found: number | null = null;
   for (const [index, time] of times.entries()) {
@@ -55,7 +55,7 @@ export function frameBefore(times: readonly number[], seconds: number): number |
   return found;
 }
 
-// slideshowFrames は、count 個のコマから、録画全体にわたって等間隔に、多くても limit 個を選んだ番号を返す。
+// slideshowFrames は、count 個のフレームから、録画全体にわたって等間隔に、多くても limit 個を選んだ番号を返す。
 export function slideshowFrames(count: number, limit: number): number[] {
   if (count <= 0 || limit <= 0) {
     return [];
@@ -65,7 +65,7 @@ export function slideshowFrames(count: number, limit: number): number[] {
   return Array.from({ length: n }, (_, i) => Math.floor((i * count) / n));
 }
 
-// FramePosition は、tenban が求めた、プレビュー画像の 1 コマの位置 (GraphQL の PreviewFrame、ピクセル)。
+// FramePosition は、tenban が求めた、プレビュー画像の 1 フレームの位置 (GraphQL の PreviewFrame、ピクセル)。
 export type FramePosition = {
   x: number;
   y: number;
@@ -75,9 +75,9 @@ export type FramePosition = {
   sheetHeight: number;
 };
 
-// framePosition は、tenban が求めたコマの位置を、1 コマだけを見せる CSS の値にする。
+// framePosition は、tenban が求めたフレームの位置を、1 フレームだけを見せる CSS の値にする。
 export function framePosition(frame: FramePosition): PreviewFrame {
-  // 位置の割合は、端のコマが 0% と 100% になる。プレビュー画像がコマ 1 つ分の幅なら 0%。
+  // 位置の割合は、端のフレームが 0% と 100% になる。プレビュー画像がフレーム 1 つ分の幅なら 0%。
   const percent = (at: number, size: number, sheet: number) =>
     sheet <= size ? 0 : (at / (sheet - size)) * 100;
 

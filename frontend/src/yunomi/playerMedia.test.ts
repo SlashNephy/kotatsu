@@ -16,7 +16,7 @@ describe('mediaOf', () => {
   });
 });
 
-describe('コマごとの呼び返しと、コマの数', () => {
+describe('フレームごとの呼び返しと、フレームの数', () => {
   // 部品は、メソッドの有無で requestAnimationFrame などに切り替える。対応していない <video> でも
   // メソッドがあると、切り替えずに呼んで、例外になる。
   test('<video> が持たなければ、持たない', async () => {
@@ -62,7 +62,7 @@ describe('コマごとの呼び返しと、コマの数', () => {
     expect(media.getVideoPlaybackQuality?.()).toBe(quality);
   });
 
-  // フォーク (#2287) でデコードしている間は、<video> がコマを出さないので、<video> の呼び返しは来ない。
+  // フォーク (#2287) でデコードしている間は、<video> がフレームを出さないので、<video> の呼び返しは来ない。
   test('canvas に描いている間は、画面の書き換えごとに、今の位置で呼び返し、frame は返さない', async () => {
     const { mediaOf, setCanvasPictures } = await import('./playerMedia');
     const video = document.createElement('video');

@@ -39,7 +39,7 @@ export type NetworkQualityOptions = {
   // videoLag は、映像だけの遅れの制御。自分で飛び直して起きた詰まりを、回線の詰まりとして数えない。
   videoLag?: Pick<VideoLag, 'excusesStall'>;
   // pictureInPicture は、別のウィンドウに出しているか。出している間は、タブが隠れても見えているとみなす。
-  // 見えていない間は、コマごとのコールバックが止まるので判定しない。
+  // 見えていない間は、フレームごとのコールバックが止まるので判定しない。
   pictureInPicture: boolean;
   onStep: (event: NetworkStepEvent) => void;
   // onShortManual は、手で選んだ画質で回線が足りないとみなしたときに呼ぶ。
@@ -149,7 +149,7 @@ export function useNetworkQuality(
     let waiting = false;
     let lastFrameAt = performance.now();
     started.current = false;
-    // start は、最初のコマが映るか再生が始まったら呼ぶ。上げた段階なら、映り出したことを通知する。
+    // start は、最初のフレームが映るか再生が始まったら呼ぶ。上げた段階なら、映り出したことを通知する。
     const start = (now: number) => {
       lastFrameAt = now;
       if (!started.current) {
@@ -173,7 +173,7 @@ export function useNetworkQuality(
       waiting = false;
       start(performance.now());
     };
-    // 止めていた間や隠れていた間は、コマが来ないのが当たり前なので、動き出したら数え直す。
+    // 止めていた間や隠れていた間は、フレームが来ないのが当たり前なので、動き出したら数え直す。
     const onResume = () => {
       lastFrameAt = performance.now();
     };
@@ -276,8 +276,8 @@ export function useNetworkQuality(
           loadedToEnd: state.ends && loadedToEnd(media),
           waiting: waiting && !excused(),
           lowReadyState: media.readyState < haveFutureData,
-          // 音声だけの段階と、コマごとのコールバックが無い端末では、コマの途絶を計測しない。
-          // コマを canvas に描いている読み込み (#2287) も、<video> のコールバックが呼ばれないので計測しない。
+          // 音声だけの段階と、フレームごとのコールバックが無い端末では、フレームの途絶を計測しない。
+          // フレームを canvas に描いている読み込み (#2287) も、<video> のコールバックが呼ばれないので計測しない。
           frameAgeMs:
             frames && state.current !== audioStep && !media.canvasPictures
               ? now - lastFrameAt

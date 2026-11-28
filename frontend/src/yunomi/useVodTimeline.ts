@@ -67,7 +67,7 @@ export type VodTimeline = {
   onError: () => void;
   // onConvertState は、変換の配信が、終わりに届く前に終わったら、途中で切れたとみなして読み直す。
   onConvertState: (state: PlayerState) => void;
-  // onConvertLoaded と onHlsLoaded は、最初のコマが出たときに呼ぶ。
+  // onConvertLoaded と onHlsLoaded は、最初のフレームが出たときに呼ぶ。
   onConvertLoaded: (handover?: HandoverLoaded) => void;
   onHlsLoaded: () => void;
 };
@@ -211,7 +211,7 @@ export function useVodTimeline({
 
         return;
       }
-      // 最初のコマが出たときの時刻を、位置の基準にする。裏で読み込んで切り替えたら、TsPlayer が渡す時刻にする (#1728)。
+      // 最初のフレームが出たときの時刻を、位置の基準にする。裏で読み込んで切り替えたら、TsPlayer が渡す時刻にする (#1728)。
       stream.onLoaded(handed);
     },
     onHlsLoaded: () => setError(null),

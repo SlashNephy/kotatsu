@@ -35,7 +35,7 @@ for (const block of text.split(/^(?=\/\/!DESC )/m).slice(1)) {
   );
   const save = directives.SAVE?.[0]?.split(' ')[1];
   if (save === undefined || save === 'MAIN') {
-    // Depth-to-Space のステップ (元のコマの MAIN に書き戻すステップ) は、anime4k.ts に書く。
+    // Depth-to-Space のステップ (元のフレームの MAIN に書き戻すステップ) は、anime4k.ts に書く。
     continue;
   }
   const inputs = (directives.BIND ?? []).map((line) => line.split(' ')[1]);
@@ -80,7 +80,7 @@ export const anime4kLicenseText = \`${license.replaceAll(/^\/\/ ?/gm, '')}
 // Anime4KPass は、畳み込みの 1 ステップ。inputs のテクスチャ (同じ名前の sampler) を読み、output の名前で RGBA の 4 つの値を残す。
 export type Anime4KPass = { output: string; inputs: readonly string[]; fragment: string };
 
-// anime4kPasses は、畳み込みのステップを、動かす順に並べたもの。最初のステップの入力 MAIN は、拡大する元のコマ。
+// anime4kPasses は、畳み込みのステップを、動かす順に並べたもの。最初のステップの入力 MAIN は、拡大する元のフレーム。
 export const anime4kPasses: readonly Anime4KPass[] = ${JSON.stringify(passes, null, 2)};
 `;
 const target = fileURLToPath(new URL('../src/yunomi/anime4kShaders.ts', import.meta.url));

@@ -119,7 +119,7 @@ func NewSignals(cues *ts.Cues, scenes []float64, silences [][2]float64) (*Signal
 	return &Signals{Silences: pairsOf(sig.silences), Scenes: sig.scenes, AudioChanges: sig.audioChanges, Duration: sig.duration}, nil
 }
 
-// ParseFrameLog は、parseFrameLog で読んだコマの時刻と、-progress のまとまりの数を返す。
+// ParseFrameLog は、parseFrameLog で読んだフレームの時刻と、-progress のまとまりの数を返す。
 func ParseFrameLog(stderr string) ([]float64, int) {
 	blocks := 0
 	log := parseFrameLog(strings.NewReader(stderr), func(*ffprogress.Block) { blocks++ })
@@ -228,8 +228,8 @@ func SignalOffset(first, origin int64, firstTime float64) float64 {
 	return signalOffset(first, origin, firstTime)
 }
 
-// LogoInCMChains は、境目の候補 (切り替わりのあるもの) とロゴの出ていた区間 (コマの番号) から、logoInCMChains を返す。
-// コマは 1 秒ごとで、時刻の差は 0 とする。
+// LogoInCMChains は、境目の候補 (切り替わりのあるもの) とロゴの出ていた区間 (フレームの番号) から、logoInCMChains を返す。
+// フレームは 1 秒ごとで、時刻の差は 0 とする。
 func LogoInCMChains(bounds []float64, frames int, intervals []logo.Interval) (float64, bool) {
 	m := &Material{Fps: 1, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: make([]float64, frames), Measures: []logo.Measure{}}
 	for i := range m.Times {
@@ -259,8 +259,8 @@ func ProgramEdges(sections [][2]float64, bounds []float64, duration float64, pro
 	return out
 }
 
-// ToPlayback は、最初のコマが firstTime 秒の材料 (時刻の差 offset、今の見分け方の材料を読めたかは withBounds) で、
-// 最初のコマからの区間 (秒の組) を、再生の時間に直して返す。
+// ToPlayback は、最初のフレームが firstTime 秒の材料 (時刻の差 offset、今の見分け方の材料を読めたかは withBounds) で、
+// 最初のフレームからの区間 (秒の組) を、再生の時間に直して返す。
 func ToPlayback(firstTime, offset float64, withBounds bool, sections [][2]float64) [][2]float64 {
 	m := &Material{Fps: 30, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: []float64{firstTime}, Measures: []logo.Measure{}}
 	if withBounds {

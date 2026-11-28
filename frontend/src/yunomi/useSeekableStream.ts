@@ -27,10 +27,10 @@ export type SeekableStream = {
   currentPosition: () => number;
   // positionOf は、video の時刻 t に当たる再生位置。読み込んだ範囲の終わりを位置に直すのに使う。
   positionOf: (t: number) => number;
-  // framePosition は、映ったコマの時刻 t に当たる再生位置。読み直していて、まだ位置を信じられないときは null。
-  // CM を自動で飛ばす判定 (#1512) に、コマごとの位置を渡すのに使う。映ったコマごとに呼ぶ。
+  // framePosition は、映ったフレームの時刻 t に当たる再生位置。読み直していて、まだ位置を信じられないときは null。
+  // CM を自動で飛ばす判定 (#1512) に、フレームごとの位置を渡すのに使う。映ったフレームごとに呼ぶ。
   framePosition: (t: number) => number | null;
-  // settled は、流し始めた位置を引き終えたかどうか。引き終えるまでは、コマの位置を信じない (#1512)。
+  // settled は、流し始めた位置を引き終えたかどうか。引き終えるまでは、フレームの位置を信じない (#1512)。
   settled: boolean;
   // onLoaded は、最初のフレームが出たときに呼ぶ。そのときの video の時刻を、位置の基準にする。
   // 裏で読み込んで切り替えたときは、TsPlayer が渡す時刻を基準にする。
@@ -45,7 +45,7 @@ const positionEpsilon = 0.001;
 // useSeekableStream は、streamUrl に start=秒 を付けて流す配信の、再生位置を追う。
 // 配信は、指定した位置の手前の I フレームから流し、実際に流し始めた位置を X-Kotatsu-Start で返す (HEAD でも返す)。
 // ブラウザの中で変換した映像の時刻は 0 から始まるとは限らず、途切れた区間で飛ぶので、最初のフレームの時刻を基準にし、飛んだ分は数えない。
-// 配信は求めた位置の手前の I フレームから流れるので、求めた位置以上のコマが映るまでは、位置を動かさない (#1512)。
+// 配信は求めた位置の手前の I フレームから流れるので、求めた位置以上のフレームが映るまでは、位置を動かさない (#1512)。
 // enabled が false の間は、HEAD を送らず、位置も動かさない。
 // resolve を渡したら、start=秒 を付けた配信と HEAD の代わりに、resolve が返す URL を読み、返す位置から数える。
 // 端末に保存した録画は、ファイルを切り出して、指定した位置から読ませる (#2166)。
@@ -133,7 +133,7 @@ export function useSeekableStream(
 
     return playbackPosition(handoverFrom.current ?? startedAt, base.current, current);
   };
-  // settleBase は、読み込んだ映像の最初のコマが出たら、その時刻を基準にする。mediaTime は、コマごとの通知の、そのコマの時刻。
+  // settleBase は、読み込んだ映像の最初のフレームが出たら、その時刻を基準にする。mediaTime は、フレームごとの通知の、そのフレームの時刻。
   // timeupdate を待つと、その間に進んだ分だけ基準が後ろへずれ、位置を少なく数える。
   const settleBase = (current: PlayerMedia, mediaTime: number | null) => {
     if (
@@ -146,10 +146,10 @@ export function useSeekableStream(
     lastVideoTime.current = base.current;
     phase.current = 'playing';
   };
-  // reached は、求めた位置以上のコマが映ったと確認した読み込み (streamKey)。
+  // reached は、求めた位置以上のフレームが映ったと確認した読み込み (streamKey)。
   const reached = useRef<string | null>(null);
-  // reachedStart は、今の読み込みで、求めた位置以上のコマが映ったかを返す。まだなら、映っているコマの位置を信じない。
-  // 最初のコマが求めた位置より手前なら、その位置へ currentTime を進め、手前のコマを再生する時間を省く。読み込んである範囲の
+  // reachedStart は、今の読み込みで、求めた位置以上のフレームが映ったかを返す。まだなら、映っているフレームの位置を信じない。
+  // 最初のフレームが求めた位置より手前なら、その位置へ currentTime を進め、手前のフレームを再生する時間を省く。読み込んである範囲の
   // 外へ進めると、変換のプレイヤーが配信を読み直すので、届くのを待ってから進める。
   const reachedStart = (current: PlayerMedia, time: number) => {
     // 裏で読み込んでいる間に映っているのは、前の読み込みの映像で、その位置は確認済み。
@@ -185,7 +185,7 @@ export function useSeekableStream(
     }
     const update = () => {
       settleBase(media, null);
-      // 読み直した先の手前のコマ (I フレームから目標まで) の間は、位置を動かさない (#1512)。
+      // 読み直した先の手前のフレーム (I フレームから目標まで) の間は、位置を動かさない (#1512)。
       if (phase.current !== 'playing' || !reachedStart(media, media.currentTime)) {
         return;
       }

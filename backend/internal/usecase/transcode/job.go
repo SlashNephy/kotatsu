@@ -39,7 +39,7 @@ const (
 	kindOther   = "other"
 	// presetKey は、録画の完了のイベントの、変換の画質のキー。
 	presetKey = "transcodePreset"
-	// frameRateKey は、録画の完了のイベントの、変換で出すコマ数のキー (#1509)。
+	// frameRateKey は、録画の完了のイベントの、変換で出すフレームレートのキー (#1509)。
 	frameRateKey = "transcodeFrameRate"
 	// maxAttempts は、変換のジョブを試す回数の上限。
 	maxAttempts = 3
@@ -67,7 +67,7 @@ type Args struct {
 	RecordingID uuid.UUID `json:"recordingId"`
 	// Preset は、変換の画質 (domain.TranscodePresets のどれか)。
 	Preset string `json:"preset"`
-	// FrameRate は、出すコマ数 (domain.TranscodeFrameRates のどれか、#1509)。空なら既定値 (domain.DefaultTranscodeFrameRate) にする。
+	// FrameRate は、出すフレームレート (domain.TranscodeFrameRates のどれか、#1509)。空なら既定値 (domain.DefaultTranscodeFrameRate) にする。
 	// 足す前のバージョンが入れたジョブと、足す前のバージョンの mikan が出した録画の完了のイベントでは空になる。
 	FrameRate string `json:"frameRate,omitempty"`
 }
@@ -108,7 +108,7 @@ func NewEnqueuer(inserter Inserter) *Enqueuer {
 
 // OnEvent は、録画の完了のイベントのうち、変換の画質を選んだ録画 (TS のセグメントを書いたもの) に、変換のジョブを投入する。
 // 変換するかどうかは、録画を終えるときに、全体の既定値に、ルールと予約の上書きを重ねて求めてある。
-// 画質のないイベント (足す前のバージョンの mikan が出したもの) は、既定に合わせて変換しない。出すコマ数のないイベントは、既定値で出す。
+// 画質のないイベント (足す前のバージョンの mikan が出したもの) は、既定に合わせて変換しない。出すフレームレートのないイベントは、既定値で出す。
 func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.Event) error {
 	if event.Kind != domain.NotificationKindRecordingCompleted {
 		return nil
@@ -167,7 +167,7 @@ type Worker struct {
 	logger   *slog.Logger
 	// progress は、進み具合の割合と残り時間の決め方。
 	progress *ffprogress.Config
-	// cadence は、出すコマ数を自動で選ぶときの、ウィンドウの取り方と閾値 (#1509)。
+	// cadence は、出すフレームレートを自動で選ぶときの、ウィンドウの取り方と閾値 (#1509)。
 	cadence *CadenceParams
 	// newEncoder は、変換に使う Encoder を作る。テストでは差し替える。
 	newEncoder func() (Encoder, error)
@@ -344,10 +344,10 @@ func (w *Worker) enqueueChapters(ctx context.Context, tx pgx.Tx, recordingID uui
 	return insertChapters(ctx, w.inserter, tx, recordingID)
 }
 
-// estimate は、変換の進み具合の分母を求める (#1511)。見込みのコマ数は、最初の I フレームから流した再生の時間に、
-// 出すコマ数 rate (frameRatePlan.outputRate) を掛ける。変換は、最初の I フレームから流すので、それより前の映像 (先頭を破棄した分) は含めない。
-// フィールドごとに 1 コマにするなら 59.94、コマごとに解除するなら、最初のセグメントの映像のフレームレートになる (#1509)。
-// 見込みのコマ数が出せなければ、入力の大きさで割る。
+// estimate は、変換の進み具合の分母を求める (#1511)。見込みのフレーム数は、最初の I フレームから流した再生の時間に、
+// 出すフレームレート rate (frameRatePlan.outputRate) を掛ける。変換は、最初の I フレームから流すので、それより前の映像 (先頭を破棄した分) は含めない。
+// rate は、フィールドごとに 1 フレームにするなら 59.94、フレームごとに解除するなら、最初のセグメントの映像のフレームレートになる (#1509)。
+// 見込みのフレーム数が出せなければ、入力の大きさで割る。
 func estimate(ctx context.Context, recording *stream.Recording, rate float64) ffprogress.Estimate {
 	est := ffprogress.Estimate{Frames: 0, Bytes: 0}
 	if content, err := recording.Content(ctx); err == nil {
@@ -383,7 +383,7 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// encode は、録画を始まりから流し、encoder で out に書く。fields なら、フィールドごとに 1 コマにする。
+// encode は、録画を始まりから流し、encoder で out に書く。fields なら、フィールドごとに 1 フレームにする。
 // FFmpeg の -progress の出力を、newReporter の Reporter で書き戻す。
 func (w *Worker) encode(ctx context.Context, encoder Encoder, recording *stream.Recording, preset *kyusu.Preset, fields bool, out string,
 	newReporter func(read func() int64) *ffprogress.Reporter,

@@ -37,7 +37,7 @@ export async function captureFrame(
   overlays: HTMLCanvasElement[],
   crop: Crop = noCrop,
 ): Promise<Blob> {
-  // コマを canvas に描いている経路では、<video> に絵がないので、canvas のコマを描き直してもらう (#2287)。
+  // フレームを canvas に描いている経路では、<video> に絵がないので、canvas のフレームを描き直してもらう (#2287)。
   const frame = media.canvasPictures ? await media.canvasPictures.capture() : media.frame;
   if (frame === null) {
     throw new Error('the current frame is not available');

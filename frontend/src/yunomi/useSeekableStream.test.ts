@@ -93,10 +93,10 @@ describe('useSeekableStream', () => {
     expect(result.current.position).toBe(132);
   });
 
-  test('映ったコマの位置は、位置の基準を決めてから返し、読み直す間は返さない', async () => {
+  test('映ったフレームの位置は、位置の基準を決めてから返し、読み直す間は返さない', async () => {
     const video = new FakeVideo();
     const { result } = await playFrom(video);
-    // 99 秒から流れ、video の時刻 2 秒を基準にしたので、31.5 秒のコマは 128.5 秒。
+    // 99 秒から流れ、video の時刻 2 秒を基準にしたので、31.5 秒のフレームは 128.5 秒。
     expect(result.current.framePosition(31.5)).toBe(128.5);
 
     act(() => result.current.restartAt(130));
@@ -118,7 +118,7 @@ describe('useSeekableStream', () => {
     const { result, rerender } = await playFrom(video);
     act(() => result.current.restartAt(130, true));
     await act(async () => {});
-    // 映っている映像は 133 秒まで進んだ。新しい読み込みは 129.5 秒から流れ、最初のコマの時刻は 0.4 秒。
+    // 映っている映像は 133 秒まで進んだ。新しい読み込みは 129.5 秒から流れ、最初のフレームの時刻は 0.4 秒。
     act(() => video.playTo(36));
     expect(result.current.handoverTarget(0.4)).toBeCloseTo(0.4 + (133 - 129.5));
 
@@ -144,14 +144,14 @@ describe('useSeekableStream', () => {
     expect(result.current.position).toBe(134);
   });
 
-  test('求めた位置より手前のコマが映っている間は、位置を動かさない', async () => {
+  test('求めた位置より手前のフレームが映っている間は、位置を動かさない', async () => {
     const video = new FakeVideo();
     const { result } = renderHook(() =>
       useSeekableStream('/stream', video as unknown as PlayerMedia, 100),
     );
     await act(async () => {});
     act(() => result.current.onLoaded());
-    // 99 秒から流れ、video の時刻 2 秒が最初のコマ。100 秒に当たるのは、video の時刻 3 秒。
+    // 99 秒から流れ、video の時刻 2 秒が最初のフレーム。100 秒に当たるのは、video の時刻 3 秒。
     act(() => video.at(2));
     act(() => video.at(2.5));
     expect(result.current.position).toBe(100);
@@ -163,7 +163,7 @@ describe('useSeekableStream', () => {
     expect(result.current.position).toBe(101);
   });
 
-  test('求めた位置まで読み込んであれば、手前のコマを飛ばしてその位置へ進める', async () => {
+  test('求めた位置まで読み込んであれば、手前のフレームを飛ばしてその位置へ進める', async () => {
     const video = new FakeVideo();
     video.loadedTo = 10;
     const { result } = renderHook(() =>

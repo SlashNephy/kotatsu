@@ -182,7 +182,7 @@ func (r *Recording) Indexed() bool {
 }
 
 // Duration は、最初の I フレームから流したときの、録画の再生の時間 (途切れた区間を含めない) を返す。
-// 最後の I フレームの後には、その前の I フレームの間隔だけコマが続くものとする。
+// 最後の I フレームの後には、その前の I フレームの間隔だけフレームが続くものとする。
 // インデックスのないセグメントがあれば、そのセグメントの長さが分からないので、false を返す。録画の変換の進み具合の見込みに使う (#1511)。
 func (r *Recording) Duration() (time.Duration, bool) {
 	if slices.ContainsFunc(r.segments, func(seg *segment) bool { return len(seg.index) == 0 }) {

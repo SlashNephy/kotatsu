@@ -5,7 +5,7 @@
 //   /wasm/     .work/out/ (build.sh で組んだ WASM)
 //   /media/    .work/media/ (make-media.sh で作った TS)。Range に応える
 //   /m2h/      mpeg2toh264 の worker (/m2h/worker.js) と WASM (public/mpeg2toh264)
-//   PUT /save/<名前>  mpeg2toh264 の出力を .work/save/ に書く (PSNR とコマ数を計測するため)
+//   PUT /save/<名前>  mpeg2toh264 の出力を .work/save/ に書く (PSNR とフレーム数を計測するため)
 //   POST /results     測定のページが送る結果の 1 行を .work/results.jsonl に足す
 //
 // 使い方: node serve.mjs [ポート] [待ち受けるアドレス]

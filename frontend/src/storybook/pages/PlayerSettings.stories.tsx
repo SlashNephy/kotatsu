@@ -51,7 +51,7 @@ export const NoCommentSources: Story = {
   },
 };
 
-// この端末で、映像の拡大と、コマの補間を入れているとき (強さや補間の速さを選べる)。
+// この端末で、映像の拡大と、フレームの補間を入れているとき (強さや補間の速さを選べる)。
 export const UpscalingAndInterpolation: Story = {
   beforeEach: () =>
     withStorage({

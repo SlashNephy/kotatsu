@@ -67,7 +67,7 @@ void main() {
 }
 `;
 
-// HDRCopy は、拡大せずに、明るい所を伸ばして canvas へコピーする処理。擬似 HDR をやめた直後のコマは、伸ばさずにコピーする。
+// HDRCopy は、拡大せずに、明るい所を伸ばして canvas へコピーする処理。擬似 HDR をやめた直後のフレームは、伸ばさずにコピーする。
 export type HDRCopy = {
   // draw は、width × height の texture を、同じ大きさの canvas (既定の framebuffer) へコピーする。
   // texture は行を下から持つ。flipped なら行を上から持つ (video をコピーしたテクスチャ)。expand なら、明るい所を伸ばす。

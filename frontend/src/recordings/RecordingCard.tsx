@@ -23,9 +23,9 @@ export type RecordingCardData = {
   endAt: string;
   state: string;
   thumbnailUrl?: string | null;
-  // previewUrl は、シークバー用のプレビュー画像。サムネイルにホバーしている間、そのコマを順に見せる。
+  // previewUrl は、シークバー用のプレビュー画像。サムネイルにホバーしている間、そのフレームを順に見せる。
   previewUrl?: string | null;
-  // watchFrame は、前回見た位置に合うプレビュー画像のコマ。あれば、代表画像の代わりに出す。
+  // watchFrame は、前回見た位置に合うプレビュー画像のフレーム。あれば、代表画像の代わりに出す。
   watchFrame?: (FramePosition & { url: string }) | null;
   // recordedFrom、recordedUntil、gaps、watchPositionMs は、どこまで見たかを出すのに使う。録画中は recordedUntil が null。
   recordedFrom: string;
@@ -93,7 +93,7 @@ export function RecordingCard({
   const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const slide = usePreviewSlideshow(recording.previewUrl, hovered);
-  // ホバーしている間はコマを順に見せ、そうでなければ、前回見た位置のコマを見せる。
+  // ホバーしている間はフレームを順に見せ、そうでなければ、前回見た位置のフレームを見せる。
   const watchFrame = recording.watchFrame;
   const overlay =
     slide !== null && recording.previewUrl != null
@@ -142,7 +142,7 @@ export function RecordingCard({
         <AspectRatio ratio={16 / 9}>
           <RecordingThumbnail url={recording.thumbnailUrl} />
         </AspectRatio>
-        {/* プレビュー画像のコマは、代表画像の上に重ねて見せる。 */}
+        {/* プレビュー画像のフレームは、代表画像の上に重ねて見せる。 */}
         {overlay !== null && (
           <Box
             aria-hidden

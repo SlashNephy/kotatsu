@@ -1,9 +1,9 @@
 // ブラウザ内でデコードする経路 (#2276) の、2:3 プルダウンの見分けと組み直し。
-// 24 コマの映像を 2:3 プルダウンで 60 フィールドに載せた放送 (アニメなど) は、フィールドを 3、2、3、2 枚ずつ同じコマに割り当てる。
-// 3 枚のコマの 3 枚目のフィールドは、2 枚前 (1 つ前のコマの、同じ向きのフィールド) と同じ絵なので、フィールドどうしの差がほぼ 0 になる。
-// 10 フィールド (5 コマ) を 1 周とし、繰り返すフィールドが周のどこに来るか (位相、5 通り) を、直近のフィールドの差から決める。
-// 位相が決まれば、どのフィールドがどのコマに属するかが分かるので、同じコマの上と下のフィールドを組み合わせて 24p のコマに戻す。
-// 位相の決め方は、録画の変換で出すコマ数を決める繰り返し度 (設計書 6.1) と同じ考え方で、yadif の実装には依らない。
+// 24 fps の映像を 2:3 プルダウンで 60 フィールドに載せた放送 (アニメなど) は、フィールドを 3、2、3、2 枚ずつ同じフレームに割り当てる。
+// 3 枚のフィールドからなるフレームの 3 枚目のフィールドは、2 枚前 (1 つ前のフレームの、同じ向きのフィールド) と同じ絵なので、フィールドどうしの差がほぼ 0 になる。
+// 10 フィールド (5 フレーム) を 1 周とし、繰り返すフィールドが周のどこに来るか (位相、5 通り) を、直近のフィールドの差から決める。
+// 位相が決まれば、どのフィールドがどのフレームに属するかが分かるので、同じフレームの上と下のフィールドを組み合わせて 24p のフレームに戻す。
+// 位相の決め方は、録画の変換で出すフレーム数を決める繰り返し度 (設計書 6.1) と同じ考え方で、yadif の実装には依らない。
 
 // TelecineParams は、位相を決める閾値。
 export type TelecineParams = {
@@ -19,7 +19,7 @@ export type TelecineParams = {
   unlock: number;
 };
 
-// defaultTelecineParams は、録画から切り出したアニメ (2:3 プルダウン) と音楽番組 (60i) の各 600 コマで見て決めた既定。
+// defaultTelecineParams は、録画から切り出したアニメ (2:3 プルダウン) と音楽番組 (60i) の各 600 フレームで見て決めた既定。
 // 中央値を使うのは、場面の切り替わりで 1 枚だけ差が大きくなったフィールドに、平均が引きずられるからである。
 export const defaultTelecineParams: TelecineParams = {
   window: 40,
@@ -32,13 +32,13 @@ export const defaultTelecineParams: TelecineParams = {
 // cycle は、1 周のフィールドの数。
 const cycle = 10;
 
-// filmIndex は、周の中の位置 q (0〜9) のフィールドが、周の中の何枚目のコマ (0〜3) に属するかを返す。
-// コマは、3、2、3、2 枚のフィールドで並ぶ。
+// filmIndex は、周の中の位置 q (0〜9) のフィールドが、周の中の何枚目のフレーム (0〜3) に属するかを返す。
+// フレームは、3、2、3、2 枚のフィールドで並ぶ。
 function filmIndex(q: number): number {
   return q < 3 ? 0 : q < 5 ? 1 : q < 8 ? 2 : 3;
 }
 
-// repeats は、周の中の位置 q のフィールドが、3 枚のコマの 3 枚目 (2 枚前と同じ絵) か。
+// repeats は、周の中の位置 q のフィールドが、3 枚のフィールドからなるフレームの 3 枚目 (2 枚前と同じ絵) か。
 function repeats(q: number): boolean {
   return q === 2 || q === 7;
 }
@@ -61,7 +61,7 @@ function median(values: number[]): number {
 
 // TelecineDetector は、フィールドの差を受け取り、2:3 プルダウンの位相を決める。
 // 位相は 0〜4。位相 p では、通し番号が p (mod 10) のフィールドが周の始まりになる。
-// (p と p + 5 は、繰り返すフィールドの位置とコマの区切りが同じなので、同じものとして扱う。)
+// (p と p + 5 は、繰り返すフィールドの位置とフレームの区切りが同じなので、同じものとして扱う。)
 export class TelecineDetector {
   // diffs は、直近のフィールドの差。通し番号 first から順に並ぶ。
   private readonly diffs: number[] = [];
@@ -72,7 +72,7 @@ export class TelecineDetector {
   constructor(private readonly params: TelecineParams = defaultTelecineParams) {}
 
   // push は、通し番号 field のフィールドと、2 枚前のフィールドの差 (点ごとの差の絶対値の平均) を足し、決めた位相を返す。
-  // 通し番号が飛んだら (コマが欠けた、B フレームを省いた)、それまでの差を破棄して数え直す。
+  // 通し番号が飛んだら (フレームが欠けた、B フレームを省いた)、それまでの差を破棄して数え直す。
   push(field: number, diff: number): number | null {
     if (this.diffs.length > 0 && field !== this.first + this.diffs.length) {
       this.reset();
@@ -140,23 +140,23 @@ export class TelecineDetector {
   }
 }
 
-// FieldFrame は、組み直しに渡すデコードしたコマ。source は、コマを上げたテクスチャなど、呼ぶ側の持ち物。
+// FieldFrame は、組み直しに渡すデコードしたフレーム。source は、フレームを上げたテクスチャなど、呼ぶ側の持ち物。
 export type FieldFrame<Source> = {
   // index は、デコードした順の通し番号。欠けずに 1 ずつ増える (欠けたら、呼ぶ側が数え直す)。
-  // 通し番号 index のコマのフィールドは、2 × index (先に映すフィールド) と 2 × index + 1。
+  // 通し番号 index のフレームのフィールドは、2 × index (先に映すフィールド) と 2 × index + 1。
   index: number;
   pts: number;
   topFieldFirst: boolean;
   source: Source;
 };
 
-// FilmFrame は、組み直した 24p のコマ。上のフィールドの行は top から、下のフィールドの行は bottom から取る。
+// FilmFrame は、組み直した 24p のフレーム。上のフィールドの行は top から、下のフィールドの行は bottom から取る。
 export type FilmFrame<Source> = { pts: number; top: Source; bottom: Source };
 
-// assembleFilm は、位相 phase で、コマ current が届いたときに出せる 24p のコマを返す。
-// previous は、1 つ前のコマ (current.index − 1)。なければ null。duration は、コマ 1 つの長さ (PTS)。
-// コマの 2 枚目のフィールドが届いたところで、そのコマの最初の 2 枚 (上と下が 1 枚ずつ) を組み合わせて出す。
-// 3 枚のコマの 3 枚目は、1 枚目と同じ絵なので使わない。出す時刻は、周の始まりから、周の長さ (5 コマ) を 4 等分した間隔で置き、
+// assembleFilm は、位相 phase で、フレーム current が届いたときに出せる 24p のフレームを返す。
+// previous は、1 つ前のフレーム (current.index − 1)。なければ null。duration は、フレーム 1 つの長さ (PTS)。
+// フレームの 2 枚目のフィールドが届いたところで、そのフレームの最初の 2 枚 (上と下が 1 枚ずつ) を組み合わせて出す。
+// 3 枚のフィールドからなるフレームの 3 枚目は、1 枚目と同じ絵なので使わない。出す時刻は、周の始まりから、周の長さ (5 フレーム) を 4 等分した間隔で置き、
 // 24p の間隔をそろえる (フィールドの時刻のままだと、3 枚と 2 枚で間隔が交互に変わる)。
 export function assembleFilm<Source>(
   phase: number,
@@ -167,13 +167,13 @@ export function assembleFilm<Source>(
   const fieldDuration = duration / 2;
   const ptsOfField = (field: number) => current.pts + (field - 2 * current.index) * fieldDuration;
   const frameOf = (field: number) => (Math.floor(field / 2) === current.index ? current : previous);
-  // 通し番号が偶数のフィールドは、そのコマで先に映すフィールド。topFieldFirst なら上のフィールド。
+  // 通し番号が偶数のフィールドは、そのフレームで先に映すフィールド。topFieldFirst なら上のフィールド。
   const isTop = (field: number, frame: FieldFrame<Source>) =>
     field % 2 === 0 ? frame.topFieldFirst : !frame.topFieldFirst;
   const films: FilmFrame<Source>[] = [];
   for (const field of [2 * current.index, 2 * current.index + 1]) {
     const q = positionOf(field, phase);
-    // 2 枚目のフィールドは、コマの始まり (周の中の 0、3、5、8) の次。
+    // 2 枚目のフィールドは、フレームの始まり (周の中の 0、3、5、8) の次。
     if (q !== 1 && q !== 4 && q !== 6 && q !== 9) {
       continue;
     }
@@ -196,12 +196,12 @@ export function assembleFilm<Source>(
 }
 
 // sampleStep は、フィールドの差を出すときに間引く間隔 (横の画素と、フィールドの中の行)。
-// 1440×1080 のコマで、フィールドごとに 360×135 点の差を出す。デコードの時間より十分に短い。
+// 1440×1080 のフレームで、フィールドごとに 360×135 点の差を出す。デコードの時間より十分に短い。
 const sampleStep = 4;
 
-// FieldSampler は、デコードしたコマの輝度から、フィールドごとに間引いた点を取り、1 つ前のコマの同じ向きのフィールドとの差を出す。
+// FieldSampler は、デコードしたフレームの輝度から、フィールドごとに間引いた点を取り、1 つ前のフレームの同じ向きのフィールドとの差を出す。
 export class FieldSampler {
-  // current と previous は、今と 1 つ前のコマの、上 (0) と下 (1) のフィールドの点。取るたびに入れ替えて使い回す。
+  // current と previous は、今と 1 つ前のフレームの、上 (0) と下 (1) のフィールドの点。取るたびに入れ替えて使い回す。
   private current: [Uint8Array, Uint8Array] = [new Uint8Array(0), new Uint8Array(0)];
   private previous: [Uint8Array, Uint8Array] = [new Uint8Array(0), new Uint8Array(0)];
   private hasPrevious = false;
@@ -209,7 +209,7 @@ export class FieldSampler {
   private height = 0;
 
   // sample は、輝度の面 (heap の pointer から、1 行 stride バイト) の上と下のフィールドの差を返す。
-  // 差は、点ごとの差の絶対値の平均 (0〜255)。1 つ前のコマがないか、大きさが違えば null を返す。
+  // 差は、点ごとの差の絶対値の平均 (0〜255)。1 つ前のフレームがないか、大きさが違えば null を返す。
   sample(
     heap: Uint8Array,
     pointer: number,
@@ -227,7 +227,7 @@ export class FieldSampler {
       }
       const out = this.current[parity];
       for (let row = 0; row < rows; row += 1) {
-        // フィールドの (row × 間隔) 行目は、コマの (row × 間隔) × 2 + parity 行目。
+        // フィールドの (row × 間隔) 行目は、フレームの (row × 間隔) × 2 + parity 行目。
         const line = pointer + (row * sampleStep * 2 + parity) * stride;
         for (let column = 0; column < columns; column += 1) {
           out[row * columns + column] = heap[line + column * sampleStep]!;
@@ -247,7 +247,7 @@ export class FieldSampler {
     };
   }
 
-  // reset は、1 つ前のコマを忘れる。
+  // reset は、1 つ前のフレームを忘れる。
   reset(): void {
     this.hasPrevious = false;
   }

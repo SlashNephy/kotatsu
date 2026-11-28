@@ -45,7 +45,7 @@ type recordingSettings struct {
 	StartMarginSeconds int     `json:"startMarginSeconds"`
 	EndMarginSeconds   int     `json:"endMarginSeconds"`
 	Priority           int     `json:"priority"`
-	// TranscodeFrameRate は、変換で出すコマ数 (#1509)。
+	// TranscodeFrameRate は、変換で出すフレームレート (#1509)。
 	TranscodeFrameRate string `json:"transcodeFrameRate"`
 }
 

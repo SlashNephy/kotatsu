@@ -9,10 +9,10 @@ export type NetworkParams = {
   ignoreAfterSwitchMs: number;
   // stallMs は、readyState が HAVE_FUTURE_DATA 未満の状態を、詰まりとみなすまでの時間 (詰まりとみなす時間)。
   stallMs: number;
-  // frameGapMs は、次のコマが来ないのを、映像だけ止まったとみなすまでの時間 (コマの途絶とみなす時間)。
+  // frameGapMs は、次のフレームが来ないのを、映像だけ止まったとみなすまでの時間 (フレームの途絶とみなす時間)。
   frameGapMs: number;
-  // frameGapAheadBelow は、コマの途絶を回線の兆候に数える、先に読み込んである量の上限 (秒、コマの途絶を数える先読みの上限)。
-  // 先読みが十分にあるのにコマが途切れるのは、回線ではなく、変換か描画の側で途切れたとみなす (#2033)。
+  // frameGapAheadBelow は、フレームの途絶を回線の兆候に数える、先に読み込んである量の上限 (秒、フレームの途絶を数える先読みの上限)。
+  // 先読みが十分にあるのにフレームが途切れるのは、回線ではなく、変換か描画の側で途切れたとみなす (#2033)。
   frameGapAheadBelow: number;
   // drainBelow、drainDurationMs、drainRate は、バッファの減少を「足りない」とみなす、見るバッファの量 (秒)、減少の継続時間、
   // 減少の速さの閾値 (1 秒あたりの秒)。drainEdgeMs は、減少の継続時間のウィンドウの最初と最後の区間の長さ。区間の最小値どうしを比較する。
@@ -78,7 +78,7 @@ export const defaultNetworkParams: NetworkParams = {
   tickMs: 500,
   // 低遅延モードの目標量 (初期 1 秒、上限 5 秒) を貯め、kyusu の経路で最初のセグメントが映るまでより長くする。
   ignoreAfterSwitchMs: 8_000,
-  // 1 コマ (約 0.033 秒) と、変換の経路の断片の間隔 (約 0.5 秒) より十分長くする。
+  // 1 フレーム (約 0.033 秒) と、変換の経路の断片の間隔 (約 0.5 秒) より十分長くする。
   stallMs: 1_000,
   frameGapMs: 1_500,
   // 変換の経路の断片 (約 0.5 秒) の数個分より多くし、読み込みが追いつかずに途切れたときは数える。
@@ -164,7 +164,7 @@ export type NetworkInput = {
   waiting: boolean;
   // lowReadyState は、readyState が HAVE_FUTURE_DATA 未満か。
   lowReadyState: boolean;
-  // frameAgeMs は、最後にコマが映ってからの時間。計測しないとき (音声だけ、requestVideoFrameCallback が無い) は null。
+  // frameAgeMs は、最後にフレームが映ってからの時間。計測しないとき (音声だけ、requestVideoFrameCallback が無い) は null。
   frameAgeMs: number | null;
   // ahead は、今の位置から先に読み込んである量 (秒)。
   ahead: number;
@@ -233,7 +233,7 @@ export type NetworkController = {
   restart(now: number): void;
   // switched は、段階が変わったことを通知する。自分で決めた切り替えのほか、手で選び直したときも呼ぶ。
   switched(now: number, current: string): void;
-  // shown は、切り替えた段階の最初のコマ (音声だけなら再生の始まり) が出たことを通知する。
+  // shown は、切り替えた段階の最初のフレーム (音声だけなら再生の始まり) が出たことを通知する。
   shown(now: number): void;
   // probed は、プローブのデータを取った結果を通知する。
   probed(now: number, outcome: ProbeOutcome): void;

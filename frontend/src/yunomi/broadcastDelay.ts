@@ -1,6 +1,6 @@
-// 映しているコマが、放送からどれだけ遅れているかを出す (#1515、設計書 7.5)。
-// tenban が、PCR と、それを含む TS を受け取った時刻の組を配信する。映しているコマの放送の時刻は、
-// 組の受け取った時刻 + (コマの PTS − 組の PCR) で出せる。端末の時計は当てにせず、配信されたサーバーの時計との差で直す。
+// 映しているフレームが、放送からどれだけ遅れているかを出す (#1515、設計書 7.5)。
+// tenban が、PCR と、それを含む TS を受け取った時刻の組を配信する。映しているフレームの放送の時刻は、
+// 組の受け取った時刻 + (フレームの PTS − 組の PCR) で出せる。端末の時計は当てにせず、配信されたサーバーの時計との差で直す。
 
 // ptsWrapSeconds は、PTS と PCR の基準部 (33 ビット、90 kHz) が一周する長さ (秒)。
 const ptsWrapSeconds = 2 ** 33 / 90_000;
@@ -16,7 +16,7 @@ export type BroadcastClockSample = {
   arrivedAt: number;
 };
 
-// broadcastDelaySeconds は、画面の時刻 mediaTime (秒) のコマが、放送から何秒遅れているかを返す。
+// broadcastDelaySeconds は、画面の時刻 mediaTime (秒) のフレームが、放送から何秒遅れているかを返す。
 // mediaOrigin は、画面の時刻 0 に当たる放送の時刻 (90 kHz の単位)。now は、端末の今の時刻 (ミリ秒)。
 export function broadcastDelaySeconds(
   mediaTime: number,

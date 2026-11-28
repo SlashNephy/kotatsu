@@ -1,11 +1,11 @@
-// Anime4K の CNN (x2、M) で、コマを縦横 2 倍に拡大する (#1653、設計書 7.2)。
+// Anime4K の CNN (x2、M) で、フレームを縦横 2 倍に拡大する (#1653、設計書 7.2)。
 // 畳み込みのステップは、Anime4K の mpv 向けのシェーダー (MIT) を scripts/convert-anime4k.mjs で WebGL2 に直したもの (anime4kShaders.ts)。
-// 最後の Depth-to-Space のステップ (畳み込みの結果を 2×2 の画素に並べ、元のコマを線形に拡大したものに足す) は、ここに書く。
+// 最後の Depth-to-Space のステップ (畳み込みの結果を 2×2 の画素に並べ、元のフレームを線形に拡大したものに足す) は、ここに書く。
 // 畳み込みの途中の値は負にもなるので、RGBA16F のテクスチャに置く。描けない (EXT_color_buffer_float がない) 端末では作れない。
 import { anime4kPasses } from './anime4kShaders';
 import { compileProgram, restoreState, saveState } from './glPass';
 
-// depthToSpaceShader は、畳み込みの最後のステップの 4 つの値を、2×2 の画素に 1 つずつ割り当て、元のコマを線形に拡大した色に足す。
+// depthToSpaceShader は、畳み込みの最後のステップの 4 つの値を、2×2 の画素に 1 つずつ割り当て、元のフレームを線形に拡大した色に足す。
 // 元のシェーダーと同じく、同じ値を RGB のどれにも足す (明るさの差分)。並べる順は、画像の左上、右上、左下、右下。
 const depthToSpaceShader = `#version 300 es
 precision highp float;
@@ -26,7 +26,7 @@ void main() {
 }
 `;
 
-// Anime4K は、yadif のコンテキストで、コマを 2 倍に拡大する処理。
+// Anime4K は、yadif のコンテキストで、フレームを 2 倍に拡大する処理。
 export type Anime4K = {
   // upscale は、width × height の texture を、縦横 2 倍に拡大したテクスチャを返す。
   // flipped なら texture は行を上から持ち、そうでなければ下から持つ。返すテクスチャも、同じ向きで行を持つ。
@@ -60,7 +60,7 @@ export function createAnime4K(gl: WebGL2RenderingContext): Anime4K {
     outputSize: gl.getUniformLocation(last, 'uOutputSize'),
   };
   const vertexArray = gl.createVertexArray();
-  // 渡されるコマは、最近傍で読む設定のこともある (yadif の出力)。拡大のもとは線形に読みたいので、線形の sampler を当てる。
+  // 渡されるフレームは、最近傍で読む設定のこともある (yadif の出力)。拡大のもとは線形に読みたいので、線形の sampler を当てる。
   const linear = gl.createSampler();
   gl.samplerParameteri(linear, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.samplerParameteri(linear, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -68,7 +68,7 @@ export function createAnime4K(gl: WebGL2RenderingContext): Anime4K {
   gl.samplerParameteri(linear, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   const units = Math.max(...passes.map((pass) => pass.inputs.length), 2);
 
-  // sized は、今の資源を作った、元のコマの大きさ。
+  // sized は、今の資源を作った、元のフレームの大きさ。
   let sized: { width: number; height: number } | null = null;
   let middles = new Map<string, Target>();
   let output: Target | null = null;

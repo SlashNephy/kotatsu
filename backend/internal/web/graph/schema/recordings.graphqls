@@ -77,8 +77,8 @@ type RecordingFile {
   """
   tuner: RecordingFileTuner
   """
-  Kotatsu が録画を変換した MP4 の、1 秒あたりのコマ数 (#1509)。30 か 60 (プログレッシブの映像は元のコマ数)。
-  セグメントと、取り込んだファイルと、コマ数を記録する前に変換した MP4 では null。
+  Kotatsu が録画を変換した MP4 のフレームレート (#1509)。30 か 60 (プログレッシブの映像は元のフレームレート)。
+  セグメントと、取り込んだファイルと、フレームレートを記録する前に変換した MP4 では null。
   """
   transcodeFrameRate: Int
 }
@@ -294,12 +294,12 @@ type Recording implements Node {
   thumbnailUrl: String
   """
   シークバー用のプレビュー画像の URL のパス。画像をまだ作っていなければ null。
-  コマの並びは、同じディレクトリの preview.json に書く (末尾の preview.jpg を preview.json に変えた URL で取れる)。
+  フレームの並びは、同じディレクトリの preview.json に書く (末尾の preview.jpg を preview.json に変えた URL で取れる)。
   """
   previewUrl: String
   """
-  ログイン中のユーザーが前回見た位置に合う、プレビュー画像のコマ。再生位置より前で、いちばん近いコマを選ぶ (先の場面を見せない)。
-  再生していないか、見終えている (終わりの 10 秒前より後まで見た) か、再生位置より前にコマがないか、プレビュー画像がなければ null。
+  ログイン中のユーザーが前回見た位置に合う、プレビュー画像のフレーム。再生位置より前で、いちばん近いフレームを選ぶ (先の場面を見せない)。
+  再生していないか、見終えている (終わりの 10 秒前より後まで見た) か、再生位置より前にフレームがないか、プレビュー画像がなければ null。
   """
   watchFrame: PreviewFrame
   """
@@ -510,7 +510,7 @@ extend type Mutation {
 }
 
 """
-プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
+プレビュー画像 (preview.jpg) から切り出す 1 フレーム。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
 """
 type PreviewFrame {
   "プレビュー画像の URL のパス。"

@@ -29,11 +29,11 @@ export type ToDecodeWorker =
   // pts が null なら、まだ鳴らし始めていないので、貯めた音をすべて破棄した。渡し始めた位置から渡し直してほしい。
   // cut は、audioCut の番号。続けて選び直したときに、前の切り替えの返事と見分ける。
   | { type: 'audioFrom'; load: number; cut: number; pts: number | null }
-  // display は、コマを映す大きさと、映像の拡大 (#1654、#2276)、擬似 HDR (#1656)、コマの補間 (#1655) の設定。大きさか設定が変わるたびに送る。
+  // display は、フレームを映す大きさと、映像の拡大 (#1654、#2276)、擬似 HDR (#1656)、フレームの補間 (#1655) の設定。大きさか設定が変わるたびに送る。
   // worker は、画面の大きさも端末ごとの設定も読めないので、メインスレッドが計測して渡す。
   | ({ type: 'display' } & DecodeDisplay);
 
-// DecodeDisplay は、コマを映す大きさと、映像の拡大、擬似 HDR、コマの補間の設定。
+// DecodeDisplay は、フレームを映す大きさと、映像の拡大、擬似 HDR、フレームの補間の設定。
 export type DecodeDisplay = {
   // box は、絵を枠に収めた (object-fit: contain) 矩形の、端末の画素での大きさ。計測できていなければ null。
   box: { width: number; height: number } | null;
@@ -44,7 +44,7 @@ export type DecodeDisplay = {
   method: SuperResolutionMethod;
   // hdr は、擬似 HDR (#1656) で描くか。端末ごとの設定で入れていて、ブラウザが対応し、画面が HDR を出せるときだけ true。
   hdr: boolean;
-  // interpolate は、コマの間を補間するか (#1655)。maxRate は、補間したコマを出す回数の上限 (1 秒あたり)。null なら上限なし。
+  // interpolate は、フレームの間を補間するか (#1655)。maxRate は、補間したフレームを出す回数の上限 (1 秒あたり)。null なら上限なし。
   interpolate: boolean;
   maxRate: number | null;
 };
@@ -54,9 +54,9 @@ export type DecodeAudioStream = { pid: number; componentTag: number | null; dual
 
 // DecodeStats は、worker が 1 秒ごとに通知する様子。
 export type DecodeStats = {
-  // decodeMs は、直近の 1 コマのデコードの時間の分位 (中央値と 95 パーセンタイル)。
+  // decodeMs は、直近の 1 フレームのデコードの時間の分位 (中央値と 95 パーセンタイル)。
   decodeMs: { median: number; p95: number } | null;
-  // presented は、映したフィールドの数の累計、dropped は、映さずに破棄したコマの数の累計。
+  // presented は、映したフィールドの数の累計、dropped は、映さずに破棄したフレームの数の累計。
   presented: number;
   dropped: number;
   // bytesRead は、読んだ TS のバイト数の累計。
@@ -81,7 +81,7 @@ export type FromDecodeWorker =
   // audioCut は、鳴らす音声を選び直したので、少し先から後に予約した音を破棄させる (#2165)。
   // どこから破棄したかは、メインスレッドが audioFrom で返す。予約を持つメインスレッドでないと、間に合う位置を決められない。
   | { type: 'audioCut'; load: number; cut: number }
-  // origin は、最初に映すコマの PTS。画面の時刻 0 に当たる (currentTime = (時計 − origin) / 90000)。
+  // origin は、最初に映すフレームの PTS。画面の時刻 0 に当たる (currentTime = (時計 − origin) / 90000)。
   | { type: 'origin'; load: number; pts: number }
   // picture は、映す大きさ (画素の縦横比を掛けた後) と走査の方式が変わった。
   | { type: 'picture'; load: number; width: number; height: number; interlaced: boolean }
@@ -102,7 +102,7 @@ export type FromDecodeWorker =
       pts: number;
       data: ArrayBuffer;
     }
-  // presented は、最初のコマを描いた (読み込み中の表示を外せる)。
+  // presented は、最初のフレームを描いた (読み込み中の表示を外せる)。
   | { type: 'presented'; load: number }
   // ended は、TS を読み終えた (ライブでは、配信が切れた)。
   | { type: 'ended'; load: number }

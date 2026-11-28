@@ -84,7 +84,7 @@ type RecordingFile struct {
 	// TunerIndex と TunerName は、セグメントを書いたストリームを受信していたチューナー (#1467)。見つけられなければ nil。
 	TunerIndex *int64
 	TunerName  *string
-	// TranscodeFrameRate は、Kotatsu が録画を変換した MP4 の、1 秒あたりのコマ数 (#1509)。ほかのファイルと、記録する前に変換した MP4 では nil。
+	// TranscodeFrameRate は、Kotatsu が録画を変換した MP4 のフレームレート (#1509)。ほかのファイルと、記録する前に変換した MP4 では nil。
 	TranscodeFrameRate *int32
 	// External は、Kotatsu が書いていない、プールにあった TS を取り込んだファイルかどうか (#1734)。録画を消しても残す。
 	External  bool

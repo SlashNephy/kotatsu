@@ -330,7 +330,7 @@ function Player({
       at = clampSeek(span.to, file.index);
     }
 
-    // 終わりの直前から読むと、映像のコマが届かずに失敗するので、映像が入るだけ手前から始める (#1576)。
+    // 終わりの直前から読むと、映像のフレームが届かずに失敗するので、映像が入るだけ手前から始める (#1576)。
     return {
       at: file.index.complete ? playableStart(at, duration) : at,
       skipped: span !== null,

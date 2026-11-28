@@ -21,7 +21,7 @@ var errNoVideoStream = errors.New("the MP4 has no video stream")
 
 // MP4Info は、変換した MP4 から読んだ時刻。
 type MP4Info struct {
-	// VideoStart は、最初の映像のコマの時刻。変換は、録画を最初の I フレームから流すので、このコマが最初の I フレームに当たる。
+	// VideoStart は、最初の映像のフレームの時刻。変換は、録画を最初の I フレームから流すので、このフレームが最初の I フレームに当たる。
 	// FFmpeg は、TS の最初のパケット (映像より先に届く音声など) を MP4 の 0 にするので、映像は少し後から始まる (edit list で表す)。
 	VideoStart time.Duration
 	// Duration は、MP4 の長さ。

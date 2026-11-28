@@ -734,13 +734,13 @@ func TestDeleteRecordings(t *testing.T) {
 	assert.Equal(t, 2, audited, "each deletion is audited")
 }
 
-// TestRecordingWatchFrame は、前回見た位置に合うプレビュー画像のコマを返すことを確認する。
+// TestRecordingWatchFrame は、前回見た位置に合うプレビュー画像のフレームを返すことを確認する。
 func TestRecordingWatchFrame(t *testing.T) {
 	t.Parallel()
 
 	f, dir := newRecordingFixture(t)
 	recordingID := f.addRecording(t, dir, episode1, "completed", time.Hour)
-	// 録画は 30 分。プレビュー画像は、0 秒、60 秒、120 秒の 3 コマ (1 行に収まる)。
+	// 録画は 30 分。プレビュー画像は、0 秒、60 秒、120 秒の 3 フレーム (1 行に収まる)。
 	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET recorded_until = recorded_from + interval '30 minutes' WHERE name = $1`, episode1)
 	require.NoError(t, err)
 	generatedAt := testNow().Add(-30 * time.Minute)
@@ -782,10 +782,10 @@ func TestRecordingWatchFrame(t *testing.T) {
 		require.Empty(t, f.query(t, saveWatchPosition, map[string]any{varID: recordingID, varPositionMs: positionMs}, &saved))
 	}
 
-	// 再生していなければ、コマを返さない。
+	// 再生していなければ、フレームを返さない。
 	assert.Nil(t, watchFrame(t))
 
-	// 再生位置より前で、いちばん近いコマを返す。
+	// 再生位置より前で、いちばん近いフレームを返す。
 	save(t, 119_000)
 	got := watchFrame(t)
 	require.NotNil(t, got)
@@ -1105,7 +1105,7 @@ func TestRecordingFileTuner(t *testing.T) {
 	}
 }
 
-// TestRecordingFileTranscodeFrameRate は、Kotatsu が変換した MP4 の記録に残したコマ数を返し、セグメントでは null を返すことを
+// TestRecordingFileTranscodeFrameRate は、Kotatsu が変換した MP4 の記録に残したフレームレートを返し、セグメントでは null を返すことを
 // 確認する (#1509)。
 func TestRecordingFileTranscodeFrameRate(t *testing.T) {
 	t.Parallel()

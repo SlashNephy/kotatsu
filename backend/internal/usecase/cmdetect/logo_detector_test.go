@@ -19,12 +19,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
 
-// TestComplementSections は、ロゴの出ていた区間の外を、コマの時刻で CM の区間にすることを確認する。
+// TestComplementSections は、ロゴの出ていた区間の外を、フレームの時刻で CM の区間にすることを確認する。
 func TestComplementSections(t *testing.T) {
 	t.Parallel()
 
 	const fps = 30.0
-	// times は、n コマ分の、100 秒から始まる時刻。from コマ目から先は、gap 秒だけ飛ぶ。
+	// times は、n フレーム分の、100 秒から始まる時刻。from フレーム目から先は、gap 秒だけ飛ぶ。
 	times := func(n, from int, gap float64) []float64 {
 		out := make([]float64, n)
 		for i := range out {
@@ -47,7 +47,7 @@ func TestComplementSections(t *testing.T) {
 			want: []cmdetect.Section{{Start: 0, End: 10 * time.Second}, {Start: 30 * time.Second, End: time.Minute}, {Start: 90 * time.Second, End: 100 * time.Second}},
 		},
 		{
-			// 1200 コマ目から先は時刻が 5 秒飛ぶので、その後の区間は 5 秒後ろになる。コマの番号で数えると、ずれる。
+			// 1200 フレーム目から先は時刻が 5 秒飛ぶので、その後の区間は 5 秒後ろになる。フレームの番号で数えると、ずれる。
 			name: "時刻が飛んだ後の区間は、飛んだ分だけ後ろにする", intervals: []logo.Interval{{Start: 0, End: 1800}}, times: times(2100, 1200, 5),
 			want: []cmdetect.Section{{Start: 65 * time.Second, End: 75 * time.Second}},
 		},
@@ -165,7 +165,7 @@ func TestLogoDetector(t *testing.T) {
 }
 
 // TestParseFrameLog は、showinfo のログの先頭と本文の間に -progress のまとまりが入り、時刻の入った本文が
-// progress=continue の行の後ろにつながっても、コマの時刻を落とさないことを確認する (#1800)。
+// progress=continue の行の後ろにつながっても、フレームの時刻を落とさないことを確認する (#1800)。
 func TestParseFrameLog(t *testing.T) {
 	t.Parallel()
 
@@ -185,8 +185,8 @@ func TestParseFrameLog(t *testing.T) {
 	assert.Equal(t, 2, blocks)
 }
 
-// TestParseFrameLogHugeFrameNumber は、ログに紛れた大きなコマの番号で、長く回らずに読み終えることを確認する。
-// 番号が抜けた分は、コマと時刻の数が合わなくなるので、呼ぶ側がロゴを使わずに見分け直す。
+// TestParseFrameLogHugeFrameNumber は、ログに紛れた大きなフレームの番号で、長く回らずに読み終えることを確認する。
+// 番号が抜けた分は、フレームと時刻の数が合わなくなるので、呼ぶ側がロゴを使わずに見分け直す。
 func TestParseFrameLogHugeFrameNumber(t *testing.T) {
 	t.Parallel()
 
@@ -197,8 +197,8 @@ func TestParseFrameLogHugeFrameNumber(t *testing.T) {
 
 // writeLogoTS は、局ロゴを、出ている所、hideFrom 秒から hideTo 秒まで消えた所 (CM)、また出た所の順に描いた、40 秒の合成の TS を書く。
 //
-// 背景は、3 秒の周期で明るさが変わる灰色に、コマごとに変わる雑音を足したもの。縁の向きはコマごとに変わり、明るさの段階には、
-// ロゴの出ているコマと消えたコマが混ざる。右上に、白い文字のような形のロゴを描く。
+// 背景は、3 秒の周期で明るさが変わる灰色に、フレームごとに変わる雑音を足したもの。縁の向きはフレームごとに変わり、明るさの段階には、
+// ロゴの出ているフレームと消えたフレームが混ざる。右上に、白い文字のような形のロゴを描く。
 func writeLogoTS(t *testing.T, hideFrom, hideTo int) string {
 	t.Helper()
 
@@ -220,7 +220,7 @@ func writeZoomedLogoTS(t *testing.T, hideFrom, hideTo, zoom int) string {
 			fmt.Sprintf("drawbox=x=%d:y=20:w=4:h=24:color=white:t=fill:%s", x, shown),
 			fmt.Sprintf("drawbox=x=%d:y=30:w=14:h=4:color=white:t=fill:%s", x, shown))
 	}
-	// 拡大した映像には B フレーム (参照されないコマ) を入れ、縮める映像でデコードしないコマがある並びにする。
+	// 拡大した映像には、参照されない B フレームを入れ、縮める映像でデコードしないフレームがある並びにする。
 	bFrames := "0"
 	if zoom > 1 {
 		filters = append(filters, fmt.Sprintf("scale=iw*%d:ih*%d:flags=neighbor", zoom, zoom))
@@ -451,7 +451,7 @@ func TestLogoDetectorOutsideWindowWithoutLogo(t *testing.T) {
 		t.Skip("FFmpeg is not installed")
 	}
 	require.NoError(t, err)
-	// 1 コマ 1 秒で、ロゴが一度も見えない 40 秒のセグメント。
+	// 1 フレーム 1 秒で、ロゴが一度も見えない 40 秒のセグメント。
 	m := &cmdetect.Material{Fps: 1, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: make([]float64, 40), Measures: make([]logo.Measure, 40)}
 	for i := range m.Times {
 		m.Times[i] = float64(i)
@@ -537,7 +537,7 @@ func TestTrimMissing(t *testing.T) {
 	}
 }
 
-// TestEdgeMissing は、ファイルの始まりから最初のコマまでと、最後のコマからファイルの終わりまでの欠けを、1 秒以上のときだけ数えることを確認する (#1508)。
+// TestEdgeMissing は、ファイルの始まりから最初のフレームまでと、最後のフレームからファイルの終わりまでの欠けを、1 秒以上のときだけ数えることを確認する (#1508)。
 func TestEdgeMissing(t *testing.T) {
 	t.Parallel()
 
@@ -558,18 +558,18 @@ func TestEdgeMissing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// 1 コマは 1 秒とする。
+			// 1 フレームは 1 秒とする。
 			assert.Equal(t, tt.want, cmdetect.EdgeMissing(tt.times, 1, tt.duration))
 		})
 	}
 }
 
-// TestLogoDetail は、ロゴの結果を破棄した理由の詳細に、型の在り処と大きさ、ロゴが出ていたコマの割合、点数の分布、
+// TestLogoDetail は、ロゴの結果を破棄した理由の詳細に、型の在り処と大きさ、ロゴが出ていたフレームの割合、点数の分布、
 // ロゴで CM とした区間とその中の点数の中央値を書くことを確認する (#1508)。
 func TestLogoDetail(t *testing.T) {
 	t.Parallel()
 
-	// 10 コマのうち、2〜5 コマ目だけロゴが出ていた。CM は 0〜2 コマ目と 5〜10 コマ目。
+	// 10 フレームのうち、2〜5 フレーム目だけロゴが出ていた。CM は 0〜2 フレーム目と 5〜10 フレーム目。
 	scores := []float64{0.1, 0.0, 0.5, 0.6, 0.3, 0.25, 0.0, 0.1, 0.05, 0.0}
 	measures := make([]logo.Measure, 0, len(scores))
 	for _, score := range scores {
@@ -583,11 +583,11 @@ func TestLogoDetail(t *testing.T) {
 }
 
 // TestLogoDetailLimitsSections は、理由の詳細に書く CM の区間を 10 個までにし、残りを「...」にすることと、
-// コマがなければその旨を書くことを確認する (#1508)。
+// フレームがなければその旨を書くことを確認する (#1508)。
 func TestLogoDetailLimitsSections(t *testing.T) {
 	t.Parallel()
 
-	// 1 コマおきにロゴが出ているので、CM は 0, 2, 4, ... 番目の 1 コマずつで、12 個ある。
+	// 1 フレームおきにロゴが出ているので、CM は 0, 2, 4, ... 番目の 1 フレームずつで、12 個ある。
 	const frames = 24
 	measures := make([]logo.Measure, 0, frames)
 	times := make([]float64, 0, frames)
@@ -607,7 +607,7 @@ func TestLogoDetailLimitsSections(t *testing.T) {
 		cmdetect.LogoDetail(logo.TopRight, logo.Box{X: 0, Y: 0, W: 1, H: 1}, []logo.Measure{}, []logo.Interval{}, []float64{}, 1))
 }
 
-// TestMissingSections は、コマの時刻が 1 秒以上空いた所を、映像の欠けとして返すことを確認する (#1508)。
+// TestMissingSections は、フレームの時刻が 1 秒以上空いた所を、映像の欠けとして返すことを確認する (#1508)。
 func TestMissingSections(t *testing.T) {
 	t.Parallel()
 
@@ -649,12 +649,12 @@ func TestLogoScale(t *testing.T) {
 	}
 }
 
-// TestMeasuredRate は、参照されないコマを破棄して間の空いたコマの時刻から、計測したコマの速さを、映像の欠けを除いて求めることを確認する (#1505)。
+// TestMeasuredRate は、参照されないフレームを破棄して間の空いたフレームの時刻から、計測したフレームレートを、映像の欠けを除いて求めることを確認する (#1505)。
 func TestMeasuredRate(t *testing.T) {
 	t.Parallel()
 
 	const fps = 60000.0 / 1001
-	// 59.94p のコマを、間を 1 コマと 3 コマで交互に空けて残す (BS4K の HEVC で、参照されないコマを破棄したときの並び)。
+	// 59.94p のフレームを、間を 1 フレームと 3 フレームで交互に空けて残す (BS4K の HEVC で、参照されないフレームを破棄したときの並び)。
 	halved := make([]float64, 0, 300)
 	for i := 0; i < 600; i += 2 {
 		halved = append(halved, float64(i+i%4/2)/fps)
@@ -672,9 +672,9 @@ func TestMeasuredRate(t *testing.T) {
 		times []float64
 		want  float64
 	}{
-		{name: "参照されないコマを捨てれば半分の速さになる", times: halved, want: fps / 2},
+		{name: "参照されないフレームを破棄すれば半分の速さになる", times: halved, want: fps / 2},
 		{name: "映像の欠けは数えない", times: withGap, want: fps / 2},
-		{name: "コマが 1 つなら映像の速さにする", times: []float64{1.5}, want: fps},
+		{name: "フレームが 1 つなら映像の速さにする", times: []float64{1.5}, want: fps},
 		{name: "時刻が進まなければ映像の速さにする", times: []float64{1, 1, 1}, want: fps},
 	}
 	for _, tt := range tests {
@@ -716,7 +716,7 @@ func TestLogoDetectorHeadAfterEarlyWindow(t *testing.T) {
 				t.Skip("FFmpeg is not installed")
 			}
 			require.NoError(t, err)
-			// 1 コマ 1 秒で、300 秒の録画。前の番組の終わりのロゴが 70〜90 秒に、番組のロゴが 120〜290 秒に出る。番組は 120 秒に始まる。
+			// 1 フレーム 1 秒で、300 秒の録画。前の番組の終わりのロゴが 70〜90 秒に、番組のロゴが 120〜290 秒に出る。番組は 120 秒に始まる。
 			m := &cmdetect.Material{Fps: 1, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: make([]float64, 300), Measures: make([]logo.Measure, 300)}
 			for i := range m.Times {
 				m.Times[i] = float64(i)

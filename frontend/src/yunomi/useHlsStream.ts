@@ -17,12 +17,12 @@ export type HlsStream = {
   seekTo: (seconds: number) => void;
   // currentPosition は、video の時刻から求め直した今の再生位置。
   currentPosition: () => number;
-  // framePosition は、映ったコマの時刻 t に当たる再生位置。再生を始めるまでと、読み始める位置の近くのコマが映るまでは、
+  // framePosition は、映ったフレームの時刻 t に当たる再生位置。再生を始めるまでと、読み始める位置の近くのフレームが映るまでは、
   // 位置を信じられないので null。hls.js を作り直したばかりのときは、まだ読み始める位置へ移っておらず、頭の位置を返すことがある。
   framePosition: (t: number) => number | null;
 };
 
-// restoreTolerance は、読み始める位置へ移ったとみなす、映ったコマの時刻と読み始める位置の差 (秒)。
+// restoreTolerance は、読み始める位置へ移ったとみなす、映ったフレームの時刻と読み始める位置の差 (秒)。
 // hls.js は、セグメントの先頭から流すので、セグメントの長さ (約 2 秒) より広く取る。
 const restoreTolerance = 5;
 
@@ -33,7 +33,7 @@ export function useHlsStream(media: PlayerMedia | null, enabled: boolean, initia
   const [position, setPosition] = useState(initial);
   const positionRef = useRef(initial);
   const playing = useRef(false);
-  // reached は、今の読み込みで、読み始める位置の近くのコマが映ったか。自分で移ったときは、移った先で位置を信じる。
+  // reached は、今の読み込みで、読み始める位置の近くのフレームが映ったか。自分で移ったときは、移った先で位置を信じる。
   const reached = useRef(false);
   useEffect(() => {
     if (media === null || !enabled) {

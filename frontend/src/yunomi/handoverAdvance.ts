@@ -25,7 +25,7 @@ const handoverAdvanceMs = 5_000;
 // handoverPollMs は、進める先が読み込んだ範囲に入ったかを見直す間隔。
 const handoverPollMs = 200;
 
-// handoverSeekMs は、進めた後、映像がその位置のコマを出すのを待つ時間の上限。
+// handoverSeekMs は、進めた後、映像がその位置のフレームを出すのを待つ時間の上限。
 const handoverSeekMs = 1_000;
 
 // advanceBeforeHandover は、裏で読み込んだ映像を、切り替える前に、今の映像が進んだ分だけ進める (#1728)。

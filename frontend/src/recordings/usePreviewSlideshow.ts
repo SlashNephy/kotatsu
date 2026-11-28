@@ -9,9 +9,9 @@ import {
   type PreviewManifest,
 } from './previewFrame';
 
-// slideCount は、スライドショーで見せるコマの数。録画全体から等間隔に選ぶ。
+// slideCount は、スライドショーで見せるフレームの数。録画全体から等間隔に選ぶ。
 const slideCount = 16;
-// slideInterval は、コマを切り替える間隔 (ミリ秒)。
+// slideInterval は、フレームを切り替える間隔 (ミリ秒)。
 const slideInterval = 1200;
 
 // manifests は、読んだ preview.json。同じ録画に何度ホバーしても、再取得しない。プレビュー画像がなければ null。
@@ -45,7 +45,7 @@ export function loadManifest(previewUrl: string): Promise<PreviewManifest | null
   return manifest;
 }
 
-// usePreviewSlideshow は、active の間、プレビュー画像のコマを順に切り替える。いま見せるコマを返す。
+// usePreviewSlideshow は、active の間、プレビュー画像のフレームを順に切り替える。いま見せるフレームを返す。
 // preview.json は、初めて active になったときに読む。プレビュー画像がないか、動きを減らす設定なら、null を返し続ける。
 export function usePreviewSlideshow(
   previewUrl: string | null | undefined,
@@ -66,7 +66,7 @@ export function usePreviewSlideshow(
         return;
       }
       const frames = slideshowFrames(manifest.times.length, slideCount);
-      // コマがなければ何も出さず、1 コマだけなら切り替えない。
+      // フレームがなければ何も出さず、1 フレームだけなら切り替えない。
       if (frames.length <= 1) {
         setFrame(frames[0] === undefined ? null : previewFrame(manifest, frames[0]));
         return;

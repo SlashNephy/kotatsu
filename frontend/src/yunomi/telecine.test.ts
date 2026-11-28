@@ -102,7 +102,7 @@ describe('assembleFilm', () => {
     source: `f${index}`,
   });
 
-  test('5 コマから、上と下のフィールドを組み合わせた 4 コマを、等しい間隔で出す', () => {
+  test('5 フレームから、上と下のフィールドを組み合わせた 4 フレームを、等しい間隔で出す', () => {
     const films = [0, 1, 2, 3, 4].flatMap((index) =>
       assembleFilm(0, frame(index), index === 0 ? null : frame(index - 1), duration),
     );
@@ -115,7 +115,7 @@ describe('assembleFilm', () => {
     ]);
   });
 
-  test('下のフィールドが先のコマでは、先のフィールドを下として組み合わせる', () => {
+  test('下のフィールドが先のフレームでは、先のフィールドを下として組み合わせる', () => {
     const films = [0, 1, 2, 3, 4].flatMap((index) =>
       assembleFilm(0, frame(index, false), index === 0 ? null : frame(index - 1, false), duration),
     );
@@ -128,7 +128,7 @@ describe('assembleFilm', () => {
     ]);
   });
 
-  test('組み合わせる前のコマがなければ、そのコマは出さない', () => {
+  test('組み合わせる前のフレームがなければ、そのフレームは出さない', () => {
     expect(assembleFilm(0, frame(2), null, duration)).toEqual([]);
   });
 });
@@ -144,7 +144,7 @@ describe('FieldSampler', () => {
     return heap;
   }
 
-  test('1 つ前のコマの、同じ向きのフィールドとの差を出す', () => {
+  test('1 つ前のフレームの、同じ向きのフィールドとの差を出す', () => {
     const sampler = new FieldSampler();
 
     expect(sampler.sample(picture(16, 16, 10, 20), 0, 16, 16, 16)).toBeNull();

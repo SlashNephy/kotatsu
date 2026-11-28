@@ -10,7 +10,7 @@ export type AutoplayBlocked = {
 };
 
 // useAutoplayBlocked は、音ありの自動再生をブラウザに拒否されたかを見分ける。
-// Chrome などは、ページを操作していないうちは、音ありの自動再生を拒否する (NotAllowedError)。拒否されると、映像は最初のコマで止まる。
+// Chrome などは、ページを操作していないうちは、音ありの自動再生を拒否する (NotAllowedError)。拒否されると、映像は最初のフレームで止まる。
 // video は autoplay で再生を始めるが、拒否されても通知がないので、再生できるようになったら自分で play() を試して確認する。
 // 一度再生が始まったら、それ以降は試さない。止めてからシークしたときに、勝手に再生し直さないようにする。
 export function useAutoplayBlocked(media: PlayerMedia | null): AutoplayBlocked {

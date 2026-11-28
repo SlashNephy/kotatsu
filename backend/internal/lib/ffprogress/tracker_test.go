@@ -59,32 +59,32 @@ func TestTracker(t *testing.T) {
 	}{
 		{
 			name: "monotonic", est: ffprogress.Estimate{Frames: 1000, Bytes: 0},
-			// 読み損ねて減ったコマ数では、下げない。
+			// 読み損ねて減ったフレーム数では、下げない。
 			steps: []step{{at: 0, frame: "100"}, {at: time.Second, frame: "200"}, {at: 2 * time.Second, frame: "150"}, {at: 3 * time.Second, frame: "300"}},
 			want:  []result{{0.1, -1}, {0.2, -1}, {0.2, -1}, {0.3, -1}},
 		},
 		{
 			name: "capped until the end", est: ffprogress.Estimate{Frames: 1000, Bytes: 0},
-			// 見込みに届いても、バッファしたコマの出力と mux の後処理が残るので、progress=end までは頭打ちの割合で止める。
+			// 見込みに届いても、バッファしたフレームの出力と mux の後処理が残るので、progress=end までは頭打ちの割合で止める。
 			steps: []step{{at: 0, frame: "980"}, {at: time.Second, frame: "1000"}, {at: 2 * time.Second, frame: "1100"}},
 			want:  []result{{0.98, -1}, {0.99, -1}, {0.99, -1}},
 		},
 		{
 			name: "end", est: ffprogress.Estimate{Frames: 1000, Bytes: 0},
-			// 見込みより少ないコマ数で終わっても、progress=end で 1 にし、残り時間を 0 にする。
+			// 見込みより少ないフレーム数で終わっても、progress=end で 1 にし、残り時間を 0 にする。
 			steps: []step{{at: 0, frame: "500"}, {at: time.Second, frame: "900", end: true}},
 			want:  []result{{0.5, -1}, {1, 0}},
 		},
 		{
 			name: "remaining needs the minimum window", est: ffprogress.Estimate{Frames: 1000, Bytes: 0},
-			// ウィンドウの幅が 10 秒に満たないうちは出さない。10 秒で 100 コマ進めば、残りの 800 コマは 80 秒。
+			// ウィンドウの幅が 10 秒に満たないうちは出さない。10 秒で 100 フレーム進めば、残りの 800 フレームは 80 秒。
 			steps: []step{{at: 0, frame: "100"}, {at: 5 * time.Second, frame: "150"}, {at: 9 * time.Second, frame: "190"}, {at: 10 * time.Second, frame: "200"}},
 			want:  []result{{0.1, -1}, {0.15, -1}, {0.19, -1}, {0.2, 80}},
 		},
 		{
 			name: "remaining uses the recent window", est: ffprogress.Estimate{Frames: 1000, Bytes: 0},
-			// ウィンドウ (60 秒) より古い記録は使わない。始めの 60 秒は 1 秒に 1 コマ、その後の 60 秒は 1 秒に 5 コマなら、
-			// 120 秒の時点のウィンドウは 60 秒から 120 秒で、残りの 640 コマは 128 秒。
+			// ウィンドウ (60 秒) より古い記録は使わない。始めの 60 秒は 1 秒に 1 フレーム、その後の 60 秒は 1 秒に 5 フレームなら、
+			// 120 秒の時点のウィンドウは 60 秒から 120 秒で、残りの 640 フレームは 128 秒。
 			steps: []step{{at: 0, frame: "0"}, {at: 60 * time.Second, frame: "60"}, {at: 120 * time.Second, frame: "360"}},
 			want:  []result{{0, -1}, {0.06, 1000 - 60}, {0.36, 128}},
 		},
@@ -101,13 +101,13 @@ func TestTracker(t *testing.T) {
 		},
 		{
 			name: "falls back to the read position", est: ffprogress.Estimate{Frames: 0, Bytes: 1000},
-			// 見込みのコマ数が出せなければ、流したバイト数を入力の大きさで割る。
+			// 見込みのフレーム数が出せなければ、流したバイト数を入力の大きさで割る。
 			steps: []step{{at: 0, frame: "100", read: 250}, {at: time.Second, frame: "200", read: 500}},
 			want:  []result{{0.25, -1}, {0.5, -1}},
 		},
 		{
 			name: "frames keep the previous value without a frame", est: ffprogress.Estimate{Frames: 1000, Bytes: 1000},
-			// コマ数で数えているときは、frame のないまとまりで読み位置に切り替えず、前の値を保つ。
+			// フレーム数で数えているときは、frame のないまとまりで読み位置に切り替えず、前の値を保つ。
 			steps: []step{{at: 0, frame: "100", read: 900}, {at: time.Second, frame: "", read: 950}, {at: 2 * time.Second, frame: "N/A", read: 990}},
 			want:  []result{{0.1, -1}, {0.1, -1}, {0.1, -1}},
 		},

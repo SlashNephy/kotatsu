@@ -1,5 +1,5 @@
 // WebGL2 のフラグメントシェーダーで、画面を覆う三角形を描いて処理する部品 (#1655、#1654)。
-// コマの補間 (interpolator.ts) と、映像の拡大 (upscaler.ts) が、yadif のコンテキストの中で使う。
+// フレームの補間 (interpolator.ts) と、映像の拡大 (upscaler.ts) が、yadif のコンテキストの中で使う。
 
 // fullscreenVertexShader は、頂点の属性を使わずに、画面を覆う三角形を 1 つ描く。描く側は、空の VAO を当てて 3 頂点を描く。
 export const fullscreenVertexShader = `#version 300 es

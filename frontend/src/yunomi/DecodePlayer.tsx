@@ -40,7 +40,7 @@ type Props = {
   // onState は、読み終えたら completed を通知する。続けられなくなったことは、onError で通知する。
   onState?: (state: PlayerState) => void;
   onError?: (error: Error) => void;
-  // onLoaded は、最初のコマを映せるようになったときに呼ぶ。
+  // onLoaded は、最初のフレームを映せるようになったときに呼ぶ。
   onLoaded?: () => void;
   // onFallback は、この端末では間に合わない (または音を鳴らせない) と判定したときに呼ぶ。ほかの経路へ移すのは呼んだ側。
   onFallback?: (reason: FallbackReason) => void;
@@ -107,7 +107,7 @@ export function DecodePlayer({
   const [savedHDROutput] = useHDROutput();
   const hdrDisplay = useHDRDisplay();
   const hdr = savedHDROutput && hdrDisplay && hdrOutputSupported();
-  // コマの補間 (#1655) も、変換の経路と同じ端末ごとの設定で決める。
+  // フレームの補間 (#1655) も、変換の経路と同じ端末ごとの設定で決める。
   const [interpolate] = useInterpolation();
   const [maxRate] = useInterpolationRate();
   const zoom = scales(crop);

@@ -4,7 +4,7 @@ import { clockHz, indexStream, StreamLooper } from '../../demo/stream-loop.js';
 // 映像は短く作って配信し (scripts/build-benchmark-streams.sh)、ブラウザの中で、時刻を進めながら必要な長さまで繰り返す。
 // 繰り返しは、静的なデモ (#832) と同じ書き換え (demo/stream-loop.js) を使う。
 
-// benchmarkClips は、試す映像。どちらも 1440×1080 の 1080i (トップフィールドが先) で、30 コマ (1.001 秒)。
+// benchmarkClips は、試す映像。どちらも 1440×1080 の 1080i (トップフィールドが先) で、30 フレーム (1.001 秒)。
 // interlaced は、59.94 枚の絵をフィールドに分けて載せた映像。film は、23.976 枚の絵を 2:3 プルダウンで載せた映像。
 export const benchmarkClips = {
   interlaced: 'benchmark/interlaced.m2ts',
@@ -12,7 +12,7 @@ export const benchmarkClips = {
 } as const;
 export type BenchmarkClip = keyof typeof benchmarkClips;
 
-// clipPeriod は、映像の長さ (90 kHz の単位)。29.97 fps の 30 コマ。プルダウンの 5 コマの周期と、GOP の 15 コマで割り切れる。
+// clipPeriod は、映像の長さ (90 kHz の単位)。29.97 fps の 30 フレーム。プルダウンの 5 フレームの周期と、GOP の 15 フレームで割り切れる。
 export const clipPeriod = 30 * 3003;
 
 // loopClip は、TS の映像 bytes を、seconds 秒ぶん繰り返した TS にする。

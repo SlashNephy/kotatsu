@@ -156,20 +156,20 @@ describe('shownFrameRate', () => {
 
   test.each([
     {
-      name: '24p で出している間は、video の要素の数ではなく、実際に出したコマの数を返す',
+      name: '24p で出している間は、video の要素の数ではなく、実際に出したフレームの数を返す',
       source: { ...picture, film: true, shownFps: 24 },
       measured: 29.97,
       want: 24,
     },
     {
-      // video の要素は 1 コマを 1 つと数えるので、フィールドごとに表示しても 29.97 のままになる (#1655)。
-      name: 'フィールドごとに表示している間は、実際に出したコマの数を返す',
+      // video の要素は 1 フレームを 1 つと数えるので、フィールドごとに表示しても 29.97 のままになる (#1655)。
+      name: 'フィールドごとに表示している間は、実際に出したフレームの数を返す',
       source: { ...picture, film: false, shownFps: 59.94 },
       measured: 29.97,
       want: 59.94,
     },
     {
-      name: 'yadif がコマを出す時刻を決めていなければ、video の要素から測った値を返す',
+      name: 'yadif がフレームを出す時刻を決めていなければ、video の要素から計測した値を返す',
       source: { ...picture, film: false, shownFps: null },
       measured: 29.97,
       want: 29.97,

@@ -11,7 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
 
-// コマの大きさは、実放送と同じく、ロゴの縁が隅の 1% ほどになる大きさにする。
+// フレームの大きさは、実放送と同じく、ロゴの縁が隅の 1% ほどになる大きさにする。
 const (
 	frameW = 960
 	frameH = 540
@@ -40,7 +40,7 @@ func (r *rng) next() uint64 {
 type background int
 
 const (
-	// randomBlocks は、コマごとに向きの変わる波の背景。縁の向きは、コマをまたぐと打ち消し合う。
+	// randomBlocks は、フレームごとに向きの変わる波の背景。縁の向きは、フレームをまたぐと打ち消し合う。
 	randomBlocks background = iota
 	// bright は、白っぽい背景。
 	bright
@@ -50,12 +50,12 @@ const (
 	black
 )
 
-// canvas は、コマの絵を作る。
+// canvas は、フレームの絵を作る。
 type canvas struct {
 	img *logo.Gray
 }
 
-// newCanvas は、bg のコマを作る。波の背景は上下の帯の行にだけ描く (paintWaves)。ほかの背景は軽いので、すべての行に描く。
+// newCanvas は、bg のフレームを作る。波の背景は上下の帯の行にだけ描く (paintWaves)。ほかの背景は軽いので、すべての行に描く。
 func newCanvas(bg background, rng *rng) *canvas {
 	img := &logo.Gray{Width: frameW, Height: frameH, Pix: make([]byte, frameW*frameH)}
 	switch bg {
@@ -80,10 +80,10 @@ func newCanvas(bg background, rng *rng) *canvas {
 }
 
 // paintWaves は、img に波の背景 (randomBlocks) を描く。
-// テストが読む上下の帯の行にだけ描き、帯の外の行は黒のまま残す。テストは帯しか読まないので、結果は全体に描いたコマと変わらない (#1941)。
+// テストが読む上下の帯の行にだけ描き、帯の外の行は黒のまま残す。テストは帯しか読まないので、結果は全体に描いたフレームと変わらない (#1941)。
 func paintWaves(img *logo.Gray, rng *rng) {
 	h := logo.Band(frameH, logo.DefaultParams())
-	// 向きと細かさと位相がコマごとにでたらめな、3 つの波を重ねる。縁の向きは、コマをまたぐと打ち消し合う。
+	// 向きと細かさと位相がフレームごとにでたらめな、3 つの波を重ねる。縁の向きは、フレームをまたぐと打ち消し合う。
 	// 画素ごとに sin を求めると、テストの時間のほとんどを占める (#1941)。
 	// sin(kx·x + ky·y + φ) = sin(kx·x)·cos(ky·y + φ) + cos(kx·x)·sin(ky·y + φ) と x と y に分け、
 	// x の側はカラムごとのテーブルを前もって作り、y の側は行ごとに求める。
@@ -167,11 +167,11 @@ func crop(img *logo.Gray, b logo.Box) *logo.Gray {
 	return out
 }
 
-// learnFrames は、学習のテストで積算するコマの数。
+// learnFrames は、学習のテストで積算するフレームの数。
 const learnFrames = 120
 
-// learn は、frame で作る learnFrames 枚のコマから上下の帯を積算して学習する。
-// コマは作るたびに積算し、蓄積しない。蓄積すると、並列に走るテストがそれぞれ何十 MB も持ち続ける (#1941)。
+// learn は、frame で作る learnFrames 枚のフレームから上下の帯を積算して学習する。
+// フレームは作るたびに積算し、蓄積しない。蓄積すると、並列に走るテストがそれぞれ何十 MB も持ち続ける (#1941)。
 func learn(t *testing.T, p *logo.Params, frame func(i int) *logo.Gray) (*logo.LearnResult, *logo.Accumulator, error) {
 	t.Helper()
 
@@ -189,7 +189,7 @@ func learn(t *testing.T, p *logo.Params, frame func(i int) *logo.Gray) (*logo.Le
 	return result, top, err
 }
 
-// TestCoherence は、ロゴの縁では揃い方がロゴの出ていた割合に近く、コマごとに変わる背景の縁では 0 に近いことを確認する。
+// TestCoherence は、ロゴの縁では揃い方がロゴの出ていた割合に近く、フレームごとに変わる背景の縁では 0 に近いことを確認する。
 // 背景が暗くても明るくても、白いロゴの縁の向きは同じに数える (2 倍角)。
 func TestCoherence(t *testing.T) {
 	t.Parallel()
@@ -275,7 +275,7 @@ func TestLearnGivesUp(t *testing.T) {
 				// 帯の端のアイコン。帯の中の文字は変わるので、動かない縁はアイコンに集まる。
 				c.drawLogo()
 				// 帯の上と下の縁の線。アイコンの行を通って、画面の中央の側へ隅の外まで伸びる。
-				// 帯の出ないコマもあるので、アイコンより揃い方が弱く、強い縁にはならない。
+				// 帯の出ないフレームもあるので、アイコンより揃い方が弱く、強い縁にはならない。
 				if frame%2 == 0 {
 					c.fill(logo.Box{X: 400, Y: logoBox().Y + 2, W: logoBox().X - 400, H: 2})
 					c.fill(logo.Box{X: 400, Y: logoBox().Y + logoBox().H - 4, W: logoBox().X - 400, H: 2})
@@ -314,14 +314,14 @@ func mirror(img *logo.Gray) {
 }
 
 // TestLearnBandCorner は、ロゴの形のものの行を、隅を横切る帯の線が通るときだけ、その隅を諦めることを確認する (#1883)。
-// 帯の線は、帯の出ないコマもあるので、半分のコマで出す。
+// 帯の線は、帯の出ないフレームもあるので、半分のフレームで出す。
 func TestLearnBandCorner(t *testing.T) {
 	t.Parallel()
 
 	b := logoBox()
 	tests := []struct {
 		name string
-		// line は、帯の線 (コマの右上にロゴがあるときの座標)。
+		// line は、帯の線 (フレームの右上にロゴがあるときの座標)。
 		line   logo.Box
 		mirror bool
 		// wantErr が nil なら、ロゴの隅 wantCorner を採る。nil でなければ、ロゴの隅を wantWhy で諦める。
@@ -398,7 +398,7 @@ func TestLearnWideBand(t *testing.T) {
 			}
 		}
 	}
-	// 枠の行を通って、画面の中央の側へ隅の外まで伸びる帯の線。揃い方は 0.5 (半分のコマで出る)。
+	// 枠の行を通って、画面の中央の側へ隅の外まで伸びる帯の線。揃い方は 0.5 (半分のフレームで出る)。
 	for x := 400; x < plate.X; x++ {
 		set(x, plate.Y+8, 0.5)
 	}
@@ -416,7 +416,7 @@ func TestLearnSkipsLargeBlobs(t *testing.T) {
 	result, _, err := learn(t, p, func(i int) *logo.Gray {
 		c := newCanvas(randomBlocks, rng)
 		c.drawLogo()
-		// 隅を横切る、テロップの帯の下の線。9 割のコマで出す。
+		// 隅を横切る、テロップの帯の下の線。9 割のフレームで出す。
 		if i%10 != 0 {
 			c.fill(logo.Box{X: 0, Y: 80, W: frameW, H: 2})
 		}
@@ -428,7 +428,7 @@ func TestLearnSkipsLargeBlobs(t *testing.T) {
 	assert.Less(t, result.Box.Y+result.Box.H, 80, "%+v", result)
 }
 
-// TestMeasure は、ロゴの出ているコマの点数が高く、ロゴのないコマでは、細かい柄の背景でも点数が 0 に近いことを確認する。
+// TestMeasure は、ロゴの出ているフレームの点数が高く、ロゴのないフレームでは、細かい柄の背景でも点数が 0 に近いことを確認する。
 func TestMeasure(t *testing.T) {
 	t.Parallel()
 
@@ -488,7 +488,7 @@ func TestMeasure(t *testing.T) {
 	}
 }
 
-// TestLearnBottomRight は、下の帯の隅のロゴも見つけ、枠をコマの座標で返すことを確認する。
+// TestLearnBottomRight は、下の帯の隅のロゴも見つけ、枠をフレームの座標で返すことを確認する。
 func TestLearnBottomRight(t *testing.T) {
 	t.Parallel()
 

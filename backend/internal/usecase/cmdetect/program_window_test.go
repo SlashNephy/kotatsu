@@ -14,7 +14,7 @@ import (
 func TestProgramWindow(t *testing.T) {
 	t.Parallel()
 
-	// 1 コマ 1 秒で、100 秒の録画。番組は 80 秒。
+	// 1 フレーム 1 秒で、100 秒の録画。番組は 80 秒。
 	times := make([]float64, 100)
 	for i := range times {
 		times[i] = float64(i)
@@ -158,7 +158,7 @@ func TestSnapProgramWindow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// 1 コマ 1 秒で、40 秒のファイル。
+			// 1 フレーム 1 秒で、40 秒のファイル。
 			m := &cmdetect.Material{Fps: 1, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: make([]float64, 40), Measures: []logo.Measure{}}
 			for i := range m.Times {
 				m.Times[i] = float64(i)
@@ -225,7 +225,7 @@ func TestProgramEdges(t *testing.T) {
 func TestSnapWindow(t *testing.T) {
 	t.Parallel()
 
-	// 境目の時刻は、今の見分け方の基準 (コマの時刻 + offset)。ここでは最初のコマの時刻を 2、offset を 0.5 にし、ウィンドウの秒に 2.5 を足して書く。
+	// 境目の時刻は、今の見分け方の基準 (フレームの時刻 + offset)。ここでは最初のフレームの時刻を 2、offset を 0.5 にし、ウィンドウの秒に 2.5 を足して書く。
 	// 録画の長さも同じ基準で、ウィンドウの秒の 1501 に当たる。
 	const origin, offset = 2.0, 0.5
 	at := func(windowSeconds float64) float64 { return windowSeconds + origin + offset }

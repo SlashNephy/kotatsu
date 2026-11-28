@@ -112,7 +112,7 @@ func marker(img image.Image, x, y int) int {
 	return (int(rgba.R) + redStep/2) / redStep
 }
 
-// tileMarkers は、プレビュー画像の各コマの中央から、コマにした I フレームの通し番号を求める。
+// tileMarkers は、プレビュー画像の各フレームの中央から、そのフレームの元にした I フレームの通し番号を求める。
 func tileMarkers(t *testing.T, data []byte, count int) []int {
 	t.Helper()
 
@@ -126,7 +126,7 @@ func tileMarkers(t *testing.T, data []byte, count int) []int {
 	return markers
 }
 
-// TestGenerate は、インデックスの I フレームから、代表画像と、一定間隔のコマを並べたプレビュー画像を作ることを確認する (設計書 6.1)。
+// TestGenerate は、インデックスの I フレームから、代表画像と、一定間隔のフレームを並べたプレビュー画像を作ることを確認する (設計書 6.1)。
 func TestGenerate(t *testing.T) {
 	t.Parallel()
 
@@ -138,11 +138,11 @@ func TestGenerate(t *testing.T) {
 		// wantThumbnail は、代表画像にした I フレームの通し番号。
 		wantThumbnail int
 		wantTimes     []float64
-		// wantMarkers は、プレビュー画像の各コマにした I フレームの通し番号。
+		// wantMarkers は、プレビュー画像の各フレームの元にした I フレームの通し番号。
 		wantMarkers []int
 	}{
 		{
-			name: "1 秒ごとの I フレームから、2 秒ごとのコマを作る",
+			name: "1 秒ごとの I フレームから、2 秒ごとのフレームを作る",
 			segments: func(t *testing.T) []thumbnail.Segment {
 				t.Helper()
 
@@ -155,7 +155,7 @@ func TestGenerate(t *testing.T) {
 			wantMarkers:   []int{1, 3, 5, 7, 9},
 		},
 		{
-			name: "I フレームの間隔がコマの間隔より広ければ、同じ I フレームを二度使わない",
+			name: "I フレームの間隔がプレビュー画像のフレームの間隔より広ければ、同じ I フレームを二度使わない",
 			segments: func(t *testing.T) []thumbnail.Segment {
 				t.Helper()
 
@@ -228,7 +228,7 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
-// TestGenerateCapsFrames は、長い録画では、コマの間隔を広げて、コマの数を MaxFrames に収めることを確認する。
+// TestGenerateCapsFrames は、長い録画では、フレームの間隔を広げて、フレームの数を MaxFrames に収めることを確認する。
 func TestGenerateCapsFrames(t *testing.T) {
 	t.Parallel()
 

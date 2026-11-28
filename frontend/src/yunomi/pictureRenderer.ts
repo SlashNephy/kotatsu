@@ -1,15 +1,15 @@
-// ブラウザ内でデコードする経路 (#1516) の、worker の OffscreenCanvas に WebGL2 でコマを描く部分。
-// デコードしたコマの Y、U、V の 3 面を R8 のテクスチャ 3 枚に上げ (JS 側で複製せずに、WASM のメモリから直に)、
-// インタレースのコマはフィールドごとに描く。描くフィールドの行はそのまま使い、抜けた行は、もう片方のフィールドの値 o が
-// 上下の行 a、b の間からはみ出した量で、織り (o) と bob ((a+b)/2) をなだらかに混ぜる。はみ出しても、前のコマと比較して
+// ブラウザ内でデコードする経路 (#1516) の、worker の OffscreenCanvas に WebGL2 でフレームを描く部分。
+// デコードしたフレームの Y、U、V の 3 面を R8 のテクスチャ 3 枚に上げ (JS 側で複製せずに、WASM のメモリから直に)、
+// インタレースのフレームはフィールドごとに描く。描くフィールドの行はそのまま使い、抜けた行は、もう片方のフィールドの値 o が
+// 上下の行 a、b の間からはみ出した量で、織り (o) と bob ((a+b)/2) をなだらかに混ぜる。はみ出しても、前のフレームと比較して
 // 止まっている画素は o を使う (縁取りのある字や細い横線が、フィールドごとに上下に揺れないように)。
 // 色差 (4:2:0) も同じ規則で埋め、止まっている度合いは輝度で決めたものを使う。
-// 映像を拡大するとき (#1654、#2276) は、解除したコマを、元の (符号化された) 大きさのテクスチャに描き、拡大 (pictureUpscaler) に
+// 映像を拡大するとき (#1654、#2276) は、解除したフレームを、元の (符号化された) 大きさのテクスチャに描き、拡大 (pictureUpscaler) に
 // 渡して canvas へ描かせる。拡大は、yadif に渡すときと同じ PictureScaler の約束で呼ぶ。擬似 HDR (#1656) も、同じ処理が
 // canvas へ描く最後のステップで描く。拡大せずに擬似 HDR で描くときは、映す大きさのテクスチャに描いて渡す。
 // どちらもしないときは、今までどおり canvas へ直に描く。
-// コマの補間 (#1655、#2276) は、前後の 2 コマを scaler に渡す大きさのテクスチャに描いてから、補間の処理 (interpolator) で
-// その間の時刻のコマを作る。拡大か擬似 HDR で描くなら、作ったコマを scaler に渡し、そうでなければ canvas へ直に描く。
+// フレームの補間 (#1655、#2276) は、前後の 2 フレームを scaler に渡す大きさのテクスチャに描いてから、補間の処理 (interpolator) で
+// その間の時刻のフレームを作る。拡大か擬似 HDR で描くなら、作ったフレームを scaler に渡し、そうでなければ canvas へ直に描く。
 
 import type { PictureScaler } from '@mpeg2toh264/yadif';
 
@@ -36,7 +36,7 @@ export const defaultRendererThresholds: RendererThresholds = {
 // ColorMatrix は、YUV から RGB への変換の規格。どちらも限定レンジ。
 export type ColorMatrix = 'bt709' | 'bt601';
 
-// PictureSlot は、1 コマ分のテクスチャ。
+// PictureSlot は、1 フレーム分のテクスチャ。
 export type PictureSlot = {
   y: WebGLTexture;
   u: WebGLTexture;
@@ -48,13 +48,13 @@ export type PictureSlot = {
 // PlanePointer は、WASM のメモリの中の 1 面の位置と、1 行のバイト数。
 export type PlanePointer = { pointer: number; stride: number };
 
-// DrawRequest は、描くコマとフィールド。
+// DrawRequest は、描くフレームとフィールド。
 export type DrawRequest = {
   slot: PictureSlot;
-  // bottom は、2:3 プルダウンから組み直したコマ (#2276) で、下のフィールドの行を取るコマ。上のフィールドの行は slot から取り、
-  // 解除せずにそのまま並べる。組み直したコマでなければ null。
+  // bottom は、2:3 プルダウンから組み直したフレーム (#2276) で、下のフィールドの行を取るフレーム。上のフィールドの行は slot から取り、
+  // 解除せずにそのまま並べる。組み直したフレームでなければ null。
   bottom: PictureSlot | null;
-  // previous は、前に映したコマ。大きさが違えば比較しない。
+  // previous は、前に映したフレーム。大きさが違えば比較しない。
   previous: PictureSlot | null;
   interlaced: boolean;
   // parity は、描くフィールドが画像の上 (0) か下 (1) か。
@@ -102,7 +102,7 @@ vec2 bc(ivec2 p) {
 }
 
 // keepAt は、このフィールドにない輝度の行 m で、もう片方のフィールドの値をそのまま使う度合いを返す。
-// 上下の行から飛び出していなければ (くしが出ていなければ) 1、飛び出していて、前のコマから動いていれば 0 に寄せる。
+// 上下の行から飛び出していなければ (くしが出ていなければ) 1、飛び出していて、前のフレームから動いていれば 0 に寄せる。
 float keepAt(ivec2 m) {
   float a = y(m - ivec2(0, 1));
   float b = y(m + ivec2(0, 1));
@@ -124,7 +124,7 @@ void main() {
   float luma;
   vec2 chroma;
   if (uWeave == 1) {
-    // 組み直したコマ。上のフィールドの行 (偶数) は uY、下のフィールドの行 (奇数) は uBottomY から取る。
+    // 組み直したフレーム。上のフィールドの行 (偶数) は uY、下のフィールドの行 (奇数) は uBottomY から取る。
     // 4:2:0 のインタレースでは、色差の行もフィールドごとに交互に並ぶ。
     luma = (p.y & 1) == 0 ? y(p) : by(p);
     chroma = (q.y & 1) == 0 ? c(q) : bc(q);
@@ -199,7 +199,7 @@ export function keepAspect(output: Size, picture: Size, limit: number): Size {
   return { width: Math.floor(width * fit), height: Math.floor(height * fit) };
 }
 
-// Target は、拡大する前のコマを描くテクスチャと、それを描き先にする framebuffer。
+// Target は、拡大する前のフレームを描くテクスチャと、それを描き先にする framebuffer。
 type Target = {
   framebuffer: WebGLFramebuffer;
   texture: WebGLTexture;
@@ -207,7 +207,7 @@ type Target = {
   height: number;
 };
 
-// PictureRenderer は、OffscreenCanvas に WebGL2 でコマを描く。
+// PictureRenderer は、OffscreenCanvas に WebGL2 でフレームを描く。
 export class PictureRenderer {
   private readonly gl: WebGL2RenderingContext;
   private readonly program: WebGLProgram;
@@ -216,28 +216,28 @@ export class PictureRenderer {
   private readonly free: PictureSlot[] = [];
   // picture は、映す大きさ (画素の縦横比を掛けた後)。拡大しないときは、canvas もこの大きさにする。
   private picture: Size = { width: 0, height: 0 };
-  // frame は、コマの元の (符号化された) 大きさ。拡大するときはこの大きさで解除してから拡大する。
+  // frame は、フレームの元の (符号化された) 大きさ。拡大するときはこの大きさで解除してから拡大する。
   // 地上波の 1440×1080 を、映す大きさ (1920×1080) に伸ばしてから拡大すると、1080p の画面では拡大しなくなり、
   // 大きな画面でも、最近傍で伸ばした画素を拡大することになる。
   private frame: Size = { width: 0, height: 0 };
-  // scaler は、コマを拡大か擬似 HDR で描く処理。どちらもしなければ null。box は、絵を映す矩形の端末の画素での大きさ。
+  // scaler は、フレームを拡大か擬似 HDR で描く処理。どちらもしなければ null。box は、絵を映す矩形の端末の画素での大きさ。
   private scaler: PictureScaler | null = null;
   private box: Size | null = null;
-  // upscale は、拡大するか。拡大するなら元の大きさ、擬似 HDR だけなら映す大きさのコマを scaler に渡す。
+  // upscale は、拡大するか。拡大するなら元の大きさ、擬似 HDR だけなら映す大きさのフレームを scaler に渡す。
   private upscale = false;
-  // source は、scaler に渡すコマの大きさ。
+  // source は、scaler に渡すフレームの大きさ。
   private source: Size = { width: 0, height: 0 };
   // output は、拡大して描く大きさ (canvas の大きさ)。拡大しなければ null。
   private output: Size | null = null;
-  // target は、拡大する前のコマを描く先。拡大するときだけ作る。
+  // target は、拡大する前のフレームを描く先。拡大するときだけ作る。
   private target: Target | null = null;
-  // interpolator は、コマの補間の処理。最初に補間するときに作る。作れないか、途中で失敗したら、interpolationBroken にし、以後は補間しない。
+  // interpolator は、フレームの補間の処理。最初に補間するときに作る。作れないか、途中で失敗したら、interpolationBroken にし、以後は補間しない。
   private interpolator: Interpolator | null = null;
   private interpolationBroken = false;
-  // pair は、補間する前後のコマと、それを描いたテクスチャ。前後のコマが同じなら、描き直さずに使う。
+  // pair は、補間する前後のフレームと、それを描いたテクスチャ。前後のフレームが同じなら、描き直さずに使う。
   private pair: { previous: DrawRequest; next: DrawRequest; from: Target; to: Target } | null =
     null;
-  // spare は、pair が使っていない、前後のコマを描くテクスチャ。
+  // spare は、pair が使っていない、前後のフレームを描くテクスチャ。
   private spare: Target[] = [];
 
   constructor(
@@ -245,14 +245,14 @@ export class PictureRenderer {
     private readonly thresholds: RendererThresholds = defaultRendererThresholds,
   ) {
     const gl = canvas.getContext('webgl2', {
-      // 擬似 HDR (#1656) で描画先の形式を変えるには、alpha のあるコンテキストが要る。どのコマも不透明に描くので、
+      // 擬似 HDR (#1656) で描画先の形式を変えるには、alpha のあるコンテキストが要る。どのフレームも不透明に描くので、
       // 見え方は変わらない。WebGL の HDR の出力を持たないブラウザでは、今までどおり alpha なしで作る。
       alpha: hdrOutputSupported(),
       antialias: false,
       depth: false,
       stencil: false,
       preserveDrawingBuffer: false,
-      // ソフトウェアの描画 (SwiftShader) では、1 コマの描画がコマの持ち時間を超えるおそれがあるので使わない。
+      // ソフトウェアの描画 (SwiftShader) では、1 フレームの描画がその持ち時間を超えるおそれがあるので使わない。
       failIfMajorPerformanceCaveat: true,
     });
     if (gl === null) {
@@ -265,7 +265,7 @@ export class PictureRenderer {
     ) as Uniforms;
   }
 
-  // resize は、映す大きさ picture (画素の縦横比を掛けた後) と、コマの元の大きさ frame を変え、描く先の大きさを決め直す。
+  // resize は、映す大きさ picture (画素の縦横比を掛けた後) と、フレームの元の大きさ frame を変え、描く先の大きさを決め直す。
   resize(picture: Size, frame: Size): void {
     this.picture = picture;
     this.frame = frame;
@@ -284,7 +284,7 @@ export class PictureRenderer {
   }
 
   // layout は、拡大して描く大きさを拡大の処理に決めさせ、canvas をその大きさ (拡大しなければ映す大きさ) にする。
-  // 拡大しないなら、拡大する前のコマを描く先を片付ける。canvas の大きさか拡大して描く大きさを変えたら true を返す。
+  // 拡大しないなら、拡大する前のフレームを描く先を片付ける。canvas の大きさか拡大して描く大きさを変えたら true を返す。
   private layout(): boolean {
     const { picture, frame, scaler, box, gl } = this;
     const before = this.output;
@@ -293,8 +293,8 @@ export class PictureRenderer {
       scaler === null || picture.width <= 0 || source.width <= 0 || (this.upscale && box === null)
         ? null
         : scaler.size(gl, source.width, source.height, box?.width ?? 0, box?.height ?? 0);
-    // 拡大しないが擬似 HDR で描くとき、scaler はコマの大きさをそのまま返す (拡大する大きさは、元の大きさより必ず大きい)。
-    // 元の大きさのまま映像の比率に広げると、拡大の処理を通ってしまうので、映す大きさのコマをそのままコピーさせる。
+    // 拡大しないが擬似 HDR で描くとき、scaler はフレームの大きさをそのまま返す (拡大する大きさは、元の大きさより必ず大きい)。
+    // 元の大きさのまま映像の比率に広げると、拡大の処理を通ってしまうので、映す大きさのフレームをそのままコピーさせる。
     if (size !== null && size.width === source.width && size.height === source.height) {
       source = picture;
       size = picture;
@@ -316,7 +316,7 @@ export class PictureRenderer {
     );
   }
 
-  // releaseTarget は、拡大する前のコマを描く先を消す。
+  // releaseTarget は、拡大する前のフレームを描く先を消す。
   private releaseTarget(): void {
     if (this.target !== null) {
       this.deleteTarget(this.target);
@@ -324,7 +324,7 @@ export class PictureRenderer {
     }
   }
 
-  // acquire は、width × height のコマを上げるテクスチャの組を返す。使い終えたら release に返す。
+  // acquire は、width × height のフレームを上げるテクスチャの組を返す。使い終えたら release に返す。
   acquire(width: number, height: number): PictureSlot {
     const index = this.free.findIndex((slot) => slot.width === width && slot.height === height);
     if (index >= 0) {
@@ -343,7 +343,7 @@ export class PictureRenderer {
 
   // release は、使い終えたテクスチャの組を返す。大きさの違うものが溜まらないよう、違う大きさの組は消す。
   release(slot: PictureSlot): void {
-    // 返した組は、次のコマに使い回すので、補間する前後のコマとして保持したものは破棄する。
+    // 返した組は、次のフレームに使い回すので、補間する前後のフレームとして保持したものは破棄する。
     if (this.pair !== null && [this.pair.previous, this.pair.next].some((r) => usesSlot(r, slot))) {
       this.dropPair();
     }
@@ -393,7 +393,7 @@ export class PictureRenderer {
     gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
   }
 
-  // draw は、request のコマとフィールドを描く。拡大か擬似 HDR で描くなら、元の大きさ (擬似 HDR だけなら映す大きさ) の
+  // draw は、request のフレームとフィールドを描く。拡大か擬似 HDR で描くなら、元の大きさ (擬似 HDR だけなら映す大きさ) の
   // テクスチャに描いてから、scaler に canvas へ描かせる。描けなければ (作れない、途中で失敗した)、PictureScaler の約束のとおり、
   // 以後は scaler を使わずに映す大きさで描く。
   draw(request: DrawRequest): void {
@@ -420,7 +420,7 @@ export class PictureRenderer {
     return !this.interpolationBroken;
   }
 
-  // drawBetween は、previous と next の間の、時刻 t (0〜1) のコマを作って描く。描けなければ false を返す
+  // drawBetween は、previous と next の間の、時刻 t (0〜1) のフレームを作って描く。描けなければ false を返す
   // (呼ぶ側は previous をそのまま描く)。補間できなければ、onUnavailable を呼び、以後は補間しない。
   drawBetween(
     previous: DrawRequest,
@@ -449,7 +449,7 @@ export class PictureRenderer {
 
       return true;
     } catch (error) {
-      // 以後は補間しないので、前後のコマを描くテクスチャも消す。
+      // 以後は補間しないので、前後のフレームを描くテクスチャも消す。
       this.interpolationBroken = true;
       this.dropPair();
       try {
@@ -467,8 +467,8 @@ export class PictureRenderer {
     }
   }
 
-  // preparePair は、補間する前後のコマを width × height のテクスチャに描き、動きを推し量らせる。
-  // 前の組の後ろのコマが、今の組の前のコマなら、描いたテクスチャをそのまま使う。
+  // preparePair は、補間する前後のフレームを width × height のテクスチャに描き、動きを推し量らせる。
+  // 前の組の後ろのフレームが、今の組の前のフレームなら、描いたテクスチャをそのまま使う。
   private preparePair(
     previous: DrawRequest,
     next: DrawRequest,
@@ -514,7 +514,7 @@ export class PictureRenderer {
     }
   }
 
-  // takeSpare は、width × height の、前後のコマを描くテクスチャを返す。大きさの違うものは消す。
+  // takeSpare は、width × height の、前後のフレームを描くテクスチャを返す。大きさの違うものは消す。
   private takeSpare(width: number, height: number): Target {
     const index = this.spare.findIndex((t) => t.width === width && t.height === height);
     if (index >= 0) {
@@ -527,7 +527,7 @@ export class PictureRenderer {
     return createTarget(this.gl, width, height);
   }
 
-  // dropPair は、補間する前後のコマを忘れ、テクスチャを spare に戻す。
+  // dropPair は、補間する前後のフレームを忘れ、テクスチャを spare に戻す。
   private dropPair(): void {
     if (this.pair !== null) {
       this.spare.push(this.pair.from, this.pair.to);
@@ -540,7 +540,7 @@ export class PictureRenderer {
     this.gl.deleteTexture(target.texture);
   }
 
-  // ensureTarget は、width × height の、拡大する前のコマを描く先を返す。大きさが変われば作り直す。
+  // ensureTarget は、width × height の、拡大する前のフレームを描く先を返す。大きさが変われば作り直す。
   private ensureTarget(width: number, height: number): Target {
     const current = this.target;
     if (current !== null && current.width === width && current.height === height) {
@@ -552,7 +552,7 @@ export class PictureRenderer {
     return this.target;
   }
 
-  // drawPicture は、request のコマとフィールドを、framebuffer (null なら canvas) へ width × height で描く。
+  // drawPicture は、request のフレームとフィールドを、framebuffer (null なら canvas) へ width × height で描く。
   // 描く先の行は下から数える (framebuffer の向き) ので、拡大に渡すテクスチャも行を下から持つ。
   private drawPicture(
     request: DrawRequest,
@@ -573,11 +573,11 @@ export class PictureRenderer {
     bind(0, slot.y, uniforms.uY);
     bind(1, slot.u, uniforms.uU);
     bind(2, slot.v, uniforms.uV);
-    // 前のコマは、大きさが同じときだけ比較する (選局した直後と、大きさが変わった直後は、コマの中だけで決める)。
+    // 前のフレームは、大きさが同じときだけ比較する (選局した直後と、大きさが変わった直後は、そのフレームの中だけで決める)。
     const hasPrevious =
       previous !== null && previous.width === slot.width && previous.height === slot.height;
     bind(3, hasPrevious ? previous.y : slot.y, uniforms.uPrevY);
-    // 組み直したコマでなければ、使わない口にも同じコマを当てておく (どのテクスチャ単位も、何かを指すようにする)。
+    // 組み直したフレームでなければ、使わない口にも同じフレームを当てておく (どのテクスチャ単位も、何かを指すようにする)。
     const bottom =
       request.bottom !== null &&
       request.bottom.width === slot.width &&
@@ -625,7 +625,7 @@ export class PictureRenderer {
   }
 }
 
-// sameFrame は、2 つの描く求めが、同じコマ (同じテクスチャの組) を指すか。
+// sameFrame は、2 つの描く求めが、同じフレーム (同じテクスチャの組) を指すか。
 function sameFrame(a: DrawRequest, b: DrawRequest): boolean {
   return a.slot === b.slot && a.bottom === b.bottom;
 }

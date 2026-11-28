@@ -67,7 +67,7 @@ type CornerResult struct {
 	Median    float64
 	// Share は、括ったチャンクの強い縁が、張り合う量に占める割合。チャンクを作る前に諦めたら 0。
 	Share float64
-	// Box は、採った枠 (コマの座標)。諦めたら空。
+	// Box は、採った枠 (フレームの座標)。諦めたら空。
 	Box Box
 	// Err は、諦めた理由。採ったら nil。
 	Err error
@@ -75,7 +75,7 @@ type CornerResult struct {
 
 // LearnResult は、学習の結果。
 type LearnResult struct {
-	// Box は、ロゴの枠 (コマの座標)。どの隅も諦めたら空。
+	// Box は、ロゴの枠 (フレームの座標)。どの隅も諦めたら空。
 	Box Box
 	// Corner は、ロゴを見つけた隅。
 	Corner Corner
@@ -83,7 +83,7 @@ type LearnResult struct {
 	Corners []CornerResult
 }
 
-// Band は、学習で切り出す上下の帯の高さを返す。コマの高さに BandRatio を掛けて丸め、偶数に切り下げる。
+// Band は、学習で切り出す上下の帯の高さを返す。フレームの高さに BandRatio を掛けて丸め、偶数に切り下げる。
 func Band(frameHeight int, p *Params) int {
 	h := int(math.Round(float64(frameHeight) * p.BandRatio))
 

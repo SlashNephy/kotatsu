@@ -149,8 +149,8 @@ export function frameRate(previous: FrameCount, next: FrameCount): number | null
 }
 
 // shownFrameRate は、再生の情報に出すフレームレート。measured は video の要素のフレームの数から計測した値で、
-// 24p に組み直す前、フィールドごとに分ける前の 30 コマのままなので、yadif がコマを出す時刻を決めている間
-// (24p で出すとき (#1284) と、フィールドごとに表示するとき (#1655)) は、yadif が実際に出したコマの数を返す。
+// 24p に組み直す前、フィールドごとに分ける前の 30 fps のままなので、yadif がフレームを出す時刻を決めている間
+// (24p で出すとき (#1284) と、フィールドごとに表示するとき (#1655)) は、yadif が実際に出したフレームの数を返す。
 export function shownFrameRate(
   source: SourcePicture | null,
   measured: number | null,
@@ -205,8 +205,8 @@ export type TransportCounts = { dropped: number; errors: number; scrambled: numb
 
 // SourcePicture は、放送の映像の大きさと走査の方式。interlaced が分からなければ null。
 // film は、yadif が 2:3 プルダウンを見つけ、24p に組み直して出していること (#1284)。
-// shownFps は、yadif がコマを出す時刻を決めている間 (24p で出すときと、フィールドごとに表示するとき) に、
-// 実際に出した 1 秒あたりのコマの数。それ以外は null。
+// shownFps は、yadif がフレームを出す時刻を決めている間 (24p で出すときと、フィールドごとに表示するとき) に、
+// 実際に出したフレームレート。それ以外は null。
 // unfiltered は、WebGL2 がないなどで yadif を動かせず、インターレースを解除せずに出していること (#1617)。
 export type SourcePicture = {
   width: number;
@@ -215,18 +215,18 @@ export type SourcePicture = {
   film: boolean;
   shownFps: number | null;
   unfiltered: boolean;
-  // fieldRateDropped は、表示が追いつかないので、フィールドごとの表示をやめ、コマごとに出していること (#1655)。
+  // fieldRateDropped は、表示が追いつかないので、フィールドごとの表示をやめ、フレームごとに出していること (#1655)。
   fieldRateDropped: boolean;
-  // interpolated は、yadif が出すコマの間を補間していること (#1655)。フレームレートは、補間したコマも数える。
+  // interpolated は、yadif が出すフレームの間を補間していること (#1655)。フレームレートは、補間したフレームも数える。
   interpolated: boolean;
-  // upscaled は、yadif が解除したコマを拡大して描いている大きさ (#1654)。拡大していなければ null。
+  // upscaled は、yadif が解除したフレームを拡大して描いている大きさ (#1654)。拡大していなければ null。
   upscaled: { width: number; height: number } | null;
   // upscaledWithAnime4K は、拡大するときに、先に Anime4K で 2 倍にしていること (#1653)。拡大していなければ false。
   upscaledWithAnime4K: boolean;
   // notUpscaled は、拡大を入れているのに、映す大きさが元の大きさ以下なので拡大していないときの、映す大きさ (端末の画素)。
   // 設定を切っている間と、拡大している間は null。
   notUpscaled: { width: number; height: number } | null;
-  // hdr は、yadif が解除したコマを擬似 HDR で描いていること (#1656)。
+  // hdr は、yadif が解除したフレームを擬似 HDR で描いていること (#1656)。
   hdr: boolean;
 };
 

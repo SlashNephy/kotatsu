@@ -81,7 +81,7 @@ export const defaultLiveBufferParams: LiveBufferParams = {
   arrivalWindowMs: 8_000,
   shortArrivalRatio: 0.9,
   retargetIntervalMs: 5_000,
-  // 開発用の環境では、読み込んでから最初のコマが映るまで 1.2〜2.7 秒だった。
+  // 開発用の環境では、読み込んでから最初のフレームが映るまで 1.2〜2.7 秒だった。
   selfInflictedGraceMs: 5_000,
   speedUpStartRatio: 1.25,
   speedUpStopRatio: 1.1,
@@ -137,7 +137,7 @@ export type LiveBufferController = {
   // まだ何も読み込んでいなかった (読み込み直後の最初のチャンク) なら null。0 として記録すると、しばらく足りないとみなして遅くするため。
   // tail は、届いた後の buffered の末尾 (秒)。渡せば、届いた映像の長さから、回線が足りなかったかを見分ける。
   arrive(now: number, bufferBefore: number | null, tail?: number): void;
-  // sample は、映ったコマや判断の間隔で計測したバッファを通知する。
+  // sample は、映ったフレームや判断の間隔で計測したバッファを通知する。
   sample(now: number, buffer: number): void;
   // forgetArrival は、前の到着時刻を忘れる。シーク、一時停止、タブが隠れたとき。
   forgetArrival(): void;

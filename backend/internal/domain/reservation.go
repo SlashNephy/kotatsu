@@ -130,7 +130,7 @@ type RecordingSettings struct {
 	// TranscodePreset は、録画が終わったら、録画を変換して MP4 を足すときの画質 (TranscodePresets のどれか、#1253)。
 	// 空なら変換しない。既定では変換しない。
 	TranscodePreset string
-	// TranscodeFrameRate は、録画を変換するときに出すコマ数 (TranscodeFrameRates のどれか、#1509)。
+	// TranscodeFrameRate は、録画を変換するときに出すフレームレート (TranscodeFrameRates のどれか、#1509)。
 	TranscodeFrameRate string
 	// CMDetector は、CM の区間の見分け方 (CMDetectors のどれか、#1505)。空なら、見分けるときの全体の設定 (設計書 6.1) に従う。
 	CMDetector string
@@ -150,7 +150,7 @@ func CMDetectors() []string {
 
 // TranscodePresets は、録画を終えた後の変換 (#1253) で選べる画質を返す。kyusu の画質のプリセットのうち、
 // 30fps の H.264 と HEVC に限る。映像を変換しないものは、ファイルに残す意味が薄いので除く。フィールドごとに 1 フレームにするもの
-// (1080p60、720p60) は、画質ではなく、出すコマ数 (TranscodeFrameRate、#1509) で選ぶので除く。
+// (1080p60、720p60) は、画質ではなく、出すフレームレート (TranscodeFrameRate、#1509) で選ぶので除く。
 func TranscodePresets() []string {
 	return []string{"1080p", "720p", "540p", "360p", "1080p-hevc", "720p-hevc", "540p-hevc", "360p-hevc"}
 }
@@ -162,17 +162,17 @@ func TranscodedPath(segment, preset string) string {
 }
 
 const (
-	// TranscodeFrameRateAuto は、録画の映像から 24p 系、30p、60i を計測し、出すコマ数 (30 か 60) を選ぶこと (#1509)。
+	// TranscodeFrameRateAuto は、録画の映像から 24p 系、30p、60i を計測し、出すフレームレート (30 fps か 60 fps) を選ぶこと (#1509)。
 	TranscodeFrameRateAuto = "auto"
-	// TranscodeFrameRate30 は、インターレースをコマごとに解除し、30 コマで出すこと。
+	// TranscodeFrameRate30 は、インターレースをフレームごとに解除し、30 fps で出すこと。
 	TranscodeFrameRate30 = "30"
-	// TranscodeFrameRate60 は、インターレースをフィールドごとに 1 コマにして、60 コマで出すこと。
+	// TranscodeFrameRate60 は、インターレースをフィールドごとに 1 フレームにして、60 fps で出すこと。
 	TranscodeFrameRate60 = "60"
-	// DefaultTranscodeFrameRate は、出すコマ数の既定値。素材に合わせて選び、無駄を省きつつ実写の動きを保つ。
+	// DefaultTranscodeFrameRate は、出すフレームレートの既定値。素材に合わせて選び、無駄を省きつつ実写の動きを保つ。
 	DefaultTranscodeFrameRate = TranscodeFrameRateAuto
 )
 
-// TranscodeFrameRates は、録画を変換するときに選べる、出すコマ数を返す (#1509)。
+// TranscodeFrameRates は、録画を変換するときに選べる、出すフレームレートを返す (#1509)。
 func TranscodeFrameRates() []string {
 	return []string{TranscodeFrameRateAuto, TranscodeFrameRate30, TranscodeFrameRate60}
 }
@@ -207,7 +207,7 @@ type RecordingOverrides struct {
 	GenerateCaptions   *bool   `json:"generateCaptions,omitempty"`
 	// TranscodePreset は、空の文字列なら「変換しない」で上書きする。nil なら上書きしない。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
-	// TranscodeFrameRate は、出すコマ数 (TranscodeFrameRates のどれか)。nil なら上書きしない。
+	// TranscodeFrameRate は、出すフレームレート (TranscodeFrameRates のどれか)。nil なら上書きしない。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
 	// CMDetector は、CM の区間の見分け方 (CMDetectors のどれか、#1505)。nil なら上書きしない。
 	CMDetector *string `json:"cmDetector,omitempty"`

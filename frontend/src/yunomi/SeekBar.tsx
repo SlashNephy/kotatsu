@@ -7,7 +7,7 @@ import { loadManifest } from '../recordings/usePreviewSlideshow';
 import classes from './SeekBar.module.css';
 import { bandAt, bubbleLeft, hoverSeconds, partAt, type SeekBand } from './seekHover';
 
-// bubbleWidth は、吹き出しの幅 (px)。プレビュー画像の 1 コマ (16:9) をこの幅で見せる。
+// bubbleWidth は、吹き出しの幅 (px)。プレビュー画像の 1 フレーム (16:9) をこの幅で見せる。
 const bubbleWidth = 160;
 
 type Props = {
@@ -29,7 +29,7 @@ type Props = {
 const pressMoveLimit = 4;
 
 // SeekBar は、録画のシークバー。カーソルを乗せるか、つまみを動かしている間、その位置の時刻を、
-// プレビュー画像があればそのコマと一緒に、吹き出しで出す (#755)。
+// プレビュー画像があればそのフレームと一緒に、吹き出しで出す (#755)。
 export function SeekBar({
   duration,
   value,
@@ -49,7 +49,7 @@ export function SeekBar({
   const dragging = useRef(false);
   // pressX は、押した位置の x。動かさずに離したときだけ、番組の区切りのマークへ移るのに使う。動かしたり、キーボードで操作したりすると null。
   const pressX = useRef<number | null>(null);
-  // loaded は、読んだ preview.json と、その録画のプレビュー画像の URL。録画が変わったら、前の録画のコマの並びを使わない。
+  // loaded は、読んだ preview.json と、その録画のプレビュー画像の URL。録画が変わったら、前の録画のフレームの並びを使わない。
   const [loaded, setLoaded] = useState<{ url: string; manifest: PreviewManifest | null } | null>(
     null,
   );

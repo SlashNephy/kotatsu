@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { DecodeJudge, defaultJudgeParams, type JudgeParams } from './decodeJudge';
 
-// 1 コマ (29.97 fps) の長さ。
+// 1 フレーム (29.97 fps) の長さ。
 const frameMs = 1_000 / 29.97;
 
 const params: Partial<JudgeParams> = {
@@ -51,10 +51,14 @@ describe('DecodeJudge', () => {
       fallback: true,
     },
     { name: '映像が遅れた', window: { lagMs: 600 }, fallback: true },
-    { name: '破棄したコマが枚数と割合の両方を超える', window: { dropped: 12 }, fallback: true },
-    { name: '破棄したコマが割合に届かない', window: { frames: 200, dropped: 12 }, fallback: false },
+    { name: '破棄したフレームが枚数と割合の両方を超える', window: { dropped: 12 }, fallback: true },
     {
-      name: 'コマが少ないウィンドウは数えない',
+      name: '破棄したフレームが割合に届かない',
+      window: { frames: 200, dropped: 12 },
+      fallback: false,
+    },
+    {
+      name: 'フレームが少ないウィンドウは数えない',
       window: { decodeMs: 30, frames: 10 },
       fallback: false,
     },
@@ -184,7 +188,7 @@ describe('DecodeJudge', () => {
     now += 1_000;
     feed(judge, now, { lagMs: 250 });
     const verdicts = [];
-    // 1 コマの長さ × 0.7 (約 23 ms) は超えるが、その 3 倍は超えない。
+    // 1 フレームの長さ × 0.7 (約 23 ms) は超えるが、その 3 倍は超えない。
     for (let i = 0; i < 3; i++) {
       now += 1_000;
       verdicts.push(...feed(judge, now, { decodeMs: 30 }));
@@ -229,16 +233,16 @@ describe('DecodeJudge', () => {
     expect(feed(judge, now, { decodeMs: 30 })).toEqual([]);
   });
 
-  test('B フレームを省いてコマが 3 分の 1 になっても、既定の値でウィンドウを数える', () => {
+  test('B フレームを省いてフレームが 3 分の 1 になっても、既定の値でウィンドウを数える', () => {
     const judge = new DecodeJudge();
     judge.start(0);
     let now = defaultJudgeParams.ignoreMs;
     judge.tick(now, frameMs);
     now += defaultJudgeParams.windowMs;
-    // 2 秒で 60 コマのうち、5 コマを破棄した。B フレームを省き始める。
+    // 2 秒で 60 フレームのうち、5 フレームを破棄した。B フレームを省き始める。
     expect(feed(judge, now, { frames: 60, dropped: 5 })).toEqual([{ type: 'skipB', on: true }]);
     const verdicts = [];
-    // 省いている間は 2 秒で 20 コマ。それでも 1 コマに約 200 ms かかる。
+    // 省いている間は 2 秒で 20 フレーム。それでも 1 フレームに約 200 ms かかる。
     for (let i = 0; i < 3; i++) {
       now += defaultJudgeParams.windowMs;
       verdicts.push(...feed(judge, now, { frames: 20, decodeMs: 200 }));

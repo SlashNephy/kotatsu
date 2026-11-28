@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { PictureQueue, type QueuedPicture } from './pictureQueue';
 
-// 29.97 コマ/秒の 1 コマは、PTS で 3003。
+// 29.97 fps の 1 フレームは、PTS で 3003。
 const frame = 3003;
 
 function picture(pts: number, topFieldFirst = true, interlaced = true): QueuedPicture<string> {
@@ -17,7 +17,7 @@ function setup() {
 }
 
 describe('PictureQueue', () => {
-  test('コマの前半は 1 枚目、後半は 2 枚目のフィールドを映す', () => {
+  test('フレームの前半は 1 枚目、後半は 2 枚目のフィールドを映す', () => {
     const { queue } = setup();
     queue.push(picture(0));
     queue.push(picture(frame));
@@ -36,7 +36,7 @@ describe('PictureQueue', () => {
     ]);
   });
 
-  test('ボトムフィールドが先のコマは、下のフィールドから映す', () => {
+  test('ボトムフィールドが先のフレームは、下のフィールドから映す', () => {
     const { queue } = setup();
     queue.push(picture(0, false));
     queue.push(picture(frame, false));
@@ -44,7 +44,7 @@ describe('PictureQueue', () => {
     expect([queue.choose(0)?.parity, queue.choose(2000)?.parity]).toEqual([1, 0]);
   });
 
-  test('プログレッシブのコマは、コマ全体を映す', () => {
+  test('プログレッシブのフレームは、フレーム全体を映す', () => {
     const { queue } = setup();
     queue.push(picture(0, true, false));
     queue.push(picture(frame, true, false));
@@ -52,7 +52,7 @@ describe('PictureQueue', () => {
     expect([queue.choose(2000)?.second, queue.choose(2000)?.parity]).toEqual([false, 0]);
   });
 
-  test('番を過ぎたコマは映さずに捨て、コマ落ちとして数える。映したコマは前のコマとして残す', () => {
+  test('番を過ぎたフレームは映さずに破棄し、フレーム落ちとして数える。映したフレームは前のフレームとして残す', () => {
     const { queue, released } = setup();
     for (let i = 0; i < 4; i++) {
       queue.push(picture(i * frame));
@@ -66,14 +66,14 @@ describe('PictureQueue', () => {
     expect(released).toEqual([`s${frame}`, `s${2 * frame}`]);
   });
 
-  test('まだ番の来ていないコマは映さない', () => {
+  test('まだ番の来ていないフレームは映さない', () => {
     const { queue } = setup();
     queue.push(picture(frame));
 
     expect(queue.choose(frame - 1)).toBeNull();
   });
 
-  test('前より古い時刻のコマは足さずに捨てる', () => {
+  test('前より古い時刻のフレームは足さずに破棄する', () => {
     const { queue, released } = setup();
     queue.push(picture(frame));
 
@@ -82,9 +82,9 @@ describe('PictureQueue', () => {
     expect(queue.length).toBe(1);
   });
 
-  test('コマの長さを渡せば、隣り合うコマの時刻の差が短くても、その長さでフィールドを分ける', () => {
+  test('フレームの長さを渡せば、隣り合うフレームの時刻の差が短くても、その長さでフィールドを分ける', () => {
     const { queue } = setup();
-    // 組み直した 24p のコマ (プログレッシブ) の 0.25 コマ後に、インタレースのコマが続く。
+    // 組み直した 24p のフレーム (プログレッシブ) の 0.25 フレーム後に、インタレースのフレームが続く。
     queue.push({ pts: 0, interlaced: false, topFieldFirst: true, slot: 's0' });
     queue.push({ ...picture(frame / 4), duration: frame });
 
@@ -96,7 +96,7 @@ describe('PictureQueue', () => {
     ]);
   });
 
-  test('following は、映しているコマの次のコマを返す', () => {
+  test('following は、映しているフレームの次のフレームを返す', () => {
     const { queue } = setup();
     queue.push(picture(0));
     queue.push(picture(frame));
@@ -109,7 +109,7 @@ describe('PictureQueue', () => {
     expect(queue.following).toBeNull();
   });
 
-  test('clear で、待っているコマと前のコマの slot を返す', () => {
+  test('clear で、待っているフレームと前のフレームの slot を返す', () => {
     const { queue, released } = setup();
     queue.push(picture(0));
     queue.push(picture(frame));
@@ -123,7 +123,7 @@ describe('PictureQueue', () => {
     expect(queue.newest).toBeNull();
   });
 
-  test('clear で残すと言った slot は返さない (止めた後も、映していたコマを描き直せるように)', () => {
+  test('clear で残すと言った slot は返さない (止めた後も、映していたフレームを描き直せるように)', () => {
     const { queue, released } = setup();
     queue.push(picture(0));
     queue.push(picture(frame));

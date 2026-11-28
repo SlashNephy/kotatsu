@@ -4,9 +4,9 @@ import { fitContain } from './capture';
 import type { CoverKind } from './cmAutoSkipper';
 import type { PlayerMedia } from './playerMedia';
 
-// PlayerCover は、映像の上に重ねる蓋 (#1512)。CM を飛ぶ間、CM のコマを隠す。
+// PlayerCover は、映像の上に重ねる蓋 (#1512)。CM を飛ぶ間、CM のフレームを隠す。
 export type PlayerCover = {
-  // show は、蓋を出す。still なら、いま映っているコマをコピーして、映像が実際に出ている矩形に重ねる。
+  // show は、蓋を出す。still なら、いま映っているフレームをコピーして、映像が実際に出ている矩形に重ねる。
   // 写せなければ (大きさが 0、例外)、black と同じく、プレイヤーの枠全体を黒で覆う。
   show: (kind: CoverKind) => void;
   hide: () => void;

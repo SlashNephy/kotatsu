@@ -2,16 +2,16 @@ import { useEffect, useRef } from 'react';
 
 import type { PlayerFrameMetadata, PlayerMedia } from './playerMedia';
 
-// VideoFrame は、映ったコマ 1 つ分の通知。
+// VideoFrame は、映ったフレーム 1 つ分の通知。
 export type VideoFrame = {
-  // mediaTime は、そのコマの時刻 (requestVideoFrameCallback の mediaTime)。
+  // mediaTime は、そのフレームの時刻 (requestVideoFrameCallback の mediaTime)。
   // requestVideoFrameCallback のないブラウザと、timeupdate で呼んだときは null で、そのときは currentTime を使う。
   mediaTime: number | null;
-  // presented は、コマが映ったことの通知かどうか。timeupdate で呼んだときは false で、映ったコマと結びつかない。
+  // presented は、フレームが映ったことの通知かどうか。timeupdate で呼んだときは false で、映ったフレームと結びつかない。
   presented: boolean;
 };
 
-// useVideoFrames は、video にコマが映るごとに onFrame を呼ぶ (#1512)。
+// useVideoFrames は、video にフレームが映るごとに onFrame を呼ぶ (#1512)。
 // requestVideoFrameCallback があれば使い、なければ requestAnimationFrame で代える。一時停止の間は、requestVideoFrameCallback は来ない。
 // 取りこぼしを防ぐため、timeupdate でも呼ぶ。video を作り直したら (画質の切り替え、つなぎ直し)、付け直す。
 export function useVideoFrames(

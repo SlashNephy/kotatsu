@@ -2,8 +2,8 @@ import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
 
-// フィールドごとの表示 (#1655、設計書 7.2)。1080i の 1 コマには、時刻の違う 2 つのフィールドが入っている。
-// yadif の doubleRate で、フィールドごとに 1 コマを作って 59.94p で出すと、放送そのままのなめらかさになる。
+// フィールドごとの表示 (#1655、設計書 7.2)。1080i の 1 フレームには、時刻の違う 2 つのフィールドが入っている。
+// yadif の doubleRate で、フィールドごとに 1 フレームを作って 59.94p で出すと、放送そのままのなめらかさになる。
 
 // storageKey は、フィールドごとに表示するかを保存するキー。表示が追いつくかは端末によるので、ほかの端末とは同期しない。
 const storageKey = 'kotatsu.player.fieldRate';
@@ -50,8 +50,8 @@ export function useFieldRate(): [boolean, (enabled: boolean) => void] {
   ];
 }
 
-// lateFieldsPerSecond は、1 秒あたりにこれ以上のコマが間に合わなければ、その秒は追いつかなかったとみなす数。
-// 60 Hz の画面で 59.94 フィールドを出すと、画面の更新とずれて、ときどき間に合わないコマが出るので、数コマは見逃す。
+// lateFieldsPerSecond は、1 秒あたりにこれ以上のフレームが間に合わなければ、その秒は追いつかなかったとみなす数。
+// 60 Hz の画面で 59.94 フィールドを出すと、画面の更新とずれて、ときどき間に合わないフレームが出るので、数フレームは見逃す。
 export const lateFieldsPerSecond = 6;
 // lateSeconds は、追いつかない秒がこれだけ続いたら、フィールドごとの表示をやめる秒数。
 export const lateSeconds = 5;
@@ -68,7 +68,7 @@ export type LateReport = {
 // observe は、追いつかない秒が lateSeconds 続いたら true を返す。
 // 24p で出している間 (#1284) は、フィールドごとに表示していないので数えない。
 // 等速でない間 (早送り、倍速、低遅延の 1.1 倍) も数えない。1 秒あたりのフィールドが画面の更新より多くなり、
-// 端末が遅くなくても間に合わないコマが出るからで、等速に戻ったら数え直す。
+// 端末が遅くなくても間に合わないフレームが出るからで、等速に戻ったら数え直す。
 export function createLateWatch(): { observe(report: LateReport): boolean; reset(): void } {
   let previous: number | null = null;
   let streak = 0;

@@ -1,18 +1,18 @@
 import type { EstimateTiming } from './benchmarkResults';
 import { createInterpolator } from './interpolator';
 
-// 「この端末で試す」(#1771) で、コマの補間が動きを推し量る処理の時間を計測する。
-// 再生とは別の WebGL2 のコンテキストで、合成の 2 コマ (粗い模様と、それをずらしたもの) を推し量る。計測し終えたら破棄する。
+// 「この端末で試す」(#1771) で、フレームの補間が動きを推し量る処理の時間を計測する。
+// 再生とは別の WebGL2 のコンテキストで、合成の 2 フレーム (粗い模様と、それをずらしたもの) を推し量る。計測し終えたら破棄する。
 
-// width と height は、計測するコマの大きさ。放送の 1080i と同じ。
+// width と height は、計測するフレームの大きさ。放送の 1080i と同じ。
 const width = 1440;
 const height = 1080;
 // repeats は、計測する回数。GPU の時間は中央値を、読み戻しまでの時間は平均を使う。
 const repeats = 20;
-// shift は、後のコマをずらす画素の数 (原寸)。
+// shift は、後のフレームをずらす画素の数 (原寸)。
 const shift = { x: 6, y: 4 };
 
-// pattern は、合成のコマの画素 (RGBA)。8 画素ごとの粗い模様を、dx と dy だけずらす。
+// pattern は、合成のフレームの画素 (RGBA)。8 画素ごとの粗い模様を、dx と dy だけずらす。
 function pattern(dx: number, dy: number): Uint8Array<ArrayBuffer> {
   const pixels = new Uint8Array(width * height * 4);
   for (let y = 0; y < height; y++) {

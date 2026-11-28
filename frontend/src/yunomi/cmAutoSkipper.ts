@@ -1,30 +1,30 @@
 import { cmLookahead, cmSectionAt, shouldAutoSkip, type CmSection } from './cmSkip';
 
-// uncoverFrames は、飛んだあと、飛び先以上のコマがこの数だけ続いて映ったら蓋を外す、その数 (#1512)。
-// requestVideoFrameCallback が来るのは、コマを描画の側へ渡した時点で、画面に出るのはその後になる。
+// uncoverFrames は、飛んだあと、飛び先以上のフレームがこの数だけ続いて映ったら蓋を外す、その数 (#1512)。
+// requestVideoFrameCallback が来るのは、フレームを描画の側へ渡した時点で、画面に出るのはその後になる。
 // Windows の Chrome や Edge は、映像を DOM とは別の面に出すので、蓋を外す変更のほうが映像より先に画面へ出ることがある。
-// そのため、1 コマでは外さない。実機で計測していない初期値 (設計書 付録 A)。
+// そのため、1 フレームでは外さない。実機で計測していない初期値 (設計書 付録 A)。
 export const uncoverFrames = 3;
 
 // coverTimeoutMs は、蓋を出してから、外す条件を満たさなくても外すまでの時間 (#1512)。外し忘れて映像が止まって見えるのを防ぐ。
-// 読み直す経路で、読み直しを求めてから飛び先のコマが映るまでの時間より長くする (設計書 付録 A)。
+// 読み直す経路で、読み直しを求めてから飛び先のフレームが映るまでの時間より長くする (設計書 付録 A)。
 export const coverTimeoutMs = 5_000;
 
-// landingTolerance は、飛び先に着いたとみなす、コマの位置の誤差 (秒)。位置の計算の丸めの分だけ許す。
+// landingTolerance は、飛び先に着いたとみなす、フレームの位置の誤差 (秒)。位置の計算の丸めの分だけ許す。
 const landingTolerance = 0.001;
 
-// CoverKind は、蓋の種類。still は、映っていた本編のコマをコピーしたもの。black は、プレイヤーの枠全体を覆う黒。
+// CoverKind は、蓋の種類。still は、映っていた本編のフレームをコピーしたもの。black は、プレイヤーの枠全体を覆う黒。
 export type CoverKind = 'still' | 'black';
 
-// SkipperFrame は、映ったコマ 1 つ分の様子。
+// SkipperFrame は、映ったフレーム 1 つ分の様子。
 export type SkipperFrame = {
-  // position は、そのコマの再生位置 (秒)。読み直しや作り直しの途中で、まだ信じられないときは null。
+  // position は、そのフレームの再生位置 (秒)。読み直しや作り直しの途中で、まだ信じられないときは null。
   position: number | null;
   // seeking は、video が seek しているかどうか。
   seeking: boolean;
   paused: boolean;
-  // presented は、コマが映ったことの通知かどうか。timeupdate から呼んだときは false にする。
-  // currentTime は、代入した時点で飛び先の値を返し、映っているコマより先へ進んでいることもあるので、蓋を外す数には入れない。
+  // presented は、フレームが映ったことの通知かどうか。timeupdate から呼んだときは false にする。
+  // currentTime は、代入した時点で飛び先の値を返し、映っているフレームより先へ進んでいることもあるので、蓋を外す数には入れない。
   presented: boolean;
 };
 
@@ -49,12 +49,12 @@ export type SkipperHost = {
   setTimer: (callback: () => void, ms: number) => () => void;
 };
 
-// Waiting は、蓋を出して飛び先が映るのを待っている間の状態。count は、飛び先以上のコマが続いて映った数。
+// Waiting は、蓋を出して飛び先が映るのを待っている間の状態。count は、飛び先以上のフレームが続いて映った数。
 type Waiting = { target: number; count: number; cancelTimer: () => void };
 
-// CmAutoSkipper は、CM を自動で飛ばすときに、CM のコマを 1 コマも画面に出さないための、判定と蓋の出し入れ (#1512)。
-// 映ったコマごとに frame を呼ぶ。いまのコマの位置に先読みの分を足して CM に入っていれば、続いた CM の終わりへ飛ぶ。
-// 飛ぶ直前に蓋を出し、飛び先以上のコマが uncoverFrames だけ続いて映ってから外す。
+// CmAutoSkipper は、CM を自動で飛ばすときに、CM のフレームを 1 つも画面に出さないための、判定と蓋の出し入れ (#1512)。
+// 映ったフレームごとに frame を呼ぶ。いまのフレームの位置に先読みの分を足して CM に入っていれば、続いた CM の終わりへ飛ぶ。
+// 飛ぶ直前に蓋を出し、飛び先以上のフレームが uncoverFrames だけ続いて映ってから外す。
 export class CmAutoSkipper {
   readonly #host: SkipperHost;
   // waiting は、蓋を出して、飛び先が映るのを待っている間の状態。
@@ -69,16 +69,16 @@ export class CmAutoSkipper {
     return this.#waiting !== null;
   }
 
-  // frame は、映ったコマごとに呼ぶ。
+  // frame は、映ったフレームごとに呼ぶ。
   frame(frame: SkipperFrame): void {
     const waiting = this.#waiting;
     if (waiting !== null) {
       if (!frame.presented) {
         return;
       }
-      // seek の途中のコマと、飛び先より手前のコマが来たら、数え直す。止めている間のコマも数えない。
+      // seek の途中のフレームと、飛び先より手前のフレームが来たら、数え直す。止めている間のフレームも数えない。
       // requestVideoFrameCallback のないブラウザは requestAnimationFrame で代えるので、止めている間も通知が届くが、
-      // そのコマが画面に出たかは分からない (設計書 7.5)。
+      // そのフレームが画面に出たかは分からない (設計書 7.5)。
       const landed =
         !frame.paused &&
         !frame.seeking &&
@@ -100,14 +100,14 @@ export class CmAutoSkipper {
     if (!shouldAutoSkip(section, true, true, host.lastSeek())) {
       return;
     }
-    // CM の中でコピーすると、蓋そのものが CM のコマになるので、いまのコマが本編のときだけコピーする。
+    // CM の中でコピーすると、蓋そのものが CM のフレームになるので、いまのフレームが本編のときだけコピーする。
     const inCm = cmSectionAt(sections, frame.position) !== null;
     this.#hold(inCm ? 'black' : 'still', () => host.jump(section!.to));
     host.notify();
   }
 
   // skipFrom は、利用者の相対の移動 (10 秒や 15 秒のシーク) の行き先 position が CM の中なら、そこへは移らず、黒い蓋を出して
-  // 続いた CM の終わりへ飛び、true を返す。行き先へ移ってから飛ぶと、読み直した CM のコマが映る。
+  // 続いた CM の終わりへ飛び、true を返す。行き先へ移ってから飛ぶと、読み直した CM のフレームが映る。
   // 設定を切っているとき、飛び先が映るのを待っているとき、行き先が CM の中でないときは、何もせず false を返す。
   skipFrom(position: number): boolean {
     const host = this.#host;
@@ -124,7 +124,7 @@ export class CmAutoSkipper {
     return true;
   }
 
-  // holdUntil は、飛ばずに、黒い蓋で覆ったまま、target 以上のコマが映るのを待つ。開き始めに、最初から CM の終わりを
+  // holdUntil は、飛ばずに、黒い蓋で覆ったまま、target 以上のフレームが映るのを待つ。開き始めに、最初から CM の終わりを
   // 求めたときに使う。配信は手前の I フレームから流れるので、CM の末尾が映りうる。
   holdUntil(target: number): void {
     this.#hold('black', () => target);
@@ -137,7 +137,7 @@ export class CmAutoSkipper {
 
   #hold(kind: CoverKind, move: () => number): void {
     this.#waiting?.cancelTimer();
-    // 蓋を先に出してから移る。移ってから出すと、その間に CM のコマが出る。
+    // 蓋を先に出してから移る。移ってから出すと、その間に CM のフレームが出る。
     this.#host.cover(kind);
     const waiting = { target: Number.POSITIVE_INFINITY, count: 0, cancelTimer: () => {} };
     this.#waiting = waiting;
@@ -145,8 +145,8 @@ export class CmAutoSkipper {
     this.#arm(waiting);
   }
 
-  // arm は、外し忘れのタイマーを掛ける。止めている間は、コマが来ず、外す条件を数えられないので、外さずに掛け直す。
-  // 止めたまま外すと、映っている手前のコマ (CM の末尾) が見える。
+  // arm は、外し忘れのタイマーを掛ける。止めている間は、フレームが来ず、外す条件を数えられないので、外さずに掛け直す。
+  // 止めたまま外すと、映っている手前のフレーム (CM の末尾) が見える。
   #arm(waiting: Waiting): void {
     waiting.cancelTimer = this.#host.setTimer(() => {
       if (this.#waiting !== waiting) {
