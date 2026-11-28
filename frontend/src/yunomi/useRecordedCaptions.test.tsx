@@ -1,7 +1,10 @@
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { useRecordedCaptions } from './useRecordedCaptions';
+
+// 外字のテーブルはサーバーから読むので、テストでは読まない。
+vi.mock('./useDRCSReplacements', () => ({ useDRCSReplacements: () => ({ canRegister: false }) }));
 
 describe('useRecordedCaptions', () => {
   test.each([
