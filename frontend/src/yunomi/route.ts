@@ -238,6 +238,9 @@ export function vodDataBroadcastURL(streamUrl: string, start: number): string {
   return `${path}/data-broadcast?${params.toString()}`;
 }
 
+// vodStreamBases は、録画型の再生元の配信の種類。
+const vodStreamBases = ['recordings', 'timeshift', 'library'] as const;
+
 // rfc3339 は、タイムシフトのバッファの番組の始まり (from) に使う日時の文字。
 const rfc3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
@@ -246,9 +249,11 @@ const rfc3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d
 function vodDataBroadcastQuery(query: string | undefined): string {
   const given = new URLSearchParams(query?.split('#', 1)[0] ?? '');
   const params = new URLSearchParams();
+  // 番組の始まりは、受け取った文字列を渡さず、日時として読んでから書き直す。
   const from = given.get('from');
-  if (from !== null && rfc3339.test(from)) {
-    params.set('from', from);
+  const fromTime = from !== null && rfc3339.test(from) ? Date.parse(from) : Number.NaN;
+  if (Number.isFinite(fromTime)) {
+    params.set('from', new Date(fromTime).toISOString());
   }
   const start = Number(given.get('start') ?? Number.NaN);
   if (Number.isFinite(start) && start >= 0) {
@@ -264,7 +269,12 @@ export function dataBroadcastEndpoint(url: string): string | null {
   const vod = vodDataBroadcastPath.exec(url);
   if (vod !== null) {
     const [, kind = '', id = '', query] = vod;
-    const path = `/internal/streams/${kind}/${encodeURIComponent(id)}/data-broadcast`;
+    // 種類は、受け取った文字列を URL に入れず、決まった名前から選ぶ。
+    const base = vodStreamBases.find((candidate) => candidate === kind);
+    if (base === undefined) {
+      return null;
+    }
+    const path = `/internal/streams/${base}/${encodeURIComponent(id)}/data-broadcast`;
     const params = vodDataBroadcastQuery(query);
 
     return params === '' ? path : `${path}?${params}`;

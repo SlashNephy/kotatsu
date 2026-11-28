@@ -313,7 +313,7 @@ describe('dataBroadcastEndpoint', () => {
     {
       name: '録画型の再生元の問い合わせは、読み始める位置と番組の始まりのほかは渡さない',
       url: '/internal/streams/timeshift/3273601024/data-broadcast?from=2026-11-28T00%3A00%3A00Z&start=12.3&next=https%3A%2F%2Fevil.example#2',
-      want: '/internal/streams/timeshift/3273601024/data-broadcast?from=2026-11-28T00%3A00%3A00Z&start=12.3',
+      want: '/internal/streams/timeshift/3273601024/data-broadcast?from=2026-11-28T00%3A00%3A00.000Z&start=12.3',
     },
     {
       name: '数でない読み始める位置は渡さない',
