@@ -1,0 +1,6 @@
+# 評価のために並べる mpeg2toh264 のフォーク (#2287) のプレイヤーを、どの commit からビルドするか (設計書 7.2)。
+# 変えたら、mise run //frontend:mpeg2toh264-fork でビルドし直す。CI は、ビルドし直したものとの差分がないことを確認する。
+# wasm-bindgen のバージョンは、この commit の Cargo.lock の wasm-bindgen と揃える (mise.mpeg2toh264.toml)。
+repository=https://github.com/soraneoumi/mpeg2toh264
+# renovate: datasource=git-refs depName=https://github.com/soraneoumi/mpeg2toh264 currentValue=main
+commit=ee8e1da59d76f17fc540a9440ceb0e83bddfa02d

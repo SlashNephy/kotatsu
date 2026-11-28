@@ -1,0 +1,54 @@
+diff --git a/packages/player/src/sound-output.ts b/packages/player/src/sound-output.ts
+index 4b3f98d..f4e5dcc 100644
+--- a/packages/player/src/sound-output.ts
++++ b/packages/player/src/sound-output.ts
+@@ -18,6 +18,14 @@ import {
+   type SoundPosition,
+ } from "./sound/index.js";
+ 
++/** How long a resume asked for inside a gesture may take to start the context. */
++const RESUME_IN_GESTURE_MS = 3000;
++/**
++ * How long one asked for outside a gesture is waited for: enough for a
++ * context the browser lets run anyway, not for one waiting on a gesture.
++ */
++const RESUME_OUTSIDE_GESTURE_MS = 500;
++
+ /**
+  * How often the context clock is read besides each animation frame, which a
+  * hidden page is given none of.
+@@ -86,14 +94,29 @@ export class SoundOutput {
+   /**
+    * Let the context run. A browser that wants a gesture before sound plays
+    * keeps it suspended outside one; the answer is whether it runs now.
++   *
++   * Such a browser does not refuse the resume either: Chrome leaves its
++   * promise pending until a gesture comes, which may be never. So the answer
++   * is not waited for past a short while, longer inside a gesture, where a
++   * resume is let through; the context still starts if one comes later.
+    */
+   async resume(): Promise<boolean> {
+     if (this.context.state !== "running") {
+-      try {
+-        await this.context.resume();
+-      } catch {
+-        return false;
+-      }
++      const gesture = navigator.userActivation?.isActive ?? true;
++      const settled = this.context.resume().then(
++        () => true,
++        () => false,
++      );
++      const resumed = await Promise.race([
++        settled,
++        new Promise<boolean>((resolve) =>
++          setTimeout(
++            () => resolve(false),
++            gesture ? RESUME_IN_GESTURE_MS : RESUME_OUTSIDE_GESTURE_MS,
++          ),
++        ),
++      ]);
++      if (!resumed) return false;
+     }
+     return this.context.state === "running";
+   }

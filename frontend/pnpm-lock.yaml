@@ -214,6 +214,12 @@ importers:
       '@mantine/notifications':
         specifier: 9.8.2
         version: 9.8.2(@mantine/core@9.8.2(@mantine/hooks@9.8.2(react@19.3.1))(@types/react@19.3.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@mantine/hooks@9.8.2(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@mpeg2toh264-fork/player':
+        specifier: workspace:*
+        version: link:vendor/mpeg2toh264-fork/player
+      '@mpeg2toh264-fork/yadif':
+        specifier: workspace:*
+        version: link:vendor/mpeg2toh264-fork/yadif
       '@mpeg2toh264/player':
         specifier: workspace:*
         version: link:vendor/mpeg2toh264/player
@@ -376,6 +382,10 @@ importers:
         version: 7.4.1
 
   vendor/ffmpeg/decoder: {}
+
+  vendor/mpeg2toh264-fork/player: {}
+
+  vendor/mpeg2toh264-fork/yadif: {}
 
   vendor/mpeg2toh264/player: {}
 
