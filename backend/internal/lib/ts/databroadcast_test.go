@@ -192,3 +192,33 @@ func TestDataBroadcastFilterKeepsPSI(t *testing.T) {
 		assert.Equal(t, p, got)
 	}
 }
+
+func TestFirstProgramDataBroadcastFilter(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		packet []byte
+		// want は残すかどうか。
+		want bool
+	}{
+		{name: "data carousel of the first program is kept", packet: payloadPacket(carouselPID), want: true},
+		{name: "PMT of the first program is kept", packet: payloadPacket(pmtPID), want: true},
+		{name: "PMT of another program is dropped", packet: payloadPacket(otherPMTPID), want: false},
+		{name: "audio is dropped", packet: payloadPacket(audioPID), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// PAT には programNum と programNum+1 の 2 つの番組がある。小さいほうを選ぶ。
+			filter := ts.NewFirstProgramDataBroadcastFilter()
+			for _, p := range psiHeader(0, pmtPID) {
+				_, _ = filter.Filter(p)
+			}
+			_, keep := filter.Filter(tt.packet)
+
+			assert.Equal(t, tt.want, keep)
+		})
+	}
+}

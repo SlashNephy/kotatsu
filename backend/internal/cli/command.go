@@ -1166,12 +1166,19 @@ func newStreamRoutes(
 	// ライブラリのファイルは、このインスタンスに設定したライブラリのものだけ流せる (設計書 5.8)。
 	routes.add(http.MethodGet, "/internal/streams/library/:id", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamKindLibrary, streamapi.NewLibraryHandler(librarySource, streamLogger)))))
+	// 録画型の再生元のデータ放送は、映像の配信から、データ放送の描画に要るパケットだけを流す (設計書 7.4、#2270)。
+	routes.add(http.MethodGet, "/internal/streams/library/:id/data-broadcast", httpserver.StopOnShutdown(authorizer.Session(
+		streams.Count(streamapi.StreamKindDataBroadcast, streamapi.NewVODDataBroadcastHandler(streamapi.NewLibraryHandler(librarySource, streamLogger))))))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	routes.add(http.MethodGet, "/internal/streams/recordings/:id", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamKindRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), urlGate, streamLogger, 0)))))
+	routes.add(http.MethodGet, "/internal/streams/recordings/:id/data-broadcast", httpserver.StopOnShutdown(authorizer.Session(
+		streams.Count(streamapi.StreamKindDataBroadcast, streamapi.NewVODDataBroadcastHandler(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), urlGate, streamLogger, 0))))))
 	// タイムシフトのバッファは、このインスタンスにタイムシフトのディレクトリを設定したときだけ流せる (設計書 7.2)。
 	routes.add(http.MethodGet, "/internal/streams/timeshift/:id", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamKindTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
+	routes.add(http.MethodGet, "/internal/streams/timeshift/:id/data-broadcast", httpserver.StopOnShutdown(authorizer.Session(
+		streams.Count(streamapi.StreamKindDataBroadcast, streamapi.NewVODDataBroadcastHandler(streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
 	// 画質を上げる前に回線の余裕を確認する、プローブのデータ (設計書 7.3、#1513)。配信ではないので、streams に数えない。
 	routes.add(http.MethodGet, streamapi.ProbePath, authorizer.Session(streamapi.NewProbeHandler(deps.Clock)))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。

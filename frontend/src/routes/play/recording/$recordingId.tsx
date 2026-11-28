@@ -334,6 +334,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         autoCaptions: autoCaptionPositions(recordedFrom, gaps, recording.autoCaptions),
         // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
         remote: true,
+        // データ放送は、HD の映像なら、映像と同じ位置から読んで出す (#2270)。
+        dataBroadcast: true,
         // 録画は先に読むので、受け取りの速さで余裕を確認して上げる。オリジナルのビットレートは、録画の平均で比較する。
         topBitrate: averageBitrate(recording, now),
         streamInfo: {
