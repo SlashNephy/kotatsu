@@ -54,8 +54,8 @@ export function ProgramTitle({
   );
 }
 
-// HighlightedText は、text のうち、keywords に当たった所を <mark> で囲んで出す。
-function HighlightedText({
+// HighlightedText は、text のうち、keywords に当たった所を <mark> で囲んで出す。録画の検索で当たった字幕の文にも使う (#2215)。
+export function HighlightedText({
   text,
   keywords,
 }: {

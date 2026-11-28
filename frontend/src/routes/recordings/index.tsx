@@ -24,6 +24,7 @@ import {
 import {
   CalendarDays,
   Clapperboard,
+  Captions,
   Info,
   ListChecks,
   ListFilter,
@@ -51,7 +52,10 @@ import {
   useEntryState,
 } from '../../futon';
 import { genreKey } from '../../guide/genres';
+import { CaptionMatchList } from '../../recordings/CaptionMatchList';
 import {
+  activeFilterCount,
+  captionKeyword,
   formFromSearch,
   parseRecordingListSearch,
   recordingFilter,
@@ -134,6 +138,11 @@ const query = graphql`
             name
           }
         }
+        captionMatches {
+          source
+          from
+          text
+        }
       }
       pageInfo {
         hasNextPage
@@ -143,7 +152,8 @@ const query = graphql`
   }
 `;
 
-type Recording = recordingsListQuery$data['recordings']['edges'][number]['node'];
+// Edge は、一覧の録画と、字幕の文で探したときに当たった字幕 (#2215)。
+type Edge = recordingsListQuery$data['recordings']['edges'][number];
 type Filter = NonNullable<recordingsListQuery$variables['filter']>;
 type Order = recordingsListQuery$variables['order'];
 
@@ -163,7 +173,7 @@ function RecordingsPage() {
   const update: Update = (next) => void navigate({ replace: true, search: next });
   const [filtersOpened, setFiltersOpened] = useState(false);
   // 閉じていても絞り込み中だと分かるよう、ボタンに、使っている条件の数を出す。
-  const activeFilters = Object.keys(filter).length;
+  const activeFilters = activeFilterCount(filter);
 
   return (
     <Stack gap="sm">
@@ -281,7 +291,8 @@ function Recordings({
     setSyncedKey(searchKey);
     setForm(formFromSearch(search));
   }
-  const { keywords, keywordMatch, excludeKeywords, tags: tagIds, states, services, genres } = form;
+  const { keywords, keywordMatch, excludeKeywords, captionKeywords, captionKeywordMatch } = form;
+  const { tags: tagIds, states, services, genres } = form;
   const { from, to } = form;
 
   const submit = (event: FormEvent) => {
@@ -316,6 +327,22 @@ function Recordings({
         onChange={(rows) => patch({ excludeKeywords: rows })}
         fields={recordingKeywordFields}
         newRow={recordingKeyword}
+      />
+      {/* 字幕の文で探す欄 (#2215)。放送の字幕と自動生成の字幕から探す。字幕には照合する項目がない。 */}
+      <KeywordRows
+        label={t('recordings.captionKeywords')}
+        description={
+          captionKeywordMatch === 'ANY'
+            ? t('recordings.captionKeywordsAnyDescription')
+            : t('recordings.captionKeywordsDescription')
+        }
+        match={captionKeywordMatch}
+        onMatchChange={(value) => patch({ captionKeywordMatch: value })}
+        icon={<Captions size={16} aria-hidden />}
+        rows={captionKeywords}
+        onChange={(rows) => patch({ captionKeywords: rows })}
+        fields={[]}
+        newRow={captionKeyword}
       />
     </SimpleGrid>
   );
@@ -549,16 +576,19 @@ function RecordingGrid({
   const [loaded, setMore] = useEntryState<{
     key: string;
     changes: number;
-    recordings: Recording[];
+    recordings: Edge[];
     next: string | null;
   } | null>('more', null);
   const more = loaded?.key === key && loaded.changes === changes ? loaded : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const recordings = [
-    ...data.recordings.edges.map((edge) => edge.node),
-    ...(more?.recordings ?? []),
-  ];
+  const recordings = [...data.recordings.edges, ...(more?.recordings ?? [])];
+  // 当たった字幕の文に、探したキーワードのマークを付ける。
+  const captionHighlights = (filter.captionKeywords ?? []).map((keyword) => ({
+    text: keyword.text,
+    regexp: keyword.regexp === true,
+    caseSensitive: keyword.caseSensitive === true,
+  }));
   const next =
     more !== null
       ? more.next
@@ -580,10 +610,7 @@ function RecordingGrid({
         setMore({
           key,
           changes,
-          recordings: [
-            ...(more?.recordings ?? []),
-            ...page.recordings.edges.map((edge) => edge.node),
-          ],
+          recordings: [...(more?.recordings ?? []), ...page.recordings.edges],
           next: page.recordings.pageInfo.hasNextPage
             ? (page.recordings.pageInfo.endCursor ?? null)
             : null,
@@ -643,7 +670,7 @@ function RecordingGrid({
       )}
       {recordings.length > 0 && (
         <SimpleGrid cols={{ base: 2, sm: 3, lg: 4 }} spacing="sm">
-          {recordings.map((recording) => {
+          {recordings.map(({ node: recording, captionMatches }) => {
             const locked = recording.protected || recording.state === 'RECORDING';
 
             return (
@@ -653,6 +680,14 @@ function RecordingGrid({
                   <RecordingCard
                     recording={recording}
                     highlights={nameHighlights(filter.keywords)}
+                    listSearch={listSearch}
+                  />
+                  <CaptionMatchList
+                    recordingId={recording.id}
+                    recordedFrom={recording.recordedFrom}
+                    gaps={recording.gaps}
+                    matches={captionMatches}
+                    keywords={captionHighlights}
                     listSearch={listSearch}
                   />
                 </Box>

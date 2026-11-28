@@ -43,6 +43,8 @@ export type RecordingFilter = {
   keywords?: KeywordInput[] | null;
   keywordMatch?: 'ALL' | 'ANY' | null;
   excludeKeywords?: KeywordInput[] | null;
+  // captionKeywords は、字幕の文で探すキーワード (#2215)。デモの録画には字幕の文がないので、どの録画も当たらない。
+  captionKeywords?: unknown[] | null;
   since?: string | null;
   until?: string | null;
   ruleId?: string | null;
@@ -321,6 +323,8 @@ export function createRecordings(options: {
       (filter.serviceIds == null || filter.serviceIds.includes(program.service.id)) &&
       (keyword == null || keyword === '' || program.name.toLowerCase().includes(keyword)) &&
       matchesKeywordConditions(program, filter) &&
+      // tenban と同じく、字幕のない録画は、字幕の文で探すと返さない。
+      (filter.captionKeywords ?? []).length === 0 &&
       (filter.since == null || program.start >= Date.parse(filter.since)) &&
       (filter.until == null || program.start < Date.parse(filter.until)) &&
       (filter.ruleId == null || recording.rule?.id === filter.ruleId) &&

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<df36b1c50d0a764f38cf9ae32e9008dd>>
+ * @generated SignedSource<<c1444f9b2da97aa50f6259ed93cb621e>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type CaptionSource = "ARIB" | "AUTO" | "%future added value";
 export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added value";
 export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 export type RecordingOrder = "NEWEST_FIRST" | "OLDEST_FIRST" | "%future added value";
@@ -47,6 +48,11 @@ export type recordingsListQuery$variables = {
 export type recordingsListQuery$data = {
   readonly recordings: {
     readonly edges: ReadonlyArray<{
+      readonly captionMatches: ReadonlyArray<{
+        readonly from: string;
+        readonly source: CaptionSource;
+        readonly text: string;
+      }>;
       readonly node: {
         readonly cmDetectionNote: string | null | undefined;
         readonly cmVideoMissingSeconds: number;
@@ -243,18 +249,19 @@ v18 = {
 v19 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "from",
+  "storageKey": null
+},
+v20 = {
+  "alias": null,
+  "args": null,
   "concreteType": "RecordingGap",
   "kind": "LinkedField",
   "name": "gaps",
   "plural": true,
   "selections": [
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "from",
-      "storageKey": null
-    },
+    (v19/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -265,28 +272,28 @@ v19 = {
   ],
   "storageKey": null
 },
-v20 = {
+v21 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchPositionMs",
   "storageKey": null
 },
-v21 = {
+v22 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "thumbnailUrl",
   "storageKey": null
 },
-v22 = {
+v23 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "previewUrl",
   "storageKey": null
 },
-v23 = {
+v24 = {
   "alias": null,
   "args": null,
   "concreteType": "PreviewFrame",
@@ -346,14 +353,14 @@ v23 = {
   ],
   "storageKey": null
 },
-v24 = {
+v25 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v25 = {
+v26 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -366,7 +373,33 @@ v25 = {
   ],
   "storageKey": null
 },
-v26 = {
+v27 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "RecordingCaptionMatch",
+  "kind": "LinkedField",
+  "name": "captionMatches",
+  "plural": true,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "source",
+      "storageKey": null
+    },
+    (v19/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "text",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v28 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -441,11 +474,11 @@ return {
                   (v16/*:: as any*/),
                   (v17/*:: as any*/),
                   (v18/*:: as any*/),
-                  (v19/*:: as any*/),
                   (v20/*:: as any*/),
                   (v21/*:: as any*/),
                   (v22/*:: as any*/),
                   (v23/*:: as any*/),
+                  (v24/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -455,18 +488,19 @@ return {
                     "plural": false,
                     "selections": [
                       (v6/*:: as any*/),
-                      (v24/*:: as any*/)
+                      (v25/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v25/*:: as any*/)
+                  (v26/*:: as any*/)
                 ],
                 "storageKey": null
-              }
+              },
+              (v27/*:: as any*/)
             ],
             "storageKey": null
           },
-          (v26/*:: as any*/)
+          (v28/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -523,11 +557,11 @@ return {
                   (v16/*:: as any*/),
                   (v17/*:: as any*/),
                   (v18/*:: as any*/),
-                  (v19/*:: as any*/),
                   (v20/*:: as any*/),
                   (v21/*:: as any*/),
                   (v22/*:: as any*/),
                   (v23/*:: as any*/),
+                  (v24/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -537,35 +571,36 @@ return {
                     "plural": false,
                     "selections": [
                       (v6/*:: as any*/),
-                      (v24/*:: as any*/),
+                      (v25/*:: as any*/),
                       (v5/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v25/*:: as any*/)
+                  (v26/*:: as any*/)
                 ],
                 "storageKey": null
-              }
+              },
+              (v27/*:: as any*/)
             ],
             "storageKey": null
           },
-          (v26/*:: as any*/)
+          (v28/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "f228429dc80180f296dba53976c2ff6e",
+    "cacheID": "e0161a628b683e5e702f15a963d99f1e",
     "id": null,
     "metadata": {},
     "name": "recordingsListQuery",
     "operationKind": "query",
-    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n  $order: RecordingOrder!\n) {\n  recordings(first: $first, after: $after, filter: $filter, order: $order) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        protected\n        drops\n        errors\n        scrambled\n        scrambleWarning\n        cmDetectionNote\n        cmVideoMissingSeconds\n        recordedFrom\n        recordedUntil\n        gaps {\n          from\n          to\n        }\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n  $order: RecordingOrder!\n) {\n  recordings(first: $first, after: $after, filter: $filter, order: $order) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        protected\n        drops\n        errors\n        scrambled\n        scrambleWarning\n        cmDetectionNote\n        cmVideoMissingSeconds\n        recordedFrom\n        recordedUntil\n        gaps {\n          from\n          to\n        }\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n      captionMatches {\n        source\n        from\n        text\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "b44e58f3bf88a274961088a78366ab6e";
+(node as any).hash = "07e8c479ac8cf380e70fe9f3faa37e44";
 
 export default node;

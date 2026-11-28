@@ -633,7 +633,12 @@ export function createRootValue(
       after?: string | null;
       filter?: RecordingFilter | null;
       order: string;
-    }) => paginate(recordings.list(args.filter, args.order), args.first, args.after),
+    }) => {
+      const page = paginate(recordings.list(args.filter, args.order), args.first, args.after);
+
+      // デモの録画には字幕の文がないので、当たった字幕 (#2215) はいつも空にする。
+      return { ...page, edges: page.edges.map((edge) => ({ ...edge, captionMatches: [] })) };
+    },
     tags: () => recordings.tags(),
     playerSettings: () => playerSettings,
     // デモには、映像を変換する kyusu がない。
