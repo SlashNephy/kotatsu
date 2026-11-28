@@ -7,7 +7,7 @@ import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../../relay/useLazyLoadQuery';
 
 import { rememberReturnTo } from '../../../auth/returnTo';
-import { ErrorBoundary, PageLoader, ProgramTitle } from '../../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle, useNow } from '../../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../../relay/environment';
 import { RuleRecordingList } from '../../../recordings/RuleRecordingList';
 import { broadcastTime, recordingPosition, formatDuration } from '../../../yunomi/position';
@@ -221,6 +221,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
     return () => clearInterval(timer);
   }, [environment, stillRecording, recordingId]);
+  // now は、今の時刻。録画中の録画の長さを、再生している間も 1 秒ごとに伸ばす。
+  const now = useNow(1000);
   // duration は、録画の長さ (秒)。ファイルには途切れた区間の分の映像がないので、その分を差し引く。
   const duration =
     recording === null
@@ -228,7 +230,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       : recordingPosition(
           recording.recordedFrom,
           recording.gaps,
-          recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil),
+          recording.recordedUntil == null ? now : Date.parse(recording.recordedUntil),
         );
   // cmPositions は、CM とみなした区間 (#479) を、途切れた分を詰めた再生の位置にしたもの。録画の時間軸の日時で受け取る。
   const cmPositions =
@@ -331,9 +333,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
         remote: true,
         // 録画は先に読むので、受け取りの速さで余裕を確認して上げる。オリジナルのビットレートは、録画の平均で比較する。
-        topBitrate: averageBitrate(recording, Date.now()),
+        topBitrate: averageBitrate(recording, now),
         streamInfo: {
-          average: averageBitrate(recording, Date.now()),
+          average: averageBitrate(recording, now),
           recordedKinds: kindBitrates(recording.streamQuality, duration),
           transport: {
             dropped: Number(recording.drops),
