@@ -58,6 +58,14 @@ mise run //frontend:wasm-decode:serve
 mise run //frontend:wasm-decode:serve 18516 0.0.0.0
 ```
 
+Safari 27 は、安全な文脈でない（http の）ページでは、JavaScript と WASM を JIT なしで動かします（WebKit の Bug 324968、#2162）。
+Safari で計測するときは https で配信します。環境変数 `SERVE_TLS_CERT` と `SERVE_TLS_KEY` に、証明書と秘密鍵のファイルを渡します。
+証明書は、たとえば mkcert で配信するアドレスに対して作り、その認証局を実機に信頼させます。
+
+```bash
+SERVE_TLS_CERT=bench/wasm-decode/.work/tls/cert.pem SERVE_TLS_KEY=bench/wasm-decode/.work/tls/key.pem mise run //frontend:wasm-decode:serve 18517 0.0.0.0
+```
+
 結果をファイルにコピーしたら、映像と方式ごとにまとめられます。
 
 ```bash

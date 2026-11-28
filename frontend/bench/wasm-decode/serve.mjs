@@ -9,9 +9,12 @@
 //   POST /results     測定のページが送る結果の 1 行を .work/results.jsonl に足す
 //
 // 使い方: node serve.mjs [ポート] [待ち受けるアドレス]
-import { createReadStream, createWriteStream } from 'node:fs';
+// 環境変数 SERVE_TLS_CERT と SERVE_TLS_KEY に証明書と秘密鍵のファイルを渡すと、https で配信する。
+// Safari 27 は、安全な文脈でない (http の) ページでは、JavaScript と WASM を JIT なしで動かすため (#2162)。
+import { createReadStream, createWriteStream, readFileSync } from 'node:fs';
 import { appendFile, mkdir, readdir, stat } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { createServer as createHttpServer } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
@@ -60,7 +63,14 @@ const locate = async (pathname) => {
   return null;
 };
 
-createServer(async (req, res) => {
+const tls =
+  process.env.SERVE_TLS_CERT && process.env.SERVE_TLS_KEY
+    ? {
+        cert: readFileSync(process.env.SERVE_TLS_CERT),
+        key: readFileSync(process.env.SERVE_TLS_KEY),
+      }
+    : null;
+const handler = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
     const { pathname } = new URL(req.url ?? '/', 'http://localhost');
@@ -117,4 +127,8 @@ createServer(async (req, res) => {
     if (!res.headersSent) res.writeHead(500);
     res.end();
   }
-}).listen(port, host, () => console.log(`serving on http://${host}:${port}/`));
+};
+const server = tls ? createHttpsServer(tls, handler) : createHttpServer(handler);
+server.listen(port, host, () =>
+  console.log(`serving on ${tls ? 'https' : 'http'}://${host}:${port}/`),
+);
