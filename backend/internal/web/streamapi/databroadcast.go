@@ -42,9 +42,14 @@ func programNumber(serviceID int64) (uint16, bool) {
 
 // newDataBroadcastWriter は、program_number が number のサービスの dataBroadcastWriter を返す。
 func newDataBroadcastWriter(w http.ResponseWriter, number uint16) *dataBroadcastWriter {
+	return newFilteredWriter(w, ts.NewDataBroadcastFilter(number))
+}
+
+// newFilteredWriter は、filter で残すパケットだけを w に書く dataBroadcastWriter を返す。
+func newFilteredWriter(w http.ResponseWriter, filter *ts.DataBroadcastFilter) *dataBroadcastWriter {
 	return &dataBroadcastWriter{
 		ResponseWriter: w,
-		filter:         ts.NewDataBroadcastFilter(number),
+		filter:         filter,
 		pending:        make([]byte, 0, ts.PacketSize),
 		out:            make([]byte, 0, stream.CopyBufferSize),
 	}

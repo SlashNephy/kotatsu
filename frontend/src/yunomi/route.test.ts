@@ -7,6 +7,7 @@ import {
   dataBroadcastSource,
   hlsURL,
   decodeStreamEndpoint,
+  vodDataBroadcastURL,
   original,
   qualities,
   toVideoFormat,
@@ -300,6 +301,31 @@ describe('dataBroadcastEndpoint', () => {
       want: '/internal/streams/services/400101/data-broadcast?token=abc',
     },
     {
+      name: '録画のデータ放送のエンドポイントも、読み始める位置を付けたまま読む (#2270)',
+      url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=60.0#3',
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=60.0',
+    },
+    {
+      name: 'ライブラリのファイルのデータ放送のエンドポイントも読む',
+      url: '/internal/streams/library/bWFpbgBhLnRz/data-broadcast?start=0.0',
+      want: '/internal/streams/library/bWFpbgBhLnRz/data-broadcast?start=0.0',
+    },
+    {
+      name: '録画型の再生元の問い合わせは、読み始める位置と番組の始まりのほかは渡さない',
+      url: '/internal/streams/timeshift/3273601024/data-broadcast?from=2026-11-28T00%3A00%3A00Z&start=12.3&next=https%3A%2F%2Fevil.example#2',
+      want: '/internal/streams/timeshift/3273601024/data-broadcast?from=2026-11-28T00%3A00%3A00.000Z&start=12.3',
+    },
+    {
+      name: '数でない読み始める位置は渡さない',
+      url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=abc',
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast',
+    },
+    {
+      name: '録画型の再生元の、ほかの種類のパスは読まない',
+      url: '/internal/streams/captures/1/data-broadcast',
+      want: null,
+    },
+    {
       name: 'ほかのホストは読まない',
       url: 'https://evil.example/internal/streams/services/1/data-broadcast',
       want: null,
@@ -341,9 +367,14 @@ describe('decodeStreamEndpoint', () => {
       want: '/internal/streams/services/3273601024',
     },
     {
-      name: '録画の TS は、読み始める位置を付けたまま読む (#2166)',
+      name: '録画の TS は、読み始める位置を付けたまま読む。fragment は送らないので外す (#2166)',
       url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60.0#1',
-      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60.0#1',
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60.0',
+    },
+    {
+      name: '録画の TS の、読み始める位置のほかの問い合わせは渡さない',
+      url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60&next=https%3A%2F%2Fevil.example',
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60.0',
     },
     {
       name: '録画の ID が UUID でなければ読まない',
@@ -402,6 +433,25 @@ describe('decodeStreamEndpoint', () => {
   });
 });
 
+describe('vodDataBroadcastURL', () => {
+  test.each([
+    {
+      name: '録画は、データ放送の配信のパスに読み始める位置を付ける',
+      streamUrl: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c',
+      start: 60,
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=60.0',
+    },
+    {
+      name: 'タイムシフトのバッファは、番組の始まりの指定を残す',
+      streamUrl: '/internal/streams/timeshift/3273601024?from=2026-11-28T00%3A00%3A00Z',
+      start: 12.34,
+      want: '/internal/streams/timeshift/3273601024/data-broadcast?from=2026-11-28T00%3A00%3A00Z&start=12.3',
+    },
+  ])('$name', ({ streamUrl, start, want }) => {
+    expect(vodDataBroadcastURL(streamUrl, start)).toBe(want);
+  });
+});
+
 describe('toVideoFormat', () => {
   test.each([
     { value: 'HD', want: 'HD' },
@@ -411,5 +461,28 @@ describe('toVideoFormat', () => {
     { value: '%future added value', want: 'UHD' },
   ])('$value', ({ value, want }) => {
     expect(toVideoFormat(value)).toBe(want);
+  });
+});
+
+describe('decodeStreamEndpoint の blob: の URL (#2166)', () => {
+  const origin = 'https://localhost:9090';
+  test.each([
+    {
+      name: '同じオリジンの blob: は、オリジンと UUID から組み直し、fragment を外す',
+      url: `${'blob:'}${origin}/0b7f6c1e-1234-4abc-8def-0123456789ab#3`,
+      want: `${'blob:'}${origin}/0b7f6c1e-1234-4abc-8def-0123456789ab`,
+    },
+    {
+      name: '同じオリジンでも、UUID でなければ読まない',
+      url: `${'blob:'}${origin}/../internal/api`,
+      want: null,
+    },
+    {
+      name: 'ほかのオリジンの blob: は読まない',
+      url: 'blob:https://evil.example/0b7f6c1e-1234-4abc-8def-0123456789ab',
+      want: null,
+    },
+  ])('$name', ({ url, want }) => {
+    expect(decodeStreamEndpoint(url, origin)).toBe(want);
   });
 });

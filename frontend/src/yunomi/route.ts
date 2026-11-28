@@ -155,8 +155,13 @@ export function hlsURL(streamUrl: string, preset: string, audio: KyusuAudio): st
 // serviceIDBase は、Mirakurun のサービス ID を組み立てる基数 (networkId × 100000 + serviceId)。
 const serviceIDBase = 100_000;
 
-// DataBroadcastSource は、データ放送の TS を読む先と、その TS の中のサービスの program_number。
-export type DataBroadcastSource = { url: string; serviceId: number };
+// DataBroadcastSource は、データ放送の TS を流す配信。serviceId は、TS の program_number で、null なら PAT の最初の番組を選ぶ。
+// elapsed を渡したら、録画型の再生元の配信として、読み始めた位置からの放送時刻の経過 (秒) に届くまで、TS を web-bml に渡さない (#2270)。
+export type DataBroadcastSource = {
+  url: string;
+  serviceId: number | null;
+  elapsed?: () => number | null;
+};
 
 // dataBroadcastSource は、ライブ視聴の TS の URL から、データ放送用のエンドポイントを返す (設計書 7.4)。
 // URL の最後の部分が、Mirakurun のサービス ID でなければ null を返す。
@@ -174,6 +179,9 @@ export function dataBroadcastSource(streamUrl: string): DataBroadcastSource | nu
 // streamPath は、tenban のライブ視聴の TS (GET /internal/streams/services/{id}) の URL。
 const streamPath = /^\/internal\/streams\/services\/(\d+)(?:\?(.*))?$/;
 
+// blobPath は、blob: の URL のオリジンの後ろ。UUID だけを受け付ける。読み直すために付けた fragment は外す。
+const blobPath = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:#\d*)?$/;
+
 // recordingStreamPath は、録画の TS (GET /internal/streams/recordings/{id}) の URL。id は UUID。
 const recordingStreamPath =
   /^\/internal\/streams\/recordings\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?(.*))?$/;
@@ -187,8 +195,15 @@ export function decodeStreamEndpoint(
   origin: string | null = globalThis.location?.origin ?? null,
 ): string | null {
   // 端末に保存した録画は、ページが作った blob: の URL で渡す (#2166)。ほかのオリジンの blob: は読まない。
+  // 受け取った URL はそのまま読まず、このページのオリジンと、URL の中の UUID から組み直す。
   if (origin !== null && origin !== 'null' && url.startsWith(`blob:${origin}/`)) {
-    return url;
+    const blob = blobPath.exec(url.slice(`blob:${origin}/`.length));
+    if (blob === null) {
+      return null;
+    }
+    const [, id = ''] = blob;
+
+    return `blob:${origin}/${id}`;
   }
   // 静的なデモ (#832) では、どの局もデモの映像を流すので、その URL も読む (#2157)。
   // 条件は import.meta.env.MODE を直に書き、通常のビルドでは定数の比較として消す。
@@ -209,8 +224,12 @@ export function decodeStreamEndpoint(
   if (recording !== null) {
     const [, id = '', query] = recording;
     const path = `/internal/streams/recordings/${encodeURIComponent(id)}`;
+    // 問い合わせはそのまま渡さず、読み始める位置 (start) だけを組み直す。
+    const start = Number(
+      new URLSearchParams(query?.split('#', 1)[0] ?? '').get('start') ?? Number.NaN,
+    );
 
-    return query === undefined ? path : `${path}?${query}`;
+    return Number.isFinite(start) && start >= 0 ? `${path}?start=${start.toFixed(1)}` : path;
   }
 
   return null;
@@ -219,9 +238,61 @@ export function decodeStreamEndpoint(
 // dataBroadcastPath は、tenban のデータ放送用のエンドポイント (GET /internal/streams/services/{id}/data-broadcast) の URL。
 const dataBroadcastPath = /^\/internal\/streams\/services\/(\d+)\/data-broadcast(?:\?(.*))?$/;
 
+// vodDataBroadcastPath は、録画型の再生元のデータ放送用のエンドポイント
+// (GET /internal/streams/{recordings|timeshift|library}/{id}/data-broadcast、#2270) の URL。
+const vodDataBroadcastPath =
+  /^\/internal\/streams\/(recordings|timeshift|library)\/([A-Za-z0-9_-]+)\/data-broadcast(?:\?(.*))?$/;
+
+// vodDataBroadcastURL は、録画型の再生元の映像の配信 streamUrl から、start 秒の位置から読むデータ放送の配信の URL を作る。
+export function vodDataBroadcastURL(streamUrl: string, start: number): string {
+  const [path = '', query] = streamUrl.split('?', 2);
+  const params = new URLSearchParams(query);
+  params.set('start', start.toFixed(1));
+
+  return `${path}/data-broadcast?${params.toString()}`;
+}
+
+// vodStreamBases は、録画型の再生元の配信の種類。
+const vodStreamBases = ['recordings', 'timeshift', 'library'] as const;
+
+// rfc3339 は、タイムシフトのバッファの番組の始まり (from) に使う日時の文字。
+const rfc3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+// vodDataBroadcastQuery は、録画型の再生元のデータ放送の配信に渡す問い合わせを、読み始める位置 (start) と、
+// タイムシフトのバッファの番組の始まり (from) だけで組み直す。受け取った問い合わせは、そのまま渡さない。
+function vodDataBroadcastQuery(query: string | undefined): string {
+  const given = new URLSearchParams(query?.split('#', 1)[0] ?? '');
+  const params = new URLSearchParams();
+  // 番組の始まりは、受け取った文字列を渡さず、日時として読んでから書き直す。
+  const from = given.get('from');
+  const fromTime = from !== null && rfc3339.test(from) ? Date.parse(from) : Number.NaN;
+  if (Number.isFinite(fromTime)) {
+    params.set('from', new Date(fromTime).toISOString());
+  }
+  const start = Number(given.get('start') ?? Number.NaN);
+  if (Number.isFinite(start) && start >= 0) {
+    params.set('start', start.toFixed(1));
+  }
+
+  return params.toString();
+}
+
 // dataBroadcastEndpoint は、url が tenban のデータ放送用のエンドポイントなら、読みに行く URL を返す。ほかの先なら null を返す。
 // データ放送の Web Worker は、受け取った URL をそのまま読まずに、決まったパスへ組み直し、ほかのホストやパスを読まないようにする。
 export function dataBroadcastEndpoint(url: string): string | null {
+  const vod = vodDataBroadcastPath.exec(url);
+  if (vod !== null) {
+    const [, kind = '', id = '', query] = vod;
+    // 種類は、受け取った文字列を URL に入れず、決まった名前から選ぶ。
+    const base = vodStreamBases.find((candidate) => candidate === kind);
+    if (base === undefined) {
+      return null;
+    }
+    const path = `/internal/streams/${base}/${encodeURIComponent(id)}/data-broadcast`;
+    const params = vodDataBroadcastQuery(query);
+
+    return params === '' ? path : `${path}?${params}`;
+  }
   const match = dataBroadcastPath.exec(url);
   if (match === null) {
     return null;

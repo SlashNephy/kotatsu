@@ -1,5 +1,10 @@
 package ts
 
+import (
+	"maps"
+	"slices"
+)
+
 // SI を運ぶパケットの PID (ARIB STD-B10)。データ放送の描画には、番組の情報と時刻と放送事業者の情報が要る。
 const (
 	nitPID = 0x0010
@@ -28,9 +33,11 @@ const adaptationOnly = 0x20
 // PMT を読むまでは、データカルーセルの PID が分からないので、PSI と SI だけを残す。
 type DataBroadcastFilter struct {
 	serviceID uint16
-	table     *programTable
-	pat       *sectionAssembler
-	pmt       *sectionAssembler
+	// firstProgram は、サービスを指定せず、PAT の最初の番組 (program_number が最も小さいもの) を選ぶか。
+	firstProgram bool
+	table        *programTable
+	pat          *sectionAssembler
+	pmt          *sectionAssembler
 	// pmtPID は、いま組み立てている PMT の PID。PAT を読むまでは 0。
 	pmtPID uint16
 	// pcrOnly は、パケットからペイロードを除くときに書き込む先。Filter の戻り値として返す。
@@ -40,13 +47,24 @@ type DataBroadcastFilter struct {
 // NewDataBroadcastFilter は、サービス ID (program_number) が serviceID のサービスの DataBroadcastFilter を返す。
 func NewDataBroadcastFilter(serviceID uint16) *DataBroadcastFilter {
 	return &DataBroadcastFilter{
-		serviceID: serviceID,
-		table:     newProgramTable(),
-		pat:       newSectionAssembler(),
-		pmt:       newSectionAssembler(),
-		pmtPID:    0,
-		pcrOnly:   [PacketSize]byte{},
+		serviceID:    serviceID,
+		firstProgram: false,
+		table:        newProgramTable(),
+		pat:          newSectionAssembler(),
+		pmt:          newSectionAssembler(),
+		pmtPID:       0,
+		pcrOnly:      [PacketSize]byte{},
 	}
+}
+
+// NewFirstProgramDataBroadcastFilter は、PAT の最初の番組 (program_number が最も小さいもの) の DataBroadcastFilter を返す。
+// 録画やライブラリのファイルのように、サービスを指定して読まない TS に使う (#2270)。ブラウザの web-bml も、
+// サービスを指定しなければ PAT の最初の番組を選ぶので、同じ番組になる。
+func NewFirstProgramDataBroadcastFilter() *DataBroadcastFilter {
+	f := NewDataBroadcastFilter(0)
+	f.firstProgram = true
+
+	return f
 }
 
 // Filter は、188 バイトのパケット b を読み、残すパケットと true を返す。破棄するなら false を返す。
@@ -92,6 +110,9 @@ func (f *DataBroadcastFilter) Filter(b []byte) ([]byte, bool) {
 // readPAT は、PAT を読み、サービスの PMT の PID が変わったら、組み立て中の PMT を破棄する。
 func (f *DataBroadcastFilter) readPAT(p *packet) {
 	f.pat.feed(p.payloadUnitStart, p.payload, f.table.handlePAT)
+	if f.firstProgram && len(f.table.pmtPIDs) > 0 {
+		f.serviceID = slices.Min(slices.Collect(maps.Keys(f.table.pmtPIDs)))
+	}
 	if pid := f.table.pmtPIDs[f.serviceID]; pid != f.pmtPID {
 		f.pmtPID = pid
 		f.pmt.reset()
