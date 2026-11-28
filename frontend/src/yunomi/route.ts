@@ -203,7 +203,7 @@ export function decodeStreamEndpoint(
     }
     const [, id = ''] = blob;
 
-    return `blob:${origin}/${id}`;
+    return `blob:${origin}/${encodeURIComponent(id)}`;
   }
   // 静的なデモ (#832) では、どの局もデモの映像を流すので、その URL も読む (#2157)。
   // 条件は import.meta.env.MODE を直に書き、通常のビルドでは定数の比較として消す。

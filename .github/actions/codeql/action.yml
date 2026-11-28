@@ -26,6 +26,11 @@ runs:
     # (codeql-action の src/environment.ts)。
     - shell: bash
       run: echo "CODEQL_ACTION_ANALYSIS_KEY=.github/workflows/codeql.yml:analyze" >> "$GITHUB_ENV"
+    # PR でも、変わった行の結果だけに絞らず (diff-informed analysis)、全件を Code scanning に送る。絞ると、警告の起点だけを
+    # 変えた PR (値を作る側を変え、警告の出る行は変えていない) の警告を、マージするまで数えない (#2268)。
+    # CODEQL_ACTION_DIFF_INFORMED_QUERIES は、action が読む環境変数で、false で切れる (codeql-action の src/feature-flags.ts)。
+    - shell: bash
+      run: echo "CODEQL_ACTION_DIFF_INFORMED_QUERIES=false" >> "$GITHUB_ENV"
     - uses: github/codeql-action/init@v4.39.4
       with:
         languages: ${{ inputs.language }}
@@ -50,8 +55,7 @@ runs:
     # アップロードできたときは、Code scanning で開いているアラートを数える。dismiss したものは数えない。
     # アップロードしないとき (フォークからの PR) と、アップロードに失敗したときは、SARIF の結果を数える。
     # SARIF には dismiss が載らないので、抑制 (suppressions) されたものと、もう無いもの (baselineState が absent) だけを除く。
-    # PR では、action が送るときに変わった行の結果だけに絞る (diff-informed analysis)。output の SARIF は絞る前のものなので、
-    # SARIF で数えるときは、main にあるアラートも数える。
+    # PR でも全件を送るので、Code scanning で数えるときも、SARIF で数えるときも、main にあるアラートも数える。
     - name: Fail on alerts
       if: ${{ !cancelled() && (steps.analyze.outcome == 'success' || steps.analyze.outcome == 'failure') }}
       shell: bash
