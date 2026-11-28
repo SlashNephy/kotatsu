@@ -169,7 +169,7 @@ describe('shownFrameRate', () => {
       want: 59.94,
     },
     {
-      name: 'yadif がフレームを出す時刻を決めていなければ、video の要素から測った値を返す',
+      name: 'yadif がフレームを出す時刻を決めていなければ、video の要素から計測した値を返す',
       source: { ...picture, film: false, shownFps: null },
       measured: 29.97,
       want: 29.97,

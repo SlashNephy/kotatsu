@@ -45,7 +45,7 @@ describe('previewFrame', () => {
       want: { backgroundSize: '1000% 300%', backgroundPosition: `${(2 / 9) * 100}% 50%` },
     },
     {
-      name: '最後のフレームは、3 行目の 5 列目',
+      name: '最後のフレームは、3 行目の左から 5 番目',
       index: 24,
       want: { backgroundSize: '1000% 300%', backgroundPosition: `${(4 / 9) * 100}% 100%` },
     },
@@ -53,7 +53,7 @@ describe('previewFrame', () => {
     expect(previewFrame(manifest, index)).toEqual(want);
   });
 
-  test('1 行に収まるときは、フレームの数を列の数にする', () => {
+  test('1 行に収まるときは、横に並べる数をフレームの数にする', () => {
     expect(previewFrame({ ...manifest, times: [0, 10, 20] }, 1)).toEqual({
       backgroundSize: '300% 100%',
       backgroundPosition: '50% 0%',

@@ -672,7 +672,7 @@ func TestMeasuredRate(t *testing.T) {
 		times []float64
 		want  float64
 	}{
-		{name: "参照されないフレームを捨てれば半分の速さになる", times: halved, want: fps / 2},
+		{name: "参照されないフレームを破棄すれば半分の速さになる", times: halved, want: fps / 2},
 		{name: "映像の欠けは数えない", times: withGap, want: fps / 2},
 		{name: "フレームが 1 つなら映像の速さにする", times: []float64{1.5}, want: fps},
 		{name: "時刻が進まなければ映像の速さにする", times: []float64{1, 1, 1}, want: fps},

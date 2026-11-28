@@ -51,7 +51,7 @@ const playing = (position: number | null, extra: Partial<SkipperFrame> = {}): Sk
 });
 
 describe('CmAutoSkipper', () => {
-  test('先読みの分だけ手前で、映っている本編のフレームを写した蓋を出してから、続いた CM の終わりへ飛ぶ', () => {
+  test('先読みの分だけ手前で、映っている本編のフレームをコピーした蓋を出してから、続いた CM の終わりへ飛ぶ', () => {
     const { host, events } = fakeHost();
     const skipper = new CmAutoSkipper(host);
     skipper.frame(playing(599.5));
@@ -60,7 +60,7 @@ describe('CmAutoSkipper', () => {
     expect(events).toEqual(['cover:still', 'jump:645', 'notify']);
   });
 
-  test('CM の中のフレームで飛ぶときは、写さずに黒で覆う', () => {
+  test('CM の中のフレームで飛ぶときは、コピーせずに黒で覆う', () => {
     const { host, events } = fakeHost();
     new CmAutoSkipper(host).frame(playing(610));
     expect(events).toEqual(['cover:black', 'jump:645', 'notify']);

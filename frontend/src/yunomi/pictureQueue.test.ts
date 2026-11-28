@@ -52,7 +52,7 @@ describe('PictureQueue', () => {
     expect([queue.choose(2000)?.second, queue.choose(2000)?.parity]).toEqual([false, 0]);
   });
 
-  test('番を過ぎたフレームは映さずに捨て、フレーム落ちとして数える。映したフレームは前のフレームとして残す', () => {
+  test('番を過ぎたフレームは映さずに破棄し、フレーム落ちとして数える。映したフレームは前のフレームとして残す', () => {
     const { queue, released } = setup();
     for (let i = 0; i < 4; i++) {
       queue.push(picture(i * frame));
@@ -73,7 +73,7 @@ describe('PictureQueue', () => {
     expect(queue.choose(frame - 1)).toBeNull();
   });
 
-  test('前より古い時刻のフレームは足さずに捨てる', () => {
+  test('前より古い時刻のフレームは足さずに破棄する', () => {
     const { queue, released } = setup();
     queue.push(picture(frame));
 

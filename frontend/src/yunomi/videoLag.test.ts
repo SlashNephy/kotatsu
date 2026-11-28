@@ -191,7 +191,7 @@ describe('重さの判定', () => {
       want: true,
     },
     // 30 fps なので、最低フレーム数に届くのは 5 秒。
-    { name: '最低フレーム数に満たない窓は数えない', ratio: 1, until: 4_000, want: false },
+    { name: '最低フレーム数に満たないウィンドウは数えない', ratio: 1, until: 4_000, want: false },
   ])('$name', ({ ratio, until, want }) => {
     const controller = started();
     feed(controller, until, ratio);

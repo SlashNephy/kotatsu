@@ -24,7 +24,7 @@ const scenario = (
 describe('summarizeRun', () => {
   test.each([
     {
-      name: '測った間に増えた、間に合わなかった絵と捨てたフレームを、秒で割る',
+      name: '計測した間に増えた、間に合わなかった絵と破棄したフレームを、秒で割る',
       start: { time: 1_000, late: 2, dropped: 1 },
       end: { time: 6_000, late: 7, dropped: 6 },
       samples: [59, 61],
