@@ -28,7 +28,7 @@ export type DataBroadcastFeatureOptions = {
 export type DataBroadcastFeature = ReturnType<typeof useDataBroadcast> & {
   // enabled は、データ放送を出しているかどうか。映像を覆うので、既定では出さない。
   enabled: boolean;
-  // commands は、データ放送の出し入れ (データ放送のない映像では使えない) と、リモコンのボタンの操作。
+  // commands は、データ放送の出し入れと、リモコンのボタンの操作。データ放送のない映像では、どちらも使えない。
   commands: PlayerCommands;
 };
 
@@ -58,7 +58,11 @@ export function useDataBroadcastFeature({
     handlers,
   );
   // press は、リモコンのボタンを押す。データ放送を出していなければ、d ボタンで出す。ほかのボタンは、出している間だけ渡す。
+  // データ放送のない映像では、出すと閉じられなくなるので、何もしない。
   const press = (key: RemoteKey) => {
+    if (source === null) {
+      return;
+    }
     if (!enabled) {
       if (key === RemoteKey.d) {
         setEnabled(true);
@@ -79,8 +83,8 @@ export function useDataBroadcastFeature({
     ...dataBroadcast,
     press,
     enabled,
-    commands: {
-      ...(source === null
+    commands:
+      source === null
         ? {}
         : {
             toggleDataBroadcast: () => {
@@ -89,8 +93,7 @@ export function useDataBroadcastFeature({
                 t(enabled ? 'player.flash.dataBroadcastOff' : 'player.flash.dataBroadcastOn'),
               );
             },
-          }),
-      pressKey: press,
-    },
+            pressKey: press,
+          },
   };
 }

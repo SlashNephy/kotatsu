@@ -54,14 +54,27 @@ describe('useDataBroadcastFeature', () => {
 
   test.each([
     {
-      name: 'データ放送のある映像なら、出し入れの操作を出す',
+      name: 'データ放送のある映像なら、出し入れとリモコンの操作を出す',
       source: { url: '/data-broadcast', serviceId: 1024 },
-      toggle: true,
+      available: true,
     },
-    { name: 'データ放送のない映像では、出し入れの操作を出さない', source: null, toggle: false },
-  ])('$name', ({ source, toggle }) => {
+    {
+      name: 'データ放送のない映像では、出し入れとリモコンの操作を出さない',
+      source: null,
+      available: false,
+    },
+  ])('$name', ({ source, available }) => {
     const { result } = renderFeature({ source });
 
-    expect(result.current.commands.toggleDataBroadcast !== undefined).toBe(toggle);
+    expect(result.current.commands.toggleDataBroadcast !== undefined).toBe(available);
+    expect(result.current.commands.pressKey !== undefined).toBe(available);
+  });
+
+  test('データ放送のない映像では、d ボタンを押しても出さない', () => {
+    const { result } = renderFeature({ source: null });
+
+    act(() => result.current.press(RemoteKey.d));
+
+    expect(result.current.enabled).toBe(false);
   });
 });
