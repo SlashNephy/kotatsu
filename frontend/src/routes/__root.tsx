@@ -38,13 +38,14 @@ export const Route = createRootRoute({
 
 // navItems は、ヘッダー (広い画面) とナビゲーションの引き出し (狭い画面) に出すリンク。
 // ホームはアプリ名から、設定はユーザーのメニューから開くので、ここには並べない。
+// watch は、そのリンクの画面から開く視聴の画面のパス。視聴の画面は /play の下にあるので、そこにいる間もこのリンクを今いる画面として示す。
 const navItems = [
-  { to: '/live', key: 'nav.live' },
+  { to: '/live', key: 'nav.live', watch: '/play/live/' },
   { to: '/guide', key: 'nav.guide' },
   { to: '/search', key: 'nav.search' },
   { to: '/reservations', key: 'nav.reservations' },
   { to: '/rules', key: 'nav.rules' },
-  { to: '/recordings', key: 'nav.recordings' },
+  { to: '/recordings', key: 'nav.recordings', watch: '/play/recording/' },
 ] as const;
 
 // animeNavItem は、管理者がアニメの連携を有効にしているときだけ出す、視聴管理の画面へのリンク (#1231)。
@@ -281,6 +282,7 @@ function NavAnchors({
   onClick?: () => void;
 }) {
   const { t } = useTranslation();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
 
   return items.map((item) => (
     <Anchor
@@ -288,6 +290,9 @@ function NavAnchors({
       component={Link}
       to={item.to}
       className={classes.navLink}
+      {...('watch' in item && pathname.startsWith(item.watch)
+        ? { 'data-watching': true, 'aria-current': 'page' as const }
+        : {})}
       size={size}
       onClick={onClick}
     >

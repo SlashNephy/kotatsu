@@ -72,7 +72,7 @@ export function RuleRecordingList({ ruleId, ruleName, recordingId }: Props) {
               renderRoot={(props) => (
                 <Link
                   {...props}
-                  to="/recordings/$recordingId/play"
+                  to="/play/recording/$recordingId"
                   params={{ recordingId: recording.id }}
                 />
               )}

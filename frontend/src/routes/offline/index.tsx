@@ -107,7 +107,7 @@ function OfflinePage() {
                     renderRoot={(props) => (
                       <Link
                         {...props}
-                        to="/offline/$recordingId"
+                        to="/play/offline/$recordingId"
                         params={{ recordingId: meta.id }}
                       />
                     )}

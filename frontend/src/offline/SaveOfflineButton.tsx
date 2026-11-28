@@ -75,7 +75,11 @@ function SaveOffline({ source }: { source: SaveSource }) {
             variant="light"
             leftSection={<Play size={16} aria-hidden />}
             renderRoot={(props) => (
-              <Link {...props} to="/offline/$recordingId" params={{ recordingId: source.id }} />
+              <Link
+                {...props}
+                to="/play/offline/$recordingId"
+                params={{ recordingId: source.id }}
+              />
             )}
           >
             {t('offline.playSaved')}

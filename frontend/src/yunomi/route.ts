@@ -40,7 +40,7 @@ export const decoded = 'decoded';
 
 // RouteOptions は、画面ごとに選べる経路。
 export type RouteOptions = {
-  // decode は、ブラウザの中でデコードする経路を選ばせるか。今はライブ視聴だけ。
+  // decode は、ブラウザの中でデコードする経路を選ばせるか。ライブ視聴、録画の再生、端末に保存した録画の再生で選ばせる (#2166)。
   decode?: boolean;
 };
 
@@ -174,10 +174,22 @@ export function dataBroadcastSource(streamUrl: string): DataBroadcastSource | nu
 // streamPath は、tenban のライブ視聴の TS (GET /internal/streams/services/{id}) の URL。
 const streamPath = /^\/internal\/streams\/services\/(\d+)(?:\?(.*))?$/;
 
-// liveStreamEndpoint は、url がライブ視聴の TS なら、読みに行く URL を返す。ほかの先なら null を返す。
+// recordingStreamPath は、録画の TS (GET /internal/streams/recordings/{id}) の URL。id は UUID。
+const recordingStreamPath =
+  /^\/internal\/streams\/recordings\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?(.*))?$/;
+
+// decodeStreamEndpoint は、url がライブ視聴か録画の TS か、同じオリジンの blob: (端末に保存した録画) なら、
+// 読みに行く URL を返す。ほかの先なら null を返す。origin は、このページのオリジン。
 // ブラウザの中でデコードする経路の worker は、受け取った URL をそのまま読まずに、決まったパスへ組み直し、
-// ほかのホストやパスを読まないようにする。
-export function liveStreamEndpoint(url: string): string | null {
+// ほかのホストやパスを読まないようにする。録画は、シークした位置から読み直すので、start=秒 を付けたまま読む (#2166)。
+export function decodeStreamEndpoint(
+  url: string,
+  origin: string | null = globalThis.location?.origin ?? null,
+): string | null {
+  // 端末に保存した録画は、ページが作った blob: の URL で渡す (#2166)。ほかのオリジンの blob: は読まない。
+  if (origin !== null && origin !== 'null' && url.startsWith(`blob:${origin}/`)) {
+    return url;
+  }
   // 静的なデモ (#832) では、どの局もデモの映像を流すので、その URL も読む (#2157)。
   // 条件は import.meta.env.MODE を直に書き、通常のビルドでは定数の比較として消す。
   if (import.meta.env.MODE === 'demo') {
@@ -186,14 +198,22 @@ export function liveStreamEndpoint(url: string): string | null {
       return separator === -1 ? demoStreamURL : `${demoStreamURL}${url.slice(separator)}`;
     }
   }
-  const match = streamPath.exec(url);
-  if (match === null) {
-    return null;
-  }
-  const [, id = '', query] = match;
-  const path = `/internal/streams/services/${encodeURIComponent(id)}`;
+  const live = streamPath.exec(url);
+  if (live !== null) {
+    const [, id = '', query] = live;
+    const path = `/internal/streams/services/${encodeURIComponent(id)}`;
 
-  return query === undefined ? path : `${path}?${query}`;
+    return query === undefined ? path : `${path}?${query}`;
+  }
+  const recording = recordingStreamPath.exec(url);
+  if (recording !== null) {
+    const [, id = '', query] = recording;
+    const path = `/internal/streams/recordings/${encodeURIComponent(id)}`;
+
+    return query === undefined ? path : `${path}?${query}`;
+  }
+
+  return null;
 }
 
 // dataBroadcastPath は、tenban のデータ放送用のエンドポイント (GET /internal/streams/services/{id}/data-broadcast) の URL。

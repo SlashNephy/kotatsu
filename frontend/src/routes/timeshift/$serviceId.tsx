@@ -46,7 +46,9 @@ function TimeshiftPage() {
     <Stack gap="sm">
       <Anchor
         size="sm"
-        renderRoot={(props) => <Link {...props} to="/live/$serviceId" params={{ serviceId }} />}
+        renderRoot={(props) => (
+          <Link {...props} to="/play/live/$serviceId" params={{ serviceId }} />
+        )}
       >
         {t('timeshift.backToLive')}
       </Anchor>
@@ -167,7 +169,7 @@ function ProgramList({ serviceId }: { serviceId: string }) {
                   renderRoot={(props) => (
                     <Link
                       {...props}
-                      to="/timeshift/$serviceId/play"
+                      to="/play/timeshift/$serviceId"
                       params={{ serviceId }}
                       search={{ program: program.startAt }}
                     />

@@ -8,6 +8,23 @@ import type { PlayerMedia } from './playerMedia';
 class FakeVideo extends EventTarget {
   currentTime = 0;
   readyState = HTMLMediaElement.HAVE_ENOUGH_DATA;
+  seeking = false;
+  // loadedTo は、読み込んである範囲の終わり (video の時刻)。0 なら、何も読み込んでいない。
+  loadedTo = 0;
+
+  get buffered(): TimeRanges {
+    const end = this.loadedTo;
+
+    return {
+      length: end > 0 ? 1 : 0,
+      start: () => 0,
+      end: () => end,
+    } as TimeRanges;
+  }
+
+  seek(t: number) {
+    this.currentTime = t;
+  }
 
   at(t: number) {
     this.currentTime = t;
@@ -125,6 +142,56 @@ describe('useSeekableStream', () => {
     await act(async () => {});
     act(() => video.playTo(37));
     expect(result.current.position).toBe(134);
+  });
+
+  test('求めた位置より手前のコマが映っている間は、位置を動かさない', async () => {
+    const video = new FakeVideo();
+    const { result } = renderHook(() =>
+      useSeekableStream('/stream', video as unknown as PlayerMedia, 100),
+    );
+    await act(async () => {});
+    act(() => result.current.onLoaded());
+    // 99 秒から流れ、video の時刻 2 秒が最初のコマ。100 秒に当たるのは、video の時刻 3 秒。
+    act(() => video.at(2));
+    act(() => video.at(2.5));
+    expect(result.current.position).toBe(100);
+    expect(result.current.framePosition(2.5)).toBeNull();
+
+    act(() => video.at(3));
+    expect(result.current.position).toBe(100);
+    act(() => video.at(4));
+    expect(result.current.position).toBe(101);
+  });
+
+  test('求めた位置まで読み込んであれば、手前のコマを飛ばしてその位置へ進める', async () => {
+    const video = new FakeVideo();
+    video.loadedTo = 10;
+    const { result } = renderHook(() =>
+      useSeekableStream('/stream', video as unknown as PlayerMedia, 100),
+    );
+    await act(async () => {});
+    act(() => result.current.onLoaded());
+    act(() => video.at(2));
+    act(() => video.at(2.2));
+
+    expect(video.currentTime).toBe(3);
+  });
+
+  test('流し始めた位置を引けなくても、求めた位置から数える', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('offline'))),
+    );
+    const video = new FakeVideo();
+    const { result } = renderHook(() =>
+      useSeekableStream('/stream', video as unknown as PlayerMedia, 100),
+    );
+    await act(async () => {});
+    expect(result.current.settled).toBe(true);
+    act(() => result.current.onLoaded());
+    act(() => video.at(2));
+    act(() => video.at(5));
+    expect(result.current.position).toBe(103);
   });
 
   test('新しい読み込みが流し始めた位置が分かるまでは、進める先を返さない', async () => {

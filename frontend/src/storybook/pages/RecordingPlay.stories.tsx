@@ -4,13 +4,13 @@ import { userEvent, within } from 'storybook/test';
 import { merge, minutesAgo, recordingsWith, withStorage } from '../conditions';
 import { firstRecordingPath, holdAll, PageStory } from '../PageStory';
 
-// 録画の再生 (/recordings/$recordingId/play) の画面 (#2056)。静的なデモと同じ Service Worker で、デモの映像を流す。
+// 録画の再生 (/play/recording/$recordingId) の画面 (#2056)。静的なデモと同じ Service Worker で、デモの映像を流す。
 // 続きからの再生、CM の区間 (飛ばすボタンと自動で飛ばしたとき)、自動生成の字幕、映像を読めないとき、再生の経路を並べる。
 // いちばん新しい録画を、放送を終えた録画にして開く。
 const meta = {
   title: 'ページ/録画/再生',
   component: PageStory,
-  args: { url: firstRecordingPath('/recordings/:id/play') },
+  args: { url: firstRecordingPath('/play/recording/:id') },
   parameters: { layout: 'fullscreen' },
   // 音を出さない。
   beforeEach: () =>
@@ -45,7 +45,7 @@ export const Resumed: Story = {
 export const StartAt: Story = {
   args: {
     overrides: recordingsWith(ended),
-    url: firstRecordingPath('/recordings/:id/play?t=120'),
+    url: firstRecordingPath('/play/recording/:id?t=120'),
   },
 };
 

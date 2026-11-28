@@ -555,7 +555,7 @@ function ServiceHeader({ column }: { column: GuideColumn }) {
         underline="hover"
         title={t('guide.watchLive', { name })}
         renderRoot={(props) => (
-          <Link {...props} to="/live/$serviceId" params={{ serviceId: column.id }} />
+          <Link {...props} to="/play/live/$serviceId" params={{ serviceId: column.id }} />
         )}
         style={{ flex: 1, minWidth: 0, lineHeight: `${headerHeight}px`, paddingInline: 6 }}
       >

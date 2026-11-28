@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<23f00d7e57ba7a46d1929137fcb954ba>>
+ * @generated SignedSource<<af25e38614773996e229fa1bc0834501>>
  * @lightSyntaxTransform
  */
 
@@ -13,11 +13,11 @@ export type RecordingAutoCaptionsState = "FAILED" | "GENERATED" | "NOT_CONFIGURE
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type VideoCodec = "H264" | "HEVC" | "%future added value";
 export type VideoFormat = "HD" | "SHV" | "UHD" | "%future added value";
-export type playLibraryFileQuery$variables = {
+export type libraryPlayFileQuery$variables = {
   library: string;
   path: string;
 };
-export type playLibraryFileQuery$data = {
+export type libraryPlayFileQuery$data = {
   readonly libraryFile: {
     readonly audios: ReadonlyArray<{
       readonly componentType: number;
@@ -97,15 +97,16 @@ export type playLibraryFileQuery$data = {
       readonly codec: VideoCodec;
       readonly name: string;
       readonly passthrough: boolean;
+      readonly videoBitrate: number;
     }>;
   };
   readonly viewer: {
     readonly role: Role;
   };
 };
-export type playLibraryFileQuery = {
-  response: playLibraryFileQuery$data;
-  variables: playLibraryFileQuery$variables;
+export type libraryPlayFileQuery = {
+  response: libraryPlayFileQuery$data;
+  variables: libraryPlayFileQuery$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -582,6 +583,13 @@ v31 = {
           "kind": "ScalarField",
           "name": "passthrough",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "videoBitrate",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -594,7 +602,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "playLibraryFileQuery",
+    "name": "libraryPlayFileQuery",
     "selections": [
       {
         "alias": null,
@@ -676,7 +684,7 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "playLibraryFileQuery",
+    "name": "libraryPlayFileQuery",
     "selections": [
       {
         "alias": null,
@@ -755,16 +763,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "f57983a2ec7d18494165e723b4f85e36",
+    "cacheID": "9cfae578fa275f23109eafabbbc94b87",
     "id": null,
     "metadata": {},
-    "name": "playLibraryFileQuery",
+    "name": "libraryPlayFileQuery",
     "operationKind": "query",
-    "text": "query playLibraryFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    fileId\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n      kind\n    }\n    jikkyoCommentsUrl\n    thumbnailUrl\n    previewUrl\n    cmSections {\n      startSeconds\n      endSeconds\n    }\n    autoCaptions {\n      startSeconds\n      endSeconds\n      text\n    }\n    autoCaptionsStatus {\n      state\n      generatedAt\n      model\n      count\n      progress {\n        ratio\n        remainingSeconds\n      }\n    }\n    broadcast {\n      serviceName\n      jikkyoChannelId\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      program {\n        name\n        description\n        extended {\n          heading\n          text\n        }\n        startAt\n        endAt\n      }\n    }\n    audios {\n      componentType\n      languages\n      samplingRate\n    }\n    quality {\n      drops\n      errors\n      scrambled\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  viewer {\n    role\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query libraryPlayFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    fileId\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n      kind\n    }\n    jikkyoCommentsUrl\n    thumbnailUrl\n    previewUrl\n    cmSections {\n      startSeconds\n      endSeconds\n    }\n    autoCaptions {\n      startSeconds\n      endSeconds\n      text\n    }\n    autoCaptionsStatus {\n      state\n      generatedAt\n      model\n      count\n      progress {\n        ratio\n        remainingSeconds\n      }\n    }\n    broadcast {\n      serviceName\n      jikkyoChannelId\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      program {\n        name\n        description\n        extended {\n          heading\n          text\n        }\n        startAt\n        endAt\n      }\n    }\n    audios {\n      componentType\n      languages\n      samplingRate\n    }\n    quality {\n      drops\n      errors\n      scrambled\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  viewer {\n    role\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n      videoBitrate\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "663c8cdec7fbe7d7399aa3d7b0397067";
+(node as any).hash = "6d3180335d2a592e68c4474593962cb3";
 
 export default node;

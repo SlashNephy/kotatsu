@@ -20,7 +20,7 @@ import { FieldPacer } from './fieldPacer';
 import { PictureQueue } from './pictureQueue';
 import { type ColorMatrix, type PictureSlot, PictureRenderer } from './pictureRenderer';
 import { PtsTimeline, ptsTicksPerSecond } from './ptsTimeline';
-import { liveStreamEndpoint } from './route';
+import { decodeStreamEndpoint } from './route';
 import { type TsPes, TsDemuxer } from './tsDemux';
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -37,6 +37,9 @@ const params = {
   maxCompressed: 10 * ptsTicksPerSecond,
   // audioKeep は、鳴っている位置より前の音声のフレームを残す長さ。選び直したら、鳴っている位置から渡し直すのに使う (#2165)。
   audioKeep: 0.5 * ptsTicksPerSecond,
+  // readAhead は、映している位置より先に読んでおく映像の長さの上限。録画の配信は等速より速く届くので、
+  // これを超えたら、映して減るまで読むのを待つ (#2166)。maxCompressed より短くし、映す前のデータを破棄しない。
+  readAhead: 5 * ptsTicksPerSecond,
 };
 
 // AVFrame の flags (libavutil/frame.h)。
@@ -98,6 +101,11 @@ type Loading = {
   shownUntil: number | null;
   // droppedSeen は、判定へ渡し終えた、映さずに破棄したコマの数。
   droppedSeen: number;
+  // drained は、先読みが上限を超えて読むのを待っている間の、待ちを解く関数。待っていなければ null。
+  drained: (() => void) | null;
+  // eof は、配信を読み終えたか。読み終えても、読んだ分を映し終えるまでは ended を送らない。
+  eof: boolean;
+  endedSent: boolean;
 };
 
 type Engine = {
@@ -239,6 +247,9 @@ function load(load: number, url: string, serviceId: number | null): void {
     nextPts: null,
     shownUntil: null,
     droppedSeen: 0,
+    drained: null,
+    eof: false,
+    endedSent: false,
     audioPid: null,
     audioStart: null,
     lastVideoPts: null,
@@ -306,10 +317,10 @@ function stop(): void {
 
 async function read(current: Loading, url: string): Promise<void> {
   try {
-    // 受け取った URL をそのまま読まずに、ライブ視聴の TS のパスへ組み直し、ほかのホストやパスを読まないようにする。
-    const endpoint = liveStreamEndpoint(url);
+    // 受け取った URL をそのまま読まずに、ライブ視聴か録画の TS のパスへ組み直し、ほかのホストやパスを読まないようにする。
+    const endpoint = decodeStreamEndpoint(url);
     if (endpoint === null) {
-      throw new Error('the stream is not a live stream of tenban');
+      throw new Error('the stream is neither a live stream nor a recording');
     }
     const response = await fetch(endpoint, {
       signal: current.abort.signal,
@@ -320,7 +331,14 @@ async function read(current: Loading, url: string): Promise<void> {
       throw new Error(`failed to read the stream: ${response.status}`);
     }
     const reader = response.body.getReader();
+    current.abort.signal.addEventListener('abort', () => wakeReader(current));
     for (;;) {
+      // 先に読んだ分が上限を超えたら、映して減るまで待つ。ライブは等速で届くので、待つことはない。
+      while (readAheadOf(current) > params.readAhead && !current.abort.signal.aborted) {
+        await new Promise<void>((resolve) => {
+          current.drained = resolve;
+        });
+      }
       const { done, value } = await reader.read();
       if (done) {
         break;
@@ -329,7 +347,10 @@ async function read(current: Loading, url: string): Promise<void> {
       current.demuxer.push(value);
     }
     current.demuxer.flush();
-    if (loading === current) {
+    // 読み終えたら、読んだ分を映し終えたときに ended を送る (onVsync)。見えていない間は映さないので、すぐ送る。
+    current.eof = true;
+    if (!visible && loading === current) {
+      current.endedSent = true;
       post({ type: 'ended', load: current.load });
     }
   } catch (error) {
@@ -337,6 +358,21 @@ async function read(current: Loading, url: string): Promise<void> {
       post({ type: 'error', load: current.load, message: errorMessage(error) });
     }
   }
+}
+
+// readAheadOf は、映している位置より先に読んである映像の長さ (PTS の単位)。時計が動く前は、最初の映像から数える。
+function readAheadOf(current: Loading): number {
+  const newest = current.video.at(-1)?.pts ?? null;
+  const now = clock.at(mainNow()) ?? current.video[0]?.pts ?? null;
+
+  return newest === null || now === null ? 0 : newest - now;
+}
+
+// wakeReader は、先読みが上限を超えて待っている読み込みに、先読みの長さを確認し直させる。
+function wakeReader(current: Loading): void {
+  const drained = current.drained;
+  current.drained = null;
+  drained?.();
 }
 
 function onPes(current: Loading, pes: TsPes): void {
@@ -751,10 +787,22 @@ function onVsync(time: number): void {
   // hold は、デコードしたコマ 1 つを映し続ける長さ。B フレームを省いている間は、I と P だけ (3 コマに 1 つ) になる。
   const hold = (engine.queue.frameDuration ?? 3003) * (judge.skippingB ? 3 : 1);
   // デコードに回すデータが無く、映すコマも尽きた (回線が詰まった)。データが来るまで判定で数えない。
+  // 配信を読み終えていれば、映し終えたので ended を送る。
   if (current.video.length === 0 && (engine.queue.newest ?? -Infinity) + hold < target) {
+    if (current.eof) {
+      if (!current.endedSent) {
+        current.endedSent = true;
+        post({ type: 'ended', load: current.load });
+      }
+
+      return;
+    }
     judge.starve(performance.now());
   }
   decodeVideo(current, target);
+  if (current.drained !== null && readAheadOf(current) <= params.readAhead) {
+    wakeReader(current);
+  }
   const choice = engine.queue.choose(target);
   if (current.shownUntil !== null) {
     judge.onLag(Math.max(0, target - current.shownUntil) / 90);
@@ -800,6 +848,8 @@ function setVisible(next: boolean): void {
   if (current === null || engine === null) {
     return;
   }
+  // 見えていない間に破棄した分を読めるよう、待っている読み込みに、先読みの長さを確認し直させる。
+  wakeReader(current);
   if (!next) {
     // 見えていない間は映像をデコードしない。裏のタブでデコードし続けると、見ているタブが間に合わなくなる。
     // 映像をデコードしないので、間に合っているかも数えない。

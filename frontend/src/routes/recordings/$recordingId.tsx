@@ -575,7 +575,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               renderRoot={(props) => (
                 <Link
                   {...props}
-                  to="/recordings/$recordingId/play"
+                  to="/play/recording/$recordingId"
                   params={{ recordingId }}
                   // 再生から詳細に戻っても、開いた一覧に戻れるよう、一覧のクエリを引き継ぐ (#2146)。
                   state={listState}

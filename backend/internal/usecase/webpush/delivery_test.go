@@ -181,9 +181,9 @@ func TestDeliverWorkerSendsEncryptedNotification(t *testing.T) {
 		{
 			name: "視聴予約の通知は、押すとライブ視聴を開く", kind: domain.NotificationKindWatchReminder,
 			payload: map[string]any{
-				nameKey: "こたつの時間", "serviceName": "NHK総合", "startAt": "2026-10-10T12:05:00Z", "url": "/live/U2VydmljZToxMDI0",
+				nameKey: "こたつの時間", "serviceName": "NHK総合", "startAt": "2026-10-10T12:05:00Z", "url": "/play/live/U2VydmljZToxMDI0",
 			},
-			wantBody: "21:05 から NHK総合で「こたつの時間」が始まります", wantUrgency: "normal", wantURL: "/live/U2VydmljZToxMDI0",
+			wantBody: "21:05 から NHK総合で「こたつの時間」が始まります", wantUrgency: "normal", wantURL: "/play/live/U2VydmljZToxMDI0",
 		},
 	}
 	for _, tt := range tests {

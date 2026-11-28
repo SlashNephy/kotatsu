@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import RecordingIdDeleteMutation from '../routes/recordings/__generated__/RecordingIdDeleteMutation.graphql';
 import RecordingIdDetectCmMutation from '../routes/recordings/__generated__/RecordingIdDetectCmMutation.graphql';
-import RecordingIdPlayQuery from '../routes/recordings/__generated__/RecordingIdPlayQuery.graphql';
+import RecordingIdPlayQuery from '../routes/play/recording/__generated__/RecordingIdPlayQuery.graphql';
 import RecordingIdProtectMutation from '../routes/recordings/__generated__/RecordingIdProtectMutation.graphql';
 import RecordingIdQuery from '../routes/recordings/__generated__/RecordingIdQuery.graphql';
 import RecordingIdReanalyzeMutation from '../routes/recordings/__generated__/RecordingIdReanalyzeMutation.graphql';
@@ -12,8 +12,8 @@ import RecordingIdTagsMutation from '../routes/recordings/__generated__/Recordin
 import recordingsDeleteMutation from '../routes/recordings/__generated__/recordingsDeleteMutation.graphql';
 import recordingsListQuery from '../routes/recordings/__generated__/recordingsListQuery.graphql';
 import recordingsTagsQuery from '../routes/recordings/__generated__/recordingsTagsQuery.graphql';
-import ServiceIdLiveQuery from '../routes/live/__generated__/ServiceIdLiveQuery.graphql';
-import ServiceIdRecordingsQuery from '../routes/live/__generated__/ServiceIdRecordingsQuery.graphql';
+import ServiceIdLiveQuery from '../routes/play/live/__generated__/ServiceIdLiveQuery.graphql';
+import ServiceIdRecordingsQuery from '../routes/play/live/__generated__/ServiceIdRecordingsQuery.graphql';
 import ExternalStreamURLMutation from '../streams/__generated__/ExternalStreamURLMutation.graphql';
 import usePlayerSettingsMutation from '../yunomi/__generated__/usePlayerSettingsMutation.graphql';
 import usePlayerSettingsQuery from '../yunomi/__generated__/usePlayerSettingsQuery.graphql';
