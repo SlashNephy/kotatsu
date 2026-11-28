@@ -891,7 +891,9 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			t.Parallel()
 
 			f := newFixture(t)
-			reservationID := f.reserve(t, 0)
+			// 番組に結びつかない時刻予約で録る。番組の予約では、ストリームを開けたまま保存先に書けずにやり直すと、
+			// 予定の終わりを過ぎてから遅れた番組として待ち、失敗の理由が program_not_found に変わることがある (#2235)。
+			reservationID := f.reserveTime(t, 0)
 			logs := newMessageRecorder()
 			recorder, _ := f.newRecorderWithLogger(t, tt.tuner(f), tt.freeSpace, nil, slog.New(logs))
 			_, done := f.session(t, recorder, reservationID)
@@ -1168,7 +1170,9 @@ func TestRecorderFailsOnUnmountedPool(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	reservationID := f.reserve(t, 0)
+	// 番組に結びつかない時刻予約で録る。番組の予約では grace の後にやり直して開き直すと、EIT[p/f] を読む前に
+	// 予定の終わりを過ぎたときに遅れた番組として待ち、失敗の理由が program_not_found に変わる (#1046、#2235)。
+	reservationID := f.reserveTime(t, 0)
 	_, err := f.pool.Exec(t.Context(), `UPDATE reservations SET settings = '{"poolId": "elsewhere"}' WHERE id = $1`, reservationID)
 	require.NoError(t, err)
 	logs := newMessageRecorder()

@@ -151,7 +151,8 @@ func TestRecorderDoesNotChurnDelayedBroadcastWhileDatabaseIsUnreachable(t *testi
 	reservationID := f.reserve(t, 0)
 	stream := newSteppedStream()
 	db := databasetest.NewSwitch(t, f.pool)
-	recorder, dir := f.newRecorderOn(t, db.Pool, stream, nil, nil, slog.New(slog.DiscardHandler))
+	logs := newMessageRecorder()
+	recorder, dir := f.newRecorderOn(t, db.Pool, stream, nil, nil, slog.New(logs))
 	_, _ = f.session(t, recorder, reservationID)
 
 	cc := byte(0)
@@ -160,7 +161,9 @@ func TestRecorderDoesNotChurnDelayedBroadcastWhileDatabaseIsUnreachable(t *testi
 	require.Equal(t, 1, f.segments(t, reservationID))
 
 	db.Down()
-	waitForRefused(t, db)
+	// DB に届かない間は、遅れた番組を待ち始めない。届かないことは予約を読み直せなかったときに記録するので、そのログまで待つ。
+	// 問い合わせが拒否された数だけを待つと、記録する前に時計を進めることがある (#2235)。
+	logs.waitForMessage(t, "failed to reload the reservation")
 	f.clock.Advance(programStart().Add(recording.BroadcastStartGrace).Sub(f.clock.Now()))
 	time.Sleep(300 * time.Millisecond)
 	assert.Len(t, segmentFiles(t, dir), 1, "the recorder keeps the segment instead of reopening the stream again and again")
