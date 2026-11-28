@@ -290,7 +290,7 @@ export type PlayerInputsOptions = {
   slideSeek: Omit<SlideSeekOptions, 'onSlideStart' | 'onLongPress'>;
 };
 
-// usePlayerInputs は、キー、OS のメディア操作、ゲームパッド、マウス、タッチの操作を、commands につなぐ。
+// usePlayerInputs は、キー、ゲームパッド、マウス、タッチの操作と、スリープタイマーを、commands につなぐ。
 export function usePlayerInputs(
   shell: PlayerShell,
   commands: PlayerCommands,
