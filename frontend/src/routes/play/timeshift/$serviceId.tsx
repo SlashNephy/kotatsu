@@ -1,4 +1,3 @@
-import type { PlayerState } from '@mpeg2toh264/player';
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Share2 } from 'lucide-react';
@@ -26,7 +25,6 @@ import {
   formatClock,
   formatDuration,
 } from '../../../yunomi/position';
-import { useSeekableStream } from '../../../yunomi/useSeekableStream';
 import { useFastForward } from '../../../yunomi/fastForward';
 import {
   RateSelect,
@@ -38,7 +36,6 @@ import {
 } from '../../../yunomi/QualitySelect';
 import { hlsURL, toVideoFormat } from '../../../yunomi/route';
 import { HlsPlayer } from '../../../yunomi/HlsPlayer';
-import { useHlsStream } from '../../../yunomi/useHlsStream';
 import { usePlayerAudio } from '../../../yunomi/usePlayerAudio';
 import { type PlayerSnapshot } from '../../../yunomi/playerState';
 import { SeekBar } from '../../../yunomi/SeekBar';
@@ -57,8 +54,6 @@ import {
   SettingsButton,
   VolumeControl,
 } from '../../../yunomi/PlayerControls';
-import { useStreamsDrains } from '../../../changes/DataChanges';
-import { canRetryImmediately, endedEarly, skipBrokenMedia } from '../../../yunomi/reconnect';
 import {
   parseStartSeconds,
   timeshiftShareSeconds,
@@ -76,6 +71,7 @@ import {
   usePlayerPresence,
   usePlayerShell,
 } from '../../../yunomi/playerShell';
+import { useVodTimeline } from '../../../yunomi/useVodTimeline';
 import { readableParams } from '../../../futon/readableId';
 
 // PlaySearch は、再生の画面の URL のクエリ。program は、再生する番組の始まりの時刻 (RFC 3339)。t は、再生を始める位置 (番組の始まりからの放送の秒)。
@@ -264,46 +260,30 @@ function Player({
     start === undefined ? 0 : Math.min(timeshiftStartPosition(program, start), duration),
   );
   // stream は、再生できる範囲の始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。kyusu の経路では、仮想 HLS を流す。
-  const stream = useSeekableStream(program.streamUrl, media, initialPosition, !hls);
-  const hlsStream = useHlsStream(media, hls, initialPosition);
-  const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
+  const timeline = useVodTimeline({
+    streamUrl: program.streamUrl,
+    media,
+    mediaRef,
+    convert: route.kind === 'convert',
+    hls,
+    initial: initialPosition,
+    duration,
+  });
+  const {
+    stream,
+    hlsStream,
+    position,
+    positionRef,
+    currentPosition,
+    restartAt,
+    jumpTo,
+    retry,
+    error,
+  } = timeline;
   const [seeking, setSeeking] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const lastAutoRetry = useRef<number | null>(null);
-  // lastBrokenSkip は、壊れた所を最後に飛び越えた先の位置。
-  const lastBrokenSkip = useRef<number | null>(null);
-  // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
-  const [handover, setHandover] = useState(false);
 
   // streamMeter は、右のカラムの「情報」に出す、届いた映像のビットレートと放送の形式を保持する (#828)。
   const streamMeter = useStreamMeter(playback.current);
-  // restartAt は、指定の位置から読み直す。
-  const restartAt = (seconds: number) => {
-    setHandover(false);
-    // 画質を変えると、変換と kyusu の経路が入れ替わることがある。入れ替わった先の経路も、この位置から読み始める。
-    hlsStream.restartAt(seconds);
-    stream.restartAt(seconds);
-  };
-  // tenban が止まる前に通知してきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。
-  // kyusu の経路は、セグメントごとに読み、次のセグメントは止まらない tenban に届くので、つなぎ直さない (設計書 11.4、#1727)。
-  const drains = useStreamsDrains();
-  const seenDrains = useRef(drains);
-  useEffect(() => {
-    if (drains === seenDrains.current) {
-      return;
-    }
-    seenDrains.current = drains;
-    if (!hls && error === null) {
-      // 裏で読み込んでいる間も、映っている映像で位置を進める (#1728)。
-      stream.restartAt(positionRef.current, true);
-      setHandover(true);
-    }
-    // 読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
-  }, [drains, error, hls]);
-  const retry = () => {
-    setError(null);
-    restartAt(positionRef.current);
-  };
   // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   const currentCaption = useRef<string | null>(null);
@@ -318,15 +298,7 @@ function Player({
   // seek は、指定の位置に移る。再生できる範囲の外へは移らない。
   // kyusu の仮想 HLS は、プレイリストの中を移るだけで、読み直さない。
   const seek = (target: number) => {
-    const seconds = Math.min(Math.max(target, 0), duration);
-    const current = mediaRef.current;
-    if (hls && current !== null) {
-      current.seek(seconds);
-      hlsStream.seekTo(seconds);
-
-      return;
-    }
-    restartAt(seconds);
+    jumpTo(target);
   };
   // changeQuality は、画質を変え、それまでの位置から続ける。
   const changeQuality = (next: string) => {
@@ -451,42 +423,6 @@ function Player({
   // タイムシフトの再生は、ほかの端末から操作させない。
   usePlayerPresence(player, commands, null);
 
-  // resumeAfterCut は、配信が切れたら、通知を出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
-  const resumeAfterCut = () => {
-    // 映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す。
-    if (mediaRef.current?.error != null) {
-      const next = skipBrokenMedia(positionRef.current, lastBrokenSkip.current);
-      if (next !== null) {
-        lastBrokenSkip.current = next;
-        restartAt(next);
-
-        return;
-      }
-    }
-    const now = Date.now();
-    if (!canRetryImmediately(lastAutoRetry.current, now)) {
-      setError(t('player.error'));
-
-      return;
-    }
-    lastAutoRetry.current = now;
-    restartAt(positionRef.current);
-  };
-  // onConvertState は、配信が番組の終わりに届く前に終わったら、途中で切れたとみなして読み直す。
-  const onConvertState = (state: PlayerState) => {
-    const current = mediaRef.current;
-    if (state !== 'completed' || current === null) {
-      return;
-    }
-    const { buffered } = current;
-    const end =
-      buffered.length === 0
-        ? positionRef.current
-        : stream.positionOf(buffered.end(buffered.length - 1));
-    if (endedEarly(end, duration)) {
-      resumeAfterCut();
-    }
-  };
   // 番組が終わった位置まで再生したら、次の番組に進まずに止める。
   useEffect(() => {
     if (!onAir && position >= duration && media !== null && !media.paused) {
@@ -568,7 +504,7 @@ function Player({
       {route.kind === 'convert' && (
         <TsPlayer
           url={stream.url}
-          handover={handover}
+          handover={timeline.handover}
           mediaRef={mediaRef}
           onMedia={setMedia}
           controls={controlBar}
@@ -578,14 +514,10 @@ function Player({
           crop={shell.shownCrop}
           brightness={inputs.brightness}
           onCaptionText={onCaptionText}
-          onLoaded={(handed) => {
-            // 最初のフレームが出たときの時刻を、base にする。裏で読み込んで切り替えたら、TsPlayer が渡す時刻にする。
-            stream.onLoaded(handed);
-            setError(null);
-          }}
+          onLoaded={timeline.onConvertLoaded}
           handoverTarget={stream.handoverTarget}
-          onError={resumeAfterCut}
-          onState={onConvertState}
+          onError={timeline.onError}
+          onState={timeline.onConvertState}
           onAudio={audio.onAudio}
           onReading={(reading) => {
             streamMeter.onReading(reading);
@@ -645,8 +577,8 @@ function Player({
               <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />
             </>
           }
-          onLoaded={() => setError(null)}
-          onError={resumeAfterCut}
+          onLoaded={timeline.onHlsLoaded}
+          onError={timeline.onError}
         />
       )}
     </PlayerBox>

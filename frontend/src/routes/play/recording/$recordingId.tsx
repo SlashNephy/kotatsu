@@ -1,4 +1,3 @@
-import type { PlayerState } from '@mpeg2toh264/player';
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useListState } from '../../../recordings/listSearch';
@@ -91,20 +90,12 @@ import { useFastForward } from '../../../yunomi/fastForward';
 import type { PlayerCover } from '../../../yunomi/playerCover';
 import { useVideoFrames } from '../../../yunomi/useVideoFrames';
 import { browserStorage } from '../../../yunomi/volume';
-import { useStreamsDrains } from '../../../changes/DataChanges';
-import {
-  canRetryImmediately,
-  endedEarly,
-  playableStart,
-  skipBrokenMedia,
-} from '../../../yunomi/reconnect';
+import { playableStart } from '../../../yunomi/reconnect';
 import { resumePosition } from '../../../yunomi/resume';
 import { parseStartSeconds } from '../../../yunomi/shareUrl';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
 import { useHostedWatch, useWatchMini } from '../../../yunomi/WatchHost';
 import { readableParams } from '../../../futon/readableId';
-import { useSeekableStream } from '../../../yunomi/useSeekableStream';
-import { useHlsStream } from '../../../yunomi/useHlsStream';
 import {
   PlayerBox,
   PlayerErrorOverlay,
@@ -115,6 +106,7 @@ import {
   usePlayerPresence,
   usePlayerShell,
 } from '../../../yunomi/playerShell';
+import { useVodTimeline } from '../../../yunomi/useVodTimeline';
 
 // PlaySearch は、再生の画面の URL のクエリ。t は、再生を始める位置 (録画の始まりからの秒)。キャプチャの履歴から撮った場面を開くのと、今の位置の URL の共有に使う (#457)。
 type PlaySearch = { t?: number };
@@ -382,32 +374,39 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const resumeAt = playableStart(opening.at, duration);
   // kyusu の HLS は、録画の全体を 1 つのプレイリストで表すので、video の時刻がそのまま録画の中の位置になる。
   const hls = route.kind === 'kyusu';
-  // stream は、録画の始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。kyusu の経路では、仮想 HLS を流す。
+  // timeline は、録画の始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。kyusu の経路では、仮想 HLS を流す。
   // 配信は、求めた位置の手前の I フレームから流すので、位置は、流し始めた位置から数える (#536)。
-  const stream = useSeekableStream(
-    recording?.streamUrl ?? '',
+  // 終わりの直前から読むと、映像のコマが届かずに失敗するので、映像が入るだけ手前から読む (#1576)。
+  // CM の区間が録画の終わりまで続く回で、CM を飛ばすと、ここに来る。
+  const timeline = useVodTimeline({
+    streamUrl: recording?.streamUrl ?? '',
     media,
-    resumeAt,
-    !hls && recording !== null,
-  );
-  const hlsStream = useHlsStream(media, hls, resumeAt);
+    mediaRef,
+    convert: route.kind === 'convert' && recording !== null,
+    hls,
+    initial: resumeAt,
+    duration,
+    restartFrom: (seconds) => playableStart(seconds, duration),
+  });
   // positionRef は、別のウィンドウへの移し替えや、画質と音声の切り替えで、読み直すときに続ける位置。
   // currentPosition は、video の時刻から求め直した今の再生位置。実況のコメントを、画面の更新ごとに描くのに使う。
-  const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
+  const {
+    stream,
+    hlsStream,
+    position,
+    positionRef,
+    currentPosition,
+    restartAt: startAt,
+    jumpTo,
+    retry,
+    error,
+  } = timeline;
   const [seeking, setSeeking] = useState<number | null>(null);
   const [paused, setPaused] = useState(true);
   // lastSeek は、利用者が最後にシークした位置 (#1282)。そこが CM の区間の中なら、自動では飛ばさない。
   // URL で位置を渡されて開いたときも、その場面を見たいものとして扱う。自動で飛んだ位置は入れない (#1512)。
   const lastSeek = useRef<number | null>(start === undefined ? null : resumeAt);
   const [cmAutoSkip] = useCmAutoSkip();
-  const [error, setError] = useState<string | null>(null);
-  // lastAutoRetry は、切れたときに、通知を出さずに今の位置から読み直した時刻 (#1083)。
-  const lastAutoRetry = useRef<number | null>(null);
-  // lastBrokenSkip は、壊れた所を最後に飛び越えた先の位置。
-  const lastBrokenSkip = useRef<number | null>(null);
-  // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
-  // tenban が止まる前の通知で読み直すときだけ使い、シークなどでは、すぐ読み直す。
-  const [handover, setHandover] = useState(false);
 
   // channelId は、実況のチャンネルの ID。実況を切っているユーザーにもボタンを出すため、外部へ問い合わせずに返る値を使う (設計書 7.4)。
   const channelId = recording?.service.jikkyoChannelId ?? null;
@@ -507,39 +506,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(recording?.audios ?? null);
   useVirtualSurround(media, surroundAvailable);
-  // startAt は、指定の位置から読み直す。
-  const startAt = (target: number) => {
-    // 終わりの直前から読むと、映像のコマが届かずに失敗するので、映像が入るだけ手前から読む (#1576)。
-    // CM の区間が録画の終わりまで続く回で、CM を飛ばすと、ここに来る。
-    const seconds = playableStart(target, duration);
-    setHandover(false);
-    // 画質を変えると、変換と kyusu の経路が入れ替わることがある。入れ替わった先の経路も、この位置から読み始める。
-    hlsStream.restartAt(seconds);
-    stream.restartAt(seconds);
-  };
-  // tenban が止まる前に通知してきたら、ブラウザの中で変換するときは、今の位置から、新しい接続を張ってから切り替える (#1085)。
-  // kyusu の HLS は、セグメントごとに読むので、つなぎ直さなくてよい。
-  const drains = useStreamsDrains();
-  const seenDrains = useRef(drains);
-  useEffect(() => {
-    if (drains === seenDrains.current) {
-      return;
-    }
-    seenDrains.current = drains;
-    // エラーで止まっている間は、「やり直す」に任せる。
-    if (!hls && error === null) {
-      // 映っている映像の位置を信じられるなら、裏で読み込んでいる間も、その映像で位置を進める (#1728)。
-      // 終わりの直前から読むと、映像のコマが届かずに失敗するので、映像が入るだけ手前から読む (#1576)。
-      stream.restartAt(playableStart(positionRef.current, duration), true);
-      setHandover(true);
-    }
-    // 読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
-  }, [drains, hls, error]);
-  // retry は、今の位置から読み直す。エラーの通知も消し、読み込めたら出さないままにする。
-  const retry = () => {
-    setError(null);
-    startAt(positionRef.current);
-  };
 
   // seek は、指定の位置に移る。kyusu の HLS は、プレイリストの中を移るだけで、読み直さない。
   // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
@@ -554,21 +520,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     const at = currentPosition();
     setCaptionEntries((list) => insertRecordedCaption(list, at, text));
   };
-  // jumpTo は、指定の位置に移り、実際に移った先を返す。自動で CM を飛ぶときにも使うので、利用者のシークとしては数えない。
-  const jumpTo = (target: number) => {
-    // 録画の外へは移らない。OS のメディア操作からも、範囲の外の位置が届くことがある。
-    const seconds = Math.min(Math.max(target, 0), duration);
-    const current = mediaRef.current;
-    if (hls && current !== null) {
-      current.seek(seconds);
-      hlsStream.seekTo(seconds);
-
-      return seconds;
-    }
-    startAt(seconds);
-
-    return seconds;
-  };
+  // jumpTo は、自動で CM を飛ぶときにも使うので、利用者のシークとしては数えない。
   // seek は、利用者の操作で、指定の位置に移る。
   const seek = (target: number) => {
     lastSeek.current = jumpTo(target);
@@ -831,43 +783,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   }
   // resumeAfterCut は、配信が切れたら、通知を出さずに今の位置から読み直す (#1083)。tenban の入れ替えや回線の瞬断なら、これで戻る。
   // 続けて切れるなら、読み直しを繰り返さずに、エラーを出して利用者に任せる。
-  const resumeAfterCut = () => {
-    // 放送の受信で壊れた音声のフレームなどで、映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す (#1131)。
-    // 同じ位置から読み直すと、同じフレームでまた止まる。
-    if (mediaRef.current?.error != null) {
-      const next = skipBrokenMedia(positionRef.current, lastBrokenSkip.current);
-      if (next !== null) {
-        lastBrokenSkip.current = next;
-        startAt(Math.min(next, duration));
-
-        return;
-      }
-    }
-    const now = Date.now();
-    if (!canRetryImmediately(lastAutoRetry.current, now)) {
-      setError(t('player.error'));
-
-      return;
-    }
-    lastAutoRetry.current = now;
-    startAt(positionRef.current);
-  };
-  const onError = resumeAfterCut;
-  // onConvertState は、ブラウザの中で変換する配信が、録画の終わりに届く前に終わったら、途中で切れたとみなして読み直す。
-  const onConvertState = (state: PlayerState) => {
-    const current = mediaRef.current;
-    if (state !== 'completed' || current === null) {
-      return;
-    }
-    const { buffered } = current;
-    const end =
-      buffered.length === 0
-        ? positionRef.current
-        : stream.positionOf(buffered.end(buffered.length - 1));
-    if (endedEarly(end, duration)) {
-      resumeAfterCut();
-    }
-  };
   const shown = seeking ?? position;
   // gapMarks は、録画が途切れた位置のマーク (#479)。途切れた区間はシークバーの長さに含めないので (#754)、長さのないマークにし、
   // カーソルを乗せたら、途切れていた長さを出す。
@@ -973,7 +888,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       {route.kind === 'convert' && (
         <TsPlayer
           url={stream.url}
-          handover={handover}
+          handover={timeline.handover}
           mediaRef={mediaRef}
           onMedia={setMedia}
           controls={controlBar}
@@ -984,14 +899,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           crop={shell.shownCrop}
           brightness={inputs.brightness}
           onCaptionText={onCaptionText}
-          onLoaded={(handed) => {
-            // 最初のフレームが出たときの時刻を、位置の基準にする。裏で読み込んで切り替えたら、TsPlayer が渡す時刻にする (#1728)。
-            stream.onLoaded(handed);
-            setError(null);
-          }}
+          onLoaded={timeline.onConvertLoaded}
           handoverTarget={stream.handoverTarget}
-          onError={onError}
-          onState={onConvertState}
+          onError={timeline.onError}
+          onState={timeline.onConvertState}
           overlay={
             <>
               {autoCaptionsShown && (
@@ -1073,8 +984,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
               <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />
             </>
           }
-          onLoaded={() => setError(null)}
-          onError={onError}
+          onLoaded={timeline.onHlsLoaded}
+          onError={timeline.onError}
           coverRef={coverRef}
         />
       )}
