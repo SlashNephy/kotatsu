@@ -1,6 +1,7 @@
 // 測定のページを配信する静的なサーバ。実機からも開けるよう、待ち受ける場所は引数で変えられる。
 //
 //   /          page/ (測定のページ)
+//   /wasm/product/  製品の WASM (vendor/ffmpeg/decoder/dist/decoder.js と public/ffmpeg/decoder.wasm)
 //   /wasm/     .work/out/ (build.sh で組んだ WASM)
 //   /media/    .work/media/ (make-media.sh で作った TS)。Range に応える
 //   /m2h/      mpeg2toh264 の worker (/m2h/worker.js) と WASM (public/mpeg2toh264)
@@ -40,8 +41,15 @@ const m2hWorker = async () => {
   return name ? join(dir, name) : null;
 };
 
+// 製品の WASM は、組み方の名前 product で、build.sh で組んだものと同じ形 (dec.mjs と、それが読む WASM) で返す。
+const product = {
+  '/wasm/product/dec.mjs': join(frontend, 'vendor', 'ffmpeg', 'decoder', 'dist', 'decoder.js'),
+  '/wasm/product/decoder.wasm': join(frontend, 'public', 'ffmpeg', 'decoder.wasm'),
+};
+
 const locate = async (pathname) => {
   if (pathname === '/m2h/worker.js') return m2hWorker();
+  if (Object.hasOwn(product, pathname)) return product[pathname];
   for (const [prefix, dir] of mounts) {
     if (pathname.startsWith(prefix)) {
       const path = normalize(join(dir, pathname.slice(prefix.length) || 'index.html'));

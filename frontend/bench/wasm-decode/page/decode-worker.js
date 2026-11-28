@@ -1,15 +1,36 @@
 // WASM の FFmpeg でそのままデコードする方式の測定。読み込みは測定から外す (先に全部メモリに置く)。描画はしない。
+// upload を付けると、製品の経路 (pictureRenderer.ts の upload) と同じく、デコードしたコマの Y、U、V の 3 面を
+// OffscreenCanvas の WebGL2 の R8 のテクスチャへ上げ、デコードとアップロードの時間を分けて返す (#2162)。
 import { demux } from './ts.js';
+import { createUploader } from './upload.js';
 
 const quantile = (values, q) => {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
 };
 
+// timerResolution は、worker の performance.now() の粒度 (続けて読んで変わった差の最小) を返す。
+// 粒度が粗いと、1 ms 未満の区間の分位は 0 か粒度の値になるので、平均と一緒に読む。
+const timerResolution = () => {
+  let min = Infinity;
+  let last = performance.now();
+  const end = last + 50;
+  while (last < end) {
+    const now = performance.now();
+    if (now > last) {
+      min = Math.min(min, now - last);
+      last = now;
+    }
+  }
+  return min;
+};
+
 // AV_FRAME_FLAG_INTERLACED
 const FRAME_FLAG_INTERLACED = 8;
 
-onmessage = async ({ data: { file, variant, checksum } }) => {
+onmessage = async ({
+  data: { file, variant, checksum, upload = 'none', maxFrames = Infinity },
+}) => {
   try {
     const { default: init } = await import(`./wasm/${variant}/dec.mjs`);
     const t0 = performance.now();
@@ -34,7 +55,12 @@ onmessage = async ({ data: { file, variant, checksum } }) => {
         inp = M._malloc(cap);
       }
     };
+    const uploader = upload === 'none' ? null : createUploader(upload);
     const times = [];
+    // uploadTimes と flushTimes は、PES ごとのアップロードと gl.flush の時間。times から差し引けば、デコードの時間になる。
+    const uploadTimes = [];
+    const flushTimes = [];
+    let uploadMs = 0;
     const sums = [];
     let frames = 0;
     let interlaced = 0;
@@ -45,6 +71,11 @@ onmessage = async ({ data: { file, variant, checksum } }) => {
         frames++;
         if (firstFrameMs < 0) firstFrameMs = performance.now() - vStart;
         if (M._frame_flags(vd) & FRAME_FLAG_INTERLACED) interlaced++;
+        if (uploader) {
+          const t = performance.now();
+          uploader.upload(M, vd);
+          uploadMs += performance.now() - t;
+        }
         if (checksum && frames <= 60) {
           // 先頭の Y の和で、ネイティブの ffmpeg と同じ絵が出ているかを見る
           const p = M._frame_data(vd, 0);
@@ -71,17 +102,49 @@ onmessage = async ({ data: { file, variant, checksum } }) => {
       } while (off < size);
     };
     for (const pes of video) {
+      if (frames >= maxFrames) break;
       const t = performance.now();
+      uploadMs = 0;
       ensure(pes.data.length);
       M.HEAPU8.set(pes.data, inp);
       parseAndDecode(inp, pes.data.length, pes.pts);
       times.push(performance.now() - t);
+      if (uploader) {
+        uploadTimes.push(uploadMs);
+        // 製品では画面の切り替わりごとに描いて送り出す。ここでは描かないので、コマごとに送り出し、GL の命令をバッファし続けないようにする。
+        const tf = performance.now();
+        uploader.flush();
+        flushTimes.push(performance.now() - tf);
+      }
     }
     // parser に残った最後のフレームと、並べ替えで残ったフレームを出す
     parseAndDecode(0, 0, -1);
     M._dec_send(vd, 0, 0, -1);
     drain();
     const videoMs = performance.now() - vStart;
+    const sum = (xs) => xs.reduce((a, b) => a + b, 0);
+    const split = uploader
+      ? {
+          upload,
+          uploadAvgMs: sum(uploadTimes) / uploadTimes.length,
+          uploadP50: quantile(uploadTimes, 0.5),
+          uploadP95: quantile(uploadTimes, 0.95),
+          flushAvgMs: sum(flushTimes) / flushTimes.length,
+          flushP50: quantile(flushTimes, 0.5),
+          flushP95: quantile(flushTimes, 0.95),
+          decodeOnlyAvgMs: (sum(times) - sum(uploadTimes)) / times.length,
+          decodeOnlyP50: quantile(
+            times.map((t, i) => t - uploadTimes[i]),
+            0.5,
+          ),
+          decodeOnlyP95: quantile(
+            times.map((t, i) => t - uploadTimes[i]),
+            0.95,
+          ),
+          gl: uploader.info,
+        }
+      : { upload };
+    uploader?.destroy();
 
     const aStart = performance.now();
     let samples = 0;
@@ -125,12 +188,16 @@ onmessage = async ({ data: { file, variant, checksum } }) => {
       fps: frames / (totalMs / 1000),
       videoFps: frames / (videoMs / 1000),
       avgMs: times.reduce((a, b) => a + b, 0) / times.length,
+      measuredPes: times.length,
       p50: quantile(times, 0.5),
       p95: quantile(times, 0.95),
       p99: quantile(times, 0.99),
       max: Math.max(...times),
       samples,
       audioErrors,
+      ...split,
+      timer: timerResolution(),
+      crossOriginIsolated: self.crossOriginIsolated ?? null,
       sums,
     });
   } catch (error) {

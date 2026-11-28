@@ -32,6 +32,12 @@
     <h1>WASM デコードの測定</h1>
     <p>mpeg2toh264 の変換と、WASM でそのままデコードする方式を、同じ worker 1 本で比べます。</p>
     <p>結果は 1 行に 1 つの JSON です。実機では、結果を写して残してください。</p>
+    <h2>#2162 の切り分け</h2>
+    <p>製品の WASM で、デコードと GPU へのアップロードの時間を分けて計測します。数分かかります。</p>
+    <button id="run-split" type="button">切り分けを計測する</button>
+    <button id="copy" type="button">結果をコピー</button>
+    <p id="split-status"></p>
+    <h2>比較</h2>
     <label for="files">映像 (.work/media/ のファイル名、空白区切り)</label>
     <input id="files" value="testsrc2_1440.ts testsrc2_1920.ts mandel_1440.ts mandel_1920.ts" />
     <label for="variants">WASM の組み方 (.work/out/ の名前、空白区切り)</label>

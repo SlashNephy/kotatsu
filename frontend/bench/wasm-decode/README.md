@@ -67,6 +67,26 @@ node frontend/bench/wasm-decode/summarize.mjs results.jsonl
 ブラウザの自動操作で計測するときは、ページの `window.runDecode(映像, 組み方)` と `window.runConvert(映像, { save })` を呼びます。
 どちらも結果のオブジェクトを返します。
 
+## デコードと GPU へのアップロードを分けて計測する
+
+#2162 の切り分けのために、製品の経路と同じく、デコードしたコマを WebGL2 の R8 のテクスチャ 3 枚へ上げて計測できます。
+WASM は組み方の名前 `product` で製品のもの（`vendor/ffmpeg/decoder` と `public/ffmpeg/decoder.wasm`）を使うので、組まなくても計測できます。
+
+ページの「切り分けを計測する」を押すと、`mandel_1440.ts` と `testsrc2_1440.ts` で、アップロードなしと次の 3 通りの上げ方を、交互に 2 回ずつ計測します。
+1 回は 300 コマで打ち切ります。
+
+| 上げ方     | 渡すもの                                     |
+| ---------- | -------------------------------------------- |
+| `offset`   | WASM のメモリ全体と面の位置（製品と同じ）    |
+| `subarray` | 面の範囲だけの `subarray`（複製しない）      |
+| `copy`     | 面の範囲を JS の `Uint8Array` に複製したもの |
+
+結果には PES ごとの時間（`avgMs`、`p50`、`p95`）に加えて、アップロードの時間（`uploadAvgMs` など）、`gl.flush` の時間（`flushAvgMs` など）、
+アップロードを差し引いたデコードの時間（`decodeOnlyAvgMs` など）、WebGL の renderer、worker の `performance.now()` の粒度（`timer`）が入ります。
+粒度が粗い端末では、1 ms 未満の区間の分位が 0 か粒度の値になるので、平均と一緒に読みます。
+
+ブラウザの自動操作で計測するときは、`window.runDecode(映像, 'product', false, { upload: 'offset', maxFrames: 300 })` を呼びます。
+
 ## mpeg2toh264 の出力を確認する
 
 `runConvert` に `{ save: true }` を渡すと、出力の MP4 を `.work/save/<映像>.mp4` に書きます。

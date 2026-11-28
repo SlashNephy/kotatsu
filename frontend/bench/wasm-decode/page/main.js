@@ -5,8 +5,12 @@ const append = (result) => {
   log.scrollTop = log.scrollHeight;
 };
 
-/** WASM でそのままデコードする方式を 1 回計測する。checksum を付けると、先頭 60 コマの輝度の和も返す。 */
-const runDecode = (file, variant, checksum = false) =>
+/**
+ * WASM でそのままデコードする方式を 1 回計測する。checksum を付けると、先頭 60 コマの輝度の和も返す。
+ * upload に上げ方 (offset、subarray、copy) を渡すと、コマを WebGL2 のテクスチャへ上げ、デコードと分けて時間を返す (#2162)。
+ * maxFrames を渡すと、そのコマ数をデコードしたところで映像を打ち切る。
+ */
+const runDecode = (file, variant, checksum = false, { upload = 'none', maxFrames } = {}) =>
   new Promise((resolve) => {
     const worker = new Worker('./decode-worker.js', { type: 'module' });
     worker.onmessage = ({ data }) => {
@@ -16,11 +20,11 @@ const runDecode = (file, variant, checksum = false) =>
     };
     worker.onerror = (event) => {
       worker.terminate();
-      const data = { ok: false, kind: 'decode', file, variant, error: event.message };
+      const data = { ok: false, kind: 'decode', file, variant, upload, error: event.message };
       append(data);
       resolve(data);
     };
-    worker.postMessage({ file, variant, checksum });
+    worker.postMessage({ file, variant, checksum, upload, maxFrames });
   });
 
 /**
@@ -140,3 +144,44 @@ const run = async ({ decode, convert }) => {
 document.getElementById('run-decode').onclick = () => run({ decode: true, convert: false });
 document.getElementById('run-convert').onclick = () => run({ decode: false, convert: true });
 document.getElementById('run-all').onclick = () => run({ decode: true, convert: true });
+
+// #2162 の切り分け。製品の WASM で、アップロードなしと 3 通りの上げ方を、交互に 2 回ずつ計測する。
+// 各回は 300 コマ (10 秒分) で打ち切り、遅い端末でも数分で終わるようにする。
+const splitFiles = ['mandel_1440.ts', 'testsrc2_1440.ts'];
+const splitModes = ['none', 'offset', 'subarray', 'copy'];
+const status = document.getElementById('split-status');
+const runSplit = async () => {
+  const button = document.getElementById('run-split');
+  button.disabled = true;
+  log.value = '';
+  log.value += `${JSON.stringify({ kind: 'env', userAgent: navigator.userAgent, crossOriginIsolated: self.crossOriginIsolated ?? null, hardwareConcurrency: navigator.hardwareConcurrency ?? null })}\n`;
+  const total = splitFiles.length * splitModes.length * 2;
+  let done = 0;
+  try {
+    for (let round = 0; round < 2; round++) {
+      for (const file of splitFiles) {
+        for (const upload of splitModes) {
+          status.textContent = `計測中 ${done + 1} / ${total}（${file}、${upload}）`;
+          await runDecode(file, 'product', false, { upload, maxFrames: 300 });
+          done++;
+        }
+      }
+    }
+    status.textContent = `終わりました（${total} 回）。結果をコピーしてください。`;
+  } catch (error) {
+    status.textContent = `失敗しました: ${String(error)}`;
+  } finally {
+    button.disabled = false;
+  }
+};
+window.runSplit = runSplit;
+document.getElementById('run-split').onclick = runSplit;
+document.getElementById('copy').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(log.value);
+    status.textContent = 'コピーしました。';
+  } catch {
+    log.select();
+    status.textContent = 'コピーできませんでした。結果の欄を選んだので、⌘C でコピーしてください。';
+  }
+};

@@ -13,14 +13,37 @@ const rows = readFileSync(path, 'utf8')
 
 const groups = new Map();
 for (const row of rows) {
+  if (row.kind === 'env') {
+    console.log('env:', JSON.stringify(row));
+    continue;
+  }
   if (!row.ok) {
     console.log('failed:', JSON.stringify(row));
     continue;
   }
-  const key = `${row.file}\t${row.kind}\t${row.variant ?? 'mpeg2toh264'}`;
+  const upload = row.upload && row.upload !== 'none' ? `\tupload=${row.upload}` : '';
+  const key = `${row.file}\t${row.kind}\t${row.variant ?? 'mpeg2toh264'}${upload}`;
   const values =
     row.kind === 'decode'
-      ? { fps: row.fps, p95: row.p95, p99: row.p99, firstMs: row.firstFrameMs, frames: row.frames }
+      ? {
+          fps: row.fps,
+          avgMs: row.avgMs,
+          p50: row.p50,
+          p95: row.p95,
+          p99: row.p99,
+          firstMs: row.firstFrameMs,
+          frames: row.frames,
+          // アップロードを足した回だけ (#2162)。デコードだけの時間は、PES ごとの時間からアップロードを差し引いたもの
+          ...(row.uploadAvgMs === undefined
+            ? {}
+            : {
+                decodeAvgMs: row.decodeOnlyAvgMs,
+                decodeP50: row.decodeOnlyP50,
+                uploadAvgMs: row.uploadAvgMs,
+                uploadP95: row.uploadP95,
+                flushAvgMs: row.flushAvgMs,
+              }),
+        }
       : {
           fps: row.fps,
           firstMs: row.firstFragmentMs,
