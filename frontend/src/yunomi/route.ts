@@ -238,6 +238,26 @@ export function vodDataBroadcastURL(streamUrl: string, start: number): string {
   return `${path}/data-broadcast?${params.toString()}`;
 }
 
+// rfc3339 は、タイムシフトのバッファの番組の始まり (from) に使う日時の文字。
+const rfc3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+// vodDataBroadcastQuery は、録画型の再生元のデータ放送の配信に渡す問い合わせを、読み始める位置 (start) と、
+// タイムシフトのバッファの番組の始まり (from) だけで組み直す。受け取った問い合わせは、そのまま渡さない。
+function vodDataBroadcastQuery(query: string | undefined): string {
+  const given = new URLSearchParams(query?.split('#', 1)[0] ?? '');
+  const params = new URLSearchParams();
+  const from = given.get('from');
+  if (from !== null && rfc3339.test(from)) {
+    params.set('from', from);
+  }
+  const start = Number(given.get('start') ?? Number.NaN);
+  if (Number.isFinite(start) && start >= 0) {
+    params.set('start', start.toFixed(1));
+  }
+
+  return params.toString();
+}
+
 // dataBroadcastEndpoint は、url が tenban のデータ放送用のエンドポイントなら、読みに行く URL を返す。ほかの先なら null を返す。
 // データ放送の Web Worker は、受け取った URL をそのまま読まずに、決まったパスへ組み直し、ほかのホストやパスを読まないようにする。
 export function dataBroadcastEndpoint(url: string): string | null {
@@ -245,8 +265,9 @@ export function dataBroadcastEndpoint(url: string): string | null {
   if (vod !== null) {
     const [, kind = '', id = '', query] = vod;
     const path = `/internal/streams/${kind}/${encodeURIComponent(id)}/data-broadcast`;
+    const params = vodDataBroadcastQuery(query);
 
-    return query === undefined ? path : `${path}?${query}`;
+    return params === '' ? path : `${path}?${params}`;
   }
   const match = dataBroadcastPath.exec(url);
   if (match === null) {

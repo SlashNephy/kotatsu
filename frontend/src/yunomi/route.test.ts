@@ -302,13 +302,23 @@ describe('dataBroadcastEndpoint', () => {
     },
     {
       name: '録画のデータ放送のエンドポイントも、読み始める位置を付けたまま読む (#2270)',
-      url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=60.0',
+      url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=60.0#3',
       want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=60.0',
     },
     {
       name: 'ライブラリのファイルのデータ放送のエンドポイントも読む',
       url: '/internal/streams/library/bWFpbgBhLnRz/data-broadcast?start=0.0',
       want: '/internal/streams/library/bWFpbgBhLnRz/data-broadcast?start=0.0',
+    },
+    {
+      name: '録画型の再生元の問い合わせは、読み始める位置と番組の始まりのほかは渡さない',
+      url: '/internal/streams/timeshift/3273601024/data-broadcast?from=2026-11-28T00%3A00%3A00Z&start=12.3&next=https%3A%2F%2Fevil.example#2',
+      want: '/internal/streams/timeshift/3273601024/data-broadcast?from=2026-11-28T00%3A00%3A00Z&start=12.3',
+    },
+    {
+      name: '数でない読み始める位置は渡さない',
+      url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=abc',
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast',
     },
     {
       name: '録画型の再生元の、ほかの種類のパスは読まない',
