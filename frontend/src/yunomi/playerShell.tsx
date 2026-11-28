@@ -26,7 +26,12 @@ import {
 } from './PlayerControls';
 import { usePlayerContextMenu } from './PlayerContextMenu';
 import type { PlayerMedia } from './playerMedia';
-import { documentTitle, usePlayerEvents, type PlayerEvents } from './playerState';
+import {
+  documentTitle,
+  usePlayerEvents,
+  type PlayerEvents,
+  type PlayerSnapshot,
+} from './playerState';
 import { type Capture, CaptureButton, openPictureInPicture, PipButton } from './PlayerTools';
 import { PlaybackUnavailable } from './QualitySelect';
 import type { PlaybackRoute } from './route';
@@ -494,11 +499,12 @@ export function PlayerFrame({
 }
 
 // usePlayerPresence は、プレイヤーの今の状態 (#811) を、タブの題名、OS のメディア操作、ほかの端末 (#459、設計書 7.7) に通知する。
-// ready が false の間は、ほかの端末には通知しない。ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
+// remote は、ほかの端末に通知する状態。null の間は、ほかの端末には通知しない。ほかの端末から、別のチャンネルや録画を
+// 開かせられる (キャスト、#802)。
 export function usePlayerPresence(
-  player: RemotePlayerSnapshot,
+  player: PlayerSnapshot,
   commands: PlayerCommands,
-  ready: boolean,
+  remote: RemotePlayerSnapshot | null,
 ): PlayerEvents {
   const events = usePlayerEvents(player);
   // 小さなプレイヤーで描いている間は、開いている別の画面のタイトルを変えない (#1731)。
@@ -508,7 +514,7 @@ export function usePlayerPresence(
   // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
   useMediaSession(player, commands, autoPictureInPicture);
   const openRemote = useRemoteOpen();
-  useRemotePlayer(ready ? player : null, events, commands, undefined, openRemote);
+  useRemotePlayer(remote, events, commands, undefined, openRemote);
 
   return events;
 }

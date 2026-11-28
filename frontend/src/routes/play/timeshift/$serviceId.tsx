@@ -1,22 +1,17 @@
 import type { PlayerState } from '@mpeg2toh264/player';
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Captions, Keyboard, Share2 } from 'lucide-react';
+import { Captions, Share2 } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../../relay/useLazyLoadQuery';
 
 import { rememberReturnTo } from '../../../auth/returnTo';
-import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle } from '../../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../../relay/environment';
 import { WatchPanel } from '../../../yunomi/WatchPanel';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../../yunomi/WatchLayout';
-import { useVolumeNormalizer } from '../../../yunomi/volumeNormalize';
-import { useAudioDelayCommands, useAudioDelayer } from '../../../yunomi/audioDelay';
-import { useSleepTimer } from '../../../yunomi/sleepTimer';
-import { noCrop, type Crop } from '../../../yunomi/crop';
 import { CaptionHistory } from '../../../yunomi/CaptionHistory';
 import { StreamInfo, useStreamMeter } from '../../../yunomi/StreamInfo';
 import { useDRCSReplacements } from '../../../yunomi/useDRCSReplacements';
@@ -25,8 +20,6 @@ import {
   normalizeCaption,
   type CaptionEntry,
 } from '../../../yunomi/captionHistory';
-import { PipHost } from '../../../yunomi/PipHost';
-import { PipPlaceholder } from '../../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
   recordingPosition,
@@ -41,81 +34,49 @@ import {
   AudioDelaySetting,
   NormalizeVolumeToggle,
   SleepTimerSelect,
-  PlaybackUnavailable,
   QualitySelect,
 } from '../../../yunomi/QualitySelect';
 import { hlsURL, toVideoFormat } from '../../../yunomi/route';
 import { HlsPlayer } from '../../../yunomi/HlsPlayer';
 import { useHlsStream } from '../../../yunomi/useHlsStream';
 import { usePlayerAudio } from '../../../yunomi/usePlayerAudio';
-import { documentTitle, type PlayerSnapshot } from '../../../yunomi/playerState';
+import { type PlayerSnapshot } from '../../../yunomi/playerState';
 import { SeekBar } from '../../../yunomi/SeekBar';
 import { TsPlayer } from '../../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../../yunomi/usePlaybackRoute';
 import { useAdaptiveQuality } from '../../../yunomi/useAdaptiveQuality';
 import { usePlayerSettings } from '../../../yunomi/usePlayerSettings';
-import { useMediaSession } from '../../../yunomi/useMediaSession';
-import { ShortcutsHelp } from '../../../yunomi/ShortcutsHelp';
-import { usePlayerShortcuts } from '../../../yunomi/usePlayerShortcuts';
-import { usePlayerContextMenu } from '../../../yunomi/PlayerContextMenu';
-import { usePlayerGamepad } from '../../../yunomi/gamepad';
-import { usePlayerMouse } from '../../../yunomi/mouseActions';
 import type { PlayerCommands } from '../../../yunomi/commands';
+import { useCapture } from '../../../yunomi/PlayerTools';
 import {
-  CaptureButton,
-  openPictureInPicture,
-  PipButton,
-  useCapture,
-} from '../../../yunomi/PlayerTools';
-import {
-  PlayerAlert,
-  BigPlayButton,
-  PlayerLoading,
   CommandButton,
-  FullscreenButton,
   PlayButton,
   PlayerControls,
   PositionStatus,
   SeekStepButtons,
-  playerControlsClasses,
   SettingsButton,
   VolumeControl,
-  PlayerFlash,
-  usePlayerFlash,
 } from '../../../yunomi/PlayerControls';
-import { onVideoSurface, useControlsVisibility } from '../../../yunomi/useControlsVisibility';
-import { useDoubleTap } from '../../../yunomi/useDoubleTap';
-import { stepBrightness } from '../../../yunomi/brightness';
-import { swipeVolumeStep } from '../../../yunomi/swipe';
-import { useSwipeControlsSetting, volumeChangeable } from '../../../yunomi/swipeControls';
-import { useSwipeGestures } from '../../../yunomi/useSwipeGestures';
-import { ScrubBubble } from '../../../yunomi/ScrubBubble';
-import { useFullscreen } from '../../../yunomi/useFullscreen';
-import { useSlideSeek } from '../../../yunomi/useSlideSeek';
-import { useScreenCrop } from '../../../yunomi/useScreenCrop';
-import { useAutoplayBlocked } from '../../../yunomi/useAutoplayBlocked';
-import { useAutoPictureInPicture } from '../../../yunomi/autoPictureInPicture';
-import { useVideoLoading } from '../../../yunomi/useVideoLoading';
-import { useVideoState } from '../../../yunomi/useVideoState';
-import { stepVolume } from '../../../yunomi/volume';
-import { currentVolume } from '../../../yunomi/volumeBoost';
-import { useWakeLock } from '../../../yunomi/useWakeLock';
-import { useDocumentPictureInPicture } from '../../../yunomi/useDocumentPictureInPicture';
 import { useStreamsDrains } from '../../../changes/DataChanges';
 import { canRetryImmediately, endedEarly, skipBrokenMedia } from '../../../yunomi/reconnect';
 import {
-  copyPositionUrl,
   parseStartSeconds,
   timeshiftShareSeconds,
   timeshiftStartPosition,
 } from '../../../yunomi/shareUrl';
 import type { ServiceIdPlayTimeshiftQuery } from './__generated__/ServiceIdPlayTimeshiftQuery.graphql';
-import { useHostedWatch, useWatchMedia, useWatchMini } from '../../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMini } from '../../../yunomi/WatchHost';
+import {
+  PlayerBox,
+  PlayerErrorOverlay,
+  PlayerFeedback,
+  PlayerFrame,
+  PlayerToolButtons,
+  usePlayerInputs,
+  usePlayerPresence,
+  usePlayerShell,
+} from '../../../yunomi/playerShell';
 import { readableParams } from '../../../futon/readableId';
-import type { PlayerMedia } from '../../../yunomi/playerMedia';
-
-// volumeStep は、↑ と ↓ で音量を上げ下げする幅。
-const volumeStep = 0.05;
 
 // PlaySearch は、再生の画面の URL のクエリ。program は、再生する番組の始まりの時刻 (RFC 3339)。t は、再生を始める位置 (番組の始まりからの放送の秒)。
 type PlaySearch = { program: string; t?: number };
@@ -259,20 +220,9 @@ function Player({
     playQuery,
     variables,
   );
-  const mediaRef = useRef<PlayerMedia | null>(null);
-  const pip = useDocumentPictureInPicture();
-  const playerBoxRef = useRef<HTMLDivElement | null>(null);
-  const [media, setMedia] = useState<PlayerMedia | null>(null);
-  // 小さなプレイヤーは、この経路で再生中かを確認し、再生と一時停止を操作する。
-  useWatchMedia(media);
-  const videoState = useVideoState(media);
-  const autoplay = useAutoplayBlocked(media);
-  const videoLoading = useVideoLoading(media);
-  const fullscreen = useFullscreen(playerBoxRef);
-  const overlaid = fullscreen.active || pip.container !== null;
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
-  useWakeLock(!videoState.paused);
+  // shell は、再生元によらないプレイヤーの外側 (#2244)。
+  const shell = usePlayerShell();
+  const { mediaRef, media, setMedia, controls, videoState, showFlash } = shell;
   // 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する (設計書 7.1)。
   // デコードが追いつかずにほかの画面で下げた段階の上限は、段階を下げる放送中の番組でだけ引き継ぐ (#1513)。
   const playback = usePlaybackRoute(transcoding, toVideoFormat(program.service.videoFormat), {
@@ -327,11 +277,6 @@ function Player({
 
   // streamMeter は、右のカラムの「情報」に出す、届いた映像のビットレートと放送の形式を保持する (#828)。
   const streamMeter = useStreamMeter(playback.current);
-  useVolumeNormalizer(media);
-  useAudioDelayer(media);
-  const [crop, setCrop] = useState<Crop>(noCrop);
-  // shownCrop は、画面に映すときの切り抜き。画面いっぱいに広げるときは、全画面の画面の比率で拡大する (#1599)。
-  const shownCrop = useScreenCrop(crop, fullscreen.active);
   // restartAt は、指定の位置から読み直す。
   const restartAt = (seconds: number) => {
     setHandover(false);
@@ -416,7 +361,7 @@ function Player({
     // バッファは先に読むので、受け取りの速さで余裕を確認して上げる。
     {
       stepDown: onAir,
-      pictureInPicture: pip.container !== null,
+      pictureInPicture: shell.pip.container !== null,
       // 放送中の番組は端に追いつくとバッファが伸びるのを待つので、終わりがない。
       network: { mode: 'rate', convert: route.kind === 'convert', topBitrate: null, ends: !onAir },
     },
@@ -433,177 +378,60 @@ function Player({
     }
   }, [rate, fastForward.playbackRate, media, stream.url, hlsStream.loads]);
 
-  const togglePlay = () => {
-    const current = mediaRef.current;
-    if (current === null) {
-      return;
-    }
-    if (current.paused) {
-      void current.play().catch(() => {});
-    } else {
-      current.pause();
-    }
-  };
   const skip = (seconds: number) => seek(currentPosition() + seconds);
-  const [flash, showFlash] = usePlayerFlash();
   // 早回しの間は、押している間ずっと、速さを映像の上に出しておく。
   const shownFlash = fastForward.active
     ? t('player.flash.fastForward', { rate: fastForward.playbackRate })
-    : flash;
+    : shell.flash;
   const capture = useCapture({
-    crop,
-    frameRef: playerBoxRef,
+    crop: shell.crop,
+    frameRef: shell.playerBoxRef,
     media: () => mediaRef.current,
     serviceName: program.service.name,
     programName: program.name,
     captureTime: () => broadcastTime(program.playableFrom, program.gaps, currentPosition()),
     caption: () => currentCaption.current,
   });
-  const doubleTap = useDoubleTap((side) => {
-    if (side === 'center') {
-      return;
-    }
-    skip(side === 'left' ? -10 : 10);
-    showFlash(t(side === 'left' ? 'player.flash.seekBackward' : 'player.flash.seekForward'));
-  });
   const saveCapture = async () => {
     if ((await capture.capture('save')) === 'saved') {
       showFlash(t('player.flash.captured'));
     }
   };
-  const changeVolume = (delta: number) => {
-    const current = mediaRef.current;
-    if (current === null) {
-      return;
-    }
-    const next = stepVolume(currentVolume(current), delta);
-    videoState.setVolume(next);
-    showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
-  };
-  const [autoPictureInPicture] = useAutoPictureInPicture();
   // commands は、この画面で今使える操作 (#809)。キーと OS のメディア操作は、どちらもここから呼ぶ。
-  // audioDelayCommands は、音ずれ補正 (#818) の操作。変えたら、長さを映像の上に短く出す。
-  const audioDelayCommands = useAudioDelayCommands((ms) =>
-    showFlash(t('player.flash.audioDelay', { ms })),
-  );
   const commands: PlayerCommands = {
-    ...audioDelayCommands,
-    play: () => void mediaRef.current?.play().catch(() => {}),
-    pause: () => mediaRef.current?.pause(),
-    togglePlay,
-    seekBackward: () => {
-      skip(-10);
-      showFlash(t('player.flash.seekBackward'));
-    },
-    seekForward: () => {
-      skip(10);
-      showFlash(t('player.flash.seekForward'));
-    },
-    seekBackwardLong: () => {
-      skip(-30);
-      showFlash(t('player.flash.seekBackwardLong'));
-    },
-    seekForwardLong: () => {
-      skip(30);
-      showFlash(t('player.flash.seekForwardLong'));
-    },
-    seekBackward15: () => {
-      skip(-15);
-      showFlash(t('player.flash.seekBackward15'));
-    },
-    seekForward15: () => {
-      skip(15);
-      showFlash(t('player.flash.seekForward15'));
-    },
+    ...shell.commands,
+    ...shell.seekCommands({
+      skip,
+      seekTo: seek,
+      // 共有する位置は、番組の始まりからの放送の秒にする。
+      currentPosition: () => timeshiftShareSeconds(program, currentPosition()),
+      retry,
+    }),
     toggleCaptions: () => setCaptions(!captions),
-    toggleMute: () => {
-      const current = mediaRef.current;
-      if (current === null) {
-        return;
-      }
-      videoState.toggleMute();
-      showFlash(t(current.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
-    },
-    toggleFullscreen: fullscreen.toggle,
-    volumeUp: () => changeVolume(volumeStep),
-    volumeDown: () => changeVolume(-volumeStep),
     capture: () => void saveCapture(),
-    copyPositionUrl: () => {
-      copyPositionUrl(timeshiftShareSeconds(program, currentPosition()), playerBoxRef.current).then(
-        () => showFlash(t('player.flash.urlCopied')),
-        () => showFlash(t('player.flash.urlCopyFailed')),
-      );
-    },
-    restart: () => {
-      retry();
-      showFlash(t('player.flash.restarted'));
-    },
-    seekTo: seek,
-    showShortcuts: () => setShortcutsOpen(true),
-    setVolume: videoState.setVolume,
     // スリープタイマーと「再生をやめる」のキーは、プレイヤーを閉じて、上の「ライブ視聴に戻る」と同じ画面へ移る (#1426)。
     stop: () => void navigate({ to: '/play/live/$serviceId', params: { serviceId } }),
-    ...(pip.supported
-      ? {
-          pictureInPicture: () => {
-            if (pip.container === null) {
-              openPictureInPicture(pip).catch(() => {});
-            }
-          },
-        }
-      : {}),
   };
-  // sleep は、スリープタイマー (#821)。時間になったら、プレイヤーを閉じる。
-  const sleep = useSleepTimer(() => commands.stop?.());
-  usePlayerShortcuts(commands);
-  // contextMenu は、映像を右クリックしたときのメニュー (#1140)。
-  const contextMenu = usePlayerContextMenu(commands);
-  // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
-  usePlayerGamepad(commands);
-  // 映像の上のホイールと中クリックも、設定の操作にする (#810)。
-  const mouseRef = usePlayerMouse(commands);
-  // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
-  // 全画面で、映像の左右を縦にスワイプして、明るさと音量を変える (#1598)。端末の設定で入れたときだけ受け付ける。
-  // 明るさは、その場限りで保存しない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
-  const [swipeControls] = useSwipeControlsSetting();
-  const [volumeAvailable] = useState(volumeChangeable);
-  const [brightness, setBrightness] = useState(1);
-  const brightnessRef = useRef(brightness);
-  brightnessRef.current = brightness;
-  useSwipeGestures(playerBoxRef, {
-    enabled: swipeControls && fullscreen.active,
-    controlsVisible: controls.visible,
-    volumeAvailable,
-    onSwipeStart: controls.hide,
-    onStep: (band, steps) => {
-      if (band === 'volume') {
-        changeVolume(steps * swipeVolumeStep);
-
-        return;
-      }
-      const next = stepBrightness(brightnessRef.current, steps);
-      brightnessRef.current = next;
-      setBrightness(next);
-      showFlash(t('player.flash.brightness', { percent: Math.round(next * 100) }));
-    },
-  });
-  // 映像を長押ししたまま横に滑らせて、再生位置を動かす (#1601)。滑らせている間は、シークバーのつまみを動かしている間と
-  // 同じく扱い、離したら、自分でシークしたものとして扱う。滑らせずに離したら、長押しのメニューを開く。
+  // 映像を長押ししたまま横に滑らせて、再生位置を動かす (#1601)。離したら、自分でシークしたものとして扱う。
   const seekLabel = (value: number) =>
     `${formatDuration(value)} (${formatClock(broadcastTime(program.playableFrom, program.gaps, value))})`;
-  const scrub = useSlideSeek(playerBoxRef, {
-    enabled: duration > 0,
-    range: () => ({ position: currentPosition(), duration }),
-    onSlideStart: controls.hide,
-    onScrub: setSeeking,
-    onCommit: (target) => {
-      setSeeking(null);
-      seek(target);
+  const inputs = usePlayerInputs(shell, commands, {
+    onDoubleTap: (side) => {
+      skip(side === 'left' ? -10 : 10);
+      showFlash(t(side === 'left' ? 'player.flash.seekBackward' : 'player.flash.seekForward'));
     },
-    onCancel: () => setSeeking(null),
-    onLongPress: contextMenu.openAt,
+    slideSeek: {
+      enabled: duration > 0,
+      range: () => ({ position: currentPosition(), duration }),
+      onScrub: setSeeking,
+      onCommit: (target) => {
+        setSeeking(null);
+        seek(target);
+      },
+      onCancel: () => setSeeking(null),
+    },
   });
-  const boxRef = useMergedRef(playerBoxRef, mouseRef);
+  const { sleep, scrub } = inputs;
   // player は、プレイヤーの今の状態 (#811)。タブの題名と OS のメディア操作は、これを読む。
   // バッファの番組には ID がないので、局と始まりの時刻で見分ける。
   const player = {
@@ -623,10 +451,8 @@ function Player({
     dataBroadcast: false,
     keyGroups: [],
   } satisfies PlayerSnapshot;
-  // 小さなプレイヤーで描いている間は、開いている別の画面のタイトルを変えない (#1731)。
-  const watchMini = useWatchMini();
-  useDocumentTitle(documentTitle(player), !watchMini);
-  useMediaSession(player, commands, autoPictureInPicture);
+  // タイムシフトの再生は、ほかの端末から操作させない。
+  usePlayerPresence(player, commands, null);
 
   // resumeAfterCut は、配信が切れたら、通知を出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
@@ -670,9 +496,6 @@ function Player({
       media.pause();
     }
   }, [onAir, position, duration, media]);
-  const errorAlert = overlaid && error !== null && (
-    <PlayerAlert title={error} action={{ label: t('player.retry'), onClick: retry }} />
-  );
   const shown = seeking ?? position;
   // gapMarks は、バッファが途切れた位置のマーク。途切れた区間はシークバーの長さに含めないので、長さのないマークにする。
   const gapMarks = program.gaps.map((gap) => {
@@ -732,57 +555,19 @@ function Player({
             />
             {audio.menu}
             <RateSelect value={rate} onChange={setRate} />
-            <CropSelect value={crop} onChange={setCrop} />
+            <CropSelect value={shell.crop} onChange={shell.setCrop} />
             <NormalizeVolumeToggle />
             <AudioDelaySetting />
             <SleepTimerSelect timer={sleep} />
           </SettingsButton>
-          {/* 幅 375px ほどのスマートフォンでは、15 秒のシークのボタン (#1572) と再生位置を収めるため、キャプチャのボタンも外す。 */}
-          <CaptureButton capture={capture} optional="compact" />
-          <CommandButton
-            commands={commands}
-            command="showShortcuts"
-            label={t('player.shortcuts.title')}
-            icon={Keyboard}
-            optional
-          />
-          <ShortcutsHelp
-            opened={shortcutsOpen}
-            onClose={() => setShortcutsOpen(false)}
-            commands={commands}
-            target={playerBoxRef}
-          />
-          <PipButton pip={pip} />
-          <FullscreenButton active={fullscreen.active} commands={commands} />
+          <PlayerToolButtons shell={shell} commands={commands} capture={capture} />
         </>
       }
     />
   );
 
   const playerBox = (
-    <div
-      ref={boxRef}
-      // 映像を右クリックすると、操作のメニューを出す (#1140)。
-      onContextMenu={contextMenu.onContextMenu}
-      className={playerControlsClasses.box}
-      data-controls-visible={controls.visible}
-      {...controls.containerProps}
-      // マウスで映像を押すと、再生と一時停止を切り替える。タッチでは、操作バーを出し隠しするので切り替えない。
-      onClick={(event) => {
-        const pointer =
-          event.nativeEvent instanceof PointerEvent ? event.nativeEvent.pointerType : 'mouse';
-        if (pointer === 'mouse' && onVideoSurface(event.target)) {
-          togglePlay();
-        }
-      }}
-      onDoubleClick={(event) => {
-        if (onVideoSurface(event.target)) {
-          fullscreen.toggle();
-        }
-      }}
-      onPointerUp={doubleTap}
-    >
-      {contextMenu.menu}
+    <PlayerBox shell={shell} inputs={inputs}>
       {route.kind === 'convert' && (
         <TsPlayer
           url={stream.url}
@@ -793,8 +578,8 @@ function Player({
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
-          crop={shownCrop}
-          brightness={brightness}
+          crop={shell.shownCrop}
+          brightness={inputs.brightness}
           onCaptionText={onCaptionText}
           onLoaded={(handed) => {
             // 最初のフレームが出たときの時刻を、base にする。裏で読み込んで切り替えたら、TsPlayer が渡す時刻にする。
@@ -812,14 +597,18 @@ function Player({
           audio={audio.playerAudio}
           overlay={
             <>
-              {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
-              {adaptive.notice}
-              {scrub !== null && (
-                <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />
-              )}
-              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
-              {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
-              {errorAlert}
+              <PlayerFeedback
+                shell={shell}
+                flash={shownFlash}
+                notice={adaptive.notice}
+                scrub={
+                  scrub === null
+                    ? null
+                    : { seconds: scrub, label: seekLabel(scrub), previewUrl: null }
+                }
+                error={error}
+              />
+              <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />
             </>
           }
         />
@@ -838,41 +627,40 @@ function Player({
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
-          crop={shownCrop}
-          brightness={brightness}
+          crop={shell.shownCrop}
+          brightness={inputs.brightness}
           onCaptionText={onCaptionText}
           live={false}
           startPosition={hlsStream.start}
           overlay={
             <>
-              {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
-              {adaptive.notice}
-              {scrub !== null && (
-                <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />
-              )}
-              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
-              {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
-              {errorAlert}
+              <PlayerFeedback
+                shell={shell}
+                flash={shownFlash}
+                notice={adaptive.notice}
+                scrub={
+                  scrub === null
+                    ? null
+                    : { seconds: scrub, label: seekLabel(scrub), previewUrl: null }
+                }
+                error={error}
+              />
+              <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />
             </>
           }
           onLoaded={() => setError(null)}
           onError={resumeAfterCut}
         />
       )}
-    </div>
+    </PlayerBox>
   );
 
   return (
     <WatchLayout
       player={
-        <Stack gap="xs">
-          <PlaybackUnavailable route={route} />
-          <div>
-            <PipHost container={pip.container} placeholder={<PipPlaceholder onBack={pip.close} />}>
-              {playerBox}
-            </PipHost>
-          </div>
-        </Stack>
+        <PlayerFrame shell={shell} route={route}>
+          {playerBox}
+        </PlayerFrame>
       }
       info={
         <>

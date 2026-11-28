@@ -868,7 +868,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     dataBroadcast: false,
     keyGroups: [],
   } satisfies PlayerSnapshot;
-  usePlayerPresence(player, commands, recording !== null && media !== null);
+  usePlayerPresence(player, commands, recording === null || media === null ? null : player);
 
   // 再生位置を、録画の始まりからの秒で追う。
   useEffect(() => {
