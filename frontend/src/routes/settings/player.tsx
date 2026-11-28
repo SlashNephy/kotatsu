@@ -33,14 +33,14 @@ import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMiniPlayer } from '../../yunomi/miniPlayer';
+import { superResolutionMethods, superResolutionStrengths } from '../../yunomi/pictureUpscaler';
 import {
-  superResolutionMethods,
-  superResolutionStrengths,
   useSuperResolution,
   useSuperResolutionMethod,
   useSuperResolutionStrength,
 } from '../../yunomi/superResolution';
-import { hdrOutputSupported, useHDRDisplay, useHDROutput } from '../../yunomi/hdr';
+import { useHDRDisplay, useHDROutput } from '../../yunomi/hdr';
+import { hdrOutputSupported } from '../../yunomi/hdrDrawing';
 
 // captionBackgrounds は、字幕の背景の選択肢 (#491)。broadcast は放送の指定どおり、ほかは黒の不透明度。
 const captionBackgrounds = ['broadcast', '0', '0.25', '0.5', '0.75', '1'];

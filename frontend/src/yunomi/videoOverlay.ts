@@ -7,7 +7,7 @@ import {
   pickFrames,
   type MediaClock,
 } from './interpolationTiming';
-import type { Size, YadifUpscaler } from './superResolution';
+import type { PictureUpscaler, Size } from './pictureUpscaler';
 
 // video の映像に、コマの補間 (#1655) と拡大 (#2113) をした canvas を重ねる (設計書 7.5)。kyusu の経路で使う。
 // video が新しいコマを出すたびにテクスチャへコピーし、補間するなら前のコマとの動きを推し量る。画面を更新するたびに、
@@ -91,7 +91,7 @@ export function attachVideoOverlay(
     onUnavailable?: (error: unknown) => void;
     // maxRate は、補間したコマを出す回数の上限 (1 秒あたり)。null なら、画面の書き換えごとに描く。
     maxRate?: () => number | null;
-    upscaler?: YadifUpscaler | null;
+    upscaler?: PictureUpscaler | null;
   },
 ): VideoOverlay {
   let interpolate = false;

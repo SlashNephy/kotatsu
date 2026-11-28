@@ -9,8 +9,8 @@ import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { useInterpolation, useInterpolationRate } from './frameInterpolation';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { HlsSegment } from './streamMeter';
+import { createPictureUpscaler } from './pictureUpscaler';
 import {
-  createYadifUpscaler,
   useSuperResolution,
   useSuperResolutionMethod,
   useSuperResolutionStrength,
@@ -194,7 +194,7 @@ export function HlsPlayer({
     const overlay = attachVideoOverlay(video, {
       className: classes.video ?? '',
       maxRate: () => interpolationRateRef.current,
-      upscaler: createYadifUpscaler({
+      upscaler: createPictureUpscaler({
         zoom: () => zoomRef.current,
         strength: () => superResolutionStrengthRef.current,
         method: () => superResolutionMethodRef.current,
