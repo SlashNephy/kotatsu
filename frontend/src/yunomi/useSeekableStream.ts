@@ -11,7 +11,7 @@ import type { HandoverLoaded } from './TsPlayer';
 import type { PlayerMedia } from './playerMedia';
 
 // SeekableStream は、位置を指定して読み直す TS の配信 (録画やタイムシフトのバッファ) の、再生位置の追い方 (設計書 7.2)。
-// ResolvedStream は、useSeekableStream の resolve が返す、読む URL と、その頭の位置 (秒)。release で URL を手放す。
+// ResolvedStream は、useSeekableStream の resolve が返す、読む URL と、その先頭の位置 (秒)。release で URL を手放す。
 export type ResolvedStream = { url: string; at: number; release: () => void };
 
 export type SeekableStream = {

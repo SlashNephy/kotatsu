@@ -21,7 +21,7 @@ export type SavedRecording = {
   gaps: readonly Gap[];
 };
 
-// StreamFrom は、切り出した映像と、その頭の再生の位置 (秒)。
+// StreamFrom は、切り出した映像と、その先頭の再生の位置 (秒)。
 export type StreamFrom = { blob: Blob; at: number };
 
 // firstPCR は、offset から先で最初に見つかった PCR の、パケットの位置と時刻 (秒) を返す。見つからなければ null。
@@ -33,7 +33,7 @@ export async function firstPCR(
   const bytes = new Uint8Array(
     await video.slice(start, start + packetSize * (scanPackets + 3)).arrayBuffer(),
   );
-  // 切り出した頭がパケットの境目とは限らないので、3 つ続けて同期バイトが並ぶ所を境目とみなす。
+  // 切り出した先頭がパケットの境目とは限らないので、3 つ続けて同期バイトが並ぶ所を境目とみなす。
   let sync = 0;
   while (
     sync < packetSize &&

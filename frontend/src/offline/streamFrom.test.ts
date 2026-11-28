@@ -71,7 +71,7 @@ describe('streamFrom', () => {
     expect(head?.offset).toBe(0);
   });
 
-  test('頭の近くなら、切り出さずに頭から読む', async () => {
+  test('先頭の近くなら、切り出さずに先頭から読む', async () => {
     const video = tsWithPCR(1000, (i) => i * 0.01);
 
     const { blob, at } = await streamFrom({ video, recordedFrom, gaps: [] }, 0.5);
