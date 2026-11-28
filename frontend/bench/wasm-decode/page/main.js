@@ -1,8 +1,11 @@
 // 測定のページ。ボタンからも、ブラウザの自動操作 (window.runDecode、window.runConvert) からも測れる。
 const log = document.getElementById('log');
+// append は、結果を画面に出し、配信しているサーバーにも送る (serve.mjs の POST /results)。実機の画面から結果をコピーしなくても済むように。
 const append = (result) => {
-  log.value += `${JSON.stringify({ ...result, sums: undefined })}\n`;
+  const line = JSON.stringify({ ...result, sums: undefined });
+  log.value += `${line}\n`;
   log.scrollTop = log.scrollHeight;
+  fetch('./results', { method: 'POST', body: line }).catch(() => {});
 };
 
 /**
@@ -154,7 +157,12 @@ const runSplit = async () => {
   const button = document.getElementById('run-split');
   button.disabled = true;
   log.value = '';
-  log.value += `${JSON.stringify({ kind: 'env', userAgent: navigator.userAgent, crossOriginIsolated: self.crossOriginIsolated ?? null, hardwareConcurrency: navigator.hardwareConcurrency ?? null })}\n`;
+  append({
+    kind: 'env',
+    userAgent: navigator.userAgent,
+    crossOriginIsolated: self.crossOriginIsolated ?? null,
+    hardwareConcurrency: navigator.hardwareConcurrency ?? null,
+  });
   const total = splitFiles.length * splitModes.length * 2;
   let done = 0;
   // failed は、失敗した回と、WebGL のエラーが残った回の数。
@@ -170,11 +178,13 @@ const runSplit = async () => {
         }
       }
     }
+    append({ kind: 'done', total, failed });
     status.textContent =
       failed === 0
-        ? `終わりました（${total} 回）。結果をコピーしてください。`
-        : `終わりました（${total} 回のうち ${failed} 回は失敗か WebGL のエラー）。結果をコピーしてください。`;
+        ? `終わりました（${total} 回）。結果はサーバーに送りました。`
+        : `終わりました（${total} 回のうち ${failed} 回は失敗か WebGL のエラー）。結果はサーバーに送りました。`;
   } catch (error) {
+    append({ kind: 'done', total, failed, error: String(error) });
     status.textContent = `失敗しました: ${String(error)}`;
   } finally {
     button.disabled = false;
@@ -182,6 +192,8 @@ const runSplit = async () => {
 };
 window.runSplit = runSplit;
 document.getElementById('run-split').onclick = runSplit;
+// URL に ?split を付けて開いたら、ボタンを押さなくても切り分けの計測を始める。音は鳴らさないので、操作がなくても動く。
+if (new URLSearchParams(location.search).has('split')) void runSplit();
 document.getElementById('copy').onclick = async () => {
   try {
     await navigator.clipboard.writeText(log.value);

@@ -6,10 +6,11 @@
 //   /media/    .work/media/ (make-media.sh で作った TS)。Range に応える
 //   /m2h/      mpeg2toh264 の worker (/m2h/worker.js) と WASM (public/mpeg2toh264)
 //   PUT /save/<名前>  mpeg2toh264 の出力を .work/save/ に書く (PSNR とコマ数を計測するため)
+//   POST /results     測定のページが送る結果の 1 行を .work/results.jsonl に足す
 //
 // 使い方: node serve.mjs [ポート] [待ち受けるアドレス]
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, readdir, stat } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -69,6 +70,16 @@ createServer(async (req, res) => {
       await mkdir(dir, { recursive: true });
       await pipeline(req, createWriteStream(join(dir, save[1])));
       res.writeHead(201).end();
+      return;
+    }
+    // POST /results は、測定のページが送る結果の 1 行を .work/results.jsonl に足す。実機の画面から結果をコピーしなくても受け取れるようにするため。
+    if (req.method === 'POST' && pathname === '/results') {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const line = Buffer.concat(chunks).toString('utf8').replaceAll('\n', ' ');
+      await mkdir(join(here, '.work'), { recursive: true });
+      await appendFile(join(here, '.work', 'results.jsonl'), `${line}\n`);
+      res.writeHead(204).end();
       return;
     }
     const path = await locate(decodeURIComponent(pathname));

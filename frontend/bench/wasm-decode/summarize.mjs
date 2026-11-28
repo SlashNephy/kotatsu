@@ -13,8 +13,8 @@ const rows = readFileSync(path, 'utf8')
 
 const groups = new Map();
 for (const row of rows) {
-  if (row.kind === 'env') {
-    console.log('env:', JSON.stringify(row));
+  if (row.kind === 'env' || row.kind === 'done') {
+    console.log(`${row.kind}:`, JSON.stringify(row));
     continue;
   }
   if (!row.ok) {

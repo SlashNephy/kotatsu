@@ -72,7 +72,8 @@ node frontend/bench/wasm-decode/summarize.mjs results.jsonl
 #2162 の切り分けのために、製品の経路と同じく、デコードしたコマを WebGL2 の R8 のテクスチャ 3 枚へ上げて計測できます。
 WASM は組み方の名前 `product` で製品のもの（`vendor/ffmpeg/decoder` と `public/ffmpeg/decoder.wasm`）を使うので、組まなくても計測できます。
 
-ページの「切り分けを計測する」を押すと、`mandel_1440.ts` と `testsrc2_1440.ts` で、アップロードなしと次の 3 通りの上げ方を、交互に 2 回ずつ計測します。
+ページの「切り分けを計測する」を押すか、URL に `?split` を付けて開く（`http://<アドレス>:18516/?split`）と、`mandel_1440.ts` と `testsrc2_1440.ts` で、アップロードなしと次の 3 通りの上げ方を、交互に 2 回ずつ計測します。
+結果は 1 回ごとに配信しているサーバーへ送り、`.work/results.jsonl` に足していきます。実機の画面から結果をコピーする必要はありません。終わると `"kind":"done"` の行が入ります。
 1 回は 300 コマで打ち切ります。打ち切った回は音をデコードせず、`fps` は出しません（`null`）。映像だけの速さは `videoFps` で見ます。
 
 | 上げ方     | 渡すもの                                     |
