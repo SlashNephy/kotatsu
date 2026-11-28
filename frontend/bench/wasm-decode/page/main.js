@@ -30,6 +30,40 @@ const runDecode = (file, variant, checksum = false, { upload = 'none', maxFrames
     worker.postMessage({ file, variant, checksum, upload, maxFrames });
   });
 
+/** 小さなループの計測 (loop.js) を、worker で 1 回行う。 */
+const runLoopInWorker = () =>
+  new Promise((resolve) => {
+    const worker = new Worker('./decode-worker.js', { type: 'module' });
+    worker.onmessage = ({ data }) => {
+      worker.terminate();
+      append(data);
+      resolve(data);
+    };
+    worker.onerror = (event) => {
+      worker.terminate();
+      const data = { ok: false, kind: 'loop', thread: 'worker', error: event.message };
+      append(data);
+      resolve(data);
+    };
+    worker.postMessage({ kind: 'loop' });
+  });
+
+/** 小さなループの計測 (loop.js) を、メインスレッドで 1 回行う。 */
+const runLoopInMain = async () => {
+  const { measureLoop } = await import('./loop.js');
+  const data = await measureLoop();
+  append(data);
+  return data;
+};
+
+/** デコードの計測 (decode.js) を、メインスレッドで 1 回行う。計測の間は画面が止まる。 */
+const runDecodeInMain = async (file, variant, options) => {
+  const { measureDecode } = await import('./decode.js');
+  const data = await measureDecode({ file, variant, ...options });
+  append(data);
+  return data;
+};
+
 /**
  * mpeg2toh264 の変換だけを 1 回計測する。sink を main にし、断片は MSE に入れずに受け取るだけにする。
  * オプションは Kotatsu と同じ既定値で、比較の条件を揃えるため pictureWorkers だけ 1 にする。
@@ -151,23 +185,35 @@ document.getElementById('run-all').onclick = () => run({ decode: true, convert: 
 // #2162 の計測の手順。どれも 1 回を 300 コマ (10 秒分) で打ち切り、遅い端末でも数分で終わるようにする。
 // split は、製品の WASM で、アップロードなしと 3 通りの上げ方を、映像 2 つで交互に 2 回ずつ計測する。
 // variants は、WASM の組み方 (build.sh の VARIANTS と製品) を、アップロードなしで交互に 2 回ずつ計測する。
+// jit は、小さなループ (WASM と JavaScript) と製品の WASM のデコードを、worker とメインスレッドで交互に 2 回ずつ計測する。
+// 手順の 1 つは、画面に出す名前 (label) と、計測して結果を返す関数 (run) の組。
+const decodeStep = (file, variant, upload) => ({
+  label: `${file}、${variant}、${upload}`,
+  run: () => runDecode(file, variant, false, { upload, maxFrames: 300 }),
+});
 const plans = {
   split: () =>
     [0, 1].flatMap(() =>
       ['mandel_1440.ts', 'testsrc2_1440.ts'].flatMap((file) =>
-        ['none', 'offset', 'subarray', 'copy'].map((upload) => ({
-          file,
-          variant: 'product',
-          upload,
-        })),
+        ['none', 'offset', 'subarray', 'copy'].map((upload) => decodeStep(file, 'product', upload)),
       ),
     ),
   variants: () =>
     [0, 1].flatMap(() =>
       ['product', 'O3', 'O3-simd', 'O3-lto', 'O3-simd-lto', 'O2-simd-lto', 'Os-simd-lto'].map(
-        (variant) => ({ file: 'mandel_1440.ts', variant, upload: 'none' }),
+        (variant) => decodeStep('mandel_1440.ts', variant, 'none'),
       ),
     ),
+  jit: () =>
+    [0, 1].flatMap(() => [
+      { label: '小さなループ、worker', run: runLoopInWorker },
+      { label: '小さなループ、メインスレッド', run: runLoopInMain },
+      decodeStep('mandel_1440.ts', 'product', 'none'),
+      {
+        label: 'mandel_1440.ts、product、メインスレッド',
+        run: () => runDecodeInMain('mandel_1440.ts', 'product', { upload: 'none', maxFrames: 300 }),
+      },
+    ]),
 };
 const status = document.getElementById('split-status');
 const runPlan = async (plan) => {
@@ -187,9 +233,11 @@ const runPlan = async (plan) => {
   // failed は、失敗した回と、WebGL のエラーが残った回の数。
   let failed = 0;
   try {
-    for (const { file, variant, upload } of steps) {
-      status.textContent = `計測中 ${done + 1} / ${total}（${file}、${variant}、${upload}）`;
-      const result = await runDecode(file, variant, false, { upload, maxFrames: 300 });
+    for (const step of steps) {
+      status.textContent = `計測中 ${done + 1} / ${total}（${step.label}）`;
+      // メインスレッドで計測する手順の前に、画面が書き換わる間を置く。
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const result = await step.run();
       if (!result.ok || (result.glError ?? 0) !== 0) failed++;
       done++;
     }
@@ -209,7 +257,7 @@ window.runPlan = runPlan;
 for (const button of document.querySelectorAll('button[data-plan]')) {
   button.onclick = () => runPlan(button.dataset.plan);
 }
-// URL に ?split か ?variants を付けて開いたら、ボタンを押さなくてもその計測を始める。音は鳴らさないので、操作がなくても動く。
+// URL に ?split、?variants、?jit のどれかを付けて開いたら、ボタンを押さなくてもその計測を始める。音は鳴らさないので、操作がなくても動く。
 const query = new URLSearchParams(location.search);
 const planFromUrl = Object.keys(plans).find((plan) => query.has(plan));
 if (planFromUrl) void runPlan(planFromUrl);

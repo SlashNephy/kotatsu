@@ -36,10 +36,12 @@
     <p>
       「切り分け」は、製品の WASM で、デコードと GPU
       へのアップロードの時間を分けて計測します。「組み方の比較」は、WASM
-      の組み方ごとにデコードの時間を計測します。どちらも数分かかります。
+      の組み方ごとにデコードの時間を計測します。「最適化の確認」は、WASM と JavaScript
+      の小さなループと、worker とメインスレッドのデコードを比較します。どれも数分かかります。
     </p>
     <button type="button" data-plan="split">切り分けを計測する</button>
     <button type="button" data-plan="variants">WASM の組み方を比較する</button>
+    <button type="button" data-plan="jit">最適化の確認を計測する</button>
     <button id="copy" type="button">結果をコピー</button>
     <p id="split-status"></p>
     <h2>比較</h2>

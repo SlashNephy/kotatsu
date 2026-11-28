@@ -11,6 +11,12 @@ const rows = readFileSync(path, 'utf8')
   .filter((line) => line.trim() !== '')
   .map((line) => JSON.parse(line));
 
+const median = (xs) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
 // browserOf は、env の行の userAgent から、ブラウザの短い名前を返す。続く結果の行を、ブラウザと計測の手順ごとに分けるのに使う。
 const browserOf = (userAgent) => {
   if (/Firefox\//.test(userAgent)) return 'Firefox';
@@ -30,8 +36,17 @@ for (const row of rows) {
     console.log('failed:', JSON.stringify(row));
     continue;
   }
+  // 小さなループ (loop.js) は、後ろの 3 回の中央値を出す。最初の回は最適化の前の段階で動くことがあるため。
+  if (row.kind === 'loop') {
+    const late = (xs) => median(xs.slice(-3)).toFixed(1);
+    console.log(
+      `${browser}loop\t${row.thread}\twasmMs=${late(row.wasmMs)}\tjsMs=${late(row.jsMs)}\tall wasm=${row.wasmMs.map((x) => x.toFixed(0)).join(',')} js=${row.jsMs.map((x) => x.toFixed(0)).join(',')}`,
+    );
+    continue;
+  }
   const upload = row.upload && row.upload !== 'none' ? `\tupload=${row.upload}` : '';
-  const key = `${browser}${row.file}\t${row.kind}\t${row.variant ?? 'mpeg2toh264'}${upload}`;
+  const thread = row.thread === 'main' ? '\tthread=main' : '';
+  const key = `${browser}${row.file}\t${row.kind}\t${row.variant ?? 'mpeg2toh264'}${upload}${thread}`;
   const values =
     row.kind === 'decode'
       ? {
@@ -64,11 +79,6 @@ for (const row of rows) {
   groups.get(key).push(values);
 }
 
-const median = (xs) => {
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
 const format = (xs) => {
   const v = xs.filter((x) => typeof x === 'number' && Number.isFinite(x));
   if (v.length === 0) return '-';

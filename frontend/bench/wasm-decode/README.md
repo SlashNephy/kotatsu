@@ -90,7 +90,10 @@ WASM は組み方の名前 `product` で製品のもの（`vendor/ffmpeg/decoder
 
 「WASM の組み方を比較する」を押すか、URL に `?variants` を付けて開くと、`mandel_1440.ts` で、製品の WASM と `build.sh` の組み方 6 通りを、アップロードなしで交互に 2 回ずつ計測します。
 先に `build.sh` で全部の組み方を組んでおきます。結果は「切り分け」と同じく `.work/results.jsonl` に足します。
-`summarize.mjs` は、結果をブラウザと計測の手順（`split`、`variants`）ごとに分けてまとめます。
+「最適化の確認を計測する」を押すか、URL に `?jit` を付けて開くと、手で組んだ WASM の小さなループと、同じ計算の JavaScript のループを 5 回ずつ回します。
+あわせて、製品の WASM のデコードを worker とメインスレッドで計測します。これを交互に 2 回ずつ行います。
+WASM のループだけが遅ければ WASM の実行を、JavaScript も遅ければ JIT そのものを疑います。
+`summarize.mjs` は、結果をブラウザと計測の手順（`split`、`variants`、`jit`）ごとに分けてまとめます。
 
 ## mpeg2toh264 の出力を確認する
 
@@ -119,5 +122,5 @@ MISE_ENV=wasm-decode-bench mise exec -C frontend -- sh -c 'ffmpeg -v error -i be
 | `glue.c`                            | WASM の中のデコーダを JS から呼ぶ関数                                                                    |
 | `make-media.sh`、`drop-packets.mjs` | 合成の映像と、パケットを落とした TS を作ります                                                           |
 | `serve.mjs`                         | 測定のページ、WASM、映像、mpeg2toh264 を配信し、mpeg2toh264 の出力を受け取ります                         |
-| `page/`                             | 測定のページと、デコードの worker、TS を PES に分ける処理                                                |
+| `page/`                             | 測定のページと、デコードの計測（worker とメインスレッド）、小さなループの計測、TS を PES に分ける処理    |
 | `summarize.mjs`、`psnr.mjs`         | 結果をまとめ、PSNR を出します                                                                            |
