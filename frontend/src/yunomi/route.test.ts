@@ -341,9 +341,14 @@ describe('decodeStreamEndpoint', () => {
       want: '/internal/streams/services/3273601024',
     },
     {
-      name: '録画の TS は、読み始める位置を付けたまま読む (#2166)',
+      name: '録画の TS は、読み始める位置を付けたまま読む。fragment は送らないので外す (#2166)',
       url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60.0#1',
-      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60.0#1',
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60.0',
+    },
+    {
+      name: '録画の TS の、読み始める位置のほかの問い合わせは渡さない',
+      url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60&next=https%3A%2F%2Fevil.example',
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60.0',
     },
     {
       name: '録画の ID が UUID でなければ読まない',
@@ -411,5 +416,28 @@ describe('toVideoFormat', () => {
     { value: '%future added value', want: 'UHD' },
   ])('$value', ({ value, want }) => {
     expect(toVideoFormat(value)).toBe(want);
+  });
+});
+
+describe('decodeStreamEndpoint の blob: の URL (#2166)', () => {
+  const origin = 'https://localhost:9090';
+  test.each([
+    {
+      name: '同じオリジンの blob: は、オリジンと UUID から組み直し、fragment を外す',
+      url: `${'blob:'}${origin}/0b7f6c1e-1234-4abc-8def-0123456789ab#3`,
+      want: `${'blob:'}${origin}/0b7f6c1e-1234-4abc-8def-0123456789ab`,
+    },
+    {
+      name: '同じオリジンでも、UUID でなければ読まない',
+      url: `${'blob:'}${origin}/../internal/api`,
+      want: null,
+    },
+    {
+      name: 'ほかのオリジンの blob: は読まない',
+      url: 'blob:https://evil.example/0b7f6c1e-1234-4abc-8def-0123456789ab',
+      want: null,
+    },
+  ])('$name', ({ url, want }) => {
+    expect(decodeStreamEndpoint(url, origin)).toBe(want);
   });
 });

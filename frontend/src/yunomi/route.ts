@@ -174,6 +174,9 @@ export function dataBroadcastSource(streamUrl: string): DataBroadcastSource | nu
 // streamPath は、tenban のライブ視聴の TS (GET /internal/streams/services/{id}) の URL。
 const streamPath = /^\/internal\/streams\/services\/(\d+)(?:\?(.*))?$/;
 
+// blobPath は、blob: の URL のオリジンの後ろ。UUID だけを受け付ける。読み直すために付けた fragment は外す。
+const blobPath = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:#\d*)?$/;
+
 // recordingStreamPath は、録画の TS (GET /internal/streams/recordings/{id}) の URL。id は UUID。
 const recordingStreamPath =
   /^\/internal\/streams\/recordings\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?(.*))?$/;
@@ -187,8 +190,15 @@ export function decodeStreamEndpoint(
   origin: string | null = globalThis.location?.origin ?? null,
 ): string | null {
   // 端末に保存した録画は、ページが作った blob: の URL で渡す (#2166)。ほかのオリジンの blob: は読まない。
+  // 受け取った URL はそのまま読まず、このページのオリジンと、URL の中の UUID から組み直す。
   if (origin !== null && origin !== 'null' && url.startsWith(`blob:${origin}/`)) {
-    return url;
+    const blob = blobPath.exec(url.slice(`blob:${origin}/`.length));
+    if (blob === null) {
+      return null;
+    }
+    const [, id = ''] = blob;
+
+    return `blob:${origin}/${id}`;
   }
   // 静的なデモ (#832) では、どの局もデモの映像を流すので、その URL も読む (#2157)。
   // 条件は import.meta.env.MODE を直に書き、通常のビルドでは定数の比較として消す。
@@ -209,8 +219,12 @@ export function decodeStreamEndpoint(
   if (recording !== null) {
     const [, id = '', query] = recording;
     const path = `/internal/streams/recordings/${encodeURIComponent(id)}`;
+    // 問い合わせはそのまま渡さず、読み始める位置 (start) だけを組み直す。
+    const start = Number(
+      new URLSearchParams(query?.split('#', 1)[0] ?? '').get('start') ?? Number.NaN,
+    );
 
-    return query === undefined ? path : `${path}?${query}`;
+    return Number.isFinite(start) && start >= 0 ? `${path}?start=${start.toFixed(1)}` : path;
   }
 
   return null;
