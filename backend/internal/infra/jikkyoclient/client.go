@@ -109,6 +109,10 @@ type Client struct {
 	// attemptedAt と fetchErr は、最後に取得を試みた時刻と、そのときのエラー。
 	attemptedAt time.Time
 	fetchErr    error
+	// refreshing は、一覧を取得している最中かどうか。waitUntil は、その取得を待つ期限。
+	// 期限は取得ごとに 1 つにし、取得の最中に続けて来た要求が、それぞれ staleWait ずつ待たないようにする。
+	refreshing bool
+	waitUntil  time.Time
 }
 
 // NewHTTPClient は、実況の通信を recorder に記録する HTTP クライアントを返す。
@@ -142,14 +146,15 @@ func NewClient(opts *ClientOptions) *Client {
 	return &Client{
 		nxJikkyoURL: o.NXJikkyoURL, kakologURL: o.KakologURL, http: o.HTTPClient, clock: o.Clock, liveRetryDelays: o.LiveRetryDelays,
 		refreshes: singleflight.Group{}, mu: sync.Mutex{}, channels: nil, fetchedAt: time.Time{}, attemptedAt: time.Time{}, fetchErr: nil,
+		refreshing: false, waitUntil: time.Time{},
 	}
 }
 
 // Channel は、NX-Jikkyo が今扱っているチャンネルのうち、ID が id のものを返す。扱っていなければ nil を返す。
 // チャンネルの一覧は、しばらく使い回す。
 //
-// 一覧が古くなっていたら、再取得を staleWait まで待ち、間に合わなければ前に取った一覧を返す。
-// 一覧を一度も取れていなければ、staleWait まで待ち、間に合わなければ ErrChannelsPending を返す。
+// 一覧が古くなっていたら、再取得を始めてから staleWait まで待ち、間に合わなければ前に取った一覧を返す。
+// 一覧を一度も取れていなければ、同じく staleWait まで待ち、間に合わなければ ErrChannelsPending を返す。
 // 直前の取得に失敗していたら、NX-Jikkyo が落ちているものとして、再取得を待たない。
 // 取得はロックの外で行い、同時の取得は 1 つにまとめる。NX-Jikkyo が応答しなくても、ほかの要求を止めない。
 func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
@@ -158,15 +163,20 @@ func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
 	stale := c.channels == nil || now.Sub(c.fetchedAt) >= channelsTTL
 	retry := c.fetchErr == nil || now.Sub(c.attemptedAt) >= channelsRetryAfter
 	channels, fetchErr := c.channels, c.fetchErr
+	refresh := stale && retry
+	if refresh && !c.refreshing {
+		c.refreshing, c.waitUntil = true, time.Now().Add(staleWait)
+	}
+	waitUntil := c.waitUntil
 	c.mu.Unlock()
 
 	var refreshed <-chan singleflight.Result
-	if stale && retry {
+	if refresh {
 		refreshed = c.refreshChannels(ctx)
 	}
 	// 直前の取得に失敗していれば、再取得は裏で進め、待たずに返す。
 	if refreshed != nil && fetchErr == nil {
-		fresh, err := awaitRefresh(ctx, refreshed)
+		fresh, err := awaitRefresh(ctx, refreshed, time.Until(waitUntil))
 		if err == nil {
 			return fresh[id], nil
 		}
@@ -181,9 +191,9 @@ func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
 	return channels[id], nil
 }
 
-// awaitRefresh は、再取得した一覧を staleWait まで待つ。間に合わなければ ErrChannelsPending を返す。
-func awaitRefresh(ctx context.Context, refreshed <-chan singleflight.Result) (map[string]*Channel, error) {
-	timer := time.NewTimer(staleWait)
+// awaitRefresh は、再取得した一覧を wait まで待つ。間に合わなければ ErrChannelsPending を返す。
+func awaitRefresh(ctx context.Context, refreshed <-chan singleflight.Result, wait time.Duration) (map[string]*Channel, error) {
+	timer := time.NewTimer(max(wait, 0))
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
@@ -254,7 +264,7 @@ func (c *Client) refreshChannels(ctx context.Context) <-chan singleflight.Result
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		now := c.clock.Now()
-		c.attemptedAt, c.fetchErr = now, err
+		c.attemptedAt, c.fetchErr, c.refreshing = now, err, false
 		if err != nil {
 			return nil, err
 		}
