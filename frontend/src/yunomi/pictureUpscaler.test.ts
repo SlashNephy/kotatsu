@@ -144,7 +144,7 @@ describe('createPictureUpscaler', () => {
     expect(upscaler.output()).toEqual({ width: 3840, height: 2160 });
   });
 
-  test('鮮鋭化は、描くたびに読んだ強さの段数で弱める', () => {
+  test('鮮鋭化は、描くたびに読んだ強さのステップ数で弱める', () => {
     const made = fakeUpscaler();
     let strength: SuperResolutionStrength = 1;
     const upscaler = createPictureUpscaler({ create: () => made, strength: () => strength });
@@ -157,7 +157,7 @@ describe('createPictureUpscaler', () => {
     expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 0, false);
   });
 
-  test('映す大きさは、切り抜きの拡大率を掛けて覚え、元の大きさ以下で拡大しないときの理由に使う', () => {
+  test('映す大きさは、切り抜きの拡大率を掛けて保持し、元の大きさ以下で拡大しないときの理由に使う', () => {
     let zoom = { x: 1, y: 1 };
     const upscaler = createPictureUpscaler({ zoom: () => zoom, create: fakeUpscaler });
     const gl = fakeContext();
@@ -247,7 +247,7 @@ describe('createPictureUpscaler', () => {
     expect(upscaler.shown()).toBeNull();
   });
 
-  test('拡大も擬似 HDR も切っていれば、yadif にそのまま写させる', () => {
+  test('拡大も擬似 HDR も切っていれば、yadif にそのままコピーさせる', () => {
     const upscaler = createPictureUpscaler({ upscale: () => false, create: fakeUpscaler });
 
     expect(upscaler.size(fakeContext(), 1440, 1080, 3840, 2160)).toBeNull();

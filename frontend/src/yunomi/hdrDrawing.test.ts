@@ -43,7 +43,7 @@ describe('setHDRDrawingBuffer', () => {
   test.each([
     { name: '既に擬似 HDR の形なら', format: RGBA16F, hdr: true },
     { name: '既に SDR の形なら', format: RGBA8, hdr: false },
-  ])('$name、描画先を作り直さない (中身が消えるので)', ({ format, hdr }) => {
+  ])('$name、描画先を作り直さない (描いた内容が消えるので)', ({ format, hdr }) => {
     const context = fakeContext({ format });
     setHDRDrawingBuffer(context as unknown as WebGL2RenderingContext, hdr, 1920, 1080);
 
