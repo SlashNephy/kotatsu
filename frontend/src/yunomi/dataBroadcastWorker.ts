@@ -16,7 +16,7 @@ export type DataBroadcastRequest = {
   paced: boolean;
 };
 
-// DataBroadcastElapsed は、録画型の再生元で、読み始めた位置からの放送時刻の経過 (秒) を知らせるメッセージ。
+// DataBroadcastElapsed は、録画型の再生元で、読み始めた位置からの放送時刻の経過 (秒) を通知するメッセージ。
 export type DataBroadcastElapsed = { type: 'kotatsu:elapsed'; elapsed: number };
 
 // DataBroadcastEnd は、TS を読み終えたか、読めなかったことを、画面のスレッドに通知するメッセージ。

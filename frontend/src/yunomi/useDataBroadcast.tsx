@@ -141,7 +141,7 @@ export type DataBroadcastHandlers = {
   onSelectAudio?: (componentTag: number, channelId?: number) => boolean;
 };
 
-// elapsedIntervalMs は、録画型の再生元で、Web Worker に経過を知らせる間隔。TsPacer が先に渡す長さより短くする。
+// elapsedIntervalMs は、録画型の再生元で、Web Worker に経過を通知する間隔。TsPacer が先に渡す長さより短くする。
 const elapsedIntervalMs = 200;
 
 export function useDataBroadcast(
@@ -462,7 +462,7 @@ export function useDataBroadcast(
       serviceId,
       paced,
     } satisfies DataBroadcastRequest);
-    // 録画型の再生元は、再生位置に合わせて渡すよう、読み始めた位置からの経過を知らせ続ける。
+    // 録画型の再生元は、再生位置に合わせて渡すよう、読み始めた位置からの経過を通知し続ける。
     const elapsedTimer = paced
       ? setInterval(() => {
           const elapsed = elapsedRef.current?.() ?? null;
