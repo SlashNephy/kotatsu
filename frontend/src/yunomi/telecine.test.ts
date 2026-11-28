@@ -65,7 +65,7 @@ describe('TelecineDetector', () => {
     ).toBe(3);
   });
 
-  test('繰り返しがなくなれば (60i の CM に替わった)、位相を捨てる', () => {
+  test('繰り返しがなくなれば (60i の CM に替わった)、位相を破棄する', () => {
     const detector = new TelecineDetector();
     feed(detector, 0, diffsOf(3, 0, 40));
 
@@ -152,7 +152,7 @@ describe('FieldSampler', () => {
     expect(sampler.sample(picture(16, 16, 40, 50), 0, 16, 16, 16)).toEqual({ top: 30, bottom: 0 });
   });
 
-  test('大きさが変われば比べない', () => {
+  test('大きさが変われば比較しない', () => {
     const sampler = new FieldSampler();
     sampler.sample(picture(16, 16, 10, 20), 0, 16, 16, 16);
 

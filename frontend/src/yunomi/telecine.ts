@@ -72,7 +72,7 @@ export class TelecineDetector {
   constructor(private readonly params: TelecineParams = defaultTelecineParams) {}
 
   // push は、通し番号 field のフィールドと、2 枚前のフィールドの差 (点ごとの差の絶対値の平均) を足し、決めた位相を返す。
-  // 通し番号が飛んだら (コマが欠けた、B フレームを省いた)、それまでの差を捨てて数え直す。
+  // 通し番号が飛んだら (コマが欠けた、B フレームを省いた)、それまでの差を破棄して数え直す。
   push(field: number, diff: number): number | null {
     if (this.diffs.length > 0 && field !== this.first + this.diffs.length) {
       this.reset();
@@ -92,7 +92,7 @@ export class TelecineDetector {
     return this.phase;
   }
 
-  // reset は、数えた差と決めた位相を捨てる。
+  // reset は、数えた差と決めた位相を破棄する。
   reset(): void {
     this.diffs.length = 0;
     this.phase = null;
@@ -196,7 +196,7 @@ export function assembleFilm<Source>(
 }
 
 // sampleStep は、フィールドの差を出すときに間引く間隔 (横の画素と、フィールドの中の行)。
-// 1440×1080 のコマで、フィールドごとに 360×135 点を比べる。デコードの時間に比べて十分に軽い。
+// 1440×1080 のコマで、フィールドごとに 360×135 点の差を出す。デコードの時間より十分に短い。
 const sampleStep = 4;
 
 // FieldSampler は、デコードしたコマの輝度から、フィールドごとに間引いた点を取り、1 つ前のコマの同じ向きのフィールドとの差を出す。
