@@ -277,6 +277,7 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
     hls,
     // 端末に保存した録画は、変換の経路では映像の要素が自分でシークし、この端末でデコードする経路では切り出して読み直す。
     native: local && !decoding,
+    local,
     ...(local && decoding && source.streamFrom !== undefined ? { resolve: source.streamFrom } : {}),
     // この端末でデコードする経路は、裏で読み込んで切り替えられないので、配信が止まる前の通知でも、すぐ読み直す。
     handover: !decoding,
@@ -304,7 +305,7 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
     media,
     mediaRef,
     framePosition: (time) =>
-      hls || local ? hlsStream.framePosition(time) : stream.framePosition(time),
+      hls || (local && !decoding) ? hlsStream.framePosition(time) : stream.framePosition(time),
     jumpTo,
     currentPosition,
     scrubbing: seeking !== null,

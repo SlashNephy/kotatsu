@@ -8,6 +8,7 @@ function tsWithPCR(packets: number, seconds: (index: number) => number): Blob {
   for (let i = 0; i < packets; i += 1) {
     const p = i * 188;
     bytes[p] = 0x47;
+    // PID は 0x100。
     bytes[p + 1] = 0x01;
     bytes[p + 2] = 0x00;
     if (i % 10 === 0) {
@@ -37,7 +38,28 @@ describe('firstPCR', () => {
 
     const found = await firstPCR(video, 188 * 3 + 50);
 
-    expect(found).toEqual({ offset: 188 * 10, seconds: 100.1 });
+    expect(found).toEqual({ offset: 188 * 10, seconds: 100.1, pid: 0x100 });
+  });
+
+  test.each([
+    { name: 'ほかの PID の PCR は読まない', pid: 0x101, want: null },
+    { name: '同じ PID の PCR を読む', pid: 0x100, want: 188 * 10 },
+  ])('$name', async ({ pid, want }) => {
+    const video = tsWithPCR(100, (i) => 100 + i * 0.01);
+
+    const found = await firstPCR(video, 1, pid);
+
+    expect(found?.offset ?? null).toBe(want);
+  });
+
+  test('伝送エラーの印の付いたパケットの PCR は読まない', async () => {
+    const video = tsWithPCR(100, (i) => 100 + i * 0.01);
+    const bytes = new Uint8Array(await video.arrayBuffer());
+    bytes[188 * 10 + 1] = (bytes[188 * 10 + 1] ?? 0) | 0x80;
+
+    const found = await firstPCR(new Blob([bytes]), 1);
+
+    expect(found?.offset).toBe(188 * 20);
   });
 });
 

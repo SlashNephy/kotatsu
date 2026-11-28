@@ -24,6 +24,8 @@ export type VodTimelineOptions = {
   // native は、変換の経路で、映像の要素が自分でシークするか。端末に保存した録画は、ファイルを Range で読むので、
   // start=秒 を付けて読み直さずに、kyusu の経路と同じく映像の時刻を移す (設計書 7.8)。
   native?: boolean;
+  // local は、端末に保存した録画か。tenban を通らないので、止まる前の通知で読み直さず、読み終えたのを切れたとみなさない。
+  local?: boolean;
   // handover は、tenban が止まる前の通知で、裏で読み込んでから切り替えるか (#1085)。既定は true。
   // 裏で読み込めないプレイヤー (この端末でデコードする経路) では false にし、すぐ読み直す。
   handover?: boolean;
@@ -78,6 +80,7 @@ export function useVodTimeline({
   convert,
   hls,
   native = false,
+  local = false,
   handover: canHandover = true,
   resolve,
   initial,
@@ -117,7 +120,7 @@ export function useVodTimeline({
     }
     seenDrains.current = drains;
     // エラーで止まっている間は、「やり直す」に任せる。端末に保存した録画は、tenban を通らない。
-    if (convert && !native && error === null) {
+    if (convert && !native && !local && error === null) {
       if (!canHandover) {
         restartAt(positionRef.current);
 
@@ -128,7 +131,7 @@ export function useVodTimeline({
       setHandover(true);
     }
     // 読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
-  }, [drains, convert, native, canHandover, error]);
+  }, [drains, convert, native, local, canHandover, error]);
   const retry = () => {
     setError(null);
     restartAt(positionRef.current);
@@ -170,7 +173,7 @@ export function useVodTimeline({
   const onConvertState = (state: PlayerState) => {
     const current = mediaRef.current;
     // 端末に保存した録画は、ファイルを読み終えても切れたのではないので、見分けない。
-    if (state !== 'completed' || current === null || !endKnown || native) {
+    if (state !== 'completed' || current === null || !endKnown || native || local) {
       return;
     }
     const { buffered } = current;

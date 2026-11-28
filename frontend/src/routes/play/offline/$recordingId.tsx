@@ -164,10 +164,11 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
         // この端末でデコードする経路も選べる。シークしたときと再開するときは、保存したファイルを切り出して読み直す (#2166)。
         decode: true,
         streamFrom: async (seconds) => {
+          // 切り出す位置を読めなければ、先頭から読む。ファイルを読めなければ、プレイヤーがエラーを出す。
           const { blob, at } = await streamFrom(
             { video: files.video, recordedFrom: meta.recordedFrom, gaps: meta.gaps },
             seconds,
-          );
+          ).catch(() => ({ blob: files.video, at: 0 }));
           const url = URL.createObjectURL(blob);
 
           return { url, at, release: () => URL.revokeObjectURL(url) };
