@@ -158,11 +158,16 @@ class VideoElementMedia implements PlayerMedia {
   // canvasPictures は、読み込みごとに、<video> を渡したプレイヤーが決める (#2287)。
   canvasPictures: CanvasPictures | null = null;
 
+  // frameRequests は、requestVideoFrameCallback で渡した番号ごとの、待っている呼び返し。<video> のものか、
+  // canvas に描いている間 (#2287) の requestAnimationFrame のもの。どちらで待っていても、同じ番号で取り消せるようにする。
+  private readonly frameRequests = new Map<number, { video: number } | { animation: number }>();
+  private lastFrameRequest = 0;
+
   constructor(readonly video: HTMLVideoElement) {
     // 対応していないブラウザでは、メソッドを持たせない。部品は有無を見て、別の方法に切り替えるため。
     if (typeof video.requestVideoFrameCallback === 'function') {
-      this.requestVideoFrameCallback = (callback) => video.requestVideoFrameCallback(callback);
-      this.cancelVideoFrameCallback = (handle) => video.cancelVideoFrameCallback(handle);
+      this.requestVideoFrameCallback = (callback) => this.requestFrame(callback);
+      this.cancelVideoFrameCallback = (handle) => this.cancelFrame(handle);
     }
     if (typeof video.getVideoPlaybackQuality === 'function') {
       this.getVideoPlaybackQuality = () => video.getVideoPlaybackQuality();
@@ -241,8 +246,45 @@ class VideoElementMedia implements PlayerMedia {
     this.video.defaultPlaybackRate = value;
   }
 
-  get frame(): CanvasImageSource {
-    return this.video;
+  // canvas に描いている間 (#2287) は、<video> に絵がない。すぐに描けるものはないので null を返し、
+  // キャプチャは canvasPictures から取る。
+  get frame(): CanvasImageSource | null {
+    return this.canvasPictures === null ? this.video : null;
+  }
+
+  // requestFrame は、次のコマで callback を呼ぶ。canvas に描いている間 (#2287) は <video> がコマを出さず、
+  // requestVideoFrameCallback が呼ばれないので、画面の書き換えごとに、今の位置を mediaTime として呼ぶ。
+  private requestFrame(callback: PlayerFrameCallback): number {
+    const id = ++this.lastFrameRequest;
+    const done = () => this.frameRequests.delete(id);
+    if (this.canvasPictures === null) {
+      const video = this.video.requestVideoFrameCallback((now, metadata) => {
+        done();
+        callback(now, metadata);
+      });
+      this.frameRequests.set(id, { video });
+    } else {
+      const animation = requestAnimationFrame((now) => {
+        done();
+        callback(now, { mediaTime: this.video.currentTime });
+      });
+      this.frameRequests.set(id, { animation });
+    }
+
+    return id;
+  }
+
+  private cancelFrame(id: number): void {
+    const request = this.frameRequests.get(id);
+    if (request === undefined) {
+      return;
+    }
+    this.frameRequests.delete(id);
+    if ('video' in request) {
+      this.video.cancelVideoFrameCallback(request.video);
+    } else {
+      cancelAnimationFrame(request.animation);
+    }
   }
 
   get element(): HTMLElement {
