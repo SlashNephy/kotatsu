@@ -58,6 +58,14 @@ mise run //frontend:wasm-decode:serve
 mise run //frontend:wasm-decode:serve 18516 0.0.0.0
 ```
 
+Safari 27 は、安全な文脈でない（http の）ページでは、JavaScript と WASM を JIT なしで動かします（WebKit の Bug 324968、#2162）。
+Safari で計測するときは https で配信します。環境変数 `SERVE_TLS_CERT` と `SERVE_TLS_KEY` に、証明書と秘密鍵のファイルを渡します。
+証明書は、たとえば mkcert で配信するアドレスに対して作り、その認証局を実機に信頼させます。
+
+```bash
+SERVE_TLS_CERT=bench/wasm-decode/.work/tls/cert.pem SERVE_TLS_KEY=bench/wasm-decode/.work/tls/key.pem mise run //frontend:wasm-decode:serve 18517 0.0.0.0
+```
+
 結果をファイルにコピーしたら、映像と方式ごとにまとめられます。
 
 ```bash
@@ -66,6 +74,34 @@ node frontend/bench/wasm-decode/summarize.mjs results.jsonl
 
 ブラウザの自動操作で計測するときは、ページの `window.runDecode(映像, 組み方)` と `window.runConvert(映像, { save })` を呼びます。
 どちらも結果のオブジェクトを返します。
+
+## デコードと GPU へのアップロードを分けて計測する
+
+#2162 の切り分けのために、製品の経路と同じく、デコードしたコマを WebGL2 の R8 のテクスチャ 3 枚へ上げて計測できます。
+WASM は組み方の名前 `product` で製品のもの（`vendor/ffmpeg/decoder` と `public/ffmpeg/decoder.wasm`）を使うので、組まなくても計測できます。
+
+ページの「切り分けを計測する」を押すか、URL に `?split` を付けて開く（`http://<アドレス>:18516/?split`）と、`mandel_1440.ts` と `testsrc2_1440.ts` で、アップロードなしと次の 3 通りの上げ方を、交互に 2 回ずつ計測します。
+結果は 1 回ごとに配信しているサーバーへ送り、`.work/results.jsonl` に足していきます。実機の画面から結果をコピーする必要はありません。終わると `"kind":"done"` の行が入ります。
+1 回は 300 コマで打ち切ります。打ち切った回は音をデコードせず、`fps` は出しません（`null`）。映像だけの速さは `videoFps` で見ます。
+
+| 上げ方     | 渡すもの                                     |
+| ---------- | -------------------------------------------- |
+| `offset`   | WASM のメモリ全体と面の位置（製品と同じ）    |
+| `subarray` | 面の範囲だけの `subarray`（複製しない）      |
+| `copy`     | 面の範囲を JS の `Uint8Array` に複製したもの |
+
+結果には PES ごとの時間（`avgMs`、`p50`、`p95`）に加えて、アップロードの時間（`uploadAvgMs` など）、`gl.flush` の時間（`flushAvgMs` など）、
+アップロードを差し引いたデコードの時間（`decodeOnlyAvgMs` など）、WebGL の renderer、worker の `performance.now()` の粒度（`timer`）が入ります。
+粒度が粗い端末では、1 ms 未満の区間の分位が 0 か粒度の値になるので、平均と一緒に読みます。
+
+ブラウザの自動操作で計測するときは、`window.runDecode(映像, 'product', false, { upload: 'offset', maxFrames: 300 })` を呼びます。
+
+「WASM の組み方を比較する」を押すか、URL に `?variants` を付けて開くと、`mandel_1440.ts` で、製品の WASM と `build.sh` の組み方 6 通りを、アップロードなしで交互に 2 回ずつ計測します。
+先に `build.sh` で全部の組み方を組んでおきます。結果は「切り分け」と同じく `.work/results.jsonl` に足します。
+「最適化の確認を計測する」を押すか、URL に `?jit` を付けて開くと、手で組んだ WASM の小さなループと、同じ計算の JavaScript のループを 5 回ずつ回します。
+あわせて、製品の WASM のデコードを worker とメインスレッドで計測します。これを交互に 2 回ずつ行います。
+WASM のループだけが遅ければ WASM の実行を、JavaScript も遅ければ JIT そのものを疑います。
+`summarize.mjs` は、結果をブラウザと計測の手順（`split`、`variants`、`jit`）ごとに分けてまとめます。
 
 ## mpeg2toh264 の出力を確認する
 
@@ -94,5 +130,5 @@ MISE_ENV=wasm-decode-bench mise exec -C frontend -- sh -c 'ffmpeg -v error -i be
 | `glue.c`                            | WASM の中のデコーダを JS から呼ぶ関数                                                                    |
 | `make-media.sh`、`drop-packets.mjs` | 合成の映像と、パケットを落とした TS を作ります                                                           |
 | `serve.mjs`                         | 測定のページ、WASM、映像、mpeg2toh264 を配信し、mpeg2toh264 の出力を受け取ります                         |
-| `page/`                             | 測定のページと、デコードの worker、TS を PES に分ける処理                                                |
+| `page/`                             | 測定のページと、デコードの計測（worker とメインスレッド）、小さなループの計測、TS を PES に分ける処理    |
 | `summarize.mjs`、`psnr.mjs`         | 結果をまとめ、PSNR を出します                                                                            |

@@ -1,15 +1,20 @@
 // 測定のページを配信する静的なサーバ。実機からも開けるよう、待ち受ける場所は引数で変えられる。
 //
 //   /          page/ (測定のページ)
+//   /wasm/product/  製品の WASM (vendor/ffmpeg/decoder/dist/decoder.js と public/ffmpeg/decoder.wasm)
 //   /wasm/     .work/out/ (build.sh で組んだ WASM)
 //   /media/    .work/media/ (make-media.sh で作った TS)。Range に応える
 //   /m2h/      mpeg2toh264 の worker (/m2h/worker.js) と WASM (public/mpeg2toh264)
 //   PUT /save/<名前>  mpeg2toh264 の出力を .work/save/ に書く (PSNR とコマ数を計測するため)
+//   POST /results     測定のページが送る結果の 1 行を .work/results.jsonl に足す
 //
 // 使い方: node serve.mjs [ポート] [待ち受けるアドレス]
-import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, readdir, stat } from 'node:fs/promises';
-import { createServer } from 'node:http';
+// 環境変数 SERVE_TLS_CERT と SERVE_TLS_KEY に証明書と秘密鍵のファイルを渡すと、https で配信する。
+// Safari 27 は、安全な文脈でない (http の) ページでは、JavaScript と WASM を JIT なしで動かすため (#2162)。
+import { createReadStream, createWriteStream, readFileSync } from 'node:fs';
+import { appendFile, mkdir, readdir, stat } from 'node:fs/promises';
+import { createServer as createHttpServer } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
@@ -40,8 +45,15 @@ const m2hWorker = async () => {
   return name ? join(dir, name) : null;
 };
 
+// 製品の WASM は、組み方の名前 product で、build.sh で組んだものと同じ形 (dec.mjs と、それが読む WASM) で返す。
+const product = {
+  '/wasm/product/dec.mjs': join(frontend, 'vendor', 'ffmpeg', 'decoder', 'dist', 'decoder.js'),
+  '/wasm/product/decoder.wasm': join(frontend, 'public', 'ffmpeg', 'decoder.wasm'),
+};
+
 const locate = async (pathname) => {
   if (pathname === '/m2h/worker.js') return m2hWorker();
+  if (Object.hasOwn(product, pathname)) return product[pathname];
   for (const [prefix, dir] of mounts) {
     if (pathname.startsWith(prefix)) {
       const path = normalize(join(dir, pathname.slice(prefix.length) || 'index.html'));
@@ -51,7 +63,18 @@ const locate = async (pathname) => {
   return null;
 };
 
-createServer(async (req, res) => {
+// 片方だけを渡したら、http で黙って配信せずに止める。Safari を http で計測してしまわないように。
+if (Boolean(process.env.SERVE_TLS_CERT) !== Boolean(process.env.SERVE_TLS_KEY)) {
+  throw new Error('set both SERVE_TLS_CERT and SERVE_TLS_KEY to serve over https');
+}
+const tls =
+  process.env.SERVE_TLS_CERT && process.env.SERVE_TLS_KEY
+    ? {
+        cert: readFileSync(process.env.SERVE_TLS_CERT),
+        key: readFileSync(process.env.SERVE_TLS_KEY),
+      }
+    : null;
+const handler = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
     const { pathname } = new URL(req.url ?? '/', 'http://localhost');
@@ -61,6 +84,16 @@ createServer(async (req, res) => {
       await mkdir(dir, { recursive: true });
       await pipeline(req, createWriteStream(join(dir, save[1])));
       res.writeHead(201).end();
+      return;
+    }
+    // POST /results は、測定のページが送る結果の 1 行を .work/results.jsonl に足す。実機の画面から結果をコピーしなくても受け取れるようにするため。
+    if (req.method === 'POST' && pathname === '/results') {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const line = Buffer.concat(chunks).toString('utf8').replaceAll('\n', ' ');
+      await mkdir(join(here, '.work'), { recursive: true });
+      await appendFile(join(here, '.work', 'results.jsonl'), `${line}\n`);
+      res.writeHead(204).end();
       return;
     }
     const path = await locate(decodeURIComponent(pathname));
@@ -98,4 +131,8 @@ createServer(async (req, res) => {
     if (!res.headersSent) res.writeHead(500);
     res.end();
   }
-}).listen(port, host, () => console.log(`serving on http://${host}:${port}/`));
+};
+const server = tls ? createHttpsServer(tls, handler) : createHttpServer(handler);
+server.listen(port, host, () =>
+  console.log(`serving on ${tls ? 'https' : 'http'}://${host}:${port}/`),
+);
