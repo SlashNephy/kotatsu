@@ -17,9 +17,14 @@ export type HlsStream = {
   seekTo: (seconds: number) => void;
   // currentPosition は、video の時刻から求め直した今の再生位置。
   currentPosition: () => number;
-  // framePosition は、映ったコマの時刻 t に当たる再生位置。再生を始めるまでは、位置を信じられないので null。
+  // framePosition は、映ったコマの時刻 t に当たる再生位置。再生を始めるまでと、読み始める位置の近くのコマが映るまでは、
+  // 位置を信じられないので null。hls.js を作り直したばかりのときは、まだ読み始める位置へ移っておらず、頭の位置を返すことがある。
   framePosition: (t: number) => number | null;
 };
+
+// restoreTolerance は、読み始める位置へ移ったとみなす、映ったコマの時刻と読み始める位置の差 (秒)。
+// hls.js は、セグメントの先頭から流すので、セグメントの長さ (約 2 秒) より広く取る。
+const restoreTolerance = 5;
 
 // useHlsStream は、仮想 HLS の再生位置を追う。initial は、最初に読み始める位置。enabled が false の間は、位置を動かさない。
 // 読み始める位置へ移るまで、video の時刻は 0 のことがあるので、再生を始めてから位置を動かす。
@@ -28,6 +33,8 @@ export function useHlsStream(media: PlayerMedia | null, enabled: boolean, initia
   const [position, setPosition] = useState(initial);
   const positionRef = useRef(initial);
   const playing = useRef(false);
+  // reached は、今の読み込みで、読み始める位置の近くのコマが映ったか。自分で移ったときは、移った先で位置を信じる。
+  const reached = useRef(false);
   useEffect(() => {
     if (media === null || !enabled) {
       return;
@@ -57,11 +64,14 @@ export function useHlsStream(media: PlayerMedia | null, enabled: boolean, initia
     position,
     positionRef,
     restartAt: (seconds) => {
+      reached.current = false;
       positionRef.current = seconds;
       setPosition(seconds);
       setLoad((prev) => ({ start: seconds, loads: prev.loads + 1 }));
     },
     seekTo: (seconds) => {
+      // 読み始める位置へ移るのを待っている間に移ったら、移った先で位置を信じる。待ち続けると、CM を自動で飛ばす判定が止まったままになる。
+      reached.current = true;
       positionRef.current = seconds;
       setPosition(seconds);
       if (!playing.current) {
@@ -70,6 +80,15 @@ export function useHlsStream(media: PlayerMedia | null, enabled: boolean, initia
     },
     currentPosition: () =>
       media === null || !playing.current ? positionRef.current : media.currentTime,
-    framePosition: (t) => (playing.current ? t : null),
+    framePosition: (t) => {
+      if (!playing.current || media === null) {
+        return null;
+      }
+      if (!reached.current && !media.seeking && Math.abs(t - load.start) <= restoreTolerance) {
+        reached.current = true;
+      }
+
+      return reached.current ? t : null;
+    },
   };
 }

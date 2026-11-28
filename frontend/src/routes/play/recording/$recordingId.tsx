@@ -42,13 +42,8 @@ import {
 import {
   broadcastTime,
   recordingPosition,
-  parseStreamStart,
   formatClock,
   formatDuration,
-  playbackPosition,
-  skipJump,
-  advanceTarget,
-  isBuffered,
 } from '../../../yunomi/position';
 import {
   RateSelect,
@@ -108,7 +103,8 @@ import { parseStartSeconds } from '../../../yunomi/shareUrl';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
 import { useHostedWatch, useWatchMini } from '../../../yunomi/WatchHost';
 import { readableParams } from '../../../futon/readableId';
-import type { PlayerMedia } from '../../../yunomi/playerMedia';
+import { useSeekableStream } from '../../../yunomi/useSeekableStream';
+import { useHlsStream } from '../../../yunomi/useHlsStream';
 import {
   PlayerBox,
   PlayerErrorOverlay,
@@ -282,13 +278,6 @@ const playQuery = graphql`
   }
 `;
 
-// hlsRestoreTolerance は、kyusu の HLS を作り直したあと、求めた位置へ移ったとみなす、映ったコマとの差 (秒)。
-// hls.js は、セグメントの先頭から流すので、セグメントの長さ (約 2 秒) より広く取る。
-const hlsRestoreTolerance = 5;
-
-// positionEpsilon は、位置を比較するときの、計算の丸めの誤差 (秒)。
-const positionEpsilon = 0.001;
-
 // recordingRefreshMs は、録画中の録画を追っかけ再生している間に、録画を読み直す間隔 (#671)。
 // 録画を終えた時刻が分かるまでは、録画の長さを今の時刻まで伸ばして扱うので、終えたら読み直して止める。
 const recordingRefreshMs = 30_000;
@@ -393,115 +382,18 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const resumeAt = playableStart(opening.at, duration);
   // kyusu の HLS は、録画の全体を 1 つのプレイリストで表すので、video の時刻がそのまま録画の中の位置になる。
   const hls = route.kind === 'kyusu';
-  // offset は、今の読み込みを始めた、録画の始まりからの秒。ブラウザの中で変換するときは、シークすると、
-  // 新しい開始位置で読み直す (設計書 7.2)。kyusu の HLS では、画質を変えたときに続きから読む位置に使う。
-  const [offset, setOffset] = useState(resumeAt);
-  // loads は、読み込みを始め直した回数。同じ位置へシークし直したときも、URL を変えて読み直させる。
-  const [loads, setLoads] = useState(0);
-  // startedAt は、ブラウザの中で変換するときに、配信が実際に流し始めた位置 (録画の始まりからの秒)。配信は、指定した位置の
-  // 手前の I フレームから流すので、再生位置は、指定した位置 (offset) ではなく、ここから数える (#536)。分かるまでは offset を使う。
-  // at が null なのは、HEAD に答えたが位置を返さなかったか、HEAD に失敗したとき。
-  const [streamStart, setStreamStart] = useState<{ key: string; at: number | null } | null>(null);
-  const streamKey = `${offset}:${loads}`;
-  const startedAt =
-    !hls && streamStart?.key === streamKey && streamStart.at !== null ? streamStart.at : offset;
-  // streamSettled は、流し始めた位置を引き終えたかどうか。引き終えるまでは、コマの位置を信じない (#1512)。
-  const streamSettled = hls || streamStart?.key === streamKey;
-  const streamUrl = recording?.streamUrl ?? null;
-  useEffect(() => {
-    if (hls || streamUrl === null) {
-      return;
-    }
-    // 配信は、HEAD でも、流し始める位置を返す。
-    const controller = new AbortController();
-    fetch(`${streamUrl}?start=${offset.toFixed(1)}`, {
-      method: 'HEAD',
-      credentials: 'same-origin',
-      signal: controller.signal,
-    })
-      .then((response) => {
-        const at = response.ok ? parseStreamStart(response.headers.get('X-Kotatsu-Start')) : null;
-        setStreamStart({ key: `${offset}:${loads}`, at });
-      })
-      .catch(() => {
-        // 読み込みを始め直して止めたのでなければ、位置が分からないまま、指定した位置から数える。
-        if (!controller.signal.aborted) {
-          setStreamStart({ key: `${offset}:${loads}`, at: null });
-        }
-      });
-
-    return () => controller.abort();
-  }, [hls, streamUrl, offset, loads]);
-  // base は、読み込んだ映像の最初のフレームの、video の時刻。変換した映像の時刻は 0 から始まるとは限らない。
-  const base = useRef(0);
-  // lastVideoTime は、最後に見た video の時刻。変換した映像の時刻が、途切れた区間で飛んだのを見つけるのに使う。
-  const lastVideoTime = useRef(0);
-  // handoverFrom は、tenban が止まる前の通知で、裏で読み込んでいる間 (#1728) の、映っている映像の読み込みが流し始めた位置。
-  // 裏で読み込んでいる間も、映っている映像の時刻で位置を進める。新しい読み込みの起点は、切り替えるまで使わない。
-  const handoverFrom = useRef<number | null>(null);
-  // convertedPosition は、ブラウザの中で変換した映像の時刻 current から、再生位置を求める。途切れた区間で飛んだ分は数えない。
-  const convertedPosition = (current: number) => {
-    base.current = skipJump(base.current, lastVideoTime.current, current);
-    lastVideoTime.current = current;
-
-    return playbackPosition(handoverFrom.current ?? startedAt, base.current, current);
-  };
-  // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
-  const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
-  // settleBase は、読み込んだ映像の最初のコマが出たら、その時刻を base にする。mediaTime は、コマごとの通知の、そのコマの時刻。
-  // timeupdate を待つと、その間に進んだ分だけ base が後ろへずれ、位置を少なく数える。
-  const settleBase = (current: PlayerMedia, mediaTime: number | null) => {
-    if (
-      hls ||
-      phase.current !== 'awaitingBase' ||
-      current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
-    ) {
-      return;
-    }
-    base.current = mediaTime ?? current.currentTime;
-    lastVideoTime.current = base.current;
-    phase.current = 'playing';
-  };
-  // reached は、読み込み (streamKey) ごとに、求めた位置 (offset) 以上のコマが映ったと確認した読み込み (#1512)。
-  const reached = useRef<string | null>(null);
-  // reachedStart は、今の読み込みで、求めた位置以上のコマが映ったかを返す。まだなら、映っているコマの位置を信じない。
-  // ブラウザの中で変換する配信は、求めた位置の手前の I フレームから流れる (設計書 7.2)。最初のコマが求めた位置より手前なら、
-  // その位置へ currentTime を進め、手前のコマを再生する時間を省く。読み込んである範囲の外へ進めると、変換のプレイヤーが
-  // 配信を読み直すので、届くのを待ってから進める。kyusu の HLS は、プレイヤーを作り直したばかりのとき、まだ求めた位置へ
-  // 移っておらず、頭の位置を返すことがあるので、求めた位置の近くのコマが映るまで待つ。
-  const reachedStart = (current: PlayerMedia, mediaTime: number | null) => {
-    // 裏で読み込んでいる間に映っているのは、前の読み込みの映像で、その位置は確認済み。
-    if (reached.current === streamKey || handoverFrom.current !== null) {
-      return true;
-    }
-    const time = mediaTime ?? current.currentTime;
-    if (hls) {
-      if (!current.seeking && Math.abs(time - offset) <= hlsRestoreTolerance) {
-        reached.current = streamKey;
-      }
-
-      return reached.current === streamKey;
-    }
-    if (!streamSettled || phase.current !== 'playing') {
-      return false;
-    }
-    const target = advanceTarget(base.current, startedAt, offset);
-    if (!current.seeking && time >= target - positionEpsilon) {
-      reached.current = streamKey;
-
-      return true;
-    }
-    if (!current.seeking && current.currentTime < target && isBuffered(current.buffered, target)) {
-      current.seek(target);
-      // 進めた分を、途切れた区間を越えたとみなさない。
-      lastVideoTime.current = target;
-    }
-
-    return false;
-  };
-  const [position, setPosition] = useState(resumeAt);
+  // stream は、録画の始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。kyusu の経路では、仮想 HLS を流す。
+  // 配信は、求めた位置の手前の I フレームから流すので、位置は、流し始めた位置から数える (#536)。
+  const stream = useSeekableStream(
+    recording?.streamUrl ?? '',
+    media,
+    resumeAt,
+    !hls && recording !== null,
+  );
+  const hlsStream = useHlsStream(media, hls, resumeAt);
   // positionRef は、別のウィンドウへの移し替えや、画質と音声の切り替えで、読み直すときに続ける位置。
-  const positionRef = useRef(resumeAt);
+  // currentPosition は、video の時刻から求め直した今の再生位置。実況のコメントを、画面の更新ごとに描くのに使う。
+  const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
   const [seeking, setSeeking] = useState<number | null>(null);
   const [paused, setPaused] = useState(true);
   // lastSeek は、利用者が最後にシークした位置 (#1282)。そこが CM の区間の中なら、自動では飛ばさない。
@@ -517,23 +409,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // tenban が止まる前の通知で読み直すときだけ使い、シークなどでは、すぐ読み直す。
   const [handover, setHandover] = useState(false);
 
-  // currentPosition は、今の再生位置 (録画の始まりからの秒) を返す。実況のコメントを、画面の更新ごとに描くのに使う。
-  // timeupdate で更新する position は間隔が粗いので、video の時刻から求め直す。
-  const currentPosition = () => {
-    const current = mediaRef.current;
-    if (current === null) {
-      return positionRef.current;
-    }
-    // 読み直している間は、video の時刻がまだ読み始める位置になっていないので、前に求めた位置を使う。
-    if (phase.current !== 'playing') {
-      return positionRef.current;
-    }
-    if (hls) {
-      return current.currentTime;
-    }
-
-    return convertedPosition(current.currentTime);
-  };
   // channelId は、実況のチャンネルの ID。実況を切っているユーザーにもボタンを出すため、外部へ問い合わせずに返る値を使う (設計書 7.4)。
   const channelId = recording?.service.jikkyoChannelId ?? null;
   useWatchPositionSaver(recordingId, currentPosition, !paused);
@@ -638,12 +513,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     // CM の区間が録画の終わりまで続く回で、CM を飛ばすと、ここに来る。
     const seconds = playableStart(target, duration);
     setHandover(false);
-    handoverFrom.current = null;
-    phase.current = 'loading';
-    positionRef.current = seconds;
-    setPosition(seconds);
-    setOffset(seconds);
-    setLoads((n) => n + 1);
+    if (hls) {
+      hlsStream.restartAt(seconds);
+
+      return;
+    }
+    stream.restartAt(seconds);
   };
   // tenban が止まる前に通知してきたら、ブラウザの中で変換するときは、今の位置から、新しい接続を張ってから切り替える (#1085)。
   // kyusu の HLS は、セグメントごとに読むので、つなぎ直さなくてよい。
@@ -657,18 +532,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     // エラーで止まっている間は、「やり直す」に任せる。
     if (!hls && error === null) {
       // 映っている映像の位置を信じられるなら、裏で読み込んでいる間も、その映像で位置を進める (#1728)。
-      // 裏で読み込んでいる間に、もう一度通知が届いたら、映っている映像の起点のまま続ける。
-      const shown = handoverFrom.current;
-      const tracking =
-        phase.current === 'playing' && (shown !== null || reached.current === streamKey);
-      startAt(positionRef.current);
+      stream.restartAt(positionRef.current, true);
       setHandover(true);
-      if (tracking) {
-        handoverFrom.current = shown ?? startedAt;
-        phase.current = 'playing';
-      }
     }
-    // startAt と positionRef は、描画ごとに作り直すが、読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
+    // 読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
   }, [drains, hls, error]);
   // retry は、今の位置から読み直す。エラーの通知も消し、読み込めたら出さないままにする。
   const retry = () => {
@@ -696,10 +563,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     const current = mediaRef.current;
     if (hls && current !== null) {
       current.seek(seconds);
-      // 求めた位置へ移るのを待っている間に移ったら、移った先で位置を信じる。待ち続けると、自動で飛ばす判定が止まったままになる。
-      reached.current = streamKey;
-      positionRef.current = seconds;
-      setPosition(seconds);
+      hlsStream.seekTo(seconds);
 
       return seconds;
     }
@@ -767,7 +631,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       media.defaultPlaybackRate = rate;
       media.playbackRate = fastForward.playbackRate;
     }
-  }, [rate, fastForward.playbackRate, media, loads]);
+  }, [rate, fastForward.playbackRate, media, stream.url, hlsStream.loads]);
 
   // skip は、今の位置から seconds 秒だけ進むか戻る。
   // 進む向きの相対の移動 (キー、ダブルタップ、15 秒のボタン。#1572) は、行き先を選んだシークではないので、CM を見たい意思と
@@ -870,53 +734,23 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   } satisfies PlayerSnapshot;
   usePlayerPresence(player, commands, recording === null || media === null ? null : player);
 
-  // 再生位置を、録画の始まりからの秒で追う。
+  // 止めているかを追う。位置は、stream と hlsStream が追う。
   useEffect(() => {
     if (media === null) {
       return;
     }
-    const update = () => {
-      if (hls) {
-        // kyusu の HLS は、読み始める位置へ移るまで video の時刻が 0 のことがあるので、再生を始めるまで位置を動かさない。
-        if (phase.current !== 'playing') {
-          return;
-        }
-        positionRef.current = media.currentTime;
-        setPosition(media.currentTime);
-
-        return;
-      }
-      settleBase(media, null);
-      // 読み直した先の手前のコマ (I フレームから目標まで) の間は、位置を動かさない (#1512)。
-      if (phase.current !== 'playing' || !reachedStart(media, null)) {
-        return;
-      }
-      const next = convertedPosition(media.currentTime);
-      positionRef.current = next;
-      setPosition(next);
-    };
     const onPause = () => setPaused(true);
     const onPlay = () => setPaused(false);
-    // kyusu の HLS は、読み始める位置へ移り、映像が流れ始めたところから、video の時刻を録画の中の位置として使う。
-    const onPlaying = () => {
-      if (hls) {
-        phase.current = 'playing';
-      }
-    };
-    media.addEventListener('timeupdate', update);
     media.addEventListener('pause', onPause);
     media.addEventListener('play', onPlay);
-    media.addEventListener('playing', onPlaying);
     setPaused(media.paused);
 
     return () => {
-      media.removeEventListener('timeupdate', update);
       media.removeEventListener('pause', onPause);
       media.removeEventListener('play', onPlay);
-      media.removeEventListener('playing', onPlaying);
     };
     // 画質を変えたときは、video の要素を作り直すので、付け直す。
-  }, [startedAt, streamKey, streamSettled, hls, media]);
+  }, [media]);
 
   // coverRef は、映像の上に重ねる蓋 (#1512)。プレイヤーが出し入れの口を入れる。
   const coverRef = useRef<PlayerCover | null>(null);
@@ -949,11 +783,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     if (media === null) {
       return;
     }
-    settleBase(media, mediaTime);
-    const trusted = phase.current === 'playing' && reachedStart(media, mediaTime);
     const time = mediaTime ?? media.currentTime;
     skipper.frame({
-      position: trusted ? (hls ? time : convertedPosition(time)) : null,
+      // 読み直していて、求めた位置以上のコマがまだ映っていない間は、位置を渡さない。
+      position: hls ? hlsStream.framePosition(time) : stream.framePosition(time),
       seeking: media.seeking,
       paused: media.paused,
       presented,
@@ -998,8 +831,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;
   }
-  // フラグメントはサーバーに送られないので、読み込みを始め直すためだけに使う。
-  const url = `${recording.streamUrl}?start=${offset.toFixed(1)}#${loads}`;
   // resumeAfterCut は、配信が切れたら、通知を出さずに今の位置から読み直す (#1083)。tenban の入れ替えや回線の瞬断なら、これで戻る。
   // 続けて切れるなら、読み直しを繰り返さずに、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
@@ -1034,7 +865,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     const end =
       buffered.length === 0
         ? positionRef.current
-        : playbackPosition(startedAt, base.current, buffered.end(buffered.length - 1));
+        : stream.positionOf(buffered.end(buffered.length - 1));
     if (endedEarly(end, duration)) {
       resumeAfterCut();
     }
@@ -1143,7 +974,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     <PlayerBox shell={shell} inputs={inputs}>
       {route.kind === 'convert' && (
         <TsPlayer
-          url={url}
+          url={stream.url}
           handover={handover}
           mediaRef={mediaRef}
           onMedia={setMedia}
@@ -1156,28 +987,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           brightness={inputs.brightness}
           onCaptionText={onCaptionText}
           onLoaded={(handed) => {
+            // 最初のフレームが出たときの時刻を、位置の基準にする。裏で読み込んで切り替えたら、TsPlayer が渡す時刻にする (#1728)。
+            stream.onLoaded(handed);
             setError(null);
-            // 裏で読み込んで切り替えたら、裏で読み込んだ映像の最初のコマの時刻を base にする。
-            // 切り替える前に進めてあるので、今のコマの時刻を base にすると、進めた分を数えない (#1728)。
-            const switched = handed !== undefined && handoverFrom.current !== null;
-            handoverFrom.current = null;
-            if (switched) {
-              base.current = handed.base;
-              // 進めた分を、途切れた区間を越えたとみなさない。
-              lastVideoTime.current = handed.current;
-              phase.current = 'playing';
-
-              return;
-            }
-            // 最初のフレームが出たときの時刻を、base にする。
-            phase.current = 'awaitingBase';
           }}
-          handoverTarget={(first) =>
-            // 新しい読み込みが流し始めた位置が分かるまでは、進める先が分からない。
-            handoverFrom.current === null || !streamSettled
-              ? null
-              : advanceTarget(first, startedAt, currentPosition())
-          }
+          handoverTarget={stream.handoverTarget}
           onError={onError}
           onState={onConvertState}
           overlay={
@@ -1218,7 +1032,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       {route.kind === 'kyusu' && (
         <HlsPlayer
           // 読み直すたびに URL を変え、hls.js を作り直す。fragment は、サーバーへは送られない。
-          url={`${hlsURL(recording.streamUrl, route.preset, audio.kyusuAudio)}#${loads}`}
+          url={`${hlsURL(recording.streamUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`}
           mediaRef={mediaRef}
           onMedia={setMedia}
           onSegment={(segment) => {
@@ -1234,7 +1048,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           brightness={inputs.brightness}
           onCaptionText={onCaptionText}
           live={false}
-          startPosition={offset}
+          startPosition={hlsStream.start}
           overlay={
             <>
               {autoCaptionsShown && (
