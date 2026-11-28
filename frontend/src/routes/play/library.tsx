@@ -603,9 +603,11 @@ function Player({
     return at === null ? formatDuration(value) : `${formatDuration(value)} (${formatClock(at)})`;
   };
   const inputs = usePlayerInputs(shell, commands, {
+    // CM を飛んだら、CM を飛ばした通知を出したので、シークの結果は出さない。
     onDoubleTap: (side) => {
-      skip(side === 'left' ? -10 : 10);
-      showFlash(t(side === 'left' ? 'player.flash.seekBackward' : 'player.flash.seekForward'));
+      if (!skip(side === 'left' ? -10 : 10)) {
+        showFlash(t(side === 'left' ? 'player.flash.seekBackward' : 'player.flash.seekForward'));
+      }
     },
     slideSeek: {
       enabled: limit > 0,

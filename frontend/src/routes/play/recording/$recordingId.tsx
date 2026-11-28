@@ -523,8 +523,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     const at = currentPosition();
     setCaptionEntries((list) => insertRecordedCaption(list, at, text));
   };
-  // jumpTo は、自動で CM を飛ぶときにも使うので、利用者のシークとしては数えない。
-
   // changeQuality は、画質を変え、それまでの位置から続ける。
   const changeQuality = (next: string) => {
     startAt(positionRef.current);

@@ -99,7 +99,18 @@ export function useCmSkip({
         },
       }),
   );
-  useEffect(() => () => skipper.dispose(), [skipper]);
+  // openingHeld は、開いた位置で CM の終わりを待つ蓋を出したかどうか。
+  const openingHeld = useRef(false);
+  // 片付けるときは、出している蓋も外す。開発時の StrictMode などで効果を付け直したときに、蓋が残らないようにし、
+  // 開いた位置での待ち合わせも、付け直した効果でもう一度始める。
+  useEffect(
+    () => () => {
+      skipper.dispose();
+      coverRef.current?.hide();
+      openingHeld.current = false;
+    },
+    [skipper],
+  );
   // 判定は、映ったコマごとに、そのコマの時刻で行う。timeupdate は間隔が粗く、currentTime は代入した時点で飛び先を返すため。
   // 読み直していて、求めた位置以上のコマがまだ映っていない間は、位置を渡さない。
   useVideoFrames(media, ({ mediaTime, presented }) => {
@@ -116,7 +127,6 @@ export function useCmSkip({
   // 開いた位置が CM の中で、最初から CM の終わりを求めたときは、黒い蓋で覆い、CM の終わり以上のコマが映るまで待つ。
   // 配信は手前の I フレームから流れるので、CM の末尾が映りうる。続きから開いたときは、続きから始めたことだけを伝え、
   // CM を飛ばした通知は出さない。先頭から開いたときは、ほかの自動のスキップと同じく通知する。
-  const openingHeld = useRef(false);
   useEffect(() => {
     if (!opening.skipped || openingHeld.current || media === null) {
       return;
