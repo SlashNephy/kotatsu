@@ -7,9 +7,15 @@
 import createDecoderModule, { type DecoderModule } from '@kotatsu/ffmpeg-decoder';
 
 import { AdtsSplitter } from './adtsFrames';
+import { chooseAudioPid, type DualMonoChannel, routeDualMono, startsWithPce } from './decodeAudio';
 import { DecodeClock } from './decodeClock';
 import { DecodeJudge, type Verdict } from './decodeJudge';
-import type { DecodeStats, FromDecodeWorker, ToDecodeWorker } from './decodeProtocol';
+import type {
+  DecodeAudioStream,
+  DecodeStats,
+  FromDecodeWorker,
+  ToDecodeWorker,
+} from './decodeProtocol';
 import { FieldPacer } from './fieldPacer';
 import { PictureQueue } from './pictureQueue';
 import { type ColorMatrix, type PictureSlot, PictureRenderer } from './pictureRenderer';
@@ -29,6 +35,8 @@ const params = {
   audioAhead: 1 * ptsTicksPerSecond,
   // maxCompressed は、デコードしていない映像の PES を持つ長さの上限。止めている間にバッファし続けない。
   maxCompressed: 10 * ptsTicksPerSecond,
+  // audioKeep は、鳴っている位置より前の音声のフレームを残す長さ。選び直したら、鳴っている位置から渡し直すのに使う (#2165)。
+  audioKeep: 0.5 * ptsTicksPerSecond,
 };
 
 // AVFrame の flags (libavutil/frame.h)。
@@ -42,25 +50,43 @@ const bt601ColorSpaces = new Set([5, 6]);
 const sequenceHeader = [0x00, 0x00, 0x01, 0xb3];
 
 type CompressedVideo = { pts: number | null; data: Uint8Array; keyframe: boolean };
-type CompressedAudio = { pts: number; data: Uint8Array };
+// CompressedAudio は、デコードしていない ADTS のフレーム。channels は channel_configuration (0 はデュアルモノ)。
+type CompressedAudio = { pts: number; duration: number; channels: number; data: Uint8Array };
+
+// AudioEs は、番組の音声の ES 1 つの、デコードしていないフレーム。鳴らさない ES も、選び直したときのために少し残す (#2165)。
+type AudioEs = {
+  componentTag: number | null;
+  adts: AdtsSplitter;
+  frames: CompressedAudio[];
+  // dualMono は、デュアルモノ (channel_configuration が 0) のフレームが届いたか。
+  dualMono: boolean;
+};
 
 type Loading = {
   load: number;
   abort: AbortController;
   demuxer: TsDemuxer;
   timeline: PtsTimeline;
-  adts: AdtsSplitter;
   video: CompressedVideo[];
-  audio: CompressedAudio[];
+  // audios は、番組の音声の ES (PMT の順)。
+  audios: Map<number, AudioEs>;
   origin: number | null;
   // audioSentUntil は、渡した音の終わりの PTS。
   audioSentUntil: number | null;
+  // audioCursor は、デコーダに渡したフレームの終わりの PTS。これより後のフレームから渡す。
+  audioCursor: number | null;
+  // cutting は、選び直した音をどこから渡すか、メインスレッドの返事 (audioFrom) を待っている切り替えの番号。
+  // 待っていなければ null。待つ間は音を渡さない。続けて選び直したら、前の切り替えの返事は使わない。
+  cutting: number | null;
+  // pceSeen は、デュアルモノの ES で、チャンネルの構成 (PCE) をデコーダに渡したか。渡すまでは、デコードできないフレームを渡さない。
+  // デコーダは、dec_flush でやり直しても、読んだ構成を保持している。デュアルモノでないフレームを渡したら、その構成に替わるので戻す。
+  pceSeen: boolean;
   presented: boolean;
   shape: string | null;
   bytesRead: number;
   // waitKeyframe は、I フレームから始まる PES まで映像を破棄するか (読み始め、見えるようになった直後)。
   waitKeyframe: boolean;
-  // audioPid は、鳴らす音声の ES の PID。PMT の最初の音声。ほかの音声の ES は破棄する。
+  // audioPid は、鳴らす音声の ES の PID。選んだ ES (audioSelection) が番組になければ、PMT の最初の音声。
   audioPid: number | null;
   // audioStart は、時計が動く前に渡し始めた音の PTS。時計が動くまでは、ここから先読みの分だけ渡す。
   audioStart: number | null;
@@ -96,6 +122,13 @@ function mainNow(): number {
   return performance.now() + performance.timeOrigin - mainOrigin;
 }
 let loading: Loading | null = null;
+// cuts は、音声を選び直した回数。メインスレッドとの切り替えのやり取りに番号として付ける。
+let cuts = 0;
+// audioSelection は、利用者が選んだ音声 (#2165)。読み込み直しても保ち、番組にその ES がなければ最初の ES を鳴らす。
+const audioSelection: { pid: number | null; dualMono: DualMonoChannel } = {
+  pid: null,
+  dualMono: 'main',
+};
 const clock = new DecodeClock();
 const pacer = new FieldPacer();
 let visible = true;
@@ -143,6 +176,14 @@ self.onmessage = (event: MessageEvent<ToDecodeWorker>) => {
     case 'visible':
       setVisible(message.visible);
       break;
+    case 'selectAudio':
+      selectAudio(message.pid, message.dualMono);
+      break;
+    case 'audioFrom':
+      if (loading?.load === message.load && loading.cutting === message.cut) {
+        resumeAudio(loading, message.pts);
+      }
+      break;
   }
 };
 
@@ -184,11 +225,13 @@ function load(load: number, url: string, serviceId: number | null): void {
     load,
     abort,
     timeline,
-    adts: new AdtsSplitter(),
     video: [],
-    audio: [],
+    audios: new Map(),
     origin: null,
     audioSentUntil: null,
+    audioCursor: null,
+    cutting: null,
+    pceSeen: false,
     presented: false,
     shape: null,
     bytesRead: 0,
@@ -202,18 +245,27 @@ function load(load: number, url: string, serviceId: number | null): void {
     demuxer: new TsDemuxer({
       serviceId,
       onProgram: (program) => {
-        // 音声は、PMT の最初の ES を鳴らす (選び直しとデュアルモノの振り分けは、まだ持たない)。
-        // 複数の ES を 1 つのデコーダに混ぜると、音が壊れる。
-        const pid = program.audios[0]?.pid ?? null;
+        // 番組の音声の ES を読み直す。番組から消えた ES のフレームは破棄する。
+        const audios = new Map<number, AudioEs>();
+        for (const stream of program.audios) {
+          audios.set(
+            stream.pid,
+            current.audios.get(stream.pid) ?? {
+              componentTag: stream.componentTag,
+              adts: new AdtsSplitter(),
+              frames: [],
+              dualMono: false,
+            },
+          );
+        }
+        current.audios = audios;
+        // 鳴らすのは 1 つの ES だけ。複数の ES を 1 つのデコーダに混ぜると、音が壊れる。
+        const pid = chooseAudioPid([...audios.keys()], audioSelection.pid);
         if (current.audioPid !== pid) {
           current.audioPid = pid;
-          current.adts.reset();
-          current.audio = [];
-          if (engine !== null) {
-            engine.module._dec_flush(engine.audioDecoder);
-          }
+          restartAudio(current);
         }
-        post({ type: 'program', load, audios: program.audios });
+        postAudioTracks(current);
       },
       onPes: (pes) => onPes(current, pes),
     }),
@@ -312,18 +364,37 @@ function onPes(current: Loading, pes: TsPes): void {
       }
       break;
     }
-    case 'audio':
-      if (pes.pid !== current.audioPid) {
+    case 'audio': {
+      // 鳴らさない ES も、選び直したときに鳴っている位置から渡せるよう、フレームに分けて少し残す (#2165)。
+      const es = current.audios.get(pes.pid);
+      if (es === undefined) {
         return;
       }
-      for (const frame of current.adts.push(pes.data, pts)) {
-        // ADTS のフレームを切り出せたときだけ、音が届いたとみなす (ADTS でない内容なら、音が来ていない)。
-        judge.onAudio();
-        current.audio.push({ pts: frame.pts, data: frame.data });
+      const playing = pes.pid === current.audioPid;
+      for (const frame of es.adts.push(pes.data, pts)) {
+        // 鳴らす ES の ADTS のフレームを切り出せたときだけ、音が届いたとみなす (ADTS でない内容なら、音が来ていない)。
+        if (playing) {
+          judge.onAudio();
+        }
+        es.frames.push({
+          pts: frame.pts,
+          duration: frame.duration,
+          channels: frame.channels,
+          data: frame.data,
+        });
+        // 番組や CM が替わると、同じ ES がデュアルモノになったり、ならなくなったりする。
+        const dualMono = frame.channels === 0;
+        if (dualMono !== es.dualMono) {
+          es.dualMono = dualMono;
+          postAudioTracks(current);
+        }
       }
       trimAudio(current);
-      feedAudio(current, clock.at(mainNow()));
+      if (playing) {
+        feedAudio(current, clock.at(mainNow()));
+      }
       break;
+    }
     case 'captions':
     case 'superimpose': {
       // 文字スーパーは時刻を持たないので、届いたときの映像の時刻で出す。
@@ -337,20 +408,88 @@ function onPes(current: Loading, pes: TsPes): void {
   }
 }
 
-// trimAudio は、時計が動く前 (鳴らし始める前) に、渡していない音が上限を超えたら、古い方から破棄する。
-// 音ありの自動再生を拒否されている間に、バッファし続けないため。
+// trimAudio は、音声のフレームを、要らなくなった古い方から破棄する。時計が動いていれば、鳴っている位置より audioKeep 前まで残す。
+// 時計が動く前 (鳴らし始める前) も、最新から maxCompressed を超えた分は破棄する。音ありの自動再生を拒否されている間に、
+// バッファし続けないため。
 function trimAudio(current: Loading): void {
-  if (clock.at(mainNow()) !== null) {
+  const now = clock.at(mainNow());
+  for (const es of current.audios.values()) {
+    const newest = es.frames.at(-1)?.pts ?? null;
+    while (es.frames.length > 0) {
+      const oldest = es.frames[0]!;
+      const played = now !== null && oldest.pts + oldest.duration < now - params.audioKeep;
+      const overflow = newest !== null && newest - oldest.pts > params.maxCompressed;
+      if (!played && !overflow) {
+        break;
+      }
+      es.frames.shift();
+    }
+  }
+}
+
+// selectAudio は、鳴らす音声を選び直す (#2165)。鳴らす ES かデュアルモノの振り分けが変わったら、鳴っている位置から渡し直す。
+function selectAudio(pid: number | undefined, dualMono: DualMonoChannel | undefined): void {
+  const before = { ...audioSelection };
+  if (pid !== undefined) {
+    audioSelection.pid = pid;
+  }
+  if (dualMono !== undefined) {
+    audioSelection.dualMono = dualMono;
+  }
+  const current = loading;
+  if (current === null) {
     return;
   }
-  const newest = current.audio.at(-1)?.pts ?? null;
-  while (
-    newest !== null &&
-    current.audio.length > 0 &&
-    newest - current.audio[0]!.pts > params.maxCompressed
-  ) {
-    current.audio.shift();
+  const next = chooseAudioPid([...current.audios.keys()], audioSelection.pid);
+  const remixed =
+    audioSelection.dualMono !== before.dualMono &&
+    next !== null &&
+    current.audios.get(next)?.dualMono === true;
+  if (next !== current.audioPid || remixed) {
+    current.audioPid = next;
+    restartAudio(current);
   }
+  postAudioTracks(current);
+}
+
+// restartAudio は、鳴らす音声を選び直したときに、デコーダをやり直し、メインスレッドに予約した音を破棄させる。
+// どこから渡し直すかは、メインスレッドの返事 (audioFrom) で決める。
+function restartAudio(current: Loading): void {
+  if (engine !== null) {
+    engine.module._dec_flush(engine.audioDecoder);
+  }
+  cuts += 1;
+  current.cutting = cuts;
+  post({ type: 'audioCut', load: current.load, cut: cuts });
+}
+
+// resumeAudio は、メインスレッドが予約した音を破棄した位置 pts から、選び直した音声を渡し直す。
+// pts が null なら、まだ鳴らし始めていないので、渡し始めた位置から渡し直す。
+function resumeAudio(current: Loading, pts: number | null): void {
+  current.cutting = null;
+  current.audioCursor = pts;
+  current.audioSentUntil = pts;
+  if (pts === null) {
+    // 鳴らし始める前なら、選び直した ES のデコードできる最初のフレームから、渡し始めの位置を決め直す。
+    current.audioStart = null;
+  }
+  feedAudio(current, clock.at(mainNow()));
+}
+
+// postAudioTracks は、番組の音声の ES と、鳴らしているものを、メインスレッドへ通知する。
+function postAudioTracks(current: Loading): void {
+  const streams: DecodeAudioStream[] = [...current.audios].map(([pid, es]) => ({
+    pid,
+    componentTag: es.componentTag,
+    dualMono: es.dualMono,
+  }));
+  post({
+    type: 'audioTracks',
+    load: current.load,
+    streams,
+    current: current.audioPid,
+    dualMono: audioSelection.dualMono,
+  });
 }
 
 // trimVideo は、デコードしていない映像が上限を超えたら、古い GOP から破棄する。見えていない間は、最新の GOP だけを残す。
@@ -512,20 +651,45 @@ function receivePictures(current: Loading): void {
 // feedAudio は、鳴っている位置 now の少し先までの音をデコードし、メインスレッドへ渡す。
 // まだ時計がなければ (鳴らし始める前)、先読みの分だけ渡す。
 function feedAudio(current: Loading, now: number | null): void {
-  if (engine === null) {
+  if (engine === null || current.audioPid === null || current.cutting !== null) {
+    return;
+  }
+  const es = current.audios.get(current.audioPid);
+  if (es === undefined) {
     return;
   }
   const { module, audioDecoder } = engine;
   // 時計が動く前は、渡し始めた位置から先読みの分だけ渡す。届くたびに基準をずらすと、際限なく渡してしまう。
+  // 渡し始める位置は、デコードできる最初のフレームにする。デュアルモノの ES で、PCE より前のフレームから数えると、
+  // PCE が遅く届いたときに、鳴らし始めに要る分を渡す前に先読みの分を使い切り、鳴らし始められなくなる。
   if (now === null && current.audioStart === null) {
-    current.audioStart = current.audio[0]?.pts ?? null;
+    const first = es.frames.find((item) => decodable(current, item));
+    if (first === undefined) {
+      return;
+    }
+    current.audioStart = first.pts;
   }
   const until = (now ?? current.audioStart ?? 0) + params.audioAhead;
+  // まだ渡していないフレームから渡す。フレームの中ほどが、渡した位置より後なら、まだ渡していない。
+  const cursor = current.audioCursor;
+  let index =
+    cursor === null ? 0 : es.frames.findIndex((item) => item.pts + item.duration / 2 > cursor);
+  if (index < 0) {
+    return;
+  }
   while (
-    current.audio.length > 0 &&
+    index < es.frames.length &&
     (current.audioSentUntil === null || current.audioSentUntil < until)
   ) {
-    const frame = current.audio.shift()!;
+    const frame = es.frames[index]!;
+    index += 1;
+    current.audioCursor = frame.pts + frame.duration;
+    // デュアルモノの ES は、チャンネルの構成 (PCE) を読むまでデコードできない。失敗を数えないよう、PCE のあるフレームまで渡さない。
+    if (!decodable(current, frame)) {
+      continue;
+    }
+    // デュアルモノでないフレームを渡すと、デコーダはその構成に替わるので、次のデュアルモノは PCE から渡し直す。
+    current.pceSeen = frame.channels === 0;
     const pointer = ensureInput(frame.data.length);
     module.HEAPU8.set(frame.data, pointer);
     const sent = module._dec_send(audioDecoder, pointer, frame.data.length, frame.pts) >= 0;
@@ -550,8 +714,14 @@ function feedAudio(current: Loading, now: number | null): void {
           samples,
         ).slice();
       // 5.1ch は前の左右の 2 つだけを鳴らす (ダウンミックスは持たない)。AAC のデコーダは、前の左右を先に並べる。
-      const left = plane(0);
-      const right = channels >= 2 ? plane(1) : left.slice();
+      // デュアルモノは、左が主音声、右が副音声の 2ch で出るので、選んだ方に振り分ける (#2165)。
+      const decoded = { left: plane(0), right: channels >= 2 ? plane(1) : null };
+      const { left, right } =
+        decoded.right === null
+          ? { left: decoded.left, right: decoded.left.slice() }
+          : frame.channels === 0
+            ? routeDualMono(decoded.left, decoded.right, audioSelection.dualMono)
+            : { left: decoded.left, right: decoded.right };
       const pts =
         module._frame_has_pts(audioDecoder) !== 0 ? module._frame_pts(audioDecoder) : frame.pts;
       current.audioSentUntil = pts + (samples * ptsTicksPerSecond) / sampleRate;
@@ -561,6 +731,11 @@ function feedAudio(current: Loading, now: number | null): void {
       ]);
     }
   }
+}
+
+// decodable は、フレームを今のデコーダでデコードできるかどうか。デュアルモノのフレームは、PCE を読んだ後か、PCE を持つものだけ。
+function decodable(current: Loading, frame: CompressedAudio): boolean {
+  return frame.channels !== 0 || current.pceSeen || startsWithPce(frame.data);
 }
 
 function onVsync(time: number): void {

@@ -1750,6 +1750,7 @@
     },
     "audioMain": "Main audio",
     "audioSub": "Secondary audio",
+    "audioBoth": "Main and secondary audio (left and right)",
     "audioSecond": "Secondary / second audio",
     "audioStream": "Audio {{number}}",
     "rate": "Playback speed",

@@ -9,6 +9,7 @@ import {
   choiceForSlot,
   currentAudioChoice,
   kyusuAudioChoices,
+  type PlayerAudioTracks,
   type ProgramAudio,
 } from './audio';
 import { preferredSlot, useAudioLanguage } from './audioLanguage';
@@ -21,7 +22,8 @@ import {
 } from './QualitySelect';
 import type { KyusuAudio, PlaybackRoute } from './route';
 
-// usePlayerAudio は、聞く音声を選ぶ (設計書 7.5)。ブラウザの中で変換する経路では、番組の音声から選び、
+// usePlayerAudio は、聞く音声を選ぶ (設計書 7.5)。ブラウザの中で変換する経路とデコードする経路 (#2165) では、
+// プレイヤーが読んだ番組の音声から選び、
 // kyusu の経路では、番組の音声の構成 (programAudios) から、第 1 音声と第 2 音声を選ぶ。第 2 音声がない番組では、第 1 音声にする。
 // どちらで選んでも、選んだ音声 (slot) を保持しておき、画質を変えて経路が変わっても、同じ音声を聞けるようにする。
 // kyusu の経路で音声を変えると、HLS の URL が変わって読み直すので、その前に onReload を呼ぶ。録画では、位置を保つのに使う。
@@ -31,15 +33,16 @@ export function usePlayerAudio(
   programAudios: ReadonlyArray<ProgramAudio> | null,
   onReload?: () => void,
 ): {
-  // onAudio は、TsPlayer に渡す、番組の音声を受け取るもの。
-  onAudio: (tracks: AudioTracks | null) => void;
-  // convertAudio は、TsPlayer に渡す、聞く音声。null なら、プレイヤーに任せる。
-  convertAudio: string | null;
+  // onAudio は、TsPlayer と DecodePlayer に渡す、番組の音声を受け取るもの。
+  onAudio: (tracks: AudioTracks | PlayerAudioTracks | null) => void;
+  // playerAudio は、TsPlayer と DecodePlayer に渡す、聞く音声。null なら、プレイヤーに任せる。
+  playerAudio: string | null;
   // kyusuAudio は、kyusu の HLS に入れる音声。
   kyusuAudio: KyusuAudio;
   menu: ReactNode;
   available: boolean;
-  // selectComponent は、データ放送の文書が選んだ音声に切り替える (#440)。ブラウザの中で変換する経路でだけ選べる。
+  // selectComponent は、データ放送の文書が選んだ音声に切り替える (#440)。ブラウザの中で変換する経路と
+  // デコードする経路でだけ選べる。
   // 選べたら true を返す。
   selectComponent: (componentTag: number, channelId?: number) => boolean;
   // remote は、ほかの端末から音声を選ぶためのもの (#459)。選べる音声が 2 つ以上なければ、choices は空。
@@ -50,25 +53,27 @@ export function usePlayerAudio(
   };
 } {
   const { t } = useTranslation();
-  const [tracks, setTracks] = useState<AudioTracks | null>(null);
-  // choice は、ブラウザの中で変換する経路のメニューで選んだもの。kyusu の経路で選び直したら破棄する。
+  const [tracks, setTracks] = useState<AudioTracks | PlayerAudioTracks | null>(null);
+  // choice は、ブラウザの中で変換する経路かデコードする経路のメニューで選んだもの。kyusu の経路で選び直したら破棄する。
   const [choice, setChoice] = useState<string | null>(null);
   // pickedSlot は、利用者が選んだ音声の番号。選ぶまでは null で、番組ごとに、優先する言語 (#819) の音声か、第 1 音声にする。
   const [pickedSlot, setSlot] = useState<KyusuAudio | null>(null);
   const [language] = useAudioLanguage();
-  const convertTracks = route.kind === 'convert' ? tracks : null;
+  // playerRoute は、プレイヤーが読んだ番組の音声から選ぶ経路 (ブラウザの中で変換する経路とデコードする経路) かどうか。
+  const playerRoute = route.kind === 'convert' || route.kind === 'decode';
+  const playerTracks = playerRoute ? tracks : null;
   const kyusuChoices = kyusuAudioChoices(programAudios);
   const slot = pickedSlot ?? preferredSlot(kyusuChoices, language) ?? 1;
   // 選んだ番号の音声がない番組では、第 1 音声を流す。選んだ番号は、次に第 2 音声がある番組のために保持しておく。
   const kyusuAudio = kyusuChoices.some((candidate) => candidate.slot === slot) ? slot : 1;
-  const choices = audioChoices(convertTracks);
+  const choices = audioChoices(playerTracks);
   // 選んだものが今の番組の音声になければ (番組が変わって音声の構成が変わったときなど)、選んだ音声の番号から選び直す。
   // 第 1 音声も明示して選ぶ。優先する言語 (#819) で第 2 音声にしていた後に、言語を変えたり番組が変わったりして
   // 第 1 音声に戻るとき、プレイヤーの既定に任せると、第 2 音声のまま残る。選べる音声が 1 つなら、null になる。
   const current = choices.some((candidate) => candidate.value === choice) ? choice : null;
-  const convertAudio = current ?? choiceForSlot(choices, slot);
+  const playerAudio = current ?? choiceForSlot(choices, slot);
 
-  const selectConvert = (value: string) => {
+  const selectPlayer = (value: string) => {
     setChoice(value);
     const selected = choices.find((candidate) => candidate.value === value);
     if (selected !== undefined) {
@@ -85,17 +90,16 @@ export function usePlayerAudio(
 
   let menu: ReactNode = null;
   // available は、選べる音声が 2 つ以上あるかどうか。なければ、メニューは何も出さない。
-  const available =
-    route.kind === 'convert'
-      ? choices.length >= 2
-      : route.kind === 'kyusu' && kyusuChoices.length >= 2;
+  const available = playerRoute
+    ? choices.length >= 2
+    : route.kind === 'kyusu' && kyusuChoices.length >= 2;
 
-  if (route.kind === 'convert') {
+  if (playerRoute) {
     menu = (
       <AudioSelect
         choices={choices}
-        value={currentAudioChoice(convertTracks)}
-        onChange={selectConvert}
+        value={currentAudioChoice(playerTracks)}
+        onChange={selectPlayer}
       />
     );
   } else if (route.kind === 'kyusu') {
@@ -123,7 +127,7 @@ export function usePlayerAudio(
   }
 
   const selectComponent = (componentTag: number, channelId?: number) => {
-    const value = choiceForComponent(convertTracks, componentTag, channelId);
+    const value = choiceForComponent(playerTracks, componentTag, channelId);
     if (value === null) {
       return false;
     }
@@ -141,13 +145,13 @@ export function usePlayerAudio(
     selected: string | null;
     select: (id: string) => void;
   } = { choices: [], selected: null, select: () => {} };
-  if (available && route.kind === 'convert') {
+  if (available && playerRoute) {
     remote = {
       choices: choices.map((choice) => ({ id: choice.value, label: audioChoiceLabel(t, choice) })),
-      selected: currentAudioChoice(convertTracks),
+      selected: currentAudioChoice(playerTracks),
       select: (id) => {
         if (choices.some((candidate) => candidate.value === id)) {
-          selectConvert(id);
+          selectPlayer(id);
         }
       },
     };
@@ -166,5 +170,5 @@ export function usePlayerAudio(
     };
   }
 
-  return { onAudio: setTracks, convertAudio, kyusuAudio, menu, available, selectComponent, remote };
+  return { onAudio: setTracks, playerAudio, kyusuAudio, menu, available, selectComponent, remote };
 }

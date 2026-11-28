@@ -1,14 +1,53 @@
 import type { AudioTracks } from '@mpeg2toh264/player';
+import type { DualMonoChannel } from './decodeAudio';
 import type { KyusuAudio } from './route';
 
+// PlayerAudioTracks は、プレイヤーが読んだ番組の音声と、聞いているもの。ブラウザの中で変換する経路 (AudioTracks) と、
+// ブラウザの中でデコードする経路 (#2165) の両方から作る。
+export type PlayerAudioTracks = {
+  available: ReadonlyArray<{
+    pid: number;
+    componentTag: number | null;
+    dualMono: boolean;
+    languages: ReadonlyArray<string>;
+  }>;
+  current: number | null;
+  // dualMono は、聞いている ES がデュアルモノかどうか。dualMonoSub は、副音声を聞いているかどうか。
+  dualMono: boolean;
+  dualMonoSub: boolean;
+  // dualMonoBoth は、デュアルモノの主音声と副音声を左右で同時に聞いているかどうか。
+  // 主と副を同時に鳴らせるのは、ブラウザの中でデコードする経路だけで、その経路では、選択肢にも出す (#2165)。
+  dualMonoBoth?: boolean;
+};
+
+// decodedAudioTracks は、ブラウザの中でデコードする経路の音声から、PlayerAudioTracks を作る (#2165)。
+// PMT は音声の言語を持たないので、言語は空にする。
+export function decodedAudioTracks(
+  streams: ReadonlyArray<{ pid: number; componentTag: number | null; dualMono: boolean }>,
+  current: number | null,
+  channel: DualMonoChannel,
+): PlayerAudioTracks {
+  const dualMono = streams.find((stream) => stream.pid === current)?.dualMono ?? false;
+
+  return {
+    available: streams.map((stream) => ({ ...stream, languages: [] })),
+    current,
+    dualMono,
+    dualMonoSub: dualMono && channel === 'sub',
+    dualMonoBoth: dualMono && channel === 'both',
+  };
+}
+
 // AudioChoice は、音声のメニューの選択肢。音声の ES を選ぶものと、デュアルモノの主音声と副音声を選ぶものがある (設計書 7.5)。
+// デュアルモノの channel は、主音声 (main)、副音声 (sub)、主と副の両方 (both、ブラウザの中でデコードする経路だけ) のどれか。
 export type AudioChoice =
   | { value: string; kind: 'stream'; pid: number; index: number; language: string | null }
-  | { value: string; kind: 'dualMono'; sub: boolean; language: string | null };
+  | { value: string; kind: 'dualMono'; channel: DualMonoChannel; language: string | null };
 
 // audioChoices は、番組の音声から、音声のメニューの選択肢を返す。選べるものがなければ、空にする。
 // 二か国語放送は、音声の ES を 2 つ持つ場合と、1 つの ES がデュアルモノの場合がある。
-export function audioChoices(tracks: AudioTracks | null): AudioChoice[] {
+// tracks が dualMonoBoth を持つ (ブラウザの中でデコードする経路の) ときだけ、デュアルモノの主と副の両方も選べる。
+export function audioChoices(tracks: AudioTracks | PlayerAudioTracks | null): AudioChoice[] {
   if (tracks === null) {
     return [];
   }
@@ -28,20 +67,27 @@ export function audioChoices(tracks: AudioTracks | null): AudioChoice[] {
     const languages =
       tracks.available.find((stream) => stream.pid === tracks.current)?.languages ?? [];
     choices.push(
-      { value: 'dualMono:main', kind: 'dualMono', sub: false, language: languages[0] ?? null },
-      { value: 'dualMono:sub', kind: 'dualMono', sub: true, language: languages[1] ?? null },
+      { value: 'dualMono:main', kind: 'dualMono', channel: 'main', language: languages[0] ?? null },
+      { value: 'dualMono:sub', kind: 'dualMono', channel: 'sub', language: languages[1] ?? null },
     );
+    if ('dualMonoBoth' in tracks && tracks.dualMonoBoth !== undefined) {
+      choices.push({ value: 'dualMono:both', kind: 'dualMono', channel: 'both', language: null });
+    }
   }
 
   return choices;
 }
 
 // currentAudioChoice は、今の音声を表す選択肢の値を返す。
-export function currentAudioChoice(tracks: AudioTracks | null): string | null {
+export function currentAudioChoice(tracks: AudioTracks | PlayerAudioTracks | null): string | null {
   if (tracks === null) {
     return null;
   }
   if (tracks.dualMono) {
+    if ('dualMonoBoth' in tracks && tracks.dualMonoBoth === true) {
+      return 'dualMono:both';
+    }
+
     return tracks.dualMonoSub ? 'dualMono:sub' : 'dualMono:main';
   }
 
@@ -52,7 +98,7 @@ export function currentAudioChoice(tracks: AudioTracks | null): string | null {
 // 音声のメニューの選択肢の値にする (#440)。その音声がなければ null を返す。
 // channel_id は、デュアルモノの 2 つ目 (副音声) を 2 とみなし、それ以外 (省いたときも) は主音声にする。今聞いている ES のデュアルモノでだけ使う。
 export function choiceForComponent(
-  tracks: AudioTracks | null,
+  tracks: AudioTracks | PlayerAudioTracks | null,
   componentTag: number,
   channelId?: number,
 ): string | null {
@@ -69,9 +115,10 @@ export function choiceForComponent(
 
 // audioSlot は、ブラウザの中で変換する経路の音声の選択肢を、kyusu の音声の番号にする。
 // kyusu では、tsreadex がデュアルモノの副音声と 2 つ目以降の音声の ES を、第 2 音声にする。
+// 主と副の両方は、ほかの経路では選べないので、主音声 (第 1 音声) にする。
 export function audioSlot(choice: AudioChoice): KyusuAudio {
   if (choice.kind === 'dualMono') {
-    return choice.sub ? 2 : 1;
+    return choice.channel === 'sub' ? 2 : 1;
   }
 
   return choice.index === 0 ? 1 : 2;

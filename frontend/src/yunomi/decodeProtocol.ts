@@ -2,8 +2,8 @@
 // 時刻は、どれも伸ばした PTS (ptsTimeline.ts、90kHz) で受け渡す。読み込みごとに番号 (load) を振り、
 // 古い読み込みのメッセージは、受け取った側で破棄する (選局したあとに、前の局の音や字幕が混ざらないように)。
 
+import type { DualMonoChannel } from './decodeAudio';
 import type { FallbackReason } from './decodeJudge';
-import type { TsStream } from './tsDemux';
 
 // ToDecodeWorker は、メインスレッドから worker へのメッセージ。
 export type ToDecodeWorker =
@@ -20,7 +20,17 @@ export type ToDecodeWorker =
   // vsync は、映しているウィンドウの画面が切り替わった時刻 (requestAnimationFrame の時刻)。
   | { type: 'vsync'; time: number }
   // visible は、映像が見えているか。見えていない間は、映像をデコードしない。
-  | { type: 'visible'; visible: boolean };
+  | { type: 'visible'; visible: boolean }
+  // selectAudio は、鳴らす音声を選ぶ (#2165)。pid は鳴らす ES、dualMono はデュアルモノの ES の振り分け。
+  // 省いた方は、今のままにする。選んだものは、読み込み直しても保つ。
+  | { type: 'selectAudio'; pid?: number; dualMono?: DualMonoChannel }
+  // audioFrom は、audioCut への返事。pts から後に予約した音を破棄したので、pts から渡し直してほしい (#2165)。
+  // pts が null なら、まだ鳴らし始めていないので、貯めた音をすべて破棄した。渡し始めた位置から渡し直してほしい。
+  // cut は、audioCut の番号。続けて選び直したときに、前の切り替えの返事と見分ける。
+  | { type: 'audioFrom'; load: number; cut: number; pts: number | null };
+
+// DecodeAudioStream は、番組の音声の ES。dualMono は、届いた ES がデュアルモノ (channel_configuration が 0) だったか。
+export type DecodeAudioStream = { pid: number; componentTag: number | null; dualMono: boolean };
 
 // DecodeStats は、worker が 1 秒ごとに通知する様子。
 export type DecodeStats = {
@@ -39,8 +49,18 @@ export type DecodeStats = {
 export type FromDecodeWorker =
   // ready は、デコーダと描画の用意ができた。
   | { type: 'ready' }
-  // program は、PMT から選んだ番組の音声の一覧。
-  | { type: 'program'; load: number; audios: TsStream[] }
+  // audioTracks は、番組の音声の ES と、鳴らしている ES (current) とデュアルモノの振り分け (#2165)。
+  // 番組の構成が変わったとき、ES がデュアルモノと分かったとき、選び直したときに送る。
+  | {
+      type: 'audioTracks';
+      load: number;
+      streams: DecodeAudioStream[];
+      current: number | null;
+      dualMono: DualMonoChannel;
+    }
+  // audioCut は、鳴らす音声を選び直したので、少し先から後に予約した音を破棄させる (#2165)。
+  // どこから破棄したかは、メインスレッドが audioFrom で返す。予約を持つメインスレッドでないと、間に合う位置を決められない。
+  | { type: 'audioCut'; load: number; cut: number }
   // origin は、最初に映すコマの PTS。画面の時刻 0 に当たる (currentTime = (時計 − origin) / 90000)。
   | { type: 'origin'; load: number; pts: number }
   // picture は、映す大きさ (画素の縦横比を掛けた後) と走査の方式が変わった。

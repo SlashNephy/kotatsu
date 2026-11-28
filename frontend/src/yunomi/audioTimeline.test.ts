@@ -56,4 +56,21 @@ describe('AudioTimeline', () => {
     expect(timeline.ptsAt(0.2)).toBeNull();
     expect(timeline.schedule(90_000, chunk, 5)).toEqual({ when: 5.1, offset: 0 });
   });
+
+  test('終わりを縮めると、縮めた位置から続けて予約する', () => {
+    const timeline = new AudioTimeline({ lead: 0.1 });
+    timeline.schedule(0, chunk, 0);
+    timeline.schedule(chunk, chunk, 0);
+    timeline.schedule(2 * chunk, chunk, 0);
+    timeline.truncate(chunk);
+
+    expect(timeline.bufferedUntil).toBe(chunk);
+    // 縮めた位置をまたぐ音は、頭を切り落として、縮めた位置の時刻に鳴らす。
+    const next = timeline.schedule(chunk / 2, chunk, 0.01);
+    expect(next?.when).toBeCloseTo(0.1 + chunkSeconds);
+    expect(next?.offset).toBeCloseTo(chunkSeconds / 2);
+    // 縮めた位置より後へは、伸ばさない。
+    timeline.truncate(10 * chunk);
+    expect(timeline.bufferedUntil).toBe(chunk / 2 + chunk);
+  });
 });

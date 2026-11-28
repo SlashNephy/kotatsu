@@ -66,9 +66,22 @@ export class AudioTimeline {
     return this.base.pts + (time - this.base.time) * ptsTicksPerSecond;
   }
 
+  // timeAt は、pts を鳴らす Web Audio の時刻を返す。まだ鳴らし始めていなければ null。
+  timeAt(pts: number): number | null {
+    return this.base === null ? null : this.timeOf(pts);
+  }
+
   // bufferedUntil は、予約した音の終わりの PTS。
   get bufferedUntil(): number | null {
     return this.end;
+  }
+
+  // truncate は、予約した音の終わりを pts までに縮める。pts より後に予約した音を破棄して、pts から予約し直すときに呼ぶ (#2165)。
+  // 時刻の対応は保つので、続けて届く pts からの音は、隙間なく続けて鳴る。
+  truncate(pts: number): void {
+    if (this.end !== null && pts < this.end) {
+      this.end = pts;
+    }
   }
 
   // reset は、対応を忘れる。止めたときと、選局したときに呼ぶ。

@@ -26,6 +26,9 @@ const readyStates = { nothing: 0, currentData: 2, enoughData: 4 } as const;
 
 // startBuffer は、鳴らし始めるまでに貯める音の長さ (PTS の単位)。
 const startBuffer = 0.3 * ptsTicksPerSecond;
+// cutLead は、音声を選び直したときに、予約した音を今からこれだけ先 (秒) で切り替える量 (#2165)。
+// 予約から実際に鳴るまでの処理の時間 (audioTimeline の lead) より長くし、選び直した音の予約が間に合うようにする。
+const cutLead = 0.15;
 // timeupdateInterval は、timeupdate を送る間隔 (ミリ秒)。<video> と同じく、4 回/秒ほどにする。
 const timeupdateInterval = 250;
 // staleStart は、鳴らし始める前にバッファした音が、これより古くなったら (ミリ秒)、鳴らし始めるときに放送の今から読み直す。
@@ -63,7 +66,8 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
   // pending は、鳴らし始める前に貯めている音。
   private pending: { pts: number; sampleRate: number; left: Float32Array; right: Float32Array }[] =
     [];
-  private sources = new Set<AudioBufferSourceNode>();
+  // sources は、予約した音と、その PTS。選び直したときに、ある PTS より後の音だけを止めるのに使う (#2165)。
+  private sources = new Map<AudioBufferSourceNode, number>();
   private load = 0;
   private origin: number | null = null;
   private width = 0;
@@ -340,6 +344,9 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
       case 'audio':
         this.onAudio(message);
         break;
+      case 'audioCut':
+        this.cutAudio(message.cut);
+        break;
       case 'stats':
         this.stats = message.stats;
         break;
@@ -433,11 +440,53 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     source.connect(this.volumeNode);
     source.onended = () => this.sources.delete(source);
     source.start(scheduled.when, scheduled.offset);
-    this.sources.add(source);
+    this.sources.set(source, chunk.pts);
+  }
+
+  // cutAudio は、鳴らす音声を選び直したので、少し先から後に予約した音を破棄し、どこから破棄したかを worker に返す (#2165)。
+  // worker は、その位置から選び直した音声を渡し直すので、音は途切れずに替わる。鳴らし始める前なら、貯めた音をすべて破棄する。
+  private cutAudio(cut: number): void {
+    const playing = this.timeline.ptsAt(this.context.currentTime + cutLead);
+    const end = this.timeline.bufferedUntil;
+    const pts = playing === null || end === null ? null : Math.min(playing, end);
+    if (pts === null) {
+      this.pending = [];
+    } else {
+      this.pending = this.pending.filter((chunk) => chunk.pts < pts);
+      const cutAt = this.timeline.timeAt(pts);
+      for (const [source, start] of this.sources) {
+        if (start < pts) {
+          // 切り替える位置をまたぐ音は、その位置で止め、選び直した音と重ならないようにする。
+          if (cutAt !== null && cutAt > this.context.currentTime) {
+            try {
+              source.stop(cutAt);
+            } catch {
+              // 鳴り終えた音は止められないが、重ならないので構わない。
+            }
+          }
+          continue;
+        }
+        source.onended = null;
+        try {
+          source.stop();
+        } catch {
+          // 鳴らし始める前でも止められるが、念のため。
+        }
+        source.disconnect();
+        this.sources.delete(source);
+      }
+      this.timeline.truncate(pts);
+    }
+    this.worker.postMessage({
+      type: 'audioFrom',
+      load: this.load,
+      cut,
+      pts,
+    } satisfies ToDecodeWorker);
   }
 
   private stopAudio(): void {
-    for (const source of this.sources) {
+    for (const source of this.sources.keys()) {
       source.onended = null;
       try {
         source.stop();
