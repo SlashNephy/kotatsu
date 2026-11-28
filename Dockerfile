@@ -312,7 +312,7 @@ RUN <<EOF
   apt-get install -y --no-install-recommends git libatomic1
   rm -rf /var/lib/apt/lists/*
 EOF
-COPY --from=docker.io/jdxcode/mise:2026.11.10@sha256:80aa2afb17ba760cabe74ac90771ca2d1470773d514cc2bb79c69c8d3f92f150 /usr/local/bin/mise /usr/local/bin/mise
+COPY --from=docker.io/jdxcode/mise:2026.11.11@sha256:14a30b9945ea5c2fbae70d8b6be8f2c8b2456698f2a258f3f6315f7784c84676 /usr/local/bin/mise /usr/local/bin/mise
 ARG UID="1000"
 ARG GID="1000"
 # 名前付きボリュームは、最初にマウントしたときに、イメージのディレクトリの持ち主を引き継ぐ。
