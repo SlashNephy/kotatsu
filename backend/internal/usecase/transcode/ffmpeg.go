@@ -37,13 +37,13 @@ var ErrFFmpegNotFound = errors.New("FFmpeg is not found")
 // Encoder は、TS を読んで MP4 を書く。
 type Encoder interface {
 	// Encode は、src の TS を、preset の画質の MP4 にして out に書く。progress には、FFmpeg の -progress の出力を書く。
-	// fields なら、インターレースをフィールドごとに 1 コマにして、60 コマで出す (#1509)。
+	// fields なら、インターレースをフィールドごとに 1 フレームにして、60 fps で出す (#1509)。
 	Encode(ctx context.Context, src io.Reader, preset *kyusu.Preset, fields bool, out string, progress io.Writer) error
 	// ProbeFrameRate は、TS のファイル path の最初の映像のフレームレートを読む。読めなければ 0 を返す。
-	// 録画の映像の形式に、フレームレートがないとき (HEVC) に、進み具合の見込みのコマ数を求めるのに使う (#1511)。
+	// 録画の映像の形式に、フレームレートがないとき (HEVC) に、進み具合の見込みのフレーム数を求めるのに使う (#1511)。
 	ProbeFrameRate(ctx context.Context, path string) (float64, error)
 	// MeasureFields は、TS のファイル path の、offset から length の間の、フィールドどうしの輝度の差を計測する (#1509)。
-	// 出すコマ数を自動で選ぶときに、映像が 24p 系、30p、60i のどれかを見分けるのに使う。
+	// 出すフレームレートを自動で選ぶときに、映像が 24p 系、30p、60i のどれかを見分けるのに使う。
 	MeasureFields(ctx context.Context, path string, offset, length time.Duration) (*FieldDiffs, error)
 }
 
@@ -132,8 +132,8 @@ func parseRate(s string) float64 {
 // FFmpegArgs は、標準入力の TS を、preset の画質の MP4 にして out に書く FFmpeg の引数を返す。
 // 映像は、kyusu と同じく、VAAPI と QSV のほかは、CPU の bwdif でインターレースを解除してから縮め、8 ビットにする (設計書 7.3)。
 // VAAPI と QSV では、kyusu と同じく、復号から縮小までを GPU でする (kyusu.VAAPIVideo と kyusu.QSVVideo、#1970、#1999)。
-// bwdif は、インターレースのフラグのあるコマだけを解除する (deint=interlaced)。fields なら、フィールドごとに 1 コマにし (send_field)、
-// kyusu の 60fps の画質と同じく 59.94 コマに固定して、ビットレートを 1.4 倍にする (#1509)。そうでなければ、コマごとに解除する (send_frame)。
+// bwdif は、インターレースのフラグのあるフレームだけを解除する (deint=interlaced)。fields なら、フィールドごとに 1 フレームにし (send_field)、
+// kyusu の 60fps の画質と同じく 59.94 fps に固定して、ビットレートを 1.4 倍にする (#1509)。そうでなければ、フレームごとに解除する (send_frame)。
 // 音声は、最初の音声を AAC にする。MP4 は、先頭にインデックスを置き (faststart)、読み込み終える前から再生できるようにする。
 func FFmpegArgs(cfg *config.Kyusu, preset *kyusu.Preset, fields bool, out string) []string {
 	height := strconv.Itoa(preset.Height)

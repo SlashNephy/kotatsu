@@ -19,9 +19,9 @@ const append = (result) => {
 };
 
 /**
- * WASM でそのままデコードする方式を 1 回計測する。checksum を付けると、先頭 60 コマの輝度の和も返す。
- * upload に上げ方 (offset、subarray、copy) を渡すと、コマを WebGL2 のテクスチャへ上げ、デコードと分けて時間を返す (#2162)。
- * maxFrames を渡すと、そのコマ数をデコードしたところで映像を打ち切る。
+ * WASM でそのままデコードする方式を 1 回計測する。checksum を付けると、先頭 60 フレームの輝度の和も返す。
+ * upload に上げ方 (offset、subarray、copy) を渡すと、フレームを WebGL2 のテクスチャへ上げ、デコードと分けて時間を返す (#2162)。
+ * maxFrames を渡すと、そのフレーム数をデコードしたところで映像を打ち切る。
  */
 const runDecode = (file, variant, checksum = false, { upload = 'none', maxFrames } = {}) =>
   new Promise((resolve) => {
@@ -192,7 +192,7 @@ document.getElementById('run-decode').onclick = () => run({ decode: true, conver
 document.getElementById('run-convert').onclick = () => run({ decode: false, convert: true });
 document.getElementById('run-all').onclick = () => run({ decode: true, convert: true });
 
-// #2162 の計測の手順。どれも 1 回を 300 コマ (10 秒分) で打ち切り、遅い端末でも数分で終わるようにする。
+// #2162 の計測の手順。どれも 1 回を 300 フレーム (10 秒分) で打ち切り、遅い端末でも数分で終わるようにする。
 // split は、製品の WASM で、アップロードなしと 3 通りの上げ方を、映像 2 つで交互に 2 回ずつ計測する。
 // variants は、WASM の組み方 (build.sh の VARIANTS と製品) を、アップロードなしで交互に 2 回ずつ計測する。
 // jit は、小さなループ (WASM と JavaScript) と製品の WASM のデコードを、worker とメインスレッドで交互に 2 回ずつ計測する。

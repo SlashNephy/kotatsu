@@ -31,7 +31,7 @@ describe('containSize', () => {
       want: null,
     },
     {
-      name: 'コマが届いていなければ、映す大きさはない',
+      name: 'フレームが届いていなければ、映す大きさはない',
       picture: { width: 0, height: 0 },
       box: { width: 1920, height: 1080 },
       want: null,

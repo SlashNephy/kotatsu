@@ -119,7 +119,7 @@ func runChapters(ctx context.Context, f *fixture, chapterer transcode.Chapterer,
 	return worker.Work(ctx, &river.Job[transcode.ChaptersArgs]{JobRow: new(rivertype.JobRow), Args: transcode.ChaptersArgs{RecordingID: recordingID}})
 }
 
-// transcoded は、録画 recordingID の、name の変換した MP4 (内容は content) を、60 コマで変換したその他のファイルとして置く。
+// transcoded は、録画 recordingID の、name の変換した MP4 (内容は content) を、60 fps で変換したその他のファイルとして置く。
 func (f *fixture) transcoded(t *testing.T, recordingID uuid.UUID, name string, content []byte) {
 	t.Helper()
 
@@ -246,7 +246,7 @@ func TestChaptersWorkerRedetect(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, tt.want, string(written), tt.name)
 		assert.Len(t, chapterer.metadata, tt.wantRewrites, tt.name)
-		// 書き直した大きさを記録し直す。映像はコピーするだけなので、コマ数 (#1509) は変えない。
+		// 書き直した大きさを記録し直す。映像はコピーするだけなので、フレームレート (#1509) は変えない。
 		assert.Equal(t, []otherFile{{path: outputName, size: int64(len(written))}}, f.otherFiles(t, recordingID), tt.name)
 		assert.Equal(t, new(int32(60)), f.transcodeFrameRate(t, recordingID), tt.name)
 		assert.Empty(t, leftovers(t, f.dir), tt.name)

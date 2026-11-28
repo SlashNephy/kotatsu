@@ -11,7 +11,7 @@ import type { PlayerMedia } from './playerMedia';
 // maxDelaySeconds は、放送からの遅れとして使う上限。これを超える値は、組と画面の時刻の取り違えとみなして使わない。
 const maxDelaySeconds = 3_600;
 
-// useBroadcastClock は、ライブのサービス serviceId の放送の時計を tenban から受け取り、映しているコマの放送からの遅れを返す関数を返す (#1515)。
+// useBroadcastClock は、ライブのサービス serviceId の放送の時計を tenban から受け取り、映しているフレームの放送からの遅れを返す関数を返す (#1515)。
 // 実況のコメントを、映している場面の時刻に合わせるのに使う。serviceId が null の間は受け取らない。
 // 返す関数は、映像、画面の時刻の起点 (ブラウザの中で変換する経路と、kyusu の経路のライブが通知する)、放送の時計のどれかがなければ null を返す。
 export function useBroadcastClock(

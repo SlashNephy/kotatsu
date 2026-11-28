@@ -31,11 +31,11 @@ func measures(scenes ...scene) []logo.Measure {
 func TestIntervals(t *testing.T) {
 	t.Parallel()
 
-	// shown は、暗い背景でロゴが出ているコマ。
+	// shown は、暗い背景でロゴが出ているフレーム。
 	shown := logo.Measure{Score: 0.7, Brightness: 90, Texture: 20}
-	// hidden は、CM の間 (ロゴがない) のコマ。明るさと肌理は本編と同じ区分にする。CM だけの区分があると、その区分は判断できない区分になる。
+	// hidden は、CM の間 (ロゴがない) のフレーム。明るさと肌理は本編と同じ区分にする。CM だけの区分があると、その区分は判断できない区分になる。
 	hidden := logo.Measure{Score: 0.0, Brightness: 90, Texture: 20}
-	// washed は、白っぽい背景で、ロゴが出ているのに見えないコマ。
+	// washed は、白っぽい背景で、ロゴが出ているのに見えないフレーム。
 	washed := logo.Measure{Score: 0.02, Brightness: 245, Texture: 6}
 	// blackout は、番組の切れ目の真っ黒 (局がロゴごと消す)。
 	blackout := logo.Measure{Score: 0.0, Brightness: 16, Texture: 0.5}
@@ -51,7 +51,7 @@ func TestIntervals(t *testing.T) {
 			want:   []logo.Interval{{Start: 0, End: 1800}, {Start: 2700, End: 4500}},
 		},
 		{
-			// 白っぽい場面は、本編の中にしか出ないので、近いコマだけで数えた明るさの区分で、判断できない区分になる。
+			// 白っぽい場面は、本編の中にしか出ないので、近いフレームだけで数えた明るさの区分で、判断できない区分になる。
 			name:   "本編の中の白っぽい場面は、ロゴが見えなくても持ち越す",
 			scenes: []scene{{60, shown}, {20, washed}, {60, shown}, {30, hidden}, {60, shown}},
 			want:   []logo.Interval{{Start: 0, End: 4200}, {Start: 5100, End: 6900}},
@@ -72,7 +72,7 @@ func TestIntervals(t *testing.T) {
 			t.Parallel()
 
 			got := logo.Intervals(measures(tt.scenes...), fps, logo.DefaultParams())
-			// 境目は、ウィンドウとならしで数コマ揺れるので、0.5 秒の内なら同じとみなす。
+			// 境目は、ウィンドウとならしで数フレーム揺れるので、0.5 秒の内なら同じとみなす。
 			if !assert.Len(t, got, len(tt.want), "%v", got) {
 				return
 			}

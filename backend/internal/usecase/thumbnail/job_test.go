@@ -203,7 +203,7 @@ func TestGenerateWorkerPairsIndexesByPath(t *testing.T) {
 	f := newJobFixture(t)
 	recordingID := f.recording(t, 30)
 	// 後から足す、0 秒と 30 秒の位置にだけ I フレームをインデックスしたセグメント。始まりは最初のセグメントと同じにする。
-	// 最初のセグメントの I フレームは 0〜29 秒にあるので、このセグメントのインデックスを使ったときだけ、30 秒のコマができる。
+	// 最初のセグメントの I フレームは 0〜29 秒にあるので、このセグメントのインデックスを使ったときだけ、30 秒のフレームができる。
 	const second = "録画-2.m2ts"
 	seg := segmentAt(t, filepath.Join(f.dir, second), 0, 31, time.Second, 100)
 	f.segment(t, recordingID, second, 31, []ts.IndexEntry{seg.Index[0], seg.Index[30]})
@@ -213,7 +213,7 @@ func TestGenerateWorkerPairsIndexesByPath(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(f.dataRoot, f.segmentID.String(), "preview.json"))
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(data, &manifest))
-	// それぞれのセグメントのインデックスから、10 秒ごとのコマを取り出す。
+	// それぞれのセグメントのインデックスから、10 秒ごとのフレームを取り出す。
 	assert.Equal(t, []float64{0, 10, 20, 30}, manifest.Times)
 }
 

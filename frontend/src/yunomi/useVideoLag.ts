@@ -20,11 +20,11 @@ export type VideoLag = {
   status(): VideoLagStatus | null;
 };
 
-// qualityIntervalMs は、破棄したコマを読み、重さを判定する間隔。
+// qualityIntervalMs は、破棄したフレームを読み、重さを判定する間隔。
 const qualityIntervalMs = 1_000;
 
 // countedRate は、重さの判定に数える再生の速さの上限。低遅延モードで寄せる速さ (#1514) までは数え、倍速や早送りは数えない。
-// 速いと、遅くない端末でもコマを破棄する。
+// 速いと、遅くない端末でもフレームを破棄する。
 const countedRate = defaultLiveBufferParams.speedUpRate;
 
 // aheadOf は、今の位置から先に読み込んである量 (秒)。
@@ -39,11 +39,11 @@ function aheadOf(video: HTMLVideoElement): number {
   return 0;
 }
 
-// useVideoLag は、映ったコマごとに映像だけの遅れを計測し、飛び直す遅れを超えたら currentTime を少し先へ進めて飛び直す (#1513、設計書 7.2)。
+// useVideoLag は、映ったフレームごとに映像だけの遅れを計測し、飛び直す遅れを超えたら currentTime を少し先へ進めて飛び直す (#1513、設計書 7.2)。
 // 飛ぶとデコーダは積み残しを破棄して出し直す。遅れを測れない端末 (Windows) では、詰まりのたびに 1 回飛び直す。
 // onHeavy を渡すと、その端末にはその段階が重いと判定したときに呼ぶ。呼んだら数えたものを破棄し、新しい証拠が溜まるまで呼ばない。
 // video が変わったら (画質の切り替え、つなぎ直し、MediaSource の作り直し)、数えたものを破棄する。
-// picturesOnCanvas が true を返す間 (コマを canvas に描き、<video> は音と時計だけの読み込み、#2287) は飛び直さない。
+// picturesOnCanvas が true を返す間 (フレームを canvas に描き、<video> は音と時計だけの読み込み、#2287) は飛び直さない。
 // 映像と音の合わせ方は、その読み込みのプレイヤーが受け持つ。
 export function useVideoLag(
   video: HTMLVideoElement | null,
@@ -108,14 +108,14 @@ export function useVideoLag(
         jump(now, 'stall');
       }
     };
-    // 隠れていたタブが見えたら、最初の 1 コマは隠れる前の時刻を持っていることがあるので計測しない。
+    // 隠れていたタブが見えたら、最初の 1 フレームは隠れる前の時刻を持っていることがあるので計測しない。
     const onVisibility = () => controller.seeking();
     video.addEventListener('seeking', onSeeking);
     video.addEventListener('waiting', onWaiting);
     video.addEventListener('playing', onPlaying);
     document.addEventListener('visibilitychange', onVisibility);
 
-    // 破棄したコマは、倍速や早送りでなく再生していて、タブが見えている間だけ数える。
+    // 破棄したフレームは、倍速や早送りでなく再生していて、タブが見えている間だけ数える。
     const timer = window.setInterval(() => {
       const now = performance.now();
       const quality = video.getVideoPlaybackQuality?.();

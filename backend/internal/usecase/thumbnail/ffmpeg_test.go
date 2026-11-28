@@ -52,7 +52,7 @@ func TestFFmpeg(t *testing.T) {
 		Generate(t.Context(), []thumbnail.Segment{{Path: testTS, Start: 0, Index: index, Open: nil}})
 	require.NoError(t, err)
 	assert.Equal(t, image.Pt(thumbnail.ThumbnailWidth, thumbnail.ThumbnailHeight), decode(t, result.Thumbnail).Bounds().Size())
-	// 0.5 秒ごとの I フレームから、1 秒ごとのコマを作る。
+	// 0.5 秒ごとの I フレームから、1 秒ごとのフレームを作る。
 	assert.Equal(t, []float64{0, 1.001, 2.002, 3.003, 4.004, 5.005}, result.Manifest.Times)
 	assert.Equal(t, image.Pt(6*thumbnail.TileWidth, thumbnail.TileHeight), decode(t, result.Preview).Bounds().Size())
 	// 3:2 の映像を 16:9 に収めるので、左右の端は黒で埋める。

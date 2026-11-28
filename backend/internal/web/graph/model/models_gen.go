@@ -549,7 +549,7 @@ type BackupStatus struct {
 }
 
 // 放送の時計 (#1515)。PCR と、それを含む TS を tenban が受け取った時刻の組。受け取った時刻から PCR を引いた量が最も小さい組を送る。
-// 映しているコマの放送の時刻は、receivedAt + (コマの PTS − pcr) で出せる。
+// 映しているフレームの放送の時刻は、receivedAt + (フレームの PTS − pcr) で出せる。
 type BroadcastClock struct {
 	// PCR の基準部 (90 kHz) を秒にしたもの。
 	Pcr float64 `json:"pcr"`
@@ -1304,7 +1304,7 @@ type JobPage struct {
 	EndCursor *string `json:"endCursor,omitempty"`
 }
 
-// ジョブの進み具合 (#1511、設計書 6.1)。FFmpeg がエンコードしたコマ数から求める。
+// ジョブの進み具合 (#1511、設計書 6.1)。FFmpeg がエンコードしたフレーム数から求める。
 type JobProgress struct {
 	// 0 から 1 の割合。FFmpeg が書き終えるまでは 0.99 で止める。
 	Ratio float64 `json:"ratio"`
@@ -1916,7 +1916,7 @@ type PreferenceInput struct {
 	Value *string `json:"value,omitempty"`
 }
 
-// プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
+// プレビュー画像 (preview.jpg) から切り出す 1 フレーム。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
 type PreviewFrame struct {
 	// プレビュー画像の URL のパス。
 	URL    string `json:"url"`
@@ -2094,8 +2094,8 @@ type RecordingFile struct {
 	// セグメントを書いたストリームを受信していたチューナー (#1467)。見つけられなかったセグメントと、その他のファイルでは null。
 	// 名前は上流のチューナーのホスト名を含むことがあるので、管理者にだけ返す。ほかのユーザーには null を返す。
 	Tuner *RecordingFileTuner `json:"tuner,omitempty"`
-	// Kotatsu が録画を変換した MP4 の、1 秒あたりのコマ数 (#1509)。30 か 60 (プログレッシブの映像は元のコマ数)。
-	// セグメントと、取り込んだファイルと、コマ数を記録する前に変換した MP4 では null。
+	// Kotatsu が録画を変換した MP4 のフレームレート (#1509)。30 か 60 (プログレッシブの映像は元のフレームレート)。
+	// セグメントと、取り込んだファイルと、フレームレートを記録する前に変換した MP4 では null。
 	TranscodeFrameRate *int `json:"transcodeFrameRate,omitempty"`
 }
 
@@ -2187,7 +2187,7 @@ type RecordingSettings struct {
 	GenerateCaptions bool `json:"generateCaptions"`
 	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
-	// 録画を変換するときに出すコマ数 (#1509)。auto (映像から計測して 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。
+	// 録画を変換するときに出すフレームレート (#1509)。auto (映像から計測して 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。
 	TranscodeFrameRate string `json:"transcodeFrameRate"`
 }
 
@@ -2209,7 +2209,7 @@ type RecordingSettingsOverrides struct {
 	GenerateCaptions *bool `json:"generateCaptions,omitempty"`
 	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
-	// 録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。
+	// 録画を変換するときに出すフレームレート (#1509)。auto、30、60 のどれか。null なら従う値にする。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
 	// CM の区間の見分け方 (#1505)。null なら従う値 (ルール予約ならルールの設定、なければ見分けるときの全体の設定) にする。
 	CMDetector *CMDetector `json:"cmDetector,omitempty"`
@@ -2227,7 +2227,7 @@ type RecordingSettingsOverridesInput struct {
 	GenerateCaptions   *bool   `json:"generateCaptions,omitempty"`
 	// 変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
-	// 変換で出すコマ数 (auto、30、60 のどれか)。
+	// 変換で出すフレームレート (auto、30、60 のどれか)。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
 	// CM の区間の見分け方。
 	CMDetector *CMDetector `json:"cmDetector,omitempty"`
@@ -3248,7 +3248,7 @@ type CMDetector string
 const (
 	// 無音とシーンの切り替わりで見分ける。
 	CMDetectorFfmpeg CMDetector = "FFMPEG"
-	// 局ロゴが出ているかで見分ける (高精度)。無音とシーンの切り替わりより精度が高い代わりに、全コマを読むので、時間と CPU を多く使う。ロゴを学習できない録画では、FFMPEG で見分ける。
+	// 局ロゴが出ているかで見分ける (高精度)。無音とシーンの切り替わりより精度が高い代わりに、全フレームを読むので、時間と CPU を多く使う。ロゴを学習できない録画では、FFMPEG で見分ける。
 	CMDetectorLogo CMDetector = "LOGO"
 )
 

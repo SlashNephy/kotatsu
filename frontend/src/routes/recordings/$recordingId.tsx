@@ -885,7 +885,7 @@ function Recording({ recordingId }: { recordingId: string }) {
                   <Stack key={file.url} gap={4}>
                     <Text size="sm">
                       {file.path.split('/').pop()} ・ {formatBytes(Number(file.size))}
-                      {/* Kotatsu が変換した MP4 には、出したコマ数を添える (#1509)。 */}
+                      {/* Kotatsu が変換した MP4 には、出したフレームレートを添える (#1509)。 */}
                       {file.transcodeFrameRate != null &&
                         ` ・ ${t('recordings.transcodeFrameRate', { rate: file.transcodeFrameRate })}`}
                     </Text>

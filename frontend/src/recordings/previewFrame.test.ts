@@ -11,21 +11,21 @@ import {
 describe('frameBefore', () => {
   const times = [0, 10, 20, 30];
   test.each([
-    { name: 'コマの時刻ちょうど', seconds: 20, want: 2 },
-    { name: 'コマの間は前のコマ', seconds: 29.9, want: 2 },
-    { name: '最後のコマより後', seconds: 999, want: 3 },
-    { name: '最初のコマより前', seconds: -1, want: null },
+    { name: 'フレームの時刻ちょうど', seconds: 20, want: 2 },
+    { name: 'フレームの間は前のフレーム', seconds: 29.9, want: 2 },
+    { name: '最後のフレームより後', seconds: 999, want: 3 },
+    { name: '最初のフレームより前', seconds: -1, want: null },
   ])('$name', ({ seconds, want }) => {
     expect(frameBefore(times, seconds)).toBe(want);
   });
 
-  test('コマがなければ null', () => {
+  test('フレームがなければ null', () => {
     expect(frameBefore([], 10)).toBeNull();
   });
 });
 
 describe('previewFrame', () => {
-  // 10 カラムで 25 コマなら、3 行になる。
+  // 10 カラムで 25 フレームなら、3 行になる。
   const manifest = {
     width: 160,
     height: 90,
@@ -35,7 +35,7 @@ describe('previewFrame', () => {
 
   test.each([
     {
-      name: '最初のコマは、左上',
+      name: '最初のフレームは、左上',
       index: 0,
       want: { backgroundSize: '1000% 300%', backgroundPosition: '0% 0%' },
     },
@@ -45,7 +45,7 @@ describe('previewFrame', () => {
       want: { backgroundSize: '1000% 300%', backgroundPosition: `${(2 / 9) * 100}% 50%` },
     },
     {
-      name: '最後のコマは、3 行目の 5 列目',
+      name: '最後のフレームは、3 行目の 5 列目',
       index: 24,
       want: { backgroundSize: '1000% 300%', backgroundPosition: `${(4 / 9) * 100}% 100%` },
     },
@@ -53,7 +53,7 @@ describe('previewFrame', () => {
     expect(previewFrame(manifest, index)).toEqual(want);
   });
 
-  test('1 行に収まるときは、コマの数を列の数にする', () => {
+  test('1 行に収まるときは、フレームの数を列の数にする', () => {
     expect(previewFrame({ ...manifest, times: [0, 10, 20] }, 1)).toEqual({
       backgroundSize: '300% 100%',
       backgroundPosition: '50% 0%',
@@ -62,7 +62,7 @@ describe('previewFrame', () => {
 
   test.each([
     { name: '負の番号', index: -1 },
-    { name: 'コマの数を超える番号', index: 25 },
+    { name: 'フレームの数を超える番号', index: 25 },
   ])('$name は null', ({ index }) => {
     expect(previewFrame(manifest, index)).toBeNull();
   });
@@ -72,7 +72,7 @@ describe('slideshowFrames', () => {
   test.each([
     { name: '多いときは、等間隔に limit 個を選ぶ', count: 100, limit: 4, want: [0, 25, 50, 75] },
     { name: 'limit 個以下なら、すべて', count: 3, limit: 16, want: [0, 1, 2] },
-    { name: 'コマがなければ、空', count: 0, limit: 16, want: [] },
+    { name: 'フレームがなければ、空', count: 0, limit: 16, want: [] },
   ])('$name', ({ count, limit, want }) => {
     expect(slideshowFrames(count, limit)).toEqual(want);
   });
@@ -96,10 +96,10 @@ describe('manifestUrl', () => {
 });
 
 describe('framePosition', () => {
-  // tenban が求めたコマの位置 (ピクセル) は、preview.json から切り出したコマと同じ CSS の値になる。
+  // tenban が求めたフレームの位置 (ピクセル) は、preview.json から切り出したフレームと同じ CSS の値になる。
   test.each([
     {
-      name: '行をまたいだコマ',
+      name: '行をまたいだフレーム',
       count: 25,
       index: 24,
       x: 640,
@@ -108,7 +108,7 @@ describe('framePosition', () => {
       sheetHeight: 270,
     },
     {
-      name: '1 行に満たないコマ',
+      name: '1 行に満たないフレーム',
       count: 4,
       index: 2,
       x: 320,
@@ -116,7 +116,7 @@ describe('framePosition', () => {
       sheetWidth: 640,
       sheetHeight: 90,
     },
-    { name: 'コマが 1 つ', count: 1, index: 0, x: 0, y: 0, sheetWidth: 160, sheetHeight: 90 },
+    { name: 'フレームが 1 つ', count: 1, index: 0, x: 0, y: 0, sheetWidth: 160, sheetHeight: 90 },
   ])('$name', ({ count, index, x, y, sheetWidth, sheetHeight }) => {
     const manifest = {
       width: 160,

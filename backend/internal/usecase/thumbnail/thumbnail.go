@@ -27,14 +27,14 @@ const (
 	// FFmpeg に渡すフィルター (thumbnailFilter、tileFilter) の大きさと揃える。
 	ThumbnailWidth  = 480
 	ThumbnailHeight = 270
-	// TileWidth と TileHeight は、プレビュー画像の 1 コマの大きさ。
+	// TileWidth と TileHeight は、プレビュー画像の 1 フレームの大きさ。
 	TileWidth  = 320
 	TileHeight = 180
-	// Columns は、プレビュー画像の 1 行のコマの数。
+	// Columns は、プレビュー画像の 1 行のフレームの数。
 	Columns = 10
-	// MaxFrames は、プレビュー画像のコマの数の上限。長い録画では、間隔を広げて収める。
+	// MaxFrames は、プレビュー画像のフレームの数の上限。長い録画では、間隔を広げて収める。
 	MaxFrames = 100
-	// DefaultInterval は、プレビュー画像のコマの間隔の下限。
+	// DefaultInterval は、プレビュー画像のフレームの間隔の下限。
 	DefaultInterval = 10 * time.Second
 	// ThumbnailPosition は、代表画像にするフレームの位置 (録画の長さに対する割合)。
 	// 録画の先頭は、前の番組の終わりや CM のことが多いので、少し入ったところにする。
@@ -69,7 +69,7 @@ var (
 //
 // ENUM(
 // Thumbnail // 代表画像の大きさ (ThumbnailWidth × ThumbnailHeight)。
-// Tile // プレビュー画像の 1 コマの大きさ (TileWidth × TileHeight)。
+// Tile // プレビュー画像の 1 フレームの大きさ (TileWidth × TileHeight)。
 // )
 type Size int
 
@@ -90,18 +90,18 @@ type Segment struct {
 	Open func() (io.ReadSeekCloser, error)
 }
 
-// Manifest は、プレビュー画像のコマの並びの説明。画面は、これを見て、シークバーの位置に合うコマを切り出す。
+// Manifest は、プレビュー画像のフレームの並びの説明。画面は、これを見て、シークバーの位置に合うフレームを切り出す。
 type Manifest struct {
-	// Width と Height は、1 コマの大きさ。
+	// Width と Height は、1 フレームの大きさ。
 	Width  int `json:"width"`
 	Height int `json:"height"`
-	// Columns は、1 行のコマの数。コマは、左上から右へ、行が埋まったら次の行へ並べる。
+	// Columns は、1 行のフレームの数。フレームは、左上から右へ、行が埋まったら次の行へ並べる。
 	Columns int `json:"columns"`
-	// Times は、各コマの、録画の始まりからの時間 (秒)。
+	// Times は、各フレームの、録画の始まりからの時間 (秒)。
 	Times []float64 `json:"times"`
 }
 
-// Frame は、プレビュー画像から切り出す 1 コマの位置と、プレビュー画像全体の大きさ (ピクセル)。
+// Frame は、プレビュー画像から切り出す 1 フレームの位置と、プレビュー画像全体の大きさ (ピクセル)。
 type Frame struct {
 	X, Y          int
 	Width, Height int
@@ -109,8 +109,8 @@ type Frame struct {
 	SheetWidth, SheetHeight int
 }
 
-// Frame は、index 番目のコマの位置を返す。そのコマがなければ false を返す。
-// コマは、左上から右へ Columns 個ずつ並ぶ。コマが Columns 個より少なければ、プレビュー画像の幅はその数のコマの幅になる。
+// Frame は、index 番目のフレームの位置を返す。そのフレームがなければ false を返す。
+// フレームは、左上から右へ Columns 個ずつ並ぶ。Columns 個より少なければ、プレビュー画像の幅はその数のフレームの幅になる。
 // 画面 (frontend/src/recordings/previewFrame.ts) も、同じ並べ方で切り出す。
 func (m *Manifest) Frame(index int) (Frame, bool) {
 	count := len(m.Times)
@@ -126,8 +126,8 @@ func (m *Manifest) Frame(index int) (Frame, bool) {
 	}, true
 }
 
-// FrameBefore は、position 以前で、いちばん近いコマの番号を返す。position より前にコマがなければ false を返す。
-// 後のコマは選ばないので、まだ見ていない場面を見せない。Times は小さい順に並んでいる。
+// FrameBefore は、position 以前で、いちばん近いフレームの番号を返す。position より前にフレームがなければ false を返す。
+// 後のフレームは選ばないので、まだ見ていない場面を見せない。Times は小さい順に並んでいる。
 func (m *Manifest) FrameBefore(position time.Duration) (int, bool) {
 	i, found := slices.BinarySearch(m.Times, position.Seconds())
 	if found {
@@ -154,7 +154,7 @@ type Result struct {
 type Options struct {
 	// Preview は、プレビュー画像を作るかどうか。低スペック機では、無効にできる。
 	Preview bool
-	// Interval は、プレビュー画像のコマの間隔の下限。0 なら DefaultInterval。
+	// Interval は、プレビュー画像のフレームの間隔の下限。0 なら DefaultInterval。
 	Interval time.Duration
 	// Latest は、代表画像を、録画の長さの ThumbnailPosition の位置ではなく、書いた終わりの近くから作るかどうか。
 	// 録画中の録画の、今の様子を示すのに使う (#1236)。
@@ -277,8 +277,8 @@ func (g *Generator) outsideAvoid(keyframes []keyframe) []bool {
 	return outside
 }
 
-// preview は、一定間隔の I フレームから取り出したコマを、1 枚のタイル画像にまとめる。
-// 間隔は Interval を下限に、コマが MaxFrames に収まるよう広げる。取り出せなかったコマは飛ばす。
+// preview は、一定間隔の I フレームから取り出したフレームを、1 枚のタイル画像にまとめる。
+// 間隔は Interval を下限に、フレームが MaxFrames に収まるよう広げる。取り出せなかったフレームは飛ばす。
 func (g *Generator) preview(ctx context.Context, segments []Segment, keyframes []keyframe) ([]byte, *Manifest, error) {
 	duration := keyframes[len(keyframes)-1].at
 	interval := max(g.opts.Interval, time.Duration(math.Ceil(float64(duration)/MaxFrames)))
@@ -288,7 +288,7 @@ func (g *Generator) preview(ctx context.Context, segments []Segment, keyframes [
 	errs := []error{}
 	for target := time.Duration(0); target <= duration && len(frames) < MaxFrames; target += interval {
 		i := nearest(keyframes, target, func(int) bool { return true })
-		// I フレームの間隔が、コマの間隔より広ければ、同じ I フレームを二度使わない。
+		// I フレームの間隔が、プレビュー画像のフレームの間隔より広ければ、同じ I フレームを二度使わない。
 		if i == last {
 			continue
 		}
@@ -344,7 +344,7 @@ func (g *Generator) extract(ctx context.Context, segments []Segment, k keyframe,
 
 // keyframesOf は、セグメントのインデックスを、録画の始まりからの時間の順に並べる。
 // 放送の PTS が途中で飛んだり、セグメントの時間が重なったりしても、時間の順に並べ直す。
-// 時間は、再生と同じく、途切れた区間を含めない (設計書 7.2)。プレビュー画像のコマを、シークバーの位置に合わせるためである。
+// 時間は、再生と同じく、途切れた区間を含めない (設計書 7.2)。プレビュー画像のフレームを、シークバーの位置に合わせるためである。
 // 並べた I フレームの間が ts.MaxKeyframeInterval より空いていたら、間で途切れたので、直前の I フレームの間隔だけ進める。
 func keyframesOf(segments []Segment) []keyframe {
 	keyframes := []keyframe{}
@@ -398,7 +398,7 @@ func nearestWall(keyframes []keyframe, target time.Duration) int {
 	return best
 }
 
-// tile は、コマを、manifest の並べ方 (Manifest.Frame) で 1 枚の JPEG にする。コマは TileWidth × TileHeight に収めてある。
+// tile は、フレームを、manifest の並べ方 (Manifest.Frame) で 1 枚の JPEG にする。フレームは TileWidth × TileHeight に収めてある。
 func tile(frames []image.Image, manifest *Manifest) ([]byte, error) {
 	first, ok := manifest.Frame(0)
 	if !ok {

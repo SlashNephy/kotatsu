@@ -29,7 +29,7 @@ export function playbackDelay(media: PlayerMedia | null): number {
 // useLiveJikkyo は、ライブ視聴で実況のコメントを受け取って流し、投稿できるようにする (設計書 7.4)。
 // channelId が null なら、何もしない。active が false の間は、接続を閉じる。
 // settings は、コメントの表示とミュートの設定 (#488)。ミュートしたコメントは、流さず、一覧にも出さない。
-// broadcast は、映しているコマの放送からの遅れを返す (#1515)。返せれば、コメントを書き込まれた時刻の場面に合わせて流し、
+// broadcast は、映しているフレームの放送からの遅れを返す (#1515)。返せれば、コメントを書き込まれた時刻の場面に合わせて流し、
 // 返せなければ (kyusu の経路や、放送の時計がまだ届かない間)、受け取った時刻に先読みの分を足して流す。
 export function useLiveJikkyo(
   channelId: string | null,

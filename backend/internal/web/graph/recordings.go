@@ -329,8 +329,8 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording)
 // 再生画面が、続きから再生せずに最初から再生する判定 (frontend/src/yunomi/resume.ts の endMargin) と揃える。
 const watchEndMargin = 10 * time.Second
 
-// watchFrame は、ログイン中のユーザーが前回見た位置に合う、プレビュー画像のコマを返す。
-// 再生位置とプレビュー画像のある録画だけ、preview.json を読む。読めなければ、コマなしとして扱い、代表画像を出させる。
+// watchFrame は、ログイン中のユーザーが前回見た位置に合う、プレビュー画像のフレームを返す。
+// 再生位置とプレビュー画像のある録画だけ、preview.json を読む。読めなければ、フレームなしとして扱い、代表画像を出させる。
 func (r *Resolver) watchFrame(ctx context.Context, recording *model.Recording) *model.PreviewFrame {
 	if recording.WatchPositionMs == nil || recording.PreviewURL == nil {
 		return nil

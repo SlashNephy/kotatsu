@@ -12,23 +12,33 @@ describe('pickFrames', () => {
   const frames = [{ mediaTime: 1 }, { mediaTime: 1.04 }, { mediaTime: 1.08 }];
 
   test.each([
-    { name: 'コマがなければ選ばない', frames: [], shown: 1, want: null },
-    { name: '最初のコマより前なら最初のコマ', frames, shown: 0.5, want: { from: 0, to: 0, t: 0 } },
+    { name: 'フレームがなければ選ばない', frames: [], shown: 1, want: null },
     {
-      name: 'コマの時刻ちょうどなら、そのコマから始める',
+      name: '最初のフレームより前なら最初のフレーム',
+      frames,
+      shown: 0.5,
+      want: { from: 0, to: 0, t: 0 },
+    },
+    {
+      name: 'フレームの時刻ちょうどなら、そのフレームから始める',
       frames,
       shown: 1.04,
       want: { from: 1, to: 2, t: 0 },
     },
     {
-      name: '2 コマの間なら、その間の位置',
+      name: '2 フレームの間なら、その間の位置',
       frames,
       shown: 1.01,
       want: { from: 0, to: 1, t: 0.25 },
     },
-    { name: '最後のコマより後なら最後のコマ', frames, shown: 2, want: { from: 2, to: 2, t: 0 } },
     {
-      name: '1 コマしかなければ、そのコマ',
+      name: '最後のフレームより後なら最後のフレーム',
+      frames,
+      shown: 2,
+      want: { from: 2, to: 2, t: 0 },
+    },
+    {
+      name: '1 フレームしかなければ、そのフレーム',
       frames: [{ mediaTime: 1 }],
       shown: 1.5,
       want: { from: 0, to: 0, t: 0 },
@@ -47,7 +57,7 @@ describe('pickFrames', () => {
 
 describe('framePeriod', () => {
   test.each([
-    { name: '2 コマなければ求めない', times: [1], want: null },
+    { name: '2 フレームなければ求めない', times: [1], want: null },
     { name: '等しい間隔なら、その間隔', times: [0, 1 / 30, 2 / 30, 3 / 30], want: 1 / 30 },
     // 取りこぼして間隔が倍になったところに引きずられない。
     {
@@ -78,7 +88,7 @@ describe('mediaTimeAt', () => {
 
 describe('continues', () => {
   test.each([
-    { name: '次のコマなら続き', previous: 1, next: 1.04, want: true },
+    { name: '次のフレームなら続き', previous: 1, next: 1.04, want: true },
     { name: '時刻が戻れば続きでない', previous: 1, next: 0.9, want: false },
     { name: '同じ時刻なら続きでない', previous: 1, next: 1, want: false },
     { name: '大きく飛べば続きでない', previous: 1, next: 2, want: false },

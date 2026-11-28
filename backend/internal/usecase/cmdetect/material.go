@@ -40,7 +40,7 @@ type SegmentMaterial struct {
 	Material *Material
 }
 
-// materialHeader は、材料の先頭に置く JSON。数の並びの順は、segments の順に、コマどうしの時刻の差、点数、明るさ、肌理。
+// materialHeader は、材料の先頭に置く JSON。数の並びの順は、segments の順に、フレームどうしの時刻の差、点数、明るさ、肌理。
 type materialHeader struct {
 	Version  int                   `json:"version"`
 	Segments []materialSegmentInfo `json:"segments"`
@@ -69,7 +69,7 @@ type materialBound struct {
 
 // EncodeMaterials は、録画の材料を、DB に残すバイト列にする (#1507)。
 // 先頭に JSON の長さ (int32、リトルエンディアン)、続けて JSON、続けて数の並びを並べ、全体を gzip で縮める。
-// コマの時刻は、1 コマ目をマイクロ秒で JSON に書き、コマどうしの差を int32 のマイクロ秒で並べる。
+// フレームの時刻は、1 フレーム目をマイクロ秒で JSON に書き、2 フレーム目からは前との差を int32 のマイクロ秒で並べる。
 func EncodeMaterials(segments []SegmentMaterial) ([]byte, error) {
 	header := materialHeader{Version: materialFormatVersion, Segments: make([]materialSegmentInfo, 0, len(segments))}
 	var body bytes.Buffer
@@ -146,8 +146,8 @@ func DecodeMaterials(data []byte) ([]SegmentMaterial, error) {
 	}
 	segments := make([]SegmentMaterial, 0, len(header.Segments))
 	for _, info := range header.Segments {
-		// 1 コマにつき、時刻の差 (最初のコマにはない) と 3 つの計測値で、10 バイトずつ要る (全部で 10 × コマ数 − 4)。
-		// 壊れたコマ数で掛け算があふれないよう、割り算で比較する。
+		// 1 フレームにつき、時刻の差 (最初のフレームにはない) と 3 つの計測値で、10 バイトずつ要る (全部で 10 × フレーム数 − 4)。
+		// 壊れたフレーム数で掛け算があふれないよう、割り算で比較する。
 		if info.Frames <= 0 || info.Frames > (len(r.data)+4)/10 {
 			return nil, fmt.Errorf("%w: %s has %d frames", errBrokenMaterial, info.Path, info.Frames)
 		}

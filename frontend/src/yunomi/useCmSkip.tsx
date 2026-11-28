@@ -28,7 +28,7 @@ export type CmSkipOptions = {
   sections: readonly CmSection[];
   media: PlayerMedia | null;
   mediaRef: RefObject<PlayerMedia | null>;
-  // framePosition は、映ったコマの時刻に当たる再生位置。読み直していて、まだ位置を信じられないときは null。
+  // framePosition は、映ったフレームの時刻に当たる再生位置。読み直していて、まだ位置を信じられないときは null。
   framePosition: (t: number) => number | null;
   // jumpTo は、指定の位置に移り、実際に移った先を返す。自動で飛ぶときにも使うので、利用者のシークとしては数えない。
   jumpTo: (target: number) => number;
@@ -76,10 +76,10 @@ export function useCmSkip({
   const lastSeek = useRef<number | null>(initialSeek);
   const [cmAutoSkip] = useCmAutoSkip();
   const coverRef = useRef<PlayerCover | null>(null);
-  // live は、自動で飛ばす判定が読む、描画ごとに変わる値。判定は描画の外 (コマごと) で行う。
+  // live は、自動で飛ばす判定が読む、描画ごとに変わる値。判定は描画の外 (フレームごと) で行う。
   const live = useRef({ cmAutoSkip, spans, scrubbing, jumpTo, showFlash, t });
   live.current = { cmAutoSkip, spans, scrubbing, jumpTo, showFlash, t };
-  // skipper は、CM を自動で飛ばすときに、CM のコマを 1 コマも画面に出さないための判定と蓋 (#1512)。
+  // skipper は、CM を自動で飛ばすときに、CM のフレームを 1 つも画面に出さないための判定と蓋 (#1512)。
   const [skipper] = useState(
     () =>
       new CmAutoSkipper({
@@ -111,8 +111,8 @@ export function useCmSkip({
     },
     [skipper],
   );
-  // 判定は、映ったコマごとに、そのコマの時刻で行う。timeupdate は間隔が粗く、currentTime は代入した時点で飛び先を返すため。
-  // 読み直していて、求めた位置以上のコマがまだ映っていない間は、位置を渡さない。
+  // 判定は、映ったフレームごとに、そのフレームの時刻で行う。timeupdate は間隔が粗く、currentTime は代入した時点で飛び先を返すため。
+  // 読み直していて、求めた位置以上のフレームがまだ映っていない間は、位置を渡さない。
   useVideoFrames(media, ({ mediaTime, presented }) => {
     if (media === null) {
       return;
@@ -124,7 +124,7 @@ export function useCmSkip({
       presented,
     });
   });
-  // 開いた位置が CM の中で、最初から CM の終わりを求めたときは、黒い蓋で覆い、CM の終わり以上のコマが映るまで待つ。
+  // 開いた位置が CM の中で、最初から CM の終わりを求めたときは、黒い蓋で覆い、CM の終わり以上のフレームが映るまで待つ。
   // 配信は手前の I フレームから流れるので、CM の末尾が映りうる。続きから開いたときは、続きから始めたことだけを伝え、
   // CM を飛ばした通知は出さない。先頭から開いたときは、ほかの自動のスキップと同じく通知する。
   useEffect(() => {

@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { lateCommentWindowSeconds, syncedCommentWait } from './liveSync';
 
 describe('syncedCommentWait', () => {
-  // サーバーの今は 10:00:10、映しているコマは放送から 3 秒遅れ (放送の 10:00:07 を映している)。
+  // サーバーの今は 10:00:10、映しているフレームは放送から 3 秒遅れ (放送の 10:00:07 を映している)。
   const serverNow = Date.parse('2026-11-14T10:00:10.000Z');
   const broadcast = { delay: 3, serverNow };
 

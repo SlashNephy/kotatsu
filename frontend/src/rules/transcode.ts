@@ -50,17 +50,17 @@ export function optionOfPreset(preset: string): string {
   return preset === noTranscode ? 'off' : preset;
 }
 
-// transcodeFrameRates は、録画を変換するときに選べる、出すコマ数 (#1509)。auto は、映像から計測して 30 か 60 を選ぶ。
+// transcodeFrameRates は、録画を変換するときに選べる、出すフレームレート (#1509)。auto は、映像から計測して 30 か 60 を選ぶ。
 export const transcodeFrameRates = ['auto', '30', '60'] as const;
 
-// frameRateLabel は、出すコマ数を、「自動」や「60 コマ/秒」のように書く。
+// frameRateLabel は、出すフレームレートを、「自動」や「60fps」のように書く。
 export function frameRateLabel(t: TFunction, frameRate: string): string {
   return frameRate === 'auto'
     ? t('rules.transcodeFrameRateAuto')
     : t('rules.transcodeFrameRateFixed', { rate: frameRate });
 }
 
-// frameRateOptions は、出すコマ数を選ぶ Select の選択肢を返す。
+// frameRateOptions は、出すフレームレートを選ぶ Select の選択肢を返す。
 export function frameRateOptions(t: TFunction) {
   return transcodeFrameRates.map((frameRate) => ({
     value: frameRate,

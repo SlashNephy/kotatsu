@@ -161,7 +161,7 @@ func TestRecorderResolvesGenerateCaptions(t *testing.T) {
 	}
 }
 
-// TestRecorderResolvesTranscodeFrameRate は、録画の完了のイベントに載せる、変換で出すコマ数 (#1509) を、予約で選んでいればその値、
+// TestRecorderResolvesTranscodeFrameRate は、録画の完了のイベントに載せる、変換で出すフレームレート (#1509) を、予約で選んでいればその値、
 // なければ録画を終えるときの全体の設定から求め、全体を変えていなければ既定値 (自動) にすることを確認する。
 func TestRecorderResolvesTranscodeFrameRate(t *testing.T) {
 	t.Parallel()

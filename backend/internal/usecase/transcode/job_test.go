@@ -48,7 +48,7 @@ const (
 	filesKey = "files"
 	// presetKey は、録画の完了のイベントの、変換の画質のキー。
 	presetKey = "transcodePreset"
-	// frameRateKey は、録画の完了のイベントの、変換で出すコマ数のキー。
+	// frameRateKey は、録画の完了のイベントの、変換で出すフレームレートのキー。
 	frameRateKey = "transcodeFrameRate"
 )
 
@@ -106,7 +106,7 @@ func (f *fixture) recording(t *testing.T, content []byte) uuid.UUID {
 	return recordingID
 }
 
-// copyEncoder は、読んだ TS をそのまま書く Encoder。渡された画質と、フィールドごとに 1 コマにするかを保存する。
+// copyEncoder は、読んだ TS をそのまま書く Encoder。渡された画質と、フィールドごとに 1 フレームにするかを保存する。
 // 読み終えたら、progress を -progress の出力として書く。ProbeFrameRate は、rate を返す。
 // MeasureFields は、計測した位置を保存し、diffs を返す。diffs が nil なら失敗する。
 type copyEncoder struct {
@@ -177,7 +177,7 @@ func (f *fixture) otherFiles(t *testing.T, recordingID uuid.UUID) []otherFile {
 	return files
 }
 
-// work は、録画 recordingID を、画質 preset で、コマ数を 30 に決めて変換する。
+// work は、録画 recordingID を、画質 preset で、フレームレートを 30 fps に決めて変換する。
 func work(t *testing.T, f *fixture, encoder transcode.Encoder, recordingID uuid.UUID, preset string) error {
 	t.Helper()
 
@@ -191,7 +191,7 @@ func workJob(ctx context.Context, f *fixture, encoder transcode.Encoder, row *ri
 }
 
 // index は、録画 recordingID のセグメントに、1 秒ごとの n 個の I フレームのインデックスと、フレームレートが rate の映像の形式を付ける。
-// 再生の時間は、最後の I フレームの後の 1 間隔を足して n 秒になるので、見込みのコマ数は n × rate。
+// 再生の時間は、最後の I フレームの後の 1 間隔を足して n 秒になるので、見込みのフレーム数は n × rate。
 func (f *fixture) index(t *testing.T, recordingID uuid.UUID, n int64, rate float64) {
 	t.Helper()
 
@@ -427,10 +427,10 @@ func TestEnqueuer(t *testing.T) {
 	}
 }
 
-// quarterBlock は、1000 コマの見込みの 4 分の 1 をエンコードしたときの -progress のまとまり。
+// quarterBlock は、1000 フレームの見込みの 4 分の 1 をエンコードしたときの -progress のまとまり。
 const quarterBlock = "frame=250\nprogress=continue\n"
 
-// TestWorkerProgress は、変換の進み具合を、見込みのコマ数か入力の読み位置で割り、ジョブの試行と一緒に DB に書くことを確認する (#1511)。
+// TestWorkerProgress は、変換の進み具合を、見込みのフレーム数か入力の読み位置で割り、ジョブの試行と一緒に DB に書くことを確認する (#1511)。
 func TestWorkerProgress(t *testing.T) {
 	t.Parallel()
 
@@ -440,7 +440,7 @@ func TestWorkerProgress(t *testing.T) {
 		keyframes int64
 		// video は、映像の形式のフレームレート。probe は、ffprobe で読むフレームレート。
 		video, probe float64
-		// frameRate は、出すコマ数の設定。
+		// frameRate は、出すフレームレートの設定。
 		frameRate string
 		progress  string
 		want      float64
@@ -449,9 +449,9 @@ func TestWorkerProgress(t *testing.T) {
 		// HEVC は、映像の形式にフレームレートがないので、ffprobe で補う。
 		{name: "frame rate from ffprobe", keyframes: 100, video: 0, probe: 10, frameRate: domain.TranscodeFrameRate30, progress: quarterBlock, want: 0.25},
 		{name: "end", keyframes: 100, video: 10, probe: 0, frameRate: domain.TranscodeFrameRate30, progress: quarterBlock + "frame=990\nprogress=end\n", want: 1},
-		// インデックスがなければ、見込みのコマ数を出せないので、流したバイト数で割る。読み終えていても、progress=end までは頭打ちで止める。
+		// インデックスがなければ、見込みのフレーム数を出せないので、流したバイト数で割る。読み終えていても、progress=end までは頭打ちで止める。
 		{name: "read position without the index", keyframes: 0, video: 10, probe: 0, frameRate: domain.TranscodeFrameRate30, progress: quarterBlock, want: 0.99},
-		// フィールドごとに 1 コマにするなら、元のフレームレートによらず 59.94 コマで数える (#1509)。100 秒 × 59.94 のおよそ半分。
+		// フィールドごとに 1 フレームにするなら、元のフレームレートによらず 59.94 fps で数える (#1509)。100 秒 × 59.94 のおよそ半分。
 		{name: "fields", keyframes: 100, video: 10, probe: 0, frameRate: domain.TranscodeFrameRate60, progress: "frame=2997\nprogress=continue\n", want: 0.5},
 	}
 	for _, tt := range tests {
@@ -474,7 +474,7 @@ func TestWorkerProgress(t *testing.T) {
 }
 
 // fakeFFmpeg は、-progress の出力を模すモックの FFmpeg のシェルのスクリプト。10% を出したら go のファイルを、20% を出したら
-// stop のファイルを待つ。stop の後に、読み損ねた少ないコマ数と progress=end を出して終わる。出力はシェルが書くので、
+// stop のファイルを待つ。stop の後に、読み損ねた少ないフレーム数と progress=end を出して終わる。出力はシェルが書くので、
 // FFmpeg (このテストのバイナリ) を止められても、シェルが終わるまで出力が届き続ける (止められてから終わるまで少し待つ FFmpeg を模す)。
 const fakeFFmpeg = `
 printf 'frame=100\nprogress=continue\n'
@@ -505,7 +505,7 @@ func TestMain(m *testing.M) {
 func TestWorkerStopKeepsProgress(t *testing.T) {
 	f := newFixture(t)
 	recordingID := f.recording(t, tsPackets(100))
-	// 見込みのコマ数は 100 秒 × 10fps = 1000 コマ。
+	// 見込みのフレーム数は 100 秒 × 10fps = 1000 フレーム。
 	f.index(t, recordingID, 100, 10)
 	// モックの FFmpeg は、このテストのバイナリを ffmpeg の名前で起動したもの (TestMain)。
 	bin, marks := t.TempDir(), t.TempDir()
@@ -534,7 +534,7 @@ func TestWorkerStopKeepsProgress(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(marks, "go"), nil, 0o600))
 	require.Eventually(t, func() bool { return ratioOf() == 0.2 }, 10*time.Second, 10*time.Millisecond)
 
-	// 止めた後に届く、少ないコマ数と progress=end では、表示を変えない。
+	// 止めた後に届く、少ないフレーム数と progress=end では、表示を変えない。
 	cancel()
 	require.NoError(t, os.WriteFile(filepath.Join(marks, "stop"), nil, 0o600))
 	f.clock.Advance(time.Minute)

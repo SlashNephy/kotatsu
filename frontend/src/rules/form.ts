@@ -22,7 +22,7 @@ type Settings = {
   generateCaptions: boolean | null;
   // transcodePreset は、録画を終えた後に変換するときの画質 (#1253)。空なら変換しない。null なら全体の設定に従う。
   transcodePreset: string | null;
-  // transcodeFrameRate は、変換で出すコマ数 (#1509。auto、30、60)。null なら全体の設定に従う。
+  // transcodeFrameRate は、変換で出すフレームレート (#1509。auto、30、60)。null なら全体の設定に従う。
   transcodeFrameRate: string | null;
   // cmDetector は、CM の区間の見分け方 (#1505)。null なら全体の設定に従う。
   cmDetector: CMDetector | null;

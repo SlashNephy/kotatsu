@@ -25,7 +25,7 @@ const (
 	imagesPriority = 3
 	// imagesMaxAttempts は、画像を作るジョブを試す回数の上限。録画の画像と同じ。
 	imagesMaxAttempts = 3
-	// imagesTimeout は、画像を作るジョブの時間の上限。1 枚ずつ FFmpeg を動かすので、コマの数だけかかる。録画の画像と同じ。
+	// imagesTimeout は、画像を作るジョブの時間の上限。1 枚ずつ FFmpeg を動かすので、フレームの数だけかかる。録画の画像と同じ。
 	imagesTimeout = 10 * time.Minute
 	// imagesSnooze は、インデックスを作り終えていないファイルの画像を作るジョブを、待たせる時間。
 	imagesSnooze = 30 * time.Second

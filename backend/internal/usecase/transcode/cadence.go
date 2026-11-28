@@ -60,8 +60,8 @@ func DefaultCadenceParams() *CadenceParams {
 type FieldDiffs struct {
 	// Top は、上フィールドだけを並べ、前の上フィールドとの差を並べたもの (1 秒に 30 個)。
 	Top []float64
-	// Fields は、上下のフィールドを交互に並べ、隣との差を並べたもの (1 秒に 60 個)。偶数番目が同じコマの上と下の差、
-	// 奇数番目がコマをまたぐ差になる。
+	// Fields は、上下のフィールドを交互に並べ、隣との差を並べたもの (1 秒に 60 個)。偶数番目が同じフレームの上と下の差、
+	// 奇数番目がフレームをまたぐ差になる。
 	Fields []float64
 }
 
@@ -136,7 +136,7 @@ func repetitions(top []float64, moving []bool) []float64 {
 }
 
 // weaveRatios は、上下を交互に並べたフィールドの差 fields を 1 秒ずつに区切り、動いている秒ごとの上下の揃い度を返す。
-// 偶数番目 (同じコマの上と下の差) の平均と、奇数番目 (コマをまたぐ差) の平均の、小さいほうを大きいほうで割る。
+// 偶数番目 (同じフレームの上と下の差) の平均と、奇数番目 (フレームをまたぐ差) の平均の、小さいほうを大きいほうで割る。
 // 30p は上下が同じ時刻の絵なので低く、60i とテレシネは 1 に近くなる。
 func weaveRatios(fields []float64, moving []bool) []float64 {
 	ratios := []float64{}
@@ -160,9 +160,9 @@ func weaveRatios(fields []float64, moving []bool) []float64 {
 	return ratios
 }
 
-// FieldOutput は、ウィンドウの分類の多数決から、フィールドごとに 1 コマにして 60 コマで出すかどうかを返す。
-// 60i のウィンドウの数が、24p 系と 30p のウィンドウの数の合計以上なら 60 コマにする。計測できたウィンドウが 1 つもないときも 60 コマにする。
-// 本当に 60i の素材を 30 コマにすると動きが壊れるが、逆の誤りなら無駄が出るだけなので、迷ったら 60 コマにする。
+// FieldOutput は、ウィンドウの分類の多数決から、フィールドごとに 1 フレームにして 60 fps で出すかどうかを返す。
+// 60i のウィンドウの数が、24p 系と 30p のウィンドウの数の合計以上なら 60 fps にする。計測できたウィンドウが 1 つもないときも 60 fps にする。
+// 本当に 60i の素材を 30 fps にすると動きが壊れるが、逆の誤りなら無駄が出るだけなので、迷ったら 60 fps にする。
 func FieldOutput(results []*WindowResult) bool {
 	var interlaced, progressive int
 	for _, r := range results {

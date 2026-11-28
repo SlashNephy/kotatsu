@@ -13417,7 +13417,7 @@ type Job {
   progress: JobProgress
 }
 
-"ジョブの進み具合 (#1511、設計書 6.1)。FFmpeg がエンコードしたコマ数から求める。"
+"ジョブの進み具合 (#1511、設計書 6.1)。FFmpeg がエンコードしたフレーム数から求める。"
 type JobProgress {
   "0 から 1 の割合。FFmpeg が書き終えるまでは 0.99 で止める。"
   ratio: Float!
@@ -14627,8 +14627,8 @@ type RecordingFile {
   """
   tuner: RecordingFileTuner
   """
-  Kotatsu が録画を変換した MP4 の、1 秒あたりのコマ数 (#1509)。30 か 60 (プログレッシブの映像は元のコマ数)。
-  セグメントと、取り込んだファイルと、コマ数を記録する前に変換した MP4 では null。
+  Kotatsu が録画を変換した MP4 のフレームレート (#1509)。30 か 60 (プログレッシブの映像は元のフレームレート)。
+  セグメントと、取り込んだファイルと、フレームレートを記録する前に変換した MP4 では null。
   """
   transcodeFrameRate: Int
 }
@@ -14844,12 +14844,12 @@ type Recording implements Node {
   thumbnailUrl: String
   """
   シークバー用のプレビュー画像の URL のパス。画像をまだ作っていなければ null。
-  コマの並びは、同じディレクトリの preview.json に書く (末尾の preview.jpg を preview.json に変えた URL で取れる)。
+  フレームの並びは、同じディレクトリの preview.json に書く (末尾の preview.jpg を preview.json に変えた URL で取れる)。
   """
   previewUrl: String
   """
-  ログイン中のユーザーが前回見た位置に合う、プレビュー画像のコマ。再生位置より前で、いちばん近いコマを選ぶ (先の場面を見せない)。
-  再生していないか、見終えている (終わりの 10 秒前より後まで見た) か、再生位置より前にコマがないか、プレビュー画像がなければ null。
+  ログイン中のユーザーが前回見た位置に合う、プレビュー画像のフレーム。再生位置より前で、いちばん近いフレームを選ぶ (先の場面を見せない)。
+  再生していないか、見終えている (終わりの 10 秒前より後まで見た) か、再生位置より前にフレームがないか、プレビュー画像がなければ null。
   """
   watchFrame: PreviewFrame
   """
@@ -15060,7 +15060,7 @@ extend type Mutation {
 }
 
 """
-プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
+プレビュー画像 (preview.jpg) から切り出す 1 フレーム。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
 """
 type PreviewFrame {
   "プレビュー画像の URL のパス。"
@@ -15365,7 +15365,7 @@ type RecordingSettingsOverrides {
   generateCaptions: Boolean
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。"
   transcodePreset: String
-  "録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。"
+  "録画を変換するときに出すフレームレート (#1509)。auto、30、60 のどれか。null なら従う値にする。"
   transcodeFrameRate: String
   "CM の区間の見分け方 (#1505)。null なら従う値 (ルール予約ならルールの設定、なければ見分けるときの全体の設定) にする。"
   cmDetector: CMDetector
@@ -15385,7 +15385,7 @@ input RecordingSettingsOverridesInput {
   generateCaptions: Boolean
   "変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。"
   transcodePreset: String
-  "変換で出すコマ数 (auto、30、60 のどれか)。"
+  "変換で出すフレームレート (auto、30、60 のどれか)。"
   transcodeFrameRate: String
   "CM の区間の見分け方。"
   cmDetector: CMDetector
@@ -15738,7 +15738,7 @@ type RecordingSettings {
   generateCaptions: Boolean!
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。"
   transcodePreset: String
-  "録画を変換するときに出すコマ数 (#1509)。auto (映像から計測して 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。"
+  "録画を変換するときに出すフレームレート (#1509)。auto (映像から計測して 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。"
   transcodeFrameRate: String!
 }
 
@@ -16048,7 +16048,7 @@ enum CommentSource {
 enum CMDetector {
   "無音とシーンの切り替わりで見分ける。"
   FFMPEG
-  "局ロゴが出ているかで見分ける (高精度)。無音とシーンの切り替わりより精度が高い代わりに、全コマを読むので、時間と CPU を多く使う。ロゴを学習できない録画では、FFMPEG で見分ける。"
+  "局ロゴが出ているかで見分ける (高精度)。無音とシーンの切り替わりより精度が高い代わりに、全フレームを読むので、時間と CPU を多く使う。ロゴを学習できない録画では、FFMPEG で見分ける。"
   LOGO
 }
 `, BuiltIn: false},
@@ -16227,7 +16227,7 @@ type LiveStreamRates {
 
 """
 放送の時計 (#1515)。PCR と、それを含む TS を tenban が受け取った時刻の組。受け取った時刻から PCR を引いた量が最も小さい組を送る。
-映しているコマの放送の時刻は、receivedAt + (コマの PTS − pcr) で出せる。
+映しているフレームの放送の時刻は、receivedAt + (フレームの PTS − pcr) で出せる。
 """
 type BroadcastClock {
   "PCR の基準部 (90 kHz) を秒にしたもの。"

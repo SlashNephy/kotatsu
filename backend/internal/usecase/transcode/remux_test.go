@@ -55,7 +55,7 @@ func encodeMP4(t *testing.T, src, dir string) string {
 }
 
 // TestFFmpegEncoderProgress は、本物の FFmpeg が、変換しながら -progress のまとまりを出し、最後のまとまりが progress=end で、
-// そのコマ数が MP4 のコマ数と同じであることを確認する (#1511)。進み具合の分子に使う。
+// そのフレーム数が MP4 のフレーム数と同じであることを確認する (#1511)。進み具合の分子に使う。
 func TestFFmpegEncoderProgress(t *testing.T) {
 	t.Parallel()
 

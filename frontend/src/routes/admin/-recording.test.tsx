@@ -269,7 +269,7 @@ describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740
     expect(sent).toEqual([{ ruleDefaults: { bundleSameEpisodes: false } }]);
   });
 
-  test('選んだコマ数をすぐ保存する (#1509)', async () => {
+  test('選んだフレームレートをすぐ保存する (#1509)', async () => {
     const sent: unknown[] = [];
     const environment = respondWith((input) => {
       sent.push(input);
@@ -277,13 +277,11 @@ describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740
       return saved;
     });
     await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
-    const frameRate = await screen.findByRole('combobox', { name: '変換のコマ数' });
+    const frameRate = await screen.findByRole('combobox', { name: '変換のフレームレート' });
     expect(frameRate).toHaveProperty('value', '自動（映像から30か60を選ぶ）');
 
     fireEvent.click(frameRate);
-    await act(async () =>
-      fireEvent.click(await screen.findByRole('option', { name: '60コマ/秒' })),
-    );
+    await act(async () => fireEvent.click(await screen.findByRole('option', { name: '60fps' })));
     await screen.findByRole('status');
 
     expect(sent).toEqual([{ recordingDefaults: { transcodeFrameRate: '60' } }]);

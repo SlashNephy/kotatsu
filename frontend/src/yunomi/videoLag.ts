@@ -3,7 +3,7 @@
 
 // VideoLagParams は、制御の値。秒の値は秒、時間の値はミリ秒で持つ。既定値は設計書の付録 A。
 export type VideoLagParams = {
-  // lagThreshold は、飛び直す遅れ。映像だけの遅れ (currentTime − 映ったコマの mediaTime) がこれを超えたら飛び直す。
+  // lagThreshold は、飛び直す遅れ。映像だけの遅れ (currentTime − 映ったフレームの mediaTime) がこれを超えたら飛び直す。
   lagThreshold: number;
   // jumpWidth は、飛び直しの幅。currentTime をこれだけ先へ進める。同じ値を代入し直しても飛んだことにならない。
   jumpWidth: number;
@@ -14,7 +14,7 @@ export type VideoLagParams = {
   // jumpWindowMs と heavyJumps は、飛び直しを数えるウィンドウと、重いとみなす飛び直しの回数。
   jumpWindowMs: number;
   heavyJumps: number;
-  // dropWindowMs と dropMinFrames は、破棄したコマを数えるウィンドウと、ウィンドウの最低コマ数。
+  // dropWindowMs と dropMinFrames は、破棄したフレームを数えるウィンドウと、ウィンドウの最低フレーム数。
   dropWindowMs: number;
   dropMinFrames: number;
   // heavyDropRatio は、重いとみなす破棄した割合。
@@ -29,7 +29,7 @@ export type VideoLagParams = {
 export const defaultVideoLagParams: VideoLagParams = {
   // 開発用の環境 (ヘッドレスの Chromium、変換の経路) では、無事なときの遅れの最大は約 0.03 秒、GPU のプロセスを絞っても約 0.1 秒だった。
   lagThreshold: 0.15,
-  // 飛ぶたびにこの分の音が欠けるので、1 コマ (約 0.033 秒) より大きく、聞いて分からない程度に小さくする。
+  // 飛ぶたびにこの分の音が欠けるので、1 フレーム (約 0.033 秒) より大きく、聞いて分からない程度に小さくする。
   jumpWidth: 0.1,
   jumpHeadroom: 0.1,
   // 変換の経路のキーフレームは約 0.5 秒おき。飛んだ後にデコーダが出し直して落ち着くまでより十分長くする。
@@ -37,7 +37,7 @@ export const defaultVideoLagParams: VideoLagParams = {
   // 最短間隔の 12 倍。1 回の重さ (GC、タブの切り替え) で段階を下げないよう、3 回で重いとみなす。
   jumpWindowMs: 60_000,
   heavyJumps: 3,
-  // 29.97 コマで 10 秒なら約 300 コマ。半分以上を見て割合を出す。
+  // 29.97 fps で 10 秒なら約 300 フレーム。半分以上を見て割合を出す。
   dropWindowMs: 10_000,
   dropMinFrames: 150,
   heavyDropRatio: 0.3,
@@ -45,7 +45,7 @@ export const defaultVideoLagParams: VideoLagParams = {
   selfStallGraceMs: 3_000,
 };
 
-// FrameInput は、映ったコマ 1 つ分の計測した値。
+// FrameInput は、映ったフレーム 1 つ分の計測した値。
 export type FrameInput = {
   // lag は、映像だけの遅れ (秒)。
   lag: number;
@@ -66,15 +66,15 @@ export type VideoLagStatus = {
   maxLag: number;
   // jumps は、今の video で飛び直した回数。
   jumps: number;
-  // dropRatio は、直近のウィンドウで破棄したコマの割合。数えられなければ null。
+  // dropRatio は、直近のウィンドウで破棄したフレームの割合。数えられなければ null。
   dropRatio: number | null;
 };
 
 // VideoLagController は、遅れの記録と飛び直しの決まりを持つ。時刻 now は、どれもミリ秒。
 export type VideoLagController = {
-  // frame は、映ったコマの遅れを通知し、飛び直すかを返す。飛んだら、呼んだ側が jumped を呼ぶ。
+  // frame は、映ったフレームの遅れを通知し、飛び直すかを返す。飛んだら、呼んだ側が jumped を呼ぶ。
   frame(now: number, input: FrameInput): boolean;
-  // seeking は、seek が始まったことを通知する。次の 1 コマは、飛ぶ前の時刻を持っていることがあるので計測しない。
+  // seeking は、seek が始まったことを通知する。次の 1 フレームは、飛ぶ前の時刻を持っていることがあるので計測しない。
   seeking(): void;
   // stall は、再生中に止まったことを通知する。遅れを測れない端末では、動き出したときに 1 回飛び直す。
   stall(): void;
@@ -82,9 +82,9 @@ export type VideoLagController = {
   resumed(now: number, ahead: number): boolean;
   // jumped は、飛び直したことを通知する。counted は、重さの判定に数えるか (倍速や早送りでなく、計測した遅れで飛んだとき)。
   jumped(now: number, cause: JumpCause, counted: boolean): void;
-  // quality は、破棄したコマと出したコマの累計 (getVideoPlaybackQuality) を通知する。数えてよい間 (倍速や早送りでなく再生中) だけ呼ぶ。
+  // quality は、破棄したフレームと出したフレームの累計 (getVideoPlaybackQuality) を通知する。数えてよい間 (倍速や早送りでなく再生中) だけ呼ぶ。
   quality(now: number, total: number, dropped: number): void;
-  // forgetQuality は、破棄したコマの記録を破棄する。数えない間があったら呼び、その前後の差を数えないようにする。
+  // forgetQuality は、破棄したフレームの記録を破棄する。数えない間があったら呼び、その前後の差を数えないようにする。
   forgetQuality(): void;
   // heavy は、その端末にはその段階が重いとみなせるかを返す。
   heavy(now: number): boolean;
@@ -133,7 +133,7 @@ export function createVideoLagController(options: VideoLagOptions): VideoLagCont
     }
   };
 
-  // dropRatio は、直近のウィンドウで破棄したコマの割合。ウィンドウの最低コマ数に満たなければ null。
+  // dropRatio は、直近のウィンドウで破棄したフレームの割合。ウィンドウの最低フレーム数に満たなければ null。
   const dropRatio = (now: number): number | null => {
     prune(now);
     const first = samples[0];

@@ -98,7 +98,7 @@ func (r *Reporter) flush(ctx context.Context, now time.Time) {
 	r.pending = false
 }
 
-// log は、コマ数 (済み/見込み)、読み位置、速さ、出力の大きさ、ビットレート、破棄したコマ数を出す。
+// log は、フレーム数 (済み/見込み)、読み位置、速さ、出力の大きさ、ビットレート、破棄したフレーム数を出す。
 // 割合には使わない読み位置も出すのは、詰まったときに、デマクサだけが先に進んでいるのか、本当に遅いのかを見分けるためである。
 func (r *Reporter) log(ctx context.Context, msg string) {
 	remaining := slog.String("remaining", "unknown")

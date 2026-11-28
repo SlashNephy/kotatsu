@@ -1,7 +1,7 @@
 // Package logo は、録画の映像の隅の局ロゴが出ているかどうかで、CM の区間を見分けるための部品 (#1505)。
 //
 // ロゴは、色や濃さではなく、縁の向き (線の向き) で学習して当てる。白いロゴが暗い背景にも明るい背景にも乗るので、
-// 勾配の角を 2 倍にして符号の反転を消し、コマをまたいで向きが揃う画素をロゴの縁とみなす。
+// 勾配の角を 2 倍にして符号の反転を消し、フレームをまたいで向きが揃う画素をロゴの縁とみなす。
 // このパッケージは、画素の配列を受け取って計算するだけで、FFmpeg や DB には触れない。
 package logo
 
@@ -17,9 +17,9 @@ type Params struct {
 	LearnFrames int
 	// LearnMinInterval は、学習でキーフレームを取り出す間隔の下限。
 	LearnMinInterval time.Duration
-	// BandRatio は、学習で切り出す上下の帯の高さの、コマの高さに対する割合。
+	// BandRatio は、学習で切り出す上下の帯の高さの、フレームの高さに対する割合。
 	BandRatio float64
-	// CornerRatio は、隅の範囲の幅の、コマの幅に対する割合。
+	// CornerRatio は、隅の範囲の幅の、フレームの幅に対する割合。
 	CornerRatio float64
 	// StrongQuantile は、隅の中で「強い縁」とする揃い方の分位 (0〜1。0.99 なら上位 1%)。
 	StrongQuantile float64
@@ -29,9 +29,9 @@ type Params struct {
 	CornerMedianRatio float64
 	// DilateRadius は、強い縁のマークを太らせる正方形の半径 (画素)。
 	DilateRadius int
-	// TooLargeRatio は、ロゴより大きいとして比較から外すチャンクの幅と高さの、コマに対する割合。
+	// TooLargeRatio は、ロゴより大きいとして比較から外すチャンクの幅と高さの、フレームに対する割合。
 	TooLargeRatio float64
-	// CoreMinRatio は、核にできるチャンクの幅と高さの下限の、コマに対する割合。
+	// CoreMinRatio は、核にできるチャンクの幅と高さの下限の、フレームに対する割合。
 	CoreMinRatio float64
 	// BundleDistance は、核と同じロゴとして括るチャンクの、核からの距離 (画素)。
 	BundleDistance int
@@ -62,11 +62,11 @@ type Params struct {
 	AppearScore float64
 	// ContinueScore は、ヒステリシスの下の閾値 (続いているとみなす点数)。AppearScore より低くする。
 	ContinueScore float64
-	// NearWindow は、第 1 ステップで近いコマとする前後の時間。
+	// NearWindow は、第 1 ステップで近いフレームとする前後の時間。
 	NearWindow time.Duration
 	// BrightnessLevels は、第 1 ステップで明るさを分ける区分の数。
 	BrightnessLevels int
-	// LevelMinDuration は、区分や格子を確認するのに要るコマの量。
+	// LevelMinDuration は、区分や格子を確認するのに要るフレームの量。
 	LevelMinDuration time.Duration
 	// LevelQuantile は、第 1 ステップで区分を判断できるとする点数の分位 (0.9 なら上位 10%)。
 	LevelQuantile float64
@@ -75,15 +75,15 @@ type Params struct {
 	WhiteBrightness float64
 	// TextureEdges は、第 2 ステップの肌理の区分の境目 (昇順)。区分の数は len(TextureEdges) + 1。
 	TextureEdges []float64
-	// GridMissRatio は、第 2 ステップで格子を判断できるとする、続いているとみなす点数未満のコマの割合の上限。
+	// GridMissRatio は、第 2 ステップで格子を判断できるとする、続いているとみなす点数未満のフレームの割合の上限。
 	GridMissRatio float64
-	// WindowHalf は、コマごとに見る前後の時間。
+	// WindowHalf は、フレームごとに見る前後の時間。
 	WindowHalf time.Duration
 	// WindowRank は、ウィンドウの値に使う順位 (1 なら最高点)。
 	WindowRank int
-	// WindowMinRatio は、ウィンドウの値を出すのに要る、判断できるコマのウィンドウに対する割合。
+	// WindowMinRatio は、ウィンドウの値を出すのに要る、判断できるフレームのウィンドウに対する割合。
 	WindowMinRatio float64
-	// SmoothFrames は、境目の戻しで使う中央値の幅 (コマ)。
+	// SmoothFrames は、境目の戻しで使う中央値の幅 (フレーム数)。
 	SmoothFrames int
 	// PullbackMax は、境目の戻しでずらせる量の上限。
 	PullbackMax time.Duration

@@ -15,7 +15,7 @@ import (
 )
 
 // TestTranscodePresets は、選べる画質が、kyusu のプリセットにあり、映像を変換して 30fps で書くものであることを確認する (#1253)。
-// 60 コマで出すかは、画質ではなく、出すコマ数で選ぶ (#1509)。
+// 60 fps で出すかは、画質ではなく、出すフレームレートで選ぶ (#1509)。
 func TestTranscodePresets(t *testing.T) {
 	t.Parallel()
 
@@ -28,7 +28,7 @@ func TestTranscodePresets(t *testing.T) {
 }
 
 // hwaccel は、GPU で復号させる FFmpeg の引数。x264Preset は、CPU でエンコードするときの速さの設定。
-// bitrate720p は、720p の 30 コマの画質の映像のビットレート。
+// bitrate720p は、720p の 30 fps の画質の映像のビットレート。
 const (
 	hwaccel     = "-hwaccel"
 	x264Preset  = "medium"
@@ -36,7 +36,7 @@ const (
 )
 
 // TestFFmpegArgs は、エンコーダーの設定ごとに、映像のエンコーダーと、MP4 の書き方を確認する (#1253)。
-// フィールドごとに 1 コマにするときは、bwdif をフィールド単位にして 59.94 コマに固定し、ビットレートを 1.4 倍にする (#1509)。
+// フィールドごとに 1 フレームにするときは、bwdif をフィールド単位にして 59.94 fps に固定し、ビットレートを 1.4 倍にする (#1509)。
 func TestFFmpegArgs(t *testing.T) {
 	t.Parallel()
 

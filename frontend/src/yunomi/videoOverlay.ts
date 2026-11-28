@@ -9,9 +9,9 @@ import {
 } from './interpolationTiming';
 import type { PictureUpscaler, Size } from './pictureUpscaler';
 
-// video の映像に、コマの補間 (#1655) と拡大 (#2113) をした canvas を重ねる (設計書 7.5)。kyusu の経路で使う。
-// video が新しいコマを出すたびにテクスチャへコピーし、補間するなら前のコマとの動きを推し量る。画面を更新するたびに、
-// 補間するなら 1 コマ遅らせた時刻のコマを作り、拡大するなら映す大きさへ拡大して描く。
+// video の映像に、フレームの補間 (#1655) と拡大 (#2113) をした canvas を重ねる (設計書 7.5)。kyusu の経路で使う。
+// video が新しいフレームを出すたびにテクスチャへコピーし、補間するなら前のフレームとの動きを推し量る。画面を更新するたびに、
+// 補間するなら 1 フレーム遅らせた時刻のフレームを作り、拡大するなら映す大きさへ拡大して描く。
 // 補間と拡大は、同じ WebGL2 のコンテキストの中で続けて行う。別の canvas に分けると、拡大した絵が補間に渡らないからである。
 // どちらもしないとき (一時停止やシークで補間せず、拡大もしない、準備ができていない) は canvas を隠し、video をそのまま見せる。
 
@@ -21,21 +21,21 @@ export type VideoOverlay = {
   setInterpolate(enabled: boolean): void;
   // setUpscale は、拡大するかを変える。
   setUpscale(enabled: boolean): void;
-  // refresh は、拡大の大きさと、止めている間のコマを描き直す。切り抜きや鮮鋭化の強さ、拡大の方式を変えたときに呼ぶ。
+  // refresh は、拡大の大きさと、止めている間のフレームを描き直す。切り抜きや鮮鋭化の強さ、拡大の方式を変えたときに呼ぶ。
   refresh(): void;
   destroy(): void;
 };
 
-// slots は、コピーしたコマを持つテクスチャの数。出している 2 コマのほかに、届いたばかりのコマを置く。
+// slots は、コピーしたフレームを持つテクスチャの数。出している 2 フレームのほかに、届いたばかりのフレームを置く。
 const slots = 3;
-// periodSamples は、コマの間隔を求めるのに使う、最近のコマの数。
+// periodSamples は、フレームの間隔を求めるのに使う、最近のフレームの数。
 const periodSamples = 12;
 // refreshSmoothing は、画面の更新の間隔を計測するときに、新しい値を混ぜる割合。
 const refreshSmoothing = 0.1;
-// passthroughRatio は、コマの実時間の間隔が、画面の更新の間隔のこの倍より短ければ、補間しない割合。
-// 60p の映像を 60 Hz の画面で見るときや、30p を倍速で見るときなどは、間を埋めるコマがなく、1 コマ遅れるだけになる。
+// passthroughRatio は、フレームの実時間の間隔が、画面の更新の間隔のこの倍より短ければ、補間しない割合。
+// 60p の映像を 60 Hz の画面で見るときや、30p を倍速で見るときなどは、間を埋めるフレームがなく、1 フレーム遅れるだけになる。
 const passthroughRatio = 1.5;
-// maxUpscaleHeight は、拡大するコマの高さの上限 (含まない)。4K のコマ (変換しない画質) は、HDR のことがあり、
+// maxUpscaleHeight は、拡大するフレームの高さの上限 (含まない)。4K のフレーム (変換しない画質) は、HDR のことがあり、
 // RGBA8 の canvas に描くと SDR になるので、拡大しない。
 const maxUpscaleHeight = 2160;
 
@@ -89,7 +89,7 @@ export function attachVideoOverlay(
   }: {
     className: string;
     onUnavailable?: (error: unknown) => void;
-    // maxRate は、補間したコマを出す回数の上限 (1 秒あたり)。null なら、画面の書き換えごとに描く。
+    // maxRate は、補間したフレームを出す回数の上限 (1 秒あたり)。null なら、画面の書き換えごとに描く。
     maxRate?: () => number | null;
     upscaler?: PictureUpscaler | null;
   },
@@ -103,20 +103,20 @@ export function attachVideoOverlay(
   let interpolator: Interpolator | null = null;
   let resizes: ResizeObserver | null = null;
   let textures: WebGLTexture[] = [];
-  // size は、映すときの大きさ (video の表示の大きさ)。frameSize は、届いたコマの大きさ。
+  // size は、映すときの大きさ (video の表示の大きさ)。frameSize は、届いたフレームの大きさ。
   // 横に引き伸ばして映す映像 (1440×1080 を 16:9 で映すなど) では、2 つが違う。
   let size: Size | null = null;
   let frameSize: Size | null = null;
   // box は、canvas の矩形の、端末の画素での大きさ。output は、拡大して描く大きさ。拡大しなければ null。
   let box: Size | null = null;
   let output: Size | null = null;
-  // composed は、拡大するときに、補間したコマを描いておくテクスチャ (コマの大きさ)。
+  // composed は、拡大するときに、補間したフレームを描いておくテクスチャ (フレームの大きさ)。
   let composed: { texture: WebGLTexture; framebuffer: WebGLFramebuffer; size: Size } | null = null;
-  // stale は、拡大して描いたコマが古いこと。新しいコマが届いたか、canvas を作り直したか、補間したコマを描いた後に立てる。
+  // stale は、拡大して描いたフレームが古いこと。新しいフレームが届いたか、canvas を作り直したか、補間したフレームを描いた後に立てる。
   let stale = true;
-  // frames は、コピーしたコマ。時刻の早い順に、最大 2 コマ持つ。
+  // frames は、コピーしたフレーム。時刻の早い順に、最大 2 つ持つ。
   let frames: Frame[] = [];
-  // estimated は、動きを推し量った 2 コマ (frames の添字でなく、時刻で保持する)。
+  // estimated は、動きを推し量った 2 フレーム (frames の添字でなく、時刻で保持する)。
   let estimated: { previous: number; next: number } | null = null;
   let times: number[] = [];
   let clock: MediaClock | null = null;
@@ -149,7 +149,7 @@ export function attachVideoOverlay(
       return false;
     }
     try {
-      // コマが出るたびに通知する口がなければ、コピーする時機が分からない。
+      // フレームが出るたびに通知する口がなければ、コピーする時機が分からない。
       if (typeof video.requestVideoFrameCallback !== 'function') {
         throw new Error('requestVideoFrameCallback is unavailable');
       }
@@ -234,7 +234,7 @@ export function attachVideoOverlay(
     if (canvas.width !== target.width || canvas.height !== target.height) {
       canvas.width = target.width;
       canvas.height = target.height;
-      // 大きさを変えると描画が消えるので、補間したコマも、上限によらず次の書き換えで描き直す。
+      // 大きさを変えると描画が消えるので、補間したフレームも、上限によらず次の書き換えで描き直す。
       pacer.reset();
     }
     stale = true;
@@ -275,7 +275,7 @@ export function attachVideoOverlay(
     }
   };
 
-  // resize は、映す大きさと届くコマの大きさが変わったら、テクスチャを作り直す。
+  // resize は、映す大きさと届くフレームの大きさが変わったら、テクスチャを作り直す。
   // テクスチャの大きさは、コピーするときにブラウザが決める (texImage2D) ので、ここでは作るだけにする。
   const resize = (width: number, height: number, frameWidth: number, frameHeight: number) => {
     if (
@@ -309,7 +309,7 @@ export function attachVideoOverlay(
     fit();
   };
 
-  // composeTarget は、拡大するときに補間したコマを描く、コマの大きさのテクスチャを返す。
+  // composeTarget は、拡大するときに補間したフレームを描く、フレームの大きさのテクスチャを返す。
   const composeTarget = (context: WebGL2RenderingContext, frame: Size) => {
     if (
       composed !== null &&
@@ -341,7 +341,7 @@ export function attachVideoOverlay(
     return composed;
   };
 
-  // upscaleTo は、テクスチャ (行を下から持つ、コマの大きさ) を、canvas へ拡大して描く。描けなければ、拡大をやめる。
+  // upscaleTo は、テクスチャ (行を下から持つ、フレームの大きさ) を、canvas へ拡大して描く。描けなければ、拡大をやめる。
   const upscaleTo = (
     context: WebGL2RenderingContext,
     texture: WebGLTexture,
@@ -362,8 +362,8 @@ export function attachVideoOverlay(
     return false;
   };
 
-  // onSeeking は、シークを始めたか、読み直して映像が空になったら、前のコマを破棄する。
-  // 次のコマが届くまで、canvas を隠して video を見せる。
+  // onSeeking は、シークを始めたか、読み直して映像が空になったら、前のフレームを破棄する。
+  // 次のフレームが届くまで、canvas を隠して video を見せる。
   const onSeeking = () => {
     frames = [];
     estimated = null;
@@ -372,7 +372,7 @@ export function attachVideoOverlay(
     stale = true;
   };
 
-  // onFrame は、video が新しいコマを出したときに、そのコマをコピーし、補間するなら前のコマとの動きを推し量る。
+  // onFrame は、video が新しいフレームを出したときに、そのフレームをコピーし、補間するなら前のフレームとの動きを推し量る。
   const onFrame = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
     frameHandle = null;
     if (!active() || destroyed || gl === null || interpolator === null) {
@@ -381,7 +381,7 @@ export function attachVideoOverlay(
     try {
       const width = video.videoWidth;
       const height = video.videoHeight;
-      // rVFC の大きさは、届いたコマの大きさ。通知しないブラウザでは、映す大きさと同じとみなす。
+      // rVFC の大きさは、届いたフレームの大きさ。通知しないブラウザでは、映す大きさと同じとみなす。
       const frameWidth = metadata.width > 0 ? metadata.width : width;
       const frameHeight = metadata.height > 0 ? metadata.height : height;
       if (width > 0 && height > 0) {
@@ -392,7 +392,7 @@ export function attachVideoOverlay(
           estimated = null;
           times = [];
         }
-        // 出している 2 コマに使っていないテクスチャへコピーする。
+        // 出している 2 フレームに使っていないテクスチャへコピーする。
         const used = new Set(frames.map((frame) => frame.slot));
         const slot = [...Array(slots).keys()].find((i) => !used.has(i)) ?? 0;
         const texture = textures[slot];
@@ -432,7 +432,7 @@ export function attachVideoOverlay(
     frameHandle = video.requestVideoFrameCallback(onFrame);
   };
 
-  // drawInterpolated は、画面を更新するたびに、1 コマ遅らせた時刻のコマを描く。補間しないなら false を返す。
+  // drawInterpolated は、画面を更新するたびに、1 フレーム遅らせた時刻のフレームを描く。補間しないなら false を返す。
   const drawInterpolated = (now: DOMHighResTimeStamp): boolean => {
     if (
       !interpolate ||
@@ -447,7 +447,7 @@ export function attachVideoOverlay(
     ) {
       return false;
     }
-    // コマの間隔は映像の時刻で計測するので、再生の速さで割って、実時間の間隔にして比較する。
+    // フレームの間隔は映像の時刻で計測するので、再生の速さで割って、実時間の間隔にして比較する。
     const period = framePeriod(times);
     if (
       period === null ||
@@ -477,7 +477,7 @@ export function attachVideoOverlay(
     } else {
       return false;
     }
-    // 上限より速く描かない。描かない書き換えでは、前に描いたコマがそのまま映る。
+    // 上限より速く描かない。描かない書き換えでは、前に描いたフレームがそのまま映る。
     if (!pacer.shouldDraw(now, maxRate(), refreshMs)) {
       return true;
     }
@@ -486,20 +486,20 @@ export function attachVideoOverlay(
 
       return true;
     }
-    // 拡大するときは、補間したコマをコマの大きさのテクスチャに描いてから、拡大して描く。
+    // 拡大するときは、補間したフレームを、フレームの大きさのテクスチャに描いてから、拡大して描く。
     const target = composeTarget(gl, frameSize);
     interpolator.compose(t, target.framebuffer, frameSize.width, frameSize.height);
     if (!upscaleTo(gl, target.texture, frameSize)) {
       interpolator.compose(t, null, size.width, size.height);
     }
-    // 補間をやめたら、最後のコマを拡大して描き直す。
+    // 補間をやめたら、最後のフレームを拡大して描き直す。
     stale = true;
 
     return true;
   };
 
-  // drawUpscaled は、補間しないときに、最後に届いたコマを拡大して描く。拡大しないなら false を返す。
-  // 届いたコマと大きさが変わらなければ、描き直さない (canvas には前に描いたコマが残る)。
+  // drawUpscaled は、補間しないときに、最後に届いたフレームを拡大して描く。拡大しないなら false を返す。
+  // 届いたフレームと大きさが変わらなければ、描き直さない (canvas には前に描いたフレームが残る)。
   const drawUpscaled = (): boolean => {
     if (gl === null || frameSize === null || output === null) {
       return false;
@@ -532,7 +532,7 @@ export function attachVideoOverlay(
       refreshMs += (step - refreshMs) * refreshSmoothing;
     }
     try {
-      // シークの間は、video が出す新しいコマを待つ。
+      // シークの間は、video が出す新しいフレームを待つ。
       const drawn =
         !video.seeking &&
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
@@ -554,9 +554,9 @@ export function attachVideoOverlay(
     loopHandle = requestAnimationFrame(loop);
   };
 
-  // copyPaused は、止めている間に入れたとき、映っているコマをすぐコピーする。
+  // copyPaused は、止めている間に入れたとき、映っているフレームをすぐコピーする。
   // 止めている間は requestVideoFrameCallback が呼ばれないので、待つと再生を始めるまで拡大して描けない。
-  // 届いたコマの大きさは通知されないので、前に届いたコマの大きさか、なければ映す大きさとみなす。
+  // 届いたフレームの大きさは通知されないので、前に届いたフレームの大きさか、なければ映す大きさとみなす。
   const copyPaused = () => {
     if (
       gl === null ||

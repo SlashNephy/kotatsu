@@ -473,7 +473,7 @@ func firstPTS(t *testing.T, path, stream string) float64 {
 
 // TestTranscoderKeepsBroadcastPTS は、ライブ視聴のセグメントの PTS を、入力の放送の PTS のままにすることを確認する (#1515)。
 // 画面は、hls.js が画面の時刻 0 に置いた PTS を、放送の時刻の起点にして「放送から N 秒」を出す。
-// 音声は、入力の最初の音声と同じ PTS から始まる。映像は、インターレースの解除とエンコードの分、1 コマより小さくずれる。
+// 音声は、入力の最初の音声と同じ PTS から始まる。映像は、インターレースの解除とエンコードの分、1 フレームより小さくずれる。
 func TestTranscoderKeepsBroadcastPTS(t *testing.T) {
 	t.Parallel()
 
@@ -539,8 +539,8 @@ func TestTranscoderNVENCSplitsSegmentsEvery2s(t *testing.T) {
 }
 
 // TestTranscoderQSVSplitsSegmentsEvery2s は、QSV でも、どの画質でも HLS のセグメントを 2 秒ごとに区切ることを確認する (#1848)。
-// 30 コマの画質では、scale_qsv の後のフレームの長さが前の時間の単位のままになり、HLS の muxer が最初のフレームを複製し続ける。
-// 60 コマの画質では、-force_key_frames で置いたキーフレームが IDR にならないことがある。
+// 30 fps の画質では、scale_qsv の後のフレームの長さが前の時間の単位のままになり、HLS の muxer が最初のフレームを複製し続ける。
+// 60 fps の画質では、-force_key_frames で置いたキーフレームが IDR にならないことがある。
 // QSV の使える GPU がなければ、テストを飛ばす。
 func TestTranscoderQSVSplitsSegmentsEvery2s(t *testing.T) {
 	t.Parallel()
@@ -555,7 +555,7 @@ func TestTranscoderQSVSplitsSegmentsEvery2s(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	// 放送と同じ 1080i の MPEG-2 を 30 秒つくる。60 コマの画質で IDR でないキーフレームが混ざり始めるのは、5 秒ほど後からである。
+	// 放送と同じ 1080i の MPEG-2 を 30 秒つくる。60 fps の画質で IDR でないキーフレームが混ざり始めるのは、5 秒ほど後からである。
 	input := filepath.Join(t.TempDir(), "in.ts")
 	generate := exec.CommandContext(t.Context(), "ffmpeg", "-hide_banner", "-loglevel", "error",
 		"-f", "lavfi", "-i", "testsrc2=size=1440x1080:rate=30000/1001", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "30",
@@ -628,7 +628,7 @@ func gpuDevice(t *testing.T, encoder string) string {
 }
 
 // TestTranscoderHardwareDecode は、VAAPI と QSV で、復号から縮小までを GPU でして、画質のプリセットどおりの 8 ビットの映像の HLS を書き、
-// セグメントを 2 秒ごとに区切ることを確認する (#1970、#1999)。インターレースの MPEG-2 は、60fps の画質ではフィールドごとに 1 コマにし、
+// セグメントを 2 秒ごとに区切ることを確認する (#1970、#1999)。インターレースの MPEG-2 は、60fps の画質ではフィールドごとに 1 フレームにし、
 // BS4K に似せた 10 ビットの HEVC のプログレッシブの映像は、デインターレースを通さずに 59.94fps のまま送る。
 // GPU が復号できない形式 (H.264 の 4:4:4) の入力でも、CPU で復号して、同じく変換する。
 // そのエンコーダーを使える GPU がなければ、そのエンコーダーのテストを飛ばす。

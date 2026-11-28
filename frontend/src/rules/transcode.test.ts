@@ -30,7 +30,7 @@ describe('optionOfPreset と presetOfOption', () => {
 });
 
 describe('frameRateLabel (#1509)', () => {
-  // rateT は、キーと、コマ数を並べて返す。
+  // rateT は、キーと、フレームレートを並べて返す。
   const rateT = ((key: string, values?: Record<string, string>) =>
     values === undefined ? key : `${key}:${values['rate']}`) as unknown as TFunction;
 

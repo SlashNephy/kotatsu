@@ -8,7 +8,7 @@ import {
   type VideoLagController,
 } from './videoLag';
 
-// started は、最初の 1 コマ (読み込み直後で計測しない) を済ませた制御を作る。
+// started は、最初の 1 フレーム (読み込み直後で計測しない) を済ませた制御を作る。
 function started(measurable = true): VideoLagController {
   const controller = createVideoLagController({ measurable });
   controller.frame(0, { lag: 0, ahead: 1 });
@@ -36,7 +36,7 @@ describe('飛び直し (測った遅れ)', () => {
     expect(started().frame(1_000, { lag, ahead })).toBe(want);
   });
 
-  test('読み込み直後の最初のコマは測らない', () => {
+  test('読み込み直後の最初のフレームは測らない', () => {
     const controller = createVideoLagController({ measurable: true });
 
     expect(controller.frame(0, { lag: 1, ahead: 1 })).toBe(false);
@@ -45,11 +45,11 @@ describe('飛び直し (測った遅れ)', () => {
 
   test.each([
     {
-      name: '飛んだ直後の 1 コマは測らない',
+      name: '飛んだ直後の 1 フレームは測らない',
       prepare: (c: VideoLagController) => c.jumped(0, 'lag', true),
     },
     {
-      name: 'seeking を受けた直後の 1 コマは測らない',
+      name: 'seeking を受けた直後の 1 フレームは測らない',
       prepare: (c: VideoLagController) => c.seeking(),
     },
   ])('$name', ({ prepare }) => {
@@ -57,7 +57,7 @@ describe('飛び直し (測った遅れ)', () => {
     prepare(controller);
     const at = params.minJumpIntervalMs;
 
-    // 飛ぶ前の時刻を持ったコマは、飛んだ幅の分だけ大きく遅れて見える。
+    // 飛ぶ前の時刻を持ったフレームは、飛んだ幅の分だけ大きく遅れて見える。
     expect(controller.frame(at, { lag: 2.5, ahead: 1 })).toBe(false);
     expect(controller.frame(at + 33, { lag: 0.5, ahead: 1 })).toBe(true);
   });
@@ -169,7 +169,7 @@ describe('重さの判定', () => {
     expect(controller.heavy(10_000)).toBe(false);
   });
 
-  // feed は、1 秒おきに 30 コマ出し、そのうち ratio の割合を破棄したことにする。
+  // feed は、1 秒おきに 30 フレームを出し、そのうち ratio の割合を破棄したことにする。
   function feed(controller: VideoLagController, untilMs: number, ratio: number) {
     for (let at = 0; at <= untilMs; at += 1_000) {
       const total = (at / 1_000) * 30;
@@ -190,8 +190,8 @@ describe('重さの判定', () => {
       until: 20_000,
       want: true,
     },
-    // 1 秒に 30 コマなので、最低コマ数に届くのは 5 秒。
-    { name: '最低コマ数に満たない窓は数えない', ratio: 1, until: 4_000, want: false },
+    // 30 fps なので、最低フレーム数に届くのは 5 秒。
+    { name: '最低フレーム数に満たない窓は数えない', ratio: 1, until: 4_000, want: false },
   ])('$name', ({ ratio, until, want }) => {
     const controller = started();
     feed(controller, until, ratio);
@@ -211,7 +211,7 @@ describe('重さの判定', () => {
 
   test('窓より長く間が空いたら、その前の記録と比べない', () => {
     const controller = started();
-    // 空く前は破棄していない。空いた後の 9 秒に 300 コマ出し、すべて破棄した。
+    // 空く前は破棄していない。空いた後の 9 秒に 300 フレームを出し、すべて破棄した。
     controller.quality(0, 0, 0);
     controller.quality(30_000, 300, 0);
     controller.quality(39_000, 600, 300);

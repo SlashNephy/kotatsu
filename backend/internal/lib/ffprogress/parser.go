@@ -1,6 +1,6 @@
 // Package ffprogress は、FFmpeg の -progress の出力を読み、録画の後処理のジョブの進み具合 (割合と残り時間) にする (#1511、設計書 6.1)。
 //
-// 割合の分子は、エンコードしたコマ数 (frame) にする。out_time_us は mux が最後に書いたパケットの時刻で、疎な字幕で先に飛んだり、
+// 割合の分子は、エンコードしたフレーム数 (frame) にする。out_time_us は mux が最後に書いたパケットの時刻で、疎な字幕で先に飛んだり、
 // 壊れた副音声で止まったりする。入力の読み位置は、デマクサが先に読み切って終わり近くに貼り付く。
 package ffprogress
 
@@ -12,11 +12,11 @@ import (
 
 // Block は、-progress の 1 まとまり。FFmpeg は、key=value の行を並べ、progress=continue か progress=end で区切る。
 type Block struct {
-	// Frame は、エンコードしたコマ数。まとまりになければ -1。
+	// Frame は、エンコードしたフレーム数。まとまりになければ -1。
 	Frame int64
 	// TotalSize は、書いた出力の大きさ (バイト)。分からなければ -1。
 	TotalSize int64
-	// DropFrames は、破棄したコマ数。分からなければ -1。
+	// DropFrames は、破棄したフレーム数。分からなければ -1。
 	DropFrames int64
 	// Bitrate と Speed は、FFmpeg が出したままの文字列 (例: 2963.4kbits/s、1.02x)。ログに出すだけなので、読み替えない。
 	Bitrate string

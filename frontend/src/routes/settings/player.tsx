@@ -336,7 +336,7 @@ function PlayerSettings() {
             checked={hdrOutputAvailable && hdrOutput}
             onChange={(event) => deviceSave(setHDROutput)(event.currentTarget.checked)}
           />
-          {/* GPU の負荷と、作ったコマの崩れ方は端末と映像によるので、端末ごとに保存する (#1655)。 */}
+          {/* GPU の負荷と、作ったフレームの崩れ方は端末と映像によるので、端末ごとに保存する (#1655)。 */}
           <Switch
             label={
               <Group gap={6} component="span">

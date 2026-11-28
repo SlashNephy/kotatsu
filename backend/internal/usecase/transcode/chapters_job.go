@@ -245,7 +245,7 @@ func (w *ChaptersWorker) work(ctx context.Context, chapterer Chapterer, recordin
 // CM の区間は、セグメントごとに、そのファイルの最初の I フレーム (ts.CueScanner の FirstKeyframePTS) を、セグメントの始まりの日時に置いて数える。
 // バージョン 1 の今の見分け方の区間 (fromFirstPES) だけは、最初の映像の PES (FirstVideoPTS) を置いて数えている (#1811)。
 // 変換は、録画を最初の I フレームから流す (stream.Recording.Seek(0))。GOP の途中から録り始めたセグメントでは、それより前の映像と音声を破棄する。
-// MP4 の時間は、その I フレームを MP4 の最初の映像のコマ (MP4Info.VideoStart) に置いて数える。そこで、MP4 の時間は、
+// MP4 の時間は、その I フレームを MP4 の最初の映像のフレーム (MP4Info.VideoStart) に置いて数える。そこで、MP4 の時間は、
 // 再生の時間から、最初のセグメントの始まりの再生の時間を引き、VideoStart を足して求める。fromFirstPES なら、最初の映像から
 // 最初の I フレームまでの長さも引く。ここでは、VideoStart を足す前の分を返す。インデックスがなく、最初の I フレームが分からなければ、
 // 最初の映像から流したものとみなす。
@@ -349,7 +349,7 @@ func (w *ChaptersWorker) rewrite(ctx context.Context, chapterer Chapterer, path 
 	return t, chapterer.Rewrite(ctx, path, metadata, t.partial)
 }
 
-// replace は、書き終えた一時ファイルを元の名前に置き換え、大きさを記録し直す。コピーし直しても映像は変わらないので、コマ数 (#1509) は前の記録のままにする。
+// replace は、書き終えた一時ファイルを元の名前に置き換え、大きさを記録し直す。コピーし直しても映像は変わらないので、フレームレート (#1509) は前の記録のままにする。
 func (w *ChaptersWorker) replace(ctx context.Context, targets []*target) error {
 	for _, t := range targets {
 		if err := os.Rename(t.partial, t.path); err != nil {

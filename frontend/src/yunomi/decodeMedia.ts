@@ -13,7 +13,7 @@ import { sharedAudioContext } from './sharedAudioContext';
 
 // ブラウザ内でデコードする経路 (#1516、設計書 7.2) の PlayerMedia。
 // 映像は worker が canvas (OffscreenCanvas) に描き、音はここで Web Audio に予約して鳴らす。時計は、鳴っている音の PTS で、
-// それを worker へ送り、worker が映すコマを選ぶ。
+// それを worker へ送り、worker が映すフレームを選ぶ。
 //
 // <video> と違う所:
 // - シークできない (seekMode は none)。速さは等速だけ (playbackRate は 1 のまま)。
@@ -201,7 +201,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
 
   set defaultPlaybackRate(_value: number) {}
 
-  // frame は、worker が描いた canvas。drawImage で、描いた最後のコマを写せる (#1516 で確認した)。
+  // frame は、worker が描いた canvas。drawImage で、描いた最後のフレームを写せる (#1516 で確認した)。
   get frame(): CanvasImageSource {
     return this.element;
   }

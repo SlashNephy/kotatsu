@@ -45,7 +45,7 @@ type Job {
   progress: JobProgress
 }
 
-"ジョブの進み具合 (#1511、設計書 6.1)。FFmpeg がエンコードしたコマ数から求める。"
+"ジョブの進み具合 (#1511、設計書 6.1)。FFmpeg がエンコードしたフレーム数から求める。"
 type JobProgress {
   "0 から 1 の割合。FFmpeg が書き終えるまでは 0.99 で止める。"
   ratio: Float!

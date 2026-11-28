@@ -51,7 +51,7 @@ const playing = (position: number | null, extra: Partial<SkipperFrame> = {}): Sk
 });
 
 describe('CmAutoSkipper', () => {
-  test('先読みの分だけ手前で、映っている本編のコマを写した蓋を出してから、続いた CM の終わりへ飛ぶ', () => {
+  test('先読みの分だけ手前で、映っている本編のフレームを写した蓋を出してから、続いた CM の終わりへ飛ぶ', () => {
     const { host, events } = fakeHost();
     const skipper = new CmAutoSkipper(host);
     skipper.frame(playing(599.5));
@@ -60,18 +60,18 @@ describe('CmAutoSkipper', () => {
     expect(events).toEqual(['cover:still', 'jump:645', 'notify']);
   });
 
-  test('CM の中のコマで飛ぶときは、写さずに黒で覆う', () => {
+  test('CM の中のフレームで飛ぶときは、写さずに黒で覆う', () => {
     const { host, events } = fakeHost();
     new CmAutoSkipper(host).frame(playing(610));
     expect(events).toEqual(['cover:black', 'jump:645', 'notify']);
   });
 
-  test('飛び先以上のコマが続けて映るまで、蓋を外さない', () => {
+  test('飛び先以上のフレームが続けて映るまで、蓋を外さない', () => {
     const { host, events } = fakeHost();
     const skipper = new CmAutoSkipper(host);
     skipper.frame(playing(610));
     events.length = 0;
-    // 読み直しの途中のコマ、seek の途中のコマ、I フレームから飛び先の手前までのコマでは数えない。
+    // 読み直しの途中のフレーム、seek の途中のフレーム、I フレームから飛び先の手前までのフレームでは数えない。
     skipper.frame(playing(null));
     skipper.frame(playing(645, { seeking: true }));
     skipper.frame(playing(644.9));
@@ -84,7 +84,7 @@ describe('CmAutoSkipper', () => {
     expect(skipper.waiting).toBe(false);
   });
 
-  test('飛び先以上のコマの途中で手前のコマが来たら、数え直す', () => {
+  test('飛び先以上のフレームが続く途中で手前のフレームが来たら、数え直す', () => {
     const { host, events } = fakeHost();
     const skipper = new CmAutoSkipper(host);
     skipper.frame(playing(610));
@@ -110,8 +110,8 @@ describe('CmAutoSkipper', () => {
     expect(events).toEqual([]);
   });
 
-  test('止めている間に届いたコマは、飛び先以上でも、蓋を外す数に入れない', () => {
-    // requestVideoFrameCallback のないブラウザは、requestAnimationFrame で代えるので、止めている間もコマの通知が届く。
+  test('止めている間に届いたフレームは、飛び先以上でも、蓋を外す数に入れない', () => {
+    // requestVideoFrameCallback のないブラウザは、requestAnimationFrame で代えるので、止めている間もフレームの通知が届く。
     const { host, events } = fakeHost();
     const skipper = new CmAutoSkipper(host);
     skipper.frame(playing(610));
@@ -210,12 +210,12 @@ describe('CmAutoSkipper', () => {
     expect(events).toEqual([]);
   });
 
-  test('開き始めは、飛ばずに黒い蓋で覆い、求めた位置以上のコマが映るまで待つ', () => {
+  test('開き始めは、飛ばずに黒い蓋で覆い、求めた位置以上のフレームが映るまで待つ', () => {
     const { host, events } = fakeHost();
     const skipper = new CmAutoSkipper(host);
     skipper.holdUntil(645);
     expect(events).toEqual(['cover:black']);
-    // 配信は手前の I フレームから流れるので、CM の末尾のコマが来ても、飛ばずに隠したまま待つ。
+    // 配信は手前の I フレームから流れるので、CM の末尾のフレームが来ても、飛ばずに隠したまま待つ。
     skipper.frame(playing(644.6));
     for (let i = 0; i < uncoverFrames; i++) {
       skipper.frame(playing(645 + i / 30));

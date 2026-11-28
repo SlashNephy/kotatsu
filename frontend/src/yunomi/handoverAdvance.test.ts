@@ -116,7 +116,7 @@ describe('advanceBeforeHandover', () => {
     expect(clock.slept).toBe(200);
   });
 
-  test('進めたら、その位置のコマが出るまで待つ', async () => {
+  test('進めたら、その位置のフレームが出るまで待つ', async () => {
     const video = { currentTime: 1, buffered: ranges([1, 20]), seeking: false };
     let seekedAt: number | null = null;
     const clock = fakeClock((now) => {

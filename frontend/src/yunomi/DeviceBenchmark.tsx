@@ -54,7 +54,7 @@ type Collector = {
   // collecting は、計測するウィンドウの中かどうか。ウィンドウの中で受け取った fps だけを数える。
   collecting: boolean;
   // offscreen は、計測するウィンドウの中で、プレイヤーが画面から外れたことがあるか。
-  // 画面の外の canvas は合成されないので、GPU が追いつかなくても、コマの数に反映されない (#1771)。
+  // 画面の外の canvas は合成されないので、GPU が追いつかなくても、フレームの数に反映されない (#1771)。
   offscreen: boolean;
   fpsSamples: number[];
   loaded: (() => void) | null;
@@ -110,7 +110,7 @@ function rendererName(): string | null {
 }
 
 // DeviceBenchmark は、「この端末で試す」のカード (#1771、設計書 7.5)。
-// 合成の映像を、経路ごとに短く再生してコマが間に合うかを計測し、結果のテーブルと、報告に貼れるテキストを出す。
+// 合成の映像を、経路ごとに短く再生してフレームが間に合うかを計測し、結果のテーブルと、報告に貼れるテキストを出す。
 export function DeviceBenchmark() {
   const { t } = useTranslation();
   const [mounted, setMounted] = useState<Mounted | null>(null);
@@ -329,7 +329,7 @@ export function DeviceBenchmark() {
                     settings={{
                       fieldRate: mounted.scenario.fieldRate,
                       interpolate: mounted.scenario.interpolate,
-                      // 補間したコマは、利用者が決めた上限によらず、画面の書き換えごとに出し、書き換えの速さと比較する。
+                      // 補間したフレームは、利用者が決めた上限によらず、画面の書き換えごとに出し、書き換えの速さと比較する。
                       interpolationRate: null,
                       // 拡大 (#1654) は、計測する経路の違いに混ぜないよう、利用者の設定によらず切る。
                       superResolution: false,

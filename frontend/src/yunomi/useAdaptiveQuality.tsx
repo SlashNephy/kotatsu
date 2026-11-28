@@ -58,7 +58,7 @@ export function useAdaptiveQuality(
   const [notice, setNotice] = useState<Notice | null>(null);
   // 映像だけの遅れの検出は、<video> の経路のための処理なので、<video> を渡す (playerMedia.ts の先頭)。
   const videoLag = useVideoLag(media?.video ?? null, {
-    // コマを canvas に描いている読み込み (#2287) では、飛び直さない。
+    // フレームを canvas に描いている読み込み (#2287) では、飛び直さない。
     picturesOnCanvas: () => media?.canvasPictures != null,
     ...(stepDown
       ? {

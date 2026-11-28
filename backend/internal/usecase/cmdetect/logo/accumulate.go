@@ -25,8 +25,8 @@ func (g *Gray) sobel(x, y int) (float64, float64) {
 	return gx, gy
 }
 
-// Accumulator は、縁の向きをコマをまたいで足し合わせたもの (#1505 の A)。
-// 画素ごとに、縁とみなす強さ以上の勾配の、角を 2 倍にした単位ベクトルの和 (Sx, Sy) と、足したコマの数 N を持つ。
+// Accumulator は、縁の向きをフレームをまたいで足し合わせたもの (#1505 の A)。
+// 画素ごとに、縁とみなす強さ以上の勾配の、角を 2 倍にした単位ベクトルの和 (Sx, Sy) と、足したフレームの数 N を持つ。
 // 白いロゴが暗い背景にも明るい背景にも乗ると勾配の符号が反転するが、2 倍角なら θ と θ+π が同じベクトルになる。
 // 和のまま持つので、録画をまたいで足していける。
 type Accumulator struct {
@@ -43,7 +43,7 @@ func NewAccumulator(width, height int) *Accumulator {
 }
 
 // Add は、img の縁の向きを足す。img は Accumulator と同じ大きさにする。外周 1 画素は数えない。
-// 縁がなかった画素も、そのコマは N に数える。
+// 縁がなかった画素も、そのフレームは N に数える。
 func (a *Accumulator) Add(img *Gray, edgeStrength float64) {
 	threshold := edgeStrength * edgeStrength
 	for y := 1; y < a.Height-1; y++ {
@@ -79,7 +79,7 @@ func (a *Accumulator) Scale(k float64) {
 	a.N = int(math.Round(float64(a.N) * k))
 }
 
-// Coherence は、画素ごとの揃い方 √(Sx² + Sy²) / N (0〜1) を返す。ロゴの縁では、ロゴが出ていたコマの割合に近い値が残り、
+// Coherence は、画素ごとの揃い方 √(Sx² + Sy²) / N (0〜1) を返す。ロゴの縁では、ロゴが出ていたフレームの割合に近い値が残り、
 // 本編の内容の縁は向きが打ち消し合って 0 に近づく。N が 0 なら、どの画素も 0 にする。
 func (a *Accumulator) Coherence() []float64 {
 	out := make([]float64, len(a.Sx))

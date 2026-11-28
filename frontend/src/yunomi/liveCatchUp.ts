@@ -136,7 +136,7 @@ export function useLiveCatchUp(
       }
     }, params.tickMs);
 
-    // 映ったコマごとにも、バッファを記録する。束が届く直前の低い所を捉えるため。
+    // 映ったフレームごとにも、バッファを記録する。束が届く直前の低い所を捉えるため。
     let frameRequest: number | null = null;
     const onFrame = () => {
       observe(performance.now());

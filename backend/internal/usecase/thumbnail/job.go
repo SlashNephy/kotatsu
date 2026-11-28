@@ -39,7 +39,7 @@ const (
 
 	// generateMaxAttempts は、画像を作るジョブを試す回数の上限。
 	generateMaxAttempts = 3
-	// generateTimeout は、画像を作るジョブの時間の上限。1 枚ずつ FFmpeg を動かすので、コマの数だけかかる。
+	// generateTimeout は、画像を作るジョブの時間の上限。1 枚ずつ FFmpeg を動かすので、フレームの数だけかかる。
 	generateTimeout = 10 * time.Minute
 )
 
@@ -329,7 +329,7 @@ func HasContent(kind string, size int64, endedAt *time.Time) bool {
 // segments は、録画のファイルから、インデックスのあるセグメントを、始まりの順に読む。このインスタンスにマウントされていないプールのものは使えない。
 // インデックスは、データディレクトリの、セグメントのファイルの ID のディレクトリにあるものを、そのセグメントのインデックスとする。
 // EPGStation から取り込んだ録画では、複数のセグメントの始まりが同じことがあるので、始まりでは対応付けない。
-// コマの時間は、使える最初のセグメントの始まりからの時間にする。その始まりの日時も返す。
+// フレームの時間は、使える最初のセグメントの始まりからの時間にする。その始まりの日時も返す。
 func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, time.Time, error) {
 	segments := []Segment{}
 	var startedAt *time.Time

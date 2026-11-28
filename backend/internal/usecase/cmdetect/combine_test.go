@@ -120,10 +120,10 @@ func TestSignalOffset(t *testing.T) {
 		firstTime     float64
 		want          float64
 	}{
-		// 本番の録画: 最初の映像の PES は、最初のコマ (I フレーム) より 0.467 秒前。FFmpeg は最初のコマに 0.567 秒を付けた。
-		// コマの時刻 t の所は、最初の映像の PES から t − 0.567 + 0.467 秒になる。
+		// 本番の録画: 最初の映像の PES は、最初のフレーム (I フレーム) より 0.467 秒前。FFmpeg は最初のフレームに 0.567 秒を付けた。
+		// フレームの時刻 t の所は、最初の映像の PES から t − 0.567 + 0.467 秒になる。
 		{name: "the first video PES is before the first frame", first: 6830340175, origin: 6830298175, firstTime: 0.567, want: 0.46666666666666673 - 0.567},
-		// 最初の映像の PES の後で PTS が一周し、最初のコマの PTS が小さくなった。
+		// 最初の映像の PES の後で PTS が一周し、最初のフレームの PTS が小さくなった。
 		{name: "the PTS wraps between the first video PES and the first frame", first: 9000, origin: wrap - 9000, firstTime: 0.1, want: 0.1},
 	}
 	for _, tt := range tests {
@@ -135,7 +135,7 @@ func TestSignalOffset(t *testing.T) {
 	}
 }
 
-// TestToPlayback は、局ロゴの見分け方の区間 (最初のコマからの時間) を、再生の時間 (録画のインデックスの最初の I フレームが 0) に直すことを確認する (#1811)。
+// TestToPlayback は、局ロゴの見分け方の区間 (最初のフレームからの時間) を、再生の時間 (録画のインデックスの最初の I フレームが 0) に直すことを確認する (#1811)。
 func TestToPlayback(t *testing.T) {
 	t.Parallel()
 
@@ -148,8 +148,8 @@ func TestToPlayback(t *testing.T) {
 		want       [][2]float64
 	}{
 		{
-			// 本番の録画: FFmpeg がデコードした最初のコマは、インデックスの最初の I フレームより 0.5 秒前。
-			// コマの時刻は 0.1335 秒から始まり、今の見分け方の基準 (インデックスの最初の I フレーム) への差は -0.634 秒。
+			// 本番の録画: FFmpeg がデコードした最初のフレームは、インデックスの最初の I フレームより 0.5 秒前。
+			// フレームの時刻は 0.1335 秒から始まり、今の見分け方の基準 (インデックスの最初の I フレーム) への差は -0.634 秒。
 			name: "the first frame is before the first indexed I frame", firstTime: 0.1335, offset: -0.634, withBounds: true,
 			sections: [][2]float64{{0.2, 1}, {60, 75}},
 			want:     [][2]float64{{0, 0.4995}, {59.4995, 74.4995}},

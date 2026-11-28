@@ -259,7 +259,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       ? { at, skipped: false, resumed: at > 0 }
       : { at: Math.min(span.to, duration), skipped: true, resumed: at > 0 };
   });
-  // 終わりの直前から読むと、映像のコマが届かずに失敗するので、映像が入るだけ手前から始める (#1576)。
+  // 終わりの直前から読むと、映像のフレームが届かずに失敗するので、映像が入るだけ手前から始める (#1576)。
   const resumeAt = playableStart(opening.at, duration);
 
   if (recording === null) {
@@ -305,7 +305,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         opening,
         initialSeek: start === undefined ? null : resumeAt,
         initial: resumeAt,
-        // 終わりの直前から読むと、映像のコマが届かずに失敗するので、映像が入るだけ手前から読む (#1576)。
+        // 終わりの直前から読むと、映像のフレームが届かずに失敗するので、映像が入るだけ手前から読む (#1576)。
         // CM の区間が録画の終わりまで続く回で、CM を飛ばすと、ここに来る。
         restartFrom: (seconds) => playableStart(seconds, duration),
         growing: stillRecording,

@@ -35,7 +35,7 @@ export type PlayerMediaEventType =
 
 // PlayerMediaSeekMode は、seek でどこまで正確に動けるか。
 // - exact: 指定した位置へ動く。
-// - keyframe: 指定した位置以降の、最初に映せるコマ (I フレーム) へ動く。前へは戻らない。
+// - keyframe: 指定した位置以降の、最初に映せる I フレームへ動く。前へは戻らない。
 // - none: 動けない (ライブなど)。
 export type PlayerMediaSeekMode = 'exact' | 'keyframe' | 'none';
 
@@ -52,15 +52,15 @@ export type PlayerMediaRanges = {
   end(index: number): number;
 };
 
-// PlayerMediaQuality は、出したコマと落としたコマの数。VideoPlaybackQuality のうち、部品が読むもの。
+// PlayerMediaQuality は、出したフレームと落としたフレームの数。VideoPlaybackQuality のうち、部品が読むもの。
 export type PlayerMediaQuality = {
   readonly totalVideoFrames: number;
   readonly droppedVideoFrames: number;
 };
 
-// PlayerFrameMetadata は、コマを出したときに受け取るもの。VideoFrameCallbackMetadata のうち、部品が読むもの。
+// PlayerFrameMetadata は、フレームを出したときに受け取るもの。VideoFrameCallbackMetadata のうち、部品が読むもの。
 export type PlayerFrameMetadata = {
-  // mediaTime は、出したコマの位置 (秒)。
+  // mediaTime は、出したフレームの位置 (秒)。
   readonly mediaTime: number;
 };
 
@@ -107,21 +107,21 @@ export interface PlayerMedia {
   pause(): void;
   // seek は、再生の位置を seconds 秒へ動かす。seekMode が none のときは呼ばない。
   seek(seconds: number): void;
-  // requestVideoFrameCallback と cancelVideoFrameCallback は、コマを出すたびに呼び返す。
+  // requestVideoFrameCallback と cancelVideoFrameCallback は、フレームを出すたびに呼び返す。
   // 経路が対応していなければ無い (有無で、requestAnimationFrame などに切り替える)。
   readonly requestVideoFrameCallback?: (callback: PlayerFrameCallback) => number;
   readonly cancelVideoFrameCallback?: (handle: number) => void;
-  // getVideoPlaybackQuality は、出したコマと落としたコマの数を返す。経路が対応していなければ無い。
+  // getVideoPlaybackQuality は、出したフレームと落としたフレームの数を返す。経路が対応していなければ無い。
   readonly getVideoPlaybackQuality?: () => PlayerMediaQuality;
   // audioPort は、音を WebAudio に通すための口を返す。初めて呼ぶと、経路の音は WebAudio を通るようになり、
   // sink に繋ぐまで聞こえなくなる。音量のステップ (volumeBoost) だけが呼ぶ。ほかから呼ぶと、volumeBoost が
   // 繋いでいないと知らないまま、音が出なくなる。
   audioPort(): AudioPort;
-  // frame は、今のコマを描いたもの。drawImage に渡す。すぐに描けない経路では null。
+  // frame は、今のフレームを描いたもの。drawImage に渡す。すぐに描けない経路では null。
   readonly frame: CanvasImageSource | null;
-  // canvasPictures は、<video> が音と時計だけを受け持ち、コマを別の canvas に描いているときの、そのコマの取り方 (#2287)。
-  // このとき <video> はコマを出さないので、requestVideoFrameCallback は呼ばれず、frame の <video> には絵がない。
-  // コマを <video> が出しているなら、null か無い。
+  // canvasPictures は、<video> が音と時計だけを受け持ち、フレームを別の canvas に描いているときの、そのフレームの取り方 (#2287)。
+  // このとき <video> はフレームを出さないので、requestVideoFrameCallback は呼ばれず、frame の <video> には絵がない。
+  // フレームを <video> が出しているなら、null か無い。
   readonly canvasPictures?: CanvasPictures | null;
   // element は、映像を映している DOM の要素。
   readonly element: HTMLElement;
@@ -137,9 +137,9 @@ export interface PlayerMedia {
   ): void;
 }
 
-// CanvasPictures は、canvas に描いているコマの取り方。
+// CanvasPictures は、canvas に描いているフレームの取り方。
 export type CanvasPictures = {
-  // capture は、今映しているコマを描き直して返す。
+  // capture は、今映しているフレームを描き直して返す。
   capture(): Promise<CanvasImageSource>;
 };
 
@@ -252,7 +252,7 @@ class VideoElementMedia implements PlayerMedia {
     return this.canvasPictures === null ? this.video : null;
   }
 
-  // requestFrame は、次のコマで callback を呼ぶ。canvas に描いている間 (#2287) は <video> がコマを出さず、
+  // requestFrame は、次のフレームで callback を呼ぶ。canvas に描いている間 (#2287) は <video> がフレームを出さず、
   // requestVideoFrameCallback が呼ばれないので、画面の書き換えごとに、今の位置を mediaTime として呼ぶ。
   private requestFrame(callback: PlayerFrameCallback): number {
     const id = ++this.lastFrameRequest;
@@ -336,8 +336,8 @@ class VideoElementMedia implements PlayerMedia {
 // medias は、<video> ごとの PlayerMedia。同じ <video> には、同じものを返す (WeakMap のキーや、React の依存で比較するため)。
 const medias = new WeakMap<HTMLVideoElement, PlayerMedia>();
 
-// setCanvasPictures は、video の PlayerMedia に、canvas に描いているコマの取り方を設定する (#2287)。
-// <video> がコマを出しているなら null を渡す。
+// setCanvasPictures は、video の PlayerMedia に、canvas に描いているフレームの取り方を設定する (#2287)。
+// <video> がフレームを出しているなら null を渡す。
 export function setCanvasPictures(video: HTMLVideoElement, pictures: CanvasPictures | null): void {
   (mediaOf(video) as VideoElementMedia).canvasPictures = pictures;
 }

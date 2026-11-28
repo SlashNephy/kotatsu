@@ -15,7 +15,7 @@ import (
 )
 
 // 合成の差の並びの値。moving は、動いている絵の差。repeated は、3:2 テレシネで繰り返されたフィールドの差 (ほぼ同じ絵)。
-// sameFrame は、30p の同じコマの上と下の差 (行がずれた分だけが出る)。still は、静止した絵の上フィールドの差。
+// sameFrame は、30p の同じフレームの上と下の差 (行がずれた分だけが出る)。still は、静止した絵の上フィールドの差。
 // telecineName と interlacedName は、合成の素材の名前。
 const (
 	telecineName   = "telecine"
@@ -55,7 +55,7 @@ func telecined(phase int) *transcode.FieldDiffs {
 	}, constant(moving))
 }
 
-// progressive30 は、30p の差の並びを返す。上下を交互に並べた差は、同じコマの上と下 (偶数番目) で小さい。
+// progressive30 は、30p の差の並びを返す。上下を交互に並べた差は、同じフレームの上と下 (偶数番目) で小さい。
 func progressive30(seconds int) *transcode.FieldDiffs {
 	return diffsOf(seconds, constant(moving), func(i int) float64 {
 		if i%2 == 0 {
@@ -140,7 +140,7 @@ func TestClassifyWithoutFields(t *testing.T) {
 	}
 }
 
-// TestFieldOutput は、60i のウィンドウの数が、24p 系と 30p のウィンドウの数の合計以上なら 60 コマにすることを確認する (#1509)。
+// TestFieldOutput は、60i のウィンドウの数が、24p 系と 30p のウィンドウの数の合計以上なら 60 fps にすることを確認する (#1509)。
 func TestFieldOutput(t *testing.T) {
 	t.Parallel()
 
@@ -152,7 +152,7 @@ func TestFieldOutput(t *testing.T) {
 		{name: "anime", cadences: []transcode.Cadence{transcode.Cadence24P, transcode.Cadence24P, transcode.Cadence60I, transcode.Cadence24P}, want: false},
 		{name: "30p and 24p add up", cadences: []transcode.Cadence{transcode.Cadence24P, transcode.Cadence30P, transcode.Cadence60I}, want: false},
 		{name: "live action", cadences: []transcode.Cadence{transcode.Cadence60I, transcode.Cadence60I, transcode.Cadence24P, transcode.CadenceUnknown}, want: true},
-		// 迷ったら 60 コマにする。
+		// 迷ったら 60 fps にする。
 		{name: "tie", cadences: []transcode.Cadence{transcode.Cadence60I, transcode.Cadence30P}, want: true},
 		{name: "nothing measured", cadences: []transcode.Cadence{transcode.CadenceUnknown, transcode.CadenceUnknown}, want: true},
 		{name: "unknown windows do not count", cadences: []transcode.Cadence{transcode.Cadence24P, transcode.CadenceUnknown, transcode.CadenceUnknown}, want: false},

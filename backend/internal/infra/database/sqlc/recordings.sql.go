@@ -2198,7 +2198,7 @@ type UpsertTranscodedRecordingFileParams struct {
 	Now                time.Time
 }
 
-// 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさとコマ数 (#1509) を書き直す。
+// 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさとフレームレート (#1509) を書き直す。
 // ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
 func (q *Queries) UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertTranscodedRecordingFile,

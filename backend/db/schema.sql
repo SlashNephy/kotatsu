@@ -1128,8 +1128,8 @@ CREATE TABLE recording_files (
   -- 見つけられなかったセグメントと、セグメント以外は NULL。名前は上流のホスト名を含むことがあるので、管理者にだけ見せる。
   tuner_index bigint,
   tuner_name text,
-  -- Kotatsu が録画を変換した MP4 (#1253) の、1 秒あたりのコマ数 (#1509)。インターレースをフィールドごとに 1 コマにしたら 60、
-  -- コマごとに解除したら 30。プログレッシブの映像は、元のコマ数を丸めた値。変換を終えたときに書く。
+  -- Kotatsu が録画を変換した MP4 (#1253) のフレームレート (#1509)。インターレースをフィールドごとに 1 フレームにしたら 60、
+  -- フレームごとに解除したら 30。プログレッシブの映像は、元のフレームレートを丸めた値。変換を終えたときに書く。
   -- セグメントと、EPGStation から取り込んだファイルと、これを足す前に変換した MP4 は NULL。
   transcode_frame_rate integer,
   -- Kotatsu が書いていない、プールにあった TS を取り込んだファイルかどうか (kotatsu import files、#1734)。
@@ -1182,7 +1182,7 @@ CREATE TABLE recording_cm_sections (
   CHECK (end_offset_ms > start_offset_ms)
 );
 
--- CM の区間を見分けた材料 (#1507)。デコードで得た数値 (コマの時刻、ロゴの点数など) を縮めて残し、規則を変えても録画を読み直さずに判定し直す。
+-- CM の区間を見分けた材料 (#1507)。デコードで得た数値 (フレームの時刻、ロゴの点数など) を縮めて残し、規則を変えても録画を読み直さずに判定し直す。
 -- 録画と見分け方ごとに 1 件で、見分け直したら置き換える。data の形式は format_version で見分け、違うバージョンは使わずに読み直す。
 CREATE TABLE recording_cm_materials (
   recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,

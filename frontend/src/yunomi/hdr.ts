@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from './volume';
 
-// 擬似 HDR の出力 (#1656、設計書 7.2、7.5)。yadif が解除したコマの明るい所を、SDR の白より明るく伸ばして描く。
+// 擬似 HDR の出力 (#1656、設計書 7.2、7.5)。yadif が解除したフレームの明るい所を、SDR の白より明るく伸ばして描く。
 // yadif の WebGL2 の描画先を RGBA16F にし、トーンマッピングを extended にすると、1 を超える値が白より明るく出る
 // (WebGL の drawingBufferToneMapping。https://github.com/KhronosGroup/WebGL/pull/3668)。
 // 持たないブラウザ (Chromium 158 でも既定では無効) と、HDR でない画面では、今までどおり SDR で描く。

@@ -39,7 +39,7 @@ const simdModule = new Uint8Array([
 
 // canDecode は、ブラウザの中で MPEG-2 をデコードする経路 (#1516) を使えるかを返す。WASM の SIMD、worker へ渡せる
 // OffscreenCanvas、GPU で描く WebGL2、AudioContext の 4 つがそろっていればよい。GPU のない端末では、WebGL がソフトウェアで
-// 描くので (コマの持ち時間を超えるおそれがある)、使わない。
+// 描くので (フレームの持ち時間を超えるおそれがある)、使わない。
 // decodeResults は、端末ごと (scope ごと) に確認した結果。確認するたびに WebGL2 のコンテキストを作らないよう、1 度だけ確認する。
 const decodeResults = new WeakMap<object, boolean>();
 

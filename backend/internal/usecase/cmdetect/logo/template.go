@@ -15,9 +15,9 @@ type point struct {
 	cx, cy float64
 }
 
-// Template は、コマごとにロゴが出ているかを計測する型 (#1505 の C)。
+// Template は、フレームごとにロゴが出ているかを計測する型 (#1505 の C)。
 type Template struct {
-	// Crop は、コマから切り出す範囲 (コマの座標)。ロゴの枠の四方を Shift + 1 画素広げたもの。
+	// Crop は、フレームから切り出す範囲 (フレームの座標)。ロゴの枠の四方を Shift + 1 画素広げたもの。
 	Crop   Box
 	points []point
 	shift  int
@@ -26,8 +26,8 @@ type Template struct {
 	cos2 float64
 }
 
-// NewTemplate は、ロゴの枠 box (コマの座標) の積算 model から、型を作る。model は box の範囲を切り出したもの。
-// frameWidth と frameHeight は、コマの大きさ。点が MinTemplatePoints 未満なら ErrFewPoints を返す。
+// NewTemplate は、ロゴの枠 box (フレームの座標) の積算 model から、型を作る。model は box の範囲を切り出したもの。
+// frameWidth と frameHeight は、フレームの大きさ。点が MinTemplatePoints 未満なら ErrFewPoints を返す。
 func NewTemplate(model *Accumulator, box Box, frameWidth, frameHeight int, p *Params) (*Template, error) {
 	coherence := model.Coherence()
 	sorted := slices.Clone(coherence)
@@ -67,7 +67,7 @@ func (t *Template) Points() int {
 	return len(t.points)
 }
 
-// Measure は、1 コマの計測値 (#1505 の D)。
+// Measure は、1 フレームの計測値 (#1505 の D)。
 type Measure struct {
 	// Score は、ロゴが出ているかの点数。型の点のうち向きの合う割合から、型を斜め 4 方向にずらしたときの割合の平均を引いたもの。
 	// 背景の細かい柄はずらしても揃うので、引き算で消える。

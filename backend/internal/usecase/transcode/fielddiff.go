@@ -76,7 +76,7 @@ func (p *fieldDiffParser) Write(b []byte) (int, error) {
 }
 
 // line は、標準エラー出力の 1 行を読む。値の行 (例: [metadata@top @ 0x55d0] lavfi.signalstats.YDIF=1.25) だけを拾い、
-// コマの行 (frame:0 pts:0 pts_time:0) は破棄する。
+// フレームの行 (frame:0 pts:0 pts_time:0) は破棄する。
 func (p *fieldDiffParser) line(s string) {
 	var dest *[]float64
 	switch {

@@ -1,4 +1,4 @@
-// デコードしたコマを、製品の経路 (src/yunomi/pictureRenderer.ts の upload) と同じく、WebGL2 の R8 のテクスチャ 3 枚へ上げる (#2162)。
+// デコードしたフレームを、製品の経路 (src/yunomi/pictureRenderer.ts の upload) と同じく、WebGL2 の R8 のテクスチャ 3 枚へ上げる (#2162)。
 // 上げ方 (mode) を替えて、どれが遅いかを比較する。
 //   offset    製品と同じ。WASM のメモリ全体の Uint8Array と、面の位置 (srcOffset) を渡す
 //   subarray  面の範囲だけの Uint8Array (subarray) を渡す。複製はしない

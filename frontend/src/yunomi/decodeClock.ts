@@ -8,7 +8,7 @@ import { ptsTicksPerSecond } from './ptsTimeline';
 const ticksPerMs = ptsTicksPerSecond / 1000;
 
 export type DecodeClockParams = {
-  // resync は、予測との差がこれを超えたら合わせ直す差 (PTS の単位)。届く組の揺れより大きく、1 コマの長さより小さくする。
+  // resync は、予測との差がこれを超えたら合わせ直す差 (PTS の単位)。届く組の揺れより大きく、1 フレームの長さより小さくする。
   resync: number;
   // blend は、差がそれ以下のときに寄せる割合。1 より十分小さくし、揺れを均す。
   blend: number;

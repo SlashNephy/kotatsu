@@ -1,5 +1,5 @@
 // WASM の FFmpeg でそのままデコードする方式の測定 (measureDecode)。読み込みは測定から外す (先に全部メモリに置く)。描画はしない。
-// upload を付けると、製品の経路 (pictureRenderer.ts の upload) と同じく、デコードしたコマの Y、U、V の 3 面を
+// upload を付けると、製品の経路 (pictureRenderer.ts の upload) と同じく、デコードしたフレームの Y、U、V の 3 面を
 // OffscreenCanvas の WebGL2 の R8 のテクスチャへ上げ、デコードとアップロードの時間を分けて返す (#2162)。
 import { demux } from './ts.js';
 import { createUploader } from './upload.js';
@@ -124,7 +124,7 @@ export const measureDecode = async ({
       times.push(performance.now() - t);
       if (uploader) {
         uploadTimes.push(uploadMs);
-        // 製品では画面の切り替わりごとに描いて送り出す。ここでは描かないので、コマごとに送り出し、GL の命令をバッファし続けないようにする。
+        // 製品では画面の切り替わりごとに描いて送り出す。ここでは描かないので、フレームごとに送り出し、GL の命令をバッファし続けないようにする。
         const tf = performance.now();
         uploader.flush();
         flushTimes.push(performance.now() - tf);

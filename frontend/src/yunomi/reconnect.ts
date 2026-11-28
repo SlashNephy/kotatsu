@@ -47,7 +47,7 @@ export function endedEarly(bufferedEnd: number, duration: number): boolean {
 }
 
 // playableTailSeconds は、ブラウザの中で変換する録画を、終わりからこれより近い位置から読み始めないための秒 (#1576)。
-// 終わりの直前から読むと、届く TS に MPEG-2 のコマが 1 つもなく、変換のプレイヤーがエラー (no MPEG-2 pictures) を出す。
+// 終わりの直前から読むと、届く TS に MPEG-2 のフレームが 1 つもなく、変換のプレイヤーがエラー (no MPEG-2 pictures) を出す。
 // CM の区間が録画の終わりまで続くと、CM を飛ばした先がそこになる。放送の GOP は 0.5 秒ほどなので、その数倍を残す。
 export const playableTailSeconds = 2;
 

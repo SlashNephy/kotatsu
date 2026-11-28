@@ -70,7 +70,7 @@ type Snapshot = {
   encoded: EncodedStream | null;
   video: VideoStats | null;
   fps: number | null;
-  // delay は、映しているコマが放送から遅れている秒数 (#1515)。出せなければ null。
+  // delay は、映しているフレームが放送から遅れている秒数 (#1515)。出せなければ null。
   delay: number | null;
   // liveBuffer は、ライブの低遅延モードの制御の様子 (#1514)。制御していなければ null。
   liveBuffer: LiveBufferStatus | null;
@@ -242,7 +242,7 @@ export function StreamInfo({
   const averaged = kind === 'convert' && average !== undefined;
   const rate = averaged ? average : (snapshot?.rate ?? null);
   const fps = shownFrameRate(kind === 'convert' ? source : null, snapshot?.fps ?? null);
-  // sourceLabel は、再生の情報の「放送の映像」に出す文。コマを補間しているときは、そう添える (#1655)。
+  // sourceLabel は、再生の情報の「放送の映像」に出す文。フレームを補間しているときは、そう添える (#1655)。
   const sourceLabel = (source: SourcePicture) => {
     const label = source.film
       ? t('player.streamInfo.film', {
@@ -674,7 +674,7 @@ function LiveRatesSubscriber({
   return null;
 }
 
-// delayOf は、映しているコマが放送から遅れている秒数を返す (#1515)。映像、画面の時刻の起点、放送の時計のどれかがなければ null。
+// delayOf は、映しているフレームが放送から遅れている秒数を返す (#1515)。映像、画面の時刻の起点、放送の時計のどれかがなければ null。
 function delayOf(
   media: PlayerMedia | null,
   mediaOrigin: number | null,
