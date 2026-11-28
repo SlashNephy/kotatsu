@@ -51,7 +51,6 @@ import {
   DataBroadcastRemote,
   DataBroadcastRemoteOverlay,
 } from '../../../yunomi/DataBroadcastRemote';
-import { useDataBroadcastKeys } from '../../../yunomi/dataBroadcastKeys';
 import {
   CommandButton,
   LiveStatus,
@@ -78,10 +77,8 @@ import {
   skipBrokenMedia,
 } from '../../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL, toVideoFormat } from '../../../yunomi/route';
-import { RemoteKey, useDataBroadcast } from '../../../yunomi/useDataBroadcast';
 import { useLiveScrambled } from '../../../yunomi/useLiveScrambled';
 import { usePlayerEvent, type PlayerSnapshot } from '../../../yunomi/playerState';
-import { useDataBroadcastPreload } from '../../../yunomi/dataBroadcastPreload';
 import { useLiveCatchUp, useLowLatency } from '../../../yunomi/liveCatchUp';
 import { usePlayerAudio } from '../../../yunomi/usePlayerAudio';
 import { TsPlayer } from '../../../yunomi/TsPlayer';
@@ -118,6 +115,7 @@ import {
   usePlayerPresence,
   usePlayerShell,
 } from '../../../yunomi/playerShell';
+import { useDataBroadcastFeature } from '../../../yunomi/useDataBroadcastFeature';
 import { readableParams } from '../../../futon/readableId';
 
 export const Route = createFileRoute('/play/live/$serviceId')({
@@ -408,9 +406,6 @@ function Live({
   // channelName は、実況の欄に出すチャンネルの名前。NX-Jikkyo から名前を読めていなければ、サービスの名前を使う。
   const channelName =
     data.node?.__typename === 'Service' ? (data.node.jikkyo?.name ?? data.node.name) : '';
-  // dataBroadcastEnabled は、データ放送を出すかどうか。映像を覆うので、既定では出さない (設計書 7.4)。
-  const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
-  const [dataBroadcastPreload] = useDataBroadcastPreload();
   // timeshift は、タイムシフトのバッファへのシーク (設計書 5.7)。ブラウザ内で変換する経路では TS を、kyusu の経路では仮想 HLS を流す。
   // バッファを見ていた位置は、サービスごとに端末に保存し、戻ったときにその位置から再開する (#1600)。
   const timeshift = useLiveTimeshift(
@@ -464,11 +459,6 @@ function Live({
     lowLatency && route.kind === 'convert' && !timeshift.behind,
     { pictureInPicture: pip.container !== null, videoLag: adaptive.videoLag },
   );
-  // dataBroadcastUsed は、このページでデータ放送を出したことがあるか。一度出したら、消しても受け取りを続け、次はすぐに出す。
-  const [dataBroadcastUsed, setDataBroadcastUsed] = useState(false);
-  if (dataBroadcastEnabled && !dataBroadcastUsed) {
-    setDataBroadcastUsed(true);
-  }
   // session は、つなぎ直すたびに増やし、URL を変えて読み直させる。
   const [session, setSession] = useState(0);
   const attempt = useRef(0);
@@ -696,21 +686,15 @@ function Live({
   const skip = (seconds: number) =>
     timeshift.seekTo((timeshift.behind ? timeshift.currentPosition() : timeshift.edge) + seconds);
   const service = data.node?.__typename === 'Service' ? data.node : null;
-  // データ放送は、プリロードする設定か、一度出したあとは、出していない間も裏で受け取り、出したらすぐに d ボタンで入れるようにする
-  // (設計書 7.4)。
+  // dataBroadcast は、データ放送 (設計書 7.4)。データ放送のない映像 (HD でないもの) では、出し入れできない。
   // 視聴が切れている間と、映像が見えていない間は、データ放送の TS も読まない。
-  const dataBroadcast = useDataBroadcast(
-    service !== null &&
-      dataBroadcastAvailable &&
-      (dataBroadcastPreload || dataBroadcastUsed) &&
-      visible &&
-      disconnection === null
-      ? dataBroadcastSource(service.streamUrl)
-      : null,
+  const dataBroadcast = useDataBroadcastFeature({
+    source:
+      service !== null && dataBroadcastAvailable ? dataBroadcastSource(service.streamUrl) : null,
+    receiving: visible && disconnection === null,
     mediaRef,
-    dataBroadcastEnabled,
-    data.systemSettings.dataBroadcastIpEnabled,
-    {
+    ipEnabled: data.systemSettings.dataBroadcastIpEnabled,
+    handlers: {
       // 文書が勝手に局を変えないよう、移る先を出して確認してから移る (#440)。
       onTune: (networkId, sid) => {
         const target = data.services.find(
@@ -728,7 +712,10 @@ function Live({
       // 音声の切り替えは、確認せずに従う。
       onSelectAudio: audio.selectComponent,
     },
-  );
+    showFlash,
+  });
+  // dataBroadcastEnabled は、データ放送を出しているかどうか。映像を覆うので、既定では出さない。
+  const dataBroadcastEnabled = dataBroadcast.enabled;
   // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
   const commands: PlayerCommands = {
     ...shell.commands,
@@ -756,32 +743,7 @@ function Live({
     toggleCaptions: () => setCaptions(!captions),
     ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
     capture: () => void saveCapture(),
-    // データ放送のない映像 (HD でないもの) では、出し入れできない。
-    ...(dataBroadcastAvailable
-      ? {
-          toggleDataBroadcast: () => {
-            setDataBroadcastEnabled(!dataBroadcastEnabled);
-            showFlash(
-              t(
-                dataBroadcastEnabled
-                  ? 'player.flash.dataBroadcastOff'
-                  : 'player.flash.dataBroadcastOn',
-              ),
-            );
-          },
-        }
-      : {}),
-    // データ放送を出していなければ、d ボタンで出す。リモコンのほかのボタンは、出している間だけ渡す。
-    pressKey: (key) => {
-      if (!dataBroadcastEnabled) {
-        if (key === RemoteKey.d) {
-          setDataBroadcastEnabled(true);
-        }
-
-        return;
-      }
-      dataBroadcast.press(key);
-    },
+    ...dataBroadcast.commands,
     // r で読み直す。映像が止まったり乱れたりしたときに、ページを読み直さずに直す (#499)。
     restart: () => {
       reload();
@@ -847,12 +809,6 @@ function Live({
   // バッファを再生している間は、放送中の番組と映像の番組が違うので出さない。
   const osd = useProgramOsd(playerEvents, media !== null && !videoLoading, !timeshift.behind);
 
-  // データ放送を出している間は、⌥+矢印、Enter、Backspace、数字、⌥+b/r/g/y でリモコンを押せる (#441)。
-  useDataBroadcastKeys(
-    dataBroadcastEnabled && dataBroadcast.state === 'shown' && !dataBroadcast.receiving,
-    dataBroadcast.keyGroups,
-    (key) => runCommand(commands, 'pressKey', key),
-  );
   // commentRows は、右のカラムのコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
   const commentRows = useMemo(
     () =>
