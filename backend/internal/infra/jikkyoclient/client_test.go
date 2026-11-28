@@ -2,6 +2,7 @@ package jikkyoclient_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -186,8 +187,8 @@ func TestClientChannelRefreshesActivityEveryMinute(t *testing.T) {
 	assert.Equal(t, &jikkyoclient.Activity{Force: 50, Viewers: 9}, got.Activity)
 }
 
-// TestClientChannelDoesNotWaitForUnresponsiveServer は、NX-Jikkyo が応答しなくても、前に取った一覧を返して待たせず、
-// 一覧がまだなければ、同時の要求を 1 つの問い合わせにまとめることを確認する。
+// TestClientChannelDoesNotWaitForUnresponsiveServer は、NX-Jikkyo が応答しなくても、一覧がまだなければ少し待つだけで諦め、
+// 前に取った一覧があればそれを返して待たせず、同時の要求を 1 つの問い合わせにまとめることを確認する。
 func TestClientChannelDoesNotWaitForUnresponsiveServer(t *testing.T) {
 	t.Parallel()
 
@@ -197,20 +198,28 @@ func TestClientChannelDoesNotWaitForUnresponsiveServer(t *testing.T) {
 	hold := make(chan struct{})
 	fake.hold.Store(&hold)
 
-	// 一覧がまだなければ、同時の要求は、1 つの問い合わせの応答を待つ。
+	// 一覧がまだなければ、同時の要求は 1 つの問い合わせを少しだけ待ち、間に合わなければ ErrChannelsPending を返す。
 	const callers = 5
 	results := make(chan error, callers)
 	for range callers {
 		go func() {
-			_, err := client.Channel(t.Context(), jkNHK)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			_, err := client.Channel(ctx, jkNHK)
 			results <- err
 		}()
 	}
-	require.Eventually(t, func() bool { return fake.channelRequests.Load() == 1 }, time.Second, time.Millisecond)
-	close(hold)
 	for range callers {
-		require.NoError(t, <-results)
+		require.ErrorIs(t, <-results, jikkyoclient.ErrChannelsPending)
 	}
+	assert.Equal(t, int32(1), fake.channelRequests.Load())
+	// 応答が届けば、その一覧を使う。問い合わせ直さない。
+	close(hold)
+	assert.Eventually(t, func() bool {
+		got, err := client.Channel(t.Context(), jkNHK)
+
+		return err == nil && got != nil && got.Name == "NHK総合"
+	}, time.Second, time.Millisecond)
 	assert.Equal(t, int32(1), fake.channelRequests.Load())
 
 	// 使い回す時間を過ぎた後、NX-Jikkyo が応答しなくても、少し待つだけで、前に取った一覧を返す。
@@ -228,6 +237,47 @@ func TestClientChannelDoesNotWaitForUnresponsiveServer(t *testing.T) {
 	// 再取得は、裏で 1 つだけ問い合わせる。
 	assert.Eventually(t, func() bool { return fake.channelRequests.Load() == 2 }, time.Second, time.Millisecond)
 	assert.Never(t, func() bool { return fake.channelRequests.Load() > 2 }, 50*time.Millisecond, time.Millisecond)
+}
+
+// TestClientChannelAfterFailure は、取得に失敗したら、取得を終えてから 1 分は再取得せず、
+// 再取得するときも、NX-Jikkyo が落ちているものとして待たないことを確認する。
+func TestClientChannelAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	fake, server := newFakeJikkyo(t, "", "")
+	clk := clocktest.NewFake(time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC))
+	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: clk})
+
+	// 応答を止めている間に 30 秒たってから、取得に失敗する。
+	hold := make(chan struct{})
+	fake.hold.Store(&hold)
+	_, err := client.Channel(t.Context(), jkNHK)
+	require.ErrorIs(t, err, jikkyoclient.ErrChannelsPending)
+	clk.Advance(30 * time.Second)
+	close(hold)
+	require.Eventually(t, func() bool {
+		_, err := client.Channel(t.Context(), jkNHK)
+
+		return err != nil && !errors.Is(err, jikkyoclient.ErrChannelsPending)
+	}, time.Second, time.Millisecond)
+
+	// 取得を始めてから 1 分を過ぎても、取得を終えてから 1 分たつまでは問い合わせない。
+	clk.Advance(40 * time.Second)
+	_, err = client.Channel(t.Context(), jkNHK)
+	require.Error(t, err)
+	assert.Equal(t, int32(1), fake.channelRequests.Load())
+
+	// 失敗してから 1 分たったら再取得する。NX-Jikkyo がまた応答しなくても、再取得を待たずに、前のエラーを返す。
+	stuck := make(chan struct{})
+	t.Cleanup(func() { close(stuck) })
+	fake.hold.Store(&stuck)
+	clk.Advance(20 * time.Second)
+	started := time.Now()
+	_, err = client.Channel(t.Context(), jkNHK)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, jikkyoclient.ErrChannelsPending)
+	assert.Less(t, time.Since(started), 250*time.Millisecond)
+	assert.Eventually(t, func() bool { return fake.channelRequests.Load() == 2 }, time.Second, time.Millisecond)
 }
 
 func TestClientChannelRetriesAfterCanceledRequest(t *testing.T) {
