@@ -57,6 +57,38 @@ export function jikkyoListedCount(
   return comments === null ? 0 : countUntil(comments, position - offset);
 }
 
+// labelCache は、コメントごとに作った時刻の文字。一覧は、コメントが流れるたびに作り直すので、作り直すたびに全部の時刻を
+// 書き直さないよう、コメントごとに一度だけ作る。録り始めや途切れた区間や位置のずれが変わったら、作り直す。
+const labelCache = new WeakMap<
+  JikkyoComment,
+  { recordedFrom: string | null; gaps: readonly Gap[]; offset: number; label: string }
+>();
+
+function commentLabel(
+  comment: JikkyoComment,
+  offset: number,
+  recordedFrom: string | null,
+  gaps: readonly Gap[],
+): string {
+  const cached = labelCache.get(comment);
+  if (
+    cached !== undefined &&
+    cached.recordedFrom === recordedFrom &&
+    cached.gaps === gaps &&
+    cached.offset === offset
+  ) {
+    return cached.label;
+  }
+  const seconds = comment.time + offset;
+  const label =
+    recordedFrom === null
+      ? formatDuration(seconds)
+      : formatClock(broadcastTime(recordedFrom, gaps, seconds));
+  labelCache.set(comment, { recordedFrom, gaps, offset, label });
+
+  return label;
+}
+
 // RecordedJikkyoList は、実況の過去ログのうち、再生位置までに流れた count 件の一覧 (#489)。時刻は、録り始め (recordedFrom) からの
 // 放送時刻で出す。録り始めが分からなければ、再生の経過時間で出す。再生位置は 1 秒に何度も変わるので、受け取るのは流れた数にし、
 // 数が変わったときだけ作り直す。
@@ -78,19 +110,15 @@ export function RecordedJikkyoList({
   frozen: boolean;
   onMuteUser: (userId: string) => void;
 }) {
-  const rows = listedUntil(comments, count).map(({ index, comment }) => {
-    const seconds = comment.time + offset;
-
-    return {
-      key: index,
-      label:
-        recordedFrom === null
-          ? formatDuration(seconds)
-          : formatClock(broadcastTime(recordedFrom, gaps, seconds)),
-      content: comment.content,
-      ...(comment.userId === undefined ? {} : { userId: comment.userId }),
-    };
-  });
+  // 全画面の間は、一覧が描き直さないので、作らない。
+  const rows = frozen
+    ? []
+    : listedUntil(comments, count).map(({ index, comment }) => ({
+        key: index,
+        label: commentLabel(comment, offset, recordedFrom, gaps),
+        content: comment.content,
+        ...(comment.userId === undefined ? {} : { userId: comment.userId }),
+      }));
 
   return (
     <CommentList rows={rows} frozen={frozen} onMuteUser={onMuteUser} height={watchCommentsHeight} />
