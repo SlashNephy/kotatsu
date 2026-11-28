@@ -810,6 +810,8 @@ function pulldown(
     picture.interlaced &&
     !judge.skippingB &&
     previous !== null &&
+    previous.source.slot.width === holder.slot.width &&
+    previous.source.slot.height === holder.slot.height &&
     duration !== null &&
     Math.abs(picture.pts - previous.pts - duration) < duration / 4;
   if (!contiguous) {
@@ -872,6 +874,8 @@ function pulldown(
       pts: item.pts,
       interlaced: item.interlaced,
       topFieldFirst: item.topFieldFirst,
+      // フィールドを分ける時刻は、デコードしたコマの長さで決める (組み直したコマとの時刻の差を使わない)。
+      ...(duration === null ? {} : { duration }),
       slot: shown,
     });
     telecine.pushedUntil = item.pts;
@@ -1031,7 +1035,9 @@ function onVsync(time: number): void {
     return;
   }
   // hold は、デコードしたコマ 1 つを映し続ける長さ。B フレームを省いている間は、I と P だけ (3 コマに 1 つ) になる。
-  const hold = (current.telecine.duration ?? 3003) * (judge.skippingB ? 3 : 1);
+  // 2:3 プルダウンから組み直している間は、コマ 1 つを 5/4 コマ分映し続ける。
+  const film = current.telecine.detector.phase !== null;
+  const hold = (current.telecine.duration ?? 3003) * (judge.skippingB ? 3 : film ? 5 / 4 : 1);
   // デコードに回すデータが無く、映すコマも尽きた (回線が詰まった)。データが来るまで判定で数えない。
   // 配信を読み終えていれば、映し終えたので ended を送る。
   if (current.video.length === 0 && (engine.queue.newest ?? -Infinity) + hold < target) {
@@ -1056,7 +1062,10 @@ function onVsync(time: number): void {
   if (choice === null) {
     return;
   }
-  current.shownUntil = choice.picture.pts + hold;
+  // 組み直したコマは、デコードしたコマの 5/4 の長さを映す。
+  current.shownUntil =
+    choice.picture.pts +
+    (choice.picture.slot.film ? ((current.telecine.duration ?? 3003) * 5) / 4 : hold);
   draw(engine, choice.picture.slot, {
     slot: choice.picture.slot.top.slot,
     bottom: choice.picture.slot.film ? choice.picture.slot.bottom.slot : null,

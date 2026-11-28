@@ -82,6 +82,20 @@ describe('PictureQueue', () => {
     expect(queue.length).toBe(1);
   });
 
+  test('コマの長さを渡せば、隣り合うコマの時刻の差が短くても、その長さでフィールドを分ける', () => {
+    const { queue } = setup();
+    // 組み直した 24p のコマ (プログレッシブ) の 0.25 コマ後に、インタレースのコマが続く。
+    queue.push({ pts: 0, interlaced: false, topFieldFirst: true, slot: 's0' });
+    queue.push({ ...picture(frame / 4), duration: frame });
+
+    const choice = queue.choose(frame / 4 + 1000);
+
+    expect(choice === null ? null : [choice.picture.pts, choice.second]).toEqual([
+      frame / 4,
+      false,
+    ]);
+  });
+
   test('clear で、待っているコマと前のコマの slot を返す', () => {
     const { queue, released } = setup();
     queue.push(picture(0));

@@ -7,6 +7,9 @@
 export type QueuedPicture<Slot> = {
   // pts は、伸ばした PTS。
   pts: number;
+  // duration は、インタレースのコマの長さ (2 枚のフィールドを映す長さ)。省けば、隣り合うコマの PTS の差のうち、いちばん小さいものを使う。
+  // 2:3 プルダウンから組み直したコマ (#2276) を混ぜると、時刻の差が 1 コマより短くなることがあるので、呼ぶ側が渡す。
+  duration?: number;
   interlaced: boolean;
   topFieldFirst: boolean;
   slot: Slot;
@@ -78,7 +81,7 @@ export class PictureQueue<Slot> {
     }
     // 映していたコマは、待ち行列から外すとき (retire) に null に戻るので、ここで替わるのは新しいコマだけ。
     this.current = picture;
-    const fieldDuration = (this.frameDuration ?? 0) / 2;
+    const fieldDuration = (picture.duration ?? this.frameDuration ?? 0) / 2;
     const second = picture.interlaced && fieldDuration > 0 && target >= picture.pts + fieldDuration;
     const parity: 0 | 1 = picture.interlaced && second === picture.topFieldFirst ? 1 : 0;
 
