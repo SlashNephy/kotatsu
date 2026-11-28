@@ -17,7 +17,7 @@ overrides:
   # パーサーの修正 (宣言の前の ; を読み飛ばす) だけをパッチで当てる。
   css: npm:@adobe/css-tools@5.0.0
   vite: npm:@voidzero-dev/vite-plus-core@8.3.8001
-  vitest: 5.1.1
+  vitest: 5.1.2
   # 脆弱性 (GHSA-gh4j-gqv2-49f6、GHSA-474x-hrwr-fgx4) が直ったバージョンは 5.x にしかないが、web-bml は ^4 を指したまま更新が
   # 止まっている。web-bml が使う XMLParser と XMLBuilder の API と、渡す設定は 5.x でも変わらない。
   web-bml>fast-xml-parser: ^5.12.0
