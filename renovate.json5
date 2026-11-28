@@ -117,6 +117,8 @@
       customType: 'regex',
       managerFilePatterns: [
         '/^frontend/vendor/mpeg2toh264/SOURCE$/',
+        // 評価のために並べるフォーク (#2287)。更新したら、mise run //frontend:mpeg2toh264-fork でビルドし直す。
+        '/^frontend/vendor/mpeg2toh264-fork/SOURCE$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\ncommit=(?<currentDigest>[0-9a-f]{40})',

@@ -72,7 +72,7 @@ else
 
     # mpeg2toh264 のプレイヤーのビルド。
     case "$file" in
-      frontend/vendor/mpeg2toh264/* | frontend/public/mpeg2toh264/* | frontend/scripts/build-mpeg2toh264.sh | frontend/mise.mpeg2toh264.toml | frontend/mise.mpeg2toh264.lock) mpeg2toh264=true ;;
+      frontend/vendor/mpeg2toh264/* | frontend/public/mpeg2toh264/* | frontend/vendor/mpeg2toh264-fork/* | frontend/public/mpeg2toh264-fork/* | frontend/scripts/build-mpeg2toh264.sh | frontend/mise.mpeg2toh264.toml | frontend/mise.mpeg2toh264.lock) mpeg2toh264=true ;;
     esac
 
     # ブラウザ内でデコードする経路の WASM の FFmpeg のビルド。
