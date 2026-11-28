@@ -51,6 +51,9 @@ class MediaFailure implements PlayerMediaError {
 export type DecodeMediaOptions = {
   canvas: HTMLCanvasElement;
   worker: Worker;
+  // resume は、止めた後に再開するときに、読み直しを呼んだ側に任せる。任せたら true を返し、呼んだ側が open で
+  // 読み直させる。録画の再生は、止めた位置から読み直す (#2166)。渡さないか false なら、同じ URL を読み直す。
+  resume?: () => boolean;
 };
 
 export class DecodeMedia extends EventTarget implements PlayerMedia {
@@ -80,6 +83,7 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
   private lastTimeupdate = 0;
   // stopped は、止めたときに読み込みも止めたか。再開したら、放送の今から読み直す。
   private stopped = false;
+  private readonly resume: () => boolean;
   // pendingSince は、鳴らし始める前に、最初の音が届いた時刻。
   private pendingSince: number | null = null;
   private visible: boolean | null = null;
@@ -96,10 +100,11 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
   private url: string | null = null;
   private serviceId: number | null = null;
 
-  constructor({ canvas, worker }: DecodeMediaOptions) {
+  constructor({ canvas, worker, resume = () => false }: DecodeMediaOptions) {
     super();
     this.element = canvas;
     this.worker = worker;
+    this.resume = resume;
     this.context = sharedAudioContext();
     this.volumeNode = this.context.createGain();
     // 音量のステップ (volumeBoost) がステップを挟むまでは、そのまま鳴らす。
@@ -253,7 +258,10 @@ export class DecodeMedia extends EventTarget implements PlayerMedia {
     const stale = this.pendingSince !== null && performance.now() - this.pendingSince > staleStart;
     if (this.stopped || stale) {
       // 止めている間に破棄したか、鳴らし始める前にバッファした音が古い。放送の今から読み直す。
-      this.restart();
+      // 止めた後の再開を呼んだ側が引き受けたら、呼んだ側が open で読み直させる。
+      if (!(this.stopped && this.resume())) {
+        this.restart();
+      }
 
       return;
     }

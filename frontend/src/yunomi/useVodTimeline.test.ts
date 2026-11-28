@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { PlayerMedia } from './playerMedia';
 import { useVodTimeline, type VodTimelineOptions } from './useVodTimeline';
 
+// drains は、tenban が止まる前に届いた通知の数。テストで増やして、通知が届いたことにする。
+const drains = vi.hoisted(() => ({ value: 0 }));
+vi.mock('../changes/DataChanges', () => ({ useStreamsDrains: () => drains.value }));
+
 // FakeMedia は、読み込んだ範囲と、復号のエラーを持たせられる video の代わり。
 class FakeMedia extends EventTarget {
   currentTime = 0;
@@ -166,5 +170,24 @@ describe('useVodTimeline', () => {
 
     expect(result.current.hlsStream.loads).toBe(0);
     expect(result.current.error).toBeNull();
+  });
+
+  test.each([
+    { name: '止まる前の通知が届いたら、裏で読み込んでから切り替える', handover: true, want: true },
+    {
+      name: '裏で読み込めないプレイヤーでは、止まる前の通知が届いたら、すぐ読み直す',
+      handover: false,
+      want: false,
+    },
+  ])('$name', ({ handover, want }) => {
+    drains.value = 0;
+    const { result, rerender } = renderTimeline({ handover });
+    const first = result.current.stream.url;
+
+    drains.value = 1;
+    rerender({ handover });
+
+    expect(result.current.stream.url).not.toBe(first);
+    expect(result.current.handover).toBe(want);
   });
 });

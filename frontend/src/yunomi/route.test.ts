@@ -6,7 +6,7 @@ import {
   dataBroadcastEndpoint,
   dataBroadcastSource,
   hlsURL,
-  liveStreamEndpoint,
+  decodeStreamEndpoint,
   original,
   qualities,
   toVideoFormat,
@@ -324,7 +324,7 @@ describe('dataBroadcastEndpoint', () => {
   });
 });
 
-describe('liveStreamEndpoint', () => {
+describe('decodeStreamEndpoint', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
@@ -339,6 +339,16 @@ describe('liveStreamEndpoint', () => {
       name: '問い合わせのないライブ視聴の TS も読む',
       url: '/internal/streams/services/3273601024',
       want: '/internal/streams/services/3273601024',
+    },
+    {
+      name: '録画の TS は、読み始める位置を付けたまま読む (#2166)',
+      url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60.0#1',
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c?start=60.0#1',
+    },
+    {
+      name: '録画の ID が UUID でなければ読まない',
+      url: '/internal/streams/recordings/../../../api',
+      want: null,
     },
     {
       name: 'ほかのホストは読まない',
@@ -356,7 +366,7 @@ describe('liveStreamEndpoint', () => {
       want: null,
     },
   ])('$name', ({ url, want }) => {
-    expect(liveStreamEndpoint(url)).toBe(want);
+    expect(decodeStreamEndpoint(url)).toBe(want);
   });
 
   // 静的なデモ (#832) は、どの局もデモの映像を流す。ブラウザの中でデコードする経路でも読めるようにする (#2157)。
@@ -388,7 +398,7 @@ describe('liveStreamEndpoint', () => {
     },
   ])('デモのビルドで、$name', ({ url, want }) => {
     vi.stubEnv('MODE', 'demo');
-    expect(liveStreamEndpoint(url)).toBe(want);
+    expect(decodeStreamEndpoint(url)).toBe(want);
   });
 });
 

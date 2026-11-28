@@ -35,6 +35,9 @@ type Props = {
   onLoaded?: () => void;
   // onFallback は、この端末では間に合わない (または音を鳴らせない) と判定したときに呼ぶ。ほかの経路へ移すのは呼んだ側。
   onFallback?: (reason: FallbackReason) => void;
+  // onResume は、止めた後に再開するときに呼ぶ。渡したら、呼んだ側が url を変えて読み直させる (#2166)。
+  // 渡さなければ、同じ url を読み直す (ライブは、放送の今から)。
+  onResume?: () => void;
   // onAudio は、番組の音声と、聞いているものが変わったら呼ぶ (#2165)。
   onAudio?: (tracks: PlayerAudioTracks | null) => void;
   // audio は、聞く音声 (audioChoices の値)。null なら、選び直さない。
@@ -60,6 +63,7 @@ export function DecodePlayer({
   onError,
   onLoaded,
   onFallback,
+  onResume,
   onAudio,
   audio = null,
   overlay,
@@ -73,9 +77,19 @@ export function DecodePlayer({
     onLoaded,
     onCaptionText,
     onFallback,
+    onResume,
     onAudio,
   });
-  handlers.current = { onMedia, onState, onError, onLoaded, onCaptionText, onFallback, onAudio };
+  handlers.current = {
+    onMedia,
+    onState,
+    onError,
+    onLoaded,
+    onCaptionText,
+    onFallback,
+    onResume,
+    onAudio,
+  };
   const engineRef = useRef<{ media: DecodeMedia; captions: Captions; worker: Worker } | null>(null);
   // programNumber は、TS の中から選ぶ番組 (program_number)。分からなければ、最初の番組を選ぶ。
   const programNumber = url === null ? null : (dataBroadcastSource(url)?.serviceId ?? null);
@@ -103,7 +117,19 @@ export function DecodePlayer({
       } satisfies ToDecodeWorker,
       [offscreen],
     );
-    const media = new DecodeMedia({ canvas, worker });
+    const media = new DecodeMedia({
+      canvas,
+      worker,
+      resume: () => {
+        const resume = handlers.current.onResume;
+        if (resume === undefined) {
+          return false;
+        }
+        resume();
+
+        return true;
+      },
+    });
     const renderer = createCaptions(media, slot, (text) => handlers.current.onCaptionText?.(text));
     // 字幕の PES は、画面の時刻 (currentTime と同じ物差し) にして渡す。起点が決まるまではバッファする。
     // 読み直すと画面の時刻の起点が変わるので、バッファしたものと出ている字幕は、読み込みが替わったときに破棄する。

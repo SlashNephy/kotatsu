@@ -24,6 +24,9 @@ export type VodTimelineOptions = {
   // native は、変換の経路で、映像の要素が自分でシークするか。端末に保存した録画は、ファイルを Range で読むので、
   // start=秒 を付けて読み直さずに、kyusu の経路と同じく映像の時刻を移す (設計書 7.8)。
   native?: boolean;
+  // handover は、tenban が止まる前の通知で、裏で読み込んでから切り替えるか (#1085)。既定は true。
+  // 裏で読み込めないプレイヤー (この端末でデコードする経路) では false にし、すぐ読み直す。
+  handover?: boolean;
   // initial は、最初に読み始める位置 (秒)。
   initial: number;
   // duration は、再生できる長さ (秒)。途中で切れたかを、読み込んだ範囲の終わりと比較して見分けるのに使う。
@@ -72,6 +75,7 @@ export function useVodTimeline({
   convert,
   hls,
   native = false,
+  handover: canHandover = true,
   initial,
   duration,
   clampSeek = (seconds) => Math.min(Math.max(seconds, 0), duration),
@@ -110,12 +114,17 @@ export function useVodTimeline({
     seenDrains.current = drains;
     // エラーで止まっている間は、「やり直す」に任せる。端末に保存した録画は、tenban を通らない。
     if (convert && !native && error === null) {
+      if (!canHandover) {
+        restartAt(positionRef.current);
+
+        return;
+      }
       // 映っている映像の位置を信じられるなら、裏で読み込んでいる間も、その映像で位置を進める (#1728)。
       stream.restartAt(restartFrom(positionRef.current), true);
       setHandover(true);
     }
     // 読み直しの位置は ref から読むので、通知が届いたときだけ動かす。
-  }, [drains, convert, native, error]);
+  }, [drains, convert, native, canHandover, error]);
   const retry = () => {
     setError(null);
     restartAt(positionRef.current);
@@ -185,10 +194,12 @@ export function useVodTimeline({
     onConvertState,
     onConvertLoaded: (handed) => {
       setError(null);
-      // 映像の要素が自分でシークする経路は、読み直したら、読み始める位置へ移る。
+      // 映像の要素が自分でシークする経路は、読み直したら、読み始める位置へ移る。この端末でデコードする経路は、
+      // シークできないので、頭から流す。
       if (native) {
-        if (hlsStream.start > 0) {
-          mediaRef.current?.seek(hlsStream.start);
+        const current = mediaRef.current;
+        if (hlsStream.start > 0 && current !== null && current.seekMode !== 'none') {
+          current.seek(hlsStream.start);
         }
 
         return;

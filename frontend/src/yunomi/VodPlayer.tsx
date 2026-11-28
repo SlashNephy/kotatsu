@@ -22,6 +22,7 @@ import {
 import type { CmSection } from './cmSkip';
 import type { PlayerCommands } from './commands';
 import { useFastForward } from './fastForward';
+import { DecodePlayer } from './DecodePlayer';
 import { HlsPlayer } from './HlsPlayer';
 import {
   CommandButton,
@@ -161,6 +162,8 @@ export type VodSource = {
   // info と side は、見出しの下と、右の欄の下に足す、再生元ごとの部品。
   info?: ReactNode;
   side?: ReactNode;
+  // decode は、ブラウザの中でデコードする経路 (#1516) を、画質のメニューから選ばせるか (#2166)。
+  decode?: boolean;
   // local は、端末に保存した録画か (設計書 7.8)。サーバーを読まず、プレイヤーの設定はその場限りにする。
   // 映像は、保存したファイルを Range で読むので、映像の要素が自分でシークする。
   local?: boolean;
@@ -244,8 +247,12 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
   const { mediaRef, media, setMedia, visible, fullscreen, controls, videoState, showFlash } = shell;
   const playback = usePlaybackRoute(source.transcoding, source.videoFormat, {
     inheritCap: source.inheritCap,
+    decode: source.decode === true,
   });
   const { route, choices, quality, setQuality } = playback;
+  // decoding は、ブラウザの中でデコードする経路か。この経路は等速だけで、映像の要素は自分でシークできないので、
+  // シークしたときと、止めた後に再開するときは、その位置から配信を読み直す (設計書 7.2、#2166)。
+  const decoding = route.kind === 'decode';
   const hls = route.kind === 'kyusu';
   const {
     captionsEnabled: captions,
@@ -262,9 +269,11 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
     streamUrl: source.streamUrl,
     media,
     mediaRef,
-    convert: route.kind === 'convert',
+    convert: route.kind === 'convert' || decoding,
     hls,
     native: local,
+    // この端末でデコードする経路は、裏で読み込んで切り替えられないので、配信が止まる前の通知でも、すぐ読み直す。
+    handover: !decoding,
     initial: source.initial,
     duration,
     clampSeek: source.clampSeek ?? ((seconds) => Math.min(Math.max(seconds, 0), source.seekLimit)),
@@ -342,6 +351,15 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
     {
       automatic: playback.automatic,
       lowerAvailable: playback.lowerAvailable,
+      // この端末でデコードする経路が間に合わなければ、ほかの経路へ移し、それまでの位置から続ける。
+      abandonDecode: () => {
+        const abandoned = playback.abandonDecode();
+        if (abandoned) {
+          restartAt(positionRef.current);
+        }
+
+        return abandoned;
+      },
       stepDownForDecode: () => {
         const next = playback.stepDownForDecode();
         if (next !== null) {
@@ -407,7 +425,7 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
   );
   const shareSeconds = source.shareSeconds ?? ((seconds: number) => seconds);
   // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
-  const { copyPositionUrl, ...seekCommands } = shell.seekCommands({
+  const { copyPositionUrl, restart, ...seekCommands } = shell.seekCommands({
     skip,
     seekTo: seek,
     currentPosition: () => shareSeconds(currentPosition()),
@@ -416,6 +434,7 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
   const commands: PlayerCommands = {
     ...shell.commands,
     ...seekCommands,
+    restart,
     // 端末に保存した録画の位置は、ほかの端末では開けないので、共有しない。
     ...(local ? {} : { copyPositionUrl }),
     ...(jikkyoOn ? commentOffsetCommands : {}),
@@ -510,7 +529,11 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
       start={
         <>
           <PlayButton video={videoState} commands={commands} />
-          <SeekStepButtons commands={commands} onFastForward={fastForward.setHeld} />
+          <SeekStepButtons
+            commands={commands}
+            // この端末でデコードする経路は等速だけなので、押し続けても早回ししない。
+            {...(decoding ? {} : { onFastForward: fastForward.setHeld })}
+          />
           {/* 狭い画面 (スマートフォン) では、再生位置を出す幅を空けるため、ミュートのボタンを外す。本体の音量キーで操作できる。 */}
           <VolumeControl video={videoState} commands={commands} optional />
         </>
@@ -553,7 +576,7 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
               value={captionTrack}
               onChange={setCaptionTrack}
             />
-            <RateSelect value={rate} onChange={setRate} />
+            {!decoding && <RateSelect value={rate} onChange={setRate} />}
             <CropSelect value={shell.crop} onChange={shell.setCrop} />
             <NormalizeVolumeToggle />
             <AudioDelaySetting />
@@ -616,6 +639,28 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
           audio={audio.playerAudio}
           overlay={overlay}
           coverRef={cm.coverRef}
+        />
+      )}
+      {decoding && (
+        <DecodePlayer
+          url={stream.url}
+          mediaRef={mediaRef}
+          onMedia={setMedia}
+          controls={controlBar}
+          captions={captions && !autoCaptionsShown}
+          superimpose={captionSettings.superimposeRecorded}
+          captionStyle={captionSettings}
+          crop={shell.shownCrop}
+          brightness={inputs.brightness}
+          onCaptionText={captionHistory.onCaptionText}
+          onLoaded={timeline.onConvertLoaded}
+          onError={timeline.onError}
+          onState={timeline.onConvertState}
+          onFallback={adaptive.decodeFallback}
+          onResume={() => restartAt(positionRef.current)}
+          onAudio={audio.onAudio}
+          audio={audio.playerAudio}
+          overlay={overlay}
         />
       )}
       {route.kind === 'kyusu' && (

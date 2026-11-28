@@ -127,7 +127,13 @@ export function useSeekableStream(
 
       return true;
     }
-    if (!current.seeking && current.currentTime < target && isBuffered(current.buffered, target)) {
+    // シークできない経路 (この端末でデコードする経路) は、流れて届くのを待つ。
+    if (
+      current.seekMode !== 'none' &&
+      !current.seeking &&
+      current.currentTime < target &&
+      isBuffered(current.buffered, target)
+    ) {
       current.seek(target);
       // 進めた分を、途切れた区間を越えたとみなさない。
       lastVideoTime.current = target;

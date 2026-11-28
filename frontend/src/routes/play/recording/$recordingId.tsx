@@ -309,6 +309,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         // CM の区間が録画の終わりまで続く回で、CM を飛ばすと、ここに来る。
         restartFrom: (seconds) => playableStart(seconds, duration),
         growing: stillRecording,
+        // 画質のメニューから、この端末でデコードする経路も選べる (#2166)。
+        decode: true,
         clockAt: (seconds) => broadcastTime(recordedFrom, gaps, seconds),
         bands: gapMarks,
         cmSections: cmPositions,

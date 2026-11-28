@@ -20,7 +20,7 @@ import { FieldPacer } from './fieldPacer';
 import { PictureQueue } from './pictureQueue';
 import { type ColorMatrix, type PictureSlot, PictureRenderer } from './pictureRenderer';
 import { PtsTimeline, ptsTicksPerSecond } from './ptsTimeline';
-import { liveStreamEndpoint } from './route';
+import { decodeStreamEndpoint } from './route';
 import { type TsPes, TsDemuxer } from './tsDemux';
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -306,10 +306,10 @@ function stop(): void {
 
 async function read(current: Loading, url: string): Promise<void> {
   try {
-    // 受け取った URL をそのまま読まずに、ライブ視聴の TS のパスへ組み直し、ほかのホストやパスを読まないようにする。
-    const endpoint = liveStreamEndpoint(url);
+    // 受け取った URL をそのまま読まずに、ライブ視聴か録画の TS のパスへ組み直し、ほかのホストやパスを読まないようにする。
+    const endpoint = decodeStreamEndpoint(url);
     if (endpoint === null) {
-      throw new Error('the stream is not a live stream of tenban');
+      throw new Error('the stream is neither a live stream nor a recording');
     }
     const response = await fetch(endpoint, {
       signal: current.abort.signal,
