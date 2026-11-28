@@ -284,13 +284,15 @@ export type PlayerInputs = {
   // brightness は、全画面の縦のスワイプで変えた明るさ (#1598)。その場限りで保存しない。
   brightness: number;
   boxRef: (element: HTMLDivElement | null) => void;
-  onDoubleTap: (event: React.PointerEvent<HTMLElement>) => void;
+  // onDoubleTap は、プレイヤーを包む要素の pointerup のハンドラー。ダブルタップでシークしない画面では undefined。
+  onDoubleTap: ((event: React.PointerEvent<HTMLElement>) => void) | undefined;
 };
 
 // PlayerInputsOptions は、再生元ごとに変わる入力の扱い。
 export type PlayerInputsOptions = {
   // onDoubleTap は、タッチで映像の左右の 3 分の 1 をダブルタップしたとき (#452) に呼ぶ。真ん中は呼ばない。
-  onDoubleTap: (side: Exclude<TapSide, 'center'>) => void;
+  // ダブルタップでシークしない画面 (ライブ視聴) では渡さない。
+  onDoubleTap?: (side: Exclude<TapSide, 'center'>) => void;
   // slideSeek は、映像を長押ししたまま横に滑らせるシーク (#1601)。onLongPress は、メニューを開くので渡さない。
   slideSeek: Omit<SlideSeekOptions, 'onSlideStart' | 'onLongPress'>;
 };
@@ -340,11 +342,12 @@ export function usePlayerInputs(
     onSlideStart: shell.controls.hide,
     onLongPress: contextMenu.openAt,
   });
-  const onDoubleTap = useDoubleTap((side) => {
+  const doubleTap = useDoubleTap((side) => {
     if (side !== 'center') {
-      options.onDoubleTap(side);
+      options.onDoubleTap?.(side);
     }
   });
+  const onDoubleTap = options.onDoubleTap === undefined ? undefined : doubleTap;
   // boxRef は、キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
   const boxRef = useMergedRef(shell.playerBoxRef, mouseRef);
 
@@ -352,13 +355,19 @@ export function usePlayerInputs(
 }
 
 // PlayerBox は、プレイヤーを包む要素。映像の上の、マウスとタッチの操作を受け付ける。
+// clickToPlay は、マウスで映像を押したときに再生と一時停止を切り替えるか。doubleClickFullscreen は、ダブルクリックで全画面を
+// 切り替えるか。ライブ視聴では、データ放送を出している間、ダブルクリックをデータ放送の操作に譲る。
 export function PlayerBox({
   shell,
   inputs,
+  clickToPlay = true,
+  doubleClickFullscreen = true,
   children,
 }: {
   shell: PlayerShell;
   inputs: PlayerInputs;
+  clickToPlay?: boolean;
+  doubleClickFullscreen?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -371,16 +380,20 @@ export function PlayerBox({
       {...shell.controls.containerProps}
       // マウスで映像を押すと、再生と一時停止を切り替える。タッチでは、押すと操作バーを出し隠しするので切り替えない。
       // 操作バーや、映像に重ねたボタンを押したときは、そのボタンの操作だけにする。
-      onClick={(event) => {
-        const pointer =
-          event.nativeEvent instanceof PointerEvent ? event.nativeEvent.pointerType : 'mouse';
-        if (pointer === 'mouse' && onVideoSurface(event.target)) {
-          shell.togglePlay();
-        }
-      }}
+      onClick={
+        clickToPlay
+          ? (event) => {
+              const pointer =
+                event.nativeEvent instanceof PointerEvent ? event.nativeEvent.pointerType : 'mouse';
+              if (pointer === 'mouse' && onVideoSurface(event.target)) {
+                shell.togglePlay();
+              }
+            }
+          : undefined
+      }
       // マウスで映像をダブルクリックすると、全画面を切り替える (#452)。1 回目と 2 回目のクリックで、再生と一時停止は元に戻る。
       onDoubleClick={(event) => {
-        if (onVideoSurface(event.target)) {
+        if (doubleClickFullscreen && onVideoSurface(event.target)) {
           shell.fullscreen.toggle();
         }
       }}
@@ -393,19 +406,22 @@ export function PlayerBox({
 }
 
 // PlayerFeedback は、映像に重ねる、操作の結果と読み込みの様子。flash は、出す操作の結果 (早回しの速さなどに置き換えたもの)。
-// notice は、画質の自動の切り替えなどの通知。scrub は、滑らせている間の行き先の表示。error は、再生のエラーの文。
+// notice は、画質の自動の切り替えなどの通知。scrub は、滑らせている間の行き先の表示。receiving は、行き先の表示の後に重ねる、
+// 受信の様子 (データ放送を受信している間など)。loadingHidden は、エラーや切断を出している間、読み込み中の表示を出さないため。
 export function PlayerFeedback({
   shell,
   flash,
   notice,
   scrub,
-  error,
+  receiving,
+  loadingHidden,
 }: {
   shell: PlayerShell;
   flash: string | null;
   notice?: ReactNode;
   scrub: { seconds: number; label: string; previewUrl: string | null | undefined } | null;
-  error: string | null;
+  receiving?: ReactNode;
+  loadingHidden: boolean;
 }) {
   return (
     <>
@@ -414,8 +430,9 @@ export function PlayerFeedback({
       {scrub !== null && (
         <ScrubBubble seconds={scrub.seconds} label={scrub.label} previewUrl={scrub.previewUrl} />
       )}
+      {receiving}
       {shell.autoplay.blocked && <BigPlayButton onPlay={shell.autoplay.play} />}
-      {shell.videoLoading && !shell.autoplay.blocked && error === null && <PlayerLoading />}
+      {shell.videoLoading && !shell.autoplay.blocked && !loadingHidden && <PlayerLoading />}
     </>
   );
 }
@@ -439,21 +456,26 @@ export function PlayerErrorOverlay({
 }
 
 // PlayerToolButtons は、操作バーの右端に並べる、キャプチャ、ショートカットの一覧、別のウィンドウ、全画面のボタン。
+// captureOptional は、狭い画面でキャプチャのボタンを外すか。dataBroadcast は、ショートカットの一覧にデータ放送の操作を出すか。
 export function PlayerToolButtons({
   shell,
   commands,
   capture,
+  captureOptional = true,
+  dataBroadcast = false,
 }: {
   shell: PlayerShell;
   commands: PlayerCommands;
   capture: Capture;
+  captureOptional?: boolean;
+  dataBroadcast?: boolean;
 }) {
   const { t } = useTranslation();
 
   return (
     <>
       {/* 幅 375px ほどのスマートフォンでは、15 秒のシークのボタン (#1572) と再生位置を収めるため、キャプチャのボタンも外す。 */}
-      <CaptureButton capture={capture} optional="compact" />
+      <CaptureButton capture={capture} optional={captureOptional ? 'compact' : false} />
       <CommandButton
         commands={commands}
         command="showShortcuts"
@@ -466,6 +488,7 @@ export function PlayerToolButtons({
         onClose={() => shell.setShortcutsOpen(false)}
         commands={commands}
         target={shell.playerBoxRef}
+        dataBroadcast={dataBroadcast}
       />
       <PipButton pip={shell.pip} />
       <FullscreenButton active={shell.fullscreen.active} commands={commands} />

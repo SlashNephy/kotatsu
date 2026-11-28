@@ -906,7 +906,7 @@ function Player({
             ? null
             : { seconds: scrub, label: seekLabel(scrub), previewUrl: file.previewUrl }
         }
-        error={error}
+        loadingHidden={error !== null}
       />
       {skipButton}
       <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />

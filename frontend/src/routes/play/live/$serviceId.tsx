@@ -6,12 +6,10 @@ import {
   EllipsisVertical,
   ExternalLink,
   History,
-  Keyboard,
   MessageSquareText,
   Tv,
 } from 'lucide-react';
 import { startTransition, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../../relay/useLazyLoadQuery';
@@ -22,7 +20,6 @@ import {
   ProgramTitle,
   splitProgramMarks,
   toHalfWidth,
-  useDocumentTitle,
 } from '../../../futon';
 import { CommentList } from '../../../jikkyo/CommentList';
 import { WatchPanel } from '../../../yunomi/WatchPanel';
@@ -35,13 +32,7 @@ import {
   WatchLayout,
 } from '../../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../../yunomi/useVirtualSurround';
-import { useVolumeNormalizer } from '../../../yunomi/volumeNormalize';
-import {
-  useAudioDelayCommands,
-  useAudioDelayer,
-  useResetAudioDelayOnChannel,
-} from '../../../yunomi/audioDelay';
-import { noCrop, type Crop } from '../../../yunomi/crop';
+import { useResetAudioDelayOnChannel } from '../../../yunomi/audioDelay';
 import { CaptionHistory } from '../../../yunomi/CaptionHistory';
 import { useDRCSReplacements } from '../../../yunomi/useDRCSReplacements';
 import {
@@ -56,31 +47,22 @@ import { JikkyoPanel } from '../../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../../relay/environment';
 import { HlsPlayer } from '../../../yunomi/HlsPlayer';
-import { PipHost } from '../../../yunomi/PipHost';
-import { PipPlaceholder } from '../../../yunomi/PipPlaceholder';
 import {
   DataBroadcastRemote,
   DataBroadcastRemoteOverlay,
 } from '../../../yunomi/DataBroadcastRemote';
 import { useDataBroadcastKeys } from '../../../yunomi/dataBroadcastKeys';
 import {
-  BigPlayButton,
-  PlayerLoading,
   CommandButton,
-  FullscreenButton,
   LiveStatus,
   PlayButton,
   PlayerAlert,
   PlayerControls,
-  playerControlsClasses,
   PlayerNotice,
   SettingsButton,
   VolumeControl,
-  PlayerFlash,
-  usePlayerFlash,
 } from '../../../yunomi/PlayerControls';
 import {
-  PlaybackUnavailable,
   QualitySelect,
   CropSelect,
   AudioDelaySetting,
@@ -97,16 +79,8 @@ import {
 } from '../../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL, toVideoFormat } from '../../../yunomi/route';
 import { RemoteKey, useDataBroadcast } from '../../../yunomi/useDataBroadcast';
-import { useRemotePlayer } from '../../../yunomi/useRemotePlayer';
 import { useLiveScrambled } from '../../../yunomi/useLiveScrambled';
-import { useRemoteOpen } from '../../../yunomi/useRemoteOpen';
-import {
-  documentTitle,
-  usePlayerEvent,
-  usePlayerEvents,
-  type PlayerSnapshot,
-} from '../../../yunomi/playerState';
-import { useSleepTimer } from '../../../yunomi/sleepTimer';
+import { usePlayerEvent, type PlayerSnapshot } from '../../../yunomi/playerState';
 import { useDataBroadcastPreload } from '../../../yunomi/dataBroadcastPreload';
 import { useLiveCatchUp, useLowLatency } from '../../../yunomi/liveCatchUp';
 import { usePlayerAudio } from '../../../yunomi/usePlayerAudio';
@@ -115,42 +89,14 @@ import { DecodePlayer } from '../../../yunomi/DecodePlayer';
 import { usePlaybackRoute } from '../../../yunomi/usePlaybackRoute';
 import { useAdaptiveQuality } from '../../../yunomi/useAdaptiveQuality';
 import { usePlayerSettings } from '../../../yunomi/usePlayerSettings';
-import { useMediaSession } from '../../../yunomi/useMediaSession';
 import { ExternalStreamURL } from '../../../streams/ExternalStreamURL';
-import { ShortcutsHelp } from '../../../yunomi/ShortcutsHelp';
-import { usePlayerShortcuts } from '../../../yunomi/usePlayerShortcuts';
-import { usePlayerContextMenu } from '../../../yunomi/PlayerContextMenu';
-import { usePlayerGamepad } from '../../../yunomi/gamepad';
-import { usePlayerMouse } from '../../../yunomi/mouseActions';
 import { runCommand, type PlayerCommands } from '../../../yunomi/commands';
-import { useAutoPictureInPicture } from '../../../yunomi/autoPictureInPicture';
-import {
-  CaptureButton,
-  openPictureInPicture,
-  PipButton,
-  useCapture,
-} from '../../../yunomi/PlayerTools';
+import { useCapture } from '../../../yunomi/PlayerTools';
 import { StreamInfo, useStreamMeter } from '../../../yunomi/StreamInfo';
 import { useBroadcastClock } from '../../../yunomi/useBroadcastClock';
-import { onVideoSurface, useControlsVisibility } from '../../../yunomi/useControlsVisibility';
-import { stepBrightness } from '../../../yunomi/brightness';
-import { swipeVolumeStep } from '../../../yunomi/swipe';
-import { useSwipeControlsSetting, volumeChangeable } from '../../../yunomi/swipeControls';
-import { useSwipeGestures } from '../../../yunomi/useSwipeGestures';
-import { ScrubBubble } from '../../../yunomi/ScrubBubble';
-import { useFullscreen } from '../../../yunomi/useFullscreen';
-import { useSlideSeek } from '../../../yunomi/useSlideSeek';
-import { useScreenCrop } from '../../../yunomi/useScreenCrop';
-import { useAutoplayBlocked } from '../../../yunomi/useAutoplayBlocked';
-import { useVideoLoading } from '../../../yunomi/useVideoLoading';
-import { useVideoState } from '../../../yunomi/useVideoState';
-import { browserStorage, stepVolume } from '../../../yunomi/volume';
-import { currentVolume } from '../../../yunomi/volumeBoost';
-import { useWakeLock } from '../../../yunomi/useWakeLock';
+import { browserStorage } from '../../../yunomi/volume';
 import { usePlaybackReporter } from '../../../animeRecords/usePlaybackReporter';
-import { useDocumentPictureInPicture } from '../../../yunomi/useDocumentPictureInPicture';
 import { useLiveLag } from '../../../yunomi/useLiveLag';
-import { useVisible } from '../../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
 import { ProgramOverlay } from '../../../yunomi/ProgramOverlay';
@@ -162,12 +108,17 @@ import {
   recordChannel,
   saveRecentChannels,
 } from '../../../yunomi/recentChannels';
-import { useHostedWatch, useWatchMedia, useWatchMini } from '../../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMini } from '../../../yunomi/WatchHost';
+import {
+  PlayerBox,
+  PlayerFeedback,
+  PlayerFrame,
+  PlayerToolButtons,
+  usePlayerInputs,
+  usePlayerPresence,
+  usePlayerShell,
+} from '../../../yunomi/playerShell';
 import { readableParams } from '../../../futon/readableId';
-import type { PlayerMedia } from '../../../yunomi/playerMedia';
-
-// volumeStep は、↑ と ↓ で音量を上げ下げする幅。
-const volumeStep = 0.05;
 
 export const Route = createFileRoute('/play/live/$serviceId')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
@@ -411,32 +362,23 @@ function Live({
     const storage = browserStorage();
     saveRecentChannels(storage, recordChannel(loadRecentChannels(storage), serviceId));
   }, [serviceId]);
-  const mediaRef = useRef<PlayerMedia | null>(null);
-  // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で確認する。
-  const frameRef = useRef<HTMLDivElement | null>(null);
-  const inPage = useVisible(frameRef);
-  // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても、実況のコメントなどを描き続ける (設計書 7.5)。
-  const pip = useDocumentPictureInPicture();
-  const visible = inPage || pip.container !== null;
-  // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
-  const playerBoxRef = useRef<HTMLDivElement | null>(null);
-  // media は、今映している経路 (#1516)。画質を変えたときに作り直される。部品は <video> ではなく、これを受け取る。
-  const [media, setMedia] = useState<PlayerMedia | null>(null);
-  // 小さなプレイヤーは、この経路で再生中かを確認し、再生と一時停止を操作する。
-  useWatchMedia(media);
-  const videoState = useVideoState(media);
-  // ブラウザに音ありの自動再生を拒否されたら、映像の真ん中に再生ボタンを出す。
-  const autoplay = useAutoplayBlocked(media);
-  const videoLoading = useVideoLoading(media);
-  const fullscreen = useFullscreen(playerBoxRef);
-  // overlaid は、プレイヤーだけを出していて、ページの通知やリモコンが見えないかどうか。そのときは、映像に重ねて出す (#435)。
-  const overlaid = fullscreen.active || pip.container !== null;
-  // shortcutsOpen は、キーボードショートカットの一覧を出しているかどうか。
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  // ショートカットの一覧を見ている間は、操作バーとカーソルを隠さない。
-  const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
-  // 再生している間は、画面を消さない。
-  useWakeLock(!videoState.paused);
+  // shell は、再生元によらないプレイヤーの外側 (#2244)。別のウィンドウに出している間は、このページが隠れても、
+  // 実況のコメントなどを描き続ける (設計書 7.5)。
+  const shell = usePlayerShell();
+  const {
+    mediaRef,
+    media,
+    setMedia,
+    pip,
+    visible,
+    fullscreen,
+    overlaid,
+    controls,
+    videoState,
+    videoLoading,
+    flash,
+    showFlash,
+  } = shell;
   // videoFormat は、放送中の番組の映像の種類。BS4K と 8K では、経路の選び方が変わる (#806)。
   const videoFormat =
     data.node?.__typename === 'Service' ? toVideoFormat(data.node.videoFormat) : 'HD';
@@ -658,14 +600,8 @@ function Live({
     commentSettings,
     broadcast,
   );
-  // 音量の補正 (#499)。端末ごとの設定に合わせる。
-  useVolumeNormalizer(media);
-  useAudioDelayer(media);
+  // 局を変えたら、音ずれ補正を戻す。
   useResetAudioDelayOnChannel(serviceId);
-  // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。その場限りで、画面を開き直したら戻す。
-  const [crop, setCrop] = useState<Crop>(noCrop);
-  // shownCrop は、画面に映すときの切り抜き。画面いっぱいに広げるときは、全画面の画面の比率で拡大する (#1599)。
-  const shownCrop = useScreenCrop(crop, fullscreen.active);
   // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので破棄する。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
@@ -741,11 +677,9 @@ function Live({
   const programName = program?.name ?? null;
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
   const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
-  // flash は、キーで操作した結果。映像の上に短く出す (#448)。
-  const [flash, showFlash] = usePlayerFlash();
   const capture = useCapture({
-    crop,
-    frameRef: playerBoxRef,
+    crop: shell.crop,
+    frameRef: shell.playerBoxRef,
     media: () => mediaRef.current,
     serviceName,
     programName,
@@ -758,20 +692,9 @@ function Live({
       showFlash(t('player.flash.captured'));
     }
   };
-  // 押し続けると、描き直す前に次のキーが来るので、今の音量は mediaRef から読む。映像がなければ何もしない。
-  const changeVolume = (delta: number) => {
-    const current = mediaRef.current;
-    if (current === null) {
-      return;
-    }
-    const next = stepVolume(currentVolume(current), delta);
-    videoState.setVolume(next);
-    showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
-  };
   // skip は、今の位置から seconds 秒だけ進むか戻る。ライブなら、ライブの端から数える。
   const skip = (seconds: number) =>
     timeshift.seekTo((timeshift.behind ? timeshift.currentPosition() : timeshift.edge) + seconds);
-  const [autoPictureInPicture] = useAutoPictureInPicture();
   const service = data.node?.__typename === 'Service' ? data.node : null;
   // データ放送は、プリロードする設定か、一度出したあとは、出していない間も裏で受け取り、出したらすぐに d ボタンで入れるようにする
   // (設計書 7.4)。
@@ -807,22 +730,8 @@ function Live({
     },
   );
   // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
-  // audioDelayCommands は、音ずれ補正 (#818) の操作。変えたら、長さを映像の上に短く出す。
-  const audioDelayCommands = useAudioDelayCommands((ms) =>
-    showFlash(t('player.flash.audioDelay', { ms })),
-  );
   const commands: PlayerCommands = {
-    ...audioDelayCommands,
-    play: () => void mediaRef.current?.play().catch(() => {}),
-    pause: () => mediaRef.current?.pause(),
-    togglePlay: () => {
-      const current = mediaRef.current;
-      if (current?.paused === true) {
-        void current.play().catch(() => {});
-      } else {
-        current?.pause();
-      }
-    },
+    ...shell.commands,
     // バッファへシークできるなら、録画と同じく、← と → で戻ったり進んだりする。データ放送を出している間は、データ放送の操作に譲る。
     ...(timeshift.available && !dataBroadcastEnabled
       ? {
@@ -846,17 +755,6 @@ function Live({
       : {}),
     toggleCaptions: () => setCaptions(!captions),
     ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
-    toggleMute: () => {
-      const current = mediaRef.current;
-      if (current === null) {
-        return;
-      }
-      videoState.toggleMute();
-      showFlash(t(current.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
-    },
-    toggleFullscreen: fullscreen.toggle,
-    volumeUp: () => changeVolume(volumeStep),
-    volumeDown: () => changeVolume(-volumeStep),
     capture: () => void saveCapture(),
     // データ放送のない映像 (HD でないもの) では、出し入れできない。
     ...(dataBroadcastAvailable
@@ -889,13 +787,6 @@ function Live({
       reload();
       showFlash(t('player.flash.restarted'));
     },
-    showShortcuts: () => setShortcutsOpen(true),
-    setVolume: videoState.setVolume,
-    setMuted: (muted) => {
-      if (muted !== videoState.muted) {
-        videoState.toggleMute();
-      }
-    },
     selectAudio: audio.remote.select,
     stop: () => void navigate({ to: '/live' }),
     // 同じ種別の前後の局へ移る (#493)。移る先がなければ、使えない。
@@ -903,70 +794,29 @@ function Live({
     ...(neighbors.next === null ? {} : { nextChannel: () => tune(neighbors.next!.id) }),
     // 直前に見ていた局へ戻る (#816)。履歴がなければ、使えない。
     ...(lastService === null ? {} : { lastChannel: () => tune(lastService) }),
-    ...(pip.supported
-      ? {
-          pictureInPicture: () => {
-            if (pip.container === null) {
-              openPictureInPicture(pip).catch(() => {});
-            }
-          },
-        }
-      : {}),
   };
-  usePlayerShortcuts(commands);
-  // contextMenu は、映像を右クリックしたときのメニュー (#1140)。
-  const contextMenu = usePlayerContextMenu(commands);
-  // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
-  usePlayerGamepad(commands);
-  // 映像の上のホイールと中クリックも、設定の操作にする (#810)。
-  const mouseRef = usePlayerMouse(commands);
-  // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
-  // 全画面で、映像の左右を縦にスワイプして、明るさと音量を変える (#1598)。端末の設定で入れたときだけ受け付ける。
-  // 明るさは、その場限りで保存しない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
-  const [swipeControls] = useSwipeControlsSetting();
-  const [volumeAvailable] = useState(volumeChangeable);
-  const [brightness, setBrightness] = useState(1);
-  const brightnessRef = useRef(brightness);
-  brightnessRef.current = brightness;
-  useSwipeGestures(playerBoxRef, {
-    enabled: swipeControls && fullscreen.active,
-    controlsVisible: controls.visible,
-    volumeAvailable,
-    onSwipeStart: controls.hide,
-    onStep: (band, steps) => {
-      if (band === 'volume') {
-        changeVolume(steps * swipeVolumeStep);
-
-        return;
-      }
-      const next = stepBrightness(brightnessRef.current, steps);
-      brightnessRef.current = next;
-      setBrightness(next);
-      showFlash(t('player.flash.brightness', { percent: Math.round(next * 100) }));
-    },
-  });
-  // 映像を長押ししたまま横に滑らせて、再生位置を動かす (#1601)。滑らせている間は、シークバーのつまみを動かしている間と
-  // 同じく扱い、離したら、自分でシークしたものとして扱う。滑らせずに離したら、長押しのメニューを開く。
+  // 映像を長押ししたまま横に滑らせて、再生位置を動かす (#1601)。バッファへシークできるときだけ受け付ける。
   const seekLabel = (value: number) =>
     value >= timeshift.edge - liveThresholdSeconds
       ? t('player.live')
       : formatClock(timeshift.clockAt(value));
-  const scrub = useSlideSeek(playerBoxRef, {
-    enabled: timeshift.available,
-    range: () =>
-      timeshift.available
-        ? { position: timeshift.currentPosition(), duration: timeshift.edge }
-        : null,
-    onSlideStart: controls.hide,
-    onScrub: setSeeking,
-    onCommit: (target) => {
-      setSeeking(null);
-      timeshift.seekTo(target);
+  // sleep は、スリープタイマー (#821)。時間になるか、番組が終わったら、プレイヤーを閉じてチューナーを手放す。
+  const inputs = usePlayerInputs(shell, commands, {
+    slideSeek: {
+      enabled: timeshift.available,
+      range: () =>
+        timeshift.available
+          ? { position: timeshift.currentPosition(), duration: timeshift.edge }
+          : null,
+      onScrub: setSeeking,
+      onCommit: (target) => {
+        setSeeking(null);
+        timeshift.seekTo(target);
+      },
+      onCancel: () => setSeeking(null),
     },
-    onCancel: () => setSeeking(null),
-    onLongPress: contextMenu.openAt,
   });
-  const boxRef = useMergedRef(playerBoxRef, mouseRef);
+  const { sleep, scrub } = inputs;
   // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
   const player = {
     kind: 'LIVE',
@@ -986,9 +836,8 @@ function Live({
     dataBroadcast: dataBroadcastEnabled,
     keyGroups: [...dataBroadcast.keyGroups],
   } satisfies PlayerSnapshot;
-  const playerEvents = usePlayerEvents(player);
-  // sleep は、スリープタイマー (#821)。時間になるか、番組が終わったら、プレイヤーを閉じてチューナーを手放す。
-  const sleep = useSleepTimer(() => runCommand(commands, 'stop'));
+  // タブの題名、OS のメディア操作、ほかの端末に、プレイヤーの状態を通知する。ほかの端末には、映像が出てから通知する。
+  const playerEvents = usePlayerPresence(player, commands, media === null ? null : player);
   usePlayerEvent(playerEvents, 'programChanged', ({ previous }) => {
     if (sleep.choice === 'programEnd' && previous !== null) {
       sleep.fire();
@@ -997,15 +846,6 @@ function Live({
   // osd は、選局したときと番組が変わったときに、番組の情報を映像に重ねて出しているか (#815)。
   // バッファを再生している間は、放送中の番組と映像の番組が違うので出さない。
   const osd = useProgramOsd(playerEvents, media !== null && !videoLoading, !timeshift.behind);
-  // 小さなプレイヤーで描いている間は、開いている別の画面のタイトルを変えない (#1731)。
-  const watchMini = useWatchMini();
-  useDocumentTitle(documentTitle(player), !watchMini);
-  useMediaSession(
-    player,
-    commands,
-    // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
-    autoPictureInPicture,
-  );
 
   // データ放送を出している間は、⌥+矢印、Enter、Backspace、数字、⌥+b/r/g/y でリモコンを押せる (#441)。
   useDataBroadcastKeys(
@@ -1013,10 +853,6 @@ function Live({
     dataBroadcast.keyGroups,
     (key) => runCommand(commands, 'pressKey', key),
   );
-  // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
-  // ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
-  const openRemote = useRemoteOpen();
-  useRemotePlayer(media === null ? null : player, playerEvents, commands, undefined, openRemote);
   // commentRows は、右のカラムのコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
   const commentRows = useMemo(
     () =>
@@ -1139,29 +975,19 @@ function Live({
               }}
             />
             {audio.menu}
-            <CropSelect value={crop} onChange={setCrop} />
+            <CropSelect value={shell.crop} onChange={shell.setCrop} />
             <NormalizeVolumeToggle />
             <AudioDelaySetting resettable />
             <SleepTimerSelect timer={sleep} programEnd />
             {surroundAvailable && <VirtualSurroundToggle />}
           </SettingsButton>
-          <CaptureButton capture={capture} />
-          <CommandButton
+          <PlayerToolButtons
+            shell={shell}
             commands={commands}
-            command="showShortcuts"
-            label={t('player.shortcuts.title')}
-            icon={Keyboard}
-            optional
-          />
-          <ShortcutsHelp
-            opened={shortcutsOpen}
-            onClose={() => setShortcutsOpen(false)}
-            commands={commands}
-            target={playerBoxRef}
+            capture={capture}
+            captureOptional={false}
             dataBroadcast
           />
-          <PipButton pip={pip} />
-          <FullscreenButton active={fullscreen.active} commands={commands} />
         </>
       }
     />
@@ -1190,21 +1016,13 @@ function Live({
   );
 
   const playerBox = (
-    <div
-      ref={boxRef}
-      // 映像を右クリックすると、操作のメニューを出す (#1140)。
-      onContextMenu={contextMenu.onContextMenu}
-      className={playerControlsClasses.box}
-      data-controls-visible={controls.visible}
-      {...controls.containerProps}
-      // マウスで映像をダブルクリックすると、全画面を切り替える (#452)。データ放送を出している間は、データ放送の操作に譲る。
-      onDoubleClick={(event) => {
-        if (!dataBroadcastEnabled && onVideoSurface(event.target)) {
-          fullscreen.toggle();
-        }
-      }}
+    // マウスで映像を押しても、再生と一時停止は切り替えない。データ放送を出している間は、ダブルクリックをデータ放送の操作に譲る。
+    <PlayerBox
+      shell={shell}
+      inputs={inputs}
+      clickToPlay={false}
+      doubleClickFullscreen={!dataBroadcastEnabled}
     >
-      {contextMenu.menu}
       {route.kind === 'convert' && (
         <TsPlayer
           url={
@@ -1224,8 +1042,8 @@ function Live({
           captions={captions}
           superimpose={captionSettings.superimposeLive}
           captionStyle={captionSettings}
-          crop={shownCrop}
-          brightness={brightness}
+          crop={shell.shownCrop}
+          brightness={inputs.brightness}
           onCaptionText={onCaptionText}
           onLoaded={() => {
             if (timeshift.behind) {
@@ -1246,16 +1064,22 @@ function Live({
                 current={program}
                 next={nextProgram}
               />
-              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
-              {adaptive.notice}
-              {scrub !== null && (
-                <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />
-              )}
-              {dataBroadcast.receiving && (
-                <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
-              )}
-              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
-              {videoLoading && !autoplay.blocked && disconnection === null && <PlayerLoading />}
+              <PlayerFeedback
+                shell={shell}
+                flash={flash}
+                notice={adaptive.notice}
+                scrub={
+                  scrub === null
+                    ? null
+                    : { seconds: scrub, label: seekLabel(scrub), previewUrl: null }
+                }
+                receiving={
+                  dataBroadcast.receiving && (
+                    <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
+                  )
+                }
+                loadingHidden={disconnection !== null}
+              />
               {overlays}
             </>
           }
@@ -1288,8 +1112,8 @@ function Live({
           captions={captions}
           superimpose={captionSettings.superimposeLive}
           captionStyle={captionSettings}
-          crop={shownCrop}
-          brightness={brightness}
+          crop={shell.shownCrop}
+          brightness={inputs.brightness}
           onCaptionText={onCaptionText}
           onLoaded={onLoaded}
           onFallback={adaptive.decodeFallback}
@@ -1305,13 +1129,18 @@ function Live({
                 current={program}
                 next={nextProgram}
               />
-              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
-              {adaptive.notice}
-              {dataBroadcast.receiving && (
-                <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
-              )}
-              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
-              {videoLoading && !autoplay.blocked && disconnection === null && <PlayerLoading />}
+              <PlayerFeedback
+                shell={shell}
+                flash={flash}
+                notice={adaptive.notice}
+                scrub={null}
+                receiving={
+                  dataBroadcast.receiving && (
+                    <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
+                  )
+                }
+                loadingHidden={disconnection !== null}
+              />
               {overlays}
             </>
           }
@@ -1345,8 +1174,8 @@ function Live({
           captions={captions}
           superimpose={captionSettings.superimposeLive}
           captionStyle={captionSettings}
-          crop={shownCrop}
-          brightness={brightness}
+          crop={shell.shownCrop}
+          brightness={inputs.brightness}
           onCaptionText={onCaptionText}
           live={!timeshift.behind}
           startPosition={timeshift.hlsStart}
@@ -1364,16 +1193,22 @@ function Live({
                 current={program}
                 next={nextProgram}
               />
-              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
-              {adaptive.notice}
-              {scrub !== null && (
-                <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />
-              )}
-              {dataBroadcast.receiving && (
-                <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
-              )}
-              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
-              {videoLoading && !autoplay.blocked && disconnection === null && <PlayerLoading />}
+              <PlayerFeedback
+                shell={shell}
+                flash={flash}
+                notice={adaptive.notice}
+                scrub={
+                  scrub === null
+                    ? null
+                    : { seconds: scrub, label: seekLabel(scrub), previewUrl: null }
+                }
+                receiving={
+                  dataBroadcast.receiving && (
+                    <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
+                  )
+                }
+                loadingHidden={disconnection !== null}
+              />
               {overlays}
             </>
           }
@@ -1381,7 +1216,7 @@ function Live({
           onError={timeshift.behind ? resumeBehind : disconnected}
         />
       )}
-    </div>
+    </PlayerBox>
   );
 
   return (
@@ -1425,18 +1260,10 @@ function Live({
       </Modal>
       <WatchLayout
         player={
-          <Stack gap="xs">
-            <PlaybackUnavailable route={route} />
-            {/* 画面の外に出たときと、タブが隠れたときも再生は続け、データ放送の受信と、実況のコメントの描画だけを止める (設計書 7.2)。 */}
-            <div ref={frameRef}>
-              <PipHost
-                container={pip.container}
-                placeholder={<PipPlaceholder onBack={pip.close} />}
-              >
-                {playerBox}
-              </PipHost>
-            </div>
-          </Stack>
+          // 画面の外に出たときと、タブが隠れたときも再生は続け、データ放送の受信と、実況のコメントの描画だけを止める (設計書 7.2)。
+          <PlayerFrame shell={shell} route={route}>
+            {playerBox}
+          </PlayerFrame>
         }
         info={
           <>

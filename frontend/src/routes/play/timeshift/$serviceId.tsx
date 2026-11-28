@@ -606,7 +606,7 @@ function Player({
                     ? null
                     : { seconds: scrub, label: seekLabel(scrub), previewUrl: null }
                 }
-                error={error}
+                loadingHidden={error !== null}
               />
               <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />
             </>
@@ -643,7 +643,7 @@ function Player({
                     ? null
                     : { seconds: scrub, label: seekLabel(scrub), previewUrl: null }
                 }
-                error={error}
+                loadingHidden={error !== null}
               />
               <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />
             </>

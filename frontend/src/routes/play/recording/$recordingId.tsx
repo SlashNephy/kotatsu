@@ -1200,7 +1200,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                     ? null
                     : { seconds: scrub, label: seekLabel(scrub), previewUrl: recording.previewUrl }
                 }
-                error={error}
+                loadingHidden={error !== null}
               />
               {skipButton}
               <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />
@@ -1255,7 +1255,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                     ? null
                     : { seconds: scrub, label: seekLabel(scrub), previewUrl: recording.previewUrl }
                 }
-                error={error}
+                loadingHidden={error !== null}
               />
               {skipButton}
               <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />
