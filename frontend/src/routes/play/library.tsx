@@ -61,13 +61,9 @@ import {
   SeekStepButtons,
   SettingsButton,
   VolumeControl,
-  SkipButton,
 } from '../../yunomi/PlayerControls';
-import { loadCmAutoSkip, useCmAutoSkip } from '../../yunomi/cmAutoSkip';
-import { CmAutoSkipper } from '../../yunomi/cmAutoSkipper';
-import { cmButtonSectionAt, cmMergeGap, cmSectionAt, mergeCmSections } from '../../yunomi/cmSkip';
-import type { PlayerCover } from '../../yunomi/playerCover';
-import { useVideoFrames } from '../../yunomi/useVideoFrames';
+import { loadCmAutoSkip } from '../../yunomi/cmAutoSkip';
+import { cmMergeGap, cmSectionAt, mergeCmSections } from '../../yunomi/cmSkip';
 import { SaveOfflineButton } from '../../offline/SaveOfflineButton';
 import {
   CaptionTrackSelect,
@@ -104,6 +100,7 @@ import {
   usePlayerShell,
 } from '../../yunomi/playerShell';
 import { useVodTimeline } from '../../yunomi/useVodTimeline';
+import { useCmSkip } from '../../yunomi/useCmSkip';
 
 // noGaps は、ライブラリのファイルの途切れた区間。ファイル 1 本を流すので、録画のセグメントの間のような区間はない。
 const noGaps: readonly { from: string; to: string }[] = [];
@@ -533,12 +530,21 @@ function Player({
     const at = currentPosition();
     setCaptionEntries((list) => insertRecordedCaption(list, at, text));
   };
-  // lastSeek は、利用者が最後にシークした位置 (#1282)。そこが CM の区間の中なら、自動では飛ばさない。
-  const lastSeek = useRef<number | null>(start === undefined ? null : initialPosition);
-  // seek は、利用者の操作で、指定の位置に移る。
-  const seek = (target: number) => {
-    lastSeek.current = jumpTo(target);
-  };
+  // cm は、CM とみなした区間 (設計書 5.8) の帯と、飛ばすボタンと、録画と同じく自動で飛ばす判定 (#1512)。
+  const cm = useCmSkip({
+    sections: cmPositions,
+    media,
+    mediaRef,
+    framePosition: (time) => (hls ? hlsStream.framePosition(time) : stream.framePosition(time)),
+    jumpTo,
+    currentPosition,
+    scrubbing: seeking !== null,
+    showFlash,
+    opening,
+    initialSeek: start === undefined ? null : initialPosition,
+  });
+  // seek は、利用者の操作で、指定の位置に移る。skip は、今の位置から相対に移り、CM を飛んだら true を返す。
+  const { seek, skip } = cm;
   const changeQuality = (next: string) => {
     restartAt(positionRef.current);
     setQuality(next);
@@ -557,80 +563,6 @@ function Player({
   const shownFlash = fastForward.active
     ? t('player.flash.fastForward', { rate: fastForward.playbackRate })
     : shell.flash;
-  // CM を自動で飛ばす (#1512)。録画と同じく、CM のコマを画面に出さないよう、飛ぶ直前に蓋を出し、飛び先が映ってから外す。
-  const [cmAutoSkip] = useCmAutoSkip();
-  // coverRef は、映像の上に重ねる蓋。プレイヤーが出し入れの口を入れる。
-  const coverRef = useRef<PlayerCover | null>(null);
-  // live は、CM を自動で飛ばす判定が読む、描画ごとに変わる値。判定は描画の外 (コマごと) で行う。
-  const live = useRef({ cmAutoSkip, cmSpans, scrubbing: seeking !== null, jumpTo, showFlash, t });
-  live.current = { cmAutoSkip, cmSpans, scrubbing: seeking !== null, jumpTo, showFlash, t };
-  const [skipper] = useState(
-    () =>
-      new CmAutoSkipper({
-        enabled: () => live.current.cmAutoSkip,
-        scrubbing: () => live.current.scrubbing,
-        paused: () => mediaRef.current?.paused ?? true,
-        lastSeek: () => lastSeek.current,
-        sections: () => live.current.cmSpans,
-        cover: (kind) => coverRef.current?.show(kind),
-        uncover: () => coverRef.current?.hide(),
-        jump: (target) => live.current.jumpTo(target),
-        notify: () => live.current.showFlash(live.current.t('player.flash.cmSkipped')),
-        setTimer: (callback, ms) => {
-          const timer = setTimeout(callback, ms);
-
-          return () => clearTimeout(timer);
-        },
-      }),
-  );
-  useEffect(() => () => skipper.dispose(), [skipper]);
-  // 判定は、映ったコマごとに、そのコマの時刻で行う。読み直していて位置を信じられない間は、位置を渡さない。
-  useVideoFrames(media, ({ mediaTime, presented }) => {
-    if (media === null) {
-      return;
-    }
-    const time = mediaTime ?? media.currentTime;
-    skipper.frame({
-      position: hls ? hlsStream.framePosition(time) : stream.framePosition(time),
-      seeking: media.seeking,
-      paused: media.paused,
-      presented,
-    });
-  });
-  // 開いた位置が CM の中で、最初から CM の終わりを求めたときは、蓋で覆い、CM の終わり以上のコマが映るまで待つ。
-  // 続きから開いたときは、続きから始めたことだけを伝え、CM を飛ばした通知は出さない。
-  const openingHeld = useRef(false);
-  useEffect(() => {
-    if (!opening.skipped || openingHeld.current || media === null) {
-      return;
-    }
-    openingHeld.current = true;
-    skipper.holdUntil(opening.at);
-    if (!opening.resumed) {
-      showFlash(t('player.flash.cmSkipped'));
-    }
-  }, [media]);
-  // 自動で飛ばす設定を入れた瞬間に CM の中にいれば、その場で飛ぶ。設定を入れたことを、飛ばしたい意思として扱う (#1512)。
-  const previousCmAutoSkip = useRef(cmAutoSkip);
-  useEffect(() => {
-    if (cmAutoSkip && !previousCmAutoSkip.current) {
-      lastSeek.current = null;
-    }
-    previousCmAutoSkip.current = cmAutoSkip;
-  }, [cmAutoSkip]);
-  // skip は、今の位置から seconds 秒移る。録画と同じく、先へ移った先が CM の中なら、自動で飛ばす設定のときは、
-  // 蓋を出して続いた CM の終わりまで 1 回で飛ぶ。自分でシークして見ていた CM の中は飛ばさない (#1512)。
-  const skip = (seconds: number) => {
-    const target = currentPosition() + seconds;
-    const watching = lastSeek.current;
-    const span = cmSectionAt(cmSpans, target);
-    const insideWatched =
-      span !== null && watching !== null && span.from <= watching && watching < span.to;
-    if (seconds > 0 && !insideWatched && skipper.skipFrom(target)) {
-      return;
-    }
-    seek(target);
-  };
   // キャプチャ (#908)。放送時刻は、TS の TOT から読んだ録り始めから数える。分からなければ、撮った時刻にする。
   const capture = useCapture({
     crop: shell.crop,
@@ -709,38 +641,16 @@ function Player({
 
   const shown = seeking ?? position;
   const shownClock = clockAt(shown);
-  // cmBands は、CM とみなした区間 (設計書 5.8)。
-  const cmBands = cmPositions.map(({ from, to }) => ({
-    from,
-    to,
-    label: t('player.cmSection', { duration: formatDuration(Math.max(to - from, 0)) }),
-    kind: 'cm' as const,
-  }));
   // bands は、CM の区間と、インデックスをまだ作っている所 (シークできないので帯で示す) と、実況のコメントから見つけた番組の区切りのマーク。
   const bands = [
-    ...cmBands,
+    ...cm.bands,
     ...(indexing && duration > limit
       ? [{ from: limit, to: duration, label: t('library.indexing') }]
       : []),
     ...partBands,
   ];
-  // currentCm は、いま再生している CM の区間 (#1300)。あれば、区間の終わりへ飛ばすボタンを出す。
-  const currentCm = seeking === null ? cmButtonSectionAt(cmBands, position) : null;
-  const skipButton = currentCm !== null && (
-    <SkipButton
-      raised={controls.visible}
-      // CM から出るための操作なので、CM を見たい意思 (lastSeek) を消す (#1512)。自動で飛ばす設定なら、続いた CM の終わりまで、
-      // 蓋を出して 1 回で飛ぶ。
-      onClick={() => {
-        lastSeek.current = null;
-        if (!skipper.skipFrom(currentPosition())) {
-          jumpTo(currentCm.to);
-        }
-      }}
-    >
-      {t('player.skipCm')}
-    </SkipButton>
-  );
+  // skipButton は、いま再生している CM の中で出す、区間の終わりへ飛ばすボタン (#1300)。
+  const skipButton = seeking === null && cm.button(position, controls.visible);
 
   const controlBar = (
     <PlayerControls
@@ -857,7 +767,7 @@ function Player({
           onReading={streamMeter.onReading}
           audio={audio.playerAudio}
           overlay={overlay}
-          coverRef={coverRef}
+          coverRef={cm.coverRef}
         />
       )}
       {route.kind === 'kyusu' && (
@@ -884,7 +794,7 @@ function Player({
           overlay={overlay}
           onLoaded={timeline.onHlsLoaded}
           onError={timeline.onError}
-          coverRef={coverRef}
+          coverRef={cm.coverRef}
         />
       )}
     </PlayerBox>
