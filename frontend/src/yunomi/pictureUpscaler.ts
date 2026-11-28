@@ -60,7 +60,7 @@ export function upscaleSize(
 
 // maxDimension は、gl が描ける一辺の上限 (テクスチャと viewport の小さい方)。
 // コンテキストを失っていると、getParameter は null を返すので、0 (描けない) とする。
-function maxDimension(gl: WebGL2RenderingContext): number {
+export function maxDimension(gl: WebGL2RenderingContext): number {
   const texture = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number | null;
   const viewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array | null;
   if (texture === null || viewport === null) {

@@ -691,10 +691,11 @@ function receivePictures(current: Loading): void {
     target.matrix =
       bt601ColorSpaces.has(colorSpace) || (colorSpace === 2 && height < 720) ? 'bt601' : 'bt709';
     // 大きさが変わったときだけ通知する (走査の方式は、プルダウンの素材ではコマごとに変わりうるので含めない)。
-    const shape = `${displayWidth}x${height}`;
+    // 元の大きさも含める。映す大きさが同じでも (1920×1080 と、画素の縦横比が 4:3 の 1440×1080)、拡大のもとが変わる。
+    const shape = `${displayWidth}x${height}/${width}`;
     if (current.shape !== shape) {
       current.shape = shape;
-      renderer.resize(displayWidth, height);
+      renderer.resize({ width: displayWidth, height }, { width, height });
       post({ type: 'picture', load: current.load, width: displayWidth, height, interlaced });
     }
     const slot = renderer.acquire(width, height);
@@ -912,15 +913,18 @@ function clearQueue(target: Engine): void {
   lastDrawn = lastDrawn === null ? null : { ...lastDrawn, previous: null };
 }
 
-// applyDisplay は、届いた大きさと拡大の設定を renderer に当て、最後のコマを描き直す。
+// applyDisplay は、届いた大きさと拡大の設定を renderer に当て、要れば最後のコマを描き直す。
 // canvas の大きさが変わると描いたものは消え、鮮鋭化の強さなどは描くときに読むので、止めている間も新しい設定で映す
 // (止めている間は、画面の切り替わりで描き直さないことがある)。前のコマは、もう返しているかもしれないので、比較に使わない。
 function applyDisplay(): void {
   if (engine === null) {
     return;
   }
-  engine.renderer.setScaler(display.superResolution ? engine.upscaler : null, display.box);
-  if (lastDrawn !== null) {
+  const redraw = engine.renderer.setScaler(
+    display.superResolution ? engine.upscaler : null,
+    display.box,
+  );
+  if (redraw && lastDrawn !== null) {
     draw(engine, { ...lastDrawn, previous: null });
   }
 }
