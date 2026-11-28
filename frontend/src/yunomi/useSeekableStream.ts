@@ -36,7 +36,7 @@ export type SeekableStream = {
   handoverTarget: (base: number) => number | null;
 };
 
-// positionEpsilon は、求めた位置に届いたかを比べるときの誤差 (秒)。
+// positionEpsilon は、求めた位置に届いたかを比較するときの、計算の丸めの誤差 (秒)。
 const positionEpsilon = 0.001;
 
 // useSeekableStream は、streamUrl に start=秒 を付けて流す配信の、再生位置を追う。
