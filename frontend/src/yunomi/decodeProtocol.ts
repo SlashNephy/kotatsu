@@ -29,11 +29,11 @@ export type ToDecodeWorker =
   // pts が null なら、まだ鳴らし始めていないので、貯めた音をすべて破棄した。渡し始めた位置から渡し直してほしい。
   // cut は、audioCut の番号。続けて選び直したときに、前の切り替えの返事と見分ける。
   | { type: 'audioFrom'; load: number; cut: number; pts: number | null }
-  // display は、コマを映す大きさと、映像の拡大 (#1654、#2276) と擬似 HDR (#1656) の設定。大きさか設定が変わるたびに送る。
+  // display は、コマを映す大きさと、映像の拡大 (#1654、#2276)、擬似 HDR (#1656)、コマの補間 (#1655) の設定。大きさか設定が変わるたびに送る。
   // worker は、画面の大きさも端末ごとの設定も読めないので、メインスレッドが計測して渡す。
   | ({ type: 'display' } & DecodeDisplay);
 
-// DecodeDisplay は、コマを映す大きさと、映像の拡大と擬似 HDR の設定。
+// DecodeDisplay は、コマを映す大きさと、映像の拡大、擬似 HDR、コマの補間の設定。
 export type DecodeDisplay = {
   // box は、絵を枠に収めた (object-fit: contain) 矩形の、端末の画素での大きさ。計測できていなければ null。
   box: { width: number; height: number } | null;
@@ -44,6 +44,9 @@ export type DecodeDisplay = {
   method: SuperResolutionMethod;
   // hdr は、擬似 HDR (#1656) で描くか。端末ごとの設定で入れていて、ブラウザが対応し、画面が HDR を出せるときだけ true。
   hdr: boolean;
+  // interpolate は、コマの間を補間するか (#1655)。maxRate は、補間したコマを出す回数の上限 (1 秒あたり)。null なら上限なし。
+  interpolate: boolean;
+  maxRate: number | null;
 };
 
 // DecodeAudioStream は、番組の音声の ES。dualMono は、届いた ES がデュアルモノ (channel_configuration が 0) だったか。

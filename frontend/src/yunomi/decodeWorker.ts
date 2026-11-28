@@ -6,6 +6,7 @@
 // 間に合っているかは decodeJudge で判定し、少し遅れたら B フレームを省き、間に合わなければメインスレッドへ通知する。
 // 映像の拡大 (#1654、#2276) は、変換の経路と同じ処理 (pictureUpscaler) を、メインスレッドから届く設定と大きさで使う。
 // 2:3 プルダウンの放送 (#2276) は、フィールドの差から位相を決め (telecine)、同じコマのフィールドを組み合わせた 24p のコマを映す。
+// コマの補間 (#1655) は、変換の経路と同じく 24p と 29.97p (インタレースでないコマ) だけで、次のコマとの間を作って映す。
 import createDecoderModule, { type DecoderModule } from '@kotatsu/ffmpeg-decoder';
 
 import { AdtsSplitter } from './adtsFrames';
@@ -20,7 +21,8 @@ import type {
   ToDecodeWorker,
 } from './decodeProtocol';
 import { FieldPacer } from './fieldPacer';
-import { PictureQueue } from './pictureQueue';
+import { createDrawPacer } from './interpolationTiming';
+import { PictureQueue, type QueuedPicture } from './pictureQueue';
 import {
   type ColorMatrix,
   type DrawRequest,
@@ -167,7 +169,11 @@ let display: DecodeDisplay = {
   strength: defaultSuperResolutionStrength,
   method: 'fsr',
   hdr: false,
+  interpolate: false,
+  maxRate: null,
 };
+// drawPacer は、補間したコマを出す回数を、上限 (display.maxRate) までに抑える。
+const drawPacer = createDrawPacer();
 // lastDrawn は、最後に描いたコマ。拡大の設定や大きさを変えて canvas が消えたときに、止めていても描き直すのに使う。
 // 待ち行列は、映しているコマを次のコマに替えるまで残すので、slot はそれまで使える。
 let lastDrawn: DrawRequest | null = null;
@@ -1066,14 +1072,11 @@ function onVsync(time: number): void {
   current.shownUntil =
     choice.picture.pts +
     (choice.picture.slot.film ? ((current.telecine.duration ?? 3003) * 5) / 4 : hold);
-  draw(engine, choice.picture.slot, {
-    slot: choice.picture.slot.top.slot,
-    bottom: choice.picture.slot.film ? choice.picture.slot.bottom.slot : null,
-    previous: engine.queue.previous?.slot.top.slot ?? null,
-    interlaced: choice.picture.interlaced,
-    parity: choice.parity,
-    matrix: engine.matrix,
-  });
+  const request = requestOf(engine, choice.picture, choice.parity);
+  request.previous = engine.queue.previous?.slot.top.slot ?? null;
+  if (!interpolate(engine, choice.picture, request, target)) {
+    draw(engine, choice.picture.slot, request);
+  }
   presented += 1;
   if (!current.presented) {
     current.presented = true;
@@ -1087,16 +1090,71 @@ function present(current: Loading, pts: number): void {
   if (engine === null || choice === null) {
     return;
   }
-  draw(engine, choice.picture.slot, {
-    slot: choice.picture.slot.top.slot,
-    bottom: choice.picture.slot.film ? choice.picture.slot.bottom.slot : null,
-    previous: null,
-    interlaced: choice.picture.interlaced,
-    parity: choice.parity,
-    matrix: engine.matrix,
-  });
+  draw(engine, choice.picture.slot, requestOf(engine, choice.picture, choice.parity));
   current.presented = true;
   post({ type: 'presented', load: current.load });
+}
+
+// requestOf は、待ち行列のコマ picture のフィールド parity を描く求めを返す。前のコマは比較に使わない。
+function requestOf(target: Engine, picture: QueuedPicture<Shown>, parity: 0 | 1): DrawRequest {
+  return {
+    slot: picture.slot.top.slot,
+    bottom: picture.slot.film ? picture.slot.bottom.slot : null,
+    previous: null,
+    interlaced: picture.interlaced,
+    parity,
+    matrix: target.matrix,
+  };
+}
+
+// interpolate は、補間を入れていて、映すコマと次のコマがどちらもインタレースでなく (24p か 29.97p)、間が空きすぎていなければ、
+// 映す時刻 target のコマを、2 コマの間から作って描く。描いたら true を返す。補間したコマを出す回数の上限で描かない書き換えは、
+// 前に描いたコマを残し、true を返す。インタレースのコマは、フィールドごとに映すので補間しない (変換の経路と同じ)。
+function interpolate(
+  target: Engine,
+  picture: QueuedPicture<Shown>,
+  request: DrawRequest,
+  pts: number,
+): boolean {
+  const next = target.queue.following;
+  const duration = loading?.telecine.duration ?? null;
+  if (
+    !display.interpolate ||
+    !target.renderer.canInterpolate ||
+    picture.interlaced ||
+    next === null ||
+    next.interlaced ||
+    duration === null ||
+    next.pts - picture.pts > (duration * 5) / 4 + duration / 4
+  ) {
+    drawPacer.reset();
+
+    return false;
+  }
+  const t = (pts - picture.pts) / (next.pts - picture.pts);
+  if (t <= 0) {
+    return false;
+  }
+  const now = performance.now();
+  if (
+    lastDrawn !== null &&
+    !drawPacer.shouldDraw(now, display.maxRate, pacer.interval ?? 1_000 / 60)
+  ) {
+    return true;
+  }
+  const drawn = target.renderer.drawBetween(
+    request,
+    requestOf(target, next, 0),
+    Math.min(t, 1),
+    (error) => {
+      console.warn('frame interpolation is unavailable; showing the pictures as they are', error);
+    },
+  );
+  if (drawn) {
+    remember(target, picture.slot, request);
+  }
+
+  return drawn;
 }
 
 // draw は、コマを描き、描き直せるよう保持する。残していたコマと別のコマを描いたら、残していたコマを返す。
@@ -1113,6 +1171,11 @@ function draw(target: Engine, shown: Shown, request: DrawRequest): void {
       display.superResolution,
     );
   }
+  remember(target, shown, request);
+}
+
+// remember は、描いたコマを、描き直せるよう保持する。残していたコマと別のコマを描いたら、残していたコマを返す。
+function remember(target: Engine, shown: Shown, request: DrawRequest): void {
   lastDrawn = request;
   lastShown = shown;
   if (retained !== null && retained !== shown) {

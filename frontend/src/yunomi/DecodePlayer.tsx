@@ -6,6 +6,7 @@ import { type CaptionStyle, type Captions, createCaptions } from './captions';
 import { type Crop, cropStyle, isCropped, noCrop, scales } from './crop';
 import type { FallbackReason } from './decodeJudge';
 import { DecodeMedia } from './decodeMedia';
+import { useInterpolation, useInterpolationRate } from './frameInterpolation';
 import { useHDRDisplay, useHDROutput } from './hdr';
 import { hdrOutputSupported } from './hdrDrawing';
 import { dataBroadcastSource } from './route';
@@ -106,6 +107,9 @@ export function DecodePlayer({
   const [savedHDROutput] = useHDROutput();
   const hdrDisplay = useHDRDisplay();
   const hdr = savedHDROutput && hdrDisplay && hdrOutputSupported();
+  // コマの補間 (#1655) も、変換の経路と同じ端末ごとの設定で決める。
+  const [interpolate] = useInterpolation();
+  const [maxRate] = useInterpolationRate();
   const zoom = scales(crop);
   const settingsRef = useRef<Omit<DecodeDisplay, 'box'>>({
     zoom,
@@ -113,6 +117,8 @@ export function DecodePlayer({
     strength: superResolutionStrength,
     method: superResolutionMethod,
     hdr,
+    interpolate,
+    maxRate,
   });
   settingsRef.current = {
     zoom,
@@ -120,6 +126,8 @@ export function DecodePlayer({
     strength: superResolutionStrength,
     method: superResolutionMethod,
     hdr,
+    interpolate,
+    maxRate,
   };
   const engineRef = useRef<{
     media: DecodeMedia;
@@ -324,7 +332,16 @@ export function DecodePlayer({
 
   useEffect(() => {
     engineRef.current?.sendDisplay();
-  }, [superResolution, superResolutionStrength, superResolutionMethod, hdr, zoom.x, zoom.y]);
+  }, [
+    superResolution,
+    superResolutionStrength,
+    superResolutionMethod,
+    hdr,
+    interpolate,
+    maxRate,
+    zoom.x,
+    zoom.y,
+  ]);
 
   useEffect(() => {
     engineRef.current?.captions.setVisible(captions);

@@ -96,6 +96,19 @@ describe('PictureQueue', () => {
     ]);
   });
 
+  test('following は、映しているコマの次のコマを返す', () => {
+    const { queue } = setup();
+    queue.push(picture(0));
+    queue.push(picture(frame));
+    queue.choose(0);
+
+    expect(queue.following?.pts).toBe(frame);
+
+    queue.choose(frame);
+
+    expect(queue.following).toBeNull();
+  });
+
   test('clear で、待っているコマと前のコマの slot を返す', () => {
     const { queue, released } = setup();
     queue.push(picture(0));

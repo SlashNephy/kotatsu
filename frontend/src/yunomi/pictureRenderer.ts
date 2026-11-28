@@ -8,10 +8,13 @@
 // 渡して canvas へ描かせる。拡大は、yadif に渡すときと同じ PictureScaler の約束で呼ぶ。擬似 HDR (#1656) も、同じ処理が
 // canvas へ描く最後のステップで描く。拡大せずに擬似 HDR で描くときは、映す大きさのテクスチャに描いて渡す。
 // どちらもしないときは、今までどおり canvas へ直に描く。
+// コマの補間 (#1655、#2276) は、前後の 2 コマを scaler に渡す大きさのテクスチャに描いてから、補間の処理 (interpolator) で
+// その間の時刻のコマを作る。拡大か擬似 HDR で描くなら、作ったコマを scaler に渡し、そうでなければ canvas へ直に描く。
 
 import type { PictureScaler } from '@mpeg2toh264/yadif';
 
 import { hdrOutputSupported } from './hdrDrawing';
+import { createInterpolator, type Interpolator } from './interpolator';
 import { maxDimension, type Size } from './pictureUpscaler';
 
 // RendererThresholds は、インタレ解除の閾値 (0〜1 の輝度)。織り < bob、静止 < 動き にする。
@@ -228,6 +231,14 @@ export class PictureRenderer {
   private output: Size | null = null;
   // target は、拡大する前のコマを描く先。拡大するときだけ作る。
   private target: Target | null = null;
+  // interpolator は、コマの補間の処理。最初に補間するときに作る。作れないか、途中で失敗したら、interpolationBroken にし、以後は補間しない。
+  private interpolator: Interpolator | null = null;
+  private interpolationBroken = false;
+  // pair は、補間する前後のコマと、それを描いたテクスチャ。前後のコマが同じなら、描き直さずに使う。
+  private pair: { previous: DrawRequest; next: DrawRequest; from: Target; to: Target } | null =
+    null;
+  // spare は、pair が使っていない、前後のコマを描くテクスチャ。
+  private spare: Target[] = [];
 
   constructor(
     private readonly canvas: OffscreenCanvas,
@@ -308,8 +319,7 @@ export class PictureRenderer {
   // releaseTarget は、拡大する前のコマを描く先を消す。
   private releaseTarget(): void {
     if (this.target !== null) {
-      this.gl.deleteFramebuffer(this.target.framebuffer);
-      this.gl.deleteTexture(this.target.texture);
+      this.deleteTarget(this.target);
       this.target = null;
     }
   }
@@ -333,6 +343,10 @@ export class PictureRenderer {
 
   // release は、使い終えたテクスチャの組を返す。大きさの違うものが溜まらないよう、違う大きさの組は消す。
   release(slot: PictureSlot): void {
+    // 返した組は、次のコマに使い回すので、補間する前後のコマとして保持したものは破棄する。
+    if (this.pair !== null && [this.pair.previous, this.pair.next].some((r) => usesSlot(r, slot))) {
+      this.dropPair();
+    }
     for (const other of this.free.filter(
       (free) => free.width !== slot.width || free.height !== slot.height,
     )) {
@@ -401,26 +415,126 @@ export class PictureRenderer {
     this.drawPicture(request, null, this.canvas.width, this.canvas.height);
   }
 
+  // canInterpolate は、補間できるか (作れなかったか、途中で失敗していないか)。
+  get canInterpolate(): boolean {
+    return !this.interpolationBroken;
+  }
+
+  // drawBetween は、previous と next の間の、時刻 t (0〜1) のコマを作って描く。描けなければ false を返す
+  // (呼ぶ側は previous をそのまま描く)。補間できなければ、onUnavailable を呼び、以後は補間しない。
+  drawBetween(
+    previous: DrawRequest,
+    next: DrawRequest,
+    t: number,
+    onUnavailable?: (error: unknown) => void,
+  ): boolean {
+    if (this.interpolationBroken) {
+      return false;
+    }
+    const { gl, scaler, output } = this;
+    const { width, height } = this.source;
+    try {
+      this.interpolator ??= createInterpolator(gl);
+      this.preparePair(previous, next, width, height);
+      if (scaler !== null && output !== null) {
+        const target = this.ensureTarget(width, height);
+        this.interpolator.compose(t, target.framebuffer, width, height);
+        if (scaler.draw(gl, target.texture, false, width, height, output.width, output.height)) {
+          return true;
+        }
+        this.scaler = null;
+        this.layout();
+      }
+      this.interpolator.compose(t, null, this.canvas.width, this.canvas.height);
+
+      return true;
+    } catch (error) {
+      this.interpolationBroken = true;
+      this.dropPair();
+      try {
+        this.interpolator?.destroy();
+      } catch {
+        // コンテキストを失っていれば、片付けられなくてもよい。
+      }
+      this.interpolator = null;
+      onUnavailable?.(error);
+
+      return false;
+    }
+  }
+
+  // preparePair は、補間する前後のコマを width × height のテクスチャに描き、動きを推し量らせる。
+  // 前の組の後ろのコマが、今の組の前のコマなら、描いたテクスチャをそのまま使う。
+  private preparePair(
+    previous: DrawRequest,
+    next: DrawRequest,
+    width: number,
+    height: number,
+  ): void {
+    const current = this.pair;
+    if (
+      current !== null &&
+      sameFrame(current.previous, previous) &&
+      sameFrame(current.next, next) &&
+      current.from.width === width &&
+      current.from.height === height
+    ) {
+      return;
+    }
+    const reuse =
+      current !== null &&
+      sameFrame(current.next, previous) &&
+      current.to.width === width &&
+      current.to.height === height;
+    if (current !== null) {
+      this.spare.push(...(reuse ? [current.from] : [current.from, current.to]));
+      this.pair = null;
+    }
+    const from = reuse ? current.to : this.takeSpare(width, height);
+    if (!reuse) {
+      this.drawPicture({ ...previous, previous: null }, from.framebuffer, width, height);
+    }
+    const to = this.takeSpare(width, height);
+    this.drawPicture({ ...next, previous: null }, to.framebuffer, width, height);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    this.interpolator!.estimate(from.texture, to.texture, width, height);
+    this.pair = { previous, next, from, to };
+  }
+
+  // takeSpare は、width × height の、前後のコマを描くテクスチャを返す。大きさの違うものは消す。
+  private takeSpare(width: number, height: number): Target {
+    const index = this.spare.findIndex((t) => t.width === width && t.height === height);
+    if (index >= 0) {
+      return this.spare.splice(index, 1)[0]!;
+    }
+    for (const other of this.spare.splice(0)) {
+      this.deleteTarget(other);
+    }
+
+    return createTarget(this.gl, width, height);
+  }
+
+  // dropPair は、補間する前後のコマを忘れ、テクスチャを spare に戻す。
+  private dropPair(): void {
+    if (this.pair !== null) {
+      this.spare.push(this.pair.from, this.pair.to);
+      this.pair = null;
+    }
+  }
+
+  private deleteTarget(target: Target): void {
+    this.gl.deleteFramebuffer(target.framebuffer);
+    this.gl.deleteTexture(target.texture);
+  }
+
   // ensureTarget は、width × height の、拡大する前のコマを描く先を返す。大きさが変われば作り直す。
   private ensureTarget(width: number, height: number): Target {
     const current = this.target;
     if (current !== null && current.width === width && current.height === height) {
       return current;
     }
-    const { gl } = this;
     this.releaseTarget();
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const framebuffer = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    this.target = { framebuffer, texture, width, height };
+    this.target = createTarget(this.gl, width, height);
 
     return this.target;
   }
@@ -478,6 +592,16 @@ export class PictureRenderer {
       this.destroy(slot);
     }
     this.releaseTarget();
+    this.dropPair();
+    for (const target of this.spare.splice(0)) {
+      this.deleteTarget(target);
+    }
+    try {
+      this.interpolator?.destroy();
+    } catch {
+      // コンテキストを失っていれば、片付けられなくてもよい。
+    }
+    this.interpolator = null;
     this.gl.deleteProgram(this.program);
   }
 
@@ -486,6 +610,33 @@ export class PictureRenderer {
     this.gl.deleteTexture(slot.u);
     this.gl.deleteTexture(slot.v);
   }
+}
+
+// sameFrame は、2 つの描く求めが、同じコマ (同じテクスチャの組) を指すか。
+function sameFrame(a: DrawRequest, b: DrawRequest): boolean {
+  return a.slot === b.slot && a.bottom === b.bottom;
+}
+
+// usesSlot は、描く求め request が slot を使うか。
+function usesSlot(request: DrawRequest, slot: PictureSlot): boolean {
+  return request.slot === slot || request.bottom === slot;
+}
+
+// createTarget は、width × height の RGBA8 のテクスチャと、それを描き先にする framebuffer を作る。
+function createTarget(gl: WebGL2RenderingContext, width: number, height: number): Target {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const framebuffer = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  return { framebuffer, texture, width, height };
 }
 
 function texture(gl: WebGL2RenderingContext, width: number, height: number): WebGLTexture {

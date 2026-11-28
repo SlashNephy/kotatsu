@@ -88,6 +88,13 @@ export class PictureQueue<Slot> {
     return { picture, second, parity };
   }
 
+  // following は、今映しているコマの次に映すコマ。choose の後に読む。なければ null。コマの間を補間するのに使う。
+  get following(): QueuedPicture<Slot> | null {
+    return this.current !== null && this.pictures[0] === this.current
+      ? (this.pictures[1] ?? null)
+      : null;
+  }
+
   // clear は、待っているコマをすべて破棄する (slot は release する)。選局したときと、飛んだときに呼ぶ。
   // keep の slot は release しない。呼んだ側が持ち続け、使い終えたら自分で返す。
   clear(keep: Slot | null = null): void {
