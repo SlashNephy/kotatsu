@@ -63,6 +63,10 @@ const locate = async (pathname) => {
   return null;
 };
 
+// 片方だけを渡したら、http で黙って配信せずに止める。Safari を http で計測してしまわないように。
+if (Boolean(process.env.SERVE_TLS_CERT) !== Boolean(process.env.SERVE_TLS_KEY)) {
+  throw new Error('set both SERVE_TLS_CERT and SERVE_TLS_KEY to serve over https');
+}
 const tls =
   process.env.SERVE_TLS_CERT && process.env.SERVE_TLS_KEY
     ? {

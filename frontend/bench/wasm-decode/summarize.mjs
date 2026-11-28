@@ -32,7 +32,8 @@ for (const row of rows) {
     console.log(`${row.kind}:`, JSON.stringify(row));
     continue;
   }
-  if (!row.ok) {
+  // WebGL のエラーが残った回は、アップロードが失敗して速く見えているおそれがあるので、失敗として外す。
+  if (!row.ok || (row.glError ?? 0) !== 0) {
     console.log('failed:', JSON.stringify(row));
     continue;
   }

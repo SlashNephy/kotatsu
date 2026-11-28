@@ -36,6 +36,8 @@ export const measureDecode = async ({
   upload = 'none',
   maxFrames = Infinity,
 }) => {
+  // uploader は、失敗しても finally で片付ける。メインスレッドで計測したときは、worker を止めて片付けられないため。
+  let uploader = null;
   try {
     const { default: init } = await import(`./wasm/${variant}/dec.mjs`);
     const t0 = performance.now();
@@ -60,7 +62,7 @@ export const measureDecode = async ({
         inp = M._malloc(cap);
       }
     };
-    const uploader = upload === 'none' ? null : createUploader(upload);
+    uploader = upload === 'none' ? null : createUploader(upload);
     const times = [];
     // uploadTimes は PES ごとのアップロードの時間で、times に含まれる。times から差し引けば、デコードの時間になる。
     // flushTimes は PES ごとの gl.flush の時間で、times の外で計測する。
@@ -107,8 +109,13 @@ export const measureDecode = async ({
         }
       } while (off < size);
     };
+    // truncated は、maxFrames に達して映像を打ち切ったか。
+    let truncated = false;
     for (const pes of video) {
-      if (frames >= maxFrames) break;
+      if (frames >= maxFrames) {
+        truncated = true;
+        break;
+      }
       const t = performance.now();
       uploadMs = 0;
       ensure(pes.data.length);
@@ -152,10 +159,8 @@ export const measureDecode = async ({
           glError: uploader.error(),
         }
       : { upload };
-    uploader?.destroy();
 
     // 映像を打ち切ったときは、音のデコードを省く。全体の音を数えると、打ち切った映像と釣り合わず、fps がずれる。
-    const truncated = Number.isFinite(maxFrames);
     const aStart = performance.now();
     let samples = 0;
     let audioErrors = 0;
@@ -221,5 +226,7 @@ export const measureDecode = async ({
       upload,
       error: String(error?.stack ?? error),
     };
+  } finally {
+    uploader?.destroy();
   }
 };

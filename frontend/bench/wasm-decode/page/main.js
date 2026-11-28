@@ -1,11 +1,21 @@
 // 測定のページ。ボタンからも、ブラウザの自動操作 (window.runDecode、window.runConvert) からも測れる。
 const log = document.getElementById('log');
 // append は、結果を画面に出し、配信しているサーバーにも送る (serve.mjs の POST /results)。実機の画面から結果をコピーしなくても済むように。
+// 送るのは 1 行ずつ順に行い、行の順が入れ替わらないようにする。sending は送り終わりを待つ Promise、sendFailed は送れなかった行の数。
+let sending = Promise.resolve();
+let sendFailed = 0;
 const append = (result) => {
   const line = JSON.stringify({ ...result, sums: undefined });
   log.value += `${line}\n`;
   log.scrollTop = log.scrollHeight;
-  fetch('./results', { method: 'POST', body: line }).catch(() => {});
+  sending = sending.then(async () => {
+    try {
+      const response = await fetch('./results', { method: 'POST', body: line });
+      if (!response.ok) sendFailed++;
+    } catch {
+      sendFailed++;
+    }
+  });
 };
 
 /**
@@ -217,9 +227,11 @@ const plans = {
 };
 const status = document.getElementById('split-status');
 const runPlan = async (plan) => {
+  if (!Object.hasOwn(plans, plan)) throw new Error(`unknown plan: ${plan}`);
   const buttons = document.querySelectorAll('button[data-plan]');
   for (const button of buttons) button.disabled = true;
   log.value = '';
+  sendFailed = 0;
   append({
     kind: 'env',
     plan,
@@ -241,13 +253,20 @@ const runPlan = async (plan) => {
       if (!result.ok || (result.glError ?? 0) !== 0) failed++;
       done++;
     }
+    // 送るのは順なので、終わりの行は計測の行の後に届く。終わりの行を見て集計を始めても、行が欠けない。
     append({ kind: 'done', plan, total, failed });
-    status.textContent =
+    await sending;
+    const counted =
       failed === 0
-        ? `終わりました（${total} 回）。結果はサーバーに送りました。`
-        : `終わりました（${total} 回のうち ${failed} 回は失敗か WebGL のエラー）。結果はサーバーに送りました。`;
+        ? `終わりました（${total} 回）。`
+        : `終わりました（${total} 回のうち ${failed} 回は失敗か WebGL のエラー）。`;
+    status.textContent =
+      sendFailed === 0
+        ? `${counted}結果はサーバーに送りました。`
+        : `${counted}サーバーに送れなかった結果が ${sendFailed} 行あります。「結果をコピー」でコピーしてください。`;
   } catch (error) {
     append({ kind: 'done', plan, total, failed, error: String(error) });
+    await sending;
     status.textContent = `失敗しました: ${String(error)}`;
   } finally {
     for (const button of buttons) button.disabled = false;

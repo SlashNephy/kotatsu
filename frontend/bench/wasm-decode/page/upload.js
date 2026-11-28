@@ -3,7 +3,10 @@
 //   offset    製品と同じ。WASM のメモリ全体の Uint8Array と、面の位置 (srcOffset) を渡す
 //   subarray  面の範囲だけの Uint8Array (subarray) を渡す。複製はしない
 //   copy      面の範囲を JS の Uint8Array に複製してから渡す
+const modes = new Set(['offset', 'subarray', 'copy']);
+
 export const createUploader = (mode) => {
+  if (!modes.has(mode)) throw new Error(`unknown upload mode: ${mode}`);
   const canvas = new OffscreenCanvas(16, 16);
   const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
   if (!gl) throw new Error('WebGL2 is not available in the worker');
@@ -51,10 +54,8 @@ export const createUploader = (mode) => {
           gl.texSubImage2D(...args, M.HEAPU8, pointer);
         } else if (mode === 'subarray') {
           gl.texSubImage2D(...args, M.HEAPU8.subarray(pointer, pointer + bytes));
-        } else if (mode === 'copy') {
-          gl.texSubImage2D(...args, M.HEAPU8.slice(pointer, pointer + bytes));
         } else {
-          throw new Error(`unknown upload mode: ${mode}`);
+          gl.texSubImage2D(...args, M.HEAPU8.slice(pointer, pointer + bytes));
         }
       });
       gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
