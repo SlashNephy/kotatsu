@@ -6,6 +6,8 @@ import { type CaptionStyle, type Captions, createCaptions } from './captions';
 import { type Crop, cropStyle, isCropped, noCrop, scales } from './crop';
 import type { FallbackReason } from './decodeJudge';
 import { DecodeMedia } from './decodeMedia';
+import { useHDRDisplay, useHDROutput } from './hdr';
+import { hdrOutputSupported } from './hdrDrawing';
 import { dataBroadcastSource } from './route';
 import type { DecodeDisplay, FromDecodeWorker, ToDecodeWorker } from './decodeProtocol';
 import type { PlayerMedia } from './playerMedia';
@@ -96,22 +98,28 @@ export function DecodePlayer({
     onResume,
     onAudio,
   };
-  // 映像の拡大 (#1654、#2276) は、変換の経路と同じ端末ごとの設定で決める。worker は設定を読めないので、送って渡す。
+  // 映像の拡大 (#1654、#2276) と擬似 HDR (#1656) は、変換の経路と同じ端末ごとの設定で決める。
+  // worker は設定を読めないので、送って渡す。擬似 HDR は設定で入れていても、ブラウザが対応し、画面が HDR を出せるときだけ描く。
   const [superResolution] = useSuperResolution();
   const [superResolutionStrength] = useSuperResolutionStrength();
   const [superResolutionMethod] = useSuperResolutionMethod();
+  const [savedHDROutput] = useHDROutput();
+  const hdrDisplay = useHDRDisplay();
+  const hdr = savedHDROutput && hdrDisplay && hdrOutputSupported();
   const zoom = scales(crop);
   const settingsRef = useRef<Omit<DecodeDisplay, 'box'>>({
     zoom,
     superResolution,
     strength: superResolutionStrength,
     method: superResolutionMethod,
+    hdr,
   });
   settingsRef.current = {
     zoom,
     superResolution,
     strength: superResolutionStrength,
     method: superResolutionMethod,
+    hdr,
   };
   const engineRef = useRef<{
     media: DecodeMedia;
@@ -316,7 +324,7 @@ export function DecodePlayer({
 
   useEffect(() => {
     engineRef.current?.sendDisplay();
-  }, [superResolution, superResolutionStrength, superResolutionMethod, zoom.x, zoom.y]);
+  }, [superResolution, superResolutionStrength, superResolutionMethod, hdr, zoom.x, zoom.y]);
 
   useEffect(() => {
     engineRef.current?.captions.setVisible(captions);

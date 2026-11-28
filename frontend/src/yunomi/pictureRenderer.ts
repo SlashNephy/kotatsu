@@ -5,11 +5,13 @@
 // 止まっている画素は o を使う (縁取りのある字や細い横線が、フィールドごとに上下に揺れないように)。
 // 色差 (4:2:0) も同じ規則で埋め、止まっている度合いは輝度で決めたものを使う。
 // 映像を拡大するとき (#1654、#2276) は、解除したコマを、元の (符号化された) 大きさのテクスチャに描き、拡大 (pictureUpscaler) に
-// 渡して canvas へ描かせる。拡大は、yadif に渡すときと同じ PictureScaler の約束で呼ぶ。拡大しないときは、今までどおり
-// canvas へ直に描く。
+// 渡して canvas へ描かせる。拡大は、yadif に渡すときと同じ PictureScaler の約束で呼ぶ。擬似 HDR (#1656) も、同じ処理が
+// canvas へ描く最後のステップで描く。拡大せずに擬似 HDR で描くときは、映す大きさのテクスチャに描いて渡す。
+// どちらもしないときは、今までどおり canvas へ直に描く。
 
 import type { PictureScaler } from '@mpeg2toh264/yadif';
 
+import { hdrOutputSupported } from './hdrDrawing';
 import { maxDimension, type Size } from './pictureUpscaler';
 
 // RendererThresholds は、インタレ解除の閾値 (0〜1 の輝度)。織り < bob、静止 < 動き にする。
@@ -194,9 +196,13 @@ export class PictureRenderer {
   // 地上波の 1440×1080 を、映す大きさ (1920×1080) に伸ばしてから拡大すると、1080p の画面では拡大しなくなり、
   // 大きな画面でも、最近傍で伸ばした画素を拡大することになる。
   private frame: Size = { width: 0, height: 0 };
-  // scaler は、コマを拡大して描く処理。拡大しなければ null。box は、絵を映す矩形の端末の画素での大きさ。
+  // scaler は、コマを拡大か擬似 HDR で描く処理。どちらもしなければ null。box は、絵を映す矩形の端末の画素での大きさ。
   private scaler: PictureScaler | null = null;
   private box: Size | null = null;
+  // upscale は、拡大するか。拡大するなら元の大きさ、擬似 HDR だけなら映す大きさのコマを scaler に渡す。
+  private upscale = false;
+  // source は、scaler に渡すコマの大きさ。
+  private source: Size = { width: 0, height: 0 };
   // output は、拡大して描く大きさ (canvas の大きさ)。拡大しなければ null。
   private output: Size | null = null;
   // target は、拡大する前のコマを描く先。拡大するときだけ作る。
@@ -207,7 +213,9 @@ export class PictureRenderer {
     private readonly thresholds: RendererThresholds = defaultRendererThresholds,
   ) {
     const gl = canvas.getContext('webgl2', {
-      alpha: false,
+      // 擬似 HDR (#1656) で描画先の形式を変えるには、alpha のあるコンテキストが要る。どのコマも不透明に描くので、
+      // 見え方は変わらない。WebGL の HDR の出力を持たないブラウザでは、今までどおり alpha なしで作る。
+      alpha: hdrOutputSupported(),
       antialias: false,
       depth: false,
       stencil: false,
@@ -232,14 +240,20 @@ export class PictureRenderer {
     this.layout();
   }
 
-  // setScaler は、拡大の処理と、絵を映す矩形の端末の画素での大きさを変え、描く先の大きさを決め直す。
-  // 大きさの決め方は拡大の設定にもよるので、設定を変えたときにも呼ぶ。描き直す必要があれば true を返す。
-  // canvas の大きさが変わると描いたものは消え、拡大している間は鮮鋭化の強さなどを描くときに読むためである。
-  setScaler(scaler: PictureScaler | null, box: Size | null): boolean {
+  // setScaler は、拡大か擬似 HDR で描く処理と、絵を映す矩形の端末の画素での大きさと、拡大するかを変え、描く先の大きさを
+  // 決め直す。大きさの決め方は設定にもよるので、設定を変えたときにも呼ぶ。描き直す必要があれば true を返す。
+  // canvas の大きさが変わると描いたものは消え、scaler で描いている間は鮮鋭化の強さなどを描くときに読むためである。
+  setScaler(scaler: PictureScaler | null, box: Size | null, upscale: boolean): boolean {
     this.scaler = scaler;
     this.box = box;
+    this.upscale = upscale;
 
     return this.layout() || this.output !== null;
+  }
+
+  // hasScaler は、拡大か擬似 HDR で描く処理を持っているか。
+  hasScaler(): boolean {
+    return this.scaler !== null;
   }
 
   // layout は、拡大して描く大きさを拡大の処理に決めさせ、canvas をその大きさ (拡大しなければ映す大きさ) にする。
@@ -247,10 +261,12 @@ export class PictureRenderer {
   private layout(): boolean {
     const { picture, frame, scaler, box, gl } = this;
     const before = this.output;
+    const source = this.upscale ? frame : picture;
+    this.source = source;
     const size =
-      scaler === null || box === null || picture.width <= 0 || frame.width <= 0
+      scaler === null || box === null || picture.width <= 0 || source.width <= 0
         ? null
-        : scaler.size(gl, frame.width, frame.height, box.width, box.height);
+        : scaler.size(gl, source.width, source.height, box.width, box.height);
     this.output = size === null ? null : keepAspect(size, picture, maxDimension(gl));
     if (this.output === null) {
       this.releaseTarget();
@@ -341,11 +357,12 @@ export class PictureRenderer {
     gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
   }
 
-  // draw は、request のコマとフィールドを描く。拡大するなら、元の大きさのテクスチャに描いてから、拡大して canvas へ描かせる。
-  // 拡大できなければ (作れない、途中で失敗した)、PictureScaler の約束のとおり、以後は拡大せずに映す大きさで描く。
+  // draw は、request のコマとフィールドを描く。拡大か擬似 HDR で描くなら、元の大きさ (擬似 HDR だけなら映す大きさ) の
+  // テクスチャに描いてから、scaler に canvas へ描かせる。描けなければ (作れない、途中で失敗した)、PictureScaler の約束のとおり、
+  // 以後は scaler を使わずに映す大きさで描く。
   draw(request: DrawRequest): void {
     const { gl, scaler, output } = this;
-    const { width, height } = request.slot;
+    const { width, height } = this.source;
     if (scaler === null || output === null) {
       this.drawPicture(request, null, this.canvas.width, this.canvas.height);
 

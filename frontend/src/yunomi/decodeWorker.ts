@@ -125,7 +125,7 @@ type Engine = {
   videoDecoder: number;
   audioDecoder: number;
   renderer: PictureRenderer;
-  // upscaler は、コマを拡大して描く処理 (#1654)。拡大を切っている間は、renderer に渡さない。
+  // upscaler は、コマを拡大か擬似 HDR で描く処理 (#1654、#1656)。どちらも切っている間は、renderer に渡さない。
   upscaler: PictureUpscaler;
   queue: PictureQueue<PictureSlot>;
   // input は、WASM へデータを渡す領域。
@@ -143,6 +143,7 @@ let display: DecodeDisplay = {
   superResolution: false,
   strength: defaultSuperResolutionStrength,
   method: 'fsr',
+  hdr: false,
 };
 // lastDrawn は、最後に描いたコマ。拡大の設定や大きさを変えて canvas が消えたときに、止めていても描き直すのに使う。
 // 待ち行列は、映しているコマを次のコマに替えるまで残すので、slot はそれまで使える。
@@ -252,8 +253,12 @@ async function start(canvas: OffscreenCanvas, wasmUrl: string): Promise<void> {
         strength: () => display.strength,
         method: () => display.method,
         upscale: () => display.superResolution,
+        hdr: () => display.hdr,
         onUnavailable: (error) => {
           console.warn('upscaling is unavailable; showing the pictures as they are', error);
+        },
+        onHDRUnavailable: (error) => {
+          console.warn('HDR output is unavailable; showing the pictures in SDR', error);
         },
         onAnime4KUnavailable: (error) => {
           console.warn('Anime4K is unavailable; upscaling with FSR only', error);
@@ -892,8 +897,12 @@ function present(current: Loading, pts: number): void {
 }
 
 // draw は、コマを描き、描き直せるよう保持する。残していたコマと別のコマを描いたら、残していたコマを返す。
+// 擬似 HDR を切った後、描画先を SDR に戻して描いたら、upscaler を外す。
 function draw(target: Engine, request: DrawRequest): void {
   target.renderer.draw(request);
+  if (!usesUpscaler(target) && target.renderer.hasScaler()) {
+    target.renderer.setScaler(null, display.box, false);
+  }
   lastDrawn = request;
   if (retained !== null && retained !== request.slot) {
     target.renderer.release(retained);
@@ -921,12 +930,19 @@ function applyDisplay(): void {
     return;
   }
   const redraw = engine.renderer.setScaler(
-    display.superResolution ? engine.upscaler : null,
+    usesUpscaler(engine) ? engine.upscaler : null,
     display.box,
+    display.superResolution,
   );
   if (redraw && lastDrawn !== null) {
     draw(engine, { ...lastDrawn, previous: null });
   }
+}
+
+// usesUpscaler は、upscaler で描くか。拡大か擬似 HDR を入れている間と、擬似 HDR を切った後で、描画先を SDR に戻して
+// 描き直すまでの間 (upscaler が擬似 HDR で描いたままの間)。
+function usesUpscaler(target: Engine): boolean {
+  return display.superResolution || display.hdr || target.upscaler.hdr();
 }
 
 function setVisible(next: boolean): void {
