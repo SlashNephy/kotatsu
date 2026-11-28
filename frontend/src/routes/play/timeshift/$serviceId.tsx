@@ -6,7 +6,7 @@ import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../../relay/useLazyLoadQuery';
 
 import { rememberReturnTo } from '../../../auth/returnTo';
-import { ErrorBoundary, PageLoader, ProgramTitle } from '../../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle, useNow } from '../../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../../relay/environment';
 import { broadcastTime, recordingPosition, formatDuration } from '../../../yunomi/position';
 import { toVideoFormat } from '../../../yunomi/route';
@@ -180,11 +180,13 @@ function Player({
     return () => clearInterval(timer);
     // variables は描画ごとに作り直すが、内容は serviceId と startAt だけで決まる。
   }, [environment, onAir, serviceId, startAt]);
+  // now は、今の時刻。放送中の番組の長さを、再生している間も 1 秒ごとに伸ばす。
+  const now = useNow(1000);
   // duration は、再生できる長さ (秒)。途切れた区間の分は、バッファに映像がないので差し引く。放送中は今まで伸ばす。
   const duration = recordingPosition(
     program.playableFrom,
     program.gaps,
-    program.endAt == null ? Date.now() : Date.parse(program.endAt),
+    program.endAt == null ? now : Date.parse(program.endAt),
   );
   // initialPosition は、再生を始める位置 (秒)。URL で位置を渡されたらそこから、なければ再生できる範囲の始まりから。
   const [initialPosition] = useState(() =>
