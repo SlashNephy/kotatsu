@@ -148,7 +148,7 @@ let display: DecodeDisplay = {
 // lastDrawn は、最後に描いたコマ。拡大の設定や大きさを変えて canvas が消えたときに、止めていても描き直すのに使う。
 // 待ち行列は、映しているコマを次のコマに替えるまで残すので、slot はそれまで使える。
 let lastDrawn: DrawRequest | null = null;
-// hdrFailed は、擬似 HDR で描けなかったと upscaler が知らせたこと。描いた後に、描く大きさを決め直す。
+// hdrFailed は、擬似 HDR で描けなかったと upscaler が通知したこと。描いた後に、描く大きさを決め直す。
 let hdrFailed = false;
 // retained は、待ち行列を空にしても (録画を止めると、読み込みも止める)、描き直すために残した lastDrawn の slot。
 // 別のコマを描いたら、renderer に返す。
