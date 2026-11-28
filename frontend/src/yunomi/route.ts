@@ -156,7 +156,13 @@ export function hlsURL(streamUrl: string, preset: string, audio: KyusuAudio): st
 const serviceIDBase = 100_000;
 
 // DataBroadcastSource は、データ放送の TS を読む先と、その TS の中のサービスの program_number。
-export type DataBroadcastSource = { url: string; serviceId: number };
+// DataBroadcastSource は、データ放送の TS を流す配信。serviceId は、TS の program_number で、null なら PAT の最初の番組を選ぶ。
+// elapsed を渡したら、録画型の再生元の配信として、読み始めた位置からの放送時刻の経過 (秒) に届くまで、TS を web-bml に渡さない (#2270)。
+export type DataBroadcastSource = {
+  url: string;
+  serviceId: number | null;
+  elapsed?: () => number | null;
+};
 
 // dataBroadcastSource は、ライブ視聴の TS の URL から、データ放送用のエンドポイントを返す (設計書 7.4)。
 // URL の最後の部分が、Mirakurun のサービス ID でなければ null を返す。
@@ -219,9 +225,30 @@ export function decodeStreamEndpoint(
 // dataBroadcastPath は、tenban のデータ放送用のエンドポイント (GET /internal/streams/services/{id}/data-broadcast) の URL。
 const dataBroadcastPath = /^\/internal\/streams\/services\/(\d+)\/data-broadcast(?:\?(.*))?$/;
 
+// vodDataBroadcastPath は、録画型の再生元のデータ放送用のエンドポイント
+// (GET /internal/streams/{recordings|timeshift|library}/{id}/data-broadcast、#2270) の URL。
+const vodDataBroadcastPath =
+  /^\/internal\/streams\/(recordings|timeshift|library)\/([A-Za-z0-9_-]+)\/data-broadcast(?:\?(.*))?$/;
+
+// vodDataBroadcastURL は、録画型の再生元の映像の配信 streamUrl から、start 秒の位置から読むデータ放送の配信の URL を作る。
+export function vodDataBroadcastURL(streamUrl: string, start: number): string {
+  const [path = '', query] = streamUrl.split('?', 2);
+  const params = new URLSearchParams(query);
+  params.set('start', start.toFixed(1));
+
+  return `${path}/data-broadcast?${params.toString()}`;
+}
+
 // dataBroadcastEndpoint は、url が tenban のデータ放送用のエンドポイントなら、読みに行く URL を返す。ほかの先なら null を返す。
 // データ放送の Web Worker は、受け取った URL をそのまま読まずに、決まったパスへ組み直し、ほかのホストやパスを読まないようにする。
 export function dataBroadcastEndpoint(url: string): string | null {
+  const vod = vodDataBroadcastPath.exec(url);
+  if (vod !== null) {
+    const [, kind = '', id = '', query] = vod;
+    const path = `/internal/streams/${kind}/${encodeURIComponent(id)}/data-broadcast`;
+
+    return query === undefined ? path : `${path}?${query}`;
+  }
   const match = dataBroadcastPath.exec(url);
   if (match === null) {
     return null;

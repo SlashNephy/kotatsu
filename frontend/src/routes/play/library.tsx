@@ -510,6 +510,8 @@ function Player({
         autoCaptions,
         // ライブラリのファイルは、ほかの端末から操作させない。
         remote: false,
+        // データ放送は、HD の映像なら、映像と同じ位置から読んで出す (#2270)。
+        dataBroadcast: true,
         topBitrate: null,
         streamInfo: {
           average: null,

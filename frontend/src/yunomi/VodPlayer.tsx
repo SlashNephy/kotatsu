@@ -1,6 +1,6 @@
 import { Alert, Button, Group, Text } from '@mantine/core';
-import { Captions, MessageSquareText, Share2 } from 'lucide-react';
-import { type ComponentProps, type ReactNode, useEffect, useState } from 'react';
+import { Captions, MessageSquareText, Share2, Tv } from 'lucide-react';
+import { type ComponentProps, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { CommentOffsetSetting } from '../jikkyo/CommentOffsetSetting';
@@ -20,7 +20,9 @@ import {
   type CaptionTrack,
 } from './AutoCaptionOverlay';
 import type { CmSection } from './cmSkip';
-import type { PlayerCommands } from './commands';
+import { runCommand, type PlayerCommands } from './commands';
+import { DataBroadcastRemote, DataBroadcastRemoteOverlay } from './DataBroadcastRemote';
+import { useDataBroadcastFeature } from './useDataBroadcastFeature';
 import { useFastForward } from './fastForward';
 import { DecodePlayer } from './DecodePlayer';
 import { HlsPlayer } from './HlsPlayer';
@@ -28,6 +30,7 @@ import {
   CommandButton,
   PlayButton,
   PlayerControls,
+  PlayerNotice,
   PositionStatus,
   SeekStepButtons,
   SettingsButton,
@@ -58,7 +61,7 @@ import {
   SleepTimerSelect,
   VirtualSurroundToggle,
 } from './QualitySelect';
-import { hlsURL, type Transcoding, type VideoFormat } from './route';
+import { hlsURL, type Transcoding, type VideoFormat, vodDataBroadcastURL } from './route';
 import { SeekBar } from './SeekBar';
 import type { SeekBand } from './seekHover';
 import { StreamInfo, type StreamAudio, useStreamMeter } from './StreamInfo';
@@ -77,6 +80,9 @@ import { WatchPanel } from './WatchPanel';
 
 // 録画、タイムシフトのバッファ、ライブラリのファイルのように、位置を指定して読み直せる再生元を再生するプレイヤー (#2244)。
 // 画面は、再生元の情報と、使える機能を VodSource にまとめて渡すだけにする。使えない機能は、null を渡して入れない。
+
+// dataJumpSeconds は、再生位置がこれより先へ一度に進んだら、シークしたとみなす秒数。早回しの進みより長くする。
+const dataJumpSeconds = 5;
 
 // VodSource は、録画型の再生元。
 export type VodSource = {
@@ -163,6 +169,8 @@ export type VodSource = {
   // info と side は、見出しの下と、右の欄の下に足す、再生元ごとの部品。
   info?: ReactNode;
   side?: ReactNode;
+  // dataBroadcast は、データ放送 (設計書 7.4) を出せる再生元か (#2270)。HD の映像で、サーバーの配信のときだけ出す。
+  dataBroadcast?: boolean;
   // decode は、ブラウザの中でデコードする経路 (#1516) を、画質のメニューから選ばせるか (#2166)。
   decode?: boolean;
   // streamFrom は、端末に保存した録画を、指定した位置から読ませる URL を返す。この端末でデコードする経路は、
@@ -248,7 +256,17 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
   const local = source.local === true;
   // shell は、再生元によらないプレイヤーの外側。別のウィンドウに出している間は、このページが隠れても、実況のコメントなどを描き続ける (設計書 7.5)。
   const shell = usePlayerShell();
-  const { mediaRef, media, setMedia, visible, fullscreen, controls, videoState, showFlash } = shell;
+  const {
+    mediaRef,
+    media,
+    setMedia,
+    visible,
+    fullscreen,
+    overlaid,
+    controls,
+    videoState,
+    showFlash,
+  } = shell;
   const playback = usePlaybackRoute(source.transcoding, source.videoFormat, {
     inheritCap: source.inheritCap,
     decode: source.decode === true,
@@ -396,6 +414,39 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
   );
   // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の音声を変えるときも、それまでの位置から続ける。
   const audio = usePlayerAudio(route, source.audios, () => restartAt(positionRef.current));
+  // dataStart は、データ放送の配信を読み始めた位置。シークして位置が飛んだら、その位置から読み直す (#2270)。
+  const [dataStart, setDataStart] = useState(source.initial);
+  const lastPosition = useRef(source.initial);
+  useEffect(() => {
+    const previous = lastPosition.current;
+    lastPosition.current = position;
+    if (position < previous - 1 || position > previous + dataJumpSeconds) {
+      setDataStart(position);
+    }
+  }, [position]);
+  const dataBroadcastAvailable =
+    source.dataBroadcast === true && !local && source.videoFormat === 'HD';
+  // dataBroadcast は、データ放送 (設計書 7.4)。配信は等速より速く届くので、読み始めた位置からの放送時刻の経過に
+  // 合わせて文書に渡す。録画の文書は過ぎた放送のものなので、双方向の通信と選局はさせない。
+  const dataBroadcast = useDataBroadcastFeature({
+    source: dataBroadcastAvailable
+      ? {
+          url: vodDataBroadcastURL(source.streamUrl, dataStart),
+          serviceId: null,
+          elapsed: () => {
+            const now = source.clockAt(currentPosition());
+            const from = source.clockAt(dataStart);
+
+            return now === null || from === null ? null : (now - from) / 1000;
+          },
+        }
+      : null,
+    receiving: visible && error === null,
+    mediaRef,
+    ipEnabled: false,
+    handlers: { onTune: () => false, onSelectAudio: audio.selectComponent },
+    showFlash,
+  });
   // 再生速度は、video の要素を作り直したときにも当て直す。早回し (#1572) の間は、選んだ速さより速く再生する。
   const [chosenRate, setRate] = useState(1);
   // この端末でデコードする経路は等速だけなので、選んだ速さは、ほかの経路へ移ったときのために残しておく。
@@ -452,6 +503,7 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
     capture: () => void saveCapture(),
     selectAudio: audio.remote.select,
     stop: source.stop,
+    ...dataBroadcast.commands,
   };
   // seekLabel は、シークバーと滑らせている間の吹き出しに出す、経過時間と放送時刻。
   const seekLabel = (value: number) => {
@@ -494,8 +546,8 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
     muted: videoState.muted,
     audios: audio.remote.choices,
     audio: audio.remote.selected,
-    dataBroadcast: false,
-    keyGroups: [],
+    dataBroadcast: dataBroadcast.enabled,
+    keyGroups: [...dataBroadcast.keyGroups],
   } satisfies PlayerSnapshot;
   usePlayerPresence(
     player,
@@ -571,6 +623,14 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
             icon={MessageSquareText}
             active={jikkyoEnabled}
           />
+          <CommandButton
+            commands={commands}
+            command="toggleDataBroadcast"
+            label={t('player.dataBroadcast')}
+            icon={Tv}
+            active={dataBroadcast.enabled}
+            optional
+          />
           <SettingsButton>
             <QualitySelect
               choices={choices}
@@ -593,7 +653,12 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
             <SleepTimerSelect timer={sleep} />
             {surroundAvailable && <VirtualSurroundToggle />}
           </SettingsButton>
-          <PlayerToolButtons shell={shell} commands={commands} capture={capture} />
+          <PlayerToolButtons
+            shell={shell}
+            commands={commands}
+            capture={capture}
+            dataBroadcast={dataBroadcastAvailable}
+          />
         </>
       }
     />
@@ -603,6 +668,7 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
       {autoCaptionsShown && (
         <PositionedAutoCaptionOverlay captions={source.autoCaptions} clock={currentPosition} />
       )}
+      {dataBroadcast.layer}
       {jikkyo.overlay}
       <PlayerFeedback
         shell={shell}
@@ -613,14 +679,34 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
             ? null
             : { seconds: scrub, label: seekLabel(scrub), previewUrl: source.previewUrl }
         }
+        receiving={
+          dataBroadcast.receiving && (
+            <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
+          )
+        }
         loadingHidden={error !== null}
       />
       {skipButton}
       <PlayerErrorOverlay shell={shell} error={error} onRetry={retry} />
+      {/* 全画面と別のウィンドウでは、映像の下が見えないので、データ放送のリモコンを映像に重ねる (#435)。 */}
+      {overlaid && dataBroadcast.enabled && (
+        <DataBroadcastRemoteOverlay
+          state={dataBroadcast.state}
+          receiving={dataBroadcast.receiving}
+          keyGroups={dataBroadcast.keyGroups}
+          onPress={(key) => runCommand(commands, 'pressKey', key)}
+        />
+      )}
     </>
   );
   const playerBox = (
-    <PlayerBox shell={shell} inputs={inputs}>
+    // データ放送を出している間は、映像の上のクリックとダブルクリックを、データ放送の操作に譲る。
+    <PlayerBox
+      shell={shell}
+      inputs={inputs}
+      clickToPlay={!dataBroadcast.enabled}
+      doubleClickFullscreen={!dataBroadcast.enabled}
+    >
       {route.kind === 'convert' && (
         <TsPlayer
           // 端末に保存した録画は、ファイルをそのまま読む。読み直すたびに fragment を変え、TsPlayer に読み直させる。
@@ -740,6 +826,14 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
               <WatchDescription
                 text={source.description.text}
                 extended={source.description.extended}
+              />
+            )}
+            {dataBroadcast.enabled && (
+              <DataBroadcastRemote
+                state={dataBroadcast.state}
+                receiving={dataBroadcast.receiving}
+                keyGroups={dataBroadcast.keyGroups}
+                onPress={(key) => runCommand(commands, 'pressKey', key)}
               />
             )}
             {source.info}

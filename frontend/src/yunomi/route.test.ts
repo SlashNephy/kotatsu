@@ -7,6 +7,7 @@ import {
   dataBroadcastSource,
   hlsURL,
   decodeStreamEndpoint,
+  vodDataBroadcastURL,
   original,
   qualities,
   toVideoFormat,
@@ -300,6 +301,21 @@ describe('dataBroadcastEndpoint', () => {
       want: '/internal/streams/services/400101/data-broadcast?token=abc',
     },
     {
+      name: '録画のデータ放送のエンドポイントも、読み始める位置を付けたまま読む (#2270)',
+      url: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=60.0',
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=60.0',
+    },
+    {
+      name: 'ライブラリのファイルのデータ放送のエンドポイントも読む',
+      url: '/internal/streams/library/bWFpbgBhLnRz/data-broadcast?start=0.0',
+      want: '/internal/streams/library/bWFpbgBhLnRz/data-broadcast?start=0.0',
+    },
+    {
+      name: '録画型の再生元の、ほかの種類のパスは読まない',
+      url: '/internal/streams/captures/1/data-broadcast',
+      want: null,
+    },
+    {
       name: 'ほかのホストは読まない',
       url: 'https://evil.example/internal/streams/services/1/data-broadcast',
       want: null,
@@ -399,6 +415,25 @@ describe('decodeStreamEndpoint', () => {
   ])('デモのビルドで、$name', ({ url, want }) => {
     vi.stubEnv('MODE', 'demo');
     expect(decodeStreamEndpoint(url)).toBe(want);
+  });
+});
+
+describe('vodDataBroadcastURL', () => {
+  test.each([
+    {
+      name: '録画は、データ放送の配信のパスに読み始める位置を付ける',
+      streamUrl: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c',
+      start: 60,
+      want: '/internal/streams/recordings/01a21890-0175-7738-9d6d-a5327f94612c/data-broadcast?start=60.0',
+    },
+    {
+      name: 'タイムシフトのバッファは、番組の始まりの指定を残す',
+      streamUrl: '/internal/streams/timeshift/3273601024?from=2026-11-28T00%3A00%3A00Z',
+      start: 12.34,
+      want: '/internal/streams/timeshift/3273601024/data-broadcast?from=2026-11-28T00%3A00%3A00Z&start=12.3',
+    },
+  ])('$name', ({ streamUrl, start, want }) => {
+    expect(vodDataBroadcastURL(streamUrl, start)).toBe(want);
   });
 });
 

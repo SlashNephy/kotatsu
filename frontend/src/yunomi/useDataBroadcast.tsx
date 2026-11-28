@@ -12,7 +12,11 @@ import { broadcastFontUrl } from './broadcastFont';
 import { createDataBroadcastAudio, type DataBroadcastAudio } from './dataBroadcastAudio';
 import { createDataBroadcastIP } from './dataBroadcastIP';
 import { isStandbyDocument, renderedRoot } from './dataBroadcastStandby';
-import type { DataBroadcastEnd, DataBroadcastRequest } from './dataBroadcastWorker';
+import type {
+  DataBroadcastElapsed,
+  DataBroadcastEnd,
+  DataBroadcastRequest,
+} from './dataBroadcastWorker';
 import { reconnectDelay } from './reconnect';
 import type { DataBroadcastSource } from './route';
 import { fitMedia } from './mediaFit';
@@ -137,6 +141,9 @@ export type DataBroadcastHandlers = {
   onSelectAudio?: (componentTag: number, channelId?: number) => boolean;
 };
 
+// elapsedIntervalMs は、録画型の再生元で、Web Worker に経過を知らせる間隔。TsPacer が先に渡す長さより短くする。
+const elapsedIntervalMs = 200;
+
 export function useDataBroadcast(
   source: DataBroadcastSource | null,
   mediaRef: RefObject<PlayerMedia | null>,
@@ -180,6 +187,12 @@ export function useDataBroadcast(
   const [fit, setFit] = useState<Fit>({ scale: 1, x: 0, y: 0 });
   const url = source?.url ?? null;
   const serviceId = source?.serviceId ?? null;
+  // paced は、録画型の再生元の配信か。elapsedRef から読んだ経過に合わせて、TS を web-bml に渡す (#2270)。
+  const paced = source?.elapsed !== undefined;
+  const elapsedRef = useRef(source?.elapsed);
+  useEffect(() => {
+    elapsedRef.current = source?.elapsed;
+  });
   // generation は、データ放送の接続だけが切れたときに、つなぎ直すたびに増やす (#446)。
   const [generation, setGeneration] = useState(0);
   // attempt は、続けてつなぎ直した回数。文書を読めたら 0 に戻す。
@@ -190,7 +203,7 @@ export function useDataBroadcast(
   }, [url, serviceId]);
 
   useEffect(() => {
-    if (url === null || serviceId === null || layer === null) {
+    if (url === null || layer === null) {
       setState('off');
 
       return;
@@ -443,9 +456,29 @@ export function useDataBroadcast(
       }
       browser.emitMessage(message);
     });
-    worker.postMessage({ url, serviceId } satisfies DataBroadcastRequest);
+    worker.postMessage({
+      type: 'kotatsu:read',
+      url,
+      serviceId,
+      paced,
+    } satisfies DataBroadcastRequest);
+    // 録画型の再生元は、再生位置に合わせて渡すよう、読み始めた位置からの経過を知らせ続ける。
+    const elapsedTimer = paced
+      ? setInterval(() => {
+          const elapsed = elapsedRef.current?.() ?? null;
+          if (elapsed !== null) {
+            worker.postMessage({
+              type: 'kotatsu:elapsed',
+              elapsed,
+            } satisfies DataBroadcastElapsed);
+          }
+        }, elapsedIntervalMs)
+      : null;
 
     return () => {
+      if (elapsedTimer !== null) {
+        clearInterval(elapsedTimer);
+      }
       if (retryTimer !== null) {
         clearTimeout(retryTimer);
       }
@@ -469,7 +502,7 @@ export function useDataBroadcast(
       setInvisible(false);
       setKeyGroups(defaultKeyGroups);
     };
-  }, [url, serviceId, layer, mediaRef, generation, ipEnabled]);
+  }, [url, serviceId, paced, layer, mediaRef, generation, ipEnabled]);
 
   // 出すことになったら、データ放送の画面に入る。出すのをやめたら、最初の文書へ戻す。
   // 最初の描画では、まだ文書がないので、何もしない。
