@@ -40,9 +40,9 @@ describe('openNotificationTarget', () => {
     const tab = uncontrolled();
     const clients = clientsOf([tab]);
 
-    await openNotificationTarget(clients, '/live/Service:1');
+    await openNotificationTarget(clients, '/play/live/Service:1');
 
-    expect(clients.openWindow).toHaveBeenCalledWith('/live/Service:1');
+    expect(clients.openWindow).toHaveBeenCalledWith('/play/live/Service:1');
   });
 
   test('制御下にないタブの後に、制御下のタブがあれば、そのタブで移って前に出す (#1431)', async () => {
@@ -50,9 +50,9 @@ describe('openNotificationTarget', () => {
     const second = controlled();
     const clients = clientsOf([first, second]);
 
-    await openNotificationTarget(clients, '/live/Service:1');
+    await openNotificationTarget(clients, '/play/live/Service:1');
 
-    expect(second.navigate).toHaveBeenCalledWith('/live/Service:1');
+    expect(second.navigate).toHaveBeenCalledWith('/play/live/Service:1');
     expect(second.focus).toHaveBeenCalledOnce();
     expect(clients.openWindow).not.toHaveBeenCalled();
   });
@@ -70,7 +70,7 @@ describe('openNotificationTarget', () => {
     const second = controlled();
     const clients = clientsOf([first, second]);
 
-    await openNotificationTarget(clients, '/live/Service:1');
+    await openNotificationTarget(clients, '/play/live/Service:1');
 
     expect(first.navigate).toHaveBeenCalledOnce();
     expect(second.navigate).not.toHaveBeenCalled();
@@ -83,7 +83,7 @@ describe('openNotificationTarget', () => {
     const second = controlled();
     const clients = clientsOf([first, second]);
 
-    await openNotificationTarget(clients, '/live/Service:1');
+    await openNotificationTarget(clients, '/play/live/Service:1');
 
     expect(second.navigate).not.toHaveBeenCalled();
     expect(clients.openWindow).not.toHaveBeenCalled();

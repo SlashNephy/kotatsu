@@ -36,7 +36,7 @@ const notifications = [
     occurredAt: '2026-11-21T20:55:00+09:00',
     message: 'まもなく「夜のニュース」が始まります',
     payload: JSON.stringify({ name: '夜のニュース' }),
-    url: '/live/Service:1024',
+    url: '/play/live/Service:1024',
     externalUrl: null,
     readAt: null,
   },

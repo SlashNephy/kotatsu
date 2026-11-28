@@ -79,7 +79,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 	_, err = watch.SetReminderMinutes(t.Context(), pool, clk, users["bob"], 30)
 	require.NoError(t, err)
-	liveURL := func(id int64) string { return fmt.Sprintf("/live/%d", id) }
+	liveURL := func(id int64) string { return fmt.Sprintf("/play/live/%d", id) }
 
 	return &fixture{pool: pool, clock: clk, users: users, notifier: watch.NewNotifier(pool, clk, liveURL)}
 }
@@ -132,7 +132,7 @@ type step struct {
 }
 
 func reminder(user string, eventID int) sentEvent {
-	return sentEvent{User: user, Name: fmt.Sprintf("こたつテスト1 テスト番組 %d", eventID), URL: fmt.Sprintf("/live/%d", serviceID())}
+	return sentEvent{User: user, Name: fmt.Sprintf("こたつテスト1 テスト番組 %d", eventID), URL: fmt.Sprintf("/play/live/%d", serviceID())}
 }
 
 // TestNotify は、視聴予約の通知を、通知を送る時刻を過ぎてから放送が終わるまでの間に一度だけ送り、

@@ -28,21 +28,21 @@ describe('positionUrl', () => {
   test.each([
     {
       name: '秒の端数を切り捨てて付ける',
-      href: 'https://kotatsu.test/recordings/abc/play',
+      href: 'https://kotatsu.test/play/recording/abc',
       seconds: 90.9,
-      want: 'https://kotatsu.test/recordings/abc/play?t=90',
+      want: 'https://kotatsu.test/play/recording/abc?t=90',
     },
     {
       name: '今の t を置き換える',
-      href: 'https://kotatsu.test/recordings/abc/play?t=10',
+      href: 'https://kotatsu.test/play/recording/abc?t=10',
       seconds: 90,
-      want: 'https://kotatsu.test/recordings/abc/play?t=90',
+      want: 'https://kotatsu.test/play/recording/abc?t=90',
     },
     {
       name: 'ほかのクエリは残し、fragment は外す',
-      href: 'https://kotatsu.test/timeshift/s/play?program=2026-11-10T10%3A00%3A00%2B09%3A00#x',
+      href: 'https://kotatsu.test/play/timeshift/s?program=2026-11-10T10%3A00%3A00%2B09%3A00#x',
       seconds: 5,
-      want: 'https://kotatsu.test/timeshift/s/play?program=2026-11-10T10%3A00%3A00%2B09%3A00&t=5',
+      want: 'https://kotatsu.test/play/timeshift/s?program=2026-11-10T10%3A00%3A00%2B09%3A00&t=5',
     },
   ])('$name', ({ href, seconds, want }) => {
     expect(positionUrl(href, seconds)).toBe(want);

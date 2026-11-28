@@ -36,14 +36,12 @@ import { Route as AdminTimeshiftRouteImport } from './routes/admin/timeshift'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as GuideIndexRouteImport } from './routes/guide/index'
 import { Route as LibraryIndexRouteImport } from './routes/library/index'
-import { Route as LibraryPlayRouteImport } from './routes/library/play'
 import { Route as LiveIndexRouteImport } from './routes/live/index'
-import { Route as LiveServiceIdRouteImport } from './routes/live/$serviceId'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as LoginEnrollRouteImport } from './routes/login/enroll'
 import { Route as LoginSecondFactorRouteImport } from './routes/login/second-factor'
 import { Route as OfflineIndexRouteImport } from './routes/offline/index'
-import { Route as OfflineRecordingIdRouteImport } from './routes/offline/$recordingId'
+import { Route as PlayLibraryRouteImport } from './routes/play/library'
 import { Route as RecordingsIndexRouteImport } from './routes/recordings/index'
 import { Route as RecordingsRecordingIdRouteImport } from './routes/recordings/$recordingId'
 import { Route as RulesIndexRouteImport } from './routes/rules/index'
@@ -59,9 +57,11 @@ import { Route as SettingsSecurityRouteImport } from './routes/settings/security
 import { Route as SettingsSessionsRouteImport } from './routes/settings/sessions'
 import { Route as TimeshiftServiceIdRouteImport } from './routes/timeshift/$serviceId'
 import { Route as GuideChannelServiceIdRouteImport } from './routes/guide/channel.$serviceId'
-import { Route as RecordingsRecordingIdPlayRouteImport } from './routes/recordings/$recordingId_.play'
+import { Route as PlayLiveServiceIdRouteImport } from './routes/play/live/$serviceId'
+import { Route as PlayOfflineRecordingIdRouteImport } from './routes/play/offline/$recordingId'
+import { Route as PlayRecordingRecordingIdRouteImport } from './routes/play/recording/$recordingId'
+import { Route as PlayTimeshiftServiceIdRouteImport } from './routes/play/timeshift/$serviceId'
 import { Route as RulesWatchWatchRuleIdRouteImport } from './routes/rules/watch/$watchRuleId'
-import { Route as TimeshiftServiceIdPlayRouteImport } from './routes/timeshift/$serviceId_.play'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -198,19 +198,9 @@ const LibraryIndexRoute = LibraryIndexRouteImport.update({
   path: '/library/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LibraryPlayRoute = LibraryPlayRouteImport.update({
-  id: '/library/play',
-  path: '/library/play',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LiveIndexRoute = LiveIndexRouteImport.update({
   id: '/live/',
   path: '/live/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LiveServiceIdRoute = LiveServiceIdRouteImport.update({
-  id: '/live/$serviceId',
-  path: '/live/$serviceId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginIndexRoute = LoginIndexRouteImport.update({
@@ -233,9 +223,9 @@ const OfflineIndexRoute = OfflineIndexRouteImport.update({
   path: '/offline/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OfflineRecordingIdRoute = OfflineRecordingIdRouteImport.update({
-  id: '/offline/$recordingId',
-  path: '/offline/$recordingId',
+const PlayLibraryRoute = PlayLibraryRouteImport.update({
+  id: '/play/library',
+  path: '/play/library',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecordingsIndexRoute = RecordingsIndexRouteImport.update({
@@ -313,20 +303,30 @@ const GuideChannelServiceIdRoute = GuideChannelServiceIdRouteImport.update({
   path: '/guide/channel/$serviceId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RecordingsRecordingIdPlayRoute =
-  RecordingsRecordingIdPlayRouteImport.update({
-    id: '/recordings/$recordingId_/play',
-    path: '/recordings/$recordingId/play',
+const PlayLiveServiceIdRoute = PlayLiveServiceIdRouteImport.update({
+  id: '/play/live/$serviceId',
+  path: '/play/live/$serviceId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlayOfflineRecordingIdRoute = PlayOfflineRecordingIdRouteImport.update({
+  id: '/play/offline/$recordingId',
+  path: '/play/offline/$recordingId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlayRecordingRecordingIdRoute =
+  PlayRecordingRecordingIdRouteImport.update({
+    id: '/play/recording/$recordingId',
+    path: '/play/recording/$recordingId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const PlayTimeshiftServiceIdRoute = PlayTimeshiftServiceIdRouteImport.update({
+  id: '/play/timeshift/$serviceId',
+  path: '/play/timeshift/$serviceId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RulesWatchWatchRuleIdRoute = RulesWatchWatchRuleIdRouteImport.update({
   id: '/rules/watch/$watchRuleId',
   path: '/rules/watch/$watchRuleId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TimeshiftServiceIdPlayRoute = TimeshiftServiceIdPlayRouteImport.update({
-  id: '/timeshift/$serviceId_/play',
-  path: '/timeshift/$serviceId/play',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -356,11 +356,9 @@ export interface FileRoutesByFullPath {
   '/admin/system': typeof AdminSystemRoute
   '/admin/timeshift': typeof AdminTimeshiftRoute
   '/admin/users': typeof AdminUsersRoute
-  '/library/play': typeof LibraryPlayRoute
-  '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
-  '/offline/$recordingId': typeof OfflineRecordingIdRoute
+  '/play/library': typeof PlayLibraryRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -381,9 +379,11 @@ export interface FileRoutesByFullPath {
   '/rules/': typeof RulesIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
-  '/recordings/$recordingId/play': typeof RecordingsRecordingIdPlayRoute
+  '/play/live/$serviceId': typeof PlayLiveServiceIdRoute
+  '/play/offline/$recordingId': typeof PlayOfflineRecordingIdRoute
+  '/play/recording/$recordingId': typeof PlayRecordingRecordingIdRoute
+  '/play/timeshift/$serviceId': typeof PlayTimeshiftServiceIdRoute
   '/rules/watch/$watchRuleId': typeof RulesWatchWatchRuleIdRoute
-  '/timeshift/$serviceId/play': typeof TimeshiftServiceIdPlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -411,11 +411,9 @@ export interface FileRoutesByTo {
   '/admin/system': typeof AdminSystemRoute
   '/admin/timeshift': typeof AdminTimeshiftRoute
   '/admin/users': typeof AdminUsersRoute
-  '/library/play': typeof LibraryPlayRoute
-  '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
-  '/offline/$recordingId': typeof OfflineRecordingIdRoute
+  '/play/library': typeof PlayLibraryRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -436,9 +434,11 @@ export interface FileRoutesByTo {
   '/rules': typeof RulesIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
-  '/recordings/$recordingId/play': typeof RecordingsRecordingIdPlayRoute
+  '/play/live/$serviceId': typeof PlayLiveServiceIdRoute
+  '/play/offline/$recordingId': typeof PlayOfflineRecordingIdRoute
+  '/play/recording/$recordingId': typeof PlayRecordingRecordingIdRoute
+  '/play/timeshift/$serviceId': typeof PlayTimeshiftServiceIdRoute
   '/rules/watch/$watchRuleId': typeof RulesWatchWatchRuleIdRoute
-  '/timeshift/$serviceId/play': typeof TimeshiftServiceIdPlayRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -467,11 +467,9 @@ export interface FileRoutesById {
   '/admin/system': typeof AdminSystemRoute
   '/admin/timeshift': typeof AdminTimeshiftRoute
   '/admin/users': typeof AdminUsersRoute
-  '/library/play': typeof LibraryPlayRoute
-  '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
-  '/offline/$recordingId': typeof OfflineRecordingIdRoute
+  '/play/library': typeof PlayLibraryRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -492,9 +490,11 @@ export interface FileRoutesById {
   '/rules/': typeof RulesIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
-  '/recordings/$recordingId_/play': typeof RecordingsRecordingIdPlayRoute
+  '/play/live/$serviceId': typeof PlayLiveServiceIdRoute
+  '/play/offline/$recordingId': typeof PlayOfflineRecordingIdRoute
+  '/play/recording/$recordingId': typeof PlayRecordingRecordingIdRoute
+  '/play/timeshift/$serviceId': typeof PlayTimeshiftServiceIdRoute
   '/rules/watch/$watchRuleId': typeof RulesWatchWatchRuleIdRoute
-  '/timeshift/$serviceId_/play': typeof TimeshiftServiceIdPlayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -524,11 +524,9 @@ export interface FileRouteTypes {
     | '/admin/system'
     | '/admin/timeshift'
     | '/admin/users'
-    | '/library/play'
-    | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
-    | '/offline/$recordingId'
+    | '/play/library'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/account'
@@ -549,9 +547,11 @@ export interface FileRouteTypes {
     | '/rules/'
     | '/settings/'
     | '/guide/channel/$serviceId'
-    | '/recordings/$recordingId/play'
+    | '/play/live/$serviceId'
+    | '/play/offline/$recordingId'
+    | '/play/recording/$recordingId'
+    | '/play/timeshift/$serviceId'
     | '/rules/watch/$watchRuleId'
-    | '/timeshift/$serviceId/play'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -579,11 +579,9 @@ export interface FileRouteTypes {
     | '/admin/system'
     | '/admin/timeshift'
     | '/admin/users'
-    | '/library/play'
-    | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
-    | '/offline/$recordingId'
+    | '/play/library'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/account'
@@ -604,9 +602,11 @@ export interface FileRouteTypes {
     | '/rules'
     | '/settings'
     | '/guide/channel/$serviceId'
-    | '/recordings/$recordingId/play'
+    | '/play/live/$serviceId'
+    | '/play/offline/$recordingId'
+    | '/play/recording/$recordingId'
+    | '/play/timeshift/$serviceId'
     | '/rules/watch/$watchRuleId'
-    | '/timeshift/$serviceId/play'
   id:
     | '__root__'
     | '/'
@@ -634,11 +634,9 @@ export interface FileRouteTypes {
     | '/admin/system'
     | '/admin/timeshift'
     | '/admin/users'
-    | '/library/play'
-    | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
-    | '/offline/$recordingId'
+    | '/play/library'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/account'
@@ -659,9 +657,11 @@ export interface FileRouteTypes {
     | '/rules/'
     | '/settings/'
     | '/guide/channel/$serviceId'
-    | '/recordings/$recordingId_/play'
+    | '/play/live/$serviceId'
+    | '/play/offline/$recordingId'
+    | '/play/recording/$recordingId'
+    | '/play/timeshift/$serviceId'
     | '/rules/watch/$watchRuleId'
-    | '/timeshift/$serviceId_/play'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -690,11 +690,9 @@ export interface RootRouteChildren {
   AdminSystemRoute: typeof AdminSystemRoute
   AdminTimeshiftRoute: typeof AdminTimeshiftRoute
   AdminUsersRoute: typeof AdminUsersRoute
-  LibraryPlayRoute: typeof LibraryPlayRoute
-  LiveServiceIdRoute: typeof LiveServiceIdRoute
   LoginEnrollRoute: typeof LoginEnrollRoute
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
-  OfflineRecordingIdRoute: typeof OfflineRecordingIdRoute
+  PlayLibraryRoute: typeof PlayLibraryRoute
   RecordingsRecordingIdRoute: typeof RecordingsRecordingIdRoute
   RulesRuleIdRoute: typeof RulesRuleIdRoute
   SettingsAccountRoute: typeof SettingsAccountRoute
@@ -715,9 +713,11 @@ export interface RootRouteChildren {
   RulesIndexRoute: typeof RulesIndexRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
   GuideChannelServiceIdRoute: typeof GuideChannelServiceIdRoute
-  RecordingsRecordingIdPlayRoute: typeof RecordingsRecordingIdPlayRoute
+  PlayLiveServiceIdRoute: typeof PlayLiveServiceIdRoute
+  PlayOfflineRecordingIdRoute: typeof PlayOfflineRecordingIdRoute
+  PlayRecordingRecordingIdRoute: typeof PlayRecordingRecordingIdRoute
+  PlayTimeshiftServiceIdRoute: typeof PlayTimeshiftServiceIdRoute
   RulesWatchWatchRuleIdRoute: typeof RulesWatchWatchRuleIdRoute
-  TimeshiftServiceIdPlayRoute: typeof TimeshiftServiceIdPlayRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -911,25 +911,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/library/play': {
-      id: '/library/play'
-      path: '/library/play'
-      fullPath: '/library/play'
-      preLoaderRoute: typeof LibraryPlayRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/live/': {
       id: '/live/'
       path: '/live'
       fullPath: '/live/'
       preLoaderRoute: typeof LiveIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/live/$serviceId': {
-      id: '/live/$serviceId'
-      path: '/live/$serviceId'
-      fullPath: '/live/$serviceId'
-      preLoaderRoute: typeof LiveServiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login/': {
@@ -960,11 +946,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OfflineIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/offline/$recordingId': {
-      id: '/offline/$recordingId'
-      path: '/offline/$recordingId'
-      fullPath: '/offline/$recordingId'
-      preLoaderRoute: typeof OfflineRecordingIdRouteImport
+    '/play/library': {
+      id: '/play/library'
+      path: '/play/library'
+      fullPath: '/play/library'
+      preLoaderRoute: typeof PlayLibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recordings/': {
@@ -1072,11 +1058,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuideChannelServiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/recordings/$recordingId_/play': {
-      id: '/recordings/$recordingId_/play'
-      path: '/recordings/$recordingId/play'
-      fullPath: '/recordings/$recordingId/play'
-      preLoaderRoute: typeof RecordingsRecordingIdPlayRouteImport
+    '/play/live/$serviceId': {
+      id: '/play/live/$serviceId'
+      path: '/play/live/$serviceId'
+      fullPath: '/play/live/$serviceId'
+      preLoaderRoute: typeof PlayLiveServiceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/play/offline/$recordingId': {
+      id: '/play/offline/$recordingId'
+      path: '/play/offline/$recordingId'
+      fullPath: '/play/offline/$recordingId'
+      preLoaderRoute: typeof PlayOfflineRecordingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/play/recording/$recordingId': {
+      id: '/play/recording/$recordingId'
+      path: '/play/recording/$recordingId'
+      fullPath: '/play/recording/$recordingId'
+      preLoaderRoute: typeof PlayRecordingRecordingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/play/timeshift/$serviceId': {
+      id: '/play/timeshift/$serviceId'
+      path: '/play/timeshift/$serviceId'
+      fullPath: '/play/timeshift/$serviceId'
+      preLoaderRoute: typeof PlayTimeshiftServiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rules/watch/$watchRuleId': {
@@ -1084,13 +1091,6 @@ declare module '@tanstack/react-router' {
       path: '/rules/watch/$watchRuleId'
       fullPath: '/rules/watch/$watchRuleId'
       preLoaderRoute: typeof RulesWatchWatchRuleIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/timeshift/$serviceId_/play': {
-      id: '/timeshift/$serviceId_/play'
-      path: '/timeshift/$serviceId/play'
-      fullPath: '/timeshift/$serviceId/play'
-      preLoaderRoute: typeof TimeshiftServiceIdPlayRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -1122,11 +1122,9 @@ const rootRouteChildren: RootRouteChildren = {
   AdminSystemRoute: AdminSystemRoute,
   AdminTimeshiftRoute: AdminTimeshiftRoute,
   AdminUsersRoute: AdminUsersRoute,
-  LibraryPlayRoute: LibraryPlayRoute,
-  LiveServiceIdRoute: LiveServiceIdRoute,
   LoginEnrollRoute: LoginEnrollRoute,
   LoginSecondFactorRoute: LoginSecondFactorRoute,
-  OfflineRecordingIdRoute: OfflineRecordingIdRoute,
+  PlayLibraryRoute: PlayLibraryRoute,
   RecordingsRecordingIdRoute: RecordingsRecordingIdRoute,
   RulesRuleIdRoute: RulesRuleIdRoute,
   SettingsAccountRoute: SettingsAccountRoute,
@@ -1147,9 +1145,11 @@ const rootRouteChildren: RootRouteChildren = {
   RulesIndexRoute: RulesIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,
   GuideChannelServiceIdRoute: GuideChannelServiceIdRoute,
-  RecordingsRecordingIdPlayRoute: RecordingsRecordingIdPlayRoute,
+  PlayLiveServiceIdRoute: PlayLiveServiceIdRoute,
+  PlayOfflineRecordingIdRoute: PlayOfflineRecordingIdRoute,
+  PlayRecordingRecordingIdRoute: PlayRecordingRecordingIdRoute,
+  PlayTimeshiftServiceIdRoute: PlayTimeshiftServiceIdRoute,
   RulesWatchWatchRuleIdRoute: RulesWatchWatchRuleIdRoute,
-  TimeshiftServiceIdPlayRoute: TimeshiftServiceIdPlayRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

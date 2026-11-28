@@ -56,7 +56,7 @@ export function CaptionMatchList({
             renderRoot={(props) => (
               <Link
                 {...props}
-                to="/recordings/$recordingId/play"
+                to="/play/recording/$recordingId"
                 params={{ recordingId }}
                 search={{ t: seconds }}
                 // 再生の画面の「戻る」でも、同じ絞り込みの一覧に戻す (#2146)。

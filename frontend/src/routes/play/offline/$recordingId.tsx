@@ -4,11 +4,11 @@ import { Captions, MessageSquareText } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { PageLoader, ProgramTitle, toHalfWidth, useDocumentTitle } from '../../futon';
-import { setTimeZone } from '../../futon/timeZone';
-import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
-import { openOfflineRecording, type OfflineFiles } from '../../offline/store';
-import type { PlayerCommands } from '../../yunomi/commands';
+import { PageLoader, ProgramTitle, toHalfWidth, useDocumentTitle } from '../../../futon';
+import { setTimeZone } from '../../../futon/timeZone';
+import { useRecordedJikkyo } from '../../../jikkyo/useRecordedJikkyo';
+import { openOfflineRecording, type OfflineFiles } from '../../../offline/store';
+import type { PlayerCommands } from '../../../yunomi/commands';
 import {
   BigPlayButton,
   CommandButton,
@@ -19,28 +19,28 @@ import {
   playerControlsClasses,
   PlayerLoading,
   VolumeControl,
-} from '../../yunomi/PlayerControls';
+} from '../../../yunomi/PlayerControls';
 import {
   broadcastTime,
   formatClock,
   formatDuration,
   recordingPosition,
-} from '../../yunomi/position';
-import { SeekBar } from '../../yunomi/SeekBar';
-import { TsPlayer } from '../../yunomi/TsPlayer';
-import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
-import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
-import { useFullscreen } from '../../yunomi/useFullscreen';
-import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
-import { useVideoLoading } from '../../yunomi/useVideoLoading';
-import { useVideoState } from '../../yunomi/useVideoState';
-import { useWakeLock } from '../../yunomi/useWakeLock';
-import { WatchHeading, WatchLayout } from '../../yunomi/WatchLayout';
-import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
-import { readableParams } from '../../futon/readableId';
-import type { PlayerMedia } from '../../yunomi/playerMedia';
+} from '../../../yunomi/position';
+import { SeekBar } from '../../../yunomi/SeekBar';
+import { TsPlayer } from '../../../yunomi/TsPlayer';
+import { onVideoSurface, useControlsVisibility } from '../../../yunomi/useControlsVisibility';
+import { useAutoplayBlocked } from '../../../yunomi/useAutoplayBlocked';
+import { useFullscreen } from '../../../yunomi/useFullscreen';
+import { usePlayerShortcuts } from '../../../yunomi/usePlayerShortcuts';
+import { useVideoLoading } from '../../../yunomi/useVideoLoading';
+import { useVideoState } from '../../../yunomi/useVideoState';
+import { useWakeLock } from '../../../yunomi/useWakeLock';
+import { WatchHeading, WatchLayout } from '../../../yunomi/WatchLayout';
+import { useHostedWatch, useWatchMedia, useWatchMini } from '../../../yunomi/WatchHost';
+import { readableParams } from '../../../futon/readableId';
+import type { PlayerMedia } from '../../../yunomi/playerMedia';
 
-export const Route = createFileRoute('/offline/$recordingId')({
+export const Route = createFileRoute('/play/offline/$recordingId')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
   params: readableParams('recordingId', 'Recording'),
   staticData: { fluid: true },

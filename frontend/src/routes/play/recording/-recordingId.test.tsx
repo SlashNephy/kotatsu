@@ -1,8 +1,8 @@
 import { act, cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { createFailingEnvironment, renderRoute } from '../../test/route';
-import { Route } from './$recordingId_.play';
+import { createFailingEnvironment, renderRoute } from '../../../test/route';
+import { Route } from './$recordingId';
 
 afterEach(() => {
   cleanup();
@@ -16,8 +16,8 @@ describe('recordings PlayPage', () => {
     const { environment, requested } = createFailingEnvironment('Recording:1');
     const { router } = await renderRoute(
       Route,
-      '/recordings/$recordingId_/play',
-      '/recordings/Recording:1/play',
+      '/play/recording/$recordingId',
+      '/play/recording/Recording:1',
       environment,
     );
     expect(
@@ -26,7 +26,7 @@ describe('recordings PlayPage', () => {
 
     await act(() =>
       router.navigate({
-        to: '/recordings/$recordingId/play',
+        to: '/play/recording/$recordingId',
         params: { recordingId: 'Recording:2' },
       }),
     );

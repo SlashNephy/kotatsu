@@ -276,7 +276,7 @@ function Directory({ library, path, q }: { library: string; path: string; q: str
                           renderRoot={(props) => (
                             <Link
                               {...props}
-                              to="/library/play"
+                              to="/play/library"
                               search={{ library, path: entry.path }}
                             />
                           )}
@@ -422,7 +422,7 @@ function SearchResults({ library, path, q }: { library: string; path: string; q:
                       renderRoot={(props) => (
                         <Link
                           {...props}
-                          to="/library/play"
+                          to="/play/library"
                           search={{ library, path: entry.path }}
                         />
                       )}

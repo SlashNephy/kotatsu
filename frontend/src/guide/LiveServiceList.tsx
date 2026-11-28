@@ -152,7 +152,11 @@ function ServiceList({
             <NavLink
               key={row.service.id}
               renderRoot={(props) => (
-                <Link {...props} to="/live/$serviceId" params={{ serviceId: row.service.id }} />
+                <Link
+                  {...props}
+                  to="/play/live/$serviceId"
+                  params={{ serviceId: row.service.id }}
+                />
               )}
               active={row.service.id === serviceId}
               aria-current={row.service.id === serviceId ? 'page' : undefined}

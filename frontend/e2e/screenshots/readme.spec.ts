@@ -32,7 +32,7 @@ for (const scheme of ['light', 'dark'] as const) {
     });
 
     test('ライブ視聴', async ({ page }) => {
-      await page.goto('/live/Service%3A1024');
+      await page.goto('/play/live/Service%3A1024');
       const video = page.locator('video');
       // 再生が進んでから止め、決まった位置に戻して、毎回同じフレームを撮る。
       // デモの Service Worker は毎回映像の先頭から流すので、位置とフレームの対応は揃う。

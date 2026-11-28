@@ -371,7 +371,7 @@ func TestEngineWatchRulesNotifyOnce(t *testing.T) {
 	f.createWatchRule(t, f.alice, `テスト番組 4$`)
 	require.Equal(t, 1, f.run(t).WatchCreated)
 
-	notifier := watch.NewNotifier(f.pool, f.clock, func(id int64) string { return fmt.Sprintf("/live/%d", id) })
+	notifier := watch.NewNotifier(f.pool, f.clock, func(id int64) string { return fmt.Sprintf("/play/live/%d", id) })
 	// 既定の 5 分前 (12:25) に通知する。
 	f.clock.Advance(15 * time.Minute)
 	notified, _, err := notifier.Notify(t.Context())

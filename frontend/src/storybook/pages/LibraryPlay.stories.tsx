@@ -6,7 +6,7 @@ import { GraphQLRequestError } from '../../relay/requestError';
 import { asViewer, merge, minutesAgo, withStorage } from '../conditions';
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';
 
-// ライブラリのファイルの再生 (/library/play) の画面 (#2056)。静的なデモと同じ Service Worker で、デモの映像を流す。
+// ライブラリのファイルの再生 (/play/library) の画面 (#2056)。静的なデモと同じ Service Worker で、デモの映像を流す。
 // 番組の分かるファイルと分からないファイル、インデックスを作っている途中と書いている途中、続きからの再生、CM の区間、
 // 字幕の自動生成の状態、ファイルがない・読めない・ほかで使っているとき、ログインしていないとき、再生の経路を並べる。
 const path = 'バラエティ/こたつの時間.m2ts';
@@ -14,7 +14,7 @@ const path = 'バラエティ/こたつの時間.m2ts';
 const meta = {
   title: 'ページ/ライブラリ/再生',
   component: PageStory,
-  args: { url: `/library/play?library=archive&path=${encodeURIComponent(path)}` },
+  args: { url: `/play/library?library=archive&path=${encodeURIComponent(path)}` },
   parameters: { layout: 'fullscreen' },
   // 音を出さない。
   beforeEach: () =>
@@ -124,7 +124,7 @@ export const Resumed: Story = { args: { overrides: file({ watchPositionMs: 5 * 6
 export const StartAt: Story = {
   args: {
     overrides: file(),
-    url: `/library/play?library=archive&path=${encodeURIComponent(path)}&t=120`,
+    url: `/play/library?library=archive&path=${encodeURIComponent(path)}&t=120`,
   },
 };
 
@@ -211,7 +211,7 @@ export const Error: Story = { args: { overrides: { libraryFile: failing() } } };
 export const SignedOut: Story = {
   args: {
     hold: (operation: { name: string }) => {
-      if (operation.name === 'playLibraryFileQuery') {
+      if (operation.name === 'libraryPlayFileQuery') {
         throw new GraphQLRequestError('unauthenticated', 401, 'UNAUTHENTICATED');
       }
 

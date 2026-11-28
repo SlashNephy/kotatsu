@@ -382,7 +382,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
               renderRoot={(props) => (
                 <Link
                   {...props}
-                  to="/timeshift/$serviceId/play"
+                  to="/play/timeshift/$serviceId"
                   params={{ serviceId: program.service.id }}
                   search={{ program: timeshift.startAt }}
                 />
@@ -401,7 +401,11 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
               flex={1}
               leftSection={<Play size={16} aria-hidden />}
               renderRoot={(props) => (
-                <Link {...props} to="/live/$serviceId" params={{ serviceId: program.service.id }} />
+                <Link
+                  {...props}
+                  to="/play/live/$serviceId"
+                  params={{ serviceId: program.service.id }}
+                />
               )}
             >
               {t('guide.detail.watch')}

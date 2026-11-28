@@ -6,7 +6,7 @@ import { demoStreamURL } from '../../demo/streamURL';
 import { call, liveStreamScrambled, merge, nodeWith, withStorage } from '../conditions';
 import { holdAll, PageStory } from '../PageStory';
 
-// ライブ視聴 (/live/$serviceId) の画面 (#2056)。静的なデモと同じ Service Worker で、デモの映像を繰り返して流す。
+// ライブ視聴 (/play/live/$serviceId) の画面 (#2056)。静的なデモと同じ Service Worker で、デモの映像を繰り返して流す。
 // 視聴が止まったとき (つなぎ直し、録画にチューナーを取られた、スクランブル)、番組がないとき、タイムシフト、再生の経路を並べる。
 const service = 'Service:1024';
 

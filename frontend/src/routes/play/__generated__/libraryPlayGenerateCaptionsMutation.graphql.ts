@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b7f1f634bb5cf7a921c6904e155444de>>
+ * @generated SignedSource<<ce4257227825f6a90f79052b0026e191>>
  * @lightSyntaxTransform
  */
 
@@ -9,10 +9,10 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type RecordingAutoCaptionsState = "FAILED" | "GENERATED" | "NOT_CONFIGURED" | "NOT_GENERATED" | "QUEUED" | "RUNNING" | "%future added value";
-export type playGenerateLibraryCaptionsMutation$variables = {
+export type libraryPlayGenerateCaptionsMutation$variables = {
   id: string;
 };
-export type playGenerateLibraryCaptionsMutation$data = {
+export type libraryPlayGenerateCaptionsMutation$data = {
   readonly generateLibraryCaptions: {
     readonly autoCaptionsStatus: {
       readonly count: number;
@@ -27,9 +27,9 @@ export type playGenerateLibraryCaptionsMutation$data = {
     readonly id: string;
   };
 };
-export type playGenerateLibraryCaptionsMutation = {
-  response: playGenerateLibraryCaptionsMutation$data;
-  variables: playGenerateLibraryCaptionsMutation$variables;
+export type libraryPlayGenerateCaptionsMutation = {
+  response: libraryPlayGenerateCaptionsMutation$data;
+  variables: libraryPlayGenerateCaptionsMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -135,7 +135,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "playGenerateLibraryCaptionsMutation",
+    "name": "libraryPlayGenerateCaptionsMutation",
     "selections": (v1/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -144,20 +144,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "playGenerateLibraryCaptionsMutation",
+    "name": "libraryPlayGenerateCaptionsMutation",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "4e609b01a22a52db555fe0d39e184406",
+    "cacheID": "6514ac546cb014bd583cc4de3222e733",
     "id": null,
     "metadata": {},
-    "name": "playGenerateLibraryCaptionsMutation",
+    "name": "libraryPlayGenerateCaptionsMutation",
     "operationKind": "mutation",
-    "text": "mutation playGenerateLibraryCaptionsMutation(\n  $id: ID!\n) {\n  generateLibraryCaptions(id: $id) {\n    id\n    autoCaptionsStatus {\n      state\n      generatedAt\n      model\n      count\n      progress {\n        ratio\n        remainingSeconds\n      }\n    }\n  }\n}\n"
+    "text": "mutation libraryPlayGenerateCaptionsMutation(\n  $id: ID!\n) {\n  generateLibraryCaptions(id: $id) {\n    id\n    autoCaptionsStatus {\n      state\n      generatedAt\n      model\n      count\n      progress {\n        ratio\n        remainingSeconds\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f8fb8bebff9f2f16488e44a17f372025";
+(node as any).hash = "c764568fe00dfb3812c35c4b4e9bba7b";
 
 export default node;

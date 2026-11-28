@@ -658,7 +658,7 @@ function RecordedEpisodeButton({ episode }: { episode: RecordedEpisode }) {
       renderRoot={(props) => (
         <Link
           {...props}
-          to="/recordings/$recordingId/play"
+          to="/play/recording/$recordingId"
           params={{ recordingId: episode.recording.id }}
         />
       )}

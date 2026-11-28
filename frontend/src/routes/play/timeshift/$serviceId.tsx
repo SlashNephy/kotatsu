@@ -6,35 +6,35 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
-import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
+import { useLazyLoadQuery } from '../../../relay/useLazyLoadQuery';
 
-import { rememberReturnTo } from '../../auth/returnTo';
-import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
-import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
-import { WatchPanel } from '../../yunomi/WatchPanel';
-import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
-import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
-import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay';
-import { useSleepTimer } from '../../yunomi/sleepTimer';
-import { noCrop, type Crop } from '../../yunomi/crop';
-import { CaptionHistory } from '../../yunomi/CaptionHistory';
-import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
-import { useDRCSReplacements } from '../../yunomi/useDRCSReplacements';
+import { rememberReturnTo } from '../../../auth/returnTo';
+import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../../futon';
+import { graphQLErrorDetails, isUnauthenticated } from '../../../relay/environment';
+import { WatchPanel } from '../../../yunomi/WatchPanel';
+import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../../yunomi/WatchLayout';
+import { useVolumeNormalizer } from '../../../yunomi/volumeNormalize';
+import { useAudioDelayCommands, useAudioDelayer } from '../../../yunomi/audioDelay';
+import { useSleepTimer } from '../../../yunomi/sleepTimer';
+import { noCrop, type Crop } from '../../../yunomi/crop';
+import { CaptionHistory } from '../../../yunomi/CaptionHistory';
+import { StreamInfo, useStreamMeter } from '../../../yunomi/StreamInfo';
+import { useDRCSReplacements } from '../../../yunomi/useDRCSReplacements';
 import {
   insertRecordedCaption,
   normalizeCaption,
   type CaptionEntry,
-} from '../../yunomi/captionHistory';
-import { PipHost } from '../../yunomi/PipHost';
-import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
+} from '../../../yunomi/captionHistory';
+import { PipHost } from '../../../yunomi/PipHost';
+import { PipPlaceholder } from '../../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
   recordingPosition,
   formatClock,
   formatDuration,
-} from '../../yunomi/position';
-import { useSeekableStream } from '../../yunomi/useSeekableStream';
-import { useFastForward } from '../../yunomi/fastForward';
+} from '../../../yunomi/position';
+import { useSeekableStream } from '../../../yunomi/useSeekableStream';
+import { useFastForward } from '../../../yunomi/fastForward';
 import {
   RateSelect,
   CropSelect,
@@ -43,30 +43,30 @@ import {
   SleepTimerSelect,
   PlaybackUnavailable,
   QualitySelect,
-} from '../../yunomi/QualitySelect';
-import { hlsURL, toVideoFormat } from '../../yunomi/route';
-import { HlsPlayer } from '../../yunomi/HlsPlayer';
-import { useHlsStream } from '../../yunomi/useHlsStream';
-import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
-import { documentTitle, type PlayerSnapshot } from '../../yunomi/playerState';
-import { SeekBar } from '../../yunomi/SeekBar';
-import { TsPlayer } from '../../yunomi/TsPlayer';
-import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
-import { useAdaptiveQuality } from '../../yunomi/useAdaptiveQuality';
-import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
-import { useMediaSession } from '../../yunomi/useMediaSession';
-import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
-import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
-import { usePlayerContextMenu } from '../../yunomi/PlayerContextMenu';
-import { usePlayerGamepad } from '../../yunomi/gamepad';
-import { usePlayerMouse } from '../../yunomi/mouseActions';
-import type { PlayerCommands } from '../../yunomi/commands';
+} from '../../../yunomi/QualitySelect';
+import { hlsURL, toVideoFormat } from '../../../yunomi/route';
+import { HlsPlayer } from '../../../yunomi/HlsPlayer';
+import { useHlsStream } from '../../../yunomi/useHlsStream';
+import { usePlayerAudio } from '../../../yunomi/usePlayerAudio';
+import { documentTitle, type PlayerSnapshot } from '../../../yunomi/playerState';
+import { SeekBar } from '../../../yunomi/SeekBar';
+import { TsPlayer } from '../../../yunomi/TsPlayer';
+import { usePlaybackRoute } from '../../../yunomi/usePlaybackRoute';
+import { useAdaptiveQuality } from '../../../yunomi/useAdaptiveQuality';
+import { usePlayerSettings } from '../../../yunomi/usePlayerSettings';
+import { useMediaSession } from '../../../yunomi/useMediaSession';
+import { ShortcutsHelp } from '../../../yunomi/ShortcutsHelp';
+import { usePlayerShortcuts } from '../../../yunomi/usePlayerShortcuts';
+import { usePlayerContextMenu } from '../../../yunomi/PlayerContextMenu';
+import { usePlayerGamepad } from '../../../yunomi/gamepad';
+import { usePlayerMouse } from '../../../yunomi/mouseActions';
+import type { PlayerCommands } from '../../../yunomi/commands';
 import {
   CaptureButton,
   openPictureInPicture,
   PipButton,
   useCapture,
-} from '../../yunomi/PlayerTools';
+} from '../../../yunomi/PlayerTools';
 import {
   PlayerAlert,
   BigPlayButton,
@@ -82,37 +82,37 @@ import {
   VolumeControl,
   PlayerFlash,
   usePlayerFlash,
-} from '../../yunomi/PlayerControls';
-import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
-import { useDoubleTap } from '../../yunomi/useDoubleTap';
-import { stepBrightness } from '../../yunomi/brightness';
-import { swipeVolumeStep } from '../../yunomi/swipe';
-import { useSwipeControlsSetting, volumeChangeable } from '../../yunomi/swipeControls';
-import { useSwipeGestures } from '../../yunomi/useSwipeGestures';
-import { ScrubBubble } from '../../yunomi/ScrubBubble';
-import { useFullscreen } from '../../yunomi/useFullscreen';
-import { useSlideSeek } from '../../yunomi/useSlideSeek';
-import { useScreenCrop } from '../../yunomi/useScreenCrop';
-import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
-import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
-import { useVideoLoading } from '../../yunomi/useVideoLoading';
-import { useVideoState } from '../../yunomi/useVideoState';
-import { stepVolume } from '../../yunomi/volume';
-import { currentVolume } from '../../yunomi/volumeBoost';
-import { useWakeLock } from '../../yunomi/useWakeLock';
-import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
-import { useStreamsDrains } from '../../changes/DataChanges';
-import { canRetryImmediately, endedEarly, skipBrokenMedia } from '../../yunomi/reconnect';
+} from '../../../yunomi/PlayerControls';
+import { onVideoSurface, useControlsVisibility } from '../../../yunomi/useControlsVisibility';
+import { useDoubleTap } from '../../../yunomi/useDoubleTap';
+import { stepBrightness } from '../../../yunomi/brightness';
+import { swipeVolumeStep } from '../../../yunomi/swipe';
+import { useSwipeControlsSetting, volumeChangeable } from '../../../yunomi/swipeControls';
+import { useSwipeGestures } from '../../../yunomi/useSwipeGestures';
+import { ScrubBubble } from '../../../yunomi/ScrubBubble';
+import { useFullscreen } from '../../../yunomi/useFullscreen';
+import { useSlideSeek } from '../../../yunomi/useSlideSeek';
+import { useScreenCrop } from '../../../yunomi/useScreenCrop';
+import { useAutoplayBlocked } from '../../../yunomi/useAutoplayBlocked';
+import { useAutoPictureInPicture } from '../../../yunomi/autoPictureInPicture';
+import { useVideoLoading } from '../../../yunomi/useVideoLoading';
+import { useVideoState } from '../../../yunomi/useVideoState';
+import { stepVolume } from '../../../yunomi/volume';
+import { currentVolume } from '../../../yunomi/volumeBoost';
+import { useWakeLock } from '../../../yunomi/useWakeLock';
+import { useDocumentPictureInPicture } from '../../../yunomi/useDocumentPictureInPicture';
+import { useStreamsDrains } from '../../../changes/DataChanges';
+import { canRetryImmediately, endedEarly, skipBrokenMedia } from '../../../yunomi/reconnect';
 import {
   copyPositionUrl,
   parseStartSeconds,
   timeshiftShareSeconds,
   timeshiftStartPosition,
-} from '../../yunomi/shareUrl';
+} from '../../../yunomi/shareUrl';
 import type { ServiceIdPlayTimeshiftQuery } from './__generated__/ServiceIdPlayTimeshiftQuery.graphql';
-import { useHostedWatch, useWatchMedia, useWatchMini } from '../../yunomi/WatchHost';
-import { readableParams } from '../../futon/readableId';
-import type { PlayerMedia } from '../../yunomi/playerMedia';
+import { useHostedWatch, useWatchMedia, useWatchMini } from '../../../yunomi/WatchHost';
+import { readableParams } from '../../../futon/readableId';
+import type { PlayerMedia } from '../../../yunomi/playerMedia';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -120,7 +120,7 @@ const volumeStep = 0.05;
 // PlaySearch は、再生の画面の URL のクエリ。program は、再生する番組の始まりの時刻 (RFC 3339)。t は、再生を始める位置 (番組の始まりからの放送の秒)。
 type PlaySearch = { program: string; t?: number };
 
-export const Route = createFileRoute('/timeshift/$serviceId_/play')({
+export const Route = createFileRoute('/play/timeshift/$serviceId')({
   // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
   params: readableParams('serviceId', 'Service'),
   // 右のカラムを置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
@@ -164,7 +164,9 @@ function PlayWatch({
       {!mini && (
         <Anchor
           size="sm"
-          renderRoot={(props) => <Link {...props} to="/live/$serviceId" params={{ serviceId }} />}
+          renderRoot={(props) => (
+            <Link {...props} to="/play/live/$serviceId" params={{ serviceId }} />
+          )}
         >
           {t('timeshift.backToLive')}
         </Anchor>
@@ -540,7 +542,7 @@ function Player({
     showShortcuts: () => setShortcutsOpen(true),
     setVolume: videoState.setVolume,
     // スリープタイマーと「再生をやめる」のキーは、プレイヤーを閉じて、上の「ライブ視聴に戻る」と同じ画面へ移る (#1426)。
-    stop: () => void navigate({ to: '/live/$serviceId', params: { serviceId } }),
+    stop: () => void navigate({ to: '/play/live/$serviceId', params: { serviceId } }),
     ...(pip.supported
       ? {
           pictureInPicture: () => {

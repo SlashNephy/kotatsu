@@ -1,5 +1,7 @@
 /* 今いる画面のリンクを、太字と下線で示す。TanStack Router は、今いる画面のリンクに data-status="active" を付ける。 */
-.navLink[data-status='active'] {
+/* そのリンクの画面から開く視聴の画面 (/play の下) にいる間は、data-watching を付ける。 */
+.navLink[data-status='active'],
+.navLink[data-watching] {
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 6px;

@@ -350,7 +350,7 @@ function RecordingLink({
         ) : (
           <Link
             {...props}
-            to="/recordings/$recordingId/play"
+            to="/play/recording/$recordingId"
             params={{ recordingId }}
             search={{ t: Math.floor(position) }}
           />

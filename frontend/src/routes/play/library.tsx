@@ -115,7 +115,7 @@ import {
   autoCaptionsActive,
   captionModelsAnchor,
 } from '../../recordings/AutoCaptions';
-import type { playGenerateLibraryCaptionsMutation } from './__generated__/playGenerateLibraryCaptionsMutation.graphql';
+import type { libraryPlayGenerateCaptionsMutation } from './__generated__/libraryPlayGenerateCaptionsMutation.graphql';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useDoubleTap } from '../../yunomi/useDoubleTap';
 import { stepBrightness } from '../../yunomi/brightness';
@@ -151,7 +151,7 @@ import {
   parentPath,
   seekLimit,
 } from '../../library/library';
-import type { playLibraryFileQuery } from './__generated__/playLibraryFileQuery.graphql';
+import type { libraryPlayFileQuery } from './__generated__/libraryPlayFileQuery.graphql';
 import type { PlayerMedia } from '../../yunomi/playerMedia';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
@@ -163,7 +163,7 @@ const noGaps: readonly { from: string; to: string }[] = [];
 // PlaySearch は、再生の画面の URL のクエリ。library と path は再生するファイル、t は再生を始める位置 (ファイルの始まりからの秒)。
 type PlaySearch = { library: string; path: string; t?: number };
 
-export const Route = createFileRoute('/library/play')({
+export const Route = createFileRoute('/play/library')({
   // 右のカラムを置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
   staticData: { fluid: true },
   validateSearch: (search: Record<string, unknown>): PlaySearch => {
@@ -253,7 +253,7 @@ function PlayWatch({
 
 // playQuery は、再生するファイル。シークのインデックスを作っている間は、進み具合を知るために読み直す。
 const playQuery = graphql`
-  query playLibraryFileQuery($library: String!, $path: String!) {
+  query libraryPlayFileQuery($library: String!, $path: String!) {
     libraryFile(library: $library, path: $path) {
       id
       fileId
@@ -367,7 +367,7 @@ function Player({
     libraryFile: file,
     transcoding,
     viewer,
-  } = useLazyLoadQuery<playLibraryFileQuery>(playQuery, variables);
+  } = useLazyLoadQuery<libraryPlayFileQuery>(playQuery, variables);
   const mediaRef = useRef<PlayerMedia | null>(null);
   const pip = useDocumentPictureInPicture();
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
@@ -406,9 +406,9 @@ function Player({
   }));
   const hasAutoCaptions = autoCaptions.length > 0;
   const autoCaptionsShown = captions && hasAutoCaptions && captionTrack === 'auto';
-  const [generateCaptions, generatingCaptions] = useMutation<playGenerateLibraryCaptionsMutation>(
+  const [generateCaptions, generatingCaptions] = useMutation<libraryPlayGenerateCaptionsMutation>(
     graphql`
-      mutation playGenerateLibraryCaptionsMutation($id: ID!) {
+      mutation libraryPlayGenerateCaptionsMutation($id: ID!) {
         generateLibraryCaptions(id: $id) {
           id
           autoCaptionsStatus {
@@ -449,7 +449,7 @@ function Player({
       return;
     }
     const timer = setInterval(() => {
-      fetchQuery<playLibraryFileQuery>(environment, playQuery, variables, {
+      fetchQuery<libraryPlayFileQuery>(environment, playQuery, variables, {
         fetchPolicy: 'network-only',
       })
         .toPromise()

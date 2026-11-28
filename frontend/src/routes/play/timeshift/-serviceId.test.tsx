@@ -2,11 +2,11 @@ import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { createDemoEnvironment, createFailingEnvironment, renderRoute } from '../../test/route';
-import { Route } from './$serviceId_.play';
+import { createDemoEnvironment, createFailingEnvironment, renderRoute } from '../../../test/route';
+import { Route } from './$serviceId';
 
 // TsPlayer は jsdom で動かないので、映像と操作バーだけを描く部品に置き換える。
-vi.mock('../../yunomi/TsPlayer', () => ({
+vi.mock('../../../yunomi/TsPlayer', () => ({
   TsPlayer: ({ controls }: { controls: ReactNode }) => (
     <>
       <video />
@@ -16,7 +16,7 @@ vi.mock('../../yunomi/TsPlayer', () => ({
 }));
 
 // jsdom には MediaSource がないので、ブラウザの中で変換できる端末として振る舞う。
-vi.mock('../../yunomi/capabilities', () => ({
+vi.mock('../../../yunomi/capabilities', () => ({
   detectCapabilities: () => ({ convert: true, hls: true, hevc: true, hevcUhd: false }),
 }));
 
@@ -44,8 +44,8 @@ describe('timeshift PlayPage', () => {
     });
     const { router } = await renderRoute(
       Route,
-      '/timeshift/$serviceId_/play',
-      `/timeshift/Service:1/play?program=${encodeURIComponent(startAt)}`,
+      '/play/timeshift/$serviceId',
+      `/play/timeshift/Service:1?program=${encodeURIComponent(startAt)}`,
       environment,
     );
     await screen.findByRole('button', { name: '設定' });
@@ -56,7 +56,7 @@ describe('timeshift PlayPage', () => {
     fireEvent.click(await screen.findByRole('option', { name: '15 分後に止める' }));
     await act(() => vi.advanceTimersByTimeAsync(15 * 60_000 + 1_000));
 
-    expect(router.state.location.pathname).toBe('/live/Service%3A1');
+    expect(router.state.location.pathname).toBe('/play/live/Service%3A1');
   });
 
   test('エラーの後に同じサービスの別の番組へ移ると、エラーの表示を消して読み直す (#1453)', async () => {
@@ -66,8 +66,8 @@ describe('timeshift PlayPage', () => {
     const { environment, requested } = createFailingEnvironment(startAt);
     const { router } = await renderRoute(
       Route,
-      '/timeshift/$serviceId_/play',
-      `/timeshift/Service:1/play?program=${encodeURIComponent(startAt)}`,
+      '/play/timeshift/$serviceId',
+      `/play/timeshift/Service:1?program=${encodeURIComponent(startAt)}`,
       environment,
     );
     const loadError = '読み込めませんでした。時間をおいてやり直してください';
@@ -75,7 +75,7 @@ describe('timeshift PlayPage', () => {
 
     await act(() =>
       router.navigate({
-        to: '/timeshift/$serviceId/play',
+        to: '/play/timeshift/$serviceId',
         params: { serviceId: 'Service:1' },
         search: { program: nextStartAt },
       }),

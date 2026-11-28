@@ -9,10 +9,10 @@ export function useRemoteOpen(): (target: RemoteTarget) => void {
 
   return (target: RemoteTarget) => {
     if (target.kind === 'LIVE') {
-      void navigate({ to: '/live/$serviceId', params: { serviceId: target.serviceId } });
+      void navigate({ to: '/play/live/$serviceId', params: { serviceId: target.serviceId } });
     } else {
       void navigate({
-        to: '/recordings/$recordingId/play',
+        to: '/play/recording/$recordingId',
         params: { recordingId: target.recordingId },
       });
     }

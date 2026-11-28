@@ -5,7 +5,7 @@ import { GraphQLRequestError } from '../../relay/requestError';
 import { minutesAgo, withStorage } from '../conditions';
 import { failing, failingWith, holdAll, PageStory } from '../PageStory';
 
-// タイムシフトの再生 (/timeshift/$serviceId/play) の画面 (#2056)。静的なデモと同じ Service Worker で、デモの映像を流す。
+// タイムシフトの再生 (/play/timeshift/$serviceId) の画面 (#2056)。静的なデモと同じ Service Worker で、デモの映像を流す。
 // 終わった番組と放送中の番組、途切れた区間、名前のない番組、URL の位置からの再生、番組がないとき、
 // ログインしていないとき、読み込めないとき、映像を読めないとき、再生の経路を並べる。
 const startAt = minutesAgo(90);
@@ -13,7 +13,7 @@ const startAt = minutesAgo(90);
 const meta = {
   title: 'ページ/タイムシフト/再生',
   component: PageStory,
-  args: { url: `/timeshift/Service:1024/play?program=${encodeURIComponent(startAt)}` },
+  args: { url: `/play/timeshift/Service:1024?program=${encodeURIComponent(startAt)}` },
   parameters: { layout: 'fullscreen' },
   // 音を出さない。
   beforeEach: () =>
@@ -65,7 +65,7 @@ export const Untitled: Story = { args: { overrides: program({ name: '' }) } };
 export const StartAt: Story = {
   args: {
     overrides: program(),
-    url: `/timeshift/Service:1024/play?program=${encodeURIComponent(startAt)}&t=120`,
+    url: `/play/timeshift/Service:1024?program=${encodeURIComponent(startAt)}&t=120`,
   },
 };
 

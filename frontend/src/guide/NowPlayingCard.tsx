@@ -38,7 +38,7 @@ export function NowPlayingCard({
       withBorder
       padding="xs"
       h="100%"
-      renderRoot={(props) => <Link {...props} to="/live/$serviceId" params={{ serviceId }} />}
+      renderRoot={(props) => <Link {...props} to="/play/live/$serviceId" params={{ serviceId }} />}
     >
       <Text size="xs" c="dimmed">
         <ServiceLabel name={serviceName} logoUrl={serviceLogoUrl} />

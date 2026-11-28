@@ -4,7 +4,11 @@ import { notificationPath } from './link';
 
 describe('notificationPath', () => {
   test.each([
-    { name: 'アプリの中のパス', url: '/live/U2VydmljZToxMDI0', want: '/live/U2VydmljZToxMDI0' },
+    {
+      name: 'アプリの中のパス',
+      url: '/play/live/U2VydmljZToxMDI0',
+      want: '/play/live/U2VydmljZToxMDI0',
+    },
     { name: 'パスがない', url: null, want: null },
     { name: '空文字列', url: '', want: null },
     { name: 'ほかのオリジンの URL', url: 'https://example.com/live', want: null },
