@@ -40,7 +40,7 @@ export const decoded = 'decoded';
 
 // RouteOptions は、画面ごとに選べる経路。
 export type RouteOptions = {
-  // decode は、ブラウザの中でデコードする経路を選ばせるか。ライブ視聴と録画の再生で選ばせる (#2166)。
+  // decode は、ブラウザの中でデコードする経路を選ばせるか。ライブ視聴、録画の再生、端末に保存した録画の再生で選ばせる (#2166)。
   decode?: boolean;
 };
 
@@ -178,10 +178,18 @@ const streamPath = /^\/internal\/streams\/services\/(\d+)(?:\?(.*))?$/;
 const recordingStreamPath =
   /^\/internal\/streams\/recordings\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?(.*))?$/;
 
-// decodeStreamEndpoint は、url がライブ視聴か録画の TS なら、読みに行く URL を返す。ほかの先なら null を返す。
+// decodeStreamEndpoint は、url がライブ視聴か録画の TS か、同じオリジンの blob: (端末に保存した録画) なら、
+// 読みに行く URL を返す。ほかの先なら null を返す。origin は、このページのオリジン。
 // ブラウザの中でデコードする経路の worker は、受け取った URL をそのまま読まずに、決まったパスへ組み直し、
 // ほかのホストやパスを読まないようにする。録画は、シークした位置から読み直すので、start=秒 を付けたまま読む (#2166)。
-export function decodeStreamEndpoint(url: string): string | null {
+export function decodeStreamEndpoint(
+  url: string,
+  origin: string | null = globalThis.location?.origin ?? null,
+): string | null {
+  // 端末に保存した録画は、ページが作った blob: の URL で渡す (#2166)。ほかのオリジンの blob: は読まない。
+  if (origin !== null && origin !== 'null' && url.startsWith(`blob:${origin}/`)) {
+    return url;
+  }
   // 静的なデモ (#832) では、どの局もデモの映像を流すので、その URL も読む (#2157)。
   // 条件は import.meta.env.MODE を直に書き、通常のビルドでは定数の比較として消す。
   if (import.meta.env.MODE === 'demo') {

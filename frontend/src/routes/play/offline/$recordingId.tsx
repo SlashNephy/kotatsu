@@ -7,6 +7,7 @@ import { PageLoader, ProgramTitle } from '../../../futon';
 import { readableParams } from '../../../futon/readableId';
 import { setTimeZone } from '../../../futon/timeZone';
 import { openOfflineRecording, type OfflineFiles } from '../../../offline/store';
+import { streamFrom } from '../../../offline/streamFrom';
 import type { PlayerMedia } from '../../../yunomi/playerMedia';
 import { broadcastTime, recordingPosition } from '../../../yunomi/position';
 import { VodPlayer } from '../../../yunomi/VodPlayer';
@@ -160,6 +161,17 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
         recordingId: null,
         stop: () => void navigate({ to: '/offline' }),
         local: true,
+        // この端末でデコードする経路も選べる。シークしたときと再開するときは、保存したファイルを切り出して読み直す (#2166)。
+        decode: true,
+        streamFrom: async (seconds) => {
+          const { blob, at } = await streamFrom(
+            { video: files.video, recordedFrom: meta.recordedFrom, gaps: meta.gaps },
+            seconds,
+          );
+          const url = URL.createObjectURL(blob);
+
+          return { url, at, release: () => URL.revokeObjectURL(url) };
+        },
       }}
     >
       {({ media }) => <OfflineDuration media={media} onDuration={setDuration} />}

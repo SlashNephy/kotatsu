@@ -7,7 +7,7 @@ import type { PlayerMedia } from './playerMedia';
 import { canRetryImmediately, endedEarly, skipBrokenMedia } from './reconnect';
 import type { HandoverLoaded } from './TsPlayer';
 import { type HlsStream, useHlsStream } from './useHlsStream';
-import { type SeekableStream, useSeekableStream } from './useSeekableStream';
+import { type ResolvedStream, type SeekableStream, useSeekableStream } from './useSeekableStream';
 
 // 録画、タイムシフトのバッファ、ライブラリのファイルのように、位置を指定して読み直せる再生元の、位置とシークと
 // 読み直しをまとめる (#2244)。変換の経路は start=秒 を付けた配信 (設計書 7.2)、kyusu の経路は仮想 HLS (設計書 7.3) を流す。
@@ -27,6 +27,9 @@ export type VodTimelineOptions = {
   // handover は、tenban が止まる前の通知で、裏で読み込んでから切り替えるか (#1085)。既定は true。
   // 裏で読み込めないプレイヤー (この端末でデコードする経路) では false にし、すぐ読み直す。
   handover?: boolean;
+  // resolve は、変換の経路で読み直すときに、start=秒 を付けた配信の代わりに読む URL を決める。端末に保存した録画を、
+  // この端末でデコードする経路で、ファイルを切り出して読ませるのに使う (#2166)。
+  resolve?: (seconds: number) => Promise<ResolvedStream>;
   // initial は、最初に読み始める位置 (秒)。
   initial: number;
   // duration は、再生できる長さ (秒)。途中で切れたかを、読み込んだ範囲の終わりと比較して見分けるのに使う。
@@ -76,6 +79,7 @@ export function useVodTimeline({
   hls,
   native = false,
   handover: canHandover = true,
+  resolve,
   initial,
   duration,
   clampSeek = (seconds) => Math.min(Math.max(seconds, 0), duration),
@@ -85,7 +89,7 @@ export function useVodTimeline({
   const { t } = useTranslation();
   // seeksItself は、映像の要素が自分でシークする経路か。位置は映像の時刻をそのまま使い、読み直すときは読み始める位置を渡す。
   const seeksItself = hls || (convert && native);
-  const stream = useSeekableStream(streamUrl, media, initial, convert && !native);
+  const stream = useSeekableStream(streamUrl, media, initial, convert && !native, resolve);
   const hlsStream = useHlsStream(media, seeksItself, initial);
   const { position, positionRef, currentPosition } = seeksItself ? hlsStream : stream;
   const [error, setError] = useState<string | null>(null);

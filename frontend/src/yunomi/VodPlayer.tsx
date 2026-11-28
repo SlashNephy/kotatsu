@@ -70,6 +70,7 @@ import { usePlayerAudio } from './usePlayerAudio';
 import { usePlayerSettings } from './usePlayerSettings';
 import { useRecordedCaptions } from './useRecordedCaptions';
 import { isSurroundAudio, useVirtualSurround } from './useVirtualSurround';
+import type { ResolvedStream } from './useSeekableStream';
 import { useVodTimeline } from './useVodTimeline';
 import { WatchDescription, WatchHeading, WatchLayout, watchCommentsHeight } from './WatchLayout';
 import { WatchPanel } from './WatchPanel';
@@ -164,6 +165,9 @@ export type VodSource = {
   side?: ReactNode;
   // decode は、ブラウザの中でデコードする経路 (#1516) を、画質のメニューから選ばせるか (#2166)。
   decode?: boolean;
+  // streamFrom は、端末に保存した録画を、指定した位置から読ませる URL を返す。この端末でデコードする経路は、
+  // 映像の要素がシークできないので、ファイルを切り出して読み直す (#2166)。
+  streamFrom?: (seconds: number) => Promise<ResolvedStream>;
   // local は、端末に保存した録画か (設計書 7.8)。サーバーを読まず、プレイヤーの設定はその場限りにする。
   // 映像は、保存したファイルを Range で読むので、映像の要素が自分でシークする。
   local?: boolean;
@@ -271,7 +275,9 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
     mediaRef,
     convert: route.kind === 'convert' || decoding,
     hls,
-    native: local,
+    // 端末に保存した録画は、変換の経路では映像の要素が自分でシークし、この端末でデコードする経路では切り出して読み直す。
+    native: local && !decoding,
+    ...(local && decoding && source.streamFrom !== undefined ? { resolve: source.streamFrom } : {}),
     // この端末でデコードする経路は、裏で読み込んで切り替えられないので、配信が止まる前の通知でも、すぐ読み直す。
     handover: !decoding,
     initial: source.initial,

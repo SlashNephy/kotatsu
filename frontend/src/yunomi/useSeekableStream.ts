@@ -11,9 +11,12 @@ import type { HandoverLoaded } from './TsPlayer';
 import type { PlayerMedia } from './playerMedia';
 
 // SeekableStream は、位置を指定して読み直す TS の配信 (録画やタイムシフトのバッファ) の、再生位置の追い方 (設計書 7.2)。
+// ResolvedStream は、useSeekableStream の resolve が返す、読む URL と、その頭の位置 (秒)。release で URL を手放す。
+export type ResolvedStream = { url: string; at: number; release: () => void };
+
 export type SeekableStream = {
-  // url は、今の読み込みの URL。読み直すたびに、fragment を変える。
-  url: string;
+  // url は、今の読み込みの URL。読み直すたびに、fragment を変える。resolve で決める間は null。
+  url: string | null;
   // position は、再生位置 (起点からの秒)。timeupdate で更新する。
   position: number;
   // positionRef は、描画を待たずに読む再生位置。
@@ -44,11 +47,14 @@ const positionEpsilon = 0.001;
 // ブラウザの中で変換した映像の時刻は 0 から始まるとは限らず、途切れた区間で飛ぶので、最初のフレームの時刻を基準にし、飛んだ分は数えない。
 // 配信は求めた位置の手前の I フレームから流れるので、求めた位置以上のコマが映るまでは、位置を動かさない (#1512)。
 // enabled が false の間は、HEAD を送らず、位置も動かさない。
+// resolve を渡したら、start=秒 を付けた配信と HEAD の代わりに、resolve が返す URL を読み、返す位置から数える。
+// 端末に保存した録画は、ファイルを切り出して、指定した位置から読ませる (#2166)。
 export function useSeekableStream(
   streamUrl: string,
   media: PlayerMedia | null,
   initial: number,
   enabled = true,
+  resolve?: (seconds: number) => Promise<ResolvedStream>,
 ): SeekableStream {
   // offset は、今の読み込みを始めた位置。loads は、読み込みを始め直した回数で、同じ位置へ読み直したときも URL を変える。
   const [offset, setOffset] = useState(initial);
@@ -61,8 +67,40 @@ export function useSeekableStream(
   const startedAt = settled && streamStart.at !== null ? streamStart.at : offset;
   const separator = streamUrl.includes('?') ? '&' : '?';
   const start = `${streamUrl}${separator}start=${offset.toFixed(1)}`;
+  // resolved は、resolve が返した、今の読み込みの URL。
+  const [resolved, setResolved] = useState<{ key: string; url: string } | null>(null);
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || resolve === undefined) {
+      return;
+    }
+    let active = true;
+    let release: (() => void) | null = null;
+    resolve(offset).then(
+      (stream) => {
+        if (!active) {
+          stream.release();
+
+          return;
+        }
+        release = stream.release;
+        setResolved({ key: streamKey, url: stream.url });
+        setStreamStart({ key: streamKey, at: stream.at });
+      },
+      () => {
+        if (active) {
+          setStreamStart({ key: streamKey, at: null });
+        }
+      },
+    );
+
+    return () => {
+      active = false;
+      release?.();
+    };
+    // resolve は、再生元が描くたびに作り直すが、読み込みを始め直したときだけ呼ぶ。
+  }, [enabled, offset, streamKey]);
+  useEffect(() => {
+    if (!enabled || resolve !== undefined) {
       return;
     }
     const controller = new AbortController();
@@ -162,7 +200,12 @@ export function useSeekableStream(
   }, [startedAt, streamKey, settled, media, enabled]);
 
   return {
-    url: `${start}#${loads}`,
+    url:
+      resolve === undefined
+        ? `${start}#${loads}`
+        : resolved?.key === streamKey
+          ? `${resolved.url}#${loads}`
+          : null,
     position,
     positionRef,
     restartAt: (seconds, handover = false) => {
