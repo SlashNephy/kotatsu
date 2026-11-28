@@ -26,7 +26,7 @@ export type StreamFrom = { blob: Blob; at: number };
 
 // firstPCR は、offset から先で最初に見つかった PCR の、パケットの位置と時刻 (秒) と PID を返す。見つからなければ null。
 // pid を渡したら、その PID の PCR だけを探す。複数のサービスの入った TS では、サービスごとに PCR の PID が違う。
-// 伝送エラーの印 (transport_error_indicator) の付いたパケットは、中が壊れているので読まない。
+// 伝送エラーのフラグ (transport_error_indicator) が立ったパケットは、壊れているので読まない。
 export async function firstPCR(
   video: Blob,
   offset: number,

@@ -52,7 +52,7 @@ describe('firstPCR', () => {
     expect(found?.offset ?? null).toBe(want);
   });
 
-  test('伝送エラーの印の付いたパケットの PCR は読まない', async () => {
+  test('伝送エラーのフラグが立ったパケットの PCR は読まない', async () => {
     const video = tsWithPCR(100, (i) => 100 + i * 0.01);
     const bytes = new Uint8Array(await video.arrayBuffer());
     bytes[188 * 10 + 1] = (bytes[188 * 10 + 1] ?? 0) | 0x80;
