@@ -214,6 +214,7 @@ const playQuery = graphql`
         name
         codec
         passthrough
+        videoBitrate
       }
     }
   }
@@ -468,7 +469,8 @@ function Player({
         // 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する (設計書 7.1)。
         transcoding,
         videoFormat: toVideoFormat(file.videoFormat),
-        inheritCap: true,
+        // 終わりが伸びないので、デコードが追いつかずにほかの画面で下げた段階の上限は引き継がない (#1513)。録画を終えた録画と同じ。
+        inheritCap: false,
         streamUrl: file.streamUrl,
         // kyusu は、インデックスの I フレームが 1 つもない間は、プレイリストを作れずに 503 を返す。インデックスができ始めるまで読まない。
         hlsUrl: indexing && file.index.durationSeconds == null ? null : file.hlsUrl,

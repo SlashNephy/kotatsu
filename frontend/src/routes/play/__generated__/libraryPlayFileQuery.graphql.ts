@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<ea9a718a3edf96504ba9e4eb5ef32cfc>>
+ * @generated SignedSource<<af25e38614773996e229fa1bc0834501>>
  * @lightSyntaxTransform
  */
 
@@ -97,6 +97,7 @@ export type libraryPlayFileQuery$data = {
       readonly codec: VideoCodec;
       readonly name: string;
       readonly passthrough: boolean;
+      readonly videoBitrate: number;
     }>;
   };
   readonly viewer: {
@@ -582,6 +583,13 @@ v31 = {
           "kind": "ScalarField",
           "name": "passthrough",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "videoBitrate",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -755,16 +763,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "6c95dd9df55aab4b2f0177e0894bcb4f",
+    "cacheID": "9cfae578fa275f23109eafabbbc94b87",
     "id": null,
     "metadata": {},
     "name": "libraryPlayFileQuery",
     "operationKind": "query",
-    "text": "query libraryPlayFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    fileId\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n      kind\n    }\n    jikkyoCommentsUrl\n    thumbnailUrl\n    previewUrl\n    cmSections {\n      startSeconds\n      endSeconds\n    }\n    autoCaptions {\n      startSeconds\n      endSeconds\n      text\n    }\n    autoCaptionsStatus {\n      state\n      generatedAt\n      model\n      count\n      progress {\n        ratio\n        remainingSeconds\n      }\n    }\n    broadcast {\n      serviceName\n      jikkyoChannelId\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      program {\n        name\n        description\n        extended {\n          heading\n          text\n        }\n        startAt\n        endAt\n      }\n    }\n    audios {\n      componentType\n      languages\n      samplingRate\n    }\n    quality {\n      drops\n      errors\n      scrambled\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  viewer {\n    role\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query libraryPlayFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    fileId\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n      kind\n    }\n    jikkyoCommentsUrl\n    thumbnailUrl\n    previewUrl\n    cmSections {\n      startSeconds\n      endSeconds\n    }\n    autoCaptions {\n      startSeconds\n      endSeconds\n      text\n    }\n    autoCaptionsStatus {\n      state\n      generatedAt\n      model\n      count\n      progress {\n        ratio\n        remainingSeconds\n      }\n    }\n    broadcast {\n      serviceName\n      jikkyoChannelId\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      program {\n        name\n        description\n        extended {\n          heading\n          text\n        }\n        startAt\n        endAt\n      }\n    }\n    audios {\n      componentType\n      languages\n      samplingRate\n    }\n    quality {\n      drops\n      errors\n      scrambled\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  viewer {\n    role\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n      videoBitrate\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "1b2224f45adbc14d83a85e116c18052e";
+(node as any).hash = "6d3180335d2a592e68c4474593962cb3";
 
 export default node;
