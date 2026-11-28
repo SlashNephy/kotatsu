@@ -55,7 +55,7 @@ import {
   recordingsThatTookTuner,
   skipBrokenMedia,
 } from './reconnect';
-import { dataBroadcastSource, hlsURL, toVideoFormat } from './route';
+import { dataBroadcastSource, hlsURL, toVideoFormat, type Transcoding } from './route';
 import { useLiveScrambled } from './useLiveScrambled';
 import { usePlayerEvent, type PlayerSnapshot } from './playerState';
 import { useLiveCatchUp, useLowLatency } from './liveCatchUp';
@@ -68,12 +68,11 @@ import { usePlayerSettings } from './usePlayerSettings';
 import { ExternalStreamURL } from '../streams/ExternalStreamURL';
 import { runCommand, type PlayerCommands } from './commands';
 import { useCapture } from './PlayerTools';
-import { StreamInfo, useStreamMeter } from './StreamInfo';
+import { StreamInfo, type StreamAudio, useStreamMeter } from './StreamInfo';
 import { useBroadcastClock } from './useBroadcastClock';
 import { browserStorage } from './volume';
 import { usePlaybackReporter } from '../animeRecords/usePlaybackReporter';
 import { useLiveLag } from './useLiveLag';
-import type { ServiceIdLiveQuery } from '../routes/play/live/__generated__/ServiceIdLiveQuery.graphql';
 import { ProgramOverlay } from './ProgramOverlay';
 import { useProgramOsd } from './programOsd';
 import { neighborServices } from './channels';
@@ -99,11 +98,69 @@ import { useDataBroadcastFeature } from './useDataBroadcastFeature';
 // LiveTunerRecording は、視聴が切れたときに、チューナーを使っていた理由とみなす録画中の録画。
 export type LiveTunerRecording = { name: string; recordedFrom: string; serviceName: string };
 
+// LiveService は、視聴するサービスと、そのタイムシフトのバッファ (設計書 5.7)。
+export type LiveService = {
+  readonly __typename: 'Service';
+  readonly name: string;
+  readonly logoUrl: string | null | undefined;
+  readonly streamUrl: string;
+  readonly videoFormat: string;
+  readonly jikkyoChannelId: string | null | undefined;
+  readonly jikkyo: { readonly id: string; readonly name: string } | null | undefined;
+  // timeshiftPrograms は、タイムシフトのバッファにある番組。メニューから一覧を開けるかを決める。
+  readonly timeshiftPrograms: readonly { readonly startAt: string }[];
+  // timeshiftBuffer は、バッファの範囲と配信。ライブ視聴から過去へシークするのに使う。
+  readonly timeshiftBuffer:
+    | {
+        readonly from: string;
+        readonly gaps: readonly { readonly from: string; readonly to: string }[];
+        readonly streamUrl: string;
+        readonly hlsUrl: string;
+      }
+    | null
+    | undefined;
+};
+
+// LiveProgram は、放送中と、その次の番組。
+export type LiveProgram = {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly extended: readonly { readonly heading: string; readonly text: string }[];
+  readonly startAt: string;
+  readonly endAt: string;
+  readonly endUndecided: boolean;
+  readonly audios: readonly StreamAudio[];
+};
+
+// LiveData は、ライブ視聴に要る、サービスと番組と設定。
+export type LiveData = {
+  // node は、視聴するサービス。サービスでなければ、視聴できないことを示す。
+  readonly node: LiveService | { readonly __typename: '%other' } | null | undefined;
+  readonly guide: readonly { readonly programs: readonly LiveProgram[] }[];
+  readonly transcoding: Transcoding;
+  readonly systemSettings: {
+    // dataBroadcastIpEnabled は、データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。
+    readonly dataBroadcastIpEnabled: boolean;
+    // externalPlayerUrlsEnabled は、外部プレイヤー用の URL を発行できるか (#1755)。
+    readonly externalPlayerUrlsEnabled: boolean;
+    // timeshiftWhileWatching は、視聴している間だけタイムシフトで録るか (#1408)。
+    readonly timeshiftWhileWatching: boolean;
+  };
+  // services は、番組表と同じ並びのサービス。前と次の局と、データ放送の選局で移る先を探す (#493、#440)。
+  readonly services: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly networkId: number;
+    readonly serviceId: number;
+    readonly channelType: { readonly type: string };
+  }[];
+};
+
 // LiveSource は、ライブ視聴の再生元。
 export type LiveSource = {
   serviceId: string;
-  // data は、サービスと、放送中の番組と、変換の設定と、番組表と同じ並びのサービス。
-  data: ServiceIdLiveQuery['response'];
+  data: LiveData;
   // range は、番組を読んだ時間帯。
   range: { now: number; from: string; to: string };
   // onProgramEnd は、番組が終わったときに、次の番組を読み直す。
