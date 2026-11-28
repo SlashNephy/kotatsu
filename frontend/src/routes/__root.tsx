@@ -290,7 +290,9 @@ function NavAnchors({
       component={Link}
       to={item.to}
       className={classes.navLink}
-      data-watching={'watch' in item && pathname.startsWith(item.watch) ? true : undefined}
+      {...('watch' in item && pathname.startsWith(item.watch)
+        ? { 'data-watching': true, 'aria-current': 'page' as const }
+        : {})}
       size={size}
       onClick={onClick}
     >

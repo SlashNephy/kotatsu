@@ -13,7 +13,7 @@ const service = 'Service:1024';
 const meta = {
   title: 'ページ/ライブ/視聴',
   component: PageStory,
-  args: { url: `/live/${service}` },
+  args: { url: `/play/live/${service}` },
   parameters: { layout: 'fullscreen' },
   // 音を出さない。
   beforeEach: () =>
