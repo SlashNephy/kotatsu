@@ -1074,10 +1074,13 @@ function onVsync(time: number): void {
     (choice.picture.slot.film ? ((current.telecine.duration ?? 3003) * 5) / 4 : hold);
   const request = requestOf(engine, choice.picture, choice.parity);
   request.previous = engine.queue.previous?.slot.top.slot ?? null;
-  if (!interpolate(engine, choice.picture, request, target)) {
+  const interpolated = interpolate(engine, choice.picture, request, target);
+  if (interpolated === 'fallback') {
     draw(engine, choice.picture.slot, request);
   }
-  presented += 1;
+  if (interpolated !== 'skipped') {
+    presented += 1;
+  }
   if (!current.presented) {
     current.presented = true;
     post({ type: 'presented', load: current.load });
@@ -1108,14 +1111,15 @@ function requestOf(target: Engine, picture: QueuedPicture<Shown>, parity: 0 | 1)
 }
 
 // interpolate は、補間を入れていて、映すコマと次のコマがどちらもインタレースでなく (24p か 29.97p)、間が空きすぎていなければ、
-// 映す時刻 target のコマを、2 コマの間から作って描く。描いたら true を返す。補間したコマを出す回数の上限で描かない書き換えは、
-// 前に描いたコマを残し、true を返す。インタレースのコマは、フィールドごとに映すので補間しない (変換の経路と同じ)。
+// 映す時刻 target のコマを、2 コマの間から作って描き、drawn を返す。補間したコマを出す回数の上限で描かない書き換えは、
+// 前に描いたコマを残し、skipped を返す。補間しないときは fallback を返し、呼ぶ側がコマをそのまま描く。
+// インタレースのコマは、フィールドごとに映すので補間しない (変換の経路と同じ)。
 function interpolate(
   target: Engine,
   picture: QueuedPicture<Shown>,
   request: DrawRequest,
   pts: number,
-): boolean {
+): 'drawn' | 'skipped' | 'fallback' {
   const next = target.queue.following;
   const duration = loading?.telecine.duration ?? null;
   if (
@@ -1129,19 +1133,23 @@ function interpolate(
   ) {
     drawPacer.reset();
 
-    return false;
+    return 'fallback';
   }
   const t = (pts - picture.pts) / (next.pts - picture.pts);
   if (t <= 0) {
-    return false;
+    return 'fallback';
   }
   const now = performance.now();
   if (
     lastDrawn !== null &&
     !drawPacer.shouldDraw(now, display.maxRate, pacer.interval ?? 1_000 / 60)
   ) {
-    return true;
+    // 描かなくても、映しているコマとして覚え直す。前に描いたコマは、待ち行列が先に進むと返すので、描き直すのに使えない。
+    remember(target, picture.slot, request);
+
+    return 'skipped';
   }
+  const hdr = target.upscaler.hdr();
   const drawn = target.renderer.drawBetween(
     request,
     requestOf(target, next, 0),
@@ -1150,11 +1158,13 @@ function interpolate(
       console.warn('frame interpolation is unavailable; showing the pictures as they are', error);
     },
   );
-  if (drawn) {
-    remember(target, picture.slot, request);
+  if (!drawn) {
+    return 'fallback';
   }
+  settleHDR(target, hdr);
+  remember(target, picture.slot, request);
 
-  return drawn;
+  return 'drawn';
 }
 
 // draw は、コマを描き、描き直せるよう保持する。残していたコマと別のコマを描いたら、残していたコマを返す。
@@ -1163,7 +1173,14 @@ function interpolate(
 function draw(target: Engine, shown: Shown, request: DrawRequest): void {
   const hdr = target.upscaler.hdr();
   target.renderer.draw(request);
-  if (hdrFailed || hdr !== target.upscaler.hdr()) {
+  settleHDR(target, hdr);
+  remember(target, shown, request);
+}
+
+// settleHDR は、描いて擬似 HDR の状態が変わったら (切った後で SDR に戻して描いた、擬似 HDR で描けなかった)、描く大きさを決め直す。
+// 擬似 HDR のために upscaler を通していた分を、通さずに描けるようにする。before は、描く前の upscaler.hdr()。
+function settleHDR(target: Engine, before: boolean): void {
+  if (hdrFailed || before !== target.upscaler.hdr()) {
     hdrFailed = false;
     target.renderer.setScaler(
       usesUpscaler(target) ? target.upscaler : null,
@@ -1171,7 +1188,6 @@ function draw(target: Engine, shown: Shown, request: DrawRequest): void {
       display.superResolution,
     );
   }
-  remember(target, shown, request);
 }
 
 // remember は、描いたコマを、描き直せるよう保持する。残していたコマと別のコマを描いたら、残していたコマを返す。

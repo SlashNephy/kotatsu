@@ -449,9 +449,13 @@ export class PictureRenderer {
 
       return true;
     } catch (error) {
+      // 以後は補間しないので、前後のコマを描くテクスチャも消す。
       this.interpolationBroken = true;
       this.dropPair();
       try {
+        for (const target of this.spare.splice(0)) {
+          this.deleteTarget(target);
+        }
         this.interpolator?.destroy();
       } catch {
         // コンテキストを失っていれば、片付けられなくてもよい。
@@ -490,15 +494,24 @@ export class PictureRenderer {
       this.spare.push(...(reuse ? [current.from] : [current.from, current.to]));
       this.pair = null;
     }
-    const from = reuse ? current.to : this.takeSpare(width, height);
-    if (!reuse) {
-      this.drawPicture({ ...previous, previous: null }, from.framebuffer, width, height);
+    // 途中で投げても、取ったテクスチャを spare に戻し、消せるようにする。
+    const taken: Target[] = [];
+    try {
+      const from = reuse ? current.to : this.takeSpare(width, height);
+      taken.push(from);
+      if (!reuse) {
+        this.drawPicture({ ...previous, previous: null }, from.framebuffer, width, height);
+      }
+      const to = this.takeSpare(width, height);
+      taken.push(to);
+      this.drawPicture({ ...next, previous: null }, to.framebuffer, width, height);
+      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+      this.interpolator!.estimate(from.texture, to.texture, width, height);
+      this.pair = { previous, next, from, to };
+    } catch (error) {
+      this.spare.push(...taken);
+      throw error;
     }
-    const to = this.takeSpare(width, height);
-    this.drawPicture({ ...next, previous: null }, to.framebuffer, width, height);
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
-    this.interpolator!.estimate(from.texture, to.texture, width, height);
-    this.pair = { previous, next, from, to };
   }
 
   // takeSpare は、width × height の、前後のコマを描くテクスチャを返す。大きさの違うものは消す。
