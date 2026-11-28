@@ -781,8 +781,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;
   }
-  // resumeAfterCut は、配信が切れたら、通知を出さずに今の位置から読み直す (#1083)。tenban の入れ替えや回線の瞬断なら、これで戻る。
-  // 続けて切れるなら、読み直しを繰り返さずに、エラーを出して利用者に任せる。
   const shown = seeking ?? position;
   // gapMarks は、録画が途切れた位置のマーク (#479)。途切れた区間はシークバーの長さに含めないので (#754)、長さのないマークにし、
   // カーソルを乗せたら、途切れていた長さを出す。
