@@ -62,6 +62,10 @@ export const createUploader = (mode) => {
     flush() {
       gl.flush();
     },
+    // error は gl.getError() を返す。texSubImage2D は失敗しても例外を投げないので、計測の終わりに確認する。
+    error() {
+      return gl.getError();
+    },
     destroy() {
       for (const plane of planes ?? []) gl.deleteTexture(plane.texture);
       gl.getExtension('WEBGL_lose_context')?.loseContext();

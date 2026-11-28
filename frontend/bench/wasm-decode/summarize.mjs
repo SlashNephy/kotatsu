@@ -27,6 +27,7 @@ for (const row of rows) {
     row.kind === 'decode'
       ? {
           fps: row.fps,
+          videoFps: row.videoFps,
           avgMs: row.avgMs,
           p50: row.p50,
           p95: row.p95,

@@ -157,17 +157,23 @@ const runSplit = async () => {
   log.value += `${JSON.stringify({ kind: 'env', userAgent: navigator.userAgent, crossOriginIsolated: self.crossOriginIsolated ?? null, hardwareConcurrency: navigator.hardwareConcurrency ?? null })}\n`;
   const total = splitFiles.length * splitModes.length * 2;
   let done = 0;
+  // failed は、失敗した回と、WebGL のエラーが残った回の数。
+  let failed = 0;
   try {
     for (let round = 0; round < 2; round++) {
       for (const file of splitFiles) {
         for (const upload of splitModes) {
           status.textContent = `計測中 ${done + 1} / ${total}（${file}、${upload}）`;
-          await runDecode(file, 'product', false, { upload, maxFrames: 300 });
+          const result = await runDecode(file, 'product', false, { upload, maxFrames: 300 });
+          if (!result.ok || (result.glError ?? 0) !== 0) failed++;
           done++;
         }
       }
     }
-    status.textContent = `終わりました（${total} 回）。結果をコピーしてください。`;
+    status.textContent =
+      failed === 0
+        ? `終わりました（${total} 回）。結果をコピーしてください。`
+        : `終わりました（${total} 回のうち ${failed} 回は失敗か WebGL のエラー）。結果をコピーしてください。`;
   } catch (error) {
     status.textContent = `失敗しました: ${String(error)}`;
   } finally {

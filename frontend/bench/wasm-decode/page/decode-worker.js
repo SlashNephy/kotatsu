@@ -57,7 +57,8 @@ onmessage = async ({
     };
     const uploader = upload === 'none' ? null : createUploader(upload);
     const times = [];
-    // uploadTimes と flushTimes は、PES ごとのアップロードと gl.flush の時間。times から差し引けば、デコードの時間になる。
+    // uploadTimes は PES ごとのアップロードの時間で、times に含まれる。times から差し引けば、デコードの時間になる。
+    // flushTimes は PES ごとの gl.flush の時間で、times の外で計測する。
     const uploadTimes = [];
     const flushTimes = [];
     let uploadMs = 0;
@@ -142,15 +143,19 @@ onmessage = async ({
             0.95,
           ),
           gl: uploader.info,
+          // glError は、計測の終わりの gl.getError()。0 でなければ、アップロードが失敗して速く見えているおそれがある。
+          glError: uploader.error(),
         }
       : { upload };
     uploader?.destroy();
 
+    // 映像を打ち切ったときは、音のデコードを省く。全体の音を数えると、打ち切った映像と釣り合わず、fps がずれる。
+    const truncated = Number.isFinite(maxFrames);
     const aStart = performance.now();
     let samples = 0;
     let audioErrors = 0;
     // ADTS の区切りは JS で付け、ヘッダの解釈はデコーダに任せる
-    for (const pes of audio) {
+    for (const pes of truncated ? [] : audio) {
       const d = pes.data;
       for (let o = 0; o + 7 <= d.length;) {
         if (d[o] !== 0xff || (d[o + 1] & 0xf0) !== 0xf0) {
@@ -184,8 +189,9 @@ onmessage = async ({
       firstFrameMs,
       videoMs,
       audioMs,
-      // TS → PES と音のデコードまで含めた速さ。変換の方式も TS の読み解きと音を含むので、比較するのはこちら
-      fps: frames / (totalMs / 1000),
+      // TS → PES と音のデコードまで含めた速さ。変換の方式も TS の読み解きと音を含むので、比較するのはこちら。
+      // 映像を打ち切ったときは、TS → PES を全体で数えていて釣り合わないので出さない (null)。
+      fps: truncated ? null : frames / (totalMs / 1000),
       videoFps: frames / (videoMs / 1000),
       avgMs: times.reduce((a, b) => a + b, 0) / times.length,
       measuredPes: times.length,
@@ -201,6 +207,13 @@ onmessage = async ({
       sums,
     });
   } catch (error) {
-    postMessage({ ok: false, kind: 'decode', file, variant, error: String(error?.stack ?? error) });
+    postMessage({
+      ok: false,
+      kind: 'decode',
+      file,
+      variant,
+      upload,
+      error: String(error?.stack ?? error),
+    });
   }
 };

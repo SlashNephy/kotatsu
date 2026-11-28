@@ -73,7 +73,7 @@ node frontend/bench/wasm-decode/summarize.mjs results.jsonl
 WASM は組み方の名前 `product` で製品のもの（`vendor/ffmpeg/decoder` と `public/ffmpeg/decoder.wasm`）を使うので、組まなくても計測できます。
 
 ページの「切り分けを計測する」を押すと、`mandel_1440.ts` と `testsrc2_1440.ts` で、アップロードなしと次の 3 通りの上げ方を、交互に 2 回ずつ計測します。
-1 回は 300 コマで打ち切ります。
+1 回は 300 コマで打ち切ります。打ち切った回は音をデコードせず、`fps` は出しません（`null`）。映像だけの速さは `videoFps` で見ます。
 
 | 上げ方     | 渡すもの                                     |
 | ---------- | -------------------------------------------- |
