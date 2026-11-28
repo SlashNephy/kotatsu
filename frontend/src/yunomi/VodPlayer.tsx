@@ -390,7 +390,9 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
   // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の音声を変えるときも、それまでの位置から続ける。
   const audio = usePlayerAudio(route, source.audios, () => restartAt(positionRef.current));
   // 再生速度は、video の要素を作り直したときにも当て直す。早回し (#1572) の間は、選んだ速さより速く再生する。
-  const [rate, setRate] = useState(1);
+  const [chosenRate, setRate] = useState(1);
+  // この端末でデコードする経路は等速だけなので、選んだ速さは、ほかの経路へ移ったときのために残しておく。
+  const rate = decoding ? 1 : chosenRate;
   const fastForward = useFastForward(rate, { growing: source.growing, position, duration });
   useEffect(() => {
     if (media !== null) {
@@ -576,7 +578,7 @@ function VodPlayerBody({ source, children, settings }: VodPlayerProps & { settin
               value={captionTrack}
               onChange={setCaptionTrack}
             />
-            {!decoding && <RateSelect value={rate} onChange={setRate} />}
+            {!decoding && <RateSelect value={chosenRate} onChange={setRate} />}
             <CropSelect value={shell.crop} onChange={shell.setCrop} />
             <NormalizeVolumeToggle />
             <AudioDelaySetting />
