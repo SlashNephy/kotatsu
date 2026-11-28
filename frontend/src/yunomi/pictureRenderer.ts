@@ -251,22 +251,23 @@ export class PictureRenderer {
     return this.layout() || this.output !== null;
   }
 
-  // hasScaler は、拡大か擬似 HDR で描く処理を持っているか。
-  hasScaler(): boolean {
-    return this.scaler !== null;
-  }
-
   // layout は、拡大して描く大きさを拡大の処理に決めさせ、canvas をその大きさ (拡大しなければ映す大きさ) にする。
   // 拡大しないなら、拡大する前のコマを描く先を片付ける。canvas の大きさか拡大して描く大きさを変えたら true を返す。
   private layout(): boolean {
     const { picture, frame, scaler, box, gl } = this;
     const before = this.output;
-    const source = this.upscale ? frame : picture;
-    this.source = source;
-    const size =
-      scaler === null || box === null || picture.width <= 0 || source.width <= 0
+    let source = this.upscale ? frame : picture;
+    let size =
+      scaler === null || picture.width <= 0 || source.width <= 0 || (this.upscale && box === null)
         ? null
-        : scaler.size(gl, source.width, source.height, box.width, box.height);
+        : scaler.size(gl, source.width, source.height, box?.width ?? 0, box?.height ?? 0);
+    // 拡大しないが擬似 HDR で描くとき、scaler はコマの大きさをそのまま返す (拡大する大きさは、元の大きさより必ず大きい)。
+    // 元の大きさのまま映像の比率に広げると、拡大の処理を通ってしまうので、映す大きさのコマをそのままコピーさせる。
+    if (size !== null && size.width === source.width && size.height === source.height) {
+      source = picture;
+      size = picture;
+    }
+    this.source = source;
     this.output = size === null ? null : keepAspect(size, picture, maxDimension(gl));
     if (this.output === null) {
       this.releaseTarget();

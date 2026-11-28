@@ -148,6 +148,8 @@ let display: DecodeDisplay = {
 // lastDrawn は、最後に描いたコマ。拡大の設定や大きさを変えて canvas が消えたときに、止めていても描き直すのに使う。
 // 待ち行列は、映しているコマを次のコマに替えるまで残すので、slot はそれまで使える。
 let lastDrawn: DrawRequest | null = null;
+// hdrFailed は、擬似 HDR で描けなかったと upscaler が知らせたこと。描いた後に、描く大きさを決め直す。
+let hdrFailed = false;
 // retained は、待ち行列を空にしても (録画を止めると、読み込みも止める)、描き直すために残した lastDrawn の slot。
 // 別のコマを描いたら、renderer に返す。
 let retained: PictureSlot | null = null;
@@ -259,6 +261,7 @@ async function start(canvas: OffscreenCanvas, wasmUrl: string): Promise<void> {
         },
         onHDRUnavailable: (error) => {
           console.warn('HDR output is unavailable; showing the pictures in SDR', error);
+          hdrFailed = true;
         },
         onAnime4KUnavailable: (error) => {
           console.warn('Anime4K is unavailable; upscaling with FSR only', error);
@@ -897,11 +900,18 @@ function present(current: Loading, pts: number): void {
 }
 
 // draw は、コマを描き、描き直せるよう保持する。残していたコマと別のコマを描いたら、残していたコマを返す。
-// 擬似 HDR を切った後、描画先を SDR に戻して描いたら、upscaler を外す。
+// 描いて擬似 HDR の状態が変わったら (切った後で SDR に戻して描いた、擬似 HDR で描けなかった)、描く大きさを決め直す。
+// 擬似 HDR のために upscaler を通していた分を、通さずに描けるようにする。
 function draw(target: Engine, request: DrawRequest): void {
+  const hdr = target.upscaler.hdr();
   target.renderer.draw(request);
-  if (!usesUpscaler(target) && target.renderer.hasScaler()) {
-    target.renderer.setScaler(null, display.box, false);
+  if (hdrFailed || hdr !== target.upscaler.hdr()) {
+    hdrFailed = false;
+    target.renderer.setScaler(
+      usesUpscaler(target) ? target.upscaler : null,
+      display.box,
+      display.superResolution,
+    );
   }
   lastDrawn = request;
   if (retained !== null && retained !== request.slot) {
