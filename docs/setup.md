@@ -567,7 +567,7 @@ LANの中で`http://192.168.x.x:8080/`のように開くと、パスキーでの
 パスワードとTOTPでのログインは、HTTPでも使えます。
 これらの機能を使うときは、リバースプロキシやIngressでHTTPSを終端してください。
 
-Safari 27以降（Mac、iPad、iPhone）は、HTTPで開いたページでは、JavaScriptとWebAssemblyをJITなしで動かします（[WebKitのBug 324968](https://bugs.webkit.org/show_bug.cgi?id=324968)）。
+Safari 27以降（Mac、iPad、iPhone）は、Secure Contextでない（HTTPで開いた）ページでは、JavaScriptとWebAssemblyをJITなしで動かします（[WebKitのBug 324968](https://bugs.webkit.org/show_bug.cgi?id=324968)）。
 ブラウザの中でデコードする経路（画質の「オリジナル（この端末でデコード）」）では、映像が追いつきません。
 ブラウザの中で変換する経路も重くなる見込みです。
 SafariでKotatsuを開くときは、HTTPSを使ってください。
